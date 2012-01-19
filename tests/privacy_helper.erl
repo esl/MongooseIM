@@ -1,107 +1,130 @@
 -module(privacy_helper).
 
--include_lib("escalus/deps/exmpp/include/exmpp.hrl").
+-include_lib("exml/include/exml.hrl").
 -include_lib("escalus/include/escalus.hrl").
+-include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("common_test/include/ct.hrl").
 
--export([config_list/2,
-         set_and_activate/2,
+-import(escalus_compat, [bin/1]).
+
+-export([set_and_activate/2,
          set_list/2,
+         send_set_list/2,
          activate_list/2,
          set_default_list/2,
-         privacy_list/2,
-         privacy_list_item/1,
+         privacy_list/1,
          is_privacy_list_push/1,
-         is_presence_error/1,
-         verify_result/1,
-         verify_push/1,
-         verify_presence_error/1]).
-
-config_list(Name, Config) ->
-    {Name, ?config(Name, Config)}.
+         is_presence_error/1]).
 
 %% Sets the list on server and makes it the active one.
-set_and_activate(Client, {ListName, PrivacyList}) ->
-    set_list(Client, {ListName, PrivacyList}),
-    activate_list(Client, {ListName, PrivacyList}).
+set_and_activate(Client, ListName) ->
+    set_list(Client, ListName),
+    activate_list(Client, ListName).
+
+send_set_list(Client, ListName) ->
+    Stanza = escalus_stanza:privacy_set_list(privacy_list(ListName)),
+    escalus:send(Client, Stanza).
 
 %% Sets the list on server.
-set_list(Client, {_ListName, PrivacyList}) ->
-    %% set list
-    escalus_client:send(Client,
-        escalus_stanza:privacy_set_one(Client, PrivacyList)),
-    %% skip responses
-    _ClientResponses = escalus_client:wait_for_stanzas(Client, 2).
+set_list(Client, ListName) ->
+    send_set_list(Client, ListName),
+    Responses = escalus:wait_for_stanzas(Client, 2),
+    escalus:assert_many([is_iq_result, is_privacy_set], Responses).
 
 %% Make the list the active one.
-activate_list(Client, {ListName, _PrivacyList}) ->
-    %% activate it
-    escalus_client:send(Client,
-        escalus_stanza:privacy_activate(Client, ListName)),
-    true = exmpp_iq:is_result(escalus_client:wait_for_stanza(Client)).
+activate_list(Client, ListName) ->
+    escalus:send(Client, escalus_stanza:privacy_activate(ListName)),
+    escalus:assert(is_iq_result, escalus:wait_for_stanza(Client)).
 
 %% Make the list the default one.
-set_default_list(Client, {ListName, _PrivacyList}) ->
-    escalus_client:send(Client,
-        escalus_stanza:privacy_default(Client, ListName)),
-    true = exmpp_iq:is_result(escalus_client:wait_for_stanza(Client)).
-
-%% Create empty list element with given name.
-privacy_list(Name, Items) ->
-    exmpp_xml:append_children(
-        exmpp_xml:set_attribute(
-            exmpp_xml:remove_attribute(
-                exmpp_xml:element('list'),
-                <<"xmlns">>),
-            {<<"name">>, Name}),
-        Items).
-
-%% Create a privacy list item element, wrapping up arguments as attributes.
-privacy_list_item(ItemDescription) ->
-    Attrs = case ItemDescription of
-        {Action, Order, Contents} ->
-            [{<<"action">>, Action}, {<<"order">>, Order}];
-        {Type, Value, Action, Order, Contents} ->
-            [{<<"type">>, Type}, {<<"value">>, Value}, {<<"action">>, Action}, 
-             {<<"order">>, Order}]
-    end,
-    ContentElements = [ exmpp_xml:element(Content) || Content <- Contents ],
-    exmpp_xml:append_children(
-        exmpp_xml:set_attributes(exmpp_xml:element('item'), Attrs),
-        ContentElements).
+set_default_list(Client, ListName) ->
+    escalus:send(Client, escalus_stanza:privacy_set_default(ListName)),
+    escalus:assert(is_iq_result, escalus:wait_for_stanza(Client)).
 
 %% Is this iq a notification about a privacy list being changed?
 is_privacy_list_push(Iq) ->
-    escalus_assert:is_iq('set', Iq),
-    Query = exmpp_xml:get_element(Iq, ?NS_PRIVACY, 'query'),
-    true = exmpp_xml:has_element(Query, 'list'),
-    true.
+    escalus_pred:is_iq(<<"set">>, ?NS_PRIVACY, Iq)
+    andalso
+    undefined /= exml_query:path(Iq, [{element, <<"query">>},
+                                      {element, <<"list">>}]).
 
 is_presence_error(Stanza) ->
-    true = exmpp_presence:is_presence(Stanza),
-    error = exmpp_presence:get_type(Stanza),
-    <<"modify">> = exmpp_stanza:get_error_type(Stanza),
-    'not-acceptable' = exmpp_stanza:get_condition(Stanza),
-    true.
+    escalus_pred:is_presence(Stanza)
+    andalso
+    escalus_pred:is_error(<<"modify">>, <<"not-acceptable">>, Stanza).
 
-verify_result(Stanza) ->
-    try escalus_assert:is_iq('result', Stanza) of
-        _ -> true
-    catch
-        _:_ -> false
-    end.
+privacy_list(Name) ->
+    escalus_stanza:privacy_list(Name, list_content(Name)).
 
-verify_push(Stanza) ->
-    try is_privacy_list_push(Stanza) of
-        _ -> true
-    catch
-        _:_ -> false
-    end.
-
-verify_presence_error(Stanza) ->
-    try is_presence_error(Stanza) of
-        true -> true;
-        _ -> false
-    catch
-        _:_ -> false
-    end.
+list_content(<<"deny_bob">>) -> [
+        escalus_stanza:privacy_list_jid_item(<<"1">>, <<"deny">>, bob, [])
+    ];
+list_content(<<"allow_bob">>) -> [
+        escalus_stanza:privacy_list_jid_item(<<"1">>, <<"allow">>, bob, [])
+    ];
+list_content(<<"deny_bob_message">>) -> [
+        escalus_stanza:privacy_list_jid_item(<<"1">>, <<"deny">>, bob, [<<"message">>])
+    ];
+list_content(<<"deny_group_message">>) -> [
+        escalus_stanza:privacy_list_item(<<"1">>, <<"deny">>, <<"group">>, <<"ignored">>, [<<"message">>])
+    ];
+list_content(<<"deny_unsubscribed_message">>) -> [
+        escalus_stanza:privacy_list_item(<<"1">>, <<"deny">>, <<"subscription">>, <<"none">>, [<<"message">>])
+    ];
+list_content(<<"deny_all_message">>) -> [
+        escalus_stanza:privacy_list_item(<<"1">>, <<"deny">>, [<<"message">>])
+    ];
+list_content(<<"deny_bob_presence_in">>) -> [
+        escalus_stanza:privacy_list_jid_item(<<"1">>, <<"deny">>, bob, [<<"presence-in">>])
+    ];
+list_content(<<"deny_group_presence_in">>) -> [
+        escalus_stanza:privacy_list_item(<<"1">>, <<"deny">>, <<"group">>, <<"ignored">>, [<<"presence-in">>])
+    ];
+list_content(<<"deny_unsubscribed_presence_in">>) -> [
+        escalus_stanza:privacy_list_item(<<"1">>, <<"deny">>, <<"subscription">>, <<"none">>, [<<"presence-in">>])
+    ];
+list_content(<<"deny_all_presence_in">>) -> [
+        escalus_stanza:privacy_list_item(<<"1">>, <<"deny">>, [<<"presence-in">>])
+    ];
+list_content(<<"deny_bob_presence_out">>) -> [
+        escalus_stanza:privacy_list_jid_item(<<"1">>, <<"deny">>, bob, [<<"presence-out">>])
+    ];
+list_content(<<"deny_group_presence_out">>) -> [
+        escalus_stanza:privacy_list_item(<<"1">>, <<"deny">>, <<"group">>, <<"ignored">>, [<<"presence-out">>])
+    ];
+list_content(<<"deny_unsubscribed_presence_out">>) -> [
+        escalus_stanza:privacy_list_item(<<"1">>, <<"deny">>, <<"subscription">>, <<"none">>, [<<"presence-out">>])
+    ];
+list_content(<<"deny_all_presence_out">>) -> [
+        escalus_stanza:privacy_list_item(<<"1">>, <<"deny">>, [<<"presence-out">>])
+    ];
+list_content(<<"deny_localhost_iq">>) -> [
+        escalus_stanza:privacy_list_jid_item(<<"1">>, <<"deny">>, <<"localhost">>, [<<"iq">>])
+    ];
+list_content(<<"deny_group_iq">>) -> [
+        escalus_stanza:privacy_list_item(<<"1">>, <<"deny">>, <<"group">>, <<"ignored">>, [<<"iq">>])
+    ];
+list_content(<<"deny_unsubscribed_iq">>) -> [
+        escalus_stanza:privacy_list_item(<<"1">>, <<"deny">>, <<"subscription">>, <<"none">>, [<<"iq">>])
+    ];
+list_content(<<"deny_all_iq">>) -> [
+        escalus_stanza:privacy_list_item(<<"1">>, <<"deny">>, [<<"iq">>])
+    ];
+list_content(<<"deny_jid_all">>) -> [
+        escalus_stanza:privacy_list_jid_item(<<"1">>, <<"deny">>, bob, []),
+        escalus_stanza:privacy_list_jid_item(<<"2">>, <<"deny">>, <<"localhost">>, [])
+    ];
+ list_content(<<"deny_group_all">>) -> [
+        escalus_stanza:privacy_list_item(<<"1">>, <<"deny">>, <<"group">>, <<"ignored">>, [])
+    ];
+list_content(<<"deny_unsubscribed_all">>) -> [
+        escalus_stanza:privacy_list_item(<<"1">>, <<"deny">>, <<"subscription">>, <<"none">>, [])
+    ];
+list_content(<<"deny_all_all">>) -> [
+        escalus_stanza:privacy_list_item(<<"1">>, <<"deny">>, [])
+    ];
+list_content(<<"deny_3_items">>) -> [
+        escalus_stanza:privacy_list_jid_item(<<"1">>, <<"deny">>, bob, []),
+        escalus_stanza:privacy_list_jid_item(<<"2">>, <<"deny">>, <<"steve@localhost">>, []),
+        escalus_stanza:privacy_list_jid_item(<<"3">>, <<"deny">>, <<"john@localhost">>, [])
+    ].

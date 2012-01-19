@@ -6,24 +6,24 @@ test_clean: escalus/ebin
 	rm -rf tests/*.beam
 	make test
 
-test: escalus/ebin
-	rm -rf ct_report
-	mkdir  ct_report
+test:
+	test -e escalus/Makefile || git submodule update --init --recursive
+	cd escalus; make
 	erlc -I escalus/deps/exmpp/include run_common_test.erl
 	erl -noinput -sname test -setcookie ejabberd \
 		-pa `pwd`/tests \
-		-pa `pwd`/escalus/ebin \
-		`pwd`/escalus/deps/exmpp/ebin -s run_common_test ct
-
-escalus/ebin:
-	git submodule update --init --recursive
-	cd escalus; make
+			`pwd`/escalus/ebin \
+			`pwd`/escalus/deps/exml/ebin \
+			`pwd`/escalus/deps/lxmppc/ebin \
+		-s run_common_test ct
 
 console:
+	test -e escalus/Makefile || git submodule update --init --recursive
+	cd escalus; make
 	erl -sname test -setcookie ejabberd \
 		-pa `pwd`/tests \
-		-pa `pwd`/escalus/ebin \
-		-pa `pwd`/../tools \
-		`pwd`/escalus/deps/exmpp/ebin
+			`pwd`/escalus/ebin \
+			`pwd`/escalus/deps/exml/ebin \
+			`pwd`/escalus/deps/lxmppc/ebin \
 
 .PHONY: escalus/ebin

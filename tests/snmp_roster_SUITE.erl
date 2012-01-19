@@ -132,8 +132,8 @@ add_contact(Config) ->
         %% add contact
         escalus_client:send(Alice,
                             escalus_stanza:roster_add_contact(Bob,
-                                                              ["friends"],
-                                                              "Bobby")),
+                                                              [<<"friends">>],
+                                                              <<"Bobby">>)),
         Received = escalus_client:wait_for_stanza(Alice),
         escalus_client:send(Alice, escalus_stanza:iq_result(Received)),
         escalus_client:wait_for_stanza(Alice),
@@ -149,8 +149,8 @@ roster_push(Config) ->
         %% add contact
         escalus_client:send(Alice1,
                             escalus_stanza:roster_add_contact(Bob,
-                                                              ["friends"],
-                                                              "Bobby")),
+                                                              [<<"friends">>],
+                                                              <<"Bobby">>)),
         Received = escalus_client:wait_for_stanza(Alice1),
         escalus_client:send(Alice1, escalus_stanza:iq_result(Received)),
         escalus_client:wait_for_stanza(Alice1),
@@ -171,7 +171,7 @@ subscribe(Config) ->
         add_sample_contact(Alice, Bob),
 
         %% subscribe
-        escalus_client:send(Alice, escalus_stanza:presence_direct(Bob, subscribe)),
+        escalus_client:send(Alice, escalus_stanza:presence_direct(bob, <<"subscribe">>)),
         PushReq = escalus_client:wait_for_stanza(Alice),
         escalus_client:send(Alice, escalus_stanza:iq_result(PushReq)),
 
@@ -181,14 +181,14 @@ subscribe(Config) ->
         %% Bob adds new contact to his roster
         escalus_client:send(Bob,
                             escalus_stanza:roster_add_contact(Alice,
-                                                              ["enemies"],
-                                                              "Alice")),
+                                                              [<<"enemies">>],
+                                                              <<"Alice">>)),
         PushReqB = escalus_client:wait_for_stanza(Bob),
         escalus_client:send(Bob, escalus_stanza:iq_result(PushReqB)),
         escalus_client:wait_for_stanza(Bob),
 
         %% Bob sends subscribed presence
-        escalus_client:send(Bob, escalus_stanza:presence_direct(Alice, subscribed)),
+        escalus_client:send(Bob, escalus_stanza:presence_direct(alice, <<"subscribed">>)),
 
         %% Alice receives subscribed
         escalus_client:wait_for_stanzas(Alice, 3),
@@ -208,7 +208,7 @@ decline_subscription(Config) ->
         add_sample_contact(Alice, Bob),
 
         %% subscribe
-        escalus_client:send(Alice, escalus_stanza:presence_direct(Bob, subscribe)),
+        escalus_client:send(Alice, escalus_stanza:presence_direct(bob, <<"subscribe">>)),
         PushReq = escalus_client:wait_for_stanza(Alice),
         escalus_client:send(Alice, escalus_stanza:iq_result(PushReq)),
 
@@ -216,7 +216,7 @@ decline_subscription(Config) ->
         escalus_client:wait_for_stanza(Bob),
 
         %% Bob refuses subscription
-        escalus_client:send(Bob, escalus_stanza:presence_direct(Alice, unsubscribed)),
+        escalus_client:send(Bob, escalus_stanza:presence_direct(alice, <<"unsubscribed">>)),
 
         %% Alice receives subscribed
         escalus_client:wait_for_stanzas(Alice, 2),
@@ -234,7 +234,7 @@ unsubscribe(Config) ->
         add_sample_contact(Alice, Bob),
 
         %% subscribe
-        escalus_client:send(Alice, escalus_stanza:presence_direct(Bob, subscribe)),
+        escalus_client:send(Alice, escalus_stanza:presence_direct(bob, <<"subscribe">>)),
         PushReq = escalus_client:wait_for_stanza(Alice),
         escalus_client:send(Alice, escalus_stanza:iq_result(PushReq)),
 
@@ -243,14 +243,14 @@ unsubscribe(Config) ->
         %% Bob adds new contact to his roster
         escalus_client:send(Bob,
                             escalus_stanza:roster_add_contact(Alice,
-                                                              ["enemies"],
-                                                              "Alice")),
+                                                              [<<"enemies">>],
+                                                              <<"Alice">>)),
         PushReqB = escalus_client:wait_for_stanza(Bob),
         escalus_client:send(Bob, escalus_stanza:iq_result(PushReqB)),
         escalus_client:wait_for_stanza(Bob),
 
         %% Bob sends subscribed presence
-        escalus_client:send(Bob, escalus_stanza:presence_direct(Alice, subscribed)),
+        escalus_client:send(Bob, escalus_stanza:presence_direct(alice, <<"subscribed">>)),
 
         %% Alice receives subscribed
         escalus_client:wait_for_stanzas(Alice, 2),
@@ -262,7 +262,7 @@ unsubscribe(Config) ->
         escalus_assert:is_roster_set(PushReqB1),
 
         %% Alice sends unsubscribe
-        escalus_client:send(Alice, escalus_stanza:presence_direct(Bob, unsubscribe)),
+        escalus_client:send(Alice, escalus_stanza:presence_direct(bob, <<"unsubscribe">>)),
 
         PushReqA2 = escalus_client:wait_for_stanza(Alice),
         escalus_client:send(Alice, escalus_stanza:iq_result(PushReqA2)),
@@ -304,10 +304,10 @@ average_roster_size(Config) ->
 average_roster_groups(Config) ->
     escalus:story(Config, [1, 1, 1, 1], fun(Alice, Bob, Kate, Mike) ->
 
-        add_sample_contact(Alice, Bob, ["my dearest love"], "Bobby"),
-        add_sample_contact(Bob, Alice, ["my hottest lass"], "Alice"),
-        add_sample_contact(Bob, Kate, ["my sis"], "Katie"),
-        add_sample_contact(Bob, Mike, ["my pals"], "Mike"),
+        add_sample_contact(Alice, Bob, [<<"my dearest love">>], <<"Bobby">>),
+        add_sample_contact(Bob, Alice, [<<"my hottest lass">>], <<"Alice">>),
+        add_sample_contact(Bob, Kate, [<<"my sis">>], <<"Katie">>),
+        add_sample_contact(Bob, Mike, [<<"my pals">>], <<"Mike">>),
 
         timer:sleep(1500),
 
@@ -321,7 +321,7 @@ average_roster_groups(Config) ->
 %%-----------------------------------------------------------------
 
 add_sample_contact(Alice, Bob) ->
-    add_sample_contact(Alice, Bob, ["friends"], "generic :p name").
+    add_sample_contact(Alice, Bob, [<<"friends">>], <<"generic :p name">>).
 
 add_sample_contact(Alice, Bob, Groups, Name) ->
     escalus_client:send(Alice,

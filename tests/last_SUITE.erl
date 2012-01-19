@@ -41,7 +41,8 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(_GroupName, Config) ->
-    escalus:make_everyone_friends(escalus:create_users(Config)).
+    Users = escalus:create_users(Config),
+    escalus:make_everyone_friends(Users).
 
 end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config).
@@ -59,7 +60,7 @@ last_online_user(Config) ->
     escalus:story(Config, [1, 1],
                   fun(Alice, Bob) ->
                           %% Alice asks about Bob's last activity
-                          escalus_client:send(Alice, escalus_stanza:last_activity(Bob)),
+                          escalus_client:send(Alice, escalus_stanza:last_activity(bob)),
 
                           %% server replies on Bob's behalf
                           Stanza = escalus_client:wait_for_stanza(Alice),
@@ -74,12 +75,14 @@ last_offline_user(Config) ->
                           {ok, Bob} = escalus_client:start_for(Config, bob, <<"bob">>),
 
                           %% Bob logs out with a status
-                          escalus_client:send(Bob, exmpp_presence:presence(unavailable, <<"I am a banana!">>)),
+                          Status = escalus_stanza:tags([{<<"status">>, <<"I am a banana!">>}]),
+                          Presence = escalus_stanza:presence(<<"unavailable">>, Status),
+                          escalus_client:send(Bob, Presence),
                           escalus_client:stop(Bob),
                           timer:sleep(1000),
 
                           %% Alice asks for Bob's last availability
-                          escalus_client:send(Alice, escalus_stanza:last_activity(Bob)),
+                          escalus_client:send(Alice, escalus_stanza:last_activity(bob)),
 
                           %% Alice receives Bob's status and last online time > 0
                           Stanza = escalus_client:wait_for_stanza(Alice),
@@ -103,9 +106,8 @@ last_server(Config) ->
 %% Helpers
 %%-----------------------------------------------------------------
 get_last_activity(Stanza) ->
-    Query = exmpp_xml:get_element(Stanza, 'query'),
-    list_to_integer(exmpp_xml:get_attribute_as_list(Query, <<"seconds">>, "undefined")).
+    S = exml_query:path(Stanza, [{element, <<"query">>}, {attr, <<"seconds">>}]),
+    list_to_integer(binary_to_list(S)).
 
 get_last_status(Stanza) ->
-    Query = exmpp_xml:get_element(Stanza, 'query'),
-    exmpp_xml:get_cdata(Query).
+    exml_query:path(Stanza, [{element, <<"query">>}, cdata]).

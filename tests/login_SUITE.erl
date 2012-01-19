@@ -87,26 +87,20 @@ register(Config) ->
     %%user should be registered in an init function
     [{_, UserSpec} | _] = escalus_config:get_property(escalus_users, Config),
     [Username, Server, _Pass] = escalus_config:get_usp(UserSpec),
-    true = rpc:call('ejabberd@localhost',
-             ejabberd_auth,
-             is_user_exists,
-             [Username, Server]).
+    true = escalus_ejabberd:rpc(ejabberd_auth, is_user_exists, [Username, Server]).
 
 check_unregistered(Config) ->
     escalus:delete_users(Config),
     [{_, UserSpec}| _] = escalus_users:get_users(all),
     [Username, Server, _Pass] = escalus_config:get_usp(UserSpec),
-    false = rpc:call('ejabberd@localhost',
-                     ejabberd_auth,
-                     is_user_exists,
-                     [Username, Server]).
+    false = escalus_ejabberd:rpc(ejabberd_auth, is_user_exists, [Username, Server]).
 
 
 log_one(Config) ->
     escalus:story(Config, [1], fun(Alice) ->
 
-        escalus_client:send(Alice, escalus_stanza:chat_to(Alice, "Hi!")),
-        escalus_assert:is_chat_message(["Hi!"], escalus_client:wait_for_stanza((Alice)))
+        escalus_client:send(Alice, escalus_stanza:chat_to(Alice, <<"Hi!">>)),
+        escalus:assert(is_chat_message, [<<"Hi!">>], escalus_client:wait_for_stanza(Alice))
 
         end).
 
@@ -124,9 +118,9 @@ messages_story(Config) ->
     escalus:story(Config, [1, 1], fun(Alice, Bob) ->
 
         % Alice sends a message to Bob
-        escalus_client:send(Alice, escalus_stanza:chat_to(Bob, "Hi!")),
+        escalus_client:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi!">>)),
 
         % Bob gets the message
-        escalus_assert:is_chat_message("Hi!", escalus_client:wait_for_stanza(Bob))
+        escalus_assert:is_chat_message(<<"Hi!">>, escalus_client:wait_for_stanza(Bob))
 
     end).

@@ -36,12 +36,12 @@ all() ->
      {group, session_rt}].
 
 groups() ->
-    [{session, [sequence], [login_one, 
+    [{session, [sequence], [login_one,
                             login_many,
                             auth_failed]},
      {session_rt, [sequence], [session_global,
                                session_unique]}].
-     
+
 suite() ->
     [{require, ejabberd_node} | escalus:suite()].
 
@@ -94,58 +94,58 @@ end_per_testcase(CaseName, Config) ->
 
 login_one(Config) ->
     {value, Logins} = get_counter_value(sessionSuccessfulLogins),
-    assert_counter(0, sessionCount),    
+    assert_counter(0, sessionCount),
     escalus:story(Config, [1], fun(Alice) ->
-        
+
         assert_counter(1, sessionCount),
         assert_counter(Logins + 1, sessionSuccessfulLogins),
-        
-        {value, Logouts} = get_counter_value(sessionLogouts), 
+
+        {value, Logouts} = get_counter_value(sessionLogouts),
         escalus_client:stop(Alice),
         timer:sleep(?WAIT_TIME),
         assert_counter(0, sessionCount),
         assert_counter(Logouts + 1, sessionLogouts)
 
     end).
-    
+
 login_many(Config) ->
     {value, Logins} = get_counter_value(sessionSuccessfulLogins),
     assert_counter(0, sessionCount),
     escalus:story(Config, [1, 1], fun(_Alice, _Bob) ->
-        
+
         assert_counter(2, sessionCount),
         assert_counter(Logins + 2, sessionSuccessfulLogins)
 
         end).
-    
+
 
 auth_failed(Config) ->
     {value, AuthFails} = get_counter_value(sessionAuthFails),
     assert_counter(0, sessionCount),
-    
+
     [{_, UserSpec} | _] = escalus_config:get_property(escalus_users, Config),
-    UserSpecM = proplists:delete(password, UserSpec) ++ [{password, "mazabe"}],
-    
-    {error, _} = escalus_client:start(Config, UserSpecM, "res1"),
+    UserSpecM = proplists:delete(password, UserSpec) ++ [{password, <<"mazabe">>}],
+
+    {error, _} = escalus_client:start(Config, UserSpecM, <<"res1">>),
     assert_counter(0, sessionCount),
     assert_counter(AuthFails + 1, sessionAuthFails).
-    
+
 %% Global
 
 session_global(Config) ->
     escalus:story(Config, [1], fun(_Alice) ->
-         
+
         timer:sleep(?GLOBAL_WAIT_TIME),
         assert_counter(1, globalSessionCount)
-        
+
         end).
 
 session_unique(Config) ->
     escalus:story(Config, [2], fun(_Alice1, _Alice2) ->
-         
+
         timer:sleep(?GLOBAL_WAIT_TIME),
         assert_counter(1, globalUniqueSessionCount),
         assert_counter(2, globalSessionCount)
-        
+
         end).
 

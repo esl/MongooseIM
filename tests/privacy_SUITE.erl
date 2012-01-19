@@ -17,21 +17,11 @@
 -module(privacy_SUITE).
 -compile(export_all).
 
--include_lib("escalus/deps/exmpp/include/exmpp.hrl").
+-include_lib("exml/include/exml.hrl").
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
 
--import(privacy_helper, [config_list/2,
-                         set_and_activate/2,
-                         set_list/2,
-                         activate_list/2,
-                         privacy_list/2,
-                         privacy_list_item/1,
-                         is_privacy_list_push/1,
-                         is_presence_error/1,
-                         verify_result/1,
-                         verify_push/1,
-                         verify_presence_error/1]).
+-define(SLEEP_TIME, 50).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -63,40 +53,28 @@ groups() ->
                              block_group_message,
                              block_subscription_message,
                              block_all_message,
-
                              block_jid_presence_in,
-
                              block_jid_presence_out,
-
                              block_jid_iq,
-
                              block_jid_all,
-
-                             block_jid_message_but_not_presence]}].
+                             block_jid_message_but_not_presence
+                         ]}].
 
 suite() ->
-    [{require, privacy_lists} | escalus:suite()].
+    escalus:suite().
 
 %%--------------------------------------------------------------------
 %% Init & teardown
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    PrivacyLists = lists:map(
-        fun(Name) ->
-            { Name,
-              privacy_list(Name,
-                  [privacy_list_item(Item) || Item <- ct:get_config(Name)]) }
-        end,
-        ct:get_config(privacy_lists)),
-    escalus:init_per_suite(PrivacyLists ++ Config).
+    escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(blocking, Config) ->
-    Timeout = {timeout, ct:get_config(timeout)},
-    escalus:create_users([Timeout | Config]);
+    escalus:create_users(Config);
 init_per_group(_GroupName, Config) ->
     escalus:create_users(Config).
 
@@ -151,28 +129,21 @@ end_per_testcase(CaseName, Config) ->
 get_all_lists(Config) ->
     escalus:story(Config, [1], fun(Alice) ->
 
-        escalus_client:send(Alice, escalus_stanza:privacy_get_all(Alice)),
-        escalus_assert:is_privacy_query_result(
-            escalus_client:wait_for_stanza(Alice) )
+        escalus:send(Alice, escalus_stanza:privacy_get_all()),
+        escalus:assert(is_privacy_result, escalus:wait_for_stanza(Alice))
 
         end).
-
-get_all_lists_with_active() -> [{require, alice_deny_bob}].
 
 get_all_lists_with_active(Config) ->
     escalus:story(Config, [1, 1], fun(Alice, _Bob) ->
 
-        PrivacyList = {ListName,_} = config_list(alice_deny_bob, Config),
-        set_and_activate(Alice, PrivacyList),
+        privacy_helper:set_and_activate(Alice, <<"deny_bob">>),
 
-        escalus_client:send(Alice, escalus_stanza:privacy_get_all(Alice)),
-        Response = escalus_client:wait_for_stanza(Alice),
-        escalus_assert:is_privacy_query_result_with_active(
-          ListName, Response)
+        escalus:send(Alice, escalus_stanza:privacy_get_all()),
+        escalus:assert(is_privacy_result_with_active, [<<"deny_bob">>],
+                       escalus:wait_for_stanza(Alice))
+
         end).
-
-get_all_lists_with_default() -> [{require, alice_deny_bob},
-                                 {require, alice_allow_bob}].
 
 %% Black box testing showed that this feature is not implemented,
 %% i.e. the <default /> element is never returned by ejabberd.
@@ -180,15 +151,12 @@ get_all_lists_with_default() -> [{require, alice_deny_bob},
 get_all_lists_with_default(Config) ->
     escalus:story(Config, [1, 1], fun(Alice, _Bob) ->
 
-        PrivacyList1 = config_list(alice_deny_bob, Config),
-        PrivacyList2 = config_list(alice_allow_bob, Config),
-        set_list(Alice, PrivacyList1),
-        set_and_activate(Alice, PrivacyList2),
+        privacy_helper:set_list(Alice, <<"deny_bob">>),
+        privacy_helper:set_and_activate(Alice, <<"allow_bob">>),
 
-        escalus_client:send(Alice, escalus_stanza:privacy_get_all(Alice)),
-        Response = escalus_client:wait_for_stanza(Alice),
-        escalus_assert:is_privacy_query_result_with_default(Response)
-        %, escalus_utils:log_stanzas("Response", [Response])
+        escalus:send(Alice, escalus_stanza:privacy_get_all()),
+        escalus:assert(is_privacy_result_with_default,
+                       escalus:wait_for_stanza(Alice))
 
         end).
 
@@ -196,7 +164,7 @@ get_nonexistent_list(Config) ->
     escalus:story(Config, [1], fun(Alice) ->
 
         escalus_client:send(Alice,
-            escalus_stanza:privacy_get_one(Alice, "public")),
+            escalus_stanza:privacy_get_lists([<<"public">>])),
         escalus_assert:is_privacy_list_nonexistent_error(
             escalus_client:wait_for_stanza(Alice))
 
@@ -205,133 +173,92 @@ get_nonexistent_list(Config) ->
 get_many_lists(Config) ->
     escalus:story(Config, [1], fun(Alice) ->
 
-        Request = escalus_stanza:privacy_get_many(Alice, ["public", "private"]),
+        Request = escalus_stanza:privacy_get_lists([<<"public">>, <<"private">>]),
         escalus_client:send(Alice, Request),
         Response = escalus_client:wait_for_stanza(Alice),
-        escalus_assert:is_error(Response, <<"modify">>, 'bad-request')
-        %, escalus_utils:log_stanzas("Request", [Request])
-        %, escalus_utils:log_stanzas("Response", [Response])
+        escalus_assert:is_error(Response, <<"modify">>, <<"bad-request">>)
 
         end).
-
-get_existing_list() -> [{require, alice_deny_bob}].
 
 get_existing_list(Config) ->
     escalus:story(Config, [1, 1], fun(Alice, _Bob) ->
 
-        PrivacyList = {Name,_} = config_list(alice_deny_bob, Config),
-        set_list(Alice, PrivacyList),
+        privacy_helper:set_list(Alice, <<"deny_bob">>),
 
-        escalus_client:send(Alice,
-            escalus_stanza:privacy_get_one(Alice, Name)),
+        escalus:send(Alice, escalus_stanza:privacy_get_lists([<<"deny_bob">>])),
+        Response = escalus:wait_for_stanza(Alice),
 
-        Response = escalus_client:wait_for_stanza(Alice),
-        true = exmpp_xml:has_element(Response, 'query'),
-        true = exmpp_xml:has_element(
-            exmpp_xml:get_element(Response, 'query'), 'list'),
-        List = exmpp_xml:get_element(
-            exmpp_xml:get_element(Response, 'query'), 'list'),
-
-        true = atom_to_list(Name)
-            =:= exmpp_xml:get_attribute_as_list(List, <<"name">>, 2)
-
-        %escalus_utils:log_stanzas("Created list", [AliceDenyBob]),
-        %escalus_utils:log_stanzas("Actual response", [Response])
+        <<"deny_bob">> = exml_query:path(Response, [{element, <<"query">>},
+                                                    {element, <<"list">>},
+                                                    {attr, <<"name">>}])
 
         end).
-
-activate() -> [{require, alice_deny_bob}].
 
 activate(Config) ->
     escalus:story(Config, [1, 1], fun(Alice, _Bob) ->
 
-        PrivacyList = config_list(alice_deny_bob, Config),
-        set_list(Alice, PrivacyList),
+        privacy_helper:set_list(Alice, <<"deny_bob">>),
 
-        Request = escalus_stanza:privacy_activate(Alice, alice_deny_bob),
+        Request = escalus_stanza:privacy_activate(<<"deny_bob">>),
         escalus_client:send(Alice, Request),
 
         Response = escalus_client:wait_for_stanza(Alice),
-        true = exmpp_iq:is_result(Response)
-
-        %escalus_utils:log_stanzas("Request", [Request]),
-        %escalus_utils:log_stanzas("Response", [Response])
+        escalus:assert(is_iq_result, Response)
 
         end).
 
 activate_nonexistent(Config) ->
     escalus:story(Config, [1], fun(Alice) ->
 
-        Request = escalus_stanza:privacy_activate(Alice, some_list),
+        Request = escalus_stanza:privacy_activate(<<"some_list">>),
         escalus_client:send(Alice, Request),
 
         Response = escalus_client:wait_for_stanza(Alice),
-        true = exmpp_iq:is_error(Response),
-        <<"cancel">> = exmpp_stanza:get_error_type(Response),
-        'item-not-found' = exmpp_stanza:get_condition(Response)
-
-        %escalus_utils:log_stanzas("Request", [Request]),
-        %escalus_utils:log_stanzas("Response", [Response])
+        escalus:assert(is_error, [<<"cancel">>, <<"item-not-found">>], Response)
 
         end).
 
 deactivate(Config) ->
     escalus:story(Config, [1], fun(Alice) ->
 
-        Request = escalus_stanza:privacy_deactivate(Alice),
+        Request = escalus_stanza:privacy_deactivate(),
         escalus_client:send(Alice, Request),
 
         Response = escalus_client:wait_for_stanza(Alice),
-        true = exmpp_iq:is_result(Response)
-
-        %escalus_utils:log_stanzas("Request", [Request]),
-        %escalus_utils:log_stanzas("Response", [Response])
+        escalus:assert(is_iq_result, Response)
 
         end).
-
-default() -> [{require, alice_deny_bob}].
 
 default(Config) ->
     escalus:story(Config, [1, 1], fun(Alice, _Bob) ->
 
-        PrivacyList = config_list(alice_deny_bob, Config),
-        set_list(Alice, PrivacyList),
+        privacy_helper:set_list(Alice, <<"deny_bob">>),
 
-        Request = escalus_stanza:privacy_default(Alice, alice_deny_bob),
+        Request = escalus_stanza:privacy_set_default(<<"deny_bob">>),
         escalus_client:send(Alice, Request),
 
         Response = escalus_client:wait_for_stanza(Alice),
-        true = exmpp_iq:is_result(Response)
-
-        %escalus_utils:log_stanzas("Request", [Request]),
-        %escalus_utils:log_stanzas("Response", [Response])
+        escalus:assert(is_iq_result, Response)
 
         end).
-
-default_conflict() -> [{require, alice_deny_bob},
-                       {require, alice_allow_bob}].
 
 default_conflict(Config) ->
     escalus:story(Config, [2, 1], fun(Alice, Alice2, _Bob) ->
 
         %% testcase setup
         %% setup list on server
-        AliceDenyBob = ?config(alice_deny_bob, Config),
-        AliceAllowBob = ?config(alice_allow_bob, Config),
-        escalus_client:send(Alice,
-            escalus_stanza:privacy_set_one(Alice, AliceDenyBob)),
-        escalus_client:send(Alice,
-            escalus_stanza:privacy_set_one(Alice, AliceAllowBob)),
+        privacy_helper:send_set_list(Alice, <<"deny_bob">>),
+        privacy_helper:send_set_list(Alice, <<"allow_bob">>),
         %% skip responses
-        _AliceResponses = escalus_client:wait_for_stanzas(Alice, 4),
+        escalus_client:wait_for_stanzas(Alice, 4),
         %% make a default list for Alice2
-        R1 = escalus_stanza:privacy_default(Alice2, alice_deny_bob),
+        R1 = escalus_stanza:privacy_set_default(Alice2, <<"deny_bob">>),
         escalus_client:send(Alice2, R1),
-        R2s = escalus_client:wait_for_stanzas(Alice2, 3),
-        escalus_utils:log_stanzas("Alice2", [R1] ++ R2s),
+        escalus:assert_many([is_privacy_set, is_privacy_set, is_iq_result],
+                            escalus_client:wait_for_stanzas(Alice2, 3)),
         %% setup done
 
-        Request = escalus_stanza:privacy_default(Alice, alice_allow_bob),
+        Request = escalus_stanza:privacy_set_default(<<"allow_bob">>),
         escalus_client:send(Alice, Request),
 
         Response = escalus_client:wait_for_stanza(Alice),
@@ -339,100 +266,79 @@ default_conflict(Config) ->
         %%       this is a bug and was filed to the esl redmine as Bug #7073
         %true = exmpp_iq:is_result(Response),
         %% but this should pass just fine
-        true = exmpp_iq:is_error(Response),
-        <<"cancel">> = exmpp_stanza:get_error_type(Response),
-        'conflict' = exmpp_stanza:get_condition(Response),
-
-        escalus_utils:log_stanzas("Request", [Request]),
-        escalus_utils:log_stanzas("Response", [Response])
+        escalus:assert(is_error, [<<"cancel">>, <<"conflict">>], Response)
 
         end).
 
 default_nonexistent(Config) ->
     escalus:story(Config, [1], fun(Alice) ->
 
-        Request = escalus_stanza:privacy_default(Alice, some_list),
+        Request = escalus_stanza:privacy_set_default(<<"some_list">>),
         escalus_client:send(Alice, Request),
 
         Response = escalus_client:wait_for_stanza(Alice),
-        escalus_assert:is_error(Response, <<"cancel">>, 'item-not-found')
-
-        %escalus_utils:log_stanzas("Request", [Request]),
-        %escalus_utils:log_stanzas("Response", [Response])
+        escalus_assert:is_error(Response, <<"cancel">>, <<"item-not-found">>)
 
         end).
 
 no_default(Config) ->
     escalus:story(Config, [1], fun(Alice) ->
 
-        Request = escalus_stanza:privacy_no_default(Alice),
+        Request = escalus_stanza:privacy_no_default(),
         escalus_client:send(Alice, Request),
 
         Response = escalus_client:wait_for_stanza(Alice),
-        true = exmpp_iq:is_result(Response)
-
-        %escalus_utils:log_stanzas("Request", [Request]),
-        %escalus_utils:log_stanzas("Response", [Response])
+        escalus:assert(is_iq_result, Response)
 
         end).
-
-set_list() -> [{require, alice_deny_bob}].
 
 set_list(Config) ->
     escalus:story(Config, [3, 1], fun(Alice, Alice2, Alice3, _Bob) ->
 
-        AliceDenyBob = ?config(alice_deny_bob, Config),
-        Request = escalus_stanza:privacy_set_one(Alice, AliceDenyBob),
-        %escalus_utils:log_stanzas("Alice sent", [Request]),
-        escalus_client:send(Alice, Request),
+        privacy_helper:send_set_list(Alice, <<"deny_bob">>),
 
         %% Verify that original Alice gets iq result and notification.
         %% It's a bit quirky as these come in undefined order
         %% (actually, they always came with 'push' first and then 'result',
         %% but I suppose it's not mandatory).
         AliceResponses = escalus_client:wait_for_stanzas(Alice, 2),
-        %escalus_utils:log_stanzas("Alice got", AliceResponses),
-        true = lists:any(fun privacy_helper:verify_result/1, AliceResponses)
-            and lists:any(fun privacy_helper:verify_push/1, AliceResponses),
+        escalus:assert_many([
+            fun escalus_pred:is_iq_result/1,
+            fun privacy_helper:is_privacy_list_push/1
+        ], AliceResponses),
 
         %% Verify that other resources also get the push.
-        AliceResourceResponses = [
-            escalus_client:wait_for_stanza(Alice2),
-            escalus_client:wait_for_stanza(Alice3)
-        ],
-        %escalus_utils:log_stanzas("Alice resources got", AliceResourceResponses),
-        lists:foreach(fun privacy_helper:is_privacy_list_push/1,
-            AliceResourceResponses)
+        escalus:assert(fun privacy_helper:is_privacy_list_push/1,
+                       escalus:wait_for_stanza(Alice2)),
+        escalus:assert(fun privacy_helper:is_privacy_list_push/1,
+                       escalus:wait_for_stanza(Alice3))
 
         %% All in all, the spec requires the resources to reply
         %% (as to every iq), but it's omitted here.
 
         end).
 
-remove_list() -> [{require, alice_deny_bob}].
-
 remove_list(Config) ->
     escalus:story(Config, [1, 1], fun(Alice, _Bob) ->
 
-        AliceDenyBob = ?config(alice_deny_bob, Config),
-        escalus_client:send(Alice,
-            escalus_stanza:privacy_set_one(Alice, AliceDenyBob)),
+        privacy_helper:send_set_list(Alice, <<"deny_bob">>),
 
         %% These are the pushed notification and iq result.
         escalus_client:wait_for_stanzas(Alice, 2),
 
         %% Request list deletion by sending an empty list.
-        RemoveRequest = escalus_stanza:privacy_set_one(Alice, privacy_list("someList", [])),
-        %escalus_utils:log_stanzas("Alice deletes", [RemoveRequest]),
+        RemoveRequest = escalus_stanza:privacy_set_list(
+                escalus_stanza:privacy_list(<<"someList">>, [])),
         escalus_client:send(Alice, RemoveRequest),
 
         %% These too are the pushed notification and iq result.
-        _SkipTheseToo = escalus_client:wait_for_stanzas(Alice, 2),
-        %SkipTheseToo = escalus_client:wait_for_stanzas(Alice, 2),
-        %escalus_utils:log_stanzas("Alice got", SkipTheseToo),
+        escalus:assert_many([
+            fun privacy_helper:is_privacy_list_push/1,
+            is_iq_result
+        ], escalus_client:wait_for_stanzas(Alice, 2)),
 
         escalus_client:send(Alice,
-            escalus_stanza:privacy_get_one(Alice, "someList")),
+            escalus_stanza:privacy_get_lists([<<"someList">>])),
 
         %% Finally ensure that the list doesn't exist anymore.
         escalus_assert:is_privacy_list_nonexistent_error(
@@ -440,213 +346,155 @@ remove_list(Config) ->
 
         end).
 
-block_jid_message() -> [{require, timeout},
-                        {require, alice_deny_bob_message}].
-
 block_jid_message(Config) ->
     escalus:story(Config, [1, 1], fun(Alice, Bob) ->
 
-        Timeout = ?config(timeout, Config),
-        PrivacyList = config_list(alice_deny_bob_message, Config),
-
         %% Alice should receive message
         escalus_client:send(Bob,
-            escalus_stanza:chat_to(Alice, "Hi! What's your name?")),
-        escalus_assert:is_chat_message(["Hi! What's your name?"],
+            escalus_stanza:chat_to(Alice, <<"Hi! What's your name?">>)),
+        escalus_assert:is_chat_message(<<"Hi! What's your name?">>,
             escalus_client:wait_for_stanza(Alice)),
 
         %% set the list on server and make it active
-        set_and_activate(Alice, PrivacyList),
+        privacy_helper:set_and_activate(Alice, <<"deny_bob_message">>),
 
         %% Alice should NOT receive message
-        escalus_client:send(Bob, escalus_stanza:chat_to(Alice, "Hi, Alice!")),
-        timer:sleep(Timeout),
-        %Responses = escalus_client:wait_for_stanzas(Alice, 2),
-        %escalus_utils:log_stanzas("Responses", Responses),
-        %[] = Responses
+        escalus_client:send(Bob, escalus_stanza:chat_to(Alice, <<"Hi, Alice!">>)),
+        timer:sleep(?SLEEP_TIME),
         escalus_assert:has_no_stanzas(Alice)
 
         end).
-
-block_group_message() -> [{require, timeout},
-                          {require, alice_deny_group_message}].
 
 block_group_message(Config) ->
     escalus:story(Config, [1, 1], fun(Alice, Bob) ->
 
-        Timeout = ?config(timeout, Config),
-        PrivacyList = config_list(alice_deny_group_message, Config),
-
         %% Alice should receive message
-        escalus_client:send(Bob, escalus_stanza:chat_to(Alice, "Hi!")),
-        escalus_assert:is_chat_message(["Hi!"],
+        escalus_client:send(Bob, escalus_stanza:chat_to(Alice, <<"Hi!">>)),
+        escalus_assert:is_chat_message(<<"Hi!">>,
             escalus_client:wait_for_stanza(Alice)),
 
         %% add Bob to Alices' group 'ignored'
-        add_sample_contact(Alice, Bob, [ignored], "Ugly Bastard"),
+        add_sample_contact(Alice, Bob, [<<"ignored">>], <<"Ugly Bastard">>),
 
         %% set the list on server and make it active
-        set_and_activate(Alice, PrivacyList),
+        privacy_helper:set_and_activate(Alice, <<"deny_bob_message">>),
 
         %% Alice should NOT receive message
-        escalus_client:send(Bob, escalus_stanza:chat_to(Alice, "Hi!")),
-        timer:sleep(Timeout),
+        escalus_client:send(Bob, escalus_stanza:chat_to(Alice, <<"Hi!">>)),
+        timer:sleep(?SLEEP_TIME),
         escalus_assert:has_no_stanzas(Alice)
 
         end).
-
-block_subscription_message() -> [{require, timeout},
-                                 {require, alice_deny_unsubscribed_message}].
 
 block_subscription_message(Config) ->
     escalus:story(Config, [1, 1], fun(Alice, Bob) ->
 
-        Timeout = ?config(timeout, Config),
-        PrivacyList = config_list(alice_deny_unsubscribed_message, Config),
-
         %% Alice should receive message
-        escalus_client:send(Bob, escalus_stanza:chat_to(Alice, "Hi!")),
-        escalus_assert:is_chat_message(["Hi!"],
+        escalus_client:send(Bob, escalus_stanza:chat_to(Alice, <<"Hi!">>)),
+        escalus_assert:is_chat_message(<<"Hi!">>,
             escalus_client:wait_for_stanza(Alice)),
 
         %% Alice sends unsubscribe
         escalus_client:send(Alice,
-            escalus_stanza:presence_direct(Bob, unsubscribe)),
+            escalus_stanza:presence_direct(bob, <<"unsubscribe">>)),
 
         %% set the list on server and make it active
-        set_and_activate(Alice, PrivacyList),
+        privacy_helper:set_and_activate(Alice, <<"deny_unsubscribed_message">>),
 
         %% Alice should NOT receive message
-        escalus_client:send(Bob, escalus_stanza:chat_to(Alice, "Hi!")),
-        timer:sleep(Timeout),
+        escalus_client:send(Bob, escalus_stanza:chat_to(Alice, <<"Hi!">>)),
+        timer:sleep(?SLEEP_TIME),
         escalus_assert:has_no_stanzas(Alice)
 
         end).
-
-block_all_message() -> [{require, timeout},
-                        {require, alice_deny_all_message}].
 
 block_all_message(Config) ->
     escalus:story(Config, [1, 1], fun(Alice, Bob) ->
 
-        Timeout = ?config(timeout, Config),
-        PrivacyList = config_list(alice_deny_all_message, Config),
-
         %% Alice should receive message
-        escalus_client:send(Bob, escalus_stanza:chat_to(Alice, "Hi!")),
-        escalus_assert:is_chat_message(["Hi!"],
+        escalus_client:send(Bob, escalus_stanza:chat_to(Alice, <<"Hi!">>)),
+        escalus_assert:is_chat_message(<<"Hi!">>,
             escalus_client:wait_for_stanza(Alice)),
 
         %% set the list on server and make it active
-        set_and_activate(Alice, PrivacyList),
+        privacy_helper:set_and_activate(Alice, <<"deny_all_message">>),
 
         %% Alice should NOT receive message
-        escalus_client:send(Bob, escalus_stanza:chat_to(Alice, "Hi!")),
-        timer:sleep(Timeout),
+        escalus_client:send(Bob, escalus_stanza:chat_to(Alice, <<"Hi!">>)),
+        timer:sleep(?SLEEP_TIME),
         escalus_assert:has_no_stanzas(Alice)
 
         end).
-
-block_jid_presence_in() -> [{require, timeout},
-                            {require, alice_deny_bob_presence_in}].
 
 block_jid_presence_in(Config) ->
     escalus:story(Config, [1, 1], fun(Alice, Bob) ->
 
-        Timeout = ?config(timeout, Config),
-        PrivacyList = config_list(alice_deny_bob_presence_in, Config),
-
         %% Alice should receive presence in
         escalus_client:send(Bob,
-            escalus_stanza:presence_direct(Alice, available)),
+            escalus_stanza:presence_direct(alice, <<"available">>)),
         Received = escalus_client:wait_for_stanza(Alice),
-        escalus_assert:is_presence_stanza(Received),
+        escalus:assert(is_presence, Received),
         escalus_assert:is_stanza_from(Bob, Received),
 
-        set_and_activate(Alice, PrivacyList),
+        privacy_helper:set_and_activate(Alice, <<"deny_bob_presence_in">>),
 
         %% Alice should NOT receive presence in
         escalus_client:send(Bob,
-            escalus_stanza:presence_direct(Alice, available)),
-        timer:sleep(Timeout),
+            escalus_stanza:presence_direct(alice, <<"available">>)),
+        timer:sleep(?SLEEP_TIME),
         escalus_assert:has_no_stanzas(Alice)
 
         end).
-
-block_jid_presence_out() -> [{require, timeout},
-                             {require, alice_deny_bob_presence_out}].
 
 block_jid_presence_out(Config) ->
     escalus:story(Config, [1, 1], fun(Alice, Bob) ->
 
-        Timeout = ?config(timeout, Config),
-        PrivacyList = config_list(alice_deny_bob_presence_out, Config),
-
         %% Bob should receive presence in
         escalus_client:send(Alice,
-            escalus_stanza:presence_direct(Bob, available)),
+            escalus_stanza:presence_direct(bob, <<"available">>)),
         Received = escalus_client:wait_for_stanza(Bob),
-        escalus_assert:is_presence_stanza(Received),
+        escalus:assert(is_presence, Received),
         escalus_assert:is_stanza_from(Alice, Received),
 
-        set_and_activate(Alice, PrivacyList),
+        privacy_helper:set_and_activate(Alice, <<"deny_bob_presence_out">>),
 
         %% Bob should NOT receive presence in
         escalus_client:send(Alice,
-            escalus_stanza:presence_direct(Bob, available)),
-        timer:sleep(Timeout),
+            escalus_stanza:presence_direct(bob, <<"available">>)),
+        timer:sleep(?SLEEP_TIME),
         escalus_assert:has_no_stanzas(Bob)
 
         end).
 
-block_jid_iq() -> [{require, timeout},
-                   {require, alice_deny_localhost_iq},
-                   {require, alice_deny_bob}].
-
 block_jid_iq(Config) ->
     escalus:story(Config, [1, 1], fun(Alice, _Bob) ->
 
-        Timeout = ?config(timeout, Config),
-        PrivacyList = {Name, _} =
-            config_list(alice_deny_localhost_iq, Config),
-        ToyList = ?config(alice_deny_bob, Config),
-
-        set_list(Alice, PrivacyList),
+        privacy_helper:set_list(Alice, <<"deny_localhost_iq">>),
         %% activate it
         escalus_client:send(Alice,
-            escalus_stanza:privacy_activate(Alice, Name)),
+            escalus_stanza:privacy_activate(<<"deny_localhost_iq">>)),
         %% From now on no iq replies should reach Alice.
         %% That's also the reason why we couldn't use
-        %% the set_and_activate helper - it waits for all replies.
+        %% the privacy_helper:set_and_activate helper - it waits for all replies.
 
         %% Just set the toy list and ensure that only
         %% the notification push comes back.
-        escalus_client:send(Alice,
-            escalus_stanza:privacy_set_one(Alice, ToyList)),
+        privacy_helper:send_set_list(Alice, <<"deny_bob">>),
         Response = escalus_client:wait_for_stanza(Alice),
-        true = verify_push(Response),
-        timer:sleep(Timeout),
+        escalus:assert(fun privacy_helper:is_privacy_list_push/1, Response),
+        timer:sleep(?SLEEP_TIME),
         escalus_assert:has_no_stanzas(Alice)
 
         end).
 
-block_jid_all() -> [{require, timeout},
-                    {require, alice_deny_jid_all},
-                    {require, alice_deny_bob}].
-
 block_jid_all(Config) ->
     escalus:story(Config, [1, 1], fun(Alice, Bob) ->
 
-        Timeout = ?config(timeout, Config),
-        PrivacyList = {Name, _} =
-            config_list(alice_deny_jid_all, Config),
-        ToyList = ?config(alice_deny_bob, Config),
-
-        set_list(Alice, PrivacyList),
+        privacy_helper:set_list(Alice, <<"deny_jid_all">>),
 
         %% Alice blocks Bob
         escalus_client:send(Alice,
-            escalus_stanza:privacy_activate(Alice, Name)),
+            escalus_stanza:privacy_activate(<<"deny_jid_all">>)),
         %% IQ response is blocked;
         %% do magic wait for the request to take effect
         timer:sleep(200),
@@ -654,70 +502,58 @@ block_jid_all(Config) ->
         %% From now on nothing whatsoever sent by Bob should reach Alice.
 
         %% Alice should NOT receive message
-        escalus_client:send(Bob, escalus_stanza:chat_to(Alice, "Hi!")),
+        escalus_client:send(Bob, escalus_stanza:chat_to(Alice, <<"Hi!">>)),
 
         %% Alice should NOT receive presence-in from Bob
         escalus_client:send(Bob,
-            escalus_stanza:presence_direct(Alice, available)),
+            escalus_stanza:presence_direct(alice, <<"available">>)),
 
         %% Bob should NOT receive presence-in from Alice
         escalus_client:send(Alice,
-            escalus_stanza:presence_direct(Bob, available)),
+            escalus_stanza:presence_direct(bob, <<"available">>)),
 
         %% Just set the toy list and ensure that only
         %% the notification push comes back.
-        escalus_client:send(Alice,
-            escalus_stanza:privacy_set_one(Alice, ToyList)),
-
-        %Responses = escalus_client:wait_for_stanzas(Alice, 1),
-        %escalus_utils:log_stanzas("Responses", Responses),
-        %true = is_presence_error(hd(Responses))
-        %true = verify_push(),
+        privacy_helper:send_set_list(Alice, <<"deny_bob">>),
 
         %% verify
-        timer:sleep(Timeout),
+        timer:sleep(?SLEEP_TIME),
         %% ...that nothing reached Bob
         escalus_assert:has_no_stanzas(Bob),
         %% ...that Alice got exactly two responses
-        _Responses = [R1,R2] = escalus_client:wait_for_stanzas(Alice, 2),
-        %escalus_utils:log_stanzas("Responses", _Responses),
-        %% one of which is a push
-        true = verify_push(R1) or verify_push(R2),
-        %% and the other a presence error
-        true = verify_presence_error(R1) or verify_presence_error(R2),
+        Responses = escalus_client:wait_for_stanzas(Alice, 2),
+        %% one of which is a push and the other a presence error
+        escalus:assert_many([
+            fun privacy_helper:is_privacy_list_push/1,
+            fun privacy_helper:is_presence_error/1
+        ], Responses),
         %% and Alice didn't get anything else
         escalus_assert:has_no_stanzas(Alice)
 
         end).
 
-block_jid_message_but_not_presence() -> [{require, timeout},
-                                         {require, alice_deny_bob_message}].
-
 block_jid_message_but_not_presence(Config) ->
     escalus:story(Config, [1, 1], fun(Alice, Bob) ->
 
-        Timeout = ?config(timeout, Config),
-        PrivacyList = config_list(alice_deny_bob_message, Config),
-
         %% Alice should receive message
         escalus_client:send(Bob,
-            escalus_stanza:chat_to(Alice, "Hi! What's your name?")),
-        escalus_assert:is_chat_message(["Hi! What's your name?"],
+            escalus_stanza:chat_to(Alice, <<"Hi! What's your name?">>)),
+        escalus_assert:is_chat_message(<<"Hi! What's your name?">>,
             escalus_client:wait_for_stanza(Alice)),
 
         %% set the list on server and make it active
-        set_and_activate(Alice, PrivacyList),
+        privacy_helper:set_and_activate(Alice, <<"deny_bob_message">>),
 
         %% Alice should NOT receive message
-        escalus_client:send(Bob, escalus_stanza:chat_to(Alice, "Hi, Alice!")),
-        timer:sleep(Timeout),
+        escalus_client:send(Bob, escalus_stanza:chat_to(Alice, <<"Hi, Alice!">>)),
+        timer:sleep(?SLEEP_TIME),
         escalus_assert:has_no_stanzas(Alice),
 
         %% ...but should receive presence in
         escalus_client:send(Bob,
-            escalus_stanza:presence_direct(Alice, available)),
+            escalus_stanza:presence_direct(Alice, <<"available">>)),
         Received = escalus_client:wait_for_stanza(Alice),
-        escalus_assert:is_presence_stanza(Received),
+        escalus:assert(is_presence, Received),
         escalus_assert:is_stanza_from(Bob, Received)
 
         end).
@@ -734,4 +570,4 @@ add_sample_contact(Who, Whom, Groups, Nick) ->
     Received = escalus_client:wait_for_stanza(Who),
     escalus_assert:is_roster_set(Received),
     escalus_client:send(Who, escalus_stanza:iq_result(Received)),
-    escalus_assert:is_result(escalus_client:wait_for_stanza(Who)).
+    escalus:assert(is_iq_result, escalus:wait_for_stanza(Who)).

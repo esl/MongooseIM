@@ -16,6 +16,7 @@
 -module(private_SUITE).
 -compile(export_all).
 
+-include_lib("exml/include/exml.hrl").
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
 
@@ -27,8 +28,7 @@ all() ->
      {group, private_negative}].
 
 groups() ->
-     [{private_positive, [sequence], [store,
-                                      retrieve]},
+     [{private_positive, [sequence], [store_retrieve]},
       {private_negative, [sequence], [get_other_user,
                                       set_other_user]}].
                                       %% FIXME: broken exmpp prevents us from sending
@@ -59,50 +59,43 @@ end_per_testcase(CaseName, Config) ->
 %%--------------------------------------------------------------------
 %% Private storage tests
 %%--------------------------------------------------------------------
-store(Config) ->
+store_retrieve(Config) ->
     escalus:story(Config, [1],
                   fun(Alice) ->
-                          NS = 'alice:private:ns',
+                          NS = <<"alice:private:ns">>,
 
                           %% Alice stores some data in her private storage
-                          escalus_client:send(Alice, escalus_stanza:private_set(NS, make_body('my_element',
-                                                                                              'banana'))),
+                          escalus_client:send(Alice, escalus_stanza:private_set(my_banana(NS))),
 
                           %% Alice receives store confirmation
-                          escalus:assert(is_private_result, escalus_client:wait_for_stanza(Alice))
-                  end).
+                          escalus:assert(is_private_result, escalus_client:wait_for_stanza(Alice)),
 
-retrieve(Config) ->
-    escalus:story(Config, [1],
-                  fun(Alice) ->
-                          NS = 'alice:private:ns',
-
-                          %% Alice asks for the data stored in the previous test
-                          escalus_client:send(Alice, escalus_stanza:private_get(NS, 'my_element')),
+                          %% Alice asks for the data
+                          escalus_client:send(Alice, escalus_stanza:private_get(NS, <<"my_element">>)),
 
                           %% Alice ensures data has not been changed
                           Stanza = escalus_client:wait_for_stanza(Alice),
                           escalus:assert(is_private_result, Stanza),
-                          check_body(Stanza, ['my_element', 'banana']),
+                          check_body(Stanza, [<<"my_element">>, <<"banana">>]),
 
                           %% Alice asks for non-existing data
-                          escalus_client:send(Alice, escalus_stanza:private_get('non_existing_ns',
-                                                                                'my_element')),
+                          escalus_client:send(Alice, escalus_stanza:private_get(<<"non_existing_ns">>,
+                                                                                <<"my_element">>)),
 
                           %% Alice receives an empty response
                           Stanza2 = escalus_client:wait_for_stanza(Alice),
                           escalus:assert(is_private_result, Stanza2),
-                          check_body(Stanza, ['my_element'])
+                          check_body(Stanza, [<<"my_element">>])
                   end).
 
 get_other_user(Config) ->
     escalus:story(Config, [1, 1],
-                  fun(Alice, Bob) ->
-                          NS = 'bob:private:ns',
+                  fun(Alice, _Bob) ->
+                          NS = <<"bob:private:ns">>,
 
                           %% Alice asks for Bob's private data
-                          IQ = exmpp_stanza:set_recipient(escalus_stanza:private_get(NS, 'my_element'),
-                                                          escalus_utils:get_short_jid(Bob)),
+                          GetIQ = escalus_stanza:private_get(NS, <<"my_element">>),
+                          IQ = escalus_stanza:to(GetIQ, bob),
                           escalus_client:send(Alice, IQ),
 
                           %% Alice gets an error
@@ -113,12 +106,11 @@ get_other_user(Config) ->
 
 set_other_user(Config) ->
     escalus:story(Config, [1, 1],
-                  fun(Alice, Bob) ->
-                          NS = 'bob:private:ns',
+                  fun(Alice, _Bob) ->
+                          NS = <<"bob:private:ns">>,
 
                           %% Alice asks for Bob's private data
-                          IQ = exmpp_stanza:set_recipient(escalus_stanza:private_set(NS, make_body('my_element', 'banana')),
-                                                          escalus_utils:get_short_jid(Bob)),
+                          IQ = escalus_stanza:to(escalus_stanza:private_set(my_banana(NS)), bob),
                           escalus_client:send(Alice, IQ),
 
                           %% Alice gets a forbidden error
@@ -130,13 +122,12 @@ set_other_user(Config) ->
 missing_ns(Config) ->
     escalus:story(Config, [1],
                   fun(Alice) ->
-                          NS = 'bob:private:ns',
-
                           %% Alice asks for her own private storage, without
                           %% providing a namespace for a child
-                          IQ = escalus_stanza:private_get(NS, make_body('my_element', 'banana')),
-                          NewIQ = remove_child_ns(IQ),
-                          escalus_client:send(Alice, NewIQ),
+                          MyBanana = #xmlelement{name = <<"my_element">>,
+                                                 body = [#xmlelement{name = <<"banana">>}]},
+                          IQ = escalus_stanza:private_get(MyBanana),
+                          escalus_client:send(Alice, IQ),
 
                           %% Alice gets a bad-format error
                           Stanza = escalus_client:wait_for_stanza(Alice),
@@ -147,22 +138,20 @@ missing_ns(Config) ->
 %%-----------------------------------------------------------------
 %% Helpers
 %%-----------------------------------------------------------------
-make_body(Parent, Child) ->
-    exmpp_xml:append_child(exmpp_xml:element(Parent),
-                           exmpp_xml:element(Child)).
+
+my_banana(NS) ->
+    #xmlelement{
+        name = <<"my_element">>,
+        attrs = [{<<"xmlns">>, NS}],
+        body = [#xmlelement{name = <<"banana">>}]}.
 
 check_body(Stanza, Names) ->
-    Query = exmpp_xml:get_element(Stanza, "query"),
+    Query = exml_query:subelement(Stanza, <<"query">>),
     check_body_rec(Query, Names).
 
 check_body_rec(_, []) ->
     ok;
 check_body_rec(Element, [Name | Names]) ->
-    [Child] = exmpp_xml:get_child_elements(Element),
-    Name = exmpp_xml:get_name_as_atom(Child),
+    [Child] = Element#xmlelement.body,
+    Name = Child#xmlelement.name,
     check_body_rec(Child, Names).
-
-remove_child_ns(Stanza) ->
-    [Child] = exmpp_xml:get_child_elements(Stanza),
-    NewChild = exmpp_xml:remove_attribute(Child, <<"xmlns">>),
-    exmpp_xml:replace_child(Stanza, Child, NewChild).

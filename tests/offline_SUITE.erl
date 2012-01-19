@@ -71,7 +71,7 @@ end_per_testcase(CaseName, Config) ->
 simple_message(Config) ->
     %% Alice sends a message to Bob, who is offline
     escalus:story(Config, [1], fun(Alice) ->
-        escalus:send(Alice, escalus_stanza:chat_to(bob, "Hi, Offline!"))
+        escalus:send(Alice, escalus_stanza:chat_to(bob, <<"Hi, Offline!">>))
     end),
 
     %% Bob logs in
@@ -80,7 +80,7 @@ simple_message(Config) ->
     %% He receives his initial presence and the message
     Stanzas = escalus:wait_for_stanzas(Bob, 2),
     escalus_new_assert:mix_match([is_presence,
-                                  is_chat("Hi, Offline!")],
+                                  is_chat(<<"Hi, Offline!">>)],
                                  Stanzas),
     escalus_cleaner:clean(Config).
 
@@ -97,8 +97,8 @@ is_chat(Content) ->
 
 login_send_presence(Config, User) ->
     Spec = escalus_users:get_userspec(Config, User),
-    {ok, Client} = escalus_client:start(Config, Spec, "dummy"),
-    escalus:send(Client, escalus_stanza:presence(available)),
+    {ok, Client} = escalus_client:start(Config, Spec, <<"dummy">>),
+    escalus:send(Client, escalus_stanza:presence(<<"available">>)),
     Client.
 
 start_module(ModuleName, Options) ->
