@@ -68,13 +68,12 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    escalus:init_per_suite(Config).
+    [{escalus_no_stanzas_after_story, true} |
+     escalus:init_per_suite(Config)].
 
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
-init_per_group(blocking, Config) ->
-    escalus:create_users(Config);
 init_per_group(_GroupName, Config) ->
     escalus:create_users(Config).
 

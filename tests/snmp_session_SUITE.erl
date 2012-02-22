@@ -123,7 +123,7 @@ auth_failed(Config) ->
     {value, AuthFails} = get_counter_value(sessionAuthFails),
     assert_counter(0, sessionCount),
 
-    [{_, UserSpec} | _] = escalus_config:get_property(escalus_users, Config),
+    [{_, UserSpec} | _] = escalus_config:get_config(escalus_users, Config),
     UserSpecM = proplists:delete(password, UserSpec) ++ [{password, <<"mazabe">>}],
 
     {error, _} = escalus_client:start(Config, UserSpecM, <<"res1">>),

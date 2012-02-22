@@ -61,7 +61,7 @@ end_per_group(_GroupName, Config) ->
 
 
 init_per_testcase(log_one_digest, Config) ->
-    Conf1 = [ {escalus_auth_method, "DIGEST-MD5"} | Config],
+    Conf1 = [ {escalus_auth_method, <<"DIGEST-MD5">>} | Config],
     escalus:init_per_testcase(log_one_digest, Conf1);
 init_per_testcase(log_one_basic_digest, Config) ->
     Conf1 = [ {escalus_auth_method, digest} | Config],
@@ -85,14 +85,14 @@ end_per_testcase(CaseName, Config) ->
 
 register(Config) ->
     %%user should be registered in an init function
-    [{_, UserSpec} | _] = escalus_config:get_property(escalus_users, Config),
-    [Username, Server, _Pass] = escalus_config:get_usp(UserSpec),
+    [{_, UserSpec} | _] = escalus_config:get_config(escalus_users, Config),
+    [Username, Server, _Pass] = escalus_users:get_usp(UserSpec),
     true = escalus_ejabberd:rpc(ejabberd_auth, is_user_exists, [Username, Server]).
 
 check_unregistered(Config) ->
     escalus:delete_users(Config),
     [{_, UserSpec}| _] = escalus_users:get_users(all),
-    [Username, Server, _Pass] = escalus_config:get_usp(UserSpec),
+    [Username, Server, _Pass] = escalus_users:get_usp(UserSpec),
     false = escalus_ejabberd:rpc(ejabberd_auth, is_user_exists, [Username, Server]).
 
 
