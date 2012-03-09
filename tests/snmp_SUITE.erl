@@ -20,7 +20,7 @@
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
 
--define(SLEEP_TIME, 50).
+-define(SLEEP_TIME, 100).
 -define(RPC_LOOKUP(Table, Counter), escalus_ejabberd:rpc(ets, lookup, [Table, Counter])).
 
 %%--------------------------------------------------------------------

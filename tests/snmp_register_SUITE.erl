@@ -46,7 +46,8 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    escalus:init_per_suite(Config).
+    escalus:init_per_suite(Config),
+    escalus_ejabberd:rpc(ejabberd_snmp_core, reset_counters, []).
 
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
