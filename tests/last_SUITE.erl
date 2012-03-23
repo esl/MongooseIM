@@ -96,7 +96,7 @@ last_server(Config) ->
     escalus:story(Config, [1],
                   fun(Alice) ->
                           %% Alice asks for server's uptime
-                          Server = escalus_users:get_server(alice),
+                          Server = escalus_users:get_server(Config, alice),
                           escalus_client:send(Alice, escalus_stanza:last_activity(Server)),
 
                           %% Server replies with the uptime > 0

@@ -72,11 +72,11 @@ init_per_testcase(CaseName, Config) ->
 
 end_per_testcase(add_contact, Config) ->
     [{_, UserSpec} | _] = escalus_config:get_config(escalus_users, Config),
-    remove_roster(UserSpec),
+    remove_roster(Config, UserSpec),
     escalus:end_per_testcase(add_contact, Config);
 end_per_testcase(roster_push, Config) ->
     [{_, UserSpec} | _] = escalus_config:get_config(escalus_users, Config),
-    remove_roster(UserSpec),
+    remove_roster(Config, UserSpec),
     escalus:end_per_testcase(roster_push, Config);
 end_per_testcase(subscribe, Config) ->
     end_rosters_remove(Config);
@@ -94,8 +94,8 @@ end_per_testcase(CaseName, Config) ->
 end_rosters_remove(Config) ->
     [{_, UserSpec1}, {_, UserSpec2} | _] =
         escalus_config:get_config(escalus_users, Config),
-    remove_roster(UserSpec1),
-    remove_roster(UserSpec2),
+    remove_roster(Config, UserSpec1),
+    remove_roster(Config, UserSpec2),
     escalus:end_per_testcase(subscription, Config).
 
 init_realtime_counter_testcase(CaseName, Config) ->
@@ -331,6 +331,6 @@ add_sample_contact(Alice, Bob, Groups, Name) ->
     escalus_client:wait_for_stanza(Alice).
 
 
-remove_roster(UserSpec) ->
-    [Username, Server, _Pass] = escalus_users:get_usp(UserSpec),
+remove_roster(Config, UserSpec) ->
+    [Username, Server, _Pass] = escalus_users:get_usp(Config, UserSpec),
     rpc:call(ejabberd@localhost, mod_roster, remove_user, [Username, Server]).

@@ -65,7 +65,7 @@ init_per_testcase(CaseName, Config) ->
 
 end_per_testcase(add_contact, Config) ->
     [{_, UserSpec} | _] = escalus_config:get_config(escalus_users, Config),
-    remove_roster(UserSpec),
+    remove_roster(Config, UserSpec),
     escalus:end_per_testcase(add_contact, Config);
 end_per_testcase(subscribe, Config) ->
     end_rosters_remove(Config);
@@ -79,8 +79,8 @@ end_per_testcase(CaseName, Config) ->
 end_rosters_remove(Config) ->
     [{_, UserSpec1}, {_, UserSpec2} | _] =
         escalus_config:get_config(escalus_users, Config),
-    remove_roster(UserSpec1),
-    remove_roster(UserSpec2),
+    remove_roster(Config, UserSpec1),
+    remove_roster(Config, UserSpec2),
     escalus:end_per_testcase(subscription, Config).
 
 
@@ -377,8 +377,8 @@ check_subscription_stanzas(Stanzas, Type) ->
                      end,
     escalus:assert_many([is_roster_set, IsPresWithType], Stanzas).
 
-remove_roster(UserSpec) ->
-    [Username, Server, _Pass] = escalus_users:get_usp(UserSpec),
+remove_roster(Config, UserSpec) ->
+    [Username, Server, _Pass] = escalus_users:get_usp(Config, UserSpec),
     Mods = escalus_ejabberd:rpc(gen_mod, loaded_modules, [Server]),
     case lists:member(mod_roster, Mods) of
         true ->

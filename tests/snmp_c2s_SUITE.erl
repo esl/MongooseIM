@@ -264,7 +264,7 @@ error_iq(_Config) ->
     {value, Errors} = get_counter_value(xmppErrorIq),
 
     Alice = escalus_users:get_user_by_name(alice),
-    escalus_users:create_user(Alice),
+    escalus_users:create_user(Config, Alice),
 
     timer:sleep(?WAIT_TIME),
 

@@ -86,13 +86,13 @@ end_per_testcase(CaseName, Config) ->
 register(Config) ->
     %%user should be registered in an init function
     [{_, UserSpec} | _] = escalus_config:get_config(escalus_users, Config),
-    [Username, Server, _Pass] = escalus_users:get_usp(UserSpec),
+    [Username, Server, _Pass] = escalus_users:get_usp(Config, UserSpec),
     true = escalus_ejabberd:rpc(ejabberd_auth, is_user_exists, [Username, Server]).
 
 check_unregistered(Config) ->
     escalus:delete_users(Config),
     [{_, UserSpec}| _] = escalus_users:get_users(all),
-    [Username, Server, _Pass] = escalus_users:get_usp(UserSpec),
+    [Username, Server, _Pass] = escalus_users:get_usp(Config, UserSpec),
     false = escalus_ejabberd:rpc(ejabberd_auth, is_user_exists, [Username, Server]).
 
 
