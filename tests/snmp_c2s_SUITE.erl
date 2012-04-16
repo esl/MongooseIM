@@ -260,7 +260,7 @@ error_presence(Config) ->
 
         end).
 
-error_iq(_Config) ->
+error_iq(Config) ->
     {value, Errors} = get_counter_value(xmppErrorIq),
 
     Alice = escalus_users:get_user_by_name(alice),
