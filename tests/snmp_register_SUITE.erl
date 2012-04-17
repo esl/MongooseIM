@@ -37,7 +37,7 @@ groups() ->
     [{registration, [sequence], [register,
                                  unregister,
                                  registered_users]}].
-     
+
 suite() ->
     [{require, ejabberd_node} | escalus:suite()].
 
@@ -46,8 +46,9 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    escalus:init_per_suite(Config),
-    escalus_ejabberd:rpc(ejabberd_snmp_core, reset_counters, []).
+    NewConfig = escalus:init_per_suite(Config),
+    escalus_ejabberd:rpc(ejabberd_snmp_core, reset_counters, []),
+    NewConfig.
 
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
@@ -55,21 +56,21 @@ end_per_suite(Config) ->
 init_per_group(_GroupName, Config) ->
     Config.
 
-end_per_group(_GroupName, Config) ->
+end_per_group(_GroupName, _Config) ->
     ok.
 
 init_per_testcase(unregister, Config) ->
     Alice = escalus_users:get_user_by_name(alice),
-    escalus_users:create_user(Alice),
+    escalus_users:create_user(Config, Alice),
     Config;
 init_per_testcase(_CaseName, Config) ->
     Config.
 
-end_per_testcase(unregister, Config) ->
+end_per_testcase(unregister, _Config) ->
     ok;
 end_per_testcase(_CaseName, Config) ->
     Alice = escalus_users:get_user_by_name(alice),
-    escalus_users:delete_user(Alice).
+    escalus_users:delete_user(Config, Alice).
 
 %%--------------------------------------------------------------------
 %% Registration tests
@@ -77,26 +78,26 @@ end_per_testcase(_CaseName, Config) ->
 
 register(Config) ->
     {value, Registarations} = get_counter_value(modRegisterCount),
-    
+
     Alice = escalus_users:get_user_by_name(alice),
-    escalus_users:create_user(Alice),
-    
+    escalus_users:create_user(Config, Alice),
+
     assert_counter(Registarations + 1, modRegisterCount).
-    
+
 
 unregister(Config) ->
     {value, Deregistarations} = get_counter_value(modUnregisterCount),
-    
+
     Alice = escalus_users:get_user_by_name(alice),
-    escalus_users:delete_user(Alice),
-    
+    escalus_users:delete_user(Config, Alice),
+
     assert_counter(Deregistarations + 1, modUnregisterCount).
-    
+
 registered_users(Config) ->
     {value, Registered} = get_counter_value(modRegisterUserCount),
     Alice = escalus_users:get_user_by_name(alice),
-    escalus_users:create_user(Alice),
-    
+    escalus_users:create_user(Config, Alice),
+
     timer:sleep(?RT_WAIT_TIME),
-    assert_counter(Registered +1, modRegisterUserCount).
+    assert_counter(Registered + 1, modRegisterUserCount).
 

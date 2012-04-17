@@ -20,7 +20,7 @@
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
 
--define(SLEEP_TIME, 100).
+-define(SLEEP_TIME, 2000).
 -define(RPC_LOOKUP(Table, Counter), escalus_ejabberd:rpc(ets, lookup, [Table, Counter])).
 
 %%--------------------------------------------------------------------
@@ -64,7 +64,7 @@ end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config).
 
 init_per_testcase(modPrivacyListLength, Config) ->
-    Interval = 0.5 * ?SLEEP_TIME / 1000, %% half of ?SLEEP_TIME in seconds
+    Interval = round(0.5 * ?SLEEP_TIME / 1000), %% half of ?SLEEP_TIME in seconds
     ok = escalus_ejabberd:rpc(gen_server, call,
             [ejabberd_snmp_rt, {change_interval_rt, Interval}]),
     %% rest is the same; fallthrough is not a test name,
