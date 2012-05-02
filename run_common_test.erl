@@ -6,9 +6,13 @@
 -define(CT_CONFIG, "test.config").
 
 ct() ->
-    ct:run_test([
-        {config, [?CT_CONFIG]},
-        {dir, ?CT_DIR},
-        {logdir, ?CT_REPORT}
-    ]),
+    Result = ct:run_test([{config, [?CT_CONFIG]},
+                          {dir, ?CT_DIR},
+                          {logdir, ?CT_REPORT}]),
+    case Result of
+        {error, Reason} ->
+            throw({ct_error, Reason});
+        _ ->
+            ok
+    end,
     init:stop(0).
