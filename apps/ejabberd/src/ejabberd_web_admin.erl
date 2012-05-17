@@ -233,7 +233,7 @@ get_auth_admin(Auth, HostHTTP, RPath, Method) ->
     case Auth of
         {SJID, Pass} ->
 	    {HostOfRule, AccessRule} = get_acl_rule(RPath, Method),
-            case jlib:binary_to_jid(SJID) of
+            case jlib:binary_to_jid(list_to_binary(SJID)) of
                 error ->
                     {unauthorized, "badformed-jid"};
                 #jid{user = "", server = User} ->
@@ -247,7 +247,7 @@ get_auth_admin(Auth, HostHTTP, RPath, Method) ->
     end.
 
 get_auth_account(HostOfRule, AccessRule, User, Server, Pass) ->
-    case ejabberd_auth:check_password(User, Server, Pass) of
+    case ejabberd_auth:check_password(User, Server, list_to_binary(Pass)) of
 	true ->
 	    case is_acl_match(HostOfRule, AccessRule,
 				jlib:make_jid(User, Server, "")) of
