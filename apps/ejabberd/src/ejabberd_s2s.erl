@@ -422,8 +422,8 @@ parent_domains(Domain) ->
       fun(Label, []) ->
 	      [Label];
 	 (Label, [Head | Tail]) ->
-	      [Label ++ "." ++ Head, Head | Tail]
-      end, [], lists:reverse(string:tokens(Domain, "."))).
+	      [<<Label/binary, ".", Head/binary>>, Head | Tail]
+      end, [], lists:reverse(binary:split(Domain, <<".">>))).
 
 send_element(Pid, El) ->
     Pid ! {send_element, El}.
