@@ -25,7 +25,7 @@ ct_cover() ->
     ct:run_test([
         {config, [?CT_CONFIG]},
         {dir, ?CT_DIR},
-        {logdir, ?CT_REPORT},
+        {logdir, ?CT_REPORT}
     ]),
     Modules = cover_call(modules),
     rpc:call(?EJABBERD_NODE, file, make_dir, ["coverage"]),
