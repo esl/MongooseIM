@@ -20,8 +20,8 @@ ct() ->
 
 ct_cover() ->
     cover_call(start),
-    cover_call(compile_beam_directory,["lib/ejabberd-2.1.8/ebin"]),
-    %% io:format("Compiled modules ~p~n", [Compiled]),
+    Compiled = cover_call(compile_beam_directory,["lib/ejabberd-2.1.8/ebin"]),
+    io:format("Compiled modules ~p~n", [Compiled]),
     ct:run_test([
         {config, [?CT_CONFIG]},
         {dir, ?CT_DIR},
@@ -37,7 +37,7 @@ ct_cover() ->
                   {ok, {Module, {C, NC}}} = cover_call(analyse, [Module, module]),
                   io:fwrite(File, "~s;~b;~b;~s\n", [Module, C, NC, FilePath])
           end,
-    io:format("coverage analyzing~n", Modules),
+    io:format("coverage analyzing~n"),
     lists:foreach(Fun, Modules),
     file:close(File),
     io:format("test finished~n"),
