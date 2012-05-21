@@ -26,19 +26,21 @@ ct_cover() ->
         {config, [?CT_CONFIG]},
         {dir, ?CT_DIR},
         {logdir, ?CT_REPORT},
-        {suite, login_SUITE}
     ]),
     Modules = cover_call(modules),
     rpc:call(?EJABBERD_NODE, file, make_dir, ["coverage"]),
+    {ok, File} = file:open("cover_summary.txt", write),
     Fun = fun(Module) ->
-                  Stats = cover_call(analyse, [Module, module]),
                   FileName = lists:flatten(io_lib:format("~s.COVER.html",[Module])),
                   FilePath = filename:join(["coverage", FileName]),
                   cover_call(analyse_to_file, [Module, FilePath, [html]]),
-                  io:format("~p ~p~n", [Module, Stats])
+                  {ok, {Module, {C, NC}}} = cover_call(analyse, [Module, module]),
+                  io:fwrite(File, "~s;~b;~b;~s\n", [Module, C, NC, FilePath])
           end,
+    io:format("coverage analyzing~n", Modules),
     lists:foreach(Fun, Modules),
-    %% io:format("modules ~p~n", Modules),
+    file:close(File),
+    io:format("test finished~n"),
     init:stop(0).
 
 cover_call(Function) ->
