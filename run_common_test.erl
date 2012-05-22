@@ -48,8 +48,9 @@ prepare() ->
     rpc:call(?EJABBERD_NODE, application, stop, [ejabberd]),
     cover_call(start),
     Compiled = cover_call(compile_beam_directory,["lib/ejabberd-2.1.8/ebin"]),
-    rpc:call(?EJABBERD_NODE, application, start, [ejabberd]),
-    io:format("Compiled modules ~p~n", [Compiled]).
+    io:format("start ~p~n", [rpc:call(?EJABBERD_NODE, application, start, [ejabberd, permanent])]),
+    io:format("Compiled modules ~p~n", [Compiled]),
+    timer:sleep(10000).
 
 analyze() ->
     Modules = cover_call(modules),
