@@ -45,8 +45,10 @@ cover_summary() ->
     init:stop(0).
 
 prepare() ->
+    rpc:call(?EJABBERD_NODE, application, stop, [ejabberd]),
     cover_call(start),
     Compiled = cover_call(compile_beam_directory,["lib/ejabberd-2.1.8/ebin"]),
+    rpc:call(?EJABBERD_NODE, application, start, [ejabberd]),
     io:format("Compiled modules ~p~n", [Compiled]).
 
 analyze() ->
