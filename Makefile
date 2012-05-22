@@ -27,6 +27,15 @@ cover_test: escalus/Makefile prepare
 			`pwd`/escalus/deps/base16/ebin \
 		-s run_common_test ct_cover
 
+cover_summary: escalus/Makefile prepare
+	erl -noinput -sname test -setcookie ejabberd \
+		-pa `pwd`/tests \
+			`pwd`/escalus/ebin \
+			`pwd`/escalus/deps/exml/ebin \
+			`pwd`/escalus/deps/lxmppc/ebin \
+			`pwd`/escalus/deps/base16/ebin \
+		-s run_common_test cover_summary
+
 prepare:
 	cd escalus; make
 	erlc -Iescalus/deps/exml/include \
