@@ -23,8 +23,7 @@ ct_cover() ->
     ct:run_test([
         {config, [?CT_CONFIG]},
         {dir, ?CT_DIR},
-        {logdir, ?CT_REPORT},
-                 {suite, login_SUITE}
+        {logdir, ?CT_REPORT}
     ]),
     analyze(),
     {MS,S,_} = now(),
@@ -38,7 +37,7 @@ cover_summary() ->
     prepare(),
     Files = rpc:call(?EJABBERD_NODE, filelib, wildcard, ["*.coverdata"]),
     lists:foreach(fun(F) ->
-                          io:format("import ~p cover ~p~n", [F, cover_call(import, ["previous.coverdata"])])
+                          io:format("import ~p cover ~p~n", [F, cover_call(import, [F])])
                   end,
                   Files),
     analyze(),
