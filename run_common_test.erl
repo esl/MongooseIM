@@ -4,12 +4,16 @@
 -define(CT_DIR, filename:join([".", "tests"])).
 -define(CT_REPORT, filename:join([".", "ct_report"])).
 -define(CT_CONFIG, "test.config").
--define(EJABBERD_NODE, 'ejabberd@localhost').
+-define(EJABBERD_NODE, get_ejabberd_node()).
+
+tests_to_run() -> [
+                   {config, [?CT_CONFIG]},
+                   {dir, ?CT_DIR},
+                   {logdir, ?CT_REPORT}
+                  ].
 
 ct() ->
-    Result = ct:run_test([{config, [?CT_CONFIG]},
-                          {dir, ?CT_DIR},
-                          {logdir, ?CT_REPORT}]),
+    Result = ct:run_test(tests_to_run()),
     case Result of
         {error, Reason} ->
             throw({ct_error, Reason});
@@ -20,11 +24,7 @@ ct() ->
 
 ct_cover() ->
     prepare(),
-    ct:run_test([
-        {config, [?CT_CONFIG]},
-        {dir, ?CT_DIR},
-        {logdir, ?CT_REPORT}
-    ]),
+    ct:run_test(tests_to_run()),
     analyze(),
     {MS,S,_} = now(),
     FileName = lists:flatten(io_lib:format("run_~b~b.coverdata",[MS,S])),
@@ -71,3 +71,13 @@ cover_call(Function) ->
     cover_call(Function, []).
 cover_call(Function, Args) ->
     rpc:call(?EJABBERD_NODE, cover, Function, Args).
+
+get_ejabberd_node() ->
+    case get(ejabberd_node) of
+        undefined ->
+            {ok, Props} = file:consult("test.config"),
+            {ejabberd_node, Node} = proplists:lookup(ejabberd_node, Props),
+            Node;
+        Node ->
+            Node
+    end.
