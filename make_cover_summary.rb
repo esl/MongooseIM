@@ -18,7 +18,7 @@ def make_cover_summary()
             cover.write("<td><a href='../../rel/ejabberd/#{cells[3]}'>#{cells[0]}</a></td>")
             c = cells[1].to_f
             nc = cells[2].to_f
-            p = c/(nc+c)*100
+            p = if c != 0 or nc != 0 then c/(nc+c)*100 else 100 end
             c_sum = c_sum + c
             nc_sum = nc_sum + nc
             cover.write("<td>#{p.round} %</td>")
