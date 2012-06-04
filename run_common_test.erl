@@ -44,10 +44,11 @@ cover_summary() ->
     init:stop(0).
 
 prepare() ->
-    %%rpc:call(get_ejabberd_node(), application, stop, [ejabberd]),
     cover_call(start),
     Compiled = cover_call(compile_beam_directory,["lib/ejabberd-2.1.8/ebin"]),
-    %%io:format("start ~p~n", [rpc:call(get_ejabberd_node(), application, start, [ejabberd, permanent])]),
+    rpc:call(get_ejabberd_node(), application, stop, [ejabberd]),
+    StartStatus = rpc:call(get_ejabberd_node(), application, start, [ejabberd, permanent]),
+    io:format("start ~p~n", [StartStatus]),
     io:format("Compiled modules ~p~n", [Compiled]).
     %%timer:sleep(10000).
 
