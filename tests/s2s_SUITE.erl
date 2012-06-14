@@ -57,7 +57,7 @@ end_per_testcase(CaseName, Config) ->
 %%%===================================================================
 
 simple_message(Config) ->
-    escalus:story(Config, [1,1], fun(Alice2, Alice1) ->
+    escalus:story(Config, [{alice2, 1}, {alice1, 1}], fun(Alice2, Alice1) ->
         %% Alice@localhost1 sends message to Alice@localhost2
         escalus:send(Alice1, escalus_stanza:chat_to(
             get_jid_from_config(Config, alice2), <<"Hi, foreign Alice!">>)),
@@ -72,7 +72,7 @@ simple_message(Config) ->
     end).
 
 nonexist_user(Config) ->
-    escalus:story(Config, [0,1], fun(Alice1) ->
+    escalus:story(Config, [{alice1, 1}], fun(Alice1) ->
         %% Alice@localhost1 sends message to Xyz@localhost2
         RemoteServer = get_server_from_config(Config, alice2),
         escalus:send(Alice1, escalus_stanza:chat_to(
@@ -87,7 +87,7 @@ nonexist_user(Config) ->
     end).
 
 unknown_domain(Config) ->
-    escalus:story(Config, [0,1], fun(Alice1) ->
+    escalus:story(Config, [{alice1, 1}], fun(Alice1) ->
         %% Alice@localhost1 sends message to Xyz@localhost3
         escalus:send(Alice1, escalus_stanza:chat_to(
             <<"xyz@somebogushost">>,
@@ -98,6 +98,20 @@ unknown_domain(Config) ->
             fun(Stanza) ->
                 escalus_pred:is_error(<<"cancel">>, <<"remote-server-not-found">>, Stanza)
             end, Stanza1)
+    end).
+
+nonasci_addr(Config) ->
+    escalus:story(Config, [{alice1, 1}, {bob2, 1}], fun(Alice, Bob) ->
+        escalus:send(Alice, escalus_stanza:chat_to(
+            get_jid_from_config(Config, bob2), <<"Cześć Bob!">>)),
+        %% Alice@localhost2 receives message from Alice@localhost1
+        Stanza = escalus:wait_for_stanza(Bob, 10000),
+        escalus_new_assert:assert(is_chat(<<"Cześć Bob!">>), Stanza),
+        %% Alice@localhost2 sends message to Alice@localhost1
+        escalus:send(Bob, escalus_stanza:chat_to(alice, <<"Miło Cię poznać">>)),
+        %% Alice@localhost1 receives message from Alice@localhost2
+        Stanza2 = escalus:wait_for_stanza(Alice, 10000),
+        escalus_new_assert:assert(is_chat(<<"Miło Cię poznać">>), Stanza2)
     end).
 
 %%%===================================================================
