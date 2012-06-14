@@ -24,14 +24,19 @@
 %% Suite configuration
 %%--------------------------------------------------------------------
 
+-define(REGISTRATION_TIMEOUT, 2).  %% seconds
+
 all() ->
     [{group, register},
+     {group, registration_timeout},
      {group, login},
      {group, messages}].
 
 groups() ->
     [{register, [sequence], [register,
                              check_unregistered]},
+     {registration_timeout, [sequence], [registration_not_allowed_before_timeout,
+                                         registration_allowed_after_timeout]},
      {login, [sequence], [log_one,
                           log_one_digest]},
 %%                          log_one_basic_plain,
@@ -51,11 +56,17 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
+init_per_group(registration_timeout, Config) ->
+    set_registration_timeout(?REGISTRATION_TIMEOUT),
+    Config;
 init_per_group(_GroupName, Config) ->
     escalus:create_users(Config).
 
-end_per_group(register, Config) ->
+end_per_group(register, _Config) ->
     ok;
+end_per_group(registration_timeout, Config) ->
+    set_registration_timeout(infinity),
+    escalus_users:delete_users(Config, {by_name, [alice, bob]});
 end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config).
 
@@ -84,7 +95,7 @@ end_per_testcase(CaseName, Config) ->
 %%--------------------------------------------------------------------
 
 register(Config) ->
-    %%user should be registered in an init function
+    %% User should be registered in an init function
     [{_, UserSpec} | _] = escalus_config:get_config(escalus_users, Config),
     [Username, Server, _Pass] = escalus_users:get_usp(Config, UserSpec),
     true = escalus_ejabberd:rpc(ejabberd_auth, is_user_exists, [Username, Server]).
@@ -95,6 +106,19 @@ check_unregistered(Config) ->
     [Username, Server, _Pass] = escalus_users:get_usp(Config, UserSpec),
     false = escalus_ejabberd:rpc(ejabberd_auth, is_user_exists, [Username, Server]).
 
+registration_not_allowed_before_timeout(Config) ->
+    [Alice, Bob] = escalus_users:get_users({by_name, [alice, bob]}),
+    %% The first user should be created successfully
+    escalus_users:verify_creation(escalus_users:create_user(Config, Alice)),
+    %% Creation of the second one should err because of not timing out yet
+    {error, failed_to_register, Reason} = escalus_users:create_user(Config, Bob),
+    escalus:assert(is_iq_error, Reason).
+
+registration_allowed_after_timeout(Config) ->
+    [Bob] = escalus_users:get_users({by_name, [bob]}),
+    %% After timeout, the user should be created successfully
+    timer:sleep(erlang:round(?REGISTRATION_TIMEOUT * 1.5 * 1000)),
+    escalus_users:verify_creation(escalus_users:create_user(Config, Bob)).
 
 log_one(Config) ->
     escalus:story(Config, [1], fun(Alice) ->
@@ -124,3 +148,11 @@ messages_story(Config) ->
         escalus_assert:is_chat_message(<<"Hi!">>, escalus_client:wait_for_stanza(Bob))
 
     end).
+
+%%--------------------------------------------------------------------
+%% Helpers
+%%--------------------------------------------------------------------
+
+set_registration_timeout(Timeout) ->
+    Record = {local_config, registration_timeout, Timeout},
+    true = escalus_ejabberd:rpc(ets, insert, [local_config, Record]).
