@@ -35,8 +35,7 @@ all() ->
 groups() ->
     [{register, [sequence], [register,
                              check_unregistered]},
-     {registration_timeout, [sequence], [registration_not_allowed_before_timeout,
-                                         registration_allowed_after_timeout]},
+     {registration_timeout, [sequence], [registration_timeout]},
      {login, [sequence], [log_one,
                           log_one_digest]},
 %%                          log_one_basic_plain,
@@ -57,19 +56,17 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(registration_timeout, Config) ->
-    set_registration_timeout(?REGISTRATION_TIMEOUT),
-    Config;
+    set_registration_timeout(Config);
 init_per_group(_GroupName, Config) ->
     escalus:create_users(Config).
 
 end_per_group(register, _Config) ->
     ok;
 end_per_group(registration_timeout, Config) ->
-    set_registration_timeout(infinity),
-    escalus_users:delete_users(Config, {by_name, [alice, bob]});
+    Config1 = restore_registration_timeout(Config),
+    escalus_users:delete_users(Config1, {by_name, [alice, bob]});
 end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config).
-
 
 init_per_testcase(log_one_digest, Config) ->
     Conf1 = [ {escalus_auth_method, <<"DIGEST-MD5">>} | Config],
@@ -106,17 +103,17 @@ check_unregistered(Config) ->
     [Username, Server, _Pass] = escalus_users:get_usp(Config, UserSpec),
     false = escalus_ejabberd:rpc(ejabberd_auth, is_user_exists, [Username, Server]).
 
-registration_not_allowed_before_timeout(Config) ->
+registration_timeout(Config) ->
     [Alice, Bob] = escalus_users:get_users({by_name, [alice, bob]}),
+
     %% The first user should be created successfully
     escalus_users:verify_creation(escalus_users:create_user(Config, Alice)),
+
     %% Creation of the second one should err because of not timing out yet
     {error, failed_to_register, Reason} = escalus_users:create_user(Config, Bob),
-    escalus:assert(is_iq_error, Reason).
+    escalus:assert(is_iq_error, Reason),
 
-registration_allowed_after_timeout(Config) ->
-    [Bob] = escalus_users:get_users({by_name, [bob]}),
-    %% After timeout, the user should be created successfully
+    %% After timeout, the user should be registered successfully
     timer:sleep(erlang:round(?REGISTRATION_TIMEOUT * 1.5 * 1000)),
     escalus_users:verify_creation(escalus_users:create_user(Config, Bob)).
 
@@ -153,6 +150,15 @@ messages_story(Config) ->
 %% Helpers
 %%--------------------------------------------------------------------
 
-set_registration_timeout(Timeout) ->
-    Record = {local_config, registration_timeout, Timeout},
-    true = escalus_ejabberd:rpc(ets, insert, [local_config, Record]).
+set_registration_timeout(Config) ->
+    Record = {local_config, registration_timeout, ?REGISTRATION_TIMEOUT},
+    OldTimeout = escalus_ejabberd:rpc(ejabberd_config, get_local_option,
+                                      [registration_timeout]),
+    true = escalus_ejabberd:rpc(ets, insert, [local_config, Record]),
+    [ {old_timeout, OldTimeout} | Config ].
+
+restore_registration_timeout(Config) ->
+    {old_timeout, OldTimeout} = proplists:lookup(old_timeout, Config),
+    Record = {local_config, registration_timeout, OldTimeout},
+    true = escalus_ejabberd:rpc(ets, insert, [local_config, Record]),
+    proplists:delete(old_timeout, Config).
