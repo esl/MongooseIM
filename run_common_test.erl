@@ -4,12 +4,15 @@
 -define(CT_DIR, filename:join([".", "tests"])).
 -define(CT_REPORT, filename:join([".", "ct_report"])).
 -define(CT_CONFIG, "test.config").
--define(EJABBERD_NODE, 'ejabberd@localhost').
+
+tests_to_run() -> [
+                   {config, [?CT_CONFIG]},
+                   {dir, ?CT_DIR},
+                   {logdir, ?CT_REPORT}
+                  ].
 
 ct() ->
-    Result = ct:run_test([{config, [?CT_CONFIG]},
-                          {dir, ?CT_DIR},
-                          {logdir, ?CT_REPORT}]),
+    Result = ct:run_test(tests_to_run()),
     case Result of
         {error, Reason} ->
             throw({ct_error, Reason});
@@ -20,11 +23,7 @@ ct() ->
 
 ct_cover() ->
     prepare(),
-    ct:run_test([
-        {config, [?CT_CONFIG]},
-        {dir, ?CT_DIR},
-        {logdir, ?CT_REPORT}
-    ]),
+    ct:run_test(tests_to_run()),
     analyze(),
     {MS,S,_} = now(),
     FileName = lists:flatten(io_lib:format("run_~b~b.coverdata",[MS,S])),
@@ -35,7 +34,7 @@ ct_cover() ->
 
 cover_summary() ->
     prepare(),
-    Files = rpc:call(?EJABBERD_NODE, filelib, wildcard, ["*.coverdata"]),
+    Files = rpc:call(get_ejabberd_node(), filelib, wildcard, ["*.coverdata"]),
     lists:foreach(fun(F) ->
                           io:format("import ~p cover ~p~n", [F, cover_call(import, [F])])
                   end,
@@ -45,16 +44,16 @@ cover_summary() ->
     init:stop(0).
 
 prepare() ->
-    %%rpc:call(?EJABBERD_NODE, application, stop, [ejabberd]),
+    %%rpc:call(get_ejabberd_node(), application, stop, [ejabberd]),
     cover_call(start),
     Compiled = cover_call(compile_beam_directory,["lib/ejabberd-2.1.8/ebin"]),
-    %%io:format("start ~p~n", [rpc:call(?EJABBERD_NODE, application, start, [ejabberd, permanent])]),
+    %%io:format("start ~p~n", [rpc:call(get_ejabberd_node(), application, start, [ejabberd, permanent])]),
     io:format("Compiled modules ~p~n", [Compiled]).
     %%timer:sleep(10000).
 
 analyze() ->
     Modules = cover_call(modules),
-    rpc:call(?EJABBERD_NODE, file, make_dir, ["coverage"]),
+    rpc:call(get_ejabberd_node(), file, make_dir, ["coverage"]),
     {ok, File} = file:open("cover_summary.txt", write),
     Fun = fun(Module) ->
                   FileName = lists:flatten(io_lib:format("~s.COVER.html",[Module])),
@@ -70,4 +69,9 @@ analyze() ->
 cover_call(Function) ->
     cover_call(Function, []).
 cover_call(Function, Args) ->
-    rpc:call(?EJABBERD_NODE, cover, Function, Args).
+    rpc:call(get_ejabberd_node(), cover, Function, Args).
+
+get_ejabberd_node() ->
+    {ok, Props} = file:consult("test.config"),
+    {ejabberd_node, Node} = proplists:lookup(ejabberd_node, Props),
+    Node.
