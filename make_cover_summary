@@ -1,0 +1,52 @@
+#!/usr/bin/env escript
+%% vim: ft=erlang et sts=4 ts=4 sw=4
+%% -*- erlang -*-
+
+summary()      -> "ct_report/cover.html".
+summary_data() -> "cover_summary.txt".
+
+main(_) ->
+    {ok, Summary} = file:open(summary(), [write]),
+    file:write(Summary, "<html>\n<head></head>\n<body bgcolor=\"white\" text=\"black\" link=\"blue\" vlink=\"purple\" alink=\"red\">\n"),
+    file:write(Summary, "<h1>Coverage for application 'omp'</h1>\n"),
+    file:write(Summary, "<table border=3 cellpadding=5>\n"),
+    file:write(Summary, "<tr><th>Module</th><th>Covered (%)</th><th>Covered (Lines)</th><th>Not covered (Lines)</th>"),
+    {ok, Data} = file:open(summary_data(), [read]),
+    {CSum, NCSum} = for_line_acc(Data, {0, 0}, fun(Line, {CAcc, NCAcc}) ->
+        [Mod,C0,NC0,Path] = string:tokens(Line, ";"),
+        {C, NC} = {list_to_integer(C0), list_to_integer(NC0)},
+        file:write(Summary, row(Mod, C, NC, percent(C,NC), "../../dev/ejabberd/" ++ Path)),
+        {CAcc + C, NCAcc + NC}
+    end),
+    file:close(Data),
+    file:write(Summary, row("Summary", CSum, NCSum, percent(CSum, NCSum), "#")),
+    file:close(Summary).
+
+percent(C, NC) when C /= 0; NC /= 0 -> round(C / (NC+C) * 100);
+percent(_, _)                       -> 100.
+
+row(Row, C, NC, Percent, Path) ->
+    [
+        "<tr>",
+        "<td><a href='", Path, "'>", Row, "</a></td>",
+        "<td>", integer_to_list(Percent), "%</td>",
+        "<td>", integer_to_list(C), "</td>",
+        "<td>", integer_to_list(NC), "</td>",
+        "</tr>\n"
+    ].
+
+%for_line(IoDev, F) ->
+    %ffold(fun(E,_) -> F(E) end, 0, IoDev).
+
+for_line_acc(IoDev, Acc0, F) ->
+    ffold(F, Acc0, IoDev).
+
+ffold(F, Acc0, IoDev) ->
+    ffold(F, Acc0, file:read_line(IoDev), IoDev).
+
+ffold(F, Acc, {ok, Line}, IoDev) ->
+    ffold(F, F(Line, Acc), file:read_line(IoDev), IoDev);
+ffold(_F, Acc, eof, _IoDev) ->
+    Acc;
+ffold(_F, _Acc, {error, Reason}, _IoDev) ->
+    throw({error, Reason}).
