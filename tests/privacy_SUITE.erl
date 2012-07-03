@@ -29,36 +29,47 @@
 
 all() ->
     [{group, management},
-     {group, blocking}].
+     {group, blocking},
+     {group, management_odbc},
+     {group, blocking_odbc}
+    ].
 
 groups() ->
-    [{management, [sequence], [get_all_lists,
-                               get_existing_list,
-                               get_many_lists,
-                               get_nonexistent_list,
-                               set_list,
-                               activate,
-                               activate_nonexistent,
-                               deactivate,
-                               default,
-                               %default_conflict,  % fails, as of bug #7073
-                               default_nonexistent,
-                               no_default,
-                               remove_list,
-                               get_all_lists_with_active
-                               %get_all_lists_with_default
-                                 % not implemented (see testcase)
-                              ]},
-     {blocking, [sequence], [block_jid_message,
-                             block_group_message,
-                             block_subscription_message,
-                             block_all_message,
-                             block_jid_presence_in,
-                             block_jid_presence_out,
-                             block_jid_iq,
-                             block_jid_all,
-                             block_jid_message_but_not_presence
-                         ]}].
+    [{management, [sequence], management_test_cases()},
+     {management_odbc, [sequence], management_test_cases()},
+     {blocking, [sequence], blocking_test_cases()},
+     {blocking_odbc, [sequence], blocking_test_cases()}
+    ].
+management_test_cases() -> 
+    [get_all_lists,
+    get_existing_list,
+    get_many_lists,
+    get_nonexistent_list,
+    set_list,
+    activate,
+    activate_nonexistent,
+    deactivate,
+    default,
+    %default_conflict,  % fails, as of bug #7073
+    default_nonexistent,
+    no_default,
+    remove_list,
+    get_all_lists_with_active
+    %get_all_lists_with_default
+    % not implemented (see testcase)
+    ].
+
+blocking_test_cases() ->
+    [block_jid_message,
+    block_group_message,
+    block_subscription_message,
+    block_all_message,
+    block_jid_presence_in,
+    block_jid_presence_out,
+    block_jid_iq,
+    block_jid_all,
+    block_jid_message_but_not_presence
+    ].
 
 suite() ->
     escalus:suite().
@@ -74,8 +85,15 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
+init_per_group(management_odbc, Config) ->
+    restart_mod_privacy("_odbc"),
+    common_for_groups(Config);
+init_per_group(blocking_odbc, Config) ->
+    restart_mod_privacy("_odbc"),
+    common_for_groups(Config);
 init_per_group(_GroupName, Config) ->
-    escalus:create_users(Config).
+    restart_mod_privacy(""),
+    common_for_groups(Config).
 
 end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config).
@@ -85,6 +103,17 @@ init_per_testcase(CaseName, Config) ->
 
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
+
+common_for_groups(Config) ->
+    escalus:create_users(Config).
+
+restart_mod_privacy(Sufix) ->
+    Domain = ct:get_config(ejabberd_domain),
+    {atomic, ok} = escalus_ejabberd:rpc(gen_mod, stop_module, [Domain, mod_privacy]),
+    {atomic, ok} = escalus_ejabberd:rpc(gen_mod, stop_module, [Domain, mod_privacy_odbc]),
+    Mod = list_to_atom(string:concat("mod_privacy", Sufix)),
+    io:format("mod ~p", [Mod]),
+    escalus_ejabberd:rpc(gen_mod, start_module, [Domain, Mod, []]).
 
 %%--------------------------------------------------------------------
 %% Tests
