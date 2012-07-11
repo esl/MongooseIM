@@ -86,13 +86,13 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(management_odbc, Config) ->
-    restart_mod_privacy("_odbc"),
+    privacy_helper:restart_mod_privacy("_odbc"),
     common_for_groups(Config);
 init_per_group(blocking_odbc, Config) ->
-    restart_mod_privacy("_odbc"),
+    privacy_helper:restart_mod_privacy("_odbc"),
     common_for_groups(Config);
 init_per_group(_GroupName, Config) ->
-    restart_mod_privacy(""),
+    privacy_helper:restart_mod_privacy(""),
     common_for_groups(Config).
 
 end_per_group(_GroupName, Config) ->
@@ -107,13 +107,6 @@ end_per_testcase(CaseName, Config) ->
 common_for_groups(Config) ->
     escalus:create_users(Config).
 
-restart_mod_privacy(Sufix) ->
-    Domain = ct:get_config(ejabberd_domain),
-    {atomic, ok} = escalus_ejabberd:rpc(gen_mod, stop_module, [Domain, mod_privacy]),
-    {atomic, ok} = escalus_ejabberd:rpc(gen_mod, stop_module, [Domain, mod_privacy_odbc]),
-    Mod = list_to_atom(string:concat("mod_privacy", Sufix)),
-    io:format("mod ~p", [Mod]),
-    escalus_ejabberd:rpc(gen_mod, start_module, [Domain, Mod, []]).
 
 %%--------------------------------------------------------------------
 %% Tests
