@@ -18,7 +18,7 @@ all() ->
     [{group, s2s_tests}].
 
 all_tests() ->
-    [simple_message, nonexist_user, unknown_domain].
+    [simple_message, nonexistent_user, unknown_domain].
 
 groups() ->
     [{s2s_tests, [sequence], all_tests()}].
@@ -58,81 +58,67 @@ end_per_testcase(CaseName, Config) ->
 
 simple_message(Config) ->
     escalus:story(Config, [{alice2, 1}, {alice, 1}], fun(Alice2, Alice1) ->
+
         %% Alice@localhost1 sends message to Alice@localhost2
-        escalus:send(Alice1, escalus_stanza:chat_to(
-            get_jid_from_config(Config, alice2), <<"Hi, foreign Alice!">>)),
+        escalus:send(Alice1, escalus_stanza:chat_to(Alice2, <<"Hi, foreign Alice!">>)),
+
         %% Alice@localhost2 receives message from Alice@localhost1
         Stanza = escalus:wait_for_stanza(Alice2, 10000),
-        escalus_new_assert:assert(is_chat(<<"Hi, foreign Alice!">>), Stanza),
+        escalus:assert(is_chat_message, [<<"Hi, foreign Alice!">>], Stanza),
+
         %% Alice@localhost2 sends message to Alice@localhost1
-        escalus:send(Alice2, escalus_stanza:chat_to(alice, <<"Nice to meet you!">>)),
+        escalus:send(Alice2, escalus_stanza:chat_to(Alice1, <<"Nice to meet you!">>)),
+
         %% Alice@localhost1 receives message from Alice@localhost2
         Stanza2 = escalus:wait_for_stanza(Alice1, 10000),
-        escalus_new_assert:assert(is_chat(<<"Nice to meet you!">>), Stanza2)
+        escalus:assert(is_chat_message, [<<"Nice to meet you!">>], Stanza2)
+
     end).
 
-nonexist_user(Config) ->
-    escalus:story(Config, [{alice, 1}], fun(Alice1) ->
+nonexistent_user(Config) ->
+    escalus:story(Config, [{alice, 1}, {alice2, 1}], fun(Alice1, Alice2) ->
+
         %% Alice@localhost1 sends message to Xyz@localhost2
-        RemoteServer = get_server_from_config(Config, alice2),
-        escalus:send(Alice1, escalus_stanza:chat_to(
-            <<"xyz@", RemoteServer/binary>>,
-            <<"Hello, nonexistent!">>)),
+        RemoteServer = escalus_client:server(Alice2),
+        Fake = <<"xyz@", RemoteServer/binary>>,
+        escalus:send(Alice1, escalus_stanza:chat_to(Fake,
+                                                    <<"Hello, nonexistent!">>)),
+
         %% Alice@localhost1 receives stanza error: service-unavailable
-        Stanza1 = escalus:wait_for_stanza(Alice1),
-        escalus_new_assert:assert(
-            fun(Stanza) ->
-                escalus_pred:is_error(<<"cancel">>, <<"service-unavailable">>, Stanza)
-            end, Stanza1)
+        Stanza = escalus:wait_for_stanza(Alice1),
+        escalus:assert(is_error, [<<"cancel">>, <<"service-unavailable">>], Stanza)
+
     end).
 
 unknown_domain(Config) ->
     escalus:story(Config, [{alice, 1}], fun(Alice1) ->
+
         %% Alice@localhost1 sends message to Xyz@localhost3
         escalus:send(Alice1, escalus_stanza:chat_to(
             <<"xyz@somebogushost">>,
             <<"Hello, unreachable!">>)),
+
         %% Alice@localhost1 receives stanza error: remote-server-not-found
-        Stanza1 = escalus:wait_for_stanza(Alice1, 10000),
-        escalus_new_assert:assert(
-            fun(Stanza) ->
-                escalus_pred:is_error(<<"cancel">>, <<"remote-server-not-found">>, Stanza)
-            end, Stanza1)
+        Stanza = escalus:wait_for_stanza(Alice1, 10000),
+        escalus:assert(is_error, [<<"cancel">>, <<"remote-server-not-found">>], Stanza)
+
     end).
 
-nonasci_addr(Config) ->
+nonascii_addr(Config) ->
     escalus:story(Config, [{alice, 1}, {bob2, 1}], fun(Alice, Bob) ->
-        escalus:send(Bob, escalus_stanza:chat_to(
-            get_jid_from_config(Config, alice), <<"Cześć Alice!">>)),
-        %% Alice@localhost2 receives message from Alice@localhost1
+
+        %% Bob@localhost2 sends message to Alice@localhost1
+        escalus:send(Bob, escalus_stanza:chat_to(Alice, <<"Cześć Alice!">>)),
+
+        %% Alice@localhost1 receives message from Bob@localhost2
         Stanza = escalus:wait_for_stanza(Alice, 10000),
-        escalus_new_assert:assert(is_chat(<<"Cześć Alice!">>), Stanza),
-        %% Alice@localhost2 sends message to Alice@localhost1
-        escalus:send(Alice, escalus_stanza:chat_to(get_jid_from_config(Config, bob2), <<"Miło Cię poznać">>)),
-        %% Alice@localhost1 receives message from Alice@localhost2
+        escalus:assert(is_chat_message, [<<"Cześć Alice!">>], Stanza),
+
+        %% Alice@localhost1 sends message to Bob@localhost2
+        escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Miło Cię poznać">>)),
+
+        %% Bob@localhost2 receives message from Alice@localhost1
         Stanza2 = escalus:wait_for_stanza(Bob, 10000),
-        escalus_new_assert:assert(is_chat(<<"Miło Cię poznać">>), Stanza2)
+        escalus:assert(is_chat_message, [<<"Miło Cię poznać">>], Stanza2)
+
     end).
-
-%%%===================================================================
-%%% Custom predicates
-%%%===================================================================
-
-is_chat(Content) ->
-    fun(Stanza) -> escalus_pred:is_chat_message(Content, Stanza) end.
-
-%%%===================================================================
-%%% Helpers
-%%%===================================================================
-
-get_jid_from_config(Config, Name) ->
-    {value, {escalus_users, UserList}} = lists:keysearch(escalus_users, 1, Config),
-    {value, {Name, UserSpec}} = lists:keysearch(Name, 1, UserList),
-    {value, {username, Username}} = lists:keysearch(username, 1, UserSpec),
-    {value, {server, Server}} = lists:keysearch(server, 1, UserSpec),
-    <<Username/binary, "@", Server/binary>>.
-get_server_from_config(Config, Name) ->
-    {value, {escalus_users, UserList}} = lists:keysearch(escalus_users, 1, Config),
-    {value, {Name, UserSpec}} = lists:keysearch(Name, 1, UserList),
-    {value, {server, Server}} = lists:keysearch(server, 1, UserSpec),
-    Server.
