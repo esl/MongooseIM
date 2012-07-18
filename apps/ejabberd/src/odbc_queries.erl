@@ -41,7 +41,7 @@
          list_users/2,
 	 users_number/1,
          users_number/2,
-	 add_spool_sql/2,
+	 add_spool_sql/3,
 	 add_spool/2,
 	 get_and_del_spool_msg_t/2,
 	 del_spool_msg/2,
@@ -52,27 +52,27 @@
 	 get_roster_by_jid/3,
 	 get_rostergroup_by_jid/3,
 	 del_roster/3,
-	 del_roster_sql/2,
+	 del_roster_sql/3,
 	 update_roster/5,
-	 update_roster_sql/4,
+	 update_roster_sql/5,
 	 roster_subscribe/4,
 	 get_subscription/3,
 	 set_private_data/4,
-	 set_private_data_sql/3,
+	 set_private_data_sql/4,
 	 get_private_data/3,
 	 del_user_private_storage/2,
 	 get_default_privacy_list/2,
-	 get_default_privacy_list_t/1,
+	 get_default_privacy_list_t/2,
 	 get_privacy_list_names/2,
-	 get_privacy_list_names_t/1,
+	 get_privacy_list_names_t/2,
 	 get_privacy_list_id/3,
-	 get_privacy_list_id_t/2,
+	 get_privacy_list_id_t/3,
 	 get_privacy_list_data/3,
 	 get_privacy_list_data_by_id/2,
-	 set_default_privacy_list/2,
+	 set_default_privacy_list/3,
 	 unset_default_privacy_list/2,
-	 remove_privacy_list/2,
-	 add_privacy_list/2,
+	 remove_privacy_list/3,
+	 add_privacy_list/3,
 	 set_privacy_list/2,
 	 del_privacy_lists/3,
 	 set_vcard/26,
@@ -80,7 +80,7 @@
 	 escape/1,
 	 count_records_where/3,
 	 get_roster_version/2,
-	 set_roster_version/2]).
+	 set_roster_version/3]).
 
 %% We have only two compile time options for db queries:
 %%-define(generic, true).
@@ -150,57 +150,57 @@ get_last(LServer, Username) ->
     ejabberd_odbc:sql_query(
       LServer,
       ["select seconds, state from last "
-       "where username='", Username, "'"]).
+       "where username='", Username, "' and domain='", LServer, "'"]).
 
 set_last_t(LServer, Username, Seconds, State) ->
-    update(LServer, "last", ["username", "seconds", "state"],
-	   [Username, Seconds, State],
-	   ["username='", Username, "'"]).
+    update(LServer, "last", ["username", "domain", "seconds", "state"],
+	   [Username, LServer, Seconds, State],
+	   ["username='", Username, "' and domain='", LServer, "'"]).
 
 del_last(LServer, Username) ->
     ejabberd_odbc:sql_query(
       LServer,
-      ["delete from last where username='", Username, "'"]).
+      ["delete from last where username='", Username, "' and domain='", LServer, "'"]).
 
 get_password(LServer, Username) ->
     ejabberd_odbc:sql_query(
       LServer,
       ["select password from users "
-       "where username='", Username, "';"]).
+       "where username='", Username, "' and domain='", LServer, "';"]).
 
 set_password_t(LServer, Username, Pass) ->
     ejabberd_odbc:sql_transaction(
       LServer,
       fun() ->
-	      update_t("users", ["username", "password"],
-		       [Username, Pass],
-		       ["username='", Username ,"'"])
+	      update_t("users", ["username", "domain", "password"],
+		       [Username, LServer, Pass],
+		       ["username='", Username, "' and domain='", LServer, "'"])
       end).
 
 add_user(LServer, Username, Pass) ->
     ejabberd_odbc:sql_query(
       LServer,
-      ["insert into users(username, password) "
-       "values ('", Username, "', '", Pass, "');"]).
+      ["insert into users(username, domain, password) "
+       "values ('", Username, "', '", LServer, "', '", Pass, "');"]).
 
 del_user(LServer, Username) ->
     ejabberd_odbc:sql_query(
       LServer,
-      ["delete from users where username='", Username ,"';"]).
+      ["delete from users where username='", Username, "' and domain='", LServer, "';"]).
 
-del_user_return_password(_LServer, Username, Pass) ->
+del_user_return_password(LServer, Username, Pass) ->
     P = ejabberd_odbc:sql_query_t(
 	  ["select password from users where username='",
-	   Username, "';"]),
+	   Username, "' and domain='", LServer, "';"]),
     ejabberd_odbc:sql_query_t(["delete from users "
-			       "where username='", Username,
+			       "where username='", Username, "' and domain='", LServer,
 			       "' and password='", Pass, "';"]),
     P.
 
 list_users(LServer) ->
     ejabberd_odbc:sql_query(
       LServer,
-      "select username from users").
+      "select username, domain from users").
 
 list_users(LServer, [{from, Start}, {to, End}]) when is_integer(Start) and
                                                      is_integer(End) ->
@@ -215,8 +215,8 @@ list_users(LServer, [{limit, Limit}, {offset, Offset}]) when is_integer(Limit) a
     ejabberd_odbc:sql_query(
       LServer,
       io_lib:format(
-        "select username from users "
-        "order by username "
+        "select username, domain from users "
+        "order by username, domain "
         "limit ~w offset ~w", [Limit, Offset]));
 list_users(LServer, [{prefix, Prefix},
                      {limit, Limit},
@@ -225,9 +225,9 @@ list_users(LServer, [{prefix, Prefix},
                                              is_integer(Offset) ->
     ejabberd_odbc:sql_query(
       LServer,
-      io_lib:format("select username from users "
+      io_lib:format("select username, domain from users "
                     "where username like '~s%' "
-                    "order by username "
+                    "order by domain, username "
                     "limit ~w offset ~w ", [Prefix, Limit, Offset])).
 
 users_number(LServer) ->
@@ -263,10 +263,9 @@ users_number(LServer, [{prefix, Prefix}]) when is_list(Prefix) ->
 users_number(LServer, []) ->
     users_number(LServer).
 
-
-add_spool_sql(Username, XML) ->
-    ["insert into spool(username, xml) "
-     "values ('", Username, "', '",
+add_spool_sql(LServer, Username, XML) ->
+    ["insert into spool(username, domain xml) "
+     "values ('", Username, "', '", LServer, "', '",
      XML,
      "');"].
 
@@ -277,10 +276,10 @@ add_spool(LServer, Queries) ->
 get_and_del_spool_msg_t(LServer, Username) ->
     F = fun() ->
 		Result = ejabberd_odbc:sql_query_t(
-			   ["select username, xml from spool where username='", Username, "'"
+			   ["select username, domain, xml from spool where username='", Username, "' and domain='", LServer, "'",
 			    "  order by seq;"]),
 		ejabberd_odbc:sql_query_t(
-		  ["delete from spool where username='", Username, "';"]),
+		  ["delete from spool where username='", Username, "' and domain='", LServer, "';"]),
 		Result
 	end,
     ejabberd_odbc:sql_transaction(LServer,F).
@@ -288,25 +287,25 @@ get_and_del_spool_msg_t(LServer, Username) ->
 del_spool_msg(LServer, Username) ->
     ejabberd_odbc:sql_query(
       LServer,
-      ["delete from spool where username='", Username, "';"]).
+      ["delete from spool where username='", Username, "' and domain='", LServer, "';"]).
 
 get_roster(LServer, Username) ->
     ejabberd_odbc:sql_query(
       LServer,
-      ["select username, jid, nick, subscription, ask, "
+      ["select username, domain, jid, nick, subscription, ask, "
        "askmessage, server, subscribe, type from rosterusers "
-       "where username='", Username, "'"]).
+       "where username='", Username, "' and domain='", LServer, "'"]).
 
 get_roster_jid_groups(LServer, Username) ->
     ejabberd_odbc:sql_query(
       LServer,
       ["select jid, grp from rostergroups "
-       "where username='", Username, "'"]).
+       "where username='", Username, "' and domain='", LServer, "'"]).
 
-get_roster_groups(_LServer, Username, SJID) ->
+get_roster_groups(LServer, Username, SJID) ->
     ejabberd_odbc:sql_query_t(
       ["select grp from rostergroups "
-       "where username='", Username, "' "
+       "where username='", Username, "' and domain='", LServer, "' "
        "and jid='", SJID, "';"]).
 
 del_user_roster_t(LServer, Username) ->
@@ -315,118 +314,118 @@ del_user_roster_t(LServer, Username) ->
       fun() ->
 	      ejabberd_odbc:sql_query_t(
 		["delete from rosterusers "
-		 "      where username='", Username, "';"]),
+		 "      where username='", Username, "' and domain='", LServer, "';"]),
 	      ejabberd_odbc:sql_query_t(
 		["delete from rostergroups "
-		 "      where username='", Username, "';"])
+		 "      where username='", Username, "' and domain='", LServer, "';"])
       end).
 
-get_roster_by_jid(_LServer, Username, SJID) ->
+get_roster_by_jid(LServer, Username, SJID) ->
     ejabberd_odbc:sql_query_t(
-      ["select username, jid, nick, subscription, "
+      ["select username, domain, jid, nick, subscription, "
        "ask, askmessage, server, subscribe, type from rosterusers "
-       "where username='", Username, "' "
+       "where username='", Username, "' and domain='", LServer, "' "
        "and jid='", SJID, "';"]).
 
 get_rostergroup_by_jid(LServer, Username, SJID) ->
     ejabberd_odbc:sql_query(
       LServer,
       ["select grp from rostergroups "
-       "where username='", Username, "' "
+       "where username='", Username, "' and domain='", LServer, "' "
        "and jid='", SJID, "'"]).
 
-del_roster(_LServer, Username, SJID) ->
+del_roster(LServer, Username, SJID) ->
     ejabberd_odbc:sql_query_t(
       ["delete from rosterusers "
-       "      where username='", Username, "' "
+       "      where username='", Username, "' and domain='", LServer, "' "
        "        and jid='", SJID, "';"]),
     ejabberd_odbc:sql_query_t(
       ["delete from rostergroups "
-       "      where username='", Username, "' "
+       "      where username='", Username, "' and domain='", LServer, "' "
        "        and jid='", SJID, "';"]).
 
-del_roster_sql(Username, SJID) ->
+del_roster_sql(LServer, Username, SJID) ->
     [["delete from rosterusers "
-      "      where username='", Username, "' "
+      "      where username='", Username, "' and domain='", LServer, "' "
       "        and jid='", SJID, "';"],
      ["delete from rostergroups "
-      "      where username='", Username, "' "
+      "      where username='", Username, "' and domain='", LServer, "' "
       "        and jid='", SJID, "';"]].
 
-update_roster(_LServer, Username, SJID, ItemVals, ItemGroups) ->
+update_roster(LServer, Username, SJID, ItemVals, ItemGroups) ->
     update_t("rosterusers",
-	     ["username", "jid", "nick", "subscription", "ask",
+	     ["username", "domain", "jid", "nick", "subscription", "ask",
 	      "askmessage", "server", "subscribe", "type"],
 	     ItemVals,
-	     ["username='", Username, "' and jid='", SJID, "'"]),
+	     ["username='", Username, "' and domain='", LServer, "' and jid='", SJID, "'"]),
     ejabberd_odbc:sql_query_t(
       ["delete from rostergroups "
-       "      where username='", Username, "' "
+       "      where username='", Username, "' and domain='", LServer, "' "
        "        and jid='", SJID, "';"]),
     lists:foreach(fun(ItemGroup) ->
 			  ejabberd_odbc:sql_query_t(
 			    ["insert into rostergroups("
-			     "              username, jid, grp) "
+			     "              username, domain, jid, grp) "
 			     " values ('", join(ItemGroup, "', '"), "');"])
 		  end,
 		  ItemGroups).
 
-update_roster_sql(Username, SJID, ItemVals, ItemGroups) ->
+update_roster_sql(LServer, Username, SJID, ItemVals, ItemGroups) ->
     [["delete from rosterusers "
-      "      where username='", Username, "' "
+      "      where username='", Username, "' and domain='", LServer, "' "
       "        and jid='", SJID, "';"],
      ["insert into rosterusers("
-      "              username, jid, nick, "
+      "              username, domain, jid, nick, "
       "              subscription, ask, askmessage, "
       "              server, subscribe, type) "
       " values ('", join(ItemVals, "', '"), "');"],
      ["delete from rostergroups "
-      "      where username='", Username, "' "
+      "      where username='", Username, "' and domain='", LServer, "'"
       "        and jid='", SJID, "';"]] ++
         [["insert into rostergroups("
-          "              username, jid, grp) "
+          "              username, domain, jid, grp) "
           " values ('", join(ItemGroup, "', '"), "');"] ||
             ItemGroup <- ItemGroups].
 
-roster_subscribe(_LServer, Username, SJID, ItemVals) ->
+roster_subscribe(LServer, Username, SJID, ItemVals) ->
     update_t("rosterusers",
-	     ["username", "jid", "nick", "subscription", "ask",
+	     ["username", "domain", "jid", "nick", "subscription", "ask",
 	      "askmessage", "server", "subscribe", "type"],
 	     ItemVals,
-	     ["username='", Username, "' and jid='", SJID, "'"]).
+	     ["username='", Username, "' and domain='", LServer, "' and jid='", SJID, "'"]).
 
 get_subscription(LServer, Username, SJID) ->
     ejabberd_odbc:sql_query(
       LServer,
       ["select subscription from rosterusers "
-       "where username='", Username, "' "
+       "where username='", Username, "' and domain='", LServer, "' "
        "and jid='", SJID, "'"]).
 
-set_private_data(_LServer, Username, LXMLNS, SData) ->
+set_private_data(LServer, Username, LXMLNS, SData) ->
     update_t("private_storage",
-	     ["username", "namespace", "data"],
-	     [Username, LXMLNS, SData],
-	     ["username='", Username, "' and namespace='", LXMLNS, "'"]).
+	     ["username", "domain", "namespace", "data"],
+	     [Username, LServer, LXMLNS, SData],
+	     ["username='", Username, "' and domain='", LServer, "' and namespace='", LXMLNS, "'"]).
 
-set_private_data_sql(Username, LXMLNS, SData) ->
+set_private_data_sql(LServer, Username, LXMLNS, SData) ->
     [["delete from private_storage "
-      "where username='", Username, "' and "
+      "where username='", Username, "' and domain='", LServer, "' and "
       "namespace='", LXMLNS, "';"],
-     ["insert into private_storage(username, namespace, data) "
-      "values ('", Username, "', '", LXMLNS, "', "
+     ["insert into private_storage(username, domain, namespace, data) "
+      "values ('", Username, "', '", LServer, "', '", LXMLNS, "', "
       "'", SData, "');"]].
 
 get_private_data(LServer, Username, LXMLNS) ->
     ejabberd_odbc:sql_query(
       LServer,
       ["select data from private_storage "
-       "where username='", Username, "' and "
+       "where username='", Username, "' and domain='", LServer, "' and "
        "namespace='", LXMLNS, "';"]).
 
 del_user_private_storage(LServer, Username) ->
     ejabberd_odbc:sql_query(
       LServer,
-      ["delete from private_storage where username='", Username, "';"]).
+      ["delete from private_storage where username='", Username, "' and domain='", LServer, "';"]).
 
 set_vcard(LServer, LUsername, SBDay, SCTRY, SEMail, SFN, SFamily, SGiven,
 	  SLBDay, SLCTRY, SLEMail, SLFN, SLFamily, SLGiven, SLLocality,
@@ -435,61 +434,61 @@ set_vcard(LServer, LUsername, SBDay, SCTRY, SEMail, SFN, SFamily, SGiven,
     ejabberd_odbc:sql_transaction(
       LServer,
       fun() ->
-	      update_t("vcard", ["username", "vcard"],
-		       [LUsername, SVCARD],
-		       ["username='", LUsername, "'"]),
+	      update_t("vcard", ["username", "domain", "vcard"],
+		       [LUsername, LServer, SVCARD],
+		       ["username='", LUsername, "' and domain='", LServer, "'"]),
 	      update_t("vcard_search",
-		       ["username", "lusername", "fn", "lfn", "family",
+		       ["username", "domain", "lusername", "fn", "lfn", "family",
 			"lfamily", "given", "lgiven", "middle", "lmiddle",
 			"nickname", "lnickname", "bday", "lbday", "ctry",
 			"lctry", "locality", "llocality", "email", "lemail",
 			"orgname", "lorgname", "orgunit", "lorgunit"],
-		       [Username, LUsername, SFN, SLFN, SFamily, SLFamily,
+		       [Username, LServer, LUsername, SFN, SLFN, SFamily, SLFamily,
 			SGiven, SLGiven, SMiddle, SLMiddle, SNickname,
 			SLNickname, SBDay, SLBDay, SCTRY, SLCTRY,
 			SLocality, SLLocality, SEMail, SLEMail, SOrgName,
 			SLOrgName, SOrgUnit, SLOrgUnit],
-		       ["lusername='", LUsername, "'"])
+		       ["lusername='", LUsername, "' and domain='", LServer, "'"])
       end).
 
 get_vcard(LServer, Username) ->
     ejabberd_odbc:sql_query(
       LServer,
       ["select vcard from vcard "
-       "where username='", Username, "';"]).
+       "where username='", Username, "' and domain='", LServer, "';"]).
 
 get_default_privacy_list(LServer, Username) ->
     ejabberd_odbc:sql_query(
       LServer,
       ["select name from privacy_default_list "
-       "where username='", Username, "';"]).
+       "where username='", Username, "' and domain='", LServer, "';"]).
 
-get_default_privacy_list_t(Username) ->
+get_default_privacy_list_t(LServer, Username) ->
     ejabberd_odbc:sql_query_t(
       ["select name from privacy_default_list "
-       "where username='", Username, "';"]).
+       "where username='", Username, "' and domain='", LServer, "'"]).
 
 get_privacy_list_names(LServer, Username) ->
     ejabberd_odbc:sql_query(
       LServer,
       ["select name from privacy_list "
-       "where username='", Username, "';"]).
+       "where username='", Username, "' and domain='", LServer, "';"]).
 
-get_privacy_list_names_t(Username) ->
+get_privacy_list_names_t(LServer, Username) ->
     ejabberd_odbc:sql_query_t(
       ["select name from privacy_list "
-       "where username='", Username, "';"]).
+       "where username='", Username, "' and domain='", LServer, "'"]).
 
 get_privacy_list_id(LServer, Username, SName) ->
     ejabberd_odbc:sql_query(
       LServer,
       ["select id from privacy_list "
-       "where username='", Username, "' and name='", SName, "';"]).
+       "where username='", Username, "' and domain='", LServer, "' and name='", SName, "';"]).
 
-get_privacy_list_id_t(Username, SName) ->
+get_privacy_list_id_t(LServer, Username, SName) ->
     ejabberd_odbc:sql_query_t(
       ["select id from privacy_list "
-       "where username='", Username, "' and name='", SName, "';"]).
+       "where username='", Username, "' and domain='", LServer, "' and name='", SName, "';"]).
 
 get_privacy_list_data(LServer, Username, SName) ->
     ejabberd_odbc:sql_query(
@@ -498,7 +497,7 @@ get_privacy_list_data(LServer, Username, SName) ->
        "match_message, match_presence_in, match_presence_out "
        "from privacy_list_data "
        "where id = (select id from privacy_list where "
-       "            username='", Username, "' and name='", SName, "') "
+       "            username='", Username, "' and domain='", LServer, "' and name='", SName, "') "
        "order by ord;"]).
 
 get_privacy_list_data_by_id(LServer, ID) ->
@@ -509,25 +508,25 @@ get_privacy_list_data_by_id(LServer, ID) ->
        "from privacy_list_data "
        "where id='", ID, "' order by ord;"]).
 
-set_default_privacy_list(Username, SName) ->
-    update_t("privacy_default_list", ["username", "name"],
-	     [Username, SName], ["username='", Username, "'"]).
+set_default_privacy_list(LServer, Username, SName) ->
+    update_t("privacy_default_list", ["username", "domain", "name"],
+	     [Username, LServer, SName], ["username='", Username, "' and domain='", LServer, "'"]).
 
 unset_default_privacy_list(LServer, Username) ->
     ejabberd_odbc:sql_query(
       LServer,
       ["delete from privacy_default_list "
-       "      where username='", Username, "';"]).
+       "      where username='", Username, "' and domain='", LServer, "';"]).
 
-remove_privacy_list(Username, SName) ->
+remove_privacy_list(LServer, Username, SName) ->
     ejabberd_odbc:sql_query_t(
       ["delete from privacy_list "
-       "where username='", Username, "' and name='", SName, "';"]).
+       "where username='", Username, "' and domain='", LServer, "' and name='", SName, "';"]).
 
-add_privacy_list(Username, SName) ->
+add_privacy_list(LServer, Username, SName) ->
     ejabberd_odbc:sql_query_t(
-      ["insert into privacy_list(username, name) "
-       "values ('", Username, "', '", SName, "');"]).
+      ["insert into privacy_list(username, domain, name) "
+       "values ('", Username, "', '", LServer, "', '", SName, "');"]).
 
 set_privacy_list(ID, RItems) ->
     ejabberd_odbc:sql_query_t(
@@ -547,13 +546,13 @@ set_privacy_list(ID, RItems) ->
 del_privacy_lists(LServer, Server, Username) ->
     ejabberd_odbc:sql_query(
       LServer,
-      ["delete from privacy_list where username='", Username, "';"]),
+      ["delete from privacy_list where username='", Username, "' and domain='", LServer, "';"]),
     ejabberd_odbc:sql_query(
       LServer,
       ["delete from privacy_list_data where value='", Username, "@", Server, "';"]),
     ejabberd_odbc:sql_query(
       LServer,
-      ["delete from privacy_default_list where username='", Username, "';"]).
+      ["delete from privacy_default_list where username='", Username, "' and domain='", LServer, "';"]).
 
 %% Characters to escape
 escape($\0) -> "\\0";
@@ -575,13 +574,13 @@ count_records_where(LServer, Table, WhereClause) ->
 
 get_roster_version(LServer, LUser) ->
     ejabberd_odbc:sql_query(LServer,
-                            ["select version from roster_version where username = '", LUser, "'"]).
-set_roster_version(LUser, Version) ->
-    update_t("roster_version", ["username", "version"], [LUser, Version], ["username = '", LUser, "'"]).
+                            ["select version from roster_version where username = '", LUser, "' and domain='", LServer, "'"]).
+set_roster_version(LServer, LUser, Version) ->
+    update_t("roster_version", ["username", "domain", "version"], [LUser, LServer, Version], ["username = '", LUser, "' and domain='", LServer, "'"]).
 -endif.
 
 %% -----------------
-%% MSSQL queries
+%% MSSQL queries - schema without 'domain' field!!!
 -ifdef(mssql).
 
 get_db_type() ->
