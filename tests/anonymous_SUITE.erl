@@ -1,5 +1,5 @@
 %%==============================================================================
-%% Copyright 2010 Erlang Solutions Ltd.
+%% Copyright 2012 Erlang Solutions Ltd.
 %%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
@@ -14,39 +14,31 @@
 %% limitations under the License.
 %%==============================================================================
 
--module(snmp_table_SUITE).
+-module(anonymous_SUITE).
 -compile(export_all).
 
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
-
--define(WAIT_TIME, 500).
-
--import(snmp_helper, [assert_counter/2,
-                      get_counter_value/1,
-                      get_table_value/3,
-                      get_next_table_value/3]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
 
 all() ->
-    [{group, router}].
+    [{group, anonymous}].
 
 groups() ->
-    [{router, [sequence], [get_to,
-                           get_num,
-                           get_noexist,
-                           get_next]}].
+    [{anonymous, [sequence], all_tests()}].
+
+all_tests() ->
+    [messages_story].
 
 suite() ->
-    [{require, ejabberd_node} | escalus:suite()].
+    escalus:suite().
 
 %%--------------------------------------------------------------------
 %% Init & teardown
 %%--------------------------------------------------------------------
-
 init_per_suite(Config) ->
     escalus:init_per_suite(Config).
 
@@ -59,28 +51,22 @@ init_per_group(_GroupName, Config) ->
 end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config).
 
-init_per_testcase(CaseName, Config) ->
+init_per_testcase(CaseName, Config0) ->
+    NewUsers = ct:get_config(escalus_users) ++ ct:get_config(escalus_anon_users),
+    Config = [{escalus_users, NewUsers}] ++ Config0,
     escalus:init_per_testcase(CaseName, Config).
 
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
 %%--------------------------------------------------------------------
-%% Router tests
+%% Anonymous tests
 %%--------------------------------------------------------------------
 
-get_to(Config) ->
-    [{value, "localhost"}] = get_table_value([1], [1], routerRegisteredPathsTable).
-
-get_num(Config) ->
-    [{value, 1}] = get_table_value([1], [2], routerRegisteredPathsTable).
-
-get_noexist(Config) ->
-    [{noValue, noSuchInstance}] = get_table_value([3], [1], routerRegisteredPathsTable),
-    [{noValue, noSuchInstance}] = get_table_value([0], [1], routerRegisteredPathsTable).
-
-get_next(Config) ->
-    [{_, "localhost"}] = get_next_table_value([], [0], routerRegisteredPathsTable),
-    [{_, 1}] = get_next_table_value([1], [1], routerRegisteredPathsTable).
-    
+messages_story(Config) ->
+    escalus:story(Config, [{alice, 1}, {jon, 1}], fun(Alice, Jon) ->
+        escalus_client:send(Jon, escalus_stanza:chat_to(Alice, <<"Hi!">>)),
+        Stanza = escalus_client:wait_for_stanza(Alice),
+        escalus_assert:is_chat_message(<<"Hi!">>, Stanza)
+    end).
 
