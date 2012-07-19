@@ -63,6 +63,90 @@ init_per_testcase(CaseName, Config) ->
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
+
+%%--------------------------------------------------------------------
+%%  Occupant use case tests
+%%
+%%  Tests the usecases described here :
+%%  http://xmpp.org/extensions/xep-0045.html/#user
+%%--------------------------------------------------------------------
+
+%Example 18
+groupchat_user_enter(Config) ->
+    escalus:story(Config, [1, 1], fun(Alice, Bob) ->
+                Room = <<"room1">>,
+                Nick = <<"nick1">>,
+                Create_room_stanza = stanza_create_room(Nick, Room),
+                escalus:send(Alice, Create_room_stanza),
+                Enter_room_stanza = stanza_groupchat_enter_room(<<"room1">>, <<"bob">>),
+                error_logger:info_msg("Enter room stanza: ~n~p", [Enter_room_stanza]),
+                escalus:send(Bob, Enter_room_stanza),
+                Presence = escalus:wait_for_stanza(Bob),
+                escalus_assert:is_presence_stanza(Presence),
+                error_logger:info_msg("Bob's new user presence notification: ~n~p~n",[Presence]),
+                From = << Room/binary ,"@", ?MUC_HOST/binary, "/", "bob" >>,
+                From = exml_query:attr(Presence, <<"from">>)
+        end).
+
+%Example 19
+%No error message sent from the server
+groupchat_user_enter_no_nickname(Config) ->
+    escalus:story(Config, [1, 1], fun(Alice, Bob) ->
+                Create_room_stanza = stanza_create_room(<<"room1">>, <<"nick1">>),
+                escalus:send(Alice, Create_room_stanza),
+                Enter_room_stanza = stanza_groupchat_enter_room_no_nick(<<"room1">>),
+                error_logger:info_msg("Enter room stanza: ~n~p", [Enter_room_stanza]),
+                escalus:send(Bob, Enter_room_stanza),
+                Presence3 = escalus:wait_for_stanza(Alice),
+                error_logger:info_msg("Alice's new user presence notification: ~n~p~n",[Presence3]),
+                escalus_assert:is_presence_stanza(Presence3),
+                escalus_assert:has_no_stanzas(Alice),   %!!
+                escalus_assert:has_no_stanzas(Bob)
+        end).
+
+% Examples 20, 21, 22
+% TO DO: check the messages content details
+muc_user_enter(Config) ->
+    escalus:story(Config, [1, 1], fun(Alice, Bob) ->
+                Room = <<"room1">>, Nick= <<"nick1">>, 
+                Create_room_stanza = stanza_create_room(Room, Nick),
+
+                %Alice creates a room
+                escalus:send(Alice, Create_room_stanza),
+
+                %Bob enters the room
+                Enter_room_stanza = stanza_muc_enter_room(<<"room1">>, <<"bob">>),
+                error_logger:info_msg("Enter room stanza: ~n~p", [Enter_room_stanza]),
+                escalus:send(Bob, Enter_room_stanza),
+                Presence = escalus:wait_for_stanza(Bob),
+                error_logger:info_msg("Bob's new user presence notification: ~n~p~n",[Presence]),
+                escalus_assert:is_presence_stanza(Presence),
+                From = << Room/binary ,"@", ?MUC_HOST/binary, "/", Nick/binary >>,
+                From = exml_query:attr(Presence, <<"from">>),
+
+                Presence2 = escalus:wait_for_stanza(Bob),
+                error_logger:info_msg("Bob's new user presence notification: ~n~p~n",[Presence2]),
+                escalus_assert:is_presence_stanza(Presence2),
+                From2 = << Room/binary ,"@", ?MUC_HOST/binary, "/", "bob" >>,
+                From2 = exml_query:attr(Presence2, <<"from">>),
+
+                Topic = escalus:wait_for_stanza(Bob),
+                error_logger:info_msg("Bobs topic notification: ~n~p~n",[Topic]),
+
+                Presence3 = escalus:wait_for_stanza(Alice),
+                error_logger:info_msg("Alice's new user presence notification: ~n~p~n",[Presence3]),
+                escalus_assert:is_presence_stanza(Presence3),
+
+                Topic2 = escalus:wait_for_stanza(Alice),
+                error_logger:info_msg("Alice's topic notification: ~n~p~n",[Topic2]),
+
+                Presence4 = escalus:wait_for_stanza(Alice),
+                error_logger:info_msg("Alice's new user presence notification: ~n~p~n",[Presence4]),
+                escalus_assert:is_presence_stanza(Presence4),
+                escalus_assert:has_no_stanzas(Alice),
+                escalus_assert:has_no_stanzas(Bob)
+        end).
+
 %%--------------------------------------------------------------------
 %% Tests
 %%--------------------------------------------------------------------
@@ -78,7 +162,7 @@ disco_features(Config) ->
     escalus:story(Config, [1], fun(Alice) ->
           Server = escalus_client:server(Alice),
           escalus:send(Alice, stanza_get_features(Server)),
-          has_features(escalus:wait_for_stanza(Alice))      
+          has_features(escalus:wait_for_stanza(Alice))
         end).
 
 disco_rooms(Config) ->
@@ -91,12 +175,12 @@ disco_rooms(Config) ->
 create_and_destroy_room(Config) ->
     escalus:story(Config, [1], fun(Alice) ->
           Server = escalus_client:server(Alice),
-          Room1 = stanza_create_room(<<"room1">>, <<"nick1">>), 
+          Room1 = stanza_create_room(<<"room1">>, <<"nick1">>),
           escalus:send(Alice, Room1),
           %Alice gets topic message after creating the room
           [S, _S2] = escalus:wait_for_stanzas(Alice, 2),
           was_room_created(S),
-          
+
           DestroyRoom1 = stanza_destroy_room(<<"room1">>),
           escalus:send(Alice, DestroyRoom1),
           [Presence, Iq] = escalus:wait_for_stanzas(Alice, 2),
@@ -104,6 +188,26 @@ create_and_destroy_room(Config) ->
           was_room_destroyed(Iq),
           was_destroy_presented(Presence)
         end).
+
+%%--------------------------------------------------------------------
+%% New Helpers (stanzas)
+%%--------------------------------------------------------------------
+
+%Basic MUC protocol
+stanza_muc_enter_room(Room, Nick) ->
+    stanza_to_room(
+        escalus_stanza:presence(  <<"available">>,
+                                [#xmlelement{ name = <<"x">>, attrs=[{<<"xmlns">>, <<"http://jabber.org/protocol/muc">>}]}]),
+        Room, Nick).
+
+%Groupchat 1.0 protocol
+stanza_groupchat_enter_room(Room, Nick) ->
+    stanza_to_room(escalus_stanza:presence(<<"available">>), Room, Nick).
+
+
+stanza_groupchat_enter_room_no_nick(Room) ->
+    stanza_to_room(escalus_stanza:presence(<<"available">>), Room).
+
 
 %%--------------------------------------------------------------------
 %% Helpers (stanzas)
