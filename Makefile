@@ -24,7 +24,6 @@ cover_test: prepare
 			`pwd`/deps/exml/ebin \
 			`pwd`/deps/base16/ebin \
 		-s run_common_test ct_cover; \
-	./make_cover_summary
 
 cover_summary: prepare
 	erl -noinput -sname test -setcookie ejabberd \
@@ -33,7 +32,6 @@ cover_summary: prepare
 			`pwd`/deps/exml/ebin \
 			`pwd`/deps/base16/ebin \
 		-s run_common_test cover_summary; \
-	./make_cover_summary
 
 prepare: compile
 	erlc -Ideps/exml/include \
