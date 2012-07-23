@@ -29,13 +29,22 @@
 %%--------------------------------------------------------------------
 
 all() ->
-    [{group, disco},
-     {group, room_management}].
+    [{group, disco}
+    %% {group, admin}
+     %% {group, room_management}].
+    ].
 
 groups() ->
     [{disco, [sequence], [disco_service,
                           disco_features,
-                          disco_rooms]},
+                          disco_rooms,
+                          disco_info,
+                          disco_items,
+                          disco_support,
+                          disco_contact_rooms
+                          ]},
+      %% {moderator, [sequence], []},
+      %% {admin, [sequence], []},
       {room_management, [sequence], [create_and_destroy_room]}].
 
 suite() ->
@@ -51,8 +60,34 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
+%% Make Alice an admin
+init_per_group(admin, Config) ->
+  Config1 = escalus:create_users(Config),
+  Config2 = start_persistent_room(
+      escalus:init_per_testcase(admin, Config1), <<"alicesroom">>, <<"alicesnick">>),
+  escalus:end_per_testcase(admin, Config2),
+  Config2;
+
+init_per_group(disco, Config) ->
+    Config1 = escalus:create_users(Config),
+    Config2 = start_persistent_room(escalus:init_per_testcase(disco, Config1), <<"alicesroom">>, <<"aliceonchat">>),
+    escalus:end_per_testcase(disco, Config2),
+    Config2;
+
 init_per_group(_GroupName, Config) ->
     escalus:create_users(Config).
+
+end_per_group(admin, Config) ->
+    Config1 = escalus:init_per_testcase(admin, Config),
+    destroy_room(Config1, <<"alicesroom">>),
+    escalus:end_per_testcase(admin, Config1),
+    escalus:delete_users(Config1);
+
+end_per_group(disco, Config) ->
+    Config1 = escalus:init_per_testcase(disco, Config),
+    destroy_room(Config1, <<"alicesroom">>),
+    escalus:end_per_testcase(disco, Config1),
+    escalus:delete_users(Config1);
 
 end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config).
@@ -151,26 +186,76 @@ muc_user_enter(Config) ->
 %% Tests
 %%--------------------------------------------------------------------
 
+
 disco_service(Config) ->
     escalus:story(Config, [1], fun(Alice) ->
         Server = escalus_client:server(Alice),
         escalus:send(Alice, escalus_stanza:service_discovery(Server)),
-        escalus:assert(has_service, [?MUC_HOST], escalus:wait_for_stanza(Alice))
-        end).
+        Stanza = escalus:wait_for_stanza(Alice),
+        escalus:assert(has_service, [?MUC_HOST], Stanza),
+        escalus:assert(is_stanza_from, [escalus_config:get_config(ejabberd_domain, Config)], Stanza)
+    end).
 
 disco_features(Config) ->
     escalus:story(Config, [1], fun(Alice) ->
           Server = escalus_client:server(Alice),
           escalus:send(Alice, stanza_get_features(Server)),
-          has_features(escalus:wait_for_stanza(Alice))
-        end).
+          Stanza = escalus:wait_for_stanza(Alice),
+          has_features(Stanza),
+          escalus:assert(is_stanza_from, [?MUC_HOST], Stanza)
+    end).
 
 disco_rooms(Config) ->
     escalus:story(Config, [1], fun(Alice) ->
           Server = escalus_client:server(Alice),
           escalus:send(Alice, stanza_get_rooms(Server)),
-          count_rooms(escalus:wait_for_stanza(Alice), 0)
-        end).
+          %% we should have 1 room, created in init
+          Stanza = escalus:wait_for_stanza(Alice),
+          count_rooms(Stanza, 1),
+          has_room(room_address(<<"alicesroom">>), Stanza),
+          escalus:assert(is_stanza_from, [?MUC_HOST], Stanza)
+    end).
+
+disco_info(Config) ->
+    escalus:story(Config, [1], fun(Alice) ->
+        Server = escalus_client:server(Alice),
+        escalus:send(Alice, stanza_to_room(escalus_stanza:iq_get(?NS_DISCO_INFO,[]), <<"alicesroom">>)),
+        Stanza = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_iq_result, Stanza),
+        #xmlelement{body = [Body]} = Stanza,
+        has_feature(Body#xmlelement.body, <<"muc_persistent">>)
+    end).
+
+disco_items(Config) ->
+    escalus:story(Config, [1,1], fun(Alice, Bob) ->
+        escalus:send(Alice, stanza_join_room(<<"alicesroom">>, <<"nicenick">>)),
+        _Stanza = escalus:wait_for_stanza(Alice),
+
+        escalus:send(Bob, stanza_to_room(escalus_stanza:iq_get(?NS_DISCO_ITEMS,[]), <<"alicesroom">>)),
+        Stanza2 = escalus:wait_for_stanza(Bob),
+        escalus:assert(is_iq_result, Stanza2)
+    end).
+
+disco_support(Config) ->
+    escalus:story(Config, [1,1], fun(Alice, Bob) ->
+      S = escalus_stanza:to(escalus_stanza:iq_get(?NS_DISCO_INFO, []), Bob),
+      error_logger:info_msg(S),
+      escalus:send(Alice, escalus_stanza:to(
+        escalus_stanza:iq_get(?NS_DISCO_INFO, []), Bob)),
+      escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice))
+    end).
+
+disco_contact_rooms(Config) ->
+    escalus:story(Config, [1,1], fun(Alice, Bob) ->
+    #xmlelement{name = Name, attrs = Attrs, body = [Body]} =
+        escalus_stanza:to(escalus_stanza:iq_get(?NS_DISCO_INFO, []), Bob),
+    NewBody = #xmlelement{name = Body#xmlelement.name,
+                          attrs = [{<<"node">>,<<"http://jabber.org/protocol/muc#rooms">>}|
+                                    Body#xmlelement.attrs],
+                          body = Body#xmlelement.body},
+    escalus:send(Alice, #xmlelement{name = Name, attrs = Attrs, body = NewBody}),
+    escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice))
+    end).
 
 create_and_destroy_room(Config) ->
     escalus:story(Config, [1], fun(Alice) ->
@@ -184,13 +269,12 @@ create_and_destroy_room(Config) ->
           DestroyRoom1 = stanza_destroy_room(<<"room1">>),
           escalus:send(Alice, DestroyRoom1),
           [Presence, Iq] = escalus:wait_for_stanzas(Alice, 2),
-          error_logger:info_msg("~p~n~p~n",[Presence, Iq]),
           was_room_destroyed(Iq),
           was_destroy_presented(Presence)
         end).
 
 %%--------------------------------------------------------------------
-%% New Helpers (stanzas)
+%% Helpers
 %%--------------------------------------------------------------------
 
 %Basic MUC protocol
@@ -208,23 +292,67 @@ stanza_groupchat_enter_room(Room, Nick) ->
 stanza_groupchat_enter_room_no_nick(Room) ->
     stanza_to_room(escalus_stanza:presence(<<"available">>), Room).
 
+start_persistent_room(Config, Room, Nick) ->
+    escalus:story(Config, [1], fun(Alice) ->
+          escalus:send(Alice, stanza_create_room(Room, Nick)),
+          Stanzas2 = escalus:wait_for_stanzas(Alice, 2),
+          FormRequest = stanza_to_room(escalus_stanza:iq_get(?NS_MUC_OWNER, []), Room),
+          escalus:send(Alice, FormRequest),
+          Form = escalus:wait_for_stanza(Alice),
+          Params = [{<<"muc#roomconfig_persistentroom">>,<<"1">>,<<"boolean">>}],
+          ConfigForm = stanza_configuration_form(Room, Params),
+          escalus:send(Alice, stanza_configuration_form(Room, Params)),
+          Response = escalus:wait_for_stanza(Alice)
+        end),
+    Config.
+
+destroy_room(Config, Room) ->
+    escalus:story(Config, [1], fun(Alice) ->
+          escalus:send(Alice, stanza_destroy_room(Room)),
+          Stanzas2 = escalus:wait_for_stanzas(Alice, 2)
+        end).
+
+room_address(Room) ->
+    <<Room/binary, "@", ?MUC_HOST/binary>>.
+
+room_address(Room, Nick) ->
+    <<Room/binary, "@", ?MUC_HOST/binary, "/", Nick/binary>>.
 
 %%--------------------------------------------------------------------
 %% Helpers (stanzas)
 %%--------------------------------------------------------------------
+stanza_join_room(Room, Nick) ->
+  stanza_to_room(#xmlelement{name = <<"presence">>, body =
+    #xmlelement{name = <<"x">>, attrs = [{<<"xmlns">>,<<"http://jabber.org/protocol/muc">>}]}},
+    Room, Nick).
+
+stanza_configuration_form(Room, Params) ->
+  DefaultParams = [{<<"FORM_TYPE">>,<<"http://jabber.org/protocol/muc#roomconfig">>,<<"hidden">>}],
+  FinalParams = lists:foldl(fun({Key,Val,Type},Acc) ->
+        lists:keydelete(Key,1,Acc) end,
+        DefaultParams, Params) ++ Params,
+  XPayload = [ #xmlelement{name = <<"field">>,
+                attrs = [{<<"type">>, Type},{<<"var">>, Var}],
+                body = #xmlelement{name = <<"value">>,
+                          body = #xmlcdata{content = Value}}}
+              || {Var, Value, Type} <- FinalParams],
+  Payload = #xmlelement{name = <<"x">>,
+              attrs = [{<<"xmlns">>,<<"jabber:x:data">>}, {<<"type">>,<<"submit">>}],
+              body = XPayload},
+  stanza_to_room(escalus_stanza:iq_set(?NS_MUC_OWNER, Payload), Room).
 
 stanza_destroy_room(Room) ->
-  Payload = [ #xmlelement{name = <<"destroy">>, attrs = [], body = []} ],
+  Payload = [ #xmlelement{name = <<"destroy">>} ],
   stanza_to_room(escalus_stanza:iq_set(?NS_MUC_OWNER, Payload), Room).
 
 stanza_create_room(Room, Nick) ->
   stanza_to_room(#xmlelement{name = <<"presence">>}, Room, Nick).
 
 stanza_to_room(Stanza, Room, Nick) ->
-  escalus_stanza:to(Stanza, <<Room/binary, "@", ?MUC_HOST/binary, "/", Nick/binary>>).
+  escalus_stanza:to(Stanza, room_address(Room, Nick)).
 
 stanza_to_room(Stanza, Room) ->
-  escalus_stanza:to(Stanza, <<Room/binary, "@", ?MUC_HOST/binary>>).
+  escalus_stanza:to(Stanza, room_address(Room)).
 
 stanza_get_rooms(Config) ->
   %% <iq from='hag66@shakespeare.lit/pda'
@@ -261,6 +389,13 @@ stanza_get_services(Config) ->
 %% Helpers (assertions)
 %%--------------------------------------------------------------------
 
+has_feature(Body, Feature) ->
+  Features = lists:foldl(fun(#xmlelement{name = <<"feature">>} = El,Acc) -> [El | Acc];
+    (_,Acc) -> Acc end, [], Body),
+  true = lists:any(fun(Item) ->
+    exml_query:attr(Item, <<"var">>) == Feature end,
+    Features).
+
 was_destroy_presented(#xmlelement{body = [Items]} = Presence) ->
   #xmlelement{} = exml_query:subelement(Items, <<"destroy">>),
   <<"unavailable">> = exml_query:attr(Presence, <<"type">>).
@@ -269,10 +404,10 @@ was_room_destroyed(Query) ->
   <<"result">> = exml_query:attr(Query, <<"type">>).
 
 was_room_created(#xmlelement{body = [ #xmlelement{body = Items} = Query ]}) ->
-  #xmlelement{name = _, attrs = _, body = _} = Status = exml_query:subelement(Query, <<"status">>),
+  #xmlelement{} = Status = exml_query:subelement(Query, <<"status">>),
   <<"201">> = exml_query:attr(Status, <<"code">>),
 
-  #xmlelement{name = _, attrs = _, body = _} = Item = exml_query:subelement(Query, <<"item">>),
+  #xmlelement{} = Item = exml_query:subelement(Query, <<"item">>),
   <<"owner">> = exml_query:attr(Item, <<"affiliation">>),
   <<"moderator">> = exml_query:attr(Item, <<"role">>).
 
