@@ -320,8 +320,7 @@ disco_info(Config) ->
         escalus:send(Alice, stanza_to_room(escalus_stanza:iq_get(?NS_DISCO_INFO,[]), <<"alicesroom">>)),
         Stanza = escalus:wait_for_stanza(Alice),
         escalus:assert(is_iq_result, Stanza),
-        #xmlelement{body = [Body]} = Stanza,
-        has_feature(Body#xmlelement.body, <<"muc_persistent">>)
+        has_feature(Stanza, <<"muc_persistent">>)
     end).
 
 disco_items(Config) ->
@@ -556,15 +555,12 @@ is_presence_with_status_code(Presence, Code) ->
     Code = exml_query:path(Presence, [{element, <<"x">>}, {element, <<"status">>},
         {attr, <<"code">>}]).
 
-has_feature(Body, Feature) ->
-    Features = lists:foldl(
-        fun(#xmlelement{name = <<"feature">>} = El,Acc) -> [El | Acc];
-            (_,Acc) -> Acc
-        end, [], Body),
-    true = lists:any(
-        fun(Item) ->
-            exml_query:attr(Item, <<"var">>) == Feature
-        end, Features).
+has_feature(Stanza, Feature) ->
+    Features = exml_query:path(Stanza, [{element, <<"query">>}, {elements, <<"feature">>}]),
+    true = lists:any(fun(Item) ->
+                        exml_query:attr(Item, <<"var">>) == Feature
+                     end,
+                     Features).
 
 was_destroy_presented(#xmlelement{body = [Items]} = Presence) ->
     #xmlelement{} = exml_query:subelement(Items, <<"destroy">>),
