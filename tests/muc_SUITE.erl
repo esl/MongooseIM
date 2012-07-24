@@ -33,6 +33,7 @@ all() -> [
           %{group, moderator},
           {group, admin},
           {group, occupant},
+          {group, owner},
           {group, room_management}
          ].
 
@@ -54,6 +55,10 @@ groups() -> [
                                      %groupchat_user_enter_no_nickname,
                                      muc_user_enter
                                     ]},
+             {owner, [sequence], [
+                                  %% failing, see testcase for explanation
+                                  %room_creation_not_allowed
+                                 ]},
              {room_management, [sequence], [
                                             create_and_destroy_room
                                            ]}
@@ -296,7 +301,6 @@ muc_user_enter(Config) ->
 %% Tests
 %%--------------------------------------------------------------------
 
-
 disco_service(Config) ->
     escalus:story(Config, [1], fun(Alice) ->
         Server = escalus_client:server(Alice),
@@ -355,6 +359,22 @@ create_and_destroy_room(Config) ->
         [Presence, Iq] = escalus:wait_for_stanzas(Alice, 2),
         was_room_destroyed(Iq),
         was_destroy_presented(Presence)
+    end).
+
+%% Example 152. Service Informs User of Inability to Create a Room
+%% As of writing this testcase (2012-07-24) it fails. Room is not created
+%% as expected, but the returned error message is not the one specified by XEP.
+%% ejabberd returns 'forbidden' while it ought to return 'not-allowed'.
+room_creation_not_allowed(Config) ->
+    escalus:story(Config, [1], fun(Alice) ->
+        escalus_ejabberd:with_global_option({access,muc_create,global},
+                                            [{deny,all}], fun() ->
+
+            escalus:send(Alice, stanza_create_room(<<"room1">>, <<"nick1">>)),
+            escalus:assert(is_error, [<<"cancel">>, <<"not-allowed">>],
+                           escalus:wait_for_stanza(Alice))
+
+        end)
     end).
 
 %%--------------------------------------------------------------------
