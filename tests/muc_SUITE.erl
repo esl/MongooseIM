@@ -29,9 +29,10 @@
 %%--------------------------------------------------------------------
 
 all() ->
-    [%%{group, disco}
-     {group, admin}
-     %% {group, room_management}].
+    [{group, disco},
+     {group, admin},
+     {group, occupant},
+     {group, room_management}].
     ].
 
 groups() ->
@@ -39,15 +40,20 @@ groups() ->
                           disco_features,
                           disco_rooms,
                           disco_info,
-                          disco_items,
-                          disco_support,
-                          disco_contact_rooms
+                          disco_items
+%                          disco_support,
+%                          disco_contact_rooms
                           ]},
       %% {moderator, [sequence], []},
       {admin, [sequence], [admin_ban,
                            admin_ban_list
                           ]},
-      {room_management, [sequence], [create_and_destroy_room]}].
+      {room_management, [sequence], [create_and_destroy_room]},
+     {occupant, [sequence], [
+                groupchat_user_enter,
+               % groupchat_user_enter_no_nickname,
+                muc_user_enter]}
+    ].
 
 suite() ->
     escalus:suite().
@@ -90,28 +96,35 @@ end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config).
 
 init_per_testcase(groupchat_user_enter, Config) ->
-    Config2 = start_persistent_room(escalus:init_per_testcase(groupchat_user_enter, Config), <<"alicesroom">>, <<"aliceonchat">>),
-    Config2;
+    [Alice | _] = ?config(escalus_users, Config),
+    Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"aliceonchat">>, [{persistent, true}]),
+    escalus:init_per_testcase(groupchat_user_enter, Config1);
 
 init_per_testcase(groupchat_user_enter_no_nickname, Config) ->
-    Config2 = start_persistent_room(escalus:init_per_testcase(groupchat_user_enter_no_nickname, Config), <<"alicesroom">>, <<"aliceonchat">>),
-    Config2;
+    [Alice | _] = ?config(escalus_users, Config),
+    Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"aliceonchat">>, []),
+    escalus:init_per_testcase(groupchat_user_enter_no_nickname, Config1);
+
 
 init_per_testcase(muc_user_enter, Config) ->
-    Config2 = start_persistent_room(escalus:init_per_testcase(muc_user_enter, Config), <<"alicesroom">>, <<"aliceonchat">>),
-    Config2;
+    [Alice | _] = ?config(escalus_users, Config),
+    Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"aliceonchat">>, []),
+    escalus:init_per_testcase(muc_user_enter, Config1);
 
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
 end_per_testcase(groupchat_user_enter, Config) ->
-    destroy_room(Config, <<"alicesroom">>);
+    destroy_room(Config),
+    escalus:end_per_testcase(groupchat_user_enter, Config);
 
 end_per_testcase(groupchat_user_enter_no_nickname, Config) ->
-    destroy_room(Config, <<"alicesroom">>);
+    destroy_room(Config),
+    escalus:end_per_testcase(groupchat_user_enter_no_nickname, Config);
 
 end_per_testcase(muc_user_enter, Config) ->
-    destroy_room(Config, <<"alicesroom">>);
+    destroy_room(Config),
+    escalus:end_per_testcase(muc_user_enter, Config);
 
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
@@ -199,18 +212,14 @@ admin_ban_list(Config) ->
 %%--------------------------------------------------------------------
 
 %Example 18
-%TO DO:
-%   -room and nick names in Config?
-%   -Bob's nickaname as a field?
 groupchat_user_enter(Config) ->
     escalus:story(Config, [1, 1], fun(Alice, Bob) ->
-                Enter_room_stanza = stanza_groupchat_enter_room(<<"alicesroom">>, <<"bob">>),
-                escalus:send(Bob, Enter_room_stanza),
-                Presence = escalus:wait_for_stanza(Bob),
-                escalus_assert:is_presence_stanza(Presence),
-                error_logger:info_msg("Bob's new user presence notification: ~n~p~n",[Presence]),
-                From = << "alicesroom" ,"@", ?MUC_HOST/binary, "/", "bob" >>,
-                From = exml_query:attr(Presence, <<"from">>)
+        Enter_room_stanza = stanza_groupchat_enter_room(<<"alicesroom">>, <<"bob">>),
+        escalus:send(Bob, Enter_room_stanza),
+        Presence = escalus:wait_for_stanza(Bob),
+        escalus_assert:is_presence_stanza(Presence),
+        From = << "alicesroom" ,"@", ?MUC_HOST/binary, "/", "bob" >>,
+        From = exml_query:attr(Presence, <<"from">>)
         end).
 
 %Example 19
@@ -218,60 +227,61 @@ groupchat_user_enter(Config) ->
 groupchat_user_enter_no_nickname(Config) ->
     escalus:story(Config, [1, 1], fun(Alice, Bob) ->
 
-                Enter_room_stanza = stanza_groupchat_enter_room_no_nick(<<"alicesroom">>),
-                error_logger:info_msg("Enter room stanza: ~n~p", [Enter_room_stanza]),
-                escalus:send(Bob, Enter_room_stanza),
+        Enter_room_stanza = stanza_groupchat_enter_room_no_nick(<<"alicesroom">>),
+        error_logger:info_msg("Enter room stanza: ~n~p", [Enter_room_stanza]),
+        escalus:send(Bob, Enter_room_stanza),
 
-                timer:sleep(1000),
+        timer:sleep(1000),
 %no error message here!
-%crashes
+%processone ejabberd crashes with function caluse, nick (binary) is required
 %                Presence2 = escalus:wait_for_stanza(Bob),
 %                escalus_assert:is_presence_stanza(Presence2),
-%                 From = <<"alicesroom" ,"@", ?MUC_HOST/binary, "/", "aliceonchat" >>,
-%                 From = exml_query:attr(Presence2, <<"from">>),
+%                From = <<"alicesroom" ,"@", ?MUC_HOST/binary, "/", "aliceonchat" >>,
+%                From = exml_query:attr(Presence2, <<"from">>),
 
-                escalus_assert:has_no_stanzas(Alice),   %!!
-                escalus_assert:has_no_stanzas(Bob)
-        end).
+        escalus_assert:has_no_stanzas(Alice),   %!!
+        escalus_assert:has_no_stanzas(Bob)
+    end).
 
 % Examples 20, 21, 22
-%TO DO:
-%   -room and nick names in Config?
-%   -Bob's nickaname as a field?
-%   -check if the topic is correct once it had been configured in the init functions
+% No broadcast message about now user's precence. The feature should be configurable, but does
+% not seem to be.
 muc_user_enter(Config) ->
     escalus:story(Config, [1, 1], fun(Alice, Bob) ->
-                %Bob enters the room
-                Enter_room_stanza = stanza_muc_enter_room(<<"alicesroom">>, <<"aliceonchat">>),
-                error_logger:info_msg("Enter room stanza: ~n~p", [Enter_room_stanza]),
-                escalus:send(Bob, Enter_room_stanza),
-                Presence = escalus:wait_for_stanza(Bob),
-                error_logger:info_msg("Bob's new user presence notification: ~n~p~n",[Presence]),
-                escalus_assert:is_presence_stanza(Presence),
-                From = << "alicesroom" ,"@", ?MUC_HOST/binary, "/", "aliceonchat" >>,
-                From = exml_query:attr(Presence, <<"from">>),
+        %error_logger:info_msg("Configuration form: ~n~n~n~p~n",[stanza_configuration_form(get_from_config(room, Config), [])]),
+        %Bob enters the room
+        Enter_room_stanza = stanza_muc_enter_room(<<"alicesroom">>, <<"aliceonchat">>),
+        error_logger:info_msg("Enter room stanza: ~n~p", [Enter_room_stanza]),
+        escalus:send(Bob, Enter_room_stanza),
+        Presence = escalus:wait_for_stanza(Bob),
+        error_logger:info_msg("Bob's new user presence notification: ~n~p~n",[Presence]),
+        escalus_assert:is_presence_stanza(Presence),
+        From = << "alicesroom" ,"@", ?MUC_HOST/binary, "/", "aliceonchat" >>,
+        From = exml_query:attr(Presence, <<"from">>),
 
-                 Topic = escalus:wait_for_stanza(Bob),
-                 error_logger:info_msg("Bobs topic notification: ~n~p~n",[Topic]),
-                %check if the topic is correct here
+        Topic = escalus:wait_for_stanza(Bob),
+        error_logger:info_msg("Bobs topic notification: ~n~p~n",[Topic]),
 
-%                 Presence4 = escalus:wait_for_stanza(Alice),
-%                  error_logger:info_msg("Alice's new user presence notification: ~n~p~n",[Presence4]),
-%                  escalus_assert:is_presence_stanza(Presence4),
-%                  From4 = <<"alicesroom" ,"@", ?MUC_HOST/binary, "/", "bob" >>,
-%                  From4 = exml_query:attr(Presence4, <<"from">>),
+%        Presence4 = escalus:wait_for_stanza(Alice),
+%        error_logger:info_msg("Alice's new user presence notification: ~n~p~n",[Presence4]),
+%        escalus_assert:is_presence_stanza(Presence4),
+%        From4 = <<"alicesroom" ,"@", ?MUC_HOST/binary, "/", "bob" >>,
+%        From4 = exml_query:attr(Presence4, <<"from">>),
 %
 
-%                  timer:sleep(1000),
-%                  Presence2 = escalus:wait_for_stanza(Bob),
-%                  error_logger:info_msg("Bob's new user presence notification: ~n~p~n",[Presence2]),
-%                  escalus_assert:is_presence_stanza(Presence2),
-%                  From2 = <<"alicesroom" ,"@", ?MUC_HOST/binary, "/", "bob" >>,
-%                  From2 = exml_query:attr(Presence2, <<"from">>),
+%        timer:sleep(1000),
+%        Presence2 = escalus:wait_for_stanza(Bob),
+%        error_logger:info_msg("Bob's new user presence notification: ~n~p~n",[Presence2]),
+%        escalus_assert:is_presence_stanza(Presence2),
+%        From2 = <<"alicesroom" ,"@", ?MUC_HOST/binary, "/", "bob" >>,
+%        From2 = exml_query:attr(Presence2, <<"from">>),
 %
-                 escalus_assert:has_no_stanzas(Alice),
-                 escalus_assert:has_no_stanzas(Bob)
+        escalus_assert:has_no_stanzas(Alice),
+        escalus_assert:has_no_stanzas(Bob)
         end).
+
+% Example 23 missing
+% Example 24 impossible to test due to the issues with presence broadcast.
 
 %%--------------------------------------------------------------------
 %% Tests
@@ -365,6 +375,12 @@ create_and_destroy_room(Config) ->
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
+get_from_config(Option, [{Option, Value}|_T]) ->
+    Value;
+get_from_config(Option, [_H|T]) ->
+    get_from_config(Option, T);
+get_from_config(_Option, []) ->
+    throw(no_such_option).
 
 generate_rpc_jid({_,User}) ->
     {username, Username} = lists:keyfind(username, 1, User),
