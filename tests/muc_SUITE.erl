@@ -36,14 +36,13 @@ all() ->
     ].
 
 groups() ->
-    [{disco, [sequence], [disco_service,
+    [{disco, [sequence], [
+                          disco_service,
                           disco_features,
                           disco_rooms,
                           disco_info,
                           disco_items
-%                          disco_support,
-%                          disco_contact_rooms
-                          ]},
+                         ]},
       %% {moderator, [sequence], []},
       {admin, [sequence], [admin_ban,
                            admin_ban_list
@@ -331,29 +330,6 @@ disco_items(Config) ->
         escalus:send(Bob, stanza_to_room(escalus_stanza:iq_get(?NS_DISCO_ITEMS,[]), <<"alicesroom">>)),
         Stanza2 = escalus:wait_for_stanza(Bob),
         escalus:assert(is_iq_result, Stanza2)
-    end).
-
-disco_support(Config) ->
-    escalus:story(Config, [1,1], fun(Alice, Bob) ->
-        S = escalus_stanza:to(escalus_stanza:iq_get(?NS_DISCO_INFO, []), Bob),
-        error_logger:info_msg(S),
-        escalus:send(Alice, escalus_stanza:to(
-          escalus_stanza:iq_get(?NS_DISCO_INFO, []), Bob)),
-        escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice))
-    end).
-
-disco_contact_rooms(Config) ->
-    escalus:story(Config, [1,1], fun(Alice, Bob) ->
-    #xmlelement{name = Name, attrs = Attrs, body = [Body]} =
-        escalus_stanza:to(escalus_stanza:iq_get(?NS_DISCO_INFO, []), Bob),
-    NewBody = #xmlelement{
-        name = Body#xmlelement.name,
-        attrs = [{<<"node">>,<<"http://jabber.org/protocol/muc#rooms">>}|
-            Body#xmlelement.attrs],
-        body = Body#xmlelement.body
-        },
-        escalus:send(Alice, #xmlelement{name = Name, attrs = Attrs, body = NewBody}),
-        escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice))
     end).
 
 create_and_destroy_room(Config) ->
