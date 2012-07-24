@@ -83,7 +83,10 @@ groups() -> [
                                     ]},
              {owner, [sequence], [
                                   %% failing, see testcase for explanation
-                                  %room_creation_not_allowed
+                                  %room_creation_not_allowed,
+                                  cant_enter_locked_room
+                                  %create_instant_room
+                                  %create_reserved_room
                                  ]},
              {room_management, [sequence], [
                                             create_and_destroy_room
@@ -1078,7 +1081,7 @@ disco_items(Config) ->
 
 create_and_destroy_room(Config) ->
     escalus:story(Config, [1], fun(Alice) ->
-        Room1 = stanza_create_room(<<"room1">>, <<"nick1">>),
+        Room1 = stanza_enter_room(<<"room1">>, <<"nick1">>),
         escalus:send(Alice, Room1),
         %Alice gets topic message after creating the room
         [S, _S2] = escalus:wait_for_stanzas(Alice, 2),
@@ -1091,6 +1094,7 @@ create_and_destroy_room(Config) ->
         was_destroy_presented(Presence)
     end).
 
+%% FAILS!
 %% Example 152. Service Informs User of Inability to Create a Room
 %% As of writing this testcase (2012-07-24) it fails. Room is not created
 %% as expected, but the returned error message is not the one specified by XEP.
@@ -1100,12 +1104,64 @@ room_creation_not_allowed(Config) ->
         escalus_ejabberd:with_global_option({access,muc_create,global},
                                             [{deny,all}], fun() ->
 
-            escalus:send(Alice, stanza_create_room(<<"room1">>, <<"nick1">>)),
+            escalus:send(Alice, stanza_enter_room(<<"room1">>, <<"nick1">>)),
             escalus:assert(is_error, [<<"cancel">>, <<"not-allowed">>],
                            escalus:wait_for_stanza(Alice))
 
         end)
     end).
+
+cant_enter_locked_room(Config) ->
+    escalus:story(Config, [1,1], fun(Alice, Bob) ->
+
+        %% Create the room (should be locked on creation)
+        escalus:send(Alice, stanza_muc_enter_room(<<"room1">>,
+                                                  <<"alice-the-owner">>)),
+        was_room_created(escalus:wait_for_stanza(Alice)),
+
+        %% Bob should not be able to join the room
+        escalus:send(Bob, stanza_enter_room(<<"room1">>, <<"just-bob">>)),
+        R = escalus:wait_for_stanza(Bob),
+        error_logger:info_msg("R:~n~p~n", [R]),
+        %% sometime the predicate itself should be moved to escalus
+        escalus:assert(fun ?MODULE:is_room_locked/1, R)
+
+        end).
+
+%% Example 155. Owner Requests Instant Room
+create_instant_room(Config) ->
+    escalus:story(Config, [1], fun(Alice) ->
+
+        %% Create the room (should be locked on creation)
+        escalus:send(Alice, stanza_muc_enter_room(<<"room1">>,
+                                                  <<"alice-the-owner">>)),
+        was_room_created(escalus:wait_for_stanza(Alice)),
+
+        R1 = escalus:wait_for_stanza(Alice),
+        error_logger:info_msg("R1:~n~p~n", [R1]),
+
+        R = escalus_stanza:setattr(stanza_instant_room(<<"room1@muc.localhost">>),
+                                   <<"from">>, escalus_utils:get_jid(Alice)),
+        error_logger:info_msg("R:~n~p~n", [R]),
+        escalus:send(Alice, R),
+        S = escalus:wait_for_stanza(Alice),
+        error_logger:info_msg("S:~n~p~n", [S])
+        %% TODO: wait for and verify result
+
+        end).
+
+create_reserved_room(Config) ->
+    escalus:story(Config, [1], fun(Alice) ->
+
+        R = escalus_stanza:setattr(stanza_reserved_room(<<"room2@muc.localhost">>),
+                                   <<"from">>, escalus_utils:get_jid(Alice)),
+        error_logger:info_msg("~p~n", [R]),
+        escalus:send(Alice, R),
+        S = escalus:wait_for_stanza(Alice),
+        error_logger:info_msg("~p~n", [S])
+        %% TODO: wait for and verify result
+
+        end).
 
 %%--------------------------------------------------------------------
 %% Helpers
@@ -1252,11 +1308,19 @@ form_field({Var, Value, Type}) ->
                  body  = [#xmlelement{ name = <<"value">>,
                                        body = [#xmlcdata{content = Value}] }] }.
 
+stanza_instant_room(Room) ->
+    X = #xmlelement{name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_DATA_FORMS},
+                                             {<<"type">>, <<"submit">>}]},
+    escalus_stanza:to(escalus_stanza:iq_set(?NS_MUC_OWNER, [X]), Room).
+
+stanza_reserved_room(Room) ->
+    escalus_stanza:to(escalus_stanza:iq_set(?NS_MUC_OWNER, []), Room).
+
 stanza_destroy_room(Room) ->
     Payload = [ #xmlelement{name = <<"destroy">>} ],
     stanza_to_room(escalus_stanza:iq_set(?NS_MUC_OWNER, Payload), Room).
 
-stanza_create_room(Room, Nick) ->
+stanza_enter_room(Room, Nick) ->
     stanza_to_room(#xmlelement{name = <<"presence">>}, Room, Nick).
 
 stanza_to_room(Stanza, Room, Nick) ->
@@ -1373,13 +1437,13 @@ was_destroy_presented(#xmlelement{body = [Items]} = Presence) ->
 was_room_destroyed(Query) ->
     <<"result">> = exml_query:attr(Query, <<"type">>).
 
-was_room_created(#xmlelement{body = [ Query ]}) ->
-    #xmlelement{} = Status = exml_query:subelement(Query, <<"status">>),
-    <<"201">> = exml_query:attr(Status, <<"code">>),
-
-    #xmlelement{} = Item = exml_query:subelement(Query, <<"item">>),
-    <<"owner">> = exml_query:attr(Item, <<"affiliation">>),
-    <<"moderator">> = exml_query:attr(Item, <<"role">>).
+was_room_created(#xmlelement{body = [X]}) ->
+    <<"201">> = exml_query:path(X, [{element, <<"status">>},
+                                    {attr, <<"code">>}]),
+    <<"owner">> = exml_query:path(X, [{element, <<"item">>},
+                                      {attr, <<"affiliation">>}]),
+    <<"moderator">> = exml_query:path(X, [{element, <<"item">>},
+                                          {attr, <<"role">>}]).
 
 has_room(JID, #xmlelement{body = [ #xmlelement{body = Rooms} ]}) ->
     %% <iq from='chat.shakespeare.lit'
@@ -1464,3 +1528,8 @@ has_muc(#xmlelement{body = [ #xmlelement{body = Services} ]}) ->
         exml_query:attr(Item, <<"jid">>) == ?MUC_HOST
     end,
     lists:any(IsMUC, Services).
+
+is_room_locked(Stanza) ->
+    escalus_pred:is_presence(Stanza)
+    andalso
+    escalus_pred:is_error(<<"cancel">>, <<"item-not-found">>, Stanza).
