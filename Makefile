@@ -37,6 +37,8 @@ prepare: compile
 	erlc -Ideps/exml/include \
 		 run_common_test.erl
 	mkdir -p ct_report
+	cp files/sample_external_auth.py /tmp
+	cp files/test_cert.pem /tmp/server.pem
 
 console: compile
 	erl -sname test -setcookie ejabberd \
