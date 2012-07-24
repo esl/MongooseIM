@@ -62,37 +62,29 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
-%% Make Alice an admin
 init_per_group(admin, Config) ->
     RoomName = <<"alicesroom">>,
     RoomNick = <<"alicesnick">>,
     Config1 = escalus:create_users(Config),
-    Config2 = start_persistent_room(
-        escalus:init_per_testcase(admin, Config1), RoomName, RoomNick),
-    escalus:end_per_testcase(admin, Config2),
-    [{nick, RoomNick}, {room, RoomName} | Config2];
+    [Alice | _] = ?config(escalus_users, Config1),
+    start_room(Config1, Alice, RoomName, RoomNick, [{persistent, true}]);
 
 init_per_group(disco, Config) ->
     Config1 = escalus:create_users(Config),
-    Config2 = start_persistent_room(escalus:init_per_testcase(disco, Config1),
-        <<"alicesroom">>, <<"aliceonchat">>),
-    escalus:end_per_testcase(disco, Config2),
-    Config2;
+    [Alice | _] = ?config(escalus_users, Config1),
+    start_room(Config1, Alice, <<"alicesroom">>, <<"aliceonchat">>,
+        [{persistent, true}]);
 
 init_per_group(_GroupName, Config) ->
     escalus:create_users(Config).
 
 end_per_group(admin, Config) ->
-    Config1 = escalus:init_per_testcase(admin, Config),
-    destroy_room(Config1, <<"alicesroom">>),
-    escalus:end_per_testcase(admin, Config1),
-    escalus:delete_users(Config1);
+    destroy_room(Config),
+    escalus:delete_users(Config);
 
 end_per_group(disco, Config) ->
-    Config1 = escalus:init_per_testcase(disco, Config),
-    destroy_room(Config1, <<"alicesroom">>),
-    escalus:end_per_testcase(disco, Config1),
-    escalus:delete_users(Config1);
+    destroy_room(Config),
+    escalus:delete_users(Config);
 
 end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config).
@@ -354,6 +346,12 @@ create_and_destroy_room(Config) ->
 %% Helpers
 %%--------------------------------------------------------------------
 
+generate_rpc_jid({_,User}) ->
+    {username, Username} = lists:keyfind(username, 1, User),
+    {server, Server} = lists:keyfind(server, 1, User),
+    JID = <<Username/binary, "@", Server/binary, "/rpc">>,
+    {jid, JID, Username, Server, <<"rpc">>}.
+
 %Basic MUC protocol
 stanza_muc_enter_room(Room, Nick) ->
     stanza_to_room(
@@ -369,25 +367,18 @@ stanza_groupchat_enter_room(Room, Nick) ->
 stanza_groupchat_enter_room_no_nick(Room) ->
     stanza_to_room(escalus_stanza:presence(<<"available">>), Room).
 
-start_persistent_room(Config, Room, Nick) ->
-    escalus:story(Config, [1], fun(Alice) ->
-        escalus:send(Alice, stanza_create_room(Room, Nick)),
-        %% skip presence and topic stanzas
-        escalus:wait_for_stanzas(Alice, 2),
-        FormRequest = stanza_to_room(escalus_stanza:iq_get(?NS_MUC_OWNER, []), Room),
-        escalus:send(Alice, FormRequest),
-        _Form = escalus:wait_for_stanza(Alice),
-        Params = [{<<"muc#roomconfig_persistentroom">>,<<"1">>,<<"boolean">>}],
-        escalus:send(Alice, stanza_configuration_form(Room, Params)),
-        _Response = escalus:wait_for_stanza(Alice)
-    end),
-    Config.
+start_room(Config, User, Room, Nick, Opts) ->
+    From = generate_rpc_jid(User),
+    escalus_ejabberd:rpc(mod_muc, create_room,
+        [<<"localhost">>, Room, From, Nick, Opts]),
+    [{nick, Nick}, {room, Room} | Config].
 
-destroy_room(Config, Room) ->
-    escalus:story(Config, [1], fun(Alice) ->
-        escalus:send(Alice, stanza_destroy_room(Room)),
-        _Stanzas2 = escalus:wait_for_stanzas(Alice, 2)
-    end).
+destroy_room(Config) ->
+    case escalus_ejabberd:rpc(ets, lookup, [muc_online_room,
+        {?config(room, Config), <<"muc.localhost">>}]) of
+        [{_,_,Pid}|_] -> gen_fsm:send_all_state_event(Pid, destroy);
+        _ -> ok
+    end.
 
 room_address(Room) ->
     <<Room/binary, "@", ?MUC_HOST/binary>>.
