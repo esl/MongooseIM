@@ -23,6 +23,7 @@
 -include_lib("exml/include/exml.hrl").
 
 -define(MUC_HOST, <<"muc.localhost">>).
+-define(MUC_CLIENT_HOST, <<"localhost/res1">>).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -109,21 +110,31 @@ end_per_group(disco, Config) ->
 end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config).
 
-init_per_testcase(groupchat_user_enter, Config) ->
+init_per_testcase(CaseName = groupchat_user_enter, Config) ->
     [Alice | _] = ?config(escalus_users, Config),
     Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"aliceonchat">>, [{persistent, true}]),
-    escalus:init_per_testcase(groupchat_user_enter, Config1);
+    escalus:init_per_testcase(CaseName, Config1);
 
-init_per_testcase(groupchat_user_enter_no_nickname, Config) ->
+init_per_testcase(CaseName = groupchat_user_enter_no_nickname, Config) ->
     [Alice | _] = ?config(escalus_users, Config),
     Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"aliceonchat">>, []),
-    escalus:init_per_testcase(groupchat_user_enter_no_nickname, Config1);
+    escalus:init_per_testcase(CaseName, Config1);
 
-
-init_per_testcase(muc_user_enter, Config) ->
+init_per_testcase(CaseName = muc_user_enter, Config) ->
     [Alice | _] = ?config(escalus_users, Config),
     Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"aliceonchat">>, []),
-    escalus:init_per_testcase(muc_user_enter, Config1);
+    escalus:init_per_testcase(CaseName, Config1);
+
+init_per_testcase(CaseName = enter_non_anonymous_room, Config) ->
+    [Alice | _] = ?config(escalus_users, Config),
+    Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"aliceonchat">>, [{anonymous, false}]),
+    escalus:init_per_testcase(CaseName, Config1);
+
+init_per_testcase(CaseName = deny_access_to_password_protected_room, Config) ->
+    [Alice | _] = ?config(escalus_users, Config),
+    %{password_protected, Password}?
+    Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"aliceonchat">>, [{password_protected, true}]),
+    escalus:init_per_testcase(CaseName, Config1);
 
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
@@ -497,10 +508,9 @@ admin_moderator_list(Config) ->
 
 %Example 18
 groupchat_user_enter(Config) ->
-    escalus:story(Config, [1, 1], fun(Alice, Bob) ->
-
-        EnterRoomStanza = stanza_groupchat_enter_room(<<"alicesroom">>, <<"bob">>),
-        escalus:send(Bob, EnterRoomStanza),
+    escalus:story(Config, [1, 1], fun(_Alice, Bob) ->
+        Enter_room_stanza = stanza_groupchat_enter_room(<<"alicesroom">>, <<"bob">>),
+        escalus:send(Bob, Enter_room_stanza),
         Presence = escalus:wait_for_stanza(Bob),
         escalus_assert:is_presence_stanza(Presence),
         From = << "alicesroom" ,"@", ?MUC_HOST/binary, "/", "bob" >>,
@@ -535,8 +545,7 @@ groupchat_user_enter_no_nickname(Config) ->
 % No broadcast message about now user's presence. The feature should be configurable, but does
 % not seem to be.
 muc_user_enter(Config) ->
-    escalus:story(Config, [1, 1], fun(Alice, Bob) ->
-
+    escalus:story(Config, [1, 1], fun(_Alice, Bob) ->
         %error_logger:info_msg("Configuration form: ~n~n~n~p~n",[stanza_configuration_form(get_from_config(room, Config), [])]),
         %Bob enters the room
         EnterRoomStanza = stanza_muc_enter_room(<<"alicesroom">>, <<"aliceonchat">>),
@@ -549,28 +558,56 @@ muc_user_enter(Config) ->
         From = exml_query:attr(Presence, <<"from">>),
 
         Topic = escalus:wait_for_stanza(Bob),
-        error_logger:info_msg("Bobs topic notification: ~n~p~n",[Topic]),
-
-%        Presence4 = escalus:wait_for_stanza(Alice),
-%        error_logger:info_msg("Alice's new user presence notification: ~n~p~n",[Presence4]),
-%        escalus_assert:is_presence_stanza(Presence4),
-%        From4 = <<"alicesroom" ,"@", ?MUC_HOST/binary, "/", "bob" >>,
-%        From4 = exml_query:attr(Presence4, <<"from">>),
-
-%        timer:sleep(1000),
-%        Presence2 = escalus:wait_for_stanza(Bob),
-%        error_logger:info_msg("Bob's new user presence notification: ~n~p~n",[Presence2]),
-%        escalus_assert:is_presence_stanza(Presence2),
-%        From2 = <<"alicesroom" ,"@", ?MUC_HOST/binary, "/", "bob" >>,
-%        From2 = exml_query:attr(Presence2, <<"from">>),
-
-        escalus_assert:has_no_stanzas(Alice),
-        escalus_assert:has_no_stanzas(Bob)
-
-        end).
+        error_logger:info_msg("Bobs topic notification: ~n~p~n",[Topic])
+        %possible new user broadcast presence messages
+    end).
 
 % Example 23 missing
 % Example 24 impossible to test due to the issues with presence broadcast.
+
+% Example 25, 26
+enter_non_anonymous_room(Config) ->
+    escalus:story(Config, [1, 1], fun(_Alice,  Bob) ->
+        %Bob enters the room
+        Enter_room_stanza = stanza_muc_enter_room(<<"alicesroom">>, <<"aliceonchat">>),
+        error_logger:info_msg("Enter room stanza: ~n~p", [Enter_room_stanza]),
+        escalus:send(Bob, Enter_room_stanza),
+        %A message that informs users about this room being non-anonymous.
+        %Should send aprecence with a 100 staus code. Sends a simple message instead
+        Message = escalus:wait_for_stanza(Bob),
+        error_logger:info_msg("Info message about the room being non-anonymous: ~n~p~n", [Message]),
+        Presence = escalus:wait_for_stanza(Bob),
+        error_logger:info_msg("Bob's new user presence notification: ~n~p~n",[Presence]),
+        escalus_assert:is_presence_stanza(Presence),
+        From = << "alicesroom" ,"@", ?MUC_HOST/binary, "/", "aliceonchat" >>,
+        From = exml_query:attr(Presence, <<"from">>),
+
+        JID = <<"bob", "@" ,?MUC_CLIENT_HOST/binary>>,
+        error_logger:info_msg("item: ~n~p~n", [exml_query:subelement(exml_query:subelement(Presence, <<"x">>), <<"item">>)]),
+        JID = exml_query:attr(
+                        exml_query:subelement(
+                            exml_query:subelement(Presence, <<"x">>), <<"item">>) ,<<"jid">>),
+        %error_logger:info_msg("suelement : ~n~p~n", [FullJID=exml_query:subelement(<<"item">>)]),
+        Topic = escalus:wait_for_stanza(Bob),
+        error_logger:info_msg("Bobs topic notification: ~n~p~n",[Topic])
+        %possible new user broadcast presence messages
+    end).
+
+% Semi-anonymous rooms untestable due to the issues with new user presence broadcast settings.
+% (No examples, section 7.2.5)
+
+%Example 27
+deny_access_to_password_protected_room(Config) ->
+    escalus:story(Config, [1, 1], fun(_Alice,  Bob) ->
+        %Bob enters the room
+        Enter_room_stanza = stanza_muc_enter_room(<<"alicesroom">>, <<"aliceonchat">>),
+        error_logger:info_msg("Enter room stanza: ~n~p", [Enter_room_stanza]),
+        escalus:send(Bob, Enter_room_stanza),
+        Message = escalus:wait_for_stanza(Bob),
+        error_logger:info_msg("No password error message: ~n~p~n", [Message]),
+        escalus_assert:is_error(Message, <<"auth">>, <<"not-authorized">>)
+    end).
+
 
 %%--------------------------------------------------------------------
 %% Tests
