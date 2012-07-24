@@ -28,31 +28,36 @@
 %% Suite configuration
 %%--------------------------------------------------------------------
 
-all() ->
-    [{group, disco},
-     {group, admin},
-     {group, occupant},
-     {group, room_management}].
-    ].
+all() -> [
+          {group, disco},
+          %{group, moderator},
+          {group, admin},
+          {group, occupant},
+          {group, room_management}
+         ].
 
-groups() ->
-    [{disco, [sequence], [
-                          disco_service,
-                          disco_features,
-                          disco_rooms,
-                          disco_info,
-                          disco_items
-                         ]},
-      %% {moderator, [sequence], []},
-      {admin, [sequence], [admin_ban,
-                           admin_ban_list
-                          ]},
-      {room_management, [sequence], [create_and_destroy_room]},
-     {occupant, [sequence], [
-                groupchat_user_enter,
-               % groupchat_user_enter_no_nickname,
-                muc_user_enter]}
-    ].
+groups() -> [
+             {disco, [sequence], [
+                                  disco_service,
+                                  disco_features,
+                                  disco_rooms,
+                                  disco_info,
+                                  disco_items
+                                 ]},
+             %{moderator, [sequence], []},
+             {admin, [sequence], [
+                                  admin_ban,
+                                  admin_ban_list
+                                 ]},
+             {occupant, [sequence], [
+                                     groupchat_user_enter,
+                                     %groupchat_user_enter_no_nickname,
+                                     muc_user_enter
+                                    ]},
+             {room_management, [sequence], [
+                                            create_and_destroy_room
+                                           ]}
+            ].
 
 suite() ->
     escalus:suite().
@@ -213,12 +218,14 @@ admin_ban_list(Config) ->
 %Example 18
 groupchat_user_enter(Config) ->
     escalus:story(Config, [1, 1], fun(Alice, Bob) ->
-        Enter_room_stanza = stanza_groupchat_enter_room(<<"alicesroom">>, <<"bob">>),
-        escalus:send(Bob, Enter_room_stanza),
+
+        EnterRoomStanza = stanza_groupchat_enter_room(<<"alicesroom">>, <<"bob">>),
+        escalus:send(Bob, EnterRoomStanza),
         Presence = escalus:wait_for_stanza(Bob),
         escalus_assert:is_presence_stanza(Presence),
         From = << "alicesroom" ,"@", ?MUC_HOST/binary, "/", "bob" >>,
         From = exml_query:attr(Presence, <<"from">>)
+
         end).
 
 %Example 19
@@ -226,32 +233,35 @@ groupchat_user_enter(Config) ->
 groupchat_user_enter_no_nickname(Config) ->
     escalus:story(Config, [1, 1], fun(Alice, Bob) ->
 
-        Enter_room_stanza = stanza_groupchat_enter_room_no_nick(<<"alicesroom">>),
-        error_logger:info_msg("Enter room stanza: ~n~p", [Enter_room_stanza]),
-        escalus:send(Bob, Enter_room_stanza),
+        EnterRoomStanza = stanza_groupchat_enter_room_no_nick(<<"alicesroom">>),
+        error_logger:info_msg("Enter room stanza: ~n~p", [EnterRoomStanza]),
+        escalus:send(Bob, EnterRoomStanza),
 
         timer:sleep(1000),
-%no error message here!
-%processone ejabberd crashes with function caluse, nick (binary) is required
-%                Presence2 = escalus:wait_for_stanza(Bob),
-%                escalus_assert:is_presence_stanza(Presence2),
-%                From = <<"alicesroom" ,"@", ?MUC_HOST/binary, "/", "aliceonchat" >>,
-%                From = exml_query:attr(Presence2, <<"from">>),
+
+        %% no error message here!
+        %% processone ejabberd crashes with function clause, nick (binary) is required
+        %Presence2 = escalus:wait_for_stanza(Bob),
+        %escalus_assert:is_presence_stanza(Presence2),
+        %From = <<"alicesroom" ,"@", ?MUC_HOST/binary, "/", "aliceonchat" >>,
+        %From = exml_query:attr(Presence2, <<"from">>),
 
         escalus_assert:has_no_stanzas(Alice),   %!!
         escalus_assert:has_no_stanzas(Bob)
-    end).
+
+        end).
 
 % Examples 20, 21, 22
-% No broadcast message about now user's precence. The feature should be configurable, but does
+% No broadcast message about now user's presence. The feature should be configurable, but does
 % not seem to be.
 muc_user_enter(Config) ->
     escalus:story(Config, [1, 1], fun(Alice, Bob) ->
+
         %error_logger:info_msg("Configuration form: ~n~n~n~p~n",[stanza_configuration_form(get_from_config(room, Config), [])]),
         %Bob enters the room
-        Enter_room_stanza = stanza_muc_enter_room(<<"alicesroom">>, <<"aliceonchat">>),
-        error_logger:info_msg("Enter room stanza: ~n~p", [Enter_room_stanza]),
-        escalus:send(Bob, Enter_room_stanza),
+        EnterRoomStanza = stanza_muc_enter_room(<<"alicesroom">>, <<"aliceonchat">>),
+        error_logger:info_msg("Enter room stanza: ~n~p", [EnterRoomStanza]),
+        escalus:send(Bob, EnterRoomStanza),
         Presence = escalus:wait_for_stanza(Bob),
         error_logger:info_msg("Bob's new user presence notification: ~n~p~n",[Presence]),
         escalus_assert:is_presence_stanza(Presence),
@@ -266,7 +276,6 @@ muc_user_enter(Config) ->
 %        escalus_assert:is_presence_stanza(Presence4),
 %        From4 = <<"alicesroom" ,"@", ?MUC_HOST/binary, "/", "bob" >>,
 %        From4 = exml_query:attr(Presence4, <<"from">>),
-%
 
 %        timer:sleep(1000),
 %        Presence2 = escalus:wait_for_stanza(Bob),
@@ -274,9 +283,10 @@ muc_user_enter(Config) ->
 %        escalus_assert:is_presence_stanza(Presence2),
 %        From2 = <<"alicesroom" ,"@", ?MUC_HOST/binary, "/", "bob" >>,
 %        From2 = exml_query:attr(Presence2, <<"from">>),
-%
+
         escalus_assert:has_no_stanzas(Alice),
         escalus_assert:has_no_stanzas(Bob)
+
         end).
 
 % Example 23 missing
@@ -402,8 +412,9 @@ room_address(Room, Nick) ->
 %%--------------------------------------------------------------------
 stanza_admin_list(Room, Items) ->
     Payload = [ #xmlelement{name = <<"item">>,
-        attrs = [{<<"affiliation">>, Affiliation}, {<<"jid">>, JID}]}
-        || {Affiliation, JID} <- Items ],
+                            attrs = [{<<"affiliation">>, Affiliation},
+                                     {<<"jid">>, JID}]}
+              || {Affiliation, JID} <- Items ],
     stanza_to_room(escalus_stanza:iq_set(?NS_MUC_ADMIN, Payload), Room).
 
 stanza_ban_list_request(Room) ->
@@ -414,8 +425,8 @@ stanza_ban_list_request(Room) ->
 stanza_ban_user(User, Room) ->
   stanza_to_room(escalus_stanza:iq_set(?NS_MUC_ADMIN, #xmlelement{
       name = <<"item">>,
-      attrs = [ {<<"affiliation">>,<<"outcast">>},
-        {<<"jid">>, escalus_utils:get_short_jid(User)} ]
+      attrs = [{<<"affiliation">>,<<"outcast">>},
+               {<<"jid">>, escalus_utils:get_short_jid(User)}]
       }), Room).
 
 stanza_join_room(Room, Nick) ->
