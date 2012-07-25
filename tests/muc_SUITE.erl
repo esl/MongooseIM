@@ -31,7 +31,7 @@
 
 all() -> [
           {group, disco},
-          %{group, moderator},
+          {group, moderator},
           {group, admin},
           {group, admin_membersonly},
           {group, occupant},
@@ -47,7 +47,10 @@ groups() -> [
                                   disco_info,
                                   disco_items
                                  ]},
-             %{moderator, [sequence], []},
+             {moderator, [sequence], [
+                                      moderator_subject,
+                                      moderator_subject_unauthorized
+                                     ]},
              {admin, [sequence], [
                                   admin_ban,
                                   admin_ban_list,
@@ -97,6 +100,14 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
+init_per_group(moderator, Config) ->
+    RoomName = <<"alicesroom">>,
+    RoomNick = <<"alicesnick">>,
+    Config1 = escalus:create_users(Config),
+    [Alice | _] = ?config(escalus_users, Config1),
+    start_room(Config1, Alice, RoomName, RoomNick,
+        [{persistent, true}, {allow_change_subj, false}]);
+
 init_per_group(admin, Config) ->
     RoomName = <<"alicesroom">>,
     RoomNick = <<"alicesnick">>,
@@ -120,6 +131,10 @@ init_per_group(disco, Config) ->
 
 init_per_group(_GroupName, Config) ->
     escalus:create_users(Config).
+
+end_per_group(moderator, Config) ->
+    destroy_room(Config),
+    escalus:delete_users(Config);
 
 end_per_group(admin, Config) ->
     destroy_room(Config),
@@ -247,6 +262,47 @@ end_per_testcase(CaseName =deny_entry_user_limit_reached, Config) ->
 
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
+
+%%--------------------------------------------------------------------
+%%  Moderator use case tests
+%%
+%%  Tests the usecases described here :
+%%  http://xmpp.org/extensions/xep-0045.html/#moderator
+%%--------------------------------------------------------------------
+
+%%  Examples 84-85
+moderator_subject(Config) ->
+    escalus:story(Config, [1], fun(Alice) ->
+        %% Alice joins room
+        escalus:send(Alice, stanza_muc_enter_room(?config(room, Config), <<"alice">>)),
+        escalus:wait_for_stanzas(Alice, 2),
+
+        %% Alice sets room subject
+        escalus:send(Alice,
+            stanza_room_subject(?config(room,Config), <<"Lets have a chat!">>)),
+
+        %% Alice receives subject change message
+        Message = escalus:wait_for_stanza(Alice),
+        true = is_subject_message(Message, <<"Lets have a chat!">>),
+        escalus:assert(is_stanza_from,
+            [room_address(?config(room,Config), <<"alice">>)], Message)
+    end).
+
+%%  Example 87
+moderator_subject_unauthorized(Config) ->
+    escalus:story(Config, [1,1], fun(_Alice, Bob) ->
+        %% Bob joins room
+        escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
+        escalus:wait_for_stanzas(Bob, 2),
+
+        %% Bob tries to set the room subject
+        escalus:send(Bob,
+            stanza_room_subject(?config(room,Config), <<"Lets have a chat!">>)),
+
+        %% Bob should receive an error
+        escalus:assert(is_error, [<<"auth">>, <<"forbidden">>],
+            escalus:wait_for_stanza(Bob))
+    end).
 
 %%--------------------------------------------------------------------
 %%  Admin use case tests
@@ -492,7 +548,7 @@ admin_moderator(Config) ->
         end,
 
         escalus:send(Alice, stanza_set_roles(
-              ?config(room, Config), [{<<"bob">>, <<"participant">>}])),
+            ?config(room, Config), [{<<"bob">>, <<"participant">>}])),
         escalus:assert_many([is_iq_result, Pred], escalus:wait_for_stanzas(Alice, 2)),
 
         %% Bob receives his loss of moderator presence
@@ -623,10 +679,10 @@ admin_mo_revoke(Config) ->
 
         %% Kate receives Bob's loss of unavailable presence
         Kates = escalus:wait_for_stanza(Kate),
-        true = is_membership_presence(Kates,
-            room_address(?config(room,Config),<<"bob">>), <<"none">>, <<"none">>),
-        true = is_unavailable_presence(Kates, room_address(?config(room,Config), <<"bob">>))
-
+        true = is_membership_presence(Kates, <<"none">>, <<"none">>),
+        true = is_unavailable_presence(Kates),
+        escalus:assert(is_stanza_from,
+            [room_address(?config(room, Config),<<"bob">>)], Kates)
     end).
 
 %%  Example 134
@@ -1020,6 +1076,15 @@ room_address(Room, Nick) ->
 %% Helpers (stanzas)
 %%--------------------------------------------------------------------
 
+stanza_room_subject(Room, Subject) ->
+    stanza_to_room(#xmlelement{name = <<"message">>,
+        attrs = [{<<"type">>,<<"groupchat">>}],
+        body = [#xmlelement{
+            name = <<"subject">>,
+            body = [exml:escape_cdata(Subject)]
+        }]
+    }, Room).
+
 stanza_mediated_invitation(Room, Invited) ->
     Payload = [ #xmlelement{name = <<"invite">>,
         attrs = [{<<"to">>, escalus_utils:get_short_jid(Invited)}]} ],
@@ -1141,15 +1206,25 @@ stanza_get_services(Config) ->
 %% Helpers (assertions)
 %%--------------------------------------------------------------------
 
-is_unavailable_presence(Stanza, From) ->
-    escalus_pred:is_presence_with_type(<<"unavailable">>,Stanza) andalso
-    is_presence_with_status_code(Stanza, <<"321">>) andalso
-    escalus_pred:is_stanza_from(From, Stanza).
+is_groupchat_message(Stanza) ->
+    escalus_pred:is_message(Stanza) andalso
+    escalus_pred:has_type(<<"groupchat">>, Stanza).
 
-is_membership_presence(Stanza, From, Affiliation, Role) ->
+is_subject_message(Stanza) ->
+    is_groupchat_message(Stanza) andalso
+    exml_query:subelement(Stanza, <<"subject">>) /= undefined.
+
+is_subject_message(Stanza, Subject) ->
+    is_groupchat_message(Stanza) andalso
+    exml_query:path(Stanza, [{element,<<"subject">>},cdata]) == Subject.
+
+is_unavailable_presence(Stanza) ->
+    escalus_pred:is_presence_with_type(<<"unavailable">>,Stanza) andalso
+    is_presence_with_status_code(Stanza, <<"321">>).
+
+is_membership_presence(Stanza, Affiliation, Role) ->
     is_presence_with_affiliation(Stanza, Affiliation) andalso
-    is_presence_with_role(Stanza, Role) andalso
-    escalus_pred:is_stanza_from(From, Stanza).
+    is_presence_with_role(Stanza, Role).
 
 is_invitation(Stanza) ->
     escalus:assert(is_message, Stanza),
