@@ -6,7 +6,7 @@ EJD_PRIV = $(EJABBERD_DIR)/priv
 EJD_PRIV_MIB = $(EJD_PRIV)/mibs
 EJD_MIB = $(EJABBERD_DIR)/mibs
 CONFIGS=node1 node2 internal_mnesia internal_redis odbc_mnesia odbc_redis external_mnesia external_redis
-
+UNAME = $(shell uname)
 all: deps compile
 
 compile: rebar generate_snmp_header
@@ -41,7 +41,11 @@ $(CONFIGS): rebar deps compile dev_dir
 	@echo "building $@"
 	(cd rel && ../rebar generate -f target_dir=../dev/ejabberd_$@ overlay_vars=./reltool_vars/$@_vars.config)
 	cp apps/ejabberd/src/*.erl dev/ejabberd_$@/lib/ejabberd-2.1.8/ebin/
+ifeq ($(UNAME), Linux)
+	cp -R `dirname $(shell readlink -f $(shell which erl))`/../lib/tools-* dev/ejabberd_$@/lib/
+else
 	cp -R `which erl`/../../lib/tools-* dev/ejabberd_$@/lib/
+endif
 dev_dir:
 	mkdir -p dev
 devclean:
