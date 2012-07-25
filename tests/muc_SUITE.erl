@@ -33,6 +33,7 @@ all() -> [
           {group, disco},
           %{group, moderator},
           {group, admin},
+          {group, admin_membersonly},
           {group, occupant},
           {group, owner},
           {group, room_management}
@@ -50,12 +51,20 @@ groups() -> [
              {admin, [sequence], [
                                   admin_ban,
                                   admin_ban_list,
+                                  admin_ban_higher_user,
                                   admin_membership,
                                   admin_member_list,
                                   admin_moderator,
-                                  admin_moderator_list,
-                                  admin_higher_user
+                                  admin_moderator_revoke_owner,
+                                  admin_moderator_list
                                  ]},
+             {admin_membersonly, [sequence], [
+                                              admin_mo_revoke,
+                                              %% fails, see testcase
+                                              %% admin_mo_invite,
+                                              %% fails, see testcase
+                                              %% admin_mo_invite_mere
+                                             ]},
              {occupant, [sequence], [
                                      groupchat_user_enter,
                                      %groupchat_user_enter_no_nickname,
@@ -90,6 +99,14 @@ init_per_group(admin, Config) ->
     [Alice | _] = ?config(escalus_users, Config1),
     start_room(Config1, Alice, RoomName, RoomNick, [{persistent, true}]);
 
+init_per_group(admin_membersonly, Config) ->
+    RoomName = <<"alicesroom">>,
+    RoomNick = <<"alicesnick">>,
+    Config1 = escalus:create_users(Config),
+    [Alice | _] = ?config(escalus_users, Config1),
+    start_room(Config1, Alice, RoomName, RoomNick, [{persistent, true},
+        {members_only, true}]);
+
 init_per_group(disco, Config) ->
     Config1 = escalus:create_users(Config),
     [Alice | _] = ?config(escalus_users, Config1),
@@ -100,6 +117,10 @@ init_per_group(_GroupName, Config) ->
     escalus:create_users(Config).
 
 end_per_group(admin, Config) ->
+    destroy_room(Config),
+    escalus:delete_users(Config);
+
+end_per_group(admin_membersonly, Config) ->
     destroy_room(Config),
     escalus:delete_users(Config);
 
@@ -185,7 +206,7 @@ admin_ban(Config) ->
         escalus:assert(is_presence_with_type, [<<"unavailable">>], Outcast),
         escalus:assert(is_stanza_from,
             [room_address(?config(room, Config), <<"bob">>)], Outcast),
-        is_presence_with_status_code(Outcast, <<"301">>),
+        true = is_presence_with_status_code(Outcast, <<"301">>),
         true = is_presence_with_affiliation(Outcast, <<"outcast">>),
         true = is_presence_with_role(Outcast, <<"none">>),
 
@@ -200,7 +221,7 @@ admin_ban(Config) ->
     end).
 
 %%    Example 115
-admin_higher_user(Config) ->
+admin_ban_higher_user(Config) ->
     escalus:story(Config, [1, 1], fun(Alice, Bob) ->
         %% Bob tries to ban Alice
         escalus:send(Bob, stanza_ban_user(Alice, ?config(room, Config))),
@@ -256,14 +277,12 @@ admin_membership(Config) ->
         %% Bob receives his notice
         Bobs = escalus:wait_for_stanza(Bob),
         true = is_presence_with_affiliation(Bobs, <<"member">>),
-        true = is_presence_with_role(Bobs, <<"participant">>),
         escalus:assert(is_stanza_from,
           [room_address(?config(room, Config), <<"bob">>)], Bobs),
 
         %% Kate receives Bob's notice
         Kates = escalus:wait_for_stanza(Kate),
         true = is_presence_with_affiliation(Kates, <<"member">>),
-        true = is_presence_with_role(Kates, <<"participant">>),
         escalus:assert(is_stanza_from,
           [room_address(?config(room, Config), <<"bob">>)], Kates),
 
@@ -275,14 +294,12 @@ admin_membership(Config) ->
         %% Bob receives his loss of membership presence
         Bobs2 = escalus:wait_for_stanza(Bob),
         true = is_presence_with_affiliation(Bobs2, <<"none">>),
-        true = is_presence_with_role(Bobs2, <<"participant">>),
         escalus:assert(is_stanza_from,
             [room_address(?config(room,Config), <<"bob">>)], Bobs2),
 
         %% Kate receives Bob's loss of membership presence
         Kates2 = escalus:wait_for_stanza(Kate),
         true = is_presence_with_affiliation(Kates2, <<"none">>),
-        true = is_presence_with_role(Kates2, <<"participant">>),
         escalus:assert(is_stanza_from,
             [room_address(?config(room,Config), <<"bob">>)], Kates2)
     end).
@@ -342,22 +359,22 @@ admin_member_list(Config) ->
         escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
 
         %% Bob receives his and Kate's presence
-        PresencePred = fun(Name, Affiliation) ->
+        Preds = [
             fun(Stanza) ->
-                escalus_pred:is_stanza_from(room_address(
-                    ?config(room,Config),Name), Stanza) andalso
-                is_presence_with_affiliation(Stanza, Affiliation)
+                escalus_pred:is_stanza_from(
+                  room_address(?config(room, Config), <<"kate">>),Stanza) andalso
+                is_presence_with_affiliation(Stanza, <<"member">>)
+            end,
+            fun(Stanza) ->
+                escalus_pred:is_stanza_from(
+                  room_address(?config(room, Config), <<"bob">>),Stanza) andalso
+                is_presence_with_affiliation(Stanza, <<"none">>)
             end
-        end,
-
-        escalus:assert_many([PresencePred(<<"bob">>,<<"none">>),
-            PresencePred(<<"kate">>,<<"member">>)],
-            escalus:wait_for_stanzas(Bob, 2)),
+        ],
+        escalus:assert_many(Preds, escalus:wait_for_stanzas(Bob, 2)),
 
         %% Kate receives her and Bob's presence
-        escalus:assert_many([PresencePred(<<"bob">>,<<"none">>),
-            PresencePred(<<"kate">>,<<"member">>)],
-            escalus:wait_for_stanzas(Kate, 2))
+        escalus:assert_many(Preds, escalus:wait_for_stanzas(Kate, 2))
   end).
 
 %%  Examples 137-145
@@ -394,26 +411,16 @@ admin_moderator(Config) ->
         escalus:assert(is_stanza_from,
             [room_address(?config(room, Config), <<"bob">>)], Kates),
 
-        %% Alice tries to revoke moderator status from herself
-        escalus:send(Alice, stanza_set_roles(
-             ?config(room, Config), [{<<"alice">>, <<"participant">>}])),
-
-        %% Should be an error
-        escalus:assert(is_error, [<<"cancel">>, <<"not-allowed">>],
-            escalus:wait_for_stanza(Alice)),
-
         %% Revoke bob moderator status
-        PresencePred = fun(From, Role) ->
-            fun(Stanza) ->
-                escalus_pred:is_stanza_from(From, Stanza) andalso
-                is_presence_with_role(Stanza, Role)
-            end
+        Pred = fun(Stanza) ->
+                escalus_pred:is_stanza_from(
+                  room_address(?config(room, Config), <<"bob">>),Stanza) andalso
+                is_presence_with_role(Stanza, <<"participant">>)
         end,
+
         escalus:send(Alice, stanza_set_roles(
               ?config(room, Config), [{<<"bob">>, <<"participant">>}])),
-        escalus:assert_many([is_iq_result,
-            PresencePred(room_address(?config(room,Config)),<<"participant">>)],
-            escalus:wait_for_stanzas(Alice, 2)),
+        escalus:assert_many([is_iq_result, Pred], escalus:wait_for_stanzas(Alice, 2)),
 
         %% Bob receives his loss of moderator presence
         Bobs2 = escalus:wait_for_stanza(Bob),
@@ -427,6 +434,22 @@ admin_moderator(Config) ->
         escalus:assert(is_stanza_from,
             [room_address(?config(room,Config), <<"bob">>)], Kates2)
 
+    end).
+
+%%  Examples 145, 150
+admin_moderator_revoke_owner(Config) ->
+    escalus:story(Config, [1], fun(Alice) ->
+        %% Alice joins room
+        escalus:send(Alice, stanza_muc_enter_room(?config(room, Config), <<"alice">>)),
+        escalus:wait_for_stanzas(Alice, 2),
+
+        %% Alice tries to revoke moderator status from herself
+        escalus:send(Alice, stanza_set_roles(
+             ?config(room, Config), [{<<"alice">>, <<"participant">>}])),
+
+        %% Should be an error
+        escalus:assert(is_error, [<<"cancel">>, <<"not-allowed">>],
+            escalus:wait_for_stanza(Alice))
     end).
 
 %%  Examples 146-150
@@ -453,50 +476,122 @@ admin_moderator_list(Config) ->
         escalus:assert(is_iq_result, List),
 
         %% Grant Bob and Kate moderators role
-        PresencePred = fun(From, Role) ->
+        Preds = [
             fun(Stanza) ->
-                escalus_pred:is_stanza_from(From, Stanza) andalso
-                is_presence_with_role(Stanza, Role)
+                escalus_pred:is_stanza_from(
+                  room_address(?config(room, Config), <<"kate">>),Stanza) andalso
+                is_presence_with_role(Stanza, <<"moderator">>)
+            end,
+            fun(Stanza) ->
+                escalus_pred:is_stanza_from(
+                  room_address(?config(room, Config), <<"bob">>),Stanza) andalso
+                is_presence_with_role(Stanza, <<"moderator">>)
             end
-        end,
+        ],
         escalus:send(Alice, stanza_set_roles(?config(room, Config),
             [{<<"bob">>,<<"moderator">>},{<<"kate">>,<<"moderator">>}])),
-        escalus:assert_many([is_iq_result,
-            PresencePred(room_address(?config(room, Config),<<"kate">>),<<"moderator">>),
-            PresencePred(room_address(?config(room, Config),<<"bob">>),<<"moderator">>)],
-            escalus:wait_for_stanzas(Alice,3)),
+        escalus:assert_many([is_iq_result | Preds], escalus:wait_for_stanzas(Alice,3)),
 
         %% Bob receives his and Kate's moderator presence
-        escalus:assert_many([
-            PresencePred(room_address(?config(room, Config),<<"kate">>),<<"moderator">>),
-            PresencePred(room_address(?config(room, Config),<<"bob">>),<<"moderator">>)],
-            escalus:wait_for_stanzas(Bob,2)),
+        escalus:assert_many(Preds, escalus:wait_for_stanzas(Bob,2)),
 
         %% Kate receives her and Bob's moderator presence
-        escalus:assert_many([
-            PresencePred(room_address(?config(room, Config),<<"kate">>),<<"moderator">>),
-            PresencePred(room_address(?config(room, Config),<<"bob">>),<<"moderator">>)],
-            escalus:wait_for_stanzas(Kate,2)),
+        escalus:assert_many(Preds, escalus:wait_for_stanzas(Kate,2)),
 
         %% Revoke Bob's and Kate's roles
+        Preds2 = [
+            fun(Stanza) ->
+                escalus_pred:is_stanza_from(
+                  room_address(?config(room, Config), <<"kate">>),Stanza) andalso
+                is_presence_with_role(Stanza, <<"participant">>)
+            end,
+            fun(Stanza) ->
+                escalus_pred:is_stanza_from(
+                  room_address(?config(room, Config), <<"bob">>),Stanza) andalso
+                is_presence_with_role(Stanza, <<"participant">>)
+            end
+        ],
         escalus:send(Alice, stanza_set_roles(?config(room, Config),
               [{<<"bob">>,<<"participant">>},{<<"kate">>,<<"participant">>}])),
-        escalus:assert_many([is_iq_result,
-            PresencePred(room_address(?config(room, Config),<<"kate">>),<<"participant">>),
-            PresencePred(room_address(?config(room, Config),<<"bob">>),<<"participant">>)],
-            escalus:wait_for_stanzas(Alice,3)),
+        escalus:assert_many([is_iq_result|Preds2], escalus:wait_for_stanzas(Alice,3)),
 
         %% Bob receives his and Kate's participant presence
-        escalus:assert_many([
-            PresencePred(room_address(?config(room, Config),<<"kate">>),<<"participant">>),
-            PresencePred(room_address(?config(room, Config),<<"bob">>),<<"participant">>)],
-            escalus:wait_for_stanzas(Bob,2)),
+        escalus:assert_many(Preds2, escalus:wait_for_stanzas(Bob,2)),
 
         %% Kate receives her and Bob's participant presence
-        escalus:assert_many([
-            PresencePred(room_address(?config(room, Config),<<"kate">>),<<"participant">>),
-            PresencePred(room_address(?config(room, Config),<<"bob">>),<<"participant">>)],
-            escalus:wait_for_stanzas(Kate,2))
+        escalus:assert_many(Preds2, escalus:wait_for_stanzas(Kate,2))
+    end).
+
+%%  Example 128
+admin_mo_revoke(Config) ->
+    escalus:story(Config, [1,1,1], fun(Alice, Bob, Kate) ->
+        %% Make Bob and Kate members
+        Items = [{<<"member">>, escalus_utils:get_short_jid(Bob)},
+            {<<"member">>, escalus_utils:get_short_jid(Kate)}],
+        escalus:send(Alice, stanza_admin_list(?config(room,Config), Items)),
+        escalus:wait_for_stanza(Alice),
+
+        %% Bob joins room
+        escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
+        escalus:wait_for_stanzas(Bob, 2),
+        %% Kate joins room
+        escalus:send(Kate, stanza_muc_enter_room(?config(room, Config), <<"kate">>)),
+        escalus:wait_for_stanzas(Kate, 3),
+        %% Skip Kate's presence
+        escalus:wait_for_stanza(Bob),
+
+        %% Alice revokes Bob's membership
+        Items2 = [{<<"none">>, escalus_utils:get_short_jid(Bob)}],
+        escalus:send(Alice, stanza_admin_list(?config(room, Config), Items2)),
+        escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+
+        %% Skip Bob's lost of membership presence (tested in the other case)
+        escalus:wait_for_stanza(Bob),
+
+        %% Kate receives Bob's loss of unavailable presence
+        Kates = escalus:wait_for_stanza(Kate),
+        true = is_membership_presence(Kates,
+            room_address(?config(room,Config),<<"bob">>), <<"none">>, <<"none">>),
+        true = is_unavailable_presence(Kates, room_address(?config(room,Config), <<"bob">>))
+
+    end).
+
+%%  Example 134
+%%  This test fails
+%%  ejabberd doesn't send an invitation after adding user to a member list
+admin_mo_invite(Config) ->
+    escalus:story(Config, [1,1], fun(Alice, Bob) ->
+        %% Make Bob a member
+        Items = [{<<"member">>, escalus_utils:get_short_jid(Bob)}],
+        escalus:send(Alice, stanza_admin_list(?config(room,Config), Items)),
+        escalus:wait_for_stanza(Alice),
+
+        %% Bob should receive an invitation
+        Inv = escalus:wait_for_stanza(Bob),
+        is_invitation(Inv),
+        escalus:assert(is_stanza_from, [room_address(?config(room,Config))], Inv)
+    end).
+
+%%  Example 135
+%%  This test fails
+%%  ejabberd returns cancel/not-allowed error while it should return auth/forbidden according to XEP
+admin_mo_invite_mere(Config) ->
+    escalus:story(Config, [1,1,1], fun(Alice, Bob, Kate) ->
+        %% Make Bob a member
+        Items = [{<<"member">>, escalus_utils:get_short_jid(Bob)}],
+        escalus:send(Alice, stanza_admin_list(?config(room,Config), Items)),
+        escalus:wait_for_stanza(Alice),
+
+        %% Bob joins room
+        escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
+        escalus:wait_for_stanzas(Bob, 2),
+
+        %% Bob tries to invite Kate
+        escalus:send(Bob, stanza_mediated_invitation(?config(room,Config), Kate)),
+
+        %% He should receive an error
+        escalus:assert(is_error, [<<"auth">>, <<"forbidden">>],
+          escalus:wait_for_stanza(Bob))
     end).
 
 %%--------------------------------------------------------------------
@@ -743,6 +838,16 @@ room_address(Room, Nick) ->
 %% Helpers (stanzas)
 %%--------------------------------------------------------------------
 
+stanza_mediated_invitation(Room, Invited) ->
+    Payload = [ #xmlelement{name = <<"invite">>,
+        attrs = [{<<"to">>, escalus_utils:get_short_jid(Invited)}]} ],
+    stanza_to_room(#xmlelement{name = <<"message">>,
+        body = [ #xmlelement{
+            name = <<"x">>,
+            attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
+            body = Payload }
+        ]}, Room).
+
 stanza_set_roles(Room, List) ->
     Payload = [ #xmlelement{name = <<"item">>,
         attrs = [{<<"nick">>, Nick}, {<<"role">>, Role}]} || {Nick,Role} <- List ],
@@ -854,8 +959,18 @@ stanza_get_services(Config) ->
 %% Helpers (assertions)
 %%--------------------------------------------------------------------
 
+is_unavailable_presence(Stanza, From) ->
+    escalus_pred:is_presence_with_type(<<"unavailable">>,Stanza) andalso
+    is_presence_with_status_code(Stanza, <<"321">>) andalso
+    escalus_pred:is_stanza_from(From, Stanza).
+
+is_membership_presence(Stanza, From, Affiliation, Role) ->
+    is_presence_with_affiliation(Stanza, Affiliation) andalso
+    is_presence_with_role(Stanza, Role) andalso
+    escalus_pred:is_stanza_from(From, Stanza).
+
 is_invitation(Stanza) ->
-    true = escalus:assert(is_message, Stanza),
+    escalus:assert(is_message, Stanza),
     #xmlelement{} = exml_query:path(Stanza, [{element, <<"x">>}, {element, <<"invite">>}]).
 
 is_presence_with_role(Stanza, Role) ->
@@ -891,7 +1006,7 @@ is_jid(Stanza, User) ->
 
 is_presence_with_status_code(Presence, Code) ->
     escalus:assert(is_presence, Presence),
-    Code = exml_query:path(Presence, [{element, <<"x">>}, {element, <<"status">>},
+    Code == exml_query:path(Presence, [{element, <<"x">>}, {element, <<"status">>},
         {attr, <<"code">>}]).
 
 has_feature(Stanza, Feature) ->
