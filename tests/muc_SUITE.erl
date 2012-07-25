@@ -51,7 +51,8 @@ groups() -> [
                                       moderator_subject,
                                       moderator_subject_unauthorized,
                                       moderator_kick,
-                                      moderator_kick_unauthorized
+                                      moderator_kick_unauthorized,
+                                      moderator_voice
                                      ]},
              {admin, [sequence], [
                                   admin_ban,
@@ -108,7 +109,8 @@ init_per_group(moderator, Config) ->
     Config1 = escalus:create_users(Config),
     [Alice | _] = ?config(escalus_users, Config1),
     start_room(Config1, Alice, RoomName, RoomNick,
-        [{persistent, true}, {allow_change_subj, false}]);
+        [{persistent, true}, {allow_change_subj, false}, {moderated, true},
+         {members_by_default, false}]);
 
 init_per_group(admin, Config) ->
     RoomName = <<"alicesroom">>,
@@ -325,7 +327,9 @@ moderator_kick(Config) ->
 
         %% Alice receives both iq result and Bob's unavailable presence
         escalus:assert_many([is_iq_result,
-          fun(Stanza) -> is_unavailable_presence(Stanza, <<"307">>) end],
+          fun(Stanza) -> is_unavailable_presence(Stanza, <<"307">>) andalso
+              escalus_pred:is_stanza_from(
+                  room_address(?config(room,Config)), Stanza) end],
           escalus:wait_for_stanzas(Alice, 2)),
 
         %% Bob receives his presence
@@ -351,6 +355,47 @@ moderator_kick_unauthorized(Config) ->
         %% Bob should get an error
         escalus:assert(is_error, [<<"cancel">>,<<"not-allowed">>],
           escalus:wait_for_stanza(Bob))
+    end).
+
+%%  Examples 94-101
+moderator_voice(Config) ->
+    escalus:story(Config, [1,1], fun(Alice, Bob) ->
+        %% Alice joins room
+        escalus:send(Alice, stanza_muc_enter_room(?config(room, Config), <<"alice">>)),
+        escalus:wait_for_stanzas(Alice, 2),
+        %% Bob joins room
+        escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
+        escalus:wait_for_stanzas(Bob, 3),
+        %% Skip Bob's presence
+        escalus:wait_for_stanza(Alice),
+
+        %% Alice grants voice to Bob
+        escalus:send(Alice, stanza_set_roles(?config(room,Config),
+            [{<<"bob">>,<<"participant">>}])),
+
+        %% Alice receives success information and new Bob's presence
+        Pred = fun(Stanza) ->
+            is_presence_with_role(Stanza, <<"participant">>)
+        end,
+        escalus:assert_many([is_iq_result, Pred],
+            escalus:wait_for_stanzas(Alice, 2)),
+
+        %% Bob should receive his new presence
+        escalus:assert(Pred, escalus:wait_for_stanza(Bob)),
+
+        %% Revoke Bob's voice
+        escalus:send(Alice, stanza_set_roles(?config(room,Config),
+            [{<<"bob">>,<<"visitor">>}])),
+
+        %% Alice receives success information and new Bob's presence
+        Pred2 = fun(Stanza) ->
+            is_presence_with_role(Stanza, <<"visitor">>)
+        end,
+        escalus:assert_many([is_iq_result, Pred2],
+            escalus:wait_for_stanzas(Alice, 2)),
+
+        %% Bob should receive his new presence
+        escalus:assert(Pred2, escalus:wait_for_stanza(Bob))
     end).
 
 %%--------------------------------------------------------------------
