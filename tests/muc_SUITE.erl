@@ -904,7 +904,7 @@ enter_non_anonymous_room(Config) ->
         From = << "alicesroom" ,"@", ?MUC_HOST/binary, "/", "aliceonchat" >>,
         From = exml_query:attr(Presence, <<"from">>),
 
-        JID = <<"bob", "@" ,?MUC_CLIENT_HOST/binary>>,
+        JID = <<"bob", "@", ?MUC_CLIENT_HOST/binary>>,
         error_logger:info_msg("item: ~n~p~n", [exml_query:subelement(exml_query:subelement(Presence, <<"x">>), <<"item">>)]),
         JID = exml_query:attr(
                         exml_query:subelement(
@@ -1238,20 +1238,19 @@ stanza_configuration_form(Room, Params) ->
             lists:keydelete(Key,1,Acc)
         end,
         DefaultParams, Params) ++ Params,
-    XPayload = [ #xmlelement{
-        name = <<"field">>,
-        attrs = [{<<"type">>, Type},{<<"var">>, Var}],
-        body = #xmlelement{
-            name = <<"value">>,
-            body = #xmlcdata{content = Value}
-            }
-        } || {Var, Value, Type} <- FinalParams],
+    XPayload = [ form_field(FieldData) || FieldData <- FinalParams ],
     Payload = #xmlelement{
         name = <<"x">>,
         attrs = [{<<"xmlns">>,<<"jabber:x:data">>}, {<<"type">>,<<"submit">>}],
         body = XPayload
     },
     stanza_to_room(escalus_stanza:iq_set(?NS_MUC_OWNER, Payload), Room).
+
+form_field({Var, Value, Type}) ->
+    #xmlelement{ name  = <<"field">>,
+                 attrs = [{<<"type">>, Type},{<<"var">>, Var}],
+                 body  = [#xmlelement{ name = <<"value">>,
+                                       body = [#xmlcdata{content = Value}] }] }.
 
 stanza_destroy_room(Room) ->
     Payload = [ #xmlelement{name = <<"destroy">>} ],
