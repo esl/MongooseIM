@@ -59,7 +59,7 @@ groups() -> [
                                   admin_moderator_list
                                  ]},
              {admin_membersonly, [sequence], [
-                                              admin_mo_revoke,
+                                              admin_mo_revoke
                                               %% fails, see testcase
                                               %% admin_mo_invite,
                                               %% fails, see testcase
