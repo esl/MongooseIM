@@ -66,9 +66,14 @@ groups() -> [
                                               %% admin_mo_invite_mere
                                              ]},
              {occupant, [sequence], [
-                                     groupchat_user_enter,
-                                     %groupchat_user_enter_no_nickname,
-                                     muc_user_enter
+                                    groupchat_user_enter,
+                                    groupchat_user_enter_no_nickname,
+                                    muc_user_enter,
+                                    deny_access_to_password_protected_room,
+                                    enter_password_protected_room,
+                                    deny_accesss_to_memebers_only_room,
+                                    deny_entry_to_a_banned_user,
+                                    deny_entry_nick_conflict
                                     ]},
              {owner, [sequence], [
                                   %% failing, see testcase for explanation
@@ -157,20 +162,88 @@ init_per_testcase(CaseName = deny_access_to_password_protected_room, Config) ->
     Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"aliceonchat">>, [{password_protected, true}]),
     escalus:init_per_testcase(CaseName, Config1);
 
+init_per_testcase(CaseName = enter_password_protected_room, Config) ->
+    [Alice | _] = ?config(escalus_users, Config),
+    Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"aliceonchat">>, [{password_protected, true}, {password, ?PASSWORD}]),
+    escalus:init_per_testcase(CaseName, Config1);
+
+init_per_testcase(CaseName = deny_accesss_to_memebers_only_room, Config) ->
+    [Alice | _] = ?config(escalus_users, Config),
+    Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"aliceonchat">>, [{members_only, true}]),
+    escalus:init_per_testcase(CaseName, Config1);
+
+init_per_testcase(CaseName =deny_entry_to_a_banned_user, Config) ->
+    [Alice | _] = ?config(escalus_users, Config),
+    Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"aliceonchat">>, []),
+    escalus:init_per_testcase(CaseName, Config1);
+
+init_per_testcase(CaseName =deny_entry_nick_conflict, Config) ->
+    [Alice | _] = ?config(escalus_users, Config),
+    Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"aliceonchat">>, []),
+    escalus:init_per_testcase(CaseName, Config1);
+
+init_per_testcase(CaseName =deny_entry_user_limit_reached, Config) ->
+    [Alice | _] = ?config(escalus_users, Config),
+    Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"aliceonchat">>, [{max_users, 1}]),
+    escalus:init_per_testcase(CaseName, Config1);
+
+%init_per_testcase(CaseName =deny_entry_locked_room, Config) ->
+%    escalus:init_per_testcase(CaseName, Config);
+
+%init_per_testcase(CaseName =enter_room_with_logging, Config) ->
+%    [Alice | _] = ?config(escalus_users, Config),
+%    Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"aliceonchat">>, [{logging, true}]),
+%    escalus:init_per_testcase(CaseName, Config1);
+
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
-end_per_testcase(groupchat_user_enter, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(groupchat_user_enter, Config);
 
-end_per_testcase(groupchat_user_enter_no_nickname, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(groupchat_user_enter_no_nickname, Config);
 
-end_per_testcase(muc_user_enter, Config) ->
+end_per_testcase(CaseName = groupchat_user_enter, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(muc_user_enter, Config);
+    escalus:end_per_testcase(CaseName, Config);
+
+end_per_testcase(CaseName = groupchat_user_enter_no_nickname, Config) ->
+    destroy_room(Config),
+    escalus:end_per_testcase(CaseName, Config);
+
+end_per_testcase(CaseName = muc_user_enter, Config) ->
+    destroy_room(Config),
+    escalus:end_per_testcase(CaseName, Config);
+
+end_per_testcase(CaseName = deny_access_to_password_protected_room, Config) ->
+    destroy_room(Config),
+    escalus:end_per_testcase(CaseName, Config);
+
+end_per_testcase(CaseName = enter_password_protected_room, Config) ->
+    destroy_room(Config),
+    escalus:end_per_testcase(CaseName, Config);
+
+end_per_testcase(CaseName = deny_accesss_to_memebers_only_room, Config) ->
+    destroy_room(Config),
+    escalus:end_per_testcase(CaseName, Config);
+
+end_per_testcase(CaseName =deny_entry_to_a_banned_user, Config) ->
+    destroy_room(Config),
+    escalus:end_per_testcase(CaseName, Config);
+
+end_per_testcase(CaseName =deny_entry_nick_conflict, Config) ->
+    destroy_room(Config),
+    escalus:end_per_testcase(CaseName, Config);
+
+end_per_testcase(CaseName =deny_entry_user_limit_reached, Config) ->
+    destroy_room(Config),
+    escalus:end_per_testcase(CaseName, Config);
+
+%end_per_testcase(CaseName =deny_entry_locked_room, Config) ->
+%    destroy_room(Config),
+%    escalus:end_per_testcase(CaseName, Config);
+
+%end_per_testcase(CaseName =enter_room_with_logging, Config) ->
+%    destroy_room(Config),
+%    escalus:end_per_testcase(CaseName, Config);
+
 
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
@@ -599,6 +672,10 @@ admin_mo_invite_mere(Config) ->
 %%
 %%  Tests the usecases described here :
 %%  http://xmpp.org/extensions/xep-0045.html/#user
+%%
+%%  Issue: the service does not broadcast the new users presence. This behaviour
+%%  should be configurable and possibly enabled by default, is neither.
+%%  This makes some of the use cases untestable
 %%--------------------------------------------------------------------
 
 %Example 18
@@ -694,7 +771,6 @@ enter_non_anonymous_room(Config) ->
 %Example 27
 deny_access_to_password_protected_room(Config) ->
     escalus:story(Config, [1, 1], fun(_Alice,  Bob) ->
-        %Bob enters the room
         Enter_room_stanza = stanza_muc_enter_room(<<"alicesroom">>, <<"aliceonchat">>),
         error_logger:info_msg("Enter room stanza: ~n~p", [Enter_room_stanza]),
         escalus:send(Bob, Enter_room_stanza),
@@ -703,7 +779,104 @@ deny_access_to_password_protected_room(Config) ->
         escalus_assert:is_error(Message, <<"auth">>, <<"not-authorized">>)
     end).
 
+%Example 28
+enter_password_protected_room(Config) ->
+    escalus:story(Config, [1, 1], fun(_Alice,  Bob) ->
+        %Bob enters the room
+        Enter_room_stanza = stanza_muc_enter_password_protected_room(<<"alicesroom">>, <<"aliceonchat">>, ?PASSWORD),
+        error_logger:info_msg("Enter room stanza: ~n~p", [Enter_room_stanza]),
+        escalus:send(Bob, Enter_room_stanza),
+        Presence = escalus:wait_for_stanza(Bob),
+        error_logger:info_msg("Bob's new user presence notification: ~n~p~n",[Presence]),
+        escalus_assert:is_presence_stanza(Presence),
+        From = << "alicesroom" ,"@", ?MUC_HOST/binary, "/", "aliceonchat" >>,
+        From = exml_query:attr(Presence, <<"from">>),
+        Topic = escalus:wait_for_stanza(Bob),
+        error_logger:info_msg("Bobs topic notification: ~n~p~n",[Topic])
+        %possible new user broadcast presence messages
+    end).
 
+%Example 29
+deny_accesss_to_memebers_only_room(Config) ->
+    escalus:story(Config, [1, 1], fun(_Alice,  Bob) ->
+        Enter_room_stanza = stanza_muc_enter_room(<<"alicesroom">>, <<"aliceonchat">>),
+        error_logger:info_msg("Enter room stanza: ~n~p", [Enter_room_stanza]),
+        escalus:send(Bob, Enter_room_stanza),
+        Message = escalus:wait_for_stanza(Bob),
+        error_logger:info_msg("Not a member error message: ~n~p~n", [Message]),
+        escalus_assert:is_error(Message, <<"auth">>, <<"registration-required">>)
+    end).
+
+%Example 30
+deny_entry_to_a_banned_user(Config) ->
+    escalus:story(Config, [1, 1], fun(Alice,  Bob) ->
+        %% Alice bans Bob
+        escalus:send(Alice, stanza_ban_user(Bob, ?config(room, Config))),
+        %% Alice receives confirmation
+        Stanza = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_iq_result, Stanza),
+
+        Enter_room_stanza = stanza_muc_enter_room(<<"alicesroom">>, <<"aliceonchat">>),
+        error_logger:info_msg("Enter room stanza: ~n~p", [Enter_room_stanza]),
+        escalus:send(Bob, Enter_room_stanza),
+        Message = escalus:wait_for_stanza(Bob),
+        error_logger:info_msg("Banned message ~n~p~n", [Message]),
+        escalus_assert:is_error(Message, <<"auth">>, <<"forbidden">>)
+    end).
+
+%Examlpe 31
+deny_entry_nick_conflict(Config) -> 
+    escalus:story(Config, [1, 1, 1], fun(_Alice,  Bob, Eve) ->
+        Enter_room_stanza = stanza_muc_enter_room(<<"alicesroom">>, <<"bob">>),
+        error_logger:info_msg("Enter room stanza: ~n~p", [Enter_room_stanza]),
+        escalus:send(Bob, Enter_room_stanza),
+        escalus:send(Eve, Enter_room_stanza),
+        escalus:wait_for_stanzas(Bob, 2),
+        Message  =escalus:wait_for_stanza(Eve),
+        error_logger:info_msg("Not a member error message: ~n~p~n", [Message]),
+        escalus_assert:is_error(Message, <<"cancel">>, <<"conflict">>)
+    end).
+
+%Example 32
+deny_entry_user_limit_reached(Config) ->
+    escalus:story(Config, [1, 1], fun(_Alice,  Bob) ->
+        escalus:send(Bob,stanza_muc_enter_room(<<"alicesroom">>, <<"aliceonchat">>)),
+        Message = escalus:wait_for_stanza(Bob),
+        error_logger:info_msg("Not a member error message: ~n~p~n", [Message]),
+        escalus_assert:is_error(Message, <<"wait">>, <<"service-unavailable">>)
+    end).
+
+%%Example 33 
+%%requires creating a locked room in the init per testcase function somehow
+%deny_entry_locked_room(Config) ->
+%    escalus:story(Config, [1, 1], fun(_Alice,  Bob) ->
+%        escalus:send(Bob,stanza_muc_enter_room(<<"alicesroom">>, <<"aliceonchat">>)),
+%        Message = escalus:wait_for_stanza(Bob),
+%        error_logger:info_msg("Not a member error message: ~n~p~n", [Message]),
+%        escalus_assert:is_error(Message, <<"cancal">>, <<"item-not-found">>)
+%    end).
+
+% Nonexistent rooms:
+% If a user seeks to enter a non-existent room, servers behaviour is undefined.
+% See the xep: http://xmpp.org/extensions/xep-0045.html/#enter-nonexistent
+%
+
+%Example 34
+%requires the service to send new occupant's presence to him. This does not happen
+%this test is unfinished
+%enter_room_with_logging(Config) ->
+%    escalus:story(Config, [1, 1], fun(_Alice,  Bob) ->
+%        %Bob enters the room
+%        escalus:send(Bob,stanza_muc_enter_room(<<"alicesroom">>, <<"aliceonchat">>)),
+%        Presence = escalus:wait_for_stanza(Bob),
+%        error_logger:info_msg("Bob's new user presence notification: ~n~p~n",[Presence]),
+%        escalus_assert:is_presence_stanza(Presence),
+%        From = << "alicesroom" ,"@", ?MUC_HOST/binary, "/", "aliceonchat" >>,
+%        From = exml_query:attr(Presence, <<"from">>),
+%        escalus:wait_for_stanza(Bob)
+%        %possible new user broadcast presence messages
+%    end).
+%
 %%--------------------------------------------------------------------
 %% Tests
 %%--------------------------------------------------------------------
@@ -800,13 +973,6 @@ generate_rpc_jid({_,User}) ->
     JID = <<Username/binary, "@", Server/binary, "/rpc">>,
     {jid, JID, Username, Server, <<"rpc">>}.
 
-%Basic MUC protocol
-stanza_muc_enter_room(Room, Nick) ->
-    stanza_to_room(
-        escalus_stanza:presence(  <<"available">>,
-                                [#xmlelement{ name = <<"x">>, attrs=[{<<"xmlns">>, <<"http://jabber.org/protocol/muc">>}]}]),
-        Room, Nick).
-
 %Groupchat 1.0 protocol
 stanza_groupchat_enter_room(Room, Nick) ->
     stanza_to_room(escalus_stanza:presence(<<"available">>), Room, Nick).
@@ -814,6 +980,22 @@ stanza_groupchat_enter_room(Room, Nick) ->
 
 stanza_groupchat_enter_room_no_nick(Room) ->
     stanza_to_room(escalus_stanza:presence(<<"available">>), Room).
+
+
+%Basic MUC protocol
+stanza_muc_enter_room(Room, Nick) ->
+    stanza_to_room(
+        escalus_stanza:presence(  <<"available">>,
+                                [#xmlelement{ name = <<"x">>, attrs=[{<<"xmlns">>, <<"http://jabber.org/protocol/muc">>}]}]),
+        Room, Nick).
+
+stanza_muc_enter_password_protected_room(Room, Nick, Password) ->
+    stanza_to_room(
+        escalus_stanza:presence(  <<"available">>,
+                                [#xmlelement{ name = <<"x">>, attrs=[{<<"xmlns">>, <<"http://jabber.org/protocol/muc">>}],
+                                             body=[#xmlelement{name = <<"password">>, body = [#xmlcdata{content=[Password]}]} ]}]),
+        Room, Nick).
+
 
 start_room(Config, User, Room, Nick, Opts) ->
     From = generate_rpc_jid(User),
