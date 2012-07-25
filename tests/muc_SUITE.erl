@@ -49,7 +49,9 @@ groups() -> [
                                  ]},
              {moderator, [sequence], [
                                       moderator_subject,
-                                      moderator_subject_unauthorized
+                                      moderator_subject_unauthorized,
+                                      moderator_kick,
+                                      moderator_kick_unauthorized
                                      ]},
              {admin, [sequence], [
                                   admin_ban,
@@ -302,6 +304,53 @@ moderator_subject_unauthorized(Config) ->
         %% Bob should receive an error
         escalus:assert(is_error, [<<"auth">>, <<"forbidden">>],
             escalus:wait_for_stanza(Bob))
+    end).
+
+%%  Examples 89-92
+%%  Apparently you user has to be in the room to kick someone, however XEP doesn't need that
+moderator_kick(Config) ->
+    escalus:story(Config, [1,1], fun(Alice, Bob) ->
+        %% Alice joins room
+        escalus:send(Alice, stanza_muc_enter_room(?config(room, Config), <<"alice">>)),
+        escalus:wait_for_stanzas(Alice, 2),
+        %% Bob joins room
+        escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
+        escalus:wait_for_stanzas(Bob, 3),
+        %% Skip Bob's presence
+        escalus:wait_for_stanza(Alice),
+
+        %% Alice kicks Bob
+        escalus:send(Alice, stanza_set_roles(
+            ?config(room,Config), [{<<"bob">>,<<"none">>}])),
+
+        %% Alice receives both iq result and Bob's unavailable presence
+        escalus:assert_many([is_iq_result,
+          fun(Stanza) -> is_unavailable_presence(Stanza, <<"307">>) end],
+          escalus:wait_for_stanzas(Alice, 2)),
+
+        %% Bob receives his presence
+        is_unavailable_presence(escalus:wait_for_stanza(Bob), <<"307">>)
+    end).
+
+%%  Example 93
+moderator_kick_unauthorized(Config) ->
+    escalus:story(Config, [1,1], fun(Alice, Bob) ->
+        %% Alice joins room
+        escalus:send(Alice, stanza_muc_enter_room(?config(room, Config), <<"alice">>)),
+        escalus:wait_for_stanzas(Alice, 2),
+        %% Bob joins room
+        escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
+        escalus:wait_for_stanzas(Bob, 3),
+        %% Skip Bob's presence
+        escalus:wait_for_stanza(Alice),
+
+        %% Bob tries to kick Alice
+        escalus:send(Bob, stanza_set_roles(
+            ?config(room,Config), [{<<"alice">>,<<"none">>}])),
+
+        %% Bob should get an error
+        escalus:assert(is_error, [<<"cancel">>,<<"not-allowed">>],
+          escalus:wait_for_stanza(Bob))
     end).
 
 %%--------------------------------------------------------------------
@@ -680,7 +729,7 @@ admin_mo_revoke(Config) ->
         %% Kate receives Bob's loss of unavailable presence
         Kates = escalus:wait_for_stanza(Kate),
         true = is_membership_presence(Kates, <<"none">>, <<"none">>),
-        true = is_unavailable_presence(Kates),
+        true = is_unavailable_presence(Kates, <<"321">>),
         escalus:assert(is_stanza_from,
             [room_address(?config(room, Config),<<"bob">>)], Kates)
     end).
@@ -1218,9 +1267,9 @@ is_subject_message(Stanza, Subject) ->
     is_groupchat_message(Stanza) andalso
     exml_query:path(Stanza, [{element,<<"subject">>},cdata]) == Subject.
 
-is_unavailable_presence(Stanza) ->
+is_unavailable_presence(Stanza, Status) ->
     escalus_pred:is_presence_with_type(<<"unavailable">>,Stanza) andalso
-    is_presence_with_status_code(Stanza, <<"321">>).
+    is_presence_with_status_code(Stanza, Status).
 
 is_membership_presence(Stanza, Affiliation, Role) ->
     is_presence_with_affiliation(Stanza, Affiliation) andalso
