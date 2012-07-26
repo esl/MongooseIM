@@ -24,6 +24,7 @@
 
 -define(MUC_HOST, <<"muc.localhost">>).
 -define(MUC_CLIENT_HOST, <<"localhost/res1">>).
+-define(PASSWORD, <<"password">>).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -79,7 +80,8 @@ groups() -> [
                                     enter_password_protected_room,
                                     deny_accesss_to_memebers_only_room,
                                     deny_entry_to_a_banned_user,
-                                    deny_entry_nick_conflict
+                                    deny_entry_nick_conflict,
+                                    send_to_all
                                     ]},
              {owner, [sequence], [
                                   %% failing, see testcase for explanation
@@ -209,6 +211,11 @@ init_per_testcase(CaseName =deny_entry_user_limit_reached, Config) ->
     Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"aliceonchat">>, [{max_users, 1}]),
     escalus:init_per_testcase(CaseName, Config1);
 
+init_per_testcase(CaseName =send_to_all, Config) ->
+    [Alice | _] = ?config(escalus_users, Config),
+    Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"alice">>, []),
+    escalus:init_per_testcase(CaseName, Config1);
+
 %init_per_testcase(CaseName =deny_entry_locked_room, Config) ->
 %    escalus:init_per_testcase(CaseName, Config);
 
@@ -266,6 +273,9 @@ end_per_testcase(CaseName =deny_entry_user_limit_reached, Config) ->
 %    destroy_room(Config),
 %    escalus:end_per_testcase(CaseName, Config);
 
+end_per_testcase(CaseName =send_to_all, Config) ->
+    destroy_room(Config),
+    escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
@@ -1030,6 +1040,46 @@ deny_entry_user_limit_reached(Config) ->
 %        %possible new user broadcast presence messages
 %    end).
 %
+
+%Examples 35 - 43
+%cannot be tested - missing option that enables sending history to the user
+
+
+%Example 44, 45
+send_to_all(Config) ->
+    escalus:story(Config, [1, 1, 1], fun(_Alice,  Bob, Eve) ->
+        Enter_room_stanza = stanza_muc_enter_room(<<"alicesroom">>, <<"bob">>),
+        error_logger:info_msg("Enter room stanza: ~n~p", [Enter_room_stanza]),
+        escalus:send(Bob, Enter_room_stanza),
+
+        print_next_message(Bob),
+        print_next_message(Bob),
+        escalus_assert:has_no_stanzas(Bob),
+
+        Enter_room_stanza2 = stanza_muc_enter_room(<<"alicesroom">>, <<"eve">>),
+        error_logger:info_msg("Enter room stanza: ~n~p", [Enter_room_stanza2]),
+        escalus:send(Eve, Enter_room_stanza2),
+
+        print_next_message(Eve),
+        print_next_message(Eve),
+        print_next_message(Eve),
+        print_next_message(Bob),
+
+        escalus_assert:has_no_stanzas(Bob),
+        escalus_assert:has_no_stanzas(Eve),
+
+        Msg = <<"chat message">>,
+        GroupchatMessage = escalus_stanza:groupchat_to(room_address(?config(room, Config)), Msg),
+        error_logger:info_msg("groupchat message ~n~p~n", [GroupchatMessage]),
+        escalus:send(Eve, GroupchatMessage),
+        is_message_correct(?config(room, Config), <<"eve">>, Msg, escalus:wait_for_stanza(Bob)),
+        is_message_correct(?config(room, Config), <<"eve">>, Msg, escalus:wait_for_stanza(Eve)),
+        escalus_assert:has_no_stanzas(Bob),
+        escalus_assert:has_no_stanzas(Eve)
+    end).
+
+
+
 %%--------------------------------------------------------------------
 %% Tests
 %%--------------------------------------------------------------------
@@ -1166,12 +1216,20 @@ create_reserved_room(Config) ->
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
-get_from_config(Option, [{Option, Value}|_T]) ->
-    Value;
-get_from_config(Option, [_H|T]) ->
-    get_from_config(Option, T);
-get_from_config(_Option, []) ->
-    throw(no_such_option).
+is_message_correct(Room, SenderNick, Text, ReceivedMessage) ->
+    error_logger:info_msg("tested message: ~n~p~n", [ReceivedMessage]),
+    escalus_pred:is_message(ReceivedMessage),
+    From = room_address(Room, SenderNick),
+    From  = exml_query:attr(ReceivedMessage, <<"from">>),
+    <<"groupchat">>  = exml_query:attr(ReceivedMessage, <<"type">>),
+    Body = #xmlelement{name = <<"body">>, body = [#xmlcdata{content=Text}]},
+    Body = exml_query:subelement(ReceivedMessage, <<"body">>).
+
+print_next_message(User) ->
+    error_logger:info_msg("~p messaege, ~n~p~n", [User, escalus:wait_for_stanza(User)]).
+
+print(Element) ->
+    error_logger:info_msg("~n~p~n", [Element]).
 
 generate_rpc_jid({_,User}) ->
     {username, Username} = lists:keyfind(username, 1, User),
