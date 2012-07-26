@@ -26,6 +26,9 @@
 -define(MUC_CLIENT_HOST, <<"localhost/res1">>).
 -define(PASSWORD, <<"password">>).
 
+-define(NS_MUC_REQUEST, <<"http://jabber.org/protocol/muc#request">>).
+-define(NS_MUC_ROOMCONFIG, <<"http://jabber.org/protocol/muc#roomconfig">>).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -57,6 +60,8 @@ groups() -> [
                                       moderator_voice,
                                       moderator_voice_unauthorized,
                                       moderator_voice_list
+                                      %% unfinished, fails
+                                      %% moderator_voice_approval
                                      ]},
              {admin, [sequence], [
                                   admin_ban,
@@ -530,6 +535,30 @@ moderator_voice_list(Config) ->
         %% Bob and Kates get their presences
         escalus:assert_many(Preds2, escalus:wait_for_stanzas(Bob, 2)),
         escalus:assert_many(Preds2, escalus:wait_for_stanzas(Kate, 2))
+    end).
+
+%%  This test fails, moderator never gets voice approval form
+%%  Examples 108-109
+moderator_voice_approval(Config) ->
+    escalus:story(Config, [1, 1], fun(Alice, Bob) ->
+        %% Alice joins room
+        escalus:send(Alice, stanza_muc_enter_room(?config(room, Config), <<"alice">>)),
+        escalus:wait_for_stanzas(Alice, 2),
+        %% Bob joins room
+        escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
+        escalus:wait_for_stanzas(Bob, 3),
+        %% Skip Bob's presence
+        escalus:wait_for_stanza(Alice),
+
+        %% Bob sends voice request
+        Request = stanza_voice_request_form(?config(room, Config)),
+        error_logger:info_msg("~p~n", [Request]),
+        escalus:send(Bob, stanza_voice_request_form(?config(room, Config))),
+
+        %% Alice should get the request
+        _Form = escalus:wait_for_stanza(Alice)
+
+        %% TODO check if form is properly formed, submit approval, check new presence
     end).
 
 
@@ -1428,6 +1457,9 @@ room_address(Room, Nick) ->
 %% Helpers (stanzas)
 %%--------------------------------------------------------------------
 
+stanza_message_to_room(Room, Payload) ->
+    stanza_to_room(#xmlelement{name = <<"message">>, body = Payload}, Room).
+
 stanza_room_subject(Room, Subject) ->
     stanza_to_room(#xmlelement{name = <<"message">>,
         attrs = [{<<"type">>,<<"groupchat">>}],
@@ -1489,20 +1521,27 @@ stanza_join_room(Room, Nick) ->
         }
     },Room, Nick).
 
+stanza_voice_request_form(Room) ->
+    Payload = [ form_field({<<"muc#role">>, <<"participant">>, <<"text-single">>}) ],
+    stanza_message_to_room(Room, stanza_form(Payload, ?NS_MUC_REQUEST)).
+
 stanza_configuration_form(Room, Params) ->
-    DefaultParams = [{<<"FORM_TYPE">>,<<"http://jabber.org/protocol/muc#roomconfig">>,<<"hidden">>}],
+    DefaultParams = [],
     FinalParams = lists:foldl(
         fun({Key,_Val,_Type},Acc) ->
             lists:keydelete(Key,1,Acc)
         end,
         DefaultParams, Params) ++ Params,
-    XPayload = [ form_field(FieldData) || FieldData <- FinalParams ],
-    Payload = #xmlelement{
+    Payload = [ form_field(FieldData) || FieldData <- FinalParams ],
+    stanza_to_room(escalus_stanza:iq_set(
+          ?NS_MUC_OWNER, stanza_form(Payload, ?NS_MUC_ROOMCONFIG)), Room).
+
+stanza_form(Payload, Type) ->
+    #xmlelement{
         name = <<"x">>,
         attrs = [{<<"xmlns">>,<<"jabber:x:data">>}, {<<"type">>,<<"submit">>}],
-        body = XPayload
-    },
-    stanza_to_room(escalus_stanza:iq_set(?NS_MUC_OWNER, Payload), Room).
+        body = [form_field({<<"FORM_TYPE">>, Type, <<"hidden">>}) | Payload]
+    }.
 
 form_field({Var, Value, Type}) ->
     #xmlelement{ name  = <<"field">>,
