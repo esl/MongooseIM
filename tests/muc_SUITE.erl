@@ -99,9 +99,13 @@ groups() -> [
                                   create_instant_room,
                                   create_reserved_room,
                                   owner_grant_revoke,
-                                  owner_list
+                                  owner_list,
                                   %% fails, see testcase
                                   %% owner_unauthorized
+                                  admin_grant_revoke,
+                                  admin_list
+                                  %% fails, see testcase
+                                  %% admin_unauthorized
                                  ]},
              {room_management, [sequence], [
                                             create_and_destroy_room
@@ -172,6 +176,21 @@ end_per_group(disco, Config) ->
 
 end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config).
+
+init_per_testcase(CaseName = admin_unauthorized, Config) ->
+    [Alice | _] = ?config(escalus_users, Config),
+    Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"aliceonchat">>, [{persistent, true}]),
+    escalus:init_per_testcase(CaseName, Config1);
+
+init_per_testcase(CaseName = admin_list, Config) ->
+    [Alice | _] = ?config(escalus_users, Config),
+    Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"aliceonchat">>, [{persistent, true}]),
+    escalus:init_per_testcase(CaseName, Config1);
+
+init_per_testcase(CaseName = admin_grant_revoke, Config) ->
+    [Alice | _] = ?config(escalus_users, Config),
+    Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"aliceonchat">>, [{persistent, true}]),
+    escalus:init_per_testcase(CaseName, Config1);
 
 init_per_testcase(CaseName = owner_unauthorized, Config) ->
     [Alice | _] = ?config(escalus_users, Config),
@@ -254,6 +273,18 @@ init_per_testcase(CaseName =send_to_all, Config) ->
 
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
+
+end_per_testcase(CaseName = admin_unauthorized, Config) ->
+    destroy_room(Config),
+    escalus:end_per_testcase(CaseName, Config);
+
+end_per_testcase(CaseName = admin_list, Config) ->
+    destroy_room(Config),
+    escalus:end_per_testcase(CaseName, Config);
+
+end_per_testcase(CaseName = admin_grant_revoke, Config) ->
+    destroy_room(Config),
+    escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName = owner_unauthorized, Config) ->
     destroy_room(Config),
@@ -1555,6 +1586,137 @@ owner_unauthorized(Config) ->
         escalus:send(Bob, stanza_set_affiliations(
             ?config(room, Config),
             [{escalus_utils:get_short_jid(Bob), <<"owner">>}])),
+        Error = escalus:wait_for_stanza(Bob),
+        error_logger:info_msg("~p~n",[Error]),
+        %% Should get an error
+        escalus:assert(is_error, [<<"auth">>, <<"forbidden">>],
+            Error)
+
+    end).
+
+%%  Examples 186-195
+admin_grant_revoke(Config) ->
+    escalus:story(Config, [1,1,1], fun(Alice, Bob, Kate) ->
+        %% Alice joins room
+        escalus:send(Alice, stanza_muc_enter_room(?config(room, Config), <<"alice">>)),
+        escalus:wait_for_stanzas(Alice, 2),
+        %% Bob joins room
+        escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
+        escalus:wait_for_stanzas(Bob, 3),
+        %% Kate joins room
+        escalus:send(Kate, stanza_muc_enter_room(?config(room, Config), <<"kate">>)),
+        escalus:wait_for_stanzas(Kate, 4),
+        %% Skip Kate's presence
+        escalus:wait_for_stanza(Bob),
+        %% Skip Kate's and Bob's presences
+        escalus:wait_for_stanzas(Alice, 3),
+
+        %% Grant bob owner status
+        escalus:send(Alice, stanza_set_affiliations(
+            ?config(room, Config),
+                [{escalus_utils:get_short_jid(Bob),<<"admin">>}])),
+        escalus:assert_many([is_iq_result, is_presence], escalus:wait_for_stanzas(Alice, 2)),
+
+        %% Bob receives his notice
+        Bobs = escalus:wait_for_stanza(Bob),
+        true = is_presence_with_affiliation(Bobs, <<"admin">>),
+        escalus:assert(is_stanza_from,
+          [room_address(?config(room, Config), <<"bob">>)], Bobs),
+
+        %% Kate receives Bob's notice
+        Kates = escalus:wait_for_stanza(Kate),
+        true = is_presence_with_affiliation(Kates, <<"admin">>),
+        escalus:assert(is_stanza_from,
+            [room_address(?config(room, Config), <<"bob">>)], Kates),
+
+        %% Revoke Bob admin status
+        Pred = fun(Stanza) ->
+                escalus_pred:is_stanza_from(
+                  room_address(?config(room, Config), <<"bob">>),Stanza) andalso
+                is_presence_with_affiliation(Stanza, <<"none">>)
+        end,
+
+        escalus:send(Alice, stanza_set_affiliations(
+            ?config(room, Config),
+                [{escalus_utils:get_short_jid(Bob), <<"none">>}])),
+        escalus:assert_many([is_iq_result, Pred], escalus:wait_for_stanzas(Alice, 2)),
+
+        %% Bob receives his loss of admin presence
+        Bobs2 = escalus:wait_for_stanza(Bob),
+        true = is_presence_with_affiliation(Bobs2, <<"none">>),
+        escalus:assert(is_stanza_from,
+            [room_address(?config(room,Config), <<"bob">>)], Bobs2),
+
+        %% Kate receives Bob's loss of admin presence
+        Kates2 = escalus:wait_for_stanza(Kate),
+        true = is_presence_with_affiliation(Kates2, <<"none">>),
+        escalus:assert(is_stanza_from,
+            [room_address(?config(room,Config), <<"bob">>)], Kates2)
+
+    end).
+
+%%  Examples 196-200
+admin_list(Config) ->
+    escalus:story(Config, [1,1,1], fun(Alice, Bob, Kate) ->
+        %% Alice joins room
+        escalus:send(Alice, stanza_muc_enter_room(?config(room, Config), <<"alice">>)),
+        escalus:wait_for_stanzas(Alice, 2),
+        %% Bob joins room
+        escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
+        escalus:wait_for_stanzas(Bob, 3),
+        %% Kate joins room
+        escalus:send(Kate, stanza_muc_enter_room(?config(room, Config), <<"kate">>)),
+        escalus:wait_for_stanzas(Kate, 4),
+        %% Skip Kate's presence
+        escalus:wait_for_stanza(Bob),
+        %% Skip Kate's and Bob's presences
+        escalus:wait_for_stanzas(Alice, 3),
+
+        %% Alice requests owner list
+        escalus:send(Alice, stanza_affiliation_list_request(
+            ?config(room, Config), <<"admin">>)),
+        List = escalus:wait_for_stanza(Alice),
+        %% Noone should be on it
+        [] = List#xmlelement.body,
+
+        %% Grant Bob and Kate admins status
+        escalus:send(Alice, stanza_set_affiliations(
+            ?config(room, Config),
+                [{escalus_utils:get_short_jid(Kate),<<"admin">>},
+                 {escalus_utils:get_short_jid(Bob), <<"admin">>}])),
+        escalus:assert_many([is_iq_result, is_presence, is_presence],
+            escalus:wait_for_stanzas(Alice, 3)),
+
+        %% Bob receives his and Kate's notice
+        Preds = [fun(Stanza) ->
+            is_presence_with_affiliation(Stanza, <<"admin">>) andalso
+            escalus_pred:is_stanza_from(
+                room_address(?config(room, Config), <<"bob">>), Stanza)
+        end,
+        fun(Stanza) ->
+            is_presence_with_affiliation(Stanza, <<"admin">>) andalso
+            escalus_pred:is_stanza_from(
+                room_address(?config(room, Config), <<"kate">>), Stanza)
+        end],
+        escalus:assert_many(Preds, escalus:wait_for_stanzas(Bob, 2)),
+
+        %% Kate receives her and Bob's notice
+        escalus:assert_many(Preds, escalus:wait_for_stanzas(Kate, 2))
+    end).
+
+%%  Example 199
+%%  This test fails, ejabberd returns cancel/not-allowed error while it should
+%%  return auth/forbidden according to XEP
+admin_unauthorized(Config) ->
+    escalus:story(Config, [1,1], fun(_Alice, Bob) ->
+        %% Bob joins room
+        escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
+        escalus:wait_for_stanzas(Bob, 2),
+
+        %% Bob tries to modify admin list
+        escalus:send(Bob, stanza_set_affiliations(
+            ?config(room, Config),
+            [{escalus_utils:get_short_jid(Bob), <<"admin">>}])),
         Error = escalus:wait_for_stanza(Bob),
         error_logger:info_msg("~p~n",[Error]),
         %% Should get an error
