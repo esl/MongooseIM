@@ -103,9 +103,12 @@ groups() -> [
                                   %% fails, see testcase
                                   %% owner_unauthorized
                                   admin_grant_revoke,
-                                  admin_list
+                                  admin_list,
                                   %% fails, see testcase
                                   %% admin_unauthorized
+                                  destroy
+                                  %% fails, see testcase
+                                  %% destroy_unauthorized
                                  ]},
              {room_management, [sequence], [
                                             create_and_destroy_room
@@ -176,6 +179,16 @@ end_per_group(disco, Config) ->
 
 end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config).
+
+init_per_testcase(CaseName = destroy_unauthorized, Config) ->
+    [Alice | _] = ?config(escalus_users, Config),
+    Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"aliceonchat">>, [{persistent, true}]),
+    escalus:init_per_testcase(CaseName, Config1);
+
+init_per_testcase(CaseName = destroy, Config) ->
+    [Alice | _] = ?config(escalus_users, Config),
+    Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"aliceonchat">>, [{persistent, true}]),
+    escalus:init_per_testcase(CaseName, Config1);
 
 init_per_testcase(CaseName = admin_unauthorized, Config) ->
     [Alice | _] = ?config(escalus_users, Config),
@@ -273,6 +286,12 @@ init_per_testcase(CaseName =send_to_all, Config) ->
 
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
+
+end_per_testcase(CaseName = destroy_unauthorized, Config) ->
+    escalus:end_per_testcase(CaseName, Config);
+
+end_per_testcase(CaseName = destroy, Config) ->
+    escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName = admin_unauthorized, Config) ->
     destroy_room(Config),
@@ -1723,6 +1742,58 @@ admin_unauthorized(Config) ->
         escalus:assert(is_error, [<<"auth">>, <<"forbidden">>],
             Error)
 
+    end).
+
+%%  Examples 201-203
+destroy(Config) ->
+    escalus:story(Config, [1,1], fun(Alice, Bob) ->
+        %% Run disco, we should have 1 room
+        escalus:send(Alice, stanza_get_rooms()),
+        count_rooms(escalus:wait_for_stanza(Alice),1),
+
+        %% Bob joins room
+        escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
+        escalus:wait_for_stanzas(Bob, 2),
+
+        %% Alice requests room destruction
+        escalus:send(Alice, stanza_destroy_room(?config(room, Config))),
+
+        %% Alice gets confirmation
+        escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+
+        %% Bob gets unavailable presence
+        Presence = escalus:wait_for_stanza(Bob),
+        escalus:assert(is_presence_with_type, [<<"unavailable">>], Presence),
+        escalus:assert(is_stanza_from,
+          [room_address(?config(room, Config), <<"bob">>)], Presence),
+
+
+        %% Run disco again, we should have no rooms
+        escalus:send(Alice, stanza_get_rooms()),
+        count_rooms(escalus:wait_for_stanza(Alice),0)
+    end).
+
+%%  Example 204
+%%  This test fails
+%%  Ejabberd should return auth/forbidden error whle it returns forbidden error without a type attribute
+destroy_unauthorized(Config) ->
+    escalus:story(Config, [1,1], fun(Alice, Bob) ->
+        %% Run disco, we should have 1 room
+        escalus:send(Alice, stanza_get_rooms()),
+        count_rooms(escalus:wait_for_stanza(Alice),1),
+
+        %% Bob tries to destroy Alice's room
+        escalus:send(Bob, stanza_destroy_room(?config(room, Config))),
+
+        %% Bob gets an error
+        Error = escalus:wait_for_stanza(Bob),
+        error_logger:info_msg("~p~n", [Error]),
+        escalus:assert(is_stanza_from, [room_address(?config(room, Config))], Error),
+        escalus:assert(is_error, [<<"auth">>, <<"forbidden">>], Error),
+
+        %% Run disco again, we still should have 1 room
+        escalus:send(Alice, stanza_get_rooms()),
+        count_rooms(escalus:wait_for_stanza(Alice),1)
     end).
 %%--------------------------------------------------------------------
 %% Helpers
