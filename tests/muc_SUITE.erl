@@ -95,9 +95,13 @@ groups() -> [
              {owner, [sequence], [
                                   %% failing, see testcase for explanation
                                   %room_creation_not_allowed,
-                                  %cant_enter_locked_room
+                                  %cant_enter_locked_room,
                                   create_instant_room,
                                   create_reserved_room,
+                                  %% fails, see testcase
+                                  %% reserved_room_cancel,
+                                  reserved_room_unacceptable,
+                                  reserved_room_configuration,
                                   owner_grant_revoke,
                                   owner_list,
                                   %% fails, see testcase
@@ -1477,6 +1481,104 @@ create_reserved_room(Config) ->
 
     end).
 
+%%  Example 162
+%%  This test fails, room should be destroyed after sending cancel message
+reserved_room_cancel(Config) ->
+    escalus:story(Config, [1], fun(Alice) ->
+        %% Do the disco, we should have no rooms
+        escalus:send(Alice, stanza_get_rooms()),
+        count_rooms(escalus:wait_for_stanza(Alice), 0),
+
+        %% Create the room (should be locked on creation)
+        escalus:send(Alice, stanza_muc_enter_room(<<"room3">>,
+                                                  <<"alice-the-owner">>)),
+        was_room_created(escalus:wait_for_stanza(Alice)),
+        escalus:wait_for_stanza(Alice),
+
+        R = escalus_stanza:setattr(stanza_reserved_room(<<"room3@muc.localhost">>),
+                                   <<"from">>, escalus_utils:get_jid(Alice)),
+        escalus:send(Alice, R),
+        S = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_iq_result, S),
+        true = is_form(S),
+
+        %% Send cancel request
+        escalus:send(Alice, stanza_cancel(<<"room3">>)),
+
+        %% Alice must receive presence
+        escalus:assert(is_presence_with_type, [<<"unavailable">>],
+            escalus:wait_for_stanza(Alice)),
+
+        %% Room should have been destroyed
+        escalus:send(Alice, stanza_get_rooms()),
+        count_rooms(escalus:wait_for_stanza(Alice), 0)
+    end).
+
+%%  Example 161
+reserved_room_unacceptable(Config) ->
+    escalus:story(Config, [1], fun(Alice) ->
+        %% Create the room (should be locked on creation)
+        escalus:send(Alice, stanza_muc_enter_room(<<"room4">>,
+                                                  <<"alice-the-owner">>)),
+        was_room_created(escalus:wait_for_stanza(Alice)),
+        escalus:wait_for_stanza(Alice),
+        escalus:send(Alice, stanza_reserved_room(<<"room4@muc.localhost">>)),
+        S = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_iq_result, S),
+        true = is_form(S),
+
+        %% Configure room to be password protected, with empty secret
+        Form = stanza_configuration_form(<<"room4">>, [
+            {<<"muc#roomconfig_passwordprotectedroom">>, <<"1">>, <<"boolean">>},
+            {<<"muc#roomconfig_roomsecret">>, <<>>, <<"text-single">>}]),
+        escalus:send(Alice, Form),
+
+        R = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_error, [<<"modify">>, <<"not-acceptable">>], R),
+        escalus:assert(is_stanza_from, [room_address(<<"room4">>)], R),
+
+        %% Avoid empty presence
+        timer:sleep(1000)
+    end).
+
+%%  Example 159
+%%  Mysterious thing: when room is named "room5", creation confirmation doesn't return status code
+reserved_room_configuration(Config) ->
+    escalus:story(Config, [1], fun(Alice) ->
+        %% Create the room (should be locked on creation)
+        escalus:send(Alice, stanza_muc_enter_room(<<"roomfive">>,
+                                                  <<"alice-the-owner">>)),
+        was_room_created(escalus:wait_for_stanza(Alice)),
+        escalus:wait_for_stanza(Alice),
+        escalus:send(Alice, stanza_reserved_room(<<"roomfive@muc.localhost">>)),
+        S = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_iq_result, S),
+        true = is_form(S),
+
+        %% Configure room to be moderated, public and persistent
+        Form = stanza_configuration_form(<<"roomfive">>, [
+            {<<"muc#roomconfig_publicroom">>, <<"1">>, <<"boolean">>},
+            {<<"muc#roomconfig_moderatedroom">>, <<"1">>, <<"boolean">>},
+            {<<"muc#roomconfig_persistentroom">>, <<"1">>, <<"boolean">>}]),
+        escalus:send(Alice, Form),
+
+        Result = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_iq_result, Result),
+        escalus:assert(is_stanza_from, [<<"roomfive@muc.localhost">>], Result),
+
+        %% Check if it worked
+        escalus:send(Alice, stanza_to_room(escalus_stanza:iq_get(?NS_DISCO_INFO,[]), <<"roomfive">>)),
+        Stanza = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_iq_result, Stanza),
+        has_feature(Stanza, <<"muc_persistent">>),
+        has_feature(Stanza, <<"muc_moderated">>),
+        has_feature(Stanza, <<"muc_public">>),
+
+        %% Destroy the room to clean up
+        escalus:send(Alice, stanza_destroy_room(<<"roomfive">>)),
+        escalus:wait_for_stanzas(Alice, 2)
+    end).
+
 %%  Examples 172-180
 owner_grant_revoke(Config) ->
     escalus:story(Config, [1,1,1], fun(Alice, Bob, Kate) ->
@@ -1950,6 +2052,14 @@ stanza_configuration_form(Room, Params) ->
     Payload = [ form_field(FieldData) || FieldData <- FinalParams ],
     stanza_to_room(escalus_stanza:iq_set(
           ?NS_MUC_OWNER, stanza_form(Payload, ?NS_MUC_ROOMCONFIG)), Room).
+
+stanza_cancel(Room) ->
+    Payload = #xmlelement{
+        name = <<"x">>,
+        attrs = [{<<"xmlns">>,<<"jabber:x:data">>}, {<<"type">>,<<"cancel">>}]
+    },
+    stanza_to_room(escalus_stanza:iq_set(
+          ?NS_MUC_OWNER, Payload), Room).
 
 stanza_form(Payload, Type) ->
     #xmlelement{
