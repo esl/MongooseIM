@@ -132,8 +132,5 @@ list_content(<<"deny_3_items">>) -> [
 
 restart_mod_privacy(Sufix) ->
     Domain = ct:get_config(ejabberd_domain),
-    {atomic, ok} = escalus_ejabberd:rpc(gen_mod, stop_module, [Domain, mod_privacy]),
-    {atomic, ok} = escalus_ejabberd:rpc(gen_mod, stop_module, [Domain, mod_privacy_odbc]),
-    Mod = list_to_atom(string:concat("mod_privacy", Sufix)),
-    escalus_ejabberd:rpc(gen_mod, start_module, [Domain, Mod, []]).
-
+    Mod = list_to_atom("mod_privacy"++Sufix),
+    dynamic_modules:restart(Domain, Mod, []).

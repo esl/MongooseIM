@@ -45,7 +45,6 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(GroupName, Config0) ->
-    stop_mod_last(),
     start_mod_last(GroupName),
     Config1 = escalus:create_users(Config0),
     Config2 = escalus:make_everyone_friends(Config1),
@@ -121,16 +120,12 @@ get_last_activity(Stanza) ->
 get_last_status(Stanza) ->
     exml_query:path(Stanza, [{element, <<"query">>}, cdata]).
 
-stop_mod_last() ->
-    Domain = ct:get_config(ejabberd_domain),
-    {atomic, ok} = escalus_ejabberd:rpc(gen_mod, stop_module, [Domain, mod_last]),
-    {atomic, ok} = escalus_ejabberd:rpc(gen_mod, stop_module, [Domain, mod_last_odbc]).
-
 start_mod_last(last) ->
     start_mod_last(mod_last);
 start_mod_last(last_odbc) ->
     start_mod_last(mod_last_odbc);
 start_mod_last(Module) ->
     Domain = ct:get_config(ejabberd_domain),
-    escalus_ejabberd:rpc(gen_mod, start_module, [Domain, Module, []]).
+    ok = dynamic_modules:restart(Domain, Module, []).
+
 
