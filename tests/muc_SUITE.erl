@@ -94,8 +94,8 @@ groups() -> [
                                     ]},
              {owner, [sequence], [
                                   %% failing, see testcase for explanation
-                                  %room_creation_not_allowed,
-                                  %cant_enter_locked_room,
+                                  %% room_creation_not_allowed,
+                                  %% cant_enter_locked_room,
                                   create_instant_room,
                                   create_reserved_room,
                                   %% fails, see testcase
@@ -105,14 +105,23 @@ groups() -> [
                                   owner_grant_revoke,
                                   owner_list,
                                   %% fails, see testcase
-                                  %% owner_unauthorized
+                                  %% owner_unauthorized,
                                   admin_grant_revoke,
                                   admin_list,
                                   %% fails, see testcase
-                                  %% admin_unauthorized
-                                  destroy
+                                  %% admin_unauthorized,
+                                  destroy,
                                   %% fails, see testcase
-                                  %% destroy_unauthorized
+                                  %% destroy_unauthorized,
+                                  %% fails, see testcase
+                                  %% config_denial
+                                  config_cancel,
+                                  configure
+                                  %% fails, see testcase
+                                  %% needs some configuration
+                                  %% configure_logging,
+                                  %% fails, see testcase
+                                  %% configure_anonymous
                                  ]},
              {room_management, [sequence], [
                                             create_and_destroy_room
@@ -183,6 +192,27 @@ end_per_group(disco, Config) ->
 
 end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config).
+
+init_per_testcase(CaseName = configure_logging, Config) ->
+    [Alice | _] = ?config(escalus_users, Config),
+    Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"aliceonchat">>,
+        [{persistent, true}, {anonymous, true}]),
+    escalus:init_per_testcase(CaseName, Config1);
+
+init_per_testcase(CaseName = configure, Config) ->
+    [Alice | _] = ?config(escalus_users, Config),
+    Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"aliceonchat">>, [{persistent, true}]),
+    escalus:init_per_testcase(CaseName, Config1);
+
+init_per_testcase(CaseName = config_cancel, Config) ->
+    [Alice | _] = ?config(escalus_users, Config),
+    Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"aliceonchat">>, [{persistent, true}]),
+    escalus:init_per_testcase(CaseName, Config1);
+
+init_per_testcase(CaseName = config_denial, Config) ->
+    [Alice | _] = ?config(escalus_users, Config),
+    Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"aliceonchat">>, [{persistent, true}]),
+    escalus:init_per_testcase(CaseName, Config1);
 
 init_per_testcase(CaseName = destroy_unauthorized, Config) ->
     [Alice | _] = ?config(escalus_users, Config),
@@ -290,6 +320,22 @@ init_per_testcase(CaseName =send_to_all, Config) ->
 
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
+
+end_per_testcase(CaseName = configure_logging, Config) ->
+    destroy_room(Config),
+    escalus:end_per_testcase(CaseName, Config);
+
+end_per_testcase(CaseName = configure, Config) ->
+    destroy_room(Config),
+    escalus:end_per_testcase(CaseName, Config);
+
+end_per_testcase(CaseName = config_cancel, Config) ->
+    destroy_room(Config),
+    escalus:end_per_testcase(CaseName, Config);
+
+end_per_testcase(CaseName = config_denial, Config) ->
+    destroy_room(Config),
+    escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName = destroy_unauthorized, Config) ->
     escalus:end_per_testcase(CaseName, Config);
@@ -1576,7 +1622,194 @@ reserved_room_configuration(Config) ->
 
         %% Destroy the room to clean up
         escalus:send(Alice, stanza_destroy_room(<<"roomfive">>)),
-        escalus:wait_for_stanzas(Alice, 2)
+        escalus:wait_for_stanzas(Alice, 2),
+
+        timer:sleep(1000)
+    end).
+
+%%  Example 164
+%%  This test fails, ejabberd return forbidden error with no type while it should return auth/forbidden
+config_denial(Config) ->
+    escalus:story(Config, [1,1], fun(_Alice, Bob) ->
+        %% Bob requests configuration form
+        escalus:send(Bob, stanza_to_room(
+            escalus_stanza:iq_get(?NS_MUC_OWNER,[]), ?config(room, Config))),
+
+        %% Bob should get an error
+        Res = escalus:wait_for_stanza(Bob),
+        error_logger:info_msg("~p~n", [Res]),
+        escalus:assert(is_error, [<<"auth">>, <<"forbidden">>], Res),
+        escalus:assert(is_stanza_from, [room_address(?config(room, Config))], Res)
+    end).
+
+%%  Example 166
+config_cancel(Config) ->
+    escalus:story(Config, [1], fun(Alice) ->
+        %% Alice requests configuration form
+        escalus:send(Alice, stanza_to_room(
+            escalus_stanza:iq_get(?NS_MUC_OWNER,[]), ?config(room, Config))),
+
+        %% Alice receives form
+        Res = escalus:wait_for_stanza(Alice),
+        true = is_form(Res),
+        escalus:assert(is_stanza_from, [room_address(?config(room, Config))], Res),
+
+        %% Alice cancels form
+        escalus:send(Alice, stanza_cancel(?config(room, Config))),
+        escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice))
+
+    end).
+
+%%  Ejabberd doesn't let set admins nor owners in configuration form so testcases for ex. 167-170 would be useless
+
+configure(Config) ->
+    escalus:story(Config, [1], fun(Alice) ->
+        %% Alice requests configuration form
+        escalus:send(Alice, stanza_to_room(
+            escalus_stanza:iq_get(?NS_MUC_OWNER,[]), ?config(room, Config))),
+
+        %% Alice receives form
+        Res = escalus:wait_for_stanza(Alice),
+        true = is_form(Res),
+        escalus:assert(is_stanza_from, [room_address(?config(room, Config))], Res),
+
+        %% Configure room to be moderated, public and persistent
+        Form = stanza_configuration_form(?config(room, Config), [
+            {<<"muc#roomconfig_publicroom">>, <<"1">>, <<"boolean">>},
+            {<<"muc#roomconfig_moderatedroom">>, <<"1">>, <<"boolean">>},
+            {<<"muc#roomconfig_persistentroom">>, <<"1">>, <<"boolean">>}]),
+        escalus:send(Alice, Form),
+
+        Result = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_iq_result, Result),
+        escalus:assert(is_stanza_from,
+            [room_address(?config(room, Config))], Result),
+
+        %% Check if it worked
+        escalus:send(Alice, stanza_to_room(escalus_stanza:iq_get(
+            ?NS_DISCO_INFO,[]), ?config(room, Config))),
+        Stanza = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_iq_result, Stanza),
+        has_feature(Stanza, <<"muc_persistent">>),
+        has_feature(Stanza, <<"muc_moderated">>),
+        has_feature(Stanza, <<"muc_public">>)
+    end).
+
+%%  Example 171
+%%  This test needs enabled mod_muc_log module and {access_log, muc_create} in options
+%%  This test fails, ejabberd doesn't seem to send status code when room privacy changes
+configure_logging(Config) ->
+    escalus:story(Config, [1,1], fun(Alice, Bob) ->
+        %% Bob joins room
+        escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
+        escalus:wait_for_stanzas(Bob, 2),
+
+        %% Alice requests configuration form
+        escalus:send(Alice, stanza_to_room(
+            escalus_stanza:iq_get(?NS_MUC_OWNER,[]), ?config(room, Config))),
+
+        %% Alice receives form
+        Res = escalus:wait_for_stanza(Alice),
+        true = is_form(Res),
+        escalus:assert(is_stanza_from, [room_address(?config(room, Config))], Res),
+
+         %% Configure room with logging enabled
+        Form = stanza_configuration_form(?config(room, Config), [
+            {<<"muc#roomconfig_enablelogging">>, <<"1">>, <<"boolean">>}]),
+        escalus:send(Alice, Form),
+
+        Result = escalus:wait_for_stanza(Alice),
+        error_logger:info_msg("~p~n", [Result]),
+        escalus:assert(is_iq_result, Result),
+        escalus:assert(is_stanza_from,
+            [room_address(?config(room, Config))], Result),
+
+        Res2 = escalus:wait_for_stanza(Bob),
+        true = is_message_with_status_code(Res2, <<"170">>),
+        true = is_groupchat_message(Res2),
+        escalus:assert(is_stanza_from, [room_address(?config(room, Config))], Res2),
+
+        %% Alice requests configuration form again
+        escalus:send(Alice, stanza_to_room(
+            escalus_stanza:iq_get(?NS_MUC_OWNER,[]), ?config(room, Config))),
+
+        %% Alice receives form
+        Res3 = escalus:wait_for_stanza(Alice),
+        true = is_form(Res3),
+        escalus:assert(is_stanza_from, [room_address(?config(room, Config))], Res3),
+
+        %% Disable logging
+        Form2 = stanza_configuration_form(?config(room, Config), [
+            {<<"muc#roomconfig_enablelogging">>, <<"0">>, <<"boolean">>}]),
+        escalus:send(Alice, Form2),
+
+        Result2 = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_iq_result, Result2),
+        escalus:assert(is_stanza_from,
+            [room_address(?config(room, Config))], Result2),
+
+        Res3 = escalus:wait_for_stanza(Bob),
+        true = is_message_with_status_code(Res3, <<"171">>),
+        true = is_groupchat_message(Res3),
+        escalus:assert(is_stanza_from, [room_address(?config(room, Config))], Res3)
+    end).
+
+%%  Example 171
+%%  This test fails, ejabberd apparently doesn't send room status update after privacy-related updated
+configure_anonymous(Config) ->
+    escalus:story(Config, [1,1], fun(Alice, Bob) ->
+        %% Bob joins room
+        escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
+        escalus:wait_for_stanzas(Bob, 2),
+
+        %% Alice requests configuration form
+        escalus:send(Alice, stanza_to_room(
+            escalus_stanza:iq_get(?NS_MUC_OWNER,[]), ?config(room, Config))),
+
+        %% Alice receives form
+        Res = escalus:wait_for_stanza(Alice),
+        true = is_form(Res),
+        escalus:assert(is_stanza_from, [room_address(?config(room, Config))], Res),
+
+
+        %% Configure room as non-anonymous
+        Form = stanza_configuration_form(?config(room, Config), [
+            {<<"muc#roomconfig_whois">>, <<"anyone">>, <<"list-single">>}]),
+        escalus:send(Alice, Form),
+
+        Result = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_iq_result, Result),
+        escalus:assert(is_stanza_from,
+            [room_address(?config(room, Config))], Result),
+
+        Res2 = escalus:wait_for_stanza(Bob),
+        true = is_message_with_status_code(Res2, <<"172">>),
+        true = is_groupchat_message(Res2),
+        escalus:assert(is_stanza_from, [room_address(?config(room, Config))], Res2),
+
+        %% Alice requests configuration form again
+        escalus:send(Alice, stanza_to_room(
+            escalus_stanza:iq_get(?NS_MUC_OWNER,[]), ?config(room, Config))),
+
+        %% Alice receives form
+        Res3 = escalus:wait_for_stanza(Alice),
+        true = is_form(Res3),
+        escalus:assert(is_stanza_from, [room_address(?config(room, Config))], Res3),
+
+        %% Configure room as semi-anonymous
+        Form2 = stanza_configuration_form(?config(room, Config), [
+            {<<"muc#roomconfig_whois">>, <<"moderators">>, <<"list-single">>}]),
+        escalus:send(Alice, Form2),
+
+        Result2 = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_iq_result, Result2),
+        escalus:assert(is_stanza_from,
+            [room_address(?config(room, Config))], Result2),
+
+        Res3 = escalus:wait_for_stanza(Bob),
+        true = is_message_with_status_code(Res3, <<"173">>),
+        true = is_groupchat_message(Res3),
+        escalus:assert(is_stanza_from, [room_address(?config(room, Config))], Res3)
     end).
 
 %%  Examples 172-180
@@ -2211,6 +2444,11 @@ is_short_jid(Stanza, User) ->
 is_presence_with_status_code(Presence, Code) ->
     escalus:assert(is_presence, Presence),
     Code == exml_query:path(Presence, [{element, <<"x">>}, {element, <<"status">>},
+        {attr, <<"code">>}]).
+
+is_message_with_status_code(Message, Code) ->
+    escalus_pred:is_message(Message) andalso
+    Code == exml_query:path(Message, [{element, <<"x">>}, {element, <<"status">>},
         {attr, <<"code">>}]).
 
 has_feature(Stanza, Feature) ->
