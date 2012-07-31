@@ -93,7 +93,7 @@ groups() -> [
                                      deny_entry_to_a_banned_user,
                                      deny_entry_nick_conflict,
 %									 deny_entry_user_limit_reached
-									 send_history,
+				     send_history,
                                      send_to_all,
                                      send_and_receive_private_message,
                                      send_private_groupchat,
@@ -2591,7 +2591,8 @@ stanza_change_nick(Room, NewNick) ->
 start_room(Config, User, Room, Nick, Opts) ->
     From = generate_rpc_jid(User),
     escalus_ejabberd:rpc(mod_muc, create_room,
-        [<<"localhost">>, Room, From, Nick, Opts]),
+        [<<"localhost">>, Room, From, Nick,
+            [{subject, <<"nice subject">>}, {subject_author, <<"nice author">>} | Opts]]),
     [{nick, Nick}, {room, Room} | Config].
 
 destroy_room(Config) ->
