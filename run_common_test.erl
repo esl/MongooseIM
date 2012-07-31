@@ -8,7 +8,9 @@
 tests_to_run() -> [
                    {config, [?CT_CONFIG]},
                    {dir, ?CT_DIR},
-                   {logdir, ?CT_REPORT}
+                   {logdir, ?CT_REPORT},
+                   {suite, muc_SUITE},
+                   {group, owner}
                   ].
 
 ct() ->

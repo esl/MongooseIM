@@ -713,7 +713,7 @@ moderator_voice_list(Config) ->
         escalus:assert(is_iq_result, List),
         escalus:assert(is_stanza_from, [room_address(?config(room, Config))], List),
         %% List should be empty
-        [] = List#xmlelement.body,
+        true = is_item_list_empty(List),
 
         %% Grant voice to Bob and Kate
         escalus:send(Alice, stanza_set_roles(?config(room, Config),
@@ -879,7 +879,7 @@ admin_ban_list(Config) ->
         %% Noone should be banned
         escalus:assert(is_stanza_from, [room_address(?config(room, Config))],
             List2),
-        [] = List2#xmlelement.body
+        true = is_item_list_empty(List2)
     end).
 
 %%  Examples 120-127
@@ -948,7 +948,7 @@ admin_member_list(Config) ->
         escalus:assert(is_iq_result, List),
 
         %% List should be empty
-        [] = List#xmlelement.body,
+        true = is_item_list_empty(List),
         escalus:assert(is_stanza_from, [room_address(?config(room, Config))], List),
 
         %% Make Bob a member
@@ -1797,9 +1797,8 @@ create_and_destroy_room(Config) ->
     escalus:story(Config, [1], fun(Alice) ->
         Room1 = stanza_enter_room(<<"room1">>, <<"nick1">>),
         escalus:send(Alice, Room1),
-        %Alice gets topic message after creating the room
-        [S, _S2] = escalus:wait_for_stanzas(Alice, 2),
-        was_room_created(S),
+        %% esl-ejabberd doesn't send room subject at creation
+        was_room_created(escalus:wait_for_stanza(Alice)),
 
         DestroyRoom1 = stanza_destroy_room(<<"room1">>),
         escalus:send(Alice, DestroyRoom1),
@@ -1852,7 +1851,9 @@ create_instant_room(Config) ->
                                                   <<"alice-the-owner">>)),
         was_room_created(escalus:wait_for_stanza(Alice)),
 
-        escalus:wait_for_stanza(Alice),
+        %% esl-ejabberd doesn't send room subject at creation
+        %% escalus:wait_for_stanza(Alice),
+
         R = escalus_stanza:setattr(stanza_instant_room(<<"room1@muc.localhost">>),
                                    <<"from">>, escalus_utils:get_jid(Alice)),
         escalus:send(Alice, R),
@@ -1878,7 +1879,9 @@ create_reserved_room(Config) ->
         escalus:send(Alice, stanza_muc_enter_room(<<"room2">>,
                                                   <<"alice-the-owner">>)),
         was_room_created(escalus:wait_for_stanza(Alice)),
-        escalus:wait_for_stanza(Alice),
+
+        %% esl-ejabberd doesn't send room subject at creation
+        %% escalus:wait_for_stanza(Alice),
 
         R = escalus_stanza:setattr(stanza_reserved_room(<<"room2@muc.localhost">>),
                                    <<"from">>, escalus_utils:get_jid(Alice)),
@@ -1901,7 +1904,9 @@ reserved_room_cancel(Config) ->
         escalus:send(Alice, stanza_muc_enter_room(<<"room3">>,
                                                   <<"alice-the-owner">>)),
         was_room_created(escalus:wait_for_stanza(Alice)),
-        escalus:wait_for_stanza(Alice),
+
+        %% esl-ejabberd doesn't send room subject at creation
+        %% escalus:wait_for_stanza(Alice),
 
         R = escalus_stanza:setattr(stanza_reserved_room(<<"room3@muc.localhost">>),
                                    <<"from">>, escalus_utils:get_jid(Alice)),
@@ -1929,7 +1934,9 @@ reserved_room_unacceptable(Config) ->
         escalus:send(Alice, stanza_muc_enter_room(<<"room4">>,
                                                   <<"alice-the-owner">>)),
         was_room_created(escalus:wait_for_stanza(Alice)),
-        escalus:wait_for_stanza(Alice),
+
+        %% esl-ejabberd doesn't send room subject at creation
+        %% escalus:wait_for_stanza(Alice),
         escalus:send(Alice, stanza_reserved_room(<<"room4@muc.localhost">>)),
         S = escalus:wait_for_stanza(Alice),
         escalus:assert(is_iq_result, S),
@@ -1957,7 +1964,9 @@ reserved_room_configuration(Config) ->
         escalus:send(Alice, stanza_muc_enter_room(<<"roomfive">>,
                                                   <<"alice-the-owner">>)),
         was_room_created(escalus:wait_for_stanza(Alice)),
-        escalus:wait_for_stanza(Alice),
+
+        %% esl-ejabberd doesn't send room subject at creation
+        %% escalus:wait_for_stanza(Alice),
         escalus:send(Alice, stanza_reserved_room(<<"roomfive@muc.localhost">>)),
         S = escalus:wait_for_stanza(Alice),
         escalus:assert(is_iq_result, S),
@@ -2393,7 +2402,7 @@ admin_list(Config) ->
             ?config(room, Config), <<"admin">>)),
         List = escalus:wait_for_stanza(Alice),
         %% Noone should be on it
-        [] = List#xmlelement.body,
+        true = is_item_list_empty(List),
 
         %% Grant Bob and Kate admins status
         escalus:send(Alice, stanza_set_affiliations(
@@ -2505,7 +2514,10 @@ is_availability_status_notification_correct(Room, SenderNick, NewStatus, Receive
     NewStatus =  exml_query:path(ReceivedMessage, [{element, <<"status">>}, cdata]),
     <<"xa">> = exml_query:path(ReceivedMessage, [{element, <<"show">>}, cdata]).
 
-is_message_correct(Room, SenderNick,Type,  Text, ReceivedMessage) ->
+is_item_list_empty(#xmlelement{body = [Query]}) ->
+    Query#xmlelement.body == [].
+
+is_message_correct(Room, SenderNick, Type, Text, ReceivedMessage) ->
     error_logger:info_msg("tested message: ~n~p~n", [ReceivedMessage]),
     escalus_pred:is_message(ReceivedMessage),
     From = room_address(Room, SenderNick),
@@ -2537,8 +2549,10 @@ print(Element) ->
 generate_rpc_jid({_,User}) ->
     {username, Username} = lists:keyfind(username, 1, User),
     {server, Server} = lists:keyfind(server, 1, User),
-    JID = <<Username/binary, "@", Server/binary, "/rpc">>,
-    {jid, JID, Username, Server, <<"rpc">>}.
+    %% esl-ejabberd uses different record to store jids
+    %% JID = <<Username/binary, "@", Server/binary, "/rpc">>,
+    %% {jid, JID, Username, Server, <<"rpc">>}.
+    {jid, Username, Server, <<"rpc">>, Username, Server, <<"rpc">>}.
 
 %Groupchat 1.0 protocol
 stanza_groupchat_enter_room(Room, Nick) ->
