@@ -82,6 +82,7 @@ groups() -> [
                                               %% admin_mo_invite_mere
                                              ]},
              {occupant, [sequence], [
+%nick registration in a room is not implemented and will not be tested
                                      groupchat_user_enter,
 %                                     groupchat_user_enter_no_nickname
                                      muc_user_enter,
@@ -90,21 +91,20 @@ groups() -> [
                                      enter_password_protected_room,
                                      deny_accesss_to_memebers_only_room,
                                      deny_entry_to_a_banned_user,
-                                     deny_entry_nick_conflict
+                                     deny_entry_nick_conflict,
 %									 deny_entry_user_limit_reached
-
-
-%                                     send_to_all,
-%                                     send_and_receive_private_message,
-%                                     send_private_groupchat,
+									 send_history,
+                                     send_to_all,
+                                     send_and_receive_private_message,
+                                     send_private_groupchat,
 %                                     change_nickname,
-%                                     deny_nickname_change_conflict,
-%                                     change_availability_status,
-%                                     mediated_invite,
-%                                     one2one_chat_to_muc,
-%                					 reserved_nickname_request,
-%                					 exit_room,
-%                					 exit_room_with_status
+                                     deny_nickname_change_conflict,
+                                     change_availability_status,
+                                     mediated_invite,
+                                     one2one_chat_to_muc
+%                					  reserved_nickname_request,
+%                					  exit_room,
+%                					  exit_room_with_status
                                     ]},
              {owner, [sequence], [
                                   %% failing, see testcase for explanation
@@ -319,6 +319,11 @@ init_per_testcase(CaseName =deny_entry_user_limit_reached, Config) ->
     Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"aliceonchat">>, [{max_users, 1}]),
     escalus:init_per_testcase(CaseName, Config1);
 
+init_per_testcase(CaseName =send_history, Config) ->
+    [Alice | _] = ?config(escalus_users, Config),
+    Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"alice">>, []),
+    escalus:init_per_testcase(CaseName, Config1);
+
 init_per_testcase(CaseName =send_to_all, Config) ->
     [Alice | _] = ?config(escalus_users, Config),
     Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"alice">>, []),
@@ -476,6 +481,10 @@ end_per_testcase(CaseName =deny_entry_user_limit_reached, Config) ->
 %    escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName =send_and_receive_private_message, Config) ->
+    destroy_room(Config),
+    escalus:end_per_testcase(CaseName, Config);
+
+end_per_testcase(CaseName =send_history, Config) ->
     destroy_room(Config),
     escalus:end_per_testcase(CaseName, Config);
 
@@ -1241,21 +1250,16 @@ admin_mo_invite_mere(Config) ->
 %%
 %%  Tests the usecases described here :
 %%  http://xmpp.org/extensions/xep-0045.html/#user
+%%
 %%  note: new user presence broadcast is unconfigurable and enabled for participants
 %%  by default
 %%
 %%  convention - in this part of the suite user names are uses aas nicknames if a testcase does not require otherwise
 %%  TO DO:
-%%  
 %%  test the topic
 %%
 %%  JID is not sent to participancts, use owner to throuhtly test some of the use cases
 %%  is this behavious configurable?
-%%  include this :
-%%  As shown in the last stanza, the "self-presence" sent by the room to the new user MUST include a status code of 110
-%%  so that the user knows this presence refers to itself as an occupant. This self-presence MUST NOT be sent to the new
-%%  occupant until the room has sent the presence of all other occupants to the new occupant; this enables the new occupant
-%%  to know when it has finished receiving the room roster.
 %%--------------------------------------------------------------------
 %Example 18
 groupchat_user_enter(Config) ->
@@ -1278,18 +1282,6 @@ groupchat_user_enter_no_nickname(Config) ->
         escalus_assert:has_no_stanzas(Alice),   
         escalus_assert:has_no_stanzas(Bob)
     end).
-
-
-is_self_presence(User, Room, Presence) ->
-		%has_status_codes(Presence, [<<"110">>]),
-        escalus_pred:is_presence(Presence),
-		From = room_address(Room, escalus_utils:get_username(User)),
-        From = exml_query:attr(Presence, <<"from">>).
-
-is_presence_from(User, Room, Presence) ->
-        escalus_pred:is_presence(Presence),
-		From = room_address(Room, escalus_utils:get_username(User)),
-        From = exml_query:attr(Presence, <<"from">>).
 
 
 % Examples 20, 21, 22
@@ -1423,56 +1415,64 @@ deny_entry_user_limit_reached(Config) ->
 %    end).
 %
 
-%Examples 35 - 43
-%cannot be tested - missing option that enables sending history to the user
+%Example 35
+send_history(Config) ->
+    escalus:story(Config, [1, 1, 1], fun(Alice,  Bob, Eve) ->
+        escalus:send(Alice , stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Alice))),
+        escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Bob))),
+        escalus:wait_for_stanzas(Alice, 3),
+        escalus:wait_for_stanzas(Bob, 3),
+		Msg= <<"Hi, Bob!">>,
+		Msg2= <<"Hi, Alice!">>,
+		escalus:send(Alice,escalus_stanza:groupchat_to(room_address(?config(room, Config)), Msg)),
+		escalus:send(Bob,escalus_stanza:groupchat_to(room_address(?config(room, Config)), Msg2)),
+		escalus:wait_for_stanzas(Alice, 2),
+		escalus:wait_for_stanzas(Bob, 2),
 
+		%Eve enters and receives the presences, the message history and finally the topic
+        escalus:send(Eve, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Eve))),
+		escalus:wait_for_stanza(Alice),	
+		escalus:wait_for_stanza(Bob),	
+        escalus:wait_for_stanzas(Eve, 3), %presences
+		is_history_message_correct(?config(room, Config), <<"alice">>,<<"groupchat">>,Msg, escalus:wait_for_stanza(Eve)), 
+		is_history_message_correct(?config(room, Config), <<"bob">>,<<"groupchat">>,Msg2, escalus:wait_for_stanza(Eve)), 
+		escalus:wait_for_stanza(Eve),	%topic
+		escalus_assert:has_no_stanzas(Alice),
+		escalus_assert:has_no_stanzas(Bob),
+		escalus_assert:has_no_stanzas(Eve)
+    end).
+
+%Examples 36-43
 
 %Example 44, 45
 send_to_all(Config) ->
     escalus:story(Config, [1, 1, 1], fun(_Alice,  Bob, Eve) ->
-        Enter_room_stanza = stanza_muc_enter_room(<<"alicesroom">>, <<"bob">>),
-        error_logger:info_msg("Enter room stanza: ~n~p", [Enter_room_stanza]),
-        escalus:send(Bob, Enter_room_stanza),
-
-        print_next_message(Bob),
-        print_next_message(Bob),
-        escalus_assert:has_no_stanzas(Bob),
-
-        Enter_room_stanza2 = stanza_muc_enter_room(<<"alicesroom">>, <<"eve">>),
-        error_logger:info_msg("Enter room stanza: ~n~p", [Enter_room_stanza2]),
-        escalus:send(Eve, Enter_room_stanza2),
-
-        print_next_message(Eve),
-        print_next_message(Eve),
-        print_next_message(Eve),
-        print_next_message(Bob),
-
-        escalus_assert:has_no_stanzas(Bob),
-        escalus_assert:has_no_stanzas(Eve),
+        escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Bob))),
+        escalus:send(Eve, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Eve))),
+		escalus:wait_for_stanzas(Bob, 3),
+		escalus:wait_for_stanzas(Eve, 3),
 
         Msg = <<"chat message">>,
-        GroupchatMessage = escalus_stanza:groupchat_to(room_address(?config(room, Config)), Msg),
-        error_logger:info_msg("groupchat message ~n~p~n", [GroupchatMessage]),
-        escalus:send(Eve, GroupchatMessage),
-        is_message_correct(?config(room, Config), <<"eve">>, <<"groupchat">>, Msg, escalus:wait_for_stanza(Bob)),
-        is_message_correct(?config(room, Config), <<"eve">>, <<"groupchat">>, Msg, escalus:wait_for_stanza(Eve)),
+        escalus:send(Eve, escalus_stanza:groupchat_to(room_address(?config(room, Config)), Msg)),
+        is_message_correct(?config(room, Config), escalus_utils:get_username(Eve), <<"groupchat">>, Msg, escalus:wait_for_stanza(Bob)),
+        is_message_correct(?config(room, Config), escalus_utils:get_username(Eve), <<"groupchat">>, Msg, escalus:wait_for_stanza(Eve)),
         escalus_assert:has_no_stanzas(Bob),
         escalus_assert:has_no_stanzas(Eve)
     end).
 
+
 %Examples 46, 47
 send_and_receive_private_message(Config) ->
     escalus:story(Config, [1, 1, 1], fun(_Alice,  Bob, Eve) ->
-        escalus:send(Bob, stanza_muc_enter_room(<<"alicesroom">>, <<"bob">>)),
-        escalus:send(Eve, stanza_muc_enter_room(<<"alicesroom">>, <<"eve">>)),
+        escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Bob))),
+        escalus:send(Eve, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Eve))),
         escalus:wait_for_stanzas(Bob, 3),
         escalus:wait_for_stanzas(Eve, 3),
-
+        		
         Msg = <<"chat message">>,
-        ChatMessage = escalus_stanza:chat_to(room_address(?config(room, Config), <<"eve">>), Msg),
-        error_logger:info_msg("chat message ~n~p~n", [ChatMessage ]),
-        escalus:send(Bob,ChatMessage ),
-        is_message_correct(?config(room, Config), <<"bob">>, <<"chat">>, Msg, escalus:wait_for_stanza(Eve)),
+        ChatMessage = escalus_stanza:chat_to(room_address(?config(room, Config), escalus_utils:get_username(Eve)), Msg),
+        escalus:send(Bob,ChatMessage),
+        is_message_correct(?config(room, Config), escalus_utils:get_username(Bob), <<"chat">>, Msg, escalus:wait_for_stanza(Eve)),
         escalus_assert:has_no_stanzas(Bob),
         escalus_assert:has_no_stanzas(Eve)
     end).
@@ -1480,21 +1480,20 @@ send_and_receive_private_message(Config) ->
 %Example 48
 send_private_groupchat(Config) ->
     escalus:story(Config, [1, 1, 1], fun(Alice,  Bob, Eve) ->
-        escalus:send(Bob, stanza_muc_enter_room(<<"alicesroom">>, <<"bob">>)),
-        escalus:send(Eve, stanza_muc_enter_room(<<"alicesroom">>, <<"eve">>)),
+		escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), nick(Bob))),
+        escalus:send(Eve, stanza_muc_enter_room(?config(room, Config), nick(Eve))),
         escalus:wait_for_stanzas(Bob, 3),
         escalus:wait_for_stanzas(Eve, 3),
 
         Msg = <<"chat message">>,
-        ChatMessage = escalus_stanza:groupchat_to(room_address(?config(room, Config), <<"eve">>), Msg),
-        error_logger:info_msg("chat message ~n~p~n", [ChatMessage ]),
+        ChatMessage = escalus_stanza:groupchat_to(room_address(?config(room, Config), nick(Eve)), Msg),
         escalus:send(Bob,ChatMessage ),
         escalus_assert:is_error(escalus:wait_for_stanza(Bob), <<"modify">>, <<"bad-request">>),
 
         escalus:send(Bob,escalus_stanza:chat_to(room_address(?config(room, Config), <<"non-existent">>), Msg)),
         escalus_assert:is_error(escalus:wait_for_stanza(Bob), <<"cancel">>, <<"item-not-found">>),
 
-        escalus:send(Alice,escalus_stanza:chat_to(room_address(?config(room, Config), <<"bob">>), Msg)),
+        escalus:send(Alice,escalus_stanza:chat_to(room_address(?config(room, Config), nick(Bob)), Msg)),
         escalus_assert:is_error(escalus:wait_for_stanza(Alice), <<"modify">>, <<"not-acceptable">>),
 
         escalus_assert:has_no_stanzas(Bob),
@@ -1502,20 +1501,22 @@ send_private_groupchat(Config) ->
     end).
 
 %Examples  49, 50
-%check the second message
-%missing code 110(presence sent to self).
 change_nickname(Config) ->
     escalus:story(Config, [1, 1, 1], fun(_Alice,  Bob, Eve) ->
-        escalus:send(Bob, stanza_muc_enter_room(<<"alicesroom">>, <<"bob">>)),
-        escalus:send(Eve, stanza_muc_enter_room(<<"alicesroom">>, <<"eve">>)),
+        escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
+        escalus:send(Eve, stanza_muc_enter_room(?config(room, Config), <<"eve">>)),
         escalus:wait_for_stanzas(Bob, 3),
         escalus:wait_for_stanzas(Eve, 3),
 
         escalus:send(Bob, stanza_change_nick(?config(room, Config), <<"newbob">>)),
+        Presence = escalus:wait_for_stanza(Bob),
+		has_status_codes(Presence, [<<"110">>]),
         is_nick_unavailable_correct(?config(room, Config), <<"bob">>, <<"newbob">>, escalus:wait_for_stanza(Eve)),
-        is_nick_unavailable_correct(?config(room, Config), <<"bob">>, <<"newbob">>, escalus:wait_for_stanza(Bob)),
+        is_nick_unavailable_correct(?config(room, Config), <<"bob">>, <<"newbob">>, Presence),
         is_nick_update_correct(?config(room, Config), <<"newbob">>, escalus:wait_for_stanza(Eve)),
-        is_nick_update_correct(?config(room, Config), <<"newbob">>, escalus:wait_for_stanza(Bob))
+        Presence2 = escalus:wait_for_stanza(Bob),
+        is_nick_update_correct(?config(room, Config), <<"newbob">>, Presence2),
+		has_status_codes(Presence, [<<"110">>])
     end).
 
 %Example 51
@@ -1535,22 +1536,19 @@ deny_nickname_change_conflict(Config) ->
 %Example 53
 %how to lock down the roomnicks?
 
-
-
-
 %Example 54, 55
-%full JID is not sent to participants,assumess this to be the default configuration
+%Full JID is not sent to participants, just to the owner. Assumess this to be the default configuration
 change_availability_status(Config) ->
     escalus:story(Config, [1, 1], fun(Alice,  Bob) ->
-        escalus:send(Bob, stanza_muc_enter_room(<<"alicesroom">>, <<"bob">>)),
-        escalus:send(Alice, stanza_muc_enter_room(<<"alicesroom">>, <<"eve">>)),
+		escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), nick(Bob))),
+        escalus:send(Alice, stanza_muc_enter_room(?config(room, Config), nick(Alice))),
         escalus:wait_for_stanzas(Bob, 3),
         escalus:wait_for_stanzas(Alice, 3),
         Status = <<"Bobs awesome new status">>,
-        escalus:send(Bob, stanza_change_availability(Status, ?config(room, Config), <<"bob">>)),
-        is_availability_status_notification_correct(?config(room, Config), <<"bob">>, Status,  escalus:wait_for_stanza(Bob)),
+        escalus:send(Bob, stanza_change_availability(Status, ?config(room, Config), nick(Bob))),
+        is_availability_status_notification_correct(?config(room, Config), nick(Bob), Status,  escalus:wait_for_stanza(Bob)),
         Notification = escalus:wait_for_stanza(Alice),
-        is_availability_status_notification_correct(?config(room, Config), <<"bob">>, Status,  Notification),
+        is_availability_status_notification_correct(?config(room, Config), nick(Bob), Status,  Notification),
         Jid = escalus_utils:get_jid(Bob),
         Jid = exml_query:path(Notification, [{element, <<"x">>}, {element, <<"item">>}, {attr, <<"jid">>}])
     end).
@@ -1561,7 +1559,7 @@ change_availability_status(Config) ->
 %Example 56-59
 mediated_invite(Config) ->
     escalus:story(Config, [1, 1, 1], fun(Alice,  Bob, Eve) ->
-        escalus:send(Alice, stanza_muc_enter_room(<<"alicesroom">>, <<"alice">>)),
+        escalus:send(Alice, stanza_muc_enter_room(?config(room, Config), nick(Alice))),
         escalus:wait_for_stanzas(Alice, 2),
         escalus:send(Alice, stanza_mediated_invitation(?config(room, Config), Bob)),
         escalus:send(Alice, stanza_mediated_invitation(?config(room, Config), Eve)),
@@ -1572,30 +1570,17 @@ mediated_invite(Config) ->
 		is_invitation_decline(escalus:wait_for_stanza(Alice))
     end).
 
-is_history_message_correct(Room, SenderNick,Type,  Text, ReceivedMessage) ->
-    error_logger:info_msg("tested message: ~n~p~n", [ReceivedMessage]),
-    escalus_pred:is_message(ReceivedMessage),
-    From = room_address(Room, SenderNick),
-    print(From),
-    From = exml_query:attr(ReceivedMessage, <<"from">>),
-    Type = exml_query:attr(ReceivedMessage, <<"type">>),
-    print(Text),
-	Content = exml_query:path(ReceivedMessage, [{element, <<"body">>}, cdata]),
-	print(Content),
-	Text = Content.
-
 %Example 60-65
-%No <thread> tag, so right now this does not test any new functionality
-%The history messages should be sent From the room, not the specific user!
-%FIXME - fix the is_history_message helper
+%No <thread> tag, so right now this does not test any new functionality. The thread
+%tag is recommended, but not required, so the test will not fail because of its absence
 one2one_chat_to_muc(Config) ->
     escalus:story(Config, [1, 1, 1], fun(Alice,  Bob, Eve) ->
 		Msg1 = escalus_stanza:chat_to(Bob,<<"Hi,Bob!">>),	
 		Msg2 = escalus_stanza:chat_to(Alice,<<"Hi,Alice!">>),	
 		escalus:send(Alice, Msg1),
 		escalus:send(Bob, Msg2),
-		print(escalus:wait_for_stanza(Alice)),
-		print(escalus:wait_for_stanza(Bob)),
+		escalus:wait_for_stanza(Alice),
+		escalus:wait_for_stanza(Bob),
 		%Alice creates a room	
 		Room = <<"alicesroom">>,
         escalus:send(Alice, stanza_muc_enter_room(Room, <<"alice">>)),
@@ -1622,8 +1607,7 @@ one2one_chat_to_muc(Config) ->
 		is_history_message_correct(Room, <<"alice">>,<<"groupchat">>,<<"Hi,Alice!">>, escalus:wait_for_stanza(Bob)), 
 		is_history_message_correct(Room, <<"alice">>,<<"groupchat">>,<<"Hi,Bob!">>, escalus:wait_for_stanza(Eve)), 
 		is_history_message_correct(Room, <<"alice">>,<<"groupchat">>,<<"Hi,Alice!">>, escalus:wait_for_stanza(Eve)), 
-		is_history_message_correct(Room, <<"alice">>,<<"groupchat">>,<<"Hi,Bob!">>, escalus:wait_for_stanza(Alice)), 
-		is_history_message_correct(Room, <<"alice">>,<<"groupchat">>,<<"Hi,Alice!">>, escalus:wait_for_stanza(Alice)), 
+		escalus:wait_for_stanzas(Alice, 2), %messages 
 		escalus:wait_for_stanzas(Alice, 2),	%presences
 		escalus:wait_for_stanzas(Bob, 2),	%topic & Eves presence
 		escalus:wait_for_stanzas(Eve, 1),	%topic
@@ -1633,49 +1617,43 @@ one2one_chat_to_muc(Config) ->
     end).
 
 
-%Examples 66-76
-%Registartion feature is not implemented
-%TODO: create a differend goruop for the registration test cases (they will fail)
-registration_request(Config) ->
-    escalus:story(Config, [1, 1], fun(_Alice,  Bob) ->
-		escalus:send(Bob, stanza_to_room(escalus_stanza:iq_get(<<"jabber:iq:register">>, []), ?config(room, Config))),
-   	    print_next_message(Bob) 	
-    end).
-
-%Example 67
-registration_request_no_room(Config) ->
-    escalus:story(Config, [1, 1], fun(_Alice,  Bob) ->
-		escalus:send(Bob, stanza_to_room(escalus_stanza:iq_get(<<"jabber:iq:register">>, []), <<"non-existent-room">>)),
-		escalus:assert(is_error, [<<"cancel">>, <<"item-not-found">>], escalus:wait_for_stanza(Bob))
-    end).
-
-stanza_reserved_nickname_request() ->
-     lxmppc_stanza:iq(<<"get">>, [#xmlelement{
-        name = <<"query">>,
-		attrs = [{<<"xmlns">>,<<"http://jabber.org/protocol/disco#info">>}, {<<"node">>, <<"x-roomuser-item">>}],
-		body =[]
-     }]).
-
-%Example 77-78
-%Not implemented - the 'node' element is ignored
-reserved_nickname_request(Config) ->
-    escalus:story(Config, [1, 1], fun(_Alice,  Bob) ->
-		%escalus:send(Bob, stanza_to_room(escalus_stanza:iq_get(<<"jabber:iq:register">>, []), ?config(room, Config))),
-  	    %print_next_message(Bob) 	
-		print(stanza_to_room(stanza_reserved_nickname_request(), ?config(room, Config))),
-		escalus:send(Bob, (stanza_to_room(stanza_reserved_nickname_request(), ?config(room, Config)))),
-		print_next_message(Bob)
-    end).
+%%Examples 66-76
+%%Registartion feature is not implemented
+%%TODO: create a differend goruop for the registration test cases (they will fail)
+%registration_request(Config) ->
+%    escalus:story(Config, [1, 1], fun(_Alice,  Bob) ->
+%		escalus:send(Bob, stanza_to_room(escalus_stanza:iq_get(<<"jabber:iq:register">>, []), ?config(room, Config))),
+%   	    print_next_message(Bob) 	
+%    end).
+%
+%%Example 67
+%registration_request_no_room(Config) ->
+%    escalus:story(Config, [1, 1], fun(_Alice,  Bob) ->
+%		escalus:send(Bob, stanza_to_room(escalus_stanza:iq_get(<<"jabber:iq:register">>, []), <<"non-existent-room">>)),
+%		escalus:assert(is_error, [<<"cancel">>, <<"item-not-found">>], escalus:wait_for_stanza(Bob))
+%    end).
+%
+%stanza_reserved_nickname_request() ->
+%     lxmppc_stanza:iq(<<"get">>, [#xmlelement{
+%        name = <<"query">>,
+%		attrs = [{<<"xmlns">>,<<"http://jabber.org/protocol/disco#info">>}, {<<"node">>, <<"x-roomuser-item">>}],
+%		body =[]
+%     }]).
+%
+%%Example 77-78
+%%Not implemented - the 'node' element is ignored
+%reserved_nickname_request(Config) ->
+%    escalus:story(Config, [1, 1], fun(_Alice,  Bob) ->
+%		%escalus:send(Bob, stanza_to_room(escalus_stanza:iq_get(<<"jabber:iq:register">>, []), ?config(room, Config))),
+%  	    %print_next_message(Bob) 	
+%		print(stanza_to_room(stanza_reserved_nickname_request(), ?config(room, Config))),
+%		escalus:send(Bob, (stanza_to_room(stanza_reserved_nickname_request(), ?config(room, Config)))),
+%		print_next_message(Bob)
+%    end).
 
 %Examlple 79
 %Does not work - tested elsewhere (Examples 108 - 109)
 %Unfinished - need to check if the form that shoudl be sent back (but isn't) is correct is correct
-
-is_exit_message_correct(LeavingUser,Affiliation,Room, Message) ->
-	escalus_pred:is_presence_with_type(<<"unavailable">>,Message),
-	is_presence_with_affiliation(Message,Affiliation), 
-    From = room_address(Room, escalus_utils:get_username(LeavingUser)),
-    From  = exml_query:attr(Message, <<"from">>).
 
 
 %Example 80-82
@@ -1691,24 +1669,16 @@ exit_room(Config) ->
         escalus:wait_for_stanzas(Eve, 4),
 		escalus:send(Alice, stanza_to_room(escalus_stanza:presence(<<"unavailable">>), ?config(room, Config), escalus_utils:get_username(Alice))),
 		Message = escalus:wait_for_stanza(Alice),
-		%has_status_codes(Message, [<<"110">>]),
-		%is_presence_with_full_jid(Message,Alice),
+		has_status_codes(Message, [<<"110">>]),
 		is_exit_message_correct(Alice, <<"owner">>, ?config(room, Config), Message),
 		is_exit_message_correct(Alice, <<"owner">>, ?config(room, Config), escalus:wait_for_stanza(Bob)),
 		is_exit_message_correct(Alice, <<"owner">>, ?config(room, Config), escalus:wait_for_stanza(Eve))
     end).
 
-is_exit_message_with_status_correct(LeavingUser,Affiliation,Room,Status,  Message) ->
-	escalus_pred:is_presence_with_type(<<"unavailable">>,Message),
-	is_presence_with_affiliation(Message,Affiliation), 
-    From = room_address(Room, escalus_utils:get_username(LeavingUser)),
-    From  = exml_query:attr(Message, <<"from">>),
-	Status = exml_query:path(Message, [{element,<<"status">>}, cdata]).
 
 
 %Example 80-83
 %No 110 status code in self-presence messages
-%No Jid, not event when the owner leaves tehe room (normally the owner receives senders jid along with a message
 exit_room_with_status(Config) ->
     escalus:story(Config, [1, 1, 1], fun(Alice,  Bob, Eve) ->
         escalus:send(Alice, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Alice))),
@@ -1725,8 +1695,7 @@ exit_room_with_status(Config) ->
 		Stanza = stanza_to_room(Presence2,  ?config(room, Config), escalus_utils:get_username(Alice)),
 		escalus:send(Alice, Stanza),
 		Message = escalus:wait_for_stanza(Alice),
-		%has_status_codes(Message, [<<"110">>]),
-		%is_presence_with_full_jid(Message,Alice),
+		has_status_codes(Message, [<<"110">>]),
 		is_exit_message_with_status_correct(Alice, <<"owner">>, ?config(room, Config), Status,  Message),
 		is_exit_message_with_status_correct(Alice, <<"owner">>, ?config(room, Config), Status, escalus:wait_for_stanza(Bob)),
 		is_exit_message_with_status_correct(Alice, <<"owner">>, ?config(room, Config), Status, escalus:wait_for_stanza(Eve))
@@ -2505,9 +2474,41 @@ destroy_unauthorized(Config) ->
 %% Helpers
 %%--------------------------------------------------------------------
 
+nick(User) -> escalus_utils:get_username(User).
+
+is_history_message_correct(Room, SenderNick,Type,  Text, ReceivedMessage) ->
+    %error_logger:info_msg("tested message: ~n~p~n", [ReceivedMessage]),
+    escalus_pred:is_message(ReceivedMessage),
+	exml_query:path(ReceivedMessage, [{element, <<"delay">>}, {attr, <<"stamp">>}]),
+	FromDelay = room_address(Room),
+	FromDelay = exml_query:path(ReceivedMessage, [{element, <<"delay">>}, {attr, <<"from">>}]),
+    From = room_address(Room, SenderNick),
+    From = exml_query:attr(ReceivedMessage, <<"from">>),
+    Type = exml_query:attr(ReceivedMessage, <<"type">>),
+	Content = exml_query:path(ReceivedMessage, [{element, <<"body">>}, cdata]),
+	Text = Content.
+
+is_self_presence(User, Room, Presence) ->
+		%has_status_codes(Presence, [<<"110">>]),
+        escalus_pred:is_presence(Presence),
+		From = room_address(Room, escalus_utils:get_username(User)),
+        From = exml_query:attr(Presence, <<"from">>).
+
+is_presence_from(User, Room, Presence) ->
+        escalus_pred:is_presence(Presence),
+		From = room_address(Room, escalus_utils:get_username(User)),
+        From = exml_query:attr(Presence, <<"from">>).
+
+is_exit_message_correct(LeavingUser,Affiliation,Room, Message) ->
+	escalus_pred:is_presence_with_type(<<"unavailable">>,Message),
+	is_presence_with_affiliation(Message,Affiliation), 
+    From = room_address(Room, escalus_utils:get_username(LeavingUser)),
+    From  = exml_query:attr(Message, <<"from">>).
+
+
 %does not check the jid - the user might not be entitled to receive it.
 is_availability_status_notification_correct(Room, SenderNick, NewStatus, ReceivedMessage) ->
-    error_logger:info_msg("tested message: ~n~p~n", [ReceivedMessage]),
+    %error_logger:info_msg("tested message: ~n~p~n", [ReceivedMessage]),
     escalus_pred:is_presence(ReceivedMessage),
     From = room_address(Room, SenderNick),
     From  = exml_query:attr(ReceivedMessage, <<"from">>),
@@ -2518,7 +2519,7 @@ is_item_list_empty(#xmlelement{body = [Query]}) ->
     Query#xmlelement.body == [].
 
 is_message_correct(Room, SenderNick, Type, Text, ReceivedMessage) ->
-    error_logger:info_msg("tested message: ~n~p~n", [ReceivedMessage]),
+    %error_logger:info_msg("tested message: ~n~p~n", [ReceivedMessage]),
     escalus_pred:is_message(ReceivedMessage),
     From = room_address(Room, SenderNick),
     From  = exml_query:attr(ReceivedMessage, <<"from">>),
@@ -2526,8 +2527,15 @@ is_message_correct(Room, SenderNick, Type, Text, ReceivedMessage) ->
     Body = #xmlelement{name = <<"body">>, body = [#xmlcdata{content=Text}]},
     Body = exml_query:subelement(ReceivedMessage, <<"body">>).
 
+is_exit_message_with_status_correct(LeavingUser,Affiliation,Room,Status,  Message) ->
+	escalus_pred:is_presence_with_type(<<"unavailable">>,Message),
+	is_presence_with_affiliation(Message,Affiliation), 
+    From = room_address(Room, escalus_utils:get_username(LeavingUser)),
+    From  = exml_query:attr(Message, <<"from">>),
+	Status = exml_query:path(Message, [{element,<<"status">>}, cdata]).
+
 is_nick_unavailable_correct(Room, OldNick, NewNick, ReceivedMessage) ->
-    error_logger:info_msg("tested message: ~n~p~n", [ReceivedMessage]),
+     %error_logger:info_msg("tested message: ~n~p~n", [ReceivedMessage]),
     escalus_pred:is_message(ReceivedMessage),
     From = room_address(Room, OldNick),
     From = exml_query:attr(ReceivedMessage, <<"from">>),
@@ -2535,7 +2543,7 @@ is_nick_unavailable_correct(Room, OldNick, NewNick, ReceivedMessage) ->
     NewNick = exml_query:path(ReceivedMessage, [{element, <<"x">>}, {element, <<"item">>},{attr, <<"nick">>}]).
 
 is_nick_update_correct(Room,NewNick, ReceivedMessage) ->
-    error_logger:info_msg("tested message: ~n~p~n", [ReceivedMessage]),
+    %error_logger:info_msg("tested message: ~n~p~n", [ReceivedMessage]),
     escalus_pred:is_message(ReceivedMessage),
     From = room_address(Room,NewNick),
     From  = exml_query:attr(ReceivedMessage, <<"from">>).
