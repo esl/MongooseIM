@@ -442,176 +442,220 @@ init_per_testcase(CaseName, Config) ->
 
 end_per_testcase(CaseName = configure_logging, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config);
+    escalus:end_per_testcase(CaseName, Config),
+    timer:sleep(3000);
 
 end_per_testcase(CaseName = configure, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config);
+    escalus:end_per_testcase(CaseName, Config),
+    timer:sleep(3000);
 
 end_per_testcase(CaseName = config_cancel, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config);
+    escalus:end_per_testcase(CaseName, Config),
+    timer:sleep(3000);
 
 end_per_testcase(CaseName = config_denial, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config);
+    escalus:end_per_testcase(CaseName, Config),
+    timer:sleep(3000);
 
 end_per_testcase(CaseName = destroy_unauthorized, Config) ->
-    escalus:end_per_testcase(CaseName, Config);
+    escalus:end_per_testcase(CaseName, Config),
+    timer:sleep(3000);
 
 end_per_testcase(CaseName = destroy, Config) ->
-    escalus:end_per_testcase(CaseName, Config);
+    escalus:end_per_testcase(CaseName, Config),
+    timer:sleep(3000);
 
 end_per_testcase(CaseName = admin_unauthorized, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config);
+    escalus:end_per_testcase(CaseName, Config),
+    timer:sleep(3000);
 
 end_per_testcase(CaseName = admin_list, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config);
+    escalus:end_per_testcase(CaseName, Config),
+    timer:sleep(3000);
 
 end_per_testcase(CaseName = admin_grant_revoke, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config);
+    escalus:end_per_testcase(CaseName, Config),
+    timer:sleep(3000);
 
 end_per_testcase(CaseName = owner_unauthorized, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config);
+    escalus:end_per_testcase(CaseName, Config),
+    timer:sleep(3000);
 
 end_per_testcase(CaseName = owner_list, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config);
+    escalus:end_per_testcase(CaseName, Config),
+    timer:sleep(3000);
 
 end_per_testcase(CaseName = owner_grant_revoke, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config);
+    escalus:end_per_testcase(CaseName, Config),
+    timer:sleep(3000);
 
 end_per_testcase(CaseName = groupchat_user_enter, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config);
+    escalus:end_per_testcase(CaseName, Config),
+    timer:sleep(3000);
 
 end_per_testcase(CaseName = groupchat_user_enter_no_nickname, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config);
+    escalus:end_per_testcase(CaseName, Config),
+    timer:sleep(3000);
 
 end_per_testcase(CaseName = muc_user_enter, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config);
+    escalus:end_per_testcase(CaseName, Config),
+    timer:sleep(3000);
 
 end_per_testcase(CaseName = deny_access_to_password_protected_room, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config);
+    escalus:end_per_testcase(CaseName, Config),
+    timer:sleep(3000);
 
 end_per_testcase(CaseName = enter_password_protected_room, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config);
+    escalus:end_per_testcase(CaseName, Config),
+    timer:sleep(3000);
 
 end_per_testcase(CaseName = deny_accesss_to_memebers_only_room, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config);
+    escalus:end_per_testcase(CaseName, Config),
+    timer:sleep(3000);
 
 end_per_testcase(CaseName =deny_entry_to_a_banned_user, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config);
+    escalus:end_per_testcase(CaseName, Config),
+    timer:sleep(3000);
 
 end_per_testcase(CaseName =deny_entry_nick_conflict, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config);
+    escalus:end_per_testcase(CaseName, Config),
+    timer:sleep(3000);
 
 end_per_testcase(CaseName =deny_entry_user_limit_reached, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config);
+    escalus:end_per_testcase(CaseName, Config),
+    timer:sleep(3000);
 
 %end_per_testcase(CaseName =deny_entry_locked_room, Config) ->
 %    destroy_room(Config),
-%    escalus:end_per_testcase(CaseName, Config);
+%    escalus:end_per_testcase(CaseName, Config),
+%    timer:sleep(3000);
 
 end_per_testcase(CaseName =enter_room_with_logging, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config);
+    escalus:end_per_testcase(CaseName, Config),
+    timer:sleep(3000);
 
 end_per_testcase(CaseName =send_and_receive_private_message, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config);
+    escalus:end_per_testcase(CaseName, Config),
+    timer:sleep(3000);
 
 end_per_testcase(CaseName =send_history, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config);
+    escalus:end_per_testcase(CaseName, Config),
+    timer:sleep(3000);
 
 end_per_testcase(CaseName =send_non_anonymous_history, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config);
+    escalus:end_per_testcase(CaseName, Config),
+    timer:sleep(3000);
 
 end_per_testcase(CaseName =limit_history_chars, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config);
+    escalus:end_per_testcase(CaseName, Config),
+    timer:sleep(3000);
 
 end_per_testcase(CaseName =limit_history_messages, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config);
+    escalus:end_per_testcase(CaseName, Config),
+    timer:sleep(3000);
 
 end_per_testcase(CaseName =recent_history, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config);
+    escalus:end_per_testcase(CaseName, Config),
+    timer:sleep(3000);
 
 end_per_testcase(CaseName =history_since, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config);
+    escalus:end_per_testcase(CaseName, Config),
+    timer:sleep(3000);
 
 end_per_testcase(CaseName =no_history, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config);
+    escalus:end_per_testcase(CaseName, Config),
+    timer:sleep(3000);
 										
 end_per_testcase(CaseName =subject, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config);
+    escalus:end_per_testcase(CaseName, Config),
+    timer:sleep(3000);
 										
 end_per_testcase(CaseName =no_subject, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config);
+    escalus:end_per_testcase(CaseName, Config),
+    timer:sleep(3000);
 										
 end_per_testcase(CaseName =send_to_all, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config);
+    escalus:end_per_testcase(CaseName, Config),
+    timer:sleep(3000);
 
 end_per_testcase(CaseName =send_private_groupchat, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config);
+    escalus:end_per_testcase(CaseName, Config),
+    timer:sleep(3000);
 
 end_per_testcase(CaseName =change_nickname, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config);
+    escalus:end_per_testcase(CaseName, Config),
+    timer:sleep(3000);
 
 end_per_testcase(CaseName =deny_nickname_change_conflict, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config);
+    escalus:end_per_testcase(CaseName, Config),
+    timer:sleep(3000);
 
 end_per_testcase(CaseName =change_availability_status, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config);
+    escalus:end_per_testcase(CaseName, Config),
+    timer:sleep(3000);
 
 end_per_testcase(CaseName =mediated_invite, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config);
+    escalus:end_per_testcase(CaseName, Config),
+    timer:sleep(3000);
 
 end_per_testcase(CaseName =registration_request, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config);
+    escalus:end_per_testcase(CaseName, Config),
+    timer:sleep(3000);
 
 end_per_testcase(CaseName =reserved_nickname_request, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config);
+    escalus:end_per_testcase(CaseName, Config),
+    timer:sleep(3000);
 
 end_per_testcase(CaseName =exit_room, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config);
+    escalus:end_per_testcase(CaseName, Config),
+    timer:sleep(3000);
 
 end_per_testcase(CaseName =exit_room_with_status, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config);
+    escalus:end_per_testcase(CaseName, Config),
+    timer:sleep(3000);
 
 end_per_testcase(CaseName, Config) ->
-    escalus:end_per_testcase(CaseName, Config).
+    escalus:end_per_testcase(CaseName, Config),
+    timer:sleep(3000).
 
 %%--------------------------------------------------------------------
 %%  Moderator use case tests
@@ -1358,8 +1402,7 @@ groupchat_user_enter(Config) ->
 groupchat_user_enter_no_nickname(Config) ->
     escalus:story(Config, [1, 1], fun(Alice, Bob) ->
         escalus:send(Bob, stanza_groupchat_enter_room_no_nick(<<"alicesroom">>)),
-        timer:sleep(1000),
-		escalus:assert(is_error, [<<"modify">>, <<"jid-malformed">>], escalus:wait_for_stanza(Bob)),
+	escalus:assert(is_error, [<<"modify">>, <<"jid-malformed">>], escalus:wait_for_stanza(Bob)),
         escalus_assert:has_no_stanzas(Alice),   
         escalus_assert:has_no_stanzas(Bob)
     end).
@@ -2175,10 +2218,8 @@ reserved_room_unacceptable(Config) ->
 
         R = escalus:wait_for_stanza(Alice),
         escalus:assert(is_error, [<<"modify">>, <<"not-acceptable">>], R),
-        escalus:assert(is_stanza_from, [room_address(<<"room4">>)], R),
+        escalus:assert(is_stanza_from, [room_address(<<"room4">>)], R)
 
-        %% Avoid empty presence
-        timer:sleep(1000)
     end).
 
 %%  Example 159
@@ -2218,9 +2259,7 @@ reserved_room_configuration(Config) ->
 
         %% Destroy the room to clean up
         escalus:send(Alice, stanza_destroy_room(<<"roomfive">>)),
-        escalus:wait_for_stanzas(Alice, 2),
-
-        timer:sleep(1000)
+        escalus:wait_for_stanzas(Alice, 2)
     end).
 
 %%  Example 164
@@ -2830,9 +2869,9 @@ generate_rpc_jid({_,User}) ->
     {username, Username} = lists:keyfind(username, 1, User),
     {server, Server} = lists:keyfind(server, 1, User),
     %% esl-ejabberd uses different record to store jids
-     JID = <<Username/binary, "@", Server/binary, "/rpc">>,
-     {jid, JID, Username, Server, <<"rpc">>}.
-    %{jid, Username, Server, <<"rpc">>, Username, Server, <<"rpc">>}.
+     %JID = <<Username/binary, "@", Server/binary, "/rpc">>,
+     %{jid, JID, Username, Server, <<"rpc">>}.
+    {jid, Username, Server, <<"rpc">>, Username, Server, <<"rpc">>}.
 
 %Groupchat 1.0 protocol
 stanza_groupchat_enter_room(Room, Nick) ->
