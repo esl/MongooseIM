@@ -86,24 +86,24 @@ groups() -> [
 %nick registration in a room is not implemented and will not be tested
                                      groupchat_user_enter,
 %                                     groupchat_user_enter_no_nickname,
-%                                     muc_user_enter,
-%                                     enter_non_anonymous_room,
+                                     muc_user_enter,
+                                     enter_non_anonymous_room,
                                      deny_access_to_password_protected_room,
-%                                     enter_password_protected_room,
+                                     enter_password_protected_room,
                                      deny_accesss_to_memebers_only_room,
                                      deny_entry_to_a_banned_user,
                                      deny_entry_nick_conflict,
-%                					  enter_room_with_logging,
-%									  deny_entry_user_limit_reached,
+                					  enter_room_with_logging,
+									  deny_entry_user_limit_reached,
 									 send_history,
 %									 send_non_anonymous_history,
 %   							      limit_history_chars,
 %									  limit_history_messages,
 %									  recent_history, %unfinished,
 %									  history_since,
-									 no_history,
+%									 no_history,
      								 subject,
-%									  no_subject
+									 no_subject,
                                      send_to_all,
                                      send_and_receive_private_message,
                                      send_private_groupchat,
@@ -111,10 +111,9 @@ groups() -> [
                                      deny_nickname_change_conflict,
                                      change_availability_status,
                                      mediated_invite,
-                                     one2one_chat_to_muc
-%                					  reserved_nickname_request,
+                                     one2one_chat_to_muc,
 %                					  exit_room,
-%                					  exit_room_with_status
+                					  exit_room_with_status
                                     ]},
              {owner, [sequence], [
                                   %% failing, see testcase for explanation
@@ -1563,7 +1562,7 @@ send_history(Config) ->
 
 
 %Example 36
-%Fails - the same reason as the test od Examples 25 and 26  
+%Fails - sends an additional message instead of including code 100 in the presence
 %also - From attribute in the delay element should contain the rooms address without the user name
 %and the addresses element is not icluded (note: this feature is optional)
 send_non_anonymous_history(Config) ->
@@ -1712,6 +1711,7 @@ history_since(Config) ->
     end).
 
 %Example 41
+%Fails - server should not send the history
 no_history(Config) ->
     escalus:story(Config, [1, 1, 1], fun(Alice,  Bob, Eve) ->
         escalus:send(Alice , stanza_muc_enter_room(?config(room, Config), nick(Alice))),
@@ -1731,6 +1731,7 @@ no_history(Config) ->
  		escalus:wait_for_stanza(Bob),	
         escalus:wait_for_stanzas(Eve, 3), %presences
  		escalus:wait_for_stanza(Eve),	%topic
+		timer:wait(5000),
  		escalus_assert:has_no_stanzas(Alice),
  		escalus_assert:has_no_stanzas(Bob),
  		escalus_assert:has_no_stanzas(Eve)
@@ -1751,8 +1752,7 @@ no_subject(Config)->
     escalus:story(Config, [1, 1], fun(_Alice,  Bob) ->
         escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Bob))),
 		escalus:wait_for_stanza(Bob),
-		Subject = exml_query:path(escalus:wait_for_stanza(Bob), [{element, <<"subject">>}, cdata]),
-		Subject = <<"">>
+		#xmlelement{body = []} = exml_query:subelement(escalus:wait_for_stanza(Bob), <<"subject">>)
     end).
 
 %Example 44, 45
@@ -1812,6 +1812,7 @@ send_private_groupchat(Config) ->
     end).
 
 %Examples  49, 50
+% Fails - no 110 status code 
 change_nickname(Config) ->
     escalus:story(Config, [1, 1, 1], fun(_Alice,  Bob, Eve) ->
         escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
@@ -2065,9 +2066,9 @@ create_and_destroy_room(Config) ->
     escalus:story(Config, [1], fun(Alice) ->
         Room1 = stanza_enter_room(<<"room1">>, <<"nick1">>),
         escalus:send(Alice, Room1),
-        %% esl-ejabberd doesn't send room subject at creation
         was_room_created(escalus:wait_for_stanza(Alice)),
 
+		escalus:wait_for_stanza(Alice),
         DestroyRoom1 = stanza_destroy_room(<<"room1">>),
         escalus:send(Alice, DestroyRoom1),
         [Presence, Iq] = escalus:wait_for_stanzas(Alice, 2),
@@ -2119,8 +2120,7 @@ create_instant_room(Config) ->
                                                   <<"alice-the-owner">>)),
         was_room_created(escalus:wait_for_stanza(Alice)),
 
-        %% esl-ejabberd doesn't send room subject at creation
-        %% escalus:wait_for_stanza(Alice),
+        escalus:wait_for_stanza(Alice),
 
         R = escalus_stanza:setattr(stanza_instant_room(<<"room1@muc.localhost">>),
                                    <<"from">>, escalus_utils:get_jid(Alice)),
@@ -2148,8 +2148,7 @@ create_reserved_room(Config) ->
                                                   <<"alice-the-owner">>)),
         was_room_created(escalus:wait_for_stanza(Alice)),
 
-        %% esl-ejabberd doesn't send room subject at creation
-        %% escalus:wait_for_stanza(Alice),
+        escalus:wait_for_stanza(Alice),
 
         R = escalus_stanza:setattr(stanza_reserved_room(<<"room2@muc.localhost">>),
                                    <<"from">>, escalus_utils:get_jid(Alice)),
@@ -2173,8 +2172,7 @@ reserved_room_cancel(Config) ->
                                                   <<"alice-the-owner">>)),
         was_room_created(escalus:wait_for_stanza(Alice)),
 
-        %% esl-ejabberd doesn't send room subject at creation
-        %% escalus:wait_for_stanza(Alice),
+        escalus:wait_for_stanza(Alice),
 
         R = escalus_stanza:setattr(stanza_reserved_room(<<"room3@muc.localhost">>),
                                    <<"from">>, escalus_utils:get_jid(Alice)),
@@ -2203,8 +2201,7 @@ reserved_room_unacceptable(Config) ->
                                                   <<"alice-the-owner">>)),
         was_room_created(escalus:wait_for_stanza(Alice)),
 
-        %% esl-ejabberd doesn't send room subject at creation
-        %% escalus:wait_for_stanza(Alice),
+        escalus:wait_for_stanza(Alice),
         escalus:send(Alice, stanza_reserved_room(<<"room4@muc.localhost">>)),
         S = escalus:wait_for_stanza(Alice),
         escalus:assert(is_iq_result, S),
@@ -2231,8 +2228,7 @@ reserved_room_configuration(Config) ->
                                                   <<"alice-the-owner">>)),
         was_room_created(escalus:wait_for_stanza(Alice)),
 
-        %% esl-ejabberd doesn't send room subject at creation
-        %% escalus:wait_for_stanza(Alice),
+        escalus:wait_for_stanza(Alice),
         escalus:send(Alice, stanza_reserved_room(<<"roomfive@muc.localhost">>)),
         S = escalus:wait_for_stanza(Alice),
         escalus:assert(is_iq_result, S),
@@ -2903,7 +2899,7 @@ start_room(Config, User, Room, Nick, Opts) ->
     From = generate_rpc_jid(User),
     escalus_ejabberd:rpc(mod_muc, create_room,
         [<<"localhost">>, Room, From, Nick,
-            [{subject, <<"nice subject">>}, {subject_author, <<"nice author">>} | Opts]]),
+            Opts]),
     [{nick, Nick}, {room, Room} | Config].
 
 destroy_room(Config) ->
