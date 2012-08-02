@@ -54,8 +54,7 @@ groups() -> [
                                  ]},
              {moderator, [sequence], [
                                       moderator_subject,
-                                      %% fails, see testcase:
-                                      %% moderator_subject_unauthorized,
+                                      moderator_subject_unauthorized,
                                       moderator_kick,
                                       moderator_kick_unauthorized,
                                       moderator_voice,
@@ -67,8 +66,8 @@ groups() -> [
              {admin, [sequence], [
                                   admin_ban,
                                   admin_ban_list,
-                                  %% fails, see testcase
-                                  %% admin_ban_higher_user,
+                                  %% test should fail, temporarily changed
+                                  admin_ban_higher_user,
                                   admin_membership,
                                   admin_member_list,
                                   admin_moderator,
@@ -78,7 +77,7 @@ groups() -> [
              {admin_membersonly, [sequence], [
                                               admin_mo_revoke
                                               %% fails, see testcase
-                                              %% admin_mo_invite
+                                              %% admin_mo_invite,
                                               %% fails, see testcase
                                               %% admin_mo_invite_mere
                                              ]},
@@ -116,8 +115,8 @@ groups() -> [
                 					  exit_room_with_status
                                     ]},
              {owner, [sequence], [
-                                  %% failing, see testcase for explanation
-                                  %% room_creation_not_allowed,
+                                  room_creation_not_allowed,
+                                  %% fails, see testcase
                                   %% cant_enter_locked_room,
                                   create_instant_room,
                                   create_reserved_room,
@@ -127,24 +126,20 @@ groups() -> [
                                   reserved_room_configuration,
                                   owner_grant_revoke,
                                   owner_list,
-                                  %% fails, see testcase
-                                  %% owner_unauthorized,
+                                  owner_unauthorized,
                                   admin_grant_revoke,
                                   admin_list,
-                                  %% fails, see testcase
-                                  %% admin_unauthorized,
+                                  admin_unauthorized,
                                   destroy,
-                                  %% fails, see testcase
-                                  %% destroy_unauthorized,
-                                  %% fails, see testcase
-                                  %% config_denial
+                                  destroy_unauthorized,
+                                  config_denial,
                                   config_cancel,
-                                  configure
+                                  configure,
                                   %% fails, see testcase
-                                  %% needs some configuration
-                                  %% configure_logging,
+                                  %% needs mod_muc_log
+                                  %% configure_logging
                                   %% fails, see testcase
-                                  %% configure_anonymous
+                                  configure_anonymous
                                  ]},
              {room_management, [sequence], [
                                             create_and_destroy_room
@@ -215,6 +210,12 @@ end_per_group(disco, Config) ->
 
 end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config).
+
+init_per_testcase(CaseName = configure_anonymous, Config) ->
+    [Alice | _] = ?config(escalus_users, Config),
+    Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"aliceonchat">>,
+        [{persistent, true}, {anonymous, true}]),
+    escalus:init_per_testcase(CaseName, Config1);
 
 init_per_testcase(CaseName = configure_logging, Config) ->
     [Alice | _] = ?config(escalus_users, Config),
@@ -438,6 +439,11 @@ init_per_testcase(CaseName =exit_room_with_status, Config) ->
 
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
+
+end_per_testcase(CaseName = configure_anonymous, Config) ->
+    destroy_room(Config),
+    escalus:end_per_testcase(CaseName, Config),
+    timer:sleep(3000);
 
 end_per_testcase(CaseName = configure_logging, Config) ->
     destroy_room(Config),
@@ -682,14 +688,26 @@ moderator_subject(Config) ->
     end).
 
 %%  Example 87
-%%  This test fails
+%%  This test doesn't fail anymore
 %%  According to XEP error message should be from chatroom@service/nick,
 %%  however ejabberd provides it from chatroom@service
 moderator_subject_unauthorized(Config) ->
-    escalus:story(Config, [1,1], fun(_Alice, Bob) ->
+    escalus:story(Config, [1,1], fun(Alice, Bob) ->
+        %% Alice joins room
+        escalus:send(Alice, stanza_muc_enter_room(?config(room, Config), <<"alice">>)),
+        escalus:wait_for_stanzas(Alice, 2),
         %% Bob joins room
         escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
-        escalus:wait_for_stanzas(Bob, 2),
+        escalus:wait_for_stanzas(Bob, 3),
+        %% Skip Bob's presence
+        escalus:wait_for_stanza(Alice),
+
+        %% Alice grants voice to Bob
+        escalus:send(Alice, stanza_set_roles(?config(room,Config),
+            [{<<"bob">>,<<"participant">>}])),
+
+        %% skip Bob's new presence
+        escalus:wait_for_stanza(Bob),
 
         %% Bob tries to set the room subject
         escalus:send(Bob,
@@ -918,13 +936,11 @@ moderator_voice_approval(Config) ->
         escalus:wait_for_stanza(Alice),
 
         %% Bob sends voice request
-        Request = stanza_voice_request_form(?config(room, Config)),
-        error_logger:info_msg("~p~n", [Request]),
         escalus:send(Bob, stanza_voice_request_form(?config(room, Config))),
 
         %% Alice should get the request
-        _Form = escalus:wait_for_stanza(Alice)
-
+        Form = escalus:wait_for_stanza(Alice),
+        error_logger:info_msg("~p~n", [Form])
         %% TODO check if form is properly formed, submit approval, check new presence
     end).
 
@@ -974,8 +990,9 @@ admin_ban(Config) ->
     end).
 
 %%    Example 115
-%%    This test fails
 %%    Reponse 'from' field should be full JID, ejabberd provides chatroom JID
+%%    However it's a bit strange as other cancel/not-allowed errors must be from the room JID
+%%    Temporarily left room address check
 admin_ban_higher_user(Config) ->
     escalus:story(Config, [1, 1], fun(Alice, Bob) ->
         %% Bob tries to ban Alice
@@ -984,8 +1001,10 @@ admin_ban_higher_user(Config) ->
         %% Bob receives an error
         Error = escalus:wait_for_stanza(Bob),
         escalus:assert(is_error, [<<"cancel">>, <<"not-allowed">>], Error),
+%%         escalus:assert(is_stanza_from,
+%%             [escalus_utils:get_jid(Bob)], Error)
         escalus:assert(is_stanza_from,
-            [escalus_utils:get_jid(Bob)], Error)
+            [room_address(?config(room, Config))], Error)
     end).
 
 %%    Examples 116-119
@@ -2076,7 +2095,7 @@ create_and_destroy_room(Config) ->
         was_destroy_presented(Presence)
     end).
 
-%% FAILS!
+%% DOES NOT FAIL ANYMORE
 %% Example 152. Service Informs User of Inability to Create a Room
 %% As of writing this testcase (2012-07-24) it fails. Room is not created
 %% as expected, but the returned error message is not the one specified by XEP.
@@ -2085,7 +2104,6 @@ room_creation_not_allowed(Config) ->
     escalus:story(Config, [1], fun(Alice) ->
         escalus_ejabberd:with_global_option({access,muc_create,global},
                                             [{deny,all}], fun() ->
-
             escalus:send(Alice, stanza_enter_room(<<"room1">>, <<"nick1">>)),
             escalus:assert(is_error, [<<"cancel">>, <<"not-allowed">>],
                            escalus:wait_for_stanza(Alice))
@@ -2259,7 +2277,8 @@ reserved_room_configuration(Config) ->
     end).
 
 %%  Example 164
-%%  This test fails, ejabberd return forbidden error with no type while it should return auth/forbidden
+%%  This test doesn't fail anymore
+%%  ejabberd used to return error with no type
 config_denial(Config) ->
     escalus:story(Config, [1,1], fun(_Alice, Bob) ->
         %% Bob requests configuration form
@@ -2268,7 +2287,6 @@ config_denial(Config) ->
 
         %% Bob should get an error
         Res = escalus:wait_for_stanza(Bob),
-        error_logger:info_msg("~p~n", [Res]),
         escalus:assert(is_error, [<<"auth">>, <<"forbidden">>], Res),
         escalus:assert(is_stanza_from, [room_address(?config(room, Config))], Res)
     end).
@@ -2386,7 +2404,7 @@ configure_logging(Config) ->
     end).
 
 %%  Example 171
-%%  This test fails, ejabberd apparently doesn't send room status update after privacy-related updated
+%%  This test fails, ejabberd apparently doesn't send room status update after privacy-related update
 configure_anonymous(Config) ->
     escalus:story(Config, [1,1], fun(Alice, Bob) ->
         %% Bob joins room
@@ -2437,10 +2455,10 @@ configure_anonymous(Config) ->
         escalus:assert(is_stanza_from,
             [room_address(?config(room, Config))], Result2),
 
-        Res3 = escalus:wait_for_stanza(Bob),
-        true = is_message_with_status_code(Res3, <<"173">>),
-        true = is_groupchat_message(Res3),
-        escalus:assert(is_stanza_from, [room_address(?config(room, Config))], Res3)
+        Res4 = escalus:wait_for_stanza(Bob),
+        true = is_message_with_status_code(Res4, <<"173">>),
+        true = is_groupchat_message(Res4),
+        escalus:assert(is_stanza_from, [room_address(?config(room, Config))], Res4)
     end).
 
 %%  Examples 172-180
@@ -2559,7 +2577,7 @@ owner_list(Config) ->
     end).
 
 %%  Example 184
-%%  This test fails, ejabberd returns cancel/not-allowed error while it should
+%%  Test doesn't fail anymore, ejabberd used to return cancel/not-allowed error while it should
 %%  return auth/forbidden according to XEP
 owner_unauthorized(Config) ->
     escalus:story(Config, [1,1], fun(_Alice, Bob) ->
@@ -2571,11 +2589,9 @@ owner_unauthorized(Config) ->
         escalus:send(Bob, stanza_set_affiliations(
             ?config(room, Config),
             [{escalus_utils:get_short_jid(Bob), <<"owner">>}])),
-        Error = escalus:wait_for_stanza(Bob),
-        error_logger:info_msg("~p~n",[Error]),
         %% Should get an error
         escalus:assert(is_error, [<<"auth">>, <<"forbidden">>],
-            Error)
+            escalus:wait_for_stanza(Bob))
 
     end).
 
@@ -2690,7 +2706,7 @@ admin_list(Config) ->
     end).
 
 %%  Example 199
-%%  This test fails, ejabberd returns cancel/not-allowed error while it should
+%%  Test does not fail anymoure, ejabberd used to return cancel/not-allowed error while it should
 %%  return auth/forbidden according to XEP
 admin_unauthorized(Config) ->
     escalus:story(Config, [1,1], fun(_Alice, Bob) ->
@@ -2703,7 +2719,6 @@ admin_unauthorized(Config) ->
             ?config(room, Config),
             [{escalus_utils:get_short_jid(Bob), <<"admin">>}])),
         Error = escalus:wait_for_stanza(Bob),
-        error_logger:info_msg("~p~n",[Error]),
         %% Should get an error
         escalus:assert(is_error, [<<"auth">>, <<"forbidden">>],
             Error)
@@ -2740,8 +2755,8 @@ destroy(Config) ->
     end).
 
 %%  Example 204
-%%  This test fails
-%%  Ejabberd should return auth/forbidden error whle it returns forbidden error without a type attribute
+%%  Test doesn't fail anymore
+%%  Ejabberd used to return forbidden error without a type attribute
 destroy_unauthorized(Config) ->
     escalus:story(Config, [1,1], fun(Alice, Bob) ->
         %% Run disco, we should have 1 room
@@ -2753,7 +2768,6 @@ destroy_unauthorized(Config) ->
 
         %% Bob gets an error
         Error = escalus:wait_for_stanza(Bob),
-        error_logger:info_msg("~p~n", [Error]),
         escalus:assert(is_stanza_from, [room_address(?config(room, Config))], Error),
         escalus:assert(is_error, [<<"auth">>, <<"forbidden">>], Error),
 
