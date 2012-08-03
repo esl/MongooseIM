@@ -66,13 +66,17 @@ groups() -> [
              {admin, [sequence], [
                                   admin_ban,
                                   admin_ban_list,
+                                  admin_invalid_affiliation,
+                                  admin_invalid_jid,
                                   %% test should fail, temporarily changed
                                   admin_ban_higher_user,
                                   admin_membership,
                                   admin_member_list,
                                   admin_moderator,
                                   admin_moderator_revoke_owner,
-                                  admin_moderator_list
+                                  admin_moderator_list,
+                                  admin_invalid_role,
+                                  admin_invalid_nick
                                  ]},
              {admin_membersonly, [sequence], [
                                               admin_mo_revoke
@@ -1035,6 +1039,40 @@ admin_ban_list(Config) ->
         true = is_item_list_empty(List2)
     end).
 
+admin_invalid_affiliation(Config) ->
+    escalus:story(Config, [1,1], fun(Alice, Bob) ->
+        %% Bob joins room
+        escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
+        escalus:wait_for_stanzas(Bob, 2),
+
+        %% Alice tries to give invalid affiliation to Bob
+        escalus:send(Alice, stanza_set_affiliations(?config(room, Config),
+            [{escalus_utils:get_short_jid(Bob), <<"some-random-affiliation">>}])),
+        %% Alice receives error
+        Error = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_iq_error, Error),
+        escalus:assert(is_error, [<<"modify">>, <<"not-acceptable">>], Error),
+        escalus:assert(is_stanza_from, [room_address(?config(room, Config))], Error)
+
+    end).
+
+admin_invalid_jid(Config) ->
+    escalus:story(Config, [1,1], fun(Alice, Bob) ->
+        %% Bob joins room
+        escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
+        escalus:wait_for_stanzas(Bob, 2),
+
+        %% Alice tries to give invalid affiliation to Bob
+        escalus:send(Alice, stanza_set_affiliations(?config(room, Config),
+            [{<<"@mistyped-jid">>, <<"admin">>}])),
+        %% Alice receives error
+        Error = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_iq_error, Error),
+        escalus:assert(is_error, [<<"modify">>, <<"not-acceptable">>], Error),
+        escalus:assert(is_stanza_from, [room_address(?config(room, Config))], Error)
+
+    end).
+
 %%  Examples 120-127
 admin_membership(Config) ->
     escalus:story(Config, [1,1,1], fun(Alice, Bob, Kate) ->
@@ -1314,6 +1352,46 @@ admin_moderator_list(Config) ->
 
         %% Kate receives her and Bob's participant presence
         escalus:assert_many(Preds2, escalus:wait_for_stanzas(Kate,2))
+    end).
+
+admin_invalid_role(Config) ->
+    escalus:story(Config, [1,1], fun(Alice, Bob) ->
+        %% Alice joins room
+        escalus:send(Alice, stanza_muc_enter_room(?config(room, Config), <<"alice">>)),
+        escalus:wait_for_stanzas(Alice, 2),
+        %% Bob joins room
+        escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
+        escalus:wait_for_stanzas(Bob, 3),
+        %% Skip Bob's presences
+        escalus:wait_for_stanza(Alice),
+
+        %% Grant bob moderator status
+        escalus:send(Alice, stanza_set_roles(
+            ?config(room, Config), [{<<"bob">>,<<"role-that-i-made-up">>}])),
+        Error = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_iq_error, Error),
+        escalus:assert(is_error, [<<"modify">>, <<"bad-request">>], Error),
+        escalus:assert(is_stanza_from, [room_address(?config(room, Config))], Error)
+    end).
+
+admin_invalid_nick(Config) ->
+    escalus:story(Config, [1,1], fun(Alice, Bob) ->
+        %% Alice joins room
+        escalus:send(Alice, stanza_muc_enter_room(?config(room, Config), <<"alice">>)),
+        escalus:wait_for_stanzas(Alice, 2),
+        %% Bob joins room
+        escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
+        escalus:wait_for_stanzas(Bob, 3),
+        %% Skip Bob's presences
+        escalus:wait_for_stanza(Alice),
+
+        %% Grant bob moderator status
+        escalus:send(Alice, stanza_set_roles(
+            ?config(room, Config), [{<<"mistyped-nickname">>,<<"moderator">>}])),
+        Error = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_iq_error, Error),
+        escalus:assert(is_error, [<<"modify">>, <<"not-acceptable">>], Error),
+        escalus:assert(is_stanza_from, [room_address(?config(room, Config))], Error)
     end).
 
 %%  Example 128
