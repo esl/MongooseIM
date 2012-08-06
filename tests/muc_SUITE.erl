@@ -84,11 +84,10 @@ groups() -> [
                                   admin_invalid_nick
                                  ]},
              {admin_membersonly, [sequence], [
-                                              admin_mo_revoke
-                                              %% fails, see testcase
-                                              %% admin_mo_invite,
-                                              %% fails, see testcase
-                                              %% admin_mo_invite_mere
+                                              admin_mo_revoke,
+                                              admin_mo_invite,
+                                              admin_mo_invite_with_reason,
+                                              admin_mo_invite_mere
                                              ]},
              {occupant, [sequence], [
 %nick registration in a room is not implemented and will not be tested
@@ -148,7 +147,7 @@ groups() -> [
                                   configure,
                                   %% fails, see testcase
                                   %% needs mod_muc_log
-                                  %% configure_logging
+                                  configure_logging,
                                   %% fails, see testcase
                                   configure_anonymous
                                  ]},
@@ -1647,6 +1646,11 @@ admin_mo_revoke(Config) ->
         escalus:send(Alice, stanza_set_affiliations(?config(room,Config), Items)),
         escalus:wait_for_stanza(Alice),
 
+        %% Bob gets invitation
+        is_invitation(escalus:wait_for_stanza(Bob)),
+        %% Kate gets invitation
+        is_invitation(escalus:wait_for_stanza(Kate)),
+
         %% Bob joins room
         escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
         escalus:wait_for_stanzas(Bob, 2),
@@ -1673,23 +1677,45 @@ admin_mo_revoke(Config) ->
     end).
 
 %%  Example 134
-%%  This test fails
 %%  ejabberd doesn't send an invitation after adding user to a member list
 admin_mo_invite(Config) ->
     escalus:story(Config, [1,1], fun(Alice, Bob) ->
         %% Make Bob a member
-        Items = [{escalus_utils:get_short_jid(Bob), <<"members">>}],
+        Items = [{escalus_utils:get_short_jid(Bob), <<"member">>}],
         escalus:send(Alice, stanza_set_affiliations(?config(room,Config), Items)),
         escalus:wait_for_stanza(Alice),
 
         %% Bob should receive an invitation
         Inv = escalus:wait_for_stanza(Bob),
         is_invitation(Inv),
-        escalus:assert(is_stanza_from, [room_address(?config(room,Config))], Inv)
+        escalus:assert(is_stanza_from, [room_address(?config(room,Config))], Inv),
+
+        %% Alice revokes Bob's membership
+        Items2 = [{escalus_utils:get_short_jid(Bob), <<"none">>}],
+        escalus:send(Alice, stanza_set_affiliations(?config(room, Config), Items2)),
+        escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice))
+    end).
+
+admin_mo_invite_with_reason(Config) ->
+    escalus:story(Config, [1,1], fun(Alice, Bob) ->
+        %% Make Bob a member
+        Items = [{escalus_utils:get_short_jid(Bob), <<"member">>, <<"Just an invitation">>}],
+        escalus:send(Alice, stanza_set_affiliations(?config(room,Config), Items)),
+        escalus:wait_for_stanza(Alice),
+
+        %% Bob should receive an invitation
+        Inv = escalus:wait_for_stanza(Bob),
+        is_invitation(Inv),
+        true = invite_has_reason(Inv),
+        escalus:assert(is_stanza_from, [room_address(?config(room,Config))], Inv),
+
+        %% Alice revokes Bob's membership
+        Items2 = [{escalus_utils:get_short_jid(Bob), <<"none">>}],
+        escalus:send(Alice, stanza_set_affiliations(?config(room, Config), Items2)),
+        escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice))
     end).
 
 %%  Example 135
-%%  This test fails
 %%  ejabberd returns cancel/not-allowed error while it should return auth/forbidden according to XEP
 admin_mo_invite_mere(Config) ->
     escalus:story(Config, [1,1,1], fun(Alice, Bob, Kate) ->
@@ -1697,6 +1723,9 @@ admin_mo_invite_mere(Config) ->
         Items = [{escalus_utils:get_short_jid(Bob), <<"member">>}],
         escalus:send(Alice, stanza_set_affiliations(?config(room,Config), Items)),
         escalus:wait_for_stanza(Alice),
+
+        %% Bob gets na invitation
+        escalus:wait_for_stanza(Bob),
 
         %% Bob joins room
         escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
@@ -2690,7 +2719,6 @@ configure_logging(Config) ->
         escalus:send(Alice, Form),
 
         Result = escalus:wait_for_stanza(Alice),
-        error_logger:info_msg("~p~n", [Result]),
         escalus:assert(is_iq_result, Result),
         escalus:assert(is_stanza_from,
             [room_address(?config(room, Config))], Result),
@@ -2719,10 +2747,10 @@ configure_logging(Config) ->
         escalus:assert(is_stanza_from,
             [room_address(?config(room, Config))], Result2),
 
-        Res3 = escalus:wait_for_stanza(Bob),
-        true = is_message_with_status_code(Res3, <<"171">>),
-        true = is_groupchat_message(Res3),
-        escalus:assert(is_stanza_from, [room_address(?config(room, Config))], Res3)
+        Res4 = escalus:wait_for_stanza(Bob),
+        true = is_message_with_status_code(Res4, <<"171">>),
+        true = is_groupchat_message(Res4),
+        escalus:assert(is_stanza_from, [room_address(?config(room, Config))], Res4)
     end).
 
 %%  Example 171
@@ -3569,6 +3597,9 @@ stanza_get_services(Config) ->
 %%--------------------------------------------------------------------
 %% Helpers (assertions)
 %%--------------------------------------------------------------------
+
+invite_has_reason(Stanza) ->
+    exml_query:path(Stanza, [{element, <<"x">>}, {element, <<"reason">>}, cdata]) =/= undefined.
 
 has_reason(Stanza) ->
     exml_query:path(Stanza, [{element, <<"x">>}, {element, <<"item">>},
