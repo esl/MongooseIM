@@ -45,14 +45,14 @@ all() -> [
          ].
 
 groups() -> [
-             {disco, [sequence], [
+             {disco, [], [
                                   disco_service,
                                   disco_features,
                                   disco_rooms,
                                   disco_info,
                                   disco_items
                                  ]},
-             {moderator, [sequence], [
+             {moderator, [], [
                                       moderator_subject,
                                       moderator_subject_unauthorized,
                                       moderator_kick,
@@ -65,7 +65,7 @@ groups() -> [
                                       %% unfinished, fails
                                       %% moderator_voice_approval
                                      ]},
-             {admin, [sequence], [
+             {admin, [], [
                                   admin_ban,
                                   admin_ban_with_reason,
                                   admin_ban_list,
@@ -83,13 +83,13 @@ groups() -> [
                                   admin_invalid_role,
                                   admin_invalid_nick
                                  ]},
-             {admin_membersonly, [sequence], [
+             {admin_membersonly, [], [
                                               admin_mo_revoke,
                                               admin_mo_invite,
                                               admin_mo_invite_with_reason,
                                               admin_mo_invite_mere
                                              ]},
-             {occupant, [sequence], [
+             {occupant, [], [
 %nick registration in a room is not implemented and will not be tested
                                      groupchat_user_enter,
 %                                     groupchat_user_enter_no_nickname,
@@ -122,7 +122,7 @@ groups() -> [
 %                					  exit_room,
                 					  exit_room_with_status
                                     ]},
-             {owner, [sequence], [
+             {owner, [], [
                                   room_creation_not_allowed,
                                   %% fails, see testcase
                                   %% cant_enter_locked_room,
@@ -151,7 +151,7 @@ groups() -> [
                                   %% fails, see testcase
                                   configure_anonymous
                                  ]},
-             {room_management, [sequence], [
+             {room_management, [], [
                                             create_and_destroy_room
                                            ]}
             ].
