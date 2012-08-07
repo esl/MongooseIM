@@ -61,9 +61,11 @@ groups() -> [
                                       moderator_voice,
                                       moderator_voice_with_reason,
                                       moderator_voice_unauthorized,
-                                      moderator_voice_list
-                                      %% unfinished, fails
-                                      %% moderator_voice_approval
+                                      moderator_voice_list,
+                                      moderator_voice_approval,
+                                      moderator_voice_forbidden,
+                                      moderator_voice_not_occupant,
+                                      moderator_voice_nonick
                                      ]},
              {admin, [], [
                                   admin_ban,
@@ -1028,7 +1030,8 @@ moderator_voice_list(Config) ->
         escalus:assert_many(Preds2, escalus:wait_for_stanzas(Kate, 2))
     end).
 
-%%  This test fails, moderator never gets voice approval form
+%%  This test doesn't fail anymore, moderator used to never get voice approval form
+%%  This test works, but XEP doesn't specify what error messages should be here if something goes wrong...
 %%  Examples 108-109
 moderator_voice_approval(Config) ->
     escalus:story(Config, [1, 1], fun(Alice, Bob) ->
@@ -1046,11 +1049,79 @@ moderator_voice_approval(Config) ->
 
         %% Alice should get the request
         Form = escalus:wait_for_stanza(Alice),
-        error_logger:info_msg("~p~n", [Form])
-        %% TODO check if form is properly formed, submit approval, check new presence
+        true = is_message_form(Form),
+
+        Appr = stanza_voice_request_approval(?config(room, Config),
+            escalus_utils:get_short_jid(Bob), <<"bob">>),
+        escalus:send(Alice, Appr),
+
+        %% Bob should get his new presence
+        Pres = escalus:wait_for_stanza(Bob),
+        true = is_presence_with_role(Pres, <<"participant">>)
+
     end).
 
+moderator_voice_forbidden(Config) ->
+    escalus:story(Config, [1, 1], fun(Alice, Bob) ->
+        %% Alice joins room
+        escalus:send(Alice, stanza_muc_enter_room(?config(room, Config), <<"alice">>)),
+        escalus:wait_for_stanzas(Alice, 2),
+        %% Bob joins room
+        escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
+        escalus:wait_for_stanzas(Bob, 3),
+        %% Skip Bob's presence
+        escalus:wait_for_stanza(Alice),
 
+        %% Bob tries to send request approval
+        Appr = stanza_voice_request_approval(?config(room, Config),
+            escalus_utils:get_short_jid(Bob), <<"bob">>),
+        escalus:send(Bob, Appr),
+
+        %% Bob should get an error
+        Err = escalus:wait_for_stanza(Bob),
+        escalus:assert(is_error, [<<"cancel">>, <<"not-allowed">>], Err)
+    end).
+
+moderator_voice_not_occupant(Config) ->
+    escalus:story(Config, [1, 1], fun(Alice, Bob) ->
+        %% Alice tries to send request approval while she isn't in the room
+        Appr = stanza_voice_request_approval(?config(room, Config),
+            escalus_utils:get_short_jid(Bob), <<"bob">>),
+        escalus:send(Alice, Appr),
+
+        %% Alice should get an error
+        Err = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_error, [<<"modify">>, <<"bad-request">>], Err)
+    end).
+
+moderator_voice_nonick(Config) ->
+    escalus:story(Config, [1, 1], fun(Alice, Bob) ->
+        %% Alice joins room
+        escalus:send(Alice, stanza_muc_enter_room(?config(room, Config), <<"alice">>)),
+        escalus:wait_for_stanzas(Alice, 2),
+        %% Bob joins room
+        escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
+        escalus:wait_for_stanzas(Bob, 3),
+        %% Skip Bob's presence
+        escalus:wait_for_stanza(Alice),
+
+        %% Bob sends voice request
+        escalus:send(Bob, stanza_voice_request_form(?config(room, Config))),
+
+        %% Alice should get the request
+        Form = escalus:wait_for_stanza(Alice),
+        true = is_message_form(Form),
+
+        Appr = stanza_voice_request_approval_nonick(?config(room, Config),
+            escalus_utils:get_short_jid(Bob)),
+        escalus:send(Alice, Appr),
+
+        %% Alice should get an error
+        Error = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
+            Error)
+
+    end).
 %%--------------------------------------------------------------------
 %%  Admin use case tests
 %%
@@ -3521,6 +3592,21 @@ stanza_voice_request_form(Room) ->
     Payload = [ form_field({<<"muc#role">>, <<"participant">>, <<"text-single">>}) ],
     stanza_message_to_room(Room, stanza_form(Payload, ?NS_MUC_REQUEST)).
 
+stanza_voice_request_approval(Room, JID, Nick) ->
+    Items = [{<<"muc#role">>, <<"participant">>, <<"text-single">>},
+        {<<"muc#jid">>, JID, <<"jid-single">>},
+        {<<"muc#roomnick">>, Nick, <<"text-single">>},
+        {<<"muc#request_allow">>, <<"true">>, <<"boolean">>}],
+    Payload = [ form_field(El) || El <- Items],
+    stanza_message_to_room(Room, stanza_form(Payload, ?NS_MUC_REQUEST)).
+
+stanza_voice_request_approval_nonick(Room, JID) ->
+    Items = [{<<"muc#role">>, <<"participant">>, <<"text-single">>},
+        {<<"muc#jid">>, JID, <<"jid-single">>},
+        {<<"muc#request_allow">>, <<"true">>, <<"boolean">>}],
+    Payload = [ form_field(El) || El <- Items],
+    stanza_message_to_room(Room, stanza_form(Payload, ?NS_MUC_REQUEST)).
+
 stanza_configuration_form(Room, Params) ->
     DefaultParams = [],
     FinalParams = lists:foldl(
@@ -3614,6 +3700,10 @@ invite_has_reason(Stanza) ->
 has_reason(Stanza) ->
     exml_query:path(Stanza, [{element, <<"x">>}, {element, <<"item">>},
         {element, <<"reason">>}]) =/= undefined.
+
+is_message_form(Stanza) ->
+    exml_query:path(Stanza,[{element,<<"x">>},
+        {attr, <<"xmlns">>}]) =:= ?NS_DATA_FORMS.
 
 is_form(Stanza) ->
     exml_query:path(Stanza,[{element, <<"query">>}, {element,<<"x">>},
