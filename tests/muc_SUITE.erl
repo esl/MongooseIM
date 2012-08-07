@@ -145,8 +145,6 @@ groups() -> [
                                   config_denial,
                                   config_cancel,
                                   configure,
-                                  %% fails, see testcase
-                                  %% needs mod_muc_log
                                   configure_logging,
                                   %% fails, see testcase
                                   configure_anonymous
@@ -2699,10 +2697,12 @@ configure(Config) ->
 %%  This test needs enabled mod_muc_log module and {access_log, muc_create} in options
 %%  This test fails, ejabberd doesn't seem to send status code when room privacy changes
 configure_logging(Config) ->
-    escalus:story(Config, [1,1], fun(Alice, Bob) ->
+    escalus:story(Config, [1,1,1], fun(Alice, Bob, Kate) ->
         %% Bob joins room
         escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
-        escalus:wait_for_stanzas(Bob, 2),
+        escalus:send(Kate, stanza_muc_enter_room(?config(room, Config), <<"kate">>)),
+        escalus:wait_for_stanzas(Bob, 3),
+        escalus:wait_for_stanzas(Kate, 3),
 
         %% Alice requests configuration form
         escalus:send(Alice, stanza_to_room(
@@ -2727,6 +2727,8 @@ configure_logging(Config) ->
         true = is_message_with_status_code(Res2, <<"170">>),
         true = is_groupchat_message(Res2),
         escalus:assert(is_stanza_from, [room_address(?config(room, Config))], Res2),
+        
+        escalus:wait_for_stanza(Kate),
 
         %% Alice requests configuration form again
         escalus:send(Alice, stanza_to_room(
@@ -2736,6 +2738,12 @@ configure_logging(Config) ->
         Res3 = escalus:wait_for_stanza(Alice),
         true = is_form(Res3),
         escalus:assert(is_stanza_from, [room_address(?config(room, Config))], Res3),
+        
+        %% Simple message exchange
+        Msg = <<"chat message">>,
+        escalus:send(Bob, escalus_stanza:groupchat_to(room_address(?config(room, Config)), Msg)),
+        is_message_correct(?config(room, Config), escalus_utils:get_username(Bob), <<"groupchat">>, Msg, escalus:wait_for_stanza(Bob)),
+        is_message_correct(?config(room, Config), escalus_utils:get_username(Bob), <<"groupchat">>, Msg, escalus:wait_for_stanza(Kate)),
 
         %% Disable logging
         Form2 = stanza_configuration_form(?config(room, Config), [
@@ -2750,7 +2758,9 @@ configure_logging(Config) ->
         Res4 = escalus:wait_for_stanza(Bob),
         true = is_message_with_status_code(Res4, <<"171">>),
         true = is_groupchat_message(Res4),
-        escalus:assert(is_stanza_from, [room_address(?config(room, Config))], Res4)
+        escalus:assert(is_stanza_from, [room_address(?config(room, Config))], Res4),
+        
+        escalus:wait_for_stanza(Kate)
     end).
 
 %%  Example 171
