@@ -94,7 +94,7 @@ groups() -> [
              {occupant, [], [
 %nick registration in a room is not implemented and will not be tested
                                      groupchat_user_enter,
-%                                     groupchat_user_enter_no_nickname,
+                                     groupchat_user_enter_no_nickname,
                                      muc_user_enter,
                                      enter_non_anonymous_room,
                                      deny_access_to_password_protected_room,
@@ -102,38 +102,39 @@ groups() -> [
                                      deny_accesss_to_memebers_only_room,
                                      deny_entry_to_a_banned_user,
                                      deny_entry_nick_conflict,
-                					  enter_room_with_logging,
-									  deny_entry_user_limit_reached,
-									 send_history,
-%									 send_non_anonymous_history,
-%   							      limit_history_chars,
-%									  limit_history_messages,
-%									  recent_history, %unfinished,
-%									  history_since,
-%									 no_history,
-     								 subject,
-									 no_subject,
+                                     enter_room_with_logging,
+                                     deny_entry_user_limit_reached,
+                                     send_history,
+%                                     send_non_anonymous_history,
+%                                     limit_history_chars,
+%                                     limit_history_messages,
+%                                     recent_history, %unfinished,
+%                                     history_since,
+%                                     no_history,
+                                     subject,
+                                     no_subject,
                                      send_to_all,
                                      send_and_receive_private_message,
                                      send_private_groupchat,
-%                                     change_nickname,
+                                     change_nickname,
                                      deny_nickname_change_conflict,
                                      change_availability_status,
                                      mediated_invite,
                                      one2one_chat_to_muc,
-%                					  exit_room,
-                					  exit_room_with_status
+                                     exit_room,
+                                     exit_room_with_status
                                     ]},
              {owner, [], [
                                   room_creation_not_allowed,
                                   %% fails, see testcase
-                                  %% cant_enter_locked_room,
+                                  cant_enter_locked_room,
                                   create_instant_room,
-                                  create_reserved_room,
+                                  destroy_locked_room,
+                                  %create_reserved_room,
                                   %% fails, see testcase
                                   %% reserved_room_cancel,
-                                  reserved_room_unacceptable,
-                                  reserved_room_configuration,
+                                  %reserved_room_unacceptable,
+                                  %reserved_room_configuration,
                                   owner_grant_revoke,
                                   owner_grant_revoke_with_reason,
                                   owner_list,
@@ -1839,8 +1840,8 @@ groupchat_user_enter(Config) ->
 %Fails - no error message sent from the server
 groupchat_user_enter_no_nickname(Config) ->
     escalus:story(Config, [1, 1], fun(Alice, Bob) ->
-        escalus:send(Bob, stanza_groupchat_enter_room_no_nick(<<"alicesroom">>)),
-	escalus:assert(is_error, [<<"modify">>, <<"jid-malformed">>], escalus:wait_for_stanza(Bob)),
+        escalus:send(Bob, stanza_groupchat_enter_room_no_nick(?config(room, Config))),
+		escalus:assert(is_error, [<<"modify">>, <<"jid-malformed">>], escalus:wait_for_stanza(Bob)),
         escalus_assert:has_no_stanzas(Alice),   
         escalus_assert:has_no_stanzas(Bob)
     end).
@@ -2031,13 +2032,6 @@ send_non_anonymous_history(Config) ->
 		escalus_assert:has_no_stanzas(Eve)
     end).
 
-stanza_muc_enter_room_history_setting(Room, Nick, Setting, Value) ->
-    stanza_to_room(
-        escalus_stanza:presence(  <<"available">>,
-                                [#xmlelement{ name = <<"x">>, 
-                    						  attrs = [{<<"xmlns">>, <<"http://jabber.org/protocol/muc">>}],
-											  body = [#xmlelement{name= <<"history">>, attrs=[{Setting, Value}]}]}]),
-        Room, Nick).
 
 %Example 37
 %fails - the history setting is ignored
@@ -2267,11 +2261,11 @@ change_nickname(Config) ->
         is_nick_update_correct(?config(room, Config), <<"newbob">>, escalus:wait_for_stanza(Eve)),
         Presence2 = escalus:wait_for_stanza(Bob),
         is_nick_update_correct(?config(room, Config), <<"newbob">>, Presence2),
-		has_status_codes(Presence, [<<"110">>])
+		has_status_codes(Presence2, [<<"110">>])
     end).
 
 %Example 51
-%How to set nickname change policy?
+%How to set up nickname change policy?
 
 %Example 52
 deny_nickname_change_conflict(Config) ->
@@ -2324,47 +2318,58 @@ mediated_invite(Config) ->
 %Example 60-65
 %No <thread> tag, so right now this does not test any new functionality. The thread
 %tag is recommended, but not required, so the test will not fail because of its absence
+%Also - the examples contain neither configuration of the room not confirmation that it
+%is supposed to be instant. Thit test assumes that an instant room should be created
 one2one_chat_to_muc(Config) ->
     escalus:story(Config, [1, 1, 1], fun(Alice,  Bob, Eve) ->
-		Msg1 = escalus_stanza:chat_to(Bob,<<"Hi,Bob!">>),	
-		Msg2 = escalus_stanza:chat_to(Alice,<<"Hi,Alice!">>),	
-		escalus:send(Alice, Msg1),
-		escalus:send(Bob, Msg2),
-		escalus:wait_for_stanza(Alice),
-		escalus:wait_for_stanza(Bob),
-		%Alice creates a room	
-		Room = <<"alicesroom">>,
-        escalus:send(Alice, stanza_muc_enter_room(Room, <<"alice">>)),
-        escalus:wait_for_stanzas(Alice, 2),
+        Msg1 = escalus_stanza:chat_to(Bob,<<"Hi,Bob!">>),	
+        Msg2 = escalus_stanza:chat_to(Alice,<<"Hi,Alice!">>),	
+        escalus:send(Alice, Msg1),
+        escalus:send(Bob, Msg2),
+        escalus:wait_for_stanza(Alice),
+        escalus:wait_for_stanza(Bob),
+
+        %Alice creates a room
+        Room = <<"alicesroom">>,
+        escalus:send(Alice,stanza_muc_enter_room(Room, <<"alice">>)),
+        was_room_created(escalus:wait_for_stanza(Alice)),
+
+        R = escalus_stanza:setattr(stanza_instant_room(room_address(Room)),
+                                   <<"from">>, escalus_utils:get_jid(Alice)),
+        escalus:send(Alice, R),
+        escalus:wait_for_stanza(Alice), %topic
+        escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+
         %Alice sends history to the room
-		NewMsg1 = escalus_stanza:setattr(Msg1, <<"type">>, <<"groupchat">>),
-		%print(stanza_to_room(NewMsg1,Room)),
-		escalus:send(Alice, stanza_to_room(NewMsg1,Room)),
-		NewMsg2 = escalus_stanza:setattr(Msg2, <<"type">>, <<"groupchat">>),
-		escalus:send(Alice, stanza_to_room(NewMsg2,Room)),
-		%Alice sends invitations
-		%invitations should include contiue flag, but this makes no sense without the thread
-		escalus:send(Alice, stanza_mediated_invitation(Room, Bob)),
-		escalus:send(Alice, stanza_mediated_invitation(Room, Eve)),
-		is_invitation(escalus:wait_for_stanza(Bob)),
-		is_invitation(escalus:wait_for_stanza(Eve)),
-		%Bob and Eve accept the invitations
+        NewMsg1 = escalus_stanza:setattr(Msg1, <<"type">>, <<"groupchat">>),
+        %print(stanza_to_room(NewMsg1,Room)),
+        escalus:send(Alice, stanza_to_room(NewMsg1,Room)),
+        NewMsg2 = escalus_stanza:setattr(Msg2, <<"type">>, <<"groupchat">>),
+        escalus:send(Alice, stanza_to_room(NewMsg2,Room)),
+
+        %Alice sends invitations
+        %invitations should include contiue flag, but this makes no sense without the thread
+        escalus:send(Alice, stanza_mediated_invitation(Room, Bob)),
+        escalus:send(Alice, stanza_mediated_invitation(Room, Eve)),
+        is_invitation(escalus:wait_for_stanza(Bob)),
+        is_invitation(escalus:wait_for_stanza(Eve)),
+        %Bob and Eve accept the invitations
         escalus:send(Bob, stanza_muc_enter_room(Room, <<"bob">>)),
         escalus:send(Eve, stanza_muc_enter_room(Room, <<"eve">>)),
-		escalus:wait_for_stanzas(Bob, 2), %presences; bob receives the history before he receves eves presence
-		escalus:wait_for_stanzas(Eve, 3), %presences 
+        escalus:wait_for_stanzas(Bob, 2), %presences; bob receives the history before he receves Eves presence
+        escalus:wait_for_stanzas(Eve, 3), %presences
         %Bob and Eve receive the history
-		is_history_message_correct(Room, <<"alice">>,<<"groupchat">>,<<"Hi,Bob!">>, escalus:wait_for_stanza(Bob)), 
-		is_history_message_correct(Room, <<"alice">>,<<"groupchat">>,<<"Hi,Alice!">>, escalus:wait_for_stanza(Bob)), 
-		is_history_message_correct(Room, <<"alice">>,<<"groupchat">>,<<"Hi,Bob!">>, escalus:wait_for_stanza(Eve)), 
-		is_history_message_correct(Room, <<"alice">>,<<"groupchat">>,<<"Hi,Alice!">>, escalus:wait_for_stanza(Eve)), 
-		escalus:wait_for_stanzas(Alice, 2), %messages 
-		escalus:wait_for_stanzas(Alice, 2),	%presences
-		escalus:wait_for_stanzas(Bob, 2),	%topic & Eves presence
-		escalus:wait_for_stanzas(Eve, 1),	%topic
-		escalus_assert:has_no_stanzas(Alice),
-		escalus_assert:has_no_stanzas(Bob),
-		escalus_assert:has_no_stanzas(Eve)
+        is_history_message_correct(Room, <<"alice">>,<<"groupchat">>,<<"Hi,Bob!">>, escalus:wait_for_stanza(Bob)),
+        is_history_message_correct(Room, <<"alice">>,<<"groupchat">>,<<"Hi,Alice!">>, escalus:wait_for_stanza(Bob)),
+        is_history_message_correct(Room, <<"alice">>,<<"groupchat">>,<<"Hi,Bob!">>, escalus:wait_for_stanza(Eve)),
+        is_history_message_correct(Room, <<"alice">>,<<"groupchat">>,<<"Hi,Alice!">>, escalus:wait_for_stanza(Eve)),
+        escalus:wait_for_stanzas(Alice, 2), %messages 
+        escalus:wait_for_stanzas(Alice, 2), %presences
+        escalus:wait_for_stanzas(Bob, 2),   %topic & Eves presence
+        escalus:wait_for_stanzas(Eve, 1),   %topic
+        escalus_assert:has_no_stanzas(Alice),
+        escalus_assert:has_no_stanzas(Bob),
+        escalus_assert:has_no_stanzas(Eve)
     end).
 
 
@@ -2373,33 +2378,33 @@ one2one_chat_to_muc(Config) ->
 %%TODO: create a differend goruop for the registration test cases (they will fail)
 %registration_request(Config) ->
 %    escalus:story(Config, [1, 1], fun(_Alice,  Bob) ->
-%		escalus:send(Bob, stanza_to_room(escalus_stanza:iq_get(<<"jabber:iq:register">>, []), ?config(room, Config))),
+%        escalus:send(Bob, stanza_to_room(escalus_stanza:iq_get(<<"jabber:iq:register">>, []), ?config(room, Config))),
 %   	    print_next_message(Bob) 	
 %    end).
 %
 %%Example 67
 %registration_request_no_room(Config) ->
 %    escalus:story(Config, [1, 1], fun(_Alice,  Bob) ->
-%		escalus:send(Bob, stanza_to_room(escalus_stanza:iq_get(<<"jabber:iq:register">>, []), <<"non-existent-room">>)),
-%		escalus:assert(is_error, [<<"cancel">>, <<"item-not-found">>], escalus:wait_for_stanza(Bob))
+%        escalus:send(Bob, stanza_to_room(escalus_stanza:iq_get(<<"jabber:iq:register">>, []), <<"non-existent-room">>)),
+%        escalus:assert(is_error, [<<"cancel">>, <<"item-not-found">>], escalus:wait_for_stanza(Bob))
 %    end).
 %
 %stanza_reserved_nickname_request() ->
 %     lxmppc_stanza:iq(<<"get">>, [#xmlelement{
 %        name = <<"query">>,
-%		attrs = [{<<"xmlns">>,<<"http://jabber.org/protocol/disco#info">>}, {<<"node">>, <<"x-roomuser-item">>}],
-%		body =[]
+%        attrs = [{<<"xmlns">>,<<"http://jabber.org/protocol/disco#info">>}, {<<"node">>, <<"x-roomuser-item">>}],
+%        body =[]
 %     }]).
 %
 %%Example 77-78
 %%Not implemented - the 'node' element is ignored
 %reserved_nickname_request(Config) ->
 %    escalus:story(Config, [1, 1], fun(_Alice,  Bob) ->
-%		%escalus:send(Bob, stanza_to_room(escalus_stanza:iq_get(<<"jabber:iq:register">>, []), ?config(room, Config))),
+%        %escalus:send(Bob, stanza_to_room(escalus_stanza:iq_get(<<"jabber:iq:register">>, []), ?config(room, Config))),
 %  	    %print_next_message(Bob) 	
-%		print(stanza_to_room(stanza_reserved_nickname_request(), ?config(room, Config))),
-%		escalus:send(Bob, (stanza_to_room(stanza_reserved_nickname_request(), ?config(room, Config)))),
-%		print_next_message(Bob)
+%        print(stanza_to_room(stanza_reserved_nickname_request(), ?config(room, Config))),
+%        escalus:send(Bob, (stanza_to_room(stanza_reserved_nickname_request(), ?config(room, Config)))),
+%        print_next_message(Bob)
 %    end).
 
 %Examlple 79
@@ -2506,8 +2511,8 @@ create_and_destroy_room(Config) ->
         Room1 = stanza_enter_room(<<"room1">>, <<"nick1">>),
         escalus:send(Alice, Room1),
         was_room_created(escalus:wait_for_stanza(Alice)),
+        escalus:wait_for_stanza(Alice),
 
-		escalus:wait_for_stanza(Alice),
         DestroyRoom1 = stanza_destroy_room(<<"room1">>),
         escalus:send(Alice, DestroyRoom1),
         [Presence, Iq] = escalus:wait_for_stanzas(Alice, 2),
@@ -2538,35 +2543,40 @@ cant_enter_locked_room(Config) ->
         %% Create the room (should be locked on creation)
         escalus:send(Alice, stanza_muc_enter_room(<<"room1">>,
                                                   <<"alice-the-owner">>)),
-        was_room_created(escalus:wait_for_stanza(Alice)),
+		Presence = escalus:wait_for_stanza(Alice),
+		print(Presence),
+        was_room_created(Presence),
 
         %% Bob should not be able to join the room
         escalus:send(Bob, stanza_enter_room(<<"room1">>, <<"just-bob">>)),
         R = escalus:wait_for_stanza(Bob),
-        %% error_logger:info_msg("R:~n~p~n", [R]),
+        error_logger:info_msg("R:~n~p~n", [R]),
         %% sometime the predicate itself should be moved to escalus
         escalus:assert(fun ?MODULE:is_room_locked/1, R)
-
-        end).
+    end).
 
 %% Example 155. Owner Requests Instant Room
 create_instant_room(Config) ->
     escalus:story(Config, [1,1], fun(Alice, Bob) ->
 
         %% Create the room (should be locked on creation)
-        escalus:send(Alice, stanza_muc_enter_room(<<"room1">>,
-                                                  <<"alice-the-owner">>)),
-        was_room_created(escalus:wait_for_stanza(Alice)),
+        Presence = stanza_muc_enter_room(<<"room1">>, <<"alice-the-owner">>),
+        escalus:send(Alice, Presence),
+                print_next_message(Alice),
+        %was_room_created(escalus:wait_for_stanza(Alice)),
 
-        escalus:wait_for_stanza(Alice),
+        escalus:wait_for_stanza(Alice), % topic
 
         R = escalus_stanza:setattr(stanza_instant_room(<<"room1@muc.localhost">>),
                                    <<"from">>, escalus_utils:get_jid(Alice)),
+
         escalus:send(Alice, R),
         escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
 
         %% Bob should be able to join the room
         escalus:send(Bob, stanza_muc_enter_room(<<"room1">>, <<"bob">>)),
+        escalus:wait_for_stanza(Alice), %Bobs presence
+        %% Bob should receive (in that order): Alices presence, his presence and the topic
 
         Preds = [fun(Stanza) -> escalus_pred:is_presence(Stanza) andalso
             escalus_pred:is_stanza_from(<<"room1@muc.localhost/bob">>, Stanza)
@@ -2574,8 +2584,27 @@ create_instant_room(Config) ->
         fun(Stanza) -> escalus_pred:is_presence(Stanza) andalso
             escalus_pred:is_stanza_from(<<"room1@muc.localhost/alice-the-owner">>, Stanza)
         end],
-        escalus:assert_many(Preds, escalus:wait_for_stanzas(Bob, 2))
+        escalus:assert_many(Preds, escalus:wait_for_stanzas(Bob, 2)),
+        escalus:wait_for_stanza(Bob), %topic
+        escalus_assert:has_no_stanzas(Bob),
+        escalus_assert:has_no_stanzas(Alice)
+    end).
 
+destroy_locked_room(Config) ->
+    escalus:story(Config, [1], fun(Alice) ->
+        Room1 = stanza_muc_enter_room(<<"room1">>, <<"nick1">>),
+        escalus:send(Alice, Room1),
+        was_room_created(escalus:wait_for_stanza(Alice)),
+        escalus:wait_for_stanza(Alice),
+
+        DestroyRoom1 = stanza_destroy_room(<<"room1">>),
+        	print(DestroyRoom1),
+        escalus:send(Alice, DestroyRoom1),
+        	    print_next_message(Alice),
+        	    print_next_message(Alice)
+        %[Presence, Iq] = escalus:wait_for_stanzas(Alice, 2),
+        %was_room_destroyed(Iq),
+        %was_destroy_presented(Presence)
     end).
 
 %%  Example 156
@@ -3379,12 +3408,6 @@ is_presence_from(User, Room, Presence) ->
 		From = room_address(Room, escalus_utils:get_username(User)),
         From = exml_query:attr(Presence, <<"from">>).
 
-is_exit_message_correct(LeavingUser,Affiliation,Room, Message) ->
-	escalus_pred:is_presence_with_type(<<"unavailable">>,Message),
-	is_presence_with_affiliation(Message,Affiliation), 
-    From = room_address(Room, escalus_utils:get_username(LeavingUser)),
-    From  = exml_query:attr(Message, <<"from">>).
-
 
 %does not check the jid - the user might not be entitled to receive it.
 is_availability_status_notification_correct(Room, SenderNick, NewStatus, ReceivedMessage) ->
@@ -3406,6 +3429,12 @@ is_message_correct(Room, SenderNick, Type, Text, ReceivedMessage) ->
     Type  = exml_query:attr(ReceivedMessage, <<"type">>),
     Body = #xmlelement{name = <<"body">>, body = [#xmlcdata{content=Text}]},
     Body = exml_query:subelement(ReceivedMessage, <<"body">>).
+
+is_exit_message_correct(LeavingUser,Affiliation,Room, Message) ->
+	escalus_pred:is_presence_with_type(<<"unavailable">>,Message),
+	is_presence_with_affiliation(Message,Affiliation), 
+    From = room_address(Room, escalus_utils:get_username(LeavingUser)),
+    From  = exml_query:attr(Message, <<"from">>).
 
 is_exit_message_with_status_correct(LeavingUser,Affiliation,Room,Status,  Message) ->
 	escalus_pred:is_presence_with_type(<<"unavailable">>,Message),
@@ -3470,7 +3499,7 @@ stanza_change_nick(Room, NewNick) ->
 
 start_room(Config, User, Room, Nick, Opts) ->
     From = generate_rpc_jid(User),
-    escalus_ejabberd:rpc(mod_muc, create_room,
+    escalus_ejabberd:rpc(mod_muc, create_instant_room,
         [<<"localhost">>, Room, From, Nick,
             Opts]),
     [{nick, Nick}, {room, Room} | Config].
@@ -3502,6 +3531,14 @@ stanza_change_availability(NewStatus, Room, Nick) ->
                                 #xmlelement{ name = <<"show">>, body=[ #xmlcdata{content=[<<"xa">>]}]},
                                 #xmlelement{ name = <<"status">>, body=[ #xmlcdata{content=[NewStatus]}]}
                                 ]),
+        Room, Nick).
+
+stanza_muc_enter_room_history_setting(Room, Nick, Setting, Value) ->
+    stanza_to_room(
+        escalus_stanza:presence(  <<"available">>,
+                                [#xmlelement{ name = <<"x">>, 
+                    						  attrs = [{<<"xmlns">>, <<"http://jabber.org/protocol/muc">>}],
+											  body = [#xmlelement{name= <<"history">>, attrs=[{Setting, Value}]}]}]),
         Room, Nick).
 
 stanza_room_subject(Room, Subject) ->
@@ -3830,9 +3867,8 @@ was_destroy_presented(#xmlelement{body = [Items]} = Presence) ->
 was_room_destroyed(Query) ->
     <<"result">> = exml_query:attr(Query, <<"type">>).
 
-was_room_created(#xmlelement{body = [X]}) ->
-    <<"201">> = exml_query:path(X, [{element, <<"status">>},
-                                    {attr, <<"code">>}]),
+was_room_created(Stanza = #xmlelement{body = [X]}) ->
+    has_status_codes(Stanza, [<<"201">>, <<"110">>]),
     <<"owner">> = exml_query:path(X, [{element, <<"item">>},
                                       {attr, <<"affiliation">>}]),
     <<"moderator">> = exml_query:path(X, [{element, <<"item">>},
