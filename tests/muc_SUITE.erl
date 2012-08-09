@@ -1091,7 +1091,7 @@ moderator_voice_not_occupant(Config) ->
 
         %% Alice should get an error
         Err = escalus:wait_for_stanza(Alice),
-        escalus:assert(is_error, [<<"modify">>, <<"bad-request">>], Err)
+        escalus:assert(is_error, [<<"modify">>, <<"not-acceptable">>], Err)
     end).
 
 moderator_voice_nonick(Config) ->
