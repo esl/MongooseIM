@@ -130,11 +130,11 @@ groups() -> [
                                   cant_enter_locked_room,
                                   create_instant_room,
                                   destroy_locked_room,
-                                  %create_reserved_room,
+                                  create_reserved_room,
                                   %% fails, see testcase
-                                  %% reserved_room_cancel,
-                                  %reserved_room_unacceptable,
-                                  %reserved_room_configuration,
+                                  reserved_room_cancel,
+                                  reserved_room_unacceptable,
+                                  reserved_room_configuration,
                                   owner_grant_revoke,
                                   owner_grant_revoke_with_reason,
                                   owner_list,
@@ -2562,16 +2562,17 @@ create_instant_room(Config) ->
         %% Create the room (should be locked on creation)
         Presence = stanza_muc_enter_room(<<"room1">>, <<"alice-the-owner">>),
         escalus:send(Alice, Presence),
-                print_next_message(Alice),
-        %was_room_created(escalus:wait_for_stanza(Alice)),
+        was_room_created(escalus:wait_for_stanza(Alice)),
 
         escalus:wait_for_stanza(Alice), % topic
 
         R = escalus_stanza:setattr(stanza_instant_room(<<"room1@muc.localhost">>),
                                    <<"from">>, escalus_utils:get_jid(Alice)),
-
+        print(R),
         escalus:send(Alice, R),
-        escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+        IQ = escalus:wait_for_stanza(Alice),
+        print(IQ),
+        escalus:assert(is_iq_result, IQ),
 
         %% Bob should be able to join the room
         escalus:send(Bob, stanza_muc_enter_room(<<"room1">>, <<"bob">>)),
@@ -2600,11 +2601,12 @@ destroy_locked_room(Config) ->
         DestroyRoom1 = stanza_destroy_room(<<"room1">>),
         	print(DestroyRoom1),
         escalus:send(Alice, DestroyRoom1),
-        	    print_next_message(Alice),
-        	    print_next_message(Alice)
-        %[Presence, Iq] = escalus:wait_for_stanzas(Alice, 2),
-        %was_room_destroyed(Iq),
-        %was_destroy_presented(Presence)
+        [Presence, Iq] = escalus:wait_for_stanzas(Alice, 2),
+                print("==============================="),
+                print(Iq),
+                print(Presence),
+        was_room_destroyed(Iq),
+        was_destroy_presented(Presence)
     end).
 
 %%  Example 156
