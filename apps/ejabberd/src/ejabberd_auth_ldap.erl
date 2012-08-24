@@ -58,7 +58,7 @@
 	]).
 
 -include("ejabberd.hrl").
--include("eldap/eldap.hrl").
+-include_lib("eldap/include/eldap.hrl").
 
 -record(state, {host,
 		eldap_id,
@@ -117,6 +117,7 @@ terminate(_Reason, _State) ->
     ok.
 
 init(Host) ->
+    HostStr = binary_to_list(Host),
     State = parse_options(Host),
     eldap_pool:start_link(State#state.eldap_id,
 			  State#state.servers,

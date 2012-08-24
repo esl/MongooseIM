@@ -1,0 +1,14 @@
+{application, eldap,
+ [{description, "eldap"},
+  {vsn, "0.9"},
+  {modules, []},
+  {registered, []},
+  {applications, []},
+  {env, []}
+ ]}.
+
+
+%% Local Variables:
+%% mode: erlang
+%% End:
+%% vim: set filetype=erlang tabstop=8:

@@ -67,7 +67,7 @@
 
 -behaviour(gen_fsm).
 
--include("ejabberd.hrl").
+-include_lib("ejabberd/include/ejabberd.hrl").
 
 %% External exports
 -export([start_link/1, start_link/6]).
@@ -257,9 +257,10 @@ modify_passwd(Handle, DN, Passwd) when is_list(DN), is_list(Passwd) ->
 %%%    "secret")
 %%% --------------------------------------------------------------------
 bind(Handle, RootDN, Passwd) 
-  when is_list(RootDN), is_list(Passwd) ->
+  when is_list(RootDN), is_binary(Passwd) ->
     Handle1 = get_handle(Handle),
-    gen_fsm:sync_send_event(Handle1, {bind, RootDN, Passwd}, ?CALL_TIMEOUT).
+    PasswdStr = binary_to_list(Passwd),
+    gen_fsm:sync_send_event(Handle1, {bind, RootDN, PasswdStr}, ?CALL_TIMEOUT).
 
 %%% Sanity checks !
 
@@ -431,7 +432,7 @@ init([]) ->
     end;
 init({Hosts, Port, Rootdn, Passwd, Opts}) ->
     catch ssl:start(),
-    ssl:seed(randoms:get_string()),
+    %ssl:seed(randoms:get_string()),
     Encrypt = case proplists:get_value(encrypt, Opts) of
 		  tls -> tls;
 		  _ -> none
