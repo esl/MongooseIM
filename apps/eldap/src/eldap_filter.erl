@@ -26,9 +26,6 @@
 %%%----------------------------------------------------------------------
 -module(eldap_filter).
 
-%% TODO: remove this when new regexp module will be used
--compile({nowarn_deprecated_function, {regexp, sub, 3}}).
-
 -export([parse/1, parse/2, do_sub/2]).
 
 %%====================================================================
@@ -82,6 +79,8 @@ parse(L) when is_list(L) ->
 %%%-------------------------------------------------------------------
 parse(L, SList) when is_list(L), is_list(SList) ->
     case catch eldap_filter_yecc:parse(scan(L, SList)) of
+	{'EXIT', _} = Err ->
+	    {error, Err};
 	{error, {_, _, Msg}} ->
 	    {error, Msg};
 	{ok, Result} ->
@@ -144,34 +143,37 @@ do_sub(S, [{RegExp, New, Times} | T]) ->
     do_sub(Result, T).
 
 do_sub(S, {RegExp, New}, Iter) ->
-    case regexp:sub(S, RegExp, New) of
-	{ok, NewS, 0} ->
-	    NewS;
-	{ok, NewS, _} when Iter =< ?MAX_RECURSION ->
-	    do_sub(NewS, {RegExp, New}, Iter+1);
-	{ok, _, _} when Iter > ?MAX_RECURSION ->
-	    erlang:error(max_substitute_recursion);
-	_ ->
-	    erlang:error(bad_regexp)
+    case ejabberd_regexp:run(S, RegExp) of
+        match ->
+            case ejabberd_regexp:replace(S, RegExp, New) of
+                NewS when Iter =< ?MAX_RECURSION ->
+                    do_sub(NewS, {RegExp, New}, Iter+1);
+                _NewS when Iter > ?MAX_RECURSION ->
+                    erlang:error(max_substitute_recursion)
+            end;
+        nomatch ->
+            S;
+        _ ->
+            erlang:error(bad_regexp)
     end;
 
 do_sub(S, {_, _, N}, _) when N<1 ->
     S;
 
 do_sub(S, {RegExp, New, Times}, Iter) ->
-    case regexp:sub(S, RegExp, New) of
-	{ok, NewS, 0} ->
-	    NewS;
-	{ok, NewS, _} when Iter < Times ->
-	    do_sub(NewS, {RegExp, New, Times}, Iter+1);
-	{ok, NewS, _} ->
-	    NewS;
-	_ ->
-	    erlang:error(bad_regexp)
+    case ejabberd_regexp:run(S, RegExp) of
+        match ->
+            case ejabberd_regexp:replace(S, RegExp, New) of
+                NewS when Iter < Times ->
+                    do_sub(NewS, {RegExp, New, Times}, Iter+1);
+                NewS ->
+                    NewS
+            end;
+        nomatch ->
+            S;
+        _ ->
+            erlang:error(bad_regexp)
     end.
 
-replace_amps(String) ->
-    lists:flatmap(
-      fun($&) -> "\\&";
-	 (Chr) -> [Chr]
-      end, String).
+replace_amps(Subject) ->
+    re:replace(Subject, "&", "\\\\&",[{return,binary}]).

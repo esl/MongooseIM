@@ -91,10 +91,18 @@ get_user_part(String, Pattern) ->
 	{'EXIT', _} ->
 	    {error, badmatch};
 	Result ->
-	    case regexp:sub(Pattern, "%u", Result) of
-		{ok, String, _} -> {ok, Result};
-		_ -> {error, badmatch}
-	    end
+            case catch ejabberd_regexp:replace(Pattern, "%u", Result) of
+                {'EXIT', _} ->
+                    {error, badmatch};
+               StringRes ->
+                    case (string:to_lower(StringRes) ==
+                              string:to_lower(String)) of
+                        true ->
+                            {ok, Result};
+                        false ->
+                            {error, badmatch}
+                    end
+            end
     end.
 
 make_filter(Data, UIDs) ->
