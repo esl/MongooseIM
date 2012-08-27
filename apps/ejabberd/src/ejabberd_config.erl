@@ -375,7 +375,9 @@ process_term(Term, State) ->
         {hosts, _Hosts} ->
             State;
         {host_config, Host, Terms} ->
-            lists:foldl(fun(T, S) -> process_host_term(T, Host, S) end,
+            lists:foldl(fun(T, S) ->
+                                process_host_term(T, list_to_binary(Host), S)
+                        end,
                         State, Terms);
         {listen, Listeners} ->
             Listeners2 =
@@ -443,7 +445,8 @@ process_term(Term, State) ->
                         State, State#state.hosts)
     end.
 
-process_host_term(Term, Host, State) ->
+process_host_term(Term, Host, State)
+  when is_binary(Host) orelse Host =:= global ->
     case Term of
         {acl, ACLName, ACLData} ->
             State#state{opts =
@@ -465,6 +468,7 @@ process_host_term(Term, Host, State) ->
         {Opt, Val} ->
             add_option({Opt, Host}, Val, State)
     end.
+
 
 add_option(Opt, Val, State) ->
     Table = case Opt of
