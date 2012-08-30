@@ -148,14 +148,16 @@ starttls(SocketData, TLSOpts, Data) ->
 compress(SocketData) ->
     {ok, ZlibSocket} = ejabberd_zlib:enable_zlib(
 			 SocketData#socket_state.sockmod,
-			 SocketData#socket_state.socket),
+			 SocketData#socket_state.socket,
+             SocketData#socket_state.receiver),
     ejabberd_receiver:compress(SocketData#socket_state.receiver, ZlibSocket),
     SocketData#socket_state{socket = ZlibSocket, sockmod = ejabberd_zlib}.
 
 compress(SocketData, Data) ->
     {ok, ZlibSocket} = ejabberd_zlib:enable_zlib(
 			 SocketData#socket_state.sockmod,
-			 SocketData#socket_state.socket),
+			 SocketData#socket_state.socket,
+             SocketData#socket_state.receiver),
     ejabberd_receiver:compress(SocketData#socket_state.receiver, ZlibSocket),
     send(SocketData, Data),
     SocketData#socket_state{socket = ZlibSocket, sockmod = ejabberd_zlib}.
