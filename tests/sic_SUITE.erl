@@ -109,7 +109,7 @@ sic_iq_get() ->
     lxmppc_stanza:iq(<<"get">>, [#xmlelement{
         name = <<"ip">>,
         attrs = [{<<"xmlns">>, ?NS_SIC}],
-        body = []
+        children = []
     }]).
 
 sic_iq_get(To) ->
