@@ -850,12 +850,11 @@ set_presence(User, Host, Resource, Type, Show, Status, Priority) ->
     Pid = ejabberd_sm:get_session_pid(User, Host, Resource),
     USR = User ++ "@" ++ Host ++ "/" ++ Resource,
     US = User ++ "@" ++ Host,
-    Message = {route_xmlstreamelement,
-	       {xmlelement, "presence",
+    Message = {xmlelement, "presence",
 		[{"from", USR}, {"to", US}, {"type", Type}],
 		[{xmlelement, "show", [], [{xmlcdata, Show}]},
 		 {xmlelement, "status", [], [{xmlcdata, Status}]},
-		 {xmlelement, "priority", [], [{xmlcdata, Priority}]}]}},
+		 {xmlelement, "priority", [], [{xmlcdata, Priority}]}]},
     Pid ! Message.
 
 user_sessions_info(User, Host) ->
@@ -1359,8 +1358,8 @@ build_packet(message_headline, [Subject, Body]) ->
 
 send_stanza_c2s(Username, Host, Resource, Stanza) ->
     C2sPid = ejabberd_sm:get_session_pid(Username, Host, Resource),
-    XmlEl = xml_stream:parse_element(Stanza),
-    p1_fsm:send_event(C2sPid, {xmlstreamelement, XmlEl}).
+    {ok, XmlEl} = exml:parse(Stanza),
+    p1_fsm:send_event(C2sPid, XmlEl).
 
 privacy_set(Username, Host, QueryS) ->
     From = jlib:string_to_jid(Username ++ "@" ++ Host),

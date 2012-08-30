@@ -268,8 +268,7 @@ wait_for_stream(closed, StateData) ->
     {stop, normal, StateData}.
 
 
-wait_for_feature_request({xmlstreamelement, El}, StateData) ->
-    {xmlelement, Name, Attrs, Els} = El,
+wait_for_feature_request({xmlelement, Name, Attrs, Els} = El, StateData) ->
     TLS = StateData#state.tls,
     TLSEnabled = StateData#state.tls_enabled,
     SockMod = (StateData#state.sockmod):get_sockmod(StateData#state.socket),
@@ -363,7 +362,7 @@ wait_for_feature_request({xmlstreamelement, El}, StateData) ->
 		    {stop, normal, StateData}
 	    end;
 	_ ->
-	    stream_established({xmlstreamelement, El}, StateData)
+	    stream_established(El, StateData)
     end;
 
 wait_for_feature_request({xmlstreamend, _Name}, StateData) ->
@@ -378,7 +377,7 @@ wait_for_feature_request(closed, StateData) ->
     {stop, normal, StateData}.
 
 
-stream_established({xmlstreamelement, El}, StateData) ->
+stream_established({xmlelement, _, _, _} = El, StateData) ->
     cancel_timer(StateData#state.timer),
     Timer = erlang:start_timer(?S2STIMEOUT, self(), []),
     case is_key_packet(El) of
@@ -486,7 +485,7 @@ stream_established({xmlstreamelement, El}, StateData) ->
 		true ->
 		    error
 	    end,
-	    ejabberd_hooks:run(s2s_loop_debug, [{xmlstreamelement, El}]),
+	    ejabberd_hooks:run(s2s_loop_debug, [El]),
 	    {next_state, stream_established, StateData#state{timer = Timer}}
     end;
 
