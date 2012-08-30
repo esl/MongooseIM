@@ -1,53 +1,61 @@
 .PHONY: all test console compile
 all: test
 
-test_clean: escalus/Makefile
+test_clean: get-deps
 	rm -rf tests/*.beam
 	make test
 
-cover_test_clean: escalus/Makefile
+cover_test_clean: get-deps
 	rm -rf tests/*.beam
 	make cover_test
 
-test: escalus/Makefile prepare
+test: prepare
 	erl -noinput -sname test -setcookie ejabberd \
 		-pa `pwd`/tests \
-			`pwd`/escalus/ebin \
-			`pwd`/escalus/deps/exml/ebin \
-			`pwd`/escalus/deps/base16/ebin \
+			`pwd`/deps/escalus/ebin \
+			`pwd`/deps/exml/ebin \
+			`pwd`/deps/base16/ebin \
 		-s run_common_test ct
 
-cover_test: escalus/Makefile prepare
+cover_test: prepare
 	erl -noinput -sname test -setcookie ejabberd \
 		-pa `pwd`/tests \
-			`pwd`/escalus/ebin \
-			`pwd`/escalus/deps/exml/ebin \
-			`pwd`/escalus/deps/base16/ebin \
+			`pwd`/deps/escalus/ebin \
+			`pwd`/deps/exml/ebin \
+			`pwd`/deps/base16/ebin \
 		-s run_common_test ct_cover; \
 	./make_cover_summary
 
-cover_summary: escalus/Makefile prepare
+cover_summary: prepare
 	erl -noinput -sname test -setcookie ejabberd \
 		-pa `pwd`/tests \
-			`pwd`/escalus/ebin \
-			`pwd`/escalus/deps/exml/ebin \
-			`pwd`/escalus/deps/base16/ebin \
+			`pwd`/deps/escalus/ebin \
+			`pwd`/deps/exml/ebin \
+			`pwd`/deps/base16/ebin \
 		-s run_common_test cover_summary; \
 	./make_cover_summary
 
-prepare:
-	cd escalus; make
-	erlc -Iescalus/deps/exml/include \
+prepare: compile
+	erlc -Ideps/exml/include \
 		 run_common_test.erl
 	mkdir -p ct_report
 
-console: escalus/Makefile
-	cd escalus; make
+console: compile
 	erl -sname test -setcookie ejabberd \
 		-pa `pwd`/tests \
-			`pwd`/escalus/ebin \
-			`pwd`/escalus/deps/exml/ebin \
-			`pwd`/escalus/deps/base16/ebin
+			`pwd`/deps/escalus/ebin \
+			`pwd`/deps/exml/ebin \
+			`pwd`/deps/base16/ebin
 
-escalus/Makefile:
-	git submodule update --init --recursive
+compile: get-deps
+	./rebar compile
+
+get-deps: rebar
+	./rebar get-deps
+
+clean: rebar
+	./rebar clean
+
+rebar:
+	wget http://cloud.github.com/downloads/basho/rebar/rebar
+	chmod u+x rebar

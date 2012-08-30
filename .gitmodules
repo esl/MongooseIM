@@ -1,3 +1,0 @@
-[submodule "escalus"]
-        path = escalus
-        url = https://github.com/esl/escalus.git
