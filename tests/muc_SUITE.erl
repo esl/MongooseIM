@@ -3856,7 +3856,8 @@ has_status_codes(Stanza, CodeList) ->
 
 
 has_feature(Stanza, Feature) ->
-    Features = exml_query:path(Stanza, [{element, <<"query">>}, {elements, <<"feature">>}]),
+    Features = exml_query:paths(Stanza, [{element, <<"query">>},
+                                         {element, <<"feature">>}]),
     true = lists:any(fun(Item) ->
                         exml_query:attr(Item, <<"var">>) == Feature
                      end,
