@@ -118,13 +118,11 @@ get_data(LUser, LServer, [El | Els], Res) ->
             LXMLNS = ejabberd_odbc:escape(XMLNS),
             case catch odbc_queries:get_private_data(LServer, Username, LXMLNS) of
                 {selected, ["data"], [{SData}]} ->
-		    Parser = exml_stream:new_parser(),
-                    case exml_stream:parse(Parser, SData) of
-                        Data when element(1, Data) == xmlelement ->
-                            get_data(LUser, LServer, Els,
-                                     [Data | Res])
-                    end,
-		    exml_stream:free_parser(Parser);
+                    {ok, Result} = exml:parse(SData),
+                    case Result of
+                        {xmlelement, _, _, _} ->
+                            get_data(LUser, LServer, Els, [Result | Res])
+                    end;
                 %% MREMOND: I wonder when the query could return a vcard ?
                 {selected, ["vcard"], []} ->
                     get_data(LUser, LServer, Els,

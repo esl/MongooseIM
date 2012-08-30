@@ -133,8 +133,7 @@ init([Socket, SockMod, Shaper, MaxStanzaSize]) ->
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 handle_call({starttls, TLSSocket}, _From,
-	    #state{parser = Parser,
-		   max_stanza_size = MaxStanzaSize} = State) ->
+	    #state{parser = Parser} = State) ->
     {ok, NewParser} = exml_stream:reset_parser(Parser),
     NewState = State#state{socket = TLSSocket,
 			   sock_mod = tls,
@@ -147,8 +146,7 @@ handle_call({starttls, TLSSocket}, _From,
 	    {stop, normal, ok, NewState}
     end;
 handle_call({compress, ZlibSocket}, _From,
-	    #state{parser = Parser,
-		   max_stanza_size = MaxStanzaSize} = State) ->
+	    #state{parser = Parser} = State) ->
     {ok, NewParser} = exml_stream:reset_parser(Parser),
     NewState = State#state{socket = ZlibSocket,
 			   sock_mod = ejabberd_zlib,
@@ -160,8 +158,7 @@ handle_call({compress, ZlibSocket}, _From,
 	    {stop, normal, ok, NewState}
     end;
 handle_call(reset_stream, _From,
-	    #state{parser = Parser,
-		   max_stanza_size = MaxStanzaSize} = State) ->
+	    #state{parser = Parser} = State) ->
     {ok, NewParser} = exml_stream:reset_parser(Parser),
     {reply, ok, State#state{parser = NewParser}, ?HIBERNATE_TIMEOUT};
 handle_call({become_controller, C2SPid}, _From, State) ->
