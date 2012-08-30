@@ -14,7 +14,6 @@ test: escalus/Makefile prepare
 		-pa `pwd`/tests \
 			`pwd`/escalus/ebin \
 			`pwd`/escalus/deps/exml/ebin \
-			`pwd`/escalus/deps/lxmppc/ebin \
 			`pwd`/escalus/deps/base16/ebin \
 		-s run_common_test ct
 
@@ -23,7 +22,6 @@ cover_test: escalus/Makefile prepare
 		-pa `pwd`/tests \
 			`pwd`/escalus/ebin \
 			`pwd`/escalus/deps/exml/ebin \
-			`pwd`/escalus/deps/lxmppc/ebin \
 			`pwd`/escalus/deps/base16/ebin \
 		-s run_common_test ct_cover; \
 	./make_cover_summary
@@ -33,7 +31,6 @@ cover_summary: escalus/Makefile prepare
 		-pa `pwd`/tests \
 			`pwd`/escalus/ebin \
 			`pwd`/escalus/deps/exml/ebin \
-			`pwd`/escalus/deps/lxmppc/ebin \
 			`pwd`/escalus/deps/base16/ebin \
 		-s run_common_test cover_summary; \
 	./make_cover_summary
@@ -41,7 +38,6 @@ cover_summary: escalus/Makefile prepare
 prepare:
 	cd escalus; make
 	erlc -Iescalus/deps/exml/include \
-		 -Iescalus/deps/lxmppc/include \
 		 run_common_test.erl
 	mkdir -p ct_report
 
@@ -51,7 +47,6 @@ console: escalus/Makefile
 		-pa `pwd`/tests \
 			`pwd`/escalus/ebin \
 			`pwd`/escalus/deps/exml/ebin \
-			`pwd`/escalus/deps/lxmppc/ebin \
 			`pwd`/escalus/deps/base16/ebin
 
 escalus/Makefile:
