@@ -57,8 +57,8 @@
 	 plain_password_required/0
 	]).
 
--include("ejabberd.hrl").
--include_lib("eldap/include/eldap.hrl").
+-include_lib("ejabberd/include/ejabberd.hrl").
+-include("eldap.hrl").
 
 -record(state, {host,
 		eldap_id,
