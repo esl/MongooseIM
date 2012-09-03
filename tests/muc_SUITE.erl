@@ -2390,7 +2390,7 @@ one2one_chat_to_muc(Config) ->
 %    end).
 %
 %stanza_reserved_nickname_request() ->
-%     lxmppc_stanza:iq(<<"get">>, [#xmlelement{
+%     escalus_stanza:iq(<<"get">>, [#xmlelement{
 %        name = <<"query">>,
 %        attrs = [{<<"xmlns">>,<<"http://jabber.org/protocol/disco#info">>}, {<<"node">>, <<"x-roomuser-item">>}],
 %        children = []
