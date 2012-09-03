@@ -1,4 +1,4 @@
-{application, test,
+{application, ejabberd_tests,
  [
   {description, ""},
   {vsn, "1"},
