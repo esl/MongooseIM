@@ -2185,7 +2185,7 @@ no_subject(Config)->
     escalus:story(Config, [1, 1], fun(_Alice,  Bob) ->
         escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Bob))),
 		escalus:wait_for_stanza(Bob),
-		#xmlelement{body = []} = exml_query:subelement(escalus:wait_for_stanza(Bob), <<"subject">>)
+		#xmlelement{children = []} = exml_query:subelement(escalus:wait_for_stanza(Bob), <<"subject">>)
     end).
 
 %Example 44, 45
@@ -2393,7 +2393,7 @@ one2one_chat_to_muc(Config) ->
 %     lxmppc_stanza:iq(<<"get">>, [#xmlelement{
 %        name = <<"query">>,
 %        attrs = [{<<"xmlns">>,<<"http://jabber.org/protocol/disco#info">>}, {<<"node">>, <<"x-roomuser-item">>}],
-%        body =[]
+%        children = []
 %     }]).
 %
 %%Example 77-78
@@ -2445,9 +2445,9 @@ exit_room_with_status(Config) ->
         escalus:wait_for_stanzas(Eve, 4),
 
 		Status = <<"Alices exit status">>,
-		StatusXml = #xmlelement{name = <<"status">>, body = [#xmlcdata{content=Status}]},
+		StatusXml = #xmlelement{name = <<"status">>, children = [#xmlcdata{content=Status}]},
 		Presence = escalus_stanza:presence(<<"unavailable">>),
-		Presence2 = Presence#xmlelement{body=[StatusXml]},
+		Presence2 = Presence#xmlelement{children=[StatusXml]},
 		Stanza = stanza_to_room(Presence2,  ?config(room, Config), escalus_utils:get_username(Alice)),
 		escalus:send(Alice, Stanza),
 		Message = escalus:wait_for_stanza(Alice),
@@ -3420,8 +3420,8 @@ is_availability_status_notification_correct(Room, SenderNick, NewStatus, Receive
     NewStatus =  exml_query:path(ReceivedMessage, [{element, <<"status">>}, cdata]),
     <<"xa">> = exml_query:path(ReceivedMessage, [{element, <<"show">>}, cdata]).
 
-is_item_list_empty(#xmlelement{body = [Query]}) ->
-    Query#xmlelement.body == [].
+is_item_list_empty(#xmlelement{children = [Query]}) ->
+    Query#xmlelement.children == [].
 
 is_message_correct(Room, SenderNick, Type, Text, ReceivedMessage) ->
     %error_logger:info_msg("tested message: ~n~p~n", [ReceivedMessage]),
@@ -3429,7 +3429,7 @@ is_message_correct(Room, SenderNick, Type, Text, ReceivedMessage) ->
     From = room_address(Room, SenderNick),
     From  = exml_query:attr(ReceivedMessage, <<"from">>),
     Type  = exml_query:attr(ReceivedMessage, <<"type">>),
-    Body = #xmlelement{name = <<"body">>, body = [#xmlcdata{content=Text}]},
+    Body = #xmlelement{name = <<"body">>, children = [#xmlcdata{content=Text}]},
     Body = exml_query:subelement(ReceivedMessage, <<"body">>).
 
 is_exit_message_correct(LeavingUser,Affiliation,Room, Message) ->
@@ -3493,7 +3493,7 @@ stanza_muc_enter_password_protected_room(Room, Nick, Password) ->
     stanza_to_room(
         escalus_stanza:presence(  <<"available">>,
                                 [#xmlelement{ name = <<"x">>, attrs=[{<<"xmlns">>, <<"http://jabber.org/protocol/muc">>}],
-                                             body=[#xmlelement{name = <<"password">>, body = [#xmlcdata{content=[Password]}]} ]}]),
+                                             children=[#xmlelement{name = <<"password">>, children = [#xmlcdata{content=[Password]}]} ]}]),
         Room, Nick).
 
 stanza_change_nick(Room, NewNick) ->
@@ -3524,14 +3524,14 @@ room_address(Room, Nick) ->
 %%--------------------------------------------------------------------
 
 stanza_message_to_room(Room, Payload) ->
-    stanza_to_room(#xmlelement{name = <<"message">>, body = Payload}, Room).
+    stanza_to_room(#xmlelement{name = <<"message">>, children = Payload}, Room).
 
 stanza_change_availability(NewStatus, Room, Nick) ->
     stanza_to_room(
         escalus_stanza:presence( <<"available">>,
                                 [
-                                #xmlelement{ name = <<"show">>, body=[ #xmlcdata{content=[<<"xa">>]}]},
-                                #xmlelement{ name = <<"status">>, body=[ #xmlcdata{content=[NewStatus]}]}
+                                #xmlelement{ name = <<"show">>, children=[ #xmlcdata{content=[<<"xa">>]}]},
+                                #xmlelement{ name = <<"status">>, children=[ #xmlcdata{content=[NewStatus]}]}
                                 ]),
         Room, Nick).
 
@@ -3540,15 +3540,15 @@ stanza_muc_enter_room_history_setting(Room, Nick, Setting, Value) ->
         escalus_stanza:presence(  <<"available">>,
                                 [#xmlelement{ name = <<"x">>, 
                     						  attrs = [{<<"xmlns">>, <<"http://jabber.org/protocol/muc">>}],
-											  body = [#xmlelement{name= <<"history">>, attrs=[{Setting, Value}]}]}]),
+											  children = [#xmlelement{name= <<"history">>, attrs=[{Setting, Value}]}]}]),
         Room, Nick).
 
 stanza_room_subject(Room, Subject) ->
     stanza_to_room(#xmlelement{name = <<"message">>,
         attrs = [{<<"type">>,<<"groupchat">>}],
-        body = [#xmlelement{
+        children = [#xmlelement{
             name = <<"subject">>,
-            body = [exml:escape_cdata(Subject)]
+            children = [exml:escape_cdata(Subject)]
         }]
     }, Room).
 
@@ -3556,20 +3556,20 @@ stanza_mediated_invitation(Room, Invited) ->
     Payload = [ #xmlelement{name = <<"invite">>,
         attrs = [{<<"to">>, escalus_utils:get_short_jid(Invited)}]} ],
     stanza_to_room(#xmlelement{name = <<"message">>,
-        body = [ #xmlelement{
+        children = [ #xmlelement{
             name = <<"x">>,
             attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
-            body = Payload }
+            children = Payload }
         ]}, Room).
 
 stanza_mediated_invitation_decline(Room,Sender) ->
     Payload = [ #xmlelement{name = <<"decline">>,
         attrs = [{<<"to">>, escalus_utils:get_short_jid(Sender)}]} ],
     stanza_to_room(#xmlelement{name = <<"message">>,
-        body = [ #xmlelement{
+        children = [ #xmlelement{
             name = <<"x">>,
             attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
-            body = Payload }
+            children = Payload }
         ]}, Room).
 
 stanza_set_roles(Room, List) ->
@@ -3579,9 +3579,9 @@ stanza_set_roles(Room, List) ->
     ({Nick, Role, Reason}) ->
         #xmlelement{name = <<"item">>,
         attrs = [{<<"nick">>, Nick}, {<<"role">>, Role}],
-        body = [#xmlelement{
+        children = [#xmlelement{
             name = <<"reason">>,
-            body = #xmlcdata{content = Reason}}
+            children = #xmlcdata{content = Reason}}
         ]}
     end, List),
     stanza_to_room(escalus_stanza:iq_set(?NS_MUC_ADMIN, Payload), Room).
@@ -3593,9 +3593,9 @@ stanza_set_affiliations(Room, List) ->
     ({JID, Affiliation, Reason}) ->
         #xmlelement{name = <<"item">>,
         attrs = [{<<"jid">>, JID}, {<<"affiliation">>, Affiliation}],
-        body = [#xmlelement{
+        children = [#xmlelement{
             name = <<"reason">>,
-            body = #xmlcdata{content = Reason}}
+            children = #xmlcdata{content = Reason}}
         ]}
     end, List),
     stanza_to_room(escalus_stanza:iq_set(?NS_MUC_ADMIN, Payload), Room).
@@ -3620,7 +3620,7 @@ stanza_ban_user(User, Room, Reason) ->
   stanza_set_affiliations(Room, [{escalus_utils:get_short_jid(User), <<"outcast">>, Reason}]).
 
 stanza_join_room(Room, Nick) ->
-    stanza_to_room(#xmlelement{name = <<"presence">>, body =
+    stanza_to_room(#xmlelement{name = <<"presence">>, children =
         #xmlelement{
             name = <<"x">>,
             attrs = [{<<"xmlns">>,<<"http://jabber.org/protocol/muc">>}]
@@ -3669,14 +3669,14 @@ stanza_form(Payload, Type) ->
     #xmlelement{
         name = <<"x">>,
         attrs = [{<<"xmlns">>,<<"jabber:x:data">>}, {<<"type">>,<<"submit">>}],
-        body = [form_field({<<"FORM_TYPE">>, Type, <<"hidden">>}) | Payload]
+        children = [form_field({<<"FORM_TYPE">>, Type, <<"hidden">>}) | Payload]
     }.
 
 form_field({Var, Value, Type}) ->
     #xmlelement{ name  = <<"field">>,
                  attrs = [{<<"type">>, Type},{<<"var">>, Var}],
-                 body  = [#xmlelement{ name = <<"value">>,
-                                       body = [#xmlcdata{content = Value}] }] }.
+                 children  = [#xmlelement{name = <<"value">>,
+                                          children = [#xmlcdata{content = Value}] }] }.
 
 stanza_instant_room(Room) ->
     X = #xmlelement{name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_DATA_FORMS},
@@ -3856,27 +3856,28 @@ has_status_codes(Stanza, CodeList) ->
 
 
 has_feature(Stanza, Feature) ->
-    Features = exml_query:path(Stanza, [{element, <<"query">>}, {elements, <<"feature">>}]),
+    Features = exml_query:paths(Stanza, [{element, <<"query">>},
+                                         {element, <<"feature">>}]),
     true = lists:any(fun(Item) ->
                         exml_query:attr(Item, <<"var">>) == Feature
                      end,
                      Features).
 
-was_destroy_presented(#xmlelement{body = [Items]} = Presence) ->
+was_destroy_presented(#xmlelement{children = [Items]} = Presence) ->
     #xmlelement{} = exml_query:subelement(Items, <<"destroy">>),
     <<"unavailable">> = exml_query:attr(Presence, <<"type">>).
 
 was_room_destroyed(Query) ->
     <<"result">> = exml_query:attr(Query, <<"type">>).
 
-was_room_created(Stanza = #xmlelement{body = [X]}) ->
+was_room_created(Stanza = #xmlelement{children = [X]}) ->
     has_status_codes(Stanza, [<<"201">>, <<"110">>]),
     <<"owner">> = exml_query:path(X, [{element, <<"item">>},
                                       {attr, <<"affiliation">>}]),
     <<"moderator">> = exml_query:path(X, [{element, <<"item">>},
                                           {attr, <<"role">>}]).
 
-has_room(JID, #xmlelement{body = [ #xmlelement{body = Rooms} ]}) ->
+has_room(JID, #xmlelement{children = [ #xmlelement{children = Rooms} ]}) ->
     %% <iq from='chat.shakespeare.lit'
     %%   id='zb8q41f4'
     %%   to='hag66@shakespeare.lit/pda'
@@ -3898,10 +3899,10 @@ has_room(JID, #xmlelement{body = [ #xmlelement{body = Rooms} ]}) ->
     end,
     true = lists:any(RoomPred, Rooms).
 
-count_rooms(#xmlelement{body = [ #xmlelement{body = Rooms} ]}, N) ->
+count_rooms(#xmlelement{children = [ #xmlelement{children = Rooms} ]}, N) ->
     N = length(Rooms).
 
-has_features(#xmlelement{body = [ Query ]}) ->
+has_features(#xmlelement{children = [ Query ]}) ->
     %%<iq from='chat.shakespeare.lit'
     %%  id='lx09df27'
     %%  to='hag66@shakespeare.lit/pda'
@@ -3917,9 +3918,9 @@ has_features(#xmlelement{body = [ Query ]}) ->
 
     Identity = exml_query:subelement(Query, <<"identity">>),
     <<"conference">> = exml_query:attr(Identity, <<"category">>),
-    #xmlelement{name = _Name, attrs = _Attrs, body = _Body} = exml_query:subelement(Query, <<"feature">>).
+    #xmlelement{name = _Name, attrs = _Attrs, children = _Body} = exml_query:subelement(Query, <<"feature">>).
 
-has_muc(#xmlelement{body = [ #xmlelement{body = Services} ]}) ->
+has_muc(#xmlelement{children = [ #xmlelement{children = Services} ]}) ->
     %% should be along the lines of (taken straight from the XEP):
     %% <iq from='shakespeare.lit'
     %%     id='h7ns81g'
