@@ -57,7 +57,7 @@ ELDAPv3.hrl
 apps/ejabberd/priv/lib/
 *.asn1db
 apps/ejabberd/src/XmppAddr.erl
-apps/ejabberd/src/XmppAddr.hrl
+apps/ejabberd/include/XmppAddr.hrl
 apps/ejabberd/src/aclocal.m4
 apps/ejabberd/src/config.log
 apps/ejabberd/src/ejabberd.init

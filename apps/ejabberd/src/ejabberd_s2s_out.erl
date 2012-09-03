@@ -355,7 +355,7 @@ wait_for_stream(closed, StateData) ->
 
 
 
-wait_for_validation({xmlstreamelement, El}, StateData) ->
+wait_for_validation({xmlelement, _, _, _} = El, StateData) ->
     case is_verify_res(El) of
 	{result, To, From, Id, Type} ->
 	    ?DEBUG("recv result: ~p", [{From, To, Id, Type}]),
@@ -445,7 +445,7 @@ wait_for_validation(closed, StateData) ->
     {stop, normal, StateData}.
 
 
-wait_for_features({xmlstreamelement, El}, StateData) ->
+wait_for_features({xmlelement, _, _, _} = El, StateData) ->
     case El of
 	{xmlelement, <<"stream:features">>, _Attrs, Els} ->
 	    {SASLEXT, StartTLS, StartTLSRequired} =
@@ -556,7 +556,7 @@ wait_for_features(closed, StateData) ->
     {stop, normal, StateData}.
 
 
-wait_for_auth_result({xmlstreamelement, El}, StateData) ->
+wait_for_auth_result({xmlelement, _, _, _} = El, StateData) ->
     case El of
 	{xmlelement, <<"success">>, Attrs, _Els} ->
 	    case xml:get_attr_s(<<"xmlns">>, Attrs) of
@@ -624,7 +624,7 @@ wait_for_auth_result(closed, StateData) ->
     {stop, normal, StateData}.
 
 
-wait_for_starttls_proceed({xmlstreamelement, El}, StateData) ->
+wait_for_starttls_proceed({xmlelement, _, _, _} = El, StateData) ->
     case El of
 	{xmlelement, <<"proceed">>, Attrs, _Els} ->
 	    case xml:get_attr_s(<<"xmlns">>, Attrs) of
@@ -687,7 +687,7 @@ wait_for_starttls_proceed(closed, StateData) ->
     {stop, normal, StateData}.
 
 
-reopen_socket({xmlstreamelement, _El}, StateData) ->
+reopen_socket({xmlelement, _, _, _}, StateData) ->
     {next_state, reopen_socket, StateData, ?FSMTIMEOUT};
 reopen_socket({xmlstreamend, _Name}, StateData) ->
     {next_state, reopen_socket, StateData, ?FSMTIMEOUT};
@@ -713,7 +713,7 @@ relay_to_bridge(closed, StateData) ->
 relay_to_bridge(_Event, StateData) ->
     {next_state, relay_to_bridge, StateData}.
 
-stream_established({xmlstreamelement, El}, StateData) ->
+stream_established({xmlelement, _, _, _} = El, StateData) ->
     ?DEBUG("s2S stream established", []),
     case is_verify_res(El) of
 	{verify, VTo, VFrom, VId, VType} ->
