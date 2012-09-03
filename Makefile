@@ -18,11 +18,8 @@ deps: rebar generate_snmp_header
 clean: rebar
 	./rebar clean
 
-test: test/Makefile
-	cd test; make
-
-test/Makefile:
-	git submodule update --init --recursive
+test: test_deps
+	cd test/ejabberd_tests; make
 
 show_test_results:
 	$$BROWSER `ls -td test/ct_report/ct_run.test@*/index.html | head -n 1` & disown
@@ -78,6 +75,9 @@ dialyzer: compile
 
 cleanplt:
 	rm $(COMBO_PLT)
+
+test_deps: rebar
+	./rebar -C rebar.tests.config get-deps
 
 rebar:
 	wget -q http://cloud.github.com/downloads/basho/rebar/rebar
