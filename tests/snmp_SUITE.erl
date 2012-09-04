@@ -94,6 +94,7 @@ end_per_testcase(modPrivacyListLength, Config) ->
     end_per_testcase(fallthrough, Config);
 end_per_testcase(CaseName, Config) ->
     escalus_ejabberd:rpc(ejabberd_snmp_core, reset_counters, []),
+    escalus_ejabberd:rpc(odbc_queries, clear_privacy_lists, [<<"localhost">>]),
     escalus:end_per_testcase(CaseName, Config).
 
 %%--------------------------------------------------------------------
@@ -163,9 +164,7 @@ modPrivacySetsDefault(Config) ->
         privacy_helper:set_list(Alice, <<"deny_bob">>),
         [{Counter, 0}] = ?RPC_LOOKUP(Table, Counter),
         privacy_helper:set_default_list(Alice, <<"deny_bob">>),
-        [{Counter, 1}] = ?RPC_LOOKUP(Table, Counter),
-        privacy_helper:set_list(Alice, <<"allow_bob">>),
-        privacy_helper:set_default_list(Alice, <<"allow_bob">>)
+        [{Counter, 1}] = ?RPC_LOOKUP(Table, Counter)
 
         end).
 
