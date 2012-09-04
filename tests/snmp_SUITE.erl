@@ -163,7 +163,9 @@ modPrivacySetsDefault(Config) ->
         privacy_helper:set_list(Alice, <<"deny_bob">>),
         [{Counter, 0}] = ?RPC_LOOKUP(Table, Counter),
         privacy_helper:set_default_list(Alice, <<"deny_bob">>),
-        [{Counter, 1}] = ?RPC_LOOKUP(Table, Counter)
+        [{Counter, 1}] = ?RPC_LOOKUP(Table, Counter),
+        privacy_helper:set_list(Alice, <<"allow_bob">>),
+        privacy_helper:set_default_list(Alice, <<"allow_bob">>)
 
         end).
 
@@ -224,7 +226,7 @@ modPrivacyListLength(Config) ->
 
         Table = stats_mod_privacy,
         Counter = modPrivacyListLength,
-
+        
         [{Counter, 0}] = ?RPC_LOOKUP(Table, Counter),
         privacy_helper:set_list(Alice, <<"deny_bob">>),
         privacy_helper:set_list(Alice, <<"deny_3_items">>),
