@@ -76,7 +76,9 @@ get_num(_Config) ->
     [{value, 1}] = get_table_value([1], [2], routerRegisteredPathsTable).
 
 get_noexist(_Config) ->
-    [{noValue, noSuchInstance}] = get_table_value([3], [1], routerRegisteredPathsTable),
+    Paths = escalus_ejabberd:rpc(ets, tab2list, [route]),
+    N = length(Paths)+1,
+    [{noValue, noSuchInstance}] = get_table_value([N], [1], routerRegisteredPathsTable),
     [{noValue, noSuchInstance}] = get_table_value([0], [1], routerRegisteredPathsTable).
 
 get_next(_Config) ->
@@ -90,5 +92,5 @@ get_next(_Config) ->
 collect_nexts(X, Y, Acc) ->
     case get_next_table_value([X], [Y], routerRegisteredPathsTable) of
         [{_, 1}] -> Acc;
-        [{[X1, Y1], Host}] -> collect_nexts(X1, Y1, [Host | Acc])
+        [{[Y1, X1], Host}] -> collect_nexts(X1, Y1, [Host | Acc])
     end.
