@@ -30,23 +30,30 @@
 
 all() ->
     [{group, roster},
-     {group, subscriptions}].
+     {group, roster_odbc},
+     {group, subscriptions},
+     {group, subscriptions_odbc}
+    ].
 
 groups() ->
-    [{roster, [sequence], [get_roster,
-                           add_contact,
-                           roster_push,
-                           average_roster_size,
-                           average_roster_groups
-                          ]},
-     {subscriptions, [sequence], [subscribe,
-                                  unsubscribe,
-                                  decline_subscription
-                                 ]}].
+    [{roster, [sequence], roster_tests()},
+     {roster_odbc, [sequence], roster_tests()},
+     {subscriptions, [sequence], subscription_tests()},
+     {subscriptions_odbc, [sequence], subscription_tests()}
+    ].
 
 suite() ->
     [{required, ejabberd_node} | escalus:suite()].
 
+roster_tests() -> [get_roster,
+                   add_contact,
+                   roster_push,
+                   average_roster_size,
+                   average_roster_groups].
+
+subscription_tests() -> [subscribe,
+                         unsubscribe,
+                         decline_subscription].
 %%--------------------------------------------------------------------
 %% Init & teardown
 %%--------------------------------------------------------------------
@@ -56,6 +63,22 @@ init_per_suite(Config) ->
 
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
+
+init_per_group(roster, Config) ->
+    restart_mod_roster(""),
+    escalus:create_users(Config);
+
+init_per_group(roster_odbc, Config) ->
+    restart_mod_roster("_odbc"),
+    escalus:create_users(Config);
+
+init_per_group(subscriptions, Config) ->
+    restart_mod_roster(""),
+    escalus:create_users(Config);
+
+init_per_group(subscriptions_odbc, Config) ->
+    restart_mod_roster("_odbc"),
+    escalus:create_users(Config);
 
 init_per_group(_GroupName, Config) ->
     escalus:create_users(Config).
@@ -107,6 +130,7 @@ init_realtime_counter_testcase(CaseName, Config) ->
 end_realtime_counter_testcase(CaseName, Config) ->
     escalus_ejabberd:rpc(gen_server, call,
         [ejabberd_snmp_rt, {change_interval_rt, 60}]),
+    escalus_ejabberd:rpc(odbc_queries, clear_rosters, [<<"localhost">>]),
     escalus:end_per_testcase(CaseName, Config).
 
 
@@ -294,7 +318,6 @@ average_roster_size(Config) ->
             [Alice, Bob]),
 
         timer:sleep(1500),
-
         %% average roster size is now (3 + 3 + 2 + 2) / 4 = 10 / 4 ~= 3
         assert_counter(3, modRosterSize)
 
@@ -310,7 +333,6 @@ average_roster_groups(Config) ->
         add_sample_contact(Bob, Mike, [<<"my pals">>], <<"Mike">>),
 
         timer:sleep(1500),
-
         %% 2 rosters, 4 groups -> average groups per roster = 2
         assert_counter(2, modRosterGroups)
 
@@ -333,4 +355,10 @@ add_sample_contact(Alice, Bob, Groups, Name) ->
 
 remove_roster(Config, UserSpec) ->
     [Username, Server, _Pass] = escalus_users:get_usp(Config, UserSpec),
+    rpc:call(ejabberd@localhost, mod_roster_odbc, remove_user, [Username, Server]),
     rpc:call(ejabberd@localhost, mod_roster, remove_user, [Username, Server]).
+
+restart_mod_roster(Suffix) ->
+    Domain = ct:get_config(ejabberd_domain),
+    Mod = list_to_atom("mod_roster"++Suffix),
+    dynamic_modules:restart(Domain, Mod, []).

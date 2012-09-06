@@ -225,7 +225,7 @@ modPrivacyListLength(Config) ->
 
         Table = stats_mod_privacy,
         Counter = modPrivacyListLength,
-        
+
         [{Counter, 0}] = ?RPC_LOOKUP(Table, Counter),
         privacy_helper:set_list(Alice, <<"deny_bob">>),
         privacy_helper:set_list(Alice, <<"deny_3_items">>),
