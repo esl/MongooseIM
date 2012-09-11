@@ -69,18 +69,28 @@ end_per_testcase(CaseName, Config) ->
 %% Router tests
 %%--------------------------------------------------------------------
 
-get_to(Config) ->
+get_to(_Config) ->
     [{value, "localhost"}] = get_table_value([1], [1], routerRegisteredPathsTable).
 
-get_num(Config) ->
+get_num(_Config) ->
     [{value, 1}] = get_table_value([1], [2], routerRegisteredPathsTable).
 
-get_noexist(Config) ->
-    [{noValue, noSuchInstance}] = get_table_value([3], [1], routerRegisteredPathsTable),
+get_noexist(_Config) ->
+    Paths = escalus_ejabberd:rpc(ets, tab2list, [route]),
+    N = length(Paths)+1,
+    [{noValue, noSuchInstance}] = get_table_value([N], [1], routerRegisteredPathsTable),
     [{noValue, noSuchInstance}] = get_table_value([0], [1], routerRegisteredPathsTable).
 
-get_next(Config) ->
-    [{_, "localhost"}] = get_next_table_value([], [0], routerRegisteredPathsTable),
-    [{_, 1}] = get_next_table_value([1], [1], routerRegisteredPathsTable).
-    
+get_next(_Config) ->
+    Paths = escalus_ejabberd:rpc(ets, tab2list, [route]),
+    Paths2 = lists:map(fun({route, Host, _}) ->
+        binary_to_list(Host)
+    end, Paths),
+    Paths3 = collect_nexts(0, 0, []),
+    [] = Paths2 -- Paths3.
 
+collect_nexts(X, Y, Acc) ->
+    case get_next_table_value([X], [Y], routerRegisteredPathsTable) of
+        [{_, 1}] -> Acc;
+        [{[Y1, X1], Host}] -> collect_nexts(X1, Y1, [Host | Acc])
+    end.

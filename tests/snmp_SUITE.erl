@@ -94,6 +94,7 @@ end_per_testcase(modPrivacyListLength, Config) ->
     end_per_testcase(fallthrough, Config);
 end_per_testcase(CaseName, Config) ->
     escalus_ejabberd:rpc(ejabberd_snmp_core, reset_counters, []),
+    escalus_ejabberd:rpc(odbc_queries, clear_privacy_lists, [<<"localhost">>]),
     escalus:end_per_testcase(CaseName, Config).
 
 %%--------------------------------------------------------------------
