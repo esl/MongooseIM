@@ -24,6 +24,7 @@ ct() ->
             ok
     end,
     init:stop(0).
+
 ct_cover() ->
     run_ct_covers(get_tested_nodes()),
     init:stop(0).
@@ -53,6 +54,7 @@ run_ct_cover(Node) ->
 
 run_ct_cover1() ->
     run_ct_cover1(none).
+
 run_ct_cover1(Node) ->
     prepare(),
     ct:run_test(tests_to_run(Node)),
