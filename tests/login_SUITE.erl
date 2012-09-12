@@ -69,8 +69,15 @@ end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config).
 
 init_per_testcase(log_one_digest, Config) ->
-    Conf1 = [ {escalus_auth_method, <<"DIGEST-MD5">>} | Config],
-    escalus:init_per_testcase(log_one_digest, Conf1);
+    XMPPDomain = ct:get_config(ejabberd_domain),
+    case escalus_ejabberd:rpc(ejabberd_config, get_local_option,
+                              [{auth_method, XMPPDomain}]) of
+        external ->
+            {skip, "external authentication requires plain password"};
+        _ ->
+            Conf1 = [ {escalus_auth_method, <<"DIGEST-MD5">>} | Config],
+            escalus:init_per_testcase(log_one_digest, Conf1)
+    end;
 init_per_testcase(log_one_basic_digest, Config) ->
     Conf1 = [ {escalus_auth_method, digest} | Config],
     escalus:init_per_testcase(log_one_digest, Conf1);
