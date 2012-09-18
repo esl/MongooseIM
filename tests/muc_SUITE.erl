@@ -487,6 +487,7 @@ end_per_testcase(CaseName = config_denial, Config) ->
     timer:sleep(3000);
 
 end_per_testcase(CaseName = destroy_unauthorized, Config) ->
+    destroy_room(Config),
     escalus:end_per_testcase(CaseName, Config),
     timer:sleep(3000);
 
