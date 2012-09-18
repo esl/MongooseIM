@@ -2545,13 +2545,11 @@ cant_enter_locked_room(Config) ->
         escalus:send(Alice, stanza_muc_enter_room(<<"room1">>,
                                                   <<"alice-the-owner">>)),
 		Presence = escalus:wait_for_stanza(Alice),
-		print(Presence),
         was_room_created(Presence),
 
         %% Bob should not be able to join the room
         escalus:send(Bob, stanza_enter_room(<<"room1">>, <<"just-bob">>)),
         R = escalus:wait_for_stanza(Bob),
-        error_logger:info_msg("R:~n~p~n", [R]),
         %% sometime the predicate itself should be moved to escalus
         escalus:assert(fun ?MODULE:is_room_locked/1, R)
     end).
@@ -2569,10 +2567,8 @@ create_instant_room(Config) ->
 
         R = escalus_stanza:setattr(stanza_instant_room(<<"room1@muc.localhost">>),
                                    <<"from">>, escalus_utils:get_jid(Alice)),
-        print(R),
         escalus:send(Alice, R),
         IQ = escalus:wait_for_stanza(Alice),
-        print(IQ),
         escalus:assert(is_iq_result, IQ),
 
         %% Bob should be able to join the room
@@ -2600,12 +2596,8 @@ destroy_locked_room(Config) ->
         escalus:wait_for_stanza(Alice),
 
         DestroyRoom1 = stanza_destroy_room(<<"room1">>),
-        	print(DestroyRoom1),
         escalus:send(Alice, DestroyRoom1),
         [Presence, Iq] = escalus:wait_for_stanzas(Alice, 2),
-                print("==============================="),
-                print(Iq),
-                print(Presence),
         was_room_destroyed(Iq),
         was_destroy_presented(Presence)
     end).
