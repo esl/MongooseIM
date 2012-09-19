@@ -63,6 +63,17 @@ init_per_testcase(unregister, Config) ->
     Alice = escalus_users:get_user_by_name(alice),
     escalus_users:create_user(Config, Alice),
     Config;
+init_per_testcase(registered_users, Config) ->
+    XMPPDomain = ct:get_config(ejabberd_domain),
+    case escalus_ejabberd:rpc(ejabberd_config, get_local_option,
+                              [{auth_method, XMPPDomain}]) of
+        external ->
+            {skip, "counter not supported with ejabberd_auth_external"};
+        anonymous ->
+            {skip, "counter not supported with anonymous authentication"};
+        _ ->
+            Config
+    end;
 init_per_testcase(_CaseName, Config) ->
     Config.
 
