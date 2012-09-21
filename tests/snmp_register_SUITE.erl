@@ -45,7 +45,6 @@ suite() ->
 %% Init & teardown
 %%--------------------------------------------------------------------
 
-
 init_per_suite(Config) ->
     NewConfig = escalus:init_per_suite(Config),
     escalus_ejabberd:rpc(ejabberd_snmp_core, reset_counters, []),
