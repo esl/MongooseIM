@@ -21,7 +21,7 @@
 -include_lib("common_test/include/ct.hrl").
 
 -define(WAIT_TIME, 500).
--define(RT_WAIT_TIME, 70000).
+-define(RT_WAIT_TIME, 60000).
 
 -import(snmp_helper, [assert_counter/2,
                       get_counter_value/1]).
@@ -34,10 +34,9 @@ all() ->
     [{group, registration}].
 
 groups() ->
-    [{registration, [sequence], [registered_users,
-                                 register,
-                                 unregister
-                                 ]}].
+    [{registration, [sequence], [register,
+                                 unregister,
+                                 registered_users]}].
 
 suite() ->
     [{require, ejabberd_node} | escalus:suite()].
