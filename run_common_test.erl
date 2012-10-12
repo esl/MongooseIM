@@ -3,13 +3,15 @@
 
 -define(CT_DIR, filename:join([".", "tests"])).
 -define(CT_REPORT, filename:join([".", "ct_report"])).
--define(CT_CONFIG, "test.config").
 
-tests_to_run() -> [
-                   {config, [?CT_CONFIG]},
-                   {dir, ?CT_DIR},
-                   {logdir, ?CT_REPORT}
-                  ].
+ct_config_file() ->
+    {ok, CWD} = file:get_cwd(),
+    filename:join([CWD, "test.config"]).
+
+tests_to_run() ->
+    [{config, ct_config_file()},
+     {dir, ?CT_DIR},
+     {logdir, ?CT_REPORT}].
 tests_to_run(none) ->
     tests_to_run();
 tests_to_run(Node) ->
@@ -124,12 +126,12 @@ cover_call(Function, Args) ->
     rpc:call(get_ejabberd_node(), cover, Function, Args).
 
 get_ejabberd_node() ->
-    {ok, Props} = file:consult(?CT_CONFIG),
+    {ok, Props} = file:consult(ct_config_file()),
     {ejabberd_node, Node} = proplists:lookup(ejabberd_node, Props),
     Node.
 
 get_tested_nodes() ->
-    {ok, Props} = file:consult(?CT_CONFIG),
+    {ok, Props} = file:consult(ct_config_file()),
     case proplists:lookup(ejabberd_nodes, Props) of
         none -> [];
         {ejabberd_nodes, Nodes} -> Nodes
