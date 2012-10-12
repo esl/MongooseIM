@@ -178,15 +178,15 @@ remove_contact(Config) ->
 
 
 subscribe(Config) ->
-    escalus:story(Config, [1, 1], fun(Alice,Bob) ->
+    escalus:story(Config, [1, 1], fun(Alice, Bob) ->
 
-        %% add contact
+        %% Alice adds Bob as a contact
         add_sample_contact(Alice, Bob),
 
-        %% subscribe
+        %% She subscribes to his presences
         escalus:send(Alice, escalus_stanza:presence_direct(bob, <<"subscribe">>)),
         PushReq = escalus:wait_for_stanza(Alice),
-        escalus_assert:is_roster_set(PushReq),
+        escalus:assert(is_roster_set, PushReq),
         escalus:send(Alice, escalus_stanza:iq_result(PushReq)),
 
         %% Bob receives subscription reqest
@@ -198,7 +198,7 @@ subscribe(Config) ->
                                                             [<<"enemies">>],
                                                              <<"Alice">>)),
         PushReqB = escalus:wait_for_stanza(Bob),
-        escalus_assert:is_roster_set(PushReqB),
+        escalus:assert(is_roster_set, PushReqB),
         escalus:send(Bob, escalus_stanza:iq_result(PushReqB)),
         escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
 
@@ -213,7 +213,7 @@ subscribe(Config) ->
 
         %% Bob receives roster push
         PushReqB1 = escalus:wait_for_stanza(Bob),
-        escalus_assert:is_roster_set(PushReqB1),
+        escalus:assert(is_roster_set, PushReqB1),
 
         %% Bob sends presence
         escalus:send(Bob, escalus_stanza:presence(<<"available">>)),
