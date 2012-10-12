@@ -1,5 +1,6 @@
 *.beam
-/ct_report/
-.DS_Store
-cover_summary.txt
-tags
+/ct_report
+/rebar
+/ebin
+/deps
+/cover_summary.txt
