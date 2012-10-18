@@ -906,11 +906,12 @@ handle_iq_vcard2(_FromFull, ToJID, _ToBareJID, _StanzaId, NewId, _IQ, Packet) ->
     {ToJID, change_stanzaid(NewId, Packet)}.
 
 stanzaid_pack(OriginalId, Resource) ->
-    <<"berd">>++base64:encode_to_string(<<"ejab\0">> ++ OriginalId ++ <<"\0">> ++ Resource).
+    list_to_binary([<<"berd">>, base64:encode_to_string(
+                "ejab\0" ++ binary_to_list(OriginalId) ++ "\0" ++ binary_to_list(Resource))]).
 stanzaid_unpack(<<"berd", StanzaIdBase64/binary>>) ->
     StanzaId = base64:decode_to_string(StanzaIdBase64),
-    [<<"ejab">>, OriginalId, Resource] = string:tokens(StanzaId, <<"\0">>),
-    {OriginalId, Resource}.
+    ["ejab", OriginalId, Resource] = string:tokens(StanzaId, "\0"),
+    {list_to_binary(OriginalId), list_to_binary(Resource)}.
 
 change_stanzaid(NewId, Packet) ->
     {xmlelement, Name, Attrs, Els} = jlib:remove_attr(<<"id">>, Packet),
@@ -921,7 +922,7 @@ change_stanzaid(PreviousId, ToJID, Packet) ->
 %%%
 %%%
 
-role_to_list(Role) ->
+role_to_binary(Role) ->
     case Role of
     moderator ->   <<"moderator">>;
     participant -> <<"participant">>;
@@ -929,7 +930,7 @@ role_to_list(Role) ->
     none ->        <<"none">>
     end.
 
-affiliation_to_list(Affiliation) ->
+affiliation_to_binary(Affiliation) ->
     case Affiliation of
     owner ->   <<"owner">>;
     admin ->   <<"admin">>;
@@ -1701,8 +1702,8 @@ send_new_presence(NJID, Reason, StateData) ->
            last_presence = Presence}} =
     ?DICT:find(jlib:jid_tolower(NJID), StateData#state.users),
     Affiliation = get_affiliation(NJID, StateData),
-    SAffiliation = affiliation_to_list(Affiliation),
-    SRole = role_to_list(Role),
+    SAffiliation = affiliation_to_binary(Affiliation),
+    SRole = role_to_binary(Role),
     lists:foreach(
       fun({_LJID, Info}) ->
           ItemAttrs =
@@ -1788,12 +1789,12 @@ send_existing_presences(ToJID, StateData) ->
                   true ->
                   [{<<"jid">>, jlib:jid_to_binary(FromJID)},
                    {<<"affiliation">>,
-                    affiliation_to_list(FromAffiliation)},
-                   {<<"role">>, role_to_list(FromRole)}];
+                    affiliation_to_binary(FromAffiliation)},
+                   {<<"role">>, role_to_binary(FromRole)}];
                   _ ->
                   [{<<"affiliation">>,
-                    affiliation_to_list(FromAffiliation)},
-                   {<<"role">>, role_to_list(FromRole)}]
+                    affiliation_to_binary(FromAffiliation)},
+                   {<<"role">>, role_to_binary(FromRole)}]
               end,
               Packet = xml:append_subtags(
                  Presence,
@@ -1861,8 +1862,8 @@ send_nick_changing(JID, OldNick, StateData) ->
            last_presence = Presence}} =
     ?DICT:find(jlib:jid_tolower(JID), StateData#state.users),
     Affiliation = get_affiliation(JID, StateData),
-    SAffiliation = affiliation_to_list(Affiliation),
-    SRole = role_to_list(Role),
+    SAffiliation = affiliation_to_binary(Affiliation),
+    SRole = role_to_binary(Role),
     lists:foreach(
       fun({_LJID, Info}) ->
           ItemAttrs1 =
@@ -2087,12 +2088,12 @@ items_with_affiliation(SAffiliation, StateData) ->
     lists:map(
       fun({JID, {Affiliation, Reason}}) ->
           {xmlelement, <<"item">>,
-           [{<<"affiliation">>, affiliation_to_list(Affiliation)},
+           [{<<"affiliation">>, affiliation_to_binary(Affiliation)},
         {<<"jid">>, jlib:jid_to_binary(JID)}],
            [{xmlelement, <<"reason">>, [], [{xmlcdata, Reason}]}]};
      ({JID, Affiliation}) ->
           {xmlelement, <<"item">>,
-           [{<<"affiliation">>, affiliation_to_list(Affiliation)},
+           [{<<"affiliation">>, affiliation_to_binary(Affiliation)},
         {<<"jid">>, jlib:jid_to_binary(JID)}],
            []}
       end, search_affiliation(SAffiliation, StateData)).
@@ -2103,8 +2104,8 @@ user_to_item(#user{role = Role,
           }, StateData) ->
     Affiliation = get_affiliation(JID, StateData),
     {xmlelement, <<"item">>,
-     [{<<"role">>, role_to_list(Role)},
-      {<<"affiliation">>, affiliation_to_list(Affiliation)},
+     [{<<"role">>, role_to_binary(Role)},
+      {<<"affiliation">>, affiliation_to_binary(Affiliation)},
       {<<"nick">>, Nick},
       {<<"jid">>, jlib:jid_to_binary(JID)}],
      []}.
@@ -2568,7 +2569,7 @@ send_kickban_presence1(UJID, Reason, Code, Affiliation, StateData) ->
     {ok, #user{jid = RealJID,
            nick = Nick}} =
     ?DICT:find(jlib:jid_tolower(UJID), StateData#state.users),
-    SAffiliation = affiliation_to_list(Affiliation),
+    SAffiliation = affiliation_to_binary(Affiliation),
     BannedJIDString = jlib:jid_to_binary(RealJID),
     lists:foreach(
       fun({_LJID, Info}) ->
@@ -2712,7 +2713,7 @@ is_allowed_room_name_desc_limits(XEl, StateData) ->
     case lists:keysearch(<<"muc#roomconfig_roomname">>, 1,
                  jlib:parse_xdata_submit(XEl)) of
         {value, {_, [N]}} ->
-        length(N) =< gen_mod:get_module_opt(StateData#state.server_host,
+        size(N) =< gen_mod:get_module_opt(StateData#state.server_host,
                             mod_muc, max_room_name,
                             infinite);
         _ ->
@@ -2722,7 +2723,7 @@ is_allowed_room_name_desc_limits(XEl, StateData) ->
     case lists:keysearch(<<"muc#roomconfig_roomdesc">>, 1,
                  jlib:parse_xdata_submit(XEl)) of
         {value, {_, [D]}} ->
-        length(D) =< gen_mod:get_module_opt(StateData#state.server_host,
+        size(D) =< gen_mod:get_module_opt(StateData#state.server_host,
                             mod_muc, max_room_desc,
                             infinite);
         _ ->
@@ -2951,12 +2952,11 @@ set_config(XEl, StateData) ->
     end).
 
 -define(SET_NAT_XOPT(Opt, Val),
-    case catch list_to_integer(Val) of
-        I when is_integer(I),
-               I > 0 ->
-        set_xoption(Opts, Config#config{Opt = I});
+    case catch list_to_integer(binary_to_list(Val)) of
+        I when I > 0 ->
+            set_xoption(Opts, Config#config{Opt = I});
         _ ->
-        {error, ?ERR_BAD_REQUEST}
+            {error, ?ERR_BAD_REQUEST}
     end).
 
 -define(SET_STRING_XOPT(Opt, Val),
