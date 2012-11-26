@@ -11,7 +11,6 @@ ct_config_file() ->
 tests_to_run() ->
     [{config, ct_config_file()},
      {dir, ?CT_DIR},
-     {suite, websockets_SUITE},
      {logdir, ?CT_REPORT}].
 tests_to_run(none) ->
     tests_to_run();
