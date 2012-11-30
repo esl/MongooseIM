@@ -11,7 +11,27 @@ ct_config_file() ->
 tests_to_run() ->
     [{config, ct_config_file()},
      {dir, ?CT_DIR},
-     {logdir, ?CT_REPORT}].
+     {logdir, ?CT_REPORT},
+
+     {suite, [adhoc_SUITE,
+              anonymous_SUITE,
+              last_SUITE,
+              login_SUITE,
+              muc_SUITE,
+              offline_SUITE,
+              presence_SUITE,
+              privacy_SUITE,
+              private_SUITE,
+              s2s_SUITE,
+              sic_SUITE,
+              %snmp_SUITE,
+              %snmp_c2s_SUITE,
+              %snmp_register_SUITE,
+              %snmp_roster_SUITE,
+              %snmp_session_SUITE,
+              %snmp_table_SUITE,
+              websockets_SUITE]}
+    ].
 
 tests_to_run(none) ->
     tests_to_run();
