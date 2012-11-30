@@ -12,6 +12,7 @@ tests_to_run() ->
     [{config, ct_config_file()},
      {dir, ?CT_DIR},
      {logdir, ?CT_REPORT}].
+
 tests_to_run(none) ->
     tests_to_run();
 tests_to_run(Node) ->
@@ -122,6 +123,7 @@ analyze(Node) ->
 
 cover_call(Function) ->
     cover_call(Function, []).
+
 cover_call(Function, Args) ->
     rpc:call(get_ejabberd_node(), cover, Function, Args).
 
@@ -154,7 +156,8 @@ row(Row, C, NC, Percent, Path) ->
 
 get_node_str({Node, _, _}) ->
     get_node_str(Node);
-get_node_str(Node) -> atom_to_list(Node).
+get_node_str(Node) ->
+    atom_to_list(Node).
 
 run_ejabberd({_Node, StartCmd, _}) ->
     do_start_cmd(StartCmd);
