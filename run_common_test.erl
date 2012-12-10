@@ -8,8 +8,14 @@ ct_config_file() ->
     {ok, CWD} = file:get_cwd(),
     filename:join([CWD, "test.config"]).
 
+ct_vcard_config_file() ->
+    {ok, CWD} = file:get_cwd(),
+    filename:join([CWD, "vcard.config"]).
+
+
 tests_to_run() ->
     [{config, ct_config_file()},
+     {config, ct_vcard_config_file()},
      {dir, ?CT_DIR},
      {logdir, ?CT_REPORT},
 
@@ -30,6 +36,7 @@ tests_to_run() ->
               %snmp_roster_SUITE,
               %snmp_session_SUITE,
               %snmp_table_SUITE,
+              vcard_SUITE,
               websockets_SUITE]}
     ].
 
