@@ -59,7 +59,7 @@ start(_Host, Opts) ->
     NumAcceptors = gen_mod:get_opt(num_acceptors, Opts, 100),
     Port = gen_mod:get_opt(port, Opts, ?DEFAULT_PORT),
     TransportOpts = [{port, Port}],
-    ProtocolOpts = [{dispatch, FullDispatch}],
+    ProtocolOpts = [{env, [{dispatch, FullDispatch}]}],
     cowboy:start_http(?LISTENER, NumAcceptors,
                       TransportOpts, ProtocolOpts).
 
