@@ -29,11 +29,10 @@ all() ->
      {group, chat}].
 
 groups() ->
-    [{essential, [], [create_session,
-                      terminate_session,
-                      interleave_requests]},
-     {chat, [], [interactive,
-                 chat_msg]}].
+    [{essential, [], [create_and_terminate_session]},
+     {chat, [], [interleave_requests %,
+                 %simple_chat
+                ]}].
 
 suite() ->
     escalus:suite().
@@ -73,33 +72,39 @@ end_per_testcase(CaseName, Config) ->
 %% Tests
 %%--------------------------------------------------------------------
 
-create_session(Config) ->
+create_and_terminate_session(Config) ->
     NamedSpecs = escalus_config:get_config(escalus_users, Config),
     CarolSpec = proplists:get_value(carol, NamedSpecs),
+
     {ok, Conn} = escalus_bosh:connect(CarolSpec),
+
+    %% Assert there are no BOSH sessions on the server.
+    0 = length(get_bosh_sessions()),
+
     Rid = 155555,
     Domain = escalus_config:get_config(ejabberd_domain, Config),
+
     Body = escalus_bosh:session_creation_body(Rid, Domain),
     ok = escalus_bosh:send_raw(Conn, Body),
-    timer:sleep(5000).
-    %Stanza = escalus_connection:get_stanza(Conn, session_creation_response).
-    %verify_session_exists().
 
-terminate_session(_Config) ->
-    throw(fail).
+    escalus_connection:get_stanza(Conn, session_creation_response),
 
-interleave_requests(_Config) ->
-    throw(fail).
+    %% Assert that a BOSH session was created.
+    1 = length(get_bosh_sessions()),
 
-interactive(Config) ->
-    escalus:story(Config, [{carol, 1}], fun(Carol) ->
+    Sid = get_bosh_sid(Conn),
+    Terminate = escalus_bosh:session_termination_body(Rid + 1, Sid),
+    ok = escalus_bosh:send_raw(Conn, Terminate),
+    timer:sleep(100),
 
-        escalus_client:send(Carol, escalus_stanza:chat_to(<<"asd@localhost/esl1">>, <<"Hi1!">>)),
-        escalus_client:send(Carol, escalus_stanza:chat_to(<<"asd@localhost/esl1">>, <<"Hi2!">>))
+    %% Assert the session was terminated.
+    0 = length(get_bosh_sessions()).
 
-    end).
+interleave_requests(Config) ->
+    Carol = start_client(Config, carol, <<"bosh">>),
+    error_logger:info_msg("~p~n", [Carol]).
 
-chat_msg(Config) ->
+simple_chat(Config) ->
     escalus:story(Config, [{carol, 1}, {geralt, 1}], fun(Carol, Geralt) ->
 
         escalus_client:send(Carol, escalus_stanza:chat_to(Geralt, <<"Hi!">>)),
@@ -114,3 +119,20 @@ chat_msg(Config) ->
 %% Helpers
 %%--------------------------------------------------------------------
 
+get_bosh_sessions() ->
+    %% TODO: override for other backends
+    escalus_ejabberd:rpc(ets, tab2list, [bosh_session]).
+
+get_bosh_sid(#transport{} = Transport) ->
+    escalus_bosh:get_sid(Transport);
+get_bosh_sid(#client{conn = Conn}) ->
+    get_bosh_sid(Conn).
+
+get_bosh_rid(Client) ->
+    escalus_bosh:get_rid(Client#client.conn).
+
+start_client(Config, User, Res) ->
+    NamedSpecs = escalus_config:get_config(escalus_users, Config),
+    UserSpec = proplists:get_value(User, NamedSpecs),
+    {ok, Client} = escalus_client:start(Config, UserSpec, Res),
+    Client.
