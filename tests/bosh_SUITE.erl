@@ -19,6 +19,7 @@
 
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
+-include_lib("exml/include/exml.hrl").
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -101,8 +102,30 @@ create_and_terminate_session(Config) ->
     0 = length(get_bosh_sessions()).
 
 interleave_requests(Config) ->
-    Carol = start_client(Config, carol, <<"bosh">>),
-    error_logger:info_msg("~p~n", [Carol]).
+    escalus:story(Config, [{geralt, 1}], fun(Geralt) ->
+
+        Carol = start_client(Config, carol, <<"bosh">>),
+        error_logger:info_msg("~p~n", [Carol]),
+
+        Rid = get_bosh_rid(Carol),
+        Sid = get_bosh_sid(Carol),
+
+        Empty2 = escalus_bosh:empty_body(Rid + 1, Sid),
+        Chat2 = Empty2#xmlelement{
+                children = [escalus_stanza:chat_to(Geralt, <<"2nd!">>)]},
+        escalus_client:send(Carol, Chat2),
+
+        Empty1 = escalus_bosh:empty_body(Rid, Sid),
+        Chat1 = Empty1#xmlelement{
+                children = [escalus_stanza:chat_to(Geralt, <<"1st!">>)]},
+        escalus_client:send(Carol, Chat1),
+
+        escalus:assert(is_chat_message, [<<"1st!">>],
+                       escalus_client:wait_for_stanza(Geralt)),
+        escalus:assert(is_chat_message, [<<"2nd!">>],
+                       escalus_client:wait_for_stanza(Geralt))
+
+    end).
 
 simple_chat(Config) ->
     escalus:story(Config, [{carol, 1}, {geralt, 1}], fun(Carol, Geralt) ->
