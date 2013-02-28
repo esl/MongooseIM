@@ -82,10 +82,8 @@ create_and_terminate_session(Config) ->
     %% Assert there are no BOSH sessions on the server.
     0 = length(get_bosh_sessions()),
 
-    Rid = 155555,
     Domain = escalus_config:get_config(ejabberd_domain, Config),
-
-    Body = escalus_bosh:session_creation_body(Rid, Domain),
+    Body = escalus_bosh:session_creation_body(get_bosh_rid(Conn), Domain),
     ok = escalus_bosh:send_raw(Conn, Body),
 
     escalus_connection:get_stanza(Conn, session_creation_response),
@@ -94,7 +92,7 @@ create_and_terminate_session(Config) ->
     1 = length(get_bosh_sessions()),
 
     Sid = get_bosh_sid(Conn),
-    Terminate = escalus_bosh:session_termination_body(Rid + 1, Sid),
+    Terminate = escalus_bosh:session_termination_body(get_bosh_rid(Conn), Sid),
     ok = escalus_bosh:send_raw(Conn, Terminate),
     timer:sleep(100),
 
@@ -151,8 +149,10 @@ get_bosh_sid(#transport{} = Transport) ->
 get_bosh_sid(#client{conn = Conn}) ->
     get_bosh_sid(Conn).
 
-get_bosh_rid(Client) ->
-    escalus_bosh:get_rid(Client#client.conn).
+get_bosh_rid(#client{} = C) ->
+    escalus_bosh:get_rid(C#client.conn);
+get_bosh_rid(Transport) ->
+    escalus_bosh:get_rid(Transport).
 
 start_client(Config, User, Res) ->
     NamedSpecs = escalus_config:get_config(escalus_users, Config),
