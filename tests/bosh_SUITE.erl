@@ -103,20 +103,18 @@ interleave_requests(Config) ->
     escalus:story(Config, [{geralt, 1}], fun(Geralt) ->
 
         Carol = start_client(Config, carol, <<"bosh">>),
-        error_logger:info_msg("~p~n", [Carol]),
-
         Rid = get_bosh_rid(Carol),
         Sid = get_bosh_sid(Carol),
 
         Empty2 = escalus_bosh:empty_body(Rid + 1, Sid),
         Chat2 = Empty2#xmlelement{
                 children = [escalus_stanza:chat_to(Geralt, <<"2nd!">>)]},
-        escalus_client:send(Carol, Chat2),
+        escalus_bosh:send_raw(Carol#client.conn, Chat2),
 
         Empty1 = escalus_bosh:empty_body(Rid, Sid),
         Chat1 = Empty1#xmlelement{
                 children = [escalus_stanza:chat_to(Geralt, <<"1st!">>)]},
-        escalus_client:send(Carol, Chat1),
+        escalus_bosh:send_raw(Carol#client.conn, Chat1),
 
         escalus:assert(is_chat_message, [<<"1st!">>],
                        escalus_client:wait_for_stanza(Geralt)),
