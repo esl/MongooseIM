@@ -30,10 +30,9 @@ all() ->
      {group, chat}].
 
 groups() ->
-    [{essential, [], [create_and_terminate_session]},
-     {chat, [], [interleave_requests %,
-                 %simple_chat
-                ]}].
+    [{essential, [{repeat,10}], [create_and_terminate_session]},
+     {chat, [{repeat,10}], [interleave_requests,
+                            simple_chat]}].
 
 suite() ->
     escalus:suite().
