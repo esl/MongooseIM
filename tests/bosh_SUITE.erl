@@ -32,7 +32,8 @@ all() ->
 groups() ->
     [{essential, [{repeat,10}], [create_and_terminate_session]},
      {chat, [{repeat,10}], [interleave_requests,
-                            simple_chat]}].
+                            simple_chat]},
+     {inactivity, [{repeat,1}], [disconnect_inactive]}].
 
 suite() ->
     escalus:suite().
@@ -133,6 +134,27 @@ simple_chat(Config) ->
 
         end).
 
+disconnect_inactive(Config) ->
+    escalus:story(Config, [{carol, 1}, {geralt, 1}], fun(Carol, Geralt) ->
+
+        %% Don't send new long-polling requests waiting for server push.
+        set_keepalive(Carol, false),
+
+        %% Make Carol receive using the last remaining connection.
+        escalus_client:send(Geralt, escalus_stanza:chat_to(Carol, <<"Hello!">>)),
+        escalus:assert(is_chat_message, [<<"Hello!">>], escalus_client:wait_for_stanza(Carol)),
+
+        %% Ensure all connections for Carols have been closed.
+        [{_, _, CarolSessionPid}] = get_bosh_sessions(),
+        [] = escalus_ejabberd:rpc(mod_bosh_socket, get_handlers, [CarolSessionPid]),
+
+        %% Wait for disconnection because of inactivity timeout.
+        timer:sleep(15000),
+
+        throw(fail)
+
+        end).
+
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
@@ -150,6 +172,9 @@ get_bosh_rid(#client{} = C) ->
     escalus_bosh:get_rid(C#client.conn);
 get_bosh_rid(Transport) ->
     escalus_bosh:get_rid(Transport).
+
+set_keepalive(#client{} = C, Keepalive) ->
+    escalus_bosh:set_keepalive(C#client.conn, Keepalive).
 
 start_client(Config, User, Res) ->
     NamedSpecs = escalus_config:get_config(escalus_users, Config),
