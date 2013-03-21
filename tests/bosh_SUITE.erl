@@ -25,6 +25,8 @@
 %% Suite configuration
 %%--------------------------------------------------------------------
 
+-define(INACTIVITY, 2).
+
 all() ->
     [{group, essential},
      {group, chat}].
@@ -63,9 +65,24 @@ end_per_group(chat, Config) ->
 end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config).
 
+
+init_per_testcase(disconnect_inactive = CaseName, Config) ->
+    OldInactivity = escalus_ejabberd:rpc(mod_bosh, get_inactivity, []),
+    escalus_ejabberd:rpc(mod_bosh, set_inactivity, [?INACTIVITY]),
+    escalus:init_per_testcase(CaseName,
+                              [{old_inactivity, OldInactivity} | Config]);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
+end_per_testcase(disconnect_inactive = CaseName, Config) ->
+    case proplists:get_value(old_inactivity, Config) of
+        undefined ->
+            ok;
+        OldInactivity ->
+            escalus_ejabberd:rpc(mod_bosh, set_inactivity,
+                                 [OldInactivity])
+    end,
+    escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
@@ -149,7 +166,7 @@ disconnect_inactive(Config) ->
         [] = escalus_ejabberd:rpc(mod_bosh_socket, get_handlers, [CarolSessionPid]),
 
         %% Wait for disconnection because of inactivity timeout.
-        timer:sleep(15000),
+        timer:sleep(2 * timer:seconds(?INACTIVITY)),
 
         throw(fail)
 
