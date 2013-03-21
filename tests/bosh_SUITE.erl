@@ -157,6 +157,10 @@ simple_chat(Config) ->
 disconnect_inactive(Config) ->
     escalus:story(Config, [{carol, 1}, {geralt, 1}], fun(Carol, Geralt) ->
 
+        %% Sanity check - there should be one BOSH session belonging
+        %% to Carol.
+        1 = length(get_bosh_sessions()),
+
         %% Don't send new long-polling requests waiting for server push.
         set_keepalive(Carol, false),
 
@@ -174,7 +178,8 @@ disconnect_inactive(Config) ->
         %% Wait for disconnection because of inactivity timeout.
         timer:sleep(2 * timer:seconds(?INACTIVITY)),
 
-        throw(fail)
+        %% Assert Carol has been disconnected due to inactivity.
+        0 = length(get_bosh_sessions())
 
         end).
 
