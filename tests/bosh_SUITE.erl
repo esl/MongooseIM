@@ -144,10 +144,13 @@ simple_chat(Config) ->
     escalus:story(Config, [{carol, 1}, {geralt, 1}], fun(Carol, Geralt) ->
 
         escalus_client:send(Carol, escalus_stanza:chat_to(Geralt, <<"Hi!">>)),
-        escalus:assert(is_chat_message, [<<"Hi!">>], escalus_client:wait_for_stanza(Geralt)),
+        escalus:assert(is_chat_message, [<<"Hi!">>],
+                       escalus_client:wait_for_stanza(Geralt)),
 
-        escalus_client:send(Geralt, escalus_stanza:chat_to(Carol, <<"Hello!">>)),
-        escalus:assert(is_chat_message, [<<"Hello!">>], escalus_client:wait_for_stanza(Carol))
+        escalus_client:send(Geralt,
+                            escalus_stanza:chat_to(Carol, <<"Hello!">>)),
+        escalus:assert(is_chat_message, [<<"Hello!">>],
+                       escalus_client:wait_for_stanza(Carol))
 
         end).
 
@@ -158,12 +161,15 @@ disconnect_inactive(Config) ->
         set_keepalive(Carol, false),
 
         %% Make Carol receive using the last remaining connection.
-        escalus_client:send(Geralt, escalus_stanza:chat_to(Carol, <<"Hello!">>)),
-        escalus:assert(is_chat_message, [<<"Hello!">>], escalus_client:wait_for_stanza(Carol)),
+        escalus_client:send(Geralt,
+                            escalus_stanza:chat_to(Carol, <<"Hello!">>)),
+        escalus:assert(is_chat_message, [<<"Hello!">>],
+                       escalus_client:wait_for_stanza(Carol)),
 
-        %% Ensure all connections for Carols have been closed.
+        %% Ensure all connections for Carol have been closed.
         [{_, _, CarolSessionPid}] = get_bosh_sessions(),
-        [] = escalus_ejabberd:rpc(mod_bosh_socket, get_handlers, [CarolSessionPid]),
+        [] = escalus_ejabberd:rpc(mod_bosh_socket, get_handlers,
+                                  [CarolSessionPid]),
 
         %% Wait for disconnection because of inactivity timeout.
         timer:sleep(2 * timer:seconds(?INACTIVITY)),
