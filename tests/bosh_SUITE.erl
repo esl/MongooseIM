@@ -68,22 +68,14 @@ end_per_group(_GroupName, Config) ->
 
 
 init_per_testcase(disconnect_inactive = CaseName, Config) ->
-    OldInactivity = escalus_ejabberd:rpc(mod_bosh, get_inactivity, []),
-    escalus_ejabberd:rpc(mod_bosh, set_inactivity, [?INACTIVITY]),
-    escalus:init_per_testcase(CaseName,
-                              [{old_inactivity, OldInactivity} | Config]);
+    NewConfig = escalus_ejabberd:setup_option(inactivity(), Config),
+    escalus:init_per_testcase(CaseName, NewConfig);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
 end_per_testcase(disconnect_inactive = CaseName, Config) ->
-    case proplists:get_value(old_inactivity, Config) of
-        undefined ->
-            ok;
-        OldInactivity ->
-            escalus_ejabberd:rpc(mod_bosh, set_inactivity,
-                                 [OldInactivity])
-    end,
-    escalus:end_per_testcase(CaseName, Config);
+    NewConfig = escalus_ejabberd:reset_option(inactivity(), Config),
+    escalus:end_per_testcase(CaseName, NewConfig);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
@@ -210,3 +202,10 @@ start_client(Config, User, Res) ->
     UserSpec = proplists:get_value(User, NamedSpecs),
     {ok, Client} = escalus_client:start(Config, UserSpec, Res),
     Client.
+
+inactivity() ->
+    {inactivity,
+     fun() -> escalus_ejabberd:rpc(mod_bosh, get_inactivity, []) end,
+     fun(Value) -> escalus_ejabberd:rpc(mod_bosh,
+                                        set_inactivity, [Value]) end,
+     ?INACTIVITY}.
