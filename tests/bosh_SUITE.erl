@@ -34,9 +34,10 @@ all() ->
 
 groups() ->
     [{essential, [{repeat,10}], [create_and_terminate_session]},
-     {chat, [{repeat,10}], [interleave_requests,
-                            simple_chat]},
-     {inactivity, [{repeat,5}], [disconnect_inactive]}].
+     {chat, [shuffle, {repeat,10}], [interleave_requests,
+                                     simple_chat]},
+     {inactivity, [shuffle, {repeat,5}], [disconnect_inactive,
+                                          reply_on_pause]}].
 
 suite() ->
     escalus:suite().
