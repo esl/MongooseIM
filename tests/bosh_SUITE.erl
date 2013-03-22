@@ -189,8 +189,8 @@ disconnect_inactive(Config) ->
 %%--------------------------------------------------------------------
 
 get_bosh_sessions() ->
-    %% TODO: override for other backends
-    escalus_ejabberd:rpc(ets, tab2list, [bosh_session]).
+    Backend = escalus_ejabberd:rpc(mod_bosh_dynamic, backend, []),
+    escalus_ejabberd:rpc(Backend, get_sessions, []).
 
 get_bosh_sid(#transport{} = Transport) ->
     escalus_bosh:get_sid(Transport);
