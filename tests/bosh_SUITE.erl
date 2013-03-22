@@ -70,10 +70,16 @@ end_per_group(_GroupName, Config) ->
 init_per_testcase(disconnect_inactive = CaseName, Config) ->
     NewConfig = escalus_ejabberd:setup_option(inactivity(), Config),
     escalus:init_per_testcase(CaseName, NewConfig);
+init_per_testcase(reply_on_pause = CaseName, Config) ->
+    NewConfig = escalus_ejabberd:setup_option(inactivity(), Config),
+    escalus:init_per_testcase(CaseName, NewConfig);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
 end_per_testcase(disconnect_inactive = CaseName, Config) ->
+    NewConfig = escalus_ejabberd:reset_option(inactivity(), Config),
+    escalus:end_per_testcase(CaseName, NewConfig);
+end_per_testcase(reply_on_pause = CaseName, Config) ->
     NewConfig = escalus_ejabberd:reset_option(inactivity(), Config),
     escalus:end_per_testcase(CaseName, NewConfig);
 end_per_testcase(CaseName, Config) ->
@@ -176,6 +182,26 @@ disconnect_inactive(Config) ->
 
         end).
 
+reply_on_pause(Config) ->
+    escalus:story(Config, [{carol, 1}], fun(Carol) ->
+
+        [{_, _, CarolSessionPid}] = get_bosh_sessions(),
+        set_keepalive(Carol, false),
+
+        %% Sanity check - there should be one handler for Carol.
+        1 = length(escalus_ejabberd:rpc(mod_bosh_socket, get_handlers,
+                                        [CarolSessionPid])),
+
+        pause(Carol, 10),
+
+        %% There should be no handlers for Carol,
+        %% but the session should be alive.
+        1 = length(get_bosh_sessions()),
+        0 = length(escalus_ejabberd:rpc(mod_bosh_socket, get_handlers,
+                                        [CarolSessionPid]))
+
+        end).
+
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
@@ -196,6 +222,10 @@ get_bosh_rid(Transport) ->
 
 set_keepalive(#client{} = C, Keepalive) ->
     escalus_bosh:set_keepalive(C#client.conn, Keepalive).
+
+pause(#client{} = C, Seconds) ->
+    escalus_bosh:pause(C#client.conn, Seconds),
+    timer:sleep(100).
 
 start_client(Config, User, Res) ->
     NamedSpecs = escalus_config:get_config(escalus_users, Config),
