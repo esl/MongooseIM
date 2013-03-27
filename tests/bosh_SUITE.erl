@@ -74,6 +74,9 @@ init_per_testcase(disconnect_inactive = CaseName, Config) ->
 init_per_testcase(reply_on_pause = CaseName, Config) ->
     NewConfig = escalus_ejabberd:setup_option(inactivity(), Config),
     escalus:init_per_testcase(CaseName, NewConfig);
+init_per_testcase(reply_in_time = CaseName, Config) ->
+    NewConfig = escalus_users:update_userspec(Config, carol, bosh_wait, 3),
+    escalus:init_per_testcase(CaseName, NewConfig);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
@@ -196,6 +199,41 @@ reply_on_pause(Config) ->
         %% There should be no handlers for Carol,
         %% but the session should be alive.
         1 = length(get_bosh_sessions()),
+        0 = length(get_handlers(CarolSessionPid))
+
+        end).
+
+reply_in_time(Config) ->
+    escalus:story(Config, [{carol, 1}, {geralt, 1}], fun(Carol, Geralt) ->
+
+        Wait = proplists:get_value(bosh_wait,
+                                   escalus_users:get_userspec(Config, carol)),
+        error_logger:info_msg("Wait: ~p~n", [Wait]),
+
+        %% Don't send new long-polling requests waiting for server push.
+        set_keepalive(Carol, false),
+
+        %% Make Carol receive using the last remaining connection.
+        escalus_client:send(Geralt,
+                            escalus_stanza:chat_to(Carol, <<"Hello!">>)),
+        escalus:assert(is_chat_message, [<<"Hello!">>],
+                       escalus_client:wait_for_stanza(Carol)),
+
+        %% Sanity check - there should be no awaiting handlers.
+        [{_, _, CarolSessionPid}] = get_bosh_sessions(),
+        0 = length(get_handlers(CarolSessionPid)),
+
+        %% Send a single request and assert it's registered by server.
+        Rid = get_bosh_rid(Carol),
+        Sid = get_bosh_sid(Carol),
+        Empty = escalus_bosh:empty_body(Rid, Sid),
+        escalus_bosh:send_raw(Carol#client.conn, Empty),
+        timer:sleep(100),
+        1 = length(get_handlers(CarolSessionPid)),
+
+        timer:sleep(timer:seconds(Wait) + 100),
+
+        %% Assert the server has responded to that request.
         0 = length(get_handlers(CarolSessionPid))
 
         end).
