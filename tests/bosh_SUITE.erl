@@ -172,8 +172,7 @@ disconnect_inactive(Config) ->
 
         %% Ensure all connections for Carol have been closed.
         [{_, _, CarolSessionPid}] = get_bosh_sessions(),
-        [] = escalus_ejabberd:rpc(mod_bosh_socket, get_handlers,
-                                  [CarolSessionPid]),
+        [] = get_handlers(CarolSessionPid),
 
         %% Wait for disconnection because of inactivity timeout.
         timer:sleep(2 * timer:seconds(?INACTIVITY)),
@@ -190,16 +189,14 @@ reply_on_pause(Config) ->
         set_keepalive(Carol, false),
 
         %% Sanity check - there should be one handler for Carol.
-        1 = length(escalus_ejabberd:rpc(mod_bosh_socket, get_handlers,
-                                        [CarolSessionPid])),
+        1 = length(get_handlers(CarolSessionPid)),
 
         pause(Carol, 10),
 
         %% There should be no handlers for Carol,
         %% but the session should be alive.
         1 = length(get_bosh_sessions()),
-        0 = length(escalus_ejabberd:rpc(mod_bosh_socket, get_handlers,
-                                        [CarolSessionPid]))
+        0 = length(get_handlers(CarolSessionPid))
 
         end).
 
@@ -210,6 +207,9 @@ reply_on_pause(Config) ->
 get_bosh_sessions() ->
     Backend = escalus_ejabberd:rpc(mod_bosh_dynamic, backend, []),
     escalus_ejabberd:rpc(Backend, get_sessions, []).
+
+get_handlers(BoshSessionPid) ->
+    escalus_ejabberd:rpc(mod_bosh_socket, get_handlers, [BoshSessionPid]).
 
 get_bosh_sid(#transport{} = Transport) ->
     escalus_bosh:get_sid(Transport);
