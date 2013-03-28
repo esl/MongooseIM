@@ -212,7 +212,6 @@ reply_in_time(Config) ->
 
         Wait = proplists:get_value(bosh_wait,
                                    escalus_users:get_userspec(Config, carol)),
-        error_logger:info_msg("Wait: ~p~n", [Wait]),
 
         %% Don't send new long-polling requests waiting for server push.
         set_keepalive(Carol, false),
