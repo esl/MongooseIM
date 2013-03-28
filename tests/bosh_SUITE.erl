@@ -75,7 +75,8 @@ init_per_testcase(reply_on_pause = CaseName, Config) ->
     NewConfig = escalus_ejabberd:setup_option(inactivity(), Config),
     escalus:init_per_testcase(CaseName, NewConfig);
 init_per_testcase(reply_in_time = CaseName, Config) ->
-    NewConfig = escalus_users:update_userspec(Config, carol, bosh_wait, 3),
+    InactConfig = escalus_ejabberd:setup_option(inactivity(10), Config),
+    NewConfig = escalus_users:update_userspec(InactConfig, carol, bosh_wait, 3),
     escalus:init_per_testcase(CaseName, NewConfig);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
@@ -84,6 +85,9 @@ end_per_testcase(disconnect_inactive = CaseName, Config) ->
     NewConfig = escalus_ejabberd:reset_option(inactivity(), Config),
     escalus:end_per_testcase(CaseName, NewConfig);
 end_per_testcase(reply_on_pause = CaseName, Config) ->
+    NewConfig = escalus_ejabberd:reset_option(inactivity(), Config),
+    escalus:end_per_testcase(CaseName, NewConfig);
+end_per_testcase(reply_in_time = CaseName, Config) ->
     NewConfig = escalus_ejabberd:reset_option(inactivity(), Config),
     escalus:end_per_testcase(CaseName, NewConfig);
 end_per_testcase(CaseName, Config) ->
