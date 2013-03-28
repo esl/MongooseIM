@@ -273,8 +273,10 @@ start_client(Config, User, Res) ->
     Client.
 
 inactivity() ->
+    inactivity(?INACTIVITY).
+
+inactivity(Value) ->
     {inactivity,
      fun() -> escalus_ejabberd:rpc(mod_bosh, get_inactivity, []) end,
-     fun(Value) -> escalus_ejabberd:rpc(mod_bosh,
-                                        set_inactivity, [Value]) end,
-     ?INACTIVITY}.
+     fun(V) -> escalus_ejabberd:rpc(mod_bosh, set_inactivity, [V]) end,
+     Value}.
