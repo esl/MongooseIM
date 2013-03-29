@@ -38,6 +38,7 @@ groups() ->
                                      simple_chat]},
      {time, [shuffle, {repeat,5}], [disconnect_inactive,
                                     reply_on_pause,
+                                    cant_pause_for_too_long,
                                     reply_in_time]}].
 
 suite() ->
@@ -205,6 +206,22 @@ reply_on_pause(Config) ->
         %% but the session should be alive.
         1 = length(get_bosh_sessions()),
         0 = length(get_handlers(CarolSessionPid))
+
+        end).
+
+cant_pause_for_too_long(Config) ->
+    escalus:story(Config, [{carol, 1}], fun(Carol) ->
+
+        [{_, _, CarolSessionPid}] = get_bosh_sessions(),
+        set_keepalive(Carol, false),
+
+        %% Sanity check - there should be one handler for Carol.
+        1 = length(get_handlers(CarolSessionPid)),
+
+        pause(Carol, 10000),
+
+        escalus:assert(is_stream_end, escalus:wait_for_stanza(Carol)),
+        0 = length(get_bosh_sessions())
 
         end).
 
