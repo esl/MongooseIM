@@ -35,7 +35,8 @@ all() ->
 groups() ->
     [{essential, [{repeat,10}], [create_and_terminate_session]},
      {chat, [shuffle, {repeat,10}], [interleave_requests,
-                                     simple_chat]},
+                                     simple_chat,
+                                     cant_send_invalid_rid]},
      {time, [shuffle, {repeat,5}], [disconnect_inactive,
                                     reply_on_pause,
                                     cant_pause_for_too_long,
@@ -160,6 +161,19 @@ simple_chat(Config) ->
                             escalus_stanza:chat_to(Carol, <<"Hello!">>)),
         escalus:assert(is_chat_message, [<<"Hello!">>],
                        escalus_client:wait_for_stanza(Carol))
+
+        end).
+
+cant_send_invalid_rid(Config) ->
+    escalus:story(Config, [{carol, 1}], fun(Carol) ->
+
+        InvalidRid = get_bosh_rid(Carol) + 1593,
+        Sid = get_bosh_sid(Carol),
+        Empty = escalus_bosh:empty_body(InvalidRid, Sid),
+        escalus_bosh:send_raw(Carol#client.conn, Empty),
+
+        escalus:assert(is_stream_end, escalus:wait_for_stanza(Carol)),
+        0 = length(get_bosh_sessions())
 
         end).
 
