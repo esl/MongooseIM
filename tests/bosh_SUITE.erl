@@ -40,7 +40,8 @@ groups() ->
      {time, [shuffle, {repeat,5}], [disconnect_inactive,
                                     reply_on_pause,
                                     cant_pause_for_too_long,
-                                    reply_in_time]}].
+                                    reply_in_time]},
+     {acks, [], [server_acks]}].
 
 suite() ->
     escalus:suite().
@@ -273,6 +274,20 @@ reply_in_time(Config) ->
 
         end).
 
+server_acks(Config) ->
+    escalus:story(Config, [{carol, 1}, {geralt, 1}], fun(Carol, Geralt) ->
+
+        escalus_bosh:set_active(Carol#client.conn, false),
+        ExpectedRid = list_to_binary(integer_to_list(get_bosh_rid(Carol))),
+        escalus_client:send(Carol, escalus_stanza:chat_to(Geralt, <<"1st!">>)),
+        escalus_client:send(Carol, escalus_stanza:chat_to(Geralt, <<"2nd!">>)),
+        timer:sleep(200),
+
+        All = recv_all(Carol),
+        ExpectedRid = exml_query:attr(hd(All), <<"ack">>)
+
+        end).
+
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
@@ -306,6 +321,17 @@ start_client(Config, User, Res) ->
     UserSpec = proplists:get_value(User, NamedSpecs),
     {ok, Client} = escalus_client:start(Config, UserSpec, Res),
     Client.
+
+recv_all(Client) ->
+    recv_all(bosh_recv(Client), Client, []).
+
+recv_all(empty, _Client, Acc) ->
+    lists:reverse(Acc);
+recv_all(Element, Client, Acc) ->
+    recv_all(bosh_recv(Client), Client, [Element | Acc]).
+
+bosh_recv(#client{} = C) ->
+    escalus_bosh:recv(C#client.conn).
 
 inactivity() ->
     inactivity(?INACTIVITY).
