@@ -30,7 +30,8 @@
 all() ->
     [{group, essential},
      {group, chat},
-     {group, time}].
+     {group, time},
+     {group, acks}].
 
 groups() ->
     [{essential, [{repeat,10}], [create_and_terminate_session]},
