@@ -83,6 +83,9 @@ init_per_testcase(reply_in_time = CaseName, Config) ->
     InactConfig = escalus_ejabberd:setup_option(inactivity(10), Config),
     NewConfig = escalus_users:update_userspec(InactConfig, carol, bosh_wait, 3),
     escalus:init_per_testcase(CaseName, NewConfig);
+init_per_testcase(server_acks = CaseName, Config) ->
+    NewConfig = escalus_ejabberd:setup_option(server_acks_opt(), Config),
+    escalus:init_per_testcase(CaseName, NewConfig);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
@@ -94,6 +97,9 @@ end_per_testcase(reply_on_pause = CaseName, Config) ->
     escalus:end_per_testcase(CaseName, NewConfig);
 end_per_testcase(reply_in_time = CaseName, Config) ->
     NewConfig = escalus_ejabberd:reset_option(inactivity(), Config),
+    escalus:end_per_testcase(CaseName, NewConfig);
+end_per_testcase(server_acks = CaseName, Config) ->
+    NewConfig = escalus_ejabberd:reset_option(server_acks_opt(), Config),
     escalus:end_per_testcase(CaseName, NewConfig);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
@@ -342,3 +348,9 @@ inactivity(Value) ->
      fun() -> escalus_ejabberd:rpc(mod_bosh, get_inactivity, []) end,
      fun(V) -> escalus_ejabberd:rpc(mod_bosh, set_inactivity, [V]) end,
      Value}.
+
+server_acks_opt() ->
+    {server_acks,
+     fun() -> escalus_ejabberd:rpc(mod_bosh, get_server_acks, []) end,
+     fun(V) -> escalus_ejabberd:rpc(mod_bosh, set_server_acks, [V]) end,
+     true}.
