@@ -295,6 +295,18 @@ server_acks(Config) ->
 
         end).
 
+force_report(Config) ->
+    %% Carol stores current Rid1
+    %% Carol sends msg1
+    %% Carol sends msg2
+    %% Geralt sends a reply to msg1
+    %% Carol recvs a reply to msg1
+    %% Geralt sends a reply to msg2
+    %% Carol recvs a reply to msg2
+    %% Carol sends an ack with Rid1 on msg3
+    %% server sends a report
+    ct:fail("not implemented yet").
+
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
