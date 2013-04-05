@@ -296,16 +296,40 @@ server_acks(Config) ->
         end).
 
 force_report(Config) ->
+
     %% Carol stores current Rid1
     %% Carol sends msg1
     %% Carol sends msg2
-    %% Geralt sends a reply to msg1
-    %% Carol recvs a reply to msg1
-    %% Geralt sends a reply to msg2
-    %% Carol recvs a reply to msg2
-    %% Carol sends an ack with Rid1 on msg3
+    %% Geralt sends a reply to msg3
+    %% Geralt sends a reply to msg4
+    %% Carol recvs a reply to msg3
+    %% Carol recvs a reply to msg4
+    %% Carol sends an ack with Rid1 on empty BOSH wrapper
     %% server sends a report
-    ct:fail("not implemented yet").
+
+    escalus:story(Config, [{carol, 1}, {geralt, 1}], fun(Carol, Geralt) ->
+
+        StaleRid = get_bosh_rid(Carol),
+        escalus_client:send(Carol, chat_to(Geralt, <<"1st!">>)),
+        escalus_client:send(Carol, chat_to(Geralt, <<"2nd!">>)),
+        wait_for_stanzas(Geralt, 2),
+        escalus_client:send(Geralt, chat_to(Carol, <<"3rd!">>)),
+        escalus_client:send(Geralt, chat_to(Carol, <<"4th!">>)),
+        escalus:assert(is_chat_message, [<<"3rd!">>], wait_for_stanza(Carol)),
+        escalus:assert(is_chat_message, [<<"4th!">>], wait_for_stanza(Carol)),
+
+        escalus_bosh:set_active(Carol#client.conn, false),
+        %% Send ack with StaleRid
+        Rid = get_bosh_rid(Carol),
+        Sid = get_bosh_sid(Carol),
+        BodyWithAck = ack_body(escalus_bosh:empty_body(Rid, Sid), StaleRid),
+        escalus_bosh:send_raw(Carol#client.conn, BodyWithAck),
+        %% Expect a server report
+        MaybeReport = bosh_recv(Carol),
+        error_logger:info_msg("report? ~p~n", [MaybeReport]),
+        escalus:assert(is_bosh_report, [StaleRid+1], MaybeReport)
+
+        end).
 
 %%--------------------------------------------------------------------
 %% Helpers
@@ -351,6 +375,21 @@ recv_all(Element, Client, Acc) ->
 
 bosh_recv(#client{} = C) ->
     escalus_bosh:recv(C#client.conn).
+
+chat_to(Client, Content) ->
+    escalus_stanza:chat_to(Client, Content).
+
+wait_for_stanzas(Client, Count) ->
+    escalus_client:wait_for_stanzas(Client, Count).
+
+wait_for_stanza(Client) ->
+    escalus_client:wait_for_stanza(Client).
+
+ack_body(Body, Rid) ->
+    Attrs = Body#xmlelement.attrs,
+    Ack = {<<"ack">>, list_to_binary(integer_to_list(Rid))},
+    NewAttrs = lists:keystore(<<"ack">>, 1, Attrs, Ack),
+    Body#xmlelement{attrs = NewAttrs}.
 
 inactivity() ->
     inactivity(?INACTIVITY).
