@@ -29,7 +29,8 @@
 -export([simple_archive_request/1,
          muc_archive_request/1,
          range_archive_request/1,
-         limit_archive_request/1]).
+         limit_archive_request/1,
+         pagination/1]).
 
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
@@ -45,9 +46,10 @@ all() ->
 
 groups() ->
     [{mam, [sequence], [simple_archive_request,
-                        muc_archive_request,
                         range_archive_request,
-                        limit_archive_request]}].
+                        limit_archive_request,
+                        muc_archive_request,
+                        pagination]}].
 
 suite() ->
     escalus:suite().
@@ -59,26 +61,30 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(_GroupName, Config) ->
-    escalus:create_users(Config).
+    Config.
 
 end_per_group(_GroupName, Config) ->
-    escalus:delete_users(Config).
+    Config.
 
 init_per_testcase(muc_archive_request=CaseName, Config) ->
     RoomName = <<"alicesroom">>,
     RoomNick = <<"alicesnick">>,
-    Config1 = escalus:init_per_testcase(CaseName, Config),
-    [Alice | _] = ?config(escalus_users, Config1),
-    start_room(Config1, Alice, RoomName, RoomNick, [{persistent, true}]);
+    Config1 = escalus:create_users(Config),
+    Config2 = escalus:init_per_testcase(CaseName, Config1),
+    [Alice | _] = ?config(escalus_users, Config2),
+    start_room(Config2, Alice, RoomName, RoomNick, [{persistent, true}]);
 
 init_per_testcase(CaseName, Config) ->
-    escalus:init_per_testcase(CaseName, Config).
+    Config1 = escalus:create_users(Config),
+    escalus:init_per_testcase(CaseName, Config1).
 
 end_per_testcase(muc_archive_request=CaseName, Config) ->
     destroy_room(Config),
+    Config1 = escalus:delete_users(Config),
     escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName, Config) ->
+    Config1 = escalus:delete_users(Config),
     escalus:end_per_testcase(CaseName, Config).
 
 %%--------------------------------------------------------------------
@@ -159,6 +165,23 @@ limit_archive_request(Config) ->
         end,
     escalus:story(Config, [1], F).
 
+pagination(Config) ->
+    F = fun(Alice, Bob) ->
+        [escalus:send(Alice,
+                      escalus_stanza:chat_to(Bob, generate_message_text(N)))
+         || N <- lists:seq(1, 15)],
+        %% Wait 100 messages for 5 seconds.
+        escalus:wait_for_stanzas(Bob, 15, 5000),
+        escalus:send(Alice, stanza_page_archive_request(5, <<"page_q">>)),
+        Reply = escalus:wait_for_stanzas(Alice, 6, 5000),
+        ct:pal("Reply ~p.", [Reply]),
+        ok
+        end,
+    escalus:story(Config, [1, 1], F).
+
+generate_message_text(N) when is_integer(N) ->
+    <<"Message #", (list_to_binary(integer_to_list(N)))/binary>>.
+
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
@@ -200,6 +223,17 @@ stanza_limit_archive_request() ->
        name = <<"query">>,
        attrs = [{<<"xmlns">>,mam_ns_binary()}],
        children = [Start, Set]
+    }]).
+
+stanza_page_archive_request(Count, QueryId) ->
+    Limit = #xmlelement{name = <<"limit">>,
+                        children = #xmlcdata{content = integer_to_list(Count)}},
+    Set   = #xmlelement{name = <<"set">>,
+                        children = [Limit]},
+    escalus_stanza:iq(<<"get">>, [#xmlelement{
+       name = <<"query">>,
+       attrs = [{<<"xmlns">>,mam_ns_binary()}, {<<"queryid">>, QueryId}],
+       children = [Set]
     }]).
 
 %%--------------------------------------------------------------------
