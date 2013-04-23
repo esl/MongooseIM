@@ -38,6 +38,7 @@ groups() ->
                            remove_contact]},
      {subscribe_group, [sequence], [subscribe,
                                     subscribe_decline,
+                                    subscribe_relog,
                                     unsubscribe,
                                     remove_unsubscribe]}].
 
@@ -252,6 +253,54 @@ subscribe_decline(Config) ->
 
     end).
 
+subscribe_relog(Config) ->
+    escalus:story(Config, [1, 1], fun(Alice, Bob) ->
+
+        %% Alice adds Bob as a contact
+        add_sample_contact(Alice, Bob),
+
+        %% She subscribes to his presences
+        escalus:send(Alice, escalus_stanza:presence_direct(bob, <<"subscribe">>)),
+        PushReq = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_roster_set, PushReq),
+        escalus:send(Alice, escalus_stanza:iq_result(PushReq)),
+
+        %% Bob receives subscription reqest
+        Received = escalus:wait_for_stanza(Bob),
+        escalus:assert(is_presence_with_type, [<<"subscribe">>], Received),
+
+        %% New Bob resource connects, should receive subscription request again
+        {ok, NewBob} = escalus_client:start_for(Config, bob, <<"newbob">>),
+        escalus:send(NewBob,
+            escalus_stanza:presence(<<"available">>)),
+
+        escalus:assert(is_presence_with_type, [<<"available">>],
+                       escalus:wait_for_stanza(Bob)),
+
+        Stanzas = escalus:wait_for_stanzas(NewBob, 3),
+        3 = length(Stanzas),
+        
+        escalus_new_assert:mix_match([
+                fun(S) ->
+                    escalus_pred:is_presence_with_type(<<"available">>, S)
+                    andalso escalus_pred:is_stanza_from(Bob, S)
+                end,
+                fun(S) ->
+                    escalus_pred:is_presence_with_type(<<"available">>, S)
+                    andalso escalus_pred:is_stanza_from(NewBob, S)
+                end,
+                fun(S) ->
+                    escalus_pred:is_presence_with_type(<<"subscribe">>, S)
+                    andalso escalus_pred:is_stanza_from(alice, S)
+                end
+            ], Stanzas),
+        
+        escalus_client:stop(NewBob),
+
+        escalus:send(Bob, escalus_stanza:presence_direct(alice, <<"unsubscribed">>))
+        
+        end).
+
 unsubscribe(Config) ->
     escalus:story(Config, [1, 1], fun(Alice,Bob) ->
 
@@ -262,7 +311,7 @@ unsubscribe(Config) ->
         escalus:send(Alice, escalus_stanza:presence_direct(bob, <<"subscribe">>)),
         PushReq = escalus:wait_for_stanza(Alice),
         escalus:send(Alice, escalus_stanza:iq_result(PushReq)),
-
+        
         %% Bob receives subscription reqest
         escalus:assert(is_presence_with_type, [<<"subscribe">>],
                        escalus:wait_for_stanza(Bob)),

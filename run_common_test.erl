@@ -37,7 +37,8 @@ tests_to_run() ->
               %snmp_session_SUITE,
               %snmp_table_SUITE,
               vcard_SUITE,
-              websockets_SUITE]}
+              websockets_SUITE
+             ]}
     ].
 
 tests_to_run(none) ->
