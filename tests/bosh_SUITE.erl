@@ -41,6 +41,7 @@ groups() ->
      {time, [shuffle, {repeat,5}], [disconnect_inactive,
                                     reply_on_pause,
                                     cant_pause_for_too_long,
+                                    pause_request_is_activity,
                                     reply_in_time]},
      {acks, [], [server_acks]}].
 
@@ -79,6 +80,9 @@ init_per_testcase(disconnect_inactive = CaseName, Config) ->
 init_per_testcase(reply_on_pause = CaseName, Config) ->
     NewConfig = escalus_ejabberd:setup_option(inactivity(), Config),
     escalus:init_per_testcase(CaseName, NewConfig);
+init_per_testcase(pause_request_is_activity = CaseName, Config) ->
+    NewConfig = escalus_ejabberd:setup_option(inactivity(5), Config),
+    escalus:init_per_testcase(CaseName, NewConfig);
 init_per_testcase(reply_in_time = CaseName, Config) ->
     InactConfig = escalus_ejabberd:setup_option(inactivity(10), Config),
     NewConfig = escalus_users:update_userspec(InactConfig, carol, bosh_wait, 3),
@@ -93,6 +97,9 @@ end_per_testcase(disconnect_inactive = CaseName, Config) ->
     NewConfig = escalus_ejabberd:reset_option(inactivity(), Config),
     escalus:end_per_testcase(CaseName, NewConfig);
 end_per_testcase(reply_on_pause = CaseName, Config) ->
+    NewConfig = escalus_ejabberd:reset_option(inactivity(), Config),
+    escalus:end_per_testcase(CaseName, NewConfig);
+end_per_testcase(pause_request_is_activity = CaseName, Config) ->
     NewConfig = escalus_ejabberd:reset_option(inactivity(), Config),
     escalus:end_per_testcase(CaseName, NewConfig);
 end_per_testcase(reply_in_time = CaseName, Config) ->
@@ -245,6 +252,31 @@ cant_pause_for_too_long(Config) ->
 
         escalus:assert(is_stream_end, escalus:wait_for_stanza(Carol)),
         0 = length(get_bosh_sessions())
+
+        end).
+
+%% Ensure that a pause request causes inactivity timer cancellation.
+pause_request_is_activity(Config) ->
+    escalus:story(Config, [{carol, 1}], fun(Carol) ->
+
+        [{_, _, CarolSessionPid}] = get_bosh_sessions(),
+        set_keepalive(Carol, false),
+
+        %% Sanity check - there should be one handler for Carol.
+        1 = length(get_handlers(CarolSessionPid)),
+
+        %% Wait most of the allowed inactivity interval.
+        timer:sleep(timer:seconds(4)),
+
+        %% This should cancel the inactivity timer.
+        pause(Carol, 10),
+
+        %% Wait a bit past the inactivity interval.
+        timer:sleep(timer:seconds(4)),
+
+        %% No disconnection should've occured.
+        escalus_assert:has_no_stanzas(Carol),
+        1 = length(get_bosh_sessions())
 
         end).
 
