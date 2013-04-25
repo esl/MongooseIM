@@ -30,26 +30,49 @@
          muc_archive_request/1,
          range_archive_request/1,
          limit_archive_request/1,
-         pagination/1]).
+         pagination_first5/1,
+         pagination_last5/1,
+         pagination_before11/1,
+         pagination_after11/1]).
 
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
+-include_lib("eunit/include/eunit.hrl").
 -include_lib("exml/include/exml_stream.hrl").
 -define(MUC_HOST, <<"muc.localhost">>).
+-record(rsm_in, {
+        max :: non_neg_integer() | undefined,
+        direction :: before | 'after' | undefined,
+        id :: binary() | undefined,
+        index ::non_neg_integer() | undefined
+        }).
 
+-record(forwarded_message, {
+    from           :: binary() | undefined,
+    to             :: binary() | undefined,
+    result_queryid :: binary() | undefined,
+    result_id      :: binary() | undefined,
+    delay_from     :: binary() | undefined,
+    delay_stamp    :: binary() | undefined,
+    message_to     :: binary() | undefined,
+    message_type   :: binary() | undefined,
+    message_body   :: binary() | undefined
+}).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
 all() ->
-    [{group, mam}].
+    [{group, mam}, {group, muc}, {group, rsm}].
 
 groups() ->
-    [{mam, [sequence], [simple_archive_request,
-                        range_archive_request,
-                        limit_archive_request,
-                        muc_archive_request,
-                        pagination]}].
+    [{mam, [], [simple_archive_request,
+                range_archive_request,
+                limit_archive_request]},
+     {muc, [], [muc_archive_request]},
+     {rsm, [], [pagination_first5,
+                pagination_last5,
+                pagination_before11]}].
 
 suite() ->
     escalus:suite().
@@ -60,31 +83,41 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
-init_per_group(_GroupName, Config) ->
-    Config.
-
-end_per_group(_GroupName, Config) ->
-    Config.
-
-init_per_testcase(muc_archive_request=CaseName, Config) ->
+init_per_group(muc, Config) ->
     RoomName = <<"alicesroom">>,
     RoomNick = <<"alicesnick">>,
     Config1 = escalus:create_users(Config),
-    Config2 = escalus:init_per_testcase(CaseName, Config1),
-    [Alice | _] = ?config(escalus_users, Config2),
-    start_room(Config2, Alice, RoomName, RoomNick, [{persistent, true}]);
+    [Alice | _] = ?config(escalus_users, Config1),
+    start_room(Config1, Alice, RoomName, RoomNick, [{persistent, true}]);
+init_per_group(rsm, Config) ->
+    Config1 = escalus:create_users(Config),
+    ct:pal("Config1: ~p", [Config1]),
+    F = fun(Alice, Bob) ->
+        %% Alice sends messages to Bob.
+        [escalus:send(Alice,
+                      escalus_stanza:chat_to(Bob, generate_message_text(N)))
+         || N <- lists:seq(1, 15)],
+        %% Wait 15 messages for 5 seconds.
+        escalus:wait_for_stanzas(Bob, 15, 5000),
+        ok
+        end,
+    Config2 = escalus:init_per_testcase(pre_rsm, Config1),
+    escalus:story(Config2, [1, 1], F),
+    escalus:end_per_testcase(pre_rsm, Config2),
+    Config1; %% it is right.
+init_per_group(mam, Config) ->
+    escalus:create_users(Config).
+
+end_per_group(muc, Config) ->
+    destroy_room(Config),
+    escalus:delete_users(Config);
+end_per_group(_, Config) ->
+    escalus:delete_users(Config).
 
 init_per_testcase(CaseName, Config) ->
-    Config1 = escalus:create_users(Config),
-    escalus:init_per_testcase(CaseName, Config1).
-
-end_per_testcase(muc_archive_request=CaseName, Config) ->
-    destroy_room(Config),
-    Config1 = escalus:delete_users(Config),
-    escalus:end_per_testcase(CaseName, Config);
+    escalus:init_per_testcase(CaseName, Config).
 
 end_per_testcase(CaseName, Config) ->
-    Config1 = escalus:delete_users(Config),
     escalus:end_per_testcase(CaseName, Config).
 
 %%--------------------------------------------------------------------
@@ -165,22 +198,77 @@ limit_archive_request(Config) ->
         end,
     escalus:story(Config, [1], F).
 
-pagination(Config) ->
-    F = fun(Alice, Bob) ->
-        [escalus:send(Alice,
-                      escalus_stanza:chat_to(Bob, generate_message_text(N)))
-         || N <- lists:seq(1, 15)],
-        %% Wait 100 messages for 5 seconds.
-        escalus:wait_for_stanzas(Bob, 15, 5000),
-        escalus:send(Alice, stanza_page_archive_request(5, <<"page_q">>)),
-        Reply = escalus:wait_for_stanzas(Alice, 6, 5000),
-        ct:pal("Reply ~p.", [Reply]),
+pagination_first5(Config) ->
+    F = fun(Alice) ->
+        %% Get the first page of size 5.
+        RSM = #rsm_in{max=5},
+        escalus:send(Alice, stanza_page_archive_request(<<"first5">>, RSM)),
+        Messages = escalus:wait_for_stanzas(Alice, 5, 5000),
+        IQ = escalus:wait_for_stanzas(Alice, 1, 5000),
+        ParsedMessages = [parse_forwarded_message(M) || M <- Messages],
+        ct:pal("IQ: ~p~nMessages: ~p~nParsed messages: ~p~n",
+               [IQ, Messages, ParsedMessages]),
+        %% Compare body of the messages.
+        ?assertEqual([generate_message_text(N) || N <- lists:seq(1, 5)],
+                     [B || #forwarded_message{message_body=B} <- ParsedMessages]),
         ok
         end,
-    escalus:story(Config, [1, 1], F).
+    escalus:story(Config, [1], F).
+
+pagination_last5(Config) ->
+    F = fun(Alice) ->
+        %% Get the last page of size 5.
+        RSM = #rsm_in{max=5, direction=before},
+        escalus:send(Alice, stanza_page_archive_request(<<"last5">>, RSM)),
+        Messages = escalus:wait_for_stanzas(Alice, 5, 5000),
+        IQ = escalus:wait_for_stanzas(Alice, 1, 5000),
+        ParsedMessages = [parse_forwarded_message(M) || M <- Messages],
+        ct:pal("IQ: ~p~nMessages: ~p~nParsed messages: ~p~n",
+               [IQ, Messages, ParsedMessages]),
+        %% Compare body of the messages.
+        ?assertEqual([generate_message_text(N) || N <- lists:seq(10, 15)],
+                     [B || #forwarded_message{message_body=B} <- ParsedMessages]),
+        ok
+        end,
+    escalus:story(Config, [1], F).
+
+pagination_before11(Config) ->
+    F = fun(Alice) ->
+        %% Get the last page of size 5.
+        RSM = #rsm_in{max=5, direction=before, id=generate_message_text(11)},
+        escalus:send(Alice, stanza_page_archive_request(<<"before11">>, RSM)),
+        Messages = escalus:wait_for_stanzas(Alice, 5, 5000),
+        IQ = escalus:wait_for_stanzas(Alice, 1, 5000),
+        ParsedMessages = [parse_forwarded_message(M) || M <- Messages],
+        ct:pal("IQ: ~p~nMessages: ~p~nParsed messages: ~p~n",
+               [IQ, Messages, ParsedMessages]),
+        %% Compare body of the messages.
+        ?assertEqual([generate_message_text(N) || N <- lists:seq(5, 10)],
+                     [B || #forwarded_message{message_body=B} <- ParsedMessages]),
+        ok
+        end,
+    escalus:story(Config, [1], F).
+
+pagination_after11(Config) ->
+    F = fun(Alice) ->
+        %% Get the last page of size 5.
+        RSM = #rsm_in{max=5, direction='after', id=generate_message_text(11)},
+        escalus:send(Alice, stanza_page_archive_request(<<"after11">>, RSM)),
+        Messages = escalus:wait_for_stanzas(Alice, 3, 5000),
+        IQ = escalus:wait_for_stanzas(Alice, 1, 5000),
+        ParsedMessages = [parse_forwarded_message(M) || M <- Messages],
+        ct:pal("IQ: ~p~nMessages: ~p~nParsed messages: ~p~n",
+               [IQ, Messages, ParsedMessages]),
+        %% Compare body of the messages.
+        ?assertEqual([generate_message_text(N) || N <- lists:seq(12, 15)],
+                     [B || #forwarded_message{message_body=B} <- ParsedMessages]),
+        ok
+        end,
+    escalus:story(Config, [1], F).
 
 generate_message_text(N) when is_integer(N) ->
     <<"Message #", (list_to_binary(integer_to_list(N)))/binary>>.
+
 
 %%--------------------------------------------------------------------
 %% Helpers
@@ -188,7 +276,6 @@ generate_message_text(N) when is_integer(N) ->
 
 nick(User) -> escalus_utils:get_username(User).
 
-mam_ns_string() -> "urn:xmpp:mam:tmp".
 mam_ns_binary() -> <<"urn:xmpp:mam:tmp">>.
 muc_ns_binary() -> <<"http://jabber.org/protocol/muc">>.
 
@@ -225,17 +312,86 @@ stanza_limit_archive_request() ->
        children = [Start, Set]
     }]).
 
-stanza_page_archive_request(Count, QueryId) ->
-    Limit = #xmlelement{name = <<"limit">>,
-                        children = #xmlcdata{content = integer_to_list(Count)}},
-    Set   = #xmlelement{name = <<"set">>,
-                        children = [Limit]},
+
+stanza_page_archive_request(QueryId,
+                            #rsm_in{max=Max, direction=Direction, id=Id, index=Index}) ->
+    LimitEl = [#xmlelement{name = <<"max">>,
+                           children = #xmlcdata{content = integer_to_list(Max)}}
+               || is_integer(Max)],
+    IndexEl = [#xmlelement{name = <<"index">>,
+                           children = #xmlcdata{content = integer_to_list(Index)}}
+               || is_integer(Index)],
+    BorderEl = [#xmlelement{name = atom_to_binary(Direction, latin1),
+                            children = case Id of
+                                        undefined -> [];
+                                         _ -> #xmlcdata{content = Id}
+                                       end}
+                || Direction =/= undefined],
+    SetEl = #xmlelement{name = <<"set">>,
+                        children = lists:merge([LimitEl, IndexEl, BorderEl])},
     escalus_stanza:iq(<<"get">>, [#xmlelement{
        name = <<"query">>,
        attrs = [{<<"xmlns">>,mam_ns_binary()}, {<<"queryid">>, QueryId}],
-       children = [Set]
+       children = [SetEl]
     }]).
 
+%% Build a record from the term:
+%%  {xmlelement,<<"message">>,
+%%     [{<<"from">>,<<"alice@localhost">>},
+%%      {<<"to">>,<<"alice@localhost/res1">>}],
+%%     [{xmlelement,<<"result">>,
+%%          [{<<"xmlns">>,<<"urn:xmpp:mam:tmp">>},
+%%           {<<"queryid">>,<<"first5">>},
+%%           {<<"id">>,<<"103689">>}],
+%%          []},
+%%      {xmlelement,<<"forwarded">>,
+%%          [{<<"xmlns">>,<<"urn:xmpp:forward:0">>}],
+%%          [{xmlelement,<<"delay">>,
+%%               [{<<"xmlns">>,<<"urn:xmpp:delay">>},
+%%                {<<"from">>,<<"alice@localhost/res1">>},
+%%                {<<"stamp">>,<<"2013-04-25T16:34:55Z">>}],
+%%               []},
+%%           {xmlelement,<<"message">>,
+%%               [{<<"xml:lang">>,<<"en">>},
+%%                {<<"to">>,<<"bob@localhost/res1">>},
+%%                {<<"type">>,<<"chat">>}],
+%%               [{xmlelement,<<"body">>,[],
+%%                    [{xmlcdata,<<"Message #1">>}]}]}]}]}
+parse_forwarded_message(#xmlelement{name = <<"message">>,
+                                    attrs = Attrs, children = Children}) ->
+    M = #forwarded_message{
+        from = proplists:get_value(<<"from">>, Attrs),
+        to   = proplists:get_value(<<"to">>, Attrs)},
+    lists:foldl(fun 'parse_children[message]'/2, M, Children).
+
+'parse_children[message]'(#xmlelement{name = <<"result">>,
+                                      attrs = Attrs}, M) ->
+    M#forwarded_message{
+        result_queryid = proplists:get_value(<<"queryid">>, Attrs),
+        result_id      = proplists:get_value(<<"id">>, Attrs)};
+'parse_children[message]'(#xmlelement{name = <<"forwarded">>,
+                                      children = Children}, M) ->
+    lists:foldl(fun 'parse_children[message/forwarded]'/2, M, Children).
+    
+
+'parse_children[message/forwarded]'(#xmlelement{name = <<"delay">>,
+                                                attrs = Attrs}, M) ->
+    M#forwarded_message{
+        delay_from  = proplists:get_value(<<"from">>, Attrs),
+        delay_stamp = proplists:get_value(<<"stamp">>, Attrs)};
+'parse_children[message/forwarded]'(#xmlelement{name = <<"message">>,
+                                                attrs = Attrs,
+                                                children = Children}, M) ->
+    M1 = M#forwarded_message{
+        message_to   = proplists:get_value(<<"to">>, Attrs),
+        message_type = proplists:get_value(<<"type">>, Attrs)},
+    lists:foldl(fun 'parse_children[message/forwarded/message]'/2, M1, Children).
+
+'parse_children[message/forwarded/message]'(#xmlelement{name = <<"body">>,
+                                            children = [{xmlcdata, Body}]}, M) ->
+    M#forwarded_message{message_body = Body}.
+    
+        
 %%--------------------------------------------------------------------
 %% Helpers (muc)
 %%--------------------------------------------------------------------
@@ -279,3 +435,4 @@ room_address(Room) when is_binary(Room) ->
 
 room_address(Room, Nick) when is_binary(Room), is_binary(Nick) ->
     <<Room/binary, "@", ?MUC_HOST/binary, "/", Nick/binary>>.
+
