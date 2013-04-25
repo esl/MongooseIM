@@ -227,7 +227,8 @@ reply_on_pause(Config) ->
         %% There should be no handlers for Carol,
         %% but the session should be alive.
         1 = length(get_bosh_sessions()),
-        0 = length(get_handlers(CarolSessionPid))
+        0 = length(get_handlers(CarolSessionPid)),
+        0 = escalus_bosh:get_requests(Carol#client.conn)
 
         end).
 
