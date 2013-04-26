@@ -33,7 +33,8 @@
          pagination_first5/1,
          pagination_last5/1,
          pagination_before10/1,
-         pagination_after10/1]).
+         pagination_after10/1,
+         pagination_empty_rset/1]).
 
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
@@ -59,6 +60,16 @@
     message_body   :: binary() | undefined
 }).
 
+-record(result_iq, {
+    from            :: binary(),
+    to              :: binary(),
+    id              :: binary(),
+    first           :: binary() | undefined,
+    first_index     :: non_neg_integer() | undefined,
+    last            :: binary() | undefined,
+    count           :: non_neg_integer()
+}).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -73,7 +84,8 @@ groups() ->
      {rsm, [], [pagination_first5,
                 pagination_last5,
                 pagination_before10,
-                pagination_after10]}].
+                pagination_after10,
+                pagination_empty_rset]}].
 
 suite() ->
     escalus:suite().
@@ -208,6 +220,19 @@ limit_archive_request(Config) ->
         end,
     escalus:story(Config, [1], F).
 
+pagination_empty_rset(Config) ->
+    F = fun(Alice) ->
+        %% Get the first page of size 5.
+        RSM = #rsm_in{max=0},
+        escalus:send(Alice, stanza_page_archive_request(<<"empty_rset">>, RSM)),
+        IQ = escalus:wait_for_stanza(Alice, 5000),
+        ParsedIQ = parse_result_iq(IQ),
+        ct:pal("IQ: ~p~nParsedIQ: ~p~n", [IQ, ParsedIQ]),
+        ?assertEqual(ParsedIQ#result_iq.count, 15),
+        ok
+        end,
+    escalus:story(Config, [1], F).
+
 pagination_first5(Config) ->
     F = fun(Alice) ->
         %% Get the first page of size 5.
@@ -312,7 +337,7 @@ stanza_date_range_archive_request() ->
 stanza_limit_archive_request() ->
     Start = #xmlelement{name = <<"start">>,
                         children = #xmlcdata{content = "2010-08-07T00:00:00Z"}},
-    Limit = #xmlelement{name = <<"limit">>,
+    Limit = #xmlelement{name = <<"limit">>, %% according XEP-0313, not XEP-0059
                         children = #xmlcdata{content = "10"}},
     Set   = #xmlelement{name = <<"set">>,
                         children = [Limit]},
@@ -406,8 +431,70 @@ message_id(Num, Config) ->
     AllMessages = proplists:get_value(all_messages, Config),
     #forwarded_message{result_id=Id} = lists:nth(Num, AllMessages),
     Id.
-    
-        
+
+
+%% Result iq
+%%
+%% [{xmlelement,<<"iq">>,
+%%     [{<<"from">>,<<"alice@localhost">>},
+%%      {<<"to">>,<<"alice@localhost/res1">>},
+%%      {<<"id">>,<<"387862024ce65379b049e19751e4309e">>},
+%%      {<<"type">>,<<"result">>}],
+%%     []}]
+%%
+%%
+%%  [{xmlelement,<<"iq">>,
+%%       [{<<"from">>,<<"alice@localhost">>},
+%%        {<<"to">>,<<"alice@localhost/res1">>},
+%%        {<<"id">>,<<"c256a18c4b720465e215a81362d41eb7">>},
+%%        {<<"type">>,<<"result">>}],
+%%       [{xmlelement,<<"query">>,
+%%            [{<<"xmlns">>,<<"urn:xmpp:mam:tmp">>}],
+%%            [{xmlelement,<<"set">>,
+%%                 [{<<"xmlns">>,<<"http://jabber.org/protocol/rsm">>}],
+%%                 [{xmlelement,<<"first">>,
+%%                      [{<<"index">>,<<"10">>}],
+%%                      [{xmlcdata,<<"103439">>}]},
+%%                  {xmlelement,<<"last">>,[],[{xmlcdata,<<"103447">>}]},
+%%                  {xmlelement,<<"count">>,[],[{xmlcdata,<<"15">>}]}]}]}]}]
+parse_result_iq(#xmlelement{name = <<"iq">>,
+                            attrs = Attrs, children = Children}) ->
+    IQ = #result_iq{
+        from = proplists:get_value(<<"from">>, Attrs),
+        to   = proplists:get_value(<<"to">>, Attrs),
+        id   = proplists:get_value(<<"id">>, Attrs)},
+    lists:foldl(fun 'parse_children[iq]'/2, IQ, Children).
+
+'parse_children[iq]'(#xmlelement{name = <<"query">>, children = Children},
+                     IQ) ->
+    lists:foldl(fun 'parse_children[iq/query]'/2, IQ, Children).
+
+
+'parse_children[iq/query]'(#xmlelement{name = <<"set">>,
+                                       children = Children},
+                           IQ) ->
+    lists:foldl(fun 'parse_children[iq/query/set]'/2, IQ, Children).
+
+'parse_children[iq/query/set]'(#xmlelement{name = <<"first">>,
+                                           attrs = Attrs,
+                                           children = [{xmlcdata, First}]},
+                               IQ) ->
+    Index = case proplists:get_value(<<"index">>, Attrs) of
+                undefined -> undefined;
+                X -> list_to_integer(binary_to_list(X))
+            end,
+    IQ#result_iq{first_index = Index, first = First};
+'parse_children[iq/query/set]'(#xmlelement{name = <<"last">>,
+                                           children = [{xmlcdata, Last}]},
+                               IQ) ->
+    IQ#result_iq{last = Last};
+'parse_children[iq/query/set]'(#xmlelement{name = <<"count">>,
+                                           children = [{xmlcdata, Count}]},
+                               IQ) ->
+    IQ#result_iq{count = list_to_integer(binary_to_list(Count))};
+'parse_children[iq/query/set]'(_, IQ) -> IQ.
+
+
 %%--------------------------------------------------------------------
 %% Helpers (muc)
 %%--------------------------------------------------------------------
