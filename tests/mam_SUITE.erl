@@ -32,8 +32,8 @@
          limit_archive_request/1,
          pagination_first5/1,
          pagination_last5/1,
-         pagination_before11/1,
-         pagination_after11/1]).
+         pagination_before10/1,
+         pagination_after10/1]).
 
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
@@ -72,7 +72,8 @@ groups() ->
      {muc, [], [muc_archive_request]},
      {rsm, [], [pagination_first5,
                 pagination_last5,
-                pagination_before11]}].
+                pagination_before10,
+                pagination_after10]}].
 
 suite() ->
     escalus:suite().
@@ -92,6 +93,7 @@ init_per_group(muc, Config) ->
 init_per_group(rsm, Config) ->
     Config1 = escalus:create_users(Config),
     ct:pal("Config1: ~p", [Config1]),
+    Pid = self(),
     F = fun(Alice, Bob) ->
         %% Alice sends messages to Bob.
         [escalus:send(Alice,
@@ -99,12 +101,20 @@ init_per_group(rsm, Config) ->
          || N <- lists:seq(1, 15)],
         %% Wait 15 messages for 5 seconds.
         escalus:wait_for_stanzas(Bob, 15, 5000),
+        %% Get whole history.
+        escalus:send(Alice, stanza_archive_request(<<"all_messages">>)),
+        AllMessages = escalus:wait_for_stanzas(Alice, 15, 5000),
+        ParsedMessages = [parse_forwarded_message(M) || M <- AllMessages],
+        Pid ! {parsed_messages, ParsedMessages},
         ok
         end,
     Config2 = escalus:init_per_testcase(pre_rsm, Config1),
-    escalus:story(Config2, [1, 1], F),
+    ok = escalus:story(Config2, [1, 1], F),
+    ParsedMessages = receive {parsed_messages, PM} -> PM
+                     after 5000 -> error(receive_timeout) end,
+
     escalus:end_per_testcase(pre_rsm, Config2),
-    Config1; %% it is right.
+    [{all_messages, ParsedMessages}|Config1]; %% it is right.
 init_per_group(mam, Config) ->
     escalus:create_users(Config).
 
@@ -226,41 +236,41 @@ pagination_last5(Config) ->
         ct:pal("IQ: ~p~nMessages: ~p~nParsed messages: ~p~n",
                [IQ, Messages, ParsedMessages]),
         %% Compare body of the messages.
-        ?assertEqual([generate_message_text(N) || N <- lists:seq(10, 15)],
+        ?assertEqual([generate_message_text(N) || N <- lists:seq(11, 15)],
                      [B || #forwarded_message{message_body=B} <- ParsedMessages]),
         ok
         end,
     escalus:story(Config, [1], F).
 
-pagination_before11(Config) ->
+pagination_before10(Config) ->
     F = fun(Alice) ->
         %% Get the last page of size 5.
-        RSM = #rsm_in{max=5, direction=before, id=generate_message_text(11)},
-        escalus:send(Alice, stanza_page_archive_request(<<"before11">>, RSM)),
+        RSM = #rsm_in{max=5, direction=before, id=message_id(10, Config)},
+        escalus:send(Alice, stanza_page_archive_request(<<"before10">>, RSM)),
         Messages = escalus:wait_for_stanzas(Alice, 5, 5000),
         IQ = escalus:wait_for_stanzas(Alice, 1, 5000),
         ParsedMessages = [parse_forwarded_message(M) || M <- Messages],
         ct:pal("IQ: ~p~nMessages: ~p~nParsed messages: ~p~n",
                [IQ, Messages, ParsedMessages]),
         %% Compare body of the messages.
-        ?assertEqual([generate_message_text(N) || N <- lists:seq(5, 10)],
+        ?assertEqual([generate_message_text(N) || N <- lists:seq(5, 9)],
                      [B || #forwarded_message{message_body=B} <- ParsedMessages]),
         ok
         end,
     escalus:story(Config, [1], F).
 
-pagination_after11(Config) ->
+pagination_after10(Config) ->
     F = fun(Alice) ->
         %% Get the last page of size 5.
-        RSM = #rsm_in{max=5, direction='after', id=generate_message_text(11)},
-        escalus:send(Alice, stanza_page_archive_request(<<"after11">>, RSM)),
-        Messages = escalus:wait_for_stanzas(Alice, 3, 5000),
+        RSM = #rsm_in{max=5, direction='after', id=message_id(10, Config)},
+        escalus:send(Alice, stanza_page_archive_request(<<"after10">>, RSM)),
+        Messages = escalus:wait_for_stanzas(Alice, 5, 5000),
         IQ = escalus:wait_for_stanzas(Alice, 1, 5000),
+        ct:pal("IQ: ~p~nMessages: ~p~n", [IQ, Messages]),
         ParsedMessages = [parse_forwarded_message(M) || M <- Messages],
-        ct:pal("IQ: ~p~nMessages: ~p~nParsed messages: ~p~n",
-               [IQ, Messages, ParsedMessages]),
+        ct:pal("Parsed messages: ~p~n", [ParsedMessages]),
         %% Compare body of the messages.
-        ?assertEqual([generate_message_text(N) || N <- lists:seq(12, 15)],
+        ?assertEqual([generate_message_text(N) || N <- lists:seq(11, 15)],
                      [B || #forwarded_message{message_body=B} <- ParsedMessages]),
         ok
         end,
@@ -390,6 +400,12 @@ parse_forwarded_message(#xmlelement{name = <<"message">>,
 'parse_children[message/forwarded/message]'(#xmlelement{name = <<"body">>,
                                             children = [{xmlcdata, Body}]}, M) ->
     M#forwarded_message{message_body = Body}.
+
+%% Num is 1-based.
+message_id(Num, Config) ->
+    AllMessages = proplists:get_value(all_messages, Config),
+    #forwarded_message{result_id=Id} = lists:nth(Num, AllMessages),
+    Id.
     
         
 %%--------------------------------------------------------------------
