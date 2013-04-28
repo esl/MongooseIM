@@ -30,6 +30,7 @@
          muc_archive_request/1,
          range_archive_request/1,
          limit_archive_request/1,
+         prefs_set_request/1,
          pagination_first5/1,
          pagination_last5/1,
          pagination_before10/1,
@@ -70,6 +71,12 @@
     count           :: non_neg_integer()
 }).
 
+-record(prefs_result_iq, {
+    default_mode    :: binary() | undefined,
+    always_jids = [] :: [binary()],
+    newer_jids  = [] :: [binary()]
+}).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -79,7 +86,8 @@ all() ->
 groups() ->
     [{mam, [], [simple_archive_request,
                 range_archive_request,
-                limit_archive_request]},
+                limit_archive_request,
+                prefs_set_request]},
      {muc, [], [muc_archive_request]},
      {rsm, [], [pagination_first5,
                 pagination_last5,
@@ -305,6 +313,37 @@ generate_message_text(N) when is_integer(N) ->
     <<"Message #", (list_to_binary(integer_to_list(N)))/binary>>.
 
 
+
+prefs_set_request(Config) ->
+    F = fun(Alice) ->
+        %% Send
+        %% 
+        %% <iq type='set' id='juliet2'>
+        %%   <prefs xmlns='urn:xmpp:mam:tmp' default="roster">
+        %%     <always>
+        %%       <jid>romeo@montague.net</jid>
+        %%     </always>
+        %%     <never>
+        %%       <jid>montague@montague.net</jid>
+        %%     </never>
+        %%   </prefs>
+        %% </iq>
+        escalus:send(Alice, stanza_prefs_set_request(<<"roster">>,
+                                                     [<<"romeo@montague.net">>],
+                                                     [<<"montague@montague.net">>])),
+        ReplySet = escalus:wait_for_stanza(Alice),
+        ct:pal("ReplySet ~p.", [ReplySet]),
+
+        escalus:send(Alice, stanza_prefs_get_request()),
+        ReplyGet = escalus:wait_for_stanza(Alice),
+        ct:pal("ReplyGet ~p.", [ReplyGet]),
+        ResultIQ1 = parse_prefs_result_iq(ReplySet),
+        ResultIQ2 = parse_prefs_result_iq(ReplyGet),
+        ?assertEqual(ResultIQ1, ResultIQ2),
+        ok
+        end,
+    escalus:story(Config, [1], F).
+
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
@@ -370,6 +409,35 @@ stanza_page_archive_request(QueryId,
        children = [SetEl]
     }]).
 
+%% ----------------------------------------------------------------------
+%% PREFERENCE QUERIES
+
+stanza_prefs_set_request(DefaultMode, AlwaysJIDs, NewerJIDs) ->
+    AlwaysEl = #xmlelement{name = <<"always">>,
+                           children = encode_jids(AlwaysJIDs)},
+    NewerEl  = #xmlelement{name = <<"newer">>,
+                           children = encode_jids(NewerJIDs)},
+    escalus_stanza:iq(<<"set">>, [#xmlelement{
+       name = <<"prefs">>,
+       attrs = [{<<"xmlns">>,mam_ns_binary()}]
+               ++ [{<<"default">>, DefaultMode} || is_def(DefaultMode)],
+       children = [AlwaysEl, NewerEl]
+    }]).
+
+stanza_prefs_get_request() ->
+    escalus_stanza:iq(<<"get">>, [#xmlelement{
+       name = <<"prefs">>,
+       attrs = [{<<"xmlns">>,mam_ns_binary()}]
+    }]).
+
+encode_jids(JIDs) ->
+    [#xmlelement{name = <<"jid">>,
+                 children = [#xmlcdata{content = JID}]}
+     || JID <- JIDs].
+
+%% ----------------------------------------------------------------------
+%% PARSING RESPONDS
+
 %% Build a record from the term:
 %%  {xmlelement,<<"message">>,
 %%     [{<<"from">>,<<"alice@localhost">>},
@@ -433,7 +501,7 @@ message_id(Num, Config) ->
     Id.
 
 
-%% Result iq
+%% @doc Result query iq.
 %%
 %% [{xmlelement,<<"iq">>,
 %%     [{<<"from">>,<<"alice@localhost">>},
@@ -494,6 +562,34 @@ parse_result_iq(#xmlelement{name = <<"iq">>,
     IQ#result_iq{count = list_to_integer(binary_to_list(Count))};
 'parse_children[iq/query/set]'(_, IQ) -> IQ.
 
+is_def(X) -> X =/= undefined.
+
+
+
+parse_prefs_result_iq(#xmlelement{name = <<"iq">>, children = Children}) ->
+    IQ = #prefs_result_iq{},
+    lists:foldl(fun 'parse_children[prefs_iq]'/2, IQ, Children).
+
+'parse_children[prefs_iq]'(#xmlelement{name = <<"prefs">>,
+                                       attrs = Attrs, children = Children},
+                           IQ) ->
+    DefaultMode = proplists:get_value(<<"default">>, Attrs),
+    IQ1 = IQ#prefs_result_iq{default_mode = DefaultMode},
+    lists:foldl(fun 'parse_children[prefs_iq/prefs]'/2, IQ, Children).
+
+
+'parse_children[prefs_iq/prefs]'(#xmlelement{name = <<"always">>,
+                                             children = Children},
+                                 IQ) ->
+    IQ#prefs_result_iq{always_jids = lists:sort(parse_jids(Children))};
+'parse_children[prefs_iq/prefs]'(#xmlelement{name = <<"newer">>,
+                                             children = Children},
+                                 IQ) ->
+    IQ#prefs_result_iq{newer_jids = lists:sort(parse_jids(Children))}.
+
+
+parse_jids(Els) ->
+    [JID || #xmlelement{name = <<"jid">>, children = [{xmlcdata, JID}]} <- Els].
 
 %%--------------------------------------------------------------------
 %% Helpers (muc)
