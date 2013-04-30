@@ -132,8 +132,8 @@ missing_ns(Config) ->
                   fun(Alice) ->
                           %% Alice asks for her own private storage, without
                           %% providing a namespace for a child
-                          MyBanana = #xmlelement{name = <<"my_element">>,
-                                                 children = [#xmlelement{name = <<"banana">>}]},
+                          MyBanana = #xmlel{name = <<"my_element">>,
+                                                 children = [#xmlel{name = <<"banana">>}]},
                           IQ = escalus_stanza:private_get(MyBanana),
                           escalus_client:send(Alice, IQ),
 
@@ -148,10 +148,10 @@ missing_ns(Config) ->
 %%-----------------------------------------------------------------
 
 my_banana(NS) ->
-    #xmlelement{
+    #xmlel{
         name = <<"my_element">>,
         attrs = [{<<"xmlns">>, NS}],
-        children = [#xmlelement{name = <<"banana">>}]}.
+        children = [#xmlel{name = <<"banana">>}]}.
 
 check_body(Stanza, Names) ->
     Query = exml_query:subelement(Stanza, <<"query">>),
@@ -160,8 +160,8 @@ check_body(Stanza, Names) ->
 check_body_rec(_, []) ->
     ok;
 check_body_rec(Element, [Name | Names]) ->
-    [Child] = Element#xmlelement.children,
-    Name = Child#xmlelement.name,
+    [Child] = Element#xmlel.children,
+    Name = Child#xmlel.name,
     check_body_rec(Child, Names).
 
 restart_module_from_group(private_positive) ->

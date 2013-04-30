@@ -106,7 +106,7 @@ stop_module(ModuleName) ->
     escalus_ejabberd:rpc(gen_mod, stop_module, Args).
 
 sic_iq_get() ->
-    escalus_stanza:iq(<<"get">>, [#xmlelement{
+    escalus_stanza:iq(<<"get">>, [#xmlel{
         name = <<"ip">>,
         attrs = [{<<"xmlns">>, ?NS_SIC}],
         children = []

@@ -284,7 +284,7 @@ request_search_fields(Config) ->
               escalus:assert(is_iq_result, Res),
               Result = ?EL(Res, <<"query">>),
               XData = ?EL(Result, <<"x">>),
-              #xmlelement{ children = XChildren } = XData,
+              #xmlel{ children = XChildren } = XData,
               FieldTups = field_tuples(XChildren),
               true = lists:member({<<"text-single">>,
                                    <<"user">>, <<"User">>},
@@ -301,7 +301,7 @@ search_open(Config) ->
       fun(Client) ->
               DirJID = escalus_config:get_ct(
                          {vcard, data, all_search, directory_jid}),
-              Fields = [#xmlelement{ name = <<"field">> }],
+              Fields = [#xmlel{ name = <<"field">> }],
               Res = escalus:send_and_wait(Client,
                         escalus_stanza:search_iq(DirJID, Fields)),
               escalus:assert(is_iq_result, Res),
@@ -548,7 +548,7 @@ restart_mod(Mod, Params, NewMod) ->
     dynamic_modules:start(SecDomain, NewMod, Params).
 
 %%----------------------
-%% xmlelement shortcuts
+%% xmlel shortcuts
 stanza_get_vcard_field(Stanza, FieldName) ->
     VCard = ?EL(Stanza, <<"vCard">>),
     ?EL(VCard, FieldName).
@@ -565,7 +565,7 @@ stanza_get_vcard_field_cdata(Stanza, FieldName) ->
 %%
 field_tuples([]) ->
     [];
-field_tuples([#xmlelement{name = <<"field">>,
+field_tuples([#xmlel{name = <<"field">>,
                           attrs=Attrs,
                           children=_Children} = El| Rest]) ->
     {<<"type">>,Type} = lists:keyfind(<<"type">>, 1, Attrs),
@@ -588,7 +588,7 @@ field_tuples([_SomeOtherEl|Rest]) ->
 item_field_tuples(_, []) ->
     [];
 item_field_tuples(ReportedFieldTups,
-                  [#xmlelement{name = <<"field">>,
+                  [#xmlel{name = <<"field">>,
                                attrs=Attrs,
                                children=_Children} = El| Rest]) ->
     {<<"var">>,Var} = lists:keyfind(<<"var">>, 1, Attrs),
@@ -607,7 +607,7 @@ item_field_tuples(ReportedFieldTups, [_SomeOtherEl|Rest]) ->
 %%
 item_tuples(_, []) ->
     [];
-item_tuples(ReportedFieldTups, [#xmlelement{name = <<"item">>,
+item_tuples(ReportedFieldTups, [#xmlel{name = <<"item">>,
                                             children = Children} | Rest]) ->
     ItemFieldTups = item_field_tuples(ReportedFieldTups, Children),
     {_,_,_,JID} = lists:keyfind(<<"jid">>, 2, ItemFieldTups),
@@ -669,9 +669,9 @@ list_unordered_key_match2(Keypos, [ExpctdTup|Rest], ActualTuples) ->
 search_result_item_tuples(Stanza) ->
     Result = ?EL(Stanza, <<"query">>),
     XData = ?EL(Result, <<"x">>),
-    #xmlelement{ attrs = _XAttrs,
+    #xmlel{ attrs = _XAttrs,
                  children = XChildren } = XData,
     Reported = ?EL(XData, <<"reported">>),
-    ReportedFieldTups = field_tuples(Reported#xmlelement.children),
+    ReportedFieldTups = field_tuples(Reported#xmlel.children),
     _ItemTups = item_tuples(ReportedFieldTups, XChildren).
 
