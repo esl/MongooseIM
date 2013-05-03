@@ -26,13 +26,16 @@
 
 all() ->
     [{group, presence},
+     {group, presence_priority},
      {group, roster},
      {group, subscribe_group}].
 
 groups() ->
     [{presence, [sequence], [available,
                              available_direct,
-                             additions]},
+                             additions,
+                             invisible_presence]},
+     {presence_priority, [sequence], [negative_priority_presence]},
      {roster, [sequence], [get_roster,
                            add_contact,
                            remove_contact]},
@@ -123,6 +126,87 @@ additions(Config) ->
         escalus:assert(is_presence_with_show, [<<"dnd">>], Received),
         escalus:assert(is_presence_with_status, [<<"Short break">>], Received),
         escalus:assert(is_presence_with_priority, [<<"1">>], Received)
+
+        end).
+
+negative_priority_presence(Config) ->
+    escalus:story(Config, [2, 1], fun(Alice1, Alice2, Bob) ->
+
+        %% Alice1 updates presense priority
+        Tags = escalus_stanza:tags([
+            {<<"priority">>, <<"-10">>}
+        ]),
+        Presence = escalus_stanza:presence(<<"available">>, Tags),
+        escalus:send(Alice1, Presence),
+
+        Received1 = escalus:wait_for_stanza(Alice1),
+        Received2 = escalus:wait_for_stanza(Alice2),
+        escalus:assert(is_presence, Received1),
+        escalus:assert(is_presence, Received2),
+        escalus:assert(is_presence_with_priority, [<<"-10">>], Received1),
+        escalus:assert(is_presence_with_priority, [<<"-10">>], Received2),
+
+        %% Bob sends to the Alice's bare JID.
+        escalus:send(Bob, escalus_stanza:chat_to_short_jid(Alice1, <<"Hi.">>)),
+
+        %% If priority is negative, than the client does not want to receive
+        %% any messages.
+        timer:sleep(1000),
+        escalus_assert:has_no_stanzas(Alice1)
+
+        end).
+
+invisible_presence(Config) ->
+    escalus:story(Config, [1, 1], fun(Alice,Bob) ->
+
+        %% Alice adds Bob as a contact
+        add_sample_contact(Alice, Bob),
+
+        %% She subscribes to his presences
+        escalus:send(Alice, escalus_stanza:presence_direct(bob, <<"subscribe">>)),
+        PushReq = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_roster_set, PushReq),
+        escalus:send(Alice, escalus_stanza:iq_result(PushReq)),
+
+        %% Bob receives subscription reqest
+        Received = escalus:wait_for_stanza(Bob),
+        escalus:assert(is_presence_with_type, [<<"subscribe">>], Received),
+
+        %% Bob adds new contact to his roster
+        escalus:send(Bob, escalus_stanza:roster_add_contact(Alice,
+                                                            [<<"enemies">>],
+                                                             <<"Alice">>)),
+        PushReqB = escalus:wait_for_stanza(Bob),
+        escalus:assert(is_roster_set, PushReqB),
+        escalus:send(Bob, escalus_stanza:iq_result(PushReqB)),
+        escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
+
+        %% Bob sends subscribed presence
+        escalus:send(Bob, escalus_stanza:presence_direct(alice, <<"subscribed">>)),
+
+        %% Alice receives subscribed
+        Stanzas = escalus:wait_for_stanzas(Alice, 2),
+
+        check_subscription_stanzas(Stanzas, <<"subscribed">>),
+        escalus:assert(is_presence, escalus:wait_for_stanza(Alice)),
+
+        %% Bob receives roster push
+        PushReqB1 = escalus:wait_for_stanza(Bob),
+        escalus:assert(is_roster_set, PushReqB1),
+
+        %% Bob sends presence
+        escalus:send(Bob, escalus_stanza:presence(<<"available">>)),
+        escalus:assert(is_presence, escalus:wait_for_stanza(Alice)),
+
+        %% Bob becomes invisible
+        escalus:send(Bob, escalus_stanza:presence(<<"invisible">>)),
+
+        escalus:assert(is_presence_with_type, [<<"unavailable">>],
+                       escalus:wait_for_stanza(Alice)),
+
+        %% Return everything back
+        escalus:send(Bob, escalus_stanza:presence(<<"available">>)),
+        escalus:assert(is_presence, escalus:wait_for_stanza(Alice))
 
         end).
 
