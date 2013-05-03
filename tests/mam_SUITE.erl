@@ -158,12 +158,12 @@ end_per_testcase(CaseName, Config) ->
 simple_archive_request(Config) ->
     F = fun(Alice, Bob) ->
         %% Alice sends "OH, HAI!" to Bob
-        %% {xmlelement,<<"message">>,
+        %% {xmlel,<<"message">>,
         %%  [{<<"from">>,<<"alice@localhost/res1">>},
         %%   {<<"to">>,<<"bob@localhost/res1">>},
         %%   {<<"xml:lang">>,<<"en">>},
         %%   {<<"type">>,<<"chat">>}],
-        %%   [{xmlelement,<<"body">>,[],[{xmlcdata,<<"OH, HAI!">>}]}]}
+        %%   [{xmlel,<<"body">>,[],[{xmlcdata,<<"OH, HAI!">>}]}]}
         escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
         escalus:send(Alice, stanza_archive_request(<<"q1">>)),
         Reply = escalus:wait_for_stanza(Alice),
@@ -357,30 +357,30 @@ muc_ns_binary() -> <<"http://jabber.org/protocol/muc">>.
 %% An optional 'queryid' attribute allows the client to match results to
 %% a certain query.
 stanza_archive_request(QueryId) ->
-    escalus_stanza:iq(<<"get">>, [#xmlelement{
+    escalus_stanza:iq(<<"get">>, [#xmlel{
        name = <<"query">>,
        attrs = [{<<"xmlns">>,mam_ns_binary()}, {<<"queryid">>, QueryId}]
     }]).
 
 stanza_date_range_archive_request() ->
-    Start = #xmlelement{name = <<"start">>,
-                        children = #xmlcdata{content = "2010-06-07T00:00:00Z"}},
-    End   = #xmlelement{name = <<"end">>,
-                        children = #xmlcdata{content = "2010-07-07T13:23:54Z"}},
-    escalus_stanza:iq(<<"get">>, [#xmlelement{
+    Start = #xmlel{name = <<"start">>,
+                   children = #xmlcdata{content = "2010-06-07T00:00:00Z"}},
+    End   = #xmlel{name = <<"end">>,
+                   children = #xmlcdata{content = "2010-07-07T13:23:54Z"}},
+    escalus_stanza:iq(<<"get">>, [#xmlel{
        name = <<"query">>,
        attrs = [{<<"xmlns">>,mam_ns_binary()}],
        children = [Start, End]
     }]).
 
 stanza_limit_archive_request() ->
-    Start = #xmlelement{name = <<"start">>,
-                        children = #xmlcdata{content = "2010-08-07T00:00:00Z"}},
-    Limit = #xmlelement{name = <<"limit">>, %% according XEP-0313, not XEP-0059
-                        children = #xmlcdata{content = "10"}},
-    Set   = #xmlelement{name = <<"set">>,
-                        children = [Limit]},
-    escalus_stanza:iq(<<"get">>, [#xmlelement{
+    Start = #xmlel{name = <<"start">>,
+                   children = #xmlcdata{content = "2010-08-07T00:00:00Z"}},
+    Limit = #xmlel{name = <<"limit">>, %% according XEP-0313, not XEP-0059
+                   children = #xmlcdata{content = "10"}},
+    Set   = #xmlel{name = <<"set">>,
+                   children = [Limit]},
+    escalus_stanza:iq(<<"get">>, [#xmlel{
        name = <<"query">>,
        attrs = [{<<"xmlns">>,mam_ns_binary()}],
        children = [Start, Set]
@@ -389,21 +389,21 @@ stanza_limit_archive_request() ->
 
 stanza_page_archive_request(QueryId,
                             #rsm_in{max=Max, direction=Direction, id=Id, index=Index}) ->
-    LimitEl = [#xmlelement{name = <<"max">>,
-                           children = #xmlcdata{content = integer_to_list(Max)}}
+    LimitEl = [#xmlel{name = <<"max">>,
+                      children = #xmlcdata{content = integer_to_list(Max)}}
                || is_integer(Max)],
-    IndexEl = [#xmlelement{name = <<"index">>,
-                           children = #xmlcdata{content = integer_to_list(Index)}}
+    IndexEl = [#xmlel{name = <<"index">>,
+                      children = #xmlcdata{content = integer_to_list(Index)}}
                || is_integer(Index)],
-    BorderEl = [#xmlelement{name = atom_to_binary(Direction, latin1),
-                            children = case Id of
-                                        undefined -> [];
-                                         _ -> #xmlcdata{content = Id}
-                                       end}
+    BorderEl = [#xmlel{name = atom_to_binary(Direction, latin1),
+                       children = case Id of
+                                   undefined -> [];
+                                    _ -> #xmlcdata{content = Id}
+                                  end}
                 || Direction =/= undefined],
-    SetEl = #xmlelement{name = <<"set">>,
+    SetEl = #xmlel{name = <<"set">>,
                         children = lists:merge([LimitEl, IndexEl, BorderEl])},
-    escalus_stanza:iq(<<"get">>, [#xmlelement{
+    escalus_stanza:iq(<<"get">>, [#xmlel{
        name = <<"query">>,
        attrs = [{<<"xmlns">>,mam_ns_binary()}, {<<"queryid">>, QueryId}],
        children = [SetEl]
@@ -413,11 +413,11 @@ stanza_page_archive_request(QueryId,
 %% PREFERENCE QUERIES
 
 stanza_prefs_set_request(DefaultMode, AlwaysJIDs, NewerJIDs) ->
-    AlwaysEl = #xmlelement{name = <<"always">>,
-                           children = encode_jids(AlwaysJIDs)},
-    NewerEl  = #xmlelement{name = <<"newer">>,
-                           children = encode_jids(NewerJIDs)},
-    escalus_stanza:iq(<<"set">>, [#xmlelement{
+    AlwaysEl = #xmlel{name = <<"always">>,
+                      children = encode_jids(AlwaysJIDs)},
+    NewerEl  = #xmlel{name = <<"newer">>,
+                      children = encode_jids(NewerJIDs)},
+    escalus_stanza:iq(<<"set">>, [#xmlel{
        name = <<"prefs">>,
        attrs = [{<<"xmlns">>,mam_ns_binary()}]
                ++ [{<<"default">>, DefaultMode} || is_def(DefaultMode)],
@@ -425,72 +425,72 @@ stanza_prefs_set_request(DefaultMode, AlwaysJIDs, NewerJIDs) ->
     }]).
 
 stanza_prefs_get_request() ->
-    escalus_stanza:iq(<<"get">>, [#xmlelement{
+    escalus_stanza:iq(<<"get">>, [#xmlel{
        name = <<"prefs">>,
        attrs = [{<<"xmlns">>,mam_ns_binary()}]
     }]).
 
 encode_jids(JIDs) ->
-    [#xmlelement{name = <<"jid">>,
-                 children = [#xmlcdata{content = JID}]}
+    [#xmlel{name = <<"jid">>,
+            children = [#xmlcdata{content = JID}]}
      || JID <- JIDs].
 
 %% ----------------------------------------------------------------------
 %% PARSING RESPONDS
 
 %% Build a record from the term:
-%%  {xmlelement,<<"message">>,
+%%  {xmlel,<<"message">>,
 %%     [{<<"from">>,<<"alice@localhost">>},
 %%      {<<"to">>,<<"alice@localhost/res1">>}],
-%%     [{xmlelement,<<"result">>,
+%%     [{xmlel,<<"result">>,
 %%          [{<<"xmlns">>,<<"urn:xmpp:mam:tmp">>},
 %%           {<<"queryid">>,<<"first5">>},
 %%           {<<"id">>,<<"103689">>}],
 %%          []},
-%%      {xmlelement,<<"forwarded">>,
+%%      {xmlel,<<"forwarded">>,
 %%          [{<<"xmlns">>,<<"urn:xmpp:forward:0">>}],
-%%          [{xmlelement,<<"delay">>,
+%%          [{xmlel,<<"delay">>,
 %%               [{<<"xmlns">>,<<"urn:xmpp:delay">>},
 %%                {<<"from">>,<<"alice@localhost/res1">>},
 %%                {<<"stamp">>,<<"2013-04-25T16:34:55Z">>}],
 %%               []},
-%%           {xmlelement,<<"message">>,
+%%           {xmlel,<<"message">>,
 %%               [{<<"xml:lang">>,<<"en">>},
 %%                {<<"to">>,<<"bob@localhost/res1">>},
 %%                {<<"type">>,<<"chat">>}],
-%%               [{xmlelement,<<"body">>,[],
+%%               [{xmlel,<<"body">>,[],
 %%                    [{xmlcdata,<<"Message #1">>}]}]}]}]}
-parse_forwarded_message(#xmlelement{name = <<"message">>,
-                                    attrs = Attrs, children = Children}) ->
+parse_forwarded_message(#xmlel{name = <<"message">>,
+                               attrs = Attrs, children = Children}) ->
     M = #forwarded_message{
         from = proplists:get_value(<<"from">>, Attrs),
         to   = proplists:get_value(<<"to">>, Attrs)},
     lists:foldl(fun 'parse_children[message]'/2, M, Children).
 
-'parse_children[message]'(#xmlelement{name = <<"result">>,
-                                      attrs = Attrs}, M) ->
+'parse_children[message]'(#xmlel{name = <<"result">>,
+                                 attrs = Attrs}, M) ->
     M#forwarded_message{
         result_queryid = proplists:get_value(<<"queryid">>, Attrs),
         result_id      = proplists:get_value(<<"id">>, Attrs)};
-'parse_children[message]'(#xmlelement{name = <<"forwarded">>,
-                                      children = Children}, M) ->
+'parse_children[message]'(#xmlel{name = <<"forwarded">>,
+                                 children = Children}, M) ->
     lists:foldl(fun 'parse_children[message/forwarded]'/2, M, Children).
     
 
-'parse_children[message/forwarded]'(#xmlelement{name = <<"delay">>,
-                                                attrs = Attrs}, M) ->
+'parse_children[message/forwarded]'(#xmlel{name = <<"delay">>,
+                                           attrs = Attrs}, M) ->
     M#forwarded_message{
         delay_from  = proplists:get_value(<<"from">>, Attrs),
         delay_stamp = proplists:get_value(<<"stamp">>, Attrs)};
-'parse_children[message/forwarded]'(#xmlelement{name = <<"message">>,
-                                                attrs = Attrs,
-                                                children = Children}, M) ->
+'parse_children[message/forwarded]'(#xmlel{name = <<"message">>,
+                                           attrs = Attrs,
+                                           children = Children}, M) ->
     M1 = M#forwarded_message{
         message_to   = proplists:get_value(<<"to">>, Attrs),
         message_type = proplists:get_value(<<"type">>, Attrs)},
     lists:foldl(fun 'parse_children[message/forwarded/message]'/2, M1, Children).
 
-'parse_children[message/forwarded/message]'(#xmlelement{name = <<"body">>,
+'parse_children[message/forwarded/message]'(#xmlel{name = <<"body">>,
                                             children = [{xmlcdata, Body}]}, M) ->
     M#forwarded_message{message_body = Body}.
 
@@ -503,7 +503,7 @@ message_id(Num, Config) ->
 
 %% @doc Result query iq.
 %%
-%% [{xmlelement,<<"iq">>,
+%% [{xmlel,<<"iq">>,
 %%     [{<<"from">>,<<"alice@localhost">>},
 %%      {<<"to">>,<<"alice@localhost/res1">>},
 %%      {<<"id">>,<<"387862024ce65379b049e19751e4309e">>},
@@ -511,53 +511,53 @@ message_id(Num, Config) ->
 %%     []}]
 %%
 %%
-%%  [{xmlelement,<<"iq">>,
+%%  [{xmlel,<<"iq">>,
 %%       [{<<"from">>,<<"alice@localhost">>},
 %%        {<<"to">>,<<"alice@localhost/res1">>},
 %%        {<<"id">>,<<"c256a18c4b720465e215a81362d41eb7">>},
 %%        {<<"type">>,<<"result">>}],
-%%       [{xmlelement,<<"query">>,
+%%       [{xmlel,<<"query">>,
 %%            [{<<"xmlns">>,<<"urn:xmpp:mam:tmp">>}],
-%%            [{xmlelement,<<"set">>,
+%%            [{xmlel,<<"set">>,
 %%                 [{<<"xmlns">>,<<"http://jabber.org/protocol/rsm">>}],
-%%                 [{xmlelement,<<"first">>,
+%%                 [{xmlel,<<"first">>,
 %%                      [{<<"index">>,<<"10">>}],
 %%                      [{xmlcdata,<<"103439">>}]},
-%%                  {xmlelement,<<"last">>,[],[{xmlcdata,<<"103447">>}]},
-%%                  {xmlelement,<<"count">>,[],[{xmlcdata,<<"15">>}]}]}]}]}]
-parse_result_iq(#xmlelement{name = <<"iq">>,
-                            attrs = Attrs, children = Children}) ->
+%%                  {xmlel,<<"last">>,[],[{xmlcdata,<<"103447">>}]},
+%%                  {xmlel,<<"count">>,[],[{xmlcdata,<<"15">>}]}]}]}]}]
+parse_result_iq(#xmlel{name = <<"iq">>,
+                       attrs = Attrs, children = Children}) ->
     IQ = #result_iq{
         from = proplists:get_value(<<"from">>, Attrs),
         to   = proplists:get_value(<<"to">>, Attrs),
         id   = proplists:get_value(<<"id">>, Attrs)},
     lists:foldl(fun 'parse_children[iq]'/2, IQ, Children).
 
-'parse_children[iq]'(#xmlelement{name = <<"query">>, children = Children},
+'parse_children[iq]'(#xmlel{name = <<"query">>, children = Children},
                      IQ) ->
     lists:foldl(fun 'parse_children[iq/query]'/2, IQ, Children).
 
 
-'parse_children[iq/query]'(#xmlelement{name = <<"set">>,
-                                       children = Children},
+'parse_children[iq/query]'(#xmlel{name = <<"set">>,
+                                  children = Children},
                            IQ) ->
     lists:foldl(fun 'parse_children[iq/query/set]'/2, IQ, Children).
 
-'parse_children[iq/query/set]'(#xmlelement{name = <<"first">>,
-                                           attrs = Attrs,
-                                           children = [{xmlcdata, First}]},
+'parse_children[iq/query/set]'(#xmlel{name = <<"first">>,
+                                      attrs = Attrs,
+                                      children = [{xmlcdata, First}]},
                                IQ) ->
     Index = case proplists:get_value(<<"index">>, Attrs) of
                 undefined -> undefined;
                 X -> list_to_integer(binary_to_list(X))
             end,
     IQ#result_iq{first_index = Index, first = First};
-'parse_children[iq/query/set]'(#xmlelement{name = <<"last">>,
-                                           children = [{xmlcdata, Last}]},
+'parse_children[iq/query/set]'(#xmlel{name = <<"last">>,
+                                      children = [{xmlcdata, Last}]},
                                IQ) ->
     IQ#result_iq{last = Last};
-'parse_children[iq/query/set]'(#xmlelement{name = <<"count">>,
-                                           children = [{xmlcdata, Count}]},
+'parse_children[iq/query/set]'(#xmlel{name = <<"count">>,
+                                      children = [{xmlcdata, Count}]},
                                IQ) ->
     IQ#result_iq{count = list_to_integer(binary_to_list(Count))};
 'parse_children[iq/query/set]'(_, IQ) -> IQ.
@@ -566,30 +566,30 @@ is_def(X) -> X =/= undefined.
 
 
 
-parse_prefs_result_iq(#xmlelement{name = <<"iq">>, children = Children}) ->
+parse_prefs_result_iq(#xmlel{name = <<"iq">>, children = Children}) ->
     IQ = #prefs_result_iq{},
     lists:foldl(fun 'parse_children[prefs_iq]'/2, IQ, Children).
 
-'parse_children[prefs_iq]'(#xmlelement{name = <<"prefs">>,
-                                       attrs = Attrs, children = Children},
+'parse_children[prefs_iq]'(#xmlel{name = <<"prefs">>,
+                                  attrs = Attrs, children = Children},
                            IQ) ->
     DefaultMode = proplists:get_value(<<"default">>, Attrs),
     IQ1 = IQ#prefs_result_iq{default_mode = DefaultMode},
     lists:foldl(fun 'parse_children[prefs_iq/prefs]'/2, IQ, Children).
 
 
-'parse_children[prefs_iq/prefs]'(#xmlelement{name = <<"always">>,
-                                             children = Children},
+'parse_children[prefs_iq/prefs]'(#xmlel{name = <<"always">>,
+                                        children = Children},
                                  IQ) ->
     IQ#prefs_result_iq{always_jids = lists:sort(parse_jids(Children))};
-'parse_children[prefs_iq/prefs]'(#xmlelement{name = <<"newer">>,
-                                             children = Children},
+'parse_children[prefs_iq/prefs]'(#xmlel{name = <<"newer">>,
+                                        children = Children},
                                  IQ) ->
     IQ#prefs_result_iq{newer_jids = lists:sort(parse_jids(Children))}.
 
 
 parse_jids(Els) ->
-    [JID || #xmlelement{name = <<"jid">>, children = [{xmlcdata, JID}]} <- Els].
+    [JID || #xmlel{name = <<"jid">>, children = [{xmlcdata, JID}]} <- Els].
 
 %%--------------------------------------------------------------------
 %% Helpers (muc)
@@ -606,8 +606,7 @@ generate_rpc_jid({_,User}) ->
 start_room(Config, User, Room, Nick, Opts) ->
     From = generate_rpc_jid(User),
     escalus_ejabberd:rpc(mod_muc, create_instant_room,
-        [<<"localhost">>, Room, From, Nick,
-            Opts]),
+        [<<"localhost">>, Room, From, Nick, Opts]),
     [{nick, Nick}, {room, Room} | Config].
 
 destroy_room(Config) ->
@@ -618,8 +617,8 @@ destroy_room(Config) ->
     end.
 
 stanza_muc_enter_room(Room, Nick) ->
-    Elem = #xmlelement{ name = <<"x">>,
-                        attrs=[{<<"xmlns">>, muc_ns_binary()}]},
+    Elem = #xmlel{ name = <<"x">>,
+                   attrs=[{<<"xmlns">>, muc_ns_binary()}]},
     stanza_to_room(escalus_stanza:presence(<<"available">>, [Elem]),
                    Room, Nick).
 
