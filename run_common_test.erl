@@ -19,7 +19,8 @@ tests_to_run() ->
      {dir, ?CT_DIR},
      {logdir, ?CT_REPORT},
 
-     {suite, [adhoc_SUITE,
+     {suite, [
+              adhoc_SUITE,
               anonymous_SUITE,
               last_SUITE,
               login_SUITE,
@@ -37,7 +38,11 @@ tests_to_run() ->
               %snmp_session_SUITE,
               %snmp_table_SUITE,
               vcard_SUITE,
-              websockets_SUITE
+              websockets_SUITE,
+              metrics_c2s_SUITE,
+              metrics_roster_SUITE,
+              metrics_register_SUITE,
+              metrics_session_SUITE
              ]}
     ].
 
