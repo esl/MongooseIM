@@ -43,7 +43,8 @@ groups() ->
                                     cant_pause_for_too_long,
                                     pause_request_is_activity,
                                     reply_in_time]},
-     {acks, [], [server_acks]}].
+     {acks, [], [server_acks,
+                 force_report]}].
 
 suite() ->
     escalus:suite().
@@ -333,23 +334,29 @@ force_report(Config) ->
     %% Carol stores current Rid1
     %% Carol sends msg1
     %% Carol sends msg2
-    %% Geralt sends a reply to msg3
-    %% Geralt sends a reply to msg4
-    %% Carol recvs a reply to msg3
-    %% Carol recvs a reply to msg4
+    %% Geralt sends a reply to msg1
+    %% Geralt sends a reply to msg2
+    %% Carol recvs a reply to msg1
+    %% Carol recvs a reply to msg2
     %% Carol sends an ack with Rid1 on empty BOSH wrapper
     %% server sends a report
 
     escalus:story(Config, [{carol, 1}, {geralt, 1}], fun(Carol, Geralt) ->
 
         StaleRid = get_bosh_rid(Carol),
-        escalus_client:send(Carol, chat_to(Geralt, <<"1st!">>)),
-        escalus_client:send(Carol, chat_to(Geralt, <<"2nd!">>)),
+        escalus_client:send(Carol, chat_to(Geralt, <<"1st msg">>)),
+        escalus_client:send(Carol, chat_to(Geralt, <<"2nd msg">>)),
         wait_for_stanzas(Geralt, 2),
-        escalus_client:send(Geralt, chat_to(Carol, <<"3rd!">>)),
-        escalus_client:send(Geralt, chat_to(Carol, <<"4th!">>)),
-        escalus:assert(is_chat_message, [<<"3rd!">>], wait_for_stanza(Carol)),
-        escalus:assert(is_chat_message, [<<"4th!">>], wait_for_stanza(Carol)),
+        escalus_client:send(Geralt, chat_to(Carol, <<"1st rep">>)),
+        escalus_client:send(Geralt, chat_to(Carol, <<"2nd rep">>)),
+        escalus:assert(is_chat_message, [<<"1st rep">>],
+                       wait_for_stanza(Carol)),
+        escalus:assert(is_chat_message, [<<"2nd rep">>],
+                       wait_for_stanza(Carol)),
+
+        %% Turn on client acknowledgement checking for Carol
+        [{_, _, CarolSessionPid}] = get_bosh_sessions(),
+        set_client_acks(CarolSessionPid, true),
 
         escalus_bosh:set_active(Carol#client.conn, false),
         %% Send ack with StaleRid
@@ -357,9 +364,13 @@ force_report(Config) ->
         Sid = get_bosh_sid(Carol),
         BodyWithAck = ack_body(escalus_bosh:empty_body(Rid, Sid), StaleRid),
         escalus_bosh:send_raw(Carol#client.conn, BodyWithAck),
+
+        %% Turn off client acknowledgement checking - don't cause server error
+        %% on subsequent requests without 'ack' attribute.
+        set_client_acks(CarolSessionPid, false),
+
         %% Expect a server report
         MaybeReport = bosh_recv(Carol),
-        error_logger:info_msg("report? ~p~n", [MaybeReport]),
         escalus:assert(is_bosh_report, [StaleRid+1], MaybeReport)
 
         end).
@@ -423,6 +434,10 @@ ack_body(Body, Rid) ->
     Ack = {<<"ack">>, list_to_binary(integer_to_list(Rid))},
     NewAttrs = lists:keystore(<<"ack">>, 1, Attrs, Ack),
     Body#xmlelement{attrs = NewAttrs}.
+
+set_client_acks(SessionPid, Enabled) ->
+    escalus_ejabberd:rpc(mod_bosh_socket, set_client_acks,
+                         [SessionPid, Enabled]).
 
 inactivity() ->
     inactivity(?INACTIVITY).
