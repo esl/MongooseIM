@@ -14,8 +14,7 @@ ct_vcard_config_file() ->
 
 
 tests_to_run() ->
-    [{config, ct_config_file()},
-     {config, ct_vcard_config_file()},
+    [{config, [ct_config_file(), ct_vcard_config_file()]},
      {dir, ?CT_DIR},
      {logdir, ?CT_REPORT},
 
