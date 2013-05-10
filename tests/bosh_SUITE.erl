@@ -376,6 +376,32 @@ force_report(Config) ->
 
         end).
 
+force_retransmission(Config) ->
+    escalus:story(Config, [{carol, 1}, {geralt, 1}], fun(Carol, Geralt) ->
+
+        %% get Rid
+        Rid = get_bosh_rid(Carol),
+
+        %% send msg
+        Sid = get_bosh_sid(Carol),
+        Empty = escalus_bosh:empty_body(Rid, Sid),
+        Chat = Empty#xmlel{
+                children = [escalus_stanza:chat_to(Geralt, <<"Hi!">>)]},
+        escalus_bosh:send_raw(Carol#client.conn, Chat),
+
+        %% recv reply
+        escalus_client:send(Geralt, chat_to(Carol, <<"Hello!">>)),
+        ChatResponse = wait_for_stanza(Carol),
+        escalus:assert(is_chat_message, [<<"Hello!">>], ChatResponse),
+
+        %% resend msg
+        escalus_bosh:send_raw(Carol#client.conn, Chat),
+
+        %% recv same reply again
+        ChatResponse = wait_for_stanza(Carol)
+
+        end).
+
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
