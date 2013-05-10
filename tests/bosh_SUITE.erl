@@ -370,7 +370,7 @@ force_report(Config) ->
         set_client_acks(CarolSessionPid, false),
 
         %% Expect a server report
-        timer:sleep(10),
+        timer:sleep(100),
         MaybeReport = bosh_recv(Carol),
         escalus:assert(is_bosh_report, [StaleRid+1], MaybeReport)
 
