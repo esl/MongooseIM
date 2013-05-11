@@ -44,7 +44,8 @@ groups() ->
                                     pause_request_is_activity,
                                     reply_in_time]},
      {acks, [shuffle, {repeat,5}], [server_acks,
-                                    force_report]}].
+                                    force_report,
+                                    force_retransmission]}].
 
 suite() ->
     escalus:suite().
