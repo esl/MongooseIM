@@ -379,25 +379,29 @@ force_report(Config) ->
 force_retransmission(Config) ->
     escalus:story(Config, [{carol, 1}, {geralt, 1}], fun(Carol, Geralt) ->
 
-        %% get Rid
+        %% `send_raw` must be used as the exact request structure
+        %% is needed later for retransmission.
+        %% Hence, construct the request manually.
         Rid = get_bosh_rid(Carol),
-
-        %% send msg
         Sid = get_bosh_sid(Carol),
         Empty = escalus_bosh:empty_body(Rid, Sid),
         Chat = Empty#xmlel{
-                children = [escalus_stanza:chat_to(Geralt, <<"Hi!">>)]},
-        escalus_bosh:send_raw(Carol#client.conn, Chat),
+                children = [escalus_stanza:chat_to(Geralt, <<"1st msg!">>)]},
 
-        %% recv reply
-        escalus_client:send(Geralt, chat_to(Carol, <<"Hello!">>)),
+        %% Send msg, recv msg, send reply, recv reply.
+        %% This synchronous sequence sets up the server
+        %% to have the reply for Chat cached.
+        escalus_bosh:send_raw(Carol#client.conn, Chat),
+        escalus:assert(is_chat_message, [<<"1st msg!">>],
+                       wait_for_stanza(Geralt)),
+        escalus_client:send(Geralt, chat_to(Carol, <<"1st rep!">>)),
         ChatResponse = wait_for_stanza(Carol),
-        escalus:assert(is_chat_message, [<<"Hello!">>], ChatResponse),
+        escalus:assert(is_chat_message, [<<"1st rep!">>], ChatResponse),
 
-        %% resend msg
+        %% Resend msg.
         escalus_bosh:send_raw(Carol#client.conn, Chat),
 
-        %% recv same reply again
+        %% Recv same reply again.
         ChatResponse = wait_for_stanza(Carol)
 
         end).
