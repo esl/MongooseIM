@@ -45,7 +45,8 @@ groups() ->
                                     reply_in_time]},
      {acks, [shuffle, {repeat,5}], [server_acks,
                                     force_report,
-                                    force_retransmission]}].
+                                    force_retransmission,
+                                    force_cache_trimming]}].
 
 suite() ->
     escalus:suite().
@@ -407,6 +408,50 @@ force_retransmission(Config) ->
 
         end).
 
+force_cache_trimming(Config) ->
+    escalus:story(Config, [{carol, 1}, {geralt, 1}], fun(Carol, Geralt) ->
+
+        Sid = get_bosh_sid(Carol),
+
+        [{_, _, CarolSessionPid}] = get_bosh_sessions(),
+        set_client_acks(CarolSessionPid, true),
+
+        %% Ack now
+        Rid1 = get_bosh_rid(Carol),
+        Ack1 = ack_body(escalus_bosh:empty_body(Rid1, Sid), Rid1-1),
+        escalus_bosh:send_raw(Carol#client.conn, Ack1),
+
+        %% Exchange 2 messages
+        Rid2 = get_bosh_rid(Carol),
+        Chat = (escalus_bosh:empty_body(Rid2, Sid))#xmlel{
+                children = [escalus_stanza:chat_to(Geralt, <<"1st msg!">>)]},
+        escalus_bosh:send_raw(Carol#client.conn, Chat),
+        escalus:assert(is_chat_message, [<<"1st msg!">>],
+                       wait_for_stanza(Geralt)),
+        escalus_client:send(Geralt, chat_to(Carol, <<"1st rep!">>)),
+        ChatResponse = wait_for_stanza(Carol),
+        escalus:assert(is_chat_message, [<<"1st rep!">>], ChatResponse),
+
+        %% Ack/Chat again
+        Rid3 = get_bosh_rid(Carol),
+        AckedChat = (ack_body(escalus_bosh:empty_body(Rid3, Sid), Rid2))#xmlel{
+                children = [escalus_stanza:chat_to(Geralt, <<"2nd msg!">>)]},
+        escalus_bosh:send_raw(Carol#client.conn, AckedChat),
+        escalus:assert(is_chat_message, [<<"2nd msg!">>],
+                       wait_for_stanza(Geralt)),
+
+        %% The cache should now contain only entries newer than Rid2.
+        [{_, _, CarolSessionPid}] = get_bosh_sessions(),
+        Cache = get_cached_responses(CarolSessionPid),
+        true = lists:all(fun({R,_,_}) when R > Rid2 -> true; (_) -> false end,
+                         Cache),
+        %% Not sure about this one...
+        1 = length(Cache),
+
+        set_client_acks(CarolSessionPid, false)
+
+        end).
+
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
@@ -470,6 +515,9 @@ ack_body(Body, Rid) ->
 set_client_acks(SessionPid, Enabled) ->
     escalus_ejabberd:rpc(mod_bosh_socket, set_client_acks,
                          [SessionPid, Enabled]).
+
+get_cached_responses(SessionPid) ->
+    escalus_ejabberd:rpc(mod_bosh_socket, get_cached_responses, [SessionPid]).
 
 inactivity() ->
     inactivity(?INACTIVITY).
