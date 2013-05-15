@@ -3,8 +3,10 @@
 TOOLS=`dirname $0`
 if [ `uname` = "Darwin" ]; then
     BASE=$(cd "$TOOLS/.."; pwd -P)
+    SED=gsed
 else
     BASE=`readlink -f $TOOLS/..`
+    SED=sed
 fi
 
 EJD1=$BASE/dev/ejabberd_node1
@@ -23,6 +25,10 @@ echo -n "pinging ejabberd node 1: "
 $EJD1CTL ping
 echo -n "pinging ejabberd node 2: "
 $EJD2CTL ping
+
+CFGS="$BASE/rel/vars.config $BASE/rel/reltool_vars/*.config"
+$SED -e "s/%ODBC_PASSWORD%/$1/" -i -- $CFGS
+
 make test
 echo -n "stopping ejabberd node 1: "
 $EJD1CTL stop
