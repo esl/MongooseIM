@@ -76,13 +76,13 @@ parse_json(Json) ->
     rpc:call(ct:get_config(ejabberd_node), mochijson2, decode, [Json]).
 
 start_lhttpc() ->
-    ok = application:start(crypto),
-    ok = application:start(public_key),
-    ok = application:start(ssl),
-    ok = application:start(lhttpc).
+    application:start(crypto),
+    application:start(public_key),
+    application:start(ssl),
+    application:start(lhttpc).
 
 stop_lhttpc() ->
-    ok = application:stop(lhttpc),
-    ok = application:stop(ssl),
-    ok = application:stop(public_key),
-    ok = application:stop(crypto).
+    application:stop(lhttpc),
+    application:stop(ssl),
+    application:stop(public_key),
+    application:stop(crypto).
