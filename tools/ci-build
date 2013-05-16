@@ -1,5 +1,14 @@
 #!/bin/bash
 
+#Former jenkins build&run script (just for the records)
+#echo "daemonize yes" > ejd-redis.conf
+#echo "port 6379" >> ejd-redis.conf
+#echo "pidfile ./redis.pid" >> ejd-redis.conf
+#redis-server ejd-redis.conf
+#./tools/set-odbc-password ODBC_PASSWORD
+#PATH=/var/erlang/r15b01/bin/:$PATH ./tools/ci-build-cover
+#kill -9 `cat ./redis.pid`
+
 TOOLS=`dirname $0`
 if [ `uname` = "Darwin" ]; then
     BASE=$(cd "$TOOLS/.."; pwd -P)
