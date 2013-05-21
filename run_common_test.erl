@@ -41,7 +41,8 @@ tests_to_run() ->
               metrics_c2s_SUITE,
               metrics_roster_SUITE,
               metrics_register_SUITE,
-              metrics_session_SUITE
+              metrics_session_SUITE,
+              system_monitor_SUITE
              ]}
     ].
 
