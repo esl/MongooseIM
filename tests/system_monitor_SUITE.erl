@@ -28,7 +28,8 @@
 all() ->
     [
      test_notification,
-     test_kill
+     test_kill,
+     test_get_set_large_heap
     ].
 
 suite() ->
@@ -41,11 +42,19 @@ suite() ->
 init_per_suite(Config) ->
     {Mod, Bin, File} = code:get_object_code(?MODULE),
     rpc(code, load_binary, [Mod, File, Bin]),
+    stop_alarms(),
     escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
+init_per_testcase(CaseName, Config)
+  when CaseName == test_kill;
+       CaseName == test_get_set_large_heap ->
+    LH = 100000,
+    start_alarms([], LH),
+    escalus:create_users(Config),
+    [{large_heap, LH} | escalus:init_per_testcase(CaseName, Config)];
 init_per_testcase(CaseName, Config) ->
     escalus:create_users(Config),
     escalus:init_per_testcase(CaseName, Config).
@@ -90,9 +99,7 @@ test_kill(Config) ->
     escalus:story(Config, [1], fun test_kill_story/1).
 
 test_kill_story(Alice) ->
-    start_alarms([], 100000),
     add_watchdog_admin(Alice),
-
     Pid = rpc(system_monitor_SUITE, use_memory, [150000, 100000]),
     PidStr = rpc(erlang, pid_to_list, [Pid]),
     Stanza = escalus_client:wait_for_stanza(Alice),
@@ -126,6 +133,31 @@ test_kill_consume_large_heap_message(PidStr, Stanza) ->
                                 " is consuming too much memory:",
                                 [PidStr]),
     [{0, _}] = binary:matches(Msg, iolist_to_binary(ExpectedMsg)).
+
+%% Alice - the watchdog admin - changes large_heap threshold
+test_get_set_large_heap(Config) ->
+    escalus:story(Config, [1],
+                  fun(Alice) ->
+                          test_get_set_large_heap_story(Config, Alice)
+                  end).
+
+test_get_set_large_heap_story(Config, Alice) ->
+    add_watchdog_admin(Alice),
+    GetCmd = "showlh ejabberd@localhost",
+    Stanza1 = escalus:send_and_wait(Alice, escalus_stanza:chat_to(
+                                             ?WATCHDOG_JID, GetCmd)),
+    escalus:assert(is_stanza_from, [?WATCHDOG_JID], Stanza1),
+    LH = ?config(large_heap, Config),
+    escalus:assert(is_chat_message, [fmt("Current large heap: ~p", [LH])],
+                   Stanza1),
+    NewLH = 200000,
+    SetCmd = fmt("setlh ejabberd@localhost ~p", [NewLH]),
+    Stanza2 = escalus:send_and_wait(Alice, escalus_stanza:chat_to(
+                                             ?WATCHDOG_JID, SetCmd)),
+    escalus:assert(is_stanza_from, [?WATCHDOG_JID], Stanza2),
+    escalus:assert(is_chat_message, [fmt("Result of set large heap: ~p --> ~p",
+                                         [LH, NewLH])], Stanza2),
+    true.
 
 %%--------------------------------------------------------------------
 %% Internals
@@ -165,3 +197,6 @@ use_memory(HowMuch, HowLong) ->
 rpc(M, F, A) ->
     Node = ct:get_config(ejabberd_node),
     rpc:call(Node, M, F, A).
+
+fmt(Format, Args) ->
+    iolist_to_binary(io_lib:format(Format, Args)).
