@@ -20,7 +20,7 @@
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
 
--define(WAIT_TIME, 50).
+-define(WAIT_TIME, 100).
 
 -import(metrics_helper, [assert_counter/2,
                          assert_rest_counters/3,
@@ -68,10 +68,12 @@ suite() ->
 
 init_per_suite(Config) ->
     metrics_helper:start_lhttpc(),
-    escalus:init_per_suite(Config).
+    Config1 = dynamic_modules:stop_running(mod_offline, Config),
+    escalus:init_per_suite(Config1).
 
 end_per_suite(Config) ->
     metrics_helper:stop_lhttpc(),
+    dynamic_modules:start_running(Config),
     escalus:end_per_suite(Config).
 
 init_per_group(_GroupName, Config) ->

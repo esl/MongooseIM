@@ -29,15 +29,13 @@
 
 all() ->
     [{group, general},
-     {group, mod_privacy},
-     {group, mod_privacy_odbc}
+     {group, mod_privacy}
     ].
 
 groups() ->
     [{general, [sequence], [generalUptime,
                             generalNodeName]},
-     {mod_privacy, [sequence], mod_privacy_tests()},
-     {mod_privacy_odbc, [sequence], mod_privacy_tests()}
+     {mod_privacy, [sequence], mod_privacy_tests()}
     ].
 
 suite() ->
@@ -65,12 +63,6 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
-init_per_group(mod_privacy, Config) ->
-    privacy_helper:restart_mod_privacy(""),
-    escalus:create_users(Config);
-init_per_group(mod_privacy_odbc, Config) ->
-    privacy_helper:restart_mod_privacy("_odbc"),
-    escalus:create_users(Config);
 init_per_group(_GroupName, Config) ->
     escalus:create_users(Config).
 

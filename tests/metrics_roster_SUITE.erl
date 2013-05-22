@@ -30,16 +30,12 @@
 
 all() ->
     [{group, roster},
-     {group, roster_odbc},
-     {group, subscriptions},
-     {group, subscriptions_odbc}
+     {group, subscriptions}
     ].
 
 groups() ->
     [{roster, [sequence], roster_tests()},
-     {roster_odbc, [sequence], roster_tests()},
-     {subscriptions, [sequence], subscription_tests()},
-     {subscriptions_odbc, [sequence], subscription_tests()}
+     {subscriptions, [sequence], subscription_tests()}
     ].
 
 suite() ->
@@ -61,22 +57,6 @@ init_per_suite(Config) ->
 
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
-
-init_per_group(roster, Config) ->
-    restart_mod_roster(""),
-    escalus:create_users(Config);
-
-init_per_group(roster_odbc, Config) ->
-    restart_mod_roster("_odbc"),
-    escalus:create_users(Config);
-
-init_per_group(subscriptions, Config) ->
-    restart_mod_roster(""),
-    escalus:create_users(Config);
-
-init_per_group(subscriptions_odbc, Config) ->
-    restart_mod_roster("_odbc"),
-    escalus:create_users(Config);
 
 init_per_group(_GroupName, Config) ->
     escalus:create_users(Config).
@@ -295,8 +275,3 @@ remove_roster(Config, UserSpec) ->
     [Username, Server, _Pass] = escalus_users:get_usp(Config, UserSpec),
     rpc:call(ejabberd@localhost, mod_roster_odbc, remove_user, [Username, Server]),
     rpc:call(ejabberd@localhost, mod_roster, remove_user, [Username, Server]).
-
-restart_mod_roster(Suffix) ->
-    Domain = ct:get_config(ejabberd_domain),
-    Mod = list_to_atom("mod_roster"++Suffix),
-    dynamic_modules:restart(Domain, Mod, []).
