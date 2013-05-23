@@ -30,7 +30,7 @@ SUMMARIES_DIRS=$BASE'/test/ejabberd_tests/ct_report/ct_run*'
 
 $TOOLS/set-odbc-password $2
 
-make devrel
+make devclean devrel
 echo -n "starting ejabberd node 1: "
 $EJD1CTL start && echo ok || echo failed
 echo -n "starting ejabberd node 2: "
