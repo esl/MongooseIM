@@ -15,6 +15,13 @@ then
     exit 1
 fi
 
+mysqladmin ping -u ejabberd -p$2
+if [ $? != 0 ]
+then
+    echo "mysql is not running!"
+    exit 1
+fi
+
 TOOLS=`dirname $0`
 if [ `uname` = "Darwin" ]; then
     BASE=$(cd "$TOOLS/.."; pwd -P)
