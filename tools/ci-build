@@ -9,6 +9,12 @@
 #PATH=/var/erlang/r15b01/bin/:$PATH ./tools/ci-build-cover
 #kill -9 `cat ./redis.pid`
 
+if [ $# != 2 ] || ([ $1 != "nocover" ] && [ $1 != "cover" ])
+then
+    echo "Usage: ci-build cover|nocover ODBC_PASSWORD"
+    exit 1
+fi
+
 TOOLS=`dirname $0`
 if [ `uname` = "Darwin" ]; then
     BASE=$(cd "$TOOLS/.."; pwd -P)
@@ -22,7 +28,7 @@ EJD1CTL=$EJD1/bin/ejabberd
 EJD2CTL=$EJD2/bin/ejabberd
 SUMMARIES_DIRS=$BASE'/test/ejabberd_tests/ct_report/ct_run*'
 
-$TOOLS/set-odbc-password $1
+$TOOLS/set-odbc-password $2
 
 make devrel
 echo -n "starting ejabberd node 1: "
@@ -35,7 +41,13 @@ $EJD1CTL ping
 echo -n "pinging ejabberd node 2: "
 $EJD2CTL ping
 
-make test
+if [ $1 == "nocover" ]
+then
+    make test
+else
+    make cover_test
+fi
+
 echo -n "stopping ejabberd node 1: "
 $EJD1CTL stop
 echo -n "stopping ejabberd node 2: "
