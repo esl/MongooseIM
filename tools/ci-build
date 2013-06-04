@@ -15,6 +15,8 @@ then
     exit 1
 fi
 
+$TOOLS/redis start
+
 mysqladmin ping -u ejabberd -p$2
 if [ $? != 0 ]
 then
@@ -59,6 +61,8 @@ echo -n "stopping ejabberd node 1: "
 $EJD1CTL stop
 echo -n "stopping ejabberd node 2: "
 $EJD2CTL stop
+
+$TOOLS/redis stop
 
 if [ `uname` = "Darwin" ]; then
     SUMMARIES_DIR=`ls -dt $SUMMARIES_DIRS | head -n 1`
