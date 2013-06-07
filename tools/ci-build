@@ -15,7 +15,7 @@ then
     exit 1
 fi
 
-$TOOLS/redis start
+TOOLS=`dirname $0`
 
 mysqladmin ping -u ejabberd -p$2
 if [ $? != 0 ]
@@ -24,7 +24,7 @@ then
     exit 1
 fi
 
-TOOLS=`dirname $0`
+$TOOLS/redis start
 if [ `uname` = "Darwin" ]; then
     BASE=$(cd "$TOOLS/.."; pwd -P)
 else
@@ -37,8 +37,7 @@ EJD1CTL=$EJD1/bin/ejabberd
 EJD2CTL=$EJD2/bin/ejabberd
 SUMMARIES_DIRS=$BASE'/test/ejabberd_tests/ct_report/ct_run*'
 
-$TOOLS/set-odbc-password $2
-
+$TOOLS/set-odbc-password vars $2
 make devclean devrel
 echo -n "starting ejabberd node 1: "
 $EJD1CTL start && echo ok || echo failed
@@ -50,6 +49,8 @@ $EJD1CTL ping
 echo -n "pinging ejabberd node 2: "
 $EJD2CTL ping
 
+make test_deps
+$TOOLS/set-odbc-password test $2
 if [ $1 == "nocover" ]
 then
     make test
