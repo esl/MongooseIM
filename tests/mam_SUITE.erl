@@ -26,7 +26,8 @@
          end_per_testcase/2]).
 
 %% Tests
--export([simple_archive_request/1,
+-export([mam_service_discovery/1,
+         simple_archive_request/1,
          muc_archive_request/1,
          range_archive_request/1,
          limit_archive_request/1,
@@ -81,10 +82,11 @@
 %% Suite configuration
 %%--------------------------------------------------------------------
 all() ->
-    [{group, mam}, {group, muc}, {group, rsm}].
+    [{group, disco}, {group, mam}, {group, muc}, {group, rsm}].
 
 groups() ->
-    [{mam, [], [simple_archive_request,
+    [{disco, [], [mam_service_discovery]},
+     {mam, [], [simple_archive_request,
                 range_archive_request,
                 limit_archive_request,
                 prefs_set_request]},
@@ -136,6 +138,8 @@ init_per_group(rsm, Config) ->
     escalus:end_per_testcase(pre_rsm, Config2),
     [{all_messages, ParsedMessages}|Config1]; %% it is right.
 init_per_group(mam, Config) ->
+    escalus:create_users(Config);
+init_per_group(disco, Config) ->
     escalus:create_users(Config).
 
 end_per_group(muc, Config) ->
@@ -341,6 +345,19 @@ prefs_set_request(Config) ->
         ResultIQ2 = parse_prefs_result_iq(ReplyGet),
         ?assertEqual(ResultIQ1, ResultIQ2),
         ok
+        end,
+    escalus:story(Config, [1], F).
+
+mam_service_discovery(Config) ->
+    F = fun(Alice) ->
+        Domain = escalus_config:get_config(ejabberd_domain, Config),
+        Server = escalus_client:server(Alice),
+        escalus:send(Alice, escalus_stanza:service_discovery(Server)),
+        Stanza = escalus:wait_for_stanza(Alice),
+        escalus:assert(has_feature, [mam_ns_binary()], Stanza),
+        %% For MUC
+        escalus:assert(has_service, [?MUC_HOST], Stanza),
+        escalus:assert(is_stanza_from, [Domain], Stanza)
         end,
     escalus:story(Config, [1], F).
 
