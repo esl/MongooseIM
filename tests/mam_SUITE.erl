@@ -27,6 +27,7 @@
 
 %% Tests
 -export([mam_service_discovery/1,
+         muc_service_discovery/1,
          simple_archive_request/1,
          muc_archive_request/1,
          range_archive_request/1,
@@ -75,7 +76,7 @@
 -record(prefs_result_iq, {
     default_mode    :: binary() | undefined,
     always_jids = [] :: [binary()],
-    newer_jids  = [] :: [binary()]
+    never_jids  = [] :: [binary()]
 }).
 
 %%--------------------------------------------------------------------
@@ -85,7 +86,8 @@ all() ->
     [{group, disco}, {group, mam}, {group, muc}, {group, rsm}].
 
 groups() ->
-    [{disco, [], [mam_service_discovery]},
+    [{disco, [], [mam_service_discovery,
+                  muc_service_discovery]},
      {mam, [], [simple_archive_request,
                 range_archive_request,
                 limit_archive_request,
@@ -350,14 +352,26 @@ prefs_set_request(Config) ->
 
 mam_service_discovery(Config) ->
     F = fun(Alice) ->
+        Server = escalus_client:server(Alice),
+        escalus:send(Alice, escalus_stanza:disco_info(Server)),
+        Stanza = escalus:wait_for_stanza(Alice),
+        ct:pal("Stanza ~p.", [Stanza]),
+        escalus:assert(is_iq_result, Stanza),
+        escalus:assert(has_feature, [mam_ns_binary()], Stanza),
+        ok
+        end,
+    escalus:story(Config, [1], F).
+
+%% Check, that MUC is supported.
+muc_service_discovery(Config) ->
+    F = fun(Alice) ->
         Domain = escalus_config:get_config(ejabberd_domain, Config),
         Server = escalus_client:server(Alice),
         escalus:send(Alice, escalus_stanza:service_discovery(Server)),
         Stanza = escalus:wait_for_stanza(Alice),
-        escalus:assert(has_feature, [mam_ns_binary()], Stanza),
-        %% For MUC
         escalus:assert(has_service, [?MUC_HOST], Stanza),
-        escalus:assert(is_stanza_from, [Domain], Stanza)
+        escalus:assert(is_stanza_from, [Domain], Stanza),
+        ok
         end,
     escalus:story(Config, [1], F).
 
@@ -432,7 +446,7 @@ stanza_page_archive_request(QueryId,
 stanza_prefs_set_request(DefaultMode, AlwaysJIDs, NewerJIDs) ->
     AlwaysEl = #xmlel{name = <<"always">>,
                       children = encode_jids(AlwaysJIDs)},
-    NewerEl  = #xmlel{name = <<"newer">>,
+    NewerEl  = #xmlel{name = <<"never">>,
                       children = encode_jids(NewerJIDs)},
     escalus_stanza:iq(<<"set">>, [#xmlel{
        name = <<"prefs">>,
@@ -455,28 +469,6 @@ encode_jids(JIDs) ->
 %% ----------------------------------------------------------------------
 %% PARSING RESPONDS
 
-%% Build a record from the term:
-%%  {xmlel,<<"message">>,
-%%     [{<<"from">>,<<"alice@localhost">>},
-%%      {<<"to">>,<<"alice@localhost/res1">>}],
-%%     [{xmlel,<<"result">>,
-%%          [{<<"xmlns">>,<<"urn:xmpp:mam:tmp">>},
-%%           {<<"queryid">>,<<"first5">>},
-%%           {<<"id">>,<<"103689">>}],
-%%          []},
-%%      {xmlel,<<"forwarded">>,
-%%          [{<<"xmlns">>,<<"urn:xmpp:forward:0">>}],
-%%          [{xmlel,<<"delay">>,
-%%               [{<<"xmlns">>,<<"urn:xmpp:delay">>},
-%%                {<<"from">>,<<"alice@localhost/res1">>},
-%%                {<<"stamp">>,<<"2013-04-25T16:34:55Z">>}],
-%%               []},
-%%           {xmlel,<<"message">>,
-%%               [{<<"xml:lang">>,<<"en">>},
-%%                {<<"to">>,<<"bob@localhost/res1">>},
-%%                {<<"type">>,<<"chat">>}],
-%%               [{xmlel,<<"body">>,[],
-%%                    [{xmlcdata,<<"Message #1">>}]}]}]}]}
 parse_forwarded_message(#xmlel{name = <<"message">>,
                                attrs = Attrs, children = Children}) ->
     M = #forwarded_message{
@@ -485,30 +477,34 @@ parse_forwarded_message(#xmlel{name = <<"message">>,
     lists:foldl(fun 'parse_children[message]'/2, M, Children).
 
 'parse_children[message]'(#xmlel{name = <<"result">>,
-                                 attrs = Attrs}, M) ->
-    M#forwarded_message{
-        result_queryid = proplists:get_value(<<"queryid">>, Attrs),
-        result_id      = proplists:get_value(<<"id">>, Attrs)};
-'parse_children[message]'(#xmlel{name = <<"forwarded">>,
+                                 attrs = Attrs,
                                  children = Children}, M) ->
-    lists:foldl(fun 'parse_children[message/forwarded]'/2, M, Children).
+    M1 = M#forwarded_message{
+        result_queryid = proplists:get_value(<<"queryid">>, Attrs),
+        result_id      = proplists:get_value(<<"id">>, Attrs)},
+    lists:foldl(fun 'parse_children[message/result]'/2, M1, Children).
+
+'parse_children[message/result]'(#xmlel{name = <<"forwarded">>,
+                                        children = Children}, M) ->
+    lists:foldl(fun 'parse_children[message/result/forwarded]'/2, M, Children).
     
 
-'parse_children[message/forwarded]'(#xmlel{name = <<"delay">>,
-                                           attrs = Attrs}, M) ->
+'parse_children[message/result/forwarded]'(#xmlel{name = <<"delay">>,
+                                                  attrs = Attrs}, M) ->
     M#forwarded_message{
         delay_from  = proplists:get_value(<<"from">>, Attrs),
         delay_stamp = proplists:get_value(<<"stamp">>, Attrs)};
-'parse_children[message/forwarded]'(#xmlel{name = <<"message">>,
-                                           attrs = Attrs,
-                                           children = Children}, M) ->
+'parse_children[message/result/forwarded]'(#xmlel{name = <<"message">>,
+                                                  attrs = Attrs,
+                                                  children = Children}, M) ->
     M1 = M#forwarded_message{
         message_to   = proplists:get_value(<<"to">>, Attrs),
         message_type = proplists:get_value(<<"type">>, Attrs)},
-    lists:foldl(fun 'parse_children[message/forwarded/message]'/2, M1, Children).
+    lists:foldl(fun 'parse_children[message/result/forwarded/message]'/2,
+                M1, Children).
 
-'parse_children[message/forwarded/message]'(#xmlel{name = <<"body">>,
-                                            children = [{xmlcdata, Body}]}, M) ->
+'parse_children[message/result/forwarded/message]'(#xmlel{name = <<"body">>,
+        children = [{xmlcdata, Body}]}, M) ->
     M#forwarded_message{message_body = Body}.
 
 %% Num is 1-based.
@@ -592,17 +588,17 @@ parse_prefs_result_iq(#xmlel{name = <<"iq">>, children = Children}) ->
                            IQ) ->
     DefaultMode = proplists:get_value(<<"default">>, Attrs),
     IQ1 = IQ#prefs_result_iq{default_mode = DefaultMode},
-    lists:foldl(fun 'parse_children[prefs_iq/prefs]'/2, IQ, Children).
+    lists:foldl(fun 'parse_children[prefs_iq/prefs]'/2, IQ1, Children).
 
 
 'parse_children[prefs_iq/prefs]'(#xmlel{name = <<"always">>,
                                         children = Children},
                                  IQ) ->
     IQ#prefs_result_iq{always_jids = lists:sort(parse_jids(Children))};
-'parse_children[prefs_iq/prefs]'(#xmlel{name = <<"newer">>,
+'parse_children[prefs_iq/prefs]'(#xmlel{name = <<"never">>,
                                         children = Children},
                                  IQ) ->
-    IQ#prefs_result_iq{newer_jids = lists:sort(parse_jids(Children))}.
+    IQ#prefs_result_iq{never_jids = lists:sort(parse_jids(Children))}.
 
 
 parse_jids(Els) ->
