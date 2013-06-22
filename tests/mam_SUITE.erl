@@ -37,7 +37,8 @@
          pagination_last5/1,
          pagination_before10/1,
          pagination_after10/1,
-         pagination_empty_rset/1]).
+         pagination_empty_rset/1,
+         archived/1]).
 
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
@@ -83,7 +84,7 @@
 %% Suite configuration
 %%--------------------------------------------------------------------
 all() ->
-    [{group, disco}, {group, mam}, {group, muc}, {group, rsm}].
+    [{group, disco}, {group, mam}, {group, muc}, {group, rsm}, {group, archived}].
 
 groups() ->
     [{disco, [], [mam_service_discovery,
@@ -92,6 +93,7 @@ groups() ->
                 range_archive_request,
                 limit_archive_request,
                 prefs_set_request]},
+     {archived, [], [archived]},
      {muc, [], [muc_archive_request]},
      {rsm, [], [pagination_first5,
                 pagination_last5,
@@ -123,7 +125,7 @@ init_per_group(rsm, Config) ->
         [escalus:send(Alice,
                       escalus_stanza:chat_to(Bob, generate_message_text(N)))
          || N <- lists:seq(1, 15)],
-        %% Wait 15 messages for 5 seconds.
+        %% Bob are waiting for 15 messages for 5 seconds.
         escalus:wait_for_stanzas(Bob, 15, 5000),
         %% Get whole history.
         escalus:send(Alice, stanza_archive_request(<<"all_messages">>)),
@@ -140,6 +142,8 @@ init_per_group(rsm, Config) ->
     escalus:end_per_testcase(pre_rsm, Config2),
     [{all_messages, ParsedMessages}|Config1]; %% it is right.
 init_per_group(mam, Config) ->
+    escalus:create_users(Config);
+init_per_group(archived, Config) ->
     escalus:create_users(Config);
 init_per_group(disco, Config) ->
     escalus:create_users(Config).
@@ -174,6 +178,32 @@ simple_archive_request(Config) ->
         escalus:send(Alice, stanza_archive_request(<<"q1">>)),
         Reply = escalus:wait_for_stanza(Alice),
         ct:pal("Reply ~p.", [Reply]),
+        ok
+        end,
+    escalus:story(Config, [1, 1], F).
+
+
+archived(Config) ->
+    F = fun(Alice, Bob) ->
+        %% Archive must be empty.
+        %% Alice sends "OH, HAI!" to Bob.
+        escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
+
+        %% Bob receives a message.
+        Msg = escalus:wait_for_stanza(Bob),
+        Arc = exml_query:subelement(Msg, <<"archived">>),
+        %% JID of the archive (i.e. where the client would send queries to)
+        By  = exml_query:attr(Arc, <<"by">>),
+        %% Attribute giving the message's UID within the archive.
+        Id  = exml_query:attr(Arc, <<"id">>),
+
+        ?assertEqual(By, escalus_client:short_jid(Bob)),
+
+        %% Bob calls archive.
+        escalus:send(Bob, stanza_archive_request(<<"q1">>)),
+        [ArcMsg, _ArcIQ] = escalus:wait_for_stanzas(Bob, 2, 5000),
+        #forwarded_message{result_id=ArcId} = parse_forwarded_message(ArcMsg),
+        ?assertEqual(Id, ArcId),
         ok
         end,
     escalus:story(Config, [1, 1], F).
