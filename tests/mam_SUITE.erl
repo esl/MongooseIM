@@ -38,7 +38,8 @@
          pagination_before10/1,
          pagination_after10/1,
          pagination_empty_rset/1,
-         archived/1]).
+         archived/1,
+         policy_violation/1]).
 
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
@@ -74,6 +75,14 @@
     count           :: non_neg_integer()
 }).
 
+-record(error_iq, {
+    id              :: binary(),
+    type            :: binary(),
+    error_type      :: binary(),
+    condition       :: binary(),
+    text            :: binary()
+}).
+
 -record(prefs_result_iq, {
     default_mode    :: binary() | undefined,
     always_jids = [] :: [binary()],
@@ -84,7 +93,8 @@
 %% Suite configuration
 %%--------------------------------------------------------------------
 all() ->
-    [{group, disco}, {group, mam}, {group, muc}, {group, rsm}, {group, archived}].
+    [{group, disco}, {group, mam}, {group, muc}, {group, rsm}, {group, archived},
+     {group, policy_violation}].
 
 groups() ->
     [{disco, [], [mam_service_discovery,
@@ -94,6 +104,7 @@ groups() ->
                 limit_archive_request,
                 prefs_set_request]},
      {archived, [], [archived]},
+     {policy_violation, [], [policy_violation]},
      {muc, [], [muc_archive_request]},
      {rsm, [], [pagination_first5,
                 pagination_last5,
@@ -125,7 +136,7 @@ init_per_group(rsm, Config) ->
         [escalus:send(Alice,
                       escalus_stanza:chat_to(Bob, generate_message_text(N)))
          || N <- lists:seq(1, 15)],
-        %% Bob are waiting for 15 messages for 5 seconds.
+        %% Bob is waiting for 15 messages for 5 seconds.
         escalus:wait_for_stanzas(Bob, 15, 5000),
         %% Get whole history.
         escalus:send(Alice, stanza_archive_request(<<"all_messages">>)),
@@ -141,6 +152,8 @@ init_per_group(rsm, Config) ->
 
     escalus:end_per_testcase(pre_rsm, Config2),
     [{all_messages, ParsedMessages}|Config1]; %% it is right.
+init_per_group(policy_violation, Config) ->
+    escalus:create_users(Config);
 init_per_group(mam, Config) ->
     escalus:create_users(Config);
 init_per_group(archived, Config) ->
@@ -208,6 +221,24 @@ archived(Config) ->
         end,
     escalus:story(Config, [1, 1], F).
 
+policy_violation(Config) ->
+    F = fun(Alice, Bob) ->
+        %% Alice sends messages to Bob.
+        %% WARNING: are we sending too fast?
+        [escalus:send(Alice,
+                      escalus_stanza:chat_to(Bob, generate_message_text(N)))
+         || N <- lists:seq(1, 51)],
+        %% Bob is waiting for 51 messages for 5 seconds.
+        escalus:wait_for_stanzas(Bob, 51, 5000),
+        %% Get whole history (queryid is "will_fail", id is random).
+        escalus:send(Alice, stanza_archive_request(<<"will_fail">>)),
+        ErrorIQ = escalus:wait_for_stanza(Alice),
+        ct:pal("ErrorIQ ~p", [ErrorIQ]),
+        #error_iq{condition = Condition} = parse_error_iq(ErrorIQ),
+        ?assertEqual(<<"policy-violation">>, Condition),
+        ok
+        end,
+    escalus:story(Config, [1, 1], F).
 
 muc_archive_request(Config) ->
     F = fun(Alice, Bob) ->
@@ -633,6 +664,37 @@ parse_prefs_result_iq(#xmlel{name = <<"iq">>, children = Children}) ->
 
 parse_jids(Els) ->
     [JID || #xmlel{name = <<"jid">>, children = [{xmlcdata, JID}]} <- Els].
+
+%% <iq type='error' id='q29302'>
+%%   <error type='modify'>
+%%     <policy-violation xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'/>
+%%     <text xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'>Too many results</text>
+%%   </error>
+%% </iq>
+parse_error_iq(#xmlel{name = <<"iq">>,
+                      attrs = Attrs, children = Children}) ->
+    
+    IQ = #error_iq{
+        type = proplists:get_value(<<"type">>, Attrs),
+        id   = proplists:get_value(<<"id">>, Attrs)},
+    lists:foldl(fun 'parse_children[error_iq]'/2, IQ, Children).
+
+
+'parse_children[error_iq]'(#xmlel{name = <<"error">>,
+                                  attrs = Attrs, children = Children}, IQ) ->
+    IQ1 = IQ#error_iq{
+        error_type = proplists:get_value(<<"type">>, Attrs)},
+    lists:foldl(fun 'parse_children[error_iq/error]'/2, IQ1, Children);
+'parse_children[error_iq]'(_, IQ) ->
+    IQ.
+
+'parse_children[error_iq/error]'(#xmlel{name = <<"text">>,
+                                 children = [{xmlcdata, Text}]}, IQ) ->
+    IQ#error_iq{text = Text};
+'parse_children[error_iq/error]'(#xmlel{name = Condition}, IQ) ->
+    IQ#error_iq{condition = Condition};
+'parse_children[error_iq/error]'(_, IQ) ->
+    IQ.
 
 %%--------------------------------------------------------------------
 %% Helpers (muc)
