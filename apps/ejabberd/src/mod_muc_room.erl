@@ -1999,6 +1999,8 @@ add_message_to_history(FromNick, FromJID, Packet, StateData) ->
     Q1 = lqueue_in({FromNick, TSPacket, HaveSubject, TimeStamp, Size},
            StateData#state.history),
     add_to_log(text, {FromNick, Packet}, StateData),
+    ejabberd_hooks:run(room_packet, StateData#state.host,
+                       [FromNick, FromJID, StateData#state.jid, Packet]),
     StateData#state{history = Q1}.
 
 send_history(JID, Shift, StateData) ->
