@@ -240,6 +240,7 @@ policy_violation(Config) ->
         end,
     escalus:story(Config, [1, 1], F).
 
+
 muc_archive_request(Config) ->
     F = fun(Alice, Bob) ->
         Room = ?config(room, Config),
@@ -250,9 +251,27 @@ muc_archive_request(Config) ->
            
         %% Alice sends to the chat room.
 		escalus:send(Alice, escalus_stanza:groupchat_to(RoomAddr, Msg)),
-        %% Alice requests archive.
-        escalus:send(Alice, stanza_to_room(stanza_archive_request(<<"q1">>), Room)),
-        Reply = escalus:wait_for_stanza(Alice),
+
+        %% Bob received Alice's presence.
+        escalus:wait_for_stanza(Bob),
+
+        %% Bob received his presence.
+        escalus:wait_for_stanza(Bob),
+
+        %% Bob received empty message with body and subject.
+        %% This message will be archived (by bob@localhost).
+        escalus:wait_for_stanza(Bob),
+
+        %% Bob received the message "Hi, Bob!".
+        %% This message will be archived (by bob@localhost).
+        BobMsg = escalus:wait_for_stanza(Bob),
+        ct:pal("Msg ~p.", [BobMsg]),
+        %% TODO: check, that the message was logged into the room.
+%       Arc = exml_query:subelement(Msg, <<"archived">>),
+
+        %% Bob requests the room's archive.
+        escalus:send(Bob, stanza_to_room(stanza_archive_request(<<"q1">>), Room)),
+        Reply = escalus:wait_for_stanza(Bob),
         ct:pal("Reply ~p.", [Reply]),
         ok
         end,
