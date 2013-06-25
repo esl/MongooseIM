@@ -10,7 +10,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
--compile({inline, [srv_name/0]}).
+-compile({inline, [srv_name/0, tbl_name/0]}).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -20,6 +20,9 @@
 %% @private
 srv_name() ->
     ejabberd_mod_muc_iq.
+
+tbl_name() ->
+    ejabberd_mod_muc_iq_table.
 
 %%====================================================================
 %% API
@@ -32,9 +35,13 @@ start_link() ->
 %% @doc Handle custom IQ.
 %% Called from mod_muc_room.
 process_iq(Host, From, RoomJID, IQ = #iq{xmlns = XMLNS}) ->
-    case ets:lookup(muc_iqtable, {XMLNS, Host}) of
+    case ets:lookup(tbl_name(), {XMLNS, Host}) of
         [{_, Module, Function}] ->
-            Module:Function(From, RoomJID, IQ) ;
+            Module:Function(From, RoomJID, IQ);
+        [{_, Module, Function, Opts}] ->
+            gen_iq_handler:handle(Host, Module, Function, Opts, From,
+                                  RoomJID, IQ),
+            ignore;
         [] -> error
     end.
 
@@ -63,7 +70,7 @@ unregister_iq_handler(Host, XMLNS) ->
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
 init([]) ->
-    ets:new(muc_iqtable, [named_table]),
+    ets:new(tbl_name(), [named_table, protected]),
     {ok, #state{}}.
 
 %%--------------------------------------------------------------------
@@ -87,10 +94,13 @@ handle_call(_Request, _From, State) ->
 %%--------------------------------------------------------------------
 
 handle_cast({register_iq_handler, Host, XMLNS, Module, Function}, State) ->
-    ets:insert(muc_iqtable, {{XMLNS, Host}, Module, Function}),
+    ets:insert(tbl_name(), {{XMLNS, Host}, Module, Function}),
+    {noreply, State};
+handle_cast({register_iq_handler, Host, XMLNS, Module, Function, Opts}, State) ->
+    ets:insert(tbl_name(), {{XMLNS, Host}, Module, Function, Opts}),
     {noreply, State};
 handle_cast({unregister_iq_handler, Host, XMLNS}, State) ->
-    ets:delete(muc_iqtable, {XMLNS, Host}),
+    ets:delete(tbl_name(), {XMLNS, Host}),
     {noreply, State};
 handle_cast(_Msg, State) ->
     {noreply, State}.
