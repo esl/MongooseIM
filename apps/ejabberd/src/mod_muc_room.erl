@@ -3790,6 +3790,19 @@ route_iq(#routed_iq{iq = #iq{type = Type, xmlns = ?NS_DISCO_ITEMS, lang = Lang},
     Res = process_iq_disco_items(From, Type, Lang, StateData),
     do_route_iq(Res, Routed, StateData);
 
+route_iq(#routed_iq{iq = IQ = #iq{}, packet = Packet, from = From},
+         #state{host = Host, jid = RoomJID} = StateData) ->
+    %% Custom IQ, addressed to this room's JID.
+    case mod_muc_iq:process_iq(Host, From, RoomJID, IQ) of
+        ignore -> ok;
+        error ->
+            Err = jlib:make_error_reply(Packet, ?ERR_FEATURE_NOT_IMPLEMENTED),
+            ejabberd_router:route(RoomJID, From, Err);
+        ResIQ ->
+            ejabberd_router:route(RoomJID, From, jlib:iq_to_xml(ResIQ))
+    end,
+    StateData;
+
 route_iq(#routed_iq{iq = reply}, StateData) ->
     StateData;
 
