@@ -93,19 +93,20 @@
 %% Suite configuration
 %%--------------------------------------------------------------------
 all() ->
-    [{group, disco}, {group, mam}, {group, muc}, {group, rsm}, {group, archived},
+    [{group, mam}, {group, muc}, {group, rsm}, {group, archived},
      {group, policy_violation}].
 
 groups() ->
-    [{disco, [], [mam_service_discovery,
-                  muc_service_discovery]},
-     {mam, [], [simple_archive_request,
+    [
+     {mam, [], [mam_service_discovery,
+                simple_archive_request,
                 range_archive_request,
                 limit_archive_request,
                 prefs_set_request]},
      {archived, [], [archived]},
      {policy_violation, [], [policy_violation]},
-     {muc, [], [muc_archive_request]},
+     {muc, [], [muc_service_discovery,
+                muc_archive_request]},
      {rsm, [], [pagination_first5,
                 pagination_last5,
                 pagination_before10,
@@ -157,8 +158,6 @@ init_per_group(policy_violation, Config) ->
 init_per_group(mam, Config) ->
     escalus:create_users(Config);
 init_per_group(archived, Config) ->
-    escalus:create_users(Config);
-init_per_group(disco, Config) ->
     escalus:create_users(Config).
 
 end_per_group(muc, Config) ->
@@ -271,8 +270,10 @@ muc_archive_request(Config) ->
 
         %% Bob requests the room's archive.
         escalus:send(Bob, stanza_to_room(stanza_archive_request(<<"q1">>), Room)),
-        Reply = escalus:wait_for_stanza(Bob),
-        ct:pal("Reply ~p.", [Reply]),
+        ArcMsg = escalus:wait_for_stanza(Bob),
+        ArcRes = escalus:wait_for_stanza(Bob),
+        ct:pal("ArcMsg ~p.", [ArcMsg]),
+        ct:pal("ArcRes ~p.", [ArcRes]),
         ok
         end,
     escalus:story(Config, [1, 1], F).
@@ -449,6 +450,8 @@ muc_service_discovery(Config) ->
         Server = escalus_client:server(Alice),
         escalus:send(Alice, escalus_stanza:service_discovery(Server)),
         Stanza = escalus:wait_for_stanza(Alice),
+        %% If this fails, than check your config.
+        %% `{mod_disco, [{extra_domains, [<<"muc.localhost">>]}]}' must be there.
         escalus:assert(has_service, [?MUC_HOST], Stanza),
         escalus:assert(is_stanza_from, [Domain], Stanza),
         ok
@@ -734,8 +737,11 @@ start_room(Config, User, Room, Nick, Opts) ->
     [{nick, Nick}, {room, Room} | Config].
 
 destroy_room(Config) ->
+    RoomName = ?config(room, Config),
+    escalus_ejabberd:rpc(mod_mam_muc, delete_archive, 
+        [?MUC_HOST, RoomName]),
     case escalus_ejabberd:rpc(ets, lookup, [muc_online_room,
-        {?config(room, Config), <<"muc.localhost">>}]) of
+        {RoomName, ?MUC_HOST}]) of
         [{_,_,Pid}|_] -> gen_fsm:send_all_state_event(Pid, destroy);
         _ -> ok
     end.
