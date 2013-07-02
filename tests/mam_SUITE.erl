@@ -39,6 +39,7 @@
          pagination_after10/1,
          pagination_empty_rset/1,
          archived/1,
+         strip_archived/1,
          policy_violation/1]).
 
 -include_lib("escalus/include/escalus.hrl").
@@ -103,7 +104,7 @@ groups() ->
                 range_archive_request,
                 limit_archive_request,
                 prefs_set_request]},
-     {archived, [], [archived]},
+     {archived, [], [archived, strip_archived]},
      {policy_violation, [], [policy_violation]},
      {muc, [], [muc_service_discovery,
                 muc_archive_request]},
@@ -166,6 +167,10 @@ end_per_group(muc, Config) ->
 end_per_group(_, Config) ->
     escalus:delete_users(Config).
 
+init_per_testcase(archived, Config) ->
+    escalus:init_per_testcase(archived, clean_archive(Config));
+init_per_testcase(strip_archived, Config) ->
+    escalus:init_per_testcase(strip_archived, clean_archive(Config));
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
@@ -220,6 +225,39 @@ archived(Config) ->
         end,
     escalus:story(Config, [1, 1], F).
 
+strip_archived(Config) ->
+    F = fun(Alice, Bob) ->
+        %% Archive must be empty.
+        %% Alice sends "OH, HAI!" to Bob.
+        escalus:send(Alice,
+                     append_subelem(escalus_stanza:chat_to(Bob, <<"OH, HAI!">>),
+                                    archived_elem(escalus_client:short_jid(Bob),
+                                                  <<"fake-id">>))),
+
+        %% Bob receives a message.
+        Msg = escalus:wait_for_stanza(Bob),
+        Arc = exml_query:subelement(Msg, <<"archived">>),
+        %% JID of the archive (i.e. where the client would send queries to)
+        By  = exml_query:attr(Arc, <<"by">>),
+        %% Attribute giving the message's UID within the archive.
+        Id  = exml_query:attr(Arc, <<"id">>),
+
+        ?assertEqual(escalus_client:short_jid(Bob), By),
+
+        %% Bob calls archive.
+        escalus:send(Bob, stanza_archive_request(<<"q1">>)),
+        [ArcMsg, _ArcIQ] = escalus:wait_for_stanzas(Bob, 2, 5000),
+        #forwarded_message{result_id=ArcId} = parse_forwarded_message(ArcMsg),
+        ?assertEqual(ArcId, Id),
+        ok
+        end,
+    escalus:story(Config, [1, 1], F).
+
+%% To conserve resources, a server MAY place a reasonable limit on how many
+%% stanzas may be pushed to a client in one request.
+%% If a query returns a number of stanzas greater than this limit and
+%% the client did not specify a limit using RSM then the server should
+%% return a policy-violation error to the client. 
 policy_violation(Config) ->
     F = fun(Alice, Bob) ->
         %% Alice sends messages to Bob.
@@ -588,7 +626,10 @@ parse_forwarded_message(#xmlel{name = <<"message">>,
 
 'parse_children[message/result/forwarded/message]'(#xmlel{name = <<"body">>,
         children = [{xmlcdata, Body}]}, M) ->
-    M#forwarded_message{message_body = Body}.
+    M#forwarded_message{message_body = Body};
+%% Parse `<archived />' here.
+'parse_children[message/result/forwarded/message]'(_, M) ->
+    M.
 
 %% Num is 1-based.
 message_id(Num, Config) ->
@@ -739,7 +780,7 @@ start_room(Config, User, Room, Nick, Opts) ->
 destroy_room(Config) ->
     RoomName = ?config(room, Config),
     escalus_ejabberd:rpc(mod_mam_muc, delete_archive, 
-        [?MUC_HOST, RoomName]),
+        [RoomName, ?MUC_HOST]),
     case escalus_ejabberd:rpc(ets, lookup, [muc_online_room,
         {RoomName, ?MUC_HOST}]) of
         [{_,_,Pid}|_] -> gen_fsm:send_all_state_event(Pid, destroy);
@@ -764,3 +805,18 @@ room_address(Room) when is_binary(Room) ->
 room_address(Room, Nick) when is_binary(Room), is_binary(Nick) ->
     <<Room/binary, "@", ?MUC_HOST/binary, "/", Nick/binary>>.
 
+
+append_subelem(Elem=#xmlel{children=Cs}, SubElem) ->
+    Elem#xmlel{children=Cs ++ [SubElem]}.
+
+archived_elem(By, Id) ->
+    #xmlel{name = <<"archived">>,
+           attrs = [{<<"by">>, By}, {<<"id">>, Id}]}.
+
+clean_archive(Config) ->
+    [begin
+     [Username, Server, _Pass] = escalus_users:get_usp(Config, UserSpec),
+     escalus_ejabberd:rpc(mod_mam, delete_archive, [Username, Server])
+     end
+     || {_, UserSpec} <- escalus_users:get_users(all)],
+    Config.
