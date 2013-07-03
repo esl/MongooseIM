@@ -40,7 +40,8 @@
          pagination_empty_rset/1,
          archived/1,
          strip_archived/1,
-         policy_violation/1]).
+         policy_violation/1,
+         offline_message/1]).
 
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
@@ -95,7 +96,8 @@
 %%--------------------------------------------------------------------
 all() ->
     [{group, mam}, {group, muc}, {group, rsm}, {group, archived},
-     {group, policy_violation}].
+     {group, policy_violation},
+     {group, offline_message}].
 
 groups() ->
     [
@@ -106,6 +108,7 @@ groups() ->
                 prefs_set_request]},
      {archived, [], [archived, strip_archived]},
      {policy_violation, [], [policy_violation]},
+     {offline_message, [], [offline_message]},
      {muc, [], [muc_service_discovery,
                 muc_archive_request]},
      {rsm, [], [pagination_first5,
@@ -155,6 +158,8 @@ init_per_group(rsm, Config) ->
     escalus:end_per_testcase(pre_rsm, Config2),
     [{all_messages, ParsedMessages}|Config1]; %% it is right.
 init_per_group(policy_violation, Config) ->
+    escalus:create_users(Config);
+init_per_group(offline_message, Config) ->
     escalus:create_users(Config);
 init_per_group(mam, Config) ->
     escalus:create_users(Config);
@@ -277,6 +282,23 @@ policy_violation(Config) ->
         end,
     escalus:story(Config, [1, 1], F).
 
+offline_message(Config) ->
+    F1 = fun(Alice) ->
+        %% Alice sends a message to Bob.
+        escalus:send(Alice,
+                     escalus_stanza:chat_to(bob, <<"Hi, Bob!">>)),
+        ok
+        end,
+    escalus:story(Config, [1], F1),
+    F2 = fun(Bob) ->
+        escalus:send(Bob, stanza_archive_request(<<"q1">>)),
+        ArcMsg = escalus:wait_for_stanza(Bob),
+        ArcRes = escalus:wait_for_stanza(Bob),
+        escalus:assert(is_iq_result, ArcRes),
+        ok
+        end,
+    escalus:story(Config, [{bob, 1}], F2).
+
 
 muc_archive_request(Config) ->
     F = fun(Alice, Bob) ->
@@ -309,8 +331,8 @@ muc_archive_request(Config) ->
         %% Bob requests the room's archive.
         escalus:send(Bob, stanza_to_room(stanza_archive_request(<<"q1">>), Room)),
         ArcMsg = escalus:wait_for_stanza(Bob),
-        ArcRes = escalus:wait_for_stanza(Bob),
         ct:pal("ArcMsg ~p.", [ArcMsg]),
+        ArcRes = escalus:wait_for_stanza(Bob),
         ct:pal("ArcRes ~p.", [ArcRes]),
         ok
         end,
