@@ -283,18 +283,23 @@ policy_violation(Config) ->
     escalus:story(Config, [1, 1], F).
 
 offline_message(Config) ->
+    Msg = <<"Is there anybody here?">>,
     F1 = fun(Alice) ->
-        %% Alice sends a message to Bob.
+        %% Alice sends a message to Bob while bob is offline.
         escalus:send(Alice,
-                     escalus_stanza:chat_to(bob, <<"Hi, Bob!">>)),
+                     escalus_stanza:chat_to(bob, Msg)),
         ok
         end,
     escalus:story(Config, [1], F1),
     F2 = fun(Bob) ->
+        %% Bob logins and checks the archive.
         escalus:send(Bob, stanza_archive_request(<<"q1">>)),
         ArcMsg = escalus:wait_for_stanza(Bob),
         ArcRes = escalus:wait_for_stanza(Bob),
         escalus:assert(is_iq_result, ArcRes),
+        #forwarded_message{message_body=ArcMsgBody} =
+            parse_forwarded_message(ArcMsg),
+        ?assertEqual(Msg, ArcMsgBody),
         ok
         end,
     escalus:story(Config, [{bob, 1}], F2).
@@ -331,9 +336,12 @@ muc_archive_request(Config) ->
         %% Bob requests the room's archive.
         escalus:send(Bob, stanza_to_room(stanza_archive_request(<<"q1">>), Room)),
         ArcMsg = escalus:wait_for_stanza(Bob),
+        #forwarded_message{message_body=ArcMsgBody} = parse_forwarded_message(ArcMsg),
+        ?assertEqual(Msg, ArcMsgBody),
         ct:pal("ArcMsg ~p.", [ArcMsg]),
         ArcRes = escalus:wait_for_stanza(Bob),
         ct:pal("ArcRes ~p.", [ArcRes]),
+        escalus:assert(is_iq_result, ArcRes),
         ok
         end,
     escalus:story(Config, [1, 1], F).
@@ -357,6 +365,7 @@ range_archive_request(Config) ->
     escalus:story(Config, [1], F).
 
 %% @doc A query using Result Set Management.
+%% See also `#rsm_in.max'.
 limit_archive_request(Config) ->
     F = fun(Alice) ->
         %% Send
