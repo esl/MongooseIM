@@ -168,9 +168,12 @@ init_per_group(archived, Config) ->
 
 end_per_group(muc, Config) ->
     destroy_room(Config),
-    escalus:delete_users(Config);
+    delete_users_for_sure(Config);
 end_per_group(_, Config) ->
-    escalus:delete_users(Config).
+    delete_users_for_sure(Config).
+
+delete_users_for_sure(Config) ->
+    ensure_clean_archive(escalus:delete_users(Config)).
 
 init_per_testcase(archived, Config) ->
     escalus:init_per_testcase(archived, clean_archive(Config));
@@ -198,8 +201,7 @@ simple_archive_request(Config) ->
         %%   [{xmlel,<<"body">>,[],[{xmlcdata,<<"OH, HAI!">>}]}]}
         escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
         escalus:send(Alice, stanza_archive_request(<<"q1">>)),
-        Reply = escalus:wait_for_stanza(Alice),
-        ct:pal("Reply ~p.", [Reply]),
+        assert_respond_size(1, wait_archive_respond_iq_first(Alice)),
         ok
         end,
     escalus:story(Config, [1, 1], F).
@@ -213,6 +215,7 @@ archived(Config) ->
 
         %% Bob receives a message.
         Msg = escalus:wait_for_stanza(Bob),
+        try
         Arc = exml_query:subelement(Msg, <<"archived">>),
         %% JID of the archive (i.e. where the client would send queries to)
         By  = exml_query:attr(Arc, <<"by">>),
@@ -223,10 +226,15 @@ archived(Config) ->
 
         %% Bob calls archive.
         escalus:send(Bob, stanza_archive_request(<<"q1">>)),
-        [ArcMsg, _ArcIQ] = escalus:wait_for_stanzas(Bob, 2, 5000),
+        [_ArcIQ, ArcMsg] = assert_respond_size(1, wait_archive_respond_iq_first(Bob)),
         #forwarded_message{result_id=ArcId} = parse_forwarded_message(ArcMsg),
         ?assertEqual(Id, ArcId),
         ok
+        catch Class:Reason ->
+            Stacktrace = erlang:get_stacktrace(),
+            ct:pal("Msg ~p", [Msg]),
+            erlang:raise(Class, Reason, Stacktrace)
+        end
         end,
     escalus:story(Config, [1, 1], F).
 
@@ -249,14 +257,35 @@ strip_archived(Config) ->
 
         ?assertEqual(escalus_client:short_jid(Bob), By),
 
+        try
         %% Bob calls archive.
         escalus:send(Bob, stanza_archive_request(<<"q1">>)),
-        [ArcMsg, _ArcIQ] = escalus:wait_for_stanzas(Bob, 2, 5000),
+        [_ArcIQ, ArcMsg] = assert_respond_size(1, wait_archive_respond_iq_first(Bob)),
         #forwarded_message{result_id=ArcId} = parse_forwarded_message(ArcMsg),
         ?assertEqual(ArcId, Id),
         ok
+        catch Class:Reason ->
+            Stacktrace = erlang:get_stacktrace(),
+            ct:pal("Msg ~p", [Msg]),
+            erlang:raise(Class, Reason, Stacktrace)
+        end
         end,
     escalus:story(Config, [1, 1], F).
+
+wait_archive_respond_iq_first(User) ->
+    %% rot1
+    [IQ|Messages] = lists:reverse(wait_archive_respond(User)),
+    [IQ|lists:reverse(Messages)].
+
+wait_archive_respond(User) ->
+    S = escalus:wait_for_stanza(User),
+    case escalus_pred:is_iq_result(S) of
+        true  -> [S];
+        false -> [S|wait_archive_respond(User)]
+    end.
+
+assert_respond_size(Size, Respond) when length(Respond) =:= (Size + 1) ->
+    Respond.
 
 %% To conserve resources, a server MAY place a reasonable limit on how many
 %% stanzas may be pushed to a client in one request.
@@ -274,7 +303,7 @@ policy_violation(Config) ->
         escalus:wait_for_stanzas(Bob, 51, 5000),
         %% Get whole history (queryid is "will_fail", id is random).
         escalus:send(Alice, stanza_archive_request(<<"will_fail">>)),
-        ErrorIQ = escalus:wait_for_stanza(Alice),
+        ErrorIQ = escalus:wait_for_stanza(Alice, 5000),
         ct:pal("ErrorIQ ~p", [ErrorIQ]),
         #error_iq{condition = Condition} = parse_error_iq(ErrorIQ),
         ?assertEqual(<<"policy-violation">>, Condition),
@@ -294,8 +323,7 @@ offline_message(Config) ->
     F2 = fun(Bob) ->
         %% Bob logins and checks the archive.
         escalus:send(Bob, stanza_archive_request(<<"q1">>)),
-        ArcMsg = escalus:wait_for_stanza(Bob),
-        ArcRes = escalus:wait_for_stanza(Bob),
+        [ArcRes, ArcMsg] = wait_archive_respond_iq_first(Bob),
         escalus:assert(is_iq_result, ArcRes),
         #forwarded_message{message_body=ArcMsgBody} =
             parse_forwarded_message(ArcMsg),
@@ -335,12 +363,9 @@ muc_archive_request(Config) ->
 
         %% Bob requests the room's archive.
         escalus:send(Bob, stanza_to_room(stanza_archive_request(<<"q1">>), Room)),
-        ArcMsg = escalus:wait_for_stanza(Bob),
+        [ArcRes, ArcMsg] = wait_archive_respond_iq_first(Bob),
         #forwarded_message{message_body=ArcMsgBody} = parse_forwarded_message(ArcMsg),
         ?assertEqual(Msg, ArcMsgBody),
-        ct:pal("ArcMsg ~p.", [ArcMsg]),
-        ArcRes = escalus:wait_for_stanza(Bob),
-        ct:pal("ArcRes ~p.", [ArcRes]),
         escalus:assert(is_iq_result, ArcRes),
         ok
         end,
@@ -389,7 +414,7 @@ pagination_empty_rset(Config) ->
         %% Get the first page of size 5.
         RSM = #rsm_in{max=0},
         escalus:send(Alice, stanza_page_archive_request(<<"empty_rset">>, RSM)),
-        IQ = escalus:wait_for_stanza(Alice, 5000),
+        [IQ] = wait_archive_respond_iq_first(Alice),
         ParsedIQ = parse_result_iq(IQ),
         ct:pal("IQ: ~p~nParsedIQ: ~p~n", [IQ, ParsedIQ]),
         ?assertEqual(ParsedIQ#result_iq.count, 15),
@@ -402,8 +427,7 @@ pagination_first5(Config) ->
         %% Get the first page of size 5.
         RSM = #rsm_in{max=5},
         escalus:send(Alice, stanza_page_archive_request(<<"first5">>, RSM)),
-        Messages = escalus:wait_for_stanzas(Alice, 5, 5000),
-        IQ = escalus:wait_for_stanzas(Alice, 1, 5000),
+        [IQ|Messages] = wait_archive_respond_iq_first(Alice),
         ParsedMessages = [parse_forwarded_message(M) || M <- Messages],
         ct:pal("IQ: ~p~nMessages: ~p~nParsed messages: ~p~n",
                [IQ, Messages, ParsedMessages]),
@@ -419,8 +443,7 @@ pagination_last5(Config) ->
         %% Get the last page of size 5.
         RSM = #rsm_in{max=5, direction=before},
         escalus:send(Alice, stanza_page_archive_request(<<"last5">>, RSM)),
-        Messages = escalus:wait_for_stanzas(Alice, 5, 5000),
-        IQ = escalus:wait_for_stanzas(Alice, 1, 5000),
+        [IQ|Messages] = wait_archive_respond_iq_first(Alice),
         ParsedMessages = [parse_forwarded_message(M) || M <- Messages],
         ct:pal("IQ: ~p~nMessages: ~p~nParsed messages: ~p~n",
                [IQ, Messages, ParsedMessages]),
@@ -436,8 +459,7 @@ pagination_before10(Config) ->
         %% Get the last page of size 5.
         RSM = #rsm_in{max=5, direction=before, id=message_id(10, Config)},
         escalus:send(Alice, stanza_page_archive_request(<<"before10">>, RSM)),
-        Messages = escalus:wait_for_stanzas(Alice, 5, 5000),
-        IQ = escalus:wait_for_stanzas(Alice, 1, 5000),
+        [IQ|Messages] = wait_archive_respond_iq_first(Alice),
         ParsedMessages = [parse_forwarded_message(M) || M <- Messages],
         ct:pal("IQ: ~p~nMessages: ~p~nParsed messages: ~p~n",
                [IQ, Messages, ParsedMessages]),
@@ -453,8 +475,7 @@ pagination_after10(Config) ->
         %% Get the last page of size 5.
         RSM = #rsm_in{max=5, direction='after', id=message_id(10, Config)},
         escalus:send(Alice, stanza_page_archive_request(<<"after10">>, RSM)),
-        Messages = escalus:wait_for_stanzas(Alice, 5, 5000),
-        IQ = escalus:wait_for_stanzas(Alice, 1, 5000),
+        [IQ|Messages] = wait_archive_respond_iq_first(Alice),
         ct:pal("IQ: ~p~nMessages: ~p~n", [IQ, Messages]),
         ParsedMessages = [parse_forwarded_message(M) || M <- Messages],
         ct:pal("Parsed messages: ~p~n", [ParsedMessages]),
@@ -848,6 +869,16 @@ clean_archive(Config) ->
     [begin
      [Username, Server, _Pass] = escalus_users:get_usp(Config, UserSpec),
      escalus_ejabberd:rpc(mod_mam, delete_archive, [Username, Server])
+     end
+     || {_, UserSpec} <- escalus_users:get_users(all)],
+    Config.
+
+ensure_clean_archive(Config) ->
+    [begin
+     [Username, Server, _Pass] = escalus_users:get_usp(Config, UserSpec),
+     case escalus_ejabberd:rpc(mod_mam, archive_size, [Username, Server]) of
+        0 -> ok
+     end
      end
      || {_, UserSpec} <- escalus_users:get_users(all)],
     Config.

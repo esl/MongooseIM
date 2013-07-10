@@ -89,7 +89,7 @@ distributed_login(Config) ->
 %% Querying the archive for messages
 submit_message(Config) ->
     Users = [{alice_node1, res1}, {alice_node2, res2},
-             {bob_node1, res1}, {bob_node2, res1}],
+             {bob_node1, res1}, {bob_node2, res2}],
     F = fun(Alice1, Alice2, Bob1, Bob2) ->
         P1 = escalus:wait_for_stanza(Alice1),
         P2 = escalus:wait_for_stanza(Alice2),
