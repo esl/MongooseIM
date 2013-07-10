@@ -241,10 +241,10 @@ initial_state({route, From, ToNick,
 
 is_query_allowed(Query) ->
     X = xml:get_subtag(Query, <<"x">>),
-    xml:get_subtag(Query, <<"destroy">>) =/= false
-        orelse( X =/= false andalso xml:get_tag_attr_s(<<"xmlns">>, X)== ?NS_XDATA
-        andalso ( xml:get_tag_attr_s(<<"type">>, X) == <<"submit">>
-        orelse xml:get_tag_attr_s(<<"type">>, X)== <<"cancel">>)).
+    xml:get_subtag(Query, <<"destroy">>) =/= false orelse
+        (X =/= false andalso xml:get_tag_attr_s(<<"xmlns">>, X)== ?NS_XDATA andalso
+        (xml:get_tag_attr_s(<<"type">>, X) == <<"submit">> orelse
+        xml:get_tag_attr_s(<<"type">>, X)== <<"cancel">>)).
 
 locked_state_process_owner_iq(From, Query, Lang, <<"set">>, StateData) ->
     Result = case is_query_allowed(Query) of
@@ -266,8 +266,8 @@ locked_state({route, From, _ToNick,
               #xmlel{name = <<"iq">>} = Packet}, StateData) ->
     #iq{lang = Lang, sub_el = Query} = IQ = jlib:iq_query_info(Packet),
     {Result, NextState} =
-        case IQ#iq.xmlns == ?NS_MUC_OWNER
-            andalso get_affiliation(From, StateData)  =:= owner
+        case IQ#iq.xmlns == ?NS_MUC_OWNER andalso
+            get_affiliation(From, StateData)  =:= owner
         of
             true ->
                 locked_state_process_owner_iq(From, Query, Lang,
@@ -318,7 +318,7 @@ locked_state({route, From, ToNick,
     end;
 
 locked_state(Call, StateData) ->
-    locked_error(Call,locked_state, StateData).
+    locked_error(Call, locked_state, StateData).
 
 normal_state({route, From, <<>>,
               #xmlel{name = <<"message">>, attrs = Attrs} = Packet},
@@ -1518,7 +1518,7 @@ add_new_user(From, Nick, #xmlel{attrs = Attrs,
 check_password(owner, _Affiliation, _Els, _From, _StateData) ->
     %% Don't check pass if user is owner in MUC service (access_admin option)
     true;
-check_password(_ServiceAffiliation, Affiliation, Els, From, StateData) ->
+check_password(_ServiceAffiliation, _Affiliation, Els, _From, StateData) ->
     case (StateData#state.config)#config.password_protected of
         false ->
             %% Don't check password
@@ -1663,9 +1663,6 @@ extract_history([#xmlel{attrs = Attrs} = El | Els], Type) ->
 extract_history([_ | Els], Type) ->
     extract_history(Els, Type).
 
-
-send_update_presence(JID, StateData) ->
-    send_update_presence(JID, <<>>, StateData).
 
 send_update_presence(JID, Reason, StateData) ->
     LJID = jlib:jid_tolower(JID),
