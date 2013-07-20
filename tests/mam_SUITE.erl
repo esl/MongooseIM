@@ -363,7 +363,7 @@ muc_archive_request(Config) ->
 
         %% Bob requests the room's archive.
         escalus:send(Bob, stanza_to_room(stanza_archive_request(<<"q1">>), Room)),
-        [ArcRes, ArcMsg] = wait_archive_respond_iq_first(Bob),
+            [ArcRes, ArcMsg] = assert_respond_size(1, wait_archive_respond_iq_first(Bob)),
         #forwarded_message{message_body=ArcMsgBody} = parse_forwarded_message(ArcMsg),
         ?assertEqual(Msg, ArcMsgBody),
         escalus:assert(is_iq_result, ArcRes),
@@ -832,7 +832,7 @@ start_room(Config, User, Room, Nick, Opts) ->
 destroy_room(Config) ->
     RoomName = ?config(room, Config),
     escalus_ejabberd:rpc(mod_mam_muc, delete_archive, 
-        [RoomName, ?MUC_HOST]),
+        [?MUC_HOST, RoomName]),
     case escalus_ejabberd:rpc(ets, lookup, [muc_online_room,
         {RoomName, ?MUC_HOST}]) of
         [{_,_,Pid}|_] -> gen_fsm:send_all_state_event(Pid, destroy);
@@ -868,7 +868,7 @@ archived_elem(By, Id) ->
 clean_archive(Config) ->
     [begin
      [Username, Server, _Pass] = escalus_users:get_usp(Config, UserSpec),
-     escalus_ejabberd:rpc(mod_mam, delete_archive, [Username, Server])
+     escalus_ejabberd:rpc(mod_mam, delete_archive, [Server, Username])
      end
      || {_, UserSpec} <- escalus_users:get_users(all)],
     Config.
@@ -876,7 +876,7 @@ clean_archive(Config) ->
 ensure_clean_archive(Config) ->
     [begin
      [Username, Server, _Pass] = escalus_users:get_usp(Config, UserSpec),
-     case escalus_ejabberd:rpc(mod_mam, archive_size, [Username, Server]) of
+     case escalus_ejabberd:rpc(mod_mam, archive_size, [Server, Username]) of
         0 -> ok
      end
      end
