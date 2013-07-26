@@ -27,11 +27,15 @@ all() ->
     [{group, accounts}].
 
 groups() ->
-     [{accounts, [sequence], accounts()}].
+     [{accounts, [sequence], sessions()}].
 
 accounts() -> [change_password, check_password_hash, check_password,
                check_account, ban_account, num_active_users, delete_old_users,
                delete_old_users_vhost].
+
+sessions() -> [num_resources_num, kick_session, status,
+               sessions_info, set_presence
+              ].
 
 suite() ->
     escalus:suite().
@@ -61,10 +65,10 @@ end_per_testcase(delete_old_users, Config) ->
                 {Username, Domain, Pass} = get_user_data(UserSpec, Config),
                 escalus_ejabberd:rpc(ejabberd_auth, try_register, [Username, Domain, Pass])
         end, Users),
-    escalus_cleaner:clean(),
+    escalus_cleaner:clean(Config),
     escalus:end_per_testcase(delete_old_users, Config);
 end_per_testcase(CaseName, Config) ->
-    escalus_cleaner:clean(),
+    escalus_cleaner:clean(Config),
     escalus:end_per_testcase(CaseName, Config).
 
 %%--------------------------------------------------------------------
@@ -157,15 +161,85 @@ delete_old_users_vhost(Config) ->
     {_, ErrCode} = ejabberdctl("check_account", [KateName, SecDomain], Config),
     true = (ErrCode =/= 0). %% Must return code other than 0
 
+%%--------------------------------------------------------------------
+%% mod_admin_extra_accounts tests
+%%--------------------------------------------------------------------
 
-%%--------------------------------------------------------------------
-%% Last tests
-%%--------------------------------------------------------------------
-last_online_user(Config) ->
-    escalus:story(Config, [1, 1],
-                  fun(_Alice, _Bob) ->
-                ok
-                  end).
+%% Checks both num_resources and resource_num
+num_resources_num(Config) ->
+    escalus:story(Config, [3, 1], fun(_, Alice2, _, _) ->
+                {Username, Domain, _} = get_user_data(alice, Config),
+                ResName = binary_to_list(escalus_client:resource(Alice2)) ++ "\n",
+
+                {"3\n", _} = ejabberdctl("num_resources", [Username, Domain], Config),
+                {ResName, _} = ejabberdctl("resource_num", [Username, Domain, "2"], Config)
+        end).
+
+kick_session(Config) ->
+    escalus:story(Config, [1], fun(Alice) ->
+                Username = escalus_client:username(Alice),
+                Domain = escalus_client:server(Alice),
+                Resource = escalus_client:resource(Alice),
+
+                {_, 0} = ejabberdctl("kick_session", [Username, Domain, Resource, "'\"Because I can!\"'"], Config),
+                Stanza = escalus:wait_for_stanza(Alice),
+                escalus:assert(is_stream_error, [<<"conflict">>, <<"Because I can!">>], Stanza),
+                {'EXIT', _} = (catch escalus_client:send(Alice,
+                                                 escalus_stanza:chat_to(Alice, <<"Hello myself!">>)))
+        end).
+
+status(Config) ->
+    escalus:story(Config, [1, 1, 1], fun(User1, User2, User3) ->
+                PriDomain = escalus_client:server(User1),
+                SecDomain = escalus_config:get_config(ejabberd_secondary_domain, Config),
+                AwayPresence = escalus_stanza:presence_show(<<"away">>),
+                escalus_client:send(User2, AwayPresence),
+
+                {"2\n", _} = ejabberdctl("status_num", ["available"], Config),
+
+                {"2\n", _} = ejabberdctl("status_num_host", [PriDomain, "available"], Config),
+                {"0\n", _} = ejabberdctl("status_num_host", [SecDomain, "available"], Config),
+
+                {StatusList, _} = ejabberdctl("status_list", ["available"], Config),
+                match_user_status([User1, User3], StatusList),
+
+                {StatusList2, _} = ejabberdctl("status_list_host", [PriDomain, "available"], Config),
+                match_user_status([User1, User3], StatusList2),
+                {[], _} = ejabberdctl("status_list_host", [SecDomain, "available"], Config)
+        end).
+
+sessions_info(Config) ->
+    escalus:story(Config, [1, 1, 1], fun(User1, User2, User3) ->
+                Username1 = escalus_client:username(User1),
+                PriDomain = escalus_client:server(User1),
+                SecDomain = escalus_config:get_config(ejabberd_secondary_domain, Config),
+                AwayPresence = escalus_stanza:presence_show(<<"away">>),
+                escalus_client:send(User2, AwayPresence),
+
+                {UserList, _} = ejabberdctl("connected_users_info", [], Config),
+                match_user_info([User1, User2, User3], UserList),
+
+                {UserList2, _} = ejabberdctl("connected_users_vhost", [PriDomain], Config),
+                match_user_info([User1, User2, User3], UserList2),
+                {[], _} = ejabberdctl("connected_users_vhost", [SecDomain], Config),
+
+                {UserList3, _} = ejabberdctl("user_sessions_info", [Username1, PriDomain], Config),
+                match_user_info([User1], UserList3)
+        end).
+
+set_presence(Config) ->
+    escalus:story(Config, [1], fun(Alice) ->
+                Username = escalus_client:username(Alice), 
+                Domain = escalus_client:server(Alice), 
+                Resource = escalus_client:resource(Alice),
+                
+                {_, 0} = ejabberdctl("set_presence", [Username, Domain, Resource,
+                                                      "available", "away", "mystatus", "10"], Config),
+                Presence = escalus:wait_for_stanza(Alice),
+                escalus:assert(is_presence_with_show, [<<"away">>], Presence),
+                escalus:assert(is_presence_with_status, [<<"mystatus">>], Presence),
+                escalus:assert(is_presence_with_priority, [<<"10">>], Presence)
+        end).
 
 %%-----------------------------------------------------------------
 %% Helpers
@@ -227,3 +301,46 @@ delete_users(Config) ->
                 {Username, Domain, _Pass} = get_user_data(UserSpec, Config),
                 escalus_ejabberd:rpc(ejabberd_auth, remove_user, [Username, Domain])
         end, Users).
+
+%%-----------------------------------------------------------------
+%% Predicates
+%%-----------------------------------------------------------------
+
+match_user_status(Users, StatusTxt) ->
+    Statuses = string:tokens(StatusTxt, "\n"),
+
+    true = (length(Users) == length(Statuses)),
+    match_user_status2(Users, Statuses).
+
+match_user_status2([], _) ->
+    true;
+match_user_status2([User | UserR], Statuses) ->
+    Username = binary_to_list(escalus_client:username(User)),
+    Domain = binary_to_list(escalus_client:server(User)),
+    Resource = binary_to_list(escalus_client:resource(User)),
+
+    true = lists:any(fun(Status) ->
+                [Username, Domain, Resource]
+                =:=
+                lists:sublist(string:tokens(Status, "\t"), 1, 3)
+        end, Statuses),
+    match_user_status2(UserR, Statuses).
+
+match_user_info(Users, UsersTxt) ->
+    UsersInfo = string:tokens(UsersTxt, "\n"),
+
+    true = (length(Users) == length(UsersInfo)),
+    match_user_info2(Users, UsersInfo).
+
+match_user_info2([], _) ->
+    true;
+match_user_info2([User | UserR], UsersInfo) ->
+    Username = binary_to_list(escalus_client:username(User)),
+    Domain = binary_to_list(escalus_client:server(User)),
+    Resource = binary_to_list(escalus_client:resource(User)),
+    FullJID = Username ++ "@" ++ Domain ++ "/" ++ Resource,
+
+    true = lists:any(fun(UserInfo) ->
+                string:str(UserInfo, FullJID) =:= 1
+        end, UsersInfo),
+    match_user_info2(UserR, UsersInfo).
