@@ -278,7 +278,7 @@ wait_archive_respond_iq_first(User) ->
     [IQ|lists:reverse(Messages)].
 
 wait_archive_respond(User) ->
-    S = escalus:wait_for_stanza(User),
+    S = escalus:wait_for_stanza(User, 5000),
     case escalus_pred:is_iq_result(S) of
         true  -> [S];
         false -> [S|wait_archive_respond(User)]
@@ -363,7 +363,7 @@ muc_archive_request(Config) ->
 
         %% Bob requests the room's archive.
         escalus:send(Bob, stanza_to_room(stanza_archive_request(<<"q1">>), Room)),
-            [ArcRes, ArcMsg] = assert_respond_size(1, wait_archive_respond_iq_first(Bob)),
+        [ArcRes, ArcMsg] = assert_respond_size(1, wait_archive_respond_iq_first(Bob)),
         #forwarded_message{message_body=ArcMsgBody} = parse_forwarded_message(ArcMsg),
         ?assertEqual(Msg, ArcMsgBody),
         escalus:assert(is_iq_result, ArcRes),
@@ -383,7 +383,7 @@ range_archive_request(Config) ->
         %%   </query>
         %% </iq>
         escalus:send(Alice, stanza_date_range_archive_request()),
-        Reply = escalus:wait_for_stanza(Alice),
+        Reply = escalus:wait_for_stanza(Alice, 5000),
         ct:pal("Reply ~p.", [Reply]),
         ok
         end,
@@ -403,7 +403,7 @@ limit_archive_request(Config) ->
         %%   </query>
         %% </iq>
         escalus:send(Alice, stanza_limit_archive_request()),
-        Reply = escalus:wait_for_stanza(Alice),
+        Reply = escalus:wait_for_stanza(Alice, 5000),
         ct:pal("Reply ~p.", [Reply]),
         ok
         end,
@@ -868,7 +868,7 @@ archived_elem(By, Id) ->
 clean_archive(Config) ->
     [begin
      [Username, Server, _Pass] = escalus_users:get_usp(Config, UserSpec),
-     escalus_ejabberd:rpc(mod_mam, delete_archive, [Server, Username])
+     ok = escalus_ejabberd:rpc(mod_mam, delete_archive, [Server, Username])
      end
      || {_, UserSpec} <- escalus_users:get_users(all)],
     Config.
