@@ -407,6 +407,7 @@ normal_state({route, From, ToNick,
         iq = jlib:iq_query_info(Packet),
         packet = Packet,
         lang = Lang,
+        from = From,
         stanza = StanzaId,
         nick = ToNick}, StateData),
     {next_state, normal_state, StateData};
