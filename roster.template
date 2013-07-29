@@ -1,0 +1,4 @@
+[
+    {"alice", "localhost", "Group", "Alice"},
+    {"bob", "localhost", "Group", "Bob"}
+].
