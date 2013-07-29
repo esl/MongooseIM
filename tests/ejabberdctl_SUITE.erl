@@ -18,16 +18,35 @@
 
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
+-include_lib("exml/include/exml.hrl").
 
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
 
 all() ->
-    [{group, accounts}].
+    [
+        {group, accounts},
+        {group, sessions},
+        {group, vcard},
+        {group, roster},
+        {group, last},
+        {group, private},
+        {group, stanza},
+        {group, stats}
+    ].
 
 groups() ->
-     [{accounts, [sequence], last()}].
+     [
+        {accounts, [sequence], accounts()},
+        {sessions, [sequence], sessions()},
+        {vcard, [sequence], vcard()},
+        {roster, [sequence], roster()},
+        {last, [sequence], last()},
+        {private, [sequence], private()},
+        {stanza, [sequence], stanza()},
+        {stats, [sequence], stats()}
+     ].
 
 accounts() -> [change_password, check_password_hash, check_password,
                check_account, ban_account, num_active_users, delete_old_users,
@@ -41,6 +60,12 @@ vcard() -> [vcard_rw, vcard2_rw, vcard2_multi_rw].
 roster() -> [rosteritem_rw, push_roster, push_roster_all, push_roster_alltoall].
 
 last() -> [set_last].
+
+private() -> [private_rw].
+
+stanza() -> [send_message, send_stanza].
+
+stats() -> [stats_global, stats_host].
 
 suite() ->
     escalus:suite().
@@ -410,6 +435,91 @@ set_last(Config) ->
 
                 {_, 0} = ejabberdctl("delete_rosteritem", [AliceName, Domain, BobName, Domain], Config), % cleanup
                 {_, 0} = ejabberdctl("delete_rosteritem", [BobName, Domain, AliceName, Domain], Config)
+        end).
+
+%%--------------------------------------------------------------------
+%% mod_admin_extra_private tests
+%%--------------------------------------------------------------------
+
+private_rw(Config) ->
+    {AliceName, Domain, _} = get_user_data(alice, Config),
+    XmlEl1 = "'<secretinfo xmlns=\"nejmspejs\">1</secretinfo>'",
+    XmlEl2 = "'<secretinfo xmlns=\"inny\">2</secretinfo>'",
+
+    {_, 0} = ejabberdctl("private_set", [AliceName, Domain, XmlEl1], Config),
+    {_, 0} = ejabberdctl("private_set", [AliceName, Domain, XmlEl2], Config),
+
+    {Result, 0} = ejabberdctl("private_get", [AliceName, Domain, "secretinfo", "nejmspejs"], Config),
+    {ok, #xmlel{ name = <<"secretinfo">>, attrs = [{<<"xmlns">>, <<"nejmspejs">>}],
+                children = [#xmlcdata{ content = <<"1">> }]}} = exml:parse(list_to_binary(Result)).
+
+%%--------------------------------------------------------------------
+%% mod_admin_extra_stanza tests
+%%--------------------------------------------------------------------
+
+send_message(Config) ->
+    escalus:story(Config, [1, 2], fun(Alice, Bob1, Bob2) ->
+                {_, 0} = ejabberdctl("send_message_chat", [escalus_client:full_jid(Alice),
+                                                           escalus_client:full_jid(Bob1),
+                                                           "'\"Hi Bob!\"'"], Config),
+                Stanza1 = escalus:wait_for_stanza(Bob1),
+                escalus:assert(is_chat_message, [<<"Hi Bob!">>], Stanza1),
+                
+                {_, 0} = ejabberdctl("send_message_headline", [escalus_client:full_jid(Alice),
+                                                                    escalus_client:short_jid(Bob1),
+                                                                    "Subj", "'\"Hi Bob!\"'"], Config),
+                Stanza2 = escalus:wait_for_stanza(Bob1),
+                Stanza3 = escalus:wait_for_stanza(Bob2),
+                escalus:assert(is_headline_message, [<<"Subj">>, <<"Hi Bob!">>], Stanza2),
+                escalus:assert(is_headline_message, [<<"Subj">>, <<"Hi Bob!">>], Stanza3)
+        end).
+
+send_stanza(Config) ->
+    escalus:story(Config, [1, 1], fun(Alice, Bob) ->
+                Domain = escalus_client:server(Alice),
+                Resource = escalus_client:resource(Alice),
+                {BobName, _, _} = get_user_data(bob, Config),
+                BobJID = <<BobName/binary, $@, Domain/binary, $/, (escalus_client:resource(Bob))/binary>>,
+
+                Stanza = re:replace(exml:to_binary(escalus_stanza:from(escalus_stanza:chat_to(Alice, "Hi"), BobJID)),
+                                    <<"\'">>, <<"\"">>, [global, {return, binary}]),
+                {_, 0} = ejabberdctl("send_stanza_c2s", [BobName, Domain, Resource, <<$', Stanza/binary, $'>>], Config),
+
+                Message = escalus:wait_for_stanza(Alice),
+                escalus:assert(is_chat_message, [<<"Hi">>], Message),
+                escalus:assert(is_stanza_from, [Bob], Message)
+        end).
+
+%%--------------------------------------------------------------------
+%% mod_admin_extra_stats tests
+%%--------------------------------------------------------------------
+
+stats_global(Config) ->
+    escalus:story(Config, [1, 1], fun(_Alice, _Bob) ->
+                Registered = integer_to_list(length(escalus_users:get_users(all))) ++ "\n",
+                
+                {UpTime, 0} = ejabberdctl("stats", ["uptimeseconds"], Config),
+                _ = list_to_integer(string:strip(UpTime, both, $\n)),
+
+                {Registered, 0} = ejabberdctl("stats", ["registeredusers"], Config),
+                
+                {"2\n", 0} = ejabberdctl("stats", ["onlineusersnode"], Config),
+
+                {"2\n", 0} = ejabberdctl("stats", ["onlineusers"], Config)
+        end).
+
+stats_host(Config) ->
+    escalus:story(Config, [1, 1], fun(Alice, _Bob) ->
+                Registered = integer_to_list(length(escalus_users:get_users(all))) ++ "\n",
+
+                PriDomain = escalus_client:server(Alice),
+                SecDomain = escalus_config:get_config(ejabberd_secondary_domain, Config),
+
+                {Registered, 0} = ejabberdctl("stats_host", ["registeredusers", PriDomain], Config),
+                {"0\n", 0} = ejabberdctl("stats_host", ["registeredusers", SecDomain], Config),
+                
+                {"2\n", 0} = ejabberdctl("stats_host", ["onlineusers", PriDomain], Config),
+                {"0\n", 0} = ejabberdctl("stats_host", ["onlineusers", SecDomain], Config)
         end).
 
 %%-----------------------------------------------------------------
