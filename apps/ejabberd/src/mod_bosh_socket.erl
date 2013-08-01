@@ -581,9 +581,12 @@ send_to_handler({Rid, Pid}, Data, State) ->
 %% This is the most specific variant of send_to_handler()
 %% and the *only one* actually performing a send
 %% to the cowboy_loop_handler serving a HTTP request.
+send_wrapped_to_handler(Pid, Wrapped, #state{handlers = []} = State) ->
+    Pid ! {bosh_reply, Wrapped},
+    setup_inactivity_timer(State);
 send_wrapped_to_handler(Pid, Wrapped, State) ->
     Pid ! {bosh_reply, Wrapped},
-    setup_inactivity_timer(State).
+    State.
 
 maybe_ack(HandlerRid, #state{rid = Rid} = S) ->
     if
