@@ -10,6 +10,8 @@
 %% API
 -export([get_inactivity/0,
          set_inactivity/1,
+         get_max_wait/0,
+         set_max_wait/1,
          get_server_acks/0,
          set_server_acks/1]).
 
@@ -36,6 +38,7 @@
 -define(DEFAULT_BACKEND, mnesia).
 -define(DEFAULT_MAX_AGE, 1728000).  %% 20 days in seconds
 -define(DEFAULT_INACTIVITY, 30).  %% seconds
+-define(DEFAULT_MAX_WAIT, infinity).  %% seconds
 -define(DEFAULT_SERVER_ACKS, false).
 -define(DEFAULT_ALLOW_ORIGIN, <<"*">>).
 
@@ -57,6 +60,18 @@ set_inactivity(infinity) ->
     gen_mod:set_module_opt(?MYNAME, ?MODULE, inactivity, infinity);
 set_inactivity(Seconds) when is_integer(Seconds), Seconds > 0 ->
     gen_mod:set_module_opt(?MYNAME, ?MODULE, inactivity, Seconds).
+
+-spec get_max_wait() -> pos_integer() | infinity.
+get_max_wait() ->
+    gen_mod:get_module_opt(?MYNAME, ?MODULE, max_wait, ?DEFAULT_MAX_WAIT).
+
+%% Return true if succeeded, false otherwise.
+-spec set_max_wait(SecondsOrInfinity) -> boolean()
+    when SecondsOrInfinity :: pos_integer() | infinity.
+set_max_wait(infinity) ->
+    gen_mod:set_module_opt(?MYNAME, ?MODULE, max_wait, infinity);
+set_max_wait(Seconds) when is_integer(Seconds), Seconds > 0 ->
+    gen_mod:set_module_opt(?MYNAME, ?MODULE, max_wait, Seconds).
 
 -spec get_server_acks() -> boolean().
 get_server_acks() ->

@@ -684,7 +684,7 @@ return_surplus_handlers(normal, #state{pending = Pending} = S) ->
 bosh_unwrap(StreamEvent, Body, #state{} = S)
        when StreamEvent =:= streamstart;
             StreamEvent =:= restart ->
-    Wait = get_attr(<<"wait">>, Body, S#state.wait),
+    Wait = min(get_attr(<<"wait">>, Body, S#state.wait), mod_bosh:get_max_wait()),
     Hold = get_attr(<<"hold">>, Body, S#state.hold),
     ClientAcks = get_client_acks(StreamEvent, Body, S#state.client_acks),
     E = stream_start(exml_query:attr(Body, <<"from">>),
