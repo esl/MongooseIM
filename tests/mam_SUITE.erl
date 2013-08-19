@@ -42,7 +42,8 @@
          strip_archived/1,
          policy_violation/1,
          offline_message/1,
-         purge_single_message/1]).
+         purge_single_message/1,
+         purge_multiple_messages/1]).
 
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
@@ -117,7 +118,8 @@ groups() ->
                 range_archive_request,
                 limit_archive_request,
                 prefs_set_request]},
-     {mam_purge, [], [purge_single_message]},
+     {mam_purge, [], [purge_single_message,
+                      purge_multiple_messages]},
      {archived, [], [archived, strip_archived]},
      {policy_violation, [], [policy_violation]},
      {offline_message, [], [offline_message]},
@@ -198,6 +200,8 @@ init_per_testcase(strip_archived, Config) ->
     escalus:init_per_testcase(strip_archived, clean_archive(Config));
 init_per_testcase(purge_single_message, Config) ->
     escalus:init_per_testcase(purge_single_message, clean_archive(Config));
+init_per_testcase(purge_multiple_messages, Config) ->
+    escalus:init_per_testcase(purge_multiple_messages, clean_archive(Config));
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
@@ -372,6 +376,27 @@ purge_single_message(Config) ->
             escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
             escalus:send(Alice, stanza_archive_request(<<"q2">>)),
             assert_respond_size(0, wait_archive_respond_iq_first(Alice)),
+            ok
+        end,
+    escalus:story(Config, [1, 1], F).
+
+purge_multiple_messages(Config) ->
+    F = fun(Alice, Bob) ->
+            %% Alice sends messages to Bob.
+            [begin
+                escalus:send(Alice,
+                    escalus_stanza:chat_to(Bob, generate_message_text(N))),
+                 timer:sleep(100)
+             end || N <- lists:seq(1, 15)],
+            %% Bob is waiting for 15 messages for 5 seconds.
+            escalus:wait_for_stanzas(Bob, 15, 5000),
+            %% Bob purges all messages from his archive.
+            escalus:send(Bob, stanza_purge_multiple_messages(
+                    undefined, undefined, undefined)),
+            %% Waiting for ack.
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
+            escalus:send(Bob, stanza_archive_request(<<"q2">>)),
+            assert_respond_size(0, wait_archive_respond_iq_first(Bob)),
             ok
         end,
     escalus:story(Config, [1, 1], F).
@@ -579,6 +604,39 @@ stanza_purge_single_message(MessId) ->
        attrs = [{<<"xmlns">>,mam_ns_binary()}, {<<"id">>, MessId}]
     }]).
 
+stanza_purge_multiple_messages(BStart, BEnd, BWithJID) ->
+    escalus_stanza:iq(<<"set">>, [#xmlel{
+       name = <<"purge">>,
+       attrs = [{<<"xmlns">>,mam_ns_binary()}],
+       children = skip_undefined([
+           maybe_start_elem(BStart),
+           maybe_end_elem(BEnd),
+           maybe_with_elem(BWithJID)])
+    }]).
+
+skip_undefined(Xs) ->
+    [X || X <- Xs, X =/= undefined].
+
+maybe_start_elem(undefined) ->
+    undefined;
+maybe_start_elem(BStart) ->
+    #xmlel{
+        name = <<"start">>,
+        children = #xmlcdata{content = BStart}}.
+
+maybe_end_elem(undefined) ->
+    undefined;
+maybe_end_elem(BEnd) ->
+    #xmlel{
+        name = <<"end">>,
+        children = #xmlcdata{content = BEnd}}.
+
+maybe_with_elem(undefined) ->
+    undefined;
+maybe_with_elem(BWithJID) ->
+    #xmlel{
+        name = <<"with">>,
+        children = #xmlcdata{content = BWithJID}}.
 
 %% An optional 'queryid' attribute allows the client to match results to
 %% a certain query.
