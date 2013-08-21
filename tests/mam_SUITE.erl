@@ -911,7 +911,7 @@ start_room(Config, User, Room, Nick, Opts) ->
 
 destroy_room(Config) ->
     RoomName = ?config(room, Config),
-    escalus_ejabberd:rpc(mod_mam_muc, delete_archive, 
+    escalus_ejabberd:rpc(mod_mam, delete_archive, 
         [?MUC_HOST, RoomName]),
     case escalus_ejabberd:rpc(ets, lookup, [muc_online_room,
         {RoomName, ?MUC_HOST}]) of
