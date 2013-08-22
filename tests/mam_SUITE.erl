@@ -363,7 +363,7 @@ offline_message(Config) ->
     F2 = fun(Bob) ->
         %% Bob logins and checks the archive.
         escalus:send(Bob, stanza_archive_request(<<"q1">>)),
-        [ArcRes, ArcMsg] = wait_archive_respond_iq_first(Bob),
+        [_ArcRes, ArcMsg] = wait_archive_respond_iq_first(Bob),
         #forwarded_message{message_body=ArcMsgBody} =
             parse_forwarded_message(ArcMsg),
         ?assert_equal(Msg, ArcMsgBody),
@@ -431,13 +431,13 @@ muc_archive_request(Config) ->
 
         %% Bob received the message "Hi, Bob!".
         %% This message will be archived (by bob@localhost).
-        BobMsg = escalus:wait_for_stanza(Bob),
+        _BobMsg = escalus:wait_for_stanza(Bob),
         %% TODO: check, that the message was logged into the room.
 %       Arc = exml_query:subelement(Msg, <<"archived">>),
 
         %% Bob requests the room's archive.
         escalus:send(Bob, stanza_to_room(stanza_archive_request(<<"q1">>), Room)),
-        [ArcRes, ArcMsg] = assert_respond_size(1, wait_archive_respond_iq_first(Bob)),
+        [_ArcRes, ArcMsg] = assert_respond_size(1, wait_archive_respond_iq_first(Bob)),
         #forwarded_message{message_body=ArcMsgBody} = parse_forwarded_message(ArcMsg),
         ?assert_equal(Msg, ArcMsgBody),
         ok
