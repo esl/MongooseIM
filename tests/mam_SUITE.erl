@@ -144,6 +144,7 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(muc, Config) ->
+    %% TODO: ensure, that the room's archive is empty
     RoomName = <<"alicesroom">>,
     RoomNick = <<"alicesnick">>,
     Config1 = escalus:create_users(Config),
@@ -161,7 +162,8 @@ init_per_group(rsm, Config) ->
         escalus:wait_for_stanzas(Bob, 15, 5000),
         %% Get whole history.
         escalus:send(Alice, stanza_archive_request(<<"all_messages">>)),
-        AllMessages = escalus:wait_for_stanzas(Alice, 15, 5000),
+        [_ArcIQ|AllMessages] =
+            assert_respond_size(15, wait_archive_respond_iq_first(Alice)),
         ParsedMessages = [parse_forwarded_message(M) || M <- AllMessages],
         Pid ! {parsed_messages, ParsedMessages},
         ok
@@ -302,6 +304,12 @@ wait_archive_respond_iq_first(User) ->
 
 wait_archive_respond(User) ->
     S = escalus:wait_for_stanza(User, 5000),
+    case escalus_pred:is_iq_error(S) of
+        true ->
+            ct:pal("Stanza ~p", [S]),
+            ct:fail("Unexpected error IQ.", []);
+        false -> ok
+    end,
     case escalus_pred:is_iq_result(S) of
         true  -> [S];
         false -> [S|wait_archive_respond(User)]
@@ -356,7 +364,6 @@ offline_message(Config) ->
         %% Bob logins and checks the archive.
         escalus:send(Bob, stanza_archive_request(<<"q1">>)),
         [ArcRes, ArcMsg] = wait_archive_respond_iq_first(Bob),
-        escalus:assert(is_iq_result, ArcRes),
         #forwarded_message{message_body=ArcMsgBody} =
             parse_forwarded_message(ArcMsg),
         ?assert_equal(Msg, ArcMsgBody),
@@ -433,7 +440,6 @@ muc_archive_request(Config) ->
         [ArcRes, ArcMsg] = assert_respond_size(1, wait_archive_respond_iq_first(Bob)),
         #forwarded_message{message_body=ArcMsgBody} = parse_forwarded_message(ArcMsg),
         ?assert_equal(Msg, ArcMsgBody),
-        escalus:assert(is_iq_result, ArcRes),
         ok
         end,
     escalus:story(Config, [1, 1], F).
