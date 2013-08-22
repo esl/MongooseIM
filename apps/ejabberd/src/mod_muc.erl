@@ -41,7 +41,8 @@
 	 create_instant_room/5,
 	 process_iq_disco_items/4,
 	 broadcast_service_message/2,
-	 can_use_nick/3]).
+	 can_use_nick/3,
+     room_jid_to_pid/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -365,7 +366,6 @@ route_to_room(Room, {From,To,Packet} = Routed, #state{host=Host} = State) ->
 	    ok
     end.
 
-
 route_to_nonexistent_room(Room, {From, To, Packet},
 			  #state{host=Host} = State) ->
     #xmlel{name = Name, attrs = Attrs} = Packet,
@@ -562,6 +562,14 @@ register_room(Host, Room, Pid) ->
 	end,
     mnesia:transaction(F).
 
+-spec room_jid_to_pid(RoomJID :: jid()) -> {ok, pid()} | {error, not_found}.
+room_jid_to_pid(#jid{luser=RoomName, lserver=MucService}) ->
+    case mnesia:dirty_read(muc_online_room, {RoomName, MucService}) of
+        [R] ->
+        {ok, R#muc_online_room.pid};
+    [] ->
+        {error, not_found}
+    end.
 
 iq_disco_info(Lang) ->
     [#xmlel{name = <<"identity">>,

@@ -45,9 +45,6 @@
 -include("jlib.hrl").
 -include("mod_muc_room.hrl").
 
-%% Copied from mod_muc/mod_muc.erl
--record(muc_online_room, {name_host, pid}).
-
 -define(T(Text), translate:translate(Lang, Text)).
 -define(PROCNAME, ejabberd_mod_muc_log).
 -record(room, {jid, title, subject, subject_author, config}).
@@ -920,24 +917,9 @@ role_users_to_string(RoleS, Users) ->
 
 get_room_occupants(RoomJIDString) ->
     RoomJID = jlib:binary_to_jid(RoomJIDString),
-    RoomName = RoomJID#jid.luser,
-    MucService = RoomJID#jid.lserver,
-    StateData = get_room_state(RoomName, MucService),
+    {ok, Users} = mod_muc_room:get_users(RoomJID),
     [{U#user.jid, U#user.nick, U#user.role}
-     || {_, U} <- ?DICT:to_list(StateData#state.users)].
-
-get_room_state(RoomName, MucService) ->
-    case mnesia:dirty_read(muc_online_room, {RoomName, MucService}) of
-        [R] ->
-	    RoomPid = R#muc_online_room.pid,
-	    get_room_state(RoomPid);
-	[] ->
-	    room_not_found
-    end.
-
-get_room_state(RoomPid) ->
-    {ok, R} = gen_fsm:sync_send_all_state_event(RoomPid, get_state),
-    R.
+     || U <- Users].
 
 get_proc_name(Host) -> gen_mod:get_module_proc(Host, ?PROCNAME).
 
