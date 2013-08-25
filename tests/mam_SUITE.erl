@@ -43,7 +43,8 @@
          policy_violation/1,
          offline_message/1,
          purge_single_message/1,
-         purge_multiple_messages/1]).
+         purge_multiple_messages/1,
+         purge_old_single_message/1]).
 
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
@@ -103,7 +104,8 @@
 %% Suite configuration
 %%--------------------------------------------------------------------
 all() ->
-    [{group, mam},
+    [{group, bootstrapped},
+     {group, mam},
      {group, mam_purge},
      {group, muc},
      {group, rsm},
@@ -113,6 +115,7 @@ all() ->
 
 groups() ->
     [
+     {bootstrapped, [], [purge_old_single_message]},
      {mam, [], [mam_service_discovery,
                 simple_archive_request,
                 range_archive_request,
@@ -183,6 +186,8 @@ init_per_group(mam, Config) ->
     escalus:create_users(Config);
 init_per_group(mam_purge, Config) ->
     escalus:create_users(Config);
+init_per_group(bootstrapped, Config) ->
+    escalus:create_users(Config);
 init_per_group(archived, Config) ->
     escalus:create_users(Config).
 
@@ -204,6 +209,9 @@ init_per_testcase(purge_single_message, Config) ->
     escalus:init_per_testcase(purge_single_message, clean_archive(Config));
 init_per_testcase(purge_multiple_messages, Config) ->
     escalus:init_per_testcase(purge_multiple_messages, clean_archive(Config));
+init_per_testcase(purge_old_single_message, Config) ->
+    escalus:init_per_testcase(purge_old_single_message,
+        bootstrap_archive(clean_archive(Config)));
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
@@ -386,6 +394,25 @@ purge_single_message(Config) ->
             ok
         end,
     escalus:story(Config, [1, 1], F).
+
+purge_old_single_message(Config) ->
+    F = fun(Alice) ->
+            escalus:send(Alice, stanza_archive_request(<<"q1">>)),
+            [_IQ|AllMessages] = assert_respond_size(12,
+                wait_archive_respond_iq_first(Alice)),
+            ParsedMessages = [parse_forwarded_message(M) || M <- AllMessages],
+            %% Delete fifth message.
+            ParsedMess = lists:nth(5, ParsedMessages),
+            #forwarded_message{result_id=MessId} = ParsedMess,
+            escalus:send(Alice, stanza_purge_single_message(MessId)),
+            %% Waiting for ack.
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+            %% Check, that it was deleted.
+            escalus:send(Alice, stanza_archive_request(<<"q2">>)),
+            assert_respond_size(11, wait_archive_respond_iq_first(Alice)),
+            ok
+        end,
+    escalus:story(Config, [1], F).
 
 purge_multiple_messages(Config) ->
     F = fun(Alice, Bob) ->
@@ -1012,3 +1039,27 @@ parse_messages(Messages) ->
         ct:pal("Messages: ~p~n", [Messages]),
         erlang:raise(Class, Reason, Stacktrace)
     end.
+
+bootstrap_archive(Config) ->
+    DataDir = ?config(data_dir, Config),
+    FileName = filename:join(DataDir, "alice.xml"),
+    ArcJID = make_jid(<<"alice">>, <<"localhost">>, <<>>),
+    Opts = [{rewrite_jids, rewrite_jids_options(Config)}],
+    ?assert_equal(ok, restore_dump_file(ArcJID, FileName, Opts)),
+    Config.
+
+rewrite_jids_options(Config) ->
+    A = nick_to_jid(alice, Config),
+    B = nick_to_jid(bob,   Config),
+    [{<<"alice@wonderland">>, A}, {<<"cat@wonderland">>, B}].
+
+%% @doc Get a binary jid of the user, that tagged with `UserName' in the config.
+nick_to_jid(UserName, Config) when is_atom(UserName) ->
+    UserSpec = escalus_users:get_userspec(Config, UserName),
+    escalus_users:get_jid(Config, UserSpec).
+
+make_jid(U, S, R) ->
+    escalus_ejabberd:rpc(jlib, make_jid, [U, S, R]).
+
+restore_dump_file(ArcJID, FileName, Opts) ->
+    escalus_ejabberd:rpc(mod_mam, restore_dump_file, [ArcJID, FileName, Opts]).

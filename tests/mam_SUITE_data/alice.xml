@@ -1,0 +1,98 @@
+<stream>
+  <result id="6R72A26Q4001" xmlns="urn:xmpp:mam:tmp">
+    <forwarded xmlns="urn:xmpp:forward:0">
+      <delay from="alice@wonderland" stamp="2000-07-21T01:50:00Z" xmlns="urn:xmpp:delay"></delay>
+      <message from="alice@wonderland" to="cat@wonderland">
+        <body>Cheshire Puss, would you tell me, please, which way I ought to go from here?</body>
+      </message>
+    </forwarded>
+  </result>
+  <result id="6R72A3CUQG01" xmlns="urn:xmpp:mam:tmp">
+    <forwarded xmlns="urn:xmpp:forward:0">
+      <delay from="cat@wonderland" stamp="2000-07-21T01:50:05Z" xmlns="urn:xmpp:delay"></delay>
+      <message from="cat@wonderland" to="alice@wonderland">
+        <body>That depends a good deal on where you want to get to.</body>
+      </message>
+    </forwarded>
+  </result>
+  <result id="6R72A5P87G01" xmlns="urn:xmpp:mam:tmp">
+    <forwarded xmlns="urn:xmpp:forward:0">
+      <delay from="alice@wonderland" stamp="2000-07-21T01:50:15Z" xmlns="urn:xmpp:delay"></delay>
+      <message from="alice@wonderland" to="cat@wonderland">
+        <body>I don't much care where-</body>
+      </message>
+    </forwarded>
+  </result>
+  <result id="6R72A60SC001" xmlns="urn:xmpp:mam:tmp">
+    <forwarded xmlns="urn:xmpp:forward:0">
+      <delay from="cat@wonderland" stamp="2000-07-21T01:50:16Z" xmlns="urn:xmpp:delay"></delay>
+      <message from="cat@wonderland" to="alice@wonderland">
+        <body>Then it doesn't matter which way you go.</body>
+      </message>
+    </forwarded>
+  </result>
+  <result id="6R72A68GGG01" xmlns="urn:xmpp:mam:tmp">
+    <forwarded xmlns="urn:xmpp:forward:0">
+      <delay from="alice@wonderland" stamp="2000-07-21T01:50:17Z" xmlns="urn:xmpp:delay"></delay>
+      <message from="alice@wonderland" to="cat@wonderland">
+        <body>-so long as I get somewhere.</body>
+      </message>
+    </forwarded>
+  </result>
+  <result id="6R72A6VCU001" xmlns="urn:xmpp:mam:tmp">
+    <forwarded xmlns="urn:xmpp:forward:0">
+      <delay from="cat@wonderland" stamp="2000-07-21T01:50:20Z" xmlns="urn:xmpp:delay"></delay>
+      <message from="cat@wonderland" to="alice@wonderland">
+        <body>Oh, you're sure to do that, if you only walk long enough.</body>
+      </message>
+    </forwarded>
+  </result>
+  <result id="6R72A85HKG01" xmlns="urn:xmpp:mam:tmp">
+    <forwarded xmlns="urn:xmpp:forward:0">
+      <delay from="alice@wonderland" stamp="2000-07-21T01:50:25Z" xmlns="urn:xmpp:delay"></delay>
+      <message from="alice@wonderland" to="cat@wonderland">
+        <body>What sort of people live about here?</body>
+      </message>
+    </forwarded>
+  </result>
+  <result id="6R72A9BMB001" xmlns="urn:xmpp:mam:tmp">
+    <forwarded xmlns="urn:xmpp:forward:0">
+      <delay from="cat@wonderland" stamp="2000-07-21T01:50:30Z" xmlns="urn:xmpp:delay"></delay>
+      <message from="cat@wonderland" to="alice@wonderland">
+        <body>In THAT direction lives a Hatter: and in THAT direction lives a March Hare. Visit either you like: they're both mad.</body>
+      </message>
+    </forwarded>
+  </result>
+  <result id="6R72ABNVO001" xmlns="urn:xmpp:mam:tmp">
+    <forwarded xmlns="urn:xmpp:forward:0">
+      <delay from="alice@wonderland" stamp="2000-07-21T01:50:40Z" xmlns="urn:xmpp:delay"></delay>
+      <message from="alice@wonderland" to="cat@wonderland">
+        <body>But I don't want to go among mad people.</body>
+      </message>
+    </forwarded>
+  </result>
+  <result id="6R72ACU4EG01" xmlns="urn:xmpp:mam:tmp">
+    <forwarded xmlns="urn:xmpp:forward:0">
+      <delay from="cat@wonderland" stamp="2000-07-21T01:50:45Z" xmlns="urn:xmpp:delay"></delay>
+      <message from="cat@wonderland" to="alice@wonderland">
+        <body>Oh, you can't help that, we're all mad here. I'm mad. You're mad.</body>
+      </message>
+    </forwarded>
+  </result>
+  <result id="6R72AE495001" xmlns="urn:xmpp:mam:tmp">
+    <forwarded xmlns="urn:xmpp:forward:0">
+      <delay from="alice@wonderland" stamp="2000-07-21T01:50:50Z" xmlns="urn:xmpp:delay"></delay>
+      <message from="alice@wonderland" to="cat@wonderland">
+        <body>How do you know I'm mad?</body>
+      </message>
+    </forwarded>
+  </result>
+  <result id="6R72AFADRG01" xmlns="urn:xmpp:mam:tmp">
+    <forwarded xmlns="urn:xmpp:forward:0">
+      <delay from="cat@wonderland" stamp="2000-07-21T01:50:55Z" xmlns="urn:xmpp:delay"></delay>
+      <message from="cat@wonderland" to="alice@wonderland">
+        <body>You must be, or you wouldn't have come here.</body>
+      </message>
+    </forwarded>
+  </result>
+</stream>
