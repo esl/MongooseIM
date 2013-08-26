@@ -138,68 +138,24 @@ suite() ->
     escalus:suite().
 
 init_per_suite(Config) ->
-    %% Ensure, that the archive is empty.
-    delete_users_for_sure(
-        escalus:create_users(
-            escalus:init_per_suite(Config))).
+    clean_archive(escalus:create_users(escalus:init_per_suite(Config))).
 
 end_per_suite(Config) ->
-    escalus:end_per_suite(Config).
+    escalus:end_per_suite(escalus:delete_users(Config)).
 
 init_per_group(muc, Config) ->
-    %% TODO: ensure, that the room's archive is empty
-    RoomName = <<"alicesroom">>,
-    RoomNick = <<"alicesnick">>,
-    Config1 = escalus:create_users(Config),
-    [Alice | _] = ?config(escalus_users, Config1),
-    start_room(Config1, Alice, RoomName, RoomNick, [{persistent, true}]);
+    start_alice_room(clean_archive(Config));
 init_per_group(rsm, Config) ->
-    Config1 = escalus:create_users(Config),
-    Pid = self(),
-    F = fun(Alice, Bob) ->
-        %% Alice sends messages to Bob.
-        [escalus:send(Alice,
-                      escalus_stanza:chat_to(Bob, generate_message_text(N)))
-         || N <- lists:seq(1, 15)],
-        %% Bob is waiting for 15 messages for 5 seconds.
-        escalus:wait_for_stanzas(Bob, 15, 5000),
-        %% Get whole history.
-        escalus:send(Alice, stanza_archive_request(<<"all_messages">>)),
-        [_ArcIQ|AllMessages] =
-            assert_respond_size(15, wait_archive_respond_iq_first(Alice)),
-        ParsedMessages = [parse_forwarded_message(M) || M <- AllMessages],
-        Pid ! {parsed_messages, ParsedMessages},
-        ok
-        end,
-    Config2 = escalus:init_per_testcase(pre_rsm, Config1),
-    ok = escalus:story(Config2, [1, 1], F),
-    ParsedMessages = receive {parsed_messages, PM} -> PM
-                     after 5000 -> error(receive_timeout) end,
-
-    escalus:end_per_testcase(pre_rsm, Config2),
-    [{all_messages, ParsedMessages}|Config1]; %% it is right.
-init_per_group(policy_violation, Config) ->
-    escalus:create_users(Config);
-init_per_group(offline_message, Config) ->
-    escalus:create_users(Config);
-init_per_group(mam, Config) ->
-    escalus:create_users(Config);
-init_per_group(mam_purge, Config) ->
-    escalus:create_users(Config);
-init_per_group(bootstrapped, Config) ->
-    escalus:create_users(Config);
-init_per_group(archived, Config) ->
-    escalus:create_users(Config).
+    send_rsm_messages(clean_archive(Config));
+init_per_group(_, Config) ->
+    clean_archive(Config).
 
 end_per_group(muc, Config) ->
     destroy_room(Config),
-    delete_users_for_sure(Config);
+    Config;
 end_per_group(_, Config) ->
-    delete_users_for_sure(Config).
+    Config.
 
-delete_users_for_sure(Config) ->
-    escalus:delete_users(Config),
-    ensure_clean_archive(Config).
 
 init_per_testcase(archived, Config) ->
     escalus:init_per_testcase(archived, clean_archive(Config));
@@ -935,6 +891,13 @@ generate_rpc_jid({_,User}) ->
      %JID = <<Username/binary, "@", Server/binary, "/rpc">>,
      %{jid, JID, Username, Server, <<"rpc">>}.
     {jid, Username, Server, <<"rpc">>, Username, Server, <<"rpc">>}.
+    
+start_alice_room(Config) ->
+    %% TODO: ensure, that the room's archive is empty
+    RoomName = <<"alicesroom">>,
+    RoomNick = <<"alicesnick">>,
+    [Alice | _] = ?config(escalus_users, Config),
+    start_room(Config, Alice, RoomName, RoomNick, [{persistent, true}]).
 
 start_room(Config, User, Room, Nick, Opts) ->
     From = generate_rpc_jid(User),
@@ -971,6 +934,31 @@ room_address(Room, Nick) when is_binary(Room), is_binary(Nick) ->
     <<Room/binary, "@", ?MUC_HOST/binary, "/", Nick/binary>>.
 
 
+send_rsm_messages(Config) ->
+    Pid = self(),
+    F = fun(Alice, Bob) ->
+        %% Alice sends messages to Bob.
+        [escalus:send(Alice,
+                      escalus_stanza:chat_to(Bob, generate_message_text(N)))
+         || N <- lists:seq(1, 15)],
+        %% Bob is waiting for 15 messages for 5 seconds.
+        escalus:wait_for_stanzas(Bob, 15, 5000),
+        %% Get whole history.
+        escalus:send(Alice, stanza_archive_request(<<"all_messages">>)),
+        [_ArcIQ|AllMessages] =
+            assert_respond_size(15, wait_archive_respond_iq_first(Alice)),
+        ParsedMessages = [parse_forwarded_message(M) || M <- AllMessages],
+        Pid ! {parsed_messages, ParsedMessages},
+        ok
+        end,
+    Config1 = escalus:init_per_testcase(pre_rsm, Config),
+    ok = escalus:story(Config1, [1, 1], F),
+    ParsedMessages = receive {parsed_messages, PM} -> PM
+                     after 5000 -> error(receive_timeout) end,
+
+    escalus:end_per_testcase(pre_rsm, Config1),
+    [{all_messages, ParsedMessages}|Config].
+
 append_subelem(Elem=#xmlel{children=Cs}, SubElem) ->
     Elem#xmlel{children=Cs ++ [SubElem]}.
 
@@ -981,20 +969,22 @@ archived_elem(By, Id) ->
 clean_archive(Config) ->
     [begin
      [Username, Server, _Pass] = escalus_users:get_usp(Config, UserSpec),
-     ok = escalus_ejabberd:rpc(mod_mam, delete_archive, [Server, Username])
+     ok = delete_archive(Server, Username),
+     %% Check, that the archive is empty
+     case archive_size(Server, Username) of
+        0 -> ok;
+        X ->
+            ct:fail({not_clean, X})
+     end
      end
      || {_, UserSpec} <- escalus_users:get_users(all)],
     Config.
 
-ensure_clean_archive(Config) ->
-    [begin
-     [Username, Server, _Pass] = escalus_users:get_usp(Config, UserSpec),
-     case escalus_ejabberd:rpc(mod_mam, archive_size, [Server, Username]) of
-        0 -> ok
-     end
-     end
-     || {_, UserSpec} <- escalus_users:get_users(all)],
-    Config.
+archive_size(Server, Username) ->
+    escalus_ejabberd:rpc(mod_mam, archive_size, [Server, Username]).
+
+delete_archive(Server, Username) ->
+    escalus_ejabberd:rpc(mod_mam, delete_archive, [Server, Username]).
 
 wait_message_range(Client, FromN, ToN) ->
     wait_message_range(Client, 15, FromN-1, FromN, ToN).
