@@ -660,27 +660,52 @@ stanza_limit_archive_request() ->
     }]).
 
 
-stanza_page_archive_request(QueryId,
-                            #rsm_in{max=Max, direction=Direction, id=Id, index=Index}) ->
-    LimitEl = [#xmlel{name = <<"max">>,
-                      children = #xmlcdata{content = integer_to_list(Max)}}
-               || is_integer(Max)],
-    IndexEl = [#xmlel{name = <<"index">>,
-                      children = #xmlcdata{content = integer_to_list(Index)}}
-               || is_integer(Index)],
-    BorderEl = [#xmlel{name = atom_to_binary(Direction, latin1),
-                       children = case Id of
-                                   undefined -> [];
-                                    _ -> #xmlcdata{content = Id}
-                                  end}
-                || Direction =/= undefined],
-    SetEl = #xmlel{name = <<"set">>,
-                        children = lists:merge([LimitEl, IndexEl, BorderEl])},
+stanza_page_archive_request(QueryId, RSM) ->
+    stanza_lookup_messages_iq(QueryId, undefined, undefined, undefined, RSM).
+
+stanza_lookup_messages_iq(QueryId, BStart, BEnd, BWithJID, RSM) ->
     escalus_stanza:iq(<<"get">>, [#xmlel{
        name = <<"query">>,
        attrs = [{<<"xmlns">>,mam_ns_binary()}, {<<"queryid">>, QueryId}],
-       children = [SetEl]
+       children = skip_undefined([
+           maybe_start_elem(BStart),
+           maybe_end_elem(BEnd),
+           maybe_with_elem(BWithJID),
+           maybe_rsm_elem(RSM)])
     }]).
+
+maybe_rsm_elem(undefined) ->
+    undefined;
+maybe_rsm_elem(#rsm_in{max=Max, direction=Direction, id=Id, index=Index}) ->
+    #xmlel{name = <<"set">>,
+           children = skip_undefined([
+                maybe_rsm_max(Max),
+                maybe_rsm_index(Index),
+                maybe_rsm_direction(Direction, Id)])}.
+
+maybe_rsm_id(undefined) -> [];
+maybe_rsm_id(Id) -> #xmlcdata{content = Id}.
+
+maybe_rsm_direction(undefined, undefined) ->
+    undefined;
+maybe_rsm_direction(Direction, Id) ->
+    #xmlel{
+        name = atom_to_binary(Direction, latin1),
+        children = maybe_rsm_id(Id)}.
+
+maybe_rsm_index(undefined) ->
+    undefined;
+maybe_rsm_index(Index) when is_integer(Index) ->
+    #xmlel{
+        name = <<"index">>,
+        children = #xmlcdata{content = integer_to_list(Index)}}.
+
+maybe_rsm_max(undefined) ->
+    undefined;
+maybe_rsm_max(Max) when is_integer(Max) ->
+    #xmlel{
+        name = <<"max">>,
+        children = #xmlcdata{content = integer_to_list(Max)}}.
 
 %% ----------------------------------------------------------------------
 %% PREFERENCE QUERIES
