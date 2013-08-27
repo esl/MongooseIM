@@ -50,8 +50,6 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml_stream.hrl").
 
--define(MUC_HOST, <<"muc.localhost">>).
-
 -define(assert_equal(E, V), (
     [ct:fail("ASSERT EQUAL~n\tExpected ~p~n\tValue ~p~n", [(E), (V)])
      || (E) =/= (V)]
@@ -104,8 +102,15 @@
 %% Suite configuration
 %%--------------------------------------------------------------------
 
+muc_host() ->
+    <<"muc.localhost">>.
+
+host() ->
+    <<"localhost">>.
+
 configurations() ->
-    [odbc].
+    [odbc,
+     riak_mnesia].
 
 basic_group_names() ->
     [
@@ -127,25 +132,49 @@ groups() ->
      || C <- configurations(), {G, Props, Tests} <- basic_groups()].
 
 basic_groups() ->
-    [
-     {bootstrapped, [], [purge_old_single_message]},
-     {mam, [], [mam_service_discovery,
-                simple_archive_request,
-                range_archive_request,
-                limit_archive_request,
-                prefs_set_request]},
-     {mam_purge, [], [purge_single_message,
-                      purge_multiple_messages]},
-     {archived, [], [archived, strip_archived]},
-     {policy_violation, [], [policy_violation]},
-     {offline_message, [], [offline_message]},
-     {muc, [], [muc_service_discovery,
-                muc_archive_request]},
-     {rsm, [], [pagination_first5,
-                pagination_last5,
-                pagination_before10,
-                pagination_after10,
-                pagination_empty_rset]}].
+    [{bootstrapped,     [], bootstrapped_cases()},
+     {mam,              [], mam_cases()},
+     {mam_purge,        [], mam_purge_cases()},
+     {archived,         [], archived_cases()},
+     {policy_violation, [], policy_violation_cases()},
+     {offline_message,  [], offline_message_cases()},
+     {muc,              [], muc_cases()},
+     {rsm,              [], rsm_cases()}].
+
+bootstrapped_cases() ->
+     [purge_old_single_message].
+
+mam_cases() ->
+    [mam_service_discovery,
+     simple_archive_request,
+     range_archive_request,
+     limit_archive_request,
+     prefs_set_request].
+
+mam_purge_cases() ->
+    [purge_single_message,
+     purge_multiple_messages].
+
+archived_cases() ->
+    [archived,
+     strip_archived].
+
+policy_violation_cases() ->
+    [policy_violation].
+
+offline_message_cases() ->
+    [offline_message].
+
+muc_cases() ->
+    [muc_service_discovery,
+     muc_archive_request].
+
+rsm_cases() ->
+      [pagination_first5,
+       pagination_last5,
+       pagination_before10,
+       pagination_after10,
+       pagination_empty_rset].
 
 suite() ->
     escalus:suite().
@@ -157,30 +186,65 @@ end_per_suite(Config) ->
     escalus:end_per_suite(escalus:delete_users(Config)).
 
 init_per_group(Group, Config) ->
-    init_per_configuration(configuration(Group),
-        init_per_basic_group(basic_group(Group), Config)).
-
+    C = configuration(Group),
+    B = basic_group(Group),
+    Config1 = init_modules(C, B, Config),
+    init_state(C, B, Config1).
+    
 end_per_group(Group, Config) ->
-    end_per_configuration(configuration(Group),
-        end_per_basic_group(basic_group(Group), Config)).
+    C = configuration(Group),
+    B = basic_group(Group),
+    Config1 = end_state(C, B, Config),
+    end_modules(C, B, Config1).
 
-init_per_configuration(_Conf, Config) ->
+init_modules(odbc, muc, Config) ->
+    init_module(muc_host(), mod_mam, odbc_muc_args()),
+    Config;
+init_modules(riak_mnesia, muc, Config) ->
+    init_module(muc_host(), mod_mam, riak_mnesia_muc_args()),
+    Config;
+init_modules(odbc, _, Config) ->
+    init_module(host(), mod_mam, odbc_args()),
+    Config;
+init_modules(riak_mnesia, _, Config) ->
+    init_module(host(), mod_mam, riak_mnesia_args()),
     Config.
 
-end_per_configuration(_Conf, Config) ->
+end_modules(_, _, Config) ->
     Config.
 
-init_per_basic_group(muc, Config) ->
+odbc_args() ->
+    [{prefs_module, mod_mam_odbc_prefs},
+     {writer_module, mod_mam_odbc_arch},
+     {archive_module, mod_mam_odbc_arch}].
+
+riak_mnesia_args() ->
+    [{prefs_module, mod_mam_mnesia_prefs},
+     {writer_module, mod_mam_riak_arch},
+     {archive_module, mod_mam_riak_arch}].
+
+odbc_muc_args() ->
+    [{prefs_module, mod_mam_muc_odbc_prefs},
+     {writer_module, mod_mam_muc_odbc_arch},
+     {archive_module, mod_mam_muc_odbc_arch}].
+
+%% TODO write mod_mam_muc_riak_arch
+riak_mnesia_muc_args() ->
+    [{prefs_module, mod_mam_muc_odbc_prefs},
+     {writer_module, mod_mam_muc_odbc_arch},
+     {archive_module, mod_mam_muc_odbc_arch}].
+
+init_state(_, muc, Config) ->
     start_alice_room(clean_archives(Config));
-init_per_basic_group(rsm, Config) ->
+init_state(_, rsm, Config) ->
     send_rsm_messages(clean_archives(Config));
-init_per_basic_group(_, Config) ->
+init_state(_, _, Config) ->
     clean_archives(Config).
 
-end_per_basic_group(muc, Config) ->
+end_state(_, muc, Config) ->
     destroy_room(Config),
     Config;
-end_per_basic_group(_, Config) ->
+end_state(_, _, Config) ->
     Config.
 
 init_per_testcase(archived, Config) ->
@@ -199,6 +263,35 @@ init_per_testcase(CaseName, Config) ->
 
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
+
+init_module(Host, Mod, Args) ->
+    stop_module(Host, Mod),
+    ok = start_module(Host, Mod, Args).
+
+is_loaded_module(Host, Mod) ->
+    rpc_apply(gen_mod, is_loaded, [Host, Mod]).
+
+start_module(Host, Mod, Args) ->
+    rpc_apply(gen_mod, start_module, [Host, Mod, Args]).
+
+stop_module(Host, Mod) ->
+    case is_loaded_module(Host, Mod) of
+        non_existing -> ok;
+        _ -> just_stop_module(Host, Mod)
+    end.
+
+just_stop_module(Host, Mod) ->
+    {atomic, ok} = rpc_apply(gen_mod, stop_module, [Host, Mod]),
+    ok.
+
+rpc_apply(M, F, Args) ->
+    case escalus_ejabberd:rpc(M, F, Args) of
+    {badrpc, Reason} ->
+        ct:fail("~p:~p/~p with arguments ~p fails with reason ~p.",
+                [M, F, length(Args), Args, Reason]);
+    Result ->
+        Result
+    end.
 
 %%--------------------------------------------------------------------
 %% Group name helpers
@@ -636,7 +729,7 @@ muc_service_discovery(Config) ->
         Stanza = escalus:wait_for_stanza(Alice),
         %% If this fails, than check your config.
         %% `{mod_disco, [{extra_domains, [<<"muc.localhost">>]}]}' must be there.
-        escalus:assert(has_service, [?MUC_HOST], Stanza),
+        escalus:assert(has_service, [muc_host()], Stanza),
         escalus:assert(is_stanza_from, [Domain], Stanza),
         ok
         end,
@@ -981,16 +1074,14 @@ start_alice_room(Config) ->
 
 start_room(Config, User, Room, Nick, Opts) ->
     From = generate_rpc_jid(User),
-    escalus_ejabberd:rpc(mod_muc, create_instant_room,
+    rpc_apply(mod_muc, create_instant_room,
         [<<"localhost">>, Room, From, Nick, Opts]),
     [{nick, Nick}, {room, Room} | Config].
 
 destroy_room(Config) ->
     RoomName = ?config(room, Config),
-    escalus_ejabberd:rpc(mod_mam, delete_archive, 
-        [?MUC_HOST, RoomName]),
-    case escalus_ejabberd:rpc(ets, lookup, [muc_online_room,
-        {RoomName, ?MUC_HOST}]) of
+    delete_archive(muc_host(), RoomName),
+    case rpc_apply(ets, lookup, [muc_online_room, {RoomName, muc_host()}]) of
         [{_,_,Pid}|_] -> gen_fsm:send_all_state_event(Pid, destroy);
         _ -> ok
     end.
@@ -1008,10 +1099,10 @@ stanza_to_room(Stanza, Room, Nick) ->
     escalus_stanza:to(Stanza, room_address(Room, Nick)).
 
 room_address(Room) when is_binary(Room) ->
-    <<Room/binary, "@", ?MUC_HOST/binary>>.
+    <<Room/binary, "@", (muc_host())/binary>>.
 
 room_address(Room, Nick) when is_binary(Room), is_binary(Nick) ->
-    <<Room/binary, "@", ?MUC_HOST/binary, "/", Nick/binary>>.
+    <<Room/binary, "@", (muc_host())/binary, "/", Nick/binary>>.
 
 
 send_rsm_messages(Config) ->
@@ -1070,10 +1161,10 @@ assert_empty_archive(Server, Username) ->
 
 
 archive_size(Server, Username) ->
-    escalus_ejabberd:rpc(mod_mam, archive_size, [Server, Username]).
+    rpc_apply(mod_mam, archive_size, [Server, Username]).
 
 delete_archive(Server, Username) ->
-    escalus_ejabberd:rpc(mod_mam, delete_archive, [Server, Username]).
+    rpc_apply(mod_mam, delete_archive, [Server, Username]).
 
 wait_message_range(Client, FromN, ToN) ->
     wait_message_range(Client, 15, FromN-1, FromN, ToN).
@@ -1138,7 +1229,7 @@ nick_to_jid(UserName, Config) when is_atom(UserName) ->
     escalus_users:get_jid(Config, UserSpec).
 
 make_jid(U, S, R) ->
-    escalus_ejabberd:rpc(jlib, make_jid, [U, S, R]).
+    rpc_apply(jlib, make_jid, [U, S, R]).
 
 restore_dump_file(ArcJID, FileName, Opts) ->
-    escalus_ejabberd:rpc(mod_mam, restore_dump_file, [ArcJID, FileName, Opts]).
+    rpc_apply(mod_mam, restore_dump_file, [ArcJID, FileName, Opts]).
