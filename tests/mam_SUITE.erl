@@ -103,17 +103,30 @@
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
+
+configurations() ->
+    [odbc].
+
+basic_group_names() ->
+    [
+    bootstrapped,
+    mam,
+    mam_purge,
+    muc,
+    rsm,
+    archived,
+    policy_violation,
+    offline_message].
+
 all() ->
-    [{group, bootstrapped},
-     {group, mam},
-     {group, mam_purge},
-     {group, muc},
-     {group, rsm},
-     {group, archived},
-     {group, policy_violation},
-     {group, offline_message}].
+    [{group, full_group(C, G)}
+     || C <- configurations(), G <- basic_group_names()].
 
 groups() ->
+    [{full_group(C, G), Props, Tests}
+     || C <- configurations(), {G, Props, Tests} <- basic_groups()].
+
+basic_groups() ->
     [
      {bootstrapped, [], [purge_old_single_message]},
      {mam, [], [mam_service_discovery,
@@ -138,41 +151,92 @@ suite() ->
     escalus:suite().
 
 init_per_suite(Config) ->
-    clean_archive(escalus:create_users(escalus:init_per_suite(Config))).
+    clean_archives(escalus:create_users(escalus:init_per_suite(Config))).
 
 end_per_suite(Config) ->
     escalus:end_per_suite(escalus:delete_users(Config)).
 
-init_per_group(muc, Config) ->
-    start_alice_room(clean_archive(Config));
-init_per_group(rsm, Config) ->
-    send_rsm_messages(clean_archive(Config));
-init_per_group(_, Config) ->
-    clean_archive(Config).
+init_per_group(Group, Config) ->
+    init_per_configuration(configuration(Group),
+        init_per_basic_group(basic_group(Group), Config)).
 
-end_per_group(muc, Config) ->
-    destroy_room(Config),
-    Config;
-end_per_group(_, Config) ->
+end_per_group(Group, Config) ->
+    end_per_configuration(configuration(Group),
+        end_per_basic_group(basic_group(Group), Config)).
+
+init_per_configuration(_Conf, Config) ->
     Config.
 
+end_per_configuration(_Conf, Config) ->
+    Config.
+
+init_per_basic_group(muc, Config) ->
+    start_alice_room(clean_archives(Config));
+init_per_basic_group(rsm, Config) ->
+    send_rsm_messages(clean_archives(Config));
+init_per_basic_group(_, Config) ->
+    clean_archives(Config).
+
+end_per_basic_group(muc, Config) ->
+    destroy_room(Config),
+    Config;
+end_per_basic_group(_, Config) ->
+    Config.
 
 init_per_testcase(archived, Config) ->
-    escalus:init_per_testcase(archived, clean_archive(Config));
+    escalus:init_per_testcase(archived, clean_archives(Config));
 init_per_testcase(strip_archived, Config) ->
-    escalus:init_per_testcase(strip_archived, clean_archive(Config));
+    escalus:init_per_testcase(strip_archived, clean_archives(Config));
 init_per_testcase(purge_single_message, Config) ->
-    escalus:init_per_testcase(purge_single_message, clean_archive(Config));
+    escalus:init_per_testcase(purge_single_message, clean_archives(Config));
 init_per_testcase(purge_multiple_messages, Config) ->
-    escalus:init_per_testcase(purge_multiple_messages, clean_archive(Config));
+    escalus:init_per_testcase(purge_multiple_messages, clean_archives(Config));
 init_per_testcase(purge_old_single_message, Config) ->
     escalus:init_per_testcase(purge_old_single_message,
-        bootstrap_archive(clean_archive(Config)));
+        bootstrap_archive(clean_archives(Config)));
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
+
+%%--------------------------------------------------------------------
+%% Group name helpers
+%%--------------------------------------------------------------------
+
+full_group(Conf, Group) ->
+    list_to_atom(atom_to_list(Conf) ++ "_" ++ atom_to_list(Group)).
+
+%% @doc Delete suffix.
+configuration(Group) ->
+    match_atom_prefix(Group, configurations()).
+
+%% @doc Delete prefix.
+basic_group(Group) ->
+    basic_group(Group, configuration(Group)).
+
+basic_group(Group, Conf) ->
+    ConfS = atom_to_list(Conf),
+    GroupS = atom_to_list(Group),
+    list_to_atom(delete_delimiter(delete_prefix(ConfS, GroupS))).
+
+match_atom_prefix(Target, Prefixes) ->
+    match_atom_prefix_1(atom_to_list(Target), Prefixes).
+
+match_atom_prefix_1(TargetS, [PrefixA|Prefixes]) ->
+    PrefixS = atom_to_list(PrefixA),
+    case lists:prefix(PrefixS, TargetS) of
+        true -> PrefixA;
+        false -> match_atom_prefix_1(TargetS, Prefixes)
+    end.
+
+delete_prefix([H|Prefix], [H|Target]) ->
+    delete_prefix(Prefix, Target);
+delete_prefix([], Target) ->
+    Target.
+
+delete_delimiter("_" ++ Tail) ->
+    Tail.
 
 %%--------------------------------------------------------------------
 %% Adhoc tests
@@ -606,6 +670,14 @@ stanza_purge_multiple_messages(BStart, BEnd, BWithJID) ->
 skip_undefined(Xs) ->
     [X || X <- Xs, X =/= undefined].
 
+maybe_attr(_, undefined) ->
+    [];
+maybe_attr(K, V) ->
+    [{K, V}].
+
+mam_ns_attr() ->
+    [{<<"xmlns">>,mam_ns_binary()}].
+
 maybe_start_elem(undefined) ->
     undefined;
 maybe_start_elem(BStart) ->
@@ -630,35 +702,18 @@ maybe_with_elem(BWithJID) ->
 %% An optional 'queryid' attribute allows the client to match results to
 %% a certain query.
 stanza_archive_request(QueryId) ->
-    escalus_stanza:iq(<<"get">>, [#xmlel{
-       name = <<"query">>,
-       attrs = [{<<"xmlns">>,mam_ns_binary()}, {<<"queryid">>, QueryId}]
-    }]).
+    stanza_lookup_messages_iq(QueryId,
+                              undefined, undefined,
+                              undefined, undefined).
 
 stanza_date_range_archive_request() ->
-    Start = #xmlel{name = <<"start">>,
-                   children = #xmlcdata{content = "2010-06-07T00:00:00Z"}},
-    End   = #xmlel{name = <<"end">>,
-                   children = #xmlcdata{content = "2010-07-07T13:23:54Z"}},
-    escalus_stanza:iq(<<"get">>, [#xmlel{
-       name = <<"query">>,
-       attrs = [{<<"xmlns">>,mam_ns_binary()}],
-       children = [Start, End]
-    }]).
+    stanza_lookup_messages_iq(undefined,
+                              "2010-06-07T00:00:00Z", "2010-07-07T13:23:54Z",
+                              undefined, undefined).
 
 stanza_limit_archive_request() ->
-    Start = #xmlel{name = <<"start">>,
-                   children = #xmlcdata{content = "2010-08-07T00:00:00Z"}},
-    Limit = #xmlel{name = <<"limit">>, %% according XEP-0313, not XEP-0059
-                   children = #xmlcdata{content = "10"}},
-    Set   = #xmlel{name = <<"set">>,
-                   children = [Limit]},
-    escalus_stanza:iq(<<"get">>, [#xmlel{
-       name = <<"query">>,
-       attrs = [{<<"xmlns">>,mam_ns_binary()}],
-       children = [Start, Set]
-    }]).
-
+    stanza_lookup_messages_iq(undefined, "2010-08-07T00:00:00Z",
+                              undefined, undefined, #rsm_in{max=10}).
 
 stanza_page_archive_request(QueryId, RSM) ->
     stanza_lookup_messages_iq(QueryId, undefined, undefined, undefined, RSM).
@@ -666,7 +721,7 @@ stanza_page_archive_request(QueryId, RSM) ->
 stanza_lookup_messages_iq(QueryId, BStart, BEnd, BWithJID, RSM) ->
     escalus_stanza:iq(<<"get">>, [#xmlel{
        name = <<"query">>,
-       attrs = [{<<"xmlns">>,mam_ns_binary()}, {<<"queryid">>, QueryId}],
+       attrs = mam_ns_attr() ++ maybe_attr(<<"queryid">>, QueryId),
        children = skip_undefined([
            maybe_start_elem(BStart),
            maybe_end_elem(BEnd),
@@ -991,19 +1046,28 @@ archived_elem(By, Id) ->
     #xmlel{name = <<"archived">>,
            attrs = [{<<"by">>, By}, {<<"id">>, Id}]}.
 
-clean_archive(Config) ->
-    [begin
-     [Username, Server, _Pass] = escalus_users:get_usp(Config, UserSpec),
-     ok = delete_archive(Server, Username),
-     %% Check, that the archive is empty
-     case archive_size(Server, Username) of
-        0 -> ok;
-        X ->
-            ct:fail({not_clean, X})
-     end
-     end
-     || {_, UserSpec} <- escalus_users:get_users(all)],
+clean_archives(Config) ->
+    SUs = serv_users(Config),
+    [ok = delete_archive(S, U) || {S, U} <- SUs],
+    timer:sleep(500),
+    [assert_empty_archive(S, U) || {S, U} <- SUs],
     Config.
+
+serv_users(Config) ->
+    [serv_user(Config, UserSpec)
+     || {_, UserSpec} <- escalus_users:get_users(all)].
+
+serv_user(Config, UserSpec) ->
+    [Username, Server, _Pass] = escalus_users:get_usp(Config, UserSpec),
+    {Server, Username}.
+
+%% @doc Check, that the archive is empty.
+assert_empty_archive(Server, Username) ->
+    case archive_size(Server, Username) of
+       0 -> ok;
+       X -> ct:fail({not_empty, Server, Username, X})
+    end.
+
 
 archive_size(Server, Username) ->
     escalus_ejabberd:rpc(mod_mam, archive_size, [Server, Username]).
