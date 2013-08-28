@@ -32,7 +32,9 @@
 -behaviour(?GEN_FSM).
 
 %% External exports
--export([start/1, start_link/2,
+-export([start/1,
+         start_link/1,
+         start_link/2,
 	 sql_query/2,
 	 sql_query_t/1,
 	 sql_transaction/2,
@@ -91,6 +93,9 @@
 start(Host) ->
     ?GEN_FSM:start(ejabberd_odbc, [Host], fsm_limit_opts() ++ ?FSMOPTS).
 
+start_link([Host, StartInterval]) ->
+    start_link(Host, StartInterval).
+
 start_link(Host, StartInterval) ->
     ?GEN_FSM:start_link(ejabberd_odbc, [Host, StartInterval],
 			fsm_limit_opts() ++ ?FSMOPTS).
@@ -119,8 +124,12 @@ sql_bloc(Host, F) ->
 sql_call(Host, Msg) ->
     case get(?STATE_KEY) of
         undefined ->
-            ?GEN_FSM:sync_send_event(ejabberd_odbc_sup:get_random_pid(Host),
-				     {sql_cmd, Msg, now()}, ?TRANSACTION_TIMEOUT);
+            ejabberd_odbc_sup:with_connection(Host, fun(Worker) ->
+                    ?GEN_FSM:sync_send_event(
+                            Worker,
+                            {sql_cmd, Msg, now()},
+                            ?TRANSACTION_TIMEOUT)
+                    end);
         _State ->
             nested_op(Msg)
     end.
@@ -190,7 +199,6 @@ init([Host, StartInterval]) ->
     end,
     [DBType | _] = db_opts(Host),
     ?GEN_FSM:send_event(self(), connect),
-    ejabberd_odbc_sup:add_pid(Host, self()),
     {ok, connecting, #state{db_type = DBType,
 			    host = Host,
 			    max_pending_requests_len = max_fsm_queue(),
@@ -287,7 +295,6 @@ handle_info(Info, StateName, State) ->
     {next_state, StateName, State}.
 
 terminate(_Reason, _StateName, State) ->
-    ejabberd_odbc_sup:remove_pid(State#state.host, self()),
     case State#state.db_type of
 	mysql ->
 	    %% old versions of mysql driver don't have the stop function
@@ -509,7 +516,7 @@ pgsql_item_to_odbc(_) ->
 %% part of init/1
 %% Open a database connection to MySQL
 mysql_connect(Server, Port, DB, Username, Password) ->
-    case mysql_conn:start(Server, Port, Username, Password, DB, fun log/3) of
+    case mysql_conn:start_link(Server, Port, Username, Password, DB, fun log/3) of
         {ok, Ref} ->
             mysql_conn:fetch(Ref, ["set names 'utf8';"], self()),
             mysql_conn:fetch(Ref, ["SET SESSION query_cache_type=1;"], self()),
