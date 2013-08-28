@@ -109,7 +109,9 @@ host() ->
     <<"localhost">>.
 
 configurations() ->
-    [odbc,
+    [odbc_async,
+     odbc,
+     odbc_mnesia,
      riak_mnesia].
 
 basic_group_names() ->
@@ -200,11 +202,23 @@ end_per_group(Group, Config) ->
 init_modules(odbc, muc, Config) ->
     init_module(muc_host(), mod_mam, odbc_muc_args()),
     Config;
+init_modules(odbc_async, muc, Config) ->
+    init_module(muc_host(), mod_mam, odbc_async_muc_args()),
+    Config;
+init_modules(odbc_mnesia, muc, Config) ->
+    init_module(muc_host(), mod_mam, odbc_mnesia_muc_args()),
+    Config;
 init_modules(riak_mnesia, muc, Config) ->
     init_module(muc_host(), mod_mam, riak_mnesia_muc_args()),
     Config;
 init_modules(odbc, _, Config) ->
     init_module(host(), mod_mam, odbc_args()),
+    Config;
+init_modules(odbc_async, _, Config) ->
+    init_module(host(), mod_mam, odbc_async_args()),
+    Config;
+init_modules(odbc_mnesia, _, Config) ->
+    init_module(host(), mod_mam, odbc_mnesia_args()),
     Config;
 init_modules(riak_mnesia, _, Config) ->
     init_module(host(), mod_mam, riak_mnesia_args()),
@@ -218,12 +232,33 @@ odbc_args() ->
      {writer_module, mod_mam_odbc_arch},
      {archive_module, mod_mam_odbc_arch}].
 
+odbc_async_args() ->
+    [{prefs_module, mod_mam_odbc_prefs},
+     {writer_module, mod_mam_odbc_async_writer},
+     {archive_module, mod_mam_odbc_arch}].
+
+odbc_mnesia_args() ->
+    [{prefs_module, mod_mam_mnesia_prefs},
+     {writer_module, mod_mam_odbc_arch},
+     {archive_module, mod_mam_odbc_arch}].
+
 riak_mnesia_args() ->
     [{prefs_module, mod_mam_mnesia_prefs},
      {writer_module, mod_mam_riak_arch},
      {archive_module, mod_mam_riak_arch}].
 
+odbc_async_muc_args() ->
+    [{prefs_module, mod_mam_muc_odbc_prefs},
+     {writer_module, mod_mam_muc_odbc_async_writer},
+     {archive_module, mod_mam_muc_odbc_arch}].
+
 odbc_muc_args() ->
+    [{prefs_module, mod_mam_muc_odbc_prefs},
+     {writer_module, mod_mam_muc_odbc_arch},
+     {archive_module, mod_mam_muc_odbc_arch}].
+
+%% TODO write mod_mam_muc_mnesia_prefs
+odbc_mnesia_muc_args() ->
     [{prefs_module, mod_mam_muc_odbc_prefs},
      {writer_module, mod_mam_muc_odbc_arch},
      {archive_module, mod_mam_muc_odbc_arch}].
@@ -302,7 +337,17 @@ full_group(Conf, Group) ->
 
 %% @doc Delete suffix.
 configuration(Group) ->
-    match_atom_prefix(Group, configurations()).
+    match_atom_prefix(Group, make_greedy(configurations())).
+
+%% @doc Rearrange a list of strings (or atoms), that all prefixes
+%% will be tested.
+%%
+%% Example:
+%% `make_greedy(odbc_mnesia_muc, [odbc, odbc_mnesia]) -> odbc'
+%% `make_greedy(odbc_mnesia_muc, match_longer_first([odbc, odbc_mnesia])) -> odbc_mnesia'
+%% @end
+make_greedy(List) ->
+    lists:reverse(lists:usort(List)).
 
 %% @doc Delete prefix.
 basic_group(Group) ->
