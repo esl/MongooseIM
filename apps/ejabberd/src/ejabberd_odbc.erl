@@ -42,6 +42,11 @@
 	 to_bool/1,
 	 keep_alive/1]).
 
+%% BLOB escaping
+-export([escape_format/1,
+         escape_binary/2,
+         unescape_binary/2]).
+
 %% gen_fsm callbacks
 -export([init/1,
 	 handle_event/3,
@@ -151,9 +156,7 @@ sql_query_t(Query) ->
 escape(S) when is_binary(S) ->
     list_to_binary(escape(binary_to_list(S)));
 escape(S) when is_list(S) ->
-    S1 = lists:foldl(fun(C, Acc) -> [odbc_queries:escape(C) | Acc] end,
-                     [], S),
-    lists:reverse(S1).
+    [odbc_queries:escape(C) || C <- S].
 
 %% Escape character that will confuse an SQL engine
 %% Percent and underscore only need to be escaped for
@@ -164,6 +167,28 @@ escape_like(S) when is_list(S) ->
 escape_like($%) -> "\\%";
 escape_like($_) -> "\\_";
 escape_like(C)  -> odbc_queries:escape(C).
+
+escape_format(Host) ->
+    case db_engine(Host) of
+        pgsql -> hex;
+        _     -> simple_escape
+    end.
+
+escape_binary(hex, Bin) when is_binary(Bin) ->
+    <<"\\x", (bin_to_hex:bin_to_hex(Bin))/binary>>;
+escape_binary(simple_escape, Bin) when is_binary(Bin) ->
+    escape(Bin).
+
+unescape_binary(hex, <<"\\x", Bin/binary>>) when is_binary(Bin) ->
+    hex_to_bin(Bin);
+unescape_binary(simple_escape, Bin) ->
+    Bin.
+
+hex_to_bin(Bin) when is_binary(Bin) ->
+    << <<(hex_to_int(X, Y))>> || <<X, Y>> <= Bin>>.
+
+hex_to_int(X, Y) when is_integer(X), is_integer(Y) ->
+    list_to_integer([X,Y], 16).
 
 to_bool(B) when is_binary(B) ->
     to_bool(binary_to_list(B));
@@ -477,7 +502,13 @@ odbc_connect(SQLServer) ->
 %% part of init/1
 %% Open a database connection to PostgreSQL
 pgsql_connect(Server, Port, DB, Username, Password) ->
-    pgsql:connect(Server, DB, Username, Password, Port).
+    pgsql:connect([
+            {host, Server},
+            {database, DB},
+            {user, Username},
+            {password, Password},
+            {port, Port},
+            {as_binary, true}]).
 
 %% Convert PostgreSQL query result to Erlang ODBC result formalism
 pgsql_to_odbc({ok, PGSQLResult}) ->
@@ -488,17 +519,17 @@ pgsql_to_odbc({ok, PGSQLResult}) ->
 	    [pgsql_item_to_odbc(Item) || Item <- Items]
     end.
 
-pgsql_item_to_odbc({"SELECT" ++ _, Rows, Recs}) ->
+pgsql_item_to_odbc({<<"SELECT", _/binary>>, Rows, Recs}) ->
     {selected,
-     [element(1, Row) || Row <- Rows],
+     [binary_to_list(element(1, Row)) || Row <- Rows],
      [list_to_tuple(Rec) || Rec <- Recs]};
-pgsql_item_to_odbc("INSERT " ++ OIDN) ->
-    [_OID, N] = string:tokens(OIDN, " "),
-    {updated, list_to_integer(N)};
-pgsql_item_to_odbc("DELETE " ++ N) ->
-    {updated, list_to_integer(N)};
-pgsql_item_to_odbc("UPDATE " ++ N) ->
-    {updated, list_to_integer(N)};
+pgsql_item_to_odbc(<<"INSERT ", OIDN/binary>>) ->
+    [_OID, N] = binary:split(OIDN, <<" ">>),
+    {updated, list_to_integer(binary_to_list(N))};
+pgsql_item_to_odbc(<<"DELETE ", N/binary>>) ->
+    {updated, list_to_integer(binary_to_list(N))};
+pgsql_item_to_odbc(<<"UPDATE ", N/binary>>) ->
+    {updated, list_to_integer(binary_to_list(N))};
 pgsql_item_to_odbc({error, Error}) ->
     {error, Error};
 pgsql_item_to_odbc(_) ->
@@ -562,6 +593,14 @@ db_opts(Host) ->
 	    [mysql, Server, Port, DB, User, Pass];
 	SQLServer when is_list(SQLServer) ->
 	    [odbc, SQLServer]
+    end.
+
+db_engine(Host) ->
+    case ejabberd_config:get_local_option({odbc_server, Host}) of
+        SQLServer when is_list(SQLServer) ->
+            odbc;
+        Other when is_tuple(Other) ->
+            element(1, Other)
     end.
 
 max_fsm_queue() ->

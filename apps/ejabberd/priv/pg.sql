@@ -219,3 +219,4 @@ CREATE TABLE pubsub_subscription_opt (
   opt_value text
 );
 CREATE UNIQUE INDEX i_pubsub_subscription_opt ON pubsub_subscription_opt USING btree (subid, opt_name);
+
