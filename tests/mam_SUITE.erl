@@ -248,24 +248,28 @@ riak_mnesia_args() ->
      {archive_module, mod_mam_riak_arch}].
 
 odbc_async_muc_args() ->
-    [{prefs_module, mod_mam_muc_odbc_prefs},
+    [{muc, true},
+     {prefs_module, mod_mam_muc_odbc_prefs},
      {writer_module, mod_mam_muc_odbc_async_writer},
      {archive_module, mod_mam_muc_odbc_arch}].
 
 odbc_muc_args() ->
-    [{prefs_module, mod_mam_muc_odbc_prefs},
+    [{muc, true},
+     {prefs_module, mod_mam_muc_odbc_prefs},
      {writer_module, mod_mam_muc_odbc_arch},
      {archive_module, mod_mam_muc_odbc_arch}].
 
 %% TODO write mod_mam_muc_mnesia_prefs
 odbc_mnesia_muc_args() ->
-    [{prefs_module, mod_mam_muc_odbc_prefs},
+    [{muc, true},
+     {prefs_module, mod_mam_muc_odbc_prefs},
      {writer_module, mod_mam_muc_odbc_arch},
      {archive_module, mod_mam_muc_odbc_arch}].
 
 %% TODO write mod_mam_muc_riak_arch
 riak_mnesia_muc_args() ->
-    [{prefs_module, mod_mam_muc_odbc_prefs},
+    [{muc, true},
+     {prefs_module, mod_mam_muc_odbc_prefs},
      {writer_module, mod_mam_muc_odbc_arch},
      {archive_module, mod_mam_muc_odbc_arch}].
 
