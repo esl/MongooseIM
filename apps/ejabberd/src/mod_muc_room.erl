@@ -1064,7 +1064,8 @@ access_persistent(#state{access=Access}) ->
     AccessPersistent.
 
 -spec set_affiliation(jid(), affiliation(), state_data()) -> state_data().
-set_affiliation(JID, Affiliation, StateData) ->
+set_affiliation(JID, Affiliation, StateData)
+        when is_atom(Affiliation) ->
     LJID = jlib:jid_remove_resource(jlib:jid_tolower(JID)),
     Affiliations = case Affiliation of
                none ->
@@ -1079,7 +1080,8 @@ set_affiliation(JID, Affiliation, StateData) ->
 
 -spec set_affiliation_and_reason(
         jid(), affiliation(), term(), state_data()) -> state_data().
-set_affiliation_and_reason(JID, Affiliation, Reason, StateData) ->
+set_affiliation_and_reason(JID, Affiliation, Reason, StateData)
+        when is_atom(Affiliation) ->
     LJID = jlib:jid_remove_resource(jlib:jid_tolower(JID)),
     Affiliations = case Affiliation of
                none ->
@@ -2135,16 +2137,16 @@ process_iq_admin(From, get, Lang, SubEl, StateData) ->
             case xml:get_tag_attr(<<"affiliation">>, Item) of
             false ->
                 {error, ?ERR_BAD_REQUEST};
-            {value, StrAffiliation} ->
-                case catch binary_to_affiliation(StrAffiliation) of
+            {value, BAffiliation} ->
+                case catch binary_to_affiliation(BAffiliation) of
                 {'EXIT', _} ->
                     {error, ?ERR_BAD_REQUEST};
-                BAffiliation ->
+                Affiliation ->
                     if
                     (FAffiliation == owner) or
                     (FAffiliation == admin) ->
                         Items = items_with_affiliation(
-                              BAffiliation, StateData),
+                              Affiliation, StateData),
                         {result, Items, StateData};
                     true ->
                         ErrText = <<"Administrator privileges required">>,
@@ -2152,14 +2154,14 @@ process_iq_admin(From, get, Lang, SubEl, StateData) ->
                     end
                 end
             end;
-        {value, StrRole} ->
-            case catch binary_to_role(StrRole) of
+        {value, BRole} ->
+            case catch binary_to_role(BRole) of
             {'EXIT', _} ->
                 {error, ?ERR_BAD_REQUEST};
-            BRole ->
+            Role ->
                 if
                 FRole == moderator ->
-                    Items = items_with_role(BRole, StateData),
+                    Items = items_with_role(Role, StateData),
                     {result, Items, StateData};
                 true ->
                     ErrText = <<"Moderator privileges required">>,
@@ -2207,7 +2209,7 @@ search_role(Role, StateData) ->
           Role == R
       end, ?DICT:to_list(StateData#state.users)).
 
-search_affiliation(Affiliation, StateData) ->
+search_affiliation(Affiliation, StateData) when is_atom(Affiliation) ->
     lists:filter(
       fun({_, A}) ->
           case A of
@@ -2347,29 +2349,28 @@ find_changed_items(UJID, UAffiliation, URole,
             case xml:get_attr(<<"affiliation">>, Attrs) of
             false ->
                 {error, ?ERR_BAD_REQUEST};
-            {value, StrAffiliation} ->
-                case catch binary_to_affiliation(StrAffiliation) of
+            {value, BAffiliation} ->
+                case catch binary_to_affiliation(BAffiliation) of
                 {'EXIT', _} ->
                     ErrText1 = <<(translate:translate(Lang, <<"Invalid affiliation ">>))/binary,
-                        StrAffiliation/binary>>,
+                        BAffiliation/binary>>,
                     {error, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText1)};
-                BAffiliation ->
+                Affiliation ->
                     ServiceAf = get_service_affiliation(JID, StateData),
                     CanChangeRA =
                     case can_change_ra(
                            UAffiliation, URole,
                            TAffiliation, TRole,
-                           affiliation, BAffiliation,
+                           affiliation, Affiliation,
                            ServiceAf) of
                         nothing ->
                         nothing;
                         true ->
                         true;
-                                            cancel ->
-                                                cancel;
+                        cancel ->
+                        cancel;
                         check_owner ->
-                        case search_affiliation(
-                               owner, StateData) of
+                        case search_affiliation(owner, StateData) of
                             [{OJID, _}] ->
                             jlib:jid_remove_resource(OJID) /=
                                 jlib:jid_tolower(jlib:jid_remove_resource(UJID));
@@ -2392,39 +2393,34 @@ find_changed_items(UJID, UAffiliation, URole,
                           UAffiliation, URole,
                           Items, Lang, StateData,
                           [{jlib:jid_remove_resource(JID),
-                        affiliation,
-                        BAffiliation,
-                        xml:get_path_s(
-                          Item, [{elem, <<"reason">>},
-                             cdata])} | Res]);
-                                        cancel ->
-                                            {error, ?ERR_NOT_ALLOWED};
+                        affiliation, BAffiliation, decode_reason(Item)} | Res]);
+                    cancel ->
+                        {error, ?ERR_NOT_ALLOWED};
                     false ->
                         {error, ?ERR_FORBIDDEN}
                     end
                 end
             end;
-        {value, StrRole} ->
-            case catch binary_to_role(StrRole) of
+        {value, BRole} ->
+            case catch binary_to_role(BRole) of
             {'EXIT', _} ->
                 ErrText1 = <<(translate:translate(Lang, <<"Invalid role ">>))/binary,
-                    StrRole/binary>>,
+                    BRole/binary>>,
                 {error, ?ERRT_BAD_REQUEST(Lang, ErrText1)};
-            BRole ->
+            Role ->
                 ServiceAf = get_service_affiliation(JID, StateData),
                 CanChangeRA =
                 case can_change_ra(
                        UAffiliation, URole,
                        TAffiliation, TRole,
-                       role, BRole,
+                       role, Role,
                        ServiceAf) of
                     nothing ->
                     nothing;
                     true ->
                     true;
                     check_owner ->
-                    case search_affiliation(
-                           owner, StateData) of
+                    case search_affiliation(owner, StateData) of
                         [{OJID, _}] ->
                         jlib:jid_remove_resource(OJID) /=
                             jlib:jid_tolower(jlib:jid_remove_resource(UJID));
@@ -2446,10 +2442,7 @@ find_changed_items(UJID, UAffiliation, URole,
                       UJID,
                       UAffiliation, URole,
                       Items, Lang, StateData,
-                      [{JID, role, BRole,
-                    xml:get_path_s(
-                      Item, [{elem, <<"reason">>},
-                         cdata])} | Res]);
+                      [{JID, role, Role, decode_reason(Item)} | Res]);
                 _ ->
                     {error, ?ERR_NOT_ALLOWED}
                 end
@@ -2737,15 +2730,14 @@ process_iq_owner(From, get, Lang, SubEl, StateData) ->
             case xml:get_tag_attr(<<"affiliation">>, Item) of
             false ->
                 {error, ?ERR_BAD_REQUEST};
-            {value, StrAffiliation} ->
-                case catch binary_to_affiliation(StrAffiliation) of
+            {value, BAffiliation} ->
+                case catch binary_to_affiliation(BAffiliation) of
                 {'EXIT', _} ->
                     ErrText = <<(translate:translate(Lang, <<"Invalid affiliation ">>))/binary,
-                        StrAffiliation/binary>>,
+                        BAffiliation/binary>>,
                     {error, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)};
-                BAffiliation ->
-                    Items = items_with_affiliation(
-                          BAffiliation, StateData),
+                Affiliation ->
+                    Items = items_with_affiliation(Affiliation, StateData),
                     {result, Items, StateData}
                 end
             end;
@@ -3449,10 +3441,7 @@ check_invitation(From, Els, Lang, StateData) ->
     false ->
         throw({error, ?ERR_FORBIDDEN});
     true ->
-        Reason =
-        xml:get_path_s(
-          InviteEl,
-          [{elem, <<"reason">>}, cdata]),
+        Reason = decode_reason(InviteEl),
         ContinueEl =
         case xml:get_path_s(
                InviteEl,
@@ -3778,9 +3767,7 @@ route_voice_approval(_Type, From, Packet, _Lang, StateData) ->
 
 route_invitation({error, Error}, From, Packet, _Lang, StateData) ->
     Err = jlib:make_error_reply(Packet, Error),
-        ejabberd_router:route(
-            StateData#state.jid,
-                From, Err),
+    ejabberd_router:route(StateData#state.jid, From, Err),
     StateData;
 
 route_invitation(IJID, _From, _Packet, _Lang, StateData) ->
@@ -3970,3 +3957,7 @@ route_nick_iq(#routed_nick_iq{packet = Packet, lang = Lang, nick = ToNick,
     ejabberd_router:route(
         jlib:jid_replace_resource(StateData#state.jid, ToNick),
     From, Err).
+
+
+decode_reason(Elem) ->
+    xml:get_path_s(Elem, [{elem, <<"reason">>}, cdata]).
