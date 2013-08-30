@@ -14,12 +14,12 @@ ct_vcard_config_file() ->
 
 
 tests_to_run() ->
-    [{config, ct_config_file()},
-     {config, ct_vcard_config_file()},
+    [{config, [ct_config_file(), ct_vcard_config_file()]},
      {dir, ?CT_DIR},
      {logdir, ?CT_REPORT},
 
-     {suite, [adhoc_SUITE,
+     {suite, [
+              adhoc_SUITE,
               anonymous_SUITE,
               last_SUITE,
               login_SUITE,
@@ -37,7 +37,12 @@ tests_to_run() ->
               %snmp_session_SUITE,
               %snmp_table_SUITE,
               vcard_SUITE,
-              websockets_SUITE
+              websockets_SUITE,
+              metrics_c2s_SUITE,
+              metrics_roster_SUITE,
+              metrics_register_SUITE,
+              metrics_session_SUITE,
+              system_monitor_SUITE
              ]}
     ].
 

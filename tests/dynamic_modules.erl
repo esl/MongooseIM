@@ -5,12 +5,17 @@
 
 stop(Domain, Mod) ->
     io:format("stopping ~p", [Mod]),
-    case escalus_ejabberd:rpc(code, which, [Mod]) of
-        non_existing ->
-            ok;
-        _ ->
-            {atomic, ok} = escalus_ejabberd:rpc(gen_mod, stop_module, [Domain, Mod]),
-            ok
+    IsLoaded = escalus_ejabberd:rpc(gen_mod, is_loaded, [Domain, Mod]),
+    case IsLoaded of
+        true -> unsafe_stop(Domain, Mod);
+        false -> {error, stopped}
+    end.
+
+unsafe_stop(Domain, Mod) ->
+    case escalus_ejabberd:rpc(gen_mod, stop_module, [Domain, Mod]) of
+        {badrpc, Reason} ->
+            ct:fail("Cannot stop module ~p reason ~p", [Mod, Reason]);
+        _ -> ok
     end.
 
 start(Domain, Mod, Args) ->
