@@ -2393,7 +2393,7 @@ find_changed_items(UJID, UAffiliation, URole,
                           UAffiliation, URole,
                           Items, Lang, StateData,
                           [{jlib:jid_remove_resource(JID),
-                        affiliation, BAffiliation, decode_reason(Item)} | Res]);
+                        affiliation, Affiliation, decode_reason(Item)} | Res]);
                     cancel ->
                         {error, ?ERR_NOT_ALLOWED};
                     false ->
