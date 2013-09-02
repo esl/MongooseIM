@@ -175,7 +175,7 @@ escape_format(Host) ->
     end.
 
 escape_binary(hex, Bin) when is_binary(Bin) ->
-    <<"\\x", (bin_to_hex:bin_to_hex(Bin))/binary>>;
+    <<"\\\\x", (bin_to_hex:bin_to_hex(Bin))/binary>>;
 escape_binary(simple_escape, Bin) when is_binary(Bin) ->
     escape(Bin).
 

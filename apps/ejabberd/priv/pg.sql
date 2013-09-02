@@ -18,21 +18,21 @@
 --
 
 CREATE TABLE users (
-    username text PRIMARY KEY,
+    username varchar(250) PRIMARY KEY,
     "password" text NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT now()
 );
 
 
 CREATE TABLE last (
-    username text PRIMARY KEY,
+    username varchar(250) PRIMARY KEY,
     seconds text NOT NULL,
     state text NOT NULL
 );
 
 
 CREATE TABLE rosterusers (
-    username text NOT NULL,
+    username varchar(250) NOT NULL,
     jid text NOT NULL,
     nick text NOT NULL,
     subscription character(1) NOT NULL,
@@ -50,7 +50,7 @@ CREATE INDEX i_rosteru_jid ON rosterusers USING btree (jid);
 
 
 CREATE TABLE rostergroups (
-    username text NOT NULL,
+    username varchar(250) NOT NULL,
     jid text NOT NULL,
     grp text NOT NULL
 );
@@ -59,7 +59,7 @@ CREATE INDEX pk_rosterg_user_jid ON rostergroups USING btree (username, jid);
 
 
 CREATE TABLE spool (
-    username text NOT NULL,
+    username varchar(250) NOT NULL,
     xml text NOT NULL,
     seq SERIAL,
     created_at TIMESTAMP NOT NULL DEFAULT now()
@@ -118,12 +118,12 @@ CREATE INDEX i_vcard_search_lorgname  ON vcard_search(lorgname);
 CREATE INDEX i_vcard_search_lorgunit  ON vcard_search(lorgunit);
 
 CREATE TABLE privacy_default_list (
-    username text PRIMARY KEY,
+    username varchar(250) PRIMARY KEY,
     name text NOT NULL
 );
 
 CREATE TABLE privacy_list (
-    username text NOT NULL,
+    username varchar(250) NOT NULL,
     name text NOT NULL,
     id SERIAL UNIQUE,
     created_at TIMESTAMP NOT NULL DEFAULT now()
@@ -146,7 +146,7 @@ CREATE TABLE privacy_list_data (
 );
 
 CREATE TABLE private_storage (
-    username text NOT NULL,
+    username varchar(250) NOT NULL,
     namespace text NOT NULL,
     data text NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT now()
@@ -157,7 +157,7 @@ CREATE UNIQUE INDEX i_private_storage_username_namespace ON private_storage USIN
 
 
 CREATE TABLE roster_version (
-    username text PRIMARY KEY,
+    username varchar(250) PRIMARY KEY,
     version text NOT NULL
 );
 
