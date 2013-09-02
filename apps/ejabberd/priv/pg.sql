@@ -69,14 +69,17 @@ CREATE INDEX i_despool ON spool USING btree (username);
 
 
 CREATE TABLE vcard (
-    username text PRIMARY KEY,
+    username varchar(150),
+    server varchar(100),
     vcard text NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT now()
+    created_at TIMESTAMP NOT NULL DEFAULT now(),
+    PRIMARY KEY (server, username)
 );
 
 CREATE TABLE vcard_search (
-    username text NOT NULL,
-    lusername text PRIMARY KEY,
+    username varchar(150) NOT NULL,
+    lusername varchar(100),
+    server varchar(250),
     fn text NOT NULL,
     lfn text NOT NULL,
     family text NOT NULL,
@@ -98,7 +101,8 @@ CREATE TABLE vcard_search (
     orgname text NOT NULL,
     lorgname text NOT NULL,
     orgunit text NOT NULL,
-    lorgunit text NOT NULL
+    lorgunit text NOT NULL,
+    PRIMARY KEY (server, lusername)
 );
 
 CREATE INDEX i_vcard_search_lfn       ON vcard_search(lfn);

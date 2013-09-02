@@ -459,6 +459,7 @@ sql_query_internal(Query) ->
               odbc ->
                   odbc:sql_query(State#state.db_ref, Query);
               pgsql ->
+                  ?DEBUG("Postres, Send query~n~p~n", [Query]),
                   pgsql_to_odbc(pgsql:squery(State#state.db_ref, Query));
               mysql ->
                   ?DEBUG("MySQL, Send query~n~p~n", [Query]),
@@ -502,13 +503,21 @@ odbc_connect(SQLServer) ->
 %% part of init/1
 %% Open a database connection to PostgreSQL
 pgsql_connect(Server, Port, DB, Username, Password) ->
-    pgsql:connect([
+    Params = [
             {host, Server},
             {database, DB},
             {user, Username},
             {password, Password},
             {port, Port},
-            {as_binary, true}]).
+            {as_binary, true}],
+    case pgsql:connect(Params) of
+        {ok, Ref} ->
+            {ok,[<<"SET">>]} =
+            pgsql:squery(Ref, "SET standard_conforming_strings=off;"),
+            {ok, Ref};
+        Err -> Err
+    end.
+
 
 %% Convert PostgreSQL query result to Erlang ODBC result formalism
 pgsql_to_odbc({ok, PGSQLResult}) ->
