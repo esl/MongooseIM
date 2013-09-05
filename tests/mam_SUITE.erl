@@ -30,6 +30,7 @@
          muc_service_discovery/1,
          simple_archive_request/1,
          muc_archive_request/1,
+         muc_private_message/1,
          range_archive_request/1,
          limit_archive_request/1,
          prefs_set_request/1,
@@ -169,7 +170,8 @@ offline_message_cases() ->
 
 muc_cases() ->
     [muc_service_discovery,
-     muc_archive_request].
+     muc_archive_request,
+     muc_private_message].
 
 rsm_cases() ->
       [pagination_first5,
@@ -273,33 +275,38 @@ riak_mnesia_muc_args() ->
      {writer_module, mod_mam_odbc_arch},
      {archive_module, mod_mam_odbc_arch}].
 
-init_state(_, muc, Config) ->
-    start_alice_room(clean_archives(Config));
 init_state(_, rsm, Config) ->
     send_rsm_messages(clean_archives(Config));
 init_state(_, _, Config) ->
     clean_archives(Config).
 
-end_state(_, muc, Config) ->
-    destroy_room(Config),
-    Config;
 end_state(_, _, Config) ->
     Config.
 
-init_per_testcase(archived, Config) ->
-    escalus:init_per_testcase(archived, clean_archives(Config));
-init_per_testcase(strip_archived, Config) ->
-    escalus:init_per_testcase(strip_archived, clean_archives(Config));
-init_per_testcase(purge_single_message, Config) ->
-    escalus:init_per_testcase(purge_single_message, clean_archives(Config));
-init_per_testcase(purge_multiple_messages, Config) ->
-    escalus:init_per_testcase(purge_multiple_messages, clean_archives(Config));
-init_per_testcase(purge_old_single_message, Config) ->
-    escalus:init_per_testcase(purge_old_single_message,
+init_per_testcase(C=archived, Config) ->
+    escalus:init_per_testcase(C, clean_archives(Config));
+init_per_testcase(C=strip_archived, Config) ->
+    escalus:init_per_testcase(C, clean_archives(Config));
+init_per_testcase(C=purge_single_message, Config) ->
+    escalus:init_per_testcase(C, clean_archives(Config));
+init_per_testcase(C=purge_multiple_messages, Config) ->
+    escalus:init_per_testcase(C, clean_archives(Config));
+init_per_testcase(C=purge_old_single_message, Config) ->
+    escalus:init_per_testcase(C,
         bootstrap_archive(clean_archives(Config)));
+init_per_testcase(C=muc_archive_request, Config) ->
+    escalus:init_per_testcase(C, start_alice_room(Config));
+init_per_testcase(C=muc_private_message, Config) ->
+    escalus:init_per_testcase(C, start_alice_room(Config));
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
+end_per_testcase(C=muc_archive_request, Config) ->
+    destroy_room(Config),
+    escalus:end_per_testcase(C, Config);
+end_per_testcase(C=muc_private_message, Config) ->
+    destroy_room(Config),
+    escalus:end_per_testcase(C, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
@@ -601,38 +608,71 @@ muc_archive_request(Config) ->
     F = fun(Alice, Bob) ->
         Room = ?config(room, Config),
         RoomAddr = room_address(Room),
-        Msg = <<"Hi, Bob!">>,
+        Text = <<"Hi, Bob!">>,
         escalus:send(Alice, stanza_muc_enter_room(Room, nick(Alice))),
         escalus:send(Bob, stanza_muc_enter_room(Room, nick(Bob))),
-           
+
+        %% Bob received presences.
+        escalus:wait_for_stanzas(Bob, 2),
+
+        %% Bob received the room's subject.
+        escalus:wait_for_stanzas(Bob, 1),
+
         %% Alice sends to the chat room.
-		escalus:send(Alice, escalus_stanza:groupchat_to(RoomAddr, Msg)),
-
-        %% Bob received Alice's presence.
-        escalus:wait_for_stanza(Bob),
-
-        %% Bob received his presence.
-        escalus:wait_for_stanza(Bob),
-
-        %% Bob received empty message with body and subject.
-        %% This message will be archived (by bob@localhost).
-        escalus:wait_for_stanza(Bob),
+		escalus:send(Alice, escalus_stanza:groupchat_to(RoomAddr, Text)),
 
         %% Bob received the message "Hi, Bob!".
-        %% This message will be archived (by bob@localhost).
-        _BobMsg = escalus:wait_for_stanza(Bob),
-        %% TODO: check, that the message was logged into the room.
-%       Arc = exml_query:subelement(Msg, <<"archived">>),
+        %% This message will be archived (by alicesroom@localhost).
+        %% User's archive is disabled (i.e. bob@localhost).
+        BobMsg = escalus:wait_for_stanza(Bob),
+        escalus:assert(is_message, BobMsg),
+        Arc = exml_query:subelement(BobMsg, <<"archived">>),
+        %% JID of the archive (i.e. where the client would send queries to)
+        By  = exml_query:attr(Arc, <<"by">>),
+        %% Attribute giving the message's UID within the archive.
+        Id  = exml_query:attr(Arc, <<"id">>),
 
         %% Bob requests the room's archive.
         escalus:send(Bob, stanza_to_room(stanza_archive_request(<<"q1">>), Room)),
         [_ArcRes, ArcMsg] = assert_respond_size(1, wait_archive_respond_iq_first(Bob)),
-        #forwarded_message{message_body=ArcMsgBody} = parse_forwarded_message(ArcMsg),
-        ?assert_equal(Msg, ArcMsgBody),
+        #forwarded_message{result_id=ArcId, message_body=ArcMsgBody} =
+            parse_forwarded_message(ArcMsg),
+        ?assert_equal(Text, ArcMsgBody),
+        ?assert_equal(ArcId, Id),
+        ?assert_equal(RoomAddr, By),
         ok
         end,
     escalus:story(Config, [1, 1], F).
 
+muc_private_message(Config) ->
+    F = fun(Alice, Bob) ->
+        Room = ?config(room, Config),
+        Text = <<"Hi, Bob!">>,
+        escalus:send(Alice, stanza_muc_enter_room(Room, nick(Alice))),
+        escalus:send(Bob, stanza_muc_enter_room(Room, nick(Bob))),
+
+        %% Bob received presences.
+        escalus:wait_for_stanzas(Bob, 2),
+
+        %% Bob received the room's subject.
+        escalus:wait_for_stanzas(Bob, 1),
+
+        %% Alice sends to Bob, using his occupant JID.
+        %% This message will not be put into room's history.
+        Msg = escalus_stanza:chat_to(room_address(Room, nick(Bob)), Text),
+        escalus:send(Alice, Msg),
+
+        %% Bob received the message "Hi, Bob!".
+        BobMsg = escalus:wait_for_stanza(Bob),
+        escalus:assert(is_message, BobMsg),
+        ?assert_equal(undefined, exml_query:subelement(BobMsg, <<"archived">>)),
+
+        %% Bob requests the room's archive.
+        escalus:send(Bob, stanza_to_room(stanza_archive_request(<<"q1">>), Room)),
+        [_ArcRes] = assert_respond_size(0, wait_archive_respond_iq_first(Bob)),
+        ok
+        end,
+    escalus:story(Config, [1, 1], F).
 
 %% @doc Querying the archive for all messages in a certain timespan.
 range_archive_request(Config) ->
@@ -1191,6 +1231,13 @@ clean_archives(Config) ->
     [ok = delete_archive(S, U) || {S, U} <- SUs],
     timer:sleep(500),
     [assert_empty_archive(S, U) || {S, U} <- SUs],
+    Config.
+
+clean_room_archive(Config) ->
+    Room = ?config(room, Config),
+    delete_archive(muc_host(), Room),
+    timer:sleep(500),
+    assert_empty_archive(muc_host(), Room),
     Config.
 
 serv_users(Config) ->
