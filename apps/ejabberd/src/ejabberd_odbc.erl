@@ -187,6 +187,8 @@ to_bool(_) -> false.
 %%% Callback functions from gen_fsm
 %%%----------------------------------------------------------------------
 init([Host, StartInterval]) ->
+    %% Trap exits to ensure, that `terminate/3' will be called.
+    process_flag(trap_exit, true),
     case ejabberd_config:get_local_option({odbc_keepalive_interval, Host}) of
 	KeepaliveInterval when is_integer(KeepaliveInterval) ->
 	    timer:apply_interval(KeepaliveInterval*1000, ?MODULE,
@@ -290,16 +292,24 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 handle_info({'DOWN', _MonitorRef, process, _Pid, _Info}, _StateName, State) ->
     ?GEN_FSM:send_event(self(), connect),
     {next_state, connecting, State};
+handle_info({'EXIT', _From, Reason}, StateName, State) ->
+    {stop, Reason, State};
 handle_info(Info, StateName, State) ->
     ?WARNING_MSG("unexpected info in ~p: ~p", [StateName, Info]),
     {next_state, StateName, State}.
 
+terminate(_Reason, _StateName, #state{db_ref = undefined}) ->
+    ok;
 terminate(_Reason, _StateName, State) ->
     case State#state.db_type of
 	mysql ->
 	    %% old versions of mysql driver don't have the stop function
 	    %% so the catch
 	    catch mysql_conn:stop(State#state.db_ref);
+	pgsql ->
+	    pgsql:terminate(State#state.db_ref);
+	odbc ->
+	    odbc:disconnect(State#state.db_ref);
 	_ ->
 	    ok
     end,
