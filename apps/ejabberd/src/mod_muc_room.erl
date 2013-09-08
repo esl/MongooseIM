@@ -3216,40 +3216,61 @@ remove_nonmembers(StateData) ->
       end, StateData, ?DICT:to_list(StateData#state.users)).
 
 
-set_opts([], StateData) ->
-    StateData;
-set_opts([{Opt, Val} | Opts], StateData=#state{config = C}) ->
+-spec set_opts(Opts, StateData) -> StateData when
+    Opts :: [{atom(), term()}],
+    StateData :: #state{}.
+set_opts([], SD) ->
+    SD;
+set_opts([{Opt, Val} | Opts], SD=#state{config = C = #config{}}) ->
     NSD = case Opt of
-          title -> StateData#state{config = (StateData#state.config)#config{title = Val}};
-          description -> StateData#state{config = (StateData#state.config)#config{description = Val}};
-          allow_change_subj -> StateData#state{config = (StateData#state.config)#config{allow_change_subj = Val}};
-          allow_query_users -> StateData#state{config = (StateData#state.config)#config{allow_query_users = Val}};
-          allow_private_messages -> StateData#state{config = (StateData#state.config)#config{allow_private_messages = Val}};
-          allow_visitor_nickchange -> StateData#state{config = (StateData#state.config)#config{allow_visitor_nickchange = Val}};
-          allow_visitor_status -> StateData#state{config = (StateData#state.config)#config{allow_visitor_status = Val}};
-          public -> StateData#state{config = (StateData#state.config)#config{public = Val}};
-          public_list -> StateData#state{config = (StateData#state.config)#config{public_list = Val}};
-          persistent -> StateData#state{config = (StateData#state.config)#config{persistent = Val}};
-          moderated -> StateData#state{config = (StateData#state.config)#config{moderated = Val}};
-          members_by_default -> StateData#state{config = (StateData#state.config)#config{members_by_default = Val}};
-          members_only -> StateData#state{config = (StateData#state.config)#config{members_only = Val}};
-          allow_user_invites -> StateData#state{config = (StateData#state.config)#config{allow_user_invites = Val}};
-          password_protected -> StateData#state{config = (StateData#state.config)#config{password_protected = Val}};
-          password -> StateData#state{config = (StateData#state.config)#config{password = Val}};
-          anonymous -> StateData#state{config = (StateData#state.config)#config{anonymous = Val}};
-          logging -> StateData#state{config = (StateData#state.config)#config{logging = Val}};
-          max_users ->
-          StateData#state{
-            config = (StateData#state.config)#config{
-                   max_users = min(Val, get_service_max_users(StateData))}};
-          affiliations ->
-          StateData#state{affiliations = ?DICT:from_list(Val)};
-          subject ->
-          StateData#state{subject = Val};
-          subject_author ->
-          StateData#state{subject_author = Val};
-          _ -> StateData
-      end,
+        title ->
+            SD#state{config = C#config{title = Val}};
+        description ->
+            SD#state{config = C#config{description = Val}};
+        allow_change_subj ->
+            SD#state{config = C#config{allow_change_subj = Val}};
+        allow_query_users ->
+            SD#state{config = C#config{allow_query_users = Val}};
+        allow_private_messages ->
+            SD#state{config = C#config{allow_private_messages = Val}};
+        allow_visitor_nickchange ->
+            SD#state{config = C#config{allow_visitor_nickchange = Val}};
+        allow_visitor_status ->
+            SD#state{config = C#config{allow_visitor_status = Val}};
+        public ->
+            SD#state{config = C#config{public = Val}};
+        public_list ->
+            SD#state{config = C#config{public_list = Val}};
+        persistent ->
+            SD#state{config = C#config{persistent = Val}};
+        moderated ->
+            SD#state{config = C#config{moderated = Val}};
+        members_by_default ->
+            SD#state{config = C#config{members_by_default = Val}};
+        members_only ->
+            SD#state{config = C#config{members_only = Val}};
+        allow_user_invites ->
+            SD#state{config = C#config{allow_user_invites = Val}};
+        password_protected ->
+            SD#state{config = C#config{password_protected = Val}};
+        password ->
+            SD#state{config = C#config{password = Val}};
+        anonymous ->
+            SD#state{config = C#config{anonymous = Val}};
+        logging ->
+            SD#state{config = C#config{logging = Val}};
+        max_users ->
+            MaxUsers = min(Val, get_service_max_users(SD)),
+            SD#state{config = C#config{max_users = MaxUsers}};
+        affiliations ->
+            SD#state{affiliations = ?DICT:from_list(Val)};
+        subject ->
+            SD#state{subject = Val};
+        subject_author ->
+            SD#state{subject_author = Val};
+        _ ->
+            SD
+       end,
     set_opts(Opts, NSD).
 
 -define(MAKE_CONFIG_OPT(Opt), {Opt, Config#config.Opt}).
