@@ -1245,6 +1245,9 @@ dict_foreach_value(F, Users) ->
 dict_to_values(Dict) ->
     [V || {_, V} <- ?DICT:to_list(Dict)].
 
+count_users(#state{users=Users}) ->
+    ?DICT:size(Users).
+
 get_max_users(StateData) ->
     MaxUsers = (StateData#state.config)#config.max_users,
     ServiceMaxUsers = get_service_max_users(StateData),
@@ -1484,7 +1487,7 @@ is_nick_change(JID, Nick, StateData) ->
 is_user_limit_reached(From, Affiliation, StateData) ->
     MaxUsers = get_max_users(StateData),
     MaxAdminUsers = MaxUsers + get_max_users_admin_threshold(StateData),
-    NUsers = ?DICT:size(StateData#state.users),
+    NUsers = count_users(StateData),
     ServiceAffiliation = get_service_affiliation(From, StateData),
     NConferences = tab_count_user(From),
     MaxConferences = gen_mod:get_module_opt(
@@ -3456,20 +3459,20 @@ get_roomdesc_tail(StateData, Lang) ->
            _ ->
            translate:translate(Lang, <<"private, ">>)
        end,
-    Len = ?DICT:fold(fun(_, _, Acc) -> Acc + 1 end, 0, StateData#state.users),
-    LenBin = list_to_binary(integer_to_list(Len)),
-    <<" (", Desc/binary, LenBin/binary, ")">>.
+    Count = count_users(StateData),
+    CountBin = list_to_binary(integer_to_list(Count)),
+    <<" (", Desc/binary, CountBin/binary, ")">>.
 
-get_mucroom_disco_items(StateData) ->
-    lists:map(
-      fun({_LJID, Info}) ->
-          Nick = Info#user.nick,
-          #xmlel{name = <<"item">>,
-                 attrs = [{<<"jid">>, jlib:jid_to_binary({StateData#state.room,
-                                      StateData#state.host, Nick})},
-                      {<<"name">>, Nick}]}
-      end,
-      ?DICT:to_list(StateData#state.users)).
+
+get_mucroom_disco_items(StateData=#state{jid=RoomJID}) ->
+    [disco_item(User, RoomJID)
+     || {_LJID, User} <- ?DICT:to_list(StateData#state.users)].
+
+disco_item(User=#user{nick=Nick}, RoomJID) ->
+    #xmlel{
+        name = <<"item">>,
+        attrs = [{<<"jid">>, jlib:jid_to_binary(occupant_jid(User, RoomJID))},
+                 {<<"name">>, Nick}]}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Handle voice request or approval (XEP-0045 7.13, 8.6)
