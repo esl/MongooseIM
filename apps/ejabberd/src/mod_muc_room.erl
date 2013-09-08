@@ -638,6 +638,9 @@ terminate(Reason, _StateName, StateData) ->
 %%% Internal functions
 %%%----------------------------------------------------------------------
 
+occupant_jid(#user{nick=Nick}, RoomJID) ->
+    jlib:jid_replace_resource(RoomJID, Nick).
+
 route(Pid, From, ToNick, Packet) ->
     gen_fsm:send_event(Pid, {route, From, ToNick, Packet}).
 
@@ -1193,8 +1196,11 @@ is_empty_room(#state{users=Users}) ->
 is_empty_dict(Dict) ->
     dict:size(Dict) =:= 0.
 
+dict_foreach_value(F, Users) ->
+    ?DICT:fold(fun(_LJID, User, _) -> F(User) end, undefined, Users).
+
 dict_to_values(Dict) ->
-    [V || {_, V} <- dict:to_list(Dict)].
+    [V || {_, V} <- ?DICT:to_list(Dict)].
 
 get_max_users(StateData) ->
     MaxUsers = (StateData#state.config)#config.max_users,
@@ -1727,6 +1733,9 @@ foreach_matched_user(F, JID, #state{users=Users}) ->
                 error -> ok
             end
     end.
+
+foreach_user(F, #state{users=Users}) ->
+    dict_foreach_value(F, Users).
 
 erase_matched_users(JID, StateData=#state{users=Users}) ->
     LJID = jlib:jid_tolower(JID),
@@ -3141,11 +3150,6 @@ remove_nonmembers(StateData) ->
         end
       end, StateData, ?DICT:to_list(StateData#state.users)).
 
-
--define(CASE_CONFIG_OPT(Opt),
-    Opt -> StateData#state{
-         config = (StateData#state.config)#config{Opt = Val}}).
-
 set_opts([], StateData) ->
     StateData;
 set_opts([{Opt, Val} | Opts], StateData) ->
@@ -3170,13 +3174,9 @@ set_opts([{Opt, Val} | Opts], StateData) ->
           logging -> StateData#state{config = (StateData#state.config)#config{logging = Val}};
           max_users ->
           ServiceMaxUsers = get_service_max_users(StateData),
-          MaxUsers = if
-                 Val =< ServiceMaxUsers -> Val;
-                 true -> ServiceMaxUsers
-                 end,
           StateData#state{
             config = (StateData#state.config)#config{
-                   max_users = MaxUsers}};
+                   max_users = min(Val, ServiceMaxUsers)}};
           affiliations ->
           StateData#state{affiliations = ?DICT:from_list(Val)};
           subject ->
@@ -3218,23 +3218,8 @@ make_opts(StateData) ->
 
 
 
-destroy_room(DEl, StateData) ->
-    lists:foreach(
-      fun({_LJID, Info}) ->
-          Nick = Info#user.nick,
-          ItemAttrs = [{<<"affiliation">>, <<"none">>},
-               {<<"role">>, <<"none">>}],
-          Packet = #xmlel{name = <<"presence">>,
-                          attrs = [{<<"type">>, <<"unavailable">>}],
-                          children = [#xmlel{name = <<"x">>,
-                                             attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
-                                             children = [#xmlel{name = <<"item">>,
-                                                                attrs = ItemAttrs}, DEl]}]},
-          ejabberd_router:route(
-        jlib:jid_replace_resource(StateData#state.jid, Nick),
-        Info#user.jid,
-        Packet)
-      end, ?DICT:to_list(StateData#state.users)),
+destroy_room(DestroyEl, StateData) ->
+    remove_each_occupant_from_room(DestroyEl, StateData),
     case (StateData#state.config)#config.persistent of
     true ->
         mod_muc:forget_room(StateData#state.host, StateData#state.room);
@@ -3244,6 +3229,37 @@ destroy_room(DEl, StateData) ->
     {result, [], stop}.
 
 
+%% @doc Service Removes Each Occupant
+%%
+%% Send only one presence stanza of type "unavailable" to each occupant
+%% so that the user knows he or she has been removed from the room.
+%%
+%% If extended presence information specifying the JID of an alternate
+%% location and the reason for the room destruction was provided by the
+%% room owner, the presence stanza MUST include that information.
+%% @end
+remove_each_occupant_from_room(DestroyEl, StateData) ->
+    Packet = presence_stanza_of_type_unavailable(DestroyEl),
+    send_to_occupants(Packet, StateData).
+
+send_to_occupants(Packet, StateData=#state{jid=RoomJID}) ->
+    F = fun(User=#user{jid=UserJID}) ->
+        ejabberd_router:route(occupant_jid(User, RoomJID), UserJID, Packet)
+        end,
+    foreach_user(F, StateData).
+
+presence_stanza_of_type_unavailable(DestroyEl) ->
+    ItemEl = #xmlel{
+        name = <<"item">>,
+        attrs = [{<<"affiliation">>, <<"none">>}, {<<"role">>, <<"none">>}]},
+    XEl = #xmlel{
+        name = <<"x">>,
+        attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
+        children = [ItemEl, DestroyEl]},
+    #xmlel{
+        name = <<"presence">>,
+        attrs = [{<<"type">>, <<"unavailable">>}],
+        children = [XEl]}.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
