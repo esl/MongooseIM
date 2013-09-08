@@ -3512,97 +3512,124 @@ check_voice_approval(From, [#xmlel{name = <<"x">>,
             end
     end.
 
-% Invitation support
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Invitation support
 
-check_invitation(From, Els, Lang, StateData) ->
-    FAffiliation = get_affiliation(From, StateData),
+check_invitation(FromJID, Els, Lang, StateData=#state{jid=RoomJID}) ->
+    FAffiliation = get_affiliation(FromJID, StateData),
     CanInvite = (StateData#state.config)#config.allow_user_invites
-    orelse (FAffiliation == admin) orelse (FAffiliation == owner),
-    InviteEl = case xml:remove_cdata(Els) of
-           [#xmlel{name = <<"x">>, children = Els1} = XEl] ->
-               case xml:get_tag_attr_s(<<"xmlns">>, XEl) of
-               ?NS_MUC_USER ->
-                   ok;
-               _ ->
-                   throw({error, ?ERR_BAD_REQUEST})
-               end,
-               case xml:remove_cdata(Els1) of
-               [#xmlel{name = <<"invite">>} = InviteEl1] ->
-                   InviteEl1;
-               _ ->
-                   throw({error, ?ERR_BAD_REQUEST})
-               end;
-           _ ->
-               throw({error, ?ERR_BAD_REQUEST})
-           end,
-    JID = case jlib:binary_to_jid(
-         xml:get_tag_attr_s(<<"to">>, InviteEl)) of
-          error ->
-          throw({error, ?ERR_JID_MALFORMED});
-          JID1 ->
-          JID1
-      end,
+         orelse (FAffiliation == admin)
+         orelse (FAffiliation == owner),
+    InviteEl = find_invite_elem(Els),
+    JID = decode_destination_jid(InviteEl),
     case CanInvite of
     false ->
         throw({error, ?ERR_FORBIDDEN});
     true ->
+        %% Create an invitation message and send it to the user.
         Reason = decode_reason(InviteEl),
         ContinueEl =
-        case xml:get_path_s(
-               InviteEl,
-               [{elem, <<"continue">>}]) of
-            <<>> -> [];
-            Continue1 -> [Continue1]
-        end,
-        IEl =
-        [#xmlel{name = <<"invite">>,
-                attrs = [{<<"from">>,
-                          jlib:jid_to_binary(From)}],
-                children = [#xmlel{name = <<"reason">>,
-                                   children = [#xmlcdata{content = Reason}]}] ++ ContinueEl}],
-        PasswdEl =
-        case (StateData#state.config)#config.password_protected of
-            true ->
-            [#xmlel{name = <<"password">>,
-                    children = [#xmlcdata{content = (StateData#state.config)#config.password}]}];
-            _ ->
-            []
-        end,
-            IFrom = jlib:jid_to_binary(From),
-            IRoom = jlib:jid_to_binary({StateData#state.room, StateData#state.host, <<>>}),
-            ITranslate = translate:translate(Lang, <<" invites you to the room ">>),
-            IMessage = <<IFrom/binary, ITranslate/binary, IRoom/binary>>,
-            IPassword = case (StateData#state.config)#config.password_protected of
-                true ->
-                    PTranslate = translate:translate(Lang, <<"the password is">>),
-                PPassword = (StateData#state.config)#config.password,
-                <<", ", PTranslate/binary, " '", PPassword/binary, "'">>;
-            _ ->
-                <<>>
-                    end,
-        IReason = case Reason of
-            <<>> -> <<>>;
-            _ -> <<" (", Reason/binary, ") ">>
-                  end,
-        Body =
-        #xmlel{name = <<"body">>,
-               children = [#xmlcdata{content = <<IMessage/binary, IPassword/binary, IReason/binary>>}]},
-        Msg =
-        #xmlel{name = <<"message">>, attrs = [{<<"type">>, <<"normal">>}],
-               children = [#xmlel{name = <<"x">>,
-                                  attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
-                                  children = IEl ++ PasswdEl},
-                           #xmlel{name = <<"x">>,
-                                  attrs = [{<<"xmlns">>, ?NS_XCONFERENCE},
-                                           {<<"jid">>, jlib:jid_to_binary(
-                                                 {StateData#state.room,
-                                                  StateData#state.host,
-                                                  <<>>})}],
-                                  children = [#xmlcdata{content = Reason}]},
-                           Body]},
+            case xml:get_path_s(InviteEl, [{elem, <<"continue">>}]) of
+                <<>> -> [];
+                Continue1 -> [Continue1]
+            end,
+        ReasonEl = #xmlel{
+            name = <<"reason">>,
+            children = [#xmlcdata{content = Reason}]},
+        InviteEl = #xmlel{
+            name = <<"invite">>,
+            attrs = [{<<"from">>, jlib:jid_to_binary(FromJID)}],
+            children = [ReasonEl] ++ ContinueEl},
+        PasswdEl = create_password_elem(StateData),
+        BodyEl = invite_body_elem(FromJID, Reason, Lang, StateData),
+        Msg = create_invite_message_elem(
+            InviteEl, BodyEl, PasswdEl, RoomJID, Reason),
         ejabberd_router:route(StateData#state.jid, JID, Msg),
         JID
     end.
+
+decode_destination_jid(InviteEl) ->
+    case jlib:binary_to_jid(xml:get_tag_attr_s(<<"to">>, InviteEl)) of
+      error -> throw({error, ?ERR_JID_MALFORMED});
+      JID   -> JID
+    end.
+
+-spec find_invite_elem([#xmlel{}]) -> ok | #xmlel{}.
+find_invite_elem(Els) ->
+    case xml:remove_cdata(Els) of
+    [#xmlel{name = <<"x">>, children = Els1} = XEl] ->
+        case xml:get_tag_attr_s(<<"xmlns">>, XEl) of
+        ?NS_MUC_USER ->
+            ok;
+        _ ->
+            throw({error, ?ERR_BAD_REQUEST})
+        end,
+        case xml:remove_cdata(Els1) of
+        [#xmlel{name = <<"invite">>} = InviteEl1] ->
+            InviteEl1;
+        _ ->
+            throw({error, ?ERR_BAD_REQUEST})
+        end;
+    _ ->
+        throw({error, ?ERR_BAD_REQUEST})
+    end.
+
+create_password_elem(#state{config=#config{password_protected=IsProtected,
+                                           password=Password}}) ->
+    case IsProtected of
+        true ->
+        [#xmlel{
+            name = <<"password">>,
+            children = [#xmlcdata{content = Password}]}];
+        _ ->
+        []
+    end.
+
+invite_body_elem(FromJID, Reason, Lang, StateData) ->
+    Text = invite_body_text(FromJID, Reason, Lang, StateData),
+    #xmlel{
+        name = <<"body">>,
+        children = [#xmlcdata{content = Text}]}.
+
+invite_body_text(FromJID, Reason, Lang,
+        #state{
+            jid=RoomJID,
+            config=#config{
+                password_protected=IsProtected,
+                password=Password}}) ->
+    BFromJID = jlib:jid_to_binary(FromJID),
+    BRoomJID = jlib:jid_to_binary(RoomJID),
+    ITranslate = translate:translate(Lang, <<" invites you to the room ">>),
+    IMessage = <<BFromJID/binary, ITranslate/binary, BRoomJID/binary>>,
+    BPassword = case IsProtected of
+        true ->
+            PTranslate = translate:translate(Lang, <<"the password is">>),
+            <<", ", PTranslate/binary, " '", Password/binary, "'">>;
+        _ ->
+            <<>>
+        end,
+    BReason = case Reason of
+        <<>> -> <<>>;
+        _    -> <<" (", Reason/binary, ") ">>
+        end,
+    <<IMessage/binary, BPassword/binary, BReason/binary>>.
+
+create_invite_message_elem(InviteEl, BodyEl, PasswdEl, RoomJID, Reason)
+    when is_list(PasswdEl), is_binary(Reason) ->
+    BRoomJID = jlib:jid_to_binary(RoomJID),
+    UserXEl = #xmlel{
+        name = <<"x">>,
+        attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
+        children = [InviteEl|PasswdEl]},
+    ConfXEl = #xmlel{
+        name = <<"x">>,
+        attrs = [{<<"xmlns">>, ?NS_XCONFERENCE}, {<<"jid">>, BRoomJID}],
+        children = [#xmlcdata{content = Reason}]},
+    #xmlel{
+        name = <<"message">>,
+        attrs = [{<<"type">>, <<"normal">>}],
+        children = [UserXEl, ConfXEl, BodyEl]}.
+
 
 %% Handle a message sent to the room by a non-participant.
 %% If it is a decline, send to the inviter.
