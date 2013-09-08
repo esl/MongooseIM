@@ -1481,52 +1481,78 @@ is_nick_change(JID, Nick, StateData) ->
         Nick /= OldNick
     end.
 
-add_new_user(From, Nick, #xmlel{attrs = Attrs,
-                                children = Els} = Packet, StateData) ->
-    Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
+is_user_limit_reached(From, Affiliation, StateData) ->
     MaxUsers = get_max_users(StateData),
     MaxAdminUsers = MaxUsers + get_max_users_admin_threshold(StateData),
     NUsers = ?DICT:size(StateData#state.users),
-    Affiliation = get_affiliation(From, StateData),
     ServiceAffiliation = get_service_affiliation(From, StateData),
     NConferences = tab_count_user(From),
     MaxConferences = gen_mod:get_module_opt(
                StateData#state.server_host,
                mod_muc, max_user_conferences, 10),
-    case {(ServiceAffiliation == owner orelse
+    (ServiceAffiliation == owner orelse
        MaxUsers == none orelse
        ((Affiliation == admin orelse Affiliation == owner) andalso
         NUsers < MaxAdminUsers) orelse
        NUsers < MaxUsers) andalso
-      NConferences < MaxConferences,
-      is_nick_exists(Nick, StateData),
-      mod_muc:can_use_nick(StateData#state.host, From, Nick),
-      get_default_role(Affiliation, StateData)} of
-    {false, _, _, _} ->
+      NConferences < MaxConferences.
+
+choose_new_user_strategy(From, Nick, Affiliation, Role, Els, StateData) ->
+    case {is_user_limit_reached(From, Affiliation, StateData),
+          is_nick_exists(Nick, StateData),
+          mod_muc:can_use_nick(StateData#state.host, From, Nick),
+          Role,
+          Affiliation} of
+    {false, _, _, _, _} ->
+        limit_reached;
+    {_, _, _, none, outcast} ->
+        user_banned;
+    {_, _, _, none, _} ->
+        require_membership;
+    {_, true, _, _, _} ->
+        conflict_use;
+    {_, _, false, _, _} ->
+        conflict_registered;
+    _ ->
+        ServiceAffiliation = get_service_affiliation(From, StateData),
+        case check_password(
+            ServiceAffiliation, Affiliation, Els, From, StateData) of
+            true    -> allowed;
+            nopass  -> require_password;
+            _       -> invalid_password
+        end
+    end.
+
+add_new_user(From, Nick,
+             #xmlel{attrs = Attrs, children = Els} = Packet,
+             #state{} = StateData) ->
+    Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
+    Affiliation = get_affiliation(From, StateData),
+    Role = get_default_role(Affiliation, StateData),
+    case choose_new_user_strategy(From, Nick, Affiliation, Role, Els, StateData) of
+    limit_reached ->
         % max user reached and user is not admin or owner
-        Err = jlib:make_error_reply(
-            Packet,
-            ?ERR_SERVICE_UNAVAILABLE_WAIT),
+        Err = jlib:make_error_reply(Packet, ?ERR_SERVICE_UNAVAILABLE_WAIT),
         ejabberd_router:route(% TODO: s/Nick/<<>>/
           jlib:jid_replace_resource(StateData#state.jid, Nick),
           From, Err),
         StateData;
-    {_, _, _, none} ->
-        Err = jlib:make_error_reply(
-            Packet,
-            case Affiliation of
-            outcast ->
-                ErrText = <<"You have been banned from this room">>,
-                ?ERRT_FORBIDDEN(Lang, ErrText);
-            _ ->
-                ErrText = <<"Membership is required to enter this room">>,
-                ?ERRT_REGISTRATION_REQUIRED(Lang, ErrText)
-            end),
+    user_banned ->
+        ErrText = <<"You have been banned from this room">>,
+        Err = jlib:make_error_reply(Packet, ?ERRT_FORBIDDEN(Lang, ErrText)),
         ejabberd_router:route(% TODO: s/Nick/<<>>/
           jlib:jid_replace_resource(StateData#state.jid, Nick),
           From, Err),
         StateData;
-    {_, true, _, _} ->
+    require_membership ->
+        ErrText = <<"Membership is required to enter this room">>,
+        Err = jlib:make_error_reply(
+            Packet, ?ERRT_REGISTRATION_REQUIRED(Lang, ErrText)),
+        ejabberd_router:route(% TODO: s/Nick/<<>>/
+          jlib:jid_replace_resource(StateData#state.jid, Nick),
+          From, Err),
+        StateData;
+    conflict_use ->
         ErrText = <<"That nickname is already in use by another occupant">>,
         Err = jlib:make_error_reply(Packet, ?ERRT_CONFLICT(Lang, ErrText)),
         ejabberd_router:route(
@@ -1534,7 +1560,7 @@ add_new_user(From, Nick, #xmlel{attrs = Attrs,
           jlib:jid_replace_resource(StateData#state.jid, Nick),
           From, Err),
         StateData;
-    {_, _, false, _} ->
+    conflict_registered ->
         ErrText = <<"That nickname is registered by another person">>,
         Err = jlib:make_error_reply(Packet, ?ERRT_CONFLICT(Lang, ErrText)),
         ejabberd_router:route(
@@ -1542,49 +1568,45 @@ add_new_user(From, Nick, #xmlel{attrs = Attrs,
           jlib:jid_replace_resource(StateData#state.jid, Nick),
           From, Err),
         StateData;
-    {_, _, _, Role} ->
-        case check_password(ServiceAffiliation, Affiliation,
-                Els, From, StateData) of
+    require_password ->
+        ErrText = <<"A password is required to enter this room">>,
+        Err = jlib:make_error_reply(
+            Packet, ?ERRT_NOT_AUTHORIZED(Lang, ErrText)),
+        ejabberd_router:route(% TODO: s/Nick/<<>>/
+          jlib:jid_replace_resource(
+        StateData#state.jid, Nick),
+          From, Err),
+        StateData;
+    invalid_password ->
+        ErrText = <<"Incorrect password">>,
+        Err = jlib:make_error_reply(
+            Packet, ?ERRT_NOT_AUTHORIZED(Lang, ErrText)),
+        ejabberd_router:route(% TODO: s/Nick/<<>>/
+          jlib:jid_replace_resource(
+        StateData#state.jid, Nick),
+          From, Err),
+        StateData;
+    allowed ->
+        NewState =
+        add_user_presence(
+          From, Packet,
+          add_online_user(From, Nick, Role, StateData)),
+        send_existing_presences(From, NewState),
+        send_new_presence(From, NewState),
+        Shift = count_stanza_shift(Nick, Els, NewState),
+        case send_history(From, Shift, NewState) of
         true ->
-            NewState =
-            add_user_presence(
-              From, Packet,
-              add_online_user(From, Nick, Role, StateData)),
-            send_existing_presences(From, NewState),
-            send_new_presence(From, NewState),
-            Shift = count_stanza_shift(Nick, Els, NewState),
-            case send_history(From, Shift, NewState) of
-            true ->
-                ok;
-            _ ->
-                send_subject(From, Lang, StateData)
-            end,
-            case NewState#state.just_created of
-            true ->
-                NewState#state{just_created = false};
-            false ->
-                Robots = ?DICT:erase(From, StateData#state.robots),
-                NewState#state{robots = Robots}
-            end;
-        nopass ->
-            ErrText = <<"A password is required to enter this room">>,
-            Err = jlib:make_error_reply(
-                Packet, ?ERRT_NOT_AUTHORIZED(Lang, ErrText)),
-            ejabberd_router:route(% TODO: s/Nick/<<>>/
-              jlib:jid_replace_resource(
-            StateData#state.jid, Nick),
-              From, Err),
-            StateData;
+            ok;
         _ ->
-            ErrText = <<"Incorrect password">>,
-            Err = jlib:make_error_reply(
-                Packet, ?ERRT_NOT_AUTHORIZED(Lang, ErrText)),
-            ejabberd_router:route(% TODO: s/Nick/<<>>/
-              jlib:jid_replace_resource(
-            StateData#state.jid, Nick),
-              From, Err),
-            StateData
-       end
+            send_subject(From, Lang, StateData)
+        end,
+        case NewState#state.just_created of
+        true ->
+            NewState#state{just_created = false};
+        false ->
+            Robots = ?DICT:erase(From, StateData#state.robots),
+            NewState#state{robots = Robots}
+        end
     end.
 
 -spec check_password(
