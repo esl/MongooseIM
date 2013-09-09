@@ -581,9 +581,12 @@ send_to_handler({Rid, Pid}, Data, State) ->
 %% This is the most specific variant of send_to_handler()
 %% and the *only one* actually performing a send
 %% to the cowboy_loop_handler serving a HTTP request.
+send_wrapped_to_handler(Pid, Wrapped, #state{handlers = []} = State) ->
+    Pid ! {bosh_reply, Wrapped},
+    setup_inactivity_timer(State);
 send_wrapped_to_handler(Pid, Wrapped, State) ->
     Pid ! {bosh_reply, Wrapped},
-    setup_inactivity_timer(State).
+    State.
 
 maybe_ack(HandlerRid, #state{rid = Rid} = S) ->
     if
@@ -681,7 +684,7 @@ return_surplus_handlers(normal, #state{pending = Pending} = S) ->
 bosh_unwrap(StreamEvent, Body, #state{} = S)
        when StreamEvent =:= streamstart;
             StreamEvent =:= restart ->
-    Wait = get_attr(<<"wait">>, Body, S#state.wait),
+    Wait = min(get_attr(<<"wait">>, Body, S#state.wait), mod_bosh:get_max_wait()),
     Hold = get_attr(<<"hold">>, Body, S#state.hold),
     ClientAcks = get_client_acks(StreamEvent, Body, S#state.client_acks),
     E = stream_start(exml_query:attr(Body, <<"from">>),
