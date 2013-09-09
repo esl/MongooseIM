@@ -917,7 +917,7 @@ role_users_to_string(RoleS, Users) ->
 
 get_room_occupants(RoomJIDString) ->
     RoomJID = jlib:binary_to_jid(RoomJIDString),
-    {ok, Users} = mod_muc_room:get_users(RoomJID),
+    {ok, Users} = mod_muc_room:get_room_users(RoomJID),
     [{U#user.jid, U#user.nick, U#user.role}
      || U <- Users].
 

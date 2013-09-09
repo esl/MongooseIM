@@ -38,7 +38,8 @@
          route/4]).
 
 %% API exports
--export([get_users/1]).
+-export([get_room_users/1,
+         is_room_owner/2]).
 
 %% gen_fsm callbacks
 -export([init/1,
@@ -151,15 +152,24 @@ start_link(Host, ServerHost, Access, Room, HistorySize, RoomShaper, Opts) ->
                         RoomShaper, Opts],
                        ?FSMOPTS).
 
--spec get_users(RoomJID :: jid()) -> {ok, [#user{}]} | {error, not_found}.
-get_users(RoomJID) ->
+-spec get_room_users(RoomJID :: jid()) -> {ok, [#user{}]} | {error, not_found}.
+get_room_users(RoomJID) ->
     case mod_muc:room_jid_to_pid(RoomJID) of
         {ok, Pid} ->
-            gen_fsm:sync_send_all_state_event(Pid, get_users);
+            gen_fsm:sync_send_all_state_event(Pid, get_room_users);
         {error, Reason} ->
             {error, Reason}
     end.
 
+-spec is_room_owner(RoomJID :: jid(), UserJID :: jid()) ->
+    {ok, boolean()} | {error, not_found}.
+is_room_owner(RoomJID, UserJID) ->
+    case mod_muc:room_jid_to_pid(RoomJID) of
+        {ok, Pid} ->
+            gen_fsm:sync_send_all_state_event(Pid, {is_room_owner, UserJID});
+        {error, Reason} ->
+            {error, Reason}
+    end.
 
 %%%----------------------------------------------------------------------
 %%% Callback functions from gen_fsm
@@ -331,7 +341,7 @@ locked_state({route, From, ToNick,
         andalso get_affiliation(From, StateData)  =:= owner of
         true ->
             %% Will let the owner leave and destroy the room if it's not persistant
-            %% The rooms are not presistent by default, but just to be safe...
+            %% The rooms are not persistent by default, but just to be safe...
             StateData1 = StateData#state{config = (StateData#state.config)#config{persistent = false}},
             process_presence(From, ToNick, Presence, StateData1, locked_state);
         _ ->
@@ -505,8 +515,10 @@ handle_sync_event(get_config, _From, StateName, StateData) ->
     {reply, {ok, StateData#state.config}, StateName, StateData};
 handle_sync_event(get_state, _From, StateName, StateData) ->
     {reply, {ok, StateData}, StateName, StateData};
-handle_sync_event(get_users, _From, StateName, StateData) ->
+handle_sync_event(get_room_users, _From, StateName, StateData) ->
     {reply, {ok, dict_to_values(StateData#state.users)}, StateName, StateData};
+handle_sync_event({is_room_owner, UserJID}, _From, StateName, StateData) ->
+    {reply, {ok, get_affiliation(UserJID, StateData) =:= owner}, StateName, StateData};
 handle_sync_event({change_config, Config}, _From, StateName, StateData) ->
     {result, [], NSD} = change_config(Config, StateData),
     {reply, {ok, NSD#state.config}, StateName, NSD};
@@ -2688,11 +2700,9 @@ process_iq_owner(From, set, Lang, SubEl, StateData) ->
                     %attepmt to configure
                     case is_allowed_log_change(XEl, StateData, From)
                     andalso
-                    is_allowed_persistent_change(XEl, StateData,
-                                    From)
+                    is_allowed_persistent_change(XEl, StateData, From)
                     andalso
-                    is_allowed_room_name_desc_limits(XEl,
-                                    StateData)
+                    is_allowed_room_name_desc_limits(XEl, StateData)
                     andalso
                     is_password_settings_correct(XEl, StateData) of
                     true -> set_config(XEl, StateData);
