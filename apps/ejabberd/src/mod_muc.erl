@@ -609,14 +609,20 @@ iq_disco_items(Host, From, Lang, Rsm) ->
 		     end
 	     end, Rooms) ++ RsmOut.
 
-get_vh_rooms(Host, #rsm_in{max=M, direction=Direction, id=I, index=Index})->
+get_vh_rooms(Host, #rsm_in{max=M, direction=Direction, id=I, index=Index}) ->
     AllRooms = lists:sort(get_vh_rooms(Host)),
     Count = erlang:length(AllRooms),
     Guard = case Direction of
-		_ when Index =/= undefined -> [{'==', {element, 2, '$1'}, Host}];
-		aft -> [{'==', {element, 2, '$1'}, Host}, {'>=',{element, 1, '$1'} ,I}];
-		before when I =/= []-> [{'==', {element, 2, '$1'}, Host}, {'=<',{element, 1, '$1'} ,I}];
-		_ -> [{'==', {element, 2, '$1'}, Host}]
+		_ when Index =/= undefined ->
+            [{'=:=', {element, 2, '$1'}, Host}];
+		aft ->
+            [{'=:=', {element, 2, '$1'}, Host},
+             {'>',   {element, 1, '$1'}, I}]; %% not exact here
+        before when I =/= <<>> ->
+            [{'=:=', {element, 2, '$1'}, Host},
+             {'<',   {element, 1, '$1'}, I}]; %% not exact here
+		_ ->
+            [{'=:=', {element, 2, '$1'}, Host}]
 	    end,
     L = lists:sort(
 	  mnesia:dirty_select(muc_online_room,
