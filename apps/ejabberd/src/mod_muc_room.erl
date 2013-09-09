@@ -3476,56 +3476,73 @@ disco_item(User=#user{nick=Nick}, RoomJID) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Handle voice request or approval (XEP-0045 7.13, 8.6)
+-spec check_voice_approval(From, Els, Lang, StateData) -> Res when
+    From :: jid(),
+    Els :: [#xmlel{}],
+    Lang :: binary(),
+    StateData :: #state{},
+    Res :: {form, BRole} | {role, BRole, RoomNick} | {error, Reason} | ok,
+    BRole :: binary(),
+    RoomNick :: binary(),
+    Reason :: term().
 check_voice_approval(From, [#xmlel{name = <<"x">>,
                                    children = Items}], _Lang, StateData) ->
-    GetField = fun(Var) ->
-        lists:foldl(fun(#xmlel{name = <<"field">>,
-                               attrs = Attrs} = Item, Acc) ->
-            case xml:get_attr(<<"var">>, Attrs) of
-                {value, Var} -> case xml:get_path_s(Item, [{elem, <<"value">>}, cdata]) of
-                    <<>> -> Acc;
-                    Value -> Value
-                end;
-                _ -> Acc
-            end;
-            (_, Acc) -> Acc
-        end, false, Items)
-    end,
-    RoleBin = GetField(<<"muc#role">>),
+    BRole = get_field(<<"muc#role">>, Items),
     case Items of
-        [_Form, _Role] ->
-            case catch binary_to_role(RoleBin) of
-                {'EXIT', _} -> {error, ?ERR_BAD_REQUEST};
-                _ -> {form, RoleBin}
+    [_Form, _Role] ->
+        case catch binary_to_role(BRole) of
+        {'EXIT', _} -> {error, ?ERR_BAD_REQUEST};
+        _ -> {form, BRole}
+        end;
+    _ ->
+        case get_role(From, StateData) of
+        moderator ->
+            case get_field(<<"muc#request_allow">>, Items) of
+            <<"true">> ->
+                case get_field(<<"muc#roomnick">>, Items) of
+                false -> {error, ?ERR_BAD_REQUEST};
+                RoomNick -> {role, BRole, RoomNick}
+                end;
+            _ -> ok
             end;
-        _ ->
-            case get_role(From, StateData) of
-                moderator ->
-                    case GetField(<<"muc#request_allow">>) of
-                        <<"true">> -> case GetField(<<"muc#roomnick">>) of
-                            false -> {error, ?ERR_BAD_REQUEST};
-                            RoomNick -> {role, RoleBin, RoomNick}
-                        end;
-                         _ -> ok
-                    end;
-                 _ -> {error, ?ERR_NOT_ALLOWED}
-            end
+        _ -> {error, ?ERR_NOT_ALLOWED}
+        end
     end.
+
+get_field(Var, [#xmlel{name = <<"field">>, attrs = Attrs} = Item|Items])
+    when is_binary(Var) ->
+    case xml:get_attr(<<"var">>, Attrs) of
+    {value, Var} ->
+        case xml:get_path_s(Item, [{elem, <<"value">>}, cdata]) of
+        <<>> -> get_field(Var, Items);
+        Value -> Value
+        end;
+    _ ->
+        get_field(Var, Items)
+    end;
+get_field(_Var, []) ->
+    false.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Invitation support
 
-check_invitation(FromJID, Els, Lang, StateData=#state{jid=RoomJID}) ->
+check_invitation(FromJID, Els, Lang, StateData) ->
+    try
+        unsave_check_invitation(FromJID, Els, Lang, StateData)
+    catch throw:{error, Reason} -> {error, Reason}
+    end.
+
+unsave_check_invitation(FromJID, Els, Lang, StateData=#state{jid=RoomJID}) ->
     FAffiliation = get_affiliation(FromJID, StateData),
     CanInvite = (StateData#state.config)#config.allow_user_invites
          orelse (FAffiliation == admin)
          orelse (FAffiliation == owner),
-    InviteEl = find_invite_elem(Els),
-    JID = decode_destination_jid(InviteEl),
     case CanInvite of
     false ->
         throw({error, ?ERR_FORBIDDEN});
     true ->
+        InviteEl = find_invite_elem(Els),
+        JID = decode_destination_jid(InviteEl),
         %% Create an invitation message and send it to the user.
         Reason = decode_reason(InviteEl),
         ContinueEl =
@@ -3536,18 +3553,21 @@ check_invitation(FromJID, Els, Lang, StateData=#state{jid=RoomJID}) ->
         ReasonEl = #xmlel{
             name = <<"reason">>,
             children = [#xmlcdata{content = Reason}]},
-        InviteEl = #xmlel{
+        OutInviteEl = #xmlel{
             name = <<"invite">>,
             attrs = [{<<"from">>, jlib:jid_to_binary(FromJID)}],
             children = [ReasonEl] ++ ContinueEl},
         PasswdEl = create_password_elem(StateData),
         BodyEl = invite_body_elem(FromJID, Reason, Lang, StateData),
         Msg = create_invite_message_elem(
-            InviteEl, BodyEl, PasswdEl, RoomJID, Reason),
+            OutInviteEl, BodyEl, PasswdEl, RoomJID, Reason),
         ejabberd_router:route(StateData#state.jid, JID, Msg),
-        JID
+        {ok, JID}
     end.
 
+-spec decode_destination_jid(InviteEl) -> JID when
+    InviteEl :: #xmlel{},
+    JID :: #jid{}.
 decode_destination_jid(InviteEl) ->
     case jlib:binary_to_jid(xml:get_tag_attr_s(<<"to">>, InviteEl)) of
       error -> throw({error, ?ERR_JID_MALFORMED});
@@ -3564,6 +3584,7 @@ find_invite_elem(Els) ->
         _ ->
             throw({error, ?ERR_BAD_REQUEST})
         end,
+
         case xml:remove_cdata(Els1) of
         [#xmlel{name = <<"invite">>} = InviteEl1] ->
             InviteEl1;
@@ -3842,10 +3863,10 @@ route_message(#routed_message{allowed = true, type = Type, from = From,
     Invite = xml:get_path_s(Packet, [{elem, <<"x">>}, {elem, <<"invite">>}]),
     case Invite of
         <<>> ->
-            AppType = (catch check_voice_approval(From, Els, Lang, StateData)),
+            AppType = check_voice_approval(From, Els, Lang, StateData),
             route_voice_approval(AppType, From, Packet, Lang, StateData);
         _ ->
-            InType = (catch check_invitation(From, Els, Lang, StateData)),
+            InType = check_invitation(From, Els, Lang, StateData),
             route_invitation(InType, From, Packet, Lang, StateData)
     end;
 
@@ -3880,10 +3901,10 @@ route_voice_approval({form, RoleName}, From, _Packet, _Lang, StateData) ->
     end, search_role(moderator, StateData)),
     StateData;
 
-route_voice_approval({role, RoleName, Nick}, From, Packet, Lang, StateData) ->
+route_voice_approval({role, BRole, Nick}, From, Packet, Lang, StateData) ->
     case process_admin_items_set(From,
         [#xmlel{name = <<"item">>,
-                attrs = [{<<"role">>, RoleName}, {<<"nick">>, Nick}]}],
+                attrs = [{<<"role">>, BRole}, {<<"nick">>, Nick}]}],
               Lang, StateData) of
         {result, _Res, SD1} -> SD1;
         {error, Error} ->
@@ -3902,7 +3923,7 @@ route_invitation({error, Error}, From, Packet, _Lang, StateData) ->
     ejabberd_router:route(StateData#state.jid, From, Err),
     StateData;
 
-route_invitation(IJID, _From, _Packet, _Lang, StateData) ->
+route_invitation({ok, IJID}, _From, _Packet, _Lang, StateData) ->
     Config = StateData#state.config,
     case Config#config.members_only of
         true ->
