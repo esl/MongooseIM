@@ -30,12 +30,34 @@
 -define(NS_MUC_REQUEST, <<"http://jabber.org/protocol/muc#request">>).
 -define(NS_MUC_ROOMCONFIG, <<"http://jabber.org/protocol/muc#roomconfig">>).
 
+-define(assert_equal(E, V), (
+    [ct:fail("assert_equal( ~p, ~p) failed~n\tExpected ~p~n\tValue ~p~n",
+             [??E, ??V, (E), (V)])
+     || (E) =/= (V)]
+    )).
+
+-record(rsm_in, {
+        max :: non_neg_integer() | undefined,
+        direction :: before | 'after' | undefined,
+        id :: binary() | undefined,
+        index ::non_neg_integer() | undefined
+        }).
+
+-record(rsm_out, {
+        index :: non_neg_integer() | undefined,
+        count :: non_neg_integer(),
+        first :: binary() | undefined,
+        last  :: binary() | undefined,
+        items :: [#xmlel{}]
+        }).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
 
 all() -> [
           {group, disco},
+          {group, disco_rsm},
           {group, moderator},
           {group, admin},
           {group, admin_membersonly},
@@ -52,6 +74,7 @@ groups() -> [
                                   disco_info,
                                   disco_items
                                  ]},
+             {disco_rsm, [], rsm_cases()},
              {moderator, [], [
                                       moderator_subject,
                                       moderator_subject_unauthorized,
@@ -157,6 +180,13 @@ groups() -> [
                                            ]}
             ].
 
+rsm_cases() ->
+      [pagination_first5,
+       pagination_last5,
+       pagination_before10,
+       pagination_after10,
+       pagination_empty_rset].
+
 suite() ->
     escalus:suite().
 
@@ -200,6 +230,11 @@ init_per_group(disco, Config) ->
     start_room(Config1, Alice, <<"alicesroom">>, <<"aliceonchat">>,
         [{persistent, true}]);
 
+init_per_group(disco_rsm, Config) ->
+    Config1 = escalus:create_users(Config),
+    [Alice | _] = ?config(escalus_users, Config1),
+    start_rsm_rooms(Config1, Alice, <<"aliceonchat">>);
+
 init_per_group(_GroupName, Config) ->
     escalus:create_users(Config).
 
@@ -217,6 +252,10 @@ end_per_group(admin_membersonly, Config) ->
 
 end_per_group(disco, Config) ->
     destroy_room(Config),
+    escalus:delete_users(Config);
+
+end_per_group(disco_rsm, Config) ->
+    destroy_rsm_rooms(Config),
     escalus:delete_users(Config);
 
 end_per_group(_GroupName, Config) ->
@@ -3358,6 +3397,175 @@ destroy_unauthorized(Config) ->
         escalus:send(Alice, stanza_get_rooms()),
         count_rooms(escalus:wait_for_stanza(Alice),1)
     end).
+
+%%--------------------------------------------------------------------
+%% RSM (a partial list of rooms)
+%%--------------------------------------------------------------------
+
+pagination_empty_rset(Config) ->
+    F = fun(Alice) ->
+        %% Get the first page of size 5.
+        RSM = #rsm_in{max=0},
+        escalus:send(Alice, stanza_room_list_request(<<"empty_rset">>, RSM)),
+        wait_empty_rset(Alice, 15)
+        end,
+    escalus:story(Config, [1], F).
+
+pagination_first5(Config) ->
+    F = fun(Alice) ->
+        %% Get the first page of size 5.
+        RSM = #rsm_in{max=5},
+        escalus:send(Alice, stanza_room_list_request(<<"first5">>, RSM)),
+        wait_room_range(Alice, 1, 5),
+        ok
+        end,
+    escalus:story(Config, [1], F).
+
+pagination_last5(Config) ->
+    F = fun(Alice) ->
+        %% Get the last page of size 5.
+        RSM = #rsm_in{max=5, direction=before},
+        escalus:send(Alice, stanza_room_list_request(<<"last5">>, RSM)),
+        wait_room_range(Alice, 11, 15),
+        ok
+        end,
+    escalus:story(Config, [1], F).
+
+pagination_before10(Config) ->
+    %% The last item in the page returned by the responding entity
+    %% MUST be the item that immediately preceeds the item that
+    %% the requesting entity indicated it has already received.
+    F = fun(Alice) ->
+        %% Get the last page of size 5.
+        RSM = #rsm_in{max=5, direction=before, id=generate_room_name(10)},
+        escalus:send(Alice, stanza_room_list_request(<<"before10">>, RSM)),
+        wait_room_range(Alice, 5, 9),
+        ok
+        end,
+    escalus:story(Config, [1], F).
+
+pagination_after10(Config) ->
+    F = fun(Alice) ->
+        %% Get the last page of size 5.
+        RSM = #rsm_in{max=5, direction='after',
+                      id=generate_room_name(10)},
+        escalus:send(Alice, stanza_room_list_request(<<"after10">>, RSM)),
+        wait_room_range(Alice, 11, 15),
+        ok
+        end,
+    escalus:story(Config, [1], F).
+
+%% @doc Based on examples from http://xmpp.org/extensions/xep-0059.html
+%% @end
+%% <iq type='get' from='stpeter@jabber.org/roundabout'
+%%       to='conference.jabber.org' id='ex2'>
+%%   <query xmlns='http://jabber.org/protocol/disco#items'>
+%%     <set xmlns='http://jabber.org/protocol/rsm'>
+%%       <max>20</max>
+%%     </set>
+%%   </query>
+%% </iq>
+stanza_room_list_request(_QueryId, RSM) ->
+    escalus_stanza:iq(?MUC_HOST, <<"get">>, [#xmlel{
+        name = <<"query">>,
+        attrs = [{<<"xmlns">>,
+                  <<"http://jabber.org/protocol/disco#items">>}],
+        children = skip_undefined([maybe_rsm_elem(RSM)])
+    }]).
+
+maybe_rsm_elem(undefined) ->
+    undefined;
+maybe_rsm_elem(#rsm_in{max=Max, direction=Direction, id=Id, index=Index}) ->
+    #xmlel{name = <<"set">>,
+           attrs = [{<<"xmlns">>, <<"http://jabber.org/protocol/rsm">>}],
+           children = skip_undefined([
+                maybe_rsm_max(Max),
+                maybe_rsm_index(Index),
+                maybe_rsm_direction(Direction, Id)])}.
+
+maybe_rsm_id(undefined) -> [];
+maybe_rsm_id(Id) -> #xmlcdata{content = Id}.
+
+maybe_rsm_direction(undefined, undefined) ->
+    undefined;
+maybe_rsm_direction(Direction, Id) ->
+    #xmlel{
+        name = atom_to_binary(Direction, latin1),
+        children = maybe_rsm_id(Id)}.
+
+maybe_rsm_index(undefined) ->
+    undefined;
+maybe_rsm_index(Index) when is_integer(Index) ->
+    #xmlel{
+        name = <<"index">>,
+        children = #xmlcdata{content = integer_to_list(Index)}}.
+
+maybe_rsm_max(undefined) ->
+    undefined;
+maybe_rsm_max(Max) when is_integer(Max) ->
+    #xmlel{
+        name = <<"max">>,
+        children = #xmlcdata{content = integer_to_list(Max)}}.
+
+skip_undefined(Xs) ->
+    [X || X <- Xs, X =/= undefined].
+
+i2b(X) when is_integer(X) ->
+    list_to_binary(integer_to_list(X)).
+
+wait_room_range(Client, FromN, ToN) ->
+    wait_room_range(Client, 15, FromN-1, FromN, ToN).
+
+wait_room_range(Client, TotalCount, Offset, FromN, ToN) ->
+    IQ = escalus:wait_for_stanza(Client),
+    Out = parse_result_iq(IQ),
+    try
+        ?assert_equal(i2b(TotalCount),           Out#rsm_out.count),
+        ?assert_equal(i2b(Offset),               Out#rsm_out.index),
+        ?assert_equal(generate_room_name(FromN), Out#rsm_out.first),
+        ?assert_equal(generate_room_name(ToN),   Out#rsm_out.last),
+        ?assert_equal(generate_room_addrs(FromN, ToN), room_jids(Out)),
+        ok
+    catch Class:Reason ->
+        Stacktrace = erlang:get_stacktrace(),
+        ct:pal("IQ: ~p~nOut: ~p~n", [IQ, Out]),
+        erlang:raise(Class, Reason, Stacktrace)
+    end.
+
+wait_empty_rset(Client, TotalCount) ->
+    IQ = escalus:wait_for_stanza(Client),
+    Out = parse_result_iq(IQ),
+    try
+        ?assert_equal(i2b(TotalCount), Out#rsm_out.count),
+        ?assert_equal([], room_jids(Out)),
+        ok
+    catch Class:Reason ->
+        Stacktrace = erlang:get_stacktrace(),
+        ct:pal("IQ: ~p~nOut: ~p~n", [IQ, Out]),
+        erlang:raise(Class, Reason, Stacktrace)
+    end.
+
+room_jids(#rsm_out{items=Items}) ->
+    [exml_query:attr(Item, <<"jid">>) || Item <- Items].
+
+parse_result_iq(#xmlel{name = <<"iq">>, children = [Query]}) ->
+    parse_result_query(Query).
+
+parse_result_query(#xmlel{name = <<"query">>, children = Children}) ->
+    %% rot1
+    [Set|Items_r] = lists:reverse(Children),
+    Items = lists:reverse(Items_r),
+    First = exml_query:path(Set, [{element, <<"first">>}, cdata]),
+    Index = exml_query:path(Set, [{element, <<"first">>},
+                                  {attr, <<"index">>}]),
+    Last  = exml_query:path(Set, [{element, <<"last">>}, cdata]),
+    Count = exml_query:path(Set, [{element, <<"count">>}, cdata]),
+    #rsm_out{items = Items,
+             first = First,
+             index = Index,
+             last = Last,
+             count = Count}.
+
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
@@ -3494,14 +3702,40 @@ stanza_change_nick(Room, NewNick) ->
 
 start_room(Config, User, Room, Nick, Opts) ->
     From = generate_rpc_jid(User),
-    escalus_ejabberd:rpc(mod_muc, create_instant_room,
-        [<<"localhost">>, Room, From, Nick,
-            Opts]),
+    create_instant_room(<<"localhost">>, Room, From, Nick, Opts),
     [{nick, Nick}, {room, Room} | Config].
 
+create_instant_room(Host, Room, From, Nick, Opts) ->
+    escalus_ejabberd:rpc(mod_muc, create_instant_room,
+        [Host, Room, From, Nick, Opts]).
+
+start_rsm_rooms(Config, User, Nick) ->
+    From = generate_rpc_jid(User),
+    [create_instant_room(
+            <<"localhost">>, generate_room_name(N), From, Nick, [])
+     || N <- lists:seq(1, 15)],
+    Config.
+
+destroy_rsm_rooms(Config) ->
+    [destroy_room(?MUC_HOST, generate_room_name(N))
+     || N <- lists:seq(1, 15)],
+    Config.
+
+generate_room_name(N) when is_integer(N) ->
+    list_to_binary(io_lib:format("room~2..0B", [N])).
+
+generate_room_addr(N) ->
+    room_address(generate_room_name(N)).
+
+generate_room_addrs(FromN, ToN) ->
+    [generate_room_addr(N) || N <- lists:seq(FromN, ToN)].
+
 destroy_room(Config) ->
-    case escalus_ejabberd:rpc(ets, lookup, [muc_online_room,
-        {?config(room, Config), <<"muc.localhost">>}]) of
+    destroy_room(?MUC_HOST, ?config(room, Config)).
+
+destroy_room(Host, Room) when is_binary(Host), is_binary(Room) ->
+    case escalus_ejabberd:rpc(
+            ets, lookup, [muc_online_room, {Room, Host}]) of
         [{_,_,Pid}|_] -> gen_fsm:send_all_state_event(Pid, destroy);
         _ -> ok
     end.
@@ -3893,7 +4127,7 @@ has_room(JID, #xmlel{children = [ #xmlel{children = Rooms} ]}) ->
     true = lists:any(RoomPred, Rooms).
 
 count_rooms(#xmlel{children = [ #xmlel{children = Rooms} ]}, N) ->
-    N = length(Rooms).
+    ?assert_equal(N, length(Rooms)).
 
 has_features(#xmlel{children = [ Query ]}) ->
     %%<iq from='chat.shakespeare.lit'
