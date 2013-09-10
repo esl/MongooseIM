@@ -34,7 +34,6 @@
 -include("mod_bosh.hrl").
 
 -define(LISTENER, ?MODULE).
--define(DEFAULT_PORT, 5280).
 -define(DEFAULT_BACKEND, mnesia).
 -define(DEFAULT_MAX_AGE, 1728000).  %% 20 days in seconds
 -define(DEFAULT_INACTIVITY, 30).  %% seconds
@@ -87,9 +86,13 @@ set_server_acks(EnableServerAcks) ->
 %%--------------------------------------------------------------------
 
 start(_Host, Opts) ->
-    Port = gen_mod:get_opt(port, Opts, ?DEFAULT_PORT),
     try
-        ok = start_cowboy(Port, Opts),
+        case gen_mod:get_opt(port, Opts, undefined) of
+            undefined ->
+                ok;
+            Port ->
+                ok = start_cowboy(Port, Opts)
+        end,
         ok = start_backend(Opts),
         {ok, _Pid} = mod_bosh_socket:start_supervisor()
     catch
