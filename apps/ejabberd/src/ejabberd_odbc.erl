@@ -316,16 +316,16 @@ terminate(_Reason, _StateName, #state{db_ref = undefined}) ->
     ok;
 terminate(_Reason, _StateName, State) ->
     case State#state.db_type of
-	mysql ->
-	    %% old versions of mysql driver don't have the stop function
-	    %% so the catch
-	    catch mysql_conn:stop(State#state.db_ref);
-	pgsql ->
-	    pgsql:terminate(State#state.db_ref);
-	odbc ->
-	    odbc:disconnect(State#state.db_ref);
-	_ ->
-	    ok
+        mysql ->
+            %% old versions of mysql driver don't have the stop function
+            %% so the catch
+            catch mysql_conn:stop(State#state.db_ref);
+        pgsql ->
+            pgsql:terminate(State#state.db_ref);
+        odbc ->
+            odbc:disconnect(State#state.db_ref);
+        _ ->
+            ok
     end,
     ok.
 
