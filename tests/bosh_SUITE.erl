@@ -39,6 +39,7 @@ groups() ->
                                      simple_chat,
                                      cant_send_invalid_rid]},
      {time, [shuffle, {repeat,5}], [disconnect_inactive,
+                                    interrupt_long_poll_is_activity,
                                     reply_on_pause,
                                     cant_pause_for_too_long,
                                     pause_request_is_activity,
@@ -80,6 +81,10 @@ end_per_group(_GroupName, Config) ->
 init_per_testcase(disconnect_inactive = CaseName, Config) ->
     NewConfig = escalus_ejabberd:setup_option(inactivity(), Config),
     escalus:init_per_testcase(CaseName, NewConfig);
+init_per_testcase(interrupt_long_poll_is_activity = CaseName, Config) ->
+    InactConfig = escalus_ejabberd:setup_option(inactivity(), Config),
+    NewConfig = escalus_users:update_userspec(InactConfig, carol, bosh_wait, 10),
+    escalus:init_per_testcase(CaseName, NewConfig);
 init_per_testcase(reply_on_pause = CaseName, Config) ->
     NewConfig = escalus_ejabberd:setup_option(inactivity(), Config),
     escalus:init_per_testcase(CaseName, NewConfig);
@@ -97,6 +102,9 @@ init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
 end_per_testcase(disconnect_inactive = CaseName, Config) ->
+    NewConfig = escalus_ejabberd:reset_option(inactivity(), Config),
+    escalus:end_per_testcase(CaseName, NewConfig);
+end_per_testcase(interrupt_long_poll_is_activity = CaseName, Config) ->
     NewConfig = escalus_ejabberd:reset_option(inactivity(), Config),
     escalus:end_per_testcase(CaseName, NewConfig);
 end_per_testcase(reply_on_pause = CaseName, Config) ->
@@ -220,6 +228,32 @@ disconnect_inactive(Config) ->
 
         %% Assert Carol has been disconnected due to inactivity.
         0 = length(get_bosh_sessions())
+
+        end).
+
+%% Ensure that a new request replacing an existing long-poll does not start the
+%% inactivity timer.
+interrupt_long_poll_is_activity(Config) ->
+    escalus:story(Config, [{carol, 1}, {geralt, 1}], fun(Carol, Geralt) ->
+
+        %% Sanity check - there should be one BOSH session belonging
+        %% to Carol and one handler for Carol.
+        [{_, _, CarolSessionPid}] = get_bosh_sessions(),
+        1 = length(get_handlers(CarolSessionPid)),
+
+        %% Send a message.  A new connection should be established, and
+        %% the existing long-poll connection should be closed.
+        escalus_client:send(Carol,
+                            escalus_stanza:chat_to(Geralt, <<"Hello!">>)),
+
+        %% Wait until after the inactivity timeout (which should be less than
+        %% the BOSH wait timeout).
+        timer:sleep(2 * timer:seconds(?INACTIVITY)),
+
+        %% No disconnection should have occurred.
+        escalus_assert:has_no_stanzas(Carol),
+        1 = length(get_bosh_sessions()),
+        1 = length(get_handlers(CarolSessionPid))
 
         end).
 
