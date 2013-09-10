@@ -18,9 +18,9 @@ tests_to_run() ->
      {dir, ?CT_DIR},
      {logdir, ?CT_REPORT},
 
-     {suite, [
-              adhoc_SUITE,
+     {suite, [adhoc_SUITE,
               anonymous_SUITE,
+              ejabberdctl_SUITE,
               last_SUITE,
               login_SUITE,
               muc_SUITE,
