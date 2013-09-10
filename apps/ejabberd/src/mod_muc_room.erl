@@ -246,7 +246,7 @@ is_query_allowed(Query) ->
         (xml:get_tag_attr_s(<<"type">>, X) == <<"submit">> orelse
         xml:get_tag_attr_s(<<"type">>, X)== <<"cancel">>)).
 
-locked_state_process_owner_iq(From, Query, Lang, <<"set">>, StateData) ->
+locked_state_process_owner_iq(From, Query, Lang, set, StateData) ->
     Result = case is_query_allowed(Query) of
                  true ->
                      process_iq_owner(From, set, Lang, Query, StateData);
@@ -255,7 +255,7 @@ locked_state_process_owner_iq(From, Query, Lang, <<"set">>, StateData) ->
              end,
     {Result, normal_state};
 
-locked_state_process_owner_iq(From, Query, Lang, <<"get">>, StateData) ->
+locked_state_process_owner_iq(From, Query, Lang, get, StateData) ->
     {process_iq_owner(From, get, Lang, Query, StateData), locked_state};
 
 locked_state_process_owner_iq(_From, _Query, Lang, _Type, _StateData) ->
