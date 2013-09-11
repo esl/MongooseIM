@@ -20,6 +20,7 @@ tests_to_run() ->
 
      {suite, [adhoc_SUITE,
               anonymous_SUITE,
+              bosh_SUITE,
               ejabberdctl_SUITE,
               last_SUITE,
               login_SUITE,
