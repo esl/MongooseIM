@@ -12,9 +12,11 @@ ct_vcard_config_file() ->
     {ok, CWD} = file:get_cwd(),
     filename:join([CWD, "vcard.config"]).
 
-
 tests_to_run() ->
-    [{suite, [
+    [{config, [ct_config_file(), ct_vcard_config_file()]},
+     {dir, ?CT_DIR},
+     {logdir, ?CT_REPORT},
+     {suite, [
             adhoc_SUITE,
             anonymous_SUITE,
             last_SUITE,
@@ -41,64 +43,79 @@ tests_to_run() ->
             system_monitor_SUITE
             ]}].
 
-    %[{suite, muc_SUITE},
+    %{suite, muc_SUITE},
      %{group, admin},
      %{testcase, admin_moderator},
      %{repeat, 4}].
 
 ct() ->
-    Result = ct:run_test(prepare_tests()),
-    case Result of
-        {error, Reason} ->
-            throw({ct_error, Reason});
-        _ ->
-            ok
-    end,
-    save_count(),
+    run_test(tests_to_run()),
     init:stop(0).
 
 ct_cover() ->
     run_ct_cover(),
     cover_summary(),
-    save_count(),
     init:stop(0).
 
-save_count() ->
-    Count = try
-        [{count, N}] = ets:lookup(configurations_CTH, count),
-        N
-    catch _:_ ->
-        1
+save_count(Test, Configs) ->
+    Repeat = case proplists:get_value(repeat, Test) of
+        undefined -> 1;
+        Other     -> Other
     end,
-    file:write_file("/tmp/ct_count", integer_to_list(Count)).
+    Times = case length(Configs) of
+        0 -> 1;
+        N -> N
+    end,
+    file:write_file("/tmp/ct_count", integer_to_list(Repeat*Times)).
 
-prepare_tests() ->
+run_test(Test) ->
     {ok, Props} = file:consult(ct_config_file()),
-    Tests = tests_to_run(),
-    Suites = proplists:get_value(suite, Tests, []),
-    Spec1 = [{config, [ct_config_file(), ct_vcard_config_file()]},
-             {dir, ?CT_DIR},
-             {logdir, ?CT_REPORT},
-             {suite, Suites}
-            ],
-    Spec2 = case proplists:lookup(ejabberd_configs, Props) of
+    case proplists:lookup(ejabberd_configs, Props) of
         {ejabberd_configs, Configs} ->
-            ets:new(configurations_CTH, [public, named_table,
-                                         {read_concurrency, true}]),
-            ets:insert(configurations_CTH, {count, 0}),
-            Interval = proplists:get_value(repeat, Tests, 1),
-            [{repeat, length(Configs)*Interval},
-             {ct_hooks, 
-              [{configurations_CTH, [Configs, get_ejabberd_node(), Interval]}]}
-             | Spec1];
+            [run_config_test(Config, Test) || Config <- Configs],
+            save_count(Test, Configs);
         _ ->
-            Spec1
-    end,
-    Spec2 ++ Tests.
+            Result = ct:run_test(Test),
+            case Result of
+                {error, Reason} ->
+                    throw({ct_error, Reason});
+                _ ->
+                    ok
+            end,
+            save_count(Test, [])
+    end.
+
+run_config_test({Name, Variables}, Test) ->
+    Node = get_ejabberd_node(),
+    {ok, Cwd} = call(Node, file, get_cwd, []),
+    Cfg = filename:join([Cwd, "..", "..", "rel", "files", "ejabberd.cfg"]),
+    Vars = filename:join([Cwd, "..", "..", "rel", "reltool_vars", "node1_vars.config"]),
+    CfgFile = filename:join([Cwd, "etc", "ejabberd.cfg"]),
+    {ok, Template} = call(Node, file, read_file, [Cfg]),
+    {ok, Default} = call(Node, file, consult, [Vars]),
+    NewVars = lists:foldl(fun({Var,Val}, Acc) ->
+                    lists:keystore(Var, 1, Acc, {Var,Val})
+            end, Default, Variables), 
+    LTemplate = binary_to_list(Template),
+    NewCfgFile = mustache:render(LTemplate, dict:from_list(NewVars)),
+    ok = call(Node, file, write_file, [CfgFile, NewCfgFile]),
+    call(Node, application, stop, [ejabberd]),
+    call(Node, application, start, [ejabberd]),
+    ct:print("Configuration ~p test started.~n", [Name]),
+    Result = ct:run_test([{label, Name} | Test]),
+    case Result of
+        {error, Reason} ->
+            throw({ct_error, Reason});
+        _ ->
+            ok
+    end.
+
+call(Node, M, F, A) ->
+    rpc:call(Node, M, F, A).
 
 run_ct_cover() ->
     prepare(),
-    ct:run_test(prepare_tests()),
+    run_test(tests_to_run()),
     N = get_ejabberd_node(),
     Files = rpc:call(N, filelib, wildcard, ["/tmp/ejd_test_run_*.coverdata"]),
     [rpc:call(N, file, delete, [File]) || File <- Files],
