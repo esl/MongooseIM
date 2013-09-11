@@ -1,4 +1,4 @@
-%% @doc Stores a table of custom IQ-hanlers for mod_muc_room.
+%% @doc Stores a table of custom IQ-handlers for mod_muc_room.
 -module(mod_muc_iq).
 -export([start_link/0,
          process_iq/4,
@@ -18,7 +18,7 @@
 
 %% @private
 srv_name() ->
-    mod_muc_iq.
+    ejabberd_mod_muc_iq.
 
 %%====================================================================
 %% API
