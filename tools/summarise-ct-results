@@ -1,6 +1,11 @@
 #!/usr/bin/env escript
 
-main(Files) ->
+main(Directories) ->
+    Files = lists:foldl(fun(Dir, Acc) ->
+                    Wildcard = filename:join([Dir, "ejabberd_tests.*.logs",
+                                              "*", "suite.summary"]),
+                    Acc ++ filelib:wildcard(Wildcard)
+            end, [], Directories),
     Result = lists:foldl(fun(Filename, {OkAcc, FAcc, USAcc, ASAcc}) ->
         {ok, [{summary, {Ok, F, US, AS}}]} = file:consult(Filename),
         {OkAcc+Ok, FAcc+F, USAcc+US, ASAcc+AS}
