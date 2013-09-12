@@ -1,11 +1,20 @@
 #!/usr/bin/env escript
 
-main([Filename]) ->
-    {ok, [{summary, {Ok, Failed, UserSkipped, AutoSkipped}}]} = file:consult(Filename),
+main(Directories) ->
+    Files = lists:foldl(fun(Dir, Acc) ->
+                    Wildcard = filename:join([Dir, "ejabberd_tests.*.logs",
+                                              "*", "suite.summary"]),
+                    Acc ++ filelib:wildcard(Wildcard)
+            end, [], Directories),
+    Result = lists:foldl(fun(Filename, {OkAcc, FAcc, USAcc, ASAcc}) ->
+        {ok, [{summary, {Ok, F, US, AS}}]} = file:consult(Filename),
+        {OkAcc+Ok, FAcc+F, USAcc+US, ASAcc+AS}
+    end, {0, 0, 0, 0}, Files),
+    {Ok, Failed, UserSkipped, AutoSkipped} = Result,
     io:format("CT results:~n"
               "    ~p tests passed~n"
               "    ~p tests failed~n"
               "    ~p tests skipped by user~n"
               "    ~p tests skipped automatically~n",
           [Ok, Failed, UserSkipped, AutoSkipped]),
-    erlang:halt(Failed).
+    erlang:halt(Failed+AutoSkipped).
