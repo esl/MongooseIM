@@ -46,10 +46,14 @@
                  max_users = ?MAX_USERS_DEFAULT,
                  logging = false}).
 
--record(user, {jid,
-               nick,
-               role,
-               last_presence}).
+-record(user, {
+    %% Full JID
+    %% The `user@host/resource' by which an online user is identified
+    %% outside the context of a room.
+    jid,
+    nick,
+    role,
+    last_presence}).
 
 -record(activity, {message_time = 0,
                    presence_time = 0,
