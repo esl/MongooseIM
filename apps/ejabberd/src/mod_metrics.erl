@@ -119,4 +119,4 @@ start_cowboy(Opts) ->
     end.
 
 stop_cowboy() ->
-    cowboy:stop(?REST_LISTENER).
+    cowboy:stop_listener(?REST_LISTENER).

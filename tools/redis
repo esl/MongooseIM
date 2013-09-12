@@ -1,0 +1,17 @@
+#!/bin/bash
+
+if [ $# != 1 ] || ([ $1 != "start" ] && [ $1 != "stop" ])
+then
+    echo "Usage: redis start|stop"
+    exit 1
+fi
+
+if [ $1 == "start" ]
+then
+    echo "daemonize yes" > ejd-redis.conf
+    echo "port 6379" >> ejd-redis.conf
+    echo "pidfile ./redis.pid" >> ejd-redis.conf
+    redis-server ejd-redis.conf
+else
+    kill -9 `cat ./redis.pid`
+fi

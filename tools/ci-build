@@ -1,6 +1,30 @@
 #!/bin/bash
 
+#Former jenkins build&run script (just for the records)
+#echo "daemonize yes" > ejd-redis.conf
+#echo "port 6379" >> ejd-redis.conf
+#echo "pidfile ./redis.pid" >> ejd-redis.conf
+#redis-server ejd-redis.conf
+#./tools/set-odbc-password ODBC_PASSWORD
+#PATH=/var/erlang/r15b01/bin/:$PATH ./tools/ci-build-cover
+#kill -9 `cat ./redis.pid`
+
+if [ $# != 2 ] || ([ $1 != "nocover" ] && [ $1 != "cover" ])
+then
+    echo "Usage: ci-build cover|nocover ODBC_PASSWORD"
+    exit 1
+fi
+
 TOOLS=`dirname $0`
+
+mysqladmin ping -u ejabberd -p$2
+if [ $? != 0 ]
+then
+    echo "mysql is not running!"
+    exit 1
+fi
+
+$TOOLS/redis start
 if [ `uname` = "Darwin" ]; then
     BASE=$(cd "$TOOLS/.."; pwd -P)
 else
@@ -11,9 +35,10 @@ EJD1=$BASE/dev/ejabberd_node1
 EJD2=$BASE/dev/ejabberd_node2
 EJD1CTL=$EJD1/bin/ejabberd
 EJD2CTL=$EJD2/bin/ejabberd
-SUMMARIES_GLOB=$BASE'/test/ejabberd_tests/ct_report/ct_run*/ejabberd_tests.*.logs/*/suite.summary'
+SUMMARIES_DIRS=$BASE'/test/ejabberd_tests/ct_report/ct_run*'
 
-make devrel testrel
+$TOOLS/set-odbc-password vars $2
+make devclean devrel
 echo -n "starting ejabberd node 1: "
 $EJD1CTL start && echo ok || echo failed
 echo -n "starting ejabberd node 2: "
@@ -23,19 +48,33 @@ echo -n "pinging ejabberd node 1: "
 $EJD1CTL ping
 echo -n "pinging ejabberd node 2: "
 $EJD2CTL ping
-make test
+
+make test_deps
+$TOOLS/set-odbc-password test $2
+if [ $1 == "nocover" ]
+then
+    make test
+else
+    make cover_test
+fi
+RAN_TESTS=`cat /tmp/ct_count`
+
 echo -n "stopping ejabberd node 1: "
 $EJD1CTL stop
 echo -n "stopping ejabberd node 2: "
 $EJD2CTL stop
 
+$TOOLS/redis stop
+
 if [ `uname` = "Darwin" ]; then
-    $TOOLS/summarise-ct-results `ls -t $SUMMARIES_GLOB | head -n 1`
+    SUMMARIES_DIR=`ls -dt $SUMMARIES_DIRS | head -n $RAN_TESTS`
 else
-    $TOOLS/summarise-ct-results `eval ls $SUMMARIES_GLOB --sort time | head -n 1`
+    SUMMARIES_DIR=`eval ls -d $SUMMARIES_DIRS --sort time | head -n $RAN_TESTS`
 fi
 
+$TOOLS/summarise-ct-results $SUMMARIES_DIR
 CT_STATUS=$?
+
 echo
 echo "All tests done."
 exit $CT_STATUS

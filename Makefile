@@ -6,7 +6,6 @@ EJD_PRIV = $(EJABBERD_DIR)/priv
 EJD_PRIV_MIB = $(EJD_PRIV)/mibs
 EJD_MIB = $(EJABBERD_DIR)/mibs
 DEVNODES = node1 node2
-TESTNODES = internal_mnesia internal_redis odbc_mnesia odbc_redis external_mnesia external_redis
 
 all: deps compile
 
@@ -36,9 +35,7 @@ rel: rebar deps
 
 devrel: $(DEVNODES)
 
-testrel: $(DEVNODES) $(TESTNODES)
-
-$(DEVNODES) $(TESTNODES): rebar deps compile deps_dev
+$(DEVNODES): rebar deps compile deps_dev
 	@echo "building $@"
 	(cd rel && ../rebar generate -f target_dir=../dev/ejabberd_$@ overlay_vars=./reltool_vars/$@_vars.config)
 	cp apps/ejabberd/src/*.erl dev/ejabberd_$@/lib/ejabberd-2.1.8/ebin/

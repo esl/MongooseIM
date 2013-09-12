@@ -895,9 +895,9 @@ get_jid_info(_, User, Server, JID) ->
     case catch odbc_queries:get_subscription(LServer, Username, SJID) of
         {selected, ["subscription"], [{SSubscription}]} ->
             Subscription = case SSubscription of
-                               "B" -> both;
-                               "T" -> to;
-                               "F" -> from;
+                               <<"B">> -> both;
+                               <<"T">> -> to;
+                               <<"F">> -> from;
                                _ -> none
                            end,
             Groups = case catch odbc_queries:get_rostergroup_by_jid(LServer, Username, SJID) of
@@ -917,9 +917,9 @@ get_jid_info(_, User, Server, JID) ->
                     case catch odbc_queries:get_subscription(LServer, Username, SRJID) of
                         {selected, ["subscription"], [{SSubscription}]} ->
                             Subscription = case SSubscription of
-                                               "B" -> both;
-                                               "T" -> to;
-                                               "F" -> from;
+                                               <<"B">> -> both;
+                                               <<"T">> -> to;
+                                               <<"F">> -> from;
                                                _ -> none
                                            end,
                             Groups = case catch odbc_queries:get_rostergroup_by_jid(LServer, Username, SRJID) of
