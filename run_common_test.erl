@@ -72,7 +72,12 @@ run_test(Test) ->
     {ok, Props} = file:consult(ct_config_file()),
     case proplists:lookup(ejabberd_configs, Props) of
         {ejabberd_configs, Configs} ->
-            [run_config_test(Config, Test) || Config <- Configs],
+            Length = length(Configs),
+            Names = [Name || {Name,_} <- Configs],
+            error_logger:info_msg("Starting test of ~p configurations: ~n~p~n",
+                                  [Length, Names]),
+            Zip = lists:zip(lists:seq(1, Length), Configs),
+            [run_config_test(Config, Test, N, Length) || {N, Config} <- Zip],
             save_count(Test, Configs);
         _ ->
             Result = ct:run_test(Test),
@@ -85,7 +90,7 @@ run_test(Test) ->
             save_count(Test, [])
     end.
 
-run_config_test({Name, Variables}, Test) ->
+run_config_test({Name, Variables}, Test, N, Tests) ->
     Node = get_ejabberd_node(),
     {ok, Cwd} = call(Node, file, get_cwd, []),
     Cfg = filename:join([Cwd, "..", "..", "rel", "files", "ejabberd.cfg"]),
@@ -101,7 +106,8 @@ run_config_test({Name, Variables}, Test) ->
     ok = call(Node, file, write_file, [CfgFile, NewCfgFile]),
     call(Node, application, stop, [ejabberd]),
     call(Node, application, start, [ejabberd]),
-    error_logger:info_msg("Configuration ~p test started.~n", [Name]),
+    error_logger:info_msg("Configuration ~p of ~p: ~p started.~n",
+                          [N, Tests, Name]),
     Result = ct:run_test([{label, Name} | Test]),
     case Result of
         {error, Reason} ->
