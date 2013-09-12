@@ -1,6 +1,8 @@
 -module(dynamic_modules).
 
--export([stop/2, start/3, restart/3]).
+-include_lib("common_test/include/ct.hrl").
+
+-export([stop/2, start/3, restart/3, stop_running/2, start_running/1]).
 
 
 stop(Domain, Mod) ->
@@ -37,3 +39,32 @@ restart(Domain, Mod, Args) ->
     end,
     start(Domain, Mod, Args).
 
+start_running(Config) ->
+    Domain = escalus_config:get_config(ejabberd_domain, Config),
+    case ?config(running, Config) of
+        List when is_list(List) ->
+            _ = [start(Domain, Mod, Args) || {Mod, Args} <- List];
+        _ ->
+            ok
+    end.
+
+stop_running(Mod, Config) ->
+    ModL = atom_to_list(Mod),
+    Domain = escalus_config:get_config(ejabberd_domain, Config),
+    Modules = escalus_ejabberd:rpc(ejabberd_config,
+                                   get_local_option, [{modules, Domain}]),
+    Filtered = lists:filter(fun({Module, _}) ->
+                    ModuleL = atom_to_list(Module),
+                    case lists:sublist(ModuleL, 1, length(ModL)) of
+                        ModL -> true;
+                        _ -> false
+                    end;
+                (_) -> false
+            end, Modules),
+    case Filtered of
+        [] ->
+            Config;
+        [{Module,_Args}=Head|_] ->
+            stop(Domain, Module), 
+            [{running, [Head]} | Config]
+    end.

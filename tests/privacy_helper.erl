@@ -14,8 +14,7 @@
          set_default_list/2,
          privacy_list/1,
          is_privacy_list_push/1,
-         is_presence_error/1,
-         restart_mod_privacy/1]).
+         is_presence_error/1]).
 
 %% Sets the list on server and makes it the active one.
 set_and_activate(Client, ListName) ->
@@ -129,8 +128,3 @@ list_content(<<"deny_3_items">>) -> [
         escalus_stanza:privacy_list_jid_item(<<"2">>, <<"deny">>, <<"steve@localhost">>, []),
         escalus_stanza:privacy_list_jid_item(<<"3">>, <<"deny">>, <<"john@localhost">>, [])
     ].
-
-restart_mod_privacy(Sufix) ->
-    Domain = ct:get_config(ejabberd_domain),
-    Mod = list_to_atom("mod_privacy"++Sufix),
-    dynamic_modules:restart(Domain, Mod, []).
