@@ -101,7 +101,7 @@ run_config_test({Name, Variables}, Test) ->
     ok = call(Node, file, write_file, [CfgFile, NewCfgFile]),
     call(Node, application, stop, [ejabberd]),
     call(Node, application, start, [ejabberd]),
-    ct:print("Configuration ~p test started.~n", [Name]),
+    error_logger:info_msg("Configuration ~p test started.~n", [Name]),
     Result = ct:run_test([{label, Name} | Test]),
     case Result of
         {error, Reason} ->
