@@ -26,136 +26,169 @@
 -define(MUC_CLIENT_HOST, <<"localhost/res1">>).
 -define(PASSWORD, <<"password">>).
 -define(SUBJECT, <<"subject">>).
+-define(WAIT_TIME, 1500).
 
 -define(NS_MUC_REQUEST, <<"http://jabber.org/protocol/muc#request">>).
 -define(NS_MUC_ROOMCONFIG, <<"http://jabber.org/protocol/muc#roomconfig">>).
+
+-define(assert_equal(E, V), (
+    [ct:fail("assert_equal( ~p, ~p) failed~n\tExpected ~p~n\tValue ~p~n",
+             [??E, ??V, (E), (V)])
+     || (E) =/= (V)]
+    )).
+
+-record(rsm_in, {
+        max :: non_neg_integer() | undefined,
+        direction :: before | 'after' | undefined,
+        id :: binary() | undefined,
+        index ::non_neg_integer() | undefined
+        }).
+
+-record(rsm_out, {
+        index :: non_neg_integer() | undefined,
+        count :: non_neg_integer(),
+        first :: binary() | undefined,
+        last  :: binary() | undefined,
+        items :: [#xmlel{}]
+        }).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
 
 all() -> [
-          {group, disco},
-          {group, moderator},
-          {group, admin},
-          {group, admin_membersonly},
-          {group, occupant},
-          {group, owner},
-          {group, room_management}
-         ].
+        {group, disco},
+        {group, disco_rsm},
+        {group, moderator},
+        {group, admin},
+        {group, admin_membersonly},
+        {group, occupant},
+        {group, owner},
+        {group, room_management}
+        ].
 
 groups() -> [
-             {disco, [], [
-                                  disco_service,
-                                  disco_features,
-                                  disco_rooms,
-                                  disco_info,
-                                  disco_items
-                                 ]},
-             {moderator, [], [
-                                      moderator_subject,
-                                      moderator_subject_unauthorized,
-                                      moderator_kick,
-                                      moderator_kick_with_reason,
-                                      moderator_kick_unauthorized,
-                                      moderator_voice,
-                                      moderator_voice_with_reason,
-                                      moderator_voice_unauthorized,
-                                      moderator_voice_list,
-                                      moderator_voice_approval,
-                                      moderator_voice_forbidden,
-                                      moderator_voice_not_occupant,
-                                      moderator_voice_nonick
-                                     ]},
-             {admin, [], [
-                                  admin_ban,
-                                  admin_ban_with_reason,
-                                  admin_ban_list,
-                                  admin_invalid_affiliation,
-                                  admin_invalid_jid,
-                                  %% test should fail, temporarily changed
-                                  admin_ban_higher_user,
-                                  admin_membership,
-                                  admin_membership_with_reason,
-                                  admin_member_list,
-                                  admin_moderator,
-                                  admin_moderator_with_reason,
-                                  admin_moderator_revoke_owner,
-                                  admin_moderator_list,
-                                  admin_invalid_role,
-                                  admin_invalid_nick
-                                 ]},
-             {admin_membersonly, [], [
-                                              admin_mo_revoke,
-                                              admin_mo_invite,
-                                              admin_mo_invite_with_reason,
-                                              admin_mo_invite_mere
-                                             ]},
-             {occupant, [], [
-%nick registration in a room is not implemented and will not be tested
-                                     groupchat_user_enter,
-                                     groupchat_user_enter_no_nickname,
-                                     muc_user_enter,
-                                     enter_non_anonymous_room,
-                                     deny_access_to_password_protected_room,
-                                     enter_password_protected_room,
-                                     deny_accesss_to_memebers_only_room,
-                                     deny_entry_to_a_banned_user,
-                                     deny_entry_nick_conflict,
-                                     enter_room_with_logging,
-                                     deny_entry_user_limit_reached,
-                                     send_history,
-%                                     send_non_anonymous_history,
-%                                     limit_history_chars,
-%                                     limit_history_messages,
-%                                     recent_history, %unfinished,
-%                                     history_since,
-%                                     no_history,
-                                     subject,
-                                     no_subject,
-                                     send_to_all,
-                                     send_and_receive_private_message,
-                                     send_private_groupchat,
-                                     change_nickname,
-                                     deny_nickname_change_conflict,
-                                     change_availability_status,
-                                     mediated_invite,
-                                     one2one_chat_to_muc,
-                                     exit_room,
-                                     exit_room_with_status
-                                    ]},
-             {owner, [], [
-                                  room_creation_not_allowed,
-                                  %% fails, see testcase
-                                  cant_enter_locked_room,
-                                  create_instant_room,
-                                  destroy_locked_room,
-                                  create_reserved_room,
-                                  %% fails, see testcase
-                                  reserved_room_cancel,
-                                  reserved_room_unacceptable,
-                                  reserved_room_configuration,
-                                  owner_grant_revoke,
-                                  owner_grant_revoke_with_reason,
-                                  owner_list,
-                                  owner_unauthorized,
-                                  admin_grant_revoke,
-                                  admin_grant_revoke_with_reason,
-                                  admin_list,
-                                  admin_unauthorized,
-                                  destroy,
-                                  destroy_unauthorized,
-                                  config_denial,
-                                  config_cancel,
-                                  configure,
-                                  configure_logging,
-                                  %% fails, see testcase
-                                  configure_anonymous
-                                 ]},
-             {room_management, [], [
-                                            create_and_destroy_room
-                                           ]}
-            ].
+        {disco, [], [
+                disco_service,
+                disco_features,
+                disco_rooms,
+                disco_info,
+                disco_items
+                ]},
+        {disco_rsm, [], rsm_cases()},
+        {moderator, [], [
+                moderator_subject,
+                moderator_subject_unauthorized,
+                moderator_kick,
+                moderator_kick_with_reason,
+                moderator_kick_unauthorized,
+                moderator_voice,
+                moderator_voice_with_reason,
+                moderator_voice_unauthorized,
+                moderator_voice_list,
+                moderator_voice_approval,
+                moderator_voice_forbidden,
+                moderator_voice_not_occupant,
+                moderator_voice_nonick
+                ]},
+        {admin, [], [
+                admin_ban,
+                admin_ban_with_reason,
+                admin_ban_list,
+                admin_invalid_affiliation,
+                admin_invalid_jid,
+                %% test should fail, temporarily changed
+                admin_ban_higher_user,
+                admin_membership,
+                admin_membership_with_reason,
+                admin_member_list,
+                admin_moderator,
+                admin_moderator_with_reason,
+                admin_moderator_revoke_owner,
+                admin_moderator_list,
+                admin_invalid_role,
+                admin_invalid_nick
+                ]},
+        {admin_membersonly, [], [
+                admin_mo_revoke,
+                admin_mo_invite,
+                admin_mo_invite_with_reason,
+                admin_mo_invite_mere
+                ]},
+        {occupant, [], [
+                %nick registration in a room is not implemented and will not be tested
+                groupchat_user_enter,
+                groupchat_user_enter_no_nickname,
+                muc_user_enter,
+                enter_non_anonymous_room,
+                deny_access_to_password_protected_room,
+                enter_password_protected_room,
+                deny_accesss_to_memebers_only_room,
+                deny_entry_to_a_banned_user,
+                deny_entry_nick_conflict,
+                enter_room_with_logging,
+                deny_entry_user_limit_reached,
+                send_history,
+                %% the following tests fail and have been commented because
+                %% certain features are not implemented in ejabberd
+                %% send_non_anonymous_history,
+                %% limit_history_chars,
+                %% limit_history_messages,
+                %% recent_history, %unfinished,
+                %% history_since,
+                %% no_history,
+                subject,
+                no_subject,
+                send_to_all,
+                send_and_receive_private_message,
+                send_private_groupchat,
+                change_nickname,
+                deny_nickname_change_conflict,
+                change_availability_status,
+                mediated_invite,
+                one2one_chat_to_muc,
+                exit_room,
+                exit_room_with_status
+                ]},
+        {owner, [], [
+                room_creation_not_allowed,
+                %% fails, see testcase
+                cant_enter_locked_room,
+                create_instant_room,
+                destroy_locked_room,
+                create_reserved_room,
+                %% fails, see testcase
+                reserved_room_cancel,
+                reserved_room_unacceptable,
+                reserved_room_configuration,
+                owner_grant_revoke,
+                owner_grant_revoke_with_reason,
+                owner_list,
+                owner_unauthorized,
+                admin_grant_revoke,
+                admin_grant_revoke_with_reason,
+                admin_list,
+                admin_unauthorized,
+                destroy,
+                destroy_unauthorized,
+                config_denial,
+                config_cancel,
+                configure,
+                configure_logging,
+                %% fails, see testcase
+                configure_anonymous
+                ]},
+        {room_management, [], [
+                create_and_destroy_room
+                ]}
+        ].
+
+rsm_cases() ->
+      [pagination_first5,
+       pagination_last5,
+       pagination_before10,
+       pagination_after10,
+       pagination_empty_rset].
 
 suite() ->
     escalus:suite().
@@ -200,6 +233,11 @@ init_per_group(disco, Config) ->
     start_room(Config1, Alice, <<"alicesroom">>, <<"aliceonchat">>,
         [{persistent, true}]);
 
+init_per_group(disco_rsm, Config) ->
+    Config1 = escalus:create_users(Config),
+    [Alice | _] = ?config(escalus_users, Config1),
+    start_rsm_rooms(Config1, Alice, <<"aliceonchat">>);
+
 init_per_group(_GroupName, Config) ->
     escalus:create_users(Config).
 
@@ -217,6 +255,10 @@ end_per_group(admin_membersonly, Config) ->
 
 end_per_group(disco, Config) ->
     destroy_room(Config),
+    escalus:delete_users(Config);
+
+end_per_group(disco_rsm, Config) ->
+    destroy_rsm_rooms(Config),
     escalus:delete_users(Config);
 
 end_per_group(_GroupName, Config) ->
@@ -463,236 +505,189 @@ init_per_testcase(CaseName, Config) ->
 
 end_per_testcase(CaseName = configure_anonymous, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config),
-    timer:sleep(3000);
+    escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName = configure_logging, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config),
-    timer:sleep(3000);
+    escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName = configure, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config),
-    timer:sleep(3000);
+    escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName = config_cancel, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config),
-    timer:sleep(3000);
+    escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName = config_denial, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config),
-    timer:sleep(3000);
+    escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName = destroy_unauthorized, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config),
-    timer:sleep(3000);
+    escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName = destroy, Config) ->
-    escalus:end_per_testcase(CaseName, Config),
-    timer:sleep(3000);
+    escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName = admin_unauthorized, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config),
-    timer:sleep(3000);
+    escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName = admin_list, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config),
-    timer:sleep(3000);
+    escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName = admin_grant_revoke, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config),
-    timer:sleep(3000);
+    escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName = admin_grant_revoke_with_reason, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config),
-    timer:sleep(3000);
+    escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName = owner_unauthorized, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config),
-    timer:sleep(3000);
+    escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName = owner_list, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config),
-    timer:sleep(3000);
+    escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName = owner_grant_revoke, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config),
-    timer:sleep(3000);
+    escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName = owner_grant_revoke_with_reason, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config),
-    timer:sleep(3000);
+    escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName = groupchat_user_enter, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config),
-    timer:sleep(3000);
+    escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName = groupchat_user_enter_no_nickname, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config),
-    timer:sleep(3000);
+    escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName = muc_user_enter, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config),
-    timer:sleep(3000);
+    escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName = deny_access_to_password_protected_room, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config),
-    timer:sleep(3000);
+    escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName = enter_password_protected_room, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config),
-    timer:sleep(3000);
+    escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName = deny_accesss_to_memebers_only_room, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config),
-    timer:sleep(3000);
+    escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName =deny_entry_to_a_banned_user, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config),
-    timer:sleep(3000);
+    escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName =deny_entry_nick_conflict, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config),
-    timer:sleep(3000);
+    escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName =deny_entry_user_limit_reached, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config),
-    timer:sleep(3000);
+    escalus:end_per_testcase(CaseName, Config);
 
 %end_per_testcase(CaseName =deny_entry_locked_room, Config) ->
 %    destroy_room(Config),
-%    escalus:end_per_testcase(CaseName, Config),
-%    timer:sleep(3000);
+%    escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName =enter_room_with_logging, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config),
-    timer:sleep(3000);
+    escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName =send_and_receive_private_message, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config),
-    timer:sleep(3000);
+    escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName =send_history, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config),
-    timer:sleep(3000);
+    escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName =send_non_anonymous_history, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config),
-    timer:sleep(3000);
+    escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName =limit_history_chars, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config),
-    timer:sleep(3000);
+    escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName =limit_history_messages, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config),
-    timer:sleep(3000);
+    escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName =recent_history, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config),
-    timer:sleep(3000);
+    escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName =history_since, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config),
-    timer:sleep(3000);
+    escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName =no_history, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config),
-    timer:sleep(3000);
+    escalus:end_per_testcase(CaseName, Config);
 										
 end_per_testcase(CaseName =subject, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config),
-    timer:sleep(3000);
+    escalus:end_per_testcase(CaseName, Config);
 										
 end_per_testcase(CaseName =no_subject, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config),
-    timer:sleep(3000);
+    escalus:end_per_testcase(CaseName, Config);
 										
 end_per_testcase(CaseName =send_to_all, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config),
-    timer:sleep(3000);
+    escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName =send_private_groupchat, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config),
-    timer:sleep(3000);
+    escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName =change_nickname, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config),
-    timer:sleep(3000);
+    escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName =deny_nickname_change_conflict, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config),
-    timer:sleep(3000);
+    escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName =change_availability_status, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config),
-    timer:sleep(3000);
+    escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName =mediated_invite, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config),
-    timer:sleep(3000);
+    escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName =registration_request, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config),
-    timer:sleep(3000);
+    escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName =reserved_nickname_request, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config),
-    timer:sleep(3000);
+    escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName =exit_room, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config),
-    timer:sleep(3000);
+    escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName =exit_room_with_status, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config),
-    timer:sleep(3000);
+    escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName, Config) ->
-    escalus:end_per_testcase(CaseName, Config),
-    timer:sleep(3000).
+    escalus:end_per_testcase(CaseName, Config).
 
 %%--------------------------------------------------------------------
 %%  Moderator use case tests
@@ -1450,6 +1445,7 @@ admin_member_list(Config) ->
 %%  Examples 137-145
 admin_moderator(Config) ->
     escalus:story(Config, [1,1,1], fun(Alice, Bob, Kate) ->
+        timer:sleep(?WAIT_TIME),
         %% Alice joins room
         escalus:send(Alice, stanza_muc_enter_room(?config(room, Config), <<"alice">>)),
         escalus:wait_for_stanzas(Alice, 2),
@@ -1854,11 +1850,13 @@ muc_user_enter(Config) ->
     escalus:story(Config, [1, 1, 1], fun(_Alice, Bob, Eve) ->
         %Bob enters the room
         escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Bob))),
-        escalus:send(Eve, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Eve))),
+
         Presence = escalus:wait_for_stanza(Bob),
 		is_presence_with_affiliation(Presence, <<"none">>),
 		is_self_presence(Bob, ?config(room, Config), Presence),
         escalus:wait_for_stanza(Bob),   %topic
+
+        escalus:send(Eve, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Eve))),
 
         Presence2 = escalus:wait_for_stanza(Bob),
 		is_presence_with_affiliation(Presence2, <<"none">>),
@@ -1934,8 +1932,8 @@ deny_entry_nick_conflict(Config) ->
     escalus:story(Config, [1, 1, 1], fun(_Alice,  Bob, Eve) ->
         Enter_room_stanza = stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Bob)), 
         escalus:send(Bob, Enter_room_stanza),
-        escalus:send(Eve, Enter_room_stanza),
         escalus:wait_for_stanzas(Bob, 2),
+        escalus:send(Eve, Enter_room_stanza),
         escalus_assert:is_error(escalus:wait_for_stanza(Eve), <<"cancel">>, <<"conflict">>)
     end).
 
@@ -1944,6 +1942,7 @@ deny_entry_nick_conflict(Config) ->
 deny_entry_user_limit_reached(Config) ->
     escalus:story(Config, [1, 1], fun(Alice,  Bob) ->
         escalus:send(Alice , stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Alice))),
+        escalus:wait_for_stanzas(Alice, 2),
         escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Bob))),
         escalus_assert:is_error(escalus:wait_for_stanza(Bob), <<"wait">>, <<"service-unavailable">>)
     end).
@@ -1978,15 +1977,18 @@ enter_room_with_logging(Config) ->
 send_history(Config) ->
     escalus:story(Config, [1, 1, 1], fun(Alice,  Bob, Eve) ->
         escalus:send(Alice , stanza_muc_enter_room(?config(room, Config), nick(Alice))),
+        escalus:wait_for_stanzas(Alice, 2),
         escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), nick(Bob))),
-        escalus:wait_for_stanzas(Alice, 3),
         escalus:wait_for_stanzas(Bob, 3),
+        escalus:wait_for_stanza(Alice),
 		Msg= <<"Hi, Bob!">>,
 		Msg2= <<"Hi, Alice!">>,
 		escalus:send(Alice,escalus_stanza:groupchat_to(room_address(?config(room, Config)), Msg)),
+		escalus:wait_for_stanza(Alice),
+        escalus:wait_for_stanza(Bob),
 		escalus:send(Bob,escalus_stanza:groupchat_to(room_address(?config(room, Config)), Msg2)),
-		escalus:wait_for_stanzas(Alice, 2),
-		escalus:wait_for_stanzas(Bob, 2),
+		escalus:wait_for_stanza(Alice),
+        escalus:wait_for_stanza(Bob),
 
 		%Eve enters and receives the presences, the message history and finally the topic
         escalus:send(Eve, stanza_muc_enter_room(?config(room, Config), nick(Eve))),
@@ -2009,16 +2011,18 @@ send_history(Config) ->
 send_non_anonymous_history(Config) ->
     escalus:story(Config, [1, 1, 1], fun(Alice,  Bob, Eve) ->
         escalus:send(Alice , stanza_muc_enter_room(?config(room, Config), nick(Alice))),
+        escalus:wait_for_stanzas(Alice, 2),
         escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), nick(Bob))),
-        		
-        escalus:wait_for_stanzas(Alice, 3),
         escalus:wait_for_stanzas(Bob, 3),
+        escalus:wait_for_stanza(Alice),
 		Msg= <<"Hi, Bob!">>,
 		Msg2= <<"Hi, Alice!">>,
 		escalus:send(Alice,escalus_stanza:groupchat_to(room_address(?config(room, Config)), Msg)),
+		escalus:wait_for_stanza(Alice),
+        escalus:wait_for_stanza(Bob),
 		escalus:send(Bob,escalus_stanza:groupchat_to(room_address(?config(room, Config)), Msg2)),
-		escalus:wait_for_stanzas(Alice, 2),
-		escalus:wait_for_stanzas(Bob, 2),
+		escalus:wait_for_stanza(Alice),
+        escalus:wait_for_stanza(Bob),
 
 		%Eve enters and receives the presences, the message history and finally the topic
         escalus:send(Eve, stanza_muc_enter_room(?config(room, Config), nick(Eve))),
@@ -2039,15 +2043,18 @@ send_non_anonymous_history(Config) ->
 limit_history_chars(Config) ->
     escalus:story(Config, [1, 1, 1], fun(Alice,  Bob, Eve) ->
         escalus:send(Alice , stanza_muc_enter_room(?config(room, Config), nick(Alice))),
+        escalus:wait_for_stanzas(Alice, 2),
         escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), nick(Bob))),
-        escalus:wait_for_stanzas(Alice, 3),
+        escalus:wait_for_stanza(Alice),
         escalus:wait_for_stanzas(Bob, 3),
 		Msg= <<"Hi, Bob!">>,
 		Msg2= <<"Hi, Alice!">>,
 		escalus:send(Alice,escalus_stanza:groupchat_to(room_address(?config(room, Config)), Msg)),
+		escalus:wait_for_stanza(Alice),
+        escalus:wait_for_stanza(Bob),
 		escalus:send(Bob,escalus_stanza:groupchat_to(room_address(?config(room, Config)), Msg2)),
-		escalus:wait_for_stanzas(Alice, 2),
-		escalus:wait_for_stanzas(Bob, 2),
+		escalus:wait_for_stanza(Alice),
+        escalus:wait_for_stanza(Bob),
 
  		%Eve enters and receives the presences, the message history and finally the topic
         escalus:send(Eve, stanza_muc_enter_room_history_setting(?config(room, Config), nick(Eve), <<"maxchars">>,<<"500">>)),
@@ -2066,15 +2073,18 @@ limit_history_chars(Config) ->
 limit_history_messages(Config) ->
     escalus:story(Config, [1, 1, 1], fun(Alice,  Bob, Eve) ->
         escalus:send(Alice , stanza_muc_enter_room(?config(room, Config), nick(Alice))),
+        escalus:wait_for_stanzas(Alice, 2),
         escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), nick(Bob))),
-        escalus:wait_for_stanzas(Alice, 3),
+        escalus:wait_for_stanza(Alice),
         escalus:wait_for_stanzas(Bob, 3),
 		Msg= <<"Hi, Bob!">>,
 		Msg2= <<"Hi, Alice!">>,
 		escalus:send(Alice,escalus_stanza:groupchat_to(room_address(?config(room, Config)), Msg)),
+ 		escalus:wait_for_stanza(Alice),	
+ 		escalus:wait_for_stanza(Bob),	
 		escalus:send(Bob,escalus_stanza:groupchat_to(room_address(?config(room, Config)), Msg2)),
-		escalus:wait_for_stanzas(Alice, 2),
-		escalus:wait_for_stanzas(Bob, 2),
+ 		escalus:wait_for_stanza(Alice),	
+ 		escalus:wait_for_stanza(Bob),	
 
  		%Eve enters and receives the presences, the message history and finally the topic
         escalus:send(Eve, stanza_muc_enter_room_history_setting(?config(room, Config), nick(Eve), <<"maxstanzas">>,<<"1">>)),
@@ -2093,16 +2103,18 @@ limit_history_messages(Config) ->
 recent_history(Config) ->
     escalus:story(Config, [1, 1, 1], fun(Alice,  Bob, Eve) ->
         escalus:send(Alice , stanza_muc_enter_room(?config(room, Config), nick(Alice))),
+        escalus:wait_for_stanzas(Alice, 2),
         escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), nick(Bob))),
-        escalus:wait_for_stanzas(Alice, 3),
+        escalus:wait_for_stanza(Alice),
         escalus:wait_for_stanzas(Bob, 3),
 		Msg= <<"Hi, Bob!">>,
 		Msg2= <<"Hi, Alice!">>,
 		escalus:send(Alice,escalus_stanza:groupchat_to(room_address(?config(room, Config)), Msg)),
-		timer:sleep(5000),
+ 		escalus:wait_for_stanza(Alice),	
+ 		escalus:wait_for_stanza(Bob),	
 		escalus:send(Bob,escalus_stanza:groupchat_to(room_address(?config(room, Config)), Msg2)),
-		escalus:wait_for_stanzas(Alice, 2),
-		escalus:wait_for_stanzas(Bob, 2),
+ 		escalus:wait_for_stanza(Alice),	
+ 		escalus:wait_for_stanza(Bob),	
 
  		%Eve enters and receives the presences, the message history and finally the topic
         escalus:send(Eve, stanza_muc_enter_room_history_setting(?config(room, Config), nick(Eve), <<"seconds">>,<<"3">>)),
@@ -2121,16 +2133,19 @@ recent_history(Config) ->
 history_since(Config) ->
     escalus:story(Config, [1, 1, 1], fun(Alice,  Bob, Eve) ->
         escalus:send(Alice , stanza_muc_enter_room(?config(room, Config), nick(Alice))),
+        escalus:wait_for_stanzas(Alice, 2),
         escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), nick(Bob))),
-        escalus:wait_for_stanzas(Alice, 3),
+        escalus:wait_for_stanza(Alice),
         escalus:wait_for_stanzas(Bob, 3),
 		Msg= <<"Hi, Bob!">>,
 		Msg2= <<"Hi, Alice!">>,
 		escalus:send(Alice,escalus_stanza:groupchat_to(room_address(?config(room, Config)), Msg)),
+ 		escalus:wait_for_stanza(Alice),	
+ 		escalus:wait_for_stanza(Bob),	
 		escalus:send(Bob,escalus_stanza:groupchat_to(room_address(?config(room, Config)), Msg2)),
-		escalus:wait_for_stanzas(Alice, 2),
-		escalus:wait_for_stanzas(Bob, 2),
-
+ 		escalus:wait_for_stanza(Alice),	
+ 		escalus:wait_for_stanza(Bob),	
+ 
  		%Eve enters and receives the presences, the message history and finally the topic
         escalus:send(Eve, stanza_muc_enter_room_history_setting(?config(room, Config), nick(Eve), <<"since">>,<<"1970-01-01T00:00:00Z">>)),
  		escalus:wait_for_stanza(Alice),	
@@ -2149,15 +2164,18 @@ history_since(Config) ->
 no_history(Config) ->
     escalus:story(Config, [1, 1, 1], fun(Alice,  Bob, Eve) ->
         escalus:send(Alice , stanza_muc_enter_room(?config(room, Config), nick(Alice))),
+        escalus:wait_for_stanzas(Alice, 2),
         escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), nick(Bob))),
-        escalus:wait_for_stanzas(Alice, 3),
+        escalus:wait_for_stanza(Alice),
         escalus:wait_for_stanzas(Bob, 3),
 		Msg= <<"Hi, Bob!">>,
 		Msg2= <<"Hi, Alice!">>,
 		escalus:send(Alice,escalus_stanza:groupchat_to(room_address(?config(room, Config)), Msg)),
+ 		escalus:wait_for_stanza(Alice),	
+ 		escalus:wait_for_stanza(Bob),	
 		escalus:send(Bob,escalus_stanza:groupchat_to(room_address(?config(room, Config)), Msg2)),
-		escalus:wait_for_stanzas(Alice, 2),
-		escalus:wait_for_stanzas(Bob, 2),
+ 		escalus:wait_for_stanza(Alice),	
+ 		escalus:wait_for_stanza(Bob),	
 
  		%Eve enters and receives the presences, the message history and finally the topic
         escalus:send(Eve, stanza_muc_enter_room_history_setting(?config(room, Config), nick(Eve), <<"maxchars">>,<<"0">>)),
@@ -2193,8 +2211,9 @@ no_subject(Config)->
 send_to_all(Config) ->
     escalus:story(Config, [1, 1, 1], fun(_Alice,  Bob, Eve) ->
         escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Bob))),
+        escalus:wait_for_stanzas(Bob, 2),
         escalus:send(Eve, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Eve))),
-		escalus:wait_for_stanzas(Bob, 3),
+		escalus:wait_for_stanza(Bob),
 		escalus:wait_for_stanzas(Eve, 3),
 
         Msg = <<"chat message">>,
@@ -2210,9 +2229,10 @@ send_to_all(Config) ->
 send_and_receive_private_message(Config) ->
     escalus:story(Config, [1, 1, 1], fun(_Alice,  Bob, Eve) ->
         escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Bob))),
+        escalus:wait_for_stanzas(Bob, 2),
         escalus:send(Eve, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Eve))),
-        escalus:wait_for_stanzas(Bob, 3),
         escalus:wait_for_stanzas(Eve, 3),
+        escalus:wait_for_stanza(Bob),
         		
         Msg = <<"chat message">>,
         ChatMessage = escalus_stanza:chat_to(room_address(?config(room, Config), escalus_utils:get_username(Eve)), Msg),
@@ -2225,9 +2245,10 @@ send_and_receive_private_message(Config) ->
 %Example 48
 send_private_groupchat(Config) ->
     escalus:story(Config, [1, 1, 1], fun(Alice,  Bob, Eve) ->
-		escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), nick(Bob))),
-        escalus:send(Eve, stanza_muc_enter_room(?config(room, Config), nick(Eve))),
-        escalus:wait_for_stanzas(Bob, 3),
+        escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Bob))),
+        escalus:wait_for_stanzas(Bob, 2),
+        escalus:send(Eve, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Eve))),
+        escalus:wait_for_stanza(Bob),
         escalus:wait_for_stanzas(Eve, 3),
 
         Msg = <<"chat message">>,
@@ -2249,9 +2270,10 @@ send_private_groupchat(Config) ->
 % Fails - no 110 status code 
 change_nickname(Config) ->
     escalus:story(Config, [1, 1, 1], fun(_Alice,  Bob, Eve) ->
-        escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
-        escalus:send(Eve, stanza_muc_enter_room(?config(room, Config), <<"eve">>)),
-        escalus:wait_for_stanzas(Bob, 3),
+        escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Bob))),
+        escalus:wait_for_stanzas(Bob, 2),
+        escalus:send(Eve, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Eve))),
+        escalus:wait_for_stanza(Bob),
         escalus:wait_for_stanzas(Eve, 3),
 
         escalus:send(Bob, stanza_change_nick(?config(room, Config), <<"newbob">>)),
@@ -2272,8 +2294,9 @@ change_nickname(Config) ->
 deny_nickname_change_conflict(Config) ->
     escalus:story(Config, [1, 1, 1], fun(_Alice,  Bob, Eve) ->
         escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
+        escalus:wait_for_stanzas(Bob, 2),
         escalus:send(Eve, stanza_muc_enter_room(?config(room, Config), <<"eve">>)),
-        escalus:wait_for_stanzas(Bob, 3),
+        escalus:wait_for_stanza(Bob),
         escalus:wait_for_stanzas(Eve, 3),
         escalus:send(Bob, stanza_change_nick(?config(room, Config), <<"eve">>)),
         escalus_assert:is_error(escalus:wait_for_stanza(Bob), <<"cancel">>, <<"conflict">>)
@@ -2287,8 +2310,9 @@ deny_nickname_change_conflict(Config) ->
 change_availability_status(Config) ->
     escalus:story(Config, [1, 1], fun(Alice,  Bob) ->
 		escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), nick(Bob))),
+        escalus:wait_for_stanzas(Bob, 2),
         escalus:send(Alice, stanza_muc_enter_room(?config(room, Config), nick(Alice))),
-        escalus:wait_for_stanzas(Bob, 3),
+        escalus:wait_for_stanza(Bob),
         escalus:wait_for_stanzas(Alice, 3),
         Status = <<"Bobs awesome new status">>,
         escalus:send(Bob, stanza_change_availability(Status, ?config(room, Config), nick(Bob))),
@@ -2356,8 +2380,8 @@ one2one_chat_to_muc(Config) ->
         is_invitation(escalus:wait_for_stanza(Eve)),
         %Bob and Eve accept the invitations
         escalus:send(Bob, stanza_muc_enter_room(Room, <<"bob">>)),
+        escalus:wait_for_stanzas(Bob, 2),
         escalus:send(Eve, stanza_muc_enter_room(Room, <<"eve">>)),
-        escalus:wait_for_stanzas(Bob, 2), %presences; bob receives the history before he receves Eves presence
         escalus:wait_for_stanzas(Eve, 3), %presences
         %Bob and Eve receive the history
         is_history_message_correct(Room, <<"alice">>,<<"groupchat">>,<<"Hi,Bob!">>, escalus:wait_for_stanza(Bob)),
@@ -2419,11 +2443,14 @@ one2one_chat_to_muc(Config) ->
 exit_room(Config) ->
     escalus:story(Config, [1, 1, 1], fun(Alice,  Bob, Eve) ->
         escalus:send(Alice, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Alice))),
+        escalus:wait_for_stanzas(Alice, 2),
         escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Bob))),
+        escalus:wait_for_stanzas(Bob, 3),
+        escalus:wait_for_stanza(Alice),
         escalus:send(Eve, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Eve))),
-		escalus:wait_for_stanzas(Alice, 4),
-        escalus:wait_for_stanzas(Bob, 4),
         escalus:wait_for_stanzas(Eve, 4),
+        escalus:wait_for_stanza(Alice),
+        escalus:wait_for_stanza(Bob),
 		escalus:send(Alice, stanza_to_room(escalus_stanza:presence(<<"unavailable">>), ?config(room, Config), escalus_utils:get_username(Alice))),
 		Message = escalus:wait_for_stanza(Alice),
 		has_status_codes(Message, [<<"110">>]),
@@ -2439,11 +2466,14 @@ exit_room(Config) ->
 exit_room_with_status(Config) ->
     escalus:story(Config, [1, 1, 1], fun(Alice,  Bob, Eve) ->
         escalus:send(Alice, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Alice))),
+        escalus:wait_for_stanzas(Alice, 2),
         escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Bob))),
+        escalus:wait_for_stanzas(Bob, 3),
+        escalus:wait_for_stanza(Alice),
         escalus:send(Eve, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Eve))),
-		escalus:wait_for_stanzas(Alice, 4),
-        escalus:wait_for_stanzas(Bob, 4),
         escalus:wait_for_stanzas(Eve, 4),
+        escalus:wait_for_stanza(Alice),
+        escalus:wait_for_stanza(Bob),
 
 		Status = <<"Alices exit status">>,
 		StatusXml = #xmlel{name = <<"status">>, children = [#xmlcdata{content=Status}]},
@@ -3358,6 +3388,175 @@ destroy_unauthorized(Config) ->
         escalus:send(Alice, stanza_get_rooms()),
         count_rooms(escalus:wait_for_stanza(Alice),1)
     end).
+
+%%--------------------------------------------------------------------
+%% RSM (a partial list of rooms)
+%%--------------------------------------------------------------------
+
+pagination_empty_rset(Config) ->
+    F = fun(Alice) ->
+        %% Get the first page of size 5.
+        RSM = #rsm_in{max=0},
+        escalus:send(Alice, stanza_room_list_request(<<"empty_rset">>, RSM)),
+        wait_empty_rset(Alice, 15)
+        end,
+    escalus:story(Config, [1], F).
+
+pagination_first5(Config) ->
+    F = fun(Alice) ->
+        %% Get the first page of size 5.
+        RSM = #rsm_in{max=5},
+        escalus:send(Alice, stanza_room_list_request(<<"first5">>, RSM)),
+        wait_room_range(Alice, 1, 5),
+        ok
+        end,
+    escalus:story(Config, [1], F).
+
+pagination_last5(Config) ->
+    F = fun(Alice) ->
+        %% Get the last page of size 5.
+        RSM = #rsm_in{max=5, direction=before},
+        escalus:send(Alice, stanza_room_list_request(<<"last5">>, RSM)),
+        wait_room_range(Alice, 11, 15),
+        ok
+        end,
+    escalus:story(Config, [1], F).
+
+pagination_before10(Config) ->
+    %% The last item in the page returned by the responding entity
+    %% MUST be the item that immediately preceeds the item that
+    %% the requesting entity indicated it has already received.
+    F = fun(Alice) ->
+        %% Get the last page of size 5.
+        RSM = #rsm_in{max=5, direction=before, id=generate_room_name(10)},
+        escalus:send(Alice, stanza_room_list_request(<<"before10">>, RSM)),
+        wait_room_range(Alice, 5, 9),
+        ok
+        end,
+    escalus:story(Config, [1], F).
+
+pagination_after10(Config) ->
+    F = fun(Alice) ->
+        %% Get the last page of size 5.
+        RSM = #rsm_in{max=5, direction='after',
+                      id=generate_room_name(10)},
+        escalus:send(Alice, stanza_room_list_request(<<"after10">>, RSM)),
+        wait_room_range(Alice, 11, 15),
+        ok
+        end,
+    escalus:story(Config, [1], F).
+
+%% @doc Based on examples from http://xmpp.org/extensions/xep-0059.html
+%% @end
+%% <iq type='get' from='stpeter@jabber.org/roundabout'
+%%       to='conference.jabber.org' id='ex2'>
+%%   <query xmlns='http://jabber.org/protocol/disco#items'>
+%%     <set xmlns='http://jabber.org/protocol/rsm'>
+%%       <max>20</max>
+%%     </set>
+%%   </query>
+%% </iq>
+stanza_room_list_request(_QueryId, RSM) ->
+    escalus_stanza:iq(?MUC_HOST, <<"get">>, [#xmlel{
+        name = <<"query">>,
+        attrs = [{<<"xmlns">>,
+                  <<"http://jabber.org/protocol/disco#items">>}],
+        children = skip_undefined([maybe_rsm_elem(RSM)])
+    }]).
+
+maybe_rsm_elem(undefined) ->
+    undefined;
+maybe_rsm_elem(#rsm_in{max=Max, direction=Direction, id=Id, index=Index}) ->
+    #xmlel{name = <<"set">>,
+           attrs = [{<<"xmlns">>, <<"http://jabber.org/protocol/rsm">>}],
+           children = skip_undefined([
+                maybe_rsm_max(Max),
+                maybe_rsm_index(Index),
+                maybe_rsm_direction(Direction, Id)])}.
+
+maybe_rsm_id(undefined) -> [];
+maybe_rsm_id(Id) -> #xmlcdata{content = Id}.
+
+maybe_rsm_direction(undefined, undefined) ->
+    undefined;
+maybe_rsm_direction(Direction, Id) ->
+    #xmlel{
+        name = atom_to_binary(Direction, latin1),
+        children = maybe_rsm_id(Id)}.
+
+maybe_rsm_index(undefined) ->
+    undefined;
+maybe_rsm_index(Index) when is_integer(Index) ->
+    #xmlel{
+        name = <<"index">>,
+        children = #xmlcdata{content = integer_to_list(Index)}}.
+
+maybe_rsm_max(undefined) ->
+    undefined;
+maybe_rsm_max(Max) when is_integer(Max) ->
+    #xmlel{
+        name = <<"max">>,
+        children = #xmlcdata{content = integer_to_list(Max)}}.
+
+skip_undefined(Xs) ->
+    [X || X <- Xs, X =/= undefined].
+
+i2b(X) when is_integer(X) ->
+    list_to_binary(integer_to_list(X)).
+
+wait_room_range(Client, FromN, ToN) ->
+    wait_room_range(Client, 15, FromN-1, FromN, ToN).
+
+wait_room_range(Client, TotalCount, Offset, FromN, ToN) ->
+    IQ = escalus:wait_for_stanza(Client),
+    Out = parse_result_iq(IQ),
+    try
+        ?assert_equal(i2b(TotalCount),           Out#rsm_out.count),
+        ?assert_equal(i2b(Offset),               Out#rsm_out.index),
+        ?assert_equal(generate_room_name(FromN), Out#rsm_out.first),
+        ?assert_equal(generate_room_name(ToN),   Out#rsm_out.last),
+        ?assert_equal(generate_room_addrs(FromN, ToN), room_jids(Out)),
+        ok
+    catch Class:Reason ->
+        Stacktrace = erlang:get_stacktrace(),
+        ct:pal("IQ: ~p~nOut: ~p~n", [IQ, Out]),
+        erlang:raise(Class, Reason, Stacktrace)
+    end.
+
+wait_empty_rset(Client, TotalCount) ->
+    IQ = escalus:wait_for_stanza(Client),
+    Out = parse_result_iq(IQ),
+    try
+        ?assert_equal(i2b(TotalCount), Out#rsm_out.count),
+        ?assert_equal([], room_jids(Out)),
+        ok
+    catch Class:Reason ->
+        Stacktrace = erlang:get_stacktrace(),
+        ct:pal("IQ: ~p~nOut: ~p~n", [IQ, Out]),
+        erlang:raise(Class, Reason, Stacktrace)
+    end.
+
+room_jids(#rsm_out{items=Items}) ->
+    [exml_query:attr(Item, <<"jid">>) || Item <- Items].
+
+parse_result_iq(#xmlel{name = <<"iq">>, children = [Query]}) ->
+    parse_result_query(Query).
+
+parse_result_query(#xmlel{name = <<"query">>, children = Children}) ->
+    %% rot1
+    [Set|Items_r] = lists:reverse(Children),
+    Items = lists:reverse(Items_r),
+    First = exml_query:path(Set, [{element, <<"first">>}, cdata]),
+    Index = exml_query:path(Set, [{element, <<"first">>},
+                                  {attr, <<"index">>}]),
+    Last  = exml_query:path(Set, [{element, <<"last">>}, cdata]),
+    Count = exml_query:path(Set, [{element, <<"count">>}, cdata]),
+    #rsm_out{items = Items,
+             first = First,
+             index = Index,
+             last = Last,
+             count = Count}.
+
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
@@ -3494,14 +3693,40 @@ stanza_change_nick(Room, NewNick) ->
 
 start_room(Config, User, Room, Nick, Opts) ->
     From = generate_rpc_jid(User),
-    escalus_ejabberd:rpc(mod_muc, create_instant_room,
-        [<<"localhost">>, Room, From, Nick,
-            Opts]),
+    create_instant_room(<<"localhost">>, Room, From, Nick, Opts),
     [{nick, Nick}, {room, Room} | Config].
 
+create_instant_room(Host, Room, From, Nick, Opts) ->
+    escalus_ejabberd:rpc(mod_muc, create_instant_room,
+        [Host, Room, From, Nick, Opts]).
+
+start_rsm_rooms(Config, User, Nick) ->
+    From = generate_rpc_jid(User),
+    [create_instant_room(
+            <<"localhost">>, generate_room_name(N), From, Nick, [])
+     || N <- lists:seq(1, 15)],
+    Config.
+
+destroy_rsm_rooms(Config) ->
+    [destroy_room(?MUC_HOST, generate_room_name(N))
+     || N <- lists:seq(1, 15)],
+    Config.
+
+generate_room_name(N) when is_integer(N) ->
+    list_to_binary(io_lib:format("room~2..0B", [N])).
+
+generate_room_addr(N) ->
+    room_address(generate_room_name(N)).
+
+generate_room_addrs(FromN, ToN) ->
+    [generate_room_addr(N) || N <- lists:seq(FromN, ToN)].
+
 destroy_room(Config) ->
-    case escalus_ejabberd:rpc(ets, lookup, [muc_online_room,
-        {?config(room, Config), <<"muc.localhost">>}]) of
+    destroy_room(?MUC_HOST, ?config(room, Config)).
+
+destroy_room(Host, Room) when is_binary(Host), is_binary(Room) ->
+    case escalus_ejabberd:rpc(
+            ets, lookup, [muc_online_room, {Room, Host}]) of
         [{_,_,Pid}|_] -> gen_fsm:send_all_state_event(Pid, destroy);
         _ -> ok
     end.
@@ -3861,9 +4086,11 @@ was_destroy_presented(#xmlel{children = [Items]} = Presence) ->
     <<"unavailable">> = exml_query:attr(Presence, <<"type">>).
 
 was_room_destroyed(Query) ->
+    timer:sleep(?WAIT_TIME),
     <<"result">> = exml_query:attr(Query, <<"type">>).
 
 was_room_created(Stanza = #xmlel{children = [X]}) ->
+    timer:sleep(?WAIT_TIME),
     has_status_codes(Stanza, [<<"201">>, <<"110">>]),
     <<"owner">> = exml_query:path(X, [{element, <<"item">>},
                                       {attr, <<"affiliation">>}]),
@@ -3893,7 +4120,7 @@ has_room(JID, #xmlel{children = [ #xmlel{children = Rooms} ]}) ->
     true = lists:any(RoomPred, Rooms).
 
 count_rooms(#xmlel{children = [ #xmlel{children = Rooms} ]}, N) ->
-    N = length(Rooms).
+    ?assert_equal(N, length(Rooms)).
 
 has_features(#xmlel{children = [ Query ]}) ->
     %%<iq from='chat.shakespeare.lit'

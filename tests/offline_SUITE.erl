@@ -24,8 +24,7 @@ all_tests() ->
     [simple_message].
 
 groups() ->
-    [{mod_offline_tests, [sequence], all_tests()},
-     {mod_offline_odbc_tests, [sequence], all_tests()}].
+    [{mod_offline_tests, [sequence], all_tests()}].
 
 suite() ->
     escalus:suite().
@@ -42,19 +41,9 @@ end_per_suite(Config) ->
     escalus:delete_users(Config),
     escalus:end_per_suite(Config).
 
-init_per_group(mod_offline_tests, Config) ->
-    start_module(mod_offline, []),
-    Config;
-init_per_group(mod_offline_odbc_tests, Config) ->
-    start_module(mod_offline_odbc, []),
-    Config;
 init_per_group(_GroupName, Config) ->
     Config.
 
-end_per_group(mod_offline_tests, _Config) ->
-    stop_module(mod_offline);
-end_per_group(mod_offline_odbc_tests, _Config) ->
-    stop_module(mod_offline_odbc);
 end_per_group(_GroupName, _Config) ->
     ok.
 
@@ -100,11 +89,3 @@ login_send_presence(Config, User) ->
     {ok, Client} = escalus_client:start(Config, Spec, <<"dummy">>),
     escalus:send(Client, escalus_stanza:presence(<<"available">>)),
     Client.
-
-start_module(ModuleName, Options) ->
-    Args = [ct:get_config(ejabberd_domain), ModuleName, Options],
-    escalus_ejabberd:rpc(gen_mod, start_module, Args).
-
-stop_module(ModuleName) ->
-    Args = [ct:get_config(ejabberd_domain), ModuleName],
-    escalus_ejabberd:rpc(gen_mod, stop_module, Args).

@@ -25,15 +25,11 @@
 %%--------------------------------------------------------------------
 all() ->
     [{group, private_positive},
-     {group, private_negative},
-     {group, private_positive_odbc},
-     {group, private_negative_odbc}].
+     {group, private_negative}].
 
 groups() ->
     [{private_positive, [sequence], positive_test_cases()},
-      {private_negative, [sequence], negative_test_cases()},
-      {private_positive_odbc, [sequence], positive_test_cases()},
-      {private_negative_odbc, [sequence], negative_test_cases()}].
+      {private_negative, [sequence], negative_test_cases()}].
                                       %% FIXME: broken exmpp prevents us from sending
                                       %% out elements without NS set
                                       %% missing_ns]}].
@@ -51,8 +47,7 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
-init_per_group(GroupName, Config) ->
-    restart_module_from_group(GroupName),
+init_per_group(_GroupName, Config) ->
     escalus:create_users(Config).
 
 end_per_group(_GroupName, Config) ->
@@ -163,13 +158,3 @@ check_body_rec(Element, [Name | Names]) ->
     [Child] = Element#xmlel.children,
     Name = Child#xmlel.name,
     check_body_rec(Child, Names).
-
-restart_module_from_group(private_positive) ->
-    restart_module(mod_private);
-restart_module_from_group(private_negative) ->
-    restart_module(mod_private);
-restart_module_from_group(_) ->
-    restart_module(mod_private_odbc).
-restart_module(Mod) ->
-    Domain = ct:get_config(ejabberd_domain),
-    dynamic_modules:restart(Domain, Mod, []).

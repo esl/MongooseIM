@@ -9,21 +9,31 @@ cover_test_clean: get-deps
 	rm -rf tests/*.beam
 	make cover_test
 
+quicktest: prepare
+	erl -noinput -sname test -setcookie ejabberd \
+		-pa `pwd`/tests \
+		    `pwd`/ebin \
+			`pwd`/deps/*/ebin \
+		-s run_common_test ct_quick
+
 test: prepare
 	erl -noinput -sname test -setcookie ejabberd \
 		-pa `pwd`/tests \
+		    `pwd`/ebin \
 			`pwd`/deps/*/ebin \
 		-s run_common_test ct
 
 cover_test: prepare
 	erl -noinput -sname test -setcookie ejabberd \
 		-pa `pwd`/tests \
+		    `pwd`/ebin \
 			`pwd`/deps/*/ebin \
 		-s run_common_test ct_cover; \
 
 cover_summary: prepare
 	erl -noinput -sname test -setcookie ejabberd \
 		-pa `pwd`/tests \
+		    `pwd`/ebin \
 			`pwd`/deps/*/ebin \
 		-s run_common_test cover_summary; \
 
@@ -35,6 +45,7 @@ prepare: compile
 console: compile
 	erl -sname test -setcookie ejabberd \
 		-pa `pwd`/tests \
+		    `pwd`/ebin \
 			`pwd`/deps/*/ebin \
 
 compile: get-deps

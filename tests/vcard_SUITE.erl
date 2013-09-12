@@ -43,27 +43,18 @@
 %%--------------------------------------------------------------------
 
 all() ->
-    [{group, mnesia_rw},
-     {group, mnesia_ro_full},
-     {group, mnesia_ro_limited},
-     {group, mnesia_ro_no},
-     {group, odbc_rw},
-     {group, odbc_ro_full},
-     {group, odbc_ro_limited},
-     {group, odbc_ro_no}
-    ].
+    [{group, rw},
+     {group, ro_full},
+     {group, ro_limited},
+     {group, ro_no}].
 
 groups() ->
     %% setting test data before tests is proving awkward so might as well use the
     %% data set in the update tests to test the rest.
-    [{mnesia_rw, [sequence], rw_tests()},
-     {mnesia_ro_full, [sequence], ro_full_search_tests()},
-     {mnesia_ro_limited, [sequence], ro_limited_search_tests()},
-     {mnesia_ro_no, [sequence], ro_no_search_tests()},
-     {odbc_rw, [sequence], rw_tests()},
-     {odbc_ro_full, [sequence], ro_full_search_tests()},
-     {odbc_ro_limited, [sequence], ro_limited_search_tests()},
-     {odbc_ro_no, [sequence], ro_no_search_tests()}
+    [{rw, [sequence], rw_tests()},
+     {ro_full, [sequence], ro_full_search_tests()},
+     {ro_limited, [sequence], ro_limited_search_tests()},
+     {ro_no, [sequence], ro_no_search_tests()}
     ].
 
 rw_tests() ->
@@ -100,28 +91,27 @@ suite() ->
 
 init_per_suite(Config) ->
     NewConfig = escalus:init_per_suite(Config),
-    escalus:create_users(NewConfig).
+    NewConfig1 = dynamic_modules:stop_running(mod_vcard, NewConfig),
+    [{ModVcard, _}] = ?config(running, NewConfig1),
+    escalus:create_users([{mod_vcard, ModVcard} | NewConfig1]).
 
 end_per_suite(Config) ->
+    dynamic_modules:start_running(Config),
     NewConfig = escalus:delete_users(Config),
     escalus:end_per_suite(NewConfig).
 
-init_per_group(mnesia_rw, Config) ->
-    restart_mod(mnesia_rw),
-    Config;
-init_per_group(odbc_rw, Config) ->
-    restart_mod(odbc_rw),
+init_per_group(rw, Config) ->
+    restart_mod(?config(mod_vcard, Config), rw),
     Config;
 init_per_group(GroupName, Config) ->
-    restart_mod(GroupName),
+    restart_mod(?config(mod_vcard, Config), GroupName),
     prepare_vcards(Config).
 
-end_per_group(mnesia_rw, Config) ->
-    Config;
-end_per_group(odbc_rw, Config) ->
-    Config;
 end_per_group(_, Config) ->
-Config.%    delete_vcards(Config).
+    Domain = escalus_config:get_ct(
+            {vcard, data, all_search, server_jid}),
+    dynamic_modules:stop(Domain, ?config(mod_vcard, Config)),
+    Config.
 
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
@@ -502,22 +492,14 @@ get_jid_record(JID) ->
 vcard_rpc(JID, Stanza) ->
     escalus_ejabberd:rpc(ejabberd_sm, route, [JID, JID, Stanza]).
 
-restart_mod(mnesia_rw) ->
-    restart_mod(mod_vcard, params_all(), mod_vcard);
-restart_mod(mnesia_ro_full) ->
-    restart_mod(mod_vcard, params_all(), mod_vcard);
-restart_mod(mnesia_ro_limited) ->
-    restart_mod(mod_vcard, params_limited(), mod_vcard);
-restart_mod(mnesia_ro_no) ->
-    restart_mod(mod_vcard, params_no(), mod_vcard);
-restart_mod(odbc_rw) ->
-    restart_mod(mod_vcard, params_all(), mod_vcard_odbc);
-restart_mod(odbc_ro_full) ->
-    restart_mod(mod_vcard_odbc, params_all(), mod_vcard_odbc);
-restart_mod(odbc_ro_limited) ->
-    restart_mod(mod_vcard_odbc, params_limited(), mod_vcard_odbc);
-restart_mod(odbc_ro_no) ->
-    restart_mod(mod_vcard_odbc, params_no(), mod_vcard_odbc).
+restart_mod(Module, rw) ->
+    restart_mod(Module, params_all(), Module);
+restart_mod(Module, ro_full) ->
+    restart_mod(Module, params_all(), Module);
+restart_mod(Module, ro_limited) ->
+    restart_mod(Module, params_limited(), Module);
+restart_mod(Module, ro_no) ->
+    restart_mod(Module, params_no(), Module).
 
 params_all() ->
     [{allow_return_all, true},

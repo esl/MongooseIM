@@ -1,5 +1,5 @@
 -module(run_common_test).
--export([ct/0, ct_cover/0, cover_summary/0]).
+-export([ct/0, ct_quick/0, ct_cover/0, cover_summary/0]).
 
 -define(CT_DIR, filename:join([".", "tests"])).
 -define(CT_REPORT, filename:join([".", "ct_report"])).
@@ -12,89 +12,126 @@ ct_vcard_config_file() ->
     {ok, CWD} = file:get_cwd(),
     filename:join([CWD, "vcard.config"]).
 
-
 tests_to_run() ->
     [{config, [ct_config_file(), ct_vcard_config_file()]},
      {dir, ?CT_DIR},
      {logdir, ?CT_REPORT},
-
      {suite, [
-              adhoc_SUITE,
-              anonymous_SUITE,
-              last_SUITE,
-              login_SUITE,
-              muc_SUITE,
-              offline_SUITE,
-              presence_SUITE,
-              privacy_SUITE,
-              private_SUITE,
-              s2s_SUITE,
-              sic_SUITE,
-              %snmp_SUITE,
-              %snmp_c2s_SUITE,
-              %snmp_register_SUITE,
-              %snmp_roster_SUITE,
-              %snmp_session_SUITE,
-              %snmp_table_SUITE,
-              vcard_SUITE,
-              websockets_SUITE,
-              metrics_c2s_SUITE,
-              metrics_roster_SUITE,
-              metrics_register_SUITE,
-              metrics_session_SUITE,
-              system_monitor_SUITE
-             ]}
-    ].
+            adhoc_SUITE,
+            anonymous_SUITE,
+            last_SUITE,
+            login_SUITE,
+            muc_SUITE,
+            offline_SUITE,
+            presence_SUITE,
+            privacy_SUITE,
+            private_SUITE,
+            s2s_SUITE,
+            sic_SUITE,
+            %snmp_SUITE,
+            %snmp_c2s_SUITE,
+            %snmp_register_SUITE,
+            %snmp_roster_SUITE,
+            %snmp_session_SUITE,
+            %snmp_table_SUITE,
+            vcard_SUITE,
+            websockets_SUITE,
+            metrics_c2s_SUITE,
+            metrics_roster_SUITE,
+            metrics_register_SUITE,
+            metrics_session_SUITE,
+            system_monitor_SUITE
+            ]}].
 
-tests_to_run(none) ->
-    tests_to_run();
-tests_to_run(Node) ->
-    [{dir, Node}] ++ tests_to_run().
+    %{suite, muc_SUITE},
+     %{group, admin},
+     %{testcase, admin_moderator},
+     %{repeat, 4}].
 
 ct() ->
-    Result = ct:run_test(tests_to_run()),
+    run_test(tests_to_run()),
+    init:stop(0).
+
+ct_quick() ->
+    run_quick_test(tests_to_run()),
+    init:stop(0).
+
+ct_cover() ->
+    run_ct_cover(),
+    cover_summary(),
+    init:stop(0).
+
+save_count(Test, Configs) ->
+    Repeat = case proplists:get_value(repeat, Test) of
+        undefined -> 1;
+        Other     -> Other
+    end,
+    Times = case length(Configs) of
+        0 -> 1;
+        N -> N
+    end,
+    file:write_file("/tmp/ct_count", integer_to_list(Repeat*Times)).
+
+run_test(Test) ->
+    {ok, Props} = file:consult(ct_config_file()),
+    case proplists:lookup(ejabberd_configs, Props) of
+        {ejabberd_configs, Configs} ->
+            Length = length(Configs),
+            Names = [Name || {Name,_} <- Configs],
+            error_logger:info_msg("Starting test of ~p configurations: ~n~p~n",
+                                  [Length, Names]),
+            Zip = lists:zip(lists:seq(1, Length), Configs),
+            [run_config_test(Config, Test, N, Length) || {N, Config} <- Zip],
+            save_count(Test, Configs);
+        _ ->
+            run_quick_test(Test)
+    end.
+
+run_quick_test(Test) ->
+    Result = ct:run_test(Test),
     case Result of
         {error, Reason} ->
             throw({ct_error, Reason});
         _ ->
             ok
     end,
-    init:stop(0).
+    save_count(Test, []).
 
-ct_cover() ->
-    run_ct_covers(get_tested_nodes()),
-    init:stop(0).
+run_config_test({Name, Variables}, Test, N, Tests) ->
+    Node = get_ejabberd_node(),
+    {ok, Cwd} = call(Node, file, get_cwd, []),
+    Cfg = filename:join([Cwd, "..", "..", "rel", "files", "ejabberd.cfg"]),
+    Vars = filename:join([Cwd, "..", "..", "rel", "reltool_vars", "node1_vars.config"]),
+    CfgFile = filename:join([Cwd, "etc", "ejabberd.cfg"]),
+    {ok, Template} = call(Node, file, read_file, [Cfg]),
+    {ok, Default} = call(Node, file, consult, [Vars]),
+    NewVars = lists:foldl(fun({Var,Val}, Acc) ->
+                    lists:keystore(Var, 1, Acc, {Var,Val})
+            end, Default, Variables), 
+    LTemplate = binary_to_list(Template),
+    NewCfgFile = mustache:render(LTemplate, dict:from_list(NewVars)),
+    ok = call(Node, file, write_file, [CfgFile, NewCfgFile]),
+    call(Node, application, stop, [ejabberd]),
+    call(Node, application, start, [ejabberd]),
+    error_logger:info_msg("Configuration ~p of ~p: ~p started.~n",
+                          [N, Tests, Name]),
+    Result = ct:run_test([{label, Name} | Test]),
+    case Result of
+        {error, Reason} ->
+            throw({ct_error, Reason});
+        _ ->
+            ok
+    end.
 
-run_ct_covers([]) -> 
-    %%There is no tested nodes configuration. Assume that ejabberd node is running
-    run_ct_cover1();
-run_ct_covers([Node | []]) ->
-    run_ct_cover(Node),
-    run_ejabberd(Node),
-    cover_summary(),
-    stop_ejabberd(Node);
-run_ct_covers([Node | Tail]) ->
-    run_ct_cover(Node),
-    run_ct_covers(Tail).
+call(Node, M, F, A) ->
+    rpc:call(Node, M, F, A).
 
-run_ct_cover(Node) ->
-    io:format("will test node ~p~n", [Node]),
-    StartStatus = run_ejabberd(Node),
-    io:format("start status ~p~n", [StartStatus]),
-    NodeStr = get_node_str(Node),
-    os:cmd("cp -R tests "++NodeStr),
-    run_ct_cover1(NodeStr),
-    StopStatus = stop_ejabberd(Node),
-    os:cmd("rm -rf "++NodeStr),
-    io:format("stop status ~p~n", [StopStatus]).
-
-run_ct_cover1() ->
-    run_ct_cover1(none).
-
-run_ct_cover1(Node) ->
+run_ct_cover() ->
     prepare(),
-    ct:run_test(tests_to_run(Node)),
-    analyze(Node),
+    run_test(tests_to_run()),
+    N = get_ejabberd_node(),
+    Files = rpc:call(N, filelib, wildcard, ["/tmp/ejd_test_run_*.coverdata"]),
+    [rpc:call(N, file, delete, [File]) || File <- Files],
     {MS,S,_} = now(),
     FileName = lists:flatten(io_lib:format("/tmp/ejd_test_run_~b~b.coverdata",[MS,S])),
     io:format("export current cover ~p~n", [cover_call(export, [FileName])]),
@@ -128,9 +165,6 @@ analyze(Node) ->
             R = re:replace(IndexFileData, "<a href=\"all_runs.html\">ALL RUNS</a>", "& <a href=\"cover.html\" style=\"margin-right:5px\">COVER</a>"),
             file:write_file(?CT_REPORT++"/index.html", R),
             ?CT_REPORT++"/cover.html";
-        {_, {ok, IndexFileData}} ->
-            {match, [PosLen]} = re:run(IndexFileData, "<a href=\"(.*"++Node++".*)\">",[{capture, [1]}]),
-            filename:dirname(?CT_REPORT++"/"++binary_to_list(binary:part(IndexFileData, PosLen)))++"/cover.html";
         _ -> skip
     end,
     CoverageDir = filename:dirname(FilePath)++"/coverage",
@@ -143,6 +177,7 @@ analyze(Node) ->
     Fun = fun(Module, {CAcc, NCAcc}) ->
                   FileName = lists:flatten(io_lib:format("~s.COVER.html",[Module])),
                   FilePathC = filename:join(["/tmp/coverage", FileName]),
+                  io:format("Analysing module ~s~n", [Module]),
                   cover_call(analyse_to_file, [Module, FilePathC, [html]]),
                   {ok, {Module, {C, NC}}} = cover_call(analyse, [Module, module]),
                   file:write(File, row(atom_to_list(Module), C, NC, percent(C,NC),"coverage/"++FileName)),
@@ -165,13 +200,6 @@ get_ejabberd_node() ->
     {ejabberd_node, Node} = proplists:lookup(ejabberd_node, Props),
     Node.
 
-get_tested_nodes() ->
-    {ok, Props} = file:consult(ct_config_file()),
-    case proplists:lookup(ejabberd_nodes, Props) of
-        none -> [];
-        {ejabberd_nodes, Nodes} -> Nodes
-    end.
-
 percent(0, _) -> 0;
 percent(C, NC) when C /= 0; NC /= 0 -> round(C / (NC+C) * 100);
 percent(_, _)                       -> 100.
@@ -186,27 +214,3 @@ row(Row, C, NC, Percent, Path) ->
         "<td>", integer_to_list(C+NC), "</td>",
         "</tr>\n"
     ].
-
-get_node_str({Node, _, _}) ->
-    get_node_str(Node);
-get_node_str(Node) ->
-    atom_to_list(Node).
-
-run_ejabberd({_Node, StartCmd, _}) ->
-    do_start_cmd(StartCmd);
-run_ejabberd(Node) ->
-    do_start_cmd(node_cmd(Node, "start")).
-
-do_start_cmd(StartCmd) ->
-    Status = os:cmd(StartCmd),
-    timer:sleep(3000),
-    Status.
-
-stop_ejabberd({_Node, _, StopCmd}) ->
-    os:cmd(StopCmd);
-stop_ejabberd(Node) ->
-    os:cmd(node_cmd(Node, "stop")).
-
-node_cmd(Node, Cmd) ->
-    lists:flatten(io_lib:format("../../dev/ejabberd_~p/bin/ejabberd ~s",
-                                [Node, Cmd])).

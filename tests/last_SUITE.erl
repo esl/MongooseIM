@@ -24,14 +24,11 @@
 %%--------------------------------------------------------------------
 
 all() ->
-    [{group, last},
-     {group, last_odbc}
-    ].
+    [{group, last}].
 
 groups() ->
-     [{last, [sequence], test_cases()},
-      {last_odbc, [sequence], test_cases()}
-     ].
+     [{last, [sequence], test_cases()}].
+
 test_cases() -> [last_online_user,
                  last_offline_user,
                  last_server].
@@ -44,8 +41,7 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
-init_per_group(GroupName, Config0) ->
-    start_mod_last(GroupName),
+init_per_group(_GroupName, Config0) ->
     Config1 = escalus:create_users(Config0),
     Config2 = escalus:make_everyone_friends(Config1),
     escalus_ejabberd:wait_for_session_count(Config2, 0),
@@ -119,13 +115,3 @@ get_last_activity(Stanza) ->
 
 get_last_status(Stanza) ->
     exml_query:path(Stanza, [{element, <<"query">>}, cdata]).
-
-start_mod_last(last) ->
-    start_mod_last(mod_last);
-start_mod_last(last_odbc) ->
-    start_mod_last(mod_last_odbc);
-start_mod_last(Module) ->
-    Domain = ct:get_config(ejabberd_domain),
-    ok = dynamic_modules:restart(Domain, Module, []).
-
-
