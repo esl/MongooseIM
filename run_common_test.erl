@@ -1,5 +1,5 @@
 -module(run_common_test).
--export([ct/0, ct_cover/0, cover_summary/0]).
+-export([ct/0, ct_quick/0, ct_cover/0, cover_summary/0]).
 
 -define(CT_DIR, filename:join([".", "tests"])).
 -define(CT_REPORT, filename:join([".", "ct_report"])).
@@ -52,6 +52,10 @@ ct() ->
     run_test(tests_to_run()),
     init:stop(0).
 
+ct_quick() ->
+    run_quick_test(tests_to_run()),
+    init:stop(0).
+
 ct_cover() ->
     run_ct_cover(),
     cover_summary(),
@@ -80,15 +84,18 @@ run_test(Test) ->
             [run_config_test(Config, Test, N, Length) || {N, Config} <- Zip],
             save_count(Test, Configs);
         _ ->
-            Result = ct:run_test(Test),
-            case Result of
-                {error, Reason} ->
-                    throw({ct_error, Reason});
-                _ ->
-                    ok
-            end,
-            save_count(Test, [])
+            run_quick_test(Test)
     end.
+
+run_quick_test(Test) ->
+    Result = ct:run_test(Test),
+    case Result of
+        {error, Reason} ->
+            throw({ct_error, Reason});
+        _ ->
+            ok
+    end,
+    save_count(Test, []).
 
 run_config_test({Name, Variables}, Test, N, Tests) ->
     Node = get_ejabberd_node(),
