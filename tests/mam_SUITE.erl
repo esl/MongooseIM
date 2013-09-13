@@ -112,8 +112,7 @@ host() ->
 configurations() ->
     [odbc_async,
      odbc,
-     odbc_mnesia,
-     riak_mnesia].
+     odbc_mnesia].
 
 basic_group_names() ->
     [
@@ -210,9 +209,6 @@ init_modules(odbc_async, muc, Config) ->
 init_modules(odbc_mnesia, muc, Config) ->
     init_module(muc_host(), mod_mam, odbc_mnesia_muc_args()),
     Config;
-init_modules(riak_mnesia, muc, Config) ->
-    init_module(muc_host(), mod_mam, riak_mnesia_muc_args()),
-    Config;
 init_modules(odbc, _, Config) ->
     init_module(host(), mod_mam, odbc_args()),
     Config;
@@ -221,9 +217,6 @@ init_modules(odbc_async, _, Config) ->
     Config;
 init_modules(odbc_mnesia, _, Config) ->
     init_module(host(), mod_mam, odbc_mnesia_args()),
-    Config;
-init_modules(riak_mnesia, _, Config) ->
-    init_module(host(), mod_mam, riak_mnesia_args()),
     Config.
 
 end_modules(_, _, Config) ->
@@ -244,11 +237,6 @@ odbc_mnesia_args() ->
      {writer_module, mod_mam_odbc_arch},
      {archive_module, mod_mam_odbc_arch}].
 
-riak_mnesia_args() ->
-    [{prefs_module, mod_mam_mnesia_prefs},
-     {writer_module, mod_mam_riak_arch},
-     {archive_module, mod_mam_riak_arch}].
-
 odbc_async_muc_args() ->
     [{muc, true},
      {prefs_module, mod_mam_odbc_prefs},
@@ -261,19 +249,11 @@ odbc_muc_args() ->
      {writer_module, mod_mam_muc_odbc_arch},
      {archive_module, mod_mam_muc_odbc_arch}].
 
-%% TODO write mod_mam_muc_mnesia_prefs
 odbc_mnesia_muc_args() ->
     [{muc, true},
      {prefs_module, mod_mam_mnesia_prefs},
      {writer_module, mod_mam_muc_odbc_arch},
      {archive_module, mod_mam_muc_odbc_arch}].
-
-%% TODO write mod_mam_muc_riak_arch
-riak_mnesia_muc_args() ->
-    [{muc, true},
-     {prefs_module, mod_mam_mnesia_prefs},
-     {writer_module, mod_mam_odbc_arch},
-     {archive_module, mod_mam_odbc_arch}].
 
 init_state(_, rsm, Config) ->
     send_rsm_messages(clean_archives(Config));
