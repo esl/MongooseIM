@@ -112,7 +112,10 @@ host() ->
 configurations() ->
     [odbc_async,
      odbc,
-     odbc_mnesia].
+     odbc_mnesia,
+     odbc_async_cache,
+     odbc_cache,
+     odbc_mnesia_cache].
 
 basic_group_names() ->
     [
@@ -209,6 +212,15 @@ init_modules(odbc_async, muc, Config) ->
 init_modules(odbc_mnesia, muc, Config) ->
     init_module(muc_host(), mod_mam, odbc_mnesia_muc_args()),
     Config;
+init_modules(odbc_cache, muc, Config) ->
+    init_module(muc_host(), mod_mam, odbc_cache_muc_args()),
+    Config;
+init_modules(odbc_async_cache, muc, Config) ->
+    init_module(muc_host(), mod_mam, odbc_async_cache_muc_args()),
+    Config;
+init_modules(odbc_mnesia_cache, muc, Config) ->
+    init_module(muc_host(), mod_mam, odbc_mnesia_cache_muc_args()),
+    Config;
 init_modules(odbc, _, Config) ->
     init_module(host(), mod_mam, odbc_args()),
     Config;
@@ -217,40 +229,100 @@ init_modules(odbc_async, _, Config) ->
     Config;
 init_modules(odbc_mnesia, _, Config) ->
     init_module(host(), mod_mam, odbc_mnesia_args()),
+    Config;
+init_modules(odbc_cache, _, Config) ->
+    init_module(host(), mod_mam, odbc_cache_args()),
+    Config;
+init_modules(odbc_async_cache, _, Config) ->
+    init_module(host(), mod_mam, odbc_async_cache_args()),
+    Config;
+init_modules(odbc_mnesia_cache, _, Config) ->
+    init_module(host(), mod_mam, odbc_mnesia_cache_args()),
     Config.
 
 end_modules(_, _, Config) ->
     Config.
 
 odbc_args() ->
-    [{prefs_module, mod_mam_odbc_prefs},
+    [{user_module, mod_mam_odbc_user},
+     {prefs_module, mod_mam_odbc_prefs},
      {writer_module, mod_mam_odbc_arch},
      {archive_module, mod_mam_odbc_arch}].
 
 odbc_async_args() ->
-    [{prefs_module, mod_mam_odbc_prefs},
+    [{user_module, mod_mam_odbc_user},
+     {prefs_module, mod_mam_odbc_prefs},
      {writer_module, mod_mam_odbc_async_writer},
      {archive_module, mod_mam_odbc_arch}].
 
 odbc_mnesia_args() ->
-    [{prefs_module, mod_mam_mnesia_prefs},
+    [{user_module, mod_mam_odbc_user},
+     {prefs_module, mod_mam_mnesia_prefs},
+     {writer_module, mod_mam_odbc_arch},
+     {archive_module, mod_mam_odbc_arch}].
+
+odbc_cache_args() ->
+    [{user_module, mod_mam_cache_user},
+     {user_base_module, mod_mam_odbc_user},
+     {prefs_module, mod_mam_odbc_prefs},
+     {writer_module, mod_mam_odbc_arch},
+     {archive_module, mod_mam_odbc_arch}].
+
+odbc_async_cache_args() ->
+    [{user_module, mod_mam_cache_user},
+     {user_base_module, mod_mam_odbc_user},
+     {prefs_module, mod_mam_odbc_prefs},
+     {writer_module, mod_mam_odbc_async_writer},
+     {archive_module, mod_mam_odbc_arch}].
+
+odbc_mnesia_cache_args() ->
+    [{user_module, mod_mam_cache_user},
+     {user_base_module, mod_mam_odbc_user},
+     {prefs_module, mod_mam_mnesia_prefs},
      {writer_module, mod_mam_odbc_arch},
      {archive_module, mod_mam_odbc_arch}].
 
 odbc_async_muc_args() ->
     [{muc, true},
+     {user_module, mod_mam_odbc_user},
      {prefs_module, mod_mam_odbc_prefs},
      {writer_module, mod_mam_muc_odbc_async_writer},
      {archive_module, mod_mam_muc_odbc_arch}].
 
 odbc_muc_args() ->
     [{muc, true},
+     {user_module, mod_mam_odbc_user},
      {prefs_module, mod_mam_odbc_prefs},
      {writer_module, mod_mam_muc_odbc_arch},
      {archive_module, mod_mam_muc_odbc_arch}].
 
 odbc_mnesia_muc_args() ->
     [{muc, true},
+     {user_module, mod_mam_odbc_user},
+     {prefs_module, mod_mam_mnesia_prefs},
+     {writer_module, mod_mam_muc_odbc_arch},
+     {archive_module, mod_mam_muc_odbc_arch}].
+
+odbc_async_cache_muc_args() ->
+    [{muc, true},
+     {user_module, mod_mam_cache_user},
+     {user_base_module, mod_mam_odbc_user},
+     {prefs_module, mod_mam_odbc_prefs},
+     {writer_module, mod_mam_muc_odbc_async_writer},
+     {archive_module, mod_mam_muc_odbc_arch}].
+
+odbc_cache_muc_args() ->
+    [{muc, true},
+     {user_module, mod_mam_cache_user},
+     {user_base_module, mod_mam_odbc_user},
+     {prefs_module, mod_mam_odbc_prefs},
+     {writer_module, mod_mam_muc_odbc_arch},
+     {archive_module, mod_mam_muc_odbc_arch}].
+
+odbc_mnesia_cache_muc_args() ->
+    [{muc, true},
+     {user_module, mod_mam_cache_user},
+     {user_base_module, mod_mam_odbc_user},
      {prefs_module, mod_mam_mnesia_prefs},
      {writer_module, mod_mam_muc_odbc_arch},
      {archive_module, mod_mam_muc_odbc_arch}].
