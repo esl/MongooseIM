@@ -129,6 +129,14 @@ basic_group_names() ->
     offline_message].
 
 all() ->
+    case is_odbc_enabled(host()) of
+        true ->
+            tests();
+        false ->
+            {skip, require_odbc}
+    end.
+
+tests() ->
     [{group, full_group(C, G)}
      || C <- configurations(), G <- basic_group_names()].
 
@@ -1381,3 +1389,12 @@ make_jid(U, S, R) ->
 
 restore_dump_file(ArcJID, FileName, Opts) ->
     rpc_apply(mod_mam, restore_dump_file, [ArcJID, FileName, Opts]).
+
+is_odbc_enabled(Host) ->
+    case sql_transaction(Host, fun erlang:now/0) of
+        {atomic, _} -> true;
+        _ -> false
+    end.
+
+sql_transaction(Host, F) ->
+    escalus_ejabberd:rpc(ejabberd_odbc, sql_transaction, [Host, F]).
