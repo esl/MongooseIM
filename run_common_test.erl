@@ -22,6 +22,7 @@ tests_to_run() ->
             last_SUITE,
             login_SUITE,
             muc_SUITE,
+            mam_SUITE,
             offline_SUITE,
             presence_SUITE,
             privacy_SUITE,
