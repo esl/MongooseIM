@@ -39,9 +39,7 @@ get_rest_counter_value(URL, CounterName) ->
     end.
 
 get_url(Type, CounterName) ->
-    Port = rpc:call(ct:get_config(ejabberd_node),
-                    gen_mod, get_module_opt,
-                    [global, mod_metrics, port, undefined]),
+    Port = ct:get_config(ejabberd_metrics_rest_port),
     Host = ct:get_config(ejabberd_domain),
     "http://localhost:" ++ integer_to_list(Port) ++ "/metrics" ++
     get_url_suffix(Type, Host, CounterName).
