@@ -301,6 +301,9 @@ handle_info({'EXIT', From, _Reason}, StateName, State=#state{db_ref=From}) ->
 %% Failed to connect. Ignore and wait to reconnect.
 handle_info({'EXIT', _From, _Reason}, connecting, State=#state{db_ref=undefined}) ->
     {next_state, connecting, State};
+%% A shutdown message from poolboy (it is not from parent_pid).
+handle_info({'EXIT', _From, shutdown}, _, State=#state{}) ->
+    {stop, shutdown, State};
 handle_info({'EXIT', From, Reason}, StateName,
             State=#state{db_ref=DbRef, parent_pid=ParentPid}) ->
     ?ERROR_MSG(
