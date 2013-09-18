@@ -129,11 +129,21 @@ basic_group_names() ->
     offline_message].
 
 all() ->
+    Reasons =
     case is_odbc_enabled(host()) of
-        true ->
+        false -> [require_odbc];
+        true  -> []
+    end
+    ++
+    case is_odbc_enabled(muc_host()) of
+        false -> [require_odbc_for_muc];
+        true  -> []
+    end,
+    case Reasons of
+        [] ->
             tests();
-        false ->
-            {skip, require_odbc}
+        [_|_] ->
+            {skip, Reasons}
     end.
 
 tests() ->
@@ -590,23 +600,31 @@ policy_violation(Config) ->
 
 offline_message(Config) ->
     Msg = <<"Is there anybody here?">>,
-    F1 = fun(Alice) ->
+    F = fun(Alice) ->
         %% Alice sends a message to Bob while bob is offline.
         escalus:send(Alice,
                      escalus_stanza:chat_to(bob, Msg)),
         ok
         end,
-    escalus:story(Config, [1], F1),
-    F2 = fun(Bob) ->
-        %% Bob logins and checks the archive.
-        escalus:send(Bob, stanza_archive_request(<<"q1">>)),
-        [_ArcRes, ArcMsg] = wait_archive_respond_iq_first(Bob),
-        #forwarded_message{message_body=ArcMsgBody} =
-            parse_forwarded_message(ArcMsg),
-        ?assert_equal(Msg, ArcMsgBody),
-        ok
-        end,
-    escalus:story(Config, [{bob, 1}], F2).
+    escalus:story(Config, [1], F),
+
+    %% Bob logs in
+    Bob = login_send_presence(Config, bob),
+    
+    %% If mod_offline is enabled, then an offline message
+    %% will be delivered automatically.
+
+    %% He receives his initial presence and the message.
+    escalus:wait_for_stanzas(Bob, 2, 1000),
+
+    %% Bob checke his archive.
+    escalus:send(Bob, stanza_archive_request(<<"q1">>)),
+    [_ArcRes, ArcMsg] = wait_archive_respond_iq_first(Bob),
+    #forwarded_message{message_body=ArcMsgBody} =
+        parse_forwarded_message(ArcMsg),
+    ?assert_equal(Msg, ArcMsgBody),
+    escalus_cleaner:clean(Config).
+
 
 purge_single_message(Config) ->
     F = fun(Alice, Bob) ->
@@ -773,6 +791,7 @@ pagination_empty_rset(Config) ->
     F = fun(Alice) ->
         %% Get the first page of size 5.
         RSM = #rsm_in{max=0},
+
         escalus:send(Alice, stanza_page_archive_request(<<"empty_rset">>, RSM)),
         wait_empty_rset(Alice, 15)
         end,
@@ -1398,3 +1417,10 @@ is_odbc_enabled(Host) ->
 
 sql_transaction(Host, F) ->
     escalus_ejabberd:rpc(ejabberd_odbc, sql_transaction, [Host, F]).
+
+login_send_presence(Config, User) ->
+    Spec = escalus_users:get_userspec(Config, User),
+    {ok, Client} = escalus_client:start(Config, Spec, <<"dummy">>),
+    escalus:send(Client, escalus_stanza:presence(<<"available">>)),
+    Client.
+
