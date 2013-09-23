@@ -232,6 +232,8 @@ load_drivers([Driver | Rest]) ->
     case erl_ddll:load_driver(ejabberd:get_so_path(), Driver) of
         ok ->
             load_drivers(Rest);
+        {error, permanent} ->
+            load_drivers(Rest);
         {error, already_loaded} ->
             load_drivers(Rest);
         {error, Reason} ->
