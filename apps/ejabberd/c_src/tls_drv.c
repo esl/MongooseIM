@@ -213,6 +213,7 @@ static SSL_CTX *hash_table_lookup(char *key_file, time_t *pmtime)
 
 static ErlDrvData tls_drv_start(ErlDrvPort port, char *buff)
 {
+   driver_lock_driver(port);
    tls_data *d = (tls_data *)driver_alloc(sizeof(tls_data));
    d->port = port;
    d->bio_read = NULL;
