@@ -29,8 +29,6 @@
 
 -include("ejabberd.hrl").
 
--define(btoea(X), list_to_existing_atom(binary_to_list(X))).
-
 %%%----------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------
@@ -42,7 +40,10 @@ plain_password_required() ->
     true.
 
 check_password(User, Server, Password) ->
-    ?btoea(make_req(get, "check_password", undefined, User, Server, Password)).
+    case make_req(get, "check_password", undefined, User, Server, Password) of
+        <<"true">> -> true;
+        <<"false">> -> false
+    end.
 
 check_password(_User, _Server, _Password, _Digest, _DigestGen) ->
     false.
@@ -91,7 +92,10 @@ get_password_s(User, Server) ->
 
 %% @spec (User, Server) -> true | false
 is_user_exists(User, Server) ->
-    ?btoea(make_req(get, "user_exists", undefined, User, Server, <<"">>)).
+    case make_req(get, "user_exists", undefined, User, Server, <<"">>) of
+        <<"true">> -> true;
+        <<"false">> -> false
+    end.
 
 %% @spec (User, Server) -> ok | not_exists | not_allowed | bad_request
 remove_user(User, Server) ->
