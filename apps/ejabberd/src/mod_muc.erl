@@ -134,7 +134,7 @@ forget_room(Host, Name) ->
 		mnesia:delete({muc_room, {Name, Host}})
 	end,
     mnesia:transaction(F),
-    ejabberd_hooks:run(forget_room, [Host, Name]),
+    ejabberd_hooks:run(forget_room, Host, [Host, Name]),
     ok.
 
 process_iq_disco_items(Host, From, To, #iq{lang = Lang} = IQ) ->
