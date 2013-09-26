@@ -162,6 +162,13 @@ init([]) ->
          infinity,
          supervisor,
          [ejabberd_sm_backend_sup]},
+    MucIQ =
+        {mod_muc_iq,
+         {mod_muc_iq, start_link, []},
+         permanent,
+         brutal_kill,
+         worker,
+         [mod_muc_iq]},
 
     {ok, {{one_for_one, 10, 1},
           [Randoms,
@@ -180,4 +187,5 @@ init([]) ->
            HTTPPollSupervisor,
            IQSupervisor,
            STUNSupervisor,
-           Listener]}}.
+           Listener,
+           MucIQ]}}.
