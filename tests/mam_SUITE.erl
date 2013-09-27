@@ -109,6 +109,9 @@ muc_host() ->
 host() ->
     <<"localhost">>.
 
+muc_server_host() ->
+    <<"localhost">>.
+
 configurations() ->
     [odbc_async,
      odbc,
@@ -132,11 +135,6 @@ all() ->
     Reasons =
     case is_odbc_enabled(host()) of
         false -> [require_odbc];
-        true  -> []
-    end
-    ++
-    case is_odbc_enabled(muc_host()) of
-        false -> [require_odbc_for_muc];
         true  -> []
     end,
     case Reasons of
@@ -222,22 +220,22 @@ end_per_group(Group, Config) ->
     end_modules(C, B, Config1).
 
 init_modules(odbc, muc, Config) ->
-    init_module(muc_host(), mod_mam, odbc_muc_args()),
+    init_module(muc_server_host(), mod_mam_muc, odbc_muc_args()),
     Config;
 init_modules(odbc_async, muc, Config) ->
-    init_module(muc_host(), mod_mam, odbc_async_muc_args()),
+    init_module(muc_server_host(), mod_mam_muc, odbc_async_muc_args()),
     Config;
 init_modules(odbc_mnesia, muc, Config) ->
-    init_module(muc_host(), mod_mam, odbc_mnesia_muc_args()),
+    init_module(muc_server_host(), mod_mam_muc, odbc_mnesia_muc_args()),
     Config;
 init_modules(odbc_cache, muc, Config) ->
-    init_module(muc_host(), mod_mam, odbc_cache_muc_args()),
+    init_module(muc_server_host(), mod_mam_muc, odbc_cache_muc_args()),
     Config;
 init_modules(odbc_async_cache, muc, Config) ->
-    init_module(muc_host(), mod_mam, odbc_async_cache_muc_args()),
+    init_module(muc_server_host(), mod_mam_muc, odbc_async_cache_muc_args()),
     Config;
 init_modules(odbc_mnesia_cache, muc, Config) ->
-    init_module(muc_host(), mod_mam, odbc_mnesia_cache_muc_args()),
+    init_module(muc_server_host(), mod_mam_muc, odbc_mnesia_cache_muc_args()),
     Config;
 init_modules(odbc, _, Config) ->
     init_module(host(), mod_mam, odbc_args()),
@@ -259,6 +257,8 @@ init_modules(odbc_mnesia_cache, _, Config) ->
     Config.
 
 end_modules(_, _, Config) ->
+    stop_module(host(), mod_mam),
+    stop_module(muc_server_host(), mod_mam_muc),
     Config.
 
 odbc_args() ->
@@ -280,67 +280,61 @@ odbc_mnesia_args() ->
      {archive_module, mod_mam_odbc_arch}].
 
 odbc_cache_args() ->
-    [{user_module, mod_mam_cache_user},
-     {user_base_module, mod_mam_odbc_user},
+    [{user_module, {mod_mam_cache_user, mod_mam_odbc_user}},
      {prefs_module, mod_mam_odbc_prefs},
      {writer_module, mod_mam_odbc_arch},
      {archive_module, mod_mam_odbc_arch}].
 
 odbc_async_cache_args() ->
-    [{user_module, mod_mam_cache_user},
-     {user_base_module, mod_mam_odbc_user},
+    [{user_module, {mod_mam_cache_user, mod_mam_odbc_user}},
      {prefs_module, mod_mam_odbc_prefs},
      {writer_module, mod_mam_odbc_async_writer},
      {archive_module, mod_mam_odbc_arch}].
 
 odbc_mnesia_cache_args() ->
-    [{user_module, mod_mam_cache_user},
-     {user_base_module, mod_mam_odbc_user},
+    [{user_module, {mod_mam_cache_user, mod_mam_odbc_user}},
      {prefs_module, mod_mam_mnesia_prefs},
      {writer_module, mod_mam_odbc_arch},
      {archive_module, mod_mam_odbc_arch}].
 
 odbc_async_muc_args() ->
-    [{muc, true},
+    [{host, "muc.@HOST@"},
      {user_module, mod_mam_odbc_user},
      {prefs_module, mod_mam_odbc_prefs},
      {writer_module, mod_mam_muc_odbc_async_writer},
      {archive_module, mod_mam_muc_odbc_arch}].
 
 odbc_muc_args() ->
-    [{muc, true},
+    [{host, "muc.@HOST@"},
      {user_module, mod_mam_odbc_user},
      {prefs_module, mod_mam_odbc_prefs},
      {writer_module, mod_mam_muc_odbc_arch},
      {archive_module, mod_mam_muc_odbc_arch}].
 
 odbc_mnesia_muc_args() ->
-    [{muc, true},
+    [{host, "muc.@HOST@"},
      {user_module, mod_mam_odbc_user},
      {prefs_module, mod_mam_mnesia_prefs},
      {writer_module, mod_mam_muc_odbc_arch},
      {archive_module, mod_mam_muc_odbc_arch}].
 
 odbc_async_cache_muc_args() ->
-    [{muc, true},
-     {user_module, mod_mam_cache_user},
-     {user_base_module, mod_mam_odbc_user},
+    [{host, "muc.@HOST@"},
+     {user_module, {mod_mam_cache_user, mod_mam_odbc_user}},
      {prefs_module, mod_mam_odbc_prefs},
      {writer_module, mod_mam_muc_odbc_async_writer},
      {archive_module, mod_mam_muc_odbc_arch}].
 
 odbc_cache_muc_args() ->
-    [{muc, true},
-     {user_module, mod_mam_cache_user},
-     {user_base_module, mod_mam_odbc_user},
+    [{host, "muc.@HOST@"},
+     {user_module, {mod_mam_cache_user, mod_mam_odbc_user}},
      {prefs_module, mod_mam_odbc_prefs},
      {writer_module, mod_mam_muc_odbc_arch},
      {archive_module, mod_mam_muc_odbc_arch}].
 
 odbc_mnesia_cache_muc_args() ->
-    [{muc, true},
-     {user_module, mod_mam_cache_user},
-     {user_base_module, mod_mam_odbc_user},
+    [{host, "muc.@HOST@"},
+     {user_module, {mod_mam_cache_user, mod_mam_odbc_user}},
      {prefs_module, mod_mam_mnesia_prefs},
      {writer_module, mod_mam_muc_odbc_arch},
      {archive_module, mod_mam_muc_odbc_arch}].
@@ -895,8 +889,6 @@ muc_service_discovery(Config) ->
         Server = escalus_client:server(Alice),
         escalus:send(Alice, escalus_stanza:service_discovery(Server)),
         Stanza = escalus:wait_for_stanza(Alice),
-        %% If this fails, than check your config.
-        %% `{mod_disco, [{extra_domains, [<<"muc.localhost">>]}]}' must be there.
         escalus:assert(has_service, [muc_host()], Stanza),
         escalus:assert(is_stanza_from, [Domain], Stanza),
         ok
@@ -1248,7 +1240,7 @@ start_room(Config, User, Room, Nick, Opts) ->
 
 destroy_room(Config) ->
     RoomName = ?config(room, Config),
-    delete_archive(muc_host(), RoomName),
+    delete_room_archive(muc_host(), RoomName),
     case rpc_apply(ets, lookup, [muc_online_room, {RoomName, muc_host()}]) of
         [{_,_,Pid}|_] -> gen_fsm:send_all_state_event(Pid, destroy);
         _ -> ok
@@ -1314,9 +1306,9 @@ clean_archives(Config) ->
 
 clean_room_archive(Config) ->
     Room = ?config(room, Config),
-    delete_archive(muc_host(), Room),
+    delete_room_archive(muc_host(), Room),
     timer:sleep(500),
-    assert_empty_archive(muc_host(), Room),
+    assert_empty_room_archive(muc_host(), Room),
     Config.
 
 serv_users(Config) ->
@@ -1334,12 +1326,22 @@ assert_empty_archive(Server, Username) ->
        X -> ct:fail({not_empty, Server, Username, X})
     end.
 
+%% @doc Check, that the archive is empty.
+assert_empty_room_archive(Server, Username) ->
+    case archive_size(Server, Username) of
+       0 -> ok;
+       X -> ct:fail({not_empty, Server, Username, X})
+    end.
+
 
 archive_size(Server, Username) ->
     rpc_apply(mod_mam, archive_size, [Server, Username]).
 
 delete_archive(Server, Username) ->
     rpc_apply(mod_mam, delete_archive, [Server, Username]).
+
+delete_room_archive(Server, Username) ->
+    rpc_apply(mod_mam_muc, delete_archive, [Server, Username]).
 
 wait_message_range(Client, FromN, ToN) ->
     wait_message_range(Client, 15, FromN-1, FromN, ToN).
