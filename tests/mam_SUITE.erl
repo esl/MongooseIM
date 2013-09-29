@@ -387,7 +387,8 @@ start_module(Host, Mod, Args) ->
 stop_module(Host, Mod) ->
     case is_loaded_module(Host, Mod) of
         non_existing -> ok;
-        _ -> just_stop_module(Host, Mod)
+        false        -> ok;
+        true         -> just_stop_module(Host, Mod)
     end.
 
 just_stop_module(Host, Mod) ->
