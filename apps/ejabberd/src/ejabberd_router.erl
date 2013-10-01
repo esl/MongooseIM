@@ -218,6 +218,7 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
+
 do_route(OrigFrom, OrigTo, OrigPacket) ->
     ?DEBUG("route~n\tfrom ~p~n\tto ~p~n\tpacket ~p~n",
            [OrigFrom, OrigTo, OrigPacket]),

@@ -69,7 +69,9 @@ start_module(Host, Module, Opts) ->
                #ejabberd_module{module_host = {Module, Host},
                                 opts = Opts}),
     try
-        Module:start(Host, Opts)
+        Res = Module:start(Host, Opts),
+        ?DEBUG("Module ~p started for ~p.", [Module, Host]),
+        Res
     catch
         Class:Reason ->
             del_module_mnesia(Host, Module),

@@ -18,21 +18,21 @@
 --
 
 CREATE TABLE users (
-    username text PRIMARY KEY,
+    username varchar(250) PRIMARY KEY,
     "password" text NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT now()
 );
 
 
 CREATE TABLE last (
-    username text PRIMARY KEY,
+    username varchar(250) PRIMARY KEY,
     seconds text NOT NULL,
     state text NOT NULL
 );
 
 
 CREATE TABLE rosterusers (
-    username text NOT NULL,
+    username varchar(250) NOT NULL,
     jid text NOT NULL,
     nick text NOT NULL,
     subscription character(1) NOT NULL,
@@ -50,7 +50,7 @@ CREATE INDEX i_rosteru_jid ON rosterusers USING btree (jid);
 
 
 CREATE TABLE rostergroups (
-    username text NOT NULL,
+    username varchar(250) NOT NULL,
     jid text NOT NULL,
     grp text NOT NULL
 );
@@ -59,7 +59,7 @@ CREATE INDEX pk_rosterg_user_jid ON rostergroups USING btree (username, jid);
 
 
 CREATE TABLE spool (
-    username text NOT NULL,
+    username varchar(250) NOT NULL,
     xml text NOT NULL,
     seq SERIAL,
     created_at TIMESTAMP NOT NULL DEFAULT now()
@@ -69,14 +69,17 @@ CREATE INDEX i_despool ON spool USING btree (username);
 
 
 CREATE TABLE vcard (
-    username text PRIMARY KEY,
+    username varchar(150),
+    server varchar(100),
     vcard text NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT now()
+    created_at TIMESTAMP NOT NULL DEFAULT now(),
+    PRIMARY KEY (server, username)
 );
 
 CREATE TABLE vcard_search (
-    username text NOT NULL,
-    lusername text PRIMARY KEY,
+    username varchar(150) NOT NULL,
+    lusername varchar(100),
+    server varchar(250),
     fn text NOT NULL,
     lfn text NOT NULL,
     family text NOT NULL,
@@ -98,7 +101,8 @@ CREATE TABLE vcard_search (
     orgname text NOT NULL,
     lorgname text NOT NULL,
     orgunit text NOT NULL,
-    lorgunit text NOT NULL
+    lorgunit text NOT NULL,
+    PRIMARY KEY (server, lusername)
 );
 
 CREATE INDEX i_vcard_search_lfn       ON vcard_search(lfn);
@@ -114,12 +118,12 @@ CREATE INDEX i_vcard_search_lorgname  ON vcard_search(lorgname);
 CREATE INDEX i_vcard_search_lorgunit  ON vcard_search(lorgunit);
 
 CREATE TABLE privacy_default_list (
-    username text PRIMARY KEY,
+    username varchar(250) PRIMARY KEY,
     name text NOT NULL
 );
 
 CREATE TABLE privacy_list (
-    username text NOT NULL,
+    username varchar(250) NOT NULL,
     name text NOT NULL,
     id SERIAL UNIQUE,
     created_at TIMESTAMP NOT NULL DEFAULT now()
@@ -142,7 +146,7 @@ CREATE TABLE privacy_list_data (
 );
 
 CREATE TABLE private_storage (
-    username text NOT NULL,
+    username varchar(250) NOT NULL,
     namespace text NOT NULL,
     data text NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT now()
@@ -153,7 +157,7 @@ CREATE UNIQUE INDEX i_private_storage_username_namespace ON private_storage USIN
 
 
 CREATE TABLE roster_version (
-    username text PRIMARY KEY,
+    username varchar(250) PRIMARY KEY,
     version text NOT NULL
 );
 
@@ -219,3 +223,74 @@ CREATE TABLE pubsub_subscription_opt (
   opt_value text
 );
 CREATE UNIQUE INDEX i_pubsub_subscription_opt ON pubsub_subscription_opt USING btree (subid, opt_name);
+
+
+CREATE TYPE mam_behaviour AS ENUM('A', 'N', 'R');
+CREATE TYPE mam_direction AS ENUM('I','O');
+
+CREATE TABLE mam_message(
+  -- Message UID (64 bits)
+  -- A server-assigned UID that MUST be unique within the archive.
+  id BIGINT NOT NULL PRIMARY KEY,
+  user_id INT NOT NULL,
+  -- FromJID used to form a message without looking into stanza.
+  -- This value will be send to the client "as is".
+  from_jid varchar(250) NOT NULL,
+  -- The remote JID that the stanza is to (for an outgoing message) or from (for an incoming message).
+  -- This field is for sorting and filtering.
+  remote_bare_jid varchar(250) NOT NULL,
+  remote_resource varchar(250) NOT NULL,
+  -- I - incoming, remote_jid is a value from From.
+  -- O - outgoing, remote_jid is a value from To.
+  -- Has no meaning for MUC-rooms.
+  direction mam_direction NOT NULL,
+  -- Term-encoded message packet
+  message bytea NOT NULL
+);
+CREATE INDEX i_mam_message_username_id
+    ON mam_message
+    USING BTREE
+    (user_id, id);
+CREATE INDEX i_mam_message_username_jid_id
+    ON mam_message
+    USING BTREE
+    (user_id, remote_bare_jid, id);
+
+CREATE TABLE mam_config(
+  user_id INT NOT NULL,
+  -- If empty, than it is a default behaviour.
+  remote_jid varchar(250) NOT NULL,
+  -- A - always archive;
+  -- N - never archive;
+  -- R - roster (only for remote_jid == "")
+  behaviour mam_behaviour NOT NULL
+);
+CREATE INDEX i_mam_config
+    ON mam_config
+    (user_id, remote_jid);
+
+CREATE TABLE mam_user(
+  id SERIAL UNIQUE PRIMARY KEY,
+  user_name varchar(250) NOT NULL
+);
+CREATE INDEX i_mam_user_name
+    ON mam_user
+    USING BTREE
+    (user_name);
+
+
+CREATE TABLE mam_muc_message(
+  -- Message UID
+  -- A server-assigned UID that MUST be unique within the archive.
+  id BIGINT NOT NULL PRIMARY KEY,
+  room_id INT NOT NULL,
+  -- A nick of the message's originator
+  nick_name varchar(250) NOT NULL,
+  -- Term-encoded message packet
+  message bytea NOT NULL
+);
+CREATE INDEX i_mam_muc_message_room_name_added_at
+    ON mam_muc_message
+    USING BTREE
+    (room_id, id);
+

@@ -40,7 +40,13 @@
 	 escape/1,
 	 escape_like/1,
 	 to_bool/1,
-	 keep_alive/1]).
+	 keep_alive/1,
+     get_dedicated_connection/1]).
+
+%% BLOB escaping
+-export([escape_format/1,
+         escape_binary/2,
+         unescape_binary/2]).
 
 %% gen_fsm callbacks
 -export([init/1,
@@ -98,6 +104,9 @@ start_link(Host, StartInterval) ->
 sql_query(Host, Query) ->
     sql_call(Host, {sql_query, Query}).
 
+get_dedicated_connection(Host) ->
+    ejabberd_odbc_sup:get_dedicated_connection(Host).
+
 %% SQL transaction based on a list of queries
 %% This function automatically
 sql_transaction(Host, Queries) when is_list(Queries) ->
@@ -116,14 +125,19 @@ sql_transaction(Host, F) when is_function(F) ->
 sql_bloc(Host, F) ->
     sql_call(Host, {sql_bloc, F}).
 
-sql_call(Host, Msg) ->
+sql_call(Host, Msg) when is_binary(Host) ->
     case get(?STATE_KEY) of
         undefined ->
-            ?GEN_FSM:sync_send_event(ejabberd_odbc_sup:get_random_pid(Host),
-				     {sql_cmd, Msg, now()}, ?TRANSACTION_TIMEOUT);
+            Worker = ejabberd_odbc_sup:get_random_pid(Host),
+            sql_call(Worker, Msg);
         _State ->
             nested_op(Msg)
-    end.
+    end;
+%% For dedicated connections.
+sql_call(Pid, Msg) when is_pid(Pid) ->
+    ?GEN_FSM:sync_send_event(Pid,
+             {sql_cmd, Msg, now()}, ?TRANSACTION_TIMEOUT).
+
 
 % perform a harmless query on all opened connexions to avoid connexion close.
 keep_alive(PID) ->
@@ -164,6 +178,28 @@ escape_like(S) when is_list(S) ->
 escape_like($%) -> "\\%";
 escape_like($_) -> "\\_";
 escape_like(C)  -> odbc_queries:escape(C).
+
+escape_format(Host) ->
+    case db_engine(Host) of
+        pgsql -> hex;
+        _     -> simple_escape
+    end.
+
+escape_binary(hex, Bin) when is_binary(Bin) ->
+    <<"\\\\x", (bin_to_hex:bin_to_hex(Bin))/binary>>;
+escape_binary(simple_escape, Bin) when is_binary(Bin) ->
+    escape(Bin).
+
+unescape_binary(hex, <<"\\x", Bin/binary>>) when is_binary(Bin) ->
+    hex_to_bin(Bin);
+unescape_binary(simple_escape, Bin) ->
+    Bin.
+
+hex_to_bin(Bin) when is_binary(Bin) ->
+    << <<(hex_to_int(X, Y))>> || <<X, Y>> <= Bin>>.
+
+hex_to_int(X, Y) when is_integer(X), is_integer(Y) ->
+    list_to_integer([X,Y], 16).
 
 to_bool(B) when is_binary(B) ->
     to_bool(binary_to_list(B));
@@ -562,6 +598,14 @@ db_opts(Host) ->
 	    [mysql, Server, Port, DB, User, Pass];
 	SQLServer when is_list(SQLServer) ->
 	    [odbc, SQLServer]
+    end.
+
+db_engine(Host) ->
+    case ejabberd_config:get_local_option({odbc_server, Host}) of
+        SQLServer when is_list(SQLServer) ->
+            odbc;
+        Other when is_tuple(Other) ->
+            element(1, Other)
     end.
 
 max_fsm_queue() ->
