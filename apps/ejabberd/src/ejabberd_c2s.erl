@@ -766,8 +766,9 @@ wait_for_sasl_response({xmlstreamelement, El}, StateData) ->
 		    (StateData#state.sockmod):reset_stream(
 		      StateData#state.socket),
 		    send_element(StateData,
-				 {xmlelement, "success",
-				  [{"xmlns", ?NS_SASL}], []}),
+                         #xmlel{name = <<"success">>,
+                                attrs = [{"xmlns", ?NS_SASL}]
+                               }),
 		    U = xml:get_attr_s(username, Props),
 		    AuthModule = xml:get_attr_s(auth_module, Props),
 		    ?INFO_MSG("(~w) Accepted authentication for ~s by ~p",
@@ -782,10 +783,11 @@ wait_for_sasl_response({xmlstreamelement, El}, StateData) ->
 		    (StateData#state.sockmod):reset_stream(
 		      StateData#state.socket),
 		    send_element(StateData,
-				 {xmlelement, "success",
-				  [{"xmlns", ?NS_SASL}],
-				  [{xmlcdata,
-				    jlib:encode_base64(ServerOut)}]}),
+                         #xmlel{name = <<"success">>,
+                                attrs = [{"xmlns", ?NS_SASL}],
+                                children = [{xmlcdata,
+                                             jlib:encode_base64(ServerOut)}]}
+                        ),
 		    U = xml:get_attr_s(username, Props),
 		    AuthModule = xml:get_attr_s(auth_module, Props),
 		    ?INFO_MSG("(~w) Accepted authentication for ~s by ~p",

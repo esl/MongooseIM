@@ -37,7 +37,6 @@
 
 %%-define(DBGFSM, true).
 
--record(scram, {storedkey, serverkey, salt, iterationcount}).
 -define(SCRAM_DEFAULT_ITERATION_COUNT, 4096).
 
 %% ---------------------------------
@@ -74,3 +73,12 @@
                           integer_to_binary/1]).
 
 -endif.
+
+
+-record(scram,
+        {storedkey = <<"">>,
+         serverkey = <<"">>,
+         salt = <<"">>,
+         iterationcount = 0 :: integer()}).
+
+-type scram() :: #scram{}.
