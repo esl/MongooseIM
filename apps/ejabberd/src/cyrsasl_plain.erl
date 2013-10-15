@@ -34,7 +34,7 @@
 -record(state, {check_password}).
 
 start(_Opts) ->
-    cyrsasl:register_mechanism(<<"PLAIN">>, ?MODULE, false),
+    cyrsasl:register_mechanism(<<"PLAIN">>, ?MODULE, plain),
     ok.
 
 stop() ->
@@ -46,7 +46,7 @@ mech_new(_Host, _GetPassword, CheckPassword, _CheckPasswordDigest) ->
 mech_step(State, ClientIn) ->
     case prepare(ClientIn) of
 	[AuthzId, User, Password] ->
-	    case (State#state.check_password)(User, 
+	    case (State#state.check_password)(User,
                                           Password
                                          ) of
 		{true, AuthModule} ->
@@ -65,8 +65,8 @@ prepare(ClientIn) ->
 	    case parse_domain(UserMaybeDomain) of
 		%% <NUL>login@domain<NUL>pwd
 		[User, _Domain] ->
-		    [UserMaybeDomain, 
-             User, 
+		    [UserMaybeDomain,
+             User,
              Password];
 		%% <NUL>login<NUL>pwd
 		[User] ->
