@@ -129,9 +129,7 @@ check_password_with_authmodule(User, Server, Password, Digest, DigestGen) ->
     check_password_loop(auth_modules(Server), [User, Server, Password,
 					       Digest, DigestGen]).
 
-check_password_loop([], Args) ->
-    [User, Server, Password | _] = Args,
-    ejabberd_hooks:run(auth_failed, Server, [User, Server, Password]),
+check_password_loop([], _Args) ->
     false;
 check_password_loop([AuthModule | AuthModules], Args) ->
     case apply(AuthModule, check_password, Args) of
@@ -251,7 +249,7 @@ get_password_s(User, Server) ->
     case get_password(User, Server) of
 	false ->
 	    <<"">>;
-	Password ->
+	Password when is_binary(Password) ->
 	    Password;
     _ ->
         <<"">>

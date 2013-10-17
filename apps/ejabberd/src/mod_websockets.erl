@@ -175,19 +175,19 @@ websocket_init(Transport, Req, Opts) ->
 
 % Called when a text message arrives.
 websocket_handle({text, Msg}, Req, State) ->
-    ?INFO_MSG("Received: ~p", [Msg]),
+    ?DEBUG("Received: ~p", [Msg]),
     {ok, NewState} = handle_text(Msg, State),
     {ok, Req, NewState};
 
 websocket_handle({binary, Msg}, Req, State) ->
-    ?INFO_MSG("Received binary: ~p", [Msg]),
+    ?DEBUG("Received binary: ~p", [Msg]),
     {ok, NewState} = handle_text(Msg, State),
     {ok, Req, NewState};
 
 % With this callback we can handle other kind of
 % messages, like binary.
 websocket_handle(Any, Req, State) ->
-    ?INFO_MSG("Received non-text: ~p", [Any]),
+    ?DEBUG("Received non-text: ~p", [Any]),
     {ok, Req, State}.
 
 % Other messages from the system are handled here.
@@ -208,7 +208,7 @@ websocket_info(stop, Req, #ws_state{parser = Parser} = State) ->
     exml_stream:free_parser(Parser),
     {shutdown, Req, State};
 websocket_info(Info, Req, State) ->
-    ?INFO_MSG("unknown info: ~p", [Info]),
+    ?DEBUG("unknown info: ~p", [Info]),
     {ok, Req, State}.
 
 websocket_terminate(_Reason, _Req, _State) ->
