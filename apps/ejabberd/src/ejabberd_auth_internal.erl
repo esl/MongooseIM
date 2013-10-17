@@ -287,12 +287,12 @@ get_password_s(User, Server) ->
     LServer = jlib:nameprep(Server),
     US = {LUser, LServer},
     case catch mnesia:dirty_read(passwd, US) of
-	[#passwd{password = Password}] when is_list(Password) ->
+	[#passwd{password = Password}] when is_binary(Password) ->
 	    Password;
 	[#passwd{password = Scram}] when is_record(Scram, scram) ->
-	    [];
+	    <<"">>;
 	_ ->
-	    []
+	    <<"">>
     end.
 
 %% @spec (User, Server) -> true | false | {error, Error}

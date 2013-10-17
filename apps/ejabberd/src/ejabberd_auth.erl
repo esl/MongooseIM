@@ -95,10 +95,10 @@ store_type(Server) ->
 %% @doc Check if the user and password can login in server.
 %% @spec (User::string(), Server::string(), Password::string()) ->
 %%     true | false
-check_password(User, Server, Password) 
+check_password(User, Server, Password)
   when is_list(User), is_list(Server), is_list(Password) ->
-    check_password(list_to_binary(User), 
-                   list_to_binary(Server), 
+    check_password(list_to_binary(User),
+                   list_to_binary(Server),
                    list_to_binary(Password));
 check_password(User, Server, Password) ->
     case check_password_with_authmodule(User, Server, Password) of
@@ -110,16 +110,16 @@ check_password(User, Server, Password) ->
 %% @spec (User::string(), Server::string(), Password::string(),
 %%        Digest::string(), DigestGen::function()) ->
 %%     true | false
-check_password(User, Server, Password, Digest, DigestGen) 
+check_password(User, Server, Password, Digest, DigestGen)
   when is_list(User), is_list(Server), is_list(Password)->
-    check_password(list_to_binary(User), 
-                   list_to_binary(Server), 
+    check_password(list_to_binary(User),
+                   list_to_binary(Server),
                    list_to_binary(Password),
                    Digest,
                    DigestGen);
-check_password(User, Server, Password, Digest, DigestGen) 
+check_password(User, Server, Password, Digest, DigestGen)
   when is_list(Digest) ->
-    check_password(User, Server, Password, list_to_binary(Digest), DigestGen);    
+    check_password(User, Server, Password, list_to_binary(Digest), DigestGen);
 check_password(User, Server, Password, Digest, DigestGen) ->
     case check_password_with_authmodule(User, Server, Password,
 					Digest, DigestGen) of
@@ -139,16 +139,16 @@ check_password(User, Server, Password, Digest, DigestGen) ->
 %%                 | ejabberd_auth_odbc | ejabberd_auth_pam
 check_password_with_authmodule(User, Server, Password)
   when is_list(User), is_list(Server), is_list(Password) ->
-    check_password_with_authmodule(list_to_binary(User), 
-                                   list_to_binary(Server), 
+    check_password_with_authmodule(list_to_binary(User),
+                                   list_to_binary(Server),
                                    list_to_binary(Password));
 check_password_with_authmodule(User, Server, Password) ->
     check_password_loop(auth_modules(Server), [User, Server, Password]).
 
-check_password_with_authmodule(User, Server, Password, Digest, DigestGen) 
+check_password_with_authmodule(User, Server, Password, Digest, DigestGen)
   when is_list(User), is_list(Server), is_list(Password) ->
-    check_password_with_authmodule(list_to_binary(User), 
-                                   list_to_binary(Server), 
+    check_password_with_authmodule(list_to_binary(User),
+                                   list_to_binary(Server),
                                    list_to_binary(Password),
                                    Digest,
                                    DigestGen);
@@ -156,9 +156,7 @@ check_password_with_authmodule(User, Server, Password, Digest, DigestGen) ->
     check_password_loop(auth_modules(Server), [User, Server, Password,
 					       Digest, DigestGen]).
 
-check_password_loop([], Args) ->
-    [User, Server, Password | _] = Args,
-    ejabberd_hooks:run(auth_failed, Server, [User, Server, Password]),
+check_password_loop([], _Args) ->
     false;
 check_password_loop([AuthModule | AuthModules], Args) ->
     case apply(AuthModule, check_password, Args) of
@@ -174,8 +172,8 @@ check_password_loop([AuthModule | AuthModules], Args) ->
 %% where ErrorType = empty_password | not_allowed | invalid_jid
 set_password(User, Server, Password)
   when is_list(User), is_list(Server), is_list(Password) ->
-    set_password(list_to_binary(User), 
-                 list_to_binary(Server), 
+    set_password(list_to_binary(User),
+                 list_to_binary(Server),
                  list_to_binary(Password));
 set_password(_User, _Server, "") ->
     %% We do not allow empty password
@@ -191,12 +189,12 @@ set_password(User, Server, Password) ->
 %% @spec (User, Server, Password) -> {atomic, ok} | {atomic, exists} | {error, not_allowed}
 try_register(User, Server, Password)
   when is_list(User), is_list(Server), is_list(Password) ->
-    try_register(list_to_binary(User), 
-                 list_to_binary(Server), 
+    try_register(list_to_binary(User),
+                 list_to_binary(Server),
                  list_to_binary(Password));
 try_register(_User, _Server, "") ->
     %% We do not allow empty password
-    {error, not_allowed};    
+    {error, not_allowed};
 try_register(User, Server, Password) ->
     case is_user_exists(User,Server) of
 	true ->
@@ -285,7 +283,7 @@ get_vh_registered_users_number(Server, Opts) ->
 %% @doc Get the password of the user.
 %% @spec (User::string(), Server::string()) -> Password::string()
 get_password(User, Server) when is_list(User), is_list(Server) ->
-    list_to_binary(get_password(list_to_binary(User), 
+    list_to_binary(get_password(list_to_binary(User),
                                 list_to_binary(Server)));
 get_password(User, Server) ->
     lists:foldl(
@@ -295,14 +293,11 @@ get_password(User, Server) ->
 	      Password
       end, false, auth_modules(Server)).
 
-get_password_s(User, Server) when is_list(User), is_list(Server) ->
-    list_to_binary(get_password_s(list_to_binary(User), 
-                                  list_to_binary(Server)));
 get_password_s(User, Server) ->
     case get_password(User, Server) of
 	false ->
 	    <<"">>;
-	Password ->
+	Password when is_binary(Password) ->
 	    Password;
     _ ->
         <<"">>
@@ -323,7 +318,7 @@ get_password_with_authmodule(User, Server) ->
 %% Returns true if the user exists in the DB or if an anonymous user is logged
 %% under the given name
 is_user_exists(User, Server) when is_list(User), is_list(Server) ->
-    is_user_exists(list_to_binary(User), 
+    is_user_exists(list_to_binary(User),
                    list_to_binary(Server));
 is_user_exists(User, Server) ->
     lists:any(
@@ -345,7 +340,7 @@ is_user_exists(User, Server) ->
 %% @spec (Module::atom(), User, Server) -> true | false | maybe
 is_user_exists_in_other_modules(Module, User, Server) when is_list(User), is_list(Server) ->
     is_user_exists_in_other_modules(Module,
-                                    list_to_binary(User), 
+                                    list_to_binary(User),
                                     list_to_binary(Server));
 is_user_exists_in_other_modules(Module, User, Server) ->
     is_user_exists_in_other_modules_loop(
@@ -372,7 +367,7 @@ is_user_exists_in_other_modules_loop([AuthModule|AuthModules], User, Server) ->
 %% @doc Remove user.
 %% Note: it may return ok even if there was some problem removing the user.
 remove_user(User, Server) when is_list(User), is_list(Server) ->
-    remove_user(list_to_binary(User), 
+    remove_user(list_to_binary(User),
                 list_to_binary(Server));
 remove_user(User, Server) ->
     [M:remove_user(User, Server) || M <- auth_modules(Server)],
@@ -384,9 +379,9 @@ remove_user(User, Server) ->
 %% The removal is attempted in each auth method provided:
 %% when one returns 'ok' the loop stops;
 %% if no method returns 'ok' then it returns the error message indicated by the last method attempted.
-remove_user(User, Server, Password) 
+remove_user(User, Server, Password)
   when is_list(User), is_list(Server), is_list(Password)->
-    remove_user(list_to_binary(User), 
+    remove_user(list_to_binary(User),
                 list_to_binary(Server),
                 list_to_binary(Password));
 remove_user(User, Server, Password) ->

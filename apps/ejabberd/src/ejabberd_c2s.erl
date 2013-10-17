@@ -567,6 +567,8 @@ wait_for_auth({xmlstreamelement, El}, StateData) ->
 				jlib:jid_to_binary(JID)]),
 			    Err = jlib:make_error_reply(
 				    El, ?ERR_NOT_AUTHORIZED),
+                ejabberd_hooks:run(auth_failed, StateData#state.server,
+                               [U, StateData#state.server]),
 			    send_element(StateData, Err),
 			    fsm_next_state(wait_for_auth, StateData)
 		    end;
@@ -654,6 +656,8 @@ wait_for_feature_request({xmlstreamelement, El}, StateData) ->
 		       "(~w) Failed authentication for ~s@~s",
 		       [StateData#state.socket,
 			Username, StateData#state.server]),
+            ejabberd_hooks:run(auth_failed, StateData#state.server,
+                               [Username, StateData#state.server]),
 		    send_element(StateData,
 				 #xmlel{name = <<"failure">>,
 				        attrs = [{<<"xmlns">>, ?NS_SASL}],
@@ -661,6 +665,8 @@ wait_for_feature_request({xmlstreamelement, El}, StateData) ->
 		    {next_state, wait_for_feature_request, StateData,
 		     ?C2S_OPEN_TIMEOUT};
 		{error, Error} ->
+            ejabberd_hooks:run(auth_failed, StateData#state.server,
+                               [unknown, StateData#state.server]),
 		    send_element(StateData,
 				 #xmlel{name = <<"failure">>,
 				        attrs = [{<<"xmlns">>, ?NS_SASL}],
@@ -808,12 +814,16 @@ wait_for_sasl_response({xmlstreamelement, El}, StateData) ->
 		       "(~w) Failed authentication for ~s@~s",
 		       [StateData#state.socket,
 			Username, StateData#state.server]),
+            ejabberd_hooks:run(auth_failed, StateData#state.server,
+                               [Username, StateData#state.server]),
 		    send_element(StateData,
 				 #xmlel{name = <<"failure">>,
 				        attrs = [{<<"xmlns">>, ?NS_SASL}],
 				        children = [#xmlel{name = Error}]}),
 		    fsm_next_state(wait_for_feature_request, StateData);
 		{error, Error} ->
+            ejabberd_hooks:run(auth_failed, StateData#state.server,
+                               [unknown, StateData#state.server]),
 		    send_element(StateData,
 				 #xmlel{name = <<"failure">>,
 				        attrs = [{<<"xmlns">>, ?NS_SASL}],
