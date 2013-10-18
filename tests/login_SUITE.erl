@@ -31,18 +31,16 @@ all() ->
      {group, register},
      {group, registration_timeout},
      {group, login},
-     {group, messages}
-    ].
+     {group, login_scram},
+     {group, messages}].
 
 groups() ->
     [{register, [sequence], [register,
                              check_unregistered]},
      {registration_timeout, [sequence], [registration_timeout]},
      {login, [sequence], [log_one,
-                          log_one_digest
-%%                          log_one_basic_plain,
-%%                          log_one_basic_digest
-                         ]},
+                          log_one_digest]},
+     {login_scram, [sequence], [log_one, log_one_scram]},
      {messages, [sequence], [messages_story]}].
 
 suite() ->
@@ -72,6 +70,14 @@ init_per_group(registration_timeout, Config) ->
         _ ->
             {skip, mod_register_disabled}
     end;
+init_per_group(login_scram, Config) ->
+    case get_auth_method() of
+        external ->
+            {skip, "external authentication requires plain password"};
+        _ ->
+            set_store_password(scram),
+            escalus:create_users(Config)
+    end;
 init_per_group(_GroupName, Config) ->
     escalus:create_users(Config).
 
@@ -80,19 +86,23 @@ end_per_group(register, _Config) ->
 end_per_group(registration_timeout, Config) ->
     Config1 = restore_registration_timeout(Config),
     escalus_users:delete_users(Config1, {by_name, [alice, bob]});
+end_per_group(login_scram, Config) ->
+    set_store_password(plain),
+    escalus:delete_users(Config);
 end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config).
 
 init_per_testcase(log_one_digest, Config) ->
-    XMPPDomain = ct:get_config(ejabberd_domain),
-    case escalus_ejabberd:rpc(ejabberd_config, get_local_option,
-                              [{auth_method, XMPPDomain}]) of
+    case get_auth_method() of
         external ->
             {skip, "external authentication requires plain password"};
         _ ->
             Conf1 = [ {escalus_auth_method, <<"DIGEST-MD5">>} | Config],
             escalus:init_per_testcase(log_one_digest, Conf1)
     end;
+init_per_testcase(log_one_scram, Config) ->
+    Conf1 = [{escalus_auth_method, <<"SCRAM-SHA-1">>} | Config],
+    escalus:init_per_testcase(log_one_digest, Conf1);
 init_per_testcase(log_one_basic_digest, Config) ->
     Conf1 = [ {escalus_auth_method, digest} | Config],
     escalus:init_per_testcase(log_one_digest, Conf1);
@@ -150,6 +160,9 @@ log_one(Config) ->
 log_one_digest(Config) ->
     log_one(Config).
 
+log_one_scram(Config) ->
+    log_one(Config).
+
 log_one_basic_plain(Config) ->
     log_one(Config).
 
@@ -184,3 +197,13 @@ restore_registration_timeout(Config) ->
     Record = {local_config, registration_timeout, OldTimeout},
     true = escalus_ejabberd:rpc(ets, insert, [local_config, Record]),
     proplists:delete(old_timeout, Config).
+
+get_auth_method() ->
+    XMPPDomain = ct:get_config(ejabberd_domain),
+    escalus_ejabberd:rpc(ejabberd_config, get_local_option,
+                         [{auth_method, XMPPDomain}]).
+
+set_store_password(Type) ->
+    XMPPDomain = ct:get_config(ejabberd_domain),
+    escalus_ejabberd:rpc(ejabberd_config, add_local_option,
+                         [{auth_password_format, XMPPDomain}, Type]).
