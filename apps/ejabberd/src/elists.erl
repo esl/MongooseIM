@@ -27,14 +27,22 @@ insert({elem, E}, [H|T], Acc) ->
 
 -include_lib("eunit/include/eunit.hrl").
 
-insert_test_() -> [
-    ?_test(?assertEqual([1], insert(1,[]))),
-    ?_test(?assertEqual([1,5], insert(5,[1]))),
-    ?_test(?assertEqual([0,1,5], insert(0,[1,5]))),
-    ?_test(?assertEqual([0,1,2,5], insert(2,[0,1,5]))),
-    ?_test(?assertEqual([1,3,4,8,9,34,43,56,99],
-                        insert(43,[1,3,4,8,9,34,56,99]))),
-    ?_test(?assertEqual([0,1,2,2,5], insert(2,[0,1,2,5])))
-].
+insert_test_() ->
+    [?_assertEqual([1], insert(1,[])),
+     ?_assertEqual([1,5], insert(5,[1])),
+     ?_assertEqual([0,1,5], insert(0,[1,5])),
+     ?_assertEqual([0,1,2,5], insert(2,[0,1,5])),
+     ?_assertEqual([1,3,4,8,9,34,43,56,99],
+                   insert(43,[1,3,4,8,9,34,56,99])),
+     ?_assertEqual([0,1,2,2,5], insert(2,[0,1,2,5]))].
+
+lists_merge_equivalence_test_() ->
+    [?_assertEqual(insert(1, []), lists:merge([1], [])),
+     ?_assertEqual(insert(5, [1]), lists:merge([5], [1])),
+     ?_assertEqual(insert(0, [1,5]), lists:merge([0], [1,5])),
+     ?_assertEqual(insert(2, [0,1,5]), lists:merge([2], [0,1,5])),
+     ?_assertEqual(insert(43, [1,3,4,8,9,34,56,99]),
+                   lists:merge([43],[1,3,4,8,9,34,56,99])),
+     ?_assertEqual(insert(2, [0,1,2,5]), lists:merge([2], [0,1,2,5]))].
 
 -endif.
