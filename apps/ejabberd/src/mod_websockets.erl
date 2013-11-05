@@ -262,7 +262,7 @@ close(#websocket{pid = Pid}) ->
     Pid ! close.
 
 peername(#websocket{peername = PeerName}) ->
-    PeerName.
+    {ok, PeerName}.
 
 %%--------------------------------------------------------------------
 %% Helpers
