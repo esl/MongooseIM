@@ -10,10 +10,10 @@
 %%--------------------------------------------------------------------
 
 all() ->
-    [].
+    [{group, negotiation}].
 
 groups() ->
-    [].
+    [{negotiation, [], [server_announces_sm]}].
 
 suite() ->
     escalus:suite().
@@ -43,6 +43,13 @@ end_per_testcase(CaseName, Config) ->
 %%--------------------------------------------------------------------
 %% Tests
 %%--------------------------------------------------------------------
+
+server_announces_sm(Config) ->
+    Alice = [{stream_management, true}
+             | escalus_users:get_userspec(Config, alice)],
+    {ok, _, Props, Features} = escalus_connection:start(Alice,
+                                                        [start_stream]),
+    true = escalus_session:can_use_stream_management(Props, Features).
 
 %%--------------------------------------------------------------------
 %% Helpers
