@@ -14,7 +14,8 @@ all() ->
 
 groups() ->
     [{negotiation, [], [server_announces_sm,
-                        server_enables_sm]}].
+                        server_enables_sm_before_session,
+                        server_enables_sm_after_session]}].
 
 suite() ->
     escalus:suite().
@@ -52,12 +53,21 @@ server_announces_sm(Config) ->
                                                         [start_stream]),
     true = escalus_session:can_use_stream_management(Props, Features).
 
-server_enables_sm(Config) ->
+server_enables_sm_before_session(Config) ->
     Alice = [{stream_management, true}
              | escalus_users:get_userspec(Config, alice)],
     {ok, _, _, _} = escalus_connection:start(Alice, [start_stream,
                                                      authenticate,
                                                      bind,
+                                                     stream_management]).
+
+server_enables_sm_after_session(Config) ->
+    Alice = [{stream_management, true}
+             | escalus_users:get_userspec(Config, alice)],
+    {ok, _, _, _} = escalus_connection:start(Alice, [start_stream,
+                                                     authenticate,
+                                                     bind,
+                                                     session,
                                                      stream_management]).
 
 %%--------------------------------------------------------------------
