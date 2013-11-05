@@ -571,7 +571,7 @@ make_val(RestrictionSQL, Field, Val) ->
     Condition =
 	case binary:last(Val) of
 	    $* ->
-		Val1 = binary:part(Val, byte_size(Val), -1),
+		Val1 = binary:part(Val, 0, byte_size(Val)-1),
 		SVal = ejabberd_odbc:escape_like(Val1),
 		[Field, " LIKE '", SVal, "%'"];
 	    _ ->
