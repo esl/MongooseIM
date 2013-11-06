@@ -10,12 +10,15 @@
 %%--------------------------------------------------------------------
 
 all() ->
-    [{group, negotiation}].
+    [{group, negotiation},
+     {group, acking}].
 
 groups() ->
     [{negotiation, [], [server_announces_sm,
                         server_enables_sm_before_session,
-                        server_enables_sm_after_session]}].
+                        server_enables_sm_after_session]},
+     {acking, [], [basic_ack_before_session,
+                   basic_ack_after_session]}].
 
 suite() ->
     escalus:suite().
@@ -69,6 +72,27 @@ server_enables_sm_after_session(Config) ->
                                                      bind,
                                                      session,
                                                      stream_management]).
+
+basic_ack_before_session(Config) ->
+    basic_ack(Config, [stream_management, session], 123).
+
+basic_ack_after_session(Config) ->
+    basic_ack(Config, [session, stream_management], 312).
+
+basic_ack(Config, ConnActions, Expected) ->
+    AliceSpec = [{stream_management, true}
+                 | escalus_users:get_userspec(Config, alice)],
+    {ok, Alice, _, _} = escalus_connection:start(AliceSpec,
+                                                 [start_stream,
+                                                  authenticate,
+                                                  bind]
+                                                 ++ ConnActions),
+    escalus_connection:send(Alice, escalus_stanza:roster_get()),
+    escalus:assert(is_roster_result,
+                   escalus_connection:get_stanza(Alice, roster_result)),
+    escalus_connection:send(Alice, escalus_stanza:sm_request()),
+    escalus:assert(is_ack, [Expected],
+                   escalus_connection:get_stanza(Alice, stream_mgmt_ack)).
 
 %%--------------------------------------------------------------------
 %% Helpers
