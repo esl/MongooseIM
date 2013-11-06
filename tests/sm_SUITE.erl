@@ -16,7 +16,9 @@ all() ->
 groups() ->
     [{negotiation, [], [server_announces_sm,
                         server_enables_sm_before_session,
-                        server_enables_sm_after_session]},
+                        server_enables_sm_after_session,
+                        server_returns_failed_after_start,
+                        server_returns_failed_after_auth]},
      {acking, [], [basic_ack_before_session,
                    basic_ack_after_session]}].
 
@@ -72,6 +74,22 @@ server_enables_sm_after_session(Config) ->
                                                      bind,
                                                      session,
                                                      stream_management]).
+
+server_returns_failed_after_start(Config) ->
+    server_returns_failed(Config, []).
+
+server_returns_failed_after_auth(Config) ->
+    server_returns_failed(Config, [authenticate]).
+
+server_returns_failed(Config, ConnActions) ->
+    AliceSpec = [{stream_management, true}
+                 | escalus_users:get_userspec(Config, alice)],
+    {ok, Alice, _, _} = escalus_connection:start(AliceSpec,
+                                                 [start_stream]
+                                                 ++ ConnActions),
+    escalus_connection:send(Alice, escalus_stanza:enable_sm()),
+    escalus:assert(is_failed,
+                   escalus_connection:get_stanza(Alice, enable_sm_failed)).
 
 basic_ack_before_session(Config) ->
     basic_ack(Config, [stream_management, session], 123).
