@@ -22,7 +22,8 @@ groups() ->
      {acking, [], [basic_ack,
                    h_ok_before_session,
                    h_ok_after_session_enabled_before_session,
-                   h_ok_after_session_enabled_after_session]}].
+                   h_ok_after_session_enabled_after_session,
+                   h_ok_after_a_chat]}].
 
 suite() ->
     escalus:suite().
@@ -43,6 +44,10 @@ init_per_group(_GroupName, Config) ->
 end_per_group(_GroupName, Config) ->
     Config.
 
+init_per_testcase(h_ok_after_a_chat = CaseName, Config) ->
+    NewConfig = escalus_users:update_userspec(Config, alice,
+                                              stream_management, true),
+    escalus:init_per_testcase(CaseName, NewConfig);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
@@ -158,6 +163,25 @@ h_ok_after_session_enabled_after_session(Config) ->
     escalus_connection:send(Alice, escalus_stanza:sm_request()),
     escalus:assert(is_ack, [1],
                    escalus_connection:get_stanza(Alice, stream_mgmt_ack)).
+
+%% Test that "h" value is valid after exchanging a few messages.
+h_ok_after_a_chat(Config) ->
+    escalus:story(Config, [{alice,1}, {bob,1}], fun(Alice, Bob) ->
+        escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi, Bob!">>)),
+        escalus:assert(is_chat_message, [<<"Hi, Bob!">>],
+                       escalus:wait_for_stanza(Bob)),
+        escalus:send(Bob, escalus_stanza:chat_to(Alice, <<"Hi, Alice!">>)),
+        escalus:assert(is_chat_message, [<<"Hi, Alice!">>],
+                       escalus:wait_for_stanza(Alice)),
+        escalus:send(Bob, escalus_stanza:chat_to(Alice, <<"How's life?">>)),
+        escalus:assert(is_chat_message, [<<"How's life?">>],
+                       escalus:wait_for_stanza(Alice)),
+        escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Pretty !@#$%^$">>)),
+        escalus:assert(is_chat_message, [<<"Pretty !@#$%^$">>],
+                       escalus:wait_for_stanza(Bob)),
+        escalus:send(Alice, escalus_stanza:sm_request()),
+        escalus:assert(is_ack, [3], escalus:wait_for_stanza(Alice))
+    end).
 
 %%--------------------------------------------------------------------
 %% Helpers
