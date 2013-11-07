@@ -19,11 +19,12 @@ groups() ->
                         server_enables_sm_after_session,
                         server_returns_failed_after_start,
                         server_returns_failed_after_auth]},
-     {acking, [], [basic_ack,
-                   h_ok_before_session,
-                   h_ok_after_session_enabled_before_session,
-                   h_ok_after_session_enabled_after_session,
-                   h_ok_after_a_chat]}].
+     {acking, [shuffle,
+               {repeat,5}], [basic_ack,
+                             h_ok_before_session,
+                             h_ok_after_session_enabled_before_session,
+                             h_ok_after_session_enabled_after_session,
+                             h_ok_after_a_chat]}].
 
 suite() ->
     escalus:suite().
