@@ -19,7 +19,10 @@ groups() ->
                         server_enables_sm_after_session,
                         server_returns_failed_after_start,
                         server_returns_failed_after_auth]},
-     {acking, [], [basic_ack]}].
+     {acking, [], [basic_ack,
+                   h_ok_before_session,
+                   h_ok_after_session_enabled_before_session,
+                   h_ok_after_session_enabled_after_session]}].
 
 suite() ->
     escalus:suite().
@@ -104,6 +107,56 @@ basic_ack(Config) ->
                    escalus_connection:get_stanza(Alice, roster_result)),
     escalus_connection:send(Alice, escalus_stanza:sm_request()),
     escalus:assert(is_ack,
+                   escalus_connection:get_stanza(Alice, stream_mgmt_ack)).
+
+%% Test that "h" value is valid when:
+%% - SM is enabled *before* the session is established
+%% - <r/> is sent *before* the session is established
+h_ok_before_session(Config) ->
+    AliceSpec = [{stream_management, true}
+                 | escalus_users:get_userspec(Config, alice)],
+    {ok, Alice, _, _} = escalus_connection:start(AliceSpec,
+                                                 [start_stream,
+                                                  authenticate,
+                                                  bind,
+                                                  stream_management]),
+    escalus_connection:send(Alice, escalus_stanza:sm_request()),
+    escalus:assert(is_ack, [0],
+                   escalus_connection:get_stanza(Alice, stream_mgmt_ack)).
+
+%% Test that "h" value is valid when:
+%% - SM is enabled *before* the session is established
+%% - <r/> is sent *after* the session is established
+h_ok_after_session_enabled_before_session(Config) ->
+    AliceSpec = [{stream_management, true}
+                 | escalus_users:get_userspec(Config, alice)],
+    {ok, Alice, _, _} = escalus_connection:start(AliceSpec,
+                                                 [start_stream,
+                                                  authenticate,
+                                                  bind,
+                                                  stream_management,
+                                                  session]),
+    escalus_connection:send(Alice, escalus_stanza:sm_request()),
+    escalus:assert(is_ack, [1],
+                   escalus_connection:get_stanza(Alice, stream_mgmt_ack)).
+
+%% Test that "h" value is valid when:
+%% - SM is enabled *after* the session is established
+%% - <r/> is sent *after* the session is established
+h_ok_after_session_enabled_after_session(Config) ->
+    AliceSpec = [{stream_management, true}
+                 | escalus_users:get_userspec(Config, alice)],
+    {ok, Alice, _, _} = escalus_connection:start(AliceSpec,
+                                                 [start_stream,
+                                                  authenticate,
+                                                  bind,
+                                                  session,
+                                                  stream_management]),
+    escalus_connection:send(Alice, escalus_stanza:roster_get()),
+    escalus:assert(is_roster_result,
+                   escalus_connection:get_stanza(Alice, roster_result)),
+    escalus_connection:send(Alice, escalus_stanza:sm_request()),
+    escalus:assert(is_ack, [1],
                    escalus_connection:get_stanza(Alice, stream_mgmt_ack)).
 
 %%--------------------------------------------------------------------
