@@ -19,8 +19,7 @@ groups() ->
                         server_enables_sm_after_session,
                         server_returns_failed_after_start,
                         server_returns_failed_after_auth]},
-     {acking, [], [basic_ack_before_session,
-                   basic_ack_after_session]}].
+     {acking, [], [basic_ack]}].
 
 suite() ->
     escalus:suite().
@@ -91,25 +90,20 @@ server_returns_failed(Config, ConnActions) ->
     escalus:assert(is_failed,
                    escalus_connection:get_stanza(Alice, enable_sm_failed)).
 
-basic_ack_before_session(Config) ->
-    basic_ack(Config, [stream_management, session], 123).
-
-basic_ack_after_session(Config) ->
-    basic_ack(Config, [session, stream_management], 312).
-
-basic_ack(Config, ConnActions, Expected) ->
+basic_ack(Config) ->
     AliceSpec = [{stream_management, true}
                  | escalus_users:get_userspec(Config, alice)],
     {ok, Alice, _, _} = escalus_connection:start(AliceSpec,
                                                  [start_stream,
                                                   authenticate,
-                                                  bind]
-                                                 ++ ConnActions),
+                                                  bind,
+                                                  session,
+                                                  stream_management]),
     escalus_connection:send(Alice, escalus_stanza:roster_get()),
     escalus:assert(is_roster_result,
                    escalus_connection:get_stanza(Alice, roster_result)),
     escalus_connection:send(Alice, escalus_stanza:sm_request()),
-    escalus:assert(is_ack, [Expected],
+    escalus:assert(is_ack,
                    escalus_connection:get_stanza(Alice, stream_mgmt_ack)).
 
 %%--------------------------------------------------------------------
