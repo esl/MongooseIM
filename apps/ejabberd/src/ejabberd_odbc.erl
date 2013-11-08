@@ -32,7 +32,8 @@
 -behaviour(?GEN_FSM).
 
 %% External exports
--export([start/1, start_link/2,
+-export([start_link/1,
+         start_link/2,
 	 sql_query/2,
 	 sql_query_t/1,
 	 sql_transaction/2,
@@ -59,8 +60,10 @@
 
 -include("ejabberd.hrl").
 
--record(state, {db_ref,
-		db_type,
+-record(state, {
+        db_ref :: pid(),
+        db_type :: atom(),
+        parent_pid :: pid(),
 		start_interval,
 		host,
 		max_pending_requests_len,
@@ -88,11 +91,12 @@
 %%%----------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------
-start(Host) ->
-    ?GEN_FSM:start(ejabberd_odbc, [Host], fsm_limit_opts() ++ ?FSMOPTS).
+
+start_link([Host, StartInterval]) ->
+    start_link(Host, StartInterval).
 
 start_link(Host, StartInterval) ->
-    ?GEN_FSM:start_link(ejabberd_odbc, [Host, StartInterval],
+    ?GEN_FSM:start_link(ejabberd_odbc, [Host, StartInterval, self()],
 			fsm_limit_opts() ++ ?FSMOPTS).
 
 sql_query(Host, Query) ->
@@ -119,8 +123,12 @@ sql_bloc(Host, F) ->
 sql_call(Host, Msg) ->
     case get(?STATE_KEY) of
         undefined ->
-            ?GEN_FSM:sync_send_event(ejabberd_odbc_sup:get_random_pid(Host),
-				     {sql_cmd, Msg, now()}, ?TRANSACTION_TIMEOUT);
+            ejabberd_odbc_sup:with_connection(Host, fun(Worker) ->
+                    ?GEN_FSM:sync_send_event(
+                            Worker,
+                            {sql_cmd, Msg, now()},
+                            ?TRANSACTION_TIMEOUT)
+                    end);
         _State ->
             nested_op(Msg)
     end.
@@ -177,7 +185,9 @@ to_bool(_) -> false.
 %%%----------------------------------------------------------------------
 %%% Callback functions from gen_fsm
 %%%----------------------------------------------------------------------
-init([Host, StartInterval]) ->
+init([Host, StartInterval, ParentPid]) ->
+    %% Trap exits to ensure, that `terminate/3' will be called.
+    process_flag(trap_exit, true),
     case ejabberd_config:get_local_option({odbc_keepalive_interval, Host}) of
 	KeepaliveInterval when is_integer(KeepaliveInterval) ->
 	    timer:apply_interval(KeepaliveInterval*1000, ?MODULE,
@@ -190,8 +200,9 @@ init([Host, StartInterval]) ->
     end,
     [DBType | _] = db_opts(Host),
     ?GEN_FSM:send_event(self(), connect),
-    ejabberd_odbc_sup:add_pid(Host, self()),
-    {ok, connecting, #state{db_type = DBType,
+    {ok, connecting, #state{
+                parent_pid = ParentPid,
+                db_type = DBType,
 			    host = Host,
 			    max_pending_requests_len = max_fsm_queue(),
 			    pending_requests = {0, queue:new()},
@@ -223,8 +234,7 @@ connecting(connect, #state{host = Host} = State) ->
 		      "** Retry after: ~p seconds",
 		      [State#state.db_type, Reason,
 		       State#state.start_interval div 1000]),
-	    ?GEN_FSM:send_event_after(State#state.start_interval,
-				      connect),
+	    ?GEN_FSM:send_event_after(State#state.start_interval, connect),
 	    {next_state, connecting, State}
     end;
 connecting(Event, State) ->
@@ -282,19 +292,43 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 handle_info({'DOWN', _MonitorRef, process, _Pid, _Info}, _StateName, State) ->
     ?GEN_FSM:send_event(self(), connect),
     {next_state, connecting, State};
+%% A signal from our supervisor.
+handle_info({'EXIT', From, Reason}, _StateName, State=#state{parent_pid=From}) ->
+    {stop, Reason, State};
+%% DB closed connection.
+handle_info({'EXIT', From, _Reason}, StateName, State=#state{db_ref=From}) ->
+    {next_state, StateName, State#state{db_ref=undefined}};
+%% Failed to connect. Ignore and wait to reconnect.
+handle_info({'EXIT', _From, _Reason}, connecting, State=#state{db_ref=undefined}) ->
+    {next_state, connecting, State};
+%% A shutdown message from poolboy (it is not from parent_pid).
+handle_info({'EXIT', _From, shutdown}, _, State=#state{}) ->
+    {stop, shutdown, State};
+handle_info({'EXIT', From, Reason}, StateName,
+            State=#state{db_ref=DbRef, parent_pid=ParentPid}) ->
+    ?ERROR_MSG(
+        "Unexpected EXIT with reason ~p from ~p in ~p. "
+        "DbRef is ~p, ParentPid is ~p.",
+        [Reason, From, StateName, DbRef, ParentPid]),
+    {stop, Reason, State};
 handle_info(Info, StateName, State) ->
     ?WARNING_MSG("unexpected info in ~p: ~p", [StateName, Info]),
     {next_state, StateName, State}.
 
+terminate(_Reason, _StateName, #state{db_ref = undefined}) ->
+    ok;
 terminate(_Reason, _StateName, State) ->
-    ejabberd_odbc_sup:remove_pid(State#state.host, self()),
     case State#state.db_type of
-	mysql ->
-	    %% old versions of mysql driver don't have the stop function
-	    %% so the catch
-	    catch mysql_conn:stop(State#state.db_ref);
-	_ ->
-	    ok
+        mysql ->
+            %% old versions of mysql driver don't have the stop function
+            %% so the catch
+            catch mysql_conn:stop(State#state.db_ref);
+        pgsql ->
+            pgsql:terminate(State#state.db_ref);
+        odbc ->
+            odbc:disconnect(State#state.db_ref);
+        _ ->
+            ok
     end,
     ok.
 
@@ -509,7 +543,7 @@ pgsql_item_to_odbc(_) ->
 %% part of init/1
 %% Open a database connection to MySQL
 mysql_connect(Server, Port, DB, Username, Password) ->
-    case mysql_conn:start(Server, Port, Username, Password, DB, fun log/3) of
+    case mysql_conn:start_link(Server, Port, Username, Password, DB, fun log/3) of
         {ok, Ref} ->
             mysql_conn:fetch(Ref, ["set names 'utf8';"], self()),
             mysql_conn:fetch(Ref, ["SET SESSION query_cache_type=1;"], self()),
