@@ -60,28 +60,28 @@ end_per_testcase(CaseName, Config) ->
 %%--------------------------------------------------------------------
 
 server_announces_sm(Config) ->
-    Alice = [{stream_management, true}
-             | escalus_users:get_userspec(Config, alice)],
-    {ok, _, Props, Features} = escalus_connection:start(Alice,
+    AliceSpec = [{stream_management, true}
+                 | escalus_users:get_userspec(Config, alice)],
+    {ok, _, Props, Features} = escalus_connection:start(AliceSpec,
                                                         [start_stream]),
     true = escalus_session:can_use_stream_management(Props, Features).
 
 server_enables_sm_before_session(Config) ->
-    Alice = [{stream_management, true}
-             | escalus_users:get_userspec(Config, alice)],
-    {ok, _, _, _} = escalus_connection:start(Alice, [start_stream,
-                                                     authenticate,
-                                                     bind,
-                                                     stream_management]).
+    AliceSpec = [{stream_management, true}
+                 | escalus_users:get_userspec(Config, alice)],
+    {ok, _, _, _} = escalus_connection:start(AliceSpec, [start_stream,
+                                                         authenticate,
+                                                         bind,
+                                                         stream_management]).
 
 server_enables_sm_after_session(Config) ->
-    Alice = [{stream_management, true}
-             | escalus_users:get_userspec(Config, alice)],
-    {ok, _, _, _} = escalus_connection:start(Alice, [start_stream,
-                                                     authenticate,
-                                                     bind,
-                                                     session,
-                                                     stream_management]).
+    AliceSpec = [{stream_management, true}
+                 | escalus_users:get_userspec(Config, alice)],
+    {ok, _, _, _} = escalus_connection:start(AliceSpec, [start_stream,
+                                                         authenticate,
+                                                         bind,
+                                                         session,
+                                                         stream_management]).
 
 server_returns_failed_after_start(Config) ->
     server_returns_failed(Config, []).
