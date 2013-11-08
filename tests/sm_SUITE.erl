@@ -61,14 +61,14 @@ end_per_testcase(CaseName, Config) ->
 
 server_announces_sm(Config) ->
     AliceSpec = [{stream_management, true}
-                 | escalus_users:get_userspec(Config, alice)],
+                 | escalus_users:get_options(Config, alice)],
     {ok, _, Props, Features} = escalus_connection:start(AliceSpec,
                                                         [start_stream]),
     true = escalus_session:can_use_stream_management(Props, Features).
 
 server_enables_sm_before_session(Config) ->
     AliceSpec = [{stream_management, true}
-                 | escalus_users:get_userspec(Config, alice)],
+                 | escalus_users:get_options(Config, alice)],
     {ok, _, _, _} = escalus_connection:start(AliceSpec, [start_stream,
                                                          authenticate,
                                                          bind,
@@ -76,7 +76,7 @@ server_enables_sm_before_session(Config) ->
 
 server_enables_sm_after_session(Config) ->
     AliceSpec = [{stream_management, true}
-                 | escalus_users:get_userspec(Config, alice)],
+                 | escalus_users:get_options(Config, alice)],
     {ok, _, _, _} = escalus_connection:start(AliceSpec, [start_stream,
                                                          authenticate,
                                                          bind,
@@ -91,7 +91,7 @@ server_returns_failed_after_auth(Config) ->
 
 server_returns_failed(Config, ConnActions) ->
     AliceSpec = [{stream_management, true}
-                 | escalus_users:get_userspec(Config, alice)],
+                 | escalus_users:get_options(Config, alice)],
     {ok, Alice, _, _} = escalus_connection:start(AliceSpec,
                                                  [start_stream]
                                                  ++ ConnActions),
@@ -101,7 +101,7 @@ server_returns_failed(Config, ConnActions) ->
 
 basic_ack(Config) ->
     AliceSpec = [{stream_management, true}
-                 | escalus_users:get_userspec(Config, alice)],
+                 | escalus_users:get_options(Config, alice)],
     {ok, Alice, _, _} = escalus_connection:start(AliceSpec,
                                                  [start_stream,
                                                   authenticate,
@@ -120,7 +120,7 @@ basic_ack(Config) ->
 %% - <r/> is sent *before* the session is established
 h_ok_before_session(Config) ->
     AliceSpec = [{stream_management, true}
-                 | escalus_users:get_userspec(Config, alice)],
+                 | escalus_users:get_options(Config, alice)],
     {ok, Alice, _, _} = escalus_connection:start(AliceSpec,
                                                  [start_stream,
                                                   authenticate,
@@ -135,7 +135,7 @@ h_ok_before_session(Config) ->
 %% - <r/> is sent *after* the session is established
 h_ok_after_session_enabled_before_session(Config) ->
     AliceSpec = [{stream_management, true}
-                 | escalus_users:get_userspec(Config, alice)],
+                 | escalus_users:get_options(Config, alice)],
     {ok, Alice, _, _} = escalus_connection:start(AliceSpec,
                                                  [start_stream,
                                                   authenticate,
@@ -151,7 +151,7 @@ h_ok_after_session_enabled_before_session(Config) ->
 %% - <r/> is sent *after* the session is established
 h_ok_after_session_enabled_after_session(Config) ->
     AliceSpec = [{stream_management, true}
-                 | escalus_users:get_userspec(Config, alice)],
+                 | escalus_users:get_options(Config, alice)],
     {ok, Alice, _, _} = escalus_connection:start(AliceSpec,
                                                  [start_stream,
                                                   authenticate,
