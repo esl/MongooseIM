@@ -606,7 +606,7 @@ maybe_report(#state{report = Report} = S) ->
     {NewAttrs, S#state{report = false}}.
 
 cache_response({Rid,_,_} = Response, #state{sent = Sent} = S) ->
-    NewSent = elists:insert(Response, Sent),
+    NewSent = lists:keymerge(1, [Response], Sent),
     CacheUpTo = case S#state.client_acks of
         true ->
             %% Acknowledgements are on - there's no limit on the number
