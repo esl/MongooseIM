@@ -1,10 +1,7 @@
-esl-ejabberd
+MongooseIM
 ============
-esl-ejabberd is Erlang Solutions' robust and efficient XMPP server aimed
-at large installations. It utilizes Erlang/OTP's hallmark features - fault
-tolerance and suitability for server software working in highly demanding
-conditions.
-
+MongooseIM (previously esl-jabberd) is Erlang Solutions' robust and efficient XMPP server aimed at large installations.  Specifically designed for enterprise purposes, it is fault-tolerant and can utilize resources of multi-core CPUs. 
+It provides support for WebSockets and reimplemented BOSH. 
 Its home at GitHub is http://github.com/esl/ejabberd.
 
 
@@ -38,7 +35,7 @@ How to build
 ------------
 1.  Requirements.
 
-    To compile ejabberd you need:
+    To compile MongooseIM you need:
     *   GNU Make,
     *   GCC,
     *   Libexpat 1.95 or higher,
@@ -50,7 +47,7 @@ How to build
 
 2.  Compiling on UNIX-like systems.
 
-    To compile ejabberd, go to the main repo directory `$REPO` and execute
+    To compile MongooseIM, go to the main repo directory `$REPO` and execute
     the command (`$` stands for the shell prompt):
 
         $ make
@@ -60,7 +57,7 @@ How to build
         $ ./rebar get-deps
         $ ./rebar compile
 
-    To generate ejabberd release:
+    To generate MongooseIM release:
 
         $ make rel
 
@@ -73,14 +70,14 @@ How to build
     follows:
     *   `rel/ejabberd/bin` - startup/administration scripts,
     *   `rel/ejabberd/etc` - configuration files,
-    *   `rel/ejabberd/lib` - ejabberd binary, header and runtime files,
+    *   `rel/ejabberd/lib` - MongooseIM binary, header and runtime files,
     *   `rel/ejabberd/var` - spool directory,
     *   `rel/ejabberd/log` - log file directory,
     *   `rel/ejabberd/releases` - release files directory.
 
-3.  Running esl-ejabberd.
+3.  Running MongooseIM.
 
-    To run ejabberd from the project tree after compiling it, change
+    To run MongooseIM from the project tree after compiling it, change
     to `$REPO/rel/ejabberd`.
 
     There you can use the `ejabberd` command line administration script to
@@ -119,9 +116,9 @@ How to build
     be generated in `$REPO/test/ct_report/cover.html`.
 
 
-esl-ejabberd documentation notice
+MongooseIM documentation notice
 ---------------------------------
-esl-ejabberd, being a fork of ejabberd, is currently in a phase
+MongooseIM, being a fork of ejabberd, is currently in a phase
 of rapid development. Because of that the documentation found in the `doc/`
 subdirectory of the source tree, while mostly relevant, may be inaccurate.
 
