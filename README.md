@@ -1,9 +1,12 @@
 MongooseIM
 ============
-MongooseIM (previously esl-jabberd) is Erlang Solutions' robust and efficient XMPP server aimed at large installations.  Specifically designed for enterprise purposes, it is fault-tolerant and can utilize resources of multi-core CPUs. 
-It provides support for WebSockets and reimplemented BOSH. 
+MongooseIM (previously esl-ejabberd) is Erlang Solutions' robust and efficient XMPP
+server aimed at large installations. Specifically designed for enterprise purposes,
+it is fault-tolerant, can utilize resources of multiple clustered machines
+and easily scale in need of more capacity (by just adding a box/VM).
+It provides support for WebSockets and reimplemented BOSH.
 
-Its home at GitHub is http://github.com/esl/mongooseIM.
+Its home at GitHub is http://github.com/esl/MongooseIM.
 
 
 Quickstart guide
@@ -125,6 +128,8 @@ subdirectory of the source tree, while mostly relevant, may be inaccurate.
 
 The main reason is that some rarely useful features were removed from
 the repository or are still waiting to be brought up to the Erlang Solutions standards.
+
+Don't forget to check out our [wiki](https://github.com/esl/MongooseIM/wiki) - hopefully, its scope will grow with time.
 
 
 Want to get in touch with us?
