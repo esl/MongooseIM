@@ -83,7 +83,8 @@
 	 del_privacy_lists/3,
 	 set_vcard/26,
 	 get_vcard/2,
-	 escape/1,
+	 escape_string/1,
+	 escape_like_string/1,
 	 count_records_where/3,
 	 get_roster_version/2,
 	 set_roster_version/2]).
@@ -98,6 +99,9 @@
 
 -include("ejabberd.hrl").
 
+%% -----------------
+%% Common functions
+
 %% Almost a copy of string:join/2.
 %% We use this version because string:join/2 is relatively
 %% new function (introduced in R12B-0).
@@ -105,6 +109,27 @@ join([], _Sep) ->
     [];
 join([H|T], Sep) ->
     [H, [[Sep, X] || X <- T]].
+
+%% Note: escape functions (`escape_string/1' and `escape_like_string/1')
+%%       are in this module and not in `ejabberd_odbc',
+%%       because they are called a lot.
+%%       To have both `escape_string/1' and `escape_character/1' in one module
+%%       is an optimization.
+
+escape_string(S) when is_binary(S) ->
+    list_to_binary(escape_string(binary_to_list(S)));
+escape_string(S) when is_list(S) ->
+    [escape_character(C) || C <- S].
+
+escape_like_string(S) when is_binary(S) ->
+    list_to_binary(escape_like_string(binary_to_list(S)));
+escape_like_string(S) when is_list(S) ->
+    [escape_like_character(C) || C <- S].
+
+escape_like_character($%) -> "\\%";
+escape_like_character($_) -> "\\_";
+escape_like_character(C)  -> escape_character(C).
+
 
 %% -----------------
 %% Generic queries
@@ -596,15 +621,15 @@ del_privacy_lists(LServer, Server, Username) ->
       ["delete from privacy_default_list where username='", Username, "';"]).
 
 %% Characters to escape
-escape($\0) -> "\\0";
-escape($\n) -> "\\n";
-escape($\t) -> "\\t";
-escape($\b) -> "\\b";
-escape($\r) -> "\\r";
-escape($')  -> "\\'";
-escape($")  -> "\\\"";
-escape($\\) -> "\\\\";
-escape(C)   -> C.
+escape_character($\0) -> "\\0";
+escape_character($\n) -> "\\n";
+escape_character($\t) -> "\\t";
+escape_character($\b) -> "\\b";
+escape_character($\r) -> "\\r";
+escape_character($')  -> "\\'";
+escape_character($")  -> "\\\"";
+escape_character($\\) -> "\\\\";
+escape_character(C)   -> C.
 
 %% Count number of records in a table given a where clause
 count_records_where(LServer, Table, WhereClause) ->
@@ -909,14 +934,15 @@ del_privacy_lists(LServer, Server, Username) ->
       LServer,
       ["EXECUTE dbo.del_privacy_lists @Server='", Server ,"' @username='", Username, "'"]).
 
-%% Characters to escape
-escape($\0) -> "\\0";
-escape($\t) -> "\\t";
-escape($\b) -> "\\b";
-escape($\r) -> "\\r";
-escape($')  -> "\''";
-escape($")  -> "\\\"";
-escape(C)   -> C.
+%% @doc Escape a character.
+%% Characters to escape.
+escape_character($\0) -> "\\0";
+escape_character($\t) -> "\\t";
+escape_character($\b) -> "\\b";
+escape_character($\r) -> "\\r";
+escape_character($')  -> "\''";
+escape_character($")  -> "\\\"";
+escape_character(C)   -> C.
 
 %% Count number of records in a table given a where clause
 count_records_where(LServer, Table, WhereClause) ->

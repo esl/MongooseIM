@@ -148,22 +148,15 @@ sql_query_t(Query) ->
     end.
 
 %% Escape character that will confuse an SQL engine
-escape(S) when is_binary(S) ->
-    list_to_binary(escape(binary_to_list(S)));
-escape(S) when is_list(S) ->
-    S1 = lists:foldl(fun(C, Acc) -> [odbc_queries:escape(C) | Acc] end,
-                     [], S),
-    lists:reverse(S1).
+escape(S) ->
+    odbc_queries:escape_string(S).
 
 %% Escape character that will confuse an SQL engine
 %% Percent and underscore only need to be escaped for
 %% pattern matching like statement
 %% INFO: Used in mod_vcard_odbc.
-escape_like(S) when is_list(S) ->
-    [escape_like(C) || C <- S];
-escape_like($%) -> "\\%";
-escape_like($_) -> "\\_";
-escape_like(C)  -> odbc_queries:escape(C).
+escape_like(S) ->
+    odbc_queries:escape_like_string(S).
 
 to_bool(B) when is_binary(B) ->
     to_bool(binary_to_list(B));
