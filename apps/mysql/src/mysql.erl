@@ -75,8 +75,6 @@
 	 get_result_affected_rows/1,
 	 get_result_reason/1,
 
-	 asciz_binary/2,
-
 	 connect/7,
 	 stop/0,
 
@@ -231,24 +229,6 @@ get_result_affected_rows(#mysql_result{affectedrows=AffectedRows}) ->
 %%--------------------------------------------------------------------
 get_result_reason(#mysql_result{error=Reason}) ->
     Reason.
-
-%%--------------------------------------------------------------------
-%% Function: asciz_binary(Data, Acc)
-%%           Data = binary()
-%%           Acc  = list(), input accumulator
-%% Descrip.: Find the first zero-byte in Data and add everything
-%%           before it to Acc, as a string.
-%% Returns : {NewList, Rest}
-%%           NewList = list(), Acc plus what we extracted from Data
-%%           Rest    = binary(), whatever was left of Data, not
-%%                     including the zero-byte
-%%--------------------------------------------------------------------
-asciz_binary(<<>>, Acc) ->
-    {lists:reverse(Acc), <<>>};
-asciz_binary(<<0:8, Rest/binary>>, Acc) ->
-    {lists:reverse(Acc), Rest};
-asciz_binary(<<C:8, Rest/binary>>, Acc) ->
-    asciz_binary(Rest, [C | Acc]).
 
 %%--------------------------------------------------------------------
 %% Function: connect(Id, Host, Port, User, Password, Database,

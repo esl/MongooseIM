@@ -75,7 +75,7 @@
 
 -define(TRANSACTION_TIMEOUT, 60000). % milliseconds
 -define(KEEPALIVE_TIMEOUT, 60000).
--define(KEEPALIVE_QUERY, "SELECT 1;").
+-define(KEEPALIVE_QUERY, <<"SELECT 1;">>).
 
 %%-define(DBGFSM, true).
 
@@ -379,14 +379,14 @@ outer_transaction(F, NRestarts, _Reason) ->
 		       [T]),
             erlang:exit(implementation_faulty)
     end,
-    sql_query_internal("begin;"),
+    sql_query_internal(<<"begin;">>),
     put(?NESTING_KEY, PreviousNestingLevel + 1),
     Result = (catch F()),
     put(?NESTING_KEY, PreviousNestingLevel),
     case Result of
         {aborted, Reason} when NRestarts > 0 ->
             %% Retry outer transaction upto NRestarts times.
-            sql_query_internal("rollback;"),
+            sql_query_internal(<<"rollback;">>),
             outer_transaction(F, NRestarts - 1, Reason);
         {aborted, Reason} when NRestarts =:= 0 ->
             %% Too many retries of outer transaction.
@@ -397,15 +397,15 @@ outer_transaction(F, NRestarts, _Reason) ->
                        "** When State == ~p",
                        [?MAX_TRANSACTION_RESTARTS, Reason,
                         erlang:get_stacktrace(), get(?STATE_KEY)]),
-            sql_query_internal("rollback;"),
+            sql_query_internal(<<"rollback;">>),
             {aborted, Reason};
         {'EXIT', Reason} ->
             %% Abort sql transaction on EXIT from outer txn only.
-            sql_query_internal("rollback;"),
+            sql_query_internal(<<"rollback;">>),
             {aborted, Reason};
         Res ->
             %% Commit successful outer txn
-            sql_query_internal("commit;"),
+            sql_query_internal(<<"commit;">>),
             {atomic, Res}
     end.
 
@@ -501,11 +501,11 @@ pgsql_item_to_odbc(_) ->
 
 %% part of init/1
 %% Open a database connection to MySQL
-mysql_connect(Server, Port, DB, Username, Password) ->
-    case mysql_conn:start(Server, Port, Username, Password, DB, fun log/3) of
+mysql_connect(Server, Port, Database, Username, Password) ->
+    case mysql_conn:start(Server, Port, Username, Password, Database, fun log/3) of
         {ok, Ref} ->
-            mysql_conn:fetch(Ref, ["set names 'utf8';"], self()),
-            mysql_conn:fetch(Ref, ["SET SESSION query_cache_type=1;"], self()),
+            mysql_conn:fetch(Ref, [<<"set names 'utf8';">>], self()),
+            mysql_conn:fetch(Ref, [<<"SET SESSION query_cache_type=1;">>], self()),
             {ok, Ref};
         Err ->
             Err
