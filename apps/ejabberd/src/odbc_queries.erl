@@ -623,7 +623,7 @@ get_privacy_list_data_by_id(LServer, ID) ->
          "where id='">>, ID, <<"' order by ord;">>]).
 
 set_default_privacy_list(Username, SName) ->
-    update_t(<<"privacy_default_list">>, [<<"username", "name">>],
+    update_t(<<"privacy_default_list">>, [<<"username">>, <<"name">>],
 	     [Username, SName], [<<"username='">>, Username, "'"]).
 
 unset_default_privacy_list(LServer, Username) ->

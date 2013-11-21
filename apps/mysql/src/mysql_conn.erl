@@ -506,10 +506,7 @@ get_fields(LogFun, RecvPid, Res, ?MYSQL_4_1) ->
 		     _Flags:16/little, _Decimals:8/little,
 		     _Rest7/binary>> = Rest6,
 
-		    This = {binary_to_list(Table),
-			    binary_to_list(Field),
-			    Length,
-			    get_field_datatype(Type)},
+		    This = {Table, Field, Length, get_field_datatype(Type)},
 		    get_fields(LogFun, RecvPid, [This | Res], ?MYSQL_4_1)
 	    end;
 	{error, Reason} ->
@@ -551,10 +548,10 @@ get_row(N, Data, ResultType, Res) ->
 		   null;
 	       _ ->
            case ResultType of
-               list ->
-			   binary_to_list(Col);
                binary ->
-			   Col
+			   Col;
+               list ->
+			   binary_to_list(Col)
 		   end
 	   end,
     get_row(N - 1, Rest, ResultType, [This | Res]).

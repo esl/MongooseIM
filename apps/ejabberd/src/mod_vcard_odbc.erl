@@ -155,7 +155,7 @@ process_sm_iq(From, To, #iq{type = Type, sub_el = SubEl} = IQ) ->
 	    Username = ejabberd_odbc:escape(LUser),
 	    Server = ejabberd_odbc:escape(LServer),
 	    case catch odbc_queries:get_vcard(Server, Username) of
-		{selected, ["vcard"], [{SVCARD}]} ->
+		{selected, [<<"vcard">>], [{SVCARD}]} ->
 		    case xml_stream:parse_element(SVCARD) of
 			{error, Reason} ->
                             ?WARNING_MSG("not sending bad vcard xml ~p~n~p",
@@ -165,7 +165,7 @@ process_sm_iq(From, To, #iq{type = Type, sub_el = SubEl} = IQ) ->
 			VCARD ->
 			    IQ#iq{type = result, sub_el = [VCARD]}
 		    end;
-		{selected, ["vcard"], []} ->
+		{selected, [<<"vcard">>], []} ->
 		    IQ#iq{type = error, sub_el = [SubEl, ?ERR_SERVICE_UNAVAILABLE]};
 		Else ->
                     ?ERROR_MSG("~p", [Else]),
@@ -488,7 +488,7 @@ record_to_item(_CallerVHost, {Username, VCardVHost, FN, Family, Given, Middle,
                         ?FIELD("orgunit", OrgUnit)
                        ]}.
 
-
+%% TODO move this function into odbc_queries
 search(LServer, Data) ->
     RestrictionSQL = make_restriction_sql(LServer, Data),
     AllowReturnAll = gen_mod:get_module_opt(LServer, ?MODULE,
@@ -515,9 +515,9 @@ search(LServer, Data) ->
 			  "       nickname, bday, ctry, locality, "
 			  "       email, orgname, orgunit from vcard_search ",
 			  RestrictionSQL, Limit, ";"]) of
-		{selected, ["username", "server", "fn", "family", "given",
-			    "middle", "nickname", "bday", "ctry", "locality",
-			    "email", "orgname", "orgunit"],
+		{selected, [<<"username">>, <<"server">>, <<"fn">>, <<"family">>, <<"given">>,
+			    <<"middle">>, <<"nickname">>, <<"bday">>, <<"ctry">>, <<"locality">>,
+			    <<"email">>, <<"orgname">>, <<"orgunit">>],
 		 Rs} when is_list(Rs) ->
 		    Rs;
 		Error ->

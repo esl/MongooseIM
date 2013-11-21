@@ -136,9 +136,9 @@ process_sm_iq(From, To, #iq{type = Type, sub_el = SubEl} = IQ) ->
 get_last(LUser, LServer) ->
     Username = ejabberd_odbc:escape(LUser),
     case catch odbc_queries:get_last(LServer, Username) of
-        {selected, ["seconds","state"], []} ->
+        {selected, [<<"seconds">>, <<"state">>], []} ->
             not_found;
-        {selected, ["seconds","state"], [{STimeStamp, Status}]} ->
+        {selected, [<<"seconds">>, <<"state">>], [{STimeStamp, Status}]} ->
             case catch list_to_integer(binary_to_list(STimeStamp)) of
                 TimeStamp when is_integer(TimeStamp) ->
                     {ok, TimeStamp, Status};
@@ -197,7 +197,7 @@ get_last_info(LUser, LServer) ->
 
 select(LServer, TStamp, Comparator) ->
     case catch odbc_queries:select_last(LServer, TStamp, atom_to_list(Comparator)) of
-        {selected, ["username", "seconds","state"], Vals} ->
+        {selected, [<<"username">>, <<"seconds">>, <<"state">>], Vals} ->
             [ list_to_integer(binary_to_list(UserTS)) || {_, UserTS, _} <- Vals ];
         Reason ->
             {error, {invalid_result, Reason}}
