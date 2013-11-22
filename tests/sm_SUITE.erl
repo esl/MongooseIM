@@ -26,7 +26,8 @@ groups() ->
                               h_ok_after_session_enabled_after_session,
                               h_ok_after_a_chat]},
      {client_acking,
-      [], [client_acks_more_than_sent]}].
+      [], [client_acks_more_than_sent,
+           too_many_unacked_stanzas]}].
 
 suite() ->
     escalus:suite().
@@ -53,9 +54,15 @@ init_per_testcase(h_ok_after_a_chat = CaseName, Config) ->
     NewConfig = escalus_users:update_userspec(Config, alice,
                                               stream_management, true),
     escalus:init_per_testcase(CaseName, NewConfig);
+init_per_testcase(too_many_unacked_stanzas = CaseName, Config) ->
+    NewConfig = escalus_ejabberd:setup_option(cache_max(2), Config),
+    escalus:init_per_testcase(CaseName, NewConfig);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
+end_per_testcase(too_many_unacked_stanzas = CaseName, Config) ->
+    NewConfig = escalus_ejabberd:reset_option(cache_max(2), Config),
+    escalus:end_per_testcase(CaseName, NewConfig);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
@@ -196,7 +203,28 @@ client_acks_more_than_sent(Config) ->
                        escalus:wait_for_stanza(Alice))
     end).
 
+too_many_unacked_stanzas(Config) ->
+    escalus:story(Config, [{alice,1}, {bob,1}], fun(Alice, Bob) ->
+        Msg = escalus_stanza:chat_to(Alice, <<"Hi, Alice!">>),
+        [escalus:send(Bob, Msg) || _ <- lists:seq(1,3)],
+        escalus:wait_for_stanzas(Alice, 3),
+        escalus:assert(is_stream_error, [<<"resource-constraint">>,
+                                         <<"too many unacked stanzas">>],
+                       escalus:wait_for_stanza(Alice))
+    end).
+
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
 
+cache_max(CacheMax) ->
+    {cache_max,
+     fun () ->
+             escalus_ejabberd:rpc(?MOD_SM, get_cache_max, [unset])
+     end,
+     fun (unset) ->
+             ct:pal("not resetting cache_max - it was not set");
+         (V) ->
+             escalus_ejabberd:rpc(?MOD_SM, set_cache_max, [V])
+     end,
+     CacheMax}.
