@@ -19,12 +19,14 @@ groups() ->
                         server_enables_sm_after_session,
                         server_returns_failed_after_start,
                         server_returns_failed_after_auth]},
-     {acking, [shuffle,
-               {repeat,5}], [basic_ack,
-                             h_ok_before_session,
-                             h_ok_after_session_enabled_before_session,
-                             h_ok_after_session_enabled_after_session,
-                             h_ok_after_a_chat]}].
+     {server_acking,
+      [shuffle, {repeat,5}], [basic_ack,
+                              h_ok_before_session,
+                              h_ok_after_session_enabled_before_session,
+                              h_ok_after_session_enabled_after_session,
+                              h_ok_after_a_chat]},
+     {client_acking,
+      [], [client_acks_more_than_sent]}].
 
 suite() ->
     escalus:suite().
@@ -39,6 +41,8 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
+init_per_group(client_acking, Config) ->
+    escalus_users:update_userspec(Config, alice, stream_management, true);
 init_per_group(_GroupName, Config) ->
     Config.
 
@@ -182,6 +186,14 @@ h_ok_after_a_chat(Config) ->
                        escalus:wait_for_stanza(Bob)),
         escalus:send(Alice, escalus_stanza:sm_request()),
         escalus:assert(is_ack, [3], escalus:wait_for_stanza(Alice))
+    end).
+
+client_acks_more_than_sent(Config) ->
+    escalus:story(Config, [{alice,1}], fun(Alice) ->
+        escalus:send(Alice, escalus_stanza:sm_ack(5)),
+        escalus:assert(is_stream_error, [<<"policy-violation">>,
+                                         <<"h attribute too big">>],
+                       escalus:wait_for_stanza(Alice))
     end).
 
 %%--------------------------------------------------------------------
