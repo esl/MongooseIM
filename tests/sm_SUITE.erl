@@ -29,7 +29,8 @@ groups() ->
                               h_ok_after_a_chat]},
      {client_acking,
       [], [client_acks_more_than_sent,
-           too_many_unacked_stanzas]}].
+           too_many_unacked_stanzas,
+           server_requests_ack]}].
 
 suite() ->
     escalus:suite().
@@ -59,11 +60,17 @@ init_per_testcase(h_ok_after_a_chat = CaseName, Config) ->
 init_per_testcase(too_many_unacked_stanzas = CaseName, Config) ->
     NewConfig = escalus_ejabberd:setup_option(cache_max(2), Config),
     escalus:init_per_testcase(CaseName, NewConfig);
+init_per_testcase(server_requests_ack = CaseName, Config) ->
+    NewConfig = escalus_ejabberd:setup_option(ack_freq(2), Config),
+    escalus:init_per_testcase(CaseName, NewConfig);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
 end_per_testcase(too_many_unacked_stanzas = CaseName, Config) ->
     NewConfig = escalus_ejabberd:reset_option(cache_max(2), Config),
+    escalus:end_per_testcase(CaseName, NewConfig);
+end_per_testcase(server_requests_ack = CaseName, Config) ->
+    NewConfig = escalus_ejabberd:reset_option(ack_freq(2), Config),
     escalus:end_per_testcase(CaseName, NewConfig);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
@@ -215,6 +222,14 @@ too_many_unacked_stanzas(Config) ->
                        escalus:wait_for_stanza(Alice))
     end).
 
+server_requests_ack(Config) ->
+    escalus:story(Config, [{alice,1}, {bob,1}], fun(Alice, Bob) ->
+        escalus:send(Bob, escalus_stanza:chat_to(Alice, <<"Hi, Alice!">>)),
+        escalus:assert(is_chat_message, [<<"Hi, Alice!">>],
+                       escalus:wait_for_stanza(Alice)),
+        escalus:assert(is_ack_request, escalus:wait_for_stanza(Alice))
+    end).
+
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
@@ -230,3 +245,15 @@ cache_max(CacheMax) ->
              escalus_ejabberd:rpc(?MOD_SM, set_cache_max, [V])
      end,
      CacheMax}.
+
+ack_freq(AckFreq) ->
+    {ack_freq,
+     fun () ->
+             escalus_ejabberd:rpc(?MOD_SM, get_ack_freq, [unset])
+     end,
+     fun (unset) ->
+             ct:pal("not resetting ack_freq - it was not set");
+         (V) ->
+             escalus_ejabberd:rpc(?MOD_SM, set_ack_freq, [V])
+     end,
+     AckFreq}.
