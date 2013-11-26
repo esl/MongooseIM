@@ -13,7 +13,8 @@
 
 all() ->
     [{group, negotiation},
-     {group, acking}].
+     {group, server_acking},
+     {group, client_acking}].
 
 groups() ->
     [{negotiation, [], [server_announces_sm,
