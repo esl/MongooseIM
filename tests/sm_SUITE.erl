@@ -29,9 +29,9 @@ groups() ->
                               h_ok_after_session_enabled_after_session,
                               h_ok_after_a_chat]},
      {client_acking,
-      [], [client_acks_more_than_sent,
-           too_many_unacked_stanzas,
-           server_requests_ack]}].
+      [shuffle, {repeat, 5}], [client_acks_more_than_sent,
+                               too_many_unacked_stanzas,
+                               server_requests_ack]}].
 
 suite() ->
     escalus:suite().
