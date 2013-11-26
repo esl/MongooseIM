@@ -58,7 +58,7 @@ init_per_testcase(h_ok_after_a_chat = CaseName, Config) ->
                                               stream_management, true),
     escalus:init_per_testcase(CaseName, NewConfig);
 init_per_testcase(too_many_unacked_stanzas = CaseName, Config) ->
-    NewConfig = escalus_ejabberd:setup_option(cache_max(2), Config),
+    NewConfig = escalus_ejabberd:setup_option(buffer_max(2), Config),
     escalus:init_per_testcase(CaseName, NewConfig);
 init_per_testcase(server_requests_ack = CaseName, Config) ->
     NewConfig = escalus_ejabberd:setup_option(ack_freq(2), Config),
@@ -67,7 +67,7 @@ init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
 end_per_testcase(too_many_unacked_stanzas = CaseName, Config) ->
-    NewConfig = escalus_ejabberd:reset_option(cache_max(2), Config),
+    NewConfig = escalus_ejabberd:reset_option(buffer_max(2), Config),
     escalus:end_per_testcase(CaseName, NewConfig);
 end_per_testcase(server_requests_ack = CaseName, Config) ->
     NewConfig = escalus_ejabberd:reset_option(ack_freq(2), Config),
@@ -234,17 +234,17 @@ server_requests_ack(Config) ->
 %% Helpers
 %%--------------------------------------------------------------------
 
-cache_max(CacheMax) ->
-    {cache_max,
+buffer_max(BufferMax) ->
+    {buffer_max,
      fun () ->
-             escalus_ejabberd:rpc(?MOD_SM, get_cache_max, [unset])
+             escalus_ejabberd:rpc(?MOD_SM, get_buffer_max, [unset])
      end,
      fun (unset) ->
-             ct:pal("not resetting cache_max - it was not set");
+             ct:pal("not resetting buffer_max - it was not set");
          (V) ->
-             escalus_ejabberd:rpc(?MOD_SM, set_cache_max, [V])
+             escalus_ejabberd:rpc(?MOD_SM, set_buffer_max, [V])
      end,
-     CacheMax}.
+     BufferMax}.
 
 ack_freq(AckFreq) ->
     {ack_freq,
