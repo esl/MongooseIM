@@ -46,10 +46,13 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(client_acking, Config) ->
-    escalus_users:update_userspec(Config, alice, stream_management, true);
+    NewConfig = escalus_ejabberd:setup_option(ack_freq(200), Config),
+    escalus_users:update_userspec(NewConfig, alice, stream_management, true);
 init_per_group(_GroupName, Config) ->
     Config.
 
+end_per_group(client_acking, Config) ->
+    escalus_ejabberd:reset_option(ack_freq(200), Config);
 end_per_group(_GroupName, Config) ->
     Config.
 
