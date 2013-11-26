@@ -34,7 +34,7 @@ tests_to_run() ->
             %snmp_roster_SUITE,
             %snmp_session_SUITE,
             %snmp_table_SUITE,
-            vcard_SUITE,
+            vcard_simple_SUITE,
             websockets_SUITE,
             metrics_c2s_SUITE,
             metrics_roster_SUITE,
@@ -107,7 +107,7 @@ run_config_test({Name, Variables}, Test, N, Tests) ->
     {ok, Default} = call(Node, file, consult, [Vars]),
     NewVars = lists:foldl(fun({Var,Val}, Acc) ->
                     lists:keystore(Var, 1, Acc, {Var,Val})
-            end, Default, Variables), 
+            end, Default, Variables),
     LTemplate = binary_to_list(Template),
     NewCfgFile = mustache:render(LTemplate, dict:from_list(NewVars)),
     ok = call(Node, file, write_file, [CfgFile, NewCfgFile]),

@@ -212,7 +212,6 @@ invisible_presence(Config) ->
 
 get_roster(Config) ->
     escalus:story(Config, [1, 1], fun(Alice,_Bob) ->
-
         escalus:send(Alice, escalus_stanza:roster_get()),
         escalus_assert:is_roster_result(escalus:wait_for_stanza(Alice))
 
@@ -363,7 +362,7 @@ subscribe_relog(Config) ->
 
         Stanzas = escalus:wait_for_stanzas(NewBob, 3),
         3 = length(Stanzas),
-        
+
         escalus_new_assert:mix_match([
                 fun(S) ->
                     escalus_pred:is_presence_with_type(<<"available">>, S)
@@ -378,11 +377,11 @@ subscribe_relog(Config) ->
                     andalso escalus_pred:is_stanza_from(alice, S)
                 end
             ], Stanzas),
-        
+
         escalus_client:stop(NewBob),
 
         escalus:send(Bob, escalus_stanza:presence_direct(alice, <<"unsubscribed">>))
-        
+
         end).
 
 unsubscribe(Config) ->
@@ -395,7 +394,7 @@ unsubscribe(Config) ->
         escalus:send(Alice, escalus_stanza:presence_direct(bob, <<"subscribe">>)),
         PushReq = escalus:wait_for_stanza(Alice),
         escalus:send(Alice, escalus_stanza:iq_result(PushReq)),
-        
+
         %% Bob receives subscription reqest
         escalus:assert(is_presence_with_type, [<<"subscribe">>],
                        escalus:wait_for_stanza(Bob)),
@@ -511,7 +510,8 @@ check_subscription_stanzas(Stanzas, Type) ->
     escalus:assert_many([is_roster_set, IsPresWithType], Stanzas).
 
 remove_roster(Config, UserSpec) ->
-    [Username, Server, _Pass] = escalus_users:get_usp(Config, UserSpec),
+    [Username, Server, _Pass] = [escalus_ejabberd:unify_str_arg(Item) ||
+                                 Item <- escalus_users:get_usp(Config, UserSpec)],
     Mods = escalus_ejabberd:rpc(gen_mod, loaded_modules, [Server]),
     case lists:member(mod_roster, Mods) of
         true ->

@@ -68,10 +68,14 @@ store_retrieve(Config) ->
                           NS = <<"alice:private:ns">>,
 
                           %% Alice stores some data in her private storage
-                          escalus_client:send(Alice, escalus_stanza:private_set(my_banana(NS))),
+                          PrivateStanza = escalus_stanza:private_set(my_banana(NS)),
+                          escalus_client:send(Alice, PrivateStanza),
 
                           %% Alice receives store confirmation
-                          escalus:assert(is_private_result, escalus_client:wait_for_stanza(Alice)),
+                          escalus_new_assert:assert(
+                            is_iq_result,
+                            [escalus_client:wait_for_stanza(Alice)],
+                            PrivateStanza),
 
                           %% Alice asks for the data
                           escalus_client:send(Alice, escalus_stanza:private_get(NS, <<"my_element">>)),
@@ -158,3 +162,4 @@ check_body_rec(Element, [Name | Names]) ->
     [Child] = Element#xmlel.children,
     Name = Child#xmlel.name,
     check_body_rec(Child, Names).
+

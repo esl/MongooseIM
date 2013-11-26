@@ -27,19 +27,22 @@
 -define(REGISTRATION_TIMEOUT, 2).  %% seconds
 
 all() ->
-    [{group, register},
+    [
+     {group, register},
      {group, registration_timeout},
      {group, login},
-     {group, messages}].
+     {group, messages}
+    ].
 
 groups() ->
     [{register, [sequence], [register,
                              check_unregistered]},
      {registration_timeout, [sequence], [registration_timeout]},
      {login, [sequence], [log_one,
-                          log_one_digest]},
+                          log_one_digest
 %%                          log_one_basic_plain,
-%%                          log_one_basic_digest]},
+%%                          log_one_basic_digest
+                         ]},
      {messages, [sequence], [messages_story]}].
 
 suite() ->
@@ -55,8 +58,20 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
+init_per_group(register, Config) ->
+    case escalus_users:is_mod_register_enabled() of
+        true ->
+            escalus:create_users(Config);
+        _ ->
+            {skip, mod_register_disabled}
+    end;
 init_per_group(registration_timeout, Config) ->
-    set_registration_timeout(Config);
+    case escalus_users:is_mod_register_enabled() of
+        true ->
+            set_registration_timeout(Config);
+        _ ->
+            {skip, mod_register_disabled}
+    end;
 init_per_group(_GroupName, Config) ->
     escalus:create_users(Config).
 
@@ -125,7 +140,7 @@ registration_timeout(Config) ->
     escalus_users:verify_creation(escalus_users:create_user(Config, Bob)).
 
 log_one(Config) ->
-    escalus:story(Config, [1], fun(Alice) ->
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
 
         escalus_client:send(Alice, escalus_stanza:chat_to(Alice, <<"Hi!">>)),
         escalus:assert(is_chat_message, [<<"Hi!">>], escalus_client:wait_for_stanza(Alice))
@@ -143,7 +158,7 @@ log_one_basic_digest(Config) ->
 
 
 messages_story(Config) ->
-    escalus:story(Config, [1, 1], fun(Alice, Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
 
         % Alice sends a message to Bob
         escalus_client:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi!">>)),
