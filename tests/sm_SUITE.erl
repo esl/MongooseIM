@@ -219,8 +219,8 @@ client_acks_more_than_sent(Config) ->
 too_many_unacked_stanzas(Config) ->
     escalus:story(Config, [{alice,1}, {bob,1}], fun(Alice, Bob) ->
         Msg = escalus_stanza:chat_to(Alice, <<"Hi, Alice!">>),
-        [escalus:send(Bob, Msg) || _ <- lists:seq(1,3)],
-        escalus:wait_for_stanzas(Alice, 3),
+        [escalus:send(Bob, Msg) || _ <- lists:seq(1,2)],
+        escalus:wait_for_stanzas(Alice, 2),
         escalus:assert(is_stream_error, [<<"resource-constraint">>,
                                          <<"too many unacked stanzas">>],
                        escalus:wait_for_stanza(Alice))
