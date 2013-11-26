@@ -60,7 +60,15 @@ remove_user(LUser, LServer) ->
     
 is_stored_user_exists(LUser, LServer) ->
     ejabberd_auth:is_user_exists(LUser, LServer)
-    andalso not ejabberd_auth_anonymous:is_user_exists(LUser, LServer).
+    andalso not is_anonymous_user(LUser, LServer).
+
+is_anonymous_user(LUser, LServer) ->
+    case lists:member(ejabberd_auth_anonymous, ejabberd_auth:auth_modules(LServer)) of
+        true ->
+            ejabberd_auth_anonymous:is_user_exists(LUser, LServer);
+        false ->
+            false
+    end.
 
 is_cached_user_exists(LUser, LServer) ->
     [] =/= mnesia:dirty_read(cached_user, {LServer, LUser}).
