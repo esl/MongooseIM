@@ -244,7 +244,8 @@ buffer_max(BufferMax) ->
              escalus_ejabberd:rpc(?MOD_SM, get_buffer_max, [unset])
      end,
      fun (unset) ->
-             ct:pal("not resetting buffer_max - it was not set");
+             ct:pal("buffer_max was not set - setting to 'undefined'"),
+             escalus_ejabberd:rpc(?MOD_SM, set_buffer_max, [undefined]);
          (V) ->
              escalus_ejabberd:rpc(?MOD_SM, set_buffer_max, [V])
      end,
@@ -256,7 +257,8 @@ ack_freq(AckFreq) ->
              escalus_ejabberd:rpc(?MOD_SM, get_ack_freq, [unset])
      end,
      fun (unset) ->
-             ct:pal("not resetting ack_freq - it was not set");
+             ct:pal("ack_freq was not set - setting to 'undefined'"),
+             escalus_ejabberd:rpc(?MOD_SM, set_ack_freq, [undefined]);
          (V) ->
              escalus_ejabberd:rpc(?MOD_SM, set_ack_freq, [V])
      end,
