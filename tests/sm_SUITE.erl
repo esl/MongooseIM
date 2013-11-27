@@ -14,7 +14,8 @@
 all() ->
     [{group, negotiation},
      {group, server_acking},
-     {group, client_acking}].
+     {group, client_acking},
+     {group, reconnection}].
 
 groups() ->
     [{negotiation, [], [server_announces_sm,
@@ -31,7 +32,8 @@ groups() ->
      {client_acking,
       [shuffle, {repeat, 5}], [client_acks_more_than_sent,
                                too_many_unacked_stanzas,
-                               server_requests_ack]}].
+                               server_requests_ack]},
+     {reconnection, [], [resend_unacked_on_reconnection]}].
 
 suite() ->
     escalus:suite().
@@ -49,10 +51,15 @@ end_per_suite(Config) ->
 init_per_group(client_acking, Config) ->
     NewConfig = escalus_ejabberd:setup_option(ack_freq(200), Config),
     escalus_users:update_userspec(NewConfig, alice, stream_management, true);
+init_per_group(reconnection, Config) ->
+    NewConfig = escalus_ejabberd:setup_option(ack_freq(200), Config),
+    escalus_users:update_userspec(NewConfig, alice, stream_management, true);
 init_per_group(_GroupName, Config) ->
     Config.
 
 end_per_group(client_acking, Config) ->
+    escalus_ejabberd:reset_option(ack_freq(200), Config);
+end_per_group(reconnection, Config) ->
     escalus_ejabberd:reset_option(ack_freq(200), Config);
 end_per_group(_GroupName, Config) ->
     Config.
@@ -233,6 +240,35 @@ server_requests_ack(Config) ->
                        escalus:wait_for_stanza(Alice)),
         escalus:assert(is_ack_request, escalus:wait_for_stanza(Alice))
     end).
+
+resend_unacked_on_reconnection(Config) ->
+    Messages = [<<"msg-1">>, <<"msg-2">>, <<"msg-3">>],
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        %% Bob sends some messages to Alice.
+        [escalus:send(Bob, escalus_stanza:chat_to(Alice, Msg))
+         || Msg <- Messages],
+        %% Alice receives the messages.
+        Stanzas = escalus:wait_for_stanzas(Alice, 3),
+        [escalus:assert(is_chat_message, [Msg], Stanza)
+         || {Msg, Stanza} <- lists:zip(Messages, Stanzas)]
+        %% Alice disconnects without acking the messages.
+    end),
+    %% Messages go to the offline store.
+    %% Alice receives the messages from the offline store.
+    %% This is done without escalus:story() as a story() performs
+    %% an is_presence assertion on the first stanza after connection
+    %% initiation which fails as the message from offline store will come
+    %% before that presence.
+    AliceSpec = escalus_users:get_options(Config, alice),
+    {ok, Alice, _, _} = escalus_connection:start(AliceSpec),
+    escalus_connection:send(Alice, escalus_stanza:presence(<<"available">>)),
+    Stanzas = [escalus_connection:get_stanza(Alice, {msg,I})
+               || I <- lists:seq(1, 3)],
+    [escalus:assert(is_chat_message, [Msg], Stanza)
+     || {Msg, Stanza} <- lists:zip(Messages, Stanzas)],
+    %% Alice acks the delayed messages so they won't go again
+    %% to the offline store.
+    escalus_connection:send(Alice, escalus_stanza:sm_ack(3)).
 
 %%--------------------------------------------------------------------
 %% Helpers
