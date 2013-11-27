@@ -43,24 +43,20 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    escalus:init_per_suite(Config).
+    NewConfig = escalus_ejabberd:setup_option(ack_freq(200), Config),
+    escalus:init_per_suite(NewConfig).
 
 end_per_suite(Config) ->
-    escalus:end_per_suite(Config).
+    NewConfig = escalus_ejabberd:reset_option(ack_freq(200), Config),
+    escalus:end_per_suite(NewConfig).
 
 init_per_group(client_acking, Config) ->
-    NewConfig = escalus_ejabberd:setup_option(ack_freq(200), Config),
-    escalus_users:update_userspec(NewConfig, alice, stream_management, true);
+    escalus_users:update_userspec(Config, alice, stream_management, true);
 init_per_group(reconnection, Config) ->
-    NewConfig = escalus_ejabberd:setup_option(ack_freq(200), Config),
-    escalus_users:update_userspec(NewConfig, alice, stream_management, true);
+    escalus_users:update_userspec(Config, alice, stream_management, true);
 init_per_group(_GroupName, Config) ->
     Config.
 
-end_per_group(client_acking, Config) ->
-    escalus_ejabberd:reset_option(ack_freq(200), Config);
-end_per_group(reconnection, Config) ->
-    escalus_ejabberd:reset_option(ack_freq(200), Config);
 end_per_group(_GroupName, Config) ->
     Config.
 
