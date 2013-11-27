@@ -208,7 +208,9 @@ h_ok_after_a_chat(Config) ->
         escalus:assert(is_chat_message, [<<"Pretty !@#$%^$">>],
                        escalus:wait_for_stanza(Bob)),
         escalus:send(Alice, escalus_stanza:sm_request()),
-        escalus:assert(is_ack, [3], escalus:wait_for_stanza(Alice))
+        escalus:assert(is_ack, [3], escalus:wait_for_stanza(Alice)),
+        %% Ack, so that unacked messages don't go into offline store.
+        escalus:send(Alice, escalus_stanza:sm_ack(3))
     end).
 
 client_acks_more_than_sent(Config) ->
