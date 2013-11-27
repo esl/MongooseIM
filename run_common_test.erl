@@ -1,63 +1,43 @@
 -module(run_common_test).
--export([ct/0, ct_quick/0, ct_cover/0, cover_summary/0]).
+-export([ct/0, ct/1,
+         ct_quick/0, ct_quick/1,
+         ct_cover/0, ct_cover/1,
+         cover_summary/0]).
 
 -define(CT_DIR, filename:join([".", "tests"])).
 -define(CT_REPORT, filename:join([".", "ct_report"])).
+-define(CT_DEF_SPEC, './default.spec').
 
 ct_config_file() ->
     {ok, CWD} = file:get_cwd(),
     filename:join([CWD, "test.config"]).
 
-ct_vcard_config_file() ->
-    {ok, CWD} = file:get_cwd(),
-    filename:join([CWD, "vcard.config"]).
+tests_to_run(TestSpec) ->
+    TestSpecFile = atom_to_list(TestSpec),
+    [
+     {spec, TestSpecFile}
+    ].
 
-tests_to_run() ->
-    [{config, [ct_config_file(), ct_vcard_config_file()]},
-     {dir, ?CT_DIR},
-     {logdir, ?CT_REPORT},
-     {suite, [
-            adhoc_SUITE,
-            anonymous_SUITE,
-            last_SUITE,
-            login_SUITE,
-            muc_SUITE,
-            offline_SUITE,
-            presence_SUITE,
-            privacy_SUITE,
-            private_SUITE,
-            s2s_SUITE,
-            sic_SUITE,
-            %snmp_SUITE,
-            %snmp_c2s_SUITE,
-            %snmp_register_SUITE,
-            %snmp_roster_SUITE,
-            %snmp_session_SUITE,
-            %snmp_table_SUITE,
-            vcard_simple_SUITE,
-            websockets_SUITE,
-            metrics_c2s_SUITE,
-            metrics_roster_SUITE,
-            metrics_register_SUITE,
-            metrics_session_SUITE,
-            system_monitor_SUITE
-            ]}].
-
-    %{suite, muc_SUITE},
-     %{group, admin},
-     %{testcase, admin_moderator},
-     %{repeat, 4}].
 
 ct() ->
-    run_test(tests_to_run()),
+    ct([?CT_DEF_SPEC]).
+
+ct([TestSpec]) ->
+    run_test(tests_to_run(TestSpec)),
     init:stop(0).
 
 ct_quick() ->
-    run_quick_test(tests_to_run()),
+    ct_quick([?CT_DEF_SPEC]).
+
+ct_quick([TestSpec]) ->
+    run_quick_test(tests_to_run(TestSpec)),
     init:stop(0).
 
 ct_cover() ->
-    run_ct_cover(),
+    ct_cover([?CT_DEF_SPEC]).
+
+ct_cover([TestSpec]) ->
+    run_ct_cover(TestSpec),
     cover_summary(),
     init:stop(0).
 
@@ -126,9 +106,9 @@ run_config_test({Name, Variables}, Test, N, Tests) ->
 call(Node, M, F, A) ->
     rpc:call(Node, M, F, A).
 
-run_ct_cover() ->
+run_ct_cover(TestSpec) ->
     prepare(),
-    run_test(tests_to_run()),
+    run_test(tests_to_run(TestSpec)),
     N = get_ejabberd_node(),
     Files = rpc:call(N, filelib, wildcard, ["/tmp/ejd_test_run_*.coverdata"]),
     [rpc:call(N, file, delete, [File]) || File <- Files],

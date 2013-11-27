@@ -14,28 +14,31 @@ quicktest: prepare
 		-pa `pwd`/tests \
 		    `pwd`/ebin \
 			`pwd`/deps/*/ebin \
-		-s run_common_test ct_quick
+		$(ADD_OPTS) \
+		-s run_common_test ct_quick $(TESTSPEC)
 
 test: prepare
 	erl -noinput -sname test -setcookie ejabberd \
 		-pa `pwd`/tests \
 		    `pwd`/ebin \
 			`pwd`/deps/*/ebin \
-		-s run_common_test ct
+		$(ADD_OPTS) \
+		-s run_common_test ct $(TESTSPEC)
 
 cover_test: prepare
 	erl -noinput -sname test -setcookie ejabberd \
 		-pa `pwd`/tests \
 		    `pwd`/ebin \
 			`pwd`/deps/*/ebin \
-		-s run_common_test ct_cover; \
+		$(ADD_OPTS) \
+		-s run_common_test ct_cover $(TESTSPEC)
 
 cover_summary: prepare
 	erl -noinput -sname test -setcookie ejabberd \
 		-pa `pwd`/tests \
 		    `pwd`/ebin \
 			`pwd`/deps/*/ebin \
-		-s run_common_test cover_summary; \
+		-s run_common_test cover_summary
 
 prepare: compile
 	erlc -Ideps/exml/include \
