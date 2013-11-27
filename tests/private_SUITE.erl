@@ -72,10 +72,10 @@ store_retrieve(Config) ->
                           escalus_client:send(Alice, PrivateStanza),
 
                           %% Alice receives store confirmation
-                          escalus_new_assert:assert(
+                          escalus:assert(
                             is_iq_result,
-                            [escalus_client:wait_for_stanza(Alice)],
-                            PrivateStanza),
+                            [PrivateStanza],
+                            escalus_client:wait_for_stanza(Alice)),
 
                           %% Alice asks for the data
                           escalus_client:send(Alice, escalus_stanza:private_get(NS, <<"my_element">>)),
