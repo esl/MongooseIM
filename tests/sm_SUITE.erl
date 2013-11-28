@@ -43,11 +43,11 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    NewConfig = escalus_ejabberd:setup_option(ack_freq(200), Config),
+    NewConfig = escalus_ejabberd:setup_option(ack_freq(never), Config),
     escalus:init_per_suite(NewConfig).
 
 end_per_suite(Config) ->
-    NewConfig = escalus_ejabberd:reset_option(ack_freq(200), Config),
+    NewConfig = escalus_ejabberd:reset_option(ack_freq(never), Config),
     escalus:end_per_suite(NewConfig).
 
 init_per_group(client_acking, Config) ->
