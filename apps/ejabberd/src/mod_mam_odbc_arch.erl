@@ -267,10 +267,10 @@ prepare_filter(UserID, Start, End, WithJID) ->
     case WithJID of
         undefined -> {undefined, undefined};
         #jid{lresource = <<>>} ->
-            {secure_escaped_jid(WithJID), undefined};
+            {esc_jid(WithJID), undefined};
         #jid{lresource = WithLResource} ->
             WithBareJID = jlib:jid_remove_resource(WithJID),
-            {secure_escaped_jid(WithBareJID),
+            {esc_jid(WithBareJID),
              ejabberd_odbc:escape(WithLResource)}
     end,
     prepare_filter(UserID, Start, End, SWithJID, SWithResource).
@@ -340,9 +340,6 @@ escape_message_id(MessID) when is_integer(MessID) ->
 
 escape_user_id(UserID) when is_integer(UserID) ->
     integer_to_list(UserID).
-
-secure_escaped_jid(JID) ->
-    ejabberd_odbc:escape(jlib:binary_to_jid(JID)).
 
 esc_jid(JID) ->
     ejabberd_odbc:escape(jlib:jid_to_binary(JID)).
