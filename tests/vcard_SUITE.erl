@@ -71,7 +71,8 @@ ro_full_search_tests() ->
      request_search_fields,
      search_open,
      search_empty,
-     search_some].
+     search_some,
+     search_wildcard].
 
 ro_limited_search_tests() ->
     [search_open_limited,
@@ -340,6 +341,25 @@ search_some(Config) ->
                     {vcard, data, all_search, search_results, some}),
               list_unordered_key_match(1, ExpectedItemTups, ItemTups)
       end).
+
+search_wildcard(Config) ->
+    escalus:story(
+        Config, [{bob, 1}],
+        fun(Client) ->
+                DirJID = escalus_config:get_ct(
+                        {vcard, data, all_search, directory_jid}),
+                Fields = [{<<"fn">>, <<"doe*">>}],
+                Res = escalus:send_and_wait(Client,
+                        escalus_stanza:search_iq(DirJID,
+                            escalus_stanza:search_fields(Fields))),
+                escalus:assert(is_iq_result, Res),
+                ItemTups = search_result_item_tuples(Res),
+                ExpectedItemTups =
+                                   escalus_config:get_ct(
+                        {vcard, data, all_search, search_results, wildcard}),
+                list_unordered_key_match(1, ExpectedItemTups, ItemTups)
+        end).
+
 
 
 %%------------------------------------

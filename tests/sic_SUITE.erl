@@ -69,7 +69,7 @@ user_sic(Config) ->
         escalus:send(Alice, sic_iq_get()),
         %% Alice expects IQ result with client IP address
         Stanza = escalus:wait_for_stanza(Alice),
-        escalus_new_assert:assert(is_sic_response(), Stanza)
+        escalus:assert(is_sic_response(), Stanza)
     end).
 
 %% Try to retrieve other user's IP
