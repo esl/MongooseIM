@@ -372,8 +372,7 @@ room_process_mam_iq(From=#jid{lserver=Host}, To, IQ) ->
     Action = iq_action(IQ),
     case is_action_allowed(Action, From, To) of
         true  -> 
-            ShaperName = action_to_shaper_name(Action),
-            case shaper_srv:wait(Host, ShaperName, From, 1) of
+            case wait_shaper(Host, Action, From) of
                 ok ->
                     handle_mam_iq(Action, From, To, IQ);
                 {error, max_delay_reached} ->
@@ -424,6 +423,9 @@ action_type(mam_purge_multiple_messages)    -> set.
 -spec action_to_shaper_name(action()) -> atom().
 action_to_shaper_name(Action) ->
     list_to_atom(atom_to_list(Action) ++ "_shaper").
+
+-spec action_to_global_shaper_name(action()) -> atom().
+action_to_global_shaper_name(Action) -> list_to_atom(atom_to_list(Action) ++ "_global_shaper").
 
 handle_mam_iq(Action, From, To, IQ) ->
     case Action of
@@ -650,6 +652,14 @@ purge_multiple_messages(Host, ArcID, ArcJID, Start, End, Now, WithJID) ->
 wait_flushing(Host, ArcID, ArcJID) ->
     M = writer_module(Host),
     M:wait_flushing(Host, ?MODULE, ArcID, ArcJID).
+
+wait_shaper(Host, Action, From) ->
+    case shaper_srv:wait(Host, action_to_shaper_name(Action), From, 1) of
+        ok ->
+            shaper_srv:wait(Host, action_to_global_shaper_name(Action), global, 1);
+        Err ->
+            Err
+    end.
 
 %% ----------------------------------------------------------------------
 %% Helpers
