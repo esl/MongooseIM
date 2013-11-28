@@ -202,16 +202,9 @@ create_dump_file(ArcJID, OutFileName) ->
 restore_dump_file(ArcJID=#jid{}, InFileName, Opts) ->
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
-    WriterF = fun(MessID, FromJID, ToJID, MessElem) ->
-            case ArcJID of
-                FromJID ->
-                    {error, outgoing_messages_are_not_supported};
-                ToJID ->
-                    archive_message(Host, MessID, ArcID, ArcJID,
-                                    FromJID, FromJID, incoming, MessElem);
-                _ ->
-                    {error, no_local_jid}
-            end
+    WriterF = fun(MessID, FromJID, _ToJID, MessElem) ->
+            archive_message(Host, MessID, ArcID, ArcJID,
+                            FromJID, FromJID, incoming, MessElem)
         end,
     mod_mam_dump:restore_dump_file(WriterF, InFileName, Opts).
 
