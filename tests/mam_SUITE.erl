@@ -46,7 +46,9 @@
          purge_single_message/1,
          purge_multiple_messages/1,
          purge_old_single_message/1,
-         querying_for_all_messages_with_jid/1]).
+         querying_for_all_messages_with_jid/1,
+         muc_querying_for_all_messages/1,
+         muc_querying_for_all_messages_with_jid/1]).
 
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
@@ -191,7 +193,9 @@ offline_message_cases() ->
 muc_cases() ->
     [muc_service_discovery,
      muc_archive_request,
-     muc_private_message].
+     muc_private_message,
+     muc_querying_for_all_messages,
+     muc_querying_for_all_messages_with_jid].
 
 rsm_cases() ->
       [pagination_first5,
@@ -363,6 +367,12 @@ init_per_testcase(C=purge_old_single_message, Config) ->
 init_per_testcase(C=querying_for_all_messages_with_jid, Config) ->
     escalus:init_per_testcase(C,
         bootstrap_archive(clean_archives(Config)));
+init_per_testcase(C=muc_querying_for_all_messages, Config) ->
+    escalus:init_per_testcase(C,
+        muc_bootstrap_archive(start_alice_room(Config)));
+init_per_testcase(C=muc_querying_for_all_messages_with_jid, Config) ->
+    escalus:init_per_testcase(C,
+        muc_bootstrap_archive(start_alice_room(Config)));
 init_per_testcase(C=muc_archive_request, Config) ->
     escalus:init_per_testcase(C, start_alice_room(Config));
 init_per_testcase(C=muc_private_message, Config) ->
@@ -374,6 +384,12 @@ end_per_testcase(C=muc_archive_request, Config) ->
     destroy_room(Config),
     escalus:end_per_testcase(C, Config);
 end_per_testcase(C=muc_private_message, Config) ->
+    destroy_room(Config),
+    escalus:end_per_testcase(C, Config);
+end_per_testcase(C=muc_querying_for_all_messages, Config) ->
+    destroy_room(Config),
+    escalus:end_per_testcase(C, Config);
+end_per_testcase(C=muc_querying_for_all_messages_with_jid, Config) ->
     destroy_room(Config),
     escalus:end_per_testcase(C, Config);
 end_per_testcase(CaseName, Config) ->
@@ -487,6 +503,30 @@ querying_for_all_messages_with_jid(Config) ->
         end,
     escalus:story(Config, [1], F).
 
+muc_querying_for_all_messages(Config) ->
+    F = fun(Alice, Bob) ->
+        Room = ?config(room, Config),
+        BWithJID = room_address(Room, nick(Bob)),
+
+        IQ = stanza_archive_request(<<>>),
+        escalus:send(Alice, stanza_to_room(IQ, Room)),
+        assert_respond_size(12, wait_archive_respond_iq_first(Alice)),
+
+        ok
+        end,
+    escalus:story(Config, [1, 1], F).
+
+muc_querying_for_all_messages_with_jid(Config) ->
+    F = fun(Alice, Bob) ->
+        Room = ?config(room, Config),
+        BWithJID = room_address(Room, nick(Bob)),
+
+        IQ = stanza_filtered_by_jid_request(BWithJID),
+        escalus:send(Alice, stanza_to_room(IQ, Room)),
+        assert_respond_size(6, wait_archive_respond_iq_first(Alice)),
+        ok
+        end,
+    escalus:story(Config, [1, 1], F).
 
 archived(Config) ->
     F = fun(Alice, Bob) ->
@@ -988,7 +1028,7 @@ stanza_page_archive_request(QueryId, RSM) ->
 
 stanza_filtered_by_jid_request(BWithJID) ->
     stanza_lookup_messages_iq(undefined, undefined,
-                              undefined, BWithJID, #rsm_in{max=10}).
+                              undefined, BWithJID, undefined).
 
 stanza_lookup_messages_iq(QueryId, BStart, BEnd, BWithJID, RSM) ->
     escalus_stanza:iq(<<"get">>, [#xmlel{
@@ -1414,10 +1454,27 @@ bootstrap_archive(Config) ->
     ?assert_equal(ok, restore_dump_file(ArcJID, FileName, Opts)),
     Config.
 
+muc_bootstrap_archive(Config) ->
+    Room = ?config(room, Config),
+    DataDir = ?config(data_dir, Config),
+    FileName = filename:join(DataDir, "alice_forest.xml"),
+    ArcJID = make_jid(Room, muc_host(), <<>>),
+    Opts = [{rewrite_jids, muc_rewrite_jids_options(Room)}],
+    ?assert_equal(ok, muc_restore_dump_file(ArcJID, FileName, Opts)),
+    Config.
+
 rewrite_jids_options(Config) ->
     A = nick_to_jid(alice, Config),
     B = nick_to_jid(bob,   Config),
     [{<<"alice@wonderland">>, A}, {<<"cat@wonderland">>, B}].
+
+muc_rewrite_jids_options(Room) ->
+    A = room_address(Room, nick(alice)),
+    B = room_address(Room, nick(bob)),
+    R = room_address(Room),
+    [{<<"alice@wonderland">>, A},
+     {<<"cat@wonderland">>, B},
+     {<<"forest@wonderland">>, R}].
 
 %% @doc Get a binary jid of the user, that tagged with `UserName' in the config.
 nick_to_jid(UserName, Config) when is_atom(UserName) ->
@@ -1429,6 +1486,9 @@ make_jid(U, S, R) ->
 
 restore_dump_file(ArcJID, FileName, Opts) ->
     rpc_apply(mod_mam, restore_dump_file, [ArcJID, FileName, Opts]).
+
+muc_restore_dump_file(ArcJID, FileName, Opts) ->
+    rpc_apply(mod_mam_muc, restore_dump_file, [ArcJID, FileName, Opts]).
 
 is_odbc_enabled(Host) ->
     case sql_transaction(Host, fun erlang:now/0) of
