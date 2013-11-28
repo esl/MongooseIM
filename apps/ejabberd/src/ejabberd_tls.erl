@@ -27,9 +27,7 @@
 -module(ejabberd_tls).
 -author('alexey@process-one.net').
 
--behaviour(gen_server).
-
--export([start/0, start_link/0,
+-export([start/0,
 	 tcp_to_tls/2, tls_to_tcp/1,
 	 send/2,
 	 recv/2, recv/3, recv_data/2,
@@ -41,14 +39,6 @@
 	 get_verify_result/1,
 	 get_cert_verify_string/2,
 	 test/0]).
-
-%% Internal exports, call-back functions.
--export([init/1,
-	 handle_call/3,
-	 handle_cast/2,
-	 handle_info/2,
-	 code_change/3,
-	 terminate/2]).
 
 -include("ejabberd.hrl").
 
@@ -74,62 +64,16 @@
 -record(tlssock, {tcpsock, tlsport}).
 
 start() ->
-    gen_server:start({local, ?MODULE}, ?MODULE, [], []).
-
-start_link() ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
-
-init([]) ->
     case erl_ddll:load_driver(ejabberd:get_so_path(), tls_drv) of
 	ok -> ok;
+	{error, permanent} -> ok;
 	{error, already_loaded} -> ok
-    end,
-    Port = open_port({spawn, tls_drv}, [binary]),
-    Res = port_control(Port, ?SET_CERTIFICATE_FILE_ACCEPT, "./ssl.pem" ++ [0]),
-    case Res of
-	<<0>> ->
-	    %ets:new(iconv_table, [set, public, named_table]),
-	    %ets:insert(iconv_table, {port, Port}),
-	    {ok, Port};
-	<<1, Error/binary>> ->
-	    {error, binary_to_list(Error)}
     end.
-
-
-%%% --------------------------------------------------------
-%%% The call-back functions.
-%%% --------------------------------------------------------
-
-handle_call(_, _, State) ->
-    {noreply, State}.
-
-handle_cast(_, State) ->
-    {noreply, State}.
-
-handle_info({'EXIT', Port, Reason}, Port) ->
-    {stop, {port_died, Reason}, Port};
-
-handle_info({'EXIT', _Pid, _Reason}, Port) ->
-    {noreply, Port};
-
-handle_info(_, State) ->
-    {noreply, State}.
-
-code_change(_OldVsn, State, _Extra) ->
-    {ok, State}.
-
-terminate(_Reason, Port) ->
-    Port ! {self, close},
-    ok.
 
 
 tcp_to_tls(TCPSocket, Options) ->
     case lists:keysearch(certfile, 1, Options) of
 	{value, {certfile, CertFile}} ->
-	    case erl_ddll:load_driver(ejabberd:get_so_path(), tls_drv) of
-		ok -> ok;
-		{error, already_loaded} -> ok
-	    end,
 	    Port = open_port({spawn, tls_drv}, [binary]),
 	    Flags =
 		case lists:member(verify_none, Options) of
@@ -263,10 +207,7 @@ get_verify_result(#tlssock{tlsport = Port}) ->
 
 
 test() ->
-    case erl_ddll:load_driver(ejabberd:get_so_path(), tls_drv) of
-	ok -> ok;
-	{error, already_loaded} -> ok
-    end,
+    start(),
     Port = open_port({spawn, tls_drv}, [binary]),
     ?PRINT("open_port: ~p~n", [Port]),
     PCRes = port_control(Port, ?SET_CERTIFICATE_FILE_ACCEPT,
