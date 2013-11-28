@@ -45,7 +45,8 @@
          offline_message/1,
          purge_single_message/1,
          purge_multiple_messages/1,
-         purge_old_single_message/1]).
+         purge_old_single_message/1,
+         querying_for_all_messages_with_jid/1]).
 
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
@@ -163,7 +164,8 @@ basic_groups() ->
      {rsm,              [], rsm_cases()}].
 
 bootstrapped_cases() ->
-     [purge_old_single_message].
+     [purge_old_single_message,
+      querying_for_all_messages_with_jid].
 
 mam_cases() ->
     [mam_service_discovery,
@@ -358,6 +360,9 @@ init_per_testcase(C=purge_multiple_messages, Config) ->
 init_per_testcase(C=purge_old_single_message, Config) ->
     escalus:init_per_testcase(C,
         bootstrap_archive(clean_archives(Config)));
+init_per_testcase(C=querying_for_all_messages_with_jid, Config) ->
+    escalus:init_per_testcase(C,
+        bootstrap_archive(clean_archives(Config)));
 init_per_testcase(C=muc_archive_request, Config) ->
     escalus:init_per_testcase(C, start_alice_room(Config));
 init_per_testcase(C=muc_private_message, Config) ->
@@ -472,6 +477,15 @@ simple_archive_request(Config) ->
         ok
         end,
     escalus:story(Config, [1, 1], F).
+
+querying_for_all_messages_with_jid(Config) ->
+    F = fun(Alice) ->
+        BWithJID = nick_to_jid(bob, Config),
+        escalus:send(Alice, stanza_filtered_by_jid_request(BWithJID)),
+        assert_respond_size(12, wait_archive_respond_iq_first(Alice)),
+        ok
+        end,
+    escalus:story(Config, [1], F).
 
 
 archived(Config) ->
@@ -971,6 +985,10 @@ stanza_limit_archive_request() ->
 
 stanza_page_archive_request(QueryId, RSM) ->
     stanza_lookup_messages_iq(QueryId, undefined, undefined, undefined, RSM).
+
+stanza_filtered_by_jid_request(BWithJID) ->
+    stanza_lookup_messages_iq(undefined, undefined,
+                              undefined, BWithJID, #rsm_in{max=10}).
 
 stanza_lookup_messages_iq(QueryId, BStart, BEnd, BWithJID, RSM) ->
     escalus_stanza:iq(<<"get">>, [#xmlel{
