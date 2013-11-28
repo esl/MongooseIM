@@ -50,22 +50,23 @@ set_prefs(_Host, _Mod, _ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     NewNRules = lists:usort(rules(NeverJIDs)),
     SU = su_key(ArcJID),
     {atomic, ok} = mnesia:transaction(fun() ->
-        case mnesia:read(mam_prefs_user, SU) of
+        case mnesia:read(mam_prefs_user, SU, write) of
             [] -> 
-                update_rules(always, ArcJID, [], NewARules),
-                update_rules(newer, ArcJID, [], NewNRules),
                 mnesia:write(#mam_prefs_user{
                              host_user=SU, default_mode=DefaultMode,
-                             always_rules=NewARules, never_rules=NewNRules});
+                             always_rules=NewARules, never_rules=NewNRules}),
+                update_rules(always, ArcJID, [], NewARules),
+                update_rules(never, ArcJID, [], NewNRules),
+                ok;
             [#mam_prefs_user{default_mode=DefaultMode,
                              always_rules=NewARules, never_rules=NewNRules}] ->
                 ok; %% same
             [#mam_prefs_user{always_rules=OldARules, never_rules=OldNRules}] ->
-                update_rules(always, ArcJID, OldARules, NewARules),
-                update_rules(newer, ArcJID, OldNRules, NewNRules),
                 mnesia:write(#mam_prefs_user{
                              host_user=SU, default_mode=DefaultMode,
                              always_rules=NewARules, never_rules=NewNRules}),
+                update_rules(always, ArcJID, OldARules, NewARules),
+                update_rules(never, ArcJID, OldNRules, NewNRules),
                 ok
         end
     end),
