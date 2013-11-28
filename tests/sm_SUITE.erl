@@ -229,7 +229,8 @@ too_many_unacked_stanzas(Config) ->
         escalus:assert(is_stream_error, [<<"resource-constraint">>,
                                          <<"too many unacked stanzas">>],
                        escalus:wait_for_stanza(Alice))
-    end).
+    end),
+    discard_offline_messages(Config, alice).
 
 server_requests_ack(Config) ->
     escalus:story(Config, [{alice,1}, {bob,1}], fun(Alice, Bob) ->
@@ -237,7 +238,8 @@ server_requests_ack(Config) ->
         escalus:assert(is_chat_message, [<<"Hi, Alice!">>],
                        escalus:wait_for_stanza(Alice)),
         escalus:assert(is_ack_request, escalus:wait_for_stanza(Alice))
-    end).
+    end),
+    discard_offline_messages(Config, alice).
 
 resend_unacked_on_reconnection(Config) ->
     Messages = [<<"msg-1">>, <<"msg-2">>, <<"msg-3">>],
@@ -271,6 +273,24 @@ resend_unacked_on_reconnection(Config) ->
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
+
+discard_offline_messages(Config, UserName) ->
+    discard_offline_messages(Config, UserName, 1).
+
+discard_offline_messages(Config, UserName, H) when is_atom(UserName) ->
+    Spec = escalus_users:get_options(Config, UserName),
+    {ok, User, _, _} = escalus_connection:start(Spec),
+    escalus_connection:send(User, escalus_stanza:presence(<<"available">>)),
+    discard_offline_messages(Config, User, H);
+discard_offline_messages(Config, User, H) ->
+    Stanza = escalus_connection:get_stanza(User, maybe_offline_msg),
+    escalus_connection:send(User, escalus_stanza:sm_ack(H)),
+    case escalus_pred:is_presence(Stanza) of
+        true ->
+            ok;
+        false ->
+            discard_offline_messages(Config, User, H+1)
+    end.
 
 buffer_max(BufferMax) ->
     {buffer_max,
