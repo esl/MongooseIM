@@ -32,7 +32,9 @@ all() ->
      {group, registration_timeout},
      {group, login},
      {group, login_scram},
-     {group, messages}].
+     {group, login_scram_store_plain},
+     {group, messages}
+    ].
 
 groups() ->
     [{register, [sequence], [register,
@@ -40,8 +42,12 @@ groups() ->
      {registration_timeout, [sequence], [registration_timeout]},
      {login, [sequence], [log_one,
                           log_one_digest]},
-     {login_scram, [sequence], [log_one, log_one_scram]},
+     {login_scram, [sequence], scram_tests()},
+     {login_scram_store_plain, [sequence], scram_tests()},
      {messages, [sequence], [messages_story]}].
+
+scram_tests() ->
+    [log_one, log_one_scram].
 
 suite() ->
     escalus:suite().
@@ -70,12 +76,18 @@ init_per_group(registration_timeout, Config) ->
         _ ->
             {skip, mod_register_disabled}
     end;
-init_per_group(login_scram, Config) ->
+init_per_group(GroupName, Config) when
+      GroupName == login_scram; GroupName == login_scram_store_plain ->
     case get_auth_method() of
         external ->
             {skip, "external authentication requires plain password"};
         _ ->
-            set_store_password(scram),
+            case GroupName of
+                login_scram ->
+                    set_store_password(scram);
+                _ ->
+                    set_store_password(plain)
+            end,
             escalus:create_users(Config)
     end;
 init_per_group(_GroupName, Config) ->
@@ -199,11 +211,13 @@ restore_registration_timeout(Config) ->
     proplists:delete(old_timeout, Config).
 
 get_auth_method() ->
-    XMPPDomain = ct:get_config(ejabberd_domain),
+    XMPPDomain = escalus_ejabberd:unify_str_arg(
+                   ct:get_config(ejabberd_domain)),
     escalus_ejabberd:rpc(ejabberd_config, get_local_option,
                          [{auth_method, XMPPDomain}]).
 
 set_store_password(Type) ->
-    XMPPDomain = ct:get_config(ejabberd_domain),
+    XMPPDomain = escalus_ejabberd:unify_str_arg(
+                   ct:get_config(ejabberd_domain)),
     escalus_ejabberd:rpc(ejabberd_config, add_local_option,
                          [{auth_password_format, XMPPDomain}, Type]).
