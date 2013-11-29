@@ -20,6 +20,7 @@
 CREATE TABLE users (
     username text PRIMARY KEY,
     "password" text NOT NULL,
+    pass_details text,
     created_at TIMESTAMP NOT NULL DEFAULT now()
 );
 
