@@ -30,7 +30,7 @@
 -export([get_db_type/0,
 	 sql_transaction/2,
 	 get_last/2,
-     select_last/3,
+	 select_last/3,
 	 set_last_t/4,
 	 del_last/2,
 	 get_password/2,
@@ -46,7 +46,7 @@
 	 add_spool/2,
 	 get_and_del_spool_msg_t/2,
 	 del_spool_msg/2,
-     count_spool_msg/2,
+	 count_spool_msg/2,
          get_average_roster_size/1,
          get_average_rostergroup_size/1,
          clear_rosters/1,
@@ -65,8 +65,8 @@
 	 set_private_data/4,
 	 set_private_data_sql/3,
 	 get_private_data/3,
-     multi_get_private_data/3,
-     multi_set_private_data/3,
+	 multi_get_private_data/3,
+	 multi_set_private_data/3,
 	 del_user_private_storage/2,
 	 get_default_privacy_list/2,
 	 get_default_privacy_list_t/1,
@@ -91,13 +91,13 @@
 	 count_records_where/3,
 	 get_roster_version/2,
 	 set_roster_version/2,
-     prepare_offline_message/6,
-     push_offline_messages/2,
-     pop_offline_messages/4,
-     count_offline_messages/4,
-     remove_old_offline_messages/2,
-     remove_expired_offline_messages/2,
-     remove_offline_messages/3]).
+	 prepare_offline_message/6,
+	 push_offline_messages/2,
+	 pop_offline_messages/4,
+	 count_offline_messages/4,
+	 remove_old_offline_messages/2,
+	 remove_expired_offline_messages/2,
+	 remove_offline_messages/3]).
 
 %% We have only two compile time options for db queries:
 %%-define(generic, true).
@@ -249,23 +249,36 @@ del_last(LServer, Username) ->
 get_password(LServer, Username) ->
     ejabberd_odbc:sql_query(
       LServer,
-      [<<"select password from users "
-         "where username='">>, Username, "';"]).
+      [<<"select password, pass_details from users "
+       "where username='">>, Username, <<"';">>]).
 
+set_password_t(LServer, Username, {Pass, PassDetails}) ->
+    ejabberd_odbc:sql_transaction(
+      LServer,
+      fun() ->
+	      update_t(<<"users">>, [<<"password">>, <<"pass_details">>],
+		       [Pass, PassDetails],
+		       [<<"username='">>, Username ,<<"'">>])
+      end);
 set_password_t(LServer, Username, Pass) ->
     ejabberd_odbc:sql_transaction(
       LServer,
       fun() ->
 	      update_t(<<"users">>, [<<"username">>, <<"password">>],
 		       [Username, Pass],
-		       [<<"username='">>, Username ,"'"])
+		       [<<"username='">>, Username ,<<"'">>])
       end).
 
+add_user(LServer, Username, {Pass, PassDetails}) ->
+    ejabberd_odbc:sql_query(
+      LServer,
+      [<<"insert into users(username, password, pass_details) "
+       "values ('">>, Username, <<"', '">>, Pass, <<"', '">>, PassDetails, <<"');">>]);
 add_user(LServer, Username, Pass) ->
     ejabberd_odbc:sql_query(
       LServer,
       [<<"insert into users(username, password) "
-         "values ('">>, Username, "', '", Pass, "');"]).
+         "values ('">>, Username, <<"', '">>, Pass, <<"');">>]).
 
 del_user(LServer, Username) ->
     ejabberd_odbc:sql_query(
