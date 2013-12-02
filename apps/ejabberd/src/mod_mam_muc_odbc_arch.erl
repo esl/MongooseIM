@@ -49,9 +49,9 @@ archive_message(Host, _Mod, MessID, RoomID,
                 _LocJID=#jid{luser=_RoomName},
                 _RemJID=#jid{},
                 _SrcJID=#jid{lresource=FromNick}, incoming, Packet) ->
-    archive_message_1(Host, RoomID, MessID, FromNick, Packet).
+    archive_message_1(Host, MessID, RoomID, FromNick, Packet).
 
-archive_message_1(Host, RoomID, MessID, FromNick, Packet) ->
+archive_message_1(Host, MessID, RoomID, FromNick, Packet) ->
     SRoomID = integer_to_list(RoomID),
     SFromNick = ejabberd_odbc:escape(FromNick),
     Data = term_to_binary(Packet, [compressed]),
@@ -73,9 +73,9 @@ prepare_message(Host, MessID, RoomID,
                 _LocJID=#jid{luser=_RoomName},
                 _RemJID=#jid{},
                 _SrcJID=#jid{lresource=FromNick}, incoming, Packet) ->
-    prepare_message_1(Host, RoomID, MessID, FromNick, Packet).
+    prepare_message_1(Host, MessID, RoomID, FromNick, Packet).
 
-prepare_message_1(Host, RoomID, MessID, FromNick, Packet) ->
+prepare_message_1(Host, MessID, RoomID, FromNick, Packet) ->
     SRoomID = integer_to_list(RoomID),
     SFromNick = ejabberd_odbc:escape(FromNick),
     Data = term_to_binary(Packet, [compressed]),

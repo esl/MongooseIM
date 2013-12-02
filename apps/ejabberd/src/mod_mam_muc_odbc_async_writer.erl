@@ -61,21 +61,11 @@ start_link(ProcName, Host) ->
 srv_name(Host) ->
     gen_mod:get_module_proc(Host, srv_name()).
 
-archive_message(Host, _Mod, MessID, RoomID,
-                _LocJID=#jid{luser=_RoomName},
-                _RemJID=#jid{},
-                _SrcJID=#jid{lresource=FromNick}, incoming, Packet) ->
-    archive_message_1(Host, RoomID, MessID, FromNick, Packet).
-
-archive_message_1(Host, RoomID, MessID, FromNick, Packet) ->
-    SRoomID = integer_to_list(RoomID),
-    SFromNick = ejabberd_odbc:escape(FromNick),
-    Data = term_to_binary(Packet, [compressed]),
-    EscFormat = ejabberd_odbc:escape_format(Host),
-    SData = ejabberd_odbc:escape_binary(EscFormat, Data),
-    SMessID = integer_to_list(MessID),
-    Msg = {archive_message, SMessID, SRoomID, SFromNick, SData},
-    gen_server:cast(srv_name(Host), Msg).
+archive_message(Host, _Mod,
+    MessID, RoomID, LocJID, RemJID, SrcJID, incoming, Packet) ->
+    Row = mod_mam_muc_odbc_arch:prepare_message(Host,
+        MessID, RoomID, LocJID, RemJID, SrcJID, incoming, Packet),
+    gen_server:cast(srv_name(Host), {archive_message, Row}).
 
 %% For folsom.
 queue_length(Host) ->
@@ -100,12 +90,7 @@ run_flush(State=#state{conn=Conn, flush_interval_tref=TRef, acc=Acc,
                        subscribers=Subs}) ->
     TRef =/= undefined andalso erlang:cancel_timer(TRef),
     ?DEBUG("Flushed ~p entries.", [length(Acc)]),
-    Result =
-    mod_mam_utils:success_sql_query(
-      Conn,
-      ["INSERT INTO mam_muc_message(id, room_id, nick_name, message) "
-       "VALUES ", tuples(Acc)]),
-    % [SMessID, SRoomID, SFromNick, SData]
+    Result = mod_mam_muc_odbc_arch:archive_messages(Conn, Acc),
     case Result of
         {updated, _Count} -> ok;
         {error, Reason} ->
@@ -114,15 +99,6 @@ run_flush(State=#state{conn=Conn, flush_interval_tref=TRef, acc=Acc,
     end,
     [gen_server:reply(Sub, ok) || Sub <- Subs],
     State#state{acc=[], flush_interval_tref=undefined}.
-
-join([H|T]) ->
-    [H, [", " ++ X || X <- T]].
-
-tuples(Rows) ->
-    join([tuple(Row) || Row <- Rows]).
-
-tuple([H|T]) ->
-    ["('", H, "'", [[", '", X, "'"] || X <- T], ")"].
 
 %%====================================================================
 %% gen_server callbacks
@@ -162,11 +138,9 @@ handle_call(wait_flushing, From, State=#state{subscribers=Subs}) ->
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 
-handle_cast({archive_message, SMessID, SRoomID, SFromNick, SData},
+handle_cast({archive_message, Row},
             State=#state{acc=Acc, flush_interval_tref=TRef, flush_interval=Int,
                          max_packet_size=Max}) ->
-    ?DEBUG("Schedule to write ~p.", [SMessID]),
-    Row = [SMessID, SRoomID, SFromNick, SData],
     TRef2 = case {Acc, TRef} of
             {[], undefined} -> erlang:send_after(Int, self(), flush);
             {_, _} -> TRef
