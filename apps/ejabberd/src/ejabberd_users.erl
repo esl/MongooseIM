@@ -74,10 +74,7 @@ is_user_exists(LUser, LServer) ->
 %%====================================================================
 
 remove_user(LUser, LServer) ->
-    {atomic, ok} = mnesia:transaction(fun() ->
-        mnesia:delete(cached_user, {LUser, LServer}, write),
-        ok
-        end),
+    delete_user(LUser, LServer),
     ok.
 
 %%====================================================================
@@ -175,6 +172,12 @@ put_user_into_cache(LUser, LServer) ->
     Key = key(LUser, LServer),
     Tab = tbl_name(LServer),
     ets:insert(Tab, {Key}),
+    ok.
+
+delete_user(LUser, LServer) ->
+    Key = key(LUser, LServer),
+    Tab = tbl_name(LServer),
+    ets:delete(Tab, Key),
     ok.
 
 key(LUser, LServer) ->
