@@ -13,6 +13,10 @@
          purge_single_message/6,
          purge_multiple_messages/8]).
 
+%% Called from mod_mam_odbc_async_writer
+-export([prepare_message/8,
+         archive_messages/2]).
+
 %% UMessID
 -import(mod_mam_utils,
         [encode_compact_uuid/2]).
@@ -64,6 +68,27 @@ write_message(Host, SMessID, SRoomID, SFromNick, SData) ->
        "VALUES ('", SMessID, "', '", SRoomID, "', "
                "'", SFromNick, "', '", SData, "')"]),
     ok.
+
+prepare_message(Host, MessID, RoomID,
+                _LocJID=#jid{luser=_RoomName},
+                _RemJID=#jid{},
+                _SrcJID=#jid{lresource=FromNick}, incoming, Packet) ->
+    prepare_message_1(Host, RoomID, MessID, FromNick, Packet).
+
+prepare_message_1(Host, RoomID, MessID, FromNick, Packet) ->
+    SRoomID = integer_to_list(RoomID),
+    SFromNick = ejabberd_odbc:escape(FromNick),
+    Data = term_to_binary(Packet, [compressed]),
+    EscFormat = ejabberd_odbc:escape_format(Host),
+    SData = ejabberd_odbc:escape_binary(EscFormat, Data),
+    SMessID = integer_to_list(MessID),
+    [SMessID, SRoomID, SFromNick, SData].
+
+archive_messages(LServer, Acc) ->
+    mod_mam_utils:success_sql_query(
+      LServer,
+      ["INSERT INTO mam_muc_message(id, room_id, nick_name, message) "
+       "VALUES ", tuples(Acc)]).
 
 -spec lookup_messages(Host, _Mod,
                       RoomID, RoomJID, RSM, Start, End, Now, WithJID,
@@ -319,3 +344,12 @@ maybe_jid_to_escaped_resource(#jid{lresource = <<>>}) ->
     undefined;
 maybe_jid_to_escaped_resource(#jid{lresource = WithLResource}) ->
     ejabberd_odbc:escape(WithLResource).
+
+join([H|T]) ->
+    [H, [", " ++ X || X <- T]].
+
+tuples(Rows) ->
+    join([tuple(Row) || Row <- Rows]).
+
+tuple([H|T]) ->
+    ["('", H, "'", [[", '", X, "'"] || X <- T], ")"].

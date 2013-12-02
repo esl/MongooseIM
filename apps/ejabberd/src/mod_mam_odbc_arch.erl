@@ -13,6 +13,10 @@
          purge_single_message/6,
          purge_multiple_messages/8]).
 
+%% Called from mod_mam_odbc_async_writer
+-export([prepare_message/8,
+         archive_messages/2]).
+
 %% UID
 -import(mod_mam_utils,
         [encode_compact_uuid/2]).
@@ -74,6 +78,28 @@ write_message(Host, SMessID, SUserID, SBareRemJID,
                "'", SRemLResource, "', '", SDir, "', ",
                "'", SSrcJID, "', '", SData, "');"]),
     ok.
+
+prepare_message(Host, MessID, UserID,
+               _LocJID=#jid{},
+                RemJID=#jid{lresource=RemLResource}, SrcJID, Dir, Packet) ->
+    SUserID = integer_to_list(UserID),
+    SBareRemJID = esc_jid(jlib:jid_tolower(jlib:jid_remove_resource(RemJID))),
+    SSrcJID = esc_jid(SrcJID),
+    SDir = encode_direction(Dir),
+    SRemLResource = ejabberd_odbc:escape(RemLResource),
+    Data = term_to_binary(Packet, [compressed]),
+    EscFormat = ejabberd_odbc:escape_format(Host),
+    SData = ejabberd_odbc:escape_binary(EscFormat, Data),
+    SMessID = integer_to_list(MessID),
+    [SMessID, SUserID, SBareRemJID, SRemLResource, SDir, SSrcJID, SData].
+
+archive_messages(LServer, Acc) ->
+    mod_mam_utils:success_sql_query(
+      LServer,
+      ["INSERT INTO mam_message(id, user_id, remote_bare_jid, "
+                                "remote_resource, direction, "
+                                "from_jid, message) "
+       "VALUES ", tuples(Acc)]).
 
 
 -spec lookup_messages(Host, _Mod,
@@ -343,3 +369,12 @@ escape_user_id(UserID) when is_integer(UserID) ->
 
 esc_jid(JID) ->
     ejabberd_odbc:escape(jlib:jid_to_binary(JID)).
+
+join([H|T]) ->
+    [H, [", " ++ X || X <- T]].
+
+tuples(Rows) ->
+    join([tuple(Row) || Row <- Rows]).
+
+tuple([H|T]) ->
+    ["('", H, "'", [[", '", X, "'"] || X <- T], ")"].
