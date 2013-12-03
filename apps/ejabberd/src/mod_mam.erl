@@ -584,10 +584,13 @@ get_behaviour(Host, ArcID,
     M:get_behaviour(Host, ?MODULE,
                     ArcID, LocJID, RemJID, DefaultBehaviour).
 
-set_prefs(Host, ArcID, ArcJID, AlwaysJIDs, NeverJIDs, DefaultMode) ->
+set_prefs(Host, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     M = prefs_module(Host),
     M:set_prefs(Host, ?MODULE,
-                ArcID, ArcJID, AlwaysJIDs, NeverJIDs, DefaultMode).
+                ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs),
+    ejabberd_hooks:run(mam_set_prefs, Host,
+        [Host, ?MODULE, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs]),
+    ok.
 
 %% @doc Load settings from the database.
 -spec get_prefs(Host, ArcID, ArcJID, GlobalDefaultMode) -> Result when
@@ -601,7 +604,11 @@ set_prefs(Host, ArcID, ArcJID, AlwaysJIDs, NeverJIDs, DefaultMode) ->
     NeverJIDs   :: [literal_jid()].
 get_prefs(Host, ArcID, ArcJID, GlobalDefaultMode) ->
     M = prefs_module(Host),
-    M:get_prefs(Host, ?MODULE, ArcID, ArcJID, GlobalDefaultMode).
+    {DefaultMode, AlwaysJIDs, NeverJIDs} = Result =
+        M:get_prefs(Host, ?MODULE, ArcID, ArcJID, GlobalDefaultMode),
+    ejabberd_hooks:run(mam_get_prefs, Host,
+        [Host, ?MODULE, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs]),
+    Result.
 
 remove_archive(Host, ArcID, ArcJID=#jid{}) ->
     wait_flushing(Host, ArcID, ArcJID),
@@ -611,6 +618,8 @@ remove_archive(Host, ArcID, ArcJID=#jid{}) ->
     PM:remove_archive(Host, ?MODULE, ArcID, ArcJID),
     AM:remove_archive(Host, ?MODULE, ArcID, ArcJID),
     UM:remove_archive(Host, ?MODULE, ArcID, ArcJID),
+    ejabberd_hooks:run(mam_remove_archive, Host,
+        [Host, ?MODULE, ArcID, ArcJID]),
     ok.
 
 -spec lookup_messages(Host, ArcID, ArcJID, RSM, Start, End, Now, WithJID,
@@ -634,12 +643,23 @@ remove_archive(Host, ArcID, ArcJID=#jid{}) ->
 lookup_messages(Host, ArcID, ArcJID, RSM, Start, End, Now,
                 WithJID, PageSize, LimitPassed, MaxResultLimit) ->
     AM = archive_module(Host),
-    AM:lookup_messages(Host, ?MODULE,
-                       ArcID, ArcJID, RSM, Start, End, Now, WithJID,
-                       PageSize, LimitPassed, MaxResultLimit).
+    Result = AM:lookup_messages(Host, ?MODULE,
+                                ArcID, ArcJID, RSM, Start, End, Now, WithJID,
+                                PageSize, LimitPassed, MaxResultLimit),
+    case Result of
+        {ok, {TotalCount, Offset, MessageRows}} ->
+            ejabberd_hooks:run(mam_lookup_messages, Host,
+                [Host, ?MODULE, ArcID, ArcJID, Start, End, Now, WithJID,
+                 PageSize, LimitPassed, TotalCount, Offset, MessageRows]),
+            Result;
+        {error, _} ->
+            Result
+    end.
 
 archive_message(Host, MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet) ->
     M = writer_module(Host),
+    ejabberd_hooks:run(mam_archive_message, Host,
+        [Host, ?MODULE, ArcID, LocJID, RemJID, SrcJID, Dir, Packet]),
     M:archive_message(Host, ?MODULE,
                       MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet).
 
@@ -653,8 +673,11 @@ archive_message(Host, MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet) ->
     Now :: unix_timestamp().
 purge_single_message(Host, MessID, ArcID, ArcJID, Now) ->
     AM = archive_module(Host),
-    AM:purge_single_message(Host, ?MODULE,
-                            MessID, ArcID, ArcJID, Now).
+    Result = AM:purge_single_message(Host, ?MODULE,
+                                     MessID, ArcID, ArcJID, Now),
+    ejabberd_hooks:run(mam_purge_single_message, Host,
+        [Host, ?MODULE, MessID, ArcID, ArcJID, Now, Result]),
+    Result.
 
 -spec purge_multiple_messages(Host, ArcID, ArcJID, Start, End, Now, WithJID) -> ok
     when
@@ -668,7 +691,10 @@ purge_single_message(Host, MessID, ArcID, ArcJID, Now) ->
 purge_multiple_messages(Host, ArcID, ArcJID, Start, End, Now, WithJID) ->
     AM = archive_module(Host),
     AM:purge_multiple_messages(Host, ?MODULE,
-                               ArcID, ArcJID, Start, End, Now, WithJID).
+                               ArcID, ArcJID, Start, End, Now, WithJID),
+    ejabberd_hooks:run(mam_purge_multiple_messages, Host,
+        [Host, ?MODULE, ArcID, ArcJID, Start, End, Now, WithJID]),
+    ok.
 
 wait_flushing(Host, ArcID, ArcJID) ->
     M = writer_module(Host),
