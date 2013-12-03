@@ -195,7 +195,7 @@ create_dump_file(ArcJID, OutFileName) ->
     ArcJID :: #jid{},
     InFileName :: file:filename(),
     Opts :: [Opt],
-    Opt :: {rewrite_jids, RewriterF | Substitutions},
+    Opt :: {rewrite_jids, RewriterF | Substitutions} | new_message_ids,
     RewriterF :: fun((BinJID) -> BinJID),
     Substitutions :: [{BinJID, BinJID}],
     BinJID :: binary().

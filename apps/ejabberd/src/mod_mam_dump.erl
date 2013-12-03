@@ -41,18 +41,20 @@ create_dump_cycle(F, Iter, Acc) ->
     WriterF :: fun(),
     InFileName :: file:filename(),
     Opts :: [Opt],
-    Opt :: {rewrite_jids, RewriterF | Substitutions},
+    Opt :: {rewrite_jids, RewriterF | Substitutions} | new_message_ids,
     RewriterF :: fun((BinJID) -> BinJID),
     Substitutions :: [{BinJID, BinJID}],
     BinJID :: binary().
 restore_dump_file(WriterF, InFileName, Opts)
     when is_function(WriterF, 4) ->
+    ?DEBUG("Opts ~p", [Opts]),
     {ok, StreamAcc} = file:open(InFileName, [read, binary]),
     StreamF = fun read_data/1,
     InsF = fun insert_message_iter/2,
     InsAcc = {WriterF},
     {CallF1, CallAcc1} = apply_rewrite_jids(InsF, InsAcc, Opts),
-    prepare_res(parse_xml_stream(StreamF, StreamAcc, CallF1, CallAcc1)).
+    {CallF2, CallAcc2} = apply_rewrite_mess_id(CallF1, CallAcc1, Opts),
+    prepare_res(parse_xml_stream(StreamF, StreamAcc, CallF2, CallAcc2)).
 
 prepare_res({ok, _, _}) -> ok;
 prepare_res({stop, _, _, _}) -> ok;
@@ -67,6 +69,20 @@ apply_rewrite_jids(CallF, InitCallAcc, Opts) ->
             RewriterF = rewrite_opts_to_fun(RewriterOpts),
             {fun(ResElem=#xmlel{}, CallAcc) ->
                     CallF(rewrite_jids(ResElem, RewriterF), CallAcc);
+                (Event, CallAcc) ->
+                    ?DEBUG("Skipped ~p.", [Event]),
+                    CallF(Event, CallAcc)
+             end, InitCallAcc}
+    end.
+
+apply_rewrite_mess_id(CallF, InitCallAcc, Opts) ->
+    case proplists:get_bool(new_message_ids, Opts) of
+        false ->
+            {CallF, InitCallAcc};
+        true ->
+            {fun(ResElem=#xmlel{}, CallAcc) ->
+                    RewriterF = fun new_message_id/1,
+                    CallF(rewrite_mess_id(ResElem, RewriterF), CallAcc);
                 (Event, CallAcc) ->
                     ?DEBUG("Skipped ~p.", [Event]),
                     CallF(Event, CallAcc)
@@ -176,6 +192,14 @@ rewrite_jids(ResElem, F) when is_function(F) ->
         end,
     update_sub_tag(WithFwdF, <<"forwarded">>, ResElem).
 
+rewrite_mess_id(ResElem, F) when is_function(F) ->
+    update_tag_attr(F, <<"id">>, ResElem).
+
+new_message_id(BOldExtMessID) when is_binary(BOldExtMessID) ->
+    MessID = mod_mam_utils:generate_message_id(),
+    BNewExtMessID = mod_mam_utils:mess_id_to_external_binary(MessID),
+    ?DEBUG("Substitute mess id ~p => ~p.", [BOldExtMessID, BNewExtMessID]),
+    BNewExtMessID.
 
 -spec update_tag_attr(F, Name, Elem) -> Elem when
     F :: fun((Value) -> Value),
