@@ -82,7 +82,21 @@ metrics_hooks(Op, Host) ->
          modPrivacyPush,
          modPrivacyGets,
          modPrivacyStanzaBlocked,
-         modPrivacyStanzaAll
+         modPrivacyStanzaAll,
+         modMamPrefsSets,
+         modMamPrefsGets,
+         modMamArchiveRemoved,
+         modMamLookups,
+         modMamArchived,
+         modMamSinglePurges,
+         modMamMultiplePurges,
+         modMamMucPrefsSets,
+         modMamMucPrefsGets,
+         modMamMucArchiveRemoved,
+         modMamMucLookups,
+         modMamMucArchived,
+         modMamMucSinglePurges,
+         modMamMucMultiplePurges
          ]).
 
 get_general_counters(Host) ->
