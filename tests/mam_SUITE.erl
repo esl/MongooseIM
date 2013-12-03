@@ -1450,7 +1450,7 @@ bootstrap_archive(Config) ->
     DataDir = ?config(data_dir, Config),
     FileName = filename:join(DataDir, "alice.xml"),
     ArcJID = make_jid(<<"alice">>, <<"localhost">>, <<>>),
-    Opts = [{rewrite_jids, rewrite_jids_options(Config)}],
+    Opts = [{rewrite_jids, rewrite_jids_options(Config)}, new_message_ids],
     ?assert_equal(ok, restore_dump_file(ArcJID, FileName, Opts)),
     Config.
 
@@ -1459,7 +1459,7 @@ muc_bootstrap_archive(Config) ->
     DataDir = ?config(data_dir, Config),
     FileName = filename:join(DataDir, "alice_forest.xml"),
     ArcJID = make_jid(Room, muc_host(), <<>>),
-    Opts = [{rewrite_jids, muc_rewrite_jids_options(Room)}],
+    Opts = [{rewrite_jids, muc_rewrite_jids_options(Room)}, new_message_ids],
     ?assert_equal(ok, muc_restore_dump_file(ArcJID, FileName, Opts)),
     Config.
 
