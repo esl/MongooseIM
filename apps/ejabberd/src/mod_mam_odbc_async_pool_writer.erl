@@ -85,7 +85,14 @@ archive_message(Host, _Mod,
         MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet) ->
     Row = mod_mam_odbc_arch:prepare_message(Host,
         MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet),
-    gen_server:cast(select_worker(Host, ArcID), {archive_message, Row}).
+    Worker = select_worker(Host, ArcID),
+    %% Send synchronously if queue length is too long.
+    case erlang:process_info(whereis(Worker), message_queue_len) of
+        {message_queue_len, Len} when Len < 100 ->
+            gen_server:cast(Worker, {archive_message, Row});
+        {message_queue_len, _} ->
+            gen_server:call(Worker, {archive_message, Row})
+    end.
 
 %% For folsom.
 queue_length(Host) ->
@@ -160,8 +167,9 @@ init([Host, Mod]) ->
 handle_call(wait_flushing, _From, State=#state{acc=[]}) ->
     {reply, ok, State};
 handle_call(wait_flushing, From, State=#state{subscribers=Subs}) ->
-    {noreply, State#state{subscribers=[From|Subs]}}.
-
+    {reply, ok, State#state{subscribers=[From|Subs]}};
+handle_call({archive_message, Row}, From, State=#state{subscribers=Subs}) ->
+    handle_cast({archive_message, Row}, State#state{subscribers=[From|Subs]}).
 
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
