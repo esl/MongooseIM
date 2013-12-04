@@ -13,7 +13,8 @@
          wait_flushing/4]).
 
 %% Helpers
--export([queue_length/1]).
+-export([queue_length/1,
+         queue_lengths/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -88,9 +89,11 @@ archive_message(Host, _Mod,
 
 %% For folsom.
 queue_length(Host) ->
-    Len = lists:sum([worker_queue_length(SrvName)
-                     || SrvName <- worker_names(Host)]),
+    Len = lists:sum(queue_lengths(Host)),
     {ok, Len}.
+
+queue_lengths(Host) ->
+    [worker_queue_length(SrvName) || SrvName <- worker_names(Host)].
 
 worker_queue_length(SrvName) ->
     case whereis(SrvName) of
