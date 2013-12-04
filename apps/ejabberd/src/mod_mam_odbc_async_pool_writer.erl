@@ -125,9 +125,11 @@ run_flush(State=#state{mod=Mod,host=Host, conn=Conn,
             ?ERROR_MSG("archive_message query failed with reason ~p", [Reason]),
             ok
     end,
-    [gen_server:reply(Sub, ok) || Sub <- Subs],
-    ejabberd_hooks:run(mam_flush_messages, Host,
-                       [Host, Mod, MessageCount]),
+    spawn_link(fun() ->
+            [gen_server:reply(Sub, ok) || Sub <- Subs],
+            ejabberd_hooks:run(mam_flush_messages, Host,
+                               [Host, Mod, MessageCount])
+        end),
     State#state{acc=[], subscribers=[], flush_interval_tref=undefined}.
 
 %%====================================================================
