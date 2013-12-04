@@ -169,17 +169,11 @@ init([]) ->
          brutal_kill,
          worker,
          [mod_muc_iq]},
-    ShaperSrv =
-        {shaper_srv,
-         {shaper_srv, start_link, []},
-         permanent,
-         brutal_kill,
-         worker,
-         [shaper_srv]},
+    ShaperSpecs = shaper_srv:child_specs(),
 
     {ok, {{one_for_one, 10, 1},
+          ShaperSpecs ++
           [Randoms,
-           ShaperSrv,
            Hooks,
            SMBackendSupervisor,
            Router,

@@ -13,7 +13,8 @@
 %% API Function Exports
 %% ------------------------------------------------------------------
 
--export([start_link/0,
+-export([start_link/1,
+         child_specs/0,
          wait/4]).
 
 %% ------------------------------------------------------------------
@@ -40,15 +41,43 @@
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
-start_link() ->
-    gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
+child_specs() ->
+    [child_spec(ProcName) ||  ProcName <- worker_names(<<>>)].
 
-srv(_Host) -> ?SERVER.
+child_spec(ProcName) ->
+    {ProcName,
+     {?MODULE, start_link, [ProcName]},
+     permanent,
+     5000,
+     worker,
+     [?MODULE]}.
+
+start_link(ProcName) ->
+    gen_server:start_link({local, ProcName}, ?MODULE, [], []).
+
+worker_prefix() ->
+    "ejabberd_shaper_".
+
+worker_count(_Host) ->
+    10.
+
+worker_names(Host) ->
+    [worker_name(Host, N) || N <- lists:seq(0, worker_count(Host) - 1)].
+
+worker_name(_Host, N) ->
+    list_to_atom(worker_prefix() ++ integer_to_list(N)).
+
+select_worker(Host, Tag) ->
+    N = worker_number(Host, Tag),
+    worker_name(Host, N).
+
+worker_number(Host, Tag) ->
+    erlang:phash2(Tag, worker_count(Host)).
 
 %% @doc Shapes the caller from executing the action.
 -spec wait(_Host, _Action, _FromJID, _Size) -> ok | {error, max_delay_reached}.
 wait(Host, Action, FromJID, Size) ->
-    gen_server:call(srv(Host), {wait, Host, Action, FromJID, Size}).
+    gen_server:call(select_worker(Host, FromJID), {wait, Host, Action, FromJID, Size}).
 
 %% ------------------------------------------------------------------
 %% gen_server Function Definitions
