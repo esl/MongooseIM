@@ -88,16 +88,21 @@ archive_message(Host, _Mod,
     Worker = select_worker(Host, ArcID),
     wait_and_send_message(Worker, Row, 3).
 
-wait_and_send_message(Worker, Row, 0) ->
-    erlang:error(mam_overload);
 wait_and_send_message(Worker, Row, WaitingRetries) ->
     %% Send synchronously if queue length is too long.
     case erlang:process_info(whereis(Worker), message_queue_len) of
-        {message_queue_len, Len} when Len < 100 ->
-            gen_server:cast(Worker, {archive_message, Row});
-        {message_queue_len, _} ->
-            gen_server:call(Worker, wait_flushing),
-            wait_and_send_message(Worker, Row, WaitingRetries - 1)
+       {message_queue_len, Len} when Len < 100 ->
+           gen_server:cast(Worker, {archive_message, Row});
+       {message_queue_len, _} ->
+            {Pid, MonRef} = spawn_monitor(fun() ->
+               gen_server:call(Worker, wait_flushing),
+               gen_server:cast(Worker, {archive_message, Row})
+                end),
+            receive
+                {'DOWN', MonRef, process, Pid, normal} -> ok;
+                {'DOWN', MonRef, process, Pid, _} ->
+                    ok
+            end
     end.
 
 %% For folsom.
