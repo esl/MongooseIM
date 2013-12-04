@@ -101,6 +101,7 @@ wait_and_send_message(Worker, Row, WaitingRetries) ->
             receive
                 {'DOWN', MonRef, process, Pid, normal} -> ok;
                 {'DOWN', MonRef, process, Pid, _} ->
+                    ejabberd_hooks:run(mam_drop_message, Host, [Host]),
                     ok
             end
     end.
