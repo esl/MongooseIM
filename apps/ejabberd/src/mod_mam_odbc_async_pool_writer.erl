@@ -91,7 +91,8 @@ archive_message(Host, _Mod,
         {message_queue_len, Len} when Len < 100 ->
             gen_server:cast(Worker, {archive_message, Row});
         {message_queue_len, _} ->
-            gen_server:call(Worker, {archive_message, Row})
+            gen_server:call(Worker, wait_flushing),
+            gen_server:cast(Worker, {archive_message, Row})
     end.
 
 %% For folsom.
@@ -167,9 +168,7 @@ init([Host, Mod]) ->
 handle_call(wait_flushing, _From, State=#state{acc=[]}) ->
     {reply, ok, State};
 handle_call(wait_flushing, From, State=#state{subscribers=Subs}) ->
-    {reply, ok, State#state{subscribers=[From|Subs]}};
-handle_call({archive_message, Row}, From, State=#state{subscribers=Subs}) ->
-    handle_cast({archive_message, Row}, State#state{subscribers=[From|Subs]}).
+    {noreply, State#state{subscribers=[From|Subs]}}.
 
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
