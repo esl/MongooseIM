@@ -81,7 +81,7 @@ CREATE TABLE vcard (
 CREATE TABLE vcard_search (
     username varchar(150) NOT NULL,
     lusername varchar(100),
-    server varchar(250),
+    server varchar(100),
     fn text NOT NULL,
     lfn varchar(250) NOT NULL,
     family text NOT NULL,
