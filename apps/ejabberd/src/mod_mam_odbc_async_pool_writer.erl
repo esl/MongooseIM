@@ -8,7 +8,7 @@
 %% Backend's callbacks
 -export([start/2,
          stop/2,
-         start_link/2,
+         start_link/3,
          archive_message/9,
          wait_flushing/4]).
 
@@ -26,6 +26,7 @@
 -record(state, {
     flush_interval=500,
     max_packet_size=30,
+    mod,
     host,
     conn,
     acc=[],
@@ -55,16 +56,16 @@ worker_number(Host, ArcID) ->
 %% API
 %%====================================================================
 
-start(Host, _Mod) ->
-    [start_worker(WriterProc, Host) ||  WriterProc <- worker_names(Host)].
+start(Host, Mod) ->
+    [start_worker(WriterProc, Host, Mod) ||  WriterProc <- worker_names(Host)].
 
 stop(Host, _Mod) ->
     [stop_worker(WriterProc) ||  WriterProc <- worker_names(Host)].
 
-start_worker(WriterProc, Host) ->
+start_worker(WriterProc, Host, Mod) ->
     WriterChildSpec =
     {WriterProc,
-     {mod_mam_odbc_async_pool_writer, start_link, [WriterProc, Host]},
+     {mod_mam_odbc_async_pool_writer, start_link, [WriterProc, Host, Mod]},
      permanent,
      5000,
      worker,
@@ -76,8 +77,8 @@ stop_worker(Proc) ->
     supervisor:delete_child(ejabberd_sup, Proc).
 
 
-start_link(ProcName, Host) ->
-    gen_server:start_link({local, ProcName}, ?MODULE, [Host], []).
+start_link(ProcName, Host, Mod) ->
+    gen_server:start_link({local, ProcName}, ?MODULE, [Host, Mod], []).
 
 archive_message(Host, _Mod,
         MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet) ->
@@ -109,10 +110,11 @@ wait_flushing(Host, _Mod, ArcID, _ArcJID) ->
 
 run_flush(State=#state{acc=[]}) ->
     State;
-run_flush(State=#state{conn=Conn, flush_interval_tref=TRef, acc=Acc,
-                       subscribers=Subs}) ->
+run_flush(State=#state{mod=Mod,host=Host, conn=Conn,
+                       flush_interval_tref=TRef, acc=Acc, subscribers=Subs}) ->
+    MessageCount = length(Acc),
     TRef =/= undefined andalso erlang:cancel_timer(TRef),
-    ?DEBUG("Flushed ~p entries.", [length(Acc)]),
+    ?DEBUG("Flushed ~p entries.", [MessageCount]),
     Result = mod_mam_odbc_arch:archive_messages(Conn, Acc),
     case Result of
         {updated, _Count} -> ok;
@@ -121,6 +123,8 @@ run_flush(State=#state{conn=Conn, flush_interval_tref=TRef, acc=Acc,
             ok
     end,
     [gen_server:reply(Sub, ok) || Sub <- Subs],
+    ejabberd_hooks:run(mam_flush_messages, Host,
+                       [Host, Mod, MessageCount]),
     State#state{acc=[], subscribers=[], flush_interval_tref=undefined}.
 
 %%====================================================================
@@ -134,10 +138,10 @@ run_flush(State=#state{conn=Conn, flush_interval_tref=TRef, acc=Acc,
 %%                         {stop, Reason}
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
-init([Host]) ->
+init([Host, Mod]) ->
     %% Use a private ODBC-connection.
     {ok, Conn} = ejabberd_odbc:get_dedicated_connection(Host),
-    {ok, #state{host=Host, conn=Conn}}.
+    {ok, #state{host=Host, conn=Conn, mod=Mod}}.
 
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |

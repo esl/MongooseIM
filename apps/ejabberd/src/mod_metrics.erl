@@ -88,6 +88,7 @@ metrics_hooks(Op, Host) ->
          modMamArchiveRemoved,
          modMamLookups,
          modMamArchived,
+         modMamFlushed,
          modMamSinglePurges,
          modMamMultiplePurges,
          modMucMamPrefsSets,
