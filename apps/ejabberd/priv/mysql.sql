@@ -71,7 +71,7 @@ CREATE INDEX i_despool USING BTREE ON spool(username);
 
 CREATE TABLE vcard (
     username varchar(150),
-    server varchar(100),
+    server varchar(150),
     vcard mediumtext NOT NULL,
     created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (username, server)
@@ -81,7 +81,7 @@ CREATE TABLE vcard (
 CREATE TABLE vcard_search (
     username varchar(150) NOT NULL,
     lusername varchar(100),
-    server varchar(250),
+    server varchar(150),
     fn text NOT NULL,
     lfn varchar(250) NOT NULL,
     family text NOT NULL,
