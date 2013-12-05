@@ -62,7 +62,8 @@ update(none, _Size) ->
 update(#maxrate{} = State, Size) ->
     MinInterv = 1000 * Size /
 	(2 * State#maxrate.maxrate - State#maxrate.lastrate),
-    Interv = (now_to_usec(now()) - State#maxrate.lasttime) / 1000,
+    Now = now_to_usec(now()),
+    Interv = (Now - State#maxrate.lasttime) / 1000,
     ?DEBUG("State: ~p, Size=~p~nM=~p, I=~p~n",
               [State, Size, MinInterv, Interv]),
     Pause = if
@@ -71,7 +72,7 @@ update(#maxrate{} = State, Size) ->
 		true ->
 		    0
 	    end,
-    NextNow = now_to_usec(now()) + Pause * 1000,
+    NextNow = Now + Pause * 1000,
     {State#maxrate{
        lastrate = (State#maxrate.lastrate +
 		   1000000 * Size / (NextNow - State#maxrate.lasttime))/2,
