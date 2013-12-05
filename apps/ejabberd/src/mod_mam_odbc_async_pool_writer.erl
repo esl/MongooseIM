@@ -86,9 +86,6 @@ archive_message(Host, _Mod,
     Row = mod_mam_odbc_arch:prepare_message(Host,
         MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet),
     Worker = select_worker(Host, ArcID),
-    wait_and_send_message(Worker, Row, 3).
-
-wait_and_send_message(Worker, Row, WaitingRetries) ->
     %% Send synchronously if queue length is too long.
     case erlang:process_info(whereis(Worker), message_queue_len) of
        {message_queue_len, Len} when Len < 100 ->
