@@ -93,7 +93,7 @@ init(Args) ->
     {ok, State}.
 
 handle_call({wait, Host, Action, FromJID, Size},
-            FromRef, State=#state{max_delay=MaxDelayMs}) ->
+            From, State=#state{max_delay=MaxDelayMs}) ->
     Key = new_key(Host, Action, FromJID),
     Shaper = find_or_create_shaper(Key, State),
     State1 = update_access_time(Key, now(), State),
@@ -101,7 +101,7 @@ handle_call({wait, Host, Action, FromJID, Size},
         {UpdatedShaper, 0} ->
             {reply, ok, save_shaper(Key, UpdatedShaper, State1)};
         {UpdatedShaper, DelayMs} when DelayMs < MaxDelayMs ->
-            reply_after(DelayMs, FromRef),
+            reply_after(DelayMs, From, ok),
             {noreply, save_shaper(Key, UpdatedShaper, State1)};
         {_, _} ->
             {reply, {error, max_delay_reached}, State1}
@@ -169,8 +169,11 @@ get_shaper_name(Host, Action, FromJID, Default) ->
         Value -> Value
     end.
 
-reply_after(DelayMs, FromJID) ->
-    timer:apply_after(DelayMs, gen_server, reply, [FromJID, ok]).
+%% It is a small hack
+%% This function calls this in more efficient way:
+%% timer:apply_after(DelayMs, gen_server, reply, [From, Reply]).
+reply_after(DelayMs, {Pid, Tag}, Reply) ->
+    erlang:send_after(DelayMs, Pid, {Tag, Reply}).
 
 subtract_seconds({MegaSecs, Secs, MicroSecs}, SubSecs) ->
     {MegaSecs - (SubSecs div 1000000), Secs - (SubSecs rem 1000000), MicroSecs}.
