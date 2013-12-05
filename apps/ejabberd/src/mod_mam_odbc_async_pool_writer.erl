@@ -132,7 +132,7 @@ run_flush(State=#state{acc=[]}) ->
 run_flush(State=#state{mod=Mod,host=Host, conn=Conn,
                        flush_interval_tref=TRef, acc=Acc, subscribers=Subs}) ->
     MessageCount = length(Acc),
-    TRef =/= undefined andalso erlang:cancel_timer(TRef),
+    cancel_and_flush_timer(TRef),
     ?DEBUG("Flushed ~p entries.", [MessageCount]),
     Result = mod_mam_odbc_arch:archive_messages(Conn, Acc),
     case Result of
@@ -147,6 +147,18 @@ run_flush(State=#state{mod=Mod,host=Host, conn=Conn,
                                [Host, Mod, MessageCount])
         end),
     State#state{acc=[], subscribers=[], flush_interval_tref=undefined}.
+
+cancel_and_flush_timer(undefined) ->
+    ok;
+cancel_and_flush_timer(TRef) ->
+    case erlang:cancel_timer(TRef) of
+        false ->
+            receive
+                flush -> ok
+            after 0 -> ok
+            end;
+        _ -> ok
+    end.
 
 %%====================================================================
 %% gen_server callbacks
@@ -210,7 +222,7 @@ handle_cast(Msg, State) ->
 %%--------------------------------------------------------------------
 
 handle_info(flush, State) ->
-    {noreply, run_flush(State)}.
+    {noreply, run_flush(State#state{flush_interval_tref=undefined})}.
 
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()
