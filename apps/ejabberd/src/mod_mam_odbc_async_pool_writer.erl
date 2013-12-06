@@ -146,6 +146,7 @@ run_flush(State=#state{mod=Mod,host=Host, conn=Conn,
             ejabberd_hooks:run(mam_flush_messages, Host,
                                [Host, Mod, MessageCount])
         end),
+    erlang:garbage_collect(),
     State#state{acc=[], subscribers=[], flush_interval_tref=undefined}.
 
 cancel_and_flush_timer(undefined) ->
