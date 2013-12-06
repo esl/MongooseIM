@@ -22,7 +22,8 @@ groups() ->
                         server_enables_sm_before_session,
                         server_enables_sm_after_session,
                         server_returns_failed_after_start,
-                        server_returns_failed_after_auth]},
+                        server_returns_failed_after_auth,
+                        server_enables_resumption]},
      {server_acking,
       [shuffle, {repeat, 5}], [basic_ack,
                                h_ok_before_session,
@@ -115,6 +116,15 @@ server_returns_failed_after_start(Config) ->
 
 server_returns_failed_after_auth(Config) ->
     server_returns_failed(Config, [authenticate]).
+
+server_enables_resumption(Config) ->
+    AliceSpec = [{stream_management, true}
+                 | escalus_users:get_options(Config, alice)],
+    {ok, _, _, _} = escalus_connection:start(AliceSpec, [start_stream,
+                                                         authenticate,
+                                                         bind,
+                                                         session,
+                                                         stream_resumption]).
 
 server_returns_failed(Config, ConnActions) ->
     AliceSpec = [{stream_management, true}
