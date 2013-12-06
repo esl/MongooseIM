@@ -231,11 +231,11 @@ CREATE TABLE mam_message(
   user_id INT UNSIGNED NOT NULL,
   -- FromJID used to form a message without looking into stanza.
   -- This value will be send to the client "as is".
-  from_jid varchar(250) NOT NULL,
+  from_jid varchar(250) CHARACTER SET binary NOT NULL,
   -- The remote JID that the stanza is to (for an outgoing message) or from (for an incoming message).
   -- This field is for sorting and filtering.
-  remote_bare_jid varchar(250) NOT NULL,
-  remote_resource varchar(250) NOT NULL,
+  remote_bare_jid varchar(250) CHARACTER SET binary NOT NULL,
+  remote_resource varchar(250) CHARACTER SET binary NOT NULL,
   -- I - incoming, remote_jid is a value from From.
   -- O - outgoing, remote_jid is a value from To.
   -- Has no meaning for MUC-rooms.
@@ -254,7 +254,7 @@ CREATE TABLE mam_message(
 CREATE TABLE mam_config(
   user_id INT UNSIGNED NOT NULL,
   -- If empty, than it is a default behaviour.
-  remote_jid varchar(250) NOT NULL,
+  remote_jid varchar(250) CHARACTER SET binary NOT NULL,
   -- A - always archive;
   -- N - never archive;
   -- R - roster (only for remote_jid == "")
@@ -263,10 +263,11 @@ CREATE TABLE mam_config(
 CREATE INDEX i_mam_config USING HASH ON mam_config(user_id, remote_jid);
 
 CREATE TABLE mam_user(
-  id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  user_name varchar(250) NOT NULL
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_name varchar(250) CHARACTER SET binary NOT NULL,
+  PRIMARY KEY(id) USING HASH
 );
-CREATE INDEX i_mam_user_name USING BTREE ON mam_user(user_name);
+CREATE INDEX i_mam_user_name USING HASH ON mam_user(user_name);
 
 
 CREATE TABLE mam_muc_message(
