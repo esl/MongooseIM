@@ -224,11 +224,10 @@ CREATE TABLE pubsub_subscription_opt (
 );
 CREATE UNIQUE INDEX i_pubsub_subscription_opt ON pubsub_subscription_opt(subid(32), opt_name(32));
 
-
 CREATE TABLE mam_message(
   -- Message UID (64 bits)
   -- A server-assigned UID that MUST be unique within the archive.
-  id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
+  id BIGINT UNSIGNED NOT NULL,
   user_id INT UNSIGNED NOT NULL,
   -- FromJID used to form a message without looking into stanza.
   -- This value will be send to the client "as is".
@@ -242,10 +241,15 @@ CREATE TABLE mam_message(
   -- Has no meaning for MUC-rooms.
   direction ENUM('I','O') NOT NULL,
   -- Term-encoded message packet
-  message blob NOT NULL
-);
-CREATE INDEX i_mam_message_username_id USING BTREE ON mam_message(user_id, id);
-CREATE INDEX i_mam_message_username_jid_id USING BTREE ON mam_message(user_id, remote_bare_jid, id);
+  message blob NOT NULL,
+  PRIMARY KEY (user_id, id),
+  INDEX USING BTREE (user_id, remote_bare_jid, id)
+)  ENGINE=InnoDB
+   PARTITION BY HASH(user_id)
+   PARTITIONS 32;
+-- Partition is selected based on MOD(user_id, 32)
+-- See for more information
+-- http://dev.mysql.com/doc/refman/5.1/en/partitioning-hash.html
 
 CREATE TABLE mam_config(
   user_id INT UNSIGNED NOT NULL,
