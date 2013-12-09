@@ -248,7 +248,8 @@ mam_remove_archive(Host, _Mod, _ArcID, _ArcJID) ->
 
 mam_lookup_messages(Host, _Mod, _ArcID, _ArcJID,
     _Start, _End, _Now, _WithJID,
-    _PageSize, _LimitPassed, _TotalCount, _Offset, _MessageRows) ->
+    _PageSize, _LimitPassed, _TotalCount, _Offset, MessageRows) ->
+    folsom_metrics:notify({Host, modMamForwarded}, length(MessageRows)),
     folsom_metrics:notify({Host, modMamLookups}, 1).
 
 mam_archive_message(Host, _Mod, _ArcID, _LocJID, _RemJID, _SrcJID, _Dir, _Packet) ->
