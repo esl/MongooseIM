@@ -348,12 +348,16 @@ filter_room_packet(Packet, FromNick,
         case IsInteresting of
             true -> 
             MessID = generate_message_id(),
-            archive_message(Host, MessID, ArcID,
-                            RoomJID, FromJID, SrcJID, incoming, Packet),
-            BareRoomJID = jlib:jid_to_binary(RoomJID),
-            replace_archived_elem(BareRoomJID,
-                                  mess_id_to_external_binary(MessID),
-                                  Packet);
+            Result = archive_message(Host, MessID, ArcID,
+                                     RoomJID, FromJID, SrcJID, incoming, Packet),
+            case Result of
+                ok ->
+                    BareRoomJID = jlib:jid_to_binary(RoomJID),
+                    replace_archived_elem(BareRoomJID,
+                                          mess_id_to_external_binary(MessID),
+                                          Packet);
+                {error, _} -> Packet
+            end;
             false -> Packet
         end;
         false -> Packet

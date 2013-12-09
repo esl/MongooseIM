@@ -99,7 +99,7 @@ archive_message(Host, _Mod,
                 {'DOWN', MonRef, process, Pid, normal} -> ok;
                 {'DOWN', MonRef, process, Pid, _} ->
                     ejabberd_hooks:run(mam_drop_message, Host, [Host]),
-                    ok
+                    {error, timeout}
             end
     end.
 

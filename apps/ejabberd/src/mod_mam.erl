@@ -555,11 +555,11 @@ handle_package(Dir, ReturnMessID,
         case IsInteresting of
             true -> 
             MessID = generate_message_id(),
-            archive_message(Host, MessID, ArcID,
-                            LocJID, RemJID, SrcJID, Dir, Packet),
-            case ReturnMessID of
-                true  -> mess_id_to_external_binary(MessID);
-                false -> undefined
+            Result = archive_message(Host, MessID, ArcID,
+                                     LocJID, RemJID, SrcJID, Dir, Packet),
+            case {ReturnMessID, Result} of
+                {true, ok} -> mess_id_to_external_binary(MessID);
+                _ -> undefined
             end;
             false -> undefined
         end;
@@ -656,6 +656,16 @@ lookup_messages(Host, ArcID, ArcJID, RSM, Start, End, Now,
             Result
     end.
 
+-spec archive_message(Host, MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet) ->
+    ok | {error, timeout} when
+    Host   :: server_host(),
+    MessID :: message_id(),
+    ArcID  :: archive_id(),
+    LocJID :: jid(),
+    RemJID :: jid(),
+    SrcJID :: jid(),
+    Dir    :: incoming | outgoing,
+    Packet :: term().
 archive_message(Host, MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet) ->
     M = writer_module(Host),
     ejabberd_hooks:run(mam_archive_message, Host,
