@@ -243,7 +243,8 @@ CREATE TABLE mam_message(
   -- Term-encoded message packet
   message blob NOT NULL,
   PRIMARY KEY (user_id, id),
-  INDEX USING BTREE (user_id, remote_bare_jid, id)
+  INDEX i_mam_message_rem USING BTREE (user_id, remote_bare_jid, id),
+  INDEX i_mam_message_uid USING BTREE (user_id, id)
 )  ENGINE=InnoDB
    PARTITION BY HASH(user_id)
    PARTITIONS 32;
