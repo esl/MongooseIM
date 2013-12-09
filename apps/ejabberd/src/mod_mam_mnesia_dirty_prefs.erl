@@ -127,7 +127,7 @@ match_jid(ArcJID, JID, JIDs) ->
         ordsets:is_element(rule(ArcJID, JID), JIDs);
     false ->
         BareJID = jlib:jid_remove_resource(JID),
-        ordsets:is_element(rule(ArcJID, JID), JIDs)
+        ordsets:is_element(rule(ArcJID, BareJID), JIDs)
             orelse
         ordsets:is_element(rule(ArcJID, JID), JIDs)
     end.
