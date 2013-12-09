@@ -44,6 +44,7 @@ archive_size(Host, _Mod, UserID, _UserJID) ->
       Host,
       ["SELECT COUNT(*) "
        "FROM mam_message "
+       "USE INDEX(i_mam_message_rem, i_mam_message_uid) "
        "WHERE user_id = '", escape_user_id(UserID), "'"]),
     list_to_integer(binary_to_list(BSize)).
 
@@ -308,7 +309,9 @@ calc_index(Host, Filter, SUID) ->
     {selected, _ColumnNames, [{BIndex}]} =
     mod_mam_utils:success_sql_query(
       Host,
-      ["SELECT COUNT(*) FROM mam_message ", Filter, " AND id <= '", SUID, "'"]),
+      ["SELECT COUNT(*) FROM mam_message "
+       "USE INDEX(i_mam_message_rem, i_mam_message_uid) ",
+       Filter, " AND id <= '", SUID, "'"]),
     list_to_integer(binary_to_list(BIndex)).
 
 %% @doc Count of elements in RSet before the passed element.
@@ -326,7 +329,9 @@ calc_before(Host, Filter, SUID) ->
     {selected, _ColumnNames, [{BIndex}]} =
     mod_mam_utils:success_sql_query(
       Host,
-      ["SELECT COUNT(*) FROM mam_message ", Filter, " AND id < '", SUID, "'"]),
+      ["SELECT COUNT(*) FROM mam_message "
+       "USE INDEX(i_mam_message_rem, i_mam_message_uid) ",
+       Filter, " AND id < '", SUID, "'"]),
     list_to_integer(binary_to_list(BIndex)).
 
 
@@ -341,7 +346,9 @@ calc_count(Host, Filter) ->
     {selected, _ColumnNames, [{BCount}]} =
     mod_mam_utils:success_sql_query(
       Host,
-      ["SELECT COUNT(*) FROM mam_message ", Filter]),
+      ["SELECT COUNT(*) FROM mam_message "
+       "USE INDEX(i_mam_message_rem, i_mam_message_uid) ",
+       Filter]),
     list_to_integer(binary_to_list(BCount)).
 
 
