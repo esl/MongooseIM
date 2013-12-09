@@ -121,6 +121,43 @@ archive_messages(LServer, Acc) ->
     TotalCount :: non_neg_integer(),
     Offset  :: non_neg_integer(),
     MessageRows :: list(tuple()).
+
+lookup_messages(Host, _Mod, UserID, _UserJID = #jid{},
+                RSM = #rsm_in{direction = aft, id = ID}, Start, End, _Now, WithJID,
+                PageSize, LimitPassed, MaxResultLimit) ->
+    Filter = prepare_filter(UserID, Start, End, WithJID),
+    TotalCount = calc_count(Host, Filter),
+    Offset     = calc_offset(Host, Filter, PageSize, TotalCount, RSM),
+    %% If a query returns a number of stanzas greater than this limit and the
+    %% client did not specify a limit using RSM then the server should return
+    %% a policy-violation error to the client. 
+    case TotalCount - Offset > MaxResultLimit andalso not LimitPassed of
+        true ->
+            {error, 'policy-violation'};
+
+        false ->
+            MessageRows = extract_messages(Host, after_id(ID, Filter), 0, PageSize, false),
+            {ok, {TotalCount, Offset, rows_to_uniform_format(Host, MessageRows)}}
+    end;
+
+lookup_messages(Host, _Mod, UserID, _UserJID = #jid{},
+                RSM = #rsm_in{direction = before, id = ID}, Start, End, _Now, WithJID,
+                PageSize, LimitPassed, MaxResultLimit) ->
+    Filter = prepare_filter(UserID, Start, End, WithJID),
+    TotalCount = calc_count(Host, Filter),
+    Offset     = calc_offset(Host, Filter, PageSize, TotalCount, RSM),
+    %% If a query returns a number of stanzas greater than this limit and the
+    %% client did not specify a limit using RSM then the server should return
+    %% a policy-violation error to the client. 
+    case TotalCount - Offset > MaxResultLimit andalso not LimitPassed of
+        true ->
+            {error, 'policy-violation'};
+
+        false ->
+            MessageRows = extract_messages(Host, before_id(ID, Filter), 0, PageSize, true),
+            {ok, {TotalCount, Offset, rows_to_uniform_format(Host, MessageRows)}}
+    end;
+
 lookup_messages(Host, _Mod, UserID, _UserJID = #jid{},
                 RSM, Start, End, _Now, WithJID,
                 PageSize, LimitPassed, MaxResultLimit) ->
@@ -135,10 +172,19 @@ lookup_messages(Host, _Mod, UserID, _UserJID = #jid{},
             {error, 'policy-violation'};
 
         false ->
-            MessageRows = extract_messages(Host, Filter, Offset, PageSize),
+            MessageRows = extract_messages(Host, Filter, Offset, PageSize, false),
             {ok, {TotalCount, Offset, rows_to_uniform_format(Host, MessageRows)}}
     end.
 
+after_id(ID, Filter) ->
+    SID = escape_message_id(ID),
+    [Filter, " AND id > '", SID, "'"].
+
+before_id(undefined, Filter) ->
+    Filter;
+before_id(ID, Filter) ->
+    SID = escape_message_id(ID),
+    [Filter, " AND id < '", SID, "'"].
 
 rows_to_uniform_format(Host, MessageRows) ->
     [row_to_uniform_format(Host, Row) || Row <- MessageRows].
@@ -203,16 +249,17 @@ purge_multiple_messages(Host, _Mod, UserID, _UserJID,
 %% Each record is a tuple of form 
 %% `{<<"13663125233">>,<<"bob@localhost">>,<<"res1">>,<<binary>>}'.
 %% Columns are `["id","from_jid","message"]'.
--spec extract_messages(Host, Filter, IOffset, IMax) ->
+-spec extract_messages(Host, Filter, IOffset, IMax, ReverseLimit) ->
     [Record] when
     Host :: server_hostname(),
     Filter  :: filter(),
     IOffset :: non_neg_integer(),
     IMax    :: pos_integer(),
+    ReverseLimit :: boolean(),
     Record :: tuple().
-extract_messages(_Host, _Filter, _IOffset, 0) ->
+extract_messages(_Host, _Filter, _IOffset, 0, _) ->
     [];
-extract_messages(Host, Filter, IOffset, IMax) ->
+extract_messages(Host, Filter, IOffset, IMax, false) ->
     {selected, _ColumnNames, MessageRows} =
     mod_mam_utils:success_sql_query(
       Host,
@@ -225,6 +272,23 @@ extract_messages(Host, Filter, IOffset, IMax) ->
              0 -> "";
              _ -> [" OFFSET ", integer_to_list(IOffset)]
          end]),
+    ?DEBUG("extract_messages query returns ~p", [MessageRows]),
+    MessageRows;
+extract_messages(Host, Filter, IOffset, IMax, true) ->
+    {selected, _ColumnNames, MessageRows} =
+    mod_mam_utils:success_sql_query(
+      Host,
+      ["SELECT * FROM ("
+       "SELECT id, from_jid, message "
+       "FROM mam_message ",
+        Filter,
+       " ORDER BY id DESC"
+       " LIMIT ", integer_to_list(IMax),
+         case IOffset of
+             0 -> "";
+             _ -> [" OFFSET ", integer_to_list(IOffset)]
+         end,
+       ") AS page ORDER BY page.id"]),
     ?DEBUG("extract_messages query returns ~p", [MessageRows]),
     MessageRows.
 
