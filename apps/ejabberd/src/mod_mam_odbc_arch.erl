@@ -192,7 +192,7 @@ rows_to_uniform_format(Host, UserJID, MessageRows) ->
 
 row_to_uniform_format(Host, UserJID, {BMessID,BSrcJID,SData}) ->
     MessID = list_to_integer(binary_to_list(BMessID)),
-    SrcJID = expand_minified_jid(UserJID, BSrcJID),
+    SrcJID = jlib:binary_to_jid(expand_minified_jid(UserJID, BSrcJID)),
     EscFormat = ejabberd_odbc:escape_format(Host),
     Data = ejabberd_odbc:unescape_binary(EscFormat, SData),
     Packet = binary_to_term(Data),
@@ -434,18 +434,54 @@ escape_message_id(MessID) when is_integer(MessID) ->
 escape_user_id(UserID) when is_integer(UserID) ->
     integer_to_list(UserID).
 
-esc_jid(JID) ->
-    ejabberd_odbc:escape(jlib:jid_to_binary(JID)).
-
 %% @doc Strip resource, minify and escape JID.
 minify_and_escape_bare_jid(LocJID, JID) ->
-    esc_jid(jlib:jid_tolower(jlib:jid_remove_resource(JID))).
+    ejabberd_odbc:escape(jid_to_opt_binary(LocJID, jlib:jid_remove_resource(JID))).
 
 minify_and_escape_jid(LocJID, JID) ->
-    esc_jid(jlib:jid_tolower(JID)).
+    ejabberd_odbc:escape(jid_to_opt_binary(LocJID, JID)).
 
-expand_minified_jid(UserJID, BJID) ->
-    jlib:binary_to_jid(BJID).
+jid_to_opt_binary(#jid{lserver=LServer, luser=LUser},
+                  #jid{lserver=LServer, luser=LUser, lresource= <<>>}) ->
+    <<>>;
+jid_to_opt_binary(#jid{lserver=LServer, luser=LUser},
+                  #jid{lserver=LServer, luser=LUser, lresource= LResource}) ->
+    <<$/, LResource/binary>>;
+jid_to_opt_binary(#jid{lserver=LServer},
+                  #jid{lserver=LServer, luser=LUser, lresource= <<>>}) ->
+    %% Both clients are on the same server.
+    <<LUser/binary>>;
+jid_to_opt_binary(#jid{lserver=LServer},
+                  #jid{lserver=LServer, luser=LUser, lresource=LResource}) ->
+    %% Both clients are on the same server.
+    <<LUser/binary, $/, LResource/binary>>;
+jid_to_opt_binary(_,
+                  #jid{lserver=LServer, luser=LUser, lresource= <<>>}) ->
+    <<LServer/binary, $:, LUser/binary>>;
+jid_to_opt_binary(_,
+                  #jid{lserver=LServer, luser=LUser, lresource=LResource}) ->
+    <<LServer/binary, $@, LUser/binary, $/, LResource/binary>>.
+
+expand_minified_jid(#jid{lserver=LServer, luser=LUser}, <<>>) ->
+    <<LUser/binary, $@, LServer/binary>>;
+expand_minified_jid(#jid{lserver=LServer, luser=LUser}, <<$/, LResource/binary>>) ->
+    <<LUser/binary, $@, LServer/binary, $/, LResource/binary>>;
+expand_minified_jid(UserJID, Encoded) ->
+    Part = binary:match(Encoded, [<<$@>>, <<$/>>, <<$:>>]),
+    expand_minified_jid_2(Part, UserJID, Encoded).
+
+expand_minified_jid_2(nomatch,  #jid{lserver=ThisServer}, LUser) ->
+    <<LUser/binary, $@, ThisServer/binary>>;
+expand_minified_jid_2({Pos, 1}, #jid{lserver=ThisServer}, Encoded) ->
+    case Encoded of
+        <<LServer:Pos/binary, $:, LUser/binary>> ->
+            <<LUser/binary, $@, LServer/binary>>;
+        <<LServer:Pos/binary, $@, Tail/binary>> ->
+            [LUser, LResource] = binary:split(Tail, <<$/>>),
+            <<LUser/binary, $@, LServer/binary, $/, LResource/binary>>;
+        <<LUser:Pos/binary, $/, LResource/binary>> ->
+            <<LUser/binary, $@, ThisServer/binary, $/, LResource/binary>>
+    end.
 
 join([H|T]) ->
     [H, [", " ++ X || X <- T]].
@@ -455,3 +491,36 @@ tuples(Rows) ->
 
 tuple([H|T]) ->
     ["('", H, "'", [[", '", X, "'"] || X <- T], ")"].
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+
+jid_to_opt_binary_test_() ->
+    check_stringprep(),
+    UserJID = jlib:binary_to_jid(<<"alice@room">>),
+    [?_assertEqual(JID,
+        expand_minified_jid(UserJID,
+            jid_to_opt_binary(UserJID, jlib:binary_to_jid(JID))))
+     || JID <- test_jids()].
+
+test_jids() ->
+    [<<"alice@room">>,
+     <<"alice@room/computer">>,
+     <<"alice@street/mobile">>,
+     <<"bob@room">>,
+     <<"bob@room/mobile">>,
+     <<"bob@street">>,
+     <<"bob@street/mobile">>].
+
+check_stringprep() ->
+    is_loaded_application(stringprep) orelse start_stringprep().
+
+start_stringprep() ->
+    EJ = code:lib_dir(ejabberd),
+    code:add_path(filename:join([EJ, "..", "stringprep", "ebin"])),
+    ok = application:start(stringprep).
+
+is_loaded_application(AppName) when is_atom(AppName) ->
+    lists:keymember(AppName, 1, application:loaded_applications()).
+
+-endif.
