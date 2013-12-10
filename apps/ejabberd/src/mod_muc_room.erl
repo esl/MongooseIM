@@ -660,14 +660,12 @@ process_groupchat_message(From, #xmlel{name = <<"message">>,
                 false ->
                 {StateData, true};
                 Subject ->
-                case can_change_subject(Role,
-                            StateData) of
+                case can_change_subject(Role, StateData) of
                     true ->
                     NSD =
                         StateData#state{
                           subject = Subject,
-                          subject_author =
-                          FromNick},
+                          subject_author = FromNick},
                     case (NSD#state.config)#config.persistent of
                         true ->
                         mod_muc:store_room(

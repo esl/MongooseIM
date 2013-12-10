@@ -33,6 +33,7 @@
 
 -record(maxrate, {maxrate, lastrate, lasttime}).
 
+-type shaper() :: none | #maxrate{}.
 
 new(Name) ->
     Data = case ejabberd_config:get_global_option({shaper, Name, global}) of
@@ -43,7 +44,6 @@ new(Name) ->
 	   end,
     new1(Data).
 
-
 new1(none) ->
     none;
 new1({maxrate, MaxRate}) ->
@@ -51,13 +51,19 @@ new1({maxrate, MaxRate}) ->
 	     lastrate = 0,
 	     lasttime = now_to_usec(now())}.
 
-
+%% @doc Update shaper.
+%% `Delay' is how many milliseconds to wait.
+-spec update(Shaper, Size) -> {Shaper, Delay} when
+    Shaper :: shaper(),
+    Size :: non_neg_integer(),
+    Delay :: non_neg_integer().
 update(none, _Size) ->
     {none, 0};
 update(#maxrate{} = State, Size) ->
     MinInterv = 1000 * Size /
 	(2 * State#maxrate.maxrate - State#maxrate.lastrate),
-    Interv = (now_to_usec(now()) - State#maxrate.lasttime) / 1000,
+    Now = now_to_usec(now()),
+    Interv = (Now - State#maxrate.lasttime) / 1000,
     ?DEBUG("State: ~p, Size=~p~nM=~p, I=~p~n",
               [State, Size, MinInterv, Interv]),
     Pause = if
@@ -66,13 +72,12 @@ update(#maxrate{} = State, Size) ->
 		true ->
 		    0
 	    end,
-    NextNow = now_to_usec(now()) + Pause * 1000,
+    NextNow = Now + Pause * 1000,
     {State#maxrate{
        lastrate = (State#maxrate.lastrate +
 		   1000000 * Size / (NextNow - State#maxrate.lasttime))/2,
        lasttime = NextNow},
      Pause}.
-
 
 now_to_usec({MSec, Sec, USec}) ->
     (MSec*1000000 + Sec)*1000000 + USec.
