@@ -33,7 +33,16 @@
 
 start() ->
     %%ejabberd_cover:start(),
-    ok = application:start(ejabberd).
+    try_start(ejabberd).
+
+try_start(AppName) ->
+    case application:start(AppName) of
+        ok ->
+            ok;
+        {error, {not_started, AppName2}} ->
+            ok = try_start(AppName2),
+            try_start(AppName)
+    end.
 
 stop() ->
     application:stop(ejabberd).

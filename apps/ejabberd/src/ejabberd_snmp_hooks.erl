@@ -18,7 +18,7 @@
 %%-------------------
 -export([sm_register_connection_hook/3,
          sm_remove_connection_hook/3,
-         auth_failed/3,
+         auth_failed/2,
          user_send_packet/3,
          user_receive_packet/4,
          xmpp_bounce_message/2,
@@ -78,8 +78,8 @@ sm_remove_connection_hook(_,_,_) ->
     ejabberd_snmp_core:increment_window_counter(sessionLogoutsW),
     ejabberd_snmp_core:decrement_counter(sessionCount).
 
--spec auth_failed(binary(), binary(), binary()) -> term().
-auth_failed(_,_,_) ->
+-spec auth_failed(binary(), binary()) -> term().
+auth_failed(_,_) ->
     ejabberd_snmp_core:increment_counter(sessionAuthFails),
     ejabberd_snmp_core:increment_window_counter(sessionAuthFailsW).
 

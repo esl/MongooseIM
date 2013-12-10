@@ -177,18 +177,31 @@ del_last(LServer, Username) ->
 get_password(LServer, Username) ->
     ejabberd_odbc:sql_query(
       LServer,
-      ["select password from users "
+      ["select password, pass_details from users "
        "where username='", Username, "';"]).
 
+set_password_t(LServer, Username, {Pass, PassDetails}) ->
+    ejabberd_odbc:sql_transaction(
+      LServer,
+      fun() ->
+	      update_t("users", ["password", "pass_details"],
+		       [Pass, PassDetails],
+		       ["username='", Username ,"'"])
+      end);
 set_password_t(LServer, Username, Pass) ->
     ejabberd_odbc:sql_transaction(
       LServer,
       fun() ->
-	      update_t("users", ["username", "password"],
-		       [Username, Pass],
+	      update_t("users", ["password"],
+		       [Pass],
 		       ["username='", Username ,"'"])
       end).
 
+add_user(LServer, Username, {Pass, PassDetails}) ->
+    ejabberd_odbc:sql_query(
+      LServer,
+      ["insert into users(username, password, pass_details) "
+       "values ('", Username, "', '", Pass, "', '", PassDetails, "');"]);
 add_user(LServer, Username, Pass) ->
     ejabberd_odbc:sql_query(
       LServer,

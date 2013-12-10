@@ -49,13 +49,27 @@
 	 is_user_exists_in_other_modules/3,
 	 remove_user/2,
 	 remove_user/3,
+     plain_password_required/0,
 	 plain_password_required/1,
+     store_type/0,
+	 store_type/1,
 	 entropy/1
 	]).
+
+-export([check_digest/4]).
+
+%% SCRAM
+-export([is_scrammed/0,
+         password_to_scram/1,
+         password_to_scram/2,
+         is_password_scram_valid/2]).
 
 -export([auth_modules/1]).
 
 -include("ejabberd.hrl").
+
+-define(SALT_LENGTH, 16).
+
 
 %%%----------------------------------------------------------------------
 %%% API
@@ -69,19 +83,47 @@ start() ->
 		end, auth_modules(Host))
       end, ?MYHOSTS).
 
+%% This is only executed by ejabberd_c2s for non-SASL auth client
 plain_password_required(Server) ->
     lists:any(
       fun(M) ->
 	      M:plain_password_required()
       end, auth_modules(Server)).
 
+store_type(Server) ->
+    lists:foldl(
+      fun(_, external) ->
+	      external;
+	  (M, scram) ->
+	      case M:store_type() of
+		  external ->
+		      external;
+		  _Else ->
+		      scram
+		  end;
+	  (M, plain) ->
+	      M:store_type()
+      end, plain, auth_modules(Server)).
+
+plain_password_required() ->
+    not is_scrammed().
+
+store_type() ->
+    case is_scrammed() of
+        false ->
+            plain; %% allows PLAIN, DIGEST-MD5, SCRAM-SHA1
+        true ->
+            scram %% allows PLAIN, SCRAM-SHA1
+    end.
+
+
 %% @doc Check if the user and password can login in server.
 %% @spec (User::string(), Server::string(), Password::string()) ->
 %%     true | false
-check_password(User, Server, Password) 
+check_password(User, Server, Password)
   when is_list(User), is_list(Server), is_list(Password) ->
-    check_password(list_to_binary(User), 
-                   list_to_binary(Server), 
+    check_password(list_to_binary(User),
+                   list_to_binary(Server),
                    list_to_binary(Password));
 check_password(User, Server, Password) ->
     case check_password_with_authmodule(User, Server, Password) of
@@ -93,16 +135,16 @@ check_password(User, Server, Password) ->
 %% @spec (User::string(), Server::string(), Password::string(),
 %%        Digest::string(), DigestGen::function()) ->
 %%     true | false
-check_password(User, Server, Password, Digest, DigestGen) 
+check_password(User, Server, Password, Digest, DigestGen)
   when is_list(User), is_list(Server), is_list(Password)->
-    check_password(list_to_binary(User), 
-                   list_to_binary(Server), 
+    check_password(list_to_binary(User),
+                   list_to_binary(Server),
                    list_to_binary(Password),
                    Digest,
                    DigestGen);
-check_password(User, Server, Password, Digest, DigestGen) 
+check_password(User, Server, Password, Digest, DigestGen)
   when is_list(Digest) ->
-    check_password(User, Server, Password, list_to_binary(Digest), DigestGen);    
+    check_password(User, Server, Password, list_to_binary(Digest), DigestGen);
 check_password(User, Server, Password, Digest, DigestGen) ->
     case check_password_with_authmodule(User, Server, Password,
 					Digest, DigestGen) of
@@ -122,16 +164,16 @@ check_password(User, Server, Password, Digest, DigestGen) ->
 %%                 | ejabberd_auth_odbc | ejabberd_auth_pam
 check_password_with_authmodule(User, Server, Password)
   when is_list(User), is_list(Server), is_list(Password) ->
-    check_password_with_authmodule(list_to_binary(User), 
-                                   list_to_binary(Server), 
+    check_password_with_authmodule(list_to_binary(User),
+                                   list_to_binary(Server),
                                    list_to_binary(Password));
 check_password_with_authmodule(User, Server, Password) ->
     check_password_loop(auth_modules(Server), [User, Server, Password]).
 
-check_password_with_authmodule(User, Server, Password, Digest, DigestGen) 
+check_password_with_authmodule(User, Server, Password, Digest, DigestGen)
   when is_list(User), is_list(Server), is_list(Password) ->
-    check_password_with_authmodule(list_to_binary(User), 
-                                   list_to_binary(Server), 
+    check_password_with_authmodule(list_to_binary(User),
+                                   list_to_binary(Server),
                                    list_to_binary(Password),
                                    Digest,
                                    DigestGen);
@@ -139,9 +181,7 @@ check_password_with_authmodule(User, Server, Password, Digest, DigestGen) ->
     check_password_loop(auth_modules(Server), [User, Server, Password,
 					       Digest, DigestGen]).
 
-check_password_loop([], Args) ->
-    [User, Server, Password | _] = Args,
-    ejabberd_hooks:run(auth_failed, Server, [User, Server, Password]),
+check_password_loop([], _Args) ->
     false;
 check_password_loop([AuthModule | AuthModules], Args) ->
     case apply(AuthModule, check_password, Args) of
@@ -151,14 +191,26 @@ check_password_loop([AuthModule | AuthModules], Args) ->
 	    check_password_loop(AuthModules, Args)
     end.
 
+check_digest(Digest, DigestGen, Password, Passwd) ->
+    DigRes = if
+                 Digest /= <<>> ->
+                     Digest == DigestGen(Passwd);
+                 true ->
+                     false
+             end,
+    if DigRes ->
+           true;
+       true ->
+           (Passwd == Password) and (Password /= <<>>)
+    end.
 
 %% @spec (User::string(), Server::string(), Password::string()) ->
 %%       ok | {error, ErrorType}
 %% where ErrorType = empty_password | not_allowed | invalid_jid
 set_password(User, Server, Password)
   when is_list(User), is_list(Server), is_list(Password) ->
-    set_password(list_to_binary(User), 
-                 list_to_binary(Server), 
+    set_password(list_to_binary(User),
+                 list_to_binary(Server),
                  list_to_binary(Password));
 set_password(_User, _Server, "") ->
     %% We do not allow empty password
@@ -174,12 +226,12 @@ set_password(User, Server, Password) ->
 %% @spec (User, Server, Password) -> {atomic, ok} | {atomic, exists} | {error, not_allowed}
 try_register(User, Server, Password)
   when is_list(User), is_list(Server), is_list(Password) ->
-    try_register(list_to_binary(User), 
-                 list_to_binary(Server), 
+    try_register(list_to_binary(User),
+                 list_to_binary(Server),
                  list_to_binary(Password));
 try_register(_User, _Server, "") ->
     %% We do not allow empty password
-    {error, not_allowed};    
+    {error, not_allowed};
 try_register(User, Server, Password) ->
     case is_user_exists(User,Server) of
 	true ->
@@ -268,7 +320,7 @@ get_vh_registered_users_number(Server, Opts) ->
 %% @doc Get the password of the user.
 %% @spec (User::string(), Server::string()) -> Password::string()
 get_password(User, Server) when is_list(User), is_list(Server) ->
-    list_to_binary(get_password(list_to_binary(User), 
+    list_to_binary(get_password(list_to_binary(User),
                                 list_to_binary(Server)));
 get_password(User, Server) ->
     lists:foldl(
@@ -278,15 +330,14 @@ get_password(User, Server) ->
 	      Password
       end, false, auth_modules(Server)).
 
-get_password_s(User, Server) when is_list(User), is_list(Server) ->
-    list_to_binary(get_password_s(list_to_binary(User), 
-                                  list_to_binary(Server)));
 get_password_s(User, Server) ->
     case get_password(User, Server) of
 	false ->
 	    <<"">>;
-	Password ->
-	    Password
+	Password when is_binary(Password) ->
+	    Password;
+    _ ->
+        <<"">>
     end.
 
 %% @doc Get the password of the user and the auth module.
@@ -304,7 +355,7 @@ get_password_with_authmodule(User, Server) ->
 %% Returns true if the user exists in the DB or if an anonymous user is logged
 %% under the given name
 is_user_exists(User, Server) when is_list(User), is_list(Server) ->
-    is_user_exists(list_to_binary(User), 
+    is_user_exists(list_to_binary(User),
                    list_to_binary(Server));
 is_user_exists(User, Server) ->
     lists:any(
@@ -326,7 +377,7 @@ is_user_exists(User, Server) ->
 %% @spec (Module::atom(), User, Server) -> true | false | maybe
 is_user_exists_in_other_modules(Module, User, Server) when is_list(User), is_list(Server) ->
     is_user_exists_in_other_modules(Module,
-                                    list_to_binary(User), 
+                                    list_to_binary(User),
                                     list_to_binary(Server));
 is_user_exists_in_other_modules(Module, User, Server) ->
     is_user_exists_in_other_modules_loop(
@@ -353,7 +404,7 @@ is_user_exists_in_other_modules_loop([AuthModule|AuthModules], User, Server) ->
 %% @doc Remove user.
 %% Note: it may return ok even if there was some problem removing the user.
 remove_user(User, Server) when is_list(User), is_list(Server) ->
-    remove_user(list_to_binary(User), 
+    remove_user(list_to_binary(User),
                 list_to_binary(Server));
 remove_user(User, Server) ->
     [M:remove_user(User, Server) || M <- auth_modules(Server)],
@@ -365,9 +416,9 @@ remove_user(User, Server) ->
 %% The removal is attempted in each auth method provided:
 %% when one returns 'ok' the loop stops;
 %% if no method returns 'ok' then it returns the error message indicated by the last method attempted.
-remove_user(User, Server, Password) 
+remove_user(User, Server, Password)
   when is_list(User), is_list(Server), is_list(Password)->
-    remove_user(list_to_binary(User), 
+    remove_user(list_to_binary(User),
                 list_to_binary(Server),
                 list_to_binary(Password));
 remove_user(User, Server, Password) ->
@@ -406,6 +457,36 @@ entropy(IOList) ->
 		    end, [0, 0, 0, 0, 0], S),
 	    length(S) * math:log(lists:sum(Set))/math:log(2)
     end.
+
+%%%----------------------------------------------------------------------
+%%% SCRAM
+%%%----------------------------------------------------------------------
+
+is_scrammed() ->
+    scram == ejabberd_config:get_local_option({auth_password_format, ?MYNAME}).
+
+
+password_to_scram(Password) ->
+    password_to_scram(Password, ?SCRAM_DEFAULT_ITERATION_COUNT).
+
+password_to_scram(Password, _) when is_record(Password, scram) ->
+    Password;
+password_to_scram(Password, IterationCount) ->
+    Salt = crypto:rand_bytes(?SALT_LENGTH),
+    SaltedPassword = scram:salted_password(Password, Salt, IterationCount),
+    StoredKey = scram:stored_key(scram:client_key(SaltedPassword)),
+    ServerKey = scram:server_key(SaltedPassword),
+    #scram{storedkey = base64:encode(StoredKey),
+           serverkey = base64:encode(ServerKey),
+           salt = base64:encode(Salt),
+           iterationcount = IterationCount}.
+
+is_password_scram_valid(Password, Scram) ->
+    IterationCount = Scram#scram.iterationcount,
+    Salt = base64:decode(Scram#scram.salt),
+    SaltedPassword = scram:salted_password(Password, Salt, IterationCount),
+    StoredKey = scram:stored_key(scram:client_key(SaltedPassword)),
+    (base64:decode(Scram#scram.storedkey) == StoredKey).
 
 %%%----------------------------------------------------------------------
 %%% Internal functions

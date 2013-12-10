@@ -43,8 +43,11 @@
 	 is_user_exists/2,
 	 remove_user/2,
 	 remove_user/3,
+	 store_type/0,
 	 plain_password_required/0
 	]).
+
+-export([scram_passwords/0]).
 
 -include("ejabberd.hrl").
 
@@ -60,7 +63,6 @@ start(Host) ->
     mnesia:create_table(reg_users_counter,
 			[{ram_copies, [node()]},
 			 {attributes, record_info(fields, reg_users_counter)}]),
-    update_table(),
     update_reg_users_counter_table(Host),
     ok.
 
@@ -75,17 +77,23 @@ update_reg_users_counter_table(Server) ->
     mnesia:sync_dirty(F).
 
 plain_password_required() ->
-    false.
+    ejabberd_auth:plain_password_required().
+
+store_type() ->
+    ejabberd_auth:store_type().
+
 
 check_password(User, Server, Password) ->
     LUser = jlib:nodeprep(User),
     LServer = jlib:nameprep(Server),
     US = {LUser, LServer},
     case catch mnesia:dirty_read({passwd, US}) of
-	[#passwd{password = Password}] ->
-	    Password /= <<>>;
-	_ ->
-	    false
+        [#passwd{password = Password}] when is_binary(Password) ->
+            Password /= <<>>;
+        [#passwd{password = Scram}] when is_record(Scram, scram) ->
+            ejabberd_auth:is_password_scram_valid(Password, Scram);
+        _ ->
+            false
     end.
 
 check_password(User, Server, Password, Digest, DigestGen) ->
@@ -93,21 +101,15 @@ check_password(User, Server, Password, Digest, DigestGen) ->
     LServer = jlib:nameprep(Server),
     US = {LUser, LServer},
     case catch mnesia:dirty_read({passwd, US}) of
-	[#passwd{password = Passwd}] ->
-	    DigRes = if
-			 Digest /= <<>> ->
-                 Digest == DigestGen(Passwd);
-			 true ->
-			     false
-		     end,
-	    if DigRes ->
-		    true;
-	       true ->
-		    (Passwd == Password) and (Password /= <<>>)
-	    end;
-	_ ->
-	    false
+        [#passwd{password = Passwd}] when is_binary(Passwd) ->
+            ejabberd_auth:check_digest(Digest, DigestGen, Password, Passwd);
+        [#passwd{password = Scram}] when is_record(Scram, scram) ->
+            Passwd = base64:decode(Scram#scram.storedkey),
+            ejabberd_auth:check_digest(Digest, DigestGen, Password, Passwd);
+        _ ->
+            false
     end.
+
 
 %% @spec (User::string(), Server::string(), Password::string()) ->
 %%       ok | {error, invalid_jid}
@@ -120,8 +122,12 @@ set_password(User, Server, Password) ->
 	    {error, invalid_jid};
 	true ->
 	    F = fun() ->
+			Password2 = case ejabberd_auth:is_scrammed() of
+					true -> ejabberd_auth:password_to_scram(Password);
+					false -> Password
+				    end,
 			mnesia:write(#passwd{us = US,
-					     password = Password})
+					     password = Password2})
 		end,
 	    {atomic, ok} = mnesia:transaction(F),
 	    ok
@@ -139,8 +145,12 @@ try_register(User, Server, Password) ->
 	    F = fun() ->
 			case mnesia:read({passwd, US}) of
 			    [] ->
+				Password2 = case ejabberd_auth:is_scrammed() and is_binary(Password) of
+						true -> ejabberd_auth:password_to_scram(Password);
+						false -> Password
+					    end,
 				mnesia:write(#passwd{us = US,
-						     password = Password}),
+						     password = Password2}),
 				mnesia:dirty_update_counter(
 						    reg_users_counter,
 						    LServer, 1),
@@ -160,15 +170,15 @@ get_vh_registered_users(Server) ->
     LServer = jlib:nameprep(Server),
     mnesia:dirty_select(
       passwd,
-      [{#passwd{us = '$1', _ = '_'}, 
-	[{'==', {element, 2, '$1'}, LServer}], 
+      [{#passwd{us = '$1', _ = '_'},
+	[{'==', {element, 2, '$1'}, LServer}],
 	['$1']}]).
 
-get_vh_registered_users(Server, [{from, Start}, {to, End}]) 
+get_vh_registered_users(Server, [{from, Start}, {to, End}])
 	when is_integer(Start) and is_integer(End) ->
     get_vh_registered_users(Server, [{limit, End-Start+1}, {offset, Start}]);
 
-get_vh_registered_users(Server, [{limit, Limit}, {offset, Offset}]) 
+get_vh_registered_users(Server, [{limit, Limit}, {offset, Offset}])
 	when is_integer(Limit) and is_integer(Offset) ->
     case get_vh_registered_users(Server) of
     [] ->
@@ -183,16 +193,16 @@ get_vh_registered_users(Server, [{limit, Limit}, {offset, Offset}])
 	lists:sublist(Set, Start, Limit)
     end;
 
-get_vh_registered_users(Server, [{prefix, Prefix}]) 
+get_vh_registered_users(Server, [{prefix, Prefix}])
 	when is_list(Prefix) ->
     Set = [{U,S} || {U, S} <- get_vh_registered_users(Server), lists:prefix(Prefix, U)],
     lists:keysort(1, Set);
 
-get_vh_registered_users(Server, [{prefix, Prefix}, {from, Start}, {to, End}]) 
+get_vh_registered_users(Server, [{prefix, Prefix}, {from, Start}, {to, End}])
 	when is_list(Prefix) and is_integer(Start) and is_integer(End) ->
     get_vh_registered_users(Server, [{prefix, Prefix}, {limit, End-Start+1}, {offset, Start}]);
 
-get_vh_registered_users(Server, [{prefix, Prefix}, {limit, Limit}, {offset, Offset}]) 
+get_vh_registered_users(Server, [{prefix, Prefix}, {limit, Limit}, {offset, Offset}])
 	when is_list(Prefix) and is_integer(Limit) and is_integer(Offset) ->
     case [{U,S} || {U, S} <- get_vh_registered_users(Server), lists:prefix(Prefix, U)] of
     [] ->
@@ -226,7 +236,7 @@ get_vh_registered_users_number(Server) ->
 get_vh_registered_users_number(Server, [{prefix, Prefix}]) when is_list(Prefix) ->
     Set = [{U, S} || {U, S} <- get_vh_registered_users(Server), lists:prefix(Prefix, U)],
     length(Set);
-    
+
 get_vh_registered_users_number(Server, _) ->
     get_vh_registered_users_number(Server).
 
@@ -235,8 +245,13 @@ get_password(User, Server) ->
     LServer = jlib:nameprep(Server),
     US = {LUser, LServer},
     case catch mnesia:dirty_read(passwd, US) of
-	[#passwd{password = Password}] ->
+	[#passwd{password = Password}] when is_binary(Password) ->
 	    Password;
+	[#passwd{password = Scram}] when is_record(Scram, scram) ->
+	    {base64:decode(Scram#scram.storedkey),
+	     base64:decode(Scram#scram.serverkey),
+	     base64:decode(Scram#scram.salt),
+	     Scram#scram.iterationcount};
 	_ ->
 	    false
     end.
@@ -246,10 +261,12 @@ get_password_s(User, Server) ->
     LServer = jlib:nameprep(Server),
     US = {LUser, LServer},
     case catch mnesia:dirty_read(passwd, US) of
-	[#passwd{password = Password}] ->
+	[#passwd{password = Password}] when is_binary(Password) ->
 	    Password;
+	[#passwd{password = Scram}] when is_record(Scram, scram) ->
+	    <<"">>;
 	_ ->
-	    []
+	    <<"">>
     end.
 
 %% @spec (User, Server) -> true | false | {error, Error}
@@ -289,13 +306,21 @@ remove_user(User, Server, Password) ->
     US = {LUser, LServer},
     F = fun() ->
 		case mnesia:read({passwd, US}) of
-		    [#passwd{password = Password}] ->
+		    [#passwd{password = Password}] when is_list(Password) ->
 			mnesia:delete({passwd, US}),
 			mnesia:dirty_update_counter(reg_users_counter,
 						    LServer, -1),
 			ok;
-		    [_] ->
-			not_allowed;
+		    [#passwd{password = Scram}] when is_record(Scram, scram) ->
+            case ejabberd_auth:is_password_scram_valid(Password, Scram) of
+			    true ->
+				mnesia:delete({passwd, US}),
+				mnesia:dirty_update_counter(reg_users_counter,
+							    LServer, -1),
+				ok;
+			    false ->
+				not_allowed
+			end;
 		    _ ->
 			not_exists
 		end
@@ -309,48 +334,13 @@ remove_user(User, Server, Password) ->
 	    bad_request
     end.
 
-
-update_table() ->
+scram_passwords() ->
+    ?INFO_MSG("Converting the stored passwords into SCRAM bits", []),
+    Fun = fun(#passwd{password = Password} = P) ->
+                  Scram = ejabberd_auth:password_to_scram(Password),
+                  P#passwd{password = Scram}
+          end,
     Fields = record_info(fields, passwd),
-    case mnesia:table_info(passwd, attributes) of
-	Fields ->
-	    ok;
-	[user, password] ->
-	    ?INFO_MSG("Converting passwd table from "
-		      "{user, password} format", []),
-	    Host = ?MYNAME,
-	    {atomic, ok} = mnesia:create_table(
-			     ejabberd_auth_internal_tmp_table,
-			     [{disc_only_copies, [node()]},
-			      {type, bag},
-			      {local_content, true},
-			      {record_name, passwd},
-			      {attributes, record_info(fields, passwd)}]),
-	    mnesia:transform_table(passwd, ignore, Fields),
-	    F1 = fun() ->
-			 mnesia:write_lock_table(ejabberd_auth_internal_tmp_table),
-			 mnesia:foldl(
-			   fun(#passwd{us = U} = R, _) ->
-				   mnesia:dirty_write(
-				     ejabberd_auth_internal_tmp_table,
-				     R#passwd{us = {U, Host}})
-			   end, ok, passwd)
-		 end,
-	    mnesia:transaction(F1),
-	    mnesia:clear_table(passwd),
-	    F2 = fun() ->
-			 mnesia:write_lock_table(passwd),
-			 mnesia:foldl(
-			   fun(R, _) ->
-				   mnesia:dirty_write(R)
-			   end, ok, ejabberd_auth_internal_tmp_table)
-		 end,
-	    mnesia:transaction(F2),
-	    mnesia:delete_table(ejabberd_auth_internal_tmp_table);
-	_ ->
-	    ?INFO_MSG("Recreating passwd table", []),
-	    mnesia:transform_table(passwd, ignore, Fields)
-    end.
-
+    mnesia:transform_table(passwd, Fun, Fields).
 
 
