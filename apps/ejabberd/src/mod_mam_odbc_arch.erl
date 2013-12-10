@@ -44,7 +44,7 @@ archive_size(Host, _Mod, UserID, _UserJID) ->
       Host,
       ["SELECT COUNT(*) "
        "FROM mam_message "
-       "USE INDEX(i_mam_message_rem, i_mam_message_uid) "
+       "USE INDEX(i_mam_message_uid, i_mam_message_rem) "
        "WHERE user_id = '", escape_user_id(UserID), "'"]),
     list_to_integer(binary_to_list(BSize)).
 
@@ -308,7 +308,7 @@ calc_index(Host, Filter, SUID) ->
     mod_mam_utils:success_sql_query(
       Host,
       ["SELECT COUNT(*) FROM mam_message "
-       "USE INDEX(i_mam_message_rem, i_mam_message_uid) ",
+       "USE INDEX(i_mam_message_uid, i_mam_message_rem) ",
        Filter, " AND id <= '", SUID, "'"]),
     list_to_integer(binary_to_list(BIndex)).
 
@@ -328,7 +328,7 @@ calc_before(Host, Filter, SUID) ->
     mod_mam_utils:success_sql_query(
       Host,
       ["SELECT COUNT(*) FROM mam_message "
-       "USE INDEX(i_mam_message_rem, i_mam_message_uid) ",
+       "USE INDEX(i_mam_message_uid, i_mam_message_rem) ",
        Filter, " AND id < '", SUID, "'"]),
     list_to_integer(binary_to_list(BIndex)).
 
@@ -345,7 +345,7 @@ calc_count(Host, Filter) ->
     mod_mam_utils:success_sql_query(
       Host,
       ["SELECT COUNT(*) FROM mam_message "
-       "USE INDEX(i_mam_message_rem, i_mam_message_uid) ",
+       "USE INDEX(i_mam_message_uid, i_mam_message_rem) ",
        Filter]),
     list_to_integer(binary_to_list(BCount)).
 
