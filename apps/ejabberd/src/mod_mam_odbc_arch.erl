@@ -279,8 +279,7 @@ extract_messages(Host, Filter, IOffset, IMax, true) ->
     {selected, _ColumnNames, MessageRows} =
     mod_mam_utils:success_sql_query(
       Host,
-      ["SELECT * FROM ("
-       "SELECT id, from_jid, message "
+      ["SELECT id, from_jid, message "
        "FROM mam_message ",
         Filter,
        " ORDER BY id DESC"
@@ -288,10 +287,9 @@ extract_messages(Host, Filter, IOffset, IMax, true) ->
          case IOffset of
              0 -> "";
              _ -> [" OFFSET ", integer_to_list(IOffset)]
-         end,
-       ") AS page ORDER BY page.id"]),
+         end]),
     ?DEBUG("extract_messages query returns ~p", [MessageRows]),
-    MessageRows.
+    lists:reverse(MessageRows).
 
 %% @doc Calculate a zero-based index of the row with UID in the result test.
 %%
