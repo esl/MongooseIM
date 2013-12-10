@@ -52,12 +52,12 @@ wait_flushing(_Host, _Mod, _UserID, _UserJID) ->
     ok.
 
 archive_message(Host, _Mod, MessID, UserID,
-               _LocJID=#jid{},
+                LocJID=#jid{},
                 RemJID=#jid{lresource=RemLResource},
                 SrcJID, Dir, Packet) ->
     SUserID = integer_to_list(UserID),
-    SBareRemJID = esc_jid(jlib:jid_tolower(jlib:jid_remove_resource(RemJID))),
-    SSrcJID = esc_jid(SrcJID),
+    SBareRemJID = minify_and_escape_bare_jid(LocJID, RemJID),
+    SSrcJID = minify_and_escape_jid(LocJID, SrcJID),
     SDir = encode_direction(Dir),
     SRemLResource = ejabberd_odbc:escape(RemLResource),
     Data = term_to_binary(Packet),
@@ -81,11 +81,11 @@ write_message(Host, SMessID, SUserID, SBareRemJID,
     ok.
 
 prepare_message(Host, MessID, UserID,
-               _LocJID=#jid{},
+                LocJID=#jid{},
                 RemJID=#jid{lresource=RemLResource}, SrcJID, Dir, Packet) ->
     SUserID = integer_to_list(UserID),
-    SBareRemJID = esc_jid(jlib:jid_tolower(jlib:jid_remove_resource(RemJID))),
-    SSrcJID = esc_jid(SrcJID),
+    SBareRemJID = minify_and_escape_bare_jid(LocJID, RemJID),
+    SSrcJID = minify_and_escape_jid(LocJID, SrcJID),
     SDir = encode_direction(Dir),
     SRemLResource = ejabberd_odbc:escape(RemLResource),
     Data = term_to_binary(Packet, [compressed]),
@@ -123,10 +123,10 @@ archive_messages(LServer, Acc) ->
     Offset  :: non_neg_integer(),
     MessageRows :: list(tuple()).
 
-lookup_messages(Host, _Mod, UserID, _UserJID = #jid{},
+lookup_messages(Host, _Mod, UserID, UserJID = #jid{},
                 RSM = #rsm_in{direction = aft, id = ID}, Start, End, _Now, WithJID,
                 PageSize, LimitPassed, MaxResultLimit) ->
-    Filter = prepare_filter(UserID, Start, End, WithJID),
+    Filter = prepare_filter(UserID, UserJID, Start, End, WithJID),
     TotalCount = calc_count(Host, Filter),
     Offset     = calc_offset(Host, Filter, PageSize, TotalCount, RSM),
     %% If a query returns a number of stanzas greater than this limit and the
@@ -138,13 +138,13 @@ lookup_messages(Host, _Mod, UserID, _UserJID = #jid{},
 
         false ->
             MessageRows = extract_messages(Host, after_id(ID, Filter), 0, PageSize, false),
-            {ok, {TotalCount, Offset, rows_to_uniform_format(Host, MessageRows)}}
+            {ok, {TotalCount, Offset, rows_to_uniform_format(Host, UserJID, MessageRows)}}
     end;
 
-lookup_messages(Host, _Mod, UserID, _UserJID = #jid{},
+lookup_messages(Host, _Mod, UserID, UserJID = #jid{},
                 RSM = #rsm_in{direction = before, id = ID}, Start, End, _Now, WithJID,
                 PageSize, LimitPassed, MaxResultLimit) ->
-    Filter = prepare_filter(UserID, Start, End, WithJID),
+    Filter = prepare_filter(UserID, UserJID, Start, End, WithJID),
     TotalCount = calc_count(Host, Filter),
     Offset     = calc_offset(Host, Filter, PageSize, TotalCount, RSM),
     %% If a query returns a number of stanzas greater than this limit and the
@@ -156,13 +156,13 @@ lookup_messages(Host, _Mod, UserID, _UserJID = #jid{},
 
         false ->
             MessageRows = extract_messages(Host, before_id(ID, Filter), 0, PageSize, true),
-            {ok, {TotalCount, Offset, rows_to_uniform_format(Host, MessageRows)}}
+            {ok, {TotalCount, Offset, rows_to_uniform_format(Host, UserJID, MessageRows)}}
     end;
 
-lookup_messages(Host, _Mod, UserID, _UserJID = #jid{},
+lookup_messages(Host, _Mod, UserID, UserJID = #jid{},
                 RSM, Start, End, _Now, WithJID,
                 PageSize, LimitPassed, MaxResultLimit) ->
-    Filter = prepare_filter(UserID, Start, End, WithJID),
+    Filter = prepare_filter(UserID, UserJID, Start, End, WithJID),
     TotalCount = calc_count(Host, Filter),
     Offset     = calc_offset(Host, Filter, PageSize, TotalCount, RSM),
     %% If a query returns a number of stanzas greater than this limit and the
@@ -174,7 +174,7 @@ lookup_messages(Host, _Mod, UserID, _UserJID = #jid{},
 
         false ->
             MessageRows = extract_messages(Host, Filter, Offset, PageSize, false),
-            {ok, {TotalCount, Offset, rows_to_uniform_format(Host, MessageRows)}}
+            {ok, {TotalCount, Offset, rows_to_uniform_format(Host, UserJID, MessageRows)}}
     end.
 
 after_id(ID, Filter) ->
@@ -187,12 +187,12 @@ before_id(ID, Filter) ->
     SID = escape_message_id(ID),
     [Filter, " AND id < '", SID, "'"].
 
-rows_to_uniform_format(Host, MessageRows) ->
-    [row_to_uniform_format(Host, Row) || Row <- MessageRows].
+rows_to_uniform_format(Host, UserJID, MessageRows) ->
+    [row_to_uniform_format(Host, UserJID, Row) || Row <- MessageRows].
 
-row_to_uniform_format(Host, {BMessID,BSrcJID,SData}) ->
+row_to_uniform_format(Host, UserJID, {BMessID,BSrcJID,SData}) ->
     MessID = list_to_integer(binary_to_list(BMessID)),
-    SrcJID = jlib:binary_to_jid(BSrcJID),
+    SrcJID = expand_minified_jid(UserJID, BSrcJID),
     EscFormat = ejabberd_odbc:escape_format(Host),
     Data = ejabberd_odbc:unescape_binary(EscFormat, SData),
     Packet = binary_to_term(Data),
@@ -238,9 +238,9 @@ purge_single_message(Host, _Mod, MessID, UserID, _UserJID, _Now) ->
     End     :: unix_timestamp() | undefined,
     Now     :: unix_timestamp(),
     WithJID :: #jid{} | undefined.
-purge_multiple_messages(Host, _Mod, UserID, _UserJID,
+purge_multiple_messages(Host, _Mod, UserID, UserJID,
                         Start, End, _Now, WithJID) ->
-    Filter = prepare_filter(UserID, Start, End, WithJID),
+    Filter = prepare_filter(UserID, UserJID, Start, End, WithJID),
     {updated, _} =
     mod_mam_utils:success_sql_query(
       Host,
@@ -350,35 +350,33 @@ calc_count(Host, Filter) ->
     list_to_integer(binary_to_list(BCount)).
 
 
-%% prepare_filter/4
--spec prepare_filter(UserID, Start, End, WithJID) -> filter()
+-spec prepare_filter(UserID, UserJID, Start, End, WithJID) -> filter()
     when
     UserID  :: user_id(),
+    UserJID :: #jid{},
     Start   :: unix_timestamp() | undefined,
     End     :: unix_timestamp() | undefined,
     WithJID :: #jid{} | undefined.
-prepare_filter(UserID, Start, End, WithJID) ->
+prepare_filter(UserID, UserJID, Start, End, WithJID) ->
     {SWithJID, SWithResource} =
     case WithJID of
         undefined -> {undefined, undefined};
         #jid{lresource = <<>>} ->
-            {esc_jid(WithJID), undefined};
+            {minify_and_escape_bare_jid(UserJID, WithJID), undefined};
         #jid{lresource = WithLResource} ->
-            WithBareJID = jlib:jid_remove_resource(WithJID),
-            {esc_jid(WithBareJID),
+            {minify_and_escape_bare_jid(UserJID, WithJID),
              ejabberd_odbc:escape(WithLResource)}
     end,
-    prepare_filter(UserID, Start, End, SWithJID, SWithResource).
+    prepare_filter_sql(UserID, Start, End, SWithJID, SWithResource).
 
-%% prepare_filter/5
--spec prepare_filter(UserID, IStart, IEnd, SWithJID, SWithResource) -> filter()
+-spec prepare_filter_sql(UserID, IStart, IEnd, SWithJID, SWithResource) -> filter()
     when
     UserID  :: non_neg_integer(),
     IStart  :: unix_timestamp() | undefined,
     IEnd    :: unix_timestamp() | undefined,
     SWithJID :: escaped_jid() | undefined,
     SWithResource :: escaped_resource() | undefined.
-prepare_filter(UserID, IStart, IEnd, SWithJID, SWithResource) ->
+prepare_filter_sql(UserID, IStart, IEnd, SWithJID, SWithResource) ->
    ["WHERE user_id='", escape_user_id(UserID), "'",
      case IStart of
         undefined -> "";
@@ -438,6 +436,16 @@ escape_user_id(UserID) when is_integer(UserID) ->
 
 esc_jid(JID) ->
     ejabberd_odbc:escape(jlib:jid_to_binary(JID)).
+
+%% @doc Strip resource, minify and escape JID.
+minify_and_escape_bare_jid(LocJID, JID) ->
+    esc_jid(jlib:jid_tolower(jlib:jid_remove_resource(JID))).
+
+minify_and_escape_jid(LocJID, JID) ->
+    esc_jid(jlib:jid_tolower(JID)).
+
+expand_minified_jid(UserJID, BJID) ->
+    jlib:binary_to_jid(BJID).
 
 join([H|T]) ->
     [H, [", " ++ X || X <- T]].
