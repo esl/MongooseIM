@@ -15,7 +15,8 @@ all() ->
     [{group, negotiation},
      {group, server_acking},
      {group, client_acking},
-     {group, reconnection}].
+     {group, reconnection},
+     {group, resumption}].
 
 groups() ->
     [{negotiation, [], [server_announces_sm,
@@ -34,7 +35,8 @@ groups() ->
       [shuffle, {repeat, 5}], [client_acks_more_than_sent,
                                too_many_unacked_stanzas,
                                server_requests_ack]},
-     {reconnection, [], [resend_unacked_on_reconnection]}].
+     {reconnection, [], [resend_unacked_on_reconnection]},
+     {resumption, [], [resume_session]}].
 
 suite() ->
     escalus:suite().
@@ -279,6 +281,47 @@ resend_unacked_on_reconnection(Config) ->
     %% Alice acks the delayed messages so they won't go again
     %% to the offline store.
     escalus_connection:send(Alice, escalus_stanza:sm_ack(3)).
+
+resume_session(Config) ->
+    AliceSpec = [{stream_management, true}
+                 | escalus_users:get_options(Config, alice)],
+    Messages = [<<"msg-1">>, <<"msg-2">>, <<"msg-3">>],
+    escalus:story(Config, [{bob, 1}], fun(Bob) ->
+        SMID = buffer_unacked_messages_and_die(AliceSpec, Bob, Messages)
+        %% Resume the session.
+    end).
+
+buffer_unacked_messages_and_die(AliceSpec, Bob, Messages) ->
+    Steps = [start_stream,
+             authenticate,
+             bind,
+             session,
+             stream_resumption],
+    {ok, Alice, Props, _} = escalus_connection:start(AliceSpec, Steps),
+    escalus_connection:send(Alice, escalus_stanza:presence(<<"available">>)),
+    %% Bobs sends some messages to Alice.
+    [escalus:send(Bob, escalus_stanza:chat_to(alice, Msg))
+     || Msg <- Messages],
+    %% Alice receives them, but doesn't ack.
+    Stanzas = [escalus_connection:get_stanza(Alice, {msg, I})
+               || I <- lists:seq(1, 3)],
+    [escalus:assert(is_chat_message, [Msg], Stanza)
+     || {Msg, Stanza} <- lists:zip(Messages, Stanzas)],
+    %% Alice's connection is violently terminated.
+    kill_connection(Alice),
+    proplists:get_value(smid, Props).
+
+kill_connection(#transport{module = escalus_tcp, ssl = SSL,
+                           socket = Socket} = Conn) ->
+    %% Ugly, but there's no API for killing the connection
+    %% without sending </stream:stream>.
+    case SSL of
+        true ->
+            ssl:close(Socket);
+        false ->
+            gen_tcp:close(Socket)
+    end.
+    %% There might be open zlib streams left...
 
 %%--------------------------------------------------------------------
 %% Helpers
