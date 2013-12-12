@@ -352,6 +352,8 @@ terminate(_Reason, _StateName, State) ->
 	    %% old versions of mysql driver don't have the stop function
 	    %% so the catch
 	    catch mysql_conn:stop(State#state.db_ref);
+    pgsql ->
+	    catch pgsql:terminate(State#state.db_ref);
 	_ ->
 	    ok
     end,
