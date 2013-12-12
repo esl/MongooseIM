@@ -41,6 +41,7 @@
 	 escape_like/1,
 	 to_bool/1,
 	 keep_alive/1,
+     db_engine/1,
      get_dedicated_connection/1]).
 
 %% BLOB escaping

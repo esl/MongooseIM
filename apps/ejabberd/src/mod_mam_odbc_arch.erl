@@ -45,17 +45,26 @@ encode_direction(incoming) -> "I";
 encode_direction(outgoing) -> "O".
 
 archive_size(Host, _Mod, UserID, _UserJID) ->
+    IndexHintSQL = index_hint_sql(Host),
     {selected, _ColumnNames, [{BSize}]} =
     mod_mam_utils:success_sql_query(
       Host,
       ["SELECT COUNT(*) "
-       "FROM mam_message "
-       "USE INDEX(i_mam_message_uid, i_mam_message_rem) "
+       "FROM mam_message ",
+       IndexHintSQL,
        "WHERE user_id = '", escape_user_id(UserID), "'"]),
     list_to_integer(binary_to_list(BSize)).
 
 wait_flushing(_Host, _Mod, _UserID, _UserJID) ->
     ok.
+
+index_hint_sql(Host) ->
+    case ejabberd_odbc:db_engine(Host) of
+        mysql ->
+            "USE INDEX(i_mam_message_uid, i_mam_message_rem) ";
+        _ ->
+            ""
+    end.
 
 archive_message(Host, _Mod, MessID, UserID,
                 LocJID=#jid{},
@@ -133,8 +142,9 @@ lookup_messages(Host, _Mod, UserID, UserJID = #jid{},
                 RSM = #rsm_in{direction = aft, id = ID}, Start, End, _Now, WithJID,
                 PageSize, LimitPassed, MaxResultLimit) ->
     Filter = prepare_filter(UserID, UserJID, Start, End, WithJID),
-    TotalCount = calc_count(Host, Filter),
-    Offset     = calc_offset(Host, Filter, PageSize, TotalCount, RSM),
+    IndexHintSQL = index_hint_sql(Host),
+    TotalCount = calc_count(Host, Filter, IndexHintSQL),
+    Offset     = calc_offset(Host, Filter, IndexHintSQL, PageSize, TotalCount, RSM),
     %% If a query returns a number of stanzas greater than this limit and the
     %% client did not specify a limit using RSM then the server should return
     %% a policy-violation error to the client. 
@@ -151,8 +161,9 @@ lookup_messages(Host, _Mod, UserID, UserJID = #jid{},
                 RSM = #rsm_in{direction = before, id = ID}, Start, End, _Now, WithJID,
                 PageSize, LimitPassed, MaxResultLimit) ->
     Filter = prepare_filter(UserID, UserJID, Start, End, WithJID),
-    TotalCount = calc_count(Host, Filter),
-    Offset     = calc_offset(Host, Filter, PageSize, TotalCount, RSM),
+    IndexHintSQL = index_hint_sql(Host),
+    TotalCount = calc_count(Host, Filter, IndexHintSQL),
+    Offset     = calc_offset(Host, Filter, IndexHintSQL, PageSize, TotalCount, RSM),
     %% If a query returns a number of stanzas greater than this limit and the
     %% client did not specify a limit using RSM then the server should return
     %% a policy-violation error to the client. 
@@ -169,8 +180,9 @@ lookup_messages(Host, _Mod, UserID, UserJID = #jid{},
                 RSM, Start, End, _Now, WithJID,
                 PageSize, LimitPassed, MaxResultLimit) ->
     Filter = prepare_filter(UserID, UserJID, Start, End, WithJID),
-    TotalCount = calc_count(Host, Filter),
-    Offset     = calc_offset(Host, Filter, PageSize, TotalCount, RSM),
+    IndexHintSQL = index_hint_sql(Host),
+    TotalCount = calc_count(Host, Filter, IndexHintSQL),
+    Offset     = calc_offset(Host, Filter, IndexHintSQL, PageSize, TotalCount, RSM),
     %% If a query returns a number of stanzas greater than this limit and the
     %% client did not specify a limit using RSM then the server should return
     %% a policy-violation error to the client. 
@@ -194,12 +206,12 @@ before_id(ID, Filter) ->
     [Filter, " AND id < '", SID, "'"].
 
 rows_to_uniform_format(Host, UserJID, MessageRows) ->
-    [row_to_uniform_format(Host, UserJID, Row) || Row <- MessageRows].
+    EscFormat = ejabberd_odbc:escape_format(Host),
+    [row_to_uniform_format(UserJID, EscFormat, Row) || Row <- MessageRows].
 
-row_to_uniform_format(Host, UserJID, {BMessID,BSrcJID,SData}) ->
+row_to_uniform_format(UserJID, EscFormat, {BMessID,BSrcJID,SData}) ->
     MessID = list_to_integer(binary_to_list(BMessID)),
     SrcJID = jlib:binary_to_jid(expand_minified_jid(UserJID, BSrcJID)),
-    EscFormat = ejabberd_odbc:escape_format(Host),
     Data = ejabberd_odbc:unescape_binary(EscFormat, SData),
     Packet = binary_to_term(Data),
     {MessID, SrcJID, Packet}.
@@ -303,19 +315,19 @@ extract_messages(Host, Filter, IOffset, IMax, true) ->
 %% be returned instead.
 %% @end
 %% "SELECT COUNT(*) as "index" FROM mam_message WHERE id <= '",  UID
--spec calc_index(Host, Filter, SUID) -> Count
+-spec calc_index(Host, Filter, IndexHintSQL, SUID) -> Count
     when
-    Host  :: server_hostname(),
-    Filter   :: filter(),
-    SUID     :: escaped_message_id(),
-    Count    :: non_neg_integer().
-calc_index(Host, Filter, SUID) ->
+    Host         :: server_hostname(),
+    Filter       :: filter(),
+    IndexHintSQL :: string(),
+    SUID         :: escaped_message_id(),
+    Count        :: non_neg_integer().
+calc_index(Host, Filter, IndexHintSQL, SUID) ->
     {selected, _ColumnNames, [{BIndex}]} =
     mod_mam_utils:success_sql_query(
       Host,
-      ["SELECT COUNT(*) FROM mam_message "
-       "USE INDEX(i_mam_message_uid, i_mam_message_rem) ",
-       Filter, " AND id <= '", SUID, "'"]),
+      ["SELECT COUNT(*) FROM mam_message ",
+       IndexHintSQL, Filter, " AND id <= '", SUID, "'"]),
     list_to_integer(binary_to_list(BIndex)).
 
 %% @doc Count of elements in RSet before the passed element.
@@ -323,36 +335,36 @@ calc_index(Host, Filter, SUID) ->
 %% The element with the passed UID can be already deleted.
 %% @end
 %% "SELECT COUNT(*) as "count" FROM mam_message WHERE id < '",  UID
--spec calc_before(Host, Filter, SUID) -> Count
+-spec calc_before(Host, Filter, IndexHintSQL, SUID) -> Count
     when
-    Host  :: server_hostname(),
-    Filter   :: filter(),
-    SUID     :: escaped_message_id(),
-    Count    :: non_neg_integer().
-calc_before(Host, Filter, SUID) ->
+    Host         :: server_hostname(),
+    Filter       :: filter(),
+    IndexHintSQL :: string(),
+    SUID         :: escaped_message_id(),
+    Count        :: non_neg_integer().
+calc_before(Host, Filter, IndexHintSQL, SUID) ->
     {selected, _ColumnNames, [{BIndex}]} =
     mod_mam_utils:success_sql_query(
       Host,
-      ["SELECT COUNT(*) FROM mam_message "
-       "USE INDEX(i_mam_message_uid, i_mam_message_rem) ",
-       Filter, " AND id < '", SUID, "'"]),
+      ["SELECT COUNT(*) FROM mam_message ",
+       IndexHintSQL, Filter, " AND id < '", SUID, "'"]),
     list_to_integer(binary_to_list(BIndex)).
 
 
 %% @doc Get the total result set size.
 %% "SELECT COUNT(*) as "count" FROM mam_message WHERE "
--spec calc_count(Host, Filter) -> Count
+-spec calc_count(Host, Filter, IndexHintSQL) -> Count
     when
-    Host  :: server_hostname(),
-    Filter   :: filter(),
-    Count    :: non_neg_integer().
-calc_count(Host, Filter) ->
+    Host         :: server_hostname(),
+    Filter       :: filter(),
+    IndexHintSQL :: string(),
+    Count        :: non_neg_integer().
+calc_count(Host, Filter, IndexHintSQL) ->
     {selected, _ColumnNames, [{BCount}]} =
     mod_mam_utils:success_sql_query(
       Host,
-      ["SELECT COUNT(*) FROM mam_message "
-       "USE INDEX(i_mam_message_uid, i_mam_message_rem) ",
-       Filter]),
+      ["SELECT COUNT(*) FROM mam_message ",
+       IndexHintSQL, Filter]),
     list_to_integer(binary_to_list(BCount)).
 
 
@@ -409,29 +421,30 @@ prepare_filter_sql(UserID, IStart, IEnd, SWithJID, SWithResource) ->
 %%    direction = before | aft | undefined,
 %%    id = binary() | undefined,
 %%    index = non_neg_integer() | undefined}
--spec calc_offset(Host, Filter, PageSize, TotalCount, RSM) -> Offset
+-spec calc_offset(Host, Filter, IndexHintSQL, PageSize, TotalCount, RSM) -> Offset
     when
-    Host  :: server_hostname(),
-    Filter   :: filter(),
-    PageSize :: non_neg_integer(),
-    TotalCount :: non_neg_integer(),
-    RSM      :: #rsm_in{} | undefined,
-    Offset   :: non_neg_integer().
-calc_offset(_LS, _F, _PS, _TC, #rsm_in{direction = undefined, index = Index})
+    Host         :: server_hostname(),
+    Filter       :: filter(),
+    IndexHintSQL :: string(),
+    PageSize     :: non_neg_integer(),
+    TotalCount   :: non_neg_integer(),
+    RSM          :: #rsm_in{} | undefined,
+    Offset       :: non_neg_integer().
+calc_offset(_LS, _F, _IH, _PS, _TC, #rsm_in{direction = undefined, index = Index})
     when is_integer(Index) ->
     Index;
 %% Requesting the Last Page in a Result Set
-calc_offset(_LS, _F, PS, TC, #rsm_in{direction = before, id = undefined}) ->
+calc_offset(_LS, _F, _IH, PS, TC, #rsm_in{direction = before, id = undefined}) ->
     max(0, TC - PS);
-calc_offset(Host, F, PS, _TC, #rsm_in{direction = before, id = ID})
+calc_offset(Host, F, IH, PS, _TC, #rsm_in{direction = before, id = ID})
     when is_integer(ID) ->
     SID = escape_message_id(ID),
-    max(0, calc_before(Host, F, SID) - PS);
-calc_offset(Host, F, _PS, _TC, #rsm_in{direction = aft, id = ID})
+    max(0, calc_before(Host, F, IH, SID) - PS);
+calc_offset(Host, F, IH, _PS, _TC, #rsm_in{direction = aft, id = ID})
     when is_integer(ID) ->
     SID = escape_message_id(ID),
-    calc_index(Host, F, SID);
-calc_offset(_LS, _F, _PS, _TC, _RSM) ->
+    calc_index(Host, F, IH, SID);
+calc_offset(_LS, _F, _IH, _PS, _TC, _RSM) ->
     0.
 
 escape_message_id(MessID) when is_integer(MessID) ->
