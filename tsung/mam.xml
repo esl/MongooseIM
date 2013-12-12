@@ -151,7 +151,7 @@
           <data normalize_xml="true">
             <![CDATA[
                <iq type='set'>
-                 <prefs xmlns='urn:xmpp:mam:tmp' default='roster'>
+                 <prefs xmlns='urn:xmpp:mam:tmp' default='always'>
                    <always>
                      <jid>%%_random_jid1%%</jid>
                    </always>
@@ -188,7 +188,7 @@
           <data normalize_xml="true">
             <![CDATA[
                <iq type='set'>
-                 <prefs xmlns='urn:xmpp:mam:tmp' default='roster'>
+                 <prefs xmlns='urn:xmpp:mam:tmp' default='always'>
                    <always>%%_random_jids1%%</always>
                    <never>%%_random_jids2%%</never>
                  </prefs>
