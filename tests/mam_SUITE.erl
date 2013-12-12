@@ -117,6 +117,7 @@ muc_server_host() ->
 
 configurations() ->
     [odbc_async,
+     odbc_async_pool,
      odbc,
      odbc_mnesia,
      odbc_async_cache,
@@ -231,6 +232,10 @@ init_modules(odbc, muc, Config) ->
 init_modules(odbc_async, muc, Config) ->
     init_module(muc_server_host(), mod_mam_muc, odbc_async_muc_args()),
     Config;
+init_modules(odbc_async_pool, muc, Config) ->
+    %% TODO write mod_mam_muc_odbc_async_pool_writer
+    init_module(muc_server_host(), mod_mam_muc, odbc_async_muc_args()),
+    Config;
 init_modules(odbc_mnesia, muc, Config) ->
     init_module(muc_server_host(), mod_mam_muc, odbc_mnesia_muc_args()),
     Config;
@@ -248,6 +253,9 @@ init_modules(odbc, _, Config) ->
     Config;
 init_modules(odbc_async, _, Config) ->
     init_module(host(), mod_mam, odbc_async_args()),
+    Config;
+init_modules(odbc_async_pool, _, Config) ->
+    init_module(host(), mod_mam, odbc_async_pool_args()),
     Config;
 init_modules(odbc_mnesia, _, Config) ->
     init_module(host(), mod_mam, odbc_mnesia_args()),
@@ -277,6 +285,12 @@ odbc_async_args() ->
     [{user_module, mod_mam_odbc_user},
      {prefs_module, mod_mam_odbc_prefs},
      {writer_module, mod_mam_odbc_async_writer},
+     {archive_module, mod_mam_odbc_arch}].
+
+odbc_async_pool_args() ->
+    [{user_module, mod_mam_odbc_user},
+     {prefs_module, mod_mam_odbc_prefs},
+     {writer_module, mod_mam_odbc_async_pool_writer},
      {archive_module, mod_mam_odbc_arch}].
 
 odbc_mnesia_args() ->
