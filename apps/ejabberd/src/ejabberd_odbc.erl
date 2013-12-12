@@ -49,6 +49,11 @@
          escape_binary/2,
          unescape_binary/2]).
 
+%% BLOB escaping
+-export([escape_format/1,
+         escape_binary/2,
+         unescape_binary/2]).
+
 %% gen_fsm callbacks
 -export([init/1,
 	 handle_event/3,
@@ -165,9 +170,7 @@ sql_query_t(Query) ->
 escape(S) when is_binary(S) ->
     list_to_binary(escape(binary_to_list(S)));
 escape(S) when is_list(S) ->
-    S1 = lists:foldl(fun(C, Acc) -> [odbc_queries:escape(C) | Acc] end,
-                     [], S),
-    lists:reverse(S1).
+    [odbc_queries:escape(C) || C <- S].
 
 %% Escape character that will confuse an SQL engine
 %% Percent and underscore only need to be escaped for
@@ -490,6 +493,7 @@ sql_query_internal(Query) ->
               odbc ->
                   odbc:sql_query(State#state.db_ref, Query);
               pgsql ->
+                  ?DEBUG("Postres, Send query~n~p~n", [Query]),
                   pgsql_to_odbc(pgsql:squery(State#state.db_ref, Query));
               mysql ->
                   ?DEBUG("MySQL, Send query~n~p~n", [Query]),
@@ -533,7 +537,21 @@ odbc_connect(SQLServer) ->
 %% part of init/1
 %% Open a database connection to PostgreSQL
 pgsql_connect(Server, Port, DB, Username, Password) ->
-    pgsql:connect(Server, DB, Username, Password, Port).
+    Params = [
+            {host, Server},
+            {database, DB},
+            {user, Username},
+            {password, Password},
+            {port, Port},
+            {as_binary, true}],
+    case pgsql:connect(Params) of
+        {ok, Ref} ->
+            {ok,[<<"SET">>]} =
+            pgsql:squery(Ref, "SET standard_conforming_strings=off;"),
+            {ok, Ref};
+        Err -> Err
+    end.
+
 
 %% Convert PostgreSQL query result to Erlang ODBC result formalism
 pgsql_to_odbc({ok, PGSQLResult}) ->
@@ -544,17 +562,17 @@ pgsql_to_odbc({ok, PGSQLResult}) ->
 	    [pgsql_item_to_odbc(Item) || Item <- Items]
     end.
 
-pgsql_item_to_odbc({"SELECT" ++ _, Rows, Recs}) ->
+pgsql_item_to_odbc({<<"SELECT", _/binary>>, Rows, Recs}) ->
     {selected,
-     [element(1, Row) || Row <- Rows],
+     [binary_to_list(element(1, Row)) || Row <- Rows],
      [list_to_tuple(Rec) || Rec <- Recs]};
-pgsql_item_to_odbc("INSERT " ++ OIDN) ->
-    [_OID, N] = string:tokens(OIDN, " "),
-    {updated, list_to_integer(N)};
-pgsql_item_to_odbc("DELETE " ++ N) ->
-    {updated, list_to_integer(N)};
-pgsql_item_to_odbc("UPDATE " ++ N) ->
-    {updated, list_to_integer(N)};
+pgsql_item_to_odbc(<<"INSERT ", OIDN/binary>>) ->
+    [_OID, N] = binary:split(OIDN, <<" ">>),
+    {updated, list_to_integer(binary_to_list(N))};
+pgsql_item_to_odbc(<<"DELETE ", N/binary>>) ->
+    {updated, list_to_integer(binary_to_list(N))};
+pgsql_item_to_odbc(<<"UPDATE ", N/binary>>) ->
+    {updated, list_to_integer(binary_to_list(N))};
 pgsql_item_to_odbc({error, Error}) ->
     {error, Error};
 pgsql_item_to_odbc(_) ->
