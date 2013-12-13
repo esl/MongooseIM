@@ -36,7 +36,9 @@ groups() ->
                                too_many_unacked_stanzas,
                                server_requests_ack]},
      {reconnection, [], [resend_unacked_on_reconnection]},
-     {resumption, [], [resume_session]}].
+     {resumption, [], [session_established,
+                       wait_for_resumption,
+                       resume_session]}].
 
 suite() ->
     escalus:suite().
@@ -82,6 +84,9 @@ end_per_testcase(too_many_unacked_stanzas = CaseName, Config) ->
 end_per_testcase(server_requests_ack = CaseName, Config) ->
     NewConfig = escalus_ejabberd:reset_option(ack_freq(2), Config),
     escalus:end_per_testcase(CaseName, NewConfig);
+end_per_testcase(wait_for_resumption = CaseName, Config) ->
+    discard_offline_messages(Config, alice),
+    escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
@@ -274,13 +279,37 @@ resend_unacked_on_reconnection(Config) ->
     AliceSpec = escalus_users:get_options(Config, alice),
     {ok, Alice, _, _} = escalus_connection:start(AliceSpec),
     escalus_connection:send(Alice, escalus_stanza:presence(<<"available">>)),
-    Stanzas = [escalus_connection:get_stanza(Alice, {msg,I})
+    Stanzas = [escalus_connection:get_stanza(Alice, {msg, I})
                || I <- lists:seq(1, 3)],
     [escalus:assert(is_chat_message, [Msg], Stanza)
      || {Msg, Stanza} <- lists:zip(Messages, Stanzas)],
     %% Alice acks the delayed messages so they won't go again
     %% to the offline store.
     escalus_connection:send(Alice, escalus_stanza:sm_ack(3)).
+
+%% This test only verifies the validity of helpers (get_session_pid,
+%% assert_no_offline_msgs, assert_c2s_state) written for wait_for_resumption
+%% testcase.
+session_established(Config) ->
+    AliceSpec = [{stream_management, true}
+                 | escalus_users:get_options(Config, alice)],
+    escalus:story(Config, [{alice, 1}], fun(_Alice) ->
+        assert_no_offline_msgs(),
+        assert_c2s_state(AliceSpec, session_established)
+    end).
+
+wait_for_resumption(Config) ->
+    %% Ensure that after a violent disconnection,
+    %% the c2s waits for resumption (but don't resume yet).
+    AliceSpec = [{stream_management, true}
+                 | escalus_users:get_options(Config, alice)],
+    Messages = [<<"msg-1">>, <<"msg-2">>, <<"msg-3">>],
+    escalus:story(Config, [{bob, 1}], fun(Bob) ->
+        buffer_unacked_messages_and_die(AliceSpec, Bob, Messages),
+        %% Ensure the c2s process is waiting for resumption.
+        assert_no_offline_msgs(),
+        assert_c2s_state(AliceSpec, resume_session)
+    end).
 
 resume_session(Config) ->
     AliceSpec = [{stream_management, true}
@@ -299,6 +328,8 @@ buffer_unacked_messages_and_die(AliceSpec, Bob, Messages) ->
              stream_resumption],
     {ok, Alice, Props, _} = escalus_connection:start(AliceSpec, Steps),
     escalus_connection:send(Alice, escalus_stanza:presence(<<"available">>)),
+    Presence = escalus_connection:get_stanza(Alice, presence),
+    escalus:assert(is_presence, Presence),
     %% Bobs sends some messages to Alice.
     [escalus:send(Bob, escalus_stanza:chat_to(alice, Msg))
      || Msg <- Messages],
@@ -320,8 +351,9 @@ kill_connection(#transport{module = escalus_tcp, ssl = SSL,
             ssl:close(Socket);
         false ->
             gen_tcp:close(Socket)
-    end.
+    end,
     %% There might be open zlib streams left...
+    catch escalus_connection:stop(Conn).
 
 %%--------------------------------------------------------------------
 %% Helpers
@@ -370,3 +402,82 @@ ack_freq(AckFreq) ->
              escalus_ejabberd:rpc(?MOD_SM, set_ack_freq, [V])
      end,
      AckFreq}.
+
+assert_no_offline_msgs() ->
+    Pattern = escalus_ejabberd:rpc(mnesia, table_info,
+                                   [offline_msg, wild_pattern]),
+    0 = length(escalus_ejabberd:rpc(mnesia, dirty_match_object, [Pattern])).
+
+assert_c2s_state(UserSpec, StateName) ->
+    {ok, C2SPid} = get_session_pid(UserSpec),
+    SysStatus = escalus_ejabberd:rpc(sys, get_status, [C2SPid]),
+    StateName = extract_state_name(SysStatus).
+
+extract_state_name(SysStatus) ->
+    {status, _Pid, {module, _},
+     [_, _, _, _, [_, {data, FSMData} | _]]} = SysStatus,
+    proplists:get_value("StateName", FSMData).
+
+get_session_pid(UserSpec) ->
+    ConfigUS = [proplists:get_value(username, UserSpec),
+                proplists:get_value(server, UserSpec)],
+    [U, S] = case string_type() of
+                 list ->
+                     [binary_to_list(V) || V <- ConfigUS];
+                 binary ->
+                     ConfigUS
+             end,
+    MatchSpec = match_session_pid({U, S, "res1"}),
+    case escalus_ejabberd:rpc(ets, select, [session, MatchSpec]) of
+        [] ->
+            {error, not_found};
+        [{_, C2SPid}] ->
+            {ok, C2SPid};
+        [C2SPid] ->
+            {ok, C2SPid};
+        [_|_] = Sessions ->
+            {error, {multiple_sessions, Sessions}}
+    end.
+
+-spec string_type() -> list | binary.
+string_type() ->
+    [{config, hosts,
+      [XMPPDomain | _]}] = escalus_ejabberd:rpc(ets, lookup, [config, hosts]),
+    case XMPPDomain of
+        BString when is_binary(BString) ->
+            binary;
+        String when is_list(String) ->
+            list
+    end.
+
+%% Copy'n'paste from github.com/lavrin/ejabberd-trace
+
+match_session_pid({_User, _Domain, _Resource} = UDR) ->
+    [{%% match pattern
+      set(session(), [{2, {'_', '$1'}},
+                      {3, UDR}]),
+      %% guards
+      [],
+      %% return
+      ['$1']}];
+
+match_session_pid({User, Domain}) ->
+    [{%% match pattern
+      set(session(), [{2, {'_', '$1'}},
+                      {3, '$2'},
+                      {4, {User, Domain}}]),
+      %% guards
+      [],
+      %% return
+      [{{'$2', '$1'}}]}].
+
+set(Record, FieldValues) ->
+    F = fun({Field, Value}, Rec) ->
+                setelement(Field, Rec, Value)
+        end,
+    lists:foldl(F, Record, FieldValues).
+
+session() ->
+    set(erlang:make_tuple(6, '_'), [{1, session}]).
+
+%% End of copy'n'paste from github.com/lavrin/ejabberd-trace
