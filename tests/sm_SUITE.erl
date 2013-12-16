@@ -294,8 +294,9 @@ session_established(Config) ->
     AliceSpec = [{stream_management, true}
                  | escalus_users:get_options(Config, alice)],
     escalus:story(Config, [{alice, 1}], fun(_Alice) ->
+        {ok, C2SPid} = get_session_pid(AliceSpec, "res1"),
         assert_no_offline_msgs(),
-        assert_c2s_state(AliceSpec, session_established)
+        assert_c2s_state(C2SPid, session_established)
     end).
 
 wait_for_resumption(Config) ->
@@ -305,10 +306,10 @@ wait_for_resumption(Config) ->
                  | escalus_users:get_options(Config, alice)],
     Messages = [<<"msg-1">>, <<"msg-2">>, <<"msg-3">>],
     escalus:story(Config, [{bob, 1}], fun(Bob) ->
-        buffer_unacked_messages_and_die(AliceSpec, Bob, Messages),
+        {C2SPid, _} = buffer_unacked_messages_and_die(AliceSpec, Bob, Messages),
         %% Ensure the c2s process is waiting for resumption.
         assert_no_offline_msgs(),
-        assert_c2s_state(AliceSpec, resume_session)
+        assert_c2s_state(C2SPid, resume_session)
     end).
 
 resume_session(Config) ->
@@ -316,7 +317,7 @@ resume_session(Config) ->
                  | escalus_users:get_options(Config, alice)],
     Messages = [<<"msg-1">>, <<"msg-2">>, <<"msg-3">>],
     escalus:story(Config, [{bob, 1}], fun(Bob) ->
-        SMID = buffer_unacked_messages_and_die(AliceSpec, Bob, Messages)
+        {C2SPid, SMID} = buffer_unacked_messages_and_die(AliceSpec, Bob, Messages)
         %% Resume the session.
     end).
 
@@ -330,6 +331,9 @@ buffer_unacked_messages_and_die(AliceSpec, Bob, Messages) ->
     escalus_connection:send(Alice, escalus_stanza:presence(<<"available">>)),
     Presence = escalus_connection:get_stanza(Alice, presence),
     escalus:assert(is_presence, Presence),
+    {ok, C2SPid} = get_session_pid(AliceSpec, "escalus-default-resource"),
+    escalus_connection:send(Alice, escalus_stanza:presence(<<"available">>)),
+    _Presence = escalus_connection:get_stanza(Alice, presence),
     %% Bobs sends some messages to Alice.
     [escalus:send(Bob, escalus_stanza:chat_to(alice, Msg))
      || Msg <- Messages],
@@ -340,7 +344,7 @@ buffer_unacked_messages_and_die(AliceSpec, Bob, Messages) ->
      || {Msg, Stanza} <- lists:zip(Messages, Stanzas)],
     %% Alice's connection is violently terminated.
     kill_connection(Alice),
-    proplists:get_value(smid, Props).
+    {C2SPid, proplists:get_value(smid, Props)}.
 
 kill_connection(#transport{module = escalus_tcp, ssl = SSL,
                            socket = Socket} = Conn) ->
@@ -408,8 +412,7 @@ assert_no_offline_msgs() ->
                                    [offline_msg, wild_pattern]),
     0 = length(escalus_ejabberd:rpc(mnesia, dirty_match_object, [Pattern])).
 
-assert_c2s_state(UserSpec, StateName) ->
-    {ok, C2SPid} = get_session_pid(UserSpec),
+assert_c2s_state(C2SPid, StateName) when is_pid(C2SPid) ->
     SysStatus = escalus_ejabberd:rpc(sys, get_status, [C2SPid]),
     StateName = extract_state_name(SysStatus).
 
@@ -418,7 +421,7 @@ extract_state_name(SysStatus) ->
      [_, _, _, _, [_, {data, FSMData} | _]]} = SysStatus,
     proplists:get_value("StateName", FSMData).
 
-get_session_pid(UserSpec) ->
+get_session_pid(UserSpec, Resource) ->
     ConfigUS = [proplists:get_value(username, UserSpec),
                 proplists:get_value(server, UserSpec)],
     [U, S] = case string_type() of
@@ -427,7 +430,7 @@ get_session_pid(UserSpec) ->
                  binary ->
                      ConfigUS
              end,
-    MatchSpec = match_session_pid({U, S, "res1"}),
+    MatchSpec = match_session_pid({U, S, Resource}),
     case escalus_ejabberd:rpc(ets, select, [session, MatchSpec]) of
         [] ->
             {error, not_found};
