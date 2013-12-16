@@ -300,9 +300,9 @@ session_established(Config) ->
         assert_c2s_state(C2SPid, session_established)
     end).
 
+%% Ensure that after a violent disconnection,
+%% the c2s waits for resumption (but don't resume yet).
 wait_for_resumption(Config) ->
-    %% Ensure that after a violent disconnection,
-    %% the c2s waits for resumption (but don't resume yet).
     AliceSpec = [{stream_management, true}
                  | escalus_users:get_options(Config, alice)],
     Messages = [<<"msg-1">>, <<"msg-2">>, <<"msg-3">>],
