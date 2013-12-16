@@ -86,6 +86,7 @@ end_per_testcase(server_requests_ack = CaseName, Config) ->
     escalus:end_per_testcase(CaseName, NewConfig);
 end_per_testcase(wait_for_resumption = CaseName, Config) ->
     discard_offline_messages(Config, alice),
+    clear_session_table(),
     escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
@@ -484,3 +485,6 @@ session() ->
     set(erlang:make_tuple(6, '_'), [{1, session}]).
 
 %% End of copy'n'paste from github.com/lavrin/ejabberd-trace
+
+clear_session_table() ->
+    escalus_ejabberd:rpc(mnesia, clear_table, [session]).
