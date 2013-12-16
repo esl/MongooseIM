@@ -318,9 +318,29 @@ resume_session(Config) ->
                  | escalus_users:get_options(Config, alice)],
     Messages = [<<"msg-1">>, <<"msg-2">>, <<"msg-3">>],
     escalus:story(Config, [{bob, 1}], fun(Bob) ->
-        {C2SPid, SMID} = buffer_unacked_messages_and_die(AliceSpec, Bob, Messages)
+        {C2SPid, SMID} = buffer_unacked_messages_and_die(AliceSpec, Bob, Messages),
         %% Resume the session.
+        Steps = [start_stream,
+                 authenticate,
+                 mk_resume_stream(SMID, 0)],
+        {ok, Alice, _, _} = escalus_connection:start(AliceSpec, Steps),
+        %% Alice receives the unacked messages from the previous
+        %% interrupted session.
+        Stanzas = [escalus_connection:get_stanza(Alice, {msg, I})
+                   || I <- lists:seq(1, 3)],
+        [escalus:assert(is_chat_message, [Msg], Stanza)
+         || {Msg, Stanza} <- lists:zip(Messages, Stanzas)],
+        %% Alice acks the received messages.
+        escalus_connection:send(Alice, escalus_stanza:sm_ack(3))
     end).
+
+mk_resume_stream(SMID, PrevH) ->
+    fun (Conn, Props, Features) ->
+            escalus_connection:send(Conn, escalus_stanza:resume(SMID, PrevH)),
+            Resumed = escalus_connection:get_stanza(Conn, get_resumed),
+            true = escalus_pred:is_resumed(SMID, Resumed),
+            {Conn, [{smid, SMID} | Props], Features}
+    end.
 
 buffer_unacked_messages_and_die(AliceSpec, Bob, Messages) ->
     Steps = [start_stream,
