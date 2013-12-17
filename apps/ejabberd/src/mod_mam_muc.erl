@@ -486,7 +486,6 @@ handle_lookup_messages(
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
     QueryID = xml:get_tag_attr_s(<<"queryid">>, QueryEl),
-    wait_flushing(Host, ArcID, ArcJID),
     %% Filtering by date.
     %% Start :: integer() | undefined
     Start = elem_to_start_microseconds(QueryEl),
@@ -498,6 +497,7 @@ handle_lookup_messages(
     PageSize = min(max_result_limit(),
                    maybe_integer(Limit, default_result_limit())),
     LimitPassed = Limit =/= <<>>,
+    wait_flushing_before(Host, ArcID, ArcJID, End, Now),
     case lookup_messages(Host, ArcID, ArcJID, RSM, Start, End, Now, With,
                          PageSize, LimitPassed, max_result_limit()) of
     {error, 'policy-violation'} ->
@@ -528,13 +528,13 @@ handle_purge_multiple_messages(ArcJID=#jid{},
     Now = mod_mam_utils:now_to_microseconds(now()),
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
-    wait_flushing(Host, ArcID, ArcJID),
     %% Filtering by date.
     %% Start :: integer() | undefined
     Start = elem_to_start_microseconds(PurgeEl),
     End   = elem_to_end_microseconds(PurgeEl),
     %% Filtering by contact.
     With  = elem_to_with_jid(PurgeEl),
+    wait_flushing_before(Host, ArcID, ArcJID, End, Now),
     purge_multiple_messages(Host, ArcID, ArcJID, Start, End, Now, With),
     return_purge_success(IQ).
 
@@ -543,9 +543,10 @@ handle_purge_single_message(ArcJID=#jid{},
     Now = mod_mam_utils:now_to_microseconds(now()),
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
-    wait_flushing(Host, ArcID, ArcJID),
     BExtMessID = xml:get_tag_attr_s(<<"id">>, PurgeEl),
     MessID = mod_mam_utils:external_binary_to_mess_id(BExtMessID),
+    {Microseconds, _NodeMessID} = decode_compact_uuid(MessID),
+    wait_flushing_before(Host, ArcID, ArcJID, Microseconds, Now),
     PurgingResult = purge_single_message(Host, MessID, ArcID, ArcJID, Now),
     return_purge_single_message_iq(IQ, PurgingResult).
 
@@ -594,13 +595,13 @@ get_prefs(Host, ArcID, ArcJID, GlobalDefaultMode) ->
     Result.
 
 remove_archive(Host, ArcID, ArcJID=#jid{}) ->
-    wait_flushing(Host, ArcID, ArcJID),
     PM = prefs_module(Host),
     AM = archive_module(Host),
     UM = user_module(Host),
     PM:remove_archive(Host, ?MODULE, ArcID, ArcJID),
     AM:remove_archive(Host, ?MODULE, ArcID, ArcJID),
     UM:remove_archive(Host, ?MODULE, ArcID, ArcJID),
+    catch wait_flushing(Host, ArcID, ArcJID),
     ejabberd_hooks:run(mam_muc_remove_archive, Host,
         [Host, ?MODULE, ArcID, ArcJID]),
     ok.
@@ -682,6 +683,21 @@ purge_multiple_messages(Host, ArcID, ArcJID, Start, End, Now, WithJID) ->
 wait_flushing(Host, ArcID, ArcJID) ->
     M = writer_module(Host),
     M:wait_flushing(Host, ?MODULE, ArcID, ArcJID).
+
+wait_flushing_before(Host, ArcID, ArcJID, End, Now) ->
+    case is_recent_entries_required(End, Now) of
+        true ->
+            wait_flushing(Host, ArcID, ArcJID);
+        false ->
+            ok
+    end.
+
+%% @doc Returns true, if `End' is too old.
+is_recent_entries_required(End, Now) when is_integer(End) ->
+    %% If `End' is older than 10 seconds?
+    End + 10000000 < Now;
+is_recent_entries_required(_End, _Now) ->
+    true.
 
 wait_shaper(Host, Action, From) ->
     case shaper_srv:wait(Host, action_to_shaper_name(Action), From, 1) of

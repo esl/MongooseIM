@@ -611,13 +611,13 @@ get_prefs(Host, ArcID, ArcJID, GlobalDefaultMode) ->
     Result.
 
 remove_archive(Host, ArcID, ArcJID=#jid{}) ->
-    wait_flushing(Host, ArcID, ArcJID),
     PM = prefs_module(Host),
     AM = archive_module(Host),
     UM = user_module(Host),
     PM:remove_archive(Host, ?MODULE, ArcID, ArcJID),
     AM:remove_archive(Host, ?MODULE, ArcID, ArcJID),
     UM:remove_archive(Host, ?MODULE, ArcID, ArcJID),
+    catch wait_flushing(Host, ArcID, ArcJID),
     ejabberd_hooks:run(mam_remove_archive, Host,
         [Host, ?MODULE, ArcID, ArcJID]),
     ok.
