@@ -5,6 +5,13 @@
 %%% @end
 %%%-------------------------------------------------------------------
 -module(mod_mam_odbc_arch).
+%% Use few separate tables.
+%% Check `apps/ejabberd/priv/mysql-part.sql' for schema.
+%%
+%% Hand made partitions do not work with `mod_mam_odbc_async_writer',
+%% but work with `mod_mam_odbc_async_pool_writer'.
+%%-define(HAND_MADE_PARTITIONS, true).
+
 -export([archive_size/4,
          wait_flushing/4,
          archive_message/9,
@@ -41,6 +48,17 @@
 -type server_hostname() :: binary().
 -type server_host() :: binary().
 -type unix_timestamp() :: non_neg_integer().
+
+-ifdef(HAND_MADE_PARTITIONS).
+select_table(N) ->
+    io_lib:format("mam_message_~2..0B", [N rem partition_count()]).
+
+partition_count() ->
+    16.
+-else.
+select_table(_) ->
+    "mam_message".
+-endif.
 
 encode_direction(incoming) -> "I";
 encode_direction(outgoing) -> "O".
@@ -80,17 +98,18 @@ archive_message(Host, _Mod, MessID, UserID,
     EscFormat = ejabberd_odbc:escape_format(Host),
     SData = ejabberd_odbc:escape_binary(EscFormat, Data),
     SMessID = integer_to_list(MessID),
-    write_message(Host, SMessID, SUserID, SBareRemJID,
+    Table = select_table(UserID),
+    write_message(Host, Table, SMessID, SUserID, SBareRemJID,
                   SRemLResource, SDir, SSrcJID, SData).
 
-write_message(Host, SMessID, SUserID, SBareRemJID,
+write_message(Host, Table, SMessID, SUserID, SBareRemJID,
               SRemLResource, SDir, SSrcJID, SData) ->
     {updated, 1} =
     mod_mam_utils:success_sql_query(
       Host,
-      ["INSERT INTO mam_message(id, user_id, remote_bare_jid, "
-                                "remote_resource, direction, "
-                                "from_jid, message) "
+      ["INSERT INTO ", Table, " (id, user_id, remote_bare_jid, "
+                                 "remote_resource, direction, "
+                                 "from_jid, message) "
        "VALUES ('", SMessID, "', '", SUserID, "', '", SBareRemJID, "', "
                "'", SRemLResource, "', '", SDir, "', ",
                "'", SSrcJID, "', '", SData, "');"]),
@@ -118,6 +137,7 @@ archive_messages(LServer, Acc) ->
                                 "from_jid, message) "
        "VALUES ", tuples(Acc)]).
 
+%% @doc N is a group id (partition number).
 archive_messages(LServer, Acc, N) ->
     mod_mam_utils:success_sql_query(
       LServer,
@@ -482,6 +502,3 @@ tuples(Rows) ->
 
 tuple([H|T]) ->
     ["('", H, "'", [[", '", X, "'"] || X <- T], ")"].
-
-select_table(N) ->
-    io_lib:format("mam_message_~2..0B", [N rem 16]).
