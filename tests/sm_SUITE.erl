@@ -331,7 +331,8 @@ resume_session(Config) ->
         [escalus:assert(is_chat_message, [Msg], Stanza)
          || {Msg, Stanza} <- lists:zip(Messages, Stanzas)],
         %% Alice acks the received messages.
-        escalus_connection:send(Alice, escalus_stanza:sm_ack(3))
+        escalus_connection:send(Alice, escalus_stanza:sm_ack(3)),
+        escalus_connection:stop(Alice)
     end).
 
 mk_resume_stream(SMID, PrevH) ->
