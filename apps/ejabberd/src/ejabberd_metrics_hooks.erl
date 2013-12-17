@@ -41,6 +41,7 @@
          mam_archive_message/8,
          mam_flush_messages/3,
          mam_drop_message/1,
+         mam_drop_messages/2,
          mam_purge_single_message/7,
          mam_purge_multiple_messages/8,
          mam_muc_get_prefs/7,
@@ -80,6 +81,7 @@ get_hooks(Host) ->
      [mam_archive_message, Host, ?MODULE, mam_archive_message, 50],
      [mam_flush_messages, Host, ?MODULE, mam_flush_messages, 50],
      [mam_drop_message, Host, ?MODULE, mam_drop_message, 50],
+     [mam_drop_messages, Host, ?MODULE, mam_drop_messages, 50],
      [mam_remove_archive, Host, ?MODULE, mam_remove_archive, 50],
      [mam_lookup_messages, Host, ?MODULE, mam_lookup_messages, 50],
      [mam_purge_single_message, Host, ?MODULE, mam_purge_single_message, 50],
@@ -260,6 +262,9 @@ mam_flush_messages(Host, _Mod, MessageCount) ->
 
 mam_drop_message(Host) ->
     folsom_metrics:notify({Host, modMamDropped}, 1).
+
+mam_drop_messages(Host, Count) ->
+    folsom_metrics:notify({Host, modMamDropped2}, Count).
 
 mam_purge_single_message(Host, _Mod, _MessID, _ArcID, _ArcJID, _Now, _Result) ->
     folsom_metrics:notify({Host, modMamSinglePurges}, 1).

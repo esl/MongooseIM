@@ -139,14 +139,13 @@ archive_messages(LServer, Acc) ->
 
 %% @doc N is a group id (partition number).
 archive_messages(LServer, Acc, N) ->
-    mod_mam_utils:success_sql_query(
+    ejabberd_odbc:sql_query(
       LServer,
       ["INSERT IGNORE INTO ", select_table(N),
                              " (id, user_id, remote_bare_jid, "
                                 "remote_resource, direction, "
                                 "from_jid, message) "
        "VALUES ", tuples(Acc)]).
-
 
 -spec lookup_messages(Host, _Mod,
                       UserID, UserJID, RSM, Start, End, Now, WithJID,

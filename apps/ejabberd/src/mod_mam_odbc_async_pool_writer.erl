@@ -147,6 +147,7 @@ run_flush(State=#state{mod=Mod,host=Host, conn=Conn, number=N,
     case Result of
         {updated, _Count} -> ok;
         {error, Reason} ->
+            ejabberd_hooks:run(mam_drop_messages, Host, [Host, MessageCount]),
             ?ERROR_MSG("archive_message query failed with reason ~p", [Reason]),
             ok
     end,
