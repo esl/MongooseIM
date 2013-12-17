@@ -15,7 +15,8 @@
 
 %% Called from mod_mam_odbc_async_writer
 -export([prepare_message/8,
-         archive_messages/2]).
+         archive_messages/2,
+         archive_messages/3]).
 
 %% UID
 -import(mod_mam_utils,
@@ -49,7 +50,7 @@ archive_size(Host, _Mod, UserID, _UserJID) ->
     mod_mam_utils:success_sql_query(
       Host,
       ["SELECT COUNT(*) "
-       "FROM mam_message "
+       "FROM ", select_table(UserID), " ",
        "USE INDEX(i_mam_message_uid, i_mam_message_rem) "
        "WHERE user_id = '", escape_user_id(UserID), "'"]),
     list_to_integer(binary_to_list(BSize)).
@@ -108,6 +109,15 @@ archive_messages(LServer, Acc) ->
                                 "from_jid, message) "
        "VALUES ", tuples(Acc)]).
 
+archive_messages(LServer, Acc, N) ->
+    mod_mam_utils:success_sql_query(
+      LServer,
+      ["INSERT IGNORE INTO ", select_table(N),
+                             " (id, user_id, remote_bare_jid, "
+                                "remote_resource, direction, "
+                                "from_jid, message) "
+       "VALUES ", tuples(Acc)]).
+
 
 -spec lookup_messages(Host, _Mod,
                       UserID, UserJID, RSM, Start, End, Now, WithJID,
@@ -133,8 +143,8 @@ lookup_messages(Host, _Mod, UserID, UserJID = #jid{},
                 RSM = #rsm_in{direction = aft, id = ID}, Start, End, _Now, WithJID,
                 PageSize, LimitPassed, MaxResultLimit) ->
     Filter = prepare_filter(UserID, UserJID, Start, End, WithJID),
-    TotalCount = calc_count(Host, Filter),
-    Offset     = calc_offset(Host, Filter, PageSize, TotalCount, RSM),
+    TotalCount = calc_count(Host, UserID, Filter),
+    Offset     = calc_offset(Host, UserID, Filter, PageSize, TotalCount, RSM),
     %% If a query returns a number of stanzas greater than this limit and the
     %% client did not specify a limit using RSM then the server should return
     %% a policy-violation error to the client. 
@@ -143,7 +153,7 @@ lookup_messages(Host, _Mod, UserID, UserJID = #jid{},
             {error, 'policy-violation'};
 
         false ->
-            MessageRows = extract_messages(Host, after_id(ID, Filter), 0, PageSize, false),
+            MessageRows = extract_messages(Host, UserID, after_id(ID, Filter), 0, PageSize, false),
             {ok, {TotalCount, Offset, rows_to_uniform_format(Host, UserJID, MessageRows)}}
     end;
 
@@ -151,8 +161,8 @@ lookup_messages(Host, _Mod, UserID, UserJID = #jid{},
                 RSM = #rsm_in{direction = before, id = ID}, Start, End, _Now, WithJID,
                 PageSize, LimitPassed, MaxResultLimit) ->
     Filter = prepare_filter(UserID, UserJID, Start, End, WithJID),
-    TotalCount = calc_count(Host, Filter),
-    Offset     = calc_offset(Host, Filter, PageSize, TotalCount, RSM),
+    TotalCount = calc_count(Host, UserID, Filter),
+    Offset     = calc_offset(Host, UserID, Filter, PageSize, TotalCount, RSM),
     %% If a query returns a number of stanzas greater than this limit and the
     %% client did not specify a limit using RSM then the server should return
     %% a policy-violation error to the client. 
@@ -161,7 +171,7 @@ lookup_messages(Host, _Mod, UserID, UserJID = #jid{},
             {error, 'policy-violation'};
 
         false ->
-            MessageRows = extract_messages(Host, before_id(ID, Filter), 0, PageSize, true),
+            MessageRows = extract_messages(Host, UserID, before_id(ID, Filter), 0, PageSize, true),
             {ok, {TotalCount, Offset, rows_to_uniform_format(Host, UserJID, MessageRows)}}
     end;
 
@@ -169,8 +179,8 @@ lookup_messages(Host, _Mod, UserID, UserJID = #jid{},
                 RSM, Start, End, _Now, WithJID,
                 PageSize, LimitPassed, MaxResultLimit) ->
     Filter = prepare_filter(UserID, UserJID, Start, End, WithJID),
-    TotalCount = calc_count(Host, Filter),
-    Offset     = calc_offset(Host, Filter, PageSize, TotalCount, RSM),
+    TotalCount = calc_count(Host, UserID, Filter),
+    Offset     = calc_offset(Host, UserID, Filter, PageSize, TotalCount, RSM),
     %% If a query returns a number of stanzas greater than this limit and the
     %% client did not specify a limit using RSM then the server should return
     %% a policy-violation error to the client. 
@@ -179,7 +189,7 @@ lookup_messages(Host, _Mod, UserID, UserJID = #jid{},
             {error, 'policy-violation'};
 
         false ->
-            MessageRows = extract_messages(Host, Filter, Offset, PageSize, false),
+            MessageRows = extract_messages(Host, UserID, Filter, Offset, PageSize, false),
             {ok, {TotalCount, Offset, rows_to_uniform_format(Host, UserJID, MessageRows)}}
     end.
 
@@ -209,7 +219,7 @@ remove_archive(Host, _Mod, UserID, _UserJID) ->
     {updated, _} =
     mod_mam_utils:success_sql_query(
       Host,
-      ["DELETE FROM mam_message "
+      ["DELETE FROM ", select_table(UserID), " "
        "WHERE user_id = '", escape_user_id(UserID), "'"]),
     ok.
 
@@ -225,7 +235,7 @@ purge_single_message(Host, _Mod, MessID, UserID, _UserJID, _Now) ->
     Result =
     mod_mam_utils:success_sql_query(
       Host,
-      ["DELETE FROM mam_message "
+      ["DELETE FROM ", select_table(UserID), " "
        "WHERE user_id = '", escape_user_id(UserID), "' "
        "AND id = '", escape_message_id(MessID), "'"]),
     case Result of
@@ -250,13 +260,13 @@ purge_multiple_messages(Host, _Mod, UserID, UserJID,
     {updated, _} =
     mod_mam_utils:success_sql_query(
       Host,
-      ["DELETE FROM mam_message ", Filter]),
+      ["DELETE FROM ", select_table(UserID), " ", Filter]),
     ok.
 
 %% Each record is a tuple of form 
 %% `{<<"13663125233">>,<<"bob@localhost">>,<<"res1">>,<<binary>>}'.
 %% Columns are `["id","from_jid","message"]'.
--spec extract_messages(Host, Filter, IOffset, IMax, ReverseLimit) ->
+-spec extract_messages(Host, _UserID, Filter, IOffset, IMax, ReverseLimit) ->
     [Record] when
     Host :: server_hostname(),
     Filter  :: filter(),
@@ -264,14 +274,14 @@ purge_multiple_messages(Host, _Mod, UserID, UserJID,
     IMax    :: pos_integer(),
     ReverseLimit :: boolean(),
     Record :: tuple().
-extract_messages(_Host, _Filter, _IOffset, 0, _) ->
+extract_messages(_Host, _UserID, _Filter, _IOffset, 0, _) ->
     [];
-extract_messages(Host, Filter, IOffset, IMax, false) ->
+extract_messages(Host, UserID, Filter, IOffset, IMax, false) ->
     {selected, _ColumnNames, MessageRows} =
     mod_mam_utils:success_sql_query(
       Host,
       ["SELECT id, from_jid, message "
-       "FROM mam_message ",
+       "FROM ", select_table(UserID), " ",
         Filter,
        " ORDER BY id"
        " LIMIT ", integer_to_list(IMax),
@@ -281,12 +291,12 @@ extract_messages(Host, Filter, IOffset, IMax, false) ->
          end]),
     ?DEBUG("extract_messages query returns ~p", [MessageRows]),
     MessageRows;
-extract_messages(Host, Filter, IOffset, IMax, true) ->
+extract_messages(Host, UserID, Filter, IOffset, IMax, true) ->
     {selected, _ColumnNames, MessageRows} =
     mod_mam_utils:success_sql_query(
       Host,
       ["SELECT id, from_jid, message "
-       "FROM mam_message ",
+       "FROM ", select_table(UserID), " ",
         Filter,
        " ORDER BY id DESC"
        " LIMIT ", integer_to_list(IMax),
@@ -303,17 +313,17 @@ extract_messages(Host, Filter, IOffset, IMax, true) ->
 %% be returned instead.
 %% @end
 %% "SELECT COUNT(*) as "index" FROM mam_message WHERE id <= '",  UID
--spec calc_index(Host, Filter, SUID) -> Count
+-spec calc_index(Host, _UserID, Filter, SUID) -> Count
     when
     Host  :: server_hostname(),
     Filter   :: filter(),
     SUID     :: escaped_message_id(),
     Count    :: non_neg_integer().
-calc_index(Host, Filter, SUID) ->
+calc_index(Host, UserID, Filter, SUID) ->
     {selected, _ColumnNames, [{BIndex}]} =
     mod_mam_utils:success_sql_query(
       Host,
-      ["SELECT COUNT(*) FROM mam_message "
+      ["SELECT COUNT(*) FROM ", select_table(UserID), " ",
        "USE INDEX(i_mam_message_uid, i_mam_message_rem) ",
        Filter, " AND id <= '", SUID, "'"]),
     list_to_integer(binary_to_list(BIndex)).
@@ -323,17 +333,17 @@ calc_index(Host, Filter, SUID) ->
 %% The element with the passed UID can be already deleted.
 %% @end
 %% "SELECT COUNT(*) as "count" FROM mam_message WHERE id < '",  UID
--spec calc_before(Host, Filter, SUID) -> Count
+-spec calc_before(Host, _UserID, Filter, SUID) -> Count
     when
     Host  :: server_hostname(),
     Filter   :: filter(),
     SUID     :: escaped_message_id(),
     Count    :: non_neg_integer().
-calc_before(Host, Filter, SUID) ->
+calc_before(Host, UserID, Filter, SUID) ->
     {selected, _ColumnNames, [{BIndex}]} =
     mod_mam_utils:success_sql_query(
       Host,
-      ["SELECT COUNT(*) FROM mam_message "
+      ["SELECT COUNT(*) FROM ", select_table(UserID), " ",
        "USE INDEX(i_mam_message_uid, i_mam_message_rem) ",
        Filter, " AND id < '", SUID, "'"]),
     list_to_integer(binary_to_list(BIndex)).
@@ -341,16 +351,16 @@ calc_before(Host, Filter, SUID) ->
 
 %% @doc Get the total result set size.
 %% "SELECT COUNT(*) as "count" FROM mam_message WHERE "
--spec calc_count(Host, Filter) -> Count
+-spec calc_count(Host, _UserID, Filter) -> Count
     when
     Host  :: server_hostname(),
     Filter   :: filter(),
     Count    :: non_neg_integer().
-calc_count(Host, Filter) ->
+calc_count(Host, UserID, Filter) ->
     {selected, _ColumnNames, [{BCount}]} =
     mod_mam_utils:success_sql_query(
       Host,
-      ["SELECT COUNT(*) FROM mam_message "
+      ["SELECT COUNT(*) FROM ", select_table(UserID), " ",
        "USE INDEX(i_mam_message_uid, i_mam_message_rem) ",
        Filter]),
     list_to_integer(binary_to_list(BCount)).
@@ -409,7 +419,7 @@ prepare_filter_sql(UserID, IStart, IEnd, SWithJID, SWithResource) ->
 %%    direction = before | aft | undefined,
 %%    id = binary() | undefined,
 %%    index = non_neg_integer() | undefined}
--spec calc_offset(Host, Filter, PageSize, TotalCount, RSM) -> Offset
+-spec calc_offset(Host, _UserID, Filter, PageSize, TotalCount, RSM) -> Offset
     when
     Host  :: server_hostname(),
     Filter   :: filter(),
@@ -417,21 +427,21 @@ prepare_filter_sql(UserID, IStart, IEnd, SWithJID, SWithResource) ->
     TotalCount :: non_neg_integer(),
     RSM      :: #rsm_in{} | undefined,
     Offset   :: non_neg_integer().
-calc_offset(_LS, _F, _PS, _TC, #rsm_in{direction = undefined, index = Index})
+calc_offset(_LS, _UserID, _F, _PS, _TC, #rsm_in{direction = undefined, index = Index})
     when is_integer(Index) ->
     Index;
 %% Requesting the Last Page in a Result Set
-calc_offset(_LS, _F, PS, TC, #rsm_in{direction = before, id = undefined}) ->
+calc_offset(_LS, _UserID, _F, PS, TC, #rsm_in{direction = before, id = undefined}) ->
     max(0, TC - PS);
-calc_offset(Host, F, PS, _TC, #rsm_in{direction = before, id = ID})
+calc_offset(Host, UserID, F, PS, _TC, #rsm_in{direction = before, id = ID})
     when is_integer(ID) ->
     SID = escape_message_id(ID),
-    max(0, calc_before(Host, F, SID) - PS);
-calc_offset(Host, F, _PS, _TC, #rsm_in{direction = aft, id = ID})
+    max(0, calc_before(Host, UserID, F, SID) - PS);
+calc_offset(Host, UserID, F, _PS, _TC, #rsm_in{direction = aft, id = ID})
     when is_integer(ID) ->
     SID = escape_message_id(ID),
-    calc_index(Host, F, SID);
-calc_offset(_LS, _F, _PS, _TC, _RSM) ->
+    calc_index(Host, UserID, F, SID);
+calc_offset(_LS, _UserID, _F, _PS, _TC, _RSM) ->
     0.
 
 escape_message_id(MessID) when is_integer(MessID) ->
@@ -456,3 +466,5 @@ tuples(Rows) ->
 tuple([H|T]) ->
     ["('", H, "'", [[", '", X, "'"] || X <- T], ")"].
 
+select_table(N) ->
+    io_lib:format("mam_message_~2..0B", [N rem 16]).

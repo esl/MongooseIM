@@ -8,7 +8,7 @@
 %% Backend's callbacks
 -export([start/2,
          stop/2,
-         start_link/3,
+         start_link/4,
          archive_message/9,
          wait_flushing/4]).
 
@@ -30,6 +30,7 @@
     mod,
     host,
     conn,
+    number,
     acc=[],
     subscribers=[],
     flush_interval_tref}).
@@ -41,7 +42,7 @@ worker_count(_Host) ->
     32.
 
 worker_names(Host) ->
-    [worker_name(Host, N) || N <- lists:seq(0, worker_count(Host) - 1)].
+    [{N, worker_name(Host, N)} || N <- lists:seq(0, worker_count(Host) - 1)].
 
 worker_name(Host, N) ->
     list_to_atom(worker_prefix() ++ "_" ++ binary_to_list(Host) ++ "_" ++ integer_to_list(N)).
@@ -58,15 +59,16 @@ worker_number(Host, ArcID) ->
 %%====================================================================
 
 start(Host, Mod) ->
-    [start_worker(WriterProc, Host, Mod) ||  WriterProc <- worker_names(Host)].
+    [start_worker(WriterProc, N, Host, Mod)
+     || {N, WriterProc} <- worker_names(Host)].
 
 stop(Host, _Mod) ->
-    [stop_worker(WriterProc) ||  WriterProc <- worker_names(Host)].
+    [stop_worker(WriterProc) ||  {_, WriterProc} <- worker_names(Host)].
 
-start_worker(WriterProc, Host, Mod) ->
+start_worker(WriterProc, N, Host, Mod) ->
     WriterChildSpec =
     {WriterProc,
-     {mod_mam_odbc_async_pool_writer, start_link, [WriterProc, Host, Mod]},
+     {mod_mam_odbc_async_pool_writer, start_link, [WriterProc, N, Host, Mod]},
      permanent,
      5000,
      worker,
@@ -78,8 +80,8 @@ stop_worker(Proc) ->
     supervisor:delete_child(ejabberd_sup, Proc).
 
 
-start_link(ProcName, Host, Mod) ->
-    gen_server:start_link({local, ProcName}, ?MODULE, [Host, Mod], []).
+start_link(ProcName, N, Host, Mod) ->
+    gen_server:start_link({local, ProcName}, ?MODULE, [Host, Mod, N], []).
 
 archive_message(Host, _Mod,
         MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet) ->
@@ -109,7 +111,7 @@ queue_length(Host) ->
     {ok, Len}.
 
 queue_lengths(Host) ->
-    [worker_queue_length(SrvName) || SrvName <- worker_names(Host)].
+    [worker_queue_length(SrvName) || {_, SrvName} <- worker_names(Host)].
 
 worker_queue_length(SrvName) ->
     case whereis(SrvName) of
@@ -129,12 +131,12 @@ wait_flushing(Host, _Mod, ArcID, _ArcJID) ->
 
 run_flush(State=#state{acc=[]}) ->
     State;
-run_flush(State=#state{mod=Mod,host=Host, conn=Conn,
+run_flush(State=#state{mod=Mod,host=Host, conn=Conn, number=N,
                        flush_interval_tref=TRef, acc=Acc, subscribers=Subs}) ->
     MessageCount = length(Acc),
     cancel_and_flush_timer(TRef),
     ?DEBUG("Flushed ~p entries.", [MessageCount]),
-    Result = mod_mam_odbc_arch:archive_messages(Conn, Acc),
+    Result = mod_mam_odbc_arch:archive_messages(Conn, Acc, N),
     case Result of
         {updated, _Count} -> ok;
         {error, Reason} ->
@@ -172,10 +174,10 @@ cancel_and_flush_timer(TRef) ->
 %%                         {stop, Reason}
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
-init([Host, Mod]) ->
+init([Host, Mod, N]) ->
     %% Use a private ODBC-connection.
     {ok, Conn} = ejabberd_odbc:get_dedicated_connection(Host),
-    {ok, #state{host=Host, conn=Conn, mod=Mod}}.
+    {ok, #state{host=Host, conn=Conn, mod=Mod, number=N}}.
 
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
