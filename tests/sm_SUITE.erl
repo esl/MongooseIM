@@ -322,7 +322,7 @@ resume_session(Config) ->
         %% Resume the session.
         Steps = [start_stream,
                  authenticate,
-                 mk_resume_stream(SMID, 0)],
+                 mk_resume_stream(SMID, 2)],
         {ok, Alice, _, _} = escalus_connection:start(AliceSpec, Steps),
         %% Alice receives the unacked messages from the previous
         %% interrupted session.
