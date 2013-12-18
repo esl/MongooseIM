@@ -85,6 +85,14 @@ index_hint_sql(Host) ->
             ""
     end.
 
+insert_ignore(Host) ->
+    case ejabberd_odbc:db_engine(Host) of
+        mysql ->
+            "IGNORE ";
+        _ ->
+            ""
+    end.
+
 archive_message(Host, _Mod, MessID, UserID,
                 LocJID=#jid{},
                 RemJID=#jid{lresource=RemLResource},
@@ -141,7 +149,7 @@ archive_messages(LServer, Acc) ->
 archive_messages(LServer, Acc, N) ->
     ejabberd_odbc:sql_query(
       LServer,
-      ["INSERT IGNORE INTO ", select_table(N),
+      ["INSERT ", insert_ignore(LServer), "INTO ", select_table(N),
                              " (id, user_id, remote_bare_jid, "
                                 "remote_resource, direction, "
                                 "from_jid, message) "
