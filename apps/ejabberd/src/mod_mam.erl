@@ -327,11 +327,23 @@ process_mam_iq(From=#jid{lserver=Host}, To, IQ) ->
         true  -> 
             case wait_shaper(Host, Action, From) of
                 ok ->
-                    handle_mam_iq(Action, From, To, IQ);
+                    try
+                        handle_mam_iq(Action, From, To, IQ)
+                    catch error:Reason ->
+                        ejabberd_hooks:run(mam_drop_iq, Host,
+                            [Host, To, IQ, Action, Reason]),
+                        lager:error("Action ~p failed ~p", [Action, Reason]),
+                        return_error_iq(IQ, Reason)
+                    end;
                 {error, max_delay_reached} ->
+                    ejabberd_hooks:run(mam_drop_iq, Host,
+                        [Host, To, IQ, Action, max_delay_reached]),
                     return_max_delay_reached_error_iq(IQ)
             end;
-        false -> return_action_not_allowed_error_iq(IQ)
+        false ->
+            ejabberd_hooks:run(mam_drop_iq, Host,
+                [Host, To, IQ, Action, action_not_allowed]),
+            return_action_not_allowed_error_iq(IQ)
     end.
 
 %% @doc Handle an outgoing message.
@@ -786,6 +798,11 @@ return_max_delay_reached_error_iq(IQ) ->
     ErrorEl = ?ERRT_RESOURCE_CONSTRAINT(
         <<"en">>, <<"The action is cancelled because of flooding.">>),
     IQ#iq{type = error, sub_el = [ErrorEl]}.
+
+return_error_iq(IQ, timeout) ->
+    IQ#iq{type = error, sub_el = [?ERR_SERVICE_UNAVAILABLE]};
+return_error_iq(IQ, _Reason) ->
+    IQ#iq{type = error, sub_el = [?ERR_INTERNAL_SERVER_ERROR]}.
 
 return_purge_single_message_iq(IQ, ok) ->
     return_purge_success(IQ);

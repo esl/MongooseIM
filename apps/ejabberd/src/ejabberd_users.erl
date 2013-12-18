@@ -105,7 +105,7 @@ init([Host]) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
-handle_call(wait_flushing, _From, State=#state{}) ->
+handle_call(_, _From, State=#state{}) ->
     {reply, ok, State}.
 
 %%--------------------------------------------------------------------
