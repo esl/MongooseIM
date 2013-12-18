@@ -27,6 +27,7 @@
 -record(state, {
     flush_interval=500,
     max_packet_size=30,
+    max_subscribers=100,
     mod,
     host,
     conn,
@@ -95,11 +96,12 @@ archive_message(Host, _Mod,
     Row = mod_mam_odbc_arch:prepare_message(Host,
         MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet),
     Worker = select_worker(Host, ArcID),
+    WorkerPid = whereis(Worker),
     %% Send synchronously if queue length is too long.
-    case erlang:process_info(whereis(Worker), message_queue_len) of
-       {message_queue_len, Len} when Len < 500 ->
+    case is_overloaded(WorkerPid) of
+       false ->
            gen_server:cast(Worker, {archive_message, Row});
-       {message_queue_len, _} ->
+       true ->
             {Pid, MonRef} = spawn_monitor(fun() ->
                gen_server:call(Worker, wait_flushing),
                gen_server:cast(Worker, {archive_message, Row})
@@ -111,6 +113,10 @@ archive_message(Host, _Mod,
                     {error, timeout}
             end
     end.
+
+is_overloaded(Pid) ->
+    {message_queue_len, Len} = erlang:process_info(Pid, message_queue_len),
+    Len < 500.
 
 %% For folsom.
 queue_length(Host) ->
@@ -198,8 +204,15 @@ init([Host, Mod, N]) ->
 %%--------------------------------------------------------------------
 handle_call(wait_flushing, _From, State=#state{acc=[]}) ->
     {reply, ok, State};
-handle_call(wait_flushing, From, State=#state{subscribers=Subs}) ->
-    {noreply, State#state{subscribers=[From|Subs]}}.
+handle_call(wait_flushing, From,
+            State=#state{max_subscribers=MaxSubs, subscribers=Subs}) ->
+    State2 = State#state{subscribers=[From|Subs]},
+    %% Run flusging earlier, if there are too much IQ requests waiting.
+    %% Write only full packets of messages in overloaded state.
+    case length(Subs) + 1 >= MaxSubs andalso not is_overloaded(self()) of
+        true -> {noreply, run_flush(State2)};
+        false -> {noreply, State2}
+    end.
 
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
