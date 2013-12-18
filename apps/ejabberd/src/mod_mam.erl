@@ -68,7 +68,7 @@
 -import(mod_mam_utils,
         [replace_archived_elem/3,
          get_one_of_path/2,
-         is_complete_message/1,
+         is_complete_message/3,
          wrap_message/5,
          result_set/4,
          result_query/1,
@@ -553,11 +553,11 @@ handle_package(Dir, ReturnMessID,
                LocJID=#jid{},
                RemJID=#jid{},
                SrcJID=#jid{}, Packet) ->
-    IsComplete = is_complete_message(Packet),
-    Host = server_host(LocJID),
-    ArcID = archive_id_int(Host, LocJID),
+    IsComplete = is_complete_message(?MODULE, Dir, Packet),
     case IsComplete of
         true ->
+        Host = server_host(LocJID),
+        ArcID = archive_id_int(Host, LocJID),
         IsInteresting =
         case get_behaviour(Host, ArcID, LocJID, RemJID, always) of
             always -> true;

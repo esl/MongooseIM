@@ -66,7 +66,7 @@
 -import(mod_mam_utils,
         [replace_archived_elem/3,
          get_one_of_path/2,
-         is_complete_message/1,
+         is_complete_message/3,
          wrap_message/5,
          result_set/4,
          result_query/1,
@@ -332,7 +332,7 @@ filter_room_packet(Packet, FromNick,
                    FromJID=#jid{},
                    RoomJID=#jid{}) ->
     ?DEBUG("Incoming room packet.", []),
-    IsComplete = is_complete_message(Packet),
+    IsComplete = is_complete_message(?MODULE, incoming, Packet),
     Host = server_host(RoomJID),
     ArcID = archive_id_int(Host, RoomJID),
     case IsComplete of

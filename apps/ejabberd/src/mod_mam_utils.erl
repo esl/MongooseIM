@@ -26,7 +26,7 @@
          delete_archived_elem/2,
          get_one_of_path/2,
          get_one_of_path/3,
-         is_complete_message/1,
+         is_complete_message/3,
          wrap_message/5,
          result_set/4,
          result_query/1,
@@ -49,6 +49,24 @@
 -export([send_message/3,
          is_jid_in_user_roster/2]).
 
+%-define(MAM_ARCHIVE_PRESENCE, true).
+%-define(MAM_INLINE_UTILS, true).
+
+-ifdef(MAM_INLINE_UTILS).
+-compile({inline, [
+        rsm_ns_binary/0,
+        mam_ns_binary/0,
+        now_to_microseconds/1,
+        iso8601_datetime_binary_to_timestamp/1,
+        is_archived_elem_for/2,
+        encode_compact_uuid/2,
+        get_one_of_path/3,
+        is_incoming_presence/3,
+        delay/2,
+        forwarded/3,
+        result/3,
+        valid_behavior/1]}).
+-endif.
 
 -include_lib("ejabberd/include/ejabberd.hrl").
 -include_lib("ejabberd/include/jlib.hrl").
@@ -169,7 +187,6 @@ append_archived_elem(By, Id, Packet) ->
 delete_archived_elem(By, Packet=#xmlel{children=Cs}) ->
     Packet#xmlel{children=[C || C <- Cs, not is_archived_elem_for(C, By)]}.
 
-
 get_one_of_path(Elem, List) ->
     get_one_of_path(Elem, List, <<>>).
 
@@ -187,8 +204,11 @@ get_one_of_path(_Elem, [], Def) ->
 %% Servers SHOULD NOT archive messages that do not have a `<body/>' child tag.
 %% Servers SHOULD NOT delayed messages.
 %% @end
--spec is_complete_message(Packet::#xmlel{}) -> boolean().
-is_complete_message(Packet=#xmlel{name = <<"message">>}) ->
+-spec is_complete_message(Mod, Dir, Packet) -> boolean() when
+    Mod :: module(),
+    Dir :: incoming | outgoing,
+    Packet :: #xmlel{}.
+is_complete_message(_, _, Packet=#xmlel{name = <<"message">>}) ->
     case xml:get_tag_attr_s(<<"type">>, Packet) of
     Type when Type == <<"">>;
               Type == <<"normal">>;
@@ -203,7 +223,20 @@ is_complete_message(Packet=#xmlel{name = <<"message">>}) ->
     %% Skip <<"error">> type
     _ -> false
     end;
-is_complete_message(_) -> false.
+is_complete_message(Mod, Dir, Packet) ->
+    is_incoming_presence(Mod, Dir, Packet).
+
+-ifdef(MAM_ARCHIVE_PRESENCE).
+
+is_incoming_presence(_, incoming, Packet=#xmlel{name = <<"presence">>}) ->
+    xml:get_subtag(Packet, <<"delay">>) == false;
+is_incoming_presence(_, _, _) -> false.
+
+-else.
+
+is_incoming_presence(_, _, _) -> false.
+
+-endif.
 
 
 %% @doc Forms `<forwarded/>' element, according to the XEP.
