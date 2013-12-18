@@ -318,7 +318,7 @@ resume_session(Config) ->
                  | escalus_users:get_options(Config, alice)],
     Messages = [<<"msg-1">>, <<"msg-2">>, <<"msg-3">>],
     escalus:story(Config, [{bob, 1}], fun(Bob) ->
-        {C2SPid, SMID} = buffer_unacked_messages_and_die(AliceSpec, Bob, Messages),
+        {_, SMID} = buffer_unacked_messages_and_die(AliceSpec, Bob, Messages),
         %% Resume the session.
         Steps = [start_stream,
                  authenticate,
