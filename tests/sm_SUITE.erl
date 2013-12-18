@@ -36,9 +36,9 @@ groups() ->
                                too_many_unacked_stanzas,
                                server_requests_ack]},
      {reconnection, [], [resend_unacked_on_reconnection]},
-     {resumption, [], [session_established,
-                       wait_for_resumption,
-                       resume_session]}].
+     {resumption, [shuffle, {repeat, 5}], [session_established,
+                                           wait_for_resumption,
+                                           resume_session]}].
 
 suite() ->
     escalus:suite().
