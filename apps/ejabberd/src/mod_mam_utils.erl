@@ -267,6 +267,7 @@ delay(DateTime, SrcJID) ->
 %% This element will be added in each forwarded message.
 %% @end
 result(QueryID, MessageUID, Children) when is_list(Children) ->
+    %% <result xmlns='urn:xmpp:mam:tmp' queryid='f27' id='28482-98726-73623' />
     #xmlel{
         name = <<"result">>,
         attrs = [{<<"queryid">>, QueryID} || QueryID =/= undefined, QueryID =/= <<>>] ++
@@ -286,7 +287,6 @@ result(QueryID, MessageUID, Children) when is_list(Children) ->
     CountI      :: non_neg_integer().
 result_set(FirstId, LastId, FirstIndexI, CountI)
     when ?MAYBE_BIN(FirstId), ?MAYBE_BIN(LastId) ->
-    %% <result xmlns='urn:xmpp:mam:tmp' queryid='f27' id='28482-98726-73623' />
     FirstEl = [#xmlel{name = <<"first">>,
                       attrs = [{<<"index">>, integer_to_binary(FirstIndexI)}],
                       children = [#xmlcdata{content = FirstId}]
