@@ -48,7 +48,8 @@
 %% ejabberd room handlers
 -export([filter_room_packet/4,
          room_process_mam_iq/3,
-         forget_room/2]).
+         forget_room/2,
+         invitation_sent/5]).
 
 %% ----------------------------------------------------------------------
 %% Imports
@@ -149,9 +150,11 @@ debug_info(Host) ->
     AM = archive_module(Host),
     WM = writer_module(Host),
     PM = prefs_module(Host),
+    IM = invitation_module(Host),
     [{archive_module, AM},
      {writer_module, WM},
-     {prefs_module, PM}].
+     {prefs_module, PM},
+     {invitation_module, IM}].
 
 
 new_iterator(ArcJID=#jid{}) ->
@@ -225,6 +228,7 @@ start(ServerHost, Opts) ->
     ejabberd_hooks:add(filter_room_packet, Host, ?MODULE,
                        filter_room_packet, 90),
     ejabberd_hooks:add(forget_room, Host, ?MODULE, forget_room, 90),
+    ejabberd_hooks:add(invitation_sent, Host, ?MODULE, invitation_sent, 90),
     ok.
 
 stop(ServerHost) ->
@@ -305,8 +309,9 @@ base_modules(Host) ->
     [prefs_module(Host),
      archive_module(Host),
      writer_module(Host),
-     user_module(Host)].
-
+     user_module(Host),
+     invitation_module(Host)].
+    
 prefs_module(Host) ->
     gen_mod:get_module_opt(Host, ?MODULE, prefs_module, mod_mam_odbc_prefs).
 
@@ -318,6 +323,9 @@ writer_module(Host) ->
 
 user_module(Host) ->
     gen_mod:get_module_opt(Host, ?MODULE, user_module, mod_mam_odbc_user).
+
+invitation_module(Host) ->
+    gen_mod:get_module_opt(Host, ?MODULE, invitation_module, mod_mam_muc_mnesia_dirty_invitation).
 
 %% ----------------------------------------------------------------------
 %% hooks and handlers for MUC
@@ -388,6 +396,9 @@ room_process_mam_iq(From=#jid{lserver=Host}, To, IQ) ->
 %% This hook is called from `mod_muc:forget_room(Host, Name)'.
 forget_room(LServer, RoomName) ->
     delete_archive(LServer, RoomName).
+
+invitation_sent(LServer, RoomJID, _FromJID, ToJID, _Reason) ->
+    save_invitation_time(LServer, RoomJID, ToJID).
 
 %% ----------------------------------------------------------------------
 %% Internal functions
@@ -490,6 +501,7 @@ handle_lookup_messages(
     %% Start :: integer() | undefined
     Start = elem_to_start_microseconds(QueryEl),
     End   = elem_to_end_microseconds(QueryEl),
+    Start1 = apply_skip_before_invitation(Host, ArcID, ArcJID, From, Start),
     %% Filtering by contact.
     With  = elem_to_with_jid(QueryEl),
     RSM   = fix_rsm(jlib:rsm_decode(QueryEl)),
@@ -498,7 +510,7 @@ handle_lookup_messages(
                    maybe_integer(Limit, default_result_limit())),
     LimitPassed = Limit =/= <<>>,
     wait_flushing_before(Host, ArcID, ArcJID, End, Now),
-    case lookup_messages(Host, ArcID, ArcJID, RSM, Start, End, Now, With,
+    case lookup_messages(Host, ArcID, ArcJID, RSM, Start1, End, Now, With,
                          PageSize, LimitPassed, max_result_limit()) of
     {error, 'policy-violation'} ->
         ?DEBUG("Policy violation by ~p.", [jlib:jid_to_binary(From)]),
@@ -598,6 +610,8 @@ remove_archive(Host, ArcID, ArcJID=#jid{}) ->
     PM = prefs_module(Host),
     AM = archive_module(Host),
     UM = user_module(Host),
+    IM = invitation_module(Host),
+    IM:remove_archive(Host, ?MODULE, ArcID, ArcJID),
     PM:remove_archive(Host, ?MODULE, ArcID, ArcJID),
     AM:remove_archive(Host, ?MODULE, ArcID, ArcJID),
     UM:remove_archive(Host, ?MODULE, ArcID, ArcJID),
@@ -708,6 +722,39 @@ wait_shaper(Host, Action, From) ->
     end.
 
 %% ----------------------------------------------------------------------
+%% Invitations
+
+skip_before_invitation(Host) ->
+    gen_mod:get_module_opt(Host, ?MODULE, skip_before_invitation, false).
+
+apply_skip_before_invitation(Host, ArcID, ArcJID, FromJID, Start) ->
+    case skip_before_invitation(Host) of
+        true ->
+            %% Get history since invitation.
+            %% Ignore all messages before.
+            InviteTime = invitation_sent_timestamp(Host, ArcID, ArcJID, FromJID),
+            maybe_max(InviteTime, Start);
+        false ->
+            Start
+    end.
+
+%% @doc Save invitation time if it is not stored already.
+save_invitation_time(Host, ArcJID, UserJID) ->
+    ArcID = archive_id_int(Host, ArcJID),
+    IM = invitation_module(Host),
+    IM:save_invitation_time(Host, ?MODULE, ArcID, ArcJID, UserJID).
+
+-spec invitation_sent_timestamp(Host, ArcID, ArcJID, UserJID) -> InviteTime when
+    Host   :: server_host(),
+    ArcID  :: archive_id(),
+    ArcJID :: jid(),
+    UserJID :: jid(),
+    InviteTime :: unix_timestamp() | undefined.
+invitation_sent_timestamp(Host, ArcID, ArcJID, UserJID) ->
+    IM = invitation_module(Host),
+    IM:invitation_sent_timestamp(Host, ?MODULE, ArcID, ArcJID, UserJID).
+
+%% ----------------------------------------------------------------------
 %% Helpers
 
 message_row_to_xml({MessID,SrcJID,Packet}, QueryID) ->
@@ -726,6 +773,13 @@ maybe_jid(<<>>) ->
     undefined;
 maybe_jid(JID) when is_binary(JID) ->
     jlib:binary_to_jid(JID).
+
+maybe_max(undefined, Y) ->
+    Y;
+maybe_max(X, undefined) ->
+    X;
+maybe_max(X, Y) ->
+    max(X, Y).
 
 
 %% @doc Convert id into internal format.
