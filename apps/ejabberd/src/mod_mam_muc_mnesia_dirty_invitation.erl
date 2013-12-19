@@ -9,6 +9,7 @@
 %%%-------------------------------------------------------------------
 -module(mod_mam_muc_mnesia_dirty_invitation).
 -export([start/2,
+         remove_archive/4,
          save_invitation_time/5,
          invitation_sent_timestamp/5]).
 
@@ -21,18 +22,11 @@
 start(_Host, _Mod) ->
     mnesia:create_table(mam_invitation,
             [{disc_copies, [node()]},
-             {attributes, record_info(fields, mam_invitation)}]),
+             {attributes, record_info(fields, mam_invitation)},
+             {type, ordered_set}]),
     ok.
 
 save_invitation_time(_Host, _Mod, ArcID, ArcJID, UserJID) ->
-    Key = room_user(ArcID, ArcJID, UserJID),
-    case mnesia:dirty_read(mam_invitation, Key) of
-        [] -> undefined;
-        [#mam_invitation{invitation_time=InvitationTime}] -> InvitationTime
-    end.
-
-
-invitation_sent_timestamp(_Host, _Mod, ArcID, ArcJID, UserJID) ->
     Key = room_user(ArcID, ArcJID, UserJID),
     Invitation = #mam_invitation{
             room_user=Key,
@@ -46,6 +40,13 @@ invitation_sent_timestamp(_Host, _Mod, ArcID, ArcJID, UserJID) ->
             end
         end).
 
+invitation_sent_timestamp(_Host, _Mod, ArcID, ArcJID, UserJID) ->
+    Key = room_user(ArcID, ArcJID, UserJID),
+    case mnesia:dirty_read(mam_invitation, Key) of
+        [] -> undefined;
+        [#mam_invitation{invitation_time=InvitationTime}] -> InvitationTime
+    end.
+
 remove_archive(_Host, _Mod, ArcID, _ArcJID) ->
     mnesia:sync_dirty(fun() ->
             delete_local_participants(ArcID, {ArcID, x}),
@@ -57,7 +58,7 @@ delete_local_participants(ArcID, PrevKey) ->
         '$end_of_table' ->
             ok;
         {ArcID, _} = Key ->
-            mnesia:delete(mam_invitation, Key),
+            mnesia:delete(mam_invitation, Key, write),
             delete_local_participants(ArcID, Key);
         _ ->
             ok
@@ -68,7 +69,7 @@ delete_remote_participants(ArcID, PrevKey) ->
         '$end_of_table' ->
             ok;
         {ArcID, _, _} = Key ->
-            mnesia:delete(mam_invitation, Key),
+            mnesia:delete(mam_invitation, Key, write),
             delete_remote_participants(ArcID, Key);
         _ ->
             ok

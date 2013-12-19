@@ -215,7 +215,7 @@ is_complete_message(_, _, Packet=#xmlel{name = <<"message">>}) ->
               Type == <<"chat">>;
               Type == <<"groupchat">> ->
         case {xml:get_subtag(Packet, <<"body">>),
-              xml:get_subtag(Packet, <<"delay">>)} of
+              xml:get_subtag(Packet, <<"result">>)} of
             {false, _} -> false;
             {_, false} -> true;
             {_,     _} -> false

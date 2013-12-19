@@ -49,7 +49,7 @@
 -export([filter_room_packet/4,
          room_process_mam_iq/3,
          forget_room/2,
-         invitation_sent/5]).
+         invitation_sent/6]).
 
 %% ----------------------------------------------------------------------
 %% Imports
@@ -228,7 +228,13 @@ start(ServerHost, Opts) ->
     ejabberd_hooks:add(filter_room_packet, Host, ?MODULE,
                        filter_room_packet, 90),
     ejabberd_hooks:add(forget_room, Host, ?MODULE, forget_room, 90),
-    ejabberd_hooks:add(invitation_sent, Host, ?MODULE, invitation_sent, 90),
+    case skip_before_invitation(ServerHost) of
+        true ->
+            ejabberd_hooks:add(
+                invitation_sent, Host, ?MODULE, invitation_sent, 90);
+        false ->
+            ok
+    end,
     ok.
 
 stop(ServerHost) ->
@@ -236,8 +242,15 @@ stop(ServerHost) ->
     Host = gen_mod:get_module_opt_host(
         ServerHost, ?MODULE, <<"conference.@HOST@">>),
     ?DEBUG("mod_mam stopping", []),
-    ejabberd_hooks:add(filter_room_packet, Host, ?MODULE,
-                       filter_room_packet, 90),
+    ejabberd_hooks:delete(filter_room_packet, Host, ?MODULE, filter_room_packet, 90),
+    ejabberd_hooks:delete(forget_room, Host, ?MODULE, forget_room, 90),
+    case skip_before_invitation(ServerHost) of
+        true ->
+            ejabberd_hooks:delete(
+                invitation_sent, Host, ?MODULE, invitation_sent, 50);
+        false ->
+            ok
+    end,
     gen_iq_handler:remove_iq_handler(mod_muc_iq, Host, mam_ns_string()),
     mod_disco:unregister_feature(Host, mam_ns_binary()),
     [stop_module(ServerHost, M) || M <- required_modules(ServerHost)],
@@ -397,8 +410,8 @@ room_process_mam_iq(From=#jid{lserver=Host}, To, IQ) ->
 forget_room(LServer, RoomName) ->
     delete_archive(LServer, RoomName).
 
-invitation_sent(LServer, RoomJID, _FromJID, ToJID, _Reason) ->
-    save_invitation_time(LServer, RoomJID, ToJID).
+invitation_sent(_Host, ServerHost, RoomJID, _FromJID, ToJID, _Reason) ->
+    save_invitation_time(ServerHost, RoomJID, ToJID).
 
 %% ----------------------------------------------------------------------
 %% Internal functions

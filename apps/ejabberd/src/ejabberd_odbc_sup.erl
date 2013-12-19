@@ -65,7 +65,12 @@ start_link(Host) ->
 
 get_dedicated_connection(Host) ->
     StartInterval = start_interval(Host)*1000,
-    ejabberd_odbc:start_link(Host, StartInterval, true).
+    case ejabberd_odbc:start_link(Host, StartInterval, true) of
+        {ok, Pid} ->
+            {ok, {Host, Pid}};
+        Other ->
+            Other
+    end.
 
 init([Host]) ->
     PoolSize = pool_size(Host),

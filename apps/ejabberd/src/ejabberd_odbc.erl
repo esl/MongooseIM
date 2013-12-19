@@ -49,11 +49,6 @@
          escape_binary/2,
          unescape_binary/2]).
 
-%% BLOB escaping
--export([escape_format/1,
-         escape_binary/2,
-         unescape_binary/2]).
-
 %% gen_fsm callbacks
 -export([init/1,
 	 handle_event/3,
@@ -140,6 +135,9 @@ sql_call(Host, Msg) when is_binary(Host) ->
     end;
 %% For dedicated connections.
 sql_call(Pid, Msg) when is_pid(Pid) ->
+    ?GEN_FSM:sync_send_event(Pid,
+             {sql_cmd, Msg, now()}, ?TRANSACTION_TIMEOUT);
+sql_call({_Host, Pid}, Msg) when is_pid(Pid) ->
     ?GEN_FSM:sync_send_event(Pid,
              {sql_cmd, Msg, now()}, ?TRANSACTION_TIMEOUT).
 
@@ -640,13 +638,15 @@ db_opts(Host) ->
 	    [odbc, SQLServer]
     end.
 
-db_engine(Host) ->
+db_engine(Host) when is_binary(Host) ->
     case ejabberd_config:get_local_option({odbc_server, Host}) of
         SQLServer when is_list(SQLServer) ->
             odbc;
         Other when is_tuple(Other) ->
             element(1, Other)
-    end.
+    end;
+db_engine({Host, _Pid}) ->
+    db_engine(Host).
 
 max_fsm_queue() ->
     case ejabberd_config:get_local_option(max_fsm_queue) of

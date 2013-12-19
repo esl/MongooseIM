@@ -89,7 +89,7 @@ get_prefs(_Host, _Mod, _ArcID, ArcJID, GlobalDefaultMode) ->
 
 remove_archive(_Host, _Mod, ArcID, _ArcJID) ->
     mnesia:sync_dirty(fun() ->
-            mnesia:delete(mam_prefs, ArcID)
+            mnesia:delete(mam_prefs, ArcID, write)
         end).
 
 %% ----------------------------------------------------------------------
