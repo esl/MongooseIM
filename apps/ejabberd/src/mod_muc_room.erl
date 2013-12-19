@@ -1953,14 +1953,15 @@ send_config_update(Type, StateData) ->
             Message)
         end, ?DICT:to_list(StateData#state.users)).
 
-send_invitation(From, To, Reason, StateData) ->
+send_invitation(From, To, Reason, StateData=#state{host=Host, jid=RoomJID}) ->
+    ejabberd_hooks:run(invitation_sent, Host, [Host, RoomJID, From, To, Reason]),
     Config = StateData#state.config,
     Password = case Config#config.password_protected of
         false -> <<>>;
         true -> Config#config.password
     end,
     ejabberd_router:route(
-        StateData#state.jid,
+        RoomJID,
         To,
         jlib:make_invitation(
             jlib:jid_replace_resource(From, <<>>), Password, Reason)).
