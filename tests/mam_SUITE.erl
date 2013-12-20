@@ -779,6 +779,7 @@ policy_violation(Config) ->
         end,
     escalus:story(Config, [1, 1], F).
 
+%% Ensure, that a offline message does not stored twice when delivered.
 offline_message(Config) ->
     Msg = <<"Is there anybody here?">>,
     F = fun(Alice) ->
@@ -1567,7 +1568,7 @@ assert_empty_archive(Server, Username) ->
 
 %% @doc Check, that the archive is empty.
 assert_empty_room_archive(Server, Username) ->
-    case archive_size(Server, Username) of
+    case room_archive_size(Server, Username) of
        0 -> ok;
        X -> ct:fail({not_empty, Server, Username, X})
     end.
@@ -1575,6 +1576,9 @@ assert_empty_room_archive(Server, Username) ->
 
 archive_size(Server, Username) ->
     rpc_apply(mod_mam, archive_size, [Server, Username]).
+
+room_archive_size(Server, Username) ->
+    rpc_apply(mod_mam_muc, archive_size, [Server, Username]).
 
 delete_archive(Server, Username) ->
     rpc_apply(mod_mam, delete_archive, [Server, Username]).
