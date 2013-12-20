@@ -155,6 +155,7 @@ terminate(_Reason, _Req, _State) ->
 websocket_init(Transport, Req, Opts) ->
     ?DEBUG("websocket_init: ~p~n", [{Transport, Req, Opts}]),
     {Peer, NewReq} = cowboy_req:peer(Req),
+    NewReq2 = cowboy_req:set_resp_header("Sec-WebSocket-Protocol", "xmpp", NewReq),
     SocketData = #websocket{pid=self(),
                             peername = Peer},
     case ejabberd_c2s:start({?MODULE, SocketData}, Opts) of
@@ -166,7 +167,7 @@ websocket_init(Transport, Req, Opts) ->
             {ok, NewReq, State};
         {error, Reason} ->
             ?WARNING_MSG("c2s start failed: ~p", [Reason]),
-            {shutdown, NewReq}
+            {shutdown, NewReq2}
     end.
 
 
