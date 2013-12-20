@@ -215,10 +215,16 @@ is_complete_message(_, _, Packet=#xmlel{name = <<"message">>}) ->
               Type == <<"chat">>;
               Type == <<"groupchat">> ->
         case {xml:get_subtag(Packet, <<"body">>),
-              xml:get_subtag(Packet, <<"result">>)} of
-            {false, _} -> false;
-            {_, false} -> true;
-            {_,     _} -> false
+              %% Used in MAM
+              xml:get_subtag(Packet, <<"result">>),
+              %% Used in mod_offline
+              xml:get_subtag(Packet, <<"delay">>)} of
+            %% Forwarded by MAM message or just a message without body
+            {false, _,     _    } -> false;
+            {_,     false, false} -> true;
+            %% Forwarded by MAM message or delivered by mod_offline
+            %% See mam_SUITE:offline_message for a test case
+            {_,     _,     _    } -> false
         end;
     %% Skip <<"error">> type
     _ -> false
