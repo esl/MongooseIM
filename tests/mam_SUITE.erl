@@ -533,7 +533,7 @@ just_stop_module(Host, Mod) ->
 rpc_apply(M, F, Args) ->
     case escalus_ejabberd:rpc(M, F, Args) of
     {badrpc, Reason} ->
-        ct:fail("~p:~p/~p with arguments ~p fails with reason ~p.",
+        ct:fail("~p:~p/~p with arguments ~w fails with reason ~p.",
                 [M, F, length(Args), Args, Reason]);
     Result ->
         Result
@@ -1539,6 +1539,8 @@ archived_elem(By, Id) ->
 
 clean_archives(Config) ->
     SUs = serv_users(Config),
+    %% It is not the best place to delete these messages.
+    [ok = delete_offline_messages(S, U) || {S, U} <- SUs],
     [ok = delete_archive(S, U) || {S, U} <- SUs],
     timer:sleep(500),
     [assert_empty_archive(S, U) || {S, U} <- SUs],
@@ -1585,6 +1587,11 @@ delete_archive(Server, Username) ->
 
 delete_room_archive(Server, Username) ->
     rpc_apply(mod_mam_muc, delete_archive, [Server, Username]).
+
+delete_offline_messages(Server, Username) ->
+    %% Do not care
+    catch rpc_apply(mod_offline, remove_user, [Username, Server]),
+    ok.
 
 wait_message_range(Client, FromN, ToN) ->
     wait_message_range(Client, 15, FromN-1, FromN, ToN).
