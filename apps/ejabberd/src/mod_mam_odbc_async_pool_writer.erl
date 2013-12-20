@@ -116,7 +116,7 @@ archive_message(Host, _Mod,
 
 is_overloaded(Pid) ->
     {message_queue_len, Len} = erlang:process_info(Pid, message_queue_len),
-    Len < 500.
+    Len > 500.
 
 %% For folsom.
 queue_length(Host) ->
