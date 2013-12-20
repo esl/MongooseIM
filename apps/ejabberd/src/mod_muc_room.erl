@@ -1953,8 +1953,8 @@ send_config_update(Type, StateData) ->
             Message)
         end, ?DICT:to_list(StateData#state.users)).
 
-send_invitation(From, To, Reason, StateData=#state{host=Host, jid=RoomJID}) ->
-    ejabberd_hooks:run(invitation_sent, Host, [Host, RoomJID, From, To, Reason]),
+send_invitation(From, To, Reason, StateData=#state{host=Host, server_host=ServerHost, jid=RoomJID}) ->
+    ejabberd_hooks:run(invitation_sent, Host, [Host, ServerHost, RoomJID, From, To, Reason]),
     Config = StateData#state.config,
     Password = case Config#config.password_protected of
         false -> <<>>;
@@ -3500,7 +3500,8 @@ check_invitation(FromJID, Els, Lang, StateData) ->
     catch throw:{error, Reason} -> {error, Reason}
     end.
 
-unsave_check_invitation(FromJID, Els, Lang, StateData=#state{jid=RoomJID}) ->
+unsave_check_invitation(FromJID, Els, Lang,
+    StateData=#state{host=Host, server_host=ServerHost, jid=RoomJID}) ->
     FAffiliation = get_affiliation(FromJID, StateData),
     CanInvite = (StateData#state.config)#config.allow_user_invites
          orelse (FAffiliation == admin)
@@ -3529,6 +3530,8 @@ unsave_check_invitation(FromJID, Els, Lang, StateData=#state{jid=RoomJID}) ->
         BodyEl = invite_body_elem(FromJID, Reason, Lang, StateData),
         Msg = create_invite_message_elem(
             OutInviteEl, BodyEl, PasswdEl, RoomJID, Reason),
+        ejabberd_hooks:run(invitation_sent, Host,
+            [Host, ServerHost, RoomJID, FromJID, JID, Reason]),
         ejabberd_router:route(StateData#state.jid, JID, Msg),
         {ok, JID}
     end.
