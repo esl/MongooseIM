@@ -194,15 +194,26 @@ is_last_page(TotalCount, Offset, PageSize) ->
 create_dump_file(ArcJID, OutFileName) ->
     mod_mam_dump:create_dump_file(new_iterator(ArcJID), OutFileName).
 
--spec restore_dump_file(ArcJID, InFileName, Opts) -> ok when
+-spec restore_dump_file(ArcJID, InFileName, Opts) -> ok | {error, Reason} when
     ArcJID :: #jid{},
     InFileName :: file:filename(),
     Opts :: [Opt],
     Opt :: {rewrite_jids, RewriterF | Substitutions} | new_message_ids,
     RewriterF :: fun((BinJID) -> BinJID),
     Substitutions :: [{BinJID, BinJID}],
-    BinJID :: binary().
-restore_dump_file(ArcJID=#jid{}, InFileName, Opts) ->
+    BinJID :: binary(),
+    Reason :: term().
+restore_dump_file(ArcJID, InFileName, Opts) ->
+    try
+        restore_dump_file_unsave(ArcJID, InFileName, Opts)
+    catch Type:Reason ->
+        Trace = erlang:get_stacktrace(),
+        lager:error("Error ~p:~p occured while restoring ~p from file ~ts.~nTrace: ~p",
+                    [Type, Reason, jlib:jid_to_binary(ArcJID), InFileName, Trace]),
+        {error, Reason}
+    end.
+
+restore_dump_file_unsave(ArcJID, InFileName, Opts) ->
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
     WriterF = fun(MessID, FromJID, _ToJID, MessElem) ->
