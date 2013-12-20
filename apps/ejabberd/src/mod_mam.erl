@@ -204,7 +204,17 @@ create_dump_file(ArcJID, OutFileName) ->
     RewriterF :: fun((BinJID) -> BinJID),
     Substitutions :: [{BinJID, BinJID}],
     BinJID :: binary().
-restore_dump_file(ArcJID=#jid{}, InFileName, Opts) ->
+restore_dump_file(ArcJID, InFileName, Opts) ->
+    try
+        restore_dump_file_unsave(ArcJID, InFileName, Opts)
+    catch Type:Reason ->
+        Trace = erlang:get_stacktrace(),
+        lager:error("Error ~p:~p occured while restoring ~p from file ~ts.~nTrace: ~p",
+                    [Type, Reason, jlib:jid_to_binary(ArcJID), InFileName, Trace]),
+        {error, Reason}
+    end.
+
+restore_dump_file_unsave(ArcJID, InFileName, Opts) ->
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
     WriterF = fun(MessID, FromJID, ToJID, MessElem) ->
