@@ -15,7 +15,8 @@
 
 %% Called from mod_mam_odbc_async_writer
 -export([prepare_message/8,
-         archive_messages/2]).
+         archive_messages/2,
+         archive_messages/3]).
 
 %% UMessID
 -import(mod_mam_utils,
@@ -89,6 +90,9 @@ archive_messages(LServer, Acc) ->
       LServer,
       ["INSERT INTO mam_muc_message(id, room_id, nick_name, message) "
        "VALUES ", tuples(Acc)]).
+
+archive_messages(LServer, Acc, _N) ->
+    archive_messages(LServer, Acc).
 
 -spec lookup_messages(Host, _Mod,
                       RoomID, RoomJID, RSM, Start, End, Now, WithJID,
