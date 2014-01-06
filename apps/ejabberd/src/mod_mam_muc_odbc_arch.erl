@@ -34,12 +34,25 @@
 -type server_host() :: binary().
 -type unix_timestamp() :: non_neg_integer().
 
+
+-ifdef(HAND_MADE_PARTITIONS).
+select_table(N) ->
+    io_lib:format("mam_muc_message_~2..0B", [N rem partition_count()]).
+
+partition_count() ->
+    16.
+-else.
+select_table(_) ->
+    "mam_muc_message".
+-endif.
+
+
 archive_size(Host, _Mod, RoomID, _RoomJID) ->
     {selected, _ColumnNames, [{BSize}]} =
     mod_mam_utils:success_sql_query(
       Host,
       ["SELECT COUNT(*) "
-       "FROM mam_muc_message "
+       "FROM ", select_table(RoomID), " ",
        "WHERE room_id = '", escape_room_id(RoomID), "'"]),
     list_to_integer(binary_to_list(BSize)).
 
@@ -59,13 +72,14 @@ archive_message_1(Host, MessID, RoomID, FromNick, Packet) ->
     EscFormat = ejabberd_odbc:escape_format(Host),
     SData = ejabberd_odbc:escape_binary(EscFormat, Data),
     SMessID = integer_to_list(MessID),
-    write_message(Host, SMessID, SRoomID, SFromNick, SData).
+    write_message(Host, SMessID, RoomID, SRoomID, SFromNick, SData).
 
-write_message(Host, SMessID, SRoomID, SFromNick, SData) ->
+write_message(Host, SMessID, RoomID, SRoomID, SFromNick, SData) ->
     {updated, 1} =
     mod_mam_utils:success_sql_query(
       Host,
-      ["INSERT INTO mam_muc_message(id, room_id, nick_name, message) "
+      ["INSERT INTO ", select_table(RoomID), " ",
+              "(id, room_id, nick_name, message) "
        "VALUES ('", SMessID, "', '", SRoomID, "', "
                "'", SFromNick, "', '", SData, "')"]),
     ok.
@@ -91,8 +105,12 @@ archive_messages(LServer, Acc) ->
       ["INSERT INTO mam_muc_message(id, room_id, nick_name, message) "
        "VALUES ", tuples(Acc)]).
 
-archive_messages(LServer, Acc, _N) ->
-    archive_messages(LServer, Acc).
+archive_messages(LServer, Acc, N) ->
+    mod_mam_utils:success_sql_query(
+      LServer,
+      ["INSERT INTO ", select_table(N), " ",
+           "(id, room_id, nick_name, message) "
+       "VALUES ", tuples(Acc)]).
 
 -spec lookup_messages(Host, _Mod,
                       RoomID, RoomJID, RSM, Start, End, Now, WithJID,
@@ -117,8 +135,8 @@ lookup_messages(Host, _Mod, RoomID, RoomJID = #jid{},
                 RSM = #rsm_in{direction = aft, id = ID}, Start, End, _Now, WithJID,
                 PageSize, LimitPassed, MaxResultLimit) ->
     Filter = prepare_filter(RoomID, Start, End, WithJID),
-    TotalCount = calc_count(Host, Filter),
-    Offset     = calc_offset(Host, Filter, PageSize, TotalCount, RSM),
+    TotalCount = calc_count(Host, RoomID, Filter),
+    Offset     = calc_offset(Host, RoomID, Filter, PageSize, TotalCount, RSM),
     %% If a query returns a number of stanzas greater than this limit and the
     %% client did not specify a limit using RSM then the server should return
     %% a policy-violation error to the client. 
@@ -127,7 +145,7 @@ lookup_messages(Host, _Mod, RoomID, RoomJID = #jid{},
             {error, 'policy-violation'};
 
         false ->
-            MessageRows = extract_messages(Host, after_id(ID, Filter), 0, PageSize, false),
+            MessageRows = extract_messages(Host, RoomID, after_id(ID, Filter), 0, PageSize, false),
             {ok, {TotalCount, Offset,
                   rows_to_uniform_format(MessageRows, Host, RoomJID)}}
     end;
@@ -136,8 +154,8 @@ lookup_messages(Host, _Mod, RoomID, RoomJID = #jid{},
                 RSM = #rsm_in{direction = before, id = ID}, Start, End, _Now, WithJID,
                 PageSize, LimitPassed, MaxResultLimit) ->
     Filter = prepare_filter(RoomID, Start, End, WithJID),
-    TotalCount = calc_count(Host, Filter),
-    Offset     = calc_offset(Host, Filter, PageSize, TotalCount, RSM),
+    TotalCount = calc_count(Host, RoomID, Filter),
+    Offset     = calc_offset(Host, RoomID, Filter, PageSize, TotalCount, RSM),
     %% If a query returns a number of stanzas greater than this limit and the
     %% client did not specify a limit using RSM then the server should return
     %% a policy-violation error to the client. 
@@ -146,7 +164,7 @@ lookup_messages(Host, _Mod, RoomID, RoomJID = #jid{},
             {error, 'policy-violation'};
 
         false ->
-            MessageRows = extract_messages(Host, before_id(ID, Filter), 0, PageSize, true),
+            MessageRows = extract_messages(Host, RoomID, before_id(ID, Filter), 0, PageSize, true),
             {ok, {TotalCount, Offset,
                   rows_to_uniform_format(MessageRows, Host, RoomJID)}}
     end;
@@ -155,8 +173,8 @@ lookup_messages(Host, _Mod, RoomID, RoomJID = #jid{},
                 RSM, Start, End, _Now, WithJID,
                 PageSize, LimitPassed, MaxResultLimit) ->
     Filter = prepare_filter(RoomID, Start, End, WithJID),
-    TotalCount = calc_count(Host, Filter),
-    Offset     = calc_offset(Host, Filter, PageSize, TotalCount, RSM),
+    TotalCount = calc_count(Host, RoomID, Filter),
+    Offset     = calc_offset(Host, RoomID, Filter, PageSize, TotalCount, RSM),
     %% If a query returns a number of stanzas greater than this limit and the
     %% client did not specify a limit using RSM then the server should return
     %% a policy-violation error to the client. 
@@ -165,7 +183,7 @@ lookup_messages(Host, _Mod, RoomID, RoomJID = #jid{},
             {error, 'policy-violation'};
 
         false ->
-            MessageRows = extract_messages(Host, Filter, Offset, PageSize, false),
+            MessageRows = extract_messages(Host, RoomID, Filter, Offset, PageSize, false),
             {ok, {TotalCount, Offset,
                   rows_to_uniform_format(MessageRows, Host, RoomJID)}}
     end.
@@ -196,7 +214,7 @@ remove_archive(Host, _Mod, RoomID, _RoomJID) ->
     {updated, _} =
     mod_mam_utils:success_sql_query(
       Host,
-      ["DELETE FROM mam_muc_message "
+      ["DELETE FROM ", select_table(RoomID), " "
        "WHERE room_id = '", escape_room_id(RoomID), "'"]),
     ok.
 
@@ -212,7 +230,7 @@ purge_single_message(Host, _Mod, MessID, RoomID, _RoomJID, _Now) ->
     Result =
     mod_mam_utils:success_sql_query(
       Host,
-      ["DELETE FROM mam_muc_message "
+      ["DELETE FROM ", select_table(RoomID), " "
        "WHERE room_id = '", escape_room_id(RoomID), "' "
        "AND id = '", escape_message_id(MessID), "'"]),
     case Result of
@@ -237,26 +255,27 @@ purge_multiple_messages(Host, _Mod, RoomID, _RoomJID,
     {updated, _} =
     mod_mam_utils:success_sql_query(
       Host,
-      ["DELETE FROM mam_muc_message ", Filter]),
+      ["DELETE FROM ", select_table(RoomID), " ", Filter]),
     ok.
 
 %% Columns are `["id","nick_name","message"]'.
--spec extract_messages(Host, Filter, IOffset, IMax, ReverseLimit) ->
+-spec extract_messages(Host, RoomID, Filter, IOffset, IMax, ReverseLimit) ->
     [Record] when
     Host    :: server_host(),
+    RoomID  :: room_id(),
     Filter  :: filter(),
     IOffset :: non_neg_integer(),
     IMax    :: pos_integer(),
     ReverseLimit :: boolean(),
     Record  :: tuple().
-extract_messages(_Host, _Filter, _IOffset, 0, _) ->
+extract_messages(_Host, _RoomID, _Filter, _IOffset, 0, _) ->
     [];
-extract_messages(Host, Filter, IOffset, IMax, false) ->
+extract_messages(Host, RoomID, Filter, IOffset, IMax, false) ->
     {selected, _ColumnNames, MessageRows} =
     mod_mam_utils:success_sql_query(
       Host,
       ["SELECT id, nick_name, message "
-       "FROM mam_muc_message ",
+       "FROM ", select_table(RoomID), " ",
         Filter,
        " ORDER BY id"
        " LIMIT ", integer_to_list(IMax),
@@ -266,12 +285,12 @@ extract_messages(Host, Filter, IOffset, IMax, false) ->
          end]),
     ?DEBUG("extract_messages query returns ~p", [MessageRows]),
     MessageRows;
-extract_messages(Host, Filter, IOffset, IMax, true) ->
+extract_messages(Host, RoomID, Filter, IOffset, IMax, true) ->
     {selected, _ColumnNames, MessageRows} =
     mod_mam_utils:success_sql_query(
       Host,
       ["SELECT id, nick_name, message "
-       "FROM mam_muc_message ",
+       "FROM ", select_table(RoomID), " ",
         Filter,
        " ORDER BY id DESC"
        " LIMIT ", integer_to_list(IMax),
@@ -287,49 +306,57 @@ extract_messages(Host, Filter, IOffset, IMax, true) ->
 %% If the element does not exists, the MessID of the next element will
 %% be returned instead.
 %% "SELECT COUNT(*) as "index" FROM mam_muc_message WHERE id <= '",  UMessID
--spec calc_index(Host, Filter, SUMessID) -> Count
+-spec calc_index(Host, RoomID, Filter, SUMessID) -> Count
     when
     Host     :: server_host(),
+    RoomID   :: room_id(),
     Filter   :: filter(),
     SUMessID :: escaped_message_id(),
     Count    :: non_neg_integer().
-calc_index(Host, Filter, SUMessID) ->
+calc_index(Host, RoomID, Filter, SUMessID) ->
     {selected, _ColumnNames, [{BIndex}]} =
     mod_mam_utils:success_sql_query(
       Host,
-      ["SELECT COUNT(*) FROM mam_muc_message ", Filter, " AND id <= '", SUMessID, "'"]),
+      ["SELECT COUNT(*) "
+       "FROM ", select_table(RoomID), " ",
+       Filter, " AND id <= '", SUMessID, "'"]),
     list_to_integer(binary_to_list(BIndex)).
 
 %% @doc Count of elements in RSet before the passed element.
 %% The element with the passed UMessID can be already deleted.
 %% @end
 %% "SELECT COUNT(*) as "count" FROM mam_muc_message WHERE id < '",  UMessID
--spec calc_before(Host, Filter, SUMessID) -> Count
+-spec calc_before(Host, RoomID, Filter, SUMessID) -> Count
     when
     Host     :: server_host(),
+    RoomID   :: room_id(),
     Filter   :: filter(),
     SUMessID :: escaped_message_id(),
     Count    :: non_neg_integer().
-calc_before(Host, Filter, SUMessID) ->
+calc_before(Host, RoomID, Filter, SUMessID) ->
     {selected, _ColumnNames, [{BIndex}]} =
     mod_mam_utils:success_sql_query(
       Host,
-      ["SELECT COUNT(*) FROM mam_muc_message ", Filter, " AND id < '", SUMessID, "'"]),
+      ["SELECT COUNT(*) "
+       "FROM ", select_table(RoomID), " ",
+       Filter, " AND id < '", SUMessID, "'"]),
     list_to_integer(binary_to_list(BIndex)).
 
 
 %% @doc Get the total result set size.
 %% "SELECT COUNT(*) as "count" FROM mam_muc_message WHERE "
--spec calc_count(Host, Filter) -> Count
+-spec calc_count(Host, RoomID, Filter) -> Count
     when
-    Host  :: server_host(),
+    Host     :: server_host(),
+    RoomID   :: room_id(),
     Filter   :: filter(),
     Count    :: non_neg_integer().
-calc_count(Host, Filter) ->
+calc_count(Host, RoomID, Filter) ->
     {selected, _ColumnNames, [{BCount}]} =
     mod_mam_utils:success_sql_query(
       Host,
-      ["SELECT COUNT(*) FROM mam_muc_message ", Filter]),
+      ["SELECT COUNT(*) ",
+       "FROM ", select_table(RoomID), " ", Filter]),
     list_to_integer(binary_to_list(BCount)).
 
 
@@ -374,29 +401,30 @@ prepare_filter_1(RoomID, IStart, IEnd, SWithNick) ->
 %%    direction = before | aft | undefined,
 %%    id = binary() | undefined,
 %%    index = non_neg_integer() | undefined}
--spec calc_offset(Host, Filter, PageSize, TotalCount, RSM) -> Offset
+-spec calc_offset(Host, RoomID, Filter, PageSize, TotalCount, RSM) -> Offset
     when
     Host     :: server_host(),
+    RoomID   :: room_id(),
     Filter   :: filter(),
     PageSize :: non_neg_integer(),
     TotalCount :: non_neg_integer(),
     RSM      :: #rsm_in{} | undefined,
     Offset   :: non_neg_integer().
-calc_offset(_LS, _F, _PS, _TC, #rsm_in{direction = undefined, index = Index})
+calc_offset(_LS, _RoomID, _F, _PS, _TC, #rsm_in{direction = undefined, index = Index})
     when is_integer(Index) ->
     Index;
 %% Requesting the Last Page in a Result Set
-calc_offset(_LS, _F, PS, TC, #rsm_in{direction = before, id = undefined}) ->
+calc_offset(_LS, _RoomID, _F, PS, TC, #rsm_in{direction = before, id = undefined}) ->
     max(0, TC - PS);
-calc_offset(Host, F, PS, _TC, #rsm_in{direction = before, id = MessID})
+calc_offset(Host, RoomID, F, PS, _TC, #rsm_in{direction = before, id = MessID})
     when is_integer(MessID) ->
     SMessID = escape_message_id(MessID),
-    max(0, calc_before(Host, F, SMessID) - PS);
-calc_offset(Host, F, _PS, _TC, #rsm_in{direction = aft, id = MessID})
+    max(0, calc_before(Host, RoomID, F, SMessID) - PS);
+calc_offset(Host, RoomID, F, _PS, _TC, #rsm_in{direction = aft, id = MessID})
     when is_integer(MessID) ->
     SMessID = escape_message_id(MessID),
-    calc_index(Host, F, SMessID);
-calc_offset(_LS, _F, _PS, _TC, _RSM) ->
+    calc_index(Host, RoomID, F, SMessID);
+calc_offset(_LS, _RoomID, _F, _PS, _TC, _RSM) ->
     0.
 
 escape_message_id(MessID) when is_integer(MessID) ->
