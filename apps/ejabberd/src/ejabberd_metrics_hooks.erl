@@ -39,7 +39,7 @@
          mam_remove_archive/3,
          mam_lookup_messages/13,
          mam_archive_message/9,
-         mam_flush_messages/3,
+         mam_flush_messages/2,
          mam_drop_message/1,
          mam_drop_iq/5,
          mam_drop_messages/2,
@@ -50,7 +50,7 @@
          mam_muc_remove_archive/3,
          mam_muc_lookup_messages/13,
          mam_muc_archive_message/9,
-         mam_muc_flush_messages/3,
+         mam_muc_flush_messages/2,
          mam_muc_drop_message/1,
          mam_muc_drop_iq/5,
          mam_muc_drop_messages/2,
@@ -280,7 +280,7 @@ mam_archive_message(Result, Host,
     folsom_metrics:notify({Host, modMamArchived}, 1),
     Result.
 
-mam_flush_messages(Host, _Mod, MessageCount) ->
+mam_flush_messages(Host, MessageCount) ->
     folsom_metrics:notify({Host, modMamFlushed}, MessageCount).
 
 mam_drop_message(Host) ->
@@ -337,7 +337,7 @@ mam_muc_archive_message(Result, Host,
     folsom_metrics:notify({Host, modMucMamArchived}, 1),
     Result.
 
-mam_muc_flush_messages(Host, _Mod, MessageCount) ->
+mam_muc_flush_messages(Host, MessageCount) ->
     folsom_metrics:notify({Host, modMucMamFlushed}, MessageCount).
 
 mam_muc_drop_message(Host) ->
