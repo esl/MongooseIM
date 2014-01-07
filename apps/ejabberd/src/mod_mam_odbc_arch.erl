@@ -12,11 +12,17 @@
 %% but work with `mod_mam_odbc_async_pool_writer'.
 %%-define(HAND_MADE_PARTITIONS, true).
 
+%% ----------------------------------------------------------------------
+%% Exports
+
+%% gen_mod handlers
+-export([start/2, stop/1]).
+
+%% MAM hook handlers
 -export([archive_size/4,
-         wait_flushing/4,
          archive_message/9,
          lookup_messages/13,
-         remove_archive/4,
+         remove_archive/3,
          purge_single_message/6,
          purge_multiple_messages/9]).
 
@@ -25,10 +31,13 @@
          archive_messages/2,
          archive_messages/3]).
 
+
+%% ----------------------------------------------------------------------
+%% Imports
+
 %% UID
 -import(mod_mam_utils,
         [encode_compact_uuid/2]).
-
 
 %% JID serialization
 -import(mod_mam_utils,
@@ -44,6 +53,9 @@
 -include_lib("ejabberd/include/jlib.hrl").
 -include_lib("exml/include/exml.hrl").
 
+%% ----------------------------------------------------------------------
+%% Types
+
 -type filter() :: iolist().
 -type message_id() :: non_neg_integer().
 -type user_id() :: non_neg_integer().
@@ -53,6 +65,43 @@
 -type server_hostname() :: binary().
 -type server_host() :: binary().
 -type unix_timestamp() :: non_neg_integer().
+
+
+%% ----------------------------------------------------------------------
+%% gen_mod callbacks
+%% Starting and stopping functions for users' archives
+
+start(Host, _Opts) ->
+    case gen_mod:get_module_opt(Host, ?MODULE, no_writer, false) of
+        true ->
+            ejabberd_hooks:add(mam_archive_message, Host, ?MODULE, archive_message, 50);
+        false ->
+            ok
+    end,
+    ejabberd_hooks:add(mam_archive_size, Host, ?MODULE, archive_size, 50),
+    ejabberd_hooks:add(mam_lookup_messages, Host, ?MODULE, lookup_messages, 50),
+    ejabberd_hooks:add(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
+    ejabberd_hooks:add(mam_purge_single_message, Host, ?MODULE, purge_single_message, 50),
+    ejabberd_hooks:add(mam_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 50),
+    ok.
+
+stop(Host) ->
+    case gen_mod:get_module_opt(Host, ?MODULE, no_writer, false) of
+        true ->
+            ejabberd_hooks:delete(mam_archive_message, Host, ?MODULE, archive_message, 50);
+        false ->
+            ok
+    end,
+    ejabberd_hooks:delete(mam_archive_size, Host, ?MODULE, archive_size, 50),
+    ejabberd_hooks:delete(mam_lookup_messages, Host, ?MODULE, lookup_messages, 50),
+    ejabberd_hooks:delete(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
+    ejabberd_hooks:delete(mam_purge_single_message, Host, ?MODULE, purge_single_message, 50),
+    ejabberd_hooks:delete(mam_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 50),
+    ok.
+
+
+%% ----------------------------------------------------------------------
+%% Internal functions and callbacks
 
 -ifdef(HAND_MADE_PARTITIONS).
 select_table(N) ->
@@ -68,7 +117,7 @@ select_table(_) ->
 encode_direction(incoming) -> "I";
 encode_direction(outgoing) -> "O".
 
-archive_size(Host, _Mod, UserID, _UserJID) ->
+archive_size(Size, Host, UserID, _UserJID) when is_integer(Size) ->
     IndexHintSQL = index_hint_sql(Host),
     {selected, _ColumnNames, [{BSize}]} =
     mod_mam_utils:success_sql_query(
@@ -77,10 +126,7 @@ archive_size(Host, _Mod, UserID, _UserJID) ->
        "FROM ", select_table(UserID), " ",
        IndexHintSQL,
        "WHERE user_id = '", escape_user_id(UserID), "'"]),
-    list_to_integer(binary_to_list(BSize)).
-
-wait_flushing(_Host, _Mod, _UserID, _UserJID) ->
-    ok.
+    Size + list_to_integer(binary_to_list(BSize)).
 
 index_hint_sql(Host) ->
     case ejabberd_odbc:db_engine(Host) of
@@ -98,7 +144,7 @@ insert_ignore(Host) ->
             ""
     end.
 
-archive_message(Host, _Mod, MessID, UserID,
+archive_message(_Result, Host, MessID, UserID,
                 LocJID=#jid{},
                 RemJID=#jid{lresource=RemLResource},
                 SrcJID, Dir, Packet) ->
@@ -160,7 +206,7 @@ archive_messages(LServer, Acc, N) ->
                                 "from_jid, message) "
        "VALUES ", tuples(Acc)]).
 
--spec lookup_messages(Host, _Mod,
+-spec lookup_messages(_Result, Host,
                       UserID, UserJID, RSM, Borders,
                       Start, End, Now, WithJID,
                       PageSize, LimitPassed, MaxResultLimit) ->
@@ -182,7 +228,7 @@ archive_messages(LServer, Acc, N) ->
     Offset  :: non_neg_integer(),
     MessageRows :: list(tuple()).
 
-lookup_messages(Host, _Mod, UserID, UserJID = #jid{},
+lookup_messages(_Result, Host, UserID, UserJID = #jid{},
                 RSM = #rsm_in{direction = aft, id = ID}, Borders,
                 Start, End, _Now, WithJID,
                 PageSize, LimitPassed, MaxResultLimit) ->
@@ -202,7 +248,7 @@ lookup_messages(Host, _Mod, UserID, UserJID = #jid{},
             {ok, {TotalCount, Offset, rows_to_uniform_format(Host, UserJID, MessageRows)}}
     end;
 
-lookup_messages(Host, _Mod, UserID, UserJID = #jid{},
+lookup_messages(_Result, Host, UserID, UserJID = #jid{},
                 RSM = #rsm_in{direction = before, id = ID}, Borders,
                 Start, End, _Now, WithJID,
                 PageSize, LimitPassed, MaxResultLimit) ->
@@ -222,7 +268,7 @@ lookup_messages(Host, _Mod, UserID, UserJID = #jid{},
             {ok, {TotalCount, Offset, rows_to_uniform_format(Host, UserJID, MessageRows)}}
     end;
 
-lookup_messages(Host, _Mod, UserID, UserJID = #jid{},
+lookup_messages(_Result, Host, UserID, UserJID = #jid{},
                 RSM, Borders,
                 Start, End, _Now, WithJID,
                 PageSize, LimitPassed, MaxResultLimit) ->
@@ -264,7 +310,7 @@ row_to_uniform_format(UserJID, EscFormat, {BMessID,BSrcJID,SData}) ->
     {MessID, SrcJID, Packet}.
 
 
-remove_archive(Host, _Mod, UserID, _UserJID) ->
+remove_archive(Host, UserID, _UserJID) ->
     {updated, _} =
     mod_mam_utils:success_sql_query(
       Host,
@@ -272,15 +318,14 @@ remove_archive(Host, _Mod, UserID, _UserJID) ->
        "WHERE user_id = '", escape_user_id(UserID), "'"]),
     ok.
 
--spec purge_single_message(Host, Mod, MessID, UserID, UserJID, Now) ->
+-spec purge_single_message(_Result, Host, MessID, UserID, UserJID, Now) ->
     ok | {error, 'not-allowed' | 'not-found'} when
     Host    :: server_host(),
-    Mod     :: module(),
     MessID  :: message_id(),
     UserID  :: user_id(),
     UserJID :: #jid{},
     Now     :: unix_timestamp().
-purge_single_message(Host, _Mod, MessID, UserID, _UserJID, _Now) ->
+purge_single_message(_Result, Host, MessID, UserID, _UserJID, _Now) ->
     Result =
     mod_mam_utils:success_sql_query(
       Host,
@@ -292,12 +337,11 @@ purge_single_message(Host, _Mod, MessID, UserID, _UserJID, _Now) ->
         {updated, 1} -> ok
     end.
 
--spec purge_multiple_messages(Host, Mod,
+-spec purge_multiple_messages(_Result, Host,
                               UserID, UserJID, Borders,
                               Start, End, Now, WithJID) ->
     ok | {error, 'not-allowed'} when
     Host    :: server_host(),
-    Mod     :: module(),
     UserID  :: user_id(),
     UserJID :: #jid{},
     Borders :: #mam_borders{},
@@ -305,7 +349,7 @@ purge_single_message(Host, _Mod, MessID, UserID, _UserJID, _Now) ->
     End     :: unix_timestamp() | undefined,
     Now     :: unix_timestamp(),
     WithJID :: #jid{} | undefined.
-purge_multiple_messages(Host, _Mod, UserID, UserJID, Borders,
+purge_multiple_messages(_Result, Host, UserID, UserJID, Borders,
                         Start, End, _Now, WithJID) ->
     Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID),
     {updated, _} =
@@ -313,6 +357,8 @@ purge_multiple_messages(Host, _Mod, UserID, UserJID, Borders,
       Host,
       ["DELETE FROM ", select_table(UserID), " ", Filter]),
     ok.
+
+
 
 %% Each record is a tuple of form 
 %% `{<<"13663125233">>,<<"bob@localhost">>,<<"res1">>,<<binary>>}'.
