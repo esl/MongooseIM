@@ -40,6 +40,8 @@
          pagination_last5/1,
          pagination_before10/1,
          pagination_after10/1,
+         pagination_last_after_id5/1,
+         pagination_last_after_id5_before_id11/1,
          pagination_empty_rset/1,
          archived/1,
          strip_archived/1,
@@ -64,10 +66,14 @@
     )).
 
 -record(rsm_in, {
-        max :: non_neg_integer() | undefined,
-        direction :: before | 'after' | undefined,
-        id :: binary() | undefined,
-        index ::non_neg_integer() | undefined
+        max         :: non_neg_integer() | undefined,
+        direction   :: before | 'after' | undefined,
+        id          :: binary() | undefined,
+        index       :: non_neg_integer() | undefined,
+        after_id    :: binary() | undefined,
+        before_id   :: binary() | undefined,
+        from_id     :: binary() | undefined,
+        to_id       :: binary() | undefined
         }).
 
 -record(forwarded_message, {
@@ -214,7 +220,10 @@ rsm_cases() ->
        pagination_last5,
        pagination_before10,
        pagination_after10,
-       pagination_empty_rset].
+       pagination_empty_rset,
+       %% Border cases
+       pagination_last_after_id5,
+       pagination_last_after_id5_before_id11].
 
 suite() ->
     escalus:suite().
@@ -1123,6 +1132,35 @@ pagination_after10(Config) ->
         end,
     escalus:story(Config, [1], F).
 
+%% Select first page of recent messages after last known id.
+%% Paginating from newest messages to oldest ones.
+pagination_last_after_id5(Config) ->
+    F = fun(Alice) ->
+        %% Get the last page of size 5 after 5-th message.
+        RSM = #rsm_in{max=5, direction='before',
+                after_id=message_id(5, Config)},
+        escalus:send(Alice,
+            stanza_page_archive_request(<<"last_after_id5">>, RSM)),
+     %% wait_message_range(Client, TotalCount, Offset, FromN, ToN),
+        wait_message_range(Alice,          10,      5,    11,  15),
+        ok
+        end,
+    escalus:story(Config, [1], F).
+
+%% Select second page of recent messages after last known id.
+pagination_last_after_id5_before_id11(Config) ->
+    F = fun(Alice) ->
+        RSM = #rsm_in{max=5, direction='before',
+                after_id=message_id(5, Config),
+                before_id=message_id(11, Config)},
+        escalus:send(Alice,
+            stanza_page_archive_request(<<"last_after_id5_before_id11">>, RSM)),
+     %% wait_message_range(Client, TotalCount, Offset, FromN, ToN),
+        wait_message_range(Alice,           5,      0,     6,  10),
+        ok
+        end,
+    escalus:story(Config, [1], F).
+
 generate_message_text(N) when is_integer(N) ->
     <<"Message #", (list_to_binary(integer_to_list(N)))/binary>>.
 
@@ -1270,13 +1308,24 @@ stanza_filtered_by_jid_request(BWithJID) ->
 stanza_lookup_messages_iq(QueryId, BStart, BEnd, BWithJID, RSM) ->
     escalus_stanza:iq(<<"get">>, [#xmlel{
        name = <<"query">>,
-       attrs = mam_ns_attr() ++ maybe_attr(<<"queryid">>, QueryId),
+       attrs = mam_ns_attr()
+            ++ maybe_attr(<<"queryid">>, QueryId)
+            ++ border_attributes(RSM),
        children = skip_undefined([
            maybe_start_elem(BStart),
            maybe_end_elem(BEnd),
            maybe_with_elem(BWithJID),
            maybe_rsm_elem(RSM)])
     }]).
+
+border_attributes(undefined) ->
+    [];
+border_attributes(#rsm_in{
+        before_id=BeforeId, after_id=AfterId, from_id=FromId, to_id=ToId}) ->
+    maybe_attr(<<"before_id">>, BeforeId)
+    ++ maybe_attr(<<"after_id">>, AfterId)
+    ++ maybe_attr(<<"from_id">>, FromId)
+    ++ maybe_attr(<<"to_id">>, ToId).
 
 maybe_rsm_elem(undefined) ->
     undefined;
