@@ -7,7 +7,7 @@
 -module(mod_mam_muc_odbc_arch).
 -export([archive_size/4,
          wait_flushing/4,
-         lookup_messages/12,
+         lookup_messages/13,
          remove_archive/4,
          archive_message/9,
          purge_single_message/6,
@@ -113,7 +113,8 @@ archive_messages(LServer, Acc, N) ->
        "VALUES ", tuples(Acc)]).
 
 -spec lookup_messages(Host, _Mod,
-                      RoomID, RoomJID, RSM, Start, End, Now, WithJID,
+                      RoomID, RoomJID, RSM, Borders,
+                      Start, End, Now, WithJID,
                       PageSize, LimitPassed, MaxResultLimit) ->
     {ok, {TotalCount, Offset, MessageRows}} | {error, 'policy-violation'}
 			     when
@@ -121,6 +122,7 @@ archive_messages(LServer, Acc, N) ->
     RoomJID :: #jid{},
     RoomID  :: room_id(),
     RSM     :: #rsm_in{} | undefined,
+    Borders :: #mam_borders{} | undefined,
     Start   :: unix_timestamp() | undefined,
     End     :: unix_timestamp() | undefined,
     Now     :: unix_timestamp(),
@@ -132,7 +134,8 @@ archive_messages(LServer, Acc, N) ->
     Offset  :: non_neg_integer(),
     MessageRows :: list(tuple()).
 lookup_messages(Host, _Mod, RoomID, RoomJID = #jid{},
-                RSM = #rsm_in{direction = aft, id = ID}, Start, End, _Now, WithJID,
+                RSM = #rsm_in{direction = aft, id = ID}, Borders,
+                Start, End, _Now, WithJID,
                 PageSize, LimitPassed, MaxResultLimit) ->
     Filter = prepare_filter(RoomID, Start, End, WithJID),
     TotalCount = calc_count(Host, RoomID, Filter),
@@ -151,7 +154,8 @@ lookup_messages(Host, _Mod, RoomID, RoomJID = #jid{},
     end;
 
 lookup_messages(Host, _Mod, RoomID, RoomJID = #jid{},
-                RSM = #rsm_in{direction = before, id = ID}, Start, End, _Now, WithJID,
+                RSM = #rsm_in{direction = before, id = ID},
+                Borders, Start, End, _Now, WithJID,
                 PageSize, LimitPassed, MaxResultLimit) ->
     Filter = prepare_filter(RoomID, Start, End, WithJID),
     TotalCount = calc_count(Host, RoomID, Filter),
@@ -170,7 +174,8 @@ lookup_messages(Host, _Mod, RoomID, RoomJID = #jid{},
     end;
 
 lookup_messages(Host, _Mod, RoomID, RoomJID = #jid{},
-                RSM, Start, End, _Now, WithJID,
+                RSM, Borders,
+                Start, End, _Now, WithJID,
                 PageSize, LimitPassed, MaxResultLimit) ->
     Filter = prepare_filter(RoomID, Start, End, WithJID),
     TotalCount = calc_count(Host, RoomID, Filter),

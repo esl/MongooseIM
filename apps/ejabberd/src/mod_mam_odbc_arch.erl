@@ -15,7 +15,7 @@
 -export([archive_size/4,
          wait_flushing/4,
          archive_message/9,
-         lookup_messages/12,
+         lookup_messages/13,
          remove_archive/4,
          purge_single_message/6,
          purge_multiple_messages/8]).
@@ -156,7 +156,8 @@ archive_messages(LServer, Acc, N) ->
        "VALUES ", tuples(Acc)]).
 
 -spec lookup_messages(Host, _Mod,
-                      UserID, UserJID, RSM, Start, End, Now, WithJID,
+                      UserID, UserJID, RSM, Borders,
+                      Start, End, Now, WithJID,
                       PageSize, LimitPassed, MaxResultLimit) ->
     {ok, {TotalCount, Offset, MessageRows}} | {error, 'policy-violation'}
 			     when
@@ -164,6 +165,7 @@ archive_messages(LServer, Acc, N) ->
     UserJID :: #jid{},
     UserID  :: user_id(),
     RSM     :: #rsm_in{} | undefined,
+    Borders :: #mam_borders{} | undefined,
     Start   :: unix_timestamp() | undefined,
     End     :: unix_timestamp() | undefined,
     Now     :: unix_timestamp(),
@@ -176,7 +178,8 @@ archive_messages(LServer, Acc, N) ->
     MessageRows :: list(tuple()).
 
 lookup_messages(Host, _Mod, UserID, UserJID = #jid{},
-                RSM = #rsm_in{direction = aft, id = ID}, Start, End, _Now, WithJID,
+                RSM = #rsm_in{direction = aft, id = ID}, Borders,
+                Start, End, _Now, WithJID,
                 PageSize, LimitPassed, MaxResultLimit) ->
     Filter = prepare_filter(UserID, UserJID, Start, End, WithJID),
     IndexHintSQL = index_hint_sql(Host),
@@ -195,7 +198,8 @@ lookup_messages(Host, _Mod, UserID, UserJID = #jid{},
     end;
 
 lookup_messages(Host, _Mod, UserID, UserJID = #jid{},
-                RSM = #rsm_in{direction = before, id = ID}, Start, End, _Now, WithJID,
+                RSM = #rsm_in{direction = before, id = ID}, Borders,
+                Start, End, _Now, WithJID,
                 PageSize, LimitPassed, MaxResultLimit) ->
     Filter = prepare_filter(UserID, UserJID, Start, End, WithJID),
     IndexHintSQL = index_hint_sql(Host),
@@ -214,7 +218,8 @@ lookup_messages(Host, _Mod, UserID, UserJID = #jid{},
     end;
 
 lookup_messages(Host, _Mod, UserID, UserJID = #jid{},
-                RSM, Start, End, _Now, WithJID,
+                RSM, Borders,
+                Start, End, _Now, WithJID,
                 PageSize, LimitPassed, MaxResultLimit) ->
     Filter = prepare_filter(UserID, UserJID, Start, End, WithJID),
     IndexHintSQL = index_hint_sql(Host),

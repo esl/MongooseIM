@@ -31,8 +31,8 @@
          result_set/4,
          result_query/1,
          result_prefs/3,
-         parse_prefs/1
-]).
+         parse_prefs/1,
+         borders_decode/1]).
 
 %% JID serialization
 -export([jid_to_opt_binary/2,
@@ -360,6 +360,9 @@ parse_jid_list(El, Name) ->
         #xmlel{children = JIDEls} ->
             [xml:get_tag_cdata(JIDEl) || JIDEl <- JIDEls]
     end.
+
+borders_decode(QueryEl) ->
+    undefined.
 
 %% -----------------------------------------------------------------------
 %% JID serialization

@@ -73,7 +73,8 @@
          result_set/4,
          result_query/1,
          result_prefs/3,
-         parse_prefs/1]).
+         parse_prefs/1,
+         borders_decode/1]).
 
 %% Other
 -import(mod_mam_utils,
@@ -163,14 +164,15 @@ new_iterator(ArcJID=#jid{}) ->
     Now = mod_mam_utils:now_to_microseconds(now()),
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
-    new_iterator(Host, ArcID, ArcJID, undefined,
+    new_iterator(Host, ArcID, ArcJID, undefined, undefined,
         undefined, undefined, Now, undefined, 50).
 
-new_iterator(Host, ArcID, ArcJID, RSM, Start, End, Now, WithJID,
-             PageSize) ->
+new_iterator(Host, ArcID, ArcJID, RSM, Borders, Start, End, Now,
+             WithJID, PageSize) ->
     fun() ->
         {ok, {TotalCount, Offset, MessageRows}} =
-        lookup_messages(Host, ArcID, ArcJID, RSM, Start, End, Now,
+        lookup_messages(Host, ArcID, ArcJID, RSM, Borders,
+                        Start, End, Now,
                         WithJID, PageSize, true, PageSize),
         Data = [exml:to_iolist(message_row_to_dump_xml(M))
                 || M <- MessageRows],
@@ -179,7 +181,7 @@ new_iterator(Host, ArcID, ArcJID, RSM, Start, End, Now, WithJID,
                 fun() -> {error, eof} end;
             true ->
                 new_iterator(
-                    Host, ArcID, ArcJID, after_rsm(MessageRows),
+                    Host, ArcID, ArcJID, after_rsm(MessageRows), Borders,
                     Start, End, Now, WithJID, PageSize)
             end,
         {ok, {Data, Cont}}
@@ -495,11 +497,13 @@ handle_lookup_messages(
     %% Filtering by contact.
     With  = elem_to_with_jid(QueryEl),
     RSM   = fix_rsm(jlib:rsm_decode(QueryEl)),
+    Borders = borders_decode(QueryEl),
     Limit = elem_to_limit(QueryEl),
     PageSize = min(max_result_limit(),
                    maybe_integer(Limit, default_result_limit())),
     LimitPassed = Limit =/= <<>>,
-    case lookup_messages(Host, ArcID, ArcJID, RSM, Start, End, Now, With,
+    case lookup_messages(Host, ArcID, ArcJID, RSM, Borders,
+                         Start, End, Now, With,
                          PageSize, LimitPassed, max_result_limit()) of
     {error, 'policy-violation'} ->
         ?DEBUG("Policy violation by ~p.", [jlib:jid_to_binary(From)]),
@@ -644,7 +648,8 @@ remove_archive(Host, ArcID, ArcJID=#jid{}) ->
         [Host, ?MODULE, ArcID, ArcJID]),
     ok.
 
--spec lookup_messages(Host, ArcID, ArcJID, RSM, Start, End, Now, WithJID,
+-spec lookup_messages(Host, ArcID, ArcJID, RSM, Borders,
+                      Start, End, Now, WithJID,
                       PageSize, LimitPassed, MaxResultLimit) ->
     {ok, {TotalCount, Offset, MessageRows}} | {error, 'policy-violation'}
     when
@@ -652,6 +657,7 @@ remove_archive(Host, ArcID, ArcJID=#jid{}) ->
     ArcID   :: archive_id(),
     ArcJID  :: #jid{},
     RSM     :: #rsm_in{} | undefined,
+    Borders :: #mam_borders{} | undefined,
     Start   :: unix_timestamp() | undefined,
     End     :: unix_timestamp() | undefined,
     Now     :: unix_timestamp(),
@@ -662,11 +668,12 @@ remove_archive(Host, ArcID, ArcJID=#jid{}) ->
     TotalCount :: non_neg_integer(),
     Offset  :: non_neg_integer(),
     MessageRows :: list(tuple()).
-lookup_messages(Host, ArcID, ArcJID, RSM, Start, End, Now,
+lookup_messages(Host, ArcID, ArcJID, RSM, Borders, Start, End, Now,
                 WithJID, PageSize, LimitPassed, MaxResultLimit) ->
     AM = archive_module(Host),
     Result = AM:lookup_messages(Host, ?MODULE,
-                                ArcID, ArcJID, RSM, Start, End, Now, WithJID,
+                                ArcID, ArcJID, RSM, Borders,
+                                Start, End, Now, WithJID,
                                 PageSize, LimitPassed, MaxResultLimit),
     case Result of
         {ok, {TotalCount, Offset, MessageRows}} ->
