@@ -39,8 +39,7 @@
 
 %% Utils
 -export([create_dump_file/2,
-         restore_dump_file/3,
-         debug_info/1]).
+         restore_dump_file/3]).
 
 %% gen_mod handlers
 -export([start/2, stop/1]).
@@ -48,8 +47,7 @@
 %% ejabberd room handlers
 -export([filter_room_packet/4,
          room_process_mam_iq/3,
-         forget_room/2,
-         invitation_sent/6]).
+         forget_room/2]).
 
 %% ----------------------------------------------------------------------
 %% Imports
@@ -147,17 +145,6 @@ archive_id(Server, User)
 %% ----------------------------------------------------------------------
 %% Utils API
 
-debug_info(Host) ->
-    AM = archive_module(Host),
-    WM = writer_module(Host),
-    PM = prefs_module(Host),
-    IM = invitation_module(Host),
-    [{archive_module, AM},
-     {writer_module, WM},
-     {prefs_module, PM},
-     {invitation_module, IM}].
-
-
 new_iterator(ArcJID=#jid{}) ->
     Now = mod_mam_utils:now_to_microseconds(now()),
     Host = server_host(ArcJID),
@@ -233,7 +220,6 @@ start(ServerHost, Opts) ->
     Host = gen_mod:get_opt_host(ServerHost, Opts, <<"conference.@HOST@">>),
     start_host_mapping(Host, ServerHost),
     ?DEBUG("mod_mam_muc starting", []),
-    [start_module(ServerHost, M) || M <- required_modules(ServerHost)],
     IQDisc = gen_mod:get_opt(iqdisc, Opts, parallel), %% Type
     mod_disco:register_feature(Host, mam_ns_binary()),
     gen_iq_handler:add_iq_handler(mod_muc_iq, Host, mam_ns_binary(),
@@ -241,13 +227,6 @@ start(ServerHost, Opts) ->
     ejabberd_hooks:add(filter_room_packet, Host, ?MODULE,
                        filter_room_packet, 90),
     ejabberd_hooks:add(forget_room, Host, ?MODULE, forget_room, 90),
-    case skip_before_invitation(ServerHost) of
-        true ->
-            ejabberd_hooks:add(
-                invitation_sent, Host, ?MODULE, invitation_sent, 90);
-        false ->
-            ok
-    end,
     ok.
 
 stop(ServerHost) ->
@@ -257,16 +236,8 @@ stop(ServerHost) ->
     ?DEBUG("mod_mam stopping", []),
     ejabberd_hooks:delete(filter_room_packet, Host, ?MODULE, filter_room_packet, 90),
     ejabberd_hooks:delete(forget_room, Host, ?MODULE, forget_room, 90),
-    case skip_before_invitation(ServerHost) of
-        true ->
-            ejabberd_hooks:delete(
-                invitation_sent, Host, ?MODULE, invitation_sent, 50);
-        false ->
-            ok
-    end,
     gen_iq_handler:remove_iq_handler(mod_muc_iq, Host, mam_ns_string()),
     mod_disco:unregister_feature(Host, mam_ns_binary()),
-    [stop_module(ServerHost, M) || M <- required_modules(ServerHost)],
     stop_host_mapping(Host, ServerHost),
     ok.
 
@@ -291,67 +262,6 @@ server_host(#jid{lserver=Host}) ->
         server_host = ServerHost
     }] = mnesia:dirty_read(mam_host, Host),
     ServerHost.
-
-%% ----------------------------------------------------------------------
-%% Control modules
-
-start_module(Host, M) ->
-    case is_function_exist(M, start, 2) of
-        true  -> M:start(Host, ?MODULE);
-        false -> ok
-    end,
-    ok.
-
-stop_module(Host, M) ->
-    case is_function_exist(M, stop, 2) of
-        true  -> M:stop(Host, ?MODULE);
-        false -> ok
-    end,
-    ok.
-
-required_modules(Host) ->
-    expand_modules(Host, base_modules(Host)).
-
-expand_modules(Host, Mods) ->
-    expand_modules(Host, Mods, []).
-
-required_modules(Host, M) ->
-    case is_function_exist(M, required_modules, 2) of
-        true  -> M:required_modules(Host, ?MODULE);
-        false -> []
-    end.
-    
-expand_modules(Host, [H|T], Acc) ->
-    %% Do not load the same module twice.
-    ReqMods = skip_expanded_modules(required_modules(Host, H), Acc),
-    expand_modules(Host, T, [H] ++ ReqMods ++ Acc);
-expand_modules(_, [], Acc) ->
-    lists:reverse(Acc).
-
-skip_expanded_modules(Mods, ExpandedMods) ->
-    [M || M <- Mods, not lists:member(M, ExpandedMods)].
-
-base_modules(Host) ->
-    [prefs_module(Host),
-     archive_module(Host),
-     writer_module(Host),
-     user_module(Host),
-     invitation_module(Host)].
-    
-prefs_module(Host) ->
-    gen_mod:get_module_opt(Host, ?MODULE, prefs_module, mod_mam_odbc_prefs).
-
-archive_module(Host) ->
-    gen_mod:get_module_opt(Host, ?MODULE, archive_module, mod_mam_muc_odbc_arch).
-
-writer_module(Host) ->
-    gen_mod:get_module_opt(Host, ?MODULE, writer_module, mod_mam_muc_odbc_arch).
-
-user_module(Host) ->
-    gen_mod:get_module_opt(Host, ?MODULE, user_module, mod_mam_odbc_user).
-
-invitation_module(Host) ->
-    gen_mod:get_module_opt(Host, ?MODULE, invitation_module, mod_mam_muc_mnesia_dirty_invitation).
 
 %% ----------------------------------------------------------------------
 %% hooks and handlers for MUC
@@ -422,9 +332,6 @@ room_process_mam_iq(From=#jid{lserver=Host}, To, IQ) ->
 %% This hook is called from `mod_muc:forget_room(Host, Name)'.
 forget_room(LServer, RoomName) ->
     delete_archive(LServer, RoomName).
-
-invitation_sent(_Host, ServerHost, RoomJID, _FromJID, ToJID, _Reason) ->
-    save_invitation_time(ServerHost, RoomJID, ToJID).
 
 %% ----------------------------------------------------------------------
 %% Internal functions
@@ -527,7 +434,6 @@ handle_lookup_messages(
     %% Start :: integer() | undefined
     Start = elem_to_start_microseconds(QueryEl),
     End   = elem_to_end_microseconds(QueryEl),
-    Start1 = apply_skip_before_invitation(Host, ArcID, ArcJID, From, Start),
     %% Filtering by contact.
     With  = elem_to_with_jid(QueryEl),
     RSM   = fix_rsm(jlib:rsm_decode(QueryEl)),
@@ -536,9 +442,8 @@ handle_lookup_messages(
     PageSize = min(max_result_limit(),
                    maybe_integer(Limit, default_result_limit())),
     LimitPassed = Limit =/= <<>>,
-    wait_flushing_before(Host, ArcID, ArcJID, End, Now),
     case lookup_messages(Host, ArcID, ArcJID, RSM, Borders,
-                         Start1, End, Now, With,
+                         Start, End, Now, With,
                          PageSize, LimitPassed, max_result_limit()) of
     {error, 'policy-violation'} ->
         ?DEBUG("Policy violation by ~p.", [jlib:jid_to_binary(From)]),
@@ -576,7 +481,6 @@ handle_purge_multiple_messages(ArcJID=#jid{},
     Borders = borders_decode(PurgeEl),
     %% Filtering by contact.
     With  = elem_to_with_jid(PurgeEl),
-    wait_flushing_before(Host, ArcID, ArcJID, End, Now),
     purge_multiple_messages(Host, ArcID, ArcJID, Borders, Start, End, Now, With),
     return_purge_success(IQ).
 
@@ -587,8 +491,6 @@ handle_purge_single_message(ArcJID=#jid{},
     ArcID = archive_id_int(Host, ArcJID),
     BExtMessID = xml:get_tag_attr_s(<<"id">>, PurgeEl),
     MessID = mod_mam_utils:external_binary_to_mess_id(BExtMessID),
-    {Microseconds, _NodeMessID} = decode_compact_uuid(MessID),
-    wait_flushing_before(Host, ArcID, ArcJID, Microseconds, Now),
     PurgingResult = purge_single_message(Host, MessID, ArcID, ArcJID, Now),
     return_purge_single_message_iq(IQ, PurgingResult).
 
@@ -596,27 +498,20 @@ handle_purge_single_message(ArcJID=#jid{},
 %% Backend wrappers
 
 archive_id_int(Host, ArcJID=#jid{}) ->
-    UM = user_module(Host),
-    UM:archive_id(Host, ?MODULE, ArcJID).
+    ejabberd_hooks:run_fold(mam_muc_archive_id, Host, undefined, [Host, ArcJID]).
 
 archive_size(Host, ArcID, ArcJID=#jid{}) ->
-    AM = archive_module(Host),
-    AM:archive_size(Host, ?MODULE, ArcID, ArcJID).
+    ejabberd_hooks:run_fold(mam_muc_archive_size, Host, 0, [Host, ArcID, ArcJID]).
 
 get_behaviour(Host, ArcID,
               LocJID=#jid{},
               RemJID=#jid{}, DefaultBehaviour) ->
-    M = prefs_module(Host),
-    M:get_behaviour(Host, ?MODULE,
-                    ArcID, LocJID, RemJID, DefaultBehaviour).
+    ejabberd_hooks:run_fold(mam_muc_get_behaviour, Host, DefaultBehaviour,
+        [Host, ArcID, LocJID, RemJID]).
 
 set_prefs(Host, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
-    M = prefs_module(Host),
-    M:set_prefs(Host, ?MODULE,
-                ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs),
-    ejabberd_hooks:run(mam_muc_set_prefs, Host,
-        [Host, ?MODULE, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs]),
-    ok.
+    ejabberd_hooks:run_fold(mam_muc_set_prefs, Host, ok,
+        [Host, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs]).
 
 %% @doc Load settings from the database.
 -spec get_prefs(Host, ArcID, ArcJID, GlobalDefaultMode) -> Result when
@@ -629,25 +524,12 @@ set_prefs(Host, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     AlwaysJIDs  :: [literal_jid()],
     NeverJIDs   :: [literal_jid()].
 get_prefs(Host, ArcID, ArcJID, GlobalDefaultMode) ->
-    M = prefs_module(Host),
-    {DefaultMode, AlwaysJIDs, NeverJIDs} = Result =
-        M:get_prefs(Host, ?MODULE, ArcID, ArcJID, GlobalDefaultMode),
-    ejabberd_hooks:run(mam_muc_get_prefs, Host,
-        [Host, ?MODULE, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs]),
-    Result.
+    ejabberd_hooks:run_fold(mam_muc_get_prefs, Host,
+        {GlobalDefaultMode, [], []},
+        [Host, ArcID, ArcJID]).
 
 remove_archive(Host, ArcID, ArcJID=#jid{}) ->
-    PM = prefs_module(Host),
-    AM = archive_module(Host),
-    UM = user_module(Host),
-    IM = invitation_module(Host),
-    IM:remove_archive(Host, ?MODULE, ArcID, ArcJID),
-    PM:remove_archive(Host, ?MODULE, ArcID, ArcJID),
-    AM:remove_archive(Host, ?MODULE, ArcID, ArcJID),
-    UM:remove_archive(Host, ?MODULE, ArcID, ArcJID),
-    catch wait_flushing(Host, ArcID, ArcJID),
-    ejabberd_hooks:run(mam_muc_remove_archive, Host,
-        [Host, ?MODULE, ArcID, ArcJID]),
+    ejabberd_hooks:run(mam_muc_remove_archive, Host, [Host, ArcID, ArcJID]),
     ok.
 
 -spec lookup_messages(Host, ArcID, ArcJID, RSM, Borders,
@@ -672,28 +554,14 @@ remove_archive(Host, ArcID, ArcJID=#jid{}) ->
     MessageRows :: list(tuple()).
 lookup_messages(Host, ArcID, ArcJID, RSM, Borders, Start, End, Now,
                 WithJID, PageSize, LimitPassed, MaxResultLimit) ->
-    AM = archive_module(Host),
-    Result = AM:lookup_messages(Host, ?MODULE,
-                                ArcID, ArcJID, RSM, Borders,
-                                Start, End, Now, WithJID,
-                                PageSize, LimitPassed, MaxResultLimit),
-    case Result of
-        {ok, {TotalCount, Offset, MessageRows}} ->
-            ejabberd_hooks:run(mam_muc_lookup_messages, Host,
-                [Host, ?MODULE, ArcID, ArcJID, Start, End, Now, WithJID,
-                 PageSize, LimitPassed, TotalCount, Offset, MessageRows]),
-            Result;
-        {error, _} ->
-            Result
-    end.
+    ejabberd_hooks:run_fold(mam_muc_lookup_messages, Host, {ok, {0, 0, []}},
+        [Host, ArcID, ArcJID, RSM, Borders,
+         Start, End, Now, WithJID,
+         PageSize, LimitPassed, MaxResultLimit]).
 
 archive_message(Host, MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet) ->
-    M = writer_module(Host),
-    ejabberd_hooks:run(mam_muc_archive_message, Host,
-        [Host, ?MODULE, ArcID, LocJID, RemJID, SrcJID, Dir, Packet]),
-    M:archive_message(Host, ?MODULE,
-                      MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet).
-
+    ejabberd_hooks:run_fold(mam_muc_archive_message, Host, ok,
+        [Host, MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet]).
 
 -spec purge_single_message(Host, MessID, ArcID, ArcJID, Now) ->
     ok | {error, 'not-found'} when
@@ -703,12 +571,8 @@ archive_message(Host, MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet) ->
     ArcJID :: jid(),
     Now :: unix_timestamp().
 purge_single_message(Host, MessID, ArcID, ArcJID, Now) ->
-    AM = archive_module(Host),
-    Result = AM:purge_single_message(Host, ?MODULE,
-                                     MessID, ArcID, ArcJID, Now),
-    ejabberd_hooks:run(mam_muc_purge_single_message, Host,
-        [Host, ?MODULE, MessID, ArcID, ArcJID, Now, Result]),
-    Result.
+    ejabberd_hooks:run_fold(mam_muc_purge_single_message, Host, ok,
+        [Host, MessID, ArcID, ArcJID, Now]).
 
 -spec purge_multiple_messages(Host, ArcID, ArcJID, Borders,
                               Start, End, Now, WithJID) -> ok
@@ -723,32 +587,8 @@ purge_single_message(Host, MessID, ArcID, ArcJID, Now) ->
     WithJID :: jid() | undefined.
 purge_multiple_messages(Host, ArcID, ArcJID, Borders,
                         Start, End, Now, WithJID) ->
-    AM = archive_module(Host),
-    AM:purge_multiple_messages(Host, ?MODULE,
-                               ArcID, ArcJID, Borders,
-                               Start, End, Now, WithJID),
-    ejabberd_hooks:run(mam_muc_purge_multiple_messages, Host,
-        [Host, ?MODULE, ArcID, ArcJID, Start, End, Now, WithJID]),
-    ok.
-
-wait_flushing(Host, ArcID, ArcJID) ->
-    M = writer_module(Host),
-    M:wait_flushing(Host, ?MODULE, ArcID, ArcJID).
-
-wait_flushing_before(Host, ArcID, ArcJID, End, Now) ->
-    case is_recent_entries_required(End, Now) of
-        true ->
-            wait_flushing(Host, ArcID, ArcJID);
-        false ->
-            ok
-    end.
-
-%% @doc Returns true, if `End' is too old.
-is_recent_entries_required(End, Now) when is_integer(End) ->
-    %% If `End' is older than 10 seconds?
-    End + 10000000 < Now;
-is_recent_entries_required(_End, _Now) ->
-    true.
+    ejabberd_hooks:run_fold(mam_muc_purge_multiple_messages, Host, ok,
+        [Host, ArcID, ArcJID, Borders, Start, End, Now, WithJID]).
 
 wait_shaper(Host, Action, From) ->
     case shaper_srv:wait(Host, action_to_shaper_name(Action), From, 1) of
@@ -757,39 +597,6 @@ wait_shaper(Host, Action, From) ->
         Err ->
             Err
     end.
-
-%% ----------------------------------------------------------------------
-%% Invitations
-
-skip_before_invitation(Host) ->
-    gen_mod:get_module_opt(Host, ?MODULE, skip_before_invitation, false).
-
-apply_skip_before_invitation(Host, ArcID, ArcJID, FromJID, Start) ->
-    case skip_before_invitation(Host) of
-        true ->
-            %% Get history since invitation.
-            %% Ignore all messages before.
-            InviteTime = invitation_sent_timestamp(Host, ArcID, ArcJID, FromJID),
-            maybe_max(InviteTime, Start);
-        false ->
-            Start
-    end.
-
-%% @doc Save invitation time if it is not stored already.
-save_invitation_time(Host, ArcJID, UserJID) ->
-    ArcID = archive_id_int(Host, ArcJID),
-    IM = invitation_module(Host),
-    IM:save_invitation_time(Host, ?MODULE, ArcID, ArcJID, UserJID).
-
--spec invitation_sent_timestamp(Host, ArcID, ArcJID, UserJID) -> InviteTime when
-    Host   :: server_host(),
-    ArcID  :: archive_id(),
-    ArcJID :: jid(),
-    UserJID :: jid(),
-    InviteTime :: unix_timestamp() | undefined.
-invitation_sent_timestamp(Host, ArcID, ArcJID, UserJID) ->
-    IM = invitation_module(Host),
-    IM:invitation_sent_timestamp(Host, ?MODULE, ArcID, ArcJID, UserJID).
 
 %% ----------------------------------------------------------------------
 %% Helpers
@@ -810,14 +617,6 @@ maybe_jid(<<>>) ->
     undefined;
 maybe_jid(JID) when is_binary(JID) ->
     jlib:binary_to_jid(JID).
-
-maybe_max(undefined, Y) ->
-    Y;
-maybe_max(X, undefined) ->
-    X;
-maybe_max(X, Y) ->
-    max(X, Y).
-
 
 %% @doc Convert id into internal format.
 fix_rsm(none) ->
