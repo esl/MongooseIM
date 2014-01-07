@@ -77,8 +77,10 @@ stop_muc(Host) ->
 %% API
 %%====================================================================
 
-archive_id(_ArcID, Host, _ArcJID=#jid{luser = UserName}) ->
-    query_archive_id(Host, UserName).
+archive_id(undefined, Host, _ArcJID=#jid{luser = UserName}) ->
+    query_archive_id(Host, UserName);
+archive_id(ArcID, _Host, _ArcJID) ->
+    ArcID.
 
 remove_archive(Host, _ArcID, _ArcJID=#jid{luser = UserName}) ->
     SUserName = ejabberd_odbc:escape(UserName),
