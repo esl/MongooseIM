@@ -5,11 +5,18 @@
 %%% @end
 %%%-------------------------------------------------------------------
 -module(mod_mam_mnesia_prefs).
--export([start/2,
-         get_behaviour/6,
-         get_prefs/5,
+
+%% ----------------------------------------------------------------------
+%% Exports
+
+%% gen_mod handlers
+-export([start/2, stop/1]).
+
+%% MAM hook handlers
+-export([get_behaviour/5,
+         get_prefs/4,
          set_prefs/7,
-         remove_archive/4]).
+         remove_archive/3]).
 
 -include_lib("ejabberd/include/ejabberd.hrl").
 -include_lib("ejabberd/include/jlib.hrl").
@@ -18,20 +25,87 @@
 -record(mam_prefs_rule, {key, behaviour}).
 -record(mam_prefs_user, {host_user, default_mode, always_rules, never_rules}).
 
-start(_Host, _Mod) ->
+%% ----------------------------------------------------------------------
+%% gen_mod callbacks
+%% Starting and stopping functions for users' archives
+
+start(Host, Opts) ->
     mnesia:create_table(mam_prefs_rule,
             [{disc_copies, [node()]},
              {attributes, record_info(fields, mam_prefs_rule)}]),
     mnesia:create_table(mam_prefs_user,
             [{disc_copies, [node()]},
              {attributes, record_info(fields, mam_prefs_user)}]),
+    case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
+        true ->
+            start_pm(Host, Opts);
+        false ->
+            ok
+    end,
+    case gen_mod:get_module_opt(Host, ?MODULE, muc, false) of
+        true ->
+            start_muc(Host, Opts);
+        false ->
+            ok
+    end.
+
+stop(Host) ->
+    case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
+        true ->
+            stop_pm(Host);
+        false ->
+            ok
+    end,
+    case gen_mod:get_module_opt(Host, ?MODULE, muc, false) of
+        true ->
+            stop_muc(Host);
+        false ->
+            ok
+    end.
+
+
+%% ----------------------------------------------------------------------
+%% Add hooks for mod_mam
+
+start_pm(Host, _Opts) ->
+    ejabberd_hooks:add(mam_get_behaviour, Host, ?MODULE, get_behaviour, 50),
+    ejabberd_hooks:add(mam_get_prefs, Host, ?MODULE, get_prefs, 50),
+    ejabberd_hooks:add(mam_set_prefs, Host, ?MODULE, set_prefs, 50),
+    ejabberd_hooks:add(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
     ok.
 
-get_behaviour(_Host, _Mod,
-             _ArcID,
+stop_pm(Host) ->
+    ejabberd_hooks:add(mam_get_behaviour, Host, ?MODULE, get_behaviour, 50),
+    ejabberd_hooks:add(mam_get_prefs, Host, ?MODULE, get_prefs, 50),
+    ejabberd_hooks:add(mam_set_prefs, Host, ?MODULE, set_prefs, 50),
+    ejabberd_hooks:add(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
+    ok.
+
+
+%% ----------------------------------------------------------------------
+%% Add hooks for mod_mam_muc_muc
+
+start_muc(Host, _Opts) ->
+    ejabberd_hooks:add(mam_muc_get_behaviour, Host, ?MODULE, get_behaviour, 50),
+    ejabberd_hooks:add(mam_muc_get_prefs, Host, ?MODULE, get_prefs, 50),
+    ejabberd_hooks:add(mam_muc_set_prefs, Host, ?MODULE, set_prefs, 50),
+    ejabberd_hooks:add(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50),
+    ok.
+
+stop_muc(Host) ->
+    ejabberd_hooks:add(mam_muc_get_behaviour, Host, ?MODULE, get_behaviour, 50),
+    ejabberd_hooks:add(mam_muc_get_prefs, Host, ?MODULE, get_prefs, 50),
+    ejabberd_hooks:add(mam_muc_set_prefs, Host, ?MODULE, set_prefs, 50),
+    ejabberd_hooks:add(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50),
+    ok.
+
+
+%% ----------------------------------------------------------------------
+%% Internal functions and callbacks
+
+get_behaviour(DefaultBehaviour, _Host, _ArcID,
               LocJID=#jid{},
-              RemJID=#jid{},
-              DefaultBehaviour) ->
+              RemJID=#jid{}) ->
     case mnesia:dirty_read(mam_prefs_rule, key1(LocJID, RemJID)) of
         [] ->
             case mnesia:dirty_read(mam_prefs_rule, key2(LocJID, RemJID)) of
@@ -45,7 +119,7 @@ get_behaviour(_Host, _Mod,
         [#mam_prefs_rule{behaviour=B}] -> B
     end.
 
-set_prefs(_Host, _Mod, _ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
+set_prefs(Result, _Host, _ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     NewARules = lists:usort(rules(AlwaysJIDs)),
     NewNRules = lists:usort(rules(NeverJIDs)),
     SU = su_key(ArcJID),
@@ -70,9 +144,9 @@ set_prefs(_Host, _Mod, _ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
                 ok
         end
     end),
-    ok.
+    Result.
 
-get_prefs(_Host, _Mod, _ArcID, ArcJID, GlobalDefaultMode) ->
+get_prefs({GlobalDefaultMode, _, _}, _Host, _ArcID, ArcJID) ->
     case mnesia:dirty_read(mam_prefs_user, su_key(ArcJID)) of
         [] -> 
             {GlobalDefaultMode, [], []};
@@ -83,7 +157,7 @@ get_prefs(_Host, _Mod, _ArcID, ArcJID, GlobalDefaultMode) ->
             {DefaultMode, AlwaysJIDs, NeverJIDs}
     end.
 
-remove_archive(_Host, _Mod, _ArcID, ArcJID) ->
+remove_archive(_Host, _ArcID, ArcJID) ->
     {atomic, ok} = mnesia:transaction(fun() ->
         case mnesia:read(mam_prefs_user, su_key(ArcJID)) of
             [] -> ok; %% already deleted
