@@ -30,6 +30,7 @@
          muc_service_discovery/1,
          simple_archive_request/1,
          muc_archive_request/1,
+         muc_multiple_devices/1,
          muc_private_message/1,
          muc_skip_before_invitation/1,
          range_archive_request/1,
@@ -200,6 +201,7 @@ offline_message_cases() ->
 muc_cases() ->
     [muc_service_discovery,
      muc_archive_request,
+     muc_multiple_devices,
      muc_private_message,
      muc_querying_for_all_messages,
      muc_querying_for_all_messages_with_jid].
@@ -258,9 +260,6 @@ init_modules(odbc_async_cache, muc, Config) ->
     Config;
 init_modules(odbc_mnesia_cache, muc, Config) ->
     init_module(muc_server_host(), mod_mam_muc, odbc_mnesia_cache_muc_args()),
-    Config;
-init_modules(odbc_async_cache, muc_invitation, Config) ->
-    init_module(muc_server_host(), mod_mam_muc, odbc_async_cache_muc_invitation_args()),
     Config;
 init_modules(odbc, muc_invitation, Config) ->
     init_module(muc_server_host(), mod_mam_muc, odbc_muc_invitation_args()),
@@ -484,6 +483,8 @@ init_per_testcase(C=muc_querying_for_all_messages_with_jid, Config) ->
         muc_bootstrap_archive(start_alice_room(Config)));
 init_per_testcase(C=muc_archive_request, Config) ->
     escalus:init_per_testcase(C, clean_room_archive(start_alice_room(Config)));
+init_per_testcase(C=muc_multiple_devices, Config) ->
+    escalus:init_per_testcase(C, clean_room_archive(start_alice_room(Config)));
 init_per_testcase(C=muc_private_message, Config) ->
     escalus:init_per_testcase(C, start_alice_room(Config));
 init_per_testcase(C=muc_skip_before_invitation, Config) ->
@@ -492,6 +493,9 @@ init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
 end_per_testcase(C=muc_archive_request, Config) ->
+    destroy_room(Config),
+    escalus:end_per_testcase(C, Config);
+end_per_testcase(C=muc_multiple_devices, Config) ->
     destroy_room(Config),
     escalus:end_per_testcase(C, Config);
 end_per_testcase(C=muc_private_message, Config) ->
@@ -903,6 +907,69 @@ muc_archive_request(Config) ->
         ok
         end,
     escalus:story(Config, [1, 1], F).
+
+muc_multiple_devices(Config) ->
+    F = fun(Alice1, Alice2, Bob) ->
+        Room = ?config(room, Config),
+        RoomAddr = room_address(Room),
+        Text = <<"Hi, Bob!">>,
+        %% You should use an unique nick for each device.
+        escalus:send(Alice1, stanza_muc_enter_room(Room, <<"alice_1">>)),
+        escalus:send(Alice2, stanza_muc_enter_room(Room, <<"alice_2">>)),
+        escalus:send(Bob, stanza_muc_enter_room(Room, <<"bob">>)),
+
+        %% Alice received presences.
+        escalus:wait_for_stanzas(Alice1, 3),
+        escalus:wait_for_stanzas(Alice2, 3),
+
+        %% Bob received presences.
+        escalus:wait_for_stanzas(Bob, 3),
+
+        %% Bob received the room's subject.
+        escalus:wait_for_stanzas(Bob, 1),
+
+        %% Alice received the room's subject.
+        escalus:wait_for_stanzas(Alice1, 1),
+        escalus:wait_for_stanzas(Alice2, 1),
+
+        %% Alice sends to the chat room.
+		escalus:send(Alice1, escalus_stanza:groupchat_to(RoomAddr, Text)),
+
+        %% Alice receives her own message.
+        Alice1Msg = escalus:wait_for_stanza(Alice1),
+        escalus:assert(is_message, Alice1Msg),
+
+        Alice2Msg = escalus:wait_for_stanza(Alice2),
+        escalus:assert(is_message, Alice2Msg),
+
+        Alice1Arc = exml_query:subelement(Alice1Msg, <<"archived">>),
+        Alice2Arc = exml_query:subelement(Alice2Msg, <<"archived">>),
+        ?assert_equal(Alice1Arc, Alice2Arc),
+
+        %% Bob received the message "Hi, Bob!".
+        %% This message will be archived (by alicesroom@localhost).
+        %% User's archive is disabled (i.e. bob@localhost).
+        BobMsg = escalus:wait_for_stanza(Bob),
+        escalus:assert(is_message, BobMsg),
+        Arc = exml_query:subelement(BobMsg, <<"archived">>),
+        %% JID of the archive (i.e. where the client would send queries to)
+        By  = exml_query:attr(Arc, <<"by">>),
+        %% Attribute giving the message's UID within the archive.
+        Id  = exml_query:attr(Arc, <<"id">>),
+
+        ?assert_equal(Alice1Arc, Arc),
+
+        %% Bob requests the room's archive.
+        escalus:send(Bob, stanza_to_room(stanza_archive_request(<<"q1">>), Room)),
+        [_ArcRes, ArcMsg] = assert_respond_size(1, wait_archive_respond_iq_first(Bob)),
+        #forwarded_message{result_id=ArcId, message_body=ArcMsgBody} =
+            parse_forwarded_message(ArcMsg),
+        ?assert_equal(Text, ArcMsgBody),
+        ?assert_equal(ArcId, Id),
+        ?assert_equal(RoomAddr, By),
+        ok
+        end,
+    escalus:story(Config, [2, 1], F).
 
 muc_private_message(Config) ->
     F = fun(Alice, Bob) ->
