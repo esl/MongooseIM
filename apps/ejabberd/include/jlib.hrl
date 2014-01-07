@@ -349,6 +349,13 @@
         index       :: non_neg_integer() | undefined | error
 }).
 
+-record(mam_borders, {
+        after_id  :: non_neg_integer() | undefined,
+        before_id :: non_neg_integer() | undefined,
+        from_id   :: non_neg_integer() | undefined,
+        to_id     :: non_neg_integer() | undefined
+}).
+
 -record(rsm_out, {count, index, first, last}).
 
 -type jid() :: #jid{}.
