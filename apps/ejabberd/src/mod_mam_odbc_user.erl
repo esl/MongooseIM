@@ -20,12 +20,56 @@
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
 
-start(Host, _Opts) ->
+start(Host, Opts) ->
+    case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
+        true ->
+            start_pm(Host, Opts);
+        false ->
+            ok
+    end,
+    case gen_mod:get_module_opt(Host, ?MODULE, muc, false) of
+        true ->
+            start_muc(Host, Opts);
+        false ->
+            ok
+    end.
+
+stop(Host) ->
+    case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
+        true ->
+            stop_pm(Host);
+        false ->
+            ok
+    end,
+    case gen_mod:get_module_opt(Host, ?MODULE, muc, false) of
+        true ->
+            stop_muc(Host);
+        false ->
+            ok
+    end.
+
+
+%% ----------------------------------------------------------------------
+%% Add hooks for mod_mam
+
+start_pm(Host, _Opts) ->
     ejabberd_hooks:add(mam_archive_id, Host, ?MODULE, archive_id, 50),
     ok.
 
-stop(Host) ->
+stop_pm(Host) ->
     ejabberd_hooks:delete(mam_archive_id, Host, ?MODULE, archive_id, 50),
+    ok.
+
+
+%% ----------------------------------------------------------------------
+%% Add hooks for mod_mam_muc
+
+start_muc(Host, _Opts) ->
+    ejabberd_hooks:add(mam_muc_archive_id, Host, ?MODULE, archive_id, 50),
+    ok.
+
+stop_muc(Host) ->
+    ejabberd_hooks:delete(mam_muc_archive_id, Host, ?MODULE, archive_id, 50),
     ok.
 
 

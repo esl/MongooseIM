@@ -71,7 +71,39 @@
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
 
-start(Host, _Opts) ->
+start(Host, Opts) ->
+    case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
+        true ->
+            start_pm(Host, Opts);
+        false ->
+            ok
+    end,
+    case gen_mod:get_module_opt(Host, ?MODULE, muc, false) of
+        true ->
+            start_muc(Host, Opts);
+        false ->
+            ok
+    end.
+
+stop(Host) ->
+    case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
+        true ->
+            stop_pm(Host);
+        false ->
+            ok
+    end,
+    case gen_mod:get_module_opt(Host, ?MODULE, muc, false) of
+        true ->
+            stop_muc(Host);
+        false ->
+            ok
+    end.
+
+
+%% ----------------------------------------------------------------------
+%% Add hooks for mod_mam
+
+start_pm(Host, _Opts) ->
     case gen_mod:get_module_opt(Host, ?MODULE, no_writer, false) of
         true ->
             ok;
@@ -85,7 +117,7 @@ start(Host, _Opts) ->
     ejabberd_hooks:add(mam_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 50),
     ok.
 
-stop(Host) ->
+stop_pm(Host) ->
     case gen_mod:get_module_opt(Host, ?MODULE, no_writer, false) of
         true ->
             ok;
@@ -97,6 +129,38 @@ stop(Host) ->
     ejabberd_hooks:delete(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
     ejabberd_hooks:delete(mam_purge_single_message, Host, ?MODULE, purge_single_message, 50),
     ejabberd_hooks:delete(mam_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 50),
+    ok.
+
+
+%% ----------------------------------------------------------------------
+%% Add hooks for mod_mam_muc
+
+start_muc(Host, _Opts) ->
+    case gen_mod:get_module_opt(Host, ?MODULE, no_writer, false) of
+        true ->
+            ok;
+        false ->
+            ejabberd_hooks:add(mam_muc_archive_message, Host, ?MODULE, archive_message, 50)
+    end,
+    ejabberd_hooks:add(mam_muc_archive_size, Host, ?MODULE, archive_size, 50),
+    ejabberd_hooks:add(mam_muc_lookup_messages, Host, ?MODULE, lookup_messages, 50),
+    ejabberd_hooks:add(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50),
+    ejabberd_hooks:add(mam_muc_purge_single_message, Host, ?MODULE, purge_single_message, 50),
+    ejabberd_hooks:add(mam_muc_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 50),
+    ok.
+
+stop_muc(Host) ->
+    case gen_mod:get_module_opt(Host, ?MODULE, no_writer, false) of
+        true ->
+            ok;
+        false ->
+            ejabberd_hooks:delete(mam_muc_archive_message, Host, ?MODULE, archive_message, 50)
+    end,
+    ejabberd_hooks:delete(mam_muc_archive_size, Host, ?MODULE, archive_size, 50),
+    ejabberd_hooks:delete(mam_muc_lookup_messages, Host, ?MODULE, lookup_messages, 50),
+    ejabberd_hooks:delete(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50),
+    ejabberd_hooks:delete(mam_muc_purge_single_message, Host, ?MODULE, purge_single_message, 50),
+    ejabberd_hooks:delete(mam_muc_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 50),
     ok.
 
 
