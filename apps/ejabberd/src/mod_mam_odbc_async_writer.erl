@@ -70,7 +70,6 @@ start(Host, Opts) ->
     end.
 
 stop(Host) ->
-    stop_server(Host),
     case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
         true ->
             stop_pm(Host);
@@ -82,7 +81,8 @@ stop(Host) ->
             stop_muc(Host);
         false ->
             ok
-    end.
+    end,
+    stop_server(Host).
 
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam

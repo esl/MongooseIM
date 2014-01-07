@@ -79,8 +79,7 @@ worker_number(Host, ArcID) ->
 %% Starting and stopping functions for users' archives
 
 start(Host, Opts) ->
-    [start_worker(WriterProc, N, Host)
-     || {N, WriterProc} <- worker_names(Host)],
+    start_workers(Host),
     case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
         true ->
             start_pm(Host, Opts);
@@ -95,7 +94,6 @@ start(Host, Opts) ->
     end.
 
 stop(Host) ->
-    [stop_worker(WriterProc) ||  {_, WriterProc} <- worker_names(Host)],
     case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
         true ->
             stop_pm(Host);
@@ -107,7 +105,8 @@ stop(Host) ->
             stop_muc(Host);
         false ->
             ok
-    end.
+    end,
+    stop_workers(Host).
 
 
 %% ----------------------------------------------------------------------
@@ -157,6 +156,13 @@ stop_muc(Host) ->
 %%====================================================================
 %% API
 %%====================================================================
+
+start_workers(Host) ->
+    [start_worker(WriterProc, N, Host)
+     || {N, WriterProc} <- worker_names(Host)].
+
+stop_workers(Host) ->
+    [stop_worker(WriterProc) ||  {_, WriterProc} <- worker_names(Host)].
 
 start_worker(WriterProc, N, Host) ->
     WriterChildSpec =
