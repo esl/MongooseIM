@@ -49,8 +49,7 @@
 
 %% Utils
 -export([create_dump_file/2,
-         restore_dump_file/3,
-         debug_info/1]).
+         restore_dump_file/3]).
 
 %% ----------------------------------------------------------------------
 %% Imports
@@ -151,15 +150,6 @@ archive_id(Server, User)
 %% ----------------------------------------------------------------------
 %% Utils API
 
-debug_info(Host) ->
-    AM = archive_module(Host),
-    WM = writer_module(Host),
-    PM = prefs_module(Host),
-    [{archive_module, AM},
-     {writer_module, WM},
-     {prefs_module, PM}].
-
-
 new_iterator(ArcJID=#jid{}) ->
     Now = mod_mam_utils:now_to_microseconds(now()),
     Host = server_host(ArcJID),
@@ -243,7 +233,6 @@ restore_dump_file_unsave(ArcJID, InFileName, Opts) ->
 start(Host, Opts) ->
     ?DEBUG("mod_mam starting", []),
     ejabberd_users:start(Host),
-    [start_module(Host, M) || M <- required_modules(Host)],
     %% `parallel' is the only one recommended here.
     IQDisc = gen_mod:get_opt(iqdisc, Opts, parallel), %% Type
     mod_disco:register_feature(Host, mam_ns_binary()),
@@ -261,65 +250,7 @@ stop(Host) ->
     ejabberd_hooks:delete(remove_user, Host, ?MODULE, remove_user, 50),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, mam_ns_string()),
     mod_disco:unregister_feature(Host, mam_ns_binary()),
-    [stop_module(Host, M) || M <- required_modules(Host)],
     ok.
-
-%% ----------------------------------------------------------------------
-%% Control modules
-
-start_module(Host, M) ->
-    case is_function_exist(M, start, 2) of
-        true  -> M:start(Host, ?MODULE);
-        false -> ok
-    end,
-    ok.
-
-stop_module(Host, M) ->
-    case is_function_exist(M, stop, 2) of
-        true  -> M:stop(Host, ?MODULE);
-        false -> ok
-    end,
-    ok.
-
-required_modules(Host) ->
-    expand_modules(Host, base_modules(Host)).
-
-expand_modules(Host, Mods) ->
-    expand_modules(Host, Mods, []).
-    
-expand_modules(Host, [H|T], Acc) ->
-    %% Do not load the same module twice.
-    ReqMods = skip_expanded_modules(required_modules(Host, H), Acc),
-    expand_modules(Host, T, [H] ++ ReqMods ++ Acc);
-expand_modules(_, [], Acc) ->
-    lists:reverse(Acc).
-
-required_modules(Host, M) ->
-    case is_function_exist(M, required_modules, 2) of
-        true  -> M:required_modules(Host, ?MODULE);
-        false -> []
-    end.
-
-skip_expanded_modules(Mods, ExpandedMods) ->
-    [M || M <- Mods, not lists:member(M, ExpandedMods)].
-
-base_modules(Host) ->
-    [prefs_module(Host),
-     archive_module(Host),
-     writer_module(Host),
-     user_module(Host)].
-
-prefs_module(Host) ->
-    gen_mod:get_module_opt(Host, ?MODULE, prefs_module, mod_mam_odbc_prefs).
-
-archive_module(Host) ->
-    gen_mod:get_module_opt(Host, ?MODULE, archive_module, mod_mam_odbc_arch).
-
-writer_module(Host) ->
-    gen_mod:get_module_opt(Host, ?MODULE, writer_module, mod_mam_odbc_arch).
-
-user_module(Host) ->
-    gen_mod:get_module_opt(Host, ?MODULE, user_module, mod_mam_odbc_user).
 
 %% ----------------------------------------------------------------------
 %% hooks and handlers
@@ -595,12 +526,10 @@ handle_package(Dir, ReturnMessID,
 %% Backend wrappers
 
 archive_id_int(Host, ArcJID=#jid{}) ->
-    UM = user_module(Host),
-    UM:archive_id(Host, ?MODULE, ArcJID).
+    ejabberd_hooks:run_fold(mam_archive_id, Host, undefined, [Host, ArcJID]).
 
 archive_size(Host, ArcID, ArcJID=#jid{}) ->
-    AM = archive_module(Host),
-    AM:archive_size(Host, ?MODULE, ArcID, ArcJID).
+    ejabberd_hooks:run_fold(mam_archive_size, Host, 0, [Host, ArcID, ArcJID]).
 
 get_behaviour(Host, ArcID,
               LocJID=#jid{},
