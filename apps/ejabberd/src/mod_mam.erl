@@ -552,7 +552,7 @@ set_prefs(Host, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     AlwaysJIDs  :: [literal_jid()],
     NeverJIDs   :: [literal_jid()].
 get_prefs(Host, ArcID, ArcJID, GlobalDefaultMode) ->
-    ejabberd_hooks:run_fold(mam_lookup_messages, Host,
+    ejabberd_hooks:run_fold(mam_get_prefs, Host,
         {GlobalDefaultMode, [], []},
         [Host, ArcID, ArcJID]).
 

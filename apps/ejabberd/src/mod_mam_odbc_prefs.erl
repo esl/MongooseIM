@@ -5,16 +5,47 @@
 %%% @end
 %%%-------------------------------------------------------------------
 -module(mod_mam_odbc_prefs).
--export([get_behaviour/6,
-         get_prefs/5,
+
+%% ----------------------------------------------------------------------
+%% Exports
+
+%% gen_mod handlers
+-export([start/2, stop/1]).
+
+%% MAM hook handlers
+-export([get_behaviour/5,
+         get_prefs/4,
          set_prefs/7,
-         remove_archive/4]).
+         remove_archive/3]).
 
 -include_lib("ejabberd/include/ejabberd.hrl").
 -include_lib("ejabberd/include/jlib.hrl").
 -include_lib("exml/include/exml.hrl").
 
-get_behaviour(Host, _Mod, UserID, _LocJID, RemJID, DefaultBehaviour) ->
+
+%% ----------------------------------------------------------------------
+%% gen_mod callbacks
+%% Starting and stopping functions for users' archives
+
+start(Host, _Opts) ->
+    ejabberd_hooks:add(mam_get_behaviour, Host, ?MODULE, get_behaviour, 50),
+    ejabberd_hooks:add(mam_get_prefs, Host, ?MODULE, get_prefs, 50),
+    ejabberd_hooks:add(mam_set_prefs, Host, ?MODULE, set_prefs, 50),
+    ejabberd_hooks:add(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
+    ok.
+
+stop(Host) ->
+    ejabberd_hooks:add(mam_get_behaviour, Host, ?MODULE, get_behaviour, 50),
+    ejabberd_hooks:add(mam_get_prefs, Host, ?MODULE, get_prefs, 50),
+    ejabberd_hooks:add(mam_set_prefs, Host, ?MODULE, set_prefs, 50),
+    ejabberd_hooks:add(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
+    ok.
+
+
+%% ----------------------------------------------------------------------
+%% Internal functions and callbacks
+
+get_behaviour(DefaultBehaviour, Host, UserID, _LocJID, RemJID) ->
     RemLJID      = jlib:jid_tolower(RemJID),
     SRemLBareJID = esc_jid(jlib:jid_remove_resource(RemLJID)),
     SRemLJID     = esc_jid(jlib:jid_tolower(RemJID)),
@@ -25,7 +56,7 @@ get_behaviour(Host, _Mod, UserID, _LocJID, RemJID, DefaultBehaviour) ->
         _ -> DefaultBehaviour
     end.
 
-set_prefs(Host, _Mod, UserID, _ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
+set_prefs(Result, Host, UserID, _ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     SUserID = integer_to_list(UserID),
     DelQuery = ["DELETE FROM mam_config WHERE user_id = '", SUserID, "'"],
     InsQuery = ["INSERT INTO mam_config(user_id, behaviour, remote_jid) "
@@ -37,9 +68,9 @@ set_prefs(Host, _Mod, UserID, _ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     %% Run as a transaction
     {atomic, [{updated, _}, {updated, _}]} =
         sql_transaction_map(Host, [DelQuery, InsQuery]),
-    ok.
+    Result.
 
-get_prefs(Host, _Mod, UserID, _ArcJID, GlobalDefaultMode) ->
+get_prefs({GlobalDefaultMode, _, _}, Host, UserID, _ArcJID) ->
     SUserID = integer_to_list(UserID),
     {selected, _ColumnNames, Rows} =
     mod_mam_utils:success_sql_query(
@@ -49,7 +80,7 @@ get_prefs(Host, _Mod, UserID, _ArcJID, GlobalDefaultMode) ->
        "WHERE user_id='", SUserID, "'"]),
     decode_prefs_rows(Rows, GlobalDefaultMode, [], []).
 
-remove_archive(Host, _Mod, UserID, _ArcJID) ->
+remove_archive(Host, UserID, _ArcJID) ->
     SUserID = integer_to_list(UserID),
     {updated, _} =
     mod_mam_utils:success_sql_query(
