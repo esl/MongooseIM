@@ -270,12 +270,10 @@ archive_messages(LServer, Acc, N) ->
                                 "from_jid, message) "
        "VALUES ", tuples(Acc)]).
 
--spec lookup_messages(_Result, Host,
+-spec lookup_messages(Result, Host,
                       UserID, UserJID, RSM, Borders,
                       Start, End, Now, WithJID,
-                      PageSize, LimitPassed, MaxResultLimit) ->
-    {ok, {TotalCount, Offset, MessageRows}} | {error, 'policy-violation'}
-			     when
+                      PageSize, LimitPassed, MaxResultLimit) -> Result when
     Host    :: server_host(),
     UserJID :: #jid{},
     UserID  :: user_id(),
@@ -288,6 +286,7 @@ archive_messages(LServer, Acc, N) ->
     WithJID :: #jid{} | undefined,
     LimitPassed :: boolean(),
     MaxResultLimit :: non_neg_integer(),
+    Result :: {ok, {TotalCount, Offset, MessageRows}} | {error, 'policy-violation'},
     TotalCount :: non_neg_integer(),
     Offset  :: non_neg_integer(),
     MessageRows :: list(tuple()).
