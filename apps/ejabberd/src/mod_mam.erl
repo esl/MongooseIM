@@ -538,9 +538,11 @@ handle_purge_multiple_messages(ArcJID=#jid{},
     %% Start :: integer() | undefined
     Start = elem_to_start_microseconds(PurgeEl),
     End   = elem_to_end_microseconds(PurgeEl),
+    %% Set borders.
+    Borders = borders_decode(PurgeEl),
     %% Filtering by contact.
     With  = elem_to_with_jid(PurgeEl),
-    purge_multiple_messages(Host, ArcID, ArcJID, Start, End, Now, With),
+    purge_multiple_messages(Host, ArcID, ArcJID, Borders, Start, End, Now, With),
     return_purge_success(IQ).
 
 handle_purge_single_message(ArcJID=#jid{},
@@ -718,19 +720,22 @@ purge_single_message(Host, MessID, ArcID, ArcJID, Now) ->
         [Host, ?MODULE, MessID, ArcID, ArcJID, Now, Result]),
     Result.
 
--spec purge_multiple_messages(Host, ArcID, ArcJID, Start, End, Now, WithJID) -> ok
+-spec purge_multiple_messages(Host, ArcID, ArcJID, Borders,
+                              Start, End, Now, WithJID) -> ok
     when
     Host    :: server_host(),
     ArcID   :: archive_id(),
     ArcJID  :: jid(),
+    Borders :: #mam_borders{} | undefined,
     Start   :: unix_timestamp() | undefined,
     End     :: unix_timestamp() | undefined,
     Now     :: unix_timestamp(),
     WithJID :: jid() | undefined.
-purge_multiple_messages(Host, ArcID, ArcJID, Start, End, Now, WithJID) ->
+purge_multiple_messages(Host, ArcID, ArcJID, Borders, Start, End, Now, WithJID) ->
     AM = archive_module(Host),
     AM:purge_multiple_messages(Host, ?MODULE,
-                               ArcID, ArcJID, Start, End, Now, WithJID),
+                               ArcID, ArcJID, Borders,
+                               Start, End, Now, WithJID),
     ejabberd_hooks:run(mam_purge_multiple_messages, Host,
         [Host, ?MODULE, ArcID, ArcJID, Start, End, Now, WithJID]),
     ok.

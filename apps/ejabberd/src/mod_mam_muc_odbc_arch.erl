@@ -11,7 +11,7 @@
          remove_archive/4,
          archive_message/9,
          purge_single_message/6,
-         purge_multiple_messages/8]).
+         purge_multiple_messages/9]).
 
 %% Called from mod_mam_odbc_async_writer
 -export([prepare_message/8,
@@ -137,7 +137,7 @@ lookup_messages(Host, _Mod, RoomID, RoomJID = #jid{},
                 RSM = #rsm_in{direction = aft, id = ID}, Borders,
                 Start, End, _Now, WithJID,
                 PageSize, LimitPassed, MaxResultLimit) ->
-    Filter = prepare_filter(RoomID, Start, End, WithJID),
+    Filter = prepare_filter(RoomID, Borders, Start, End, WithJID),
     TotalCount = calc_count(Host, RoomID, Filter),
     Offset     = calc_offset(Host, RoomID, Filter, PageSize, TotalCount, RSM),
     %% If a query returns a number of stanzas greater than this limit and the
@@ -157,7 +157,7 @@ lookup_messages(Host, _Mod, RoomID, RoomJID = #jid{},
                 RSM = #rsm_in{direction = before, id = ID},
                 Borders, Start, End, _Now, WithJID,
                 PageSize, LimitPassed, MaxResultLimit) ->
-    Filter = prepare_filter(RoomID, Start, End, WithJID),
+    Filter = prepare_filter(RoomID, Borders, Start, End, WithJID),
     TotalCount = calc_count(Host, RoomID, Filter),
     Offset     = calc_offset(Host, RoomID, Filter, PageSize, TotalCount, RSM),
     %% If a query returns a number of stanzas greater than this limit and the
@@ -177,7 +177,7 @@ lookup_messages(Host, _Mod, RoomID, RoomJID = #jid{},
                 RSM, Borders,
                 Start, End, _Now, WithJID,
                 PageSize, LimitPassed, MaxResultLimit) ->
-    Filter = prepare_filter(RoomID, Start, End, WithJID),
+    Filter = prepare_filter(RoomID, Borders, Start, End, WithJID),
     TotalCount = calc_count(Host, RoomID, Filter),
     Offset     = calc_offset(Host, RoomID, Filter, PageSize, TotalCount, RSM),
     %% If a query returns a number of stanzas greater than this limit and the
@@ -244,19 +244,21 @@ purge_single_message(Host, _Mod, MessID, RoomID, _RoomJID, _Now) ->
     end.
 
 -spec purge_multiple_messages(Host, Mod,
-                              RoomID, RoomJID, Start, End, Now, WithJID) ->
+                              RoomID, RoomJID, Borders,
+                              Start, End, Now, WithJID) ->
     ok | {error, 'not-allowed'} when
     Host    :: server_host(),
     Mod     :: module(),
     RoomID  :: room_id(),
     RoomJID :: #jid{},
+    Borders :: #mam_borders{} | undefined,
     Start   :: unix_timestamp() | undefined,
     End     :: unix_timestamp() | undefined,
     Now     :: unix_timestamp(),
     WithJID :: #jid{} | undefined.
-purge_multiple_messages(Host, _Mod, RoomID, _RoomJID,
+purge_multiple_messages(Host, _Mod, RoomID, _RoomJID, Borders,
                         Start, End, _Now, WithJID) ->
-    Filter = prepare_filter(RoomID, Start, End, WithJID),
+    Filter = prepare_filter(RoomID, Borders, Start, End, WithJID),
     {updated, _} =
     mod_mam_utils:success_sql_query(
       Host,
@@ -365,14 +367,15 @@ calc_count(Host, RoomID, Filter) ->
     list_to_integer(binary_to_list(BCount)).
 
 
-%% prepare_filter/4
--spec prepare_filter(RoomID, Start, End, WithJID) -> filter()
+%% prepare_filter/5
+-spec prepare_filter(RoomID, Borders, Start, End, WithJID) -> filter()
     when
     RoomID  :: room_id(),
+    Borders :: #mam_borders{} | undefined,
     Start   :: unix_timestamp() | undefined,
     End     :: unix_timestamp() | undefined,
     WithJID :: #jid{} | undefined.
-prepare_filter(RoomID, Start, End, WithJID) ->
+prepare_filter(RoomID, Borders, Start, End, WithJID) ->
     SWithNick = maybe_jid_to_escaped_resource(WithJID),
     prepare_filter_1(RoomID, Start, End, SWithNick).
 

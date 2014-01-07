@@ -18,7 +18,7 @@
          lookup_messages/13,
          remove_archive/4,
          purge_single_message/6,
-         purge_multiple_messages/8]).
+         purge_multiple_messages/9]).
 
 %% Called from mod_mam_odbc_async_writer
 -export([prepare_message/8,
@@ -181,7 +181,7 @@ lookup_messages(Host, _Mod, UserID, UserJID = #jid{},
                 RSM = #rsm_in{direction = aft, id = ID}, Borders,
                 Start, End, _Now, WithJID,
                 PageSize, LimitPassed, MaxResultLimit) ->
-    Filter = prepare_filter(UserID, UserJID, Start, End, WithJID),
+    Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID),
     IndexHintSQL = index_hint_sql(Host),
     TotalCount = calc_count(Host, UserID, Filter, IndexHintSQL),
     Offset     = calc_offset(Host, UserID, Filter, IndexHintSQL, PageSize, TotalCount, RSM),
@@ -201,7 +201,7 @@ lookup_messages(Host, _Mod, UserID, UserJID = #jid{},
                 RSM = #rsm_in{direction = before, id = ID}, Borders,
                 Start, End, _Now, WithJID,
                 PageSize, LimitPassed, MaxResultLimit) ->
-    Filter = prepare_filter(UserID, UserJID, Start, End, WithJID),
+    Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID),
     IndexHintSQL = index_hint_sql(Host),
     TotalCount = calc_count(Host, UserID, Filter, IndexHintSQL),
     Offset     = calc_offset(Host, UserID, Filter, IndexHintSQL, PageSize, TotalCount, RSM),
@@ -221,7 +221,7 @@ lookup_messages(Host, _Mod, UserID, UserJID = #jid{},
                 RSM, Borders,
                 Start, End, _Now, WithJID,
                 PageSize, LimitPassed, MaxResultLimit) ->
-    Filter = prepare_filter(UserID, UserJID, Start, End, WithJID),
+    Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID),
     IndexHintSQL = index_hint_sql(Host),
     TotalCount = calc_count(Host, UserID, Filter, IndexHintSQL),
     Offset     = calc_offset(Host, UserID, Filter, IndexHintSQL, PageSize, TotalCount, RSM),
@@ -288,19 +288,21 @@ purge_single_message(Host, _Mod, MessID, UserID, _UserJID, _Now) ->
     end.
 
 -spec purge_multiple_messages(Host, Mod,
-                              UserID, UserJID, Start, End, Now, WithJID) ->
+                              UserID, UserJID, Borders,
+                              Start, End, Now, WithJID) ->
     ok | {error, 'not-allowed'} when
     Host    :: server_host(),
     Mod     :: module(),
     UserID  :: user_id(),
     UserJID :: #jid{},
+    Borders :: #mam_borders{},
     Start   :: unix_timestamp() | undefined,
     End     :: unix_timestamp() | undefined,
     Now     :: unix_timestamp(),
     WithJID :: #jid{} | undefined.
-purge_multiple_messages(Host, _Mod, UserID, UserJID,
+purge_multiple_messages(Host, _Mod, UserID, UserJID, Borders,
                         Start, End, _Now, WithJID) ->
-    Filter = prepare_filter(UserID, UserJID, Start, End, WithJID),
+    Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID),
     {updated, _} =
     mod_mam_utils:success_sql_query(
       Host,
@@ -413,14 +415,15 @@ calc_count(Host, UserID, Filter, IndexHintSQL) ->
     list_to_integer(binary_to_list(BCount)).
 
 
--spec prepare_filter(UserID, UserJID, Start, End, WithJID) -> filter()
+-spec prepare_filter(UserID, UserJID, Borders, Start, End, WithJID) -> filter()
     when
     UserID  :: user_id(),
     UserJID :: #jid{},
+    Borders :: #mam_borders{} | undefined,
     Start   :: unix_timestamp() | undefined,
     End     :: unix_timestamp() | undefined,
     WithJID :: #jid{} | undefined.
-prepare_filter(UserID, UserJID, Start, End, WithJID) ->
+prepare_filter(UserID, UserJID, Borders, Start, End, WithJID) ->
     {SWithJID, SWithResource} =
     case WithJID of
         undefined -> {undefined, undefined};

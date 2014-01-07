@@ -161,6 +161,13 @@ decode_compact_uuid(Id) ->
 mess_id_to_external_binary(MessID) when is_integer(MessID) ->
     list_to_binary(integer_to_list(MessID, 32)).
 
+maybe_external_binary_to_mess_id(undefined) ->
+    undefined;
+maybe_external_binary_to_mess_id(<<>>) ->
+    undefined;
+maybe_external_binary_to_mess_id(BExtMessID) ->
+    external_binary_to_mess_id(BExtMessID).
+
 %% @doc Decode a message ID received from the user.
 external_binary_to_mess_id(BExtMessID) when is_binary(BExtMessID) ->
     list_to_integer(binary_to_list(BExtMessID), 32).
@@ -362,7 +369,25 @@ parse_jid_list(El, Name) ->
     end.
 
 borders_decode(QueryEl) ->
-    undefined.
+    AfterID  = tag_id(QueryEl, <<"after_id">>),
+    BeforeID = tag_id(QueryEl, <<"before_id">>),
+    FromID   = tag_id(QueryEl, <<"from_id">>),
+    ToID     = tag_id(QueryEl, <<"to_id">>),
+    borders(AfterID, BeforeID, FromID, ToID).
+
+borders(undefined, undefined, undefined, undefined) ->
+    undefined;
+borders(AfterID, BeforeID, FromID, ToID) ->
+    #mam_borders{
+        after_id  = AfterID,
+        before_id = BeforeID,
+        from_id   = FromID,
+        to_id     = ToID
+    }.
+
+tag_id(QueryEl, Name) ->
+    BExtMessID = xml:get_tag_attr_s(Name, QueryEl),
+    maybe_external_binary_to_mess_id(BExtMessID).
 
 %% -----------------------------------------------------------------------
 %% JID serialization
