@@ -34,7 +34,7 @@
          privacy_iq_set/4,
          privacy_check_packet/6,
          privacy_list_push/3,
-         mam_get_prefs/5,
+         mam_get_prefs/4,
          mam_set_prefs/7,
          mam_remove_archive/3,
          mam_lookup_messages/13,
@@ -45,7 +45,7 @@
          mam_drop_messages/2,
          mam_purge_single_message/6,
          mam_purge_multiple_messages/9,
-         mam_muc_get_prefs/5,
+         mam_muc_get_prefs/4,
          mam_muc_set_prefs/7,
          mam_muc_remove_archive/3,
          mam_muc_lookup_messages/13,
@@ -248,7 +248,7 @@ privacy_check_packet(Acc, _, Server, _, _, _) ->
 %% ----------------------------------------------------------------------------
 %% mod_mam
 
-mam_get_prefs(Result, Host, _ArcID, _ArcJID, _GlobalDefaultMode) ->
+mam_get_prefs(Result, Host, _ArcID, _ArcJID) ->
     folsom_metrics:notify({Host, modMamPrefsGets}, 1),
     Result.
 
@@ -305,7 +305,7 @@ mam_purge_multiple_messages(Result, Host,
 %% ----------------------------------------------------------------------------
 %% mod_mam_muc
 
-mam_muc_get_prefs(Result, Host, _ArcID, _ArcJID, _GlobalDefaultMode) ->
+mam_muc_get_prefs(Result, Host, _ArcID, _ArcJID) ->
     folsom_metrics:notify({Host, modMucMamPrefsGets}, 1),
     Result.
 

@@ -74,9 +74,9 @@
 start(Host, _Opts) ->
     case gen_mod:get_module_opt(Host, ?MODULE, no_writer, false) of
         true ->
-            ejabberd_hooks:add(mam_archive_message, Host, ?MODULE, archive_message, 50);
+            ok;
         false ->
-            ok
+            ejabberd_hooks:add(mam_archive_message, Host, ?MODULE, archive_message, 50)
     end,
     ejabberd_hooks:add(mam_archive_size, Host, ?MODULE, archive_size, 50),
     ejabberd_hooks:add(mam_lookup_messages, Host, ?MODULE, lookup_messages, 50),
@@ -88,9 +88,9 @@ start(Host, _Opts) ->
 stop(Host) ->
     case gen_mod:get_module_opt(Host, ?MODULE, no_writer, false) of
         true ->
-            ejabberd_hooks:delete(mam_archive_message, Host, ?MODULE, archive_message, 50);
+            ok;
         false ->
-            ok
+            ejabberd_hooks:delete(mam_archive_message, Host, ?MODULE, archive_message, 50)
     end,
     ejabberd_hooks:delete(mam_archive_size, Host, ?MODULE, archive_size, 50),
     ejabberd_hooks:delete(mam_lookup_messages, Host, ?MODULE, lookup_messages, 50),

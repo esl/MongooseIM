@@ -5,20 +5,38 @@
 %%% @end
 %%%-------------------------------------------------------------------
 -module(mod_mam_odbc_user).
+
+%% gen_mod handlers
+-export([start/2, stop/1]).
+
+%% ejabberd handlers
 -export([archive_id/3,
-         remove_archive/4]).
+         remove_archive/3]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
+
+%% ----------------------------------------------------------------------
+%% gen_mod callbacks
+%% Starting and stopping functions for users' archives
+
+start(Host, _Opts) ->
+    ejabberd_hooks:add(mam_archive_id, Host, ?MODULE, archive_id, 50),
+    ok.
+
+stop(Host) ->
+    ejabberd_hooks:delete(mam_archive_id, Host, ?MODULE, archive_id, 50),
+    ok.
+
 
 %%====================================================================
 %% API
 %%====================================================================
 
-archive_id(Host, _Mod, _ArcJID=#jid{luser = UserName}) ->
+archive_id(_ArcID, Host, _ArcJID=#jid{luser = UserName}) ->
     query_archive_id(Host, UserName).
 
-remove_archive(Host, _Mod, _ArcID, _ArcJID=#jid{luser = UserName}) ->
+remove_archive(Host, _ArcID, _ArcJID=#jid{luser = UserName}) ->
     SUserName = ejabberd_odbc:escape(UserName),
     {updated, _} =
     ejabberd_odbc:sql_query(
