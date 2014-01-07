@@ -22,6 +22,11 @@
 -import(mod_mam_utils,
         [encode_compact_uuid/2]).
 
+%% Other
+-import(mod_mam_utils,
+        [apply_start_border/2,
+         apply_end_border/2]).
+
 -include_lib("ejabberd/include/ejabberd.hrl").
 -include_lib("ejabberd/include/jlib.hrl").
 -include_lib("exml/include/exml.hrl").
@@ -377,25 +382,27 @@ calc_count(Host, RoomID, Filter) ->
     WithJID :: #jid{} | undefined.
 prepare_filter(RoomID, Borders, Start, End, WithJID) ->
     SWithNick = maybe_jid_to_escaped_resource(WithJID),
-    prepare_filter_1(RoomID, Start, End, SWithNick).
+    StartID = maybe_encode_compact_uuid(Start, 0),
+    EndID   = maybe_encode_compact_uuid(End, 255),
+    StartID2 = apply_start_border(Borders, StartID),
+    EndID2   = apply_end_border(Borders, EndID),
+    prepare_filter_1(RoomID, StartID2, EndID2, SWithNick).
 
--spec prepare_filter_1(RoomID, IStart, IEnd, SWithNick) -> filter()
+-spec prepare_filter_1(RoomID, StartID, EndID, SWithNick) -> filter()
     when
     RoomID  :: non_neg_integer(),
-    IStart  :: unix_timestamp() | undefined,
-    IEnd    :: unix_timestamp() | undefined,
+    StartID :: message_id() | undefined,
+    EndID   :: message_id() | undefined,
     SWithNick :: escaped_jid() | undefined.
-prepare_filter_1(RoomID, IStart, IEnd, SWithNick) ->
+prepare_filter_1(RoomID, StartID, EndID, SWithNick) ->
    ["WHERE room_id='", escape_room_id(RoomID), "'",
-     case IStart of
+     case StartID of
         undefined -> "";
-        _         -> [" AND id >= ",
-                      integer_to_list(encode_compact_uuid(IStart, 0))]
+        _         -> [" AND id >= ", integer_to_list(StartID)]
      end,
-     case IEnd of
+     case EndID of
         undefined -> "";
-        _         -> [" AND id <= ",
-                      integer_to_list(encode_compact_uuid(IEnd, 255))]
+        _         -> [" AND id <= ", integer_to_list(EndID)]
      end,
      case SWithNick of
         undefined -> "";
@@ -456,3 +463,8 @@ tuples(Rows) ->
 
 tuple([H|T]) ->
     ["('", H, "'", [[", '", X, "'"] || X <- T], ")"].
+
+maybe_encode_compact_uuid(undefined, _) ->
+    undefined;
+maybe_encode_compact_uuid(Microseconds, NodeID) ->
+    encode_compact_uuid(Microseconds, NodeID).

@@ -35,6 +35,11 @@
         [jid_to_opt_binary/2,
          expand_minified_jid/2]).
 
+%% Other
+-import(mod_mam_utils,
+        [apply_start_border/2,
+         apply_end_border/2]).
+
 -include_lib("ejabberd/include/ejabberd.hrl").
 -include_lib("ejabberd/include/jlib.hrl").
 -include_lib("exml/include/exml.hrl").
@@ -433,26 +438,28 @@ prepare_filter(UserID, UserJID, Borders, Start, End, WithJID) ->
             {minify_and_escape_bare_jid(UserJID, WithJID),
              ejabberd_odbc:escape(WithLResource)}
     end,
-    prepare_filter_sql(UserID, Start, End, SWithJID, SWithResource).
+    StartID = maybe_encode_compact_uuid(Start, 0),
+    EndID   = maybe_encode_compact_uuid(End, 255),
+    StartID2 = apply_start_border(Borders, StartID),
+    EndID2   = apply_end_border(Borders, EndID),
+    prepare_filter_sql(UserID, StartID2, EndID2, SWithJID, SWithResource).
 
--spec prepare_filter_sql(UserID, IStart, IEnd, SWithJID, SWithResource) -> filter()
+-spec prepare_filter_sql(UserID, StartID, EndID, SWithJID, SWithResource) -> filter()
     when
     UserID  :: non_neg_integer(),
-    IStart  :: unix_timestamp() | undefined,
-    IEnd    :: unix_timestamp() | undefined,
+    StartID :: message_id() | undefined,
+    EndID   :: message_id() | undefined,
     SWithJID :: escaped_jid() | undefined,
     SWithResource :: escaped_resource() | undefined.
-prepare_filter_sql(UserID, IStart, IEnd, SWithJID, SWithResource) ->
+prepare_filter_sql(UserID, StartID, EndID, SWithJID, SWithResource) ->
    ["WHERE user_id='", escape_user_id(UserID), "'",
-     case IStart of
+     case StartID of
         undefined -> "";
-        _         -> [" AND id >= ",
-                      escape_message_id(encode_compact_uuid(IStart, 0))]
+        _         -> [" AND id >= ", integer_to_list(StartID)]
      end,
-     case IEnd of
+     case EndID of
         undefined -> "";
-        _         -> [" AND id <= ",
-                      escape_message_id(encode_compact_uuid(IEnd, 255))]
+        _         -> [" AND id <= ", integer_to_list(EndID)]
      end,
      case SWithJID of
         undefined -> "";
@@ -517,3 +524,8 @@ tuples(Rows) ->
 
 tuple([H|T]) ->
     ["('", H, "'", [[", '", X, "'"] || X <- T], ")"].
+
+maybe_encode_compact_uuid(undefined, _) ->
+    undefined;
+maybe_encode_compact_uuid(Microseconds, NodeID) ->
+    encode_compact_uuid(Microseconds, NodeID).

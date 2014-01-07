@@ -43,7 +43,9 @@
 
 %% Other
 -export([maybe_integer/2,
-         is_function_exist/3]).
+         is_function_exist/3,
+         apply_start_border/2,
+         apply_end_border/2]).
 
 %% Ejabberd
 -export([send_message/3,
@@ -486,6 +488,43 @@ is_function_exist({M, _}, F, A) ->
     is_function_exist(M, F, A+1);
 is_function_exist(M, F, A) ->
     lists:member({F, A}, M:module_info(exports)).
+
+
+apply_start_border(undefined, StartID) ->
+    StartID;
+apply_start_border(#mam_borders{after_id=AfterID, from_id=FromID}, StartID) ->
+    maybe_max(maybe_next_id(AfterID), maybe_max(FromID, StartID)).
+                                        
+apply_end_border(undefined, EndID) ->
+    EndID;
+apply_end_border(#mam_borders{before_id=BeforeID, to_id=ToID}, EndID) ->
+    maybe_min(maybe_previous_id(BeforeID), maybe_min(ToID, EndID)).
+
+maybe_min(undefined, Y) ->
+    Y;
+maybe_min(X, undefined) ->
+    X;
+maybe_min(X, Y) ->
+    min(X, Y). 
+
+
+maybe_max(undefined, Y) ->
+    Y;
+maybe_max(X, undefined) ->
+    X;
+maybe_max(X, Y) ->
+    max(X, Y). 
+
+maybe_next_id(undefined) ->
+    undefined;
+maybe_next_id(X) ->
+    X + 1.
+
+maybe_previous_id(undefined) ->
+    undefined;
+maybe_previous_id(X) ->
+    X - 1.
+
 
 %% -----------------------------------------------------------------------
 %% Ejabberd
