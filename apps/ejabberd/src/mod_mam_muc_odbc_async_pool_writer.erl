@@ -5,16 +5,27 @@
 %%% @end
 %%%-------------------------------------------------------------------
 -module(mod_mam_muc_odbc_async_pool_writer).
-%% Backend's callbacks
--export([start/2,
-         stop/2,
-         start_link/4,
-         archive_message/9,
-         wait_flushing/4]).
 
-%% Helpers
+%% ----------------------------------------------------------------------
+%% Exports
+
+%% gen_mod handlers
+-export([start/2, stop/1]).
+
+%% MAM hook handlers
+-export([archive_size/4,
+         archive_message/9,
+         lookup_messages/13,
+         remove_archive/3,
+         purge_single_message/6,
+         purge_multiple_messages/9]).
+
+%% Helpers for debugging
 -export([queue_length/1,
          queue_lengths/1]).
+
+%% Internal exports
+-export([start_link/3]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -28,7 +39,6 @@
     flush_interval=500,
     max_packet_size=30,
     max_subscribers=100,
-    mod,
     host,
     conn,
     number,
@@ -62,21 +72,55 @@ select_worker(Host, ArcID) ->
 worker_number(Host, ArcID) ->
     ArcID rem worker_count(Host).
 
+
+%% ----------------------------------------------------------------------
+%% gen_mod callbacks
+%% Starting and stopping functions for users' archives
+
+start(Host, Opts) ->
+    start_workers(Host),
+    start_muc(Host, Opts).
+
+stop(Host) ->
+    stop_muc(Host),
+    stop_workers(Host).
+
+%% ----------------------------------------------------------------------
+%% Add hooks for mod_mam_muc
+
+start_muc(Host, _Opts) ->
+    ejabberd_hooks:add(mam_muc_archive_message, Host, ?MODULE, archive_message, 50),
+    ejabberd_hooks:add(mam_muc_archive_size, Host, ?MODULE, archive_size, 30),
+    ejabberd_hooks:add(mam_muc_lookup_messages, Host, ?MODULE, lookup_messages, 30),
+    ejabberd_hooks:add(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 30),
+    ejabberd_hooks:add(mam_muc_purge_single_message, Host, ?MODULE, purge_single_message, 30),
+    ejabberd_hooks:add(mam_muc_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 30),
+    ok.
+
+stop_muc(Host) ->
+    ejabberd_hooks:delete(mam_muc_archive_message, Host, ?MODULE, archive_message, 50),
+    ejabberd_hooks:delete(mam_muc_archive_size, Host, ?MODULE, archive_size, 30),
+    ejabberd_hooks:delete(mam_muc_lookup_messages, Host, ?MODULE, lookup_messages, 30),
+    ejabberd_hooks:delete(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 100),
+    ejabberd_hooks:delete(mam_muc_purge_single_message, Host, ?MODULE, purge_single_message, 30),
+    ejabberd_hooks:delete(mam_muc_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 30),
+    ok.
+
 %%====================================================================
 %% API
 %%====================================================================
 
-start(Host, Mod) ->
-    [start_worker(WriterProc, N, Host, Mod)
+start_workers(Host) ->
+    [start_worker(WriterProc, N, Host)
      || {N, WriterProc} <- worker_names(Host)].
 
-stop(Host, _Mod) ->
+stop_workers(Host) ->
     [stop_worker(WriterProc) ||  {_, WriterProc} <- worker_names(Host)].
 
-start_worker(WriterProc, N, Host, Mod) ->
+start_worker(WriterProc, N, Host) ->
     WriterChildSpec =
     {WriterProc,
-     {mod_mam_muc_odbc_async_pool_writer, start_link, [WriterProc, N, Host, Mod]},
+     {mod_mam_muc_odbc_async_pool_writer, start_link, [WriterProc, N, Host]},
      permanent,
      5000,
      worker,
@@ -88,10 +132,10 @@ stop_worker(Proc) ->
     supervisor:delete_child(ejabberd_sup, Proc).
 
 
-start_link(ProcName, N, Host, Mod) ->
-    gen_server:start_link({local, ProcName}, ?MODULE, [Host, Mod, N], []).
+start_link(ProcName, N, Host) ->
+    gen_server:start_link({local, ProcName}, ?MODULE, [Host, N], []).
 
-archive_message(Host, _Mod,
+archive_message(_Result, Host,
         MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet) ->
     Row = mod_mam_muc_odbc_arch:prepare_message(Host,
         MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet),
@@ -135,8 +179,50 @@ worker_queue_length(SrvName) ->
         Len
     end.
 
-wait_flushing(Host, _Mod, ArcID, _ArcJID) ->
+
+archive_size(Size, Host, ArcID, _ArcJID) when is_integer(Size) ->
+    wait_flushing(Host, ArcID),
+    Size.
+
+lookup_messages(Result, Host, ArcID, _ArcJID,
+                _RSM, _Borders,
+                _Start, End, Now, _WithJID,
+                _PageSize, _LimitPassed, _MaxResultLimit) ->
+    wait_flushing_before(Host, ArcID, End, Now),
+    Result.
+
+remove_archive(Host, ArcID, _ArcJID) ->
+    wait_flushing(Host, ArcID),
+    ok.
+
+purge_single_message(Result, Host, MessID, ArcID, _ArcJID, Now) ->
+    {Microseconds, _NodeMessID} = mod_mam_utils:decode_compact_uuid(MessID),
+    wait_flushing_before(Host, ArcID, Microseconds, Now),
+    Result.
+
+purge_multiple_messages(Result, Host, ArcID, _ArcJID, _Borders,
+                        _Start, End, Now, _WithJID) ->
+    wait_flushing_before(Host, ArcID, End, Now),
+    Result.
+
+wait_flushing(Host, ArcID) ->
     gen_server:call(select_worker(Host, ArcID), wait_flushing).
+
+wait_flushing_before(Host, ArcID, End, Now) ->
+    case is_recent_entries_required(End, Now) of
+        true ->
+            wait_flushing(Host, ArcID);
+        false ->
+            ok
+    end.
+
+%% @doc Returns true, if `End' is too old.
+is_recent_entries_required(End, Now) when is_integer(End) ->
+    %% If `End' is older than 10 seconds?
+    End + 10000000 < Now;
+is_recent_entries_required(_End, _Now) ->
+    true.
+
 
 %%====================================================================
 %% Internal functions
@@ -144,7 +230,7 @@ wait_flushing(Host, _Mod, ArcID, _ArcJID) ->
 
 run_flush(State=#state{acc=[]}) ->
     State;
-run_flush(State=#state{mod=Mod,host=Host, conn=Conn, number=N,
+run_flush(State=#state{host=Host, conn=Conn, number=N,
                        flush_interval_tref=TRef, acc=Acc, subscribers=Subs}) ->
     MessageCount = length(Acc),
     cancel_and_flush_timer(TRef),
@@ -159,8 +245,8 @@ run_flush(State=#state{mod=Mod,host=Host, conn=Conn, number=N,
     end,
     spawn_link(fun() ->
             [gen_server:reply(Sub, ok) || Sub <- Subs],
-            ejabberd_hooks:run(mam_flush_messages, Host,
-                               [Host, Mod, MessageCount])
+            ejabberd_hooks:run(mam_muc_flush_messages, Host,
+                               [Host, MessageCount])
         end),
     erlang:garbage_collect(),
     State#state{acc=[], subscribers=[], flush_interval_tref=undefined}.
@@ -188,10 +274,10 @@ cancel_and_flush_timer(TRef) ->
 %%                         {stop, Reason}
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
-init([Host, Mod, N]) ->
+init([Host, N]) ->
     %% Use a private ODBC-connection.
     {ok, Conn} = ejabberd_odbc:get_dedicated_connection(Host),
-    {ok, #state{host=Host, conn=Conn, mod=Mod, number=N}}.
+    {ok, #state{host=Host, conn=Conn, number=N}}.
 
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
