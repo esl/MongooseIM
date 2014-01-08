@@ -299,7 +299,22 @@ result(QueryID, MessageUID, Children) when is_list(Children) ->
     FirstId :: binary() | undefined,
     LastId  :: binary() | undefined,
     FirstIndexI :: non_neg_integer() | undefined,
-    CountI      :: non_neg_integer().
+    CountI      :: non_neg_integer() | undefined.
+result_set(FirstId, LastId, undefined, undefined)
+    when ?MAYBE_BIN(FirstId), ?MAYBE_BIN(LastId) ->
+    %% Simple response
+    FirstEl = [#xmlel{name = <<"first">>,
+                      children = [#xmlcdata{content = FirstId}]
+                     }
+               || FirstId =/= undefined],
+    LastEl = [#xmlel{name = <<"last">>,
+                     children = [#xmlcdata{content = LastId}]
+                    }
+               || LastId =/= undefined],
+     #xmlel{
+        name = <<"set">>,
+        attrs = [{<<"xmlns">>, rsm_ns_binary()}],
+        children = FirstEl ++ LastEl};
 result_set(FirstId, LastId, FirstIndexI, CountI)
     when ?MAYBE_BIN(FirstId), ?MAYBE_BIN(LastId) ->
     FirstEl = [#xmlel{name = <<"first">>,

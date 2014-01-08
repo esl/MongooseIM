@@ -158,7 +158,7 @@ new_iterator(Host, ArcID, ArcJID, RSM, Borders,
         {ok, {TotalCount, Offset, MessageRows}} =
         lookup_messages(Host, ArcID, ArcJID, RSM, Borders,
                         Start, End, Now,
-                        WithJID, PageSize, true, PageSize),
+                        WithJID, PageSize, true, PageSize, false),
         Data = [exml:to_iolist(message_row_to_dump_xml(M))
                 || M <- MessageRows],
         Cont = case is_last_page(TotalCount, Offset, PageSize) of
@@ -442,9 +442,10 @@ handle_lookup_messages(
     PageSize = min(max_result_limit(),
                    maybe_integer(Limit, default_result_limit())),
     LimitPassed = Limit =/= <<>>,
+    IsSimple = xml:get_subtag(QueryEl, <<"simple">>) =/= false,
     case lookup_messages(Host, ArcID, ArcJID, RSM, Borders,
                          Start, End, Now, With,
-                         PageSize, LimitPassed, max_result_limit()) of
+                         PageSize, LimitPassed, max_result_limit(), IsSimple) of
     {error, 'policy-violation'} ->
         ?DEBUG("Policy violation by ~p.", [jlib:jid_to_binary(From)]),
         ErrorEl = ?STANZA_ERRORT(<<"">>, <<"modify">>, <<"policy-violation">>,
@@ -534,7 +535,7 @@ remove_archive(Host, ArcID, ArcJID=#jid{}) ->
 
 -spec lookup_messages(Host, ArcID, ArcJID, RSM, Borders,
                       Start, End, Now, WithJID,
-                      PageSize, LimitPassed, MaxResultLimit) ->
+                      PageSize, LimitPassed, MaxResultLimit, IsSimple) ->
     {ok, {TotalCount, Offset, MessageRows}} | {error, 'policy-violation'}
     when
     Host    :: server_host(),
@@ -549,15 +550,16 @@ remove_archive(Host, ArcID, ArcJID=#jid{}) ->
     PageSize :: non_neg_integer(),
     LimitPassed :: boolean(),
     MaxResultLimit :: non_neg_integer(),
+    IsSimple :: boolean(),
     TotalCount :: non_neg_integer(),
     Offset  :: non_neg_integer(),
     MessageRows :: list(tuple()).
 lookup_messages(Host, ArcID, ArcJID, RSM, Borders, Start, End, Now,
-                WithJID, PageSize, LimitPassed, MaxResultLimit) ->
+                WithJID, PageSize, LimitPassed, MaxResultLimit, IsSimple) ->
     ejabberd_hooks:run_fold(mam_muc_lookup_messages, Host, {ok, {0, 0, []}},
         [Host, ArcID, ArcJID, RSM, Borders,
          Start, End, Now, WithJID,
-         PageSize, LimitPassed, MaxResultLimit]).
+         PageSize, LimitPassed, MaxResultLimit, IsSimple]).
 
 archive_message(Host, MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet) ->
     ejabberd_hooks:run_fold(mam_muc_archive_message, Host, ok,

@@ -15,7 +15,7 @@
 %% MAM hook handlers
 -export([archive_size/4,
          archive_message/9,
-         lookup_messages/13,
+         lookup_messages/14,
          remove_archive/3,
          purge_single_message/6,
          purge_multiple_messages/9]).
@@ -179,7 +179,8 @@ archive_messages(LServer, Acc, N) ->
 -spec lookup_messages(Result, Host,
                       RoomID, RoomJID, RSM, Borders,
                       Start, End, Now, WithJID,
-                      PageSize, LimitPassed, MaxResultLimit) -> Result when
+                      PageSize, LimitPassed, MaxResultLimit,
+                      IsSimple) -> Result when
     Host    :: server_host(),
     RoomJID :: #jid{},
     RoomID  :: room_id(),
@@ -192,14 +193,53 @@ archive_messages(LServer, Acc, N) ->
     WithJID :: #jid{} | undefined,
     LimitPassed :: boolean(),
     MaxResultLimit :: non_neg_integer(),
+    IsSimple :: boolean(),
     Result :: {ok, {TotalCount, Offset, MessageRows}} | {error, 'policy-violation'},
     TotalCount :: non_neg_integer(),
     Offset  :: non_neg_integer(),
     MessageRows :: list(tuple()).
+
+lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
+                #rsm_in{direction = aft, id = ID}, Borders,
+                Start, End, _Now, WithJID,
+                PageSize, _LimitPassed, _MaxResultLimit, true) ->
+    Filter = prepare_filter(RoomID, Borders, Start, End, WithJID),
+    MessageRows = extract_messages(Host, RoomID, after_id(ID, Filter), 0, PageSize, false),
+    {ok, {undefined, undefined,
+          rows_to_uniform_format(MessageRows, Host, RoomJID)}};
+
+lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
+                #rsm_in{direction = before, id = ID},
+                Borders, Start, End, _Now, WithJID,
+                PageSize, _LimitPassed, _MaxResultLimit, true) ->
+    Filter = prepare_filter(RoomID, Borders, Start, End, WithJID),
+    MessageRows = extract_messages(Host, RoomID, before_id(ID, Filter), 0, PageSize, true),
+    {ok, {undefined, undefined,
+          rows_to_uniform_format(MessageRows, Host, RoomJID)}};
+
+lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
+                #rsm_in{direction = undefined, index = Offset}, Borders,
+                Start, End, _Now, WithJID,
+                PageSize, _LimitPassed, _MaxResultLimit, true) ->
+    Filter = prepare_filter(RoomID, Borders, Start, End, WithJID),
+    MessageRows = extract_messages(Host, RoomID, Filter, Offset, PageSize, false),
+    {ok, {undefined, undefined,
+          rows_to_uniform_format(MessageRows, Host, RoomJID)}};
+
+lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
+                undefined, Borders,
+                Start, End, _Now, WithJID,
+                PageSize, _LimitPassed, _MaxResultLimit, true) ->
+    Filter = prepare_filter(RoomID, Borders, Start, End, WithJID),
+    MessageRows = extract_messages(Host, RoomID, Filter, 0, PageSize, false),
+    {ok, {undefined, undefined,
+          rows_to_uniform_format(MessageRows, Host, RoomJID)}};
+
+
 lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
                 RSM = #rsm_in{direction = aft, id = ID}, Borders,
                 Start, End, _Now, WithJID,
-                PageSize, LimitPassed, MaxResultLimit) ->
+                PageSize, LimitPassed, MaxResultLimit, _) ->
     Filter = prepare_filter(RoomID, Borders, Start, End, WithJID),
     TotalCount = calc_count(Host, RoomID, Filter),
     Offset     = calc_offset(Host, RoomID, Filter, PageSize, TotalCount, RSM),
@@ -219,7 +259,7 @@ lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
 lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
                 RSM = #rsm_in{direction = before, id = ID},
                 Borders, Start, End, _Now, WithJID,
-                PageSize, LimitPassed, MaxResultLimit) ->
+                PageSize, LimitPassed, MaxResultLimit, _) ->
     Filter = prepare_filter(RoomID, Borders, Start, End, WithJID),
     TotalCount = calc_count(Host, RoomID, Filter),
     Offset     = calc_offset(Host, RoomID, Filter, PageSize, TotalCount, RSM),
@@ -239,7 +279,7 @@ lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
 lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
                 RSM, Borders,
                 Start, End, _Now, WithJID,
-                PageSize, LimitPassed, MaxResultLimit) ->
+                PageSize, LimitPassed, MaxResultLimit, _) ->
     Filter = prepare_filter(RoomID, Borders, Start, End, WithJID),
     TotalCount = calc_count(Host, RoomID, Filter),
     Offset     = calc_offset(Host, RoomID, Filter, PageSize, TotalCount, RSM),

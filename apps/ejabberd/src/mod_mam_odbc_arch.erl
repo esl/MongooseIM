@@ -21,7 +21,7 @@
 %% MAM hook handlers
 -export([archive_size/4,
          archive_message/9,
-         lookup_messages/13,
+         lookup_messages/14,
          remove_archive/3,
          purge_single_message/6,
          purge_multiple_messages/9]).
@@ -273,7 +273,8 @@ archive_messages(LServer, Acc, N) ->
 -spec lookup_messages(Result, Host,
                       UserID, UserJID, RSM, Borders,
                       Start, End, Now, WithJID,
-                      PageSize, LimitPassed, MaxResultLimit) -> Result when
+                      PageSize, LimitPassed, MaxResultLimit,
+                      IsSimple) -> Result when
     Host    :: server_host(),
     UserJID :: #jid{},
     UserID  :: user_id(),
@@ -286,15 +287,49 @@ archive_messages(LServer, Acc, N) ->
     WithJID :: #jid{} | undefined,
     LimitPassed :: boolean(),
     MaxResultLimit :: non_neg_integer(),
+    IsSimple :: boolean(),
     Result :: {ok, {TotalCount, Offset, MessageRows}} | {error, 'policy-violation'},
     TotalCount :: non_neg_integer(),
     Offset  :: non_neg_integer(),
     MessageRows :: list(tuple()).
 
 lookup_messages(_Result, Host, UserID, UserJID = #jid{},
+                #rsm_in{direction = aft, id = ID}, Borders,
+                Start, End, _Now, WithJID,
+                PageSize, _LimitPassed, _MaxResultLimit, true) ->
+    Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID),
+    MessageRows = extract_messages(Host, UserID, after_id(ID, Filter), 0, PageSize, false),
+    {ok, {undefined, undefined, rows_to_uniform_format(Host, UserJID, MessageRows)}};
+
+lookup_messages(_Result, Host, UserID, UserJID = #jid{},
+                #rsm_in{direction = before, id = ID},
+                Borders, Start, End, _Now, WithJID,
+                PageSize, _LimitPassed, _MaxResultLimit, true) ->
+    Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID),
+    MessageRows = extract_messages(Host, UserID, before_id(ID, Filter), 0, PageSize, true),
+    {ok, {undefined, undefined, rows_to_uniform_format(Host, UserJID, MessageRows)}};
+
+lookup_messages(_Result, Host, UserID, UserJID = #jid{},
+                #rsm_in{direction = undefined, index = Offset}, Borders,
+                Start, End, _Now, WithJID,
+                PageSize, _LimitPassed, _MaxResultLimit, true) ->
+    Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID),
+    MessageRows = extract_messages(Host, UserID, Filter, Offset, PageSize, false),
+    {ok, {undefined, undefined, rows_to_uniform_format(Host, UserJID, MessageRows)}};
+
+lookup_messages(_Result, Host, UserID, UserJID = #jid{},
+                undefined, Borders,
+                Start, End, _Now, WithJID,
+                PageSize, _LimitPassed, _MaxResultLimit, true) ->
+    Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID),
+    MessageRows = extract_messages(Host, UserID, Filter, 0, PageSize, false),
+    {ok, {undefined, undefined, rows_to_uniform_format(Host, UserJID, MessageRows)}};
+
+
+lookup_messages(_Result, Host, UserID, UserJID = #jid{},
                 RSM = #rsm_in{direction = aft, id = ID}, Borders,
                 Start, End, _Now, WithJID,
-                PageSize, LimitPassed, MaxResultLimit) ->
+                PageSize, LimitPassed, MaxResultLimit, _) ->
     Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID),
     IndexHintSQL = index_hint_sql(Host),
     TotalCount = calc_count(Host, UserID, Filter, IndexHintSQL),
@@ -314,7 +349,7 @@ lookup_messages(_Result, Host, UserID, UserJID = #jid{},
 lookup_messages(_Result, Host, UserID, UserJID = #jid{},
                 RSM = #rsm_in{direction = before, id = ID}, Borders,
                 Start, End, _Now, WithJID,
-                PageSize, LimitPassed, MaxResultLimit) ->
+                PageSize, LimitPassed, MaxResultLimit, _) ->
     Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID),
     IndexHintSQL = index_hint_sql(Host),
     TotalCount = calc_count(Host, UserID, Filter, IndexHintSQL),
@@ -334,7 +369,7 @@ lookup_messages(_Result, Host, UserID, UserJID = #jid{},
 lookup_messages(_Result, Host, UserID, UserJID = #jid{},
                 RSM, Borders,
                 Start, End, _Now, WithJID,
-                PageSize, LimitPassed, MaxResultLimit) ->
+                PageSize, LimitPassed, MaxResultLimit, _) ->
     Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID),
     IndexHintSQL = index_hint_sql(Host),
     TotalCount = calc_count(Host, UserID, Filter, IndexHintSQL),
