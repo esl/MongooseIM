@@ -46,6 +46,7 @@
 
 %% ejabberd room handlers
 -export([filter_room_packet/4,
+         archive_room_packet/4,
          room_process_mam_iq/3,
          forget_room/2]).
 
@@ -226,6 +227,8 @@ start(ServerHost, Opts) ->
                                   ?MODULE, room_process_mam_iq, IQDisc),
     ejabberd_hooks:add(filter_room_packet, Host, ?MODULE,
                        filter_room_packet, 90),
+    ejabberd_hooks:add(archive_room_packet, Host, ?MODULE,
+                       archive_room_packet, 90),
     ejabberd_hooks:add(forget_room, Host, ?MODULE, forget_room, 90),
     ok.
 
@@ -235,6 +238,7 @@ stop(ServerHost) ->
         ServerHost, ?MODULE, <<"conference.@HOST@">>),
     ?DEBUG("mod_mam stopping", []),
     ejabberd_hooks:delete(filter_room_packet, Host, ?MODULE, filter_room_packet, 90),
+    ejabberd_hooks:delete(archive_room_packet, Host, ?MODULE, archive_room_packet, 90),
     ejabberd_hooks:delete(forget_room, Host, ?MODULE, forget_room, 90),
     gen_iq_handler:remove_iq_handler(mod_muc_iq, Host, mam_ns_string()),
     mod_disco:unregister_feature(Host, mam_ns_binary()),
@@ -277,20 +281,32 @@ filter_room_packet(Packet, FromNick,
                    RoomJID=#jid{}) ->
     ?DEBUG("Incoming room packet.", []),
     IsComplete = is_complete_message(?MODULE, incoming, Packet),
+    case IsComplete of
+        true -> archive_room_packet(Packet, FromNick, FromJID, RoomJID);
+        false -> Packet
+    end.
+
+%% @doc Archive without validation.
+-spec archive_room_packet(Packet, FromNick, FromJID, RoomJID) -> Packet when
+    Packet :: term(),
+    FromNick :: binary(),
+    RoomJID :: #jid{},
+    FromJID :: #jid{}.
+archive_room_packet(Packet, FromNick,
+                    FromJID=#jid{},
+                    RoomJID=#jid{}) ->
     Host = server_host(RoomJID),
     ArcID = archive_id_int(Host, RoomJID),
-    case IsComplete of
-        true ->
-        %% Occupant JID <room@service/nick>
-        SrcJID = jlib:jid_replace_resource(RoomJID, FromNick),
-        IsInteresting =
-        case get_behaviour(Host, ArcID, RoomJID, SrcJID, always) of
-            always -> true;
-            never  -> false;
-            roster -> true
-        end,
-        case IsInteresting of
-            true -> 
+    %% Occupant JID <room@service/nick>
+    SrcJID = jlib:jid_replace_resource(RoomJID, FromNick),
+    IsInteresting =
+    case get_behaviour(Host, ArcID, RoomJID, SrcJID, always) of
+        always -> true;
+        never  -> false;
+        roster -> true
+    end,
+    case IsInteresting of
+        true -> 
             MessID = generate_message_id(),
             Result = archive_message(Host, MessID, ArcID,
                                      RoomJID, FromJID, SrcJID, incoming, Packet),
@@ -302,8 +318,6 @@ filter_room_packet(Packet, FromNick,
                                           Packet);
                 {error, _} -> Packet
             end;
-            false -> Packet
-        end;
         false -> Packet
     end.
 
