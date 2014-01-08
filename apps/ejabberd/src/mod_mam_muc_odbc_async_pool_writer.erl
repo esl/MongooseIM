@@ -15,7 +15,7 @@
 %% MAM hook handlers
 -export([archive_size/4,
          archive_message/9,
-         lookup_messages/13,
+         lookup_messages/14,
          remove_archive/3,
          purge_single_message/6,
          purge_multiple_messages/9]).
@@ -187,7 +187,7 @@ archive_size(Size, Host, ArcID, _ArcJID) when is_integer(Size) ->
 lookup_messages(Result, Host, ArcID, _ArcJID,
                 _RSM, _Borders,
                 _Start, End, Now, _WithJID,
-                _PageSize, _LimitPassed, _MaxResultLimit) ->
+                _PageSize, _LimitPassed, _MaxResultLimit, _IsSimple) ->
     wait_flushing_before(Host, ArcID, End, Now),
     Result.
 
