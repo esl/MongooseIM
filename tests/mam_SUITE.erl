@@ -32,7 +32,6 @@
          muc_archive_request/1,
          muc_multiple_devices/1,
          muc_private_message/1,
-         muc_skip_before_invitation/1,
          range_archive_request/1,
          limit_archive_request/1,
          prefs_set_request/1,
@@ -137,7 +136,6 @@ basic_group_names() ->
     mam,
     mam_purge,
     muc,
-%   muc_invitation,
     rsm,
     archived,
     policy_violation,
@@ -172,7 +170,6 @@ basic_groups() ->
      {policy_violation, [], policy_violation_cases()},
      {offline_message,  [], offline_message_cases()},
      {muc,              [], muc_cases()},
-     {muc_invitation,   [], muc_invitation_cases()},
      {rsm,              [], rsm_cases()}].
 
 bootstrapped_cases() ->
@@ -208,9 +205,6 @@ muc_cases() ->
      muc_private_message,
      muc_querying_for_all_messages,
      muc_querying_for_all_messages_with_jid].
-
-muc_invitation_cases() ->
-     [muc_skip_before_invitation].
 
 rsm_cases() ->
       [pagination_first5,
@@ -293,77 +287,6 @@ init_modules(odbc_mnesia_cache, muc, Config) ->
     init_module(host(), mod_mam_odbc_user, [muc]),
     init_module(host(), mod_mam_cache_user, [muc]),
     init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
-    Config;
-init_modules(odbc, muc_invitation, Config) ->
-% TODO
-%   [{host, "muc.@HOST@"},
-%    {skip_before_invitation, true},
-%    {user_module, mod_mam_odbc_user},
-%    {prefs_module, mod_mam_odbc_prefs},
-%    {writer_module, mod_mam_muc_odbc_arch},
-%    {archive_module, mod_mam_muc_odbc_arch},
-%    {invitation_module, mod_mam_muc_mnesia_dirty_invitation}].
-    Config;
-init_modules(odbc_async, muc_invitation, Config) ->
-% TODO
-%   [{host, "muc.@HOST@"},
-%    {skip_before_invitation, true},
-%    {user_module, mod_mam_odbc_user},
-%    {prefs_module, mod_mam_odbc_prefs},
-%    {writer_module, mod_mam_muc_odbc_async_writer},
-%    {archive_module, mod_mam_muc_odbc_arch},
-%    {invitation_module, mod_mam_muc_mnesia_dirty_invitation}].
-    Config;
-init_modules(odbc_async_pool, muc_invitation, Config) ->
-    %% TODO write mod_mam_muc_odbc_async_pool_writer
-% TODO
-%   [{host, "muc.@HOST@"},
-%    {skip_before_invitation, true},
-%    {user_module, mod_mam_odbc_user},
-%    {prefs_module, mod_mam_odbc_prefs},
-%    {writer_module, mod_mam_muc_odbc_async_writer},
-%    {archive_module, mod_mam_muc_odbc_arch},
-%    {invitation_module, mod_mam_muc_mnesia_dirty_invitation}].
-    Config;
-init_modules(odbc_mnesia, muc_invitation, Config) ->
-% TODO
-%   [{host, "muc.@HOST@"},
-%    {skip_before_invitation, true},
-%    {user_module, mod_mam_odbc_user},
-%    {prefs_module, mod_mam_mnesia_prefs},
-%    {writer_module, mod_mam_muc_odbc_arch},
-%    {archive_module, mod_mam_muc_odbc_arch},
-%    {invitation_module, mod_mam_muc_mnesia_dirty_invitation}].
-    Config;
-init_modules(odbc_cache, muc_invitation, Config) ->
-% TODO
-%   [{host, "muc.@HOST@"},
-%    {skip_before_invitation, true},
-%    {user_module, {mod_mam_cache_user, mod_mam_odbc_user}},
-%    {prefs_module, mod_mam_odbc_prefs},
-%    {writer_module, mod_mam_muc_odbc_arch},
-%    {archive_module, mod_mam_muc_odbc_arch},
-%    {invitation_module, mod_mam_muc_mnesia_dirty_invitation}].
-    Config;
-init_modules(odbc_async_cache, muc_invitation, Config) ->
-% TODO
-%   [{host, "muc.@HOST@"},
-%    {skip_before_invitation, true},
-%    {user_module, {mod_mam_cache_user, mod_mam_odbc_user}},
-%    {prefs_module, mod_mam_odbc_prefs},
-%    {writer_module, mod_mam_muc_odbc_async_writer},
-%    {archive_module, mod_mam_muc_odbc_arch},
-%    {invitation_module, mod_mam_muc_mnesia_dirty_invitation}].
-    Config;
-init_modules(odbc_mnesia_cache, muc_invitation, Config) ->
-% TODO
-%   [{host, "muc.@HOST@"},
-%    {skip_before_invitation, true},
-%    {user_module, {mod_mam_cache_user, mod_mam_odbc_user}},
-%    {prefs_module, mod_mam_mnesia_prefs},
-%    {writer_module, mod_mam_muc_odbc_arch},
-%    {archive_module, mod_mam_muc_odbc_arch},
-%    {invitation_module, mod_mam_muc_mnesia_dirty_invitation}].
     Config;
 init_modules(odbc, _, Config) ->
     init_module(host(), mod_mam, []),
@@ -473,8 +396,6 @@ init_per_testcase(C=muc_multiple_devices, Config) ->
     escalus:init_per_testcase(C, clean_room_archive(start_alice_room(Config)));
 init_per_testcase(C=muc_private_message, Config) ->
     escalus:init_per_testcase(C, start_alice_room(Config));
-init_per_testcase(C=muc_skip_before_invitation, Config) ->
-    escalus:init_per_testcase(C, start_alice_room(Config));
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
@@ -485,9 +406,6 @@ end_per_testcase(C=muc_multiple_devices, Config) ->
     destroy_room(Config),
     escalus:end_per_testcase(C, Config);
 end_per_testcase(C=muc_private_message, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_skip_before_invitation, Config) ->
     destroy_room(Config),
     escalus:end_per_testcase(C, Config);
 end_per_testcase(C=muc_querying_for_all_messages, Config) ->
@@ -983,43 +901,6 @@ muc_private_message(Config) ->
         %% Bob requests the room's archive.
         escalus:send(Bob, stanza_to_room(stanza_archive_request(<<"q1">>), Room)),
         [_ArcRes] = assert_respond_size(0, wait_archive_respond_iq_first(Bob)),
-        ok
-        end,
-    escalus:story(Config, [1, 1], F).
-
-muc_skip_before_invitation(Config) ->
-    F = fun(Alice, Bob) ->
-        Room = ?config(room, Config),
-        RoomAddr = room_address(Room),
-        escalus:send(Alice, stanza_muc_enter_room(Room, nick(Alice))),
-
-        %% Alice received presences.
-        escalus:wait_for_stanzas(Alice, 2),
-
-        %% Alice sends to the chat room.
-		escalus:send(Alice, escalus_stanza:groupchat_to(RoomAddr, <<"Is anybody here?">>)),
-
-        %% Alice receives her message.
-        escalus:wait_for_stanzas(Alice, 2),
-
-        %% Alice sends an invitation.
-        escalus:send(Alice, stanza_mediated_invitation(Room, Bob)),
-        escalus:wait_for_stanza(Bob),
-
-        %% Bob accepts the invitation.
-        escalus:send(Bob, stanza_muc_enter_room(Room, nick(Bob))),
-        escalus:wait_for_stanzas(Bob, 4),
-
-        %% Alice receives presence from Bob.
-        escalus:wait_for_stanza(Alice),
-
-        %% Alice requests the room's archive.
-        escalus:send(Alice, stanza_to_room(stanza_archive_request(<<"q1">>), Room)),
-        [_ArcRes1, _] = assert_respond_size(1, wait_archive_respond_iq_first(Alice)),
-
-        %% Bob requests the room's archive.
-        escalus:send(Bob, stanza_to_room(stanza_archive_request(<<"q2">>), Room)),
-        [_ArcRes2] = assert_respond_size(0, wait_archive_respond_iq_first(Bob)),
         ok
         end,
     escalus:story(Config, [1, 1], F).
@@ -1585,17 +1466,6 @@ room_address(Room) when is_binary(Room) ->
 
 room_address(Room, Nick) when is_binary(Room), is_binary(Nick) ->
     <<Room/binary, "@", (muc_host())/binary, "/", Nick/binary>>.
-
-stanza_mediated_invitation(Room, Invited) ->
-    Payload = [ #xmlel{name = <<"invite">>,
-        attrs = [{<<"to">>, escalus_utils:get_short_jid(Invited)}]} ],
-    stanza_to_room(#xmlel{name = <<"message">>,
-        children = [ #xmlel{
-            name = <<"x">>,
-            attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
-            children = Payload }
-        ]}, Room).
-
 
 
 send_rsm_messages(Config) ->
