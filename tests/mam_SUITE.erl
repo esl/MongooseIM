@@ -122,9 +122,6 @@ muc_host() ->
 host() ->
     <<"localhost">>.
 
-muc_server_host() ->
-    <<"localhost">>.
-
 configurations() ->
     [odbc_async,
      odbc_async_pool,
@@ -140,7 +137,7 @@ basic_group_names() ->
     mam,
     mam_purge,
     muc,
-    muc_invitation,
+%   muc_invitation,
     rsm,
     archived,
     policy_violation,
@@ -249,213 +246,193 @@ end_per_group(Group, Config) ->
     end_modules(C, B, Config1).
 
 init_modules(odbc, muc, Config) ->
-    init_module(muc_server_host(), mod_mam_muc, odbc_muc_args()),
+    %% TODO test both mod_mam_muc_odbc_arch and mod_mam_odbc_arch
+    init_module(host(), mod_mam_odbc_arch, [muc]),
+    init_module(host(), mod_mam_odbc_prefs, [muc]),
+    init_module(host(), mod_mam_odbc_user, [muc]),
+    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
     Config;
 init_modules(odbc_async, muc, Config) ->
-    init_module(muc_server_host(), mod_mam_muc, odbc_async_muc_args()),
+    init_module(host(), mod_mam_muc_odbc_arch, [no_writer]),
+    init_module(host(), mod_mam_muc_odbc_async_writer, []),
+    init_module(host(), mod_mam_odbc_prefs, [muc]),
+    init_module(host(), mod_mam_odbc_user, [muc]),
+    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
     Config;
 init_modules(odbc_async_pool, muc, Config) ->
-    %% TODO write mod_mam_muc_odbc_async_pool_writer
-    init_module(muc_server_host(), mod_mam_muc, odbc_async_muc_args()),
+    init_module(host(), mod_mam_muc_odbc_arch, [no_writer]),
+    init_module(host(), mod_mam_muc_odbc_async_pool_writer, []),
+    init_module(host(), mod_mam_odbc_prefs, [muc]),
+    init_module(host(), mod_mam_odbc_user, [muc]),
+    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
     Config;
 init_modules(odbc_mnesia, muc, Config) ->
-    init_module(muc_server_host(), mod_mam_muc, odbc_mnesia_muc_args()),
+    init_module(host(), mod_mam_muc_odbc_arch, []),
+    init_module(host(), mod_mam_mnesia_prefs, [muc]),
+    init_module(host(), mod_mam_odbc_user, [muc]),
+    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
     Config;
 init_modules(odbc_cache, muc, Config) ->
-    init_module(muc_server_host(), mod_mam_muc, odbc_cache_muc_args()),
+    init_module(host(), mod_mam_muc_odbc_arch, []),
+    init_module(host(), mod_mam_odbc_prefs, [muc]),
+    init_module(host(), mod_mam_odbc_user, [muc]),
+    init_module(host(), mod_mam_cache_user, [muc]),
+    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
     Config;
 init_modules(odbc_async_cache, muc, Config) ->
-    init_module(muc_server_host(), mod_mam_muc, odbc_async_cache_muc_args()),
+    init_module(host(), mod_mam_muc_odbc_arch, [no_writer]),
+    init_module(host(), mod_mam_muc_odbc_async_writer, []),
+    init_module(host(), mod_mam_odbc_prefs, [muc]),
+    init_module(host(), mod_mam_odbc_user, [muc]),
+    init_module(host(), mod_mam_cache_user, [muc]),
+    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
     Config;
 init_modules(odbc_mnesia_cache, muc, Config) ->
-    init_module(muc_server_host(), mod_mam_muc, odbc_mnesia_cache_muc_args()),
+    init_module(host(), mod_mam_muc_odbc_arch, []),
+    init_module(host(), mod_mam_mnesia_prefs, [muc]),
+    init_module(host(), mod_mam_odbc_user, [muc]),
+    init_module(host(), mod_mam_cache_user, [muc]),
+    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
     Config;
 init_modules(odbc, muc_invitation, Config) ->
-    init_module(muc_server_host(), mod_mam_muc, odbc_muc_invitation_args()),
+% TODO
+%   [{host, "muc.@HOST@"},
+%    {skip_before_invitation, true},
+%    {user_module, mod_mam_odbc_user},
+%    {prefs_module, mod_mam_odbc_prefs},
+%    {writer_module, mod_mam_muc_odbc_arch},
+%    {archive_module, mod_mam_muc_odbc_arch},
+%    {invitation_module, mod_mam_muc_mnesia_dirty_invitation}].
     Config;
 init_modules(odbc_async, muc_invitation, Config) ->
-    init_module(muc_server_host(), mod_mam_muc, odbc_async_muc_invitation_args()),
+% TODO
+%   [{host, "muc.@HOST@"},
+%    {skip_before_invitation, true},
+%    {user_module, mod_mam_odbc_user},
+%    {prefs_module, mod_mam_odbc_prefs},
+%    {writer_module, mod_mam_muc_odbc_async_writer},
+%    {archive_module, mod_mam_muc_odbc_arch},
+%    {invitation_module, mod_mam_muc_mnesia_dirty_invitation}].
     Config;
 init_modules(odbc_async_pool, muc_invitation, Config) ->
     %% TODO write mod_mam_muc_odbc_async_pool_writer
-    init_module(muc_server_host(), mod_mam_muc, odbc_async_muc_invitation_args()),
+% TODO
+%   [{host, "muc.@HOST@"},
+%    {skip_before_invitation, true},
+%    {user_module, mod_mam_odbc_user},
+%    {prefs_module, mod_mam_odbc_prefs},
+%    {writer_module, mod_mam_muc_odbc_async_writer},
+%    {archive_module, mod_mam_muc_odbc_arch},
+%    {invitation_module, mod_mam_muc_mnesia_dirty_invitation}].
     Config;
 init_modules(odbc_mnesia, muc_invitation, Config) ->
-    init_module(muc_server_host(), mod_mam_muc, odbc_mnesia_muc_invitation_args()),
+% TODO
+%   [{host, "muc.@HOST@"},
+%    {skip_before_invitation, true},
+%    {user_module, mod_mam_odbc_user},
+%    {prefs_module, mod_mam_mnesia_prefs},
+%    {writer_module, mod_mam_muc_odbc_arch},
+%    {archive_module, mod_mam_muc_odbc_arch},
+%    {invitation_module, mod_mam_muc_mnesia_dirty_invitation}].
     Config;
 init_modules(odbc_cache, muc_invitation, Config) ->
-    init_module(muc_server_host(), mod_mam_muc, odbc_cache_muc_invitation_args()),
+% TODO
+%   [{host, "muc.@HOST@"},
+%    {skip_before_invitation, true},
+%    {user_module, {mod_mam_cache_user, mod_mam_odbc_user}},
+%    {prefs_module, mod_mam_odbc_prefs},
+%    {writer_module, mod_mam_muc_odbc_arch},
+%    {archive_module, mod_mam_muc_odbc_arch},
+%    {invitation_module, mod_mam_muc_mnesia_dirty_invitation}].
     Config;
 init_modules(odbc_async_cache, muc_invitation, Config) ->
-    init_module(muc_server_host(), mod_mam_muc, odbc_async_cache_muc_invitation_args()),
+% TODO
+%   [{host, "muc.@HOST@"},
+%    {skip_before_invitation, true},
+%    {user_module, {mod_mam_cache_user, mod_mam_odbc_user}},
+%    {prefs_module, mod_mam_odbc_prefs},
+%    {writer_module, mod_mam_muc_odbc_async_writer},
+%    {archive_module, mod_mam_muc_odbc_arch},
+%    {invitation_module, mod_mam_muc_mnesia_dirty_invitation}].
     Config;
 init_modules(odbc_mnesia_cache, muc_invitation, Config) ->
-    init_module(muc_server_host(), mod_mam_muc, odbc_mnesia_cache_muc_invitation_args()),
+% TODO
+%   [{host, "muc.@HOST@"},
+%    {skip_before_invitation, true},
+%    {user_module, {mod_mam_cache_user, mod_mam_odbc_user}},
+%    {prefs_module, mod_mam_mnesia_prefs},
+%    {writer_module, mod_mam_muc_odbc_arch},
+%    {archive_module, mod_mam_muc_odbc_arch},
+%    {invitation_module, mod_mam_muc_mnesia_dirty_invitation}].
     Config;
 init_modules(odbc, _, Config) ->
-    init_module(host(), mod_mam, odbc_args()),
+    init_module(host(), mod_mam, []),
+    init_module(host(), mod_mam_odbc_arch, [pm]),
+    init_module(host(), mod_mam_odbc_prefs, [pm]),
+    init_module(host(), mod_mam_odbc_user, [pm]),
     Config;
 init_modules(odbc_async, _, Config) ->
-    init_module(host(), mod_mam, odbc_async_args()),
+    init_module(host(), mod_mam, []),
+    init_module(host(), mod_mam_odbc_arch, [pm, no_writer]),
+    init_module(host(), mod_mam_odbc_async_writer, [pm]),
+    init_module(host(), mod_mam_odbc_prefs, [pm]),
+    init_module(host(), mod_mam_odbc_user, [pm]),
     Config;
 init_modules(odbc_async_pool, _, Config) ->
-    init_module(host(), mod_mam, odbc_async_pool_args()),
+    init_module(host(), mod_mam, []),
+    init_module(host(), mod_mam_odbc_arch, [pm, no_writer]),
+    init_module(host(), mod_mam_odbc_async_pool_writer, [pm]),
+    init_module(host(), mod_mam_odbc_prefs, [pm]),
+    init_module(host(), mod_mam_odbc_user, [pm]),
     Config;
 init_modules(odbc_mnesia, _, Config) ->
-    init_module(host(), mod_mam, odbc_mnesia_args()),
+    init_module(host(), mod_mam, []),
+    init_module(host(), mod_mam_odbc_arch, [pm]),
+    init_module(host(), mod_mam_mnesia_prefs, [pm]),
+    init_module(host(), mod_mam_odbc_user, [pm]),
     Config;
 init_modules(odbc_cache, _, Config) ->
-    init_module(host(), mod_mam, odbc_cache_args()),
+    init_module(host(), mod_mam, []),
+    init_module(host(), mod_mam_odbc_arch, [pm]),
+    init_module(host(), mod_mam_odbc_prefs, [pm]),
+    init_module(host(), mod_mam_odbc_user, [pm]),
+    init_module(host(), mod_mam_cache_user, [pm]),
     Config;
 init_modules(odbc_async_cache, _, Config) ->
-    init_module(host(), mod_mam, odbc_async_cache_args()),
+    init_module(host(), mod_mam, []),
+    init_module(host(), mod_mam_odbc_arch, [pm, no_writer]),
+    init_module(host(), mod_mam_odbc_async_writer, [pm]),
+    init_module(host(), mod_mam_odbc_prefs, [pm]),
+    init_module(host(), mod_mam_odbc_user, [pm]),
+    init_module(host(), mod_mam_cache_user, [pm]),
     Config;
 init_modules(odbc_mnesia_cache, _, Config) ->
-    init_module(host(), mod_mam, odbc_mnesia_cache_args()),
+    init_module(host(), mod_mam, []),
+    init_module(host(), mod_mam_odbc_arch, [pm]),
+    init_module(host(), mod_mam_mnesia_prefs, [pm]),
+    init_module(host(), mod_mam_odbc_user, [pm]),
+    init_module(host(), mod_mam_cache_user, [pm]),
     Config.
 
 end_modules(_, _, Config) ->
-    stop_module(host(), mod_mam),
-    stop_module(muc_server_host(), mod_mam_muc),
+    [stop_module(host(), mod_mam) || M <- mam_modules() ++ mam_muc_modules()],
     Config.
 
-odbc_args() ->
-    [{user_module, mod_mam_odbc_user},
-     {prefs_module, mod_mam_odbc_prefs},
-     {writer_module, mod_mam_odbc_arch},
-     {archive_module, mod_mam_odbc_arch}].
+mam_modules() ->
+    [mod_mam,
+     mod_mam_odbc_user,
+     mod_mam_cache_user,
+     mod_mam_odbc_arch,
+     mod_mam_odbc_async_writer,
+     mod_mam_odbc_async_pool_writer,
+     mod_mam_odbc_prefs,
+     mod_mam_mnesia_prefs].
 
-odbc_async_args() ->
-    [{user_module, mod_mam_odbc_user},
-     {prefs_module, mod_mam_odbc_prefs},
-     {writer_module, mod_mam_odbc_async_writer},
-     {archive_module, mod_mam_odbc_arch}].
-
-odbc_async_pool_args() ->
-    [{user_module, mod_mam_odbc_user},
-     {prefs_module, mod_mam_odbc_prefs},
-     {writer_module, mod_mam_odbc_async_pool_writer},
-     {archive_module, mod_mam_odbc_arch}].
-
-odbc_mnesia_args() ->
-    [{user_module, mod_mam_odbc_user},
-     {prefs_module, mod_mam_mnesia_prefs},
-     {writer_module, mod_mam_odbc_arch},
-     {archive_module, mod_mam_odbc_arch}].
-
-odbc_cache_args() ->
-    [{user_module, {mod_mam_cache_user, mod_mam_odbc_user}},
-     {prefs_module, mod_mam_odbc_prefs},
-     {writer_module, mod_mam_odbc_arch},
-     {archive_module, mod_mam_odbc_arch}].
-
-odbc_async_cache_args() ->
-    [{user_module, {mod_mam_cache_user, mod_mam_odbc_user}},
-     {prefs_module, mod_mam_odbc_prefs},
-     {writer_module, mod_mam_odbc_async_writer},
-     {archive_module, mod_mam_odbc_arch}].
-
-odbc_mnesia_cache_args() ->
-    [{user_module, {mod_mam_cache_user, mod_mam_odbc_user}},
-     {prefs_module, mod_mam_mnesia_prefs},
-     {writer_module, mod_mam_odbc_arch},
-     {archive_module, mod_mam_odbc_arch}].
-
-odbc_async_muc_args() ->
-    [{host, "muc.@HOST@"},
-     {user_module, mod_mam_odbc_user},
-     {prefs_module, mod_mam_odbc_prefs},
-     {writer_module, mod_mam_muc_odbc_async_writer},
-     {archive_module, mod_mam_muc_odbc_arch}].
-
-odbc_muc_args() ->
-    [{host, "muc.@HOST@"},
-     {user_module, mod_mam_odbc_user},
-     {prefs_module, mod_mam_odbc_prefs},
-     {writer_module, mod_mam_muc_odbc_arch},
-     {archive_module, mod_mam_muc_odbc_arch}].
-
-odbc_mnesia_muc_args() ->
-    [{host, "muc.@HOST@"},
-     {user_module, mod_mam_odbc_user},
-     {prefs_module, mod_mam_mnesia_prefs},
-     {writer_module, mod_mam_muc_odbc_arch},
-     {archive_module, mod_mam_muc_odbc_arch}].
-
-odbc_async_cache_muc_args() ->
-    [{host, "muc.@HOST@"},
-     {user_module, {mod_mam_cache_user, mod_mam_odbc_user}},
-     {prefs_module, mod_mam_odbc_prefs},
-     {writer_module, mod_mam_muc_odbc_async_writer},
-     {archive_module, mod_mam_muc_odbc_arch}].
-
-odbc_cache_muc_args() ->
-    [{host, "muc.@HOST@"},
-     {user_module, {mod_mam_cache_user, mod_mam_odbc_user}},
-     {prefs_module, mod_mam_odbc_prefs},
-     {writer_module, mod_mam_muc_odbc_arch},
-     {archive_module, mod_mam_muc_odbc_arch}].
-
-odbc_mnesia_cache_muc_args() ->
-    [{host, "muc.@HOST@"},
-     {user_module, {mod_mam_cache_user, mod_mam_odbc_user}},
-     {prefs_module, mod_mam_mnesia_prefs},
-     {writer_module, mod_mam_muc_odbc_arch},
-     {archive_module, mod_mam_muc_odbc_arch}].
-
-odbc_async_muc_invitation_args() ->
-    [{host, "muc.@HOST@"},
-     {skip_before_invitation, true},
-     {user_module, mod_mam_odbc_user},
-     {prefs_module, mod_mam_odbc_prefs},
-     {writer_module, mod_mam_muc_odbc_async_writer},
-     {archive_module, mod_mam_muc_odbc_arch},
-     {invitation_module, mod_mam_muc_mnesia_dirty_invitation}].
-
-odbc_muc_invitation_args() ->
-    [{host, "muc.@HOST@"},
-     {skip_before_invitation, true},
-     {user_module, mod_mam_odbc_user},
-     {prefs_module, mod_mam_odbc_prefs},
-     {writer_module, mod_mam_muc_odbc_arch},
-     {archive_module, mod_mam_muc_odbc_arch},
-     {invitation_module, mod_mam_muc_mnesia_dirty_invitation}].
-
-odbc_mnesia_muc_invitation_args() ->
-    [{host, "muc.@HOST@"},
-     {skip_before_invitation, true},
-     {user_module, mod_mam_odbc_user},
-     {prefs_module, mod_mam_mnesia_prefs},
-     {writer_module, mod_mam_muc_odbc_arch},
-     {archive_module, mod_mam_muc_odbc_arch},
-     {invitation_module, mod_mam_muc_mnesia_dirty_invitation}].
-
-odbc_async_cache_muc_invitation_args() ->
-    [{host, "muc.@HOST@"},
-     {skip_before_invitation, true},
-     {user_module, {mod_mam_cache_user, mod_mam_odbc_user}},
-     {prefs_module, mod_mam_odbc_prefs},
-     {writer_module, mod_mam_muc_odbc_async_writer},
-     {archive_module, mod_mam_muc_odbc_arch},
-     {invitation_module, mod_mam_muc_mnesia_dirty_invitation}].
-
-odbc_cache_muc_invitation_args() ->
-    [{host, "muc.@HOST@"},
-     {skip_before_invitation, true},
-     {user_module, {mod_mam_cache_user, mod_mam_odbc_user}},
-     {prefs_module, mod_mam_odbc_prefs},
-     {writer_module, mod_mam_muc_odbc_arch},
-     {archive_module, mod_mam_muc_odbc_arch},
-     {invitation_module, mod_mam_muc_mnesia_dirty_invitation}].
-
-odbc_mnesia_cache_muc_invitation_args() ->
-    [{host, "muc.@HOST@"},
-     {skip_before_invitation, true},
-     {user_module, {mod_mam_cache_user, mod_mam_odbc_user}},
-     {prefs_module, mod_mam_mnesia_prefs},
-     {writer_module, mod_mam_muc_odbc_arch},
-     {archive_module, mod_mam_muc_odbc_arch},
-     {invitation_module, mod_mam_muc_mnesia_dirty_invitation}].
+mam_muc_modules() ->
+    [mod_mam_muc,
+     mod_mam_muc_odbc_arch,
+     mod_mam_muc_odbc_async_writer,
+     mod_mam_muc_odbc_async_pool_writer].
 
 init_state(_, rsm, Config) ->
     send_rsm_messages(clean_archives(Config));
