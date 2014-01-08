@@ -75,10 +75,10 @@ start_pm(Host, _Opts) ->
     ok.
 
 stop_pm(Host) ->
-    ejabberd_hooks:add(mam_get_behaviour, Host, ?MODULE, get_behaviour, 50),
-    ejabberd_hooks:add(mam_get_prefs, Host, ?MODULE, get_prefs, 50),
-    ejabberd_hooks:add(mam_set_prefs, Host, ?MODULE, set_prefs, 50),
-    ejabberd_hooks:add(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
+    ejabberd_hooks:delete(mam_get_behaviour, Host, ?MODULE, get_behaviour, 50),
+    ejabberd_hooks:delete(mam_get_prefs, Host, ?MODULE, get_prefs, 50),
+    ejabberd_hooks:delete(mam_set_prefs, Host, ?MODULE, set_prefs, 50),
+    ejabberd_hooks:delete(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
     ok.
 
 
@@ -93,10 +93,10 @@ start_muc(Host, _Opts) ->
     ok.
 
 stop_muc(Host) ->
-    ejabberd_hooks:add(mam_muc_get_behaviour, Host, ?MODULE, get_behaviour, 50),
-    ejabberd_hooks:add(mam_muc_get_prefs, Host, ?MODULE, get_prefs, 50),
-    ejabberd_hooks:add(mam_muc_set_prefs, Host, ?MODULE, set_prefs, 50),
-    ejabberd_hooks:add(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50),
+    ejabberd_hooks:delete(mam_muc_get_behaviour, Host, ?MODULE, get_behaviour, 50),
+    ejabberd_hooks:delete(mam_muc_get_prefs, Host, ?MODULE, get_prefs, 50),
+    ejabberd_hooks:delete(mam_muc_set_prefs, Host, ?MODULE, set_prefs, 50),
+    ejabberd_hooks:delete(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50),
     ok.
 
 
