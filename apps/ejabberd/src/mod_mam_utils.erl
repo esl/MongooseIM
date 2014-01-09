@@ -272,7 +272,8 @@ is_incoming_presence(_, _, _) -> false.
         Wrapper::elem().
 wrap_message(Packet, QueryID, MessageUID, DateTime, SrcJID) ->
     Delay = delay(DateTime, SrcJID, QueryID, MessageUID),
-    xml:append_subtags(Packet, [Delay]).
+    Packet2 = xml:append_subtags(Packet, [Delay]),
+    xml:replace_tag_attr(<<"from">>, jlib:jid_to_binary(SrcJID), Packet2).
 
 -spec delay(calendar:datetime(), jid(), binary(), binary()) -> elem().
 delay(DateTime, _SrcJID, QueryID, MessageUID) ->
@@ -572,8 +573,19 @@ maybe_previous_id(X) ->
 %% -----------------------------------------------------------------------
 %% Ejabberd
 
+-ifdef(MAM_COMPACT_FORWARDED).
+
+send_message(_From, To, Mess) ->
+    {value, BFrom} = xml:get_tag_attr(<<"from">>, Mess),
+    From = jlib:binary_to_jid(BFrom),
+    ejabberd_sm:route(From, To, Mess).
+
+-else.
+
 send_message(From, To, Mess) ->
     ejabberd_sm:route(From, To, Mess).
+
+-endif.
 
 is_jid_in_user_roster(#jid{lserver=LServer, luser=LUser},
                       #jid{} = RemJID) ->
