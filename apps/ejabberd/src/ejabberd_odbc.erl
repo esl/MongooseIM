@@ -564,7 +564,7 @@ pgsql_to_odbc({ok, PGSQLResult}) ->
 
 pgsql_item_to_odbc({<<"SELECT", _/binary>>, Rows, Recs}) ->
     {selected,
-     [binary_to_list(element(1, Row)) || Row <- Rows],
+     [element(1, Row) || Row <- Rows],
      [list_to_tuple(Rec) || Rec <- Recs]};
 pgsql_item_to_odbc(<<"INSERT ", OIDN/binary>>) ->
     [_OID, N] = binary:split(OIDN, <<" ">>),
