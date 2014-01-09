@@ -254,6 +254,32 @@ is_incoming_presence(_, _, _) -> false.
 -endif.
 
 
+-ifdef(MAM_COMPACT_FORWARDED).
+
+%% @doc Forms a simple forwarded message (not according XEP).
+%%
+%% ```
+%% <message xmlns="jabber:client"
+%%    from="room@muc.server/alice"
+%%    to="bob@server/res1"
+%%    type="groupchat">
+%%  <body>1</body>
+%%  <delay xmlns="urn:xmpp:delay" id="9RUQN9VBP7G1" query_id="q1" stamp="2014-01-13T14:16:57Z" />
+%% </message>
+%% '''
+-spec wrap_message(Packet::elem(), QueryID::binary(),
+                   MessageUID::term(), DateTime::calendar:datetime(), SrcJID::jid()) ->
+        Wrapper::elem().
+wrap_message(Packet, QueryID, MessageUID, DateTime, SrcJID) ->
+    Delay = delay(DateTime, SrcJID, QueryID, MessageUID),
+    xml:append_subtags(Packet, [Delay]).
+
+-spec delay(calendar:datetime(), jid(), binary(), binary()) -> elem().
+delay(DateTime, _SrcJID, QueryID, MessageUID) ->
+    jlib:timestamp_to_mam_xml(DateTime, utc, QueryID, MessageUID).
+
+-else.
+
 %% @doc Forms `<forwarded/>' element, according to the XEP.
 -spec wrap_message(Packet::elem(), QueryID::binary(),
                    MessageUID::term(), DateTime::calendar:datetime(), SrcJID::jid()) ->
@@ -289,6 +315,8 @@ result(QueryID, MessageUID, Children) when is_list(Children) ->
                 [{<<"xmlns">>, mam_ns_binary()},
                  {<<"id">>, MessageUID}],
         children = Children}.
+
+-endif.
 
 
 %% @doc Generates `<set />' tag.
