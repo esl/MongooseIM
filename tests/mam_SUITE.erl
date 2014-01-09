@@ -39,9 +39,13 @@
          pagination_last5/1,
          pagination_before10/1,
          pagination_after10/1,
+         pagination_simple_before10/1,
          pagination_last_after_id5/1,
          pagination_last_after_id5_before_id11/1,
          pagination_empty_rset/1,
+         pagination_first5_opt_count/1,
+         pagination_last5_opt_count/1,
+         pagination_offset5_opt_count/1,
          archived/1,
          strip_archived/1,
          filter_forwarded/1,
@@ -72,7 +76,9 @@
         after_id    :: binary() | undefined,
         before_id   :: binary() | undefined,
         from_id     :: binary() | undefined,
-        to_id       :: binary() | undefined
+        to_id       :: binary() | undefined,
+        simple = false :: boolean(),
+        opt_count = false :: boolean()
         }).
 
 -record(forwarded_message, {
@@ -214,7 +220,13 @@ rsm_cases() ->
        pagination_empty_rset,
        %% Border cases
        pagination_last_after_id5,
-       pagination_last_after_id5_before_id11].
+       pagination_last_after_id5_before_id11,
+       %% Simple cases
+       pagination_simple_before10,
+       %% opt_count cases
+       pagination_first5_opt_count,
+       pagination_last5_opt_count,
+       pagination_offset5_opt_count].
 
 suite() ->
     escalus:suite().
@@ -960,6 +972,16 @@ pagination_first5(Config) ->
         end,
     escalus:story(Config, [1], F).
 
+pagination_first5_opt_count(Config) ->
+    F = fun(Alice) ->
+        %% Get the first page of size 5.
+        RSM = #rsm_in{max=5},
+        escalus:send(Alice, stanza_page_archive_request(<<"first5_opt">>, RSM)),
+        wait_message_range(Alice, 1, 5),
+        ok
+        end,
+    escalus:story(Config, [1], F).
+
 pagination_last5(Config) ->
     F = fun(Alice) ->
         %% Get the last page of size 5.
@@ -970,12 +992,43 @@ pagination_last5(Config) ->
         end,
     escalus:story(Config, [1], F).
 
+pagination_last5_opt_count(Config) ->
+    F = fun(Alice) ->
+        %% Get the last page of size 5.
+        RSM = #rsm_in{max=5, direction=before, opt_count=true},
+        escalus:send(Alice, stanza_page_archive_request(<<"last5_opt">>, RSM)),
+        wait_message_range(Alice, 11, 15),
+        ok
+        end,
+    escalus:story(Config, [1], F).
+
+pagination_offset5_opt_count(Config) ->
+    F = fun(Alice) ->
+        %% Skip 5 messages, get 5 messages.
+        RSM = #rsm_in{max=5, index=5, opt_count=true},
+        escalus:send(Alice, stanza_page_archive_request(<<"last5_opt">>, RSM)),
+        wait_message_range(Alice, 6, 10),
+        ok
+        end,
+    escalus:story(Config, [1], F).
+
 pagination_before10(Config) ->
     F = fun(Alice) ->
         %% Get the last page of size 5.
         RSM = #rsm_in{max=5, direction=before, id=message_id(10, Config)},
         escalus:send(Alice, stanza_page_archive_request(<<"before10">>, RSM)),
         wait_message_range(Alice, 5, 9),
+        ok
+        end,
+    escalus:story(Config, [1], F).
+
+pagination_simple_before10(Config) ->
+    F = fun(Alice) ->
+        %% Get the last page of size 5.
+        RSM = #rsm_in{max=5, direction=before, id=message_id(10, Config), simple=true},
+        escalus:send(Alice, stanza_page_archive_request(<<"before10">>, RSM)),
+     %% wait_message_range(Client, TotalCount,    Offset, FromN, ToN),
+        wait_message_range(Alice,   undefined, undefined,     5,   9),
         ok
         end,
     escalus:story(Config, [1], F).
@@ -1170,11 +1223,23 @@ stanza_lookup_messages_iq(QueryId, BStart, BEnd, BWithJID, RSM) ->
             ++ maybe_attr(<<"queryid">>, QueryId)
             ++ border_attributes(RSM),
        children = skip_undefined([
+           maybe_simple_elem(RSM),
+           maybe_opt_count_elem(RSM),
            maybe_start_elem(BStart),
            maybe_end_elem(BEnd),
            maybe_with_elem(BWithJID),
            maybe_rsm_elem(RSM)])
     }]).
+
+maybe_simple_elem(#rsm_in{simple=true}) ->
+    [#xmlel{name = <<"simple">>}];
+maybe_simple_elem(_) ->
+    [].
+
+maybe_opt_count_elem(#rsm_in{opt_count=true}) ->
+    [#xmlel{name = <<"opt_count">>}];
+maybe_opt_count_elem(_) ->
+    [].
 
 border_attributes(undefined) ->
     [];
