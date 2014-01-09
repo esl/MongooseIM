@@ -44,8 +44,11 @@
          pagination_last_after_id5_before_id11/1,
          pagination_empty_rset/1,
          pagination_first5_opt_count/1,
+         pagination_first25_opt_count_all/1,
          pagination_last5_opt_count/1,
+         pagination_last25_opt_count_all/1,
          pagination_offset5_opt_count/1,
+         pagination_offset5_opt_count_all/1,
          archived/1,
          strip_archived/1,
          filter_forwarded/1,
@@ -226,7 +229,11 @@ rsm_cases() ->
        %% opt_count cases
        pagination_first5_opt_count,
        pagination_last5_opt_count,
-       pagination_offset5_opt_count].
+       pagination_offset5_opt_count,
+       %% opt_count cases with all messages on the page
+       pagination_first25_opt_count_all,
+       pagination_last25_opt_count_all,
+       pagination_offset5_opt_count_all].
 
 suite() ->
     escalus:suite().
@@ -982,6 +989,16 @@ pagination_first5_opt_count(Config) ->
         end,
     escalus:story(Config, [1], F).
 
+pagination_first25_opt_count_all(Config) ->
+    F = fun(Alice) ->
+        %% Get the first page of size 25.
+        RSM = #rsm_in{max=25},
+        escalus:send(Alice, stanza_page_archive_request(<<"first25_opt_all">>, RSM)),
+        wait_message_range(Alice, 1, 15),
+        ok
+        end,
+    escalus:story(Config, [1], F).
+
 pagination_last5(Config) ->
     F = fun(Alice) ->
         %% Get the last page of size 5.
@@ -1002,6 +1019,16 @@ pagination_last5_opt_count(Config) ->
         end,
     escalus:story(Config, [1], F).
 
+pagination_last25_opt_count_all(Config) ->
+    F = fun(Alice) ->
+        %% Get the last page of size 25.
+        RSM = #rsm_in{max=25, direction=before, opt_count=true},
+        escalus:send(Alice, stanza_page_archive_request(<<"last25_opt_all">>, RSM)),
+        wait_message_range(Alice, 1, 15),
+        ok
+        end,
+    escalus:story(Config, [1], F).
+
 pagination_offset5_opt_count(Config) ->
     F = fun(Alice) ->
         %% Skip 5 messages, get 5 messages.
@@ -1011,6 +1038,17 @@ pagination_offset5_opt_count(Config) ->
         ok
         end,
     escalus:story(Config, [1], F).
+
+pagination_offset5_opt_count_all(Config) ->
+    F = fun(Alice) ->
+        %% Skip 5 messages, get 25 messages (only 10 are available).
+        RSM = #rsm_in{max=25, index=5, opt_count=true},
+        escalus:send(Alice, stanza_page_archive_request(<<"last5_opt_all">>, RSM)),
+        wait_message_range(Alice, 6, 15),
+        ok
+        end,
+    escalus:story(Config, [1], F).
+
 
 pagination_before10(Config) ->
     F = fun(Alice) ->
