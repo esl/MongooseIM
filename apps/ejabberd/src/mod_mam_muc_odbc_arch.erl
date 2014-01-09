@@ -193,7 +193,7 @@ archive_messages(LServer, Acc, N) ->
     WithJID :: #jid{} | undefined,
     LimitPassed :: boolean(),
     MaxResultLimit :: non_neg_integer(),
-    IsSimple :: boolean(),
+    IsSimple :: boolean() | opt_count,
     Result :: {ok, {TotalCount, Offset, MessageRows}} | {error, 'policy-violation'},
     TotalCount :: non_neg_integer(),
     Offset  :: non_neg_integer(),
@@ -234,6 +234,68 @@ lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
     MessageRows = extract_messages(Host, RoomID, Filter, 0, PageSize, false),
     {ok, {undefined, undefined,
           rows_to_uniform_format(MessageRows, Host, RoomJID)}};
+
+
+%% Cannot be optimized:
+%% - #rsm_in{direction = aft, id = ID} 
+%% - #rsm_in{direction = before, id = ID} 
+
+lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
+                #rsm_in{direction = before, id = undefined}, Borders,
+                Start, End, _Now, WithJID,
+                PageSize, _LimitPassed, _MaxResultLimit, opt_count) ->
+    %% Last page
+    Filter = prepare_filter(RoomID, Borders, Start, End, WithJID),
+    MessageRows = extract_messages(Host, RoomID, Filter, 0, PageSize, true),
+    MessageRowsCount = length(MessageRows),
+    case MessageRowsCount < PageSize of
+        true ->
+            {ok, {MessageRowsCount, 0, 
+                  rows_to_uniform_format(MessageRows, Host, RoomJID)}};
+        false ->
+            FirstID = row_to_message_id(hd(MessageRows)),
+            Offset = calc_count(Host, RoomID, before_id(FirstID, Filter)),
+            {ok, {Offset, Offset + MessageRowsCount,
+                  rows_to_uniform_format(MessageRows, Host, RoomJID)}}
+    end;
+
+lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
+                #rsm_in{direction = undefined, index = Offset}, Borders,
+                Start, End, _Now, WithJID,
+                PageSize, _LimitPassed, _MaxResultLimit, opt_count) ->
+    %% By offset
+    Filter = prepare_filter(RoomID, Borders, Start, End, WithJID),
+    MessageRows = extract_messages(Host, RoomID, Filter, Offset, PageSize, false),
+    MessageRowsCount = length(MessageRows),
+    case MessageRowsCount < PageSize of
+        true ->
+            {ok, {Offset + MessageRowsCount, Offset, 
+                  rows_to_uniform_format(MessageRows, Host, RoomJID)}};
+        false ->
+            LastID = row_to_message_id(lists:last(MessageRows)),
+            CountAfterLastID = calc_count(Host, RoomID, after_id(LastID, Filter)),
+            {ok, {Offset + MessageRowsCount + CountAfterLastID, Offset,
+                  rows_to_uniform_format(MessageRows, Host, RoomJID)}}
+    end;
+
+lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
+                undefined, Borders,
+                Start, End, _Now, WithJID,
+                PageSize, _LimitPassed, _MaxResultLimit, opt_count) ->
+    %% First page
+    Filter = prepare_filter(RoomID, Borders, Start, End, WithJID),
+    MessageRows = extract_messages(Host, RoomID, Filter, 0, PageSize, false),
+    MessageRowsCount = length(MessageRows),
+    case MessageRowsCount < PageSize of
+        true ->
+            {ok, {MessageRowsCount, 0,
+                  rows_to_uniform_format(MessageRows, Host, RoomJID)}};
+        false ->
+            LastID = row_to_message_id(lists:last(MessageRows)),
+            CountAfterLastID = calc_count(Host, RoomID, after_id(LastID, Filter)),
+            {ok, {MessageRowsCount + CountAfterLastID, 0,
+                  rows_to_uniform_format(MessageRows, Host, RoomJID)}}
+    end;
 
 
 lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
@@ -317,6 +379,8 @@ row_to_uniform_format({BMessID,BNick,SData}, Host, RoomJID) ->
     Packet = binary_to_term(Data),
     {MessID, SrcJID, Packet}.
 
+row_to_message_id({BMessID,_,_}) ->
+    BMessID.
 
 remove_archive(Host, RoomID, _RoomJID) ->
     {updated, _} =
