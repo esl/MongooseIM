@@ -326,6 +326,72 @@ lookup_messages(_Result, Host, UserID, UserJID = #jid{},
     {ok, {undefined, undefined, rows_to_uniform_format(Host, UserJID, MessageRows)}};
 
 
+
+%% Cannot be optimized:
+%% - #rsm_in{direction = aft, id = ID} 
+%% - #rsm_in{direction = before, id = ID} 
+
+lookup_messages(_Result, Host, UserID, UserJID = #jid{},
+                #rsm_in{direction = before, id = undefined}, Borders,
+                Start, End, _Now, WithJID,
+                PageSize, _LimitPassed, _MaxResultLimit, opt_count) ->
+    %% Last page
+    Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID),
+    MessageRows = extract_messages(Host, UserID, Filter, 0, PageSize, true),
+    MessageRowsCount = length(MessageRows),
+    case MessageRowsCount < PageSize of
+        true ->
+            {ok, {MessageRowsCount, 0,
+                  rows_to_uniform_format(Host, UserJID, MessageRows)}};
+        false ->
+            IndexHintSQL = index_hint_sql(Host),
+            FirstID = row_to_message_id(hd(MessageRows)),
+            Offset = calc_count(Host, UserID, before_id(FirstID, Filter), IndexHintSQL),
+            {ok, {Offset + MessageRowsCount, Offset,
+                  rows_to_uniform_format(Host, UserJID, MessageRows)}}
+    end;
+
+lookup_messages(_Result, Host, UserID, UserJID = #jid{},
+                #rsm_in{direction = undefined, index = Offset}, Borders,
+                Start, End, _Now, WithJID,
+                PageSize, _LimitPassed, _MaxResultLimit, opt_count) ->
+    %% By offset
+    Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID),
+    MessageRows = extract_messages(Host, UserID, Filter, Offset, PageSize, false),
+    MessageRowsCount = length(MessageRows),
+    case MessageRowsCount < PageSize of
+        true ->
+            {ok, {Offset + MessageRowsCount, Offset,
+                  rows_to_uniform_format(Host, UserJID, MessageRows)}};
+        false ->
+            IndexHintSQL = index_hint_sql(Host),
+            LastID = row_to_message_id(lists:last(MessageRows)),
+            CountAfterLastID = calc_count(Host, UserID, after_id(LastID, Filter), IndexHintSQL),
+            {ok, {Offset + MessageRowsCount + CountAfterLastID, Offset,
+                  rows_to_uniform_format(Host, UserJID, MessageRows)}}
+    end;
+
+lookup_messages(_Result, Host, UserID, UserJID = #jid{},
+                undefined, Borders,
+                Start, End, _Now, WithJID,
+                PageSize, _LimitPassed, _MaxResultLimit, opt_count) ->
+    %% First page
+    Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID),
+    MessageRows = extract_messages(Host, UserID, Filter, 0, PageSize, false),
+    MessageRowsCount = length(MessageRows),
+    case MessageRowsCount < PageSize of
+        true ->
+            {ok, {MessageRowsCount, 0,
+                  rows_to_uniform_format(Host, UserJID, MessageRows)}};
+        false ->
+            IndexHintSQL = index_hint_sql(Host),
+            LastID = row_to_message_id(lists:last(MessageRows)),
+            CountAfterLastID = calc_count(Host, UserID, after_id(LastID, Filter), IndexHintSQL),
+            {ok, {MessageRowsCount + CountAfterLastID, 0,
+                  rows_to_uniform_format(Host, UserJID, MessageRows)}}
+    end;
+
+
 lookup_messages(_Result, Host, UserID, UserJID = #jid{},
                 RSM = #rsm_in{direction = aft, id = ID}, Borders,
                 Start, End, _Now, WithJID,
@@ -406,6 +472,9 @@ row_to_uniform_format(UserJID, EscFormat, {BMessID,BSrcJID,SData}) ->
     Data = ejabberd_odbc:unescape_binary(EscFormat, SData),
     Packet = binary_to_term(Data),
     {MessID, SrcJID, Packet}.
+
+row_to_message_id({BMessID,_,_}) ->
+    list_to_integer(binary_to_list(BMessID)).
 
 
 remove_archive(Host, UserID, _UserJID) ->

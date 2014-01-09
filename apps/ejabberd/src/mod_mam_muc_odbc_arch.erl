@@ -255,7 +255,7 @@ lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
         false ->
             FirstID = row_to_message_id(hd(MessageRows)),
             Offset = calc_count(Host, RoomID, before_id(FirstID, Filter)),
-            {ok, {Offset, Offset + MessageRowsCount,
+            {ok, {Offset + MessageRowsCount, Offset,
                   rows_to_uniform_format(MessageRows, Host, RoomJID)}}
     end;
 
@@ -380,7 +380,7 @@ row_to_uniform_format({BMessID,BNick,SData}, Host, RoomJID) ->
     {MessID, SrcJID, Packet}.
 
 row_to_message_id({BMessID,_,_}) ->
-    BMessID.
+    list_to_integer(binary_to_list(BMessID)).
 
 remove_archive(Host, RoomID, _RoomJID) ->
     {updated, _} =

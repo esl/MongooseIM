@@ -73,7 +73,8 @@
          result_query/1,
          result_prefs/3,
          parse_prefs/1,
-         borders_decode/1]).
+         borders_decode/1,
+         decode_optimizations/1]).
 
 %% Other
 -import(mod_mam_utils,
@@ -432,7 +433,7 @@ handle_lookup_messages(
     PageSize = min(max_result_limit(),
                    maybe_integer(Limit, default_result_limit())),
     LimitPassed = Limit =/= <<>>,
-    IsSimple = xml:get_subtag(QueryEl, <<"simple">>) =/= false,
+    IsSimple = decode_optimizations(QueryEl),
     case lookup_messages(Host, ArcID, ArcJID, RSM, Borders,
                          Start, End, Now, With,
                          PageSize, LimitPassed, max_result_limit(), IsSimple) of
@@ -578,7 +579,7 @@ remove_archive(Host, ArcID, ArcJID=#jid{}) ->
     PageSize :: non_neg_integer(),
     LimitPassed :: boolean(),
     MaxResultLimit :: non_neg_integer(),
-    IsSimple :: boolean(),
+    IsSimple :: boolean() | opt_count,
     TotalCount :: non_neg_integer(),
     Offset  :: non_neg_integer(),
     MessageRows :: list(tuple()).

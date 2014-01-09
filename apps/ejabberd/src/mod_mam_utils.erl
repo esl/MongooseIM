@@ -32,7 +32,8 @@
          result_query/1,
          result_prefs/3,
          parse_prefs/1,
-         borders_decode/1]).
+         borders_decode/1,
+         decode_optimizations/1]).
 
 %% JID serialization
 -export([jid_to_opt_binary/2,
@@ -434,6 +435,15 @@ borders(AfterID, BeforeID, FromID, ToID) ->
 tag_id(QueryEl, Name) ->
     BExtMessID = xml:get_tag_attr_s(Name, QueryEl),
     maybe_external_binary_to_mess_id(BExtMessID).
+
+decode_optimizations(QueryEl) ->
+    case {xml:get_subtag(QueryEl, <<"simple">>),
+          xml:get_subtag(QueryEl, <<"opt_count">>)} of
+        {false, false} -> false;
+        {false, _}     -> opt_count;
+        _              -> true
+    end.
+
 
 %% -----------------------------------------------------------------------
 %% JID serialization
