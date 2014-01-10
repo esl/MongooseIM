@@ -141,6 +141,7 @@ configurations() ->
 
 basic_group_names() ->
     [
+    muc_rsm,
     bootstrapped,
     mam,
     mam_purge,
@@ -179,7 +180,8 @@ basic_groups() ->
      {policy_violation, [], policy_violation_cases()},
      {offline_message,  [], offline_message_cases()},
      {muc,              [], muc_cases()},
-     {rsm,              [], rsm_cases()}].
+     {rsm,              [], rsm_cases()},
+     {muc_rsm,          [], muc_rsm_cases()}].
 
 bootstrapped_cases() ->
      [purge_old_single_message,
@@ -214,6 +216,9 @@ muc_cases() ->
      muc_private_message,
      muc_querying_for_all_messages,
      muc_querying_for_all_messages_with_jid].
+
+muc_rsm_cases() ->
+    rsm_cases().
 
 rsm_cases() ->
       [pagination_first5,
@@ -258,6 +263,13 @@ end_per_group(Group, Config) ->
     Config1 = end_state(C, B, Config),
     end_modules(C, B, Config1).
 
+init_modules(C, muc_rsm, Config) ->
+    init_modules(C, muc, Config);
+init_modules(ca, muc, Config) ->
+    init_module(host(), mod_mam_muc_ca_arch, []),
+    init_module(host(), mod_mam_odbc_user, [muc]),
+    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
+    Config;
 init_modules(odbc, muc, Config) ->
     %% TODO test both mod_mam_muc_odbc_arch and mod_mam_odbc_arch
     init_module(host(), mod_mam_odbc_arch, [muc]),
@@ -313,6 +325,13 @@ init_modules(odbc, _, Config) ->
     init_module(host(), mod_mam_odbc_prefs, [pm]),
     init_module(host(), mod_mam_odbc_user, [pm]),
     Config;
+init_modules(ca, _, Config) ->
+    %% TODO Not supported yet
+    init_module(host(), mod_mam, []),
+    init_module(host(), mod_mam_odbc_arch, [pm]),
+    init_module(host(), mod_mam_odbc_prefs, [pm]),
+    init_module(host(), mod_mam_odbc_user, [pm]),
+    Config;
 init_modules(odbc_async, _, Config) ->
     init_module(host(), mod_mam, []),
     init_module(host(), mod_mam_odbc_arch, [pm, no_writer]),
@@ -357,25 +376,29 @@ init_modules(odbc_mnesia_cache, _, Config) ->
     Config.
 
 end_modules(_, _, Config) ->
-    [stop_module(host(), mod_mam) || M <- mam_modules() ++ mam_muc_modules()],
+    [stop_module(host(), M) || M <- mam_modules()],
     Config.
 
 mam_modules() ->
     [mod_mam,
-     mod_mam_odbc_user,
-     mod_mam_cache_user,
+     mod_mam_muc,
      mod_mam_odbc_arch,
-     mod_mam_odbc_async_writer,
-     mod_mam_odbc_async_pool_writer,
-     mod_mam_odbc_prefs,
-     mod_mam_mnesia_prefs].
-
-mam_muc_modules() ->
-    [mod_mam_muc,
      mod_mam_muc_odbc_arch,
+     mod_mam_odbc_async_writer,
      mod_mam_muc_odbc_async_writer,
-     mod_mam_muc_odbc_async_pool_writer].
+     mod_mam_odbc_async_pool_writer,
+     mod_mam_muc_odbc_async_pool_writer,
+     mod_mam_odbc_prefs,
+     mod_mam_mnesia_prefs,
+     mod_mam_mnesia_dirty_prefs,
+     mod_mam_cache_user,
+     mod_mam_odbc_user].
 
+init_state(_, muc_rsm, Config) ->
+    Config1 = start_alice_room(Config),
+    Config2 = clean_room_archive(Config1),
+    Config3 = send_muc_rsm_messages(Config2),
+    [{muc_rsm, true} | Config3];
 init_state(_, rsm, Config) ->
     send_rsm_messages(clean_archives(Config));
 init_state(_, _, Config) ->
@@ -964,7 +987,8 @@ pagination_empty_rset(Config) ->
         %% Get the first page of size 5.
         RSM = #rsm_in{max=0},
 
-        escalus:send(Alice, stanza_page_archive_request(<<"empty_rset">>, RSM)),
+        rsm_send(Config, Alice,
+            stanza_page_archive_request(<<"empty_rset">>, RSM)),
         wait_empty_rset(Alice, 15)
         end,
     escalus:story(Config, [1], F).
@@ -973,7 +997,8 @@ pagination_first5(Config) ->
     F = fun(Alice) ->
         %% Get the first page of size 5.
         RSM = #rsm_in{max=5},
-        escalus:send(Alice, stanza_page_archive_request(<<"first5">>, RSM)),
+        rsm_send(Config, Alice,
+            stanza_page_archive_request(<<"first5">>, RSM)),
         wait_message_range(Alice, 1, 5),
         ok
         end,
@@ -983,7 +1008,8 @@ pagination_first5_opt_count(Config) ->
     F = fun(Alice) ->
         %% Get the first page of size 5.
         RSM = #rsm_in{max=5},
-        escalus:send(Alice, stanza_page_archive_request(<<"first5_opt">>, RSM)),
+        rsm_send(Config, Alice,
+            stanza_page_archive_request(<<"first5_opt">>, RSM)),
         wait_message_range(Alice, 1, 5),
         ok
         end,
@@ -993,7 +1019,8 @@ pagination_first25_opt_count_all(Config) ->
     F = fun(Alice) ->
         %% Get the first page of size 25.
         RSM = #rsm_in{max=25},
-        escalus:send(Alice, stanza_page_archive_request(<<"first25_opt_all">>, RSM)),
+        rsm_send(Config, Alice,
+            stanza_page_archive_request(<<"first25_opt_all">>, RSM)),
         wait_message_range(Alice, 1, 15),
         ok
         end,
@@ -1003,7 +1030,8 @@ pagination_last5(Config) ->
     F = fun(Alice) ->
         %% Get the last page of size 5.
         RSM = #rsm_in{max=5, direction=before},
-        escalus:send(Alice, stanza_page_archive_request(<<"last5">>, RSM)),
+        rsm_send(Config, Alice,
+            stanza_page_archive_request(<<"last5">>, RSM)),
         wait_message_range(Alice, 11, 15),
         ok
         end,
@@ -1013,7 +1041,8 @@ pagination_last5_opt_count(Config) ->
     F = fun(Alice) ->
         %% Get the last page of size 5.
         RSM = #rsm_in{max=5, direction=before, opt_count=true},
-        escalus:send(Alice, stanza_page_archive_request(<<"last5_opt">>, RSM)),
+        rsm_send(Config, Alice,
+            stanza_page_archive_request(<<"last5_opt">>, RSM)),
         wait_message_range(Alice, 11, 15),
         ok
         end,
@@ -1023,7 +1052,8 @@ pagination_last25_opt_count_all(Config) ->
     F = fun(Alice) ->
         %% Get the last page of size 25.
         RSM = #rsm_in{max=25, direction=before, opt_count=true},
-        escalus:send(Alice, stanza_page_archive_request(<<"last25_opt_all">>, RSM)),
+        rsm_send(Config, Alice,
+            stanza_page_archive_request(<<"last25_opt_all">>, RSM)),
         wait_message_range(Alice, 1, 15),
         ok
         end,
@@ -1033,7 +1063,8 @@ pagination_offset5_opt_count(Config) ->
     F = fun(Alice) ->
         %% Skip 5 messages, get 5 messages.
         RSM = #rsm_in{max=5, index=5, opt_count=true},
-        escalus:send(Alice, stanza_page_archive_request(<<"last5_opt">>, RSM)),
+        rsm_send(Config, Alice,
+            stanza_page_archive_request(<<"last5_opt">>, RSM)),
         wait_message_range(Alice, 6, 10),
         ok
         end,
@@ -1043,7 +1074,8 @@ pagination_offset5_opt_count_all(Config) ->
     F = fun(Alice) ->
         %% Skip 5 messages, get 25 messages (only 10 are available).
         RSM = #rsm_in{max=25, index=5, opt_count=true},
-        escalus:send(Alice, stanza_page_archive_request(<<"last5_opt_all">>, RSM)),
+        rsm_send(Config, Alice,
+            stanza_page_archive_request(<<"last5_opt_all">>, RSM)),
         wait_message_range(Alice, 6, 15),
         ok
         end,
@@ -1054,7 +1086,8 @@ pagination_before10(Config) ->
     F = fun(Alice) ->
         %% Get the last page of size 5.
         RSM = #rsm_in{max=5, direction=before, id=message_id(10, Config)},
-        escalus:send(Alice, stanza_page_archive_request(<<"before10">>, RSM)),
+        rsm_send(Config, Alice,
+            stanza_page_archive_request(<<"before10">>, RSM)),
         wait_message_range(Alice, 5, 9),
         ok
         end,
@@ -1064,7 +1097,8 @@ pagination_simple_before10(Config) ->
     F = fun(Alice) ->
         %% Get the last page of size 5.
         RSM = #rsm_in{max=5, direction=before, id=message_id(10, Config), simple=true},
-        escalus:send(Alice, stanza_page_archive_request(<<"before10">>, RSM)),
+        rsm_send(Config, Alice,
+            stanza_page_archive_request(<<"before10">>, RSM)),
      %% wait_message_range(Client, TotalCount,    Offset, FromN, ToN),
         wait_message_range(Alice,   undefined, undefined,     5,   9),
         ok
@@ -1075,7 +1109,8 @@ pagination_after10(Config) ->
     F = fun(Alice) ->
         %% Get the last page of size 5.
         RSM = #rsm_in{max=5, direction='after', id=message_id(10, Config)},
-        escalus:send(Alice, stanza_page_archive_request(<<"after10">>, RSM)),
+        rsm_send(Config, Alice,
+            stanza_page_archive_request(<<"after10">>, RSM)),
         wait_message_range(Alice, 11, 15),
         ok
         end,
@@ -1088,7 +1123,7 @@ pagination_last_after_id5(Config) ->
         %% Get the last page of size 5 after 5-th message.
         RSM = #rsm_in{max=5, direction='before',
                 after_id=message_id(5, Config)},
-        escalus:send(Alice,
+        rsm_send(Config, Alice,
             stanza_page_archive_request(<<"last_after_id5">>, RSM)),
      %% wait_message_range(Client, TotalCount, Offset, FromN, ToN),
         wait_message_range(Alice,          10,      5,    11,  15),
@@ -1102,7 +1137,7 @@ pagination_last_after_id5_before_id11(Config) ->
         RSM = #rsm_in{max=5, direction='before',
                 after_id=message_id(5, Config),
                 before_id=message_id(11, Config)},
-        escalus:send(Alice,
+        rsm_send(Config, Alice,
             stanza_page_archive_request(<<"last_after_id5_before_id11">>, RSM)),
      %% wait_message_range(Client, TotalCount, Offset, FromN, ToN),
         wait_message_range(Alice,           5,      0,     6,  10),
@@ -1113,7 +1148,14 @@ pagination_last_after_id5_before_id11(Config) ->
 generate_message_text(N) when is_integer(N) ->
     <<"Message #", (list_to_binary(integer_to_list(N)))/binary>>.
 
-
+rsm_send(Config, User, Packet) ->
+    Room = ?config(room, Config),
+    case ?config(muc_rsm, Config) of
+        true ->
+            escalus:send(User, stanza_to_room(Packet, Room));
+        _ ->
+            escalus:send(User, Packet)
+    end.
 
 prefs_set_request(Config) ->
     F = fun(Alice) ->
@@ -1571,8 +1613,44 @@ room_address(Room, Nick) when is_binary(Room), is_binary(Nick) ->
     <<Room/binary, "@", (muc_host())/binary, "/", Nick/binary>>.
 
 
+send_muc_rsm_messages(Config) ->
+    Pid = self(),
+    Room = ?config(room, Config),
+    RoomAddr = room_address(Room),
+    F = fun(Alice, Bob) ->
+        escalus:send(Alice, stanza_muc_enter_room(Room, nick(Alice))),
+        escalus:send(Bob, stanza_muc_enter_room(Room, nick(Bob))),
+
+        escalus:wait_for_stanzas(Bob, 3),
+        escalus:wait_for_stanzas(Alice, 3),
+
+        %% Alice sends messages to Bob.
+        [escalus:send(Alice,
+                      escalus_stanza:groupchat_to(RoomAddr, generate_message_text(N)))
+         || N <- lists:seq(1, 15)],
+        %% Bob is waiting for 15 messages for 5 seconds.
+        escalus:wait_for_stanzas(Bob, 15, 5000),
+        escalus:wait_for_stanzas(Alice, 15, 5000),
+        %% Get whole history.
+        escalus:send(Alice,
+            stanza_to_room(stanza_archive_request(<<"all_room_messages">>), Room)),
+        [_ArcIQ|AllMessages] =
+            assert_respond_size(15, wait_archive_respond_iq_first(Alice)),
+        ParsedMessages = [parse_forwarded_message(M) || M <- AllMessages],
+        Pid ! {parsed_messages, ParsedMessages},
+        ok
+        end,
+    Config1 = escalus:init_per_testcase(pre_rsm, Config),
+    ok = escalus:story(Config1, [1, 1], F),
+    ParsedMessages = receive {parsed_messages, PM} -> PM
+                     after 5000 -> error(receive_timeout) end,
+
+    escalus:end_per_testcase(pre_rsm, Config1),
+    [{all_messages, ParsedMessages}|Config].
+
 send_rsm_messages(Config) ->
     Pid = self(),
+    Room = ?config(room, Config),
     F = fun(Alice, Bob) ->
         %% Alice sends messages to Bob.
         [escalus:send(Alice,
