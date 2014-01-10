@@ -100,7 +100,7 @@ stop_pm(Host) ->
     ejabberd_hooks:delete(mam_archive_message, Host, ?MODULE, archive_message, 50),
     ejabberd_hooks:delete(mam_archive_size, Host, ?MODULE, archive_size, 30),
     ejabberd_hooks:delete(mam_lookup_messages, Host, ?MODULE, lookup_messages, 30),
-    ejabberd_hooks:delete(mam_remove_archive, Host, ?MODULE, remove_archive, 30),
+    ejabberd_hooks:delete(mam_remove_archive, Host, ?MODULE, remove_archive, 100),
     ejabberd_hooks:delete(mam_purge_single_message, Host, ?MODULE, purge_single_message, 30),
     ejabberd_hooks:delete(mam_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 30),
     ok.
@@ -113,7 +113,7 @@ start_muc(Host, _Opts) ->
     ejabberd_hooks:add(mam_muc_archive_message, Host, ?MODULE, archive_message, 50),
     ejabberd_hooks:add(mam_muc_archive_size, Host, ?MODULE, archive_size, 30),
     ejabberd_hooks:add(mam_muc_lookup_messages, Host, ?MODULE, lookup_messages, 30),
-    ejabberd_hooks:add(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 30),
+    ejabberd_hooks:add(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 100),
     ejabberd_hooks:add(mam_muc_purge_single_message, Host, ?MODULE, purge_single_message, 30),
     ejabberd_hooks:add(mam_muc_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 30),
     ok.
