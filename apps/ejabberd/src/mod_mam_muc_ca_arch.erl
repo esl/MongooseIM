@@ -61,7 +61,8 @@
     calc_count_handler,
     extract_messages_handler,
     extract_messages_r_handler,
-    query_refs}).
+    query_refs,
+    query_refs_count}).
 
 -record(mam_muc_ca_filter, {
     room_id,
@@ -623,16 +624,19 @@ execute_prepared_query(ConnPid, {QueryID, Types}, Params) ->
     seestar_session:execute_async(ConnPid, QueryID, Types, Params, one).
 
 
-save_query_ref(From, QueryRef, State=#state{query_refs=Refs}) ->
+save_query_ref(From, QueryRef, State=#state{query_refs=Refs, query_refs_count=RefsCount}) ->
     Refs2 = dict:store(QueryRef, From, Refs),
-    State#state{query_refs=Refs2}.
+    put(query_refs_count, RefsCount+1),
+    State#state{query_refs=Refs2, query_refs_count=RefsCount+1}.
 
-forward_query_respond(ResultF, QueryRef, State=#state{query_refs=Refs}) ->
+forward_query_respond(ResultF, QueryRef,
+    State=#state{query_refs=Refs, query_refs_count=RefsCount}) ->
     case dict:find(QueryRef, Refs) of
         {ok, From} ->
             Refs2 = dict:erase(QueryRef, Refs),
             gen_server:reply(From, ResultF),
-            State#state{query_refs=Refs2};
+            put(query_refs_count, RefsCount-1),
+            State#state{query_refs=Refs2, query_refs_count=RefsCount-1};
         error ->
             lager:warning("Ignore response ~p ~p", [QueryRef, ResultF()]),
             State
@@ -669,10 +673,12 @@ init([Host]) ->
     ExHandler = extract_messages_handler(ConnPid),
     RevExHandler = extract_messages_r_handler(ConnPid),
     CountHandler = calc_count_handler(ConnPid),
+    put(query_refs_count, 0),
     State = #state{
         host=Host,
         conn=ConnPid,
         query_refs=dict:new(),
+        query_refs_count=0,
         insert_query_id=InsertQueryID,
         insert_query_types=InsertQueryTypes,
         delete_query_id=DeleteQueryID,
