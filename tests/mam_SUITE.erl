@@ -137,7 +137,8 @@ configurations() ->
      odbc_mnesia,
      odbc_async_cache,
      odbc_cache,
-     odbc_mnesia_cache].
+     odbc_mnesia_cache,
+     ca].
 
 basic_group_names() ->
     [
