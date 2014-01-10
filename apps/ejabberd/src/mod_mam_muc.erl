@@ -263,9 +263,9 @@ stop_host_mapping(Host, ServerHost) ->
         #mam_host{host = Host, server_host = ServerHost}).
 
 server_host(#jid{lserver=Host}) ->
-    [#mam_host{
-        server_host = ServerHost
-    }] = mnesia:dirty_read(mam_host, Host),
+    server_host_1(Host, mnesia:dirty_read(mam_host, Host)).
+
+server_host_1(_Host, [#mam_host{ server_host = ServerHost }]) ->
     ServerHost.
 
 %% ----------------------------------------------------------------------
