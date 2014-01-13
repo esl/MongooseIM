@@ -68,8 +68,8 @@ set(Level) when is_integer(Level) ->
     set(Name);
 set(Level) ->
     Path = log_path(),
-    ok = lager:set_loglevel(lager_console_backend, Level),
-    ok = lager:set_loglevel(lager_file_backend, Path, Level).
+    lager:set_loglevel(lager_console_backend, Level),
+    lager:set_loglevel(lager_file_backend, Path, Level).
 
 set_custom(Module, Level) when is_integer(Level) ->
     {_, Name} = lists:keyfind(Level, 1, ?LOG_LEVELS),
