@@ -32,7 +32,7 @@
 -behaviour(?GEN_FSM).
 
 %% External exports
--export([start/1, start_link/2,
+-export([start_link/3,
 	 sql_query/2,
 	 sql_query_t/1,
 	 sql_transaction/2,
@@ -41,6 +41,7 @@
 	 escape_like/1,
 	 to_bool/1,
 	 keep_alive/1,
+     db_engine/1,
      get_dedicated_connection/1]).
 
 %% BLOB escaping
@@ -69,6 +70,8 @@
 		db_type,
 		start_interval,
 		host,
+		parent_pid :: pid(),
+		dedicated :: boolean(),
 		max_pending_requests_len,
 		pending_requests}).
 
@@ -94,11 +97,8 @@
 %%%----------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------
-start(Host) ->
-    ?GEN_FSM:start(ejabberd_odbc, [Host], fsm_limit_opts() ++ ?FSMOPTS).
-
-start_link(Host, StartInterval) ->
-    ?GEN_FSM:start_link(ejabberd_odbc, [Host, StartInterval],
+start_link(Host, StartInterval, Dedicated) when is_boolean(Dedicated) ->
+    ?GEN_FSM:start_link(ejabberd_odbc, [Host, StartInterval, self(), Dedicated],
 			fsm_limit_opts() ++ ?FSMOPTS).
 
 sql_query(Host, Query) ->
@@ -213,7 +213,7 @@ to_bool(_) -> false.
 %%%----------------------------------------------------------------------
 %%% Callback functions from gen_fsm
 %%%----------------------------------------------------------------------
-init([Host, StartInterval]) ->
+init([Host, StartInterval, ParentPid, Dedicated]) ->
     case ejabberd_config:get_local_option({odbc_keepalive_interval, Host}) of
 	KeepaliveInterval when is_integer(KeepaliveInterval) ->
 	    timer:apply_interval(KeepaliveInterval*1000, ?MODULE,
@@ -226,8 +226,17 @@ init([Host, StartInterval]) ->
     end,
     [DBType | _] = db_opts(Host),
     ?GEN_FSM:send_event(self(), connect),
-    ejabberd_odbc_sup:add_pid(Host, self()),
+    case Dedicated of
+        true ->
+            ok;
+        false ->
+            ejabberd_odbc_sup:add_pid(Host, self())
+    end,
+    erlang:monitor(process, ParentPid),
+    erlang:process_flag(trap_exit, true),
     {ok, connecting, #state{db_type = DBType,
+                parent_pid = ParentPid,
+                dedicated = Dedicated,
 			    host = Host,
 			    max_pending_requests_len = max_fsm_queue(),
 			    pending_requests = {0, queue:new()},
@@ -313,17 +322,28 @@ handle_sync_event(_Event, _From, StateName, State) ->
 code_change(_OldVsn, StateName, State, _Extra) ->
     {ok, StateName, State}.
 
+%% We receive the down from our parent.
+handle_info({'DOWN', _MonitorRef, process, ParentPid, Reason}, _StateName,
+    State=#state{parent_pid=ParentPid}) ->
+    {stop, Reason, State};
 %% We receive the down signal when we loose the MySQL connection (we are
 %% monitoring the connection)
 handle_info({'DOWN', _MonitorRef, process, _Pid, _Info}, _StateName, State) ->
     ?GEN_FSM:send_event(self(), connect),
     {next_state, connecting, State};
+handle_info({'EXIT', _From, _Reason}, StateName, State) ->
+    {next_state, StateName, State};
 handle_info(Info, StateName, State) ->
     ?WARNING_MSG("unexpected info in ~p: ~p", [StateName, Info]),
     {next_state, StateName, State}.
 
 terminate(_Reason, _StateName, State) ->
-    ejabberd_odbc_sup:remove_pid(State#state.host, self()),
+    case State#state.dedicated of
+        true ->
+            ok;
+        false ->
+            ejabberd_odbc_sup:remove_pid(State#state.host, self())
+    end,
     case State#state.db_type of
 	mysql ->
 	    %% old versions of mysql driver don't have the stop function

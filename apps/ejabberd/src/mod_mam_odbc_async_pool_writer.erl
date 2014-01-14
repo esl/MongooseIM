@@ -38,7 +38,7 @@ worker_prefix() ->
     "ejabberd_mod_mam_writer".
 
 worker_count(_Host) ->
-    10.
+    32.
 
 worker_names(Host) ->
     [worker_name(Host, N) || N <- lists:seq(0, worker_count(Host) - 1)].
@@ -88,7 +88,7 @@ archive_message(Host, _Mod,
     Worker = select_worker(Host, ArcID),
     %% Send synchronously if queue length is too long.
     case erlang:process_info(whereis(Worker), message_queue_len) of
-       {message_queue_len, Len} when Len < 100 ->
+       {message_queue_len, Len} when Len < 500 ->
            gen_server:cast(Worker, {archive_message, Row});
        {message_queue_len, _} ->
             {Pid, MonRef} = spawn_monitor(fun() ->

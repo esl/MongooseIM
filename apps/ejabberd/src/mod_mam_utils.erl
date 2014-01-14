@@ -34,6 +34,10 @@
          parse_prefs/1
 ]).
 
+%% JID serialization
+-export([jid_to_opt_binary/2,
+         expand_minified_jid/2]).
+
 %% SQL
 -export([success_sql_query/2]).
 
@@ -49,6 +53,10 @@
 -include_lib("ejabberd/include/ejabberd.hrl").
 -include_lib("ejabberd/include/jlib.hrl").
 -include_lib("exml/include/exml.hrl").
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+-endif.
 
 -define(MAYBE_BIN(X), (is_binary(X) orelse (X) =:= undefined)).
 
@@ -313,6 +321,91 @@ parse_jid_list(El, Name) ->
         #xmlel{children = JIDEls} ->
             [xml:get_tag_cdata(JIDEl) || JIDEl <- JIDEls]
     end.
+
+%% -----------------------------------------------------------------------
+%% JID serialization
+
+-spec jid_to_opt_binary(UserJID, JID) -> OptJID when
+    UserJID :: #jid{},
+    JID :: #jid{},
+    OptJID  :: binary().
+jid_to_opt_binary(#jid{lserver=LServer, luser=LUser},
+                  #jid{lserver=LServer, luser=LUser, lresource= <<>>}) ->
+    <<>>;
+jid_to_opt_binary(#jid{lserver=LServer, luser=LUser},
+                  #jid{lserver=LServer, luser=LUser, lresource= LResource}) ->
+    <<$/, LResource/binary>>;
+jid_to_opt_binary(#jid{lserver=LServer},
+                  #jid{lserver=LServer, luser=LUser, lresource= <<>>}) ->
+    %% Both clients are on the same server.
+    <<LUser/binary>>;
+jid_to_opt_binary(#jid{lserver=LServer},
+                  #jid{lserver=LServer, luser=LUser, lresource=LResource}) ->
+    %% Both clients are on the same server.
+    <<LUser/binary, $/, LResource/binary>>;
+jid_to_opt_binary(_,
+                  #jid{lserver=LServer, luser=LUser, lresource= <<>>}) ->
+    <<LServer/binary, $:, LUser/binary>>;
+jid_to_opt_binary(_,
+                  #jid{lserver=LServer, luser=LUser, lresource=LResource}) ->
+    <<LServer/binary, $@, LUser/binary, $/, LResource/binary>>.
+
+-spec expand_minified_jid(UserJID, OptJID) -> BinJID when
+    UserJID :: #jid{},
+    OptJID  :: binary(),
+    BinJID  :: binary().
+expand_minified_jid(#jid{lserver=LServer, luser=LUser}, <<>>) ->
+    <<LUser/binary, $@, LServer/binary>>;
+expand_minified_jid(#jid{lserver=LServer, luser=LUser}, <<$/, LResource/binary>>) ->
+    <<LUser/binary, $@, LServer/binary, $/, LResource/binary>>;
+expand_minified_jid(UserJID, Encoded) ->
+    Part = binary:match(Encoded, [<<$@>>, <<$/>>, <<$:>>]),
+    expand_minified_jid_2(Part, UserJID, Encoded).
+
+expand_minified_jid_2(nomatch,  #jid{lserver=ThisServer}, LUser) ->
+    <<LUser/binary, $@, ThisServer/binary>>;
+expand_minified_jid_2({Pos, 1}, #jid{lserver=ThisServer}, Encoded) ->
+    case Encoded of
+        <<LServer:Pos/binary, $:, LUser/binary>> ->
+            <<LUser/binary, $@, LServer/binary>>;
+        <<LServer:Pos/binary, $@, Tail/binary>> ->
+            [LUser, LResource] = binary:split(Tail, <<$/>>),
+            <<LUser/binary, $@, LServer/binary, $/, LResource/binary>>;
+        <<LUser:Pos/binary, $/, LResource/binary>> ->
+            <<LUser/binary, $@, ThisServer/binary, $/, LResource/binary>>
+    end.
+
+-ifdef(TEST).
+
+jid_to_opt_binary_test_() ->
+    check_stringprep(),
+    UserJID = jlib:binary_to_jid(<<"alice@room">>),
+    [?_assertEqual(JID,
+        expand_minified_jid(UserJID,
+            jid_to_opt_binary(UserJID, jlib:binary_to_jid(JID))))
+     || JID <- test_jids()].
+
+test_jids() ->
+    [<<"alice@room">>,
+     <<"alice@room/computer">>,
+     <<"alice@street/mobile">>,
+     <<"bob@room">>,
+     <<"bob@room/mobile">>,
+     <<"bob@street">>,
+     <<"bob@street/mobile">>].
+
+check_stringprep() ->
+    is_loaded_application(stringprep) orelse start_stringprep().
+
+start_stringprep() ->
+    EJ = code:lib_dir(ejabberd),
+    code:add_path(filename:join([EJ, "..", "stringprep", "ebin"])),
+    ok = application:start(stringprep).
+
+is_loaded_application(AppName) when is_atom(AppName) ->
+    lists:keymember(AppName, 1, application:loaded_applications()).
+
+-endif.
 
 %% -----------------------------------------------------------------------
 %% Other
