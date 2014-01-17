@@ -63,7 +63,8 @@ start() ->
              {keypos, #ejabberd_module.module_host}]),
     ok.
 
-start_module(Host, Module, Opts) ->
+start_module(Host, Module, Opts0) ->
+    Opts = proplists:unfold(Opts0),
     set_module_opts_mnesia(Host, Module, Opts),
     ets:insert(ejabberd_modules,
                #ejabberd_module{module_host = {Module, Host},

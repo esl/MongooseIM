@@ -2,26 +2,32 @@
 %%% @author Uvarov Michael <arcusfelis@gmail.com>
 %%% @copyright (C) 2013, Uvarov Michael
 %%% @doc Stores cache using ETS-table.
-%%% This module is a proxy for `mod_mam_odbc_user'.
+%%% This module is a proxy for `mod_mam_odbc_user' (it should be started).
+%%%
+%%% There are 2 hooks for `mam_archive_id':
+%%% `cache_archive_id/3' and `store_archive_id/3'.
 %%% 
-%%% This module is a tuple module (not parametrized).
 %%% @end
 %%%-------------------------------------------------------------------
 -module(mod_mam_cache_user).
--export([start/3,
-         start_link/0,
-         required_modules/3,
-         archive_id/4,
-         clean_cache/1,
-         remove_archive/5]).
 
+%% gen_mod handlers
+-export([start/2, stop/1]).
+
+%% ejabberd handlers
+-export([cached_archive_id/3,
+         store_archive_id/3,
+         remove_archive/3]).
+
+%% API
+-export([clean_cache/1]).
+
+%% Internal exports
+-export([start_link/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
-
-%-type module() :: atom() | {atom(), term()}.
--type hidden_state() :: {atom(), atom()}.
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -41,45 +47,112 @@ group_name() ->
 su_key(#jid{lserver = LServer, luser = LUser}) ->
     {LServer, LUser}.
 
-%%====================================================================
-%% API
-%%====================================================================
 
-required_modules(_Host, _Mod, HiddenState) ->
-    [user_base_module(HiddenState)].
+%% ----------------------------------------------------------------------
+%% gen_mod callbacks
+%% Starting and stopping functions for users' archives
 
-start(_Host, _Mod, _HiddenState) ->
-    WriterChildSpec =
+start(Host, Opts) ->
+    supervisor:start_child(ejabberd_sup, writer_child_spec()),
+    case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
+        true ->
+            start_pm(Host, Opts);
+        false ->
+            ok
+    end,
+    case gen_mod:get_module_opt(Host, ?MODULE, muc, false) of
+        true ->
+            start_muc(Host, Opts);
+        false ->
+            ok
+    end.
+
+stop(Host) ->
+    case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
+        true ->
+            stop_pm(Host);
+        false ->
+            ok
+    end,
+    case gen_mod:get_module_opt(Host, ?MODULE, muc, false) of
+        true ->
+            stop_muc(Host);
+        false ->
+            ok
+    end.
+
+writer_child_spec() ->
     {mod_mam_cache_user,
      {mod_mam_cache_user, start_link, []},
      permanent,
      5000,
      worker,
-     [mod_mam_cache_user]},
-    supervisor:start_child(ejabberd_sup, WriterChildSpec).
+     [mod_mam_cache_user]}.
+
+%% ----------------------------------------------------------------------
+%% Add hooks for mod_mam
+
+start_pm(Host, _Opts) ->
+    ejabberd_hooks:add(mam_archive_id, Host, ?MODULE, cached_archive_id, 30),
+    ejabberd_hooks:add(mam_archive_id, Host, ?MODULE, store_archive_id, 70),
+    ok.
+
+stop_pm(Host) ->
+    ejabberd_hooks:delete(mam_archive_id, Host, ?MODULE, cached_archive_id, 30),
+    ejabberd_hooks:delete(mam_archive_id, Host, ?MODULE, store_archive_id, 70),
+    ok.
+
+
+%% ----------------------------------------------------------------------
+%% Add hooks for mod_mam_muc
+
+start_muc(Host, _Opts) ->
+    ejabberd_hooks:add(mam_muc_archive_id, Host, ?MODULE, cached_archive_id, 30),
+    ejabberd_hooks:add(mam_muc_archive_id, Host, ?MODULE, store_archive_id, 70),
+    ok.
+
+stop_muc(Host) ->
+    ejabberd_hooks:delete(mam_muc_archive_id, Host, ?MODULE, cached_archive_id, 30),
+    ejabberd_hooks:delete(mam_muc_archive_id, Host, ?MODULE, store_archive_id, 70),
+    ok.
+
+
+%%====================================================================
+%% API
+%%====================================================================
 
 start_link() ->
     gen_server:start_link({local, srv_name()}, ?MODULE, [], []).
 
-archive_id(Host, Mod, ArcJID, HiddenState) ->
+cached_archive_id(undefined, _Host, ArcJID) ->
     case lookup_archive_id(ArcJID) of
         not_found ->
-            UserID = forward_archive_id(Host, Mod, ArcJID, HiddenState),
-            cache_archive_id(ArcJID, UserID),
-            UserID;
+            put(mam_not_cached_flag, true),
+            undefined;
         UserID ->
             UserID
     end.
 
-remove_archive(Host, Mod, UserID, ArcJID, HiddenState) ->
-    clean_cache(ArcJID),
-    forward_remove_archive(Host, Mod, UserID, ArcJID, HiddenState).
+store_archive_id(UserID, _Host, ArcJID) ->
+    maybe_cache_archive_id(ArcJID, UserID),
+    UserID.
+
+remove_archive(_Host, _UserID, ArcJID) ->
+    clean_cache(ArcJID).
 
 %%====================================================================
 %% Internal functions
 %%====================================================================
 
-%% @doc Put an user id into cache.
+maybe_cache_archive_id(ArcJID, UserID) ->
+    case erase(mam_not_cached_flag) of
+        undefined ->
+            UserID;
+        true ->
+            cache_archive_id(ArcJID, UserID)
+    end.
+
+%% @doc Put the user id into cache.
 %% @private
 cache_archive_id(ArcJID, UserID) ->
     gen_server:call(srv_name(), {cache_archive_id, ArcJID, UserID}).
@@ -90,18 +163,6 @@ lookup_archive_id(ArcJID) ->
     catch error:badarg ->
         not_found
     end.
-
--spec user_base_module(hidden_state()) -> module().
-user_base_module({?MODULE, BaseMod}) ->
-    BaseMod.
-
-forward_archive_id(Host, Mod, ArcJID, HiddenState) ->
-    M = user_base_module(HiddenState),
-    M:archive_id(Host, Mod, ArcJID).
-
-forward_remove_archive(Host, Mod, UserID, ArcJID, HiddenState) ->
-    M = user_base_module(HiddenState),
-    M:remove_archive(Host, Mod, UserID, ArcJID).
 
 clean_cache(ArcJID) ->
     %% Send a broadcast message.

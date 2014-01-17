@@ -42,11 +42,11 @@ node_id() ->
     %% Save result into the process's memory space.
     case get(node_id) of
         undefined ->
-            NodeId = select_node_id(node()),
+            {ok, NodeId} = select_node_id(node()),
             put(node_id, NodeId),
-            NodeId;
+            {ok, NodeId};
         NodeId ->
-            NodeId
+            {ok, NodeId}
     end.
 
 
