@@ -80,4 +80,10 @@ CT_STATUS=$?
 
 echo
 echo "All tests done."
+if [ $CT_STATUS == 0 ]
+then
+    echo "Build succeeded"
+else
+    echo "Build failed"
+fi
 exit $CT_STATUS
