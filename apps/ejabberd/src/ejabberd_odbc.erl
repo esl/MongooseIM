@@ -84,7 +84,7 @@
 
 -define(TRANSACTION_TIMEOUT, 60000). % milliseconds
 -define(KEEPALIVE_TIMEOUT, 60000).
--define(KEEPALIVE_QUERY, "SELECT 1;").
+-define(KEEPALIVE_QUERY, <<"SELECT 1;">>).
 
 %%-define(DBGFSM, true).
 
@@ -165,20 +165,15 @@ sql_query_t(Query) ->
     end.
 
 %% Escape character that will confuse an SQL engine
-escape(S) when is_binary(S) ->
-    list_to_binary(escape(binary_to_list(S)));
-escape(S) when is_list(S) ->
-    [odbc_queries:escape(C) || C <- S].
+escape(S) ->
+    odbc_queries:escape_string(S).
 
 %% Escape character that will confuse an SQL engine
 %% Percent and underscore only need to be escaped for
 %% pattern matching like statement
 %% INFO: Used in mod_vcard_odbc.
-escape_like(S) when is_list(S) ->
-    [escape_like(C) || C <- S];
-escape_like($%) -> "\\%";
-escape_like($_) -> "\\_";
-escape_like(C)  -> odbc_queries:escape(C).
+escape_like(S) ->
+    odbc_queries:escape_like_string(S).
 
 escape_format(Host) ->
     case db_engine(Host) of
@@ -445,14 +440,14 @@ outer_transaction(F, NRestarts, _Reason) ->
 		       [T]),
             erlang:exit(implementation_faulty)
     end,
-    sql_query_internal("begin;"),
+    sql_query_internal(<<"begin;">>),
     put(?NESTING_KEY, PreviousNestingLevel + 1),
     Result = (catch F()),
     put(?NESTING_KEY, PreviousNestingLevel),
     case Result of
         {aborted, Reason} when NRestarts > 0 ->
             %% Retry outer transaction upto NRestarts times.
-            sql_query_internal("rollback;"),
+            sql_query_internal(<<"rollback;">>),
             outer_transaction(F, NRestarts - 1, Reason);
         {aborted, Reason} when NRestarts =:= 0 ->
             %% Too many retries of outer transaction.
@@ -463,15 +458,15 @@ outer_transaction(F, NRestarts, _Reason) ->
                        "** When State == ~p",
                        [?MAX_TRANSACTION_RESTARTS, Reason,
                         erlang:get_stacktrace(), get(?STATE_KEY)]),
-            sql_query_internal("rollback;"),
+            sql_query_internal(<<"rollback;">>),
             {aborted, Reason};
         {'EXIT', Reason} ->
             %% Abort sql transaction on EXIT from outer txn only.
-            sql_query_internal("rollback;"),
+            sql_query_internal(<<"rollback;">>),
             {aborted, Reason};
         Res ->
             %% Commit successful outer txn
-            sql_query_internal("commit;"),
+            sql_query_internal(<<"commit;">>),
             {atomic, Res}
     end.
 
@@ -582,11 +577,11 @@ pgsql_item_to_odbc(_) ->
 
 %% part of init/1
 %% Open a database connection to MySQL
-mysql_connect(Server, Port, DB, Username, Password) ->
-    case mysql_conn:start(Server, Port, Username, Password, DB, fun log/3) of
+mysql_connect(Server, Port, Database, Username, Password) ->
+    case mysql_conn:start(Server, Port, Username, Password, Database, fun log/3) of
         {ok, Ref} ->
-            mysql_conn:fetch(Ref, ["set names 'utf8';"], self()),
-            mysql_conn:fetch(Ref, ["SET SESSION query_cache_type=1;"], self()),
+            mysql_conn:fetch(Ref, [<<"set names 'utf8';">>], self()),
+            mysql_conn:fetch(Ref, [<<"SET SESSION query_cache_type=1;">>], self()),
             {ok, Ref};
         Err ->
             Err
