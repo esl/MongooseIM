@@ -224,7 +224,6 @@ CREATE TABLE pubsub_subscription_opt (
 );
 CREATE UNIQUE INDEX i_pubsub_subscription_opt ON pubsub_subscription_opt USING btree (subid, opt_name);
 
-
 CREATE TYPE mam_behaviour AS ENUM('A', 'N', 'R');
 CREATE TYPE mam_direction AS ENUM('I','O');
 
@@ -293,4 +292,3 @@ CREATE INDEX i_mam_muc_message_room_name_added_at
     ON mam_muc_message
     USING BTREE
     (room_id, id);
-

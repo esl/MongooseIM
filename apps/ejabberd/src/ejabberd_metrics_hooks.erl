@@ -34,22 +34,28 @@
          privacy_iq_set/4,
          privacy_check_packet/6,
          privacy_list_push/3,
-         mam_get_prefs/7,
+         mam_get_prefs/4,
          mam_set_prefs/7,
-         mam_remove_archive/4,
-         mam_lookup_messages/13,
-         mam_archive_message/8,
-         mam_flush_messages/3,
+         mam_remove_archive/3,
+         mam_lookup_messages/14,
+         mam_archive_message/9,
+         mam_flush_messages/2,
          mam_drop_message/1,
-         mam_purge_single_message/7,
-         mam_purge_multiple_messages/8,
-         mam_muc_get_prefs/7,
+         mam_drop_iq/5,
+         mam_drop_messages/2,
+         mam_purge_single_message/6,
+         mam_purge_multiple_messages/9,
+         mam_muc_get_prefs/4,
          mam_muc_set_prefs/7,
-         mam_muc_remove_archive/4,
-         mam_muc_lookup_messages/13,
-         mam_muc_archive_message/8,
-         mam_muc_purge_single_message/7,
-         mam_muc_purge_multiple_messages/8]).
+         mam_muc_remove_archive/3,
+         mam_muc_lookup_messages/14,
+         mam_muc_archive_message/9,
+         mam_muc_flush_messages/2,
+         mam_muc_drop_message/1,
+         mam_muc_drop_iq/5,
+         mam_muc_drop_messages/2,
+         mam_muc_purge_single_message/6,
+         mam_muc_purge_multiple_messages/9]).
 
 %%-------------------
 %% Implementation
@@ -80,15 +86,17 @@ get_hooks(Host) ->
      [mam_archive_message, Host, ?MODULE, mam_archive_message, 50],
      [mam_flush_messages, Host, ?MODULE, mam_flush_messages, 50],
      [mam_drop_message, Host, ?MODULE, mam_drop_message, 50],
+     [mam_drop_iq, Host, ?MODULE, mam_drop_iq, 50],
+     [mam_drop_messages, Host, ?MODULE, mam_drop_messages, 50],
      [mam_remove_archive, Host, ?MODULE, mam_remove_archive, 50],
-     [mam_lookup_messages, Host, ?MODULE, mam_lookup_messages, 50],
+     [mam_lookup_messages, Host, ?MODULE, mam_lookup_messages, 100],
      [mam_purge_single_message, Host, ?MODULE, mam_purge_single_message, 50],
      [mam_purge_multiple_message, Host, ?MODULE, mam_purge_multiple_message, 50],
      [mam_muc_set_prefs, Host, ?MODULE, mam_muc_set_prefs, 50],
      [mam_muc_get_prefs, Host, ?MODULE, mam_muc_get_prefs, 50],
      [mam_muc_archive_message, Host, ?MODULE, mam_muc_archive_message, 50],
      [mam_muc_remove_archive, Host, ?MODULE, mam_muc_remove_archive, 50],
-     [mam_muc_lookup_messages, Host, ?MODULE, mam_muc_lookup_messages, 50],
+     [mam_muc_lookup_messages, Host, ?MODULE, mam_muc_lookup_messages, 100],
      [mam_muc_purge_single_message, Host, ?MODULE, mam_muc_purge_single_message, 50],
      [mam_muc_purge_multiple_message, Host, ?MODULE, mam_muc_purge_multiple_message, 50]].
 
@@ -237,59 +245,119 @@ privacy_check_packet(Acc, _, Server, _, _, _) ->
     end,
     Acc.
 
-mam_get_prefs(Host, _Mod, _ArcID, _ArcJID, _DefaultMode, _AlwaysJIDs, _NeverJIDs) ->
-    folsom_metrics:notify({Host, modMamPrefsGets}, 1).
+%% ----------------------------------------------------------------------------
+%% mod_mam
 
-mam_set_prefs(Host, _Mod, _ArcID, _ArcJID, _DefaultMode, _AlwaysJIDs, _NeverJIDs) ->
-    folsom_metrics:notify({Host, modMamPrefsSets}, 1).
+mam_get_prefs(Result, Host, _ArcID, _ArcJID) ->
+    folsom_metrics:notify({Host, modMamPrefsGets}, 1),
+    Result.
 
-mam_remove_archive(Host, _Mod, _ArcID, _ArcJID) ->
+mam_set_prefs(Result, Host, _ArcID, _ArcJID, _DefaultMode, _AlwaysJIDs, _NeverJIDs) ->
+    folsom_metrics:notify({Host, modMamPrefsSets}, 1),
+    Result.
+
+mam_remove_archive(Host, _ArcID, _ArcJID) ->
     folsom_metrics:notify({Host, modMamArchiveRemoved}, 1).
 
-mam_lookup_messages(Host, _Mod, _ArcID, _ArcJID,
+mam_lookup_messages(Result = {ok, {_TotalCount, _Offset, MessageRows}},
+    Host, _ArcID, _ArcJID,
+    _RSM, _Borders,
     _Start, _End, _Now, _WithJID,
-    _PageSize, _LimitPassed, _TotalCount, _Offset, MessageRows) ->
+    _PageSize, _LimitPassed, _MaxResultLimit, _IsSimple) ->
     folsom_metrics:notify({Host, modMamForwarded}, length(MessageRows)),
-    folsom_metrics:notify({Host, modMamLookups}, 1).
+    folsom_metrics:notify({Host, modMamLookups}, 1),
+    Result;
+mam_lookup_messages(Result = {error, _},
+    _Host, _ArcID, _ArcJID,
+    _RSM, _Borders,
+    _Start, _End, _Now, _WithJID,
+    _PageSize, _LimitPassed, _MaxResultLimit, _IsSimple) ->
+    Result.
+    
 
-mam_archive_message(Host, _Mod, _ArcID, _LocJID, _RemJID, _SrcJID, _Dir, _Packet) ->
-    folsom_metrics:notify({Host, modMamArchived}, 1).
+mam_archive_message(Result, Host,
+    _MessID, _ArcID, _LocJID, _RemJID, _SrcJID, _Dir, _Packet) ->
+    folsom_metrics:notify({Host, modMamArchived}, 1),
+    Result.
 
-mam_flush_messages(Host, _Mod, MessageCount) ->
+mam_flush_messages(Host, MessageCount) ->
     folsom_metrics:notify({Host, modMamFlushed}, MessageCount).
 
 mam_drop_message(Host) ->
     folsom_metrics:notify({Host, modMamDropped}, 1).
 
-mam_purge_single_message(Host, _Mod, _MessID, _ArcID, _ArcJID, _Now, _Result) ->
-    folsom_metrics:notify({Host, modMamSinglePurges}, 1).
+mam_drop_iq(Host, _To, _IQ, _Action, _Reason) ->
+    folsom_metrics:notify({Host, modMamDroppedIQ}, 1).
 
-mam_purge_multiple_messages(Host, _Mod, _ArcID, _ArcJID, _Start, _End, _Now, _WithJID) ->
-    folsom_metrics:notify({Host, modMamMultiplePurges}, 1).
+mam_drop_messages(Host, Count) ->
+    folsom_metrics:notify({Host, modMamDropped2}, Count).
+
+mam_purge_single_message(Result, Host, _MessID, _ArcID, _ArcJID, _Now) ->
+    folsom_metrics:notify({Host, modMamSinglePurges}, 1),
+    Result.
+
+mam_purge_multiple_messages(Result, Host,
+    _ArcID, _ArcJID, _Borders, _Start, _End, _Now, _WithJID) ->
+    folsom_metrics:notify({Host, modMamMultiplePurges}, 1),
+    Result.
 
 
-mam_muc_get_prefs(Host, _Mod, _ArcID, _ArcJID, _DefaultMode, _AlwaysJIDs, _NeverJIDs) ->
-    folsom_metrics:notify({Host, modMucMamPrefsGets}, 1).
+%% ----------------------------------------------------------------------------
+%% mod_mam_muc
 
-mam_muc_set_prefs(Host, _Mod, _ArcID, _ArcJID, _DefaultMode, _AlwaysJIDs, _NeverJIDs) ->
-    folsom_metrics:notify({Host, modMucMamPrefsSets}, 1).
+mam_muc_get_prefs(Result, Host, _ArcID, _ArcJID) ->
+    folsom_metrics:notify({Host, modMucMamPrefsGets}, 1),
+    Result.
 
-mam_muc_remove_archive(Host, _Mod, _ArcID, _ArcJID) ->
+mam_muc_set_prefs(Result, Host, _ArcID, _ArcJID, _DefaultMode, _AlwaysJIDs, _NeverJIDs) ->
+    folsom_metrics:notify({Host, modMucMamPrefsSets}, 1),
+    Result.
+
+mam_muc_remove_archive(Host, _ArcID, _ArcJID) ->
     folsom_metrics:notify({Host, modMucMamArchiveRemoved}, 1).
 
-mam_muc_lookup_messages(Host, _Mod, _ArcID, _ArcJID,
+mam_muc_lookup_messages(Result = {ok, {_TotalCount, _Offset, MessageRows}},
+    Host, _ArcID, _ArcJID,
+    _RSM, _Borders,
     _Start, _End, _Now, _WithJID,
-    _PageSize, _LimitPassed, _TotalCount, _Offset, _MessageRows) ->
-    folsom_metrics:notify({Host, modMucMamLookups}, 1).
+    _PageSize, _LimitPassed, _MaxResultLimit, _IsSimple) ->
+    folsom_metrics:notify({Host, modMucMamForwarded}, length(MessageRows)),
+    folsom_metrics:notify({Host, modMucMamLookups}, 1),
+    Result;
+mam_muc_lookup_messages(Result = {error, _},
+    _Host, _ArcID, _ArcJID,
+    _RSM, _Borders,
+    _Start, _End, _Now, _WithJID,
+    _PageSize, _LimitPassed, _MaxResultLimit, _IsSimple) ->
+    Result.
+    
 
-mam_muc_archive_message(Host, _Mod, _ArcID, _LocJID, _RemJID, _SrcJID, _Dir, _Packet) ->
-    folsom_metrics:notify({Host, modMucMamArchived}, 1).
+mam_muc_archive_message(Result, Host,
+    _MessID, _ArcID, _LocJID, _RemJID, _SrcJID, _Dir, _Packet) ->
+    folsom_metrics:notify({Host, modMucMamArchived}, 1),
+    Result.
 
-mam_muc_purge_single_message(Host, _Mod, _MessID, _ArcID, _ArcJID, _Now, _Result) ->
-    folsom_metrics:notify({Host, modMucMamSinglePurges}, 1).
+mam_muc_flush_messages(Host, MessageCount) ->
+    folsom_metrics:notify({Host, modMucMamFlushed}, MessageCount).
 
-mam_muc_purge_multiple_messages(Host, _Mod, _ArcID, _ArcJID, _Start, _End, _Now, _WithJID) ->
-    folsom_metrics:notify({Host, modMucMamMultiplePurges}, 1).
+mam_muc_drop_message(Host) ->
+    folsom_metrics:notify({Host, modMucMamDropped}, 1).
+
+mam_muc_drop_iq(Host, _To, _IQ, _Action, _Reason) ->
+    folsom_metrics:notify({Host, modMucMamDroppedIQ}, 1).
+
+mam_muc_drop_messages(Host, Count) ->
+    folsom_metrics:notify({Host, modMucMamDropped2}, Count).
+
+mam_muc_purge_single_message(Result, Host, _MessID, _ArcID, _ArcJID, _Now) ->
+    folsom_metrics:notify({Host, modMucMamSinglePurges}, 1),
+    Result.
+
+mam_muc_purge_multiple_messages(Result, Host,
+    _ArcID, _ArcJID, _Borders, _Start, _End, _Now, _WithJID) ->
+    folsom_metrics:notify({Host, modMucMamMultiplePurges}, 1),
+    Result.
+
 
 
 %%% vim: set sts=4 ts=4 sw=4 et filetype=erlang foldmarker=%%%',%%%. foldmethod=marker:
