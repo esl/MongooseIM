@@ -106,9 +106,9 @@ query_archive_id(Host, UserName) ->
        "LIMIT 1"]),
 
     case Result of
-        {selected, ["id"], [{IdBin}]} ->
+        {selected, [<<"id">>], [{IdBin}]} ->
             binary_to_integer(IdBin);
-        {selected, ["id"], []} ->
+        {selected, [<<"id">>], []} ->
             %% The user is not found
             create_user_archive(Host, UserName),
             query_archive_id(Host, UserName)
