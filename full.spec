@@ -12,6 +12,7 @@
 {suites, "tests", last_SUITE}.
 {suites, "tests", login_SUITE}.
 {suites, "tests", muc_SUITE}.
+{suites, "tests", mam_SUITE}.
 {suites, "tests", offline_SUITE}.
 {suites, "tests", presence_SUITE}.
 {suites, "tests", privacy_SUITE}.
