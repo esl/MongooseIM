@@ -397,7 +397,8 @@ handle_stream_event({EventTag, Body, Rid} = Event, Handler,
                    [{EventTag, Body}]),
             NS#state{deferred = [Event | NS#state.deferred]};
         {_, _, false, false} ->
-            ?ERROR_MSG("invalid rid ~p:~n~p~n", [Rid, {EventTag, Body}]),
+            ?ERROR_MSG("invalid rid ~p, expected ~p:~n~p~n",
+                       [Rid, OldRid + 1, {EventTag, Body}]),
             [Pid ! item_not_found
              || {_, _, Pid} <- lists:sort(NS#state.handlers)],
             throw({invalid_rid, NS#state{handlers = []}})

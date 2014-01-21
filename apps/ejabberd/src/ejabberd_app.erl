@@ -49,6 +49,7 @@ start(normal, _Args) ->
     load_drivers([tls_drv, expat_erl]),
     translate:start(),
     acl:start(),
+    ejabberd_node_id:start(),
     ejabberd_ctl:init(),
     ejabberd_commands:init(),
     gen_mod:start(),

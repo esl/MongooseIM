@@ -1,4 +1,4 @@
-MongooseIM
+MongooseIM  ![](http://studzien.github.io/status/icon.png "Build status")
 ============
 MongooseIM (previously esl-ejabberd) is Erlang Solutions' robust and efficient XMPP
 server aimed at large installations. Specifically designed for enterprise purposes,

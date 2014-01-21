@@ -32,7 +32,7 @@
 -behaviour(?GEN_FSM).
 
 %% External exports
--export([start/1, start_link/2,
+-export([start_link/3,
 	 sql_query/2,
 	 sql_query_t/1,
 	 sql_transaction/2,
@@ -40,7 +40,14 @@
 	 escape/1,
 	 escape_like/1,
 	 to_bool/1,
-	 keep_alive/1]).
+	 keep_alive/1,
+     db_engine/1,
+     get_dedicated_connection/1]).
+
+%% BLOB escaping
+-export([escape_format/1,
+         escape_binary/2,
+         unescape_binary/2]).
 
 %% gen_fsm callbacks
 -export([init/1,
@@ -63,6 +70,8 @@
 		db_type,
 		start_interval,
 		host,
+		parent_pid :: pid(),
+		dedicated :: boolean(),
 		max_pending_requests_len,
 		pending_requests}).
 
@@ -75,7 +84,7 @@
 
 -define(TRANSACTION_TIMEOUT, 60000). % milliseconds
 -define(KEEPALIVE_TIMEOUT, 60000).
--define(KEEPALIVE_QUERY, "SELECT 1;").
+-define(KEEPALIVE_QUERY, <<"SELECT 1;">>).
 
 %%-define(DBGFSM, true).
 
@@ -88,15 +97,15 @@
 %%%----------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------
-start(Host) ->
-    ?GEN_FSM:start(ejabberd_odbc, [Host], fsm_limit_opts() ++ ?FSMOPTS).
-
-start_link(Host, StartInterval) ->
-    ?GEN_FSM:start_link(ejabberd_odbc, [Host, StartInterval],
+start_link(Host, StartInterval, Dedicated) when is_boolean(Dedicated) ->
+    ?GEN_FSM:start_link(ejabberd_odbc, [Host, StartInterval, self(), Dedicated],
 			fsm_limit_opts() ++ ?FSMOPTS).
 
 sql_query(Host, Query) ->
     sql_call(Host, {sql_query, Query}).
+
+get_dedicated_connection(Host) ->
+    ejabberd_odbc_sup:get_dedicated_connection(Host).
 
 %% SQL transaction based on a list of queries
 %% This function automatically
@@ -116,14 +125,22 @@ sql_transaction(Host, F) when is_function(F) ->
 sql_bloc(Host, F) ->
     sql_call(Host, {sql_bloc, F}).
 
-sql_call(Host, Msg) ->
+sql_call(Host, Msg) when is_binary(Host) ->
     case get(?STATE_KEY) of
         undefined ->
-            ?GEN_FSM:sync_send_event(ejabberd_odbc_sup:get_random_pid(Host),
-				     {sql_cmd, Msg, now()}, ?TRANSACTION_TIMEOUT);
+            Worker = ejabberd_odbc_sup:get_random_pid(Host),
+            sql_call(Worker, Msg);
         _State ->
             nested_op(Msg)
-    end.
+    end;
+%% For dedicated connections.
+sql_call(Pid, Msg) when is_pid(Pid) ->
+    ?GEN_FSM:sync_send_event(Pid,
+             {sql_cmd, Msg, now()}, ?TRANSACTION_TIMEOUT);
+sql_call({_Host, Pid}, Msg) when is_pid(Pid) ->
+    ?GEN_FSM:sync_send_event(Pid,
+             {sql_cmd, Msg, now()}, ?TRANSACTION_TIMEOUT).
+
 
 % perform a harmless query on all opened connexions to avoid connexion close.
 keep_alive(PID) ->
@@ -148,22 +165,37 @@ sql_query_t(Query) ->
     end.
 
 %% Escape character that will confuse an SQL engine
-escape(S) when is_binary(S) ->
-    list_to_binary(escape(binary_to_list(S)));
-escape(S) when is_list(S) ->
-    S1 = lists:foldl(fun(C, Acc) -> [odbc_queries:escape(C) | Acc] end,
-                     [], S),
-    lists:reverse(S1).
+escape(S) ->
+    odbc_queries:escape_string(S).
 
 %% Escape character that will confuse an SQL engine
 %% Percent and underscore only need to be escaped for
 %% pattern matching like statement
 %% INFO: Used in mod_vcard_odbc.
-escape_like(S) when is_list(S) ->
-    [escape_like(C) || C <- S];
-escape_like($%) -> "\\%";
-escape_like($_) -> "\\_";
-escape_like(C)  -> odbc_queries:escape(C).
+escape_like(S) ->
+    odbc_queries:escape_like_string(S).
+
+escape_format(Host) ->
+    case db_engine(Host) of
+        pgsql -> hex;
+        _     -> simple_escape
+    end.
+
+escape_binary(hex, Bin) when is_binary(Bin) ->
+    <<"\\\\x", (bin_to_hex:bin_to_hex(Bin))/binary>>;
+escape_binary(simple_escape, Bin) when is_binary(Bin) ->
+    escape(Bin).
+
+unescape_binary(hex, <<"\\x", Bin/binary>>) when is_binary(Bin) ->
+    hex_to_bin(Bin);
+unescape_binary(simple_escape, Bin) ->
+    Bin.
+
+hex_to_bin(Bin) when is_binary(Bin) ->
+    << <<(hex_to_int(X, Y))>> || <<X, Y>> <= Bin>>.
+
+hex_to_int(X, Y) when is_integer(X), is_integer(Y) ->
+    list_to_integer([X,Y], 16).
 
 to_bool(B) when is_binary(B) ->
     to_bool(binary_to_list(B));
@@ -177,7 +209,7 @@ to_bool(_) -> false.
 %%%----------------------------------------------------------------------
 %%% Callback functions from gen_fsm
 %%%----------------------------------------------------------------------
-init([Host, StartInterval]) ->
+init([Host, StartInterval, ParentPid, Dedicated]) ->
     case ejabberd_config:get_local_option({odbc_keepalive_interval, Host}) of
 	KeepaliveInterval when is_integer(KeepaliveInterval) ->
 	    timer:apply_interval(KeepaliveInterval*1000, ?MODULE,
@@ -190,8 +222,17 @@ init([Host, StartInterval]) ->
     end,
     [DBType | _] = db_opts(Host),
     ?GEN_FSM:send_event(self(), connect),
-    ejabberd_odbc_sup:add_pid(Host, self()),
+    case Dedicated of
+        true ->
+            ok;
+        false ->
+            ejabberd_odbc_sup:add_pid(Host, self())
+    end,
+    erlang:monitor(process, ParentPid),
+    erlang:process_flag(trap_exit, true),
     {ok, connecting, #state{db_type = DBType,
+                parent_pid = ParentPid,
+                dedicated = Dedicated,
 			    host = Host,
 			    max_pending_requests_len = max_fsm_queue(),
 			    pending_requests = {0, queue:new()},
@@ -277,22 +318,35 @@ handle_sync_event(_Event, _From, StateName, State) ->
 code_change(_OldVsn, StateName, State, _Extra) ->
     {ok, StateName, State}.
 
+%% We receive the down from our parent.
+handle_info({'DOWN', _MonitorRef, process, ParentPid, Reason}, _StateName,
+    State=#state{parent_pid=ParentPid}) ->
+    {stop, Reason, State};
 %% We receive the down signal when we loose the MySQL connection (we are
 %% monitoring the connection)
 handle_info({'DOWN', _MonitorRef, process, _Pid, _Info}, _StateName, State) ->
     ?GEN_FSM:send_event(self(), connect),
     {next_state, connecting, State};
+handle_info({'EXIT', _From, _Reason}, StateName, State) ->
+    {next_state, StateName, State};
 handle_info(Info, StateName, State) ->
     ?WARNING_MSG("unexpected info in ~p: ~p", [StateName, Info]),
     {next_state, StateName, State}.
 
 terminate(_Reason, _StateName, State) ->
-    ejabberd_odbc_sup:remove_pid(State#state.host, self()),
+    case State#state.dedicated of
+        true ->
+            ok;
+        false ->
+            ejabberd_odbc_sup:remove_pid(State#state.host, self())
+    end,
     case State#state.db_type of
 	mysql ->
 	    %% old versions of mysql driver don't have the stop function
 	    %% so the catch
 	    catch mysql_conn:stop(State#state.db_ref);
+    pgsql ->
+	    catch pgsql:terminate(State#state.db_ref);
 	_ ->
 	    ok
     end,
@@ -386,14 +440,14 @@ outer_transaction(F, NRestarts, _Reason) ->
 		       [T]),
             erlang:exit(implementation_faulty)
     end,
-    sql_query_internal("begin;"),
+    sql_query_internal(<<"begin;">>),
     put(?NESTING_KEY, PreviousNestingLevel + 1),
     Result = (catch F()),
     put(?NESTING_KEY, PreviousNestingLevel),
     case Result of
         {aborted, Reason} when NRestarts > 0 ->
             %% Retry outer transaction upto NRestarts times.
-            sql_query_internal("rollback;"),
+            sql_query_internal(<<"rollback;">>),
             outer_transaction(F, NRestarts - 1, Reason);
         {aborted, Reason} when NRestarts =:= 0 ->
             %% Too many retries of outer transaction.
@@ -404,15 +458,15 @@ outer_transaction(F, NRestarts, _Reason) ->
                        "** When State == ~p",
                        [?MAX_TRANSACTION_RESTARTS, Reason,
                         erlang:get_stacktrace(), get(?STATE_KEY)]),
-            sql_query_internal("rollback;"),
+            sql_query_internal(<<"rollback;">>),
             {aborted, Reason};
         {'EXIT', Reason} ->
             %% Abort sql transaction on EXIT from outer txn only.
-            sql_query_internal("rollback;"),
+            sql_query_internal(<<"rollback;">>),
             {aborted, Reason};
         Res ->
             %% Commit successful outer txn
-            sql_query_internal("commit;"),
+            sql_query_internal(<<"commit;">>),
             {atomic, Res}
     end.
 
@@ -434,6 +488,7 @@ sql_query_internal(Query) ->
               odbc ->
                   odbc:sql_query(State#state.db_ref, Query);
               pgsql ->
+                  ?DEBUG("Postres, Send query~n~p~n", [Query]),
                   pgsql_to_odbc(pgsql:squery(State#state.db_ref, Query));
               mysql ->
                   ?DEBUG("MySQL, Send query~n~p~n", [Query]),
@@ -477,7 +532,21 @@ odbc_connect(SQLServer) ->
 %% part of init/1
 %% Open a database connection to PostgreSQL
 pgsql_connect(Server, Port, DB, Username, Password) ->
-    pgsql:connect(Server, DB, Username, Password, Port).
+    Params = [
+            {host, Server},
+            {database, DB},
+            {user, Username},
+            {password, Password},
+            {port, Port},
+            {as_binary, true}],
+    case pgsql:connect(Params) of
+        {ok, Ref} ->
+            {ok,[<<"SET">>]} =
+            pgsql:squery(Ref, "SET standard_conforming_strings=off;"),
+            {ok, Ref};
+        Err -> Err
+    end.
+
 
 %% Convert PostgreSQL query result to Erlang ODBC result formalism
 pgsql_to_odbc({ok, PGSQLResult}) ->
@@ -488,17 +557,17 @@ pgsql_to_odbc({ok, PGSQLResult}) ->
 	    [pgsql_item_to_odbc(Item) || Item <- Items]
     end.
 
-pgsql_item_to_odbc({"SELECT" ++ _, Rows, Recs}) ->
+pgsql_item_to_odbc({<<"SELECT", _/binary>>, Rows, Recs}) ->
     {selected,
      [element(1, Row) || Row <- Rows],
      [list_to_tuple(Rec) || Rec <- Recs]};
-pgsql_item_to_odbc("INSERT " ++ OIDN) ->
-    [_OID, N] = string:tokens(OIDN, " "),
-    {updated, list_to_integer(N)};
-pgsql_item_to_odbc("DELETE " ++ N) ->
-    {updated, list_to_integer(N)};
-pgsql_item_to_odbc("UPDATE " ++ N) ->
-    {updated, list_to_integer(N)};
+pgsql_item_to_odbc(<<"INSERT ", OIDN/binary>>) ->
+    [_OID, N] = binary:split(OIDN, <<" ">>),
+    {updated, list_to_integer(binary_to_list(N))};
+pgsql_item_to_odbc(<<"DELETE ", N/binary>>) ->
+    {updated, list_to_integer(binary_to_list(N))};
+pgsql_item_to_odbc(<<"UPDATE ", N/binary>>) ->
+    {updated, list_to_integer(binary_to_list(N))};
 pgsql_item_to_odbc({error, Error}) ->
     {error, Error};
 pgsql_item_to_odbc(_) ->
@@ -508,11 +577,11 @@ pgsql_item_to_odbc(_) ->
 
 %% part of init/1
 %% Open a database connection to MySQL
-mysql_connect(Server, Port, DB, Username, Password) ->
-    case mysql_conn:start(Server, Port, Username, Password, DB, fun log/3) of
+mysql_connect(Server, Port, Database, Username, Password) ->
+    case mysql_conn:start(Server, Port, Username, Password, Database, fun log/3) of
         {ok, Ref} ->
-            mysql_conn:fetch(Ref, ["set names 'utf8';"], self()),
-            mysql_conn:fetch(Ref, ["SET SESSION query_cache_type=1;"], self()),
+            mysql_conn:fetch(Ref, [<<"set names 'utf8';">>], self()),
+            mysql_conn:fetch(Ref, [<<"SET SESSION query_cache_type=1;">>], self()),
             {ok, Ref};
         Err ->
             Err
@@ -563,6 +632,16 @@ db_opts(Host) ->
 	SQLServer when is_list(SQLServer) ->
 	    [odbc, SQLServer]
     end.
+
+db_engine(Host) when is_binary(Host) ->
+    case ejabberd_config:get_local_option({odbc_server, Host}) of
+        SQLServer when is_list(SQLServer) ->
+            odbc;
+        Other when is_tuple(Other) ->
+            element(1, Other)
+    end;
+db_engine({Host, _Pid}) ->
+    db_engine(Host).
 
 max_fsm_queue() ->
     case ejabberd_config:get_local_option(max_fsm_queue) of

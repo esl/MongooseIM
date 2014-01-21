@@ -9,9 +9,9 @@
 #PATH=/var/erlang/r15b01/bin/:$PATH ./tools/ci-build-cover
 #kill -9 `cat ./redis.pid`
 
-if [ $# != 2 ] || ([ $1 != "nocover" ] && [ $1 != "cover" ])
+if [ $# != 2 ] || ([ $1 != "nocover" ] && [ $1 != "cover" ] && [ $1 != "quick" ])
 then
-    echo "Usage: ci-build cover|nocover ODBC_PASSWORD"
+    echo "Usage: ci-build cover|nocover|quick ODBC_PASSWORD"
     exit 1
 fi
 
@@ -54,6 +54,9 @@ $TOOLS/set-odbc-password test $2
 if [ $1 == "nocover" ]
 then
     make test
+elif [ $1 == "quick" ]
+then
+    make quicktest
 else
     make cover_test
 fi
@@ -77,4 +80,10 @@ CT_STATUS=$?
 
 echo
 echo "All tests done."
+if [ $CT_STATUS == 0 ]
+then
+    echo "Build succeeded"
+else
+    echo "Build failed"
+fi
 exit $CT_STATUS

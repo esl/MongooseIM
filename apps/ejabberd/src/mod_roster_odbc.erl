@@ -161,8 +161,8 @@ roster_version(LServer ,LUser) ->
 		true ->
 			case odbc_queries:get_roster_version(ejabberd_odbc:escape(LServer),
                                                  ejabberd_odbc:escape(LUser)) of
-				{selected, ["version"], [{Version}]} -> Version;
-				{selected, ["version"], []} -> not_found
+				{selected, [<<"version">>], [{Version}]} -> Version;
+				{selected, [<<"version">>], []} -> not_found
 			end;
 		false ->
 			roster_hash(ejabberd_hooks:run_fold(roster_get, LServer, [], [US]))
@@ -189,12 +189,12 @@ process_iq_get(From, To, #iq{sub_el = SubEl} = IQ) ->
                     %% when neccesary.
                     case odbc_queries:get_roster_version(ejabberd_odbc:escape(LServer),
                                                          ejabberd_odbc:escape(LUser)) of
-                        {selected, ["version"], [{RequestedVersion}]} ->
+                        {selected, [<<"version">>], [{RequestedVersion}]} ->
                             {false, false};
-                        {selected, ["version"], [{NewVersion}]} ->
+                        {selected, [<<"version">>], [{NewVersion}]} ->
                             {lists:map(fun item_to_xml/1,
                                        ejabberd_hooks:run_fold(roster_get, To#jid.lserver, [], [US])), NewVersion};
-                        {selected, ["version"], []} ->
+                        {selected, [<<"version">>], []} ->
                             RosterVersion = sha:sha(term_to_binary(now())),
                             {atomic, {updated,1}} = odbc_queries:sql_transaction(LServer,
                                                                                  fun() ->
@@ -244,11 +244,11 @@ get_user_roster(Acc, {LUser, LServer}) ->
 get_roster(LUser, LServer) ->
     Username = ejabberd_odbc:escape(LUser),
     case catch odbc_queries:get_roster(LServer, Username) of
-        {selected, ["username", "jid", "nick", "subscription", "ask",
-                    "askmessage", "server", "subscribe", "type"],
+        {selected, [<<"username">>, <<"jid">>, <<"nick">>, <<"subscription">>, <<"ask">>,
+                    <<"askmessage">>, <<"server">>, <<"subscribe">>, <<"type">>],
          Items} when is_list(Items) ->
             JIDGroups = case catch odbc_queries:get_roster_jid_groups(LServer, Username) of
-                            {selected, ["jid","grp"], JGrps}
+                            {selected, [<<"jid">>, <<"grp">>], JGrps}
                               when is_list(JGrps) ->
                                 JGrps;
                             _ ->
@@ -330,8 +330,8 @@ process_item_set(From, To, #xmlel{attrs = Attrs, children = Els}) ->
             SJID = ejabberd_odbc:escape(jlib:jid_to_binary(LJID)),
             F = fun() ->
                         {selected,
-                         ["username", "jid", "nick", "subscription",
-                          "ask", "askmessage", "server", "subscribe", "type"],
+                         [<<"username">>, <<"jid">>, <<"nick">>, <<"subscription">>,
+                          <<"ask">>, <<"askmessage">>, <<"server">>, <<"subscribe">>, <<"type">>],
                          Res} = odbc_queries:get_roster_by_jid(LServer, Username, SJID),
                         Item = case Res of
                                    [] ->
@@ -474,8 +474,8 @@ get_subscription_lists(_, User, Server) ->
     JID = jlib:make_jid(User, Server, <<>>),
     Username = ejabberd_odbc:escape(LUser),
     case catch odbc_queries:get_roster(LServer, Username) of
-        {selected, ["username", "jid", "nick", "subscription", "ask",
-                    "askmessage", "server", "subscribe", "type"],
+        {selected, [<<"username">>, <<"jid">>, <<"nick">>, <<"subscription">>, <<"ask">>,
+                    <<"askmessage">>, <<"server">>, <<"subscribe">>, <<"type">>],
          Items} when is_list(Items) ->
             fill_subscription_lists(JID, LServer, Items, [], [], []);
         _ ->
@@ -537,8 +537,8 @@ process_subscription(Direction, User, Server, JID1, Type, Reason) ->
                 Item =
                     case odbc_queries:get_roster_by_jid(LServer, Username, SJID) of
                         {selected,
-                         ["username", "jid", "nick", "subscription", "ask",
-                          "askmessage", "server", "subscribe", "type"],
+                         [<<"username">>, <<"jid">>, <<"nick">>, <<"subscription">>, <<"ask">>,
+                          <<"askmessage">>, <<"server">>, <<"subscribe">>, <<"type">>],
                          [I]} ->
                             %% raw_to_record can return error, but
                             %% jlib_to_string would fail before this point
@@ -552,8 +552,8 @@ process_subscription(Direction, User, Server, JID1, Type, Reason) ->
                                 end,
                             R#roster{groups = Groups};
                         {selected,
-                         ["username", "jid", "nick", "subscription", "ask",
-                          "askmessage", "server", "subscribe", "type"],
+                         [<<"username">>, <<"jid">>, <<"nick">>, <<"subscription">>, <<"ask">>,
+                          <<"askmessage">>, <<"server">>, <<"subscribe">>, <<"type">>],
                          []} ->
                             #roster{usj = {LUser, LServer, LJID},
                                     us = {LUser, LServer},
@@ -851,8 +851,8 @@ get_in_pending_subscriptions(Ls, User, Server) ->
     LServer = JID#jid.lserver,
     Username = ejabberd_odbc:escape(LUser),
     case catch odbc_queries:get_roster(LServer, Username) of
-        {selected, ["username", "jid", "nick", "subscription", "ask",
-                    "askmessage", "server", "subscribe", "type"],
+        {selected, [<<"username">>, <<"jid">>, <<"nick">>, <<"subscription">>, <<"ask">>,
+                    <<"askmessage">>, <<"server">>, <<"subscribe">>, <<"type">>],
          Items} when is_list(Items) ->
     	    Ls ++ lists:map(
                     fun(R) ->
@@ -893,7 +893,7 @@ get_jid_info(_, User, Server, JID) ->
     Username = ejabberd_odbc:escape(LUser),
     SJID = ejabberd_odbc:escape(jlib:jid_to_binary(LJID)),
     case catch odbc_queries:get_subscription(LServer, Username, SJID) of
-        {selected, ["subscription"], [{SSubscription}]} ->
+        {selected, [<<"subscription">>], [{SSubscription}]} ->
             Subscription = case SSubscription of
                                <<"B">> -> both;
                                <<"T">> -> to;
@@ -915,7 +915,7 @@ get_jid_info(_, User, Server, JID) ->
                 true ->
                     SRJID = ejabberd_odbc:escape(jlib:jid_to_binary(LRJID)),
                     case catch odbc_queries:get_subscription(LServer, Username, SRJID) of
-                        {selected, ["subscription"], [{SSubscription}]} ->
+                        {selected, [<<"subscription">>], [{SSubscription}]} ->
                             Subscription = case SSubscription of
                                                <<"B">> -> both;
                                                <<"T">> -> to;

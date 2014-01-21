@@ -53,6 +53,7 @@
          timestamp_to_iso/1, % TODO: Remove once XEP-0091 is Obsolete
          timestamp_to_xml/4,
          timestamp_to_xml/1, % TODO: Remove once XEP-0091 is Obsolete
+         timestamp_to_mam_xml/4,
          now_to_utc_binary/1,
          datetime_string_to_timestamp/1,
          decode_base64/1,
@@ -596,6 +597,14 @@ timestamp_to_xml(DateTime, Timezone, FromJID, Desc) ->
                     {<<"from">>, From},
                     {<<"stamp">>, list_to_binary(T_string ++ Tz_string)}],
            children = Text}.
+
+timestamp_to_mam_xml(DateTime, Timezone, QueryID, MessageUID) ->
+    {T_string, Tz_string} = timestamp_to_iso(DateTime, Timezone),
+    #xmlel{name = <<"delay">>,
+           attrs = [{<<"xmlns">>, ?NS_DELAY},
+                    {<<"stamp">>, list_to_binary(T_string ++ Tz_string)},
+                    {<<"id">>, MessageUID}] ++
+                   [{<<"queryid">>, QueryID} || QueryID =/= undefined, QueryID =/= <<>>]}.
 
 %% TODO: Remove this function once XEP-0091 is Obsolete
 timestamp_to_xml({{Year, Month, Day}, {Hour, Minute, Second}}) ->

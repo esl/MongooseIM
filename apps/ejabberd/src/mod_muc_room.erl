@@ -660,14 +660,12 @@ process_groupchat_message(From, #xmlel{name = <<"message">>,
                 false ->
                 {StateData, true};
                 Subject ->
-                case can_change_subject(Role,
-                            StateData) of
+                case can_change_subject(Role, StateData) of
                     true ->
                     NSD =
                         StateData#state{
                           subject = Subject,
-                          subject_author =
-                          FromNick},
+                          subject_author = FromNick},
                     case (NSD#state.config)#config.persistent of
                         true ->
                         mod_muc:store_room(
@@ -1955,14 +1953,15 @@ send_config_update(Type, StateData) ->
             Message)
         end, ?DICT:to_list(StateData#state.users)).
 
-send_invitation(From, To, Reason, StateData) ->
+send_invitation(From, To, Reason, StateData=#state{host=Host, server_host=ServerHost, jid=RoomJID}) ->
+    ejabberd_hooks:run(invitation_sent, Host, [Host, ServerHost, RoomJID, From, To, Reason]),
     Config = StateData#state.config,
     Password = case Config#config.password_protected of
         false -> <<>>;
         true -> Config#config.password
     end,
     ejabberd_router:route(
-        StateData#state.jid,
+        RoomJID,
         To,
         jlib:make_invitation(
             jlib:jid_replace_resource(From, <<>>), Password, Reason)).
@@ -3501,7 +3500,8 @@ check_invitation(FromJID, Els, Lang, StateData) ->
     catch throw:{error, Reason} -> {error, Reason}
     end.
 
-unsave_check_invitation(FromJID, Els, Lang, StateData=#state{jid=RoomJID}) ->
+unsave_check_invitation(FromJID, Els, Lang,
+    StateData=#state{host=Host, server_host=ServerHost, jid=RoomJID}) ->
     FAffiliation = get_affiliation(FromJID, StateData),
     CanInvite = (StateData#state.config)#config.allow_user_invites
          orelse (FAffiliation == admin)
@@ -3530,6 +3530,8 @@ unsave_check_invitation(FromJID, Els, Lang, StateData=#state{jid=RoomJID}) ->
         BodyEl = invite_body_elem(FromJID, Reason, Lang, StateData),
         Msg = create_invite_message_elem(
             OutInviteEl, BodyEl, PasswdEl, RoomJID, Reason),
+        ejabberd_hooks:run(invitation_sent, Host,
+            [Host, ServerHost, RoomJID, FromJID, JID, Reason]),
         ejabberd_router:route(StateData#state.jid, JID, Msg),
         {ok, JID}
     end.

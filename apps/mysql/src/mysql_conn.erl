@@ -113,16 +113,18 @@
 %%           Pid    = pid()
 %%           Reason = string()
 %%--------------------------------------------------------------------
-start(Host, Port, User, Password, Database, LogFun) when is_list(Host), is_integer(Port), is_list(User),
-							 is_list(Password), is_list(Database) ->
+start(Host, Port, User, Password, Database, LogFun) when
+        is_list(Host), is_integer(Port), is_list(User),
+        is_list(Password), is_list(Database) ->
     ConnPid = self(),
     Pid = spawn(fun () ->
 			init(Host, Port, User, Password, Database, LogFun, ConnPid)
 		end),
     post_start(Pid, LogFun).
 
-start_link(Host, Port, User, Password, Database, LogFun) when is_list(Host), is_integer(Port), is_list(User),
-							 is_list(Password), is_list(Database) ->
+start_link(Host, Port, User, Password, Database, LogFun) when
+        is_list(Host), is_integer(Port), is_list(User),
+        is_list(Password), is_list(Database) ->
     ConnPid = self(),
     Pid = spawn_link(fun () ->
 			init(Host, Port, User, Password, Database, LogFun, ConnPid)
@@ -177,7 +179,7 @@ fetch(Pid, Query, From) ->
 fetch(Pid, Query, From, Timeout) ->
     squery(Pid, Query, From, [{timeout, Timeout}]).
 
-squery(Pid, Query, From, Options) when is_pid(Pid), is_list(Query) ->
+squery(Pid, Query, From, Options) when is_pid(Pid) ->
     Self = self(),
     Timeout = get_option(timeout, Options, ?DEFAULT_STANDALONE_TIMEOUT),
     TRef = erlang:start_timer(Timeout, self(), timeout),
@@ -393,12 +395,8 @@ greeting(Packet, LogFun) ->
 
 %% part of greeting/2
 asciz(Data) when is_binary(Data) ->
-    mysql:asciz_binary(Data, []);
-asciz(Data) when is_list(Data) ->
-    {String, [0 | Rest]} = lists:splitwith(fun (C) ->
-						   C /= 0
-					   end, Data),
-    {String, Rest}.
+    [H, T] = binary:split(Data, <<0>>),
+    {H, T}.
 
 %%--------------------------------------------------------------------
 %% Function: get_query_response(LogFun, RecvPid)
@@ -508,10 +506,7 @@ get_fields(LogFun, RecvPid, Res, ?MYSQL_4_1) ->
 		     _Flags:16/little, _Decimals:8/little,
 		     _Rest7/binary>> = Rest6,
 
-		    This = {binary_to_list(Table),
-			    binary_to_list(Field),
-			    Length,
-			    get_field_datatype(Type)},
+		    This = {Table, Field, Length, get_field_datatype(Type)},
 		    get_fields(LogFun, RecvPid, [This | Res], ?MYSQL_4_1)
 	    end;
 	{error, Reason} ->
@@ -552,11 +547,11 @@ get_row(N, Data, ResultType, Res) ->
 	       null ->
 		   null;
 	       _ ->
-		   if
-		       ResultType == list ->
-			   binary_to_list(Col);
-		       ResultType == binary ->
-			   Col
+           case ResultType of
+               binary ->
+			   Col;
+               list ->
+			   binary_to_list(Col)
 		   end
 	   end,
     get_row(N - 1, Rest, ResultType, [This | Res]).
@@ -597,11 +592,9 @@ do_query(State, Query, Options) when is_record(State, state) ->
 	     Options
 	    ).
 
-do_query(Sock, RecvPid, LogFun, Query, Version, Options) when is_pid(RecvPid),
-							      is_list(Query) ->
-    Packet = list_to_binary([?MYSQL_QUERY_OP, Query]),
-%%    Packet = unicode:characters_to_binary([?MYSQL_QUERY_OP, Query]),
-    case do_send(Sock, Packet, 0, LogFun) of
+do_query(Sock, RecvPid, LogFun, Query, Version, Options)
+    when is_pid(RecvPid) ->
+    case do_send(Sock, Query, ?MYSQL_QUERY_OP, 0, LogFun) of
 	ok ->
 	    get_query_response(LogFun, RecvPid, Version, Options);
 	{error, Reason} ->
@@ -612,14 +605,17 @@ do_query(Sock, RecvPid, LogFun, Query, Version, Options) when is_pid(RecvPid),
 %%--------------------------------------------------------------------
 %% Function: do_send(Sock, Packet, SeqNum, LogFun)
 %%           Sock   = term(), gen_tcp socket
-%%           Packet = binary()
+%%           Body   = iolist(),
+%%           Op     = byte(),
 %%           SeqNum = integer(), packet sequence number
 %%           LogFun = undefined | function() with arity 3
 %% Descrip.: Send a packet to the MySQL server.
 %% Returns : result of gen_tcp:send/2
 %%--------------------------------------------------------------------
-do_send(Sock, Packet, SeqNum, _LogFun) when is_binary(Packet), is_integer(SeqNum) ->
-    Data = <<(size(Packet)):24/little, SeqNum:8, Packet/binary>>,
+do_send(Sock, Body, Op, SeqNum, _LogFun) when is_integer(Op), is_integer(SeqNum) ->
+%   Packet = [Op, Body],
+    PacketSize = erlang:iolist_size(Body) + 1,
+    Data = [<<PacketSize:24/little, SeqNum, Op>> | Body],
     %%mysql:log(LogFun, debug, "mysql_conn: send packet ~p: ~p", [SeqNum, Data]),
     gen_tcp:send(Sock, Data).
 
@@ -631,12 +627,12 @@ do_send(Sock, Packet, SeqNum, _LogFun) when is_binary(Packet), is_integer(SeqNum
 %%           The protocol used depends on this flag.
 %% Returns : Version = string()
 %%--------------------------------------------------------------------
-normalize_version([$4,$.,$0|_T], LogFun) ->
+normalize_version(<<"4.0", _/binary>>, LogFun) ->
     mysql:log(LogFun, debug, "Switching to MySQL 4.0.x protocol.~n"),
     ?MYSQL_4_0;
-normalize_version([$4,$.,$1|_T], _LogFun) ->
+normalize_version(<<"4.1", _/binary>>, _LogFun) ->
     ?MYSQL_4_1;
-normalize_version([$5|_T], _LogFun) ->
+normalize_version(<<"5", _/binary>>, _LogFun) ->
     %% MySQL version 5.x protocol is compliant with MySQL 4.1.x:
     ?MYSQL_4_1;
 normalize_version(_Other, LogFun) ->

@@ -169,8 +169,10 @@ init([]) ->
          brutal_kill,
          worker,
          [mod_muc_iq]},
+    ShaperSpecs = shaper_srv:child_specs(),
 
     {ok, {{one_for_one, 10, 1},
+          ShaperSpecs ++
           [Randoms,
            Hooks,
            SMBackendSupervisor,
