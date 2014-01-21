@@ -138,6 +138,7 @@ configurations() ->
      odbc_async_cache,
      odbc_cache,
      odbc_mnesia_cache,
+     odbc_mnesia_muc_cache,
      ca].
 
 basic_group_names() ->
@@ -168,11 +169,19 @@ all() ->
 
 tests() ->
     [{group, full_group(C, G)}
-     || C <- configurations(), G <- basic_group_names()].
+     || C <- configurations(), G <- basic_group_names(),
+        not is_skipped(C, G)].
 
 groups() ->
     [{full_group(C, G), Props, Tests}
-     || C <- configurations(), {G, Props, Tests} <- basic_groups()].
+     || C <- configurations(), {G, Props, Tests} <- basic_groups(),
+        not is_skipped(C, G)].
+
+is_skipped(odbc_mnesia_muc_cache, muc)         -> false;
+is_skipped(odbc_mnesia_muc_cache, muc_with_pm) -> false;
+is_skipped(odbc_mnesia_muc_cache, muc_rsm)     -> false;
+is_skipped(odbc_mnesia_muc_cache, _)           -> true;
+is_skipped(_, _) -> false.
 
 basic_groups() ->
     [{bootstrapped,     [], bootstrapped_cases()},
@@ -332,6 +341,16 @@ init_modules(odbc_async_cache, muc_with_pm, Config) ->
     init_module(host(), mod_mam, []),
     init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
     Config;
+init_modules(odbc_mnesia_muc_cache, muc_with_pm, Config) ->
+    init_module(host(), mod_mam_muc_odbc_arch, []),
+    init_module(host(), mod_mam_odbc_arch, [pm]),
+    init_module(host(), mod_mam_mnesia_prefs, [muc, pm]),
+    init_module(host(), mod_mam_odbc_user, [muc, pm]),
+    init_module(host(), mod_mam_cache_user, [pm]),
+    init_module(host(), mod_mam_muc_cache_user, []),
+    init_module(host(), mod_mam, []),
+    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
+    Config;
 init_modules(odbc_mnesia_cache, muc_with_pm, Config) ->
     init_module(host(), mod_mam_muc_odbc_arch, []),
     init_module(host(), mod_mam_odbc_arch, [pm]),
@@ -389,6 +408,13 @@ init_modules(odbc_async_cache, muc, Config) ->
     init_module(host(), mod_mam_cache_user, [muc]),
     init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
     Config;
+init_modules(odbc_mnesia_muc_cache, muc, Config) ->
+    init_module(host(), mod_mam_muc_odbc_arch, []),
+    init_module(host(), mod_mam_mnesia_prefs, [muc]),
+    init_module(host(), mod_mam_odbc_user, [muc]),
+    init_module(host(), mod_mam_muc_cache_user, [muc]),
+    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
+    Config;
 init_modules(odbc_mnesia_cache, muc, Config) ->
     init_module(host(), mod_mam_muc_odbc_arch, []),
     init_module(host(), mod_mam_mnesia_prefs, [muc]),
@@ -444,6 +470,8 @@ init_modules(odbc_async_cache, _, Config) ->
     init_module(host(), mod_mam_odbc_user, [pm]),
     init_module(host(), mod_mam_cache_user, [pm]),
     Config;
+init_modules(odbc_mnesia_muc_cache, _, Config) ->
+    error(skipped);
 init_modules(odbc_mnesia_cache, _, Config) ->
     init_module(host(), mod_mam, []),
     init_module(host(), mod_mam_odbc_arch, [pm]),
