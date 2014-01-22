@@ -270,6 +270,14 @@ CREATE TABLE mam_user(
 );
 CREATE INDEX i_mam_user_name USING HASH ON mam_user(user_name);
 
+CREATE TABLE mam_server_user(
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  server    varchar(250) CHARACTER SET binary NOT NULL,
+  user_name varchar(250) CHARACTER SET binary NOT NULL,
+  PRIMARY KEY(id) USING HASH
+);
+CREATE INDEX i_mam_server_user_name USING HASH ON mam_server_user(server, user_name);
+
 
 CREATE TABLE mam_muc_message(
   -- Message UID

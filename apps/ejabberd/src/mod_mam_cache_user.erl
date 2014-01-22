@@ -5,7 +5,9 @@
 %%% This module is a proxy for `mod_mam_odbc_user' (it should be started).
 %%%
 %%% There are 2 hooks for `mam_archive_id':
-%%% `cache_archive_id/3' and `store_archive_id/3'.
+%%% `cached_archive_id/3' and `store_archive_id/3'.
+%%%
+%%% This module supports several hosts.
 %%% 
 %%% @end
 %%%-------------------------------------------------------------------
@@ -53,7 +55,7 @@ su_key(#jid{lserver = LServer, luser = LUser}) ->
 %% Starting and stopping functions for users' archives
 
 start(Host, Opts) ->
-    supervisor:start_child(ejabberd_sup, writer_child_spec()),
+    start_server(Host),
     case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
         true ->
             start_pm(Host, Opts);
@@ -68,6 +70,7 @@ start(Host, Opts) ->
     end.
 
 stop(Host) ->
+    stop_server(Host),
     case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
         true ->
             stop_pm(Host);
@@ -82,12 +85,18 @@ stop(Host) ->
     end.
 
 writer_child_spec() ->
-    {mod_mam_cache_user,
-     {mod_mam_cache_user, start_link, []},
+    {?MODULE,
+     {?MODULE, start_link, []},
      permanent,
      5000,
      worker,
-     [mod_mam_cache_user]}.
+     [?MODULE]}.
+
+start_server(_Host) ->
+    supervisor:start_child(ejabberd_sup, writer_child_spec()).
+
+stop_server(_Host) ->
+    ok.
 
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam
