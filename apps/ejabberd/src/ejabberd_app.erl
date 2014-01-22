@@ -45,6 +45,7 @@ start(normal, _Args) ->
     db_init(),
     sha:start(),
     xml:start(),
+    application:start(p1_cache_tab),
 
     load_drivers([tls_drv, expat_erl]),
     translate:start(),
