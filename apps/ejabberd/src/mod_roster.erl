@@ -37,9 +37,9 @@
 -author('alexey@process-one.net').
 
 -behaviour(gen_mod).
+-export([start/2, stop/1]).
 
--export([start/2, stop/1,
-         process_iq/3,
+-export([process_iq/3,
          process_local_iq/3,
          get_user_roster/2,
          get_subscription_lists/3,
