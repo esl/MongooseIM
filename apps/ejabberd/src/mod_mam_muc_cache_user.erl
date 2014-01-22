@@ -206,7 +206,7 @@ handle_cast(Msg, State) ->
 
 
 handle_info({'DOWN', MonRef, process, Pid, Reason}, State) ->
-    case ets:lookup_element(tbl_name_archive_id(), MonRef) of
+    case ets:lookup(tbl_name_archive_id(), MonRef) of
         [] ->
             ?WARNING_MSG("Unknown monitor ~p from ~p with ~p.", [MonRef, Pid, Reason]);
         [{MonRef, Key}] ->
