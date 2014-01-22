@@ -99,13 +99,13 @@ get_user_part(String, Pattern) ->
 		iolist_to_binary(string:sub_string(binary_to_list(S), First, byte_size(S) - TailLength))
 	end,
     case catch F(String, Pattern) of
-	{'EXIT', _} ->
-	    {error, badmatch};
-	Result ->
-            case catch ejabberd_regexp:replace(Pattern, <<"%u">>, Result) of
+	    {'EXIT', _} ->
+	        {error, badmatch};
+        Result ->
+            case catch re:replace(Pattern, <<"%u">>, Result, [global, {return, binary}]) of
                 {'EXIT', _} ->
                     {error, badmatch};
-		StringRes ->
+                StringRes ->
                     case case_insensitive_match(StringRes, String) of
                         true ->
                             {ok, Result};

@@ -149,38 +149,14 @@ do_sub(S, [{RegExp, New, Times} | T]) ->
     Result = do_sub(S, {RegExp, replace_amps(New), Times}, 1),
     do_sub(Result, T).
 
-do_sub(S, {RegExp, New}, Iter) ->
-    case ejabberd_regexp:run(S, RegExp) of
-        match ->
-            case ejabberd_regexp:replace(S, RegExp, New) of
-                NewS when Iter =< ?MAX_RECURSION ->
-                    do_sub(NewS, {RegExp, New}, Iter+1);
-                _NewS when Iter > ?MAX_RECURSION ->
-                    erlang:error(max_substitute_recursion)
-            end;
-        nomatch ->
-            S;
-        _ ->
-            erlang:error(bad_regexp)
-    end;
+do_sub(S, {RegExp, New}, _Iter) ->
+    re:replace(S, RegExp, New, [global, {return, binary}]);
 
 do_sub(S, {_, _, N}, _) when N<1 ->
     S;
 
-do_sub(S, {RegExp, New, Times}, Iter) ->
-    case ejabberd_regexp:run(S, RegExp) of
-        match ->
-            case ejabberd_regexp:replace(S, RegExp, New) of
-                NewS when Iter < Times ->
-                    do_sub(NewS, {RegExp, New, Times}, Iter+1);
-                NewS ->
-                    NewS
-            end;
-        nomatch ->
-            S;
-        _ ->
-            erlang:error(bad_regexp)
-    end.
+do_sub(S, {RegExp, New, _Times}, _Iter) ->
+    re:replace(S, RegExp, New, [global, {return, binary}]).
 
 replace_amps(Bin) ->
     list_to_binary(
