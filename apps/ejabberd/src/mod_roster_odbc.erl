@@ -133,7 +133,7 @@ process_local_iq(From, To, #iq{type = Type} = IQ) ->
     end.
 
 roster_hash(Items) ->
-	sha:sha(term_to_binary(
+    sha:sha(term_to_binary(
               lists:sort(
                 [R#roster{groups = lists:sort(Grs)} ||
                     R = #roster{groups = Grs} <- Items]))).
@@ -156,17 +156,17 @@ get_versioning_feature(Acc, Host) ->
     end.
 
 roster_version(LServer ,LUser) ->
-	US = {LUser, LServer},
-	case roster_version_on_db(LServer) of
-		true ->
-			case odbc_queries:get_roster_version(ejabberd_odbc:escape(LServer),
+    US = {LUser, LServer},
+    case roster_version_on_db(LServer) of
+        true ->
+            case odbc_queries:get_roster_version(ejabberd_odbc:escape(LServer),
                                                  ejabberd_odbc:escape(LUser)) of
-				{selected, ["version"], [{Version}]} -> Version;
-				{selected, ["version"], []} -> not_found
-			end;
-		false ->
-			roster_hash(ejabberd_hooks:run_fold(roster_get, LServer, [], [US]))
-	end.
+                {selected, ["version"], [{Version}]} -> Version;
+                {selected, ["version"], []} -> not_found
+            end;
+        false ->
+            roster_hash(ejabberd_hooks:run_fold(roster_get, LServer, [], [US]))
+    end.
 
 %% Load roster from DB only if neccesary.
 %% It is neccesary if
@@ -180,7 +180,7 @@ process_iq_get(From, To, #iq{sub_el = SubEl} = IQ) ->
     US = {LUser, LServer},
 
     try
-	    {ItemsToSend, VersionToSend} =
+        {ItemsToSend, VersionToSend} =
             case {xml:get_tag_attr(<<"ver">>, SubEl),
                   roster_versioning_enabled(LServer),
                   roster_version_on_db(LServer)} of
@@ -218,18 +218,18 @@ process_iq_get(From, To, #iq{sub_el = SubEl} = IQ) ->
                     {lists:map(fun item_to_xml/1,
                                ejabberd_hooks:run_fold(roster_get, To#jid.lserver, [], [US])), false}
             end,
-		IQ#iq{type = result, sub_el = case {ItemsToSend, VersionToSend} of
+        IQ#iq{type = result, sub_el = case {ItemsToSend, VersionToSend} of
                                           {false, false} ->  [];
-                                      {Items, false} -> [#xmlel{name = <<"query">>,
-                                                                attrs = [{<<"xmlns">>, ?NS_ROSTER}],
-                                                                children = Items}];
-                                      {Items, Version} -> [#xmlel{name = <<"query">>,
-                                                                  attrs = [{<<"xmlns">>, ?NS_ROSTER},
-                                                                                {<<"ver">>, Version}],
-                                                                  children = Items}]
-                                          end}
+                                          {Items, false} -> [#xmlel{name = <<"query">>,
+                                                                    attrs = [{<<"xmlns">>, ?NS_ROSTER}],
+                                                                    children = Items}];
+                                          {Items, Version} -> [#xmlel{name = <<"query">>,
+                                                                      attrs = [{<<"xmlns">>, ?NS_ROSTER},
+                                                                               {<<"ver">>, Version}],
+                                                                      children = Items}]
+                                      end}
     catch
-    	_:_ ->
+        _:_ ->
             IQ#iq{type = error, sub_el = [SubEl, ?ERR_INTERNAL_SERVER_ERROR]}
     end.
 
@@ -486,36 +486,36 @@ fill_subscription_lists(JID, LServer, [IRaw | Is], F, T, P) ->
     I = raw_to_record(LServer, IRaw),
     J = element(3, I#roster.usj),
     NewP = case I#roster.ask of
-        Ask when Ask == in; Ask == both ->
-            Message = I#roster.askmessage,
-            Status  = if is_binary(Message) -> Message;
-                           true -> <<>>
-                          end,
-            StatusEl = #xmlel{
-                    name = <<"status">>,
-                    children = [#xmlcdata{content = Status}]},
-            El = #xmlel{
-                    name = <<"presence">>,
-                    attrs = [{<<"from">>, jlib:jid_to_binary(I#roster.jid)},
-                             {<<"to">>, jlib:jid_to_binary(JID)},
-                             {<<"type">>, <<"subscribe">>}],
-                    children = [StatusEl]},
-            [El | P];
-        _ -> 
-             P
-        end,
+               Ask when Ask == in; Ask == both ->
+                   Message = I#roster.askmessage,
+                   Status  = if is_binary(Message) -> Message;
+                                true -> <<>>
+                             end,
+                   StatusEl = #xmlel{
+                                 name = <<"status">>,
+                                 children = [#xmlcdata{content = Status}]},
+                   El = #xmlel{
+                           name = <<"presence">>,
+                           attrs = [{<<"from">>, jlib:jid_to_binary(I#roster.jid)},
+                                    {<<"to">>, jlib:jid_to_binary(JID)},
+                                    {<<"type">>, <<"subscribe">>}],
+                           children = [StatusEl]},
+                   [El | P];
+               _ ->
+                   P
+           end,
     case I#roster.subscription of
-    both ->
-        fill_subscription_lists(JID, LServer, Is, [J | F], [J | T], NewP);
-    from ->
-        fill_subscription_lists(JID, LServer, Is, [J | F], T, NewP);
-    to ->
-        fill_subscription_lists(JID, LServer, Is, F, [J | T], NewP);
-    _ ->
-        fill_subscription_lists(JID, LServer, Is, F, T, NewP)
+        both ->
+            fill_subscription_lists(JID, LServer, Is, [J | F], [J | T], NewP);
+        from ->
+            fill_subscription_lists(JID, LServer, Is, [J | F], T, NewP);
+        to ->
+            fill_subscription_lists(JID, LServer, Is, F, [J | T], NewP);
+        _ ->
+            fill_subscription_lists(JID, LServer, Is, F, T, NewP)
     end;
 fill_subscription_lists(_JID, _LServer, [], F, T, P) ->
-   {F, T, P}.
+    {F, T, P}.
 
 ask_to_pending(subscribe) -> out;
 ask_to_pending(unsubscribe) -> none;
@@ -854,7 +854,7 @@ get_in_pending_subscriptions(Ls, User, Server) ->
         {selected, ["username", "jid", "nick", "subscription", "ask",
                     "askmessage", "server", "subscribe", "type"],
          Items} when is_list(Items) ->
-    	    Ls ++ lists:map(
+            Ls ++ lists:map(
                     fun(R) ->
                             Message = R#roster.askmessage,
                             #xmlel{name = <<"presence">>,
@@ -985,10 +985,10 @@ record_to_string(#roster{us = {User, _Server},
     SAsk = case Ask of
                subscribe   -> "S";
                unsubscribe -> "U";
-               both	   -> "B";
-               out	   -> "O";
-               in	   -> "I";
-               none	   -> "N"
+               both        -> "B";
+               out         -> "O";
+               in          -> "I";
+               none        -> "N"
            end,
     SAskMessage = ejabberd_odbc:escape(AskMessage),
     [Username, SJID, Nick, SSubscription, SAsk, SAskMessage, "N", "", "item"].
@@ -1097,8 +1097,8 @@ build_contact_jid_td(RosterJID) ->
                      case lists:member(CServer, ?MYHOSTS) of
                          false -> <<>>;
                          true ->
-                            <<"/admin/server/", CServer/binary, 
-                              "/user/", CUser/binary, "/">>
+                             <<"/admin/server/", CServer/binary,
+                               "/user/", CUser/binary, "/">>
                      end
              end,
     case JIDURI of
