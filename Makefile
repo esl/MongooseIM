@@ -17,6 +17,14 @@ quicktest: prepare
 		$(ADD_OPTS) \
 		-s run_common_test ct_quick $(TESTSPEC)
 
+test_config: prepare
+	erl -noinput -sname test -setcookie ejabberd \
+		-pa `pwd`/tests \
+		    `pwd`/ebin \
+			`pwd`/deps/*/ebin \
+		$(ADD_OPTS) \
+		-s run_common_test ct_config $(TESTSPEC) $(CONFIG)
+
 test: prepare
 	erl -noinput -sname test -setcookie ejabberd \
 		-pa `pwd`/tests \
