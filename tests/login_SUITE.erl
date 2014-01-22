@@ -89,6 +89,8 @@ init_per_testcase(log_one_digest, Config) ->
                               [{auth_method, XMPPDomain}]) of
         external ->
             {skip, "external authentication requires plain password"};
+        ldap ->
+            {skip, "ldap authentication requires plain password"};
         _ ->
             Conf1 = [ {escalus_auth_method, <<"DIGEST-MD5">>} | Config],
             escalus:init_per_testcase(log_one_digest, Conf1)
