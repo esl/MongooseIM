@@ -29,7 +29,7 @@
 -author('xram@jabber.ru').
 
 %% API
--export([start_link/7, bind/3, search/2,
+-export([start_link/7, bind/3, search/2, delete/2, add/3,
 	 modify_passwd/3]).
 
 -include("ejabberd.hrl").
@@ -45,6 +45,15 @@ search(PoolName, Opts) ->
 
 modify_passwd(PoolName, DN, Passwd) ->
     do_request(PoolName, {modify_passwd, [DN, Passwd]}).
+
+delete(PoolName,DN) ->
+    case do_request(PoolName, {delete, [DN]}) of
+        false -> not_exists;
+        R -> R
+    end.
+
+add(PoolName,DN,Attrs) ->
+    do_request(PoolName, {add,[DN,Attrs]}).
 
 start_link(Name, Hosts, Backups, Port, Rootdn, Passwd,
 	   Opts) ->

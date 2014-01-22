@@ -145,8 +145,19 @@ set_password(User, Server, Password) ->
     end.
 
 %% @spec (User, Server, Password) -> {error, not_allowed}
-try_register(_User, _Server, _Password) ->
-    {error, not_allowed}.
+try_register(User, Server, Password) ->
+    {ok, State} = eldap_utils:get_state(Server, ?MODULE),
+    UserStr=binary_to_list(User),
+    DN = "cn="++UserStr++","++binary_to_list(State#state.base),
+    Attrs =   [{"objectclass", ["inetOrgPerson"]},
+              {"cn", [UserStr]},
+              {"sn", [UserStr]},
+              {"userPassword",[binary_to_list(Password)]},
+              {"uid",[UserStr]}],
+    case eldap_pool:add(State#state.eldap_id,DN,Attrs) of
+        ok -> {atomic, ok};
+        _ -> {atomic, exists}
+    end.
 
 dirty_get_registered_users() ->
     Servers = ejabberd_config:get_vh_by_auth_method(ldap),
@@ -181,9 +192,24 @@ is_user_exists(User, Server) ->
       Result -> Result
     end.
 
-remove_user(_User, _Server) -> {error, not_allowed}.
+remove_user(User, Server) ->
+    {ok, State} = eldap_utils:get_state(Server, ?MODULE),
+    case find_user_dn(User, State) of
+      false -> error;
+      DN -> eldap_pool:delete(State#state.eldap_id,DN)
+    end.
 
-remove_user(_User, _Server, _Password) -> not_allowed.
+remove_user(User, Server, Password) ->
+    {ok, State} = eldap_utils:get_state(Server, ?MODULE),
+    case find_user_dn(User, State) of
+      false -> false;
+      DN ->
+            case eldap_pool:bind(State#state.bind_eldap_id, DN,Password) of
+                ok -> eldap_pool:delete(State#state.eldap_id,DN);
+                _ -> not_exists
+            end
+    end.
+
 
 %%%----------------------------------------------------------------------
 %%% Internal functions
