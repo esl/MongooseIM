@@ -34,7 +34,7 @@ init( _Opts ) ->
 roster_version( US ) ->
     case mnesia:dirty_read(roster_version, US) of
         [#roster_version{ version = Version }] ->
-            Version;
+            {ok, Version};
         [] ->
             missing
     end.
