@@ -227,19 +227,19 @@ process_iq_get(From, To, #iq{sub_el = SubEl} = IQ) ->
     end.
 
 
-get_user_roster( US ) ->
-    get_user_roster( [], US).
+get_user_roster( Acc, US ) ->
+    get_user_roster( US ) ++ Acc.
 
-get_user_roster(Acc, US) ->
+get_user_roster(US) ->
     case catch mnesia:dirty_index_read(roster, US, #roster.us) of
         Items when is_list(Items) ->
             lists:filter(fun(#roster{subscription = none, ask = in}) ->
                                  false;
                             (_) ->
                                  true
-                         end, Items) ++ Acc;
+                         end, Items);
         _ ->
-            Acc
+            []
     end.
 
 
