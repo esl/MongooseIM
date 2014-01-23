@@ -227,6 +227,9 @@ process_iq_get(From, To, #iq{sub_el = SubEl} = IQ) ->
     end.
 
 
+get_user_roster( US ) ->
+    get_user_roster( [], US).
+
 get_user_roster(Acc, US) ->
     case catch mnesia:dirty_index_read(roster, US, #roster.us) of
         Items when is_list(Items) ->
@@ -697,7 +700,7 @@ remove_user(User, Server) ->
 %% Both or From, send a "unsubscribed" presence stanza;
 %% Both or To, send a "unsubscribe" presence stanza.
 send_unsubscription_to_rosteritems(LUser, LServer) ->
-    RosterItems = get_user_roster([], {LUser, LServer}),
+    RosterItems = get_user_roster( {LUser, LServer}),
     From = jlib:make_jid({LUser, LServer, <<>>}),
     lists:foreach(fun(RosterItem) ->
                           send_unsubscribing_presence(From, RosterItem)
