@@ -12,8 +12,9 @@
 -export( [ init/1,
            roster_version/1]).
 
--include("mod_roster.hrl").
 -include("ejabberd.hrl").
+-include("mod_roster.hrl").
+
 
 %% --interface-----------------------------------------------------------
 
@@ -31,7 +32,12 @@ init( _Opts ) ->
 
 
 roster_version( US ) ->
-    mnesia:dirty_read(roster_version, US).
+    case mnesia:dirty_read(roster_version, US) of
+        [#roster_version{ version = Version }] ->
+            Version;
+        [] ->
+            missing
+    end.
 
 %% --private-------------------------------------------------------------
 
