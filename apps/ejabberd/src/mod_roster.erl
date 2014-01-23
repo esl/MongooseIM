@@ -194,7 +194,7 @@ process_iq_get(From, To, #iq{sub_el = SubEl} = IQ) ->
                                        ejabberd_hooks:run_fold(roster_get, To#jid.lserver, [], [US])), NewVersion};
                         missing ->
                             RosterVersion = sha:sha(term_to_binary(now())),
-                            mnesia:dirty_write(#roster_version{us = US, version = RosterVersion}),
+                            ?BACKEND:write_version( US, RosterVersion ),
                             {lists:map(fun item_to_xml/1,
                                        ejabberd_hooks:run_fold(roster_get, To#jid.lserver, [], [US])), RosterVersion}
                     end;
