@@ -160,7 +160,7 @@ roster_version(LServer ,LUser) ->
     US = {LUser, LServer},
     case roster_version_on_db(LServer) of
         true ->
-            case mnesia:dirty_read(roster_version, US) of
+            case ?BACKEND:roster_versio( US ) of
                 [#roster_version{version = V}] -> V;
                 [] -> not_found
             end;

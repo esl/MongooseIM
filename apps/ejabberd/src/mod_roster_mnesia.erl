@@ -9,7 +9,8 @@
 -module(mod_roster_mnesia).
 -author( 'marcin.miszczyk@erlang.solutions.com').
 
--export( [ init/1  ]).
+-export( [ init/1,
+           roster_version/1]).
 
 -include("mod_roster.hrl").
 -include("ejabberd.hrl").
@@ -25,9 +26,12 @@ init( _Opts ) ->
                                          {attributes, record_info(fields, roster_version)}]),
     update_table(),
     mnesia:add_table_index(roster, us),
-    mnesia:add_table_index(roster_version, us).
+    mnesia:add_table_index(roster_version, us),
+    ok.
 
 
+roster_version( US ) ->
+    mnesia:dirty_read(roster_version, US).
 
 %% --private-------------------------------------------------------------
 
