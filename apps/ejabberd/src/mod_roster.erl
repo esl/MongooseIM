@@ -231,16 +231,7 @@ get_user_roster( Acc, US ) ->
     get_user_roster( US ) ++ Acc.
 
 get_user_roster(US) ->
-    case catch mnesia:dirty_index_read(roster, US, #roster.us) of
-        Items when is_list(Items) ->
-            lists:filter(fun(#roster{subscription = none, ask = in}) ->
-                                 false;
-                            (_) ->
-                                 true
-                         end, Items);
-        _ ->
-            []
-    end.
+    ?BACKEND:get_user_roster( US ).
 
 
 item_to_xml(Item) ->

@@ -11,7 +11,8 @@
 
 -export( [ init/1,
            roster_version/1,
-           write_version/2
+           write_version/2,
+           get_user_roster/1
          ]).
 
 -include("ejabberd.hrl").
@@ -44,6 +45,19 @@ roster_version( US ) ->
 
 write_version( US, RosterVersion ) ->
     mnesia:dirty_write(#roster_version{us = US, version = RosterVersion}).
+
+
+get_user_roster(US) ->
+    case catch mnesia:dirty_index_read(roster, US, #roster.us) of
+        Items when is_list(Items) ->
+            lists:filter(fun(#roster{subscription = none, ask = in}) ->
+                                 false;
+                            (_) ->
+                                 true
+                         end, Items);
+        _ ->
+            []
+    end.
 
 %% --private-------------------------------------------------------------
 
