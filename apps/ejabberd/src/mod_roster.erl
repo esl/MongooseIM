@@ -164,8 +164,8 @@ roster_version(LServer ,LUser) ->
     case roster_version_on_db(LServer) of
         true ->
             case ?BACKEND:roster_version( US ) of
-                [#roster_version{version = V}] -> V;
-                [] -> not_found
+                { ok, Version } -> Verion;
+                not_fount -> not_found
             end;
         false ->
             roster_hash(ejabberd_hooks:run_fold(roster_get, LServer, [], [US]))
@@ -195,7 +195,7 @@ process_iq_get(From, To, #iq{sub_el = SubEl} = IQ) ->
                         {ok, NewVersion} ->
                             {lists:map(fun item_to_xml/1,
                                        ejabberd_hooks:run_fold(roster_get, To#jid.lserver, [], [US])), NewVersion};
-                        missing ->
+                        not_found ->
                             RosterVersion = sha:sha(term_to_binary(now())),
                             ?BACKEND:write_version( US, RosterVersion ),
                             {lists:map(fun item_to_xml/1,

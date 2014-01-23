@@ -39,7 +39,7 @@ roster_version( US ) ->
         [#roster_version{ version = Version }] ->
             {ok, Version};
         [] ->
-            missing
+            not_found
     end.
 
 
