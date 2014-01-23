@@ -187,16 +187,16 @@ process_iq_get(From, To, #iq{sub_el = SubEl} = IQ) ->
                     %% Retrieve version from DB. Only load entire roster
                     %% when neccesary.
                     case ?BACKEND:roster_version( US) of
-                        RequestedVersion ->
-                            {false, false};
-                        NewVersion ->
-                            {lists:map(fun item_to_xml/1,
-                                       ejabberd_hooks:run_fold(roster_get, To#jid.lserver, [], [US])), NewVersion};
                         missing ->
                             RosterVersion = sha:sha(term_to_binary(now())),
                             mnesia:dirty_write(#roster_version{us = US, version = RosterVersion}),
                             {lists:map(fun item_to_xml/1,
-                                       ejabberd_hooks:run_fold(roster_get, To#jid.lserver, [], [US])), RosterVersion}
+                                       ejabberd_hooks:run_fold(roster_get, To#jid.lserver, [], [US])), RosterVersion};
+                        RequestedVersion ->
+                            {false, false};
+                        NewVersion ->
+                            {lists:map(fun item_to_xml/1,
+                                       ejabberd_hooks:run_fold(roster_get, To#jid.lserver, [], [US])), NewVersion}
                     end;
 
                 {{value, RequestedVersion}, true, false} ->
