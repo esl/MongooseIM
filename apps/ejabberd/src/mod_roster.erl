@@ -39,21 +39,23 @@
 -behaviour(gen_mod).
 -export([start/2, stop/1]).
 
--export([process_iq/3,
-         process_local_iq/3,
-         get_user_roster/2,
-         get_subscription_lists/3,
-         in_subscription/6,
-         out_subscription/4,
-         set_items/3,
-         remove_user/2,
-         get_jid_info/4,
-         item_to_xml/1,
-         webadmin_page/3,
-         webadmin_user/4,
-         get_versioning_feature/2,
-         roster_versioning_enabled/1,
-         roster_version/2]).
+%% ejabber hook handles
+-export([ get_user_roster/2,
+          in_subscription/6,
+          out_subscription/4,
+          get_subscription_lists/3,
+          get_jid_info/4,
+          remove_user/2,
+          get_versioning_feature/2,
+          webadmin_page/3,
+          webadmin_user/4,
+          process_iq/3 ]).
+
+-export([ process_local_iq/3,
+          set_items/3,
+          item_to_xml/1,
+          roster_versioning_enabled/1,
+          roster_version/2]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -146,6 +148,7 @@ roster_versioning_enabled(Host) ->
 roster_version_on_db(Host) ->
     gen_mod:get_module_opt(Host, ?MODULE, store_current_id, false).
 
+%% hook handler
 %% Returns a list that may contain an xmlel with the XEP-237 feature if it's enabled.
 get_versioning_feature(Acc, Host) ->
     case roster_versioning_enabled(Host) of
@@ -227,6 +230,7 @@ process_iq_get(From, To, #iq{sub_el = SubEl} = IQ) ->
     end.
 
 
+%% hook handler
 get_user_roster( Acc, US ) ->
     ?BACKEND:get_user_roster( US ) ++ Acc.
 
@@ -425,6 +429,7 @@ push_item_version(Server, User, From, Item, RosterVersion)  ->
                           push_item(User, Server, Resource, From, Item, RosterVersion)
                   end, ejabberd_sm:get_user_resources(User, Server)).
 
+%% hook handler
 get_subscription_lists(_, User, Server) ->
     LUser = jlib:nodeprep(User),
     LServer = jlib:nameprep(Server),
@@ -475,10 +480,11 @@ ask_to_pending(unsubscribe) -> none;
 ask_to_pending(Ask) -> Ask.
 
 
-
+%% hook handler
 in_subscription(_, User, Server, JID, Type, Reason) ->
     process_subscription(in, User, Server, JID, Type, Reason).
 
+%% hook handler
 out_subscription(User, Server, JID, Type) ->
     process_subscription(out, User, Server, JID, Type, <<>>).
 
@@ -669,6 +675,7 @@ in_auto_reply(both, none, unsubscribe)  -> unsubscribed;
 in_auto_reply(_,    _,    _)  ->           none.
 
 
+%% hook handler
 remove_user(User, Server) when is_list(User), is_list(Server) ->
     remove_user(list_to_binary(User), list_to_binary(Server));
 remove_user(User, Server) ->
@@ -806,6 +813,7 @@ process_item_attrs_ws(Item, []) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+%% hook handler
 get_jid_info(_, User, Server, JID) ->
     LUser = jlib:nodeprep(User),
     LJID = jlib:jid_tolower(JID),
@@ -835,6 +843,7 @@ get_jid_info(_, User, Server, JID) ->
 
 
 
+%% hook handler
 webadmin_page(_, Host,
               #request{us = _US,
                        path = ["user", U, "roster"],
@@ -1009,5 +1018,6 @@ user_roster_item_parse_query(User, Server, Items, Query) ->
 us_to_list({User, Server}) ->
     jlib:jid_to_binary({User, Server, <<>>}).
 
+%% hook handler
 webadmin_user(Acc, _User, _Server, Lang) ->
     Acc ++ [?XE("h3", [?ACT("roster/", "Roster")])].
