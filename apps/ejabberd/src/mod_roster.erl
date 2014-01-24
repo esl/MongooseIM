@@ -164,7 +164,7 @@ roster_version(LServer ,LUser) ->
     case roster_version_on_db(LServer) of
         true ->
             case ?BACKEND:roster_version( US ) of
-                { ok, Version } -> Verion;
+                { ok, Version } -> Version;
                 not_fount -> not_found
             end;
         false ->
