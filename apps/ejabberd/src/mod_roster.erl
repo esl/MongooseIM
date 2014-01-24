@@ -343,49 +343,51 @@ get_roster_of( LUser, LServer, LJID, JID ) ->
 
 
 process_item_attrs(Item, [{Attr, Val} | Attrs]) ->
-    NewItem = case Attr of
-                  <<"jid">> ->
-                      case jlib:binary_to_jid(Val) of
-                          error ->
-                              Item;
-                          JID1 ->
-                              JID = {JID1#jid.user, JID1#jid.server, JID1#jid.resource},
-                              Item#roster{jid = JID}
-                      end;
-                  <<"name">> ->
-                      Item#roster{name = Val};
-                  <<"subscription">> ->
-                      case Val of
-                          <<"remove">> ->
-                              Item#roster{subscription = remove};
-                          _ ->
-                              Item
-                      end;
-                  <<"ask">> ->
-                      Item;
-                  _ ->
-                      Item
-              end,
-    process_item_attrs( NewItem, Attrs);
+    UpdatedItem = case Attr of
+                      <<"jid">> ->
+                          case jlib:binary_to_jid(Val) of
+                              error ->
+                                  Item;
+                              JID1 ->
+                                  JID = {JID1#jid.user, JID1#jid.server, JID1#jid.resource},
+                                  Item#roster{jid = JID}
+                          end;
+                      <<"name">> ->
+                          Item#roster{name = Val};
+                      <<"subscription">> ->
+                          case Val of
+                              <<"remove">> ->
+                                  Item#roster{subscription = remove};
+                              _ ->
+                                  Item
+                          end;
+                      <<"ask">> ->
+                          Item;
+                      _ ->
+                          Item
+                  end,
+    process_item_attrs( UpdatedItem, Attrs);
 process_item_attrs(Item, []) ->
     Item.
 
 
-process_item_els(Item, [XE = #xmlel{name = Name, attrs = Attrs,
+process_item_els(Item, [XE = #xmlel{name = Name,
+                                    attrs = Attrs,
                                     children = SEls} | Els]) ->
-    case Name of
-        <<"group">> ->
-            Groups = [xml:get_cdata(SEls) | Item#roster.groups],
-            process_item_els(Item#roster{groups = Groups}, Els);
-        _ ->
-            case xml:get_attr_s(<<"xmlns">>, Attrs) of
-                <<>> ->
-                    process_item_els(Item, Els);
-                _ ->
-                    XEls = [XE | Item#roster.xs],
-                    process_item_els(Item#roster{xs = XEls}, Els)
-            end
-    end;
+    UpdatedItem = case Name of
+                      <<"group">> ->
+                          Groups = [xml:get_cdata(SEls) | Item#roster.groups],
+                          Item#roster{groups = Groups};
+                      _ ->
+                          case xml:get_attr_s(<<"xmlns">>, Attrs) of
+                              <<>> ->
+                                  Item;
+                              _ ->
+                                  XEls = [XE | Item#roster.xs],
+                                  Item#roster{xs = XEls}
+                          end
+                  end,
+    process_item_els( UpdatedItem, Els);
 process_item_els(Item, [#xmlcdata{} | Els]) ->
     process_item_els(Item, Els);
 process_item_els(Item, []) ->
