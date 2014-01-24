@@ -839,23 +839,21 @@ get_jid_info(_, User, Server, JID) ->
     LUser = jlib:nodeprep(User),
     LJID = jlib:jid_tolower(JID),
     LServer = jlib:nameprep(Server),
+
+    get_jid_info( LUser, LServer, LJID).
+
+get_jid_info( LUser, LServer, LJID) ->
     case ?BACKEND:get_roster({LUser, LServer, LJID}) of
         {ok, #roster{subscription = Subscription,
                      groups = Groups}} ->
             {Subscription, Groups};
         not_found ->
-            LRJID = jlib:jid_tolower(jlib:jid_remove_resource(JID)),
+            LRJID = jlib:jid_tolower(jlib:jid_remove_resource(LJID)),
             if
                 LRJID == LJID ->
                     {none, []};
                 true ->
-                    case ?BACKEND:get_roster({LUser, LServer, LRJID}) of
-                        {ok, #roster{subscription = Subscription,
-                                     groups = Groups}} ->
-                            {Subscription, Groups};
-                        not_found ->
-                            {none, []}
-                    end
+                    get_jid_info( LUser, LServer, LJID )
             end
     end.
 
