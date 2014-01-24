@@ -59,7 +59,7 @@ get_user_roster(US) ->
             []
     end.
 
-get_rouster( LoweredUserServerJID) ->
+get_roster( LoweredUserServerJID) ->
     case mnesia:read(roster, LoweredUserServerJID ) of
         [ Rouster ] ->
             {ok, Rouster};

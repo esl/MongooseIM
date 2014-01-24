@@ -289,7 +289,7 @@ process_item_set(From, To, #xmlel{attrs = Attrs, children = Els}) ->
             JID = {JID1#jid.user, JID1#jid.server, JID1#jid.resource},
             LJID = jlib:jid_tolower(JID1),
             F = fun() ->
-                        Item = get_rouster_of( LUser, LServer, LJID, JID ),
+                        Item = get_roster_of( LUser, LServer, LJID, JID ),
                         Item1 = process_item_attrs(Item, Attrs),
                         Item2 = process_item_els(Item1, Els),
                         case Item2#roster.subscription of
