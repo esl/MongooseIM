@@ -15,7 +15,8 @@
            get_user_roster/1,
            get_roster/1,
            write_roster/1,
-           remove_roster/1
+           remove_roster/1,
+           transaction/1
          ]).
 
 -include("ejabberd.hrl").
@@ -77,6 +78,8 @@ write_roster( Roster ) ->
     mnesia:write(Roster).
 
 
+transaction( Function ) ->
+    mnesia:transaction( Function ).
 
 %% --private-------------------------------------------------------------
 

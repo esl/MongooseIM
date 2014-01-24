@@ -309,7 +309,7 @@ process_item_set(From, To, #xmlel{attrs = Attrs, children = Els}) ->
                         end,
                         {Item, Item3}
                 end,
-            case mnesia:transaction(F) of
+            case ?BACKEND:transaction(F) of
                 {atomic, {OldItem, Item}} ->
                     push_item(User, LServer, To, Item),
                     case Item#roster.subscription of
