@@ -21,7 +21,7 @@
          purge_multiple_messages/9]).
 
 %% Internal exports
--export([start_link/2]).
+-export([start_link/3]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -72,10 +72,6 @@
 
 -type worker() :: pid() | atom().
 
-%% @see srv_name/1
-srv_name() ->
-    ejabberd_mod_mam_muc_ca.
-
 %% ----------------------------------------------------------------------
 %% Types
 
@@ -92,13 +88,17 @@ srv_name() ->
 %% Starting and stopping functions for users' archives
 
 start(Host, Opts) ->
-    start_server(Host),
+    create_worker_pool(Host),
+    start_servers(Host, servers(Host)),
     start_muc(Host, Opts).
 
 stop(Host) ->
     stop_muc(Host),
-    stop_server(Host).
+    delete_worker_pool(Host),
+    stop_servers(Host, servers(Host)).
 
+servers(Host) ->
+    gen_mod:get_module_opt(Host, ?MODULE, servers, [{"localhost", 9042, 1}]).
 
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam_muc
@@ -136,31 +136,57 @@ stop_muc(Host) ->
 %% Internal functions
 %%====================================================================
 
-start_server(Host) ->
-    Proc = srv_name(Host),
-    supervisor:start_child(ejabberd_sup, server_child_spec(Proc, Host)).
+start_servers(Host, Addresses) ->
+    [start_server(Host, Addr, Port, WorkerNumber)
+     || {Addr, Port, WorkerCount} <- Addresses,
+        WorkerNumber <- lists:seq(1, WorkerCount)].
 
-stop_server(Host) ->
-    Proc = srv_name(Host),
-    supervisor:terminate_child(ejabberd_sup, Proc),
-    supervisor:delete_child(ejabberd_sup, Proc).
+stop_servers(Host, Addresses) ->
+    [stop_server(Host, Addr, Port, WorkerNumber)
+     || {Addr, Port, WorkerCount} <- Addresses,
+        WorkerNumber <- lists:seq(1, WorkerCount)].
+
+start_server(Host, Addr, Port, WorkerNumber) ->
+    Tag = worker_tag(Host, Addr, Port, WorkerNumber),
+    Spec = server_child_spec(Tag, Host, Addr, Port, WorkerNumber),
+    supervisor:start_child(ejabberd_sup, Spec).
+
+stop_server(Host, Addr, Port, WorkerNumber) ->
+    Tag = worker_tag(Host, Addr, Port, WorkerNumber),
+    supervisor:terminate_child(ejabberd_sup, Tag),
+    supervisor:delete_child(ejabberd_sup, Tag).
+
+create_worker_pool(Host) ->
+    pg2:create(group_name(Host)).
+
+delete_worker_pool(Host) ->
+    pg2:delete(group_name(Host)).
+
+register_worker(Host, WorkerPid) ->
+    pg2:join(group_name(Host), WorkerPid).
 
 select_worker(Host, RoomID) ->
-    srv_name(Host).
+    check_worker(Host, RoomID, pg2:get_closest_pid(group_name(Host))).
 
-srv_name(Host) ->
-    gen_mod:get_module_proc(Host, srv_name()).
+check_worker(_Host, _RoomID, Pid) when is_pid(Pid) ->
+    Pid.
 
-server_child_spec(Proc, Host) ->
-    {Proc,
-     {mod_mam_muc_ca_arch, start_link, [Proc, Host]},
+group_name(Host) ->
+    {mam_muc_ca, Host}.
+
+worker_tag(Host, Addr, Port, WorkerNumber) ->
+    {mod_mam_muc_ca_arch, Host, Addr, Port, WorkerNumber}.
+
+server_child_spec(Tag, Host, Addr, Port, _WorkerNumber) ->
+    {Tag,
+     {mod_mam_muc_ca_arch, start_link, [Host, Addr, Port]},
      permanent,
      5000,
      worker,
      [mod_mam_muc_ca_arch]}.
 
-start_link(ProcName, Host) ->
-    gen_server:start_link({local, ProcName}, ?MODULE, [Host], []).
+start_link(Host, Addr, Port) ->
+    gen_server:start_link(?MODULE, [Host, Addr, Port], []).
 
 %% @doc Apply pseudo-random permutation using perfect hash function.
 %% Used as an uniform randomize prefix for keys.
@@ -719,9 +745,10 @@ mask_32(X) when is_integer(X) ->
 %%                         {stop, Reason}
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
-init([Host]) ->
+init([Host, Addr, Port]) ->
+    register_worker(Host, self()),
     ClientOptions = [{keyspace, "mam"}],
-    {ok, ConnPid} = seestar_session:start_link("localhost", 9042, ClientOptions),
+    {ok, ConnPid} = seestar_session:start_link(Addr, Port, ClientOptions),
     InsertQuery = "INSERT INTO mam_muc_message "
         "(id, room_id, nick_name, message) "
         "VALUES (?, ?, ?, ?)",
