@@ -68,7 +68,7 @@ get_roster( LoweredUserServerJID) ->
     end.
 
 remove_roster( LoweredUserServerJID ) ->
-    mnesia:delete( roster, LoweredUserServerJID).
+    mnesia:delete({roster, LoweredUserServerJID}).
 
 write_roster( Roster ) ->
     mnesia:write(Roster).
