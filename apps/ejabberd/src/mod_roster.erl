@@ -550,21 +550,22 @@ process_subscription(Direction, User, Server, JID1, Type, Reason) ->
                         {none, AutoReply};
                     {none, none} when Item#roster.subscription == none,
                                       Item#roster.ask == in ->
-                        mnesia:delete({roster, {LUser, LServer, LJID}}),
+                        ?BACKEND:remove_roster( USJ ),
                         {none, AutoReply};
                     {Subscription, Pending} ->
                         NewItem = Item#roster{subscription = Subscription,
                                               ask = Pending,
                                               askmessage = AskMessage},
-                        mnesia:write(NewItem),
+                        ?BACKEND:write_roster(NewItem),
                         case roster_version_on_db(LServer) of
-                            true -> mnesia:write(#roster_version{us = {LUser, LServer}, version = sha:sha(term_to_binary(now()))});
+                            true -> ?BACKEND:write_version( US ,
+                                                            sha:sha(term_to_binary(now())));
                             false -> ok
                         end,
                         {{push, NewItem}, AutoReply}
                 end
         end,
-    case mnesia:transaction(F) of
+    case ?BACKEND:transaction(F) of
         {atomic, {Push, AutoReply}} ->
             case AutoReply of
                 none ->
