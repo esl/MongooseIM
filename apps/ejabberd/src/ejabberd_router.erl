@@ -222,6 +222,7 @@ code_change(_OldVsn, State, _Extra) ->
 do_route(OrigFrom, OrigTo, OrigPacket) ->
     ?DEBUG("route~n\tfrom ~p~n\tto ~p~n\tpacket ~p~n",
            [OrigFrom, OrigTo, OrigPacket]),
+    %% Filter globally
     case ejabberd_hooks:run_fold(filter_packet,
                                  {OrigFrom, OrigTo, OrigPacket}, []) of
         {From, To, Packet} ->
@@ -230,12 +231,25 @@ do_route(OrigFrom, OrigTo, OrigPacket) ->
                 [] ->
                     ejabberd_s2s:route(From, To, Packet);
                 [#route{handler=Handler}] ->
-                    case Handler of
-                        {apply_fun, Fun} ->
-                            Fun(From, To, Packet);
-                        {apply, Module, Function} ->
-                            Module:Function(From, To, Packet)
-                    end
+                    do_local_route(OrigFrom, OrigTo, OrigPacket, LDstDomain, Handler)
+            end;
+        drop ->
+            ejabberd_hooks:run(xmpp_stanza_dropped, 
+                               OrigFrom#jid.lserver,
+                               [OrigFrom, OrigTo, OrigPacket]),
+            ok
+    end.
+
+do_local_route(OrigFrom, OrigTo, OrigPacket, LDstDomain, Handler) ->
+    %% Filter locally
+    case ejabberd_hooks:run_fold(filter_local_packet, LDstDomain,
+                                 {OrigFrom, OrigTo, OrigPacket}, []) of
+        {From, To, Packet} ->
+            case Handler of
+                {apply_fun, Fun} ->
+                    Fun(From, To, Packet);
+                {apply, Module, Function} ->
+                    Module:Function(From, To, Packet)
             end;
         drop ->
             ejabberd_hooks:run(xmpp_stanza_dropped, 

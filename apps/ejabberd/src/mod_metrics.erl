@@ -99,6 +99,7 @@ metrics_hooks(Op, Host) ->
          modMucMamPrefsGets,
          modMucMamArchiveRemoved,
          modMucMamLookups,
+         modMucMamForwarded,
          modMucMamArchived,
          modMucMamSinglePurges,
          modMucMamMultiplePurges

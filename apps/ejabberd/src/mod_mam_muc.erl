@@ -544,6 +544,9 @@ get_prefs(Host, ArcID, ArcJID, GlobalDefaultMode) ->
         {GlobalDefaultMode, [], []},
         [Host, ArcID, ArcJID]).
 
+remove_archive(Host, undefined, #jid{user=User, server=Server}) ->
+    ?WARNING_MSG("Archive ~ts@~ts does not exist.", [User, Server]),
+    ok;
 remove_archive(Host, ArcID, ArcJID=#jid{}) ->
     ejabberd_hooks:run(mam_muc_remove_archive, Host, [Host, ArcID, ArcJID]),
     ok.
