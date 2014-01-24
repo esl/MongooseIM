@@ -443,12 +443,9 @@ get_subscription_lists(_, User, Server) ->
     LServer = jlib:nameprep(Server),
     US = {LUser, LServer},
     JID = jlib:make_jid(User, Server, <<>>),
-    case mnesia:dirty_index_read(roster, US, #roster.us) of
-        Items when is_list(Items) ->
-            fill_subscription_lists(JID, Items);
-        _ ->
-            {[], [], []}
-    end.
+    Items =  ?BACKEND:get_user_server_roster( US ),
+    fill_subscription_lists(JID, Items).
+
 
 
 fill_subscription_lists( JID, Items ) ->
