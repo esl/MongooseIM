@@ -271,9 +271,10 @@ item_to_xml(Item) ->
     #xmlel{name = <<"item">>, attrs = Attrs4, children = SubEls}.
 
 
-process_iq_set(From, To, #iq{sub_el = SubEl} = IQ) ->
+process_iq_set(From = #jid{lserver = LServer},
+               To,
+               IQ = #iq{sub_el = SubEl}) ->
     #xmlel{children = Els} = SubEl,
-    #jid{lserver = LServer} = From,
     ejabberd_hooks:run(roster_set, LServer, [From, To, SubEl]),
     lists:foreach(fun(El) -> process_item_set(From, To, El) end, Els),
     IQ#iq{type = result, sub_el = []}.
@@ -288,18 +289,7 @@ process_item_set(From, To, #xmlel{attrs = Attrs, children = Els}) ->
             JID = {JID1#jid.user, JID1#jid.server, JID1#jid.resource},
             LJID = jlib:jid_tolower(JID1),
             F = fun() ->
-                        Res = mnesia:read({roster, {LUser, LServer, LJID}}),
-                        Item = case Res of
-                                   [] ->
-                                       #roster{usj = {LUser, LServer, LJID},
-                                               us = {LUser, LServer},
-                                               jid = JID};
-                                   [I] ->
-                                       I#roster{jid = JID,
-                                                name = <<>>,
-                                                groups = [],
-                                                xs = []}
-                               end,
+                        Item = get_rouster_of( LUser, LServer, LJID, JID ),
                         Item1 = process_item_attrs(Item, Attrs),
                         Item2 = process_item_els(Item1, Els),
                         case Item2#roster.subscription of
@@ -335,6 +325,21 @@ process_item_set(From, To, #xmlel{attrs = Attrs, children = Els}) ->
     end;
 process_item_set(_From, _To, _) ->
     ok.
+
+get_rouster_of( LUser, LServer, LJID, JID ) ->
+    LUserServiveJid = {LUser, LServer, LJID},
+    case mnesia:read(roster, LUserServiveJid ) of
+        [] ->
+            #roster{usj = LUserServiveJid,
+                    us = {LUser, LServer},
+                    jid = JID};
+        [I] ->
+            I#roster{jid = JID,
+                     name = <<>>,
+                     groups = [],
+                     xs = []}
+    end.
+
 
 process_item_attrs(Item, [{Attr, Val} | Attrs]) ->
     case Attr of
