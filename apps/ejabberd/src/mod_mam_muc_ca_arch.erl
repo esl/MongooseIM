@@ -69,6 +69,9 @@
     start_id,
     end_id
 }).
+
+-type worker() :: pid() | atom().
+
 %% @see srv_name/1
 srv_name() ->
     ejabberd_mod_mam_muc_ca.
@@ -142,6 +145,9 @@ stop_server(Host) ->
     supervisor:terminate_child(ejabberd_sup, Proc),
     supervisor:delete_child(ejabberd_sup, Proc).
 
+select_worker(Host, RoomID) ->
+    srv_name(Host).
+
 srv_name(Host) ->
     gen_mod:get_module_proc(Host, srv_name()).
 
@@ -160,18 +166,20 @@ start_link(ProcName, Host) ->
 %% Internal functions and callbacks
 
 archive_size(Size, Host, RoomID, RoomJID) when is_integer(Size) ->
+    Worker = select_worker(Host, RoomID),
     Filter = prepare_filter(RoomID, RoomJID, undefined, undefined, undefined),
-    Size + calc_count(Host, RoomID, Filter).
+    Size + calc_count(Worker, Host, RoomID, Filter).
 
 archive_message(_Result, Host, MessID, RoomID,
                 _LocJID=#jid{},
                 _RemJID=#jid{},
                 _SrcJID=#jid{lresource=FromNick}, incoming, Packet) ->
+    Worker = select_worker(Host, RoomID),
     Data = term_to_binary(Packet),
-    write_message(Host, MessID, RoomID, FromNick, Data).
+    write_message(Worker, Host, MessID, RoomID, FromNick, Data).
 
-write_message(Host, MessID, RoomID, FromNick, Data) ->
-    gen_server:cast(srv_name(Host), {write_message, MessID, RoomID, FromNick, Data}).
+write_message(Worker, Host, MessID, RoomID, FromNick, Data) ->
+    gen_server:cast(Worker, {write_message, MessID, RoomID, FromNick, Data}).
 
 -spec lookup_messages(Result, Host,
                       RoomID, RoomJID, RSM, Borders,
@@ -205,32 +213,36 @@ lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
                 #rsm_in{direction = aft, id = ID}, Borders,
                 Start, End, _Now, _WithJID,
                 PageSize, _LimitPassed, _MaxResultLimit, true) ->
+    Worker = select_worker(Host, RoomID),
     Filter = prepare_filter(RoomID, RoomJID, Borders, Start, End),
-    MessageRows = extract_messages(Host, RoomID, after_id(ID, Filter), 0, PageSize, false),
+    MessageRows = extract_messages(Worker, Host, RoomID, after_id(ID, Filter), 0, PageSize, false),
     {ok, {undefined, undefined, rows_to_uniform_format(Host, RoomJID, MessageRows)}};
 
 lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
                 #rsm_in{direction = before, id = ID},
                 Borders, Start, End, _Now, _WithJID,
                 PageSize, _LimitPassed, _MaxResultLimit, true) ->
+    Worker = select_worker(Host, RoomID),
     Filter = prepare_filter(RoomID, RoomJID, Borders, Start, End),
-    MessageRows = extract_messages(Host, RoomID, before_id(ID, Filter), 0, PageSize, true),
+    MessageRows = extract_messages(Worker, Host, RoomID, before_id(ID, Filter), 0, PageSize, true),
     {ok, {undefined, undefined, rows_to_uniform_format(Host, RoomJID, MessageRows)}};
 
 lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
                 #rsm_in{direction = undefined, index = Offset}, Borders,
                 Start, End, _Now, _WithJID,
                 PageSize, _LimitPassed, _MaxResultLimit, true) ->
+    Worker = select_worker(Host, RoomID),
     Filter = prepare_filter(RoomID, RoomJID, Borders, Start, End),
-    MessageRows = extract_messages(Host, RoomID, Filter, Offset, PageSize, false),
+    MessageRows = extract_messages(Worker, Host, RoomID, Filter, Offset, PageSize, false),
     {ok, {undefined, undefined, rows_to_uniform_format(Host, RoomJID, MessageRows)}};
 
 lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
                 undefined, Borders,
                 Start, End, _Now, _WithJID,
                 PageSize, _LimitPassed, _MaxResultLimit, true) ->
+    Worker = select_worker(Host, RoomID),
     Filter = prepare_filter(RoomID, RoomJID, Borders, Start, End),
-    MessageRows = extract_messages(Host, RoomID, Filter, 0, PageSize, false),
+    MessageRows = extract_messages(Worker, Host, RoomID, Filter, 0, PageSize, false),
     {ok, {undefined, undefined, rows_to_uniform_format(Host, RoomJID, MessageRows)}};
 
 
@@ -244,8 +256,9 @@ lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
                 Start, End, _Now, _WithJID,
                 PageSize, _LimitPassed, _MaxResultLimit, opt_count) ->
     %% Last page
+    Worker = select_worker(Host, RoomID),
     Filter = prepare_filter(RoomID, RoomJID, Borders, Start, End),
-    MessageRows = extract_messages(Host, RoomID, Filter, 0, PageSize, true),
+    MessageRows = extract_messages(Worker, Host, RoomID, Filter, 0, PageSize, true),
     MessageRowsCount = length(MessageRows),
     case MessageRowsCount < PageSize of
         true ->
@@ -253,7 +266,7 @@ lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
                   rows_to_uniform_format(Host, RoomJID, MessageRows)}};
         false ->
             FirstID = row_to_message_id(hd(MessageRows)),
-            Offset = calc_count(Host, RoomID, before_id(FirstID, Filter)),
+            Offset = calc_count(Worker, Host, RoomID, before_id(FirstID, Filter)),
             {ok, {Offset + MessageRowsCount, Offset,
                   rows_to_uniform_format(Host, RoomJID, MessageRows)}}
     end;
@@ -263,8 +276,9 @@ lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
                 Start, End, _Now, _WithJID,
                 PageSize, _LimitPassed, _MaxResultLimit, opt_count) ->
     %% By offset
+    Worker = select_worker(Host, RoomID),
     Filter = prepare_filter(RoomID, RoomJID, Borders, Start, End),
-    MessageRows = extract_messages(Host, RoomID, Filter, Offset, PageSize, false),
+    MessageRows = extract_messages(Worker, Host, RoomID, Filter, Offset, PageSize, false),
     MessageRowsCount = length(MessageRows),
     case MessageRowsCount < PageSize of
         true ->
@@ -272,7 +286,7 @@ lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
                   rows_to_uniform_format(Host, RoomJID, MessageRows)}};
         false ->
             LastID = row_to_message_id(lists:last(MessageRows)),
-            CountAfterLastID = calc_count(Host, RoomID, after_id(LastID, Filter)),
+            CountAfterLastID = calc_count(Worker, Host, RoomID, after_id(LastID, Filter)),
             {ok, {Offset + MessageRowsCount + CountAfterLastID, Offset,
                   rows_to_uniform_format(Host, RoomJID, MessageRows)}}
     end;
@@ -282,8 +296,9 @@ lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
                 Start, End, _Now, _WithJID,
                 PageSize, _LimitPassed, _MaxResultLimit, opt_count) ->
     %% First page
+    Worker = select_worker(Host, RoomID),
     Filter = prepare_filter(RoomID, RoomJID, Borders, Start, End),
-    MessageRows = extract_messages(Host, RoomID, Filter, 0, PageSize, false),
+    MessageRows = extract_messages(Worker, Host, RoomID, Filter, 0, PageSize, false),
     MessageRowsCount = length(MessageRows),
     case MessageRowsCount < PageSize of
         true ->
@@ -291,7 +306,7 @@ lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
                   rows_to_uniform_format(Host, RoomJID, MessageRows)}};
         false ->
             LastID = row_to_message_id(lists:last(MessageRows)),
-            CountAfterLastID = calc_count(Host, RoomID, after_id(LastID, Filter)),
+            CountAfterLastID = calc_count(Worker, Host, RoomID, after_id(LastID, Filter)),
             {ok, {MessageRowsCount + CountAfterLastID, 0,
                   rows_to_uniform_format(Host, RoomJID, MessageRows)}}
     end;
@@ -301,9 +316,10 @@ lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
                 RSM = #rsm_in{direction = aft, id = ID}, Borders,
                 Start, End, _Now, _WithJID,
                 PageSize, LimitPassed, MaxResultLimit, _) ->
+    Worker = select_worker(Host, RoomID),
     Filter = prepare_filter(RoomID, RoomJID, Borders, Start, End),
-    TotalCount = calc_count(Host, RoomID, Filter),
-    Offset     = calc_offset(Host, RoomID, Filter, PageSize, TotalCount, RSM),
+    TotalCount = calc_count(Worker, Host, RoomID, Filter),
+    Offset     = calc_offset(Worker, Host, RoomID, Filter, PageSize, TotalCount, RSM),
     %% If a query returns a number of stanzas greater than this limit and the
     %% client did not specify a limit using RSM then the server should return
     %% a policy-violation error to the client. 
@@ -312,7 +328,7 @@ lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
             {error, 'policy-violation'};
 
         false ->
-            MessageRows = extract_messages(Host, RoomID, after_id(ID, Filter), 0, PageSize, false),
+            MessageRows = extract_messages(Worker, Host, RoomID, after_id(ID, Filter), 0, PageSize, false),
             {ok, {TotalCount, Offset, rows_to_uniform_format(Host, RoomJID, MessageRows)}}
     end;
 
@@ -320,9 +336,10 @@ lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
                 RSM = #rsm_in{direction = before, id = ID}, Borders,
                 Start, End, _Now, _WithJID,
                 PageSize, LimitPassed, MaxResultLimit, _) ->
+    Worker = select_worker(Host, RoomID),
     Filter = prepare_filter(RoomID, RoomJID, Borders, Start, End),
-    TotalCount = calc_count(Host, RoomID, Filter),
-    Offset     = calc_offset(Host, RoomID, Filter, PageSize, TotalCount, RSM),
+    TotalCount = calc_count(Worker, Host, RoomID, Filter),
+    Offset     = calc_offset(Worker, Host, RoomID, Filter, PageSize, TotalCount, RSM),
     %% If a query returns a number of stanzas greater than this limit and the
     %% client did not specify a limit using RSM then the server should return
     %% a policy-violation error to the client. 
@@ -331,7 +348,7 @@ lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
             {error, 'policy-violation'};
 
         false ->
-            MessageRows = extract_messages(Host, RoomID, before_id(ID, Filter), 0, PageSize, true),
+            MessageRows = extract_messages(Worker, Host, RoomID, before_id(ID, Filter), 0, PageSize, true),
             {ok, {TotalCount, Offset, rows_to_uniform_format(Host, RoomJID, MessageRows)}}
     end;
 
@@ -339,9 +356,10 @@ lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
                 RSM, Borders,
                 Start, End, _Now, _WithJID,
                 PageSize, LimitPassed, MaxResultLimit, _) ->
+    Worker = select_worker(Host, RoomID),
     Filter = prepare_filter(RoomID, RoomJID, Borders, Start, End),
-    TotalCount = calc_count(Host, RoomID, Filter),
-    Offset     = calc_offset(Host, RoomID, Filter, PageSize, TotalCount, RSM),
+    TotalCount = calc_count(Worker, Host, RoomID, Filter),
+    Offset     = calc_offset(Worker, Host, RoomID, Filter, PageSize, TotalCount, RSM),
     %% If a query returns a number of stanzas greater than this limit and the
     %% client did not specify a limit using RSM then the server should return
     %% a policy-violation error to the client. 
@@ -350,7 +368,7 @@ lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
             {error, 'policy-violation'};
 
         false ->
-            MessageRows = extract_messages(Host, RoomID, Filter, Offset, PageSize, false),
+            MessageRows = extract_messages(Worker, Host, RoomID, Filter, Offset, PageSize, false),
             {ok, {TotalCount, Offset, rows_to_uniform_format(Host, RoomJID, MessageRows)}}
     end.
 
@@ -377,7 +395,8 @@ row_to_message_id([MessID,_,_]) ->
     MessID.
 
 remove_archive(Host, RoomID, _RoomJID) ->
-    gen_server:call(srv_name(Host), {remove_archive, RoomID}).
+    Worker = select_worker(Host, RoomID),
+    gen_server:call(Worker, {remove_archive, RoomID}).
 
 -spec purge_single_message(_Result, Host, MessID, RoomID, RoomJID, Now) ->
     ok | {error, 'not-allowed' | 'not-found'} when
@@ -410,27 +429,28 @@ purge_multiple_messages(_Result, Host, RoomID, RoomJID, Borders,
 %% Each record is a tuple of form 
 %% `{<<"13663125233">>,<<"bob@localhost">>,<<"res1">>,<<binary>>}'.
 %% Columns are `["id","from_jid","message"]'.
--spec extract_messages(Host, _RoomID, Filter, IOffset, IMax, ReverseLimit) ->
+-spec extract_messages(Worker, Host, _RoomID, Filter, IOffset, IMax, ReverseLimit) ->
     [Record] when
-    Host :: server_hostname(),
+    Worker  :: worker(),
+    Host    :: server_hostname(),
     Filter  :: filter(),
     IOffset :: non_neg_integer(),
     IMax    :: pos_integer(),
     ReverseLimit :: boolean(),
     Record :: tuple().
-extract_messages(_Host, _RoomID, _Filter, _IOffset, 0, _) ->
+extract_messages(_Worker, _Host, _RoomID, _Filter, _IOffset, 0, _) ->
     [];
-extract_messages(Host, RoomID, Filter, 0, IMax, false) ->
-    ResultF = gen_server:call(srv_name(Host),
+extract_messages(Worker, Host, RoomID, Filter, 0, IMax, false) ->
+    ResultF = gen_server:call(Worker,
         {extract_messages, {Filter, IMax}}),
     {ok, Result} = ResultF(),
     seestar_result:rows(Result);
-extract_messages(Host, RoomID, Filter, 0, IMax, true) ->
-    ResultF = gen_server:call(srv_name(Host),
+extract_messages(Worker, Host, RoomID, Filter, 0, IMax, true) ->
+    ResultF = gen_server:call(Worker,
         {extract_messages_r, {Filter, IMax}}),
     {ok, Result} = ResultF(),
     lists:reverse(seestar_result:rows(Result));
-extract_messages(_Host, _RoomID, _Filter, _IOffset, _IMax, _) ->
+extract_messages(_Worker, _Host, _RoomID, _Filter, _IOffset, _IMax, _) ->
     error(offset_not_supported).
 
 
@@ -439,41 +459,44 @@ extract_messages(_Host, _RoomID, _Filter, _IOffset, _IMax, _) ->
 %% If the element does not exists, the ID of the next element will
 %% be returned instead.
 %% @end
--spec calc_index(Host, RoomID, Filter, MessID) -> Count
+-spec calc_index(Worker, Host, RoomID, Filter, MessID) -> Count
     when
+    Worker       :: worker(),
     Host         :: server_hostname(),
     RoomID       :: room_id(),
     Filter       :: filter(),
     MessID       :: message_id(),
     Count        :: non_neg_integer().
-calc_index(Host, RoomID, Filter, MessID) ->
-    calc_count(Host, RoomID, to_id(MessID, Filter)).
+calc_index(Worker, Host, RoomID, Filter, MessID) ->
+    calc_count(Worker, Host, RoomID, to_id(MessID, Filter)).
 
 %% @doc Count of elements in RSet before the passed element.
 %%
 %% The element with the passed UID can be already deleted.
 %% @end
--spec calc_before(Host, RoomID, Filter, MessID) -> Count
+-spec calc_before(Worker, Host, RoomID, Filter, MessID) -> Count
     when
+    Worker       :: worker(),
     Host         :: server_hostname(),
     RoomID       :: room_id(),
     Filter       :: filter(),
     MessID       :: message_id(),
     Count        :: non_neg_integer().
-calc_before(Host, RoomID, Filter, MessID) ->
-    calc_count(Host, RoomID, before_id(MessID, Filter)).
+calc_before(Worker, Host, RoomID, Filter, MessID) ->
+    calc_count(Worker, Host, RoomID, before_id(MessID, Filter)).
 
 
 %% @doc Get the total result set size.
 %% "SELECT COUNT(*) as "count" FROM mam_muc_message WHERE "
--spec calc_count(Host, RoomID, Filter) -> Count
+-spec calc_count(Worker, Host, RoomID, Filter) -> Count
     when
+    Worker       :: worker(),
     RoomID       :: room_id(),
     Host         :: server_hostname(),
     Filter       :: filter(),
     Count        :: non_neg_integer().
-calc_count(Host, RoomID, Filter) ->
-    ResultF = gen_server:call(srv_name(Host), {calc_count, Filter}),
+calc_count(Worker, Host, RoomID, Filter) ->
+    ResultF = gen_server:call(Worker, {calc_count, Filter}),
     {ok, Result} = ResultF(),
     [[Count]] = seestar_result:rows(Result),
     Count.
@@ -546,8 +569,9 @@ filter_to_sql() ->
      || StartID        <- [undefined, 0],
           EndID        <- [undefined, 0]].
 
--spec calc_offset(Host, RoomID, Filter, PageSize, TotalCount, RSM) -> Offset
+-spec calc_offset(Worker, Host, RoomID, Filter, PageSize, TotalCount, RSM) -> Offset
     when
+    Worker       :: worker(),
     Host         :: server_hostname(),
     RoomID       :: room_id(),
     Filter       :: filter(),
@@ -555,19 +579,19 @@ filter_to_sql() ->
     TotalCount   :: non_neg_integer(),
     RSM          :: #rsm_in{} | undefined,
     Offset       :: non_neg_integer().
-calc_offset(_LS, _RoomID, _F, _PS, _TC, #rsm_in{direction = undefined, index = Index})
+calc_offset(_W, _LS, _RoomID, _F, _PS, _TC, #rsm_in{direction = undefined, index = Index})
     when is_integer(Index) ->
     Index;
 %% Requesting the Last Page in a Result Set
-calc_offset(_LS, _RoomID, _F, PS, TC, #rsm_in{direction = before, id = undefined}) ->
+calc_offset(_W, _LS, _RoomID, _F, PS, TC, #rsm_in{direction = before, id = undefined}) ->
     max(0, TC - PS);
-calc_offset(Host, RoomID, F, PS, _TC, #rsm_in{direction = before, id = ID})
+calc_offset(Worker, Host, RoomID, F, PS, _TC, #rsm_in{direction = before, id = ID})
     when is_integer(ID) ->
-    max(0, calc_before(Host, RoomID, F, ID) - PS);
-calc_offset(Host, RoomID, F, _PS, _TC, #rsm_in{direction = aft, id = ID})
+    max(0, calc_before(Worker, Host, RoomID, F, ID) - PS);
+calc_offset(Worker, Host, RoomID, F, _PS, _TC, #rsm_in{direction = aft, id = ID})
     when is_integer(ID) ->
-    calc_index(Host, RoomID, F, ID);
-calc_offset(_LS, _RoomID, _F, _PS, _TC, _RSM) ->
+    calc_index(Worker, Host, RoomID, F, ID);
+calc_offset(_W, _LS, _RoomID, _F, _PS, _TC, _RSM) ->
     0.
 
 maybe_encode_compact_uuid(undefined, _) ->
@@ -638,7 +662,7 @@ forward_query_respond(ResultF, QueryRef,
             put(query_refs_count, RefsCount-1),
             State#state{query_refs=Refs2, query_refs_count=RefsCount-1};
         error ->
-            lager:warning("Ignore response ~p ~p", [QueryRef, ResultF()]),
+%           lager:warning("Ignore response ~p ~p", [QueryRef, ResultF()]),
             State
     end.
 
