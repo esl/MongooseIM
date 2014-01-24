@@ -232,13 +232,13 @@ process_iq_get(From, To, #iq{sub_el = SubEl} = IQ) ->
 
 %% hook handler
 get_user_roster( Acc, US ) ->
-    All = ?BACKEND:get_user_roster( US ),
+    All = ?BACKEND:get_user_server_roster( US ),
     Rosters = lists:filter(fun(#roster{subscription = none, ask = in}) ->
                                    false;
                               (_) ->
                                    true
                            end, All),
-    Rosters ++ All.
+    Rosters ++ Acc.
 
 
 item_to_xml(Item) ->
@@ -710,7 +710,7 @@ remove_user(User, Server) ->
 %% Both or From, send a "unsubscribed" presence stanza;
 %% Both or To, send a "unsubscribe" presence stanza.
 send_unsubscription_to_rosteritems(LUser, LServer) ->
-    All = ?BACKEND:get_user_roster( {LUser, LServer}),
+    All = ?BACKEND:get_user_server_roster( {LUser, LServer}),
     Rosters = lists:filter(fun(#roster{subscription = none, ask = in}) ->
                                    false;
                               (_) ->
