@@ -445,10 +445,14 @@ get_subscription_lists(_, User, Server) ->
     JID = jlib:make_jid(User, Server, <<>>),
     case mnesia:dirty_index_read(roster, US, #roster.us) of
         Items when is_list(Items) ->
-            fill_subscription_lists(JID, Items, [], [], []);
+            fill_subscription_lists(JID, Items);
         _ ->
             {[], [], []}
     end.
+
+
+fill_subscription_lists( JID, Items ) ->
+    fill_subscription_lists( JID, Items, [], [], []).
 
 fill_subscription_lists(JID, [I | Is], F, T, P) ->
     J = element(3, I#roster.usj),
