@@ -766,7 +766,7 @@ set_items(User, Server, SubEl) ->
                                       process_item_set_t(LUser, LServer, El)
                               end, Els)
         end,
-    mnesia:transaction(F).
+    ?BACKEND:transaction(F).
 
 process_item_set_t(LUser, LServer, #xmlel{attrs = Attrs,
                                           children = Els}) ->
@@ -784,9 +784,9 @@ process_item_set_t(LUser, LServer, #xmlel{attrs = Attrs,
             Item2 = process_item_els(Item1, Els),
             case Item2#roster.subscription of
                 remove ->
-                    mnesia:delete({roster, {LUser, LServer, LJID}});
+                    ?BACKEND:remove_roster({LUser, LServer, LJID});
                 _ ->
-                    mnesia:write(Item2)
+                    ?BACKEND:write_roster(Item2)
             end
     end;
 process_item_set_t(_LUser, _LServer, _) ->
