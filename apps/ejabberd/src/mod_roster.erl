@@ -343,30 +343,30 @@ get_roster_of( LUser, LServer, LJID, JID ) ->
 
 
 process_item_attrs(Item, [{Attr, Val} | Attrs]) ->
-    case Attr of
-        <<"jid">> ->
-            case jlib:binary_to_jid(Val) of
-                error ->
-                    process_item_attrs(Item, Attrs);
-                JID1 ->
-                    JID = {JID1#jid.user, JID1#jid.server, JID1#jid.resource},
-                    process_item_attrs(Item#roster{jid = JID}, Attrs)
-            end;
-        <<"name">> ->
-            process_item_attrs(Item#roster{name = Val}, Attrs);
-        <<"subscription">> ->
-            case Val of
-                <<"remove">> ->
-                    process_item_attrs(Item#roster{subscription = remove},
-                                       Attrs);
-                _ ->
-                    process_item_attrs(Item, Attrs)
-            end;
-        <<"ask">> ->
-            process_item_attrs(Item, Attrs);
-        _ ->
-            process_item_attrs(Item, Attrs)
-    end;
+    NewItem = case Attr of
+                  <<"jid">> ->
+                      case jlib:binary_to_jid(Val) of
+                          error ->
+                              Item;
+                          JID1 ->
+                              JID = {JID1#jid.user, JID1#jid.server, JID1#jid.resource},
+                              Item#roster{jid = JID}
+                      end;
+                  <<"name">> ->
+                      Item#roster{name = Val};
+                  <<"subscription">> ->
+                      case Val of
+                          <<"remove">> ->
+                              Item#roster{subscription = remove};
+                          _ ->
+                              Item
+                      end;
+                  <<"ask">> ->
+                      Item;
+                  _ ->
+                      Item
+              end,
+    process_item_attrs( NewItem, Attrs);
 process_item_attrs(Item, []) ->
     Item.
 
