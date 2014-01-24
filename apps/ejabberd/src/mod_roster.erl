@@ -303,7 +303,8 @@ process_item_set(From, To, #xmlel{attrs = Attrs, children = Els}) ->
                         Item3 = ejabberd_hooks:run_fold(roster_process_item,
                                                         LServer, Item2, [LServer]),
                         case roster_version_on_db(LServer) of
-                            true -> mnesia:write(#roster_version{us = {LUser, LServer}, version = sha:sha(term_to_binary(now()))});
+                            true ->
+                                ?BACKEND:write_version( {LUser, LServer}, sha:sha(term_to_binary(now())));
                             false -> ok
                         end,
                         {Item, Item3}
