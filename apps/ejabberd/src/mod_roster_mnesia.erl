@@ -59,6 +59,16 @@ get_user_roster(US) ->
             []
     end.
 
+get_rouster( LoweredUserServerJID) ->
+    case mnesia:read(roster, LoweredUserServerJID ) of
+        [ Rouster ] ->
+            {ok, Rouster};
+        [] ->
+            not_found
+    end.
+
+
+
 %% --private-------------------------------------------------------------
 
 update_table() ->

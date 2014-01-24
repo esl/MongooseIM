@@ -326,15 +326,15 @@ process_item_set(From, To, #xmlel{attrs = Attrs, children = Els}) ->
 process_item_set(_From, _To, _) ->
     ok.
 
-get_rouster_of( LUser, LServer, LJID, JID ) ->
+get_roster_of( LUser, LServer, LJID, JID ) ->
     LUserServiveJid = {LUser, LServer, LJID},
-    case mnesia:read(roster, LUserServiveJid ) of
-        [] ->
+    case ?BACKEND:get_roster( LUserServiveJid ) of
+        not_found ->
             #roster{usj = LUserServiveJid,
                     us = {LUser, LServer},
                     jid = JID};
-        [I] ->
-            I#roster{jid = JID,
+        {ok, R} ->
+            R#roster{jid = JID,
                      name = <<>>,
                      groups = [],
                      xs = []}
