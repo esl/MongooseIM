@@ -410,7 +410,7 @@ push_item(User, Server, From, Item) ->
                           end, ejabberd_sm:get_user_resources(User, Server))
     end.
 
-                                                % TODO: don't push to those who didn't load roster
+%% TODO: don't push to those who didn't load roster
 push_item(User, Server, Resource, From, Item) ->
     push_item(User, Server, Resource, From, Item, not_found).
 
