@@ -509,16 +509,16 @@ process_subscription(Direction, User, Server, JID1, Type, Reason) ->
     US = {LUser, LServer},
     LJID = jlib:jid_tolower(JID1),
     F = fun() ->
-                Item = case mnesia:read({roster, {LUser, LServer, LJID}}) of
-                           [] ->
+                Item = case ?BACKEND:get_roster( {LUser, LServer, LJID} ) of
+                           not_found ->
                                JID = {JID1#jid.user,
                                       JID1#jid.server,
                                       JID1#jid.resource},
                                #roster{usj = {LUser, LServer, LJID},
                                        us = US,
                                        jid = JID};
-                           [I] ->
-                               I
+                           {ok, Roster} ->
+                               Roster
                        end,
                 NewState = case Direction of
                                out ->
