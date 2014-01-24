@@ -55,11 +55,7 @@ write_version( US, RosterVersion ) ->
 get_user_roster(US) ->
     case catch mnesia:dirty_index_read(roster, US, #roster.us) of
         Items when is_list(Items) ->
-            lists:filter(fun(#roster{subscription = none, ask = in}) ->
-                                 false;
-                            (_) ->
-                                 true
-                         end, Items);
+            Items;
         _ ->
             []
     end.

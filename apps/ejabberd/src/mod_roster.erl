@@ -232,7 +232,13 @@ process_iq_get(From, To, #iq{sub_el = SubEl} = IQ) ->
 
 %% hook handler
 get_user_roster( Acc, US ) ->
-    ?BACKEND:get_user_roster( US ) ++ Acc.
+    All = ?BACKEND:get_user_roster( US ),
+    Rosters = lists:filter(fun(#roster{subscription = none, ask = in}) ->
+                                   false;
+                              (_) ->
+                                   true
+                           end, All),
+    Rosters ++ All.
 
 
 item_to_xml(Item) ->
@@ -704,12 +710,17 @@ remove_user(User, Server) ->
 %% Both or From, send a "unsubscribed" presence stanza;
 %% Both or To, send a "unsubscribe" presence stanza.
 send_unsubscription_to_rosteritems(LUser, LServer) ->
-    RosterItems = ?BACKEND:get_user_roster( {LUser, LServer}),
+    All = ?BACKEND:get_user_roster( {LUser, LServer}),
+    Rosters = lists:filter(fun(#roster{subscription = none, ask = in}) ->
+                                   false;
+                              (_) ->
+                                   true
+                           end, All),
     From = jlib:make_jid({LUser, LServer, <<>>}),
     lists:foreach(fun(RosterItem) ->
                           send_unsubscribing_presence(From, RosterItem)
                   end,
-                  RosterItems).
+                  Rosters).
 
 %% @spec (From::jid(), Item::roster()) -> ok
 send_unsubscribing_presence(From, Item) ->
