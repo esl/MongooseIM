@@ -702,12 +702,10 @@ remove_user(User, Server) ->
     US = {LUser, LServer},
     send_unsubscription_to_rosteritems(LUser, LServer),
     F = fun() ->
-                lists:foreach(fun(R) ->
-                                      mnesia:delete_object(R)
-                              end,
-                              mnesia:index_read(roster, US, #roster.us))
+                lists:foreach(fun ?BACKEND:remove_roster_object/1,
+                              ?BACKEND:get_user_server_roster(US))
         end,
-    mnesia:transaction(F).
+    ?BACKEND:transaction(F).
 
 %% For each contact with Subscription:
 %% Both or From, send a "unsubscribed" presence stanza;

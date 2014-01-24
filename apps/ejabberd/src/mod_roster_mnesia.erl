@@ -16,6 +16,7 @@
            get_roster/1,
            write_roster/1,
            remove_roster/1,
+           remove_roster_object/1,
            transaction/1
          ]).
 
@@ -69,6 +70,10 @@ get_roster( LoweredUserServerJID) ->
 
 remove_roster( LoweredUserServerJID ) ->
     mnesia:delete({roster, LoweredUserServerJID}).
+
+
+remove_roster_object( Roster = #roster{} ) ->
+    mnesia:delete_object(Roster).
 
 write_roster( Roster ) ->
     mnesia:write(Roster).
