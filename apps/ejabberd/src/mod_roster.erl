@@ -839,21 +839,21 @@ get_jid_info(_, User, Server, JID) ->
     LUser = jlib:nodeprep(User),
     LJID = jlib:jid_tolower(JID),
     LServer = jlib:nameprep(Server),
-    case catch mnesia:dirty_read(roster, {LUser, LServer, LJID}) of
-        [#roster{subscription = Subscription, groups = Groups}] ->
+    case ?BACKEND:get_roster({LUser, LServer, LJID}) of
+        {ok, #roster{subscription = Subscription,
+                     groups = Groups}} ->
             {Subscription, Groups};
-        _ ->
+        not_found ->
             LRJID = jlib:jid_tolower(jlib:jid_remove_resource(JID)),
             if
                 LRJID == LJID ->
                     {none, []};
                 true ->
-                    case catch mnesia:dirty_read(
-                                 roster, {LUser, LServer, LRJID}) of
-                        [#roster{subscription = Subscription,
-                                 groups = Groups}] ->
+                    case ?BACKEND:get_roster({LUser, LServer, LRJID}) of
+                        {ok, #roster{subscription = Subscription,
+                                     groups = Groups}} ->
                             {Subscription, Groups};
-                        _ ->
+                        not_found ->
                             {none, []}
                     end
             end
