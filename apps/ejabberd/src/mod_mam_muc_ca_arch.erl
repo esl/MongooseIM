@@ -166,10 +166,12 @@ register_worker(Host, WorkerPid) ->
     pg2:join(group_name(Host), WorkerPid).
 
 select_worker(Host, RoomID) ->
-    check_worker(Host, RoomID, pg2:get_closest_pid(group_name(Host))).
-
-check_worker(_Host, _RoomID, Pid) when is_pid(Pid) ->
-    Pid.
+    case pg2:get_local_members(group_name(Host)) of
+        [] ->
+            error({no_worker, Host});
+        Workers ->
+            lists:nth((RoomID rem length(Workers)) + 1, Workers)
+    end.
 
 group_name(Host) ->
     {mam_muc_ca, Host}.
