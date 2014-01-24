@@ -12,7 +12,10 @@
 -export( [ init/1,
            roster_version/1,
            write_version/2,
-           get_user_roster/1
+           get_user_roster/1,
+           get_roster/1,
+           write_roster/1,
+           remove_roster/1
          ]).
 
 -include("ejabberd.hrl").
@@ -66,6 +69,12 @@ get_roster( LoweredUserServerJID) ->
         [] ->
             not_found
     end.
+
+remove_roster( LoweredUserServerJID ) ->
+    mnesia:delete( roster, LoweredUserServerJID).
+
+write_roster( Roster ) ->
+    mnesia:write(Roster).
 
 
 

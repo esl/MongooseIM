@@ -294,9 +294,9 @@ process_item_set(From, To, #xmlel{attrs = Attrs, children = Els}) ->
                         Item2 = process_item_els(Item1, Els),
                         case Item2#roster.subscription of
                             remove ->
-                                mnesia:delete({roster, {LUser, LServer, LJID}});
+                                ?BACKEND:remove_roster({LUser, LServer, LJID});
                             _ ->
-                                mnesia:write(Item2)
+                                ?BACKEND:write_roster( Item2 )
                         end,
                         %% If the item exist in shared roster, take the
                         %% subscription information from there:
