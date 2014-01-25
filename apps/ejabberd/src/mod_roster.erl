@@ -894,40 +894,7 @@ user_roster(User, Server, Query, Lang) ->
                                 ?XCT("td", "Groups")
                                ])]),
                       ?XE("tbody",
-                          lists:map(
-                            fun(R) ->
-                                    Groups =
-                                        lists:flatmap(
-                                          fun(Group) ->
-                                                  [?C(Group), ?BR]
-                                          end, R#roster.groups),
-                                    Pending = ask_to_pending(R#roster.ask),
-                                    TDJID = build_contact_jid_td(R#roster.jid),
-                                    ?XE("tr",
-                                        [TDJID,
-                                         ?XAC("td", [{"class", "valign"}],
-                                              R#roster.name),
-                                         ?XAC("td", [{"class", "valign"}],
-                                              atom_to_list(R#roster.subscription)),
-                                         ?XAC("td", [{"class", "valign"}],
-                                              atom_to_list(Pending)),
-                                         ?XAE("td", [{"class", "valign"}], Groups),
-                                         if
-                                             Pending == in ->
-                                                 ?XAE("td", [{"class", "valign"}],
-                                                      [?INPUTT("submit",
-                                                               "validate" ++
-                                                                   ejabberd_web_admin:term_to_id(R#roster.jid),
-                                                               "Validate")]);
-                                             true ->
-                                                 ?X("td")
-                                         end,
-                                         ?XAE("td", [{"class", "valign"}],
-                                              [?INPUTT("submit",
-                                                       "remove" ++
-                                                           ejabberd_web_admin:term_to_id(R#roster.jid),
-                                                       "Remove")])])
-                            end, SItems))])]
+                          lists:map( fun roster_to_xml/1, SItems))])]
         end,
     [?XC("h1", ?T("Roster of ") ++ us_to_list(US))] ++
         case Res of
@@ -941,6 +908,39 @@ user_roster(User, Server, Query, Lang) ->
                    ?INPUT("text", "newjid", ""), ?C(" "),
                    ?INPUTT("submit", "addjid", "Add Jabber ID")
                   ])].
+
+
+roster_to_xml( R ) ->
+    Groups =
+        [ [?C(Group), ?BR] || Group <- R#roster.groups],
+    Pending = ask_to_pending(R#roster.ask),
+    TDJID = build_contact_jid_td(R#roster.jid),
+
+    ?XE("tr",
+        [TDJID,
+         ?XAC("td", [{"class", "valign"}],
+              R#roster.name),
+         ?XAC("td", [{"class", "valign"}],
+              atom_to_list(R#roster.subscription)),
+         ?XAC("td", [{"class", "valign"}],
+              atom_to_list(Pending)),
+         ?XAE("td", [{"class", "valign"}], Groups),
+         if
+             Pending == in ->
+                 ?XAE("td", [{"class", "valign"}],
+                      [?INPUTT("submit",
+                               "validate" ++
+                                   ejabberd_web_admin:term_to_id(R#roster.jid),
+                               "Validate")]);
+             true ->
+                 ?X("td")
+         end,
+         ?XAE("td", [{"class", "valign"}],
+              [?INPUTT("submit",
+                       "remove" ++
+                           ejabberd_web_admin:term_to_id(R#roster.jid),
+                       "Remove")])]).
+
 
 build_contact_jid_td(RosterJID) ->
     %% Convert {U, S, R} into {jid, U, S, R, U, S, R}:
