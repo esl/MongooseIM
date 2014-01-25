@@ -335,6 +335,8 @@
              }).
 -type jid() :: #jid{}.
 
+-type(ljid() :: {binary(), binary(), binary()}).
+
 -record(iq, { id = <<>>,
               type,
               xmlns = <<>>,

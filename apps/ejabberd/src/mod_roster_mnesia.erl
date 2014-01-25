@@ -22,6 +22,7 @@
          ]).
 
 -include("ejabberd.hrl").
+-include("jlib.hrl").
 -include("mod_roster.hrl").
 
 

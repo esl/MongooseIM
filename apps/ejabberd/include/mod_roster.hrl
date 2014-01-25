@@ -28,7 +28,7 @@
                   ask = none                             :: ask() | '_',
                   groups = []                            :: [binary()] | '_',
                   askmessage = <<"">>                    :: binary() | '_',
-                  xs = []                                :: [xmlel()] | '_'
+                  xs = []                                :: [term()] | '_'
                 }).
 
 -record(roster_version, { us = {<<>>, <<>>} :: {binary(), binary()},

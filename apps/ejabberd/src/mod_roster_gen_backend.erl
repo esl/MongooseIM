@@ -10,6 +10,8 @@
 -module(mod_roster_gen_backend).
 -author( 'marcin.miszczyk@erlang.solutions.com').
 
+-include("mod_roster.hrl").
+
 -callback init( Options ) -> ok when
       Options :: list().
 
