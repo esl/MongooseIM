@@ -20,6 +20,10 @@
       UserServer :: us(),
       Version :: version().
 
+-callback write_version( UserServer, RosterVersion ) -> any() when
+      UserServer :: us(),
+      RosterVersion :: version().
+
 
 
 

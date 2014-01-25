@@ -51,9 +51,11 @@ roster_version( US ) ->
             not_found
     end.
 
-
-write_version( US, RosterVersion ) ->
-    mnesia:dirty_write(#roster_version{us = US, version = RosterVersion}).
+-spec write_version( UserServer, RosterVersion ) -> any() when
+      UserServer :: us(),
+      RosterVersion :: version().
+write_version( US, Version ) ->
+    mnesia:dirty_write(#roster_version{us = US, version = Version}).
 
 
 get_user_server_roster( US ) ->
