@@ -19,9 +19,8 @@
 %%%
 %%%----------------------------------------------------------------------
 
-
--record(roster, { usj = {<<>>, <<>>, {<<>>, <<>>, <<>>}} :: {binary(), binary(), ljid()} | '_',
-                  us = {<<>>, <<>>}                      :: {binary(), binary()} | '_',
+-record(roster, { usj = {<<>>, <<>>, {<<>>, <<>>, <<>>}} :: usj() | '_',
+                  us = {<<>>, <<>>}                      :: us() | '_',
                   jid = {<<>>, <<>>, <<>>}               :: ljid(),
                   name = <<>>                            :: binary() | '_',
                   subscription = none                    :: subscription() | '_',
@@ -30,10 +29,19 @@
                   askmessage = <<"">>                    :: binary() | '_',
                   xs = []                                :: [term()] | '_'
                 }).
+-type roster() :: #roster{}.
 
--record(roster_version, { us = {<<>>, <<>>} :: {binary(), binary()},
+-record(roster_version, { us = {<<>>, <<>>} :: us(),
                           version = <<>>    :: binary()
                         }).
 
+-type usj() :: { user() , server(), ljid() }.
+
+-type us() :: { user(), server() }.
+
 -type ask() :: none | in | out | both | subscribe | unsubscribe.
 -type subscription() :: none | both | from | to | remove.
+
+-type user() :: binary().
+-type server() :: binary().
+-type version() :: binary().
