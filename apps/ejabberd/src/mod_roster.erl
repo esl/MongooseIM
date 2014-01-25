@@ -875,9 +875,9 @@ webadmin_page(Acc, _, _) -> Acc.
 
 user_roster(User, Server, Query, Lang) ->
     US = {jlib:nodeprep(User), jlib:nameprep(Server)},
-    Items1 = mnesia:dirty_index_read(roster, US, #roster.us),
+    Items1 = ?BACKEND:get_user_server_roster( US ),
     Res = user_roster_parse_query(User, Server, Items1, Query),
-    Items = mnesia:dirty_index_read(roster, US, #roster.us),
+    Items = ?BACKEND:get_user_server_roster( US ),
     SItems = lists:sort(Items),
     FItems =
         case SItems of
