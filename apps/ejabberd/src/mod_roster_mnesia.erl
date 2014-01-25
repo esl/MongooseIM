@@ -29,7 +29,7 @@
 %% --interface-----------------------------------------------------------
 
 -spec init ( ModuleOptions ) -> ok when
-      ModuleOptions :: term().
+      ModuleOptions :: list().
 init( _Opts ) ->
     mnesia:create_table(roster,[{disc_copies, [node()]},
                                 {attributes, record_info(fields, roster)}]),
@@ -40,7 +40,9 @@ init( _Opts ) ->
     mnesia:add_table_index(roster_version, us),
     ok.
 
-
+-spec roster_version( UserServer ) -> {ok, Version} | not_found when
+      UserServer :: us(),
+      Version :: version().
 roster_version( US ) ->
     case mnesia:dirty_read(roster_version, US) of
         [#roster_version{ version = Version }] ->

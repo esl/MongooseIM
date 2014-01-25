@@ -10,9 +10,16 @@
 -module(mod_roster_gen_backend).
 -author( 'marcin.miszczyk@erlang.solutions.com').
 
+-include("jlib.hrl").
 -include("mod_roster.hrl").
 
 -callback init( Options ) -> ok when
       Options :: list().
+
+-callback roster_version( UserServer ) -> {ok, Version} | not_found when
+      UserServer :: us(),
+      Version :: version().
+
+
 
 
