@@ -67,7 +67,41 @@ write_version( US, Version ) when size(US) =:= 2 ->
       UserServe :: us(),
       Rosters :: list( roster() ).
 rosters_by_us( US ) when size(US) =:= 2 ->
-    not_implemented.
+    {LUser, LServer} = US,
+    Username = ejabberd_odbc:escape(LUser),
+    case catch odbc_queries:get_roster(LServer, Username) of
+        {selected, ["username", "jid", "nick", "subscription", "ask",
+                    "askmessage", "server", "subscribe", "type"],
+         Items} when is_list(Items) ->
+            JIDGroups = case catch odbc_queries:get_roster_jid_groups(LServer, Username) of
+                            {selected, ["jid","grp"], JGrps}
+                              when is_list(JGrps) ->
+                                JGrps;
+                            _ ->
+                                []
+                        end,
+            RItems = lists:flatmap(
+                       fun(I) ->
+                               case raw_to_record(LServer, I) of
+                                   %% Bad JID in database:
+                                   error ->
+                                       [];
+                                   R ->
+                                       SJID = jlib:jid_to_binary(R#roster.jid),
+                                       Groups = lists:flatmap(
+                                                  fun({S, G}) when S == SJID ->
+                                                          [G];
+                                                     (_) ->
+                                                          []
+                                                  end, JIDGroups),
+                                       [R#roster{groups = Groups}]
+                               end
+                       end, Items),
+            RItems;
+        _ ->
+            []
+    end.
+
 
 
 -spec roster( UserServeJid ) -> MightBeRoster when
@@ -100,3 +134,33 @@ transaction( Function ) ->
     not_implemented.
 
 %% --private-------------------------------------------------------------
+
+raw_to_record(LServer, {User, BJID, Nick, BSubscription, BAsk, AskMessage,
+                        _Server, _Subscribe, _Type}) ->
+    case jlib:binary_to_jid(BJID) of
+        error ->
+            error;
+        JID ->
+            LJID = jlib:jid_tolower(JID),
+            Subscription = case BSubscription of
+                               <<"B">> -> both;
+                               <<"T">> -> to;
+                               <<"F">> -> from;
+                               _ -> none
+                           end,
+            Ask = case BAsk of
+                      <<"S">> -> subscribe;
+                      <<"U">> -> unsubscribe;
+                      <<"B">> -> both;
+                      <<"O">> -> out;
+                      <<"I">> -> in;
+                      _ -> none
+                  end,
+            #roster{usj = {User, LServer, LJID},
+                    us = {User, LServer},
+                    jid = LJID,
+                    name = Nick,
+                    subscription = Subscription,
+                    ask = Ask,
+                    askmessage = AskMessage}
+    end.

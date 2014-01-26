@@ -230,48 +230,14 @@ process_iq_get(From, To, #iq{sub_el = SubEl} = IQ) ->
             IQ#iq{type = error, sub_el = [SubEl, ?ERR_INTERNAL_SERVER_ERROR]}
     end.
 
-get_user_roster(Acc, {LUser, LServer}) ->
-    Items = get_roster(LUser, LServer),
+get_user_roster(Acc, US) ->
+    All = ?BACKEND:rosters_by_us(US),
     lists:filter(fun(#roster{subscription = none, ask = in}) ->
                          false;
                     (_) ->
                          true
-                 end, Items) ++ Acc.
+                 end, All) ++ Acc.
 
-get_roster(LUser, LServer) ->
-    Username = ejabberd_odbc:escape(LUser),
-    case catch odbc_queries:get_roster(LServer, Username) of
-        {selected, ["username", "jid", "nick", "subscription", "ask",
-                    "askmessage", "server", "subscribe", "type"],
-         Items} when is_list(Items) ->
-            JIDGroups = case catch odbc_queries:get_roster_jid_groups(LServer, Username) of
-                            {selected, ["jid","grp"], JGrps}
-                              when is_list(JGrps) ->
-                                JGrps;
-                            _ ->
-                                []
-                        end,
-            RItems = lists:flatmap(
-                       fun(I) ->
-                               case raw_to_record(LServer, I) of
-                                   %% Bad JID in database:
-                                   error ->
-                                       [];
-                                   R ->
-                                       SJID = jlib:jid_to_binary(R#roster.jid),
-                                       Groups = lists:flatmap(
-                                                  fun({S, G}) when S == SJID ->
-                                                          [G];
-                                                     (_) ->
-                                                          []
-                                                  end, JIDGroups),
-                                       [R#roster{groups = Groups}]
-                               end
-                       end, Items),
-            RItems;
-        _ ->
-            []
-    end.
 
 
 item_to_xml(Item) ->
@@ -934,6 +900,8 @@ get_jid_info(_, User, Server, JID) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+
+%% TODO delete, 
 raw_to_record(LServer, {User, BJID, Nick, BSubscription, BAsk, AskMessage,
                         _Server, _Subscribe, _Type}) ->
     case jlib:binary_to_jid(BJID) of
@@ -1018,9 +986,9 @@ user_roster(User, Server, Query, Lang) ->
     LUser = jlib:nodeprep(User),
     LServer = jlib:nameprep(Server),
     US = {LUser, LServer},
-    Items1 = get_roster(LUser, LServer),
+    Items1 = ?BACKEND:rosters_by_us({LUser, LServer}),
     Res = user_roster_parse_query(User, Server, Items1, Query),
-    Items = get_roster(LUser, LServer),
+    Items = ?BACKEND:rosters_by_us({LUser, LServer}),
     SItems = lists:sort(Items),
     FItems =
         case SItems of
