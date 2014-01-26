@@ -24,6 +24,9 @@
       UserServer :: us(),
       RosterVersion :: version().
 
+-callback rosters_by_us( UserServe ) -> Rosters when
+      UserServe :: us(),
+      Rosters :: list( roster() ).
 
 
 
