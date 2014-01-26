@@ -43,7 +43,7 @@ init( _Opts ) ->
 -spec roster_version( UserServer ) -> {ok, Version} | not_found when
       UserServer :: us(),
       Version :: version().
-roster_version( US ) ->
+roster_version( US ) when size(US) =:= 2 ->
     case mnesia:dirty_read(roster_version, US) of
         [#roster_version{ version = Version }] ->
             {ok, Version};
@@ -54,13 +54,13 @@ roster_version( US ) ->
 -spec write_version( UserServer, RosterVersion ) -> any() when
       UserServer :: us(),
       RosterVersion :: version().
-write_version( US, Version ) ->
+write_version( US, Version ) when size(US) =:= 2 ->
     mnesia:dirty_write(#roster_version{us = US, version = Version}).
 
 -spec rosters_by_us( UserServe ) -> Rosters when
       UserServe :: us(),
       Rosters :: list( roster() ).
-rosters_by_us( US ) ->
+rosters_by_us( US ) when size(US) =:= 2 ->
     case catch mnesia:dirty_index_read(roster, US, #roster.us) of
         Items when is_list(Items) ->
             Items;
@@ -70,7 +70,7 @@ rosters_by_us( US ) ->
 -spec roster( UserServeJid ) -> MightBeRoster when
       UserServeJid :: usj(),
       MightBeRoster :: {ok, roster() } | not_found.
-roster( USJ ) ->
+roster( USJ ) when size( USJ ) =:= 3 ->
     case mnesia:read(roster, USJ ) of
         [ Rouster ] ->
             {ok, Rouster};
@@ -80,8 +80,8 @@ roster( USJ ) ->
 
 -spec remove_roster( UserServerJID ) -> ok when
       UserServerJID :: usj().
-remove_roster( LoweredUserServerJID ) ->
-    mnesia:delete({roster, LoweredUserServerJID}).
+remove_roster( USJ ) when size(USJ) =:= 3 ->
+    mnesia:delete({roster, USJ}).
 
 -spec remove_roster_object( Roster ) -> ok when
       Roster :: roster().
@@ -90,7 +90,7 @@ remove_roster_object( Roster = #roster{} ) ->
 
 -spec write_roster( Roster ) -> ok when
       Roster :: roster().
-write_roster( Roster ) ->
+write_roster( Roster = #roster{} ) ->
     mnesia:write(Roster).
 
 -spec transaction( TransactionFun ) -> FunReturn when
