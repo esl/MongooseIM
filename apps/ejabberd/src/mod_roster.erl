@@ -894,7 +894,10 @@ user_roster(User, Server, Query, Lang) ->
                                 ?XCT("td", "Groups")
                                ])]),
                       ?XE("tbody",
-                          lists:map( fun roster_to_xml/1, SItems))])]
+                          lists:map( fun (Item) ->
+                                         roster_to_xml( Item, Lang)
+                                     end,
+                                     SItems))])]
         end,
     [?XC("h1", ?T("Roster of ") ++ us_to_list(US))] ++
         case Res of
@@ -910,7 +913,7 @@ user_roster(User, Server, Query, Lang) ->
                   ])].
 
 
-roster_to_xml( R ) ->
+roster_to_xml( R, Lang ) ->
     Groups =
         [ [?C(Group), ?BR] || Group <- R#roster.groups],
     Pending = ask_to_pending(R#roster.ask),
