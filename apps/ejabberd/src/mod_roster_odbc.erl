@@ -60,6 +60,8 @@
 -include("ejabberd_http.hrl").
 -include("ejabberd_web_admin.hrl").
 
+-define( BACKEND, mod_roster_odbc_back).
+
 
 start(Host, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
