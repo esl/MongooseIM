@@ -162,10 +162,9 @@ roster_version(LServer ,LUser) ->
     US = {LUser, LServer},
     case roster_version_on_db(LServer) of
         true ->
-            case odbc_queries:get_roster_version(ejabberd_odbc:escape(LServer),
-                                                 ejabberd_odbc:escape(LUser)) of
-                {selected, ["version"], [{Version}]} -> Version;
-                {selected, ["version"], []} -> not_found
+            case ?BACKEND:roster_version( US ) of
+                {ok, Version } -> Version;
+                not_fount -> not_found
             end;
         false ->
             roster_hash(ejabberd_hooks:run_fold(roster_get, LServer, [], [US]))

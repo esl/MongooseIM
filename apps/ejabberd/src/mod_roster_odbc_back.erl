@@ -41,7 +41,14 @@ init( _Opts ) ->
       UserServer :: us(),
       Version :: version().
 roster_version( US ) when size(US) =:= 2 ->
-    not_implemented.
+    {LUser, LServer} =  US,
+    case odbc_queries:get_roster_version(ejabberd_odbc:escape(LServer),
+                                         ejabberd_odbc:escape(LUser)) of
+        {selected, ["version"], [{Version}]} ->
+            {ok,Version};
+        {selected, ["version"], []} ->
+            not_found
+    end.
 
 
 -spec write_version( UserServer, RosterVersion ) -> any() when
