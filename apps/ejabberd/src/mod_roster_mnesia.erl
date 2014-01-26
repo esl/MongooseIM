@@ -35,7 +35,7 @@ init( _Opts ) ->
                                 {attributes, record_info(fields, roster)}]),
     mnesia:create_table(roster_version, [{disc_copies, [node()]},
                                          {attributes, record_info(fields, roster_version)}]),
-    update_table(),
+    update_table_scheme(),
     mnesia:add_table_index(roster, us),
     mnesia:add_table_index(roster_version, us),
     ok.
@@ -51,11 +51,13 @@ roster_version( US ) when size(US) =:= 2 ->
             not_found
     end.
 
+
 -spec write_version( UserServer, RosterVersion ) -> any() when
       UserServer :: us(),
       RosterVersion :: version().
 write_version( US, Version ) when size(US) =:= 2 ->
     mnesia:dirty_write(#roster_version{us = US, version = Version}).
+
 
 -spec rosters_by_us( UserServe ) -> Rosters when
       UserServe :: us(),
@@ -67,6 +69,8 @@ rosters_by_us( US ) when size(US) =:= 2 ->
         _ ->
             []
     end.
+
+
 -spec roster( UserServeJid ) -> MightBeRoster when
       UserServeJid :: usj(),
       MightBeRoster :: {ok, roster() } | not_found.
@@ -78,20 +82,24 @@ roster( USJ ) when size( USJ ) =:= 3 ->
             not_found
     end.
 
+
 -spec remove_roster( UserServerJID ) -> ok when
       UserServerJID :: usj().
 remove_roster( USJ ) when size(USJ) =:= 3 ->
     mnesia:delete({roster, USJ}).
+
 
 -spec remove_roster_object( Roster ) -> ok when
       Roster :: roster().
 remove_roster_object( Roster = #roster{} ) ->
     mnesia:delete_object(Roster).
 
+
 -spec write_roster( Roster ) -> ok when
       Roster :: roster().
 write_roster( Roster = #roster{} ) ->
     mnesia:write(Roster).
+
 
 -spec transaction( TransactionFun ) -> FunReturn when
       TransactionFun :: fun ( () -> FunReturn ).
@@ -100,7 +108,7 @@ transaction( Function ) ->
 
 %% --private-------------------------------------------------------------
 
-update_table() ->
+update_table_scheme() ->
     Fields = record_info(fields, roster),
     case mnesia:table_info(roster, attributes) of
         Fields ->
