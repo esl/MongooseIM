@@ -13,7 +13,7 @@
 -export( [ init/1,
            roster_version/1,
            write_version/2,
-           get_user_server_roster/1,
+           rosters_by_us/1,
            get_roster/1,
            write_roster/1,
            remove_roster/1,
@@ -58,7 +58,7 @@ write_version( US, Version ) ->
     mnesia:dirty_write(#roster_version{us = US, version = Version}).
 
 
-get_user_server_roster( US ) ->
+rosters_by_us( US ) ->
     case catch mnesia:dirty_index_read(roster, US, #roster.us) of
         Items when is_list(Items) ->
             Items;

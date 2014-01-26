@@ -232,7 +232,7 @@ process_iq_get(From, To, #iq{sub_el = SubEl} = IQ) ->
 
 %% hook handler
 get_user_roster( Acc, US ) ->
-    All = ?BACKEND:get_user_server_roster( US ),
+    All = ?BACKEND:rosters_by_us( US ),
     Rosters = lists:filter(fun(#roster{subscription = none, ask = in}) ->
                                    false;
                               (_) ->
@@ -449,7 +449,7 @@ get_subscription_lists(_, User, Server) ->
     LServer = jlib:nameprep(Server),
     US = {LUser, LServer},
     JID = jlib:make_jid(User, Server, <<>>),
-    Items =  ?BACKEND:get_user_server_roster( US ),
+    Items =  ?BACKEND:rosters_by_us( US ),
     fill_subscription_lists(JID, Items).
 
 
@@ -703,7 +703,7 @@ remove_user(User, Server) ->
     send_unsubscription_to_rosteritems(LUser, LServer),
     F = fun() ->
                 lists:foreach(fun ?BACKEND:remove_roster_object/1,
-                              ?BACKEND:get_user_server_roster(US))
+                              ?BACKEND:rosters_by_us(US))
         end,
     ?BACKEND:transaction(F).
 
@@ -711,7 +711,7 @@ remove_user(User, Server) ->
 %% Both or From, send a "unsubscribed" presence stanza;
 %% Both or To, send a "unsubscribe" presence stanza.
 send_unsubscription_to_rosteritems(LUser, LServer) ->
-    All = ?BACKEND:get_user_server_roster( {LUser, LServer}),
+    All = ?BACKEND:rosters_by_us( {LUser, LServer}),
     Rosters = lists:filter(fun(#roster{subscription = none, ask = in}) ->
                                    false;
                               (_) ->
@@ -875,9 +875,9 @@ webadmin_page(Acc, _, _) -> Acc.
 
 user_roster(User, Server, Query, Lang) ->
     US = {jlib:nodeprep(User), jlib:nameprep(Server)},
-    Items1 = ?BACKEND:get_user_server_roster( US ),
+    Items1 = ?BACKEND :rosters_by_us( US ),
     Res = user_roster_parse_query(User, Server, Items1, Query),
-    Items = ?BACKEND:get_user_server_roster( US ),
+    Items = ?BACKEND:rosters_by_us( US ),
     SItems = lists:sort(Items),
     FItems =
         case SItems of
