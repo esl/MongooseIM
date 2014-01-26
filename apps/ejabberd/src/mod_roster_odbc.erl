@@ -197,11 +197,7 @@ process_iq_get(From, To, #iq{sub_el = SubEl} = IQ) ->
                                        ejabberd_hooks:run_fold(roster_get, To#jid.lserver, [], [US])), NewVersion};
                         not_found ->
                             RosterVersion = sha:sha(term_to_binary(now())),
-                            {atomic, {updated,1}} = odbc_queries:sql_transaction(LServer,
-                                                                                 fun() ->
-                                                                                         odbc_queries:set_roster_version(ejabberd_odbc:escape(LUser), RosterVersion)
-                                                                                 end),
-
+                            ?BACKEND:write_version( US, RosterVersion ),
                             {lists:map(fun item_to_xml/1,
                                        ejabberd_hooks:run_fold(roster_get, To#jid.lserver, [], [US])), RosterVersion}
                     end;

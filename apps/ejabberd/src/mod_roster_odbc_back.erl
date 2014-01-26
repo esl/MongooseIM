@@ -55,7 +55,12 @@ roster_version( US ) when size(US) =:= 2 ->
       UserServer :: us(),
       RosterVersion :: version().
 write_version( US, Version ) when size(US) =:= 2 ->
-    not_implemented.
+    {LUser, LServer} =  US,
+    Transaction = fun () ->
+                          odbc_queries:set_roster_version(ejabberd_odbc:escape(LUser), Version)
+                  end,
+    {atomic, {updated,1}} = odbc_queries:sql_transaction(LServer,
+                                                         Transaction).
 
 
 -spec rosters_by_us( UserServe ) -> Rosters when
