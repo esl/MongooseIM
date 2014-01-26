@@ -189,14 +189,13 @@ process_iq_get(From, To, #iq{sub_el = SubEl} = IQ) ->
                 {{value, RequestedVersion}, true, true} ->
                     %% Retrieve version from DB. Only load entire roster
                     %% when neccesary.
-                    case odbc_queries:get_roster_version(ejabberd_odbc:escape(LServer),
-                                                         ejabberd_odbc:escape(LUser)) of
-                        {selected, ["version"], [{RequestedVersion}]} ->
+                    case ?BACKEND:roster_version( US) of
+                        {ok, RequestedVersion} ->
                             {false, false};
-                        {selected, ["version"], [{NewVersion}]} ->
+                        {ok, NewVersion} ->
                             {lists:map(fun item_to_xml/1,
                                        ejabberd_hooks:run_fold(roster_get, To#jid.lserver, [], [US])), NewVersion};
-                        {selected, ["version"], []} ->
+                        not_found ->
                             RosterVersion = sha:sha(term_to_binary(now())),
                             {atomic, {updated,1}} = odbc_queries:sql_transaction(LServer,
                                                                                  fun() ->
