@@ -335,7 +335,7 @@ process_item_set(_From, _To, _) ->
 
 get_roster_of( LUser, LServer, LJID, JID ) ->
     LUserServiveJid = {LUser, LServer, LJID},
-    case ?BACKEND:get_roster( LUserServiveJid ) of
+    case ?BACKEND:roster( LUserServiveJid ) of
         not_found ->
             #roster{usj = LUserServiveJid,
                     us = {LUser, LServer},
@@ -511,7 +511,7 @@ process_subscription(Direction, User, Server, JID1, Type, Reason) ->
     US = {LUser, LServer},
     USJ = {LUser, LServer, LJID},
     F = fun() ->
-                Item = case ?BACKEND:get_roster( USJ ) of
+                Item = case ?BACKEND:roster( USJ ) of
                            not_found ->
                                JID = {JID1#jid.user,
                                       JID1#jid.server,
@@ -843,7 +843,7 @@ get_jid_info(_, User, Server, JID) ->
     get_jid_info( LUser, LServer, LJID).
 
 get_jid_info( LUser, LServer, LJID) ->
-    case ?BACKEND:get_roster({LUser, LServer, LJID}) of
+    case ?BACKEND:roster({LUser, LServer, LJID}) of
         {ok, #roster{subscription = Subscription,
                      groups = Groups}} ->
             {Subscription, Groups};

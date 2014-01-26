@@ -14,7 +14,7 @@
            roster_version/1,
            write_version/2,
            rosters_by_us/1,
-           get_roster/1,
+           roster/1,
            write_roster/1,
            remove_roster/1,
            remove_roster_object/1,
@@ -68,7 +68,7 @@ rosters_by_us( US ) ->
             []
     end.
 
-get_roster( LoweredUserServerJID) ->
+roster( LoweredUserServerJID) ->
     case mnesia:read(roster, LoweredUserServerJID ) of
         [ Rouster ] ->
             {ok, Rouster};
