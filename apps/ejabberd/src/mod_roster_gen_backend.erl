@@ -28,5 +28,9 @@
       UserServe :: us(),
       Rosters :: list( roster() ).
 
+-callback roster( UserServeJid ) -> MightBeRoster when
+      UserServeJid :: usj(),
+      MightBeRoster :: {ok, roster() } | not_found.
+
 
 

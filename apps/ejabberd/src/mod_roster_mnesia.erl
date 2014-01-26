@@ -67,9 +67,11 @@ rosters_by_us( US ) ->
         _ ->
             []
     end.
-
-roster( LoweredUserServerJID) ->
-    case mnesia:read(roster, LoweredUserServerJID ) of
+-spec roster( UserServeJid ) -> MightBeRoster when
+      UserServeJid :: usj(),
+      MightBeRoster :: {ok, roster() } | not_found.
+roster( USJ ) ->
+    case mnesia:read(roster, USJ ) of
         [ Rouster ] ->
             {ok, Rouster};
         [] ->
