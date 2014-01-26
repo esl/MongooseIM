@@ -32,5 +32,17 @@
       UserServeJid :: usj(),
       MightBeRoster :: {ok, roster() } | not_found.
 
+-callback remove_roster( UserServerJID ) -> ok when
+      UserServerJID :: usj().
+
+-callback remove_roster_object( Roster ) -> ok when
+      Roster :: roster().
+
+-callback write_roster( Roster ) -> ok when
+      Roster :: roster().
+
+-callback transaction( TransactionFun ) -> FunReturn when
+      TransactionFun :: fun ( () -> FunReturn ).
+
 
 

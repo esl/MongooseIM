@@ -78,17 +78,23 @@ roster( USJ ) ->
             not_found
     end.
 
+-spec remove_roster( UserServerJID ) -> ok when
+      UserServerJID :: usj().
 remove_roster( LoweredUserServerJID ) ->
     mnesia:delete({roster, LoweredUserServerJID}).
 
-
+-spec remove_roster_object( Roster ) -> ok when
+      Roster :: roster().
 remove_roster_object( Roster = #roster{} ) ->
     mnesia:delete_object(Roster).
 
+-spec write_roster( Roster ) -> ok when
+      Roster :: roster().
 write_roster( Roster ) ->
     mnesia:write(Roster).
 
-
+-spec transaction( TransactionFun ) -> FunReturn when
+      TransactionFun :: fun ( () -> FunReturn ).
 transaction( Function ) ->
     mnesia:transaction( Function ).
 
