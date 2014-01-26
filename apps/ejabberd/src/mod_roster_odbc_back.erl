@@ -34,7 +34,7 @@
 -spec init ( ModuleOptions ) -> ok when
       ModuleOptions :: list().
 init( _Opts ) ->
-    not_implemented.
+    ok.
 
 
 -spec roster_version( UserServer ) -> {ok, Version} | not_found when

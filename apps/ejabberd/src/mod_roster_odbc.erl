@@ -64,6 +64,7 @@
 
 
 start(Host, Opts) ->
+    ?BACKEND:init( Opts ),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
     ejabberd_hooks:add(roster_get, Host,
                        ?MODULE, get_user_roster, 50),
