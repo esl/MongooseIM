@@ -775,15 +775,14 @@ process_item_attrs_ws(Item, [_ | Attrs]) ->
 process_item_attrs_ws(Item, []) ->
     Item.
 
+%% handle hook
 get_in_pending_subscriptions(Ls, User, Server) ->
     JID = jlib:make_jid(User, Server, <<"">>),
     LUser = JID#jid.luser,
     LServer = JID#jid.lserver,
-    Username = ejabberd_odbc:escape(LUser),
-    case catch odbc_queries:get_roster(LServer, Username) of
-        {selected, ["username", "jid", "nick", "subscription", "ask",
-                    "askmessage", "server", "subscribe", "type"],
-         Items} when is_list(Items) ->
+
+    Items = ?BACKEND:rosters_by_us( {LUser, LServer}),
+
             Ls ++ lists:map(
                     fun(R) ->
                             Message = R#roster.askmessage,
@@ -794,24 +793,7 @@ get_in_pending_subscriptions(Ls, User, Server) ->
                                    children = [#xmlel{name = <<"status">>,
                                                       children = [#xmlcdata{content = Message}]}]}
                     end,
-                    lists:flatmap(
-                      fun(I) ->
-                              case raw_to_record(LServer, I) of
-                                  %% Bad JID in database:
-                                  error ->
-                                      [];
-                                  R ->
-                                      case R#roster.ask of
-                                          in   -> [R];
-                                          both -> [R];
-                                          _ -> []
-                                      end
-                              end
-                      end,
-                      Items));
-        _ ->
-            Ls
-    end.
+                      Items).
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
