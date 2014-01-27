@@ -549,7 +549,7 @@ process_subscription(Direction, User, Server, JID1, Type, Reason) ->
                         NewItem = Item#roster{subscription = Subscription,
                                               ask = Pending,
                                               askmessage = AskMessage},
-                        ?BACKEND:write_roster(NewItem),
+                        ?BACKEND:write_roster_subscription(NewItem),
                         case roster_version_on_db(LServer) of
                             true ->
                                 ?BACKEND:write_version( US ,

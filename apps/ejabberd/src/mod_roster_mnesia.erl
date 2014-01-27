@@ -17,6 +17,7 @@
            rosters_without_groups/1,
            roster/1,
            write_roster/1,
+           write_roster_subscription/1,
            remove_roster/1,
            remove_user/1,
            transaction/2
@@ -116,6 +117,12 @@ remove_roster_object( Roster = #roster{} ) ->
       Roster :: roster().
 write_roster( Roster = #roster{} ) ->
     mnesia:write(Roster).
+
+-spec write_roster_subscription( Roster ) -> ok when
+      Roster :: roster().
+write_roster_subscription( Roster = #roster{} ) ->
+    %% this can not be optymized in mnesia backend
+    write_roster( Roster ).
 
 
 -spec transaction( Server, TransactionFun ) -> FunReturn when

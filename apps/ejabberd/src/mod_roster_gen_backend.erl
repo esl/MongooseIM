@@ -54,3 +54,6 @@
 -callback rosters_without_groups( UserServer ) -> Rousters when
       UserServer :: usj(),
       Rousters :: list( roster() ).
+
+-callback write_roster_subscription( Roster ) -> ok when
+      Roster :: roster().

@@ -18,6 +18,7 @@
            rosters_without_groups/1,
            roster/1,
            write_roster/1,
+           write_roster_subscription/1,
            remove_roster/1,
            remove_user/1,
            transaction/2
@@ -178,6 +179,19 @@ write_roster( Roster = #roster{ usj = { LUser,
                                SJID,
                                ItemVals,
                                ItemGroups).
+
+-spec write_roster_subscription( Roster ) -> ok when
+      Roster :: roster().
+write_roster_subscription( R = #roster{} ) ->
+    { LUser, LServer, LJID } = R#roster.usj,
+
+    Username = ejabberd_odbc:escape(LUser),
+    SJID = ejabberd_odbc:escape(jlib:jid_to_binary(LJID)),
+
+    ItemVals = record_to_string( R ),
+    odbc_queries:roster_subscribe(LServer, Username, SJID, ItemVals).
+
+
 
 
 
