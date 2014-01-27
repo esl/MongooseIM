@@ -331,17 +331,17 @@ process_item_set(_From, _To, _) ->
     ok.
 
 get_roster_of ( LUser, LServer, LJID, JID) ->
-    case ?BACKEND:roster( {LUser, LServer, LJID}) of
+    USJ = {LUser, LServer, LJID},
+    case ?BACKEND:roster( USJ ) of
         not_found ->
-            #roster{usj = {LUser, LServer, LJID},
+            #roster{usj = USJ ,
                     us = {LUser, LServer},
                     jid = LJID};
         {ok, R } ->
-            R#roster{
-              usj = {LUser, LServer, LJID},
-              us = {LUser, LServer},
-              jid = LJID,
-              name = <<"">>}
+            R#roster{ usj = USJ,
+                      us = {LUser, LServer},
+                      jid = LJID,
+                      name = <<"">>}
     end.
 
 

@@ -334,10 +334,10 @@ process_item_set(_From, _To, _) ->
     ok.
 
 get_roster_of( LUser, LServer, LJID, JID ) ->
-    LUserServiveJid = {LUser, LServer, LJID},
-    case ?BACKEND:roster( LUserServiveJid ) of
+    USJ = {LUser, LServer, LJID},
+    case ?BACKEND:roster( USJ ) of
         not_found ->
-            #roster{usj = LUserServiveJid,
+            #roster{usj = USJ,
                     us = {LUser, LServer},
                     jid = JID};
         {ok, R} ->
