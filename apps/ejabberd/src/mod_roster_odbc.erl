@@ -808,41 +808,18 @@ get_jid_info(_, User, Server, JID) ->
 
 
 get_jid_info( LUser, LServer, LJID) ->
-
-    Username = ejabberd_odbc:escape(LUser),
-    SJID = ejabberd_odbc:escape(jlib:jid_to_binary(LJID)),
-
-
     case ?BACKEND:roster({LUser, LServer, LJID}) of
         {ok, #roster{subscription = Subscription,
                      groups = Groups}} ->
-            {Subscription, Groups};
+            _return = {Subscription, Groups};
 
         not_found ->
             LRJID = jlib:jid_tolower(jlib:jid_remove_resource(LJID)),
             if
                 LRJID == LJID ->
-                    {none, []};
+                    _return = {none, []};
                 true ->
-                    SRJID = ejabberd_odbc:escape(jlib:jid_to_binary(LRJID)),
-                    case catch odbc_queries:get_subscription(LServer, Username, SRJID) of
-                        {selected, ["subscription"], [{SSubscription}]} ->
-                            Subscription = case SSubscription of
-                                               <<"B">> -> both;
-                                               <<"T">> -> to;
-                                               <<"F">> -> from;
-                                               _ -> none
-                                           end,
-                            Groups = case catch odbc_queries:get_rostergroup_by_jid(LServer, Username, SRJID) of
-                                         {selected, ["grp"], JGrps} when is_list(JGrps) ->
-                                             [JGrp || {JGrp} <- JGrps];
-                                         _ ->
-                                             []
-                                     end,
-                            {Subscription, Groups};
-                        _ ->
-                            {none, []}
-                    end
+                    get_jid_info( LUser, LServer, LRJID ) % only one recursion possible
             end
     end.
 
