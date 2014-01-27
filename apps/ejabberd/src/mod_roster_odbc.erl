@@ -298,16 +298,16 @@ process_item_set(From, To, #xmlel{attrs = Attrs, children = Els}) ->
                             remove ->
                                 ?BACKEND:remove_roster( {LUser, LServer, LJID});
                             _ ->
-                                ItemVals = record_to_string(Item2),
-                                ItemGroups = groups_to_string(Item2),
-                                odbc_queries:update_roster(LServer, Username, SJID, ItemVals, ItemGroups)
+                                ?BACKEND:write_roster(  Item2 )
                         end,
                         %% If the item exist in shared roster, take the
                         %% subscription information from there:
                         Item3 = ejabberd_hooks:run_fold(roster_process_item,
                                                         LServer, Item2, [LServer]),
                         case roster_version_on_db(LServer) of
-                            true -> odbc_queries:set_roster_version(ejabberd_odbc:escape(LUser), sha:sha(term_to_binary(now())));
+                            true ->
+                                ?BACKEND:write_version( {LUser, LServer},
+                                                        sha:sha(term_to_binary(now())));
                             false -> ok
                         end,
                         {Item, Item3}
