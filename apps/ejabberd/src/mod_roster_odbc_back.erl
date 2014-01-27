@@ -19,7 +19,8 @@
            write_roster/1,
            remove_roster/1,
            remove_roster_object/1,
-           transaction/1
+           transaction/1,
+           transaction/2
          ]).
 
 -include("ejabberd.hrl").
@@ -169,6 +170,10 @@ write_roster( Roster = #roster{ usj = { LUser,
       TransactionFun :: fun ( () -> FunReturn ).
 transaction( Function ) ->
     not_implemented.
+
+
+transaction( Host, Function ) ->
+    odbc_queries:sql_transaction( Host, Function ).
 
 %% --private-------------------------------------------------------------
 

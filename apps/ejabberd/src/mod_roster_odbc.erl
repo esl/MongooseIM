@@ -312,7 +312,7 @@ process_item_set(From, To, #xmlel{attrs = Attrs, children = Els}) ->
                         end,
                         {Item, Item3}
                 end,
-            case odbc_queries:sql_transaction(LServer, F) of
+            case ?BACKEND:transaction( LServer, F ) of
                 {atomic, {OldItem, Item}} ->
                     push_item(User, LServer, To, Item),
                     case Item#roster.subscription of
