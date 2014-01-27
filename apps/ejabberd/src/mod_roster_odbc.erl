@@ -721,11 +721,11 @@ set_items(User, Server, SubEl) ->
     #xmlel{children = Els} = SubEl,
     LUser = jlib:nodeprep(User),
     LServer = jlib:nameprep(Server),
-    catch odbc_queries:sql_transaction(
-            LServer,
-            lists:flatmap(fun(El) ->
-                                  process_item_set_t(LUser, LServer, El)
-                          end, Els)).
+    ?BACKEND:transaction(
+      LServer,
+      lists:flatmap(fun(El) ->
+                            process_item_set_t(LUser, LServer, El)
+                    end, Els)).
 
 process_item_set_t(LUser, LServer, #xmlel{attrs = Attrs,
                                           children = Els}) ->
