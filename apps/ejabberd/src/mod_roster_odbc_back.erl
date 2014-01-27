@@ -19,7 +19,6 @@
            write_roster/1,
            remove_roster/1,
            remove_user/1,
-           transaction/1,
            transaction/2
          ]).
 
@@ -167,12 +166,9 @@ write_roster( Roster = #roster{ usj = { LUser,
 
 
 
--spec transaction( TransactionFun ) -> FunReturn when
+-spec transaction( Server, TransactionFun ) -> FunReturn when
+      Server :: server(),
       TransactionFun :: fun ( () -> FunReturn ).
-transaction( Function ) ->
-    not_implemented.
-
-
 transaction( Host, Function ) ->
     odbc_queries:sql_transaction( Host, Function ).
 

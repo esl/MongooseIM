@@ -315,7 +315,7 @@ process_item_set(From, To, #xmlel{attrs = Attrs, children = Els}) ->
                         end,
                         {Item, Item3}
                 end,
-            case ?BACKEND:transaction(F) of
+            case ?BACKEND:transaction( LServer, F) of
                 {atomic, {OldItem, Item}} ->
                     push_item(User, LServer, To, Item),
                     case Item#roster.subscription of
@@ -566,7 +566,7 @@ process_subscription(Direction, User, Server, JID1, Type, Reason) ->
                         {{push, NewItem}, AutoReply}
                 end
         end,
-    case ?BACKEND:transaction(F) of
+    case ?BACKEND:transaction( LServer, F) of
         {atomic, {Push, AutoReply}} ->
             case AutoReply of
                 none ->
@@ -762,7 +762,7 @@ set_items(User, Server, SubEl) ->
                                       process_item_set_t(LUser, LServer, El)
                               end, Els)
         end,
-    ?BACKEND:transaction(F).
+    ?BACKEND:transaction( LServer, F).
 
 process_item_set_t(LUser, LServer, #xmlel{attrs = Attrs,
                                           children = Els}) ->

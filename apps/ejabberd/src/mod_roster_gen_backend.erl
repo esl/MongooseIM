@@ -41,7 +41,8 @@
 -callback write_roster( Roster ) -> ok when
       Roster :: roster().
 
--callback transaction( TransactionFun ) -> FunReturn when
+-callback transaction( Server, TransactionFun ) -> FunReturn when
+      Server :: server(),
       TransactionFun :: fun ( () -> FunReturn ).
 
 

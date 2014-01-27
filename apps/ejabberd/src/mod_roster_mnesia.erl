@@ -18,7 +18,7 @@
            write_roster/1,
            remove_roster/1,
            remove_user/1,
-           transaction/1
+           transaction/2
          ]).
 
 -include("ejabberd.hrl").
@@ -90,12 +90,12 @@ remove_roster( USJ ) when size(USJ) =:= 3 ->
 
 -spec remove_user( UserServer ) -> ok when
       UserServer :: usj().
-remove_user( US ) when size(US) =:= 2 ->
+remove_user( US = { _LUser, LServer} ) ->
     F = fun() ->
                 lists:foreach(fun remove_roster_object/1,
                               rosters_by_us(US))
         end,
-    transaction(F).
+    transaction( LServer, F).
 
 -spec remove_roster_object( Roster ) -> ok when
       Roster :: roster().
@@ -109,9 +109,10 @@ write_roster( Roster = #roster{} ) ->
     mnesia:write(Roster).
 
 
--spec transaction( TransactionFun ) -> FunReturn when
+-spec transaction( Server, TransactionFun ) -> FunReturn when
+      Server :: server(),
       TransactionFun :: fun ( () -> FunReturn ).
-transaction( Function ) ->
+transaction( _Server, Function ) ->
     mnesia:transaction( Function ).
 
 %% --private-------------------------------------------------------------
