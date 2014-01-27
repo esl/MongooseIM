@@ -484,14 +484,8 @@ process_subscription(Direction, User, Server, JID1, Type, Reason) ->
     SJID = ejabberd_odbc:escape(jlib:jid_to_binary(LJID)),
     F = fun() ->
                 Item =
-                    case odbc_queries:get_roster_by_jid(LServer, Username, SJID) of
-                        {selected,
-                         ["username", "jid", "nick", "subscription", "ask",
-                          "askmessage", "server", "subscribe", "type"],
-                         [I]} ->
-                            %% raw_to_record can return error, but
-                            %% jlib_to_string would fail before this point
-                            R = raw_to_record(LServer, I),
+                    case ?BACKEND:roster({LUser, LServer, LJID}) of
+                        {ok, R} ->
                             Groups =
                                 case odbc_queries:get_roster_groups(LServer, Username, SJID) of
                                     {selected, ["grp"], JGrps} when is_list(JGrps) ->
@@ -500,10 +494,7 @@ process_subscription(Direction, User, Server, JID1, Type, Reason) ->
                                         []
                                 end,
                             R#roster{groups = Groups};
-                        {selected,
-                         ["username", "jid", "nick", "subscription", "ask",
-                          "askmessage", "server", "subscribe", "type"],
-                         []} ->
+                        not_found ->
                             #roster{usj = {LUser, LServer, LJID},
                                     us = {LUser, LServer},
                                     jid = LJID}
