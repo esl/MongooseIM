@@ -558,8 +558,9 @@ process_subscription(Direction, User, Server, JID1, Type, Reason) ->
                                               askmessage = AskMessage},
                         ?BACKEND:write_roster(NewItem),
                         case roster_version_on_db(LServer) of
-                            true -> ?BACKEND:write_version( US ,
-                                                            sha:sha(term_to_binary(now())));
+                            true ->
+                                ?BACKEND:write_version( US ,
+                                                        sha:sha(term_to_binary(now())));
                             false -> ok
                         end,
                         {{push, NewItem}, AutoReply}

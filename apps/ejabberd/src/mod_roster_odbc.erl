@@ -528,7 +528,8 @@ process_subscription(Direction, User, Server, JID1, Type, Reason) ->
                         ?BACKEND:write_roster( NewItem ),
                         case roster_version_on_db(LServer) of
                             true ->
-                                odbc_queries:set_roster_version(ejabberd_odbc:escape(LUser), sha:sha(term_to_binary(now())));
+                                ?BACKEND:write_version( { LUser, LServer } ,
+                                                        sha:sha(term_to_binary(now())));
                             false -> ok
                         end,
                         {{push, NewItem}, AutoReply}
