@@ -442,7 +442,7 @@ get_subscription_lists(_, User, Server) ->
     LServer = jlib:nameprep(Server),
     US = {LUser, LServer},
     JID = jlib:make_jid(User, Server, <<>>),
-    Items =  ?BACKEND:rosters_by_us( US ),
+    Items =  ?BACKEND:rosters_without_groups( US ),
     fill_subscription_lists(JID, Items).
 
 

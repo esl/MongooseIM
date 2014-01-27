@@ -418,7 +418,7 @@ get_subscription_lists(_, User, Server) ->
     LUser = jlib:nodeprep(User),
     LServer = jlib:nameprep(Server),
     JID = jlib:make_jid(User, Server, <<>>),
-    Items =  ?BACKEND:rosters_by_us( {LUser, LServer} ),
+    Items =  ?BACKEND:rosters_without_groups( {LUser, LServer} ),
     fill_subscription_lists(JID, Items).
 
 

@@ -14,6 +14,7 @@
            roster_version/1,
            write_version/2,
            rosters_by_us/1,
+           rosters_without_groups/1,
            roster/1,
            write_roster/1,
            remove_roster/1,
@@ -69,6 +70,14 @@ rosters_by_us( US ) when size(US) =:= 2 ->
         _ ->
             []
     end.
+
+
+-spec rosters_without_groups( UserServer ) -> Rousters when
+      UserServer :: usj(),
+      Rousters :: list( roster() ).
+rosters_without_groups( US ) ->
+    %% This one can not be optymized in mnesia
+    rosters_by_us( US ).
 
 
 -spec roster( UserServeJid ) -> MightBeRoster when

@@ -45,5 +45,12 @@
       Server :: server(),
       TransactionFun :: fun ( () -> FunReturn ).
 
+%% --sql-optymalizations-------------------------------------------------
+%%
+%% set of functions created only because they can (and should) be
+%% implemented with lower over-head in one of the backends (odbc
+%% usually)
 
-
+-callback rosters_without_groups( UserServer ) -> Rousters when
+      UserServer :: usj(),
+      Rousters :: list( roster() ).

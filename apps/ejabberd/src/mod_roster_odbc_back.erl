@@ -15,6 +15,7 @@
            roster_version/1,
            write_version/2,
            rosters_by_us/1,
+           rosters_without_groups/1,
            roster/1,
            write_roster/1,
            remove_roster/1,
@@ -102,6 +103,20 @@ rosters_by_us( US ) when size(US) =:= 2 ->
             []
     end.
 
+-spec rosters_without_groups( UserServer ) -> Rousters when
+      UserServer :: usj(),
+      Rousters :: list( roster() ).
+rosters_without_groups( _US = {LUser, LServer} ) ->
+    Username = ejabberd_odbc:escape(LUser),
+
+    case catch odbc_queries:get_roster(LServer, Username) of
+        { selected, ["username", "jid", "nick", "subscription", "ask",
+                     "askmessage", "server", "subscribe", "type"],
+          Items} when is_list(Items) ->
+            Items;
+        _ ->
+            []
+    end.
 
 
 -spec roster( UserServerJid ) -> MightBeRoster when
