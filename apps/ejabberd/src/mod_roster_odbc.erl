@@ -669,10 +669,8 @@ in_auto_reply(_,    _,    _)  ->           none.
 remove_user(User, Server) ->
     LUser = jlib:nodeprep(User),
     LServer = jlib:nameprep(Server),
-    Username = ejabberd_odbc:escape(LUser),
     send_unsubscription_to_rosteritems(LUser, LServer),
-    odbc_queries:del_user_roster_t(LServer, Username),
-    ok.
+    ?BACKEND:remove_user( {LUser, LServer}).
 
 %% For each contact with Subscription:
 %% Both or From, send a "unsubscribed" presence stanza;

@@ -18,7 +18,7 @@
            roster/1,
            write_roster/1,
            remove_roster/1,
-           remove_roster_object/1,
+           remove_user/1,
            transaction/1,
            transaction/2
          ]).
@@ -140,12 +140,12 @@ remove_roster( USJ = {LUser, LServer, LJID } ) when size(USJ) =:= 3 ->
 
     odbc_queries:del_roster(LServer, Username, SJID).
 
-
-
--spec remove_roster_object( Roster ) -> ok when
-      Roster :: roster().
-remove_roster_object( Roster = #roster{} ) ->
-    not_implemented.
+-spec remove_user( UserServer ) -> ok when
+      UserServer :: usj().
+remove_user( US = {LUser, LServer} ) when size(US) =:= 2 ->
+    Username = ejabberd_odbc:escape(LUser),
+    odbc_queries:del_user_roster_t(LServer, Username),
+    ok.
 
 
 -spec write_roster( Roster ) -> ok when
