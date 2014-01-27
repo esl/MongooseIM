@@ -849,7 +849,7 @@ get_jid_info( LUser, LServer, LJID) ->
                 LRJID == LJID ->
                     {none, []};
                 true ->
-                    get_jid_info( LUser, LServer, LJID )
+                    get_jid_info( LUser, LServer, LRJID )
             end
     end.
 
