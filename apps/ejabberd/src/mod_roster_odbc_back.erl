@@ -104,11 +104,31 @@ rosters_by_us( US ) when size(US) =:= 2 ->
 
 
 
--spec roster( UserServeJid ) -> MightBeRoster when
-      UserServeJid :: usj(),
+-spec roster( UserServerJid ) -> MightBeRoster when
+      UserServerJid :: usj(),
       MightBeRoster :: {ok, roster() } | not_found.
-roster( USJ ) when size( USJ ) =:= 3 ->
-    not_implemented.
+roster( USJ = {LUser, LServer, LJID} ) when size( USJ ) =:= 3 ->
+
+    Username = ejabberd_odbc:escape(LUser),
+    SJID = ejabberd_odbc:escape(jlib:jid_to_binary(LJID)),
+
+    { selected,
+      [ "username", "jid", "nick", "subscription",
+        "ask", "askmessage", "server", "subscribe", "type"],
+      Responce } = odbc_queries:get_roster_by_jid(LServer, Username, SJID),
+    case Responce of
+        [] ->
+            _Return = not_found;
+        [Item] ->
+            Roster = raw_to_record( LServer, Item ),
+            case Roster of
+                error ->
+                    _Return = not_found;
+                _ ->
+                    _Return = {ok, Roster}
+            end
+    end.
+
 
 -spec remove_roster( UserServerJID ) -> ok when
       UserServerJID :: usj().
