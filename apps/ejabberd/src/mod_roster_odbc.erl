@@ -798,13 +798,16 @@ get_in_pending_subscriptions(Ls, User, Server) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-
-
+%% hook handler
 get_jid_info(_, User, Server, JID) ->
     LUser = jlib:nodeprep(User),
     LServer = jlib:nameprep(Server),
     LJID = jlib:jid_tolower(JID),
 
+    get_jid_info( LUser, LServer, LJID).
+
+
+get_jid_info( LUser, LServer, LJID) ->
 
     Username = ejabberd_odbc:escape(LUser),
     SJID = ejabberd_odbc:escape(jlib:jid_to_binary(LJID)),
@@ -816,7 +819,7 @@ get_jid_info(_, User, Server, JID) ->
             {Subscription, Groups};
 
         not_found ->
-            LRJID = jlib:jid_tolower(jlib:jid_remove_resource(JID)),
+            LRJID = jlib:jid_tolower(jlib:jid_remove_resource(LJID)),
             if
                 LRJID == LJID ->
                     {none, []};
