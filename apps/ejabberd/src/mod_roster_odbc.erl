@@ -773,6 +773,14 @@ get_in_pending_subscriptions(Ls, User, Server) ->
 
     Items = ?BACKEND:rosters_without_groups( {LUser, LServer}),
 
+    Items2 = lists:filter( fun (R) ->
+                                   case R#roster.ask of
+                                       in    -> true;
+                                       both  -> true;
+                                       _else -> false
+                                   end
+                           end,  Items),
+
     Ls ++ lists:map(
             fun(R) ->
                     Message = R#roster.askmessage,
@@ -783,7 +791,7 @@ get_in_pending_subscriptions(Ls, User, Server) ->
                            children = [#xmlel{name = <<"status">>,
                                               children = [#xmlcdata{content = Message}]}]}
             end,
-            Items).
+            Items2).
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
