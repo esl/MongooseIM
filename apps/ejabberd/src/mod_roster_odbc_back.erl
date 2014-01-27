@@ -132,8 +132,12 @@ roster( USJ = {LUser, LServer, LJID} ) when size( USJ ) =:= 3 ->
 
 -spec remove_roster( UserServerJID ) -> ok when
       UserServerJID :: usj().
-remove_roster( USJ ) when size(USJ) =:= 3 ->
-    not_implemented.
+remove_roster( USJ = {LUser, LServer, LJID } ) when size(USJ) =:= 3 ->
+    Username = ejabberd_odbc:escape(LUser),
+    SJID = ejabberd_odbc:escape(jlib:jid_to_binary(LJID)),
+
+    odbc_queries:del_roster(LServer, Username, SJID).
+
 
 
 -spec remove_roster_object( Roster ) -> ok when
