@@ -771,7 +771,7 @@ get_in_pending_subscriptions(Ls, User, Server) ->
     LUser = JID#jid.luser,
     LServer = JID#jid.lserver,
 
-    Items = ?BACKEND:rosters_by_us( {LUser, LServer}),
+    Items = ?BACKEND:rosters_without_groups( {LUser, LServer}),
 
     Ls ++ lists:map(
             fun(R) ->
