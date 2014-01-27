@@ -17,7 +17,7 @@
            roster/1,
            write_roster/1,
            remove_roster/1,
-           remove_roster_object/1,
+           remove_user/1,
            transaction/1
          ]).
 
@@ -88,6 +88,14 @@ roster( USJ ) when size( USJ ) =:= 3 ->
 remove_roster( USJ ) when size(USJ) =:= 3 ->
     mnesia:delete({roster, USJ}).
 
+-spec remove_user( UserServer ) -> ok when
+      UserServer :: usj().
+remove_user( US ) when size(US) =:= 2 ->
+    F = fun() ->
+                lists:foreach(fun remove_roster_object/1,
+                              rosters_by_us(US))
+        end,
+    transaction(F).
 
 -spec remove_roster_object( Roster ) -> ok when
       Roster :: roster().

@@ -700,13 +700,8 @@ remove_user(User, Server) when is_list(User), is_list(Server) ->
 remove_user(User, Server) ->
     LUser = jlib:nodeprep(User),
     LServer = jlib:nameprep(Server),
-    US = {LUser, LServer},
     send_unsubscription_to_rosteritems(LUser, LServer),
-    F = fun() ->
-                lists:foreach(fun ?BACKEND:remove_roster_object/1,
-                              ?BACKEND:rosters_by_us(US))
-        end,
-    ?BACKEND:transaction(F).
+    ?BACKEND:remove_user( {LUser, LServer} ).
 
 %% For each contact with Subscription:
 %% Both or From, send a "unsubscribed" presence stanza;

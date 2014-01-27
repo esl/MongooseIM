@@ -35,8 +35,8 @@
 -callback remove_roster( UserServerJID ) -> ok when
       UserServerJID :: usj().
 
--callback remove_roster_object( Roster ) -> ok when
-      Roster :: roster().
+-callback remove_user( UserServer ) -> ok when
+      UserServer :: usj().
 
 -callback write_roster( Roster ) -> ok when
       Roster :: roster().
