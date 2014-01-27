@@ -486,14 +486,7 @@ process_subscription(Direction, User, Server, JID1, Type, Reason) ->
                 Item =
                     case ?BACKEND:roster({LUser, LServer, LJID}) of
                         {ok, R} ->
-                            Groups =
-                                case odbc_queries:get_roster_groups(LServer, Username, SJID) of
-                                    {selected, ["grp"], JGrps} when is_list(JGrps) ->
-                                        [JGrp || {JGrp} <- JGrps];
-                                    _ ->
-                                        []
-                                end,
-                            R#roster{groups = Groups};
+                            R;
                         not_found ->
                             #roster{usj = {LUser, LServer, LJID},
                                     us = {LUser, LServer},

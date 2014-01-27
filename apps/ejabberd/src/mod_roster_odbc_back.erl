@@ -126,7 +126,8 @@ roster( USJ = {LUser, LServer, LJID} ) when size( USJ ) =:= 3 ->
                 error ->
                     _Return = not_found;
                 _ ->
-                    _Return = {ok, Roster}
+                    Groups = get_groups(LServer, Username, SJID),
+                    _Return = {ok, Roster#roster{ groups = Groups }}
             end
     end.
 
@@ -176,6 +177,14 @@ transaction( Host, Function ) ->
     odbc_queries:sql_transaction( Host, Function ).
 
 %% --private-------------------------------------------------------------
+
+get_groups( LServer, Username, SJID ) ->
+    case odbc_queries:get_roster_groups(LServer, Username, SJID) of
+        {selected, ["grp"], JGrps} when is_list(JGrps) ->
+            [JGrp || {JGrp} <- JGrps];
+        _ ->
+            []
+    end.
 
 raw_to_record(LServer, {User, BJID, Nick, BSubscription, BAsk, AskMessage,
                         _Server, _Subscribe, _Type}) ->
