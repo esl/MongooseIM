@@ -798,28 +798,24 @@ get_in_pending_subscriptions(Ls, User, Server) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+
+
 get_jid_info(_, User, Server, JID) ->
     LUser = jlib:nodeprep(User),
     LServer = jlib:nameprep(Server),
     LJID = jlib:jid_tolower(JID),
+
+
     Username = ejabberd_odbc:escape(LUser),
     SJID = ejabberd_odbc:escape(jlib:jid_to_binary(LJID)),
-    case catch odbc_queries:get_subscription(LServer, Username, SJID) of
-        {selected, ["subscription"], [{SSubscription}]} ->
-            Subscription = case SSubscription of
-                               <<"B">> -> both;
-                               <<"T">> -> to;
-                               <<"F">> -> from;
-                               _ -> none
-                           end,
-            Groups = case catch odbc_queries:get_rostergroup_by_jid(LServer, Username, SJID) of
-                         {selected, ["grp"], JGrps} when is_list(JGrps) ->
-                             [JGrp || {JGrp} <- JGrps];
-                         _ ->
-                             []
-                     end,
+
+
+    case ?BACKEND:roster({LUser, LServer, LJID}) of
+        {ok, #roster{subscription = Subscription,
+                     groups = Groups}} ->
             {Subscription, Groups};
-        _ ->
+
+        not_found ->
             LRJID = jlib:jid_tolower(jlib:jid_remove_resource(JID)),
             if
                 LRJID == LJID ->
