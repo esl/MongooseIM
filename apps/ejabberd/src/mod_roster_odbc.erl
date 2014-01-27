@@ -735,8 +735,6 @@ process_item_set_t(LUser, LServer, #xmlel{attrs = Attrs,
             [];
         _ ->
             LJID = {JID1#jid.luser, JID1#jid.lserver, JID1#jid.lresource},
-            Username = ejabberd_odbc:escape(LUser),
-            SJID = ejabberd_odbc:escape(jlib:jid_to_binary(LJID)),
             Item = #roster{usj = {LUser, LServer, LJID},
                            us = {LUser, LServer},
                            jid = LJID},
@@ -744,11 +742,9 @@ process_item_set_t(LUser, LServer, #xmlel{attrs = Attrs,
             Item2 = process_item_els(Item1, Els),
             case Item2#roster.subscription of
                 remove ->
-                    odbc_queries:del_roster_sql(Username, SJID);
+                    ?BACKEND:remove_roster( {LUser, LServer, LJID});
                 _ ->
-                    ItemVals = record_to_string(Item1),
-                    ItemGroups = groups_to_string(Item2),
-                    odbc_queries:update_roster_sql(Username, SJID, ItemVals, ItemGroups)
+                    ?BACKEND:write_roster( Item2 )
             end
     end;
 process_item_set_t(_LUser, _LServer, _) ->
