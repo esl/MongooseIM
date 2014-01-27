@@ -480,8 +480,7 @@ process_subscription(Direction, User, Server, JID1, Type, Reason) ->
     LUser = jlib:nodeprep(User),
     LServer = jlib:nameprep(Server),
     LJID = jlib:jid_tolower(JID1),
-    Username = ejabberd_odbc:escape(LUser),
-    SJID = ejabberd_odbc:escape(jlib:jid_to_binary(LJID)),
+
     F = fun() ->
                 Item =
                     case ?BACKEND:roster({LUser, LServer, LJID}) of
