@@ -148,8 +148,21 @@ remove_roster_object( Roster = #roster{} ) ->
 
 -spec write_roster( Roster ) -> ok when
       Roster :: roster().
-write_roster( Roster = #roster{} ) ->
-    not_implemented.
+write_roster( Roster = #roster{ usj = { LUser,
+                                        LServer,
+                                        LJID} } ) ->
+
+    Username = ejabberd_odbc:escape(LUser),
+    SJID = ejabberd_odbc:escape(jlib:jid_to_binary(LJID)),
+    ItemVals = record_to_string( Roster ),
+    ItemGroups = groups_to_string( Roster ),
+
+    odbc_queries:update_roster(LServer,
+                               Username,
+                               SJID,
+                               ItemVals,
+                               ItemGroups).
+
 
 
 -spec transaction( TransactionFun ) -> FunReturn when
@@ -188,3 +201,44 @@ raw_to_record(LServer, {User, BJID, Nick, BSubscription, BAsk, AskMessage,
                     ask = Ask,
                     askmessage = AskMessage}
     end.
+
+
+record_to_string(#roster{us = {User, _Server},
+                         jid = JID,
+                         name = Name,
+                         subscription = Subscription,
+                         ask = Ask,
+                         askmessage = AskMessage}) ->
+    Username = ejabberd_odbc:escape(User),
+    SJID = ejabberd_odbc:escape(jlib:jid_to_binary(jlib:jid_tolower(JID))),
+    Nick = ejabberd_odbc:escape(Name),
+    SSubscription = case Subscription of
+                        both -> "B";
+                        to   -> "T";
+                        from -> "F";
+                        none -> "N"
+                    end,
+    SAsk = case Ask of
+               subscribe   -> "S";
+               unsubscribe -> "U";
+               both        -> "B";
+               out         -> "O";
+               in          -> "I";
+               none        -> "N"
+           end,
+    SAskMessage = ejabberd_odbc:escape(AskMessage),
+    [Username, SJID, Nick, SSubscription, SAsk, SAskMessage, "N", "", "item"].
+
+groups_to_string(#roster{us = {User, _Server},
+                         jid = JID,
+                         groups = Groups}) ->
+    Username = ejabberd_odbc:escape(User),
+    SJID = ejabberd_odbc:escape(jlib:jid_to_binary(jlib:jid_tolower(JID))),
+
+    %% Empty groups do not need to be converted to string to be inserted in
+    %% the database
+    lists:foldl(
+      fun([], Acc) -> Acc;
+         (Group, Acc) ->
+              G = ejabberd_odbc:escape(Group),
+              [[Username, SJID, G]|Acc] end, [], Groups).
