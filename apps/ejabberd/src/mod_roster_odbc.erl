@@ -425,15 +425,9 @@ get_subscription_lists(_, User, Server) ->
     LUser = jlib:nodeprep(User),
     LServer = jlib:nameprep(Server),
     JID = jlib:make_jid(User, Server, <<>>),
-    Username = ejabberd_odbc:escape(LUser),
-    case catch odbc_queries:get_roster(LServer, Username) of
-        {selected, ["username", "jid", "nick", "subscription", "ask",
-                    "askmessage", "server", "subscribe", "type"],
-         Items} when is_list(Items) ->
-            fill_subscription_lists(JID, Items);
-        _ ->
-            {[], [], []}
-    end.
+    Items =  ?BACKEND:rosters_by_us( {LUser, LServer} ),
+    fill_subscription_lists(JID, Items).
+
 
 fill_subscription_lists( JID, Items ) ->
     fill_subscription_lists( JID, Items, [], [], []).
@@ -893,7 +887,7 @@ get_jid_info(_, User, Server, JID) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
-%% TODO delete, 
+%% TODO delete,
 raw_to_record(LServer, {User, BJID, Nick, BSubscription, BAsk, AskMessage,
                         _Server, _Subscribe, _Type}) ->
     case jlib:binary_to_jid(BJID) of
