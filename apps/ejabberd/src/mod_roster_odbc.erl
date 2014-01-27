@@ -783,17 +783,17 @@ get_in_pending_subscriptions(Ls, User, Server) ->
 
     Items = ?BACKEND:rosters_by_us( {LUser, LServer}),
 
-            Ls ++ lists:map(
-                    fun(R) ->
-                            Message = R#roster.askmessage,
-                            #xmlel{name = <<"presence">>,
-                                   attrs = [{<<"from">>, jlib:jid_to_binary(R#roster.jid)},
-                                            {<<"to">>, jlib:jid_to_binary(JID)},
-                                            {<<"type">>, <<"subscribe">>}],
-                                   children = [#xmlel{name = <<"status">>,
-                                                      children = [#xmlcdata{content = Message}]}]}
-                    end,
-                      Items).
+    Ls ++ lists:map(
+            fun(R) ->
+                    Message = R#roster.askmessage,
+                    #xmlel{name = <<"presence">>,
+                           attrs = [{<<"from">>, jlib:jid_to_binary(R#roster.jid)},
+                                    {<<"to">>, jlib:jid_to_binary(JID)},
+                                    {<<"type">>, <<"subscribe">>}],
+                           children = [#xmlel{name = <<"status">>,
+                                              children = [#xmlcdata{content = Message}]}]}
+            end,
+            Items).
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
