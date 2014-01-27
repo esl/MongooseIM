@@ -526,8 +526,7 @@ process_subscription(Direction, User, Server, JID1, Type, Reason) ->
                         NewItem = Item#roster{subscription = Subscription,
                                               ask = Pending,
                                               askmessage = AskMessage},
-                        ItemVals = record_to_string(NewItem),
-                        odbc_queries:roster_subscribe(LServer, Username, SJID, ItemVals),
+                        ?BACKEND:write_roster( NewItem ),
                         case roster_version_on_db(LServer) of
                             true ->
                                 odbc_queries:set_roster_version(ejabberd_odbc:escape(LUser), sha:sha(term_to_binary(now())));
