@@ -430,45 +430,47 @@ get_subscription_lists(_, User, Server) ->
         {selected, ["username", "jid", "nick", "subscription", "ask",
                     "askmessage", "server", "subscribe", "type"],
          Items} when is_list(Items) ->
-            fill_subscription_lists(JID, LServer, Items, [], [], []);
+            fill_subscription_lists(JID, Items);
         _ ->
             {[], [], []}
     end.
 
-fill_subscription_lists(JID, LServer, [IRaw | Is], F, T, P) ->
-    I = raw_to_record(LServer, IRaw),
+fill_subscription_lists( JID, Items ) ->
+    fill_subscription_lists( JID, Items, [], [], []).
+
+fill_subscription_lists(JID, [I | Is], F, T, P) ->
     J = element(3, I#roster.usj),
     NewP = case I#roster.ask of
-               Ask when Ask == in; Ask == both ->
+               Ask when Ask == in;
+                        Ask == both ->
                    Message = I#roster.askmessage,
-                   Status  = if is_binary(Message) -> Message;
-                                true -> <<>>
+                   Status  = if is_binary(Message) ->
+                                     Message;
+                                true ->
+                                     <<>>
                              end,
-                   StatusEl = #xmlel{
-                                 name = <<"status">>,
-                                 children = [#xmlcdata{content = Status}]},
-                   El = #xmlel{
-                           name = <<"presence">>,
+                   [#xmlel{name = <<"presence">>,
                            attrs = [{<<"from">>, jlib:jid_to_binary(I#roster.jid)},
                                     {<<"to">>, jlib:jid_to_binary(JID)},
                                     {<<"type">>, <<"subscribe">>}],
-                           children = [StatusEl]},
-                   [El | P];
+                           children = [#xmlel{name = <<"status">>,
+                                              children = [#xmlcdata{content = Status}]}]} | P];
                _ ->
                    P
            end,
     case I#roster.subscription of
         both ->
-            fill_subscription_lists(JID, LServer, Is, [J | F], [J | T], NewP);
+            fill_subscription_lists(JID, Is, [J | F], [J | T], NewP);
         from ->
-            fill_subscription_lists(JID, LServer, Is, [J | F], T, NewP);
+            fill_subscription_lists(JID, Is, [J | F], T, NewP);
         to ->
-            fill_subscription_lists(JID, LServer, Is, F, [J | T], NewP);
+            fill_subscription_lists(JID, Is, F, [J | T], NewP);
         _ ->
-            fill_subscription_lists(JID, LServer, Is, F, T, NewP)
+            fill_subscription_lists(JID, Is, F, T, NewP)
     end;
-fill_subscription_lists(_JID, _LServer, [], F, T, P) ->
+fill_subscription_lists(_JID, [], F, T, P) ->
     {F, T, P}.
+
 
 ask_to_pending(subscribe) -> out;
 ask_to_pending(unsubscribe) -> none;
