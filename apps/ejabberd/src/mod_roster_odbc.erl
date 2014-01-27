@@ -538,7 +538,7 @@ process_subscription(Direction, User, Server, JID1, Type, Reason) ->
                         {{push, NewItem}, AutoReply}
                 end
         end,
-    case odbc_queries:sql_transaction(LServer, F) of
+    case ?BACKEND:transaction(LServer, F) of
         {atomic, {Push, AutoReply}} ->
             case AutoReply of
                 none ->
