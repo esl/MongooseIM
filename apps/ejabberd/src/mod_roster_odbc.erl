@@ -520,7 +520,7 @@ process_subscription(Direction, User, Server, JID1, Type, Reason) ->
                         {none, AutoReply};
                     {none, none} when Item#roster.subscription == none,
                                       Item#roster.ask == in ->
-                        odbc_queries:del_roster(LServer, Username, SJID),
+                        ?BACKEND:remove_roster( {LUser, LServer, LJID }),
                         {none, AutoReply};
                     {Subscription, Pending} ->
                         NewItem = Item#roster{subscription = Subscription,
@@ -529,7 +529,8 @@ process_subscription(Direction, User, Server, JID1, Type, Reason) ->
                         ItemVals = record_to_string(NewItem),
                         odbc_queries:roster_subscribe(LServer, Username, SJID, ItemVals),
                         case roster_version_on_db(LServer) of
-                            true -> odbc_queries:set_roster_version(ejabberd_odbc:escape(LUser), sha:sha(term_to_binary(now())));
+                            true ->
+                                odbc_queries:set_roster_version(ejabberd_odbc:escape(LUser), sha:sha(term_to_binary(now())));
                             false -> ok
                         end,
                         {{push, NewItem}, AutoReply}
