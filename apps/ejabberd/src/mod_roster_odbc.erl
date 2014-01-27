@@ -288,35 +288,13 @@ process_item_set(From, To, #xmlel{attrs = Attrs, children = Els}) ->
         error ->
             ok;
         _ ->
+
+            %%  finished here.
+            %% %% %% %% maybe implement get_roster_of??
+            JID = {JID1#jid.user, JID1#jid.server, JID1#jid.resource},
             LJID = jlib:jid_tolower(JID1),
-            Username = ejabberd_odbc:escape(LUser),
-            SJID = ejabberd_odbc:escape(jlib:jid_to_binary(LJID)),
             F = fun() ->
-                        {selected,
-                         ["username", "jid", "nick", "subscription",
-                          "ask", "askmessage", "server", "subscribe", "type"],
-                         Res} = odbc_queries:get_roster_by_jid(LServer, Username, SJID),
-                        Item = case Res of
-                                   [] ->
-                                       #roster{usj = {LUser, LServer, LJID},
-                                               us = {LUser, LServer},
-                                               jid = LJID};
-                                   [I] ->
-                                       R = raw_to_record(LServer, I),
-                                       case R of
-                                           %% Bad JID in database:
-                                           error ->
-                                               #roster{usj = {LUser, LServer, LJID},
-                                                       us = {LUser, LServer},
-                                                       jid = LJID};
-                                           _ ->
-                                               R#roster{
-                                                 usj = {LUser, LServer, LJID},
-                                                 us = {LUser, LServer},
-                                                 jid = LJID,
-                                                 name = <<"">>}
-                                       end
-                               end,
+                        Item = get_roster_of(LUser, LServer, LJID, JID),
                         Item1 = process_item_attrs(Item, Attrs),
                         Item2 = process_item_els(Item1, Els),
                         case Item2#roster.subscription of
@@ -354,6 +332,36 @@ process_item_set(From, To, #xmlel{attrs = Attrs, children = Els}) ->
     end;
 process_item_set(_From, _To, _) ->
     ok.
+
+get_roster_of ( LUser, LServer, LJID, JID) ->
+    Username = ejabberd_odbc:escape(LUser),
+    SJID = ejabberd_odbc:escape(jlib:jid_to_binary(LJID)),
+    {selected,
+     ["username", "jid", "nick", "subscription",
+      "ask", "askmessage", "server", "subscribe", "type"],
+     Res} = odbc_queries:get_roster_by_jid(LServer, Username, SJID),
+    _Item = case Res of
+               [] ->
+                   #roster{usj = {LUser, LServer, LJID},
+                           us = {LUser, LServer},
+                           jid = LJID};
+               [I] ->
+                   R = raw_to_record(LServer, I),
+                   case R of
+                       %% Bad JID in database:
+                       error ->
+                           #roster{usj = {LUser, LServer, LJID},
+                                   us = {LUser, LServer},
+                                   jid = LJID};
+                       _ ->
+                           R#roster{
+                             usj = {LUser, LServer, LJID},
+                             us = {LUser, LServer},
+                             jid = LJID,
+                             name = <<"">>}
+                   end
+           end.
+
 
 process_item_attrs(Item, [{<<"jid">>, Val} | Attrs]) ->
     case jlib:binary_to_jid(Val) of
