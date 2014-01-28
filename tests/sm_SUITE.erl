@@ -19,12 +19,12 @@ all() ->
      {group, resumption}].
 
 groups() ->
-    [{negotiation, [], [server_announces_sm,
-                        server_enables_sm_before_session,
-                        server_enables_sm_after_session,
-                        server_returns_failed_after_start,
-                        server_returns_failed_after_auth,
-                        server_enables_resumption]},
+    [{negotiation, [shuffle, {repeat, 5}], [server_announces_sm,
+                                            server_enables_sm_before_session,
+                                            server_enables_sm_after_session,
+                                            server_returns_failed_after_start,
+                                            server_returns_failed_after_auth,
+                                            server_enables_resumption]},
      {server_acking,
       [shuffle, {repeat, 5}], [basic_ack,
                                h_ok_before_session,
