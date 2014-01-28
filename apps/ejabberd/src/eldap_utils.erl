@@ -94,9 +94,9 @@ get_ldap_attr(LDAPAttr, Attributes) ->
 
 get_user_part(String, Pattern) ->
     F = fun(S, P) ->
-		First = string:str(binary_to_list(P), binary_to_list(<<"%u">>)),
+        {First,_} = binary:match(P,<<"%u">>),
 		TailLength = byte_size(P) - (First+1),
-		iolist_to_binary(string:sub_string(binary_to_list(S), First, byte_size(S) - TailLength))
+        binary:part(S,First,byte_size(S)-TailLength-First+1)
 	end,
     case catch F(String, Pattern) of
 	    {'EXIT', _} ->
@@ -148,8 +148,8 @@ make_filter(Data, UIDs) ->
 -spec case_insensitive_match(binary(), binary()) -> boolean().
 
 case_insensitive_match(X, Y) ->
-    X1 = iolist_to_binary(string:to_lower(binary_to_list(X))),
-    Y1 = iolist_to_binary(string:to_lower(binary_to_list(Y))),
+    X1 = string:to_lower(binary_to_list(X)),
+    Y1 = string:to_lower(binary_to_list(Y)),
     if
 	X1 == Y1 -> true;
 	true -> false
