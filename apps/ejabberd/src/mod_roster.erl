@@ -67,7 +67,6 @@
 start(Host, Opts) ->
     ?BACKEND:init( Opts ),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
-
     ejabberd_hooks:add(roster_get, Host,
                        ?MODULE, get_user_roster, 50),
     ejabberd_hooks:add(roster_in_subscription, Host,
@@ -104,10 +103,6 @@ stop(Host) ->
                           ?MODULE, remove_user, 50),
     ejabberd_hooks:delete(roster_get_versioning_feature, Host,
                           ?MODULE, get_versioning_feature, 50),
-    ejabberd_hooks:delete(webadmin_page_host, Host,
-                          ?MODULE, webadmin_page, 50),
-    ejabberd_hooks:delete(webadmin_user, Host,
-                          ?MODULE, webadmin_user, 50),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_ROSTER).
 
 
@@ -157,7 +152,7 @@ roster_version(LServer ,LUser) ->
     case roster_version_on_db(LServer) of
         true ->
             case ?BACKEND:roster_version( US ) of
-                { ok, Version } -> Version;
+                {ok, Version } -> Version;
                 not_fount -> not_found
             end;
         false ->
@@ -174,6 +169,7 @@ process_iq_get(From, To, #iq{sub_el = SubEl} = IQ) ->
     LUser = From#jid.luser,
     LServer = From#jid.lserver,
     US = {LUser, LServer},
+
     try
         {ItemsToSend, VersionToSend} =
             case {xml:get_tag_attr(<<"ver">>, SubEl),
@@ -214,12 +210,13 @@ process_iq_get(From, To, #iq{sub_el = SubEl} = IQ) ->
                                                                     attrs = [{<<"xmlns">>, ?NS_ROSTER}],
                                                                     children = Items}];
                                           {Items, Version} -> [#xmlel{name = <<"query">>,
-                                                                      attrs = [{<<"xmlns">>, ?NS_ROSTER}, {<<"ver">>, Version}],
+                                                                      attrs = [{<<"xmlns">>, ?NS_ROSTER},
+                                                                               {<<"ver">>, Version}],
                                                                       children = Items}]
                                       end}
     catch
         _:_ ->
-            IQ#iq{type =error, sub_el = [SubEl, ?ERR_INTERNAL_SERVER_ERROR]}
+            IQ#iq{type = error, sub_el = [SubEl, ?ERR_INTERNAL_SERVER_ERROR]}
     end.
 
 
@@ -237,7 +234,7 @@ get_user_roster( Acc, US ) ->
 item_to_xml(Item) ->
     Attrs1 = [{<<"jid">>, jlib:jid_to_binary(Item#roster.jid)}],
     Attrs2 = case Item#roster.name of
-                 <<>> ->
+                 <<"">> ->
                      Attrs1;
                  Name ->
                      [{<<"name">>, Name} | Attrs1]
@@ -254,21 +251,19 @@ item_to_xml(Item) ->
                  remove ->
                      [{<<"subscription">>, <<"remove">>} | Attrs2]
              end,
-    Attrs4 = case ask_to_pending(Item#roster.ask) of
-                 out ->
-                     [{<<"ask">>, <<"subscribe">>} | Attrs3];
-                 both ->
-                     [{<<"ask">>, <<"subscribe">>} | Attrs3];
-                 _ ->
-                     Attrs3
-             end,
-    SubEls1 = lists:map(fun(G) ->
-                                #xmlel{name = <<"group">>,
-                                       children = [#xmlcdata{content = G}]}
-                        end, Item#roster.groups),
-    SubEls = SubEls1 ++ Item#roster.xs,
-    #xmlel{name = <<"item">>, attrs = Attrs4, children = SubEls}.
-
+    Attrs = case ask_to_pending(Item#roster.ask) of
+                out ->
+                    [{<<"ask">>, <<"subscribe">>} | Attrs3];
+                both ->
+                    [{<<"ask">>, <<"subscribe">>} | Attrs3];
+                _ ->
+                    Attrs3
+            end,
+    SubEls = lists:map(fun(G) ->
+                               #xmlel{name = <<"group">>,
+                                      children = [#xmlcdata{content = G}]}
+                       end, Item#roster.groups),
+    #xmlel{name = <<"item">>, attrs = Attrs, children = SubEls}.
 
 process_iq_set(From = #jid{lserver = LServer},
                To,
@@ -288,7 +283,7 @@ process_item_set(From, To, #xmlel{attrs = Attrs, children = Els}) ->
             JID = {JID1#jid.user, JID1#jid.server, JID1#jid.resource},
             LJID = jlib:jid_tolower(JID1),
             F = fun() ->
-                        Item = get_roster_of( LUser, LServer, LJID, JID ),
+                        Item = get_roster_of(LUser, LServer, LJID, JID),
                         Item1 = process_item_attrs(Item, Attrs),
                         Item2 = process_item_els(Item1, Els),
                         case Item2#roster.subscription of
@@ -303,7 +298,8 @@ process_item_set(From, To, #xmlel{attrs = Attrs, children = Els}) ->
                                                         LServer, Item2, [LServer]),
                         case roster_version_on_db(LServer) of
                             true ->
-                                ?BACKEND:write_version( {LUser, LServer}, sha:sha(term_to_binary(now())));
+                                ?BACKEND:write_version( {LUser, LServer},
+                                                        sha:sha(term_to_binary(now())));
                             false -> ok
                         end,
                         {Item, Item3}
@@ -326,7 +322,7 @@ process_item_set(From, To, #xmlel{attrs = Attrs, children = Els}) ->
 process_item_set(_From, _To, _) ->
     ok.
 
-get_roster_of( LUser, LServer, LJID, JID ) ->
+get_roster_of( LUser, LServer, LJID, JID) ->
     USJ = {LUser, LServer, LJID},
     case ?BACKEND:roster( USJ ) of
         not_found ->
@@ -394,8 +390,8 @@ process_item_els(Item, []) ->
 
 
 push_item(User, Server, From, Item) ->
-    ejabberd_sm:route(jlib:make_jid(<<>>, <<>>, <<>>),
-                      jlib:make_jid(User, Server, <<>>),
+    ejabberd_sm:route(jlib:make_jid(<<"">>, <<"">>, <<"">>),
+                      jlib:make_jid(User, Server, <<"">>),
                       #xmlel{name = <<"broadcast">>,
                              children = [{item,
                                           Item#roster.jid,
@@ -440,11 +436,9 @@ push_item_version(Server, User, From, Item, RosterVersion)  ->
 get_subscription_lists(_, User, Server) ->
     LUser = jlib:nodeprep(User),
     LServer = jlib:nameprep(Server),
-    US = {LUser, LServer},
     JID = jlib:make_jid(User, Server, <<>>),
-    Items =  ?BACKEND:rosters_without_groups( US ),
+    Items =  ?BACKEND:rosters_without_groups( {LUser, LServer} ),
     fill_subscription_lists(JID, Items).
-
 
 
 fill_subscription_lists( JID, Items ) ->
@@ -483,6 +477,7 @@ fill_subscription_lists(JID, [I | Is], F, T, P) ->
 fill_subscription_lists(_JID, [], F, T, P) ->
     {F, T, P}.
 
+
 ask_to_pending(subscribe) -> out;
 ask_to_pending(unsubscribe) -> none;
 ask_to_pending(Ask) -> Ask.
@@ -505,15 +500,15 @@ process_subscription(Direction, User, Server, JID1, Type, Reason) ->
     USJ = {LUser, LServer, LJID},
     F = fun() ->
                 Item = case ?BACKEND:roster( USJ ) of
+                           {ok, Roster} ->
+                               Roster;
                            not_found ->
                                JID = {JID1#jid.user,
                                       JID1#jid.server,
                                       JID1#jid.resource},
                                #roster{usj = USJ,
                                        us = US,
-                                       jid = JID};
-                           {ok, Roster} ->
-                               Roster
+                                       jid = JID}
                        end,
                 NewState = case Direction of
                                out ->
@@ -549,10 +544,10 @@ process_subscription(Direction, User, Server, JID1, Type, Reason) ->
                         NewItem = Item#roster{subscription = Subscription,
                                               ask = Pending,
                                               askmessage = AskMessage},
-                        ?BACKEND:write_roster_subscription(NewItem),
+                        ?BACKEND:write_roster_subscription( NewItem ),
                         case roster_version_on_db(LServer) of
                             true ->
-                                ?BACKEND:write_version( US ,
+                                ?BACKEND:write_version( US,
                                                         sha:sha(term_to_binary(now())));
                             false -> ok
                         end,
@@ -694,7 +689,7 @@ remove_user(User, Server) ->
     LUser = jlib:nodeprep(User),
     LServer = jlib:nameprep(Server),
     send_unsubscription_to_rosteritems(LUser, LServer),
-    ?BACKEND:remove_user( {LUser, LServer} ).
+    ?BACKEND:remove_user( {LUser, LServer}).
 
 %% For each contact with Subscription:
 %% Both or From, send a "unsubscribed" presence stanza;
@@ -773,9 +768,9 @@ process_item_set_t(LUser, LServer, #xmlel{attrs = Attrs,
             Item2 = process_item_els(Item1, Els),
             case Item2#roster.subscription of
                 remove ->
-                    ?BACKEND:remove_roster({LUser, LServer, LJID});
+                    ?BACKEND:remove_roster( {LUser, LServer, LJID});
                 _ ->
-                    ?BACKEND:write_roster(Item2)
+                    ?BACKEND:write_roster( Item2 )
             end
     end;
 process_item_set_t(_LUser, _LServer, _) ->
@@ -826,23 +821,25 @@ process_item_attrs_ws(Item, []) ->
 %% hook handler
 get_jid_info(_, User, Server, JID) ->
     LUser = jlib:nodeprep(User),
-    LJID = jlib:jid_tolower(JID),
     LServer = jlib:nameprep(Server),
+    LJID = jlib:jid_tolower(JID),
 
     get_jid_info( LUser, LServer, LJID).
+
 
 get_jid_info( LUser, LServer, LJID) ->
     case ?BACKEND:roster({LUser, LServer, LJID}) of
         {ok, #roster{subscription = Subscription,
                      groups = Groups}} ->
-            {Subscription, Groups};
+            _return = {Subscription, Groups};
+
         not_found ->
             LRJID = jlib:jid_tolower(jlib:jid_remove_resource(LJID)),
             if
                 LRJID == LJID ->
-                    {none, []};
+                    _return = {none, []};
                 true ->
-                    get_jid_info( LUser, LServer, LRJID )
+                    get_jid_info( LUser, LServer, LRJID ) % only one recursion possible
             end
     end.
 

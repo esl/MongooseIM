@@ -39,18 +39,20 @@
 -behaviour(gen_mod).
 -export([start/2, stop/1]).
 
--export([process_iq/3,
-         process_local_iq/3,
-         get_user_roster/2,
-         get_subscription_lists/3,
-         get_in_pending_subscriptions/3,
-         in_subscription/6,
-         out_subscription/4,
-         set_items/3,
-         remove_user/2,
-         get_jid_info/4,
-         get_versioning_feature/2,
-         roster_versioning_enabled/1]).
+%% ejabber hook handles
+-export([ get_user_roster/2,
+          in_subscription/6,
+          out_subscription/4,
+          get_subscription_lists/3,
+          get_jid_info/4,
+          remove_user/2,
+          get_in_pending_subscriptions/3,
+          get_versioning_feature/2,
+          process_iq/3 ]).
+
+-export([ process_local_iq/3,
+          set_items/3,
+          roster_versioning_enabled/1 ]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -58,6 +60,7 @@
 
 
 -define( BACKEND, mod_roster_odbc_back).
+
 
 
 start(Host, Opts) ->
@@ -81,10 +84,6 @@ start(Host, Opts) ->
                        ?MODULE, get_in_pending_subscriptions, 50),
     ejabberd_hooks:add(roster_get_versioning_feature, Host,
                        ?MODULE, get_versioning_feature, 50),
-    ejabberd_hooks:add(webadmin_page_host, Host,
-                       ?MODULE, webadmin_page, 50),
-    ejabberd_hooks:add(webadmin_user, Host,
-                       ?MODULE, webadmin_user, 50),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_ROSTER,
                                   ?MODULE, process_iq, IQDisc).
 
@@ -140,6 +139,7 @@ roster_versioning_enabled(Host) ->
 roster_version_on_db(Host) ->
     gen_mod:get_module_opt(Host, ?MODULE, store_current_id, false).
 
+%% hook handler
 %% Returns a list that may contain an xmlel with the XEP-237 feature if it's enabled.
 get_versioning_feature(Acc, Host) ->
     case roster_versioning_enabled(Host) of
@@ -267,9 +267,10 @@ item_to_xml(Item) ->
                        end, Item#roster.groups),
     #xmlel{name = <<"item">>, attrs = Attrs, children = SubEls}.
 
-process_iq_set(From, To, #iq{sub_el = SubEl} = IQ) ->
+process_iq_set(From = #jid{lserver = LServer},
+               To,
+               IQ = #iq{sub_el = SubEl}) ->
     #xmlel{children = Els} = SubEl,
-    #jid{lserver = LServer} = From,
     ejabberd_hooks:run(roster_set, LServer, [From, To, SubEl]),
     lists:foreach(fun(El) -> process_item_set(From, To, El) end, Els),
     IQ#iq{type = result, sub_el = []}.
@@ -289,9 +290,9 @@ process_item_set(From, To, #xmlel{attrs = Attrs, children = Els}) ->
                         Item2 = process_item_els(Item1, Els),
                         case Item2#roster.subscription of
                             remove ->
-                                ?BACKEND:remove_roster( {LUser, LServer, LJID});
+                                ?BACKEND:remove_roster({LUser, LServer, LJID});
                             _ ->
-                                ?BACKEND:write_roster(  Item2 )
+                                ?BACKEND:write_roster( Item2 )
                         end,
                         %% If the item exist in shared roster, take the
                         %% subscription information from there:
@@ -305,7 +306,7 @@ process_item_set(From, To, #xmlel{attrs = Attrs, children = Els}) ->
                         end,
                         {Item, Item3}
                 end,
-            case ?BACKEND:transaction( LServer, F ) of
+            case ?BACKEND:transaction( LServer, F) of
                 {atomic, {OldItem, Item}} ->
                     push_item(User, LServer, To, Item),
                     case Item#roster.subscription of
@@ -323,11 +324,11 @@ process_item_set(From, To, #xmlel{attrs = Attrs, children = Els}) ->
 process_item_set(_From, _To, _) ->
     ok.
 
-get_roster_of ( LUser, LServer, LJID, JID) ->
+get_roster_of( LUser, LServer, LJID, JID) ->
     USJ = {LUser, LServer, LJID},
     case ?BACKEND:roster( USJ ) of
         not_found ->
-            #roster{usj = USJ ,
+            #roster{usj = USJ,
                     us = {LUser, LServer},
                     jid = LJID};
         {ok, R } ->
@@ -366,6 +367,7 @@ process_item_els(Item, [#xmlcdata{} | Els]) ->
 process_item_els(Item, []) ->
     Item.
 
+
 push_item(User, Server, From, Item) ->
     ejabberd_sm:route(jlib:make_jid(<<"">>, <<"">>, <<"">>),
                       jlib:make_jid(User, Server, <<"">>),
@@ -382,7 +384,7 @@ push_item(User, Server, From, Item) ->
                           end, ejabberd_sm:get_user_resources(User, Server))
     end.
 
-%% TODO: don't push to those who not load roster
+%% TODO: don't push to those who didn't load roster
 push_item(User, Server, Resource, From, Item) ->
     ejabberd_hooks:run(roster_push, Server, [From, Item]),
     ResIQ = #iq{type = set, xmlns = ?NS_ROSTER,
@@ -463,9 +465,12 @@ ask_to_pending(subscribe) -> out;
 ask_to_pending(unsubscribe) -> none;
 ask_to_pending(Ask) -> Ask.
 
+
+%% hook handler
 in_subscription(_, User, Server, JID, Type, Reason) ->
     process_subscription(in, User, Server, JID, Type, Reason).
 
+%% hook handler
 out_subscription(User, Server, JID, Type) ->
     process_subscription(out, User, Server, JID, Type, []).
 
@@ -474,14 +479,16 @@ process_subscription(Direction, User, Server, JID1, Type, Reason) ->
     LServer = jlib:nameprep(Server),
     LJID = jlib:jid_tolower(JID1),
 
+    US = {LUser, LServer},
+    USJ = {LUser, LServer, LJID},
     F = fun() ->
                 Item =
-                    case ?BACKEND:roster({LUser, LServer, LJID}) of
-                        {ok, R} ->
-                            R;
+                    case ?BACKEND:roster( USJ ) of
+                        {ok, Roster} ->
+                            Roster;
                         not_found ->
-                            #roster{usj = {LUser, LServer, LJID},
-                                    us = {LUser, LServer},
+                            #roster{usj = USJ,
+                                    us = US,
                                     jid = LJID}
                     end,
                 NewState = case Direction of
@@ -512,7 +519,7 @@ process_subscription(Direction, User, Server, JID1, Type, Reason) ->
                         {none, AutoReply};
                     {none, none} when Item#roster.subscription == none,
                                       Item#roster.ask == in ->
-                        ?BACKEND:remove_roster( {LUser, LServer, LJID }),
+                        ?BACKEND:remove_roster( USJ ),
                         {none, AutoReply};
                     {Subscription, Pending} ->
                         NewItem = Item#roster{subscription = Subscription,
@@ -521,14 +528,14 @@ process_subscription(Direction, User, Server, JID1, Type, Reason) ->
                         ?BACKEND:write_roster_subscription( NewItem ),
                         case roster_version_on_db(LServer) of
                             true ->
-                                ?BACKEND:write_version( { LUser, LServer } ,
+                                ?BACKEND:write_version( US,
                                                         sha:sha(term_to_binary(now())));
                             false -> ok
                         end,
                         {{push, NewItem}, AutoReply}
                 end
         end,
-    case ?BACKEND:transaction(LServer, F) of
+    case ?BACKEND:transaction( LServer, F) of
         {atomic, {Push, AutoReply}} ->
             case AutoReply of
                 none ->
