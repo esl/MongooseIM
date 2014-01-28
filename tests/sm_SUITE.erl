@@ -128,11 +128,14 @@ server_returns_failed_after_auth(Config) ->
 server_enables_resumption(Config) ->
     AliceSpec = [{stream_management, true}
                  | escalus_users:get_options(Config, alice)],
-    {ok, _, _, _} = escalus_connection:start(AliceSpec, [start_stream,
-                                                         authenticate,
-                                                         bind,
-                                                         session,
-                                                         stream_resumption]).
+    %% Assert matches {ok, _, _, _}
+    {ok, Alice, _, _} = escalus_connection:start(AliceSpec,
+                                                 [start_stream,
+                                                  authenticate,
+                                                  bind,
+                                                  session,
+                                                  stream_resumption]),
+    escalus_connection:stop(Alice).
 
 server_returns_failed(Config, ConnActions) ->
     AliceSpec = [{stream_management, true}
