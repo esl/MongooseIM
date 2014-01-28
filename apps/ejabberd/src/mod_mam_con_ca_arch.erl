@@ -56,6 +56,8 @@
     conn,
     insert_query_id,
     insert_query_types,
+    update_last_id,
+    update_last_types,
     calc_count_handler,
     extract_messages_handler,
     extract_messages_r_handler,
@@ -89,15 +91,70 @@
 start(Host, Opts) ->
     create_worker_pool(Host),
     start_servers(Host, servers(Host)),
-    start_muc(Host, Opts).
+    case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
+        true ->
+            start_pm(Host, Opts);
+        false ->
+            ok
+    end,
+    case gen_mod:get_module_opt(Host, ?MODULE, muc, false) of
+        true ->
+            start_muc(Host, Opts);
+        false ->
+            ok
+    end.
 
 stop(Host) ->
-    stop_muc(Host),
+    case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
+        true ->
+            stop_pm(Host);
+        false ->
+            ok
+    end,
+    case gen_mod:get_module_opt(Host, ?MODULE, muc, false) of
+        true ->
+            stop_muc(Host);
+        false ->
+            ok
+    end,
     delete_worker_pool(Host),
     stop_servers(Host, servers(Host)).
 
 servers(Host) ->
     gen_mod:get_module_opt(Host, ?MODULE, servers, [{"localhost", 9042, 1}]).
+
+
+%% ----------------------------------------------------------------------
+%% Add hooks for mod_mam
+
+start_pm(Host, _Opts) ->
+    case gen_mod:get_module_opt(Host, ?MODULE, no_writer, false) of
+        true ->
+            ok;
+        false ->
+            ejabberd_hooks:add(mam_archive_message, Host, ?MODULE, archive_message, 50)
+    end,
+    ejabberd_hooks:add(mam_archive_size, Host, ?MODULE, archive_size, 50),
+    ejabberd_hooks:add(mam_lookup_messages, Host, ?MODULE, lookup_messages, 50),
+    ejabberd_hooks:add(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
+    ejabberd_hooks:add(mam_purge_single_message, Host, ?MODULE, purge_single_message, 50),
+    ejabberd_hooks:add(mam_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 50),
+    ok.
+
+stop_pm(Host) ->
+    case gen_mod:get_module_opt(Host, ?MODULE, no_writer, false) of
+        true ->
+            ok;
+        false ->
+            ejabberd_hooks:delete(mam_archive_message, Host, ?MODULE, archive_message, 50)
+    end,
+    ejabberd_hooks:delete(mam_archive_size, Host, ?MODULE, archive_size, 50),
+    ejabberd_hooks:delete(mam_lookup_messages, Host, ?MODULE, lookup_messages, 50),
+    ejabberd_hooks:delete(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
+    ejabberd_hooks:delete(mam_purge_single_message, Host, ?MODULE, purge_single_message, 50),
+    ejabberd_hooks:delete(mam_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 50),
+    ok.
+
 
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam_muc
@@ -177,15 +234,15 @@ group_name(Host) ->
     {mam_ca, Host}.
 
 worker_tag(Host, Addr, Port, WorkerNumber) ->
-    {mod_mam_ca_arch, Host, Addr, Port, WorkerNumber}.
+    {mod_mam_con_ca_arch, Host, Addr, Port, WorkerNumber}.
 
 server_child_spec(Tag, Host, Addr, Port, _WorkerNumber) ->
     {Tag,
-     {mod_mam_ca_arch, start_link, [Host, Addr, Port]},
+     {?MODULE, start_link, [Host, Addr, Port]},
      permanent,
      5000,
      worker,
-     [mod_mam_ca_arch]}.
+     [?MODULE]}.
 
 start_link(Host, Addr, Port) ->
     gen_server:start_link(?MODULE, [Host, Addr, Port], []).
@@ -269,7 +326,7 @@ lookup_messages(_Result, Host, _UserID, UserJID = #jid{},
     Worker = select_worker(Host, BLowerJID, BUpperJID),
     Filter = prepare_filter(BLowerJID, BUpperJID, Borders, Start, End),
     MessageRows = extract_messages(Worker, Host, after_id(ID, Filter), 0, PageSize, false),
-    {ok, {undefined, undefined, rows_to_uniform_format(Host, UserJID, MessageRows)}};
+    {ok, {undefined, undefined, rows_to_uniform_format(Host, UserJID, WithJID, BUserJID < BWithJID, MessageRows)}};
 
 lookup_messages(_Result, Host, _UserID, UserJID = #jid{},
                 #rsm_in{direction = before, id = ID},
@@ -282,7 +339,7 @@ lookup_messages(_Result, Host, _UserID, UserJID = #jid{},
     Worker = select_worker(Host, BLowerJID, BUpperJID),
     Filter = prepare_filter(BLowerJID, BUpperJID, Borders, Start, End),
     MessageRows = extract_messages(Worker, Host, before_id(ID, Filter), 0, PageSize, true),
-    {ok, {undefined, undefined, rows_to_uniform_format(Host, UserJID, MessageRows)}};
+    {ok, {undefined, undefined, rows_to_uniform_format(Host, UserJID, WithJID, BUserJID < BWithJID, MessageRows)}};
 
 lookup_messages(_Result, Host, _UserID, UserJID = #jid{},
                 #rsm_in{direction = undefined, index = Offset}, Borders,
@@ -295,7 +352,7 @@ lookup_messages(_Result, Host, _UserID, UserJID = #jid{},
     Worker = select_worker(Host, BLowerJID, BUpperJID),
     Filter = prepare_filter(BLowerJID, BUpperJID, Borders, Start, End),
     MessageRows = extract_messages(Worker, Host, Filter, Offset, PageSize, false),
-    {ok, {undefined, undefined, rows_to_uniform_format(Host, UserJID, MessageRows)}};
+    {ok, {undefined, undefined, rows_to_uniform_format(Host, UserJID, WithJID, BUserJID < BWithJID, MessageRows)}};
 
 lookup_messages(_Result, Host, _UserID, UserJID = #jid{},
                 undefined, Borders,
@@ -308,7 +365,7 @@ lookup_messages(_Result, Host, _UserID, UserJID = #jid{},
     Worker = select_worker(Host, BLowerJID, BUpperJID),
     Filter = prepare_filter(BLowerJID, BUpperJID, Borders, Start, End),
     MessageRows = extract_messages(Worker, Host, Filter, 0, PageSize, false),
-    {ok, {undefined, undefined, rows_to_uniform_format(Host, UserJID, MessageRows)}};
+    {ok, {undefined, undefined, rows_to_uniform_format(Host, UserJID, WithJID, BUserJID < BWithJID, MessageRows)}};
 
 
 
@@ -332,12 +389,12 @@ lookup_messages(_Result, Host, _UserID, UserJID = #jid{},
     case MessageRowsCount < PageSize of
         true ->
             {ok, {MessageRowsCount, 0,
-                  rows_to_uniform_format(Host, UserJID, MessageRows)}};
+                  rows_to_uniform_format(Host, UserJID, WithJID, BUserJID < BWithJID, MessageRows)}};
         false ->
             FirstID = row_to_message_id(hd(MessageRows)),
             Offset = calc_count(Worker, Host, before_id(FirstID, Filter)),
             {ok, {Offset + MessageRowsCount, Offset,
-                  rows_to_uniform_format(Host, UserJID, MessageRows)}}
+                  rows_to_uniform_format(Host, UserJID, WithJID, BUserJID < BWithJID, MessageRows)}}
     end;
 
 lookup_messages(_Result, Host, _UserID, UserJID = #jid{},
@@ -356,12 +413,12 @@ lookup_messages(_Result, Host, _UserID, UserJID = #jid{},
     case MessageRowsCount < PageSize of
         true ->
             {ok, {Offset + MessageRowsCount, Offset,
-                  rows_to_uniform_format(Host, UserJID, MessageRows)}};
+                  rows_to_uniform_format(Host, UserJID, WithJID, BUserJID < BWithJID, MessageRows)}};
         false ->
             LastID = row_to_message_id(lists:last(MessageRows)),
             CountAfterLastID = calc_count(Worker, Host, after_id(LastID, Filter)),
             {ok, {Offset + MessageRowsCount + CountAfterLastID, Offset,
-                  rows_to_uniform_format(Host, UserJID, MessageRows)}}
+                  rows_to_uniform_format(Host, UserJID, WithJID, BUserJID < BWithJID, MessageRows)}}
     end;
 
 lookup_messages(_Result, Host, _UserID, UserJID = #jid{},
@@ -380,12 +437,12 @@ lookup_messages(_Result, Host, _UserID, UserJID = #jid{},
     case MessageRowsCount < PageSize of
         true ->
             {ok, {MessageRowsCount, 0,
-                  rows_to_uniform_format(Host, UserJID, MessageRows)}};
+                  rows_to_uniform_format(Host, UserJID, WithJID, BUserJID < BWithJID, MessageRows)}};
         false ->
             LastID = row_to_message_id(lists:last(MessageRows)),
             CountAfterLastID = calc_count(Worker, Host, after_id(LastID, Filter)),
             {ok, {MessageRowsCount + CountAfterLastID, 0,
-                  rows_to_uniform_format(Host, UserJID, MessageRows)}}
+                  rows_to_uniform_format(Host, UserJID, WithJID, BUserJID < BWithJID, MessageRows)}}
     end;
 
 
@@ -410,7 +467,7 @@ lookup_messages(_Result, Host, _UserID, UserJID = #jid{},
 
         false ->
             MessageRows = extract_messages(Worker, Host, after_id(ID, Filter), 0, PageSize, false),
-            {ok, {TotalCount, Offset, rows_to_uniform_format(Host, UserJID, MessageRows)}}
+            {ok, {TotalCount, Offset, rows_to_uniform_format(Host, UserJID, WithJID, BUserJID < BWithJID, MessageRows)}}
     end;
 
 lookup_messages(_Result, Host, _UserID, UserJID = #jid{},
@@ -434,7 +491,7 @@ lookup_messages(_Result, Host, _UserID, UserJID = #jid{},
 
         false ->
             MessageRows = extract_messages(Worker, Host, before_id(ID, Filter), 0, PageSize, true),
-            {ok, {TotalCount, Offset, rows_to_uniform_format(Host, UserJID, MessageRows)}}
+            {ok, {TotalCount, Offset, rows_to_uniform_format(Host, UserJID, WithJID, BUserJID < BWithJID, MessageRows)}}
     end;
 
 lookup_messages(_Result, Host, _UserID, UserJID = #jid{},
@@ -458,7 +515,7 @@ lookup_messages(_Result, Host, _UserID, UserJID = #jid{},
 
         false ->
             MessageRows = extract_messages(Worker, Host, Filter, Offset, PageSize, false),
-            {ok, {TotalCount, Offset, rows_to_uniform_format(Host, UserJID, MessageRows)}}
+            {ok, {TotalCount, Offset, rows_to_uniform_format(Host, UserJID, WithJID, BUserJID < BWithJID, MessageRows)}}
     end.
 
 after_id(ID, Filter=#mam_ca_filter{start_id = AfterID}) ->
@@ -472,13 +529,16 @@ before_id(ID, Filter=#mam_ca_filter{end_id = BeforeID}) ->
 to_id(ID, Filter=#mam_ca_filter{end_id = BeforeID}) ->
     Filter#mam_ca_filter{end_id = maybe_min(ID, BeforeID)}.
 
-rows_to_uniform_format(Host, UserJID, MessageRows) ->
-    [row_to_uniform_format(UserJID, Row) || Row <- MessageRows].
+rows_to_uniform_format(Host, UserJID, WithJID, IsLocLower, MessageRows) ->
+    [row_to_uniform_format(UserJID, WithJID, IsLocLower, Row) || Row <- MessageRows].
 
-row_to_uniform_format(UserJID, [MessID,BNick,Data]) ->
-    SrcJID = jlib:jid_replace_resource(UserJID, BNick),
+row_to_uniform_format(UserJID, _WithJID, IsLocLower, [MessID, IsFromLower, Data])
+    when IsFromLower =:= IsLocLower ->
     Packet = binary_to_term(Data),
-    {MessID, SrcJID, Packet}.
+    {MessID, UserJID, Packet};
+row_to_uniform_format(_UserJID, WithJID, _IsLocLower, [MessID, _IsFromLower, Data]) ->
+    Packet = binary_to_term(Data),
+    {MessID, WithJID, Packet}.
 
 row_to_message_id([MessID,_,_]) ->
     MessID.
@@ -712,7 +772,7 @@ extract_messages_sql(Filter) ->
         Filter ++ " ORDER BY id LIMIT ?".
 
 extract_messages_r_sql(Filter) ->
-    "SELECT id, nick_name, message FROM mam_con_message "
+    "SELECT id, is_from_lower, message FROM mam_con_message "
         "WHERE lower_jid = ? AND upper_jid = ? " ++
         Filter ++ " ORDER BY id DESC LIMIT ?".
 
@@ -776,12 +836,21 @@ init([Host, Addr, Port]) ->
     register_worker(Host, self()),
     ClientOptions = [{keyspace, "mam"}],
     {ok, ConnPid} = seestar_session:start_link(Addr, Port, ClientOptions),
+
     InsertQuery = "INSERT INTO mam_con_message "
         "(id, lower_jid, upper_jid, is_from_lower, message) "
         "VALUES (?, ?, ?, ?, ?)",
     {ok, InsertQueryRes} = seestar_session:prepare(ConnPid, InsertQuery),
-    InsertQueryTypes = seestar_result:types(InsertQueryRes),
     InsertQueryID = seestar_result:query_id(InsertQueryRes),
+    InsertQueryTypes = seestar_result:types(InsertQueryRes),
+
+    %% New row will be created, if it does not exist.
+    UpdateLastQuery = "UPDATE mam_con_user SET "
+        "last_message_id = ? WHERE local_jid = ? AND remote_jid = ?",
+    {ok, UpdateLastRes} = seestar_session:prepare(ConnPid, UpdateLastQuery),
+    UpdateLastID = seestar_result:query_id(UpdateLastRes),
+    UpdateLastTypes = seestar_result:types(UpdateLastRes),
+
     ExHandler = extract_messages_handler(ConnPid),
     RevExHandler = extract_messages_r_handler(ConnPid),
     CountHandler = calc_count_handler(ConnPid),
@@ -793,6 +862,8 @@ init([Host, Addr, Port]) ->
         query_refs_count=0,
         insert_query_id=InsertQueryID,
         insert_query_types=InsertQueryTypes,
+        update_last_id=UpdateLastID,
+        update_last_types=UpdateLastTypes,
         extract_messages_handler=ExHandler,
         extract_messages_r_handler=RevExHandler,
         calc_count_handler=CountHandler},
@@ -834,9 +905,15 @@ handle_cast({write_message, MessID, BLowerJID, BUpperJID, IsFromLower, Data},
     State=#state{
         conn=ConnPid,
         insert_query_id=InsertQueryID,
-        insert_query_types=InsertQueryTypes}) ->
-    Row = [MessID, BLowerJID, BUpperJID, IsFromLower, Data],
-    seestar_session:execute_async(ConnPid, InsertQueryID, InsertQueryTypes, Row, one),
+        insert_query_types=InsertQueryTypes,
+        update_last_id=UpdateLastID,
+        update_last_types=UpdateLastTypes}) ->
+    Row1 = [MessID, BLowerJID, BUpperJID, IsFromLower, Data],
+    Row2 = [MessID, BLowerJID, BUpperJID],
+    Row3 = [MessID, BUpperJID, BLowerJID],
+    seestar_session:execute_async(ConnPid, InsertQueryID, InsertQueryTypes, Row1, one),
+    seestar_session:execute_async(ConnPid, UpdateLastID, UpdateLastTypes, Row2, one),
+    seestar_session:execute_async(ConnPid, UpdateLastID, UpdateLastTypes, Row3, one),
     {noreply, State};
 handle_cast(Msg, State) ->
     ?WARNING_MSG("Strange cast message ~p.", [Msg]),
