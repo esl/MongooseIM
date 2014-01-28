@@ -58,6 +58,14 @@
     insert_query_types,
     update_last_id,
     update_last_types,
+    purge_conversation_id,
+    purge_conversation_types,
+    exist_conversation_id,
+    exist_conversation_types,
+    get_conversations_id,
+    get_conversations_types,
+    remove_conversations_id,
+    remove_conversations_types,
     calc_count_handler,
     extract_messages_handler,
     extract_messages_r_handler,
@@ -227,6 +235,15 @@ select_worker(Host, BLowerJID, BUpperJID) ->
             error({no_worker, Host});
         Workers ->
             N = erlang:phash2({BLowerJID, BUpperJID}, length(Workers)) + 1,
+            lists:nth(N, Workers)
+    end.
+
+select_worker(Host, UserJID) ->
+    case pg2:get_local_members(group_name(Host)) of
+        [] ->
+            error({no_worker, Host});
+        Workers ->
+            N = erlang:phash2(UserJID, length(Workers)) + 1,
             lists:nth(N, Workers)
     end.
 
@@ -543,9 +560,41 @@ row_to_uniform_format(_UserJID, WithJID, _IsLocLower, [MessID, _IsFromLower, Dat
 row_to_message_id([MessID,_,_]) ->
     MessID.
 
-remove_archive(Host, _UserID, _UserJID) ->
-    %% TODO
+remove_archive(Host, _UserID, UserJID) ->
+    BUserJID = prepare_jid(UserJID),
+    Worker = select_worker(Host, BUserJID),
+    [purge_conversation0(Host, BUserJID, BWithJID)
+     || BWithJID <- get_conversations(Worker, BUserJID),
+        does_conversation_exist(Worker, BUserJID, BWithJID)],
+    remove_conversations(Worker, BUserJID),
     ok.
+
+purge_conversation0(Host, BUserJID, BWithJID) ->
+    BLowerJID = min(BUserJID, BWithJID),
+    BUpperJID = max(BUserJID, BWithJID),
+    Worker = select_worker(Host, BLowerJID, BUpperJID),
+    purge_conversation(Worker, BLowerJID, BUpperJID).
+
+%% Delete messages.
+purge_conversation(Worker, BLowerJID, BUpperJID) ->
+    gen_server:call(Worker, {purge_conversation, BLowerJID, BUpperJID}).
+
+remove_conversations(Worker, BUserJID) ->
+    gen_server:call(Worker, {remove_conversations, BUserJID}).
+
+get_conversations(Worker, BUserJID) ->
+    ResultF = gen_server:call(Worker, {get_conversations, BUserJID}),
+    {ok, Result} = ResultF(),
+    [BWithJID || [BWithJID] <- seestar_result:rows(Result)].
+
+does_conversation_exist(Worker, BUserJID, BWithJID) ->
+    ResultF = gen_server:call(Worker, {does_conversation_exist, BUserJID, BWithJID}),
+    {ok, Result} = ResultF(),
+    [[Count]] = seestar_result:rows(Result),
+    case Count of
+        1 -> true;
+        0 -> false
+    end.
 
 -spec purge_single_message(_Result, Host, MessID, _UserID, UserJID, Now) ->
     ok | {error, 'not-allowed' | 'not-found'} when
@@ -851,6 +900,30 @@ init([Host, Addr, Port]) ->
     UpdateLastID = seestar_result:query_id(UpdateLastRes),
     UpdateLastTypes = seestar_result:types(UpdateLastRes),
 
+    PurgeConQuery = "DELETE FROM mam_con_message "
+        "WHERE lower_jid = ? AND upper_jid = ?",
+    {ok, PurgeConRes} = seestar_session:prepare(ConnPid, PurgeConQuery),
+    PurgeConID = seestar_result:query_id(PurgeConRes),
+    PurgeConTypes = seestar_result:types(PurgeConRes),
+
+    RemoveConQuery = "DELETE FROM mam_con_user "
+        "WHERE local_jid = ?",
+    {ok, RemoveConRes} = seestar_session:prepare(ConnPid, RemoveConQuery),
+    RemoveConID = seestar_result:query_id(RemoveConRes),
+    RemoveConTypes = seestar_result:types(RemoveConRes),
+
+    GetConQuery = "SELECT remote_jid FROM mam_con_user "
+        "WHERE local_jid = ?",
+    {ok, GetConRes} = seestar_session:prepare(ConnPid, GetConQuery),
+    GetConID = seestar_result:query_id(GetConRes),
+    GetConTypes = seestar_result:types(GetConRes),
+
+    ExistConQuery = "SELECT COUNT(*) FROM mam_con_user "
+        "WHERE local_jid = ? AND remote_jid = ?",
+    {ok, ExistConRes} = seestar_session:prepare(ConnPid, ExistConQuery),
+    ExistConID = seestar_result:query_id(ExistConRes),
+    ExistConTypes = seestar_result:types(ExistConRes),
+
     ExHandler = extract_messages_handler(ConnPid),
     RevExHandler = extract_messages_r_handler(ConnPid),
     CountHandler = calc_count_handler(ConnPid),
@@ -864,6 +937,14 @@ init([Host, Addr, Port]) ->
         insert_query_types=InsertQueryTypes,
         update_last_id=UpdateLastID,
         update_last_types=UpdateLastTypes,
+        purge_conversation_id=PurgeConID,
+        purge_conversation_types=PurgeConTypes,
+        exist_conversation_id=ExistConID,
+        exist_conversation_types=ExistConTypes,
+        get_conversations_id=GetConID,
+        get_conversations_types=GetConTypes,
+        remove_conversations_id=RemoveConID,
+        remove_conversations_types=RemoveConTypes,
         extract_messages_handler=ExHandler,
         extract_messages_r_handler=RevExHandler,
         calc_count_handler=CountHandler},
@@ -889,6 +970,38 @@ handle_call({extract_messages_r, Args}, From,
 handle_call({calc_count, Filter}, From,
     State=#state{conn=ConnPid, calc_count_handler=Handler}) ->
     QueryRef = execute_calc_count(ConnPid, Handler, Filter),
+    {noreply, save_query_ref(From, QueryRef, State)};
+handle_call({purge_conversation, BLowerJID, BUpperJID}, From,
+    State=#state{
+        conn=ConnPid,
+        purge_conversation_id=PurgeConID,
+        purge_conversation_types=PurgeConTypes}) ->
+    Row = [BLowerJID, BUpperJID],
+    QueryRef = seestar_session:execute_async(ConnPid, PurgeConID, PurgeConTypes, Row, one),
+    {noreply, save_query_ref(From, QueryRef, State)};
+handle_call({does_conversation_exist, BUserJID, BWithJID}, From,
+    State=#state{
+        conn=ConnPid,
+        exist_conversation_id=ExistConID,
+        exist_conversation_types=ExistConTypes}) ->
+    Row = [BUserJID, BWithJID],
+    QueryRef = seestar_session:execute_async(ConnPid, ExistConID, ExistConTypes, Row, one),
+    {noreply, save_query_ref(From, QueryRef, State)};
+handle_call({get_conversations, BUserJID}, From,
+    State=#state{
+        conn=ConnPid,
+        get_conversations_id=GetConID,
+        get_conversations_types=GetConTypes}) ->
+    Row = [BUserJID],
+    QueryRef = seestar_session:execute_async(ConnPid, GetConID, GetConTypes, Row, one),
+    {noreply, save_query_ref(From, QueryRef, State)};
+handle_call({remove_conversations, BUserJID}, From,
+    State=#state{
+        conn=ConnPid,
+        remove_conversations_id=RemoveConID,
+        remove_conversations_types=RemoveConTypes}) ->
+    Row = [BUserJID],
+    QueryRef = seestar_session:execute_async(ConnPid, RemoveConID, RemoveConTypes, Row, one),
     {noreply, save_query_ref(From, QueryRef, State)};
 handle_call(_, _From, State=#state{}) ->
     {reply, ok, State}.
