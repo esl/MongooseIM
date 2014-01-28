@@ -776,43 +776,43 @@ process_item_set_t(LUser, LServer, #xmlel{attrs = Attrs,
 process_item_set_t(_LUser, _LServer, _) ->
     ok.
 
-process_item_attrs_ws(Item, [{Attr, Val} | Attrs]) ->
-    case Attr of
-        <<"jid">> ->
-            case jlib:binary_to_jid(Val) of
-                error ->
-                    process_item_attrs_ws(Item, Attrs);
-                JID1 ->
-                    JID = {JID1#jid.user, JID1#jid.server, JID1#jid.resource},
-                    process_item_attrs_ws(Item#roster{jid = JID}, Attrs)
-            end;
-        <<"name">> ->
-            process_item_attrs_ws(Item#roster{name = Val}, Attrs);
-        <<"subscription">> ->
-            case Val of
-                <<"remove">> ->
-                    process_item_attrs_ws(Item#roster{subscription = remove},
-                                          Attrs);
-                <<"none">> ->
-                    process_item_attrs_ws(Item#roster{subscription = none},
-                                          Attrs);
-                <<"both">> ->
-                    process_item_attrs_ws(Item#roster{subscription = both},
-                                          Attrs);
-                <<"from">> ->
-                    process_item_attrs_ws(Item#roster{subscription = from},
-                                          Attrs);
-                <<"to">> ->
-                    process_item_attrs_ws(Item#roster{subscription = to},
-                                          Attrs);
-                _ ->
-                    process_item_attrs_ws(Item, Attrs)
-            end;
-        <<"ask">> ->
-            process_item_attrs_ws(Item, Attrs);
-        _ ->
-            process_item_attrs_ws(Item, Attrs)
-    end;
+
+process_item_attrs_ws(Item, [{<<"jid">>, Val} | Attrs]) ->
+    NewItem = case jlib:binary_to_jid(Val) of
+                  error ->
+                      Item;
+                  JID1 ->
+                      JID = {JID1#jid.user, JID1#jid.server, JID1#jid.resource},
+                      Item#roster{jid = JID}
+              end,
+    process_item_attrs_ws( NewItem, Attrs );
+
+process_item_attrs_ws(Item, [{<<"name">>, Val} | Attrs]) ->
+    process_item_attrs_ws(Item#roster{name = Val}, Attrs);
+
+process_item_attrs_ws(Item, [{<<"subscription">>, Val} | Attrs]) ->
+    NewItem = case Val of
+                  <<"remove">> ->
+                      Item#roster{subscription = remove};
+                  <<"none">> ->
+                      Item#roster{subscription = none};
+                  <<"both">> ->
+                      Item#roster{subscription = both};
+                  <<"from">> ->
+                      Item#roster{subscription = from};
+                  <<"to">> ->
+                      Item#roster{subscription = to};
+                  _ ->
+                      Item
+              end,
+    process_item_attrs_ws( NewItem, Attrs);
+
+process_item_attrs_ws(Item, [{<<"ask">>, _Val} | Attrs]) ->
+    process_item_attrs_ws(Item, Attrs);
+
+process_item_attrs_ws(Item, [ _ | Attrs]) ->
+    process_item_attrs_ws(Item, Attrs);
+
 process_item_attrs_ws(Item, []) ->
     Item.
 

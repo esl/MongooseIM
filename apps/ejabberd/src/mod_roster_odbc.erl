@@ -754,28 +754,40 @@ process_item_set_t(LUser, LServer, #xmlel{attrs = Attrs,
 process_item_set_t(_LUser, _LServer, _) ->
     [].
 
+
 process_item_attrs_ws(Item, [{<<"jid">>, Val} | Attrs]) ->
-    case jlib:binary_to_jid(Val) of
-        error ->
-            process_item_attrs_ws(Item, Attrs);
-        JID1 ->
-            JID = {JID1#jid.luser, JID1#jid.lserver, JID1#jid.lresource},
-            process_item_attrs_ws(Item#roster{jid = JID}, Attrs)
-    end;
+    NewItem = case jlib:binary_to_jid(Val) of
+                  error ->
+                      Item;
+                  JID1 ->
+                      JID = {JID1#jid.luser, JID1#jid.lserver, JID1#jid.lresource},
+                      Item#roster{jid = JID}
+              end,
+    process_item_attrs_ws( NewItem, Attrs );
+
 process_item_attrs_ws(Item, [{<<"name">>, Val} | Attrs]) ->
     process_item_attrs_ws(Item#roster{name = Val}, Attrs);
-process_item_attrs_ws(Item, [{<<"subscription">>, <<"remove">>} | Attrs]) ->
-    process_item_attrs_ws(Item#roster{subscription = remove}, Attrs);
-process_item_attrs_ws(Item, [{<<"subscription">>, <<"none">>} | Attrs]) ->
-    process_item_attrs_ws(Item#roster{subscription = none}, Attrs);
-process_item_attrs_ws(Item, [{<<"subscription">>, <<"both">>} | Attrs]) ->
-    process_item_attrs_ws(Item#roster{subscription = both}, Attrs);
-process_item_attrs_ws(Item, [{<<"subscription">>, <<"from">>} | Attrs]) ->
-    process_item_attrs_ws(Item#roster{subscription = from}, Attrs);
-process_item_attrs_ws(Item, [{<<"subscription">>, <<"to">>} | Attrs]) ->
-    process_item_attrs_ws(Item#roster{subscription = to}, Attrs);
+
+process_item_attrs_ws(Item, [{<<"subscription">>, Val} | Attrs]) ->
+    NewItem = case Val of
+                  <<"remove">> ->
+                      Item#roster{subscription = remove};
+                  <<"none">> ->
+                      Item#roster{subscription = none};
+                  <<"both">> ->
+                      Item#roster{subscription = both};
+                  <<"from">> ->
+                      Item#roster{subscription = from};
+                  <<"to">> ->
+                      Item#roster{subscription = to};
+                  _ ->
+                      Item
+              end,
+    process_item_attrs_ws( NewItem, Attrs);
+
 process_item_attrs_ws(Item, [_ | Attrs]) ->
     process_item_attrs_ws(Item, Attrs);
+
 process_item_attrs_ws(Item, []) ->
     Item.
 
