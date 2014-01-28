@@ -695,17 +695,17 @@ remove_user(User, Server) ->
 %% Both or From, send a "unsubscribed" presence stanza;
 %% Both or To, send a "unsubscribe" presence stanza.
 send_unsubscription_to_rosteritems(LUser, LServer) ->
-    All = ?BACKEND:rosters_by_us( {LUser, LServer}),
-    Rosters = lists:filter(fun(#roster{subscription = none, ask = in}) ->
+    Rosters = ?BACKEND:rosters_by_us( {LUser, LServer}),
+    Subscribed = lists:filter(fun(#roster{subscription = none, ask = in}) ->
                                    false;
                               (_) ->
                                    true
-                           end, All),
+                           end, Rosters),
     From = jlib:make_jid({LUser, LServer, <<>>}),
     lists:foreach(fun(RosterItem) ->
                           send_unsubscribing_presence(From, RosterItem)
                   end,
-                  Rosters).
+                  Subscribed).
 
 %% @spec (From::jid(), Item::roster()) -> ok
 send_unsubscribing_presence(From, Item) ->

@@ -223,18 +223,20 @@ process_iq_get(From, To, #iq{sub_el = SubEl} = IQ) ->
             IQ#iq{type = error, sub_el = [SubEl, ?ERR_INTERNAL_SERVER_ERROR]}
     end.
 
-get_user_roster(Acc, US) ->
-    All = ?BACKEND:rosters_by_us(US),
-    lists:filter(fun(#roster{subscription = none, ask = in}) ->
-                         false;
-                    (_) ->
-                         true
-                 end, All) ++ Acc.
 
+%% hook handler
+get_user_roster( Acc, US ) ->
+    All = ?BACKEND:rosters_by_us( US ),
+    Rosters = lists:filter(fun(#roster{subscription = none, ask = in}) ->
+                                   false;
+                              (_) ->
+                                   true
+                           end, All),
+    Rosters ++ Acc.
 
 
 item_to_xml(Item) ->
-    Attrs1 = [{"jid", jlib:jid_to_binary(Item#roster.jid)}],
+    Attrs1 = [{<<"jid">>, jlib:jid_to_binary(Item#roster.jid)}],
     Attrs2 = case Item#roster.name of
                  <<"">> ->
                      Attrs1;
@@ -673,12 +675,17 @@ remove_user(User, Server) ->
 %% Both or From, send a "unsubscribed" presence stanza;
 %% Both or To, send a "unsubscribe" presence stanza.
 send_unsubscription_to_rosteritems(LUser, LServer) ->
-    RosterItems = get_user_roster([], {LUser, LServer}),
+    Rosters = ?BACKEND:rosters_by_us( {LUser, LServer}),
+    Subscribed = lists:filter(fun(#roster{subscription = none, ask = in}) ->
+                                   false;
+                              (_) ->
+                                   true
+                           end, Rosters),
     From = jlib:make_jid({LUser, LServer, <<>>}),
     lists:foreach(fun(RosterItem) ->
                           send_unsubscribing_presence(From, RosterItem)
                   end,
-                  RosterItems).
+                  Subscribed).
 
 %% @spec (From::jid(), Item::roster()) -> ok
 send_unsubscribing_presence(From, Item) ->
