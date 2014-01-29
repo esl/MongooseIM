@@ -75,9 +75,6 @@
 	 get_result_affected_rows/1,
 	 get_result_reason/1,
 
-	 quote/1,
-	 asciz_binary/2,
-
 	 connect/7,
 	 stop/0,
 
@@ -232,53 +229,6 @@ get_result_affected_rows(#mysql_result{affectedrows=AffectedRows}) ->
 %%--------------------------------------------------------------------
 get_result_reason(#mysql_result{error=Reason}) ->
     Reason.
-
-%%--------------------------------------------------------------------
-%% Function: quote(String)
-%%           String = string()
-%% Descrip.: Quote a string so that it can be included safely in a
-%%           MySQL query.
-%% Returns : Quoted = string()
-%%--------------------------------------------------------------------
-quote(String) when is_list(String) ->
-    [34 | lists:reverse([34 | quote(String, [])])].	%% 34 is $"
-
-quote([], Acc) ->
-    Acc;
-quote([0 | Rest], Acc) ->
-    quote(Rest, [$0, $\\ | Acc]);
-quote([10 | Rest], Acc) ->
-    quote(Rest, [$n, $\\ | Acc]);
-quote([13 | Rest], Acc) ->
-    quote(Rest, [$r, $\\ | Acc]);
-quote([$\\ | Rest], Acc) ->
-    quote(Rest, [$\\ , $\\ | Acc]);
-quote([39 | Rest], Acc) ->		%% 39 is $'
-    quote(Rest, [39, $\\ | Acc]);	%% 39 is $'
-quote([34 | Rest], Acc) ->		%% 34 is $"
-    quote(Rest, [34, $\\ | Acc]);	%% 34 is $"
-quote([26 | Rest], Acc) ->
-    quote(Rest, [$Z, $\\ | Acc]);
-quote([C | Rest], Acc) ->
-    quote(Rest, [C | Acc]).
-
-%%--------------------------------------------------------------------
-%% Function: asciz_binary(Data, Acc)
-%%           Data = binary()
-%%           Acc  = list(), input accumulator
-%% Descrip.: Find the first zero-byte in Data and add everything
-%%           before it to Acc, as a string.
-%% Returns : {NewList, Rest}
-%%           NewList = list(), Acc plus what we extracted from Data
-%%           Rest    = binary(), whatever was left of Data, not
-%%                     including the zero-byte
-%%--------------------------------------------------------------------
-asciz_binary(<<>>, Acc) ->
-    {lists:reverse(Acc), <<>>};
-asciz_binary(<<0:8, Rest/binary>>, Acc) ->
-    {lists:reverse(Acc), Rest};
-asciz_binary(<<C:8, Rest/binary>>, Acc) ->
-    asciz_binary(Rest, [C | Acc]).
 
 %%--------------------------------------------------------------------
 %% Function: connect(Id, Host, Port, User, Password, Database,

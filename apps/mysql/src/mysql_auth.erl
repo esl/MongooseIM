@@ -44,14 +44,17 @@
 %%           Sock     = term(), gen_tcp socket
 %%           RecvPid  = pid(), receiver process pid
 %%           SeqNum   = integer(), first sequence number we should use
-%%           User     = string(), MySQL username
-%%           Password = string(), MySQL password
-%%           Salt1    = string(), salt 1 from server greeting
+%%           User     = iolist(), MySQL username
+%%           Password = iolist(), MySQL password
+%%           Salt1    = iolist(), salt 1 from server greeting
 %%           LogFun   = undefined | function() of arity 3
 %% Descrip.: Perform old-style MySQL authentication.
 %% Returns : result of mysql_conn:do_recv/3
 %%--------------------------------------------------------------------
-do_old_auth(Sock, RecvPid, SeqNum, User, Password, Salt1, LogFun) ->
+do_old_auth(Sock, RecvPid, SeqNum, User, Password, Salt1, LogFun)
+    when is_pid(RecvPid),
+         is_integer(SeqNum),
+         LogFun =:= undefined orelse is_function(LogFun, 3) ->
     Auth = password_old(Password, Salt1),
     Packet2 = make_auth(User, Auth),
     do_send(Sock, Packet2, SeqNum, LogFun),
@@ -63,16 +66,20 @@ do_old_auth(Sock, RecvPid, SeqNum, User, Password, Salt1, LogFun) ->
 %%           Sock     = term(), gen_tcp socket
 %%           RecvPid  = pid(), receiver process pid
 %%           SeqNum   = integer(), first sequence number we should use
-%%           User     = string(), MySQL username
-%%           Password = string(), MySQL password
-%%           Salt1    = string(), salt 1 from server greeting
-%%           Salt2    = string(), salt 2 from server greeting
+%%           User     = iolist(), MySQL username
+%%           Password = iolist(), MySQL password
+%%           Salt1    = iolist(), salt 1 from server greeting
+%%           Salt2    = iolist(), salt 2 from server greeting
 %%           LogFun   = undefined | function() of arity 3
 %% Descrip.: Perform MySQL authentication.
 %% Returns : result of mysql_conn:do_recv/3
 %%--------------------------------------------------------------------
-do_new_auth(Sock, RecvPid, SeqNum, User, Password, Salt1, Salt2, LogFun) ->
-    Auth = password_new(Password, Salt1 ++ Salt2),
+do_new_auth(Sock, RecvPid, SeqNum, User, Password, Salt1, Salt2, LogFun)
+    when is_pid(RecvPid),
+         is_integer(SeqNum),
+         LogFun =:= undefined orelse is_function(LogFun, 3) ->
+    Salt = [Salt1, Salt2],
+    Auth = password_new(Password, Salt),
     Packet2 = make_new_auth(User, Auth, none),
     do_send(Sock, Packet2, SeqNum, LogFun),
     case mysql_conn:do_recv(LogFun, RecvPid, SeqNum) of
@@ -138,7 +145,10 @@ make_new_auth(User, Password, Database) ->
     UserB/binary, 0:8, PasswordL:8, Password/binary, DatabaseB/binary>>.
 
 hash(S) ->
-    hash(S, 1345345333, 305419889, 7).
+    hash(iolist_to_list(S), 1345345333, 305419889, 7).
+
+iolist_to_list(S) ->
+    binary_to_list(iolist_to_binary(S)).
 
 hash([C | S], N1, N2, Add) ->
     N1_1 = N1 bxor (((N1 band 63) + Add) * C + N1 * 256),
@@ -163,18 +173,14 @@ rnd(N, List, Seed1, Seed2) ->
     Val = trunc(Float)+64,
     rnd(N - 1, [Val | List], NSeed1, NSeed2).
 
+bxor_binary(B1, B2) when is_binary(B1), is_binary(B2) ->
+    S = bit_size(B1),
+    <<V1:S>> = B1,
+    <<V2:S>> = B2,
+    V3 = V1 bxor V2,
+    <<V3:S>>.
 
-
-dualmap(_F, [], []) ->
-    [];
-dualmap(F, [E1 | R1], [E2 | R2]) ->
-    [F(E1, E2) | dualmap(F, R1, R2)].
-
-bxor_binary(B1, B2) ->
-    list_to_binary(dualmap(fun (E1, E2) ->
-				   E1 bxor E2
-			   end, binary_to_list(B1), binary_to_list(B2))).
-
+-spec password_new(Password :: iolist(), Salt :: iolist()) -> Hash :: binary().
 password_new(Password, Salt) ->
     Stage1 = crypto:sha(Password),
     Stage2 = crypto:sha(Stage1),

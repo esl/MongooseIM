@@ -1,13 +1,16 @@
-Changelog
-================================================================================
-MongooseIM 1.2. is a new version of MongooseIM 1.1. - a robust, reliable XMPP
-server capable of running on big clusters. 
+# MongooseIM 1.3.0
+
+- added XEP-0313: Message Archive Management support (`mod_mam`)
+- port LDAP authentication from ejabberd
+- added PostgreSQL support
+- disable SSL 2.0 support
+- disable old unsafe ciphers
+- make the repo includable as a rebar dependency
+- use `#xmlel{}` instead of `{xmlel, ...}` in the whole codebase
 
 
+# MongooseIM 1.2.0
 
-
-MongooseIM 1.2
---------------------------------------------------------------------------------
 - BOSH support (XMPP over HTTP) 
 - WSS (WebSocekt Secure) 
 - various XMPP related metrics exposed via REST API

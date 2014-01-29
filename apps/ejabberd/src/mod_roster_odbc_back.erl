@@ -46,9 +46,9 @@ roster_version( US ) when size(US) =:= 2 ->
     {LUser, LServer} =  US,
     case odbc_queries:get_roster_version(ejabberd_odbc:escape(LServer),
                                          ejabberd_odbc:escape(LUser)) of
-        {selected, ["version"], [{Version}]} ->
+        {selected, [<<"version">>], [{Version}]} ->
             {ok,Version};
-        {selected, ["version"], []} ->
+        {selected, [<<"version">>], []} ->
             not_found
     end.
 
@@ -72,11 +72,11 @@ rosters_by_us( US ) when size(US) =:= 2 ->
     {LUser, LServer} = US,
     Username = ejabberd_odbc:escape(LUser),
     case catch odbc_queries:get_roster(LServer, Username) of
-        {selected, ["username", "jid", "nick", "subscription", "ask",
-                    "askmessage", "server", "subscribe", "type"],
+        {selected, [<<"username">>, <<"jid">>, <<"nick">>, <<"subscription">>, <<"ask">>,
+                    <<"askmessage">>, <<"server">>, <<"subscribe">>, <<"type">>],
          Items} when is_list(Items) ->
             JIDGroups = case catch odbc_queries:get_roster_jid_groups(LServer, Username) of
-                            {selected, ["jid","grp"], JGrps}
+                            {selected, [<<"jid">>,<<"grp">>], JGrps}
                               when is_list(JGrps) ->
                                 JGrps;
                             _ ->
@@ -111,8 +111,8 @@ rosters_without_groups( _US = {LUser, LServer} ) ->
     Username = ejabberd_odbc:escape(LUser),
 
     case catch odbc_queries:get_roster(LServer, Username) of
-        { selected, ["username", "jid", "nick", "subscription", "ask",
-                     "askmessage", "server", "subscribe", "type"],
+        { selected, [<<"username">>, <<"jid">>, <<"nick">>, <<"subscription">>, <<"ask">>,
+                     <<"askmessage">>, <<"server">>, <<"subscribe">>, <<"type">>],
           Items} when is_list(Items) ->
             Items;
         _ ->
@@ -129,8 +129,8 @@ roster( USJ = {LUser, LServer, LJID} ) when size( USJ ) =:= 3 ->
     SJID = ejabberd_odbc:escape(jlib:jid_to_binary(LJID)),
 
     { selected,
-      [ "username", "jid", "nick", "subscription",
-        "ask", "askmessage", "server", "subscribe", "type"],
+      [ <<"username">>, <<"jid">>, <<"nick">>, <<"subscription">>, <<"ask">>,
+        <<"askmessage">>, <<"server">>, <<"subscribe">>, <<"type">>],
       Responce } = odbc_queries:get_roster_by_jid(LServer, Username, SJID),
     case Responce of
         [] ->
@@ -252,21 +252,21 @@ record_to_string(#roster{us = {User, _Server},
     SJID = ejabberd_odbc:escape(jlib:jid_to_binary(jlib:jid_tolower(JID))),
     Nick = ejabberd_odbc:escape(Name),
     SSubscription = case Subscription of
-                        both -> "B";
-                        to   -> "T";
-                        from -> "F";
-                        none -> "N"
+                        both -> <<"B">>;
+                        to   -> <<"T">>;
+                        from -> <<"F">>;
+                        none -> <<"N">>
                     end,
     SAsk = case Ask of
-               subscribe   -> "S";
-               unsubscribe -> "U";
-               both        -> "B";
-               out         -> "O";
-               in          -> "I";
-               none        -> "N"
+               subscribe   -> <<"S">>;
+               unsubscribe -> <<"U">>;
+               both        -> <<"B">>;
+               out         -> <<"O">>;
+               in          -> <<"I">>;
+               none        -> <<"N">>
            end,
     SAskMessage = ejabberd_odbc:escape(AskMessage),
-    [Username, SJID, Nick, SSubscription, SAsk, SAskMessage, "N", "", "item"].
+    [Username, SJID, Nick, SSubscription, SAsk, SAskMessage, <<"N">>, <<"">>, <<"item">>].
 
 groups_to_string(#roster{us = {User, _Server},
                          jid = JID,
