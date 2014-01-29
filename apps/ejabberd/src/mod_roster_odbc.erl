@@ -349,14 +349,22 @@ process_item_attrs(Item, [{<<"jid">>, Val} | Attrs]) ->
             JID = {JID1#jid.luser, JID1#jid.lserver, JID1#jid.lresource},
             process_item_attrs(Item#roster{jid = JID}, Attrs)
     end;
+
 process_item_attrs(Item, [{<<"name">>, Val} | Attrs]) ->
     process_item_attrs(Item#roster{name = Val}, Attrs);
+
 process_item_attrs(Item, [{<<"subscription">>, <<"remove">>} | Attrs]) ->
     process_item_attrs(Item#roster{subscription = remove}, Attrs);
+
+process_item_attrs(Item, [{<<"ask">>} | Attrs]) ->
+    process_item_attrs(Item, Attrs);
+
 process_item_attrs(Item, [_ | Attrs]) ->
     process_item_attrs(Item, Attrs);
+
 process_item_attrs(Item, []) ->
     Item.
+
 
 process_item_els(Item, [#xmlel{name = <<"group">>,
                                children = SEls} | Els]) ->
@@ -785,7 +793,10 @@ process_item_attrs_ws(Item, [{<<"subscription">>, Val} | Attrs]) ->
               end,
     process_item_attrs_ws( NewItem, Attrs);
 
-process_item_attrs_ws(Item, [_ | Attrs]) ->
+process_item_attrs_ws(Item, [{<<"ask">>, _Val} | Attrs]) ->
+    process_item_attrs_ws(Item, Attrs);
+
+process_item_attrs_ws(Item, [ _ | Attrs]) ->
     process_item_attrs_ws(Item, Attrs);
 
 process_item_attrs_ws(Item, []) ->
