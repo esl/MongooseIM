@@ -276,8 +276,8 @@ archive_message(_Result, Host, MessID, _UserID,
                  LocJID=#jid{},
                  RemJID=#jid{},
                 _SrcJID=#jid{}, incoming, Packet) ->
-    BLocJID = prepare_jid(LocJID),
-    BRemJID = prepare_jid(RemJID),
+    BLocJID = serialize_jid(LocJID),
+    BRemJID = serialize_jid(RemJID),
     case BLocJID < BRemJID of
         true ->
             IsFromLower = false,
@@ -336,8 +336,8 @@ lookup_messages(_Result, Host, _UserID, UserJID = #jid{},
                 #rsm_in{direction = aft, id = ID}, Borders,
                 Start, End, _Now, WithJID,
                 PageSize, _LimitPassed, _MaxResultLimit, true) ->
-    BUserJID = prepare_jid(UserJID),
-    BWithJID = prepare_jid(WithJID),
+    BUserJID = serialize_jid(UserJID),
+    BWithJID = serialize_jid(WithJID),
     BLowerJID = min(BUserJID, BWithJID),
     BUpperJID = max(BUserJID, BWithJID),
     Worker = select_worker(Host, BLowerJID, BUpperJID),
@@ -349,8 +349,8 @@ lookup_messages(_Result, Host, _UserID, UserJID = #jid{},
                 #rsm_in{direction = before, id = ID},
                 Borders, Start, End, _Now, WithJID,
                 PageSize, _LimitPassed, _MaxResultLimit, true) ->
-    BUserJID = prepare_jid(UserJID),
-    BWithJID = prepare_jid(WithJID),
+    BUserJID = serialize_jid(UserJID),
+    BWithJID = serialize_jid(WithJID),
     BLowerJID = min(BUserJID, BWithJID),
     BUpperJID = max(BUserJID, BWithJID),
     Worker = select_worker(Host, BLowerJID, BUpperJID),
@@ -362,8 +362,8 @@ lookup_messages(_Result, Host, _UserID, UserJID = #jid{},
                 #rsm_in{direction = undefined, index = Offset}, Borders,
                 Start, End, _Now, WithJID,
                 PageSize, _LimitPassed, _MaxResultLimit, true) ->
-    BUserJID = prepare_jid(UserJID),
-    BWithJID = prepare_jid(WithJID),
+    BUserJID = serialize_jid(UserJID),
+    BWithJID = serialize_jid(WithJID),
     BLowerJID = min(BUserJID, BWithJID),
     BUpperJID = max(BUserJID, BWithJID),
     Worker = select_worker(Host, BLowerJID, BUpperJID),
@@ -375,8 +375,8 @@ lookup_messages(_Result, Host, _UserID, UserJID = #jid{},
                 undefined, Borders,
                 Start, End, _Now, WithJID,
                 PageSize, _LimitPassed, _MaxResultLimit, true) ->
-    BUserJID = prepare_jid(UserJID),
-    BWithJID = prepare_jid(WithJID),
+    BUserJID = serialize_jid(UserJID),
+    BWithJID = serialize_jid(WithJID),
     BLowerJID = min(BUserJID, BWithJID),
     BUpperJID = max(BUserJID, BWithJID),
     Worker = select_worker(Host, BLowerJID, BUpperJID),
@@ -395,8 +395,8 @@ lookup_messages(_Result, Host, _UserID, UserJID = #jid{},
                 Start, End, _Now, WithJID,
                 PageSize, _LimitPassed, _MaxResultLimit, opt_count) ->
     %% Last page
-    BUserJID = prepare_jid(UserJID),
-    BWithJID = prepare_jid(WithJID),
+    BUserJID = serialize_jid(UserJID),
+    BWithJID = serialize_jid(WithJID),
     BLowerJID = min(BUserJID, BWithJID),
     BUpperJID = max(BUserJID, BWithJID),
     Worker = select_worker(Host, BLowerJID, BUpperJID),
@@ -419,8 +419,8 @@ lookup_messages(_Result, Host, _UserID, UserJID = #jid{},
                 Start, End, _Now, WithJID,
                 PageSize, _LimitPassed, _MaxResultLimit, opt_count) ->
     %% By offset
-    BUserJID = prepare_jid(UserJID),
-    BWithJID = prepare_jid(WithJID),
+    BUserJID = serialize_jid(UserJID),
+    BWithJID = serialize_jid(WithJID),
     BLowerJID = min(BUserJID, BWithJID),
     BUpperJID = max(BUserJID, BWithJID),
     Worker = select_worker(Host, BLowerJID, BUpperJID),
@@ -443,8 +443,8 @@ lookup_messages(_Result, Host, _UserID, UserJID = #jid{},
                 Start, End, _Now, WithJID,
                 PageSize, _LimitPassed, _MaxResultLimit, opt_count) ->
     %% First page
-    BUserJID = prepare_jid(UserJID),
-    BWithJID = prepare_jid(WithJID),
+    BUserJID = serialize_jid(UserJID),
+    BWithJID = serialize_jid(WithJID),
     BLowerJID = min(BUserJID, BWithJID),
     BUpperJID = max(BUserJID, BWithJID),
     Worker = select_worker(Host, BLowerJID, BUpperJID),
@@ -467,8 +467,8 @@ lookup_messages(_Result, Host, _UserID, UserJID = #jid{},
                 RSM = #rsm_in{direction = aft, id = ID}, Borders,
                 Start, End, _Now, WithJID,
                 PageSize, LimitPassed, MaxResultLimit, _) ->
-    BUserJID = prepare_jid(UserJID),
-    BWithJID = prepare_jid(WithJID),
+    BUserJID = serialize_jid(UserJID),
+    BWithJID = serialize_jid(WithJID),
     BLowerJID = min(BUserJID, BWithJID),
     BUpperJID = max(BUserJID, BWithJID),
     Worker = select_worker(Host, BLowerJID, BUpperJID),
@@ -491,8 +491,8 @@ lookup_messages(_Result, Host, _UserID, UserJID = #jid{},
                 RSM = #rsm_in{direction = before, id = ID}, Borders,
                 Start, End, _Now, WithJID,
                 PageSize, LimitPassed, MaxResultLimit, _) ->
-    BUserJID = prepare_jid(UserJID),
-    BWithJID = prepare_jid(WithJID),
+    BUserJID = serialize_jid(UserJID),
+    BWithJID = serialize_jid(WithJID),
     BLowerJID = min(BUserJID, BWithJID),
     BUpperJID = max(BUserJID, BWithJID),
     Worker = select_worker(Host, BLowerJID, BUpperJID),
@@ -515,8 +515,8 @@ lookup_messages(_Result, Host, _UserID, UserJID = #jid{},
                 RSM, Borders,
                 Start, End, _Now, WithJID,
                 PageSize, LimitPassed, MaxResultLimit, _) ->
-    BUserJID = prepare_jid(UserJID),
-    BWithJID = prepare_jid(WithJID),
+    BUserJID = serialize_jid(UserJID),
+    BWithJID = serialize_jid(WithJID),
     BLowerJID = min(BUserJID, BWithJID),
     BUpperJID = max(BUserJID, BWithJID),
     Worker = select_worker(Host, BLowerJID, BUpperJID),
@@ -561,11 +561,11 @@ row_to_message_id([MessID,_,_]) ->
     MessID.
 
 remove_archive(Host, _UserID, UserJID) ->
-    BUserJID = prepare_jid(UserJID),
+    BUserJID = serialize_jid(UserJID),
     Worker = select_worker(Host, BUserJID),
     [purge_conversation0(Host, BUserJID, BWithJID)
      || BWithJID <- get_conversations(Worker, BUserJID),
-        does_conversation_exist(Worker, BUserJID, BWithJID)],
+        is_user_exists(unserialize_jid(BWithJID))],
     remove_conversations(Worker, BUserJID),
     ok.
 
@@ -795,9 +795,14 @@ maybe_encode_compact_uuid(undefined, _) ->
 maybe_encode_compact_uuid(Microseconds, NodeID) ->
     encode_compact_uuid(Microseconds, NodeID).
 
-prepare_jid(JID) ->
+serialize_jid(JID) ->
     jlib:jid_to_binary(jlib:jid_tolower(jlib:jid_remove_resource(JID))).
 
+unserialize_jid(BJID) ->
+    jlib:binary_to_jid(BJID).
+
+is_user_exists(#jid{lserver=LServer, luser=LUser}) ->
+    ejabberd_users:is_user_exists(LUser, LServer).
 
 %%====================================================================
 %% Internal SQL part
