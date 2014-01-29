@@ -326,28 +326,31 @@
 %	?STREAM_ERRORT(<<"">>, Lang, Text)).
 
 
--record(jid, {
-        user       :: binary(),
-        server     :: binary(),
-        resource   :: binary(),
-        luser      :: binary(),
-        lserver    :: binary(),
-        lresource  :: binary()
-}).
+-record(jid, { user       :: binary(),
+               server     :: binary(),
+               resource   :: binary(),
+               luser      :: binary(),
+               lserver    :: binary(),
+               lresource  :: binary()
+             }).
+-type jid() :: #jid{}.
 
--record(iq, {id = <<>>,
-	     type,
-	     xmlns = <<>>,
-	     lang = <<>>,
-	     sub_el}).
+-type(ljid() :: {binary(), binary(), binary()}).
 
--record(rsm_in, {
-        max         :: non_neg_integer() | undefined | error,
-        direction   :: before | aft | undefined,
-        %% id is empty, if cdata does not exists.
-        id          :: binary() | undefined,
-        index       :: non_neg_integer() | undefined | error
-}).
+-record(iq, { id = <<>>,
+              type,
+              xmlns = <<>>,
+              lang = <<>>,
+              sub_el
+            }).
+-type iq() :: #iq{}.
+
+-record(rsm_in, { max         :: non_neg_integer() | undefined | error,
+                  direction   :: before | aft | undefined,
+                  %% id is empty, if cdata does not exists.
+                  id          :: binary() | undefined,
+                  index       :: non_neg_integer() | undefined | error
+                }).
 
 -record(mam_borders, {
         after_id  :: non_neg_integer() | undefined,
@@ -358,6 +361,5 @@
 
 -record(rsm_out, {count, index, first, last}).
 
--type jid() :: #jid{}.
--type iq() :: #iq{}.
+
 

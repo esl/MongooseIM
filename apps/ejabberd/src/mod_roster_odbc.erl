@@ -37,31 +37,34 @@
 -author('alexey@process-one.net').
 
 -behaviour(gen_mod).
+-export([start/2, stop/1]).
 
--export([start/2, stop/1,
-         process_iq/3,
-         process_local_iq/3,
-         get_user_roster/2,
-         get_subscription_lists/3,
-         get_in_pending_subscriptions/3,
-         in_subscription/6,
-         out_subscription/4,
-         set_items/3,
-         remove_user/2,
-         get_jid_info/4,
-         webadmin_page/3,
-         webadmin_user/4,
-         get_versioning_feature/2,
-         roster_versioning_enabled/1]).
+%% ejabber hook handles
+-export([ get_user_roster/2,
+          in_subscription/6,
+          out_subscription/4,
+          get_subscription_lists/3,
+          get_jid_info/4,
+          remove_user/2,
+          get_in_pending_subscriptions/3,
+          get_versioning_feature/2,
+          process_iq/3 ]).
+
+-export([ process_local_iq/3,
+          set_items/3,
+          roster_versioning_enabled/1 ]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 -include("mod_roster.hrl").
--include("ejabberd_http.hrl").
--include("ejabberd_web_admin.hrl").
+
+
+-define( BACKEND, mod_roster_odbc_back).
+
 
 
 start(Host, Opts) ->
+    ?BACKEND:init( Opts ),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
     ejabberd_hooks:add(roster_get, Host,
                        ?MODULE, get_user_roster, 50),
@@ -81,10 +84,6 @@ start(Host, Opts) ->
                        ?MODULE, get_in_pending_subscriptions, 50),
     ejabberd_hooks:add(roster_get_versioning_feature, Host,
                        ?MODULE, get_versioning_feature, 50),
-    ejabberd_hooks:add(webadmin_page_host, Host,
-                       ?MODULE, webadmin_page, 50),
-    ejabberd_hooks:add(webadmin_user, Host,
-                       ?MODULE, webadmin_user, 50),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_ROSTER,
                                   ?MODULE, process_iq, IQDisc).
 
@@ -107,10 +106,6 @@ stop(Host) ->
                           ?MODULE, get_in_pending_subscriptions, 50),
     ejabberd_hooks:delete(roster_get_versioning_feature, Host,
                           ?MODULE, get_versioning_feature, 50),
-    ejabberd_hooks:delete(webadmin_page_host, Host,
-                          ?MODULE, webadmin_page, 50),
-    ejabberd_hooks:delete(webadmin_user, Host,
-                          ?MODULE, webadmin_user, 50),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_ROSTER).
 
 
@@ -133,7 +128,7 @@ process_local_iq(From, To, #iq{type = Type} = IQ) ->
     end.
 
 roster_hash(Items) ->
-	sha:sha(term_to_binary(
+    sha:sha(term_to_binary(
               lists:sort(
                 [R#roster{groups = lists:sort(Grs)} ||
                     R = #roster{groups = Grs} <- Items]))).
@@ -144,6 +139,7 @@ roster_versioning_enabled(Host) ->
 roster_version_on_db(Host) ->
     gen_mod:get_module_opt(Host, ?MODULE, store_current_id, false).
 
+%% hook handler
 %% Returns a list that may contain an xmlel with the XEP-237 feature if it's enabled.
 get_versioning_feature(Acc, Host) ->
     case roster_versioning_enabled(Host) of
@@ -156,17 +152,16 @@ get_versioning_feature(Acc, Host) ->
     end.
 
 roster_version(LServer ,LUser) ->
-	US = {LUser, LServer},
-	case roster_version_on_db(LServer) of
-		true ->
-			case odbc_queries:get_roster_version(ejabberd_odbc:escape(LServer),
-                                                 ejabberd_odbc:escape(LUser)) of
-				{selected, [<<"version">>], [{Version}]} -> Version;
-				{selected, [<<"version">>], []} -> not_found
-			end;
-		false ->
-			roster_hash(ejabberd_hooks:run_fold(roster_get, LServer, [], [US]))
-	end.
+    US = {LUser, LServer},
+    case roster_version_on_db(LServer) of
+        true ->
+            case ?BACKEND:roster_version( US ) of
+                {ok, Version } -> Version;
+                not_fount -> not_found
+            end;
+        false ->
+            roster_hash(ejabberd_hooks:run_fold(roster_get, LServer, [], [US]))
+    end.
 
 %% Load roster from DB only if neccesary.
 %% It is neccesary if
@@ -180,27 +175,22 @@ process_iq_get(From, To, #iq{sub_el = SubEl} = IQ) ->
     US = {LUser, LServer},
 
     try
-	    {ItemsToSend, VersionToSend} =
+        {ItemsToSend, VersionToSend} =
             case {xml:get_tag_attr(<<"ver">>, SubEl),
                   roster_versioning_enabled(LServer),
                   roster_version_on_db(LServer)} of
                 {{value, RequestedVersion}, true, true} ->
                     %% Retrieve version from DB. Only load entire roster
                     %% when neccesary.
-                    case odbc_queries:get_roster_version(ejabberd_odbc:escape(LServer),
-                                                         ejabberd_odbc:escape(LUser)) of
-                        {selected, [<<"version">>], [{RequestedVersion}]} ->
+                    case ?BACKEND:roster_version( US) of
+                        {ok, RequestedVersion} ->
                             {false, false};
-                        {selected, [<<"version">>], [{NewVersion}]} ->
+                        {ok, NewVersion} ->
                             {lists:map(fun item_to_xml/1,
                                        ejabberd_hooks:run_fold(roster_get, To#jid.lserver, [], [US])), NewVersion};
-                        {selected, [<<"version">>], []} ->
+                        not_found ->
                             RosterVersion = sha:sha(term_to_binary(now())),
-                            {atomic, {updated,1}} = odbc_queries:sql_transaction(LServer,
-                                                                                 fun() ->
-                                                                                         odbc_queries:set_roster_version(ejabberd_odbc:escape(LUser), RosterVersion)
-                                                                                 end),
-
+                            ?BACKEND:write_version( US, RosterVersion ),
                             {lists:map(fun item_to_xml/1,
                                        ejabberd_hooks:run_fold(roster_get, To#jid.lserver, [], [US])), RosterVersion}
                     end;
@@ -218,67 +208,35 @@ process_iq_get(From, To, #iq{sub_el = SubEl} = IQ) ->
                     {lists:map(fun item_to_xml/1,
                                ejabberd_hooks:run_fold(roster_get, To#jid.lserver, [], [US])), false}
             end,
-		IQ#iq{type = result, sub_el = case {ItemsToSend, VersionToSend} of
+        IQ#iq{type = result, sub_el = case {ItemsToSend, VersionToSend} of
                                           {false, false} ->  [];
-                                      {Items, false} -> [#xmlel{name = <<"query">>,
-                                                                attrs = [{<<"xmlns">>, ?NS_ROSTER}],
-                                                                children = Items}];
-                                      {Items, Version} -> [#xmlel{name = <<"query">>,
-                                                                  attrs = [{<<"xmlns">>, ?NS_ROSTER},
-                                                                                {<<"ver">>, Version}],
-                                                                  children = Items}]
-                                          end}
+                                          {Items, false} -> [#xmlel{name = <<"query">>,
+                                                                    attrs = [{<<"xmlns">>, ?NS_ROSTER}],
+                                                                    children = Items}];
+                                          {Items, Version} -> [#xmlel{name = <<"query">>,
+                                                                      attrs = [{<<"xmlns">>, ?NS_ROSTER},
+                                                                               {<<"ver">>, Version}],
+                                                                      children = Items}]
+                                      end}
     catch
-    	_:_ ->
+        _:_ ->
             IQ#iq{type = error, sub_el = [SubEl, ?ERR_INTERNAL_SERVER_ERROR]}
     end.
 
-get_user_roster(Acc, {LUser, LServer}) ->
-    Items = get_roster(LUser, LServer),
-    lists:filter(fun(#roster{subscription = none, ask = in}) ->
-                         false;
-                    (_) ->
-                         true
-                 end, Items) ++ Acc.
 
-get_roster(LUser, LServer) ->
-    Username = ejabberd_odbc:escape(LUser),
-    case catch odbc_queries:get_roster(LServer, Username) of
-        {selected, [<<"username">>, <<"jid">>, <<"nick">>, <<"subscription">>, <<"ask">>,
-                    <<"askmessage">>, <<"server">>, <<"subscribe">>, <<"type">>],
-         Items} when is_list(Items) ->
-            JIDGroups = case catch odbc_queries:get_roster_jid_groups(LServer, Username) of
-                            {selected, [<<"jid">>, <<"grp">>], JGrps}
-                              when is_list(JGrps) ->
-                                JGrps;
-                            _ ->
-                                []
-                        end,
-            RItems = lists:flatmap(
-                       fun(I) ->
-                               case raw_to_record(LServer, I) of
-                                   %% Bad JID in database:
-                                   error ->
-                                       [];
-                                   R ->
-                                       SJID = jlib:jid_to_binary(R#roster.jid),
-                                       Groups = lists:flatmap(
-                                                  fun({S, G}) when S == SJID ->
-                                                          [G];
-                                                     (_) ->
-                                                          []
-                                                  end, JIDGroups),
-                                       [R#roster{groups = Groups}]
-                               end
-                       end, Items),
-            RItems;
-        _ ->
-            []
-    end.
+%% hook handler
+get_user_roster( Acc, US ) ->
+    All = ?BACKEND:rosters_by_us( US ),
+    Rosters = lists:filter(fun(#roster{subscription = none, ask = in}) ->
+                                   false;
+                              (_) ->
+                                   true
+                           end, All),
+    Rosters ++ Acc.
 
 
 item_to_xml(Item) ->
-    Attrs1 = [{"jid", jlib:jid_to_binary(Item#roster.jid)}],
+    Attrs1 = [{<<"jid">>, jlib:jid_to_binary(Item#roster.jid)}],
     Attrs2 = case Item#roster.name of
                  <<"">> ->
                      Attrs1;
@@ -311,9 +269,10 @@ item_to_xml(Item) ->
                        end, Item#roster.groups),
     #xmlel{name = <<"item">>, attrs = Attrs, children = SubEls}.
 
-process_iq_set(From, To, #iq{sub_el = SubEl} = IQ) ->
+process_iq_set(From = #jid{lserver = LServer},
+               To,
+               IQ = #iq{sub_el = SubEl}) ->
     #xmlel{children = Els} = SubEl,
-    #jid{lserver = LServer} = From,
     ejabberd_hooks:run(roster_set, LServer, [From, To, SubEl]),
     lists:foreach(fun(El) -> process_item_set(From, To, El) end, Els),
     IQ#iq{type = result, sub_el = []}.
@@ -325,56 +284,31 @@ process_item_set(From, To, #xmlel{attrs = Attrs, children = Els}) ->
         error ->
             ok;
         _ ->
+            JID = {JID1#jid.user, JID1#jid.server, JID1#jid.resource},
             LJID = jlib:jid_tolower(JID1),
-            Username = ejabberd_odbc:escape(LUser),
-            SJID = ejabberd_odbc:escape(jlib:jid_to_binary(LJID)),
             F = fun() ->
-                        {selected,
-                         [<<"username">>, <<"jid">>, <<"nick">>, <<"subscription">>,
-                          <<"ask">>, <<"askmessage">>, <<"server">>, <<"subscribe">>, <<"type">>],
-                         Res} = odbc_queries:get_roster_by_jid(LServer, Username, SJID),
-                        Item = case Res of
-                                   [] ->
-                                       #roster{usj = {LUser, LServer, LJID},
-                                               us = {LUser, LServer},
-                                               jid = LJID};
-                                   [I] ->
-                                       R = raw_to_record(LServer, I),
-                                       case R of
-                                           %% Bad JID in database:
-                                           error ->
-                                               #roster{usj = {LUser, LServer, LJID},
-                                                       us = {LUser, LServer},
-                                                       jid = LJID};
-                                           _ ->
-                                               R#roster{
-                                                 usj = {LUser, LServer, LJID},
-                                                 us = {LUser, LServer},
-                                                 jid = LJID,
-                                                 name = <<"">>}
-                                       end
-                               end,
+                        Item = get_roster_of(LUser, LServer, LJID, JID),
                         Item1 = process_item_attrs(Item, Attrs),
                         Item2 = process_item_els(Item1, Els),
                         case Item2#roster.subscription of
                             remove ->
-                                odbc_queries:del_roster(LServer, Username, SJID);
+                                ?BACKEND:remove_roster({LUser, LServer, LJID});
                             _ ->
-                                ItemVals = record_to_string(Item2),
-                                ItemGroups = groups_to_string(Item2),
-                                odbc_queries:update_roster(LServer, Username, SJID, ItemVals, ItemGroups)
+                                ?BACKEND:write_roster( Item2 )
                         end,
                         %% If the item exist in shared roster, take the
                         %% subscription information from there:
                         Item3 = ejabberd_hooks:run_fold(roster_process_item,
                                                         LServer, Item2, [LServer]),
                         case roster_version_on_db(LServer) of
-                            true -> odbc_queries:set_roster_version(ejabberd_odbc:escape(LUser), sha:sha(term_to_binary(now())));
+                            true ->
+                                ?BACKEND:write_version( {LUser, LServer},
+                                                        sha:sha(term_to_binary(now())));
                             false -> ok
                         end,
                         {Item, Item3}
                 end,
-            case odbc_queries:sql_transaction(LServer, F) of
+            case ?BACKEND:transaction( LServer, F) of
                 {atomic, {OldItem, Item}} ->
                     push_item(User, LServer, To, Item),
                     case Item#roster.subscription of
@@ -392,6 +326,21 @@ process_item_set(From, To, #xmlel{attrs = Attrs, children = Els}) ->
 process_item_set(_From, _To, _) ->
     ok.
 
+get_roster_of( LUser, LServer, LJID, JID) ->
+    USJ = {LUser, LServer, LJID},
+    case ?BACKEND:roster( USJ ) of
+        not_found ->
+            #roster{usj = USJ,
+                    us = {LUser, LServer},
+                    jid = LJID};
+        {ok, R } ->
+            R#roster{ usj = USJ,
+                      us = {LUser, LServer},
+                      jid = LJID,
+                      name = <<"">>}
+    end.
+
+
 process_item_attrs(Item, [{<<"jid">>, Val} | Attrs]) ->
     case jlib:binary_to_jid(Val) of
         error ->
@@ -400,14 +349,22 @@ process_item_attrs(Item, [{<<"jid">>, Val} | Attrs]) ->
             JID = {JID1#jid.luser, JID1#jid.lserver, JID1#jid.lresource},
             process_item_attrs(Item#roster{jid = JID}, Attrs)
     end;
+
 process_item_attrs(Item, [{<<"name">>, Val} | Attrs]) ->
     process_item_attrs(Item#roster{name = Val}, Attrs);
+
 process_item_attrs(Item, [{<<"subscription">>, <<"remove">>} | Attrs]) ->
     process_item_attrs(Item#roster{subscription = remove}, Attrs);
+
+process_item_attrs(Item, [{<<"ask">>} | Attrs]) ->
+    process_item_attrs(Item, Attrs);
+
 process_item_attrs(Item, [_ | Attrs]) ->
     process_item_attrs(Item, Attrs);
+
 process_item_attrs(Item, []) ->
     Item.
+
 
 process_item_els(Item, [#xmlel{name = <<"group">>,
                                children = SEls} | Els]) ->
@@ -419,6 +376,7 @@ process_item_els(Item, [#xmlcdata{} | Els]) ->
     process_item_els(Item, Els);
 process_item_els(Item, []) ->
     Item.
+
 
 push_item(User, Server, From, Item) ->
     ejabberd_sm:route(jlib:make_jid(<<"">>, <<"">>, <<"">>),
@@ -436,7 +394,7 @@ push_item(User, Server, From, Item) ->
                           end, ejabberd_sm:get_user_resources(User, Server))
     end.
 
-%% TODO: don't push to those who not load roster
+%% TODO: don't push to those who didn't load roster
 push_item(User, Server, Resource, From, Item) ->
     ejabberd_hooks:run(roster_push, Server, [From, Item]),
     ResIQ = #iq{type = set, xmlns = ?NS_ROSTER,
@@ -472,58 +430,57 @@ get_subscription_lists(_, User, Server) ->
     LUser = jlib:nodeprep(User),
     LServer = jlib:nameprep(Server),
     JID = jlib:make_jid(User, Server, <<>>),
-    Username = ejabberd_odbc:escape(LUser),
-    case catch odbc_queries:get_roster(LServer, Username) of
-        {selected, [<<"username">>, <<"jid">>, <<"nick">>, <<"subscription">>, <<"ask">>,
-                    <<"askmessage">>, <<"server">>, <<"subscribe">>, <<"type">>],
-         Items} when is_list(Items) ->
-            fill_subscription_lists(JID, LServer, Items, [], [], []);
-        _ ->
-            {[], [], []}
-    end.
+    Items =  ?BACKEND:rosters_without_groups( {LUser, LServer} ),
+    fill_subscription_lists(JID, Items).
 
-fill_subscription_lists(JID, LServer, [IRaw | Is], F, T, P) ->
-    I = raw_to_record(LServer, IRaw),
+
+fill_subscription_lists( JID, Items ) ->
+    fill_subscription_lists( JID, Items, [], [], []).
+
+fill_subscription_lists(JID, [I | Is], F, T, P) ->
     J = element(3, I#roster.usj),
     NewP = case I#roster.ask of
-        Ask when Ask == in; Ask == both ->
-            Message = I#roster.askmessage,
-            Status  = if is_binary(Message) -> Message;
-                           true -> <<>>
-                          end,
-            StatusEl = #xmlel{
-                    name = <<"status">>,
-                    children = [#xmlcdata{content = Status}]},
-            El = #xmlel{
-                    name = <<"presence">>,
-                    attrs = [{<<"from">>, jlib:jid_to_binary(I#roster.jid)},
-                             {<<"to">>, jlib:jid_to_binary(JID)},
-                             {<<"type">>, <<"subscribe">>}],
-                    children = [StatusEl]},
-            [El | P];
-        _ -> 
-             P
-        end,
+               Ask when Ask == in;
+                        Ask == both ->
+                   Message = I#roster.askmessage,
+                   Status  = if is_binary(Message) ->
+                                     Message;
+                                true ->
+                                     <<>>
+                             end,
+                   [#xmlel{name = <<"presence">>,
+                           attrs = [{<<"from">>, jlib:jid_to_binary(I#roster.jid)},
+                                    {<<"to">>, jlib:jid_to_binary(JID)},
+                                    {<<"type">>, <<"subscribe">>}],
+                           children = [#xmlel{name = <<"status">>,
+                                              children = [#xmlcdata{content = Status}]}]} | P];
+               _ ->
+                   P
+           end,
     case I#roster.subscription of
-    both ->
-        fill_subscription_lists(JID, LServer, Is, [J | F], [J | T], NewP);
-    from ->
-        fill_subscription_lists(JID, LServer, Is, [J | F], T, NewP);
-    to ->
-        fill_subscription_lists(JID, LServer, Is, F, [J | T], NewP);
-    _ ->
-        fill_subscription_lists(JID, LServer, Is, F, T, NewP)
+        both ->
+            fill_subscription_lists(JID, Is, [J | F], [J | T], NewP);
+        from ->
+            fill_subscription_lists(JID, Is, [J | F], T, NewP);
+        to ->
+            fill_subscription_lists(JID, Is, F, [J | T], NewP);
+        _ ->
+            fill_subscription_lists(JID, Is, F, T, NewP)
     end;
-fill_subscription_lists(_JID, _LServer, [], F, T, P) ->
-   {F, T, P}.
+fill_subscription_lists(_JID, [], F, T, P) ->
+    {F, T, P}.
+
 
 ask_to_pending(subscribe) -> out;
 ask_to_pending(unsubscribe) -> none;
 ask_to_pending(Ask) -> Ask.
 
+
+%% hook handler
 in_subscription(_, User, Server, JID, Type, Reason) ->
     process_subscription(in, User, Server, JID, Type, Reason).
 
+%% hook handler
 out_subscription(User, Server, JID, Type) ->
     process_subscription(out, User, Server, JID, Type, []).
 
@@ -531,32 +488,17 @@ process_subscription(Direction, User, Server, JID1, Type, Reason) ->
     LUser = jlib:nodeprep(User),
     LServer = jlib:nameprep(Server),
     LJID = jlib:jid_tolower(JID1),
-    Username = ejabberd_odbc:escape(LUser),
-    SJID = ejabberd_odbc:escape(jlib:jid_to_binary(LJID)),
+
+    US = {LUser, LServer},
+    USJ = {LUser, LServer, LJID},
     F = fun() ->
                 Item =
-                    case odbc_queries:get_roster_by_jid(LServer, Username, SJID) of
-                        {selected,
-                         [<<"username">>, <<"jid">>, <<"nick">>, <<"subscription">>, <<"ask">>,
-                          <<"askmessage">>, <<"server">>, <<"subscribe">>, <<"type">>],
-                         [I]} ->
-                            %% raw_to_record can return error, but
-                            %% jlib_to_string would fail before this point
-                            R = raw_to_record(LServer, I),
-                            Groups =
-                                case odbc_queries:get_roster_groups(LServer, Username, SJID) of
-                                    {selected, ["grp"], JGrps} when is_list(JGrps) ->
-                                        [JGrp || {JGrp} <- JGrps];
-                                    _ ->
-                                        []
-                                end,
-                            R#roster{groups = Groups};
-                        {selected,
-                         [<<"username">>, <<"jid">>, <<"nick">>, <<"subscription">>, <<"ask">>,
-                          <<"askmessage">>, <<"server">>, <<"subscribe">>, <<"type">>],
-                         []} ->
-                            #roster{usj = {LUser, LServer, LJID},
-                                    us = {LUser, LServer},
+                    case ?BACKEND:roster( USJ ) of
+                        {ok, Roster} ->
+                            Roster;
+                        not_found ->
+                            #roster{usj = USJ,
+                                    us = US,
                                     jid = LJID}
                     end,
                 NewState = case Direction of
@@ -587,22 +529,23 @@ process_subscription(Direction, User, Server, JID1, Type, Reason) ->
                         {none, AutoReply};
                     {none, none} when Item#roster.subscription == none,
                                       Item#roster.ask == in ->
-                        odbc_queries:del_roster(LServer, Username, SJID),
+                        ?BACKEND:remove_roster( USJ ),
                         {none, AutoReply};
                     {Subscription, Pending} ->
                         NewItem = Item#roster{subscription = Subscription,
                                               ask = Pending,
                                               askmessage = AskMessage},
-                        ItemVals = record_to_string(NewItem),
-                        odbc_queries:roster_subscribe(LServer, Username, SJID, ItemVals),
+                        ?BACKEND:write_roster_subscription( NewItem ),
                         case roster_version_on_db(LServer) of
-                            true -> odbc_queries:set_roster_version(ejabberd_odbc:escape(LUser), sha:sha(term_to_binary(now())));
+                            true ->
+                                ?BACKEND:write_version( US,
+                                                        sha:sha(term_to_binary(now())));
                             false -> ok
                         end,
                         {{push, NewItem}, AutoReply}
                 end
         end,
-    case odbc_queries:sql_transaction(LServer, F) of
+    case ?BACKEND:transaction( LServer, F) of
         {atomic, {Push, AutoReply}} ->
             case AutoReply of
                 none ->
@@ -733,21 +676,24 @@ in_auto_reply(_,    _,    _)  ->           none.
 remove_user(User, Server) ->
     LUser = jlib:nodeprep(User),
     LServer = jlib:nameprep(Server),
-    Username = ejabberd_odbc:escape(LUser),
     send_unsubscription_to_rosteritems(LUser, LServer),
-    odbc_queries:del_user_roster_t(LServer, Username),
-    ok.
+    ?BACKEND:remove_user( {LUser, LServer}).
 
 %% For each contact with Subscription:
 %% Both or From, send a "unsubscribed" presence stanza;
 %% Both or To, send a "unsubscribe" presence stanza.
 send_unsubscription_to_rosteritems(LUser, LServer) ->
-    RosterItems = get_user_roster([], {LUser, LServer}),
+    Rosters = ?BACKEND:rosters_by_us( {LUser, LServer}),
+    Subscribed = lists:filter(fun(#roster{subscription = none, ask = in}) ->
+                                   false;
+                              (_) ->
+                                   true
+                           end, Rosters),
     From = jlib:make_jid({LUser, LServer, <<>>}),
     lists:foreach(fun(RosterItem) ->
                           send_unsubscribing_presence(From, RosterItem)
                   end,
-                  RosterItems).
+                  Subscribed).
 
 %% @spec (From::jid(), Item::roster()) -> ok
 send_unsubscribing_presence(From, Item) ->
@@ -787,11 +733,11 @@ set_items(User, Server, SubEl) ->
     #xmlel{children = Els} = SubEl,
     LUser = jlib:nodeprep(User),
     LServer = jlib:nameprep(Server),
-    catch odbc_queries:sql_transaction(
-            LServer,
-            lists:flatmap(fun(El) ->
-                                  process_item_set_t(LUser, LServer, El)
-                          end, Els)).
+    ?BACKEND:transaction(
+      LServer,
+      lists:flatmap(fun(El) ->
+                            process_item_set_t(LUser, LServer, El)
+                    end, Els)).
 
 process_item_set_t(LUser, LServer, #xmlel{attrs = Attrs,
                                           children = Els}) ->
@@ -801,8 +747,6 @@ process_item_set_t(LUser, LServer, #xmlel{attrs = Attrs,
             [];
         _ ->
             LJID = {JID1#jid.luser, JID1#jid.lserver, JID1#jid.lresource},
-            Username = ejabberd_odbc:escape(LUser),
-            SJID = ejabberd_odbc:escape(jlib:jid_to_binary(LJID)),
             Item = #roster{usj = {LUser, LServer, LJID},
                            us = {LUser, LServer},
                            jid = LJID},
@@ -810,378 +754,107 @@ process_item_set_t(LUser, LServer, #xmlel{attrs = Attrs,
             Item2 = process_item_els(Item1, Els),
             case Item2#roster.subscription of
                 remove ->
-                    odbc_queries:del_roster_sql(Username, SJID);
+                    ?BACKEND:remove_roster( {LUser, LServer, LJID});
                 _ ->
-                    ItemVals = record_to_string(Item1),
-                    ItemGroups = groups_to_string(Item2),
-                    odbc_queries:update_roster_sql(Username, SJID, ItemVals, ItemGroups)
+                    ?BACKEND:write_roster( Item2 )
             end
     end;
 process_item_set_t(_LUser, _LServer, _) ->
     [].
 
+
 process_item_attrs_ws(Item, [{<<"jid">>, Val} | Attrs]) ->
-    case jlib:binary_to_jid(Val) of
-        error ->
-            process_item_attrs_ws(Item, Attrs);
-        JID1 ->
-            JID = {JID1#jid.luser, JID1#jid.lserver, JID1#jid.lresource},
-            process_item_attrs_ws(Item#roster{jid = JID}, Attrs)
-    end;
+    NewItem = case jlib:binary_to_jid(Val) of
+                  error ->
+                      Item;
+                  JID1 ->
+                      JID = {JID1#jid.luser, JID1#jid.lserver, JID1#jid.lresource},
+                      Item#roster{jid = JID}
+              end,
+    process_item_attrs_ws( NewItem, Attrs );
+
 process_item_attrs_ws(Item, [{<<"name">>, Val} | Attrs]) ->
     process_item_attrs_ws(Item#roster{name = Val}, Attrs);
-process_item_attrs_ws(Item, [{<<"subscription">>, <<"remove">>} | Attrs]) ->
-    process_item_attrs_ws(Item#roster{subscription = remove}, Attrs);
-process_item_attrs_ws(Item, [{<<"subscription">>, <<"none">>} | Attrs]) ->
-    process_item_attrs_ws(Item#roster{subscription = none}, Attrs);
-process_item_attrs_ws(Item, [{<<"subscription">>, <<"both">>} | Attrs]) ->
-    process_item_attrs_ws(Item#roster{subscription = both}, Attrs);
-process_item_attrs_ws(Item, [{<<"subscription">>, <<"from">>} | Attrs]) ->
-    process_item_attrs_ws(Item#roster{subscription = from}, Attrs);
-process_item_attrs_ws(Item, [{<<"subscription">>, <<"to">>} | Attrs]) ->
-    process_item_attrs_ws(Item#roster{subscription = to}, Attrs);
-process_item_attrs_ws(Item, [_ | Attrs]) ->
+
+process_item_attrs_ws(Item, [{<<"subscription">>, Val} | Attrs]) ->
+    NewItem = case Val of
+                  <<"remove">> ->
+                      Item#roster{subscription = remove};
+                  <<"none">> ->
+                      Item#roster{subscription = none};
+                  <<"both">> ->
+                      Item#roster{subscription = both};
+                  <<"from">> ->
+                      Item#roster{subscription = from};
+                  <<"to">> ->
+                      Item#roster{subscription = to};
+                  _ ->
+                      Item
+              end,
+    process_item_attrs_ws( NewItem, Attrs);
+
+process_item_attrs_ws(Item, [{<<"ask">>, _Val} | Attrs]) ->
     process_item_attrs_ws(Item, Attrs);
+
+process_item_attrs_ws(Item, [ _ | Attrs]) ->
+    process_item_attrs_ws(Item, Attrs);
+
 process_item_attrs_ws(Item, []) ->
     Item.
 
+%% handle hook
 get_in_pending_subscriptions(Ls, User, Server) ->
     JID = jlib:make_jid(User, Server, <<"">>),
     LUser = JID#jid.luser,
     LServer = JID#jid.lserver,
-    Username = ejabberd_odbc:escape(LUser),
-    case catch odbc_queries:get_roster(LServer, Username) of
-        {selected, [<<"username">>, <<"jid">>, <<"nick">>, <<"subscription">>, <<"ask">>,
-                    <<"askmessage">>, <<"server">>, <<"subscribe">>, <<"type">>],
-         Items} when is_list(Items) ->
-    	    Ls ++ lists:map(
-                    fun(R) ->
-                            Message = R#roster.askmessage,
-                            #xmlel{name = <<"presence">>,
-                                   attrs = [{<<"from">>, jlib:jid_to_binary(R#roster.jid)},
-                                            {<<"to">>, jlib:jid_to_binary(JID)},
-                                            {<<"type">>, <<"subscribe">>}],
-                                   children = [#xmlel{name = <<"status">>,
-                                                      children = [#xmlcdata{content = Message}]}]}
-                    end,
-                    lists:flatmap(
-                      fun(I) ->
-                              case raw_to_record(LServer, I) of
-                                  %% Bad JID in database:
-                                  error ->
-                                      [];
-                                  R ->
-                                      case R#roster.ask of
-                                          in   -> [R];
-                                          both -> [R];
-                                          _ -> []
-                                      end
-                              end
-                      end,
-                      Items));
-        _ ->
-            Ls
-    end.
+
+    Items = ?BACKEND:rosters_without_groups( {LUser, LServer}),
+
+    Items2 = lists:filter( fun (R) ->
+                                   case R#roster.ask of
+                                       in    -> true;
+                                       both  -> true;
+                                       _else -> false
+                                   end
+                           end,  Items),
+
+    Ls ++ lists:map(
+            fun(R) ->
+                    Message = R#roster.askmessage,
+                    #xmlel{name = <<"presence">>,
+                           attrs = [{<<"from">>, jlib:jid_to_binary(R#roster.jid)},
+                                    {<<"to">>, jlib:jid_to_binary(JID)},
+                                    {<<"type">>, <<"subscribe">>}],
+                           children = [#xmlel{name = <<"status">>,
+                                              children = [#xmlcdata{content = Message}]}]}
+            end,
+            Items2).
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+%% hook handler
 get_jid_info(_, User, Server, JID) ->
     LUser = jlib:nodeprep(User),
     LServer = jlib:nameprep(Server),
     LJID = jlib:jid_tolower(JID),
-    Username = ejabberd_odbc:escape(LUser),
-    SJID = ejabberd_odbc:escape(jlib:jid_to_binary(LJID)),
-    case catch odbc_queries:get_subscription(LServer, Username, SJID) of
-        {selected, [<<"subscription">>], [{SSubscription}]} ->
-            Subscription = case SSubscription of
-                               <<"B">> -> both;
-                               <<"T">> -> to;
-                               <<"F">> -> from;
-                               _ -> none
-                           end,
-            Groups = case catch odbc_queries:get_rostergroup_by_jid(LServer, Username, SJID) of
-                         {selected, ["grp"], JGrps} when is_list(JGrps) ->
-                             [JGrp || {JGrp} <- JGrps];
-                         _ ->
-                             []
-                     end,
-            {Subscription, Groups};
-        _ ->
-            LRJID = jlib:jid_tolower(jlib:jid_remove_resource(JID)),
+
+    get_jid_info( LUser, LServer, LJID).
+
+
+get_jid_info( LUser, LServer, LJID) ->
+    case ?BACKEND:roster({LUser, LServer, LJID}) of
+        {ok, #roster{subscription = Subscription,
+                     groups = Groups}} ->
+            _return = {Subscription, Groups};
+
+        not_found ->
+            LRJID = jlib:jid_tolower(jlib:jid_remove_resource(LJID)),
             if
                 LRJID == LJID ->
-                    {none, []};
+                    _return = {none, []};
                 true ->
-                    SRJID = ejabberd_odbc:escape(jlib:jid_to_binary(LRJID)),
-                    case catch odbc_queries:get_subscription(LServer, Username, SRJID) of
-                        {selected, [<<"subscription">>], [{SSubscription}]} ->
-                            Subscription = case SSubscription of
-                                               <<"B">> -> both;
-                                               <<"T">> -> to;
-                                               <<"F">> -> from;
-                                               _ -> none
-                                           end,
-                            Groups = case catch odbc_queries:get_rostergroup_by_jid(LServer, Username, SRJID) of
-                                         {selected, ["grp"], JGrps} when is_list(JGrps) ->
-                                             [JGrp || {JGrp} <- JGrps];
-                                         _ ->
-                                             []
-                                     end,
-                            {Subscription, Groups};
-                        _ ->
-                            {none, []}
-                    end
+                    get_jid_info( LUser, LServer, LRJID ) % only one recursion possible
             end
     end.
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-raw_to_record(LServer, {User, BJID, Nick, BSubscription, BAsk, AskMessage,
-                        _Server, _Subscribe, _Type}) ->
-    case jlib:binary_to_jid(BJID) of
-        error ->
-            error;
-        JID ->
-            LJID = jlib:jid_tolower(JID),
-            Subscription = case BSubscription of
-                               <<"B">> -> both;
-                               <<"T">> -> to;
-                               <<"F">> -> from;
-                               _ -> none
-                           end,
-            Ask = case BAsk of
-                      <<"S">> -> subscribe;
-                      <<"U">> -> unsubscribe;
-                      <<"B">> -> both;
-                      <<"O">> -> out;
-                      <<"I">> -> in;
-                      _ -> none
-                  end,
-            #roster{usj = {User, LServer, LJID},
-                    us = {User, LServer},
-                    jid = LJID,
-                    name = Nick,
-                    subscription = Subscription,
-                    ask = Ask,
-                    askmessage = AskMessage}
-    end.
-
-record_to_string(#roster{us = {User, _Server},
-                         jid = JID,
-                         name = Name,
-                         subscription = Subscription,
-                         ask = Ask,
-                         askmessage = AskMessage}) ->
-    Username = ejabberd_odbc:escape(User),
-    SJID = ejabberd_odbc:escape(jlib:jid_to_binary(jlib:jid_tolower(JID))),
-    Nick = ejabberd_odbc:escape(Name),
-    SSubscription = case Subscription of
-                        both -> "B";
-                        to   -> "T";
-                        from -> "F";
-                        none -> "N"
-                    end,
-    SAsk = case Ask of
-               subscribe   -> "S";
-               unsubscribe -> "U";
-               both	   -> "B";
-               out	   -> "O";
-               in	   -> "I";
-               none	   -> "N"
-           end,
-    SAskMessage = ejabberd_odbc:escape(AskMessage),
-    [Username, SJID, Nick, SSubscription, SAsk, SAskMessage, "N", "", "item"].
-
-groups_to_string(#roster{us = {User, _Server},
-                         jid = JID,
-                         groups = Groups}) ->
-    Username = ejabberd_odbc:escape(User),
-    SJID = ejabberd_odbc:escape(jlib:jid_to_binary(jlib:jid_tolower(JID))),
-
-    %% Empty groups do not need to be converted to string to be inserted in
-    %% the database
-    lists:foldl(
-      fun([], Acc) -> Acc;
-         (Group, Acc) ->
-              G = ejabberd_odbc:escape(Group),
-              [[Username, SJID, G]|Acc] end, [], Groups).
-
-webadmin_page(_, Host,
-              #request{us = _US,
-                       path = ["user", U, "roster"],
-                       q = Query,
-                       lang = Lang} = _Request) ->
-    Res = user_roster(U, Host, Query, Lang),
-    {stop, Res};
-
-webadmin_page(Acc, _, _) -> Acc.
-
-user_roster(User, Server, Query, Lang) ->
-    LUser = jlib:nodeprep(User),
-    LServer = jlib:nameprep(Server),
-    US = {LUser, LServer},
-    Items1 = get_roster(LUser, LServer),
-    Res = user_roster_parse_query(User, Server, Items1, Query),
-    Items = get_roster(LUser, LServer),
-    SItems = lists:sort(Items),
-    FItems =
-        case SItems of
-            [] ->
-                [?CT("None")];
-            _ ->
-                [?XE("table",
-                     [?XE("thead",
-                          [?XE("tr",
-                               [?XCT("td", "Jabber ID"),
-                                ?XCT("td", "Nickname"),
-                                ?XCT("td", "Subscription"),
-                                ?XCT("td", "Pending"),
-                                ?XCT("td", "Groups")
-                               ])]),
-                      ?XE("tbody",
-                          lists:map(
-                            fun(R) ->
-                                    Groups =
-                                        lists:flatmap(
-                                          fun(Group) ->
-                                                  [?C(Group), ?BR]
-                                          end, R#roster.groups),
-                                    Pending = ask_to_pending(R#roster.ask),
-                                    TDJID = build_contact_jid_td(R#roster.jid),
-                                    ?XE("tr",
-                                        [TDJID,
-                                         ?XAC("td", [{"class", "valign"}],
-                                              R#roster.name),
-                                         ?XAC("td", [{"class", "valign"}],
-                                              atom_to_list(R#roster.subscription)),
-                                         ?XAC("td", [{"class", "valign"}],
-                                              atom_to_list(Pending)),
-                                         ?XAE("td", [{"class", "valign"}], Groups),
-                                         if
-                                             Pending == in ->
-                                                 ?XAE("td", [{"class", "valign"}],
-                                                      [?INPUTT("submit",
-                                                               "validate" ++
-                                                                   ejabberd_web_admin:term_to_id(R#roster.jid),
-                                                               "Validate")]);
-                                             true ->
-                                                 ?X("td")
-                                         end,
-                                         ?XAE("td", [{"class", "valign"}],
-                                              [?INPUTT("submit",
-                                                       "remove" ++
-                                                           ejabberd_web_admin:term_to_id(R#roster.jid),
-                                                       "Remove")])])
-                            end, SItems))])]
-        end,
-    [?XC("h1", ?T("Roster of ") ++ us_to_list(US))] ++
-        case Res of
-            ok -> [?XREST("Submitted")];
-            error -> [?XREST("Bad format")];
-            nothing -> []
-        end ++
-        [?XAE("form", [{"action", ""}, {"method", "post"}],
-              FItems ++
-                  [?P,
-                   ?INPUT("text", "newjid", ""), ?C(" "),
-                   ?INPUTT("submit", "addjid", "Add Jabber ID")
-                  ])].
-
-build_contact_jid_td(RosterJID) ->
-    %% Convert {U, S, R} into {jid, U, S, R, U, S, R}:
-    ContactJID = jlib:make_jid(RosterJID),
-    JIDURI = case {ContactJID#jid.luser, ContactJID#jid.lserver} of
-                 {<<>>, _} -> <<>>;
-                 {CUser, CServer} ->
-                     case lists:member(CServer, ?MYHOSTS) of
-                         false -> <<>>;
-                         true ->
-                            <<"/admin/server/", CServer/binary, 
-                              "/user/", CUser/binary, "/">>
-                     end
-             end,
-    case JIDURI of
-        <<"">> ->
-            ?XAC("td", [{"class", "valign"}], jlib:jid_to_binary(RosterJID));
-        URI when is_binary(URI) ->
-            ?XAE("td", [{"class", "valign"}], [?AC(JIDURI, jlib:jid_to_binary(RosterJID))])
-    end.
-
-user_roster_parse_query(User, Server, Items, Query) ->
-    case lists:keysearch("addjid", 1, Query) of
-        {value, _} ->
-            case lists:keysearch("newjid", 1, Query) of
-                {value, {_, undefined}} ->
-                    error;
-                {value, {_, SJID}} ->
-                    case jlib:binary_to_jid(SJID) of
-                        JID when is_record(JID, jid) ->
-                            user_roster_subscribe_jid(User, Server, JID),
-                            ok;
-                        error ->
-                            error
-                    end;
-                false ->
-                    error
-            end;
-        false ->
-            case catch user_roster_item_parse_query(
-                         User, Server, Items, Query) of
-                submitted ->
-                    ok;
-                {'EXIT', _Reason} ->
-                    error;
-                _ ->
-                    nothing
-            end
-    end.
-
-
-user_roster_subscribe_jid(User, Server, JID) ->
-    out_subscription(User, Server, JID, subscribe),
-    UJID = jlib:make_jid(User, Server, <<>>),
-    ejabberd_router:route(
-      UJID, JID, #xmlel{name = "presence", attrs = [{"type", "subscribe"}]}).
-
-user_roster_item_parse_query(User, Server, Items, Query) ->
-    lists:foreach(
-      fun(R) ->
-              JID = R#roster.jid,
-              case lists:keysearch(
-                     "validate" ++ ejabberd_web_admin:term_to_id(JID), 1, Query) of
-                  {value, _} ->
-                      JID1 = jlib:make_jid(JID),
-                      out_subscription(
-                        User, Server, JID1, subscribed),
-                      UJID = jlib:make_jid(User, Server, <<>>),
-                      ejabberd_router:route(
-                        UJID, JID1, #xmlel{name = "presence",
-                                           attrs = [{"type", "subscribed"}]}),
-                      throw(submitted);
-                  false ->
-                      case lists:keysearch(
-                             "remove" ++ ejabberd_web_admin:term_to_id(JID), 1, Query) of
-                          {value, _} ->
-                              UJID = jlib:make_jid(User, Server, <<>>),
-                              process_iq(
-                                UJID, UJID,
-                                #iq{type = set,
-                                    sub_el = #xmlel{name = "query",
-                                                    attrs = [{"xmlns", ?NS_ROSTER}],
-                                                    children = [#xmlel{name = "item",
-                                                                       attrs = [{"jid", jlib:jid_to_binary(JID)},
-                                                                                {"subscription", "remove"}]}]}}),
-                              throw(submitted);
-                          false ->
-                              ok
-                      end
-              end
-      end, Items),
-    nothing.
-
-us_to_list({User, Server}) ->
-    jlib:jid_to_binary({User, Server, <<>>}).
-
-webadmin_user(Acc, _User, _Server, Lang) ->
-    Acc ++ [?XE("h3", [?ACT("roster/", "Roster")])].
