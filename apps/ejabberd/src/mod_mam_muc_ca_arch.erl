@@ -89,13 +89,13 @@
 
 start(Host, Opts) ->
     create_worker_pool(Host),
-    start_servers(Host, servers(Host)),
+    mod_mam_muc_ca_sup:start(Host, servers(Host)),
     start_muc(Host, Opts).
 
 stop(Host) ->
     stop_muc(Host),
     delete_worker_pool(Host),
-    stop_servers(Host, servers(Host)).
+    mod_mam_muc_ca_sup:stop(Host).
 
 servers(Host) ->
     gen_mod:get_module_opt(Host, ?MODULE, servers, [{"localhost", 9042, 1}]).
@@ -136,26 +136,6 @@ stop_muc(Host) ->
 %% Internal functions
 %%====================================================================
 
-start_servers(Host, Addresses) ->
-    [start_server(Host, Addr, Port, WorkerNumber)
-     || {Addr, Port, WorkerCount} <- Addresses,
-        WorkerNumber <- lists:seq(1, WorkerCount)].
-
-stop_servers(Host, Addresses) ->
-    [stop_server(Host, Addr, Port, WorkerNumber)
-     || {Addr, Port, WorkerCount} <- Addresses,
-        WorkerNumber <- lists:seq(1, WorkerCount)].
-
-start_server(Host, Addr, Port, WorkerNumber) ->
-    Tag = worker_tag(Host, Addr, Port, WorkerNumber),
-    Spec = server_child_spec(Tag, Host, Addr, Port, WorkerNumber),
-    supervisor:start_child(ejabberd_sup, Spec).
-
-stop_server(Host, Addr, Port, WorkerNumber) ->
-    Tag = worker_tag(Host, Addr, Port, WorkerNumber),
-    supervisor:terminate_child(ejabberd_sup, Tag),
-    supervisor:delete_child(ejabberd_sup, Tag).
-
 create_worker_pool(Host) ->
     pg2:create(group_name(Host)).
 
@@ -175,17 +155,6 @@ select_worker(Host, RoomID) ->
 
 group_name(Host) ->
     {mam_muc_ca, Host}.
-
-worker_tag(Host, Addr, Port, WorkerNumber) ->
-    {mod_mam_muc_ca_arch, Host, Addr, Port, WorkerNumber}.
-
-server_child_spec(Tag, Host, Addr, Port, _WorkerNumber) ->
-    {Tag,
-     {mod_mam_muc_ca_arch, start_link, [Host, Addr, Port]},
-     permanent,
-     5000,
-     worker,
-     [mod_mam_muc_ca_arch]}.
 
 start_link(Host, Addr, Port) ->
     gen_server:start_link(?MODULE, [Host, Addr, Port], []).
