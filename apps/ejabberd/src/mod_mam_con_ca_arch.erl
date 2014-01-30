@@ -20,6 +20,9 @@
          purge_single_message/6,
          purge_multiple_messages/9]).
 
+%% Helpers
+-export([get_conversations_after/3]).
+
 %% Internal exports
 -export([start_link/3]).
 
@@ -64,6 +67,8 @@
     exist_conversation_types,
     get_conversations_id,
     get_conversations_types,
+    get_conversations_after_id,
+    get_conversations_after_types,
     remove_conversations_id,
     remove_conversations_types,
     calc_count_handler,
@@ -556,6 +561,29 @@ get_conversations(Worker, BUserJID) ->
     {ok, Result} = ResultF(),
     [BWithJID || [BWithJID] <- seestar_result:rows(Result)].
 
+-spec get_conversations_after(Host, UserJID, AfterID) -> [{RemJID, LastID}]
+    when Host :: binary(),
+         UserJID :: #jid{},
+         RemJID :: #jid{},
+         AfterID :: non_neg_integer(),
+         LastID :: non_neg_integer().
+get_conversations_after(Host, UserJID, AfterID) ->
+    BUserJID = serialize_jid(UserJID),
+    Worker = select_worker(Host, BUserJID),
+    [{unserialize_jid(BRemJID), LastID}
+     || [BRemJID, LastID] <- get_conversations_after_1(Worker, BUserJID, AfterID)].
+
+-spec get_conversations_after_1(Worker, BUserJID, AfterID) -> [[BRemJID | LastID]]
+    when Worker :: worker(),
+         BUserJID :: binary(),
+         BRemJID :: binary(),
+         AfterID :: non_neg_integer(),
+         LastID :: non_neg_integer().
+get_conversations_after_1(Worker, BUserJID, AfterID) ->
+    ResultF = gen_server:call(Worker, {get_conversations_after, BUserJID, AfterID}),
+    {ok, Result} = ResultF(),
+    seestar_result:rows(Result).
+
 does_conversation_exist(Worker, BUserJID, BWithJID) ->
     ResultF = gen_server:call(Worker, {does_conversation_exist, BUserJID, BWithJID}),
     {ok, Result} = ResultF(),
@@ -892,6 +920,12 @@ init([Host, Addr, Port]) ->
     GetConID = seestar_result:query_id(GetConRes),
     GetConTypes = seestar_result:types(GetConRes),
 
+    GetConAfterQuery = "SELECT remote_jid, last_message_id FROM mam_con_user "
+        "WHERE local_jid = ? WHERE last_message_id > ?",
+    {ok, GetConAfterRes} = seestar_session:prepare(ConnPid, GetConAfterQuery),
+    GetConAfterID = seestar_result:query_id(GetConAfterRes),
+    GetConAfterTypes = seestar_result:types(GetConAfterRes),
+
     ExistConQuery = "SELECT COUNT(*) FROM mam_con_user "
         "WHERE local_jid = ? AND remote_jid = ?",
     {ok, ExistConRes} = seestar_session:prepare(ConnPid, ExistConQuery),
@@ -917,6 +951,8 @@ init([Host, Addr, Port]) ->
         exist_conversation_types=ExistConTypes,
         get_conversations_id=GetConID,
         get_conversations_types=GetConTypes,
+        get_conversations_after_id=GetConAfterID,
+        get_conversations_after_types=GetConAfterTypes,
         remove_conversations_id=RemoveConID,
         remove_conversations_types=RemoveConTypes,
         extract_messages_handler=ExHandler,
@@ -968,6 +1004,14 @@ handle_call({get_conversations, BUserJID}, From,
         get_conversations_types=GetConTypes}) ->
     Row = [BUserJID],
     QueryRef = seestar_session:execute_async(ConnPid, GetConID, GetConTypes, Row, one),
+    {noreply, save_query_ref(From, QueryRef, State)};
+handle_call({get_conversations_after, BUserJID, AfterID}, From,
+    State=#state{
+        conn=ConnPid,
+        get_conversations_after_id=GetConAfterID,
+        get_conversations_after_types=GetConAfterTypes}) ->
+    Row = [BUserJID, AfterID],
+    QueryRef = seestar_session:execute_async(ConnPid, GetConAfterID, GetConAfterTypes, Row, one),
     {noreply, save_query_ref(From, QueryRef, State)};
 handle_call({remove_conversations, BUserJID}, From,
     State=#state{
