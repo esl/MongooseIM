@@ -274,9 +274,11 @@ process_mam_iq(From=#jid{lserver=Host}, To, IQ) ->
                     try
                         handle_mam_iq(Action, From, To, IQ)
                     catch error:Reason ->
+                        Trace = erlang:get_stacktrace(),
                         ejabberd_hooks:run(mam_drop_iq, Host,
                             [Host, To, IQ, Action, Reason]),
-                        lager:error("Action ~p failed ~p", [Action, Reason]),
+                        lager:error("Action ~p failed ~p. Trace ~p",
+                            [Action, Reason, Trace]),
                         return_error_iq(IQ, Reason)
                     end;
                 {error, max_delay_reached} ->
@@ -528,8 +530,7 @@ handle_package(Dir, ReturnMessID,
 %% Backend wrappers
 
 archive_id_int(Host, ArcJID=#jid{}) ->
-    check_archive_id(ArcJID, ejabberd_hooks:run_fold(
-            mam_archive_id, Host, undefined, [Host, ArcJID])).
+    ejabberd_hooks:run_fold(mam_archive_id, Host, undefined, [Host, ArcJID]).
 
 archive_size(Host, ArcID, ArcJID=#jid{}) ->
     ejabberd_hooks:run_fold(mam_archive_size, Host, 0, [Host, ArcID, ArcJID]).
@@ -719,5 +720,3 @@ return_purge_single_message_iq(IQ, ok) ->
 return_purge_single_message_iq(IQ, {error, 'not-found'}) ->
     return_purge_not_found_error_iq(IQ).
 
-check_archive_id(_ArcJID, ArcID) when is_integer(ArcID) ->
-    ArcID.
