@@ -761,13 +761,16 @@ item_to_raw(#listitem{type = Type,
 	    deny -> <<"d">>
 	end,
     BOrder = integer_to_binary(Order),
-    BMatchAll = if MatchAll -> <<"1">>; true -> <<"0">> end,
-    BMatchIQ = if MatchIQ -> <<"1">>; true -> <<"0">> end,
-    BMatchMessage = if MatchMessage -> <<"1">>; true -> <<"0">> end,
-    BMatchPresenceIn = if MatchPresenceIn -> <<"1">>; true -> <<"0">> end,
-    BMatchPresenceOut = if MatchPresenceOut -> <<"1">>; true -> <<"0">> end,
+    BMatchAll = boolean_to_binary_number(MatchAll),
+    BMatchIQ = boolean_to_binary_number(MatchIQ),
+    BMatchMessage = boolean_to_binary_number(MatchMessage),
+    BMatchPresenceIn = boolean_to_binary_number(MatchPresenceIn),
+    BMatchPresenceOut = boolean_to_binary_number(MatchPresenceOut),
     [BType, BValue, BAction, BOrder, BMatchAll, BMatchIQ,
      BMatchMessage, BMatchPresenceIn, BMatchPresenceOut].
+
+boolean_to_binary_number(true) -> <<"1">>;
+boolean_to_binary_number(_)    -> <<"0">>.
 
 sql_get_default_privacy_list(LUser, LServer) ->
     Username = ejabberd_odbc:escape(LUser),
