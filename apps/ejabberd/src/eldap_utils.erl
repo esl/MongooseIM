@@ -115,6 +115,22 @@ get_user_part(String, Pattern) ->
             end
     end.
 
+
+generate_substring_list(Value)->
+    Splits = binary:split(Value,<<"*">>,[global]),
+    {Acc,S}=case Splits of
+        [<<"">>|T]->{[],T};
+        [H|T]-> {[{initial,H}],T}
+    end,
+    lists:reverse(generate_substring_list(S,Acc)).
+generate_substring_list([<<"">>],Acc)->
+    Acc;
+generate_substring_list([Last],Acc)->
+    [{final,Last}|Acc];
+generate_substring_list([H|T],Acc)->
+    generate_substring_list(T,[{any,H}|Acc]).
+
+
 -spec make_filter([{binary(), [binary()]}], [{binary(), binary()}]) -> any().
 
 make_filter(Data, UIDs) ->
@@ -131,9 +147,10 @@ make_filter(Data, UIDs) ->
 				   _ -> []
 			       end;
 			   _ when Value /= <<"">> ->
-			       [eldap:substrings(
-                                  Name,
-                                  [{any, Value}])];
+                    case binary:match(Value,<<"*">>) of
+                        nomatch -> [eldap:equalityMatch(Name,Value)];
+                        _ -> [eldap:substrings(Name,generate_substring_list(Value))]
+                    end;
 			   _ ->
 			       []
 		       end
