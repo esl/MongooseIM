@@ -131,7 +131,8 @@ host() ->
     <<"localhost">>.
 
 configurations() ->
-    [odbc_async,
+    [ca,
+     odbc_async,
      odbc_async_pool,
      odbc,
      odbc_mnesia,
@@ -144,6 +145,7 @@ configurations() ->
 
 basic_group_names() ->
     [
+    with_rsm,
     muc_rsm,
     bootstrapped,
     mam,
@@ -194,7 +196,8 @@ basic_groups() ->
      {muc,              [], muc_cases()},
      {muc_with_pm,      [], muc_cases()},
      {rsm,              [], rsm_cases()},
-     {muc_rsm,          [], muc_rsm_cases()}].
+     {muc_rsm,          [], muc_rsm_cases()},
+     {with_rsm,         [], with_rsm_cases()}].
 
 bootstrapped_cases() ->
      [purge_old_single_message,
@@ -231,6 +234,9 @@ muc_cases() ->
      muc_querying_for_all_messages_with_jid].
 
 muc_rsm_cases() ->
+    rsm_cases().
+
+with_rsm_cases() ->
     rsm_cases().
 
 rsm_cases() ->
@@ -446,11 +452,10 @@ init_modules(odbc, _, Config) ->
     init_module(host(), mod_mam_odbc_user, [pm]),
     Config;
 init_modules(ca, _, Config) ->
-    %% TODO Not supported yet
-    init_module(host(), mod_mam, []),
-    init_module(host(), mod_mam_odbc_arch, [pm]),
+    init_module(host(), mod_mam_con_ca_arch, [pm]),
     init_module(host(), mod_mam_odbc_prefs, [pm]),
     init_module(host(), mod_mam_odbc_user, [pm]),
+    init_module(host(), mod_mam, []),
     Config;
 init_modules(odbc_async, _, Config) ->
     init_module(host(), mod_mam, []),
@@ -511,6 +516,9 @@ end_modules(_, _, Config) ->
 mam_modules() ->
     [mod_mam,
      mod_mam_muc,
+     mod_mam_con_ca_arch,
+     mod_mam_ca_arch,
+     mod_mam_muc_ca_arch,
      mod_mam_odbc_arch,
      mod_mam_muc_odbc_arch,
      mod_mam_odbc_async_writer,
@@ -534,6 +542,9 @@ init_state(_, muc_with_pm, Config) ->
     Config;
 init_state(_, rsm, Config) ->
     send_rsm_messages(clean_archives(Config));
+init_state(_, with_rsm, Config) ->
+    Config1 = [{with_rsm, true}|Config],
+    send_rsm_messages(clean_archives(Config1));
 init_state(_, _, Config) ->
     clean_archives(Config).
 
@@ -593,6 +604,9 @@ end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
 init_module(Host, Mod, Args) ->
+    lists:member(Mod, mam_modules())
+    orelse
+    ct:fail("Unknown module ~p", [Mod]),
     stop_module(Host, Mod),
     ok = start_module(Host, Mod, Args).
 
@@ -1288,9 +1302,18 @@ generate_message_text(N) when is_integer(N) ->
     <<"Message #", (list_to_binary(integer_to_list(N)))/binary>>.
 
 rsm_send(Config, User, Packet) ->
-    Room = ?config(room, Config),
+    case ?config(with_rsm, Config) of
+        true ->
+            BWithJID = nick_to_jid(bob, Config),
+            rsm_send_1(Config, User, add_with_jid(BWithJID, Packet));
+        _ ->
+            rsm_send_1(Config, User, Packet)
+    end.
+
+rsm_send_1(Config, User, Packet) ->
     case ?config(muc_rsm, Config) of
         true ->
+            Room = ?config(room, Config),
             escalus:send(User, stanza_to_room(Packet, Room));
         _ ->
             escalus:send(User, Packet)
@@ -1501,6 +1524,12 @@ maybe_rsm_max(Max) when is_integer(Max) ->
     #xmlel{
         name = <<"max">>,
         children = #xmlcdata{content = integer_to_list(Max)}}.
+
+add_with_jid(BWithJID,
+    IQ=#xmlel{children=[
+        Query=#xmlel{children=QueryChildren}]}) ->
+    IQ#xmlel{children=[
+        Query#xmlel{children=[maybe_with_elem(BWithJID) | QueryChildren]}]}.
 
 %% ----------------------------------------------------------------------
 %% PREFERENCE QUERIES
@@ -1798,7 +1827,7 @@ send_rsm_messages(Config) ->
         %% Bob is waiting for 15 messages for 5 seconds.
         escalus:wait_for_stanzas(Bob, 15, 5000),
         %% Get whole history.
-        escalus:send(Alice, stanza_archive_request(<<"all_messages">>)),
+        rsm_send(Config, Alice, stanza_archive_request(<<"all_messages">>)),
         [_ArcIQ|AllMessages] =
             assert_respond_size(15, wait_archive_respond_iq_first(Alice)),
         ParsedMessages = [parse_forwarded_message(M) || M <- AllMessages],
