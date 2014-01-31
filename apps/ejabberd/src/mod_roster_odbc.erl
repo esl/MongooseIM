@@ -46,7 +46,6 @@
           get_subscription_lists/3,
           get_jid_info/4,
           remove_user/2,
-          get_in_pending_subscriptions/3,
           get_versioning_feature/2,
           process_iq/3 ]).
 
@@ -64,7 +63,7 @@
 
 
 start(Host, Opts) ->
-    ?BACKEND:init( Opts ),
+    ?BACKEND:init(Opts),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
     ejabberd_hooks:add(roster_get, Host,
                        ?MODULE, get_user_roster, 50),
@@ -80,8 +79,6 @@ start(Host, Opts) ->
                        ?MODULE, remove_user, 50),
     ejabberd_hooks:add(anonymous_purge_hook, Host,
                        ?MODULE, remove_user, 50),
-    ejabberd_hooks:add(resend_subscription_requests_hook, Host,
-                       ?MODULE, get_in_pending_subscriptions, 50),
     ejabberd_hooks:add(roster_get_versioning_feature, Host,
                        ?MODULE, get_versioning_feature, 50),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_ROSTER,
@@ -102,8 +99,6 @@ stop(Host) ->
                           ?MODULE, remove_user, 50),
     ejabberd_hooks:delete(anonymous_purge_hook, Host,
                           ?MODULE, remove_user, 50),
-    ejabberd_hooks:delete(resend_subscription_requests_hook, Host,
-                          ?MODULE, get_in_pending_subscriptions, 50),
     ejabberd_hooks:delete(roster_get_versioning_feature, Host,
                           ?MODULE, get_versioning_feature, 50),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_ROSTER).
@@ -801,35 +796,6 @@ process_item_attrs_ws(Item, [ _ | Attrs]) ->
 
 process_item_attrs_ws(Item, []) ->
     Item.
-
-%% handle hook
-get_in_pending_subscriptions(Ls, User, Server) ->
-    JID = jlib:make_jid(User, Server, <<"">>),
-    LUser = JID#jid.luser,
-    LServer = JID#jid.lserver,
-
-    Items = ?BACKEND:rosters_without_groups( {LUser, LServer}),
-
-    Items2 = lists:filter( fun (R) ->
-                                   case R#roster.ask of
-                                       in    -> true;
-                                       both  -> true;
-                                       _else -> false
-                                   end
-                           end,  Items),
-
-    Ls ++ lists:map(
-            fun(R) ->
-                    Message = R#roster.askmessage,
-                    #xmlel{name = <<"presence">>,
-                           attrs = [{<<"from">>, jlib:jid_to_binary(R#roster.jid)},
-                                    {<<"to">>, jlib:jid_to_binary(JID)},
-                                    {<<"type">>, <<"subscribe">>}],
-                           children = [#xmlel{name = <<"status">>,
-                                              children = [#xmlcdata{content = Message}]}]}
-            end,
-            Items2).
-
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
