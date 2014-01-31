@@ -56,14 +56,6 @@ set_data_t(LUser, LServer, NS, XML) ->
     SData = ejabberd_odbc:escape(xml:element_to_binary(XML)),
     odbc_queries:set_private_data(LServer, SLUser, SNS, SData).
 
--spec multi_get_data(LUser, LServer, NS2Def) -> [XML | Default] when
-    LUser   :: binary(),
-    LServer :: binary(),
-    NS2Def  :: [{NS, Default}],
-    NS      :: binary(),
-    Default :: term(),
-    XML     :: #xmlel{}.
-
 multi_get_data(LUser, LServer, NS2Def) ->
     [get_data(LUser, LServer, NS, Default) || {NS, Default} <- NS2Def].
 
