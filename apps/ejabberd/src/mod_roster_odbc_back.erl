@@ -65,8 +65,8 @@ write_version( US, Version ) when size(US) =:= 2 ->
                                                          Transaction).
 
 
--spec rosters_by_us( UserServe ) -> Rosters when
-      UserServe :: us(),
+-spec rosters_by_us( UserServer ) -> Rosters when
+      UserServer :: us(),
       Rosters :: list( roster() ).
 rosters_by_us( US ) when size(US) =:= 2 ->
     {LUser, LServer} = US,

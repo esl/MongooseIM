@@ -61,8 +61,8 @@ write_version( US, Version ) when size(US) =:= 2 ->
     mnesia:dirty_write(#roster_version{us = US, version = Version}).
 
 
--spec rosters_by_us( UserServe ) -> Rosters when
-      UserServe :: us(),
+-spec rosters_by_us( UserServer ) -> Rosters when
+      UserServer :: us(),
       Rosters :: list( roster() ).
 rosters_by_us( US ) when size(US) =:= 2 ->
     case catch mnesia:dirty_index_read(roster, US, #roster.us) of

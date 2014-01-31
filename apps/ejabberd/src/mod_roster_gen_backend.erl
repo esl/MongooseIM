@@ -45,7 +45,7 @@
       Server :: server(),
       TransactionFun :: fun ( () -> FunReturn ).
 
-%% --sql-optymalizations-------------------------------------------------
+%% --sql-optimalizations-------------------------------------------------
 %%
 %% set of functions created only because they can (and should) be
 %% implemented with lower over-head in one of the backends (odbc
