@@ -399,21 +399,21 @@ push_item(User, Server, From, Item) ->
                         false ->
                             not_found
                     end,
+    VersionAttr =  case RosterVersion of
+                       not_found -> [];
+                       _ -> [{<<"ver">>, RosterVersion}]
+                   end,
     lists:foreach(fun(Resource) ->
-                          push_item(User, Server, Resource, From, Item, RosterVersion)
+                          push_item(User, Server, Resource, From, Item, VersionAttr)
                   end, ejabberd_sm:get_user_resources(User, Server)).
 
 
-push_item(User, Server, Resource, From, Item, RosterVersion) ->
+push_item(User, Server, Resource, From, Item, VersionAttr) ->
     ejabberd_hooks:run(roster_push, Server, [From, Item]),
-    ExtraAttrs = case RosterVersion of
-                     not_found -> [];
-                     _ -> [{<<"ver">>, RosterVersion}]
-                 end,
     ResIQ = #iq{type = set, xmlns = ?NS_ROSTER,
                 id = list_to_binary("push" ++ randoms:get_string()),
                 sub_el = [#xmlel{name = <<"query">>,
-                                 attrs = [{<<"xmlns">>, ?NS_ROSTER}|ExtraAttrs],
+                                 attrs = [{<<"xmlns">>, ?NS_ROSTER}| VersionAttr],
                                  children = [item_to_xml(Item)]}]},
     ejabberd_router:route(
       From,
