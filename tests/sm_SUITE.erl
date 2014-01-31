@@ -371,19 +371,6 @@ buffer_unacked_messages_and_die(AliceSpec, Bob, Messages) ->
     kill_connection(Alice),
     {C2SPid, proplists:get_value(smid, Props)}.
 
-kill_connection(#transport{module = escalus_tcp, ssl = SSL,
-                           socket = Socket} = Conn) ->
-    %% Ugly, but there's no API for killing the connection
-    %% without sending </stream:stream>.
-    case SSL of
-        true ->
-            ssl:close(Socket);
-        false ->
-            gen_tcp:close(Socket)
-    end,
-    %% There might be open zlib streams left...
-    catch escalus_connection:stop(Conn).
-
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
@@ -512,3 +499,16 @@ session() ->
 
 clear_session_table() ->
     escalus_ejabberd:rpc(mnesia, clear_table, [session]).
+
+kill_connection(#transport{module = escalus_tcp, ssl = SSL,
+                           socket = Socket} = Conn) ->
+    %% Ugly, but there's no API for killing the connection
+    %% without sending </stream:stream>.
+    case SSL of
+        true ->
+            ssl:close(Socket);
+        false ->
+            gen_tcp:close(Socket)
+    end,
+    %% There might be open zlib streams left...
+    catch escalus_connection:stop(Conn).
