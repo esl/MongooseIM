@@ -385,6 +385,7 @@ process_item_els(Item, []) ->
     Item.
 
 
+%% TODO: don't push to those who didn't load roster
 push_item(User, Server, From, Item) ->
     ejabberd_sm:route(jlib:make_jid(<<"">>, <<"">>, <<"">>),
                       jlib:make_jid(User, Server, <<"">>),
@@ -392,18 +393,16 @@ push_item(User, Server, From, Item) ->
                              children = [{item,
                                           Item#roster.jid,
                                           Item#roster.subscription}]}),
-    case roster_versioning_enabled(Server) of
-        true ->
-            push_item_version(Server, User, From, Item, roster_version(Server, User));
-        false ->
-            lists:foreach(fun(Resource) ->
-                                  push_item(User, Server, Resource, From, Item)
-                          end, ejabberd_sm:get_user_resources(User, Server))
-    end.
+    RosterVersion = case roster_versioning_enabled(Server) of
+                        true ->
+                            roster_version(Server, User);
+                        false ->
+                            not_found
+                    end,
+    lists:foreach(fun(Resource) ->
+                          push_item(User, Server, Resource, From, Item, RosterVersion)
+                  end, ejabberd_sm:get_user_resources(User, Server)).
 
-%% TODO: don't push to those who didn't load roster
-push_item(User, Server, Resource, From, Item) ->
-    push_item(User, Server, Resource, From, Item, not_found).
 
 push_item(User, Server, Resource, From, Item, RosterVersion) ->
     ejabberd_hooks:run(roster_push, Server, [From, Item]),
@@ -421,12 +420,7 @@ push_item(User, Server, Resource, From, Item, RosterVersion) ->
       jlib:make_jid(User, Server, Resource),
       jlib:iq_to_xml(ResIQ)).
 
-%% @doc Roster push, calculate and include the version attribute.
-%% TODO: don't push to those who didn't load roster
-push_item_version(Server, User, From, Item, RosterVersion)  ->
-    lists:foreach(fun(Resource) ->
-                          push_item(User, Server, Resource, From, Item, RosterVersion)
-                  end, ejabberd_sm:get_user_resources(User, Server)).
+
 
 %% hook handler
 get_subscription_lists(_, User, Server) ->
@@ -835,4 +829,3 @@ get_jid_info(LUser, LServer, LJID) ->
                     get_jid_info(LUser, LServer, LRJID) % only one recursion possible
             end
     end.
-
