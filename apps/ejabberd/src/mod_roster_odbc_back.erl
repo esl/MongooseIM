@@ -42,8 +42,7 @@ init( _Opts ) ->
 -spec roster_version( UserServer ) -> {ok, Version} | not_found when
       UserServer :: us(),
       Version :: version().
-roster_version( US ) when size(US) =:= 2 ->
-    {LUser, LServer} =  US,
+roster_version(_US = {LUser, LServer}) ->
     case odbc_queries:get_roster_version(ejabberd_odbc:escape(LServer),
                                          ejabberd_odbc:escape(LUser)) of
         {selected, [<<"version">>], [{Version}]} ->
@@ -56,8 +55,7 @@ roster_version( US ) when size(US) =:= 2 ->
 -spec write_version( UserServer, RosterVersion ) -> any() when
       UserServer :: us(),
       RosterVersion :: version().
-write_version( US, Version ) when size(US) =:= 2 ->
-    {LUser, LServer} =  US,
+write_version(_US = {LUser, LServer}, Version) ->
     Transaction = fun () ->
                           odbc_queries:set_roster_version(ejabberd_odbc:escape(LUser), Version)
                   end,
@@ -68,8 +66,7 @@ write_version( US, Version ) when size(US) =:= 2 ->
 -spec rosters_by_us( UserServer ) -> Rosters when
       UserServer :: us(),
       Rosters :: list( roster() ).
-rosters_by_us( US ) when size(US) =:= 2 ->
-    {LUser, LServer} = US,
+rosters_by_us(_US = {LUser, LServer}) ->
     Username = ejabberd_odbc:escape(LUser),
     case catch odbc_queries:get_roster(LServer, Username) of
         {selected, [<<"username">>, <<"jid">>, <<"nick">>, <<"subscription">>, <<"ask">>,
@@ -107,7 +104,7 @@ rosters_by_us( US ) when size(US) =:= 2 ->
 -spec rosters_without_groups( UserServer ) -> Rousters when
       UserServer :: usj(),
       Rousters :: list( roster() ).
-rosters_without_groups( _US = {LUser, LServer} ) ->
+rosters_without_groups(_US = {LUser, LServer}) ->
     Username = ejabberd_odbc:escape(LUser),
 
     case catch odbc_queries:get_roster(LServer, Username) of
@@ -123,7 +120,7 @@ rosters_without_groups( _US = {LUser, LServer} ) ->
 -spec roster( UserServerJid ) -> MightBeRoster when
       UserServerJid :: usj(),
       MightBeRoster :: {ok, roster() } | not_found.
-roster( USJ = {LUser, LServer, LJID} ) when size( USJ ) =:= 3 ->
+roster(_USJ = {LUser, LServer, LJID}) ->
 
     Username = ejabberd_odbc:escape(LUser),
     SJID = ejabberd_odbc:escape(jlib:jid_to_binary(LJID)),
@@ -149,7 +146,7 @@ roster( USJ = {LUser, LServer, LJID} ) when size( USJ ) =:= 3 ->
 
 -spec remove_roster( UserServerJID ) -> ok when
       UserServerJID :: usj().
-remove_roster( USJ = {LUser, LServer, LJID } ) when size(USJ) =:= 3 ->
+remove_roster(_USJ = {LUser, LServer, LJID }) ->
     Username = ejabberd_odbc:escape(LUser),
     SJID = ejabberd_odbc:escape(jlib:jid_to_binary(LJID)),
 
@@ -157,7 +154,7 @@ remove_roster( USJ = {LUser, LServer, LJID } ) when size(USJ) =:= 3 ->
 
 -spec remove_user( UserServer ) -> ok when
       UserServer :: usj().
-remove_user( US = {LUser, LServer} ) when size(US) =:= 2 ->
+remove_user(_US = {LUser, LServer}) ->
     Username = ejabberd_odbc:escape(LUser),
     odbc_queries:del_user_roster_t(LServer, Username),
     ok.
@@ -165,14 +162,14 @@ remove_user( US = {LUser, LServer} ) when size(US) =:= 2 ->
 
 -spec write_roster( Roster ) -> ok when
       Roster :: roster().
-write_roster( Roster = #roster{ usj = { LUser,
-                                        LServer,
-                                        LJID} } ) ->
+write_roster(R=#roster{ usj={ LUser,
+                              LServer,
+                              LJID} } ) ->
 
     Username = ejabberd_odbc:escape(LUser),
     SJID = ejabberd_odbc:escape(jlib:jid_to_binary(LJID)),
-    ItemVals = record_to_string( Roster ),
-    ItemGroups = groups_to_string( Roster ),
+    ItemVals = record_to_string(R),
+    ItemGroups = groups_to_string(R),
 
     odbc_queries:update_roster(LServer,
                                Username,
@@ -182,8 +179,9 @@ write_roster( Roster = #roster{ usj = { LUser,
 
 -spec write_roster_subscription( Roster ) -> ok when
       Roster :: roster().
-write_roster_subscription( R = #roster{} ) ->
-    { LUser, LServer, LJID } = R#roster.usj,
+write_roster_subscription(R=#roster{ usj={ LUser,
+                                           LServer,
+                                           LJID} } ) ->
 
     Username = ejabberd_odbc:escape(LUser),
     SJID = ejabberd_odbc:escape(jlib:jid_to_binary(LJID)),
