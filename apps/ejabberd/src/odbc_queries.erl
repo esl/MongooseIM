@@ -64,6 +64,7 @@
 	 set_private_data/4,
 	 set_private_data_sql/3,
 	 get_private_data/3,
+     multi_get_private_data/3,
 	 del_user_private_storage/2,
 	 get_default_privacy_list/2,
 	 get_default_privacy_list_t/1,
@@ -513,6 +514,13 @@ get_private_data(LServer, Username, LXMLNS) ->
       [<<"select data from private_storage "
          "where username='">>, Username, <<"' and "
          "namespace='">>, LXMLNS, "';"]).
+
+multi_get_private_data(LServer, Username, LXMLNSs) when length(LXMLNSs) > 0 ->
+    ejabberd_odbc:sql_query(
+      LServer,
+      [<<"select namespace, data from private_storage "
+         "where username='">>, Username, <<"' and "
+         "namespace IN ('">>, join(LXMLNSs, "', '"), "');"]).
 
 del_user_private_storage(LServer, Username) ->
     ejabberd_odbc:sql_query(
