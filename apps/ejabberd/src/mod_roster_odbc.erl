@@ -155,7 +155,7 @@ roster_version(LServer ,LUser) ->
     US = {LUser, LServer},
     case roster_version_on_db(LServer) of
         true ->
-            case ?BACKEND:roster_version( US ) of
+            case ?BACKEND:roster_version(US) of
                 {ok, Version } -> Version;
                 not_fount -> not_found
             end;
@@ -182,7 +182,7 @@ process_iq_get(From, To, #iq{sub_el = SubEl} = IQ) ->
                 {{value, RequestedVersion}, true, true} ->
                     %% Retrieve version from DB. Only load entire roster
                     %% when neccesary.
-                    case ?BACKEND:roster_version( US) of
+                    case ?BACKEND:roster_version(US) of
                         {ok, RequestedVersion} ->
                             {false, false};
                         {ok, NewVersion} ->
@@ -190,7 +190,7 @@ process_iq_get(From, To, #iq{sub_el = SubEl} = IQ) ->
                                        ejabberd_hooks:run_fold(roster_get, To#jid.lserver, [], [US])), NewVersion};
                         not_found ->
                             RosterVersion = sha:sha(term_to_binary(now())),
-                            ?BACKEND:write_version( US, RosterVersion ),
+                            ?BACKEND:write_version(US, RosterVersion),
                             {lists:map(fun item_to_xml/1,
                                        ejabberd_hooks:run_fold(roster_get, To#jid.lserver, [], [US])), RosterVersion}
                     end;
@@ -225,8 +225,8 @@ process_iq_get(From, To, #iq{sub_el = SubEl} = IQ) ->
 
 
 %% hook handler
-get_user_roster( Acc, US ) ->
-    All = ?BACKEND:rosters_by_us( US ),
+get_user_roster(Acc, US) ->
+    All = ?BACKEND:rosters_by_us(US),
     Rosters = lists:filter(fun(#roster{subscription = none, ask = in}) ->
                                    false;
                               (_) ->
@@ -294,7 +294,7 @@ process_item_set(From, To, #xmlel{attrs = Attrs, children = Els}) ->
                             remove ->
                                 ?BACKEND:remove_roster({LUser, LServer, LJID});
                             _ ->
-                                ?BACKEND:write_roster( Item2 )
+                                ?BACKEND:write_roster(Item2)
                         end,
                         %% If the item exist in shared roster, take the
                         %% subscription information from there:
@@ -302,13 +302,13 @@ process_item_set(From, To, #xmlel{attrs = Attrs, children = Els}) ->
                                                         LServer, Item2, [LServer]),
                         case roster_version_on_db(LServer) of
                             true ->
-                                ?BACKEND:write_version( {LUser, LServer},
-                                                        sha:sha(term_to_binary(now())));
+                                ?BACKEND:write_version({LUser, LServer},
+                                                       sha:sha(term_to_binary(now())));
                             false -> ok
                         end,
                         {Item, Item3}
                 end,
-            case ?BACKEND:transaction( LServer, F) of
+            case ?BACKEND:transaction(LServer, F) of
                 {atomic, {OldItem, Item}} ->
                     push_item(User, LServer, To, Item),
                     case Item#roster.subscription of
@@ -326,9 +326,9 @@ process_item_set(From, To, #xmlel{attrs = Attrs, children = Els}) ->
 process_item_set(_From, _To, _) ->
     ok.
 
-get_roster_of( LUser, LServer, LJID, JID) ->
+get_roster_of(LUser, LServer, LJID, JID) ->
     USJ = {LUser, LServer, LJID},
-    case ?BACKEND:roster( USJ ) of
+    case ?BACKEND:roster(USJ) of
         not_found ->
             #roster{usj = USJ,
                     us = {LUser, LServer},
@@ -430,12 +430,12 @@ get_subscription_lists(_, User, Server) ->
     LUser = jlib:nodeprep(User),
     LServer = jlib:nameprep(Server),
     JID = jlib:make_jid(User, Server, <<>>),
-    Items =  ?BACKEND:rosters_without_groups( {LUser, LServer} ),
+    Items =  ?BACKEND:rosters_without_groups({LUser, LServer}),
     fill_subscription_lists(JID, Items).
 
 
-fill_subscription_lists( JID, Items ) ->
-    fill_subscription_lists( JID, Items, [], [], []).
+fill_subscription_lists(JID, Items) ->
+    fill_subscription_lists(JID, Items, [], [], []).
 
 fill_subscription_lists(JID, [I | Is], F, T, P) ->
     J = element(3, I#roster.usj),
@@ -529,23 +529,23 @@ process_subscription(Direction, User, Server, JID1, Type, Reason) ->
                         {none, AutoReply};
                     {none, none} when Item#roster.subscription == none,
                                       Item#roster.ask == in ->
-                        ?BACKEND:remove_roster( USJ ),
+                        ?BACKEND:remove_roster(USJ),
                         {none, AutoReply};
                     {Subscription, Pending} ->
                         NewItem = Item#roster{subscription = Subscription,
                                               ask = Pending,
                                               askmessage = AskMessage},
-                        ?BACKEND:write_roster_subscription( NewItem ),
+                        ?BACKEND:write_roster_subscription(NewItem),
                         case roster_version_on_db(LServer) of
                             true ->
-                                ?BACKEND:write_version( US,
-                                                        sha:sha(term_to_binary(now())));
+                                ?BACKEND:write_version(US,
+                                                       sha:sha(term_to_binary(now())));
                             false -> ok
                         end,
                         {{push, NewItem}, AutoReply}
                 end
         end,
-    case ?BACKEND:transaction( LServer, F) of
+    case ?BACKEND:transaction(LServer, F) of
         {atomic, {Push, AutoReply}} ->
             case AutoReply of
                 none ->
@@ -677,13 +677,13 @@ remove_user(User, Server) ->
     LUser = jlib:nodeprep(User),
     LServer = jlib:nameprep(Server),
     send_unsubscription_to_rosteritems(LUser, LServer),
-    ?BACKEND:remove_user( {LUser, LServer}).
+    ?BACKEND:remove_user({LUser, LServer}).
 
 %% For each contact with Subscription:
 %% Both or From, send a "unsubscribed" presence stanza;
 %% Both or To, send a "unsubscribe" presence stanza.
 send_unsubscription_to_rosteritems(LUser, LServer) ->
-    Rosters = ?BACKEND:rosters_by_us( {LUser, LServer}),
+    Rosters = ?BACKEND:rosters_by_us({LUser, LServer}),
     Subscribed = lists:filter(fun(#roster{subscription = none, ask = in}) ->
                                    false;
                               (_) ->
@@ -754,9 +754,9 @@ process_item_set_t(LUser, LServer, #xmlel{attrs = Attrs,
             Item2 = process_item_els(Item1, Els),
             case Item2#roster.subscription of
                 remove ->
-                    ?BACKEND:remove_roster( {LUser, LServer, LJID});
+                    ?BACKEND:remove_roster({LUser, LServer, LJID});
                 _ ->
-                    ?BACKEND:write_roster( Item2 )
+                    ?BACKEND:write_roster(Item2)
             end
     end;
 process_item_set_t(_LUser, _LServer, _) ->
@@ -791,7 +791,7 @@ process_item_attrs_ws(Item, [{<<"subscription">>, Val} | Attrs]) ->
                   _ ->
                       Item
               end,
-    process_item_attrs_ws( NewItem, Attrs);
+    process_item_attrs_ws(NewItem, Attrs);
 
 process_item_attrs_ws(Item, [{<<"ask">>, _Val} | Attrs]) ->
     process_item_attrs_ws(Item, Attrs);
@@ -839,7 +839,7 @@ get_jid_info(_, User, Server, JID) ->
     LServer = jlib:nameprep(Server),
     LJID = jlib:jid_tolower(JID),
 
-    get_jid_info( LUser, LServer, LJID).
+    get_jid_info(LUser, LServer, LJID).
 
 
 get_jid_info( LUser, LServer, LJID) ->
