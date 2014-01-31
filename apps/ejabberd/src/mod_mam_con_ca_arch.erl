@@ -920,8 +920,10 @@ init([Host, Addr, Port]) ->
     GetConID = seestar_result:query_id(GetConRes),
     GetConTypes = seestar_result:types(GetConRes),
 
+    %% It is expected, that there is a small number of conversations per user.
+    %% This query uses filtering on the server side.
     GetConAfterQuery = "SELECT remote_jid, last_message_id FROM mam_con_user "
-        "WHERE local_jid = ? WHERE last_message_id > ?",
+        "WHERE local_jid = ? AND last_message_id > ? ALLOW FILTERING",
     {ok, GetConAfterRes} = seestar_session:prepare(ConnPid, GetConAfterQuery),
     GetConAfterID = seestar_result:query_id(GetConAfterRes),
     GetConAfterTypes = seestar_result:types(GetConAfterRes),
