@@ -67,6 +67,8 @@
     exist_conversation_types,
     get_conversations_id,
     get_conversations_types,
+    get_last_conversations_id,
+    get_last_conversations_types,
     remove_conversations_id,
     remove_conversations_types,
     calc_count_handler,
@@ -559,6 +561,12 @@ get_conversations(Worker, BUserJID) ->
     {ok, Result} = ResultF(),
     [BWithJID || [BWithJID] <- seestar_result:rows(Result)].
 
+%% @doc Returns remote JID and last message id for user's conversations.
+get_last_conversations(Worker, BUserJID) ->
+    ResultF = gen_server:call(Worker, {get_last_conversations, BUserJID}),
+    {ok, Result} = ResultF(),
+    seestar_result:rows(Result).
+
 -spec get_conversations_after(Host, UserJID, AfterID) -> [{RemJID, LastID}]
     when Host :: binary(),
          UserJID :: #jid{},
@@ -569,7 +577,7 @@ get_conversations_after(Host, UserJID, AfterID) ->
     BUserJID = serialize_jid(UserJID),
     Worker = select_worker(Host, BUserJID),
     [{unserialize_jid(BRemJID), LastID}
-     || [BRemJID, LastID] <- get_conversations(Worker, BUserJID),
+     || [BRemJID, LastID] <- get_last_conversations(Worker, BUserJID),
         LastID > AfterID].
     %% It is not possible to filter by AfterID in cassandra,
     %% so we filter here.
@@ -911,6 +919,12 @@ init([Host, Addr, Port]) ->
     GetConID = seestar_result:query_id(GetConRes),
     GetConTypes = seestar_result:types(GetConRes),
 
+    GetLastConQuery = "SELECT remote_jid, last_message_id FROM mam_con_user "
+        "WHERE local_jid = ?",
+    {ok, GetLastConRes} = seestar_session:prepare(ConnPid, GetLastConQuery),
+    GetLastConID = seestar_result:query_id(GetLastConRes),
+    GetLastConTypes = seestar_result:types(GetLastConRes),
+
     ExistConQuery = "SELECT COUNT(*) FROM mam_con_user "
         "WHERE local_jid = ? AND remote_jid = ?",
     {ok, ExistConRes} = seestar_session:prepare(ConnPid, ExistConQuery),
@@ -936,6 +950,8 @@ init([Host, Addr, Port]) ->
         exist_conversation_types=ExistConTypes,
         get_conversations_id=GetConID,
         get_conversations_types=GetConTypes,
+        get_last_conversations_id=GetLastConID,
+        get_last_conversations_types=GetLastConTypes,
         remove_conversations_id=RemoveConID,
         remove_conversations_types=RemoveConTypes,
         extract_messages_handler=ExHandler,
@@ -987,6 +1003,14 @@ handle_call({get_conversations, BUserJID}, From,
         get_conversations_types=GetConTypes}) ->
     Row = [BUserJID],
     QueryRef = seestar_session:execute_async(ConnPid, GetConID, GetConTypes, Row, one),
+    {noreply, save_query_ref(From, QueryRef, State)};
+handle_call({get_last_conversations, BUserJID}, From,
+    State=#state{
+        conn=ConnPid,
+        get_last_conversations_id=GetLastConID,
+        get_last_conversations_types=GetLastConTypes}) ->
+    Row = [BUserJID],
+    QueryRef = seestar_session:execute_async(ConnPid, GetLastConID, GetLastConTypes, Row, one),
     {noreply, save_query_ref(From, QueryRef, State)};
 handle_call({remove_conversations, BUserJID}, From,
     State=#state{
