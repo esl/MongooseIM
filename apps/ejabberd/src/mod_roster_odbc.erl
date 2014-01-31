@@ -672,7 +672,7 @@ in_auto_reply(from, out,  unsubscribe)  -> unsubscribed;
 in_auto_reply(both, none, unsubscribe)  -> unsubscribed;
 in_auto_reply(_,    _,    _)  ->           none.
 
-
+%% hook_handler
 remove_user(User, Server) ->
     LUser = jlib:nodeprep(User),
     LServer = jlib:nameprep(Server),
