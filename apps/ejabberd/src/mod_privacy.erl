@@ -44,6 +44,69 @@
 
 -define(BACKEND, (mod_privacy_backend:backend())).
 
+-type list_name() :: binary().
+-type list_item() :: #listitem{}.
+
+%% ------------------------------------------------------------------
+%% Backend callbacks
+
+-callback init(Host, Opts) -> ok when
+    Host    :: binary(),
+    Opts    :: list().
+
+-callback remove_user(LUser, LServer) -> ok when
+    LUser   :: binary(),
+    LServer :: binary().
+
+-callback get_list_names(LUser, LServer) ->
+        {ok, {Default, Names}} | {error, Reason} when
+    LUser   :: binary(),
+    LServer :: binary(),
+    Default :: list_name(),
+    Names   :: list(list_name()),
+    Reason  :: not_found | term().
+
+-callback get_privacy_list(LUser, LServer, Name) ->
+        {ok, Items} | {error, Reason} when
+    LUser   :: binary(),
+    LServer :: binary(),
+    Name    :: list_name(),
+    Items   :: list(list_item()),
+    Reason  :: not_found | term().
+
+-callback set_default_list(LUser, LServer, Name) -> ok | {error, Reason} when
+    LUser   :: binary(),
+    LServer :: binary(),
+    Name    :: list_name(),
+    Reason  :: not_found | term().
+
+-callback forget_default_list(LUser, LServer) -> ok | {error, Reason} when
+    LUser   :: binary(),
+    LServer :: binary(),
+    Reason  :: not_found | term().
+
+-callback remove_privacy_list(LUser, LServer, Name) -> ok | {error, Reason} when
+    LUser   :: binary(),
+    LServer :: binary(),
+    Name    :: list_name(),
+    Reason  :: conflict | term().
+
+-callback replace_privacy_list(LUser, LServer, Name, Items) ->
+        ok | {error, Reason} when
+    LUser   :: binary(),
+    LServer :: binary(),
+    Name    :: list_name(),
+    Items   :: list(list_item()),
+    Reason  :: conflict | term().
+
+-callback get_default_list(LUser, LServer) ->
+        {ok, {Default, Items}} | {error, Reason} when
+    LUser   :: binary(),
+    LServer :: binary(),
+    Default :: list_name(),
+    Items   :: list(list_item()),
+    Reason  :: not_found | term().
+
 %% gen_mod callbacks
 %% ------------------------------------------------------------------
 
