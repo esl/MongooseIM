@@ -32,7 +32,7 @@
 -export([start/2,
 	 loop/1,
 	 stop/1,
-	 store_packet/3,
+	 inspect_packet/3,
 	 resend_offline_messages/2,
 	 pop_offline_messages/3,
 	 get_sm_features/5,
@@ -59,7 +59,7 @@ start(Host, Opts) ->
 			 {attributes, record_info(fields, offline_msg)}]),
     update_table(),
     ejabberd_hooks:add(offline_message_hook, Host,
-		       ?MODULE, store_packet, 50),
+		       ?MODULE, inspect_packet, 50),
     ejabberd_hooks:add(resend_offline_messages_hook, Host,
 		       ?MODULE, pop_offline_messages, 50),
     ejabberd_hooks:add(remove_user, Host,
@@ -131,7 +131,7 @@ receive_all(US, Msgs) ->
 
 stop(Host) ->
     ejabberd_hooks:delete(offline_message_hook, Host,
-			  ?MODULE, store_packet, 50),
+			  ?MODULE, inspect_packet, 50),
     ejabberd_hooks:delete(resend_offline_messages_hook, Host,
 			  ?MODULE, pop_offline_messages, 50),
     ejabberd_hooks:delete(remove_user, Host,
@@ -144,46 +144,57 @@ stop(Host) ->
     exit(whereis(Proc), stop),
     {wait, Proc}.
 
-get_sm_features(Acc, _From, _To, <<"">>, _Lang) ->
-    Feats = case Acc of
-		{result, I} -> I;
-		_ -> []
-	    end,
-    {result, Feats ++ [?NS_FEATURE_MSGOFFLINE]};
-
+get_sm_features(Acc, _From, _To, <<"">> = _Node, _Lang) ->
+    add_feature(Acc, ?NS_FEATURE_MSGOFFLINE);
 get_sm_features(_Acc, _From, _To, ?NS_FEATURE_MSGOFFLINE, _Lang) ->
     %% override all lesser features...
     {result, []};
-
 get_sm_features(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
+add_feature({result, Features}, Feature) ->
+    {result, Features ++ [Feature]};
+add_feature(_, Feature) ->
+    {result, [Feature]}.
 
-store_packet(From, To, Packet) ->
-    Type = xml:get_tag_attr_s(<<"type">>, Packet),
-    if
-	(Type /= <<"error">>) and (Type /= <<"groupchat">>) and
-	(Type /= <<"headline">>) ->
-	    case check_event_chatstates(From, To, Packet) of
-		true ->
-		    #jid{luser = LUser, lserver = LServer} = To,
-		    TimeStamp = now(),
-		    #xmlel{children = Els} = Packet,
-		    Expire = find_x_expire(TimeStamp, Els),
-		    gen_mod:get_module_proc(To#jid.lserver, ?PROCNAME) !
-			#offline_msg{us = {LUser, LServer},
-				     timestamp = TimeStamp,
-				     expire = Expire,
-				     from = From,
-				     to = To,
-				     packet = Packet},
-		    stop;
-		_ ->
-		    ok
-	    end;
-	true ->
-	    ok
+inspect_packet(From, To, Packet) ->
+    case is_interesting_packet(Packet) of
+        true ->
+            case check_event_chatstates(From, To, Packet) of
+                true ->
+                    store_packet(From, To, Packet),
+                    stop;
+                false ->
+                    ok
+            end;
+        false ->
+            ok
     end.
+
+store_packet(
+        From,
+        To = #jid{luser = LUser, lserver = LServer},
+        Packet = #xmlel{children = Els}) ->
+    TimeStamp = now(),
+    Expire = find_x_expire(TimeStamp, Els),
+    Pid = gen_mod:get_module_proc(LServer, ?PROCNAME),
+    Msg = #offline_msg{us = {LUser, LServer},
+             timestamp = TimeStamp,
+             expire = Expire,
+             from = From,
+             to = To,
+             packet = Packet},
+    Pid ! Msg,
+    ok.
+
+is_interesting_packet(Packet) ->
+    Type = xml:get_tag_attr_s(<<"type">>, Packet),
+    is_interesting_packet_type(Type).
+
+is_interesting_packet_type(<<"error">>)     -> false;
+is_interesting_packet_type(<<"groupchat">>) -> false;
+is_interesting_packet_type(<<"headline">>)  -> false;
+is_interesting_packet_type(_)               -> true.
 
 %% Check if the packet has any content about XEP-0022 or XEP-0085
 check_event_chatstates(From, To, Packet) ->
@@ -216,10 +227,8 @@ check_event_chatstates(From, To, Packet) ->
 				 end,
 			    ejabberd_router:route(
 			      To, From, Packet#xmlel{children = [#xmlel{name = <<"x">>,
-					                                attrs = [{<<"xmlns">>,
-					                                          ?NS_EVENT}],
-					                                children = [ID,
-					                                            #xmlel{name = <<"offline">>}]}]}),
+					                                attrs = [{<<"xmlns">>, ?NS_EVENT}],
+					                                children = [ID, #xmlel{name = <<"offline">>}]}]}),
 			    true
 		    end;
 		_ ->
@@ -250,7 +259,7 @@ find_x_expire(TimeStamp, [El | Els]) ->
     case xml:get_tag_attr_s(<<"xmlns">>, El) of
 	?NS_EXPIRE ->
 	    Val = xml:get_tag_attr_s(<<"seconds">>, El),
-	    case catch list_to_integer(binary_to_list(Val)) of
+	    case catch list_to_integer(Val) of
 		{'EXIT', _} ->
 		    never;
 		Int when Int > 0 ->
@@ -291,8 +300,8 @@ resend_offline_messages(User, Server) ->
 			                                                jlib:make_jid(<<>>,
 				                                                      Server,
 			                                                              <<>>),
-                                                                        <<"Offline Storage">>), %% TODO: Delete the next three lines once XEP-0091 is Obsolete
-                                                  jlib:timestamp_to_xml(calendar:now_to_universal_time(R#offline_msg.timestamp))]}}
+                                                                        <<"Offline Storage">>),%% TODO: Delete the next three lines once XEP-0091 is Obsolete
+			                                                                   jlib:timestamp_to_xml(calendar:now_to_universal_time(R#offline_msg.timestamp))]}}
 	      end,
 	      lists:keysort(#offline_msg.timestamp, Rs));
 	_ ->
@@ -323,8 +332,8 @@ pop_offline_messages(Ls, User, Server) ->
 			                                                  jlib:make_jid(<<>>,
 				                                                        Server,
 				                                                        <<>>),
-				                                          <<"Offline Storage">>), %% TODO: Delete the next three lines once XEP-0091 is Obsolete
-                                                    jlib:timestamp_to_xml(calendar:now_to_universal_time(R#offline_msg.timestamp))]}}
+				                                          <<"Offline Storage">>),%% TODO: Delete the next three lines once XEP-0091 is Obsolete
+				                                                             jlib:timestamp_to_xml(calendar:now_to_universal_time(R#offline_msg.timestamp))]}}
 		    end,
 		    lists:filter(
 		      fun(R) ->
