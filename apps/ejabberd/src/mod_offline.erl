@@ -1,7 +1,8 @@
 %%%----------------------------------------------------------------------
 %%% File    : mod_offline.erl
 %%% Author  : Alexey Shchepin <alexey@process-one.net>
-%%% Purpose : Store and manage offline messages in Mnesia database.
+%%% Purpose : Store and manage offline messages
+%%% See     : XEP-0160: Best Practices for Handling Offline Messages
 %%% Created :  5 Jan 2003 by Alexey Shchepin <alexey@process-one.net>
 %%%
 %%%
@@ -36,8 +37,8 @@
 	 resend_offline_messages/2,
 	 pop_offline_messages/3,
 	 get_sm_features/5,
-	 remove_expired_messages/0,
-	 remove_old_messages/1,
+	 remove_expired_messages/1,
+	 remove_old_messages/2,
 	 remove_user/2]).
 
 -include("ejabberd.hrl").
@@ -344,11 +345,11 @@ timestamp_legacy_xml(Server, Time) ->
     FromJID = jlib:make_jid(<<>>, Server, <<>>),
     jlib:timestamp_to_xml(Time, utc, FromJID, <<"Offline Storage">>).
 
-remove_expired_messages() ->
-    ?BACKEND:remove_expired_messages().
+remove_expired_messages(Host) ->
+    ?BACKEND:remove_expired_messages(Host).
 
-remove_old_messages(Days) ->
-    ?BACKEND:remove_expired_messages(Days).
+remove_old_messages(Host, Days) ->
+    ?BACKEND:remove_expired_messages(Host, Days).
 
 remove_user(User, Server) ->
     ?BACKEND:remove_user(User, Server).

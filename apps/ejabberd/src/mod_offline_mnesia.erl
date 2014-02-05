@@ -32,8 +32,8 @@
 -export([init/2,
          pop_messages/2,
          write_messages/4,
-	     remove_expired_messages/0,
-	     remove_old_messages/1,
+	     remove_expired_messages/1,
+	     remove_old_messages/2,
 	     remove_user/2]).
 
 -include("ejabberd.hrl").
@@ -127,7 +127,7 @@ remove_user(User, Server) ->
 	end,
     mnesia:transaction(F).
 
-remove_expired_messages() ->
+remove_expired_messages(_Host) ->
     TimeStamp = now(),
     F = fun() ->
 		mnesia:write_lock_table(offline_msg),
@@ -138,7 +138,7 @@ remove_expired_messages() ->
 	end,
     mnesia:transaction(F).
 
-remove_old_messages(Days) ->
+remove_old_messages(_Host, Days) ->
     TimeStamp = fallback_timestamp(Days, now()),
     F = fun() ->
 		mnesia:write_lock_table(offline_msg),
