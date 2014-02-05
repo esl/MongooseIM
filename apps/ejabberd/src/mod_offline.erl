@@ -134,7 +134,9 @@ loop(AccessMaxOfflineMsgs) ->
                     ok;
                 {discarded, DiscardedMsgs} ->
                     discard_warn_sender(DiscardedMsgs);
-                {error, _Reason} ->
+                {error, Reason} ->
+                    ?ERROR_MSG("~ts@~ts: write_messages failed with ~p.",
+                        [LUser, LServer, Reason]),
                     discard_warn_sender(Msgs)
             end,
             loop(AccessMaxOfflineMsgs);
@@ -310,7 +312,8 @@ pop_offline_messages(User, Server) ->
                 Packet = resend_offline_message_packet(Server, R),
                 compose_offline_message(R, Packet)
               end, Rs);
-        {error, _Reason} ->
+        {error, Reason} ->
+            ?ERROR_MSG("~ts@~ts: pop_messages failed with ~p.", [LUser, LServer, Reason]),
             []
     end.
 

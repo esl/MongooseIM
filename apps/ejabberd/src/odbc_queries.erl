@@ -87,7 +87,14 @@
 	 escape_like_string/1,
 	 count_records_where/3,
 	 get_roster_version/2,
-	 set_roster_version/2]).
+	 set_roster_version/2,
+     prepare_offline_message/6,
+     push_offline_messages/2,
+     pop_offline_messages/4,
+     count_offline_messages/4,
+     remove_old_offline_messages/2,
+     remove_expired_offline_messages/2,
+     remove_offline_messages/3]).
 
 %% We have only two compile time options for db queries:
 %%-define(generic, true).
@@ -699,6 +706,72 @@ set_roster_version(LUser, Version) ->
       [<<"username = '">>, LUser, "'"]).
 
 -endif.
+
+
+pop_offline_messages(LServer, SUser, SServer, STimeStamp) ->
+    SelectSQL = select_offline_messages_sql(SUser, SServer, STimeStamp),
+    DeleteSQL = delete_offline_messages_sql(SUser, SServer),
+    F = fun() ->
+	      Res = ejabberd_odbc:sql_query_t(SelectSQL),
+          ejabberd_odbc:sql_query_t(DeleteSQL),
+          Res
+        end,
+    ejabberd_odbc:sql_transaction(LServer, F).
+
+select_offline_messages_sql(SUser, SServer, STimeStamp) ->
+    [<<"select timestamp, from_jid, packet from offline_message "
+            "where server = '">>, SServer, <<"' and "
+                  "username = '">>, SUser, <<"' and "
+                  "(expire is null or expire > ">>, STimeStamp, <<") "
+             "ORDER BY timestamp">>].
+
+delete_offline_messages_sql(SUser, SServer) ->
+    [<<"delete from offline_message "
+            "where server = '">>, SServer, <<"' and "
+                  "username = '">>, SUser, <<"'">>].
+
+remove_old_offline_messages(LServer, STimeStamp) ->
+    ejabberd_odbc:sql_query(
+      LServer,
+      [<<"delete from offline_message where timestamp < ">>, STimeStamp]).
+
+remove_expired_offline_messages(LServer, STimeStamp) ->
+    ejabberd_odbc:sql_query(
+      LServer,
+      [<<"delete from offline_message "
+            "where expire is not null and expire < ">>, STimeStamp]).
+
+remove_offline_messages(LServer, SUser, SServer) ->
+    ejabberd_odbc:sql_query(
+      LServer,
+      [<<"delete from offline_message "
+            "where server = '">>, SServer, <<"' and "
+                  "username = '">>, SUser, <<"'">>]).
+
+prepare_offline_message(SUser, SServer, STimeStamp, SExpire, SFrom, SPacket) ->
+    [<<"('">>,   SUser,
+     <<"', '">>, SServer,
+     <<"', ">>,  STimeStamp,
+     <<", ">>,   SExpire,
+     <<", '">>,  SFrom,
+     <<"', '">>, SPacket,
+     <<"')">>].
+
+push_offline_messages(LServer, Rows) ->
+    ejabberd_odbc:sql_query(
+      LServer,
+      [<<"INSERT INTO offline_message "
+              "(username, server, timestamp, expire, from_jid, packet) "
+            "VALUES ">>, join(Rows, ", ")]).
+
+count_offline_messages(LServer, SUser, SServer, Limit) ->
+    ejabberd_odbc:sql_query(
+      LServer,
+      [<<"select count(*) from offline_message "
+            "where server = '">>, SServer, <<"' and "
+                  "username = '">>, SUser, <<"' "
+            "limit">>, integer_to_list(Limit)]).
+
 
 %% -----------------
 %% MSSQL queries
