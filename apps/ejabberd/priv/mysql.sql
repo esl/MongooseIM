@@ -283,3 +283,14 @@ CREATE TABLE mam_muc_message(
 );
 CREATE INDEX i_mam_muc_message_room_name_added_at USING BTREE ON mam_muc_message(room_id, id);
 
+
+CREATE TABLE offline_message(
+  id BIGINT UNSIGNED        NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  timestamp BIGINT UNSIGNED NOT NULL,
+  expire    BIGINT UNSIGNED,
+  server    varchar(250)    NOT NULL,
+  username  varchar(250)    NOT NULL,
+  from_jid  varchar(250)    NOT NULL,
+  packet    blob            NOT NULL
+);
+CREATE INDEX i_offline_message USING BTREE ON offline_message(server, username, id);
