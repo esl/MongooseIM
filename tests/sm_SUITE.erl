@@ -3,6 +3,7 @@
 
 -include_lib("exml/include/exml.hrl").
 -include_lib("escalus/include/escalus.hrl").
+-include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("common_test/include/ct.hrl").
 
 -define(MOD_SM, mod_stream_management).
@@ -224,6 +225,7 @@ h_ok_after_session_enabled_after_session(Config) ->
 %% Test that "h" value is valid after exchanging a few messages.
 h_ok_after_a_chat(Config) ->
     escalus:story(Config, [{alice,1}, {bob,1}], fun(Alice, Bob) ->
+        escalus_tcp:set_filter(Alice#client.conn, fun is_not_vcard_update/1),
         escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi, Bob!">>)),
         escalus:assert(is_chat_message, [<<"Hi, Bob!">>],
                        escalus:wait_for_stanza(Bob)),
@@ -239,7 +241,7 @@ h_ok_after_a_chat(Config) ->
         escalus:send(Alice, escalus_stanza:sm_request()),
         escalus:assert(is_ack, [3], escalus:wait_for_stanza(Alice)),
         %% Ack, so that unacked messages don't go into offline store.
-        escalus:send(Alice, escalus_stanza:sm_ack(3))
+        escalus:send(Alice, escalus_stanza:sm_ack(4))
     end).
 
 client_acks_more_than_sent(Config) ->
@@ -524,7 +526,14 @@ kill_connection(#transport{module = escalus_tcp, ssl = SSL,
     %% There might be open zlib streams left...
     catch escalus_connection:stop(Conn).
 
+is_vcard_update(#xmlel{name = <<"presence">>} = Stanza) ->
+    case exml_query:subelement(Stanza, <<"x">>) of
+        undefined -> false;
+        X ->
+            escalus_pred:has_ns(?NS_VCARD_UPDATE, X)
+    end;
+is_vcard_update(_) ->
+    false.
+
 is_not_vcard_update(Stanza) ->
-    not (escalus_pred:is_presence(Stanza)
-         andalso
-         escalus_pred:has_ns(exml_query:subelement(Stanza, <<"presence">>))).
+    not is_vcard_update(Stanza).
