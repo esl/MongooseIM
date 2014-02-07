@@ -449,12 +449,7 @@ extract_state_name(SysStatus) ->
 get_session_pid(UserSpec, Resource) ->
     ConfigUS = [proplists:get_value(username, UserSpec),
                 proplists:get_value(server, UserSpec)],
-    [U, S] = case string_type() of
-                 list ->
-                     [binary_to_list(V) || V <- ConfigUS];
-                 binary ->
-                     ConfigUS
-             end,
+    [U, S] = [server_string(V) || V <- ConfigUS],
     MatchSpec = match_session_pid({U, S, Resource}),
     case escalus_ejabberd:rpc(ets, select, [session, MatchSpec]) of
         [] ->
@@ -467,8 +462,19 @@ get_session_pid(UserSpec, Resource) ->
             {error, {multiple_sessions, Sessions}}
     end.
 
--spec string_type() -> list | binary.
-string_type() ->
+server_string(BString) when is_binary(BString) ->
+    case server_string_type() of
+        binary -> BString;
+        list -> binary_to_list(BString)
+    end;
+server_string(String) when is_list(String) ->
+    case server_string_type() of
+        list -> String;
+        binary -> list_to_binary(String)
+    end.
+
+-spec server_string_type() -> list | binary.
+server_string_type() ->
     [{config, hosts,
       [XMPPDomain | _]}] = escalus_ejabberd:rpc(ets, lookup, [config, hosts]),
     case XMPPDomain of
