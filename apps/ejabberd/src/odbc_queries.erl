@@ -46,6 +46,7 @@
 	 add_spool/2,
 	 get_and_del_spool_msg_t/2,
 	 del_spool_msg/2,
+     count_spool_msg/2,
          get_average_roster_size/1,
          get_average_rostergroup_size/1,
          clear_rosters/1,
@@ -368,6 +369,11 @@ del_spool_msg(LServer, Username) ->
     ejabberd_odbc:sql_query(
       LServer,
       [<<"delete from spool where username='">>, Username, "';"]).
+
+count_spool_msg(LServer, Username) ->
+    ejabberd_odbc:sql_query(
+        LServer,
+        [<<"select count(*) from spool where username='">>, Username, "';"]).
 
 get_average_roster_size(Server) ->
     ejabberd_odbc:sql_query(
@@ -883,6 +889,10 @@ del_spool_msg(LServer, Username) ->
     ejabberd_odbc:sql_query(
       LServer,
       ["EXECUTE dbo.del_spool_msg '", Username, "'"]).
+
+count_spool_msg(LServer, Username) ->
+    %% TODO
+    0.
 
 get_roster(LServer, Username) ->
     ejabberd_odbc:sql_query(
