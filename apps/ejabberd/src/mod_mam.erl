@@ -271,16 +271,8 @@ process_mam_iq(From=#jid{lserver=Host}, To, IQ) ->
         true  -> 
             case wait_shaper(Host, Action, From) of
                 ok ->
-                    try
-                        handle_mam_iq(Action, From, To, IQ)
-                    catch _:Reason ->
-                        Trace = erlang:get_stacktrace(),
-                        ejabberd_hooks:run(mam_drop_iq, Host,
-                            [Host, To, IQ, Action, Reason]),
-                        lager:error("Action ~p failed ~p. Trace ~p",
-                            [Action, Reason, Trace]),
-                        return_error_iq(IQ, Reason)
-                    end;
+                    handle_error_iq(Host, To, Action,
+                        handle_mam_iq(Action, From, To, IQ));
                 {error, max_delay_reached} ->
                     ejabberd_hooks:run(mam_drop_iq, Host,
                         [Host, To, IQ, Action, max_delay_reached]),
@@ -401,19 +393,29 @@ handle_set_prefs(ArcJID=#jid{},
               [DefaultMode, AlwaysJIDs, NeverJIDs]),
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
-    set_prefs(Host, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs),
+    Res = set_prefs(Host, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs),
+    handle_set_prefs_result(Res, DefaultMode, AlwaysJIDs, NeverJIDs, IQ).
+
+handle_set_prefs_result(ok, DefaultMode, AlwaysJIDs, NeverJIDs, IQ) ->
     ResultPrefsEl = result_prefs(DefaultMode, AlwaysJIDs, NeverJIDs),
-    IQ#iq{type = result, sub_el = [ResultPrefsEl]}.
+    IQ#iq{type = result, sub_el = [ResultPrefsEl]};
+handle_set_prefs_result({error, Reason},
+                        _DefaultMode, _AlwaysJIDs, _NeverJIDs, IQ) ->
+    return_error_iq(IQ, Reason).
 
 handle_get_prefs(ArcJID=#jid{}, IQ=#iq{}) ->
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
-    {DefaultMode, AlwaysJIDs, NeverJIDs} =
-        get_prefs(Host, ArcID, ArcJID, always),
+    Res = get_prefs(Host, ArcID, ArcJID, always),
+    handle_get_prefs_result(Res, IQ).
+
+handle_get_prefs_result({DefaultMode, AlwaysJIDs, NeverJIDs}, IQ) ->
     ?DEBUG("Extracted data~n\tDefaultMode ~p~n\tAlwaysJIDs ~p~n\tNeverJIDS ~p~n",
               [DefaultMode, AlwaysJIDs, NeverJIDs]),
     ResultPrefsEl = result_prefs(DefaultMode, AlwaysJIDs, NeverJIDs),
-    IQ#iq{type = result, sub_el = [ResultPrefsEl]}.
+    IQ#iq{type = result, sub_el = [ResultPrefsEl]};
+handle_get_prefs_result({error, Reason}, IQ) ->
+    return_error_iq(IQ, Reason).
     
 handle_lookup_messages(
         From=#jid{},
@@ -444,6 +446,8 @@ handle_lookup_messages(
         ErrorEl = ?STANZA_ERRORT(<<"">>, <<"modify">>, <<"policy-violation">>,
                                  <<"en">>, <<"Too many results">>),          
         IQ#iq{type = error, sub_el = [ErrorEl]};
+    {error, Reason} ->
+        return_error_iq(IQ, Reason);
     {ok, {TotalCount, Offset, MessageRows}} ->
         {FirstMessID, LastMessID} =
             case MessageRows of
@@ -475,8 +479,9 @@ handle_purge_multiple_messages(ArcJID=#jid{},
     Borders = borders_decode(PurgeEl),
     %% Filtering by contact.
     With  = elem_to_with_jid(PurgeEl),
-    purge_multiple_messages(Host, ArcID, ArcJID, Borders, Start, End, Now, With),
-    return_purge_success(IQ).
+    Res = purge_multiple_messages(Host, ArcID, ArcJID, Borders,
+                                  Start, End, Now, With),
+    return_purge_multiple_message_iq(IQ, Res).
 
 handle_purge_single_message(ArcJID=#jid{},
                             IQ=#iq{sub_el = PurgeEl}) ->
@@ -552,9 +557,10 @@ set_prefs(Host, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     ArcJID      :: jid(),
     DefaultMode :: archive_behaviour(),
     GlobalDefaultMode :: archive_behaviour(),
-    Result      :: {DefaultMode, AlwaysJIDs, NeverJIDs},
+    Result      :: {DefaultMode, AlwaysJIDs, NeverJIDs} | {error, Reason},
     AlwaysJIDs  :: [literal_jid()],
-    NeverJIDs   :: [literal_jid()].
+    NeverJIDs   :: [literal_jid()],
+    Reason      :: term().
 get_prefs(Host, ArcID, ArcJID, GlobalDefaultMode) ->
     ejabberd_hooks:run_fold(mam_get_prefs, Host,
         {GlobalDefaultMode, [], []},
@@ -567,7 +573,9 @@ remove_archive(Host, ArcID, ArcJID=#jid{}) ->
 -spec lookup_messages(Host, ArcID, ArcJID, RSM, Borders,
                       Start, End, Now, WithJID,
                       PageSize, LimitPassed, MaxResultLimit, IsSimple) ->
-    {ok, {TotalCount, Offset, MessageRows}} | {error, 'policy-violation'}
+    {ok, {TotalCount, Offset, MessageRows}}
+    | {error, 'policy-violation'}
+    | {error, Reason}
     when
     Host    :: server_host(),
     ArcID   :: archive_id(),
@@ -584,7 +592,8 @@ remove_archive(Host, ArcID, ArcJID=#jid{}) ->
     IsSimple :: boolean() | opt_count,
     TotalCount :: non_neg_integer(),
     Offset  :: non_neg_integer(),
-    MessageRows :: list(tuple()).
+    MessageRows :: list(tuple()),
+    Reason :: term().
 lookup_messages(Host, ArcID, ArcJID, RSM, Borders, Start, End, Now,
                 WithJID, PageSize, LimitPassed, MaxResultLimit, IsSimple) ->
     ejabberd_hooks:run_fold(mam_lookup_messages, Host, {ok, {0, 0, []}},
@@ -606,20 +615,20 @@ archive_message(Host, MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet) ->
     ejabberd_hooks:run_fold(mam_archive_message, Host, ok,
         [Host, MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet]).
 
-
 -spec purge_single_message(Host, MessID, ArcID, ArcJID, Now) ->
-    ok | {error, 'not-found'} when
+    ok | {error, 'not-found'} | {error, Reason} when
     Host   :: server_host(),
     MessID :: message_id(),
     ArcID  :: archive_id(),
     ArcJID :: jid(),
-    Now :: unix_timestamp().
+    Now    :: unix_timestamp(),
+    Reason :: term().
 purge_single_message(Host, MessID, ArcID, ArcJID, Now) ->
     ejabberd_hooks:run_fold(mam_purge_single_message, Host, ok,
         [Host, MessID, ArcID, ArcJID, Now]).
 
 -spec purge_multiple_messages(Host, ArcID, ArcJID, Borders,
-                              Start, End, Now, WithJID) -> ok
+                              Start, End, Now, WithJID) -> ok | {error, Reason}
     when
     Host    :: server_host(),
     ArcID   :: archive_id(),
@@ -628,7 +637,8 @@ purge_single_message(Host, MessID, ArcID, ArcJID, Now) ->
     Start   :: unix_timestamp() | undefined,
     End     :: unix_timestamp() | undefined,
     Now     :: unix_timestamp(),
-    WithJID :: jid() | undefined.
+    WithJID :: jid() | undefined,
+    Reason  :: term().
 purge_multiple_messages(Host, ArcID, ArcJID, Borders, Start, End, Now, WithJID) ->
     ejabberd_hooks:run_fold(mam_purge_multiple_messages, Host, ok,
         [Host, ArcID, ArcJID, Borders, Start, End, Now, WithJID]).
@@ -690,13 +700,37 @@ elem_to_limit(QueryEl) ->
         [{elem, <<"set">>}, {elem, <<"limit">>}, cdata]
     ]).
 
-return_purge_success(IQ) ->
-    IQ#iq{type = result, sub_el = []}.
+handle_error_iq(Host, To, Action, IQ=#iq{type = {error, Reason}}) ->
+    ejabberd_hooks:run(mam_drop_iq, Host,
+        [Host, To, IQ, Action, Reason]),
+    IQ#iq{type = error};
+handle_error_iq(_Host, _To, _Action, IQ) ->
+    IQ.
+
+return_error_iq(IQ, timeout) ->
+    IQ#iq{type = {error, timeout}, sub_el = [?ERR_SERVICE_UNAVAILABLE]};
+return_error_iq(IQ, Reason) ->
+    IQ#iq{type = {error, Reason}, sub_el = [?ERR_INTERNAL_SERVER_ERROR]}.
 
 return_action_not_allowed_error_iq(IQ) ->
     ErrorEl = ?STANZA_ERRORT(<<"">>, <<"cancel">>, <<"not-allowed">>,
          <<"en">>, <<"The action is not allowed.">>),
     IQ#iq{type = error, sub_el = [ErrorEl]}.
+
+return_purge_multiple_message_iq(IQ, ok) ->
+    return_purge_success(IQ);
+return_purge_multiple_message_iq(IQ, {error, Reason}) ->
+    return_error_iq(IQ, Reason).
+
+return_purge_single_message_iq(IQ, ok) ->
+    return_purge_success(IQ);
+return_purge_single_message_iq(IQ, {error, 'not-found'}) ->
+    return_purge_not_found_error_iq(IQ);
+return_purge_single_message_iq(IQ, {error, Reason}) ->
+    return_error_iq(IQ, Reason).
+
+return_purge_success(IQ) ->
+    IQ#iq{type = result, sub_el = []}.
 
 return_purge_not_found_error_iq(IQ) ->
     %% Message not found.
@@ -709,14 +743,3 @@ return_max_delay_reached_error_iq(IQ) ->
     ErrorEl = ?ERRT_RESOURCE_CONSTRAINT(
         <<"en">>, <<"The action is cancelled because of flooding.">>),
     IQ#iq{type = error, sub_el = [ErrorEl]}.
-
-return_error_iq(IQ, timeout) ->
-    IQ#iq{type = error, sub_el = [?ERR_SERVICE_UNAVAILABLE]};
-return_error_iq(IQ, _Reason) ->
-    IQ#iq{type = error, sub_el = [?ERR_INTERNAL_SERVER_ERROR]}.
-
-return_purge_single_message_iq(IQ, ok) ->
-    return_purge_success(IQ);
-return_purge_single_message_iq(IQ, {error, 'not-found'}) ->
-    return_purge_not_found_error_iq(IQ).
-
