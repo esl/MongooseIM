@@ -45,7 +45,6 @@ init(_Host, _Opts) ->
     mnesia:create_table(private_storage,
 			[{disc_only_copies, [node()]},
 			 {attributes, record_info(fields, private_storage)}]),
-    update_table(),
     ok.
 
 multi_set_data(LUser, LServer, NS2XML) ->
@@ -86,47 +85,4 @@ select_namespaces_t(LUser, LServer) ->
 
 delete_record_t(LUser, LServer, NS) ->
     mnesia:delete({private_storage, {LUser, LServer, NS}}).
-
-update_table() ->
-    Fields = record_info(fields, private_storage),
-    case mnesia:table_info(private_storage, attributes) of
-	Fields ->
-	    ok;
-	[userns, xml] ->
-	    ?INFO_MSG("Converting private_storage table from "
-		      "{user, default, lists} format", []),
-	    Host = ?MYNAME,
-	    {atomic, ok} = mnesia:create_table(
-			     mod_private_tmp_table,
-			     [{disc_only_copies, [node()]},
-			      {type, bag},
-			      {local_content, true},
-			      {record_name, private_storage},
-			      {attributes, record_info(fields, private_storage)}]),
-	    mnesia:transform_table(private_storage, ignore, Fields),
-	    F1 = fun() ->
-			 mnesia:write_lock_table(mod_private_tmp_table),
-			 mnesia:foldl(
-			   fun(#private_storage{usns = {U, NS}} = R, _) ->
-				   mnesia:dirty_write(
-				     mod_private_tmp_table,
-				     R#private_storage{usns = {U, Host, NS}})
-			   end, ok, private_storage)
-		 end,
-	    mnesia:transaction(F1),
-	    mnesia:clear_table(private_storage),
-	    F2 = fun() ->
-			 mnesia:write_lock_table(private_storage),
-			 mnesia:foldl(
-			   fun(R, _) ->
-				   mnesia:dirty_write(R)
-			   end, ok, mod_private_tmp_table)
-		 end,
-	    mnesia:transaction(F2),
-	    mnesia:delete_table(mod_private_tmp_table);
-	_ ->
-	    ?INFO_MSG("Recreating private_storage table", []),
-	    mnesia:transform_table(private_storage, ignore, Fields)
-    end.
-
 
