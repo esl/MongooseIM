@@ -46,10 +46,10 @@
 -include("jlib.hrl").
 -include("mod_privacy.hrl").
 
-init(Host, Opts) ->
+init(_Host, _Opts) ->
     mnesia:create_table(privacy, [{disc_copies, [node()]},
                   {attributes, record_info(fields, privacy)}]),
-    update_table().
+    ok.
 
 get_default_list(LUser, LServer) ->
     case catch mnesia:dirty_read(privacy, {LUser, LServer}) of
@@ -192,45 +192,3 @@ replace_privacy_list(LUser, LServer, Name, List) ->
 remove_user(LUser, LServer) ->
     F = fun() -> mnesia:delete({privacy, {LUser, LServer}}) end,
     mnesia:transaction(F).
-
-update_table() ->
-    Fields = record_info(fields, privacy),
-    case mnesia:table_info(privacy, attributes) of
-    Fields ->
-        ok;
-    [user, default, lists] ->
-        ?INFO_MSG("Converting privacy table from "
-              "{user, default, lists} format", []),
-        Host = ?MYNAME,
-        {atomic, ok} = mnesia:create_table(
-                 mod_privacy_tmp_table,
-                 [{disc_only_copies, [node()]},
-                  {type, bag},
-                  {local_content, true},
-                  {record_name, privacy},
-                  {attributes, record_info(fields, privacy)}]),
-        mnesia:transform_table(privacy, ignore, Fields),
-        F1 = fun() ->
-             mnesia:write_lock_table(mod_privacy_tmp_table),
-             mnesia:foldl(
-               fun(#privacy{us = U} = R, _) ->
-                   mnesia:dirty_write(
-                     mod_privacy_tmp_table,
-                     R#privacy{us = {U, Host}})
-               end, ok, privacy)
-         end,
-        mnesia:transaction(F1),
-        mnesia:clear_table(privacy),
-        F2 = fun() ->
-             mnesia:write_lock_table(privacy),
-             mnesia:foldl(
-               fun(R, _) ->
-                   mnesia:dirty_write(R)
-               end, ok, mod_privacy_tmp_table)
-         end,
-        mnesia:transaction(F2),
-        mnesia:delete_table(mod_privacy_tmp_table);
-    _ ->
-        ?INFO_MSG("Recreating privacy table", []),
-        mnesia:transform_table(privacy, ignore, Fields)
-    end.
