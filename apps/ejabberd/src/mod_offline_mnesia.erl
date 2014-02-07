@@ -47,7 +47,7 @@ init(_Host, _Opts) ->
 			[{disc_only_copies, [node()]},
 			 {type, bag},
 			 {attributes, record_info(fields, offline_msg)}]),
-    update_table().
+    ok.
 
 pop_messages(LUser, LServer) ->
     US = {LUser, LServer},
@@ -181,45 +181,3 @@ is_expired_message(TimeStamp, #offline_msg{expire=ExpireTimeStamp}) ->
 
 is_old_message(MaxAllowedTimeStamp, #offline_msg{timestamp=TimeStamp}) ->
     TimeStamp < MaxAllowedTimeStamp.
-
-update_table() ->
-    Fields = record_info(fields, offline_msg),
-    case mnesia:table_info(offline_msg, attributes) of
-	Fields ->
-	    ok;
-	[user, timestamp, expire, from, to, packet] ->
-	    ?INFO_MSG("Converting offline_msg table from "
-		      "{user, timestamp, expire, from, to, packet} format", []),
-	    Host = ?MYNAME,
-	    {atomic, ok} = mnesia:create_table(
-			     mod_offline_tmp_table,
-			     [{disc_only_copies, [node()]},
-			      {type, bag},
-			      {local_content, true},
-			      {record_name, offline_msg},
-			      {attributes, record_info(fields, offline_msg)}]),
-	    mnesia:transform_table(offline_msg, ignore, Fields),
-	    F1 = fun() ->
-			 mnesia:write_lock_table(mod_offline_tmp_table),
-			 mnesia:foldl(
-			   fun(#offline_msg{us = U} = R, _) ->
-				   mnesia:dirty_write(
-				     mod_offline_tmp_table,
-				     R#offline_msg{us = {U, Host}})
-			   end, ok, offline_msg)
-		 end,
-	    mnesia:transaction(F1),
-	    mnesia:clear_table(offline_msg),
-	    F2 = fun() ->
-			 mnesia:write_lock_table(offline_msg),
-			 mnesia:foldl(
-			   fun(R, _) ->
-				   mnesia:dirty_write(R)
-			   end, ok, mod_offline_tmp_table)
-		 end,
-	    mnesia:transaction(F2),
-	    mnesia:delete_table(mod_offline_tmp_table);
-	_ ->
-	    ?INFO_MSG("Recreating offline_msg table", []),
-	    mnesia:transform_table(offline_msg, ignore, Fields)
-    end.
