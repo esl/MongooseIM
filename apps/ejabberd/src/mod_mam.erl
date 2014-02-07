@@ -273,7 +273,7 @@ process_mam_iq(From=#jid{lserver=Host}, To, IQ) ->
                 ok ->
                     try
                         handle_mam_iq(Action, From, To, IQ)
-                    catch error:Reason ->
+                    catch _:Reason ->
                         Trace = erlang:get_stacktrace(),
                         ejabberd_hooks:run(mam_drop_iq, Host,
                             [Host, To, IQ, Action, Reason]),
