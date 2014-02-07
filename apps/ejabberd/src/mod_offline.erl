@@ -338,6 +338,11 @@ compose_offline_message(#offline_msg{from=From, to=To}, Packet) ->
 
 resend_offline_message_packet(Server,
         #offline_msg{timestamp=TimeStamp, packet = Packet}) ->
+    add_timestamp(undefined, Server, Packet).
+
+add_timestamp(undefined, Server, Packet) ->
+    Packet;
+add_timestamp(TimeStamp, Server, Packet) ->
     Time = calendar:now_to_universal_time(TimeStamp),
     %% TODO: Delete the next element once XEP-0091 is Obsolete
     TimeStampLegacyXML = timestamp_legacy_xml(Server, Time),

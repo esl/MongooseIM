@@ -143,8 +143,9 @@ remove_old_messages(LServer, Days) ->
 count_offline_messages(LServer, SUser, SServer, Limit) ->
     case odbc_queries:count_offline_messages(LServer, SUser, SServer, Limit) of
         {selected, [_], [{Count}]} ->
-            binary_to_list(list_to_integer(Count));
-        _ ->
+            list_to_integer(binary_to_list(Count));
+        Error ->
+            ?ERROR_MSG("count_offline_messages failed ~p", [Error]),
             0
     end.
 
