@@ -225,7 +225,7 @@ h_ok_after_session_enabled_after_session(Config) ->
 %% Test that "h" value is valid after exchanging a few messages.
 h_ok_after_a_chat(Config) ->
     escalus:story(Config, [{alice,1}, {bob,1}], fun(Alice, Bob) ->
-        escalus_tcp:set_filter(Alice#client.conn, fun is_not_vcard_update/1),
+        NDiscarded = discard_vcard_update(Config, Alice),
         escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi, Bob!">>)),
         escalus:assert(is_chat_message, [<<"Hi, Bob!">>],
                        escalus:wait_for_stanza(Bob)),
@@ -241,7 +241,7 @@ h_ok_after_a_chat(Config) ->
         escalus:send(Alice, escalus_stanza:sm_request()),
         escalus:assert(is_ack, [3], escalus:wait_for_stanza(Alice)),
         %% Ack, so that unacked messages don't go into offline store.
-        escalus:send(Alice, escalus_stanza:sm_ack(4))
+        escalus:send(Alice, escalus_stanza:sm_ack(3 + NDiscarded))
     end).
 
 client_acks_more_than_sent(Config) ->
@@ -532,6 +532,24 @@ kill_connection(#transport{module = escalus_tcp, ssl = SSL,
     %% There might be open zlib streams left...
     catch escalus_connection:stop(Conn).
 
+-type ct_config() :: list().
+-type escalus_client() :: #client{}.
+
+-spec discard_vcard_update(Config, User) -> NDiscarded when
+      Config :: ct_config(),
+      User :: escalus_client(),
+      NDiscarded :: non_neg_integer().
+discard_vcard_update(Config, User) ->
+    discard_vcard_update(Config, User,
+                         {mod_vcard_xupdate, has_mod_vcard_xupdate()}).
+
+discard_vcard_update(_, User, {mod_vcard_xupdate, true}) ->
+    Presence = escalus:wait_for_stanza(User),
+    escalus:assert(fun is_vcard_update/1, Presence),
+    1;
+discard_vcard_update(_, _, _) ->
+    0.
+
 is_vcard_update(#xmlel{name = <<"presence">>} = Stanza) ->
     case exml_query:subelement(Stanza, <<"x">>) of
         undefined -> false;
@@ -543,3 +561,8 @@ is_vcard_update(_) ->
 
 is_not_vcard_update(Stanza) ->
     not is_vcard_update(Stanza).
+
+has_mod_vcard_xupdate() ->
+    Server = escalus_ct:get_config(escalus_server),
+    escalus_ejabberd:rpc(gen_mod, is_loaded,
+                         [server_string(Server), mod_vcard_xupdate]).
