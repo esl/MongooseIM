@@ -1,0 +1,18 @@
+language: erlang
+before_install: sudo apt-get install libpam0g-dev libexpat1-dev slapd
+before_script: make devrel && dev/ejabberd_node1/bin/ejabberd start && dev/ejabberd_node2/bin/ejabberd start
+script: make quicktest
+services: redis-server
+branches:
+        only:
+                - master
+notifications:
+        email: michalwski@gmail.com
+otp_release:
+        - R15B03
+env:
+        - DB=mnesia AUTH=internal
+        - DB=mysql AUTH=odbc
+        - DB=postgres AUTH=odbc
+        - DB=mysql AUTH=ldap
+        
