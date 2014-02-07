@@ -66,35 +66,35 @@
 -endif.
 
 -define(STREAM_HEADER,
-	"<?xml version='1.0'?>"
+	<<"<?xml version='1.0'?>"
 	"<stream:stream "
 	"xmlns:stream='http://etherx.jabber.org/streams' "
 	"xmlns='jabber:component:accept' "
-	"id='~s' from='~s'>"
+	"id='~s' from='~s'>">>
        ).
 
--define(STREAM_TRAILER, "</stream:stream>").
+-define(STREAM_TRAILER, <<"</stream:stream>">>).
 
 -define(INVALID_HEADER_ERR,
-	"<stream:stream "
+	<<"<stream:stream "
 	"xmlns:stream='http://etherx.jabber.org/streams'>"
 	"<stream:error>Invalid Stream Header</stream:error>"
-	"</stream:stream>"
+	"</stream:stream>">>
        ).
 
 -define(INVALID_HANDSHAKE_ERR,
-	"<stream:error>"
+	<<"<stream:error>"
 	"<not-authorized xmlns='urn:ietf:params:xml:ns:xmpp-streams'/>"
 	"<text xmlns='urn:ietf:params:xml:ns:xmpp-streams' xml:lang='en'>"
 	"Invalid Handshake</text>"
 	"</stream:error>"
-	"</stream:stream>"
+	"</stream:stream>">>
        ).
 
 -define(INVALID_XML_ERR,
-	xml:element_to_string(?SERR_XML_NOT_WELL_FORMED)).
+	xml:element_to_binary(?SERR_XML_NOT_WELL_FORMED)).
 -define(INVALID_NS_ERR,
-	xml:element_to_string(?SERR_INVALID_NAMESPACE)).
+	xml:element_to_binary(?SERR_INVALID_NAMESPACE)).
 
 %%%----------------------------------------------------------------------
 %%% API
@@ -163,7 +163,7 @@ init([{SockMod, Socket}, Opts]) ->
     {ok, wait_for_stream, #state{socket = Socket,
 				 sockmod = SockMod,
 				 streamid = new_id(),
-				 hosts = Hosts,
+				 hosts = [iolist_to_binary(H) || H <- Hosts],
 				 password = Password,
 				 access = Access,
 				 check_from = CheckFrom
@@ -195,9 +195,9 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
 
 wait_for_stream({xmlstreamerror, _}, StateData) ->
     Header = io_lib:format(?STREAM_HEADER,
-			   ["none", ?MYNAME]),
-    send_text(StateData,
-	      Header ++ ?INVALID_XML_ERR ++ ?STREAM_TRAILER),
+			   [<<"none">>, ?MYNAME]),
+    send_text(StateData,<<(iolist_to_binary(Header))/binary,
+                           (?INVALID_XML_ERR)/binary,(?STREAM_TRAILER)/binary>>),
     {stop, normal, StateData};
 
 wait_for_stream(closed, StateData) ->
@@ -205,7 +205,7 @@ wait_for_stream(closed, StateData) ->
 
 
 wait_for_handshake({xmlstreamelement, El}, StateData) ->
-    {xmlelement, Name, _Attrs, Els} = El,
+    #xmlel{name = Name, children = Els} = El,
     case {Name, xml:get_cdata(Els)} of
 	{<<"handshake">>, Digest} ->
 	    case list_to_binary(sha:sha(StateData#state.streamid ++
@@ -214,12 +214,11 @@ wait_for_handshake({xmlstreamelement, El}, StateData) ->
 		    send_text(StateData, <<"<handshake/>">>),
 		    lists:foreach(
 		      fun(H) ->
-			      ejabberd_router:register_route(list_to_binary(H)),
+			      ejabberd_router:register_route(H),
 			      ?INFO_MSG("Route registered for service ~p~n", [H])
 		      end, StateData#state.hosts),
 		    {next_state, stream_established, StateData};
 		_ ->
-                    lager:debug("State=~p~n", [StateData]),
 		    send_text(StateData, ?INVALID_HANDSHAKE_ERR),
 		    {stop, normal, StateData}
 	    end;
@@ -231,7 +230,7 @@ wait_for_handshake({xmlstreamend, _Name}, StateData) ->
     {stop, normal, StateData};
 
 wait_for_handshake({xmlstreamerror, _}, StateData) ->
-    send_text(StateData, ?INVALID_XML_ERR ++ ?STREAM_TRAILER),
+    send_text(StateData,<<(?INVALID_XML_ERR)/binary,(?STREAM_TRAILER)/binary>>),
     {stop, normal, StateData};
 
 wait_for_handshake(closed, StateData) ->
@@ -240,7 +239,7 @@ wait_for_handshake(closed, StateData) ->
 
 stream_established({xmlstreamelement, El}, StateData) ->
     NewEl = jlib:remove_attr(<<"xmlns">>, El),
-    {xmlelement, Name, Attrs, _Els} = NewEl,
+    #xmlel{name = Name, attrs = Attrs} = NewEl,
     From = xml:get_attr_s(<<"from">>, Attrs),
     FromJID = case StateData#state.check_from of
 		  %% If the admin does not want to check the from field
@@ -279,15 +278,15 @@ stream_established({xmlstreamelement, El}, StateData) ->
     {next_state, stream_established, StateData};
 
 stream_established({xmlstreamend, _Name}, StateData) ->
-    % TODO
+    % TODO ??
     {stop, normal, StateData};
 
 stream_established({xmlstreamerror, _}, StateData) ->
-    send_text(StateData, ?INVALID_XML_ERR ++ ?STREAM_TRAILER),
+    send_text(StateData, <<(?INVALID_XML_ERR)/binary,(?STREAM_TRAILER)/binary>>),
     {stop, normal, StateData};
 
 stream_established(closed, StateData) ->
-    % TODO
+    % TODO ??
     {stop, normal, StateData}.
 
 
@@ -345,11 +344,11 @@ handle_info({send_element, El}, StateName, StateData) ->
 handle_info({route, From, To, Packet}, StateName, StateData) ->
     case acl:match_rule(global, StateData#state.access, From) of
 	allow ->
-	    {xmlelement, Name, Attrs, Els} = Packet,
+           #xmlel{name =Name, attrs = Attrs,children = Els} = Packet,
 	    Attrs2 = jlib:replace_from_to_attrs(jlib:jid_to_binary(From),
 						jlib:jid_to_binary(To),
 						Attrs),
-	    Text = xml:element_to_binary({xmlelement, Name, Attrs2, Els}),
+	    Text = xml:element_to_binary( #xmlel{name = Name, attrs = Attrs2,children = Els}),
 	    send_text(StateData, Text);
 	deny ->
 	    Err = jlib:make_error_reply(Packet, ?ERR_NOT_ALLOWED),
