@@ -30,16 +30,24 @@
 
 -behaviour(gen_mod).
 
--export([start/2,
-	 stop/1,
-	 loop/1,
-	 inspect_packet/3,
-	 resend_offline_messages/2,
-	 pop_offline_messages/3,
-	 get_sm_features/5,
-	 remove_expired_messages/1,
-	 remove_old_messages/2,
-	 remove_user/2]).
+%% gen_mod handlers
+-export([start/2, stop/1]).
+
+%% Hook handlers
+-export([inspect_packet/3,
+         resend_offline_messages/2,
+         pop_offline_messages/3,
+         get_sm_features/5,
+         remove_expired_messages/1,
+         remove_old_messages/2,
+         remove_user/2]).
+
+%% Internal exports
+-export([start_link/3]).
+
+%% gen_server callbacks
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2,
+         terminate/2, code_change/3]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -50,6 +58,8 @@
 %% default value for the maximum number of user messages
 -define(MAX_USER_MESSAGES, infinity).
 -define(BACKEND, (mod_offline_backend:backend())).
+
+-record(state, {host, access_max_user_messages}).
 
 %% ------------------------------------------------------------------
 %% Backend callbacks
@@ -66,8 +76,11 @@
 %% ------------------------------------------------------------------
 
 start(Host, Opts) ->
+    AccessMaxOfflineMsgs = gen_mod:get_opt(access_max_user_messages, Opts,
+                                           max_user_offline_messages),
     start_backend_module(Opts),
     ?BACKEND:init(Host, Opts),
+    start_worker(Host, AccessMaxOfflineMsgs),
     ejabberd_hooks:add(offline_message_hook, Host,
 		       ?MODULE, inspect_packet, 50),
     ejabberd_hooks:add(resend_offline_messages_hook, Host,
@@ -80,9 +93,7 @@ start(Host, Opts) ->
 		       ?MODULE, get_sm_features, 50),
     ejabberd_hooks:add(disco_local_features, Host,
 		       ?MODULE, get_sm_features, 50),
-    AccessMaxOfflineMsgs = gen_mod:get_opt(access_max_user_messages, Opts, max_user_offline_messages),
-    register(gen_mod:get_module_proc(Host, ?PROCNAME),
-	     spawn(?MODULE, loop, [AccessMaxOfflineMsgs])).
+    ok.
 
 stop(Host) ->
     ejabberd_hooks:delete(offline_message_hook, Host,
@@ -95,9 +106,8 @@ stop(Host) ->
 			  ?MODULE, remove_user, 50),
     ejabberd_hooks:delete(disco_sm_features, Host, ?MODULE, get_sm_features, 50),
     ejabberd_hooks:delete(disco_local_features, Host, ?MODULE, get_sm_features, 50),
-    Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
-    exit(whereis(Proc), stop),
-    {wait, Proc}.
+    stop_worker(Host),
+    ok.
 
 
 %% Dynamic modules
@@ -119,29 +129,23 @@ mod_offline_backend(Backend) when is_atom(Backend) ->
                    atom_to_list(Backend),
                    ".\n"]).
 
-%% Server process loop
+%% Server side functions
 %% ------------------------------------------------------------------
 
-loop(AccessMaxOfflineMsgs) ->
-    receive
-        #offline_msg{us=US} = Msg ->
-            {LUser, LServer} = US,
-            Msgs = receive_all(US, [Msg]),
-            MaxOfflineMsgs = get_max_user_messages(
-                AccessMaxOfflineMsgs, LUser, LServer),
-            case ?BACKEND:write_messages(LUser, LServer, Msgs, MaxOfflineMsgs) of
-                ok ->
-                    ok;
-                {discarded, DiscardedMsgs} ->
-                    discard_warn_sender(DiscardedMsgs);
-                {error, Reason} ->
-                    ?ERROR_MSG("~ts@~ts: write_messages failed with ~p.",
-                        [LUser, LServer, Reason]),
-                    discard_warn_sender(Msgs)
-            end,
-            loop(AccessMaxOfflineMsgs);
-        _ ->
-            loop(AccessMaxOfflineMsgs)
+handle_offline_msg(#offline_msg{us=US} = Msg, AccessMaxOfflineMsgs) ->
+    {LUser, LServer} = US,
+    Msgs = receive_all(US, [Msg]),
+    MaxOfflineMsgs = get_max_user_messages(
+        AccessMaxOfflineMsgs, LUser, LServer),
+    case ?BACKEND:write_messages(LUser, LServer, Msgs, MaxOfflineMsgs) of
+        ok ->
+            ok;
+        {discarded, DiscardedMsgs} ->
+            discard_warn_sender(DiscardedMsgs);
+        {error, Reason} ->
+            ?ERROR_MSG("~ts@~ts: write_messages failed with ~p.",
+                [LUser, LServer, Reason]),
+            discard_warn_sender(Msgs)
     end.
 
 %% Function copied from ejabberd_sm.erl:
@@ -159,6 +163,106 @@ receive_all(US, Msgs) ->
     after 0 ->
 	    Msgs
     end.
+
+%% Supervision
+%% ------------------------------------------------------------------
+
+start_worker(Host, AccessMaxOfflineMsgs) ->
+    Proc = srv_name(Host),
+    ChildSpec =
+    {Proc,
+     {?MODULE, start_link, [Proc, Host, AccessMaxOfflineMsgs]},
+     permanent,
+     5000,
+     worker,
+     [?MODULE]},
+    supervisor:start_child(ejabberd_sup, ChildSpec),
+    ok.
+
+stop_worker(Host) ->
+    Proc = srv_name(Host),
+    supervisor:terminate_child(ejabberd_sup, Proc),
+    supervisor:delete_child(ejabberd_sup, Proc).
+
+start_link(Name, Host, AccessMaxOfflineMsgs) ->
+    gen_server:start_link({local, Name}, ?MODULE, [Host, AccessMaxOfflineMsgs], []).
+
+srv_name() ->
+    mod_offline.
+
+srv_name(Host) ->
+    gen_mod:get_module_proc(Host, srv_name()).
+
+%%====================================================================
+%% gen_server callbacks
+%%====================================================================
+
+%%--------------------------------------------------------------------
+%% Function: init(Args) -> {ok, State} |
+%%                         {ok, State, Timeout} |
+%%                         ignore               |
+%%                         {stop, Reason}
+%% Description: Initiates the server
+%%--------------------------------------------------------------------
+init([Host, AccessMaxOfflineMsgs]) ->
+    {ok, #state{
+            host = Host,
+            access_max_user_messages = AccessMaxOfflineMsgs}}.
+
+%%--------------------------------------------------------------------
+%% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
+%%                                      {reply, Reply, State, Timeout} |
+%%                                      {noreply, State} |
+%%                                      {noreply, State, Timeout} |
+%%                                      {stop, Reason, Reply, State} |
+%%                                      {stop, Reason, State}
+%% Description: Handling call messages
+%%--------------------------------------------------------------------
+handle_call(_, _, State) ->
+    {reply, ok, State}.
+
+%%--------------------------------------------------------------------
+%% Function: handle_cast(Msg, State) -> {noreply, State} |
+%%                                      {noreply, State, Timeout} |
+%%                                      {stop, Reason, State}
+%% Description: Handling cast messages
+%%--------------------------------------------------------------------
+
+handle_cast(Msg, State) ->
+    ?WARNING_MSG("Strange message ~p.", [Msg]),
+    {noreply, State}.
+
+%%--------------------------------------------------------------------
+%% Function: handle_info(Info, State) -> {noreply, State} |
+%%                                       {noreply, State, Timeout} |
+%%                                       {stop, Reason, State}
+%% Description: Handling all non call/cast messages
+%%--------------------------------------------------------------------
+handle_info(Msg=#offline_msg{},
+            State=#state{access_max_user_messages = AccessMaxOfflineMsgs}) ->
+    handle_offline_msg(Msg, AccessMaxOfflineMsgs),
+    {noreply, State};
+handle_info(Msg, State) ->
+    ?WARNING_MSG("Strange message ~p.", [Msg]),
+    {noreply, State}.
+
+%%--------------------------------------------------------------------
+%% Function: terminate(Reason, State) -> void()
+%% Description: This function is called by a gen_server when it is about to
+%% terminate. It should be the opposite of Module:init/1 and do any necessary
+%% cleaning up. When it returns, the gen_server terminates with Reason.
+%% The return value is ignored.
+%%--------------------------------------------------------------------
+terminate(_Reason, _State) ->
+    ok.
+
+%%--------------------------------------------------------------------
+%% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
+%% Description: Convert process state when code is changed
+%%--------------------------------------------------------------------
+code_change(_OldVsn, State, _Extra) ->
+    {ok, State}.
+
 
 %% Handlers
 %% ------------------------------------------------------------------
@@ -196,7 +300,7 @@ store_packet(
         Packet = #xmlel{children = Els}) ->
     TimeStamp = now(),
     Expire = find_x_expire(TimeStamp, Els),
-    Pid = gen_mod:get_module_proc(LServer, ?PROCNAME),
+    Pid = srv_name(LServer),
     Msg = #offline_msg{us = {LUser, LServer},
              timestamp = TimeStamp,
              expire = Expire,
@@ -338,9 +442,9 @@ compose_offline_message(#offline_msg{from=From, to=To}, Packet) ->
 
 resend_offline_message_packet(Server,
         #offline_msg{timestamp=TimeStamp, packet = Packet}) ->
-    add_timestamp(undefined, Server, Packet).
+    add_timestamp(TimeStamp, Server, Packet).
 
-add_timestamp(undefined, Server, Packet) ->
+add_timestamp(undefined, _Server, Packet) ->
     Packet;
 add_timestamp(TimeStamp, Server, Packet) ->
     Time = calendar:now_to_universal_time(TimeStamp),

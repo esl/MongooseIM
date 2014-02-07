@@ -796,7 +796,7 @@ count_offline_messages(LServer, SUser, SServer, Limit) ->
       [<<"select count(*) from offline_message "
             "where server = '">>, SServer, <<"' and "
                   "username = '">>, SUser, <<"' "
-            "limit">>, integer_to_list(Limit)]).
+            "limit ">>, integer_to_list(Limit)]).
 
 
 %% -----------------
