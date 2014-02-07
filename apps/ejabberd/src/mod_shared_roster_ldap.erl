@@ -220,6 +220,7 @@ process_subscription(Direction, User, Server, JID,
 %%====================================================================
 init([Host, Opts]) ->
     State = parse_options(Host, Opts),
+    process_flag(trap_exit,true),
     cache_tab:new(shared_roster_ldap_user,
 		  [{max_size, State#state.user_cache_size}, {lru, false},
 		   {life_time, State#state.user_cache_validity}]),
