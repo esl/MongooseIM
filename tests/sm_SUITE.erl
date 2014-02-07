@@ -74,7 +74,11 @@ init_per_testcase(too_many_unacked_stanzas = CaseName, Config) ->
     NewConfig = escalus_ejabberd:setup_option(buffer_max(2), Config),
     escalus:init_per_testcase(CaseName, NewConfig);
 init_per_testcase(server_requests_ack = CaseName, Config) ->
-    NewConfig = escalus_ejabberd:setup_option(ack_freq(2), Config),
+    AckFreq = 2 + case has_mod_vcard_xupdate() of
+                      true -> 1;
+                      _ -> 0
+                  end,
+    NewConfig = escalus_ejabberd:setup_option(ack_freq(AckFreq), Config),
     escalus:init_per_testcase(CaseName, NewConfig);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
@@ -83,7 +87,11 @@ end_per_testcase(too_many_unacked_stanzas = CaseName, Config) ->
     NewConfig = escalus_ejabberd:reset_option(buffer_max(2), Config),
     escalus:end_per_testcase(CaseName, NewConfig);
 end_per_testcase(server_requests_ack = CaseName, Config) ->
-    NewConfig = escalus_ejabberd:reset_option(ack_freq(2), Config),
+    AckFreq = 2 + case has_mod_vcard_xupdate() of
+                      true -> 1;
+                      _ -> 0
+                  end,
+    NewConfig = escalus_ejabberd:reset_option(ack_freq(AckFreq), Config),
     escalus:end_per_testcase(CaseName, NewConfig);
 end_per_testcase(wait_for_resumption = CaseName, Config) ->
     discard_offline_messages(Config, alice),
@@ -266,6 +274,7 @@ too_many_unacked_stanzas(Config) ->
 
 server_requests_ack(Config) ->
     escalus:story(Config, [{alice,1}, {bob,1}], fun(Alice, Bob) ->
+        discard_vcard_update(Config, Alice),
         escalus:send(Bob, escalus_stanza:chat_to(Alice, <<"Hi, Alice!">>)),
         escalus:assert(is_chat_message, [<<"Hi, Alice!">>],
                        escalus:wait_for_stanza(Alice)),
