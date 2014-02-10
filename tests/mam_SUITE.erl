@@ -59,7 +59,8 @@
          purge_old_single_message/1,
          querying_for_all_messages_with_jid/1,
          muc_querying_for_all_messages/1,
-         muc_querying_for_all_messages_with_jid/1]).
+         muc_querying_for_all_messages_with_jid/1,
+         iq_spoofing/1]).
 
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
@@ -131,8 +132,7 @@ host() ->
     <<"localhost">>.
 
 configurations() ->
-    [ca,
-     odbc_async,
+    [odbc_async,
      odbc_async_pool,
      odbc,
      odbc_mnesia,
@@ -145,14 +145,14 @@ configurations() ->
 
 basic_group_names() ->
     [
-    with_rsm,
-    muc_rsm,
-    bootstrapped,
     mam,
     mam_purge,
     muc,
     muc_with_pm,
     rsm,
+    with_rsm,
+    muc_rsm,
+    bootstrapped,
     archived,
     policy_violation,
     offline_message].
@@ -208,7 +208,8 @@ mam_cases() ->
      simple_archive_request,
      range_archive_request,
      limit_archive_request,
-     prefs_set_request].
+     prefs_set_request,
+     iq_spoofing].
 
 mam_purge_cases() ->
     [purge_single_message,
@@ -1377,6 +1378,30 @@ muc_service_discovery(Config) ->
         ok
         end,
     escalus:story(Config, [1], F).
+
+iq_spoofing(Config) ->
+    F = fun(Alice, Bob) ->
+        %% Sending iqs between clients is allowed.
+        %% Every client MUST check "from" and "id" attributes.
+        %% This test checks, that server assign corrent "from" attribute
+        %% when it is not specified.
+        To = escalus_utils:get_jid(Alice),
+        From = escalus_utils:get_jid(Bob),
+        escalus:send(Bob, escalus_stanza:to(result_iq(), To)),
+        Stanza = escalus:wait_for_stanza(Alice),
+        escalus_assert:is_stanza_from(From, Stanza),
+        escalus_assert:is_stanza_to(To, Stanza),
+        escalus_assert:has_no_stanzas(Alice),
+        escalus_assert:has_no_stanzas(Bob),
+        ok
+        end,
+    escalus:story(Config, [1,1], F).
+
+result_iq() ->
+    #xmlel{
+        name = <<"iq">>,
+        attrs = [{<<"id">>,<<"xxx">>}, {<<"type">>,<<"result">>}],
+        children = [#xmlel{name = <<"query">>}]}.
 
 %%--------------------------------------------------------------------
 %% Helpers
