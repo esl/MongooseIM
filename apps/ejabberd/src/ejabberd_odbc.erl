@@ -210,6 +210,10 @@ to_bool(_) -> false.
 %%% Callback functions from gen_fsm
 %%%----------------------------------------------------------------------
 init([Host, StartInterval, ParentPid, Dedicated]) ->
+    %% For debugging and introspection only.
+    put(mim_host, Host),
+    put(mim_process_type, odbc_worker),
+    put(mim_odbc_dedicated, Dedicated),
     case ejabberd_config:get_local_option({odbc_keepalive_interval, Host}) of
 	KeepaliveInterval when is_integer(KeepaliveInterval) ->
 	    timer:apply_interval(KeepaliveInterval*1000, ?MODULE,
