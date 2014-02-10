@@ -44,6 +44,8 @@
 
 %% Other
 -export([maybe_integer/2,
+         maybe_min/2,
+         maybe_max/2,
          is_function_exist/3,
          apply_start_border/2,
          apply_end_border/2]).

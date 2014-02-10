@@ -14,8 +14,8 @@
 
 %% MAM hook handlers
 -export([archive_size/4,
-         archive_message/9,
-         lookup_messages/14,
+         safe_archive_message/9,
+         safe_lookup_messages/14,
          remove_archive/3,
          purge_single_message/6,
          purge_multiple_messages/9]).
@@ -87,10 +87,10 @@ start_muc(Host, _Opts) ->
         true ->
             ok;
         false ->
-            ejabberd_hooks:add(mam_muc_archive_message, Host, ?MODULE, archive_message, 50)
+            ejabberd_hooks:add(mam_muc_archive_message, Host, ?MODULE, safe_archive_message, 50)
     end,
     ejabberd_hooks:add(mam_muc_archive_size, Host, ?MODULE, archive_size, 50),
-    ejabberd_hooks:add(mam_muc_lookup_messages, Host, ?MODULE, lookup_messages, 50),
+    ejabberd_hooks:add(mam_muc_lookup_messages, Host, ?MODULE, safe_lookup_messages, 50),
     ejabberd_hooks:add(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50),
     ejabberd_hooks:add(mam_muc_purge_single_message, Host, ?MODULE, purge_single_message, 50),
     ejabberd_hooks:add(mam_muc_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 50),
@@ -101,10 +101,10 @@ stop_muc(Host) ->
         true ->
             ok;
         false ->
-            ejabberd_hooks:delete(mam_muc_archive_message, Host, ?MODULE, archive_message, 50)
+            ejabberd_hooks:delete(mam_muc_archive_message, Host, ?MODULE, safe_archive_message, 50)
     end,
     ejabberd_hooks:delete(mam_muc_archive_size, Host, ?MODULE, archive_size, 50),
-    ejabberd_hooks:delete(mam_muc_lookup_messages, Host, ?MODULE, lookup_messages, 50),
+    ejabberd_hooks:delete(mam_muc_lookup_messages, Host, ?MODULE, safe_lookup_messages, 50),
     ejabberd_hooks:delete(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50),
     ejabberd_hooks:delete(mam_muc_purge_single_message, Host, ?MODULE, purge_single_message, 50),
     ejabberd_hooks:delete(mam_muc_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 50),
@@ -122,6 +122,15 @@ archive_size(Size, Host, RoomID, _RoomJID) when is_integer(Size) ->
        "FROM ", select_table(RoomID), " ",
        "WHERE room_id = '", escape_room_id(RoomID), "'"]),
     list_to_integer(binary_to_list(BSize)).
+
+safe_archive_message(Result, Host, MessID, UserID,
+                     LocJID, RemJID, SrcJID, Dir, Packet) ->
+    try
+        archive_message(Result, Host, MessID, UserID,
+                        LocJID, RemJID, SrcJID, Dir, Packet)
+    catch _Type:Reason ->
+        {error, Reason}
+    end.
 
 archive_message(_Result, Host, MessID, RoomID,
                 _LocJID=#jid{},
@@ -175,6 +184,27 @@ archive_messages(LServer, Acc, N) ->
       ["INSERT INTO ", select_table(N), " ",
            "(id, room_id, nick_name, message) "
        "VALUES ", tuples(Acc)]).
+
+safe_lookup_messages({error, Reason}=Result, _Host,
+                     _UserID, _UserJID, _RSM, _Borders,
+                     _Start, _End, _Now, _WithJID,
+                     _PageSize, _LimitPassed, _MaxResultLimit,
+                     _IsSimple) ->
+    Result;
+safe_lookup_messages(Result, Host,
+                     UserID, UserJID, RSM, Borders,
+                     Start, End, Now, WithJID,
+                     PageSize, LimitPassed, MaxResultLimit,
+                     IsSimple) ->
+    try
+        lookup_messages(Result, Host,
+                        UserID, UserJID, RSM, Borders,
+                        Start, End, Now, WithJID,
+                        PageSize, LimitPassed, MaxResultLimit,
+                        IsSimple)
+    catch _Type:Reason ->
+        {error, Reason}
+    end.
 
 -spec lookup_messages(Result, Host,
                       RoomID, RoomJID, RSM, Borders,
