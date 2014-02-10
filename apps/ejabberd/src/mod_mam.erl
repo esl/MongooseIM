@@ -114,10 +114,6 @@
 %% ----------------------------------------------------------------------
 %% Constants
 
-mam_ns_string() -> "urn:xmpp:mam:tmp".
-
-mam_ns_binary() -> <<"urn:xmpp:mam:tmp">>.
-
 default_result_limit() -> 50.
 
 max_result_limit() -> 50.
@@ -236,21 +232,21 @@ start(Host, Opts) ->
     ejabberd_users:start(Host),
     %% `parallel' is the only one recommended here.
     IQDisc = gen_mod:get_opt(iqdisc, Opts, parallel), %% Type
-    mod_disco:register_feature(Host, mam_ns_binary()),
-    gen_iq_handler:add_iq_handler(ejabberd_sm, Host, mam_ns_binary(),
+    mod_disco:register_feature(Host, ?NS_MAM),
+    gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_MAM,
                                   ?MODULE, process_mam_iq, IQDisc),
     ejabberd_hooks:add(user_send_packet, Host, ?MODULE, user_send_packet, 90),
-    ejabberd_hooks:add(filter_packet, global, ?MODULE, filter_packet, 90),
+    ejabberd_hooks:add(filter_local_packet, Host, ?MODULE, filter_packet, 90),
     ejabberd_hooks:add(remove_user, Host, ?MODULE, remove_user, 50),
     ok.
 
 stop(Host) ->
     ?DEBUG("mod_mam stopping", []),
     ejabberd_hooks:delete(user_send_packet, Host, ?MODULE, user_send_packet, 90),
-    ejabberd_hooks:delete(filter_packet, global, ?MODULE, filter_packet, 90),
+    ejabberd_hooks:delete(filter_local_packet, Host, ?MODULE, filter_packet, 90),
     ejabberd_hooks:delete(remove_user, Host, ?MODULE, remove_user, 50),
-    gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, mam_ns_string()),
-    mod_disco:unregister_feature(Host, mam_ns_binary()),
+    gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_MAM),
+    mod_disco:unregister_feature(Host, ?NS_MAM),
     ok.
 
 %% ----------------------------------------------------------------------
@@ -528,7 +524,8 @@ handle_package(Dir, ReturnMessID,
 %% Backend wrappers
 
 archive_id_int(Host, ArcJID=#jid{}) ->
-    ejabberd_hooks:run_fold(mam_archive_id, Host, undefined, [Host, ArcJID]).
+    check_archive_id(ArcJID, ejabberd_hooks:run_fold(
+            mam_archive_id, Host, undefined, [Host, ArcJID])).
 
 archive_size(Host, ArcID, ArcJID=#jid{}) ->
     ejabberd_hooks:run_fold(mam_archive_size, Host, 0, [Host, ArcID, ArcJID]).
@@ -718,3 +715,5 @@ return_purge_single_message_iq(IQ, ok) ->
 return_purge_single_message_iq(IQ, {error, 'not-found'}) ->
     return_purge_not_found_error_iq(IQ).
 
+check_archive_id(_ArcJID, ArcID) when is_integer(ArcID) ->
+    ArcID.

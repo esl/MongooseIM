@@ -1,14 +1,14 @@
 %%%-------------------------------------------------------------------
 %%% @author Uvarov Michael <arcusfelis@gmail.com>
 %%% @copyright (C) 2013, Uvarov Michael
-%%% @doc Assigns archive integer identifiers.
+%%% @doc Assigns archive integer identifiers (multihost version).
 %%%
-%%% This module does not support several hosts.
+%%% This module supports several hosts.
 %%%
-%%% Archive id is assigned based on user_name only.
+%%% Archive id is assigned based on user_name and host.
 %%% @end
 %%%-------------------------------------------------------------------
--module(mod_mam_odbc_user).
+-module(mod_mam_odbc_server_user).
 
 %% gen_mod handlers
 -export([start/2, stop/1]).
@@ -81,48 +81,51 @@ stop_muc(Host) ->
 %% API
 %%====================================================================
 
-archive_id(undefined, Host, _ArcJID=#jid{luser = UserName}) ->
-    query_archive_id(Host, UserName);
+archive_id(undefined, Host, _ArcJID=#jid{lserver = Server, luser = UserName}) ->
+    query_archive_id(Host, Server, UserName);
 archive_id(ArcID, _Host, _ArcJID) ->
     ArcID.
 
-remove_archive(Host, _ArcID, _ArcJID=#jid{luser = UserName}) ->
+remove_archive(Host, _ArcID, _ArcJID=#jid{lserver = Server, luser = UserName}) ->
     SUserName = ejabberd_odbc:escape(UserName),
+    SServer   = ejabberd_odbc:escape(Server),
     {updated, _} =
     ejabberd_odbc:sql_query(
       Host,
-      ["DELETE FROM mam_user "
-       "WHERE user_name = '", SUserName, "'"]),
+      ["DELETE FROM mam_server_user "
+       "WHERE server = '", SServer, "' AND user_name = '", SUserName, "'"]),
     ok.
 
 %%====================================================================
 %% Internal functions
 %%====================================================================
 
-query_archive_id(Host, UserName) ->
+query_archive_id(Host, Server, UserName) ->
+    SServer   = ejabberd_odbc:escape(Server),
     SUserName = ejabberd_odbc:escape(UserName),
     Result =
     ejabberd_odbc:sql_query(
       Host,
       ["SELECT id "
-       "FROM mam_user "
-       "WHERE user_name='", SUserName, "' "
+       "FROM mam_server_user "
+       "WHERE server = '", SServer, "' AND user_name = '", SUserName, "' "
        "LIMIT 1"]),
 
     case Result of
-        {selected, [<<"id">>], [{IdBin}]} ->
+        {selected, ["id"], [{IdBin}]} ->
             binary_to_integer(IdBin);
-        {selected, [<<"id">>], []} ->
+        {selected, ["id"], []} ->
             %% The user is not found
-            create_user_archive(Host, UserName),
-            query_archive_id(Host, UserName)
+            create_user_archive(Host, Server, UserName),
+            query_archive_id(Host, Server, UserName)
     end.
     
-create_user_archive(Host, UserName) ->
+create_user_archive(Host, Server, UserName) ->
+    SServer   = ejabberd_odbc:escape(Server),
     SUserName = ejabberd_odbc:escape(UserName),
     {updated, 1} =
     ejabberd_odbc:sql_query(
       Host,
-      ["INSERT INTO mam_user "
-       "(user_name) VALUES ('", SUserName, "')"]),
+      ["INSERT INTO mam_server_user "
+       "(server, user_name) VALUES ('", SServer, "', '", SUserName, "')"]),
     ok.

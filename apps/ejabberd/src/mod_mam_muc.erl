@@ -111,10 +111,6 @@
 %% ----------------------------------------------------------------------
 %% Constants
 
-mam_ns_string() -> "urn:xmpp:mam:tmp".
-
-mam_ns_binary() -> <<"urn:xmpp:mam:tmp">>.
-
 default_result_limit() -> 50.
 
 max_result_limit() -> 50.
@@ -223,8 +219,8 @@ start(ServerHost, Opts) ->
     start_host_mapping(Host, ServerHost),
     ?DEBUG("mod_mam_muc starting", []),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, parallel), %% Type
-    mod_disco:register_feature(Host, mam_ns_binary()),
-    gen_iq_handler:add_iq_handler(mod_muc_iq, Host, mam_ns_binary(),
+    mod_disco:register_feature(Host, ?NS_MAM),
+    gen_iq_handler:add_iq_handler(mod_muc_iq, Host, ?NS_MAM,
                                   ?MODULE, room_process_mam_iq, IQDisc),
     ejabberd_hooks:add(filter_room_packet, Host, ?MODULE,
                        filter_room_packet, 90),
@@ -241,8 +237,8 @@ stop(ServerHost) ->
     ejabberd_hooks:delete(filter_room_packet, Host, ?MODULE, filter_room_packet, 90),
     ejabberd_hooks:delete(archive_room_packet, Host, ?MODULE, archive_room_packet, 90),
     ejabberd_hooks:delete(forget_room, Host, ?MODULE, forget_room, 90),
-    gen_iq_handler:remove_iq_handler(mod_muc_iq, Host, mam_ns_string()),
-    mod_disco:unregister_feature(Host, mam_ns_binary()),
+    gen_iq_handler:remove_iq_handler(mod_muc_iq, Host, ?NS_MAM),
+    mod_disco:unregister_feature(Host, ?NS_MAM),
     stop_host_mapping(Host, ServerHost),
     ok.
 
@@ -544,6 +540,9 @@ get_prefs(Host, ArcID, ArcJID, GlobalDefaultMode) ->
         {GlobalDefaultMode, [], []},
         [Host, ArcID, ArcJID]).
 
+remove_archive(Host, undefined, #jid{user=User, server=Server}) ->
+    ?WARNING_MSG("Archive ~ts@~ts does not exist.", [User, Server]),
+    ok;
 remove_archive(Host, ArcID, ArcJID=#jid{}) ->
     ejabberd_hooks:run(mam_muc_remove_archive, Host, [Host, ArcID, ArcJID]),
     ok.
