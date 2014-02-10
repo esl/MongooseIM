@@ -184,7 +184,10 @@ is_skipped(odbc_mnesia_muc_cache, muc)         -> false;
 is_skipped(odbc_mnesia_muc_cache, muc_with_pm) -> false;
 is_skipped(odbc_mnesia_muc_cache, muc_rsm)     -> false;
 is_skipped(odbc_mnesia_muc_cache, _)           -> true;
-is_skipped(_, _) -> false.
+is_skipped(_, C) -> is_configuration_skipped(C).
+
+is_configuration_skipped(C) ->
+    lists:member(C, ct:get_config(mam_skipped_configurations, [])).
 
 basic_groups() ->
     [{bootstrapped,     [], bootstrapped_cases()},
@@ -1390,7 +1393,6 @@ iq_spoofing(Config) ->
         escalus:send(Bob, escalus_stanza:to(result_iq(), To)),
         Stanza = escalus:wait_for_stanza(Alice),
         escalus_assert:is_stanza_from(From, Stanza),
-        escalus_assert:is_stanza_to(To, Stanza),
         escalus_assert:has_no_stanzas(Alice),
         escalus_assert:has_no_stanzas(Bob),
         ok
