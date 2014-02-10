@@ -532,8 +532,9 @@ mam_modules() ->
      mod_mam_odbc_prefs,
      mod_mam_mnesia_prefs,
      mod_mam_mnesia_dirty_prefs,
-     mod_mam_cache_user,
-     mod_mam_odbc_user].
+     mod_mam_odbc_user,
+     mod_mam_odbc_server_user,
+     mod_mam_cache_user].
 
 init_state(_, muc_rsm, Config) ->
     Config1 = start_alice_room(Config),
