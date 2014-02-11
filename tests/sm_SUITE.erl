@@ -262,7 +262,6 @@ client_acks_more_than_sent(Config) ->
 
 too_many_unacked_stanzas(Config) ->
     escalus:story(Config, [{alice,1}, {bob,1}], fun(Alice, Bob) ->
-        escalus_tcp:set_filter(Alice#client.conn, fun is_not_vcard_update/1),
         Msg = escalus_stanza:chat_to(Alice, <<"Hi, Alice!">>),
         [escalus:send(Bob, Msg) || _ <- lists:seq(1,2)],
         escalus:wait_for_stanzas(Alice, 2),
