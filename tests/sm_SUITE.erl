@@ -8,6 +8,8 @@
 
 -define(MOD_SM, mod_stream_management).
 
+-import(escalus_stanza, [setattr/3]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -348,6 +350,7 @@ resume_session(Config) ->
                  authenticate,
                  mk_resume_stream(SMID, 2)],
         {ok, Alice, _, _} = escalus_connection:start(AliceSpec, Steps),
+        NDiscarded = discard_vcard_update(Alice),
         %% Alice receives the unacked messages from the previous
         %% interrupted session.
         Stanzas = [escalus_connection:get_stanza(Alice, {msg, I})
@@ -355,7 +358,7 @@ resume_session(Config) ->
         [escalus:assert(is_chat_message, [Msg], Stanza)
          || {Msg, Stanza} <- lists:zip(Messages, Stanzas)],
         %% Alice acks the received messages.
-        escalus_connection:send(Alice, escalus_stanza:sm_ack(5)),
+        escalus_connection:send(Alice, escalus_stanza:sm_ack(5 + NDiscarded)),
         escalus_connection:stop(Alice)
     end).
 
@@ -375,12 +378,15 @@ buffer_unacked_messages_and_die(AliceSpec, Bob, Messages) ->
              session,
              stream_resumption],
     {ok, Alice, Props, _} = escalus_connection:start(AliceSpec, Steps),
-    escalus_connection:send(Alice, escalus_stanza:presence(<<"available">>)),
-    Presence = escalus_connection:get_stanza(Alice, presence),
+    InitialPresence = setattr(escalus_stanza:presence(<<"available">>),
+                              <<"id">>, <<"presence1">>),
+    escalus_connection:send(Alice, InitialPresence),
+    Presence = escalus_connection:get_stanza(Alice, presence1),
     escalus:assert(is_presence, Presence),
     {ok, C2SPid} = get_session_pid(AliceSpec, "escalus-default-resource"),
     escalus_connection:send(Alice, escalus_stanza:presence(<<"available">>)),
-    _Presence = escalus_connection:get_stanza(Alice, presence),
+    _Presence = escalus_connection:get_stanza(Alice, presence2),
+    discard_vcard_update(Alice),
     %% Bobs sends some messages to Alice.
     [escalus:send(Bob, escalus_stanza:chat_to(alice, Msg))
      || Msg <- Messages],
