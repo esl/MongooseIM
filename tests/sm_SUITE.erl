@@ -284,6 +284,7 @@ server_requests_ack(Config) ->
 resend_unacked_on_reconnection(Config) ->
     Messages = [<<"msg-1">>, <<"msg-2">>, <<"msg-3">>],
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        discard_vcard_update(Alice),
         %% Bob sends some messages to Alice.
         [escalus:send(Bob, escalus_stanza:chat_to(Alice, Msg))
          || Msg <- Messages],
