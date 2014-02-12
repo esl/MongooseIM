@@ -405,7 +405,7 @@ search_result_item_tuples(Stanza) ->
     _ItemTups = item_tuples(ReportedFieldTups, XChildren).
 
 is_vcard_ldap()->
-    escalus_ejabberd:rpc(gen_mod,is_loaded,[<<"localhost">>,mod_vcard_ldap]).
+    ldap==escalus_ejabberd:rpc(gen_mod,get_module_opt,[ct:get_config(ejabberd_domain), mod_vcard, backend, mnesia]).
 
 get_field_name(fn)->
     case is_vcard_ldap() of
