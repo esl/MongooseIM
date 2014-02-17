@@ -121,7 +121,7 @@ write_roster( Roster = #roster{} ) ->
 -spec write_roster_subscription( Roster ) -> ok when
       Roster :: roster().
 write_roster_subscription( Roster = #roster{} ) ->
-    %% this can not be optymized in mnesia backend
+    %% this might be optymalized somehow
     write_roster( Roster ).
 
 
