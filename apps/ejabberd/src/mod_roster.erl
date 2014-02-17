@@ -730,25 +730,23 @@ set_items(User, Server, SubEl) ->
     #xmlel{children = Els} = SubEl,
     LUser = jlib:nodeprep(User),
     LServer = jlib:nameprep(Server),
-    F = fun() ->
-                lists:foreach(fun(El) ->
-                                      process_item_set_t(LUser, LServer, El)
-                              end, Els)
-        end,
-    ?BACKEND:transaction(LServer, F).
+    ?BACKEND:transaction(
+      LServer,
+      lists:flatmap(fun(El) ->
+                            process_item_set_t(LUser, LServer, El)
+                    end, Els)).
 
 process_item_set_t(LUser, LServer, #xmlel{attrs = Attrs,
                                           children = Els}) ->
     JID1 = jlib:binary_to_jid(xml:get_attr_s(<<"jid">>, Attrs)),
     case JID1 of
         error ->
-            ok;
+            [];
         _ ->
-            JID = {JID1#jid.user, JID1#jid.server, JID1#jid.resource},
             LJID = {JID1#jid.luser, JID1#jid.lserver, JID1#jid.lresource},
             Item = #roster{usj = {LUser, LServer, LJID},
                            us = {LUser, LServer},
-                           jid = JID},
+                           jid = LJID},
             Item1 = process_item_attrs_ws(Item, Attrs),
             Item2 = process_item_els(Item1, Els),
             case Item2#roster.subscription of
@@ -759,7 +757,7 @@ process_item_set_t(LUser, LServer, #xmlel{attrs = Attrs,
             end
     end;
 process_item_set_t(_LUser, _LServer, _) ->
-    ok.
+    [].
 
 
 process_item_attrs_ws(Item, [{<<"jid">>, Val} | Attrs]) ->
