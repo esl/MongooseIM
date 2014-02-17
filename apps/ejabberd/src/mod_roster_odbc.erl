@@ -140,8 +140,7 @@ get_versioning_feature(Acc, Host) ->
     case roster_versioning_enabled(Host) of
         true ->
             Feature = #xmlel{name = <<"ver">>,
-                             attrs = [{<<"xmlns">>, ?NS_ROSTER_VER}],
-                             children = [#xmlel{name = <<"optional">>}]},
+                             attrs = [{<<"xmlns">>, ?NS_ROSTER_VER}]},
             [Feature | Acc];
         false -> []
     end.
