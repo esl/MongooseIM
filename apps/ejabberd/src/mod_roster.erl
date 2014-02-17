@@ -479,7 +479,7 @@ in_subscription(_, User, Server, JID, Type, Reason) ->
 
 %% hook handler
 out_subscription(User, Server, JID, Type) ->
-    process_subscription(out, User, Server, JID, Type, <<>>).
+    process_subscription(out, User, Server, JID, Type, <<"">>).
 
 process_subscription(Direction, User, Server, JID1, Type, Reason) ->
     LUser = jlib:nodeprep(User),

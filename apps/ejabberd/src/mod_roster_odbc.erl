@@ -476,7 +476,7 @@ in_subscription(_, User, Server, JID, Type, Reason) ->
 
 %% hook handler
 out_subscription(User, Server, JID, Type) ->
-    process_subscription(out, User, Server, JID, Type, []).
+    process_subscription(out, User, Server, JID, Type, <<"">>).
 
 process_subscription(Direction, User, Server, JID1, Type, Reason) ->
     LUser = jlib:nodeprep(User),
@@ -807,7 +807,7 @@ get_jid_info(_, User, Server, JID) ->
     get_jid_info(LUser, LServer, LJID).
 
 
-get_jid_info( LUser, LServer, LJID) ->
+get_jid_info(LUser, LServer, LJID) ->
     case ?BACKEND:roster({LUser, LServer, LJID}) of
         {ok, #roster{subscription = Subscription,
                      groups = Groups}} ->
@@ -819,7 +819,6 @@ get_jid_info( LUser, LServer, LJID) ->
                 LRJID == LJID ->
                     _return = {none, []};
                 true ->
-                    get_jid_info( LUser, LServer, LRJID ) % only one recursion possible
+                    get_jid_info(LUser, LServer, LRJID) % only one recursion possible
             end
     end.
-
