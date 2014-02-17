@@ -84,6 +84,7 @@ rosters_by_us(_US = {LUser, LServer}) ->
                                case raw_to_record(LServer, I) of
                                    %% Bad JID in database:
                                    error ->
+                                       ?WARNING_MSG("Can not conver database entry to roster ~p: ", [I]),
                                        [];
                                    R ->
                                        SJID = jlib:jid_to_binary(R#roster.jid),
@@ -100,6 +101,7 @@ rosters_by_us(_US = {LUser, LServer}) ->
         _ ->
             []
     end.
+
 
 -spec rosters_without_groups( UserServer ) -> Rousters when
       UserServer :: usj(),
@@ -136,6 +138,7 @@ roster(_USJ = {LUser, LServer, LJID}) ->
             Roster = raw_to_record( LServer, Item ),
             case Roster of
                 error ->
+                    ?WARNING_MSG("Can not conver database entry to roster ~p: ", [Item]),
                     _Return = not_found;
                 _ ->
                     Groups = get_groups(LServer, Username, SJID),
@@ -151,6 +154,7 @@ remove_roster(_USJ = {LUser, LServer, LJID }) ->
     SJID = ejabberd_odbc:escape(jlib:jid_to_binary(LJID)),
 
     odbc_queries:del_roster(LServer, Username, SJID).
+
 
 -spec remove_user( UserServer ) -> ok when
       UserServer :: usj().
