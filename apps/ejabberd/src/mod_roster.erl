@@ -489,17 +489,15 @@ process_subscription(Direction, User, Server, JID1, Type, Reason) ->
     US = {LUser, LServer},
     USJ = {LUser, LServer, LJID},
     F = fun() ->
-                Item = case ?BACKEND:roster(USJ) of
-                           {ok, Roster} ->
-                               Roster;
-                           not_found ->
-                               JID = {JID1#jid.user,
-                                      JID1#jid.server,
-                                      JID1#jid.resource},
-                               #roster{usj = USJ,
-                                       us = US,
-                                       jid = JID}
-                       end,
+                Item =
+                    case ?BACKEND:roster( USJ ) of
+                        {ok, Roster} ->
+                            Roster;
+                        not_found ->
+                            #roster{usj = USJ,
+                                    us = US,
+                                    jid = LJID}
+                    end,
                 NewState = case Direction of
                                out ->
                                    out_state_change(Item#roster.subscription,
