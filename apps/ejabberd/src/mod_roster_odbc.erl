@@ -379,47 +379,37 @@ push_item(User, Server, From, Item) ->
                              children = [{item,
                                           Item#roster.jid,
                                           Item#roster.subscription}]}),
-    case roster_versioning_enabled(Server) of
-        true ->
-            push_item_version(Server, User, From, Item, roster_version(Server, User));
-        false ->
-            lists:foreach(fun(Resource) ->
-                                  push_item(User, Server, Resource, From, Item)
-                          end, ejabberd_sm:get_user_resources(User, Server))
-    end.
+    RosterVersion = case roster_versioning_enabled(Server) of
+                        true ->
+                            roster_version(Server, User);
+                        false ->
+                            not_found
+                    end,
+    VersionAttr =  case RosterVersion of
+                       not_found -> [];
+                       _ -> [{<<"ver">>, RosterVersion}]
+                   end,
+    lists:foreach(fun(Resource) ->
+                          push_item(User, Server, Resource, From, Item, VersionAttr)
+                  end, ejabberd_sm:get_user_resources(User, Server)).
+
 
 %% TODO: don't push to those who didn't load roster
-push_item(User, Server, Resource, From, Item) ->
+push_item(User, Server, Resource, From, Item, VersionAttr) ->
     ejabberd_hooks:run(roster_push, Server, [From, Item]),
     ResIQ = #iq{type = set, xmlns = ?NS_ROSTER,
                 id = list_to_binary("push" ++ randoms:get_string()),
                 sub_el = [#xmlel{name = <<"query">>,
-                                 attrs = [{<<"xmlns">>, ?NS_ROSTER}],
+                                 attrs = [{<<"xmlns">>, ?NS_ROSTER}| VersionAttr],
                                  children = [item_to_xml(Item)]}]},
     ejabberd_router:route(
       From,
       jlib:make_jid(User, Server, Resource),
       jlib:iq_to_xml(ResIQ)).
 
-%% @doc Roster push, calculate and include the version attribute.
-%% TODO: don't push to those who didn't load roster
-push_item_version(Server, User, From, Item, RosterVersion)  ->
-    lists:foreach(fun(Resource) ->
-                          push_item_version(User, Server, Resource, From, Item, RosterVersion)
-                  end, ejabberd_sm:get_user_resources(User, Server)).
 
-push_item_version(User, Server, Resource, From, Item, RosterVersion) ->
-    IQPush = #iq{type = 'set', xmlns = ?NS_ROSTER,
-                 id = list_to_binary("push" ++ randoms:get_string()),
-                 sub_el = [#xmlel{name = <<"query">>,
-                                  attrs = [{<<"xmlns">>, ?NS_ROSTER},
-                                           {<<"ver">>, RosterVersion}],
-                                  children = [item_to_xml(Item)]}]},
-    ejabberd_router:route(
-      From,
-      jlib:make_jid(User, Server, Resource),
-      jlib:iq_to_xml(IQPush)).
 
+%% hook handler
 get_subscription_lists(_, User, Server) ->
     LUser = jlib:nodeprep(User),
     LServer = jlib:nameprep(Server),

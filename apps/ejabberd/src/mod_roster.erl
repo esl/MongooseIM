@@ -385,7 +385,6 @@ process_item_els(Item, []) ->
     Item.
 
 
-%% TODO: don't push to those who didn't load roster
 push_item(User, Server, From, Item) ->
     ejabberd_sm:route(jlib:make_jid(<<"">>, <<"">>, <<"">>),
                       jlib:make_jid(User, Server, <<"">>),
@@ -408,6 +407,7 @@ push_item(User, Server, From, Item) ->
                   end, ejabberd_sm:get_user_resources(User, Server)).
 
 
+%% TODO: don't push to those who didn't load roster
 push_item(User, Server, Resource, From, Item, VersionAttr) ->
     ejabberd_hooks:run(roster_push, Server, [From, Item]),
     ResIQ = #iq{type = set, xmlns = ?NS_ROSTER,
