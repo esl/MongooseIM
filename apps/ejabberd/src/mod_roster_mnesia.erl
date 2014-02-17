@@ -85,7 +85,7 @@ rosters_without_groups( US ) ->
       UserServeJid :: usj(),
       MightBeRoster :: {ok, roster() } | not_found.
 roster( USJ ) when size( USJ ) =:= 3 ->
-    case mnesia:read(roster, USJ ) of
+    case mnesia:dirty_read(roster, USJ ) of
         [ Rouster ] ->
             {ok, Rouster};
         [] ->
