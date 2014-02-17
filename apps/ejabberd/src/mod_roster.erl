@@ -342,7 +342,7 @@ process_item_attrs(Item, [{<<"jid">>, Val} | Attrs]) ->
         error ->
             process_item_attrs(Item, Attrs);
         JID1 ->
-            JID = {JID1#jid.user, JID1#jid.server, JID1#jid.resource},
+            JID = {JID1#jid.luser, JID1#jid.lserver, JID1#jid.lresource},
             process_item_attrs(Item#roster{jid = JID}, Attrs)
     end;
 
