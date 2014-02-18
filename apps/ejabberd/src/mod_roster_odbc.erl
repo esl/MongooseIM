@@ -6,7 +6,7 @@
 %%% @end
 %%% Created : 22 Jan 2014 by  <marcin.miszczyk@erlang.solutions.com
 
--module(mod_roster_odbc_back).
+-module(mod_roster_odbc).
 -author( 'marcin.miszczyk@erlang.solutions.com').
 
 
