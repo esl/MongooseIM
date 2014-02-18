@@ -357,7 +357,7 @@ process_item_set(From, To, #xmlel{attrs = Attrs, children = Els}) ->
             JID = {JID1#jid.user, JID1#jid.server, JID1#jid.resource},
             LJID = jlib:jid_tolower(JID1),
             F = fun() ->
-                        Item = get_roster_of(LUser, LServer, LJID, JID),
+                        Item = get_roster_of(LUser, LServer, LJID),
                         Item1 = process_item_attrs(Item, Attrs),
                         Item2 = process_item_els(Item1, Els),
                         case Item2#roster.subscription of
@@ -396,15 +396,15 @@ process_item_set(From, To, #xmlel{attrs = Attrs, children = Els}) ->
 process_item_set(_From, _To, _) ->
     ok.
 
-get_roster_of(LUser, LServer, LJID, JID) ->
+get_roster_of(LUser, LServer, LJID ) ->
     USJ = {LUser, LServer, LJID},
     case ?BACKEND:roster(USJ) of
         not_found ->
             #roster{usj = USJ,
                     us = {LUser, LServer},
-                    jid = JID};
+                    jid = LJID};
         {ok, R} ->
-            R#roster{jid = JID,
+            R#roster{jid = LJID,
                      name = <<>>,
                      groups = [],
                      xs = []}
