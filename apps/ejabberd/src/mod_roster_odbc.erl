@@ -10,7 +10,7 @@
 -author( 'marcin.miszczyk@erlang.solutions.com').
 
 
--behaviour( mod_roster_gen_backend ).
+-behaviour( mod_roster ).
 -export( [ init/1,
            roster_version/1,
            write_version/2,

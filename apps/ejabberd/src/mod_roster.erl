@@ -62,7 +62,77 @@
 
 -define( BACKEND , (mod_roster_backend:backend()) ).
 
+%% Callbacks for backend implementations
+%% -------------------------------------------------------------------
 
+-callback init( Options ) -> ok when
+      Options :: list().
+
+-callback roster_version( UserServer ) -> {ok, Version} | not_found when
+      UserServer :: us(),
+      Version :: version().
+
+-callback write_version( UserServer, RosterVersion ) -> any() when
+      UserServer :: us(),
+      RosterVersion :: version().
+
+-callback rosters_by_us( UserServe ) -> Rosters when
+      UserServe :: us(),
+      Rosters :: list( roster() ).
+
+-callback roster( UserServeJid ) -> MightBeRoster when
+      UserServeJid :: usj(),
+      MightBeRoster :: {ok, roster() } | not_found.
+
+-callback remove_roster( UserServerJID ) -> ok when
+      UserServerJID :: usj().
+
+-callback remove_user( UserServer ) -> ok when
+      UserServer :: usj().
+
+-callback write_roster( Roster ) -> ok when
+      Roster :: roster().
+
+-callback transaction( Server, TransactionFun ) -> FunReturn when
+      Server :: server(),
+      TransactionFun :: fun ( () -> FunReturn ).
+
+
+%% --sql-optimalizations--
+%%
+%% set of functions created only because they can (and should) be
+%% implemented with lower over-head in one of the backends (odbc
+%% usually)
+
+-callback rosters_without_groups( UserServer ) -> Rousters when
+      UserServer :: usj(),
+      Rousters :: list( roster() ).
+
+-callback write_roster_subscription( Roster ) -> ok when
+      Roster :: roster().
+
+
+
+%% Dynamic backend module selecting
+%% ------------------------------------------------------------------
+
+start_backend_module(Opts) ->
+    Backend = gen_mod:get_opt(backend, Opts, mnesia),
+    {Mod, Code} = dynamic_compile:from_string(mod_roster_backend(Backend)),
+    code:load_binary(Mod, "mod_offline_backend.erl", Code).
+
+-spec mod_roster_backend(Module :: module()) -> Code :: string().
+mod_roster_backend(Backend) ->
+    lists:flatten(
+      ["-module(mod_roster_backend).
+        -export([backend/0]).
+        -spec backend() -> atom().
+        backend() ->
+            mod_roster_",atom_to_list(Backend),".\n"]).
+
+
+%% gen_mod callbacks
+%% ------------------------------------------------------------------
 
 start(Host, Opts) ->
     start_backend_module(Opts),
@@ -107,27 +177,8 @@ stop(Host) ->
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_ROSTER).
 
 
-
-
-%% Dynamic backend module selecting
-%% ------------------------------------------------------------------
-
-start_backend_module(Opts) ->
-    Backend = gen_mod:get_opt(backend, Opts, mnesia),
-    {Mod, Code} = dynamic_compile:from_string(mod_roster_backend(Backend)),
-    code:load_binary(Mod, "mod_offline_backend.erl", Code).
-
--spec mod_roster_backend(Module :: module()) -> Code :: string().
-mod_roster_backend(Backend) ->
-    lists:flatten(
-      ["-module(mod_roster_backend).
-        -export([backend/0]).
-        -spec backend() -> atom().
-        backend() ->
-            mod_roster_",atom_to_list(Backend),".\n"]).
-
-
-
+%% Roster module logic
+%% -------------------------------------------------------------------
 
 process_iq(From, To, IQ) ->
     #iq{sub_el = SubEl} = IQ,
