@@ -60,11 +60,12 @@
 -include("mod_roster.hrl").
 
 
--define( BACKEND, mod_roster_mnesia).
+-define( BACKEND , (mod_roster_backend:backend()) ).
 
 
 
 start(Host, Opts) ->
+    start_backend_module(Opts),
     ?BACKEND:init(Opts),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
     ejabberd_hooks:add(roster_get, Host,
@@ -104,6 +105,28 @@ stop(Host) ->
     ejabberd_hooks:delete(roster_get_versioning_feature, Host,
                           ?MODULE, get_versioning_feature, 50),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_ROSTER).
+
+
+
+
+%% Dynamic backend module selecting
+%% ------------------------------------------------------------------
+
+start_backend_module(Opts) ->
+    Backend = gen_mod:get_opt(backend, Opts, mnesia),
+    {Mod, Code} = dynamic_compile:from_string(mod_roster_backend(Backend)),
+    code:load_binary(Mod, "mod_offline_backend.erl", Code).
+
+-spec mod_roster_backend(Module :: module()) -> Code :: string().
+mod_roster_backend(Backend) ->
+    lists:flatten(
+      ["-module(mod_roster_backend).
+        -export([backend/0]).
+        -spec backend() -> atom().
+        backend() ->
+            mod_roster_",atom_to_list(Backend),".\n"]).
+
+
 
 
 process_iq(From, To, IQ) ->
