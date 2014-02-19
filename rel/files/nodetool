@@ -16,7 +16,7 @@ main(Args) ->
         ["version", AppFile] ->
             {ok, [{application, mongooseim, Env}]} = file:consult(AppFile),
             {vsn, Version} = lists:keyfind(vsn, 1, Env),
-            io:format("MongooseIM version ~s~n", [Version]),
+            io:format("~s~n", [Version]),
             halt(0);
         _ ->
             ok

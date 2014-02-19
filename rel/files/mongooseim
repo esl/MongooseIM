@@ -187,9 +187,15 @@ case "$1" in
         ;;
 
     version)
-        cat $RUNNER_BASE_DIR/lib/mongooseim*/priv/logo.txt
         MIM=`ls $RUNNER_BASE_DIR/lib/mongooseim*/ebin/mongooseim.app | head -1`
-        $NODETOOL version $MIM
+        if [ $# == 2 ] && [ $2 == '--simple' ]
+        then
+            $NODETOOL version $MIM
+        else
+            cat $RUNNER_BASE_DIR/lib/mongooseim*/priv/logo.txt
+            echo -n "MongooseIM version "
+            $NODETOOL version $MIM
+        fi
         ;;
     *)
         echo "Usage: $SCRIPT {start|stop|restart|reboot|ping|live|console|console_clean|attach|debug|version}"
