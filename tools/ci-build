@@ -31,22 +31,22 @@ else
     BASE=`readlink -f $TOOLS/..`
 fi
 
-EJD1=$BASE/dev/ejabberd_node1
-EJD2=$BASE/dev/ejabberd_node2
-EJD1CTL=$EJD1/bin/ejabberd
-EJD2CTL=$EJD2/bin/ejabberd
+EJD1=$BASE/dev/mongooseim_node1
+EJD2=$BASE/dev/mongooseim_node2
+EJD1CTL=$EJD1/bin/mongooseim
+EJD2CTL=$EJD2/bin/mongooseim
 SUMMARIES_DIRS=$BASE'/test/ejabberd_tests/ct_report/ct_run*'
 
 $TOOLS/set-odbc-password vars $2
 make devclean devrel
-echo -n "starting ejabberd node 1: "
+echo -n "starting MongooseIM node 1: "
 $EJD1CTL start && echo ok || echo failed
-echo -n "starting ejabberd node 2: "
+echo -n "starting MongooseIM node 2: "
 $EJD2CTL start && echo ok || echo failed
 sleep 1
-echo -n "pinging ejabberd node 1: "
+echo -n "pinging MongooseIM node 1: "
 $EJD1CTL ping
-echo -n "pinging ejabberd node 2: "
+echo -n "pinging MongooseIM node 2: "
 $EJD2CTL ping
 
 make test_deps
@@ -62,9 +62,9 @@ else
 fi
 RAN_TESTS=`cat /tmp/ct_count`
 
-echo -n "stopping ejabberd node 1: "
+echo -n "stopping MongooseIM node 1: "
 $EJD1CTL stop
-echo -n "stopping ejabberd node 2: "
+echo -n "stopping MongooseIM node 2: "
 $EJD2CTL stop
 
 $TOOLS/redis stop

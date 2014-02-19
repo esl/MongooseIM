@@ -38,28 +38,28 @@ NODENAME="${NODENAME_ARG#* }"
 
 start ()
 {
-    $RUNNER_SCRIPT_DIR/ejabberd start
+    $RUNNER_SCRIPT_DIR/mongooseim start
 }
 
 # attach to server
 debug ()
 {
-    $RUNNER_SCRIPT_DIR/ejabberd debug
+    $RUNNER_SCRIPT_DIR/mongooseim debug
 }
 
 # start interactive server
 live ()
 {
-    $RUNNER_SCRIPT_DIR/ejabberd console
+    $RUNNER_SCRIPT_DIR/mongooseim console
 }
 
 help ()
 {
     echo ""
-    echo "Commands to start an ejabberd node:"
-    echo "  start  Start an ejabberd node in server mode"
-    echo "  debug  Attach an interactive Erlang shell to a running ejabberd node"
-    echo "  live   Start an ejabberd node in live (interactive) mode"
+    echo "Commands to start a MongooseIM node:"
+    echo "  start  Start a MongooseIM node in server mode"
+    echo "  debug  Attach an interactive Erlang shell to a running MongooseIM node"
+    echo "  live   Start MongooseIM node in live (interactive) mode"
     echo ""
 }
 
@@ -72,7 +72,7 @@ ctl ()
     # using flock if available. Expects a linux-style
     # flock that can lock a file descriptor.
     MAXCONNID=100
-    CONNLOCKDIR=$EJABBERD_DIR/var/lock/ejabberdctl
+    CONNLOCKDIR=$EJABBERD_DIR/var/lock/mongooseimctl
     FLOCK='/usr/bin/flock'
     if [ ! -x "$FLOCK" ] || [ ! -d "$CONNLOCKDIR" ] ; then
 	JOT='/usr/bin/jot'
@@ -95,7 +95,7 @@ ctl ()
 	# concurrent invocations using a bound
 	# number of atoms
 	for N in $(seq 1 $MAXCONNID); do
-	    CTL_CONN="ejabberdctl-$N"
+	    CTL_CONN="mongooseimctl-$N"
 	    CTL_LOCKFILE="$CONNLOCKDIR/$CTL_CONN"
 	    (
 		exec 8>"$CTL_LOCKFILE"
@@ -124,9 +124,9 @@ ctl ()
     fi
 
     if [ "$badlock" ];then
-	echo "Ran out of connections to try. Your ejabberd processes" >&2
+	echo "Ran out of connections to try. Your MongooseIM processes" >&2
 	echo "may be stuck or this is a very busy server. For very"   >&2
-	echo "busy servers, consider raising MAXCONNID in ejabberdctl">&2
+	echo "busy servers, consider raising MAXCONNID in mongooseimctl">&2
 	exit 1;
     fi
 

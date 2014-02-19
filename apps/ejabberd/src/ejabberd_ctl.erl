@@ -131,15 +131,17 @@ process(["status"]) ->
     {InternalStatus, ProvidedStatus} = init:get_status(),
     ?PRINT("The node ~p is ~p with status: ~p~n",
 	   [node(), InternalStatus, ProvidedStatus]),
-    case lists:keysearch(ejabberd, 1, application:which_applications()) of
+    Applications = application:which_applications(),
+    case lists:keyfind(mongooseim, 1, Applications) of
         false ->
             EjabberdLogPath = ejabberd_app:get_log_path(),
-            ?PRINT("ejabberd is not running in that node~n"
+            ?PRINT("MongooseIM is not running in that node~n"
 		   "Check for error messages: ~s~n"
 		   "or other files in that directory.~n", [EjabberdLogPath]),
             ?STATUS_ERROR;
-        {value, {_, _, Version}} ->
-            ?PRINT("ejabberd ~s is running in that node~n", [Version]),
+        {_, _, Version} ->
+            ?PRINT("MongooseIM version ~s is running on that node~n",
+                   [Version]),
             ?STATUS_SUCCESS
     end;
 
