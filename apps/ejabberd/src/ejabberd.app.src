@@ -2,7 +2,7 @@
 
 {application, ejabberd,
  [{description, "ejabberd"},
-  {vsn, "2.1.8"},
+  {vsn, {cmd, "echo 2.1.8+mim-`git describe --always --tags`"}},
   {modules, []},
   {registered, [
                ]},
