@@ -17,4 +17,4 @@ main(Directories) ->
               "    ~p tests skipped by user~n"
               "    ~p tests skipped automatically~n",
           [Ok, Failed, UserSkipped, AutoSkipped]),
-    erlang:halt(Failed+AutoSkipped).
+    erlang:halt(Failed).
