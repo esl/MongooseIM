@@ -40,12 +40,12 @@ devrel: $(DEVNODES)
 
 $(DEVNODES): rebar deps compile deps_dev
 	@echo "building $@"
-	(cd rel && ../rebar generate -f target_dir=../dev/ejabberd_$@ overlay_vars=./reltool_vars/$@_vars.config)
-	cp apps/ejabberd/src/*.erl dev/ejabberd_$@/lib/ejabberd-2.1.8/ebin/
+	(cd rel && ../rebar generate -f target_dir=../dev/mongooseim_$@ overlay_vars=./reltool_vars/$@_vars.config)
+	cp apps/ejabberd/src/*.erl dev/mongooseim_$@/lib/ejabberd-2.1.8*/ebin/
 ifeq ($(shell uname), Linux)
-	cp -R `dirname $(shell readlink -f $(shell which erl))`/../lib/tools-* dev/ejabberd_$@/lib/
+	cp -R `dirname $(shell readlink -f $(shell which erl))`/../lib/tools-* dev/mongooseim_$@/lib/
 else
-	cp -R `which erl`/../../lib/tools-* dev/ejabberd_$@/lib/
+	cp -R `which erl`/../../lib/tools-* dev/mongooseim_$@/lib/
 endif
 
 deps_dev:
@@ -65,10 +65,10 @@ $(EJD_PRIV_MIB)/EJABBERD-MIB.bin: $(EJD_MIB)/EJABBERD-MIB.mib $(EJD_MIB)/EJABBER
 	erlc -o $(EJD_PRIV_MIB) $<
 
 relclean:
-	rm -rf rel/ejabberd
+	rm -rf rel/mongooseim
 
 COMBO_PLT = $(HOME)/.esl_ejabberd_combo_dialyzer_plt
-PLT_LIBS  = $(wildcard rel/ejabberd/lib/*/ebin)
+PLT_LIBS  = $(wildcard rel/mongooseim/lib/*/ebin)
 
 DIALYZER_APPS = ejabberd
 DIALYZER_APPS_PATHS = $(addsuffix /ebin, $(addprefix apps/, $(DIALYZER_APPS)))

@@ -11,6 +11,17 @@ main(Args) ->
     %% Extract the args
     {RestArgs, TargetNode} = process_args(Args, [], undefined),
 
+    %% checking the version number doesn't need the running node
+    case RestArgs of
+        ["version", AppFile] ->
+            {ok, [{application, mongooseim, Env}]} = file:consult(AppFile),
+            {vsn, Version} = lists:keyfind(vsn, 1, Env),
+            io:format("~s~n", [Version]),
+            halt(0);
+        _ ->
+            ok
+    end,
+
     %% See if the node is currently running  -- if it's not, we'll bail
     case {net_kernel:hidden_connect_node(TargetNode), net_adm:ping(TargetNode)} of
         {true, pong} ->
