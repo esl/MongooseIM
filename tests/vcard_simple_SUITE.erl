@@ -89,22 +89,28 @@ end_per_testcase(CaseName, Config) ->
 %%--------------------------------------------------------------------
 
 update_own_card(Config) ->
-    escalus:story(
-        Config, [{alice, 1}],
-        fun(Client1) ->
-                %% set some initial value different from the actual test data
-                %% so we know it really got updated and wasn't just old data
-                Client1Fields = [{<<"FN">>, <<"Old name">>}],
-                Client1SetResultStanza
-                    = escalus:send_and_wait(Client1,
-                                        escalus_stanza:vcard_update(Client1Fields)),
-                escalus:assert(is_iq_result, Client1SetResultStanza),
-                escalus_stanza:vcard_request(),
-                Client1GetResultStanza
-                    = escalus:send_and_wait(Client1, escalus_stanza:vcard_request()),
-                <<"Old name">>
-                    = stanza_get_vcard_field_cdata(Client1GetResultStanza, <<"FN">>)
-        end).
+    case is_vcard_ldap() of
+        true ->
+            {skip,ldap_vcard_is_readonly};
+        _ ->
+            escalus:story(
+              Config, [{alice, 1}],
+              fun(Client1) ->
+                      %% set some initial value different from the actual test data
+                      %% so we know it really got updated and wasn't just old data
+                      FN = get_FN(),
+                      Client1Fields = [{<<"FN">>, FN}],
+                      Client1SetResultStanza
+                      = escalus:send_and_wait(Client1,
+                                              escalus_stanza:vcard_update(Client1Fields)),
+                      escalus:assert(is_iq_result, Client1SetResultStanza),
+                      escalus_stanza:vcard_request(),
+                      Client1GetResultStanza
+                      = escalus:send_and_wait(Client1, escalus_stanza:vcard_request()),
+                      FN
+                      = stanza_get_vcard_field_cdata(Client1GetResultStanza, <<"FN">>)
+              end)
+    end.
 
 retrieve_own_card(Config) ->
     escalus:story(
@@ -112,7 +118,7 @@ retrieve_own_card(Config) ->
       fun(Client) ->
               Res = escalus:send_and_wait(Client,
                         escalus_stanza:vcard_request()),
-              ClientVCardTups = [{<<"FN">>, <<"Old name">>}],
+              ClientVCardTups = [{<<"FN">>, get_FN()}],
               check_vcard(ClientVCardTups, Res)
       end).
 
@@ -129,7 +135,7 @@ user_doesnt_exist(Config) ->
               BadJID = <<"nonexistent@",Domain/binary>>,
               Res = escalus:send_and_wait(Client,
                         escalus_stanza:vcard_request(BadJID)),
-              case
+                case
                   escalus_pred:is_error(<<"cancel">>,
                                         <<"service-unavailable">>,
                                         Res) of
@@ -153,7 +159,7 @@ update_other_card(Config) ->
               %% check that nothing was changed
               Res2 = escalus:send_and_wait(Client,
                         escalus_stanza:vcard_request()),
-              ClientVCardTups = [{<<"FN">>, <<"Old name">>}],
+              ClientVCardTups = [{<<"FN">>, get_FN()}],
               check_vcard(ClientVCardTups, Res2),
 
               case escalus_pred:is_error(<<"cancel">>,
@@ -172,7 +178,7 @@ retrieve_others_card(Config) ->
               JID = escalus_client:short_jid(Client),
               Res = escalus:send_and_wait(OtherClient,
                         escalus_stanza:vcard_request(JID)),
-              OtherClientVCardTups = [{<<"FN">>, <<"Old name">>}],
+              OtherClientVCardTups = [{<<"FN">>, get_FN()}],
               check_vcard(OtherClientVCardTups, Res),
 
               %% In accordance with XMPP Core [5], a compliant server MUST
@@ -197,19 +203,20 @@ request_search_fields(Config) ->
               Domain = escalus_config:get_ct(ejabberd_domain),
               DirJID = <<"vjud.",Domain/binary>>,
               Res = escalus:send_and_wait(Client,
-                        escalus_stanza:search_fields_iq(DirJID)),
+                                          escalus_stanza:search_fields_iq(DirJID)),
               escalus:assert(is_iq_result, Res),
               Result = ?EL(Res, <<"query">>),
               XData = ?EL(Result, <<"x">>),
               #xmlel{ children = XChildren } = XData,
               FieldTups = field_tuples(XChildren),
               true = lists:member({<<"text-single">>,
-                                   <<"user">>, <<"User">>},
+                                   get_field_name(user), <<"User">>},
                                   FieldTups),
               true = lists:member({<<"text-single">>,
-                                   <<"fn">>,
+                                   get_field_name(fn),
                                    <<"Full Name">>},
                                   FieldTups)
+
       end).
 
 search_empty(Config) ->
@@ -218,10 +225,10 @@ search_empty(Config) ->
       fun(Client) ->
               Domain = escalus_config:get_ct(ejabberd_domain),
               DirJID = <<"vjud.",Domain/binary>>,
-              Fields = [{<<"fn">>, <<"nobody">>}],
+              Fields = [{get_field_name(fn), <<"nobody">>}],
               Res = escalus:send_and_wait(Client,
-                        escalus_stanza:search_iq(DirJID,
-                            escalus_stanza:search_fields(Fields))),
+                                          escalus_stanza:search_iq(DirJID,
+                                                                   escalus_stanza:search_fields(Fields))),
               escalus:assert(is_iq_result, Res),
               [] = search_result_item_tuples(Res)
       end).
@@ -232,10 +239,10 @@ search_some(Config) ->
       fun(Client) ->
               Domain = escalus_config:get_ct(ejabberd_domain),
               DirJID = <<"vjud.",Domain/binary>>,
-              Fields = [{<<"fn">>, <<"Old name">>}],
+              Fields = [{get_field_name(fn), get_FN()}],
               Res = escalus:send_and_wait(Client,
-                        escalus_stanza:search_iq(DirJID,
-                            escalus_stanza:search_fields(Fields))),
+                                          escalus_stanza:search_iq(DirJID,
+                                                                   escalus_stanza:search_fields(Fields))),
               escalus:assert(is_iq_result, Res),
 
               %% Basically test that the right values exist
@@ -246,18 +253,18 @@ search_some(Config) ->
 
 search_wildcard(Config) ->
     escalus:story(
-        Config, [{bob, 1}],
-        fun(Client) ->
-                Domain = escalus_config:get_ct(ejabberd_domain),
-                DirJID = <<"vjud.",Domain/binary>>,
-                Fields = [{<<"fn">>, <<"old*">>}],
-                Res = escalus:send_and_wait(Client,
-                        escalus_stanza:search_iq(DirJID,
-                            escalus_stanza:search_fields(Fields))),
-                escalus:assert(is_iq_result, Res),
-                ItemTups = search_result_item_tuples(Res),
-                1 = length(ItemTups)
-        end).
+      Config, [{bob, 1}],
+      fun(Client) ->
+              Domain = escalus_config:get_ct(ejabberd_domain),
+              DirJID = <<"vjud.",Domain/binary>>,
+              Fields = [{get_field_name(fn), get_FN_wildcard()}],
+              Res = escalus:send_and_wait(Client,
+                                          escalus_stanza:search_iq(DirJID,
+                                                                   escalus_stanza:search_fields(Fields))),
+              escalus:assert(is_iq_result, Res),
+              ItemTups = search_result_item_tuples(Res),
+              1 = length(ItemTups)
+      end).
 
 %%--------------------------------------------------------------------
 %% Helper functions
@@ -265,8 +272,8 @@ search_wildcard(Config) ->
 
 expected_search_results(Key, Config) ->
     {_, ExpectedResults} =
-        lists:keyfind(expected_results, 1,
-                      escalus_config:get_config(search_data, Config)),
+    lists:keyfind(expected_results, 1,
+                  escalus_config:get_config(search_data, Config)),
     lists:keyfind(Key, 1, ExpectedResults).
 
 %%----------------------
@@ -288,8 +295,8 @@ stanza_get_vcard_field_cdata(Stanza, FieldName) ->
 field_tuples([]) ->
     [];
 field_tuples([#xmlel{name = <<"field">>,
-                          attrs=Attrs,
-                          children=_Children} = El| Rest]) ->
+                     attrs=Attrs,
+                     children=_Children} = El| Rest]) ->
     {<<"type">>,Type} = lists:keyfind(<<"type">>, 1, Attrs),
     {<<"var">>,Var} = lists:keyfind(<<"var">>, 1, Attrs),
     {<<"label">>,Label} = lists:keyfind(<<"label">>, 1, Attrs),
@@ -311,8 +318,8 @@ item_field_tuples(_, []) ->
     [];
 item_field_tuples(ReportedFieldTups,
                   [#xmlel{name = <<"field">>,
-                               attrs=Attrs,
-                               children=_Children} = El| Rest]) ->
+                          attrs=Attrs,
+                          children=_Children} = El| Rest]) ->
     {<<"var">>,Var} = lists:keyfind(<<"var">>, 1, Attrs),
     {Type, Var, Label} = lists:keyfind(Var, 2, ReportedFieldTups),
     [{Type, Var, Label, ?EL_CD(El, <<"value">>)}
@@ -330,7 +337,7 @@ item_field_tuples(ReportedFieldTups, [_SomeOtherEl|Rest]) ->
 item_tuples(_, []) ->
     [];
 item_tuples(ReportedFieldTups, [#xmlel{name = <<"item">>,
-                                            children = Children} | Rest]) ->
+                                       children = Children} | Rest]) ->
     ItemFieldTups = item_field_tuples(ReportedFieldTups, Children),
     {_,_,_,JID} = lists:keyfind(<<"jid">>, 2, ItemFieldTups),
     [{JID, ItemFieldTups}|item_tuples(ReportedFieldTups, Rest)];
@@ -392,8 +399,36 @@ search_result_item_tuples(Stanza) ->
     Result = ?EL(Stanza, <<"query">>),
     XData = ?EL(Result, <<"x">>),
     #xmlel{ attrs = _XAttrs,
-                 children = XChildren } = XData,
+            children = XChildren } = XData,
     Reported = ?EL(XData, <<"reported">>),
     ReportedFieldTups = field_tuples(Reported#xmlel.children),
     _ItemTups = item_tuples(ReportedFieldTups, XChildren).
+
+is_vcard_ldap()->
+    ldap==escalus_ejabberd:rpc(gen_mod,get_module_opt,[ct:get_config(ejabberd_domain), mod_vcard, backend, mnesia]).
+
+get_field_name(fn)->
+    case is_vcard_ldap() of
+        true -> <<"cn">>;
+        false -> <<"fn">>
+    end;
+get_field_name(user)->
+    case is_vcard_ldap() of
+        true -> <<"uid">>;
+        false -> <<"user">>
+    end.
+
+get_FN_wildcard() ->
+    case is_vcard_ldap() of
+        true -> <<"*li*e">>;
+        false -> <<"old*">>
+    end.
+get_FN() ->
+    case is_vcard_ldap() of
+        true ->
+            <<"alice">>;
+        false ->
+            <<"Old Name">>
+    end.
+
 
