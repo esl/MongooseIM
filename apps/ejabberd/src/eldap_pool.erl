@@ -29,7 +29,7 @@
 -author('xram@jabber.ru').
 
 %% API
--export([start_link/7, bind/3, search/2, delete/2, add/3,
+-export([start_link/7,stop/1, bind/3, search/2, delete/2, add/3,
 	 modify_passwd/3]).
 
 -include("ejabberd.hrl").
@@ -72,6 +72,9 @@ start_link(Name, Hosts, Backups, Port, Rootdn, Passwd,
 			  end
 		  end,
 		  Hosts).
+
+stop(Name) ->
+    pg2:delete(make_id(Name)).
 
 %%====================================================================
 %% Internal functions
