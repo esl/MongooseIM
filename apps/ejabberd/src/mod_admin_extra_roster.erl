@@ -125,7 +125,7 @@ commands() ->
         #ejabberd_commands{name = push_roster_alltoall, tags = [roster],
                            desc = "Add all the users to all the users of Host in Group",
                            module = ?MODULE, function = push_alltoall,
-                           args = [{host, string}, {group, binary}],
+                           args = [{host, binary}, {group, binary}],
                            result = {res, rescode}}
         ].
 
