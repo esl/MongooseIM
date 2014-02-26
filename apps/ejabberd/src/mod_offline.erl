@@ -161,7 +161,7 @@ stop(Host) ->
     exit(whereis(Proc), stop),
     {wait, Proc}.
 
-get_sm_features(Acc, _From, _To, "", _Lang) ->
+get_sm_features(Acc, _From, _To, <<"">>, _Lang) ->
     Feats = case Acc of
 		{result, I} -> I;
 		_ -> []
@@ -177,10 +177,10 @@ get_sm_features(Acc, _From, _To, _Node, _Lang) ->
 
 
 store_packet(From, To, Packet) ->
-    Type = xml:get_tag_attr_s("type", Packet),
+    Type = xml:get_tag_attr_s(<<"type">>, Packet),
     if
-	(Type /= "error") and (Type /= "groupchat") and
-	(Type /= "headline") ->
+	(Type /= <<"error">>) and (Type /= <<"groupchat">>) and
+	(Type /= <<"headline">>) ->
 	    case check_event_chatstates(From, To, Packet) of
 		true ->
 		    #jid{luser = LUser, lserver = LServer} = To,
@@ -218,25 +218,25 @@ check_event_chatstates(From, To, Packet) ->
 	    false;
 	%% There was an x:event element, and maybe also other stuff
 	{El, _, _} when El /= false ->
-	    case xml:get_subtag(El, "id") of
+	    case xml:get_subtag(El, <<"id">>) of
 		false ->
-		    case xml:get_subtag(El, "offline") of
+		    case xml:get_subtag(El, <<"offline">>) of
 			false ->
 			    true;
 			_ ->
-			    ID = case xml:get_tag_attr_s("id", Packet) of
-				     "" ->
-					 #xmlel{name = "id"};
+			    ID = case xml:get_tag_attr_s(<<"id">>, Packet) of
+				     <<"">> ->
+					 #xmlel{name = <<"id">>};
 				     S ->
-					 #xmlel{name = "id",
+					 #xmlel{name = <<"id">>,
 					        children = [#xmlcdata{content = S}]}
 				 end,
 			    ejabberd_router:route(
-			      To, From, Packet#xmlel{children = [#xmlel{name = "x",
-					                                attrs = [{"xmlns",
+			      To, From, Packet#xmlel{children = [#xmlel{name = <<"x">>,
+					                                attrs = [{<<"xmlns">>,
 					                                          ?NS_EVENT}],
 					                                children = [ID,
-					                                            #xmlel{name = "offline"}]}]}),
+					                                            #xmlel{name = <<"offline">>}]}]}),
 			    true
 		    end;
 		_ ->
@@ -250,7 +250,7 @@ find_x_event_chatstates([], Res) ->
 find_x_event_chatstates([#xmlcdata{} | Els], Res) ->
     find_x_event_chatstates(Els, Res);
 find_x_event_chatstates([El | Els], {A, B, C}) ->
-    case xml:get_tag_attr_s("xmlns", El) of
+    case xml:get_tag_attr_s(<<"xmlns">>, El) of
 	?NS_EVENT ->
 	    find_x_event_chatstates(Els, {El, B, C});
 	?NS_CHATSTATES ->
@@ -264,10 +264,10 @@ find_x_expire(_, []) ->
 find_x_expire(TimeStamp, [#xmlcdata{} | Els]) ->
     find_x_expire(TimeStamp, Els);
 find_x_expire(TimeStamp, [El | Els]) ->
-    case xml:get_tag_attr_s("xmlns", El) of
+    case xml:get_tag_attr_s(<<"xmlns">>, El) of
 	?NS_EXPIRE ->
-	    Val = xml:get_tag_attr_s("seconds", El),
-	    case catch list_to_integer(Val) of
+	    Val = xml:get_tag_attr_s(<<"seconds">>, El),
+	    case catch list_to_integer(binary_to_list(Val)) of
 		{'EXIT', _} ->
 		    never;
 		Int when Int > 0 ->
@@ -308,8 +308,8 @@ resend_offline_messages(User, Server) ->
 			                                                jlib:make_jid(<<>>,
 				                                                      Server,
 			                                                              <<>>),
-                                                                        "Offline Storage"),%% TODO: Delete the next three lines once XEP-0091 is Obsolete
-			                                                                   jlib:timestamp_to_xml(calendar:now_to_universal_time(R#offline_msg.timestamp))]}}
+                                                                        <<"Offline Storage">>), %% TODO: Delete the next three lines once XEP-0091 is Obsolete
+                                                  jlib:timestamp_to_xml(calendar:now_to_universal_time(R#offline_msg.timestamp))]}}
 	      end,
 	      lists:keysort(#offline_msg.timestamp, Rs));
 	_ ->
@@ -340,8 +340,8 @@ pop_offline_messages(Ls, User, Server) ->
 			                                                  jlib:make_jid(<<>>,
 				                                                        Server,
 				                                                        <<>>),
-				                                          "Offline Storage"),%% TODO: Delete the next three lines once XEP-0091 is Obsolete
-				                                                             jlib:timestamp_to_xml(calendar:now_to_universal_time(R#offline_msg.timestamp))]}}
+				                                          <<"Offline Storage">>), %% TODO: Delete the next three lines once XEP-0091 is Obsolete
+                                                    jlib:timestamp_to_xml(calendar:now_to_universal_time(R#offline_msg.timestamp))]}}
 		    end,
 		    lists:filter(
 		      fun(R) ->
@@ -497,8 +497,8 @@ update_table() ->
 discard_warn_sender(Msgs) ->
     lists:foreach(
       fun(#offline_msg{from=From, to=To, packet=Packet}) ->
-	      ErrText = "Your contact offline message queue is full. The message has been discarded.",
-	      Lang = xml:get_tag_attr_s("xml:lang", Packet),
+	      ErrText = <<"Your contact offline message queue is full. The message has been discarded.">>,
+	      Lang = xml:get_tag_attr_s(<<"xml:lang">>, Packet),
 	      Err = jlib:make_error_reply(
 		      Packet, ?ERRT_RESOURCE_CONSTRAINT(Lang, ErrText)),
 	      ejabberd_router:route(
@@ -602,7 +602,7 @@ user_queue_parse_query(US, Query) ->
     end.
 
 us_to_list({User, Server}) ->
-    jlib:jid_to_binary({User, Server, ""}).
+    jlib:jid_to_binary({User, Server, <<>>}).
 
 get_queue_length(User, Server) ->
     length(mnesia:dirty_read({offline_msg, {User, Server}})).
@@ -623,9 +623,9 @@ get_messages_subset2(Max, Length, MsgsAll) ->
     FirstN = Max,
     {MsgsFirstN, Msgs2} = lists:split(FirstN, MsgsAll),
     MsgsLastN = lists:nthtail(Length - FirstN - FirstN, Msgs2),
-    NoJID = jlib:make_jid("...", "...", ""),
+    NoJID = jlib:make_jid(<<"...">>, <<"...">>, <<"">>),
     IntermediateMsg = #offline_msg{timestamp = now(), from = NoJID, to = NoJID,
-				   packet = #xmlel{name = "..."}},
+				   packet = #xmlel{name = <<"...">>}},
     MsgsFirstN ++ [IntermediateMsg] ++ MsgsLastN.
 
 webadmin_user(Acc, User, Server, Lang) ->
