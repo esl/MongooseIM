@@ -397,8 +397,8 @@ handle_stream_event({EventTag, Body, Rid} = Event, Handler,
         {_, _, true, _} ->
             process_acked_stream_event(Event, SName, NS);
         {_, _, false, true} ->
-            ?DEBUG("deferring (rid: ~p, expected: ~p): ~p~n",
-                   [Rid, ExpectedRid, {EventTag, Body}]),
+            ?INFO_MSG("deferring (rid: ~p, expected: ~p): ~p~n",
+                      [Rid, ExpectedRid, {EventTag, Body}]),
             NS#state{deferred = [Event | NS#state.deferred]};
         {_, _, false, false} ->
             ?ERROR_MSG("invalid rid ~p, expected ~p:~n~p~n",
