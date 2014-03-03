@@ -435,7 +435,7 @@ force_retransmission(Config) ->
         escalus:assert(is_chat_message, [<<"1st rep!">>], ChatResponse),
 
         %% Resend msg.
-        escalus_bosh:send_raw(Carol#client.conn, Chat),
+        escalus_bosh:resend_raw(Carol#client.conn, Chat),
 
         %% Recv same reply again.
         ChatResponse = wait_for_stanza(Carol)
