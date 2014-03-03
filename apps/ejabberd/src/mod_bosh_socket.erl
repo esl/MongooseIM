@@ -434,13 +434,15 @@ process_acked_stream_event({EventTag, Body, Rid}, SName,
     NS = maybe_trim_cache(Ack, S),
     case Action of
         noreport ->
-            process_stream_event(EventTag, Body, SName, NS#state{rid = Rid});
+            process_stream_event(EventTag, Body, SName, rid(NS, Rid));
         report ->
             NS2 = schedule_report(Ack, NS),
-            NS3 = process_stream_event(EventTag, Body, SName,
-                                       NS2#state{rid = Rid}),
+            NS3 = process_stream_event(EventTag, Body, SName, rid(NS2, Rid)),
             maybe_send_report(NS3)
     end.
+
+rid(#state{} = S, Rid) when is_integer(Rid), Rid > 0 ->
+    S#state{rid = Rid}.
 
 determine_report_action(undefined, false, _, _) ->
     {noreport, undefined};
