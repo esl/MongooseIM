@@ -18,11 +18,11 @@ start(_Opts) ->
     mnesia:add_table_copy(bosh_session, node(), ram_copies).
 
 create_session(#bosh_session{} = Session) ->
-    mnesia:sync_dirty(fun mnesia:write/1, [Session]).
+    mnesia:sync_transaction(fun mnesia:write/1, [Session]).
 
 -spec delete_session(bosh_sid()) -> any().
 delete_session(Sid) ->
-    mnesia:async_dirty(fun mnesia:delete/1, [{bosh_session, Sid}]).
+    mnesia:transaction(fun mnesia:delete/1, [{bosh_session, Sid}]).
 
 -spec get_session(bosh_sid()) -> [#bosh_session{}].
 get_session(Sid) ->
