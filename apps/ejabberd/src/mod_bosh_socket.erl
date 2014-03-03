@@ -375,11 +375,12 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 
 handle_stream_event({EventTag, Body, Rid} = Event, Handler,
                     SName, #state{rid = OldRid} = S) ->
+    ExpectedRid = OldRid + 1,
     NS = maybe_add_handler(Handler, Rid, S),
     NNS = case {EventTag,
                 maybe_is_retransmission(Rid, OldRid, S#state.sent),
-                is_valid_rid(Rid, OldRid),
-                is_acceptable_rid(Rid, OldRid)}
+                is_expected_rid(Rid, ExpectedRid),
+                is_acceptable_rid(Rid, ExpectedRid)}
     of
         {_, {true, CachedResponse}, _, _} ->
             case CachedResponse of
@@ -398,7 +399,7 @@ handle_stream_event({EventTag, Body, Rid} = Event, Handler,
             NS#state{deferred = [Event | NS#state.deferred]};
         {_, _, false, false} ->
             ?ERROR_MSG("invalid rid ~p, expected ~p:~n~p~n",
-                       [Rid, OldRid + 1, {EventTag, Body}]),
+                       [Rid, ExpectedRid, {EventTag, Body}]),
             [Pid ! item_not_found
              || {_, _, Pid} <- lists:sort(NS#state.handlers)],
             throw({invalid_rid, NS#state{handlers = []}})
@@ -533,14 +534,14 @@ process_deferred_events(SName, #state{deferred = Deferred} = S) ->
                 S#state{deferred = []},
                 lists:sort(Deferred)).
 
-is_valid_rid(Rid, OldRid) when Rid == OldRid + 1 ->
+is_expected_rid(Rid, ExpectedRid) when Rid == ExpectedRid ->
     true;
-is_valid_rid(_, _) ->
+is_expected_rid(_, _) ->
     false.
 
-is_acceptable_rid(Rid, OldRid)
-        when Rid > OldRid + 1,
-             Rid =< OldRid + ?CONCURRENT_REQUESTS ->
+is_acceptable_rid(Rid, ExpectedRid)
+  when Rid > ExpectedRid,
+       Rid < ExpectedRid + ?CONCURRENT_REQUESTS ->
     true;
 is_acceptable_rid(_, _) ->
     false.
