@@ -60,7 +60,7 @@
                 sid :: bosh_sid(),
                 wait = ?DEFAULT_WAIT,
                 hold = ?DEFAULT_HOLD,
-                rid :: rid(),
+                rid :: rid() | undefined,
                 %% Requests deferred for later processing because
                 %% of having Rid greater than expected.
                 deferred = [] :: [{rid(), {event_type(), #xmlel{}}}],
@@ -375,7 +375,10 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 
 handle_stream_event({EventTag, Body, Rid} = Event, Handler,
                     SName, #state{rid = OldRid} = S) ->
-    ExpectedRid = OldRid + 1,
+    ExpectedRid = case OldRid of
+                      _ when is_integer(OldRid) -> OldRid + 1;
+                      undefined -> undefined
+                  end,
     NS = maybe_add_handler(Handler, Rid, S),
     NNS = case {EventTag,
                 maybe_is_retransmission(Rid, OldRid, S#state.sent),
