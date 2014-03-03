@@ -341,11 +341,11 @@ handle_info(reset_stream, SName, #state{} = S) ->
 handle_info(close, _SName, State) ->
     {stop, normal, State};
 handle_info(inactivity_timeout, _SName, State) ->
-    ?DEBUG("terminating due to client inactivity~n", []),
+    ?INFO_MSG("terminating due to client inactivity~n", []),
     {stop, {shutdown, inactivity_timeout}, State};
 handle_info({wait_timeout, {Rid, Pid}}, SName,
             #state{handlers = Handlers} = S) ->
-    ?DEBUG("'wait' limit reached for ~p~n", [Pid]),
+    ?INFO_MSG("'wait' limit reached for ~p~n", [Pid]),
     %% In case some message was being handled when the timer fired
     %% it may turn out that Pid is no longer available in Handlers.
     case lists:keytake(Rid, 1, Handlers) of
