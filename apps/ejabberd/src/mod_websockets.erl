@@ -46,6 +46,7 @@
 -include_lib("exml/include/exml_stream.hrl").
 
 -define(LISTENER, ?MODULE).
+-define(TOP_LEVEL_TAG, <<"<stream>">>).
 
 -record(websocket, {pid :: pid(),
                     peername :: string()}).
@@ -161,7 +162,8 @@ websocket_init(Transport, Req, Opts) ->
     case ejabberd_c2s:start({?MODULE, SocketData}, Opts) of
         {ok, Pid} ->
             ?DEBUG("started c2s via websockets: ~p", [Pid]),
-            {ok, Parser} = exml_stream:new_parser(),
+            {ok, P} = exml_stream:new_parser(),
+            {ok, Parser,_} = exml_stream:parse(P,?TOP_LEVEL_TAG),
             State = #ws_state{c2s_pid = Pid,
                               parser = Parser},
             {ok, NewReq2, State};
@@ -192,7 +194,8 @@ websocket_handle(Any, Req, State) ->
 websocket_info({send, Text}, Req, State) ->
     {reply, {text, Text}, Req, State};
 websocket_info(reset_stream, Req, #ws_state{parser = Parser} = State) ->
-    {ok, NewParser} = exml_stream:reset_parser(Parser),
+    {ok, P} = exml_stream:reset_parser(Parser),
+    {ok, NewParser, _} = exml_stream:parse(P,?TOP_LEVEL_TAG),
     {ok, Req, State#ws_state{parser = NewParser}};
 websocket_info(stop, Req, #ws_state{parser = Parser} = State) ->
     exml_stream:free_parser(Parser),
@@ -213,6 +216,8 @@ handle_text(Text, #ws_state{c2s_pid = C2S, parser = Parser} = State) ->
     [send_to_c2s(C2S, Elem) || Elem <- Elements],
     {ok, State#ws_state{parser = NewParser}}.
 
+send_to_c2s(C2S, #xmlel{name = <<"close">>} = Element) ->
+    send_to_c2s(C2S, {xmlstreamend, Element});
 send_to_c2s(C2S, #xmlel{} = Element) ->
     send_to_c2s(C2S, {xmlstreamelement, Element});
 send_to_c2s(C2S, StreamElement) ->
@@ -268,7 +273,6 @@ peername(#websocket{peername = PeerName}) ->
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
-
 get_dispatch(Opts) ->
     WSHost = gen_mod:get_opt(host, Opts, '_'), %% default to any
     WSPrefix = gen_mod:get_opt(prefix, Opts, "/ws-xmpp"),
