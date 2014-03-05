@@ -564,7 +564,7 @@ register_room(Host, Room, Pid) ->
 	end,
     mnesia:transaction(F).
 
--spec room_jid_to_pid(RoomJID :: jid()) -> {ok, pid()} | {error, not_found}.
+-spec room_jid_to_pid(RoomJID :: ejabberd:jid()) -> {ok, pid()} | {error, not_found}.
 room_jid_to_pid(#jid{luser=RoomName, lserver=MucService}) ->
     case mnesia:dirty_read(muc_online_room, {RoomName, MucService}) of
         [R] ->

@@ -327,10 +327,9 @@ archive_room_packet(Packet, FromNick,
 %% to the user on their bare JID (i.e. `From.luser'),
 %% while a MUC service might allow MAM queries to be sent to the room's bare JID
 %% (i.e `To.luser').
--spec room_process_mam_iq(From, To, IQ) -> IQ | ignore when
-    From :: jid(),
-    To :: jid(),
-    IQ :: #iq{}.
+-spec room_process_mam_iq( From :: ejabberd:jid()
+                         , To :: ejabberd:jid()
+                         , IQ :: ejabberd:iq()) -> ejabberd:iq() | 'ignore'.
 room_process_mam_iq(From=#jid{lserver=Host}, To, IQ) ->
     Action = iq_action(IQ),
     case is_action_allowed(Action, From, To) of
@@ -360,8 +359,8 @@ is_action_allowed(Action, From, To=#jid{lserver=Host}) ->
 
 -spec is_action_allowed_by_default(Action, From, To) -> boolean() when
     Action  :: action(),
-    From    :: jid(),
-    To      :: jid().
+    From    :: ejabberd:jid(),
+    To      :: ejabberd:jid().
 is_action_allowed_by_default(Action, From, To) ->
     is_room_action_allowed_by_default(Action, From, To).
 
@@ -463,7 +462,7 @@ handle_lookup_messages(
                          PageSize, LimitPassed, max_result_limit(), IsSimple) of
     {error, 'policy-violation'} ->
         ?DEBUG("Policy violation by ~p.", [jlib:jid_to_binary(From)]),
-        ErrorEl = ?STANZA_ERRORT(<<"">>, <<"modify">>, <<"policy-violation">>,
+        ErrorEl = jlib:stanza_errort(<<"">>, <<"modify">>, <<"policy-violation">>,
                                  <<"en">>, <<"Too many results">>),          
         IQ#iq{type = error, sub_el = [ErrorEl]};
     {ok, {TotalCount, Offset, MessageRows}} ->
@@ -533,7 +532,7 @@ set_prefs(Host, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
 -spec get_prefs(Host, ArcID, ArcJID, GlobalDefaultMode) -> Result when
     Host        :: server_host(),
     ArcID       :: archive_id(),
-    ArcJID      :: jid(),
+    ArcJID      :: ejabberd:jid(),
     DefaultMode :: archive_behaviour(),
     GlobalDefaultMode :: archive_behaviour(),
     Result      :: {DefaultMode, AlwaysJIDs, NeverJIDs},
@@ -585,23 +584,20 @@ archive_message(Host, MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet) ->
     Host   :: server_host(),
     MessID :: message_id(),
     ArcID  :: archive_id(),
-    ArcJID :: jid(),
+    ArcJID :: ejabberd:jid(),
     Now :: unix_timestamp().
 purge_single_message(Host, MessID, ArcID, ArcJID, Now) ->
     ejabberd_hooks:run_fold(mam_muc_purge_single_message, Host, ok,
         [Host, MessID, ArcID, ArcJID, Now]).
 
--spec purge_multiple_messages(Host, ArcID, ArcJID, Borders,
-                              Start, End, Now, WithJID) -> ok
-    when
-    Host    :: server_host(),
-    ArcID   :: archive_id(),
-    ArcJID  :: jid(),
-    Borders :: #mam_borders{} | undefined,
-    Start   :: unix_timestamp() | undefined,
-    End     :: unix_timestamp() | undefined,
-    Now     :: unix_timestamp(),
-    WithJID :: jid() | undefined.
+-spec purge_multiple_messages( Host :: server_host()
+                             , ArcID   :: archive_id()
+                             , ArcJID  :: ejabberd:jid()
+                             , Borders :: #mam_borders{} | undefined
+                             , Start   :: unix_timestamp() | undefined
+                             , End     :: unix_timestamp() | undefined
+                             , Now     :: unix_timestamp()
+                             , WithJID :: ejabberd:jid() | undefined) -> ok.
 purge_multiple_messages(Host, ArcID, ArcJID, Borders,
                         Start, End, Now, WithJID) ->
     ejabberd_hooks:run_fold(mam_muc_purge_multiple_messages, Host, ok,
@@ -667,13 +663,13 @@ return_purge_success(IQ) ->
     IQ#iq{type = result, sub_el = []}.
 
 return_action_not_allowed_error_iq(IQ) ->
-    ErrorEl = ?STANZA_ERRORT(<<"">>, <<"cancel">>, <<"not-allowed">>,
+    ErrorEl = jlib:stanza_errort(<<"">>, <<"cancel">>, <<"not-allowed">>,
          <<"en">>, <<"The action is not allowed.">>),
     IQ#iq{type = error, sub_el = [ErrorEl]}.
 
 return_purge_not_found_error_iq(IQ) ->
     %% Message not found.
-    ErrorEl = ?STANZA_ERRORT(<<"">>, <<"cancel">>, <<"item-not-found">>,
+    ErrorEl = jlib:stanza_errort(<<"">>, <<"cancel">>, <<"item-not-found">>,
          <<"en">>, <<"The provided UID did not match any message stored in archive.">>),
     IQ#iq{type = error, sub_el = [ErrorEl]}.
 

@@ -261,10 +261,9 @@ stop(Host) ->
 %% to the user on their bare JID (i.e. `From.luser'),
 %% while a MUC service might allow MAM queries to be sent to the room's bare JID
 %% (i.e `To.luser').
--spec process_mam_iq(From, To, IQ) -> IQ | ignore when
-    From :: jid(),
-    To :: jid(),
-    IQ :: #iq{}.
+-spec process_mam_iq( From :: ejabberd:jid()
+                    , To :: ejabberd:jid()
+                    , IQ :: ejabberd:iq()) -> ejabberd:iq() | ignore.
 process_mam_iq(From=#jid{lserver=Host}, To, IQ) ->
     Action = iq_action(IQ),
     case is_action_allowed(Action, From, To) of
@@ -307,11 +306,10 @@ user_send_packet(From, To, Packet) ->
 %%
 %% Return drop to drop the packet, or the original input to let it through.
 %% From and To are jid records.
--spec filter_packet(Value) -> Value when
-    Value :: {From, To, Packet} | drop,
-    From :: jid(),
-    To :: jid(),
-    Packet :: elem().
+-type fpacket() :: { From :: ejabberd:jid()
+                   , To :: ejabberd:jid()
+                   , Packet :: elem()}.
+-spec filter_packet(Value :: fpacket() | drop) -> fpacket() | drop.
 filter_packet(drop) ->
     drop;
 filter_packet({From, To=#jid{luser=LUser, lserver=LServer}, Packet}) ->
@@ -349,10 +347,9 @@ is_action_allowed(Action, From, To=#jid{lserver=Host}) ->
         default -> is_action_allowed_by_default(Action, From, To)
     end.
 
--spec is_action_allowed_by_default(Action, From, To) -> boolean() when
-    Action  :: action(),
-    From    :: jid(),
-    To      :: jid().
+-spec is_action_allowed_by_default( Action  :: action()
+                                  , From    :: ejabberd:jid()
+                                  , To      :: ejabberd:jid()) -> boolean().
 is_action_allowed_by_default(_Action, From, To) ->
     compare_bare_jids(From, To).
 
@@ -439,7 +436,7 @@ handle_lookup_messages(
                          PageSize, LimitPassed, max_result_limit(), IsSimple) of
     {error, 'policy-violation'} ->
         ?DEBUG("Policy violation by ~p.", [jlib:jid_to_binary(From)]),
-        ErrorEl = ?STANZA_ERRORT(<<"">>, <<"modify">>, <<"policy-violation">>,
+        ErrorEl = jlib:stanza_errort(<<"">>, <<"modify">>, <<"policy-violation">>,
                                  <<"en">>, <<"Too many results">>),          
         IQ#iq{type = error, sub_el = [ErrorEl]};
     {ok, {TotalCount, Offset, MessageRows}} ->
@@ -486,15 +483,12 @@ handle_purge_single_message(ArcJID=#jid{},
     PurgingResult = purge_single_message(Host, MessID, ArcID, ArcJID, Now),
     return_purge_single_message_iq(IQ, PurgingResult).
 
--spec handle_package(Dir, ReturnMessID, LocJID, RemJID, SrcJID, Packet) ->
-    MaybeMessID when
-    Dir :: incoming | outgoing,
-    ReturnMessID :: boolean(),
-    LocJID :: jid(),
-    RemJID :: jid(),
-    SrcJID :: jid(),
-    Packet :: elem(),
-    MaybeMessID :: binary() | undefined.
+-spec handle_package( Dir :: incoming | outgoing
+                    , ReturnMessID :: boolean()
+                    , LocJID :: ejabberd:jid()
+                    , RemJID :: ejabberd:jid()
+                    , SrcJID :: ejabberd:jid()
+                    , Packet :: elem()) -> MaybeMessID :: binary() | undefined.
 handle_package(Dir, ReturnMessID,
                LocJID=#jid{},
                RemJID=#jid{},
@@ -544,15 +538,13 @@ set_prefs(Host, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
         [Host, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs]).
 
 %% @doc Load settings from the database.
--spec get_prefs(Host, ArcID, ArcJID, GlobalDefaultMode) -> Result when
-    Host        :: server_host(),
-    ArcID       :: archive_id(),
-    ArcJID      :: jid(),
-    DefaultMode :: archive_behaviour(),
-    GlobalDefaultMode :: archive_behaviour(),
-    Result      :: {DefaultMode, AlwaysJIDs, NeverJIDs},
-    AlwaysJIDs  :: [literal_jid()],
-    NeverJIDs   :: [literal_jid()].
+-spec get_prefs( Host        :: server_host()
+               , ArcID       :: archive_id()
+               , ArcJID      :: ejabberd:jid()
+               , GlobalDefaultMode :: archive_behaviour()
+               ) -> { DefaultMode :: archive_behaviour()
+                    , AlwaysJIDs :: [literal_jid()]
+                    , NeverJIDs :: [literal_jid()] }.
 get_prefs(Host, ArcID, ArcJID, GlobalDefaultMode) ->
     ejabberd_hooks:run_fold(mam_get_prefs, Host,
         {GlobalDefaultMode, [], []},
@@ -562,27 +554,23 @@ remove_archive(Host, ArcID, ArcJID=#jid{}) ->
     ejabberd_hooks:run(mam_remove_archive, Host, [Host, ArcID, ArcJID]),
     ok.
 
--spec lookup_messages(Host, ArcID, ArcJID, RSM, Borders,
-                      Start, End, Now, WithJID,
-                      PageSize, LimitPassed, MaxResultLimit, IsSimple) ->
-    {ok, {TotalCount, Offset, MessageRows}} | {error, 'policy-violation'}
-    when
-    Host    :: server_host(),
-    ArcID   :: archive_id(),
-    ArcJID  :: #jid{},
-    RSM     :: #rsm_in{} | undefined,
-    Borders :: #mam_borders{} | undefined,
-    Start   :: unix_timestamp() | undefined,
-    End     :: unix_timestamp() | undefined,
-    Now     :: unix_timestamp(),
-    WithJID :: #jid{} | undefined,
-    PageSize :: non_neg_integer(),
-    LimitPassed :: boolean(),
-    MaxResultLimit :: non_neg_integer(),
-    IsSimple :: boolean() | opt_count,
-    TotalCount :: non_neg_integer(),
-    Offset  :: non_neg_integer(),
-    MessageRows :: list(tuple()).
+-type lookup_result() :: { TotalCount :: non_neg_integer()
+                         , Offset  :: non_neg_integer()
+                         , MessageRows :: list(tuple())}.
+-spec lookup_messages( Host    :: server_host()
+                     , ArcID   :: archive_id()
+                     , ArcJID  :: #jid{}
+                     , RSM     :: #rsm_in{} | undefined
+                     , Borders :: #mam_borders{} | undefined
+                     , Start   :: unix_timestamp() | undefined
+                     , End     :: unix_timestamp() | undefined
+                     , Now     :: unix_timestamp()
+                     , WithJID :: ejabberd:jid() | undefined
+                     , PageSize :: non_neg_integer()
+                     , LimitPassed :: boolean()
+                     , MaxResultLimit :: non_neg_integer()
+                     , IsSimple :: boolean() | opt_count
+                     ) -> {ok, lookup_result()} | {error, 'policy-violation'}.
 lookup_messages(Host, ArcID, ArcJID, RSM, Borders, Start, End, Now,
                 WithJID, PageSize, LimitPassed, MaxResultLimit, IsSimple) ->
     ejabberd_hooks:run_fold(mam_lookup_messages, Host, {ok, {0, 0, []}},
@@ -590,43 +578,38 @@ lookup_messages(Host, ArcID, ArcJID, RSM, Borders, Start, End, Now,
          Start, End, Now, WithJID,
          PageSize, LimitPassed, MaxResultLimit, IsSimple]).
 
--spec archive_message(Host, MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet) ->
-    ok | {error, timeout} when
-    Host   :: server_host(),
-    MessID :: message_id(),
-    ArcID  :: archive_id(),
-    LocJID :: jid(),
-    RemJID :: jid(),
-    SrcJID :: jid(),
-    Dir    :: incoming | outgoing,
-    Packet :: term().
+-spec archive_message( Host   :: server_host()
+                     , MessID :: message_id()
+                     , ArcID  :: archive_id()
+                     , LocJID :: ejabberd:jid()
+                     , RemJID :: ejabberd:jid()
+                     , SrcJID :: ejabberd:jid()
+                     , Dir    :: incoming | outgoing
+                     , Packet :: term()
+                     ) -> ok | {error, timeout}.
 archive_message(Host, MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet) ->
     ejabberd_hooks:run_fold(mam_archive_message, Host, ok,
         [Host, MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet]).
 
 
--spec purge_single_message(Host, MessID, ArcID, ArcJID, Now) ->
-    ok | {error, 'not-found'} when
-    Host   :: server_host(),
-    MessID :: message_id(),
-    ArcID  :: archive_id(),
-    ArcJID :: jid(),
-    Now :: unix_timestamp().
+-spec purge_single_message( Host   :: server_host()
+                          , MessID :: message_id()
+                          , ArcID  :: archive_id()
+                          , ArcJID :: ejabberd:jid()
+                          , Now :: unix_timestamp()
+                          ) -> ok | {error, 'not-found'}.
 purge_single_message(Host, MessID, ArcID, ArcJID, Now) ->
     ejabberd_hooks:run_fold(mam_purge_single_message, Host, ok,
         [Host, MessID, ArcID, ArcJID, Now]).
 
--spec purge_multiple_messages(Host, ArcID, ArcJID, Borders,
-                              Start, End, Now, WithJID) -> ok
-    when
-    Host    :: server_host(),
-    ArcID   :: archive_id(),
-    ArcJID  :: jid(),
-    Borders :: #mam_borders{} | undefined,
-    Start   :: unix_timestamp() | undefined,
-    End     :: unix_timestamp() | undefined,
-    Now     :: unix_timestamp(),
-    WithJID :: jid() | undefined.
+-spec purge_multiple_messages( Host    :: server_host()
+                             , ArcID   :: archive_id()
+                             , ArcJID  :: ejabberd:jid()
+                             , Borders :: #mam_borders{} | undefined
+                             , Start   :: unix_timestamp() | undefined
+                             , End     :: unix_timestamp() | undefined
+                             , Now     :: unix_timestamp()
+                             , WithJID :: ejabberd:jid() | undefined) -> ok.
 purge_multiple_messages(Host, ArcID, ArcJID, Borders, Start, End, Now, WithJID) ->
     ejabberd_hooks:run_fold(mam_purge_multiple_messages, Host, ok,
         [Host, ArcID, ArcJID, Borders, Start, End, Now, WithJID]).
@@ -692,13 +675,13 @@ return_purge_success(IQ) ->
     IQ#iq{type = result, sub_el = []}.
 
 return_action_not_allowed_error_iq(IQ) ->
-    ErrorEl = ?STANZA_ERRORT(<<"">>, <<"cancel">>, <<"not-allowed">>,
+    ErrorEl = jlib:stanza_errort(<<"">>, <<"cancel">>, <<"not-allowed">>,
          <<"en">>, <<"The action is not allowed.">>),
     IQ#iq{type = error, sub_el = [ErrorEl]}.
 
 return_purge_not_found_error_iq(IQ) ->
     %% Message not found.
-    ErrorEl = ?STANZA_ERRORT(<<"">>, <<"cancel">>, <<"item-not-found">>,
+    ErrorEl = jlib:stanza_errort(<<"">>, <<"cancel">>, <<"item-not-found">>,
          <<"en">>, <<"The provided UID did not match any message stored in archive.">>),
     IQ#iq{type = error, sub_el = [ErrorEl]}.
 

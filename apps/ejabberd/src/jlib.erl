@@ -27,42 +27,51 @@
 -module(jlib).
 -author('alexey@process-one.net').
 
--export([make_result_iq_reply/1,
-         make_error_reply/2,
-         make_invitation/3,
-         make_config_change_message/1,
-         make_voice_approval_form/3,
-         replace_from_to_attrs/3,
-         replace_from_to/3,
-         remove_attr/2,
-         make_jid/3,
-         make_jid/1,
-         binary_to_jid/1,
-         jid_to_binary/1,
-         is_nodename/1,
-         nodeprep/1,
-         nameprep/1,
-         resourceprep/1,
-         jid_tolower/1,
-         jid_remove_resource/1,
-         jid_replace_resource/2,
-         iq_query_info/1,
-         iq_query_or_response_info/1,
-         iq_to_xml/1,
-         parse_xdata_submit/1,
-         timestamp_to_iso/1, % TODO: Remove once XEP-0091 is Obsolete
-         timestamp_to_xml/4,
-         timestamp_to_xml/1, % TODO: Remove once XEP-0091 is Obsolete
-         timestamp_to_mam_xml/4,
-         now_to_utc_binary/1,
-         datetime_string_to_timestamp/1,
-         decode_base64/1,
-         encode_base64/1,
-         ip_to_list/1,
-         rsm_encode/1,
-         rsm_decode/1]).
+-export([ make_result_iq_reply/1
+        , make_error_reply/2
+        , make_invitation/3
+        , make_config_change_message/1
+        , make_voice_approval_form/3
+        , replace_from_to_attrs/3
+        , replace_from_to/3
+        , remove_attr/2
+        , make_jid/3
+        , make_jid/1
+        , binary_to_jid/1
+        , jid_to_binary/1
+        , is_nodename/1
+        , nodeprep/1
+        , nameprep/1
+        , resourceprep/1
+        , jid_tolower/1
+        , jid_remove_resource/1
+        , jid_replace_resource/2
+        , iq_query_info/1
+        , iq_query_or_response_info/1
+        , iq_to_xml/1
+        , parse_xdata_submit/1
+        , timestamp_to_iso/1             % TODO: Remove once XEP-0091 is Obsolete
+        , timestamp_to_xml/4
+        , timestamp_to_xml/1             % TODO: Remove once XEP-0091 is Obsolete
+        , timestamp_to_mam_xml/4
+        , now_to_utc_binary/1
+        , datetime_string_to_timestamp/1
+        , decode_base64/1
+        , encode_base64/1
+        , ip_to_list/1
+        , rsm_encode/1
+        , rsm_decode/1
+        , stanza_error/3
+        , stanza_errort/5
+        , stream_error/1
+        , stream_errort/3
+        ]).
 
+-include_lib("exml/include/exml.hrl").
 -include("jlib.hrl").
+
+-type xmlel() :: #xmlel{}.
+-export_type([ xmlel/0 ]).
 
 make_result_iq_reply(XE = #xmlel{attrs = Attrs}) ->
     NewAttrs = make_result_iq_reply_attrs(Attrs),
@@ -802,3 +811,57 @@ ip_to_list({A,B,C,D}) ->
     lists:flatten(io_lib:format("~w.~w.~w.~w",[A,B,C,D]));
 ip_to_list(IP) ->
     lists:flatten(io_lib:format("~w", [IP])).
+
+%% TODO: remove<<"code" attribute (currently it used for backward-compatibility)
+-spec stanza_error( Code :: binary()
+                  , Type :: binary()
+                  , Condition :: binary) -> #xmlel{}.
+stanza_error(Code, Type, Condition) ->
+  #xmlel{ name = <<"error">>
+        , attrs = [{<<"code">>, Code}, {<<"type">>, Type}]
+        , children = [ #xmlel{ name = Condition
+                             , attrs = [{<<"xmlns">>, ?NS_STANZAS}]
+                             }]
+        }.
+
+-spec stanza_errort( Code :: binary()
+                   , Type :: binary()
+                   , Condition :: binary()
+                   , Lang :: ejabberd:lang()
+                   , Text :: binary()) -> #xmlel{}.
+stanza_errort(Code, Type, Condition, Lang, Text) ->
+  Txt = translate:translate(Lang, Text),
+  #xmlel{ name = <<"error">>
+        , attrs = [{<<"code">>, Code}, {<<"type">>, Type}]
+        , children = [ #xmlel{ name = Condition
+                             , attrs = [{<<"xmlns">>, ?NS_STANZAS}]
+                             }
+                     , #xmlel{ name = <<"text">>
+                             , attrs = [{<<"xmlns">>, ?NS_STANZAS}]
+                             , children = [#xmlcdata{ content = Txt }]
+                             }]
+        }.
+
+-spec stream_error(Condition :: binary()) -> #xmlel{}.
+stream_error(Condition) ->
+  #xmlel{ name = <<"stream:error">>
+        , children = [ #xmlel{ name = Condition
+                             , attrs = [{<<"xmlns">>, ?NS_STREAMS}]
+                             }
+                     ]
+        }.
+
+-spec stream_errort( Condition :: binary()
+                   , Lang :: ejabberd:lang()
+                   , Text :: binary()) -> #xmlel{}.
+stream_errort(Condition, Lang, Text) ->
+  Txt = translate:translate(Lang, Text),
+  #xmlel{ name = <<"stream:error">>
+        , children = [ #xmlel{ name = Condition
+                             , attrs = [{<<"xmlns">>, ?NS_STREAMS}] }
+                     , #xmlel{ name = <<"text">>
+                             , attrs = [ {<<"xml:lang">>, Lang}
+                                       , {<<"xmlns">>, ?NS_STREAMS}]
+                             , children = [ #xmlcdata{ content = Txt} ]}
+                     ]
+        }.

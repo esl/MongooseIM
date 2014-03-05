@@ -37,6 +37,15 @@
 -include("ejabberd_config.hrl").
 -include_lib("kernel/include/file.hrl").
 
+-type key() :: atom() | {atom(), atom()} | {atom(), atom(), atom()}.
+-type value() :: atom() | integer() | string() | [tuple()].
+-export_type([key/0, value/0]).
+
+-record(state, { opts = []  :: list()
+               , hosts = [] :: list()
+               , override_local = false  :: boolean()
+               , override_global = false :: boolean()
+               , override_acls = false   :: boolean()}).
 
 %% @type macro() = {macro_key(), macro_value()}
 
