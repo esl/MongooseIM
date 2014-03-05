@@ -152,7 +152,8 @@ start_link(Host, ServerHost, Access, Room, HistorySize, RoomShaper, Opts) ->
                         RoomShaper, Opts],
                        ?FSMOPTS).
 
--spec get_room_users(RoomJID :: jid()) -> {ok, [#user{}]} | {error, not_found}.
+-spec get_room_users( RoomJID :: ejabberd:jid()
+                    ) -> {ok, [#user{}]} | {error, not_found}.
 get_room_users(RoomJID) ->
     case mod_muc:room_jid_to_pid(RoomJID) of
         {ok, Pid} ->
@@ -161,8 +162,9 @@ get_room_users(RoomJID) ->
             {error, Reason}
     end.
 
--spec is_room_owner(RoomJID :: jid(), UserJID :: jid()) ->
-    {ok, boolean()} | {error, not_found}.
+-spec is_room_owner( RoomJID :: ejabberd:jid()
+                   , UserJID :: ejabberd:jid()
+                   ) -> {ok, boolean()} | {error, not_found}.
 is_room_owner(RoomJID, UserJID) ->
     case mod_muc:room_jid_to_pid(RoomJID) of
         {ok, Pid} ->
@@ -1094,7 +1096,8 @@ access_persistent(#state{access=Access}) ->
     {_AccessRoute, _AccessCreate, _AccessAdmin, AccessPersistent} = Access,
     AccessPersistent.
 
--spec set_affiliation(jid(), affiliation(), state_data()) -> state_data().
+-spec set_affiliation(ejabberd:jid(), affiliation(), state_data()
+                     ) -> state_data().
 set_affiliation(JID, Affiliation, StateData)
         when is_atom(Affiliation) ->
     LJID = jlib:jid_remove_resource(jlib:jid_tolower(JID)),
@@ -1109,8 +1112,10 @@ set_affiliation(JID, Affiliation, StateData)
            end,
     StateData#state{affiliations = Affiliations}.
 
--spec set_affiliation_and_reason(
-        jid(), affiliation(), term(), state_data()) -> state_data().
+-spec set_affiliation_and_reason(ejabberd:jid()
+                                , affiliation()
+                                , term()
+                                , state_data()) -> state_data().
 set_affiliation_and_reason(JID, Affiliation, Reason, StateData)
         when is_atom(Affiliation) ->
     LJID = jlib:jid_remove_resource(jlib:jid_tolower(JID)),
@@ -1125,7 +1130,7 @@ set_affiliation_and_reason(JID, Affiliation, Reason, StateData)
            end,
     StateData#state{affiliations = Affiliations}.
 
--spec get_affiliation(jid(), state_data()) -> affiliation().
+-spec get_affiliation(ejabberd:jid(), state_data()) -> affiliation().
 get_affiliation(JID, StateData) ->
     AccessAdmin = access_admin(StateData),
     Res =
@@ -1175,15 +1180,17 @@ get_service_affiliation(JID, StateData) ->
         none
     end.
 
--spec set_role(JID :: jid(), Role :: role(), StateData) -> StateData when
-    StateData :: state_data().
+-spec set_role(JID :: ejabberd:jid()
+              , Role :: role()
+              , state_data()) -> state_data().
 set_role(JID, none, StateData) ->
     erase_matched_users(JID, StateData);
 set_role(JID, Role, StateData) ->
     update_matched_users(fun(User) -> User#user{role = Role} end,
                          JID, StateData).
 
--spec get_role(jid(), state_data()) -> role().
+-spec get_role( ejabberd:jid()
+              , state_data()) -> role().
 get_role(JID, StateData) ->
     LJID = jlib:jid_tolower(JID),
     case ?DICT:find(LJID, StateData#state.users) of
@@ -1214,7 +1221,7 @@ get_default_role(Affiliation, StateData) ->
             end
     end.
 
--spec is_visitor(jid(), state_data()) -> boolean().
+-spec is_visitor(ejabberd:jid(), state_data()) -> boolean().
 is_visitor(Jid, StateData) ->
     get_role(Jid, StateData) =:= visitor.
 
@@ -1789,10 +1796,9 @@ erase_matched_users_dict(LJID, Users) ->
             ?DICT:erase(LJID, Users)
     end.
 
--spec update_matched_users(F, JID, StateData) -> StateData when
-    F :: fun((User) -> User),
-    JID :: jid(),
-    StateData :: state_data().
+-spec update_matched_users( F :: fun((User) -> User)
+                          , JID :: ejabberd:jid()
+                          , StateData :: state_data()) -> state_data().
 update_matched_users(F, JID, StateData=#state{users=Users}) ->
     LJID = jlib:jid_tolower(JID),
     NewUsers = update_matched_users_dict(F, LJID, Users),
@@ -3445,7 +3451,7 @@ disco_item(User=#user{nick=Nick}, RoomJID) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Handle voice request or approval (XEP-0045 7.13, 8.6)
 -spec check_voice_approval(From, Els, Lang, StateData) -> Res when
-    From :: jid(),
+    From :: ejabberd:jid(),
     Els :: [#xmlel{}],
     Lang :: binary(),
     StateData :: #state{},

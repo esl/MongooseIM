@@ -101,12 +101,12 @@ get_hooks(Host) ->
      [mam_muc_purge_multiple_message, Host, ?MODULE, mam_muc_purge_multiple_message, 50]].
 
 
--spec sm_register_connection_hook(tuple(), jid(), term()) -> term().
+-spec sm_register_connection_hook(tuple(), ejabberd:jid(), term()) -> term().
 sm_register_connection_hook(_,#jid{server = Server}, _) ->
     folsom_metrics:notify({Server, sessionSuccessfulLogins}, 1),
     folsom_metrics:notify({Server, sessionCount}, {inc, 1}).
 
--spec sm_remove_connection_hook(tuple(), jid(), term()) -> term().
+-spec sm_remove_connection_hook(tuple(), ejabberd:jid(), term()) -> term().
 sm_remove_connection_hook(_,#jid{server = Server},_) ->
     folsom_metrics:notify({Server, sessionLogouts}, 1),
     folsom_metrics:notify({Server, sessionCount}, {dec, 1}).
@@ -115,7 +115,7 @@ sm_remove_connection_hook(_,#jid{server = Server},_) ->
 auth_failed(_,Server,_) ->
     folsom_metrics:notify({Server, sessionAuthFails},1).
 
--spec user_send_packet(jid(), tuple(), tuple()) -> term().
+-spec user_send_packet(ejabberd:jid(), tuple(), tuple()) -> term().
 user_send_packet(#jid{server = Server},_,Packet) ->
     folsom_metrics:notify({Server, xmppStanzaSent}, 1),
     user_send_packet_type(Server, Packet).
@@ -127,7 +127,7 @@ user_send_packet_type(Server, #xmlel{name = <<"iq">>}) ->
 user_send_packet_type(Server, #xmlel{name = <<"presence">>}) ->
     folsom_metrics:notify({Server, xmppPresenceSent}, 1).
 
--spec user_receive_packet(jid(), tuple(), tuple(), tuple()) -> term().
+-spec user_receive_packet(ejabberd:jid(), tuple(), tuple(), tuple()) -> term().
 user_receive_packet(#jid{server = Server} ,_,_,Packet) ->
     folsom_metrics:notify({Server, xmppStanzaReceived},1),
     user_receive_packet_type(Server, Packet).
@@ -143,7 +143,7 @@ user_receive_packet_type(Server, #xmlel{name = <<"presence">>}) ->
 xmpp_bounce_message(Server, _) ->
     folsom_metrics:notify({Server, xmppMessageBounced}, 1).
 
--spec xmpp_stanza_dropped(jid(), tuple(), tuple()) -> term().
+-spec xmpp_stanza_dropped(ejabberd:jid(), tuple(), tuple()) -> term().
 xmpp_stanza_dropped(#jid{server = Server} ,_,_) ->
    folsom_metrics:notify({Server, xmppStanzaDropped}, 1).
 
@@ -174,7 +174,7 @@ roster_get(Acc, {_, Server}) ->
     folsom_metrics:notify({Server, modRosterGets}, 1),
     Acc.
 
--spec roster_set(jid(), tuple(), tuple()) -> list().
+-spec roster_set(ejabberd:jid(), tuple(), tuple()) -> list().
 roster_set(#jid{server = Server},_,_) ->
     folsom_metrics:notify({Server, modRosterSets}, 1).
 
@@ -188,7 +188,7 @@ roster_in_subscription(Acc,_,Server,_,unsubscribed,_) ->
 roster_in_subscription(Acc,_,_,_,_,_) ->
     Acc.
 
--spec roster_push(jid(),term()) -> term().
+-spec roster_push(ejabberd:jid(),term()) -> term().
 roster_push(#jid{server = Server},_) ->
     folsom_metrics:notify({Server, modRosterPush}, 1).
 
@@ -204,12 +204,12 @@ remove_user(_,Server) ->
 
 %% Privacy
 
--spec privacy_iq_get(term(), jid(), jid(), term(), term()) -> term().
+-spec privacy_iq_get(term(), ejabberd:jid(), ejabberd:jid(), term(), term()) -> term().
 privacy_iq_get(Acc, #jid{server  = Server}, _, _, _) ->
     folsom_metrics:notify({Server, modPrivacyGets}, 1),
     Acc.
 
--spec privacy_iq_set(term(), jid(), jid(), term()) -> term().
+-spec privacy_iq_set(term(), ejabberd:jid(), ejabberd:jid(), term()) -> term().
 privacy_iq_set(Acc, #jid{server = Server}, _To, #iq{sub_el = SubEl}) ->
     #xmlel{children = Els} = SubEl,
     case xml:remove_cdata(Els) of
@@ -223,7 +223,7 @@ privacy_iq_set(Acc, #jid{server = Server}, _To, #iq{sub_el = SubEl}) ->
     folsom_metrics:notify({Server, modPrivacySets}, 1),
     Acc.
 
--spec privacy_list_push(jid(), jid(), term()) -> term().
+-spec privacy_list_push(ejabberd:jid(), ejabberd:jid(), term()) -> term().
 privacy_list_push(_From, #jid{server = Server} = To, Packet) ->
     case Packet of
         #xmlel{name = <<"broadcast">>, children = [{privacy_list, _, _}]} ->

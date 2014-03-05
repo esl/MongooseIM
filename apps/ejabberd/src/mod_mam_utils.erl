@@ -268,24 +268,34 @@ is_incoming_presence(_, _, _) -> false.
 %%  <delay xmlns="urn:xmpp:delay" id="9RUQN9VBP7G1" query_id="q1" stamp="2014-01-13T14:16:57Z" />
 %% </message>
 %% '''
--spec wrap_message(Packet::elem(), QueryID::binary(),
-                   MessageUID::term(), DateTime::calendar:datetime(), SrcJID::jid()) ->
-        Wrapper::elem().
+-spec wrap_message( Packet     :: elem()
+                  , QueryID    :: binary()
+                  , MessageUID :: term()
+                  , DateTime   :: calendar:datetime()
+                  , SrcJID     :: ejabberd:jid()
+                  ) -> Wrapper::elem().
 wrap_message(Packet, QueryID, MessageUID, DateTime, SrcJID) ->
     Delay = delay(DateTime, SrcJID, QueryID, MessageUID),
     Packet2 = xml:append_subtags(Packet, [Delay]),
     xml:replace_tag_attr(<<"from">>, jlib:jid_to_binary(SrcJID), Packet2).
 
--spec delay(calendar:datetime(), jid(), binary(), binary()) -> elem().
+-spec delay(DateTime    :: calendar:datetime()
+           , SrcJID     :: ejabberd:jid()
+           , QueryId    :: binary()
+           , MessageUID :: binary()
+           ) -> elem().
 delay(DateTime, _SrcJID, QueryID, MessageUID) ->
     jlib:timestamp_to_mam_xml(DateTime, utc, QueryID, MessageUID).
 
 -else.
 
 %% @doc Forms `<forwarded/>' element, according to the XEP.
--spec wrap_message(Packet::elem(), QueryID::binary(),
-                   MessageUID::term(), DateTime::calendar:datetime(), SrcJID::jid()) ->
-        Wrapper::elem().
+-spec wrap_message(Packet      :: elem()
+                  , QueryID    :: binary()
+                  , MessageUID :: term()
+                  , DateTime   :: calendar:datetime()
+                  , SrcJID     :: ejabberd:jid()
+                  ) -> Wrapper::elem().
 wrap_message(Packet, QueryID, MessageUID, DateTime, SrcJID) ->
     #xmlel{
         name = <<"message">>,
@@ -293,14 +303,14 @@ wrap_message(Packet, QueryID, MessageUID, DateTime, SrcJID) ->
         children = [result(QueryID, MessageUID,
                            [forwarded(Packet, DateTime, SrcJID)])]}.
 
--spec forwarded(elem(), calendar:datetime(), jid()) -> elem().
+-spec forwarded(elem(), calendar:datetime(), ejabberd:jid()) -> elem().
 forwarded(Packet, DateTime, SrcJID) ->
     #xmlel{
         name = <<"forwarded">>,
         attrs = [{<<"xmlns">>, <<"urn:xmpp:forward:0">>}],
         children = [delay(DateTime, SrcJID), Packet]}.
 
--spec delay(calendar:datetime(), jid()) -> elem().
+-spec delay(calendar:datetime(), ejabberd:jid()) -> elem().
 delay(DateTime, SrcJID) ->
     jlib:timestamp_to_xml(DateTime, utc, SrcJID, <<>>).
 

@@ -64,6 +64,10 @@ start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 
+-spec route( From   :: ejabberd:jid()
+           , To     :: ejabberd:jid()
+           , Packet :: jlib:xmlel()
+           ) -> ok.
 route(From, To, Packet) ->
     case catch do_route(From, To, Packet) of
         {'EXIT', Reason} ->
@@ -75,6 +79,11 @@ route(From, To, Packet) ->
 
 %% Route the error packet only if the originating packet is not an error itself.
 %% RFC3920 9.3.1
+-spec route_error( From   :: ejabberd:jid()
+                 , To     :: ejabberd:jid()
+                 , ErrPacket :: jlib:xmlel()
+                 , OrigPacket :: jlib:xmlel()
+                 ) -> ok.
 route_error(From, To, ErrPacket, OrigPacket) ->
     #xmlel{attrs = Attrs} = OrigPacket,
     case <<"error">> == xml:get_attr_s(<<"type">>, Attrs) of
