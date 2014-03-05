@@ -454,6 +454,11 @@ process_stream({_, _Name, Attrs}, StateData) ->
 %% 
 %% websockets http://datatracker.ietf.org/doc/draft-ietf-xmpp-websocket
 %%
+wait_for_stream({xmlstreamelement, #xmlel{name = <<"close">>}}, StateData) ->
+    send_element(StateData, ?INVALID_XML_ERR),
+    send_trailer(StateData),
+    {stop, normal, StateData};
+
 wait_for_stream({xmlstreamelement, #xmlel{name = <<"open">>, attrs = Attrs}}, StateData) ->
     process_stream({xmlstreamelement, <<"open">>, Attrs}, StateData);
 
@@ -491,7 +496,9 @@ wait_for_stream({xmlstreamerror, _}, StateData) ->
 wait_for_stream(closed, StateData) ->
     {stop, normal, StateData}.
 
-
+wait_for_auth({xmlstreamelement, #xmlel{name = <<"close">>}}, StateData) ->
+    send_trailer(StateData),
+    {stop, normal, StateData};
 wait_for_auth({xmlstreamelement, El}, StateData) ->
     case is_auth_packet(El) of
 	{auth, _ID, get, {U, _, _, _}} ->
@@ -636,6 +643,9 @@ wait_for_auth({xmlstreamerror, _}, StateData) ->
 wait_for_auth(closed, StateData) ->
     {stop, normal, StateData}.
 
+wait_for_feature_request({xmlstreamelement, #xmlel{name = <<"close">>}}, StateData) ->
+    send_trailer(StateData),
+    {stop, normal, StateData};
 wait_for_feature_request({xmlstreamelement, El}, StateData) ->
     #xmlel{name = Name, attrs = Attrs, children = Els} = El,
     Zlib = StateData#state.zlib,
@@ -777,6 +787,9 @@ wait_for_feature_request({xmlstreamerror, _}, StateData) ->
 wait_for_feature_request(closed, StateData) ->
     {stop, normal, StateData}.
 
+wait_for_sasl_response({xmlstreamelement, #xmlel{name = <<"close">>}}, StateData) ->
+    send_trailer(StateData),
+    {stop, normal, StateData};
 
 wait_for_sasl_response({xmlstreamelement, El}, StateData) ->
     #xmlel{name = Name, attrs = Attrs, children = Els} = El,
@@ -846,6 +859,9 @@ wait_for_sasl_response(closed, StateData) ->
     {stop, normal, StateData}.
 
 
+wait_for_bind({xmlstreamelement, #xmlel{name = <<"close">>}}, StateData) ->
+    send_trailer(StateData),
+    {stop, normal, StateData};
 
 wait_for_bind({xmlstreamelement, El}, StateData) ->
     case jlib:iq_query_info(El) of
@@ -903,7 +919,9 @@ wait_for_bind({xmlstreamerror, _}, StateData) ->
 wait_for_bind(closed, StateData) ->
     {stop, normal, StateData}.
 
-
+wait_for_session({xmlstreamelement, #xmlel{name = <<"close">>}}, StateData) ->
+    send_trailer(StateData),
+    {stop, normal, StateData};
 wait_for_session({xmlstreamelement, El}, StateData) ->
     case jlib:iq_query_info(El) of
 	#iq{type = set, xmlns = ?NS_SESSION} ->
@@ -978,6 +996,9 @@ wait_for_session(closed, StateData) ->
     {stop, normal, StateData}.
 
 
+session_established({xmlstreamelement, #xmlel{name = <<"close">>}}, StateData) ->
+    send_trailer(StateData),
+    {stop, normal, StateData};
 session_established({xmlstreamelement, El}, StateData) ->
     FromJID = StateData#state.jid,
     % Check 'from' attribute in stanza RFC 3920 Section 9.1.2
@@ -1537,13 +1558,11 @@ send_element(#state{server = Server, sockmod = SockMod} = StateData, El)
                        Server, [Server, El]),
     SockMod:send_xml(StateData#state.socket,
 				       {xmlstreamelement, El});
-send_element(#state{server = Server, sockmod = mod_websockets} = StateData, #xmlel{name = <<"session:error">>, attrs=Attr }=El)
-		when StateData#state.xml_socket ->
+send_element(#state{server = Server, sockmod = mod_websockets} = StateData, #xmlel{name = <<"stream:error">>, attrs = Attr }=El) ->
     ejabberd_hooks:run(xmpp_send_element,
                        Server, [Server, El]),
     mod_websockets:send_xml(StateData#state.socket,
-				       {xmlstreamelement, El#xmlel{name = <<"error">>,
-                                                   attrs=[{<<"xmlns">>, ?NS_STREAM} |Attr] }});
+				       {xmlstreamelement, El#xmlel{name = <<"error">>, attrs = [{<<"xmlns">>, ?NS_STREAM} |Attr]}});
 
 send_element(#state{server = Server} = StateData, El) ->
     ejabberd_hooks:run(xmpp_send_element,
