@@ -136,4 +136,4 @@ Want to get in touch with us?
 -----------------------------
 In case of any suggestions, questions or any random thoughts on this project,
 please feel free to contact us by the standard GitHub ways or at
-<a href='mailto:ejabberd@erlang-solutions.com'>ejabberd@erlang-solutions.com</a>.
+<a href='mailto:mongoose-im@erlang-solutions.com'>mongoose-im@erlang-solutions.com</a>.
