@@ -17,7 +17,8 @@
 %%--------------------------------------------------------------------
 
 all() ->
-    [{group, negotiation},
+    [server_string_type,
+     {group, negotiation},
      {group, server_acking},
      {group, client_acking},
      {group, reconnection},
@@ -107,6 +108,9 @@ end_per_testcase(CaseName, Config) ->
 %%--------------------------------------------------------------------
 %% Tests
 %%--------------------------------------------------------------------
+
+server_string_type(_) ->
+    ct:pal("server string type: ~p~n", [vcard_update:server_string_type()]).
 
 server_announces_sm(Config) ->
     AliceSpec = [{stream_management, true}

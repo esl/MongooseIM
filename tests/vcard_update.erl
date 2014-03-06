@@ -51,13 +51,38 @@ server_string(String) when is_list(String) ->
         binary -> list_to_binary(String)
     end.
 
--spec server_string_type() -> list | binary.
+-spec server_string_type() -> list | binary | no_return().
 server_string_type() ->
+    try
+        try_ejabberd_community(),
+        try_mongooseim(),
+        try_ejabberd2()
+    catch
+        throw:binary -> binary;
+        throw:list -> list;
+        E:R -> error({server_string_type_unknown, {E, R}})
+    end.
+
+-spec try_ejabberd_community() -> no_return().
+try_ejabberd_community() ->
+    Apps = escalus_ejabberd:rpc(application, which_applications, []),
+    {ejabberd, "ejabberd", "community"} = lists:keyfind(ejabberd, 1, Apps),
+    throw(binary).
+
+-spec try_mongooseim() -> no_return().
+try_mongooseim() ->
+    Apps = escalus_ejabberd:rpc(application, which_applications, []),
+    {ejabberd, "ejabberd", "2.1.8+mim" ++ _} = lists:keyfind(ejabberd, 1, Apps),
+    throw(binary).
+
+-spec try_ejabberd2() -> no_return().
+try_ejabberd2() ->
     [{config, hosts,
-      [XMPPDomain | _]}] = escalus_ejabberd:rpc(ets, lookup, [config, hosts]),
+      [XMPPDomain | _]}] = escalus_ejabberd:rpc(ets, lookup,
+                                                [config, hosts]),
     case XMPPDomain of
         BString when is_binary(BString) ->
-            binary;
+            throw(binary);
         String when is_list(String) ->
-            list
+            throw(list)
     end.
