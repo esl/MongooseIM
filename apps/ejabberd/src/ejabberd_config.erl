@@ -37,7 +37,8 @@
 -include("ejabberd_config.hrl").
 -include_lib("kernel/include/file.hrl").
 
--type key() :: atom() | {atom(), atom()} | {atom(), atom(), atom()}.
+-type key() :: atom() | {atom(), atom()} | {atom(), atom(), atom()}
+              | binary(). % TODO: binary is questionable here
 -type value() :: atom() | integer() | string() | [tuple()].
 -export_type([key/0, value/0]).
 

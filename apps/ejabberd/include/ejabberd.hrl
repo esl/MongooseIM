@@ -62,7 +62,7 @@
     lager:critical(Format, Args)).
 
 -record(session, {sid :: tuple(),
-                  usr :: {binary(), binary(), binary()},
+                  usr :: ejabberd:user(),
                   us :: {binary(), binary()},
                   priority :: integer(),
                   info :: list()}).

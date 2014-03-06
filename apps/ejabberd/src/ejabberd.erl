@@ -40,11 +40,17 @@
 -type sockmod() :: gen_tcp | ejabberd_socket | mod_bosh_socket | mod_websockets.
 -type jid() :: #jid{}.
 -type iq() :: #iq{}.
+-type user() :: {binary(), binary(), binary()}.
+-type user_server() :: {LUser :: binary(), LServer :: binary()}.
+-type sid() :: binary().
 
 -export_type([lang/0
              , sockmod/0
              , jid/0
              , iq/0
+             , user/0
+             , user_server/0
+             , sid/0
              ]).
 
 start() ->
