@@ -18,6 +18,8 @@
 %%% 02111-1307 USA
 %%%
 %%%----------------------------------------------------------------------
+-ifndef(MONGOOSEIM_JLIB_HRL).
+-define(MONGOOSEIM_JLIB_HRL, true).
 
 %% Load record definitions.
 -include_lib("exml/include/exml.hrl").
@@ -337,3 +339,5 @@
                  , first :: pos_integer()
                  , last :: pos_integer()
                  }).
+
+-endif.

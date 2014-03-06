@@ -55,6 +55,7 @@ stop() ->
     application:stop(ejabberd).
     %%ejabberd_cover:stop().
 
+-spec get_so_path() -> binary() | string().
 get_so_path() ->
     case os:getenv("EJABBERD_SO_PATH") of
         false ->
@@ -68,6 +69,7 @@ get_so_path() ->
             Path
     end.
 
+-spec get_bin_path() -> binary() | string().
 get_bin_path() ->
     case os:getenv("EJABBERD_BIN_PATH") of
         false ->
@@ -81,7 +83,7 @@ get_bin_path() ->
             Path
     end.
 
-%% @spec () -> false | string()
+-spec get_pid_file() -> 'false' | nonempty_string().
 get_pid_file() ->
     case os:getenv("EJABBERD_PID_PATH") of
         false ->
