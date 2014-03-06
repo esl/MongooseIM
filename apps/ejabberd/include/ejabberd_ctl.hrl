@@ -18,8 +18,12 @@
 %%% 02111-1307 USA
 %%%
 %%%----------------------------------------------------------------------
+-ifndef(MONGOOSEIM_EJABBERD_CTL_HRL).
+-define(MONGOOSEIM_EJABBERD_CTL_HRL, true).
 
 -define(STATUS_SUCCESS, 0).
 -define(STATUS_ERROR,   1).
 -define(STATUS_USAGE,   2).
 -define(STATUS_BADRPC,  3).
+
+-endif.

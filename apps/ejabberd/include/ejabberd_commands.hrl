@@ -18,35 +18,21 @@
 %%% 02111-1307 USA
 %%%
 %%%----------------------------------------------------------------------
+-ifndef(MONGOOSEIM_EJABBERD_COMMANDS_HRL).
+-define(MONGOOSEIM_EJABBERD_COMMANDS_HRL, true).
 
--record(ejabberd_commands, {name, tags = [],
-			   desc = "", longdesc = "",
-			   module, function,
-			   args = [], result = rescode}).
+-record(ejabberd_commands, { name :: atom()
+                           , tags = [] :: [atom()]
+  %% Description of the command
+                           , desc = "" :: string()
+                           , longdesc = "" :: string()
+                           , module :: atom()
+                           , function :: atom()
+  %% Describe the accepted arguments.
+  %% This way the function that calls the command can format the arguments
+  %% before calling
+                           , args = [] :: [ejabberd_commands:aterm()]
+                           , result = rescode :: ejabberd_commands:rterm()
+                           }).
 
-%% @type ejabberd_commands() = #ejabberd_commands{
-%%    name = atom(),
-%%    tags = [atom()],
-%%    desc = string(),
-%%    longdesc = string(),
-%%    module = atom(),
-%%    function = atom(),
-%%    args = [aterm()],
-%%    result = rterm()
-%%    }.
-%% desc: Description of the command
-%% args: Describe the accepted arguments.
-%% This way the function that calls the command can format the
-%% arguments before calling.
-
-%% @type atype() = integer | string | {tuple, [aterm()]} | {list, aterm()}.
-%% Allowed types for arguments are integer, string, tuple and list.
-
-%% @type rtype() = integer | string | atom | {tuple, [rterm()]} | {list, rterm()} | rescode | restuple.
-%% A rtype is either an atom or a tuple with two elements.
-
-%% @type aterm() = {Name::atom(), Type::atype()}.
-%% An argument term is a tuple with the term name and the term type.
-
-%% @type rterm() = {Name::atom(), Type::rtype()}.
-%% A result term is a tuple with the term name and the term type.
+-endif.
