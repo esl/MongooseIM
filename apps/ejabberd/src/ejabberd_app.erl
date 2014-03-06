@@ -75,7 +75,7 @@ start(normal, _Args) ->
 start(_, _) ->
     {error, badarg}.
 
-%% Prepare the application for termination.
+%% @doc Prepare the application for termination.
 %% This function is called when an application is about to be stopped,
 %% before shutting down the processes of the application.
 prep_stop(State) ->
@@ -108,7 +108,8 @@ db_init() ->
     end,
     mnesia:wait_for_tables(mnesia:system_info(local_tables), infinity).
 
-%% Start all the modules in all the hosts
+%% @doc Start all the modules in all the hosts
+-spec start_modules() -> 'ok'.
 start_modules() ->
     lists:foreach(
       fun(Host) ->
@@ -124,6 +125,7 @@ start_modules() ->
       end, ?MYHOSTS).
 
 %% Stop all the modules in all the hosts
+-spec stop_modules() -> 'ok'.
 stop_modules() ->
     lists:foreach(
       fun(Host) ->
@@ -138,6 +140,7 @@ stop_modules() ->
               end
       end, ?MYHOSTS).
 
+-spec maybe_start_alarms() -> 'ok'.
 maybe_start_alarms() ->
     case ejabberd_config:get_local_option(alarms) of
         undefined ->
@@ -147,6 +150,7 @@ maybe_start_alarms() ->
             alarms:start()
     end.
 
+-spec connect_nodes() -> 'ok'.
 connect_nodes() ->
     case ejabberd_config:get_local_option(cluster_nodes) of
         undefined ->
@@ -157,12 +161,12 @@ connect_nodes() ->
                           end, Nodes)
     end.
 
-%% @spec () -> string()
 %% @doc Returns the full path to the ejabberd log file.
 %% It first checks for application configuration parameter 'log_path'.
 %% If not defined it checks the environment variable EJABBERD_LOG_PATH.
 %% And if that one is neither defined, returns the default value:
 %% "ejabberd.log" in current directory.
+-spec get_log_path() -> string().
 get_log_path() ->
     case application:get_env(log_path) of
         {ok, Path} ->
@@ -176,19 +180,22 @@ get_log_path() ->
             end
     end.
 
-%% If ejabberd is running on some Windows machine, get nameservers and add to Erlang
+%% @doc If ejabberd is running on some Windows machine, get nameservers and
+%% add to Erlang
+-spec maybe_add_nameservers() -> 'ok'.
 maybe_add_nameservers() ->
     case os:type() of
         {win32, _} -> add_windows_nameservers();
         _ -> ok
     end.
 
+-spec add_windows_nameservers() -> 'ok'.
 add_windows_nameservers() ->
     IPTs = win32_dns:get_nameservers(),
     ?INFO_MSG("Adding machine's DNS IPs to Erlang system:~n~p", [IPTs]),
     lists:foreach(fun(IPT) -> inet_db:add_ns(IPT) end, IPTs).
 
-
+-spec broadcast_c2s_shutdown() -> 'ok'.
 broadcast_c2s_shutdown() ->
     Children = supervisor:which_children(ejabberd_c2s_sup),
     lists:foreach(
@@ -200,6 +207,7 @@ broadcast_c2s_shutdown() ->
 %%% PID file
 %%%
 
+-spec write_pid_file() -> 'ok' | {'error',atom()}.
 write_pid_file() ->
     case ejabberd:get_pid_file() of
         false ->
@@ -208,6 +216,9 @@ write_pid_file() ->
             write_pid_file(os:getpid(), PidFilename)
     end.
 
+-spec write_pid_file(Pid :: string()
+                    , PidFilename :: nonempty_string()
+                    ) -> 'ok' | {'error',atom()}.
 write_pid_file(Pid, PidFilename) ->
     case file:open(PidFilename, [write]) of
         {ok, Fd} ->
@@ -218,6 +229,7 @@ write_pid_file(Pid, PidFilename) ->
             throw({cannot_write_pid_file, PidFilename, Reason})
     end.
 
+-spec delete_pid_file() -> 'ok' | {'error',atom()}.
 delete_pid_file() ->
     case ejabberd:get_pid_file() of
         false ->
@@ -226,7 +238,7 @@ delete_pid_file() ->
             file:delete(PidFilename)
     end.
 
--spec load_drivers(list(atom())) -> ok.
+-spec load_drivers([atom()]) -> 'ok'.
 load_drivers([]) ->
     ok;
 load_drivers([Driver | Rest]) ->
