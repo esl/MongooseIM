@@ -1,8 +1,8 @@
 %%%----------------------------------------------------------------------
-%%% File    : mod_private_odbc.erl
+%%% Old copyright notice from mod_private.erl
+%%%
 %%% Author  : Alexey Shchepin <alexey@process-one.net>
-%%% Purpose : Private storage support
-%%% Created :  5 Oct 2006 by Alexey Shchepin <alexey@process-one.net>
+%%% Created : 16 Jan 2003 by Alexey Shchepin <alexey@process-one.net>
 %%%
 %%%
 %%% ejabberd, Copyright (C) 2002-2011   ProcessOne
@@ -26,7 +26,7 @@
 
 %%% NS is namespace or key.
 %%% XML is #xmlel{} or value.
--module(mod_private_odbc).
+-module(mod_private_mnesia).
 -author('alexey@process-one.net').
 -author('arcusfelis@gmail.com').
 -behaviour(mod_private).
@@ -39,37 +39,50 @@
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 
+-record(private_storage, {usns, xml}).
+
 init(_Host, _Opts) ->
+    mnesia:create_table(private_storage,
+			[{disc_only_copies, [node()]},
+			 {attributes, record_info(fields, private_storage)}]),
     ok.
 
 multi_set_data(LUser, LServer, NS2XML) ->
     F = fun() -> multi_set_data_t(LUser, LServer, NS2XML) end,
-    odbc_queries:sql_transaction(LServer, F).
+    mnesia:transaction(F).
 
 multi_set_data_t(LUser, LServer, NS2XML) ->
     [set_data_t(LUser, LServer, NS, XML) || {NS, XML} <- NS2XML],
     ok.
 
 set_data_t(LUser, LServer, NS, XML) ->
-    SLUser = ejabberd_odbc:escape(LUser),
-    SNS = ejabberd_odbc:escape(NS),
-    SData = ejabberd_odbc:escape(xml:element_to_binary(XML)),
-    odbc_queries:set_private_data(LServer, SLUser, SNS, SData).
-
+    mnesia:write(#private_storage{usns = {LUser, LServer, NS}, xml = XML}).
+    
 multi_get_data(LUser, LServer, NS2Def) ->
     [get_data(LUser, LServer, NS, Default) || {NS, Default} <- NS2Def].
 
 %% @doc Return stored value or default.
 get_data(LUser, LServer, NS, Default) ->
-    SLUser = ejabberd_odbc:escape(LUser),
-    SNS = ejabberd_odbc:escape(NS),
-    case catch odbc_queries:get_private_data(LServer, SLUser, SNS) of
-        {selected, [<<"data">>], [{SData}]} ->
-            #xmlel{} = xml_stream:parse_element(SData);
-        _ ->
-            Default
+    case mnesia:dirty_read(private_storage, {LUser, LServer, NS}) of
+        [#private_storage{xml=XML}] -> XML;
+        [] -> Default
     end.
 
 remove_user(LUser, LServer) ->
-    SLUser = ejabberd_odbc:escape(LUser),
-    odbc_queries:del_user_private_storage(LServer, SLUser).
+    F = fun() ->
+		NSs = select_namespaces_t(LUser, LServer),
+        [delete_record_t(LUser, LServer, NS) || NS <- NSs]
+        end,
+    mnesia:transaction(F).
+
+select_namespaces_t(LUser, LServer) ->
+    Result = mnesia:select(
+        private_storage,
+        [{#private_storage{usns={LUser, LServer, '$1'}, _ = '_'},
+         [],
+         ['$$']}]),
+    [NS || [NS] <- Result].
+
+delete_record_t(LUser, LServer, NS) ->
+    mnesia:delete({private_storage, {LUser, LServer, NS}}).
+
