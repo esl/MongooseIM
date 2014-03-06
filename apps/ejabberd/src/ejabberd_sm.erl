@@ -133,6 +133,8 @@ disconnect_removed_user(User, Server) ->
                       #xmlel{name = <<"broadcast">>,
                              children = [{exit, <<"User removed">>}]}).
 
+-spec get_user_resources(User :: binary()
+                        , Server :: binary()) -> binary().
 get_user_resources(User, Server) ->
     LUser = jlib:nodeprep(User),
     LServer = jlib:nameprep(Server),
