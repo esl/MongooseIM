@@ -18,6 +18,8 @@
 %%% 02111-1307 USA
 %%%
 %%%----------------------------------------------------------------------
+-ifndef(MONGOOSEIM_EJABBERD_HRL).
+-define(MONGOOSEIM_EJABBERD_HRL, true).
 
 %% This macro returns a string of the ejabberd version running, e.g. "2.3.4"
 %% If the ejabberd application description isn't loaded, returns atom: undefined
@@ -70,4 +72,5 @@
 -import(ejabberd_binary, [binary_to_integer/1,
                           integer_to_binary/1]).
 
--endif.
+-endif. % ifdef no_binary_to_integer
+-endif. % ifdef MONGOOSEIM_EJABBERD_HRL

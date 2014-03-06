@@ -18,6 +18,8 @@
 %%% 02111-1307 USA
 %%%
 %%%----------------------------------------------------------------------
+-ifndef(MONGOOSEIM_EJABBERD_CONFIG_HRL).
+-define(MONGOOSEIM_EJABBERD_CONFIG_HRL, true).
 
 -record(config, { key :: ejabberd_config:key()
                 , value :: ejabberd_config:value()
@@ -25,3 +27,5 @@
 -record(local_config, { key :: ejabberd_config:key()
                       , value :: ejabberd_config:value()
                       }).
+
+-endif.
