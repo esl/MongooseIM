@@ -123,7 +123,7 @@ check_password(User, Server, Password, Digest, DigestGen) ->
     end.
 
 -spec set_password(User :: binary(),
-             Server :: server(),
+             Server :: ejabberd:server(),
              Password :: binary()) -> ok | {error, not_allowed | invalid_jid}.
 set_password(User, Server, Password) ->
     LUser = jlib:nodeprep(User),
@@ -143,7 +143,7 @@ set_password(User, Server, Password) ->
 
 %% @spec (User, Server, Password) -> {atomic, ok} | {atomic, exists} | {error, invalid_jid} | {aborted, Reason}
 -spec try_register(User :: binary(),
-                   Server :: server(),
+                   Server :: ejabberd:server(),
                    Password :: binary()
                    ) -> {atomic, ok | exists}
                       | {error, invalid_jid | not_allowed}

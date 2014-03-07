@@ -342,6 +342,8 @@ resourceprep(_) ->
     error.
 
 
+-spec jid_tolower(JID :: ejabberd:simple_jid() | ejabberd:jid()
+                 ) -> error | ejabberd:simple_jid().
 jid_tolower(#jid{luser = U, lserver = S, lresource = R}) ->
     {U, S, R};
 jid_tolower({U, S, R}) ->
