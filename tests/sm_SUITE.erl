@@ -326,7 +326,7 @@ session_established(Config) ->
     AliceSpec = [{stream_management, true}
                  | escalus_users:get_options(Config, alice)],
     escalus:story(Config, [{alice, 1}], fun(_Alice) ->
-        {ok, C2SPid} = get_session_pid(AliceSpec, "res1"),
+        {ok, C2SPid} = get_session_pid(AliceSpec, server_string("res1")),
         assert_no_offline_msgs(),
         assert_c2s_state(C2SPid, session_established)
     end).
@@ -389,7 +389,8 @@ buffer_unacked_messages_and_die(AliceSpec, Bob, Messages) ->
     escalus_connection:send(Alice, InitialPresence),
     Presence = escalus_connection:get_stanza(Alice, presence1),
     escalus:assert(is_presence, Presence),
-    {ok, C2SPid} = get_session_pid(AliceSpec, "escalus-default-resource"),
+    Res = server_string("escalus-default-resource"),
+    {ok, C2SPid} = get_session_pid(AliceSpec, Res),
     escalus_connection:send(Alice, escalus_stanza:presence(<<"available">>)),
     _Presence = escalus_connection:get_stanza(Alice, presence2),
     discard_vcard_update(Alice),
