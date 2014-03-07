@@ -66,6 +66,7 @@
 %% Module
 %%-----------------------------
 
+-spec start() -> none().
 start() ->
     case init:get_plain_arguments() of
         [SNode | Args0] ->
@@ -100,6 +101,7 @@ start() ->
             halt(?STATUS_USAGE)
     end.
 
+-spec init() -> atom() | ets:tid().
 init() ->
     ets:new(ejabberd_ctl_cmds, [named_table, set, public]),
     ets:new(ejabberd_ctl_host_cmds, [named_table, set, public]).
@@ -109,12 +111,18 @@ init() ->
 %% ejabberdctl Command managment
 %%-----------------------------
 
+-spec register_commands(CmdDescs :: [tuple()] | tuple(),
+                        Module :: atom(),
+                        Function :: atom()) -> 'ok'.
 register_commands(CmdDescs, Module, Function) ->
     ets:insert(ejabberd_ctl_cmds, CmdDescs),
     ejabberd_hooks:add(ejabberd_ctl_process,
                        Module, Function, 50),
     ok.
 
+-spec unregister_commands(CmdDescs :: [any()],
+                          Module :: atom(),
+                          Function :: atom()) -> 'ok'.
 unregister_commands(CmdDescs, Module, Function) ->
     lists:foreach(fun(CmdDesc) ->
                           ets:delete_object(ejabberd_ctl_cmds, CmdDesc)
@@ -128,8 +136,9 @@ unregister_commands(CmdDescs, Module, Function) ->
 %% Process
 %%-----------------------------
 
-%% The commands status, stop and restart are defined here to ensure
+%% @doc The commands status, stop and restart are defined here to ensure
 %% they are usable even if ejabberd is completely stopped.
+-spec process(_) -> integer().
 process(["status"]) ->
     {InternalStatus, ProvidedStatus} = init:get_status(),
     ?PRINT("The node ~p is ~p with status: ~p~n",
@@ -211,9 +220,9 @@ process(Args) ->
     end,
     Code.
 
--spec process2( Args :: [string()]
-              , AccessCommands :: [ejabberd_commands:access_cmd()]
-              ) -> {String::string(), Code::integer()}.
+-spec process2(Args :: [string()],
+               AccessCommands :: [ejabberd_commands:access_cmd()]
+               ) -> {String::string(), Code::integer()}.
 process2(["--auth", User, Server, Pass | Args], AccessCommands) ->
     process2(Args, {User, Server, Pass}, AccessCommands);
 process2(Args, AccessCommands) ->
@@ -241,6 +250,7 @@ process2(Args, Auth, AccessCommands) ->
             {"Erroneous result: " ++ io_lib:format("~p", [Other]), ?STATUS_ERROR}
     end.
 
+-spec get_accesscommands() -> [char() | tuple()].
 get_accesscommands() ->
     case ejabberd_config:get_local_option(ejabberdctl_access_commands) of
         ACs when is_list(ACs) -> ACs;
@@ -252,10 +262,10 @@ get_accesscommands() ->
 %% Command calling
 %%-----------------------------
 
--spec try_run_ctp( Args :: [string()]
-                 , Auth :: ejabberd_commands:auth()
-                 , AccessCommands :: [ejabberd_commands:access_cmd()]
-                 ) -> string() | integer() | {string(), integer()}.
+-spec try_run_ctp(Args :: [string()],
+                  Auth :: ejabberd_commands:auth(),
+                  AccessCommands :: [ejabberd_commands:access_cmd()]
+                  ) -> string() | integer() | {string(), integer()}.
 try_run_ctp(Args, Auth, AccessCommands) ->
     try ejabberd_hooks:run_fold(ejabberd_ctl_process, false, [Args]) of
         false when Args /= [] ->
@@ -276,10 +286,10 @@ try_run_ctp(Args, Auth, AccessCommands) ->
             {io_lib:format("Error in ejabberd ctl process: '~p' ~p", [Error, Why]), ?STATUS_USAGE}
     end.
 
--spec try_call_command( Args :: [string()]
-                      , Auth :: ejabberd_commands:auth()
-                      , AccessCommands :: [ejabberd_commands:access_cmd()]
-                      ) -> string() | integer() | {string(), integer()}.
+-spec try_call_command(Args :: [string()],
+                       Auth :: ejabberd_commands:auth(),
+                       AccessCommands :: [ejabberd_commands:access_cmd()]
+                       ) -> string() | integer() | {string(), integer()}.
 try_call_command(Args, Auth, AccessCommands) ->
     try call_command(Args, Auth, AccessCommands) of
         {error, command_unknown} ->
@@ -294,10 +304,10 @@ try_call_command(Args, Auth, AccessCommands) ->
             {io_lib:format("Problem '~p ~p' occurred executing the command.~nStacktrace: ~p", [A, Why, Stack]), ?STATUS_ERROR}
     end.
 
--spec call_command( Args :: [string()]
-                  , Auth :: ejabberd_commands:auth()
-                  , AccessCommands :: [ejabberd_commands:access_cmd()]
-                  ) -> string() | integer() | {string(), integer()}
+-spec call_command(Args :: [string()],
+                   Auth :: ejabberd_commands:auth(),
+                   AccessCommands :: [ejabberd_commands:access_cmd()]
+                   ) -> string() | integer() | {string(), integer()}
                      | {error, any()}.
 call_command([CmdString | Args], Auth, AccessCommands) ->
     CmdStringU = re:replace(CmdString, "-", "_", [global, {return, list}]),
@@ -366,7 +376,7 @@ bal(String, Left, Right) ->
     bal(String, Left, Right, 0).
 
 %% @private
--spec bal(string(), char(), char(), integer()) -> boolean().
+-spec bal(string(), L :: char(), R :: char(), Bal :: integer()) -> boolean().
 bal([], _Left, _Right, Bal) ->
     Bal == 0;
 bal([$\ , _NextChar | T], Left, Right, Bal) ->
@@ -379,8 +389,8 @@ bal([_C | T], Left, Right, Bal) ->
     bal(T, Left, Right, Bal).
 
 %% @private
--spec format_args( Args :: [any()]
-                 , ArgsFormat :: [format()]) -> [any()].
+-spec format_args(Args :: [any()],
+                  ArgsFormat :: [format()]) -> [any()].
 format_args(Args, ArgsFormat) ->
     lists:foldl(
       fun({{_ArgName, ArgFormat}, Arg}, Res) ->
@@ -406,9 +416,9 @@ format_arg(Arg, {list, Type}) ->
     [format_arg(Token, Type) || Token <- string:tokens(Arg, ";")].
 
 %% @private
--spec format_arg2( Arg :: string()
-                 , Parse :: nonempty_string()
-                 ) -> [[any()] | char()] | char().
+-spec format_arg2(Arg :: string(),
+                  Parse :: nonempty_string()
+                  ) -> [[any()] | char()] | char().
 format_arg2(Arg, Parse)->
     {ok, [Arg2], _RemainingArguments} = io_lib:fread(Parse, Arg),
     Arg2.
@@ -416,9 +426,9 @@ format_arg2(Arg, Parse)->
 %%-----------------------------
 %% Format result
 %%-----------------------------
--spec format_result(In :: tuple() | atom() | integer() | string() | binary()
-                   , {_, atom|integer|string|binary}
-                   ) -> string() | {string(), _}.
+-spec format_result(In :: tuple() | atom() | integer() | string() | binary(),
+                    {_, 'atom'|'integer'|'string'|'binary'}
+                    ) -> string() | {string(), _}.
 format_result({error, ErrorAtom}, _) ->
     {io_lib:format("Error: ~p", [ErrorAtom]), make_status(error)};
 format_result(Atom, {_Name, atom}) ->
@@ -480,8 +490,7 @@ get_list_commands() ->
             []
     end.
 
--spec tuple_command_help(ejabberd_commands:list_cmd()
-                        ) -> cmd().
+-spec tuple_command_help(ejabberd_commands:list_cmd()) -> cmd().
 tuple_command_help({Name, Args, Desc}) ->
     Arguments = [atom_to_list(ArgN) || {ArgN, _ArgF} <- Args],
     Prepend = case is_supported_args(Args) of
@@ -601,17 +610,17 @@ get_shell_info() ->
     end.
 
 %% @doc Split this command description in several lines of proper length
--spec prepare_description( DescInit :: non_neg_integer()
-                         , MaxC :: integer()
-                         , Desc :: string()) -> [[[any()]],...].
+-spec prepare_description(DescInit :: non_neg_integer(),
+                          MaxC :: integer(),
+                          Desc :: string()) -> [[[any()]],...].
 prepare_description(DescInit, MaxC, Desc) ->
     Words = string:tokens(Desc, " "),
     prepare_long_line(DescInit, MaxC, Words).
 
--spec prepare_long_line( DescInit :: non_neg_integer()
-                       , MaxC :: integer()
-                       , Words :: [nonempty_string()]
-                       ) -> [[[any()]],...].
+-spec prepare_long_line(DescInit :: non_neg_integer(),
+                        MaxC :: integer(),
+                        Words :: [nonempty_string()]
+                        ) -> [[[any()]],...].
 prepare_long_line(DescInit, MaxC, Words) ->
     MaxSegmentLen = MaxC - DescInit,
     MarginString = lists:duplicate(DescInit, $\s), % Put spaces
@@ -619,29 +628,25 @@ prepare_long_line(DescInit, MaxC, Words) ->
     MoreSegmentsMixed = mix_desc_segments(MarginString, MoreSegments),
     [FirstSegment | MoreSegmentsMixed].
 
--spec mix_desc_segments( MarginStr :: [any()]
-                       , Segments :: [[[any(),...]]]
-                       ) -> [[[any()],...]].
+-spec mix_desc_segments(MarginStr :: [any()],
+                        Segments :: [[[any(),...]]]) -> [[[any()],...]].
 mix_desc_segments(MarginString, Segments) ->
     [["\n", MarginString, Segment] || Segment <- Segments].
 
 split_desc_segments(MaxL, Words) ->
     join(MaxL, Words).
 
-%% Join words in a segment,
-%% but stop adding to a segment if adding this word would pass L
--spec join( L :: number()
-          , Words :: [nonempty_string()]
-          ) -> [[[any(),...]],...].
+%% @doc Join words in a segment, but stop adding to a segment if adding this
+%% word would pass L
+-spec join(L :: number(), Words :: [nonempty_string()]) -> [[[any(),...]],...].
 join(L, Words) ->
     join(L, Words, 0, [], []).
 
--spec join( L :: number()
-          , Words :: [nonempty_string()]
-          , LenLastSeg :: non_neg_integer()
-          , LastSeg :: [nonempty_string()]
-          , ResSeg :: [[[any(),...]]]
-          ) -> [[[any(),...]],...].
+-spec join(L :: number(),
+           Words :: [nonempty_string()],
+           LenLastSeg :: non_neg_integer(),
+           LastSeg :: [nonempty_string()],
+           ResSeg :: [[[any(),...]]] ) -> [[[any(),...]],...].
 join(_L, [], _LenLastSeg, LastSeg, ResSeg) ->
     ResSeg2 = [lists:reverse(LastSeg) | ResSeg],
     lists:reverse(ResSeg2);
@@ -661,11 +666,11 @@ join(L, [Word | Words], LenLastSeg, LastSeg, ResSeg) ->
             join(L, Words, LWord, [" ", Word], [lists:reverse(LastSeg) | ResSeg])
     end.
 
--spec format_command_lines( CALD :: [{[any()],[any()],number(),_},...]
-                          , MaxCmdLen :: integer()
-                          , MaxC :: integer()
-                          , ShCode :: boolean()
-                          ,'dual' | 'long') -> [[any(),...],...].
+-spec format_command_lines(CALD :: [{[any()],[any()],number(),_},...],
+                           MaxCmdLen :: integer(),
+                           MaxC :: integer(),
+                           ShCode :: boolean(),
+                           'dual' | 'long') -> [[any(),...],...].
 format_command_lines(CALD, MaxCmdLen, MaxC, ShCode, dual)
   when MaxC - MaxCmdLen < 40 ->
     %% If the space available for descriptions is too narrow, enforce long help mode
