@@ -37,21 +37,31 @@
 -include("jlib.hrl").
 
 -type lang() :: binary() | nonempty_string().
+
 -type sockmod() :: gen_tcp | ejabberd_socket | mod_bosh_socket | mod_websockets.
+
 -type jid() :: #jid{}.
+
 -type iq() :: #iq{}.
--type user() :: {binary(), binary(), binary()}.
--type user_server() :: {LUser :: binary(), LServer :: binary()}.
+
+-type server() :: binary().
+
+%% A tuple-style JID
+-type simple_jid() :: {binary(), server(), binary()}.
+
+%% A tuple-style JID without resource part
+-type simple_bare_jid() :: {LUser :: binary(), LServer :: server()}.
+
 -type sid() :: binary().
 
 -export_type([lang/0
              , sockmod/0
              , jid/0
              , iq/0
-             , user/0
-             , user_server/0
+             , simple_jid/0
+             , simple_bare_jid/0
              , sid/0
-             ]).
+             , server/0]).
 
 start() ->
     %%ejabberd_cover:start(),

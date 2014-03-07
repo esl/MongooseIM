@@ -187,7 +187,7 @@ try_register(User, Server, Password) ->
     end.
 
 %% @doc Registered users list do not include anonymous users logged
--spec dirty_get_registered_users() -> [ejabberd:user()].
+-spec dirty_get_registered_users() -> [ejabberd:simple_jid()].
 dirty_get_registered_users() ->
     lists:flatmap(
       fun(M) ->
@@ -195,7 +195,7 @@ dirty_get_registered_users() ->
       end, auth_modules()).
 
 %% @doc Registered users list do not include anonymous users logged
--spec get_vh_registered_users(Server :: binary()) -> [ejabberd:user()].
+-spec get_vh_registered_users(Server :: binary()) -> [ejabberd:simple_jid()].
 get_vh_registered_users(Server) ->
     lists:flatmap(
       fun(M) ->
@@ -203,7 +203,7 @@ get_vh_registered_users(Server) ->
       end, auth_modules(Server)).
 
 -spec get_vh_registered_users( Server :: binary()
-                             , Opts :: [any()]) -> [ejabberd:user()].
+                             , Opts :: [any()]) -> [ejabberd:simple_jid()].
 get_vh_registered_users(Server, Opts) ->
     lists:flatmap(
       fun(M) ->
