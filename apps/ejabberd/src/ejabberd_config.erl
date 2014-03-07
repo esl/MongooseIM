@@ -45,15 +45,17 @@
                | integer()
                | string()
                | [tuple()].
+
 -export_type([key/0, value/0]).
 
 -record(state, {opts = []  :: list(),
-                hosts = [] :: list(),
+                hosts = [] :: [host()],
                 override_local = false  :: boolean(),
                 override_global = false :: boolean(),
                 override_acls = false   :: boolean()
               }).
 
+-type host() :: any(). % TODO: specify this
 -type state() :: #state{}.
 -type macro() :: {macro_key(), macro_value()}.
 
@@ -62,7 +64,44 @@
 
 -type macro_value() :: term().
 
+-type known_term() :: override_global
+                    | override_local
+                    | override_acls
+                    | {acl, _, _}
+                    | {alarms, _}
+                    | {access, _, _}
+                    | {shaper, _, _}
+                    | {host, _}
+                    | {hosts, _}
+                    | {host_config, _, _}
+                    | {listen, _}
+                    | {language, _}
+                    | {sm_backend, _}
+                    | {outgoing_s2s_port, integer()}
+                    | {outgoing_s2s_options, _, integer()}
+                    | {{s2s_addr, _}, _}
+                    | {s2s_dns_options, [tuple()]}
+                    | {s2s_use_starttls, integer()}
+                    | {s2s_certfile, _}
+                    | {domain_certfile, _, _}
+                    | {node_type, _}
+                    | {cluster_nodes, _}
+                    | {watchdog_admins, _}
+                    | {watchdog_large_heap, _}
+                    | {registration_timeout, integer()}
+                    | {ejabberdctl_access_commands, list()}
+                    | {loglevel, _}
+                    | {max_fsm_queue, _}
+                    | host_term().
+-type host_term() :: {acl, _, _}
+                  | {access, _, _}
+                  | {shaper, _, _}
+                  | {host, _}
+                  | {hosts, _}
+                  | {odbc_server, _}.
 
+
+-spec start() -> ok.
 start() ->
     mnesia:create_table(config,
                         [{ram_copies, [node()]},
@@ -143,6 +182,7 @@ get_absolute_path(File) ->
     end.
 
 
+-spec search_hosts({host|hosts, [host()] | host()}, state()) -> any().
 search_hosts(Term, State) ->
     case Term of
         {host, Host} ->
@@ -167,12 +207,16 @@ search_hosts(Term, State) ->
             State
     end.
 
+-spec add_hosts_to_option(Hosts :: [host()],
+                          State :: state()) -> state().
 add_hosts_to_option(Hosts, State) ->
     PrepHosts = normalize_hosts(Hosts),
     add_option(hosts, PrepHosts, State#state{hosts = PrepHosts}).
 
+-spec normalize_hosts([host()]) -> [binary() | tuple()].
 normalize_hosts(Hosts) ->
     normalize_hosts(Hosts,[]).
+
 normalize_hosts([], PrepHosts) ->
     lists:reverse(PrepHosts);
 normalize_hosts([Host|Hosts], PrepHosts) ->
@@ -189,12 +233,20 @@ normalize_hosts([Host|Hosts], PrepHosts) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Errors reading the config file
 
+-type config_problem() :: atom() | {integer(),atom() | tuple(),_}. % spec me better
+-type config_line() :: [[any()] | non_neg_integer(),...]. % spec me better
+
+-spec describe_config_problem(Filename :: string(),
+                              Reason :: config_problem()) -> string().
 describe_config_problem(Filename, Reason) ->
     Text1 = lists:flatten("Problem loading ejabberd config file " ++ Filename),
     Text2 = lists:flatten(" : " ++ file:format_error(Reason)),
     ExitText = Text1 ++ Text2,
     ExitText.
 
+-spec describe_config_problem(Filename :: string(),
+                              Reason :: config_problem(),
+                              Line :: pos_integer()) -> string().
 describe_config_problem(Filename, Reason, LineNumber) ->
     Text1 = lists:flatten("Problem loading ejabberd config file " ++ Filename),
     Text2 = lists:flatten(" approximately in the line "
@@ -205,6 +257,10 @@ describe_config_problem(Filename, Reason, LineNumber) ->
                " relevant to the error: ~n~s", [Lines]),
     ExitText.
 
+-spec get_config_lines(Filename :: string(),
+                       TargetNumber :: integer(),
+                       PreContext :: 10,
+                       PostContext :: 3) -> [config_line()].
 get_config_lines(Filename, TargetNumber, PreContext, PostContext) ->
     {ok, Fd} = file:open(Filename, [read]),
     LNumbers = lists:seq(TargetNumber-PreContext, TargetNumber+PostContext),
@@ -227,7 +283,8 @@ get_config_lines2(Fd, Data, CurrLine, [NextWanted | LNumbers], R) when is_list(D
             get_config_lines2(Fd, NextL, CurrLine+1, [NextWanted | LNumbers], R)
     end.
 
-%% If ejabberd isn't yet running in this node, then halt the node
+%% @doc If ejabberd isn't yet running in this node, then halt the node
+-spec exit_or_halt(ExitText :: string()) -> none().
 exit_or_halt(ExitText) ->
     case [Vsn || {ejabberd, _Desc, Vsn} <- application:which_applications()] of
         [] ->
@@ -262,8 +319,8 @@ include_config_files([Term | Terms], Res) ->
 %% @doc Filter from the list of terms the disallowed.
 %% Returns a sublist of Terms without the ones which first element is
 %% included in Disallowed.
--spec delete_disallowed( Disallowed :: [atom()]
-                       , Terms :: [term()]) -> [term()].
+-spec delete_disallowed(Disallowed :: [atom()],
+                        Terms :: [term()]) -> [term()].
 delete_disallowed(Disallowed, Terms) ->
     lists:foldl(
       fun(Dis, Ldis) ->
@@ -369,42 +426,6 @@ is_all_uppercase(Atom) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Process terms
-
--type known_term() :: override_global
-                    | override_local
-                    | override_acls
-                    | {acl, _, _}
-                    | {alarms, _}
-                    | {access, _, _}
-                    | {shaper, _, _}
-                    | {host, _}
-                    | {hosts, _}
-                    | {host_config, _, _}
-                    | {listen, _}
-                    | {language, _}
-                    | {sm_backend, _}
-                    | {outgoing_s2s_port, integer()}
-                    | {outgoing_s2s_options, _, integer()}
-                    | {{s2s_addr, _}, _}
-                    | {s2s_dns_options, [tuple()]}
-                    | {s2s_use_starttls, integer()}
-                    | {s2s_certfile, _}
-                    | {domain_certfile, _, _}
-                    | {node_type, _}
-                    | {cluster_nodes, _}
-                    | {watchdog_admins, _}
-                    | {watchdog_large_heap, _}
-                    | {registration_timeout, integer()}
-                    | {ejabberdctl_access_commands, list()}
-                    | {loglevel, _}
-                    | {max_fsm_queue, _}
-                    | host_term().
--type host_term() :: {acl, _, _}
-                   | {access, _, _}
-                   | {shaper, _, _}
-                   | {host, _}
-                   | {hosts, _}
-                   | {odbc_server, _}.
 
 -spec process_term(Term :: known_term(),
                    State :: state()) -> state().
@@ -570,6 +591,7 @@ compact(Opt, Val, [O | Os1], Os2) ->
     end.
 
 
+-spec set_opts(state()) -> 'ok' | none().
 set_opts(State) ->
     Opts = lists:reverse(State#state.opts),
     F = fun() ->
@@ -651,7 +673,7 @@ get_local_option(Opt) ->
             undefined
     end.
 
-%% Return the list of hosts handled by a given module
+%% @doc Return the list of hosts handled by a given module
 get_vh_by_auth_method(AuthMethod) ->
     mnesia:dirty_select(local_config,
                         [{#local_config{key = {auth_method, '$1'},
