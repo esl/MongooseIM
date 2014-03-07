@@ -161,7 +161,7 @@ websocket_init(Transport, Req, Opts) ->
     case ejabberd_c2s:start({?MODULE, SocketData}, Opts) of
         {ok, Pid} ->
             ?DEBUG("started c2s via websockets: ~p", [Pid]),
-            {ok, Parser} = exml_stream:new_parser(standalone_xml),
+            {ok, Parser} = exml_stream:new_parser(multiple_docs),
             State = #ws_state{c2s_pid = Pid,
                               parser = Parser},
             {ok, NewReq2, State};

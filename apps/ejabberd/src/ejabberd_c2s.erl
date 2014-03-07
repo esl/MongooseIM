@@ -139,6 +139,7 @@
 -define(STREAM_TRAILER, "</stream:stream>").
 -define(STREAM_TRAILER_WS, "<close xmlns='urn:ietf:params:xml:ns:xmpp-framing'/>").
 
+-define(NS_JABBER_CLIENT, <<"jabber:client">>).
 -define(INVALID_NS_ERR, ?SERR_INVALID_NAMESPACE).
 -define(INVALID_XML_ERR, ?SERR_XML_NOT_WELL_FORMED).
 -define(HOST_UNKNOWN_ERR, ?SERR_HOST_UNKNOWN).
@@ -1716,7 +1717,15 @@ send_element(#state{server = Server, sockmod = mod_websockets} = StateData, #xml
                        Server, [Server, El]),
     mod_websockets:send_xml(StateData#state.socket,
 				       {xmlstreamelement, El#xmlel{name = <<"error">>, attrs = [{<<"xmlns">>, ?NS_STREAM} |Attr]}});
-
+send_element(#state{server = Server, sockmod = mod_websockets} = StateData, #xmlel{name = <<"message">>, attrs = Attr }=El) ->
+    ejabberd_hooks:run(xmpp_send_element,
+                       Server, [Server, El]),
+    NewEl = case  exml_query:attr(El, <<"xmlns">>) of
+                 ?NS_JABBER_CLIENT -> El;
+                 _ -> El#xmlel{attrs = [{<<"xmlns">>, ?NS_JABBER_CLIENT} | Attr]}
+             end,
+    mod_websockets:send_xml(StateData#state.socket,
+				       {xmlstreamelement, NewEl});
 send_element(#state{server = Server} = StateData, El) ->
     ejabberd_hooks:run(xmpp_send_element,
                        Server, [Server, El]),
