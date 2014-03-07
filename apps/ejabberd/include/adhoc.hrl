@@ -21,22 +21,22 @@
 -ifndef(MONGOOSEIM_ADHOC_HRL).
 -define(MONGOOSEIM_ADHOC_HRL, true).
 
--record(adhoc_request, { lang :: ejabberd:lang()
-                       , node :: binary()
-                       , sessionid :: binary()
-                       , action :: binary()
-                       , xdata :: jlib:xmlel()
-                       , others
+-record(adhoc_request, {lang :: ejabberd:lang(),
+                        node :: ejabberd:server(),
+                        sessionid :: binary(),
+                        action :: binary(),
+                        xdata :: jlib:xmlel(),
+                        others
                        }).
 
--record(adhoc_response, {lang :: ejabberd:lang()
-                        , node :: binary()
-                        , sessionid :: binary()
-                        , status :: atom()
-                        , defaultaction = "" :: string()
-                        , actions = []
-                        , notes = [] :: [tuple()]
-                        , elements = [] :: [jlib:xmlel()]
+-record(adhoc_response, {lang :: ejabberd:lang(),
+                         node :: binary(),
+                         sessionid :: binary(),
+                         status :: atom(),
+                         defaultaction = "" :: string(),
+                         actions = [],
+                         notes = [] :: [tuple()],
+                         elements = [] :: [jlib:xmlel()]
                         }).
 
 -endif.

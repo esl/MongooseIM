@@ -21,18 +21,18 @@
 -ifndef(MONGOOSEIM_EJABBERD_COMMANDS_HRL).
 -define(MONGOOSEIM_EJABBERD_COMMANDS_HRL, true).
 
--record(ejabberd_commands, { name :: atom()
-                           , tags = [] :: [atom()]
+-record(ejabberd_commands, {name :: atom(),
+                            tags = [] :: [atom()],
   %% Description of the command
-                           , desc = "" :: string()
-                           , longdesc = "" :: string()
-                           , module :: atom()
-                           , function :: atom()
+                            desc = "" :: string(),
+                            longdesc = "" :: string(),
+                            module :: atom(),
+                            function :: atom(),
   %% Describe the accepted arguments.
   %% This way the function that calls the command can format the arguments
   %% before calling
-                           , args = [] :: [ejabberd_commands:aterm()]
-                           , result = rescode :: ejabberd_commands:rterm()
+                            args = [] :: [ejabberd_commands:aterm()],
+                            result = rescode :: ejabberd_commands:rterm()
                            }).
 
 -endif.

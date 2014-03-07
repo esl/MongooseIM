@@ -37,16 +37,22 @@
 -include("ejabberd_config.hrl").
 -include_lib("kernel/include/file.hrl").
 
--type key() :: atom() | {atom(), atom()} | {atom(), atom(), atom()}
-              | binary(). % TODO: binary is questionable here
--type value() :: atom() | integer() | string() | [tuple()].
+-type key() :: atom()
+             | {atom(), atom()}
+             | {atom(), atom(), atom()}
+             | binary(). % TODO: binary is questionable here
+-type value() :: atom()
+               | integer()
+               | string()
+               | [tuple()].
 -export_type([key/0, value/0]).
 
--record(state, { opts = []  :: list()
-               , hosts = [] :: list()
-               , override_local = false  :: boolean()
-               , override_global = false :: boolean()
-               , override_acls = false   :: boolean()}).
+-record(state, {opts = []  :: list(),
+                hosts = [] :: list(),
+                override_local = false  :: boolean(),
+                override_global = false :: boolean(),
+                override_acls = false   :: boolean()
+              }).
 
 -type state() :: #state{}.
 -type macro() :: {macro_key(), macro_value()}.
@@ -281,8 +287,8 @@ delete_disallowed2(_, []) ->
 %% @doc Keep from the list only the allowed terms.
 %% Returns a sublist of Terms with only the ones which first element is
 %% included in Allowed.
--spec keep_only_allowed(Allowed :: [atom()]
-                       , Terms::[term()]) -> [term()].
+-spec keep_only_allowed(Allowed :: [atom()],
+                        Terms::[term()]) -> [term()].
 keep_only_allowed(all, Terms) ->
     Terms;
 keep_only_allowed(Allowed, Terms) ->
@@ -327,8 +333,8 @@ split_terms_macros(Terms) ->
       Terms).
 
 %% @doc Recursively replace in Terms macro usages with the defined value.
--spec replace(Terms :: [term()]
-             , Macros :: [macro()]) -> [term()].
+-spec replace(Terms :: [term()],
+              Macros :: [macro()]) -> [term()].
 replace([], _) ->
     [];
 replace([Term|Terms], Macros) ->
@@ -364,26 +370,44 @@ is_all_uppercase(Atom) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Process terms
 
--type known_term() :: override_global | override_local | override_acls
-                    | {acl, _, _} | {alarms, _} | {access, _, _}
-                    | {shaper, _, _} | {host, _} | {hosts, _}
-                    | {host_config, _, _} | {listen, _} | {language, _}
-                    | {sm_backend, _} | {outgoing_s2s_port, integer()}
+-type known_term() :: override_global
+                    | override_local
+                    | override_acls
+                    | {acl, _, _}
+                    | {alarms, _}
+                    | {access, _, _}
+                    | {shaper, _, _}
+                    | {host, _}
+                    | {hosts, _}
+                    | {host_config, _, _}
+                    | {listen, _}
+                    | {language, _}
+                    | {sm_backend, _}
+                    | {outgoing_s2s_port, integer()}
                     | {outgoing_s2s_options, _, integer()}
-                    | {{s2s_addr, _}, _} | {s2s_dns_options, [tuple()]}
-                    | {s2s_use_starttls, integer()} | {s2s_certfile, _}
-                    | {domain_certfile, _, _} | {node_type, _}
-                    | {cluster_nodes, _} | {watchdog_admins, _}
+                    | {{s2s_addr, _}, _}
+                    | {s2s_dns_options, [tuple()]}
+                    | {s2s_use_starttls, integer()}
+                    | {s2s_certfile, _}
+                    | {domain_certfile, _, _}
+                    | {node_type, _}
+                    | {cluster_nodes, _}
+                    | {watchdog_admins, _}
                     | {watchdog_large_heap, _}
                     | {registration_timeout, integer()}
                     | {ejabberdctl_access_commands, list()}
-                    | {loglevel, _} | {max_fsm_queue, _}
+                    | {loglevel, _}
+                    | {max_fsm_queue, _}
                     | host_term().
--type host_term() :: {acl, _, _} | {access, _, _} | {shaper, _, _}
-                    | {host, _} | {hosts, _} | {odbc_server, _}.
+-type host_term() :: {acl, _, _}
+                   | {access, _, _}
+                   | {shaper, _, _}
+                   | {host, _}
+                   | {hosts, _}
+                   | {odbc_server, _}.
 
--spec process_term( Term :: known_term()
-                  , State :: state()) -> state().
+-spec process_term(Term :: known_term(),
+                   State :: state()) -> state().
 process_term(Term, State) ->
     case Term of
         override_global ->
@@ -472,9 +496,9 @@ process_term(Term, State) ->
                         State, State#state.hosts)
     end.
 
--spec process_host_term( Term :: host_term()
-                       , Host :: acl:host()
-                       , State :: state()) -> state().
+-spec process_host_term(Term :: host_term(),
+                        Host :: acl:host(),
+                        State :: state()) -> state().
 process_host_term(Term, Host, State) ->
     case Term of
         {acl, ACLName, ACLData} ->
@@ -498,9 +522,9 @@ process_host_term(Term, Host, State) ->
             add_option({Opt, Host}, Val, State)
     end.
 
--spec add_option( Opt :: hosts | language | sm_backend
-                , Val :: term()
-                , State :: state()) -> state().
+-spec add_option(Opt :: hosts | language | sm_backend,
+                 Val :: term(),
+                 State :: state()) -> state().
 add_option(Opt, Val, State) ->
     Table = case Opt of
                 hosts ->

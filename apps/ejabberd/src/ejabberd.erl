@@ -27,18 +27,20 @@
 -module(ejabberd).
 -author('alexey@process-one.net').
 
--export([ start/0
-        , stop/0
-        , get_pid_file/0
-        , get_so_path/0
-        , get_bin_path/0
-        ]).
+-export([start/0,
+         stop/0,
+         get_pid_file/0,
+         get_so_path/0,
+         get_bin_path/0]).
 
 -include("jlib.hrl").
 
 -type lang() :: binary() | nonempty_string().
 
--type sockmod() :: gen_tcp | ejabberd_socket | mod_bosh_socket | mod_websockets.
+-type sockmod() :: gen_tcp
+                 | ejabberd_socket
+                 | mod_bosh_socket
+                 | mod_websockets.
 
 -type jid() :: #jid{}.
 
@@ -54,14 +56,14 @@
 
 -type sid() :: binary().
 
--export_type([lang/0
-             , sockmod/0
-             , jid/0
-             , iq/0
-             , simple_jid/0
-             , simple_bare_jid/0
-             , sid/0
-             , server/0]).
+-export_type([lang/0,
+              sockmod/0,
+              jid/0,
+              iq/0,
+              simple_jid/0,
+              simple_bare_jid/0,
+              sid/0,
+              server/0]).
 
 start() ->
     %%ejabberd_cover:start(),

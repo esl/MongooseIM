@@ -55,8 +55,8 @@
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
--record(anonymous, { us :: ejabberd:simple_bare_jid()
-                   , sid :: ejabberd:sid()
+-record(anonymous, {us  :: ejabberd:simple_bare_jid(),
+                    sid :: ejabberd:sid()
                    }).
 
 %% Create the anonymous table if at least one virtual host has anonymous features enabled
@@ -126,8 +126,8 @@ allow_multiple_connections(Host) ->
       {allow_multiple_connections, Host}) =:= true.
 
 %% @doc Check if user exist in the anonymus database
--spec anonymous_user_exist( User :: binary()
-                          , Server :: ejabberd:server()) -> boolean().
+-spec anonymous_user_exist(User :: binary(),
+                           Server :: ejabberd:server()) -> boolean().
 anonymous_user_exist(User, Server) ->
     LUser = jlib:nodeprep(User),
     LServer = jlib:nameprep(Server),
@@ -140,9 +140,10 @@ anonymous_user_exist(User, Server) ->
     end.
 
 %% @doc Remove connection from Mnesia tables
--spec remove_connection( SID :: ejabberd:sid()
-                       , LUser :: binary()
-                       , LServer :: binary()) -> {atomic|error, _}.
+-spec remove_connection(SID :: ejabberd:sid(),
+                        LUser :: binary(),
+                        LServer :: ejabberd:server()
+                        ) -> {atomic|aborted|error, _}.
 remove_connection(SID, LUser, LServer) ->
     US = {LUser, LServer},
     F = fun() ->
@@ -151,9 +152,9 @@ remove_connection(SID, LUser, LServer) ->
     mnesia:transaction(F).
 
 %% @doc Register connection
--spec register_connection( SID :: ejabberd:sid()
-                         , ejabberd:jid()
-                         , Info :: binary()) -> ok.
+-spec register_connection(SID :: ejabberd:sid(),
+                          ejabberd:jid(),
+                          Info :: binary()) -> ok.
 register_connection(SID, #jid{luser = LUser, lserver = LServer}, Info) ->
     AuthModule = xml:get_attr_s(auth_module, Info),
     case AuthModule == ?MODULE of
@@ -168,8 +169,8 @@ register_connection(SID, #jid{luser = LUser, lserver = LServer}, Info) ->
     end.
 
 %% @doc Remove an anonymous user from the anonymous users table
--spec unregister_connection( SID :: ejabberd:sid()
-                           , ejabberd:jid(), _) -> {atomic|error, _}.
+-spec unregister_connection(SID :: ejabberd:sid(),
+                            ejabberd:jid(), _) -> {atomic|error|aborted, _}.
 unregister_connection(SID, #jid{luser = LUser, lserver = LServer}, _) ->
     purge_hook(anonymous_user_exist(LUser, LServer),
                LUser, LServer),
@@ -187,9 +188,9 @@ purge_hook(true, LUser, LServer) ->
 
 %% @doc When anonymous login is enabled, check the password for permenant users
 %% before allowing access
--spec check_password( User :: binary()
-                    , Server :: ejabberd:server()
-                    , Password :: binary()) -> boolean().
+-spec check_password(User :: binary(),
+                     Server :: ejabberd:server(),
+                     Password :: binary()) -> boolean().
 check_password(User, Server, Password) ->
     check_password(User, Server, Password, undefined, undefined).
 check_password(User, Server, _Password, _Digest, _DigestGen) ->
@@ -221,9 +222,9 @@ login(User, Server) ->
 
 %% When anonymous login is enabled, check that the user is permanent before
 %% changing its password
--spec set_password( User :: binary()
-                  , Server :: ejabberd:server()
-                  , Password :: binary()) -> ok | {error, not_allowed}.
+-spec set_password(User :: binary(),
+                   Server :: ejabberd:server(),
+                   Password :: binary()) -> ok | {error, not_allowed}.
 set_password(User, Server, _Password) ->
     case anonymous_user_exist(User, Server) of
         true ->
@@ -234,10 +235,9 @@ set_password(User, Server, _Password) ->
 
 %% When anonymous login is enabled, check if permanent users are allowed on
 %% the server:
--spec try_register( User :: binary()
-                  , Server :: ejabberd:server()
-                  , Password :: binary()
-                  ) -> {error, not_allowed}.
+-spec try_register(User :: binary(),
+                   Server :: ejabberd:server(),
+                   Password :: binary()) -> {error, not_allowed}.
 try_register(_User, _Server, _Password) ->
     {error, not_allowed}.
 
@@ -245,20 +245,21 @@ try_register(_User, _Server, _Password) ->
 dirty_get_registered_users() ->
     [].
 
--spec get_vh_registered_users(Server :: ejabberd:server()) -> [ejabberd:simple_jid()].
+-spec get_vh_registered_users(Server :: ejabberd:server()
+                             ) -> [ejabberd:simple_jid()].
 get_vh_registered_users(Server) ->
     [{U, S} || {{U, S, _R}, _, _, _} <- ejabberd_sm:get_vh_session_list(Server)].
 
 
 %% @doc Return password of permanent user or false for anonymous users
--spec get_password( User :: binary()
-                  , Server :: ejabberd:server()) -> binary() | false.
+-spec get_password(User :: binary(),
+                   Server :: ejabberd:server()) -> binary() | false.
 get_password(User, Server) ->
     get_password(User, Server, "").
 
--spec get_password( User :: binary()
-                  , Server :: ejabberd:server()
-                  , DefaultValue :: binary()) -> binary() | false.
+-spec get_password(User :: binary(),
+                   Server :: ejabberd:server(),
+                   DefaultValue :: binary()) -> binary() | false.
 get_password(User, Server, DefaultValue) ->
     case anonymous_user_exist(User, Server) or login(User, Server) of
         %% We return the default value if the user is anonymous
@@ -271,19 +272,19 @@ get_password(User, Server, DefaultValue) ->
 
 %% @doc Returns true if the user exists in the DB or if an anonymous user is
 %% logged under the given name
--spec is_user_exists( User :: binary()
-                    , Server :: ejabberd:server()) -> boolean().
+-spec is_user_exists(User :: binary(),
+                     Server :: ejabberd:server()) -> boolean().
 is_user_exists(User, Server) ->
     anonymous_user_exist(User, Server).
 
--spec remove_user( User :: binary()
-                 , Server :: ejabberd:server()) -> {error, not_allowed}.
+-spec remove_user(User :: binary(),
+                  Server :: ejabberd:server()) -> {error, not_allowed}.
 remove_user(_User, _Server) ->
     {error, not_allowed}.
 
--spec remove_user( User :: binary()
-                 , Server :: ejabberd:server()
-                 , Password :: binary()) -> 'not_allowed'.
+-spec remove_user(User :: binary(),
+                  Server :: ejabberd:server(),
+                  Password :: binary()) -> 'not_allowed'.
 remove_user(_User, _Server, _Password) ->
     not_allowed.
 

@@ -57,9 +57,12 @@
 
 -include("ejabberd.hrl").
 
--type authmodule() :: ejabberd_auth_anonymous | ejabberd_auth_external
-                    | ejabberd_auth_internal | ejabberd_auth_ldap
-                    | ejabberd_auth_odbc | ejabberd_auth_pam.
+-type authmodule() :: ejabberd_auth_anonymous
+                    | ejabberd_auth_external
+                    | ejabberd_auth_internal
+                    | ejabberd_auth_ldap
+                    | ejabberd_auth_odbc
+                    | ejabberd_auth_pam.
 
 %%%----------------------------------------------------------------------
 %%% API
@@ -82,9 +85,9 @@ plain_password_required(Server) ->
       end, auth_modules(Server)).
 
 %% @doc Check if the user and password can login in server.
--spec check_password( User :: binary()
-                    , Server::binary()
-                    , Password::binary() ) -> boolean().
+-spec check_password(User :: binary(),
+                     Server :: ejabberd:server(),
+                     Password :: binary() ) -> boolean().
 check_password(User, Server, Password) ->
     case check_password_with_authmodule(User, Server, Password) of
         {true, _AuthModule} -> true;
@@ -92,11 +95,11 @@ check_password(User, Server, Password) ->
     end.
 
 %% @doc Check if the user and password can login in server.
--spec check_password( User :: binary()
-                    , Server :: binary()
-                    , Password :: binary()
-                    , Digest :: binary()
-                    , DigestGen :: fun()) -> boolean().
+-spec check_password(User :: binary(),
+                     Server :: ejabberd:server(),
+                     Password :: binary(),
+                     Digest :: binary(),
+                     DigestGen :: fun()) -> boolean().
 check_password(User, Server, Password, Digest, DigestGen) ->
     case check_password_with_authmodule(User, Server, Password,
                                         Digest, DigestGen) of
@@ -107,25 +110,26 @@ check_password(User, Server, Password, Digest, DigestGen) ->
 %% @doc Check if the user and password can login in server.
 %% The user can login if at least an authentication method accepts the user
 %% and the password.
--spec check_password_with_authmodule( User :: binary()
-                                    , Server :: binary()
-                                    , Password :: binary()
-                                    ) -> 'false' | {'true', authmodule()}.
+-spec check_password_with_authmodule(User :: binary(),
+                                     Server :: binary(),
+                                     Password :: binary()
+                                     ) -> 'false' | {'true', authmodule()}.
 check_password_with_authmodule(User, Server, Password) ->
     check_password_loop(auth_modules(Server), [User, Server, Password]).
 
--spec check_password_with_authmodule( User :: binary()
-                                    , Server :: binary()
-                                    , Password :: binary()
-                                    , Digest :: binary()
-                                    , DigestGen :: fun()
-                                    ) -> 'false' | {'true', authmodule()}.
+-spec check_password_with_authmodule(User :: binary(),
+                                     Server :: binary(),
+                                     Password :: binary(),
+                                     Digest :: binary(),
+                                     DigestGen :: fun()
+                                     ) -> 'false' | {'true', authmodule()}.
 check_password_with_authmodule(User, Server, Password, Digest, DigestGen) ->
     check_password_loop(auth_modules(Server), [User, Server, Password,
                                                Digest, DigestGen]).
 
--spec check_password_loop([authmodule()], Args :: [any(),...]
-                         ) -> 'false' | {'true', authmodule()}.
+-spec check_password_loop(AuthModules :: [authmodule()],
+                          Args :: [any(),...]
+                          ) -> 'false' | {'true', authmodule()}.
 check_password_loop([], Args) ->
     [User, Server, Password | _] = Args,
     ejabberd_hooks:run(auth_failed, Server, [User, Server, Password]),
@@ -139,9 +143,9 @@ check_password_loop([AuthModule | AuthModules], Args) ->
     end.
 
 
--spec set_password( User :: binary()
-                  , Server :: binary()
-                  , Password :: binary()
+-spec set_password(User :: binary(),
+                   Server :: ejabberd:server(),
+                   Password :: binary()
                   ) -> ok | {error, empty_password | not_allowed | invalid_jid}.
 set_password(_User, _Server, "") ->
     %% We do not allow empty password
@@ -154,10 +158,10 @@ set_password(User, Server, Password) ->
               Res
       end, {error, not_allowed}, auth_modules(Server)).
 
--spec try_register( User :: binary()
-                  , Server :: binary()
-                  , Password :: binary()
-                  ) -> {atomic, ok | exists} | {error, not_allowed}.
+-spec try_register(User :: binary(),
+                   Server :: binary(),
+                   Password :: binary()
+                   ) -> {atomic, ok | exists} | {error, not_allowed}.
 try_register(_User, _Server, "") ->
     %% We do not allow empty password
     {error, not_allowed};
@@ -195,15 +199,16 @@ dirty_get_registered_users() ->
       end, auth_modules()).
 
 %% @doc Registered users list do not include anonymous users logged
--spec get_vh_registered_users(Server :: binary()) -> [ejabberd:simple_jid()].
+-spec get_vh_registered_users(Server :: ejabberd:server()
+                             ) -> [ejabberd:simple_jid()].
 get_vh_registered_users(Server) ->
     lists:flatmap(
       fun(M) ->
               M:get_vh_registered_users(Server)
       end, auth_modules(Server)).
 
--spec get_vh_registered_users( Server :: binary()
-                             , Opts :: [any()]) -> [ejabberd:simple_jid()].
+-spec get_vh_registered_users(Server :: ejabberd:server(),
+                              Opts :: [any()]) -> [ejabberd:simple_jid()].
 get_vh_registered_users(Server, Opts) ->
     lists:flatmap(
       fun(M) ->
@@ -216,7 +221,8 @@ get_vh_registered_users(Server, Opts) ->
                 end
       end, auth_modules(Server)).
 
--spec get_vh_registered_users_number(Server :: binary()) -> integer().
+-spec get_vh_registered_users_number(Server :: ejabberd:server()
+                                    ) -> integer().
 get_vh_registered_users_number(Server) ->
     lists:sum(
       lists:map(
@@ -230,8 +236,8 @@ get_vh_registered_users_number(Server) ->
                 end
         end, auth_modules(Server))).
 
--spec get_vh_registered_users_number( Server :: binary()
-                                    , Opts :: [any()]) -> integer().
+-spec get_vh_registered_users_number(Server :: ejabberd:server(),
+                                     Opts :: list()) -> integer().
 get_vh_registered_users_number(Server, Opts) ->
     lists:sum(
       lists:map(
@@ -246,8 +252,8 @@ get_vh_registered_users_number(Server, Opts) ->
         end, auth_modules(Server))).
 
 %% @doc Get the password of the user.
--spec get_password( User :: binary()
-                  , Server::binary()) -> binary() | false.
+-spec get_password(User :: binary(),
+                   Server :: ejabberd:server()) -> binary() | false.
 get_password(User, Server) ->
     lists:foldl(
       fun(M, false) ->
@@ -257,7 +263,7 @@ get_password(User, Server) ->
       end, false, auth_modules(Server)).
 
 -spec get_password_s( User :: binary()
-                    , Server::binary()) -> binary().
+                    , Server :: ejabberd:server()) -> binary().
 get_password_s(User, Server) ->
     case get_password(User, Server) of
         false ->
@@ -267,8 +273,8 @@ get_password_s(User, Server) ->
     end.
 
 %% @doc Get the password of the user and the auth module.
--spec get_password_with_authmodule( User::binary()
-                                  , Server::binary())
+-spec get_password_with_authmodule(User::binary(),
+                                   Server :: ejabberd:server())
       -> {Password::binary(), AuthModule :: authmodule()} | {'false', 'none'}.
 get_password_with_authmodule(User, Server) ->
     lists:foldl(
@@ -280,8 +286,8 @@ get_password_with_authmodule(User, Server) ->
 
 %% @doc Returns true if the user exists in the DB or if an anonymous user is
 %% logged under the given name
--spec is_user_exists( User :: binary()
-                    , Server :: binary()) -> boolean().
+-spec is_user_exists(User :: binary(),
+                     Server :: ejabberd:server()) -> boolean().
 is_user_exists(User, Server) ->
     lists:any(
       fun(M) ->
@@ -299,10 +305,10 @@ is_user_exists(User, Server) ->
 
 %% Check if the user exists in all authentications module except the module
 %% passed as parameter
--spec is_user_exists_in_other_modules( Module :: authmodule()
-                                     , User :: binary()
-                                     , Server :: binary()
-                                     ) -> boolean() | 'maybe'.
+-spec is_user_exists_in_other_modules(Module :: authmodule(),
+                                      User :: binary(),
+                                      Server :: binary()
+                                      ) -> boolean() | 'maybe'.
 is_user_exists_in_other_modules(Module, User, Server) ->
     is_user_exists_in_other_modules_loop(
       auth_modules(Server)--[Module],
@@ -326,8 +332,8 @@ is_user_exists_in_other_modules_loop([AuthModule|AuthModules], User, Server) ->
 
 %% @doc Remove user.
 %% Note: it may return ok even if there was some problem removing the user.
--spec remove_user( User :: binary()
-                 , Server :: binary()) -> ok | error | {error, not_allowed}.
+-spec remove_user(User :: binary(),
+                  Server :: ejabberd:server()) -> ok | error | {error, not_allowed}.
 remove_user(User, Server) ->
     [M:remove_user(User, Server) || M <- auth_modules(Server)],
     ejabberd_hooks:run(remove_user, jlib:nameprep(Server), [User, Server]),
@@ -337,10 +343,10 @@ remove_user(User, Server) ->
 %% The removal is attempted in each auth method provided:
 %% when one returns 'ok' the loop stops;
 %% if no method returns 'ok' then it returns the error message indicated by the last method attempted.
--spec remove_user( User :: binary()
-                 , Server :: binary()
-                 , Password :: binary()
-                 ) -> ok | not_exists | not_allowed | bad_request | error.
+-spec remove_user(User :: binary(),
+                  Server :: ejabberd:server(),
+                  Password :: binary()
+                  ) -> ok | not_exists | not_allowed | bad_request | error.
 remove_user(User, Server, Password) ->
     R = lists:foldl(
       fun(_M, ok = Res) ->

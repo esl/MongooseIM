@@ -101,9 +101,11 @@
                 conn = unknown,
                 auth_module = unknown,
                 ip,
-                aux_fields = [],
+                aux_fields = [] :: [{aux_key(), aux_value()}],
                 lang :: ejabberd:lang()
                 }).
+-type aux_key() :: atom().
+-type aux_value() :: any().
 -type state() :: #state{}.
 
 %-define(DBGFSM, true).
@@ -148,6 +150,8 @@
 %%%----------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------
+-spec start(_, list())
+      -> {'error',_} | {'ok','undefined' | pid()} | {'ok','undefined' | pid(),_}.
 start(SockData, Opts) ->
     ?SUPERVISOR_START.
 
@@ -162,6 +166,8 @@ socket_type() ->
 get_presence(FsmRef) ->
     ?GEN_FSM:sync_send_all_state_event(FsmRef, get_presence, 1000).
 
+-spec get_aux_field(Key :: aux_key(),
+                    State :: state()) -> 'error' | {'ok', aux_value()}.
 get_aux_field(Key, #state{aux_fields = Opts}) ->
     case lists:keysearch(Key, 1, Opts) of
         {value, {_, Val}} ->
@@ -170,14 +176,20 @@ get_aux_field(Key, #state{aux_fields = Opts}) ->
             error
     end.
 
+-spec set_aux_field(Key :: aux_key(),
+                    Val :: aux_value(),
+                    State :: state()) -> state().
 set_aux_field(Key, Val, #state{aux_fields = Opts} = State) ->
     Opts1 = lists:keydelete(Key, 1, Opts),
     State#state{aux_fields = [{Key, Val}|Opts1]}.
 
+-spec del_aux_field(Key :: aux_key(), State :: state()) -> aux_value().
 del_aux_field(Key, #state{aux_fields = Opts} = State) ->
     Opts1 = lists:keydelete(Key, 1, Opts),
     State#state{aux_fields = Opts1}.
 
+-spec get_subscription(From :: ejabberd:jid(),
+                       State :: state()) -> 'both' | 'from' | 'none' | 'to'.
 get_subscription(From = #jid{}, StateData) ->
     get_subscription(jlib:jid_tolower(From), StateData);
 get_subscription(LFrom, StateData) ->
@@ -192,6 +204,11 @@ get_subscription(LFrom, StateData) ->
        true -> none
     end.
 
+-spec broadcast(FSM :: atom() | pid(), % | port() | {atom(),atom()} % guess
+                Type :: atom(), % guess
+                From :: ejabberd:jid(), % guess
+                Packet :: jlib:xmlel() % guess
+                ) -> {'broadcast', atom(), ejabberd:jid(), jlib:xmlel()}.
 broadcast(FsmRef, Type, From, Packet) ->
     FsmRef ! {broadcast, Type, From, Packet}.
 
@@ -1212,7 +1229,7 @@ handle_info(Info, StateName, StateData) ->
                            , Packet :: jlib:xmlel()
                            , StateName :: atom()
                            , StateData :: state()
-                           ) -> {NextState :: atom(), Attrs :: list(), state()}.
+                           ) -> {NextState :: atom(), _, state(), integer()}.
 internal_handle_route(From, To, Packet, StateName, StateData) ->
   #xmlel{name = Name, attrs = Attrs, children = Els} = Packet,
   {Pass, NewAttrs, NewState} =
