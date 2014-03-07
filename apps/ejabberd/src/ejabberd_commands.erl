@@ -241,18 +241,18 @@
 -type auth() :: {User::string(), Server::string(), Password::string()} | noauth.
 -type cmd_error() :: command_unknown | account_unprivileged
                    | invalid_account_data | no_auth_provided.
--type access_cmd() :: { Access :: atom()
-                      , CommandNames :: [atom()]
-                      , Arguments :: [term()]
+-type access_cmd() :: {Access :: atom(),
+                       CommandNames :: [atom()],
+                       Arguments :: [term()]
                       }.
 -type list_cmd() :: {Name::atom(), Args::[aterm()], Desc::string()}.
 
--export_type([rterm/0
-             , aterm/0
-             , ejabberd_command/0
-             , auth/0
-             , access_cmd/0
-             , list_cmd/0]).
+-export_type([rterm/0,
+              aterm/0,
+              ejabberd_command/0,
+              auth/0,
+              access_cmd/0,
+              list_cmd/0]).
 
 init() ->
     ets:new(ejabberd_commands, [named_table, set, public,
@@ -317,17 +317,17 @@ get_command_definition(Name) ->
     end.
 
 %% @doc Execute a command.
--spec execute_command( Name :: atom()
-                     , Arguments :: list()
+-spec execute_command(Name :: atom(),
+                      Arguments :: list()
                      ) -> Result :: term() | {error, command_unknown}.
 execute_command(Name, Arguments) ->
     execute_command([], noauth, Name, Arguments).
 
--spec execute_command(AccessCommands :: [access_cmd()]
-                     , Auth :: auth()
-                     , Name :: atom()
-                     , Arguments :: [term()]
-                     ) -> Result :: term() | {error, cmd_error()}.
+-spec execute_command(AccessCommands :: [access_cmd()],
+                      Auth :: auth(),
+                      Name :: atom(),
+                      Arguments :: [term()]
+                      ) -> Result :: term() | {error, cmd_error()}.
 execute_command(AccessCommands, Auth, Name, Arguments) ->
     case ets:lookup(ejabberd_commands, Name) of
         [Command] ->
@@ -381,12 +381,12 @@ get_tags_commands() ->
 
 %% @doc Check access is allowed to that command.
 %% At least one AccessCommand must be satisfied.
--spec check_access_commands( AccessCommands :: [ access_cmd() ]
-                           , Auth :: auth()
-                           , Method :: atom()
-                           , Command :: tuple()
-                           , Arguments :: [any()]
-                           ) -> ok | none().
+-spec check_access_commands(AccessCommands :: [ access_cmd() ],
+                            Auth :: auth(),
+                            Method :: atom(),
+                            Command :: tuple(),
+                            Arguments :: [any()]
+                            ) -> ok | none().
 %% May throw {error, account_unprivileged | invalid_account_data}
 check_access_commands([], _Auth, _Method, _Command, _Arguments) ->
     ok;
@@ -428,9 +428,7 @@ get_md5(AccountPass) ->
     lists:flatten([io_lib:format("~.16B", [X])
                    || X <- binary_to_list(crypto:md5(AccountPass))]).
 
--spec check_access(Access :: acl:rule()
-                  , Auth :: auth()
-                  ) -> boolean().
+-spec check_access(Access :: acl:rule(), Auth :: auth()) -> boolean().
 check_access(all, _) ->
     true;
 check_access(Access, Auth) ->
@@ -448,9 +446,9 @@ check_access_command(Commands, Command, ArgumentRestrictions, Method, Arguments)
         false -> false
     end.
 
--spec check_access_arguments(Command :: ejabberd_command()
-                            , Restrictions :: [any()]
-                            , Args :: [any()]) -> boolean().
+-spec check_access_arguments(Command :: ejabberd_command(),
+                             Restrictions :: [any()],
+                             Args :: [any()]) -> boolean().
 check_access_arguments(Command, ArgumentRestrictions, Arguments) ->
     ArgumentsTagged = tag_arguments(Command#ejabberd_commands.args, Arguments),
     lists:all(
@@ -462,8 +460,8 @@ check_access_arguments(Command, ArgumentRestrictions, Arguments) ->
               end
       end, ArgumentRestrictions).
 
--spec tag_arguments( ArgsDefs :: [{atom(), integer() | string() | {_,_}}]
-                   , Args :: [any()] ) -> [{_,_}].
+-spec tag_arguments(ArgsDefs :: [{atom(), integer() | string() | {_,_}}],
+                    Args :: [any()] ) -> [{_,_}].
 tag_arguments(ArgsDefs, Args) ->
     lists:zipwith(
       fun({ArgName, _ArgType}, ArgValue) -> 
