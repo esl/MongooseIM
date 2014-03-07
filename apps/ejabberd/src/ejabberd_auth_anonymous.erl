@@ -55,7 +55,7 @@
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
--record(anonymous, { us :: ejabberd:user_server()
+-record(anonymous, { us :: ejabberd:simple_bare_jid()
                    , sid :: ejabberd:sid()
                    }).
 
@@ -74,13 +74,13 @@ start(Host) ->
     ok.
 
 %% @doc Return true if anonymous is allowed for host or false otherwise
--spec allow_anonymous(Host :: gen_auth:server()) -> boolean().
+-spec allow_anonymous(Host :: ejabberd:server()) -> boolean().
 allow_anonymous(Host) ->
     lists:member(?MODULE, ejabberd_auth:auth_modules(Host)).
 
 %% @doc Return true if anonymous mode is enabled and if anonymous protocol is
 %% SASL anonymous protocol can be: sasl_anon|login_anon|both
--spec is_sasl_anonymous_enabled(Host :: gen_auth:server()) -> boolean().
+-spec is_sasl_anonymous_enabled(Host :: ejabberd:server()) -> boolean().
 is_sasl_anonymous_enabled(Host) ->
     case allow_anonymous(Host) of
         false -> false;
@@ -95,7 +95,7 @@ is_sasl_anonymous_enabled(Host) ->
 %% @doc Return true if anonymous login is enabled on the server
 %% anonymous login can be use using standard authentication method (i.e. with
 %% clients that do not support anonymous login)
--spec is_login_anonymous_enabled(Host :: gen_auth:server()) -> boolean().
+-spec is_login_anonymous_enabled(Host :: ejabberd:server()) -> boolean().
 is_login_anonymous_enabled(Host) ->
     case allow_anonymous(Host) of
         false -> false;
@@ -109,7 +109,7 @@ is_login_anonymous_enabled(Host) ->
 
 %% @doc Return the anonymous protocol to use: sasl_anon|login_anon|both
 %% defaults to login_anon
--spec anonymous_protocol(Host :: gen_auth:server()) -> atom().
+-spec anonymous_protocol(Host :: ejabberd:server()) -> atom().
 anonymous_protocol(Host) ->
     case ejabberd_config:get_local_option({anonymous_protocol, Host}) of
         sasl_anon  -> sasl_anon;
@@ -120,14 +120,14 @@ anonymous_protocol(Host) ->
 
 %% @doc Return true if multiple connections have been allowed in the config file
 %% defaults to false
--spec allow_multiple_connections(Host :: gen_auth:server()) -> boolean().
+-spec allow_multiple_connections(Host :: ejabberd:server()) -> boolean().
 allow_multiple_connections(Host) ->
     ejabberd_config:get_local_option(
       {allow_multiple_connections, Host}) =:= true.
 
 %% @doc Check if user exist in the anonymus database
 -spec anonymous_user_exist( User :: binary()
-                          , Server :: gen_auth:server()) -> boolean().
+                          , Server :: ejabberd:server()) -> boolean().
 anonymous_user_exist(User, Server) ->
     LUser = jlib:nodeprep(User),
     LServer = jlib:nameprep(Server),
@@ -188,7 +188,7 @@ purge_hook(true, LUser, LServer) ->
 %% @doc When anonymous login is enabled, check the password for permenant users
 %% before allowing access
 -spec check_password( User :: binary()
-                    , Server :: gen_auth:server()
+                    , Server :: ejabberd:server()
                     , Password :: binary()) -> boolean().
 check_password(User, Server, Password) ->
     check_password(User, Server, Password, undefined, undefined).
@@ -204,7 +204,7 @@ check_password(User, Server, _Password, _Digest, _DigestGen) ->
         false -> login(User, Server)
     end.
 
--spec login(User :: binary(), Server :: gen_auth:server()) -> boolean().
+-spec login(User :: binary(), Server :: ejabberd:server()) -> boolean().
 login(User, Server) ->
     case is_login_anonymous_enabled(Server) of
         false -> false;
@@ -222,7 +222,7 @@ login(User, Server) ->
 %% When anonymous login is enabled, check that the user is permanent before
 %% changing its password
 -spec set_password( User :: binary()
-                  , Server :: gen_auth:server()
+                  , Server :: ejabberd:server()
                   , Password :: binary()) -> ok | {error, not_allowed}.
 set_password(User, Server, _Password) ->
     case anonymous_user_exist(User, Server) of
@@ -235,7 +235,7 @@ set_password(User, Server, _Password) ->
 %% When anonymous login is enabled, check if permanent users are allowed on
 %% the server:
 -spec try_register( User :: binary()
-                  , Server :: gen_auth:server()
+                  , Server :: ejabberd:server()
                   , Password :: binary()
                   ) -> {error, not_allowed}.
 try_register(_User, _Server, _Password) ->
@@ -245,19 +245,19 @@ try_register(_User, _Server, _Password) ->
 dirty_get_registered_users() ->
     [].
 
--spec get_vh_registered_users(Server :: gen_auth:server()) -> [ejabberd:user()].
+-spec get_vh_registered_users(Server :: ejabberd:server()) -> [ejabberd:simple_jid()].
 get_vh_registered_users(Server) ->
     [{U, S} || {{U, S, _R}, _, _, _} <- ejabberd_sm:get_vh_session_list(Server)].
 
 
 %% @doc Return password of permanent user or false for anonymous users
 -spec get_password( User :: binary()
-                  , Server :: gen_auth:server()) -> binary() | false.
+                  , Server :: ejabberd:server()) -> binary() | false.
 get_password(User, Server) ->
     get_password(User, Server, "").
 
 -spec get_password( User :: binary()
-                  , Server :: gen_auth:server()
+                  , Server :: ejabberd:server()
                   , DefaultValue :: binary()) -> binary() | false.
 get_password(User, Server, DefaultValue) ->
     case anonymous_user_exist(User, Server) or login(User, Server) of
@@ -272,17 +272,17 @@ get_password(User, Server, DefaultValue) ->
 %% @doc Returns true if the user exists in the DB or if an anonymous user is
 %% logged under the given name
 -spec is_user_exists( User :: binary()
-                    , Server :: gen_auth:server()) -> boolean().
+                    , Server :: ejabberd:server()) -> boolean().
 is_user_exists(User, Server) ->
     anonymous_user_exist(User, Server).
 
 -spec remove_user( User :: binary()
-                 , Server :: gen_auth:server()) -> {error, not_allowed}.
+                 , Server :: ejabberd:server()) -> {error, not_allowed}.
 remove_user(_User, _Server) ->
     {error, not_allowed}.
 
 -spec remove_user( User :: binary()
-                 , Server :: gen_auth:server()
+                 , Server :: ejabberd:server()
                  , Password :: binary()) -> 'not_allowed'.
 remove_user(_User, _Server, _Password) ->
     not_allowed.
