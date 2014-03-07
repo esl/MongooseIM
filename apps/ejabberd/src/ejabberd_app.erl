@@ -216,8 +216,8 @@ write_pid_file() ->
             write_pid_file(os:getpid(), PidFilename)
     end.
 
--spec write_pid_file(Pid :: string()
-                    , PidFilename :: nonempty_string()
+-spec write_pid_file(Pid :: string(),
+                     PidFilename :: nonempty_string()
                     ) -> 'ok' | {'error',atom()}.
 write_pid_file(Pid, PidFilename) ->
     case file:open(PidFilename, [write]) of

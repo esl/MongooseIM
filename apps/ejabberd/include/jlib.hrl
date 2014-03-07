@@ -305,39 +305,38 @@
 %       jlib:stream_errort(<<"">>, Lang, Text)).
 
 
--record(jid, {
-        user       :: binary(),
-        server     :: binary(),
-        resource   :: binary(),
-        luser      :: binary(),
-        lserver    :: binary(),
-        lresource  :: binary()
-}).
+-record(jid, {user = <<>>      :: binary(),
+              server = <<>>    :: binary(),
+              resource = <<>>  :: binary(),
+              luser = <<>>     :: binary(),
+              lserver = <<>>   :: binary(),
+              lresource = <<>> :: binary()
+             }).
 
--record(iq, { id = <<>>    :: binary()
-            , type         :: atom()
-            , xmlns = <<>> :: binary()
-            , lang = <<>>  :: ejabberd:lang()
-            , sub_el       :: [jlib:xmlel()]
+-record(iq, {id = <<>>    :: binary(),
+             type         :: atom(),
+             xmlns = <<>> :: binary(),
+             lang = <<>>  :: ejabberd:lang(),
+             sub_el       :: [jlib:xmlel()]
             }).
 
--record(rsm_in, { max         :: non_neg_integer() | undefined | error
-                , direction   :: before | aft | undefined
+-record(rsm_in, {max         :: non_neg_integer() | undefined | error,
+                 direction   :: before | aft | undefined,
                 %% id is empty, if cdata does not exist
-                , id          :: binary() | undefined
-                , index       :: non_neg_integer() | undefined | error
+                 id          :: binary() | undefined,
+                 index       :: non_neg_integer() | undefined | error
                 }).
 
--record(mam_borders, { after_id  :: non_neg_integer() | undefined
-                     , before_id :: non_neg_integer() | undefined
-                     , from_id   :: non_neg_integer() | undefined
-                     , to_id     :: non_neg_integer() | undefined
+-record(mam_borders, {after_id  :: non_neg_integer() | undefined,
+                      before_id :: non_neg_integer() | undefined,
+                      from_id   :: non_neg_integer() | undefined,
+                      to_id     :: non_neg_integer() | undefined
                      }).
 
--record(rsm_out, { count :: pos_integer()
-                 , index :: pos_integer()
-                 , first :: pos_integer()
-                 , last :: pos_integer()
+-record(rsm_out, {count :: pos_integer(),
+                  index :: pos_integer(),
+                  first :: pos_integer(),
+                  last :: pos_integer()
                  }).
 
 -endif.

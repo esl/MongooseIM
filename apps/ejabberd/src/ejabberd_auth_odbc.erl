@@ -58,9 +58,9 @@ start(_Host) ->
 plain_password_required() ->
     false.
 
--spec check_password( User :: binary()
-                    , Server :: ejabberd:server()
-                    , Password :: binary()) -> boolean().
+-spec check_password(User :: binary(),
+                     Server :: ejabberd:server(),
+                     Password :: binary()) -> boolean().
 check_password(User, Server, Password) ->
     case jlib:nodeprep(User) of
         error ->
@@ -84,11 +84,11 @@ check_password(User, Server, Password) ->
             end
     end.
 
--spec check_password( User :: binary()
-                    , Server :: ejabberd:server()
-                    , Password :: binary()
-                    , Digest :: binary()
-                    , DigestGen :: fun()) -> boolean().
+-spec check_password(User :: binary(),
+                     Server :: ejabberd:server(),
+                     Password :: binary(),
+                     Digest :: binary(),
+                     DigestGen :: fun()) -> boolean().
 check_password(User, Server, Password, Digest, DigestGen) ->
     case jlib:nodeprep(User) of
         error ->
@@ -121,10 +121,10 @@ check_password(User, Server, Password, Digest, DigestGen) ->
             end
     end.
 
--spec set_password( User :: binary()
-                  , Server :: ejabberd:server()
-                  , Password :: binary())
-      -> ok | {error, not_allowed | invalid_jid}.
+-spec set_password(User :: binary(),
+                   Server :: ejabberd:server(),
+                   Password :: binary()
+                   ) -> ok | {error, not_allowed | invalid_jid}.
 set_password(User, Server, Password) ->
     case jlib:nodeprep(User) of
         error ->
@@ -140,11 +140,11 @@ set_password(User, Server, Password) ->
     end.
 
 
--spec try_register( User :: binary()
-                  , Server :: ejabberd:server()
-                  , Password :: binary()
-                  ) -> {atomic, ok | exists}
-                     | {error, invalid_jid | not_allowed} | {aborted, _}.
+-spec try_register(User :: binary(),
+                   Server :: ejabberd:server(),
+                   Password :: binary()
+                   ) -> {atomic, ok | exists}
+                      | {error, invalid_jid | not_allowed} | {aborted, _}.
 try_register(User, Server, Password) ->
     case jlib:nodeprep(User) of
         error ->
@@ -202,8 +202,8 @@ get_vh_registered_users_number(Server) ->
             0
     end.
 
--spec get_vh_registered_users_number( Server :: ejabberd:server()
-                                    , Opts :: list()) -> integer().
+-spec get_vh_registered_users_number(Server :: ejabberd:server(),
+                                     Opts :: list()) -> integer().
 get_vh_registered_users_number(Server, Opts) ->
     LServer = jlib:nameprep(Server),
     case catch odbc_queries:users_number(LServer, Opts) of
@@ -213,8 +213,8 @@ get_vh_registered_users_number(Server, Opts) ->
             0
     end.
 
--spec get_password( User :: binary()
-                  , Server :: ejabberd:server()) -> binary() | false.
+-spec get_password(User :: binary(),
+                   Server :: ejabberd:server()) -> binary() | false.
 get_password(User, Server) ->
     case jlib:nodeprep(User) of
         error ->
@@ -230,8 +230,8 @@ get_password(User, Server) ->
             end
     end.
 
--spec get_password_s( User :: binary()
-                    , Server :: ejabberd:server()) -> binary().
+-spec get_password_s(User :: binary(),
+                     Server :: ejabberd:server()) -> binary().
 get_password_s(User, Server) ->
     case jlib:nodeprep(User) of
         error ->
@@ -247,8 +247,8 @@ get_password_s(User, Server) ->
             end
     end.
 
--spec is_user_exists( User :: binary()
-                    , Server :: ejabberd:server()
+-spec is_user_exists(User :: binary(),
+                     Server :: ejabberd:server()
                     ) -> boolean() | {error, atom()}.
 is_user_exists(User, Server) ->
     case jlib:nodeprep(User) of
@@ -272,9 +272,9 @@ is_user_exists(User, Server) ->
 
 %% @doc Remove user.
 %% Note: it may return ok even if there was some problem removing the user.
--spec remove_user( User :: binary()
-                 , Server :: ejabberd:server()
-                 ) -> ok | error | {error, not_allowed}.
+-spec remove_user(User :: binary(),
+                  Server :: ejabberd:server()
+                  ) -> ok | error | {error, not_allowed}.
 remove_user(User, Server) ->
     case jlib:nodeprep(User) of
         error ->
@@ -287,9 +287,9 @@ remove_user(User, Server) ->
     end.
 
 %% @doc Remove user if the provided password is correct.
--spec remove_user( User :: binary()
-                 , Server :: ejabberd:server()
-                 , Password :: binary()
+-spec remove_user(User :: binary(),
+                  Server :: ejabberd:server(),
+                  Password :: binary()
                  ) -> ok | not_exists | not_allowed | bad_request | error.
 remove_user(User, Server, Password) ->
     case jlib:nodeprep(User) of

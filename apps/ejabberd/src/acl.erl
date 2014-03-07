@@ -45,8 +45,8 @@
 -type acl_name() :: {atom(), host()}.
 -type acl_spec() :: 'all' | 'none' | {_,_} | {_,_,_}.
 
--record(acl, { aclname :: acl_name()
-             , aclspec
+-record(acl, {aclname :: acl_name(),
+              aclspec
              }).
 -type acl() :: #acl{}.
 
@@ -106,10 +106,10 @@ normalize(A) when is_list(A) ->
 normalize(A) ->
     jlib:nodeprep(A).
 
--spec normalize_spec('all' | 'none' | {_,_} | {_,_,_}) ->
-  'all' | 'none'
-  | {_,'error' | binary() | tuple()}
-  | {_,'error' | binary() | tuple(),'error' | binary() | tuple()}.
+-spec normalize_spec('all' | 'none' | {_,_} | {_,_,_}
+      ) -> 'all' | 'none'
+         | {_, 'error' | binary() | tuple()}
+         | {_, 'error' | binary() | tuple(), 'error' | binary() | tuple()}.
 normalize_spec({A, B}) ->
     {A, normalize(B)};
 normalize_spec({A, B, C}) ->
@@ -120,9 +120,9 @@ normalize_spec(none) ->
     none.
 
 
--spec match_rule( Host :: host()
-                , Rule :: rule()
-                , JID :: ejabberd:jid()) -> allow | deny.
+-spec match_rule(Host :: host(),
+                 Rule :: rule(),
+                 JID :: ejabberd:jid()) -> allow | deny.
 match_rule(global, Rule, JID) ->
     case Rule of
         all -> allow;
@@ -166,9 +166,9 @@ match_rule(Host, Rule, JID) ->
             end
     end.
 
--spec match_acls(ACLs :: [{access(), rule()}]
-                , JID :: ejabberd:jid()
-                , Host :: host()) -> access().
+-spec match_acls(ACLs :: [{access(), rule()}],
+                 JID :: ejabberd:jid(),
+                 Host :: host()) -> access().
 match_acls([], _, _Host) ->
     deny;
 match_acls([{Access, ACL} | ACLs], JID, Host) ->
@@ -179,9 +179,9 @@ match_acls([{Access, ACL} | ACLs], JID, Host) ->
             match_acls(ACLs, JID, Host)
     end.
 
--spec match_acl( ACL :: rule()
-               , JID :: ejabberd:jid()
-               , Host :: host()) -> boolean().
+-spec match_acl(ACL :: rule(),
+                JID :: ejabberd:jid(),
+                Host :: host()) -> boolean().
 match_acl(ACL, JID, Host) ->
     case ACL of
         all -> true;
