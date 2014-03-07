@@ -27,8 +27,16 @@
                       ) -> {atomic, ok | exists}
                          | {error, invalid_jid | not_allowed} | {aborted, _}.
 -callback dirty_get_registered_users() -> [ejabberd:simple_jid()].
--callback get_vh_registered_users(Server :: ejabberd:server()
+
+-callback get_vh_registered_users( Server :: ejabberd:server()
                                  ) -> [ejabberd:simple_jid()].
+-callback get_vh_registered_users( Server :: ejabberd:server()
+                                 , Opts :: list()) -> [ejabberd:simple_jid()].
+-callback get_vh_registered_users_number(Server :: ejabberd:server()
+                                        ) -> integer().
+-callback get_vh_registered_users_number( Server :: ejabberd:server()
+                                        , Opts :: list()) -> integer().
+
 -callback get_password( User :: binary()
                       , Server :: ejabberd:server()) -> binary() | false.
 -callback get_password_s( User :: binary()
