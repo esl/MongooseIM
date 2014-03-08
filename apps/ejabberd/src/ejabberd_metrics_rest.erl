@@ -10,6 +10,10 @@
     sum_metric | host_metrics | host_metric.
 -record(state, {cmd :: command()}).
 
+-type element() :: {'hosts',[any(),...]}
+                 | {'metric',_}
+                 | {'metrics',[any()]}.
+
 %% cowboy_rest callbacks
 -export([init/3,
          rest_init/2,
@@ -96,12 +100,14 @@ response(Req, State) ->
 %%--------------------------------------------------------------------
 %% internal functions
 %%--------------------------------------------------------------------
+-spec get_available_hosts() -> [ejabberd:server()].
 get_available_hosts() ->
     HostsSet = lists:foldl(fun({Host, _Metric}, Hosts) ->
                     ordsets:add_element(Host, Hosts)
             end, ordsets:new(), folsom_metrics:get_metrics()),
     ordsets:to_list(HostsSet).
 
+-spec get_available_metrics(Host :: ejabberd:server()) -> [any()].
 get_available_metrics(Host) ->
     Metrics = lists:foldl(fun({CurrentHost, Metric}, Acc) ->
                     case CurrentHost of
@@ -113,11 +119,13 @@ get_available_metrics(Host) ->
             end, [], folsom_metrics:get_metrics()),
     lists:reverse(Metrics).
 
+-spec get_available_hosts_metrics() -> {[any(),...], [any()]}.
 get_available_hosts_metrics() ->
     Hosts = get_available_hosts(),
     Metrics = get_available_metrics(hd(Hosts)),
     {Hosts, Metrics}.
 
+-spec get_sum_metrics() -> [{_,_}].
 get_sum_metrics() ->
     {Hosts, Metrics} = get_available_hosts_metrics(),
     Sum = lists:foldl(fun({_Host, Metric}=Name, Dict) ->
@@ -133,6 +141,7 @@ get_sum_metrics() ->
             end, orddict:new(), [{H, M} || H <- Hosts, M <- Metrics]),
     orddict:to_list(Sum).
 
+-spec get_sum_metric(atom()) -> any().
 get_sum_metric(Metric) ->
     {Hosts, _Metrics} = get_available_hosts_metrics(),
     lists:foldl(fun(Host, Acc) ->
@@ -149,10 +158,12 @@ update_sum_metric([{count,OldCount},{one,OldOne}],[{count,Count},{one,One}]) ->
 update_sum_metric(OldValue, _Value) ->
     OldValue.
 
+-spec get_host_metrics('undefined' | ejabberd:server()) -> [{_,_}].
 get_host_metrics(Host) ->
     Metrics = folsom_metrics:get_metrics_value(Host),
     [{Name, Value} || {{_Host, Name}, Value} <- Metrics].
 
+-spec response_json(Element :: [element(),...]) -> any().
 response_json(Element) ->
     mochijson2:encode(fix_element(Element)).
 

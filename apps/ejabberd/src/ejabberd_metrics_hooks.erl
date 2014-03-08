@@ -395,7 +395,7 @@ mam_muc_drop_messages(Host, Count) ->
 
 -spec mam_muc_purge_single_message(Result :: any(), Host :: ejabberd:server(),
     _MessID :: mod_mam:message_id(), _ArcID :: mod_mam:archive_id(),
-    _Now :: mod_mam:unix_timestamp()) -> any().
+    _ArcJID :: ejabberd:jid(), _Now :: mod_mam:unix_timestamp()) -> any().
 mam_muc_purge_single_message(Result, Host, _MessID, _ArcID, _ArcJID, _Now) ->
     folsom_metrics:notify({Host, modMucMamSinglePurges}, 1),
     Result.
