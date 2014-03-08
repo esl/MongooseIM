@@ -54,7 +54,6 @@
 -include("jlib.hrl").
 
 -record(state, {}).
--type state() :: #state{}.
 
 -type id() :: any().
 -record(iq_response, {id :: id(),
@@ -156,7 +155,7 @@ route_iq(From, To, IQ, F) ->
                To :: ejabberd:jid(),
                IQ :: ejabberd:iq(),
                F :: fun(),
-               Timeout :: integer() -> 'ok'.
+               Timeout :: integer()) -> 'ok'.
 route_iq(From, To, #iq{type = Type} = IQ, F, Timeout) when is_function(F) ->
     Packet = if Type == set; Type == get ->
                      ID = list_to_binary(randoms:get_string()),

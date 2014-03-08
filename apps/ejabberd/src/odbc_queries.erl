@@ -116,11 +116,13 @@ join([H|T], Sep) ->
 %%       To have both `escape_string/1' and `escape_character/1' in one module
 %%       is an optimization.
 
+-spec escape_string(binary() | string()) -> binary() | string().
 escape_string(S) when is_binary(S) ->
     list_to_binary(escape_string(binary_to_list(S)));
 escape_string(S) when is_list(S) ->
     [escape_character(C) || C <- S].
 
+-spec escape_like_string(binary() | string()) -> binary() | string().
 escape_like_string(S) when is_binary(S) ->
     list_to_binary(escape_like_string(binary_to_list(S)));
 escape_like_string(S) when is_list(S) ->
