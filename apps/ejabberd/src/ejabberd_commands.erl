@@ -236,7 +236,7 @@
 %% A result term is a tuple with the term name and the term type.
 -type rterm() :: {Name::atom(), Type::rtype()}.
 
--type ejabberd_command() :: #ejabberd_commands{}.
+-type cmd() :: #ejabberd_commands{}.
 
 -type auth() :: {User::string(), Server::string(), Password::string()} | noauth.
 -type cmd_error() :: command_unknown | account_unprivileged
@@ -249,7 +249,7 @@
 
 -export_type([rterm/0,
               aterm/0,
-              ejabberd_command/0,
+              cmd/0,
               auth/0,
               access_cmd/0,
               list_cmd/0]).
@@ -260,7 +260,7 @@ init() ->
 
 %% @doc Register ejabberd commands. If a command is already registered, a
 %% warning is printed and the old command is preserved.
--spec register_commands([ejabberd_command()]) -> ok.
+-spec register_commands([cmd()]) -> ok.
 register_commands(Commands) ->
     lists:foreach(
       fun(Command) ->
@@ -274,7 +274,7 @@ register_commands(Commands) ->
       Commands).
 
 %% @doc Unregister ejabberd commands.
--spec unregister_commands([ejabberd_command()]) -> ok.
+-spec unregister_commands([cmd()]) -> ok.
 unregister_commands(Commands) ->
     lists:foreach(
       fun(Command) ->
@@ -309,7 +309,7 @@ get_command_format(Name) ->
     end.
 
 %% @doc Get the definition record of a command.
--spec get_command_definition(Name::atom()) -> ejabberd_command() | 'command_not_found'.
+-spec get_command_definition(Name::atom()) -> cmd() | 'command_not_found'.
 get_command_definition(Name) ->
     case ets:lookup(ejabberd_commands, Name) of
         [E] -> E;
@@ -446,7 +446,7 @@ check_access_command(Commands, Command, ArgumentRestrictions, Method, Arguments)
         false -> false
     end.
 
--spec check_access_arguments(Command :: ejabberd_command(),
+-spec check_access_arguments(Command :: cmd(),
                              Restrictions :: [any()],
                              Args :: [any()]) -> boolean().
 check_access_arguments(Command, ArgumentRestrictions, Arguments) ->
