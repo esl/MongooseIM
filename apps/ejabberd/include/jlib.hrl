@@ -306,7 +306,7 @@
 
 
 -record(jid, {user = <<>>      :: binary(),
-              server = <<>>    :: binary(),
+              server = <<>>    :: ejabberd:server(),
               resource = <<>>  :: binary(),
               luser = <<>>     :: binary(),
               lserver = <<>>   :: binary(),

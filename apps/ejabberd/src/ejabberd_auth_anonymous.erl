@@ -28,14 +28,14 @@
 -author('mickael.remond@process-one.net').
 
 -export([start/1,
-         allow_anonymous/1,
-         is_sasl_anonymous_enabled/1,
-         is_login_anonymous_enabled/1,
-         anonymous_user_exist/2,
-         allow_multiple_connections/1,
-         register_connection/3,
-         unregister_connection/3
-        ]).
+  allow_anonymous/1,
+  is_sasl_anonymous_enabled/1,
+  is_login_anonymous_enabled/1,
+  anonymous_user_exist/2,
+  allow_multiple_connections/1,
+  register_connection/3,
+  unregister_connection/3
+  ]).
 
 -behaviour(gen_auth).
 %% Function used by ejabberd_auth:
@@ -51,7 +51,12 @@
          is_user_exists/2,
          remove_user/2,
          remove_user/3,
-         plain_password_required/0]).
+         plain_password_required/0,
+         get_vh_registered_users/2,        % not impl
+         get_vh_registered_users_number/1, % not impl
+         get_vh_registered_users_number/2, % not impl
+         get_password_s/2                  % not impl
+         ]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -291,3 +296,19 @@ remove_user(_User, _Server, _Password) ->
 -spec plain_password_required() -> 'false'.
 plain_password_required() ->
     false.
+
+%% @doc gen_auth callback
+get_vh_registered_users(_Server, _Opts) ->
+  erlang:error(not_implemented).
+
+%% @doc gen_auth callback
+get_vh_registered_users_number(_Server) ->
+  erlang:error(not_implemented).
+
+%% @doc gen_auth callback
+get_vh_registered_users_number(_Server, _Opts) ->
+  erlang:error(not_implemented).
+
+%% @doc gen_auth callback
+get_password_s(_User, _Server) ->
+  erlang:error(not_implemented).
