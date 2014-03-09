@@ -1954,7 +1954,7 @@ privacy_check_packet(StateData, From, To, Packet, Dir) ->
                        To :: ejabberd:jid(),
                        Packet :: jlib:xmlel(),
                        Dir :: 'in' | 'out') -> boolean().
-  is_privacy_allow(StateData, From, To, Packet, Dir) ->
+is_privacy_allow(StateData, From, To, Packet, Dir) ->
     allow == privacy_check_packet(StateData, From, To, Packet, Dir).
 
 -spec presence_broadcast(State :: state(),

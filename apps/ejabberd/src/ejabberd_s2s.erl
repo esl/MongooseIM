@@ -561,18 +561,18 @@ get_info_s2s_connections(Type) ->
     Connections = supervisor:which_children(ChildType),
     get_s2s_info(Connections,Type).
 
--type conn() :: { any(),
-                  'restarting' | 'undefined' | pid(),
-                  'supervisor' | 'worker',
-                  'dynamic' | [any()] }.
+-type connstate() :: 'restarting' | 'undefined' | pid().
+-type conn() :: { any(), connstate(), 'supervisor' | 'worker', 'dynamic' | [_] }.
 -spec get_s2s_info(Connections :: [conn()],
-                  Type :: 'in' | 'out') -> [{atom(), any()},...].
+                  Type :: 'in' | 'out'
+                  ) -> [[{any(), any()},...]]. % list of lists
 get_s2s_info(Connections,Type)->
     complete_s2s_info(Connections,Type,[]).
 
 -spec complete_s2s_info(Connections :: [conn()],
                         Type :: 'in' | 'out',
-                        Result :: [{any(), any()},...]) -> [{any(), any()},...].
+                        Result :: [[{any(), any()},...]] % list of lists
+                        ) -> [[{any(), any()},...]]. % list of lists
 complete_s2s_info([],_,Result)->
     Result;
 complete_s2s_info([Connection|T],Type,Result)->
@@ -580,7 +580,7 @@ complete_s2s_info([Connection|T],Type,Result)->
     State = get_s2s_state(PID),
     complete_s2s_info(T,Type,[State|Result]).
 
--spec get_s2s_state('restarting' | 'undefined' | pid()) -> [{atom(), any()},...].
+-spec get_s2s_state(connstate()) -> [{atom(), any()},...].
 get_s2s_state(S2sPid)->
     Infos = case gen_fsm:sync_send_all_state_event(S2sPid,get_state_infos) of
                 {state_infos, Is} -> [{status, open} | Is];
