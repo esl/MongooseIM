@@ -27,39 +27,39 @@
 start(Opts) ->
     ejabberd_redis:start_link(Opts).
 
--spec get_sessions() -> list(list(term())).
+-spec get_sessions() -> [[ejabberd_sm:ses_tuple()]]. % list of lists
 get_sessions() ->
     Keys = ejabberd_redis:cmd(["KEYS", hash(<<"*">>)]),
     Res = lists:map(fun(K) ->
-                Sessions = ejabberd_redis:cmd(["SMEMBERS", K]),
-                lists:map(fun(S) ->
-                            Session = binary_to_term(S),
-                            { Session#session.usr,
-                              Session#session.sid,
-                              Session#session.priority,
-                              Session#session.info }
-                          end,
-                Sessions)
-          end, Keys),
+                      Sessions = ejabberd_redis:cmd(["SMEMBERS", K]),
+                      lists:map(fun(S) ->
+                                  Session = binary_to_term(S),
+                                  { Session#session.usr,
+                                    Session#session.sid,
+                                    Session#session.priority,
+                                    Session#session.info }
+                                end,
+                      Sessions)
+                    end, Keys),
     lists:flatten(Res).
 
--spec get_sessions(binary()) -> list(tuple()).
+-spec get_sessions(ejabberd:server()) -> [ejabberd_sm:ses_tuple()].
 get_sessions(Server) ->
     Keys = ejabberd_redis:cmd(["KEYS", hash(Server)]),
     Res = lists:map(fun(K) ->
-                Sessions = ejabberd_redis:cmd(["SMEMBERS", K]),
-                lists:map(fun(S) ->
-                            Session = binary_to_term(S),
-                            {Session#session.usr,
-                             Session#session.sid,
-                             Session#session.priority,
-                             Session#session.info}
-                          end,
-                Sessions)
-          end, Keys),
+                      Sessions = ejabberd_redis:cmd(["SMEMBERS", K]),
+                      lists:map(fun(S) ->
+                                  Session = binary_to_term(S),
+                                  {Session#session.usr,
+                                   Session#session.sid,
+                                   Session#session.priority,
+                                   Session#session.info}
+                                end,
+                                Sessions)
+                    end, Keys),
     lists:flatten(Res).
 
--spec get_sessions(binary(), binary()) -> list(#session{}).
+-spec get_sessions(binary(), ejabberd:server()) -> [ejabberd_sm:session()].
 get_sessions(User, Server) ->
     Sessions = ejabberd_redis:cmd(["SMEMBERS", hash(User, Server)]),
 
@@ -67,7 +67,7 @@ get_sessions(User, Server) ->
                       binary_to_term(S)
               end, Sessions).
 
--spec get_sessions(binary(), binary(), binary()) -> list(#session{}).
+-spec get_sessions(binary(), binary(), binary()) -> [ejabberd_sm:session()].
 get_sessions(User, Server, Resource) ->
     Sessions = ejabberd_redis:cmd(["SMEMBERS", hash(User, Server, Resource)]),
 
@@ -75,7 +75,10 @@ get_sessions(User, Server, Resource) ->
                       binary_to_term(S)
               end, Sessions).
 
--spec create_session(binary(), binary(), binary(), #session{}) -> ok | {error, term()}.
+-spec create_session(User :: binary(),
+                     Server :: ejabberd:server(),
+                     Resource :: binary(),
+                     Session :: ejabberd_sm:session()) -> ok | {error, term()}.
 create_session(User, Server, Resource, Session) ->
     OldSessions = get_sessions(User, Server, Resource),
     BSession = term_to_binary(Session),
@@ -94,7 +97,10 @@ create_session(User, Server, Resource, Session) ->
                                 ["SADD", hash(User, Server, Resource), BSession]])
     end.
 
--spec delete_session(tuple(), binary(), binary(), binary()) -> ok.
+-spec delete_session(SID :: ejabberd_sm:sid(),
+                     User :: binary(),
+                     Server :: ejabberd:server(),
+                     Resource :: binary()) -> ok.
 delete_session(SID, User, Server, Resource) ->
     Sessions = get_sessions(User, Server, Resource),
     case lists:keysearch(SID, #session.sid, Sessions) of
