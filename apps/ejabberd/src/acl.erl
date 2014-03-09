@@ -43,10 +43,27 @@
 -type access() :: boolean().
 -type host() :: binary() | 'global'.
 -type acl_name() :: {atom(), host()}.
--type acl_spec() :: 'all' | 'none' | {_,_} | {_,_,_}.
+-type regexp() :: iolist() | binary().
+-type aclspec() :: all
+                | {user, _}
+                | {user, _, ejabberd:server()}
+                | {server, ejabberd:server()}
+                | {resource, binary()}
+                | {user_regexp, regexp()}
+                | {shared_group, _}
+                | {shared_group, _, _}
+                | {user_regexp, regexp(), ejabberd:server()}
+                | {server_regexp, regexp()}
+                | {resource_regexp, regexp()}
+                | {node_regexp, regexp(), regexp()}
+                | {user_glob, regexp()}
+                | {user_glob, regexp(), ejabberd:server()}
+                | {server_glob, regexp()}
+                | {resource_glob, regexp()}
+                | {node_glob, regexp()}.
 
 -record(acl, {aclname :: acl_name(),
-              aclspec
+              aclspec :: aclspec()
              }).
 -type acl() :: #acl{}.
 
@@ -60,7 +77,7 @@ start() ->
 
 -spec to_record( Host :: host()
                , AclName :: atom()
-               , ACLSpec :: acl_spec()) -> acl().
+               , ACLSpec :: aclspec()) -> acl().
 to_record(Host, ACLName, ACLSpec) ->
     #acl{aclname = {ACLName, Host}, aclspec = normalize_spec(ACLSpec)}.
 
@@ -251,7 +268,7 @@ match_acl(ACL, JID, Host) ->
                       ets:lookup(acl, {ACL, Host}))
     end.
 
--spec is_regexp_match(atom() | string(), Regex :: string()) -> boolean().
+-spec is_regexp_match(atom() | string(), Regex :: regexp()) -> boolean().
 is_regexp_match(undefined, _RegExp) ->
     false;
 is_regexp_match(String, RegExp) ->
@@ -265,6 +282,6 @@ is_regexp_match(String, RegExp) ->
             false
     end.
 
--spec is_glob_match(string(), Glob :: string()) -> boolean().
+-spec is_glob_match(string(), Glob :: regexp()) -> boolean().
 is_glob_match(String, Glob) ->
     is_regexp_match(String, xmerl_regexp:sh_to_awk(Glob)).

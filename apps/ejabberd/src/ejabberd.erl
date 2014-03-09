@@ -56,6 +56,14 @@
 
 -type sid() :: binary().
 
+%% Incoming event from XML stream
+-type xml_stream_item() :: 'closed'
+                          | 'timeout'
+                          | {'xmlstreamelement', jlib:xmlel()}
+                          | {'xmlstreamend',_}
+                          | {'xmlstreamerror',_}
+                          | {'xmlstreamstart', Name :: any(), Attrs :: list()}.
+
 -export_type([lang/0,
               sockmod/0,
               jid/0,
@@ -63,7 +71,9 @@
               simple_jid/0,
               simple_bare_jid/0,
               sid/0,
-              server/0]).
+              server/0,
+              xml_stream_item/0
+            ]).
 
 start() ->
     %%ejabberd_cover:start(),
