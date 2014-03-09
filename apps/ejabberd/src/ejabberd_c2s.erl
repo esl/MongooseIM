@@ -108,18 +108,7 @@
 -type aux_value() :: any().
 -type state() :: #state{}.
 
-%% Incoming event from XML stream
--type xml_stream_item() :: 'closed'
-                         | 'timeout'
-                         | {'xmlstreamelement', jlib:xmlel()}
-                         | {'xmlstreamend',_}
-                         | {'xmlstreamerror',_}
-                         | {'xmlstreamstart', Name :: any(), Attrs :: list()}.
 -type statename() :: atom().
-%% FSM handler return value
--type fsm_return() :: {'stop', Reason :: 'normal', state()}
-                    | {'next_state', statename(), state()}
-                    | {'next_state', statename(), state(), Timeout :: integer()}.
 -type conntype() :: 'c2s'
                   | 'c2s_compressed'
                   | 'c2s_compressed_tls'
@@ -128,6 +117,10 @@
                   | 'http_poll'
                   | 'unknown'.
 
+%% FSM handler return value
+-type fsm_return() :: {'stop', Reason :: 'normal', state()}
+                    | {'next_state', statename(), state()}
+                    | {'next_state', statename(), state(), Timeout :: integer()}.
 %-define(DBGFSM, true).
 
 -ifdef(DBGFSM).
@@ -310,7 +303,7 @@ get_subscribed(FsmRef) ->
 %% Func: StateName/2
 %%----------------------------------------------------------------------
 
--spec wait_for_stream(Item :: xml_stream_item(),
+-spec wait_for_stream(Item :: ejabberd:xml_stream_item(),
                       State :: state()) -> fsm_return().
 wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
     DefaultLang = case ?MYLANG of
@@ -504,7 +497,7 @@ wait_for_stream(closed, StateData) ->
     {stop, normal, StateData}.
 
 
--spec wait_for_auth(Item :: xml_stream_item(),
+-spec wait_for_auth(Item :: ejabberd:xml_stream_item(),
                     State :: state()) -> fsm_return().
 wait_for_auth({xmlstreamelement, El}, StateData) ->
     case is_auth_packet(El) of
@@ -651,7 +644,7 @@ wait_for_auth(closed, StateData) ->
     {stop, normal, StateData}.
 
 
--spec wait_for_feature_request(Item :: xml_stream_item(),
+-spec wait_for_feature_request(Item :: ejabberd:xml_stream_item(),
                                State :: state()) -> fsm_return().
 wait_for_feature_request({xmlstreamelement, El}, StateData) ->
     #xmlel{name = Name, attrs = Attrs, children = Els} = El,
@@ -796,7 +789,7 @@ wait_for_feature_request(closed, StateData) ->
 
 
 
--spec wait_for_sasl_response(Item :: xml_stream_item(),
+-spec wait_for_sasl_response(Item :: ejabberd:xml_stream_item(),
                              State :: state()) -> fsm_return().
 wait_for_sasl_response({xmlstreamelement, El}, StateData) ->
     #xmlel{name = Name, attrs = Attrs, children = Els} = El,
@@ -866,7 +859,7 @@ wait_for_sasl_response(closed, StateData) ->
     {stop, normal, StateData}.
 
 
--spec wait_for_bind(Item :: xml_stream_item(),
+-spec wait_for_bind(Item :: ejabberd:xml_stream_item(),
                     State :: state()) -> fsm_return().
 wait_for_bind({xmlstreamelement, El}, StateData) ->
     case jlib:iq_query_info(El) of
@@ -926,7 +919,7 @@ wait_for_bind(closed, StateData) ->
 
 
 
--spec wait_for_session(Item :: xml_stream_item(),
+-spec wait_for_session(Item :: ejabberd:xml_stream_item(),
                        State :: state()) -> fsm_return().
 wait_for_session({xmlstreamelement, El}, StateData) ->
     case jlib:iq_query_info(El) of
@@ -1003,7 +996,7 @@ wait_for_session(closed, StateData) ->
 
 
 
--spec session_established(Item :: xml_stream_item(),
+-spec session_established(Item :: ejabberd:xml_stream_item(),
                           State :: state()) -> fsm_return().
 session_established({xmlstreamelement, El}, StateData) ->
     FromJID = StateData#state.jid,

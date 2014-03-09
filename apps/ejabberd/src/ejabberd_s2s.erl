@@ -572,7 +572,7 @@ get_s2s_info(Connections,Type)->
 
 -spec complete_s2s_info(Connections :: [conn()],
                         Type :: 'in' | 'out',
-                        Result :: [{atom(), any()},...]) -> [{atom(), any()},...].
+                        Result :: [{any(), any()},...]) -> [{any(), any()},...].
 complete_s2s_info([],_,Result)->
     Result;
 complete_s2s_info([Connection|T],Type,Result)->
