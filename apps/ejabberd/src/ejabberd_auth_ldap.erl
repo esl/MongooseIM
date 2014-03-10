@@ -121,9 +121,11 @@ init(Host) ->
                           State#state.password, State#state.tls_options),
     {ok, State}.
 
+
 plain_password_required() -> true.
 
--spec check_password(User :: binary(),
+
+-spec check_password(User :: ejabberd:user(),
                      Server :: ejabberd:server(),
                      Password :: binary()) -> boolean().
 check_password(User, Server, Password) ->
@@ -136,7 +138,8 @@ check_password(User, Server, Password) ->
            end
     end.
 
--spec check_password(User :: binary(),
+
+-spec check_password(User :: ejabberd:user(),
                      Server :: ejabberd:server(),
                      Password :: binary(),
                      Digest :: binary(),
@@ -145,7 +148,8 @@ check_password(User, Server, Password, _Digest,
                _DigestGen) ->
     check_password(User, Server, Password).
 
--spec set_password(User :: binary(),
+
+-spec set_password(User :: ejabberd:user(),
                    Server :: ejabberd:server(),
                    Password :: binary())
       -> ok | {error, not_allowed | invalid_jid}.
@@ -158,7 +162,8 @@ set_password(User, Server, Password) ->
                                    Password)
     end.
 
--spec try_register(User :: binary(),
+
+-spec try_register(User :: ejabberd:user(),
                    Server :: ejabberd:server(),
                    Password :: binary()) -> {atomic, ok | exists}
                             | {error, invalid_jid | not_allowed}
@@ -177,6 +182,7 @@ try_register(User, Server, Password) ->
         _ -> {atomic, exists}
     end.
 
+
 -spec dirty_get_registered_users() -> [ejabberd:simple_jid()].
 dirty_get_registered_users() ->
     Servers = ejabberd_config:get_vh_by_auth_method(ldap),
@@ -184,6 +190,7 @@ dirty_get_registered_users() ->
                           get_vh_registered_users(Server)
                   end,
                   Servers).
+
 
 -spec get_vh_registered_users(Server :: ejabberd:server()
                              ) -> [ejabberd:simple_jid()].
@@ -193,29 +200,35 @@ get_vh_registered_users(Server) ->
       Result -> Result
     end.
 
+
 -spec get_vh_registered_users(Server :: ejabberd:server(),
                               Opts :: list()) -> [ejabberd:simple_jid()].
 get_vh_registered_users(Server, _) ->
     get_vh_registered_users(Server).
 
+
 -spec get_vh_registered_users_number(Server :: ejabberd:server()) -> integer().
 get_vh_registered_users_number(Server) ->
     length(get_vh_registered_users(Server)).
+
 
 -spec get_vh_registered_users_number(Server :: ejabberd:server(),
                                      Opts :: list()) -> integer().
 get_vh_registered_users_number(Server, _) ->
     get_vh_registered_users_number(Server).
 
--spec get_password(User :: binary(),
+
+-spec get_password(User :: ejabberd:user(),
                    Server :: ejabberd:server()) -> binary() | false.
 get_password(_User, _Server) -> false.
 
--spec get_password_s(User :: binary(),
+
+-spec get_password_s(User :: ejabberd:user(),
                      Server :: ejabberd:server()) -> binary().
 get_password_s(_User, _Server) -> <<"">>.
 
--spec is_user_exists(User :: binary(),
+
+-spec is_user_exists(User :: ejabberd:user(),
                      Server :: ejabberd:server()
                      ) -> boolean() | {error, atom()}.
 is_user_exists(User, Server) ->
@@ -224,7 +237,8 @@ is_user_exists(User, Server) ->
       Result -> Result
     end.
 
--spec remove_user(User :: binary(),
+
+-spec remove_user(User :: ejabberd:user(),
                   Server :: ejabberd:server()
                   ) -> ok | error | {error, not_allowed}.
 remove_user(User, Server) ->
@@ -234,7 +248,8 @@ remove_user(User, Server) ->
       DN -> eldap_pool:delete(State#state.eldap_id,DN)
     end.
 
--spec remove_user(User :: binary(),
+
+-spec remove_user(User :: ejabberd:user(),
                   Server :: ejabberd:server(),
                   Password :: binary()
                   ) -> ok | not_exists | not_allowed | bad_request | error.
@@ -253,7 +268,8 @@ remove_user(User, Server, Password) ->
 %%%----------------------------------------------------------------------
 %%% Internal functions
 %%%----------------------------------------------------------------------
--spec check_password_ldap(User :: binary(),
+
+-spec check_password_ldap(User :: ejabberd:user(),
                           Server :: ejabberd:server(),
                           Password :: binary()) -> boolean().
 check_password_ldap(User, Server, Password) ->
@@ -266,6 +282,7 @@ check_password_ldap(User, Server, Password) ->
             _ -> false
           end
     end.
+
 
 -spec get_vh_registered_users_ldap(Server :: ejabberd:server()
                                   ) -> [ejabberd:simple_jid()].
@@ -318,7 +335,8 @@ get_vh_registered_users_ldap(Server) ->
       _ -> []
     end.
 
--spec is_user_exists_ldap(User :: binary(),
+
+-spec is_user_exists_ldap(User :: ejabberd:user(),
                           Server :: ejabberd:server()) -> boolean().
 is_user_exists_ldap(User, Server) ->
     {ok, State} = eldap_utils:get_state(Server, ?MODULE),
@@ -334,7 +352,9 @@ handle_call(stop, _From, State) ->
 handle_call(_Request, _From, State) ->
     {reply, bad_request, State}.
 
--spec find_user_dn(User :: binary(), State :: state()) -> 'false' | binary().
+
+-spec find_user_dn(User :: ejabberd:user(),
+                   State :: state()) -> 'false' | binary().
 find_user_dn(User, State) ->
     ResAttrs = result_attrs(State),
     case eldap_filter:parse(State#state.ufilter,
@@ -356,6 +376,7 @@ find_user_dn(User, State) ->
       _ -> false
     end.
 
+
 %% @doc apply the dn filter and the local filter:
 -spec dn_filter(DN :: binary(),
                 Attrs :: [{binary(),[any()]}],
@@ -365,6 +386,7 @@ dn_filter(DN, Attrs, State) ->
       false -> false;
       true -> is_valid_dn(DN, Attrs, State)
     end.
+
 
 %% @doc Check that the DN is valid, based on the dn filter
 -spec is_valid_dn(DN :: binary(),
@@ -404,6 +426,7 @@ is_valid_dn(DN, Attrs, State) ->
       _ -> false
     end.
 
+
 %% @doc The local filter is used to check an attribute in ejabberd
 %% and not in LDAP to limit the load on the LDAP directory.
 %% A local rule can be either:
@@ -420,6 +443,7 @@ check_local_filter(Attrs,
     {Operation, FilterMatch} = LocalFilter,
     local_filter(Operation, Attrs, FilterMatch).
 
+
 -spec local_filter('equal' | 'notequal',
                    Attrs :: [{binary(),[any()]}],
                    FilterMatch :: {_,_}) -> boolean().
@@ -433,6 +457,7 @@ local_filter(equal, Attrs, FilterMatch) ->
 local_filter(notequal, Attrs, FilterMatch) ->
     not local_filter(equal, Attrs, FilterMatch).
 
+
 -spec result_attrs(state()) -> maybe_improper_list().
 result_attrs(#state{uids = UIDs,
                     dn_filter_attrs = DNFilterAttrs}) ->
@@ -444,6 +469,7 @@ result_attrs(#state{uids = UIDs,
 %%%----------------------------------------------------------------------
 %%% Auxiliary functions
 %%%----------------------------------------------------------------------
+
 -spec parse_options(Host :: ejabberd:server()) -> state().
 parse_options(Host) ->
     Cfg = eldap_utils:get_config(Host, []),
@@ -503,6 +529,7 @@ parse_options(Host) ->
            uids = UIDs, ufilter = UserFilter,
            sfilter = SearchFilter, lfilter = LocalFilter,
            dn_filter = DNFilter, dn_filter_attrs = DNFilterAttrs}.
+
 
 -spec check_filter(F :: iolist()) -> binary().
 check_filter(F) ->
