@@ -58,26 +58,26 @@ add_handler() ->
 process_command(From, To, Packet) ->
     case To of
     #jid{luser = <<"">>, lresource = <<"watchdog">>} ->
-	    #xmlel{name = Name} = Packet,
-	    case Name of
+            #xmlel{name = Name} = Packet,
+            case Name of
         <<"message">> ->
-		    LFrom = jlib:jid_tolower(jlib:jid_remove_resource(From)),
-		    case lists:member(LFrom, get_admin_jids()) of
-			true ->
-			    Body = xml:get_path_s(Packet, [{elem, <<"body">>}, cdata]),
-			    spawn(fun() ->
-					  process_flag(priority, high),
-					  process_command1(From, To, binary_to_list(Body))
-				  end),
-			    stop;
-			false ->
-			    ok
-		    end;
-		_ ->
-		    ok
-	    end;
-	_ ->
-	    ok
+                    LFrom = jlib:jid_tolower(jlib:jid_remove_resource(From)),
+                    case lists:member(LFrom, get_admin_jids()) of
+                        true ->
+                            Body = xml:get_path_s(Packet, [{elem, <<"body">>}, cdata]),
+                            spawn(fun() ->
+                                          process_flag(priority, high),
+                                          process_command1(From, To, binary_to_list(Body))
+                                  end),
+                            stop;
+                        false ->
+                            ok
+                    end;
+                _ ->
+                    ok
+            end;
+        _ ->
+            ok
     end.
 
 %%====================================================================
@@ -94,8 +94,8 @@ process_command(From, To, Packet) ->
 init(_) ->
     lists:foreach(
       fun(Host) ->
-	      ejabberd_hooks:add(local_send_to_resource_hook, Host,
-				 ?MODULE, process_command, 50)
+              ejabberd_hooks:add(local_send_to_resource_hook, Host,
+                                 ?MODULE, process_command, 50)
       end, ?MYHOSTS),
     {ok, #state{}}.
 
@@ -197,25 +197,28 @@ get_large_heap() ->
 process_large_heap(Pid, Info) ->
     Host = ?MYNAME,
     case ejabberd_config:get_local_option(watchdog_admins) of
-	JIDs when is_list(JIDs),
-		  JIDs /= [] ->
-	    DetailedInfo = detailed_info(Pid),
-	    Body = io_lib:format(
-		     "(~w) The process ~w is consuming too much memory:~n~p~n"
-		     "~s",
-		     [node(), Pid, Info, DetailedInfo]),
+        JIDs when is_list(JIDs),
+                  JIDs /= [] ->
+            DetailedInfo = detailed_info(Pid),
+            Body = io_lib:format(
+                     "(~w) The process ~w is consuming too much memory:~n~p~n"
+                     "~s",
+                     [node(), Pid, Info, DetailedInfo]),
         From = jlib:make_jid(<<"">>, Host, <<"watchdog">>),
-	    lists:foreach(
-	      fun(S) ->
-		      case jlib:binary_to_jid(list_to_binary(S)) of
-			  error -> ok;
-			  JID -> send_message(From, JID, Body)
-		      end
-	      end, JIDs);
-	_ ->
-	    ok
+            lists:foreach(
+              fun(S) ->
+                      case jlib:binary_to_jid(list_to_binary(S)) of
+                          error -> ok;
+                          JID -> send_message(From, JID, Body)
+                      end
+              end, JIDs);
+        _ ->
+            ok
     end.
 
+-spec send_message(From :: ejabberd:jid(),
+                   To :: ejabberd:jid(),
+                   Body :: iolist()) -> 'ok'.
 send_message(From, To, Body) ->
     BodyEl = #xmlel{name = <<"body">>,
                     children = [#xmlcdata{content = iolist_to_binary(Body)}]},
@@ -224,117 +227,129 @@ send_message(From, To, Body) ->
                 children = [BodyEl]},
     ejabberd_router:route(From, To, El).
 
--spec get_admin_jids() -> [#jid{}].
+-spec get_admin_jids() -> [ejabberd:jid()].
 get_admin_jids() ->
     case ejabberd_config:get_local_option(watchdog_admins) of
-	JIDs when is_list(JIDs) ->
-	    lists:flatmap(
-	      fun(S) ->
-		      case jlib:binary_to_jid(list_to_binary(S)) of
-			  error -> [];
-			  JID -> [jlib:jid_tolower(JID)]
-		      end
-	      end, JIDs);
-	_ ->
-	    []
+        JIDs when is_list(JIDs) ->
+            lists:flatmap(
+              fun(S) ->
+                      case jlib:binary_to_jid(list_to_binary(S)) of
+                          error -> [];
+                          JID -> [jlib:jid_tolower(JID)]
+                      end
+              end, JIDs);
+        _ ->
+            []
     end.
 
+-spec detailed_info(pid()) -> iolist().
 detailed_info(Pid) ->
     case process_info(Pid, dictionary) of
-	{dictionary, Dict} ->
-	    case lists:keysearch('$ancestors', 1, Dict) of
-		{value, {'$ancestors', [Sup | _]}} ->
-		    case Sup of
-			ejabberd_c2s_sup ->
-			    c2s_info(Pid);
-			ejabberd_s2s_out_sup ->
-			    s2s_out_info(Pid);
-			ejabberd_service_sup ->
-			    service_info(Pid);
-			_ ->
-			    detailed_info1(Pid)
-		    end;
-		_ ->
-		    detailed_info1(Pid)
-	    end;
-	_ ->
-	    detailed_info1(Pid)
+        {dictionary, Dict} ->
+            case lists:keysearch('$ancestors', 1, Dict) of
+                {value, {'$ancestors', [Sup | _]}} ->
+                    case Sup of
+                        ejabberd_c2s_sup ->
+                            c2s_info(Pid);
+                        ejabberd_s2s_out_sup ->
+                            s2s_out_info(Pid);
+                        ejabberd_service_sup ->
+                            service_info(Pid);
+                        _ ->
+                            detailed_info1(Pid)
+                    end;
+                _ ->
+                    detailed_info1(Pid)
+            end;
+        _ ->
+            detailed_info1(Pid)
     end.
 
+-spec detailed_info1(pid()) -> iolist().
 detailed_info1(Pid) ->
     io_lib:format(
       "~p", [[process_info(Pid, current_function),
-	      process_info(Pid, initial_call),
-	      process_info(Pid, message_queue_len),
-	      process_info(Pid, links),
-	      process_info(Pid, heap_size),
-	      process_info(Pid, stack_size)
-	     ]]).
+              process_info(Pid, initial_call),
+              process_info(Pid, message_queue_len),
+              process_info(Pid, links),
+              process_info(Pid, heap_size),
+              process_info(Pid, stack_size)
+             ]]).
 
+-spec c2s_info(pid()) -> iolist().
 c2s_info(Pid) ->
     ["Process type: c2s",
      check_send_queue(Pid),
      "\n",
      io_lib:format("Command to kill this process: kill ~s ~w",
-		   [atom_to_list(node()), Pid])].
+                   [atom_to_list(node()), Pid])].
 
+-spec s2s_out_info(pid()) -> iolist().
 s2s_out_info(Pid) ->
     FromTo = mnesia:dirty_select(
-	       s2s, [{{s2s, '$1', Pid, '_'}, [], ['$1']}]),
+               s2s, [{{s2s, '$1', Pid, '_'}, [], ['$1']}]),
     ["Process type: s2s_out",
      case FromTo of
-	 [{From, To}] ->
-	     "\n" ++ io_lib:format("S2S connection: from ~s to ~s",
-				   [From, To]);
-	 _ ->
-	     ""
+         [{From, To}] ->
+             "\n" ++ io_lib:format("S2S connection: from ~s to ~s",
+                                   [From, To]);
+         _ ->
+             ""
      end,
      check_send_queue(Pid),
      "\n",
      io_lib:format("Command to kill this process: kill ~s ~w",
-		   [atom_to_list(node()), Pid])].
+                   [atom_to_list(node()), Pid])].
 
+-spec service_info(pid()) -> iolist().
 service_info(Pid) ->
     Routes = mnesia:dirty_select(
-	       route, [{{route, '$1', Pid, '_'}, [], ['$1']}]),
+               route, [{{route, '$1', Pid, '_'}, [], ['$1']}]),
     ["Process type: s2s_out",
      case Routes of
-	 [Route] ->
-	     "\nServiced domain: " ++ Route;
-	 _ ->
-	     ""
+         [Route] ->
+             "\nServiced domain: " ++ Route;
+         _ ->
+             ""
      end,
      check_send_queue(Pid),
      "\n",
      io_lib:format("Command to kill this process: kill ~s ~w",
-		   [atom_to_list(node()), Pid])].
+                   [atom_to_list(node()), Pid])].
 
+-spec check_send_queue(pid()) -> iolist().
 check_send_queue(Pid) ->
     case {process_info(Pid, current_function),
-	  process_info(Pid, message_queue_len)} of
-	{{current_function, MFA}, {message_queue_len, MLen}} ->
-	    if
-		MLen > 100 ->
-		    case MFA of
-			{prim_inet, send, 2} ->
-			    "\nPossible reason: the process is blocked "
-				"trying to send data over its TCP connection.";
-			{M, F, A} ->
-			    ["\nPossible reason: the process can't process "
-			     "messages faster than they arrive.  ",
-			     io_lib:format("Current function is ~w:~w/~w", [M, F, A])
-			    ]
-		    end;
-		true ->
-		    ""
-	    end;
-	_ ->
-	    ""
+          process_info(Pid, message_queue_len)} of
+        {{current_function, MFA}, {message_queue_len, MLen}} ->
+            if
+                MLen > 100 ->
+                    case MFA of
+                        {prim_inet, send, 2} ->
+                            "\nPossible reason: the process is blocked "
+                                "trying to send data over its TCP connection.";
+                        {M, F, A} ->
+                            ["\nPossible reason: the process can't process "
+                             "messages faster than they arrive.  ",
+                             io_lib:format("Current function is ~w:~w/~w", [M, F, A])
+                            ]
+                    end;
+                true ->
+                    ""
+            end;
+        _ ->
+            ""
     end.
 
+-spec process_command1(From :: ejabberd:jid(),
+                       To :: ejabberd:jid(),
+                       Body :: string()) -> 'ok'.
 process_command1(From, To, Body) ->
     process_command2(string:tokens(Body, " "), From, To).
 
+-spec process_command1(Commands :: [any()],
+                       From :: ejabberd:jid(),
+                       To :: ejabberd:jid()) -> 'ok'.
 process_command2(["kill", SNode, SPid], From, To) ->
     Node = list_to_atom(SNode),
     remote_command(Node, [kill, SPid], From, To);
@@ -351,23 +366,28 @@ process_command2(_, From, To) ->
     send_message(To, From, help()).
 
 
+-spec help() -> string().
 help() ->
     "Commands:\n"
-	"  kill <node> <pid>\n"
-	"  showlh <node>\n"
-	"  setlh <node> <integer>".
+        "  kill <node> <pid>\n"
+        "  showlh <node>\n"
+        "  setlh <node> <integer>".
 
-
+-spec remote_command(Node :: atom(),
+                     Args :: any(),
+                     From :: ejabberd:jid(),
+                     To :: ejabberd:jid()) -> 'ok'.
 remote_command(Node, Args, From, To) ->
     Message =
-	case rpc:call(Node, ?MODULE, process_remote_command, [Args]) of
-	    {badrpc, Reason} ->
-		io_lib:format("Command failed:~n~p", [Reason]);
-	    Result ->
-		Result
-	end,
+        case rpc:call(Node, ?MODULE, process_remote_command, [Args]) of
+            {badrpc, Reason} ->
+                io_lib:format("Command failed:~n~p", [Reason]);
+            Result ->
+                Result
+        end,
     send_message(To, From, Message).
 
+-spec process_remote_command([any(),...]) -> iolist().
 process_remote_command([kill, SPid]) ->
     exit(list_to_pid(SPid), kill),
     "ok";

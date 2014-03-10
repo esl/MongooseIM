@@ -31,21 +31,25 @@
 
 %% This is one of the gen_mod modules with different backends
 -type ejabberd_module() :: atom().
--type ejabberd_host() :: binary().
+-type backend() :: 'mnesia' | 'none' | {'error',_} | {'odbc',binary()}.
 
 %%-------------------
 %% API
 %%-------------------
 
+-spec privacy_list_length() -> integer() | {'error',jlib:xmlel()}.
 privacy_list_length() ->
     dispatch(backends(mod_privacy), privacy_list_length).
 
+-spec roster_size() -> integer() | {'error',jlib:xmlel()}.
 roster_size() ->
     dispatch(backends(mod_roster), roster_size).
 
+-spec roster_groups() -> integer() | {'error',jlib:xmlel()}.
 roster_groups() ->
     dispatch(backends(mod_roster), roster_groups).
 
+-spec registered_count() -> number().
 registered_count() ->
     Hosts = ejabberd_config:get_global_option(hosts),
     Backends = sets:to_list(
@@ -62,7 +66,7 @@ registered_count() ->
 %% Helpers
 %%-------------------
 
-%% Determine backend for Module.
+%% @doc Determine backend for Module.
 %%
 %% This function is based on the assumption that different mod_sth backends
 %% have different suffixes, e.g. mod_privacy for mnesia, mod_privacy_odbc
@@ -70,7 +74,7 @@ registered_count() ->
 %% Furthermore, they must be present in mnesia table local_config.
 %% No module may appear with two or more different backends simultaneously
 %% (impossible anyway, but mentioning it can't hurt).
--spec backends(ejabberd_module()) -> mnesia | {odbc, ejabberd_host()} | none | {error, term()}.
+-spec backends(ejabberd_module()) -> [backend()].
 backends(Module) ->
     %% extend if/when more backends appear (see also _1_)
     MnesiaBackend = Module,
@@ -94,7 +98,9 @@ backends(Module) ->
         end,
     sets:to_list(lists:foldl(F, sets:new(), Hosts)).
     
--spec dispatch(mnesia | {odbc, ejabberd_host()}, atom()) -> term().
+-spec dispatch(Backends :: [backend()],
+               Function :: 'privacy_list_length' | 'roster_groups' | 'roster_size'
+               ) -> integer() | {'error',jlib:xmlel()}.
 dispatch(Backends, Function) -> 
     lists:foldl(fun(Backend, Res) ->
                BackendName = case Backend of
@@ -111,9 +117,10 @@ dispatch(Backends, Function) ->
                    _ ->
                        {error, ?ERR_INTERNAL_SERVER_ERROR}
                end
-           end, 0, Backends). 
+           end, 0, Backends).
 
 
+-spec mnesia_privacy_list_length() -> non_neg_integer() | {error, jlib:xmlel()}.
 mnesia_privacy_list_length() ->
     F = fun() ->
         TotalItemsAndListCount = fun(#privacy{lists = NamedLists}, Acc) ->
@@ -137,10 +144,12 @@ mnesia_privacy_list_length() ->
             {error, ?ERR_INTERNAL_SERVER_ERROR}
     end.
 
+-spec odbc_privacy_list_length(binary() | pid() | {atom(),pid()}) -> integer().
 odbc_privacy_list_length(Host) ->
     {selected, [_], [{Count}]} = odbc_queries:count_privacy_lists(Host),
-    list_to_integer(binary_to_list(Count)). 
+    list_to_integer(binary_to_list(Count)).
 
+-spec mnesia_roster_size() -> integer() | {'error',jlib:xmlel()}.
 mnesia_roster_size() ->
     F = fun() ->
         length(
@@ -159,6 +168,7 @@ mnesia_roster_size() ->
             {error, ?ERR_INTERNAL_SERVER_ERROR}
     end.
 
+-spec odbc_roster_size(binary() | pid() | {atom(),pid()}) -> integer().
 odbc_roster_size(Host) ->
     {selected, [_], [{Average}]} = odbc_queries:get_average_roster_size(Host),
     case Average of
@@ -166,6 +176,7 @@ odbc_roster_size(Host) ->
         Average -> erlang:round(list_to_float(binary_to_list(Average)))
     end.
 
+-spec mnesia_roster_groups() -> integer() | {'error',jlib:xmlel()}.
 mnesia_roster_groups() ->
     F = fun() ->
         {Users, Groups} = mnesia:foldl(
@@ -197,6 +208,7 @@ mnesia_roster_groups() ->
             {error, ?ERR_INTERNAL_SERVER_ERROR}
     end.
 
+-spec odbc_roster_groups(binary() | pid() | {atom(),pid()}) -> integer().
 odbc_roster_groups(Host) ->
     {selected, [_], [{Average}]} = odbc_queries:get_average_rostergroup_size(Host),
     case Average of
@@ -204,6 +216,7 @@ odbc_roster_groups(Host) ->
         Average -> erlang:round(list_to_float(binary_to_list(Average)))
     end.
 
+-spec registered_count_disp(internal | odbc, ejabberd:server()) -> integer().
 registered_count_disp(internal, _Host) ->
     ets:info(passwd, size);
 registered_count_disp(odbc, Host) ->
