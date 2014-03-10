@@ -38,6 +38,7 @@
 -include_lib("kernel/include/file.hrl").
 
 -type key() :: atom()
+             | {atom(), ejabberd:server()}
              | {atom(), atom()}
              | {atom(), atom(), atom()}
              | binary(). % TODO: binary is questionable here

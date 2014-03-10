@@ -30,7 +30,7 @@
                        }).
 
 -record(adhoc_response, {lang :: ejabberd:lang(),
-                         node :: binary(),
+                         node :: ejabberd:server(),
                          sessionid :: binary(),
                          status :: atom(),
                          defaultaction = "" :: string(),

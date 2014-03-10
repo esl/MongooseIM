@@ -61,11 +61,12 @@
 -define(CRITICAL_MSG(Format, Args),
     lager:critical(Format, Args)).
 
--record(session, {sid :: tuple(),
-                  usr :: ejabberd:simple_jid(),
-                  us :: {binary(), binary()},
+-record(session, {sid      :: ejabberd_sm:sid(),
+                  usr      :: ejabberd:simple_jid(),
+                  us       :: ejabberd:simple_bare_jid(),
                   priority :: integer(),
-                  info :: list()}).
+                  info     :: list()
+                 }).
 
 -ifdef(no_binary_to_integer).
 

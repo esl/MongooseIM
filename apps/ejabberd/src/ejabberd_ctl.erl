@@ -563,10 +563,10 @@ print_usage(HelpMode, MaxC, ShCode) ->
         "  ejabberdctl --node ejabberd@host restart\n"],
        []).
 
--spec print_usage_commands(HelpMode :: 'dual' | 'long'
-                          , MaxC :: integer()
-                          , ShCode :: boolean()
-                          , Commands :: [cmd(),...]) -> 'ok'.
+-spec print_usage_commands(HelpMode :: 'dual' | 'long',
+                           MaxC :: integer(),
+                           ShCode :: boolean(),
+                           Commands :: [cmd(),...]) -> 'ok'.
 print_usage_commands(HelpMode, MaxC, ShCode, Commands) ->
     CmdDescsSorted = lists:keysort(1, Commands),
 
@@ -695,7 +695,7 @@ format_command_lines(CALD, _MaxCmdLen, MaxC, ShCode, long) ->
 %% Print Tags
 %%-----------------------------
 
-print_usage_tags(MaxC, ShCode) ->
+print_usage_tags(MaxC, _ShCode) ->
     ?PRINT("Available tags and commands:", []),
     TagsCommands = ejabberd_commands:get_tags_commands(),
     lists:foreach(
