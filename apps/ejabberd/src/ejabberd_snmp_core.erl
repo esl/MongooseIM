@@ -166,8 +166,28 @@
         {modPrivacyPushW,            mod_privacy},
         {modPrivacyGetsW,            mod_privacy}]).
 
+-type c_module() :: 'c2s'
+                  | 'core'
+                  | 'mod_privacy'
+                  | 'mod_register'
+                  | 'mod_roster'.
+-type c_module_table() :: 'stats_c2s'
+                        | 'stats_core'
+                        | 'stats_mod_privacy'
+                        | 'stats_mod_register'
+                        | 'stats_mod_roster'.
+-type c_module_table_w() :: 'stats_w_c2s'
+                          | 'stats_w_core'
+                          | 'stats_w_mod_privacy'
+                          | 'stats_w_mod_register'
+                          | 'stats_w_mod_roster'.
+-type counter() :: integer().
+-type col() :: {'noValue','noSuchInstance'} | {'value',non_neg_integer()}.
+-type row() :: {col(), col()}.
+
 %%%.
 
+-spec start([c_module()]) -> 'ok'.
 start(Modules) ->
     initialize_tables(Modules).
 
@@ -177,30 +197,34 @@ stop() ->
 
 %%%' Helper functions (module local)
 
+-spec table_name(c_module()) -> c_module_table().
 table_name(core)         -> stats_core;
 table_name(c2s)          -> stats_c2s;
 table_name(mod_privacy)  -> stats_mod_privacy;
 table_name(mod_register) -> stats_mod_register;
 table_name(mod_roster)   -> stats_mod_roster.
 
+-spec table_name_w(c_module()) -> c_module_table_w().
 table_name_w(core)         -> stats_w_core;
 table_name_w(c2s)          -> stats_w_c2s;
 table_name_w(mod_privacy)  -> stats_w_mod_privacy;
 table_name_w(mod_register) -> stats_w_mod_register;
 table_name_w(mod_roster)   -> stats_w_mod_roster.
 
-%% Get a list of counters defined for the given module
+%% @doc Get a list of counters defined for the given module
+-spec counters_for(c_module()) -> [counter()].
 counters_for(Module) ->
     {Module, Counters} = proplists:lookup(Module, ?COUNTERS_FOR_MODULE),
     {Module, WCounters} = proplists:lookup(Module, ?W_COUNTERS_FOR_MODULE),
     Counters ++ WCounters.
 
+-spec w_counters_for(c_module()) -> [counter()].
 w_counters_for(Module) ->
     {Module, Counters} = proplists:lookup(Module, ?W_COUNTERS_FOR_MODULE),
     Counters.
 
-
-%% Get the name of the module the given counter is defined for
+%% @doc Get the name of the module the given counter is defined for
+-spec module_for(counter()) -> c_module().
 module_for(Counter) ->
     {Counter, Module} = proplists:lookup(Counter, ?MODULE_FOR_COUNTERS),
     Module.
@@ -212,11 +236,13 @@ initialize_tables([]) ->
 initialize_tables(Modules) ->
     lists:foreach(fun initialize_table/1, Modules).
 
+-spec initialize_table(c_module()) -> 'ok'.
 initialize_table(Module) ->
     ets:new(?STATS(Module), [public, named_table]),
     ets:new(?STATS_W(Module), [public, named_table]),
     initialize_counters(Module).
 
+-spec initialize_counters(c_module()) -> 'ok'.
 initialize_counters(Module) ->
     Counters = counters_for(Module),
     lists:foreach(fun(C) -> ets:insert(?STATS(Module), {C, 0}) end,
@@ -224,7 +250,8 @@ initialize_counters(Module) ->
     lists:foreach(fun(C) -> ets:insert(?STATS_W(Module), {C, 0}) end,
                   w_counters_for(Module)).
 
-%% Reset all counters for initialized tables
+%% @doc Reset all counters for initialized tables
+-spec reset_counters() -> 'ok'.
 reset_counters() ->
     lists:foreach(
         fun(Module) ->
@@ -239,8 +266,9 @@ reset_counters() ->
         end,
         get_all_modules()).
 
-%% Moves temporary window values to main counter tables
+%% @doc Moves temporary window values to main counter tables
 %% and resets temporary tables
+-spec window_change() -> 'ok'.
 window_change() ->
     lists:foreach(
         fun(Module) ->
@@ -260,7 +288,8 @@ window_change() ->
         get_all_modules()).
 
 
-%% Delete a table if it exists
+%% @doc Delete a table if it exists
+-spec destroy_table(atom() | ets:tid()) -> 'ok' | 'true'.
 destroy_table(Tab) ->
     case ets:info(Tab) of
     undefined ->
@@ -269,16 +298,19 @@ destroy_table(Tab) ->
         ets:delete(Tab)
     end.
 
+-spec get_all_modules() -> [c_module()].
 get_all_modules() ->
     proplists:get_keys(?COUNTERS_FOR_MODULE).
 
+-spec get_all_tables() -> [c_module_table() | c_module_table_w()].
 get_all_tables() ->
     [ ?STATS(Module) || Module <- get_all_modules() ]
     ++ [ ?STATS_W(Module) || Module <- get_all_modules() ].
 
 
-%% Delete all tables possibly used by this module
+%% @doc Delete all tables possibly used by this module
 %% This operation won't error on tables which are not currently used.
+-spec destroy_tables() -> 'ok'.
 destroy_tables() ->
     lists:foreach(fun destroy_table/1, get_all_tables()).
 
@@ -293,9 +325,11 @@ is_started() ->
         end,
         get_all_tables()).
 
+-spec increment_window_counter(_) -> 'ok' | [integer()] | integer().
 increment_window_counter(Counter) ->
     update_window_counter(Counter, 1).
 
+-spec update_window_counter(_,_) -> 'ok' | [integer()] | integer().
 update_window_counter(Counter, How) ->
     Tab = ?STATS_W(module_for(Counter)),
     case ets:info(Tab) of
@@ -305,18 +339,26 @@ update_window_counter(Counter, How) ->
             ets:update_counter(Tab, Counter, How)
     end.
 
+-spec increment_counter(integer()) -> 'false' | 'ok' | 'true' | integer().
 increment_counter(Counter) ->
     update_counter(Counter, 1).
 
+-spec decrement_counter(integer()) -> 'false' | 'ok' | 'true' | integer().
 decrement_counter(Counter) ->
     update_counter(Counter, {2, -1, 0, 0}).
 
+-spec set_counter(integer(),_) -> 'false' | 'ok' | 'true' | integer().
 set_counter(Counter, Value) ->
     modify_counter(Counter, ets, update_element, [{2, Value}]).
 
+-spec update_counter(integer(),_) -> 'false' | 'ok' | 'true' | integer().
 update_counter(Counter, How) ->
     modify_counter(Counter, ets, update_counter, [How]).
 
+-spec modify_counter(Counter :: counter(),
+                     Mod :: 'ets',
+                     Fun :: 'update_counter' | 'update_element',
+                     Args :: [any(),...]) -> ok | integer() | boolean().
 modify_counter(Counter, Mod, Fun, Args) ->
     Tab = ?STATS(module_for(Counter)),
     case ets:info(Tab) of
@@ -327,7 +369,7 @@ modify_counter(Counter, Mod, Fun, Args) ->
             apply(Mod, Fun, ArgsNew)
     end.
 
--spec counter_value(atom()) -> {value, term()}.
+-spec counter_value('generalNodeName' | 'generalUptime' | integer()) -> {'value', counter()}.
 counter_value(generalUptime) ->
     {value, erlang:round(element(1, erlang:statistics(wall_clock))/1000)};
 counter_value(generalNodeName) ->
@@ -337,7 +379,8 @@ counter_value(Counter) ->
     [{Counter, Value}] = ets:lookup(Tab, Counter),
     {value, Value}.
 
--spec table_value(atom(), list(), list(), atom()) -> list().
+-spec table_value(atom(), list(), list(), atom()
+                 ) -> 'ok' | maybe_improper_list() | {'genErr',_}.
 table_value(get, RowInd, Cols, Table) ->
     Row = get_row(RowInd, Table),
     get_cols(Row, Cols, Table);
@@ -355,7 +398,8 @@ table_value(get_next,RowInd,Cols,Table) ->
 table_value(_,_,_,_) ->
     ok.
 
-%% gets full row with specified index
+%% @doc gets full row with specified index
+-spec get_row([any(),...], 'routerRegisteredPathsTable') -> row().
 get_row([RowInd], routerRegisteredPathsTable) ->
     Routes = mnesia:dirty_all_keys(route),
     case RowInd of
@@ -371,7 +415,9 @@ get_row([RowInd], routerRegisteredPathsTable) ->
             {{noValue, noSuchInstance}, {noValue, noSuchInstance}}
     end.
 
-%% gets column values from specified row row
+%% @doc gets column values from specified row row
+-spec get_cols(Row :: row(), Cols :: [any()],
+               Table :: 'routerRegisteredPathsTable') -> col().
 get_cols(Row, Cols, Table) ->
     Mapping = column_mapping(Cols, get_column_map(Table)),
     lists:map(fun(Col) ->
@@ -383,7 +429,11 @@ get_cols(Row, Cols, Table) ->
                       end
               end, Mapping).
 
-%% gets value of specified cell in the table
+%% @doc gets value of specified cell in the table
+-spec get_cell_value(R :: 'endOfTable' | number(),
+                     C :: 1 | 2,
+                     Table :: 'routerRegisteredPathsTable'
+                     ) -> {'genErr' | ['endOfTable' | number(),...],_}.
 get_cell_value(R, C, Table) ->
     Row = get_row([R], Table),
     [Col] = column_mapping([C], get_column_map(Table)),
@@ -398,7 +448,11 @@ get_cell_value(R, C, Table) ->
     end.
 
 
-%% gets value of next element (table get_next)
+%% @doc gets value of next element (table get_next)
+-spec get_next_value(RowInd :: any(),
+                     Col :: 0 | 1 | 2,
+                     Table :: 'routerRegisteredPathsTable')
+      -> 'endOfTable' | {'genErr' | ['endOfTable' | number(),...],_}.
 get_next_value(RowInd, Col, Table) ->
     case next_indexes(RowInd, Col, Table) of
         {R, C} ->
@@ -408,7 +462,11 @@ get_next_value(RowInd, Col, Table) ->
     end.
 
 
-%% finds indexes of next element
+%% @doc finds indexes of next element
+-spec next_indexes(RowInd :: any(),
+                   Col :: 0 | 1 | 2,
+                   Table :: 'routerRegisteredPathsTable'
+                   ) -> 'endOfTable' | {'endOfTable' | number(),1 | 2}.
 next_indexes(RowInd, Col, Table) ->
     case {next_row(RowInd, Table),
           next_col(Col, get_column_map(Table))} of
@@ -422,7 +480,9 @@ next_indexes(RowInd, Col, Table) ->
             {NextR, C}
     end.
 
-%% finds next column
+%% @doc finds next column
+-spec next_col(Col :: 0 | 1 | 2,
+               List :: [{1 | 2,1 | 2},...]) -> {1 | 2,'endOfTable' | 1 | 2}.
 next_col(0, [H | _T]) ->
     {Col, _} = H,
     {Col, Col};
@@ -437,7 +497,10 @@ next_col(Col, [H | T]) ->
             next_col(Col, T)
     end.
 
-%% finds next row index
+%% @doc finds next row index
+-spec next_row(RowInd :: any(),
+               Table :: 'routerRegisteredPathsTable'
+               ) -> {'last' | [] | number(),'endOfTable' | number()}.
 next_row(RowInd, routerRegisteredPathsTable) ->
     case { RowInd, length(mnesia:dirty_all_keys(route))} of
         {_, L} when L == 0 ->
@@ -453,9 +516,11 @@ next_row(RowInd, routerRegisteredPathsTable) ->
     end.
 
 
+-spec column_mapping([any()],[{1 | 2,1 | 2},...]) -> [any()].
 column_mapping(Cols, Map) ->
     lists:map(fun(Col) -> proplists:get_value(Col, Map) end, Cols).
 
+-spec get_column_map('routerRegisteredPathsTable') -> [{1 | 2,1 | 2},...].
 get_column_map(routerRegisteredPathsTable) ->
     [{?routeTo, 1},
      {?routeNum, 2}].

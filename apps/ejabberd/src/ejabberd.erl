@@ -40,7 +40,9 @@
 -type sockmod() :: gen_tcp
                  | ejabberd_socket
                  | mod_bosh_socket
-                 | mod_websockets.
+                 | mod_websockets
+                 | ejabberd_tls
+                 | ejabberd_zlib.
 
 -type jid() :: #jid{}.
 

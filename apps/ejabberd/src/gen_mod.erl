@@ -267,8 +267,7 @@ get_module_proc(Host, Base) when erlang:is_binary(Host) ->
 get_module_proc(Host, Base) ->
     list_to_atom(atom_to_list(Base) ++ "_" ++ Host).
 
--spec is_loaded(Host :: binary()
-               , Module :: atom()) -> boolean().
+-spec is_loaded(Host :: binary(), Module :: atom()) -> boolean().
 is_loaded(Host, Module) ->
     ets:member(ejabberd_modules, {Module, Host}).
 
