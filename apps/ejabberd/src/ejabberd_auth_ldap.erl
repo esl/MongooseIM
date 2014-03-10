@@ -33,7 +33,7 @@
          handle_cast/2, terminate/2, code_change/3]).
 
 %% External exports
--behaviour(gen_auth).
+-behaviour(ejabberd_gen_auth).
 -export([start/1,
          stop/1,
          start_link/1,
@@ -53,6 +53,8 @@
          remove_user/3,
          plain_password_required/0
          ]).
+%% Exported for behaviour but not implemented
+-export([login/2, get_password/3]).
 
 -include("ejabberd.hrl").
 -include("eldap.hrl").
@@ -536,3 +538,8 @@ check_filter(F) ->
     NewF = iolist_to_binary(F),
     {ok, _} = eldap_filter:parse(NewF),
     NewF.
+
+
+%% @doc gen_auth unimplemented callbacks
+login(_User, _Server) -> erlang:error(not_implemented).
+get_password(_User, _Server, _DefaultValue) -> erlang:error(not_implemented).

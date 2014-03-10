@@ -5,7 +5,7 @@
 %%% @end
 %%% Created : 06. Mar 2014 11:44 PM
 %%%-------------------------------------------------------------------
--module(gen_auth).
+-module(ejabberd_gen_auth).
 
 -callback login(User :: ejabberd:user(),
                 Server :: ejabberd:server()) -> boolean().

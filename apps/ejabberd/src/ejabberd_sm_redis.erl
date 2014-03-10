@@ -8,10 +8,9 @@
 %%%-------------------------------------------------------------------
 -module(ejabberd_sm_redis).
 
--behavior(ejabberd_gen_sm).
-
 -include("ejabberd.hrl").
 
+-behavior(ejabberd_gen_sm).
 -export([start/1,
          get_sessions/0,
          get_sessions/1,
@@ -26,6 +25,7 @@
 -spec start(list()) -> any().
 start(Opts) ->
     ejabberd_redis:start_link(Opts).
+
 
 -spec get_sessions() -> [[ejabberd_sm:ses_tuple()]]. % list of lists
 get_sessions() ->
@@ -43,6 +43,7 @@ get_sessions() ->
                     end, Keys),
     lists:flatten(Res).
 
+
 -spec get_sessions(ejabberd:server()) -> [ejabberd_sm:ses_tuple()].
 get_sessions(Server) ->
     Keys = ejabberd_redis:cmd(["KEYS", hash(Server)]),
@@ -59,7 +60,8 @@ get_sessions(Server) ->
                     end, Keys),
     lists:flatten(Res).
 
--spec get_sessions(binary(), ejabberd:server()) -> [ejabberd_sm:session()].
+
+-spec get_sessions(ejabberd:user(), ejabberd:server()) -> [ejabberd_sm:session()].
 get_sessions(User, Server) ->
     Sessions = ejabberd_redis:cmd(["SMEMBERS", hash(User, Server)]),
 
@@ -67,7 +69,9 @@ get_sessions(User, Server) ->
                       binary_to_term(S)
               end, Sessions).
 
--spec get_sessions(binary(), binary(), binary()) -> [ejabberd_sm:session()].
+
+-spec get_sessions(ejabberd:user(), ejabberd:server(), ejabberd:resource()
+                  ) -> [ejabberd_sm:session()].
 get_sessions(User, Server, Resource) ->
     Sessions = ejabberd_redis:cmd(["SMEMBERS", hash(User, Server, Resource)]),
 
@@ -75,9 +79,9 @@ get_sessions(User, Server, Resource) ->
                       binary_to_term(S)
               end, Sessions).
 
--spec create_session(User :: binary(),
+-spec create_session(User :: ejabberd:user(),
                      Server :: ejabberd:server(),
-                     Resource :: binary(),
+                     Resource :: ejabberd:resource(),
                      Session :: ejabberd_sm:session()) -> ok | {error, term()}.
 create_session(User, Server, Resource, Session) ->
     OldSessions = get_sessions(User, Server, Resource),
@@ -97,10 +101,11 @@ create_session(User, Server, Resource, Session) ->
                                 ["SADD", hash(User, Server, Resource), BSession]])
     end.
 
+
 -spec delete_session(SID :: ejabberd_sm:sid(),
-                     User :: binary(),
+                     User :: ejabberd:user(),
                      Server :: ejabberd:server(),
-                     Resource :: binary()) -> ok.
+                     Resource :: ejabberd:resource()) -> ok.
 delete_session(SID, User, Server, Resource) ->
     Sessions = get_sessions(User, Server, Resource),
     case lists:keysearch(SID, #session.sid, Sessions) of
@@ -114,6 +119,7 @@ delete_session(SID, User, Server, Resource) ->
             ok
     end.
 
+
 -spec cleanup(atom()) -> ok.
 cleanup(Node) ->
     Hashes = ejabberd_redis:cmd(["SMEMBERS", n(Node)]),
@@ -123,31 +129,38 @@ cleanup(Node) ->
                           delete_session(SID, U, S, R)
                   end, Hashes).
 
+
 -spec total_count() -> integer().
 total_count() ->
     {Counts, _} = rpc:multicall(supervisor, count_children, [ejabberd_c2s_sup]),
     lists:sum([proplists:get_value(active, Count, 0) || Count <- Counts, is_list(Count)]).
+
 
 -spec unique_count() -> integer().
 unique_count() ->
     length(ejabberd_redis:cmd(["KEYS", "s2:*"])).
 
 %% Internal functions
+
 -spec hash(binary()) -> iolist().
 hash(Val1) ->
     ["s3:*:", Val1, ":*"].
+
 
 -spec hash(binary(), binary()) -> iolist().
 hash(Val1, Val2) ->
     ["s2:", Val1, ":", Val2].
 
+
 -spec hash(binary(), binary(), binary()) -> iolist().
 hash(Val1, Val2, Val3) ->
     ["s3:", Val1, ":", Val2, ":", Val3].
 
+
 -spec hash(binary(), binary(), binary(), binary()) -> iolist().
 hash(Val1, Val2, Val3, Val4) ->
     ["s4:", Val1, ":", Val2, ":", Val3, ":", term_to_binary(Val4)].
+
 
 -spec n(atom()) -> iolist().
 n(Node) ->

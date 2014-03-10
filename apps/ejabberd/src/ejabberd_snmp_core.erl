@@ -191,6 +191,7 @@
 start(Modules) ->
     initialize_tables(Modules).
 
+
 stop() ->
     destroy_tables(),
     ok.
@@ -204,12 +205,14 @@ table_name(mod_privacy)  -> stats_mod_privacy;
 table_name(mod_register) -> stats_mod_register;
 table_name(mod_roster)   -> stats_mod_roster.
 
+
 -spec table_name_w(c_module()) -> c_module_table_w().
 table_name_w(core)         -> stats_w_core;
 table_name_w(c2s)          -> stats_w_c2s;
 table_name_w(mod_privacy)  -> stats_w_mod_privacy;
 table_name_w(mod_register) -> stats_w_mod_register;
 table_name_w(mod_roster)   -> stats_w_mod_roster.
+
 
 %% @doc Get a list of counters defined for the given module
 -spec counters_for(c_module()) -> [counter()].
@@ -218,10 +221,12 @@ counters_for(Module) ->
     {Module, WCounters} = proplists:lookup(Module, ?W_COUNTERS_FOR_MODULE),
     Counters ++ WCounters.
 
+
 -spec w_counters_for(c_module()) -> [counter()].
 w_counters_for(Module) ->
     {Module, Counters} = proplists:lookup(Module, ?W_COUNTERS_FOR_MODULE),
     Counters.
+
 
 %% @doc Get the name of the module the given counter is defined for
 -spec module_for(counter()) -> c_module().
@@ -236,11 +241,13 @@ initialize_tables([]) ->
 initialize_tables(Modules) ->
     lists:foreach(fun initialize_table/1, Modules).
 
+
 -spec initialize_table(c_module()) -> 'ok'.
 initialize_table(Module) ->
     ets:new(?STATS(Module), [public, named_table]),
     ets:new(?STATS_W(Module), [public, named_table]),
     initialize_counters(Module).
+
 
 -spec initialize_counters(c_module()) -> 'ok'.
 initialize_counters(Module) ->
@@ -249,6 +256,7 @@ initialize_counters(Module) ->
                   Counters),
     lists:foreach(fun(C) -> ets:insert(?STATS_W(Module), {C, 0}) end,
                   w_counters_for(Module)).
+
 
 %% @doc Reset all counters for initialized tables
 -spec reset_counters() -> 'ok'.
@@ -265,6 +273,7 @@ reset_counters() ->
             end
         end,
         get_all_modules()).
+
 
 %% @doc Moves temporary window values to main counter tables
 %% and resets temporary tables
@@ -298,9 +307,11 @@ destroy_table(Tab) ->
         ets:delete(Tab)
     end.
 
+
 -spec get_all_modules() -> [c_module()].
 get_all_modules() ->
     proplists:get_keys(?COUNTERS_FOR_MODULE).
+
 
 -spec get_all_tables() -> [c_module_table() | c_module_table_w()].
 get_all_tables() ->
@@ -314,6 +325,7 @@ get_all_tables() ->
 destroy_tables() ->
     lists:foreach(fun destroy_table/1, get_all_tables()).
 
+
 -spec is_started() -> boolean().
 is_started() ->
     lists:any(
@@ -325,9 +337,11 @@ is_started() ->
         end,
         get_all_tables()).
 
+
 -spec increment_window_counter(_) -> 'ok' | [integer()] | integer().
 increment_window_counter(Counter) ->
     update_window_counter(Counter, 1).
+
 
 -spec update_window_counter(_,_) -> 'ok' | [integer()] | integer().
 update_window_counter(Counter, How) ->
@@ -339,21 +353,26 @@ update_window_counter(Counter, How) ->
             ets:update_counter(Tab, Counter, How)
     end.
 
+
 -spec increment_counter(integer()) -> 'false' | 'ok' | 'true' | integer().
 increment_counter(Counter) ->
     update_counter(Counter, 1).
+
 
 -spec decrement_counter(integer()) -> 'false' | 'ok' | 'true' | integer().
 decrement_counter(Counter) ->
     update_counter(Counter, {2, -1, 0, 0}).
 
+
 -spec set_counter(integer(),_) -> 'false' | 'ok' | 'true' | integer().
 set_counter(Counter, Value) ->
     modify_counter(Counter, ets, update_element, [{2, Value}]).
 
+
 -spec update_counter(integer(),_) -> 'false' | 'ok' | 'true' | integer().
 update_counter(Counter, How) ->
     modify_counter(Counter, ets, update_counter, [How]).
+
 
 -spec modify_counter(Counter :: counter(),
                      Mod :: 'ets',
@@ -369,6 +388,7 @@ modify_counter(Counter, Mod, Fun, Args) ->
             apply(Mod, Fun, ArgsNew)
     end.
 
+
 -spec counter_value('generalNodeName' | 'generalUptime' | integer()) -> {'value', counter()}.
 counter_value(generalUptime) ->
     {value, erlang:round(element(1, erlang:statistics(wall_clock))/1000)};
@@ -378,6 +398,7 @@ counter_value(Counter) ->
     Tab = ?STATS(module_for(Counter)),
     [{Counter, Value}] = ets:lookup(Tab, Counter),
     {value, Value}.
+
 
 -spec table_value(atom(), list(), list(), atom()
                  ) -> 'ok' | maybe_improper_list() | {'genErr',_}.
@@ -398,6 +419,7 @@ table_value(get_next,RowInd,Cols,Table) ->
 table_value(_,_,_,_) ->
     ok.
 
+
 %% @doc gets full row with specified index
 -spec get_row([any(),...], 'routerRegisteredPathsTable') -> row().
 get_row([RowInd], routerRegisteredPathsTable) ->
@@ -415,6 +437,7 @@ get_row([RowInd], routerRegisteredPathsTable) ->
             {{noValue, noSuchInstance}, {noValue, noSuchInstance}}
     end.
 
+
 %% @doc gets column values from specified row row
 -spec get_cols(Row :: row(), Cols :: [any()],
                Table :: 'routerRegisteredPathsTable') -> col().
@@ -428,6 +451,7 @@ get_cols(Row, Cols, Table) ->
                               {noValue, noSuchInstance}
                       end
               end, Mapping).
+
 
 %% @doc gets value of specified cell in the table
 -spec get_cell_value(R :: 'endOfTable' | number(),
@@ -480,6 +504,7 @@ next_indexes(RowInd, Col, Table) ->
             {NextR, C}
     end.
 
+
 %% @doc finds next column
 -spec next_col(Col :: 0 | 1 | 2,
                List :: [{1 | 2,1 | 2},...]) -> {1 | 2,'endOfTable' | 1 | 2}.
@@ -496,6 +521,7 @@ next_col(Col, [H | T]) ->
         _ ->
             next_col(Col, T)
     end.
+
 
 %% @doc finds next row index
 -spec next_row(RowInd :: any(),
@@ -519,6 +545,7 @@ next_row(RowInd, routerRegisteredPathsTable) ->
 -spec column_mapping([any()],[{1 | 2,1 | 2},...]) -> [any()].
 column_mapping(Cols, Map) ->
     lists:map(fun(Col) -> proplists:get_value(Col, Map) end, Cols).
+
 
 -spec get_column_map('routerRegisteredPathsTable') -> [{1 | 2,1 | 2},...].
 get_column_map(routerRegisteredPathsTable) ->

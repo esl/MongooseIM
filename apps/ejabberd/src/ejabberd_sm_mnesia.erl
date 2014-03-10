@@ -8,10 +8,9 @@
 %%%-------------------------------------------------------------------
 -module(ejabberd_sm_mnesia).
 
--behavior(ejabberd_gen_sm).
-
 -include("ejabberd.hrl").
 
+-behavior(ejabberd_gen_sm).
 -export([start/1,
          get_sessions/0,
          get_sessions/1,
@@ -32,6 +31,7 @@ start(_Opts) ->
     mnesia:add_table_index(session, us),
     mnesia:add_table_copy(session, node(), ram_copies).
 
+
 -spec get_sessions() -> [[ejabberd_sm:ses_tuple()]]. % list of lists
 get_sessions() ->
     mnesia:activity(transaction,
@@ -43,6 +43,7 @@ get_sessions() ->
                 session)
         end).
 
+
 -spec get_sessions(ejabberd:server()) -> [ejabberd_sm:ses_tuple()].
 get_sessions(Server) ->
     Sessions = mnesia:dirty_select(
@@ -52,31 +53,37 @@ get_sessions(Server) ->
           ['$$']}]),
     [ {USR, SID, Pri, Info} || [USR, SID, Pri, Info] <- Sessions ].
 
--spec get_sessions(binary(), ejabberd:server()) -> [ejabberd_sm:session()].
+
+-spec get_sessions(ejabberd:user(), ejabberd:server()) -> [ejabberd_sm:session()].
 get_sessions(User, Server) ->
     mnesia:dirty_index_read(session, {User, Server}, #session.us).
 
--spec get_sessions(binary(), binary(), binary()) -> [ejabberd_sm:session()].
+
+-spec get_sessions(ejabberd:user(), ejabberd:server(), ejabberd:resource()
+                  ) -> [ejabberd_sm:session()].
 get_sessions(User, Server, Resource) ->
     mnesia:dirty_index_read(session, {User, Server, Resource}, #session.usr).
 
--spec create_session(_User :: binary(),
+
+-spec create_session(_User :: ejabberd:user(),
                      _Server :: ejabberd:server(),
-                     _Resource :: binary(),
-                     ejabberd_sm:session()) -> ok | {error, term()}.
+                     _Resource :: ejabberd:resource(),
+                     Session :: ejabberd_sm:session()) -> ok | {error, term()}.
 create_session(_User, _Server, _Resource, Session) ->
     mnesia:sync_dirty(fun() ->
                               mnesia:write(Session)
                       end).
 
+
 -spec delete_session(ejabberd_sm:sid(),
-                     _User :: binary(),
+                     _User :: ejabberd:user(),
                      _Server :: ejabberd:server(),
-                     _Resource :: binary()) -> ok.
+                     _Resource :: ejabberd:resource()) -> ok.
 delete_session(SID, _User, _Server, _Resource) ->
     mnesia:sync_dirty(fun() ->
                               mnesia:delete({session, SID})
                       end).
+
 
 -spec cleanup(atom()) -> any().
 cleanup(Node) ->
@@ -93,14 +100,17 @@ cleanup(Node) ->
         end,
     mnesia:async_dirty(F).
 
+
 -spec total_count() -> integer().
 total_count() ->
     mnesia:table_info(session, size).
+
 
 -spec unique_count() -> integer().
 unique_count() ->
     compute_unique(mnesia:dirty_first(session),
                    sets:new()).
+
 
 -spec compute_unique(term(), set()) -> integer().
 compute_unique('$end_of_table', Set) ->

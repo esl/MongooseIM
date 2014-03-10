@@ -53,9 +53,14 @@
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 
--record(state, {socket, sockmod, streamid,
-                hosts, password, access,
-                check_from}).
+-record(state, {socket,
+                sockmod     :: ejabberd:sockmod(),
+                streamid,
+                hosts       :: list(),
+                password    :: binary(),
+                access,
+                check_from
+              }).
 -type state() :: #state{}.
 
 -type statename() :: wait_for_stream
@@ -111,10 +116,12 @@
 start(SockData, Opts) ->
     supervisor:start_child(ejabberd_service_sup, [SockData, Opts]).
 
+
 -spec start_link(_, list()) -> 'ignore' | {'error',_} | {'ok',pid()}.
 start_link(SockData, Opts) ->
     ?GEN_FSM:start_link(ejabberd_service, [SockData, Opts],
                         fsm_limit_opts(Opts) ++ ?FSMOPTS).
+
 
 socket_type() ->
     xml_stream.
@@ -204,14 +211,12 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
             send_text(StateData, ?INVALID_HEADER_ERR),
             {stop, normal, StateData}
     end;
-
 wait_for_stream({xmlstreamerror, _}, StateData) ->
     Header = io_lib:format(?STREAM_HEADER,
                            [<<"none">>, ?MYNAME]),
     send_text(StateData,<<(iolist_to_binary(Header))/binary,
                            (?INVALID_XML_ERR)/binary,(?STREAM_TRAILER)/binary>>),
     {stop, normal, StateData};
-
 wait_for_stream(closed, StateData) ->
     {stop, normal, StateData}.
 
@@ -238,14 +243,11 @@ wait_for_handshake({xmlstreamelement, El}, StateData) ->
         _ ->
             {next_state, wait_for_handshake, StateData}
     end;
-
 wait_for_handshake({xmlstreamend, _Name}, StateData) ->
     {stop, normal, StateData};
-
 wait_for_handshake({xmlstreamerror, _}, StateData) ->
     send_text(StateData,<<(?INVALID_XML_ERR)/binary,(?STREAM_TRAILER)/binary>>),
     {stop, normal, StateData};
-
 wait_for_handshake(closed, StateData) ->
     {stop, normal, StateData}.
 
@@ -290,19 +292,15 @@ stream_established({xmlstreamelement, El}, StateData) ->
             error
     end,
     {next_state, stream_established, StateData};
-
 stream_established({xmlstreamend, _Name}, StateData) ->
     % TODO ??
     {stop, normal, StateData};
-
 stream_established({xmlstreamerror, _}, StateData) ->
     send_text(StateData, <<(?INVALID_XML_ERR)/binary,(?STREAM_TRAILER)/binary>>),
     {stop, normal, StateData};
-
 stream_established(closed, StateData) ->
     % TODO ??
     {stop, normal, StateData}.
-
 
 
 %%----------------------------------------------------------------------
@@ -339,6 +337,7 @@ handle_event(_Event, StateName, StateData) ->
 handle_sync_event(_Event, _From, StateName, StateData) ->
     Reply = ok,
     {reply, Reply, StateName, StateData}.
+
 
 code_change(_OldVsn, StateName, StateData, _Extra) ->
     {ok, StateName, StateData}.
@@ -409,13 +408,16 @@ print_state(State) ->
 send_text(StateData, Text) ->
     (StateData#state.sockmod):send(StateData#state.socket, Text).
 
+
 -spec send_element(state(), jlib:xmlel()) -> binary().
 send_element(StateData, El) ->
     send_text(StateData, xml:element_to_binary(El)).
 
+
 -spec new_id() -> string().
 new_id() ->
     randoms:get_string().
+
 
 -spec fsm_limit_opts(maybe_improper_list()) -> [{'max_queue',integer()}].
 fsm_limit_opts(Opts) ->

@@ -37,7 +37,7 @@
   unregister_connection/3
   ]).
 
--behaviour(gen_auth).
+-behaviour(ejabberd_gen_auth).
 %% Function used by ejabberd_auth:
 -export([login/2,
          set_password/3,

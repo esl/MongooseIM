@@ -48,9 +48,9 @@
 
 -include("ejabberd.hrl").
 
--record(socket_state, {sockmod :: ejabberd:sockmod(),
-                       socket :: gen_tcp:socket(),
-                       receiver :: pid() | atom() | tuple()
+-record(socket_state, {sockmod    :: ejabberd:sockmod(),
+                       socket     :: gen_tcp:socket(),
+                       receiver   :: pid() | atom() | tuple()
                       }).
 -type socket_state() :: #socket_state{}.
 
@@ -117,6 +117,7 @@ start(Module, SockMod, Socket, Opts) ->
             end
     end.
 
+
 -type option_value() :: 'asn1' | 'cdr' | 'false' | 'fcgi' | 'http' | 'http_bin'
                       | 'line' | 'once' | 'raw' | 'sunrm' | 'tpkt' | 'true'
                       | integer() | inet:ip_address().
@@ -128,6 +129,7 @@ start(Module, SockMod, Socket, Opts) ->
               Opts :: [option()]) -> {'error',atom()} | {'ok',socket_state()}.
 connect(Addr, Port, Opts) ->
     connect(Addr, Port, Opts, infinity).
+
 
 -spec connect(Addr :: atom() | string() | inet:ip_address(),
               Port :: inet:port_number(),
@@ -154,11 +156,13 @@ connect(Addr, Port, Opts, Timeout) ->
             Error
     end.
 
+
 -spec starttls(socket_state(),_) -> socket_state().
 starttls(SocketData, TLSOpts) ->
     {ok, TLSSocket} = ejabberd_tls:tcp_to_tls(SocketData#socket_state.socket, TLSOpts),
     ejabberd_receiver:starttls(SocketData#socket_state.receiver, TLSSocket),
     SocketData#socket_state{socket = TLSSocket, sockmod = ejabberd_tls}.
+
 
 -spec starttls(socket_state(),_,_) -> socket_state().
 starttls(SocketData, TLSOpts, Data) ->
@@ -167,6 +171,7 @@ starttls(SocketData, TLSOpts, Data) ->
     send(SocketData, Data),
     SocketData#socket_state{socket = TLSSocket, sockmod = ejabberd_tls}.
 
+
 -spec compress(socket_state()) -> socket_state().
 compress(SocketData) ->
     {ok, ZlibSocket} = ejabberd_zlib:enable_zlib(
@@ -174,6 +179,7 @@ compress(SocketData) ->
                          SocketData#socket_state.socket),
     ejabberd_receiver:compress(SocketData#socket_state.receiver, ZlibSocket),
     SocketData#socket_state{socket = ZlibSocket, sockmod = ejabberd_zlib}.
+
 
 -spec compress(socket_state(),_) -> socket_state().
 compress(SocketData, Data) ->
@@ -184,6 +190,7 @@ compress(SocketData, Data) ->
     send(SocketData, Data),
     SocketData#socket_state{socket = ZlibSocket, sockmod = ejabberd_zlib}.
 
+
 -spec reset_stream(socket_state()) -> socket_state().
 reset_stream(SocketData) when is_pid(SocketData#socket_state.receiver) ->
     ejabberd_receiver:reset_stream(SocketData#socket_state.receiver);
@@ -191,7 +198,8 @@ reset_stream(SocketData) when is_atom(SocketData#socket_state.receiver) ->
     (SocketData#socket_state.receiver):reset_stream(
       SocketData#socket_state.socket).
 
-%% sockmod=gen_tcp|ejabberd_tls|ejabberd_zlib
+
+%% @doc sockmod=gen_tcp|ejabberd_tls|ejabberd_zlib (ejabberd:sockmod())
 send(SocketData, Data) ->
     case catch (SocketData#socket_state.sockmod):send(
              SocketData#socket_state.socket, Data) of
@@ -204,13 +212,15 @@ send(SocketData, Data) ->
             exit(normal)
     end.
 
-%% Can only be called when in c2s StateData#state.xml_socket is true
+
+%% @doc Can only be called when in c2s StateData#state.xml_socket is true
 %% This function is used for HTTP bind
 %% sockmod=ejabberd_http_poll|ejabberd_http_bind or any custom module
 -spec send_xml(socket_state(), jlib:xmlel()) -> binary().
 send_xml(SocketData, Data) ->
     catch (SocketData#socket_state.sockmod):send_xml(
             SocketData#socket_state.socket, Data).
+
 
 -spec change_shaper(#socket_state{receiver::atom() | pid() | tuple()},_) -> any().
 change_shaper(SocketData, Shaper)
@@ -221,6 +231,7 @@ change_shaper(SocketData, Shaper)
     (SocketData#socket_state.receiver):change_shaper(
       SocketData#socket_state.socket, Shaper).
 
+
 -spec monitor(socket_state()) -> any().
 monitor(SocketData) when is_pid(SocketData#socket_state.receiver) ->
     erlang:monitor(process, SocketData#socket_state.receiver);
@@ -228,21 +239,26 @@ monitor(SocketData) when is_atom(SocketData#socket_state.receiver) ->
     (SocketData#socket_state.receiver):monitor(
       SocketData#socket_state.socket).
 
+
 -spec get_sockmod(socket_state()) -> ejabberd:sockmod().
 get_sockmod(SocketData) ->
     SocketData#socket_state.sockmod.
+
 
 -spec get_peer_certificate(socket_state()) -> 'error' | {'ok',_}.
 get_peer_certificate(SocketData) ->
     ejabberd_tls:get_peer_certificate(SocketData#socket_state.socket).
 
+
 -spec get_verify_result(socket_state()) -> byte().
 get_verify_result(SocketData) ->
     ejabberd_tls:get_verify_result(SocketData#socket_state.socket).
 
+
 -spec close(socket_state()) -> ok.
-  close(SocketData) ->
+close(SocketData) ->
     ejabberd_receiver:close(SocketData#socket_state.receiver).
+
 
 -spec sockname(socket_state()) -> {ok, {inet:ip_address(), inet:port_number()}}
                                 | {error, inet:posix()}.
@@ -254,6 +270,7 @@ sockname(#socket_state{sockmod = SockMod, socket = Socket}) ->
             SockMod:sockname(Socket)
     end.
 
+
 -spec peername(socket_state()) -> {ok, {inet:ip_address(), inet:port_number()}}
                                 | {error, inet:posix()}.
 peername(#socket_state{sockmod = SockMod, socket = Socket}) ->
@@ -263,7 +280,3 @@ peername(#socket_state{sockmod = SockMod, socket = Socket}) ->
         _ ->
             SockMod:peername(Socket)
     end.
-
-%%====================================================================
-%% Internal functions
-%%====================================================================

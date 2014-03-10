@@ -1,7 +1,7 @@
 %%%----------------------------------------------------------------------
 %%% File    : ejabberd_check.erl
 %%% Author  : Mickael Remond <mremond@process-one.net>
-%%% Purpose : Check ejabberd configuration and 
+%%% Purpose : Check ejabberd configuration and
 %%% Created : 27 Feb 2008 by Mickael Remond <mremond@process-one.net>
 %%%
 %%%
@@ -33,19 +33,24 @@
 
 -compile([export_all]).
 
-%% TODO:
-%% We want to implement library checking at launch time to issue
+%% @doc TODO: We want to implement library checking at launch time to issue
 %% human readable user messages.
 libs() ->
     ok.
 
+
 %% @doc Consistency check on ejabberd configuration
+-spec config() -> ['ok'].
 config() ->
     check_database_modules().
 
+
+-spec check_database_modules() -> ['ok'].
 check_database_modules() ->
      [check_database_module(M)||M<-get_db_used()].
 
+
+-spec check_database_module('mysql' | 'odbc' | 'pgsql') -> 'ok'.
 check_database_module(odbc) ->
     check_modules(odbc, [odbc, odbc_app, odbc_sup, ejabberd_odbc, ejabberd_odbc_sup, odbc_queries]);
 check_database_module(mysql) ->
@@ -53,57 +58,65 @@ check_database_module(mysql) ->
 check_database_module(pgsql) ->
     check_modules(pgsql, [pgsql, pgsql_proto, pgsql_tcp, pgsql_util]).
 
+
 %% @doc Issue a critical error and throw an exit if needing module is
 %% missing.
+-spec check_modules(atom(), [atom()]) -> 'ok'.
 check_modules(DB, Modules) ->
     case get_missing_modules(Modules) of
-	[] ->
-	    ok;
-	MissingModules when is_list(MissingModules) ->
-	    ?CRITICAL_MSG("ejabberd is configured to use '~p', but the following Erlang modules are not installed: '~p'", [DB, MissingModules]),
-	    exit(database_module_missing)
+        [] ->
+            ok;
+        MissingModules when is_list(MissingModules) ->
+            ?CRITICAL_MSG("ejabberd is configured to use '~p', but the following Erlang modules are not installed: '~p'", [DB, MissingModules]),
+            exit(database_module_missing)
     end.
 
 
 %% @doc Return the list of undefined modules
+-spec get_missing_modules([atom()]) -> [atom()].
 get_missing_modules(Modules) ->
     lists:filter(fun(Module) ->
-			 case catch Module:module_info() of
-			     {'EXIT', {undef, _}} ->
-				 true;
-			     _ -> false
-			 end
-		 end, Modules).
+                         case catch Module:module_info() of
+                             {'EXIT', {undef, _}} ->
+                                 true;
+                             _ -> false
+                         end
+                 end, Modules).
+
 
 %% @doc Return the list of databases used
+-spec get_db_used() -> [atom()].
 get_db_used() ->
     %% Retrieve domains with a database configured:
-    Domains = 
-	ets:match(local_config, #local_config{key={odbc_server, '$1'},
-					      value='$2'}),
+    Domains =
+        ets:match(local_config, #local_config{key={odbc_server, '$1'},
+                                              value='$2'}),
     %% Check that odbc is the auth method used for those domains:
     %% and return the database name
     DBs = lists:foldr(
-	    fun([Domain, DB], Acc) ->
-		    case check_odbc_option(
-			   ejabberd_config:get_local_option(
-			     {auth_method, Domain})) of
-			true -> [get_db_type(DB)|Acc];
-			_ -> Acc
-		    end
-	    end,
-	    [], Domains),
+            fun([Domain, DB], Acc) ->
+                    case check_odbc_option(
+                           ejabberd_config:get_local_option(
+                             {auth_method, Domain})) of
+                        true -> [get_db_type(DB)|Acc];
+                        _ -> Acc
+                    end
+            end,
+            [], Domains),
     lists:usort(DBs).
+
 
 %% @doc Depending in the DB definition, return which type of DB this is.
 %% Note that MSSQL is detected as ODBC.
-%% @spec (DB) -> mysql | pgsql | odbc
+-spec get_db_type(list() | tuple()) -> mysql | pgsql | odbc.
 get_db_type(DB) when is_tuple(DB) ->
     element(1, DB);
 get_db_type(DB) when is_list(DB) ->
     odbc.
 
+
 %% @doc Return true if odbc option is used
+-spec check_odbc_option(_) -> boolean().
 check_odbc_option(odbc) ->
     true;
 check_odbc_option(AuthMethods) when is_list(AuthMethods) ->

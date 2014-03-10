@@ -42,6 +42,76 @@
 -include("jlib.hrl").
 -include("mod_privacy.hrl").
 
+-define(BACKEND, (mod_privacy_backend:backend())).
+
+-export_type([userlist/0]).
+
+-type userlist() :: #userlist{}.
+-type list_name() :: binary().
+-type list_item() :: #listitem{}.
+
+%% ------------------------------------------------------------------
+%% Backend callbacks
+
+-callback init(Host, Opts) -> ok when
+    Host    :: binary(),
+    Opts    :: list().
+
+-callback remove_user(LUser, LServer) -> ok when
+    LUser   :: binary(),
+    LServer :: binary().
+
+-callback get_list_names(LUser, LServer) ->
+        {ok, {Default, Names}} | {error, Reason} when
+    LUser   :: binary(),
+    LServer :: binary(),
+    Default :: list_name(),
+    Names   :: list(list_name()),
+    Reason  :: not_found | term().
+
+-callback get_privacy_list(LUser, LServer, Name) ->
+        {ok, Items} | {error, Reason} when
+    LUser   :: binary(),
+    LServer :: binary(),
+    Name    :: list_name(),
+    Items   :: list(list_item()),
+    Reason  :: not_found | term().
+
+-callback set_default_list(LUser, LServer, Name) -> ok | {error, Reason} when
+    LUser   :: binary(),
+    LServer :: binary(),
+    Name    :: list_name(),
+    Reason  :: not_found | term().
+
+-callback forget_default_list(LUser, LServer) -> ok | {error, Reason} when
+    LUser   :: binary(),
+    LServer :: binary(),
+    Reason  :: not_found | term().
+
+-callback remove_privacy_list(LUser, LServer, Name) -> ok | {error, Reason} when
+    LUser   :: binary(),
+    LServer :: binary(),
+    Name    :: list_name(),
+    Reason  :: conflict | term().
+
+-callback replace_privacy_list(LUser, LServer, Name, Items) ->
+        ok | {error, Reason} when
+    LUser   :: binary(),
+    LServer :: binary(),
+    Name    :: list_name(),
+    Items   :: list(list_item()),
+    Reason  :: conflict | term().
+
+-callback get_default_list(LUser, LServer) ->
+        {ok, {Default, Items}} | {error, Reason} when
+    LUser   :: binary(),
+    LServer :: binary(),
+    Default :: list_name(),
+    Items   :: list(list_item()),
+    Reason  :: not_found | term().
+
+%% gen_mod callbacks
+%% ------------------------------------------------------------------
 
 start(Host, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
@@ -77,6 +147,28 @@ stop(Host) ->
     ejabberd_hooks:delete(remove_user, Host,
 			  ?MODULE, remove_user, 50),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_PRIVACY).
+
+%% Dynamic modules
+%% ------------------------------------------------------------------
+
+start_backend_module(Opts) ->
+    Backend = gen_mod:get_opt(backend, Opts, mnesia),
+    {Mod, Code} = dynamic_compile:from_string(mod_privacy_backend(Backend)),
+    code:load_binary(Mod, "mod_privacy_backend.erl", Code).
+
+-spec mod_privacy_backend(atom()) -> string().
+mod_privacy_backend(Backend) when is_atom(Backend) ->
+    lists:flatten(
+      ["-module(mod_privacy_backend).
+        -export([backend/0]).
+        -spec backend() -> atom().
+        backend() ->
+        mod_privacy_",
+           atom_to_list(Backend),
+           ".\n"]).
+
+%% Handlers
+%% ------------------------------------------------------------------
 
 process_iq(_From, _To, IQ) ->
     SubEl = IQ#iq.sub_el,
@@ -563,6 +655,34 @@ get_user_list(_, User, Server) ->
 	    #userlist{}
     end.
 
+item_to_xml(Item) ->
+    #xmlel{
+        name = <<"item">>,
+        attrs = item_to_xml_attrs(Item),
+        children = item_to_xml_children(Item)}.
+
+item_to_xml_attrs(Item=#listitem{type=none}) ->
+    item_to_xml_attrs1(Item);
+item_to_xml_attrs(Item=#listitem{type=Type, value=Value}) ->
+    [{<<"type">>, type_to_binary(Type)},
+     {<<"value">>, value_to_binary(Type, Value)}
+     | item_to_xml_attrs1(Item)].
+
+item_to_xml_attrs1(#listitem{action=Action, order=Order}) ->
+    [{<<"action">>, action_to_binary(Action)},
+     {<<"order">>, order_to_binary(Order)}].
+
+item_to_xml_children(#listitem{match_all=true}) ->
+    [];
+item_to_xml_children(#listitem{match_all=false,
+        match_iq=MatchIQ,
+        match_message=MatchMessage,
+        match_presence_in=MatchPresenceIn,
+        match_presence_out=MatchPresenceOut}) ->
+       [#xmlel{name = <<"message">>}        || MatchMessage]
+    ++ [#xmlel{name = <<"presence-in">>}    || MatchPresenceIn]
+    ++ [#xmlel{name = <<"presence-out">>}   || MatchPresenceOut]
+    ++ [#xmlel{name = <<"iq">>}             || MatchIQ].
 
 %% From is the sender, To is the destination.
 %% If Dir = out, User@Server is the sender account (From).

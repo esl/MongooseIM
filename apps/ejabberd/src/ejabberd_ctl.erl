@@ -101,6 +101,7 @@ start() ->
             halt(?STATUS_USAGE)
     end.
 
+
 -spec init() -> atom() | ets:tid().
 init() ->
     ets:new(ejabberd_ctl_cmds, [named_table, set, public]),
@@ -119,6 +120,7 @@ register_commands(CmdDescs, Module, Function) ->
     ejabberd_hooks:add(ejabberd_ctl_process,
                        Module, Function, 50),
     ok.
+
 
 -spec unregister_commands(CmdDescs :: [any()],
                           Module :: atom(),
@@ -156,24 +158,19 @@ process(["status"]) ->
                    [Version]),
             ?STATUS_SUCCESS
     end;
-
 process(["stop"]) ->
     %%ejabberd_cover:stop(),
     init:stop(),
     ?STATUS_SUCCESS;
-
 process(["restart"]) ->
     init:restart(),
     ?STATUS_SUCCESS;
-
 process(["mnesia"]) ->
     ?PRINT("~p~n", [mnesia:system_info(all)]),
     ?STATUS_SUCCESS;
-
 process(["mnesia", "info"]) ->
     mnesia:info(),
     ?STATUS_SUCCESS;
-
 process(["mnesia", Arg]) when is_list(Arg) ->
     case catch mnesia:system_info(list_to_atom(Arg)) of
         {'EXIT', Error} -> ?PRINT("Error: ~p~n", [Error]);
@@ -181,7 +178,8 @@ process(["mnesia", Arg]) when is_list(Arg) ->
     end,
     ?STATUS_SUCCESS;
 
-%% The arguments --long and --dual are not documented because they are
+
+%% @doc The arguments --long and --dual are not documented because they are
 %% automatically selected depending in the number of columns of the shell
 process(["help" | Mode]) ->
     {MaxC, ShCode} = get_shell_info(),
@@ -209,7 +207,6 @@ process(["help" | Mode]) ->
             print_usage_commands(CmdStringU, MaxC, ShCode),
             ?STATUS_SUCCESS
     end;
-
 process(Args) ->
     AccessCommands = get_accesscommands(),
     {String, Code} = process2(Args, AccessCommands),
@@ -220,6 +217,7 @@ process(Args) ->
     end,
     Code.
 
+
 -spec process2(Args :: [string()],
                AccessCommands :: [ejabberd_commands:access_cmd()]
                ) -> {String::string(), Code::integer()}.
@@ -227,6 +225,7 @@ process2(["--auth", User, Server, Pass | Args], AccessCommands) ->
     process2(Args, {User, Server, Pass}, AccessCommands);
 process2(Args, AccessCommands) ->
     process2(Args, noauth, AccessCommands).
+
 
 %% @private
 process2(Args, Auth, AccessCommands) ->
@@ -249,6 +248,7 @@ process2(Args, Auth, AccessCommands) ->
         Other ->
             {"Erroneous result: " ++ io_lib:format("~p", [Other]), ?STATUS_ERROR}
     end.
+
 
 -spec get_accesscommands() -> [char() | tuple()].
 get_accesscommands() ->
@@ -286,6 +286,7 @@ try_run_ctp(Args, Auth, AccessCommands) ->
             {io_lib:format("Error in ejabberd ctl process: '~p' ~p", [Error, Why]), ?STATUS_USAGE}
     end.
 
+
 -spec try_call_command(Args :: [string()],
                        Auth :: ejabberd_commands:auth(),
                        AccessCommands :: [ejabberd_commands:access_cmd()]
@@ -303,6 +304,7 @@ try_call_command(Args, Auth, AccessCommands) ->
             Stack = erlang:get_stacktrace(),
             {io_lib:format("Problem '~p ~p' occurred executing the command.~nStacktrace: ~p", [A, Why, Stack]), ?STATUS_ERROR}
     end.
+
 
 -spec call_command(Args :: [string()],
                    Auth :: ejabberd_commands:auth(),
@@ -353,6 +355,7 @@ args_join_xml([ [ $< | _ ] = Arg | RArgs ]) ->
 args_join_xml([ Arg | RArgs ]) ->
     [ Arg | args_join_xml(RArgs) ].
 
+
 %% @private
 -spec args_join_strings([string()]) -> [string()].
 args_join_strings([]) ->
@@ -370,10 +373,12 @@ args_join_strings([ [ $" | _ ] = Arg | RArgs ]) ->
 args_join_strings([ Arg | RArgs ]) ->
     [ Arg | args_join_strings(RArgs) ].
 
+
 %% @private
 -spec bal(string(), char(), char()) -> boolean().
 bal(String, Left, Right) ->
     bal(String, Left, Right, 0).
+
 
 %% @private
 -spec bal(string(), L :: char(), R :: char(), Bal :: integer()) -> boolean().
@@ -388,6 +393,7 @@ bal([Right | T], Left, Right, Bal) ->
 bal([_C | T], Left, Right, Bal) ->
     bal(T, Left, Right, Bal).
 
+
 %% @private
 -spec format_args(Args :: [any()],
                   ArgsFormat :: [format()]) -> [any()].
@@ -399,6 +405,7 @@ format_args(Args, ArgsFormat) ->
       end,
       [],
       lists:zip(ArgsFormat, Args)).
+
 
 %% @private
 -spec format_arg(string(), format()) -> format_type().
@@ -414,6 +421,7 @@ format_arg(Arg, binary) ->
     list_to_binary(format_arg(Arg, string));
 format_arg(Arg, {list, Type}) ->
     [format_arg(Token, Type) || Token <- string:tokens(Arg, ";")].
+
 
 %% @private
 -spec format_arg2(Arg :: string(),
@@ -455,7 +463,6 @@ format_result([FirstElement | Elements], {_Name, {list, ElementsDef}}) ->
                ["\n" | format_result(Element, ElementsDef)]
        end,
        Elements)];
-
 %% The result is a tuple with several elements: {something1(), something2(),...}
 %% NOTE: the elements in the tuple are separated with tabular characters,
 %% if a string is empty, it will be difficult to notice in the shell,
@@ -470,10 +477,12 @@ format_result(ElementsTuple, {_Name, {tuple, ElementsDef}}) ->
        end,
        ElementsAndDef)].
 
+
 -spec make_status(ok | true | _) -> 0 | 1.
 make_status(ok) -> ?STATUS_SUCCESS;
 make_status(true) -> ?STATUS_SUCCESS;
 make_status(_Error) -> ?STATUS_ERROR.
+
 
 -spec get_list_commands()
       -> [{Call :: string(), Args :: [string()], Desc :: string()}].
@@ -490,6 +499,7 @@ get_list_commands() ->
             []
     end.
 
+
 -spec tuple_command_help(ejabberd_commands:list_cmd()) -> cmd().
 tuple_command_help({Name, Args, Desc}) ->
     Arguments = [atom_to_list(ArgN) || {ArgN, _ArgF} <- Args],
@@ -500,6 +510,7 @@ tuple_command_help({Name, Args, Desc}) ->
     CallString = atom_to_list(Name),
     {CallString, Arguments, Prepend ++ Desc}.
 
+
 -spec is_supported_args([{atom(),_}]) -> boolean().
 is_supported_args(Args) ->
     lists:all(
@@ -508,6 +519,7 @@ is_supported_args(Args) ->
                   or (Format == string)
       end,
       Args).
+
 
 -spec get_list_ctls() -> [cmd()].
 get_list_ctls() ->
@@ -534,6 +546,7 @@ get_list_ctls() ->
 print_usage() ->
     {MaxC, ShCode} = get_shell_info(),
     print_usage(dual, MaxC, ShCode).
+
 
 -spec print_usage('dual' | 'long'
                  , MaxC :: integer()
@@ -562,6 +575,7 @@ print_usage(HelpMode, MaxC, ShCode) ->
         "  ejabberdctl restart\n"
         "  ejabberdctl --node ejabberd@host restart\n"],
        []).
+
 
 -spec print_usage_commands(HelpMode :: 'dual' | 'long',
                            MaxC :: integer(),
@@ -609,6 +623,7 @@ get_shell_info() ->
         _:_ -> {78, false}
     end.
 
+
 %% @doc Split this command description in several lines of proper length
 -spec prepare_description(DescInit :: non_neg_integer(),
                           MaxC :: integer(),
@@ -616,6 +631,7 @@ get_shell_info() ->
 prepare_description(DescInit, MaxC, Desc) ->
     Words = string:tokens(Desc, " "),
     prepare_long_line(DescInit, MaxC, Words).
+
 
 -spec prepare_long_line(DescInit :: non_neg_integer(),
                         MaxC :: integer(),
@@ -628,6 +644,7 @@ prepare_long_line(DescInit, MaxC, Words) ->
     MoreSegmentsMixed = mix_desc_segments(MarginString, MoreSegments),
     [FirstSegment | MoreSegmentsMixed].
 
+
 -spec mix_desc_segments(MarginStr :: [any()],
                         Segments :: [[[any(),...]]]) -> [[[any()],...]].
 mix_desc_segments(MarginString, Segments) ->
@@ -636,11 +653,13 @@ mix_desc_segments(MarginString, Segments) ->
 split_desc_segments(MaxL, Words) ->
     join(MaxL, Words).
 
+
 %% @doc Join words in a segment, but stop adding to a segment if adding this
 %% word would pass L
 -spec join(L :: number(), Words :: [nonempty_string()]) -> [[[any(),...]],...].
 join(L, Words) ->
     join(L, Words, 0, [], []).
+
 
 -spec join(L :: number(),
            Words :: [nonempty_string()],
@@ -665,6 +684,7 @@ join(L, [Word | Words], LenLastSeg, LastSeg, ResSeg) ->
         false ->
             join(L, Words, LWord, [" ", Word], [lists:reverse(LastSeg) | ResSeg])
     end.
+
 
 -spec format_command_lines(CALD :: [{[any()],[any()],number(),_},...],
                            MaxCmdLen :: integer(),
@@ -707,6 +727,7 @@ print_usage_tags(MaxC, ShCode) ->
       end,
       TagsCommands),
     ?PRINT("\n\n", []).
+
 
 print_usage_tags(Tag, MaxC, ShCode) ->
     ?PRINT(["Available commands with tag ", ?B(Tag), ":", "\n"], []),
@@ -778,6 +799,7 @@ print_usage_commands(CmdSubString, MaxC, ShCode) ->
         _ -> print_usage_commands2(lists:sort(Cmds), MaxC, ShCode)
     end.
 
+
 print_usage_commands2(Cmds, MaxC, ShCode) ->
     %% Then for each one print it
     lists:mapfoldl(
@@ -792,11 +814,13 @@ print_usage_commands2(Cmds, MaxC, ShCode) ->
       length(Cmds),
       Cmds).
 
+
 filter_commands(All, SubString) ->
     case lists:member(SubString, All) of
         true -> [SubString];
         false -> filter_commands_regexp(All, SubString)
     end.
+
 
 filter_commands_regexp(All, Glob) ->
     RegExp = xmerl_regexp:sh_to_awk(Glob),
@@ -811,6 +835,7 @@ filter_commands_regexp(All, Glob) ->
       end,
       All).
 
+
 %% @spec (Cmd::string(), MaxC::integer(), ShCode::boolean()) -> ok
 print_usage_command(Cmd, MaxC, ShCode) ->
     Name = list_to_atom(Cmd),
@@ -820,6 +845,7 @@ print_usage_command(Cmd, MaxC, ShCode) ->
         C ->
             print_usage_command(Cmd, C, MaxC, ShCode)
     end.
+
 
 print_usage_command(Cmd, C, MaxC, ShCode) ->
     #ejabberd_commands{
@@ -862,25 +888,24 @@ print_usage_command(Cmd, C, MaxC, ShCode) ->
 
     ?PRINT(["\n", NameFmt, "\n", ArgsFmt, "\n", ReturnsFmt, "\n\n", XmlrpcFmt, TagsFmt, "\n\n", DescFmt, "\n\n", LongDescFmt, NoteEjabberdctl], []).
 
+
 format_usage_ctype(Type, _Indentation)
   when (Type==atom) or (Type==integer) or (Type==string) or (Type==rescode) or (Type==restuple)->
     io_lib:format("~p", [Type]);
-
 format_usage_ctype({Name, Type}, _Indentation)
   when (Type==atom) or (Type==integer) or (Type==string) or (Type==rescode) or (Type==restuple)->
     io_lib:format("~p::~p", [Name, Type]);
-
 format_usage_ctype({Name, {list, ElementDef}}, Indentation) ->
     NameFmt = atom_to_list(Name),
     Indentation2 = Indentation + length(NameFmt) + 4,
     ElementFmt = format_usage_ctype(ElementDef, Indentation2),
     [NameFmt, "::[ ", ElementFmt, " ]"];
-
 format_usage_ctype({Name, {tuple, ElementsDef}}, Indentation) ->
     NameFmt = atom_to_list(Name),
     Indentation2 = Indentation + length(NameFmt) + 4,
     ElementsFmt = format_usage_tuple(ElementsDef, Indentation2),
     [NameFmt, "::{ " | ElementsFmt].
+
 
 format_usage_tuple([], _Indentation) ->
     [];
