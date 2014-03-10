@@ -56,12 +56,10 @@
 -type lresource() :: binary().
 
 %% A tuple-style JID
--type simple_jid() :: {binary(), server(), binary()}.
+-type simple_jid() :: {user(), server(), resource()}.
 
 %% A tuple-style JID without resource part
--type simple_bare_jid() :: {LUser :: binary(), LServer :: server()}.
-
--type sid() :: binary().
+-type simple_bare_jid() :: {LUser :: luser(), LServer :: lserver()}.
 
 %% Incoming event from XML stream. Used everywhere in xmlstream fsm modules
 -type xml_stream_item() :: 'closed'
@@ -77,7 +75,6 @@
               iq/0,
               simple_jid/0,
               simple_bare_jid/0,
-              sid/0,
               xml_stream_item/0,
               user/0,
               server/0,

@@ -347,7 +347,7 @@ check_send_queue(Pid) ->
 process_command1(From, To, Body) ->
     process_command2(string:tokens(Body, " "), From, To).
 
--spec process_command1(Commands :: [any()],
+-spec process_command2(Commands :: [any()],
                        From :: ejabberd:jid(),
                        To :: ejabberd:jid()) -> 'ok'.
 process_command2(["kill", SNode, SPid], From, To) ->

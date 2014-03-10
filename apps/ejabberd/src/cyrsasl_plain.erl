@@ -40,49 +40,60 @@ start(_Opts) ->
 stop() ->
     ok.
 
+-spec mech_new(Host :: ejabberd:server(),
+               GetPassword :: cyrsasl:get_password_fun(),
+               CheckPassword :: cyrsasl:check_password_fun(),
+               CheckPasswordDigest :: cyrsasl:check_pass_digest_fun()
+               ) -> {ok, tuple()}.
 mech_new(_Host, _GetPassword, CheckPassword, _CheckPasswordDigest) ->
     {ok, #state{check_password = CheckPassword}}.
 
+-spec mech_step(State :: tuple(),
+                ClientIn :: binary()
+                ) -> {ok, proplists:proplist()} | {error, binary()}.
 mech_step(State, ClientIn) ->
     case prepare(ClientIn) of
-	[AuthzId, User, Password] ->
-	    case (State#state.check_password)(User, 
+        [AuthzId, User, Password] ->
+            case (State#state.check_password)(User, 
                                           Password
                                          ) of
-		{true, AuthModule} ->
-		    {ok, [{username, User}, {authzid, AuthzId},
-			  {auth_module, AuthModule}]};
-		_ ->
-		    {error, <<"not-authorized">>, User}
-	    end;
-	_ ->
-	    {error, <<"bad-protocol">>}
+                {true, AuthModule} ->
+                    {ok, [{username, User}, {authzid, AuthzId},
+                          {auth_module, AuthModule}]};
+                _ ->
+                    {error, <<"not-authorized">>, User}
+            end;
+        _ ->
+            {error, <<"bad-protocol">>}
     end.
 
+-spec prepare(binary()) -> 'error' | [binary(),...].
 prepare(ClientIn) ->
     case parse(ClientIn) of
-	[<<>>, UserMaybeDomain, Password] ->
-	    case parse_domain(UserMaybeDomain) of
-		%% <NUL>login@domain<NUL>pwd
-		[User, _Domain] ->
-		    [UserMaybeDomain, 
+        [<<>>, UserMaybeDomain, Password] ->
+            case parse_domain(UserMaybeDomain) of
+                %% <NUL>login@domain<NUL>pwd
+                [User, _Domain] ->
+                    [UserMaybeDomain, 
              User, 
              Password];
-		%% <NUL>login<NUL>pwd
-		[User] ->
-		    [<<>>, User, Password]
-	    end;
-	%% login@domain<NUL>login<NUL>pwd
-	[AuthzId, User, Password] ->
-	    [AuthzId, User, Password];
-	_ ->
-	    error
+                %% <NUL>login<NUL>pwd
+                [User] ->
+                    [<<>>, User, Password]
+            end;
+        %% login@domain<NUL>login<NUL>pwd
+        [AuthzId, User, Password] ->
+            [AuthzId, User, Password];
+        _ ->
+            error
     end.
 
 
+-spec parse(binary()) -> [binary(),...].
 parse(S) ->
     parse1(S, <<>>, []).
 
+-spec parse1(binary(),binary(),[binary()]) -> [binary(),...].
 parse1(<<0, Cs/binary>>, S, T) ->
     parse1(Cs, <<>>, [binary_reverse(S)| T]);
 parse1(<<C, Cs/binary>>, S, T) ->
@@ -93,9 +104,11 @@ parse1(<<>>, S, T) ->
     lists:reverse([binary_reverse(S)| T]).
 
 
+-spec parse_domain(binary()) -> [binary(),...].
 parse_domain(S) ->
     parse_domain1(S, <<>>, []).
 
+-spec parse_domain1(binary(),binary(),[binary()]) -> [binary(),...].
 parse_domain1(<<$@, Cs/binary>>, S, T) ->
     parse_domain1(Cs, <<>>, [binary_reverse(S) | T]);
 parse_domain1(<<C, Cs/binary>>, S, T) ->
@@ -104,6 +117,7 @@ parse_domain1(<<>>, S, T) ->
     lists:reverse([binary_reverse(S) | T]).
 
 
+-spec binary_reverse(binary()) -> binary().
 binary_reverse(<<>>) ->
     <<>>;
 binary_reverse(<<H,T/binary>>) ->
