@@ -28,7 +28,7 @@
 -author('alexey@process-one.net').
 
 %% External exports
--behaviour(gen_auth).
+-behaviour(ejabberd_gen_auth).
 -export([start/1,
          set_password/3,
          check_password/3,
@@ -44,7 +44,9 @@
          is_user_exists/2,
          remove_user/2,
          remove_user/3,
-         plain_password_required/0
+         plain_password_required/0,
+         login/2,
+         get_password/3
         ]).
 
 -include("ejabberd.hrl").
@@ -329,3 +331,7 @@ remove_user(User, Server, Password) ->
             {atomic, Result} = odbc_queries:sql_transaction(LServer, F),
             Result
     end.
+
+%% @doc Unimplemented gen_auth callbacks
+login(_User, _Server) -> erlang:error(not_implemented).
+get_password(_User, _Server, _DefaultValue) -> erlang:error(not_implemented).

@@ -44,6 +44,9 @@
 
 -define(BACKEND, (mod_privacy_backend:backend())).
 
+-export_type([userlist/0]).
+
+-type userlist() :: #userlist{}.
 -type list_name() :: binary().
 -type list_item() :: #listitem{}.
 
@@ -157,7 +160,7 @@ start_backend_module(Opts) ->
 mod_privacy_backend(Backend) when is_atom(Backend) ->
     lists:flatten(
       ["-module(mod_privacy_backend).
-        -export([backend/0]).  
+        -export([backend/0]).
         -spec backend() -> atom().
         backend() ->
         mod_privacy_",
@@ -610,7 +613,7 @@ item_to_xml_attrs(Item=#listitem{type=Type, value=Value}) ->
 item_to_xml_attrs1(#listitem{action=Action, order=Order}) ->
     [{<<"action">>, action_to_binary(Action)},
      {<<"order">>, order_to_binary(Order)}].
-    
+
 item_to_xml_children(#listitem{match_all=true}) ->
     [];
 item_to_xml_children(#listitem{match_all=false,

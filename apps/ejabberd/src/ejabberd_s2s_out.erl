@@ -63,18 +63,20 @@
 -record(state, {socket,
                 streamid,
                 use_v10,
-                tls = false,
-                tls_required = false,
-                tls_enabled = false,
-                tls_options = [connect],
-                authenticated = false,
-                db_enabled = true,
-                try_auth = true,
+                tls = false             :: boolean(),
+                tls_required = false    :: boolean(),
+                tls_enabled = false     :: boolean(),
+                tls_options = [connect] :: list(),
+                authenticated = false   :: boolean(),
+                db_enabled = true       :: boolean(),
+                try_auth = true         :: boolean(),
                 myname, server, queue,
                 delay_to_retry = undefined_delay,
-                new = false, verify = false,
+                new = false             :: boolean(),
+                verify = false          :: boolean(),
                 bridge,
-                timer}).
+                timer                   :: reference()
+              }).
 -type state() :: #state{}.
 
 -type statename() :: open_socket
@@ -144,13 +146,16 @@
 start(From, Host, Type) ->
     ?SUPERVISOR_START.
 
+
 -spec start_link(_,_,_) -> 'ignore' | {'error',_} | {'ok',pid()}.
 start_link(From, Host, Type) ->
     p1_fsm:start_link(ejabberd_s2s_out, [From, Host, Type],
                       fsm_limit_opts() ++ ?FSMOPTS).
 
+
 start_connection(Pid) ->
     p1_fsm:send_event(Pid, init).
+
 
 stop_connection(Pid) ->
     p1_fsm:send_event(Pid, closed).
@@ -283,11 +288,9 @@ open_socket(_, StateData) ->
                    Port :: inet:port_number()) -> {'error',_} | {'ok',_}.
 open_socket1({_,_,_,_} = Addr, Port) ->
     open_socket2(inet, Addr, Port);
-
 %% IPv6
 open_socket1({_,_,_,_,_,_,_,_} = Addr, Port) ->
     open_socket2(inet6, Addr, Port);
-
 %% Hostname
 open_socket1(Host, Port) ->
     lists:foldl(fun(_Family, {ok, _Socket} = R) ->
@@ -300,6 +303,7 @@ open_socket1(Host, Port) ->
                                             open_socket1(Addr, Port)
                                     end, ?SOCKET_DEFAULT_RESULT, Addrs)
                 end, ?SOCKET_DEFAULT_RESULT, outgoing_s2s_families()).
+
 
 -spec open_socket2(Type :: 'inet' | 'inet6',
                    Addr :: inet:ip_address(),
@@ -353,24 +357,20 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
                       [StateData#state.myname, StateData#state.server, NSProvided, DB, Attrs]),
             {stop, normal, StateData}
     end;
-
 wait_for_stream({xmlstreamerror, _}, StateData) ->
     send_text(StateData,
               <<(?INVALID_XML_ERR)/binary, (?STREAM_TRAILER)/binary>>),
     ?INFO_MSG("Closing s2s connection: ~s -> ~s (invalid xml)",
               [StateData#state.myname, StateData#state.server]),
     {stop, normal, StateData};
-
 wait_for_stream({xmlstreamend,_Name}, StateData) ->
     ?INFO_MSG("Closing s2s connection: ~s -> ~s (xmlstreamend)",
               [StateData#state.myname, StateData#state.server]),
     {stop, normal, StateData};
-
 wait_for_stream(timeout, StateData) ->
     ?INFO_MSG("Closing s2s connection: ~s -> ~s (timeout in wait_for_stream)",
               [StateData#state.myname, StateData#state.server]),
     {stop, normal, StateData};
-
 wait_for_stream(closed, StateData) ->
     ?INFO_MSG("Closing s2s connection: ~s -> ~s (close in wait_for_stream)",
               [StateData#state.myname, StateData#state.server]),
@@ -436,19 +436,16 @@ wait_for_validation({xmlstreamelement, El}, StateData) ->
         _ ->
             {next_state, wait_for_validation, StateData, ?FSMTIMEOUT*3}
     end;
-
 wait_for_validation({xmlstreamend, _Name}, StateData) ->
     ?INFO_MSG("wait for validation: ~s -> ~s (xmlstreamend)",
               [StateData#state.myname, StateData#state.server]),
     {stop, normal, StateData};
-
 wait_for_validation({xmlstreamerror, _}, StateData) ->
     ?INFO_MSG("wait for validation: ~s -> ~s (xmlstreamerror)",
               [StateData#state.myname, StateData#state.server]),
     send_text(StateData,
               <<(?INVALID_XML_ERR)/binary, (?STREAM_TRAILER)/binary>>),
     {stop, normal, StateData};
-
 wait_for_validation(timeout, #state{verify = {VPid, VKey, SID}} = StateData)
   when is_pid(VPid) and is_list(VKey) and is_list(SID) ->
     %% This is an auxiliary s2s connection for dialback.
@@ -456,12 +453,10 @@ wait_for_validation(timeout, #state{verify = {VPid, VKey, SID}} = StateData)
     ?DEBUG("wait_for_validation: ~s -> ~s (timeout in verify connection)",
            [StateData#state.myname, StateData#state.server]),
     {stop, normal, StateData};
-
 wait_for_validation(timeout, StateData) ->
     ?INFO_MSG("wait_for_validation: ~s -> ~s (connect timeout)",
               [StateData#state.myname, StateData#state.server]),
     {stop, normal, StateData};
-
 wait_for_validation(closed, StateData) ->
     ?INFO_MSG("wait for validation: ~s -> ~s (closed)",
               [StateData#state.myname, StateData#state.server]),
@@ -561,21 +556,17 @@ wait_for_features({xmlstreamelement, El}, StateData) ->
                       [StateData#state.myname, StateData#state.server]),
             {stop, normal, StateData}
     end;
-
 wait_for_features({xmlstreamend, _Name}, StateData) ->
     ?INFO_MSG("wait_for_features: xmlstreamend", []),
     {stop, normal, StateData};
-
 wait_for_features({xmlstreamerror, _}, StateData) ->
     send_text(StateData,
               <<(?INVALID_XML_ERR)/binary, (?STREAM_TRAILER)/binary>>),
     ?INFO_MSG("wait for features: xmlstreamerror", []),
     {stop, normal, StateData};
-
 wait_for_features(timeout, StateData) ->
     ?INFO_MSG("wait for features: timeout", []),
     {stop, normal, StateData};
-
 wait_for_features(closed, StateData) ->
     ?INFO_MSG("wait for features: closed", []),
     {stop, normal, StateData}.
@@ -630,21 +621,17 @@ wait_for_auth_result({xmlstreamelement, El}, StateData) ->
                       [StateData#state.myname, StateData#state.server]),
             {stop, normal, StateData}
     end;
-
 wait_for_auth_result({xmlstreamend, _Name}, StateData) ->
     ?INFO_MSG("wait for auth result: xmlstreamend", []),
     {stop, normal, StateData};
-
 wait_for_auth_result({xmlstreamerror, _}, StateData) ->
     send_text(StateData,
               <<(?INVALID_XML_ERR)/binary, (?STREAM_TRAILER)/binary>>),
     ?INFO_MSG("wait for auth result: xmlstreamerror", []),
     {stop, normal, StateData};
-
 wait_for_auth_result(timeout, StateData) ->
     ?INFO_MSG("wait for auth result: timeout", []),
     {stop, normal, StateData};
-
 wait_for_auth_result(closed, StateData) ->
     ?INFO_MSG("wait for auth result: closed", []),
     {stop, normal, StateData}.
@@ -694,21 +681,17 @@ wait_for_starttls_proceed({xmlstreamelement, El}, StateData) ->
                       [StateData#state.myname, StateData#state.server]),
             {stop, normal, StateData}
     end;
-
 wait_for_starttls_proceed({xmlstreamend, _Name}, StateData) ->
     ?INFO_MSG("wait for starttls proceed: xmlstreamend", []),
     {stop, normal, StateData};
-
 wait_for_starttls_proceed({xmlstreamerror, _}, StateData) ->
     send_text(StateData,
               <<(?INVALID_XML_ERR)/binary, (?STREAM_TRAILER)/binary>>),
     ?INFO_MSG("wait for starttls proceed: xmlstreamerror", []),
     {stop, normal, StateData};
-
 wait_for_starttls_proceed(timeout, StateData) ->
     ?INFO_MSG("wait for starttls proceed: timeout", []),
     {stop, normal, StateData};
-
 wait_for_starttls_proceed(closed, StateData) ->
     ?INFO_MSG("wait for starttls proceed: closed", []),
     {stop, normal, StateData}.
@@ -773,29 +756,24 @@ stream_established({xmlstreamelement, El}, StateData) ->
             ok
     end,
     {next_state, stream_established, StateData};
-
 stream_established({xmlstreamend, _Name}, StateData) ->
     ?INFO_MSG("Connection closed in stream established: ~s -> ~s (xmlstreamend)",
               [StateData#state.myname, StateData#state.server]),
     {stop, normal, StateData};
-
 stream_established({xmlstreamerror, _}, StateData) ->
     send_text(StateData,
               <<(?INVALID_XML_ERR)/binary, (?STREAM_TRAILER)/binary>>),
     ?INFO_MSG("stream established: ~s -> ~s (xmlstreamerror)",
               [StateData#state.myname, StateData#state.server]),
     {stop, normal, StateData};
-
 stream_established(timeout, StateData) ->
     ?INFO_MSG("stream established: ~s -> ~s (timeout)",
               [StateData#state.myname, StateData#state.server]),
     {stop, normal, StateData};
-
 stream_established(closed, StateData) ->
     ?INFO_MSG("stream established: ~s -> ~s (closed)",
               [StateData#state.myname, StateData#state.server]),
     {stop, normal, StateData}.
-
 
 
 %%----------------------------------------------------------------------
@@ -869,6 +847,7 @@ handle_sync_event(_Event, _From, StateName, StateData) ->
     Reply = ok,
     {reply, Reply, StateName, StateData, get_timeout_interval(StateName)}.
 
+
 code_change(_OldVsn, StateName, StateData, _Extra) ->
     {ok, StateName, StateData}.
 
@@ -884,7 +863,6 @@ handle_info({send_text, Text}, StateName, StateData) ->
     Timer = erlang:start_timer(?S2STIMEOUT, self(), []),
     {next_state, StateName, StateData#state{timer = Timer},
      get_timeout_interval(StateName)};
-
 handle_info({send_element, El}, StateName, StateData) ->
     case StateName of
         stream_established ->
@@ -915,23 +893,18 @@ handle_info({send_element, El}, StateName, StateData) ->
             {next_state, StateName, StateData#state{queue = Q},
              get_timeout_interval(StateName)}
     end;
-
 handle_info({timeout, Timer, _}, wait_before_retry,
             #state{timer = Timer} = StateData) ->
     ?INFO_MSG("Reconnect delay expired: Will now retry to connect to ~s when needed.", [StateData#state.server]),
     {stop, normal, StateData};
-
 handle_info({timeout, Timer, _}, _StateName,
             #state{timer = Timer} = StateData) ->
     ?INFO_MSG("Closing connection with ~s: timeout", [StateData#state.server]),
     {stop, normal, StateData};
-
 handle_info(terminate_if_waiting_before_retry, wait_before_retry, StateData) ->
     {stop, normal, StateData};
-
 handle_info(terminate_if_waiting_before_retry, StateName, StateData) ->
     {next_state, StateName, StateData, get_timeout_interval(StateName)};
-
 handle_info(_, StateName, StateData) ->
     {next_state, StateName, StateData, get_timeout_interval(StateName)}.
 
@@ -976,9 +949,11 @@ print_state(State) ->
 send_text(StateData, Text) ->
     ejabberd_socket:send(StateData#state.socket, Text).
 
+
 -spec send_element(state(), jlib:xmlel()) -> 'ok'.
 send_element(StateData, El) ->
     send_text(StateData, xml:element_to_binary(El)).
+
 
 -spec send_queue(state(), Q :: queue()) -> 'ok'.
 send_queue(StateData, Q) ->
@@ -989,6 +964,7 @@ send_queue(StateData, Q) ->
         {empty, _Q1} ->
             ok
     end.
+
 
 %% @doc Bounce a single message (xmlel)
 -spec bounce_element(El :: jlib:xmlel(), Error :: jlib:xmlel()) -> 'ok'.
@@ -1004,6 +980,7 @@ bounce_element(El, Error) ->
             ejabberd_router:route(To, From, Err)
     end.
 
+
 -spec bounce_queue(Q :: queue(), Error :: jlib:xmlel()) -> 'ok'.
 bounce_queue(Q, Error) ->
     case queue:out(Q) of
@@ -1014,9 +991,11 @@ bounce_queue(Q, Error) ->
             ok
     end.
 
+
 -spec new_id() -> binary().
 new_id() ->
     list_to_binary(randoms:get_string()).
+
 
 -spec cancel_timer(reference()) -> 'ok'.
 cancel_timer(Timer) ->
@@ -1028,6 +1007,7 @@ cancel_timer(Timer) ->
             ok
     end.
 
+
 -spec bounce_messages(jlib:xmlel()) -> 'ok'.
 bounce_messages(Error) ->
     receive
@@ -1037,6 +1017,7 @@ bounce_messages(Error) ->
     after 0 ->
             ok
     end.
+
 
 -spec send_db_request(state()) -> fsm_return().
 send_db_request(StateData) ->
@@ -1139,6 +1120,7 @@ get_addr_port(Server) ->
             end
     end.
 
+
 -spec srv_lookup(ejabberd:server()) -> {'error',atom()} | {'ok', inet:hostent()}.
 srv_lookup(Server) ->
     Options = case ejabberd_config:get_local_option(s2s_dns_options) of
@@ -1148,6 +1130,7 @@ srv_lookup(Server) ->
     TimeoutMs = timer:seconds(proplists:get_value(timeout, Options, 10)),
     Retries = proplists:get_value(retries, Options, 2),
     srv_lookup(Server, TimeoutMs, Retries).
+
 
 %% @doc XXX - this behaviour is suboptimal in the case that the domain
 %% has a "_xmpp-server._tcp." but not a "_jabber._tcp." record and
@@ -1174,6 +1157,7 @@ srv_lookup(Server, Timeout, Retries) ->
         {ok, _HEnt} = R -> R
     end.
 
+
 test_get_addr_port(Server) ->
     lists:foldl(
       fun(_, Acc) ->
@@ -1185,6 +1169,7 @@ test_get_addr_port(Server) ->
                       lists:keyreplace(HostPort, 1, Acc, {HostPort, Num + 1})
               end
       end, [], lists:seq(1, 100000)).
+
 
 -spec get_addrs(Host :: atom() | binary() | string(),
                 Family :: 'inet4' | 'inet6' | 'ipv4' | 'ipv6'
@@ -1217,6 +1202,7 @@ outgoing_s2s_port() ->
             5269
     end.
 
+
 -spec outgoing_s2s_families() -> ['ipv4' | 'ipv6',...].
 outgoing_s2s_families() ->
     case ejabberd_config:get_local_option(outgoing_s2s_options) of
@@ -1237,6 +1223,7 @@ outgoing_s2s_families() ->
             [ipv4, ipv6]
     end.
 
+
 -spec outgoing_s2s_timeout() -> non_neg_integer() | infinity.
 outgoing_s2s_timeout() ->
     case ejabberd_config:get_local_option(outgoing_s2s_options) of
@@ -1249,12 +1236,14 @@ outgoing_s2s_timeout() ->
             10000
     end.
 
+
 %% @doc Human readable S2S logging: Log only new outgoing connections as INFO
 %% Do not log dialback
 log_s2s_out(false, _, _, _) -> ok;
 %% Log new outgoing connections:
 log_s2s_out(_, Myname, Server, Tls) ->
     ?INFO_MSG("Trying to open s2s connection: ~s -> ~s with TLS=~p", [Myname, Server, Tls]).
+
 
 %% @doc Calculate timeout depending on which state we are in:
 %% Can return integer > 0 | infinity
@@ -1270,6 +1259,7 @@ get_timeout_interval(StateName) ->
         _ ->
             ?FSMTIMEOUT
     end.
+
 
 %% @doc This function is intended to be called at the end of a state
 %% function that want to wait for a reconnect delay before stopping.
@@ -1295,10 +1285,10 @@ wait_before_reconnect(StateData) ->
                                                     delay_to_retry = Delay,
                                                     queue = queue:new()}}.
 
+
 %% @doc Get the maximum allowed delay for retry to reconnect (in miliseconds).
 %% The default value is 5 minutes.
 %% The option {s2s_max_retry_delay, Seconds} can be used (in seconds).
-%% @spec () -> integer()
 get_max_retry_delay() ->
     case ejabberd_config:get_local_option(s2s_max_retry_delay) of
         Seconds when is_integer(Seconds) ->
@@ -1307,7 +1297,8 @@ get_max_retry_delay() ->
             ?MAX_RETRY_DELAY
     end.
 
-%% Terminate s2s_out connections that are in state wait_before_retry
+
+%% @doc Terminate s2s_out connections that are in state wait_before_retry
 terminate_if_waiting_delay(From, To) ->
     FromTo = {From, To},
     Pids = ejabberd_s2s:get_connections_pids(FromTo),
@@ -1317,6 +1308,7 @@ terminate_if_waiting_delay(From, To) ->
       end,
       Pids).
 
+
 -spec fsm_limit_opts() -> [{'max_queue',integer()}].
 fsm_limit_opts() ->
     case ejabberd_config:get_local_option(max_fsm_queue) of
@@ -1325,6 +1317,7 @@ fsm_limit_opts() ->
         _ ->
             []
     end.
+
 
 %% @doc Get IPs predefined for a given s2s domain in the configuration
 -spec get_predefined_addresses(atom()) -> [{inet:ip_address(), inet:port_number()}].

@@ -28,7 +28,7 @@
 -author('alexey@process-one.net').
 
 %% External exports
--behaviour(gen_auth).
+-behaviour(ejabberd_gen_auth).
 -export([start/1,
          set_password/3,
          check_password/3,

@@ -28,6 +28,7 @@
 -author('alexey@process-one.net').
 
 %% External exports
+-behaviour(ejabberd_gen_auth).
 -export([start/1,
          set_password/3,
          check_password/3,
@@ -45,6 +46,8 @@
          remove_user/3,
          plain_password_required/0
         ]).
+%% Exported for behaviour but not implemented
+-export([login/2, get_password/3]).
 
 -include("ejabberd.hrl").
 
@@ -409,4 +412,6 @@ update_table() ->
     end.
 
 
-
+%% @doc gen_auth unimplemented callbacks
+login(_User, _Server) -> erlang:error(not_implemented).
+get_password(_User, _Server, _DefaultValue) -> erlang:error(not_implemented).

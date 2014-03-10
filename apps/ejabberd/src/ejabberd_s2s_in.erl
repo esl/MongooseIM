@@ -56,19 +56,19 @@
 -define(DICT, dict).
 
 -record(state, {socket,
-                sockmod :: ejabberd:sockmod(),
-                streamid :: binary(),
+                sockmod               :: ejabberd:sockmod(),
+                streamid              :: binary(),
                 shaper,
-                tls = false :: boolean(),
-                tls_enabled = false :: boolean(),
-                tls_required = false :: boolean(),
+                tls = false           :: boolean(),
+                tls_enabled = false   :: boolean(),
+                tls_required = false  :: boolean(),
                 tls_certverify = false :: boolean(),
-                tls_options = [] :: [{_,_}],
-                server,
+                tls_options = []      :: [{_,_}],
+                server                :: ejabberd:server(),
                 authenticated = false :: boolean(),
-                auth_domain,
+                auth_domain           :: binary(),
                 connections = ?DICT:new(),
-                timer :: reference()
+                timer                 :: reference()
               }).
 -type state() :: #state{}.
 
@@ -126,9 +126,11 @@
 start(SockData, Opts) ->
     ?SUPERVISOR_START.
 
+
 -spec start_link(_,_) -> 'ignore' | {'error',_} | {'ok',pid()}.
 start_link(SockData, Opts) ->
     gen_fsm:start_link(ejabberd_s2s_in, [SockData, Opts], ?FSMOPTS).
+
 
 socket_type() ->
     xml_stream.
@@ -268,15 +270,12 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
             send_text(StateData, ?INVALID_NAMESPACE_ERR),
             {stop, normal, StateData}
     end;
-
 wait_for_stream({xmlstreamerror, _}, StateData) ->
     send_text(StateData,
               <<(?STREAM_HEADER(<<"">>))/binary, (?INVALID_XML_ERR)/binary, (?STREAM_TRAILER)/binary>>),
     {stop, normal, StateData};
-
 wait_for_stream(timeout, StateData) ->
     {stop, normal, StateData};
-
 wait_for_stream(closed, StateData) ->
     {stop, normal, StateData}.
 
@@ -381,17 +380,15 @@ wait_for_feature_request({xmlstreamelement, El}, StateData) ->
         _ ->
             stream_established({xmlstreamelement, El}, StateData)
     end;
-
 wait_for_feature_request({xmlstreamend, _Name}, StateData) ->
     send_text(StateData, ?STREAM_TRAILER),
     {stop, normal, StateData};
-
 wait_for_feature_request({xmlstreamerror, _}, StateData) ->
     send_text(StateData, <<(?INVALID_XML_ERR)/binary, (?STREAM_TRAILER)/binary>>),
     {stop, normal, StateData};
-
 wait_for_feature_request(closed, StateData) ->
     {stop, normal, StateData}.
+
 
 -spec stream_established(ejabberd:xml_stream_item(), state()) -> fsm_return().
 stream_established({xmlstreamelement, El}, StateData) ->
@@ -503,7 +500,6 @@ stream_established({xmlstreamelement, El}, StateData) ->
             ejabberd_hooks:run(s2s_loop_debug, [{xmlstreamelement, El}]),
             {next_state, stream_established, StateData#state{timer = Timer}}
     end;
-
 stream_established({valid, From, To}, StateData) ->
     send_element(StateData,
                  #xmlel{name = <<"db:result">>,
@@ -516,7 +512,6 @@ stream_established({valid, From, To}, StateData) ->
             connections = ?DICT:store({LFrom, LTo}, established,
                                       StateData#state.connections)},
     {next_state, stream_established, NSD};
-
 stream_established({invalid, From, To}, StateData) ->
     send_element(StateData,
                  #xmlel{name = <<"db:result">>,
@@ -529,21 +524,16 @@ stream_established({invalid, From, To}, StateData) ->
             connections = ?DICT:erase({LFrom, LTo},
                                       StateData#state.connections)},
     {next_state, stream_established, NSD};
-
 stream_established({xmlstreamend, _Name}, StateData) ->
     {stop, normal, StateData};
-
 stream_established({xmlstreamerror, _}, StateData) ->
     send_text(StateData,
               <<(?INVALID_XML_ERR)/binary, (?STREAM_TRAILER)/binary>>),
     {stop, normal, StateData};
-
 stream_established(timeout, StateData) ->
     {stop, normal, StateData};
-
 stream_established(closed, StateData) ->
     {stop, normal, StateData}.
-
 
 
 %%----------------------------------------------------------------------
@@ -567,13 +557,15 @@ stream_established(closed, StateData) ->
 %%----------------------------------------------------------------------
 handle_event(_Event, StateName, StateData) ->
     {next_state, StateName, StateData}.
+
 %%----------------------------------------------------------------------
 %% Func: handle_sync_event/4
 %% Returns: The associated StateData for this connection
 %%   {reply, Reply, NextStateName, NextStateData}
 %%   Reply = {state_infos, [{InfoName::atom(), InfoValue::any()]
 %%----------------------------------------------------------------------
--spec handle_sync_event(_,_,_,_) -> {'reply','ok' | {'state_infos',[any(),...]},_,_}.
+-spec handle_sync_event(any(), any(), statename(), state()
+                       ) -> {'reply','ok' | {'state_infos',[any(),...]},_,_}.
 handle_sync_event(get_state_infos, _From, StateName, StateData) ->
     SockMod = StateData#state.sockmod,
     {Addr,Port} = try SockMod:peername(StateData#state.socket) of
@@ -620,6 +612,7 @@ handle_sync_event(_Event, _From, StateName, StateData) ->
     Reply = ok,
     {reply, Reply, StateName, StateData}.
 
+
 code_change(_OldVsn, StateName, StateData, _Extra) ->
     {ok, StateName, StateData}.
 
@@ -633,11 +626,9 @@ code_change(_OldVsn, StateName, StateData, _Extra) ->
 handle_info({send_text, Text}, StateName, StateData) ->
     send_text(StateData, Text),
     {next_state, StateName, StateData};
-
 handle_info({timeout, Timer, _}, _StateName,
             #state{timer = Timer} = StateData) ->
     {stop, normal, StateData};
-
 handle_info(_, StateName, StateData) ->
     {next_state, StateName, StateData}.
 
@@ -647,7 +638,7 @@ handle_info(_, StateName, StateData) ->
 %% Purpose: Shutdown the fsm
 %% Returns: any
 %%----------------------------------------------------------------------
--spec terminate(_,_,state()) -> 'ok'.
+-spec terminate(any(), statename(), state()) -> 'ok'.
 terminate(Reason, _StateName, StateData) ->
     ?DEBUG("terminated: ~p", [Reason]),
     (StateData#state.sockmod):close(StateData#state.socket),
@@ -661,18 +652,22 @@ terminate(Reason, _StateName, StateData) ->
 send_text(StateData, Text) ->
     (StateData#state.sockmod):send(StateData#state.socket, Text).
 
+
 -spec send_element(state(), jlib:xmlel()) -> binary().
 send_element(StateData, El) ->
     send_text(StateData, xml:element_to_binary(El)).
+
 
 -spec change_shaper(state(), Host :: 'global' | binary(), ejabberd:jid()) -> any().
 change_shaper(StateData, Host, JID) ->
     Shaper = acl:match_rule(Host, StateData#state.shaper, JID),
     (StateData#state.sockmod):change_shaper(StateData#state.socket, Shaper).
 
+
 -spec new_id() -> binary().
 new_id() ->
     list_to_binary(randoms:get_string()).
+
 
 -spec cancel_timer(reference()) -> 'ok'.
 cancel_timer(Timer) ->
@@ -683,6 +678,7 @@ cancel_timer(Timer) ->
     after 0 ->
             ok
     end.
+
 
 -spec is_key_packet(jlib:xmlel()) -> 'false' | {'key',_,_,_,binary()}
                                   | {'verify',_,_,_,binary()}.
@@ -702,6 +698,7 @@ is_key_packet(#xmlel{name = Name, attrs = Attrs,
      xml:get_cdata(Els)};
 is_key_packet(_) ->
     false.
+
 
 -spec get_cert_domains(#'Certificate'{}) -> [any()].
 get_cert_domains(Cert) ->
@@ -791,6 +788,7 @@ get_cert_domains(Cert) ->
                   []
           end, Extensions).
 
+
 -spec match_domain(binary(), binary()) -> boolean().
 match_domain(Domain, Domain) ->
     true;
@@ -798,6 +796,7 @@ match_domain(Domain, Pattern) ->
     DLabels = binary:split(Domain, <<".">>, [global]),
     PLabels = binary:split(Pattern, <<".">>, [global]),
     match_labels(DLabels, PLabels).
+
 
 -spec match_labels([binary()],[binary()]) -> boolean().
 match_labels([], []) ->

@@ -55,6 +55,7 @@
 add_handler() ->
     gen_event:add_handler(alarms_utils:event_manager(), ?MODULE, []).
 
+
 process_command(From, To, Packet) ->
     case To of
     #jid{luser = <<"">>, lresource = <<"watchdog">>} ->
@@ -194,6 +195,7 @@ get_large_heap() ->
     Options = alarms_server:get_monitor_options(),
     proplists:get_value(large_heap, Options).
 
+
 process_large_heap(Pid, Info) ->
     Host = ?MYNAME,
     case ejabberd_config:get_local_option(watchdog_admins) of
@@ -216,6 +218,7 @@ process_large_heap(Pid, Info) ->
             ok
     end.
 
+
 -spec send_message(From :: ejabberd:jid(),
                    To :: ejabberd:jid(),
                    Body :: iolist()) -> 'ok'.
@@ -226,6 +229,7 @@ send_message(From, To, Body) ->
                 attrs = [{<<"type">>, <<"chat">>}],
                 children = [BodyEl]},
     ejabberd_router:route(From, To, El).
+
 
 -spec get_admin_jids() -> [ejabberd:jid()].
 get_admin_jids() ->
@@ -241,6 +245,7 @@ get_admin_jids() ->
         _ ->
             []
     end.
+
 
 -spec detailed_info(pid()) -> iolist().
 detailed_info(Pid) ->
@@ -265,6 +270,7 @@ detailed_info(Pid) ->
             detailed_info1(Pid)
     end.
 
+
 -spec detailed_info1(pid()) -> iolist().
 detailed_info1(Pid) ->
     io_lib:format(
@@ -276,6 +282,7 @@ detailed_info1(Pid) ->
               process_info(Pid, stack_size)
              ]]).
 
+
 -spec c2s_info(pid()) -> iolist().
 c2s_info(Pid) ->
     ["Process type: c2s",
@@ -283,6 +290,7 @@ c2s_info(Pid) ->
      "\n",
      io_lib:format("Command to kill this process: kill ~s ~w",
                    [atom_to_list(node()), Pid])].
+
 
 -spec s2s_out_info(pid()) -> iolist().
 s2s_out_info(Pid) ->
@@ -301,6 +309,7 @@ s2s_out_info(Pid) ->
      io_lib:format("Command to kill this process: kill ~s ~w",
                    [atom_to_list(node()), Pid])].
 
+
 -spec service_info(pid()) -> iolist().
 service_info(Pid) ->
     Routes = mnesia:dirty_select(
@@ -316,6 +325,7 @@ service_info(Pid) ->
      "\n",
      io_lib:format("Command to kill this process: kill ~s ~w",
                    [atom_to_list(node()), Pid])].
+
 
 -spec check_send_queue(pid()) -> iolist().
 check_send_queue(Pid) ->
@@ -340,6 +350,7 @@ check_send_queue(Pid) ->
         _ ->
             ""
     end.
+
 
 -spec process_command1(From :: ejabberd:jid(),
                        To :: ejabberd:jid(),
@@ -373,6 +384,7 @@ help() ->
         "  showlh <node>\n"
         "  setlh <node> <integer>".
 
+
 -spec remote_command(Node :: atom(),
                      Args :: any(),
                      From :: ejabberd:jid(),
@@ -386,6 +398,7 @@ remote_command(Node, Args, From, To) ->
                 Result
         end,
     send_message(To, From, Message).
+
 
 -spec process_remote_command([any(),...]) -> iolist().
 process_remote_command([kill, SPid]) ->
