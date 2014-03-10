@@ -26,19 +26,19 @@
 -type scope() :: baseObject | singleLevel | wholeSubtree.
 
 -record(eldap_search,
-	{scope = wholeSubtree              :: scope(),
+        {scope = wholeSubtree              :: scope(),
          base = <<"">>                     :: binary(),
          filter                            :: eldap:filter(),
          limit = 0                         :: non_neg_integer(),
-	 attributes = []                   :: [binary()],
+         attributes = []                   :: [binary()],
          types_only = false                :: boolean(),
-	 deref_aliases = neverDerefAliases :: neverDerefAliases |
+         deref_aliases = neverDerefAliases :: neverDerefAliases |
                                               derefInSearching |
                                               derefFindingBaseObj |
                                               derefAlways,
          timeout = 0                       :: non_neg_integer()}).
 
--record(eldap_search_result, {entries = []   :: [eldap_entry()],
+-record(eldap_search_result, {entries = []   :: [eldap:eldap_entry()],
                               referrals = [] :: list()}).
 
 -record(eldap_entry, {object_name = <<>> :: binary(),
@@ -58,7 +58,3 @@
                        base = <<"">> :: binary(),
                        deref_aliases = never :: never | searching |
                                                 finding | always}).
-
--type eldap_config() :: #eldap_config{}.
--type eldap_search() :: #eldap_search{}.
--type eldap_entry() :: #eldap_entry{}.
