@@ -57,6 +57,8 @@
 
 -include("ejabberd.hrl").
 
+-export_type([authmodule/0]).
+
 -type authmodule() :: ejabberd_auth_anonymous
                     | ejabberd_auth_external
                     | ejabberd_auth_internal

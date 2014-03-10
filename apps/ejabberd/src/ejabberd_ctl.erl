@@ -695,7 +695,7 @@ format_command_lines(CALD, _MaxCmdLen, MaxC, ShCode, long) ->
 %% Print Tags
 %%-----------------------------
 
-print_usage_tags(MaxC, _ShCode) ->
+print_usage_tags(MaxC, ShCode) ->
     ?PRINT("Available tags and commands:", []),
     TagsCommands = ejabberd_commands:get_tags_commands(),
     lists:foreach(
