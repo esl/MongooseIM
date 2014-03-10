@@ -305,12 +305,12 @@
 %       jlib:stream_errort(<<"">>, Lang, Text)).
 
 
--record(jid, {user = <<>>      :: binary(),
+-record(jid, {user = <<>>      :: ejabberd:user(),
               server = <<>>    :: ejabberd:server(),
-              resource = <<>>  :: binary(),
-              luser = <<>>     :: binary(),
-              lserver = <<>>   :: binary(),
-              lresource = <<>> :: binary()
+              resource = <<>>  :: ejabberd:resource(),
+              luser = <<>>     :: ejabberd:luser(),
+              lserver = <<>>   :: ejabberd:lserver(),
+              lresource = <<>> :: ejabberd:lresource()
              }).
 
 -record(iq, {id = <<>>    :: binary(),

@@ -48,7 +48,12 @@
 
 -type iq() :: #iq{}.
 
--type server() :: binary().
+-type user()      :: binary().
+-type server()    :: binary().
+-type resource()  :: binary().
+-type luser()     :: binary().
+-type lserver()   :: binary().
+-type lresource() :: binary().
 
 %% A tuple-style JID
 -type simple_jid() :: {binary(), server(), binary()}.
@@ -58,7 +63,7 @@
 
 -type sid() :: binary().
 
-%% Incoming event from XML stream
+%% Incoming event from XML stream. Used everywhere in xmlstream fsm modules
 -type xml_stream_item() :: 'closed'
                           | 'timeout'
                           | {'xmlstreamelement', jlib:xmlel()}
@@ -73,8 +78,13 @@
               simple_jid/0,
               simple_bare_jid/0,
               sid/0,
+              xml_stream_item/0,
+              user/0,
               server/0,
-              xml_stream_item/0
+              resource/0,
+              luser/0,
+              lserver/0,
+              lresource/0
             ]).
 
 start() ->

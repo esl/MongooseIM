@@ -40,15 +40,15 @@
 -export_type([rule/0]).
 
 -type rule() :: 'all' | 'none' | atom().
--type access() :: boolean().
--type host() :: binary() | 'global'.
+-type host() :: ejabberd:server() | 'global'.
 -type acl_name() :: {atom(), host()}.
 -type regexp() :: iolist() | binary().
 -type aclspec() :: all
-                | {user, _}
-                | {user, _, ejabberd:server()}
+                | none
+                | {user, ejabberd:user()}
+                | {user, ejabberd:user(), ejabberd:server()}
                 | {server, ejabberd:server()}
-                | {resource, binary()}
+                | {resource, ejabberd:resource()}
                 | {user_regexp, regexp()}
                 | {shared_group, _}
                 | {shared_group, _, _}
@@ -75,9 +75,9 @@ start() ->
     mnesia:add_table_copy(acl, node(), ram_copies),
     ok.
 
--spec to_record( Host :: host()
-               , AclName :: atom()
-               , ACLSpec :: aclspec()) -> acl().
+-spec to_record(Host :: host(),
+                AclName :: atom(),
+                ACLSpec :: aclspec()) -> acl().
 to_record(Host, ACLName, ACLSpec) ->
     #acl{aclname = {ACLName, Host}, aclspec = normalize_spec(ACLSpec)}.
 
@@ -123,8 +123,8 @@ normalize(A) when is_list(A) ->
 normalize(A) ->
     jlib:nodeprep(A).
 
--spec normalize_spec('all' | 'none' | {_,_} | {_,_,_}
-      ) -> 'all' | 'none'
+-spec normalize_spec(aclspec())
+      -> aclspec()
          | {_, 'error' | binary() | tuple()}
          | {_, 'error' | binary() | tuple(), 'error' | binary() | tuple()}.
 normalize_spec({A, B}) ->
@@ -183,9 +183,9 @@ match_rule(Host, Rule, JID) ->
             end
     end.
 
--spec match_acls(ACLs :: [{access(), rule()}],
+-spec match_acls(ACLs :: [{boolean(), rule()}],
                  JID :: ejabberd:jid(),
-                 Host :: host()) -> access().
+                 Host :: host()) -> boolean().
 match_acls([], _, _Host) ->
     deny;
 match_acls([{Access, ACL} | ACLs], JID, Host) ->
@@ -268,7 +268,7 @@ match_acl(ACL, JID, Host) ->
                       ets:lookup(acl, {ACL, Host}))
     end.
 
--spec is_regexp_match(atom() | string(), Regex :: regexp()) -> boolean().
+-spec is_regexp_match(undefined | string(), Regex :: regexp()) -> boolean().
 is_regexp_match(undefined, _RegExp) ->
     false;
 is_regexp_match(String, RegExp) ->
