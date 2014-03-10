@@ -58,6 +58,8 @@
 %%%----------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------
+
+-spec start(Host :: ejabberd:server()) -> ok.
 start(Host) ->
     mnesia:create_table(passwd, [{disc_copies, [node()]},
                                  {attributes, record_info(fields, passwd)}]),
@@ -68,7 +70,8 @@ start(Host) ->
     update_reg_users_counter_table(Host),
     ok.
 
--spec update_reg_users_counter_table(Server :: ejabberd:server()) -> _ | none().
+
+-spec update_reg_users_counter_table(Server :: ejabberd:server()) -> any().
 update_reg_users_counter_table(Server) ->
     Set = get_vh_registered_users(Server),
     Size = length(Set),
@@ -79,10 +82,12 @@ update_reg_users_counter_table(Server) ->
         end,
     mnesia:sync_dirty(F).
 
+
 plain_password_required() ->
     false.
 
--spec check_password(User :: binary(),
+
+-spec check_password(User :: ejabberd:user(),
                      Server :: ejabberd:server(),
                      Password :: binary()) -> boolean().
 check_password(User, Server, Password) ->
@@ -96,7 +101,8 @@ check_password(User, Server, Password) ->
             false
     end.
 
--spec check_password(User :: binary(),
+
+-spec check_password(User :: ejabberd:user(),
                      Server :: ejabberd:server(),
                      Password :: binary(),
                      Digest :: binary(),
@@ -122,7 +128,8 @@ check_password(User, Server, Password, Digest, DigestGen) ->
             false
     end.
 
--spec set_password(User :: binary(),
+
+-spec set_password(User :: ejabberd:user(),
              Server :: ejabberd:server(),
              Password :: binary()) -> ok | {error, not_allowed | invalid_jid}.
 set_password(User, Server, Password) ->
@@ -141,8 +148,8 @@ set_password(User, Server, Password) ->
             ok
     end.
 
-%% @spec (User, Server, Password) -> {atomic, ok} | {atomic, exists} | {error, invalid_jid} | {aborted, Reason}
--spec try_register(User :: binary(),
+
+-spec try_register(User :: ejabberd:user(),
                    Server :: ejabberd:server(),
                    Password :: binary()
                    ) -> {atomic, ok | exists}
@@ -172,10 +179,12 @@ try_register(User, Server, Password) ->
             mnesia:transaction(F)
     end.
 
+
 %% @doc Get all registered users in Mnesia
 -spec dirty_get_registered_users() -> [ejabberd:simple_jid()].
 dirty_get_registered_users() ->
     mnesia:dirty_all_keys(passwd).
+
 
 -spec get_vh_registered_users(Server :: ejabberd:server()
                              ) -> [ejabberd:simple_jid()].
@@ -183,16 +192,17 @@ get_vh_registered_users(Server) ->
     LServer = jlib:nameprep(Server),
     mnesia:dirty_select(
       passwd,
-      [{#passwd{us = '$1', _ = '_'}, 
-        [{'==', {element, 2, '$1'}, LServer}], 
+      [{#passwd{us = '$1', _ = '_'},
+        [{'==', {element, 2, '$1'}, LServer}],
         ['$1']}]).
+
 
 -type query_keyword() :: from | to | limit | offset | prefix.
 -type query_value() :: integer() | string().
 -spec get_vh_registered_users(Server :: ejabberd:server(),
                               Query :: [{query_keyword(), query_value()}]
                               ) -> [ejabberd:simple_jid()].
-get_vh_registered_users(Server, [{from, Start}, {to, End}]) 
+get_vh_registered_users(Server, [{from, Start}, {to, End}])
         when is_integer(Start) and is_integer(End) ->
     get_vh_registered_users(Server, [{limit, End-Start+1}, {offset, Start}]);
 get_vh_registered_users(Server, [{limit, Limit}, {offset, Offset}])
@@ -233,6 +243,7 @@ get_vh_registered_users(Server, [{prefix, Prefix}, {limit, Limit}, {offset, Offs
 get_vh_registered_users(Server, _) ->
     get_vh_registered_users(Server).
 
+
 -spec get_vh_registered_users_number(Server :: ejabberd:server()
                                     ) -> non_neg_integer().
 get_vh_registered_users_number(Server) ->
@@ -248,6 +259,7 @@ get_vh_registered_users_number(Server) ->
         _ -> 0
     end.
 
+
 -spec get_vh_registered_users_number(Server :: ejabberd:server(),
                                      Query :: [{prefix, string()}]
                                      ) -> integer().
@@ -257,7 +269,8 @@ get_vh_registered_users_number(Server, [{prefix, Prefix}]) when is_list(Prefix) 
 get_vh_registered_users_number(Server, _) ->
     get_vh_registered_users_number(Server).
 
--spec get_password(User :: binary(),
+
+-spec get_password(User :: ejabberd:user(),
                    Server :: ejabberd:server()) -> binary() | false.
 get_password(User, Server) ->
     LUser = jlib:nodeprep(User),
@@ -270,7 +283,8 @@ get_password(User, Server) ->
             false
     end.
 
--spec get_password_s(User :: binary(),
+
+-spec get_password_s(User :: ejabberd:user(),
                      Server :: ejabberd:server()) -> binary() | false.
 get_password_s(User, Server) ->
     LUser = jlib:nodeprep(User),
@@ -283,7 +297,8 @@ get_password_s(User, Server) ->
             []
     end.
 
--spec is_user_exists(User :: binary(),
+
+-spec is_user_exists(User :: ejabberd:user(),
                      Server :: ejabberd:server()
                      ) -> boolean() | {error, atom()}.
 is_user_exists(User, Server) ->
@@ -299,9 +314,10 @@ is_user_exists(User, Server) ->
             {error, Other}
     end.
 
+
 %% @doc Remove user.
 %% Note: it returns ok even if there was some problem removing the user.
--spec remove_user(User :: binary(),
+-spec remove_user(User :: ejabberd:user(),
                   Server :: ejabberd:server()
                   ) -> ok | error | {error, not_allowed}.
 remove_user(User, Server) ->
@@ -316,8 +332,9 @@ remove_user(User, Server) ->
     mnesia:transaction(F),
         ok.
 
+
 %% @doc Remove user if the provided password is correct.
--spec remove_user(User :: binary(),
+-spec remove_user(User :: ejabberd:user(),
                   Server :: ejabberd:server(),
                   Password :: binary()
                   ) -> ok | not_exists | not_allowed | bad_request | error.
