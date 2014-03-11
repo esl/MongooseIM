@@ -77,6 +77,11 @@ stop(Host) ->
 
 %%-------------------------------------------------------------------------
 
+-spec get_local_commands(Acc :: [jlib:xmlel()],
+                         From :: ejabberd:jid(),
+                         To :: ejabberd:jid(),
+                         NS :: binary(),
+                         ejabberd:lang()) -> {result, [jlib:xmlel()]} | [jlib:xmlel()].
 get_local_commands(Acc, _From, #jid{lserver = LServer} = _To, <<"">>, Lang) ->
     Display = gen_mod:get_module_opt(LServer, ?MODULE, report_commands_node, false),
     case Display of
@@ -93,18 +98,20 @@ get_local_commands(Acc, _From, #jid{lserver = LServer} = _To, <<"">>, Lang) ->
                                      {<<"name">>, translate:translate(Lang, <<"Commands">>)}]}],
             {result, Items ++ Nodes}
     end;
-
 get_local_commands(_Acc, From, #jid{lserver = LServer} = To, ?NS_COMMANDS, Lang) ->
     ejabberd_hooks:run_fold(adhoc_local_items, LServer, {result, []}, [From, To, Lang]);
-
 get_local_commands(_Acc, _From, _To, <<"ping">>, _Lang) ->
     {result, []};
-
 get_local_commands(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
 %%-------------------------------------------------------------------------
 
+-spec get_sm_commands(Acc :: [jlib:xmlel()],
+                      From :: ejabberd:jid(),
+                      To :: ejabberd:jid(),
+                      NS :: binary(),
+                      ejabberd:lang()) -> {result, [jlib:xmlel()]} | [jlib:xmlel()].
 get_sm_commands(Acc, _From, #jid{lserver = LServer} = To, <<"">>, Lang) ->
     Display = gen_mod:get_module_opt(LServer, ?MODULE, report_commands_node, false),
     case Display of
@@ -130,80 +137,98 @@ get_sm_commands(Acc, _From, _To, _Node, _Lang) ->
 
 %%-------------------------------------------------------------------------
 
-%% On disco info request to the ad-hoc node, return automation/command-list.
+%% @doc On disco info request to the ad-hoc node, return automation/command-list.
+-spec get_local_identity(Acc :: [jlib:xmlel()],
+                         From :: ejabberd:jid(),
+                         To :: ejabberd:jid(),
+                         NS :: binary(),
+                         ejabberd:lang()) -> {result, [jlib:xmlel()]} | [jlib:xmlel()].
 get_local_identity(Acc, _From, _To, ?NS_COMMANDS, Lang) ->
     [#xmlel{name = <<"identity">>,
             attrs = [{<<"category">>, <<"automation">>},
                      {<<"type">>, <<"command-list">>},
                      {<<"name">>, translate:translate(Lang, <<"Commands">>)}]} | Acc];
-
 get_local_identity(Acc, _From, _To, <<"ping">>, Lang) ->
     [#xmlel{name = <<"identity">>,
             attrs = [{<<"category">>, <<"automation">>},
                      {<<"type">>, <<"command-node">>},
                      {<<"name">>, translate:translate(Lang, <<"Ping">>)}]} | Acc];
-
 get_local_identity(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
 %%-------------------------------------------------------------------------
 
-%% On disco info request to the ad-hoc node, return automation/command-list.
+%% @doc On disco info request to the ad-hoc node, return automation/command-list.
+-spec get_sm_identity(Acc :: [jlib:xmlel()],
+                     From :: ejabberd:jid(),
+                     To :: ejabberd:jid(),
+                     NS :: binary(),
+                     ejabberd:lang()) -> {result, [jlib:xmlel()]} | [jlib:xmlel()].
 get_sm_identity(Acc, _From, _To, ?NS_COMMANDS, Lang) ->
     [#xmlel{name = <<"identity">>,
             attrs = [{<<"category">>, <<"automation">>},
                      {<<"type">>, <<"command-list">>},
                      {<<"name">>, translate:translate(Lang, <<"Commands">>)}]} | Acc];
-
 get_sm_identity(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
 %%-------------------------------------------------------------------------
 
+-spec get_local_features(Acc :: [jlib:xmlel()],
+                         From :: ejabberd:jid(),
+                         To :: ejabberd:jid(),
+                         NS :: binary(),
+                         ejabberd:lang()) -> {result, [jlib:xmlel()]} | [jlib:xmlel()].
 get_local_features(Acc, _From, _To, <<"">>, _Lang) ->
     Feats = case Acc of
                 {result, I} -> I;
                 _ -> []
             end,
     {result, Feats ++ [?NS_COMMANDS]};
-
 get_local_features(_Acc, _From, _To, ?NS_COMMANDS, _Lang) ->
     %% override all lesser features...
     {result, []};
-
 get_local_features(_Acc, _From, _To, <<"ping">>, _Lang) ->
     %% override all lesser features...
     {result, [?NS_COMMANDS]};
-
 get_local_features(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
 %%-------------------------------------------------------------------------
 
+-spec get_sm_features(Acc :: [jlib:xmlel()],
+                             From :: ejabberd:jid(),
+                             To :: ejabberd:jid(),
+                             NS :: binary(),
+                             ejabberd:lang()) -> {result, [jlib:xmlel()]} | [jlib:xmlel()].
 get_sm_features(Acc, _From, _To, <<"">>, _Lang) ->
     Feats = case Acc of
                 {result, I} -> I;
                 _ -> []
             end,
     {result, Feats ++ [?NS_COMMANDS]};
-
 get_sm_features(_Acc, _From, _To, ?NS_COMMANDS, _Lang) ->
     %% override all lesser features...
     {result, []};
-
 get_sm_features(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
 %%-------------------------------------------------------------------------
 
+-spec process_local_iq(ejabberd:jid(), ejabberd:jid(), ejabberd:iq()) ->
+                                                        ignore | ejabberd:iq().
 process_local_iq(From, To, IQ) ->
     process_adhoc_request(From, To, IQ, adhoc_local_commands).
 
 
+-spec process_sm_iq(ejabberd:jid(), ejabberd:jid(), ejabberd:iq()) ->
+                                                        ignore | ejabberd:iq().
 process_sm_iq(From, To, IQ) ->
     process_adhoc_request(From, To, IQ, adhoc_sm_commands).
 
 
+-spec process_adhoc_request(ejabberd:jid(), ejabberd:jid(), ejabberd:iq(),
+        Hook :: atom()) -> ignore | ejabberd:iq().
 process_adhoc_request(From, To, #iq{sub_el = SubEl} = IQ, Hook) ->
     ?DEBUG("About to parse ~p...", [IQ]),
     case adhoc:parse_request(IQ) of
@@ -225,6 +250,10 @@ process_adhoc_request(From, To, #iq{sub_el = SubEl} = IQ, Hook) ->
     end.
 
 
+-spec ping_item(Acc :: [jlib:xmlel()],
+                From :: ejabberd:jid(),
+                To :: ejabberd:jid(),
+                ejabberd:lang()) -> {result, [jlib:xmlel()]}.
 ping_item(Acc, _From, #jid{lserver = Server} = _To, Lang) ->
     Items = case Acc of
                 {result, I} ->
@@ -239,6 +268,10 @@ ping_item(Acc, _From, #jid{lserver = Server} = _To, Lang) ->
     {result, Items ++ Nodes}.
 
 
+-spec ping_command(Acc :: _,
+                   From :: ejabberd:jid(),
+                   To :: ejabberd:jid(),
+                   adhoc:request()) -> {error, _} | adhoc:response().
 ping_command(_Acc, _From, _To,
              #adhoc_request{lang = Lang,
                             node = <<"ping">>,
@@ -255,7 +288,6 @@ ping_command(_Acc, _From, _To,
         true ->
             {error, ?ERR_BAD_REQUEST}
     end;
-
 ping_command(Acc, _From, _To, _Request) ->
     Acc.
 
