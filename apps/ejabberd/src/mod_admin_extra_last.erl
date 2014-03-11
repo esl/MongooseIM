@@ -29,10 +29,10 @@
 
 -export([
     commands/0,
-	 
+
     set_last/4,
     get_lastactivity_module/1
-	]).
+        ]).
 
 -include("ejabberd.hrl").
 -include("ejabberd_commands.hrl").
@@ -44,26 +44,30 @@
 %%% Register commands
 %%%
 
+-spec commands() -> [ejabberd_commands:cmd(),...].
 commands() ->
     [
      #ejabberd_commands{name = set_last, tags = [last],
-			desc = "Set last activity information",
-			longdesc = "Timestamp is the seconds since"
-			"1970-01-01 00:00:00 UTC, for example: date +%s",
-			module = ?MODULE, function = set_last,
-			args = [{user, binary}, {host, binary}, {timestamp, integer}, {status, binary}],
-			result = {res, rescode}}
+                        desc = "Set last activity information",
+                        longdesc = "Timestamp is the seconds since"
+                        "1970-01-01 00:00:00 UTC, for example: date +%s",
+                        module = ?MODULE, function = set_last,
+                        args = [{user, binary}, {host, binary}, {timestamp, integer}, {status, binary}],
+                        result = {res, rescode}}
     ].
 
 %%%
 %%% Last Activity
 %%%
 
+-spec set_last(ejabberd:user(), ejabberd:server(), _, _) -> 'ok'.
 set_last(User, Server, Timestamp, Status) ->
     Mod = get_lastactivity_module(Server),
     Mod:store_last_info(User, Server, Timestamp, Status),
     ok.
 
+
+-spec get_lastactivity_module(ejabberd:server()) -> 'mod_last' | 'mod_last_odbc'.
 get_lastactivity_module(Server) ->
     case lists:member(mod_last, gen_mod:loaded_modules(Server)) of
         true -> mod_last;
