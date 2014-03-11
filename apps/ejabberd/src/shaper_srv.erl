@@ -29,6 +29,7 @@
         shapers :: dict(),
         a_times :: dict()
     }).
+-type state() :: #state{}.
 
 %% ------------------------------------------------------------------
 %% gen_server Function Exports
@@ -41,9 +42,12 @@
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
+-spec child_specs() -> [supervisor:child_spec()].
 child_specs() ->
     [child_spec(ProcName) ||  ProcName <- worker_names(<<>>)].
 
+
+-spec child_spec(atom()) -> supervisor:child_spec().
 child_spec(ProcName) ->
     {ProcName,
      {?MODULE, start_link, [ProcName]},
@@ -52,30 +56,45 @@ child_spec(ProcName) ->
      worker,
      [?MODULE]}.
 
+
+-spec start_link(atom()) -> 'ignore' | {'error',_} | {'ok',pid()}.
 start_link(ProcName) ->
     gen_server:start_link({local, ProcName}, ?MODULE, [], []).
 
+
+-spec worker_prefix() -> string().
 worker_prefix() ->
     "ejabberd_shaper_".
 
 worker_count(_Host) ->
     10.
 
+
+-spec worker_names(ejabberd:server()) -> [atom()].
 worker_names(Host) ->
     [worker_name(Host, N) || N <- lists:seq(0, worker_count(Host) - 1)].
 
+
+-spec worker_name(ejabberd:server(), integer()) -> atom().
 worker_name(_Host, N) ->
     list_to_atom(worker_prefix() ++ integer_to_list(N)).
 
+
+-spec select_worker(ejabberd:server(), _) -> atom().
 select_worker(Host, Tag) ->
     N = worker_number(Host, Tag),
     worker_name(Host, N).
 
+
+-spec worker_number(ejabberd:server(),_) -> non_neg_integer().
 worker_number(Host, Tag) ->
     erlang:phash2(Tag, worker_count(Host)).
 
+
 %% @doc Shapes the caller from executing the action.
--spec wait(_Host, _Action, _FromJID, _Size) -> ok | {error, max_delay_reached}.
+-spec wait(_Host :: ejabberd:server(), _Action :: atom(),
+           _FromJID :: ejabberd:jid(), _Size :: integer()
+           ) -> ok | {error, max_delay_reached}.
 wait(Host, Action, FromJID, Size) ->
     gen_server:call(select_worker(Host, FromJID), {wait, Host, Action, FromJID, Size}).
 
@@ -126,24 +145,36 @@ code_change(_OldVsn, State, _Extra) ->
 %% Internal Function Definitions
 %% ------------------------------------------------------------------
 
+-type key() :: {global | ejabberd:server(), atom(), ejabberd:jid()}.
+-spec new_key(ejabberd:server(), atom(), ejabberd:jid()) -> key().
 new_key(Host, Action, FromJID) ->
     {Host, Action, FromJID}.
 
+
+-spec find_or_create_shaper(key(), state()) -> shaper().
 find_or_create_shaper(Key, #state{shapers=Shapers}) ->
     case dict:find(Key, Shapers) of
         {ok, Shaper} -> Shaper;
         error -> create_shaper(Key)
     end.
 
+
+-spec update_access_time(key(), _, state()) -> state().
 update_access_time(Key, Now, State=#state{a_times=Times}) ->
     State#state{a_times=dict:store(Key, Now, Times)}.
 
+
+-spec save_shaper(key(), shaper(), state()) -> state().
 save_shaper(Key, Shaper, State=#state{shapers=Shapers}) ->
     State#state{shapers=dict:store(Key, Shaper, Shapers)}.
 
+
+-spec init_dicts(state()) -> state().
 init_dicts(State) ->
     State#state{shapers=dict:new(), a_times=dict:new()}.
 
+
+-spec delete_old_shapers(state()) -> state().
 delete_old_shapers(State=#state{shapers=Shapers, a_times=Times, ttl=TTL}) ->
     Min = subtract_seconds(now(), TTL),
     %% Copy recently modified shapers
@@ -154,26 +185,39 @@ delete_old_shapers(State=#state{shapers=Shapers, a_times=Times, ttl=TTL}) ->
             update_access_time(Key, ATime, save_shaper(Key, Shaper, Acc))
         end, init_dicts(State), Times).
 
+
+-spec create_shaper(key()) -> 'none' | {'maxrate',_,0,non_neg_integer()}.
 create_shaper(Key) ->
     shaper:new(request_shaper_name(Key)).
 
+
+-spec request_shaper_name(key()) -> 'allow' | 'none'.
 request_shaper_name({Host, Action, FromJID}) ->
     get_shaper_name(Host, Action, FromJID, default_shaper()).
+
 
 default_shaper() ->
     none.
 
+
+-spec get_shaper_name('global' | ejabberd:server(),
+                      Action :: atom(),
+                      ejabberd:jid(),
+                      Default :: 'none') -> 'allow' | 'none'.
 get_shaper_name(Host, Action, FromJID, Default) ->
     case acl:match_rule(Host, Action, FromJID) of
         deny -> Default;
         Value -> Value
     end.
 
-%% It is a small hack
+%% @doc It is a small hack
 %% This function calls this in more efficient way:
 %% timer:apply_after(DelayMs, gen_server, reply, [From, Reply]).
+-spec reply_after(pos_integer(),{atom() | pid(),_},'ok') -> reference().
 reply_after(DelayMs, {Pid, Tag}, Reply) ->
     erlang:send_after(DelayMs, Pid, {Tag, Reply}).
 
+
+-spec subtract_seconds(erlang:timestamp(), non_neg_integer()) -> erlang:timestamp().
 subtract_seconds({MegaSecs, Secs, MicroSecs}, SubSecs) ->
     {MegaSecs - (SubSecs div 1000000), Secs - (SubSecs rem 1000000), MicroSecs}.
