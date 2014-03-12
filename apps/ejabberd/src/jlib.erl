@@ -68,16 +68,22 @@
         ]).
 
 -include_lib("exml/include/exml.hrl").
+-include_lib("exml/include/exml_stream.hrl"). % only used to define stream types
 -include("jlib.hrl").
 
--type xmlel()     :: #xmlel{}.
+-type xmlel()           :: #xmlel{}.
+%% Stream types defined in exml/include/exml_stream.hrl
+-type xmlstreamstart()  :: #xmlstreamstart{}.
+-type xmlstreamend()    :: #xmlstreamend{}.
+-type xmlstreamel() :: xmlel() | xmlstreamstart() | xmlstreamend().
+
 -type rsm_in()    :: #rsm_in{}.
 -type rsm_out()   :: #rsm_out{}.
 -type xmlcdata()  :: #xmlcdata{}.
 
 -type binary_pair() :: {binary(),binary()}.
 
--export_type([xmlel/0,
+-export_type([xmlel/0, xmlstreamstart/0, xmlstreamend/0, xmlstreamel/0,
               binary_pair/0,
               rsm_out/0,
               xmlcdata/0
