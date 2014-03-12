@@ -164,7 +164,7 @@ websocket_init(Transport, Req, Opts) ->
             {ok, Parser} = exml_stream:new_parser(),
             State = #ws_state{c2s_pid = Pid,
                               parser = Parser},
-            {ok, NewReq, State};
+            {ok, NewReq2, State};
         {error, Reason} ->
             ?WARNING_MSG("c2s start failed: ~p", [Reason]),
             {shutdown, NewReq2}
