@@ -41,6 +41,7 @@
 %%% Register commands
 %%%
 
+-spec commands() -> [ejabberd_commands:cmd(),...].
 commands() ->
     [
         #ejabberd_commands{name = stats, tags = [stats],
@@ -59,6 +60,7 @@ commands() ->
 %%% Stats
 %%%
 
+-spec stats(binary()) -> integer().
 stats(Name) ->
     case Name of
         <<"uptimeseconds">> -> trunc(element(1, erlang:statistics(wall_clock))/1000);
@@ -69,10 +71,10 @@ stats(Name) ->
         <<"onlineusers">> -> ejabberd_sm:get_total_sessions_number()
     end.
 
+
+-spec stats(binary(), ejabberd:server()) -> integer().
 stats(Name, Host) ->
     case Name of
         <<"registeredusers">> -> ejabberd_auth:get_vh_registered_users_number(Host);
         <<"onlineusers">> -> ejabberd_sm:get_vh_session_number(Host)
     end.
-
-

@@ -73,7 +73,7 @@ start_link() ->
 
 -spec route(From   :: ejabberd:jid(),
             To     :: ejabberd:jid(),
-            Packet :: jlib:xmlel()) -> ok.
+            Packet :: jlib:xmlel()) -> ok | {error, lager_not_started}.
 route(From, To, Packet) ->
     case catch do_route(From, To, Packet) of
         {'EXIT', Reason} ->
@@ -258,7 +258,7 @@ do_route(OrigFrom, OrigTo, OrigPacket) ->
                     end
             end;
         drop ->
-            ejabberd_hooks:run(xmpp_stanza_dropped, 
+            ejabberd_hooks:run(xmpp_stanza_dropped,
                                OrigFrom#jid.lserver,
                                [OrigFrom, OrigTo, OrigPacket]),
             ok
