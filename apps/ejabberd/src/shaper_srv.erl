@@ -151,7 +151,7 @@ new_key(Host, Action, FromJID) ->
     {Host, Action, FromJID}.
 
 
--spec find_or_create_shaper(key(), state()) -> shaper().
+-spec find_or_create_shaper(key(), state()) -> shaper:shaper().
 find_or_create_shaper(Key, #state{shapers=Shapers}) ->
     case dict:find(Key, Shapers) of
         {ok, Shaper} -> Shaper;
@@ -164,7 +164,7 @@ update_access_time(Key, Now, State=#state{a_times=Times}) ->
     State#state{a_times=dict:store(Key, Now, Times)}.
 
 
--spec save_shaper(key(), shaper(), state()) -> state().
+-spec save_shaper(key(), shaper:shaper(), state()) -> state().
 save_shaper(Key, Shaper, State=#state{shapers=Shapers}) ->
     State#state{shapers=dict:store(Key, Shaper, Shapers)}.
 

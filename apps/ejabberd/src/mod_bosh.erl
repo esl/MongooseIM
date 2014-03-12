@@ -41,8 +41,33 @@
 -define(DEFAULT_SERVER_ACKS, false).
 -define(DEFAULT_ALLOW_ORIGIN, <<"*">>).
 
+-export_type([session/0,
+              sid/0,
+              event_type/0,
+              socket/0
+             ]).
+
+-type socket() :: #bosh_socket{}.
+-type session() :: #bosh_session{}.
+-type sid() :: binary().
+-type event_type() :: streamstart
+                    | restart
+                    | normal
+                    | pause
+                    | streamend.
+
 %% Request State
 -record(rstate, {}).
+-type rstate() :: #rstate{}.
+-type req() :: cowboy_req:req().
+
+-type info() :: 'accept_options'
+              | 'item_not_found'
+              | 'no_body'
+              | 'policy_violation'
+              | {'bosh_reply', jlib:xmlel()}
+              | {'close',_}
+              | {'wrong_method',_}.
 
 %%--------------------------------------------------------------------
 %% API
@@ -52,32 +77,34 @@
 get_inactivity() ->
     gen_mod:get_module_opt(?MYNAME, ?MODULE, inactivity, ?DEFAULT_INACTIVITY).
 
-%% Return true if succeeded, false otherwise.
--spec set_inactivity(SecondsOrInfinity) -> boolean()
-    when SecondsOrInfinity :: pos_integer() | infinity.
+
+%% @doc Return true if succeeded, false otherwise.
+-spec set_inactivity(Seconds :: pos_integer() | infinity) -> boolean().
 set_inactivity(infinity) ->
     gen_mod:set_module_opt(?MYNAME, ?MODULE, inactivity, infinity);
 set_inactivity(Seconds) when is_integer(Seconds), Seconds > 0 ->
     gen_mod:set_module_opt(?MYNAME, ?MODULE, inactivity, Seconds).
 
+
 -spec get_max_wait() -> pos_integer() | infinity.
 get_max_wait() ->
     gen_mod:get_module_opt(?MYNAME, ?MODULE, max_wait, ?DEFAULT_MAX_WAIT).
 
-%% Return true if succeeded, false otherwise.
--spec set_max_wait(SecondsOrInfinity) -> boolean()
-    when SecondsOrInfinity :: pos_integer() | infinity.
+
+%% @doc Return true if succeeded, false otherwise.
+-spec set_max_wait(Seconds :: pos_integer() | infinity) -> boolean().
 set_max_wait(infinity) ->
     gen_mod:set_module_opt(?MYNAME, ?MODULE, max_wait, infinity);
 set_max_wait(Seconds) when is_integer(Seconds), Seconds > 0 ->
     gen_mod:set_module_opt(?MYNAME, ?MODULE, max_wait, Seconds).
 
+
 -spec get_server_acks() -> boolean().
 get_server_acks() ->
     gen_mod:get_module_opt(?MYNAME, ?MODULE, server_acks, ?DEFAULT_SERVER_ACKS).
 
--spec set_server_acks(EnableServerAcks) -> boolean()
-    when EnableServerAcks :: boolean().
+
+-spec set_server_acks(EnableServerAcks :: boolean()) -> boolean().
 set_server_acks(EnableServerAcks) ->
     gen_mod:set_module_opt(?MYNAME, ?MODULE, server_acks, EnableServerAcks).
 
@@ -85,6 +112,7 @@ set_server_acks(EnableServerAcks) ->
 %% gen_mod callbacks
 %%--------------------------------------------------------------------
 
+-spec start(ejabberd:host(), [option()]) -> any().
 start(_Host, Opts) ->
     try
         case gen_mod:get_opt(port, Opts, undefined) of
@@ -111,9 +139,11 @@ stop(_Host) ->
 socket_type() ->
     independent.
 
-%% @doc Start the module.
-%% Called from `ejabberd_listener'.
+%% @doc Start the module. Called from `ejabberd_listener'.
 %% If the option `ip' is undefined, then `InetAddr' is `{0,0,0,0}'.
+-spec start_listener({Port :: inet:port_number(),
+                      InetAddr :: inet:ip_address(),
+                      tcp}, Opts :: proplists:proplist()) -> any().
 start_listener({Port, InetAddr, tcp}, Opts) ->
     OptsWPort = lists:keystore(port, 1, [{ip,InetAddr}|Opts], {port, Port}),
     gen_mod:start_module(?MYNAME, ?MODULE, OptsWPort).
@@ -122,6 +152,13 @@ start_listener({Port, InetAddr, tcp}, Opts) ->
 %% cowboy_loop_handler callbacks
 %%--------------------------------------------------------------------
 
+-type option() :: {atom(), any()}.
+-spec init(_Transport, req(), _Opts :: [option()])
+            -> {'loop', req(), rstate()}
+             | {no_body, req()}
+             | {{wrong_method, _}, req()}
+             | {forward_body, req()}
+             | {accept_options, req()}.
 init(_Transport, Req, _Opts) ->
     ?DEBUG("New request~n", []),
     {Msg, NewReq} = try
@@ -146,6 +183,8 @@ init(_Transport, Req, _Opts) ->
     self() ! Msg,
     {loop, NewReq, #rstate{}}.
 
+
+-spec info(info(), req(), rstate()) -> {'ok',req(),_}.
 info(accept_options, Req, State) ->
     {Origin, Req2} = cowboy_req:header(<<"origin">>, Req),
     Headers = ac_all(Origin),
@@ -182,6 +221,7 @@ info(item_not_found, Req, S) ->
 info(policy_violation, Req, S) ->
     {ok, terminal_condition(<<"policy-violation">>, Req), S}.
 
+
 terminate(_Reason, _Req, _State) ->
     ok.
 
@@ -189,6 +229,7 @@ terminate(_Reason, _Req, _State) ->
 %% Callbacks implementation
 %%--------------------------------------------------------------------
 
+-spec start_cowboy(inet:port_number(), [option()]) -> 'ok' | {'error','badarg'}.
 start_cowboy(Port, Opts) ->
     Host = proplists:get_value(host, Opts, '_'),
     Prefix = proplists:get_value(prefix, Opts, "/http-bind"),
@@ -205,6 +246,8 @@ start_cowboy(Port, Opts) ->
             {error, Reason}
     end.
 
+
+-spec start_backend([option()]) -> 'ok'.
 start_backend(Opts) ->
     Backend = proplists:get_value(backend, Opts, ?DEFAULT_BACKEND),
     {Mod, Code} = dynamic_compile:from_string(mod_bosh_dynamic_src(Backend)),
@@ -212,8 +255,8 @@ start_backend(Opts) ->
     ?BOSH_BACKEND:start(Opts),
     ok.
 
--spec event_type(Body) -> event_type()
-    when Body::#xmlel{}.
+
+-spec event_type(jlib:xmlel()) -> event_type().
 event_type(Body) ->
     %% Order of checks is important:
     %% stream restart has got sid attribute,
@@ -245,6 +288,9 @@ event_type(Body) ->
         end
     end.
 
+
+-spec forward_body(req(), jlib:xmlel(), rstate())
+            -> {'loop',_,rstate()} | {'ok',req(),rstate()}.
 forward_body(Req, #xmlel{} = Body, S) ->
     try
         case Type = event_type(Body) of
@@ -266,9 +312,13 @@ forward_body(Req, #xmlel{} = Body, S) ->
             {ok, terminal_condition(<<"item-not-found">>, Req), S}
     end.
 
+
+-spec handle_request(pid(), {event_type(), jlib:xmlel()}) -> 'ok'.
 handle_request(Socket, {EventType, Body}) ->
     mod_bosh_socket:handle_request(Socket, {EventType, self(), Body}).
 
+
+-spec get_session_socket(mod_bosh:sid()) -> 'undefined' | pid().
 get_session_socket(Sid) ->
     case ?BOSH_BACKEND:get_session(Sid) of
         [BS] ->
@@ -277,6 +327,8 @@ get_session_socket(Sid) ->
             error(item_not_found)
     end.
 
+
+-spec maybe_start_session(req(), binary()) -> {boolean(), req()}.
 maybe_start_session(Req, Body) ->
     try
         {<<"hold">>, <<"1">>} = {<<"hold">>,
@@ -298,6 +350,8 @@ maybe_start_session(Req, Body) ->
             {false, terminal_condition(<<"undefined-condition">>, [], Req)}
     end.
 
+
+-spec start_session(_, jlib:xmlel()) -> any().
 start_session(Peer, Body) ->
     Sid = make_sid(),
     {ok, Socket} = mod_bosh_socket:start(Sid, Peer),
@@ -306,25 +360,35 @@ start_session(Peer, Body) ->
     handle_request(Socket, {streamstart, Body}),
     ?DEBUG("Created new session ~p~n", [Sid]).
 
+
+-spec make_sid() -> binary().
 make_sid() ->
+    %% TODO: now() skews system timer and ref() is unique enough as is
     list_to_binary(sha:sha(term_to_binary({now(), make_ref()}))).
 
 %%--------------------------------------------------------------------
 %% HTTP errors
 %%--------------------------------------------------------------------
 
+-spec no_body_error(cowboy_req:req()) -> cowboy_req:req().
 no_body_error(Req) ->
     strip_ok(cowboy_req:reply(400, ac_all(?DEFAULT_ALLOW_ORIGIN),
                               <<"Missing request body">>, Req)).
 
+
+-spec method_not_allowed_error(cowboy_req:req()) -> cowboy_req:req().
 method_not_allowed_error(Req) ->
     strip_ok(cowboy_req:reply(405, ac_all(?DEFAULT_ALLOW_ORIGIN),
                               <<"Use POST request method">>, Req)).
 
+
+-spec not_implemented_error(cowboy_req:req()) -> cowboy_req:req().
 not_implemented_error(Req) ->
     strip_ok(cowboy_req:reply(400, ac_all(?DEFAULT_ALLOW_ORIGIN),
                               <<"Not implemented yet">>, Req)).
 
+
+-spec strip_ok({'ok',cowboy_req:req()}) -> cowboy_req:req().
 strip_ok({ok, Req}) ->
     Req.
 
@@ -332,14 +396,20 @@ strip_ok({ok, Req}) ->
 %% BOSH Terminal Binding Error Conditions
 %%--------------------------------------------------------------------
 
+-spec terminal_condition(binary(), cowboy_req:req()) -> cowboy_req:req().
 terminal_condition(Condition, Req) ->
     terminal_condition(Condition, [], Req).
 
+
+-spec terminal_condition(binary(), [jlib:xmlel()], cowboy_req:req())
+            -> cowboy_req:req().
 terminal_condition(Condition, Details, Req) ->
     Body = terminal_condition_body(Condition, Details),
     Headers = [content_type()] ++ ac_all(?DEFAULT_ALLOW_ORIGIN),
     strip_ok(cowboy_req:reply(200, Headers, Body, Req)).
 
+
+-spec terminal_condition_body(binary(), [jlib:xmlel()]) -> binary().
 terminal_condition_body(Condition, Children) ->
     exml:to_binary(#xmlel{name = <<"body">>,
                           attrs = [{<<"type">>, <<"terminate">>},
@@ -380,12 +450,16 @@ ac_allow_headers() ->
 ac_max_age() ->
     {<<"Access-Control-Max-Age">>, integer_to_binary(?DEFAULT_MAX_AGE)}.
 
+
+-spec ac_all('undefined' | binary()) -> [{binary(),_},...].
 ac_all(Origin) ->
     [ac_allow_origin(Origin),
      ac_allow_methods(),
      ac_allow_headers(),
      ac_max_age()].
 
+
+-spec get_option_pair('ip',[any()]) -> [{'ip',_}].
 get_option_pair(Key, Opts) ->
     case proplists:get_value(Key, Opts) of
         undefined -> [];
