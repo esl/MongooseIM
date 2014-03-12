@@ -47,6 +47,7 @@
 %%% Register commands
 %%%
 
+-spec commands() -> [ejabberd_commands:cmd(),...].
 commands() ->
     Vcard1FieldsString = "Some vcard field names in get/set_vcard are:\n"
                          " FN		- Full Name\n"
@@ -132,16 +133,21 @@ set_vcard(User, Host, Name, Subname, SomeContent) ->
 %%
 %% Internal vcard
 
+-spec get_module_resource(ejabberd:server()) -> string().
 get_module_resource(Server) ->
     case gen_mod:get_module_opt(Server, ?MODULE, module_resource, none) of
         none -> atom_to_list(?MODULE);
         R when is_list(R) -> R
     end.
 
+
+-spec get_vcard_content(ejabberd:user(), ejabberd:server(), any())
+            -> [Cdata :: binary()] | none().
 get_vcard_content(User, Server, Data) ->
     [{_, Module, Function, _Opts}] = ets:lookup(sm_iqtable, {?NS_VCARD, Server}),
     JID = jlib:make_jid(User, Server, get_module_resource(Server)),
     IQ = #iq{type = get, xmlns = ?NS_VCARD},
+    %% TODO: This may benefit from better type control
     IQr = Module:Function(JID, JID, IQ),
     case IQr#iq.sub_el of
         [A1] ->
@@ -153,12 +159,16 @@ get_vcard_content(User, Server, Data) ->
             throw(error_no_vcard_found)
     end.
 
+
+-spec get_vcard([binary()], jlib:xmlel()) -> [jlib:xmlel()].
 get_vcard([Data1, Data2], A1) ->
     A2List = exml_query:subelements(A1, Data1),
     lists:flatten([get_vcard([Data2], A2) || A2 <- A2List]);
 get_vcard([Data], A1) ->
     exml_query:subelements(A1, Data).
 
+-spec set_vcard_content(ejabberd:user(), ejabberd:server(), Data :: [binary()],
+        ContentList :: binary() | [binary()]) -> ok.
 set_vcard_content(U, S, D, SomeContent) when is_binary(SomeContent) ->
     set_vcard_content(U, S, D, [SomeContent]);
 set_vcard_content(User, Server, Data, ContentList) ->
@@ -183,6 +193,11 @@ set_vcard_content(User, Server, Data, ContentList) ->
     Module:Function(JID, JID, IQ2),
     ok.
 
+
+-spec update_vcard_els(Data :: [binary(),...],
+                       ContentList :: [binary() | string()],
+                       Els :: [jlib:xmlcdata() | jlib:xmlel()]
+                       ) -> [jlib:xmlcdata() | jlib:xmlel()].
 update_vcard_els(Data, ContentList, Els1) ->
     Els2 = lists:keysort(2, Els1),
     [Data1 | Data2] = Data,
