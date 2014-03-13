@@ -22,8 +22,12 @@
 -include_lib("ejabberd/include/jlib.hrl").
 -include_lib("exml/include/exml.hrl").
 
--record(mam_prefs_rule, {key, behaviour}).
--record(mam_prefs_user, {host_user, default_mode, always_rules, never_rules}).
+-record(mam_prefs_rule, {key,
+                        behaviour}).
+-record(mam_prefs_user, {host_user,
+                        default_mode,
+                        always_rules :: [ejabberd:literal_jid()],
+                        never_rules :: [ejabberd:literal_jid()]}).
 
 %% ----------------------------------------------------------------------
 %% gen_mod callbacks
@@ -125,7 +129,7 @@ set_prefs(Result, _Host, _ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     SU = su_key(ArcJID),
     {atomic, ok} = mnesia:transaction(fun() ->
         case mnesia:read(mam_prefs_user, SU, write) of
-            [] -> 
+            [] ->
                 mnesia:write(#mam_prefs_user{
                              host_user=SU, default_mode=DefaultMode,
                              always_rules=NewARules, never_rules=NewNRules}),
@@ -148,7 +152,7 @@ set_prefs(Result, _Host, _ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
 
 get_prefs({GlobalDefaultMode, _, _}, _Host, _ArcID, ArcJID) ->
     case mnesia:dirty_read(mam_prefs_user, su_key(ArcJID)) of
-        [] -> 
+        [] ->
             {GlobalDefaultMode, [], []};
         [#mam_prefs_user{default_mode=DefaultMode,
                          always_rules=ARules, never_rules=NRules}] ->
