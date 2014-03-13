@@ -28,11 +28,15 @@
                         default_mode,
                         always_rules :: [ejabberd:literal_jid()],
                         never_rules :: [ejabberd:literal_jid()]}).
+-type ls() :: ejabberd:lserver().
+-type lu() :: ejabberd:luser().
+-type lr() :: ejabberd:lresource().
 
 %% ----------------------------------------------------------------------
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
 
+-spec start(Host :: ejabberd:server(), Opts :: list()) -> any().
 start(Host, Opts) ->
     mnesia:create_table(mam_prefs_rule,
             [{disc_copies, [node()]},
@@ -53,6 +57,8 @@ start(Host, Opts) ->
             ok
     end.
 
+
+-spec stop(Host :: ejabberd:server()) -> any().
 stop(Host) ->
     case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
         true ->
@@ -71,6 +77,7 @@ stop(Host) ->
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam
 
+-spec start_pm(ejabberd:server(), list()) -> 'ok'.
 start_pm(Host, _Opts) ->
     ejabberd_hooks:add(mam_get_behaviour, Host, ?MODULE, get_behaviour, 50),
     ejabberd_hooks:add(mam_get_prefs, Host, ?MODULE, get_prefs, 50),
@@ -78,6 +85,7 @@ start_pm(Host, _Opts) ->
     ejabberd_hooks:add(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
     ok.
 
+-spec stop_pm(ejabberd:server()) -> 'ok'.
 stop_pm(Host) ->
     ejabberd_hooks:delete(mam_get_behaviour, Host, ?MODULE, get_behaviour, 50),
     ejabberd_hooks:delete(mam_get_prefs, Host, ?MODULE, get_prefs, 50),
@@ -89,6 +97,7 @@ stop_pm(Host) ->
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam_muc_muc
 
+-spec start_muc(ejabberd:server(), list()) -> 'ok'.
 start_muc(Host, _Opts) ->
     ejabberd_hooks:add(mam_muc_get_behaviour, Host, ?MODULE, get_behaviour, 50),
     ejabberd_hooks:add(mam_muc_get_prefs, Host, ?MODULE, get_prefs, 50),
@@ -96,6 +105,7 @@ start_muc(Host, _Opts) ->
     ejabberd_hooks:add(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50),
     ok.
 
+-spec stop_muc(ejabberd:server()) -> 'ok'.
 stop_muc(Host) ->
     ejabberd_hooks:delete(mam_muc_get_behaviour, Host, ?MODULE, get_behaviour, 50),
     ejabberd_hooks:delete(mam_muc_get_prefs, Host, ?MODULE, get_prefs, 50),
@@ -107,6 +117,10 @@ stop_muc(Host) ->
 %% ----------------------------------------------------------------------
 %% Internal functions and callbacks
 
+-spec get_behaviour(DefaultBvr :: mod_mam:archive_behaviour(),
+        _Host :: ejabberd:server(), ArcId :: mod_mam:archive_id(),
+        LocJID :: ejabberd:jid(), RemJID :: ejabberd:jid())
+            -> mod_mam:archive_behaviour().
 get_behaviour(DefaultBehaviour, _Host, _ArcID,
               LocJID=#jid{},
               RemJID=#jid{}) ->
@@ -123,6 +137,11 @@ get_behaviour(DefaultBehaviour, _Host, _ArcID,
         [#mam_prefs_rule{behaviour=B}] -> B
     end.
 
+
+-spec set_prefs(_, _Host :: ejabberd:server(), _ArcId :: mod_mam:archive_id(),
+        ArcJID :: ejabberd:jid(), DefaultMode :: mod_mam:archive_behaviour(),
+        AlwaysJIDs :: [ejabberd:literal_jid()],
+        NeverJIDs :: [ejabberd:literal_jid()]) -> any().
 set_prefs(Result, _Host, _ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     NewARules = lists:usort(rules(AlwaysJIDs)),
     NewNRules = lists:usort(rules(NeverJIDs)),
@@ -150,6 +169,10 @@ set_prefs(Result, _Host, _ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     end),
     Result.
 
+
+-spec get_prefs(GlobalDeflt :: mod_mam:preference(), _Host :: ejabberd:server(),
+        _ArcID :: mod_mam:archive_id(), ArcJID :: ejabberd:jid()
+        ) -> mod_mam:preference().
 get_prefs({GlobalDefaultMode, _, _}, _Host, _ArcID, ArcJID) ->
     case mnesia:dirty_read(mam_prefs_user, su_key(ArcJID)) of
         [] ->
@@ -161,6 +184,9 @@ get_prefs({GlobalDefaultMode, _, _}, _Host, _ArcID, ArcJID) ->
             {DefaultMode, AlwaysJIDs, NeverJIDs}
     end.
 
+
+-spec remove_archive(_Host :: ejabberd:server(), _ArcID :: mod_mam:archive_id(),
+                     ArcJID :: ejabberd:jid()) -> 'ok'.
 remove_archive(_Host, _ArcID, ArcJID) ->
     {atomic, ok} = mnesia:transaction(fun() ->
         case mnesia:read(mam_prefs_user, su_key(ArcJID)) of
@@ -177,43 +203,64 @@ remove_archive(_Host, _ArcID, ArcJID) ->
 %% ----------------------------------------------------------------------
 %% Helpers
 
+-spec key1(ejabberd:jid(), ejabberd:jid()) -> {ls(), lu(), lu(), ls(), lr()}.
 key1(#jid{lserver=LocLServer, luser=LocLUser},
      #jid{lserver=RemLUser, server=RemLServer, lresource=RemLResource}) ->
     {LocLServer, LocLUser, RemLUser, RemLServer, RemLResource}.
 
+
+-spec key2(ejabberd:jid(), ejabberd:jid()) -> {ls(), lu(), lu(), ls()}.
 key2(#jid{lserver=LocLServer, luser=LocLUser},
      #jid{lserver=RemLUser, server=RemLServer}) ->
     {LocLServer, LocLUser, RemLUser, RemLServer}.
 
+
+-spec key3(ejabberd:jid()) -> {ls(), lu()}.
 key3(#jid{lserver=LocLServer, luser=LocLUser}) ->
     {LocLServer, LocLUser}.
 
+
+-spec su_key(ejabberd:jid()) -> {ls(), lu()}.
 su_key(#jid{lserver=LocLServer, luser=LocLUser}) ->
     {LocLServer, LocLUser}.
 
+
 %% @doc Expand short rule.
+-spec key(ejabberd:jid(), {ls(), lu()} | {ls(), lu(), lr()})
+            -> {ls(), lu(), ls(), lu()} | {ls(), lu(), ls(), lu(), lr()}.
 key(#jid{lserver=LocLServer, luser=LocLUser}, {RemLServer, RemLUser}) ->
     {LocLServer, LocLUser, RemLServer, RemLUser}; %% key1
 key(#jid{lserver=LocLServer, luser=LocLUser}, {RemLServer, RemLUser, RemLResource}) ->
     {LocLServer, LocLUser, RemLServer, RemLUser, RemLResource}. %% key2
 
+
+-spec jids([{ls(),lu()} | {ls(),lu(),lr()}]) -> [ejabberd:literal_jid()].
 jids(Rules) ->
     [jlib:jid_to_binary(rule_to_jid(Rule)) || Rule <- Rules].
 
+
+-spec rule_to_jid({ls(), lu()} | {ls(), lu(), lr()}) -> {lu(), ls(), lr()}.
 rule_to_jid({RemLServer, RemLUser, RemLResource}) ->
     {RemLUser, RemLServer, RemLResource};
 rule_to_jid({RemLServer, RemLUser}) ->
     {RemLUser, RemLServer, <<>>}.
 
+
+-spec rules([ejabberd:literal_jid()]) -> [{ls(), lu()} | {ls(), lu(), lr()}].
 rules(BinJIDs) ->
     [rule(jlib:binary_to_jid(BinJID)) || BinJID <- BinJIDs].
 
+
+-spec rule(ejabberd:jid()) -> {ls(), lu()} | {ls(), lu(), lr()}.
 rule(#jid{lserver=RemLServer, luser=RemLUser, lresource = <<>>}) ->
     {RemLServer, RemLUser};
 rule(#jid{lserver=RemLServer, luser=RemLUser, lresource=RemLResource}) ->
     {RemLServer, RemLUser, RemLResource}.
 
 
+-spec update_rules(Mode :: 'always' | 'never', ArcJID :: ejabberd:jid(),
+        OldNRules :: [{ls(), lu()} | {ls(), lu(), lr()}],
+        NewNRules :: [{ls(), lu()} | {ls(), lu(), lr()}]) -> 'ok'.
 update_rules(Mode, ArcJID, OldNRules, NewNRules) ->
     DelRules = ordsets:subtract(OldNRules, NewNRules),
     InsRules = ordsets:subtract(NewNRules, OldNRules),

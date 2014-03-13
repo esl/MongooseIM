@@ -107,9 +107,11 @@
 
 %% Internal types
 -type iterator_fun() :: fun(() -> {'ok',{_,_}}).
--type rewriter_fun() :: fun((JID :: binary()) -> binary()).
+-type rewriter_fun() :: fun((JID :: ejabberd:literal_jid())
+                                                    -> ejabberd:literal_jid()).
 -type restore_option() :: {rewrite_jids, rewriter_fun() | [{binary(), binary()}]}
                         | new_message_ids.
+
 -type preference() :: {DefaultMode :: archive_behaviour(),
                        AlwaysJIDs  :: [ejabberd:literal_jid()],
                        NeverJIDs   :: [ejabberd:literal_jid()]}.
@@ -256,6 +258,7 @@ restore_dump_file_unsave(ArcJID, InFileName, Opts) ->
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
 
+-spec start(Host :: ejabberd:server(), Opts :: list()) -> any().
 start(Host, Opts) ->
     ?DEBUG("mod_mam starting", []),
     ejabberd_users:start(Host),
@@ -269,6 +272,8 @@ start(Host, Opts) ->
     ejabberd_hooks:add(remove_user, Host, ?MODULE, remove_user, 50),
     ok.
 
+
+-spec stop(Host :: ejabberd:server()) -> any().
 stop(Host) ->
     ?DEBUG("mod_mam stopping", []),
     ejabberd_hooks:delete(user_send_packet, Host, ?MODULE, user_send_packet, 90),

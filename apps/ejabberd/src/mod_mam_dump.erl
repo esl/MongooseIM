@@ -17,9 +17,6 @@
 -include_lib("exml/include/exml.hrl").
 
 -type call_fun() :: fun((_,_) -> {'ok',_} | {'error',_,{_}}).
--type restore_subst() :: [{ejabberd:literal_jid(), ejabberd:literal_jid()}].
--type restore_option() :: {rewrite_jids, mod_mam:rewriter_fun() | restore_subst()}
-                         | new_message_ids.
 
 %% ----------------------------------------------------------------------
 %% Utils API
@@ -49,7 +46,8 @@ create_dump_cycle(F, Iter, Acc) ->
     end.
 
 
--spec restore_dump_file(WriterF :: fun(), file:name(), [restore_option()]) -> ok.
+-spec restore_dump_file(WriterF :: fun(), file:name(),
+        [mod_mam:restore_option()]) -> ok.
 restore_dump_file(WriterF, InFileName, Opts)
     when is_function(WriterF, 4) ->
     ?DEBUG("Opts ~p", [Opts]),
