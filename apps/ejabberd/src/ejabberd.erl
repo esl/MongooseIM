@@ -60,6 +60,7 @@
 
 %% A tuple-style JID without resource part
 -type simple_bare_jid() :: {LUser :: luser(), LServer :: lserver()}.
+-type literal_jid() :: binary().
 
 %% Incoming event from XML stream. Used everywhere in xmlstream fsm modules
 -type xml_stream_item() :: 'closed'
@@ -71,18 +72,13 @@
 
 -export_type([lang/0,
               sockmod/0,
-              jid/0,
+              jid/0, simple_jid/0, simple_bare_jid/0,
               iq/0,
-              simple_jid/0,
-              simple_bare_jid/0,
               xml_stream_item/0,
-              user/0,
-              server/0,
-              resource/0,
-              luser/0,
-              lserver/0,
-              lresource/0
-            ]).
+              user/0, server/0, resource/0,
+              luser/0, lserver/0, lresource/0,
+              literal_jid/0
+             ]).
 
 start() ->
     %%ejabberd_cover:start(),
