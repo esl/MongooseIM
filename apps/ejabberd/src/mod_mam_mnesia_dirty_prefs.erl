@@ -38,6 +38,7 @@
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
 
+-spec start(Host :: ejabberd:server(), Opts :: list()) -> any().
 start(Host, Opts) ->
     mnesia:create_table(mam_prefs,
             [{disc_copies, [node()]},
@@ -55,6 +56,8 @@ start(Host, Opts) ->
             ok
     end.
 
+
+-spec stop(Host :: ejabberd:server()) -> any().
 stop(Host) ->
     case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
         true ->

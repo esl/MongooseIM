@@ -54,6 +54,7 @@ su_key(#jid{lserver = LServer, luser = LUser}) ->
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
 
+-spec start(Host :: ejabberd:server(), Opts :: list()) -> any().
 start(Host, Opts) ->
     supervisor:start_child(ejabberd_sup, writer_child_spec()),
     case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
@@ -69,6 +70,7 @@ start(Host, Opts) ->
             ok
     end.
 
+-spec stop(Host :: ejabberd:server()) -> any().
 stop(Host) ->
     case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
         true ->

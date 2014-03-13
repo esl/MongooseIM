@@ -91,7 +91,7 @@ mam_ns_binary() -> <<"urn:xmpp:mam:tmp">>.
 %% Microseconds from 01.01.1970
 -type unix_timestamp() :: non_neg_integer().
 
--type archive_behaviour() :: roster | always | never.
+-type archive_behaviour() :: mod_mam:archive_behaviour().
 -type archive_behaviour_bin() :: binary(). % `<<"roster">> | <<"always">> | <<"never">>'.
 
 
@@ -664,7 +664,7 @@ is_jid_in_user_roster(#jid{lserver=LServer, luser=LUser},
     Subscription == from orelse Subscription == both.
 
 
--spec success_sql_query(ejabberd:server() | pid() | {atom(),pid()},_) -> any().
+-spec success_sql_query(ejabberd:server(), _) -> any().
 success_sql_query(Host, Query) ->
     case ejabberd_odbc:sql_query(Host, Query) of
         {error, Reason} ->
