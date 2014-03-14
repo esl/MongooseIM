@@ -13,6 +13,7 @@
 -export([start/2, stop/1]).
 
 %% MAM hook handlers
+-behaviour(ejabberd_mam_hook).
 -export([archive_size/4,
          archive_message/9,
          lookup_messages/14,
@@ -47,10 +48,10 @@
 %% Types
 
 -type filter() :: iolist().
--type room_id() :: non_neg_integer().
+-type room_id() :: mod_mam:room_id().
 -type escaped_message_id() :: binary(). % string?
 -type escaped_jid() :: binary().
--type unix_timestamp() :: non_neg_integer().
+-type unix_timestamp() :: mod_mam:unix_timestamp().
 -type packet() :: any().
 
 

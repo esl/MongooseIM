@@ -13,6 +13,7 @@
 -export([start/2, stop/1]).
 
 %% MAM hook handlers
+-behaviour(ejabberd_gen_mam_hook).
 -export([archive_size/4,
          archive_message/9,
          lookup_messages/14,
@@ -35,21 +36,24 @@
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 
--record(state, {
-    flush_interval=500,
-    max_packet_size=30,
-    max_subscribers=100,
-    host,
-    conn,
-    number,
-    acc=[],
-    subscribers=[],
-    flush_interval_tref}).
+-type packet() :: any().
+-record(state, {flush_interval =500 :: non_neg_integer(),
+                max_packet_size=30  :: non_neg_integer(),
+                max_subscribers=100 :: non_neg_integer(),
+                host                :: ejabberd:server(),
+                conn,
+                number              :: non_neg_integer(),
+                acc=[]              :: list(),
+                subscribers=[]      :: list(),
+                flush_interval_tref :: reference()
+              }).
+-type state() :: #state{}.
 
 worker_prefix() ->
     "ejabberd_mod_mam_muc_writer".
 
-%% Ensure, that:
+
+%% @doc Ensure, that:
 %% `worker_count(_) = Int * mod_mam_muc_odbc_arch:partition_count()'
 %%
 %% For example,
@@ -59,16 +63,24 @@ worker_prefix() ->
 worker_count(_Host) ->
     32.
 
+
+-spec worker_names(ejabberd:server()) -> [{integer(),atom()}].
 worker_names(Host) ->
     [{N, worker_name(Host, N)} || N <- lists:seq(0, worker_count(Host) - 1)].
 
+
+-spec worker_name(ejabberd:server(), integer()) -> atom().
 worker_name(Host, N) ->
     list_to_atom(worker_prefix() ++ "_" ++ binary_to_list(Host) ++ "_" ++ integer_to_list(N)).
 
+
+-spec select_worker(ejabberd:server(), integer()) -> atom().
 select_worker(Host, ArcID) ->
     N = worker_number(Host, ArcID),
     worker_name(Host, N).
 
+
+-spec worker_number(ejabberd:server(), mod_mam:archive_id()) -> integer().
 worker_number(Host, ArcID) ->
     ArcID rem worker_count(Host).
 
@@ -77,10 +89,14 @@ worker_number(Host, ArcID) ->
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
 
+-spec start(ejabberd:server(),_) -> 'ok'.
 start(Host, Opts) ->
     start_workers(Host),
     start_muc(Host, Opts).
 
+
+-spec stop(ejabberd:server()) -> ['ok' | {'error','not_found' | 'restarting'
+                                  | 'running' | 'simple_one_for_one'}].
 stop(Host) ->
     stop_muc(Host),
     stop_workers(Host).
@@ -88,6 +104,7 @@ stop(Host) ->
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam_muc
 
+-spec start_muc(ejabberd:server(),_) -> 'ok'.
 start_muc(Host, _Opts) ->
     ejabberd_hooks:add(mam_muc_archive_message, Host, ?MODULE, archive_message, 50),
     ejabberd_hooks:add(mam_muc_archive_size, Host, ?MODULE, archive_size, 30),
@@ -97,6 +114,8 @@ start_muc(Host, _Opts) ->
     ejabberd_hooks:add(mam_muc_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 30),
     ok.
 
+
+-spec stop_muc(ejabberd:server()) -> 'ok'.
 stop_muc(Host) ->
     ejabberd_hooks:delete(mam_muc_archive_message, Host, ?MODULE, archive_message, 50),
     ejabberd_hooks:delete(mam_muc_archive_size, Host, ?MODULE, archive_size, 30),
@@ -110,13 +129,24 @@ stop_muc(Host) ->
 %% API
 %%====================================================================
 
+-spec start_workers(ejabberd:server()) -> [{'error',_}
+                                        | {'ok','undefined' | pid()}
+                                        | {'ok','undefined' | pid(),_}].
 start_workers(Host) ->
     [start_worker(WriterProc, N, Host)
      || {N, WriterProc} <- worker_names(Host)].
 
+
+-spec stop_workers(ejabberd:server()) -> ['ok'
+    | {'error','not_found' | 'restarting' | 'running' | 'simple_one_for_one'}].
 stop_workers(Host) ->
     [stop_worker(WriterProc) ||  {_, WriterProc} <- worker_names(Host)].
 
+
+-spec start_worker(atom(), integer(), ejabberd:server())
+      -> {'error', _}
+         | {'ok','undefined' | pid()}
+         | {'ok','undefined' | pid(), _}.
 start_worker(WriterProc, N, Host) ->
     WriterChildSpec =
     {WriterProc,
@@ -127,14 +157,23 @@ start_worker(WriterProc, N, Host) ->
      [mod_mam_muc_odbc_async_writer]},
     supervisor:start_child(ejabberd_sup, WriterChildSpec).
 
+
+-spec stop_worker(atom()) -> 'ok'
+        | {'error','not_found' | 'restarting' | 'running' | 'simple_one_for_one'}.
 stop_worker(Proc) ->
     supervisor:terminate_child(ejabberd_sup, Proc),
     supervisor:delete_child(ejabberd_sup, Proc).
 
 
+-spec start_link(atom(),_,_) -> 'ignore' | {'error',_} | {'ok',pid()}.
 start_link(ProcName, N, Host) ->
     gen_server:start_link({local, ProcName}, ?MODULE, [Host, N], []).
 
+
+-spec archive_message(_, Host :: ejabberd:server(), MessID :: mod_mam:message_id(),
+    ArcID :: mod_mam:archive_id(), LocJID :: ejabberd:jid(),
+    RemJID :: ejabberd:jid(), SrcJID :: ejabberd:jid(), Dir :: atom(),
+    Packet :: packet()) -> any().
 archive_message(_Result, Host,
         MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet) ->
     Row = mod_mam_muc_odbc_arch:prepare_message(Host,
@@ -158,18 +197,26 @@ archive_message(_Result, Host,
             end
     end.
 
+
+-spec is_overloaded(pid()) -> boolean().
 is_overloaded(Pid) ->
     {message_queue_len, Len} = erlang:process_info(Pid, message_queue_len),
     Len > 500.
 
-%% For folsom.
+
+%% @doc For folsom.
+-spec queue_length(ejabberd:server()) -> {'ok',number()}.
 queue_length(Host) ->
     Len = lists:sum(queue_lengths(Host)),
     {ok, Len}.
 
+
+-spec queue_lengths(ejabberd:server()) -> [non_neg_integer()].
 queue_lengths(Host) ->
     [worker_queue_length(SrvName) || {_, SrvName} <- worker_names(Host)].
 
+
+-spec worker_queue_length(atom()) -> non_neg_integer().
 worker_queue_length(SrvName) ->
     case whereis(SrvName) of
     undefined ->
@@ -180,34 +227,60 @@ worker_queue_length(SrvName) ->
     end.
 
 
+-spec archive_size(integer(), ejabberd:server(), mod_mam:archive_id(),
+                   ejabberd:jid()) -> integer().
 archive_size(Size, Host, ArcID, _ArcJID) when is_integer(Size) ->
     wait_flushing(Host, ArcID),
     Size.
 
-lookup_messages(Result, Host, ArcID, _ArcJID,
+
+-spec lookup_messages(Result :: any(), Host :: ejabberd:server(),
+    ArcID :: mod_mam:archive_id(), _ArcJID :: ejabberd:jid(), _RSM :: jlib:rsm_in(),
+    _Borders :: mod_mam:borders(), _Start :: mod_mam:unix_timestamp(),
+    End :: mod_mam:unix_timestamp(), Now :: mod_mam:unix_timestamp(),
+    _WithJID :: ejabberd:jid(), _PageSize :: integer(), _LimitPassed :: boolean(),
+    _MaxResultLimit :: integer(), _IsSimple :: boolean()) -> any().
+  lookup_messages(Result, Host, ArcID, _ArcJID,
                 _RSM, _Borders,
                 _Start, End, Now, _WithJID,
                 _PageSize, _LimitPassed, _MaxResultLimit, _IsSimple) ->
     wait_flushing_before(Host, ArcID, End, Now),
     Result.
 
+
+-spec remove_archive(ejabberd:server(), mod_mam:archive_id(), ejabberd:jid()) -> 'ok'.
 remove_archive(Host, ArcID, _ArcJID) ->
     wait_flushing(Host, ArcID),
     ok.
 
+
+-spec purge_single_message(any(), ejabberd:server(), MessId :: mod_mam:message_id(),
+    ArcID :: mod_mam:archive_id(), _ArcJID :: ejabberd:jid(),
+    Now :: mod_mam:unix_timestamp()) -> any().
 purge_single_message(Result, Host, MessID, ArcID, _ArcJID, Now) ->
     {Microseconds, _NodeMessID} = mod_mam_utils:decode_compact_uuid(MessID),
     wait_flushing_before(Host, ArcID, Microseconds, Now),
     Result.
 
+
+-spec purge_multiple_messages(Result :: any(), Host :: ejabberd:server(),
+    ArcID :: mod_mam:archive_id(), _ArcJID :: ejabberd:jid(),
+    _Borders :: mod_mam:borders(), _Start :: mod_mam:unix_timestamp(),
+    End :: mod_mam:unix_timestamp(), Now :: mod_mam:unix_timestamp(),
+    _WithJID :: ejabberd:jid()) -> any().
 purge_multiple_messages(Result, Host, ArcID, _ArcJID, _Borders,
                         _Start, End, Now, _WithJID) ->
     wait_flushing_before(Host, ArcID, End, Now),
     Result.
 
+
+-spec wait_flushing(ejabberd:server(), mod_mam:archive_id()) -> any().
 wait_flushing(Host, ArcID) ->
     gen_server:call(select_worker(Host, ArcID), wait_flushing).
 
+
+-spec wait_flushing_before(ejabberd:server(), mod_mam:archive_id(),
+      End :: mod_mam:unix_timestamp(), Now :: mod_mam:unix_timestamp()) -> any().
 wait_flushing_before(Host, ArcID, End, Now) ->
     case is_recent_entries_required(End, Now) of
         true ->
@@ -216,7 +289,10 @@ wait_flushing_before(Host, ArcID, End, Now) ->
             ok
     end.
 
+
 %% @doc Returns true, if `End' is too old.
+-spec is_recent_entries_required(mod_mam:unix_timestamp(),
+                                 mod_mam:unix_timestamp()) -> boolean().
 is_recent_entries_required(End, Now) when is_integer(End) ->
     %% If `End' is older than 10 seconds?
     End + 10000000 < Now;
@@ -228,6 +304,7 @@ is_recent_entries_required(_End, _Now) ->
 %% Internal functions
 %%====================================================================
 
+-spec run_flush(state()) -> state().
 run_flush(State=#state{acc=[]}) ->
     State;
 run_flush(State=#state{host=Host, conn=Conn, number=N,
@@ -251,6 +328,8 @@ run_flush(State=#state{host=Host, conn=Conn, number=N,
     erlang:garbage_collect(),
     State#state{acc=[], subscribers=[], flush_interval_tref=undefined}.
 
+
+-spec cancel_and_flush_timer('undefined' | reference()) -> 'ok'.
 cancel_and_flush_timer(undefined) ->
     ok;
 cancel_and_flush_timer(TRef) ->
@@ -288,6 +367,8 @@ init([Host, N]) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
+-spec handle_call('wait_flushing', _, state())
+      -> {'noreply', state()} | {'reply','ok',state()}.
 handle_call(wait_flushing, _From, State=#state{acc=[]}) ->
     {reply, ok, State};
 handle_call(wait_flushing, From,
@@ -331,6 +412,7 @@ handle_cast(Msg, State) ->
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 
+-spec handle_info('flush',state()) -> {'noreply',state()}.
 handle_info(flush, State) ->
     {noreply, run_flush(State#state{flush_interval_tref=undefined})}.
 

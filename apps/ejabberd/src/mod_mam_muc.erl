@@ -94,7 +94,7 @@
 %% Datetime types
 %% Microseconds from 01.01.1970
 
--type unix_timestamp() :: non_neg_integer().
+-type unix_timestamp() :: mod_mam:unix_timestamp().
 
 %% ----------------------------------------------------------------------
 %% Other types

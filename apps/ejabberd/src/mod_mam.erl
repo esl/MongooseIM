@@ -99,11 +99,15 @@
 
 %% ----------------------------------------------------------------------
 %% Other types
--type archive_behaviour() :: atom(). % roster | always | never.
--type message_id() :: non_neg_integer().
--type archive_id() :: non_neg_integer().
--type action() :: atom().
--type borders() :: #mam_borders{}.
+-type archive_behaviour()   :: atom(). % roster | always | never.
+-type message_id()          :: non_neg_integer().
+
+-type archive_id()          :: non_neg_integer(). % is this same as room/user_id?
+-type room_id()             :: non_neg_integer(). % is this same as user/archive_id?
+-type user_id()             :: non_neg_integer(). % is this same as archive_id?
+
+-type action()              :: atom().
+-type borders()             :: #mam_borders{}.
 
 %% Internal types
 -type iterator_fun() :: fun(() -> {'ok',{_,_}}).
@@ -119,7 +123,9 @@
               borders/0,
               preference/0,
               archive_behaviour/0,
-              iterator_fun/0
+              iterator_fun/0,
+              unix_timestamp/0,
+              archive_id/0, room_id/0, user_id/0
             ]).
 
 %% ----------------------------------------------------------------------
