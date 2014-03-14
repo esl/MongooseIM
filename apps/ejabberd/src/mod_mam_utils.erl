@@ -89,7 +89,7 @@ mam_ns_binary() -> <<"urn:xmpp:mam:tmp">>.
 %% Datetime types
 -type iso8601_datetime_binary() :: binary().
 %% Microseconds from 01.01.1970
--type unix_timestamp() :: non_neg_integer().
+-type unix_timestamp() :: mod_mam:unix_timestamp().
 
 -type archive_behaviour() :: mod_mam:archive_behaviour().
 -type archive_behaviour_bin() :: binary(). % `<<"roster">> | <<"always">> | <<"never">>'.

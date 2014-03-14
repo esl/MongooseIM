@@ -19,6 +19,7 @@
 -export([start/2, stop/1]).
 
 %% MAM hook handlers
+-behaviour(ejabberd_gen_mam_hook).
 -export([archive_size/4,
          archive_message/9,
          lookup_messages/14,
@@ -56,21 +57,21 @@
 %% ----------------------------------------------------------------------
 %% Types
 
--type filter() :: iolist().
--type message_id() :: non_neg_integer().
--type user_id() :: non_neg_integer().
+-type filter()            :: iolist().
+-type message_id()        :: mod_mam:message_id().
 -type escaped_message_id() :: binary().
--type escaped_jid() :: binary().
--type escaped_resource() :: binary().
--type server_hostname() :: binary().
--type server_host() :: binary().
--type unix_timestamp() :: non_neg_integer().
+-type escaped_jid()       :: binary().
+-type escaped_resource()  :: binary().
+%% -type server_hostname()   :: binary().
+%% -type server_host()       :: ejabberd:server().
+-type unix_timestamp()    :: mod_mam:unix_timestamp().
 
 
 %% ----------------------------------------------------------------------
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
 
+-spec start(ejabberd:server(), _) -> 'ok'.
 start(Host, Opts) ->
     case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
         true ->
@@ -85,6 +86,8 @@ start(Host, Opts) ->
             ok
     end.
 
+
+-spec stop(ejabberd:server()) -> ok.
 stop(Host) ->
     case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
         true ->
@@ -103,6 +106,7 @@ stop(Host) ->
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam
 
+-spec start_pm(ejabberd:server(),_) -> 'ok'.
 start_pm(Host, _Opts) ->
     case gen_mod:get_module_opt(Host, ?MODULE, no_writer, false) of
         true ->
@@ -117,6 +121,8 @@ start_pm(Host, _Opts) ->
     ejabberd_hooks:add(mam_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 50),
     ok.
 
+
+-spec stop_pm(ejabberd:server()) -> ok.
 stop_pm(Host) ->
     case gen_mod:get_module_opt(Host, ?MODULE, no_writer, false) of
         true ->
@@ -135,6 +141,7 @@ stop_pm(Host) ->
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam_muc
 
+-spec start_muc(ejabberd:server(),_) -> 'ok'.
 start_muc(Host, _Opts) ->
     case gen_mod:get_module_opt(Host, ?MODULE, no_writer, false) of
         true ->
@@ -149,6 +156,8 @@ start_muc(Host, _Opts) ->
     ejabberd_hooks:add(mam_muc_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 50),
     ok.
 
+
+-spec stop_muc(binary()) -> 'ok'.
 stop_muc(Host) ->
     case gen_mod:get_module_opt(Host, ?MODULE, no_writer, false) of
         true ->
@@ -181,6 +190,9 @@ select_table(_) ->
 encode_direction(incoming) -> "I";
 encode_direction(outgoing) -> "O".
 
+
+-spec archive_size(Size :: integer(), Host :: ejabberd:server(),
+        ArcId :: mod_mam:archive_id(), ArcJID :: ejabberd:jid()) -> integer().
 archive_size(Size, Host, UserID, _UserJID) when is_integer(Size) ->
     IndexHintSQL = index_hint_sql(Host),
     {selected, _ColumnNames, [{BSize}]} =
@@ -192,6 +204,8 @@ archive_size(Size, Host, UserID, _UserJID) when is_integer(Size) ->
        "WHERE user_id = '", escape_user_id(UserID), "'"]),
     Size + list_to_integer(binary_to_list(BSize)).
 
+
+-spec index_hint_sql(ejabberd:server()) -> string().
 index_hint_sql(Host) ->
     case ejabberd_odbc:db_engine(Host) of
         mysql ->
@@ -200,6 +214,8 @@ index_hint_sql(Host) ->
             ""
     end.
 
+
+-spec insert_ignore(ejabberd:server()) -> string().
 insert_ignore(Host) ->
     case ejabberd_odbc:db_engine(Host) of
         mysql ->
@@ -208,6 +224,11 @@ insert_ignore(Host) ->
             ""
     end.
 
+
+-spec archive_message(_Result, Host :: ejabberd:server(),
+        MessID :: mod_mam:message_id(), UserID :: mod_mam:user_id(),
+        LocJID :: ejabberd:jid(), RemJID :: ejabberd:jid(),
+        SrcJID :: ejabberd:jid(), incoming, Packet :: any()) -> ok.
 archive_message(_Result, Host, MessID, UserID,
                 LocJID=#jid{},
                 RemJID=#jid{lresource=RemLResource},
@@ -225,6 +246,11 @@ archive_message(_Result, Host, MessID, UserID,
     write_message(Host, Table, SMessID, SUserID, SBareRemJID,
                   SRemLResource, SDir, SSrcJID, SData).
 
+
+-spec write_message(Host :: ejabberd:server(), Table :: string(),
+        SMessID :: string(), SUserID :: string(), SBareRemJID :: string(),
+        SRemLResource :: string(), SDir :: string(), SSrcJID :: string(),
+        SData :: string()) -> 'ok'.
 write_message(Host, Table, SMessID, SUserID, SBareRemJID,
               SRemLResource, SDir, SSrcJID, SData) ->
     {updated, 1} =
@@ -270,29 +296,12 @@ archive_messages(LServer, Acc, N) ->
                                 "from_jid, message) "
        "VALUES ", tuples(Acc)]).
 
--spec lookup_messages(Result, Host,
-                      UserID, UserJID, RSM, Borders,
-                      Start, End, Now, WithJID,
-                      PageSize, LimitPassed, MaxResultLimit,
-                      IsSimple) -> Result when
-    Host    :: server_host(),
-    UserJID :: #jid{},
-    UserID  :: user_id(),
-    RSM     :: #rsm_in{} | undefined,
-    Borders :: #mam_borders{} | undefined,
-    Start   :: unix_timestamp() | undefined,
-    End     :: unix_timestamp() | undefined,
-    Now     :: unix_timestamp(),
-    PageSize :: non_neg_integer(),
-    WithJID :: #jid{} | undefined,
-    LimitPassed :: boolean(),
-    MaxResultLimit :: non_neg_integer(),
-    IsSimple :: boolean(),
-    Result :: {ok, {TotalCount, Offset, MessageRows}} | {error, 'policy-violation'},
-    TotalCount :: non_neg_integer(),
-    Offset  :: non_neg_integer(),
-    MessageRows :: list(tuple()).
-
+-spec lookup_messages(Result :: any(), Host :: ejabberd:server(),
+        ArcID :: mod_mam:archive_id(), ArcJID :: ejabberd:jid(), RSM :: jlib:rsm_in(),
+        Borders :: mod_mam:borders(), Start :: mod_mam:unix_timestamp(),
+        End :: mod_mam:unix_timestamp(), Now :: mod_mam:unix_timestamp(),
+        WithJID :: ejabberd:jid(), PageSize :: integer(), LimitPassed :: boolean(),
+        MaxResultLimit :: integer(), IsSimple :: boolean()) -> any().
 lookup_messages(_Result, Host, UserID, UserJID = #jid{},
                 #rsm_in{direction = aft, id = ID}, Borders,
                 Start, End, _Now, WithJID,
@@ -300,7 +309,6 @@ lookup_messages(_Result, Host, UserID, UserJID = #jid{},
     Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID),
     MessageRows = extract_messages(Host, UserID, after_id(ID, Filter), 0, PageSize, false),
     {ok, {undefined, undefined, rows_to_uniform_format(Host, UserJID, MessageRows)}};
-
 lookup_messages(_Result, Host, UserID, UserJID = #jid{},
                 #rsm_in{direction = before, id = ID},
                 Borders, Start, End, _Now, WithJID,
@@ -308,7 +316,6 @@ lookup_messages(_Result, Host, UserID, UserJID = #jid{},
     Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID),
     MessageRows = extract_messages(Host, UserID, before_id(ID, Filter), 0, PageSize, true),
     {ok, {undefined, undefined, rows_to_uniform_format(Host, UserJID, MessageRows)}};
-
 lookup_messages(_Result, Host, UserID, UserJID = #jid{},
                 #rsm_in{direction = undefined, index = Offset}, Borders,
                 Start, End, _Now, WithJID,
@@ -316,7 +323,6 @@ lookup_messages(_Result, Host, UserID, UserJID = #jid{},
     Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID),
     MessageRows = extract_messages(Host, UserID, Filter, Offset, PageSize, false),
     {ok, {undefined, undefined, rows_to_uniform_format(Host, UserJID, MessageRows)}};
-
 lookup_messages(_Result, Host, UserID, UserJID = #jid{},
                 undefined, Borders,
                 Start, End, _Now, WithJID,
@@ -324,13 +330,9 @@ lookup_messages(_Result, Host, UserID, UserJID = #jid{},
     Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID),
     MessageRows = extract_messages(Host, UserID, Filter, 0, PageSize, false),
     {ok, {undefined, undefined, rows_to_uniform_format(Host, UserJID, MessageRows)}};
-
-
-
 %% Cannot be optimized:
-%% - #rsm_in{direction = aft, id = ID} 
-%% - #rsm_in{direction = before, id = ID} 
-
+%% - #rsm_in{direction = aft, id = ID}
+%% - #rsm_in{direction = before, id = ID}
 lookup_messages(_Result, Host, UserID, UserJID = #jid{},
                 #rsm_in{direction = before, id = undefined}, Borders,
                 Start, End, _Now, WithJID,
@@ -350,7 +352,6 @@ lookup_messages(_Result, Host, UserID, UserJID = #jid{},
             {ok, {Offset + MessageRowsCount, Offset,
                   rows_to_uniform_format(Host, UserJID, MessageRows)}}
     end;
-
 lookup_messages(_Result, Host, UserID, UserJID = #jid{},
                 #rsm_in{direction = undefined, index = Offset}, Borders,
                 Start, End, _Now, WithJID,
@@ -370,7 +371,6 @@ lookup_messages(_Result, Host, UserID, UserJID = #jid{},
             {ok, {Offset + MessageRowsCount + CountAfterLastID, Offset,
                   rows_to_uniform_format(Host, UserJID, MessageRows)}}
     end;
-
 lookup_messages(_Result, Host, UserID, UserJID = #jid{},
                 undefined, Borders,
                 Start, End, _Now, WithJID,
@@ -390,8 +390,6 @@ lookup_messages(_Result, Host, UserID, UserJID = #jid{},
             {ok, {MessageRowsCount + CountAfterLastID, 0,
                   rows_to_uniform_format(Host, UserJID, MessageRows)}}
     end;
-
-
 lookup_messages(_Result, Host, UserID, UserJID = #jid{},
                 RSM = #rsm_in{direction = aft, id = ID}, Borders,
                 Start, End, _Now, WithJID,
@@ -402,7 +400,7 @@ lookup_messages(_Result, Host, UserID, UserJID = #jid{},
     Offset     = calc_offset(Host, UserID, Filter, IndexHintSQL, PageSize, TotalCount, RSM),
     %% If a query returns a number of stanzas greater than this limit and the
     %% client did not specify a limit using RSM then the server should return
-    %% a policy-violation error to the client. 
+    %% a policy-violation error to the client.
     case TotalCount - Offset > MaxResultLimit andalso not LimitPassed of
         true ->
             {error, 'policy-violation'};
@@ -411,7 +409,6 @@ lookup_messages(_Result, Host, UserID, UserJID = #jid{},
             MessageRows = extract_messages(Host, UserID, after_id(ID, Filter), 0, PageSize, false),
             {ok, {TotalCount, Offset, rows_to_uniform_format(Host, UserJID, MessageRows)}}
     end;
-
 lookup_messages(_Result, Host, UserID, UserJID = #jid{},
                 RSM = #rsm_in{direction = before, id = ID}, Borders,
                 Start, End, _Now, WithJID,
@@ -422,7 +419,7 @@ lookup_messages(_Result, Host, UserID, UserJID = #jid{},
     Offset     = calc_offset(Host, UserID, Filter, IndexHintSQL, PageSize, TotalCount, RSM),
     %% If a query returns a number of stanzas greater than this limit and the
     %% client did not specify a limit using RSM then the server should return
-    %% a policy-violation error to the client. 
+    %% a policy-violation error to the client.
     case TotalCount - Offset > MaxResultLimit andalso not LimitPassed of
         true ->
             {error, 'policy-violation'};
@@ -431,7 +428,6 @@ lookup_messages(_Result, Host, UserID, UserJID = #jid{},
             MessageRows = extract_messages(Host, UserID, before_id(ID, Filter), 0, PageSize, true),
             {ok, {TotalCount, Offset, rows_to_uniform_format(Host, UserJID, MessageRows)}}
     end;
-
 lookup_messages(_Result, Host, UserID, UserJID = #jid{},
                 RSM, Borders,
                 Start, End, _Now, WithJID,
@@ -442,7 +438,7 @@ lookup_messages(_Result, Host, UserID, UserJID = #jid{},
     Offset     = calc_offset(Host, UserID, Filter, IndexHintSQL, PageSize, TotalCount, RSM),
     %% If a query returns a number of stanzas greater than this limit and the
     %% client did not specify a limit using RSM then the server should return
-    %% a policy-violation error to the client. 
+    %% a policy-violation error to the client.
     case TotalCount - Offset > MaxResultLimit andalso not LimitPassed of
         true ->
             {error, 'policy-violation'};
@@ -477,6 +473,8 @@ row_to_message_id({BMessID,_,_}) ->
     list_to_integer(binary_to_list(BMessID)).
 
 
+-spec remove_archive(Host :: ejabberd:server(), RoomId :: mod_mam:room_id(),
+        RoomJID :: ejabberd:jid()) -> 'ok'.
 remove_archive(Host, UserID, _UserJID) ->
     {updated, _} =
     mod_mam_utils:success_sql_query(
@@ -485,13 +483,10 @@ remove_archive(Host, UserID, _UserJID) ->
        "WHERE user_id = '", escape_user_id(UserID), "'"]),
     ok.
 
--spec purge_single_message(_Result, Host, MessID, UserID, UserJID, Now) ->
-    ok | {error, 'not-allowed' | 'not-found'} when
-    Host    :: server_host(),
-    MessID  :: message_id(),
-    UserID  :: user_id(),
-    UserJID :: #jid{},
-    Now     :: unix_timestamp().
+-spec purge_single_message(Result :: any(), Host :: ejabberd:server(),
+        MessID :: mod_mam:message_id(), RoomID :: mod_mam:room_id(),
+        RoomJID :: ejabberd:jid(), Now :: mod_mam:unix_timestamp())
+            -> ok | {error, 'not-allowed' | 'not-found'}.
 purge_single_message(_Result, Host, MessID, UserID, _UserJID, _Now) ->
     Result =
     mod_mam_utils:success_sql_query(
@@ -504,18 +499,13 @@ purge_single_message(_Result, Host, MessID, UserID, _UserJID, _Now) ->
         {updated, 1} -> ok
     end.
 
--spec purge_multiple_messages(_Result, Host,
-                              UserID, UserJID, Borders,
-                              Start, End, Now, WithJID) ->
-    ok | {error, 'not-allowed'} when
-    Host    :: server_host(),
-    UserID  :: user_id(),
-    UserJID :: #jid{},
-    Borders :: #mam_borders{},
-    Start   :: unix_timestamp() | undefined,
-    End     :: unix_timestamp() | undefined,
-    Now     :: unix_timestamp(),
-    WithJID :: #jid{} | undefined.
+-spec purge_multiple_messages(Result :: any(), Host :: ejabberd:server(),
+        RoomID :: mod_mam:room_id(), RoomJID :: ejabberd:jid(),
+        Borders :: mod_mam:borders() | undefined,
+        Start :: mod_mam:unix_timestamp() | undefined,
+        End :: mod_mam:unix_timestamp() | undefined,
+        Now :: mod_mam:unix_timestamp(),
+        WithJID :: ejabberd:jid() | undefined) -> ok | {error, 'not-allowed'}.
 purge_multiple_messages(_Result, Host, UserID, UserJID, Borders,
                         Start, End, _Now, WithJID) ->
     Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID),
@@ -527,17 +517,14 @@ purge_multiple_messages(_Result, Host, UserID, UserJID, Borders,
 
 
 
-%% Each record is a tuple of form 
+%% @doc Each record is a tuple of form
 %% `{<<"13663125233">>,<<"bob@localhost">>,<<"res1">>,<<binary>>}'.
 %% Columns are `["id","from_jid","message"]'.
--spec extract_messages(Host, _UserID, Filter, IOffset, IMax, ReverseLimit) ->
-    [Record] when
-    Host :: server_hostname(),
-    Filter  :: filter(),
-    IOffset :: non_neg_integer(),
-    IMax    :: pos_integer(),
-    ReverseLimit :: boolean(),
-    Record :: tuple().
+-type msg() :: {binary(), ejabberd:literal_jid(), ejabberd:resource(), binary()}.
+-type col() :: [binary() | msg()].
+-spec extract_messages(Host :: ejabberd:server(), _UserID :: mod_mam:user_id(),
+        Filter :: filter(), IOffset :: non_neg_integer(), IMax :: pos_integer(),
+        ReverseLimit :: boolean()) -> [col()].
 extract_messages(_Host, _UserID, _Filter, _IOffset, 0, _) ->
     [];
 extract_messages(Host, UserID, Filter, IOffset, IMax, false) ->
@@ -577,14 +564,9 @@ extract_messages(Host, UserID, Filter, IOffset, IMax, true) ->
 %% be returned instead.
 %% @end
 %% "SELECT COUNT(*) as "index" FROM mam_message WHERE id <= '",  UID
--spec calc_index(Host, UserID, Filter, IndexHintSQL, SUID) -> Count
-    when
-    Host         :: server_hostname(),
-    UserID       :: user_id(),
-    Filter       :: filter(),
-    IndexHintSQL :: string(),
-    SUID         :: escaped_message_id(),
-    Count        :: non_neg_integer().
+-spec calc_index(Host :: ejabberd:server(), UserID :: mod_mam:user_id(),
+        Filter :: filter(), IndexHintSQL :: string(),
+        SUID :: escaped_message_id()) -> non_neg_integer().
 calc_index(Host, UserID, Filter, IndexHintSQL, SUID) ->
     {selected, _ColumnNames, [{BIndex}]} =
     mod_mam_utils:success_sql_query(
@@ -598,14 +580,9 @@ calc_index(Host, UserID, Filter, IndexHintSQL, SUID) ->
 %% The element with the passed UID can be already deleted.
 %% @end
 %% "SELECT COUNT(*) as "count" FROM mam_message WHERE id < '",  UID
--spec calc_before(Host, UserID, Filter, IndexHintSQL, SUID) -> Count
-    when
-    Host         :: server_hostname(),
-    UserID       :: user_id(),
-    Filter       :: filter(),
-    IndexHintSQL :: string(),
-    SUID         :: escaped_message_id(),
-    Count        :: non_neg_integer().
+-spec calc_before(Host :: ejabberd:server(), UserID :: mod_mam:user_id(),
+        Filter :: filter(), IndexHintSQL :: string(), SUID :: escaped_message_id()
+        ) -> non_neg_integer().
 calc_before(Host, UserID, Filter, IndexHintSQL, SUID) ->
     {selected, _ColumnNames, [{BIndex}]} =
     mod_mam_utils:success_sql_query(
@@ -617,13 +594,8 @@ calc_before(Host, UserID, Filter, IndexHintSQL, SUID) ->
 
 %% @doc Get the total result set size.
 %% "SELECT COUNT(*) as "count" FROM mam_message WHERE "
--spec calc_count(Host, UserID, Filter, IndexHintSQL) -> Count
-    when
-    UserID       :: user_id(),
-    Host         :: server_hostname(),
-    Filter       :: filter(),
-    IndexHintSQL :: string(),
-    Count        :: non_neg_integer().
+-spec calc_count(Host :: ejabberd:server(), UserID :: mod_mam:user_id(),
+        Filter :: filter(), IndexHintSQL :: string()) -> non_neg_integer().
 calc_count(Host, UserID, Filter, IndexHintSQL) ->
     {selected, _ColumnNames, [{BCount}]} =
     mod_mam_utils:success_sql_query(
@@ -633,14 +605,10 @@ calc_count(Host, UserID, Filter, IndexHintSQL) ->
     list_to_integer(binary_to_list(BCount)).
 
 
--spec prepare_filter(UserID, UserJID, Borders, Start, End, WithJID) -> filter()
-    when
-    UserID  :: user_id(),
-    UserJID :: #jid{},
-    Borders :: #mam_borders{} | undefined,
-    Start   :: unix_timestamp() | undefined,
-    End     :: unix_timestamp() | undefined,
-    WithJID :: #jid{} | undefined.
+-spec prepare_filter(UserID :: mod_mam:user_id(), UserJID :: ejabberd:jid(),
+        Borders :: mod_mam:borders(), Start :: unix_timestamp() | undefined,
+        End :: unix_timestamp() | undefined, WithJID :: ejabberd:jid())
+            -> filter().
 prepare_filter(UserID, UserJID, Borders, Start, End, WithJID) ->
     {SWithJID, SWithResource} =
     case WithJID of
@@ -657,13 +625,12 @@ prepare_filter(UserID, UserJID, Borders, Start, End, WithJID) ->
     EndID2   = apply_end_border(Borders, EndID),
     prepare_filter_sql(UserID, StartID2, EndID2, SWithJID, SWithResource).
 
--spec prepare_filter_sql(UserID, StartID, EndID, SWithJID, SWithResource) -> filter()
-    when
-    UserID  :: non_neg_integer(),
-    StartID :: message_id() | undefined,
-    EndID   :: message_id() | undefined,
-    SWithJID :: escaped_jid() | undefined,
-    SWithResource :: escaped_resource() | undefined.
+
+-spec prepare_filter_sql(UserID :: non_neg_integer(),
+        StartID :: mod_mam:message_id() | undefined,
+        EndID :: mod_mam:message_id() | undefined,
+        SWithJID :: escaped_jid() | undefined,
+        SWithResource :: escaped_resource() | undefined) -> filter().
 prepare_filter_sql(UserID, StartID, EndID, SWithJID, SWithResource) ->
    ["WHERE user_id='", escape_user_id(UserID), "'",
      case StartID of
@@ -684,21 +651,14 @@ prepare_filter_sql(UserID, StartID, EndID, SWithJID, SWithResource) ->
      end].
 
 
-%% #rsm_in{
+%% @doc #rsm_in{
 %%    max = non_neg_integer() | undefined,
 %%    direction = before | aft | undefined,
 %%    id = binary() | undefined,
 %%    index = non_neg_integer() | undefined}
--spec calc_offset(Host, UserID, Filter, IndexHintSQL, PageSize, TotalCount, RSM) -> Offset
-    when
-    Host         :: server_hostname(),
-    UserID       :: user_id(),
-    Filter       :: filter(),
-    IndexHintSQL :: string(),
-    PageSize     :: non_neg_integer(),
-    TotalCount   :: non_neg_integer(),
-    RSM          :: #rsm_in{} | undefined,
-    Offset       :: non_neg_integer().
+-spec calc_offset(Host :: ejabberd:server(), UserID :: ejabberd:user(),
+        Filter :: filter(), IndexHintSQL :: string(), PageSize :: non_neg_integer(),
+        TotalCount :: non_neg_integer(), RSM :: jlib:rsm_in()) -> non_neg_integer().
 calc_offset(_LS, _UserID, _F, _IH, _PS, _TC, #rsm_in{direction = undefined, index = Index})
     when is_integer(Index) ->
     Index;
