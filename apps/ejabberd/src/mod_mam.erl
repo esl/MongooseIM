@@ -102,9 +102,7 @@
 -type archive_behaviour()   :: atom(). % roster | always | never.
 -type message_id()          :: non_neg_integer().
 
--type archive_id()          :: non_neg_integer(). % is this same as room/user_id?
--type room_id()             :: non_neg_integer(). % is this same as user/archive_id?
--type user_id()             :: non_neg_integer(). % is this same as archive_id?
+-type archive_id()          :: non_neg_integer().
 
 -type action()              :: atom().
 -type borders()             :: #mam_borders{}.

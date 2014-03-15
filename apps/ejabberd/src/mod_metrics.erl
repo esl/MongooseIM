@@ -17,19 +17,28 @@
 
 -define(REST_LISTENER, ejabberd_metrics_rest).
 
--spec start(binary(), list()) -> ok.
+-type paths() :: 'available_metrics'
+               | 'host_metric'
+               | 'host_metrics'
+               | 'sum_metric'
+               | 'sum_metrics'.
+
+-spec start(ejabberd:server(), list()) -> ok.
 start(Host, Opts) ->
     init_folsom(Host),
     start_cowboy(Opts),
     metrics_hooks(add, Host),
     ok.
 
--spec stop(binary()) -> ok.
+
+-spec stop(ejabberd:server()) -> ok.
 stop(Host) ->
     stop_cowboy(),
     metrics_hooks(delete, Host),
     ok.
 
+
+-spec init_folsom(ejabberd:server()) -> 'ok'.
 init_folsom(Host) ->
     folsom:start(),
     lists:foreach(fun(Name) ->
@@ -42,6 +51,8 @@ init_folsom(Host) ->
         folsom_metrics:tag_metric(Name, Host)
     end, get_total_counters(Host)).
 
+
+-spec metrics_hooks('add' | 'delete', ejabberd:server()) -> 'ok'.
 metrics_hooks(Op, Host) ->
     lists:foreach(fun(Hook) ->
         apply(ejabberd_hooks, Op, Hook)
@@ -105,6 +116,8 @@ metrics_hooks(Op, Host) ->
          modMucMamMultiplePurges
          ]).
 
+
+-spec get_general_counters(ejabberd:server()) -> [{ejabberd:server(), atom()}].
 get_general_counters(Host) ->
     [{Host, Counter} || Counter <- ?GENERAL_COUNTERS].
 
@@ -112,9 +125,15 @@ get_general_counters(Host) ->
          sessionCount
          ]).
 
+
+-spec get_total_counters(ejabberd:server()) ->
+                            [{ejabberd:server(),'sessionCount'}].
 get_total_counters(Host) ->
     [{Host, Counter} || Counter <- ?TOTAL_COUNTERS].
 
+
+-spec cowboy_router_paths(file:filename()) ->
+    [{file:filename(), 'ejabberd_metrics_rest', [paths(),...]},...].
 cowboy_router_paths(BasePath) ->
     [
         {BasePath, ?REST_LISTENER, [available_metrics]},
@@ -124,6 +143,8 @@ cowboy_router_paths(BasePath) ->
         {[BasePath, "/host/:host"], ?REST_LISTENER, [host_metrics]}
     ].
 
+
+-spec start_cowboy(list()) -> 'ok' | {'error','badarg'}.
 start_cowboy(Opts) ->
     NumAcceptors = gen_mod:get_opt(num_acceptors, Opts, 10),
     IP = gen_mod:get_opt(ip, Opts, {0,0,0,0}),
@@ -145,5 +166,7 @@ start_cowboy(Opts) ->
             end
     end.
 
+
+-spec stop_cowboy() -> 'ok'.
 stop_cowboy() ->
     cowboy:stop_listener(?REST_LISTENER).

@@ -13,7 +13,7 @@
 -export([start/2, stop/1]).
 
 %% MAM hook handlers
--behaviour(ejabberd_gen_mam_hook).
+-behaviour(ejabberd_gen_mam_archive).
 -export([archive_size/4,
          archive_message/9,
          lookup_messages/14,

@@ -13,7 +13,7 @@
 -export([start/2, stop/1]).
 
 %% MAM hook handlers
--behaviour(ejabberd_gen_mam_hook).
+-behaviour(ejabberd_gen_mam_archive).
 -export([archive_size/4,
          archive_message/9,
          lookup_messages/14,
@@ -108,7 +108,7 @@ srv_name(Host) ->
 
 
 -spec archive_message(_Result, ejabberd:server(), MessID :: mod_mam:message_id(),
-        RoomID :: mod_mam:room_id(), LocJID :: ejabberd:jid(), RemJID :: ejabberd:jid(),
+        RoomID :: mod_mam:archive_id(), LocJID :: ejabberd:jid(), RemJID :: ejabberd:jid(),
         SrcJID :: ejabberd:jid(), incoming, Packet :: any()) -> ok.
 archive_message(_Result, Host,
     MessID, RoomID, LocJID, RemJID, SrcJID, incoming, Packet) ->
@@ -151,7 +151,7 @@ lookup_messages(Result, Host, _UserID, _UserJID,
     Result.
 
 
--spec remove_archive(Host :: ejabberd:server(), RoomId :: mod_mam:room_id(),
+-spec remove_archive(Host :: ejabberd:server(), RoomId :: mod_mam:archive_id(),
         RoomJID :: ejabberd:jid()) -> 'ok'.
 remove_archive(Host, _UserID, _UserJID) ->
     wait_flushing(Host),
@@ -169,7 +169,7 @@ purge_single_message(Result, Host, MessID, _UserID, _UserJID, Now) ->
 
 
 -spec purge_multiple_messages(Result :: any(), Host :: ejabberd:server(),
-        RoomID :: mod_mam:room_id(), RoomJID :: ejabberd:jid(),
+        RoomID :: mod_mam:archive_id(), RoomJID :: ejabberd:jid(),
         Borders :: mod_mam:borders() | undefined,
         Start :: mod_mam:unix_timestamp() | undefined,
         End :: mod_mam:unix_timestamp() | undefined,
