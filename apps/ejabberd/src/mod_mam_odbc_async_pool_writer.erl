@@ -13,6 +13,7 @@
 -export([start/2, stop/1]).
 
 %% MAM hook handlers
+-behaviour(ejabberd_gen_mam_archive).
 -export([archive_size/4,
          archive_message/9,
          lookup_messages/14,
@@ -182,6 +183,11 @@ stop_worker(Proc) ->
 start_link(ProcName, N, Host) ->
     gen_server:start_link({local, ProcName}, ?MODULE, [Host, N], []).
 
+
+-spec archive_message(_Result, ejabberd:server(), MessID :: mod_mam:message_id(),
+        ArchiveID :: mod_mam:archive_id(), LocJID :: ejabberd:jid(),
+        RemJID :: ejabberd:jid(), SrcJID :: ejabberd:jid(), Dir :: atom(),
+        Packet :: any()) -> ok.
 archive_message(_Result, Host,
         MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet) ->
     Row = mod_mam_odbc_arch:prepare_message(Host,
@@ -226,10 +232,21 @@ worker_queue_length(SrvName) ->
         Len
     end.
 
+
+-spec archive_size(Size :: integer(), Host :: ejabberd:server(),
+        ArchiveID :: mod_mam:archive_id(), ArcJID :: ejabberd:jid()) -> integer().
 archive_size(Size, Host, ArcID, _ArcJID) when is_integer(Size) ->
     wait_flushing(Host, ArcID),
     Size.
 
+
+-spec lookup_messages(Result :: any(), Host :: ejabberd:server(),
+        ArchiveID :: mod_mam:archive_id(), ArcJID :: ejabberd:jid(),
+        RSM :: jlib:rsm_in(), Borders :: mod_mam:borders(),
+        Start :: mod_mam:unix_timestamp(), End :: mod_mam:unix_timestamp(),
+        Now :: mod_mam:unix_timestamp(), WithJID :: ejabberd:jid(),
+        PageSize :: integer(), LimitPassed :: boolean(), MaxResultLimit :: integer(),
+        IsSimple :: boolean()) -> any().
 lookup_messages(Result, Host, ArcID, _ArcJID,
                 _RSM, _Borders,
                 _Start, End, Now, _WithJID,
@@ -237,15 +254,31 @@ lookup_messages(Result, Host, ArcID, _ArcJID,
     wait_flushing_before(Host, ArcID, End, Now),
     Result.
 
+
+-spec remove_archive(Host :: ejabberd:server(),
+        RoomId :: mod_mam:archive_id(), RoomJID :: ejabberd:jid()) -> 'ok'.
 remove_archive(Host, ArcID, _ArcJID) ->
     wait_flushing(Host, ArcID),
     ok.
 
+
+-spec purge_single_message(Result :: any(), Host :: ejabberd:server(),
+        MessID :: mod_mam:message_id(), ArchiveID :: mod_mam:archive_id(),
+        RoomJID :: ejabberd:jid(), Now :: mod_mam:unix_timestamp())
+            -> ok | {error, 'not-allowed' | 'not-found'}.
 purge_single_message(Result, Host, MessID, ArcID, _ArcJID, Now) ->
     {Microseconds, _NodeMessID} = mod_mam_utils:decode_compact_uuid(MessID),
     wait_flushing_before(Host, ArcID, Microseconds, Now),
     Result.
 
+
+-spec purge_multiple_messages(Result :: any(), Host :: ejabberd:server(),
+        RoomID :: mod_mam:archive_id(), ArchiveID :: ejabberd:jid(),
+        Borders :: mod_mam:borders() | undefined,
+        Start :: mod_mam:unix_timestamp() | undefined,
+        End :: mod_mam:unix_timestamp() | undefined,
+        Now :: mod_mam:unix_timestamp(),
+        WithJID :: ejabberd:jid() | undefined) -> ok | {error, 'not-allowed'}.
 purge_multiple_messages(Result, Host, ArcID, _ArcJID, _Borders,
                         _Start, End, Now, _WithJID) ->
     wait_flushing_before(Host, ArcID, End, Now),

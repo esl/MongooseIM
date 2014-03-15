@@ -48,7 +48,6 @@
 %% Types
 
 -type filter() :: iolist().
--type room_id() :: mod_mam:room_id().
 -type escaped_message_id() :: binary(). % string?
 -type escaped_jid() :: binary().
 -type unix_timestamp() :: mod_mam:unix_timestamp().
@@ -132,7 +131,7 @@ archive_size(Size, Host, RoomID, _RoomJID) when is_integer(Size) ->
 
 
 -spec archive_message(_Result, ejabberd:server(), MessID :: mod_mam:message_id(),
-        RoomID :: room_id(), _LocJID :: ejabberd:jid(), _RemJID :: ejabberd:jid(),
+        RoomID :: mod_mam:archive_id(), _LocJID :: ejabberd:jid(), _RemJID :: ejabberd:jid(),
         _SrcJID :: ejabberd:jid(), incoming, Packet :: packet()) -> ok.
 archive_message(_Result, Host, MessID, RoomID,
                 _LocJID=#jid{},
@@ -141,7 +140,7 @@ archive_message(_Result, Host, MessID, RoomID,
     archive_message_1(Host, MessID, RoomID, FromNick, Packet).
 
 
--spec archive_message_1(ejabberd:server(), mod_mam:message_id(), room_id(),
+-spec archive_message_1(ejabberd:server(), mod_mam:message_id(), mod_mam:archive_id(),
         FromNick :: ejabberd:user(), packet()) -> ok.
 archive_message_1(Host, MessID, RoomID, FromNick, Packet) ->
     SRoomID = integer_to_list(RoomID),
@@ -153,8 +152,8 @@ archive_message_1(Host, MessID, RoomID, FromNick, Packet) ->
     write_message(Host, SMessID, RoomID, SRoomID, SFromNick, SData).
 
 
--spec write_message(ejabberd:server(), mod_mam:message_id(), RoomId :: room_id(),
-        SRoomId :: room_id(), SFromNick :: ejabberd:user(), SData :: any()) -> 'ok'.
+-spec write_message(ejabberd:server(), mod_mam:message_id(), RoomId :: mod_mam:archive_id(),
+        SRoomId :: mod_mam:archive_id(), SFromNick :: ejabberd:user(), SData :: any()) -> 'ok'.
 write_message(Host, SMessID, RoomID, SRoomID, SFromNick, SData) ->
     {updated, 1} =
     mod_mam_utils:success_sql_query(
@@ -166,7 +165,7 @@ write_message(Host, SMessID, RoomID, SRoomID, SFromNick, SData) ->
     ok.
 
 
--spec prepare_message(ejabberd:server(), mod_mam:message_id(), room_id(),
+-spec prepare_message(ejabberd:server(), mod_mam:message_id(), mod_mam:archive_id(),
         _LocJID :: ejabberd:jid(), _RemJID :: ejabberd:jid(),
         _SrcJID :: ejabberd:jid(), incoming, packet()) -> list().
 prepare_message(Host, MessID, RoomID,
@@ -205,7 +204,7 @@ archive_messages(LServer, Acc, N) ->
 
 
 -spec lookup_messages(Result :: {ok, mod_mam_muc:row()},
-        Host :: ejabberd:server(), RoomID :: room_id(), RoomJID :: ejabberd:jid(),
+        Host :: ejabberd:server(), RoomID :: mod_mam:archive_id(), RoomJID :: ejabberd:jid(),
         RSM :: jlib:rsm_in() | undefined, Borders :: mod_mam:borders() | undefined,
         Start :: unix_timestamp() | undefined, End :: unix_timestamp() | undefined,
         Now :: unix_timestamp(), WithJID :: ejabberd:jid() | undefined,
@@ -396,7 +395,7 @@ row_to_message_id({BMessID,_,_}) ->
     list_to_integer(binary_to_list(BMessID)).
 
 
--spec remove_archive(ejabberd:server(), room_id(), ejabberd:jid()) -> 'ok'.
+-spec remove_archive(ejabberd:server(), mod_mam:archive_id(), ejabberd:jid()) -> 'ok'.
 remove_archive(Host, RoomID, _RoomJID) ->
     {updated, _} =
     mod_mam_utils:success_sql_query(
@@ -407,7 +406,7 @@ remove_archive(Host, RoomID, _RoomJID) ->
 
 
 -spec purge_single_message(_Result, Host :: ejabberd:server(),
-        MessID :: mod_mam:message_id(), RoomID :: room_id(),
+        MessID :: mod_mam:message_id(), RoomID :: mod_mam:archive_id(),
         RoomJID :: ejabberd:jid(), Now :: unix_timestamp())
             -> ok | {error, 'not-allowed' | 'not-found'}.
 purge_single_message(_Result, Host, MessID, RoomID, _RoomJID, _Now) ->
@@ -424,7 +423,7 @@ purge_single_message(_Result, Host, MessID, RoomID, _RoomJID, _Now) ->
 
 
 -spec purge_multiple_messages(_Result, Host :: ejabberd:server(),
-        RoomID :: room_id(), RoomJID :: ejabberd:jid(),
+        RoomID :: mod_mam:archive_id(), RoomJID :: ejabberd:jid(),
         Borders :: mod_mam:borders() | undefined,
         Start :: unix_timestamp() | undefined,
         End :: unix_timestamp() | undefined, Now :: unix_timestamp(),
@@ -440,7 +439,7 @@ purge_multiple_messages(_Result, Host, RoomID, _RoomJID, Borders,
 
 
 %% @doc Columns are `["id","nick_name","message"]'.
--spec extract_messages(Host :: ejabberd:server(), RoomID :: room_id(),
+-spec extract_messages(Host :: ejabberd:server(), RoomID :: mod_mam:archive_id(),
         Filter :: filter(), IOffset :: non_neg_integer(), IMax :: pos_integer(),
         ReverseLimit :: boolean()) -> [tuple()].
 extract_messages(_Host, _RoomID, _Filter, _IOffset, 0, _) ->
@@ -481,7 +480,7 @@ extract_messages(Host, RoomID, Filter, IOffset, IMax, true) ->
 %% If the element does not exists, the MessID of the next element will
 %% be returned instead.
 %% "SELECT COUNT(*) as "index" FROM mam_muc_message WHERE id <= '",  UMessID
--spec calc_index(Host :: ejabberd:server(), RoomID :: room_id(),
+-spec calc_index(Host :: ejabberd:server(), RoomID :: mod_mam:archive_id(),
     Filter :: filter(), SUMessID :: escaped_message_id()) -> non_neg_integer().
 calc_index(Host, RoomID, Filter, SUMessID) ->
     {selected, _ColumnNames, [{BIndex}]} =
@@ -497,7 +496,7 @@ calc_index(Host, RoomID, Filter, SUMessID) ->
 %% The element with the passed UMessID can be already deleted.
 %% @end
 %% "SELECT COUNT(*) as "count" FROM mam_muc_message WHERE id < '",  UMessID
--spec calc_before(Host :: ejabberd:server(), RoomID :: room_id(),
+-spec calc_before(Host :: ejabberd:server(), RoomID :: mod_mam:archive_id(),
     Filter :: filter(), SUMessID :: escaped_message_id()) -> non_neg_integer().
 calc_before(Host, RoomID, Filter, SUMessID) ->
     {selected, _ColumnNames, [{BIndex}]} =
@@ -511,7 +510,7 @@ calc_before(Host, RoomID, Filter, SUMessID) ->
 
 %% @doc Get the total result set size.
 %% "SELECT COUNT(*) as "count" FROM mam_muc_message WHERE "
--spec calc_count(Host :: ejabberd:server(), RoomID :: room_id(),
+-spec calc_count(Host :: ejabberd:server(), RoomID :: mod_mam:archive_id(),
                  Filter :: filter()) -> non_neg_integer().
 calc_count(Host, RoomID, Filter) ->
     {selected, _ColumnNames, [{BCount}]} =
@@ -523,7 +522,7 @@ calc_count(Host, RoomID, Filter) ->
 
 
 %% @doc prepare_filter/5
--spec prepare_filter(RoomID :: room_id(), Borders :: #mam_borders{} | undefined,
+-spec prepare_filter(RoomID :: mod_mam:archive_id(), Borders :: #mam_borders{} | undefined,
         Start :: unix_timestamp() | undefined, End :: unix_timestamp() | undefined,
         WithJID :: #jid{} | undefined) -> filter().
 prepare_filter(RoomID, Borders, Start, End, WithJID) ->
@@ -560,7 +559,7 @@ prepare_filter_1(RoomID, StartID, EndID, SWithNick) ->
 %%    direction = before | aft | undefined,
 %%    id = binary() | undefined,
 %%    index = non_neg_integer() | undefined}
--spec calc_offset(Host :: ejabberd:server(), RoomID :: room_id(),
+-spec calc_offset(Host :: ejabberd:server(), RoomID :: mod_mam:archive_id(),
         Filter :: filter(), PageSize :: non_neg_integer(),
         TotalCount :: non_neg_integer(), RSM :: jlib:rsm_in() | undefined)
             -> non_neg_integer().
@@ -587,7 +586,7 @@ escape_message_id(MessID) when is_integer(MessID) ->
     integer_to_list(MessID).
 
 
--spec escape_room_id(room_id()) -> string().
+-spec escape_room_id(mod_mam:archive_id()) -> string().
 escape_room_id(RoomID) when is_integer(RoomID) ->
     integer_to_list(RoomID).
 

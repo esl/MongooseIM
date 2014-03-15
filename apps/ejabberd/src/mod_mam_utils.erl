@@ -157,7 +157,7 @@ generate_message_id() ->
 %% It removes a leading 0 from 64-bit binary representation.
 %% It puts node id as a last byte.
 %% The maximum date, that can be encoded is `{{4253,5,31},{22,20,37}}'.
--spec encode_compact_uuid(integer(),integer()) -> integer().
+-spec encode_compact_uuid(integer(), integer()) -> integer().
 encode_compact_uuid(Microseconds, NodeId)
     when is_integer(Microseconds), is_integer(NodeId) ->
     (Microseconds bsl 8) + NodeId.
@@ -323,7 +323,8 @@ wrap_message(Packet, QueryID, MessageUID, DateTime, SrcJID) ->
         children = [result(QueryID, MessageUID,
                            [forwarded(Packet, DateTime, SrcJID)])]}.
 
--spec forwarded(jlib:xmlel(), calendar:datetime(), ejabberd:jid()) -> jlib:xmlel().
+-spec forwarded(jlib:xmlel(), calendar:datetime(), ejabberd:jid())
+            -> jlib:xmlel().
 forwarded(Packet, DateTime, SrcJID) ->
     #xmlel{
         name = <<"forwarded">>,
@@ -337,7 +338,8 @@ delay(DateTime, SrcJID) ->
 
 %% @doc Generates tag `<result />'.
 %% This element will be added in each forwarded message.
--spec result(_, MessageUID :: binary(), Children :: [jlib:xmlel(),...]) -> jlib:xmlel().
+-spec result(_, MessageUID :: binary(), Children :: [jlib:xmlel(),...])
+            -> jlib:xmlel().
 result(QueryID, MessageUID, Children) when is_list(Children) ->
     %% <result xmlns='urn:xmpp:mam:tmp' queryid='f27' id='28482-98726-73623' />
     #xmlel{
@@ -354,9 +356,10 @@ result(QueryID, MessageUID, Children) when is_list(Children) ->
 %%
 %% This element will be added into "iq/query".
 %% @end
--spec result_set(FirstId :: binary() | undefined, LastId :: binary() | undefined,
-                 FirstIndexI :: non_neg_integer() | undefined,
-                 CountI :: non_neg_integer() | undefined) -> jlib:xmlel().
+-spec result_set(FirstId :: binary() | undefined,
+        LastId :: binary() | undefined,
+        FirstIndexI :: non_neg_integer() | undefined,
+        CountI :: non_neg_integer() | undefined) -> jlib:xmlel().
 result_set(FirstId, LastId, undefined, undefined)
     when ?MAYBE_BIN(FirstId), ?MAYBE_BIN(LastId) ->
     %% Simple response

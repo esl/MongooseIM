@@ -19,7 +19,7 @@
 -export([start/2, stop/1]).
 
 %% MAM hook handlers
--behaviour(ejabberd_gen_mam_hook).
+-behaviour(ejabberd_gen_mam_archive).
 -export([archive_size/4,
          archive_message/9,
          lookup_messages/14,
@@ -58,13 +58,9 @@
 %% Types
 
 -type filter()            :: iolist().
--type message_id()        :: mod_mam:message_id().
 -type escaped_message_id() :: binary().
 -type escaped_jid()       :: binary().
 -type escaped_resource()  :: binary().
-%% -type server_hostname()   :: binary().
-%% -type server_host()       :: ejabberd:server().
--type unix_timestamp()    :: mod_mam:unix_timestamp().
 
 
 %% ----------------------------------------------------------------------
@@ -226,7 +222,7 @@ insert_ignore(Host) ->
 
 
 -spec archive_message(_Result, Host :: ejabberd:server(),
-        MessID :: mod_mam:message_id(), UserID :: mod_mam:user_id(),
+        MessID :: mod_mam:message_id(), UserID :: mod_mam:archive_id(),
         LocJID :: ejabberd:jid(), RemJID :: ejabberd:jid(),
         SrcJID :: ejabberd:jid(), incoming, Packet :: any()) -> ok.
 archive_message(_Result, Host, MessID, UserID,
@@ -473,7 +469,7 @@ row_to_message_id({BMessID,_,_}) ->
     list_to_integer(binary_to_list(BMessID)).
 
 
--spec remove_archive(Host :: ejabberd:server(), RoomId :: mod_mam:room_id(),
+-spec remove_archive(Host :: ejabberd:server(), ArchiveID :: mod_mam:archive_id(),
         RoomJID :: ejabberd:jid()) -> 'ok'.
 remove_archive(Host, UserID, _UserJID) ->
     {updated, _} =
@@ -484,7 +480,7 @@ remove_archive(Host, UserID, _UserJID) ->
     ok.
 
 -spec purge_single_message(Result :: any(), Host :: ejabberd:server(),
-        MessID :: mod_mam:message_id(), RoomID :: mod_mam:room_id(),
+        MessID :: mod_mam:message_id(), ArchiveID :: mod_mam:archive_id(),
         RoomJID :: ejabberd:jid(), Now :: mod_mam:unix_timestamp())
             -> ok | {error, 'not-allowed' | 'not-found'}.
 purge_single_message(_Result, Host, MessID, UserID, _UserJID, _Now) ->
@@ -500,7 +496,7 @@ purge_single_message(_Result, Host, MessID, UserID, _UserJID, _Now) ->
     end.
 
 -spec purge_multiple_messages(Result :: any(), Host :: ejabberd:server(),
-        RoomID :: mod_mam:room_id(), RoomJID :: ejabberd:jid(),
+        ArchiveID :: mod_mam:archive_id(), RoomJID :: ejabberd:jid(),
         Borders :: mod_mam:borders() | undefined,
         Start :: mod_mam:unix_timestamp() | undefined,
         End :: mod_mam:unix_timestamp() | undefined,
@@ -522,7 +518,7 @@ purge_multiple_messages(_Result, Host, UserID, UserJID, Borders,
 %% Columns are `["id","from_jid","message"]'.
 -type msg() :: {binary(), ejabberd:literal_jid(), ejabberd:resource(), binary()}.
 -type col() :: [binary() | msg()].
--spec extract_messages(Host :: ejabberd:server(), _UserID :: mod_mam:user_id(),
+-spec extract_messages(Host :: ejabberd:server(), _UserID :: mod_mam:archive_id(),
         Filter :: filter(), IOffset :: non_neg_integer(), IMax :: pos_integer(),
         ReverseLimit :: boolean()) -> [col()].
 extract_messages(_Host, _UserID, _Filter, _IOffset, 0, _) ->
@@ -564,7 +560,7 @@ extract_messages(Host, UserID, Filter, IOffset, IMax, true) ->
 %% be returned instead.
 %% @end
 %% "SELECT COUNT(*) as "index" FROM mam_message WHERE id <= '",  UID
--spec calc_index(Host :: ejabberd:server(), UserID :: mod_mam:user_id(),
+-spec calc_index(Host :: ejabberd:server(), UserID :: mod_mam:archive_id(),
         Filter :: filter(), IndexHintSQL :: string(),
         SUID :: escaped_message_id()) -> non_neg_integer().
 calc_index(Host, UserID, Filter, IndexHintSQL, SUID) ->
@@ -580,7 +576,7 @@ calc_index(Host, UserID, Filter, IndexHintSQL, SUID) ->
 %% The element with the passed UID can be already deleted.
 %% @end
 %% "SELECT COUNT(*) as "count" FROM mam_message WHERE id < '",  UID
--spec calc_before(Host :: ejabberd:server(), UserID :: mod_mam:user_id(),
+-spec calc_before(Host :: ejabberd:server(), UserID :: mod_mam:archive_id(),
         Filter :: filter(), IndexHintSQL :: string(), SUID :: escaped_message_id()
         ) -> non_neg_integer().
 calc_before(Host, UserID, Filter, IndexHintSQL, SUID) ->
@@ -594,7 +590,7 @@ calc_before(Host, UserID, Filter, IndexHintSQL, SUID) ->
 
 %% @doc Get the total result set size.
 %% "SELECT COUNT(*) as "count" FROM mam_message WHERE "
--spec calc_count(Host :: ejabberd:server(), UserID :: mod_mam:user_id(),
+-spec calc_count(Host :: ejabberd:server(), UserID :: mod_mam:archive_id(),
         Filter :: filter(), IndexHintSQL :: string()) -> non_neg_integer().
 calc_count(Host, UserID, Filter, IndexHintSQL) ->
     {selected, _ColumnNames, [{BCount}]} =
@@ -605,9 +601,9 @@ calc_count(Host, UserID, Filter, IndexHintSQL) ->
     list_to_integer(binary_to_list(BCount)).
 
 
--spec prepare_filter(UserID :: mod_mam:user_id(), UserJID :: ejabberd:jid(),
-        Borders :: mod_mam:borders(), Start :: unix_timestamp() | undefined,
-        End :: unix_timestamp() | undefined, WithJID :: ejabberd:jid())
+-spec prepare_filter(UserID :: mod_mam:archive_id(), UserJID :: ejabberd:jid(),
+        Borders :: mod_mam:borders(), Start :: mod_mam:unix_timestamp() | undefined,
+        End :: mod_mam:unix_timestamp() | undefined, WithJID :: ejabberd:jid())
             -> filter().
 prepare_filter(UserID, UserJID, Borders, Start, End, WithJID) ->
     {SWithJID, SWithResource} =

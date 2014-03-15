@@ -13,6 +13,7 @@
 -export([start/2, stop/1]).
 
 %% MAM hook handlers
+-behaviour(ejabberd_gen_mam_archive).
 -export([archive_size/4,
          archive_message/9,
          lookup_messages/14,
@@ -35,14 +36,15 @@
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 
--record(state, {
-    flush_interval=500,
-    max_packet_size=30,
-    host,
-    conn,
-    acc=[],
-    subscribers=[],
-    flush_interval_tref}).
+-record(state, {flush_interval =500 :: integer(),
+                max_packet_size=30  :: integer(),
+                host                :: ejabberd:server(),
+                conn,
+                acc=[],
+                subscribers=[],
+                flush_interval_tref :: reference()
+                }).
+-type state() :: #state{}.
 
 %% @see srv_name/1
 srv_name() ->
@@ -54,6 +56,7 @@ srv_name() ->
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
 
+-spec start(ejabberd:server(),_) -> 'ok'.
 start(Host, Opts) ->
     start_server(Host),
     case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
@@ -69,6 +72,9 @@ start(Host, Opts) ->
             ok
     end.
 
+
+-spec stop(ejabberd:server()) -> 'ok'
+| {'error','not_found' | 'restarting' | 'running' | 'simple_one_for_one'}.
 stop(Host) ->
     case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
         true ->
@@ -87,6 +93,7 @@ stop(Host) ->
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam
 
+-spec start_pm(ejabberd:server(),_) -> 'ok'.
 start_pm(Host, _Opts) ->
     ejabberd_hooks:add(mam_archive_message, Host, ?MODULE, archive_message, 50),
     ejabberd_hooks:add(mam_archive_size, Host, ?MODULE, archive_size, 30),
@@ -96,6 +103,8 @@ start_pm(Host, _Opts) ->
     ejabberd_hooks:add(mam_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 30),
     ok.
 
+
+-spec stop_pm(ejabberd:server()) -> 'ok'.
 stop_pm(Host) ->
     ejabberd_hooks:delete(mam_archive_message, Host, ?MODULE, archive_message, 50),
     ejabberd_hooks:delete(mam_archive_size, Host, ?MODULE, archive_size, 30),
@@ -109,6 +118,7 @@ stop_pm(Host) ->
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam_muc
 
+-spec start_muc(ejabberd:server(),_) -> 'ok'.
 start_muc(Host, _Opts) ->
     ejabberd_hooks:add(mam_muc_archive_message, Host, ?MODULE, archive_message, 50),
     ejabberd_hooks:add(mam_muc_archive_size, Host, ?MODULE, archive_size, 30),
@@ -118,6 +128,8 @@ start_muc(Host, _Opts) ->
     ejabberd_hooks:add(mam_muc_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 30),
     ok.
 
+
+-spec stop_muc(ejabberd:server()) -> 'ok'.
 stop_muc(Host) ->
     ejabberd_hooks:delete(mam_muc_archive_message, Host, ?MODULE, archive_message, 50),
     ejabberd_hooks:delete(mam_muc_archive_size, Host, ?MODULE, archive_size, 30),
@@ -132,16 +144,26 @@ stop_muc(Host) ->
 %% API
 %%====================================================================
 
+-spec start_link(atom(), ejabberd:server())
+            -> 'ignore' | {'error',_} | {'ok',pid()}.
 start_link(ProcName, Host) ->
     gen_server:start_link({local, ProcName}, ?MODULE, [Host], []).
 
+
+-spec archive_message(_Result, ejabberd:server(),
+        MessID :: mod_mam:message_id(), ArchiveID :: mod_mam:archive_id(),
+        LocJID :: ejabberd:jid(), RemJID :: ejabberd:jid(),
+        SrcJID :: ejabberd:jid(), Dir :: atom(), Packet :: any()) -> ok.
 archive_message(_Result, Host,
         MessID, UserID, LocJID, RemJID, SrcJID, Dir, Packet) ->
     Row = mod_mam_odbc_arch:prepare_message(Host,
         MessID, UserID, LocJID, RemJID, SrcJID, Dir, Packet),
     gen_server:cast(srv_name(Host), {archive_message, Row}).
 
-%% For folsom.
+
+%% @doc For folsom.
+-spec queue_length(ejabberd:server()) -> {'error','not_running'}
+                                       | {'ok',non_neg_integer()}.
 queue_length(Host) ->
     case whereis(srv_name(Host)) of
     undefined ->
@@ -151,10 +173,22 @@ queue_length(Host) ->
         {ok, Len}
     end.
 
+
+-spec archive_size(Size :: integer(), Host :: ejabberd:server(),
+        ArchiveID :: mod_mam:archive_id(), ArcJID :: ejabberd:jid())
+            -> integer().
 archive_size(Size, Host, _UserID, _UserJID) when is_integer(Size) ->
     wait_flushing(Host),
     Size.
 
+
+-spec lookup_messages(Result :: any(), Host :: ejabberd:server(),
+        ArchiveID :: mod_mam:archive_id(), ArcJID :: ejabberd:jid(),
+        RSM :: jlib:rsm_in(), Borders :: mod_mam:borders(),
+        Start :: mod_mam:unix_timestamp(), End :: mod_mam:unix_timestamp(),
+        Now :: mod_mam:unix_timestamp(), WithJID :: ejabberd:jid(),
+        PageSize :: integer(), LimitPassed :: boolean(),
+        MaxResultLimit :: integer(), IsSimple :: boolean()) -> any().
 lookup_messages(Result, Host, _UserID, _UserJID,
                 _RSM, _Borders,
                 _Start, End, Now, _WithJID,
@@ -162,23 +196,45 @@ lookup_messages(Result, Host, _UserID, _UserJID,
     wait_flushing_before(Host, End, Now),
     Result.
 
+
+-spec remove_archive(Host :: ejabberd:server(),
+        ArchiveID :: mod_mam:archive_id(), RoomJID :: ejabberd:jid()) -> 'ok'.
 remove_archive(Host, _UserID, _UserJID) ->
     wait_flushing(Host),
     ok.
 
+
+-spec purge_single_message(Result :: any(), Host :: ejabberd:server(),
+        MessID :: mod_mam:message_id(), ArchiveID :: mod_mam:archive_id(),
+        RoomJID :: ejabberd:jid(), Now :: mod_mam:unix_timestamp())
+            -> ok | {error, 'not-allowed' | 'not-found'}.
 purge_single_message(Result, Host, MessID, _UserID, _UserJID, Now) ->
     {Microseconds, _NodeMessID} = mod_mam_utils:decode_compact_uuid(MessID),
     wait_flushing_before(Host, Microseconds, Now),
     Result.
 
+
+-spec purge_multiple_messages(Result :: any(), Host :: ejabberd:server(),
+        RoomID :: mod_mam:archive_id(), ArchiveID :: ejabberd:jid(),
+        Borders :: mod_mam:borders() | undefined,
+        Start :: mod_mam:unix_timestamp() | undefined,
+        End :: mod_mam:unix_timestamp() | undefined,
+        Now :: mod_mam:unix_timestamp(),
+        WithJID :: ejabberd:jid() | undefined) -> ok | {error, 'not-allowed'}.
 purge_multiple_messages(Result, Host, _UserID, _UserJID, _Borders,
                         _Start, End, Now, _WithJID) ->
     wait_flushing_before(Host, End, Now),
     Result.
 
+
+-spec wait_flushing(ejabberd:server()) -> any().
 wait_flushing(Host) ->
     gen_server:call(srv_name(Host), wait_flushing).
 
+
+-spec wait_flushing_before(ejabberd:server(),
+        Before :: mod_mam:unix_timestamp(),
+        Now :: mod_mam:unix_timestamp()) -> any().
 wait_flushing_before(Host, End, Now) ->
     case is_recent_entries_required(End, Now) of
         true ->
@@ -187,7 +243,10 @@ wait_flushing_before(Host, End, Now) ->
             ok
     end.
 
+
 %% @doc Returns true, if `End' is too old.
+-spec is_recent_entries_required(End :: mod_mam:unix_timestamp(),
+                                 Now :: mod_mam:unix_timestamp()) -> boolean().
 is_recent_entries_required(End, Now) when is_integer(End) ->
     %% If `End' is older than 10 seconds?
     End + 10000000 < Now;
@@ -199,17 +258,25 @@ is_recent_entries_required(_End, _Now) ->
 %% Internal functions
 %%====================================================================
 
+-spec start_server(ejabberd:server()) -> {'error',_}
+            | {'ok','undefined' | pid()} | {'ok','undefined' | pid(),_}.
 start_server(Host) ->
     WriterProc = srv_name(Host),
     supervisor:start_child(ejabberd_sup, writer_child_spec(WriterProc, Host)).
 
+
+-spec stop_server(ejabberd:server()) -> 'ok'
+    | {'error','not_found' | 'restarting' | 'running' | 'simple_one_for_one'}.
 stop_server(Host) ->
     Proc = srv_name(Host),
     supervisor:terminate_child(ejabberd_sup, Proc),
     supervisor:delete_child(ejabberd_sup, Proc).
 
+
+-spec srv_name(ejabberd:server()) -> atom().
 srv_name(Host) ->
     gen_mod:get_module_proc(Host, srv_name()).
+
 
 writer_child_spec(WriterProc, Host) ->
     {WriterProc,
@@ -219,6 +286,8 @@ writer_child_spec(WriterProc, Host) ->
      worker,
      [mod_mam_odbc_async_writer]}.
 
+
+-spec run_flush(state()) -> state().
 run_flush(State=#state{acc=[]}) ->
     State;
 run_flush(State=#state{conn=Conn, flush_interval_tref=TRef, acc=Acc,
@@ -260,6 +329,8 @@ init([Host]) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
+-spec handle_call('wait_flushing', _, state()) -> {'noreply',state()}
+                                                | {'reply','ok',state()}.
 handle_call(wait_flushing, _From, State=#state{acc=[]}) ->
     {reply, ok, State};
 handle_call(wait_flushing, From, State=#state{subscribers=Subs}) ->
@@ -272,7 +343,7 @@ handle_call(wait_flushing, From, State=#state{subscribers=Subs}) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
-
+-spec handle_cast(_, state()) -> {'noreply', state()}.
 handle_cast({archive_message, Row},
             State=#state{acc=Acc, flush_interval_tref=TRef, flush_interval=Int,
                          max_packet_size=Max}) ->
@@ -296,7 +367,6 @@ handle_cast(Msg, State) ->
 %%                                       {stop, Reason, State}
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
-
 handle_info(flush, State) ->
     {noreply, run_flush(State)}.
 

@@ -16,6 +16,7 @@
 -export([start/2, stop/1]).
 
 %% MAM hook handlers
+-behaviour(ejabberd_gen_mam_prefs).
 -export([get_behaviour/5,
          get_prefs/4,
          set_prefs/7,
