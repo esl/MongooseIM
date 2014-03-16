@@ -123,7 +123,7 @@
               archive_behaviour/0,
               iterator_fun/0,
               unix_timestamp/0,
-              archive_id/0, room_id/0, user_id/0
+              archive_id/0
             ]).
 
 %% ----------------------------------------------------------------------

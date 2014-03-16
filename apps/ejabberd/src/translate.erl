@@ -111,7 +111,7 @@ load_file(Lang, File) ->
     end.
 
 
--spec translate(ejabberd:lang(), string()) -> string().
+-spec translate(ejabberd:lang(), binary() | string()) -> string().
 translate(Lang, Msg) when is_binary(Lang) ->
     translate(binary:bin_to_list(Lang), Msg);
 translate(Lang, Msg) ->
