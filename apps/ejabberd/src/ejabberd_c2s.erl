@@ -2482,13 +2482,13 @@ pack_string(String, Pack) ->
 %%%----------------------------------------------------------------------
 
 maybe_enable_stream_mgmt(NextState, El, StateData) ->
-    case {xml:get_tag_attr_s("xmlns", El),
+    case {xml:get_tag_attr_s(<<"xmlns">>, El),
 	  StateData#state.stream_mgmt,
-	  xml:get_tag_attr_s("resume", El)}
+	  xml:get_tag_attr_s(<<"resume">>, El)}
     of
 	{?NS_STREAM_MGNT_3, false, Resume} ->
 	    %% turn on
-	    {NewSD, EnabledEl} = case lists:member(Resume, ["true", "1"]) of
+	    {NewSD, EnabledEl} = case lists:member(Resume, [<<"true">>, <<"1">>]) of
 				     false ->
 					 {StateData, stream_mgmt_enabled()};
 				     true ->
@@ -2517,15 +2517,15 @@ enable_stream_resumption(SD) ->
     SMID = make_smid(),
     ok = mod_stream_management:register_smid(SMID, SD#state.sid),
     {SD#state{stream_mgmt_id = SMID},
-     stream_mgmt_enabled([{"id", SMID}, {"resume", "true"}])}.
+     stream_mgmt_enabled([{<<"id">>, SMID}, {<<"resume">>, <<"true">>}])}.
 
 make_smid() ->
     base64:encode_to_string(crypto:rand_bytes(21)).
 
 maybe_unexpected_sm_request(NextState, El, StateData) ->
-    case xml:get_tag_attr_s("xmlns", El) of
+    case xml:get_tag_attr_s(<<"xmlns">>, El) of
 	?NS_STREAM_MGNT_3 ->
-	    send_element(StateData, stream_mgmt_failed("unexpected-request")),
+	    send_element(StateData, stream_mgmt_failed(<<"unexpected-request">>)),
 	    fsm_next_state(NextState, StateData);
 	_ ->
 	    send_element(StateData, ?INVALID_NS_ERR),
@@ -2535,8 +2535,8 @@ maybe_unexpected_sm_request(NextState, El, StateData) ->
 
 stream_mgmt_handle_ack(NextState, El, #state{} = SD) ->
     try
-	{ns, ?NS_STREAM_MGNT_3} = {ns, xml:get_tag_attr_s("xmlns", El)},
-	Handled = list_to_integer(xml:get_tag_attr_s("h", El)),
+	{ns, ?NS_STREAM_MGNT_3} = {ns, xml:get_tag_attr_s(<<"xmlns">>, El)},
+	Handled = binary_to_integer(xml:get_tag_attr_s(<<"h">>, El)),
 	NSD = #state{} = do_handle_ack(Handled,
 				       SD#state.stream_mgmt_out_acked,
 				       SD#state.stream_mgmt_buffer,
@@ -2602,20 +2602,20 @@ stream_mgmt_enabled() ->
     stream_mgmt_enabled([]).
 
 stream_mgmt_enabled(ExtraAttrs) ->
-    #xmlel{name = "enabled",
-           attrs = [{"xmlns", ?NS_STREAM_MGNT_3}] ++ ExtraAttrs}.
+    #xmlel{name = <<"enabled">>,
+           attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3}] ++ ExtraAttrs}.
 
 stream_mgmt_failed(Reason) ->
     ReasonEl = #xmlel{name = Reason,
-                      attrs = [{"xmlns", ?NS_STANZAS}]},
-    #xmlel{name = "failed",
-           attrs = [{"xmlns", ?NS_STREAM_MGNT_3}],
+                      attrs = [{<<"xmlns">>, ?NS_STANZAS}]},
+    #xmlel{name = <<"failed">>,
+           attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3}],
            children = [ReasonEl]}.
 
 stream_mgmt_ack(NIncoming) ->
-    #xmlel{name = "a",
-           attrs = [{"xmlns", ?NS_STREAM_MGNT_3},
-                    {"h", integer_to_list(NIncoming)}]}.
+    #xmlel{name = <<"a">>,
+           attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3},
+                    {<<"h">>, integer_to_binary(NIncoming)}]}.
 
 buffer_out_stanza(_Packet, #state{stream_mgmt = false} = S) ->
     S;
@@ -2710,8 +2710,8 @@ maybe_enter_resume_session(_SMID, #state{} = SD) ->
     {next_state, resume_session, NSD, hibernate}.
 
 maybe_resume_session(NextState, El, StateData) ->
-    case {xml:get_tag_attr_s("xmlns", El),
-	  xml:get_tag_attr_s("previd", El)} of
+    case {xml:get_tag_attr_s(<<"xmlns">>, El),
+	  xml:get_tag_attr_s(<<"previd">>, El)} of
 	{?NS_STREAM_MGNT_3, SMID} ->
 	    MaybeSID = mod_stream_management:get_sid(SMID),
 	    do_resume_session(SMID, El, MaybeSID, StateData);
@@ -2754,13 +2754,13 @@ do_resume_session(SMID, El, [{_, Pid}], StateData) ->
 	_:_ ->
 	    ?WARNING_MSG("resumption error (invalid response from ~p)~n",
 			 [Pid]),
-	    send_element(StateData, stream_mgmt_failed("item-not-found")),
+	    send_element(StateData, stream_mgmt_failed(<<"item-not-found">>)),
 	    fsm_next_state(wait_for_bind_or_resume, StateData)
     end;
 
 do_resume_session(SMID, _El, [], StateData) ->
     ?WARNING_MSG("no previous session with stream id ~p~n", [SMID]),
-    send_element(StateData, stream_mgmt_failed("item-not-found")),
+    send_element(StateData, stream_mgmt_failed(<<"item-not-found">>)),
     fsm_next_state(wait_for_bind_or_resume, StateData).
 
 merge_state(OldSD, SD) ->
@@ -2792,10 +2792,10 @@ merge_state(OldSD, SD) ->
     element(2, lists:foldl(Copy, {OldSD, SD}, Preserve)).
 
 stream_mgmt_resumed(SMID, Handled) ->
-    #xmlel{name = "resumed",
-           attrs = [{"xmlns", ?NS_STREAM_MGNT_3},
-                    {"previd", SMID},
-                    {"h", integer_to_list(Handled)}]}.
+    #xmlel{name = <<"resumed">>,
+           attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3},
+                    {<<"previd">>, SMID},
+                    {<<"h">>, integer_to_binary(Handled)}]}.
 
 handover_session(SD) ->
     %% Assert Stream Management is on; otherwise this should not be called.
@@ -2906,9 +2906,9 @@ enable_stream_resumption_test_() ->
              meck:unload(mod_stream_management)
      end,
      {with, [fun (C2S) ->
-                     Enable = #xmlel{name = "enable",
-                                     attrs = [{"xmlns", ?NS_STREAM_MGNT_3},
-                                              {"resume", "true"}]},
+                     Enable = #xmlel{name = <<"enable">>,
+                                     attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3},
+                                              {<<"resume">>, "true"}]},
                      ?GEN_FSM:send_event(C2S, {xmlstreamelement, Enable}),
                      receive
                          register_smid_called ->
@@ -2950,8 +2950,8 @@ c2s_initial_state(mgmt_on) ->
     S#state{stream_mgmt = true}.
 
 c2s_initial_state() ->
-    Jid = jid("qwe@localhost/eunit"),
-    {U, S, R} = {"qwe", "localhost", "eunit"},
+    Jid = jid(<<"qwe@localhost/eunit">>),
+    {U, S, R} = {<<"qwe">>, <<"localhost">>, <<"eunit">>},
     #state{jid = Jid,
 	   user = U, server = S, resource = R,
 	   sockmod = ejabberd_socket}.
@@ -2968,7 +2968,7 @@ starts_with_empty_buffer(C2S) ->
 buffer_outgoing(C2S) ->
     S1 = status_to_state(sys:get_status(C2S)),
     BufferSize = length(S1#state.stream_mgmt_buffer),
-    C2S ! {route, jid("asd@localhost"), jid("qwe@localhost"), message("hi")},
+    C2S ! {route, jid(<<"asd@localhost">>), jid(<<"qwe@localhost">>), message(<<"hi">>)},
     S2 = status_to_state(sys:get_status(C2S)),
     ?eq(BufferSize+1, length(S2#state.stream_mgmt_buffer)).
 
@@ -2980,10 +2980,10 @@ jid(Str) ->
     jlib:string_to_jid(Str).
 
 message(Content) ->
-    Body = #xmlel{name = "body",
+    Body = #xmlel{name = <<"body">>,
                   children = [#xmlcdata{cdata = Content}]},
-    #xmlel{name = "message",
-           attrs = [{"type", "chat"}],
+    #xmlel{name = <<"message">>,
+           attrs = [{<<"type">>, "chat"}],
            children = [Body]}.
 
 mk_assert_acked(X) ->
@@ -3006,8 +3006,8 @@ mk_client_ack(H) ->
     end.
 
 ack(H) ->
-    #xmlel{name = "a",
-           attrs = [{"xmlns", ?NS_STREAM_MGNT_3},
-                    {"h", integer_to_list(H)}]}.
+    #xmlel{name = <<"a">>,
+           attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3},
+                    {<<"h">>, integer_to_binary(H)}]}.
 
 -endif.
