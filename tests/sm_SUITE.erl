@@ -101,6 +101,7 @@ end_per_testcase(server_requests_ack = CaseName, Config) ->
 end_per_testcase(wait_for_resumption = CaseName, Config) ->
     discard_offline_messages(Config, alice),
     clear_session_table(),
+    clear_sm_session_table(),
     escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
@@ -518,6 +519,9 @@ session() ->
 
 clear_session_table() ->
     escalus_ejabberd:rpc(mnesia, clear_table, [session]).
+
+clear_sm_session_table() ->
+    escalus_ejabberd:rpc(mnesia, clear_table, [sm_session]).
 
 kill_connection(#transport{module = escalus_tcp, ssl = SSL,
                            socket = Socket} = Conn) ->
