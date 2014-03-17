@@ -203,14 +203,15 @@ archive_messages(LServer, Acc, N) ->
        "VALUES ", tuples(Acc)]).
 
 
--spec lookup_messages(Result :: {ok, mod_mam_muc:row()},
-        Host :: ejabberd:server(), RoomID :: mod_mam:archive_id(), RoomJID :: ejabberd:jid(),
+-spec lookup_messages(Result :: any(), Host :: ejabberd:server(),
+        ArchiveID :: mod_mam:archive_id(), ArchiveJID :: ejabberd:jid(),
         RSM :: jlib:rsm_in() | undefined, Borders :: mod_mam:borders() | undefined,
-        Start :: unix_timestamp() | undefined, End :: unix_timestamp() | undefined,
-        Now :: unix_timestamp(), WithJID :: ejabberd:jid() | undefined,
-        PageSize :: non_neg_integer(), LimitPassed :: boolean(),
-        MaxResultLimit :: non_neg_integer(), IsSimple :: boolean() | opt_count)
-            -> {ok, mod_mam_muc:row_batch()} | {error, 'policy-violation'}.
+        Start :: mod_mam:unix_timestamp() | undefined,
+        End :: mod_mam:unix_timestamp() | undefined, Now :: mod_mam:unix_timestamp(),
+        WithJID :: ejabberd:jid() | undefined, PageSize :: integer(),
+        LimitPassed :: boolean() | opt_count, MaxResultLimit :: integer(),
+        IsSimple :: boolean()) -> {ok, mod_mam:lookup_result()}
+                                | {error, 'policy-violation'}.
 lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
                 #rsm_in{direction = aft, id = ID}, Borders,
                 Start, End, _Now, WithJID,

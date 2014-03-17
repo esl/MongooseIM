@@ -293,11 +293,14 @@ archive_messages(LServer, Acc, N) ->
        "VALUES ", tuples(Acc)]).
 
 -spec lookup_messages(Result :: any(), Host :: ejabberd:server(),
-        ArcID :: mod_mam:archive_id(), ArcJID :: ejabberd:jid(), RSM :: jlib:rsm_in(),
-        Borders :: mod_mam:borders(), Start :: mod_mam:unix_timestamp(),
-        End :: mod_mam:unix_timestamp(), Now :: mod_mam:unix_timestamp(),
-        WithJID :: ejabberd:jid(), PageSize :: integer(), LimitPassed :: boolean(),
-        MaxResultLimit :: integer(), IsSimple :: boolean()) -> any().
+        ArchiveID :: mod_mam:archive_id(), ArchiveJID :: ejabberd:jid(),
+        RSM :: jlib:rsm_in() | undefined, Borders :: mod_mam:borders() | undefined,
+        Start :: mod_mam:unix_timestamp() | undefined,
+        End :: mod_mam:unix_timestamp() | undefined, Now :: mod_mam:unix_timestamp(),
+        WithJID :: ejabberd:jid() | undefined, PageSize :: integer(),
+        LimitPassed :: boolean() | opt_count, MaxResultLimit :: integer(),
+        IsSimple :: boolean()) -> {ok, mod_mam:lookup_result()}
+                                | {error, 'policy-violation'}.
 lookup_messages(_Result, Host, UserID, UserJID = #jid{},
                 #rsm_in{direction = aft, id = ID}, Borders,
                 Start, End, _Now, WithJID,
