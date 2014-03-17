@@ -31,7 +31,8 @@
 %% API
 -export([start_link/0,
          route/3,
-         open_session/5, close_session/4,
+         open_session/5, open_session/6,
+         close_session/4,
          check_in_subscription/6,
          bounce_offline_message/3,
          disconnect_removed_user/2,
@@ -90,7 +91,10 @@ route(From, To, Packet) ->
     end.
 
 open_session(SID, User, Server, Resource, Info) ->
-    set_session(SID, User, Server, Resource, undefined, Info),
+    open_session(SID, User, Server, Resource, undefined, Info).
+
+open_session(SID, User, Server, Resource, Priority, Info) ->
+    set_session(SID, User, Server, Resource, Priority, Info),
     check_for_sessions_to_replace(User, Server, Resource),
     JID = jlib:make_jid(User, Server, Resource),
     ejabberd_hooks:run(sm_register_connection_hook, JID#jid.lserver,
