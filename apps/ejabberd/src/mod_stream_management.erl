@@ -53,11 +53,11 @@ stop(Host) ->
 %%
 
 add_sm_feature(Acc, _Server) ->
-    lists:keystore(<<"sm">>, #xmlelement.name, Acc, sm()).
+    lists:keystore(<<"sm">>, #xmlel.name, Acc, sm()).
 
 sm() ->
-    #xmlelement{name = <<"sm">>,
-                attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3}]}.
+    #xmlel{name = <<"sm">>,
+           attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3}]}.
 
 remove_smid(SID, _JID, _Info) ->
     case mnesia:dirty_index_read(sm_session, SID, #sm_session.sid) of

@@ -488,7 +488,7 @@ wait_for_stream(closed, StateData) ->
 
 
 wait_for_auth({xmlstreamelement,
-	       #xmlelement{name = <<"enable">>} = El}, StateData) ->
+	       #xmlel{name = <<"enable">>} = El}, StateData) ->
     maybe_unexpected_sm_request(wait_for_auth, El, StateData);
 
 wait_for_auth({xmlstreamelement, El}, StateData) ->
@@ -639,7 +639,7 @@ wait_for_auth(closed, StateData) ->
 
 
 wait_for_feature_request({xmlstreamelement,
-			  #xmlelement{name = <<"enable">>} = El}, StateData) ->
+			  #xmlel{name = <<"enable">>} = El}, StateData) ->
     maybe_unexpected_sm_request(wait_for_feature_request, El, StateData);
 
 wait_for_feature_request({xmlstreamelement, El}, StateData) ->
@@ -790,7 +790,7 @@ wait_for_feature_request(closed, StateData) ->
 
 
 wait_for_sasl_response({xmlstreamelement,
-			#xmlelement{name = <<"enable">>} = El}, StateData) ->
+			#xmlel{name = <<"enable">>} = El}, StateData) ->
     maybe_unexpected_sm_request(wait_for_sasl_response, El, StateData);
 
 wait_for_sasl_response({xmlstreamelement, El}, StateData) ->
@@ -888,11 +888,11 @@ wait_for_sasl_response(closed, StateData) ->
 
 
 wait_for_bind_or_resume({xmlstreamelement,
-			 #xmlelement{name = <<"enable">>} = El}, StateData) ->
+			 #xmlel{name = <<"enable">>} = El}, StateData) ->
     maybe_unexpected_sm_request(wait_for_bind_or_resume, El, StateData);
 
 wait_for_bind_or_resume({xmlstreamelement,
-			 #xmlelement{name = <<"resume">>} = El}, StateData) ->
+			 #xmlel{name = <<"resume">>} = El}, StateData) ->
     maybe_resume_session(wait_for_bind_or_resume, El, StateData);
 
 wait_for_bind_or_resume({xmlstreamelement, El}, StateData) ->
@@ -953,11 +953,11 @@ wait_for_bind_or_resume(closed, StateData) ->
 
 
 wait_for_session_or_sm({xmlstreamelement,
-			#xmlelement{name = <<"enable">>} = El}, StateData) ->
+			#xmlel{name = <<"enable">>} = El}, StateData) ->
     maybe_enable_stream_mgmt(wait_for_session_or_sm, El, StateData);
 
 wait_for_session_or_sm({xmlstreamelement,
-			#xmlelement{name = <<"r">>} = El}, StateData) ->
+			#xmlel{name = <<"r">>} = El}, StateData) ->
     maybe_send_sm_ack(xml:get_tag_attr_s(<<"xmlns">>, El),
 		      StateData#state.stream_mgmt,
 		      StateData#state.stream_mgmt_in,
@@ -1040,15 +1040,15 @@ wait_for_session_or_sm(closed, StateData) ->
 
 
 session_established({xmlstreamelement,
-		     #xmlelement{name = <<"enable">>} = El}, StateData) ->
+		     #xmlel{name = <<"enable">>} = El}, StateData) ->
     maybe_enable_stream_mgmt(session_established, El, StateData);
 
 session_established({xmlstreamelement,
-		     #xmlelement{name = <<"a">>} = El}, StateData) ->
+		     #xmlel{name = <<"a">>} = El}, StateData) ->
     stream_mgmt_handle_ack(session_established, El, StateData);
 
 session_established({xmlstreamelement,
-		     #xmlelement{name = <<"r">>} = El}, StateData) ->
+		     #xmlel{name = <<"r">>} = El}, StateData) ->
     maybe_send_sm_ack(xml:get_tag_attr_s(<<"xmlns">>, El),
 		      StateData#state.stream_mgmt,
 		      StateData#state.stream_mgmt_in,
@@ -2602,20 +2602,20 @@ stream_mgmt_enabled() ->
     stream_mgmt_enabled([]).
 
 stream_mgmt_enabled(ExtraAttrs) ->
-    #xmlelement{name = "enabled",
-	        attrs = [{"xmlns", ?NS_STREAM_MGNT_3}] ++ ExtraAttrs}.
+    #xmlel{name = "enabled",
+           attrs = [{"xmlns", ?NS_STREAM_MGNT_3}] ++ ExtraAttrs}.
 
 stream_mgmt_failed(Reason) ->
-    ReasonEl = #xmlelement{name = Reason,
-			   attrs = [{"xmlns", ?NS_STANZAS}]},
-    #xmlelement{name = "failed",
-		attrs = [{"xmlns", ?NS_STREAM_MGNT_3}],
-		children = [ReasonEl]}.
+    ReasonEl = #xmlel{name = Reason,
+                      attrs = [{"xmlns", ?NS_STANZAS}]},
+    #xmlel{name = "failed",
+           attrs = [{"xmlns", ?NS_STREAM_MGNT_3}],
+           children = [ReasonEl]}.
 
 stream_mgmt_ack(NIncoming) ->
-    #xmlelement{name = "a",
-	        attrs = [{"xmlns", ?NS_STREAM_MGNT_3},
-			 {"h", integer_to_list(NIncoming)}]}.
+    #xmlel{name = "a",
+           attrs = [{"xmlns", ?NS_STREAM_MGNT_3},
+                    {"h", integer_to_list(NIncoming)}]}.
 
 buffer_out_stanza(_Packet, #state{stream_mgmt = false} = S) ->
     S;
@@ -2687,8 +2687,8 @@ maybe_send_ack_request(_) ->
     false.
 
 stream_mgmt_request() ->
-    #xmlelement{name = <<"r">>,
-		attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3}]}.
+    #xmlel{name = <<"r">>,
+           attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3}]}.
 
 flush_stream_mgmt_buffer(#state{stream_mgmt = false}) ->
     false;
@@ -2792,10 +2792,10 @@ merge_state(OldSD, SD) ->
     element(2, lists:foldl(Copy, {OldSD, SD}, Preserve)).
 
 stream_mgmt_resumed(SMID, Handled) ->
-    #xmlelement{name = "resumed",
-		attrs = [{"xmlns", ?NS_STREAM_MGNT_3},
-			 {"previd", SMID},
-			 {"h", integer_to_list(Handled)}]}.
+    #xmlel{name = "resumed",
+           attrs = [{"xmlns", ?NS_STREAM_MGNT_3},
+                    {"previd", SMID},
+                    {"h", integer_to_list(Handled)}]}.
 
 handover_session(SD) ->
     %% Assert Stream Management is on; otherwise this should not be called.
@@ -2888,38 +2888,38 @@ enable_stream_resumption_test_() ->
      %% we know self() beforehand, so run the test in the current process.
      local,
      fun () ->
-	     Self = self(),
-	     meck:new(mod_stream_management, []),
-	     meck:expect(mod_stream_management, get_buffer_max,
-			 fun (_) -> 100 end),
-	     meck:expect(mod_stream_management, get_ack_freq,
-			 fun (_) -> 1 end),
-	     meck:expect(mod_stream_management, register_smid,
-			 fun (_SMID, _SID) ->
-				 Self ! register_smid_called,
-				 ok
-			 end),
-	     create_c2s(c2s_initial_state())
+             Self = self(),
+             meck:new(mod_stream_management, []),
+             meck:expect(mod_stream_management, get_buffer_max,
+                         fun (_) -> 100 end),
+             meck:expect(mod_stream_management, get_ack_freq,
+                         fun (_) -> 1 end),
+             meck:expect(mod_stream_management, register_smid,
+                         fun (_SMID, _SID) ->
+                                 Self ! register_smid_called,
+                                 ok
+                         end),
+             create_c2s(c2s_initial_state())
      end,
      fun (C2S) ->
-	     cleanup_c2s(C2S),
-	     meck:unload(mod_stream_management)
+             cleanup_c2s(C2S),
+             meck:unload(mod_stream_management)
      end,
      {with, [fun (C2S) ->
-		     Enable = #xmlelement{name = "enable",
-					  attrs = [{"xmlns", ?NS_STREAM_MGNT_3},
-						   {"resume", "true"}]},
-		     ?GEN_FSM:send_event(C2S, {xmlstreamelement, Enable}),
-		     receive
-			 register_smid_called ->
-			     ?assert(meck:called(mod_stream_management,
-						 register_smid, 2)),
-			     S = status_to_state(sys:get_status(C2S)),
-			     ?ne(undefined, S#state.stream_mgmt_id)
-		     after 1000 ->
-			       error("SMID not registered")
-		     end
-	     end]}}.
+                     Enable = #xmlel{name = "enable",
+                                     attrs = [{"xmlns", ?NS_STREAM_MGNT_3},
+                                              {"resume", "true"}]},
+                     ?GEN_FSM:send_event(C2S, {xmlstreamelement, Enable}),
+                     receive
+                         register_smid_called ->
+                             ?assert(meck:called(mod_stream_management,
+                                                 register_smid, 2)),
+                             S = status_to_state(sys:get_status(C2S)),
+                             ?ne(undefined, S#state.stream_mgmt_id)
+                     after 1000 ->
+                               error("SMID not registered")
+                     end
+             end]}}.
 
 %%
 %% Helpers
@@ -2980,11 +2980,11 @@ jid(Str) ->
     jlib:string_to_jid(Str).
 
 message(Content) ->
-    Body = #xmlelement{name = "body",
-		       children = [#xmlcdata{cdata = Content}]},
-    #xmlelement{name = "message",
-		attrs = [{"type", "chat"}],
-		children = [Body]}.
+    Body = #xmlel{name = "body",
+                  children = [#xmlcdata{cdata = Content}]},
+    #xmlel{name = "message",
+           attrs = [{"type", "chat"}],
+           children = [Body]}.
 
 mk_assert_acked(X) ->
     fun(C2S) ->
@@ -3006,8 +3006,8 @@ mk_client_ack(H) ->
     end.
 
 ack(H) ->
-    #xmlelement{name = "a",
-		attrs = [{"xmlns", ?NS_STREAM_MGNT_3},
-			 {"h", integer_to_list(H)}]}.
+    #xmlel{name = "a",
+           attrs = [{"xmlns", ?NS_STREAM_MGNT_3},
+                    {"h", integer_to_list(H)}]}.
 
 -endif.
