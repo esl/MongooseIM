@@ -241,12 +241,14 @@ archive_size(Size, Host, ArcID, _ArcJID) when is_integer(Size) ->
 
 
 -spec lookup_messages(Result :: any(), Host :: ejabberd:server(),
-        ArchiveID :: mod_mam:archive_id(), ArcJID :: ejabberd:jid(),
-        RSM :: jlib:rsm_in(), Borders :: mod_mam:borders(),
-        Start :: mod_mam:unix_timestamp(), End :: mod_mam:unix_timestamp(),
-        Now :: mod_mam:unix_timestamp(), WithJID :: ejabberd:jid(),
-        PageSize :: integer(), LimitPassed :: boolean(), MaxResultLimit :: integer(),
-        IsSimple :: boolean()) -> any().
+        ArchiveID :: mod_mam:archive_id(), ArchiveJID :: ejabberd:jid(),
+        RSM :: jlib:rsm_in() | undefined, Borders :: mod_mam:borders() | undefined,
+        Start :: mod_mam:unix_timestamp() | undefined,
+        End :: mod_mam:unix_timestamp() | undefined, Now :: mod_mam:unix_timestamp(),
+        WithJID :: ejabberd:jid() | undefined, PageSize :: integer(),
+        LimitPassed :: boolean() | opt_count, MaxResultLimit :: integer(),
+        IsSimple :: boolean()) -> {ok, mod_mam:lookup_result()}
+                                | {error, 'policy-violation'}.
 lookup_messages(Result, Host, ArcID, _ArcJID,
                 _RSM, _Borders,
                 _Start, End, Now, _WithJID,

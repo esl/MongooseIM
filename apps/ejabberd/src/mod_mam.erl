@@ -106,6 +106,9 @@
 
 -type action()              :: atom().
 -type borders()             :: #mam_borders{}.
+-type lookup_result() :: {TotalCount :: non_neg_integer(),
+                          Offset :: non_neg_integer(),
+                          MessageRows :: list(tuple())}.
 
 %% Internal types
 -type iterator_fun() :: fun(() -> {'ok',{_,_}}).
@@ -123,7 +126,8 @@
               archive_behaviour/0,
               iterator_fun/0,
               unix_timestamp/0,
-              archive_id/0
+              archive_id/0,
+              lookup_result/0
             ]).
 
 %% ----------------------------------------------------------------------
@@ -626,18 +630,15 @@ remove_archive(Host, ArcID, ArcJID=#jid{}) ->
     ok.
 
 
-%% TODO: Get rid of antipattern with too many parameters
--type lookup_result() :: {TotalCount :: non_neg_integer(),
-                          Offset :: non_neg_integer(),
-                          MessageRows :: list(tuple())}.
--spec lookup_messages(Host :: ejabberd:server(), ArcID :: archive_id(),
-    ArcJID :: ejabberd:jid(), RSM :: jlib:rsm_in() | undefined,
-    Borders :: borders() | undefined, Start :: unix_timestamp() | undefined,
-    End :: unix_timestamp() | undefined, Now :: unix_timestamp(),
-    WithJID :: ejabberd:jid() | undefined, PageSize :: non_neg_integer(),
-    LimitPassed :: boolean(), MaxResultLimit :: non_neg_integer(),
-    IsSimple :: boolean() | opt_count
-    ) -> {ok, lookup_result()} | {error, 'policy-violation'}.
+-spec lookup_messages(Result :: any(), Host :: ejabberd:server(),
+        ArchiveID :: mod_mam:archive_id(), ArchiveJID :: ejabberd:jid(),
+        RSM :: jlib:rsm_in() | undefined, Borders :: mod_mam:borders() | undefined,
+        Start :: mod_mam:unix_timestamp() | undefined,
+        End :: mod_mam:unix_timestamp() | undefined, Now :: mod_mam:unix_timestamp(),
+        WithJID :: ejabberd:jid() | undefined, PageSize :: integer(),
+        LimitPassed :: boolean() | opt_count, MaxResultLimit :: integer(),
+        IsSimple :: boolean()) -> {ok, mod_mam:lookup_result()}
+                                | {error, 'policy-violation'}.
 lookup_messages(Host, ArcID, ArcJID, RSM, Borders, Start, End, Now,
                 WithJID, PageSize, LimitPassed, MaxResultLimit, IsSimple) ->
     ejabberd_hooks:run_fold(mam_lookup_messages, Host, {ok, {0, 0, []}},
