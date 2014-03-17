@@ -54,26 +54,34 @@ server_string(String) when is_list(String) ->
 -spec server_string_type() -> list | binary | no_return().
 server_string_type() ->
     try
-        try_ejabberd_community(),
-        try_mongooseim(),
-        try_ejabberd2()
+        is_ejabberd_community() andalso throw(binary),
+        is_mongooseim() andalso throw(binary),
+        try_ejabberd2(),
+        error(server_string_type_unknown)
     catch
         throw:binary -> binary;
-        throw:list -> list;
-        E:R -> error({server_string_type_unknown, {E, R}})
+        throw:list -> list
     end.
 
--spec try_ejabberd_community() -> no_return().
-try_ejabberd_community() ->
+-spec is_ejabberd_community() -> boolean().
+is_ejabberd_community() ->
     Apps = escalus_ejabberd:rpc(application, which_applications, []),
-    {ejabberd, "ejabberd", "community"} = lists:keyfind(ejabberd, 1, Apps),
-    throw(binary).
+    case lists:keyfind(ejabberd, 1, Apps) of
+        {ejabberd, "ejabberd", "community"} ->
+            true;
+        _ ->
+            false
+    end.
 
--spec try_mongooseim() -> no_return().
-try_mongooseim() ->
+-spec is_mongooseim() -> boolean().
+is_mongooseim() ->
     Apps = escalus_ejabberd:rpc(application, which_applications, []),
-    {ejabberd, "ejabberd", "2.1.8+mim" ++ _} = lists:keyfind(ejabberd, 1, Apps),
-    throw(binary).
+    case lists:keyfind(ejabberd, 1, Apps) of
+        {ejabberd, "ejabberd", "2.1.8+mim" ++ _} ->
+            true;
+        _ ->
+            false
+    end.
 
 -spec try_ejabberd2() -> no_return().
 try_ejabberd2() ->
