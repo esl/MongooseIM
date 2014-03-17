@@ -71,7 +71,7 @@
 -type packet() :: jlib:xmlel().
 -type from_to_packet() ::
         {From :: ejabberd:jid(), To :: ejabberd:jid(), Packet :: packet()}.
--type access() :: {_,_,_,_}.
+-type access() :: {_AccessRoute, _AccessCreate, _AccessAdmin, _AccessPersistent}.
 
 -record(muc_room, {name_host    :: room_host(),
                    opts         :: list()
