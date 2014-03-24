@@ -1466,7 +1466,7 @@ handle_info({route, From, To, Packet}, StateName, StateData) ->
 			       StateData#state.server,
 			       [StateData#state.jid, From, To, FixedPacket]),
 	    ejabberd_hooks:run(c2s_loop_debug, [{route, From, To, Packet}]),
-	    case buffer_out_stanza({From, To, FixedPacket}, StateData) of
+	    case buffer_out_stanza({From, To, FixedPacket}, StateData, true) of
 		{resource_constraint, OutStateData} ->
 		    {stop, normal, OutStateData};
 		BufferedStateData ->
@@ -2226,10 +2226,23 @@ resend_offline_messages(StateData) ->
     end.
 
 resend_subscription_requests(#state{pending_invitations = Pending} = StateData) ->
-    lists:foreach(fun(XMLPacket) ->
-                          buffer_out_stanza(XMLPacket, StateData)
-		  end, Pending),
-    StateData#state{pending_invitations = []}.
+    NewState = lists:foldl(fun(XMLPacket, #state{} = State) ->
+			send_element(State, XMLPacket),
+
+			{value, From} =  xml:get_tag_attr(<<"from">>, XMLPacket),
+			{value, To} = xml:get_tag_attr(<<"to">>, XMLPacket),
+
+			case buffer_out_stanza({From, To, XMLPacket}, State, false) of
+				{resource_constraint, OutStateData} ->
+					% do nothing ? invitations will be resend next time if needed
+					% or maybe it requires do shutdown c2s?
+					State;
+				BufferedStateData ->
+					maybe_send_ack_request(BufferedStateData),
+					BufferedStateData
+			end
+		  end, StateData, Pending),
+    NewState#state{pending_invitations = []}.
 
 get_showtag(undefined) ->
     <<"unavailable">>;
@@ -2617,20 +2630,24 @@ stream_mgmt_ack(NIncoming) ->
            attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3},
                     {<<"h">>, integer_to_binary(NIncoming)}]}.
 
-buffer_out_stanza(_Packet, #state{stream_mgmt = false} = S) ->
+buffer_out_stanza(_Packet, #state{stream_mgmt = false} = S, _SendError) ->
     S;
-buffer_out_stanza(_Packet, #state{stream_mgmt_buffer_max = no_buffer} = S) ->
+buffer_out_stanza(_Packet, #state{stream_mgmt_buffer_max = no_buffer} = S, _SendError) ->
     S;
 buffer_out_stanza(Packet, #state{stream_mgmt_buffer = Buffer,
 				 stream_mgmt_buffer_size = BufferSize,
-				 stream_mgmt_buffer_max = BufferMax} = S) ->
+				 stream_mgmt_buffer_max = BufferMax} = S, SendError) ->
     NewSize = BufferSize + 1,
     case is_buffer_full(NewSize, BufferMax) of
 	true ->
-	    Err = ?RESOURCE_CONSTRAINT_ERR(S#state.lang,
+        if 
+            SendError ->
+	            Err = ?RESOURCE_CONSTRAINT_ERR(S#state.lang,
 					   "too many unacked stanzas"),
-	    send_element(S, Err),
-	    send_trailer(S),
+	            send_element(S, Err),
+	            send_trailer(S);
+            true-> ok
+        end,
 	    {resource_constraint, S};
 	false ->
 	    S#state{stream_mgmt_buffer_size = NewSize,
@@ -2871,13 +2888,13 @@ no_buffer_test_() ->
      {with, [fun (State0) ->
 		     State = State0#state{stream_mgmt_buffer_max = infinity},
 		     ?eq([], State#state.stream_mgmt_buffer),
-		     NewState = buffer_out_stanza(fake_packet, State),
+		     NewState = buffer_out_stanza(fake_packet, State, true),
 		     ?eq([fake_packet], NewState#state.stream_mgmt_buffer)
 	     end,
 	     fun (State0) ->
 		     State = State0#state{stream_mgmt_buffer_max = no_buffer},
 		     ?eq([], State#state.stream_mgmt_buffer),
-		     NewState = buffer_out_stanza(fake_packet, State),
+		     NewState = buffer_out_stanza(fake_packet, State, true),
 		     ?eq([], NewState#state.stream_mgmt_buffer)
 	     end]}}.
 
