@@ -97,16 +97,17 @@ start_cowboy(Ref, Opts) ->
     SSLKey = gen_mod:get_opt(key, Opts, undefined),
     SSLKeyPass = gen_mod:get_opt(key_pass, Opts, undefined),
     NumAcceptors = gen_mod:get_opt(num_acceptors, Opts, 100),
+    MaxConns = gen_mod:get_opt(max_connections, Opts, 1024),
     Dispatch = cowboy_router:compile(get_routes(gen_mod:get_opt(modules, Opts))),
     case {SSLCert, SSLKey} of
         {undefined, undefined} ->
             cowboy:start_http(cowboy_ref(Ref), NumAcceptors,
-                              [{port, Port}, {ip, IP}],
+                              [{port, Port}, {ip, IP}, {max_connections, MaxConns}],
                               [{env, [{dispatch, Dispatch}]}]);
         _ ->
             cowboy:start_https(cowboy_ref(Ref), NumAcceptors,
-                               [{port, Port}, {ip, IP}, {certfile, SSLCert},
-                                {keyfile, SSLKey}, {password, SSLKeyPass}],
+                               [{port, Port}, {ip, IP}, {max_connections, MaxConns},
+                                {certfile, SSLCert}, {keyfile, SSLKey}, {password, SSLKeyPass}],
                                [{env, [{dispatch, Dispatch}]}])
     end.
 
