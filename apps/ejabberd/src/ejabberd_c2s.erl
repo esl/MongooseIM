@@ -1184,7 +1184,11 @@ session_established2(El, StateData) ->
     ejabberd_hooks:run(c2s_loop_debug, [{xmlstreamelement, El}]),
     fsm_next_state(session_established, NewState).
 
-
+%%-------------------------------------------------------------------------
+%% ignore mod_ping closed messages because we are already in resume session
+%% state
+resume_session(closed, StateData) ->
+    {next_state, resume_session, StateData, hibernate};
 resume_session(timeout, StateData) ->
     {next_state, resume_session, StateData, hibernate}.
 
@@ -1385,16 +1389,19 @@ handle_info({route, From, To, Packet}, StateName, StateData) ->
 					id = list_to_binary("push" ++ randoms:get_string()),
 					sub_el = [#xmlel{name = <<"query">>,
 						         attrs = [{<<"xmlns">>, ?NS_PRIVACY}],
-						         children = [#xmlel{name = <<"list">>,
-						                            attrs = [{<<"name">>, PrivListName}]}]}]},
-				PrivPushEl =
+							 children = [#xmlel{name = <<"list">>,
+									    attrs = [{<<"name">>, PrivListName}]}]}]},
+				    F = jlib:jid_remove_resource(StateData#state.jid),
+				    T = StateData#state.jid,
+
+				    PrivPushEl =
 				    jlib:replace_from_to(
-				      jlib:jid_remove_resource(
-					StateData#state.jid),
-				      StateData#state.jid,
+				      F,
+				      T,
 				      jlib:iq_to_xml(PrivPushIQ)),
-				send_element(StateData, PrivPushEl),
-				{false, Attrs, StateData#state{privacy_list = NewPL}}
+
+				    ejabberd_router:route(F, T, PrivPushEl),
+				    {false, Attrs, StateData#state{privacy_list = NewPL}}
 			end;
 		    [{blocking, What}] ->
 			route_blocking(What, StateData),
@@ -1460,7 +1467,10 @@ handle_info({route, From, To, Packet}, StateName, StateData) ->
 						jlib:jid_to_binary(To),
 						NewAttrs),
 	    FixedPacket = Packet#xmlel{attrs = Attrs2},
-	    send_element(StateData, FixedPacket),
+	    % it can throw an exception when we are in resume_session state
+	    % or in case of a socket error 
+	    SendResult = (catch send_element(StateData, FixedPacket)),
+
 	    %% TODO: run the hook now or only after the stanza is acked?
 	    ejabberd_hooks:run(user_receive_packet,
 			       StateData#state.server,
@@ -1470,8 +1480,13 @@ handle_info({route, From, To, Packet}, StateName, StateData) ->
 		{resource_constraint, OutStateData} ->
 		    {stop, normal, OutStateData};
 		BufferedStateData ->
-		    maybe_send_ack_request(BufferedStateData),
-		    fsm_next_state(StateName, BufferedStateData)
+		    case SendResult of
+			ok ->
+			    maybe_send_ack_request(BufferedStateData),
+			    fsm_next_state(StateName, BufferedStateData);
+			_ ->
+			    maybe_enter_resume_session(BufferedStateData#state.stream_mgmt_id, BufferedStateData)
+		    end
 	    end;
 	true ->
 	    ejabberd_hooks:run(c2s_loop_debug, [{route, From, To, Packet}]),
@@ -1548,8 +1563,9 @@ print_state(State = #state{pres_t = T, pres_f = F, pres_a = A, pres_i = I}) ->
 %% Returns: any
 %%----------------------------------------------------------------------
 terminate(_Reason, StateName, StateData) ->
-    case StateName of
-	session_established ->
+    case  should_close_session(StateName) of
+	%% if we are in an state wich have a session established
+	true->
 	    case StateData#state.authenticated of
 		replaced ->
 		    ?INFO_MSG("(~w) Replaced session for ~s",
@@ -1557,9 +1573,9 @@ terminate(_Reason, StateName, StateData) ->
 			       jlib:jid_to_binary(StateData#state.jid)]),
 		    From = StateData#state.jid,
 		    Packet = #xmlel{name = <<"presence">>,
-			            attrs = [{<<"type">>, <<"unavailable">>}],
-			            children = [#xmlel{name = <<"status">>,
-				                       children = [#xmlcdata{content = "Replaced by new connection"}]}]},
+				    attrs = [{<<"type">>, <<"unavailable">>}],
+				    children = [#xmlel{name = <<"status">>,
+						       children = [#xmlcdata{content = "Replaced by new connection"}]}]},
 		    ejabberd_sm:close_session_unset_presence(
 		      StateData#state.sid,
 		      StateData#state.user,
@@ -1593,7 +1609,7 @@ terminate(_Reason, StateName, StateData) ->
 			_ ->
 			    From = StateData#state.jid,
 			    Packet = #xmlel{name = <<"presence">>,
-				            attrs = [{<<"type">>, <<"unavailable">>}]},
+					    attrs = [{<<"type">>, <<"unavailable">>}]},
 			    ejabberd_sm:close_session_unset_presence(
 			      StateData#state.sid,
 			      StateData#state.user,
@@ -1613,12 +1629,7 @@ terminate(_Reason, StateName, StateData) ->
 		true ->
 		    ok
 	    end;
-	resume_session ->
-	    ?INFO_MSG("(~w) Stream ~p resumed for ~s",
-	              [StateData#state.socket,
-		       StateData#state.stream_mgmt_id,
-	               jlib:jid_to_binary(StateData#state.jid)]);
-	_ ->
+	false ->
 	    ok
     end,
     (StateData#state.sockmod):close(StateData#state.socket),
@@ -1627,6 +1638,9 @@ terminate(_Reason, StateName, StateData) ->
 %%%----------------------------------------------------------------------
 %%% Internal functions
 %%%----------------------------------------------------------------------
+should_close_session(resume_session) -> true;
+should_close_session(session_established) -> true;
+should_close_session(_) -> false.
 
 change_shaper(StateData, JID) ->
     Shaper = acl:match_rule(StateData#state.server,
@@ -2429,13 +2443,14 @@ route_blocking(What, StateData) ->
 	#iq{type = set, xmlns = ?NS_BLOCKING,
 	    id = <<"push">>,
 	    sub_el = [SubEl]},
+    F = jlib:jid_remove_resource(StateData#state.jid),
+    T = StateData#state.jid,
     PrivPushEl =
 	jlib:replace_from_to(
-	  jlib:jid_remove_resource(
-	    StateData#state.jid),
-	  StateData#state.jid,
+	  F,
+	  T,
 	  jlib:iq_to_xml(PrivPushIQ)),
-    send_element(StateData, PrivPushEl),
+    ejabberd_router:route(F, T, PrivPushEl),
     %% No need to replace active privacy list here,
     %% blocking pushes are always accompanied by
     %% Privacy List pushes
