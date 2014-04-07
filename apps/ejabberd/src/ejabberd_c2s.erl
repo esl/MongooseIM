@@ -80,7 +80,7 @@
 		sasl_state,
 		access,
 		shaper,
-		zlib = false,
+		zlib = {false, 0},
 		tls = false,
 		tls_required = false,
 		tls_enabled = false,
@@ -221,7 +221,10 @@ init([{SockMod, Socket}, Opts]) ->
 	    {value, {_, XS}} -> XS;
 	    _ -> false
 	end,
-    Zlib = lists:member(zlib, Opts),
+    Zlib = case lists:keysearch(zlib, 1, Opts) of
+               {value, {_, ZlibLimit}} -> {true, ZlibLimit};
+               _ -> {false, 0}
+           end,
     StartTLS = lists:member(starttls, Opts),
     StartTLSRequired = lists:member(starttls_required, Opts),
     TLSEnabled = lists:member(tls, Opts),
@@ -328,7 +331,7 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
 		    SockMod =
 			 (StateData#state.sockmod):get_sockmod(
 			   StateData#state.socket),
-		    Zlib = StateData#state.zlib,
+            {Zlib, _} = StateData#state.zlib,
 		    CompressFeature =
 			case Zlib andalso
 			      ((SockMod == gen_tcp) orelse
@@ -613,7 +616,7 @@ wait_for_auth(closed, StateData) ->
 
 wait_for_feature_request({xmlstreamelement, El}, StateData) ->
     #xmlel{name = Name, attrs = Attrs, children = Els} = El,
-    Zlib = StateData#state.zlib,
+    {Zlib, ZlibLimit} = StateData#state.zlib,
     TLS = StateData#state.tls,
     TLSEnabled = StateData#state.tls_enabled,
     TLSRequired = StateData#state.tls_required,
@@ -705,7 +708,7 @@ wait_for_feature_request({xmlstreamelement, El}, StateData) ->
 			<<"zlib">> ->
 			    Socket = StateData#state.socket,
 			    ZlibSocket = (StateData#state.sockmod):compress(
-					   Socket,
+					   Socket, ZlibLimit,
 					   xml:element_to_binary(
 					      #xmlel{name = <<"compressed">>,
 					             attrs = [{<<"xmlns">>, ?NS_COMPRESS}]})),
