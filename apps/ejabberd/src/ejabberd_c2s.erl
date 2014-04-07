@@ -1092,6 +1092,7 @@ session_established({xmlstreamerror, _}, StateData) ->
     {stop, normal, StateData};
 
 session_established(closed, StateData) ->
+    ?DEBUG("Session established closed - trying to enter resume_session",[]),
     maybe_enter_resume_session(StateData#state.stream_mgmt_id, StateData).
 
 
@@ -1261,9 +1262,9 @@ handle_info({send_text, Text}, StateName, StateData) ->
     fsm_next_state(StateName, StateData);
 handle_info(replaced, _StateName, StateData) ->
     Lang = StateData#state.lang,
-    send_element(StateData,
+    catch send_element(StateData,
 		 ?SERRT_CONFLICT(Lang, "Replaced by new connection")),
-    send_trailer(StateData),
+    catch send_trailer(StateData),
     {stop, normal, StateData#state{authenticated = replaced}};
 %% Process Packets that are to be send to the user
 handle_info({route, From, To, Packet}, StateName, StateData) ->
@@ -1482,9 +1483,15 @@ handle_info({route, From, To, Packet}, StateName, StateData) ->
 		BufferedStateData ->
 		    case SendResult of
 			ok ->
-			    maybe_send_ack_request(BufferedStateData),
-			    fsm_next_state(StateName, BufferedStateData);
+			    case catch maybe_send_ack_request(BufferedStateData) of
+				R when is_boolean(R) -> 
+				    fsm_next_state(StateName, BufferedStateData);
+				_ ->
+				    ?DEBUG("Send ack request error: ~p, try enter resume session", [SendResult]),
+				    maybe_enter_resume_session(BufferedStateData#state.stream_mgmt_id, BufferedStateData)
+			    end;
 			_ ->
+			    ?DEBUG("Send element error: ~p, try enter resume session", [SendResult]),
 			    maybe_enter_resume_session(BufferedStateData#state.stream_mgmt_id, BufferedStateData)
 		    end
 	    end;
@@ -1624,6 +1631,7 @@ terminate(_Reason, StateName, StateData) ->
 	    end,
 	    if
 		StateData#state.authenticated =/= resumed ->
+		    ?DEBUG("rerouting unacked messages", []),
 		    flush_stream_mgmt_buffer(StateData),
 		    bounce_messages();
 		true ->
@@ -2205,6 +2213,7 @@ process_privacy_iq(From, To,
 
 
 resend_offline_messages(StateData) ->
+    ?DEBUG("resend offline messages~n",[]),
     case ejabberd_hooks:run_fold(
 	   resend_offline_messages_hook, StateData#state.server,
 	   [],
