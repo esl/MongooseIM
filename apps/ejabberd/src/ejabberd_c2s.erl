@@ -1186,11 +1186,24 @@ session_established2(El, StateData) ->
     fsm_next_state(session_established, NewState).
 
 %%-------------------------------------------------------------------------
+%% session may be terminated for exmaple by mod_ping there is still valid
+%% connection and resource want to send stanza.
+resume_session({xmlstreamelement, El}, StateData) ->
+    Err = ?POLICY_VIOLATION_ERR(StateData#state.lang,
+					   "session in resume state cannot accept incoming stanzas"),
+    send_element(StateData, Err),
+    send_trailer(StateData),
+    {next_state, resume_session, StateData, hibernate};
+
+%%-------------------------------------------------------------------------
 %% ignore mod_ping closed messages because we are already in resume session
 %% state
 resume_session(closed, StateData) ->
     {next_state, resume_session, StateData, hibernate};
 resume_session(timeout, StateData) ->
+    {next_state, resume_session, StateData, hibernate};
+resume_session(Msg, StateData) ->
+    ?WARNING_MSG("unexpected message ~p",[Msg]),
     {next_state, resume_session, StateData, hibernate}.
 
 
@@ -2664,7 +2677,7 @@ buffer_out_stanza(Packet, #state{stream_mgmt_buffer = Buffer,
     NewSize = BufferSize + 1,
     case is_buffer_full(NewSize, BufferMax) of
 	true ->
-        if 
+        if
             SendError ->
 	            Err = ?RESOURCE_CONSTRAINT_ERR(S#state.lang,
 					   "too many unacked stanzas"),
