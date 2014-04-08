@@ -311,6 +311,7 @@ store_packet(
                     jlib:datetime_string_to_timestamp(binary_to_list(Stamp))
             end
     end,
+
     Expire = find_x_expire(TimeStamp, Els),
     Pid = srv_name(LServer),
     Msg = #offline_msg{us = {LUser, LServer},
@@ -318,7 +319,7 @@ store_packet(
              expire = Expire,
              from = From,
              to = To,
-             packet = Packet},
+             packet = remove_delay_tags(Packet)},
     Pid ! Msg,
     ok.
 
@@ -462,15 +463,10 @@ add_timestamp({_,_,Micro} = TimeStamp, Server, Packet) ->
     Time = calendar:now_to_universal_time(TimeStamp),
     {D,{H,M,S}} = Time,
     Time2 = {D,{H,M,S, Micro}},
-    case xml:get_subtag(Packet, <<"delay">>) of
-        false ->
-            %% TODO: Delete the next element once XEP-0091 is Obsolete
-            TimeStampLegacyXML = timestamp_legacy_xml(Server, Time2),
-            TimeStampXML = jlib:timestamp_to_xml(Time2),
-            xml:append_subtags(Packet, [TimeStampLegacyXML, TimeStampXML]);
-        _ ->
-            Packet
-    end.
+    %% TODO: Delete the next element once XEP-0091 is Obsolete
+    TimeStampLegacyXML = timestamp_legacy_xml(Server, Time2),
+    TimeStampXML = jlib:timestamp_to_xml(Time2),
+    xml:append_subtags(Packet, [TimeStampLegacyXML, TimeStampXML]).
 
 timestamp_legacy_xml(Server, Time) ->
     FromJID = jlib:make_jid(<<>>, Server, <<>>),
@@ -495,3 +491,20 @@ discard_warn_sender(Msgs) ->
 		      Packet, ?ERRT_RESOURCE_CONSTRAINT(Lang, ErrText)),
 	      ejabberd_router:route(To, From, Err)
       end, Msgs).
+
+remove_delay_tags(#xmlel{children = Els} = Packet) ->
+    NEl = lists:foldl(
+             fun(#xmlel{name= <<"delay">>}, El)->
+                              El;
+                (#xmlel{name= <<"x">> , attrs = Attrs } = R, El) ->
+                              case xml:get_attr_s(<<"xmlns">>, Attrs) of
+                                  ?NS_DELAY91 ->
+                                      El;
+                                  _ ->
+                                    El ++ [R]
+                              end;
+                (R, El) ->
+                              El ++ [R]
+                end, [],Els),
+    Packet#xmlel{children=NEl}.
+
