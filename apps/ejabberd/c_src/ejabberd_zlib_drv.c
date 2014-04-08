@@ -142,7 +142,7 @@ static ErlDrvSSizeT ejabberd_zlib_drv_control(ErlDrvData handle,
 
                 err = deflate(d->d_stream, Z_SYNC_FLUSH);
                 die_unless((err == Z_OK) || (err == Z_STREAM_END),
-                        "Deflate error");
+                        "deflate_error");
 
                 rlen += (BUF_SIZE - d->d_stream->avail_out);
                 size += (BUF_SIZE - d->d_stream->avail_out);
@@ -170,11 +170,11 @@ static ErlDrvSSizeT ejabberd_zlib_drv_control(ErlDrvData handle,
 
                     err = inflate(d->i_stream, Z_SYNC_FLUSH);
                     die_unless((err == Z_OK) || (err == Z_STREAM_END),
-                            "Inflate error");
+                            "inflate_error");
 
                     rlen += (BUF_SIZE - d->i_stream->avail_out);
                     die_unless((rlen < size_limit) || (size_limit == 0),
-                            "Inflate error - size limit reached");
+                            "inflate_size_exceeded");
 
                     size += (BUF_SIZE - d->i_stream->avail_out);
                     b = driver_realloc_binary(b, size);

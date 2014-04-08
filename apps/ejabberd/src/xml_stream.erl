@@ -126,7 +126,7 @@ parse(#xml_stream_state{callback_pid = CallbackPid,
     if
 	NewSize > MaxSize ->
 	    catch gen_fsm:send_event(CallbackPid,
-				     {xmlstreamerror, "XML stanza is too big"});
+				     {xmlstreamerror, <<"XML stanza is too big">>});
 	true ->
 	    ok
     end,
