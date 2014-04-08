@@ -43,7 +43,7 @@ groups() ->
 %%                          log_one_basic_plain,
 %%                          log_one_basic_digest
                          ]},
-     {messages, [sequence], [messages_story]}].
+     {messages, [sequence], [messages_story, message_zlib_limit]}].
 
 suite() ->
     escalus:suite().
@@ -167,6 +167,18 @@ messages_story(Config) ->
 
         % Bob gets the message
         escalus_assert:is_chat_message(<<"Hi!">>, escalus_client:wait_for_stanza(Bob))
+
+    end).
+
+message_zlib_limit(Config) ->
+    escalus:story(Config, [{alice, 1}, {hacker, 1}], fun(Alice, Hacker) ->
+        ManySpaces = [ 32 || _N <- lists:seq(1, 10*1024) ],
+
+        escalus:send(Hacker, escalus_stanza:chat_to(Alice, ManySpaces)),
+
+        escalus:assert(is_stream_error, [<<"policy-violation">>, <<"XML stanza is too big">>],
+                       escalus:wait_for_stanza(Hacker)),
+        escalus:assert(is_stream_end, escalus:wait_for_stanza(Hacker))
 
     end).
 
