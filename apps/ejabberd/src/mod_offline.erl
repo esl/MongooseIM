@@ -298,7 +298,19 @@ store_packet(
         From,
         To = #jid{luser = LUser, lserver = LServer},
         Packet = #xmlel{children = Els}) ->
-    TimeStamp = now(),
+    TimeStamp =
+    case xml:get_subtag(Packet, <<"delay">>) of
+        false ->
+            now();
+
+        #xmlel{name= <<"delay">>, attrs=Attr} ->
+            case xml:get_attr_s(<<"stamp">>, Attr) of
+                <<"">> ->
+                    now();
+                Stamp ->
+                    jlib:datetime_string_to_timestamp(binary_to_list(Stamp))
+            end
+    end,
     Expire = find_x_expire(TimeStamp, Els),
     Pid = srv_name(LServer),
     Msg = #offline_msg{us = {LUser, LServer},
@@ -446,12 +458,19 @@ resend_offline_message_packet(Server,
 
 add_timestamp(undefined, _Server, Packet) ->
     Packet;
-add_timestamp(TimeStamp, Server, Packet) ->
+add_timestamp({_,_,Micro} = TimeStamp, Server, Packet) ->
     Time = calendar:now_to_universal_time(TimeStamp),
-    %% TODO: Delete the next element once XEP-0091 is Obsolete
-    TimeStampLegacyXML = timestamp_legacy_xml(Server, Time),
-    TimeStampXML = jlib:timestamp_to_xml(Time),
-    xml:append_subtags(Packet, [TimeStampLegacyXML, TimeStampXML]).
+    {D,{H,M,S}} = Time,
+    Time2 = {D,{H,M,S, Micro}},
+    case xml:get_subtag(Packet, <<"delay">>) of
+        false ->
+            %% TODO: Delete the next element once XEP-0091 is Obsolete
+            TimeStampLegacyXML = timestamp_legacy_xml(Server, Time2),
+            TimeStampXML = jlib:timestamp_to_xml(Time2),
+            xml:append_subtags(Packet, [TimeStampLegacyXML, TimeStampXML]);
+        _ ->
+            Packet
+    end.
 
 timestamp_legacy_xml(Server, Time) ->
     FromJID = jlib:make_jid(<<>>, Server, <<>>),

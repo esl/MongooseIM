@@ -1191,8 +1191,8 @@ session_established2(El, StateData) ->
 resume_session({xmlstreamelement, El}, StateData) ->
     Err = ?POLICY_VIOLATION_ERR(StateData#state.lang,
 					   "session in resume state cannot accept incoming stanzas"),
-    send_element(StateData, Err),
-    send_trailer(StateData),
+    catch send_element(StateData, Err),
+    catch send_trailer(StateData),
     {next_state, resume_session, StateData, hibernate};
 
 %%-------------------------------------------------------------------------
@@ -2687,8 +2687,10 @@ buffer_out_stanza(Packet, #state{stream_mgmt_buffer = Buffer,
         end,
 	    {resource_constraint, S};
 	false ->
+	    Timestamp = erlang:now(),
+	    NPacket = maybe_add_timestamp(Packet, Timestamp),
 	    S#state{stream_mgmt_buffer_size = NewSize,
-		    stream_mgmt_buffer = [Packet | Buffer]}
+		    stream_mgmt_buffer = [NPacket | Buffer]}
     end.
 
 is_buffer_full(_BufferSize, infinity) ->
@@ -2747,6 +2749,7 @@ stream_mgmt_request() ->
 flush_stream_mgmt_buffer(#state{stream_mgmt = false}) ->
     false;
 flush_stream_mgmt_buffer(#state{stream_mgmt_buffer = Buffer}) ->
+    %% TODO add delayed on it?
     [ejabberd_router:route(From, To, Packet)
      || {From, To, Packet} <- lists:reverse(Buffer)].
 
@@ -2865,6 +2868,39 @@ handover_session(SD) ->
 		   stream_mgmt_buffer_size = NewSize,
 		   stream_mgmt_buffer = NewBuffer},
     {stop, normal, {ok, NSD}, NSD}.
+
+maybe_add_timestamp({F, T, #xmlel{name= <<"message">>}=Packet}=PacketTuple, Timestamp) ->
+	Type = xml:get_tag_attr_s(<<"type">>, Packet),
+	case Type of
+		<<"error">> ->
+			PacketTuple;
+		<<"headline">> ->
+			PacketTuple;
+		_ ->
+			{F, T, add_timestamp(Timestamp,<<"localhost">>, Packet)}
+	end;
+maybe_add_timestamp(Packet, _Timestamp) ->
+	Packet.
+
+add_timestamp(undefined, _Server, Packet) ->
+    Packet;
+add_timestamp({_,_,Micro} = TimeStamp, Server, Packet) ->
+    Time = calendar:now_to_universal_time(TimeStamp),
+    {D,{H,M,S}} = Time,
+    Time2 = {D,{H,M,S, Micro}},
+    case xml:get_subtag(Packet, <<"delay">>) of
+        false ->
+            %% TODO: Delete the next element once XEP-0091 is Obsolete
+            TimeStampLegacyXML = timestamp_legacy_xml(Server, Time2),
+            TimeStampXML = jlib:timestamp_to_xml(Time2),
+            xml:append_subtags(Packet, [TimeStampLegacyXML, TimeStampXML]);
+        _ ->
+            Packet
+    end.
+
+timestamp_legacy_xml(Server, Time) ->
+    FromJID = jlib:make_jid(<<>>, Server, <<>>),
+    jlib:timestamp_to_xml(Time, utc, FromJID, <<"Offline Storage">>).%% change offline storage to something else?
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").

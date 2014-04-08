@@ -564,6 +564,24 @@ i2l(L) when is_list(L)    -> L.
 %% Timezone = utc | {Sign::string(), {Hours, Minutes}} | {Hours, Minutes}
 %% Hours = integer()
 %% Minutes = integer()
+timestamp_to_iso({{Year, Month, Day}, {Hour, Minute, Second, Micro}}, Timezone) ->
+    Timestamp_string =
+        lists:flatten(
+          io_lib:format("~4..0w-~2..0w-~2..0wT~2..0w:~2..0w:~2..0w.~6..0w",
+                        [Year, Month, Day, Hour, Minute, Second, Micro])),
+    Timezone_string =
+        case Timezone of
+            utc -> "Z";
+            {Sign, {TZh, TZm}} ->
+                io_lib:format("~s~2..0w:~2..0w", [Sign, TZh, TZm]);
+            {TZh, TZm} ->
+                Sign = case TZh >= 0 of
+                           true -> "+";
+                           false -> "-"
+                       end,
+                io_lib:format("~s~2..0w:~2..0w", [Sign, abs(TZh),TZm])
+        end,
+    {Timestamp_string, Timezone_string};
 timestamp_to_iso({{Year, Month, Day}, {Hour, Minute, Second}}, Timezone) ->
     Timestamp_string =
         lists:flatten(
@@ -607,6 +625,13 @@ timestamp_to_mam_xml(DateTime, Timezone, QueryID, MessageUID) ->
                    [{<<"queryid">>, QueryID} || QueryID =/= undefined, QueryID =/= <<>>]}.
 
 %% TODO: Remove this function once XEP-0091 is Obsolete
+timestamp_to_xml({{Year, Month, Day}, {Hour, Minute, Second, Micro}}) ->
+    #xmlel{name = <<"x">>,
+           attrs = [{<<"xmlns">>, ?NS_DELAY91},
+                    {<<"stamp">>, lists:flatten(
+                                    io_lib:format("~4..0w~2..0w~2..0wT~2..0w:~2..0w:~2..0w.~6..0w",
+                                                  [Year, Month, Day, Hour, Minute, Second, Micro]))}]};
+
 timestamp_to_xml({{Year, Month, Day}, {Hour, Minute, Second}}) ->
     #xmlel{name = <<"x">>,
            attrs = [{<<"xmlns">>, ?NS_DELAY91},
