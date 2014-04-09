@@ -18,7 +18,7 @@
 
 %% ejabberd_socket compatibility
 -export([starttls/2, starttls/3,
-         compress/1, compress/2,
+         compress/1, compress/3,
          reset_stream/1,
          send/2,
          send_xml/2,
@@ -823,9 +823,9 @@ starttls(_SocketData, _TLSOpts, _Data) ->
 
 %% Should be negotiated on HTTP level.
 compress(SocketData) ->
-    compress(SocketData, <<>>).
+    compress(SocketData, <<>>, 0).
 
-compress(_SocketData, _Data) ->
+compress(_SocketData, _Data, _InflateSizeLimit) ->
     throw({error, negotiate_compression_on_http_level}).
 
 %% TODO: adjust for BOSH

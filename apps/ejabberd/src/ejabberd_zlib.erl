@@ -30,7 +30,7 @@
 -behaviour(gen_server).
 
 -export([start/0, start_link/0,
-	 enable_zlib/2, disable_zlib/1,
+	 enable_zlib/3, disable_zlib/1,
 	 send/2,
 	 recv/2, recv/3, recv_data/2,
 	 setopts/2,
@@ -50,7 +50,7 @@
 -define(DEFLATE, 1).
 -define(INFLATE, 2).
 
--record(zlibsock, {sockmod, socket, zlibport}).
+-record(zlibsock, {sockmod, socket, zlibport, inflate_size_limit = 0}).
 
 start() ->
     gen_server:start({local, ?MODULE}, ?MODULE, [], []).
@@ -94,13 +94,14 @@ terminate(_Reason, Port) ->
     ok.
 
 
-enable_zlib(SockMod, Socket) ->
+enable_zlib(SockMod, Socket, InflateSizeLimit) ->
     case erl_ddll:load_driver(ejabberd:get_so_path(), ejabberd_zlib_drv) of
 	ok -> ok;
 	{error, already_loaded} -> ok
     end,
     Port = open_port({spawn, ejabberd_zlib_drv}, [binary]),
-    {ok, #zlibsock{sockmod = SockMod, socket = Socket, zlibport = Port}}.
+    {ok, #zlibsock{sockmod = SockMod, socket = Socket, zlibport = Port,
+                   inflate_size_limit = InflateSizeLimit}}.
 
 disable_zlib(#zlibsock{sockmod = SockMod, socket = Socket, zlibport = Port}) ->
     port_close(Port),
@@ -138,12 +139,12 @@ recv_data2(ZlibSock, Packet) ->
 	    Res
     end.
 
-recv_data1(#zlibsock{zlibport = Port} = _ZlibSock, Packet) ->
-    case port_control(Port, ?INFLATE, Packet) of
+recv_data1(#zlibsock{zlibport = Port, inflate_size_limit = SizeLimit} = _ZlibSock, Packet) ->
+    case port_control(Port, SizeLimit bsl 2 + ?INFLATE, Packet) of
 	<<0, In/binary>> ->
 	    {ok, In};
 	<<1, Error/binary>> ->
-	    {error, binary_to_list(Error)}
+	    {error, erlang:binary_to_existing_atom(Error, utf8)}
     end.
 
 send(#zlibsock{sockmod = SockMod, socket = Socket, zlibport = Port},
@@ -152,7 +153,9 @@ send(#zlibsock{sockmod = SockMod, socket = Socket, zlibport = Port},
 	<<0, Out/binary>> ->
 	    SockMod:send(Socket, Out);
 	<<1, Error/binary>> ->
-	    {error, binary_to_list(Error)}
+	    {error, erlang:binary_to_existing_atom(Error, utf8)};
+	_ ->
+	    {error, deflate_error}
     end.
 
 

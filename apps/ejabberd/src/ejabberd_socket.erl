@@ -34,7 +34,7 @@
 	 starttls/2,
 	 starttls/3,
 	 compress/1,
-	 compress/2,
+	 compress/3,
 	 reset_stream/1,
 	 send/2,
 	 send_xml/2,
@@ -152,10 +152,11 @@ compress(SocketData) ->
     ejabberd_receiver:compress(SocketData#socket_state.receiver, ZlibSocket),
     SocketData#socket_state{socket = ZlibSocket, sockmod = ejabberd_zlib}.
 
-compress(SocketData, Data) ->
+compress(SocketData, InflateSizeLimit, Data) ->
     {ok, ZlibSocket} = ejabberd_zlib:enable_zlib(
 			 SocketData#socket_state.sockmod,
-			 SocketData#socket_state.socket),
+			 SocketData#socket_state.socket,
+			 InflateSizeLimit),
     ejabberd_receiver:compress(SocketData#socket_state.receiver, ZlibSocket),
     send(SocketData, Data),
     SocketData#socket_state{socket = ZlibSocket, sockmod = ejabberd_zlib}.

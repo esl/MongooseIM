@@ -56,6 +56,7 @@
 		timeout}).
 
 -define(HIBERNATE_TIMEOUT, 90000).
+-define(GEN_FSM, p1_fsm).
 
 %%====================================================================
 %% API
@@ -160,7 +161,10 @@ handle_call({compress, ZlibSocket}, _From,
     case ejabberd_zlib:recv_data(ZlibSocket, "") of
 	{ok, ZlibData} ->
 	    {reply, ok, process_data(ZlibData, NewState), ?HIBERNATE_TIMEOUT};
-	{error, _Reason} ->
+	{error, inflate_size_exceeded} ->
+	    ?GEN_FSM:send_event(C2SPid, {xmlstreamerror, <<"XML stanza is too big">>}),
+	    {reply, ok, NewState, ?HIBERNATE_TIMEOUT};
+	{error, inflate_error} ->
 	    {stop, normal, ok, NewState}
     end;
 handle_call(reset_stream, _From,
@@ -205,6 +209,7 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 handle_info({Tag, _TCPSocket, Data},
 	    #state{socket = Socket,
+		   c2s_pid = C2SPid,
 		   sock_mod = SockMod} = State)
   when (Tag == tcp) or (Tag == ssl) or (Tag == ejabberd_xml) ->
     case SockMod of
@@ -221,7 +226,10 @@ handle_info({Tag, _TCPSocket, Data},
 		{ok, ZlibData} ->
 		    {noreply, process_data(ZlibData, State),
 		     ?HIBERNATE_TIMEOUT};
-		{error, _Reason} ->
+		{error, inflate_size_exceeded} ->
+		    ?GEN_FSM:send_event(C2SPid, {xmlstreamerror, <<"XML stanza is too big">>}),
+		    {noreply, State, ?HIBERNATE_TIMEOUT};
+		{error, inflate_error} ->
 		    {stop, normal, State}
 	    end;
 	_ ->
