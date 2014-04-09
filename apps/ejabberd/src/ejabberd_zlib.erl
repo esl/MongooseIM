@@ -144,7 +144,7 @@ recv_data1(#zlibsock{zlibport = Port, inflate_size_limit = SizeLimit} = _ZlibSoc
 	<<0, In/binary>> ->
 	    {ok, In};
 	<<1, Error/binary>> ->
-	    {error, erlang:binary_to_existing_atom(Error, latin1)}
+	    {error, erlang:binary_to_existing_atom(Error, utf8)}
     end.
 
 send(#zlibsock{sockmod = SockMod, socket = Socket, zlibport = Port},
@@ -153,9 +153,9 @@ send(#zlibsock{sockmod = SockMod, socket = Socket, zlibport = Port},
 	<<0, Out/binary>> ->
 	    SockMod:send(Socket, Out);
 	<<1, Error/binary>> ->
-        {error, erlang:binary_to_existing_atom(Error, latin1)};
-    _ ->
-        {error, deflate_error}
+	    {error, erlang:binary_to_existing_atom(Error, utf8)};
+	_ ->
+	    {error, deflate_error}
     end.
 
 

@@ -161,8 +161,8 @@ get_presence(FsmRef) ->
     ?GEN_FSM:sync_send_all_state_event(FsmRef, get_presence, 1000).
 
 get_aux_field(Key, #state{aux_fields = Opts}) ->
-    case lists:keysearch(Key, 1, Opts) of
-	{value, {_, Val}} ->
+    case lists:keyfind(Key, 1, Opts) of
+	{_, Val} ->
 	    {ok, Val};
 	_ ->
 	    error
@@ -208,21 +208,21 @@ stop(FsmRef) ->
 %%          {stop, StopReason}
 %%----------------------------------------------------------------------
 init([{SockMod, Socket}, Opts]) ->
-    Access = case lists:keysearch(access, 1, Opts) of
-		 {value, {_, A}} -> A;
+    Access = case lists:keyfind(access, 1, Opts) of
+		 {_, A} -> A;
 		 _ -> all
 	     end,
-    Shaper = case lists:keysearch(shaper, 1, Opts) of
-		 {value, {_, S}} -> S;
+    Shaper = case lists:keyfind(shaper, 1, Opts) of
+		 {_, S} -> S;
 		 _ -> none
 	     end,
     XMLSocket =
-	case lists:keysearch(xml_socket, 1, Opts) of
-	    {value, {_, XS}} -> XS;
+	case lists:keyfind(xml_socket, 1, Opts) of
+	    {_, XS} -> XS;
 	    _ -> false
 	end,
-    Zlib = case lists:keysearch(zlib, 1, Opts) of
-               {value, {_, ZlibLimit}} -> {true, ZlibLimit};
+    Zlib = case lists:keyfind(zlib, 1, Opts) of
+               {_, ZlibLimit} -> {true, ZlibLimit};
                _ -> {false, 0}
            end,
     StartTLS = lists:member(starttls, Opts),
@@ -331,7 +331,7 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
 		    SockMod =
 			 (StateData#state.sockmod):get_sockmod(
 			   StateData#state.socket),
-            {Zlib, _} = StateData#state.zlib,
+		    {Zlib, _} = StateData#state.zlib,
 		    CompressFeature =
 			case Zlib andalso
 			      ((SockMod == gen_tcp) orelse
@@ -472,8 +472,7 @@ wait_for_stream(closed, StateData) ->
 wait_for_auth({xmlstreamelement, El}, StateData) ->
     case is_auth_packet(El) of
 	{auth, _ID, get, {U, _, _, _}} ->
-	    XE = #xmlel{name = Name,
-                        attrs = Attrs} = jlib:make_result_iq_reply(El),
+	    XE = jlib:make_result_iq_reply(El),
 	    case U of
 		<<>> ->
 		    UCdata = [];
@@ -2220,8 +2219,8 @@ check_from(El, FromJID) ->
     end.
 
 fsm_limit_opts(Opts) ->
-    case lists:keysearch(max_fsm_queue, 1, Opts) of
-	{value, {_, N}} when is_integer(N) ->
+    case lists:keyfind(max_fsm_queue, 1, Opts) of
+	{_, N} when is_integer(N) ->
 	    [{max_queue, N}];
 	_ ->
 	    case ejabberd_config:get_local_option(max_fsm_queue) of
