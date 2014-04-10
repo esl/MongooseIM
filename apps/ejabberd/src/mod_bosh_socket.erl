@@ -430,7 +430,7 @@ maybe_add(Rid1, Rid2) when is_integer(Rid1),
 
 -spec maybe_diff(rid(), rid() | undefined)
   -> non_neg_integer() | undefined.
-maybe_diff(Rid, undefined) -> undefined;
+maybe_diff(_, undefined) -> undefined;
 maybe_diff(Rid, Expected) -> abs(Rid-Expected).
 
 resend_cached({_Rid, _, CachedBody}, S) ->
