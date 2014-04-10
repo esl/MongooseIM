@@ -375,10 +375,7 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 
 handle_stream_event({EventTag, Body, Rid} = Event, Handler,
                     SName, #state{rid = OldRid} = S) ->
-    ExpectedRid = case OldRid of
-                      _ when is_integer(OldRid) -> OldRid + 1;
-                      undefined -> undefined
-                  end,
+    ExpectedRid = maybe_add(1, OldRid),
     NS = maybe_add_handler(Handler, Rid, S),
     NNS = case {EventTag,
                 maybe_is_retransmission(Rid, OldRid, S#state.sent),
@@ -425,7 +422,13 @@ maybe_is_retransmission(Rid, OldRid, Sent) ->
             {true, CachedResponse}
     end.
 
--spec maybe_diff(rid(), rid() | undefined) 
+-spec maybe_add(rid(), rid() | undefined)
+  -> rid() | undefined.
+maybe_add(_, undefined) -> undefined;
+maybe_add(Rid1, Rid2) when is_integer(Rid1),
+                           is_integer(Rid2) -> Rid1 + Rid2.
+
+-spec maybe_diff(rid(), rid() | undefined)
   -> non_neg_integer() | undefined.
 maybe_diff(Rid, undefined) -> undefined;
 maybe_diff(Rid, Expected) -> abs(Rid-Expected).
