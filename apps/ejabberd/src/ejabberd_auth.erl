@@ -49,9 +49,9 @@
 	 is_user_exists_in_other_modules/3,
 	 remove_user/2,
 	 remove_user/3,
-     plain_password_required/0,
+	 plain_password_required/0,
 	 plain_password_required/1,
-     store_type/0,
+	 store_type/0,
 	 store_type/1,
 	 entropy/1
 	]).
@@ -286,10 +286,8 @@ get_password_s(User, Server) ->
     case get_password(User, Server) of
 	false ->
 	    <<"">>;
-	Password when is_binary(Password) ->
-	    Password;
-    _ ->
-        <<"">>
+	Password ->
+	    Password
     end.
 
 %% @doc Get the password of the user and the auth module.
@@ -401,7 +399,6 @@ entropy(IOList) ->
 
 is_scrammed() ->
     scram == ejabberd_config:get_local_option({auth_password_format, ?MYNAME}).
-
 
 password_to_scram(Password) ->
     password_to_scram(Password, ?SCRAM_DEFAULT_ITERATION_COUNT).
