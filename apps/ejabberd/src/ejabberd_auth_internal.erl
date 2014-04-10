@@ -88,11 +88,11 @@ check_password(User, Server, Password) ->
     LServer = jlib:nameprep(Server),
     US = {LUser, LServer},
     case catch mnesia:dirty_read({passwd, US}) of
-        [#passwd{password = Password}] when is_binary(Password) ->
-            Password /= <<>>;
         [#passwd{password = Scram}] when is_record(Scram, scram) ->
             ejabberd_auth:is_password_scram_valid(Password, Scram);
-        _ ->
+	[#passwd{password = Password}] ->
+            Password /= <<>>;
+	_ ->
             false
     end.
 
@@ -101,10 +101,10 @@ check_password(User, Server, Password, Digest, DigestGen) ->
     LServer = jlib:nameprep(Server),
     US = {LUser, LServer},
     case catch mnesia:dirty_read({passwd, US}) of
-        [#passwd{password = Passwd}] when is_binary(Passwd) ->
-            ejabberd_auth:check_digest(Digest, DigestGen, Password, Passwd);
-        [#passwd{password = Scram}] when is_record(Scram, scram) ->
+	[#passwd{password = Scram}] when is_record(Scram, scram) ->
             Passwd = base64:decode(Scram#scram.storedkey),
+            ejabberd_auth:check_digest(Digest, DigestGen, Password, Passwd);
+	[#passwd{password = Passwd}] ->
             ejabberd_auth:check_digest(Digest, DigestGen, Password, Passwd);
         _ ->
             false
@@ -245,13 +245,13 @@ get_password(User, Server) ->
     LServer = jlib:nameprep(Server),
     US = {LUser, LServer},
     case catch mnesia:dirty_read(passwd, US) of
-	[#passwd{password = Password}] ->
-	    Password;
 	[#passwd{password = Scram}] when is_record(Scram, scram) ->
 	    {base64:decode(Scram#scram.storedkey),
 	     base64:decode(Scram#scram.serverkey),
 	     base64:decode(Scram#scram.salt),
 	     Scram#scram.iterationcount};
+	[#passwd{password = Password}] ->
+	    Password;
 	_ ->
 	    false
     end.
@@ -261,10 +261,10 @@ get_password_s(User, Server) ->
     LServer = jlib:nameprep(Server),
     US = {LUser, LServer},
     case catch mnesia:dirty_read(passwd, US) of
-	[#passwd{password = Password}] ->
-	    Password;
 	[#passwd{password = Scram}] when is_record(Scram, scram) ->
 	    <<"">>;
+	[#passwd{password = Password}] ->
+	    Password;
 	_ ->
 	    <<"">>
     end.
@@ -306,11 +306,6 @@ remove_user(User, Server, Password) ->
     US = {LUser, LServer},
     F = fun() ->
 		case mnesia:read({passwd, US}) of
-		    [#passwd{password = Password}] ->
-			mnesia:delete({passwd, US}),
-			mnesia:dirty_update_counter(reg_users_counter,
-						    LServer, -1),
-			ok;
 		    [#passwd{password = Scram}] when is_record(Scram, scram) ->
 			case ejabberd_auth:is_password_scram_valid(Password, Scram) of
 			    true ->
@@ -321,6 +316,11 @@ remove_user(User, Server, Password) ->
 			    false ->
 				not_allowed
 			end;
+		    [#passwd{password = Password}] ->
+			mnesia:delete({passwd, US}),
+			mnesia:dirty_update_counter(reg_users_counter,
+						    LServer, -1),
+			ok;
 		    _ ->
 			not_exists
 		end
