@@ -29,7 +29,7 @@
 -behaviour(mod_vcard).
 
 %% mod_vcards callbacks
--export([init/2,remove_user/2, get_vcard/2, set_vcard/4, search/2, search_fields/1]).
+-export([init/2,remove_user/2, get_vcard/2, set_vcard/4, search/3, search_fields/1]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -107,7 +107,7 @@ set_vcard(User, VHost, VCard, VCardSearch) ->
     ejabberd_hooks:run(vcard_set, VHost, [LUser, VHost, VCard]),
     ok.
 
-search(LServer, Data) ->
+search(LServer, Data, Lang) ->
     RestrictionSQL = make_restriction_sql(LServer, Data),
     AllowReturnAll = gen_mod:get_module_opt(LServer, ?MODULE,
 					    allow_return_all, false),
@@ -142,7 +142,23 @@ search(LServer, Data) ->
 		    []
 	    end
     end,
-    lists:map(fun(I) -> record_to_item(LServer,I) end, R).
+    Reported = #xmlel{name = <<"reported">>,
+                      children = [
+                                  ?TLFIELD(<<"jid-single">>, <<"Jabber ID">>, <<"jid">>),
+                                  ?TLFIELD(<<"text-single">>, <<"Full Name">>, <<"fn">>),
+                                  ?TLFIELD(<<"text-single">>, <<"Name">>, <<"first">>),
+                                  ?TLFIELD(<<"text-single">>, <<"Middle Name">>, <<"middle">>),
+                                  ?TLFIELD(<<"text-single">>, <<"Family Name">>, <<"last">>),
+                                  ?TLFIELD(<<"text-single">>, <<"Nickname">>, <<"nick">>),
+                                  ?TLFIELD(<<"text-single">>, <<"Birthday">>, <<"bday">>),
+                                  ?TLFIELD(<<"text-single">>, <<"Country">>, <<"ctry">>),
+                                  ?TLFIELD(<<"text-single">>, <<"City">>, <<"locality">>),
+                                  ?TLFIELD(<<"text-single">>, <<"Email">>, <<"email">>),
+                                  ?TLFIELD(<<"text-single">>, <<"Organization Name">>, <<"orgname">>),
+                                  ?TLFIELD(<<"text-single">>, <<"Organization Unit">>, <<"orgunit">>)
+                                 ]},
+    Items = lists:map(fun(I) -> record_to_item(LServer,I) end, R),
+    [Reported | Items].
 
 search_fields(_VHost) ->
     [{<<"User">>, <<"user">>},

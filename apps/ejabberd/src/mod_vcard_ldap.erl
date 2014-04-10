@@ -40,7 +40,7 @@
 -export([start_link/2,  transform_module_options/1]).
 
 %% mod_vcards callbacks
--export([init/2,remove_user/2, get_vcard/2, set_vcard/4, search/2, search_fields/1]).
+-export([init/2,remove_user/2, get_vcard/2, set_vcard/4, search/3, search_fields/1]).
 
 -include("ejabberd.hrl").
 -include("eldap.hrl").
@@ -155,10 +155,22 @@ get_vcard(LUser, LServer) ->
 set_vcard(_User, _VHost, _VCard, _VCardSearch) ->
     {error, ?ERR_NOT_ALLOWED}.
 
-search(LServer, Data) ->
+search(LServer, Data, Lang) ->
     Proc = gen_mod:get_module_proc(LServer, ?PROCNAME),
     {ok,State} = gen_server:call(Proc, get_state),
-    search_internal(State,Data).
+    SearchReported = State#state.search_reported,
+    Reported = #xmlel{name = <<"reported">>, attrs = [],
+		     children =
+			 [?TLFIELD(<<"text-single">>, <<"Jabber ID">>,
+				   <<"jid">>)]
+			   ++
+			   lists:map(fun ({Name, Value}) ->
+					     ?TLFIELD(<<"text-single">>, Name,
+						      Value)
+				     end,
+				     SearchReported)},
+    Items = search_internal(State, Data),
+    [Reported | Items].
 
 search_fields(Host) ->
     Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
@@ -374,11 +386,7 @@ search_items(Entries, State) ->
 					true ->
 					    RFields = lists:map(fun ({_,
 								      VCardName}) ->
-
-                                    LowerVCardName = iolist_to_binary(
-                                                       string:to_lower(
-                                                         binary_to_list(VCardName))),
-									{LowerVCardName,
+									{VCardName,
 									 map_vcard_attr(VCardName,
 											Attrs,
 											VCardMap,
