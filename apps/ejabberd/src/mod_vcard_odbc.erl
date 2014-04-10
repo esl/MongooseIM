@@ -29,7 +29,7 @@
 -behaviour(mod_vcard).
 
 %% mod_vcards callbacks
--export([init/2,remove_user/2, get_vcard/2, set_vcard/4, search/2, search_fields/1]).
+-export([init/2,remove_user/2, get_vcard/2, set_vcard/4, search/4, search_fields/1]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -107,7 +107,7 @@ set_vcard(User, VHost, VCard, VCardSearch) ->
     ejabberd_hooks:run(vcard_set, VHost, [LUser, VHost, VCard]),
     ok.
 
-search(LServer, Data) ->
+search(LServer, Data, _Lang, DefaultReportedFields) ->
     RestrictionSQL = make_restriction_sql(LServer, Data),
     AllowReturnAll = gen_mod:get_module_opt(LServer, ?MODULE,
 					    allow_return_all, false),
@@ -142,7 +142,8 @@ search(LServer, Data) ->
 		    []
 	    end
     end,
-    lists:map(fun(I) -> record_to_item(LServer,I) end, R).
+    Items = lists:map(fun(I) -> record_to_item(LServer,I) end, R),
+    [DefaultReportedFields | Items].
 
 search_fields(_VHost) ->
     [{<<"User">>, <<"user">>},

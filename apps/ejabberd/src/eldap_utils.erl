@@ -235,10 +235,10 @@ prepare_opt_val(Opt, Val, F, Default) ->
           end,
     case Res of
         {'EXIT', _} ->
-            ?INFO_MSG("Configuration problem:~n"
-                      "** Option: ~s~n"
-                      "** Invalid value: ~s~n"
-                      "** Using as fallback: ~s",
+            ?ERROR_MSG("Configuration problem:~n"
+                      "** Option: ~p~n"
+                      "** Invalid value: ~p~n"
+                      "** Using as fallback: ~p",
                       [ Opt,
                         Val,
                         Default]),

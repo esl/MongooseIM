@@ -3,7 +3,7 @@
 -behaviour(mod_vcard).
 
 %% mod_vcards callbacks
--export([init/2,remove_user/2, get_vcard/2, set_vcard/4, search/2, search_fields/1]).
+-export([init/2,remove_user/2, get_vcard/2, set_vcard/4, search/4, search_fields/1]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -53,7 +53,7 @@ set_vcard(User, VHost, VCard, VCardSearch) ->
     ejabberd_hooks:run(vcard_set, VHost,[LUser,VHost, VCard]),
     ok.
 
-search(VHost,Data) ->
+search(VHost, Data, _Lang, DefaultReportedFields) ->
     MatchHead = make_matchhead(VHost, Data),
     AllowReturnAll = gen_mod:get_module_opt(VHost, ?MODULE,
                                             allow_return_all, false),
@@ -80,7 +80,8 @@ search(VHost,Data) ->
                     end
             end
     end,
-    lists:map(fun record_to_item/1,R).
+    Items = lists:map(fun record_to_item/1,R),
+    [DefaultReportedFields | Items].
 
 search_fields(_VHost) ->
     [{<<"User">>, <<"user">>},
