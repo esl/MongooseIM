@@ -401,8 +401,10 @@ handle_stream_event({EventTag, Body, Rid} = Event, Handler,
                       [Rid, ExpectedRid, {EventTag, Body}]),
             NS#state{deferred = [Event | NS#state.deferred]};
         {_, _, false, false} ->
-            ?ERROR_MSG("invalid rid ~p, expected ~p:~n~p~n",
-                       [Rid, ExpectedRid, {EventTag, Body}]),
+            
+            ?ERROR_MSG("invalid rid ~p, expected ~p, difference ~p:~n~p~n",
+                       [Rid, ExpectedRid, maybe_diff(Rid,ExpectedRid),
+                        {EventTag, Body}]),
             [Pid ! item_not_found
              || {_, _, Pid} <- lists:sort(NS#state.handlers)],
             throw({invalid_rid, NS#state{handlers = []}})
@@ -422,6 +424,11 @@ maybe_is_retransmission(Rid, OldRid, Sent) ->
         {CachedResponse, _} ->
             {true, CachedResponse}
     end.
+
+-spec maybe_diff(rid(), rid() | undefined) 
+  -> non_neg_integer() | undefined.
+maybe_diff(Rid, undefined) -> undefined;
+maybe_diff(Rid, Expected) -> abs(Rid-Expected).
 
 resend_cached({_Rid, _, CachedBody}, S) ->
     send_to_handler(CachedBody, S).
