@@ -59,18 +59,16 @@
 -define(MAX_USER_MESSAGES, infinity).
 -define(BACKEND, (mod_offline_backend:backend())).
 
--record(state, {host, access_max_user_messages}).
+-record(state, {host :: ejabberd:server(),
+                access_max_user_messages
+               }).
+-type state() :: #state{}.
 
 %% ------------------------------------------------------------------
 %% Backend callbacks
 
--callback init(Host, Opts) -> ok when
-    Host :: binary(),
-    Opts :: list().
-
--callback remove_user(LUser, LServer) -> ok when
-    LUser :: binary(),
-    LServer :: binary().
+-callback init(Host :: ejabberd:server(), Opts :: list()) -> ok.
+-callback remove_user(ejabberd:luser(), ejabberd:lserver()) -> ok.
 
 %% gen_mod callbacks
 %% ------------------------------------------------------------------
@@ -82,28 +80,28 @@ start(Host, Opts) ->
     ?BACKEND:init(Host, Opts),
     start_worker(Host, AccessMaxOfflineMsgs),
     ejabberd_hooks:add(offline_message_hook, Host,
-		       ?MODULE, inspect_packet, 50),
+                       ?MODULE, inspect_packet, 50),
     ejabberd_hooks:add(resend_offline_messages_hook, Host,
-		       ?MODULE, pop_offline_messages, 50),
+                       ?MODULE, pop_offline_messages, 50),
     ejabberd_hooks:add(remove_user, Host,
-		       ?MODULE, remove_user, 50),
+                       ?MODULE, remove_user, 50),
     ejabberd_hooks:add(anonymous_purge_hook, Host,
-		       ?MODULE, remove_user, 50),
+                       ?MODULE, remove_user, 50),
     ejabberd_hooks:add(disco_sm_features, Host,
-		       ?MODULE, get_sm_features, 50),
+                       ?MODULE, get_sm_features, 50),
     ejabberd_hooks:add(disco_local_features, Host,
-		       ?MODULE, get_sm_features, 50),
+                       ?MODULE, get_sm_features, 50),
     ok.
 
 stop(Host) ->
     ejabberd_hooks:delete(offline_message_hook, Host,
-			  ?MODULE, inspect_packet, 50),
+                          ?MODULE, inspect_packet, 50),
     ejabberd_hooks:delete(resend_offline_messages_hook, Host,
-			  ?MODULE, pop_offline_messages, 50),
+                          ?MODULE, pop_offline_messages, 50),
     ejabberd_hooks:delete(remove_user, Host,
-			  ?MODULE, remove_user, 50),
+                          ?MODULE, remove_user, 50),
     ejabberd_hooks:delete(anonymous_purge_hook, Host,
-			  ?MODULE, remove_user, 50),
+                          ?MODULE, remove_user, 50),
     ejabberd_hooks:delete(disco_sm_features, Host, ?MODULE, get_sm_features, 50),
     ejabberd_hooks:delete(disco_local_features, Host, ?MODULE, get_sm_features, 50),
     stop_worker(Host),
@@ -151,17 +149,17 @@ handle_offline_msg(#offline_msg{us=US} = Msg, AccessMaxOfflineMsgs) ->
 %% Function copied from ejabberd_sm.erl:
 get_max_user_messages(AccessRule, LUser, Host) ->
     case acl:match_rule(Host, AccessRule, jlib:make_jid(LUser, Host, <<>>)) of
-	Max when is_integer(Max) -> Max;
-	infinity -> infinity;
-	_ -> ?MAX_USER_MESSAGES
+        Max when is_integer(Max) -> Max;
+        infinity -> infinity;
+        _ -> ?MAX_USER_MESSAGES
     end.
 
 receive_all(US, Msgs) ->
     receive
-	#offline_msg{us=US} = Msg ->
-	    receive_all(US, [Msg | Msgs])
+        #offline_msg{us=US} = Msg ->
+            receive_all(US, [Msg | Msgs])
     after 0 ->
-	    Msgs
+            Msgs
     end.
 
 %% Supervision
@@ -323,30 +321,30 @@ is_interesting_packet_type(_)               -> true.
 check_event_chatstates(From, To, Packet) ->
     #xmlel{children = Els} = Packet,
     case find_x_event_chatstates(Els, {false, false, false}) of
-	%% There wasn't any x:event or chatstates subelements
-	{false, false, _} ->
-	    true;
-	%% There a chatstates subelement and other stuff, but no x:event
-	{false, CEl, true} when CEl /= false ->
-	    true;
-	%% There was only a subelement: a chatstates
-	{false, CEl, false} when CEl /= false ->
-	    %% Don't allow offline storage
-	    false;
-	%% There was an x:event element, and maybe also other stuff
-	{El, _, _} when El /= false ->
-	    case xml:get_subtag(El, <<"id">>) of
-		false ->
-		    case xml:get_subtag(El, <<"offline">>) of
-			false ->
-			    true;
-			_ ->
+        %% There wasn't any x:event or chatstates subelements
+        {false, false, _} ->
+            true;
+        %% There a chatstates subelement and other stuff, but no x:event
+        {false, CEl, true} when CEl /= false ->
+            true;
+        %% There was only a subelement: a chatstates
+        {false, CEl, false} when CEl /= false ->
+            %% Don't allow offline storage
+            false;
+        %% There was an x:event element, and maybe also other stuff
+        {El, _, _} when El /= false ->
+            case xml:get_subtag(El, <<"id">>) of
+                false ->
+                    case xml:get_subtag(El, <<"offline">>) of
+                        false ->
+                            true;
+                        _ ->
                 ejabberd_router:route(To, From, patch_offline_message(Packet)),
-			    true
-		    end;
-		_ ->
-		    false
-	    end
+                            true
+                    end;
+                _ ->
+                    false
+            end
     end.
 
 patch_offline_message(Packet) ->
@@ -372,12 +370,12 @@ find_x_event_chatstates([#xmlcdata{} | Els], Res) ->
     find_x_event_chatstates(Els, Res);
 find_x_event_chatstates([El | Els], {A, B, C}) ->
     case xml:get_tag_attr_s(<<"xmlns">>, El) of
-	?NS_EVENT ->
-	    find_x_event_chatstates(Els, {El, B, C});
-	?NS_CHATSTATES ->
-	    find_x_event_chatstates(Els, {A, El, C});
-	_ ->
-	    find_x_event_chatstates(Els, {A, B, true})
+        ?NS_EVENT ->
+            find_x_event_chatstates(Els, {El, B, C});
+        ?NS_CHATSTATES ->
+            find_x_event_chatstates(Els, {A, El, C});
+        _ ->
+            find_x_event_chatstates(Els, {A, B, true})
     end.
 
 find_x_expire(_, []) ->
@@ -386,22 +384,22 @@ find_x_expire(TimeStamp, [#xmlcdata{} | Els]) ->
     find_x_expire(TimeStamp, Els);
 find_x_expire(TimeStamp, [El | Els]) ->
     case xml:get_tag_attr_s(<<"xmlns">>, El) of
-	?NS_EXPIRE ->
-	    Val = xml:get_tag_attr_s(<<"seconds">>, El),
-	    case catch list_to_integer(Val) of
-		{'EXIT', _} ->
-		    never;
-		Int when Int > 0 ->
-		    {MegaSecs, Secs, MicroSecs} = TimeStamp,
-		    S = MegaSecs * 1000000 + Secs + Int,
-		    MegaSecs1 = S div 1000000,
-		    Secs1 = S rem 1000000,
-		    {MegaSecs1, Secs1, MicroSecs};
-		_ ->
-		    never
-	    end;
-	_ ->
-	    find_x_expire(TimeStamp, Els)
+        ?NS_EXPIRE ->
+            Val = xml:get_tag_attr_s(<<"seconds">>, El),
+            case catch list_to_integer(Val) of
+                {'EXIT', _} ->
+                    never;
+                Int when Int > 0 ->
+                    {MegaSecs, Secs, MicroSecs} = TimeStamp,
+                    S = MegaSecs * 1000000 + Secs + Int,
+                    MegaSecs1 = S div 1000000,
+                    Secs1 = S rem 1000000,
+                    {MegaSecs1, Secs1, MicroSecs};
+                _ ->
+                    never
+            end;
+        _ ->
+            find_x_expire(TimeStamp, Els)
     end.
 
 pop_offline_messages(Ls, User, Server) ->
@@ -470,9 +468,9 @@ remove_user(User, Server) ->
 discard_warn_sender(Msgs) ->
     lists:foreach(
       fun(#offline_msg{from=From, to=To, packet=Packet}) ->
-	      ErrText = <<"Your contact offline message queue is full. The message has been discarded.">>,
-	      Lang = xml:get_tag_attr_s(<<"xml:lang">>, Packet),
-	      Err = jlib:make_error_reply(
-		      Packet, ?ERRT_RESOURCE_CONSTRAINT(Lang, ErrText)),
-	      ejabberd_router:route(To, From, Err)
+              ErrText = <<"Your contact offline message queue is full. The message has been discarded.">>,
+              Lang = xml:get_tag_attr_s(<<"xml:lang">>, Packet),
+              Err = jlib:make_error_reply(
+                      Packet, ?ERRT_RESOURCE_CONSTRAINT(Lang, ErrText)),
+              ejabberd_router:route(To, From, Err)
       end, Msgs).
