@@ -3,7 +3,7 @@
 -behaviour(mod_vcard).
 
 %% mod_vcards callbacks
--export([init/2,remove_user/2, get_vcard/2, set_vcard/4, search/3, search_fields/1]).
+-export([init/2,remove_user/2, get_vcard/2, set_vcard/4, search/4, search_fields/1]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -53,7 +53,7 @@ set_vcard(User, VHost, VCard, VCardSearch) ->
     ejabberd_hooks:run(vcard_set, VHost,[LUser,VHost, VCard]),
     ok.
 
-search(VHost, Data, Lang) ->
+search(VHost, Data, _Lang, DefaultReportedFields) ->
     MatchHead = make_matchhead(VHost, Data),
     AllowReturnAll = gen_mod:get_module_opt(VHost, ?MODULE,
                                             allow_return_all, false),
@@ -80,23 +80,8 @@ search(VHost, Data, Lang) ->
                     end
             end
     end,
-    Reported = #xmlel{name = <<"reported">>,
-                      children = [
-                                  ?TLFIELD(<<"jid-single">>, <<"Jabber ID">>, <<"jid">>),
-                                  ?TLFIELD(<<"text-single">>, <<"Full Name">>, <<"fn">>),
-                                  ?TLFIELD(<<"text-single">>, <<"Name">>, <<"first">>),
-                                  ?TLFIELD(<<"text-single">>, <<"Middle Name">>, <<"middle">>),
-                                  ?TLFIELD(<<"text-single">>, <<"Family Name">>, <<"last">>),
-                                  ?TLFIELD(<<"text-single">>, <<"Nickname">>, <<"nick">>),
-                                  ?TLFIELD(<<"text-single">>, <<"Birthday">>, <<"bday">>),
-                                  ?TLFIELD(<<"text-single">>, <<"Country">>, <<"ctry">>),
-                                  ?TLFIELD(<<"text-single">>, <<"City">>, <<"locality">>),
-                                  ?TLFIELD(<<"text-single">>, <<"Email">>, <<"email">>),
-                                  ?TLFIELD(<<"text-single">>, <<"Organization Name">>, <<"orgname">>),
-                                  ?TLFIELD(<<"text-single">>, <<"Organization Unit">>, <<"orgunit">>)
-                                 ]},
     Items = lists:map(fun record_to_item/1,R),
-    [Reported | Items].
+    [DefaultReportedFields | Items].
 
 search_fields(_VHost) ->
     [{<<"User">>, <<"user">>},

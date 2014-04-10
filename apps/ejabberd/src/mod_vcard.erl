@@ -83,11 +83,12 @@
     LUser :: binary(),
     LServer :: binary().
 
--callback search(VHost, Data, Lang) ->
+-callback search(VHost, Data, Lang, DefaultReportedFields) ->
     Res :: term() when
     VHost :: binary(),
     Data :: term(),
-    Lang :: binary().
+    Lang :: binary(),
+    DefaultReportedFields :: #xmlel{}.
 
 -callback search_fields(VHost) ->
     Res :: list() when
@@ -397,7 +398,8 @@ find_xdata_el1([_ | Els]) ->
 search_result(Lang, JID, VHost, Data) ->
     [#xmlel{name = <<"title">>,
             children = [#xmlcdata{content = [translate:translate(Lang, <<"Search Results for ">>),
-                                             jlib:jid_to_binary(JID)]}]} | ?BACKEND:search(VHost, Data, Lang)].
+                                             jlib:jid_to_binary(JID)]}]}
+                                             | ?BACKEND:search(VHost, Data, Lang, get_default_reported_fields(Lang))].
 b2l(Binary) ->
     binary_to_list(Binary).
 
@@ -476,3 +478,20 @@ prepare_vcard_search_params(User, VHost, VCARD) ->
                               }}
     end.
 
+-spec get_default_reported_fields(binary()) -> #xmlel{}.
+get_default_reported_fields(Lang) ->
+    #xmlel{name = <<"reported">>,
+           children = [
+                       ?TLFIELD(<<"jid-single">>, <<"Jabber ID">>, <<"jid">>),
+                       ?TLFIELD(<<"text-single">>, <<"Full Name">>, <<"fn">>),
+                       ?TLFIELD(<<"text-single">>, <<"Name">>, <<"first">>),
+                       ?TLFIELD(<<"text-single">>, <<"Middle Name">>, <<"middle">>),
+                       ?TLFIELD(<<"text-single">>, <<"Family Name">>, <<"last">>),
+                       ?TLFIELD(<<"text-single">>, <<"Nickname">>, <<"nick">>),
+                       ?TLFIELD(<<"text-single">>, <<"Birthday">>, <<"bday">>),
+                       ?TLFIELD(<<"text-single">>, <<"Country">>, <<"ctry">>),
+                       ?TLFIELD(<<"text-single">>, <<"City">>, <<"locality">>),
+                       ?TLFIELD(<<"text-single">>, <<"Email">>, <<"email">>),
+                       ?TLFIELD(<<"text-single">>, <<"Organization Name">>, <<"orgname">>),
+                       ?TLFIELD(<<"text-single">>, <<"Organization Unit">>, <<"orgunit">>)
+                      ]}.
