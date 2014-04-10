@@ -401,7 +401,7 @@ handle_stream_event({EventTag, Body, Rid} = Event, Handler,
                       [Rid, ExpectedRid, {EventTag, Body}]),
             NS#state{deferred = [Event | NS#state.deferred]};
         {_, _, false, false} ->
-            
+
             ?ERROR_MSG("invalid rid ~p, expected ~p, difference ~p:~n~p~n",
                        [Rid, ExpectedRid, maybe_diff(Rid,ExpectedRid),
                         {EventTag, Body}]),
