@@ -21,6 +21,9 @@ clean: rebar
 test: test_deps
 	cd test/ejabberd_tests; make test
 
+test_config: test_deps
+	cd test/ejabberd_tests; make test_config
+
 cover_test: test_deps
 	cd test/ejabberd_tests; make cover_test
 
