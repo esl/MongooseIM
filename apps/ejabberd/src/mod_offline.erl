@@ -460,12 +460,11 @@ resend_offline_message_packet(Server,
 add_timestamp(undefined, _Server, Packet) ->
     Packet;
 add_timestamp({_,_,Micro} = TimeStamp, Server, Packet) ->
-    Time = calendar:now_to_universal_time(TimeStamp),
-    {D,{H,M,S}} = Time,
-    Time2 = {D,{H,M,S, Micro}},
+    {D,{H,M,S}} = calendar:now_to_universal_time(TimeStamp),
+    Time = {D,{H,M,S, Micro}},
     %% TODO: Delete the next element once XEP-0091 is Obsolete
-    TimeStampLegacyXML = timestamp_legacy_xml(Server, Time2),
-    TimeStampXML = jlib:timestamp_to_xml(Time2),
+    TimeStampLegacyXML = timestamp_legacy_xml(Server, Time),
+    TimeStampXML = jlib:timestamp_to_xml(Time),
     xml:append_subtags(Packet, [TimeStampLegacyXML, TimeStampXML]).
 
 timestamp_legacy_xml(Server, Time) ->

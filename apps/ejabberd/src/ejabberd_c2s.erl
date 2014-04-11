@@ -2885,14 +2885,13 @@ maybe_add_timestamp(Packet, _Timestamp) ->
 add_timestamp(undefined, _Server, Packet) ->
     Packet;
 add_timestamp({_,_,Micro} = TimeStamp, Server, Packet) ->
-    Time = calendar:now_to_universal_time(TimeStamp),
-    {D,{H,M,S}} = Time,
-    Time2 = {D,{H,M,S, Micro}},
+    {D,{H,M,S}} = calendar:now_to_universal_time(TimeStamp),
+    Time = {D,{H,M,S, Micro}},
     case xml:get_subtag(Packet, <<"delay">>) of
         false ->
             %% TODO: Delete the next element once XEP-0091 is Obsolete
-            TimeStampLegacyXML = timestamp_legacy_xml(Server, Time2),
-            TimeStampXML = jlib:timestamp_to_xml(Time2),
+            TimeStampLegacyXML = timestamp_legacy_xml(Server, Time),
+            TimeStampXML = jlib:timestamp_to_xml(Time),
             xml:append_subtags(Packet, [TimeStampLegacyXML, TimeStampXML]);
         _ ->
             Packet
@@ -2900,7 +2899,7 @@ add_timestamp({_,_,Micro} = TimeStamp, Server, Packet) ->
 
 timestamp_legacy_xml(Server, Time) ->
     FromJID = jlib:make_jid(<<>>, Server, <<>>),
-    jlib:timestamp_to_xml(Time, utc, FromJID, <<"Offline Storage">>).%% change offline storage to something else?
+    jlib:timestamp_to_xml(Time, utc, FromJID, <<"SM Storage">>).%% change offline storage to something else?
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
