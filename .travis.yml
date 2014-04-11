@@ -1,6 +1,7 @@
 language: erlang
-before_install: sudo apt-get install libpam0g-dev libexpat1-dev slapd
-script: tools/travis-build.sh ""
+before_install: sudo apt-get install libpam0g-dev libexpat1-dev
+before_script: tools/travis-setup-db.sh
+script: tools/travis-build.sh password
 services: redis-server
 branches:
         only:
@@ -10,6 +11,5 @@ notifications:
 otp_release:
         - R15B03
 env:
-        - TEST_CONFIG=internal_redis
-        - TEST_CONFIG=internal_mnesia
-        
+        - TEST_CONFIG=odbc_mnesia DB=mysql
+

@@ -1,14 +1,5 @@
 #!/bin/bash
 
-echo $TEST_CONFIG
-echo $1
-
-if [ $# != 1 ]
-then
-    echo "Usage: travis-build ODBC_PASSWORD"
-    exit 1
-fi
-
 TOOLS=`dirname $0`
 
 if [ `uname` = "Darwin" ]; then
@@ -23,9 +14,10 @@ EJD1CTL=${EJD1}/bin/mongooseim
 EJD2CTL=${EJD2}/bin/mongooseim
 SUMMARIES_DIRS=${BASE}'/test/ejabberd_tests/ct_report/ct_run*'
 
-echo "${TOOLS}/set-odbc-password vars $1"
 
-${TOOLS}/set-odbc-password vars $1
+TRAVIS_DB_PASSWORD=$(cat /tmp/travis_db_password)
+
+${TOOLS}/set-odbc-password vars ${TRAVIS_DB_PASSWORD}
 
 make devclean devrel
 echo -n "starting MongooseIM node 1: "
@@ -39,7 +31,7 @@ echo -n "pinging MongooseIM node 2: "
 ${EJD2CTL} ping
 
 make test_deps
-${TOOLS}/set-odbc-password test $2
+${TOOLS}/set-odbc-password test ${TRAVIS_DB_PASSWORD}
 
 make test_config TESTSPEC=default.spec CONFIG=$TEST_CONFIG
 
