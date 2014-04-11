@@ -60,7 +60,7 @@
                 sid :: bosh_sid(),
                 wait = ?DEFAULT_WAIT,
                 hold = ?DEFAULT_HOLD,
-                rid :: rid(),
+                rid :: rid() | undefined,
                 %% Requests deferred for later processing because
                 %% of having Rid greater than expected.
                 deferred = [] :: [{rid(), {event_type(), #xmlel{}}}],
@@ -341,11 +341,11 @@ handle_info(reset_stream, SName, #state{} = S) ->
 handle_info(close, _SName, State) ->
     {stop, normal, State};
 handle_info(inactivity_timeout, _SName, State) ->
-    ?DEBUG("terminating due to client inactivity~n", []),
+    ?INFO_MSG("terminating due to client inactivity~n", []),
     {stop, {shutdown, inactivity_timeout}, State};
 handle_info({wait_timeout, {Rid, Pid}}, SName,
             #state{handlers = Handlers} = S) ->
-    ?DEBUG("'wait' limit reached for ~p~n", [Pid]),
+    ?INFO_MSG("'wait' limit reached for ~p~n", [Pid]),
     %% In case some message was being handled when the timer fired
     %% it may turn out that Pid is no longer available in Handlers.
     case lists:keytake(Rid, 1, Handlers) of
@@ -375,11 +375,12 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 
 handle_stream_event({EventTag, Body, Rid} = Event, Handler,
                     SName, #state{rid = OldRid} = S) ->
+    ExpectedRid = maybe_add(1, OldRid),
     NS = maybe_add_handler(Handler, Rid, S),
     NNS = case {EventTag,
                 maybe_is_retransmission(Rid, OldRid, S#state.sent),
-                is_valid_rid(Rid, OldRid),
-                is_acceptable_rid(Rid, OldRid)}
+                is_expected_rid(Rid, ExpectedRid),
+                is_acceptable_rid(Rid, ExpectedRid)}
     of
         {_, {true, CachedResponse}, _, _} ->
             case CachedResponse of
@@ -393,12 +394,14 @@ handle_stream_event({EventTag, Body, Rid} = Event, Handler,
         {_, _, true, _} ->
             process_acked_stream_event(Event, SName, NS);
         {_, _, false, true} ->
-            ?DEBUG("storing stream event for deferred processing: ~p~n",
-                   [{EventTag, Body}]),
+            ?INFO_MSG("deferring (rid: ~p, expected: ~p): ~p~n",
+                      [Rid, ExpectedRid, {EventTag, Body}]),
             NS#state{deferred = [Event | NS#state.deferred]};
         {_, _, false, false} ->
-            ?ERROR_MSG("invalid rid ~p, expected ~p:~n~p~n",
-                       [Rid, OldRid + 1, {EventTag, Body}]),
+
+            ?ERROR_MSG("invalid rid ~p, expected ~p, difference ~p:~n~p~n",
+                       [Rid, ExpectedRid, maybe_diff(Rid,ExpectedRid),
+                        {EventTag, Body}]),
             [Pid ! item_not_found
              || {_, _, Pid} <- lists:sort(NS#state.handlers)],
             throw({invalid_rid, NS#state{handlers = []}})
@@ -419,6 +422,17 @@ maybe_is_retransmission(Rid, OldRid, Sent) ->
             {true, CachedResponse}
     end.
 
+-spec maybe_add(rid(), rid() | undefined)
+  -> rid() | undefined.
+maybe_add(_, undefined) -> undefined;
+maybe_add(Rid1, Rid2) when is_integer(Rid1),
+                           is_integer(Rid2) -> Rid1 + Rid2.
+
+-spec maybe_diff(rid(), rid() | undefined)
+  -> non_neg_integer() | undefined.
+maybe_diff(_, undefined) -> undefined;
+maybe_diff(Rid, Expected) -> abs(Rid-Expected).
+
 resend_cached({_Rid, _, CachedBody}, S) ->
     send_to_handler(CachedBody, S).
 
@@ -430,13 +444,15 @@ process_acked_stream_event({EventTag, Body, Rid}, SName,
     NS = maybe_trim_cache(Ack, S),
     case Action of
         noreport ->
-            process_stream_event(EventTag, Body, SName, NS#state{rid = Rid});
+            process_stream_event(EventTag, Body, SName, rid(NS, Rid));
         report ->
             NS2 = schedule_report(Ack, NS),
-            NS3 = process_stream_event(EventTag, Body, SName,
-                                       NS2#state{rid = Rid}),
+            NS3 = process_stream_event(EventTag, Body, SName, rid(NS2, Rid)),
             maybe_send_report(NS3)
     end.
+
+rid(#state{} = S, Rid) when is_integer(Rid), Rid > 0 ->
+    S#state{rid = Rid}.
 
 determine_report_action(undefined, false, _, _) ->
     {noreport, undefined};
@@ -533,14 +549,14 @@ process_deferred_events(SName, #state{deferred = Deferred} = S) ->
                 S#state{deferred = []},
                 lists:sort(Deferred)).
 
-is_valid_rid(Rid, OldRid) when Rid == OldRid + 1 ->
+is_expected_rid(Rid, ExpectedRid) when Rid == ExpectedRid ->
     true;
-is_valid_rid(_, _) ->
+is_expected_rid(_, _) ->
     false.
 
-is_acceptable_rid(Rid, OldRid)
-        when Rid > OldRid + 1,
-             Rid =< OldRid + ?CONCURRENT_REQUESTS ->
+is_acceptable_rid(Rid, ExpectedRid)
+  when Rid > ExpectedRid,
+       Rid < ExpectedRid + ?CONCURRENT_REQUESTS ->
     true;
 is_acceptable_rid(_, _) ->
     false.
