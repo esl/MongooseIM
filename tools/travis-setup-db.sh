@@ -23,9 +23,8 @@ if [ $DB = 'mysql' ]; then
     mysql -u ejabberd --password=${TRAVIS_DB_PASSWORD} ejabberd < ${SQLDIR}/mysql.sql
 elif [ $DB = 'psql' ]; then
     echo "Configuring postgres"
-    psql -c "CREATE DATABASE ejabberd;" -U postgres
+    psql -U postgres -c "CREATE ROLE ejabberd PASSWORD '${TRAVIS_DB_PASSWORD}' SUPERUSER CREATEDB CREATEROLE INHERIT LOGIN;"
+    psql -U postgres -c "CREATE DATABASE ejabberd;"
     echo "Creating schema"
     psql -U postgres -q -d ejabberd -f ${SQLDIR}/pg.sql
-    psql -c "CREATE USER ejabberd WITH PASSWORD '${TRAVIS_DB_PASSWORD}'" -U postgres
-    psql -c "GRANT ALL PRIVILEGES ON DATABASE ejabberd to ejabberd;" -U postgres
 fi

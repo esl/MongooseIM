@@ -59,4 +59,5 @@ then
 else
     echo "Build failed"
 fi
+
 exit ${CT_STATUS}

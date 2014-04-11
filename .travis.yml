@@ -2,12 +2,14 @@ language: erlang
 before_install: sudo apt-get install libpam0g-dev libexpat1-dev
 before_script: tools/travis-setup-db.sh
 script: tools/travis-build.sh
+after_failure:
+        - cat dev/mongooseim_node1/log/ejabberd.log
 services: redis-server
 branches:
         only:
                 - master
 notifications:
-        email: mongoose-im@erlang-solutions.com
+        email: michal.piotrowski@erlang-solutions.com
 otp_release:
         - R15B03
 env:
@@ -16,4 +18,5 @@ env:
         - TEST_CONFIG=odbc_mnesia DB=mysql
         - TEST_CONFIG=odbc_redis DB=mysql
         - TEST_CONFIG=external_mnesia DB=mnesia
+        - TEST_CONFIG=odbc_pgsql_mnesia DB=psql
 
