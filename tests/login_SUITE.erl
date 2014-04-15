@@ -59,14 +59,14 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(register, Config) ->
-    case escalus_users:is_mod_register_enabled() of
+    case escalus_users:is_mod_register_enabled(Config) of
         true ->
             escalus:create_users(Config);
         _ ->
             {skip, mod_register_disabled}
     end;
 init_per_group(registration_timeout, Config) ->
-    case escalus_users:is_mod_register_enabled() of
+    case escalus_users:is_mod_register_enabled(Config) of
         true ->
             set_registration_timeout(Config);
         _ ->
