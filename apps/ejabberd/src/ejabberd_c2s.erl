@@ -1192,7 +1192,7 @@ resume_session({xmlstreamelement, El}, StateData) ->
     Err = ?POLICY_VIOLATION_ERR(StateData#state.lang,
 					   "session in resume state cannot accept incoming stanzas"),
     catch send_element(StateData, Err),
-    catch send_trailer(StateData),
+    send_trailer(StateData),
     {next_state, resume_session, StateData, hibernate};
 
 %%-------------------------------------------------------------------------
@@ -1277,7 +1277,7 @@ handle_info(replaced, _StateName, StateData) ->
     Lang = StateData#state.lang,
     catch send_element(StateData,
 		 ?SERRT_CONFLICT(Lang, "Replaced by new connection")),
-    catch send_trailer(StateData),
+    send_trailer(StateData),
     {stop, normal, StateData#state{authenticated = replaced}};
 %% Process Packets that are to be send to the user
 handle_info({route, From, To, Packet}, StateName, StateData) ->
@@ -1729,11 +1729,11 @@ send_header(StateData, Server, Version, Lang) ->
     send_text(StateData, Header).
 
 send_trailer(StateData) when StateData#state.xml_socket ->
-    (StateData#state.sockmod):send_xml(
-      StateData#state.socket,
-      {xmlstreamend, <<"stream:stream">>});
+	catch (StateData#state.sockmod):send_xml(
+					  StateData#state.socket,
+					  {xmlstreamend, <<"stream:stream">>});
 send_trailer(StateData) ->
-    send_text(StateData, ?STREAM_TRAILER).
+	catch send_text(StateData, ?STREAM_TRAILER).
 
 
 new_id() ->
@@ -2565,8 +2565,12 @@ maybe_enable_stream_mgmt(NextState, El, StateData) ->
 
 enable_stream_resumption(SD) ->
     SMID = make_smid(),
-    ok = mod_stream_management:register_smid(SMID, SD#state.sid),
-    {SD#state{stream_mgmt_id = SMID},
+    SID = case SD#state.sid of
+		  undefined -> {now(), self()};
+		  RSID -> RSID
+	  end,
+    ok = mod_stream_management:register_smid(SMID, SID),
+    {SD#state{stream_mgmt_id = SMID, sid = SID},
      stream_mgmt_enabled([{<<"id">>, SMID}, {<<"resume">>, <<"true">>}])}.
 
 make_smid() ->
@@ -2595,11 +2599,11 @@ stream_mgmt_handle_ack(NextState, El, #state{} = SD) ->
 	fsm_next_state(NextState, NSD)
     catch
 	error:{badmatch, {ns, _}} ->
-	    send_element(SD, ?INVALID_NS_ERR),
+	    catch send_element(SD, ?INVALID_NS_ERR),
 	    send_trailer(SD),
 	    {stop, normal, SD};
 	throw:{policy_violation, Reason} ->
-	    send_element(SD, ?POLICY_VIOLATION_ERR(SD#state.lang,
+	    catch send_element(SD, ?POLICY_VIOLATION_ERR(SD#state.lang,
 						   Reason)),
 	    send_trailer(SD),
 	    {stop, normal, SD}
@@ -2799,13 +2803,19 @@ do_resume_session(SMID, El, [{_, Pid}], StateData) ->
 	    {stop, _, _} = Stop ->
 		Stop;
 	    {next_state, session_established, NSD, _} ->
-		Resumed = stream_mgmt_resumed(NSD#state.stream_mgmt_id,
-					      NSD#state.stream_mgmt_in),
-		send_element(NSD, Resumed),
-		[send_element(NSD, Packet)
-		 || {_, _,
-		     Packet} <- lists:reverse(NSD#state.stream_mgmt_buffer)],
-		fsm_next_state(session_established, NSD)
+			try
+				Resumed = stream_mgmt_resumed(NSD#state.stream_mgmt_id,
+							      NSD#state.stream_mgmt_in),
+				send_element(NSD, Resumed),
+				[send_element(NSD, Packet)
+				 || {_, _,Packet} <- lists:reverse(NSD#state.stream_mgmt_buffer)],
+				fsm_next_state(session_established, NSD)
+			catch
+				%% errors from send_element
+				_:_ ->
+					?INFO_MSG("resumption error while resending old stanzas entering resume state again smid: ~p~n",[SMID]),
+					maybe_enter_resume_session(SMID, NSD)
+			end
 	end
     catch
 	_:_ ->
