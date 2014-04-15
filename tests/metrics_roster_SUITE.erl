@@ -210,13 +210,12 @@ decline_subscription(Config) ->
 unsubscribe(Config) ->
     {value, Subscriptions} = get_counter_value(modPresenceUnsubscriptions),
     escalus:story(Config, [1, 1], fun(Alice,Bob) ->
-
         %% add contact
         add_sample_contact(Alice, Bob),
-
         %% subscribe
         escalus_client:send(Alice, escalus_stanza:presence_direct(bob, <<"subscribe">>)),
         PushReq = escalus_client:wait_for_stanza(Alice),
+
         escalus_client:send(Alice, escalus_stanza:iq_result(PushReq)),
 
         %% Bob receives subscription reqest
@@ -273,5 +272,5 @@ add_sample_contact(Alice, Bob, Groups, Name) ->
 
 remove_roster(Config, UserSpec) ->
     [Username, Server, _Pass] = escalus_users:get_usp(Config, UserSpec),
-    rpc:call(ejabberd@localhost, mod_roster_odbc, remove_user, [Username, Server]),
-    rpc:call(ejabberd@localhost, mod_roster, remove_user, [Username, Server]).
+    escalus_ejabberd:rpc(mod_roster_odbc, remove_user, [Username, Server]),
+    escalus_ejabberd:rpc(mod_roster, remove_user, [Username, Server]).
