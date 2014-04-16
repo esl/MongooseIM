@@ -101,21 +101,21 @@ check_credentials(_State, Props) ->
 
 listmech(Host) ->
     Mechs = ets:select(sasl_mechanism,
-		       [{#sasl_mechanism{mechanism = '$1',
-					 password_type = '$2',
-					 _ = '_'},
-			 case catch ejabberd_auth:store_type(Host) of
-			 external ->
-			      [{'==', '$2', plain}];
-			 scram ->
-			      [{'/=', '$2', digest}];
-			 {'EXIT',{undef,[{Module,store_type,[]} | _]}} ->
-			      ?WARNING_MSG("~p doesn't implement the function store_type/0", [Module]),
-			      [];
-			 _Else ->
-			      []
-			 end,
-			 ['$1']}]),
+                       [{#sasl_mechanism{mechanism = '$1',
+                                         password_type = '$2',
+                                         _ = '_'},
+                         case catch ejabberd_auth:store_type(Host) of
+                             external ->
+                                 [{'==', '$2', plain}];
+                             scram ->
+                                 [{'/=', '$2', digest}];
+                             {'EXIT',{undef,[{Module,store_type,[]} | _]}} ->
+                                 ?WARNING_MSG("~p doesn't implement the function store_type/0", [Module]),
+                                 [];
+                             _Else ->
+                                 []
+                         end,
+                         ['$1']}]),
     filter_anonymous(Host, Mechs).
 
 server_new(Service, ServerFQDN, UserRealm, _SecFlags,

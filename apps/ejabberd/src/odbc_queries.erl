@@ -42,6 +42,8 @@
          list_users/2,
 	 users_number/1,
          users_number/2,
+	 get_users_without_scram/2,
+	 get_users_without_scram_count/1,
 	 add_spool_sql/2,
 	 add_spool/2,
 	 get_and_del_spool_msg_t/2,
@@ -361,6 +363,16 @@ users_number(LServer, [{prefix, Prefix}]) when is_list(Prefix) ->
 users_number(LServer, []) ->
     users_number(LServer).
 
+get_users_without_scram(LServer, Limit) ->
+    ejabberd_odbc:sql_query(
+      LServer,
+      [<<"select username, password from users where pass_details is null limit ">>,
+       integer_to_binary(Limit)]).
+
+get_users_without_scram_count(LServer) ->
+    ejabberd_odbc:sql_query(
+      LServer,
+      [<<"select count(*) from users where pass_details is null">>]).
 
 add_spool_sql(Username, XML) ->
     [<<"insert into spool(username, xml) "

@@ -43,7 +43,7 @@
 	 is_user_exists/2,
 	 remove_user/2,
 	 remove_user/3,
-	 store_type/0,
+	 store_type/1,
 	 plain_password_required/0
 	]).
 
@@ -77,11 +77,13 @@ update_reg_users_counter_table(Server) ->
     mnesia:sync_dirty(F).
 
 plain_password_required() ->
-    ejabberd_auth:plain_password_required().
+    false.
 
-store_type() ->
-    ejabberd_auth:store_type().
-
+store_type(Server) ->
+    case scram:enabled(Server) of
+        false -> plain;
+        true -> scram
+    end. 
 
 check_password(User, Server, Password) ->
     LUser = jlib:nodeprep(User),
@@ -89,10 +91,10 @@ check_password(User, Server, Password) ->
     US = {LUser, LServer},
     case catch mnesia:dirty_read({passwd, US}) of
         [#passwd{password = Scram}] when is_record(Scram, scram) ->
-            ejabberd_auth:is_password_scram_valid(Password, Scram);
-	[#passwd{password = Password}] ->
+            scram:check_password(Password, Scram);
+        [#passwd{password = Password}] ->
             Password /= <<>>;
-	_ ->
+        _ ->
             false
     end.
 
@@ -122,8 +124,8 @@ set_password(User, Server, Password) ->
 	    {error, invalid_jid};
 	true ->
 	    F = fun() ->
-			Password2 = case ejabberd_auth:is_scrammed() of
-					true -> ejabberd_auth:password_to_scram(Password);
+			Password2 = case scram:enabled() of
+					true -> scram:password_to_scram(Password, scram:iterations(Server));
 					false -> Password
 				    end,
 			mnesia:write(#passwd{us = US,
@@ -145,8 +147,8 @@ try_register(User, Server, Password) ->
 	    F = fun() ->
 			case mnesia:read({passwd, US}) of
 			    [] ->
-				Password2 = case ejabberd_auth:is_scrammed() and is_binary(Password) of
-						true -> ejabberd_auth:password_to_scram(Password);
+				Password2 = case scram:enabled(Server) and is_binary(Password) of
+						true -> scram:password_to_scram(Password, scram:iterations(Server));
 						false -> Password
 					    end,
 				mnesia:write(#passwd{us = US,
@@ -305,39 +307,39 @@ remove_user(User, Server, Password) ->
     LServer = jlib:nameprep(Server),
     US = {LUser, LServer},
     F = fun() ->
-		case mnesia:read({passwd, US}) of
-		    [#passwd{password = Scram}] when is_record(Scram, scram) ->
-			case ejabberd_auth:is_password_scram_valid(Password, Scram) of
-			    true ->
-				mnesia:delete({passwd, US}),
-				mnesia:dirty_update_counter(reg_users_counter,
-							    LServer, -1),
-				ok;
-			    false ->
-				not_allowed
-			end;
-		    [#passwd{password = Password}] ->
-			mnesia:delete({passwd, US}),
-			mnesia:dirty_update_counter(reg_users_counter,
-						    LServer, -1),
-			ok;
-		    _ ->
-			not_exists
-		end
+                case mnesia:read({passwd, US}) of
+                    [#passwd{password = Scram}] when is_record(Scram, scram) ->
+                        case scram:check_password(Password, Scram) of
+                            true ->
+                                mnesia:delete({passwd, US}),
+                                mnesia:dirty_update_counter(reg_users_counter,
+                                                            LServer, -1),
+                                ok;
+                            false ->
+                                not_allowed
+                        end;
+                    [#passwd{password = Password}] ->
+                        mnesia:delete({passwd, US}),
+                        mnesia:dirty_update_counter(reg_users_counter,
+                                                    LServer, -1),
+                        ok;
+                    _ ->
+                        not_exists
+                end
         end,
     case mnesia:transaction(F) of
-	{atomic, ok} ->
-	    ok;
-	{atomic, Res} ->
-	    Res;
-	_ ->
-	    bad_request
+        {atomic, ok} ->
+            ok;
+        {atomic, Res} ->
+            Res;
+        _ ->
+            bad_request
     end.
 
 scram_passwords() ->
     ?INFO_MSG("Converting the stored passwords into SCRAM bits", []),
-    Fun = fun(#passwd{password = Password} = P) ->
-                  Scram = ejabberd_auth:password_to_scram(Password),
+    Fun = fun(#passwd{us = {_, Server}, password = Password} = P) ->
+                  Scram = scram:password_to_scram(Password, scram:iterations(Server)),
                   P#passwd{password = Scram}
           end,
     Fields = record_info(fields, passwd),

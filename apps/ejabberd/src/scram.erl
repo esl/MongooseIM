@@ -28,45 +28,57 @@
 
 -author('stephen.roettger@googlemail.com').
 
+-include("ejabberd.hrl").
+
 %% External exports
 %% ejabberd doesn't implement SASLPREP, so we use the similar RESOURCEPREP instead
--export([salted_password/3, stored_key/1, server_key/1,
-	 server_signature/2, client_signature/2, client_key/1,
-	 client_key/2]).
+-export([ % Core SCRAM functions
+         salted_password/3,
+         stored_key/1,
+         server_key/1,
+         server_signature/2,
+         client_signature/2,
+         client_key/1,
+         client_key/2]).
+
+-export([
+         enabled/1,
+         iterations/0,
+         iterations/1,
+         password_to_scram/1,
+         password_to_scram/2,
+         check_password/2
+        ]).
+
+-define(SALT_LENGTH, 16).
+-define(SCRAM_DEFAULT_ITERATION_COUNT, 4096).
 
 -spec salted_password(binary(), binary(), non_neg_integer()) -> binary().
-
 salted_password(Password, Salt, IterationCount) ->
     hi(jlib:resourceprep(Password), Salt, IterationCount).
 
 -spec client_key(binary()) -> binary().
-
 client_key(SaltedPassword) ->
     crypto:sha_mac(SaltedPassword, <<"Client Key">>).
 
 -spec stored_key(binary()) -> binary().
-
 stored_key(ClientKey) -> crypto:sha(ClientKey).
 
 -spec server_key(binary()) -> binary().
-
 server_key(SaltedPassword) ->
     crypto:sha_mac(SaltedPassword, <<"Server Key">>).
 
 -spec client_signature(binary(), binary()) -> binary().
-
 client_signature(StoredKey, AuthMessage) ->
     crypto:sha_mac(StoredKey, AuthMessage).
 
 -spec client_key(binary(), binary()) -> binary().
-
 client_key(ClientProof, ClientSignature) ->
     list_to_binary(lists:zipwith(fun (X, Y) -> X bxor Y end,
 				 binary_to_list(ClientProof),
 				 binary_to_list(ClientSignature))).
 
 -spec server_signature(binary(), binary()) -> binary().
-
 server_signature(ServerKey, AuthMessage) ->
     crypto:sha_mac(ServerKey, AuthMessage).
 
@@ -85,3 +97,37 @@ hi_round(Password, UPrev, IterationCount) ->
 				 binary_to_list(U),
 				 binary_to_list(hi_round(Password, U,
 							 IterationCount - 1)))).
+
+
+enabled(Host) ->
+    scram == ejabberd_config:get_local_option({auth_password_format, Host}).
+
+iterations() -> ?SCRAM_DEFAULT_ITERATION_COUNT.
+
+iterations(Host) ->
+    case ejabberd_config:get_local_option({auth_scram_iterations, Host}) of
+        undefined -> ?SCRAM_DEFAULT_ITERATION_COUNT;
+        Iterations -> Iterations
+    end.
+
+password_to_scram(Password) ->
+    password_to_scram(Password, ?SCRAM_DEFAULT_ITERATION_COUNT).
+
+password_to_scram(#scram{} = Password, _) ->
+    Password;
+password_to_scram(Password, IterationCount) ->
+    Salt = crypto:rand_bytes(?SALT_LENGTH),
+    SaltedPassword = salted_password(Password, Salt, IterationCount),
+    StoredKey = stored_key(scram:client_key(SaltedPassword)),
+    ServerKey = server_key(SaltedPassword),
+    #scram{storedkey = base64:encode(StoredKey),
+           serverkey = base64:encode(ServerKey),
+           salt = base64:encode(Salt),
+           iterationcount = IterationCount}.
+
+check_password(Password, Scram) ->
+    IterationCount = Scram#scram.iterationcount,
+    Salt = base64:decode(Scram#scram.salt),
+    SaltedPassword = salted_password(Password, Salt, IterationCount),
+    StoredKey = stored_key(client_key(SaltedPassword)),
+    (base64:decode(Scram#scram.storedkey) == StoredKey).

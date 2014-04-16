@@ -49,27 +49,16 @@
 	 is_user_exists_in_other_modules/3,
 	 remove_user/2,
 	 remove_user/3,
-	 plain_password_required/0,
 	 plain_password_required/1,
-	 store_type/0,
 	 store_type/1,
 	 entropy/1
 	]).
 
 -export([check_digest/4]).
 
-%% SCRAM
--export([is_scrammed/0,
-         password_to_scram/1,
-         password_to_scram/2,
-         is_password_scram_valid/2]).
-
 -export([auth_modules/1]).
 
 -include("ejabberd.hrl").
-
--define(SALT_LENGTH, 16).
-
 
 %%%----------------------------------------------------------------------
 %%% API
@@ -93,37 +82,25 @@ plain_password_required(Server) ->
 store_type(Server) ->
     lists:foldl(
       fun(_, external) ->
-	      external;
-	  (M, scram) ->
-	      case M:store_type() of
-		  external ->
-		      external;
-		  _Else ->
-		      scram
-		  end;
-	  (M, plain) ->
-	      M:store_type()
+              external;
+         (M, scram) ->
+              case M:store_type(Server) of
+                  external ->
+                      external;
+                  _Else ->
+                      scram
+              end;
+         (M, plain) ->
+              M:store_type(Server)
       end, plain, auth_modules(Server)).
-
-plain_password_required() ->
-    not is_scrammed().
-
-store_type() ->
-    case is_scrammed() of
-        false ->
-            plain; %% allows PLAIN, DIGEST-MD5, SCRAM-SHA1
-        true ->
-            scram %% allows PLAIN, SCRAM-SHA1
-    end.
-
 
 %% @doc Check if the user and password can login in server.
 %% @spec (User::binary(), Server::binary(), Password::binary()) ->
 %%     true | false
 check_password(User, Server, Password) ->
     case check_password_with_authmodule(User, Server, Password) of
-	{true, _AuthModule} -> true;
-	false -> false
+        {true, _AuthModule} -> true;
+        false -> false
     end.
 
 %% @doc Check if the user and password can login in server.
@@ -392,35 +369,6 @@ entropy(IOList) ->
 		    end, [0, 0, 0, 0, 0], S),
 	    length(S) * math:log(lists:sum(Set))/math:log(2)
     end.
-
-%%%----------------------------------------------------------------------
-%%% SCRAM
-%%%----------------------------------------------------------------------
-
-is_scrammed() ->
-    scram == ejabberd_config:get_local_option({auth_password_format, ?MYNAME}).
-
-password_to_scram(Password) ->
-    password_to_scram(Password, ?SCRAM_DEFAULT_ITERATION_COUNT).
-
-password_to_scram(Password, _) when is_record(Password, scram) ->
-    Password;
-password_to_scram(Password, IterationCount) ->
-    Salt = crypto:rand_bytes(?SALT_LENGTH),
-    SaltedPassword = scram:salted_password(Password, Salt, IterationCount),
-    StoredKey = scram:stored_key(scram:client_key(SaltedPassword)),
-    ServerKey = scram:server_key(SaltedPassword),
-    #scram{storedkey = base64:encode(StoredKey),
-           serverkey = base64:encode(ServerKey),
-           salt = base64:encode(Salt),
-           iterationcount = IterationCount}.
-
-is_password_scram_valid(Password, Scram) ->
-    IterationCount = Scram#scram.iterationcount,
-    Salt = base64:decode(Scram#scram.salt),
-    SaltedPassword = scram:salted_password(Password, Salt, IterationCount),
-    StoredKey = scram:stored_key(scram:client_key(SaltedPassword)),
-    (base64:decode(Scram#scram.storedkey) == StoredKey).
 
 %%%----------------------------------------------------------------------
 %%% Internal functions

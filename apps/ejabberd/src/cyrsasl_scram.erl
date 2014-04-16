@@ -87,11 +87,11 @@ mech_step(#state{step = 2} = State, ClientIn) ->
                                                    SaltedPassword =
                                                    scram:salted_password(Ret,
                                                                          TempSalt,
-                                                                         ?SCRAM_DEFAULT_ITERATION_COUNT),
+                                                                         scram:iterations()),
                                                    {scram:stored_key(scram:client_key(SaltedPassword)),
                                                     scram:server_key(SaltedPassword),
                                                     TempSalt,
-                                                    ?SCRAM_DEFAULT_ITERATION_COUNT}
+                                                    scram:iterations()}
                                             end,
                                             {NStart, _} = binary:match(ClientIn, <<"n=">>),
                                             ClientFirstMessageBare = binary:part(ClientIn,

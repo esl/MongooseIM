@@ -37,8 +37,6 @@
 
 %%-define(DBGFSM, true).
 
--define(SCRAM_DEFAULT_ITERATION_COUNT, 4096).
-
 %% ---------------------------------
 %% Logging mechanism
 
