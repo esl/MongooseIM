@@ -1,4 +1,5 @@
 {suites, "tests", anonymous_SUITE}.
+{suites, "tests", bosh_SUITE}.
 {suites, "tests", s2s_SUITE}.
 %%{suites, "tests", snmp_SUITE}.
 %%{suites, "tests", snmp_c2s_SUITE}.
