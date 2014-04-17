@@ -161,7 +161,7 @@ websocket_init(Transport, Req, Opts) ->
     case ejabberd_c2s:start({?MODULE, SocketData}, Opts) of
         {ok, Pid} ->
             ?DEBUG("started c2s via websockets: ~p", [Pid]),
-            {ok, Parser} = exml_stream:new_parser(multiple_docs),
+            {ok, Parser} = exml_stream:new_parser(),
             State = #ws_state{c2s_pid = Pid,
                               parser = Parser},
             {ok, NewReq2, State};
@@ -268,6 +268,7 @@ peername(#websocket{peername = PeerName}) ->
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
+
 get_dispatch(Opts) ->
     WSHost = gen_mod:get_opt(host, Opts, '_'), %% default to any
     WSPrefix = gen_mod:get_opt(prefix, Opts, "/ws-xmpp"),
