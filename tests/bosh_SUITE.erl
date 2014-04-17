@@ -26,6 +26,7 @@
 %%--------------------------------------------------------------------
 
 -define(INACTIVITY, 2).
+-define(INVALID_RID_OFFSET, 1593).
 
 all() ->
     [{group, essential},
@@ -192,8 +193,22 @@ simple_chat(Config) ->
 
 cant_send_invalid_rid(Config) ->
     escalus:story(Config, [{carol, 1}], fun(Carol) ->
+        %% ct:pal("This test will leave invalid rid, session not found"
+        %%        " errors in the server log~n"),
 
-        InvalidRid = get_bosh_rid(Carol) + 1593,
+        %% NOTICE 1
+        %% This test will provoke the server to log the following message:
+        %%
+        %% mod_bosh_socket:handle_stream_event:401
+        %% invalid rid XXX, expected YYY, difference ?INVALID_RID_OFFSET:
+
+        %% NOTICE 2
+        %% Escalus will try to close the session under test when the story
+        %% completes. This will leave the following message in the log:
+        %%
+        %% mod_bosh:forward_body:265 session not found!
+
+        InvalidRid = get_bosh_rid(Carol) + ?INVALID_RID_OFFSET,
         Sid = get_bosh_sid(Carol),
         Empty = escalus_bosh:empty_body(InvalidRid, Sid),
         escalus_bosh:send_raw(Carol#client.conn, Empty),

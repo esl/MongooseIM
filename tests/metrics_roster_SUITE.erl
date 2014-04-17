@@ -45,9 +45,15 @@ roster_tests() -> [get_roster,
                    add_contact,
                    roster_push].
 
-subscription_tests() -> [subscribe,
-                         unsubscribe,
-                         decline_subscription].
+%%  WARNING: Side-effects & test interference
+%%  subscribe affects subsequent tests
+%%  by sending a directed presence before the roster push
+%%  in add_sample_contact/2
+%%  TODO: investigate, fix.
+
+subscription_tests() -> [unsubscribe,
+                         decline_subscription,
+                         subscribe].
 %%--------------------------------------------------------------------
 %% Init & teardown
 %%--------------------------------------------------------------------
@@ -265,8 +271,9 @@ add_sample_contact(Alice, Bob) ->
 add_sample_contact(Alice, Bob, Groups, Name) ->
     escalus_client:send(Alice,
         escalus_stanza:roster_add_contact(Bob, Groups, Name)),
-    Received = escalus_client:wait_for_stanza(Alice),
-    escalus_client:send(Alice, escalus_stanza:iq_result(Received)),
+    RosterPush = escalus_client:wait_for_stanza(Alice),
+    escalus:assert(is_roster_set, RosterPush),
+    escalus_client:send(Alice, escalus_stanza:iq_result(RosterPush)),
     escalus_client:wait_for_stanza(Alice).
 
 
