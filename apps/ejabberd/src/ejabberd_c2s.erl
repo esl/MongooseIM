@@ -75,6 +75,7 @@
 %% In fact, that's the denominator of the frequency...
 -define(STREAM_MGMT_ACK_FREQ, 1).
 -define(STREAM_MGMT_RESUME_TIMEOUT, 600).  %% seconds
+-define(CONSTRAINT_CHECK_TIMEOUT, 5).  %% seconds
 
 %% pres_a contains all the presence available send (either through roster mechanism or directed).
 %% Directed presence unavailable remove user from pres_a.
@@ -118,7 +119,8 @@
 		stream_mgmt_buffer_max = ?STREAM_MGMT_CACHE_MAX,
 		stream_mgmt_ack_freq = ?STREAM_MGMT_ACK_FREQ,
 		stream_mgmt_resume_timeout = ?STREAM_MGMT_RESUME_TIMEOUT,
-		stream_mgmt_resume_tref}).
+		stream_mgmt_resume_tref,
+        stream_mgmt_constraint_check_tref}).
 
 %-define(DBGFSM, true).
 
@@ -1188,7 +1190,7 @@ session_established2(El, StateData) ->
 %%-------------------------------------------------------------------------
 %% session may be terminated for exmaple by mod_ping there is still valid
 %% connection and resource want to send stanza.
-resume_session({xmlstreamelement, El}, StateData) ->
+resume_session({xmlstreamelement, _}, StateData) ->
     Err = ?POLICY_VIOLATION_ERR(StateData#state.lang,
 					   "session in resume state cannot accept incoming stanzas"),
     catch send_element(StateData, Err),
@@ -1490,27 +1492,25 @@ handle_info({route, From, To, Packet}, StateName, StateData) ->
 			       StateData#state.server,
 			       [StateData#state.jid, From, To, FixedPacket]),
 	    ejabberd_hooks:run(c2s_loop_debug, [{route, From, To, Packet}]),
-	    case buffer_out_stanza({From, To, FixedPacket}, StateData, true) of
-		{resource_constraint, OutStateData} ->
-		    {stop, normal, OutStateData};
-		BufferedStateData ->
-		    case SendResult of
-			ok ->
-			    case catch maybe_send_ack_request(BufferedStateData) of
-				R when is_boolean(R) -> 
-				    fsm_next_state(StateName, BufferedStateData);
-				_ ->
-				    ?DEBUG("Send ack request error: ~p, try enter resume session", [SendResult]),
-				    maybe_enter_resume_session(BufferedStateData#state.stream_mgmt_id, BufferedStateData)
-			    end;
-			_ ->
-			    ?DEBUG("Send element error: ~p, try enter resume session", [SendResult]),
-			    maybe_enter_resume_session(BufferedStateData#state.stream_mgmt_id, BufferedStateData)
-		    end
-	    end;
-	true ->
-	    ejabberd_hooks:run(c2s_loop_debug, [{route, From, To, Packet}]),
-	    fsm_next_state(StateName, NewState)
+        BufferedStateData = buffer_out_stanza({From, To, FixedPacket}, StateData),
+
+        case SendResult of
+            ok ->
+                case catch maybe_send_ack_request(BufferedStateData) of
+                    R when is_boolean(R) ->
+                        ejabberd_hooks:run(c2s_loop_debug, [{route, From, To, Packet}]),
+                        fsm_next_state(StateName, BufferedStateData);
+                    _ ->
+                        ?DEBUG("Send ack request error: ~p, try enter resume session", [SendResult]),
+                        maybe_enter_resume_session(BufferedStateData#state.stream_mgmt_id, BufferedStateData)
+                end;
+            _ ->
+                ?DEBUG("Send element error: ~p, try enter resume session", [SendResult]),
+                maybe_enter_resume_session(BufferedStateData#state.stream_mgmt_id, BufferedStateData)
+        end;
+    true ->
+        ejabberd_hooks:run(c2s_loop_debug, [{route, From, To, Packet}]),
+        fsm_next_state(StateName, NewState)
     end;
 handle_info({'DOWN', Monitor, _Type, _Object, _Info}, _StateName, StateData)
   when Monitor == StateData#state.socket_monitor ->
@@ -1560,6 +1560,19 @@ handle_info({broadcast, Type, From, Packet}, StateName, StateData) ->
     fsm_next_state(StateName, StateData);
 handle_info(resume_timeout, resume_session, StateData) ->
     {stop, normal, StateData};
+handle_info(check_buffer_full, StateName, StateData) ->
+    case is_buffer_full(StateData#state.stream_mgmt_buffer_size,
+			StateData#state.stream_mgmt_buffer_max) of
+        true ->
+            Err = ?RESOURCE_CONSTRAINT_ERR(StateData#state.lang,
+                                           "too many unacked stanzas"),
+            send_element(StateData, Err),
+            send_trailer(StateData),
+            {stop, normal, StateData};
+        false ->
+            fsm_next_state(StateName,
+                           StateData#state{stream_mgmt_constraint_check_tref = undefined})
+    end;
 handle_info(Info, StateName, StateData) ->
     ?ERROR_MSG("Unexpected info: ~p", [Info]),
     fsm_next_state(StateName, StateData).
@@ -2264,19 +2277,11 @@ resend_offline_messages(StateData) ->
 resend_subscription_requests(#state{pending_invitations = Pending} = StateData) ->
     NewState = lists:foldl(fun(XMLPacket, #state{} = State) ->
 			send_element(State, XMLPacket),
-
 			{value, From} =  xml:get_tag_attr(<<"from">>, XMLPacket),
 			{value, To} = xml:get_tag_attr(<<"to">>, XMLPacket),
-
-			case buffer_out_stanza({From, To, XMLPacket}, State, false) of
-				{resource_constraint, OutStateData} ->
-					% do nothing ? invitations will be resend next time if needed
-					% or maybe it requires do shutdown c2s?
-					State;
-				BufferedStateData ->
-					maybe_send_ack_request(BufferedStateData),
-					BufferedStateData
-			end
+            BufferedStateData = buffer_out_stanza({From, To, XMLPacket}, State),
+            maybe_send_ack_request(BufferedStateData),
+            BufferedStateData
 		  end, StateData, Pending),
     NewState#state{pending_invitations = []}.
 
@@ -2671,31 +2676,25 @@ stream_mgmt_ack(NIncoming) ->
            attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3},
                     {<<"h">>, integer_to_binary(NIncoming)}]}.
 
-buffer_out_stanza(_Packet, #state{stream_mgmt = false} = S, _SendError) ->
+buffer_out_stanza(_Packet, #state{stream_mgmt = false} = S) ->
     S;
-buffer_out_stanza(_Packet, #state{stream_mgmt_buffer_max = no_buffer} = S, _SendError) ->
+buffer_out_stanza(_Packet, #state{stream_mgmt_buffer_max = no_buffer} = S) ->
     S;
 buffer_out_stanza(Packet, #state{stream_mgmt_buffer = Buffer,
 				 stream_mgmt_buffer_size = BufferSize,
-				 stream_mgmt_buffer_max = BufferMax} = S, SendError) ->
+				 stream_mgmt_buffer_max = BufferMax} = S) ->
     NewSize = BufferSize + 1,
-    case is_buffer_full(NewSize, BufferMax) of
-	true ->
-        if
-            SendError ->
-	            Err = ?RESOURCE_CONSTRAINT_ERR(S#state.lang,
-					   "too many unacked stanzas"),
-	            send_element(S, Err),
-	            send_trailer(S);
-            true-> ok
-        end,
-	    {resource_constraint, S};
-	false ->
-	    Timestamp = erlang:now(),
-	    NPacket = maybe_add_timestamp(Packet, Timestamp),
-	    S#state{stream_mgmt_buffer_size = NewSize,
-		    stream_mgmt_buffer = [NPacket | Buffer]}
-    end.
+    Timestamp = erlang:now(),
+	NPacket = maybe_add_timestamp(Packet, Timestamp),
+
+    NS = case is_buffer_full(NewSize, BufferMax) of
+             true->
+                 defer_resource_constraint_check(S);
+             _ ->
+                 S
+         end,
+    NS#state{stream_mgmt_buffer_size = NewSize,
+		   stream_mgmt_buffer = [NPacket | Buffer]}.
 
 is_buffer_full(_BufferSize, infinity) ->
     false;
@@ -2909,7 +2908,14 @@ add_timestamp({_,_,Micro} = TimeStamp, Server, Packet) ->
 
 timestamp_legacy_xml(Server, Time) ->
     FromJID = jlib:make_jid(<<>>, Server, <<>>),
-    jlib:timestamp_to_xml(Time, utc, FromJID, <<"SM Storage">>).%% change offline storage to something else?
+    jlib:timestamp_to_xml(Time, utc, FromJID, <<"SM Storage">>).
+
+defer_resource_constraint_check(#state{stream_mgmt_constraint_check_tref = undefined} = State)->
+    Seconds = timer:seconds(?CONSTRAINT_CHECK_TIMEOUT),
+    TRef = erlang:send_after(Seconds, self(), check_buffer_full),
+    State#state{stream_mgmt_constraint_check_tref = TRef};
+defer_resource_constraint_check(State)->
+    State.
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
