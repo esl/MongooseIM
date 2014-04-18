@@ -1409,14 +1409,12 @@ handle_info({route, From, To, Packet}, StateName, StateData) ->
 									    attrs = [{<<"name">>, PrivListName}]}]}]},
 				    F = jlib:jid_remove_resource(StateData#state.jid),
 				    T = StateData#state.jid,
-
 				    PrivPushEl =
 				    jlib:replace_from_to(
 				      F,
 				      T,
 				      jlib:iq_to_xml(PrivPushIQ)),
-				    ejabberd_router:route(F, T, PrivPushEl),
-				    {false, Attrs, StateData#state{privacy_list = NewPL}}
+				    {send_new, {F, T, PrivPushEl}, StateData#state{privacy_list = NewPL}}
 			end;
 		    [{blocking, What}] ->
 			route_blocking(What, StateData),
@@ -1477,39 +1475,23 @@ handle_info({route, From, To, Packet}, StateName, StateData) ->
 	    send_element(StateData, ?SERRT_CONFLICT(Lang, NewState)),
 	    send_trailer(StateData),
 	    {stop, normal, StateData};
+	Pass == send_new ->
+	    %% When Pass==send_new, NewAttrs contains a {F,T Stanza} instead of a Attrs
+	    send_and_maybe_buffer_stanza(NewAttrs, NewState, StateName);
 	Pass ->
 	    Attrs2 = jlib:replace_from_to_attrs(jlib:jid_to_binary(From),
 						jlib:jid_to_binary(To),
 						NewAttrs),
 	    FixedPacket = Packet#xmlel{attrs = Attrs2},
-	    % it can throw an exception when we are in resume_session state
-	    % or in case of a socket error 
-	    SendResult = maybe_send_element_safe(StateData, FixedPacket),
-
-	    %% TODO: run the hook now or only after the stanza is acked?
 	    ejabberd_hooks:run(user_receive_packet,
 			       StateData#state.server,
 			       [StateData#state.jid, From, To, FixedPacket]),
 	    ejabberd_hooks:run(c2s_loop_debug, [{route, From, To, Packet}]),
-        BufferedStateData = buffer_out_stanza({From, To, FixedPacket}, StateData),
 
-        case SendResult of
-            ok ->
-                case catch maybe_send_ack_request(BufferedStateData) of
-                    R when is_boolean(R) ->
-                        ejabberd_hooks:run(c2s_loop_debug, [{route, From, To, Packet}]),
-                        fsm_next_state(StateName, BufferedStateData);
-                    _ ->
-                        ?DEBUG("Send ack request error: ~p, try enter resume session", [SendResult]),
-                        maybe_enter_resume_session(BufferedStateData#state.stream_mgmt_id, BufferedStateData)
-                end;
-            _ ->
-                ?DEBUG("Send element error: ~p, try enter resume session", [SendResult]),
-                maybe_enter_resume_session(BufferedStateData#state.stream_mgmt_id, BufferedStateData)
-        end;
-    true ->
-        ejabberd_hooks:run(c2s_loop_debug, [{route, From, To, Packet}]),
-        fsm_next_state(StateName, NewState)
+	    send_and_maybe_buffer_stanza({From, To, FixedPacket}, NewState, StateName);
+       true ->
+           ejabberd_hooks:run(c2s_loop_debug, [{route, From, To, Packet}]),
+           fsm_next_state(StateName, NewState)
     end;
 handle_info({'DOWN', Monitor, _Type, _Object, _Info}, _StateName, StateData)
   when Monitor == StateData#state.socket_monitor ->
@@ -1759,6 +1741,23 @@ send_trailer(StateData) when StateData#state.xml_socket ->
 send_trailer(StateData) ->
     send_text(StateData, ?STREAM_TRAILER).
 
+
+send_and_maybe_buffer_stanza({_, _, Stanza} = Packet, State, StateName)->
+    SendResult = maybe_send_element_safe(State, Stanza),
+    BufferedStateData = buffer_out_stanza(Packet, State),
+    case SendResult of
+	ok ->
+	    case catch maybe_send_ack_request(BufferedStateData) of
+	        R when is_boolean(R) ->
+                    fsm_next_state(StateName, BufferedStateData);
+                _ ->
+                    ?DEBUG("Send ack request error: ~p, try enter resume session", [SendResult]),
+                    maybe_enter_resume_session(BufferedStateData#state.stream_mgmt_id, BufferedStateData)
+            end;
+        _ ->
+            ?DEBUG("Send element error: ~p, try enter resume session", [SendResult]),
+            maybe_enter_resume_session(BufferedStateData#state.stream_mgmt_id, BufferedStateData)
+    end.
 
 new_id() ->
     randoms:get_string().
