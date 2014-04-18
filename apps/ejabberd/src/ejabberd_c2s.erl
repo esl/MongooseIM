@@ -1193,8 +1193,8 @@ session_established2(El, StateData) ->
 resume_session({xmlstreamelement, _}, StateData) ->
     Err = ?POLICY_VIOLATION_ERR(StateData#state.lang,
 					   "session in resume state cannot accept incoming stanzas"),
-    catch send_element(StateData, Err),
-    send_trailer(StateData),
+    maybe_send_element_safe(StateData, Err),
+    maybe_send_trailer_safe(StateData),
     {next_state, resume_session, StateData, hibernate};
 
 %%-------------------------------------------------------------------------
@@ -1277,9 +1277,9 @@ handle_info({send_text, Text}, StateName, StateData) ->
     fsm_next_state(StateName, StateData);
 handle_info(replaced, _StateName, StateData) ->
     Lang = StateData#state.lang,
-    catch send_element(StateData,
+    maybe_send_element_safe(StateData,
 		 ?SERRT_CONFLICT(Lang, "Replaced by new connection")),
-    send_trailer(StateData),
+    maybe_send_trailer_safe(StateData),
     {stop, normal, StateData#state{authenticated = replaced}};
 %% Process Packets that are to be send to the user
 handle_info({route, From, To, Packet}, StateName, StateData) ->
@@ -1415,7 +1415,6 @@ handle_info({route, From, To, Packet}, StateName, StateData) ->
 				      F,
 				      T,
 				      jlib:iq_to_xml(PrivPushIQ)),
-
 				    ejabberd_router:route(F, T, PrivPushEl),
 				    {false, Attrs, StateData#state{privacy_list = NewPL}}
 			end;
@@ -1485,7 +1484,7 @@ handle_info({route, From, To, Packet}, StateName, StateData) ->
 	    FixedPacket = Packet#xmlel{attrs = Attrs2},
 	    % it can throw an exception when we are in resume_session state
 	    % or in case of a socket error 
-	    SendResult = (catch send_element(StateData, FixedPacket)),
+	    SendResult = maybe_send_element_safe(StateData, FixedPacket),
 
 	    %% TODO: run the hook now or only after the stanza is acked?
 	    ejabberd_hooks:run(user_receive_packet,
@@ -1689,6 +1688,14 @@ send_text(StateData, Text) ->
     ?DEBUG("Send XML on stream = ~p", [Text]),
     (StateData#state.sockmod):send(StateData#state.socket, Text).
 
+maybe_send_element_safe(#state{stream_mgmt = false} = State, El) ->
+    send_element(State, El);
+maybe_send_element_safe(State, El) ->
+    case catch send_element(State, El) of
+	ok -> ok;
+	_ -> error
+    end.
+
 send_element(#state{server = Server, sockmod = SockMod} = StateData, El)
 		when StateData#state.xml_socket ->
     ejabberd_hooks:run(xmpp_send_element,
@@ -1741,12 +1748,16 @@ send_header(StateData, Server, Version, Lang) ->
 			    LangStr]),
     send_text(StateData, Header).
 
+maybe_send_trailer_safe(#state{stream_mgmt = false} = State) ->
+    send_trailer(State);
+maybe_send_trailer_safe(StateData) ->
+     catch send_trailer(StateData).
+
 send_trailer(StateData) when StateData#state.xml_socket ->
-	catch (StateData#state.sockmod):send_xml(
-					  StateData#state.socket,
-					  {xmlstreamend, <<"stream:stream">>});
+    (StateData#state.sockmod):send_xml(StateData#state.socket,
+				       {xmlstreamend, <<"stream:stream">>});
 send_trailer(StateData) ->
-	catch send_text(StateData, ?STREAM_TRAILER).
+    send_text(StateData, ?STREAM_TRAILER).
 
 
 new_id() ->
@@ -2279,9 +2290,9 @@ resend_subscription_requests(#state{pending_invitations = Pending} = StateData) 
 			send_element(State, XMLPacket),
 			{value, From} =  xml:get_tag_attr(<<"from">>, XMLPacket),
 			{value, To} = xml:get_tag_attr(<<"to">>, XMLPacket),
-            BufferedStateData = buffer_out_stanza({From, To, XMLPacket}, State),
-            maybe_send_ack_request(BufferedStateData),
-            BufferedStateData
+			BufferedStateData = buffer_out_stanza({From, To, XMLPacket}, State),
+			maybe_send_ack_request(BufferedStateData),
+			BufferedStateData
 		  end, StateData, Pending),
     NewState#state{pending_invitations = []}.
 
@@ -2604,13 +2615,13 @@ stream_mgmt_handle_ack(NextState, El, #state{} = SD) ->
 	fsm_next_state(NextState, NSD)
     catch
 	error:{badmatch, {ns, _}} ->
-	    catch send_element(SD, ?INVALID_NS_ERR),
-	    send_trailer(SD),
+	    maybe_send_element_safe(SD, ?INVALID_NS_ERR),
+	    maybe_send_trailer_safe(SD),
 	    {stop, normal, SD};
 	throw:{policy_violation, Reason} ->
-	    catch send_element(SD, ?POLICY_VIOLATION_ERR(SD#state.lang,
+	    maybe_send_element_safe(SD, ?POLICY_VIOLATION_ERR(SD#state.lang,
 						   Reason)),
-	    send_trailer(SD),
+	    maybe_send_trailer_safe(SD),
 	    {stop, normal, SD}
     end.
 
