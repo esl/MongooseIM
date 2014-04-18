@@ -62,13 +62,16 @@ end_per_testcase(CaseName, Config) ->
 %%--------------------------------------------------------------------
 
 chat_msg(Config) ->
-    escalus:story(Config, [{alice, 1}, {geralt, 1}], fun(Alice, Geralt) ->
+    escalus:story(Config, [{alice, 1}, {geralt, 1}, {oldie, 1}], fun(Alice, Geralt, Oldie) ->
 
         escalus_client:send(Alice, escalus_stanza:chat_to(Geralt, <<"Hi!">>)),
         escalus:assert(is_chat_message, [<<"Hi!">>], escalus_client:wait_for_stanza(Geralt)),
 
         escalus_client:send(Geralt, escalus_stanza:chat_to(Alice, <<"Hello!">>)),
-        escalus:assert(is_chat_message, [<<"Hello!">>], escalus_client:wait_for_stanza(Alice))
+        escalus:assert(is_chat_message, [<<"Hello!">>], escalus_client:wait_for_stanza(Alice)),
+
+        escalus_client:send(Geralt, escalus_stanza:chat_to(Oldie, <<"Hey!">>)),
+        escalus_assert:is_chat_message(<<"Hey!">>, escalus_client:wait_for_stanza(Oldie))
 
         end).
 

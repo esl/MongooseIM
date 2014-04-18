@@ -160,19 +160,13 @@ log_one_basic_digest(Config) ->
 
 
 messages_story(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}, {oldie, 1}], fun(Alice, Bob, Oldie) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
 
         % Alice sends a message to Bob
         escalus_client:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi!">>)),
 
         % Bob gets the message
-        escalus_assert:is_chat_message(<<"Hi!">>, escalus_client:wait_for_stanza(Bob)),
-
-        % Alice sends a message to Oldie
-        escalus_client:send(Alice, escalus_stanza:chat_to(Oldie, <<"Hey!">>)),
-
-        % Oldie gets the message
-        escalus_assert:is_chat_message(<<"Hey!">>, escalus_client:wait_for_stanza(Oldie))
+        escalus_assert:is_chat_message(<<"Hi!">>, escalus_client:wait_for_stanza(Bob))
 
     end).
 
