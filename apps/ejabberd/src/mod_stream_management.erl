@@ -15,7 +15,8 @@
          set_buffer_max/1,
          get_ack_freq/1,
          set_ack_freq/1,
-         get_resume_timeout/1]).
+         get_resume_timeout/1,
+         set_resume_timeout/1]).
 
 %% API for `ejabberd_c2s'
 -export([register_smid/2,
@@ -104,6 +105,10 @@ set_ack_freq(Freq) when is_integer(Freq), Freq > 0 ->
 -spec get_resume_timeout(pos_integer()) -> pos_integer().
 get_resume_timeout(Default) ->
     gen_mod:get_module_opt(?MYNAME, ?MODULE, resume_timeout, Default).
+
+-spec set_resume_timeout(pos_integer()) -> ok.
+set_resume_timeout(ResumeTimeout) ->
+    set_module_opt(?MYNAME, ?MODULE, resume_timeout, ResumeTimeout).
 
 %%
 %% API for `ejabberd_c2s'
