@@ -219,10 +219,7 @@ websocket_terminate(_Reason, _Req, _State) ->
 %%--------------------------------------------------------------------
 
 handle_text(Text, #ws_state{ parser = undefined } = State) ->
-    ParserOpts = case re:run(Text, "^<[[:space:]]*open") of
-                     nomatch -> []; % old-type WS
-                     _ -> [{infinite_stream, true}, {autoreset, true}] % new-type WS
-                 end,
+    ParserOpts = get_parser_opts(Text),
     {ok, Parser} = exml_stream:new_parser(ParserOpts),
     handle_text(Text, State#ws_state{ parser = Parser });
 handle_text(Text, #ws_state{c2s_pid = C2S, parser = Parser} = State) ->
@@ -328,6 +325,9 @@ replace_stream_ns(#xmlel{ name = <<"stream:", ElementName/binary>> } = Element,
     Element#xmlel{ name = ElementName, attrs = [{<<"xmlns">>, ?NS_STREAM} | Element#xmlel.attrs] };
 replace_stream_ns(Element, _State) ->
     Element.
+
+get_parser_opts(<<"<open", _/binary>>) -> [{infinite_stream, true}, {autoreset, true}]; % new-type WS
+get_parser_opts(_) -> []. % old-type WS
 
 %%--------------------------------------------------------------------
 %% Helpers
