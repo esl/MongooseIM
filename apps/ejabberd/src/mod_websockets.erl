@@ -166,15 +166,12 @@ websocket_init(Transport, Req, Opts) ->
     case ejabberd_c2s:start({?MODULE, SocketData}, C2SOpts) of
         {ok, Pid} ->
             ?DEBUG("started c2s via websockets: ~p", [Pid]),
-            {ok, Parser} = exml_stream:new_parser(),
-            State = #ws_state{c2s_pid = Pid,
-                              parser = Parser},
+            State = #ws_state{c2s_pid = Pid},
             {ok, NewReq2, State};
         {error, Reason} ->
             ?WARNING_MSG("c2s start failed: ~p", [Reason]),
             {shutdown, NewReq2}
     end.
-
 
 % Called when a text message arrives.
 websocket_handle({text, Msg}, Req, State) ->
@@ -200,9 +197,13 @@ websocket_info({send_xml, XML}, Req, State) ->
     XML1 = process_server_stream_root(replace_stream_ns(XML, State), State),
     Text = exml:to_iolist(XML1),
     {reply, {text, Text}, Req, State};
+websocket_info(reset_stream, Req, #ws_state{parser = undefined} = State) ->
+    {ok, Req, State};
 websocket_info(reset_stream, Req, #ws_state{parser = Parser} = State) ->
     {ok, NewParser} = exml_stream:reset_parser(Parser),
     {ok, Req, State#ws_state{ parser = NewParser, open_tag = undefined }};
+websocket_info(stop, Req, #ws_state{parser = undefined} = State) ->
+    {shutdown, Req, State};
 websocket_info(stop, Req, #ws_state{parser = Parser} = State) ->
     exml_stream:free_parser(Parser),
     {shutdown, Req, State};
@@ -217,6 +218,13 @@ websocket_terminate(_Reason, _Req, _State) ->
 %% Callbacks implementation
 %%--------------------------------------------------------------------
 
+handle_text(Text, #ws_state{ parser = undefined } = State) ->
+    ParserOpts = case re:run(Text, "^<[[:space:]]*open") of
+                     nomatch -> []; % old-type WS
+                     _ -> [{infinite_stream, true}, {autoreset, true}] % new-type WS
+                 end,
+    {ok, Parser} = exml_stream:new_parser(ParserOpts),
+    handle_text(Text, State#ws_state{ parser = Parser });
 handle_text(Text, #ws_state{c2s_pid = C2S, parser = Parser} = State) ->
     {ok, NewParser, Elements} = exml_stream:parse(Parser, Text),
     State1 = State#ws_state{ parser = NewParser },
@@ -287,20 +295,16 @@ peername(#websocket{peername = PeerName}) ->
 process_client_stream_start(Elements, #ws_state{ open_tag = OpenTag } = State)
   when OpenTag =/= undefined ->
     {Elements, State};
-process_client_stream_start([#xmlstreamstart{ name = <<"stream", _/binary>> }] = Elements, State) ->
+process_client_stream_start([#xmlstreamstart{ name = <<"stream", _/binary>>}
+                             | _] = Elements, State) ->
     {Elements, State#ws_state{ open_tag = stream }};
-process_client_stream_start([#xmlstreamstart{ name = <<"open">>, attrs = Attrs },
-                      #xmlstreamend{ name = <<"open">> }], State) ->
+process_client_stream_start([#xmlel{ name = <<"open">>, attrs = Attrs }], State) ->
     Attrs1 = lists:keyreplace(<<"xmlns">>, 1, Attrs, {<<"xmlns">>, <<"jabber:client">>}),
     Attrs2 = [{<<"xmlns:stream">>, ?NS_STREAM} | Attrs1],
     NewStart = #xmlstreamstart{ name = <<"stream:stream">>, attrs = Attrs2 },
-    {ok, NewParser, _SkipFakeRoot} = exml_stream:parse(State#ws_state.parser, <<"<fakeroot>">>),
-    {[NewStart], State#ws_state{ parser = NewParser, open_tag = open }};
-process_client_stream_start([#xmlstreamstart{} | _], #ws_state{ c2s_pid = C2SPid } = State) ->
-    send_to_c2s(C2SPid, {xmlstreamerror, <<"Unknown opening tag">>}),
-    {[], State};
+    {[NewStart], State#ws_state{ open_tag = open }};
 process_client_stream_start(_, #ws_state{ c2s_pid = C2SPid } = State) ->
-    send_to_c2s(C2SPid, {xmlstreamerror, <<"No opening tag">>}),
+    send_to_c2s(C2SPid, {xmlstreamerror, <<"Unknown opening tag">>}),
     {[], State}.
 
 process_client_stream_end(#xmlel{ name = <<"close">> }, #ws_state{ open_tag = open }) ->
@@ -312,7 +316,7 @@ process_server_stream_root(#xmlstreamstart{ name = <<"stream", _/binary>>, attrs
                            #ws_state{ open_tag = open }) ->
     Attrs1 = lists:keydelete(<<"xmlns:stream">>, 1, Attrs),
     Attrs2 = lists:keyreplace(<<"xmlns">>, 1, Attrs1, {<<"xmlns">>, ?NS_FRAMING}),
-    #xmlel{ name = <<"open">>, attrs = Attrs };
+    #xmlel{ name = <<"open">>, attrs = Attrs2 };
 process_server_stream_root(#xmlstreamend{ name = <<"stream", _/binary>> },
                            #ws_state{ open_tag = open }) ->
     #xmlel{ name = <<"close">>, attrs = [{<<"xmlns">>, ?NS_FRAMING}] };
