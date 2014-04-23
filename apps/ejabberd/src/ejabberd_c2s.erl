@@ -1007,7 +1007,7 @@ wait_for_session_or_sm({xmlstreamelement, El}, StateData0) ->
 				     conn = Conn,
 				     pres_f = ?SETS:from_list(Fs1),
 				     pres_t = ?SETS:from_list(Ts1),
-                     pending_invitations = Pending,
+				     pending_invitations = Pending,
 				     privacy_list = PrivList},
 		    fsm_next_state_pack(session_established,
                                         NewStateData);
@@ -1934,7 +1934,8 @@ presence_update(From, Packet, StateData) ->
 	    FromUnavail = (StateData#state.pres_last == undefined) or
 		StateData#state.pres_invis,
 	    ?DEBUG("from unavail = ~p~n", [FromUnavail]),
-        NewStateData = StateData#state{pres_last = Packet,
+
+            NewStateData = StateData#state{pres_last = Packet,
                                        pres_invis = false,
                                        pres_timestamp = Timestamp},
 		if
@@ -1943,8 +1944,13 @@ presence_update(From, Packet, StateData) ->
 					   NewStateData#state.server,
 					   [NewStateData#state.jid]),
 			NewStateData1 = if NewPriority >= 0 ->
+				   {_, _, Pending} = ejabberd_hooks:run_fold(
+						       roster_get_subscription_lists,
+						       NewStateData#state.server,
+						       {[], [], []},
+						       [StateData#state.user, NewStateData#state.server]),
                                     resend_offline_messages(NewStateData),
-                                    resend_subscription_requests(NewStateData);
+                                    resend_subscription_requests(NewStateData#state{pending_invitations = Pending});
                                true ->
                                     NewStateData
                             end,
