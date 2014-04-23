@@ -60,7 +60,8 @@
          encode_base64/1,
          ip_to_list/1,
          rsm_encode/1,
-         rsm_decode/1]).
+         rsm_decode/1,
+	  remove_delay_tags/1]).
 
 -include("jlib.hrl").
 
@@ -827,3 +828,24 @@ ip_to_list({A,B,C,D}) ->
     lists:flatten(io_lib:format("~w.~w.~w.~w",[A,B,C,D]));
 ip_to_list(IP) ->
     lists:flatten(io_lib:format("~w", [IP])).
+
+remove_delay_tags(#xmlel{children = Els} = Packet) ->
+    NEl = lists:foldl(
+             fun(#xmlel{name= <<"delay">>, attrs = Attrs} = R, El)->
+			      case xml:get_attr_s(<<"xmlns">>, Attrs) of
+                                  ?NS_DELAY ->
+                                      El;
+                                  _ ->
+                                    El ++ [R]
+                              end;
+                (#xmlel{name= <<"x">> , attrs = Attrs } = R, El) ->
+                              case xml:get_attr_s(<<"xmlns">>, Attrs) of
+                                  ?NS_DELAY91 ->
+                                      El;
+                                  _ ->
+                                    El ++ [R]
+                              end;
+                (R, El) ->
+                              El ++ [R]
+                end, [],Els),
+    Packet#xmlel{children=NEl}.

@@ -1112,7 +1112,7 @@ session_established2(El, StateData) ->
 		_ ->
 		    jlib:binary_to_jid(To)
 	    end,
-    NewEl1 = jlib:remove_attr(<<"xmlns">>, El),
+    NewEl1 = jlib:remove_attr(<<"xmlns">>, jlib:remove_delay_tags(El)),
     NewEl = case xml:get_attr_s(<<"xml:lang">>, Attrs) of
 		<<>> ->
 		    case StateData#state.lang of

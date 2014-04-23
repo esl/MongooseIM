@@ -319,7 +319,7 @@ store_packet(
              expire = Expire,
              from = From,
              to = To,
-             packet = remove_delay_tags(Packet)},
+             packet = jlib:remove_delay_tags(Packet)},
     Pid ! Msg,
     ok.
 
@@ -490,20 +490,4 @@ discard_warn_sender(Msgs) ->
 		      Packet, ?ERRT_RESOURCE_CONSTRAINT(Lang, ErrText)),
 	      ejabberd_router:route(To, From, Err)
       end, Msgs).
-
-remove_delay_tags(#xmlel{children = Els} = Packet) ->
-    NEl = lists:foldl(
-             fun(#xmlel{name= <<"delay">>}, El)->
-                              El;
-                (#xmlel{name= <<"x">> , attrs = Attrs } = R, El) ->
-                              case xml:get_attr_s(<<"xmlns">>, Attrs) of
-                                  ?NS_DELAY91 ->
-                                      El;
-                                  _ ->
-                                    El ++ [R]
-                              end;
-                (R, El) ->
-                              El ++ [R]
-                end, [],Els),
-    Packet#xmlel{children=NEl}.
 
