@@ -51,6 +51,7 @@
          iq_to_xml/1,
          parse_xdata_submit/1,
          timestamp_to_iso/1, % TODO: Remove once XEP-0091 is Obsolete
+         timestamp_to_iso/2,
          timestamp_to_xml/4,
          timestamp_to_xml/1, % TODO: Remove once XEP-0091 is Obsolete
          timestamp_to_mam_xml/4,
