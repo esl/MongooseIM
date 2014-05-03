@@ -79,8 +79,19 @@ parse_json(Json) ->
     rpc:call(ct:get_config(ejabberd_node), mochijson2, decode, [Json]).
 
 start_lhttpc() ->
-    [ok,ok,ok,ok,ok] = lists:map(fun application:start/1,
-                                 [asn1,crypto,public_key,ssl,lhttpc]).
+    %% In R16B01 and above, we could use application:ensure_started/1
+    %% instead.
+    lists:foreach(
+      fun(App) ->
+	      case application:start(App) of
+		  ok ->
+		      ok;
+		  {error, {already_started, App}} ->
+		      ok;
+		  {error, E} ->
+		      error({cannot_start, E}, [App])
+	      end
+      end, [asn1,crypto,public_key,ssl,lhttpc]).
 stop_lhttpc() ->
     [ok,ok,ok,ok,ok] = lists:map(fun application:stop/1,
                                  [lhttpc,ssl,public_key,crypto,asn1]).
