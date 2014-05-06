@@ -2,6 +2,7 @@
 all: test
 
 TESTSPEC ?= default.spec
+PRESET   ?= all
 
 test_clean: get-deps
 	rm -rf tests/*.beam
@@ -33,7 +34,7 @@ test_preset: prepare
 		    `pwd`/ebin \
 			`pwd`/deps/*/ebin \
 		$(ADD_OPTS) \
-		-s run_common_test ct_config $(TESTSPEC) $(PRESET)
+		-s run_common_test main test=full spec=$(TESTSPEC) preset=$(PRESET)
 
 test: prepare
 	erl -noinput -sname test -setcookie ejabberd \

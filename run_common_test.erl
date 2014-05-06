@@ -3,12 +3,10 @@
 -export([main/1]).
 
 %% Deprecated
--export([ct_config/1,
-         cover_summary/0]).
+-export([cover_summary/0]).
 
 -define(CT_DIR, filename:join([".", "tests"])).
 -define(CT_REPORT, filename:join([".", "ct_report"])).
--define(CT_DEF_SPEC, './default.spec').
 
 ct_config_file() ->
     {ok, CWD} = file:get_cwd(),
@@ -19,12 +17,6 @@ tests_to_run(TestSpec) ->
     [
      {spec, TestSpecFile}
     ].
-
-ct_config([Preset]) ->
-    ct_config([?CT_DEF_SPEC, Config]);
-ct_config([TestSpec, Preset]) ->
-    run_test(tests_to_run(TestSpec), [Preset]),
-    init:stop(0).
 
 save_count(Test, Configs) ->
     Repeat = case proplists:get_value(repeat, Test) of
@@ -65,15 +57,17 @@ run_test(Test, PresetsToRun) ->
 
 -record(opts, {test,
                spec,
-               cover}).
+               cover,
+               preset = all}).
 
 %% Accepted options formatted as:
 %% {opt_name, opt_index_in_opts_record, fun value_sanitizer/1}.
 %% -spec value_sanitizer(string()) -> NewValue :: any().
 opts() ->
-    [{test,  #opts.test,  fun quick_or_full/1},
-     {spec,  #opts.spec,  fun id/1},
-     {cover, #opts.cover, fun ("true") -> true; (_) -> false end}].
+    [{test,   #opts.test,   fun quick_or_full/1},
+     {spec,   #opts.spec,   fun id/1},
+     {cover,  #opts.cover,  fun ("true") -> true; (_) -> false end},
+     {preset, #opts.preset, fun erlang:list_to_atom/1}].
 
 %% Raw args are 'key=val' atoms.
 %% Args are {key :: atom(), val :: string()} pairs.
@@ -109,8 +103,11 @@ run(#opts{test = quick, spec = Spec}) ->
 run(#opts{test = full, cover = true, spec = Spec}) ->
     run_ct_cover(tests_to_run(Spec)),
     cover_summary();
-run(#opts{test = full, spec = Spec}) ->
-    run_test(tests_to_run(Spec)).
+run(#opts{test = full, spec = Spec, preset = Preset}) ->
+    run_test(tests_to_run(Spec), case Preset of
+                                     all -> all;
+                                     _   -> [Preset]
+                                 end).
 
 do_run_quick_test(Test) ->
     Result = ct:run_test(Test),
