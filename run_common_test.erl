@@ -20,10 +20,10 @@ tests_to_run(TestSpec) ->
      {spec, TestSpecFile}
     ].
 
-ct_config([Config]) ->
+ct_config([Preset]) ->
     ct_config([?CT_DEF_SPEC, Config]);
-ct_config([TestSpec, Config]) ->
-    run_test(tests_to_run(TestSpec), [Config]),
+ct_config([TestSpec, Preset]) ->
+    run_test(tests_to_run(TestSpec), [Preset]),
     init:stop(0).
 
 save_count(Test, Configs) ->
@@ -40,25 +40,25 @@ save_count(Test, Configs) ->
 run_test(Test) ->
     run_test(Test, all).
 
-run_test(Test, ConfigList) ->
+run_test(Test, PresetsToRun) ->
     {ok, Props} = file:consult(ct_config_file()),
-    case proplists:lookup(ejabberd_configs, Props) of
-        {ejabberd_configs, Configs} ->
-            Configs1 = case ConfigList of
+    case proplists:lookup(ejabberd_presets, Props) of
+        {ejabberd_presets, Presets} ->
+            Presets1 = case PresetsToRun of
                 all ->
-                    Configs;
+                    Presets;
                 _ ->
-                    lists:filter(fun({Config,_}) ->
-                                lists:member(Config, ConfigList)
-                        end, Configs)
+                    lists:filter(fun({Preset,_}) ->
+                                lists:member(Preset, PresetsToRun)
+                        end, Presets)
             end,
-            Length = length(Configs1),
-            Names = [Name || {Name,_} <- Configs1],
+            Length = length(Presets1),
+            Names = [Name || {Name,_} <- Presets1],
             error_logger:info_msg("Starting test of ~p configurations: ~n~p~n",
                                   [Length, Names]),
-            Zip = lists:zip(lists:seq(1, Length), Configs1),
-            [run_config_test(Config, Test, N, Length) || {N, Config} <- Zip],
-            save_count(Test, Configs1);
+            Zip = lists:zip(lists:seq(1, Length), Presets1),
+            [run_config_test(Preset, Test, N, Length) || {N, Preset} <- Zip],
+            save_count(Test, Presets1);
         _ ->
             do_run_quick_test(Test)
     end.

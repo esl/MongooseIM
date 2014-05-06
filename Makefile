@@ -27,13 +27,13 @@ quicktest_cover: prepare
 		$(ADD_OPTS) \
 		-s run_common_test main test=quick spec=$(TESTSPEC) cover=true
 
-test_config: prepare
+test_preset: prepare
 	erl -noinput -sname test -setcookie ejabberd \
 		-pa `pwd`/tests \
 		    `pwd`/ebin \
 			`pwd`/deps/*/ebin \
 		$(ADD_OPTS) \
-		-s run_common_test ct_config $(TESTSPEC) $(CONFIG)
+		-s run_common_test ct_config $(TESTSPEC) $(PRESET)
 
 test: prepare
 	erl -noinput -sname test -setcookie ejabberd \
