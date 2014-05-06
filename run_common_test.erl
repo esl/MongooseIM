@@ -8,6 +8,68 @@
 -define(CT_DIR, filename:join([".", "tests"])).
 -define(CT_REPORT, filename:join([".", "ct_report"])).
 
+%%
+%% Entry
+%%
+
+-record(opts, {test,
+               spec,
+               cover,
+               preset = all}).
+
+%% Accepted options formatted as:
+%% {opt_name, opt_index_in_opts_record, fun value_sanitizer/1}.
+%% -spec value_sanitizer(string()) -> NewValue :: any().
+opts() ->
+    [{test,   #opts.test,   fun quick_or_full/1},
+     {spec,   #opts.spec,   fun id/1},
+     {cover,  #opts.cover,  fun ("true") -> true; (_) -> false end},
+     {preset, #opts.preset, fun erlang:list_to_atom/1}].
+
+%% Raw args are 'key=val' atoms.
+%% Args are {key :: atom(), val :: string()} pairs.
+%% "=" is an invalid character in option name or value.
+main(RawArgs) ->
+    Args = [raw_to_arg(Raw) || Raw <- RawArgs],
+    Opts = args_to_opts(Args),
+    run(Opts),
+    init:stop(0).
+
+run(#opts{test = quick, cover = true, spec = Spec}) ->
+    do_run_quick_test_with_cover(tests_to_run(Spec)),
+    cover_summary();
+run(#opts{test = quick, spec = Spec}) ->
+    do_run_quick_test(tests_to_run(Spec));
+run(#opts{test = full, cover = true, spec = Spec}) ->
+    run_ct_cover(tests_to_run(Spec)),
+    cover_summary();
+run(#opts{test = full, spec = Spec, preset = Preset}) ->
+    run_test(tests_to_run(Spec), case Preset of
+                                     all -> all;
+                                     _   -> [Preset]
+                                 end).
+
+%%
+%% Helpers
+%%
+
+args_to_opts(Args) ->
+    lists:foldl(fun set_opt/2, {Args, #opts{}}, opts()).
+
+raw_to_arg(RawArg) ->
+    ArgVal = atom_to_list(RawArg),
+    [Arg, Val] = string:tokens(ArgVal, "="),
+    {list_to_atom(Arg), Val}.
+
+set_opt({Opt, Index, Sanitizer}, {Args, Opts}) ->
+    Value = Sanitizer(proplists:get_value(Opt, Args)),
+    {Args, setelement(Index, Opts, Value)}.
+
+quick_or_full("quick") -> quick;
+quick_or_full("full")  -> full.
+
+id(E) -> E.
+
 ct_config_file() ->
     {ok, CWD} = file:get_cwd(),
     filename:join([CWD, "test.config"]).
@@ -54,60 +116,6 @@ run_test(Test, PresetsToRun) ->
         _ ->
             do_run_quick_test(Test)
     end.
-
--record(opts, {test,
-               spec,
-               cover,
-               preset = all}).
-
-%% Accepted options formatted as:
-%% {opt_name, opt_index_in_opts_record, fun value_sanitizer/1}.
-%% -spec value_sanitizer(string()) -> NewValue :: any().
-opts() ->
-    [{test,   #opts.test,   fun quick_or_full/1},
-     {spec,   #opts.spec,   fun id/1},
-     {cover,  #opts.cover,  fun ("true") -> true; (_) -> false end},
-     {preset, #opts.preset, fun erlang:list_to_atom/1}].
-
-%% Raw args are 'key=val' atoms.
-%% Args are {key :: atom(), val :: string()} pairs.
-%% "=" is an invalid character in option name or value.
-main(RawArgs) ->
-    Args = [raw_to_arg(Raw) || Raw <- RawArgs],
-    Opts = args_to_opts(Args),
-    run(Opts),
-    init:stop(0).
-
-args_to_opts(Args) ->
-    lists:foldl(fun set_opt/2, {Args, #opts{}}, opts()).
-
-raw_to_arg(RawArg) ->
-    ArgVal = atom_to_list(RawArg),
-    [Arg, Val] = string:tokens(ArgVal, "="),
-    {list_to_atom(Arg), Val}.
-
-set_opt({Opt, Index, Sanitizer}, {Args, Opts}) ->
-    Value = Sanitizer(proplists:get_value(Opt, Args)),
-    {Args, setelement(Index, Opts, Value)}.
-
-quick_or_full("quick") -> quick;
-quick_or_full("full")  -> full.
-
-id(E) -> E.
-
-run(#opts{test = quick, cover = true, spec = Spec}) ->
-    do_run_quick_test_with_cover(tests_to_run(Spec)),
-    cover_summary();
-run(#opts{test = quick, spec = Spec}) ->
-    do_run_quick_test(tests_to_run(Spec));
-run(#opts{test = full, cover = true, spec = Spec}) ->
-    run_ct_cover(tests_to_run(Spec)),
-    cover_summary();
-run(#opts{test = full, spec = Spec, preset = Preset}) ->
-    run_test(tests_to_run(Spec), case Preset of
-                                     all -> all;
-                                     _   -> [Preset]
-                                 end).
 
 do_run_quick_test(Test) ->
     Result = ct:run_test(Test),
