@@ -1,9 +1,13 @@
 -module(run_common_test).
 -export([ct/0, ct/1,
-         ct_quick/0, ct_quick/1,
          ct_cover/0, ct_cover/1,
          ct_config/1,
          cover_summary/0]).
+
+%% new api
+-export([main/1,
+         run/1]).
+
 
 -define(CT_DIR, filename:join([".", "tests"])).
 -define(CT_REPORT, filename:join([".", "ct_report"])).
@@ -24,13 +28,6 @@ ct() ->
 
 ct([TestSpec]) ->
     run_test(tests_to_run(TestSpec)),
-    init:stop(0).
-
-ct_quick() ->
-    ct_quick([?CT_DEF_SPEC]).
-
-ct_quick([TestSpec]) ->
-    run_quick_test(tests_to_run(TestSpec)),
     init:stop(0).
 
 ct_config([Config]) ->
@@ -81,10 +78,53 @@ run_test(Test, ConfigList) ->
             [run_config_test(Config, Test, N, Length) || {N, Config} <- Zip],
             save_count(Test, Configs1);
         _ ->
-            run_quick_test(Test)
+            do_run_quick_test(Test)
     end.
 
-run_quick_test(Test) ->
+-record(opts, {test,
+               spec,
+               cover}).
+
+%% Accepted options formatted as:
+%% {opt_name, opt_index_in_opts_record, fun value_sanitizer/1}.
+%% -spec value_sanitizer(string()) -> NewValue :: any().
+opts() ->
+    [{test,  #opts.test,  fun quick_or_full/1},
+     {spec,  #opts.spec,  fun id/1},
+     {cover, #opts.cover, fun ("true") -> true; (_) -> false end}].
+
+%% Raw args are 'key=val' atoms.
+%% Args are {key :: atom(), val :: string()} pairs.
+%% "=" is an invalid character in option name or value.
+main(RawArgs) ->
+    Args = [raw_to_arg(Raw) || Raw <- RawArgs],
+    Opts = args_to_opts(Args),
+    run(Opts),
+    init:stop(0).
+
+args_to_opts(Args) ->
+    lists:foldl(fun set_opt/2, {Args, #opts{}}, opts()).
+
+raw_to_arg(RawArg) ->
+    ArgVal = atom_to_list(RawArg),
+    [Arg, Val] = string:tokens(ArgVal, "="),
+    {list_to_atom(Arg), Val}.
+
+set_opt({Opt, Index, Sanitizer}, {Args, Opts}) ->
+    Value = Sanitizer(proplists:get_value(Opt, Args)),
+    {Args, setelement(Index, Opts, Value)}.
+
+quick_or_full("quick") -> quick;
+quick_or_full("full")  -> full.
+
+id(E) -> E.
+
+run(#opts{test = quick, cover = false, spec = Spec}) ->
+    do_run_quick_test(tests_to_run(Spec));
+run(#opts{test = quick, cover = true, spec = Spec}) ->
+    do_run_quick_test_with_cover(tests_to_run(Spec)).
+
+do_run_quick_test(Test) ->
     Result = ct:run_test(Test),
     case Result of
         {error, Reason} ->
@@ -93,6 +133,17 @@ run_quick_test(Test) ->
             ok
     end,
     save_count(Test, []).
+
+do_run_quick_test_with_cover(Test) ->
+    prepare(),
+    do_run_quick_test(Test),
+    N = get_ejabberd_node(),
+    Files = rpc:call(N, filelib, wildcard, ["/tmp/ejd_test_run_*.coverdata"]),
+    [rpc:call(N, file, delete, [File]) || File <- Files],
+    {MS,S,_} = now(),
+    FileName = lists:flatten(io_lib:format("/tmp/ejd_test_run_~b~b.coverdata",[MS,S])),
+    io:format("export current cover ~p~n", [cover_call(export, [FileName])]),
+    io:format("test finished~n").
 
 run_config_test({Name, Variables}, Test, N, Tests) ->
     Node = get_ejabberd_node(),
@@ -126,7 +177,7 @@ call(Node, M, F, A) ->
 
 run_ct_cover(TestSpec) ->
     prepare(),
-    run_test(tests_to_run(TestSpec)),
+    do_run_quick_test(tests_to_run(TestSpec)),
     N = get_ejabberd_node(),
     Files = rpc:call(N, filelib, wildcard, ["/tmp/ejd_test_run_*.coverdata"]),
     [rpc:call(N, file, delete, [File]) || File <- Files],

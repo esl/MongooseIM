@@ -1,6 +1,8 @@
 .PHONY: all test console compile
 all: test
 
+TESTSPEC ?= default.spec
+
 test_clean: get-deps
 	rm -rf tests/*.beam
 	make test
@@ -15,7 +17,15 @@ quicktest: prepare
 		    `pwd`/ebin \
 			`pwd`/deps/*/ebin \
 		$(ADD_OPTS) \
-		-s run_common_test ct_quick $(TESTSPEC)
+		-s run_common_test main test=quick spec=$(TESTSPEC)
+
+quicktest_cover: prepare
+	erl -noinput -sname test -setcookie ejabberd \
+		-pa `pwd`/tests \
+		    `pwd`/ebin \
+			`pwd`/deps/*/ebin \
+		$(ADD_OPTS) \
+		-s run_common_test main test=quick spec=$(TESTSPEC) cover=true
 
 test_config: prepare
 	erl -noinput -sname test -setcookie ejabberd \
