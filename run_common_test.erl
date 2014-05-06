@@ -197,9 +197,22 @@ cover_summary() ->
     io:format("summary completed~n"),
     init:stop(0).
 
+get_latest_revision(App) ->
+    Revs = rpc:call(get_ejabberd_node(), filelib, wildcard,
+                    ["lib/" ++ atom_to_list(App) ++ "-*"]),
+    hd(lists:reverse(lists:sort(Revs))).
+
+get_apps() ->
+    case file:list_dir("../../apps/") of
+        {ok, Filenames} -> lists:map(fun list_to_atom/1, Filenames);
+        {error, _Reason} -> error("ejabberd parent project not found (expected apps in ../../apps)")
+    end.
+
 prepare() ->
     cover_call(start),
-    Compiled = cover_call(compile_beam_directory,["lib/ejabberd-2.1.8/ebin"]),
+    Apps = [get_latest_revision(A) || A <- get_apps()],
+    Cover = fun(App) -> cover_call(compile_beam_directory,[App ++ "/ebin"]) end,
+    Compiled = lists:flatmap(Cover, Apps),
     rpc:call(get_ejabberd_node(), application, stop, [ejabberd]),
     StartStatus = rpc:call(get_ejabberd_node(), application, start, [ejabberd, permanent]),
     io:format("start ~p~n", [StartStatus]),
