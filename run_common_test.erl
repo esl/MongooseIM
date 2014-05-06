@@ -1,13 +1,10 @@
 -module(run_common_test).
--export([ct/0, ct/1,
-         ct_cover/0, ct_cover/1,
-         ct_config/1,
+
+-export([main/1]).
+
+%% Deprecated
+-export([ct_config/1,
          cover_summary/0]).
-
-%% new api
--export([main/1,
-         run/1]).
-
 
 -define(CT_DIR, filename:join([".", "tests"])).
 -define(CT_REPORT, filename:join([".", "ct_report"])).
@@ -23,25 +20,10 @@ tests_to_run(TestSpec) ->
      {spec, TestSpecFile}
     ].
 
-ct() ->
-    ct([?CT_DEF_SPEC]).
-
-ct([TestSpec]) ->
-    run_test(tests_to_run(TestSpec)),
-    init:stop(0).
-
 ct_config([Config]) ->
     ct_config([?CT_DEF_SPEC, Config]);
 ct_config([TestSpec, Config]) ->
     run_test(tests_to_run(TestSpec), [Config]),
-    init:stop(0).
-
-ct_cover() ->
-    ct_cover([?CT_DEF_SPEC]).
-
-ct_cover([TestSpec]) ->
-    run_ct_cover(TestSpec),
-    cover_summary(),
     init:stop(0).
 
 save_count(Test, Configs) ->
@@ -119,10 +101,16 @@ quick_or_full("full")  -> full.
 
 id(E) -> E.
 
-run(#opts{test = quick, cover = false, spec = Spec}) ->
-    do_run_quick_test(tests_to_run(Spec));
 run(#opts{test = quick, cover = true, spec = Spec}) ->
-    do_run_quick_test_with_cover(tests_to_run(Spec)).
+    do_run_quick_test_with_cover(tests_to_run(Spec)),
+    cover_summary();
+run(#opts{test = quick, spec = Spec}) ->
+    do_run_quick_test(tests_to_run(Spec));
+run(#opts{test = full, cover = true, spec = Spec}) ->
+    run_ct_cover(tests_to_run(Spec)),
+    cover_summary();
+run(#opts{test = full, spec = Spec}) ->
+    run_test(tests_to_run(Spec)).
 
 do_run_quick_test(Test) ->
     Result = ct:run_test(Test),
@@ -177,7 +165,7 @@ call(Node, M, F, A) ->
 
 run_ct_cover(TestSpec) ->
     prepare(),
-    do_run_quick_test(tests_to_run(TestSpec)),
+    run_test(tests_to_run(TestSpec)),
     N = get_ejabberd_node(),
     Files = rpc:call(N, filelib, wildcard, ["/tmp/ejd_test_run_*.coverdata"]),
     [rpc:call(N, file, delete, [File]) || File <- Files],

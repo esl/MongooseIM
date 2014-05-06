@@ -41,7 +41,7 @@ test: prepare
 		    `pwd`/ebin \
 			`pwd`/deps/*/ebin \
 		$(ADD_OPTS) \
-		-s run_common_test ct $(TESTSPEC)
+		-s run_common_test main test=full spec=$(TESTSPEC)
 
 cover_test: prepare
 	erl -noinput -sname test -setcookie ejabberd \
@@ -49,7 +49,7 @@ cover_test: prepare
 		    `pwd`/ebin \
 			`pwd`/deps/*/ebin \
 		$(ADD_OPTS) \
-		-s run_common_test ct_cover $(TESTSPEC)
+		-s run_common_test main test=full spec=$(TESTSPEC) cover=true
 
 cover_summary: prepare
 	erl -noinput -sname test -setcookie ejabberd \
