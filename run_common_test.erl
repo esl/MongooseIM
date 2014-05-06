@@ -24,7 +24,7 @@ opts() ->
     [{test,   #opts.test,   fun quick_or_full/1},
      {spec,   #opts.spec,   fun id/1},
      {cover,  #opts.cover,  fun ("true") -> true; (_) -> false end},
-     {preset, #opts.preset, fun erlang:list_to_atom/1}].
+     {preset, #opts.preset, fun preset/1}].
 
 %% Raw args are 'key=val' atoms.
 %% Args are {key :: atom(), val :: string()} pairs.
@@ -69,6 +69,9 @@ quick_or_full("quick") -> quick;
 quick_or_full("full")  -> full.
 
 id(E) -> E.
+
+preset(undefined) -> undefined;
+preset(Preset) -> list_to_atom(Preset).
 
 ct_config_file() ->
     {ok, CWD} = file:get_cwd(),
