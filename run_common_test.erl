@@ -54,7 +54,8 @@ run(#opts{test = full, spec = Spec, preset = Preset}) ->
 %%
 
 args_to_opts(Args) ->
-    lists:foldl(fun set_opt/2, {Args, #opts{}}, opts()).
+    {Args, Opts} = lists:foldl(fun set_opt/2, {Args, #opts{}}, opts()),
+    Opts.
 
 raw_to_arg(RawArg) ->
     ArgVal = atom_to_list(RawArg),
