@@ -22,7 +22,7 @@
 %% -spec value_sanitizer(string()) -> NewValue :: any().
 opts() ->
     [{test,   #opts.test,   fun quick_or_full/1},
-     {spec,   #opts.spec,   fun id/1},
+     {spec,   #opts.spec,   fun list_to_atom/1},
      {cover,  #opts.cover,  fun ("true") -> true; (_) -> false end},
      {preset, #opts.preset, fun preset/1}].
 
@@ -67,8 +67,6 @@ set_opt({Opt, Index, Sanitizer}, {Args, Opts}) ->
 
 quick_or_full("quick") -> quick;
 quick_or_full("full")  -> full.
-
-id(E) -> E.
 
 preset(undefined) -> undefined;
 preset(Preset) -> list_to_atom(Preset).
