@@ -2374,8 +2374,7 @@ one2one_chat_to_muc(Config) ->
 
         %Alice sends invitations
         %invitations should include contiue flag, but this makes no sense without the thread
-        escalus:send(Alice, stanza_mediated_invitation(Room, Bob)),
-        escalus:send(Alice, stanza_mediated_invitation(Room, Eve)),
+        escalus:send(Alice, stanza_mediated_invitation_multi(Room, [Bob, Eve])),
         is_invitation(escalus:wait_for_stanza(Bob)),
         is_invitation(escalus:wait_for_stanza(Eve)),
         %Bob and Eve accept the invitations
@@ -3771,8 +3770,12 @@ stanza_room_subject(Room, Subject) ->
     }, Room).
 
 stanza_mediated_invitation(Room, Invited) ->
+    stanza_mediated_invitation_multi(Room, [Invited]).
+
+stanza_mediated_invitation_multi(Room, AllInvited) ->
     Payload = [ #xmlel{name = <<"invite">>,
-        attrs = [{<<"to">>, escalus_utils:get_short_jid(Invited)}]} ],
+		       attrs = [{<<"to">>, escalus_utils:get_short_jid(Invited)}]}
+		|| Invited <- AllInvited],
     stanza_to_room(#xmlel{name = <<"message">>,
         children = [ #xmlel{
             name = <<"x">>,
