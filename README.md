@@ -134,8 +134,8 @@ Don't forget to check out our [wiki](https://github.com/esl/MongooseIM/wiki) - h
 
 Want to get in touch with us?
 -----------------------------
-In case of any suggestions, questions or any random thoughts on this project,
+In case of any suggestions, questions or any thoughts on this project,
 please feel free to contact us by the standard GitHub ways or at
 <a href='mailto:mongoose-im@erlang-solutions.com'>mongoose-im@erlang-solutions.com</a>.
 
-Want to discuss MongooseIM, your deployment or anything else? Try: <a href='https://erlangcentral.org/forum/mongooseim/'>https://erlangcentral.org/forum/mongooseim/</a>.
+Want to discuss MongooseIM, problems with your deployement or anything else? Try: <a href='https://erlangcentral.org/forum/mongooseim/'>https://erlangcentral.org/forum/mongooseim/</a>.
