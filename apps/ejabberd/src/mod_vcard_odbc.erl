@@ -54,11 +54,11 @@ get_vcard(LUser, LServer) ->
     S = ejabberd_odbc:escape(LServer),
     case odbc_queries:get_vcard(S,U) of
         {selected, [<<"vcard">>], [{SVCARD}]} ->
-            case xml_stream:parse_element(SVCARD) of
+            case exml:parse(SVCARD) of
                 {error, Reason} ->
                     ?WARNING_MSG("not sending bad vcard xml ~p~n~p",[Reason,SVCARD]),
                     {error, ?ERR_SERVICE_UNAVAILABLE};
-                VCARD ->
+		{ok, VCARD} ->
                     {ok, [VCARD]}
             end;
         {selected, [<<"vcard">>],[]} ->
