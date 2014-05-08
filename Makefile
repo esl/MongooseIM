@@ -95,6 +95,6 @@ test_deps: rebar
 # This might download a version which can't build the project properly!
 # Compatible rebar version should be checked into the repository.
 rebar:
-	wget -q http://cloud.github.com/downloads/basho/rebar/rebar
+	wget -q https://github.com/rebar/rebar/wiki/rebar
 	chmod u+x rebar
 
