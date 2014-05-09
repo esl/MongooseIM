@@ -165,10 +165,10 @@ handle_call({compress, ZlibSocket}, _From, #state{parser = Parser, c2s_pid = C2S
 	    {stop, normal, ok, NewState}
     end;
 handle_call(reset_stream, _From, #state{ parser = Parser } = State) ->
-    Parser = reset_parser(Parser),
-    {reply, ok, State#state{parser = Parser}, ?HIBERNATE_TIMEOUT};
+    NewParser = reset_parser(Parser),
+    {reply, ok, State#state{parser = NewParser}, ?HIBERNATE_TIMEOUT};
 handle_call({become_controller, C2SPid}, _From, State) ->
-    Parser = exml_stream:new_parser(),
+    {ok, Parser} = exml_stream:new_parser(),
     NewState = State#state{c2s_pid = C2SPid, parser = Parser},
     activate_socket(NewState),
     Reply = ok,
@@ -328,10 +328,13 @@ process_data(Data, #state{parser = Parser,
     {ok, NewParser, Elems} = exml_stream:parse(Parser, Data),
     {NewShaperState, Pause} = shaper:update(ShaperState, Size),
     ValidElems = replace_too_big_elems_with_stream_error(Elems, MaxSize),
-    [gen_fsm:send_event(C2SPid, E) || E <- ValidElems],
+    [gen_fsm:send_event(C2SPid, wrap_if_xmlel(E)) || E <- ValidElems],
     maybe_pause(Pause, State),
     State#state{parser = NewParser,
                 shaper_state = NewShaperState}.
+
+wrap_if_xmlel(#xmlel{} = E) -> {xmlstreamelement, E};
+wrap_if_xmlel(E) -> E.
 
 replace_too_big_elems_with_stream_error(Elems,MaxSize) ->
     lists:map(fun(Elem) ->
