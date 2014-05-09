@@ -365,6 +365,8 @@ static ErlDrvSSizeT tls_drv_control(ErlDrvData handle,
 	 if (is_key_file_modified(buf, &mtime) || ssl_ctx == NULL)
 	 {
 	    SSL_CTX *ctx;
+	    char* ciphers;
+	    int buflen = strlen(buf);
 
 	    hash_table_insert(buf, mtime, NULL);
 
@@ -382,7 +384,15 @@ static ErlDrvSSizeT tls_drv_control(ErlDrvData handle,
 
 	    SSL_CTX_set_options(ctx, SSL_OP_NO_SSLv2|SSL_OP_NO_TICKET|SSL_OP_SINGLE_ECDH_USE);
 
-	    SSL_CTX_set_cipher_list(ctx, CIPHERS);
+	    if(buflen + 1 == len) //no ciphers param
+	    {
+	        ciphers = CIPHERS;
+	    }else
+	    {
+	        ciphers = buf + buflen + 1;
+	    }
+
+	    SSL_CTX_set_cipher_list(ctx, ciphers);
 	    if(command == SET_CERTIFICATE_FILE_ACCEPT && SSLeay() > 0x1000005fl)
 	    {
 	        EC_KEY *ecdh = EC_KEY_new_by_curve_name(NID_X9_62_prime256v1);

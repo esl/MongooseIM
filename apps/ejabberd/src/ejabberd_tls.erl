@@ -90,7 +90,13 @@ tcp_to_tls(TCPSocket, Options) ->
 			  false ->
 			      ?SET_CERTIFICATE_FILE_ACCEPT
 		      end,
-	    case port_control(Port, Command bor Flags, CertFile ++ [0]) of
+	    Ciphers = case lists:keysearch(ciphers, 1, Options) of
+			      {value, {ciphers, C}} ->
+				      C++[0];
+			      false ->
+				      []
+		      end,
+	    case port_control(Port, Command bor Flags, CertFile ++ [0] ++ Ciphers) of
 		<<0>> ->
 		    {ok, #tlssock{tcpsock = TCPSocket, tlsport = Port}};
 		<<1, Error/binary>> ->
