@@ -61,7 +61,9 @@ start_link() ->
 init([]) ->
     case erl_ddll:load_driver(ejabberd:get_so_path(), ejabberd_zlib_drv) of
 	ok -> ok;
-	{error, already_loaded} -> ok
+	{error, already_loaded} -> ok;
+	{error, OtherError} ->
+	    erlang:error({cannot_load_ejabberd_zlib_drv, erl_ddll:format_error(OtherError)})
     end,
     Port = open_port({spawn, ejabberd_zlib_drv}, [binary]),
     {ok, Port}.
@@ -97,7 +99,9 @@ terminate(_Reason, Port) ->
 enable_zlib(SockMod, Socket, InflateSizeLimit) ->
     case erl_ddll:load_driver(ejabberd:get_so_path(), ejabberd_zlib_drv) of
 	ok -> ok;
-	{error, already_loaded} -> ok
+	{error, already_loaded} -> ok;
+	{error, OtherError} ->
+	    erlang:error({cannot_load_ejabberd_zlib_drv, erl_ddll:format_error(OtherError)})
     end,
     Port = open_port({spawn, ejabberd_zlib_drv}, [binary]),
     {ok, #zlibsock{sockmod = SockMod, socket = Socket, zlibport = Port,
