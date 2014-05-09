@@ -3510,30 +3510,35 @@ unsave_check_invitation(FromJID, Els, Lang,
     false ->
         throw({error, ?ERR_FORBIDDEN});
     true ->
-        InviteEl = find_invite_elem(Els),
-        JID = decode_destination_jid(InviteEl),
-        %% Create an invitation message and send it to the user.
-        Reason = decode_reason(InviteEl),
-        ContinueEl =
-            case xml:get_path_s(InviteEl, [{elem, <<"continue">>}]) of
-                <<>> -> [];
-                Continue1 -> [Continue1]
-            end,
-        ReasonEl = #xmlel{
-            name = <<"reason">>,
-            children = [#xmlcdata{content = Reason}]},
-        OutInviteEl = #xmlel{
-            name = <<"invite">>,
-            attrs = [{<<"from">>, jlib:jid_to_binary(FromJID)}],
-            children = [ReasonEl] ++ ContinueEl},
-        PasswdEl = create_password_elem(StateData),
-        BodyEl = invite_body_elem(FromJID, Reason, Lang, StateData),
-        Msg = create_invite_message_elem(
-            OutInviteEl, BodyEl, PasswdEl, RoomJID, Reason),
-        ejabberd_hooks:run(invitation_sent, Host,
-            [Host, ServerHost, RoomJID, FromJID, JID, Reason]),
-        ejabberd_router:route(StateData#state.jid, JID, Msg),
-        {ok, JID}
+        InviteEls = find_invite_elems(Els),
+        %% Decode all JIDs first, so we fail early if any JID is invalid.
+        JIDs = lists:map(fun decode_destination_jid/1, InviteEls),
+        lists:foreach(
+          fun(InviteEl) ->
+                  JID = decode_destination_jid(InviteEl),
+                  %% Create an invitation message and send it to the user.
+                  Reason = decode_reason(InviteEl),
+                  ContinueEl =
+                      case xml:get_path_s(InviteEl, [{elem, <<"continue">>}]) of
+                          <<>> -> [];
+                          Continue1 -> [Continue1]
+                      end,
+                  ReasonEl = #xmlel{
+                                name = <<"reason">>,
+                                children = [#xmlcdata{content = Reason}]},
+                  OutInviteEl = #xmlel{
+                                   name = <<"invite">>,
+                                   attrs = [{<<"from">>, jlib:jid_to_binary(FromJID)}],
+                                   children = [ReasonEl] ++ ContinueEl},
+                  PasswdEl = create_password_elem(StateData),
+                  BodyEl = invite_body_elem(FromJID, Reason, Lang, StateData),
+                  Msg = create_invite_message_elem(
+                          OutInviteEl, BodyEl, PasswdEl, RoomJID, Reason),
+                  ejabberd_hooks:run(invitation_sent, Host,
+                                     [Host, ServerHost, RoomJID, FromJID, JID, Reason]),
+                  ejabberd_router:route(StateData#state.jid, JID, Msg)
+          end, InviteEls),
+        {ok, JIDs}
     end.
 
 -spec decode_destination_jid(InviteEl) -> JID when
@@ -3545,8 +3550,8 @@ decode_destination_jid(InviteEl) ->
       JID   -> JID
     end.
 
--spec find_invite_elem([#xmlel{}]) -> ok | #xmlel{}.
-find_invite_elem(Els) ->
+-spec find_invite_elems([#xmlel{}]) -> [#xmlel{}].
+find_invite_elems(Els) ->
     case xml:remove_cdata(Els) of
     [#xmlel{name = <<"x">>, children = Els1} = XEl] ->
         case xml:get_tag_attr_s(<<"xmlns">>, XEl) of
@@ -3556,11 +3561,13 @@ find_invite_elem(Els) ->
             throw({error, ?ERR_BAD_REQUEST})
         end,
 
-        case xml:remove_cdata(Els1) of
-        [#xmlel{name = <<"invite">>} = InviteEl1] ->
-            InviteEl1;
-        _ ->
-            throw({error, ?ERR_BAD_REQUEST})
+        InviteEls =
+            [InviteEl || #xmlel{name = <<"invite">>} = InviteEl <- Els1],
+        case InviteEls of
+            [_|_] ->
+                InviteEls;
+            _ ->
+                throw({error, ?ERR_BAD_REQUEST})
         end;
     _ ->
         throw({error, ?ERR_BAD_REQUEST})
@@ -3901,31 +3908,34 @@ route_invitation({error, Error}, From, Packet, _Lang, StateData) ->
     ejabberd_router:route(StateData#state.jid, From, Err),
     StateData;
 
-route_invitation({ok, IJID}, _From, _Packet, _Lang, StateData) ->
-    Config = StateData#state.config,
+route_invitation({ok, IJIDs}, _From, _Packet, _Lang, StateData0) ->
+    Config = StateData0#state.config,
     case Config#config.members_only of
         true ->
-             case get_affiliation(IJID, StateData) of
-                none ->
-                    NSD = set_affiliation(
-                        IJID,
-                        member,
-                        StateData),
-                     case (NSD#state.config)#config.persistent of
-                        true ->
-                            mod_muc:store_room(
-                                NSD#state.host,
-                                NSD#state.room,
-                                make_opts(NSD));
-                        _ ->
-                             ok
-                    end,
-                    NSD;
-                _ ->
-                    StateData
-            end;
+            lists:foldl(
+              fun(IJID, StateData) ->
+                      case get_affiliation(IJID, StateData) of
+                          none ->
+                              NSD = set_affiliation(
+                                      IJID,
+                                      member,
+                                      StateData),
+                              case (NSD#state.config)#config.persistent of
+                                  true ->
+                                      mod_muc:store_room(
+                                        NSD#state.host,
+                                        NSD#state.room,
+                                        make_opts(NSD));
+                                  _ ->
+                                      ok
+                              end,
+                              NSD;
+                          _ ->
+                              StateData
+                      end
+              end, StateData0, IJIDs);
         false ->
-            StateData
+            StateData0
     end.
 
 route_iq(#routed_iq{iq = #iq{type = Type, xmlns = ?NS_MUC_ADMIN, lang = Lang,
