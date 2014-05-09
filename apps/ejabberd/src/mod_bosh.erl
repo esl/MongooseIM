@@ -321,10 +321,6 @@ method_not_allowed_error(Req) ->
     strip_ok(cowboy_req:reply(405, ac_all(?DEFAULT_ALLOW_ORIGIN),
                               <<"Use POST request method">>, Req)).
 
-not_implemented_error(Req) ->
-    strip_ok(cowboy_req:reply(400, ac_all(?DEFAULT_ALLOW_ORIGIN),
-                              <<"Not implemented yet">>, Req)).
-
 strip_ok({ok, Req}) ->
     Req.
 
