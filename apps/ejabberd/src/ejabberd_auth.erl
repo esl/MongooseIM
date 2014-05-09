@@ -104,7 +104,7 @@ check_password(User, Server, Password, Digest, DigestGen) ->
 %% where
 %%   AuthModule = ejabberd_auth_anonymous | ejabberd_auth_external
 %%                 | ejabberd_auth_internal | ejabberd_auth_ldap
-%%                 | ejabberd_auth_odbc | ejabberd_auth_pam
+%%                 | ejabberd_auth_odbc
 check_password_with_authmodule(User, Server, Password) ->
     check_password_loop(auth_modules(Server), [User, Server, Password]).
 
