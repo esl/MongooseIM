@@ -115,7 +115,7 @@ check_password_hash(User, Host, PasswordHash, HashMethod) ->
     end.
 get_md5(AccountPass) ->
     lists:flatten([io_lib:format("~.16B", [X])
-                   || X <- binary_to_list(crypto:md5(AccountPass))]).
+                   || X <- binary_to_list(crypto:hash(md5, AccountPass))]).
 get_sha(AccountPass) ->
     lists:flatten([io_lib:format("~.16B", [X])
                    || X <- binary_to_list(crypto:sha(AccountPass))]).

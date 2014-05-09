@@ -199,11 +199,11 @@ response(KeyVals, User, Passwd, Nonce, AuthzId, A2Prefix) ->
     A1 = case AuthzId of
 	     <<>> ->
 		 list_to_binary(
-		   [crypto:md5([User, <<":">>, Realm, <<":">>, Passwd]),
+		   [crypto:hash(md5, [User, <<":">>, Realm, <<":">>, Passwd]),
 		     <<":">>, Nonce, <<":">>, CNonce]);
 	     _ ->
 		 list_to_binary(
-		   [crypto:md5([User, <<":">>, Realm, <<":">>, Passwd]),
+		   [crypto:hash(md5, [User, <<":">>, Realm, <<":">>, Passwd]),
 		     <<":">>, Nonce, <<":">>, CNonce, <<":">>, AuthzId])
 	 end,
     A2 = case QOP of
@@ -213,10 +213,10 @@ response(KeyVals, User, Passwd, Nonce, AuthzId, A2Prefix) ->
 		 [A2Prefix, <<":">>, DigestURI,
 		     <<":00000000000000000000000000000000">>]
 	 end,
-    T = [hex(crypto:md5(A1)), <<":">>, Nonce, <<":">>,
+    T = [hex(crypto:hash(md5, A1)), <<":">>, Nonce, <<":">>,
 	NC, <<":">>, CNonce, <<":">>, QOP, <<":">>,
-	hex(crypto:md5(A2))],
-    hex(crypto:md5(T)).
+	hex(crypto:hash(md5, A2))],
+    hex(crypto:hash(md5, T)).
 
 
 

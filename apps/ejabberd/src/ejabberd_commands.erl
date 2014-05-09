@@ -391,7 +391,7 @@ check_auth({User, Server, Password}) ->
 
 get_md5(AccountPass) ->
     lists:flatten([io_lib:format("~.16B", [X])
-		   || X <- binary_to_list(crypto:md5(AccountPass))]).
+		   || X <- binary_to_list(crypto:hash(md5, AccountPass))]).
 
 check_access(all, _) ->
     true;
