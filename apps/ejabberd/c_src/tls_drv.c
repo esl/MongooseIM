@@ -382,7 +382,7 @@ static ErlDrvSSizeT tls_drv_control(ErlDrvData handle,
 	    res = SSL_CTX_check_private_key(ctx);
 	    die_unless(res > 0, "SSL_CTX_check_private_key failed");
 
-	    SSL_CTX_set_options(ctx, SSL_OP_NO_SSLv2|SSL_OP_NO_TICKET|SSL_OP_SINGLE_ECDH_USE);
+	    SSL_CTX_set_options(ctx, SSL_OP_NO_SSLv2|SSL_OP_NO_TICKET);
 
 	    if(buflen + 1 == len) //no ciphers param
 	    {
@@ -393,30 +393,28 @@ static ErlDrvSSizeT tls_drv_control(ErlDrvData handle,
 	    }
 
 	    SSL_CTX_set_cipher_list(ctx, ciphers);
-	    if(command == SET_CERTIFICATE_FILE_ACCEPT && SSLeay() > 0x1000005fl)
+	    if(SSLeay() > 0x1000005fl)
 	    {
 	        EC_KEY *ecdh = EC_KEY_new_by_curve_name(NID_X9_62_prime256v1);
+	        SSL_CTX_set_options(ctx, SSL_OP_SINGLE_ECDH_USE);
 	        SSL_CTX_set_tmp_ecdh(ssl_ctx, ecdh);
 	        EC_KEY_free(ecdh);
 	    }
 
-	    if(command == SET_CERTIFICATE_FILE_ACCEPT)
+	    DH *dh;
+	    dh = DH_new();
+
+	    if(dh)
 	    {
-	        DH *dh;
-	        dh = DH_new();
+	        dh->p = BN_bin2bn(dh1024_p, sizeof(dh1024_p), NULL);
+	        dh->g = BN_bin2bn(dh1024_g, sizeof(dh1024_g), NULL);
 
-	        if(dh)
+	        if (dh->p && dh->g )
 	        {
-	            dh->p = BN_bin2bn(dh1024_p, sizeof(dh1024_p), NULL);
-	            dh->g = BN_bin2bn(dh1024_g, sizeof(dh1024_g), NULL);
-
-	            if (dh->p && dh->g )
-	            {
-	                SSL_CTX_set_options(ctx, SSL_OP_SINGLE_DH_USE);
-	                SSL_CTX_set_tmp_dh(ctx, dh);
-	            }
-	            DH_free(dh);
+	            SSL_CTX_set_options(ctx, SSL_OP_SINGLE_DH_USE);
+	            SSL_CTX_set_tmp_dh(ctx, dh);
 	        }
+	        DH_free(dh);
 	    }
 
 	    SSL_CTX_set_session_cache_mode(ctx, SSL_SESS_CACHE_OFF);
