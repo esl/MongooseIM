@@ -295,7 +295,7 @@ call_command([CmdString | Args], Auth, AccessCommands) ->
 		    Result = ejabberd_commands:execute_command(AccessCommands, Auth, Command,
 							       ArgsFormatted),
 		    format_result(Result, ResultFormat);
-		{'EXIT', {function_clause,[{lists,zip,[A1, A2]} | _]}} ->
+		{'EXIT', {function_clause,[{lists,zip,[A1, A2], _FileInfo} | _]}} ->
 		    {NumCompa, TextCompa} =
 			case {length(A1), length(A2)} of
 			    {L1, L2} when L1 < L2 -> {L2-L1, "less argument"};
@@ -794,11 +794,11 @@ print_usage_command(Cmd, C, MaxC, ShCode) ->
     ?PRINT(["\n", NameFmt, "\n", ArgsFmt, "\n", ReturnsFmt, "\n\n", XmlrpcFmt, TagsFmt, "\n\n", DescFmt, "\n\n", LongDescFmt, NoteEjabberdctl], []).
 
 format_usage_ctype(Type, _Indentation)
-  when (Type==atom) or (Type==integer) or (Type==string) or (Type==rescode) or (Type==restuple)->
+  when (Type==atom) or (Type==integer) or (Type==string) or (Type==rescode) or (Type==restuple) or (Type==binary)->
     io_lib:format("~p", [Type]);
 
 format_usage_ctype({Name, Type}, _Indentation)
-  when (Type==atom) or (Type==integer) or (Type==string) or (Type==rescode) or (Type==restuple)->
+  when (Type==atom) or (Type==integer) or (Type==string) or (Type==rescode) or (Type==restuple) or (Type==binary)->
     io_lib:format("~p::~p", [Name, Type]);
 
 format_usage_ctype({Name, {list, ElementDef}}, Indentation) ->
