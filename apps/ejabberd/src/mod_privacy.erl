@@ -655,34 +655,34 @@ get_user_list(_, User, Server) ->
 	    #userlist{}
     end.
 
-item_to_xml(Item) ->
-    #xmlel{
-        name = <<"item">>,
-        attrs = item_to_xml_attrs(Item),
-        children = item_to_xml_children(Item)}.
-
-item_to_xml_attrs(Item=#listitem{type=none}) ->
-    item_to_xml_attrs1(Item);
-item_to_xml_attrs(Item=#listitem{type=Type, value=Value}) ->
-    [{<<"type">>, type_to_binary(Type)},
-     {<<"value">>, value_to_binary(Type, Value)}
-     | item_to_xml_attrs1(Item)].
-
-item_to_xml_attrs1(#listitem{action=Action, order=Order}) ->
-    [{<<"action">>, action_to_binary(Action)},
-     {<<"order">>, order_to_binary(Order)}].
-
-item_to_xml_children(#listitem{match_all=true}) ->
-    [];
-item_to_xml_children(#listitem{match_all=false,
-        match_iq=MatchIQ,
-        match_message=MatchMessage,
-        match_presence_in=MatchPresenceIn,
-        match_presence_out=MatchPresenceOut}) ->
-       [#xmlel{name = <<"message">>}        || MatchMessage]
-    ++ [#xmlel{name = <<"presence-in">>}    || MatchPresenceIn]
-    ++ [#xmlel{name = <<"presence-out">>}   || MatchPresenceOut]
-    ++ [#xmlel{name = <<"iq">>}             || MatchIQ].
+%% item_to_xml(Item) ->
+%%     #xmlel{
+%%         name = <<"item">>,
+%%         attrs = item_to_xml_attrs(Item),
+%%         children = item_to_xml_children(Item)}.
+%%
+%% item_to_xml_attrs(Item=#listitem{type=none}) ->
+%%     item_to_xml_attrs1(Item);
+%% item_to_xml_attrs(Item=#listitem{type=Type, value=Value}) ->
+%%     [{<<"type">>, type_to_binary(Type)},
+%%      {<<"value">>, value_to_binary(Type, Value)}
+%%      | item_to_xml_attrs1(Item)].
+%%
+%% item_to_xml_attrs1(#listitem{action=Action, order=Order}) ->
+%%     [{<<"action">>, action_to_binary(Action)},
+%%      {<<"order">>, order_to_binary(Order)}].
+%%
+%% item_to_xml_children(#listitem{match_all=true}) ->
+%%     [];
+%% item_to_xml_children(#listitem{match_all=false,
+%%         match_iq=MatchIQ,
+%%         match_message=MatchMessage,
+%%         match_presence_in=MatchPresenceIn,
+%%         match_presence_out=MatchPresenceOut}) ->
+%%        [#xmlel{name = <<"message">>}        || MatchMessage]
+%%     ++ [#xmlel{name = <<"presence-in">>}    || MatchPresenceIn]
+%%     ++ [#xmlel{name = <<"presence-out">>}   || MatchPresenceOut]
+%%     ++ [#xmlel{name = <<"iq">>}             || MatchIQ].
 
 %% From is the sender, To is the destination.
 %% If Dir = out, User@Server is the sender account (From).

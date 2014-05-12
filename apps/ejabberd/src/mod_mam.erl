@@ -630,7 +630,7 @@ remove_archive(Host, ArcID, ArcJID=#jid{}) ->
     ok.
 
 
--spec lookup_messages(Result :: any(), Host :: ejabberd:server(),
+-spec lookup_messages(Host :: ejabberd:server(),
         ArchiveID :: mod_mam:archive_id(), ArchiveJID :: ejabberd:jid(),
         RSM :: jlib:rsm_in() | undefined, Borders :: mod_mam:borders() | undefined,
         Start :: mod_mam:unix_timestamp() | undefined,
