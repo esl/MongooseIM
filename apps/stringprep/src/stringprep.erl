@@ -65,7 +65,9 @@ init([]) ->
               end,
     case erl_ddll:load_driver(DrvPath, stringprep_drv) of
         ok -> ok;
-        {error, already_loaded} -> ok
+        {error, already_loaded} -> ok;
+        {error, OtherError} ->
+            erlang:error({cannot_load_stringprep_drv, erl_ddll:format_error(OtherError)})
     end,
     Port = open_port({spawn, stringprep_drv}, [binary]),
     register(?STRINGPREP_PORT, Port),

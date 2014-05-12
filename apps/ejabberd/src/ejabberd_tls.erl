@@ -67,7 +67,9 @@ start() ->
     case erl_ddll:load_driver(ejabberd:get_so_path(), tls_drv) of
 	ok -> ok;
 	{error, permanent} -> ok;
-	{error, already_loaded} -> ok
+	{error, already_loaded} -> ok;
+	{error, OtherError} ->
+	    erlang:error({cannot_load_tls_drv, erl_ddll:format_error(OtherError)})
     end.
 
 
