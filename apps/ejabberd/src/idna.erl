@@ -30,73 +30,81 @@
 %%-compile(export_all).
 -export([domain_utf8_to_ascii/1]).
 
-%% TODO: Ugly, need to provide separate functions
+%% @doc TODO: Ugly, need to provide separate functions
 %% TODO: for binaries or convert whole module
+-spec domain_utf8_to_ascii(binary() | string()) -> string().
 domain_utf8_to_ascii(Domain) when is_binary(Domain) ->
     list_to_binary(domain_utf8_to_ascii(binary_to_list(Domain)));
 domain_utf8_to_ascii(Domain) ->
     domain_ucs2_to_ascii(utf8_to_ucs2(Domain)).
 
 
+-spec utf8_to_ucs2(string()) -> string().
 utf8_to_ucs2(S) ->
     utf8_to_ucs2(S, "").
 
+
+-spec utf8_to_ucs2(string(), string()) -> string().
 utf8_to_ucs2([], R) ->
     lists:reverse(R);
 utf8_to_ucs2([C | S], R) when C < 16#80 ->
     utf8_to_ucs2(S, [C | R]);
 utf8_to_ucs2([C1, C2 | S], R) when C1 < 16#E0 ->
     utf8_to_ucs2(S, [((C1 band 16#1F) bsl 6) bor
-		     (C2 band 16#3F) | R]);
+                     (C2 band 16#3F) | R]);
 utf8_to_ucs2([C1, C2, C3 | S], R) when C1 < 16#F0 ->
     utf8_to_ucs2(S, [((C1 band 16#0F) bsl 12) bor
-		     ((C2 band 16#3F) bsl 6) bor
-		     (C3 band 16#3F) | R]).
+                     ((C2 band 16#3F) bsl 6) bor
+                     (C3 band 16#3F) | R]).
 
 
+-spec domain_ucs2_to_ascii(string()) -> string() | false.
 domain_ucs2_to_ascii(Domain) ->
     case catch domain_ucs2_to_ascii1(Domain) of
-	{'EXIT', _Reason} ->
-	    false;
-	Res ->
-	    Res
+        {'EXIT', _Reason} ->
+            false;
+        Res ->
+            Res
     end.
 
+
+-spec domain_ucs2_to_ascii1(string()) -> string().
 domain_ucs2_to_ascii1(Domain) ->
     Parts = string:tokens(Domain, [16#002E, 16#3002, 16#FF0E, 16#FF61]),
     ASCIIParts = lists:map(fun(P) ->
-				   to_ascii(P)
-			   end, Parts),
+                                   to_ascii(P)
+                           end, Parts),
     string:strip(lists:flatmap(fun(P) -> [$. | P] end, ASCIIParts),
-		 left, $.).
+                 left, $.).
 
-%% Domain names are already nameprep'ed in ejabberd, so we skiping this step
+%% @doc Domain names are already nameprep'ed in ejabberd, so we skiping this step
+-spec to_ascii(nonempty_string()) -> nonempty_string().
 to_ascii(Name) ->
     false = lists:any(
-	      fun(C) when
-		 (    0 =< C) and (C =< 16#2C) or
-		 (16#2E =< C) and (C =< 16#2F) or
-		 (16#3A =< C) and (C =< 16#40) or
-		 (16#5B =< C) and (C =< 16#60) or
-		 (16#7B =< C) and (C =< 16#7F) ->
-		      true;
-		 (_) ->
-		      false
-	      end, Name),
+              fun(C) when
+                 (    0 =< C) and (C =< 16#2C) or
+                 (16#2E =< C) and (C =< 16#2F) or
+                 (16#3A =< C) and (C =< 16#40) or
+                 (16#5B =< C) and (C =< 16#60) or
+                 (16#7B =< C) and (C =< 16#7F) ->
+                      true;
+                 (_) ->
+                      false
+              end, Name),
     case Name of
-	[H | _] when H /= $- ->
-	    true = lists:last(Name) /= $-
+        [H | _] when H /= $- ->
+            true = lists:last(Name) /= $-
     end,
     ASCIIName = case lists:any(fun(C) -> C > 16#7F end, Name) of
-		    true ->
-			true = case Name of
-				   "xn--" ++ _ -> false;
-				   _ -> true
-			       end,
-			"xn--" ++ punycode_encode(Name);
-		    false ->
-			Name
-		end,
+                    true ->
+                        true = case Name of
+                                   "xn--" ++ _ -> false;
+                                   _ -> true
+                               end,
+                        "xn--" ++ punycode_encode(Name);
+                    false ->
+                        Name
+                end,
     L = length(ASCIIName),
     true = (1 =< L) and (L =< 63),
     ASCIIName.
@@ -112,6 +120,8 @@ to_ascii(Name) ->
 -define(INITIAL_BIAS, 72).
 -define(INITIAL_N,    128).
 
+
+-spec punycode_encode(nonempty_string()) -> string().
 punycode_encode(Input) ->
     N = ?INITIAL_N,
     Delta = 0,
@@ -122,78 +132,87 @@ punycode_encode(Input) ->
     B = length(Basic),
     SNonBasic = lists:usort(NonBasic),
     Output1 = if
-		  B > 0 -> Basic ++ "-";
-		  true -> ""
-	      end,
+                  B > 0 -> Basic ++ "-";
+                  true -> ""
+              end,
     Output2 = punycode_encode1(Input, SNonBasic, B, B, L, N, Delta, Bias, ""),
     Output1 ++ Output2.
 
 
+-spec punycode_encode1(Input :: nonempty_string(), SNonBasic :: string(),
+    B :: non_neg_integer(), H :: any(), L :: non_neg_integer(), N :: number(),
+    Delta :: number(), Bias :: any(), Out :: any()) -> string().
 punycode_encode1(Input, [M | SNonBasic], B, H, L, N, Delta, Bias, Out)
   when H < L ->
     Delta1 = Delta + (M - N) * (H + 1),
-						% let n = m
+                                                % let n = m
     {NewDelta, NewBias, NewH, NewOut} =
-	lists:foldl(
-	  fun(C, {ADelta, ABias, AH, AOut}) ->
-		  if
-		      C < M ->
-			  {ADelta + 1, ABias, AH, AOut};
-		      C == M ->
-			  NewOut = punycode_encode_delta(ADelta, ABias, AOut),
-			  NewBias = adapt(ADelta, H + 1, H == B),
-			  {0, NewBias, AH + 1, NewOut};
-		      true ->
-			  {ADelta, ABias, AH, AOut}
-		  end
-	  end, {Delta1, Bias, H, Out}, Input),
+        lists:foldl(
+          fun(C, {ADelta, ABias, AH, AOut}) ->
+                  if
+                      C < M ->
+                          {ADelta + 1, ABias, AH, AOut};
+                      C == M ->
+                          NewOut = punycode_encode_delta(ADelta, ABias, AOut),
+                          NewBias = adapt(ADelta, H + 1, H == B),
+                          {0, NewBias, AH + 1, NewOut};
+                      true ->
+                          {ADelta, ABias, AH, AOut}
+                  end
+          end, {Delta1, Bias, H, Out}, Input),
     punycode_encode1(
       Input, SNonBasic, B, NewH, L, M + 1, NewDelta + 1, NewBias, NewOut);
-
 punycode_encode1(_Input, _SNonBasic, _B, _H, _L, _N, _Delta, _Bias, Out) ->
     lists:reverse(Out).
 
 
+-spec punycode_encode_delta(Delta :: number(),_,_) -> nonempty_string().
 punycode_encode_delta(Delta, Bias, Out) ->
     punycode_encode_delta(Delta, Bias, Out, ?BASE).
 
+
+-spec punycode_encode_delta(number(),_,_,pos_integer()) -> nonempty_string().
 punycode_encode_delta(Delta, Bias, Out, K) ->
     T = if
-	    K =< Bias         -> ?TMIN;
-	    K >= Bias + ?TMAX -> ?TMAX;
-	    true              -> K - Bias
-	end,
+            K =< Bias         -> ?TMIN;
+            K >= Bias + ?TMAX -> ?TMAX;
+            true              -> K - Bias
+        end,
     if
-	Delta < T ->
-	    [codepoint(Delta) | Out];
-	true ->
-	    C = T + ((Delta - T) rem (?BASE - T)),
-	    punycode_encode_delta((Delta - T) div (?BASE - T), Bias,
-				  [codepoint(C) | Out], K + ?BASE)
+        Delta < T ->
+            [codepoint(Delta) | Out];
+        true ->
+            C = T + ((Delta - T) rem (?BASE - T)),
+            punycode_encode_delta((Delta - T) div (?BASE - T), Bias,
+                                  [codepoint(C) | Out], K + ?BASE)
     end.
 
 
+-spec adapt(integer(),integer(),boolean()) -> integer().
 adapt(Delta, NumPoints, FirstTime) ->
     Delta1 = if
-		 FirstTime -> Delta div ?DAMP;
-		 true -> Delta div 2
-	     end,
+                 FirstTime -> Delta div ?DAMP;
+                 true -> Delta div 2
+             end,
     Delta2 = Delta1 + (Delta1 div NumPoints),
     adapt1(Delta2, 0).
 
+
+-spec adapt1(integer(),non_neg_integer()) -> integer().
 adapt1(Delta, K) ->
     if
-	Delta > ((?BASE - ?TMIN) * ?TMAX) div 2 ->
-	    adapt1(Delta div (?BASE - ?TMIN), K + ?BASE);
-	true ->
-	    K + (((?BASE - ?TMIN + 1) * Delta) div (Delta + ?SKEW))
+        Delta > ((?BASE - ?TMIN) * ?TMAX) div 2 ->
+            adapt1(Delta div (?BASE - ?TMIN), K + ?BASE);
+        true ->
+            K + (((?BASE - ?TMIN + 1) * Delta) div (Delta + ?SKEW))
     end.
 
 
+-spec codepoint(char()) -> char().
 codepoint(C) ->
     if
-	(0 =< C) and (C =< 25) ->
-	    C + 97;
-	(26 =< C) and (C =< 35) ->
-	    C + 22
+        (0 =< C) and (C =< 25) ->
+            C + 97;
+        (26 =< C) and (C =< 35) ->
+            C + 22
     end.

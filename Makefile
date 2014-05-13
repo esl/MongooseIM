@@ -70,24 +70,28 @@ $(EJD_PRIV_MIB)/EJABBERD-MIB.bin: $(EJD_MIB)/EJABBERD-MIB.mib $(EJD_MIB)/EJABBER
 relclean:
 	rm -rf rel/mongooseim
 
-COMBO_PLT = $(HOME)/.esl_ejabberd_combo_dialyzer_plt
-PLT_LIBS  = $(wildcard rel/mongooseim/lib/*/ebin)
+COMBO_PLT = .mongooseim_combo_dialyzer.plt
+DEPS_LIBS     = $(wildcard deps/*/ebin/*.beam)
+MONGOOSE_LIBS = $(wildcard apps/ejabberd/ebin/*.beam)
 
+OTP_APPS      = compiler crypto erts kernel stdlib mnesia ssl ssh
 DIALYZER_APPS = ejabberd
 DIALYZER_APPS_PATHS = $(addsuffix /ebin, $(addprefix apps/, $(DIALYZER_APPS)))
 
-check_plt: rel
-	dialyzer --check_plt --plt $(COMBO_PLT) $(PLT_LIBS)
+check_plt:
+	dialyzer --check_plt --plt $(COMBO_PLT) $(MONGOOSE_LIBS)
 
-build_plt: rel
-	dialyzer --build_plt --output_plt $(COMBO_PLT) $(PLT_LIBS)
+build_plt:
+	dialyzer --build_plt --apps $(OTP_APPS) \
+		--output_plt $(COMBO_PLT) $(DEPS_LIBS) $(MONGOOSE_LIBS)
 
 dialyzer: compile
 	dialyzer -Wno_return --fullpath --plt $(COMBO_PLT) $(DIALYZER_APPS_PATHS) | \
-	    fgrep -v -f ./dialyzer.ignore-warnings
+	    fgrep -v -f ./dialyzer.ignore-warnings | tee dialyzer.log
 
 cleanplt:
 	rm $(COMBO_PLT)
+
 
 test_deps: rebar
 	./rebar -C rebar.tests.config get-deps

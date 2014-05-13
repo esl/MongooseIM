@@ -28,15 +28,19 @@ tbl_name() ->
 %% API
 %%====================================================================
 
+-spec start_link() -> 'ignore' | {'error',_} | {'ok',pid()}.
 start_link() ->
     gen_server:start_link({local, srv_name()}, ?MODULE, [], []).
-    
+
 
 %% @doc Handle custom IQ.
 %% Called from mod_muc_room.
+-spec process_iq(ejabberd:server(), ejabberd:jid(), ejabberd:jid(),
+        ejabberd:iq()) -> error | ignore | any().
 process_iq(Host, From, RoomJID, IQ = #iq{xmlns = XMLNS}) ->
     case ets:lookup(tbl_name(), {XMLNS, Host}) of
         [{_, Module, Function}] ->
+            %% TODO: Introduce some stricter type checking here
             Module:Function(From, RoomJID, IQ);
         [{_, Module, Function, Opts}] ->
             gen_iq_handler:handle(Host, Module, Function, Opts, From,
@@ -46,14 +50,20 @@ process_iq(Host, From, RoomJID, IQ = #iq{xmlns = XMLNS}) ->
     end.
 
 
+-spec register_iq_handler(ejabberd:server(), binary(), module(), atom()) -> 'ok'.
 register_iq_handler(Host, XMLNS, Module, Fun) ->
     gen_server:cast(srv_name(),
                     {register_iq_handler, Host, XMLNS, Module, Fun}).
 
+
+-spec register_iq_handler(ejabberd:server(), binary(), module(), atom(), any())
+            -> 'ok'.
 register_iq_handler(Host, XMLNS, Module, Fun, Opts) ->
     gen_server:cast(srv_name(),
                     {register_iq_handler, Host, XMLNS, Module, Fun, Opts}).
 
+
+-spec unregister_iq_handler(ejabberd:server(), binary()) -> 'ok'.
 unregister_iq_handler(Host, XMLNS) ->
     gen_server:cast(srv_name(),
                     {unregister_iq_handler, Host, XMLNS}).

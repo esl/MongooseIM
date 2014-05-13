@@ -20,6 +20,7 @@
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
 
+-spec start(ejabberd:server(),_) -> 'ok'.
 start(Host, Opts) ->
     case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
         true ->
@@ -34,6 +35,8 @@ start(Host, Opts) ->
             ok
     end.
 
+
+-spec stop(ejabberd:server()) -> 'ok'.
 stop(Host) ->
     case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
         true ->
@@ -52,10 +55,13 @@ stop(Host) ->
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam
 
+-spec start_pm(ejabberd:server(),_) -> 'ok'.
 start_pm(Host, _Opts) ->
     ejabberd_hooks:add(mam_archive_id, Host, ?MODULE, archive_id, 50),
     ok.
 
+
+-spec stop_pm(ejabberd:server()) -> 'ok'.
 stop_pm(Host) ->
     ejabberd_hooks:delete(mam_archive_id, Host, ?MODULE, archive_id, 50),
     ok.
@@ -64,10 +70,13 @@ stop_pm(Host) ->
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam_muc
 
+-spec start_muc(ejabberd:server(),_) -> 'ok'.
 start_muc(Host, _Opts) ->
     ejabberd_hooks:add(mam_muc_archive_id, Host, ?MODULE, archive_id, 50),
     ok.
 
+
+-spec stop_muc(ejabberd:server()) -> 'ok'.
 stop_muc(Host) ->
     ejabberd_hooks:delete(mam_muc_archive_id, Host, ?MODULE, archive_id, 50),
     ok.
@@ -77,11 +86,16 @@ stop_muc(Host) ->
 %% API
 %%====================================================================
 
+-spec archive_id(undefined | mod_mam:archive_id(), ejabberd:server(),
+                 ejabberd:jid()) -> mod_mam:archive_id().
 archive_id(undefined, Host, _ArcJID=#jid{luser = UserName}) ->
     query_archive_id(Host, UserName);
 archive_id(ArcID, _Host, _ArcJID) ->
     ArcID.
 
+
+-spec remove_archive(Host :: ejabberd:server(),
+    ArchiveID :: mod_mam:archive_id(), ArchiveJID :: ejabberd:jid()) -> 'ok'.
 remove_archive(Host, _ArcID, _ArcJID=#jid{luser = UserName}) ->
     SUserName = ejabberd_odbc:escape(UserName),
     {updated, _} =
@@ -95,6 +109,7 @@ remove_archive(Host, _ArcID, _ArcJID=#jid{luser = UserName}) ->
 %% Internal functions
 %%====================================================================
 
+-spec query_archive_id(ejabberd:server(), ejabberd:user()) -> integer().
 query_archive_id(Host, UserName) ->
     SUserName = ejabberd_odbc:escape(UserName),
     Result =
@@ -113,7 +128,9 @@ query_archive_id(Host, UserName) ->
             create_user_archive(Host, UserName),
             query_archive_id(Host, UserName)
     end.
-    
+
+
+-spec create_user_archive(ejabberd:server(), ejabberd:user()) -> 'ok'.
 create_user_archive(Host, UserName) ->
     SUserName = ejabberd_odbc:escape(UserName),
     {updated, 1} =

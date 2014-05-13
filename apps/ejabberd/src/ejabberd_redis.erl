@@ -26,10 +26,16 @@ start_link(Opts) ->
                              [?POOL_NAME, PoolSize, ChildMods, ChildMFA]},
                             transient, 2000, supervisor, [cuesport | ChildMods]}).
 
--spec cmd(iolist()) -> iolist() | integer().
+-spec cmd(iolist()) -> binary()
+                | [binary() | [binary() | integer()] | integer() | {'error',_}]
+                | integer()
+                | {'error',_}.
 cmd(Cmd) ->
     redo:cmd(cuesport:get_worker(?POOL_NAME), Cmd).
 
--spec cmd(iolist(), list()) -> iolist() | integer().
-cmd(Cmd, Opts) ->
-    redo:cmd(cuesport:get_worker(?POOL_NAME), Cmd, Opts).
+-spec cmd(iolist(), integer()) -> binary()
+              | [binary() | [binary() | integer()] | integer() | {'error',_}]
+              | integer()
+              | {'error',_}.
+cmd(Cmd, Timeout) ->
+    redo:cmd(cuesport:get_worker(?POOL_NAME), Cmd, Timeout).

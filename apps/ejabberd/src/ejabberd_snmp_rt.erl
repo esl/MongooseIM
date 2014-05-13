@@ -45,12 +45,14 @@
 -record(state, {timer_ref_rt,      % ref to timer (ticks for rt counters)
                 timer_ref_w,       % ref to timer (ticks for window counters)
                 computing_num}).   % number of counters in computation
+-type state() :: #state{}.
 
 %%--------------------
 %% Implementation
 %%--------------------
 
--spec start_link(true | false, integer(), integer()) -> {ok, pid()} | {error, term()}.
+-spec start_link(true | false, integer(), integer()) ->
+  {'error',_} | {'ok','undefined' | pid()} | {'ok','undefined' | pid(),_}.
 start_link(RtEnabled, RtInterval, WInterval) ->
     NewRtInterval = case {RtEnabled, RtInterval} of
                       {true, I} when I < ?MIN_INTERVAL ->
@@ -79,9 +81,11 @@ start_link(RtEnabled, RtInterval, WInterval) ->
             Ok
     end.
 
--spec start_link2(integer(), integer()) -> {ok, pid()} | {error, term()}.
+
+-spec start_link2(integer(), integer()) -> 'ignore' | {'error',_} | {'ok',pid()}.
 start_link2(RtInterval, WInterval) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [RtInterval, WInterval], []).
+
 
 -spec stop() -> term().
 stop() ->
@@ -91,6 +95,7 @@ stop() ->
 %%----------------------
 %% Callbacks
 %%----------------------
+-spec init(['undefined' | non_neg_integer(),...]) -> {'ok',state()}.
 init([RtInterval, WInterval]) ->
     TickRefRt = case RtInterval of
                     undefined ->
@@ -109,19 +114,16 @@ init([RtInterval, WInterval]) ->
 handle_call({change_interval_rt, _NewInterval}, _From,
             #state{timer_ref_rt = none} = State) ->
     {reply, {error, disabled}, State};
-
 handle_call({change_interval_rt, NewInterval}, _From,
             #state{timer_ref_rt = TickRef} = State) ->
     timer:cancel(TickRef),
     {ok, NewTickRef} = start_timer(NewInterval, tick_rt),
     {reply, ok, State#state{timer_ref_rt = NewTickRef}};
-
 handle_call({change_interval_w, NewInterval}, _From,
             #state{timer_ref_w = TickRef} = State) ->
     timer:cancel(TickRef),
     {ok, NewTickRef} = start_timer(NewInterval, tick_w),
     {reply, ok, State#state{timer_ref_w = NewTickRef}};
-
 handle_call(Request, _From, State) ->
     ?WARNING_MSG("~p received unknown call ~p ", [?MODULE, Request]),
     {noreply, State}.
@@ -133,13 +135,11 @@ handle_cast({compute, globalSessionCount},
     Count = ejabberd_sm:get_total_sessions_number(),
     ejabberd_snmp_core:set_counter(globalSessionCount, Count),
     {noreply, State#state{computing_num = Num - 1}};
-
 handle_cast({compute, globalUniqueSessionCount},
             #state{computing_num = Num} = State) ->
     Count = ejabberd_sm:get_unique_sessions_number(),
     ejabberd_snmp_core:set_counter(globalUniqueSessionCount, Count),
     {noreply, State#state{computing_num = Num - 1}};
-
 handle_cast({compute, modPrivacyListLength},
             #state{computing_num = Num} = State) ->
     case ?BACKEND:privacy_list_length() of
@@ -149,7 +149,6 @@ handle_cast({compute, modPrivacyListLength},
         Value -> ejabberd_snmp_core:set_counter(modPrivacyListLength, Value)
     end,
     {noreply, State#state{computing_num = Num - 1}};
-
 handle_cast({compute, modRosterSize},
             #state{computing_num = Num} = State) ->
     case ?BACKEND:roster_size() of
@@ -159,7 +158,6 @@ handle_cast({compute, modRosterSize},
         Value -> ejabberd_snmp_core:set_counter(modRosterSize, Value)
     end,
     {noreply, State#state{computing_num = Num - 1}};
-
 handle_cast({compute, modRosterGroups},
             #state{computing_num = Num} = State) ->
     case ?BACKEND:roster_groups() of
@@ -169,7 +167,6 @@ handle_cast({compute, modRosterGroups},
         Value -> ejabberd_snmp_core:set_counter(modRosterGroups, Value)
     end,
     {noreply, State#state{computing_num = Num - 1}};
-
 handle_cast({compute, modRegisterUserCount},
             #state{computing_num = Num} = State) ->
     case ?BACKEND:registered_count() of
@@ -179,10 +176,7 @@ handle_cast({compute, modRegisterUserCount},
         Value -> ejabberd_snmp_core:set_counter(modRegisterUserCount, Value)
     end,
     {noreply, State#state{computing_num = Num - 1}};
-
-
 %% Similar for all rt counters
-
 handle_cast(Request, State) ->
     ?WARNING_MSG("~p received unknown cast ~p ", [?MODULE, Request]),
     {noreply, State}.
@@ -195,14 +189,11 @@ handle_info(tick_rt, #state{computing_num = 0} = State) ->
                               Res + 1
                       end, 0, ?COUNTERS),
     {noreply, State#state{computing_num = Num}};
-
 handle_info(tick_rt, State) ->
     {noreply, State};
-
 handle_info(tick_w, State) ->
     ejabberd_snmp_core:window_change(),
     {noreply, State};
-
 handle_info(Info, State) ->
     ?WARNING_MSG("~p received unknown info ~p (~p)", [?MODULE, Info, State]),
     {noreply, State}.
@@ -220,5 +211,7 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------
 %% Helpers
 %%--------------------
+-spec start_timer(Interval :: non_neg_integer(), Type :: 'tick_rt' | 'tick_w'
+                 ) -> {'error',_} | {'ok',timer:tref()}.
 start_timer(Interval, Type) ->
     timer:send_interval(Interval*1000, self(), Type).
