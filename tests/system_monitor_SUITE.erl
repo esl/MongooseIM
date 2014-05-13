@@ -87,9 +87,10 @@ test_notification_story(Alice) ->
     Stanza = escalus_client:wait_for_stanza(Alice),
     escalus:assert(is_chat_message, Stanza),
     Msg = exml_query:path(Stanza, [{element, <<"body">>}, cdata]),
-    ExpectedMsg = io_lib:format("(ejabberd@localhost) The process ~s"
+    NodeName = erlang:atom_to_list(ct:get_config(ejabberd_node)),
+    ExpectedMsg = io_lib:format("(~s) The process ~s"
                                 " is consuming too much memory:\ndummy_info",
-                                [PidStr]),
+                                [NodeName, PidStr]),
     [{0, _}] = binary:matches(Msg, iolist_to_binary(ExpectedMsg)),
     true.
 
@@ -108,7 +109,8 @@ test_kill_story(Alice) ->
     {status, _} = rpc(erlang, process_info, [Pid, status]),
 
     % Alice decides to kill the process
-    Cmd = iolist_to_binary(["kill ejabberd@localhost ", PidStr]),
+    NodeName = erlang:atom_to_list(ct:get_config(ejabberd_node)),
+    Cmd = iolist_to_binary(["kill ", NodeName, " ", PidStr]),
     escalus:send(Alice, escalus_stanza:chat_to(?WATCHDOG_JID, Cmd)),
     test_kill_wait_for_ok(Alice, Pid, PidStr).
 
@@ -129,9 +131,10 @@ test_kill_consume_large_heap_message(PidStr, Stanza) ->
     escalus:assert(is_chat_message, Stanza),
     Msg = exml_query:path(Stanza, [{element, <<"body">>}, cdata]),
     ct:log("consume ~p~n",[Stanza]),
-    ExpectedMsg = io_lib:format("(ejabberd@localhost) The process ~s"
+    NodeName = erlang:atom_to_list(ct:get_config(ejabberd_node)),
+    ExpectedMsg = io_lib:format("(~s) The process ~s"
                                 " is consuming too much memory:",
-                                [PidStr]),
+                                [NodeName, PidStr]),
     [{0, _}] = binary:matches(Msg, iolist_to_binary(ExpectedMsg)).
 
 %% Alice - the watchdog admin - changes large_heap threshold
@@ -143,7 +146,8 @@ test_get_set_large_heap(Config) ->
 
 test_get_set_large_heap_story(Config, Alice) ->
     add_watchdog_admin(Alice),
-    GetCmd = "showlh ejabberd@localhost",
+    NodeName = erlang:atom_to_list(ct:get_config(ejabberd_node)),
+    GetCmd = "showlh "++NodeName,
     Stanza1 = escalus:send_and_wait(Alice, escalus_stanza:chat_to(
                                              ?WATCHDOG_JID, GetCmd)),
     escalus:assert(is_stanza_from, [?WATCHDOG_JID], Stanza1),
@@ -151,7 +155,7 @@ test_get_set_large_heap_story(Config, Alice) ->
     escalus:assert(is_chat_message, [fmt("Current large heap: ~p", [LH])],
                    Stanza1),
     NewLH = 200000,
-    SetCmd = fmt("setlh ejabberd@localhost ~p", [NewLH]),
+    SetCmd = fmt("setlh ~s ~p", [NodeName, NewLH]),
     Stanza2 = escalus:send_and_wait(Alice, escalus_stanza:chat_to(
                                              ?WATCHDOG_JID, SetCmd)),
     escalus:assert(is_stanza_from, [?WATCHDOG_JID], Stanza2),

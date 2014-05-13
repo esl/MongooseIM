@@ -45,9 +45,15 @@ roster_tests() -> [get_roster,
                    add_contact,
                    roster_push].
 
-subscription_tests() -> [subscribe,
-                         unsubscribe,
-                         decline_subscription].
+%%  WARNING: Side-effects & test interference
+%%  subscribe affects subsequent tests
+%%  by sending a directed presence before the roster push
+%%  in add_sample_contact/2
+%%  TODO: investigate, fix.
+
+subscription_tests() -> [unsubscribe,
+                         decline_subscription,
+                         subscribe].
 %%--------------------------------------------------------------------
 %% Init & teardown
 %%--------------------------------------------------------------------
@@ -210,13 +216,12 @@ decline_subscription(Config) ->
 unsubscribe(Config) ->
     {value, Subscriptions} = get_counter_value(modPresenceUnsubscriptions),
     escalus:story(Config, [1, 1], fun(Alice,Bob) ->
-
         %% add contact
         add_sample_contact(Alice, Bob),
-
         %% subscribe
         escalus_client:send(Alice, escalus_stanza:presence_direct(bob, <<"subscribe">>)),
         PushReq = escalus_client:wait_for_stanza(Alice),
+
         escalus_client:send(Alice, escalus_stanza:iq_result(PushReq)),
 
         %% Bob receives subscription reqest
@@ -266,12 +271,13 @@ add_sample_contact(Alice, Bob) ->
 add_sample_contact(Alice, Bob, Groups, Name) ->
     escalus_client:send(Alice,
         escalus_stanza:roster_add_contact(Bob, Groups, Name)),
-    Received = escalus_client:wait_for_stanza(Alice),
-    escalus_client:send(Alice, escalus_stanza:iq_result(Received)),
+    RosterPush = escalus_client:wait_for_stanza(Alice),
+    escalus:assert(is_roster_set, RosterPush),
+    escalus_client:send(Alice, escalus_stanza:iq_result(RosterPush)),
     escalus_client:wait_for_stanza(Alice).
 
 
 remove_roster(Config, UserSpec) ->
     [Username, Server, _Pass] = escalus_users:get_usp(Config, UserSpec),
-    rpc:call(ejabberd@localhost, mod_roster_odbc, remove_user, [Username, Server]),
-    rpc:call(ejabberd@localhost, mod_roster, remove_user, [Username, Server]).
+    escalus_ejabberd:rpc(mod_roster_odbc, remove_user, [Username, Server]),
+    escalus_ejabberd:rpc(mod_roster, remove_user, [Username, Server]).

@@ -2,6 +2,7 @@
 -export([ct/0, ct/1,
          ct_quick/0, ct_quick/1,
          ct_cover/0, ct_cover/1,
+         ct_config/1,
          cover_summary/0]).
 
 -define(CT_DIR, filename:join([".", "tests"])).
@@ -18,7 +19,6 @@ tests_to_run(TestSpec) ->
      {spec, TestSpecFile}
     ].
 
-
 ct() ->
     ct([?CT_DEF_SPEC]).
 
@@ -31,6 +31,12 @@ ct_quick() ->
 
 ct_quick([TestSpec]) ->
     run_quick_test(tests_to_run(TestSpec)),
+    init:stop(0).
+
+ct_config([Config]) ->
+    ct_config([?CT_DEF_SPEC, Config]);
+ct_config([TestSpec, Config]) ->
+    run_test(tests_to_run(TestSpec), [Config]),
     init:stop(0).
 
 ct_cover() ->
@@ -53,16 +59,27 @@ save_count(Test, Configs) ->
     file:write_file("/tmp/ct_count", integer_to_list(Repeat*Times)).
 
 run_test(Test) ->
+    run_test(Test, all).
+
+run_test(Test, ConfigList) ->
     {ok, Props} = file:consult(ct_config_file()),
     case proplists:lookup(ejabberd_configs, Props) of
         {ejabberd_configs, Configs} ->
-            Length = length(Configs),
-            Names = [Name || {Name,_} <- Configs],
+            Configs1 = case ConfigList of
+                all ->
+                    Configs;
+                _ ->
+                    lists:filter(fun({Config,_}) ->
+                                lists:member(Config, ConfigList)
+                        end, Configs)
+            end,
+            Length = length(Configs1),
+            Names = [Name || {Name,_} <- Configs1],
             error_logger:info_msg("Starting test of ~p configurations: ~n~p~n",
                                   [Length, Names]),
-            Zip = lists:zip(lists:seq(1, Length), Configs),
+            Zip = lists:zip(lists:seq(1, Length), Configs1),
             [run_config_test(Config, Test, N, Length) || {N, Config} <- Zip],
-            save_count(Test, Configs);
+            save_count(Test, Configs1);
         _ ->
             run_quick_test(Test)
     end.
@@ -96,6 +113,7 @@ run_config_test({Name, Variables}, Test, N, Tests) ->
     error_logger:info_msg("Configuration ~p of ~p: ~p started.~n",
                           [N, Tests, Name]),
     Result = ct:run_test([{label, Name} | Test]),
+    ok = call(Node, file, write_file, [CfgFile, Template]),
     case Result of
         {error, Reason} ->
             throw({ct_error, Reason});

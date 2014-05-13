@@ -26,6 +26,7 @@
 %%--------------------------------------------------------------------
 
 -define(INACTIVITY, 2).
+-define(INVALID_RID_OFFSET, 999).
 
 all() ->
     [{group, essential},
@@ -43,7 +44,8 @@ groups() ->
                                     reply_on_pause,
                                     cant_pause_for_too_long,
                                     pause_request_is_activity,
-                                    reply_in_time]},
+                                    reply_in_time
+                                   ]},
      {acks, [shuffle, {repeat,5}], [server_acks,
                                     force_report,
                                     force_retransmission,
@@ -129,7 +131,6 @@ end_per_testcase(CaseName, Config) ->
 create_and_terminate_session(Config) ->
     NamedSpecs = escalus_config:get_config(escalus_users, Config),
     CarolSpec = proplists:get_value(carol, NamedSpecs),
-
     {ok, Conn} = escalus_bosh:connect(CarolSpec),
 
     %% Assert there are no BOSH sessions on the server.
@@ -138,7 +139,6 @@ create_and_terminate_session(Config) ->
     Domain = escalus_config:get_config(ejabberd_domain, Config),
     Body = escalus_bosh:session_creation_body(get_bosh_rid(Conn), Domain),
     ok = escalus_bosh:send_raw(Conn, Body),
-
     escalus_connection:get_stanza(Conn, session_creation_response),
 
     %% Assert that a BOSH session was created.
@@ -147,10 +147,11 @@ create_and_terminate_session(Config) ->
     Sid = get_bosh_sid(Conn),
     Terminate = escalus_bosh:session_termination_body(get_bosh_rid(Conn), Sid),
     ok = escalus_bosh:send_raw(Conn, Terminate),
-    timer:sleep(100),
 
+    timer:sleep(100),
     %% Assert the session was terminated.
     0 = length(get_bosh_sessions()).
+
 
 interleave_requests(Config) ->
     escalus:story(Config, [{geralt, 1}], fun(Geralt) ->
@@ -176,6 +177,7 @@ interleave_requests(Config) ->
 
     end).
 
+
 simple_chat(Config) ->
     escalus:story(Config, [{carol, 1}, {geralt, 1}], fun(Carol, Geralt) ->
 
@@ -192,8 +194,22 @@ simple_chat(Config) ->
 
 cant_send_invalid_rid(Config) ->
     escalus:story(Config, [{carol, 1}], fun(Carol) ->
+        %% ct:pal("This test will leave invalid rid, session not found"
+        %%        " errors in the server log~n"),
 
-        InvalidRid = get_bosh_rid(Carol) + 1593,
+        %% NOTICE 1
+        %% This test will provoke the server to log the following message:
+        %%
+        %% mod_bosh_socket:handle_stream_event:401
+        %% invalid rid XXX, expected YYY, difference ?INVALID_RID_OFFSET:
+
+        %% NOTICE 2
+        %% Escalus will try to close the session under test when the story
+        %% completes. This will leave the following message in the log:
+        %%
+        %% mod_bosh:forward_body:265 session not found!
+
+        InvalidRid = get_bosh_rid(Carol) + ?INVALID_RID_OFFSET,
         Sid = get_bosh_sid(Carol),
         Empty = escalus_bosh:empty_body(InvalidRid, Sid),
         escalus_bosh:send_raw(Carol#client.conn, Empty),
@@ -216,6 +232,7 @@ disconnect_inactive(Config) ->
         %% Make Carol receive using the last remaining connection.
         escalus_client:send(Geralt,
                             escalus_stanza:chat_to(Carol, <<"Hello!">>)),
+
         escalus:assert(is_chat_message, [<<"Hello!">>],
                        escalus_client:wait_for_stanza(Carol)),
 
@@ -227,7 +244,10 @@ disconnect_inactive(Config) ->
         timer:sleep(2 * timer:seconds(?INACTIVITY)),
 
         %% Assert Carol has been disconnected due to inactivity.
-        0 = length(get_bosh_sessions())
+        0 = length(get_bosh_sessions()),
+
+        %% We don't need to close the session in escalus_bosh:stop/1
+        mark_as_terminated(Carol)
 
         end).
 
@@ -435,7 +455,7 @@ force_retransmission(Config) ->
         escalus:assert(is_chat_message, [<<"1st rep!">>], ChatResponse),
 
         %% Resend msg.
-        escalus_bosh:send_raw(Carol#client.conn, Chat),
+        escalus_bosh:resend_raw(Carol#client.conn, Chat),
 
         %% Recv same reply again.
         ChatResponse = wait_for_stanza(Carol)
@@ -509,6 +529,9 @@ get_bosh_rid(Transport) ->
 
 set_keepalive(#client{} = C, Keepalive) ->
     escalus_bosh:set_keepalive(C#client.conn, Keepalive).
+
+mark_as_terminated(#client{} = C) ->
+    escalus_bosh:mark_as_terminated(C#client.conn).
 
 pause(#client{} = C, Seconds) ->
     escalus_bosh:pause(C#client.conn, Seconds),

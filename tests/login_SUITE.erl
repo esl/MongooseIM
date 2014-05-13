@@ -63,14 +63,14 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(register, Config) ->
-    case escalus_users:is_mod_register_enabled() of
+    case escalus_users:is_mod_register_enabled(Config) of
         true ->
             escalus:create_users(Config);
         _ ->
             {skip, mod_register_disabled}
     end;
 init_per_group(registration_timeout, Config) ->
-    case escalus_users:is_mod_register_enabled() of
+    case escalus_users:is_mod_register_enabled(Config) of
         true ->
             set_registration_timeout(Config);
         _ ->
@@ -108,6 +108,8 @@ init_per_testcase(log_one_digest, Config) ->
     case get_auth_method() of
         external ->
             {skip, "external authentication requires plain password"};
+        ldap ->
+            {skip, "ldap authentication requires plain password"};
         _ ->
             Conf1 = [ {escalus_auth_method, <<"DIGEST-MD5">>} | Config],
             escalus:init_per_testcase(log_one_digest, Conf1)
@@ -190,6 +192,18 @@ messages_story(Config) ->
 
         % Bob gets the message
         escalus_assert:is_chat_message(<<"Hi!">>, escalus_client:wait_for_stanza(Bob))
+
+    end).
+
+message_zlib_limit(Config) ->
+    escalus:story(Config, [{alice, 1}, {hacker, 1}], fun(Alice, Hacker) ->
+        ManySpaces = [ 32 || _N <- lists:seq(1, 10*1024) ],
+
+        escalus:send(Hacker, escalus_stanza:chat_to(Alice, ManySpaces)),
+
+        escalus:assert(is_stream_error, [<<"policy-violation">>, <<"XML stanza is too big">>],
+                       escalus:wait_for_stanza(Hacker)),
+        escalus:assert(is_stream_end, escalus:wait_for_stanza(Hacker))
 
     end).
 

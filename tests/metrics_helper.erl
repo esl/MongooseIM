@@ -1,5 +1,10 @@
 -module(metrics_helper).
 
+%%
+%%  @TODO Please consider refactoring this
+%%  module to use esl/fusco as the http client.
+%%
+
 -include_lib("common_test/include/ct.hrl").
 
 -compile(export_all).
@@ -74,13 +79,19 @@ parse_json(Json) ->
     rpc:call(ct:get_config(ejabberd_node), mochijson2, decode, [Json]).
 
 start_lhttpc() ->
-    application:start(crypto),
-    application:start(public_key),
-    application:start(ssl),
-    application:start(lhttpc).
-
+    %% In R16B01 and above, we could use application:ensure_started/1
+    %% instead.
+    lists:foreach(
+      fun(App) ->
+	      case application:start(App) of
+		  ok ->
+		      ok;
+		  {error, {already_started, App}} ->
+		      ok;
+		  {error, E} ->
+		      error({cannot_start, E}, [App])
+	      end
+      end, [asn1,crypto,public_key,ssl,lhttpc]).
 stop_lhttpc() ->
-    application:stop(lhttpc),
-    application:stop(ssl),
-    application:stop(public_key),
-    application:stop(crypto).
+    [ok,ok,ok,ok,ok] = lists:map(fun application:stop/1,
+                                 [lhttpc,ssl,public_key,crypto,asn1]).
