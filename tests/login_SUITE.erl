@@ -31,6 +31,8 @@ all() ->
      {group, register},
      {group, registration_timeout},
      {group, login},
+     {group, login_scram},
+     {group, login_scram_store_plain},
      {group, messages}
     ].
 
@@ -39,11 +41,13 @@ groups() ->
                              check_unregistered]},
      {registration_timeout, [sequence], [registration_timeout]},
      {login, [sequence], [log_one,
-                          log_one_digest
-%%                          log_one_basic_plain,
-%%                          log_one_basic_digest
-                         ]},
-     {messages, [sequence], [messages_story, message_zlib_limit]}].
+                          log_one_digest]},
+     {login_scram, [sequence], scram_tests()},
+     {login_scram_store_plain, [sequence], scram_tests()},
+     {messages, [sequence], [messages_story]}].
+
+scram_tests() ->
+    [log_one, log_one_scram].
 
 suite() ->
     escalus:suite().
@@ -72,6 +76,20 @@ init_per_group(registration_timeout, Config) ->
         _ ->
             {skip, mod_register_disabled}
     end;
+init_per_group(GroupName, Config) when
+      GroupName == login_scram; GroupName == login_scram_store_plain ->
+    case get_auth_method() of
+        external ->
+            {skip, "external authentication requires plain password"};
+        _ ->
+            case GroupName of
+                login_scram ->
+                    set_store_password(scram);
+                _ ->
+                    set_store_password(plain)
+            end,
+            escalus:create_users(Config)
+    end;
 init_per_group(_GroupName, Config) ->
     escalus:create_users(Config).
 
@@ -80,13 +98,14 @@ end_per_group(register, _Config) ->
 end_per_group(registration_timeout, Config) ->
     Config1 = restore_registration_timeout(Config),
     escalus_users:delete_users(Config1, {by_name, [alice, bob]});
+end_per_group(login_scram, Config) ->
+    set_store_password(plain),
+    escalus:delete_users(Config);
 end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config).
 
 init_per_testcase(log_one_digest, Config) ->
-    XMPPDomain = ct:get_config(ejabberd_domain),
-    case escalus_ejabberd:rpc(ejabberd_config, get_local_option,
-                              [{auth_method, XMPPDomain}]) of
+    case get_auth_method() of
         external ->
             {skip, "external authentication requires plain password"};
         ldap ->
@@ -95,6 +114,9 @@ init_per_testcase(log_one_digest, Config) ->
             Conf1 = [ {escalus_auth_method, <<"DIGEST-MD5">>} | Config],
             escalus:init_per_testcase(log_one_digest, Conf1)
     end;
+init_per_testcase(log_one_scram, Config) ->
+    Conf1 = [{escalus_auth_method, <<"SCRAM-SHA-1">>} | Config],
+    escalus:init_per_testcase(log_one_digest, Conf1);
 init_per_testcase(log_one_basic_digest, Config) ->
     Conf1 = [ {escalus_auth_method, digest} | Config],
     escalus:init_per_testcase(log_one_digest, Conf1);
@@ -152,6 +174,9 @@ log_one(Config) ->
 log_one_digest(Config) ->
     log_one(Config).
 
+log_one_scram(Config) ->
+    log_one(Config).
+
 log_one_basic_plain(Config) ->
     log_one(Config).
 
@@ -198,3 +223,15 @@ restore_registration_timeout(Config) ->
     Record = {local_config, registration_timeout, OldTimeout},
     true = escalus_ejabberd:rpc(ets, insert, [local_config, Record]),
     proplists:delete(old_timeout, Config).
+
+get_auth_method() ->
+    XMPPDomain = escalus_ejabberd:unify_str_arg(
+                   ct:get_config(ejabberd_domain)),
+    escalus_ejabberd:rpc(ejabberd_config, get_local_option,
+                         [{auth_method, XMPPDomain}]).
+
+set_store_password(Type) ->
+    XMPPDomain = escalus_ejabberd:unify_str_arg(
+                   ct:get_config(ejabberd_domain)),
+    escalus_ejabberd:rpc(ejabberd_config, add_local_option,
+                         [{auth_password_format, XMPPDomain}, Type]).
