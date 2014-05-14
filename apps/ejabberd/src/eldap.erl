@@ -138,8 +138,8 @@
          passwd = <<"">>         :: binary(),
          id = 0                  :: non_neg_integer(),
          bind_timer = make_ref() :: reference(),
-	 dict = dict:new()       :: dict(),
-         req_q = queue:new()     :: queue()}).
+	 dict = dict:new()       :: ejabberd:dict_t(),
+         req_q = queue:new()     :: ejabberd:queue_t()}).
 
 %%%----------------------------------------------------------------------
 %%% API
