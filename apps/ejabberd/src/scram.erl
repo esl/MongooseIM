@@ -59,18 +59,18 @@ salted_password(Password, Salt, IterationCount) ->
 
 -spec client_key(binary()) -> binary().
 client_key(SaltedPassword) ->
-    crypto:hmac(sha, SaltedPassword, <<"Client Key">>).
+    crypto:sha_mac(SaltedPassword, <<"Client Key">>).
 
 -spec stored_key(binary()) -> binary().
 stored_key(ClientKey) -> crypto:hash(sha, ClientKey).
 
 -spec server_key(binary()) -> binary().
 server_key(SaltedPassword) ->
-    crypto:hmac(sha, SaltedPassword, <<"Server Key">>).
+    crypto:sha_mac(SaltedPassword, <<"Server Key">>).
 
 -spec client_signature(binary(), binary()) -> binary().
 client_signature(StoredKey, AuthMessage) ->
-    crypto:hmac(sha, StoredKey, AuthMessage).
+    crypto:sha_mac(StoredKey, AuthMessage).
 
 -spec client_key(binary(), binary()) -> binary().
 client_key(ClientProof, ClientSignature) ->
@@ -80,19 +80,19 @@ client_key(ClientProof, ClientSignature) ->
 
 -spec server_signature(binary(), binary()) -> binary().
 server_signature(ServerKey, AuthMessage) ->
-    crypto:hmac(sha, ServerKey, AuthMessage).
+    crypto:sha_mac(ServerKey, AuthMessage).
 
 hi(Password, Salt, IterationCount) ->
-    U1 = crypto:hmac(sha, Password, <<Salt/binary, 0, 0, 0, 1>>),
+    U1 = crypto:sha_mac(Password, <<Salt/binary, 0, 0, 0, 1>>),
     list_to_binary(lists:zipwith(fun (X, Y) -> X bxor Y end,
 				 binary_to_list(U1),
 				 binary_to_list(hi_round(Password, U1,
 							 IterationCount - 1)))).
 
 hi_round(Password, UPrev, 1) ->
-    crypto:hmac(sha, Password, UPrev);
+    crypto:sha_mac(Password, UPrev);
 hi_round(Password, UPrev, IterationCount) ->
-    U = crypto:hmac(sha, Password, UPrev),
+    U = crypto:sha_mac(Password, UPrev),
     list_to_binary(lists:zipwith(fun (X, Y) -> X bxor Y end,
 				 binary_to_list(U),
 				 binary_to_list(hi_round(Password, U,
