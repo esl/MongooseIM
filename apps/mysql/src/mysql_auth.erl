@@ -182,11 +182,11 @@ bxor_binary(B1, B2) when is_binary(B1), is_binary(B2) ->
 
 -spec password_new(Password :: iolist(), Salt :: iolist()) -> Hash :: binary().
 password_new(Password, Salt) ->
-    Stage1 = crypto:sha(Password),
-    Stage2 = crypto:sha(Stage1),
-    Res = crypto:sha_final(
-	    crypto:sha_update(
-	      crypto:sha_update(crypto:sha_init(), Salt),
+    Stage1 = crypto:hash(sha, Password),
+    Stage2 = crypto:hash(sha, Stage1),
+    Res = crypto:hash_final(
+	    crypto:hash_update(
+	      crypto:hash_update(crypto:hash_init(sha), Salt),
 	      Stage2)
 	   ),
     bxor_binary(Res, Stage1).
