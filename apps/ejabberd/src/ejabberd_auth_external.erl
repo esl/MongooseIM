@@ -43,6 +43,7 @@
 	 is_user_exists/2,
 	 remove_user/2,
 	 remove_user/3,
+	 store_type/1,
 	 plain_password_required/0
 	]).
 
@@ -77,6 +78,9 @@ check_cache_last_options(Server) ->
 
 plain_password_required() ->
     true.
+
+store_type(_) ->
+	external.
 
 check_password(User, Server, Password) ->
     case get_cache_option(Server) of

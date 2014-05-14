@@ -18,7 +18,7 @@
 %%-------------------
 -export([sm_register_connection_hook/3,
          sm_remove_connection_hook/3,
-         auth_failed/3,
+         auth_failed/2,
          user_send_packet/3,
          user_receive_packet/4,
          xmpp_bounce_message/2,
@@ -111,8 +111,8 @@ sm_remove_connection_hook(_,#jid{server = Server},_) ->
     folsom_metrics:notify({Server, sessionLogouts}, 1),
     folsom_metrics:notify({Server, sessionCount}, {dec, 1}).
 
--spec auth_failed(binary(), binary(), binary()) -> term().
-auth_failed(_,Server,_) ->
+-spec auth_failed(binary(), binary()) -> term().
+auth_failed(_,Server) ->
     folsom_metrics:notify({Server, sessionAuthFails},1).
 
 -spec user_send_packet(jid(), tuple(), tuple()) -> term().

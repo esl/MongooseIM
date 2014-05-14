@@ -24,6 +24,12 @@ test: test_deps
 test_config: test_deps
 	cd test/ejabberd_tests; make test_config
 
+
+run: deps compile quickrun
+
+quickrun:
+	erl -sname ejabberd -setcookie ejabberd -pa deps/*/ebin apps/*/ebin -config rel/files/app.run.config -s ejabberd -s sync
+
 cover_test: test_deps
 	cd test/ejabberd_tests; make cover_test
 

@@ -22,6 +22,7 @@
 CREATE TABLE users (
     username varchar(250) PRIMARY KEY,
     password text NOT NULL,
+    pass_details text,
     created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) CHARACTER SET utf8;
 

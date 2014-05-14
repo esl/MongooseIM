@@ -71,3 +71,12 @@
                           integer_to_binary/1]).
 
 -endif.
+
+
+-record(scram,
+        {storedkey = <<"">>,
+         serverkey = <<"">>,
+         salt = <<"">>,
+         iterationcount = 0 :: integer()}).
+
+-type scram() :: #scram{}.

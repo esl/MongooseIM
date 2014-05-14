@@ -274,14 +274,14 @@ jid_to_binary({Node, Server, Resource}) ->
              <<>> ->
                  <<>>;
              _ ->
-                 list_to_binary([Node, <<"@">>])
+                 <<Node/binary, "@">>
          end,
-    S2 = list_to_binary([S1, Server]),
+    S2 = <<S1/binary, Server/binary>>,
     S3 = case Resource of
              <<>> ->
                  S2;
              _ ->
-                 list_to_binary([S2, <<"/">>, Resource])
+                 <<S2/binary, "/", Resource/binary>>
          end,
     S3.
 

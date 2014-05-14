@@ -52,6 +52,7 @@
     is_user_exists/2,
     remove_user/2,
     remove_user/3,
+    store_type/1,
     plain_password_required/0]).
 
 -include("ejabberd.hrl").
@@ -118,6 +119,8 @@ init(Host) ->
 			  State#state.port, State#state.dn,
 			  State#state.password, State#state.tls_options),
     {ok, State}.
+
+store_type(_) -> external.
 
 plain_password_required() -> true.
 

@@ -50,8 +50,11 @@
 	 remove_user/2,
 	 remove_user/3,
 	 plain_password_required/1,
+	 store_type/1,
 	 entropy/1
 	]).
+
+-export([check_digest/4]).
 
 -export([auth_modules/1]).
 
@@ -69,19 +72,35 @@ start() ->
 		end, auth_modules(Host))
       end, ?MYHOSTS).
 
+%% This is only executed by ejabberd_c2s for non-SASL auth client
 plain_password_required(Server) ->
     lists:any(
       fun(M) ->
 	      M:plain_password_required()
       end, auth_modules(Server)).
 
+store_type(Server) ->
+    lists:foldl(
+      fun(_, external) ->
+              external;
+         (M, scram) ->
+              case M:store_type(Server) of
+                  external ->
+                      external;
+                  _Else ->
+                      scram
+              end;
+         (M, plain) ->
+              M:store_type(Server)
+      end, plain, auth_modules(Server)).
+
 %% @doc Check if the user and password can login in server.
 %% @spec (User::binary(), Server::binary(), Password::binary()) ->
 %%     true | false
 check_password(User, Server, Password) ->
     case check_password_with_authmodule(User, Server, Password) of
-	{true, _AuthModule} -> true;
-	false -> false
+        {true, _AuthModule} -> true;
+        false -> false
     end.
 
 %% @doc Check if the user and password can login in server.
@@ -112,9 +131,7 @@ check_password_with_authmodule(User, Server, Password, Digest, DigestGen) ->
     check_password_loop(auth_modules(Server), [User, Server, Password,
 					       Digest, DigestGen]).
 
-check_password_loop([], Args) ->
-    [User, Server, Password | _] = Args,
-    ejabberd_hooks:run(auth_failed, Server, [User, Server, Password]),
+check_password_loop([], _Args) ->
     false;
 check_password_loop([AuthModule | AuthModules], Args) ->
     case apply(AuthModule, check_password, Args) of
@@ -124,6 +141,18 @@ check_password_loop([AuthModule | AuthModules], Args) ->
 	    check_password_loop(AuthModules, Args)
     end.
 
+check_digest(Digest, DigestGen, Password, Passwd) ->
+    DigRes = if
+                 Digest /= <<>> ->
+                     Digest == DigestGen(Passwd);
+                 true ->
+                     false
+             end,
+    if DigRes ->
+           true;
+       true ->
+           (Passwd == Password) and (Password /= <<>>)
+    end.
 
 %% @spec (User::binary(), Server::binary(), Password::binary()) ->
 %%       ok | {error, ErrorType}
