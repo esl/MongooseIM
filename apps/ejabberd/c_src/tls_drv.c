@@ -396,9 +396,12 @@ static ErlDrvSSizeT tls_drv_control(ErlDrvData handle,
 	    if(SSLeay() > 0x1000005fl)
 	    {
 	        EC_KEY *ecdh = EC_KEY_new_by_curve_name(NID_X9_62_prime256v1);
-	        SSL_CTX_set_options(ctx, SSL_OP_SINGLE_ECDH_USE);
-	        SSL_CTX_set_tmp_ecdh(ssl_ctx, ecdh);
-	        EC_KEY_free(ecdh);
+	        if(ecdh)
+	        {
+	            SSL_CTX_set_options(ctx, SSL_OP_SINGLE_ECDH_USE);
+	            SSL_CTX_set_tmp_ecdh(ctx, ecdh);
+	            EC_KEY_free(ecdh);
+	        }
 	    }
 
 	    DH *dh;
