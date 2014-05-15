@@ -777,7 +777,7 @@ get_session_pid(UserSpec, Resource) ->
 clear_session_table() ->
     Node = escalus_ct:get_config(ejabberd_node),
     SessionBackend  = escalus_ejabberd:rpc(ejabberd_sm_backend, backend, []),
-    escalus_ejabberd:rpc(SessionBackend, backend, [Node]).
+    escalus_ejabberd:rpc(SessionBackend, cleanup, [Node]).
 
 clear_sm_session_table() ->
     escalus_ejabberd:rpc(mnesia, clear_table, [sm_session]).
