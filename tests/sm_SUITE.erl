@@ -19,9 +19,9 @@
 
 all() ->
     [server_string_type,
-%%      {group, negotiation},
-%%      {group, server_acking},
-%%      {group, client_acking},
+     {group, negotiation},
+     {group, server_acking},
+     {group, client_acking},
      {group, reconnection},
      {group, resumption}].
 
@@ -46,7 +46,7 @@ groups() ->
                               ]},
      {reconnection, [shuffle, {repeat, 5}], [
                                     resend_unacked_on_reconnection,
-                                    %preserve_order,
+                                    preserve_order,
                                     resend_unacked_after_resume_timeout,
                                     resume_session_state_send_message,
                                     resume_session_state_stop_c2s
