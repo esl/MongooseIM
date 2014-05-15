@@ -23,7 +23,8 @@ all() ->
      {group, server_acking},
      {group, client_acking},
      {group, reconnection},
-     {group, resumption}].
+     {group, resumption}
+     ].
 
 groups() ->
     [{negotiation, [shuffle, {repeat, 5}], [server_announces_sm,
@@ -65,11 +66,11 @@ suite() ->
 init_per_suite(Config) ->
     NewConfig = escalus_ejabberd:setup_option(ack_freq(never), Config),
     Config1 = escalus:init_per_suite(NewConfig),
-    escalus:create_users(Config1).
+    escalus:create_users(Config1, {by_name, [alice, bob]}).
 
 end_per_suite(Config) ->
     NewConfig = escalus_ejabberd:reset_option(ack_freq(never), Config),
-    NewConfig1 = escalus:delete_users(NewConfig),
+    NewConfig1 = escalus:delete_users(NewConfig, config),
     escalus:end_per_suite(NewConfig1).
 
 init_per_group(client_acking, Config) ->
@@ -411,9 +412,10 @@ preserve_order(Config) ->
 
     %% kill alice connection
     kill_connection(Alice),
-
+    %ct:sleep(300),
     escalus_connection:send(Bob, escalus_stanza:chat_to(get_bjid(AliceSpec), <<"2">>)),
     escalus_connection:send(Bob, escalus_stanza:chat_to(get_bjid(AliceSpec), <<"3">>)),
+
     {ok, NewAlice, _, _} = escalus_connection:start(AliceSpec, ConnSteps),
     escalus_connection:send(NewAlice, escalus_stanza:enable_sm([resume])),
 
@@ -446,7 +448,7 @@ receive_all_ordered(Conn, N) ->
         #xmlel{} = Stanza ->
 	    NN = case Stanza#xmlel.name of
         <<"message">> ->
-		    %ct:pal("~p~n", [Stanza]),
+%% 		    ct:pal("~p~n", [Stanza]),
             escalus:assert(is_chat_message, [list_to_binary(integer_to_list(N))], Stanza),
             N+1;
 		_ ->
