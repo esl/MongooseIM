@@ -98,7 +98,7 @@ init_per_suite(Config) ->
 
 end_per_suite(Config) ->
     dynamic_modules:start_running(Config),
-    NewConfig = escalus:delete_users(Config),
+    NewConfig = escalus:delete_users(Config, config),
     escalus:end_per_suite(NewConfig).
 
 init_per_group(rw, Config) ->

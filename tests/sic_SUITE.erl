@@ -38,7 +38,7 @@ init_per_suite(Config0) ->
     escalus:create_users(Config1).
 
 end_per_suite(Config) ->
-    escalus:delete_users(Config),
+    escalus:delete_users(Config, config),
     escalus:end_per_suite(Config).
 
 init_per_group(mod_offline_tests, Config) ->

@@ -48,7 +48,7 @@ init_per_group(_GroupName, Config0) ->
     Config2.
 
 end_per_group(_GroupName, Config) ->
-    escalus:delete_users(Config).
+    escalus:delete_users(Config, config).
 
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).

@@ -53,14 +53,14 @@ init_per_testcase(CaseName, Config)
        CaseName == test_get_set_large_heap ->
     LH = 100000,
     start_alarms([], LH),
-    escalus:create_users(Config),
+    escalus:create_users(Config, {by_name, [alice, bob]}),
     [{large_heap, LH} | escalus:init_per_testcase(CaseName, Config)];
 init_per_testcase(CaseName, Config) ->
-    escalus:create_users(Config),
+    escalus:create_users(Config, {by_name, [alice, bob]}),
     escalus:init_per_testcase(CaseName, Config).
 
 end_per_testcase(CaseName, Config) ->
-    escalus:delete_users(Config),
+    escalus:delete_users(Config, config),
     escalus:end_per_testcase(CaseName, Config),
     reset_watchdog_admins(),
     stop_alarms().
