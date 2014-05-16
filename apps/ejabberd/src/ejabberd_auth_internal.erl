@@ -56,10 +56,13 @@
 %%%----------------------------------------------------------------------
 start(Host) ->
     mnesia:create_table(passwd, [{disc_copies, [node()]},
-				 {attributes, record_info(fields, passwd)}]),
+                                 {storage_properties,
+                                  [{ets, [{read_concurrency,true}]}]}, 	
+                                 {attributes,
+                                  record_info(fields, passwd)}]),
     mnesia:create_table(reg_users_counter,
-			[{ram_copies, [node()]},
-			 {attributes, record_info(fields, reg_users_counter)}]),
+                        [{ram_copies, [node()]},
+                         {attributes, record_info(fields, reg_users_counter)}]),
     update_table(),
     update_reg_users_counter_table(Host),
     ok.
