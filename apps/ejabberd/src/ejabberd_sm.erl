@@ -463,7 +463,9 @@ is_privacy_allow(From, To, Packet, PrivacyList) ->
 route_message(From, To, Packet) ->
     LUser = To#jid.luser,
     LServer = To#jid.lserver,
-    PrioRes = get_user_present_resources(LUser, LServer),
+    Ss = clean_session_list(?SM_BACKEND:get_sessions(LUser, LServer)),
+    PrioRes = [{S#session.priority, element(3, S#session.usr)} ||
+        S <- Ss, is_integer(S#session.priority)],
     case catch lists:max(PrioRes) of
         {Priority, _R} when is_integer(Priority), Priority >= 0 ->
             lists:foreach(
@@ -471,7 +473,7 @@ route_message(From, To, Packet) ->
               %% positive
               fun({P, R}) when P == Priority ->
                       LResource = jlib:resourceprep(R),
-                      case ?SM_BACKEND:get_sessions(LUser, LServer, LResource) of
+                      case get_sessions(Ss, LUser, LServer, LResource) of
                           [] ->
                               ok; % Race condition
                           Ss ->
@@ -514,6 +516,12 @@ route_message(From, To, Packet) ->
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+get_sessions(Ss, LUser, LServer, LResource) ->
+    Filter = fun(#session{usr = {LUser, LServer, LResource}}) -> true;
+                (_) -> false
+             end,
+    lists:filter(Filter, Ss).
 
 clean_session_list(Ss) ->
     clean_session_list(lists:keysort(#session.usr, Ss), []).
