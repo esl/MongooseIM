@@ -227,8 +227,8 @@ restore_registration_timeout(Config) ->
 get_auth_method() ->
     XMPPDomain = escalus_ejabberd:unify_str_arg(
                    ct:get_config(ejabberd_domain)),
-    escalus_ejabberd:rpc(ejabberd_config, get_local_option,
-                         [{auth_method, XMPPDomain}]).
+    escalus_ejabberd:rpc(ejabberd_auth, store_type,
+                         [XMPPDomain]).
 
 set_store_password(Type) ->
     XMPPDomain = escalus_ejabberd:unify_str_arg(
