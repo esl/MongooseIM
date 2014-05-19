@@ -23,7 +23,8 @@ all() ->
      {group, server_acking},
      {group, client_acking},
      {group, reconnection},
-     {group, resumption}].
+     {group, resumption}
+     ].
 
 groups() ->
     [{negotiation, [shuffle, {repeat, 5}], [server_announces_sm,
@@ -65,11 +66,11 @@ suite() ->
 init_per_suite(Config) ->
     NewConfig = escalus_ejabberd:setup_option(ack_freq(never), Config),
     Config1 = escalus:init_per_suite(NewConfig),
-    escalus:create_users(Config1).
+    escalus:create_users(Config1, {by_name, [alice, bob]}).
 
 end_per_suite(Config) ->
     NewConfig = escalus_ejabberd:reset_option(ack_freq(never), Config),
-    NewConfig1 = escalus:delete_users(NewConfig),
+    NewConfig1 = escalus:delete_users(NewConfig, config),
     escalus:end_per_suite(NewConfig1).
 
 init_per_group(client_acking, Config) ->
@@ -411,9 +412,10 @@ preserve_order(Config) ->
 
     %% kill alice connection
     kill_connection(Alice),
-
+    %ct:sleep(300),
     escalus_connection:send(Bob, escalus_stanza:chat_to(get_bjid(AliceSpec), <<"2">>)),
     escalus_connection:send(Bob, escalus_stanza:chat_to(get_bjid(AliceSpec), <<"3">>)),
+
     {ok, NewAlice, _, _} = escalus_connection:start(AliceSpec, ConnSteps),
     escalus_connection:send(NewAlice, escalus_stanza:enable_sm([resume])),
 
@@ -446,7 +448,7 @@ receive_all_ordered(Conn, N) ->
         #xmlel{} = Stanza ->
 	    NN = case Stanza#xmlel.name of
         <<"message">> ->
-		    %ct:pal("~p~n", [Stanza]),
+%% 		    ct:pal("~p~n", [Stanza]),
             escalus:assert(is_chat_message, [list_to_binary(integer_to_list(N))], Stanza),
             N+1;
 		_ ->
@@ -749,7 +751,7 @@ assert_no_offline_msgs() ->
                                            [offline_msg, wild_pattern]),
             0 = length(escalus_ejabberd:rpc(mnesia, dirty_match_object, [Pattern]));
         mod_offline_odbc ->
-            {selected, [<<"count(*)">>], [{<<"0">>}]} =
+            {selected, _, [{<<"0">>}]} =
             escalus_ejabberd:rpc(ejabberd_odbc,sql_query, [<<"localhost">>,<<"select count(*) from offline_message;">>])
     end.
 
@@ -767,52 +769,17 @@ get_session_pid(UserSpec, Resource) ->
     ConfigUS = [proplists:get_value(username, UserSpec),
                 proplists:get_value(server, UserSpec)],
     [U, S] = [server_string(V) || V <- ConfigUS],
-    MatchSpec = match_session_pid({U, S, Resource}),
-    case escalus_ejabberd:rpc(ets, select, [session, MatchSpec]) of
-        [] ->
-            {error, not_found};
-        [{_, C2SPid}] ->
-            {ok, C2SPid};
-        [C2SPid] ->
-            {ok, C2SPid};
-        [_|_] = Sessions ->
-            {error, {multiple_sessions, Sessions}}
+    case escalus_ejabberd:rpc(ejabberd_sm, get_session_pid, [U, S, server_string(Resource)]) of
+        none ->
+            {error, no_found};
+        C2SPid ->
+            {ok, C2SPid}
     end.
 
-%% Copy'n'paste from github.com/lavrin/ejabberd-trace
-
-match_session_pid({_User, _Domain, _Resource} = UDR) ->
-    [{%% match pattern
-      set(session(), [{2, {'_', '$1'}},
-                      {3, UDR}]),
-      %% guards
-      [],
-      %% return
-      ['$1']}];
-
-match_session_pid({User, Domain}) ->
-    [{%% match pattern
-      set(session(), [{2, {'_', '$1'}},
-                      {3, '$2'},
-                      {4, {User, Domain}}]),
-      %% guards
-      [],
-      %% return
-      [{{'$2', '$1'}}]}].
-
-set(Record, FieldValues) ->
-    F = fun({Field, Value}, Rec) ->
-                setelement(Field, Rec, Value)
-        end,
-    lists:foldl(F, Record, FieldValues).
-
-session() ->
-    set(erlang:make_tuple(6, '_'), [{1, session}]).
-
-%% End of copy'n'paste from github.com/lavrin/ejabberd-trace
-
 clear_session_table() ->
-    escalus_ejabberd:rpc(mnesia, clear_table, [session]).
+    Node = escalus_ct:get_config(ejabberd_node),
+    SessionBackend  = escalus_ejabberd:rpc(ejabberd_sm_backend, backend, []),
+    escalus_ejabberd:rpc(SessionBackend, cleanup, [Node]).
 
 clear_sm_session_table() ->
     escalus_ejabberd:rpc(mnesia, clear_table, [sm_session]).
