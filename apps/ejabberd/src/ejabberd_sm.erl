@@ -31,7 +31,8 @@
 %% API
 -export([start_link/0,
          route/3,
-         open_session/5, close_session/4,
+         open_session/5, open_session/6,
+         close_session/4,
          check_in_subscription/6,
          bounce_offline_message/3,
          disconnect_removed_user/2,
@@ -90,7 +91,10 @@ route(From, To, Packet) ->
     end.
 
 open_session(SID, User, Server, Resource, Info) ->
-    set_session(SID, User, Server, Resource, undefined, Info),
+    open_session(SID, User, Server, Resource, undefined, Info).
+
+open_session(SID, User, Server, Resource, Priority, Info) ->
+    set_session(SID, User, Server, Resource, Priority, Info),
     check_for_sessions_to_replace(User, Server, Resource),
     JID = jlib:make_jid(User, Server, Resource),
     ejabberd_hooks:run(sm_register_connection_hook, JID#jid.lserver,
@@ -459,28 +463,20 @@ is_privacy_allow(From, To, Packet, PrivacyList) ->
 route_message(From, To, Packet) ->
     LUser = To#jid.luser,
     LServer = To#jid.lserver,
-    PrioRes = get_user_present_resources(LUser, LServer),
-    case catch lists:max(PrioRes) of
-        {Priority, _R} when is_integer(Priority), Priority >= 0 ->
+    PrioPid = get_user_present_pids(LUser,LServer),
+    case catch lists:max(PrioPid) of
+        {Priority, _} when is_integer(Priority), Priority >= 0 ->
             lists:foreach(
               %% Route messages to all priority that equals the max, if
               %% positive
-              fun({P, R}) when P == Priority ->
-                      LResource = jlib:resourceprep(R),
-                      case ?SM_BACKEND:get_sessions(LUser, LServer, LResource) of
-                          [] ->
-                              ok; % Race condition
-                          Ss ->
-                              Session = lists:max(Ss),
-                              Pid = element(2, Session#session.sid),
-                              ?DEBUG("sending to process ~p~n", [Pid]),
-                              Pid ! {route, From, To, Packet}
-                      end;
+              fun({Prio, Pid}) when Prio == Priority ->
+                      % we will lose message if PID is not alive
+                      Pid ! {route, From, To, Packet};
                  %% Ignore other priority:
-                 ({_Prio, _Res}) ->
+                 ({_Prio, _Pid}) ->
                       ok
               end,
-              PrioRes);
+              PrioPid);
         _ ->
             case xml:get_tag_attr_s(<<"type">>, Packet) of
                 <<"error">> ->
@@ -510,7 +506,6 @@ route_message(From, To, Packet) ->
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 clean_session_list(Ss) ->
     clean_session_list(lists:keysort(#session.usr, Ss), []).
 
@@ -533,6 +528,10 @@ clean_session_list([S1, S2 | Rest], Res) ->
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+get_user_present_pids(LUser, LServer) ->
+    Ss = clean_session_list(?SM_BACKEND:get_sessions(LUser, LServer)),
+    PrioRes = [{S#session.priority, element(2,S#session.sid)} ||
+        S <- Ss, is_integer(S#session.priority)].
 
 get_user_present_resources(LUser, LServer) ->
     Ss = ?SM_BACKEND:get_sessions(LUser, LServer),

@@ -99,6 +99,8 @@
 
 -define(NS_HTTPBIND,     <<"http://jabber.org/protocol/httpbind">>).
 
+-define(NS_STREAM_MGNT_3, <<"urn:xmpp:sm:3">>).
+
 % TODO: remove<<"code" attribute (currently it used for backward-compatibility)
 -define(STANZA_ERROR(Code, Type, Condition),
     {xmlel,<<"error">>,
