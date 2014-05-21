@@ -1,13 +1,76 @@
 -module(run_common_test).
--export([ct/0, ct/1,
-         ct_quick/0, ct_quick/1,
-         ct_cover/0, ct_cover/1,
-         ct_config/1,
-         cover_summary/0]).
+
+-export([main/1]).
+
+%% Deprecated
+-export([cover_summary/0]).
 
 -define(CT_DIR, filename:join([".", "tests"])).
 -define(CT_REPORT, filename:join([".", "ct_report"])).
--define(CT_DEF_SPEC, './default.spec').
+
+%%
+%% Entry
+%%
+
+-record(opts, {test,
+               spec,
+               cover,
+               preset = all}).
+
+%% Accepted options formatted as:
+%% {opt_name, opt_index_in_opts_record, fun value_sanitizer/1}.
+%% -spec value_sanitizer(string()) -> NewValue :: any().
+opts() ->
+    [{test,   #opts.test,   fun quick_or_full/1},
+     {spec,   #opts.spec,   fun list_to_atom/1},
+     {cover,  #opts.cover,  fun ("true") -> true; (_) -> false end},
+     {preset, #opts.preset, fun preset/1}].
+
+%% Raw args are 'key=val' atoms.
+%% Args are {key :: atom(), val :: string()} pairs.
+%% "=" is an invalid character in option name or value.
+main(RawArgs) ->
+    Args = [raw_to_arg(Raw) || Raw <- RawArgs],
+    Opts = args_to_opts(Args),
+    run(Opts),
+    init:stop(0).
+
+run(#opts{test = quick, cover = true, spec = Spec}) ->
+    do_run_quick_test_with_cover(tests_to_run(Spec)),
+    cover_summary();
+run(#opts{test = quick, spec = Spec}) ->
+    do_run_quick_test(tests_to_run(Spec));
+run(#opts{test = full, cover = true, spec = Spec}) ->
+    run_ct_cover(tests_to_run(Spec)),
+    cover_summary();
+run(#opts{test = full, spec = Spec, preset = Preset}) ->
+    run_test(tests_to_run(Spec), case Preset of
+                                     all -> all;
+                                     _   -> [Preset]
+                                 end).
+
+%%
+%% Helpers
+%%
+
+args_to_opts(Args) ->
+    {Args, Opts} = lists:foldl(fun set_opt/2, {Args, #opts{}}, opts()),
+    Opts.
+
+raw_to_arg(RawArg) ->
+    ArgVal = atom_to_list(RawArg),
+    [Arg, Val] = string:tokens(ArgVal, "="),
+    {list_to_atom(Arg), Val}.
+
+set_opt({Opt, Index, Sanitizer}, {Args, Opts}) ->
+    Value = Sanitizer(proplists:get_value(Opt, Args)),
+    {Args, setelement(Index, Opts, Value)}.
+
+quick_or_full("quick") -> quick;
+quick_or_full("full")  -> full.
+
+preset(undefined) -> undefined;
+preset(Preset) -> list_to_atom(Preset).
 
 ct_config_file() ->
     {ok, CWD} = file:get_cwd(),
@@ -18,34 +81,6 @@ tests_to_run(TestSpec) ->
     [
      {spec, TestSpecFile}
     ].
-
-ct() ->
-    ct([?CT_DEF_SPEC]).
-
-ct([TestSpec]) ->
-    run_test(tests_to_run(TestSpec)),
-    init:stop(0).
-
-ct_quick() ->
-    ct_quick([?CT_DEF_SPEC]).
-
-ct_quick([TestSpec]) ->
-    run_quick_test(tests_to_run(TestSpec)),
-    init:stop(0).
-
-ct_config([Config]) ->
-    ct_config([?CT_DEF_SPEC, Config]);
-ct_config([TestSpec, Config]) ->
-    run_test(tests_to_run(TestSpec), [Config]),
-    init:stop(0).
-
-ct_cover() ->
-    ct_cover([?CT_DEF_SPEC]).
-
-ct_cover([TestSpec]) ->
-    run_ct_cover(TestSpec),
-    cover_summary(),
-    init:stop(0).
 
 save_count(Test, Configs) ->
     Repeat = case proplists:get_value(repeat, Test) of
@@ -61,30 +96,30 @@ save_count(Test, Configs) ->
 run_test(Test) ->
     run_test(Test, all).
 
-run_test(Test, ConfigList) ->
+run_test(Test, PresetsToRun) ->
     {ok, Props} = file:consult(ct_config_file()),
-    case proplists:lookup(ejabberd_configs, Props) of
-        {ejabberd_configs, Configs} ->
-            Configs1 = case ConfigList of
+    case proplists:lookup(ejabberd_presets, Props) of
+        {ejabberd_presets, Presets} ->
+            Presets1 = case PresetsToRun of
                 all ->
-                    Configs;
+                    Presets;
                 _ ->
-                    lists:filter(fun({Config,_}) ->
-                                lists:member(Config, ConfigList)
-                        end, Configs)
+                    lists:filter(fun({Preset,_}) ->
+                                lists:member(Preset, PresetsToRun)
+                        end, Presets)
             end,
-            Length = length(Configs1),
-            Names = [Name || {Name,_} <- Configs1],
+            Length = length(Presets1),
+            Names = [Name || {Name,_} <- Presets1],
             error_logger:info_msg("Starting test of ~p configurations: ~n~p~n",
                                   [Length, Names]),
-            Zip = lists:zip(lists:seq(1, Length), Configs1),
-            [run_config_test(Config, Test, N, Length) || {N, Config} <- Zip],
-            save_count(Test, Configs1);
+            Zip = lists:zip(lists:seq(1, Length), Presets1),
+            [run_config_test(Preset, Test, N, Length) || {N, Preset} <- Zip],
+            save_count(Test, Presets1);
         _ ->
-            run_quick_test(Test)
+            do_run_quick_test(Test)
     end.
 
-run_quick_test(Test) ->
+do_run_quick_test(Test) ->
     Result = ct:run_test(Test),
     case Result of
         {error, Reason} ->
@@ -93,6 +128,17 @@ run_quick_test(Test) ->
             ok
     end,
     save_count(Test, []).
+
+do_run_quick_test_with_cover(Test) ->
+    prepare(),
+    do_run_quick_test(Test),
+    N = get_ejabberd_node(),
+    Files = rpc:call(N, filelib, wildcard, ["/tmp/ejd_test_run_*.coverdata"]),
+    [rpc:call(N, file, delete, [File]) || File <- Files],
+    {MS,S,_} = now(),
+    FileName = lists:flatten(io_lib:format("/tmp/ejd_test_run_~b~b.coverdata",[MS,S])),
+    io:format("export current cover ~p~n", [cover_call(export, [FileName])]),
+    io:format("test finished~n").
 
 run_config_test({Name, Variables}, Test, N, Tests) ->
     Node = get_ejabberd_node(),
@@ -146,9 +192,22 @@ cover_summary() ->
     io:format("summary completed~n"),
     init:stop(0).
 
+get_latest_revision(App) ->
+    Revs = rpc:call(get_ejabberd_node(), filelib, wildcard,
+                    ["lib/" ++ atom_to_list(App) ++ "-*"]),
+    hd(lists:reverse(lists:sort(Revs))).
+
+get_apps() ->
+    case file:list_dir("../../apps/") of
+        {ok, Filenames} -> lists:map(fun list_to_atom/1, Filenames);
+        {error, _Reason} -> error("ejabberd parent project not found (expected apps in ../../apps)")
+    end.
+
 prepare() ->
     cover_call(start),
-    Compiled = cover_call(compile_beam_directory,["lib/ejabberd-2.1.8/ebin"]),
+    Apps = [get_latest_revision(A) || A <- get_apps()],
+    Cover = fun(App) -> cover_call(compile_beam_directory,[App ++ "/ebin"]) end,
+    Compiled = lists:flatmap(Cover, Apps),
     rpc:call(get_ejabberd_node(), application, stop, [ejabberd]),
     StartStatus = rpc:call(get_ejabberd_node(), application, start, [ejabberd, permanent]),
     io:format("start ~p~n", [StartStatus]),
