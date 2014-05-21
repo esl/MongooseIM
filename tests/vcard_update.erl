@@ -67,7 +67,7 @@ server_string_type() ->
 is_ejabberd_community() ->
     Apps = escalus_ejabberd:rpc(application, which_applications, []),
     case lists:keyfind(ejabberd, 1, Apps) of
-        {ejabberd, "ejabberd", "community"} ->
+        {ejabberd, "ejabberd", "community" ++ _} ->
             true;
         _ ->
             false
