@@ -128,6 +128,10 @@ case "$1" in
             exit 1
         fi
         ;;
+    remove_from_cluster)
+        ## See if the VM is alive
+        $NODETOOL remove_from_cluster $2
+        ;;
     restart)
         ## Restart the VM without exiting the process
         $NODETOOL restart
@@ -229,7 +233,7 @@ case "$1" in
         fi
         ;;
     *)
-        echo "Usage: $SCRIPT {start|stop|restart|reboot|ping|live|console|console_clean|attach|debug|version|add_to_cluster}"
+        echo "Usage: $SCRIPT {start|stop|restart|reboot|ping|live|console|console_clean|attach|debug|version|add_to_cluster|remove_from_cluster}"
         exit 1
         ;;
 esac
