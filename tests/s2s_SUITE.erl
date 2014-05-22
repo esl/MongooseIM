@@ -37,7 +37,7 @@ init_per_suite(Config0) ->
     escalus_users:create_users(Config1, NewUsers).
 
 end_per_suite(Config) ->
-    escalus:delete_users(Config, config),
+    escalus:delete_users(Config, {by_name, [alice, bob]}),
     escalus:end_per_suite(Config).
 
 init_per_group(_GroupName, Config) ->

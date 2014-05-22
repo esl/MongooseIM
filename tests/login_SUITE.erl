@@ -100,9 +100,9 @@ end_per_group(registration_timeout, Config) ->
     escalus_users:delete_users(Config1, {by_name, [alice, bob]});
 end_per_group(login_scram, Config) ->
     set_store_password(plain),
-    escalus:delete_users(Config, config);
+    escalus:delete_users(Config, {by_name, [alice, bob]});
 end_per_group(_GroupName, Config) ->
-    escalus:delete_users(Config, config).
+    escalus:delete_users(Config, {by_name, [alice, bob]}).
 
 init_per_testcase(log_one_digest, Config) ->
     case get_auth_method() of
@@ -144,7 +144,7 @@ register(Config) ->
     true = escalus_ejabberd:rpc(ejabberd_auth, is_user_exists, [Username, Server]).
 
 check_unregistered(Config) ->
-    escalus:delete_users(Config, config),
+    escalus:delete_users(Config, {by_name, [alice, bob]}),
     [{_, UserSpec}| _] = escalus_users:get_users(all),
     [Username, Server, _Pass] = escalus_users:get_usp(Config, UserSpec),
     false = escalus_ejabberd:rpc(ejabberd_auth, is_user_exists, [Username, Server]).

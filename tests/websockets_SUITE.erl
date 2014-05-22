@@ -49,7 +49,7 @@ init_per_group(_GroupName, Config) ->
     escalus:create_users(Config, {by_name, [alice, geralt, oldie]}).
 
 end_per_group(_GroupName, Config) ->
-    escalus:delete_users(Config, config).
+    escalus:delete_users(Config, {by_name, [alice, geralt, oldie]}).
 
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).

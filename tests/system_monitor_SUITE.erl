@@ -60,7 +60,7 @@ init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
 end_per_testcase(CaseName, Config) ->
-    escalus:delete_users(Config, config),
+    escalus:delete_users(Config, {by_name, [alice, bob]}),
     escalus:end_per_testcase(CaseName, Config),
     reset_watchdog_admins(),
     stop_alarms().
