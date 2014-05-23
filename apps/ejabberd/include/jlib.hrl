@@ -101,6 +101,7 @@
 
 -define(NS_HTTPBIND,     <<"http://jabber.org/protocol/httpbind">>).
 
+-define(NS_STREAM_MGNT_3, <<"urn:xmpp:sm:3">>).
 
 -define(ERR_BAD_REQUEST,
         jlib:stanza_error(<<"400">>,<<"modify">>,<<"bad-request">>)).

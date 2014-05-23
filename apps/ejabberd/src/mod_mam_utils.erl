@@ -560,11 +560,11 @@ test_jids() ->
      <<"bob@street/mobile">>].
 
 check_stringprep() ->
-    is_loaded_application(stringprep) orelse start_stringprep().
+    is_loaded_application(p1_stringprep) orelse start_stringprep().
 
 start_stringprep() ->
     EJ = code:lib_dir(ejabberd),
-    code:add_path(filename:join([EJ, "..", "stringprep", "ebin"])),
+    code:add_path(filename:join([EJ, "..", "p1_stringprep", "ebin"])),
     ok = application:start(stringprep).
 
 is_loaded_application(AppName) when is_atom(AppName) ->

@@ -81,29 +81,35 @@ start() ->
                 ) -> {ok, tlssock()} | {'error','no_certfile' | string()}.
 tcp_to_tls(TCPSocket, Options) ->
     case lists:keysearch(certfile, 1, Options) of
-        {value, {certfile, CertFile}} ->
-            Port = open_port({spawn, tls_drv}, [binary]),
-            Flags =
-                case lists:member(verify_none, Options) of
-                    true ->
-                        ?VERIFY_NONE;
-                    false ->
-                        0
-                end,
-            Command = case lists:member(connect, Options) of
-                          true ->
-                              ?SET_CERTIFICATE_FILE_CONNECT;
-                          false ->
-                              ?SET_CERTIFICATE_FILE_ACCEPT
-                      end,
-            case port_control(Port, Command bor Flags, CertFile ++ [0]) of
-                <<0>> ->
-                    {ok, #tlssock{tcpsock = TCPSocket, tlsport = Port}};
-                <<1, Error/binary>> ->
-                    {error, binary_to_list(Error)}
-            end;
-        false ->
-            {error, no_certfile}
+	{value, {certfile, CertFile}} ->
+	    Port = open_port({spawn, tls_drv}, [binary]),
+	    Flags =
+		case lists:member(verify_none, Options) of
+		    true ->
+			?VERIFY_NONE;
+		    false ->
+			0
+		end,
+	    Command = case lists:member(connect, Options) of
+			  true ->
+			      ?SET_CERTIFICATE_FILE_CONNECT;
+			  false ->
+			      ?SET_CERTIFICATE_FILE_ACCEPT
+		      end,
+	    Ciphers = case lists:keysearch(ciphers, 1, Options) of
+			      {value, {ciphers, C}} ->
+				      C++[0];
+			      false ->
+				      []
+		      end,
+	    case port_control(Port, Command bor Flags, CertFile ++ [0] ++ Ciphers) of
+		<<0>> ->
+		    {ok, #tlssock{tcpsock = TCPSocket, tlsport = Port}};
+		<<1, Error/binary>> ->
+		    {error, binary_to_list(Error)}
+	    end;
+	false ->
+	    {error, no_certfile}
     end.
 
 

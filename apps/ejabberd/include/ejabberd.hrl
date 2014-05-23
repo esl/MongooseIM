@@ -74,4 +74,13 @@
                           integer_to_binary/1]).
 
 -endif. % ifdef no_binary_to_integer
+
+-record(scram,
+        {storedkey = <<"">>,
+         serverkey = <<"">>,
+         salt = <<"">>,
+         iterationcount = 0 :: integer()}).
+
+-type scram() :: #scram{}.
+
 -endif. % ifdef MONGOOSEIM_EJABBERD_HRL

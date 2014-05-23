@@ -40,23 +40,24 @@
 -behaviour(ejabberd_gen_auth).
 %% Function used by ejabberd_auth:
 -export([login/2,
-         set_password/3,
-         check_password/3,
-         check_password/5,
-         try_register/3,
-         dirty_get_registered_users/0,
-         get_vh_registered_users/1,
-         get_password/2,
-         get_password/3,
-         is_user_exists/2,
-         remove_user/2,
-         remove_user/3,
-         plain_password_required/0,
-         get_vh_registered_users/2,        % not impl
-         get_vh_registered_users_number/1, % not impl
-         get_vh_registered_users_number/2, % not impl
-         get_password_s/2                  % not impl
-         ]).
+	 set_password/3,
+	 check_password/3,
+	 check_password/5,
+	 try_register/3,
+	 dirty_get_registered_users/0,
+	 get_vh_registered_users/1,
+	 get_password/2,
+	 get_password/3,
+	 is_user_exists/2,
+	 remove_user/2,
+	 remove_user/3,
+	 store_type/1,
+	 plain_password_required/0,
+	 get_vh_registered_users/2,        % not impl
+     get_vh_registered_users_number/1, % not impl
+     get_vh_registered_users_number/2, % not impl
+     get_password_s/2                  % not impl
+]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -319,6 +320,9 @@ remove_user(_User, _Server, _Password) ->
 -spec plain_password_required() -> 'false'.
 plain_password_required() ->
     false.
+
+store_type(_) ->
+	plain.
 
 
 %% @doc gen_auth unimplemented callbacks

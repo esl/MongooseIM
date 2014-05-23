@@ -66,7 +66,7 @@ apps/ejabberd/src/eldap_filter_yecc.erl
 apps/ejabberd/doc
 apps/mysql/doc
 apps/stringprep/doc
-rel/ejabberd/
+rel/mongooseim/
 apps/stringprep/ebin
 apps/stringprep/priv
 apps/ejabberd/include/XmppAddr.hrl

@@ -106,7 +106,7 @@ How to build
 
     For testing purposes there's a different make target available:
 
-        $ make testrel
+        $ make devrel
 
     which will generate releases in `$REPO/dev/` and prepare
     them for testing and generating coverage reports.
@@ -114,10 +114,9 @@ How to build
     To run the tests (from project's root directory, i.e. `$REPO`):
 
         $ cd test
-        $ make cover_test
+        $ make quicktest
 
-    The test results will show up in the console and a coverage report will
-    be generated in `$REPO/test/ct_report/cover.html`.
+    The test results will show up in the console`.
 
 
 MongooseIM documentation notice

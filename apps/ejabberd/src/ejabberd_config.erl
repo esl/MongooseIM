@@ -180,9 +180,8 @@ get_absolute_path(File) ->
         absolute ->
             File;
         relative ->
-            Config_path = get_ejabberd_config_path(),
-            Config_dir = filename:dirname(Config_path),
-            filename:absname_join(Config_dir, File)
+            {ok, Cwd} = file:get_cwd(),
+            filename:absname_join(Cwd, File)
     end.
 
 
@@ -499,6 +498,8 @@ process_term(Term, State) ->
             add_option(s2s_dns_options, PropList, State);
         {s2s_use_starttls, Port} ->
             add_option(s2s_use_starttls, Port, State);
+        {s2s_ciphers, Ciphers} ->
+            add_option(s2s_ciphers, Ciphers, State);
         {s2s_certfile, CertFile} ->
             case ejabberd_config:is_file_readable(CertFile) of
                 true -> add_option(s2s_certfile, CertFile, State);

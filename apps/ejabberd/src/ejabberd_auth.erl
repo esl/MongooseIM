@@ -31,27 +31,30 @@
 
 %% External exports
 -export([start/0,
-         set_password/3,
-         check_password/3,
-         check_password/5,
-         check_password_with_authmodule/3,
-         check_password_with_authmodule/5,
-         try_register/3,
-         dirty_get_registered_users/0,
-         get_vh_registered_users/1,
-         get_vh_registered_users/2,
-         get_vh_registered_users_number/1,
-         get_vh_registered_users_number/2,
-         get_password/2,
-         get_password_s/2,
-         get_password_with_authmodule/2,
-         is_user_exists/2,
-         is_user_exists_in_other_modules/3,
-         remove_user/2,
-         remove_user/3,
-         plain_password_required/1,
-         entropy/1
-        ]).
+	 set_password/3,
+	 check_password/3,
+	 check_password/5,
+	 check_password_with_authmodule/3,
+	 check_password_with_authmodule/5,
+	 try_register/3,
+	 dirty_get_registered_users/0,
+	 get_vh_registered_users/1,
+	 get_vh_registered_users/2,
+	 get_vh_registered_users_number/1,
+	 get_vh_registered_users_number/2,
+	 get_password/2,
+	 get_password_s/2,
+	 get_password_with_authmodule/2,
+	 is_user_exists/2,
+	 is_user_exists_in_other_modules/3,
+	 remove_user/2,
+	 remove_user/3,
+	 plain_password_required/1,
+	 store_type/1,
+	 entropy/1
+	]).
+
+-export([check_digest/4]).
 
 -export([auth_modules/1]).
 
@@ -79,12 +82,28 @@ start() ->
                 end, auth_modules(Host))
       end, ?MYHOSTS).
 
+%% This is only executed by ejabberd_c2s for non-SASL auth client
 -spec plain_password_required(Server :: ejabberd:server()) -> boolean().
 plain_password_required(Server) ->
     lists:any(
       fun(M) ->
               M:plain_password_required()
       end, auth_modules(Server)).
+
+store_type(Server) ->
+    lists:foldl(
+      fun(_, external) ->
+              external;
+         (M, scram) ->
+              case M:store_type(Server) of
+                  external ->
+                      external;
+                  _Else ->
+                      scram
+              end;
+         (M, plain) ->
+              M:store_type(Server)
+      end, plain, auth_modules(Server)).
 
 %% @doc Check if the user and password can login in server.
 -spec check_password(User :: ejabberd:user(),
@@ -132,9 +151,7 @@ check_password_with_authmodule(User, Server, Password, Digest, DigestGen) ->
 -spec check_password_loop(AuthModules :: [authmodule()],
                           Args :: [any(),...]
                           ) -> 'false' | {'true', authmodule()}.
-check_password_loop([], Args) ->
-    [User, Server, Password | _] = Args,
-    ejabberd_hooks:run(auth_failed, Server, [User, Server, Password]),
+check_password_loop([], _Args) ->
     false;
 check_password_loop([AuthModule | AuthModules], Args) ->
     case apply(AuthModule, check_password, Args) of
@@ -144,6 +161,18 @@ check_password_loop([AuthModule | AuthModules], Args) ->
             check_password_loop(AuthModules, Args)
     end.
 
+check_digest(Digest, DigestGen, Password, Passwd) ->
+    DigRes = if
+                 Digest /= <<>> ->
+                     Digest == DigestGen(Passwd);
+                 true ->
+                     false
+             end,
+    if DigRes ->
+           true;
+       true ->
+           (Passwd == Password) and (Password /= <<>>)
+    end.
 
 -spec set_password(User :: ejabberd:user(),
                    Server :: ejabberd:server(),

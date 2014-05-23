@@ -34,9 +34,11 @@
          server_start/3,
          server_step/2]).
 
+-include("ejabberd.hrl").
+
 -record(sasl_mechanism, {mechanism :: mechanism(),
                          module :: sasl_module(),
-                         require_plain_password :: boolean()
+                         password_type :: plain | digest | scram
                         }).
 -type sasl_module() :: cyrsasl_anonymous
                      | cyrsasl_digest
@@ -89,17 +91,18 @@ start() ->
                              {keypos, #sasl_mechanism.mechanism}]),
     cyrsasl_plain:start([]),
     cyrsasl_digest:start([]),
+    cyrsasl_scram:start([]),
     cyrsasl_anonymous:start([]),
     ok.
 
 -spec register_mechanism(Mechanism :: mechanism(),
-                        Module :: sasl_module(),
-                        RequirePlain :: boolean()) -> 'true'.
-register_mechanism(Mechanism, Module, RequirePlainPassword) ->
+                         Module :: sasl_module(),
+                         PasswordType :: plain | digest | scram) -> 'true'.
+register_mechanism(Mechanism, Module, PasswordType) ->
     ets:insert(sasl_mechanism,
-               #sasl_mechanism{mechanism = Mechanism,
-                               module = Module,
-                               require_plain_password = RequirePlainPassword}).
+	       #sasl_mechanism{mechanism = Mechanism,
+			       module = Module,
+			       password_type = PasswordType}).
 
 %%% TODO: use callbacks
 %%-include("ejabberd.hrl").
@@ -139,16 +142,19 @@ check_credentials(_State, Props) ->
 
 -spec listmech(ejabberd:server()) -> [sasl_mechanism()].
 listmech(Host) ->
-    RequirePlainPassword = ejabberd_auth:plain_password_required(Host),
-
     Mechs = ets:select(sasl_mechanism,
                        [{#sasl_mechanism{mechanism = '$1',
-                                         require_plain_password = '$2',
+                                         password_type = '$2',
                                          _ = '_'},
-                         if
-                             RequirePlainPassword ->
-                                 [{'==', '$2', false}];
-                             true ->
+                         case catch ejabberd_auth:store_type(Host) of
+                             external ->
+                                 [{'==', '$2', plain}];
+                             scram ->
+                                 [{'/=', '$2', digest}];
+                             {'EXIT',{undef,[{Module,store_type,[]} | _]}} ->
+                                 ?WARNING_MSG("~p doesn't implement the function store_type/0", [Module]),
+                                 [];
+                             _Else ->
                                  []
                          end,
                          ['$1']}]),
@@ -205,20 +211,27 @@ server_step(State, ClientIn) ->
     Module = State#sasl_state.mech_mod,
     MechState = State#sasl_state.mech_state,
     case Module:mech_step(MechState, ClientIn) of
-        {ok, Props} ->
-            case check_credentials(State, Props) of
-                ok ->
-                    {ok, Props};
-                {error, Error} ->
-                    {error, Error}
-            end;
-        {continue, ServerOut, NewMechState} ->
-            {continue, ServerOut,
-             State#sasl_state{mech_state = NewMechState}};
-        {error, Error, Username} ->
-            {error, Error, Username};
-        {error, Error} ->
-            {error, Error}
+	{ok, Props} ->
+	    case check_credentials(State, Props) of
+		ok ->
+		    {ok, Props};
+		{error, Error} ->
+		    {error, Error}
+	    end;
+	{ok, Props, ServerOut} ->
+	    case check_credentials(State, Props) of
+		ok ->
+		    {ok, Props, ServerOut};
+		{error, Error} ->
+		    {error, Error}
+	    end;
+	{continue, ServerOut, NewMechState} ->
+	    {continue, ServerOut,
+	     State#sasl_state{mech_state = NewMechState}};
+	{error, Error, Username} ->
+	    {error, Error, Username};
+	{error, Error} ->
+	    {error, Error}
     end.
 
 %% @doc Remove the anonymous mechanism from the list if not enabled for the

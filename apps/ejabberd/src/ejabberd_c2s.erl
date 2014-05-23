@@ -49,19 +49,20 @@
 
 %% gen_fsm callbacks
 -export([init/1,
-         wait_for_stream/2,
-         wait_for_auth/2,
-         wait_for_feature_request/2,
-         wait_for_bind/2,
-         wait_for_session/2,
-         wait_for_sasl_response/2,
-         session_established/2,
-         handle_event/3,
-         handle_sync_event/4,
-         code_change/4,
-         handle_info/3,
-         terminate/3,
-         print_state/1]).
+	 wait_for_stream/2,
+	 wait_for_auth/2,
+	 wait_for_feature_request/2,
+	 wait_for_bind_or_resume/2,
+	 wait_for_session_or_sm/2,
+	 wait_for_sasl_response/2,
+	 session_established/2, session_established/3,
+	 resume_session/2, resume_session/3,
+	 handle_event/3,
+	 handle_sync_event/4,
+	 code_change/4,
+	 handle_info/3,
+	 terminate/3,
+	 print_state/1]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -69,6 +70,12 @@
 
 -define(SETS, gb_sets).
 -define(DICT, dict).
+-define(STREAM_MGMT_H_MAX, (1 bsl 32 - 1)).
+-define(STREAM_MGMT_CACHE_MAX, 100).
+%% In fact, that's the denominator of the frequency...
+-define(STREAM_MGMT_ACK_FREQ, 1).
+-define(STREAM_MGMT_RESUME_TIMEOUT, 600).  %% seconds
+-define(CONSTRAINT_CHECK_TIMEOUT, 5).  %% seconds
 
 %% pres_a contains all the presence available send (either through roster mechanism or directed).
 %% Directed presence unavailable remove user from pres_a.
@@ -104,7 +111,18 @@
                 auth_module     :: ejabberd_auth:authmodule(),
                 ip              :: inet:ip_address(),
                 aux_fields = [] :: [{aux_key(), aux_value()}],
-                lang            :: ejabberd:lang()
+                lang            :: ejabberd:lang(),
+                stream_mgmt = false,
+                stream_mgmt_in = 0,
+                stream_mgmt_id,
+                stream_mgmt_out_acked = 0,
+                stream_mgmt_buffer = [],
+                stream_mgmt_buffer_size = 0,
+                stream_mgmt_buffer_max = ?STREAM_MGMT_CACHE_MAX,
+                stream_mgmt_ack_freq = ?STREAM_MGMT_ACK_FREQ,
+                stream_mgmt_resume_timeout = ?STREAM_MGMT_RESUME_TIMEOUT,
+                stream_mgmt_resume_tref,
+                stream_mgmt_constraint_check_tref
                 }).
 -type aux_key() :: atom().
 -type aux_value() :: any().
@@ -160,6 +178,8 @@
 -define(POLICY_VIOLATION_ERR(Lang, Text),
         ?SERRT_POLICY_VIOLATION(Lang, Text)).
 -define(INVALID_FROM, ?SERR_INVALID_FROM).
+-define(RESOURCE_CONSTRAINT_ERR(Lang, Text),
+	?SERRT_RESOURSE_CONSTRAINT(Lang, Text)).
 
 
 %%%----------------------------------------------------------------------
@@ -275,6 +295,7 @@ init([{SockMod, Socket}, Opts]) ->
     TLS = StartTLS orelse StartTLSRequired orelse TLSEnabled,
     TLSOpts1 =
         lists:filter(fun({certfile, _}) -> true;
+                        ({ciphers, _}) -> true;
                         (_) -> false
                      end, Opts),
     TLSOpts = [verify_none | TLSOpts1],
@@ -328,30 +349,30 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
                           DL
                   end,
     case xml:get_attr_s(<<"xmlns:stream">>, Attrs) of
-        ?NS_STREAM ->
-            Server = jlib:nameprep(xml:get_attr_s(<<"to">>, Attrs)),
-            case lists:member(Server, ?MYHOSTS) of
-                true ->
-                    Lang = case xml:get_attr_s(<<"xml:lang">>, Attrs) of
-                               Lang1 when size(Lang1) =< 35 ->
-                                   %% As stated in BCP47, 4.4.1:
-                                   %% Protocols or specifications that
-                                   %% specify limited buffer sizes for
-                                   %% language tags MUST allow for
-                                   %% language tags of at least 35 characters.
-                                   binary_to_list(Lang1);
-                               _ ->
-                                   %% Do not store long language tag to
-                                   %% avoid possible DoS/flood attacks
-                                   ""
-                           end,
-                    change_shaper(StateData, jlib:make_jid(<<>>, Server, <<>>)),
-                    case xml:get_attr_s(<<"version">>, Attrs) of
-                        <<"1.0">> ->
-                            send_header(StateData, Server, "1.0", DefaultLang),
-                            case StateData#state.authenticated of
-                                false ->
-                    SASLState =
+	?NS_STREAM ->
+	    Server = jlib:nameprep(xml:get_attr_s(<<"to">>, Attrs)),
+	    case lists:member(Server, ?MYHOSTS) of
+		true ->
+		    Lang = case xml:get_attr_s(<<"xml:lang">>, Attrs) of
+			       Lang1 when size(Lang1) =< 35 ->
+				   %% As stated in BCP47, 4.4.1:
+				   %% Protocols or specifications that
+				   %% specify limited buffer sizes for
+				   %% language tags MUST allow for
+				   %% language tags of at least 35 characters.
+				   binary_to_list(Lang1);
+			       _ ->
+				   %% Do not store long language tag to
+				   %% avoid possible DoS/flood attacks
+				   ""
+			   end,
+		    change_shaper(StateData, jlib:make_jid(<<>>, Server, <<>>)),
+		    case xml:get_attr_s(<<"version">>, Attrs) of
+			<<"1.0">> ->
+			    send_header(StateData, Server, "1.0", DefaultLang),
+			    case StateData#state.authenticated of
+				false ->
+				    SASLState =
 					cyrsasl:server_new(
 					  <<"jabber">>, Server, <<>>, [],
 					  fun(U) ->
@@ -443,7 +464,7 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
 					      StateData,
 					      #xmlel{name = <<"stream:features">>,
 					             children = StreamFeatures}),
-					    fsm_next_state(wait_for_bind,
+					    fsm_next_state(wait_for_bind_or_resume,
 						       StateData#state{
 							 server = Server,
 							 lang = Lang});
@@ -451,7 +472,7 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
 					    send_element(
 					      StateData,
 					      #xmlel{name = <<"stream:features">>}),
-					    fsm_next_state(wait_for_session,
+					    fsm_next_state(wait_for_session_or_sm,
 						       StateData#state{
 							 server = Server,
 							 lang = Lang})
@@ -506,9 +527,11 @@ wait_for_stream({xmlstreamerror, _}, StateData) ->
 wait_for_stream(closed, StateData) ->
     {stop, normal, StateData}.
 
-
 -spec wait_for_auth(Item :: ejabberd:xml_stream_item(),
                     State :: state()) -> fsm_return().
+wait_for_auth({xmlstreamelement,
+	       #xmlel{name = <<"enable">>} = El}, StateData) ->
+    maybe_unexpected_sm_request(wait_for_auth, El, StateData);
 wait_for_auth({xmlstreamelement, El}, StateData) ->
     case is_auth_packet(El) of
 	{auth, _ID, get, {U, _, _, _}} ->
@@ -602,39 +625,42 @@ wait_for_auth({xmlstreamelement, El}, StateData) ->
                                              privacy_list = PrivList},
                             fsm_next_state_pack(session_established,
                                                 NewStateData);
-                        _ ->
-                            ?INFO_MSG(
-                               "(~w) Failed legacy authentication for ~s",
-                               [StateData#state.socket,
-                                jlib:jid_to_binary(JID)]),
-                            Err = jlib:make_error_reply(
-                                    El, ?ERR_NOT_AUTHORIZED),
-                            send_element(StateData, Err),
-                            fsm_next_state(wait_for_auth, StateData)
-                    end;
-                _ ->
-                    if
-                        JID == error ->
-                            ?INFO_MSG(
-                               "(~w) Forbidden legacy authentication for "
-                               "username '~s' with resource '~s'",
-                               [StateData#state.socket, U, R]),
-                            Err = jlib:make_error_reply(El, ?ERR_JID_MALFORMED),
-                            send_element(StateData, Err),
-                            fsm_next_state(wait_for_auth, StateData);
-                        true ->
-                            ?INFO_MSG(
-                               "(~w) Forbidden legacy authentication for ~s",
-                               [StateData#state.socket,
-                                jlib:jid_to_binary(JID)]),
-                            Err = jlib:make_error_reply(El, ?ERR_NOT_ALLOWED),
-                            send_element(StateData, Err),
-                            fsm_next_state(wait_for_auth, StateData)
-                    end
-            end;
-        _ ->
-            process_unauthenticated_stanza(StateData, El),
-            fsm_next_state(wait_for_auth, StateData)
+			_ ->
+			    IP = peerip(StateData#state.sockmod, StateData#state.socket),
+			    ?INFO_MSG(
+			       "(~w) Failed legacy authentication for ~s from IP ~s (~w)",
+			       [StateData#state.socket,
+				jlib:jid_to_binary(JID), jlib:ip_to_list(IP), IP]),
+			    Err = jlib:make_error_reply(
+				    El, ?ERR_NOT_AUTHORIZED),
+                ejabberd_hooks:run(auth_failed, StateData#state.server,
+                               [U, StateData#state.server]),
+			    send_element(StateData, Err),
+			    fsm_next_state(wait_for_auth, StateData)
+		    end;
+		_ ->
+		    if
+			JID == error ->
+			    ?INFO_MSG(
+			       "(~w) Forbidden legacy authentication for "
+			       "username '~s' with resource '~s'",
+			       [StateData#state.socket, U, R]),
+			    Err = jlib:make_error_reply(El, ?ERR_JID_MALFORMED),
+			    send_element(StateData, Err),
+			    fsm_next_state(wait_for_auth, StateData);
+			true ->
+			    ?INFO_MSG(
+			       "(~w) Forbidden legacy authentication for ~s",
+			       [StateData#state.socket,
+				jlib:jid_to_binary(JID)]),
+			    Err = jlib:make_error_reply(El, ?ERR_NOT_ALLOWED),
+			    send_element(StateData, Err),
+			    fsm_next_state(wait_for_auth, StateData)
+		    end
+	    end;
+	_ ->
+	    process_unauthenticated_stanza(StateData, El),
+	    fsm_next_state(wait_for_auth, StateData)
     end;
 wait_for_auth(timeout, StateData) ->
     {stop, normal, StateData};
@@ -648,9 +674,11 @@ wait_for_auth({xmlstreamerror, _}, StateData) ->
 wait_for_auth(closed, StateData) ->
     {stop, normal, StateData}.
 
-
 -spec wait_for_feature_request(Item :: ejabberd:xml_stream_item(),
                                State :: state()) -> fsm_return().
+wait_for_feature_request({xmlstreamelement,
+			  #xmlel{name = <<"enable">>} = El}, StateData) ->
+    maybe_unexpected_sm_request(wait_for_feature_request, El, StateData);
 wait_for_feature_request({xmlstreamelement, El}, StateData) ->
     #xmlel{name = Name, attrs = Attrs, children = Els} = El,
     {Zlib, ZlibLimit} = StateData#state.zlib,
@@ -659,71 +687,76 @@ wait_for_feature_request({xmlstreamelement, El}, StateData) ->
     TLSRequired = StateData#state.tls_required,
     SockMod = (StateData#state.sockmod):get_sockmod(StateData#state.socket),
     case {xml:get_attr_s(<<"xmlns">>, Attrs), Name} of
-        {?NS_SASL, <<"auth">>} when not ((SockMod == gen_tcp) and TLSRequired) ->
-            Mech = xml:get_attr_s(<<"mechanism">>, Attrs),
-            ClientIn = jlib:decode_base64(xml:get_cdata(Els)),
-            case cyrsasl:server_start(StateData#state.sasl_state,
-                                      Mech,
-                                      ClientIn) of
-                {ok, Props} ->
-                    (StateData#state.sockmod):reset_stream(
-                      StateData#state.socket),
-                    send_element(StateData,
-                                  #xmlel{name = <<"success">>,
-                                         attrs = [{<<"xmlns">>, ?NS_SASL}]}),
-                     U = xml:get_attr_s(username, Props),
-                     AuthModule = xml:get_attr_s(auth_module, Props),
-                     ?INFO_MSG("(~w) Accepted authentication for ~s by ~p",
-                               [StateData#state.socket, U, AuthModule]),
-                     fsm_next_state(wait_for_stream,
-                                    StateData#state{
-                                      streamid = new_id(),
-                                      authenticated = true,
-                                      auth_module = AuthModule,
-                                      user = U});
-                {continue, ServerOut, NewSASLState} ->
-                    send_element(StateData,
-                                 #xmlel{name = <<"challenge">>,
-                                        attrs = [{<<"xmlns">>, ?NS_SASL}],
-                                        children = [#xmlcdata{content = jlib:encode_base64(ServerOut)}]}),
-                    fsm_next_state(wait_for_sasl_response,
-                                   StateData#state{
-                                     sasl_state = NewSASLState});
-                {error, Error, Username} ->
-                    ?INFO_MSG(
-                       "(~w) Failed authentication for ~s@~s",
-                       [StateData#state.socket,
-                        Username, StateData#state.server]),
-                    send_element(StateData,
-                                 #xmlel{name = <<"failure">>,
-                                        attrs = [{<<"xmlns">>, ?NS_SASL}],
-                                        children = [#xmlel{name = Error}]}),
-                    {next_state, wait_for_feature_request, StateData,
-                     ?C2S_OPEN_TIMEOUT};
-                {error, Error} ->
-                    send_element(StateData,
-                                 #xmlel{name = <<"failure">>,
-                                        attrs = [{<<"xmlns">>, ?NS_SASL}],
-                                        children = [#xmlel{name = Error}]}),
-                    fsm_next_state(wait_for_feature_request, StateData)
-            end;
-        {?NS_TLS_BIN, <<"starttls">>} when TLS == true,
-                                   TLSEnabled == false,
-                                   SockMod == gen_tcp ->
-            TLSOpts = case ejabberd_config:get_local_option(
-                             {domain_certfile, StateData#state.server}) of
-                          undefined ->
-                              StateData#state.tls_options;
-                          CertFile ->
-                              [{certfile, CertFile} |
-                               lists:keydelete(
-                                 certfile, 1, StateData#state.tls_options)]
-                      end,
-            Socket = StateData#state.socket,
-            TLSSocket = (StateData#state.sockmod):starttls(
-                          Socket, TLSOpts,
-                          xml:element_to_binary(
-                             #xmlel{name = <<"proceed">>,
+	{?NS_SASL, <<"auth">>} when not ((SockMod == gen_tcp) and TLSRequired) ->
+	    Mech = xml:get_attr_s(<<"mechanism">>, Attrs),
+	    ClientIn = jlib:decode_base64(xml:get_cdata(Els)),
+	    case cyrsasl:server_start(StateData#state.sasl_state,
+				      Mech,
+				      ClientIn) of
+		{ok, Props} ->
+		    (StateData#state.sockmod):reset_stream(
+		      StateData#state.socket),
+		    send_element(StateData,
+				  #xmlel{name = <<"success">>,
+				         attrs = [{<<"xmlns">>, ?NS_SASL}]}),
+		     U = xml:get_attr_s(username, Props),
+		     AuthModule = xml:get_attr_s(auth_module, Props),
+		     ?INFO_MSG("(~w) Accepted authentication for ~s by ~p",
+			       [StateData#state.socket, U, AuthModule]),
+		     fsm_next_state(wait_for_stream,
+				    StateData#state{
+				      streamid = new_id(),
+				      authenticated = true,
+				      auth_module = AuthModule,
+				      user = U});
+		{continue, ServerOut, NewSASLState} ->
+		    send_element(StateData,
+				 #xmlel{name = <<"challenge">>,
+				        attrs = [{<<"xmlns">>, ?NS_SASL}],
+				        children = [#xmlcdata{content = jlib:encode_base64(ServerOut)}]}),
+		    fsm_next_state(wait_for_sasl_response,
+				   StateData#state{
+				     sasl_state = NewSASLState});
+		{error, Error, Username} ->
+		    IP = peerip(StateData#state.sockmod, StateData#state.socket),
+		    ?INFO_MSG(
+		       "(~w) Failed authentication for ~s@~s from IP ~s (~w)",
+		       [StateData#state.socket,
+			Username, StateData#state.server, jlib:ip_to_list(IP), IP]),
+            ejabberd_hooks:run(auth_failed, StateData#state.server,
+                               [Username, StateData#state.server]),
+		    send_element(StateData,
+				 #xmlel{name = <<"failure">>,
+				        attrs = [{<<"xmlns">>, ?NS_SASL}],
+				        children = [#xmlel{name = Error}]}),
+		    {next_state, wait_for_feature_request, StateData,
+		     ?C2S_OPEN_TIMEOUT};
+		{error, Error} ->
+            ejabberd_hooks:run(auth_failed, StateData#state.server,
+                               [unknown, StateData#state.server]),
+		    send_element(StateData,
+				 #xmlel{name = <<"failure">>,
+				        attrs = [{<<"xmlns">>, ?NS_SASL}],
+				        children = [#xmlel{name = Error}]}),
+		    fsm_next_state(wait_for_feature_request, StateData)
+	    end;
+	{?NS_TLS_BIN, <<"starttls">>} when TLS == true,
+				   TLSEnabled == false,
+				   SockMod == gen_tcp ->
+	    TLSOpts = case ejabberd_config:get_local_option(
+			     {domain_certfile, StateData#state.server}) of
+			  undefined ->
+			      StateData#state.tls_options;
+			  CertFile ->
+			      [{certfile, CertFile} |
+			       lists:keydelete(
+				 certfile, 1, StateData#state.tls_options)]
+		      end,
+	    Socket = StateData#state.socket,
+	    TLSSocket = (StateData#state.sockmod):starttls(
+			  Socket, TLSOpts,
+			  xml:element_to_binary(
+			     #xmlel{name = <<"proceed">>,
                                     attrs = [{<<"xmlns">>, ?NS_TLS}]})),
 	    fsm_next_state(wait_for_stream,
 			   StateData#state{socket = TLSSocket,
@@ -788,59 +821,86 @@ wait_for_feature_request({xmlstreamerror, _}, StateData) ->
 wait_for_feature_request(closed, StateData) ->
     {stop, normal, StateData}.
 
-
 -spec wait_for_sasl_response(Item :: ejabberd:xml_stream_item(),
                              State :: state()) -> fsm_return().
+wait_for_sasl_response({xmlstreamelement,
+			#xmlel{name = <<"enable">>} = El}, StateData) ->
+    maybe_unexpected_sm_request(wait_for_sasl_response, El, StateData);
 wait_for_sasl_response({xmlstreamelement, El}, StateData) ->
     #xmlel{name = Name, attrs = Attrs, children = Els} = El,
     case {xml:get_attr_s(<<"xmlns">>, Attrs), Name} of
-        {?NS_SASL, <<"response">>} ->
-            ClientIn = jlib:decode_base64(xml:get_cdata(Els)),
-            case cyrsasl:server_step(StateData#state.sasl_state,
-                                     ClientIn) of
-                {ok, Props} ->
-                    (StateData#state.sockmod):reset_stream(
-                      StateData#state.socket),
-                    send_element(StateData,
-                                  #xmlel{name = <<"success">>,
-                                         attrs = [{<<"xmlns">>, ?NS_SASL}]}),
-                     U = xml:get_attr_s(username, Props),
-                     AuthModule = xml:get_attr_s(auth_module, Props),
-                     ?INFO_MSG("(~w) Accepted authentication for ~s by ~p",
-                               [StateData#state.socket, U, AuthModule]),
-                     fsm_next_state(wait_for_stream,
-                                    StateData#state{
-                                      streamid = new_id(),
-                                      authenticated = true,
-                                      auth_module = AuthModule,
-                                      user = U});
-                {continue, ServerOut, NewSASLState} ->
-                    send_element(StateData,
-                                 #xmlel{name = <<"challenge">>,
-                                        attrs = [{<<"xmlns">>, ?NS_SASL}],
-                                        children = [#xmlcdata{content = jlib:encode_base64(ServerOut)}]}),
-                    fsm_next_state(wait_for_sasl_response,
-                     StateData#state{sasl_state = NewSASLState});
-                {error, Error, Username} ->
-                    ?INFO_MSG(
-                       "(~w) Failed authentication for ~s@~s",
-                       [StateData#state.socket,
-                        Username, StateData#state.server]),
-                    send_element(StateData,
-                                 #xmlel{name = <<"failure">>,
-                                        attrs = [{<<"xmlns">>, ?NS_SASL}],
-                                        children = [#xmlel{name = Error}]}),
-                    fsm_next_state(wait_for_feature_request, StateData);
-                {error, Error} ->
-                    send_element(StateData,
-                                 #xmlel{name = <<"failure">>,
-                                        attrs = [{<<"xmlns">>, ?NS_SASL}],
-                                        children = [#xmlel{name = Error}]}),
-                    fsm_next_state(wait_for_feature_request, StateData)
-            end;
-        _ ->
-            process_unauthenticated_stanza(StateData, El),
-            fsm_next_state(wait_for_feature_request, StateData)
+	{?NS_SASL, <<"response">>} ->
+	    ClientIn = jlib:decode_base64(xml:get_cdata(Els)),
+	    case cyrsasl:server_step(StateData#state.sasl_state,
+				     ClientIn) of
+		{ok, Props} ->
+		    (StateData#state.sockmod):reset_stream(
+		      StateData#state.socket),
+		    send_element(StateData,
+                         #xmlel{name = <<"success">>,
+                                attrs = [{"xmlns", ?NS_SASL}]
+                               }),
+		    U = xml:get_attr_s(username, Props),
+		    AuthModule = xml:get_attr_s(auth_module, Props),
+		    ?INFO_MSG("(~w) Accepted authentication for ~s by ~p",
+			      [StateData#state.socket, U, AuthModule]),
+		    fsm_next_state(wait_for_stream,
+				   StateData#state{
+				     streamid = new_id(),
+				     authenticated = true,
+				     auth_module = AuthModule,
+				     user = U});
+		{ok, Props, ServerOut} ->
+		    (StateData#state.sockmod):reset_stream(
+		      StateData#state.socket),
+		    send_element(StateData,
+                         #xmlel{name = <<"success">>,
+                                attrs = [{"xmlns", ?NS_SASL}],
+                                children = [{xmlcdata,
+                                             jlib:encode_base64(ServerOut)}]}
+                        ),
+		    U = xml:get_attr_s(username, Props),
+		    AuthModule = xml:get_attr_s(auth_module, Props),
+		    ?INFO_MSG("(~w) Accepted authentication for ~s by ~p",
+			      [StateData#state.socket, U, AuthModule]),
+		    fsm_next_state(wait_for_stream,
+				   StateData#state{
+				     streamid = new_id(),
+				     authenticated = true,
+				     auth_module = AuthModule,
+				     user = U});
+		{continue, ServerOut, NewSASLState} ->
+		    send_element(StateData,
+				 #xmlel{name = <<"challenge">>,
+				        attrs = [{<<"xmlns">>, ?NS_SASL}],
+				        children = [#xmlcdata{content = jlib:encode_base64(ServerOut)}]}),
+		    fsm_next_state(wait_for_sasl_response,
+		     StateData#state{sasl_state = NewSASLState});
+		{error, Error, Username} ->
+		    IP = peerip(StateData#state.sockmod, StateData#state.socket),
+		    ?INFO_MSG(
+		       "(~w) Failed authentication for ~s@~s from IP ~s (~w)",
+		       [StateData#state.socket,
+			Username, StateData#state.server, jlib:ip_to_list(IP), IP]),
+            ejabberd_hooks:run(auth_failed, StateData#state.server,
+                               [Username, StateData#state.server]),
+		    send_element(StateData,
+				 #xmlel{name = <<"failure">>,
+				        attrs = [{<<"xmlns">>, ?NS_SASL}],
+				        children = [#xmlel{name = Error}]}),
+		    fsm_next_state(wait_for_feature_request, StateData);
+		{error, Error} ->
+            ejabberd_hooks:run(auth_failed, StateData#state.server,
+                               [unknown, StateData#state.server]),
+		    send_element(StateData,
+				 #xmlel{name = <<"failure">>,
+				        attrs = [{<<"xmlns">>, ?NS_SASL}],
+				        children = [#xmlel{name = Error}]}),
+		    fsm_next_state(wait_for_feature_request, StateData)
+	    end;
+	_ ->
+	    process_unauthenticated_stanza(StateData, El),
+	    fsm_next_state(wait_for_feature_request, StateData)
     end;
 wait_for_sasl_response(timeout, StateData) ->
     {stop, normal, StateData};
@@ -854,10 +914,15 @@ wait_for_sasl_response({xmlstreamerror, _}, StateData) ->
 wait_for_sasl_response(closed, StateData) ->
     {stop, normal, StateData}.
 
-
--spec wait_for_bind(Item :: ejabberd:xml_stream_item(),
-                    State :: state()) -> fsm_return().
-wait_for_bind({xmlstreamelement, El}, StateData) ->
+-spec wait_for_bind_or_resume(Item :: ejabberd:xml_stream_item(),
+                              State :: state()) -> fsm_return().
+wait_for_bind_or_resume({xmlstreamelement,
+			 #xmlel{name = <<"enable">>} = El}, StateData) ->
+    maybe_unexpected_sm_request(wait_for_bind_or_resume, El, StateData);
+wait_for_bind_or_resume({xmlstreamelement,
+			 #xmlel{name = <<"resume">>} = El}, StateData) ->
+    maybe_resume_session(wait_for_bind_or_resume, El, StateData);
+wait_for_bind_or_resume({xmlstreamelement, El}, StateData) ->
     case jlib:iq_query_info(El) of
         #iq{type = set, xmlns = ?NS_BIND, sub_el = SubEl} = IQ ->
             U = StateData#state.user,
@@ -867,52 +932,68 @@ wait_for_bind({xmlstreamelement, El}, StateData) ->
                     <<>> ->
                     list_to_binary(lists:concat(
                                      [randoms:get_string() | tuple_to_list(now())]));
-                    Resource -> Resource
-                end,
-            case R of
-                error ->
-                    Err = jlib:make_error_reply(El, ?ERR_BAD_REQUEST),
-                    send_element(StateData, Err),
-                    fsm_next_state(wait_for_bind, StateData);
-                _ ->
-                    JID = jlib:make_jid(U, StateData#state.server, R),
-                    %%Server = StateData#state.server,
-                    %%RosterVersioningFeature =
-                    %%  ejabberd_hooks:run_fold(
-                    %%  roster_get_versioning_feature, Server, [], [Server]),
-                    %%StreamFeatures = [{xmlel, "session",
-                    %%                 [{"xmlns", ?NS_SESSION}], []} |
-                    %%                RosterVersioningFeature],
-                    %%send_element(StateData, {xmlel, "stream:features",
-                    %%                       [], StreamFeatures}),
-                    Res = IQ#iq{type = result,
-                                sub_el = [#xmlel{name = <<"bind">>,
-                                                 attrs = [{<<"xmlns">>, ?NS_BIND}],
-                                                 children = [#xmlel{name = <<"jid">>,
-                                                                    children = [#xmlcdata{content = jlib:jid_to_binary(JID)}]}]}]},
-                    send_element(StateData, jlib:iq_to_xml(Res)),
-                    fsm_next_state(wait_for_session,
-                                   StateData#state{resource = R, jid = JID})
-            end;
-        _ ->
-            fsm_next_state(wait_for_bind, StateData)
+		    Resource -> Resource
+		end,
+	    case R of
+		error ->
+		    Err = jlib:make_error_reply(El, ?ERR_BAD_REQUEST),
+		    send_element(StateData, Err),
+		    fsm_next_state(wait_for_bind_or_resume, StateData);
+		_ ->
+		    JID = jlib:make_jid(U, StateData#state.server, R),
+		    %%Server = StateData#state.server,
+		    %%RosterVersioningFeature =
+		    %%	ejabberd_hooks:run_fold(
+		    %%  roster_get_versioning_feature, Server, [], [Server]),
+	            %%StreamFeatures = [{xmlel, "session",
+		    %%		       [{"xmlns", ?NS_SESSION}], []} |
+		    %%		      RosterVersioningFeature],
+		    %%send_element(StateData, {xmlel, "stream:features",
+		    %%			     [], StreamFeatures}),
+		    Res = IQ#iq{type = result,
+				sub_el = [#xmlel{name = <<"bind">>,
+					         attrs = [{<<"xmlns">>, ?NS_BIND}],
+					         children = [#xmlel{name = <<"jid">>,
+					                            children = [#xmlcdata{content = jlib:jid_to_binary(JID)}]}]}]},
+		    send_element(StateData, jlib:iq_to_xml(Res)),
+		    fsm_next_state(wait_for_session_or_sm,
+				   StateData#state{resource = R, jid = JID})
+	    end;
+	_ ->
+	    fsm_next_state(wait_for_bind_or_resume, StateData)
     end;
-wait_for_bind(timeout, StateData) ->
+
+wait_for_bind_or_resume(timeout, StateData) ->
     {stop, normal, StateData};
-wait_for_bind({xmlstreamend, _Name}, StateData) ->
+
+wait_for_bind_or_resume({xmlstreamend, _Name}, StateData) ->
     send_trailer(StateData),
     {stop, normal, StateData};
-wait_for_bind({xmlstreamerror, _}, StateData) ->
+
+wait_for_bind_or_resume({xmlstreamerror, _}, StateData) ->
     send_element(StateData, ?INVALID_XML_ERR),
     send_trailer(StateData),
     {stop, normal, StateData};
-wait_for_bind(closed, StateData) ->
+
+wait_for_bind_or_resume(closed, StateData) ->
     {stop, normal, StateData}.
 
+-spec wait_for_session_or_sm(Item :: ejabberd:xml_stream_item(),
+                             State :: state()) -> fsm_return().
+wait_for_session_or_sm({xmlstreamelement,
+			#xmlel{name = <<"enable">>} = El}, StateData) ->
+    maybe_enable_stream_mgmt(wait_for_session_or_sm, El, StateData);
 
--spec wait_for_session(Item :: ejabberd:xml_stream_item(),
-                       State :: state()) -> fsm_return().
-wait_for_session({xmlstreamelement, El}, StateData) ->
+wait_for_session_or_sm({xmlstreamelement,
+			#xmlel{name = <<"r">>} = El}, StateData) ->
+    maybe_send_sm_ack(xml:get_tag_attr_s(<<"xmlns">>, El),
+		      StateData#state.stream_mgmt,
+		      StateData#state.stream_mgmt_in,
+		      wait_for_session_or_sm, StateData);
+
+wait_for_session_or_sm({xmlstreamelement, El}, StateData0) ->
+    StateData = maybe_increment_sm_incoming(StateData0#state.stream_mgmt,
+					    StateData0),
     case jlib:iq_query_info(El) of
         #iq{type = set, xmlns = ?NS_SESSION} ->
             U = StateData#state.user,
@@ -948,52 +1029,72 @@ wait_for_session({xmlstreamelement, El}, StateData) ->
                       SID, U, StateData#state.server, R, Info),
                     NewStateData =
                         StateData#state{
-                                     sid = SID,
-                                     conn = Conn,
-                                     pres_f = ?SETS:from_list(Fs1),
-                                     pres_t = ?SETS:from_list(Ts1),
-                     pending_invitations = Pending,
-                                     privacy_list = PrivList},
-                    fsm_next_state_pack(session_established,
+				     sid = SID,
+				     conn = Conn,
+				     pres_f = ?SETS:from_list(Fs1),
+				     pres_t = ?SETS:from_list(Ts1),
+				     pending_invitations = Pending,
+				     privacy_list = PrivList},
+		    fsm_next_state_pack(session_established,
                                         NewStateData);
-                _ ->
-                    ejabberd_hooks:run(forbidden_session_hook,
-                                       StateData#state.server, [JID]),
-                    ?INFO_MSG("(~w) Forbidden session for ~s",
-                              [StateData#state.socket,
-                               jlib:jid_to_binary(JID)]),
-                    Err = jlib:make_error_reply(El, ?ERR_NOT_ALLOWED),
-                    send_element(StateData, Err),
-                    fsm_next_state(wait_for_session, StateData)
-            end;
-        _ ->
-            fsm_next_state(wait_for_session, StateData)
+		_ ->
+		    ejabberd_hooks:run(forbidden_session_hook,
+				       StateData#state.server, [JID]),
+		    ?INFO_MSG("(~w) Forbidden session for ~s",
+			      [StateData#state.socket,
+			       jlib:jid_to_binary(JID)]),
+		    Err = jlib:make_error_reply(El, ?ERR_NOT_ALLOWED),
+		    send_element(StateData, Err),
+		    fsm_next_state(wait_for_session_or_sm, StateData)
+	    end;
+	_ ->
+	    fsm_next_state(wait_for_session_or_sm, StateData)
     end;
-wait_for_session(timeout, StateData) ->
+
+wait_for_session_or_sm(timeout, StateData) ->
     {stop, normal, StateData};
-wait_for_session({xmlstreamend, _Name}, StateData) ->
+
+wait_for_session_or_sm({xmlstreamend, _Name}, StateData) ->
     send_trailer(StateData),
     {stop, normal, StateData};
-wait_for_session({xmlstreamerror, _}, StateData) ->
+
+wait_for_session_or_sm({xmlstreamerror, _}, StateData) ->
     send_element(StateData, ?INVALID_XML_ERR),
     send_trailer(StateData),
     {stop, normal, StateData};
-wait_for_session(closed, StateData) ->
-    {stop, normal, StateData}.
 
+wait_for_session_or_sm(closed, StateData) ->
+    {stop, normal, StateData}.
 
 -spec session_established(Item :: ejabberd:xml_stream_item(),
                           State :: state()) -> fsm_return().
+session_established({xmlstreamelement,
+		     #xmlel{name = <<"enable">>} = El}, StateData) ->
+    maybe_enable_stream_mgmt(session_established, El, StateData);
+
+session_established({xmlstreamelement,
+		     #xmlel{name = <<"a">>} = El}, StateData) ->
+    stream_mgmt_handle_ack(session_established, El, StateData);
+
+session_established({xmlstreamelement,
+		     #xmlel{name = <<"r">>} = El}, StateData) ->
+    maybe_send_sm_ack(xml:get_tag_attr_s(<<"xmlns">>, El),
+		      StateData#state.stream_mgmt,
+		      StateData#state.stream_mgmt_in,
+		      session_established, StateData);
+
 session_established({xmlstreamelement, El}, StateData) ->
     FromJID = StateData#state.jid,
     % Check 'from' attribute in stanza RFC 3920 Section 9.1.2
     case check_from(El, FromJID) of
-        'invalid-from' ->
-            send_element(StateData, ?INVALID_FROM),
-            send_trailer(StateData),
-            {stop, normal, StateData};
-        _NewEl ->
-            session_established2(El, StateData)
+	'invalid-from' ->
+	    send_element(StateData, ?INVALID_FROM),
+	    send_trailer(StateData),
+	    {stop, normal, StateData};
+	_NewEl ->
+	    NewState = maybe_increment_sm_incoming(StateData#state.stream_mgmt,
+						   StateData),
+	    session_established2(El, NewState)
     end;
 %% We hibernate the process to reduce memory consumption after a
 %% configurable activity timeout
@@ -1016,7 +1117,8 @@ session_established({xmlstreamerror, _}, StateData) ->
     send_trailer(StateData),
     {stop, normal, StateData};
 session_established(closed, StateData) ->
-    {stop, normal, StateData}.
+    ?DEBUG("Session established closed - trying to enter resume_session",[]),
+    maybe_enter_resume_session(StateData#state.stream_mgmt_id, StateData).
 
 
 %% @doc Process packets sent by user (coming from user on c2s XMPP
@@ -1029,12 +1131,12 @@ session_established2(El, StateData) ->
     FromJID = StateData#state.jid,
     To = xml:get_attr_s(<<"to">>, Attrs),
     ToJID = case To of
-                <<>> ->
-                    jlib:make_jid(User, Server, <<>>);
-                _ ->
-                    jlib:binary_to_jid(To)
-            end,
-    NewEl1 = jlib:remove_attr(<<"xmlns">>, El),
+		<<>> ->
+		    jlib:make_jid(User, Server, <<>>);
+		_ ->
+		    jlib:binary_to_jid(To)
+	    end,
+    NewEl1 = jlib:remove_attr(<<"xmlns">>, jlib:remove_delay_tags(El)),
     NewEl = case xml:get_attr_s(<<"xml:lang">>, Attrs) of
                 <<>> ->
                     case StateData#state.lang of
@@ -1109,6 +1211,26 @@ session_established2(El, StateData) ->
     ejabberd_hooks:run(c2s_loop_debug, [{xmlstreamelement, El}]),
     fsm_next_state(session_established, NewState).
 
+%%-------------------------------------------------------------------------
+%% session may be terminated for exmaple by mod_ping there is still valid
+%% connection and resource want to send stanza.
+resume_session({xmlstreamelement, _}, StateData) ->
+    Err = ?POLICY_VIOLATION_ERR(StateData#state.lang,
+					   "session in resume state cannot accept incoming stanzas"),
+    maybe_send_element_safe(StateData, Err),
+    maybe_send_trailer_safe(StateData),
+    {next_state, resume_session, StateData, hibernate};
+
+%%-------------------------------------------------------------------------
+%% ignore mod_ping closed messages because we are already in resume session
+%% state
+resume_session(closed, StateData) ->
+    {next_state, resume_session, StateData, hibernate};
+resume_session(timeout, StateData) ->
+    {next_state, resume_session, StateData, hibernate};
+resume_session(Msg, StateData) ->
+    ?WARNING_MSG("unexpected message ~p",[Msg]),
+    {next_state, resume_session, StateData, hibernate}.
 
 
 %%----------------------------------------------------------------------
@@ -1120,9 +1242,12 @@ session_established2(El, StateData) ->
 %%          {stop, Reason, NewStateData}                          |
 %%          {stop, Reason, Reply, NewStateData}
 %%----------------------------------------------------------------------
-%state_name(Event, From, StateData) ->
-%    Reply = ok,
-%    {reply, Reply, state_name, StateData}.
+
+session_established(resume, _From, SD) ->
+    handover_session(SD).
+
+resume_session(resume, _From, SD) ->
+    handover_session(SD).
 
 %%----------------------------------------------------------------------
 %% Func: handle_event/3
@@ -1181,16 +1306,225 @@ handle_info({send_text, Text}, StateName, StateData) ->
     fsm_next_state(StateName, StateData);
 handle_info(replaced, _StateName, StateData) ->
     Lang = StateData#state.lang,
-    send_element(StateData,
-                 ?SERRT_CONFLICT(Lang, "Replaced by new connection")),
-    send_trailer(StateData),
+    maybe_send_element_safe(StateData,
+		 ?SERRT_CONFLICT(Lang, "Replaced by new connection")),
+    maybe_send_trailer_safe(StateData),
     {stop, normal, StateData#state{authenticated = replaced}};
 %% Process Packets that are to be send to the user
 handle_info({route, From, To, Packet}, StateName, StateData) ->
-  internal_handle_route(From, To, Packet, StateName, StateData);
+    #xmlel{name = Name, attrs = Attrs, children = Els} = Packet,
+    {Pass, NewAttrs, NewState} =
+	case Name of
+	    <<"presence">> ->
+		State = ejabberd_hooks:run_fold(
+			  c2s_presence_in, StateData#state.server,
+			  StateData,
+			  [{From, To, Packet}]),
+		case xml:get_attr_s(<<"type">>, Attrs) of
+		    <<"probe">> ->
+			LFrom = jlib:jid_tolower(From),
+			LBFrom = jlib:jid_remove_resource(LFrom),
+			NewStateData =
+			    case ?SETS:is_element(
+				    LFrom, State#state.pres_a) orelse
+				?SETS:is_element(
+				   LBFrom, State#state.pres_a) of
+				true ->
+				    State;
+				false ->
+				    case ?SETS:is_element(
+					    LFrom, State#state.pres_f) of
+					true ->
+					    A = ?SETS:add_element(
+						   LFrom,
+						   State#state.pres_a),
+					    State#state{pres_a = A};
+					false ->
+					    case ?SETS:is_element(
+						    LBFrom, State#state.pres_f) of
+						true ->
+						    A = ?SETS:add_element(
+							   LBFrom,
+							   State#state.pres_a),
+						    State#state{pres_a = A};
+						false ->
+						    State
+					    end
+				    end
+			    end,
+			process_presence_probe(From, To, NewStateData),
+			{false, Attrs, NewStateData};
+		    <<"error">> ->
+			NewA = remove_element(jlib:jid_tolower(From),
+					      State#state.pres_a),
+			{true, Attrs, State#state{pres_a = NewA}};
+		    <<"invisible">> ->
+			Attrs1 = lists:keydelete(<<"type">>, 1, Attrs),
+			{true, [{<<"type">>, <<"unavailable">>} | Attrs1], State};
+		    <<"subscribe">> ->
+			SRes = is_privacy_allow(State, From, To, Packet, in),
+			{SRes, Attrs, State};
+		    <<"subscribed">> ->
+			SRes = is_privacy_allow(State, From, To, Packet, in),
+			{SRes, Attrs, State};
+		    <<"unsubscribe">> ->
+			SRes = is_privacy_allow(State, From, To, Packet, in),
+			{SRes, Attrs, State};
+		    <<"unsubscribed">> ->
+			SRes = is_privacy_allow(State, From, To, Packet, in),
+			{SRes, Attrs, State};
+		    _ ->
+			case privacy_check_packet(State, From, To, Packet, in) of
+			    allow ->
+				LFrom = jlib:jid_tolower(From),
+				LBFrom = jlib:jid_remove_resource(LFrom),
+				case ?SETS:is_element(
+					LFrom, State#state.pres_a) orelse
+				    ?SETS:is_element(
+				       LBFrom, State#state.pres_a) of
+				    true ->
+					{true, Attrs, State};
+				    false ->
+					case ?SETS:is_element(
+						LFrom, State#state.pres_f) of
+					    true ->
+						A = ?SETS:add_element(
+						       LFrom,
+						       State#state.pres_a),
+						{true, Attrs,
+						 State#state{pres_a = A}};
+					    false ->
+						case ?SETS:is_element(
+							LBFrom, State#state.pres_f) of
+						    true ->
+							A = ?SETS:add_element(
+							       LBFrom,
+							       State#state.pres_a),
+							{true, Attrs,
+							 State#state{pres_a = A}};
+						    false ->
+							{true, Attrs, State}
+						end
+					end
+				end;
+			    deny ->
+				{false, Attrs, State}
+			end
+		end;
+	    <<"broadcast">> ->
+		?DEBUG("broadcast~n~p~n", [Els]),
+		case Els of
+		    [{item, IJID, ISubscription}] ->
+			{false, Attrs,
+			 roster_change(IJID, ISubscription,
+				       StateData)};
+		    [{exit, Reason}] ->
+			{exit, Attrs, Reason};
+		    [{privacy_list, PrivList, PrivListName}] ->
+			case ejabberd_hooks:run_fold(
+			       privacy_updated_list, StateData#state.server,
+			       false,
+			       [StateData#state.privacy_list,
+				PrivList]) of
+			    false ->
+				{false, Attrs, StateData};
+			    NewPL ->
+				PrivPushIQ =
+				    #iq{type = set, xmlns = ?NS_PRIVACY,
+					id = list_to_binary("push" ++ randoms:get_string()),
+					sub_el = [#xmlel{name = <<"query">>,
+						         attrs = [{<<"xmlns">>, ?NS_PRIVACY}],
+							 children = [#xmlel{name = <<"list">>,
+									    attrs = [{<<"name">>, PrivListName}]}]}]},
+				    F = jlib:jid_remove_resource(StateData#state.jid),
+				    T = StateData#state.jid,
+				    PrivPushEl =
+				    jlib:replace_from_to(
+				      F,
+				      T,
+				      jlib:iq_to_xml(PrivPushIQ)),
+				    {send_new, {F, T, PrivPushEl}, StateData#state{privacy_list = NewPL}}
+			end;
+		    [{blocking, What}] ->
+			route_blocking(What, StateData),
+			{false, Attrs, StateData};
+		    _ ->
+			{false, Attrs, StateData}
+		end;
+	    <<"iq">> ->
+		IQ = jlib:iq_query_info(Packet),
+		case IQ of
+		    #iq{xmlns = ?NS_LAST} ->
+			LFrom = jlib:jid_tolower(From),
+			LBFrom = jlib:jid_remove_resource(LFrom),
+			HasFromSub = (?SETS:is_element(LFrom, StateData#state.pres_f) orelse ?SETS:is_element(LBFrom, StateData#state.pres_f))
+			   andalso is_privacy_allow(StateData, To, From, #xmlel{name = <<"presence">>}, out),
+			case HasFromSub of
+			    true ->
+				case privacy_check_packet(StateData, From, To, Packet, in) of
+				    allow ->
+					{true, Attrs, StateData};
+				    deny ->
+					{false, Attrs, StateData}
+				end;
+			    _ ->
+				Err = jlib:make_error_reply(Packet, ?ERR_FORBIDDEN),
+				ejabberd_router:route(To, From, Err),
+				{false, Attrs, StateData}
+			end;
+		    IQ when (is_record(IQ, iq)) or (IQ == reply) ->
+			case privacy_check_packet(StateData, From, To, Packet, in) of
+			    allow ->
+				{true, Attrs, StateData};
+			    deny when is_record(IQ, iq) ->
+				Err = jlib:make_error_reply(
+					Packet, ?ERR_SERVICE_UNAVAILABLE),
+				ejabberd_router:route(To, From, Err),
+				{false, Attrs, StateData};
+			    deny when IQ == reply ->
+				{false, Attrs, StateData}
+			end;
+		    IQ when (IQ == invalid) or (IQ == not_iq) ->
+			{false, Attrs, StateData}
+		end;
+	    <<"message">> ->
+		case privacy_check_packet(StateData, From, To, Packet, in) of
+		    allow ->
+			{true, Attrs, StateData};
+		    deny ->
+			{false, Attrs, StateData}
+		end;
+	    _ ->
+		{true, Attrs, StateData}
+	end,
+    if
+	Pass == exit ->
+	    %% When Pass==exit, NewState contains a string instead of a #state{}
+	    Lang = StateData#state.lang,
+	    send_element(StateData, ?SERRT_CONFLICT(Lang, NewState)),
+	    send_trailer(StateData),
+	    {stop, normal, StateData};
+	Pass == send_new ->
+	    %% When Pass==send_new, NewAttrs contains a {F,T Stanza} instead of a Attrs
+	    send_and_maybe_buffer_stanza(NewAttrs, NewState, StateName);
+	Pass ->
+	    Attrs2 = jlib:replace_from_to_attrs(jlib:jid_to_binary(From),
+						jlib:jid_to_binary(To),
+						NewAttrs),
+	    FixedPacket = Packet#xmlel{attrs = Attrs2},
+	    ejabberd_hooks:run(user_receive_packet,
+			       StateData#state.server,
+			       [StateData#state.jid, From, To, FixedPacket]),
+	    ejabberd_hooks:run(c2s_loop_debug, [{route, From, To, Packet}]),
+
+	    send_and_maybe_buffer_stanza({From, To, FixedPacket}, NewState, StateName);
+       true ->
+           ejabberd_hooks:run(c2s_loop_debug, [{route, From, To, Packet}]),
+           fsm_next_state(StateName, NewState)
+    end;
 handle_info({'DOWN', Monitor, _Type, _Object, _Info}, _StateName, StateData)
   when Monitor == StateData#state.socket_monitor ->
-    {stop, normal, StateData};
+    maybe_enter_resume_session(StateData#state.stream_mgmt_id, StateData);
 handle_info(system_shutdown, StateName, StateData) ->
     case StateName of
        wait_for_stream ->
@@ -1234,225 +1568,25 @@ handle_info({broadcast, Type, From, Packet}, StateName, StateData) ->
                 From, jlib:make_jid(USR), Packet)
       end, lists:usort(Recipients)),
     fsm_next_state(StateName, StateData);
+handle_info(resume_timeout, resume_session, StateData) ->
+    {stop, normal, StateData};
+handle_info(check_buffer_full, StateName, StateData) ->
+    case is_buffer_full(StateData#state.stream_mgmt_buffer_size,
+			StateData#state.stream_mgmt_buffer_max) of
+        true ->
+            Err = ?RESOURCE_CONSTRAINT_ERR(StateData#state.lang,
+                                           "too many unacked stanzas"),
+            send_element(StateData, Err),
+            send_trailer(StateData),
+            {stop, normal, StateData};
+        false ->
+            fsm_next_state(StateName,
+                           StateData#state{stream_mgmt_constraint_check_tref = undefined})
+    end;
 handle_info(Info, StateName, StateData) ->
     ?ERROR_MSG("Unexpected info: ~p", [Info]),
     fsm_next_state(StateName, StateData).
 
-
--spec internal_handle_route(From :: ejabberd:jid(),
-                            To :: ejabberd:jid(),
-                            Packet :: jlib:xmlel(),
-                            StateName :: statename(),
-                            StateData :: state())
-      -> {next_state, Next :: statename(), state(), integer()}.
-internal_handle_route(From, To, Packet, StateName, StateData) ->
-  #xmlel{name = Name, attrs = Attrs, children = Els} = Packet,
-  {Pass, NewAttrs, NewState} =
-    case Name of
-      <<"presence">> ->
-        State = ejabberd_hooks:run_fold(
-          c2s_presence_in, StateData#state.server,
-          StateData,
-          [{From, To, Packet}]),
-        case xml:get_attr_s(<<"type">>, Attrs) of
-          <<"probe">> ->
-            LFrom = jlib:jid_tolower(From),
-            LBFrom = jlib:jid_remove_resource(LFrom),
-            NewStateData =
-              case ?SETS:is_element(
-                LFrom, State#state.pres_a) orelse
-                ?SETS:is_element(
-                  LBFrom, State#state.pres_a) of
-                true ->
-                  State;
-                false ->
-                  case ?SETS:is_element(
-                    LFrom, State#state.pres_f) of
-                    true ->
-                      A = ?SETS:add_element(
-                        LFrom,
-                        State#state.pres_a),
-                      State#state{pres_a = A};
-                    false ->
-                      case ?SETS:is_element(
-                        LBFrom, State#state.pres_f) of
-                        true ->
-                          A = ?SETS:add_element(
-                            LBFrom,
-                            State#state.pres_a),
-                          State#state{pres_a = A};
-                        false ->
-                          State
-                      end
-                  end
-              end,
-            process_presence_probe(From, To, NewStateData),
-            {false, Attrs, NewStateData};
-          <<"error">> ->
-            NewA = remove_element(jlib:jid_tolower(From),
-              State#state.pres_a),
-            {true, Attrs, State#state{pres_a = NewA}};
-          <<"invisible">> ->
-            Attrs1 = lists:keydelete(<<"type">>, 1, Attrs),
-            {true, [{<<"type">>, <<"unavailable">>} | Attrs1], State};
-          <<"subscribe">> ->
-            SRes = is_privacy_allow(State, From, To, Packet, in),
-            {SRes, Attrs, State};
-          <<"subscribed">> ->
-            SRes = is_privacy_allow(State, From, To, Packet, in),
-            {SRes, Attrs, State};
-          <<"unsubscribe">> ->
-            SRes = is_privacy_allow(State, From, To, Packet, in),
-            {SRes, Attrs, State};
-          <<"unsubscribed">> ->
-            SRes = is_privacy_allow(State, From, To, Packet, in),
-            {SRes, Attrs, State};
-          _ ->
-            case privacy_check_packet(State, From, To, Packet, in) of
-              allow ->
-                LFrom = jlib:jid_tolower(From),
-                LBFrom = jlib:jid_remove_resource(LFrom),
-                case ?SETS:is_element(
-                  LFrom, State#state.pres_a) orelse
-                  ?SETS:is_element(
-                    LBFrom, State#state.pres_a) of
-                  true ->
-                    {true, Attrs, State};
-                  false ->
-                    case ?SETS:is_element(
-                      LFrom, State#state.pres_f) of
-                      true ->
-                        A = ?SETS:add_element(
-                          LFrom,
-                          State#state.pres_a),
-                        {true, Attrs,
-                          State#state{pres_a = A}};
-                      false ->
-                        case ?SETS:is_element(
-                          LBFrom, State#state.pres_f) of
-                          true ->
-                            A = ?SETS:add_element(
-                              LBFrom,
-                              State#state.pres_a),
-                            {true, Attrs,
-                              State#state{pres_a = A}};
-                          false ->
-                            {true, Attrs, State}
-                        end
-                    end
-                end;
-              deny ->
-                {false, Attrs, State}
-            end
-        end;
-      <<"broadcast">> ->
-        ?DEBUG("broadcast~n~p~n", [Els]),
-        case Els of
-          [{item, IJID, ISubscription}] ->
-            {false, Attrs,
-              roster_change(IJID, ISubscription,
-                StateData)};
-          [{exit, Reason}] ->
-            {exit, Attrs, Reason};
-          [{privacy_list, PrivList, PrivListName}] ->
-            case ejabberd_hooks:run_fold(
-              privacy_updated_list, StateData#state.server,
-              false,
-              [StateData#state.privacy_list,
-                PrivList]) of
-              false ->
-                {false, Attrs, StateData};
-              NewPL ->
-                PrivPushIQ =
-                  #iq{type = set, xmlns = ?NS_PRIVACY,
-                  id = list_to_binary("push" ++ randoms:get_string()),
-                  sub_el = [#xmlel{name = <<"query">>,
-                  attrs = [{<<"xmlns">>, ?NS_PRIVACY}],
-                  children = [#xmlel{name = <<"list">>,
-                  attrs = [{<<"name">>, PrivListName}]}]}]},
-                PrivPushEl =
-                  jlib:replace_from_to(
-                    jlib:jid_remove_resource(
-                      StateData#state.jid),
-                    StateData#state.jid,
-                    jlib:iq_to_xml(PrivPushIQ)),
-                send_element(StateData, PrivPushEl),
-                {false, Attrs, StateData#state{privacy_list = NewPL}}
-            end;
-          [{blocking, What}] ->
-            route_blocking(What, StateData),
-            {false, Attrs, StateData};
-          _ ->
-            {false, Attrs, StateData}
-        end;
-      <<"iq">> ->
-        IQ = jlib:iq_query_info(Packet),
-        case IQ of
-          #iq{xmlns = ?NS_LAST} ->
-            LFrom = jlib:jid_tolower(From),
-            LBFrom = jlib:jid_remove_resource(LFrom),
-            HasFromSub = (?SETS:is_element(LFrom, StateData#state.pres_f) orelse ?SETS:is_element(LBFrom, StateData#state.pres_f))
-              andalso is_privacy_allow(StateData, To, From, #xmlel{name = <<"presence">>}, out),
-            case HasFromSub of
-              true ->
-                case privacy_check_packet(StateData, From, To, Packet, in) of
-                  allow ->
-                    {true, Attrs, StateData};
-                  deny ->
-                    {false, Attrs, StateData}
-                end;
-              _ ->
-                Err = jlib:make_error_reply(Packet, ?ERR_FORBIDDEN),
-                ejabberd_router:route(To, From, Err),
-                {false, Attrs, StateData}
-            end;
-          IQ when (is_record(IQ, iq)) or (IQ == reply) ->
-            case privacy_check_packet(StateData, From, To, Packet, in) of
-              allow ->
-                {true, Attrs, StateData};
-              deny when is_record(IQ, iq) ->
-                Err = jlib:make_error_reply(
-                  Packet, ?ERR_SERVICE_UNAVAILABLE),
-                ejabberd_router:route(To, From, Err),
-                {false, Attrs, StateData};
-              deny when IQ == reply ->
-                {false, Attrs, StateData}
-            end;
-          IQ when (IQ == invalid) or (IQ == not_iq) ->
-            {false, Attrs, StateData}
-        end;
-      <<"message">> ->
-        case privacy_check_packet(StateData, From, To, Packet, in) of
-          allow ->
-            {true, Attrs, StateData};
-          deny ->
-            {false, Attrs, StateData}
-        end;
-      _ ->
-        {true, Attrs, StateData}
-    end,
-  if
-    Pass == exit ->
-      %% When Pass==exit, NewState contains a string instead of a #state{}
-      Lang = StateData#state.lang,
-      send_element(StateData, ?SERRT_CONFLICT(Lang, NewState)),
-      send_trailer(StateData),
-      {stop, normal, StateData};
-    Pass ->
-      Attrs2 = jlib:replace_from_to_attrs(jlib:jid_to_binary(From),
-        jlib:jid_to_binary(To),
-        NewAttrs),
-      FixedPacket = Packet#xmlel{attrs = Attrs2},
-      send_element(StateData, FixedPacket),
-      ejabberd_hooks:run(user_receive_packet,
-        StateData#state.server,
-        [StateData#state.jid, From, To, FixedPacket]),
-      ejabberd_hooks:run(c2s_loop_debug, [{route, From, To, Packet}]),
-      fsm_next_state(StateName, NewState);
-    true ->
-      ejabberd_hooks:run(c2s_loop_debug, [{route, From, To, Packet}]),
-      fsm_next_state(StateName, NewState)
-  end.
 
 %%----------------------------------------------------------------------
 %% Func: print_state/1
@@ -1474,62 +1608,75 @@ print_state(State = #state{pres_t = T, pres_f = F, pres_a = A, pres_i = I}) ->
 %%----------------------------------------------------------------------
 -spec terminate(Reason :: any(), statename(), state()) -> ok.
 terminate(_Reason, StateName, StateData) ->
-    case StateName of
-        session_established ->
-            case StateData#state.authenticated of
-                replaced ->
-                    ?INFO_MSG("(~w) Replaced session for ~s",
-                              [StateData#state.socket,
-                               jlib:jid_to_binary(StateData#state.jid)]),
-                    From = StateData#state.jid,
-                    Packet = #xmlel{name = <<"presence">>,
-                                    attrs = [{<<"type">>, <<"unavailable">>}],
-                                    children = [#xmlel{name = <<"status">>,
-                                                       children = [#xmlcdata{content = "Replaced by new connection"}]}]},
-                    ejabberd_sm:close_session_unset_presence(
-                      StateData#state.sid,
-                      StateData#state.user,
-                      StateData#state.server,
-                      StateData#state.resource,
-                      "Replaced by new connection"),
-                    presence_broadcast(
-                      StateData, From, StateData#state.pres_a, Packet),
-                    presence_broadcast(
-                      StateData, From, StateData#state.pres_i, Packet);
-                _ ->
-                    ?INFO_MSG("(~w) Close session for ~s",
-                              [StateData#state.socket,
-                               jlib:jid_to_binary(StateData#state.jid)]),
+    case  should_close_session(StateName) of
+	%% if we are in an state wich have a session established
+	true->
+	    case StateData#state.authenticated of
+		replaced ->
+		    ?INFO_MSG("(~w) Replaced session for ~s",
+			      [StateData#state.socket,
+			       jlib:jid_to_binary(StateData#state.jid)]),
+		    From = StateData#state.jid,
+		    Packet = #xmlel{name = <<"presence">>,
+				    attrs = [{<<"type">>, <<"unavailable">>}],
+				    children = [#xmlel{name = <<"status">>,
+						       children = [#xmlcdata{content = "Replaced by new connection"}]}]},
+		    ejabberd_sm:close_session_unset_presence(
+		      StateData#state.sid,
+		      StateData#state.user,
+		      StateData#state.server,
+		      StateData#state.resource,
+		      "Replaced by new connection"),
+		    presence_broadcast(
+		      StateData, From, StateData#state.pres_a, Packet),
+		    presence_broadcast(
+		      StateData, From, StateData#state.pres_i, Packet);
+		resumed ->
+		    ?INFO_MSG("(~w) Stream ~p resumed for ~s",
+			      [StateData#state.socket,
+			       StateData#state.stream_mgmt_id,
+			       jlib:jid_to_binary(StateData#state.jid)]);
+		_ ->
+		    ?INFO_MSG("(~w) Close session for ~s",
+			      [StateData#state.socket,
+			       jlib:jid_to_binary(StateData#state.jid)]),
 
-                    EmptySet = ?SETS:new(),
-                    case StateData of
-                        #state{pres_last = undefined,
-                               pres_a = EmptySet,
-                               pres_i = EmptySet,
-                               pres_invis = false} ->
-                            ejabberd_sm:close_session(StateData#state.sid,
-                                                      StateData#state.user,
-                                                      StateData#state.server,
-                                                      StateData#state.resource);
-                        _ ->
-                            From = StateData#state.jid,
-                            Packet = #xmlel{name = <<"presence">>,
-                                            attrs = [{<<"type">>, <<"unavailable">>}]},
-                            ejabberd_sm:close_session_unset_presence(
-                              StateData#state.sid,
-                              StateData#state.user,
-                              StateData#state.server,
-                              StateData#state.resource,
-                              ""),
-                            presence_broadcast(
-                              StateData, From, StateData#state.pres_a, Packet),
-                            presence_broadcast(
-                              StateData, From, StateData#state.pres_i, Packet)
-                    end
-            end,
-            bounce_messages();
-        _ ->
-            ok
+		    EmptySet = ?SETS:new(),
+		    case StateData of
+			#state{pres_last = undefined,
+			       pres_a = EmptySet,
+			       pres_i = EmptySet,
+			       pres_invis = false} ->
+			    ejabberd_sm:close_session(StateData#state.sid,
+						      StateData#state.user,
+						      StateData#state.server,
+						      StateData#state.resource);
+			_ ->
+			    From = StateData#state.jid,
+			    Packet = #xmlel{name = <<"presence">>,
+					    attrs = [{<<"type">>, <<"unavailable">>}]},
+			    ejabberd_sm:close_session_unset_presence(
+			      StateData#state.sid,
+			      StateData#state.user,
+			      StateData#state.server,
+			      StateData#state.resource,
+			      ""),
+			    presence_broadcast(
+			      StateData, From, StateData#state.pres_a, Packet),
+			    presence_broadcast(
+			      StateData, From, StateData#state.pres_i, Packet)
+		    end
+	    end,
+	    if
+		StateData#state.authenticated =/= resumed ->
+		    ?DEBUG("rerouting unacked messages", []),
+		    flush_stream_mgmt_buffer(StateData),
+		    bounce_messages();
+		true ->
+		    ok
+	    end;
+	false ->
+	    ok
     end,
     (StateData#state.sockmod):close(StateData#state.socket),
     ok.
@@ -1537,6 +1684,9 @@ terminate(_Reason, StateName, StateData) ->
 %%%----------------------------------------------------------------------
 %%% Internal functions
 %%%----------------------------------------------------------------------
+should_close_session(resume_session) -> true;
+should_close_session(session_established) -> true;
+should_close_session(_) -> false.
 
 -spec change_shaper(state(), ejabberd:jid()) -> any().
 change_shaper(StateData, JID) ->
@@ -1554,8 +1704,15 @@ send_text(StateData, Text) ->
     ?DEBUG("Send XML on stream = ~p", [Text]),
     (StateData#state.sockmod):send(StateData#state.socket, Text).
 
+-spec maybe_send_element_safe(state(), El :: jlib:xmlel()) -> any().
+maybe_send_element_safe(#state{stream_mgmt = false} = State, El) ->
+    send_element(State, El);
+maybe_send_element_safe(State, El) ->
+    case catch send_element(State, El) of
+	ok -> ok;
+	_ -> error
+    end.
 
--spec send_element(state(), El :: jlib:xmlel()) -> any().
 send_element(#state{server = Server, sockmod = SockMod} = StateData, El)
                 when StateData#state.xml_socket ->
     ejabberd_hooks:run(xmpp_send_element,
@@ -1613,15 +1770,35 @@ send_header(StateData, Server, Version, Lang) ->
                             LangStr]),
     send_text(StateData, Header).
 
+-spec maybe_send_trailer_safe(State :: state()) -> any().
+maybe_send_trailer_safe(#state{stream_mgmt = false} = State) ->
+    send_trailer(State);
+maybe_send_trailer_safe(StateData) ->
+     catch send_trailer(StateData).
 
--spec send_trailer(State :: state()) -> any().
 send_trailer(StateData) when StateData#state.xml_socket ->
-    (StateData#state.sockmod):send_xml(
-      StateData#state.socket,
-      {xmlstreamend, <<"stream:stream">>});
+    (StateData#state.sockmod):send_xml(StateData#state.socket,
+				       {xmlstreamend, <<"stream:stream">>});
 send_trailer(StateData) ->
     send_text(StateData, ?STREAM_TRAILER).
 
+
+send_and_maybe_buffer_stanza({_, _, Stanza} = Packet, State, StateName)->
+    SendResult = maybe_send_element_safe(State, Stanza),
+    BufferedStateData = buffer_out_stanza(Packet, State),
+    case SendResult of
+	ok ->
+	    case catch maybe_send_ack_request(BufferedStateData) of
+	        R when is_boolean(R) ->
+                    fsm_next_state(StateName, BufferedStateData);
+                _ ->
+                    ?DEBUG("Send ack request error: ~p, try enter resume session", [SendResult]),
+                    maybe_enter_resume_session(BufferedStateData#state.stream_mgmt_id, BufferedStateData)
+            end;
+        _ ->
+            ?DEBUG("Send element error: ~p, try enter resume session", [SendResult]),
+            maybe_enter_resume_session(BufferedStateData#state.stream_mgmt_id, BufferedStateData)
+    end.
 
 -spec new_id() -> string().
 new_id() ->
@@ -1742,86 +1919,92 @@ process_presence_probe(From, To, StateData) ->
 presence_update(From, Packet, StateData) ->
     #xmlel{attrs = Attrs} = Packet,
     case xml:get_attr_s(<<"type">>, Attrs) of
-        <<"unavailable">> ->
-            Status = case xml:get_subtag(Packet, <<"status">>) of
-                         false ->
-                            <<>>;
-                         StatusTag ->
-                            xml:get_tag_cdata(StatusTag)
-                     end,
-            Info = [{ip, StateData#state.ip}, {conn, StateData#state.conn},
-                    {auth_module, StateData#state.auth_module}],
-            ejabberd_sm:unset_presence(StateData#state.sid,
-                                       StateData#state.user,
-                                       StateData#state.server,
-                                       StateData#state.resource,
-                                       Status,
-                                       Info),
-            presence_broadcast(StateData, From, StateData#state.pres_a, Packet),
-            presence_broadcast(StateData, From, StateData#state.pres_i, Packet),
-            StateData#state{pres_last = undefined,
-                            pres_timestamp = undefined,
-                            pres_a = ?SETS:new(),
-                            pres_i = ?SETS:new(),
-                            pres_invis = false};
-        <<"invisible">> ->
-            NewPriority = get_priority_from_presence(Packet),
-            update_priority(NewPriority, Packet, StateData),
-            NewState =
-                if
-                    not StateData#state.pres_invis ->
-                        presence_broadcast(StateData, From,
-                                           StateData#state.pres_a,
-                                           Packet),
-                        presence_broadcast(StateData, From,
-                                           StateData#state.pres_i,
-                                           Packet),
-                        S1 = StateData#state{pres_last = undefined,
-                                             pres_timestamp = undefined,
-                                             pres_a = ?SETS:new(),
-                                             pres_i = ?SETS:new(),
-                                             pres_invis = true},
-                        presence_broadcast_first(From, S1, Packet);
-                    true ->
-                        StateData
-                end,
-            NewState;
-        <<"error">> ->
-            StateData;
-        <<"probe">> ->
-            StateData;
-        <<"subscribe">> ->
-            StateData;
-        <<"subscribed">> ->
-            StateData;
-        <<"unsubscribe">> ->
-            StateData;
-        <<"unsubscribed">> ->
-            StateData;
-        _ ->
-            OldPriority = case StateData#state.pres_last of
-                              undefined ->
-                                  0;
-                              OldPresence ->
-                                  get_priority_from_presence(OldPresence)
-                          end,
-            NewPriority = get_priority_from_presence(Packet),
-            Timestamp = calendar:now_to_universal_time(os:timestamp()),
-            update_priority(NewPriority, Packet, StateData),
-            FromUnavail = (StateData#state.pres_last == undefined) or
-                StateData#state.pres_invis,
-            ?DEBUG("from unavail = ~p~n", [FromUnavail]),
-        NewStateData = StateData#state{pres_last = Packet,
+	<<"unavailable">> ->
+	    Status = case xml:get_subtag(Packet, <<"status">>) of
+			 false ->
+			    <<>>;
+			 StatusTag ->
+			    xml:get_tag_cdata(StatusTag)
+		     end,
+	    Info = [{ip, StateData#state.ip}, {conn, StateData#state.conn},
+		    {auth_module, StateData#state.auth_module}],
+	    ejabberd_sm:unset_presence(StateData#state.sid,
+				       StateData#state.user,
+				       StateData#state.server,
+				       StateData#state.resource,
+				       Status,
+				       Info),
+	    presence_broadcast(StateData, From, StateData#state.pres_a, Packet),
+	    presence_broadcast(StateData, From, StateData#state.pres_i, Packet),
+	    StateData#state{pres_last = undefined,
+			    pres_timestamp = undefined,
+			    pres_a = ?SETS:new(),
+			    pres_i = ?SETS:new(),
+			    pres_invis = false};
+	<<"invisible">> ->
+	    NewPriority = get_priority_from_presence(Packet),
+	    update_priority(NewPriority, Packet, StateData),
+	    NewState =
+		if
+		    not StateData#state.pres_invis ->
+			presence_broadcast(StateData, From,
+					   StateData#state.pres_a,
+					   Packet),
+			presence_broadcast(StateData, From,
+					   StateData#state.pres_i,
+					   Packet),
+			S1 = StateData#state{pres_last = undefined,
+					     pres_timestamp = undefined,
+					     pres_a = ?SETS:new(),
+					     pres_i = ?SETS:new(),
+					     pres_invis = true},
+			presence_broadcast_first(From, S1, Packet);
+		    true ->
+			StateData
+		end,
+	    NewState;
+	<<"error">> ->
+	    StateData;
+	<<"probe">> ->
+	    StateData;
+	<<"subscribe">> ->
+	    StateData;
+	<<"subscribed">> ->
+	    StateData;
+	<<"unsubscribe">> ->
+	    StateData;
+	<<"unsubscribed">> ->
+	    StateData;
+	_ ->
+	    OldPriority = case StateData#state.pres_last of
+			      undefined ->
+				  0;
+			      OldPresence ->
+				  get_priority_from_presence(OldPresence)
+			  end,
+	    NewPriority = get_priority_from_presence(Packet),
+	    Timestamp = calendar:now_to_universal_time(os:timestamp()),
+	    update_priority(NewPriority, Packet, StateData),
+	    FromUnavail = (StateData#state.pres_last == undefined) or
+		StateData#state.pres_invis,
+	    ?DEBUG("from unavail = ~p~n", [FromUnavail]),
+
+            NewStateData = StateData#state{pres_last = Packet,
                                        pres_invis = false,
                                        pres_timestamp = Timestamp},
-                if
-                    FromUnavail ->
-                        ejabberd_hooks:run(user_available_hook,
-                                           NewStateData#state.server,
-                                           [NewStateData#state.jid]),
-                        NewStateData1 = if NewPriority >= 0 ->
+		if
+		    FromUnavail ->
+			ejabberd_hooks:run(user_available_hook,
+					   NewStateData#state.server,
+					   [NewStateData#state.jid]),
+			NewStateData1 = if NewPriority >= 0 ->
+				   {_, _, Pending} = ejabberd_hooks:run_fold(
+						       roster_get_subscription_lists,
+						       NewStateData#state.server,
+						       {[], [], []},
+						       [StateData#state.user, NewStateData#state.server]),
                                     resend_offline_messages(NewStateData),
-                                    resend_subscription_requests(NewStateData);
+                                    resend_subscription_requests(NewStateData#state{pending_invitations = Pending});
                                true ->
                                     NewStateData
                             end,
@@ -2123,6 +2306,8 @@ update_priority(Priority, Packet, StateData) ->
 
 
 -spec get_priority_from_presence(Packet :: jlib:xmlel()) -> integer().
+get_priority_from_presence(undefined) ->
+    0;
 get_priority_from_presence(PresencePacket) ->
     case xml:get_subtag(PresencePacket, <<"priority">>) of
         false ->
@@ -2177,6 +2362,7 @@ process_privacy_iq(From, To,
 
 -spec resend_offline_messages(state()) -> ok.
 resend_offline_messages(StateData) ->
+    ?DEBUG("resend offline messages~n",[]),
     case ejabberd_hooks:run_fold(
            resend_offline_messages_hook, StateData#state.server,
            [],
@@ -2214,11 +2400,15 @@ resend_offline_messages(StateData) ->
 
 -spec resend_subscription_requests(state()) -> state().
 resend_subscription_requests(#state{pending_invitations = Pending} = StateData) ->
-    lists:foreach(fun(XMLPacket) ->
-                          send_element(StateData,
-                                       XMLPacket)
-                  end, Pending),
-    StateData#state{pending_invitations = []}.
+    NewState = lists:foldl(fun(XMLPacket, #state{} = State) ->
+			send_element(State, XMLPacket),
+			{value, From} =  xml:get_tag_attr(<<"from">>, XMLPacket),
+			{value, To} = xml:get_tag_attr(<<"to">>, XMLPacket),
+			BufferedStateData = buffer_out_stanza({From, To, XMLPacket}, State),
+			maybe_send_ack_request(BufferedStateData),
+			BufferedStateData
+		  end, StateData, Pending),
+    NewState#state{pending_invitations = []}.
 
 
 get_showtag(undefined) ->
@@ -2252,29 +2442,29 @@ process_unauthenticated_stanza(StateData, El) ->
                     El
             end,
     case jlib:iq_query_info(NewEl) of
-        #iq{} = IQ ->
-            Res = ejabberd_hooks:run_fold(c2s_unauthenticated_iq,
-                                          StateData#state.server,
-                                          empty,
-                                          [StateData#state.server, IQ,
-                                           StateData#state.ip]),
-            case Res of
-                empty ->
-                    % The only reasonable IQ's here are auth and register IQ's
-                    % They contain secrets, so don't include subelements to responsec
-                    ResIQ = IQ#iq{type = error,
-                                  sub_el = [?ERR_SERVICE_UNAVAILABLE]},
-                    Res1 = jlib:replace_from_to(
-                             jlib:make_jid(<<>>, StateData#state.server, <<>>),
-                             jlib:make_jid(<<>>, <<>>, <<>>),
-                             jlib:iq_to_xml(ResIQ)),
-                    send_element(StateData, jlib:remove_attr(<<"to">>, Res1));
-                _ ->
-                    send_element(StateData, Res)
-            end;
-        _ ->
-            % Drop any stanza, which isn't IQ stanza
-            ok
+	#iq{} = IQ ->
+	    Res = ejabberd_hooks:run_fold(c2s_unauthenticated_iq,
+					  StateData#state.server,
+					  empty,
+					  [StateData#state.server, IQ,
+					   StateData#state.ip]),
+	    case Res of
+		empty ->
+		    % The only reasonable IQ's here are auth and register IQ's
+		    % They contain secrets, so don't include subelements to response
+		    ResIQ = IQ#iq{type = error,
+				  sub_el = [?ERR_SERVICE_UNAVAILABLE]},
+		    Res1 = jlib:replace_from_to(
+			     jlib:make_jid(<<>>, StateData#state.server, <<>>),
+			     jlib:make_jid(<<>>, <<>>, <<>>),
+			     jlib:iq_to_xml(ResIQ)),
+		    send_element(StateData, jlib:remove_attr(<<"to">>, Res1));
+		_ ->
+		    send_element(StateData, Res)
+	    end;
+	_ ->
+	    % Drop any stanza, which isn't IQ stanza
+	    ok
     end.
 
 
@@ -2381,6 +2571,18 @@ bounce_messages() ->
             ok
     end.
 
+%% Return the messages in reverse order than they were received in!
+flush_messages() ->
+    flush_messages(0, []).
+
+flush_messages(N, Acc) ->
+    receive
+	{route, _, _, _} = Msg ->
+	    flush_messages(N+1, [Msg | Acc])
+    after 0 ->
+	    {N, Acc}
+    end.
+
 %%%----------------------------------------------------------------------
 %%% XEP-0191
 %%%----------------------------------------------------------------------
@@ -2411,16 +2613,17 @@ route_blocking(What, StateData) ->
                        attrs = [{<<"xmlns">>, ?NS_BLOCKING}]}
         end,
     PrivPushIQ =
-        #iq{type = set, xmlns = ?NS_BLOCKING,
-            id = <<"push">>,
-            sub_el = [SubEl]},
+	#iq{type = set, xmlns = ?NS_BLOCKING,
+	    id = <<"push">>,
+	    sub_el = [SubEl]},
+    F = jlib:jid_remove_resource(StateData#state.jid),
+    T = StateData#state.jid,
     PrivPushEl =
-        jlib:replace_from_to(
-          jlib:jid_remove_resource(
-            StateData#state.jid),
-          StateData#state.jid,
-          jlib:iq_to_xml(PrivPushIQ)),
-    send_element(StateData, PrivPushEl),
+	jlib:replace_from_to(
+	  F,
+	  T,
+	  jlib:iq_to_xml(PrivPushIQ)),
+    ejabberd_router:route(F, T, PrivPushEl),
     %% No need to replace active privacy list here,
     %% blocking pushes are always accompanied by
     %% Privacy List pushes
@@ -2481,3 +2684,588 @@ pack_string(String, Pack) ->
         none ->
             {String, gb_trees:insert(String, String, Pack)}
     end.
+
+%%%----------------------------------------------------------------------
+%%% XEP-0198: Stream Management
+%%%----------------------------------------------------------------------
+
+maybe_enable_stream_mgmt(NextState, El, StateData) ->
+    case {xml:get_tag_attr_s(<<"xmlns">>, El),
+	  StateData#state.stream_mgmt,
+	  xml:get_tag_attr_s(<<"resume">>, El)}
+    of
+	{?NS_STREAM_MGNT_3, false, Resume} ->
+	    %% turn on
+	    {NewSD, EnabledEl} = case lists:member(Resume, [<<"true">>, <<"1">>]) of
+				     false ->
+					 {StateData, stream_mgmt_enabled()};
+				     true ->
+					 enable_stream_resumption(StateData)
+				 end,
+	    send_element(NewSD, EnabledEl),
+	    BufferMax = get_buffer_max(),
+	    AckFreq = get_ack_freq(),
+	    ResumeTimeout = get_resume_timeout(),
+	    fsm_next_state(NextState,
+			   NewSD#state{stream_mgmt = true,
+				       stream_mgmt_buffer_max = BufferMax,
+				       stream_mgmt_ack_freq = AckFreq,
+				       stream_mgmt_resume_timeout = ResumeTimeout});
+	{?NS_STREAM_MGNT_3, _, _} ->
+	    %% already on, ignore
+	    fsm_next_state(NextState, StateData);
+	{_, _, _} ->
+	    %% invalid namespace
+	    send_element(StateData, ?INVALID_NS_ERR),
+	    send_trailer(StateData),
+	    {stop, normal, StateData}
+    end.
+
+enable_stream_resumption(SD) ->
+    SMID = make_smid(),
+    SID = case SD#state.sid of
+		  undefined -> {now(), self()};
+		  RSID -> RSID
+	  end,
+    ok = mod_stream_management:register_smid(SMID, SID),
+    {SD#state{stream_mgmt_id = SMID, sid = SID},
+     stream_mgmt_enabled([{<<"id">>, SMID}, {<<"resume">>, <<"true">>}])}.
+
+make_smid() ->
+    base64:encode(crypto:rand_bytes(21)).
+
+maybe_unexpected_sm_request(NextState, El, StateData) ->
+    case xml:get_tag_attr_s(<<"xmlns">>, El) of
+	?NS_STREAM_MGNT_3 ->
+	    send_element(StateData, stream_mgmt_failed(<<"unexpected-request">>)),
+	    fsm_next_state(NextState, StateData);
+	_ ->
+	    send_element(StateData, ?INVALID_NS_ERR),
+	    send_trailer(StateData),
+	    {stop, normal, StateData}
+    end.
+
+stream_mgmt_handle_ack(NextState, El, #state{} = SD) ->
+    try
+	{ns, ?NS_STREAM_MGNT_3} = {ns, xml:get_tag_attr_s(<<"xmlns">>, El)},
+	Handled = binary_to_integer(xml:get_tag_attr_s(<<"h">>, El)),
+	NSD = #state{} = do_handle_ack(Handled,
+				       SD#state.stream_mgmt_out_acked,
+				       SD#state.stream_mgmt_buffer,
+				       SD#state.stream_mgmt_buffer_size,
+				       SD),
+	fsm_next_state(NextState, NSD)
+    catch
+	error:{badmatch, {ns, _}} ->
+	    maybe_send_element_safe(SD, ?INVALID_NS_ERR),
+	    maybe_send_trailer_safe(SD),
+	    {stop, normal, SD};
+	throw:{policy_violation, Reason} ->
+	    maybe_send_element_safe(SD, ?POLICY_VIOLATION_ERR(SD#state.lang,
+						   Reason)),
+	    maybe_send_trailer_safe(SD),
+	    {stop, normal, SD}
+    end.
+
+do_handle_ack(Handled, OldAcked, Buffer, BufferSize, SD) ->
+    ToDrop = calc_to_drop(Handled, OldAcked),
+    ToDrop > BufferSize andalso throw({policy_violation,
+				       "h attribute too big"}),
+    {Dropped, NewBuffer} = drop_last(ToDrop, Buffer),
+    NewSize = BufferSize - Dropped,
+    SD#state{stream_mgmt_out_acked = Handled,
+	     stream_mgmt_buffer = NewBuffer,
+	     stream_mgmt_buffer_size = NewSize}.
+
+calc_to_drop(Handled, OldAcked) when Handled >= OldAcked ->
+    Handled - OldAcked;
+calc_to_drop(Handled, OldAcked) ->
+    Handled + ?STREAM_MGMT_H_MAX - OldAcked + 1.
+
+maybe_send_sm_ack(?NS_STREAM_MGNT_3, false, _NIncoming,
+		  NextState, StateData) ->
+    ?WARNING_MSG("received <r/> but stream management is off!", []),
+    fsm_next_state(NextState, StateData);
+maybe_send_sm_ack(?NS_STREAM_MGNT_3, true, NIncoming,
+		  NextState, StateData) ->
+    send_element(StateData, stream_mgmt_ack(NIncoming)),
+    fsm_next_state(NextState, StateData);
+maybe_send_sm_ack(_, _, _, _NextState, StateData) ->
+    send_element(StateData, ?INVALID_NS_ERR),
+    send_trailer(StateData),
+    {stop, normal, StateData}.
+
+maybe_increment_sm_incoming(false, StateData) ->
+    StateData;
+maybe_increment_sm_incoming(true, StateData) ->
+    Incoming = StateData#state.stream_mgmt_in,
+    StateData#state{stream_mgmt_in = increment_sm_incoming(Incoming)}.
+
+increment_sm_incoming(Incoming) ->
+    increment_sm_counter(Incoming, 1).
+
+increment_sm_counter(Incoming, Increment)
+  when Incoming + Increment >= ?STREAM_MGMT_H_MAX ->
+    Increment - 1;
+increment_sm_counter(Incoming, Increment) ->
+    Incoming + Increment.
+
+stream_mgmt_enabled() ->
+    stream_mgmt_enabled([]).
+
+stream_mgmt_enabled(ExtraAttrs) ->
+    #xmlel{name = <<"enabled">>,
+           attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3}] ++ ExtraAttrs}.
+
+stream_mgmt_failed(Reason) ->
+    ReasonEl = #xmlel{name = Reason,
+                      attrs = [{<<"xmlns">>, ?NS_STANZAS}]},
+    #xmlel{name = <<"failed">>,
+           attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3}],
+           children = [ReasonEl]}.
+
+stream_mgmt_ack(NIncoming) ->
+    #xmlel{name = <<"a">>,
+           attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3},
+                    {<<"h">>, integer_to_binary(NIncoming)}]}.
+
+buffer_out_stanza(_Packet, #state{stream_mgmt = false} = S) ->
+    S;
+buffer_out_stanza(_Packet, #state{stream_mgmt_buffer_max = no_buffer} = S) ->
+    S;
+buffer_out_stanza(Packet, #state{stream_mgmt_buffer = Buffer,
+				 stream_mgmt_buffer_size = BufferSize,
+				 stream_mgmt_buffer_max = BufferMax} = S) ->
+    NewSize = BufferSize + 1,
+    Timestamp = erlang:now(),
+	NPacket = maybe_add_timestamp(Packet, Timestamp),
+
+    NS = case is_buffer_full(NewSize, BufferMax) of
+             true->
+                 defer_resource_constraint_check(S);
+             _ ->
+                 S
+         end,
+    NS#state{stream_mgmt_buffer_size = NewSize,
+		   stream_mgmt_buffer = [NPacket | Buffer]}.
+
+is_buffer_full(_BufferSize, infinity) ->
+    false;
+is_buffer_full(BufferSize, BufferMax) when BufferSize =< BufferMax ->
+    false;
+is_buffer_full(_, _) ->
+    true.
+
+%% @doc Drop last N elements from List.
+%% It's not an error if N > length(List).
+%% The actual number of dropped elements and an empty list is returned.
+%% @end
+-spec drop_last(N, List1) -> {Dropped, List2} when
+      N :: non_neg_integer(),
+      List1 :: list(),
+      Dropped :: non_neg_integer(),
+      List2 :: list().
+drop_last(N, List) ->
+    {ToDrop, List2} = lists:foldr(fun(E, {0, Acc}) ->
+					  {0, [E | Acc]};
+				     (_, {ToDrop, Acc}) ->
+					  {ToDrop-1, Acc}
+				  end, {N, []}, List),
+    {N - ToDrop, List2}.
+
+-spec get_buffer_max() -> pos_integer() | infinity.
+get_buffer_max() ->
+    mod_stream_management:get_buffer_max(?STREAM_MGMT_CACHE_MAX).
+
+-spec get_ack_freq() -> pos_integer().
+get_ack_freq() ->
+    mod_stream_management:get_ack_freq(?STREAM_MGMT_ACK_FREQ).
+
+-spec get_resume_timeout() -> pos_integer().
+get_resume_timeout() ->
+    mod_stream_management:get_resume_timeout(?STREAM_MGMT_RESUME_TIMEOUT).
+
+maybe_send_ack_request(#state{stream_mgmt = false}) ->
+    false;
+maybe_send_ack_request(#state{stream_mgmt_ack_freq = never}) ->
+    false;
+maybe_send_ack_request(#state{stream_mgmt_out_acked = Out,
+			      stream_mgmt_buffer_size = BufferSize,
+			      stream_mgmt_ack_freq = AckFreq} = State)
+  when (Out + BufferSize) rem AckFreq == 0 ->
+    send_element(State, stream_mgmt_request()),
+    true;
+maybe_send_ack_request(_) ->
+    false.
+
+stream_mgmt_request() ->
+    #xmlel{name = <<"r">>,
+           attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3}]}.
+
+flush_stream_mgmt_buffer(#state{stream_mgmt = false}) ->
+    false;
+flush_stream_mgmt_buffer(#state{stream_mgmt_buffer = Buffer}) ->
+    %% TODO add delayed on it?
+    [ejabberd_router:route(From, To, Packet)
+     || {From, To, Packet} <- lists:reverse(Buffer)].
+
+maybe_enter_resume_session(undefined, StateData) ->
+    {stop, normal, StateData};
+maybe_enter_resume_session(_SMID, #state{} = SD) ->
+    NSD = case SD#state.stream_mgmt_resume_tref of
+	      undefined ->
+		  Seconds = timer:seconds(SD#state.stream_mgmt_resume_timeout),
+		  TRef = erlang:send_after(Seconds, self(), resume_timeout),
+		  SD#state{stream_mgmt_resume_tref = TRef};
+	      _TRef ->
+		  SD
+	  end,
+    {next_state, resume_session, NSD, hibernate}.
+
+maybe_resume_session(NextState, El, StateData) ->
+    case {xml:get_tag_attr_s(<<"xmlns">>, El),
+	  xml:get_tag_attr_s(<<"previd">>, El)} of
+	{?NS_STREAM_MGNT_3, SMID} ->
+	    MaybeSID = mod_stream_management:get_sid(SMID),
+	    do_resume_session(SMID, El, MaybeSID, StateData);
+	{InvalidNS, _} ->
+	    ?INFO_MSG("ignoring <resume/> element "
+		      "with invalid namespace ~s~n", [InvalidNS]),
+	    fsm_next_state(NextState, StateData)
+    end.
+
+do_resume_session(SMID, El, [{_, Pid}], StateData) ->
+    try
+	{ok, OldState} = ?GEN_FSM:sync_send_event(Pid, resume),
+	SID = {now(), self()},
+	Conn = get_conn_type(StateData),
+	MergedState = merge_state(OldState,
+				  StateData#state{sid = SID, conn = Conn}),
+	Priority = get_priority_from_presence(MergedState#state.pres_last),
+	Info = [{ip, MergedState#state.ip},
+		{conn, MergedState#state.conn},
+		{auth_module, MergedState#state.auth_module}],
+	ejabberd_sm:open_session(SID,
+				 MergedState#state.user,
+				 MergedState#state.server,
+				 MergedState#state.resource,
+				 Priority, Info),
+	ok = mod_stream_management:register_smid(SMID, SID),
+	case stream_mgmt_handle_ack(session_established, El, MergedState) of
+	    {stop, _, _} = Stop ->
+		Stop;
+	    {next_state, session_established, NSD, _} ->
+			try
+				Resumed = stream_mgmt_resumed(NSD#state.stream_mgmt_id,
+							      NSD#state.stream_mgmt_in),
+				send_element(NSD, Resumed),
+				[send_element(NSD, Packet)
+				 || {_, _,Packet} <- lists:reverse(NSD#state.stream_mgmt_buffer)],
+				fsm_next_state(session_established, NSD)
+			catch
+				%% errors from send_element
+				_:_ ->
+					?INFO_MSG("resumption error while resending old stanzas entering resume state again smid: ~p~n",[SMID]),
+					maybe_enter_resume_session(SMID, NSD)
+			end
+	end
+    catch
+	_:_ ->
+	    ?WARNING_MSG("resumption error (invalid response from ~p)~n",
+			 [Pid]),
+	    send_element(StateData, stream_mgmt_failed(<<"item-not-found">>)),
+	    fsm_next_state(wait_for_bind_or_resume, StateData)
+    end;
+
+do_resume_session(SMID, _El, [], StateData) ->
+    ?WARNING_MSG("no previous session with stream id ~p~n", [SMID]),
+    send_element(StateData, stream_mgmt_failed(<<"item-not-found">>)),
+    fsm_next_state(wait_for_bind_or_resume, StateData).
+
+merge_state(OldSD, SD) ->
+    Preserve = [#state.jid,
+		#state.user,
+		#state.server,
+		#state.resource,
+		#state.pres_t,
+		#state.pres_f,
+		#state.pres_a,
+		#state.pres_i,
+		#state.pres_last,
+		#state.pres_pri,
+		#state.pres_timestamp,
+		#state.pres_invis,
+		#state.privacy_list,
+		#state.aux_fields,
+		#state.stream_mgmt,
+		#state.stream_mgmt_in,
+		#state.stream_mgmt_id,
+		#state.stream_mgmt_out_acked,
+		#state.stream_mgmt_buffer,
+		#state.stream_mgmt_buffer_size,
+		#state.stream_mgmt_buffer_max,
+		#state.stream_mgmt_ack_freq],
+    Copy = fun(Index, {Stale, Acc}) ->
+		   {Stale, setelement(Index, Acc, element(Index, Stale))}
+	   end,
+    element(2, lists:foldl(Copy, {OldSD, SD}, Preserve)).
+
+stream_mgmt_resumed(SMID, Handled) ->
+    #xmlel{name = <<"resumed">>,
+           attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3},
+                    {<<"previd">>, SMID},
+                    {<<"h">>, integer_to_binary(Handled)}]}.
+
+handover_session(SD) ->
+    %% Assert Stream Management is on; otherwise this should not be called.
+    true = SD#state.stream_mgmt,
+    ejabberd_sm:close_session(SD#state.sid,
+			      SD#state.user,
+			      SD#state.server,
+			      SD#state.resource),
+    {N, Messages} = flush_messages(),
+    NewSize = N + SD#state.stream_mgmt_buffer_size,
+    NewBuffer = Messages ++ SD#state.stream_mgmt_buffer,
+    NSD = SD#state{authenticated = resumed,
+		   stream_mgmt_buffer_size = NewSize,
+		   stream_mgmt_buffer = NewBuffer},
+    {stop, normal, {ok, NSD}, NSD}.
+
+maybe_add_timestamp({F, T, #xmlel{name= <<"message">>}=Packet}=PacketTuple, Timestamp) ->
+	Type = xml:get_tag_attr_s(<<"type">>, Packet),
+	case Type of
+		<<"error">> ->
+			PacketTuple;
+		<<"headline">> ->
+			PacketTuple;
+		_ ->
+			{F, T, add_timestamp(Timestamp,<<"localhost">>, Packet)}
+	end;
+maybe_add_timestamp(Packet, _Timestamp) ->
+	Packet.
+
+add_timestamp(undefined, _Server, Packet) ->
+    Packet;
+add_timestamp({_,_,Micro} = TimeStamp, Server, Packet) ->
+    {D,{H,M,S}} = calendar:now_to_universal_time(TimeStamp),
+    Time = {D,{H,M,S, Micro}},
+    case xml:get_subtag(Packet, <<"delay">>) of
+        false ->
+            %% TODO: Delete the next element once XEP-0091 is Obsolete
+            TimeStampLegacyXML = timestamp_legacy_xml(Server, Time),
+            TimeStampXML = jlib:timestamp_to_xml(Time),
+            xml:append_subtags(Packet, [TimeStampLegacyXML, TimeStampXML]);
+        _ ->
+            Packet
+    end.
+
+timestamp_legacy_xml(Server, Time) ->
+    FromJID = jlib:make_jid(<<>>, Server, <<>>),
+    jlib:timestamp_to_xml(Time, utc, FromJID, <<"SM Storage">>).
+
+defer_resource_constraint_check(#state{stream_mgmt_constraint_check_tref = undefined} = State)->
+    Seconds = timer:seconds(?CONSTRAINT_CHECK_TIMEOUT),
+    TRef = erlang:send_after(Seconds, self(), check_buffer_full),
+    State#state{stream_mgmt_constraint_check_tref = TRef};
+defer_resource_constraint_check(State)->
+    State.
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+-compile([export_all]).
+-define(_eq(E, I), ?_assertEqual(E, I)).
+-define(eq(E, I), ?assertEqual(E, I)).
+-define(ne(E, I), ?assert(E =/= I)).
+
+%%
+%% Tests
+%%
+
+increment_sm_incoming_test_() ->
+    [?LET(I, fun increment_sm_incoming/1,
+	  [?_eq(1,        I(0)),
+	   ?_eq(2,        I(1)),
+	   ?_eq(3,        I(2)),
+	   ?_eq(10000000, I(9999999)),
+	   ?_eq(0,        I(?STREAM_MGMT_H_MAX))]),
+     ?LET(I, fun increment_sm_counter/2,
+	  [?_eq(4,        I(?STREAM_MGMT_H_MAX, 5))])].
+
+calc_to_drop_test_() ->
+    C = fun calc_to_drop/2,
+    [?_eq(0, C(0, 0)),
+     ?_eq(1, C(2, 1)),
+     ?_eq(2, C(5, 3)),
+     ?_eq(4, C(2, ?STREAM_MGMT_H_MAX - 1))].
+
+drop_last_test_() ->
+    D = fun drop_last/2,
+    [?_eq({0, []},        D(0, [])),
+     ?_eq({1, []},        D(1, [1])),
+     ?_eq({2, []},        D(2, [1, 2])),
+     ?_eq({0, [1, 2]},    D(0, [1, 2])),
+     ?_eq({0, []},        D(2, [])),
+     ?_eq({1, [1]},       D(1, [1, 2])),
+     ?_eq({3, [1, 2, 3]}, D(3, [1, 2, 3, 4, 5, 6])),
+     ?_eq({6, []},        D(7, [1, 2, 3, 4, 5, 6]))].
+
+buffer_outgoing_test_() ->
+    {setup, fun create_c2s/0, fun cleanup_c2s/1,
+     {with, [fun starts_with_empty_buffer/1,
+	     fun buffer_outgoing/1]}}.
+
+client_ack_test_() ->
+    {setup, fun create_c2s/0, fun cleanup_c2s/1,
+     {with, [fun starts_with_empty_buffer/1,
+	     fun buffer_outgoing/1,
+	     fun buffer_outgoing/1,
+	     fun buffer_outgoing/1,
+	     fun buffer_outgoing/1,
+	     mk_assert_acked(0),
+	     mk_client_ack(3)]}}.
+
+no_buffer_test_() ->
+    {setup, fun () -> c2s_initial_state(mgmt_on) end,
+     {with, [fun (State0) ->
+		     State = State0#state{stream_mgmt_buffer_max = infinity},
+		     ?eq([], State#state.stream_mgmt_buffer),
+		     NewState = buffer_out_stanza(fake_packet, State, true),
+		     ?eq([fake_packet], NewState#state.stream_mgmt_buffer)
+	     end,
+	     fun (State0) ->
+		     State = State0#state{stream_mgmt_buffer_max = no_buffer},
+		     ?eq([], State#state.stream_mgmt_buffer),
+		     NewState = buffer_out_stanza(fake_packet, State, true),
+		     ?eq([], NewState#state.stream_mgmt_buffer)
+	     end]}}.
+
+enable_stream_resumption_test_() ->
+    {setup,
+     %% Mecked fun must send a message to the test runner to synchronize;
+     %% to write that fun we must know this process's pid beforehand;
+     %% we know self() beforehand, so run the test in the current process.
+     local,
+     fun () ->
+             Self = self(),
+             meck:new(mod_stream_management, []),
+             meck:expect(mod_stream_management, get_buffer_max,
+                         fun (_) -> 100 end),
+             meck:expect(mod_stream_management, get_ack_freq,
+                         fun (_) -> 1 end),
+             meck:expect(mod_stream_management, register_smid,
+                         fun (_SMID, _SID) ->
+                                 Self ! register_smid_called,
+                                 ok
+                         end),
+             create_c2s(c2s_initial_state())
+     end,
+     fun (C2S) ->
+             cleanup_c2s(C2S),
+             meck:unload(mod_stream_management)
+     end,
+     {with, [fun (C2S) ->
+                     Enable = #xmlel{name = <<"enable">>,
+                                     attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3},
+                                              {<<"resume">>, "true"}]},
+                     ?GEN_FSM:send_event(C2S, {xmlstreamelement, Enable}),
+                     receive
+                         register_smid_called ->
+                             ?assert(meck:called(mod_stream_management,
+                                                 register_smid, 2)),
+                             S = status_to_state(sys:get_status(C2S)),
+                             ?ne(undefined, S#state.stream_mgmt_id)
+                     after 1000 ->
+                               error("SMID not registered")
+                     end
+             end]}}.
+
+%%
+%% Helpers
+%%
+
+create_c2s() ->
+    create_c2s(c2s_initial_state(mgmt_on)).
+
+create_c2s(State) ->
+    meck:new(ejabberd_socket),
+    meck:expect(ejabberd_socket, close,
+		fun(_) ->
+			?ERROR_MSG("socket closed too early!~n", [])
+		end),
+    meck:expect(ejabberd_socket, send, fun(_,_) -> ok end),
+    meck:new(ejabberd_hooks),
+    meck:expect(ejabberd_hooks, run, fun(_,_) -> ok end),
+    meck:expect(ejabberd_hooks, run, fun(_,_,_) -> ok end),
+    meck:expect(ejabberd_hooks, run_fold,
+		fun(privacy_check_packet, _, _, _) -> allow end),
+    F = fun() ->
+		?GEN_FSM:enter_loop(?MODULE, [], session_established, State)
+	end,
+    proc_lib:spawn_link(F).
+
+c2s_initial_state(mgmt_on) ->
+    S = c2s_initial_state(),
+    S#state{stream_mgmt = true}.
+
+c2s_initial_state() ->
+    Jid = jid(<<"qwe@localhost/eunit">>),
+    {U, S, R} = {<<"qwe">>, <<"localhost">>, <<"eunit">>},
+    #state{jid = Jid,
+	   user = U, server = S, resource = R,
+	   sockmod = ejabberd_socket}.
+
+cleanup_c2s(C2S) when is_pid(C2S) ->
+    exit(C2S, normal),
+    meck:unload(ejabberd_hooks),
+    meck:unload(ejabberd_socket).
+
+starts_with_empty_buffer(C2S) ->
+    S = status_to_state(sys:get_status(C2S)),
+    ?eq(0, length(S#state.stream_mgmt_buffer)).
+
+buffer_outgoing(C2S) ->
+    S1 = status_to_state(sys:get_status(C2S)),
+    BufferSize = length(S1#state.stream_mgmt_buffer),
+    C2S ! {route, jid(<<"asd@localhost">>), jid(<<"qwe@localhost">>), message(<<"hi">>)},
+    S2 = status_to_state(sys:get_status(C2S)),
+    ?eq(BufferSize+1, length(S2#state.stream_mgmt_buffer)).
+
+status_to_state({status, _Pid, {module, ?GEN_FSM}, Data}) ->
+    [_, _, _, _, [{_, _}, {_, _}, {_, [{"StateData", State}]}]] = Data,
+    State.
+
+jid(Str) ->
+    jlib:string_to_jid(Str).
+
+message(Content) ->
+    Body = #xmlel{name = <<"body">>,
+                  children = [#xmlcdata{cdata = Content}]},
+    #xmlel{name = <<"message">>,
+           attrs = [{<<"type">>, "chat"}],
+           children = [Body]}.
+
+mk_assert_acked(X) ->
+    fun(C2S) ->
+	    S = status_to_state(sys:get_status(C2S)),
+	    ?eq(X, S#state.stream_mgmt_out_acked)
+    end.
+
+mk_client_ack(H) ->
+    fun(C2S) ->
+	    S1 = status_to_state(sys:get_status(C2S)),
+	    Acked = S1#state.stream_mgmt_out_acked,
+	    BufferSize = length(S1#state.stream_mgmt_buffer),
+	    H = 3,
+	    ?eq(BufferSize, length(S1#state.stream_mgmt_buffer)),
+	    C2S ! {'$gen_event', {xmlstreamelement, ack(H)}},
+	    S2 = status_to_state(sys:get_status(C2S)),
+	    ?eq(H, S2#state.stream_mgmt_out_acked),
+	    ?eq(BufferSize - (H - Acked), length(S2#state.stream_mgmt_buffer))
+    end.
+
+ack(H) ->
+    #xmlel{name = <<"a">>,
+           attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3},
+                    {<<"h">>, integer_to_binary(H)}]}.
+
+-endif.

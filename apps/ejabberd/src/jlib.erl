@@ -27,45 +27,45 @@
 -module(jlib).
 -author('alexey@process-one.net').
 
--export([ make_result_iq_reply/1
-        , make_error_reply/2
-        , make_invitation/3
-        , make_config_change_message/1
-        , make_voice_approval_form/3
-        , replace_from_to_attrs/3
-        , replace_from_to/3
-        , remove_attr/2
-        , make_jid/3
-        , make_jid/1
-        , binary_to_jid/1
-        , jid_to_binary/1
-        , is_nodename/1
-        , nodeprep/1
-        , nameprep/1
-        , resourceprep/1
-        , jid_tolower/1
-        , jid_remove_resource/1
-        , jid_replace_resource/2
-        , iq_query_info/1
-        , iq_query_or_response_info/1
-        , iq_to_xml/1
-        , parse_xdata_submit/1
-        , timestamp_to_iso/1             % TODO: Remove once XEP-0091 is Obsolete
-        , timestamp_to_xml/4
-        , timestamp_to_xml/1             % TODO: Remove once XEP-0091 is Obsolete
-        , timestamp_to_mam_xml/4
-        , now_to_utc_binary/1
-        , datetime_string_to_timestamp/1
-        , decode_base64/1
-        , encode_base64/1
-        , ip_to_list/1
-        , rsm_encode/1
-        , rsm_decode/1
-        , stanza_error/3
-        , stanza_errort/5
-        , stream_error/1
-        , stream_errort/3
-        ]).
+-export([make_result_iq_reply/1,
+         make_error_reply/2,
+         make_invitation/3,
+         make_config_change_message/1,
+         make_voice_approval_form/3,
+         replace_from_to_attrs/3,
+         replace_from_to/3,
+         remove_attr/2,
+         make_jid/3,
+         make_jid/1,
+         binary_to_jid/1,
+         jid_to_binary/1,
+         is_nodename/1,
+         nodeprep/1,
+         nameprep/1,
+         resourceprep/1,
+         jid_tolower/1,
+         jid_remove_resource/1,
+         jid_replace_resource/2,
+         iq_query_info/1,
+         iq_query_or_response_info/1,
+         iq_to_xml/1,
+         parse_xdata_submit/1,
+         timestamp_to_iso/1, % TODO: Remove once XEP-0091 is Obsolete
+         timestamp_to_xml/4,
+         timestamp_to_xml/1, % TODO: Remove once XEP-0091 is Obsolete
+         timestamp_to_mam_xml/4,
+         now_to_utc_binary/1,
+         datetime_string_to_timestamp/1,
+         decode_base64/1,
+         encode_base64/1,
+         ip_to_list/1,
+         rsm_encode/1,
+         rsm_decode/1,
+         stanza_error/3,
+         stanza_errort/5,
+         stream_error/1,
+         stream_errort/3,
+	     remove_delay_tags/1]).
 
 -include_lib("exml/include/exml.hrl").
 -include_lib("exml/include/exml_stream.hrl"). % only used to define stream types
@@ -349,14 +349,14 @@ jid_to_binary({Node, Server, Resource}) ->
              <<>> ->
                  <<>>;
              _ ->
-                 list_to_binary([Node, <<"@">>])
+                 <<Node/binary, "@">>
          end,
-    S2 = list_to_binary([S1, Server]),
+    S2 = <<S1/binary, Server/binary>>,
     S3 = case Resource of
              <<>> ->
                  S2;
              _ ->
-                 list_to_binary([S2, <<"/">>, Resource])
+                 <<S2/binary, "/", Resource/binary>>
          end,
     S3.
 
@@ -691,6 +691,24 @@ i2l(L) when is_list(L)    -> L.
 %% Hours = integer()
 %% Minutes = integer()
 -spec timestamp_to_iso(calendar:datetime(), tz()) -> {string(), io_lib:chars()}.
+timestamp_to_iso({{Year, Month, Day}, {Hour, Minute, Second, Micro}}, Timezone) ->
+    Timestamp_string =
+        lists:flatten(
+          io_lib:format("~4..0w-~2..0w-~2..0wT~2..0w:~2..0w:~2..0w.~6..0w",
+                        [Year, Month, Day, Hour, Minute, Second, Micro])),
+    Timezone_string =
+        case Timezone of
+            utc -> "Z";
+            {Sign, {TZh, TZm}} ->
+                io_lib:format("~s~2..0w:~2..0w", [Sign, TZh, TZm]);
+            {TZh, TZm} ->
+                Sign = case TZh >= 0 of
+                           true -> "+";
+                           false -> "-"
+                       end,
+                io_lib:format("~s~2..0w:~2..0w", [Sign, abs(TZh),TZm])
+        end,
+    {Timestamp_string, Timezone_string};
 timestamp_to_iso({{Year, Month, Day}, {Hour, Minute, Second}}, Timezone) ->
     Timestamp_string =
         lists:flatten(
@@ -748,6 +766,13 @@ timestamp_to_mam_xml(DateTime, Timezone, QueryID, MessageUID) ->
 
 %% @doc TODO: Remove this function once XEP-0091 is Obsolete
 -spec timestamp_to_xml(calendar:datetime()) -> xmlel().
+timestamp_to_xml({{Year, Month, Day}, {Hour, Minute, Second, Micro}}) ->
+    #xmlel{name = <<"x">>,
+           attrs = [{<<"xmlns">>, ?NS_DELAY91},
+                    {<<"stamp">>, lists:flatten(
+                                    io_lib:format("~4..0w~2..0w~2..0wT~2..0w:~2..0w:~2..0w.~6..0w",
+                                                  [Year, Month, Day, Hour, Minute, Second, Micro]))}]};
+
 timestamp_to_xml({{Year, Month, Day}, {Hour, Minute, Second}}) ->
     #xmlel{name = <<"x">>,
            attrs = [{<<"xmlns">>, ?NS_DELAY91},
@@ -1031,3 +1056,24 @@ stream_errort(Condition, Lang, Text) ->
                              , children = [ #xmlcdata{ content = Txt} ]}
                      ]
         }.
+
+remove_delay_tags(#xmlel{children = Els} = Packet) ->
+    NEl = lists:foldl(
+             fun(#xmlel{name= <<"delay">>, attrs = Attrs} = R, El)->
+			      case xml:get_attr_s(<<"xmlns">>, Attrs) of
+                                  ?NS_DELAY ->
+                                      El;
+                                  _ ->
+                                    El ++ [R]
+                              end;
+                (#xmlel{name= <<"x">> , attrs = Attrs } = R, El) ->
+                              case xml:get_attr_s(<<"xmlns">>, Attrs) of
+                                  ?NS_DELAY91 ->
+                                      El;
+                                  _ ->
+                                    El ++ [R]
+                              end;
+                (R, El) ->
+                              El ++ [R]
+                end, [],Els),
+    Packet#xmlel{children=NEl}.
