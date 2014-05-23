@@ -38,7 +38,8 @@ groups() ->
     [{essential, [{repeat,10}], [create_and_terminate_session]},
      {chat, [shuffle, {repeat,10}], [interleave_requests,
                                      simple_chat,
-                                     cant_send_invalid_rid]},
+                                     cant_send_invalid_rid,
+                                     multiple_stanzas]},
      {time, [shuffle, {repeat,5}], [disconnect_inactive,
                                     interrupt_long_poll_is_activity,
                                     reply_on_pause,
@@ -68,14 +69,14 @@ end_per_suite(Config) ->
 init_per_group(essential, Config) ->
     Config;
 init_per_group(chat, Config) ->
-    escalus_users:create_users(Config, {by_name, [carol, geralt]});
+    escalus_users:create_users(Config, {by_name, [carol, geralt, alice]});
 init_per_group(_GroupName, Config) ->
     escalus:create_users(Config).
 
 end_per_group(essential, Config) ->
     Config;
 end_per_group(chat, Config) ->
-    escalus_users:delete_users(Config, {by_name, [carol, geralt]});
+    escalus_users:delete_users(Config, {by_name, [carol, geralt, alice]});
 end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config).
 
@@ -217,6 +218,31 @@ cant_send_invalid_rid(Config) ->
         escalus:assert(is_stream_end, escalus:wait_for_stanza(Carol)),
         0 = length(get_bosh_sessions())
 
+        end).
+
+multiple_stanzas(Config) ->
+    escalus:story(Config, [{carol, 1},{geralt, 1},{alice, 1}],
+                  fun(Carol, Geralt, Alice) ->
+                %% send a multiple stanza
+                Server = escalus_client:server(Carol),
+                Stanza1 = escalus_stanza:chat_to(Geralt, <<"Hello">>),
+                Stanza2 = escalus_stanza:chat_to(Alice, <<"Hello">>),
+                Stanza3 = escalus_stanza:service_discovery(Server),
+
+                RID = escalus_bosh:get_rid(Carol#client.conn),
+                SID = escalus_bosh:get_sid(Carol#client.conn),
+                Body = escalus_bosh:empty_body(RID, SID),
+                Stanza = Body#xmlel{children=[Stanza1,Stanza2,Stanza1,Stanza3]},
+                escalus_bosh:send_raw(Carol#client.conn, Stanza),
+
+                %% check whether each of stanzas has been processed correctly
+                escalus:assert(is_chat_message, [<<"Hello">>],
+                               escalus_client:wait_for_stanza(Geralt)),
+                escalus:assert(is_chat_message, [<<"Hello">>],
+                               escalus_client:wait_for_stanza(Alice)),
+                escalus:assert(is_chat_message, [<<"Hello">>],
+                               escalus_client:wait_for_stanza(Geralt)),
+                escalus:assert(is_iq_result, escalus:wait_for_stanza(Carol))
         end).
 
 disconnect_inactive(Config) ->
