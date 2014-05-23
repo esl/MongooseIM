@@ -44,6 +44,7 @@
 %%% Register commands
 %%%
 
+-spec commands() -> [ejabberd_commands:cmd(),...].
 commands() ->
     [
         #ejabberd_commands{name = send_message_chat, tags = [stanza],
@@ -69,25 +70,31 @@ commands() ->
 %%%
 
 %% @doc Send a chat message to a Jabber account.
-%% @spec (From::binary(), To::binary(), Body::binary()) -> ok
+-spec send_message_chat(From :: binary(), To :: binary(),
+                        Body :: binary() | string()) -> 'ok'.
 send_message_chat(From, To, Body) ->
     Packet = build_packet(message_chat, [Body]),
     send_packet_all_resources(From, To, Packet).
 
+
 %% @doc Send a headline message to a Jabber account.
-%% @spec (From::string(), To::string(), Subject::string(), Body::string()) -> ok
+-spec send_message_headline(From :: binary(), To :: binary(),
+                            Subject:: binary() | string(),
+                            Body :: binary() | string()) -> 'ok'.
 send_message_headline(From, To, Subject, Body) ->
     Packet = build_packet(message_headline, [Subject, Body]),
     send_packet_all_resources(From, To, Packet).
 
+
 %% @doc Send a packet to a Jabber account.
-%% If a resource was specified in the JID,
-%% the packet is sent only to that specific resource.
-%% If no resource was specified in the JID,
-%% and the user is remote or local but offline,
-%% the packet is sent to the bare JID.
-%% If the user is local and is online in several resources,
-%% the packet is sent to all its resources.
+%% If a resource was specified in the JID, the packet is sent only to that
+%%      specific resource.
+%% If no resource was specified in the JID, and the user is remote or local but
+%%      offline, the packet is sent to the bare JID.
+%% If the user is local and is online in several resources, the packet is sent
+%%      to all its resources.
+-spec send_packet_all_resources(FromJIDStr :: binary(), ToJIDString :: binary(),
+                                jlib:xmlel()) -> 'ok'.
 send_packet_all_resources(FromJIDString, ToJIDString, Packet) ->
     FromJID = jlib:binary_to_jid(FromJIDString),
     ToJID = jlib:binary_to_jid(ToJIDString),
@@ -100,6 +107,11 @@ send_packet_all_resources(FromJIDString, ToJIDString, Packet) ->
             send_packet_all_resources(FromJID, ToUser, ToServer, Res, Packet)
     end.
 
+
+-spec send_packet_all_resources(FromJID :: 'error' | ejabberd:jid(),
+                                ToUser :: ejabberd:user(),
+                                ToServer :: ejabberd:server(),
+                                jlib:xmlel()) -> 'ok'.
 send_packet_all_resources(FromJID, ToUser, ToServer, Packet) ->
     case ejabberd_sm:get_user_resources(ToUser, ToServer) of
         [] ->
@@ -113,10 +125,16 @@ send_packet_all_resources(FromJID, ToUser, ToServer, Packet) ->
                 ToResources)
     end.
 
+
+-spec send_packet_all_resources(ejabberd:jid(), ToU :: binary(), ToS :: binary(),
+                                ToR :: binary(), jlib:xmlel()) -> 'ok'.
 send_packet_all_resources(FromJID, ToU, ToS, ToR, Packet) ->
     ToJID = jlib:make_jid(ToU, ToS, ToR),
     ejabberd_router:route(FromJID, ToJID, Packet).
 
+
+-spec build_packet('message_chat' | 'message_headline',
+                  Subject_Body :: [binary() | string(),...]) -> jlib:xmlel().
 build_packet(message_chat, [Body]) ->
     #xmlel{ name = <<"message">>,
            attrs = [{<<"type">>, <<"chat">>}, {<<"id">>, list_to_binary(randoms:get_string())}],
@@ -130,6 +148,9 @@ build_packet(message_headline, [Subject, Body]) ->
                       ]
           }.
 
+
+-spec send_stanza_c2s(ejabberd:user(), ejabberd:server(), ejabberd:resource(),
+                      Stanza :: binary()) -> any().
 send_stanza_c2s(Username, Host, Resource, Stanza) ->
     C2sPid = ejabberd_sm:get_session_pid(Username, Host, Resource),
     {ok, XmlEl} = exml:parse(Stanza),

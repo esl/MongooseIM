@@ -50,43 +50,52 @@
 -define(DEFAULT_MAXPAUSE, 120).
 -define(DEFAULT_CLIENT_ACKS, false).
 
--type cached_response() :: {rid(), erlang:timestamp(), #xmlel{}}.
+-type cached_response() :: {rid(), erlang:timestamp(), jlib:xmlel()}.
 -type rid() :: pos_integer().
 
--record(state, {c2s_pid :: pid(),
-                handlers = [] :: [{rid(), timer:tref(), pid()}],
+-record(state, {c2s_pid         :: pid(),
+                handlers = []   :: [{rid(), timer:tref(), pid()}],
                 %% Elements buffered for sending to the client.
-                pending = [] :: [xmlstreamelement()],
-                sid :: bosh_sid(),
-                wait = ?DEFAULT_WAIT,
-                hold = ?DEFAULT_HOLD,
-                rid :: rid() | undefined,
+                pending = []    :: [jlib:xmlstreamel()],
+                sid             :: mod_bosh:sid(),
+                wait = ?DEFAULT_WAIT :: integer(),
+                hold = ?DEFAULT_HOLD :: integer(),
+                rid             :: rid() | undefined,
                 %% Requests deferred for later processing because
                 %% of having Rid greater than expected.
-                deferred = [] :: [{rid(), {event_type(), #xmlel{}}}],
+                deferred = []   :: [{rid(), {mod_bosh:event_type(), jlib:xmlel()}}],
                 client_acks = ?DEFAULT_CLIENT_ACKS :: boolean(),
-                sent = [] :: [cached_response()],
+                sent = []       :: [cached_response()],
                 %% Allowed inactivity period in seconds.
-                inactivity :: pos_integer() | infinity,
+                inactivity      :: pos_integer() | 'infinity',
                 inactivity_tref,
                 %% Max pause period in seconds.
-                maxpause :: pos_integer() | undefined,
+                maxpause        :: pos_integer() | 'undefined',
                 %% Are acknowledgements used?
-                server_acks :: boolean(),
-                last_processed :: rid() | undefined,
+                server_acks     :: boolean(),
+                last_processed  :: rid() | 'undefined',
                 %% Report scheduled for sending at the earliest
                 %% possible occasion.
-                report = false :: {rid(), timer:time()} | false}).
+                report = false  :: {rid(), timer:time()} | 'false'}).
+-type state() :: #state{}.
+
+-type statename() :: 'accumulate' | 'normal'.
+-type fsm_return() :: {'next_state', statename(), state()}.
 
 %%--------------------------------------------------------------------
 %% API
 %%--------------------------------------------------------------------
 
+-spec start(mod_bosh:sid(), _) ->
+    {'error',_} | {'ok','undefined' | pid()} | {'ok','undefined' | pid(),_}.
 start(Sid, Peer) ->
     supervisor:start_child(?BOSH_SOCKET_SUP, [Sid, Peer]).
 
+
+-spec start_link(mod_bosh:sid(),_) -> 'ignore' | {'error',_} | {'ok',pid()}.
 start_link(Sid, Peer) ->
     gen_fsm:start_link(?MODULE, [Sid, Peer], []).
+
 
 start_supervisor() ->
     ChildId = ?BOSH_SOCKET_SUP,
@@ -111,19 +120,18 @@ start_supervisor() ->
             {error, Reason}
     end.
 
--spec handle_request(Pid, {EventTag, Handler, Body}) -> ok
-    when Pid :: pid(),
-         EventTag :: event_type(),
-         Handler :: pid(),
-         Body :: #xmlel{}.
+
+-spec handle_request(Pid :: pid(),
+                    {EventTag :: mod_bosh:event_type(),
+                     Handler :: pid(),
+                     Body :: jlib:xmlel()}) -> ok.
 handle_request(Pid, Request) ->
     gen_fsm:send_all_state_event(Pid, Request).
 
-%% TODO: no handler for this call is present!
+
+%% @doc TODO: no handler for this call is present!
 %% No check for violating maxpause is made when calling this!
--spec pause(Pid, Seconds) -> ok
-    when Pid :: pid(),
-         Seconds :: pos_integer().
+-spec pause(Pid :: pid(), Seconds :: pos_integer()) -> ok.
 pause(Pid, Seconds) ->
     gen_fsm:send_all_state_event(Pid, {pause, Seconds}).
 
@@ -134,16 +142,20 @@ pause(Pid, Seconds) ->
 get_handlers(Pid) ->
     gen_fsm:sync_send_all_state_event(Pid, get_handlers).
 
+
 get_pending(Pid) ->
     gen_fsm:sync_send_all_state_event(Pid, get_pending).
+
 
 -spec get_client_acks(pid()) -> boolean().
 get_client_acks(Pid) ->
     gen_fsm:sync_send_all_state_event(Pid, get_client_acks).
 
+
 -spec set_client_acks(pid(), boolean()) -> any().
 set_client_acks(Pid, Enabled) ->
     gen_fsm:sync_send_all_state_event(Pid, {set_client_acks, Enabled}).
+
 
 -spec get_cached_responses(pid()) -> [cached_response()].
 get_cached_responses(Pid) ->
@@ -172,6 +184,7 @@ init([Sid, Peer]) ->
                             maxpause = get_maxpause(),
                             server_acks = mod_bosh:get_server_acks()}}.
 
+
 %% TODO: maybe make maxpause runtime configurable like inactivity?
 get_maxpause() ->
     case gen_mod:get_module_opt(?MYNAME, mod_bosh, maxpause, undefined) of
@@ -195,6 +208,7 @@ get_maxpause() ->
 %% @end
 %%--------------------------------------------------------------------
 
+-spec accumulate(_, state()) -> fsm_return().
 accumulate(acc_off, #state{pending = Pending} = S) ->
     NS = S#state{pending = []},
     {next_state, normal, send_or_store(Pending, NS)};
@@ -202,6 +216,8 @@ accumulate(Event, State) ->
     ?DEBUG("Unhandled event in 'accumulate' state: ~w~n", [Event]),
     {next_state, accumulate, State}.
 
+
+-spec normal(_, state()) -> fsm_return().
 normal(acc_off, #state{} = S) ->
     {next_state, normal, S};
 normal(Event, State) ->
@@ -433,9 +449,20 @@ maybe_add(Rid1, Rid2) when is_integer(Rid1),
 maybe_diff(_, undefined) -> undefined;
 maybe_diff(Rid, Expected) -> abs(Rid-Expected).
 
+
+-spec resend_cached({Rid :: pos_integer(),
+                     {non_neg_integer(),non_neg_integer(),non_neg_integer()},
+                     CachedBody :: jlib:xmlel()},
+                    state()) -> state().
 resend_cached({_Rid, _, CachedBody}, S) ->
     send_to_handler(CachedBody, S).
 
+
+-spec process_acked_stream_event({EventTag :: mod_bosh:event_type(),
+                                    Body :: jlib:xmlel(),
+                                    Rid :: 'undefined' | rid()},
+                                SName :: any(),
+                                S :: state() ) -> state().
 process_acked_stream_event({EventTag, Body, Rid}, SName,
                            #state{} = S) ->
     MaybeBAck = exml_query:attr(Body, <<"ack">>),
@@ -454,6 +481,12 @@ process_acked_stream_event({EventTag, Body, Rid}, SName,
 rid(#state{} = S, Rid) when is_integer(Rid), Rid > 0 ->
     S#state{rid = Rid}.
 
+
+-spec determine_report_action(BinAck :: 'undefined' | binary(),
+                              boolean(),
+                              Rid :: rid(),
+                              LastProcessed :: 'undefined' | pos_integer()
+                            ) -> {'noreport',_} | {'report',_}.
 determine_report_action(undefined, false, _, _) ->
     {noreport, undefined};
 determine_report_action(undefined, true, Rid, LastProcessed) ->
@@ -464,8 +497,8 @@ determine_report_action(undefined, true, Rid, LastProcessed) ->
             ?WARNING_MSG("expected 'ack' attribute on ~p~n", [Rid]),
             {noreport, undefined}
     end;
-determine_report_action(BAck, _, _, LastProcessed) ->
-    Ack = binary_to_integer(BAck),
+determine_report_action(BinAck, _, _, LastProcessed) ->
+    Ack = binary_to_integer(BinAck),
     case {LastProcessed, is_valid_ack(Ack, LastProcessed)} of
         {undefined, _} ->
             {noreport, Ack};
@@ -475,12 +508,16 @@ determine_report_action(BAck, _, _, LastProcessed) ->
             {report, Ack}
     end.
 
+
+-spec is_valid_ack(Ack :: rid(), 'undefined' | pos_integer()) -> boolean().
 is_valid_ack(Ack, LastProcessed)
         when Ack < LastProcessed ->
     false;
 is_valid_ack(_, _) ->
     true.
 
+
+-spec maybe_trim_cache(undefined | any(), state()) -> state().
 maybe_trim_cache(undefined, S) ->
     S;
 maybe_trim_cache(Ack, S) ->
@@ -492,6 +529,8 @@ maybe_trim_cache(Ack, S) ->
     NewSent = lists:dropwhile(UpToAck, S#state.sent),
     S#state{sent = NewSent}.
 
+
+-spec schedule_report(rid(), state()) -> state().
 schedule_report(Ack, #state{sent = Sent} = S) ->
     ReportRid = Ack + 1,
     try
@@ -515,11 +554,16 @@ schedule_report(Ack, #state{sent = Sent} = S) ->
             S
     end.
 
+
+-spec maybe_send_report(state()) -> state().
 maybe_send_report(#state{report = false} = S) ->
     S;
 maybe_send_report(#state{} = S) ->
     send_or_store([], S).
 
+
+-spec process_stream_event(mod_bosh:event_type(), jlib:xmlel(), _SName,
+                           state()) -> state().
 process_stream_event(pause, Body, SName, State) ->
     Seconds = binary_to_integer(exml_query:attr(Body, <<"pause">>)),
     NewState = process_pause_event(Seconds, State),
@@ -529,6 +573,9 @@ process_stream_event(EventTag, Body, SName, #state{c2s_pid = C2SPid} = State) ->
     [forward_to_c2s(C2SPid, El) || El <- Els],
     process_deferred_events(SName, NewState).
 
+
+-spec process_pause_event('infinity' | 'undefined' | pos_integer(),
+                          state()) -> state().
 process_pause_event(Seconds, #state{maxpause = MaxPause} = S)
         when MaxPause == undefined;
              Seconds > MaxPause ->
@@ -541,6 +588,8 @@ process_pause_event(Seconds, State) ->
     end,
     lists:foldl(F, NS, lists:seq(1, length(State#state.handlers))).
 
+
+-spec process_deferred_events(_SName, state()) -> state().
 process_deferred_events(SName, #state{deferred = Deferred} = S) ->
     lists:foldl(fun(Event, State) ->
                     ?DEBUG("processing deferred event: ~p~n", [Event]),
@@ -549,11 +598,14 @@ process_deferred_events(SName, #state{deferred = Deferred} = S) ->
                 S#state{deferred = []},
                 lists:sort(Deferred)).
 
+
+-spec is_expected_rid(rid(), rid()) -> boolean().
 is_expected_rid(Rid, ExpectedRid) when Rid == ExpectedRid ->
     true;
 is_expected_rid(_, _) ->
     false.
 
+-spec is_acceptable_rid(rid(), rid()) -> boolean().
 is_acceptable_rid(Rid, ExpectedRid)
   when Rid > ExpectedRid,
        Rid < ExpectedRid + ?CONCURRENT_REQUESTS ->
@@ -561,8 +613,9 @@ is_acceptable_rid(Rid, ExpectedRid)
 is_acceptable_rid(_, _) ->
     false.
 
-%% Send data to the client if any request handler is available.
+%% @doc Send data to the client if any request handler is available.
 %% Otherwise, store for sending later.
+-spec send_or_store(_Data, state()) -> state().
 send_or_store(Data, State) when not is_list(Data) ->
     send_or_store([Data], State);
 send_or_store(Data, #state{handlers = []} = S) ->
@@ -570,15 +623,18 @@ send_or_store(Data, #state{handlers = []} = S) ->
 send_or_store(Data, State) ->
     send_to_handler(Data, State).
 
-%% send_to_handler() assumes that Handlers is not empty!
+
+%% @doc send_to_handler() assumes that Handlers is not empty!
 %% Be sure that's the case if calling it.
+-spec send_to_handler([any()] | jlib:xmlel(), state()) -> state().
 send_to_handler(Data, State) ->
     {Handler, NS} = pick_handler(State),
     send_to_handler(Handler, Data, NS).
 
+
 %% Return handler and new state if a handler is available
 %% or `false` otherwise.
--spec pick_handler(#state{}) -> {{rid(), pid()}, #state{}} | false.
+-spec pick_handler(state()) -> {{rid(), pid()}, state()} | false.
 pick_handler(#state{handlers = []}) ->
     false;
 pick_handler(#state{handlers = Handlers} = S) ->
@@ -588,6 +644,10 @@ pick_handler(#state{handlers = Handlers} = S) ->
     timer:cancel(TRef),
     {{Rid, Pid}, S#state{handlers = HRest}}.
 
+
+-spec send_to_handler({_, atom() | pid() | port() | {atom(),atom()}},
+                      Wrapped :: [any()] | jlib:xmlel(),
+                      State :: state() ) -> state().
 send_to_handler({_, Pid}, #xmlel{name = <<"body">>} = Wrapped, State) ->
     send_wrapped_to_handler(Pid, Wrapped, State);
 send_to_handler({Rid, Pid}, Data, State) ->
@@ -595,9 +655,13 @@ send_to_handler({Rid, Pid}, Data, State) ->
     NS2 = cache_response({Rid, now(), Wrapped}, NS),
     send_wrapped_to_handler(Pid, Wrapped, NS2).
 
-%% This is the most specific variant of send_to_handler()
+
+%% @doc This is the most specific variant of send_to_handler()
 %% and the *only one* actually performing a send
 %% to the cowboy_loop_handler serving a HTTP request.
+-spec send_wrapped_to_handler(atom() | pid() | port() | {atom(),atom()},
+                              Wrapped :: jlib:xmlel(),
+                              State :: state()) -> state().
 send_wrapped_to_handler(Pid, Wrapped, #state{handlers = []} = State) ->
     Pid ! {bosh_reply, Wrapped},
     setup_inactivity_timer(State);
@@ -605,6 +669,8 @@ send_wrapped_to_handler(Pid, Wrapped, State) ->
     Pid ! {bosh_reply, Wrapped},
     State.
 
+
+-spec maybe_ack(rid(), state()) -> [{binary(),_}].
 maybe_ack(HandlerRid, #state{rid = Rid} = S) ->
     if
         Rid > HandlerRid ->
@@ -613,6 +679,8 @@ maybe_ack(HandlerRid, #state{rid = Rid} = S) ->
             []
     end.
 
+
+-spec maybe_report(state()) -> {[{binary(),_}], state()}.
 maybe_report(#state{report = false} = S) ->
     {[], S};
 maybe_report(#state{report = Report} = S) ->
@@ -621,6 +689,8 @@ maybe_report(#state{report = Report} = S) ->
                 {<<"time">>, integer_to_binary(ElapsedTime)}],
     {NewAttrs, S#state{report = false}}.
 
+
+-spec cache_response({rid(), erlang:timestamp(), jlib:xmlel()}, state()) -> state().
 cache_response({Rid,_,_} = Response, #state{sent = Sent} = S) ->
     NewSent = lists:keymerge(1, [Response], Sent),
     CacheUpTo = case S#state.client_acks of
@@ -635,16 +705,23 @@ cache_response({Rid,_,_} = Response, #state{sent = Sent} = S) ->
     S#state{sent = cache_up_to(CacheUpTo, NewSent),
             last_processed = last_processed(Rid, S#state.last_processed)}.
 
+
+-spec cache_up_to('infinity' | 2, Responses :: [cached_response()])
+            -> [cached_response()].
 cache_up_to(infinity, Responses) ->
     Responses;
 cache_up_to(N, Responses) ->
     lists:nthtail(max(0, length(Responses) - N), Responses).
 
+
+-spec last_processed(rid(),'undefined' | pos_integer()) -> rid().
 last_processed(Rid, undefined) ->
     Rid;
 last_processed(Rid1, Rid2) ->
     max(Rid1, Rid2).
 
+
+-spec setup_inactivity_timer(state()) -> state().
 setup_inactivity_timer(#state{inactivity = infinity} = S) ->
     S;
 setup_inactivity_timer(S) ->
@@ -653,30 +730,42 @@ setup_inactivity_timer(S) ->
                                   inactivity_timeout),
     S#state{inactivity_tref = TRef}.
 
+
+-spec cancel_inactivity_timer(state()) -> state().
 cancel_inactivity_timer(#state{inactivity_tref = undefined} = S) ->
     S;
 cancel_inactivity_timer(S) ->
     timer:cancel(S#state.inactivity_tref),
     S#state{inactivity_tref = undefined}.
 
-%% Store data for sending later.
+
+%% @doc Store data for sending later.
+-spec store([jlib:xmlstreamel()], state()) -> state().
 store(Data, #state{pending = Pending} = S) ->
     S#state{pending = Pending ++ Data}.
 
+
+-spec forward_to_c2s('undefined' | pid(), jlib:xmlstreamel()) -> 'ok'.
 forward_to_c2s(C2SPid, StreamElement) ->
     gen_fsm:send_event(C2SPid, StreamElement).
 
+
+-spec maybe_add_handler(_, rid(), state()) -> state().
 maybe_add_handler(Handler, Rid, S) when is_pid(Handler) ->
     add_handler({Rid, Handler}, S);
 maybe_add_handler(_, _, S) ->
     S.
 
+
+-spec add_handler({rid(), pid()}, state()) -> state().
 add_handler({Rid, Pid}, #state{handlers = Handlers} = S) ->
     {ok, TRef} = timer:send_after(timer:seconds(S#state.wait),
                                   {wait_timeout, {Rid, Pid}}),
     S#state{handlers = [{Rid, TRef, Pid} | Handlers]}.
 
-%% Keep in mind the hardcoding for hold == 1.
+
+%% @doc Keep in mind the hardcoding for hold == 1.
+-spec return_surplus_handlers('accumulate' | 'normal', state()) -> state().
 return_surplus_handlers(accumulate, #state{handlers = []} = State) ->
     State;
 return_surplus_handlers(accumulate, #state{handlers = [_]} = State) ->
@@ -692,12 +781,9 @@ return_surplus_handlers(normal, #state{pending = Pending} = S) ->
     NS = send_or_store(Pending, S#state{pending = []}),
     return_surplus_handlers(normal, NS).
 
--spec bosh_unwrap(EventTag, #xmlel{}, #state{})
-    -> {[StreamEvent], #state{}}
-    when EventTag :: event_type(),
-         StreamEvent :: #xmlstreamstart{}
-                     | {xmlstreamelement, #xmlel{}}
-                     | #xmlstreamend{}.
+
+-spec bosh_unwrap(EventTag :: mod_bosh:event_type(), jlib:xmlel(), state()
+                 ) -> {[jlib:xmlstreamel()], state()}.
 bosh_unwrap(StreamEvent, Body, #state{} = S)
        when StreamEvent =:= streamstart;
             StreamEvent =:= restart ->
@@ -721,6 +807,8 @@ bosh_unwrap(normal, Body, #state{sid = Sid} = State) ->
          El /= #xmlcdata{content = <<" ">>}],
      State}.
 
+
+-spec get_client_acks('restart' | 'streamstart', jlib:xmlel(), boolean()) -> boolean().
 get_client_acks(restart, _, Default) ->
     Default;
 get_client_acks(streamstart, Element, Default) ->
@@ -734,6 +822,8 @@ get_client_acks(streamstart, Element, Default) ->
             false
     end.
 
+
+-spec get_attr(Attr :: binary(), jlib:xmlel(), integer()) -> any().
 get_attr(Attr, Element, Default) ->
     case exml_query:attr(Element, Attr) of
         undefined ->
@@ -742,6 +832,8 @@ get_attr(Attr, Element, Default) ->
             binary_to_integer(Value)
     end.
 
+
+-spec stream_start(binary(), binary()) -> jlib:xmlstreamstart().
 stream_start(From, To) ->
     #xmlstreamstart{name = <<"stream:stream">>,
                     attrs = [{<<"from">>, From},
@@ -751,6 +843,8 @@ stream_start(From, To) ->
                              {<<"xmlns">>, <<"jabber:client">>},
                              {<<"xmlns:stream">>, ?NS_STREAM}]}.
 
+
+-spec bosh_wrap([any()], rid(), state()) -> {jlib:xmlel(), state()}.
 bosh_wrap(Elements, Rid, #state{} = S) ->
     EventsStanzas = lists:partition(fun is_stream_event/1, Elements),
     {{Body, Children}, NS} = case EventsStanzas of
@@ -775,6 +869,8 @@ bosh_wrap(Elements, Rid, #state{} = S) ->
     {Body#xmlel{attrs = Body#xmlel.attrs ++ ExtraAttrs,
                 children = Children}, NNS}.
 
+
+-spec is_stream_event(jlib:xmlstreamel()) -> boolean().
 is_stream_event(#xmlstreamstart{}) ->
     true;
 is_stream_event(#xmlstreamend{}) ->
@@ -782,7 +878,9 @@ is_stream_event(#xmlstreamend{}) ->
 is_stream_event(_) ->
     false.
 
-%% Bosh body for a session creation response.
+
+%% @doc Bosh body for a session creation response.
+-spec bosh_stream_start_body(jlib:xmlstreamstart(), state()) -> jlib:xmlel().
 bosh_stream_start_body(#xmlstreamstart{attrs = Attrs}, #state{} = S) ->
     #xmlel{name = <<"body">>,
            attrs = [{<<"wait">>, integer_to_binary(S#state.wait)},
@@ -804,22 +902,33 @@ bosh_stream_start_body(#xmlstreamstart{attrs = Attrs}, #state{} = S) ->
            server_ack(S#state.server_acks, S#state.rid),
            children = []}.
 
+
+-spec inactivity('infinity' | 'undefined' | pos_integer()) -> [{binary(),_}].
 inactivity(I) ->
     [{<<"inactivity">>, integer_to_binary(I)} || is_integer(I)].
 
+
+-spec maxpause('undefined' | pos_integer()) -> [{binary(),_}].
 maxpause(MP) ->
     [{<<"maxpause">>, integer_to_binary(MP)} || is_integer(MP)].
 
+
+-spec server_ack('false' | 'true' | 'undefined','undefined' | rid())
+            -> [{binary(),_}].
 server_ack(ServerAcks, Rid) ->
     [{<<"ack">>, integer_to_binary(Rid)} || ServerAcks =:= true].
 
-%% Bosh body for an ordinary stream element(s).
+
+%% @doc Bosh body for an ordinary stream element(s).
+-spec bosh_body(state()) -> jlib:xmlel().
 bosh_body(#state{} = S) ->
     #xmlel{name = <<"body">>,
            attrs = [{<<"sid">>, S#state.sid},
                     {<<"xmlns">>, ?NS_HTTPBIND}],
            children = []}.
 
+
+-spec bosh_stream_end_body() -> jlib:xmlel().
 bosh_stream_end_body() ->
     #xmlel{name = <<"body">>,
            attrs = [{<<"type">>, <<"terminate">>},
@@ -830,25 +939,35 @@ bosh_stream_end_body() ->
 %% ejabberd_socket compatibility
 %%--------------------------------------------------------------------
 
-%% Should be negotiated on HTTP level.
+%% @doc Should be negotiated on HTTP level.
+-spec starttls(mod_bosh:socket(), _) -> none().
 starttls(SocketData, TLSOpts) ->
     starttls(SocketData, TLSOpts, <<>>).
 
+
+-spec starttls(mod_bosh:socket(), _, _) -> none().
 starttls(_SocketData, _TLSOpts, _Data) ->
     throw({error, negotiate_tls_on_http_level}).
 
-%% Should be negotiated on HTTP level.
+
+%% @doc Should be negotiated on HTTP level.
+-spec compress(mod_bosh:socket()) -> none().
 compress(SocketData) ->
     compress(SocketData, <<>>, 0).
 
+-spec compress(mod_bosh:socket(), _, integer()) -> none().
 compress(_SocketData, _Data, _InflateSizeLimit) ->
     throw({error, negotiate_compression_on_http_level}).
 
-%% TODO: adjust for BOSH
+
+%% @doc TODO: adjust for BOSH
+-spec reset_stream(mod_bosh:socket()) -> mod_bosh:socket().
 reset_stream(#bosh_socket{pid = Pid} = SocketData) ->
     Pid ! reset_stream,
     SocketData.
 
+
+-spec send_xml(mod_bosh:socket(), jlib:xmlstreamel()) -> 'ok'.
 send_xml(Socket, {xmlstreamelement, XML}) ->
     send(Socket, XML);
 send_xml(Socket, #xmlstreamstart{} = XML) ->
@@ -856,26 +975,34 @@ send_xml(Socket, #xmlstreamstart{} = XML) ->
 send_xml(Socket, #xmlstreamend{} = XML) ->
     send(Socket, XML).
 
+
+-spec send(mod_bosh:socket(), _) -> 'ok'.
 send(#bosh_socket{pid = Pid}, Data) ->
     Pid ! {send, Data},
     ok.
 
+
+-spec change_shaper(mod_bosh:socket(), shaper:shaper()) -> mod_bosh:socket().
 change_shaper(SocketData, _Shaper) ->
     %% TODO: we ignore shapers for now
     SocketData.
 
+
+-spec monitor(mod_bosh:socket()) -> reference().
 monitor(#bosh_socket{pid = Pid}) ->
     erlang:monitor(process, Pid).
 
+
+-spec get_sockmod(mod_bosh:socket()) -> module().
 get_sockmod(_SocketData) ->
     ?MODULE.
 
+
+-spec close(mod_bosh:socket()) -> 'close'.
 close(#bosh_socket{pid = Pid}) ->
     Pid ! close.
 
--spec peername(#bosh_socket{}) -> {ok, {Addr, Port}}
-    when Addr :: inet:ip_address(),
-         Port :: inet:port_number().
+-spec peername(mod_bosh:socket()) -> {ok, {inet:ip_address(), inet:port_number()}}.
 peername(#bosh_socket{peer = Peer}) ->
     {ok, Peer}.
 
@@ -883,8 +1010,9 @@ peername(#bosh_socket{peer = Peer}) ->
 %% Helpers
 %%--------------------------------------------------------------------
 
-%% Set Fields of the Record to Values,
+%% @doc Set Fields of the Record to Values,
 %% when {Field, Value} <- FieldValues (in list comprehension syntax).
+-spec record_set(state(), [{6 | 7 | 10, _},...]) -> state().
 record_set(Record, FieldValues) ->
     F = fun({Field, Value}, Rec) ->
             setelement(Field, Rec, Value)

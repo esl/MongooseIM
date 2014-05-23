@@ -48,16 +48,15 @@
 %%====================================================================
 %% API
 %%====================================================================
-%%--------------------------------------------------------------------
-%% Function:
-%% Description:
-%%   Returns a binary that can be used with
-%%           code:load_binary(Module, ModuleFilenameForInternalRecords, Binary).
-%%--------------------------------------------------------------------
+
+%% @doc Returns a binary that can be used with
+%% code:load_binary(Module, ModuleFilenameForInternalRecords, Binary).
+-spec from_string('eof' | string()) -> {_,binary()}.
 from_string(CodeStr) ->
     from_string(CodeStr, []).
 
-% takes Options as for compile:forms/2
+%% @doc takes Options as for compile:forms/2
+-spec from_string('eof' | string(),[any()]) -> {_,binary()}.
 from_string(CodeStr, CompileFormsOptions) ->
     %% Initialise the macro dictionary with the default predefined macros,
     %% (adapted from epp.erl:predef_macros/1
@@ -97,24 +96,29 @@ from_string(CodeStr, CompileFormsOptions) ->
 %%====================================================================
 %% Internal functions
 %%====================================================================
-%%% Code from Mats Cronqvist
-%%% See http://www.erlang.org/pipermail/erlang-questions/2007-March/025507.html
-%%%## 'scan_and_parse'
-%%%
-%%% basically we call the OTP scanner and parser (erl_scan and
-%%% erl_parse) line-by-line, but check each scanned line for (or
-%%% definitions of) macros before parsing.
-%% returns {ReverseForms, FinalMacroDict}
+
+%% @doc Code from Mats Cronqvist<br/>
+%% See http://www.erlang.org/pipermail/erlang-questions/2007-March/025507.html
+%% 'scan_and_parse'
+%% basically we call the OTP scanner and parser (erl_scan and
+%% erl_parse) line-by-line, but check each scanned line for (or
+%% definitions of) macros before parsing. returns {ReverseForms, FinalMacroDict}
+%% @private
+-spec scan_and_parse('eof' | string(),
+                    _CurrFilename :: file:name(),
+                    _CurrLine :: integer() | {integer(),pos_integer()},
+                    RevForms :: [any()],
+                    MacroDict :: dict(),
+                    _IncludeSearchPath :: [file:name()]) -> {[any()],dict()}.
 scan_and_parse([], _CurrFilename, _CurrLine, RevForms, MacroDict, _IncludeSearchPath) ->
     {RevForms, MacroDict};
-
 scan_and_parse(RemainingText, CurrFilename, CurrLine, RevForms, MacroDict, IncludeSearchPath) ->
     case scanner(RemainingText, CurrLine, MacroDict) of
-	    {tokens, NLine, NRemainingText, Toks} ->
-	        {ok, Form} = erl_parse:parse_form(Toks),
-	        scan_and_parse(NRemainingText, CurrFilename, NLine, [Form | RevForms], MacroDict, IncludeSearchPath);
-	    {macro, NLine, NRemainingText, NMacroDict} ->
-	        scan_and_parse(NRemainingText, CurrFilename, NLine, RevForms,NMacroDict, IncludeSearchPath);
+            {tokens, NLine, NRemainingText, Toks} ->
+                {ok, Form} = erl_parse:parse_form(Toks),
+                scan_and_parse(NRemainingText, CurrFilename, NLine, [Form | RevForms], MacroDict, IncludeSearchPath);
+            {macro, NLine, NRemainingText, NMacroDict} ->
+                scan_and_parse(NRemainingText, CurrFilename, NLine, RevForms,NMacroDict, IncludeSearchPath);
         {include, NLine, NRemainingText, IncludeFilename} ->
             IncludeFileRemainingTextents = read_include_file(IncludeFilename, IncludeSearchPath),
             %%io:format("include file ~p contents: ~n~p~nRemainingText = ~p~n", [IncludeFilename,IncludeFileRemainingTextents, RemainingText]),
@@ -130,11 +134,19 @@ scan_and_parse(RemainingText, CurrFilename, CurrLine, RevForms, MacroDict, Inclu
             NMacroDict = IncludedMacroDict,
 
             %% Continue with the original file
-	        scan_and_parse(NRemainingText, CurrFilename, NLine, RevIncludeForms ++ RevForms, NMacroDict, IncludeSearchPath);
+                scan_and_parse(NRemainingText, CurrFilename, NLine, RevIncludeForms ++ RevForms, NMacroDict, IncludeSearchPath);
         done ->
-	        scan_and_parse([], CurrFilename, CurrLine, RevForms, MacroDict, IncludeSearchPath)
+                scan_and_parse([], CurrFilename, CurrLine, RevForms, MacroDict, IncludeSearchPath)
     end.
 
+%% @private
+-spec scanner(Text :: 'eof' | string(),
+              Line :: integer() | {integer(),pos_integer()},
+              MacroDict :: dict()) ->
+      'done'
+      | {'include',integer() | {integer(),pos_integer()},'eof' | string(),_}
+      | {'macro',integer() | {integer(),pos_integer()},'eof' | string(),dict()}
+      | {'tokens',integer() | {integer(),pos_integer()},'eof' | string(),[any()]}.
 scanner(Text, Line, MacroDict) ->
     case erl_scan:tokens([],Text,Line) of
         {done, {ok,Toks,NLine}, LeftOverChars} ->
@@ -156,8 +168,12 @@ scanner(Text, Line, MacroDict) ->
             end
     end.
 
+%% @private
+-spec is_only_comments('eof' | string()) -> boolean().
 is_only_comments(Text) -> is_only_comments(Text, not_in_comment).
 
+%% @private
+-spec is_only_comments('eof' | string(),'in_comment' | 'not_in_comment') -> boolean().
 is_only_comments([],       _)              -> true;
 is_only_comments([$   |T], not_in_comment) -> is_only_comments(T, not_in_comment); % skipping whitspace outside of comment
 is_only_comments([$\t |T], not_in_comment) -> is_only_comments(T, not_in_comment); % skipping whitspace outside of comment
@@ -168,28 +184,30 @@ is_only_comments(_,        not_in_comment) -> false;
 is_only_comments([$\n |T], in_comment)     -> is_only_comments(T, not_in_comment); % found end of a comment
 is_only_comments([_   |T], in_comment)     -> is_only_comments(T, in_comment).     % skipping over in-comment chars
 
-%%%## 'pre-proc'
-%%%
-%%% have to implement a subset of the pre-processor, since epp insists
-%%% on running on a file.
-%%% only handles 2 cases;
+%% @doc 'pre-proc'
+%% have to implement a subset of the pre-processor, since epp insists
+%% on running on a file. Only handles 2 cases;
 %% -define(MACRO, something).
 %% -define(MACRO(VAR1,VARN),{stuff,VAR1,more,stuff,VARN,extra,stuff}).
+%% @private
+-spec pre_proc([{_,_} | {_,_,_}],dict()) -> {'include',_} | {'macro',dict()} | {'tokens',[any()]}.
 pre_proc([{'-',_},{atom,_,define},{'(',_},{_,_,Name}|DefToks],MacroDict) ->
     false = dict:is_key(Name, MacroDict),
     case DefToks of
-    	[{',',_} | Macro] ->
-    	    {macro, dict:store(Name, {[], macro_body_def(Macro, [])},  MacroDict)};
-    	[{'(',_} | Macro] ->
-    	    {macro, dict:store(Name, macro_params_body_def(Macro, []), MacroDict)}
+        [{',',_} | Macro] ->
+            {macro, dict:store(Name, {[], macro_body_def(Macro, [])},  MacroDict)};
+        [{'(',_} | Macro] ->
+            {macro, dict:store(Name, macro_params_body_def(Macro, []), MacroDict)}
     end;
-
 pre_proc([{'-',_}, {atom,_,include}, {'(',_}, {string,_,Filename}, {')',_}, {dot,_}], _MacroDict) ->
     {include, Filename};
-
 pre_proc(Toks,MacroDict) ->
     {tokens, subst_macros(Toks, MacroDict)}.
 
+%% @private
+-spec macro_params_body_def(Tokens :: [{_,_} | {_,_,_},...],
+                            RevParams :: [any()]
+                            ) -> {[any()],[{_,_} | {_,_,_}]}.
 macro_params_body_def([{')',_},{',',_} | Toks], RevParams) ->
     {reverse(RevParams), macro_body_def(Toks, [])};
 macro_params_body_def([{var,_,Param} | Toks], RevParams) ->
@@ -197,19 +215,28 @@ macro_params_body_def([{var,_,Param} | Toks], RevParams) ->
 macro_params_body_def([{',',_}, {var,_,Param} | Toks], RevParams) ->
     macro_params_body_def(Toks, [Param | RevParams]).
 
+%% @private
+-spec macro_body_def(Tokens :: [{_,_} | {_,_,_},...],
+                     RevMacroBodyTokens :: [{_,_} | {_,_,_}]
+                     ) -> [{_,_} | {_,_,_}].
 macro_body_def([{')',_}, {dot,_}], RevMacroBodyToks) ->
     reverse(RevMacroBodyToks);
 macro_body_def([Tok|Toks], RevMacroBodyToks) ->
     macro_body_def(Toks, [Tok | RevMacroBodyToks]).
 
+%% @private
+-spec subst_macros(Toks :: [{_,_} | {_,_,_}], MacroDict :: dict()) -> [any()].
 subst_macros(Toks, MacroDict) ->
     reverse(subst_macros_rev(Toks, MacroDict, [])).
 
-%% returns a reversed list of tokes
+%% @doc Returns a reversed list of tokens
+%% @private
+-spec subst_macros_rev(Tokens :: maybe_improper_list(),
+                       MacroDict :: dict(),
+                       RevOutToks :: [any()]) -> [any()].
 subst_macros_rev([{'?',_}, {_,LineNum,'LINE'} | Toks], MacroDict, RevOutToks) ->
     %% special-case for ?LINE, to avoid creating a new MacroDict for every line in the source file
     subst_macros_rev(Toks, MacroDict, [{integer,LineNum,LineNum}] ++ RevOutToks);
-
 subst_macros_rev([{'?',_}, {_,_,Name}, {'(',_} = Paren | Toks], MacroDict, RevOutToks) ->
     case dict:fetch(Name, MacroDict) of
         {[], MacroValue} ->
@@ -229,7 +256,6 @@ subst_macros_rev([{'?',_}, {_,_,Name}, {'(',_} = Paren | Toks], MacroDict, RevOu
             RevExpandedOtherMacrosToks = subst_macros_rev(ExpandedParamsToks, MacroDict, []),
             subst_macros_rev(NToks, MacroDict, RevExpandedOtherMacrosToks ++ RevOutToks)
     end;
-
 subst_macros_rev([{'?',_}, {_,_,Name} | Toks], MacroDict, RevOutToks) ->
     %% This macro invocation does not have arguments.
     %% Therefore the definition should not have parameters
@@ -239,11 +265,13 @@ subst_macros_rev([{'?',_}, {_,_,Name} | Toks], MacroDict, RevOutToks) ->
     %% TODO: avoid infinite expansion due to circular references (even indirect ones)
     RevExpandedOtherMacrosToks = subst_macros_rev(MacroValue, MacroDict, []),
     subst_macros_rev(Toks, MacroDict, RevExpandedOtherMacrosToks ++ RevOutToks);
-
 subst_macros_rev([Tok|Toks], MacroDict,  RevOutToks) ->
-subst_macros_rev(Toks, MacroDict, [Tok|RevOutToks]);
+    subst_macros_rev(Toks, MacroDict, [Tok|RevOutToks]);
 subst_macros_rev([], _MacroDict, RevOutToks) -> RevOutToks.
 
+%% @private
+-spec subst_macros_get_args(Toks :: nonempty_maybe_improper_list(),
+                            RevArgs :: [any()]) -> {_,[any()]}.
 subst_macros_get_args([{')',_} | Toks], RevArgs) ->
     {Toks, reverse(RevArgs)};
 subst_macros_get_args([{',',_}, {var,_,ArgName} | Toks], RevArgs) ->
@@ -251,12 +279,18 @@ subst_macros_get_args([{',',_}, {var,_,ArgName} | Toks], RevArgs) ->
 subst_macros_get_args([{var,_,ArgName} | Toks], RevArgs) ->
     subst_macros_get_args(Toks, [ArgName | RevArgs]).
 
+%% @private
+-spec subst_macros_subst_args_for_vars({[any()],_},[any()]) -> any().
 subst_macros_subst_args_for_vars({[], BodyToks}, []) ->
     BodyToks;
 subst_macros_subst_args_for_vars({[Param | Params], BodyToks}, [Arg|Args]) ->
     NBodyToks = keyreplace(Param, 3, BodyToks, {var,1,Arg}),
     subst_macros_subst_args_for_vars({Params, NBodyToks}, Args).
 
+%% @private
+-spec read_include_file(Filename :: file:name(),
+                        IncludeSearchPath :: [file:name(),...]
+                        ) -> [byte()].
 read_include_file(Filename, IncludeSearchPath) ->
     case file:path_open(IncludeSearchPath, Filename, [read, raw, binary]) of
         {ok, IoDevice, FullName} ->

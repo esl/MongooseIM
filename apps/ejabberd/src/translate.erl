@@ -34,6 +34,7 @@
 
 -include("ejabberd.hrl").
 
+-spec start() -> 'ok'.
 start() ->
     ets:new(translations, [named_table, public]),
     Dir =
@@ -51,6 +52,8 @@ start() ->
     load_dir(Dir),
     ok.
 
+
+-spec load_dir(file:name()) -> 'ok' | {'error','lager_not_running'}.
 load_dir(Dir) ->
     case file:list_dir(Dir) of
         {ok, Files} ->
@@ -80,6 +83,8 @@ load_dir(Dir) ->
             ?ERROR_MSG("~p", [Reason])
     end.
 
+
+-spec load_file(ejabberd:lang(), file:name()) -> 'ok'.
 load_file(Lang, File) ->
     case file:consult(File) of
         {ok, Terms} ->
@@ -105,6 +110,8 @@ load_file(Lang, File) ->
             exit(ExitText)
     end.
 
+
+-spec translate(ejabberd:lang(), binary() | string()) -> string().
 translate(Lang, Msg) when is_binary(Lang) ->
     translate(binary:bin_to_list(Lang), Msg);
 translate(Lang, Msg) ->
@@ -134,6 +141,8 @@ translate(Lang, Msg) ->
             end
     end.
 
+
+-spec translate(string()) -> string().
 translate(Msg) ->
     case ?MYLANG of
         undefined ->
@@ -168,6 +177,8 @@ translate(Msg) ->
             end
     end.
 
+
+-spec ascii_tolower(string()) -> [string()].
 ascii_tolower([C | Cs]) when C >= $A, C =< $Z ->
     [C + ($a - $A) | ascii_tolower(Cs)];
 ascii_tolower([C | Cs]) ->

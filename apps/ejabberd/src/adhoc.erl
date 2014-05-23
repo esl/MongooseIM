@@ -35,8 +35,14 @@
 -include("jlib.hrl").
 -include("adhoc.hrl").
 
-%% Parse an ad-hoc request.  Return either an adhoc_request record or
+-type request() :: #adhoc_request{}.
+-type response() :: #adhoc_response{}.
+
+-export_type([request/0, response/0]).
+
+%% @doc Parse an ad-hoc request.  Return either an adhoc_request record or
 %% an {error, ErrorType} tuple.
+-spec parse_request(ejabberd:iq()) -> request() | {error, jlib:xmlel()}.
 parse_request(#iq{type = set, lang = Lang, sub_el = SubEl, xmlns = ?NS_COMMANDS}) ->
     ?DEBUG("entering parse_request...", []),
     Node = xml:get_tag_attr_s(<<"node">>, SubEl),
@@ -60,10 +66,12 @@ parse_request(#iq{type = set, lang = Lang, sub_el = SubEl, xmlns = ?NS_COMMANDS}
 parse_request(_) ->
     {error, ?ERR_BAD_REQUEST}.
 
-%% Borrowed from mod_vcard.erl
+%% @doc Borrowed from mod_vcard.erl
+-spec find_xdata_el(jlib:xmlel()) -> false | jlib:xmlel().
 find_xdata_el(#xmlel{children = SubEls}) ->
     find_xdata_el1(SubEls).
 
+%% @private
 find_xdata_el1([]) ->
     false;
 find_xdata_el1([XE = #xmlel{attrs = Attrs} | Els]) ->
@@ -76,9 +84,10 @@ find_xdata_el1([XE = #xmlel{attrs = Attrs} | Els]) ->
 find_xdata_el1([_ | Els]) ->
     find_xdata_el1(Els).
 
-%% Produce a <command/> node to use as response from an adhoc_response
+%% @doc Produce a <command/> node to use as response from an adhoc_response
 %% record, filling in values for language, node and session id from
 %% the request.
+-spec produce_response(request(), response()) -> response().
 produce_response(#adhoc_request{lang = Lang,
                                 node = Node,
                                 sessionid = SessionID},
@@ -87,8 +96,9 @@ produce_response(#adhoc_request{lang = Lang,
                                              node = Node,
                                              sessionid = SessionID}).
 
-%% Produce a <command/> node to use as response from an adhoc_response
+%% @doc Produce a <command/> node to use as response from an adhoc_response
 %% record.
+-spec produce_response(response()) -> jlib:xmlel().
 produce_response(#adhoc_response{lang = _Lang,
                                  node = Node,
                                  sessionid = ProvidedSessionID,

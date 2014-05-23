@@ -46,6 +46,7 @@
 %%% Register commands
 %%%
 
+-spec commands() -> [ejabberd_commands:cmd(),...].
 commands() ->
     [
         #ejabberd_commands{name = change_password, tags = [accounts],
@@ -95,12 +96,16 @@ commands() ->
 %%% Accounts
 %%%
 
+-spec set_password(ejabberd:user(), ejabberd:server(), binary()) -> 'error' | 'ok'.
 set_password(User, Host, Password) ->
     case ejabberd_auth:set_password(User, Host, Password) of
         ok -> ok;
         _ ->  error
     end.
 
+
+-spec check_password_hash(ejabberd:user(), ejabberd:server(), Hash :: binary(),
+                         Method :: string()) -> 'error' | 'ok'.
 check_password_hash(User, Host, PasswordHash, HashMethod) ->
     AccountPass = ejabberd_auth:get_password_s(User, Host),
     AccountPassHash = case HashMethod of
@@ -113,13 +118,21 @@ check_password_hash(User, Host, PasswordHash, HashMethod) ->
         PasswordHash -> ok;
         _ -> error
     end.
+
+
+-spec get_md5(binary()) -> string().
 get_md5(AccountPass) ->
     lists:flatten([io_lib:format("~.16B", [X])
                    || X <- binary_to_list(crypto:md5(AccountPass))]).
+
+
+-spec get_sha(binary()) -> string().
 get_sha(AccountPass) ->
     lists:flatten([io_lib:format("~.16B", [X])
                    || X <- binary_to_list(crypto:sha(AccountPass))]).
 
+
+-spec num_active_users(ejabberd:server(), integer()) -> non_neg_integer().
 num_active_users(Host, Days) ->
     Mod = mod_admin_extra_last:get_lastactivity_module(Host),
     {MegaSecs, Secs, _MicroSecs} = now(),
@@ -129,9 +142,11 @@ num_active_users(Host, Days) ->
         {'EXIT', _Reason} ->
             0;
         Vals0 ->
-            length(Vals0)           
+            length(Vals0)
     end.
 
+
+-spec delete_old_users(integer()) -> {'ok', string()}.
 delete_old_users(Days) ->
     %% Get the list of registered users
     Users = ejabberd_auth:dirty_get_registered_users(),
@@ -139,6 +154,8 @@ delete_old_users(Days) ->
     {removed, N, UR} = delete_old_users(Days, Users),
     {ok, io_lib:format("Deleted ~p users: ~p", [N, UR])}.
 
+
+-spec delete_old_users_vhost(ejabberd:server(), integer()) -> {'ok', string()}.
 delete_old_users_vhost(Host, Days) ->
     %% Get the list of registered users
     Users = ejabberd_auth:get_vh_registered_users(Host),
@@ -146,6 +163,9 @@ delete_old_users_vhost(Host, Days) ->
     {removed, N, UR} = delete_old_users(Days, Users),
     {ok, io_lib:format("Deleted ~p users: ~p", [N, UR])}.
 
+
+-spec delete_old_users(Days :: integer(), Users :: [ejabberd:simple_jid()])
+            -> {'removed', non_neg_integer(), [ejabberd:simple_jid()]}.
 delete_old_users(Days, Users) ->
     %% Convert older time
     SecOlder = Days*24*60*60,
@@ -195,18 +215,24 @@ delete_old_users(Days, Users) ->
     Users_removed = lists:filter(F, Users),
     {removed, length(Users_removed), Users_removed}.
 
+
+-spec get_lastactivity_module(ejabberd:server()) -> 'mod_last' | 'mod_last_odbc'.
 get_lastactivity_module(Server) ->
     case lists:member(mod_last, gen_mod:loaded_modules(Server)) of
         true -> mod_last;
         _ -> mod_last_odbc
     end.
 
+
+-spec ban_account(ejabberd:user(), ejabberd:server(), binary() | string()) -> 'ok'.
 ban_account(User, Host, ReasonText) ->
     Reason = mod_admin_extra_sessions:prepare_reason(ReasonText),
     kick_sessions(User, Host, Reason),
     set_random_password(User, Host, Reason),
     ok.
 
+
+-spec kick_sessions(ejabberd:user(), ejabberd:server(), binary()) -> [ok].
 kick_sessions(User, Server, Reason) ->
     lists:map(
         fun(Resource) ->
@@ -214,15 +240,20 @@ kick_sessions(User, Server, Reason) ->
         end,
         ejabberd_sm:get_user_resources(User, Server)).
 
+
+-spec set_random_password(ejabberd:user(), ejabberd:server(), binary()) -> 'ok'.
 set_random_password(User, Server, Reason) ->
     NewPass = build_random_password(Reason),
     set_password_auth(User, Server, NewPass).
 
+
+-spec build_random_password(Reason :: binary()) -> binary().
 build_random_password(Reason) ->
     Date = list_to_binary(jlib:timestamp_to_iso(calendar:universal_time())),
     RandomString = list_to_binary(randoms:get_string()),
     <<"BANNED_ACCOUNT--", Date/binary, "--", RandomString/binary, "--", Reason/binary>>.
 
+
+-spec set_password_auth(ejabberd:user(), ejabberd:server(), binary()) -> 'ok'.
 set_password_auth(User, Server, Password) ->
     ok = ejabberd_auth:set_password(User, Server, Password).
-

@@ -156,17 +156,17 @@ get_versioning_feature(Acc, Host) ->
     end.
 
 roster_version(LServer ,LUser) ->
-	US = {LUser, LServer},
-	case roster_version_on_db(LServer) of
-		true ->
-			case odbc_queries:get_roster_version(ejabberd_odbc:escape(LServer),
+        US = {LUser, LServer},
+        case roster_version_on_db(LServer) of
+                true ->
+                        case odbc_queries:get_roster_version(ejabberd_odbc:escape(LServer),
                                                  ejabberd_odbc:escape(LUser)) of
-				{selected, [<<"version">>], [{Version}]} -> Version;
-				{selected, [<<"version">>], []} -> not_found
-			end;
-		false ->
-			roster_hash(ejabberd_hooks:run_fold(roster_get, LServer, [], [US]))
-	end.
+                                {selected, [<<"version">>], [{Version}]} -> Version;
+                                {selected, [<<"version">>], []} -> not_found
+                        end;
+                false ->
+                        roster_hash(ejabberd_hooks:run_fold(roster_get, LServer, [], [US]))
+        end.
 
 %% Load roster from DB only if neccesary.
 %% It is neccesary if
@@ -180,7 +180,7 @@ process_iq_get(From, To, #iq{sub_el = SubEl} = IQ) ->
     US = {LUser, LServer},
 
     try
-	    {ItemsToSend, VersionToSend} =
+            {ItemsToSend, VersionToSend} =
             case {xml:get_tag_attr(<<"ver">>, SubEl),
                   roster_versioning_enabled(LServer),
                   roster_version_on_db(LServer)} of
@@ -218,7 +218,7 @@ process_iq_get(From, To, #iq{sub_el = SubEl} = IQ) ->
                     {lists:map(fun item_to_xml/1,
                                ejabberd_hooks:run_fold(roster_get, To#jid.lserver, [], [US])), false}
             end,
-		IQ#iq{type = result, sub_el = case {ItemsToSend, VersionToSend} of
+                IQ#iq{type = result, sub_el = case {ItemsToSend, VersionToSend} of
                                           {false, false} ->  [];
                                       {Items, false} -> [#xmlel{name = <<"query">>,
                                                                 attrs = [{<<"xmlns">>, ?NS_ROSTER}],
@@ -229,7 +229,7 @@ process_iq_get(From, To, #iq{sub_el = SubEl} = IQ) ->
                                                                   children = Items}]
                                           end}
     catch
-    	_:_ ->
+        _:_ ->
             IQ#iq{type = error, sub_el = [SubEl, ?ERR_INTERNAL_SERVER_ERROR]}
     end.
 
@@ -854,7 +854,7 @@ get_in_pending_subscriptions(Ls, User, Server) ->
         {selected, [<<"username">>, <<"jid">>, <<"nick">>, <<"subscription">>, <<"ask">>,
                     <<"askmessage">>, <<"server">>, <<"subscribe">>, <<"type">>],
          Items} when is_list(Items) ->
-    	    Ls ++ lists:map(
+            Ls ++ lists:map(
                     fun(R) ->
                             Message = R#roster.askmessage,
                             #xmlel{name = <<"presence">>,
@@ -985,10 +985,10 @@ record_to_string(#roster{us = {User, _Server},
     SAsk = case Ask of
                subscribe   -> "S";
                unsubscribe -> "U";
-               both	   -> "B";
-               out	   -> "O";
-               in	   -> "I";
-               none	   -> "N"
+               both        -> "B";
+               out         -> "O";
+               in          -> "I";
+               none        -> "N"
            end,
     SAskMessage = ejabberd_odbc:escape(AskMessage),
     [Username, SJID, Nick, SSubscription, SAsk, SAskMessage, "N", "", "item"].

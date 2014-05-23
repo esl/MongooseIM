@@ -30,40 +30,41 @@
 -behaviour(gen_server).
 
 -export([start/0, start_link/0,
-	 enable_zlib/3, disable_zlib/1,
-	 send/2,
-	 recv/2, recv/3, recv_data/2,
-	 setopts/2,
-	 sockname/1, peername/1,
-	 get_sockmod/1,
-	 controlling_process/2,
-	 close/1]).
+         enable_zlib/3, disable_zlib/1,
+         send/2,
+         recv/2, recv/3, recv_data/2,
+         setopts/2,
+         sockname/1, peername/1,
+         get_sockmod/1,
+         controlling_process/2,
+         close/1]).
 
 %% Internal exports, call-back functions.
 -export([init/1,
-	 handle_call/3,
-	 handle_cast/2,
-	 handle_info/2,
-	 code_change/3,
-	 terminate/2]).
+         handle_call/3,
+         handle_cast/2,
+         handle_info/2,
+         code_change/3,
+         terminate/2]).
 
 -define(DEFLATE, 1).
 -define(INFLATE, 2).
 
 -record(zlibsock, {sockmod, socket, zlibport, inflate_size_limit = 0}).
+-type zlibsock() :: #zlibsock{}.
 
+-spec start() -> 'ignore' | {'error',_} | {'ok',pid()}.
 start() ->
     gen_server:start({local, ?MODULE}, ?MODULE, [], []).
 
+-spec start_link() -> 'ignore' | {'error',_} | {'ok',pid()}.
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 init([]) ->
     case erl_ddll:load_driver(ejabberd:get_so_path(), ejabberd_zlib_drv) of
-	ok -> ok;
-	{error, already_loaded} -> ok;
-	{error, OtherError} ->
-	    erlang:error({cannot_load_ejabberd_zlib_drv, erl_ddll:format_error(OtherError)})
+        ok -> ok;
+        {error, already_loaded} -> ok
     end,
     Port = open_port({spawn, ejabberd_zlib_drv}, [binary]),
     {ok, Port}.
@@ -95,7 +96,7 @@ terminate(_Reason, Port) ->
     Port ! {self, close},
     ok.
 
-
+-spec enable_zlib(ejabberd:sockmod(), zlibsock(), integer()) -> {ok, zlibsock()}.
 enable_zlib(SockMod, Socket, InflateSizeLimit) ->
     case erl_ddll:load_driver(ejabberd:get_so_path(), ejabberd_zlib_drv) of
 	ok -> ok;
@@ -107,42 +108,46 @@ enable_zlib(SockMod, Socket, InflateSizeLimit) ->
     {ok, #zlibsock{sockmod = SockMod, socket = Socket, zlibport = Port,
                    inflate_size_limit = InflateSizeLimit}}.
 
+-spec disable_zlib(zlibsock()) -> {ejabberd:sockmod(), inet:socket()}.
 disable_zlib(#zlibsock{sockmod = SockMod, socket = Socket, zlibport = Port}) ->
     port_close(Port),
     {SockMod, Socket}.
 
+-spec recv(zlibsock(), integer()) -> {ok, _} | {error, _}.
 recv(Socket, Length) ->
     recv(Socket, Length, infinity).
 recv(#zlibsock{sockmod = SockMod, socket = Socket} = ZlibSock,
      Length, Timeout) ->
     case SockMod:recv(Socket, Length, Timeout) of
-	{ok, Packet} ->
-	    recv_data(ZlibSock, Packet);
-	{error, _Reason} = Error ->
-	    Error
+        {ok, Packet} ->
+            recv_data(ZlibSock, Packet);
+        {error, _Reason} = Error ->
+            Error
     end.
 
+-spec recv_data(zlibsock(), Packet :: string()|binary()) -> {ok, _} | {error, _}.
 recv_data(#zlibsock{sockmod = SockMod, socket = Socket} = ZlibSock, Packet) ->
     case SockMod of
-	gen_tcp ->
-	    recv_data2(ZlibSock, Packet);
-	_ ->
-	    case SockMod:recv_data(Socket, Packet) of
-		{ok, Packet2} ->
-		    recv_data2(ZlibSock, Packet2);
-		Error ->
-		    Error
-	    end
+        gen_tcp ->
+            recv_data2(ZlibSock, Packet);
+        _ ->
+            case SockMod:recv_data(Socket, Packet) of
+                {ok, Packet2} ->
+                    recv_data2(ZlibSock, Packet2);
+                Error ->
+                    Error
+            end
     end.
 
 recv_data2(ZlibSock, Packet) ->
     case catch recv_data1(ZlibSock, Packet) of
-	{'EXIT', Reason} ->
-	    {error, Reason};
-	Res ->
-	    Res
+        {'EXIT', Reason} ->
+            {error, Reason};
+        Res ->
+            Res
     end.
 
+-spec recv_data1(zlibsock(), iolist()) -> {'error',string()} | {'ok',binary()}.
 recv_data1(#zlibsock{zlibport = Port, inflate_size_limit = SizeLimit} = _ZlibSock, Packet) ->
     case port_control(Port, SizeLimit bsl 2 + ?INFLATE, Packet) of
 	<<0, In/binary>> ->
@@ -151,6 +156,7 @@ recv_data1(#zlibsock{zlibport = Port, inflate_size_limit = SizeLimit} = _ZlibSoc
 	    {error, erlang:binary_to_existing_atom(Error, utf8)}
     end.
 
+-spec send(zlibsock(), iolist()) -> ok | {error, string()}.
 send(#zlibsock{sockmod = SockMod, socket = Socket, zlibport = Port},
      Packet) ->
     case port_control(Port, ?DEFLATE, Packet) of
@@ -165,18 +171,18 @@ send(#zlibsock{sockmod = SockMod, socket = Socket, zlibport = Port},
 
 setopts(#zlibsock{sockmod = SockMod, socket = Socket}, Opts) ->
     case SockMod of
-	gen_tcp ->
-	    inet:setopts(Socket, Opts);
-	_ ->
-	    SockMod:setopts(Socket, Opts)
+        gen_tcp ->
+            inet:setopts(Socket, Opts);
+        _ ->
+            SockMod:setopts(Socket, Opts)
     end.
 
 sockname(#zlibsock{sockmod = SockMod, socket = Socket}) ->
     case SockMod of
-	gen_tcp ->
-	    inet:sockname(Socket);
-	_ ->
-	    SockMod:sockname(Socket)
+        gen_tcp ->
+            inet:sockname(Socket);
+        _ ->
+            SockMod:sockname(Socket)
     end.
 
 get_sockmod(#zlibsock{sockmod = SockMod}) ->
@@ -184,10 +190,10 @@ get_sockmod(#zlibsock{sockmod = SockMod}) ->
 
 peername(#zlibsock{sockmod = SockMod, socket = Socket}) ->
     case SockMod of
-	gen_tcp ->
-	    inet:peername(Socket);
-	_ ->
-	    SockMod:peername(Socket)
+        gen_tcp ->
+            inet:peername(Socket);
+        _ ->
+            SockMod:peername(Socket)
     end.
 
 controlling_process(#zlibsock{sockmod = SockMod, socket = Socket}, Pid) ->

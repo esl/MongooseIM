@@ -28,6 +28,7 @@
 -author('alexey@process-one.net').
 
 %% External exports
+-behaviour(ejabberd_gen_auth).
 -export([start/1,
 	 set_password/3,
 	 check_password/3,
@@ -49,7 +50,6 @@
 
 -export([scram_passwords/2, scram_passwords/4]).
 
--compile(export_all).
 -include("ejabberd.hrl").
 
 -define(SCRAM_ODBC_PREFIX, "==SCRAM==,").
@@ -59,6 +59,7 @@
 %%%----------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------
+
 start(_Host) ->
     ok.
 
@@ -71,7 +72,9 @@ store_type(Server) ->
         true -> scram
     end.
 
--spec check_password(binary(), binary(), binary()) -> true | false.
+-spec check_password(User :: ejabberd:user(),
+                     Server :: ejabberd:server(),
+                     Password :: binary()) -> boolean().
 check_password(User, Server, Password) ->
     case jlib:nodeprep(User) of
 	error ->
@@ -82,7 +85,12 @@ check_password(User, Server, Password) ->
 	    check_password_wo_escape(Username, LServer, Password)
     end.
 
--spec check_password(binary(), binary(), binary(), binary(), fun()) -> true | false.
+
+-spec check_password(User :: ejabberd:user(),
+                     Server :: ejabberd:server(),
+                     Password :: binary(),
+                     Digest :: binary(),
+                     DigestGen :: fun()) -> boolean().
 check_password(User, Server, Password, Digest, DigestGen) ->
     case jlib:nodeprep(User) of
         error ->
@@ -112,7 +120,9 @@ check_password(User, Server, Password, Digest, DigestGen) ->
             end
     end.
 
--spec check_password_wo_escape(binary(), binary(), binary()) -> true | false | not_exists.
+-spec check_password_wo_escape(User::ejabberd:user(),
+                               Server::ejabberd:server(),
+                               Password::binary()) -> boolean() | not_exists.
 check_password_wo_escape(User, Server, Password) ->
     try odbc_queries:get_password(Server, User) of
         {selected, [<<"password">>, <<"pass_details">>], [{Password, null}]} ->
@@ -135,7 +145,11 @@ check_password_wo_escape(User, Server, Password) ->
             false %% Typical error is database not accessible
     end.
 
--spec set_password(binary(), binary(), binary()) -> ok | {error, any()}.
+
+-spec set_password(User :: ejabberd:user(),
+                   Server :: ejabberd:server(),
+                   Password :: binary()
+                   ) -> ok | {error, not_allowed | invalid_jid}.
 set_password(User, Server, Password) ->
     case jlib:nodeprep(User) of
         error ->
@@ -156,7 +170,12 @@ set_password(User, Server, Password) ->
             end
     end.
 
--spec try_register(binary(), binary(), binary()) -> {atomic, ok} | {error, any()}.
+
+-spec try_register(User :: ejabberd:user(),
+                   Server :: ejabberd:server(),
+                   Password :: binary()
+                   ) -> {atomic, ok | exists}
+                      | {error, invalid_jid | not_allowed} | {aborted, _}.
 try_register(User, Server, Password) ->
     case jlib:nodeprep(User) of
         error ->
@@ -177,49 +196,66 @@ try_register(User, Server, Password) ->
             end
     end.
 
+
+-spec dirty_get_registered_users() -> [ejabberd:simple_jid()].
 dirty_get_registered_users() ->
     Servers = ejabberd_config:get_vh_by_auth_method(odbc),
     lists:flatmap(
       fun(Server) ->
-	      get_vh_registered_users(Server)
+              get_vh_registered_users(Server)
       end, Servers).
 
+
+-spec get_vh_registered_users(Server :: ejabberd:server()
+                             ) -> [ejabberd:simple_jid()].
 get_vh_registered_users(Server) ->
     LServer = jlib:nameprep(Server),
     case catch odbc_queries:list_users(LServer) of
-	{selected, [<<"username">>], Res} ->
-	    [{U, LServer} || {U} <- Res];
-	_ ->
-	    []
+        {selected, [<<"username">>], Res} ->
+            [{U, LServer} || {U} <- Res];
+        _ ->
+            []
     end.
 
+
+-spec get_vh_registered_users(Server :: ejabberd:server(), Opts :: list()
+                             ) -> [ejabberd:simple_jid()].
 get_vh_registered_users(Server, Opts) ->
     LServer = jlib:nameprep(Server),
     case catch odbc_queries:list_users(LServer, Opts) of
-	{selected, [<<"username">>], Res} ->
-	    [{U, LServer} || {U} <- Res];
-	_ ->
-	    []
+        {selected, [<<"username">>], Res} ->
+            [{U, LServer} || {U} <- Res];
+        _ ->
+            []
     end.
 
+
+-spec get_vh_registered_users_number(Server :: ejabberd:server()
+                                    ) -> integer().
 get_vh_registered_users_number(Server) ->
     LServer = jlib:nameprep(Server),
     case catch odbc_queries:users_number(LServer) of
-	{selected, [_], [{Res}]} ->
-	    list_to_integer(binary_to_list(Res));
-	_ ->
-	    0
+        {selected, [_], [{Res}]} ->
+            list_to_integer(binary_to_list(Res));
+        _ ->
+            0
     end.
 
+
+-spec get_vh_registered_users_number(Server :: ejabberd:server(),
+                                     Opts :: list()) -> integer().
 get_vh_registered_users_number(Server, Opts) ->
     LServer = jlib:nameprep(Server),
     case catch odbc_queries:users_number(LServer, Opts) of
-	{selected, [_], [{Res}]} ->
-	    list_to_integer(Res);
-	_Other ->
-	    0
+        {selected, [_], [{Res}]} ->
+            list_to_integer(Res);
+        _Other ->
+            0
     end.
 
+
+-spec get_password(User :: ejabberd:user(),
+                   Server :: ejabberd:server()) -> binary() | false.
 get_password(User, Server) ->
     case jlib:nodeprep(User) of
         error ->
@@ -245,6 +281,9 @@ get_password(User, Server) ->
             end
     end.
 
+
+-spec get_password_s(User :: ejabberd:user(),
+                     Server :: ejabberd:server()) -> binary().
 get_password_s(User, Server) ->
     case jlib:nodeprep(User) of
         error ->
@@ -260,7 +299,10 @@ get_password_s(User, Server) ->
             end
     end.
 
-%% @spec (User, Server) -> true | false | {error, Error}
+
+-spec is_user_exists(User :: ejabberd:user(),
+                     Server :: ejabberd:server()
+                    ) -> boolean() | {error, atom()}.
 is_user_exists(User, Server) ->
     case jlib:nodeprep(User) of
         error ->
@@ -281,9 +323,12 @@ is_user_exists(User, Server) ->
             end
     end.
 
-%% @spec (User, Server) -> ok | error
+
 %% @doc Remove user.
 %% Note: it may return ok even if there was some problem removing the user.
+-spec remove_user(User :: ejabberd:user(),
+                  Server :: ejabberd:server()
+                  ) -> ok | error | {error, not_allowed}.
 remove_user(User, Server) ->
     case jlib:nodeprep(User) of
         error ->
@@ -295,8 +340,12 @@ remove_user(User, Server) ->
             ok
     end.
 
-%% @spec (User, Server, Password) -> ok | error | not_exists | not_allowed
+
 %% @doc Remove user if the provided password is correct.
+-spec remove_user(User :: ejabberd:user(),
+                  Server :: ejabberd:server(),
+                  Password :: binary()
+                 ) -> ok | not_exists | not_allowed | bad_request | error.
 remove_user(User, Server, Password) ->
     case jlib:nodeprep(User) of
         error ->
@@ -409,3 +458,7 @@ scram_passwords1(LServer, Count, Interval, ScramIterationCount) ->
         Other ->
             ?ERROR_MSG("Interrupted scramming because: ~p", [Other])
     end.
+
+%% @doc Unimplemented gen_auth callbacks
+login(_User, _Server) -> erlang:error(not_implemented).
+get_password(_User, _Server, _DefaultValue) -> erlang:error(not_implemented).

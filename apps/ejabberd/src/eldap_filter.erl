@@ -49,7 +49,6 @@
 %%%           {present,"mail"}]}}
 %%%-------------------------------------------------------------------
 -spec parse(binary()) -> {error, any()} | {ok, eldap:filter()}.
-
 parse(L) ->
     parse(L, []).
 
@@ -88,12 +87,12 @@ parse(L, SList) ->
     case catch eldap_filter_yecc:parse(scan(binary_to_list(L), SList)) of
         {'EXIT', _} = Err ->
             {error, Err};
-	{error, {_, _, Msg}} ->
-	    {error, Msg};
-	{ok, Result} ->
-	    {ok, Result};
-	{regexp, Err} ->
-	    {error, Err}
+        {error, {_, _, Msg}} ->
+            {error, Msg};
+        {ok, Result} ->
+            {ok, Result};
+        {regexp, Err} ->
+            {error, Err}
     end.
 
 %%====================================================================
@@ -101,9 +100,14 @@ parse(L, SList) ->
 %%====================================================================
 -define(do_scan(L), scan(Rest, <<>>, [{L, 1} | check(Buf, S) ++ Result], L, S)).
 
+
+-spec scan([byte()],_) -> [{atom(),1} | {'str',1,[any()]}].
 scan(L, SList) ->
     scan(L, <<"">>, [], undefined, SList).
 
+
+-spec scan([byte()], Buf :: binary(), Result :: [{atom(),1} | {'str',1,[any()]}],
+    atom(), S :: any()) -> [{atom(),1} | {'str',1,[any()]}].
 scan("=*)" ++ Rest, Buf, Result, '(', S) ->
     scan(Rest, <<>>, [{')', 1}, {'=*', 1} | check(Buf, S) ++ Result], ')', S);
 scan(":dn" ++ Rest, Buf, Result, '(', S) -> ?do_scan(':dn');
@@ -128,16 +132,19 @@ scan([Letter | Rest], Buf, Result, PreviosAtom, S) ->
 scan([], Buf, Result, _, S) ->
     lists:reverse(check(Buf, S) ++ Result).
 
+
+-spec check(binary(),_) -> [{'str',1,[byte()]}].
 check(<<>>, _) ->
     [];
 check(Buf, S) ->
     [{str, 1, binary_to_list(do_sub(Buf, S))}].
 
+
 -define(MAX_RECURSION, 100).
+
 
 -spec do_sub(binary(), [{binary(), binary()} |
                         {binary(), binary(), pos_integer()}]) -> binary().
-
 do_sub(S, []) ->
     S;
 do_sub(<<>>, _) ->
@@ -149,15 +156,16 @@ do_sub(S, [{RegExp, New, Times} | T]) ->
     Result = do_sub(S, {RegExp, replace_amps(New), Times}, 1),
     do_sub(Result, T).
 
+
 do_sub(S, {RegExp, New}, _Iter) ->
     re:replace(S, RegExp, New, [global, {return, binary}]);
-
 do_sub(S, {_, _, N}, _) when N<1 ->
     S;
-
 do_sub(S, {RegExp, New, _Times}, _Iter) ->
     re:replace(S, RegExp, New, [global, {return, binary}]).
 
+
+-spec replace_amps(binary()) -> binary().
 replace_amps(Bin) ->
     list_to_binary(
       lists:flatmap(

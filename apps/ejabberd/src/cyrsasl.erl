@@ -28,36 +28,76 @@
 -author('alexey@process-one.net').
 
 -export([start/0,
-	 register_mechanism/3,
-	 listmech/1,
-	 server_new/7,
-	 server_start/3,
-	 server_step/2]).
+         register_mechanism/3,
+         listmech/1,
+         server_new/7,
+         server_start/3,
+         server_step/2]).
 
 -include("ejabberd.hrl").
 
--record(sasl_mechanism, {mechanism, module, password_type}).
--record(sasl_state, {service, myname, realm,
-		     get_password, check_password, check_password_digest,
-		     mech_mod, mech_state}).
+-record(sasl_mechanism, {mechanism :: mechanism(),
+                         module :: sasl_module(),
+                         password_type :: plain | digest | scram
+                        }).
+-type sasl_module() :: cyrsasl_anonymous
+                     | cyrsasl_digest
+                     | cyrsasl_plain.
+-type mechanism() :: binary().
+-type sasl_mechanism() :: #sasl_mechanism{}.
 
--export([behaviour_info/1]).
+-record(sasl_state, {service :: binary(),
+                     myname :: ejabberd:server(),
+                     realm :: binary(),
+                     get_password :: get_password_fun(),
+                     check_password :: check_password_fun(),
+                     check_password_digest :: check_pass_digest_fun(),
+                     mech_mod :: sasl_module(),
+                     mech_state :: tuple()
+                     }).
+-type sasl_state() :: #sasl_state{}.
 
-behaviour_info(callbacks) ->
-    [{mech_new, 4}, {mech_step, 2}];
-behaviour_info(_Other) ->
-    undefined.
+-type get_password_fun() :: fun((ejabberd:user()) ->
+                          {binary(), ejabberd_auth:authmodule()} | {false, none}
+                        ).
+-type check_password_fun() :: fun((User :: ejabberd:user(),
+                                   Password :: binary()) ->
+                                      'false' | {'true', ejabberd_auth:authmodule()}
+                                 ).
+-type check_pass_digest_fun() :: fun((User :: ejabberd:user(),
+                                    Server :: ejabberd:server(),
+                                    Password :: binary(),
+                                    Digest :: binary(),
+                                    DigestGen :: fun()) ->
+                                      'false' | {'true', ejabberd_auth:authmodule()}
+                                  ).
+-export_type([get_password_fun/0,
+              check_password_fun/0,
+              check_pass_digest_fun/0]).
 
+-callback mech_new(Host :: ejabberd:server(),
+                   GetPassword :: get_password_fun(),
+                   CheckPassword :: check_password_fun(),
+                   CheckPasswordDigest :: check_pass_digest_fun()
+                   ) -> {ok, tuple()}.
+-callback mech_step(State :: tuple(),
+                    ClientIn :: binary()
+                    ) -> {ok, proplists:proplist()} | {error, binary()}.
+
+-spec start() -> 'ok'.
 start() ->
     ets:new(sasl_mechanism, [named_table,
-			     public,
-			     {keypos, #sasl_mechanism.mechanism}]),
+                             public,
+                             {keypos, #sasl_mechanism.mechanism}]),
     cyrsasl_plain:start([]),
     cyrsasl_digest:start([]),
     cyrsasl_scram:start([]),
     cyrsasl_anonymous:start([]),
     ok.
 
+-spec register_mechanism(Mechanism :: mechanism(),
+                         Module :: sasl_module(),
+                         PasswordType :: plain | digest | scram) -> 'true'.
 register_mechanism(Mechanism, Module, PasswordType) ->
     ets:insert(sasl_mechanism,
 	       #sasl_mechanism{mechanism = Mechanism,
@@ -70,35 +110,37 @@ register_mechanism(Mechanism, Module, PasswordType) ->
 %%check_authzid(_State, Props) ->
 %%    AuthzId = xml:get_attr_s(authzid, Props),
 %%    case jlib:binary_to_jid(AuthzId) of
-%%	error ->
-%%	    {error, "invalid-authzid"};
-%%	JID ->
-%%	    LUser = jlib:nodeprep(xml:get_attr_s(username, Props)),
-%%	    {U, S, R} = jlib:jid_tolower(JID),
-%%	    case R of
-%%		"" ->
-%%		    {error, "invalid-authzid"};
-%%		_ ->
-%%		    case {LUser, ?MYNAME} of
-%%			{U, S} ->
-%%			    ok;
-%%			_ ->
-%%			    {error, "invalid-authzid"}
-%%		    end
-%%	    end
+%%      error ->
+%%          {error, "invalid-authzid"};
+%%      JID ->
+%%          LUser = jlib:nodeprep(xml:get_attr_s(username, Props)),
+%%          {U, S, R} = jlib:jid_tolower(JID),
+%%          case R of
+%%              "" ->
+%%                  {error, "invalid-authzid"};
+%%              _ ->
+%%                  case {LUser, ?MYNAME} of
+%%                      {U, S} ->
+%%                          ok;
+%%                      _ ->
+%%                          {error, "invalid-authzid"}
+%%                  end
+%%          end
 %%    end.
 
+-spec check_credentials(sasl_state(), list()) -> 'ok' | {'error', binary()}.
 check_credentials(_State, Props) ->
     User = xml:get_attr_s(username, Props),
     case jlib:nodeprep(User) of
-	error ->
-	    {error, <<"not-authorized">>};
-	<<>> ->
-	    {error, <<"not-authorized">>};
-	_LUser ->
-	    ok
+        error ->
+            {error, <<"not-authorized">>};
+        <<>> ->
+            {error, <<"not-authorized">>};
+        _LUser ->
+            ok
     end.
 
+-spec listmech(ejabberd:server()) -> [sasl_mechanism()].
 listmech(Host) ->
     Mechs = ets:select(sasl_mechanism,
                        [{#sasl_mechanism{mechanism = '$1',
@@ -118,35 +160,53 @@ listmech(Host) ->
                          ['$1']}]),
     filter_anonymous(Host, Mechs).
 
+-spec server_new(Service :: binary(),
+                 ServerFQDN :: ejabberd:server(),
+                 UserRealm :: binary(),
+                 _SecFlags :: [any()],
+                 GetPassword :: get_password_fun(),
+                 CheckPassword :: check_password_fun(),
+                 CheckPasswordDigest :: check_pass_digest_fun()) -> sasl_state().
 server_new(Service, ServerFQDN, UserRealm, _SecFlags,
-	   GetPassword, CheckPassword, CheckPasswordDigest) ->
+           GetPassword, CheckPassword, CheckPasswordDigest) ->
     #sasl_state{service = Service,
-		myname = ServerFQDN,
-		realm = UserRealm,
-		get_password = GetPassword,
-		check_password = CheckPassword,
-		check_password_digest= CheckPasswordDigest}.
+                myname = ServerFQDN,
+                realm = UserRealm,
+                get_password = GetPassword,
+                check_password = CheckPassword,
+                check_password_digest= CheckPasswordDigest}.
 
+-spec server_start(sasl_state(),
+                 Mech :: any(),
+                 ClientIn :: binary()) -> {ok, _}
+                                        | {error, binary()}
+                                        | {'continue',_,sasl_state()}
+                                        | {'error',binary(),ejabberd:user()}.
 server_start(State, Mech, ClientIn) ->
     case lists:member(Mech, listmech(State#sasl_state.myname)) of
-	true ->
-	    case ets:lookup(sasl_mechanism, Mech) of
-		[#sasl_mechanism{module = Module}] ->
-		    {ok, MechState} = Module:mech_new(
-					State#sasl_state.myname,
-					State#sasl_state.get_password,
-					State#sasl_state.check_password,
-					State#sasl_state.check_password_digest),
-		    server_step(State#sasl_state{mech_mod = Module,
-						 mech_state = MechState},
-				ClientIn);
-		_ ->
-		    {error, <<"no-mechanism">>}
-	    end;
-	false ->
-	    {error, <<"no-mechanism">>}
+        true ->
+            case ets:lookup(sasl_mechanism, Mech) of
+                [#sasl_mechanism{module = Module}] ->
+                    {ok, MechState} = Module:mech_new(
+                                        State#sasl_state.myname,
+                                        State#sasl_state.get_password,
+                                        State#sasl_state.check_password,
+                                        State#sasl_state.check_password_digest),
+                    server_step(State#sasl_state{mech_mod = Module,
+                                                 mech_state = MechState},
+                                ClientIn);
+                _ ->
+                    {error, <<"no-mechanism">>}
+            end;
+        false ->
+            {error, <<"no-mechanism">>}
     end.
 
+-spec server_step(State :: sasl_state(), ClientIn :: binary()) ->
+                                          {'error',_}
+                                          | {'ok',[any()]}
+                                          | {'continue',_,sasl_state()}
+                                          | {'error',binary(),ejabberd:user()}.
 server_step(State, ClientIn) ->
     Module = State#sasl_state.mech_mod,
     MechState = State#sasl_state.mech_state,
@@ -174,10 +234,11 @@ server_step(State, ClientIn) ->
 	    {error, Error}
     end.
 
-%% Remove the anonymous mechanism from the list if not enabled for the given
-%% host
+%% @doc Remove the anonymous mechanism from the list if not enabled for the
+%% given host
+-spec filter_anonymous(ejabberd:server(), [mechanism()]) -> [mechanism()].
 filter_anonymous(Host, Mechs) ->
     case ejabberd_auth_anonymous:is_sasl_anonymous_enabled(Host) of
-	true  -> Mechs;
-	false -> Mechs -- [<<"ANONYMOUS">>]
+        true  -> Mechs;
+        false -> Mechs -- [<<"ANONYMOUS">>]
     end.

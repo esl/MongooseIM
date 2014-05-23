@@ -1,4 +1,4 @@
-%% @doc Stores info about non-anonymous users using Mnesia table.
+%%% @doc Stores info about non-anonymous users using Mnesia table.
 -module(ejabberd_users).
 %% API
 -export([start/1,
@@ -22,12 +22,17 @@
 srv_name() ->
     ejabberd_users.
 
+
+-spec srv_name(ejabberd:server() | string()) -> atom().
 srv_name(Host) ->
     gen_mod:get_module_proc(Host, srv_name()).
+
 
 tbl_name() ->
     ejabberd_users.
 
+
+-spec tbl_name(ejabberd:server() | string()) -> atom().
 tbl_name(Host) ->
     gen_mod:get_module_proc(Host, tbl_name()).
 
@@ -35,6 +40,7 @@ tbl_name(Host) ->
 %% API
 %%====================================================================
 
+-spec start(ejabberd:server()) -> 'ok'.
 start(Host) ->
     UserProc = srv_name(Host),
     UserChildSpec =
@@ -48,14 +54,22 @@ start(Host) ->
     ejabberd_hooks:add(remove_user, Host, ?MODULE, remove_user, 50),
     ok.
 
+
+-spec stop(ejabberd:server()) -> 'ok'.
 stop(Host) ->
     ejabberd_hooks:delete(remove_user, Host, ?MODULE, remove_user, 50),
     ok.
 
+
+-spec start_link(ProcName :: atom(),
+                 Host :: ejabberd:server())
+      -> 'ignore' | {'error',_} | {'ok',pid()}.
 start_link(ProcName, Host) ->
     gen_server:start_link({local, ProcName}, ?MODULE, [Host], []).
 
 
+-spec is_user_exists(LUser :: ejabberd:luser(),
+                     LServer :: ejabberd:lserver() | string()) -> boolean().
 is_user_exists(LUser, LServer) ->
     case is_cached_user_exists(LUser, LServer) of
         true -> true;
@@ -73,6 +87,8 @@ is_user_exists(LUser, LServer) ->
 %% Hooks
 %%====================================================================
 
+-spec remove_user(LUser :: ejabberd:luser(),
+                  LServer :: ejabberd:lserver() | string()) -> ok.
 remove_user(LUser, LServer) ->
     delete_user(LUser, LServer),
     ok.
@@ -88,6 +104,7 @@ remove_user(LUser, LServer) ->
 %%                         {stop, Reason}
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
+-spec init([ejabberd:server() | string(),...]) -> {'ok',#state{}}.
 init([Host]) ->
     Tab = tbl_name(Host),
     TabOpts = [named_table, public, set,
@@ -150,11 +167,14 @@ code_change(_OldVsn, State, _Extra) ->
 %%====================================================================
 %% Helpers
 %%====================================================================
-    
+
+-spec is_stored_user_exists(ejabberd:luser(), ejabberd:lserver()) -> boolean().
 is_stored_user_exists(LUser, LServer) ->
     ejabberd_auth:is_user_exists(LUser, LServer)
     andalso not is_anonymous_user(LUser, LServer).
 
+
+-spec is_anonymous_user(ejabberd:luser(), ejabberd:lserver()) -> boolean().
 is_anonymous_user(LUser, LServer) ->
     case lists:member(ejabberd_auth_anonymous, ejabberd_auth:auth_modules(LServer)) of
         true ->
@@ -163,23 +183,31 @@ is_anonymous_user(LUser, LServer) ->
             false
     end.
 
+
+-spec is_cached_user_exists(ejabberd:luser(), ejabberd:lserver() | string()) -> boolean().
 is_cached_user_exists(LUser, LServer) ->
     Key = key(LUser, LServer),
     Tab = tbl_name(LServer),
     ets:member(Tab, Key).
 
+
+-spec put_user_into_cache(ejabberd:luser(), ejabberd:lserver()) -> 'ok'.
 put_user_into_cache(LUser, LServer) ->
     Key = key(LUser, LServer),
     Tab = tbl_name(LServer),
     ets:insert(Tab, {Key}),
     ok.
 
+
+-spec delete_user(ejabberd:luser(), ejabberd:lserver() | string()) -> 'ok'.
 delete_user(LUser, LServer) ->
     Key = key(LUser, LServer),
     Tab = tbl_name(LServer),
     ets:delete(Tab, Key),
     ok.
 
+
+-spec key(ejabberd:luser(), ejabberd:lserver()
+         ) -> {ejabberd:luser(), ejabberd:lserver()}.
 key(LUser, LServer) ->
     {LUser, LServer}.
-

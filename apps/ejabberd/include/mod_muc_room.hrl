@@ -24,61 +24,69 @@
 -define(SETS, gb_sets).
 -define(DICT, dict).
 
--record(lqueue, {queue, len, max}).
+-record(lqueue, {queue,
+                 len :: non_neg_integer(),
+                 max :: non_neg_integer()
+                }).
 
 -record(config, {title = <<>>,
                  description = <<>>,
-                 allow_change_subj = true,
-                 allow_query_users = true,
-                 allow_private_messages = true,
-                 allow_visitor_status = true,
-                 allow_visitor_nickchange = true,
-                 public = true,
-                 public_list = true,
-                 persistent = false,
-                 moderated = true,
-                 members_by_default = true,
-                 members_only = false,
-                 allow_user_invites = false,
-                 password_protected = false,
+                 allow_change_subj = true       :: boolean(),
+                 allow_query_users = true       :: boolean(),
+                 allow_private_messages = true  :: boolean(),
+                 allow_visitor_status = true    :: boolean(),
+                 allow_visitor_nickchange = true  :: boolean(),
+                 public = true                  :: boolean(),
+                 public_list = true             :: boolean(),
+                 persistent = false             :: boolean(),
+                 moderated = true               :: boolean(),
+                 members_by_default = true      :: boolean(),
+                 members_only = false           :: boolean(),
+                 allow_user_invites = false     :: boolean(),
+                 password_protected = false     :: boolean(),
                  password = <<>>,
-                 anonymous = true,
+                 anonymous = true               :: boolean(),
                  max_users = ?MAX_USERS_DEFAULT,
-                 logging = false}).
+                 logging = false                :: boolean()
+                }).
 
 -record(user, {
     %% Full JID
     %% The `user@host/resource' by which an online user is identified
     %% outside the context of a room.
-    jid,
-    nick,
-    role,
-    last_presence}).
+    jid     :: ejabberd:jid(),
+    nick    :: mod_muc:nick(),
+    role    :: mod_muc:role(),
+    last_presence
+   }).
 
 -record(activity, {message_time = 0,
                    presence_time = 0,
-                   message_shaper,
-                   presence_shaper,
+                   message_shaper :: shaper:shaper(),
+                   presence_shaper :: shaper:shaper(),
                    message,
-                   presence}).
+                   presence
+                  }).
 
--record(state, {room,
-                host,
-                server_host,
-                access,
-                jid,
-                config = #config{},
+-record(state, {room                :: mod_muc:room(),
+                host                :: ejabberd:server(),
+                server_host         :: ejabberd:server(),
+                access              :: mod_muc:access(),
+                jid                 :: ejabberd:jid(),
+                config = #config{}  :: mod_muc_room:config(),
                 users = ?DICT:new(),
                 robots = ?DICT:new(),
                 affiliations = ?DICT:new(),
                 history,
                 subject = <<>>,
                 subject_author = <<>>,
-                just_created = false,
-                activity = treap:empty(),
-                room_shaper,
-                room_queue = queue:new()}).
+                just_created = false     :: boolean(),
+                activity = treap:empty() :: treap:treap(),
+                room_shaper              :: shaper:shaper(),
+                room_queue = queue:new()
+               }).
 
--record(muc_online_users, {us,
-                           room,
-                           host}).
+-record(muc_online_users, {us :: ejabberd:simple_bare_jid(),
+                           room :: mod_muc:room(),
+                           host :: ejabberd:server()
+                          }).

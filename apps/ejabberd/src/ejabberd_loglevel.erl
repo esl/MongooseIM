@@ -27,29 +27,34 @@
 -author('piotr.nosek@erlang-solutions.com').
 
 -export([init/0,
-     set/1,
-	 get/0,
-	 set_custom/2,
-	 clear_custom/0,
-	 clear_custom/1
-	 ]).
+         set/1,
+         get/0,
+         set_custom/2,
+         clear_custom/0,
+         clear_custom/1
+         ]).
 
 -include("ejabberd.hrl").
 
+-export_type([loglevel/0]).
+-type loglevel() :: none | critical | error | warning | info | debug.
+
 -define(LOG_LEVELS,
-	[{0, none},
-	 {1, critical},
-	 {2, error},
-	 {3, warning},
-	 {4, info},
-	 {5, debug}]).
+        [{0, none},
+         {1, critical},
+         {2, error},
+         {3, warning},
+         {4, info},
+         {5, debug}]).
 
 -define(ETS_TRACE_TAB, ejabberd_lager_traces).
 
 %% @private
+-spec log_path() -> string().
 log_path() ->
     ejabberd_app:get_log_path().
 
+-spec init() -> atom() | ets:tid().
 init() ->
     %% If path is not default, reload lager with new settings.
     case log_path() of
@@ -58,11 +63,12 @@ init() ->
     end,
     ets:new(?ETS_TRACE_TAB, [set, named_table, public]).
 
--spec get() -> {integer(), atom()}.
+-spec get() -> {integer(), loglevel()}.
 get() ->
     Name = lager:get_loglevel(lager_console_backend),
     lists:keyfind(Name, 2, ?LOG_LEVELS).
 
+-spec set(loglevel() | integer()) -> any().
 set(Level) when is_integer(Level) ->
     {_, Name} = lists:keyfind(Level, 1, ?LOG_LEVELS),
     set(Name);
@@ -71,6 +77,7 @@ set(Level) ->
     lager:set_loglevel(lager_console_backend, Level),
     lager:set_loglevel(lager_file_backend, Path, Level).
 
+-spec set_custom(Module :: atom(), loglevel() | integer()) -> 'true'.
 set_custom(Module, Level) when is_integer(Level) ->
     {_, Name} = lists:keyfind(Level, 1, ?LOG_LEVELS),
     set_custom(Module, Name);
@@ -80,10 +87,12 @@ set_custom(Module, Level) when is_atom(Level) ->
     {ok, ConsoleTrace} = lager:trace_console([{module, Module}], Level),
     {ok, FileTrace}  = lager:trace_file(Path, [{module, Module}], Level),
     ets:insert(?ETS_TRACE_TAB, {Module, ConsoleTrace, FileTrace}).
-    
+
+-spec clear_custom() -> 'ok' | 'true'.
 clear_custom() ->
     clear_custom('_').
 
+-spec clear_custom(Module :: atom()) -> 'ok' | 'true'.
 clear_custom(Module) when is_atom(Module) ->
     case ets:lookup(?ETS_TRACE_TAB, Module) of
         [{_, ConsoleTrace, FileTrace}] ->
@@ -94,6 +103,7 @@ clear_custom(Module) when is_atom(Module) ->
             ok
     end.
 
+-spec apply_custom_log_path(string()) -> 'ok'.
 apply_custom_log_path(Path) ->
     {ok, Handlers} = application:get_env(lager, handlers),
     LagerFileBackend = proplists:get_value(lager_file_backend, Handlers),

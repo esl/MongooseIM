@@ -43,6 +43,7 @@
 -include("jlib.hrl").
 -include("mod_privacy.hrl").
 
+-spec start(ejabberd:server(), list()) -> 'ok'.
 start(Host, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
     gen_iq_handler:add_iq_handler(ejabberd_local, Host, ?NS_LAST,
@@ -54,6 +55,8 @@ start(Host, Opts) ->
     ejabberd_hooks:add(unset_presence_hook, Host,
                        ?MODULE, on_presence_update, 50).
 
+
+-spec stop(ejabberd:server()) -> ok.
 stop(Host) ->
     ejabberd_hooks:delete(remove_user, Host,
                           ?MODULE, remove_user, 50),
@@ -65,6 +68,9 @@ stop(Host) ->
 %%%
 %%% Uptime of ejabberd node
 %%%
+
+-spec process_local_iq(ejabberd:jid(), ejabberd:jid(), ejabberd:iq())
+            -> ejabberd:iq().
 process_local_iq(_From, _To, #iq{type = Type, sub_el = SubEl} = IQ) ->
     case Type of
         set ->
@@ -77,9 +83,9 @@ process_local_iq(_From, _To, #iq{type = Type, sub_el = SubEl} = IQ) ->
                                              {<<"seconds">>, list_to_binary(integer_to_list(Sec))}]}]}
     end.
 
-%% @spec () -> integer()
 %% @doc Get the uptime of the ejabberd node, expressed in seconds.
 %% When ejabberd is starting, ejabberd_config:start/0 stores the datetime.
+-spec get_node_uptime() -> integer().
 get_node_uptime() ->
     case ejabberd_config:get_local_option(node_start) of
         {_, _, _} = StartNow ->
@@ -88,6 +94,7 @@ get_node_uptime() ->
             trunc(element(1, erlang:statistics(wall_clock))/1000)
     end.
 
+-spec now_to_seconds(erlang:timestamp()) -> non_neg_integer().
 now_to_seconds({MegaSecs, Secs, _MicroSecs}) ->
     MegaSecs * 1000000 + Secs.
 
@@ -95,6 +102,9 @@ now_to_seconds({MegaSecs, Secs, _MicroSecs}) ->
 %%%
 %%% Serve queries about user last online
 %%%
+
+-spec process_sm_iq(ejabberd:jid(), ejabberd:jid(), ejabberd:iq())
+            -> ejabberd:iq().
 process_sm_iq(From, To, #iq{type = Type, sub_el = SubEl} = IQ) ->
     case Type of
         set ->
@@ -131,8 +141,10 @@ process_sm_iq(From, To, #iq{type = Type, sub_el = SubEl} = IQ) ->
             end
     end.
 
-%% @spec (LUser::string(), LServer::string()) ->
-%%      {ok, TimeStamp::integer(), Status::string()} | not_found | {error, Reason}
+-spec get_last(ejabberd:luser(), ejabberd:lserver())
+            -> 'not_found'
+            | {'error',_}
+            | {'ok', TimeStamp :: integer(), Status :: binary()}.
 get_last(LUser, LServer) ->
     Username = ejabberd_odbc:escape(LUser),
     case catch odbc_queries:get_last(LServer, Username) of
@@ -149,6 +161,9 @@ get_last(LUser, LServer) ->
             {error, {invalid_result, Reason}}
     end.
 
+
+-spec get_last_iq(ejabberd:iq(), SubEl :: 'undefined' | [jlib:xmlel()],
+                  ejabberd:luser(), ejabberd:lserver()) -> ejabberd:iq().
 get_last_iq(IQ, SubEl, LUser, LServer) ->
     case ejabberd_sm:get_user_resources(LUser, LServer) of
         [] ->
@@ -173,10 +188,16 @@ get_last_iq(IQ, SubEl, LUser, LServer) ->
                                             {<<"seconds">>, <<"0">>}]}]}
     end.
 
+
+-spec on_presence_update(ejabberd:user(), ejabberd:server(), ejabberd:resource(),
+                         Status :: binary()) -> {'aborted',_} | {'atomic',_}.
 on_presence_update(User, Server, _Resource, Status) ->
     TimeStamp = now_to_seconds(now()),
     store_last_info(User, Server, TimeStamp, Status).
 
+
+-spec store_last_info(ejabberd:user(), ejabberd:server(), erlang:timestamp(),
+                      Status :: binary()) -> {'aborted',_} | {'atomic',_}.
 store_last_info(User, Server, TimeStamp, Status) ->
     LUser = jlib:nodeprep(User),
     LServer = jlib:nameprep(Server),
@@ -185,8 +206,9 @@ store_last_info(User, Server, TimeStamp, Status) ->
     State = ejabberd_odbc:escape(Status),
     odbc_queries:set_last_t(LServer, Username, Seconds, State).
 
-%% @spec (LUser::string(), LServer::string()) ->
-%%      {ok, TimeStamp::integer(), Status::string()} | not_found
+
+-spec get_last_info(ejabberd:luser(), ejabberd:lserver()) ->
+                                    'not_found' | {'ok',integer(),string()}.
 get_last_info(LUser, LServer) ->
     case get_last(LUser, LServer) of
         {error, _Reason} ->
@@ -204,6 +226,7 @@ select(LServer, TStamp, Comparator) ->
     end.
 
 
+-spec remove_user(ejabberd:user(), ejabberd:server()) -> {'aborted',_} | {'atomic',_}.
 remove_user(User, Server) ->
     LUser = jlib:nodeprep(User),
     LServer = jlib:nameprep(Server),
