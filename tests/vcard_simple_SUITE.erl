@@ -65,10 +65,10 @@ suite() ->
 
 init_per_suite(Config) ->
     NewConfig = escalus:init_per_suite(Config),
-    escalus:create_users(NewConfig).
+    escalus:create_users(NewConfig, {by_name, [alice, bob]}).
 
 end_per_suite(Config) ->
-    NewConfig = escalus:delete_users(Config),
+    NewConfig = escalus:delete_users(Config, {by_name, [alice, bob]}),
     escalus:end_per_suite(NewConfig).
 
 init_per_group(_GN, Config) ->
