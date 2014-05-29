@@ -1,6 +1,9 @@
 .PHONY: all test console compile
 all: test
 
+TESTSPEC ?= default.spec
+PRESET   ?= all
+
 test_clean: get-deps
 	rm -rf tests/*.beam
 	make test
@@ -15,7 +18,23 @@ quicktest: prepare
 		    `pwd`/ebin \
 			`pwd`/deps/*/ebin \
 		$(ADD_OPTS) \
-		-s run_common_test ct_quick $(TESTSPEC)
+		-s run_common_test main test=quick spec=$(TESTSPEC)
+
+quicktest_cover: prepare
+	erl -noinput -sname test -setcookie ejabberd \
+		-pa `pwd`/tests \
+		    `pwd`/ebin \
+			`pwd`/deps/*/ebin \
+		$(ADD_OPTS) \
+		-s run_common_test main test=quick spec=$(TESTSPEC) cover=true
+
+test_preset: prepare
+	erl -noinput -sname test -setcookie ejabberd \
+		-pa `pwd`/tests \
+		    `pwd`/ebin \
+			`pwd`/deps/*/ebin \
+		$(ADD_OPTS) \
+		-s run_common_test main test=full spec=$(TESTSPEC) preset=$(PRESET)
 
 test: prepare
 	erl -noinput -sname test -setcookie ejabberd \
@@ -23,7 +42,7 @@ test: prepare
 		    `pwd`/ebin \
 			`pwd`/deps/*/ebin \
 		$(ADD_OPTS) \
-		-s run_common_test ct $(TESTSPEC)
+		-s run_common_test main test=full spec=$(TESTSPEC)
 
 cover_test: prepare
 	erl -noinput -sname test -setcookie ejabberd \
@@ -31,7 +50,7 @@ cover_test: prepare
 		    `pwd`/ebin \
 			`pwd`/deps/*/ebin \
 		$(ADD_OPTS) \
-		-s run_common_test ct_cover $(TESTSPEC)
+		-s run_common_test main test=full spec=$(TESTSPEC) cover=true
 
 cover_summary: prepare
 	erl -noinput -sname test -setcookie ejabberd \

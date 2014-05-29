@@ -1,0 +1,31 @@
+IfInsideMongoose = fun() ->
+    filelib:is_regular("../../src/mongooseim.app.src")
+end,
+
+CopyDep = fun
+    (DirOrFile) when DirOrFile /= "ejabberd_tests" ->
+        Existing = filename:absname(DirOrFile,".."),
+        Destination = filename:absname(DirOrFile,"deps"),
+        case filelib:is_dir(Existing) and not filelib:is_dir(Destination) of
+            true ->
+                CMD = lists:flatten(io_lib:format("cp -r ~p ~p", [Existing, Destination])),
+                os:cmd(CMD);
+            _ ->
+                skip
+        end;
+    (_) -> ok
+end,
+
+ReuseDeps = fun
+    (true) ->
+        io:format("Tests are run inside MongooseIM repo, using already downloaded deps~n"),
+        file:make_dir("deps"),
+        {ok, Deps} = file:list_dir("../"),
+        lists:foreach(CopyDep, Deps);
+    (_) ->
+        ok
+end,
+
+ReuseDeps(IfInsideMongoose()),
+
+CONFIG.

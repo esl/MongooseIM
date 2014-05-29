@@ -1,5 +1,10 @@
 -module(metrics_helper).
 
+%%
+%%  @TODO Please consider refactoring this
+%%  module to use esl/fusco as the http client.
+%%
+
 -include_lib("common_test/include/ct.hrl").
 
 -compile(export_all).
@@ -27,8 +32,8 @@ get_rest_counter_values(CounterName) ->
             get_url(sum_metric, CounterName), CounterName),
     {value, ValueHost, ValueTotal}.
 
-get_rest_counter_value(URL, CounterName) ->
-    {ok, {{200, _}, _, Json}} = lhttpc:request(URL, 'GET', [], infinity),
+get_rest_counter_value({URL,Path}, CounterName) ->
+    {ok, {{<<"200">>, <<"OK">>}, _, Json,_,_}} = fusco_request(URL, Path, "GET", [], infinity),
     case parse_json(Json) of
         {struct, [{<<"metric">>, Metric}]} ->
             extract_metric(Metric);
@@ -41,8 +46,8 @@ get_rest_counter_value(URL, CounterName) ->
 get_url(Type, CounterName) ->
     Port = ct:get_config(ejabberd_metrics_rest_port),
     Host = ct:get_config(ejabberd_domain),
-    "http://localhost:" ++ integer_to_list(Port) ++ "/metrics" ++
-    get_url_suffix(Type, Host, CounterName).
+    {"http://localhost:" ++ integer_to_list(Port),
+     list_to_binary("/metrics" ++ get_url_suffix(Type, Host, CounterName))}.
 
 get_url_suffix(host_metric, Host, CounterName) ->
     "/host/" ++ binary_to_list(Host) ++ "/" ++ atom_to_list(CounterName);
@@ -73,14 +78,27 @@ assert_rest_counters(ValueHost, ValueTotal, CounterName) ->
 parse_json(Json) ->
     rpc:call(ct:get_config(ejabberd_node), mochijson2, decode, [Json]).
 
-start_lhttpc() ->
-    application:start(crypto),
-    application:start(public_key),
-    application:start(ssl),
-    application:start(lhttpc).
+start_fusco() ->
+    %% In R16B01 and above, we could use application:ensure_started/1
+    %% instead.
+    lists:foreach(
+      fun(App) ->
+	      case application:start(App) of
+		  ok ->
+		      ok;
+		  {error, {already_started, App}} ->
+		      ok;
+		  {error, E} ->
+		      error({cannot_start, E}, [App])
+	      end
+      end, [asn1,crypto,public_key,ssl,fusco]).
+stop_fusco() ->
+    [ok,ok,ok,ok,ok] = lists:map(fun application:stop/1,
+                                 [fusco,ssl,public_key,crypto,asn1]).
 
-stop_lhttpc() ->
-    application:stop(lhttpc),
-    application:stop(ssl),
-    application:stop(public_key),
-    application:stop(crypto).
+fusco_request(URL, Path , Method, Hdrs, Timeout) ->
+    {ok, P}=fusco:start(URL,[]),
+    ok = fusco:connect(P),
+    Result = fusco:request(P, Path, Method, Hdrs, [], Timeout),
+    ok = fusco:disconnect(P),
+    Result.

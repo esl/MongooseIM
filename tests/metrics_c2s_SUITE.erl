@@ -67,20 +67,20 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    metrics_helper:start_lhttpc(),
+    metrics_helper:start_fusco(),
     Config1 = dynamic_modules:stop_running(mod_offline, Config),
     escalus:init_per_suite(Config1).
 
 end_per_suite(Config) ->
-    metrics_helper:stop_lhttpc(),
+    metrics_helper:stop_fusco(),
     dynamic_modules:start_running(Config),
     escalus:end_per_suite(Config).
 
 init_per_group(_GroupName, Config) ->
-    escalus:create_users(Config).
+    escalus:create_users(Config, {by_name, [alice, bob]}).
 
 end_per_group(_GroupName, Config) ->
-    escalus:delete_users(Config).
+    escalus:delete_users(Config, {by_name, [alice, bob]}).
 
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
