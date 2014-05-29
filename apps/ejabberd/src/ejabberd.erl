@@ -27,51 +27,111 @@
 -module(ejabberd).
 -author('alexey@process-one.net').
 
--export([start/0, stop/0,
-	 get_pid_file/0,
-	 get_so_path/0, get_bin_path/0]).
+-export([start/0,
+         stop/0,
+         get_pid_file/0,
+         get_so_path/0,
+         get_bin_path/0]).
+
+-include("jlib.hrl").
+
+-type lang() :: binary() | nonempty_string().
+
+-type sockmod() :: gen_tcp
+                 | ejabberd_socket
+                 | mod_bosh_socket
+                 | mod_websockets
+                 | ejabberd_tls
+                 | ejabberd_zlib.
+
+-type jid() :: #jid{}.
+
+-type iq() :: #iq{}.
+
+-type user()      :: binary().
+-type server()    :: binary().
+-type resource()  :: binary().
+-type luser()     :: binary().
+-type lserver()   :: binary().
+-type lresource() :: binary().
+
+%% A tuple-style JID
+-type simple_jid() :: {user(), server(), resource()}.
+
+%% A tuple-style JID without resource part
+-type simple_bare_jid() :: {LUser :: luser(), LServer :: lserver()}.
+-type literal_jid() :: binary().
+
+%% Incoming event from XML stream. Used everywhere in xmlstream fsm modules
+-type xml_stream_item() :: 'closed'
+                          | 'timeout'
+                          | {'xmlstreamelement', jlib:xmlel()}
+                          | {'xmlstreamend',_}
+                          | {'xmlstreamerror',_}
+                          | {'xmlstreamstart', Name :: any(), Attrs :: list()}.
+
+-export_type([lang/0,
+              sockmod/0,
+              jid/0, simple_jid/0, simple_bare_jid/0,
+              iq/0,
+              xml_stream_item/0,
+              user/0, server/0, resource/0,
+              luser/0, lserver/0, lresource/0,
+              literal_jid/0
+             ]).
 
 start() ->
     %%ejabberd_cover:start(),
-    ok = application:start(ejabberd).
+    try_start(ejabberd).
+
+try_start(AppName) ->
+    case application:start(AppName) of
+        ok ->
+            ok;
+        {error, {not_started, AppName2}} ->
+            ok = try_start(AppName2),
+            try_start(AppName)
+    end.
 
 stop() ->
     application:stop(ejabberd).
     %%ejabberd_cover:stop().
 
+-spec get_so_path() -> binary() | string().
 get_so_path() ->
     case os:getenv("EJABBERD_SO_PATH") of
-	false ->
-	    case code:priv_dir(ejabberd) of
-		{error, _} ->
-		    ".";
-		Path ->
-		    filename:join([Path, "lib"])
-	    end;
-	Path ->
-	    Path
+        false ->
+            case code:priv_dir(ejabberd) of
+                {error, _} ->
+                    ".";
+                Path ->
+                    filename:join([Path, "lib"])
+            end;
+        Path ->
+            Path
     end.
 
+-spec get_bin_path() -> binary() | string().
 get_bin_path() ->
     case os:getenv("EJABBERD_BIN_PATH") of
-	false ->
-	    case code:priv_dir(ejabberd) of
-		{error, _} ->
-		    ".";
-		Path ->
-		    filename:join([Path, "bin"])
-	    end;
-	Path ->
-	    Path
+        false ->
+            case code:priv_dir(ejabberd) of
+                {error, _} ->
+                    ".";
+                Path ->
+                    filename:join([Path, "bin"])
+            end;
+        Path ->
+            Path
     end.
 
-%% @spec () -> false | string()
+-spec get_pid_file() -> 'false' | nonempty_string().
 get_pid_file() ->
     case os:getenv("EJABBERD_PID_PATH") of
-	false ->
-	    false;
-	"" ->
-	    false;
-	Path ->
-	    Path
+        false ->
+            false;
+        "" ->
+            false;
+        Path ->
+            Path
     end.

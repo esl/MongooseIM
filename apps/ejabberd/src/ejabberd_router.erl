@@ -50,20 +50,30 @@
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 
--record(route, {domain, handler}).
+-type handler() :: 'undefined'
+                | {'apply_fun',fun((_,_,_) -> any())}
+                | {'apply', M::atom(), F::atom()}.
+-type domain() :: binary().
+
+-record(route, {domain :: domain(),
+                handler :: handler()
+               }).
 -record(state, {}).
 
 %%====================================================================
 %% API
 %%====================================================================
 %%--------------------------------------------------------------------
-%% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
 %% Description: Starts the server
 %%--------------------------------------------------------------------
+-spec start_link() -> 'ignore' | {'error',_} | {'ok',pid()}.
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 
+-spec route(From   :: ejabberd:jid(),
+            To     :: ejabberd:jid(),
+            Packet :: jlib:xmlel()) -> ok | {error, lager_not_started}.
 route(From, To, Packet) ->
     case catch do_route(From, To, Packet) of
         {'EXIT', Reason} ->
@@ -75,6 +85,10 @@ route(From, To, Packet) ->
 
 %% Route the error packet only if the originating packet is not an error itself.
 %% RFC3920 9.3.1
+-spec route_error(From   :: ejabberd:jid(),
+                  To     :: ejabberd:jid(),
+                  ErrPacket :: jlib:xmlel(),
+                  OrigPacket :: jlib:xmlel()) -> ok.
 route_error(From, To, ErrPacket, OrigPacket) ->
     #xmlel{attrs = Attrs} = OrigPacket,
     case <<"error">> == xml:get_attr_s(<<"type">>, Attrs) of
@@ -84,24 +98,30 @@ route_error(From, To, ErrPacket, OrigPacket) ->
             ok
     end.
 
+-spec register_route(Domain :: domain()) -> any().
 register_route(Domain) ->
     register_route(Domain, undefined).
 
+-spec register_route(Domain :: domain(),
+                     Handler :: handler()) -> any().
 register_route(Domain, Handler) ->
     register_route_to_ldomain(jlib:nameprep(Domain), Domain, Handler).
 
+-spec register_routes([domain()]) -> 'ok'.
 register_routes(Domains) ->
     lists:foreach(fun(Domain) ->
                       register_route(Domain)
                   end,
                   Domains).
 
+-spec register_route_to_ldomain(binary(), domain(), handler()) -> any().
 register_route_to_ldomain(error, Domain, _) ->
     erlang:error({invalid_domain, Domain});
 register_route_to_ldomain(LDomain, _, HandlerOrUndef) ->
     Handler = make_handler(HandlerOrUndef),
     mnesia:dirty_write(#route{domain = LDomain, handler = Handler}).
 
+-spec make_handler(handler()) -> handler().
 make_handler(undefined) ->
     Pid = self(),
     {apply_fun, fun(From, To, Packet) ->
@@ -252,7 +272,7 @@ do_local_route(OrigFrom, OrigTo, OrigPacket, LDstDomain, Handler) ->
                     Module:Function(From, To, Packet)
             end;
         drop ->
-            ejabberd_hooks:run(xmpp_stanza_dropped, 
+            ejabberd_hooks:run(xmpp_stanza_dropped,
                                OrigFrom#jid.lserver,
                                [OrigFrom, OrigTo, OrigPacket]),
             ok

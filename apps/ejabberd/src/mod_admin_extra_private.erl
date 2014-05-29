@@ -43,6 +43,7 @@
 %%% Register commands
 %%%
 
+-spec commands() -> [ejabberd_commands:cmd(),...].
 commands() ->
     [
         #ejabberd_commands{name = private_get, tags = [private],
@@ -66,6 +67,8 @@ commands() ->
 %% $ ejabberdctl private_get badlop localhost aa bb
 %% <aa xmlns='bb'>Cluth</aa>
 
+-spec private_get(ejabberd:user(), ejabberd:server(), jlib:xmlel(),
+                  binary()) -> binary().
 private_get(Username, Host, Element, Ns) ->
     M = get_private_module(Host),
     From = jlib:make_jid(Username, Host, <<"">>),
@@ -80,6 +83,9 @@ private_get(Username, Host, Element, Ns) ->
             children = [SubEl] }] = ResIq#iq.sub_el,
     exml:to_binary(SubEl).
 
+
+-spec private_set(ejabberd:user(), ejabberd:server(),
+                  ElementString :: binary()) -> binary().
 private_set(Username, Host, ElementString) ->
     case exml:parse(ElementString) of
         {error, Error} ->
@@ -90,6 +96,8 @@ private_set(Username, Host, ElementString) ->
             private_set2(Username, Host, Xml)
     end.
 
+
+-spec private_set2(ejabberd:user(), ejabberd:server(), Xml :: jlib:xmlel()) -> binary().
 private_set2(Username, Host, Xml) ->
     M = get_private_module(Host),
     From = jlib:make_jid(Username, Host, <<"">>),
@@ -101,6 +109,8 @@ private_set2(Username, Host, Xml) ->
     M:process_sm_iq(From, To, IQ),
     ok.
 
+
+-spec get_private_module(ejabberd:server()) -> 'mod_private' | 'mod_private_odbc'.
 get_private_module(Server) ->
     case lists:member(mod_private, gen_mod:loaded_modules(Server)) of
         true -> mod_private;

@@ -21,6 +21,15 @@ clean: rebar
 test: test_deps
 	cd test/ejabberd_tests; make test
 
+test_config: test_deps
+	cd test/ejabberd_tests; make test_config
+
+
+run: deps compile quickrun
+
+quickrun:
+	erl -sname ejabberd -setcookie ejabberd -pa deps/*/ebin apps/*/ebin -config rel/files/app.run.config -s ejabberd -s sync
+
 cover_test: test_deps
 	cd test/ejabberd_tests; make cover_test
 
@@ -40,12 +49,12 @@ devrel: $(DEVNODES)
 
 $(DEVNODES): rebar deps compile deps_dev
 	@echo "building $@"
-	(cd rel && ../rebar generate -f target_dir=../dev/ejabberd_$@ overlay_vars=./reltool_vars/$@_vars.config)
-	cp apps/ejabberd/src/*.erl dev/ejabberd_$@/lib/ejabberd-2.1.8/ebin/
+	(cd rel && ../rebar generate -f target_dir=../dev/mongooseim_$@ overlay_vars=./reltool_vars/$@_vars.config)
+	cp apps/ejabberd/src/*.erl `ls -dt dev/mongooseim_$@/lib/ejabberd-2.1.8*/ebin/ | head -1`
 ifeq ($(shell uname), Linux)
-	cp -R `dirname $(shell readlink -f $(shell which erl))`/../lib/tools-* dev/ejabberd_$@/lib/
+	cp -R `dirname $(shell readlink -f $(shell which erl))`/../lib/tools-* dev/mongooseim_$@/lib/
 else
-	cp -R `which erl`/../../lib/tools-* dev/ejabberd_$@/lib/
+	cp -R `which erl`/../../lib/tools-* dev/mongooseim_$@/lib/
 endif
 
 deps_dev:
@@ -65,26 +74,30 @@ $(EJD_PRIV_MIB)/EJABBERD-MIB.bin: $(EJD_MIB)/EJABBERD-MIB.mib $(EJD_MIB)/EJABBER
 	erlc -o $(EJD_PRIV_MIB) $<
 
 relclean:
-	rm -rf rel/ejabberd
+	rm -rf rel/mongooseim
 
-COMBO_PLT = $(HOME)/.esl_ejabberd_combo_dialyzer_plt
-PLT_LIBS  = $(wildcard rel/ejabberd/lib/*/ebin)
+COMBO_PLT = .mongooseim_combo_dialyzer.plt
+DEPS_LIBS     = $(wildcard deps/*/ebin/*.beam)
+MONGOOSE_LIBS = $(wildcard apps/ejabberd/ebin/*.beam)
 
+OTP_APPS      = compiler crypto erts kernel stdlib mnesia ssl ssh
 DIALYZER_APPS = ejabberd
 DIALYZER_APPS_PATHS = $(addsuffix /ebin, $(addprefix apps/, $(DIALYZER_APPS)))
 
-check_plt: rel
-	dialyzer --check_plt --plt $(COMBO_PLT) $(PLT_LIBS)
+check_plt:
+	dialyzer --check_plt --plt $(COMBO_PLT) $(MONGOOSE_LIBS)
 
-build_plt: rel
-	dialyzer --build_plt --output_plt $(COMBO_PLT) $(PLT_LIBS)
+build_plt:
+	dialyzer --build_plt --apps $(OTP_APPS) \
+		--output_plt $(COMBO_PLT) $(DEPS_LIBS) $(MONGOOSE_LIBS)
 
 dialyzer: compile
 	dialyzer -Wno_return --fullpath --plt $(COMBO_PLT) $(DIALYZER_APPS_PATHS) | \
-	    fgrep -v -f ./dialyzer.ignore-warnings
+	    fgrep -v -f ./dialyzer.ignore-warnings | tee dialyzer.log
 
 cleanplt:
 	rm $(COMBO_PLT)
+
 
 test_deps: rebar
 	./rebar -C rebar.tests.config get-deps

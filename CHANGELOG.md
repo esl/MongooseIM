@@ -1,3 +1,10 @@
+# MongooseIM 1.3.1
+
+- port XEP-0114 (ejabberd_service)
+- port LDAP VCard support
+- port LDAP Shared Roster support
+- finalize project rename to MongooseIM by changing scripts names
+
 # MongooseIM 1.3.0
 
 - added XEP-0313: Message Archive Management support (`mod_mam`)

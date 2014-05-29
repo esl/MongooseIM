@@ -46,6 +46,8 @@ tbl_name_archive_id() ->
 group_name() ->
     mod_mam_cache.
 
+
+-spec su_key(ejabberd:jid()) -> ejabberd:simple_bare_jid().
 su_key(#jid{lserver = LServer, luser = LUser}) ->
     {LServer, LUser}.
 
@@ -54,6 +56,7 @@ su_key(#jid{lserver = LServer, luser = LUser}) ->
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
 
+-spec start(Host :: ejabberd:server(), Opts :: list()) -> any().
 start(Host, Opts) ->
     start_server(Host),
     case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
@@ -69,6 +72,7 @@ start(Host, Opts) ->
             ok
     end.
 
+-spec stop(Host :: ejabberd:server()) -> any().
 stop(Host) ->
     stop_server(Host),
     case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
@@ -101,11 +105,14 @@ stop_server(_Host) ->
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam
 
+-spec start_pm(ejabberd:server(), list()) -> 'ok'.
 start_pm(Host, _Opts) ->
     ejabberd_hooks:add(mam_archive_id, Host, ?MODULE, cached_archive_id, 30),
     ejabberd_hooks:add(mam_archive_id, Host, ?MODULE, store_archive_id, 70),
     ok.
 
+
+-spec stop_pm(ejabberd:server()) -> 'ok'.
 stop_pm(Host) ->
     ejabberd_hooks:delete(mam_archive_id, Host, ?MODULE, cached_archive_id, 30),
     ejabberd_hooks:delete(mam_archive_id, Host, ?MODULE, store_archive_id, 70),
@@ -115,11 +122,14 @@ stop_pm(Host) ->
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam_muc
 
+-spec start_muc(ejabberd:server(), list()) -> 'ok'.
 start_muc(Host, _Opts) ->
     ejabberd_hooks:add(mam_muc_archive_id, Host, ?MODULE, cached_archive_id, 30),
     ejabberd_hooks:add(mam_muc_archive_id, Host, ?MODULE, store_archive_id, 70),
     ok.
 
+
+-spec stop_muc(ejabberd:server()) -> 'ok'.
 stop_muc(Host) ->
     ejabberd_hooks:delete(mam_muc_archive_id, Host, ?MODULE, cached_archive_id, 30),
     ejabberd_hooks:delete(mam_muc_archive_id, Host, ?MODULE, store_archive_id, 70),
@@ -130,9 +140,13 @@ stop_muc(Host) ->
 %% API
 %%====================================================================
 
+-spec start_link() -> 'ignore' | {'error',_} | {'ok',pid()}.
 start_link() ->
     gen_server:start_link({local, srv_name()}, ?MODULE, [], []).
 
+
+-spec cached_archive_id('undefined', _Host :: ejabberd:server(),
+                        ArcJID :: ejabberd:jid()) -> ejabberd:user().
 cached_archive_id(undefined, _Host, ArcJID) ->
     case lookup_archive_id(ArcJID) of
         not_found ->
@@ -142,10 +156,16 @@ cached_archive_id(undefined, _Host, ArcJID) ->
             UserID
     end.
 
+
+-spec store_archive_id(ejabberd:user(), ejabberd:server(), ejabberd:jid())
+        -> ejabberd:user().
 store_archive_id(UserID, _Host, ArcJID) ->
     maybe_cache_archive_id(ArcJID, UserID),
     UserID.
 
+
+-spec remove_archive(_Host :: ejabberd:server(), _UserID :: ejabberd:user(),
+                    ArcJID :: ejabberd:jid()) -> 'ok'.
 remove_archive(_Host, _UserID, ArcJID) ->
     clean_cache(ArcJID).
 
@@ -153,6 +173,7 @@ remove_archive(_Host, _UserID, ArcJID) ->
 %% Internal functions
 %%====================================================================
 
+-spec maybe_cache_archive_id(ejabberd:jid(), ejabberd:user()) -> ejabberd:user() | ok.
 maybe_cache_archive_id(ArcJID, UserID) ->
     case erase(mam_not_cached_flag) of
         undefined ->
@@ -161,11 +182,15 @@ maybe_cache_archive_id(ArcJID, UserID) ->
             cache_archive_id(ArcJID, UserID)
     end.
 
+
 %% @doc Put the user id into cache.
 %% @private
+-spec cache_archive_id(ejabberd:jid(), ejabberd:user()) -> ok.
 cache_archive_id(ArcJID, UserID) ->
     gen_server:call(srv_name(), {cache_archive_id, ArcJID, UserID}).
 
+
+-spec lookup_archive_id(ejabberd:jid()) -> ejabberd:user() | not_found.
 lookup_archive_id(ArcJID) ->
     try
         ets:lookup_element(tbl_name_archive_id(), su_key(ArcJID), 2)
@@ -173,6 +198,8 @@ lookup_archive_id(ArcJID) ->
         not_found
     end.
 
+
+-spec clean_cache(ejabberd:jid()) -> 'ok'.
 clean_cache(ArcJID) ->
     %% Send a broadcast message.
     case pg2:get_members(group_name()) of

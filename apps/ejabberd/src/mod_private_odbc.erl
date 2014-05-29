@@ -24,119 +24,52 @@
 %%%
 %%%----------------------------------------------------------------------
 
+%%% NS is namespace or key.
+%%% XML is #xmlel{} or value.
 -module(mod_private_odbc).
 -author('alexey@process-one.net').
+-author('arcusfelis@gmail.com').
+-behaviour(mod_private).
 
--behaviour(gen_mod).
-
--export([start/2,
-         stop/1,
-         process_sm_iq/3,
+-export([init/2,
+         multi_set_data/3,
+         multi_get_data/3,
          remove_user/2]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 
-start(Host, Opts) ->
-    IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
-    ejabberd_hooks:add(remove_user, Host,
-                       ?MODULE, remove_user, 50),
-    gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_PRIVATE,
-                                  ?MODULE, process_sm_iq, IQDisc).
+init(_Host, _Opts) ->
+    ok.
 
-stop(Host) ->
-    ejabberd_hooks:delete(remove_user, Host,
-                          ?MODULE, remove_user, 50),
-    gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_PRIVATE).
+multi_set_data(LUser, LServer, NS2XML) ->
+    F = fun() -> multi_set_data_t(LUser, LServer, NS2XML) end,
+    odbc_queries:sql_transaction(LServer, F).
 
-process_sm_iq(From, To, #iq{type = Type, sub_el = SubEl} = IQ) ->
-    #jid{luser = LUser, lserver = LServer} = From,
-    case lists:member(LServer, ?MYHOSTS) of
-        true ->
-            if
-                From#jid.luser == To#jid.luser ->
-                    #xmlel{name = Name, attrs = Attrs, children = Els} = SubEl,
-                    case Type of
-                        set ->
-                            F = fun() ->
-                                        lists:foreach(
-                                          fun(El) ->
-                                                  set_data(LUser, LServer, El)
-                                          end, Els)
-                                end,
-                            odbc_queries:sql_transaction(LServer, F),
-                            IQ#iq{type = result,
-                                  sub_el = [SubEl]};
-                        get ->
-                            case catch get_data(LUser, LServer, Els) of
-                                {'EXIT', _Reason} ->
-                                    IQ#iq{type = error,
-                                          sub_el = [SubEl,
-                                                    ?ERR_INTERNAL_SERVER_ERROR]};
-                                Res ->
-                                    IQ#iq{type = result,
-                                          sub_el = [SubEl#xmlel{children = Res}]}
-                            end
-                    end;
-                true ->
-                    IQ#iq{type = error,
-                          sub_el = [SubEl,
-                                    ?ERR_FORBIDDEN]}
-            end;
-        false ->
-            IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]}
-    end.
+multi_set_data_t(LUser, LServer, NS2XML) ->
+    [set_data_t(LUser, LServer, NS, XML) || {NS, XML} <- NS2XML],
+    ok.
 
-set_data(LUser, LServer, El) ->
-    case El of
-        #xmlel{attrs = Attrs} ->
-            XMLNS = xml:get_attr_s(<<"xmlns">>, Attrs),
-            case XMLNS of
-                <<>> ->
-                    ignore;
-                _ ->
-                    Username = ejabberd_odbc:escape(LUser),
-                    LXMLNS = ejabberd_odbc:escape(XMLNS),
-                    SData = ejabberd_odbc:escape(
-                              xml:element_to_binary(El)),
-                    odbc_queries:set_private_data(LServer, Username, LXMLNS, SData)
-            end;
+set_data_t(LUser, LServer, NS, XML) ->
+    SLUser = ejabberd_odbc:escape(LUser),
+    SNS = ejabberd_odbc:escape(NS),
+    SData = ejabberd_odbc:escape(xml:element_to_binary(XML)),
+    odbc_queries:set_private_data(LServer, SLUser, SNS, SData).
+
+multi_get_data(LUser, LServer, NS2Def) ->
+    [get_data(LUser, LServer, NS, Default) || {NS, Default} <- NS2Def].
+
+%% @doc Return stored value or default.
+get_data(LUser, LServer, NS, Default) ->
+    SLUser = ejabberd_odbc:escape(LUser),
+    SNS = ejabberd_odbc:escape(NS),
+    case catch odbc_queries:get_private_data(LServer, SLUser, SNS) of
+        {selected, [<<"data">>], [{SData}]} ->
+            #xmlel{} = xml_stream:parse_element(SData);
         _ ->
-            ignore
+            Default
     end.
 
-get_data(LUser, LServer, Els) ->
-    get_data(LUser, LServer, Els, []).
-
-get_data(_LUser, _LServer, [], Res) ->
-    lists:reverse(Res);
-get_data(LUser, LServer, [El | Els], Res) ->
-    case El of
-        #xmlel{attrs = Attrs} ->
-            XMLNS = xml:get_attr_s(<<"xmlns">>, Attrs),
-            Username = ejabberd_odbc:escape(LUser),
-            LXMLNS = ejabberd_odbc:escape(XMLNS),
-            case catch odbc_queries:get_private_data(LServer, Username, LXMLNS) of
-                {selected, [<<"data">>], [{SData}]} ->
-                    case xml_stream:parse_element(SData) of
-                        #xmlel{} = Data ->
-                            get_data(LUser, LServer, Els,
-                                     [Data | Res])
-                    end;
-                %% MREMOND: I wonder when the query could return a vcard ?
-                {selected, [<<"vcard">>], []} ->
-                    get_data(LUser, LServer, Els,
-                             [El | Res]);
-                _ ->
-                    get_data(LUser, LServer, Els,[El | Res])
-            end;
-        _ ->
-            get_data(LUser, LServer, Els, Res)
-    end.
-
-
-remove_user(User, Server) ->
-    LUser = jlib:nodeprep(User),
-    LServer = jlib:nameprep(Server),
-    Username = ejabberd_odbc:escape(LUser),
-    odbc_queries:del_user_private_storage(LServer, Username).
+remove_user(LUser, LServer) ->
+    SLUser = ejabberd_odbc:escape(LUser),
+    odbc_queries:del_user_private_storage(LServer, SLUser).

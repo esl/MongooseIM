@@ -58,7 +58,8 @@ start_listener({Port, IP, tcp}, Opts) ->
     %% Tell ejabberd_listener not to supervise us
     ignore.
 
-%% gen_server for handling shutdown when started via ejabberd_listener
+%% @doc gen_server for handling shutdown when started via ejabberd_listener
+-spec start_link(_) -> 'ignore' | {'error',_} | {'ok',pid()}.
 start_link(Ref) ->
     gen_server:start_link(?MODULE, [Ref], []).
 init(Ref) ->
@@ -97,16 +98,17 @@ start_cowboy(Ref, Opts) ->
     SSLKey = gen_mod:get_opt(key, Opts, undefined),
     SSLKeyPass = gen_mod:get_opt(key_pass, Opts, undefined),
     NumAcceptors = gen_mod:get_opt(num_acceptors, Opts, 100),
+    MaxConns = gen_mod:get_opt(max_connections, Opts, 1024),
     Dispatch = cowboy_router:compile(get_routes(gen_mod:get_opt(modules, Opts))),
     case {SSLCert, SSLKey} of
         {undefined, undefined} ->
             cowboy:start_http(cowboy_ref(Ref), NumAcceptors,
-                              [{port, Port}, {ip, IP}],
+                              [{port, Port}, {ip, IP}, {max_connections, MaxConns}],
                               [{env, [{dispatch, Dispatch}]}]);
         _ ->
             cowboy:start_https(cowboy_ref(Ref), NumAcceptors,
-                               [{port, Port}, {ip, IP}, {certfile, SSLCert},
-                                {keyfile, SSLKey}, {password, SSLKeyPass}],
+                               [{port, Port}, {ip, IP}, {max_connections, MaxConns},
+                                {certfile, SSLCert}, {keyfile, SSLKey}, {password, SSLKeyPass}],
                                [{env, [{dispatch, Dispatch}]}])
     end.
 
@@ -118,12 +120,12 @@ cowboy_ref(Ref) ->
     ModRef = [?MODULE_STRING, <<"_">>, Ref],
     list_to_atom(binary_to_list(iolist_to_binary(ModRef))).
 
-%% Cowboy will search for a matching Host, then for a matching Path.  If no Path
-%% matches, Cowboy will not search for another matching Host.  So, we must merge
-%% all Paths for each Host, add any wildcard Paths to each Host, and ensure that
-%% the wildcard Host is listed last.  A dict would be slightly easier to use
-%% here, but a proplist ensures that the user can influence Host ordering if
-%% other wildcards like "[...]" are used.
+%% @doc Cowboy will search for a matching Host, then for a matching Path.  If no
+%% Path matches, Cowboy will not search for another matching Host.  So, we must
+%% merge all Paths for each Host, add any wildcard Paths to each Host, and
+%% ensure that the wildcard Host is listed last.  A dict would be slightly
+%% easier to use here, but a proplist ensures that the user can influence Host
+%% ordering if other wildcards like "[...]" are used.
 get_routes(Modules) ->
     Routes = get_routes(Modules, []),
     WildcardPaths = proplists:get_value('_', Routes, []),

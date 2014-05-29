@@ -31,116 +31,135 @@
 
 %% API
 -export([start_link/3,
-	 add_iq_handler/6,
-	 remove_iq_handler/3,
-	 stop_iq_handler/3,
-	 handle/7,
-	 process_iq/6]).
+         add_iq_handler/6,
+         remove_iq_handler/3,
+         stop_iq_handler/3,
+         handle/7,
+         process_iq/6]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
-	 terminate/2, code_change/3]).
+         terminate/2, code_change/3]).
 
 -include("ejabberd.hrl").
 
--record(state, {host,
-		module,
-		function}).
+-record(state, {host     :: ejabberd:server(),
+                module   :: atom(),
+                function :: atom()
+               }).
+-type state()     :: #state{}.
+-type component() :: atom() | tuple().
+-type ns()        :: binary().
+-type type()      :: 'no_queue' | 'one_queue' | 'parallel' | {'queues',integer()}.
+-type options()   :: atom() | {one_queue | queues, pid() | [pid()]}.
 
 %%====================================================================
 %% API
 %%====================================================================
-%%--------------------------------------------------------------------
-%% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
-%% Description: Starts the server
-%%--------------------------------------------------------------------
+
+%% @doc Starts the server
+-spec start_link(ejabberd:server(), atom(), atom()
+                ) -> 'ignore' | {'error',_} | {'ok',pid()}.
 start_link(Host, Module, Function) ->
     gen_server:start_link(?MODULE, [Host, Module, Function], []).
 
+
+-spec add_iq_handler(component(), Host :: ejabberd:server(), NS :: ns(),
+    Module :: atom(), Function :: atom(), Type :: type()) -> any().
 add_iq_handler(Component, Host, NS, Module, Function, Type) ->
     case Type of
-	no_queue ->
-	    Component:register_iq_handler(Host, NS, Module, Function, no_queue);
-	one_queue ->
-	    {ok, Pid} = supervisor:start_child(ejabberd_iq_sup,
-					       [Host, Module, Function]),
-	    Component:register_iq_handler(Host, NS, Module, Function,
-					  {one_queue, Pid});
-	{queues, N} ->
-	    Pids =
-		lists:map(
-		  fun(_) ->
-			  {ok, Pid} = supervisor:start_child(
-					ejabberd_iq_sup,
-					[Host, Module, Function]),
-			  Pid
-		  end, lists:seq(1, N)),
-	    Component:register_iq_handler(Host, NS, Module, Function,
-					  {queues, Pids});
-	parallel ->
-	    Component:register_iq_handler(Host, NS, Module, Function, parallel)
+        no_queue ->
+            Component:register_iq_handler(Host, NS, Module, Function, no_queue);
+        one_queue ->
+            {ok, Pid} = supervisor:start_child(ejabberd_iq_sup,
+                                               [Host, Module, Function]),
+            Component:register_iq_handler(Host, NS, Module, Function,
+                                          {one_queue, Pid});
+        {queues, N} ->
+            Pids =
+                lists:map(
+                  fun(_) ->
+                          {ok, Pid} = supervisor:start_child(
+                                        ejabberd_iq_sup,
+                                        [Host, Module, Function]),
+                          Pid
+                  end, lists:seq(1, N)),
+            Component:register_iq_handler(Host, NS, Module, Function,
+                                          {queues, Pids});
+        parallel ->
+            Component:register_iq_handler(Host, NS, Module, Function, parallel)
     end.
 
+
+-spec remove_iq_handler(Component :: component(),
+                        Host :: ejabberd:server(),
+                        NS :: ns()) -> any().
 remove_iq_handler(Component, Host, NS) ->
     Component:unregister_iq_handler(Host, NS).
 
+
+-spec stop_iq_handler(M :: atom(), F :: atom(), Opts :: options()) -> any().
 stop_iq_handler(_Module, _Function, Opts) ->
     case Opts of
-	{one_queue, Pid} ->
-	    gen_server:call(Pid, stop);
-	{queues, Pids} ->
-	    lists:foreach(fun(Pid) ->
-				  catch gen_server:call(Pid, stop)
-			  end, Pids);
-	_ ->
-	    ok
+        {one_queue, Pid} ->
+            gen_server:call(Pid, stop);
+        {queues, Pids} ->
+            lists:foreach(fun(Pid) ->
+                                  catch gen_server:call(Pid, stop)
+                          end, Pids);
+        _ ->
+            ok
     end.
 
+
+-spec handle(Host :: ejabberd:server(), Module :: atom(), Function :: atom(),
+             Opts :: options(), From :: ejabberd:jid(), To :: ejabberd:jid(),
+             IQ :: ejabberd:iq()) -> 'ok' | 'todo' | pid()
+                                  | {'error','lager_not_running'}
+                                  | {'process_iq',_,_,_}.
 handle(Host, Module, Function, Opts, From, To, IQ) ->
     case Opts of
-	no_queue ->
-	    process_iq(Host, Module, Function, From, To, IQ);
-	{one_queue, Pid} ->
-	    Pid ! {process_iq, From, To, IQ};
-	{queues, Pids} ->
-	    Pid = lists:nth(erlang:phash(now(), length(Pids)), Pids),
-	    Pid ! {process_iq, From, To, IQ};
-	parallel ->
-	    spawn(?MODULE, process_iq, [Host, Module, Function, From, To, IQ]);
-	_ ->
-	    todo
+        no_queue ->
+            process_iq(Host, Module, Function, From, To, IQ);
+        {one_queue, Pid} ->
+            Pid ! {process_iq, From, To, IQ};
+        {queues, Pids} ->
+            Pid = lists:nth(erlang:phash(now(), length(Pids)), Pids),
+            Pid ! {process_iq, From, To, IQ};
+        parallel ->
+            spawn(?MODULE, process_iq, [Host, Module, Function, From, To, IQ]);
+        _ ->
+            todo
     end.
 
 
+-spec process_iq(Host :: ejabberd:server(), Module :: atom(), Function :: atom(),
+                 From :: ejabberd:jid(), To :: ejabberd:jid(),
+                 IQ :: ejabberd:iq()) -> 'ok' | {'error','lager_not_running'}.
 process_iq(_Host, Module, Function, From, To, IQ) ->
     case catch Module:Function(From, To, IQ) of
-	{'EXIT', Reason} ->
-	    ?ERROR_MSG("~p", [Reason]);
-	ResIQ ->
-	    if
-		ResIQ /= ignore ->
-		    ejabberd_router:route(To, From,
-					  jlib:iq_to_xml(ResIQ));
-		true ->
-		    ok
-	    end
+        {'EXIT', Reason} ->
+            ?ERROR_MSG("~p", [Reason]);
+        ResIQ ->
+            if
+                ResIQ /= ignore ->
+                    ejabberd_router:route(To, From,
+                                          jlib:iq_to_xml(ResIQ));
+                true ->
+                    ok
+            end
     end.
 
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
 
-%%--------------------------------------------------------------------
-%% Function: init(Args) -> {ok, State} |
-%%                         {ok, State, Timeout} |
-%%                         ignore               |
-%%                         {stop, Reason}
-%% Description: Initiates the server
-%%--------------------------------------------------------------------
+%% @doc Initiates the server
+-spec init([atom() | binary(),...]) -> {'ok', state()}.
 init([Host, Module, Function]) ->
     {ok, #state{host = Host,
-		module = Module,
-		function = Function}}.
+                module = Module,
+                function = Function}}.
 
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
@@ -171,9 +190,9 @@ handle_cast(_Msg, State) ->
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 handle_info({process_iq, From, To, IQ},
-	    #state{host = Host,
-		   module = Module,
-		   function = Function} = State) ->
+            #state{host = Host,
+                   module = Module,
+                   function = Function} = State) ->
     process_iq(Host, Module, Function, From, To, IQ),
     {noreply, State};
 handle_info(_Info, State) ->

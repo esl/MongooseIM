@@ -2,11 +2,11 @@
 
 {application, ejabberd,
  [{description, "ejabberd"},
-  {vsn, "2.1.8"},
+  {vsn, {cmd, "echo 2.1.8+mim-`git describe --always --tags`"}},
   {modules, []},
   {registered, [
                ]},
-  {applications, [kernel, stdlib, sasl, mnesia, public_key, ssl, crypto, stringprep, inets, exml, ranch, cowboy]},
+  {applications, [kernel, stdlib, sasl, mnesia, public_key, ssl, crypto, p1_stringprep, inets, exml, ranch, cowboy]},
   {env, []},
   {mod, {ejabberd_app, []}}]}.
 

@@ -20,6 +20,7 @@
 CREATE TABLE users (
     username varchar(250) PRIMARY KEY,
     "password" text NOT NULL,
+    pass_details text,
     created_at TIMESTAMP NOT NULL DEFAULT now()
 );
 
@@ -292,3 +293,17 @@ CREATE INDEX i_mam_muc_message_room_name_added_at
     ON mam_muc_message
     USING BTREE
     (room_id, id);
+
+CREATE TABLE offline_message(
+  id SERIAL UNIQUE PRIMARY Key,
+  timestamp BIGINT NOT NULL,
+  expire    BIGINT, 
+  server    varchar(250)    NOT NULL,
+  username  varchar(250)    NOT NULL,
+  from_jid  varchar(250)    NOT NULL,
+  packet    text            NOT NULL
+);
+CREATE INDEX i_offline_message
+    ON offline_message
+    USING BTREE
+    (server, username, id);

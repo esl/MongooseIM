@@ -22,6 +22,7 @@
 CREATE TABLE users (
     username varchar(250) PRIMARY KEY,
     password text NOT NULL,
+    pass_details text,
     created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) CHARACTER SET utf8;
 
@@ -71,7 +72,7 @@ CREATE INDEX i_despool USING BTREE ON spool(username);
 
 CREATE TABLE vcard (
     username varchar(150),
-    server varchar(100),
+    server varchar(150),
     vcard mediumtext NOT NULL,
     created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (username, server)
@@ -81,7 +82,7 @@ CREATE TABLE vcard (
 CREATE TABLE vcard_search (
     username varchar(150) NOT NULL,
     lusername varchar(100),
-    server varchar(100),
+    server varchar(150),
     fn text NOT NULL,
     lfn varchar(250) NOT NULL,
     family text NOT NULL,
@@ -293,3 +294,14 @@ CREATE TABLE mam_muc_message(
 );
 CREATE INDEX i_mam_muc_message_room_name_added_at USING BTREE ON mam_muc_message(room_id, id);
 
+
+CREATE TABLE offline_message(
+  id BIGINT UNSIGNED        NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  timestamp BIGINT UNSIGNED NOT NULL,
+  expire    BIGINT UNSIGNED,
+  server    varchar(250)    NOT NULL,
+  username  varchar(250)    NOT NULL,
+  from_jid  varchar(250)    NOT NULL,
+  packet    blob            NOT NULL
+);
+CREATE INDEX i_offline_message USING BTREE ON offline_message(server, username, id);

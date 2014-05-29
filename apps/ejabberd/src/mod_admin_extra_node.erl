@@ -30,10 +30,10 @@
 -export([
      commands/0,
 
-	 load_config/1,
-	 get_cookie/0,
-	 remove_node/1
-	]).
+         load_config/1,
+         get_cookie/0,
+         remove_node/1
+        ]).
 
 -include("ejabberd.hrl").
 -include("ejabberd_commands.hrl").
@@ -42,6 +42,7 @@
 %%% Register commands
 %%%
 
+-spec commands() -> [ejabberd_commands:cmd(),...].
 commands() ->
     [
         #ejabberd_commands{name = load_config, tags = [server],
@@ -66,12 +67,17 @@ commands() ->
 %%% Node
 %%%
 
+-spec load_config(string()) -> 'ok'.
 load_config(Path) ->
     ok = ejabberd_config:load_file(Path).
 
+
+-spec get_cookie() -> string().
 get_cookie() ->
     atom_to_list(erlang:get_cookie()).
 
+
+-spec remove_node(string()) -> 'ok'.
 remove_node(Node) ->
     mnesia:del_table_copy(schema, list_to_atom(Node)),
     ok.

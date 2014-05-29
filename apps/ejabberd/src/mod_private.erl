@@ -30,167 +30,141 @@
 -behaviour(gen_mod).
 
 -export([start/2,
-	 stop/1,
-	 process_sm_iq/3,
-	 remove_user/2]).
+         stop/1,
+         process_sm_iq/3,
+         remove_user/2]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 
--record(private_storage, {usns, xml}).
+-define(BACKEND, (mod_private_backend:backend())).
+
+%% ------------------------------------------------------------------
+%% Backend callbacks
+
+-callback init(Host, Opts) -> ok when
+    Host    :: binary(),
+    Opts    :: list().
+
+-callback multi_set_data(LUser, LServer, NS2XML) -> Result when
+    LUser   :: binary(),
+    LServer :: binary(),
+    NS2XML  :: [{NS, XML}],
+    NS      :: binary(),
+    XML     :: #xmlel{},
+    Reason  :: term(),
+    Result  :: {atomic, ok} | {aborted, Reason} | {error, Reason}.
+
+-callback multi_get_data(LUser, LServer, NS2Def) -> [XML | Default] when
+    LUser   :: binary(),
+    LServer :: binary(),
+    NS2Def  :: [{NS, Default}],
+    NS      :: binary(),
+    Default :: term(),
+    XML     :: #xmlel{}.
+
+-callback remove_user(LUser, LServer) -> ok when
+    LUser   :: binary(),
+    LServer :: binary().
+
+%% ------------------------------------------------------------------
+%% gen_mod callbacks
 
 start(Host, Opts) ->
+    start_backend_module(Opts),
+    ?BACKEND:init(Host, Opts),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
-    mnesia:create_table(private_storage,
-			[{disc_only_copies, [node()]},
-			 {attributes, record_info(fields, private_storage)}]),
-    update_table(),
-    ejabberd_hooks:add(remove_user, Host,
-		       ?MODULE, remove_user, 50),
+    ejabberd_hooks:add(remove_user, Host, ?MODULE, remove_user, 50),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_PRIVATE,
-				  ?MODULE, process_sm_iq, IQDisc).
+                                  ?MODULE, process_sm_iq, IQDisc).
 
 stop(Host) ->
-    ejabberd_hooks:delete(remove_user, Host,
-			  ?MODULE, remove_user, 50),
+    ejabberd_hooks:delete(remove_user, Host, ?MODULE, remove_user, 50),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_PRIVATE).
 
+%% ------------------------------------------------------------------
+%% Dynamic modules
 
-process_sm_iq(From, To, #iq{type = Type, sub_el = SubEl} = IQ) ->
-    #jid{luser = LUser, lserver = LServer} = From,
-    case lists:member(LServer, ?MYHOSTS) of
-	true ->
-            if
-                From#jid.luser == To#jid.luser ->
-                        #xmlel{name = Name, attrs = Attrs,
-                               children = Els} = SubEl,
-	                case Type of
-		                set ->
-		                        F = fun() ->
-				                lists:foreach(
-				                fun(El) ->
-					        set_data(LUser, LServer, El)
-				                end, Els)
-			                end,
-		                        mnesia:transaction(F),
-		                        IQ#iq{type = result,
-			                        sub_el = [SubEl]};
-		                get ->
-		                        case catch get_data(LUser, LServer, Els) of
-			                        {'EXIT', _Reason} ->
-			                                IQ#iq{type = error,
-				                                sub_el = [SubEl,
-					                        ?ERR_INTERNAL_SERVER_ERROR]};
-			                        Res ->
-			                                IQ#iq{type = result,
-				                        sub_el = [SubEl#xmlel{children = Res}]}
-		                        end
-	                end;
-                true ->
-                        IQ#iq{type = error,
-                              sub_el = [SubEl,
-                                        ?ERR_FORBIDDEN]}
-            end;
-	false ->
-	    IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]}
-    end.
+start_backend_module(Opts) ->
+    Backend = gen_mod:get_opt(backend, Opts, mnesia),
+    {Mod, Code} = dynamic_compile:from_string(mod_private_backend(Backend)),
+    code:load_binary(Mod, "mod_private_backend.erl", Code).
 
-set_data(LUser, LServer, El) ->
-    case El of
-	#xmlel{attrs = Attrs} ->
-            XMLNS = xml:get_attr_s(<<"xmlns">>, Attrs),
-	    case XMLNS of
-                <<>> ->
-		    ignore;
-		_ ->
-		    mnesia:write(
-		      #private_storage{usns = {LUser, LServer, XMLNS},
-				       xml = El})
-	    end;
-	_ ->
-	    ignore
-    end.
+-spec mod_private_backend(atom()) -> string().
+mod_private_backend(Backend) when is_atom(Backend) ->
+    lists:flatten(
+      ["-module(mod_private_backend).
+        -export([backend/0]).
 
-get_data(LUser, LServer, Els) ->
-    get_data(LUser, LServer, Els, []).
+        -spec backend() -> atom().
+        backend() ->
+            mod_private_",
+       atom_to_list(Backend),
+       ".\n"]).
 
-get_data(_LUser, _LServer, [], Res) ->
-    lists:reverse(Res);
-get_data(LUser, LServer, [El | Els], Res) ->
-    case El of
-	#xmlel{attrs = Attrs} ->
-            XMLNS = xml:get_attr_s(<<"xmlns">>, Attrs),
-	    case mnesia:dirty_read(private_storage, {LUser, LServer, XMLNS}) of
-		[R] ->
-		    get_data(LUser, LServer, Els,
-			     [R#private_storage.xml | Res]);
-		[] ->
-		    get_data(LUser, LServer, Els,
-			     [El | Res])
-	    end;
-	_ ->
-	    get_data(LUser, LServer, Els, Res)
-    end.
+%% ------------------------------------------------------------------
+%% Handlers
 
 remove_user(User, Server) ->
     LUser = jlib:nodeprep(User),
     LServer = jlib:nameprep(Server),
-    F = fun() ->
-		Namespaces = mnesia:select(
-			    private_storage,
-			    [{#private_storage{usns={LUser, LServer, '$1'},
-					       _ = '_'},
-			     [],
-			     ['$$']}]),
-		lists:foreach(
-		  fun([Namespace]) ->
-			  mnesia:delete({private_storage,
-					 {LUser, LServer, Namespace}})
-		     end, Namespaces)
-        end,
-    mnesia:transaction(F).
+    ?BACKEND:remove_user(LUser, LServer).
 
-
-update_table() ->
-    Fields = record_info(fields, private_storage),
-    case mnesia:table_info(private_storage, attributes) of
-	Fields ->
-	    ok;
-	[userns, xml] ->
-	    ?INFO_MSG("Converting private_storage table from "
-		      "{user, default, lists} format", []),
-	    Host = ?MYNAME,
-	    {atomic, ok} = mnesia:create_table(
-			     mod_private_tmp_table,
-			     [{disc_only_copies, [node()]},
-			      {type, bag},
-			      {local_content, true},
-			      {record_name, private_storage},
-			      {attributes, record_info(fields, private_storage)}]),
-	    mnesia:transform_table(private_storage, ignore, Fields),
-	    F1 = fun() ->
-			 mnesia:write_lock_table(mod_private_tmp_table),
-			 mnesia:foldl(
-			   fun(#private_storage{usns = {U, NS}} = R, _) ->
-				   mnesia:dirty_write(
-				     mod_private_tmp_table,
-				     R#private_storage{usns = {U, Host, NS}})
-			   end, ok, private_storage)
-		 end,
-	    mnesia:transaction(F1),
-	    mnesia:clear_table(private_storage),
-	    F2 = fun() ->
-			 mnesia:write_lock_table(private_storage),
-			 mnesia:foldl(
-			   fun(R, _) ->
-				   mnesia:dirty_write(R)
-			   end, ok, mod_private_tmp_table)
-		 end,
-	    mnesia:transaction(F2),
-	    mnesia:delete_table(mod_private_tmp_table);
-	_ ->
-	    ?INFO_MSG("Recreating private_storage table", []),
-	    mnesia:transform_table(private_storage, ignore, Fields)
+process_sm_iq(
+        From = #jid{luser = LUser, lserver = LServer},
+        To   = #jid{},
+        IQ   = #iq{type = Type, sub_el = SubElem = #xmlel{children = Elems}}) ->
+    IsKnown = lists:member(LServer, ?MYHOSTS),
+    IsEqual = compare_bare_jids(From, To),
+    Strategy = choose_strategy(IsKnown, IsEqual, Type),
+    case Strategy of
+        get ->
+            NS2XML = to_map(Elems),
+            XMLs = ?BACKEND:multi_get_data(LUser, LServer, NS2XML),
+            IQ#iq{type = result, sub_el = [SubElem#xmlel{children = XMLs}]};
+        set ->
+            NS2XML = to_map(Elems),
+            Result = ?BACKEND:multi_set_data(LUser, LServer, NS2XML),
+            case Result of
+                {atomic, ok} ->
+                    IQ#iq{type = result, sub_el = [SubElem]};
+                {error, Reason} ->
+                    ?ERROR_MSG("~p:multi_set_data failed ~p for ~ts@~ts.",
+                               [?BACKEND, Reason, LUser, LServer]),
+                    error_iq(IQ, ?ERR_INTERNAL_SERVER_ERROR);
+                {aborted, Reason} ->
+                    ?ERROR_MSG("~p:multi_set_data aborted ~p for ~ts@~ts.",
+                               [?BACKEND, Reason, LUser, LServer]),
+                    error_iq(IQ, ?ERR_INTERNAL_SERVER_ERROR)
+            end;
+        not_allowed ->
+            error_iq(IQ, ?ERR_NOT_ALLOWED);
+        forbidden ->
+            error_iq(IQ, ?ERR_FORBIDDEN)
     end.
 
+%% ------------------------------------------------------------------
+%% Helpers
 
+choose_strategy(true,  true, get) -> get;
+choose_strategy(true,  true, set) -> set;
+choose_strategy(false, _,    _  ) -> not_allowed;
+choose_strategy(_,     _,    _  ) -> forbidden.
+
+compare_bare_jids(#jid{luser = LUser, lserver = LServer},
+                  #jid{luser = LUser, lserver = LServer}) -> true;
+compare_bare_jids(_, _) -> false.
+
+element_to_namespace(#xmlel{attrs = Attrs}) ->
+    xml:get_attr_s(<<"xmlns">>, Attrs);
+element_to_namespace(<<>>) ->
+    <<>>.
+
+%% Skip invalid elements.
+to_map(Elems) ->
+    [{NS, Elem} || Elem <- Elems, is_valid_namespace(NS = element_to_namespace(Elem))].
+
+is_valid_namespace(Namespace) -> Namespace =/= <<>>.
+
+error_iq(IQ=#iq{sub_el=SubElem}, ErrorStanza) ->
+    IQ#iq{type = error, sub_el = [SubElem, ErrorStanza]}.

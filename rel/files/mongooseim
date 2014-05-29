@@ -8,10 +8,10 @@ RUNNER_BASE_DIR=${RUNNER_SCRIPT_DIR%/*}
 RUNNER_ETC_DIR=$RUNNER_BASE_DIR/etc
 RUNNER_LOG_DIR=$RUNNER_BASE_DIR/log
 # Note the trailing slash on $PIPE_DIR/
-PIPE_DIR=/tmp/$RUNNER_BASE_DIR/
+PIPE_DIR=/tmp/mongooseim_pipe_`whoami`/
 RUNNER_USER=
 
-EJABBERD_SO_PATH=$RUNNER_BASE_DIR/lib/ejabberd-2.1.8/priv/lib
+EJABBERD_SO_PATH=`ls -dt $RUNNER_BASE_DIR/lib/ejabberd-2.1.8*/priv/lib | head -1`
 EJABBERD_CONFIG_PATH=$RUNNER_ETC_DIR/ejabberd.cfg
 export EJABBERD_SO_PATH
 export EJABBERD_CONFIG_PATH
@@ -184,8 +184,20 @@ case "$1" in
         # Start the VM
         exec $CMD
         ;;
+
+    version)
+        MIM=`ls $RUNNER_BASE_DIR/lib/mongooseim*/ebin/mongooseim.app | head -1`
+        if [ $# == 2 ] && [ $2 == '--simple' ]
+        then
+            $NODETOOL version $MIM
+        else
+            cat $RUNNER_BASE_DIR/lib/mongooseim*/priv/logo.txt
+            echo -n "MongooseIM version "
+            $NODETOOL version $MIM
+        fi
+        ;;
     *)
-        echo "Usage: $SCRIPT {start|stop|restart|reboot|ping|live|console|console_clean|attach|debug}"
+        echo "Usage: $SCRIPT {start|stop|restart|reboot|ping|live|console|console_clean|attach|debug|version}"
         exit 1
         ;;
 esac

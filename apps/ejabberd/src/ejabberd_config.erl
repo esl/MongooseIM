@@ -37,15 +37,71 @@
 -include("ejabberd_config.hrl").
 -include_lib("kernel/include/file.hrl").
 
+-type key() :: atom()
+             | {atom(), ejabberd:server() | atom()}
+             | {atom(), atom(), atom()}
+             | binary(). % TODO: binary is questionable here
+-type value() :: atom()
+               | integer()
+               | string()
+               | [tuple()].
 
-%% @type macro() = {macro_key(), macro_value()}
+-export_type([key/0, value/0]).
 
-%% @type macro_key() = atom().
+-record(state, {opts = []  :: list(),
+                hosts = [] :: [host()],
+                override_local = false  :: boolean(),
+                override_global = false :: boolean(),
+                override_acls = false   :: boolean()
+              }).
+
+-type host() :: any(). % TODO: specify this
+-type state() :: #state{}.
+-type macro() :: {macro_key(), macro_value()}.
+
 %% The atom must have all characters in uppercase.
+-type macro_key() :: atom().
 
-%% @type macro_value() = term().
+-type macro_value() :: term().
+
+-type known_term() :: override_global
+                    | override_local
+                    | override_acls
+                    | {acl, _, _}
+                    | {alarms, _}
+                    | {access, _, _}
+                    | {shaper, _, _}
+                    | {host, _}
+                    | {hosts, _}
+                    | {host_config, _, _}
+                    | {listen, _}
+                    | {language, _}
+                    | {sm_backend, _}
+                    | {outgoing_s2s_port, integer()}
+                    | {outgoing_s2s_options, _, integer()}
+                    | {{s2s_addr, _}, _}
+                    | {s2s_dns_options, [tuple()]}
+                    | {s2s_use_starttls, integer()}
+                    | {s2s_certfile, _}
+                    | {domain_certfile, _, _}
+                    | {node_type, _}
+                    | {cluster_nodes, _}
+                    | {watchdog_admins, _}
+                    | {watchdog_large_heap, _}
+                    | {registration_timeout, integer()}
+                    | {ejabberdctl_access_commands, list()}
+                    | {loglevel, _}
+                    | {max_fsm_queue, _}
+                    | host_term().
+-type host_term() :: {acl, _, _}
+                  | {access, _, _}
+                  | {shaper, _, _}
+                  | {host, _}
+                  | {hosts, _}
+                  | {odbc_server, _}.
 
 
+-spec start() -> ok.
 start() ->
     mnesia:create_table(config,
                         [{ram_copies, [node()]},
@@ -62,11 +118,12 @@ start() ->
     add_local_option(node_start, now()),
     ok.
 
+
 %% @doc Get the filename of the ejabberd configuration file.
 %% The filename can be specified with: erl -config "/path/to/ejabberd.cfg".
 %% It can also be specified with the environtment variable EJABBERD_CONFIG_PATH.
 %% If not specified, the default value 'ejabberd.cfg' is assumed.
-%% @spec () -> string()
+-spec get_ejabberd_config_path() -> string().
 get_ejabberd_config_path() ->
     case application:get_env(config) of
         {ok, Path} -> Path;
@@ -79,10 +136,11 @@ get_ejabberd_config_path() ->
             end
     end.
 
+
 %% @doc Load the ejabberd configuration file.
 %% It also includes additional configuration files and replaces macros.
 %% This function will crash if finds some error in the configuration file.
-%% @spec (File::string()) -> ok
+-spec load_file(File::string()) -> ok.
 load_file(File) ->
     Terms = get_plain_terms_file(File),
     State = lists:foldl(fun search_hosts/2, #state{}, Terms),
@@ -90,12 +148,13 @@ load_file(File) ->
     Res = lists:foldl(fun process_term/2, State, Terms_macros),
     set_opts(Res).
 
+
 %% @doc Read an ejabberd configuration file and return the terms.
 %% Input is an absolute or relative path to an ejabberd config file.
 %% Returns a list of plain terms,
 %% in which the options 'include_config_file' were parsed
 %% and the terms in those files were included.
-%% @spec(string()) -> [term()]
+-spec get_plain_terms_file(string()) -> [term()].
 get_plain_terms_file(File1) ->
     File = get_absolute_path(File1),
     case file:consult(File) of
@@ -111,21 +170,22 @@ get_plain_terms_file(File1) ->
             exit_or_halt(ExitText)
     end.
 
+
 %% @doc Convert configuration filename to absolute path.
 %% Input is an absolute or relative path to an ejabberd configuration file.
 %% And returns an absolute path to the configuration file.
-%% @spec (string()) -> string()
+-spec get_absolute_path(string()) -> string().
 get_absolute_path(File) ->
     case filename:pathtype(File) of
         absolute ->
             File;
         relative ->
-            Config_path = get_ejabberd_config_path(),
-            Config_dir = filename:dirname(Config_path),
-            filename:absname_join(Config_dir, File)
+            {ok, Cwd} = file:get_cwd(),
+            filename:absname_join(Cwd, File)
     end.
 
 
+-spec search_hosts({host|hosts, [host()] | host()}, state()) -> any().
 search_hosts(Term, State) ->
     case Term of
         {host, Host} ->
@@ -150,12 +210,19 @@ search_hosts(Term, State) ->
             State
     end.
 
+
+-spec add_hosts_to_option(Hosts :: [host()],
+                          State :: state()) -> state().
 add_hosts_to_option(Hosts, State) ->
     PrepHosts = normalize_hosts(Hosts),
     add_option(hosts, PrepHosts, State#state{hosts = PrepHosts}).
 
+
+-spec normalize_hosts([host()]) -> [binary() | tuple()].
 normalize_hosts(Hosts) ->
     normalize_hosts(Hosts,[]).
+
+
 normalize_hosts([], PrepHosts) ->
     lists:reverse(PrepHosts);
 normalize_hosts([Host|Hosts], PrepHosts) ->
@@ -172,12 +239,21 @@ normalize_hosts([Host|Hosts], PrepHosts) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Errors reading the config file
 
+-type config_problem() :: atom() | {integer(),atom() | tuple(),_}. % spec me better
+-type config_line() :: [[any()] | non_neg_integer(),...]. % spec me better
+
+-spec describe_config_problem(Filename :: string(),
+                              Reason :: config_problem()) -> string().
 describe_config_problem(Filename, Reason) ->
     Text1 = lists:flatten("Problem loading ejabberd config file " ++ Filename),
     Text2 = lists:flatten(" : " ++ file:format_error(Reason)),
     ExitText = Text1 ++ Text2,
     ExitText.
 
+
+-spec describe_config_problem(Filename :: string(),
+                              Reason :: config_problem(),
+                              Line :: pos_integer()) -> string().
 describe_config_problem(Filename, Reason, LineNumber) ->
     Text1 = lists:flatten("Problem loading ejabberd config file " ++ Filename),
     Text2 = lists:flatten(" approximately in the line "
@@ -188,6 +264,11 @@ describe_config_problem(Filename, Reason, LineNumber) ->
                " relevant to the error: ~n~s", [Lines]),
     ExitText.
 
+
+-spec get_config_lines(Filename :: string(),
+                       TargetNumber :: integer(),
+                       PreContext :: 10,
+                       PostContext :: 3) -> [config_line()].
 get_config_lines(Filename, TargetNumber, PreContext, PostContext) ->
     {ok, Fd} = file:open(Filename, [read]),
     LNumbers = lists:seq(TargetNumber-PreContext, TargetNumber+PostContext),
@@ -195,6 +276,7 @@ get_config_lines(Filename, TargetNumber, PreContext, PostContext) ->
     R = get_config_lines2(Fd, NextL, 1, LNumbers, []),
     file:close(Fd),
     R.
+
 
 get_config_lines2(_Fd, eof, _CurrLine, _LNumbers, R) ->
     lists:reverse(R);
@@ -210,7 +292,9 @@ get_config_lines2(Fd, Data, CurrLine, [NextWanted | LNumbers], R) when is_list(D
             get_config_lines2(Fd, NextL, CurrLine+1, [NextWanted | LNumbers], R)
     end.
 
-%% If ejabberd isn't yet running in this node, then halt the node
+
+%% @doc If ejabberd isn't yet running in this node, then halt the node
+-spec exit_or_halt(ExitText :: string()) -> none().
 exit_or_halt(ExitText) ->
     case [Vsn || {ejabberd, _Desc, Vsn} <- application:which_applications()] of
         [] ->
@@ -224,9 +308,10 @@ exit_or_halt(ExitText) ->
 %%% Support for 'include_config_file'
 
 %% @doc Include additional configuration files in the list of terms.
-%% @spec ([term()]) -> [term()]
+-spec include_config_files([term()]) -> [term()].
 include_config_files(Terms) ->
     include_config_files(Terms, []).
+
 
 include_config_files([], Res) ->
     Res;
@@ -242,10 +327,12 @@ include_config_files([{include_config_file, Filename, Options} | Terms], Res) ->
 include_config_files([Term | Terms], Res) ->
     include_config_files(Terms, Res ++ [Term]).
 
+
 %% @doc Filter from the list of terms the disallowed.
 %% Returns a sublist of Terms without the ones which first element is
 %% included in Disallowed.
-%% @spec (Disallowed::[atom()], Terms::[term()]) -> [term()]
+-spec delete_disallowed(Disallowed :: [atom()],
+                        Terms :: [term()]) -> [term()].
 delete_disallowed(Disallowed, Terms) ->
     lists:foldl(
       fun(Dis, Ldis) ->
@@ -253,6 +340,7 @@ delete_disallowed(Disallowed, Terms) ->
       end,
       Terms,
       Disallowed).
+
 
 delete_disallowed2(Disallowed, [H|T]) ->
     case element(1, H) of
@@ -266,10 +354,12 @@ delete_disallowed2(Disallowed, [H|T]) ->
 delete_disallowed2(_, []) ->
     [].
 
+
 %% @doc Keep from the list only the allowed terms.
 %% Returns a sublist of Terms with only the ones which first element is
 %% included in Allowed.
-%% @spec (Allowed::[atom()], Terms::[term()]) -> [term()]
+-spec keep_only_allowed(Allowed :: [atom()],
+                        Terms::[term()]) -> [term()].
 keep_only_allowed(all, Terms) ->
     Terms;
 keep_only_allowed(Allowed, Terms) ->
@@ -288,15 +378,14 @@ keep_only_allowed(Allowed, Terms) ->
 %%% Support for Macro
 
 %% @doc Replace the macros with their defined values.
-%% @spec (Terms::[term()]) -> [term()]
+-spec replace_macros(Terms :: [term()]) -> [term()].
 replace_macros(Terms) ->
     {TermsOthers, Macros} = split_terms_macros(Terms),
     replace(TermsOthers, Macros).
 
+
 %% @doc Split Terms into normal terms and macro definitions.
-%% @spec (Terms) -> {Terms, Macros}
-%%       Terms = [term()]
-%%       Macros = [macro()]
+-spec split_terms_macros(Terms :: [term()]) -> {[term()], [macro()]}.
 split_terms_macros(Terms) ->
     lists:foldl(
       fun(Term, {TOs, Ms}) ->
@@ -315,14 +404,15 @@ split_terms_macros(Terms) ->
       {[], []},
       Terms).
 
+
 %% @doc Recursively replace in Terms macro usages with the defined value.
-%% @spec (Terms, Macros) -> Terms
-%%       Terms = [term()]
-%%       Macros = [macro()]
+-spec replace(Terms :: [term()],
+              Macros :: [macro()]) -> [term()].
 replace([], _) ->
     [];
 replace([Term|Terms], Macros) ->
     [replace_term(Term, Macros) | replace(Terms, Macros)].
+
 
 replace_term(Key, Macros) when is_atom(Key) ->
     case is_all_uppercase(Key) of
@@ -345,6 +435,8 @@ replace_term(Term, Macros) when is_tuple(Term) ->
 replace_term(Term, _) ->
     Term.
 
+
+-spec is_all_uppercase(atom()) -> boolean().
 is_all_uppercase(Atom) ->
     String = erlang:atom_to_list(Atom),
     lists:all(fun(C) when C >= $a, C =< $z -> false;
@@ -354,6 +446,8 @@ is_all_uppercase(Atom) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Process terms
 
+-spec process_term(Term :: known_term(),
+                   State :: state()) -> state().
 process_term(Term, State) ->
     case Term of
         override_global ->
@@ -404,6 +498,8 @@ process_term(Term, State) ->
             add_option(s2s_dns_options, PropList, State);
         {s2s_use_starttls, Port} ->
             add_option(s2s_use_starttls, Port, State);
+        {s2s_ciphers, Ciphers} ->
+            add_option(s2s_ciphers, Ciphers, State);
         {s2s_certfile, CertFile} ->
             case ejabberd_config:is_file_readable(CertFile) of
                 true -> add_option(s2s_certfile, CertFile, State);
@@ -442,11 +538,15 @@ process_term(Term, State) ->
                         State, State#state.hosts)
     end.
 
+
+-spec process_host_term(Term :: host_term(),
+                        Host :: acl:host(),
+                        State :: state()) -> state().
 process_host_term(Term, Host, State) ->
     case Term of
         {acl, ACLName, ACLData} ->
             State#state{opts =
-                            [acl:to_record(Host, ACLName, ACLData) | State#state.opts]};
+                    [acl:to_record(Host, ACLName, ACLData) | State#state.opts]};
         {access, RuleName, Rules} ->
             State#state{opts = [#config{key = {access, RuleName, Host},
                                         value = Rules} |
@@ -465,6 +565,10 @@ process_host_term(Term, Host, State) ->
             add_option({Opt, Host}, Val, State)
     end.
 
+
+-spec add_option(Opt :: hosts | language | sm_backend,
+                 Val :: term(),
+                 State :: state()) -> state().
 add_option(Opt, Val, State) ->
     Table = case Opt of
                 hosts ->
@@ -491,9 +595,11 @@ add_option(Opt, Val, State) ->
             end
     end.
 
+
 compact({OptName, Host} = Opt, Val, [], Os) ->
     ?WARNING_MSG("The option '~p' is defined for the host ~p using host_config "
-                 "before the global '~p' option. This host_config option may get overwritten.", [OptName, Host, OptName]),
+                 "before the global '~p' option. This host_config option may "
+                 "get overwritten.", [OptName, Host, OptName]),
     [#local_config{key = Opt, value = Val}] ++ Os;
 %% Traverse the list of the options already parsed
 compact(Opt, Val, [O | Os1], Os2) ->
@@ -509,6 +615,7 @@ compact(Opt, Val, [O | Os1], Os2) ->
     end.
 
 
+-spec set_opts(state()) -> 'ok' | none().
 set_opts(State) ->
     Opts = lists:reverse(State#state.opts),
     F = fun() ->
@@ -559,12 +666,15 @@ set_opts(State) ->
     end.
 
 
+-spec add_global_option(Opt :: key(), Val :: value()) -> {atomic|aborted, _}.
 add_global_option(Opt, Val) ->
     mnesia:transaction(fun() ->
                                mnesia:write(#config{key = Opt,
                                                     value = Val})
                        end).
 
+
+-spec add_local_option(Opt :: key(), Val :: value()) -> {atomic|aborted, _}.
 add_local_option(Opt, Val) ->
     mnesia:transaction(fun() ->
                                mnesia:write(#local_config{key = Opt,
@@ -572,6 +682,7 @@ add_local_option(Opt, Val) ->
                        end).
 
 
+-spec get_global_option(key()) -> value() | undefined.
 get_global_option(Opt) ->
     case ets:lookup(config, Opt) of
         [#config{value = Val}] ->
@@ -580,6 +691,8 @@ get_global_option(Opt) ->
             undefined
     end.
 
+
+-spec get_local_option(key()) -> value() | undefined.
 get_local_option(Opt) ->
     case ets:lookup(local_config, Opt) of
         [#local_config{value = Val}] ->
@@ -588,13 +701,15 @@ get_local_option(Opt) ->
             undefined
     end.
 
-%% Return the list of hosts handled by a given module
+
+%% @doc Return the list of hosts handled by a given module
 get_vh_by_auth_method(AuthMethod) ->
     mnesia:dirty_select(local_config,
                         [{#local_config{key = {auth_method, '$1'},
                                         value=AuthMethod},[],['$1']}]).
 
-%% @spec (Path::string()) -> true | false
+
+-spec is_file_readable(Path :: string()) -> boolean().
 is_file_readable(Path) ->
     case file:read_file_info(Path) of
         {ok, FileInfo} ->
