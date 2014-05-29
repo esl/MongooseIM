@@ -269,10 +269,19 @@ suite() ->
     escalus:suite().
 
 init_per_suite(Config) ->
-    escalus:create_users(escalus:init_per_suite(Config)).
+    create_users(escalus:init_per_suite(Config)).
 
 end_per_suite(Config) ->
-    escalus:end_per_suite(escalus:delete_users(Config)).
+    escalus:end_per_suite(delete_users(Config)).
+
+user_names() ->
+    [alice, bob].
+
+create_users(Config) ->
+    escalus:create_users(Config, {by_name, user_names()}).
+
+delete_users(Config) ->
+    escalus:create_users(Config, {by_name, user_names()}).
 
 init_per_group(Group, Config) ->
     C = configuration(Group),
