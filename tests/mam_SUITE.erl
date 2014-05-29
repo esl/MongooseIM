@@ -2024,7 +2024,9 @@ muc_restore_dump_file(ArcJID, FileName, Opts) ->
 is_odbc_enabled(Host) ->
     case sql_transaction(Host, fun erlang:now/0) of
         {atomic, _} -> true;
-        _ -> false
+        Other ->
+            ct:pal("ODBC disabled (check failed ~p)", [Other]),
+            false
     end.
 
 sql_transaction(Host, F) ->

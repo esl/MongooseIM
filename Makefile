@@ -36,6 +36,14 @@ test_preset: prepare
 		$(ADD_OPTS) \
 		-s run_common_test main test=full spec=$(TESTSPEC) preset=$(PRESET)
 
+test_config: prepare
+	erl -noinput -sname test -setcookie ejabberd \
+		-pa `pwd`/tests \
+		    `pwd`/ebin \
+			`pwd`/deps/*/ebin \
+		$(ADD_OPTS) \
+		-s run_common_test main test=full spec=$(TESTSPEC) preset=$(CONFIG)
+
 test: prepare
 	erl -noinput -sname test -setcookie ejabberd \
 		-pa `pwd`/tests \

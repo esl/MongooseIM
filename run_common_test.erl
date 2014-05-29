@@ -32,8 +32,19 @@ opts() ->
 main(RawArgs) ->
     Args = [raw_to_arg(Raw) || Raw <- RawArgs],
     Opts = args_to_opts(Args),
-    run(Opts),
-    init:stop(0).
+    try
+        run(Opts),
+        %% Waiting for messages to be flushed
+        timer:sleep(50),
+        init:stop(0)
+        catch Type:Reason ->
+            Stacktrace = erlang:get_stacktrace(),
+            error_logger:error_msg("TEST CRASHED~n Error type: ~p~n Reason: ~p~n Stacktrace:~n~p~n",
+                                   [Type, Reason, Stacktrace]),
+            %% Waiting for messages to be flushed
+            timer:sleep(50),
+            init:stop("Test failed")
+    end.
 
 run(#opts{test = quick, cover = true, spec = Spec}) ->
     do_run_quick_test_with_cover(tests_to_run(Spec)),
@@ -46,6 +57,7 @@ run(#opts{test = full, cover = true, spec = Spec}) ->
 run(#opts{test = full, spec = Spec, preset = Preset}) ->
     run_test(tests_to_run(Spec), case Preset of
                                      all -> all;
+                                     undefined -> all;
                                      _   -> [Preset]
                                  end).
 
@@ -97,27 +109,36 @@ run_test(Test) ->
     run_test(Test, all).
 
 run_test(Test, PresetsToRun) ->
-    {ok, Props} = file:consult(ct_config_file()),
+    error_logger:info_msg("Presets to run ~p", [PresetsToRun]),
+    ConfigFile = ct_config_file(),
+    {ok, Props} = file:consult(ConfigFile),
     case proplists:lookup(ejabberd_presets, Props) of
         {ejabberd_presets, Presets} ->
             Presets1 = case PresetsToRun of
                 all ->
                     Presets;
                 _ ->
+                    error_logger:info_msg("Skip presets ~p",
+                                          [ preset_names(Presets) -- PresetsToRun ]),
                     lists:filter(fun({Preset,_}) ->
                                 lists:member(Preset, PresetsToRun)
                         end, Presets)
             end,
             Length = length(Presets1),
-            Names = [Name || {Name,_} <- Presets1],
+            Names = preset_names(Presets),
             error_logger:info_msg("Starting test of ~p configurations: ~n~p~n",
                                   [Length, Names]),
             Zip = lists:zip(lists:seq(1, Length), Presets1),
             [run_config_test(Preset, Test, N, Length) || {N, Preset} <- Zip],
             save_count(Test, Presets1);
         _ ->
+            error_logger:info_msg("Presets were not found in the config file ~ts",
+                                  [ConfigFile]),
             do_run_quick_test(Test)
     end.
+
+preset_names(Presets) ->
+    [Preset||{Preset, _} <- Presets].
 
 do_run_quick_test(Test) ->
     Result = ct:run_test(Test),
@@ -168,7 +189,14 @@ run_config_test({Name, Variables}, Test, N, Tests) ->
     end.
 
 call(Node, M, F, A) ->
-    rpc:call(Node, M, F, A).
+    case rpc:call(Node, M, F, A) of
+        {badrpc, Reason} ->
+            error_logger:error_msg("RPC call ~p:~p/~p to node ~p failed because ~p",
+                                   [M, F, length(A), Node, Reason]), 
+            {badrpc, Reason};
+        Result ->
+            Result
+    end.
 
 run_ct_cover(TestSpec) ->
     prepare(),
