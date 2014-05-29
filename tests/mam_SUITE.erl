@@ -33,6 +33,7 @@
          muc_multiple_devices/1,
          muc_private_message/1,
          range_archive_request/1,
+         range_archive_request_not_empty/1,
          limit_archive_request/1,
          prefs_set_request/1,
          pagination_first5/1,
@@ -210,6 +211,7 @@ mam_cases() ->
     [mam_service_discovery,
      simple_archive_request,
      range_archive_request,
+     range_archive_request_not_empty,
      limit_archive_request,
      prefs_set_request,
      iq_spoofing].
@@ -587,6 +589,9 @@ init_per_testcase(C=muc_multiple_devices, Config) ->
     escalus:init_per_testcase(C, clean_room_archive(start_alice_room(Config)));
 init_per_testcase(C=muc_private_message, Config) ->
     escalus:init_per_testcase(C, start_alice_room(Config));
+init_per_testcase(C=range_archive_request_not_empty, Config) ->
+    escalus:init_per_testcase(C,
+        bootstrap_archive_same_ids(clean_archives(Config)));
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
@@ -1121,6 +1126,23 @@ range_archive_request(Config) ->
         end,
     escalus:story(Config, [1], F).
 
+range_archive_request_not_empty(Config) ->
+    F = fun(Alice) ->
+        %% Send
+        %% <iq type='get'>
+        %%   <query xmlns='urn:xmpp:mam:tmp'>
+        %%     <start>2000-07-21T01:50:14Z</start>
+        %%     <end>2000-07-21T01:50:16Z</end>
+        %%   </query>
+        %% </iq>
+        escalus:send(Alice, stanza_date_range_archive_request_not_empty()),
+        %% Receive one message and IQ
+        escalus:wait_for_stanza(Alice, 5000),
+        escalus:wait_for_stanza(Alice, 5000),
+        ok
+        end,
+    escalus:story(Config, [1], F).
+
 %% @doc A query using Result Set Management.
 %% See also `#rsm_in.max'.
 limit_archive_request(Config) ->
@@ -1473,6 +1495,12 @@ stanza_archive_request(QueryId) ->
 stanza_date_range_archive_request() ->
     stanza_lookup_messages_iq(undefined,
                               "2010-06-07T00:00:00Z", "2010-07-07T13:23:54Z",
+                              undefined, undefined).
+
+stanza_date_range_archive_request_not_empty() ->
+    stanza_lookup_messages_iq(undefined,
+                              %% One second before and after 2000-07-21T01:50:15Z
+                              "2000-07-21T01:50:14Z", "2000-07-21T01:50:16Z",
                               undefined, undefined).
 
 stanza_limit_archive_request() ->
@@ -1982,6 +2010,14 @@ bootstrap_archive(Config) ->
     FileName = filename:join(DataDir, "alice.xml"),
     ArcJID = make_jid(<<"alice">>, <<"localhost">>, <<>>),
     Opts = [{rewrite_jids, rewrite_jids_options(Config)}, new_message_ids],
+    ?assert_equal(ok, restore_dump_file(ArcJID, FileName, Opts)),
+    Config.
+
+bootstrap_archive_same_ids(Config) ->
+    DataDir = ?config(data_dir, Config),
+    FileName = filename:join(DataDir, "alice.xml"),
+    ArcJID = make_jid(<<"alice">>, <<"localhost">>, <<>>),
+    Opts = [{rewrite_jids, rewrite_jids_options(Config)}],
     ?assert_equal(ok, restore_dump_file(ArcJID, FileName, Opts)),
     Config.
 
