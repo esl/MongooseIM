@@ -177,7 +177,7 @@ decode_compact_uuid(Id) ->
 %% @doc Encode a message ID to pass it to the user.
 -spec mess_id_to_external_binary(integer()) -> binary().
 mess_id_to_external_binary(MessID) when is_integer(MessID) ->
-    list_to_binary(integer_to_list(MessID, 36)).
+    list_to_binary(integer_to_list(MessID, 32)).
 
 
 -spec maybe_external_binary_to_mess_id('undefined' | binary())
@@ -193,7 +193,7 @@ maybe_external_binary_to_mess_id(BExtMessID) ->
 %% @doc Decode a message ID received from the user.
 -spec external_binary_to_mess_id(binary()) -> integer().
 external_binary_to_mess_id(BExtMessID) when is_binary(BExtMessID) ->
-    list_to_integer(binary_to_list(BExtMessID), 36).
+    list_to_integer(binary_to_list(BExtMessID), 32).
 
 %% -----------------------------------------------------------------------
 %% XML
