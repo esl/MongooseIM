@@ -68,7 +68,7 @@ is_carbon_copy(Packet) ->
 	end.
 
 start(Host, Opts) ->
-    IQDisc = gen_mod:get_opt(iqdisc, Opts,fun gen_iq_handler:check_type/1, one_queue),
+    IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
     mod_disco:register_feature(Host, ?NS_CC_1),
     mod_disco:register_feature(Host, ?NS_CC_2),
     Fields = record_info(fields, ?TABLE),
