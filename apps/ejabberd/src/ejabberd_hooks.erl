@@ -31,28 +31,28 @@
 
 %% External exports
 -export([start_link/0,
-	 add/3,
-	 add/4,
-	 add_dist/5,
-	 delete/3,
-	 delete/4,
-	 delete_dist/5,
-	 run/2,
-	 run_fold/3,
-	 add/5,
-	 add_dist/6,
-	 delete/5,
-	 delete_dist/6,
-	 run/3,
-	 run_fold/4]).
+         add/3,
+         add/4,
+         add_dist/5,
+         delete/3,
+         delete/4,
+         delete_dist/5,
+         run/2,
+         run_fold/3,
+         add/5,
+         add_dist/6,
+         delete/5,
+         delete_dist/6,
+         run/3,
+         run_fold/4]).
 
 %% gen_server callbacks
 -export([init/1,
-	 handle_call/3,
-	 handle_cast/2,
-	 code_change/3,
-	 handle_info/2,
-	 terminate/2]).
+         handle_call/3,
+         handle_cast/2,
+         code_change/3,
+         handle_info/2,
+         terminate/2]).
 
 -include("ejabberd.hrl").
 
@@ -67,64 +67,108 @@
 start_link() ->
     gen_server:start_link({local, ejabberd_hooks}, ejabberd_hooks, [], []).
 
-%% @spec (Hook::atom(), Function::function(), Seq::integer()) -> ok
 %% @doc See add/4.
+-spec add(Hook :: atom(),
+          Function :: fun(),
+          Seq :: integer()) -> ok.
 add(Hook, Function, Seq) when is_function(Function) ->
     add(Hook, global, undefined, Function, Seq).
 
+%% @doc Add a module and function to this hook. %% The integer sequence is used
+%% to sort the calls: low number is called before high number.
+-spec add(Hook :: atom(),
+          Host :: ejabberd:server(),
+          Function :: fun() | atom(),
+          Seq :: integer()) -> ok.
 add(Hook, Host, Function, Seq) when is_function(Function) ->
     add(Hook, Host, undefined, Function, Seq);
-
-%% @spec (Hook::atom(), Module::atom(), Function::atom(), Seq::integer()) -> ok
-%% @doc Add a module and function to this hook.
-%% The integer sequence is used to sort the calls: low number is called before high number.
 add(Hook, Module, Function, Seq) ->
     add(Hook, global, Module, Function, Seq).
 
+-spec add(Hook :: atom(),
+          Host :: ejabberd:server(),
+          Module :: atom(),
+          Function :: fun() | atom(),
+          Seq :: integer()) -> ok.
 add(Hook, Host, Module, Function, Seq) ->
     gen_server:call(ejabberd_hooks, {add, Hook, Host, Module, Function, Seq}).
 
+-spec add_dist(Hook :: atom(),
+               Node :: node(),
+               Module :: atom(),
+               Function :: fun() | atom(),
+               Seq :: integer()) -> ok.
 add_dist(Hook, Node, Module, Function, Seq) ->
     gen_server:call(ejabberd_hooks, {add, Hook, global, Node, Module, Function, Seq}).
 
+-spec add_dist(Hook :: atom(),
+               Host :: ejabberd:server(),
+               Node :: node(),
+               Module :: atom(),
+               Function :: fun() | atom(),
+               Seq :: integer()) -> ok.
 add_dist(Hook, Host, Node, Module, Function, Seq) ->
     gen_server:call(ejabberd_hooks, {add, Hook, Host, Node, Module, Function, Seq}).
 
-%% @spec (Hook::atom(), Function::function(), Seq::integer()) -> ok
 %% @doc See del/4.
+-spec delete(Hook :: atom(),
+             Function :: fun(),
+             Seq :: integer()) -> ok.
 delete(Hook, Function, Seq) when is_function(Function) ->
     delete(Hook, global, undefined, Function, Seq).
 
-delete(Hook, Host, Function, Seq) when is_function(Function) ->
-    delete(Hook, Host, undefined, Function, Seq);
-
-%% @spec (Hook::atom(), Module::atom(), Function::atom(), Seq::integer()) -> ok
 %% @doc Delete a module and function from this hook.
 %% It is important to indicate exactly the same information than when the call was added.
+-spec delete(Hook :: atom(),
+             Host :: ejabberd:server(),
+             Function :: fun() | atom(),
+             Seq :: integer()) -> ok.
+delete(Hook, Host, Function, Seq) when is_function(Function) ->
+    delete(Hook, Host, undefined, Function, Seq);
 delete(Hook, Module, Function, Seq) ->
     delete(Hook, global, Module, Function, Seq).
 
+-spec delete(Hook :: atom(),
+             Host :: ejabberd:server(),
+             Module :: atom(),
+             Function :: fun() | atom(),
+             Seq :: integer()) -> ok.
 delete(Hook, Host, Module, Function, Seq) ->
     gen_server:call(ejabberd_hooks, {delete, Hook, Host, Module, Function, Seq}).
 
+-spec delete_dist(Hook :: atom(),
+                  Node :: node(),
+                  Module :: atom(),
+                  Function :: atom(),
+                  Seq :: integer()) -> ok.
 delete_dist(Hook, Node, Module, Function, Seq) ->
     delete_dist(Hook, global, Node, Module, Function, Seq).
 
+-spec delete_dist(Hook :: atom(),
+                  Host :: ejabberd:server(),
+                  Node :: node(),
+                  Module :: atom(),
+                  Function :: atom(),
+                  Seq :: integer()) -> ok.
 delete_dist(Hook, Host, Node, Module, Function, Seq) ->
     gen_server:call(ejabberd_hooks, {delete, Hook, Host, Node, Module, Function, Seq}).
 
-%% @spec (Hook::atom(), Args) -> ok
 %% @doc Run the calls of this hook in order, don't care about function results.
 %% If a call returns stop, no more calls are performed.
+-spec run(Hook :: atom(),
+          Args :: [any()]) -> ok.
 run(Hook, Args) ->
     run(Hook, global, Args).
 
+-spec run(Hook :: atom(),
+          Host :: ejabberd:server(),
+          Args :: [any()]) -> ok.
 run(Hook, Host, Args) ->
     case ets:lookup(hooks, {Hook, Host}) of
-	[{_, Ls}] ->
-	    run1(Ls, Hook, Args);
-	[] ->
-	    ok
+        [{_, Ls}] ->
+            run1(Ls, Hook, Args);
+        [] ->
+            ok
     end.
 
 %% @spec (Hook::atom(), Val, Args) -> Val | stopped | NewVal
@@ -138,10 +182,10 @@ run_fold(Hook, Val, Args) ->
 
 run_fold(Hook, Host, Val, Args) ->
     case ets:lookup(hooks, {Hook, Host}) of
-	[{_, Ls}] ->
-	    run_fold1(Ls, Hook, Val, Args);
-	[] ->
-	    Val
+        [{_, Ls}] ->
+            run_fold1(Ls, Hook, Val, Args);
+        [] ->
+            Val
     end.
 
 %%%----------------------------------------------------------------------
@@ -170,59 +214,59 @@ init([]) ->
 %%----------------------------------------------------------------------
 handle_call({add, Hook, Host, Module, Function, Seq}, _From, State) ->
     Reply = case ets:lookup(hooks, {Hook, Host}) of
-		[{_, Ls}] ->
-		    El = {Seq, Module, Function},
-		    case lists:member(El, Ls) of
-			true ->
-			    ok;
-			false ->
-			    NewLs = lists:merge(Ls, [El]),
-			    ets:insert(hooks, {{Hook, Host}, NewLs}),
-			    ok
-		    end;
-		[] ->
-		    NewLs = [{Seq, Module, Function}],
-		    ets:insert(hooks, {{Hook, Host}, NewLs}),
-		    ok
-	    end,
+                [{_, Ls}] ->
+                    El = {Seq, Module, Function},
+                    case lists:member(El, Ls) of
+                        true ->
+                            ok;
+                        false ->
+                            NewLs = lists:merge(Ls, [El]),
+                            ets:insert(hooks, {{Hook, Host}, NewLs}),
+                            ok
+                    end;
+                [] ->
+                    NewLs = [{Seq, Module, Function}],
+                    ets:insert(hooks, {{Hook, Host}, NewLs}),
+                    ok
+            end,
     {reply, Reply, State};
 handle_call({add, Hook, Host, Node, Module, Function, Seq}, _From, State) ->
     Reply = case ets:lookup(hooks, {Hook, Host}) of
-		[{_, Ls}] ->
-		    El = {Seq, Node, Module, Function},
-		    case lists:member(El, Ls) of
-			true ->
-			    ok;
-			false ->
-			    NewLs = lists:merge(Ls, [El]),
-			    ets:insert(hooks, {{Hook, Host}, NewLs}),
-			    ok
-		    end;
-		[] ->
-		    NewLs = [{Seq, Node, Module, Function}],
-		    ets:insert(hooks, {{Hook, Host}, NewLs}),
-		    ok
-	    end,
+                [{_, Ls}] ->
+                    El = {Seq, Node, Module, Function},
+                    case lists:member(El, Ls) of
+                        true ->
+                            ok;
+                        false ->
+                            NewLs = lists:merge(Ls, [El]),
+                            ets:insert(hooks, {{Hook, Host}, NewLs}),
+                            ok
+                    end;
+                [] ->
+                    NewLs = [{Seq, Node, Module, Function}],
+                    ets:insert(hooks, {{Hook, Host}, NewLs}),
+                    ok
+            end,
     {reply, Reply, State};
 handle_call({delete, Hook, Host, Module, Function, Seq}, _From, State) ->
     Reply = case ets:lookup(hooks, {Hook, Host}) of
-		[{_, Ls}] ->
-		    NewLs = lists:delete({Seq, Module, Function}, Ls),
-		    ets:insert(hooks, {{Hook, Host}, NewLs}),
-		    ok;
-		[] ->
-		    ok
-	    end,
+                [{_, Ls}] ->
+                    NewLs = lists:delete({Seq, Module, Function}, Ls),
+                    ets:insert(hooks, {{Hook, Host}, NewLs}),
+                    ok;
+                [] ->
+                    ok
+            end,
     {reply, Reply, State};
 handle_call({delete, Hook, Host, Node, Module, Function, Seq}, _From, State) ->
     Reply = case ets:lookup(hooks, {Hook, Host}) of
-		[{_, Ls}] ->
-		    NewLs = lists:delete({Seq, Node, Module, Function}, Ls),
-		    ets:insert(hooks, {{Hook, Host}, NewLs}),
-		    ok;
-		[] ->
-		    ok
-	    end,
+                [{_, Ls}] ->
+                    NewLs = lists:delete({Seq, Node, Module, Function}, Ls),
+                    ets:insert(hooks, {{Hook, Host}, NewLs}),
+                    ok;
+                [] ->
+                    ok
+            end,
     {reply, Reply, State};
 handle_call(_Request, _From, State) ->
     Reply = ok,
@@ -266,38 +310,38 @@ run1([], _Hook, _Args) ->
     ok;
 run1([{_Seq, Node, Module, Function} | Ls], Hook, Args) ->
     case rpc:call(Node, Module, Function, Args, ?TIMEOUT_DISTRIBUTED_HOOK) of
-	timeout ->
-	    ?ERROR_MSG("Timeout on RPC to ~p~nrunning hook: ~p",
-		       [Node, {Hook, Args}]),
-	    run1(Ls, Hook, Args);
-	{badrpc, Reason} ->
-	    ?ERROR_MSG("Bad RPC error to ~p: ~p~nrunning hook: ~p",
-		       [Node, Reason, {Hook, Args}]),
-	    run1(Ls, Hook, Args);
-	stop ->
-	    ?INFO_MSG("~nThe process ~p in node ~p ran a hook in node ~p.~n"
-		      "Stop.", [self(), node(), Node]), % debug code
-	    ok;
-	Res ->
-	    ?INFO_MSG("~nThe process ~p in node ~p ran a hook in node ~p.~n"
-		      "The response is:~n~s", [self(), node(), Node, Res]), % debug code
-	    run1(Ls, Hook, Args)
+        timeout ->
+            ?ERROR_MSG("Timeout on RPC to ~p~nrunning hook: ~p",
+                       [Node, {Hook, Args}]),
+            run1(Ls, Hook, Args);
+        {badrpc, Reason} ->
+            ?ERROR_MSG("Bad RPC error to ~p: ~p~nrunning hook: ~p",
+                       [Node, Reason, {Hook, Args}]),
+            run1(Ls, Hook, Args);
+        stop ->
+            ?INFO_MSG("~nThe process ~p in node ~p ran a hook in node ~p.~n"
+                      "Stop.", [self(), node(), Node]), % debug code
+            ok;
+        Res ->
+            ?INFO_MSG("~nThe process ~p in node ~p ran a hook in node ~p.~n"
+                      "The response is:~n~s", [self(), node(), Node, Res]), % debug code
+            run1(Ls, Hook, Args)
     end;
 run1([{_Seq, Module, Function} | Ls], Hook, Args) ->
     Res = if is_function(Function) ->
-		  catch apply(Function, Args);
-	     true ->
-		  catch apply(Module, Function, Args)
-	  end,
+                  catch apply(Function, Args);
+             true ->
+                  catch apply(Module, Function, Args)
+          end,
     case Res of
-	{'EXIT', Reason} ->
-	    ?ERROR_MSG("~p~n    Running hook: ~p~n    Callback: ~p:~p",
-		       [Reason, {Hook, Args}, Module, Function]),
-	    run1(Ls, Hook, Args);
-	stop ->
-	    ok;
-	_ ->
-	    run1(Ls, Hook, Args)
+        {'EXIT', Reason} ->
+            ?ERROR_MSG("~p~n    Running hook: ~p~n    Callback: ~p:~p",
+                       [Reason, {Hook, Args}, Module, Function]),
+            run1(Ls, Hook, Args);
+        stop ->
+            ok;
+        _ ->
+            run1(Ls, Hook, Args)
     end.
 
 
@@ -305,40 +349,40 @@ run_fold1([], _Hook, Val, _Args) ->
     Val;
 run_fold1([{_Seq, Node, Module, Function} | Ls], Hook, Val, Args) ->
     case rpc:call(Node, Module, Function, [Val | Args], ?TIMEOUT_DISTRIBUTED_HOOK) of
-	{badrpc, Reason} ->
-	    ?ERROR_MSG("Bad RPC error to ~p: ~p~nrunning hook: ~p",
-		       [Node, Reason, {Hook, Args}]),
-	    run_fold1(Ls, Hook, Val, Args);
-	timeout ->
-	    ?ERROR_MSG("Timeout on RPC to ~p~nrunning hook: ~p",
-		       [Node, {Hook, Args}]),
-	    run_fold1(Ls, Hook, Val, Args);
-	stop ->
-	    stopped;
-	{stop, NewVal} ->
-	    ?INFO_MSG("~nThe process ~p in node ~p ran a hook in node ~p.~n"
-		      "Stop, and the NewVal is:~n~p", [self(), node(), Node, NewVal]), % debug code
-	    NewVal;
-	NewVal ->
-	    ?INFO_MSG("~nThe process ~p in node ~p ran a hook in node ~p.~n"
-		      "The NewVal is:~n~p", [self(), node(), Node, NewVal]), % debug code
-	    run_fold1(Ls, Hook, NewVal, Args)
+        {badrpc, Reason} ->
+            ?ERROR_MSG("Bad RPC error to ~p: ~p~nrunning hook: ~p",
+                       [Node, Reason, {Hook, Args}]),
+            run_fold1(Ls, Hook, Val, Args);
+        timeout ->
+            ?ERROR_MSG("Timeout on RPC to ~p~nrunning hook: ~p",
+                       [Node, {Hook, Args}]),
+            run_fold1(Ls, Hook, Val, Args);
+        stop ->
+            stopped;
+        {stop, NewVal} ->
+            ?INFO_MSG("~nThe process ~p in node ~p ran a hook in node ~p.~n"
+                      "Stop, and the NewVal is:~n~p", [self(), node(), Node, NewVal]), % debug code
+            NewVal;
+        NewVal ->
+            ?INFO_MSG("~nThe process ~p in node ~p ran a hook in node ~p.~n"
+                      "The NewVal is:~n~p", [self(), node(), Node, NewVal]), % debug code
+            run_fold1(Ls, Hook, NewVal, Args)
     end;
 run_fold1([{_Seq, Module, Function} | Ls], Hook, Val, Args) ->
     Res = if is_function(Function) ->
-		  catch apply(Function, [Val | Args]);
-	     true ->
-		  catch apply(Module, Function, [Val | Args])
-	  end,
+                  catch apply(Function, [Val | Args]);
+             true ->
+                  catch apply(Module, Function, [Val | Args])
+          end,
     case Res of
-	{'EXIT', Reason} ->
-	    ?ERROR_MSG("~p~nrunning hook: ~p",
-		       [Reason, {Hook, Args}]),
-	    run_fold1(Ls, Hook, Val, Args);
-	stop ->
-	    stopped;
-	{stop, NewVal} ->
-	    NewVal;
-	NewVal ->
-	    run_fold1(Ls, Hook, NewVal, Args)
+        {'EXIT', Reason} ->
+            ?ERROR_MSG("~p~nrunning hook: ~p",
+                       [Reason, {Hook, Args}]),
+            run_fold1(Ls, Hook, Val, Args);
+        stop ->
+            stopped;
+        {stop, NewVal} ->
+            NewVal;
+        NewVal ->
+            run_fold1(Ls, Hook, NewVal, Args)
     end.

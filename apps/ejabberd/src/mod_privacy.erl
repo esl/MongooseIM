@@ -44,6 +44,9 @@
 
 -define(BACKEND, (mod_privacy_backend:backend())).
 
+-export_type([userlist/0]).
+
+-type userlist() :: #userlist{}.
 -type list_name() :: binary().
 -type list_item() :: #listitem{}.
 
@@ -144,7 +147,6 @@ stop(Host) ->
               ?MODULE, remove_user, 50),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_PRIVACY).
 
-
 %% Dynamic modules
 %% ------------------------------------------------------------------
 
@@ -157,7 +159,7 @@ start_backend_module(Opts) ->
 mod_privacy_backend(Backend) when is_atom(Backend) ->
     lists:flatten(
       ["-module(mod_privacy_backend).
-        -export([backend/0]).  
+        -export([backend/0]).
         -spec backend() -> atom().
         backend() ->
         mod_privacy_",

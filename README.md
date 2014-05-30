@@ -1,4 +1,4 @@
-MongooseIM  [![](http://opensource.erlang-solutions.com/mongooseim/icon.png "Build status")](http://opensource.erlang-solutions.com/mongooseim/ct_report/all_runs.html) [![Build Status](https://travis-ci.org/esl/MongooseIM.svg)](https://travis-ci.org/esl/MongooseIM)
+MongooseIM  [![](http://opensource.erlang-solutions.com/mongooseim/icon.png "Build status")](http://opensource.erlang-solutions.com/mongooseim/ct_report/all_runs.html) [![Build Status](https://travis-ci.org/esl/MongooseIM.svg?branch=master)](https://travis-ci.org/esl/MongooseIM)
 ============
 MongooseIM (previously esl-ejabberd) is Erlang Solutions' robust and efficient XMPP
 server aimed at large installations. Specifically designed for enterprise purposes,
@@ -106,7 +106,7 @@ How to build
 
     For testing purposes there's a different make target available:
 
-        $ make testrel
+        $ make devrel
 
     which will generate releases in `$REPO/dev/` and prepare
     them for testing and generating coverage reports.
@@ -114,10 +114,9 @@ How to build
     To run the tests (from project's root directory, i.e. `$REPO`):
 
         $ cd test
-        $ make cover_test
+        $ make quicktest
 
-    The test results will show up in the console and a coverage report will
-    be generated in `$REPO/test/ct_report/cover.html`.
+    The test results will show up in the console`.
 
 
 MongooseIM documentation notice
@@ -134,6 +133,8 @@ Don't forget to check out our [wiki](https://github.com/esl/MongooseIM/wiki) - h
 
 Want to get in touch with us?
 -----------------------------
-In case of any suggestions, questions or any random thoughts on this project,
+In case of any suggestions, questions or any thoughts on this project,
 please feel free to contact us by the standard GitHub ways or at
 <a href='mailto:mongoose-im@erlang-solutions.com'>mongoose-im@erlang-solutions.com</a>.
+
+Want to discuss MongooseIM, problems with your deployement or anything else? Try: <a href='https://erlangcentral.org/forum/mongooseim/'>https://erlangcentral.org/forum/mongooseim/</a>.

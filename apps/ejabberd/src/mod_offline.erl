@@ -298,7 +298,20 @@ store_packet(
         From,
         To = #jid{luser = LUser, lserver = LServer},
         Packet = #xmlel{children = Els}) ->
-    TimeStamp = now(),
+    TimeStamp =
+    case xml:get_subtag(Packet, <<"delay">>) of
+        false ->
+            now();
+
+        #xmlel{name= <<"delay">>, attrs=Attr} ->
+            case xml:get_attr_s(<<"stamp">>, Attr) of
+                <<"">> ->
+                    now();
+                Stamp ->
+                    jlib:datetime_string_to_timestamp(binary_to_list(Stamp))
+            end
+    end,
+
     Expire = find_x_expire(TimeStamp, Els),
     Pid = srv_name(LServer),
     Msg = #offline_msg{us = {LUser, LServer},
@@ -306,7 +319,7 @@ store_packet(
              expire = Expire,
              from = From,
              to = To,
-             packet = Packet},
+             packet = jlib:remove_delay_tags(Packet)},
     Pid ! Msg,
     ok.
 
@@ -446,8 +459,9 @@ resend_offline_message_packet(Server,
 
 add_timestamp(undefined, _Server, Packet) ->
     Packet;
-add_timestamp(TimeStamp, Server, Packet) ->
-    Time = calendar:now_to_universal_time(TimeStamp),
+add_timestamp({_,_,Micro} = TimeStamp, Server, Packet) ->
+    {D,{H,M,S}} = calendar:now_to_universal_time(TimeStamp),
+    Time = {D,{H,M,S, Micro}},
     %% TODO: Delete the next element once XEP-0091 is Obsolete
     TimeStampLegacyXML = timestamp_legacy_xml(Server, Time),
     TimeStampXML = jlib:timestamp_to_xml(Time),
@@ -476,3 +490,4 @@ discard_warn_sender(Msgs) ->
 		      Packet, ?ERRT_RESOURCE_CONSTRAINT(Lang, ErrText)),
 	      ejabberd_router:route(To, From, Err)
       end, Msgs).
+

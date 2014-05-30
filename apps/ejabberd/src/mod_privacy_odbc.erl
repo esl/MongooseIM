@@ -318,11 +318,6 @@ sql_get_privacy_list_id_t(LUser, Name) ->
     SName = ejabberd_odbc:escape(Name),
     odbc_queries:get_privacy_list_id_t(Username, SName).
 
-sql_get_privacy_list_data(LUser, LServer, Name) ->
-    Username = ejabberd_odbc:escape(LUser),
-    SName = ejabberd_odbc:escape(Name),
-    odbc_queries:get_privacy_list_data(LServer, Username, SName).
-
 sql_get_privacy_list_data_by_id(ID, LServer) ->
     odbc_queries:get_privacy_list_data_by_id(LServer, ID).
 

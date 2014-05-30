@@ -15,7 +15,10 @@
 %% API
 %%====================================================================
 
--record(node, {name, id}).
+-type nodeid() :: non_neg_integer().
+-record(node, {name :: atom(),
+               id :: nodeid()
+              }).
 
 start() ->
     mnesia:create_table(node,
@@ -26,6 +29,7 @@ start() ->
     register_node(node()),
     ok.
 
+-spec register_node(atom()) -> 'ok'.
 register_node(NodeName) ->
     {atomic, _} = mnesia:transaction(fun() ->
         case mnesia:read(node, NodeName) of
@@ -37,7 +41,7 @@ register_node(NodeName) ->
     ok.
 
 %% @doc Return an integer node ID.
--spec node_id() -> non_neg_integer().
+-spec node_id() -> {ok, nodeid()}.
 node_id() ->
     %% Save result into the process's memory space.
     case get(node_id) of
@@ -49,13 +53,16 @@ node_id() ->
             {ok, NodeId}
     end.
 
-
+-spec next_node_id() -> nodeid().
 next_node_id() ->
     max_node_id() + 1.
 
+-spec max_node_id() -> nodeid().
 max_node_id() ->
     mnesia:foldl(fun(#node{id=Id}, Max) -> max(Id, Max) end, 0, node).
 
+-spec select_node_id(NodeName :: atom()
+                    ) -> {'error','not_found'} | {'ok',nodeid()}.
 select_node_id(NodeName) ->
     case mnesia:dirty_read(node, NodeName) of
         [#node{id=Id}] -> {ok, Id};

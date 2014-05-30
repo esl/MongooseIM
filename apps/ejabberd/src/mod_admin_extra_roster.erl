@@ -45,10 +45,31 @@
 -include("jlib.hrl").
 -include_lib("exml/include/exml.hrl").
 
+-type simple_roster() :: {User :: ejabberd:user(),
+                         Server :: ejabberd:server(),
+                         Group :: binary(),
+                         Nick :: binary()}.
+-type jids_nick_subs_ask_grp() :: {Jids :: list(),
+                                   Nick :: binary(),
+                                   Subs :: subs(),
+                                   _Ask,
+                                   _Group}.
+-type subs() :: atom() | binary().
+-type push_action() :: 'remove'
+                     | {'add', Nick :: binary(), Subs :: subs(),
+                               Group :: binary() | string()}.
+
+-type delete_action() :: {'delete', Subs :: [atom()], Asks :: [atom()],
+                                    ejabberd:user(), Contact:: binary()}.
+-type list_action() :: {'list', Subs :: [atom()], Asks :: [atom()],
+                                ejabberd:user(), Contact:: binary()}.
+
+
 %%%
 %%% Register commands
 %%%
 
+-spec commands() -> [ejabberd_commands:cmd(),...].
 commands() ->
     [
         #ejabberd_commands{name = add_rosteritem, tags = [roster],
@@ -133,6 +154,13 @@ commands() ->
 %%% Roster
 %%%
 
+-spec add_rosteritem(LocalUser :: ejabberd:user(),
+                     LocalServer :: ejabberd:server(),
+                     User :: ejabberd:user(),
+                     Server :: ejabberd:server(),
+                     Nick :: binary(),
+                     Group :: binary() | string(),
+                     Subs :: subs()) -> 'error' | 'ok'.
 add_rosteritem(LocalUser, LocalServer, User, Server, Nick, Group, Subs) ->
     case subscribe(LocalUser, LocalServer, User, Server, Nick, Group, Subs, []) of
         {atomic, ok} ->
@@ -142,6 +170,16 @@ add_rosteritem(LocalUser, LocalServer, User, Server, Nick, Group, Subs) ->
             error
     end.
 
+
+%% @doc returns result of mnesia or odbc transaction
+-spec subscribe(LocalUser :: ejabberd:user(),
+                LocalServer :: ejabberd:server(),
+                User :: ejabberd:user(),
+                Server :: ejabberd:server(),
+                Nick :: binary(),
+                Group :: binary() | string(),
+                Subs :: subs(),
+                _Xattrs :: [jlib:binary_pair()]) -> any().
 subscribe(LU, LS, User, Server, Nick, Group, SubscriptionS, _Xattrs) ->
     ItemEl = build_roster_item(User, Server, {add, Nick, SubscriptionS, Group}),
     {ok, M} = loaded_module(LS,[mod_roster_odbc,mod_roster]),
@@ -151,6 +189,11 @@ subscribe(LU, LS, User, Server, Nick, Group, SubscriptionS, _Xattrs) ->
                attrs = [{<<"xmlns">>,<<"jabber:iq:roster">>}],
                children = [ItemEl]}).
 
+
+-spec delete_rosteritem(LocalUser :: ejabberd:user(),
+                        LocalServer :: ejabberd:server(),
+                        User :: ejabberd:user(),
+                        Server :: ejabberd:server()) -> ok | error.
 delete_rosteritem(LocalUser, LocalServer, User, Server) ->
     case unsubscribe(LocalUser, LocalServer, User, Server) of
         {atomic, ok} ->
@@ -160,6 +203,12 @@ delete_rosteritem(LocalUser, LocalServer, User, Server) ->
             error
     end.
 
+
+%% @doc returns result of mnesia or odbc transaction
+-spec unsubscribe(LocalUser :: ejabberd:user(),
+                  LocalServer :: ejabberd:server(),
+                  User :: ejabberd:user(),
+                  Server :: ejabberd:server()) -> any().
 unsubscribe(LU, LS, User, Server) ->
     ItemEl = build_roster_item(User, Server, remove),
     {ok, M} = loaded_module(LS,[mod_roster_odbc,mod_roster]),
@@ -169,6 +218,10 @@ unsubscribe(LU, LS, User, Server) ->
                attrs = [{<<"xmlns">>,<<"jabber:iq:roster">>}],
                children = [ItemEl]}).
 
+
+-spec loaded_module(Domain :: binary(),
+                    Options :: ['mod_roster' | 'mod_roster_odbc',...])
+            -> {'error','not_found'} | {'ok','mod_roster' | 'mod_roster_odbc'}.
 loaded_module(Domain,Options) ->
     LoadedModules = gen_mod:loaded_modules(Domain),
     case lists:filter(fun(Module) ->
@@ -182,12 +235,15 @@ loaded_module(Domain,Options) ->
 %% Get Roster
 %% -----------------------------
 
+-spec get_roster(ejabberd:user(), ejabberd:server()) -> [jids_nick_subs_ask_grp()].
 get_roster(User, Server) ->
     Items = ejabberd_hooks:run_fold(roster_get, Server, [], [{User, Server}]),
     make_roster_xmlrpc(Items).
 
-%% Note: if a contact is in several groups, the contact is returned
+
+%% @doc Note: if a contact is in several groups, the contact is returned
 %% several times, each one in a different group.
+-spec make_roster_xmlrpc([mod_roster:roster()]) -> [jids_nick_subs_ask_grp()].
 make_roster_xmlrpc(Roster) ->
     lists:foldl(
         fun(Item, Res) ->
@@ -211,21 +267,28 @@ make_roster_xmlrpc(Roster) ->
 %% Push Roster from file
 %%-----------------------------
 
+-spec push_roster(file:name(), ejabberd:user(), ejabberd:server()) -> 'ok'.
 push_roster(File, User, Server) ->
     {ok, [Roster]} = file:consult(File),
     subscribe_roster({User, Server, "", User}, roster_list_to_binary(Roster)).
 
+
+-spec push_roster_all(file:name()) -> 'ok'.
 push_roster_all(File) ->
     {ok, [Roster]} = file:consult(File),
     subscribe_all(roster_list_to_binary(Roster)).
 
-roster_list_to_binary(Roster) ->
-    [ {
-            list_to_binary(Usr),
-            list_to_binary(Srv),
-            list_to_binary(Grp),
-            list_to_binary(Nick) } || {Usr, Srv, Grp, Nick} <- Roster ].
 
+-spec roster_list_to_binary([mod_roster:roster()]) -> [simple_roster()].
+roster_list_to_binary(Roster) ->
+    [{
+        list_to_binary(Usr),
+        list_to_binary(Srv),
+        list_to_binary(Grp),
+        list_to_binary(Nick)} || {Usr, Srv, Grp, Nick} <- Roster].
+
+
+-spec subscribe_all([simple_roster()]) -> 'ok'.
 subscribe_all(Roster) ->
     subscribe_all(Roster, Roster).
 subscribe_all([], _) ->
@@ -234,6 +297,8 @@ subscribe_all([User1 | Users], Roster) ->
     subscribe_roster(User1, Roster),
     subscribe_all(Users, Roster).
 
+
+-spec subscribe_roster(simple_roster(), [simple_roster()]) -> 'ok'.
 subscribe_roster(_, []) ->
     ok;
 %% Do not subscribe a user to itself
@@ -244,26 +309,38 @@ subscribe_roster({Name1, Server1, Group1, Nick1}, [{Name2, Server2, Group2, Nick
     subscribe(Name1, Server1, Name2, Server2, Nick2, Group2, <<"both">>, []),
     subscribe_roster({Name1, Server1, Group1, Nick1}, Roster).
 
+
+-spec push_alltoall(ejabberd:server(), binary()) -> 'ok'.
 push_alltoall(S, G) ->
     Users = ejabberd_auth:get_vh_registered_users(S),
     Users2 = build_list_users(G, Users, []),
     subscribe_all(Users2),
     ok.
 
+
+-spec build_list_users(Group :: binary(),
+                       [ejabberd:simple_bare_jid()],
+                       Res :: [simple_roster()]) -> [].
 build_list_users(_Group, [], Res) ->
     Res;
 build_list_users(Group, [{User, Server}|Users], Res) ->
     build_list_users(Group, Users, [{User, Server, Group, User}|Res]).
 
+
 %% @spec(LU, LS, U, S, Action) -> ok
 %%       Action = {add, Nick, Subs, Group} | remove
 %% @doc Push to the roster of account LU@LS the contact U@S.
 %% The specific action to perform is defined in Action.
+-spec push_roster_item(ejabberd:luser(), ejabberd:lserver(), ejabberd:user(),
+        ejabberd:server(), Action :: push_action()) -> 'ok'.
 push_roster_item(LU, LS, U, S, Action) ->
     lists:foreach(fun(R) ->
                 push_roster_item(LU, LS, R, U, S, Action)
         end, ejabberd_sm:get_user_resources(LU, LS)).
 
+
+-spec push_roster_item(ejabberd:luser(), ejabberd:lserver(), ejabberd:user(),
+        ejabberd:server(), R :: ejabberd:iq(), Action :: push_action()) -> 'ok'.
 push_roster_item(LU, LS, R, U, S, Action) ->
     LJID = jlib:make_jid(LU, LS, R),
     BroadcastEl = build_broadcast(U, S, Action),
@@ -272,6 +349,9 @@ push_roster_item(LU, LS, R, U, S, Action) ->
     ResIQ = build_iq_roster_push(Item),
     ejabberd_router:route(LJID, LJID, ResIQ).
 
+
+-spec build_roster_item(ejabberd:user(), ejabberd:server(), push_action()
+                       ) -> jlib:xmlel().
 build_roster_item(U, S, {add, Nick, Subs, Group}) ->
     #xmlel{ name = <<"item">>,
            attrs = [{<<"jid">>, jlib:jid_to_binary(jlib:make_jid(U, S, <<"">>))},
@@ -284,16 +364,19 @@ build_roster_item(U, S, remove) ->
            attrs = [{<<"jid">>, jlib:jid_to_binary(jlib:make_jid(U, S, <<"">>))},
                     {<<"subscription">>, <<"remove">>}]}.
 
+
+-spec build_iq_roster_push(jlib:xmlcdata() | jlib:xmlel()) -> jlib:xmlel().
 build_iq_roster_push(Item) ->
     #xmlel{ name = <<"iq">>,
            attrs = [{<<"type">>, <<"set">>}, {<<"id">>, <<"push">>}],
            children = [#xmlel{ name = <<"query">>, attrs = [{<<"xmlns">>, ?NS_ROSTER}], children = [Item]}] }.
 
+-spec build_broadcast(U :: ejabberd:user(), S :: ejabberd:server(),
+                      push_action()) -> jlib:xmlel().
 build_broadcast(U, S, {add, _Nick, Subs, _Group}) ->
     build_broadcast(U, S, list_to_existing_atom(binary_to_list(Subs)));
 build_broadcast(U, S, remove) ->
     build_broadcast(U, S, none);
-%% @spec (U::binary(), S::binary(), Subs::atom()) -> any()
 %% Subs = both | from | to | none
 build_broadcast(U, S, SubsAtom) when is_atom(SubsAtom) ->
     #xmlel{ name = <<"broadcast">>, children = [{item, {U, S, ""}, SubsAtom}] }.
@@ -302,6 +385,8 @@ build_broadcast(U, S, SubsAtom) when is_atom(SubsAtom) ->
 %% Purge roster items
 %%-----------------------------
 
+-spec process_rosteritems(Act :: string(), SubsS :: string(), AsksS :: string(),
+        UsersS :: string(), ContactsS :: string()) -> 'ok'.
 process_rosteritems(ActionS, SubsS, AsksS, UsersS, ContactsS) ->
     Action = case ActionS of
         "list" -> list;
@@ -351,7 +436,8 @@ process_rosteritems(ActionS, SubsS, AsksS, UsersS, ContactsS) ->
             error
     end.
 
-%% @spec ({Action::atom(), Subs::[atom()], Asks::[atom()], User::binary(), Contact::binary()}) -> {atomic, ok}
+
+-spec rosteritem_purge(delete_action() | list_action()) -> {'atomic','ok'}.
 rosteritem_purge(Options) ->
     Num_rosteritems = mnesia:table_info(roster, size),
     io:format("There are ~p roster items in total.~n", [Num_rosteritems]),
@@ -359,6 +445,9 @@ rosteritem_purge(Options) ->
     ok = rip(Key, Options, {0, Num_rosteritems, 0, 0}),
     {atomic, ok}.
 
+
+-spec rip(atom() | any(), delete_action() | list_action(),
+         {integer(),number(),non_neg_integer(),non_neg_integer()}) -> 'ok'.
 rip('$end_of_table', _Options, Counters) ->
     print_progress_line(Counters),
     ok;

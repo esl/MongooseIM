@@ -18,19 +18,25 @@
 %%% 02111-1307 USA
 %%%
 %%%----------------------------------------------------------------------
+-ifndef(MONGOOSEIM_ADHOC_HRL).
+-define(MONGOOSEIM_ADHOC_HRL, true).
 
--record(adhoc_request, {lang,
-			node,
-			sessionid,
-			action,
-			xdata,
-			others}).
+-record(adhoc_request, {lang :: ejabberd:lang(),
+                        node :: ejabberd:server(),
+                        sessionid :: binary(),
+                        action :: binary(),
+                        xdata :: jlib:xmlel(),
+                        others
+                       }).
 
--record(adhoc_response, {lang,
-			 node,
-			 sessionid,
-			 status,
-			 defaultaction = "",
-			 actions = [],
-			 notes = [],
-			 elements = []}).
+-record(adhoc_response, {lang :: ejabberd:lang(),
+                         node :: ejabberd:server(),
+                         sessionid :: binary(),
+                         status :: atom(),
+                         defaultaction = "" :: string(),
+                         actions = [],
+                         notes = [] :: [tuple()],
+                         elements = [] :: [jlib:xmlel()]
+                        }).
+
+-endif.

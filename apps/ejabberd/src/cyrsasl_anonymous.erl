@@ -34,23 +34,31 @@
 -record(state, {server}).
 
 start(_Opts) ->
-    cyrsasl:register_mechanism(<<"ANONYMOUS">>, ?MODULE, false),
+    cyrsasl:register_mechanism(<<"ANONYMOUS">>, ?MODULE, plain),
     ok.
 
 stop() ->
     ok.
 
+-spec mech_new(Host :: ejabberd:server(),
+               GetPassword :: cyrsasl:get_password_fun(),
+               CheckPassword :: cyrsasl:check_password_fun(),
+               CheckPasswordDigest :: cyrsasl:check_pass_digest_fun()
+               ) -> {ok, tuple()}.
 mech_new(Host, _GetPassword, _CheckPassword, _CheckPasswordDigest) ->
     {ok, #state{server = Host}}.
 
+-spec mech_step(State :: tuple(),
+                ClientIn :: binary()
+                ) -> {ok, proplists:proplist()} | {error, binary()}.
 mech_step(State, _ClientIn) ->
     %% We generate a random username:
     User = list_to_binary(lists:concat([randoms:get_string() | tuple_to_list(now())])),
     Server = State#state.server,
-    
+
     %% Checks that the username is available
     case ejabberd_auth:is_user_exists(User, Server) of
-	true  -> {error, <<"not-authorized">>};
-	false -> {ok, [{username, User},
-		       {auth_module, ejabberd_auth_anonymous}]}
+        true  -> {error, <<"not-authorized">>};
+        false -> {ok, [{username, User},
+                       {auth_module, ejabberd_auth_anonymous}]}
     end.

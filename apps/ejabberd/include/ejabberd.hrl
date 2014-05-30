@@ -18,6 +18,8 @@
 %%% 02111-1307 USA
 %%%
 %%%----------------------------------------------------------------------
+-ifndef(MONGOOSEIM_EJABBERD_HRL).
+-define(MONGOOSEIM_EJABBERD_HRL, true).
 
 %% This macro returns a string of the ejabberd version running, e.g. "2.3.4"
 %% If the ejabberd application description isn't loaded, returns atom: undefined
@@ -59,15 +61,26 @@
 -define(CRITICAL_MSG(Format, Args),
     lager:critical(Format, Args)).
 
--record(session, {sid :: tuple(),
-                  usr :: {binary(), binary(), binary()},
-                  us :: {binary(), binary()},
+-record(session, {sid      :: ejabberd_sm:sid(),
+                  usr      :: ejabberd:simple_jid(),
+                  us       :: ejabberd:simple_bare_jid(),
                   priority :: integer(),
-                  info :: list()}).
+                  info     :: list()
+                 }).
 
 -ifdef(no_binary_to_integer).
 
 -import(ejabberd_binary, [binary_to_integer/1,
                           integer_to_binary/1]).
 
--endif.
+-endif. % ifdef no_binary_to_integer
+
+-record(scram,
+        {storedkey = <<"">>,
+         serverkey = <<"">>,
+         salt = <<"">>,
+         iterationcount = 0 :: integer()}).
+
+-type scram() :: #scram{}.
+
+-endif. % ifdef MONGOOSEIM_EJABBERD_HRL

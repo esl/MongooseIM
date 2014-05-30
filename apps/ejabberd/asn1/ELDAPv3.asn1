@@ -286,7 +286,7 @@ ExtendedResponse ::= [APPLICATION 24] SEQUENCE {
         responseName     [10] LDAPOID OPTIONAL,
         response         [11] OCTET STRING OPTIONAL }
 
-passwdModifyOID LDAPOID ::= "1.3.6.1.4.1.4203.1.11.1"
+passwdModifyOID LDAPOID ::= '312E332E362E312E342E312E343230332E312E31312E31'H
 
 PasswdModifyRequestValue ::= SEQUENCE {
         userIdentity    [0]  OCTET STRING OPTIONAL,

@@ -20,14 +20,14 @@
 %%%----------------------------------------------------------------------
 
 -record(roster, {usj,
-		 us,
-		 jid,
-		 name = <<>>,
-		 subscription = none,
-		 ask = none,
-		 groups = [],
-		 askmessage = <<>>,
-		 xs = []}).
+                 us,
+                 jid,
+                 name = <<>>,
+                 subscription = none,
+                 ask = none,
+                 groups = [],
+                 askmessage = <<>>,
+                 xs = []}).
 
 -record(roster_version, {us,
-			version}).
+                        version}).
