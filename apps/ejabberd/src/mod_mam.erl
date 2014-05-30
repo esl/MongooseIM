@@ -734,7 +734,7 @@ elem_to_start_microseconds(El) ->
 
 -spec elem_to_end_microseconds(_) -> 'undefined' | non_neg_integer().
 elem_to_end_microseconds(El) ->
-    maybe_microseconds(xml:get_path_s(El, [{elem, <<"start">>}, cdata])).
+    maybe_microseconds(xml:get_path_s(El, [{elem, <<"end">>}, cdata])).
 
 
 -spec elem_to_with_jid(jlib:xmlel()) -> 'error' | 'undefined' | ejabberd:jid().
