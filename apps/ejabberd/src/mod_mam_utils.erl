@@ -44,6 +44,8 @@
 
 %% Other
 -export([maybe_integer/2,
+         maybe_min/2,
+         maybe_max/2,
          is_function_exist/3,
          apply_start_border/2,
          apply_end_border/2]).
@@ -52,7 +54,6 @@
 -export([send_message/3,
          is_jid_in_user_roster/2]).
 
-%-define(MAM_ARCHIVE_PRESENCE, true).
 %-define(MAM_INLINE_UTILS, true).
 
 -ifdef(MAM_INLINE_UTILS).
@@ -62,9 +63,11 @@
         now_to_microseconds/1,
         iso8601_datetime_binary_to_timestamp/1,
         is_archived_elem_for/2,
+        is_valid_message/3,
+        is_valid_message_type/3,
+        is_valid_message_children/3,
         encode_compact_uuid/2,
         get_one_of_path/3,
-        is_incoming_presence/3,
         delay/2,
         forwarded/3,
         result/3,
@@ -174,7 +177,7 @@ decode_compact_uuid(Id) ->
 %% @doc Encode a message ID to pass it to the user.
 -spec mess_id_to_external_binary(integer()) -> binary().
 mess_id_to_external_binary(MessID) when is_integer(MessID) ->
-    list_to_binary(integer_to_list(MessID, 36)).
+    list_to_binary(integer_to_list(MessID, 32)).
 
 
 -spec maybe_external_binary_to_mess_id('undefined' | binary())
@@ -190,7 +193,7 @@ maybe_external_binary_to_mess_id(BExtMessID) ->
 %% @doc Decode a message ID received from the user.
 -spec external_binary_to_mess_id(binary()) -> integer().
 external_binary_to_mess_id(BExtMessID) when is_binary(BExtMessID) ->
-    list_to_integer(binary_to_list(BExtMessID), 36).
+    list_to_integer(binary_to_list(BExtMessID), 32).
 
 %% -----------------------------------------------------------------------
 %% XML
@@ -246,41 +249,34 @@ get_one_of_path(_Elem, [], Def) ->
 %% @end
 -spec is_complete_message(Mod :: module(), Dir :: incoming | outgoing,
                           Packet :: jlib:xmlel()) -> boolean().
-is_complete_message(_, _, Packet=#xmlel{name = <<"message">>}) ->
-    case xml:get_tag_attr_s(<<"type">>, Packet) of
-    Type when Type == <<"">>;
-              Type == <<"normal">>;
-              Type == <<"chat">>;
-              Type == <<"groupchat">> ->
-        case {xml:get_subtag(Packet, <<"body">>),
-              %% Used in MAM
-              xml:get_subtag(Packet, <<"result">>),
-              %% Used in mod_offline
-              xml:get_subtag(Packet, <<"delay">>)} of
-            %% Forwarded by MAM message or just a message without body
-            {false, _,     _    } -> false;
-            {_,     false, false} -> true;
-            %% Forwarded by MAM message or delivered by mod_offline
-            %% See mam_SUITE:offline_message for a test case
-            {_,     _,     _    } -> false
-        end;
-    %% Skip <<"error">> type
-    _ -> false
-    end;
-is_complete_message(Mod, Dir, Packet) ->
-    is_incoming_presence(Mod, Dir, Packet).
+is_complete_message(Mod, Dir, Packet=#xmlel{name = <<"message">>}) ->
+    Type = xml:get_tag_attr_s(<<"type">>, Packet),
+    is_valid_message_type(Mod, Dir, Type) andalso
+    is_valid_message(Mod, Dir, Packet);
+is_complete_message(_, _, _) ->
+    false.
 
--ifdef(MAM_ARCHIVE_PRESENCE).
+is_valid_message_type(_, _, <<"">>)          -> true;
+is_valid_message_type(_, _, <<"normal">>)    -> true;
+is_valid_message_type(_, _, <<"chat">>)      -> true;
+is_valid_message_type(_, _, <<"groupchat">>) -> true;
+is_valid_message_type(_, _, <<"error">>)     -> false;
+is_valid_message_type(_, _, _)               -> false.
 
-is_incoming_presence(_, incoming, Packet=#xmlel{name = <<"presence">>}) ->
-    xml:get_subtag(Packet, <<"delay">>) == false;
-is_incoming_presence(_, _, _) -> false.
+is_valid_message(_Mod, _Dir, Packet) ->
+    Body     = xml:get_subtag(Packet, <<"body">>),
+    %% Used in MAM
+    Result   = xml:get_subtag(Packet, <<"result">>),
+    %% Used in mod_offline
+    Delay    = xml:get_subtag(Packet, <<"delay">>),
+    is_valid_message_children(Body, Result, Delay).
 
--else.
-
-is_incoming_presence(_, _, _) -> false.
-
--endif.
+%% Forwarded by MAM message or just a message without body
+is_valid_message_children(false, _,     _    ) -> false;
+is_valid_message_children(_,     false, false) -> true;
+%% Forwarded by MAM message or delivered by mod_offline
+%% See mam_SUITE:offline_message for a test case
+is_valid_message_children(_,      _,    _    ) -> false.
 
 
 -ifdef(MAM_COMPACT_FORWARDED).

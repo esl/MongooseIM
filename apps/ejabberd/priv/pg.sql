@@ -273,10 +273,20 @@ CREATE TABLE mam_user(
   id SERIAL UNIQUE PRIMARY KEY,
   user_name varchar(250) NOT NULL
 );
-CREATE INDEX i_mam_user_name
+CREATE UNIQUE INDEX i_mam_user_name
     ON mam_user
     USING BTREE
     (user_name);
+
+CREATE TABLE mam_server_user(
+  id SERIAL UNIQUE PRIMARY KEY,
+  server    varchar(250) NOT NULL
+  user_name varchar(250) NOT NULL
+);
+CREATE UNIQUE INDEX i_mam_server_user_name
+    ON mam_server_user
+    USING BTREE
+    (server, user_name);
 
 
 CREATE TABLE mam_muc_message(

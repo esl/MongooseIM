@@ -114,10 +114,6 @@
 %% ----------------------------------------------------------------------
 %% Constants
 
-mam_ns_string() -> "urn:xmpp:mam:tmp".
-
-mam_ns_binary() -> <<"urn:xmpp:mam:tmp">>.
-
 default_result_limit() -> 50.
 
 max_result_limit() -> 50.
@@ -244,8 +240,8 @@ start(ServerHost, Opts) ->
     start_host_mapping(Host, ServerHost),
     ?DEBUG("mod_mam_muc starting", []),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, parallel), %% Type
-    mod_disco:register_feature(Host, mam_ns_binary()),
-    gen_iq_handler:add_iq_handler(mod_muc_iq, Host, mam_ns_binary(),
+    mod_disco:register_feature(Host, ?NS_MAM),
+    gen_iq_handler:add_iq_handler(mod_muc_iq, Host, ?NS_MAM,
                                   ?MODULE, room_process_mam_iq, IQDisc),
     ejabberd_hooks:add(filter_room_packet, Host, ?MODULE,
                        filter_room_packet, 90),
@@ -263,8 +259,8 @@ stop(ServerHost) ->
     ejabberd_hooks:delete(filter_room_packet, Host, ?MODULE, filter_room_packet, 90),
     ejabberd_hooks:delete(archive_room_packet, Host, ?MODULE, archive_room_packet, 90),
     ejabberd_hooks:delete(forget_room, Host, ?MODULE, forget_room, 90),
-    gen_iq_handler:remove_iq_handler(mod_muc_iq, Host, mam_ns_string()),
-    mod_disco:unregister_feature(Host, mam_ns_binary()),
+    gen_iq_handler:remove_iq_handler(mod_muc_iq, Host, ?NS_MAM),
+    mod_disco:unregister_feature(Host, ?NS_MAM),
     stop_host_mapping(Host, ServerHost),
     ok.
 
@@ -291,9 +287,9 @@ stop_host_mapping(Host, ServerHost) ->
 
 -spec server_host(ejabberd:jid()) -> ejabberd:server().
 server_host(#jid{lserver=Host}) ->
-    [#mam_host{
-        server_host = ServerHost
-    }] = mnesia:dirty_read(mam_host, Host),
+    server_host_1(Host, mnesia:dirty_read(mam_host, Host)).
+
+server_host_1(_Host, [#mam_host{ server_host = ServerHost }]) ->
     ServerHost.
 
 %% ----------------------------------------------------------------------
@@ -359,8 +355,11 @@ room_process_mam_iq(From=#jid{lserver=Host}, To, IQ) ->
         true  ->
             case wait_shaper(Host, Action, From) of
                 ok ->
-                    handle_mam_iq(Action, From, To, IQ);
+                    handle_error_iq(Host, To, Action,
+                        handle_mam_iq(Action, From, To, IQ));
                 {error, max_delay_reached} ->
+                    ejabberd_hooks:run(mam_muc_drop_iq, Host,
+                        [Host, To, IQ, Action, max_delay_reached]),
                     return_max_delay_reached_error_iq(IQ)
             end;
         false -> return_action_not_allowed_error_iq(IQ)
@@ -463,21 +462,31 @@ handle_set_prefs(ArcJID=#jid{},
               [DefaultMode, AlwaysJIDs, NeverJIDs]),
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
-    set_prefs(Host, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs),
+    Res = set_prefs(Host, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs),
+    handle_set_prefs_result(Res, DefaultMode, AlwaysJIDs, NeverJIDs, IQ).
+
+handle_set_prefs_result(ok, DefaultMode, AlwaysJIDs, NeverJIDs, IQ) ->
     ResultPrefsEl = result_prefs(DefaultMode, AlwaysJIDs, NeverJIDs),
-    IQ#iq{type = result, sub_el = [ResultPrefsEl]}.
+    IQ#iq{type = result, sub_el = [ResultPrefsEl]};
+handle_set_prefs_result({error, Reason},
+                        _DefaultMode, _AlwaysJIDs, _NeverJIDs, IQ) ->
+    return_error_iq(IQ, Reason).
 
 
 -spec handle_get_prefs(ejabberd:jid(), ejabberd:iq()) -> ejabberd:iq().
 handle_get_prefs(ArcJID=#jid{}, IQ=#iq{}) ->
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
-    {DefaultMode, AlwaysJIDs, NeverJIDs} =
-        get_prefs(Host, ArcID, ArcJID, always),
+    Res = get_prefs(Host, ArcID, ArcJID, always),
+    handle_get_prefs_result(Res, IQ).
+
+handle_get_prefs_result({DefaultMode, AlwaysJIDs, NeverJIDs}, IQ) ->
     ?DEBUG("Extracted data~n\tDefaultMode ~p~n\tAlwaysJIDs ~p~n\tNeverJIDS ~p~n",
               [DefaultMode, AlwaysJIDs, NeverJIDs]),
     ResultPrefsEl = result_prefs(DefaultMode, AlwaysJIDs, NeverJIDs),
-    IQ#iq{type = result, sub_el = [ResultPrefsEl]}.
+    IQ#iq{type = result, sub_el = [ResultPrefsEl]};
+handle_get_prefs_result({error, Reason}, IQ) ->
+    return_error_iq(IQ, Reason).
 
 
 -spec handle_lookup_messages(From :: ejabberd:jid(), ArcJID :: ejabberd:jid(),
@@ -511,6 +520,8 @@ handle_lookup_messages(
         ErrorEl = jlib:stanza_errort(<<"">>, <<"modify">>, <<"policy-violation">>,
                                  <<"en">>, <<"Too many results">>),
         IQ#iq{type = error, sub_el = [ErrorEl]};
+    {error, Reason} ->
+        return_error_iq(IQ, Reason);
     {ok, {TotalCount, Offset, MessageRows}} ->
         {FirstMessID, LastMessID} =
             case MessageRows of
@@ -544,8 +555,9 @@ handle_purge_multiple_messages(ArcJID=#jid{},
     Borders = borders_decode(PurgeEl),
     %% Filtering by contact.
     With  = elem_to_with_jid(PurgeEl),
-    purge_multiple_messages(Host, ArcID, ArcJID, Borders, Start, End, Now, With),
-    return_purge_success(IQ).
+    Res = purge_multiple_messages(Host, ArcID, ArcJID, Borders,
+                                  Start, End, Now, With),
+    return_purge_multiple_message_iq(IQ, Res).
 
 
 -spec handle_purge_single_message(ejabberd:jid(), ejabberd:iq()) -> ejabberd:iq().
@@ -594,31 +606,36 @@ set_prefs(Host, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
 
 %% @doc Load settings from the database.
 -spec get_prefs(Host :: ejabberd:server(), ArcID :: mod_mam:archive_id(),
-        ArcJID :: ejabberd:jid(), GlobDfltMode :: mod_mam:archive_behaviour())
-            -> mod_mam:preference().
+        ArcJID :: ejabberd:jid(), GlobalDefaultMode :: mod_mam:archive_behaviour())
+            -> mod_mam:preference() | {error, Reason :: term()}.
 get_prefs(Host, ArcID, ArcJID, GlobalDefaultMode) ->
     ejabberd_hooks:run_fold(mam_muc_get_prefs, Host,
         {GlobalDefaultMode, [], []},
         [Host, ArcID, ArcJID]).
 
-
--spec remove_archive(ejabberd:server(), mod_mam:archive_id(),
+-spec remove_archive(ejabberd:server(), mod_mam:archive_id() | undefined,
                      ejabberd:jid()) -> 'ok'.
+remove_archive(_Host, undefined, #jid{user=User, server=Server}) ->
+    ?WARNING_MSG("Archive ~ts@~ts does not exist.", [User, Server]),
+    ok;
 remove_archive(Host, ArcID, ArcJID=#jid{}) ->
     ejabberd_hooks:run(mam_muc_remove_archive, Host, [Host, ArcID, ArcJID]),
     ok.
 
 
+%% See description in mod_mam.
 -spec lookup_messages(%Result :: any(),
         Host :: ejabberd:server(),
         ArchiveID :: mod_mam:archive_id(), ArchiveJID :: ejabberd:jid(),
         RSM :: jlib:rsm_in() | undefined, Borders :: mod_mam:borders() | undefined,
         Start :: mod_mam:unix_timestamp() | undefined,
         End :: mod_mam:unix_timestamp() | undefined, Now :: mod_mam:unix_timestamp(),
-        WithJID :: ejabberd:jid() | undefined, PageSize :: integer(),
-        LimitPassed :: boolean() | opt_count, MaxResultLimit :: integer(),
-        IsSimple :: boolean()) -> {ok, mod_mam:lookup_result()}
-                                | {error, 'policy-violation'}.
+        WithJID :: ejabberd:jid() | undefined, PageSize :: non_neg_integer(),
+        LimitPassed :: boolean(), MaxResultLimit :: non_neg_integer(),
+        IsSimple :: boolean() | opt_count) ->
+            {ok, mod_mam:lookup_result()}
+            | {error, 'policy-violation'}
+            | {error, Reason :: term()}.
 lookup_messages(Host, ArcID, ArcJID, RSM, Borders, Start, End, Now,
                 WithJID, PageSize, LimitPassed, MaxResultLimit, IsSimple) ->
     ejabberd_hooks:run_fold(mam_muc_lookup_messages, Host, {ok, {0, 0, []}},
@@ -639,7 +656,7 @@ archive_message(Host, MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet) ->
 -spec purge_single_message(Host :: ejabberd:server(),
         MessID :: mod_mam:message_id(), ArcID :: mod_mam:archive_id(),
         ArcJID :: ejabberd:jid(), Now :: unix_timestamp())
-            -> ok | {error, 'not-found'}.
+            -> ok | {error, 'not-found'} | {error, Reason :: term()}.
 purge_single_message(Host, MessID, ArcID, ArcJID, Now) ->
     ejabberd_hooks:run_fold(mam_muc_purge_single_message, Host, ok,
         [Host, MessID, ArcID, ArcJID, Now]).
@@ -647,10 +664,11 @@ purge_single_message(Host, MessID, ArcID, ArcJID, Now) ->
 
 -spec purge_multiple_messages(Host :: ejabberd:server(),
         ArcID :: mod_mam:archive_id(), ArcJID :: ejabberd:jid(),
-        Borders :: mod_mam:borders() | 'undefined',
-        Start :: unix_timestamp() | 'undefined',
-        End :: unix_timestamp() | 'undefined',
-        Now :: unix_timestamp(), WithJID::ejabberd:jid() | 'undefined') -> 'ok'.
+        Borders :: mod_mam:borders() | undefined,
+        Start :: unix_timestamp() | undefined,
+        End :: unix_timestamp() | undefined,
+        Now :: unix_timestamp(), WithJID :: ejabberd:jid() | undefined) ->
+            ok | {error, Reason :: term()}.
 purge_multiple_messages(Host, ArcID, ArcJID, Borders,
                         Start, End, Now, WithJID) ->
     ejabberd_hooks:run_fold(mam_muc_purge_multiple_messages, Host, ok,
@@ -715,7 +733,7 @@ elem_to_start_microseconds(El) ->
 
 -spec elem_to_end_microseconds(jlib:xmlel()) -> 'undefined' | non_neg_integer().
 elem_to_end_microseconds(El) ->
-    maybe_microseconds(xml:get_path_s(El, [{elem, <<"start">>}, cdata])).
+    maybe_microseconds(xml:get_path_s(El, [{elem, <<"end">>}, cdata])).
 
 
 -spec elem_to_with_jid(jlib:xmlel()) -> 'error' | 'undefined' | ejabberd:jid().
@@ -731,11 +749,17 @@ elem_to_limit(QueryEl) ->
         [{elem, <<"set">>}, {elem, <<"limit">>}, cdata]
     ]).
 
+handle_error_iq(Host, To, Action, IQ=#iq{type = {error, Reason}}) ->
+    ejabberd_hooks:run(mam_muc_drop_iq, Host,
+        [Host, To, IQ, Action, Reason]),
+    IQ#iq{type = error};
+handle_error_iq(_Host, _To, _Action, IQ) ->
+    IQ.
 
--spec return_purge_success(ejabberd:iq()) -> ejabberd:iq().
-return_purge_success(IQ) ->
-    IQ#iq{type = result, sub_el = []}.
-
+return_error_iq(IQ, timeout) ->
+    IQ#iq{type = {error, timeout}, sub_el = [?ERR_SERVICE_UNAVAILABLE]};
+return_error_iq(IQ, Reason) ->
+    IQ#iq{type = {error, Reason}, sub_el = [?ERR_INTERNAL_SERVER_ERROR]}.
 
 -spec return_action_not_allowed_error_iq(ejabberd:iq()) -> ejabberd:iq().
 return_action_not_allowed_error_iq(IQ) ->
@@ -743,6 +767,14 @@ return_action_not_allowed_error_iq(IQ) ->
          <<"en">>, <<"The action is not allowed.">>),
     IQ#iq{type = error, sub_el = [ErrorEl]}.
 
+return_purge_multiple_message_iq(IQ, ok) ->
+    return_purge_success(IQ);
+return_purge_multiple_message_iq(IQ, {error, Reason}) ->
+    return_error_iq(IQ, Reason).
+
+-spec return_purge_success(ejabberd:iq()) -> ejabberd:iq().
+return_purge_success(IQ) ->
+    IQ#iq{type = result, sub_el = []}.
 
 -spec return_purge_not_found_error_iq(ejabberd:iq()) -> ejabberd:iq().
 return_purge_not_found_error_iq(IQ) ->
@@ -761,8 +793,11 @@ return_max_delay_reached_error_iq(IQ) ->
 
 
 -spec return_purge_single_message_iq(ejabberd:iq(),
-                                'ok' | {'error','not-found'}) -> ejabberd:iq().
+        'ok' | {'error','not-found'} | {error, Reason :: term()}) -> ejabberd:iq().
 return_purge_single_message_iq(IQ, ok) ->
     return_purge_success(IQ);
 return_purge_single_message_iq(IQ, {error, 'not-found'}) ->
-    return_purge_not_found_error_iq(IQ).
+    return_purge_not_found_error_iq(IQ);
+return_purge_single_message_iq(IQ, {error, Reason}) ->
+    return_error_iq(IQ, Reason).
+

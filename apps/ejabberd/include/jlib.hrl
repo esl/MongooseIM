@@ -71,6 +71,7 @@
 -define(NS_BYTESTREAMS, <<"http://jabber.org/protocol/bytestreams">>).
 -define(NS_ADMIN,       <<"http://jabber.org/protocol/admin">>).
 -define(NS_SERVERINFO,  <<"http://jabber.org/network/serverinfo">>).
+-define(NS_MAM,         <<"urn:xmpp:mam:tmp">>).
 
 -define(NS_RSM,         <<"http://jabber.org/protocol/rsm">>).
 -define(NS_EJABBERD_CONFIG,<<"ejabberd:config">>).
