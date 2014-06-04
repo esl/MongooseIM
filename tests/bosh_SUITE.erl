@@ -39,7 +39,8 @@ groups() ->
      {chat, [shuffle, {repeat,10}], [interleave_requests,
                                      simple_chat,
                                      cant_send_invalid_rid,
-                                     multiple_stanzas]},
+                                     multiple_stanzas,
+                                     stream_error]},
      {time, [shuffle, {repeat,5}], [disconnect_inactive,
                                     interrupt_long_poll_is_activity,
                                     reply_on_pause,
@@ -153,6 +154,22 @@ create_and_terminate_session(Config) ->
     %% Assert the session was terminated.
     0 = length(get_bosh_sessions()).
 
+
+stream_error(Config) ->
+    escalus:story(
+      Config, [{carol, 1}],
+      fun(Carol) ->
+              %% Send a stanza with invalid 'from'
+              %% attribute to trigger a stream error from
+              %% the server.
+              BadMessage = escalus_stanza:chat(
+                             <<"not_carol@localhost">>,
+                             <<"geralt@localhost">>,
+                             <<"I am not Carol">>),
+              escalus_client:send(Carol, BadMessage),
+              escalus:assert(is_stream_error, [<<"invalid-from">>, <<>>],
+                             escalus_client:wait_for_stanza(Carol))
+      end).
 
 interleave_requests(Config) ->
     escalus:story(Config, [{geralt, 1}], fun(Geralt) ->
