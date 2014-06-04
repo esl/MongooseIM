@@ -865,7 +865,8 @@ bosh_wrap(Elements, Rid, #state{} = S) ->
     end,
     MaybeAck = maybe_ack(Rid, NS),
     {MaybeReport, NNS} = maybe_report(NS),
-    ExtraAttrs = MaybeAck ++ MaybeReport,
+    MaybeStreamPrefix = maybe_stream_prefix(Children),
+    ExtraAttrs = MaybeAck ++ MaybeReport ++ MaybeStreamPrefix,
     {Body#xmlel{attrs = Body#xmlel.attrs ++ ExtraAttrs,
                 children = Children}, NNS}.
 
@@ -934,6 +935,17 @@ bosh_stream_end_body() ->
            attrs = [{<<"type">>, <<"terminate">>},
                     {<<"xmlns">>, ?NS_HTTPBIND}],
            children = []}.
+
+maybe_stream_prefix(Stanzas) ->
+    case lists:any(fun is_stream_error/1, Stanzas) of
+        false ->
+            [];
+        true ->
+            [{<<"xmlns:stream">>, ?NS_STREAM}]
+    end.
+
+is_stream_error(#xmlel{name = Name}) ->
+    Name =:= <<"stream:error">>.
 
 %%--------------------------------------------------------------------
 %% ejabberd_socket compatibility
