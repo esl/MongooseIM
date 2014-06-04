@@ -1,4 +1,4 @@
-<?xml version="2.0"?>
+<?xml version="1.0"?>
 <!DOCTYPE tsung SYSTEM "/home/aleksandra.lipiec/tsung_dist/share/tsung/tsung-1.0.dtd">
 <tsung loglevel="error" version="1.0" dumptraffic="false">
 
