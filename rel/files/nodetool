@@ -19,12 +19,12 @@ main(Args) ->
             io:format("~s~n", [Version]),
             halt(0);
         ["add_to_cluster", ExtraNode] ->
-            mnesia:start(),
+            ok = mnesia:start(),
             NodeName = list_to_atom(ExtraNode),
             {ok, _} = mnesia:change_config(extra_db_nodes, [NodeName]),
-            mnesia:change_table_copy_type(schema, node(), disc_copies),
+            {atomic, ok} = mnesia:change_table_copy_type(schema, node(), disc_copies),
             WhereToCommitTables = [{T, mnesia:table_info(T, where_to_commit)} || T <- mnesia:system_info(tables)],
-            [{T, mnesia:add_table_copy(T, node(), Type)} || {T, [{_, Type}]} <- WhereToCommitTables ],
+            [mnesia:add_table_copy(T, node(), Type) || {T, [{_, Type}]} <- WhereToCommitTables],
             mnesia:stop(),
             io:format("ok~n",[]),
             halt(0);
