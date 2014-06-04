@@ -184,11 +184,13 @@ groups() ->
 is_skipped(odbc_mnesia_muc_cache, muc)         -> false;
 is_skipped(odbc_mnesia_muc_cache, muc_with_pm) -> false;
 is_skipped(odbc_mnesia_muc_cache, muc_rsm)     -> false;
-is_skipped(odbc_mnesia_muc_cache, _)           -> true;
-is_skipped(_, C) -> is_configuration_skipped(C).
+is_skipped(C, _) -> is_configuration_skipped(C).
 
 is_configuration_skipped(C) ->
-    lists:member(C, ct:get_config(mam_skipped_configurations, [])).
+    lists:member(C, skipped_configurations()).
+
+skipped_configurations() ->
+    ct:get_config({mam, skipped_configurations}, []).
 
 basic_groups() ->
     [{bootstrapped,     [], bootstrapped_cases()},
@@ -536,6 +538,7 @@ mam_modules() ->
      mod_mam_muc_ca_arch,
      mod_mam_odbc_arch,
      mod_mam_muc_odbc_arch,
+     mod_mam_con_ca,
      mod_mam_odbc_async_writer,
      mod_mam_muc_odbc_async_writer,
      mod_mam_odbc_async_pool_writer,
@@ -545,7 +548,8 @@ mam_modules() ->
      mod_mam_mnesia_dirty_prefs,
      mod_mam_odbc_user,
      mod_mam_odbc_server_user,
-     mod_mam_cache_user].
+     mod_mam_cache_user,
+     mod_mam_muc_cache_user].
 
 init_state(_, muc_rsm, Config) ->
     Config1 = start_alice_room(Config),
