@@ -1,4 +1,4 @@
-<?xml version="2.0"?>
+<?xml version="1.0"?>
 <!DOCTYPE tsung SYSTEM "/home/aleksandra.lipiec/tsung_dist/share/tsung/tsung-1.0.dtd">
 <tsung loglevel="error" version="1.0" dumptraffic="false">
 
@@ -12,7 +12,7 @@
 
   <load>
     <arrivalphase phase="1" duration="90" unit="minute">
-      <users maxnumber="30" interarrival="0.01" unit="second"></users>
+      <users maxnumber="5000" interarrival="0.01" unit="second"></users>
     </arrivalphase>
   </load>
 
@@ -25,6 +25,31 @@
     <!-- full name of the MUC component -->
     <option type="ts_jabber" name="muc_service" value="muc.localhost"/>
   </options>
+
+  <deffun name="now_to_microseconds" sourcetype="eval">
+    <code>
+      <![CDATA[
+        fun({Mega, Secs, Micro}) ->
+            (1000000 * Mega + Secs) * 1000000 + Micro
+        end.
+      ]]>
+    </code>
+  </deffun>
+
+  <deffun name="rand_mess_id" sourcetype="eval">
+    <code>
+      <!-- Returns a random message id of 10 minutes age -->
+      <![CDATA[
+        fun() ->
+            Now = now_to_microseconds(now()),
+            Microseconds = Now - random:uniform(600000000),
+            NodeId = random:uniform(255),
+            MessId = (Microseconds bsl 8) + NodeId,
+            list_to_binary(integer_to_list(MessId, 36))
+        end.
+      ]]>
+    </code>
+  </deffun>
 
   <sessions>
    <session bidi="true" probability="100" name="jabber-muc" type="ts_jabber">
@@ -94,6 +119,31 @@
                   <set xmlns='http://jabber.org/protocol/rsm'>
                     <max>10</max>
                     <before/>
+                    <simple/>
+                  </set>
+                </query>
+              </iq>
+            ]]>
+          </data>
+        </jabber>
+      </request>
+
+      <thinktime value="5"/>
+
+      <setdynvars sourcetype="eval" code="fun(Param) -> rand_mess_id() end.">
+        <var name="random_mess_id" />
+      </setdynvars>
+
+      <request subst="true" tag="query_rand_after10">
+        <jabber type="raw" ack="no_ack">
+          <data normalize_xml="true">
+            <![CDATA[
+              <iq type='get' to="room%%_room%%@muc.localhost">
+                <query xmlns='urn:xmpp:mam:tmp'>
+                  <set xmlns='http://jabber.org/protocol/rsm'>
+                    <max>10</max>
+                    <after>%%_random_mess_id%%</after>
+                    <simple/>
                   </set>
                 </query>
               </iq>

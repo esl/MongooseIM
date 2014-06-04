@@ -33,6 +33,7 @@
          muc_multiple_devices/1,
          muc_private_message/1,
          range_archive_request/1,
+         range_archive_request_not_empty/1,
          limit_archive_request/1,
          prefs_set_request/1,
          pagination_first5/1,
@@ -59,7 +60,8 @@
          purge_old_single_message/1,
          querying_for_all_messages_with_jid/1,
          muc_querying_for_all_messages/1,
-         muc_querying_for_all_messages_with_jid/1]).
+         muc_querying_for_all_messages_with_jid/1,
+         iq_spoofing/1]).
 
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
@@ -137,16 +139,21 @@ configurations() ->
      odbc_mnesia,
      odbc_async_cache,
      odbc_cache,
-     odbc_mnesia_cache].
+     odbc_mult_cache,
+     odbc_mnesia_cache,
+     odbc_mnesia_muc_cache,
+     ca].
 
 basic_group_names() ->
     [
-    muc_rsm,
-    bootstrapped,
     mam,
     mam_purge,
     muc,
+    muc_with_pm,
     rsm,
+    with_rsm,
+    muc_rsm,
+    bootstrapped,
     archived,
     policy_violation,
     offline_message].
@@ -166,11 +173,22 @@ all() ->
 
 tests() ->
     [{group, full_group(C, G)}
-     || C <- configurations(), G <- basic_group_names()].
+     || C <- configurations(), G <- basic_group_names(),
+        not is_skipped(C, G)].
 
 groups() ->
     [{full_group(C, G), Props, Tests}
-     || C <- configurations(), {G, Props, Tests} <- basic_groups()].
+     || C <- configurations(), {G, Props, Tests} <- basic_groups(),
+        not is_skipped(C, G)].
+
+is_skipped(odbc_mnesia_muc_cache, muc)         -> false;
+is_skipped(odbc_mnesia_muc_cache, muc_with_pm) -> false;
+is_skipped(odbc_mnesia_muc_cache, muc_rsm)     -> false;
+is_skipped(odbc_mnesia_muc_cache, _)           -> true;
+is_skipped(_, C) -> is_configuration_skipped(C).
+
+is_configuration_skipped(C) ->
+    lists:member(C, ct:get_config(mam_skipped_configurations, [])).
 
 basic_groups() ->
     [{bootstrapped,     [], bootstrapped_cases()},
@@ -180,8 +198,10 @@ basic_groups() ->
      {policy_violation, [], policy_violation_cases()},
      {offline_message,  [], offline_message_cases()},
      {muc,              [], muc_cases()},
+     {muc_with_pm,      [], muc_cases()},
      {rsm,              [], rsm_cases()},
-     {muc_rsm,          [], muc_rsm_cases()}].
+     {muc_rsm,          [], muc_rsm_cases()},
+     {with_rsm,         [], with_rsm_cases()}].
 
 bootstrapped_cases() ->
      [purge_old_single_message,
@@ -191,8 +211,10 @@ mam_cases() ->
     [mam_service_discovery,
      simple_archive_request,
      range_archive_request,
+     range_archive_request_not_empty,
      limit_archive_request,
-     prefs_set_request].
+     prefs_set_request,
+     iq_spoofing].
 
 mam_purge_cases() ->
     [purge_single_message,
@@ -220,6 +242,9 @@ muc_cases() ->
 muc_rsm_cases() ->
     rsm_cases().
 
+with_rsm_cases() ->
+    rsm_cases().
+
 rsm_cases() ->
       [pagination_first5,
        pagination_last5,
@@ -244,10 +269,19 @@ suite() ->
     escalus:suite().
 
 init_per_suite(Config) ->
-    clean_archives(escalus:create_users(escalus:init_per_suite(Config))).
+    create_users(escalus:init_per_suite(Config)).
 
 end_per_suite(Config) ->
-    escalus:end_per_suite(escalus:delete_users(Config)).
+    escalus:end_per_suite(delete_users(Config)).
+
+user_names() ->
+    [alice, bob].
+
+create_users(Config) ->
+    escalus:create_users(Config, {by_name, user_names()}).
+
+delete_users(Config) ->
+    escalus:create_users(Config, {by_name, user_names()}).
 
 init_per_group(Group, Config) ->
     C = configuration(Group),
@@ -265,6 +299,99 @@ end_per_group(Group, Config) ->
 
 init_modules(C, muc_rsm, Config) ->
     init_modules(C, muc, Config);
+
+init_modules(ca, muc_with_pm, Config) ->
+    %% TODO add mod_mam with Cassandra
+    init_module(host(), mod_mam_muc_ca_arch, []),
+    init_module(host(), mod_mam_odbc_user, [muc, pm]),
+    init_module(host(), mod_mam, []),
+    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
+    Config;
+init_modules(odbc, muc_with_pm, Config) ->
+    %% TODO test both mod_mam_muc_odbc_arch and mod_mam_odbc_arch
+    init_module(host(), mod_mam_odbc_arch, [muc, pm]),
+    init_module(host(), mod_mam_odbc_prefs, [muc, pm]),
+    init_module(host(), mod_mam_odbc_user, [muc, pm]),
+    init_module(host(), mod_mam, []),
+    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
+    Config;
+init_modules(odbc_async, muc_with_pm, Config) ->
+    init_module(host(), mod_mam_muc_odbc_arch, [no_writer]),
+    init_module(host(), mod_mam_muc_odbc_async_writer, []),
+    init_module(host(), mod_mam_odbc_arch, [no_writer, pm]),
+    init_module(host(), mod_mam_odbc_async_writer, [pm]),
+    init_module(host(), mod_mam_odbc_prefs, [muc, pm]),
+    init_module(host(), mod_mam_odbc_user, [muc, pm]),
+    init_module(host(), mod_mam, []),
+    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
+    Config;
+init_modules(odbc_async_pool, muc_with_pm, Config) ->
+    init_module(host(), mod_mam_muc_odbc_arch, [no_writer]),
+    init_module(host(), mod_mam_muc_odbc_async_pool_writer, []),
+    init_module(host(), mod_mam_odbc_arch, [no_writer, pm]),
+    init_module(host(), mod_mam_odbc_async_pool_writer, [pm]),
+    init_module(host(), mod_mam_odbc_prefs, [muc, pm]),
+    init_module(host(), mod_mam_odbc_user, [muc, pm]),
+    init_module(host(), mod_mam, []),
+    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
+    Config;
+init_modules(odbc_mnesia, muc_with_pm, Config) ->
+    init_module(host(), mod_mam_muc_odbc_arch, []),
+    init_module(host(), mod_mam_odbc_arch, [pm]),
+    init_module(host(), mod_mam_mnesia_prefs, [muc, pm]),
+    init_module(host(), mod_mam_odbc_user, [muc, pm]),
+    init_module(host(), mod_mam, []),
+    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
+    Config;
+init_modules(odbc_cache, muc_with_pm, Config) ->
+    init_module(host(), mod_mam_muc_odbc_arch, []),
+    init_module(host(), mod_mam_odbc_arch, [pm]),
+    init_module(host(), mod_mam_odbc_prefs, [muc, pm]),
+    init_module(host(), mod_mam_odbc_user, [muc, pm]),
+    init_module(host(), mod_mam_cache_user, [muc, pm]),
+    init_module(host(), mod_mam, []),
+    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
+    Config;
+init_modules(odbc_mult_cache, muc_with_pm, Config) ->
+    init_module(host(), mod_mam_muc_odbc_arch, []),
+    init_module(host(), mod_mam_odbc_arch, [pm]),
+    init_module(host(), mod_mam_odbc_prefs, [muc, pm]),
+    init_module(host(), mod_mam_odbc_server_user, [muc, pm]),
+    init_module(host(), mod_mam_cache_user, [muc, pm]),
+    init_module(host(), mod_mam, []),
+    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
+    Config;
+init_modules(odbc_async_cache, muc_with_pm, Config) ->
+    init_module(host(), mod_mam_muc_odbc_arch, [no_writer]),
+    init_module(host(), mod_mam_muc_odbc_async_writer, []),
+    init_module(host(), mod_mam_odbc_arch, [no_writer, pm]),
+    init_module(host(), mod_mam_odbc_async_writer, [pm]),
+    init_module(host(), mod_mam_odbc_prefs, [muc, pm]),
+    init_module(host(), mod_mam_odbc_user, [muc, pm]),
+    init_module(host(), mod_mam_cache_user, [muc, pm]),
+    init_module(host(), mod_mam, []),
+    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
+    Config;
+init_modules(odbc_mnesia_muc_cache, muc_with_pm, Config) ->
+    init_module(host(), mod_mam_muc_odbc_arch, []),
+    init_module(host(), mod_mam_odbc_arch, [pm]),
+    init_module(host(), mod_mam_mnesia_prefs, [muc, pm]),
+    init_module(host(), mod_mam_odbc_user, [muc, pm]),
+    init_module(host(), mod_mam_cache_user, [pm]),
+    init_module(host(), mod_mam_muc_cache_user, []),
+    init_module(host(), mod_mam, []),
+    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
+    Config;
+init_modules(odbc_mnesia_cache, muc_with_pm, Config) ->
+    init_module(host(), mod_mam_muc_odbc_arch, []),
+    init_module(host(), mod_mam_odbc_arch, [pm]),
+    init_module(host(), mod_mam_mnesia_prefs, [muc, pm]),
+    init_module(host(), mod_mam_odbc_user, [muc, pm]),
+    init_module(host(), mod_mam_cache_user, [muc, pm]),
+    init_module(host(), mod_mam, []),
+    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
+    Config;
+
 init_modules(ca, muc, Config) ->
     init_module(host(), mod_mam_muc_ca_arch, []),
     init_module(host(), mod_mam_odbc_user, [muc]),
@@ -304,12 +431,26 @@ init_modules(odbc_cache, muc, Config) ->
     init_module(host(), mod_mam_cache_user, [muc]),
     init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
     Config;
+init_modules(odbc_mult_cache, muc, Config) ->
+    init_module(host(), mod_mam_muc_odbc_arch, []),
+    init_module(host(), mod_mam_odbc_prefs, [muc]),
+    init_module(host(), mod_mam_odbc_server_user, [muc]),
+    init_module(host(), mod_mam_cache_user, [muc]),
+    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
+    Config;
 init_modules(odbc_async_cache, muc, Config) ->
     init_module(host(), mod_mam_muc_odbc_arch, [no_writer]),
     init_module(host(), mod_mam_muc_odbc_async_writer, []),
     init_module(host(), mod_mam_odbc_prefs, [muc]),
     init_module(host(), mod_mam_odbc_user, [muc]),
     init_module(host(), mod_mam_cache_user, [muc]),
+    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
+    Config;
+init_modules(odbc_mnesia_muc_cache, muc, Config) ->
+    init_module(host(), mod_mam_muc_odbc_arch, []),
+    init_module(host(), mod_mam_mnesia_prefs, [muc]),
+    init_module(host(), mod_mam_odbc_user, [muc]),
+    init_module(host(), mod_mam_muc_cache_user, [muc]),
     init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
     Config;
 init_modules(odbc_mnesia_cache, muc, Config) ->
@@ -326,11 +467,10 @@ init_modules(odbc, _, Config) ->
     init_module(host(), mod_mam_odbc_user, [pm]),
     Config;
 init_modules(ca, _, Config) ->
-    %% TODO Not supported yet
-    init_module(host(), mod_mam, []),
-    init_module(host(), mod_mam_odbc_arch, [pm]),
+    init_module(host(), mod_mam_con_ca_arch, [pm]),
     init_module(host(), mod_mam_odbc_prefs, [pm]),
     init_module(host(), mod_mam_odbc_user, [pm]),
+    init_module(host(), mod_mam, []),
     Config;
 init_modules(odbc_async, _, Config) ->
     init_module(host(), mod_mam, []),
@@ -359,6 +499,13 @@ init_modules(odbc_cache, _, Config) ->
     init_module(host(), mod_mam_odbc_user, [pm]),
     init_module(host(), mod_mam_cache_user, [pm]),
     Config;
+init_modules(odbc_mult_cache, _, Config) ->
+    init_module(host(), mod_mam, []),
+    init_module(host(), mod_mam_odbc_arch, [pm]),
+    init_module(host(), mod_mam_odbc_prefs, [pm]),
+    init_module(host(), mod_mam_odbc_server_user, [pm]),
+    init_module(host(), mod_mam_cache_user, [pm]),
+    Config;
 init_modules(odbc_async_cache, _, Config) ->
     init_module(host(), mod_mam, []),
     init_module(host(), mod_mam_odbc_arch, [pm, no_writer]),
@@ -367,6 +514,8 @@ init_modules(odbc_async_cache, _, Config) ->
     init_module(host(), mod_mam_odbc_user, [pm]),
     init_module(host(), mod_mam_cache_user, [pm]),
     Config;
+init_modules(odbc_mnesia_muc_cache, _, Config) ->
+    error(skipped);
 init_modules(odbc_mnesia_cache, _, Config) ->
     init_module(host(), mod_mam, []),
     init_module(host(), mod_mam_odbc_arch, [pm]),
@@ -382,6 +531,9 @@ end_modules(_, _, Config) ->
 mam_modules() ->
     [mod_mam,
      mod_mam_muc,
+     mod_mam_con_ca_arch,
+     mod_mam_ca_arch,
+     mod_mam_muc_ca_arch,
      mod_mam_odbc_arch,
      mod_mam_muc_odbc_arch,
      mod_mam_odbc_async_writer,
@@ -391,16 +543,24 @@ mam_modules() ->
      mod_mam_odbc_prefs,
      mod_mam_mnesia_prefs,
      mod_mam_mnesia_dirty_prefs,
-     mod_mam_cache_user,
-     mod_mam_odbc_user].
+     mod_mam_odbc_user,
+     mod_mam_odbc_server_user,
+     mod_mam_cache_user].
 
 init_state(_, muc_rsm, Config) ->
     Config1 = start_alice_room(Config),
     Config2 = clean_room_archive(Config1),
     Config3 = send_muc_rsm_messages(Config2),
     [{muc_rsm, true} | Config3];
+init_state(_, muc, Config) ->
+    Config;
+init_state(_, muc_with_pm, Config) ->
+    Config;
 init_state(_, rsm, Config) ->
     send_rsm_messages(clean_archives(Config));
+init_state(_, with_rsm, Config) ->
+    Config1 = [{with_rsm, true}|Config],
+    send_rsm_messages(clean_archives(Config1));
 init_state(_, _, Config) ->
     clean_archives(Config).
 
@@ -438,6 +598,9 @@ init_per_testcase(C=muc_multiple_devices, Config) ->
     escalus:init_per_testcase(C, clean_room_archive(start_alice_room(Config)));
 init_per_testcase(C=muc_private_message, Config) ->
     escalus:init_per_testcase(C, start_alice_room(Config));
+init_per_testcase(C=range_archive_request_not_empty, Config) ->
+    escalus:init_per_testcase(C,
+        bootstrap_archive_same_ids(clean_archives(Config)));
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
@@ -460,6 +623,9 @@ end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
 init_module(Host, Mod, Args) ->
+    lists:member(Mod, mam_modules())
+    orelse
+    ct:fail("Unknown module ~p", [Mod]),
     stop_module(Host, Mod),
     ok = start_module(Host, Mod, Args).
 
@@ -938,7 +1104,13 @@ muc_private_message(Config) ->
         %% Bob received the message "Hi, Bob!".
         BobMsg = escalus:wait_for_stanza(Bob),
         escalus:assert(is_message, BobMsg),
-        ?assert_equal(undefined, exml_query:subelement(BobMsg, <<"archived">>)),
+
+        BobArchiveAddr = escalus_client:short_jid(Bob),
+        ArchivedBy = [exml_query:attr(Arc, <<"by">>)
+                      || Arc <- BobMsg#xmlel.children,
+                         Arc#xmlel.name =:= <<"archived">>,
+                         BobArchiveAddr =/= exml_query:attr(Arc, <<"by">>)],
+        ?assert_equal([], ArchivedBy),
 
         %% Bob requests the room's archive.
         escalus:send(Bob, stanza_to_room(stanza_archive_request(<<"q1">>), Room)),
@@ -958,7 +1130,31 @@ range_archive_request(Config) ->
         %%   </query>
         %% </iq>
         escalus:send(Alice, stanza_date_range_archive_request()),
-        escalus:wait_for_stanza(Alice, 5000),
+        IQ = escalus:wait_for_stanza(Alice, 5000),
+        escalus:assert(is_iq_result, IQ),
+        ok
+        end,
+    escalus:story(Config, [1], F).
+
+range_archive_request_not_empty(Config) ->
+    F = fun(Alice) ->
+        %% Send
+        %% <iq type='get'>
+        %%   <query xmlns='urn:xmpp:mam:tmp'>
+        %%     <start>2000-07-21T01:50:14Z</start>
+        %%     <end>2000-07-21T01:50:16Z</end>
+        %%   </query>
+        %% </iq>
+        escalus:send(Alice, stanza_date_range_archive_request_not_empty()),
+        %% Receive two messages and IQ
+        M1 = escalus:wait_for_stanza(Alice, 5000),
+        M2 = escalus:wait_for_stanza(Alice, 5000),
+        IQ = escalus:wait_for_stanza(Alice, 5000),
+        escalus:assert(is_iq_result, IQ),
+        #forwarded_message{delay_stamp=Stamp1} = parse_forwarded_message(M1),
+        #forwarded_message{delay_stamp=Stamp2} = parse_forwarded_message(M2),
+        ?assert_equal(<<"2000-07-21T01:50:15Z">>, Stamp1),
+        ?assert_equal(<<"2000-07-21T01:50:16Z">>, Stamp2),
         ok
         end,
     escalus:story(Config, [1], F).
@@ -977,7 +1173,8 @@ limit_archive_request(Config) ->
         %%   </query>
         %% </iq>
         escalus:send(Alice, stanza_limit_archive_request()),
-        escalus:wait_for_stanza(Alice, 5000),
+        IQ = escalus:wait_for_stanza(Alice, 5000),
+        escalus:assert(is_iq_result, IQ),
         ok
         end,
     escalus:story(Config, [1], F).
@@ -1149,9 +1346,18 @@ generate_message_text(N) when is_integer(N) ->
     <<"Message #", (list_to_binary(integer_to_list(N)))/binary>>.
 
 rsm_send(Config, User, Packet) ->
-    Room = ?config(room, Config),
+    case ?config(with_rsm, Config) of
+        true ->
+            BWithJID = nick_to_jid(bob, Config),
+            rsm_send_1(Config, User, add_with_jid(BWithJID, Packet));
+        _ ->
+            rsm_send_1(Config, User, Packet)
+    end.
+
+rsm_send_1(Config, User, Packet) ->
     case ?config(muc_rsm, Config) of
         true ->
+            Room = ?config(room, Config),
             escalus:send(User, stanza_to_room(Packet, Room));
         _ ->
             escalus:send(User, Packet)
@@ -1215,6 +1421,29 @@ muc_service_discovery(Config) ->
         ok
         end,
     escalus:story(Config, [1], F).
+
+iq_spoofing(Config) ->
+    F = fun(Alice, Bob) ->
+        %% Sending iqs between clients is allowed.
+        %% Every client MUST check "from" and "id" attributes.
+        %% This test checks, that server assign corrent "from" attribute
+        %% when it is not specified.
+        To = escalus_utils:get_jid(Alice),
+        From = escalus_utils:get_jid(Bob),
+        escalus:send(Bob, escalus_stanza:to(result_iq(), To)),
+        Stanza = escalus:wait_for_stanza(Alice),
+        escalus_assert:is_stanza_from(From, Stanza),
+        escalus_assert:has_no_stanzas(Alice),
+        escalus_assert:has_no_stanzas(Bob),
+        ok
+        end,
+    escalus:story(Config, [1,1], F).
+
+result_iq() ->
+    #xmlel{
+        name = <<"iq">>,
+        attrs = [{<<"id">>,<<"xxx">>}, {<<"type">>,<<"result">>}],
+        children = [#xmlel{name = <<"query">>}]}.
 
 %%--------------------------------------------------------------------
 %% Helpers
@@ -1283,6 +1512,12 @@ stanza_archive_request(QueryId) ->
 stanza_date_range_archive_request() ->
     stanza_lookup_messages_iq(undefined,
                               "2010-06-07T00:00:00Z", "2010-07-07T13:23:54Z",
+                              undefined, undefined).
+
+stanza_date_range_archive_request_not_empty() ->
+    stanza_lookup_messages_iq(undefined,
+                              %% One second before and after 2000-07-21T01:50:15Z
+                              "2000-07-21T01:50:14Z", "2000-07-21T01:50:16Z",
                               undefined, undefined).
 
 stanza_limit_archive_request() ->
@@ -1362,6 +1597,12 @@ maybe_rsm_max(Max) when is_integer(Max) ->
     #xmlel{
         name = <<"max">>,
         children = #xmlcdata{content = integer_to_list(Max)}}.
+
+add_with_jid(BWithJID,
+    IQ=#xmlel{children=[
+        Query=#xmlel{children=QueryChildren}]}) ->
+    IQ#xmlel{children=[
+        Query#xmlel{children=[maybe_with_elem(BWithJID) | QueryChildren]}]}.
 
 %% ----------------------------------------------------------------------
 %% PREFERENCE QUERIES
@@ -1659,7 +1900,7 @@ send_rsm_messages(Config) ->
         %% Bob is waiting for 15 messages for 5 seconds.
         escalus:wait_for_stanzas(Bob, 15, 5000),
         %% Get whole history.
-        escalus:send(Alice, stanza_archive_request(<<"all_messages">>)),
+        rsm_send(Config, Alice, stanza_archive_request(<<"all_messages">>)),
         [_ArcIQ|AllMessages] =
             assert_respond_size(15, wait_archive_respond_iq_first(Alice)),
         ParsedMessages = [parse_forwarded_message(M) || M <- AllMessages],
@@ -1789,6 +2030,14 @@ bootstrap_archive(Config) ->
     ?assert_equal(ok, restore_dump_file(ArcJID, FileName, Opts)),
     Config.
 
+bootstrap_archive_same_ids(Config) ->
+    DataDir = ?config(data_dir, Config),
+    FileName = filename:join(DataDir, "alice.xml"),
+    ArcJID = make_jid(<<"alice">>, <<"localhost">>, <<>>),
+    Opts = [{rewrite_jids, rewrite_jids_options(Config)}],
+    ?assert_equal(ok, restore_dump_file(ArcJID, FileName, Opts)),
+    Config.
+
 muc_bootstrap_archive(Config) ->
     Room = ?config(room, Config),
     DataDir = ?config(data_dir, Config),
@@ -1828,7 +2077,9 @@ muc_restore_dump_file(ArcJID, FileName, Opts) ->
 is_odbc_enabled(Host) ->
     case sql_transaction(Host, fun erlang:now/0) of
         {atomic, _} -> true;
-        _ -> false
+        Other ->
+            ct:pal("ODBC disabled (check failed ~p)", [Other]),
+            false
     end.
 
 sql_transaction(Host, F) ->
