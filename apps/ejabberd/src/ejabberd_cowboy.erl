@@ -2,13 +2,17 @@
 %%% @doc Common listener/router for modules that use Cowboy.
 %%%
 %%% The 'modules' configuration option should be a list of
-%%% {Host, BasePath, Module} tuples, where a Host of "_" will match
-%%% any host.
+%%% {Host, BasePath, Module} or {Host, BasePath, Module, Opts} tuples,
+%%% where a Host of "_" will match any host.
+%%%
+%%% A 'middlewares' configuration option may be specified to configure
+%%% Cowboy middlewares.
 %%%
 %%% Modules may export the following function to configure Cowboy
 %%% routing for sub-paths:
-%%% cowboy_router_paths(BasePath) -> [{PathMatch, Handler, Opts}]
-%%% If not implemented, [{BasePath, Module, []}] is assumed.
+%%% cowboy_router_paths(BasePath, Opts) ->
+%%%   [{PathMatch, Handler, NewOpts}]
+%%% If not implemented, [{BasePath, Module, []|Opts}] is assumed.
 %%% @end
 %%%===================================================================
 -module(ejabberd_cowboy).
@@ -99,17 +103,22 @@ start_cowboy(Ref, Opts) ->
     SSLKeyPass = gen_mod:get_opt(key_pass, Opts, undefined),
     NumAcceptors = gen_mod:get_opt(num_acceptors, Opts, 100),
     MaxConns = gen_mod:get_opt(max_connections, Opts, 1024),
+    Middlewares = case gen_mod:get_opt(middlewares, Opts, undefined) of
+        undefined -> [];
+        M -> [{middlewares, M}]
+    end,
     Dispatch = cowboy_router:compile(get_routes(gen_mod:get_opt(modules, Opts))),
     case {SSLCert, SSLKey} of
         {undefined, undefined} ->
             cowboy:start_http(cowboy_ref(Ref), NumAcceptors,
                               [{port, Port}, {ip, IP}, {max_connections, MaxConns}],
-                              [{env, [{dispatch, Dispatch}]}]);
+                              [{env, [{dispatch, Dispatch}]} | Middlewares]);
         _ ->
             cowboy:start_https(cowboy_ref(Ref), NumAcceptors,
                                [{port, Port}, {ip, IP}, {max_connections, MaxConns},
-                                {certfile, SSLCert}, {keyfile, SSLKey}, {password, SSLKeyPass}],
-                               [{env, [{dispatch, Dispatch}]}])
+                                {certfile, SSLCert}, {keyfile, SSLKey},
+                                {password, SSLKeyPass}],
+                               [{env, [{dispatch, Dispatch}]} | Middlewares])
     end.
 
 stop_cowboy(Ref) ->
@@ -137,6 +146,8 @@ get_routes(Modules) ->
 get_routes([], Routes) ->
     Routes;
 get_routes([{Host, BasePath, Module} | Tail], Routes) ->
+    get_routes([{Host, BasePath, Module, []} | Tail], Routes);
+get_routes([{Host, BasePath, Module, Opts} | Tail], Routes) ->
     %% ejabberd_config tries to expand the atom '_' as a Macro, which fails.
     %% To work around that, use "_" instead and translate it to '_' here.
     CowboyHost = case Host of
@@ -145,7 +156,7 @@ get_routes([{Host, BasePath, Module} | Tail], Routes) ->
     end,
     Paths = proplists:get_value(CowboyHost, Routes, []) ++
     case erlang:function_exported(Module, cowboy_router_paths, 1) of
-        true -> Module:cowboy_router_paths(BasePath);
-        _ -> [{BasePath, Module, []}]
+        true -> Module:cowboy_router_paths(BasePath, Opts);
+        _ -> [{BasePath, Module, Opts}]
     end,
     get_routes(Tail, lists:keystore(CowboyHost, 1, Routes, {CowboyHost, Paths})).
