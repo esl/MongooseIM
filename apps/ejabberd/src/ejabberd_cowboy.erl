@@ -155,7 +155,7 @@ get_routes([{Host, BasePath, Module, Opts} | Tail], Routes) ->
         _ -> Host
     end,
     Paths = proplists:get_value(CowboyHost, Routes, []) ++
-    case erlang:function_exported(Module, cowboy_router_paths, 1) of
+    case erlang:function_exported(Module, cowboy_router_paths, 2) of
         true -> Module:cowboy_router_paths(BasePath, Opts);
         _ -> [{BasePath, Module, Opts}]
     end,
