@@ -726,7 +726,7 @@ setup_inactivity_timer(#state{inactivity = infinity} = S) ->
     S;
 setup_inactivity_timer(S) ->
     cancel_inactivity_timer(S),
-    {ok, TRef} = timer:send_after(timer:seconds(S#state.inactivity),
+    TRef = erlang:send_after(timer:seconds(S#state.inactivity), self(),
                                   inactivity_timeout),
     S#state{inactivity_tref = TRef}.
 
@@ -759,7 +759,7 @@ maybe_add_handler(_, _, S) ->
 
 -spec add_handler({rid(), pid()}, state()) -> state().
 add_handler({Rid, Pid}, #state{handlers = Handlers} = S) ->
-    {ok, TRef} = timer:send_after(timer:seconds(S#state.wait),
+    TRef = erlang:send_after(timer:seconds(S#state.wait), self(),
                                   {wait_timeout, {Rid, Pid}}),
     S#state{handlers = [{Rid, TRef, Pid} | Handlers]}.
 
