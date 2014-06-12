@@ -29,16 +29,17 @@
 -define(INVALID_RID_OFFSET, 999).
 
 all() ->
-    [%{group, essential}
-     {group, chat}
-     %{group, time},
-     %{group, acks}
+    [{group, essential},
+     {group, chat},
+     {group, time},
+     {group, acks}
     ].
 
 groups() ->
     [{essential, [{repeat,10}], [create_and_terminate_session]},
      {chat, [shuffle, {repeat,10}], [interleave_requests,
                                      simple_chat,
+                                     cdata_escape_chat,
                                      cant_send_invalid_rid,
                                      multiple_stanzas,
                                      namespace,
@@ -211,6 +212,22 @@ simple_chat(Config) ->
                        escalus_client:wait_for_stanza(Carol))
 
         end).
+
+cdata_escape_chat(Config) ->
+    escalus:story(Config, [{carol, 1}, {geralt, 1}], fun(Carol, Geralt) ->
+
+        Message = <<"Hi! & < > ">>,
+        Stanza = escalus_stanza:chat_to(Carol, Message),
+        escalus_client:send(Carol, Stanza),
+        escalus:assert(is_chat_message, [Message],
+            escalus_client:wait_for_stanza(Carol)),
+
+        escalus_client:send(Geralt,
+            escalus_stanza:chat_to(Carol, Message)),
+        escalus:assert(is_chat_message, [Message],
+            escalus_client:wait_for_stanza(Carol))
+
+    end).
 
 cant_send_invalid_rid(Config) ->
     escalus:story(Config, [{carol, 1}], fun(Carol) ->
