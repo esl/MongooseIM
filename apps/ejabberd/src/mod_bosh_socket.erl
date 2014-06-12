@@ -840,7 +840,7 @@ stream_start(From, To) ->
                              {<<"to">>, To},
                              {<<"version">>, <<"1.0">>},
                              {<<"xml:lang">>, <<"en">>},
-                             {<<"xmlns">>, <<"jabber:client">>},
+                             {<<"xmlns">>, ?NS_CLIENT},
                              {<<"xmlns:stream">>, ?NS_STREAM}]}.
 
 
@@ -868,7 +868,7 @@ bosh_wrap(Elements, Rid, #state{} = S) ->
     MaybeStreamPrefix = maybe_stream_prefix(Children),
     ExtraAttrs = MaybeAck ++ MaybeReport ++ MaybeStreamPrefix,
     {Body#xmlel{attrs = Body#xmlel.attrs ++ ExtraAttrs,
-                children = Children}, NNS}.
+                children = maybe_add_default_ns_to_children(Children)}, NNS}.
 
 
 -spec is_stream_event(jlib:xmlstreamel()) -> boolean().
@@ -1030,6 +1030,21 @@ record_set(Record, FieldValues) ->
             setelement(Field, Rec, Value)
         end,
     lists:foldl(F, Record, FieldValues).
+
+
+maybe_add_default_ns_to_children(Children) ->
+    lists:map(fun maybe_add_default_ns/1, Children).
+
+maybe_add_default_ns(#xmlel{name = Name, attrs = Attrs} = El)
+ when Name =:= <<"message">>; Name =:= <<"presence">>; Name =:= <<"iq">> ->
+    case xml:get_attr(<<"xmlns">>, Attrs) of
+        false ->
+            El#xmlel{attrs = [{<<"xmlns">>, ?NS_CLIENT} | Attrs]};
+        _ ->
+            El
+    end;
+maybe_add_default_ns(El) ->
+    El.
 
 %%--------------------------------------------------------------------
 %% Tests
