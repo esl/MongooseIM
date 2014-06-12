@@ -260,7 +260,7 @@ send_xml(SocketData, {xmlstreamraw, Text}) ->
 send_xml(SocketData, {xmlstreamelement, XML}) ->
     send_xml(SocketData, XML);
 send_xml(#websocket{pid = Pid}, XML) ->
-    Pid ! {send_xml, XML},
+    Pid ! {send_xml, xml:escape_cdata(XML)},
     ok.
 
 send(#websocket{pid = Pid}, Data) ->
