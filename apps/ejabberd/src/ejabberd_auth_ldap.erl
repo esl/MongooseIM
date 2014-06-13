@@ -352,6 +352,8 @@ is_user_exists_ldap(User, Server) ->
 handle_call(get_state, _From, State) ->
     {reply, {ok, State}, State};
 handle_call(stop, _From, State) ->
+    eldap_pool:stop(State#state.eldap_id),
+    eldap_pool:stop(State#state.bind_eldap_id),
     {stop, normal, ok, State};
 handle_call(_Request, _From, State) ->
     {reply, bad_request, State}.
