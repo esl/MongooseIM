@@ -31,6 +31,7 @@
          start_module/3,
          stop_module/2,
          stop_module_keep_config/2,
+         reload_module/3,
          get_opt/2,
          get_opt/3,
          get_opt_host/3,
@@ -145,6 +146,10 @@ stop_module_keep_config(Host, Module) ->
             ok
     end.
 
+-spec reload_module(ejabberd:server(), atom(), [any()]) -> 'error' | 'ok'.
+reload_module(Host, Module, Opts) ->
+    stop_module_keep_config(Host, Module),
+    start_module(Host, Module, Opts).
 
 -spec wait_for_process(atom() | pid() | {atom(),atom()}) -> 'ok'.
 wait_for_process(Process) ->
