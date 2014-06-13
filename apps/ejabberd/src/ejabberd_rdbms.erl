@@ -27,7 +27,7 @@
 -module(ejabberd_rdbms).
 -author('alexey@process-one.net').
 
--export([start/0]).
+-export([start/0, start/1, stop/1]).
 -include("ejabberd.hrl").
 
 -spec start() -> 'ok' | {'error','lager_not_running'}.
@@ -44,13 +44,21 @@ start() ->
 %% @doc Start relationnal DB module on the nodes where it is needed
 -spec start_hosts() -> 'ok'.
 start_hosts() ->
-    lists:foreach(
-      fun(Host) ->
-              case needs_odbc(Host) of
-                  true  -> start_odbc(Host);
-                  false -> ok
-              end
-      end, ?MYHOSTS).
+    lists:foreach(fun start/1, ?MYHOSTS).
+
+-spec stop(Host :: ejabberd:server()) -> 'ok'.
+stop(Host) ->
+    case needs_odbc(Host) of
+        true -> stop_odbc(Host);
+        false -> ok
+    end.
+
+-spec start(Host :: ejabberd:server()) -> 'ok'.
+start(Host) ->
+    case needs_odbc(Host) of
+        true  -> start_odbc(Host);
+        false -> ok
+    end.
 
 %% @doc Start the ODBC module on the given host
 -spec start_odbc(binary() | string()) -> 'ok'.
@@ -71,6 +79,11 @@ start_odbc(Host) ->
                       [Supervisor_name, _Error]),
             start_odbc(Host)
     end.
+
+-spec stop_odbc(binary() | string()) -> 'ok'.
+stop_odbc(Host) ->
+    Proc = gen_mod:get_module_proc(Host, ejabberd_odbc_sup),
+    supervisor:terminate_child(ejabberd_sup, Proc).
 
 %% @doc Returns true if we have configured odbc_server for the given host
 -spec needs_odbc(_) -> boolean().
