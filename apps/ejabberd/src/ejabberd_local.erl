@@ -38,9 +38,11 @@
          process_iq_reply/3,
          register_iq_handler/4,
          register_iq_handler/5,
+         register_host/1,
          register_iq_response_handler/4,
          register_iq_response_handler/5,
          unregister_iq_handler/2,
+         unregister_host/1,
          unregister_iq_response_handler/2,
          refresh_iq_handlers/0,
          bounce_resource_packet/3
@@ -225,6 +227,14 @@ bounce_resource_packet(From, To, Packet) ->
     ejabberd_router:route(To, From, Err),
     stop.
 
+-spec register_host(Host :: ejabberd:server()) -> ok.
+register_host(Host) ->
+    gen_server:call(?MODULE,{register_host,Host}).
+
+-spec unregister_host(Host :: ejabberd:server()) -> ok.
+unregister_host(Host) ->
+    gen_server:call(?MODULE,{unregister_host,Host}).
+
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -260,6 +270,16 @@ init([]) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
+handle_call({unregister_host, Host}, _From, State) ->
+    ejabberd_router:unregister_route(Host),
+       ejabberd_hooks:delete(local_send_to_resource_hook, Host,
+                                ?MODULE, bounce_resource_packet, 100),
+    {reply, ok, State};
+handle_call({register_host, Host}, _From, State) ->
+    ejabberd_router:register_route(Host, {apply, ?MODULE, route}),
+       ejabberd_hooks:add(local_send_to_resource_hook, Host,
+                                ?MODULE, bounce_resource_packet, 100),
+    {reply, ok, State};
 handle_call(_Request, _From, State) ->
     Reply = ok,
     {reply, Reply, State}.
