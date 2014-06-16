@@ -42,6 +42,8 @@
          get_jid_info/4, process_item/2, in_subscription/6,
          out_subscription/4]).
 
+-export([config_change/4]).
+
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 -include("mod_roster.hrl").
@@ -68,7 +70,7 @@
          password = <<"">>                            :: binary(),
          uid = <<"">>                                 :: binary(),
          deref_aliases = never                        :: never | searching |
-                                                         finding | always,
+         finding | always,
          group_attr = <<"">>                          :: binary(),
          group_desc = <<"">>                          :: binary(),
          user_desc = <<"">>                           :: binary(),
@@ -205,6 +207,20 @@ process_subscription(Direction, User, Server, JID, _Type, Acc) ->
     end.
 
 %%====================================================================
+%% config change hook
+%%====================================================================
+%% react to "global" config change
+config_change(Acc, Host, ldap, _NewConfig) ->
+    Proc = gen_mod:get_module_proc(Host, ?MODULE),
+    Mods = ejabberd_config:get_local_option({modules, Host}),
+    Opts = proplists:get_value(?MODULE,Mods,[]),
+    ok = gen_server:call(Proc,{new_config, Host, Opts}),
+    Acc;
+config_change(Acc, _, _, _) ->
+    Acc.
+
+
+%%====================================================================
 %% gen_server callbacks
 %%====================================================================
 init([Host, Opts]) ->
@@ -216,6 +232,8 @@ init([Host, Opts]) ->
     cache_tab:new(shared_roster_ldap_group,
                   [{max_size, State#state.group_cache_size}, {lru, false},
                    {life_time, State#state.group_cache_validity}]),
+    ejabberd_hooks:add(host_config_update, Host, ?MODULE,
+                       config_change, 50),
     ejabberd_hooks:add(roster_get, Host, ?MODULE,
                        get_user_roster, 70),
     ejabberd_hooks:add(roster_in_subscription, Host, ?MODULE,
@@ -245,6 +263,7 @@ handle_info(_Info, State) -> {noreply, State}.
 
 terminate(_Reason, State) ->
     Host = State#state.host,
+    ejabberd_hooks:delete(host_config_update, Host, ?MODULE, config_change, 50),
     ejabberd_hooks:delete(roster_get, Host, ?MODULE,
                           get_user_roster, 70),
     ejabberd_hooks:delete(roster_in_subscription, Host,

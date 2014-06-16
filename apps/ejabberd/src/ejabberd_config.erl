@@ -32,6 +32,10 @@
          get_global_option/1, get_local_option/1, get_local_option/2]).
 -export([get_vh_by_auth_method/1]).
 -export([is_file_readable/1]).
+-export([reload/0]).
+
+%% for unit tests
+-export([check_hosts/2, compare_modules/2]).
 
 -include("ejabberd.hrl").
 -include("ejabberd_config.hrl").
@@ -727,3 +731,316 @@ is_file_readable(Path) ->
         {error, _Reason} ->
             false
     end.
+
+%%--------------------------------------------------------------------
+%% Configuration reload
+%%--------------------------------------------------------------------
+
+%% TODO problems in configuration file
+parse_file(ConfigFile) ->
+    Terms = get_plain_terms_file(ConfigFile),
+    State = lists:foldl(fun search_hosts/2, #state{}, Terms),
+    Terms_macros = replace_macros(Terms),
+    lists:foldl(fun process_term/2, State, Terms_macros).
+
+-spec reload() -> {ok, binary()}.
+reload() ->
+    State = parse_file(get_ejabberd_config_path()++".n"),
+
+    % New Options
+    {NewConfig, NewLocal, NewHostsLocal} = split_results(State#state.opts),
+
+    % Current Options
+    Config = get_global_config(),
+    Local = get_local_config(),
+    HostsLocal = get_host_local_config(),
+
+    %% global config diff
+    CC= compare_terms(Config, NewConfig, 2, 3),
+    LC = compare_terms(Local, NewLocal, 2, 3),
+    LHC = compare_terms( group_host_changes(HostsLocal), group_host_changes(NewHostsLocal), 1, 2),
+
+    apply_changes(CC, LC, LHC, State),
+    R = rpc:multicall(nodes(), ?MODULE, apply_changes, [CC, LC, LHC, State]),
+    ?ERROR_MSG("MULTICALL RESULT ~p", [R]),
+
+    {ok, <<"ok">>}.
+
+apply_changes(ConfigChanges, LocalConfigChanges, LocalHostsChanges, State) ->
+    reload_opts(State),
+    %% apply config
+    {CAdd, CDel, CChange} = ConfigChanges,
+    {LCAdd, LCDel, LCChange} = LocalConfigChanges,
+    {LCHAdd, LCHDel, LCHChange} = LocalHostsChanges,
+
+
+    lists:foreach(fun handle_config_change/1, CChange),
+    lists:foreach(fun handle_config_add/1, CAdd),
+    lists:foreach(fun handle_config_del/1, CDel),
+
+    lists:foreach(fun handle_local_config_change/1, LCChange),
+    lists:foreach(fun handle_local_config_add/1, LCAdd),
+    lists:foreach(fun handle_local_config_del/1, LCDel),
+
+    %%
+    lists:foreach(fun handle_local_hosts_config_change/1, LCHChange),
+    lists:foreach(fun handle_local_hosts_config_add/1, LCHAdd),
+    lists:foreach(fun handle_local_hosts_config_del/1, LCHDel),
+
+    ok.
+
+
+%% ----------------------------------------------------------------
+%% CONFIG
+%% ----------------------------------------------------------------
+handle_config_add(#config{key = hosts, value = Hosts}) when is_list(Hosts) ->
+    lists:foreach(fun(Host) -> add_virtual_host(Host) end, Hosts).
+handle_config_del(#config{key = hosts,value =  Hosts}) ->
+    lists:foreach(fun(Host) -> remove_virtual_host(Host) end, Hosts).
+
+%% handle add/remove new hosts
+handle_config_change({ #config{key = hosts, value = OldHosts},
+                       #config{key = hosts, value = NewHosts}})->
+    {ToDel, ToAdd} = check_hosts(NewHosts, OldHosts),
+    lists:foreach(fun remove_virtual_host/1, ToDel),
+    lists:foreach(fun add_virtual_host/1, ToAdd);
+handle_config_change({_OldValue, _NewValue}) ->
+    ok.
+
+%% ----------------------------------------------------------------
+%% LOCAL CONFIG
+%% ----------------------------------------------------------------
+handle_local_config_add(El) ->
+    ?ERROR_MSG("local config add ~p",[El]).
+handle_local_config_del(#local_config{key = node_start}) ->
+    %% do nothing with it
+    ok;
+handle_local_config_del(El) ->
+    ?ERROR_MSG("local config del ~p",[El]).
+handle_local_config_change({#local_config{key = listen},
+                            #local_config{key = listen}}) ->
+    % TODO: maybe check what changed and take proper actions
+    ejabberd_listener:stop_listeners(),
+    ejabberd_listener:start_listeners();
+handle_local_config_change(El) ->
+    ?ERROR_MSG("local config change ~p",[El]).
+
+%% ----------------------------------------------------------------
+%% LOCAL HOST CONFIG
+%% ----------------------------------------------------------------
+handle_local_hosts_config_add({{auth, Host}, _}) ->
+    ejabberd_auth:start(Host);
+handle_local_hosts_config_add({{odbc, Host}, _}) ->
+    ejabberd_rdbms:start(Host);
+handle_local_hosts_config_add({{ldap, Host}, _}) ->
+    %% ignore ldap section
+    ok;
+handle_local_hosts_config_add({{modules, Host}, [#local_config{value = Modules}]}) ->
+    lists:foreach(
+      fun({Module, Args}) ->
+              gen_mod:start_module(Host, Module, Args)
+      end, Modules);
+handle_local_hosts_config_add(El) ->
+    ?ERROR_MSG("local hosts config add ~p",[El]).
+%% ----------------------------------------------------------------
+handle_local_hosts_config_del({{auth, Host}, _}) ->
+    ejabberd_auth:stop(Host);
+handle_local_hosts_config_del({{odbc, Host}, _}) ->
+    ejabberd_rdbms:stop(Host);
+handle_local_hosts_config_del({{ldap, Host}, _I}) ->
+    %% ignore ldap section, only appli
+    ok;
+handle_local_hosts_config_del({{modules, Host}, [#local_config{value=Modules}]}) ->
+    lists:foreach(
+      fun({Module, _Args}) ->
+              gen_mod:stop_module(Host, Module)
+      end, Modules);
+handle_local_hosts_config_del(El) ->
+    ?ERROR_MSG("local hosts config add ~p",[El]).
+%% ----------------------------------------------------------------
+handle_local_hosts_config_change({{{odbc,Host},_}, {{odbc, Host},_}}) ->
+    ejabberd_rdbms:stop(Host),
+    ejabberd_rdbms:start(Host);
+handle_local_hosts_config_change({{{auth, Host},_}, {{auth, Host},_}}) ->
+    %% restart auth module
+    ejabberd_auth:stop(Host),
+    ejabberd_auth:start(Host);
+handle_local_hosts_config_change({{{ldap, Host},_}, {{ldap, Host},NewConfig}}) ->
+    ok = ejabberd_hooks:run_fold(host_config_update, Host, ok, [Host, ldap, NewConfig]);
+    %case lists:member(ejabberd_auth_ldap, ejabberd_auth:auth_modules(Host)) of
+    %    true ->
+    %        ejabberd_auth_ldap:stop(Host),
+    %        ejabberd_auth_ldap:start(Host);
+    %    false ->
+    %        ok
+    %end;
+handle_local_hosts_config_change({{{modules, Host},[#local_config{value = OldModules}]},
+                                  {{modules, Host},[#local_config{value = NewModules}]}}) ->
+    Res = compare_modules(OldModules, NewModules),
+    reload_modules(Host, Res);
+handle_local_hosts_config_change(El) ->
+    ?ERROR_MSG("local hosts config add ~p",[El]).
+
+
+
+-spec check_hosts([binary()],[binary()]) -> [binary()].
+check_hosts(NewHosts, OldHosts) ->
+    Old = sets:from_list(OldHosts),
+    New = sets:from_list(NewHosts),
+    ListToAdd = sets:to_list(sets:subtract(New,Old)),
+    ListToDel = sets:to_list(sets:subtract(Old,New)),
+    {ListToDel, ListToAdd}.
+
+add_virtual_host(Host) ->
+    ?DEBUG("Register host:~p",[Host]),
+    ejabberd_local:register_host(Host).
+
+remove_virtual_host(Host) ->
+    ?DEBUG("Unregister host:~p",[Host]),
+    ejabberd_local:unregister_host(Host).
+
+delete_local_config(Host) ->
+    F = fun() ->
+                mnesia:dirty_delete(local_config,{modules,Host}),
+                mnesia:dirty_delete(local_config,{auth_method,Host})
+                %%FIXME: odbc settings etc
+        end,
+    case mnesia:transaction(F) of
+        {atomic, _} -> ok;
+        {aborted,{no_exists,Table}} ->
+            MnesiaDirectory = mnesia:system_info(directory),
+            ?ERROR_MSG("Error reading Mnesia database spool files:~n"
+                       "The Mnesia database couldn't read the spool file for the table '~p'.~n"
+                       "ejabberd needs read and write access in the directory:~n   ~s~n"
+                       "Maybe the problem is a change in the computer hostname,~n"
+                       "or a change in the Erlang node name, which is currently:~n   ~p~n"
+                       "Check the ejabberd guide for details about changing the~n"
+                       "computer hostname or Erlang node name.~n",
+                       [Table, MnesiaDirectory, node()]),
+            exit("Error reading Mnesia database")
+
+    end.
+
+
+reload_opts(State) ->
+    Opts = lists:reverse(State#state.opts),
+    F = fun() ->
+                %% TODO clear tables
+                lists:foreach(fun(R) ->
+                                      %% check options?
+                                      mnesia:write(R)
+                              end, Opts)
+        end,
+    case mnesia:transaction(F) of
+        {atomic, _} -> ok;
+        {aborted,{no_exists,Table}} ->
+            MnesiaDirectory = mnesia:system_info(directory),
+            ?ERROR_MSG("Error reading Mnesia database spool files:~n"
+                       "The Mnesia database couldn't read the spool file for the table '~p'.~n"
+                       "ejabberd needs read and write access in the directory:~n   ~s~n"
+                       "Maybe the problem is a change in the computer hostname,~n"
+                       "or a change in the Erlang node name, which is currently:~n   ~p~n"
+                       "Check the ejabberd guide for details about changing the~n"
+                       "computer hostname or Erlang node name.~n",
+                       [Table, MnesiaDirectory, node()]),
+            exit("Error reading Mnesia database")
+    end.
+
+
+%-spec reload_modules(binary(), term()) -> 'ok'.
+reload_modules(Host, {Start, Stop, Reload}) ->
+    ?DEBUG("reload modules start:~p, stop:~p, reload: ~p", [Start, Stop, Reload]),
+    %% create relaod function ?
+    lists:foreach(fun ({M, _}) ->
+                          gen_mod:stop_module(Host, M)
+                  end, Stop),
+    lists:foreach(fun ({M, Args}) ->
+                          gen_mod:start_module(Host, M, Args)
+                  end, Start),
+    lists:foreach(fun({{M, _},{M, Args}}) ->
+                          gen_mod:reload_module(Host, M, Args)
+                  end, Reload).
+
+-spec compare_modules(term(), term()) -> term().
+compare_modules(OldMods, NewMods) ->
+    compare_terms(OldMods, NewMods,1,2).
+
+% group values which can be grouped like odbc ones
+group_host_changes(Changes) when is_list(Changes) ->
+    D = lists:foldl( fun  (#local_config{key = {Key, Host}} = Config, Dict) ->
+                             BKey = atom_to_binary(Key, utf8),
+                             dict:append({get_key_group(BKey,Key),Host}, Config, Dict)
+                     end, dict:new(), Changes),
+    dict:to_list(D).
+
+%% match all hosts
+get_host_local_config() ->
+    mnesia:dirty_match_object({local_config, {'_','_'}, '_'}).
+
+get_local_config() ->
+    Keys = lists:filter(fun is_not_host_specific/1,mnesia:dirty_all_keys(local_config)),
+    lists:flatten(lists:map(fun (Key) ->
+                                    mnesia:dirty_read(local_config, Key)
+                            end,
+                            Keys)).
+
+get_global_config() ->
+    mnesia:dirty_match_object(config, {config, '_', '_'}).
+
+is_not_host_specific( Key ) when is_atom(Key) ->
+    true;
+is_not_host_specific({Key, Host}) when is_atom(Key), is_binary(Host) ->
+    false.
+
+split_results(Opts)->
+    lists:foldl(fun ({config, _, _}=El, {Config, Local, HostLocal}) ->
+                        {[El | Config],Local, HostLocal};
+                    ({local_config, {Key, Host}, _} = El, {Config,Local,HostLocal})  when is_atom(Key), is_binary(Host)->
+                        { Config ,  Local, [El |HostLocal]};
+                    ({local_config, _, _} = El, {Config, Local, HostLocal})->
+                        { Config , [El | Local],  HostLocal};
+                     (R,R2) ->
+                        ?ERROR_MSG("not matched ~p", [R]),
+                        R2
+                end, {[],[],[]}, Opts).
+
+get_key_group(<<"ldap_", _/binary>>, _) ->
+    ldap;
+get_key_group(<<"odbc_", _/binary>>, _) ->
+    odbc;
+get_key_group(<<"pgsql_", _/binary>>, _) ->
+    odbc;
+get_key_group(<<"auth_", _/binary>>, _) ->
+    auth;
+get_key_group(<<"ext_auth_", _/binary>>, _) ->
+    ext_auth;
+get_key_group(_, Key) when is_atom(Key)->
+    Key.
+
+%% for host only config ?
+%-spec compare_terms(OldTerms :: [tuple()], NewTerms :: [tuple()], Pos :: integer()) -> {ToAdd :: term(), ToRemove :: term(), Changed :: term() }.
+compare_terms(OldTerms, NewTerms, KeyPos, ValuePos) when is_integer(KeyPos), is_integer(ValuePos) ->
+    {ToStop, ToReload} = lists:foldl(fun (Element, {ToStop, ToReload}) ->
+                                             case lists:keyfind(element(KeyPos, Element), KeyPos, NewTerms) of
+                                                 false ->
+                                                     { [Element | ToStop], ToReload };
+                                                 Tuple ->
+                                                     case element(ValuePos, Tuple) == element(ValuePos, Element) of
+                                                         true  ->
+                                                             {ToStop, ToReload};
+                                                         false ->
+                                                             %% add also old value
+                                                             {ToStop, [ {Element,Tuple} | ToReload]}
+                                                     end
+                                             end
+                                     end, {[],[]}, OldTerms),
+    ToStart = lists:foldl( fun ( Element, ToStart ) ->
+                                   case lists:keyfind(element(KeyPos, Element), KeyPos, OldTerms) of
+                                       false ->
+                                           [ Element | ToStart ];
+                                       _ ->
+                                           ToStart
+                                   end
+                           end, [], NewTerms),
+    {ToStart, ToStop, ToReload}.
+

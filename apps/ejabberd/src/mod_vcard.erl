@@ -52,6 +52,8 @@
 
 -export([start_link/2]).
 
+-export([config_change/4]).
+
 -define(PROCNAME, ejabberd_mod_vcard).
 -define(BACKEND, (mod_vcard_backend:backend())).
 
@@ -125,6 +127,8 @@ init([VHost, Opts]) ->
     ejabberd_hooks:add(disco_local_features, VHost,
                        ?MODULE, get_local_features,50),
 
+    ejabberd_hooks:add(host_config_update, VHost,
+                       ?MODULE, config_change, 50),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
     gen_iq_handler:add_iq_handler(ejabberd_sm, VHost, ?NS_VCARD,
                                   ?MODULE,process_sm_iq, IQDisc),
@@ -153,6 +157,7 @@ terminate(_Reason, State) ->
     ejabberd_hooks:delete(remove_user, VHost, ?MODULE, remove_user, 50),
     gen_iq_handler:remove_iq_handler(ejabberd_local, VHost, ?NS_VCARD),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, VHost, ?NS_VCARD),
+    ejabberd_hooks:delete(host_config_update, VHost, ?MODULE, config_change, 50),
     ejabberd_hooks:delete(disco_local_features, VHost, ?MODULE, get_local_features, 50).
 
 handle_call(get_state, _From, State) ->
@@ -258,6 +263,22 @@ remove_user(User, Server) ->
     LServer = jlib:nodeprep(Server),
     ?BACKEND:remove_user(LUser,LServer).
 
+%% react to "global" config change
+config_change(Acc, Host, ldap, _NewConfig) ->
+    case ?BACKEND of
+        mod_vcard_ldap ->
+            ?ERROR_MSG("******** config_change ",[]),
+            Mods = ejabberd_config:get_local_option({modules, Host}),
+            Opts = proplists:get_value(?MODULE, Mods, []),
+            gen_mod:stop_module(?MODULE, Host),
+            gen_mod:start_module(?MODULE, Host, Opts);
+        _ ->
+            ok
+    end,
+    %ok = gen_server:call(Proc,{new_config, Host, Opts}),
+    Acc;
+config_change(Acc, _, _, _) ->
+    Acc.
 %% ------------------------------------------------------------------
 %% Dynamic modules
 %% ------------------------------------------------------------------
@@ -320,7 +341,7 @@ do_route(VHost, From, To, _Packet, #iq{type = get,
     ResIQ = IQ#iq{type = result,
                   sub_el = [#xmlel{name = <<"query">>,
                                    attrs = [{<<"xmlns">>, ?NS_SEARCH}],
-                                   children = ?FORM(To,?BACKEND:search_fields(VHost),Lang) 
+                                   children = ?FORM(To,?BACKEND:search_fields(VHost),Lang)
                                   }]},
     ejabberd_router:route(To, From, jlib:iq_to_xml(ResIQ));
 do_route(_VHost, From, To, Packet, #iq{type = set,
