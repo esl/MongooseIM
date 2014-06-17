@@ -138,43 +138,36 @@ user_receive_packet(JID, _From, To, Packet) ->
 %    - registered to the user_send_packet hook, to be called only once even for multicast
 %    - do not support "private" message mode, and do not modify the original packet in any way
 %    - we also replicate "read" notifications
-check_and_forward(JID, To, #xmlel{name = <<"message">>, attrs = Attrs} = Packet, Direction)->
-    case xml:get_attr_s(<<"type">>, Attrs) of 
-      <<"chat">> ->
-	case xml:get_subtag(Packet, <<"private">>) of
-	    false ->
-		case xml:get_subtag(Packet, <<"no-copy">>) of
-		    false ->
-			case xml:get_subtag(Packet,<<"received">>) of
-			    false ->
-				%% We must check if a packet contains "<sent><forwarded></sent></forwarded>"
-				%% tags in order to avoid receiving message back to original sender.
-				SubTag = xml:get_subtag(Packet,<<"sent">>),
-				if SubTag == false ->
-				    send_copies(JID, To, Packet, Direction);
-				   true ->
-				    case xml:get_subtag(SubTag,<<"forwarded">>) of
-					false->
-					    send_copies(JID, To, Packet, Direction);
-					_ ->
-					    stop
-				    end
-				end;
-			    _ ->
-				%% stop the hook chain, we don't want mod_logdb to register this message (duplicate)
-				stop
-			end;
-		    _ ->
-			ok
-		end;
-	    _ ->
-		ok
+check_and_forward(JID, To, #xmlel{name = <<"message">>} = Packet, Direction)->
+	case classify_packet(Packet) of
+		"ignore" -> stop;
+		"forward"  -> send_copies(JID, To, Packet, Direction);
+		_ -> stop
 	end;
-    _ ->
-	ok
-    end;
  
 check_and_forward(_JID, _To, _Packet, _)-> ok.
+
+classify_packet(#xmlel{name = <<"message">>, attrs = Attrs} = Packet)->
+	SubTag = xml:get_subtag(Packet,<<"sent">>),
+	case xml:get_attr_s(<<"type">>, Attrs) == <<"chat">> andalso 
+		xml:get_subtag(Packet, <<"private">>) == false andalso
+			xml:get_subtag(Packet, <<"no-copy">>) == false andalso
+				xml:get_subtag(Packet,<<"received">>) == false 	of
+					true ->
+							if SubTag == false ->
+								"forward";
+				   			true ->
+				    				case xml:get_subtag(SubTag,<<"forwarded">>) of
+									false->
+					    					"forward";
+									_ ->
+					    					"ignore"
+									end
+							end;
+				_ ->
+					%% stop the hook chain, we don't want mod_logdb to register this message (duplicate)
+					"ignore"
+	end.
 
 remove_connection(User, Server, Resource, _Status)->
     disable(Server, User, Resource),
@@ -286,4 +279,3 @@ complete_packet(_From, #xmlel{name = <<"message">>, attrs=OrigAttrs} = Packet, r
 %% list {resource, cc_version} with carbons enabled for given user and host
 list(User, Server)->
 	mnesia:dirty_select(?TABLE, [{#carboncopy{us = {User, Server}, resource = '$2', version = '$3'}, [], [{{'$2','$3'}}]}]).
-
