@@ -154,19 +154,19 @@ classify_packet(#xmlel{name = <<"message">>, attrs = Attrs} = Packet)->
 			xml:get_subtag(Packet, <<"no-copy">>) == false andalso
 				xml:get_subtag(Packet,<<"received">>) == false 	of
 					true ->
-							if SubTag == false ->
-								"forward";
-				   			true ->
-				    				case xml:get_subtag(SubTag,<<"forwarded">>) of
-									false->
-					    					"forward";
-									_ ->
-					    					"ignore"
-									end
-							end;
-				_ ->
-					%% stop the hook chain, we don't want mod_logdb to register this message (duplicate)
-					"ignore"
+						if SubTag == false ->
+							"forward";
+			   			true ->
+			    				case xml:get_subtag(SubTag,<<"forwarded">>) of
+								false->
+				    					"forward";
+								_ ->
+				    					"ignore"
+								end
+						end;
+					_ ->
+						%% stop the hook chain, we don't want mod_logdb to register this message (duplicate)
+						"ignore"
 	end.
 
 remove_connection(User, Server, Resource, _Status)->
