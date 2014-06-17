@@ -135,8 +135,8 @@ get_behaviour(DefaultBehaviour, _Host,
 -spec get_behaviour(mam_prefs(), LocJID :: ejabberd:jid(),
                     RemJID :: ejabberd:jid()) -> behaviour().
 get_behaviour(#mam_prefs{default_mode = always, never_rules=NeverJIDs}, LocJID, RemJID) ->
-    IsNewer = match_jid(LocJID, RemJID, NeverJIDs),
-    case IsNewer of
+    IsNever = match_jid(LocJID, RemJID, NeverJIDs),
+    case IsNever of
         true -> never;
         false -> always
     end;
@@ -148,8 +148,8 @@ get_behaviour(#mam_prefs{default_mode = never, always_rules=AlwaysJIDs}, LocJID,
     end;
 get_behaviour(#mam_prefs{default_mode = roster,
         never_rules=NeverJIDs, always_rules=AlwaysJIDs}, LocJID, RemJID) ->
-    IsNewer = match_jid(LocJID, RemJID, NeverJIDs),
-    case IsNewer of
+    IsNever = match_jid(LocJID, RemJID, NeverJIDs),
+    case IsNever of
         true -> never;
         false ->
             IsAlways = match_jid(LocJID, RemJID, AlwaysJIDs),
