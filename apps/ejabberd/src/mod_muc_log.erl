@@ -823,8 +823,6 @@ put_room_occupants(F, RoomOccupants, Lang, _FileFormat) ->
 htmlize(S1) ->
     htmlize(S1, html).
 
-htmlize(S1, plaintext) ->
-    S1;
 htmlize(S1, FileFormat) ->
     htmlize(S1, false, FileFormat).
 
@@ -832,7 +830,12 @@ htmlize(S1, FileFormat) ->
 %% @doc The NoFollow parameter tell if the spam prevention should be applied to
 %% the link found. true means 'apply nofollow on links'.
 htmlize(S1, _NoFollow, plaintext) ->
-    S1;
+    ReplacementRules =
+        [{<<"<">>, <<"[">>},
+         {<<">">>, <<"]">>}],
+    lists:foldl(fun({RegExp, Replace}, Acc) ->
+                        re:replace(Acc, RegExp, Replace, [global, {return, binary}])
+                end, S1, ReplacementRules);
 htmlize(S1, NoFollow, _FileFormat) ->
     S2_list = binary:split(S1, <<"\n">>, [global]),
     lists:foldl(
