@@ -403,7 +403,7 @@ normal_state({route, From, <<>>,
     Type = xml:get_attr_s(<<"type">>, Attrs),
 
     NewStateData = route_message(#routed_message{
-        allowed = is_user_allowed(From, StateData),
+        allowed = can_send_to_conference(From, StateData),
         type = Type,
         from = From,
         packet = Packet,
@@ -694,7 +694,7 @@ process_groupchat_message(From, #xmlel{name = <<"message">>,
                                        attrs = Attrs} = Packet,
                           StateData) ->
     Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
-    case is_user_allowed(From, StateData) of
+    case can_send_to_conference(From, StateData) of
         true ->
             process_message_from_allowed_user(From, Packet, StateData);
         false ->
@@ -706,7 +706,7 @@ process_groupchat_message(From, #xmlel{name = <<"message">>,
             {next_state, normal_state, StateData}
     end.
 
-is_user_allowed(From, StateData) ->
+can_send_to_conference(From, StateData) ->
     is_user_online(From, StateData)
     orelse
     is_allowed_nonparticipant(From, StateData).
