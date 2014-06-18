@@ -403,8 +403,7 @@ normal_state({route, From, <<>>,
     Type = xml:get_attr_s(<<"type">>, Attrs),
 
     NewStateData = route_message(#routed_message{
-        allowed = is_user_online(From, StateData) orelse
-            is_user_allowed_message_nonparticipant(From, StateData),
+        allowed = is_user_allowed(From, StateData),
         type = Type,
         from = From,
         packet = Packet,
@@ -695,8 +694,7 @@ process_groupchat_message(From, #xmlel{name = <<"message">>,
                                        attrs = Attrs} = Packet,
               StateData) ->
     Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
-    case is_user_online(From, StateData) orelse
-    is_user_allowed_message_nonparticipant(From, StateData) of
+    case is_user_allowed(From, StateData) of
     true ->
         {FromNick, Role} = get_participant_data(From, StateData),
         if
@@ -789,6 +787,11 @@ process_groupchat_message(From, #xmlel{name = <<"message">>,
         {next_state, normal_state, StateData}
     end.
 
+-spec is_user_allowed(ejabberd:jid(), state()) -> boolean().
+is_user_allowed(From, StateData) ->
+    is_user_online(From, StateData)
+    orelse
+    is_allowed_nonparticipant(From, StateData).
 
 %% @doc Check if this non participant can send message to room.
 %%
@@ -797,8 +800,8 @@ process_groupchat_message(From, #xmlel{name = <<"message">>,
 %% an implementation MAY allow users with certain privileges
 %% (e.g., a room owner, room admin, or service-level admin)
 %% to send messages to the room even if those users are not occupants.
--spec is_user_allowed_message_nonparticipant(ejabberd:jid(), state()) -> boolean().
-is_user_allowed_message_nonparticipant(JID, StateData) ->
+-spec is_allowed_nonparticipant(ejabberd:jid(), state()) -> boolean().
+is_allowed_nonparticipant(JID, StateData) ->
     get_service_affiliation(JID, StateData) =:= owner.
 
 
