@@ -130,7 +130,7 @@ microseconds_to_now(MicroSeconds) when is_integer(MicroSeconds) ->
 -spec iso8601_datetime_binary_to_timestamp(iso8601_datetime_binary())
         -> erlang:timestamp().
 iso8601_datetime_binary_to_timestamp(DateTime) when is_binary(DateTime) ->
-    jlib:datetime_string_to_timestamp(binary_to_list(DateTime)).
+    jlib:datetime_binary_to_timestamp(DateTime).
 
 
 -spec datetime_to_microseconds(calendar:datetime()) -> integer().

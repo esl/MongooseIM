@@ -308,7 +308,7 @@ store_packet(
                 <<"">> ->
                     now();
                 Stamp ->
-                    jlib:datetime_string_to_timestamp(binary_to_list(Stamp))
+                    jlib:datetime_binary_to_timestamp(Stamp)
             end
     end,
 
