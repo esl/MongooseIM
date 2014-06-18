@@ -32,14 +32,17 @@ all() ->
     [{group, essential},
      {group, chat},
      {group, time},
-     {group, acks}].
+     {group, acks}
+    ].
 
 groups() ->
     [{essential, [{repeat,10}], [create_and_terminate_session]},
      {chat, [shuffle, {repeat,10}], [interleave_requests,
                                      simple_chat,
+                                     cdata_escape_chat,
                                      cant_send_invalid_rid,
                                      multiple_stanzas,
+                                     namespace,
                                      stream_error]},
      {time, [shuffle, {repeat,5}], [disconnect_inactive,
                                     interrupt_long_poll_is_activity,
@@ -210,6 +213,22 @@ simple_chat(Config) ->
 
         end).
 
+cdata_escape_chat(Config) ->
+    escalus:story(Config, [{carol, 1}, {geralt, 1}], fun(Carol, Geralt) ->
+
+        Message = <<"Hi! & < > ">>,
+        Stanza = escalus_stanza:chat_to(Carol, Message),
+        escalus_client:send(Carol, Stanza),
+        escalus:assert(is_chat_message, [Message],
+            escalus_client:wait_for_stanza(Carol)),
+
+        escalus_client:send(Geralt,
+            escalus_stanza:chat_to(Carol, Message)),
+        escalus:assert(is_chat_message, [Message],
+            escalus_client:wait_for_stanza(Carol))
+
+    end).
+
 cant_send_invalid_rid(Config) ->
     escalus:story(Config, [{carol, 1}], fun(Carol) ->
         %% ct:pal("This test will leave invalid rid, session not found"
@@ -260,6 +279,39 @@ multiple_stanzas(Config) ->
                 escalus:assert(is_chat_message, [<<"Hello">>],
                                escalus_client:wait_for_stanza(Geralt)),
                 escalus:assert(is_iq_result, escalus:wait_for_stanza(Carol))
+        end).
+
+namespace(Config) ->
+    escalus:story(Config, [{carol, 1},{geralt, 1}],
+        fun(Carol, Geralt) ->
+            %% send a multiple stanza
+            Server = escalus_client:server(Carol),
+
+            Stanza1 = escalus_stanza:service_discovery(Server),
+            Stanza2 = escalus_stanza:chat_to(Carol, <<"Hello">>),
+            Stanza3 = escalus_stanza:presence_direct(Carol, <<"available">>),
+
+            RID = escalus_bosh:get_rid(Carol#client.conn),
+            SID = escalus_bosh:get_sid(Carol#client.conn),
+            Body = escalus_bosh:empty_body(RID, SID),
+            Stanza = Body#xmlel{children=[Stanza1]},
+            escalus_bosh:send_raw(Carol#client.conn, Stanza),
+
+            IQResp = escalus:wait_for_stanza(Carol),
+
+            escalus:assert(is_iq, [<<"result">>], IQResp),
+            escalus:assert(has_ns, [<<"jabber:client">>], IQResp),
+
+            escalus_client:send(Geralt, Stanza2),
+            escalus_client:send(Geralt, Stanza3),
+
+            Message = escalus:wait_for_stanza(Carol),
+            escalus:assert(is_chat_message, Message),
+            escalus:assert(has_ns, [<<"jabber:client">>], Message),
+
+            Presence  = escalus:wait_for_stanza(Carol),
+            escalus:assert(is_presence, Presence),
+            escalus:assert(has_ns, [<<"jabber:client">>], Presence)
         end).
 
 disconnect_inactive(Config) ->
