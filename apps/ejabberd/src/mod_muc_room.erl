@@ -719,84 +719,82 @@ process_message_from_allowed_user(From, #xmlel{attrs = Attrs} = Packet,
         (Role == moderator)
         or (Role == participant)
         or ((StateData#state.config)#config.moderated == false) ->
-            {NewStateData1, IsAllowed} =
-            case check_subject(Packet) of
-                false ->
-                    {StateData, true};
-                Subject ->
-                    case can_change_subject(Role, StateData) of
-                        true ->
-                            NSD =
-                            StateData#state{
-                              subject = Subject,
-                              subject_author = FromNick},
-                            case (NSD#state.config)#config.persistent of
-                                true ->
-                                    mod_muc:store_room(
-                                      NSD#state.host,
-                                      NSD#state.room,
-                                      make_opts(NSD));
-                                _ ->
-                                    ok
-                            end,
-                            {NSD, true};
-                        _ ->
-                            {StateData, false}
-                    end
-            end,
-            case IsAllowed of
-                true ->
-                    case ejabberd_hooks:run_fold(filter_room_packet,
-                                                 StateData#state.host, Packet,
-                                                 [FromNick, From, StateData#state.jid]) of
-                        drop ->
-                            {next_state, normal_state, NewStateData1};
-                        Packet1 ->
-                            lists:foreach(
-                              fun({_LJID, Info}) ->
-                                      ejabberd_router:route(
-                                        jlib:jid_replace_resource(
-                                          StateData#state.jid,
-                                          FromNick),
-                                        Info#user.jid,
-                                        Packet1)
-                              end,
-                              ?DICT:to_list(StateData#state.users)),
-                            NewStateData2 =
-                            add_message_to_history(FromNick,
-                                                   From,
-                                                   Packet1,
-                                                   NewStateData1),
-                            {next_state, normal_state, NewStateData2}
-                    end;
-                _ ->
-                    Err =
-                    case (StateData#state.config)#config.allow_change_subj of
-                        true ->
-                            ?ERRT_FORBIDDEN(
-                               Lang,
-                               <<"Only moderators and participants are allowed to change the subject in this room">>);
-                        _ ->
-                            ?ERRT_FORBIDDEN(
-                               Lang,
-                               <<"Only moderators are allowed to change the subject in this room">>)
-                    end,
-                    ejabberd_router:route(
-                      jlib:jid_replace_resource(
-                        StateData#state.jid,
-                        FromNick),
-                      From,
-                      jlib:make_error_reply(Packet, Err)),
-                    {next_state, normal_state, StateData}
+            {NewState, Changed} = change_subject_if_allowed(FromNick, Role,
+                                                            Packet, StateData),
+            if
+                Changed ->
+                    broadcast_changed_subject(From, FromNick, Packet, NewState);
+                not Changed ->
+                    change_subject_error(From, FromNick, Packet, Lang, NewState),
+                    {next_state, normal_state, NewState}
             end;
         true ->
             ErrText = <<"Visitors are not allowed to send messages to all occupants">>,
-            Err = jlib:make_error_reply(
-                    Packet, ?ERRT_FORBIDDEN(Lang, ErrText)),
-            ejabberd_router:route(
-              StateData#state.jid,
-              From, Err),
+            Err = jlib:make_error_reply(Packet, ?ERRT_FORBIDDEN(Lang, ErrText)),
+            ejabberd_router:route(StateData#state.jid, From, Err),
             {next_state, normal_state, StateData}
+    end.
+
+broadcast_changed_subject(From, FromNick, Packet, StateData) ->
+    case ejabberd_hooks:run_fold(filter_room_packet,
+                                 StateData#state.host, Packet,
+                                 [FromNick, From, StateData#state.jid])
+    of
+        drop ->
+            {next_state, normal_state, StateData};
+        FilteredPacket ->
+            RouteFrom = jlib:jid_replace_resource(StateData#state.jid,
+                                                  FromNick),
+            lists:foreach(fun({_LJID, Info}) ->
+                                  ejabberd_router:route(RouteFrom,
+                                                        Info#user.jid,
+                                                        FilteredPacket)
+                          end, ?DICT:to_list(StateData#state.users)),
+            NewStateData2 = add_message_to_history(FromNick,
+                                                   From,
+                                                   FilteredPacket,
+                                                   StateData),
+            {next_state, normal_state, NewStateData2}
+    end.
+
+change_subject_error(From, FromNick, Packet, Lang, StateData) ->
+    Err = case (StateData#state.config)#config.allow_change_subj of
+              true ->
+                  ?ERRT_FORBIDDEN(Lang,
+                                  <<"Only moderators and participants are allowed to change the subject in this room">>);
+              _ ->
+                  ?ERRT_FORBIDDEN(Lang,
+                                  <<"Only moderators are allowed to change the subject in this room">>)
+          end,
+    ejabberd_router:route(jlib:jid_replace_resource(StateData#state.jid,
+                                                    FromNick),
+                          From,
+                          jlib:make_error_reply(Packet, Err)).
+
+change_subject_if_allowed(FromNick, Role, Packet, StateData) ->
+    case check_subject(Packet) of
+        false ->
+            {StateData, true};
+        Subject ->
+            case can_change_subject(Role, StateData) of
+                true ->
+                    NSD = StateData#state{subject = Subject,
+                                          subject_author = FromNick},
+                    save_persistent_room_state(NSD),
+                    {NSD, true};
+                _ ->
+                    {StateData, false}
+            end
+    end.
+
+save_persistent_room_state(StateData) ->
+    case (StateData#state.config)#config.persistent of
+        true ->
+            mod_muc:store_room(StateData#state.host,
+                               StateData#state.room,
+                               make_opts(StateData));
+        _ ->
+            ok
     end.
 
 %% @doc Check if this non participant can send message to room.
