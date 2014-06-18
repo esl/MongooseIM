@@ -692,7 +692,7 @@ route(Pid, From, ToNick, Packet) ->
                                 jlib:xmlel(), state()) -> fsm_return().
 process_groupchat_message(From, #xmlel{name = <<"message">>,
                                        attrs = Attrs} = Packet,
-              StateData) ->
+                          StateData) ->
     Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
     case is_user_allowed(From, StateData) of
     true ->
@@ -855,11 +855,13 @@ destroy_temporary_room_if_empty(StateData=#state{config=C=#config{}}) ->
     end.
 
 
--spec process_presence1(From :: ejabberd:jid(), Nick :: mod_muc:nick(),
-        Packet :: jlib:xmlel(), state()) -> state().
+-spec process_presence1(From, Nick, Packet, state()) -> state() when
+      From :: ejabberd:jid(),
+      Nick :: mod_muc:nick(),
+      Packet :: jlib:xmlel().
 process_presence1(From, Nick, #xmlel{name = <<"presence">>,
                                      attrs = Attrs} = Packet,
-         StateData=#state{}) ->
+                  StateData=#state{}) ->
     Type = xml:get_attr_s(<<"type">>, Attrs),
     Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
     case Type of
@@ -872,11 +874,10 @@ process_presence1(From, Nick, #xmlel{name = <<"presence">>,
                 true ->
                     case is_nick_change(From, Nick, StateData) of
                         true ->
-                            process_presence_nick_change(
-                                From, Nick, Packet, Lang, StateData);
+                            process_presence_nick_change(From, Nick, Packet,
+                                                         Lang, StateData);
                         _NotNickChange ->
-                            process_simple_presence(
-                                From, Packet, StateData)
+                            process_simple_presence(From, Packet, StateData)
                     end;
                 false ->
                     %% at this point we know that the presence has no type
@@ -884,8 +885,8 @@ process_presence1(From, Nick, #xmlel{name = <<"presence">>,
                     %% and that the user is not alredy online
                     handle_new_user(From, Nick, Packet, StateData, Attrs)
             end;
-            _NotOnline ->
-                StateData
+        _NotOnline ->
+            StateData
     end.
 
 
@@ -2389,20 +2390,20 @@ send_subject(JID, _Lang, StateData) ->
 -spec check_subject(jlib:xmlel()) -> 'false' | binary().
 check_subject(Packet) ->
     case xml:get_subtag(Packet, <<"subject">>) of
-    false ->
-        false;
-    SubjEl ->
-        xml:get_tag_cdata(SubjEl)
+        false ->
+            false;
+        SubjEl ->
+            xml:get_tag_cdata(SubjEl)
     end.
 
 
 -spec can_change_subject(mod_muc:role(), state()) -> boolean().
 can_change_subject(Role, StateData) ->
     case (StateData#state.config)#config.allow_change_subj of
-    true ->
-        (Role == moderator) orelse (Role == participant);
-    _ ->
-        Role == moderator
+        true ->
+            (Role == moderator) orelse (Role == participant);
+        _ ->
+            Role == moderator
     end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -4184,9 +4185,9 @@ route_message(#routed_message{allowed = true, type = <<"chat">>, from = From, pa
         From, Err),
     StateData;
 route_message(#routed_message{allowed = true, type = Type, from = From,
-    packet = #xmlel{name = <<"message">>,
-                    children = Els} = Packet, lang = Lang},
-    StateData) when (Type == <<>> orelse Type == <<"normal">>) ->
+                              packet = #xmlel{name = <<"message">>,
+                                              children = Els} = Packet, lang = Lang},
+              StateData) when (Type == <<>> orelse Type == <<"normal">>) ->
 
     Invite = xml:get_path_s(Packet, [{elem, <<"x">>}, {elem, <<"invite">>}]),
     case Invite of
@@ -4198,28 +4199,25 @@ route_message(#routed_message{allowed = true, type = Type, from = From,
             route_invitation(InType, From, Packet, Lang, StateData)
     end;
 route_message(#routed_message{allowed = true, from = From, packet = Packet,
-    lang = Lang}, StateData) ->
+                              lang = Lang}, StateData) ->
     ErrText = <<"Improper message type">>,
-    Err = jlib:make_error_reply(
-        Packet, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)),
-    ejabberd_router:route(
-              StateData#state.jid,
-              From, Err),
+    Err = jlib:make_error_reply(Packet, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)),
+    ejabberd_router:route(StateData#state.jid,
+                          From, Err),
     StateData;
 route_message(#routed_message{type = <<"error">>}, StateData) ->
     StateData;
 route_message(#routed_message{from = From, packet = Packet, lang = Lang},
-    StateData) ->
+              StateData) ->
     handle_roommessage_from_nonparticipant(Packet, Lang, StateData, From),
     StateData.
 
 
 -spec route_error(mod_muc:nick(), ejabberd:jid(), jlib:xmlel(), state()) -> state().
 route_error(Nick, From, Error, StateData) ->
-    ejabberd_router:route(
-        % TODO: s/Nick/<<>>/
-        jlib:jid_replace_resource(StateData#state.jid, Nick),
-        From, Error),
+    %% TODO: s/Nick/<<>>/
+    ejabberd_router:route(jlib:jid_replace_resource(StateData#state.jid, Nick),
+                          From, Error),
     StateData.
 
 
@@ -4228,36 +4226,41 @@ route_error(Nick, From, Error, StateData) ->
         ejabberd:lang(), state()) -> state().
 route_voice_approval({error, ErrType}, From, Packet, _Lang, StateData) ->
     ejabberd_router:route(StateData#state.jid, From,
-        jlib:make_error_reply(Packet, ErrType)),
+                          jlib:make_error_reply(Packet, ErrType)),
     StateData;
 route_voice_approval({form, RoleName}, From, _Packet, _Lang, StateData) ->
     {Nick, _} = get_participant_data(From, StateData),
-    lists:foreach(fun({_, Info}) ->
-        ejabberd_router:route(StateData#state.jid, Info#user.jid,
-            jlib:make_voice_approval_form(From, Nick, RoleName))
-    end, search_role(moderator, StateData)),
+    ApprovalForm = jlib:make_voice_approval_form(From, Nick, RoleName),
+    F = fun({_, Info}) ->
+                ejabberd_router:route(StateData#state.jid, Info#user.jid,
+                                      ApprovalForm)
+        end,
+    lists:foreach(F, search_role(moderator, StateData)),
     StateData;
 route_voice_approval({role, BRole, Nick}, From, Packet, Lang, StateData) ->
-    case process_admin_items_set(From,
-        [#xmlel{name = <<"item">>,
-                attrs = [{<<"role">>, BRole}, {<<"nick">>, Nick}]}],
-              Lang, StateData) of
+    Items = [#xmlel{name = <<"item">>,
+                    attrs = [{<<"role">>, BRole},
+                             {<<"nick">>, Nick}]}],
+    case process_admin_items_set(From, Items, Lang, StateData) of
         {result, _Res, SD1} -> SD1;
         {error, Error} ->
             ejabberd_router:route(StateData#state.jid, From,
-                jlib:make_error_reply(Packet, Error)),
+                                  jlib:make_error_reply(Packet, Error)),
             StateData
     end;
 route_voice_approval(_Type, From, Packet, _Lang, StateData) ->
     ejabberd_router:route(StateData#state.jid, From,
-        jlib:make_error_reply(Packet, ?ERR_BAD_REQUEST)),
+                          jlib:make_error_reply(Packet, ?ERR_BAD_REQUEST)),
     StateData.
 
 
--spec route_invitation(
-        {'error',jlib:xmlcdata() | jlib:xmlel()} | {'ok', ejabberd:jid()},
-        ejabberd:simple_jid() | ejabberd:jid(), jlib:xmlel(), ejabberd:lang(),
-        state()) -> state().
+-spec route_invitation(InvitationsOrError,
+                       From, Packet, Lang, state()) -> state() when
+      InvitationsOrError :: {'error', jlib:xmlcdata() | jlib:xmlel()}
+                          | {'ok', ejabberd:jid()},
+      From :: ejabberd:simple_jid() | ejabberd:jid(),
+      Packet :: jlib:xmlel(),
+      Lang :: ejabberd:lang().
 route_invitation({error, Error}, From, Packet, _Lang, StateData) ->
     Err = jlib:make_error_reply(Packet, Error),
     ejabberd_router:route(StateData#state.jid, From, Err),
@@ -4356,9 +4359,9 @@ route_nick_message(#routed_nick_message{decide = {expulse_sender, Reason},
     packet = Packet, lang = Lang, from = From}, StateData) ->
     ?DEBUG(Reason, []),
     ErrorText = <<"This participant is kicked from the room because he",
-        "sent an error message to another participant">>,
+                  "sent an error message to another participant">>,
     expulse_participant(Packet, From, StateData,
-        translate:translate(Lang, ErrorText));
+                        translate:translate(Lang, ErrorText));
 route_nick_message(#routed_nick_message{decide = forget_message}, StateData) ->
     StateData;
 route_nick_message(#routed_nick_message{decide = continue_delivery, allow_pm = true,
@@ -4396,11 +4399,9 @@ route_nick_message(#routed_nick_message{decide = continue_delivery, allow_pm = t
     online = false, packet = Packet, from = From,
     lang = Lang, nick = ToNick}, StateData) ->
     ErrText = <<"Only occupants are allowed to send messages to the conference">>,
-    Err = jlib:make_error_reply(
-        Packet, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)),
-    ejabberd_router:route(
-        jlib:jid_replace_resource(StateData#state.jid, ToNick),
-        From, Err),
+    Err = jlib:make_error_reply(Packet, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)),
+    ejabberd_router:route(jlib:jid_replace_resource(StateData#state.jid, ToNick),
+                          From, Err),
     StateData;
 route_nick_message(#routed_nick_message{decide = continue_delivery, allow_pm = false,
     packet = Packet, from = From,
