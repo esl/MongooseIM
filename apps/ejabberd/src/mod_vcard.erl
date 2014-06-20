@@ -267,11 +267,10 @@ remove_user(User, Server) ->
 config_change(Acc, Host, ldap, _NewConfig) ->
     case ?BACKEND of
         mod_vcard_ldap ->
-            ?ERROR_MSG("******** config_change ",[]),
             Mods = ejabberd_config:get_local_option({modules, Host}),
             Opts = proplists:get_value(?MODULE, Mods, []),
-            gen_mod:stop_module(?MODULE, Host),
-            gen_mod:start_module(?MODULE, Host, Opts);
+            gen_mod:stop_module(Host, ?MODULE),
+            gen_mod:start_module(Host, ?MODULE, Opts);
         _ ->
             ok
     end,
