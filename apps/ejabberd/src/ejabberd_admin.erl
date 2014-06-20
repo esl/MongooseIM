@@ -201,7 +201,7 @@ commands() ->
      #ejabberd_commands{name = reload, tags = [server],
                         desc = "Reload configuration file",
                         module = ejabberd_config, function = reload,
-                        args = [], result = {res, restuple}}
+                        args = [{file, string}], result = {res, restuple}}
     ].
 
 

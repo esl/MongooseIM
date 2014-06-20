@@ -32,14 +32,18 @@
          get_global_option/1, get_local_option/1, get_local_option/2]).
 -export([get_vh_by_auth_method/1]).
 -export([is_file_readable/1]).
--export([reload/0]).
 
 %% for unit tests
 -export([check_hosts/2, compare_modules/2]).
 
+%% conf reload
+-export([reload/1, apply_changes_safe/5, apply_changes/5, replace_config_file/2]).
+
 -include("ejabberd.hrl").
 -include("ejabberd_config.hrl").
 -include_lib("kernel/include/file.hrl").
+
+-define(CONFIG_RELOAD_TIMEOUT, 30000).
 
 -type key() :: atom()
              | {atom(), ejabberd:server() | atom()}
@@ -735,44 +739,86 @@ is_file_readable(Path) ->
 %%--------------------------------------------------------------------
 %% Configuration reload
 %%--------------------------------------------------------------------
-
-%% TODO problems in configuration file
+-spec parse_file(file:name()) -> state().
 parse_file(ConfigFile) ->
     Terms = get_plain_terms_file(ConfigFile),
     State = lists:foldl(fun search_hosts/2, #state{}, Terms),
     Terms_macros = replace_macros(Terms),
     lists:foldl(fun process_term/2, State, Terms_macros).
 
--spec reload() -> {ok, binary()}.
-reload() ->
-    State = parse_file(get_ejabberd_config_path()++".n"),
+-spec reload(file:name()) -> {ok, binary()}.
+reload(NewConfigFilePath) ->
+    CurrentNode = node(),
+    State = parse_file(NewConfigFilePath),
+    {CC, LC, LHC} = get_config_diff(State),
 
+    {ok, NewBackupContent} = file:read_file(NewConfigFilePath),
+    %% first apply on local
+    case catch apply_changes(CC, LC, LHC, State, NewBackupContent) of
+        {ok, CurrentNode} ->
+            %% update global tables only once
+            NewState = State#state{override_global= false, override_acls = false},
+            %% apply on other nodes
+            {S,F} = rpc:multicall(nodes(), ?MODULE, apply_changes_safe, [CC, LC, LHC, NewState, NewBackupContent],30000),
+            {S1,F1} = group_nodes_results([{ok,node()} | S],F),
+
+            {ok, groups_to_string("# Reloaded:", S1) ++
+                 groups_to_string("\n# Failed:", F1) };
+        Error ->
+            Reason = io_lib:format("failed to apply config on node: ~p ~n Reason: ~p",[CurrentNode, Error]),
+            exit(lists:flatten(Reason))
+    end.
+
+-spec groups_to_string(string(), [string()]) -> string().
+groups_to_string(_Header,[]) ->
+    "";
+groups_to_string(Header,S) ->
+    Header++"\n"++string:join(S,"\n").
+
+-spec group_nodes_results(list(), [atom]) -> {[string()],[string()]}.
+group_nodes_results(SuccessfullRPC, FailedRPC) ->
+    {S,F} = lists:foldl(fun (El, {SN,FN}) ->
+                                case El of
+                                    {ok, Node} ->
+                                        {[atom_to_list(Node) | SN], FN};
+                                    {error, Node, Reason} ->
+                                        {SN, [atom_to_list(Node)++" "++Reason|FN]}
+                                end
+                        end, {[],[]}, SuccessfullRPC),
+    {S,F ++ lists:map(fun (E) -> {atom_to_list(E)++" "++"RPC failed"} end, FailedRPC)}.
+
+-spec get_config_diff(state()) -> {term(), term(), term()}.
+get_config_diff(State) ->
     % New Options
     {NewConfig, NewLocal, NewHostsLocal} = split_results(State#state.opts),
-
     % Current Options
     Config = get_global_config(),
     Local = get_local_config(),
     HostsLocal = get_host_local_config(),
-
     %% global config diff
     CC= compare_terms(Config, NewConfig, 2, 3),
     LC = compare_terms(Local, NewLocal, 2, 3),
-    LHC = compare_terms( group_host_changes(HostsLocal), group_host_changes(NewHostsLocal), 1, 2),
+    LHC = compare_terms(group_host_changes(HostsLocal), group_host_changes(NewHostsLocal), 1, 2),
+    {CC, LC, LHC}.
 
-    apply_changes(CC, LC, LHC, State),
-    R = rpc:multicall(nodes(), ?MODULE, apply_changes, [CC, LC, LHC, State]),
-    ?ERROR_MSG("MULTICALL RESULT ~p", [R]),
+-spec apply_changes_safe(term(), term(), term(), state(), binary()) -> {ok, node()}| {error,node(),string()}.
+apply_changes_safe(ConfigChanges, LocalConfigChanges, LocalHostsChanges, State, NewBackupContent) ->
+    Node = node(),
+    case catch apply_changes(ConfigChanges, LocalConfigChanges, LocalHostsChanges, State, NewBackupContent) of
+        {ok, Node} = R ->
+            R;
+        UnknownResult ->
+            {error, Node, lists:flatten(io_lib:format("~p",[UnknownResult]))}
+    end.
 
-    {ok, <<"ok">>}.
-
-apply_changes(ConfigChanges, LocalConfigChanges, LocalHostsChanges, State) ->
-    reload_opts(State),
+-spec apply_changes(term(), term(), term(), state(), binary()) -> {ok, node()}| {error, node(), string()}.
+apply_changes(ConfigChanges, LocalConfigChanges, LocalHostsChanges, State, NewBackupContent) ->
     %% apply config
+    set_opts(State),
+
     {CAdd, CDel, CChange} = ConfigChanges,
     {LCAdd, LCDel, LCChange} = LocalConfigChanges,
     {LCHAdd, LCHDel, LCHChange} = LocalHostsChanges,
-
 
     lists:foreach(fun handle_config_change/1, CChange),
     lists:foreach(fun handle_config_add/1, CAdd),
@@ -787,8 +833,21 @@ apply_changes(ConfigChanges, LocalConfigChanges, LocalHostsChanges, State) ->
     lists:foreach(fun handle_local_hosts_config_add/1, LCHAdd),
     lists:foreach(fun handle_local_hosts_config_del/1, LCHDel),
 
-    ok.
+    make_backup(NewBackupContent),
 
+    {ok, node()}.
+
+-spec make_backup(binary()) -> {ok, node()}.
+make_backup(NewBackupContent) ->
+    {{Y,M,D},{H,Min,S}}=calendar:now_to_datetime(erlang:now()),
+    BackupSuffix = lists:flatten(io_lib:format("~w-~2..0w-~2..0w-~2..0w:~2..0w:~2..0w",[Y,M,D,H,Min,S])),
+    {ok, _} = replace_config_file(NewBackupContent, BackupSuffix).
+
+-spec replace_config_file(binary(), string()) -> {ok, node()}.
+replace_config_file(NewConfig, BackupSuffix) ->
+    {ok, _} = file:copy(get_ejabberd_config_path(), get_ejabberd_config_path() ++"."++ BackupSuffix),
+    ok = file:write_file(get_ejabberd_config_path(), NewConfig),
+    {ok, node()}.
 
 %% ----------------------------------------------------------------
 %% CONFIG
@@ -799,31 +858,45 @@ handle_config_del(#config{key = hosts,value =  Hosts}) ->
     lists:foreach(fun(Host) -> remove_virtual_host(Host) end, Hosts).
 
 %% handle add/remove new hosts
-handle_config_change({ #config{key = hosts, value = OldHosts},
-                       #config{key = hosts, value = NewHosts}})->
+handle_config_change({hosts, OldHosts, NewHosts})->
     {ToDel, ToAdd} = check_hosts(NewHosts, OldHosts),
     lists:foreach(fun remove_virtual_host/1, ToDel),
     lists:foreach(fun add_virtual_host/1, ToAdd);
-handle_config_change({_OldValue, _NewValue}) ->
+handle_config_change({language, _Old, _New}) ->
+    ok;
+handle_config_change({_Key, _OldValue, _NewValue}) ->
     ok.
 
 %% ----------------------------------------------------------------
 %% LOCAL CONFIG
 %% ----------------------------------------------------------------
-handle_local_config_add(El) ->
-    ?ERROR_MSG("local config add ~p",[El]).
+handle_local_config_add({Key, _Data} = El) ->
+    case Key of
+        true ->
+            ok;
+        false ->
+            ?WARNING_MSG("local config add ~p option unhandled",[El])
+    end.
 handle_local_config_del(#local_config{key = node_start}) ->
     %% do nothing with it
     ok;
-handle_local_config_del(El) ->
-    ?ERROR_MSG("local config del ~p",[El]).
-handle_local_config_change({#local_config{key = listen},
-                            #local_config{key = listen}}) ->
-    % TODO: maybe check what changed and take proper actions
+handle_local_config_del({Key, _Data} = El) ->
+    case can_be_ignored(Key) of
+        true ->
+            ok;
+        false ->
+            ?WARNING_MSG("local config change: ~p unhandled",[El])
+    end.
+handle_local_config_change({listen, _Old, _New}) ->
     ejabberd_listener:stop_listeners(),
     ejabberd_listener:start_listeners();
-handle_local_config_change(El) ->
-    ?ERROR_MSG("local config change ~p",[El]).
+handle_local_config_change({Key, _Old, _New} = El) ->
+    case can_be_ignored(Key) of
+        true ->
+            ok;
+        false ->
+            ?WARNING_MSG("local config change: ~p unhandled",[El])
+    end.
 
 %% ----------------------------------------------------------------
 %% LOCAL HOST CONFIG
@@ -832,7 +905,7 @@ handle_local_hosts_config_add({{auth, Host}, _}) ->
     ejabberd_auth:start(Host);
 handle_local_hosts_config_add({{odbc, Host}, _}) ->
     ejabberd_rdbms:start(Host);
-handle_local_hosts_config_add({{ldap, Host}, _}) ->
+handle_local_hosts_config_add({{ldap, _Host}, _}) ->
     %% ignore ldap section
     ok;
 handle_local_hosts_config_add({{modules, Host}, [#local_config{value = Modules}]}) ->
@@ -840,14 +913,19 @@ handle_local_hosts_config_add({{modules, Host}, [#local_config{value = Modules}]
       fun({Module, Args}) ->
               gen_mod:start_module(Host, Module, Args)
       end, Modules);
-handle_local_hosts_config_add(El) ->
-    ?ERROR_MSG("local hosts config add ~p",[El]).
+handle_local_hosts_config_add({{Key,_Host}, _} = El) ->
+    case can_be_ignored(Key) of
+        true ->
+            ok;
+        false ->
+            ?WARNING_MSG("local hosts config add option: ~p unhandled",[El])
+    end.
 %% ----------------------------------------------------------------
 handle_local_hosts_config_del({{auth, Host}, _}) ->
     ejabberd_auth:stop(Host);
 handle_local_hosts_config_del({{odbc, Host}, _}) ->
     ejabberd_rdbms:stop(Host);
-handle_local_hosts_config_del({{ldap, Host}, _I}) ->
+handle_local_hosts_config_del({{ldap, _Host}, _I}) ->
     %% ignore ldap section, only appli
     ok;
 handle_local_hosts_config_del({{modules, Host}, [#local_config{value=Modules}]}) ->
@@ -855,35 +933,36 @@ handle_local_hosts_config_del({{modules, Host}, [#local_config{value=Modules}]})
       fun({Module, _Args}) ->
               gen_mod:stop_module(Host, Module)
       end, Modules);
-handle_local_hosts_config_del(El) ->
-    ?ERROR_MSG("local hosts config add ~p",[El]).
+handle_local_hosts_config_del({{Key,_}, _} =El) ->
+    case can_be_ignored(Key) of
+        true ->
+            ok;
+        false ->
+            ?WARNING_MSG("local hosts config delete option: ~p unhandled",[El])
+    end.
 %% ----------------------------------------------------------------
-handle_local_hosts_config_change({{{odbc,Host},_}, {{odbc, Host},_}}) ->
+handle_local_hosts_config_change({{odbc,Host}, _, _}) ->
     ejabberd_rdbms:stop(Host),
     ejabberd_rdbms:start(Host);
-handle_local_hosts_config_change({{{auth, Host},_}, {{auth, Host},_}}) ->
+handle_local_hosts_config_change({{auth, Host}, _, _}) ->
     %% restart auth module
     ejabberd_auth:stop(Host),
     ejabberd_auth:start(Host);
-handle_local_hosts_config_change({{{ldap, Host},_}, {{ldap, Host},NewConfig}}) ->
+handle_local_hosts_config_change({{ldap, Host}, _OldConfig, NewConfig}) ->
     ok = ejabberd_hooks:run_fold(host_config_update, Host, ok, [Host, ldap, NewConfig]);
-    %case lists:member(ejabberd_auth_ldap, ejabberd_auth:auth_modules(Host)) of
-    %    true ->
-    %        ejabberd_auth_ldap:stop(Host),
-    %        ejabberd_auth_ldap:start(Host);
-    %    false ->
-    %        ok
-    %end;
-handle_local_hosts_config_change({{{modules, Host},[#local_config{value = OldModules}]},
-                                  {{modules, Host},[#local_config{value = NewModules}]}}) ->
+
+handle_local_hosts_config_change({{modules,Host}, OldModules, NewModules}) ->
     Res = compare_modules(OldModules, NewModules),
     reload_modules(Host, Res);
-handle_local_hosts_config_change(El) ->
-    ?ERROR_MSG("local hosts config add ~p",[El]).
+handle_local_hosts_config_change({Key,_Old,_New} = El) ->
+    case can_be_ignored(Key) of
+        true ->
+            ok;
+        false ->
+            ?WARNING_MSG("local hosts config add option: ~p unhandled",[El])
+    end.
 
-
-
--spec check_hosts([binary()],[binary()]) -> [binary()].
+-spec check_hosts([ejabberd:host()],[ejabberd:host()]) -> {[ejaberd:host()],[ejabberd:host()]}.
 check_hosts(NewHosts, OldHosts) ->
     Old = sets:from_list(OldHosts),
     New = sets:from_list(NewHosts),
@@ -891,63 +970,27 @@ check_hosts(NewHosts, OldHosts) ->
     ListToDel = sets:to_list(sets:subtract(Old,New)),
     {ListToDel, ListToAdd}.
 
+-spec add_virtual_host(Host :: ejabber:host()) -> any().
 add_virtual_host(Host) ->
     ?DEBUG("Register host:~p",[Host]),
     ejabberd_local:register_host(Host).
 
+-spec can_be_ignored(Key :: atom()) -> boolean().
+can_be_ignored(Key) when is_atom(Key) ->
+    L = [domain_certfile, s2s],
+    lists:member(Key,L).
+
+-spec remove_virtual_host(Host :: ejabber:host()) -> any().
 remove_virtual_host(Host) ->
     ?DEBUG("Unregister host:~p",[Host]),
     ejabberd_local:unregister_host(Host).
 
-delete_local_config(Host) ->
-    F = fun() ->
-                mnesia:dirty_delete(local_config,{modules,Host}),
-                mnesia:dirty_delete(local_config,{auth_method,Host})
-                %%FIXME: odbc settings etc
-        end,
-    case mnesia:transaction(F) of
-        {atomic, _} -> ok;
-        {aborted,{no_exists,Table}} ->
-            MnesiaDirectory = mnesia:system_info(directory),
-            ?ERROR_MSG("Error reading Mnesia database spool files:~n"
-                       "The Mnesia database couldn't read the spool file for the table '~p'.~n"
-                       "ejabberd needs read and write access in the directory:~n   ~s~n"
-                       "Maybe the problem is a change in the computer hostname,~n"
-                       "or a change in the Erlang node name, which is currently:~n   ~p~n"
-                       "Check the ejabberd guide for details about changing the~n"
-                       "computer hostname or Erlang node name.~n",
-                       [Table, MnesiaDirectory, node()]),
-            exit("Error reading Mnesia database")
-
-    end.
-
-
-reload_opts(State) ->
-    Opts = lists:reverse(State#state.opts),
-    F = fun() ->
-                %% TODO clear tables
-                lists:foreach(fun(R) ->
-                                      %% check options?
-                                      mnesia:write(R)
-                              end, Opts)
-        end,
-    case mnesia:transaction(F) of
-        {atomic, _} -> ok;
-        {aborted,{no_exists,Table}} ->
-            MnesiaDirectory = mnesia:system_info(directory),
-            ?ERROR_MSG("Error reading Mnesia database spool files:~n"
-                       "The Mnesia database couldn't read the spool file for the table '~p'.~n"
-                       "ejabberd needs read and write access in the directory:~n   ~s~n"
-                       "Maybe the problem is a change in the computer hostname,~n"
-                       "or a change in the Erlang node name, which is currently:~n   ~p~n"
-                       "Check the ejabberd guide for details about changing the~n"
-                       "computer hostname or Erlang node name.~n",
-                       [Table, MnesiaDirectory, node()]),
-            exit("Error reading Mnesia database")
-    end.
-
-
-%-spec reload_modules(binary(), term()) -> 'ok'.
+-spec reload_modules(Host   :: ejabberd:host(),
+                     {
+                      Start  :: [{atom(), term()}],
+                      Stop   :: [{atom(), term()}],
+                      Reload :: [{{atom(), term()},{atom(), term()}}]
+                     }) -> 'ok'.
 reload_modules(Host, {Start, Stop, Reload}) ->
     ?DEBUG("reload modules start:~p, stop:~p, reload: ~p", [Start, Stop, Reload]),
     %% create relaod function ?
@@ -961,22 +1004,27 @@ reload_modules(Host, {Start, Stop, Reload}) ->
                           gen_mod:reload_module(Host, M, Args)
                   end, Reload).
 
--spec compare_modules(term(), term()) -> term().
+-spec compare_modules(term(), term()) -> {[term()], [term()], [term()]}.
 compare_modules(OldMods, NewMods) ->
     compare_terms(OldMods, NewMods,1,2).
 
 % group values which can be grouped like odbc ones
+-spec group_host_changes([term()]) -> {atom(), [term()]}.
 group_host_changes(Changes) when is_list(Changes) ->
     D = lists:foldl( fun  (#local_config{key = {Key, Host}} = Config, Dict) ->
                              BKey = atom_to_binary(Key, utf8),
                              dict:append({get_key_group(BKey,Key),Host}, Config, Dict)
                      end, dict:new(), Changes),
-    dict:to_list(D).
+    lists:map(fun ({Group,L}) ->
+                      {Group,lists:sort(L)}
+              end, dict:to_list(D)).
 
 %% match all hosts
+-spec get_host_local_config() -> [{local_config, {term(), ejabberd:host()}, term()}].
 get_host_local_config() ->
     mnesia:dirty_match_object({local_config, {'_','_'}, '_'}).
 
+-spec get_local_config() -> [{local_config, term(), term()}].
 get_local_config() ->
     Keys = lists:filter(fun is_not_host_specific/1,mnesia:dirty_all_keys(local_config)),
     lists:flatten(lists:map(fun (Key) ->
@@ -984,14 +1032,17 @@ get_local_config() ->
                             end,
                             Keys)).
 
+-spec get_global_config() -> [{config, term(), term()}].
 get_global_config() ->
     mnesia:dirty_match_object(config, {config, '_', '_'}).
 
+-spec is_not_host_specific(atom() | {atom(), ejabberd:host()}) -> boolean().
 is_not_host_specific( Key ) when is_atom(Key) ->
     true;
 is_not_host_specific({Key, Host}) when is_atom(Key), is_binary(Host) ->
     false.
 
+-spec split_results([term()]) -> {list(),list(),list()}.
 split_results(Opts)->
     lists:foldl(fun ({config, _, _}=El, {Config, Local, HostLocal}) ->
                         {[El | Config],Local, HostLocal};
@@ -999,11 +1050,15 @@ split_results(Opts)->
                         { Config ,  Local, [El |HostLocal]};
                     ({local_config, _, _} = El, {Config, Local, HostLocal})->
                         { Config , [El | Local],  HostLocal};
-                     (R,R2) ->
+                    ({acl,_,_}, R) ->
+                        %% no need to do extra work here
+                        R;
+                    (R,R2) ->
                         ?ERROR_MSG("not matched ~p", [R]),
                         R2
                 end, {[],[],[]}, Opts).
 
+-spec get_key_group(binary(), atom()) -> atom().
 get_key_group(<<"ldap_", _/binary>>, _) ->
     ldap;
 get_key_group(<<"odbc_", _/binary>>, _) ->
@@ -1013,24 +1068,33 @@ get_key_group(<<"pgsql_", _/binary>>, _) ->
 get_key_group(<<"auth_", _/binary>>, _) ->
     auth;
 get_key_group(<<"ext_auth_", _/binary>>, _) ->
-    ext_auth;
+    auth;
+get_key_group(<<"s2s_",_/binary>>, _) ->
+    s2s;
 get_key_group(_, Key) when is_atom(Key)->
     Key.
 
-%% for host only config ?
-%-spec compare_terms(OldTerms :: [tuple()], NewTerms :: [tuple()], Pos :: integer()) -> {ToAdd :: term(), ToRemove :: term(), Changed :: term() }.
+-spec compare_terms(OldTerms :: [tuple()],
+                    NewTerms :: [tuple()],
+                    KeyPos :: non_neg_integer(),
+                    ValuePos :: non_neg_integer()) ->
+    {ToAdd :: [term()],
+     ToRemove :: [term()],
+     Changed :: [term()] }.
 compare_terms(OldTerms, NewTerms, KeyPos, ValuePos) when is_integer(KeyPos), is_integer(ValuePos) ->
     {ToStop, ToReload} = lists:foldl(fun (Element, {ToStop, ToReload}) ->
                                              case lists:keyfind(element(KeyPos, Element), KeyPos, NewTerms) of
                                                  false ->
                                                      { [Element | ToStop], ToReload };
-                                                 Tuple ->
-                                                     case element(ValuePos, Tuple) == element(ValuePos, Element) of
+                                                 NewElement ->
+                                                     OldVal = element(ValuePos, Element),
+                                                     NewVal = element(ValuePos, NewElement),
+                                                     case OldVal == NewVal of
                                                          true  ->
                                                              {ToStop, ToReload};
                                                          false ->
                                                              %% add also old value
-                                                             {ToStop, [ {Element,Tuple} | ToReload]}
+                                                             {ToStop, [ {element(KeyPos,Element), OldVal, NewVal} | ToReload]}
                                                      end
                                              end
                                      end, {[],[]}, OldTerms),
