@@ -8,6 +8,10 @@ else
     BASE=`readlink -f ${TOOLS}/..`
 fi
 
+echo ${TRAVIS_BRANCH}
+echo ${TRAVIS_PULL_REQUEST}
+echo ${TRAVIS_REPO_SLUG}
+
 EJD1=${BASE}/dev/mongooseim_node1
 EJD2=${BASE}/dev/mongooseim_node2
 EJD1CTL=${EJD1}/bin/mongooseim
