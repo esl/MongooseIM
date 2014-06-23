@@ -27,7 +27,7 @@
 -module(ejabberd_rdbms).
 -author('alexey@process-one.net').
 
--export([start/0, start/1, stop/1]).
+-export([start/0, start/1, stop/1, stop_odbc/1]).
 -include("ejabberd.hrl").
 
 -spec start() -> 'ok' | {'error','lager_not_running'}.
