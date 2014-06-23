@@ -715,10 +715,9 @@ process_message_from_allowed_user(From, #xmlel{attrs = Attrs} = Packet,
                                   StateData) ->
     Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
     {FromNick, Role} = get_participant_data(From, StateData),
+    CanSendBroadcasts = can_send_broadcasts(Role, StateData),
     if
-        (Role == moderator)
-        or (Role == participant)
-        or ((StateData#state.config)#config.moderated == false) ->
+        CanSendBroadcasts ->
             {NewState, Changed} = change_subject_if_allowed(FromNick, Role,
                                                             Packet, StateData),
             if
@@ -728,12 +727,17 @@ process_message_from_allowed_user(From, #xmlel{attrs = Attrs} = Packet,
                     change_subject_error(From, FromNick, Packet, Lang, NewState),
                     {next_state, normal_state, NewState}
             end;
-        true ->
+        not CanSendBroadcasts ->
             ErrText = <<"Visitors are not allowed to send messages to all occupants">>,
             Err = jlib:make_error_reply(Packet, ?ERRT_FORBIDDEN(Lang, ErrText)),
             ejabberd_router:route(StateData#state.jid, From, Err),
             {next_state, normal_state, StateData}
     end.
+
+can_send_broadcasts(Role, StateData) ->
+    (Role == moderator)
+    or (Role == participant)
+    or ((StateData#state.config)#config.moderated == false).
 
 broadcast_changed_subject(From, FromNick, Packet, StateData) ->
     case ejabberd_hooks:run_fold(filter_room_packet,
