@@ -87,9 +87,12 @@ start_link(Name, Hosts, Backups, Port, Rootdn, Passwd, Opts) ->
 
 -spec stop(binary()) -> 'ok'.
 stop(Name) ->
-    Pids = pg2:get_members(make_id(Name)),
-    pg2:delete(make_id(Name)),
-    lists:foreach(fun (P) -> eldap:close(P) end,Pids).
+    Pids = pg2:get_local_members(make_id(Name)),
+    lists:foreach(fun (P) ->
+                          ok = pg2:leave(make_id(Name),P),
+                          eldap:close(P)
+                  end,Pids).
+
 
 %%====================================================================
 %% Internal functions
