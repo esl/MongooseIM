@@ -8,9 +8,13 @@ else
     BASE=`readlink -f ${TOOLS}/..`
 fi
 
-echo ${TRAVIS_BRANCH}
-echo ${TRAVIS_PULL_REQUEST}
-echo ${TRAVIS_REPO_SLUG}
+echo "pull request: ${TRAVIS_PULL_REQUEST}"
+if [ ${TRAVIS_PULL_REQUEST} != "false" ]; then
+    echo "download the jq tool"
+    wget http://stedolan.github.io/jq/download/linux64/jq
+    chmod +x jq
+    echo `./jq`
+fi
 
 EJD1=${BASE}/dev/mongooseim_node1
 EJD2=${BASE}/dev/mongooseim_node2
