@@ -754,7 +754,7 @@ reload(NewConfigFilePath) ->
 
     {ok, NewBackupContent} = file:read_file(NewConfigFilePath),
     %% first apply on local
-    case catch apply_changes(CC, LC, LHC, State, NewBackupContent) of
+    case catch apply_changes(CC, LC, LHC, State#state{override_global = true, override_local=true}, NewBackupContent) of
         {ok, CurrentNode} ->
             %% update global tables only once
             NewState = State#state{override_global= false, override_acls = false},
@@ -921,10 +921,18 @@ handle_local_hosts_config_add({{Key,_Host}, _} = El) ->
             ?WARNING_MSG("local hosts config add option: ~p unhandled",[El])
     end.
 %% ----------------------------------------------------------------
-handle_local_hosts_config_del({{auth, Host}, _}) ->
-    ejabberd_auth:stop(Host);
+handle_local_hosts_config_del({{auth, Host}, Opts}) ->
+    case lists:keyfind({auth_method,Host}, #local_config.key, Opts) of
+        false ->
+            ok;%nothing to stop?
+        #local_config{value = Val} ->
+            AuthModules = methods_to_auth_modules(Val),
+            lists:foreach(fun(M) ->
+                                  M:stop(Host)
+                          end, AuthModules)
+    end;
 handle_local_hosts_config_del({{odbc, Host}, _}) ->
-    ejabberd_rdbms:stop(Host);
+    ejabberd_rdbms:stop_odbc(Host);
 handle_local_hosts_config_del({{ldap, _Host}, _I}) ->
     %% ignore ldap section, only appli
     ok;
@@ -941,12 +949,26 @@ handle_local_hosts_config_del({{Key,_}, _} =El) ->
             ?WARNING_MSG("local hosts config delete option: ~p unhandled",[El])
     end.
 %% ----------------------------------------------------------------
-handle_local_hosts_config_change({{odbc,Host}, _, _}) ->
-    ejabberd_rdbms:stop(Host),
+handle_local_hosts_config_change({{odbc,Host}, Old, _}) ->
+    %% stop rdbms
+    case lists:keyfind({odbc_server, Host},#local_config.key,Old) of
+        false ->
+            ok;
+        #local_config{} ->
+            ejabberd_rdbms:stop_odbc(Host)
+    end,
     ejabberd_rdbms:start(Host);
-handle_local_hosts_config_change({{auth, Host}, _, _}) ->
-    %% restart auth module
-    ejabberd_auth:stop(Host),
+handle_local_hosts_config_change({{auth, Host}, OldVals, _}) ->
+    case lists:keyfind({auth_method, Host}, #local_config.key, OldVals) of
+        false ->
+            ejabberd_auth:stop(Host);
+        #local_config{value=Val} ->
+            %% stop old modules
+            AuthModules = methods_to_auth_modules(Val),
+            lists:foreach(fun (M) ->
+                                  M:stop(Host)
+                          end, AuthModules)
+    end,
     ejabberd_auth:start(Host);
 handle_local_hosts_config_change({{ldap, Host}, _OldConfig, NewConfig}) ->
     ok = ejabberd_hooks:run_fold(host_config_update, Host, ok, [Host, ldap, NewConfig]);
@@ -954,13 +976,18 @@ handle_local_hosts_config_change({{ldap, Host}, _OldConfig, NewConfig}) ->
 handle_local_hosts_config_change({{modules,Host}, OldModules, NewModules}) ->
     Res = compare_modules(OldModules, NewModules),
     reload_modules(Host, Res);
-handle_local_hosts_config_change({Key,_Old,_New} = El) ->
+handle_local_hosts_config_change({{Key,_Host},_Old,_New} = El) ->
     case can_be_ignored(Key) of
         true ->
             ok;
         false ->
-            ?WARNING_MSG("local hosts config add option: ~p unhandled",[El])
+            ?WARNING_MSG("local hosts config change option: ~p unhandled",[El])
     end.
+
+methods_to_auth_modules(L) when is_list(L) ->
+    [list_to_atom("ejabberd_auth_" ++ atom_to_list(M)) || M <-L];
+methods_to_auth_modules(A) when is_atom(A) ->
+    methods_to_auth_modules([A]).
 
 -spec check_hosts([ejabberd:host()],[ejabberd:host()]) -> {[ejaberd:host()],[ejabberd:host()]}.
 check_hosts(NewHosts, OldHosts) ->
