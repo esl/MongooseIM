@@ -129,13 +129,13 @@ groups() -> [
                 enter_room_with_logging,
                 deny_entry_user_limit_reached,
                 send_history,
+                history_since,
                 %% the following tests fail and have been commented because
                 %% certain features are not implemented in ejabberd
                 %% send_non_anonymous_history,
                 %% limit_history_chars,
                 %% limit_history_messages,
                 %% recent_history, %unfinished,
-                %% history_since,
                 %% no_history,
                 subject,
                 no_subject,
