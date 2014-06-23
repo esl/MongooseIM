@@ -698,11 +698,8 @@ process_groupchat_message(From, #xmlel{name = <<"message">>,
         true ->
             process_message_from_allowed_user(From, Packet, StateData);
         false ->
-            ErrText = <<"Only occupants are allowed to "
-                        "send messages to the conference">>,
-            Err = jlib:make_error_reply(Packet,
-                                        ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)),
-            ejabberd_router:route(StateData#state.jid, From, Err),
+            send_error_only_occupants(<<"messages">>, Packet, Lang,
+                                      StateData#state.jid, From),
             {next_state, normal_state, StateData}
     end.
 
@@ -4014,10 +4011,11 @@ create_invite_message_elem(InviteEl, BodyEl, PasswdEl, RoomJID, Reason)
                     state(), ejabberd:simple_jid() | ejabberd:jid()) -> 'ok'.
 handle_roommessage_from_nonparticipant(Packet, Lang, StateData, From) ->
     case catch check_decline_invitation(Packet) of
-    {true, Decline_data} ->
-        send_decline_invitation(Decline_data, StateData#state.jid, From);
-    _ ->
-        send_error_only_occupants(Packet, Lang, StateData#state.jid, From)
+        {true, Decline_data} ->
+            send_decline_invitation(Decline_data, StateData#state.jid, From);
+        _ ->
+            send_error_only_occupants(<<"messages">>, Packet, Lang,
+                                      StateData#state.jid, From)
     end.
 
 
@@ -4058,11 +4056,13 @@ replace_subelement(XE = #xmlel{children = SubEls}, NewSubEl) ->
     SubEls2 = lists:keyreplace(NameNewSubEl, 2, SubEls, NewSubEl),
     XE#xmlel{children = SubEls2}.
 
-
--spec send_error_only_occupants(jlib:xmlel(), binary() | nonempty_string(),
+-spec send_error_only_occupants(binary(), jlib:xmlel(),
+                                binary() | nonempty_string(),
                                 ejabberd:jid(), ejabberd:jid()) -> 'ok'.
-send_error_only_occupants(Packet, Lang, RoomJID, From) ->
-    ErrText = <<"Only occupants are allowed to send messages to the conference">>,
+send_error_only_occupants(What, Packet, Lang, RoomJID, From)
+  when is_binary(What) ->
+    ErrText = <<"Only occupants are allowed to send ",
+                What/bytes, " to the conference">>,
     Err = jlib:make_error_reply(Packet, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)),
     ejabberd_router:route(RoomJID, From, Err).
 
@@ -4436,13 +4436,13 @@ route_nick_message(#routed_nick_message{decide = continue_delivery, allow_pm = t
     ejabberd_router:route(
         jlib:jid_replace_resource(StateData#state.jid, FromNick), ToJID, Packet),
     StateData;
-route_nick_message(#routed_nick_message{decide = continue_delivery, allow_pm = true,
-    online = false, packet = Packet, from = From,
-    lang = Lang, nick = ToNick}, StateData) ->
-    ErrText = <<"Only occupants are allowed to send messages to the conference">>,
-    Err = jlib:make_error_reply(Packet, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)),
-    ejabberd_router:route(jlib:jid_replace_resource(StateData#state.jid, ToNick),
-                          From, Err),
+route_nick_message(#routed_nick_message{decide = continue_delivery,
+                                        allow_pm = true,
+                                        online = false} = Routed, StateData) ->
+    #routed_nick_message{packet = Packet, from = From,
+                         lang = Lang, nick = ToNick} = Routed,
+    RoomJID = jlib:jid_replace_resource(StateData#state.jid, ToNick),
+    send_error_only_occupants(<<"messages">>, Packet, Lang, RoomJID, From),
     StateData;
 route_nick_message(#routed_nick_message{decide = continue_delivery, allow_pm = false,
     packet = Packet, from = From,
@@ -4480,23 +4480,18 @@ route_nick_iq(#routed_nick_iq{allow_query = true, online = {true, NewId, FromFul
 route_nick_iq(#routed_nick_iq{online = {false, _, _}, iq = reply}, _StateData) ->
     ok;
 route_nick_iq(#routed_nick_iq{online = {false, _, _}, from = From, nick = ToNick,
-    packet = Packet, lang = Lang}, StateData) ->
-    ErrText = <<"Only occupants are allowed to send queries to the conference">>,
-    Err = jlib:make_error_reply(
-        Packet, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)),
-    ejabberd_router:route(
-      jlib:jid_replace_resource(StateData#state.jid, ToNick),
-    From, Err);
+                              packet = Packet, lang = Lang}, StateData) ->
+    RoomJID = jlib:jid_replace_resource(StateData#state.jid, ToNick),
+    send_error_only_occupants(<<"queries">>, Packet, Lang, RoomJID, From);
 route_nick_iq(#routed_nick_iq{iq = reply}, _StateData) ->
     ok;
 route_nick_iq(#routed_nick_iq{packet = Packet, lang = Lang, nick = ToNick,
-    from = From}, StateData) ->
-    ErrText = <<"Queries to the conference members are not allowed in this room">>,
-    Err = jlib:make_error_reply(
-        Packet, ?ERRT_NOT_ALLOWED(Lang, ErrText)),
-    ejabberd_router:route(
-        jlib:jid_replace_resource(StateData#state.jid, ToNick),
-    From, Err).
+                              from = From}, StateData) ->
+    ErrText = <<"Queries to the conference members are "
+                "not allowed in this room">>,
+    Err = jlib:make_error_reply(Packet, ?ERRT_NOT_ALLOWED(Lang, ErrText)),
+    RouteFrom = jlib:jid_replace_resource(StateData#state.jid, ToNick),
+    ejabberd_router:route(RouteFrom, From, Err).
 
 
 -spec decode_reason(jlib:xmlel()) -> any().
