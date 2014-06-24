@@ -39,7 +39,8 @@
          iq_handler2/3,
          iq_handler1/3,
          remove_connection/4,
-         is_carbon_copy/1]).
+         is_carbon_copy/1,
+         classify_packet/1]).
 
 -define(NS_CC_2, <<"urn:xmpp:carbons:2">>).
 -define(NS_CC_1, <<"urn:xmpp:carbons:1">>).
