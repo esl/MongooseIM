@@ -641,7 +641,7 @@ set_opts(State) ->
                         Ksl = mnesia:all_keys(local_config),
                         lists:foreach(fun(K) ->
                                               mnesia:delete({local_config, K})
-                                      end, Ksl);
+                                      end, lists:delete(node_start, Ksl));
                     true ->
                         ok
                 end,
