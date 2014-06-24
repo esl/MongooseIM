@@ -45,11 +45,14 @@
 -define(NS_CC_1, <<"urn:xmpp:carbons:1">>).
 -define(NS_FORWARD, <<"urn:xmpp:forward:0">>).
 
+
 -include("ejabberd.hrl").
 %%-include("logger.hrl").
 -include("jlib.hrl").
 -define(PROCNAME, ?MODULE).
 -define(TABLE, carboncopy).
+
+-type classification() :: 'ignore' | 'forward'.
 
 -type matchspec_atom() :: '_' | '$1' | '$2' | '$3'.
 -record(carboncopy,{us :: {binary(), binary()} | matchspec_atom(), 
@@ -140,33 +143,69 @@ user_receive_packet(JID, _From, To, Packet) ->
 %    - we also replicate "read" notifications
 check_and_forward(JID, To, #xmlel{name = <<"message">>} = Packet, Direction)->
 	case classify_packet(Packet) of
-		"ignore" -> stop;
-		"forward"  -> send_copies(JID, To, Packet, Direction);
+		ignore -> stop;
+		forward  -> send_copies(JID, To, Packet, Direction);
 		_ -> stop
 	end;
  
 check_and_forward(_JID, _To, _Packet, _)-> ok.
 
-classify_packet(#xmlel{name = <<"message">>, attrs = Attrs} = Packet)->
+-spec classify_packet(_) -> classification().
+classify_packet(Packet)->
+	is_chat(Packet).
+
+-spec is_chat(_) -> classification().
+is_chat(#xmlel{name = <<"message">>, attrs = Attrs} = Packet) ->
+	case xml:get_attr_s(<<"type">>, Attrs) of
+		<<"chat">> ->
+			is_private(Packet);
+		_ ->
+			ignore
+	end.
+
+-spec is_private(_) -> classification().
+is_private(Packet) ->
+	case xml:get_subtag(Packet, <<"private">>) of
+		false ->
+			is_no_copy(Packet);
+		_ ->
+			ignore
+	end.
+
+-spec is_no_copy(_) -> classification().
+is_no_copy(Packet) ->
+	case xml:get_subtag(Packet, <<"no-copy">>) of
+		false ->
+			is_received(Packet);
+		_ ->
+			ignore
+	end.
+
+-spec is_received(_) -> classification().
+is_received(Packet) ->
+	case xml:get_subtag(Packet, <<"received">>) of
+		false ->
+			is_sent(Packet);
+		_ ->
+			ignore
+	end.
+
+-spec is_sent(_) -> classification().
+is_sent(Packet) ->
 	SubTag = xml:get_subtag(Packet,<<"sent">>),
-	case xml:get_attr_s(<<"type">>, Attrs) == <<"chat">> andalso 
-		xml:get_subtag(Packet, <<"private">>) == false andalso
-			xml:get_subtag(Packet, <<"no-copy">>) == false andalso
-				xml:get_subtag(Packet,<<"received">>) == false 	of
-					true ->
-						if SubTag == false ->
-							"forward";
-			   			true ->
-			    				case xml:get_subtag(SubTag,<<"forwarded">>) of
-								false->
-				    					"forward";
-								_ ->
-				    					"ignore"
-								end
-						end;
-					_ ->
-						%% stop the hook chain, we don't want mod_logdb to register this message (duplicate)
-						"ignore"
+	if SubTag == false ->
+		forward;
+	true ->
+		is_forwarded(SubTag)
+	end.
+
+-spec is_forwarded(_) -> classification().
+is_forwarded(SubTag) ->
+	case xml:get_subtag(SubTag, <<"forwarded">>) of
+		false ->
+			forward;
+		_ ->
+			ignore
 	end.
 
 remove_connection(User, Server, Resource, _Status)->
