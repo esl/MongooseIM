@@ -1,6 +1,8 @@
 language: erlang
 before_install: sudo apt-get install libpam0g-dev libexpat1-dev
-before_script: tools/travis-setup-db.sh
+before_script:
+        - tools/travis-setup-db.sh
+        - tools/travis-check-tests-branch.sh
 script: tools/travis-build.sh
 
 after_script:
