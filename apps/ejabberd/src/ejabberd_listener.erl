@@ -35,6 +35,7 @@
          stop_listener/2,
          parse_listener_portip/2,
          add_listener/3,
+         delete_listener/3,
          delete_listener/2
         ]).
 
@@ -88,7 +89,6 @@ bind_tcp_port(PortIP, Module, RawOpts) ->
         throw:{error, Error} ->
             ?ERROR_MSG(Error, [])
     end.
-
 
 -spec start_listeners() -> 'ignore' | {'ok',{{_,_,_},[any()]}}.
 start_listeners() ->
@@ -432,6 +432,13 @@ stop_listeners() ->
                     Module :: atom())
       -> 'ok' | {'error','not_found' | 'restarting' | 'running' | 'simple_one_for_one'}.
 stop_listener(PortIP, _Module) ->
+    case ets:match(listen_sockets, {PortIP,'$1'}) of
+        [[Socket]] ->
+            true = ets:delete_object(listen_sockets, {PortIP, Socket}),
+            ok = gen_tcp:close(Socket);
+        _ ->
+            ok
+    end,
     supervisor:terminate_child(ejabberd_listeners, PortIP),
     supervisor:delete_child(ejabberd_listeners, PortIP).
 

@@ -37,7 +37,7 @@
 -export([check_hosts/2, compare_modules/2]).
 
 %% conf reload
--export([reload/1, apply_changes_safe/5, apply_changes/5, replace_config_file/2]).
+-export([reload/1, apply_changes_safe/6, apply_changes/6, replace_config_file/2]).
 
 -include("ejabberd.hrl").
 -include("ejabberd_config.hrl").
@@ -752,14 +752,15 @@ reload(NewConfigFilePath) ->
     State = parse_file(NewConfigFilePath),
     {CC, LC, LHC} = get_config_diff(State),
 
+    ConfigVersion = compute_config_version(get_local_config(), get_host_local_config()),
     {ok, NewBackupContent} = file:read_file(NewConfigFilePath),
     %% first apply on local
-    case catch apply_changes(CC, LC, LHC, State#state{override_global = true, override_local=true}, NewBackupContent) of
+    case catch apply_changes(CC, LC, LHC, State#state{override_global = true, override_local = true, override_acls = true}, NewBackupContent, ConfigVersion) of
         {ok, CurrentNode} ->
             %% update global tables only once
             NewState = State#state{override_global= false, override_acls = false},
             %% apply on other nodes
-            {S,F} = rpc:multicall(nodes(), ?MODULE, apply_changes_safe, [CC, LC, LHC, NewState, NewBackupContent],30000),
+            {S,F} = rpc:multicall(nodes(), ?MODULE, apply_changes_safe, [CC, LC, LHC, NewState, NewBackupContent, ConfigVersion],30000),
             {S1,F1} = group_nodes_results([{ok,node()} | S],F),
 
             {ok, groups_to_string("# Reloaded:", S1) ++
@@ -801,18 +802,25 @@ get_config_diff(State) ->
     LHC = compare_terms(group_host_changes(HostsLocal), group_host_changes(NewHostsLocal), 1, 2),
     {CC, LC, LHC}.
 
--spec apply_changes_safe(term(), term(), term(), state(), binary()) -> {ok, node()}| {error,node(),string()}.
-apply_changes_safe(ConfigChanges, LocalConfigChanges, LocalHostsChanges, State, NewBackupContent) ->
+-spec apply_changes_safe(term(), term(), term(), state(), binary(), binary()) -> {ok, node()}| {error,node(),string()}.
+apply_changes_safe(ConfigChanges, LocalConfigChanges, LocalHostsChanges, State, NewBackupContent, DesiredVersion) ->
     Node = node(),
-    case catch apply_changes(ConfigChanges, LocalConfigChanges, LocalHostsChanges, State, NewBackupContent) of
+    case catch apply_changes(ConfigChanges, LocalConfigChanges, LocalHostsChanges, State, NewBackupContent, DesiredVersion) of
         {ok, Node} = R ->
             R;
         UnknownResult ->
             {error, Node, lists:flatten(io_lib:format("~p",[UnknownResult]))}
     end.
 
--spec apply_changes(term(), term(), term(), state(), binary()) -> {ok, node()}| {error, node(), string()}.
-apply_changes(ConfigChanges, LocalConfigChanges, LocalHostsChanges, State, NewBackupContent) ->
+-spec apply_changes(term(), term(), term(), state(), binary(), binary()) -> {ok, node()}| {error, node(), string()}.
+apply_changes(ConfigChanges, LocalConfigChanges, LocalHostsChanges, State, NewBackupContent, DesiredVersion) ->
+    ConfigVersion = compute_config_version(get_local_config(), get_host_local_config()),
+    case ConfigVersion  of
+        DesiredVersion  ->
+            ok;
+        _ ->
+            exit("Outdated configuration on node cannot apply new one")
+    end,
     %% apply config
     set_opts(State),
 
@@ -887,8 +895,11 @@ handle_local_config_del({Key, _Data} = El) ->
         false ->
             ?WARNING_MSG("local config change: ~p unhandled",[El])
     end.
-handle_local_config_change({listen, _Old, _New}) ->
+handle_local_config_change({listen, Old, New}) ->
+    %% simplest way
+    ejabberd_config:add_local_option(listen, Old),
     ejabberd_listener:stop_listeners(),
+    ejabberd_config:add_local_option(listen, New),
     ejabberd_listener:start_listeners();
 handle_local_config_change({Key, _Old, _New} = El) ->
     case can_be_ignored(Key) of
@@ -988,6 +999,19 @@ methods_to_auth_modules(L) when is_list(L) ->
     [list_to_atom("ejabberd_auth_" ++ atom_to_list(M)) || M <-L];
 methods_to_auth_modules(A) when is_atom(A) ->
     methods_to_auth_modules([A]).
+
+
+compute_config_version(LC, LCH) ->
+    Ctx = lists:foldl(fun (El, Context) ->
+                        case El of
+                            #local_config{key = node_start} ->
+                                Context;
+                            _ ->
+                                BTerm = term_to_binary(El),
+                                crypto:hash_update(Context, BTerm)
+                        end
+                end, crypto:hash_init(sha), LC++LCH),
+    crypto:hash_final(Ctx).
 
 -spec check_hosts([ejabberd:host()],[ejabberd:host()]) -> {[ejaberd:host()],[ejabberd:host()]}.
 check_hosts(NewHosts, OldHosts) ->
