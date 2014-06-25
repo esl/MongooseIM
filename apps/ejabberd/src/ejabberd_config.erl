@@ -34,7 +34,7 @@
 -export([is_file_readable/1]).
 
 %% for unit tests
--export([check_hosts/2, compare_modules/2]).
+-export([check_hosts/2, compare_modules/2, compare_listeners/2]).
 
 %% conf reload
 -export([reload/1, apply_changes_safe/6, apply_changes/6, replace_config_file/2]).
@@ -62,6 +62,10 @@
                 override_global = false :: boolean(),
                 override_acls = false   :: boolean()
               }).
+
+-record(compare_result, { to_add = [] :: list(),
+                          to_del = [] :: list(),
+                          to_change = [] :: list()}).
 
 -type host() :: any(). % TODO: specify this
 -type state() :: #state{}.
@@ -896,11 +900,8 @@ handle_local_config_del({Key, _Data} = El) ->
             ?WARNING_MSG("local config change: ~p unhandled",[El])
     end.
 handle_local_config_change({listen, Old, New}) ->
-    %% simplest way
-    ejabberd_config:add_local_option(listen, Old),
-    ejabberd_listener:stop_listeners(),
-    ejabberd_config:add_local_option(listen, New),
-    ejabberd_listener:start_listeners();
+    reload_listeners(compare_listeners(Old, New));
+
 handle_local_config_change({Key, _Old, _New} = El) ->
     case can_be_ignored(Key) of
         true ->
@@ -919,7 +920,7 @@ handle_local_hosts_config_add({{odbc, Host}, _}) ->
 handle_local_hosts_config_add({{ldap, _Host}, _}) ->
     %% ignore ldap section
     ok;
-handle_local_hosts_config_add({{modules, Host}, [#local_config{value = Modules}]}) ->
+handle_local_hosts_config_add({{modules, Host}, Modules}) ->
     lists:foreach(
       fun({Module, Args}) ->
               gen_mod:start_module(Host, Module, Args)
@@ -933,10 +934,10 @@ handle_local_hosts_config_add({{Key,_Host}, _} = El) ->
     end.
 %% ----------------------------------------------------------------
 handle_local_hosts_config_del({{auth, Host}, Opts}) ->
-    case lists:keyfind({auth_method,Host}, #local_config.key, Opts) of
+    case lists:keyfind(auth_method, 1, Opts) of
         false ->
             ok;%nothing to stop?
-        #local_config{value = Val} ->
+        {auth_method, Val} ->
             AuthModules = methods_to_auth_modules(Val),
             lists:foreach(fun(M) ->
                                   M:stop(Host)
@@ -947,7 +948,7 @@ handle_local_hosts_config_del({{odbc, Host}, _}) ->
 handle_local_hosts_config_del({{ldap, _Host}, _I}) ->
     %% ignore ldap section, only appli
     ok;
-handle_local_hosts_config_del({{modules, Host}, [#local_config{value=Modules}]}) ->
+handle_local_hosts_config_del({{modules, Host}, Modules}) ->
     lists:foreach(
       fun({Module, _Args}) ->
               gen_mod:stop_module(Host, Module)
@@ -962,7 +963,7 @@ handle_local_hosts_config_del({{Key,_}, _} =El) ->
 %% ----------------------------------------------------------------
 handle_local_hosts_config_change({{odbc,Host}, Old, _}) ->
     %% stop rdbms
-    case lists:keyfind({odbc_server, Host},#local_config.key,Old) of
+    case lists:keyfind({odbc_server, Host},1 ,Old) of
         false ->
             ok;
         #local_config{} ->
@@ -970,10 +971,10 @@ handle_local_hosts_config_change({{odbc,Host}, Old, _}) ->
     end,
     ejabberd_rdbms:start(Host);
 handle_local_hosts_config_change({{auth, Host}, OldVals, _}) ->
-    case lists:keyfind({auth_method, Host}, #local_config.key, OldVals) of
+    case lists:keyfind(auth_method, 1, OldVals) of
         false ->
             ejabberd_auth:stop(Host);
-        #local_config{value=Val} ->
+        {auth_method, Val} ->
             %% stop old modules
             AuthModules = methods_to_auth_modules(Val),
             lists:foreach(fun (M) ->
@@ -1040,34 +1041,61 @@ remove_virtual_host(Host) ->
                      {
                       Start  :: [{atom(), term()}],
                       Stop   :: [{atom(), term()}],
-                      Reload :: [{{atom(), term()},{atom(), term()}}]
+                      Reload :: [{atom(), term(), term()}]
                      }) -> 'ok'.
 reload_modules(Host, {Start, Stop, Reload}) ->
     ?DEBUG("reload modules start:~p, stop:~p, reload: ~p", [Start, Stop, Reload]),
-    %% create relaod function ?
+
     lists:foreach(fun ({M, _}) ->
                           gen_mod:stop_module(Host, M)
                   end, Stop),
     lists:foreach(fun ({M, Args}) ->
                           gen_mod:start_module(Host, M, Args)
                   end, Start),
-    lists:foreach(fun({{M, _},{M, Args}}) ->
+    lists:foreach(fun({M, _, Args}) ->
                           gen_mod:reload_module(Host, M, Args)
                   end, Reload).
 
+reload_listeners({Add, Del, Change}) ->
+    lists:foreach(fun ({{PortIP, Module}, Opts}) ->
+                          ejabberd_listener:delete_listener(PortIP, Module, Opts)
+                  end, Del),
+    lists:foreach(fun ({{PortIP, Module}, Opts}) ->
+                          ejabberd_listener:add_listener(PortIP, Module, Opts)
+                  end, Add),
+    lists:foreach(fun ({{PortIP,Module},OldOpts, NewOpts}) ->
+                        ejabberd_listener:delete_listener(PortIP, Module, OldOpts),
+                        ejabberd_listener:add_listener(PortIP, Module, NewOpts)
+                 end, Change).
+
 -spec compare_modules(term(), term()) -> {[term()], [term()], [term()]}.
 compare_modules(OldMods, NewMods) ->
-    compare_terms(OldMods, NewMods,1,2).
+    compare_terms(OldMods, NewMods, 1, 2).
 
+-spec compare_listeners(term(), term()) -> {[term()], [term()], [term()]}.
+compare_listeners(OldListeners, NewListeners) ->
+    compare_terms(map_listeners(OldListeners), map_listeners(NewListeners), 1, 2).
+
+map_listeners(Listeners) ->
+    lists:map(fun ({PortIP,Module,Opts})->
+                      {{PortIP,Module},Opts}
+              end, Listeners).
 % group values which can be grouped like odbc ones
 -spec group_host_changes([term()]) -> {atom(), [term()]}.
 group_host_changes(Changes) when is_list(Changes) ->
-    D = lists:foldl( fun  (#local_config{key = {Key, Host}} = Config, Dict) ->
+    D = lists:foldl( fun  (#local_config{key = {Key, Host}, value = Val}, Dict) ->
                              BKey = atom_to_binary(Key, utf8),
-                             dict:append({get_key_group(BKey,Key),Host}, Config, Dict)
+                             case get_key_group(BKey,Key) of
+                                 Key ->
+                                    dict:append({Key,Host}, Val, Dict);
+                                 NewKey ->
+                                    dict:append({NewKey,Host}, {Key, Val}, Dict)
+                             end
                      end, dict:new(), Changes),
-    lists:map(fun ({Group,L}) ->
-                      {Group,lists:sort(L)}
+    lists:map(fun ({Group,[L]}) when is_list(L) ->
+                      {Group, lists:sort(L)};
+                  ({Group, L}) ->
+                      {Group, lists:sort(L)}
               end, dict:to_list(D)).
 
 %% match all hosts
