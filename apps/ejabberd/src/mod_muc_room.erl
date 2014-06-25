@@ -1892,7 +1892,7 @@ extract_history([#xmlel{attrs = Attrs} = El | Els], Type) ->
                [{elem, <<"history">>}, {attr, Type}]),
         case Type of
         <<"since">> ->
-            case jlib:datetime_string_to_timestamp(AttrVal) of
+            case jlib:datetime_binary_to_timestamp(AttrVal) of
             undefined ->
                 false;
             TS ->

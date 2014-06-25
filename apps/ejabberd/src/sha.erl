@@ -62,7 +62,7 @@ digit_to_xchar(D) ->
     D + 87.
 
 sha(Text) ->
-    Bin = crypto:sha(Text),
+    Bin = crypto:hash(sha, Text),
     lists:reverse(ints_to_rxstr(binary_to_list(Bin), [])).
 
 ints_to_rxstr([], Res) ->
@@ -72,7 +72,7 @@ ints_to_rxstr([N | Ns], Res) ->
                        digit_to_xchar(N div 16) | Res]).
 
 sha1(Text) ->
-    crypto:sha(Text).
+    crypto:hash(sha, Text).
 
 sha224(Text) ->
     erlang:port_control(?DRIVER, 224, Text).

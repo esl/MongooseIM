@@ -13,7 +13,7 @@
 -export ([start/2, stop/1]).
 
 %% ejabberd_cowboy API
--export ([cowboy_router_paths/1]).
+-export ([cowboy_router_paths/2]).
 
 -define(REST_LISTENER, ejabberd_metrics_rest).
 
@@ -131,10 +131,9 @@ get_general_counters(Host) ->
 get_total_counters(Host) ->
     [{Host, Counter} || Counter <- ?TOTAL_COUNTERS].
 
-
--spec cowboy_router_paths(file:filename()) ->
+-spec cowboy_router_paths(file:filename(), list()) ->
     [{file:filename(), 'ejabberd_metrics_rest', [paths(),...]},...].
-cowboy_router_paths(BasePath) ->
+cowboy_router_paths(BasePath, _Opts) ->
     [
         {BasePath, ?REST_LISTENER, [available_metrics]},
         {[BasePath, "/m"], ?REST_LISTENER, [sum_metrics]},
@@ -153,7 +152,7 @@ start_cowboy(Opts) ->
             ok;
         Port ->
             Dispatch = cowboy_router:compile([{'_',
-                                cowboy_router_paths("/metrics")}]),
+                                cowboy_router_paths("/metrics", [])}]),
             case cowboy:start_http(?REST_LISTENER, NumAcceptors,
                                    [{port, Port}, {ip, IP}],
                                    [{env, [{dispatch, Dispatch}]}]) of

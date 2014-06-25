@@ -24,6 +24,7 @@
 %% Load record definitions.
 -include_lib("exml/include/exml.hrl").
 
+-define(NS_CLIENT,       <<"jabber:client">>).
 -define(NS_DISCO_ITEMS,  <<"http://jabber.org/protocol/disco#items">>).
 -define(NS_DISCO_INFO,   <<"http://jabber.org/protocol/disco#info">>).
 -define(NS_VCARD,        <<"vcard-temp">>).
@@ -71,6 +72,7 @@
 -define(NS_BYTESTREAMS, <<"http://jabber.org/protocol/bytestreams">>).
 -define(NS_ADMIN,       <<"http://jabber.org/protocol/admin">>).
 -define(NS_SERVERINFO,  <<"http://jabber.org/network/serverinfo">>).
+-define(NS_MAM,         <<"urn:xmpp:mam:tmp">>).
 
 -define(NS_RSM,         <<"http://jabber.org/protocol/rsm">>).
 -define(NS_EJABBERD_CONFIG,<<"ejabberd:config">>).

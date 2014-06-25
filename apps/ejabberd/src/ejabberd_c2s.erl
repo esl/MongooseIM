@@ -1746,7 +1746,7 @@ send_header(StateData, Server, Version, Lang)
          <<"stream:stream">>,
          VersionAttr ++
          LangAttr ++
-         [{<<"xmlns">>, <<"jabber:client">>},
+         [{<<"xmlns">>, ?NS_CLIENT},
           {<<"xmlns:stream">>, <<"http://etherx.jabber.org/streams">>},
           {<<"id">>, StateData#state.streamid},
           {<<"from">>, Server}]},

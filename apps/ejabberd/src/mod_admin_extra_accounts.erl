@@ -123,13 +123,10 @@ check_password_hash(User, Host, PasswordHash, HashMethod) ->
 -spec get_md5(binary()) -> string().
 get_md5(AccountPass) ->
     lists:flatten([io_lib:format("~.16B", [X])
-                   || X <- binary_to_list(crypto:md5(AccountPass))]).
-
-
--spec get_sha(binary()) -> string().
+                   || X <- binary_to_list(crypto:hash(md5, AccountPass))]).
 get_sha(AccountPass) ->
     lists:flatten([io_lib:format("~.16B", [X])
-                   || X <- binary_to_list(crypto:sha(AccountPass))]).
+                   || X <- binary_to_list(crypto:hash(sha, AccountPass))]).
 
 
 -spec num_active_users(ejabberd:server(), integer()) -> non_neg_integer().
