@@ -45,6 +45,8 @@ init(_Host, _Opts) ->
     mnesia:create_table(private_storage,
 			[{disc_only_copies, [node()]},
 			 {attributes, record_info(fields, private_storage)}]),
+
+    mnesia:add_table_copy(private_storage, node(), disc_only_copies),
     ok.
 
 multi_set_data(LUser, LServer, NS2XML) ->
@@ -57,7 +59,7 @@ multi_set_data_t(LUser, LServer, NS2XML) ->
 
 set_data_t(LUser, LServer, NS, XML) ->
     mnesia:write(#private_storage{usns = {LUser, LServer, NS}, xml = XML}).
-    
+
 multi_get_data(LUser, LServer, NS2Def) ->
     [get_data(LUser, LServer, NS, Default) || {NS, Default} <- NS2Def].
 

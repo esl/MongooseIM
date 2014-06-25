@@ -49,6 +49,7 @@
 init(_Host, _Opts) ->
     mnesia:create_table(privacy, [{disc_copies, [node()]},
                   {attributes, record_info(fields, privacy)}]),
+    mnesia:add_table_copy(privacy, node(), disc_copies),
     ok.
 
 get_default_list(LUser, LServer) ->

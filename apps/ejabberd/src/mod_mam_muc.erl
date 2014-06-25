@@ -276,6 +276,7 @@ start_host_mapping(Host, ServerHost) ->
             [{ram_copies, [node()]},
              {type, set},
              {attributes, record_info(fields, mam_host)}]),
+    mnesia:add_table_copy(mam_host, node(), ram_copies),
     mnesia:dirty_write(#mam_host{host = Host, server_host = ServerHost}).
 
 

@@ -71,6 +71,10 @@ start(Host, Opts) ->
     update_table(),
     mnesia:add_table_index(roster, us),
     mnesia:add_table_index(roster_version, us),
+
+    mnesia:add_table_copy(roster, node(), disc_copies),
+    mnesia:add_table_copy(roster_version, node(), disc_copies),
+
     ejabberd_hooks:add(roster_get, Host,
                        ?MODULE, get_user_roster, 50),
     ejabberd_hooks:add(roster_in_subscription, Host,

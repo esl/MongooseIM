@@ -54,7 +54,7 @@
 	 remove_user/3,
 	 store_type/1,
 	 plain_password_required/0,
-	 get_vh_registered_users/2,       
+	 get_vh_registered_users/2,
 	 get_vh_registered_users_number/1,
 	 get_vh_registered_users_number/2,
 	 get_password_s/2                  % not impl
@@ -73,6 +73,7 @@ start(Host) ->
     mnesia:create_table(anonymous, [{ram_copies, [node()]},
                                     {type, bag},
                                     {attributes, record_info(fields, anonymous)}]),
+    mnesia:add_table_copy(anonymous, node(), ram_copies),
     %% The hooks are needed to add / remove users from the anonymous tables
     ejabberd_hooks:add(sm_register_connection_hook, Host,
                        ?MODULE, register_connection, 100),
