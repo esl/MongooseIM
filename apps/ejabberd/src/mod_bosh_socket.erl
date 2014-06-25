@@ -726,8 +726,8 @@ setup_inactivity_timer(#state{inactivity = infinity} = S) ->
     S;
 setup_inactivity_timer(S) ->
     cancel_inactivity_timer(S),
-    {ok, TRef} = timer:send_after(timer:seconds(S#state.inactivity),
-                                  inactivity_timeout),
+    TRef = erlang:send_after(timer:seconds(S#state.inactivity), self(),
+                             inactivity_timeout),
     S#state{inactivity_tref = TRef}.
 
 
@@ -759,8 +759,8 @@ maybe_add_handler(_, _, S) ->
 
 -spec add_handler({rid(), pid()}, state()) -> state().
 add_handler({Rid, Pid}, #state{handlers = Handlers} = S) ->
-    {ok, TRef} = timer:send_after(timer:seconds(S#state.wait),
-                                  {wait_timeout, {Rid, Pid}}),
+    TRef = erlang:send_after(timer:seconds(S#state.wait), self(),
+                             {wait_timeout, {Rid, Pid}}),
     S#state{handlers = [{Rid, TRef, Pid} | Handlers]}.
 
 
@@ -840,7 +840,7 @@ stream_start(From, To) ->
                              {<<"to">>, To},
                              {<<"version">>, <<"1.0">>},
                              {<<"xml:lang">>, <<"en">>},
-                             {<<"xmlns">>, <<"jabber:client">>},
+                             {<<"xmlns">>, ?NS_CLIENT},
                              {<<"xmlns:stream">>, ?NS_STREAM}]}.
 
 
@@ -865,9 +865,10 @@ bosh_wrap(Elements, Rid, #state{} = S) ->
     end,
     MaybeAck = maybe_ack(Rid, NS),
     {MaybeReport, NNS} = maybe_report(NS),
-    ExtraAttrs = MaybeAck ++ MaybeReport,
+    MaybeStreamPrefix = maybe_stream_prefix(Children),
+    ExtraAttrs = MaybeAck ++ MaybeReport ++ MaybeStreamPrefix,
     {Body#xmlel{attrs = Body#xmlel.attrs ++ ExtraAttrs,
-                children = Children}, NNS}.
+                children = maybe_add_default_ns_to_children(Children)}, NNS}.
 
 
 -spec is_stream_event(jlib:xmlstreamel()) -> boolean().
@@ -935,6 +936,17 @@ bosh_stream_end_body() ->
                     {<<"xmlns">>, ?NS_HTTPBIND}],
            children = []}.
 
+maybe_stream_prefix(Stanzas) ->
+    case lists:any(fun is_stream_error/1, Stanzas) of
+        false ->
+            [];
+        true ->
+            [{<<"xmlns:stream">>, ?NS_STREAM}]
+    end.
+
+is_stream_error(#xmlel{name = Name}) ->
+    Name =:= <<"stream:error">>.
+
 %%--------------------------------------------------------------------
 %% ejabberd_socket compatibility
 %%--------------------------------------------------------------------
@@ -978,9 +990,8 @@ send_xml(Socket, #xmlstreamend{} = XML) ->
 
 -spec send(mod_bosh:socket(), _) -> 'ok'.
 send(#bosh_socket{pid = Pid}, Data) ->
-    Pid ! {send, Data},
+    Pid ! {send, xml:escape_cdata(Data)},
     ok.
-
 
 -spec change_shaper(mod_bosh:socket(), shaper:shaper()) -> mod_bosh:socket().
 change_shaper(SocketData, _Shaper) ->
@@ -1018,6 +1029,21 @@ record_set(Record, FieldValues) ->
             setelement(Field, Rec, Value)
         end,
     lists:foldl(F, Record, FieldValues).
+
+
+maybe_add_default_ns_to_children(Children) ->
+    lists:map(fun maybe_add_default_ns/1, Children).
+
+maybe_add_default_ns(#xmlel{name = Name, attrs = Attrs} = El)
+ when Name =:= <<"message">>; Name =:= <<"presence">>; Name =:= <<"iq">> ->
+    case xml:get_attr(<<"xmlns">>, Attrs) of
+        false ->
+            El#xmlel{attrs = [{<<"xmlns">>, ?NS_CLIENT} | Attrs]};
+        _ ->
+            El
+    end;
+maybe_add_default_ns(El) ->
+    El.
 
 %%--------------------------------------------------------------------
 %% Tests

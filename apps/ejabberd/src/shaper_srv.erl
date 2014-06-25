@@ -26,8 +26,8 @@
         max_delay :: non_neg_integer(),
         %% How many seconds to store each shaper
         ttl :: non_neg_integer(),
-        shapers :: dict(),
-        a_times :: dict()
+        shapers :: ejabberd:dict_t(),
+        a_times :: ejabberd:dict_t()
     }).
 -type state() :: #state{}.
 

@@ -14,7 +14,6 @@ EJD1CTL=${EJD1}/bin/mongooseim
 EJD2CTL=${EJD2}/bin/mongooseim
 SUMMARIES_DIRS=${BASE}'/test/ejabberd_tests/ct_report/ct_run*'
 
-
 TRAVIS_DB_PASSWORD=$(cat /tmp/travis_db_password)
 
 ${TOOLS}/set-odbc-password vars ${TRAVIS_DB_PASSWORD}
@@ -33,7 +32,7 @@ ${EJD2CTL} ping
 make test_deps
 ${TOOLS}/set-odbc-password test ${TRAVIS_DB_PASSWORD}
 
-make test_config TESTSPEC=default.spec CONFIG=$TEST_CONFIG
+make test_preset TESTSPEC=default.spec PRESET=$TEST_CONFIG
 
 RAN_TESTS=`cat /tmp/ct_count`
 

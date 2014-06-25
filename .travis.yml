@@ -1,6 +1,8 @@
 language: erlang
 before_install: sudo apt-get install libpam0g-dev libexpat1-dev
-before_script: tools/travis-setup-db.sh
+before_script:
+        - tools/travis-setup-db.sh
+        - tools/travis-check-tests-branch.sh
 script: tools/travis-build.sh
 
 after_script:
@@ -22,4 +24,3 @@ env:
         - TEST_CONFIG=odbc_redis DB=mysql
         - TEST_CONFIG=external_mnesia DB=mnesia
         - TEST_CONFIG=odbc_pgsql_mnesia DB=psql
-

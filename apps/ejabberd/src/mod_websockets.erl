@@ -260,7 +260,7 @@ send_xml(SocketData, {xmlstreamraw, Text}) ->
 send_xml(SocketData, {xmlstreamelement, XML}) ->
     send_xml(SocketData, XML);
 send_xml(#websocket{pid = Pid}, XML) ->
-    Pid ! {send_xml, XML},
+    Pid ! {send_xml, xml:escape_cdata(XML)},
     ok.
 
 send(#websocket{pid = Pid}, Data) ->
@@ -296,7 +296,7 @@ process_client_stream_start([#xmlstreamstart{ name = <<"stream", _/binary>>}
                              | _] = Elements, State) ->
     {Elements, State#ws_state{ open_tag = stream }};
 process_client_stream_start([#xmlel{ name = <<"open">>, attrs = Attrs }], State) ->
-    Attrs1 = lists:keyreplace(<<"xmlns">>, 1, Attrs, {<<"xmlns">>, <<"jabber:client">>}),
+    Attrs1 = lists:keyreplace(<<"xmlns">>, 1, Attrs, {<<"xmlns">>, ?NS_CLIENT}),
     Attrs2 = [{<<"xmlns:stream">>, ?NS_STREAM} | Attrs1],
     NewStart = #xmlstreamstart{ name = <<"stream:stream">>, attrs = Attrs2 },
     {[NewStart], State#ws_state{ open_tag = open }};

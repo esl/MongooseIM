@@ -55,7 +55,7 @@
          timestamp_to_xml/1, % TODO: Remove once XEP-0091 is Obsolete
          timestamp_to_mam_xml/4,
          now_to_utc_binary/1,
-         datetime_string_to_timestamp/1,
+         datetime_binary_to_timestamp/1,
          decode_base64/1,
          encode_base64/1,
          ip_to_list/1,
@@ -793,15 +793,16 @@ now_to_utc_binary(Timestamp) ->
 
 
 %% @doc yyyy-mm-ddThh:mm:ss[.sss]{Z|{+|-}hh:mm} -> {MegaSecs, Secs, MicroSecs}
--spec datetime_string_to_timestamp(string()) -> undefined | erlang:timestamp().
-datetime_string_to_timestamp(TimeStr) ->
-    case catch parse_datetime(TimeStr) of
+-spec datetime_binary_to_timestamp(binary()) -> undefined | erlang:timestamp().
+datetime_binary_to_timestamp(TimeBin) ->
+    %% Operations on short strings are actually faster than on binaries,
+    %% even if we include time for binary_to_list/1
+    case catch parse_datetime(binary_to_list(TimeBin)) of
         {'EXIT', _Err} ->
             undefined;
         TimeStamp ->
             TimeStamp
     end.
-
 
 -spec parse_datetime(string()) -> erlang:timestamp().
 parse_datetime(TimeStr) ->

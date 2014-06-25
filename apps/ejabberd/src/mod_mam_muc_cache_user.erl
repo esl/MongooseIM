@@ -1,17 +1,19 @@
 %%%-------------------------------------------------------------------
 %%% @author Uvarov Michael <arcusfelis@gmail.com>
 %%% @copyright (C) 2013, Uvarov Michael
-%%% @doc Stores cache using ETS-table.
+%%% @doc Stores cache using ETS-table (special version for MUC).
 %%% This module is a proxy for `mod_mam_odbc_user' (it should be started).
 %%%
 %%% There are 2 hooks for `mam_archive_id':
 %%% `cached_archive_id/3' and `store_archive_id/3'.
 %%%
-%%% This module supports several hosts.
+%%% The differencies from `mod_mam_odbc_user' are:
+%%%
+%%% - This module deletes cached data after room deletion.
 %%% 
 %%% @end
 %%%-------------------------------------------------------------------
--module(mod_mam_cache_user).
+-module(mod_mam_muc_cache_user).
 
 %% gen_mod handlers
 -export([start/2, stop/1]).
@@ -38,55 +40,32 @@
 
 %% @private
 srv_name() ->
-    mod_mam_cache.
+    mod_mam_muc_cache.
 
 tbl_name_archive_id() ->
-    mod_mam_cache_table_archive_id.
+    mod_mam_muc_cache_table_archive_id.
 
-group_name() ->
-    mod_mam_cache.
+tbl_name_monitor() ->
+    mod_mam_muc_cache_table_monitor.
 
-
--spec su_key(ejabberd:jid()) -> ejabberd:simple_bare_jid().
 su_key(#jid{lserver = LServer, luser = LUser}) ->
     {LServer, LUser}.
 
+room_pid(RoomJID=#jid{}) ->
+    {ok, Pid} = mod_muc:room_jid_to_pid(RoomJID),
+    Pid.
 
 %% ----------------------------------------------------------------------
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
 
--spec start(Host :: ejabberd:server(), Opts :: list()) -> any().
 start(Host, Opts) ->
     start_server(Host),
-    case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
-        true ->
-            start_pm(Host, Opts);
-        false ->
-            ok
-    end,
-    case gen_mod:get_module_opt(Host, ?MODULE, muc, false) of
-        true ->
-            start_muc(Host, Opts);
-        false ->
-            ok
-    end.
+    start_muc(Host, Opts).
 
--spec stop(Host :: ejabberd:server()) -> any().
 stop(Host) ->
-    stop_server(Host),
-    case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
-        true ->
-            stop_pm(Host);
-        false ->
-            ok
-    end,
-    case gen_mod:get_module_opt(Host, ?MODULE, muc, false) of
-        true ->
-            stop_muc(Host);
-        false ->
-            ok
-    end.
+    stop_muc(Host),
+    stop_server(Host).
 
 writer_child_spec() ->
     {?MODULE,
@@ -100,36 +79,17 @@ start_server(_Host) ->
     supervisor:start_child(ejabberd_sup, writer_child_spec()).
 
 stop_server(_Host) ->
+    %% There is only one server for all hosts. Cannot stop it.
     ok.
-
-%% ----------------------------------------------------------------------
-%% Add hooks for mod_mam
-
--spec start_pm(ejabberd:server(), list()) -> 'ok'.
-start_pm(Host, _Opts) ->
-    ejabberd_hooks:add(mam_archive_id, Host, ?MODULE, cached_archive_id, 30),
-    ejabberd_hooks:add(mam_archive_id, Host, ?MODULE, store_archive_id, 70),
-    ok.
-
-
--spec stop_pm(ejabberd:server()) -> 'ok'.
-stop_pm(Host) ->
-    ejabberd_hooks:delete(mam_archive_id, Host, ?MODULE, cached_archive_id, 30),
-    ejabberd_hooks:delete(mam_archive_id, Host, ?MODULE, store_archive_id, 70),
-    ok.
-
 
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam_muc
 
--spec start_muc(ejabberd:server(), list()) -> 'ok'.
 start_muc(Host, _Opts) ->
     ejabberd_hooks:add(mam_muc_archive_id, Host, ?MODULE, cached_archive_id, 30),
     ejabberd_hooks:add(mam_muc_archive_id, Host, ?MODULE, store_archive_id, 70),
     ok.
 
-
--spec stop_muc(ejabberd:server()) -> 'ok'.
 stop_muc(Host) ->
     ejabberd_hooks:delete(mam_muc_archive_id, Host, ?MODULE, cached_archive_id, 30),
     ejabberd_hooks:delete(mam_muc_archive_id, Host, ?MODULE, store_archive_id, 70),
@@ -140,13 +100,9 @@ stop_muc(Host) ->
 %% API
 %%====================================================================
 
--spec start_link() -> 'ignore' | {'error',_} | {'ok',pid()}.
 start_link() ->
     gen_server:start_link({local, srv_name()}, ?MODULE, [], []).
 
-
--spec cached_archive_id('undefined', _Host :: ejabberd:server(),
-                        ArcJID :: ejabberd:jid()) -> ejabberd:user().
 cached_archive_id(undefined, _Host, ArcJID) ->
     case lookup_archive_id(ArcJID) of
         not_found ->
@@ -156,16 +112,10 @@ cached_archive_id(undefined, _Host, ArcJID) ->
             UserID
     end.
 
-
--spec store_archive_id(ejabberd:user(), ejabberd:server(), ejabberd:jid())
-        -> ejabberd:user().
 store_archive_id(UserID, _Host, ArcJID) ->
     maybe_cache_archive_id(ArcJID, UserID),
     UserID.
 
-
--spec remove_archive(_Host :: ejabberd:server(), _UserID :: ejabberd:user(),
-                    ArcJID :: ejabberd:jid()) -> 'ok'.
 remove_archive(_Host, _UserID, ArcJID) ->
     clean_cache(ArcJID).
 
@@ -173,7 +123,6 @@ remove_archive(_Host, _UserID, ArcJID) ->
 %% Internal functions
 %%====================================================================
 
--spec maybe_cache_archive_id(ejabberd:jid(), ejabberd:user()) -> ejabberd:user() | ok.
 maybe_cache_archive_id(ArcJID, UserID) ->
     case erase(mam_not_cached_flag) of
         undefined ->
@@ -182,15 +131,11 @@ maybe_cache_archive_id(ArcJID, UserID) ->
             cache_archive_id(ArcJID, UserID)
     end.
 
-
 %% @doc Put the user id into cache.
 %% @private
--spec cache_archive_id(ejabberd:jid(), ejabberd:user()) -> ok.
 cache_archive_id(ArcJID, UserID) ->
-    gen_server:call(srv_name(), {cache_archive_id, ArcJID, UserID}).
+    gen_server:call(srv_name(), {cache_archive_id, ArcJID, UserID, room_pid(ArcJID)}).
 
-
--spec lookup_archive_id(ejabberd:jid()) -> ejabberd:user() | not_found.
 lookup_archive_id(ArcJID) ->
     try
         ets:lookup_element(tbl_name_archive_id(), su_key(ArcJID), 2)
@@ -198,17 +143,9 @@ lookup_archive_id(ArcJID) ->
         not_found
     end.
 
-
--spec clean_cache(ejabberd:jid()) -> 'ok'.
 clean_cache(ArcJID) ->
-    %% Send a broadcast message.
-    case pg2:get_members(group_name()) of
-        Pids when is_list(Pids) ->
-            [gen_server:cast(Pid, {remove_user, ArcJID})
-            || Pid <- Pids],
-            ok;
-        {error, _Reason} -> ok
-    end.
+    %% For each room all operations are executed on a single node only.
+    gen_server:cast(srv_name(), {remove_user, ArcJID}).
 
 %%====================================================================
 %% gen_server callbacks
@@ -222,12 +159,11 @@ clean_cache(ArcJID) ->
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
 init([]) ->
-    pg2:create(group_name()),
-    pg2:join(group_name(), self()),
     TOpts = [named_table, protected,
              {write_concurrency, false},
              {read_concurrency, true}],
     ets:new(tbl_name_archive_id(), TOpts),
+    ets:new(tbl_name_monitor(),    TOpts),
     {ok, #state{}}.
 
 %%--------------------------------------------------------------------
@@ -239,8 +175,11 @@ init([]) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
-handle_call({cache_archive_id, ArcJID, UserID}, _From, State) ->
-    ets:insert(tbl_name_archive_id(), {su_key(ArcJID), UserID}),
+handle_call({cache_archive_id, ArcJID, UserID, RoomPid}, _From, State) ->
+    Key = su_key(ArcJID),
+    MonRef = erlang:monitor(process, RoomPid),
+    ets:insert(tbl_name_monitor(), {MonRef, Key}),
+    ets:insert(tbl_name_archive_id(), {Key, UserID}),
     {reply, ok, State}.
 
 
@@ -265,6 +204,16 @@ handle_cast(Msg, State) ->
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 
+
+handle_info({'DOWN', MonRef, process, Pid, Reason}, State) ->
+    case ets:lookup(tbl_name_archive_id(), MonRef) of
+        [] ->
+            ?WARNING_MSG("Unknown monitor ~p from ~p with ~p.", [MonRef, Pid, Reason]);
+        [{MonRef, Key}] ->
+            ets:delete(tbl_name_archive_id(), MonRef),
+            ets:delete(tbl_name_monitor(), Key)
+    end,
+    {noreply, State};
 handle_info(_Msg, State) ->
     {noreply, State}.
 
