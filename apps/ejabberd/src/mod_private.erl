@@ -157,7 +157,7 @@ compare_bare_jids(_, _) -> false.
 
 element_to_namespace(#xmlel{attrs = Attrs}) ->
     xml:get_attr_s(<<"xmlns">>, Attrs);
-element_to_namespace(<<>>) ->
+element_to_namespace(_) ->
     <<>>.
 
 %% Skip invalid elements.
