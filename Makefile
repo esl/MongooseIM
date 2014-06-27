@@ -1,4 +1,4 @@
-.PHONY: rel deps test show_test_results generate_snmp_header 
+.PHONY: rel deps test show_test_results generate_snmp_header
 
 EJABBERD_DIR = apps/ejabberd
 EJD_INCLUDE = $(EJABBERD_DIR)/include
@@ -39,7 +39,8 @@ quicktest: test_deps
 show_test_results:
 	$$BROWSER `ls -td test/ct_report/ct_run.test@*/index.html | head -n 1` & disown
 
-eunit: rebar
+eunit: rebar deps
+	./rebar compile
 	./rebar skip_deps=true eunit
 
 rel: rebar deps
@@ -107,4 +108,3 @@ test_deps: rebar
 rebar:
 	wget -q http://cloud.github.com/downloads/basho/rebar/rebar
 	chmod u+x rebar
-
