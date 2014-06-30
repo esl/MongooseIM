@@ -2214,71 +2214,73 @@ change_nick(JID, Nick, StateData) ->
 
 -spec send_nick_changing(ejabberd:jid(), mod_muc:nick(), state()) -> 'ok'.
 send_nick_changing(JID, OldNick, StateData) ->
+    User = ?DICT:find(jlib:jid_tolower(JID), StateData#state.users),
     {ok, #user{jid = RealJID,
-           nick = Nick,
-           role = Role,
-           last_presence = Presence}} =
-    ?DICT:find(jlib:jid_tolower(JID), StateData#state.users),
+               nick = Nick,
+               role = Role,
+               last_presence = Presence}} = User,
     Affiliation = get_affiliation(JID, StateData),
     BAffiliation = affiliation_to_binary(Affiliation),
     BRole = role_to_binary(Role),
-    lists:foreach(
-      fun({_LJID, Info}) ->
-          ItemAttrs1 =
-          case (Info#user.role == moderator) orelse
-              ((StateData#state.config)#config.anonymous == false) of
-              true ->
-              [{<<"jid">>, jlib:jid_to_binary(RealJID)},
-               {<<"affiliation">>, BAffiliation},
-               {<<"role">>, BRole},
-               {<<"nick">>, Nick}];
-              _ ->
-              [{<<"affiliation">>, BAffiliation},
-               {<<"role">>, BRole},
-               {<<"nick">>, Nick}]
-          end,
-          ItemAttrs2 =
-          case (Info#user.role == moderator) orelse
-              ((StateData#state.config)#config.anonymous == false) of
-              true ->
-              [{<<"jid">>, jlib:jid_to_binary(RealJID)},
-               {<<"affiliation">>, BAffiliation},
-               {<<"role">>, BRole}];
-              _ ->
-              [{<<"affiliation">>, BAffiliation},
-               {<<"role">>, BRole}]
-          end,
+    lists:foreach(mk_send_nick_change(Presence, OldNick, JID, RealJID, BAffiliation, BRole, Nick, StateData),
+                  ?DICT:to_list(StateData#state.users)).
 
-		  SelfPresenceCode= if
-		  		JID == Info#user.jid ->
-				[#xmlel{name = <<"status">>,
-				        attrs = [{<<"code">>, <<"110">>}]}];
-			  true ->
-				  []
-                            end,
-          Packet1 =
-          #xmlel{name = <<"presence">>,
-                 attrs = [{<<"type">>, <<"unavailable">>}],
-                 children = [#xmlel{name = <<"x">>,
-                                    attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
-                                    children = [#xmlel{name = <<"item">>,
-                                                       attrs = ItemAttrs1},
-                                                #xmlel{name = <<"status">>,
-                                                       attrs = [{<<"code">>, <<"303">>}]}| SelfPresenceCode]}]},
-          Packet2 = xml:append_subtags(
-              Presence,
-              [#xmlel{name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
-                      children = [#xmlel{name = <<"item">>,
-                                         attrs = ItemAttrs2}| SelfPresenceCode]}]),
-          ejabberd_router:route(
-        jlib:jid_replace_resource(StateData#state.jid, OldNick),
-        Info#user.jid,
-        Packet1),
-          ejabberd_router:route(
-        jlib:jid_replace_resource(StateData#state.jid, Nick),
-        Info#user.jid,
-        Packet2)
-      end, ?DICT:to_list(StateData#state.users)).
+mk_send_nick_change(Presence, OldNick, JID, RealJID,  BAffiliation, BRole, Nick, StateData) ->
+    fun({LJID, Info}) ->
+            send_nick_change(Presence, OldNick, JID, RealJID, BAffiliation, BRole, Nick, LJID, Info, StateData)
+    end.
+
+send_nick_change(Presence, OldNick, JID, RealJID, BAffiliation, BRole, Nick, _LJID, Info, StateData) ->
+    ItemAttrs1 = case (Info#user.role == moderator) orelse
+                      ((StateData#state.config)#config.anonymous == false) of
+                     true ->
+                         [{<<"jid">>, jlib:jid_to_binary(RealJID)},
+                          {<<"affiliation">>, BAffiliation},
+                          {<<"role">>, BRole},
+                          {<<"nick">>, Nick}];
+                     _ ->
+                         [{<<"affiliation">>, BAffiliation},
+                          {<<"role">>, BRole},
+                          {<<"nick">>, Nick}]
+                 end,
+    ItemAttrs2 = case (Info#user.role == moderator) orelse
+                      ((StateData#state.config)#config.anonymous == false) of
+                     true ->
+                         [{<<"jid">>, jlib:jid_to_binary(RealJID)},
+                          {<<"affiliation">>, BAffiliation},
+                          {<<"role">>, BRole}];
+                     _ ->
+                         [{<<"affiliation">>, BAffiliation},
+                          {<<"role">>, BRole}]
+                 end,
+    SelfPresenceCode = if
+                           JID == Info#user.jid ->
+                               [#xmlel{name = <<"status">>,
+                                       attrs = [{<<"code">>, <<"110">>}]}];
+                           true ->
+                               []
+                       end,
+    Packet1 = #xmlel{name = <<"presence">>,
+                     attrs = [{<<"type">>, <<"unavailable">>}],
+                     children = [#xmlel{name = <<"x">>,
+                                        attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
+                                        children = [#xmlel{name = <<"item">>,
+                                                           attrs = ItemAttrs1},
+                                                    #xmlel{name = <<"status">>,
+                                                           attrs = [{<<"code">>, <<"303">>}]}
+                                                    | SelfPresenceCode]}]},
+    Packet2 = xml:append_subtags(Presence,
+                                 [#xmlel{name = <<"x">>,
+                                         attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
+                                         children = [#xmlel{name = <<"item">>,
+                                                            attrs = ItemAttrs2}
+                                                     | SelfPresenceCode]}]),
+    ejabberd_router:route(jlib:jid_replace_resource(StateData#state.jid, OldNick),
+                          Info#user.jid,
+                          Packet1),
+    ejabberd_router:route(jlib:jid_replace_resource(StateData#state.jid, Nick),
+                          Info#user.jid,
+                          Packet2).
 
 
 -spec lqueue_new(integer()) -> lqueue().
