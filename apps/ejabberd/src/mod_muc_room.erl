@@ -2241,6 +2241,15 @@ is_nick_change_public(UserInfo, RoomConfig) ->
     orelse
     RoomConfig#config.anonymous == false.
 
+status_code(Code) ->
+    #xmlel{name = <<"status">>,
+           attrs = [{<<"code">>, integer_to_binary(Code)}]}.
+
+muc_user_x(Children) ->
+    #xmlel{name = <<"x">>,
+           attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
+           children = Children}.
+
 send_nick_change(Presence, OldNick, JID, RealJID, Affiliation, Role, Nick, _LJID, Info, StateData) ->
     IsNickChangePublic = is_nick_change_public(Info, StateData#state.config),
     Item1 = muc_user_item(if IsNickChangePublic -> RealJID;
@@ -2251,23 +2260,16 @@ send_nick_change(Presence, OldNick, JID, RealJID, Affiliation, Role, Nick, _LJID
                           undefined, Affiliation, Role),
     SelfPresenceCode = if
                            JID == Info#user.jid ->
-                               [#xmlel{name = <<"status">>,
-                                       attrs = [{<<"code">>, <<"110">>}]}];
+                               [status_code(110)];
                            true ->
                                []
                        end,
     Packet1 = #xmlel{name = <<"presence">>,
                      attrs = [{<<"type">>, <<"unavailable">>}],
-                     children = [#xmlel{name = <<"x">>,
-                                        attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
-                                        children = [Item1,
-                                                    #xmlel{name = <<"status">>,
-                                                           attrs = [{<<"code">>, <<"303">>}]}
-                                                    | SelfPresenceCode]}]},
+                     children = [muc_user_x([Item1, status_code(303),
+                                             SelfPresenceCode])]},
     Packet2 = xml:append_subtags(Presence,
-                                 [#xmlel{name = <<"x">>,
-                                         attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
-                                         children = [Item2 | SelfPresenceCode]}]),
+                                 [muc_user_x([Item2 | SelfPresenceCode])]),
     ejabberd_router:route(jlib:jid_replace_resource(StateData#state.jid, OldNick),
                           Info#user.jid,
                           Packet1),
