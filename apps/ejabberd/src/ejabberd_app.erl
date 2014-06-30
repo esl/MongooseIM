@@ -79,6 +79,7 @@ start(_, _) ->
 %% This function is called when an application is about to be stopped,
 %% before shutting down the processes of the application.
 prep_stop(State) ->
+    ejabberd_listener:stop_listeners(),
     stop_modules(),
     broadcast_c2s_shutdown(),
     mod_websockets:stop(),
