@@ -2247,27 +2247,48 @@ send_nick_change(Presence, OldNick, JID, RealJID, Affiliation, Role,
     ejabberd_router:route(jlib:jid_replace_resource(S#state.jid, Nick),
                           Info#user.jid, Available).
 
+-spec is_nick_change_public(user(), config()) -> boolean().
 is_nick_change_public(UserInfo, RoomConfig) ->
     UserInfo#user.role == moderator
     orelse
     RoomConfig#config.anonymous == false.
 
+-spec status_code(integer()) -> jlib:xmlel().
 status_code(Code) ->
     #xmlel{name = <<"status">>,
            attrs = [{<<"code">>, integer_to_binary(Code)}]}.
 
+-spec nick_unavailable_presence(MaybeJID, Nick, Affiliation, Role, MaybeCode) ->
+    jlib:xmlel() when
+      MaybeJID :: 'undefined' | ejabberd:jid(),
+      Nick :: mod_muc:nick(),
+      Affiliation :: mod_muc:affiliation(),
+      Role :: mod_muc:role(),
+      MaybeCode :: 'undefined' | jlib:xmlel().
 nick_unavailable_presence(MaybeJID, Nick, Affiliation, Role, MaybeCode) ->
     presence(<<"unavailable">>,
              [muc_user_x([muc_user_item(MaybeJID, Nick, Affiliation, Role),
                           status_code(303)]
                          ++ [MaybeCode || MaybeCode /= undefined])]).
 
+-spec nick_available_presence(LastPresence, MaybeJID, Affiliation,
+                              Role, MaybeCode) -> jlib:xmlel() when
+      LastPresence :: jlib:xmlel(),
+      MaybeJID :: 'undefined' | ejabberd:jid(),
+      Affiliation :: mod_muc:affiliation(),
+      Role :: mod_muc:role(),
+      MaybeCode :: 'undefined' | jlib:xmlel().
 nick_available_presence(LastPresence, MaybeJID, Affiliation, Role, MaybeCode) ->
     Item = muc_user_item(MaybeJID, undefined, Affiliation, Role),
     xml:append_subtags(LastPresence,
                        [muc_user_x([Item] ++ [MaybeCode
                                               || MaybeCode /= undefined])]).
 
+-spec muc_user_item(MaybeJID, MaybeNick, Affiliation, Role) -> jlib:xmlel() when
+      MaybeJID :: 'undefined' | ejabberd:jid(),
+      MaybeNick :: 'undefined' | mod_muc:nick(),
+      Affiliation :: mod_muc:affiliation(),
+      Role :: mod_muc:role().
 muc_user_item(MaybeJID, MaybeNick, Affiliation, Role) ->
     #xmlel{name = <<"item">>,
            attrs = [{<<"jid">>, jlib:jid_to_binary(MaybeJID)}
@@ -2276,11 +2297,13 @@ muc_user_item(MaybeJID, MaybeNick, Affiliation, Role) ->
                    [{<<"affiliation">>, affiliation_to_binary(Affiliation)},
                     {<<"role">>, role_to_binary(Role)}]}.
 
+-spec muc_user_x([jlib:xmlel()]) -> jlib:xmlel().
 muc_user_x(Children) ->
     #xmlel{name = <<"x">>,
            attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
            children = Children}.
 
+-spec presence(binary(), [jlib:xmlel()]) -> jlib:xmlel().
 %% Add and validate other types if need be.
 presence(<<"unavailable">> = Type, Children) ->
     #xmlel{name = <<"presence">>,
