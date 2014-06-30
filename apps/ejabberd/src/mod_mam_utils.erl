@@ -560,8 +560,8 @@ check_stringprep() ->
 
 start_stringprep() ->
     EJ = code:lib_dir(ejabberd),
-    code:add_path(filename:join([EJ, "..", "p1_stringprep", "ebin"])),
-    ok = application:start(stringprep).
+    code:add_path(filename:join([EJ, "..", "..", "deps", "p1_stringprep", "ebin"])),
+    ok = application:start(p1_stringprep).
 
 is_loaded_application(AppName) when is_atom(AppName) ->
     lists:keymember(AppName, 1, application:loaded_applications()).
