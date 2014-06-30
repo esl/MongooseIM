@@ -2220,39 +2220,35 @@ send_nick_changing(JID, OldNick, StateData) ->
                role = Role,
                last_presence = Presence}} = User,
     Affiliation = get_affiliation(JID, StateData),
-    BAffiliation = affiliation_to_binary(Affiliation),
-    BRole = role_to_binary(Role),
-    lists:foreach(mk_send_nick_change(Presence, OldNick, JID, RealJID, BAffiliation, BRole, Nick, StateData),
+    lists:foreach(mk_send_nick_change(Presence, OldNick, JID, RealJID, Affiliation, Role, Nick, StateData),
                   ?DICT:to_list(StateData#state.users)).
 
-mk_send_nick_change(Presence, OldNick, JID, RealJID,  BAffiliation, BRole, Nick, StateData) ->
+mk_send_nick_change(Presence, OldNick, JID, RealJID,  Affiliation, Role, Nick, StateData) ->
     fun({LJID, Info}) ->
-            send_nick_change(Presence, OldNick, JID, RealJID, BAffiliation, BRole, Nick, LJID, Info, StateData)
+            send_nick_change(Presence, OldNick, JID, RealJID, Affiliation, Role, Nick, LJID, Info, StateData)
     end.
 
-send_nick_change(Presence, OldNick, JID, RealJID, BAffiliation, BRole, Nick, _LJID, Info, StateData) ->
-    ItemAttrs1 = case (Info#user.role == moderator) orelse
-                      ((StateData#state.config)#config.anonymous == false) of
-                     true ->
-                         [{<<"jid">>, jlib:jid_to_binary(RealJID)},
-                          {<<"affiliation">>, BAffiliation},
-                          {<<"role">>, BRole},
-                          {<<"nick">>, Nick}];
-                     _ ->
-                         [{<<"affiliation">>, BAffiliation},
-                          {<<"role">>, BRole},
-                          {<<"nick">>, Nick}]
-                 end,
-    ItemAttrs2 = case (Info#user.role == moderator) orelse
-                      ((StateData#state.config)#config.anonymous == false) of
-                     true ->
-                         [{<<"jid">>, jlib:jid_to_binary(RealJID)},
-                          {<<"affiliation">>, BAffiliation},
-                          {<<"role">>, BRole}];
-                     _ ->
-                         [{<<"affiliation">>, BAffiliation},
-                          {<<"role">>, BRole}]
-                 end,
+muc_user_item(MaybeJID, MaybeNick, Affiliation, Role) ->
+    #xmlel{name = <<"item">>,
+           attrs = [{<<"jid">>, jlib:jid_to_binary(MaybeJID)}
+                    || MaybeJID /= undefined] ++
+                   [{<<"nick">>, MaybeNick} || MaybeNick /= undefined] ++
+                   [{<<"affiliation">>, affiliation_to_binary(Affiliation)},
+                    {<<"role">>, role_to_binary(Role)}]}.
+
+is_nick_change_public(UserInfo, RoomConfig) ->
+    UserInfo#user.role == moderator
+    orelse
+    RoomConfig#config.anonymous == false.
+
+send_nick_change(Presence, OldNick, JID, RealJID, Affiliation, Role, Nick, _LJID, Info, StateData) ->
+    IsNickChangePublic = is_nick_change_public(Info, StateData#state.config),
+    Item1 = muc_user_item(if IsNickChangePublic -> RealJID;
+                             not IsNickChangePublic -> undefined end,
+                          Nick, Affiliation, Role),
+    Item2 = muc_user_item(if IsNickChangePublic -> RealJID;
+                             not IsNickChangePublic -> undefined end,
+                          undefined, Affiliation, Role),
     SelfPresenceCode = if
                            JID == Info#user.jid ->
                                [#xmlel{name = <<"status">>,
@@ -2264,17 +2260,14 @@ send_nick_change(Presence, OldNick, JID, RealJID, BAffiliation, BRole, Nick, _LJ
                      attrs = [{<<"type">>, <<"unavailable">>}],
                      children = [#xmlel{name = <<"x">>,
                                         attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
-                                        children = [#xmlel{name = <<"item">>,
-                                                           attrs = ItemAttrs1},
+                                        children = [Item1,
                                                     #xmlel{name = <<"status">>,
                                                            attrs = [{<<"code">>, <<"303">>}]}
                                                     | SelfPresenceCode]}]},
     Packet2 = xml:append_subtags(Presence,
                                  [#xmlel{name = <<"x">>,
                                          attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
-                                         children = [#xmlel{name = <<"item">>,
-                                                            attrs = ItemAttrs2}
-                                                     | SelfPresenceCode]}]),
+                                         children = [Item2 | SelfPresenceCode]}]),
     ejabberd_router:route(jlib:jid_replace_resource(StateData#state.jid, OldNick),
                           Info#user.jid,
                           Packet1),
