@@ -2228,13 +2228,24 @@ mk_send_nick_change(Presence, OldNick, JID, RealJID,  Affiliation, Role, Nick, S
             send_nick_change(Presence, OldNick, JID, RealJID, Affiliation, Role, Nick, LJID, Info, StateData)
     end.
 
-muc_user_item(MaybeJID, MaybeNick, Affiliation, Role) ->
-    #xmlel{name = <<"item">>,
-           attrs = [{<<"jid">>, jlib:jid_to_binary(MaybeJID)}
-                    || MaybeJID /= undefined] ++
-                   [{<<"nick">>, MaybeNick} || MaybeNick /= undefined] ++
-                   [{<<"affiliation">>, affiliation_to_binary(Affiliation)},
-                    {<<"role">>, role_to_binary(Role)}]}.
+send_nick_change(Presence, OldNick, JID, RealJID, Affiliation, Role,
+                 Nick, _LJID, Info, #state{} = S) ->
+    MaybePublicJID = case is_nick_change_public(Info, S#state.config) of
+                         true -> RealJID;
+                         false -> undefined
+                     end,
+    MaybeSelfPresenceCode = if
+                                JID == Info#user.jid -> status_code(110);
+                                true -> undefined
+                            end,
+    Unavailable = nick_unavailable_presence(MaybePublicJID, Nick, Affiliation,
+                                            Role, MaybeSelfPresenceCode),
+    ejabberd_router:route(jlib:jid_replace_resource(S#state.jid, OldNick),
+                          Info#user.jid, Unavailable),
+    Available = nick_available_presence(Presence, MaybePublicJID, Affiliation,
+                                        Role, MaybeSelfPresenceCode),
+    ejabberd_router:route(jlib:jid_replace_resource(S#state.jid, Nick),
+                          Info#user.jid, Available).
 
 is_nick_change_public(UserInfo, RoomConfig) ->
     UserInfo#user.role == moderator
@@ -2245,37 +2256,36 @@ status_code(Code) ->
     #xmlel{name = <<"status">>,
            attrs = [{<<"code">>, integer_to_binary(Code)}]}.
 
+nick_unavailable_presence(MaybeJID, Nick, Affiliation, Role, MaybeCode) ->
+    presence(<<"unavailable">>,
+             [muc_user_x([muc_user_item(MaybeJID, Nick, Affiliation, Role),
+                          status_code(303)]
+                         ++ [MaybeCode || MaybeCode /= undefined])]).
+
+nick_available_presence(LastPresence, MaybeJID, Affiliation, Role, MaybeCode) ->
+    Item = muc_user_item(MaybeJID, undefined, Affiliation, Role),
+    xml:append_subtags(LastPresence,
+                       [muc_user_x([Item] ++ [MaybeCode
+                                              || MaybeCode /= undefined])]).
+
+muc_user_item(MaybeJID, MaybeNick, Affiliation, Role) ->
+    #xmlel{name = <<"item">>,
+           attrs = [{<<"jid">>, jlib:jid_to_binary(MaybeJID)}
+                    || MaybeJID /= undefined] ++
+                   [{<<"nick">>, MaybeNick} || MaybeNick /= undefined] ++
+                   [{<<"affiliation">>, affiliation_to_binary(Affiliation)},
+                    {<<"role">>, role_to_binary(Role)}]}.
+
 muc_user_x(Children) ->
     #xmlel{name = <<"x">>,
            attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
            children = Children}.
 
-send_nick_change(Presence, OldNick, JID, RealJID, Affiliation, Role, Nick, _LJID, Info, StateData) ->
-    IsNickChangePublic = is_nick_change_public(Info, StateData#state.config),
-    Item1 = muc_user_item(if IsNickChangePublic -> RealJID;
-                             not IsNickChangePublic -> undefined end,
-                          Nick, Affiliation, Role),
-    Item2 = muc_user_item(if IsNickChangePublic -> RealJID;
-                             not IsNickChangePublic -> undefined end,
-                          undefined, Affiliation, Role),
-    SelfPresenceCode = if
-                           JID == Info#user.jid ->
-                               [status_code(110)];
-                           true ->
-                               []
-                       end,
-    Packet1 = #xmlel{name = <<"presence">>,
-                     attrs = [{<<"type">>, <<"unavailable">>}],
-                     children = [muc_user_x([Item1, status_code(303),
-                                             SelfPresenceCode])]},
-    Packet2 = xml:append_subtags(Presence,
-                                 [muc_user_x([Item2 | SelfPresenceCode])]),
-    ejabberd_router:route(jlib:jid_replace_resource(StateData#state.jid, OldNick),
-                          Info#user.jid,
-                          Packet1),
-    ejabberd_router:route(jlib:jid_replace_resource(StateData#state.jid, Nick),
-                          Info#user.jid,
-                          Packet2).
+%% Add and validate other types if need be.
+presence(<<"unavailable">> = Type, Children) ->
+    #xmlel{name = <<"presence">>,
+           attrs = [{<<"type">>, Type} || Type /= <<"available">>],
+           children = Children}.
 
 
 -spec lqueue_new(integer()) -> lqueue().
