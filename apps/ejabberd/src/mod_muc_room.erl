@@ -2220,12 +2220,15 @@ send_nick_changing(JID, OldNick, StateData) ->
                role = Role,
                last_presence = Presence}} = User,
     Affiliation = get_affiliation(JID, StateData),
-    lists:foreach(mk_send_nick_change(Presence, OldNick, JID, RealJID, Affiliation, Role, Nick, StateData),
+    lists:foreach(mk_send_nick_change(Presence, OldNick, JID, RealJID,
+                                      Affiliation, Role, Nick, StateData),
                   ?DICT:to_list(StateData#state.users)).
 
-mk_send_nick_change(Presence, OldNick, JID, RealJID,  Affiliation, Role, Nick, StateData) ->
+mk_send_nick_change(Presence, OldNick, JID, RealJID,  Affiliation,
+                    Role, Nick, StateData) ->
     fun({LJID, Info}) ->
-            send_nick_change(Presence, OldNick, JID, RealJID, Affiliation, Role, Nick, LJID, Info, StateData)
+            send_nick_change(Presence, OldNick, JID, RealJID, Affiliation,
+                             Role, Nick, LJID, Info, StateData)
     end.
 
 send_nick_change(Presence, OldNick, JID, RealJID, Affiliation, Role,
