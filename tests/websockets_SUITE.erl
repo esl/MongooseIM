@@ -19,7 +19,6 @@
 
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
--include_lib("exml/include/exml_stream.hrl").
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -80,25 +79,17 @@ chat_msg(Config) ->
 
 escape_chat_msg(Config) ->
     escalus:story(Config, [{alice, 1}, {geralt, 1}, {oldie, 1}], fun(Alice, Geralt, Oldie) ->
-        Message1 = <<"Hi! & < >">>,
-        escalus_client:send(Alice, escalus_stanza:chat_to(Geralt, Message1)),
-        escalus:assert(is_chat_message, [Message1], escalus_client:wait_for_stanza(Geralt)),
-
-        Message2 = <<"Hello! & < >">>,
-        escalus_client:send(Geralt, escalus_stanza:chat_to(Alice, Message2)),
-        escalus:assert(is_chat_message, [Message2], escalus_client:wait_for_stanza(Alice)),
-
-        Message3= <<"Hey! & < >">>,
-        escalus_client:send(Geralt, escalus_stanza:chat_to(Oldie, Message3)),
-        escalus:assert(is_chat_message, [Message3], escalus_client:wait_for_stanza(Oldie))
+        special_chars_helper:check_cdata_from_to(Alice, Geralt, <<"Hi! & < >">>),
+        special_chars_helper:check_cdata_from_to(Geralt, Alice, <<"Hello! & < >">>),
+        special_chars_helper:check_cdata_from_to(Geralt, Oldie, <<"Hey! & < >">>)
 
     end).
 
 escape_attrs(Config) ->
-    escalus:story(Config, [{alice, 1}, {geralt, 1}], fun(Alice, Geralt) ->
-        AttrWithSpecialChars = <<"font-family: 'Helvetica';font-size: 12px;">>,
-        check_attr_from_to(Alice, Geralt, AttrWithSpecialChars),
-        check_attr_from_to(Geralt, Alice, AttrWithSpecialChars)
+    escalus:story(Config, [{alice, 1}, {geralt, 1}, {oldie, 1}], fun(Alice, Geralt, Oldie) ->
+        special_chars_helper:check_attr_from_to(Alice, Geralt),
+        special_chars_helper:check_attr_from_to(Geralt, Alice),
+        special_chars_helper:check_attr_from_to(Geralt, Oldie)
 
 
 
@@ -108,21 +99,3 @@ escape_attrs(Config) ->
 %% Helpers
 %%--------------------------------------------------------------------
 
-check_attr_from_to(From, To, AttrWithSpecialChars) ->
-    SpecialCharsInAttr = create_special_chars_attr_xmlel(AttrWithSpecialChars),
-    Message = add_special_chars_attr_xmlel(escalus_stanza:chat_to(To, <<"Hi there!">>),
-                                           SpecialCharsInAttr),
-    escalus_client:send(From, Message),
-    Stanza = escalus_client:wait_for_stanza(To),
-
-    escalus:assert(is_chat_message, [<<"Hi there!">>], Stanza),
-    AttrWithSpecialChars = exml_query:path(Stanza,
-        [{element, <<"span">>}, {attr, <<"style">>}]).
-
-add_special_chars_attr_xmlel(BaseMessage, SpecialCharsChild) ->
-    BaseMessage#xmlel{children =
-                      [SpecialCharsChild | BaseMessage#xmlel.children]}.
-
-create_special_chars_attr_xmlel(AttrWithSpecialChars) ->
-    #xmlel{name = <<"span">>,
-           attrs = [{<<"style">>, exml:escape_attr(AttrWithSpecialChars)}]}.
