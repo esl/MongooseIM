@@ -192,7 +192,7 @@ server_returns_failed(Config, ConnActions) ->
                                                   maybe_use_ssl]
                                                  ++ ConnActions),
     escalus_connection:send(Alice, escalus_stanza:enable_sm()),
-    escalus:assert(is_failed,
+    escalus:assert(is_failed, [<<"unexpected-request">>],
                    escalus_connection:get_stanza(Alice, enable_sm_failed)).
 
 basic_ack(Config) ->
