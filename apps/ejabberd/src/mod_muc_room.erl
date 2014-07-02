@@ -403,8 +403,7 @@ normal_state({route, From, <<>>,
     Type = xml:get_attr_s(<<"type">>, Attrs),
 
     NewStateData = route_message(#routed_message{
-        allowed = is_user_online(From, StateData) orelse
-            is_user_allowed_message_nonparticipant(From, StateData),
+        allowed = can_send_to_conference(From, StateData),
         type = Type,
         from = From,
         packet = Packet,
@@ -693,102 +692,111 @@ route(Pid, From, ToNick, Packet) ->
                                 jlib:xmlel(), state()) -> fsm_return().
 process_groupchat_message(From, #xmlel{name = <<"message">>,
                                        attrs = Attrs} = Packet,
-              StateData) ->
+                          StateData) ->
     Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
-    case is_user_online(From, StateData) orelse
-    is_user_allowed_message_nonparticipant(From, StateData) of
-    true ->
-        {FromNick, Role} = get_participant_data(From, StateData),
-        if
-        (Role == moderator) or (Role == participant)
-        or ((StateData#state.config)#config.moderated == false) ->
-            {NewStateData1, IsAllowed} =
-            case check_subject(Packet) of
-                false ->
-                {StateData, true};
-                Subject ->
-                case can_change_subject(Role, StateData) of
-                    true ->
-                    NSD =
-                        StateData#state{
-                          subject = Subject,
-                          subject_author = FromNick},
-                    case (NSD#state.config)#config.persistent of
-                        true ->
-                        mod_muc:store_room(
-                          NSD#state.host,
-                          NSD#state.room,
-                          make_opts(NSD));
-                        _ ->
-                        ok
-                    end,
-                    {NSD, true};
-                    _ ->
-                    {StateData, false}
-                end
-            end,
-            case IsAllowed of
-            true ->
-                case ejabberd_hooks:run_fold(filter_room_packet,
-                       StateData#state.host, Packet,
-                       [FromNick, From, StateData#state.jid]) of
-                drop ->
-                {next_state, normal_state, NewStateData1};
-                Packet1 ->
-                lists:foreach(
-                  fun({_LJID, Info}) ->
-                      ejabberd_router:route(
-                    jlib:jid_replace_resource(
-                      StateData#state.jid,
-                      FromNick),
-                    Info#user.jid,
-                    Packet1)
-                  end,
-                  ?DICT:to_list(StateData#state.users)),
-                NewStateData2 =
-                add_message_to_history(FromNick,
-                               From,
-                               Packet1,
-                               NewStateData1),
-                {next_state, normal_state, NewStateData2}
-                end;
-            _ ->
-                Err =
-                case (StateData#state.config)#config.allow_change_subj of
-                    true ->
-                    ?ERRT_FORBIDDEN(
-                       Lang,
-                       <<"Only moderators and participants are allowed to change the subject in this room">>);
-                    _ ->
-                    ?ERRT_FORBIDDEN(
-                       Lang,
-                       <<"Only moderators are allowed to change the subject in this room">>)
-                end,
-                ejabberd_router:route(
-                                jlib:jid_replace_resource(
-                                    StateData#state.jid,
-                                    FromNick),
-                    From,
-                    jlib:make_error_reply(Packet, Err)),
-                {next_state, normal_state, StateData}
-            end;
+    case can_send_to_conference(From, StateData) of
         true ->
-            ErrText = <<"Visitors are not allowed to send messages to all occupants">>,
-            Err = jlib:make_error_reply(
-                Packet, ?ERRT_FORBIDDEN(Lang, ErrText)),
-            ejabberd_router:route(
-              StateData#state.jid,
-              From, Err),
+            process_message_from_allowed_user(From, Packet, StateData);
+        false ->
+            send_error_only_occupants(<<"messages">>, Packet, Lang,
+                                      StateData#state.jid, From),
             {next_state, normal_state, StateData}
-        end;
-    false ->
-        ErrText = <<"Only occupants are allowed to send messages to the conference">>,
-        Err = jlib:make_error_reply(
-            Packet, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)),
-        ejabberd_router:route(StateData#state.jid, From, Err),
-        {next_state, normal_state, StateData}
     end.
 
+can_send_to_conference(From, StateData) ->
+    is_user_online(From, StateData)
+    orelse
+    is_allowed_nonparticipant(From, StateData).
+
+process_message_from_allowed_user(From, #xmlel{attrs = Attrs} = Packet,
+                                  StateData) ->
+    Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
+    {FromNick, Role} = get_participant_data(From, StateData),
+    CanSendBroadcasts = can_send_broadcasts(Role, StateData),
+    if
+        CanSendBroadcasts ->
+            {NewState, Changed} = change_subject_if_allowed(FromNick, Role,
+                                                            Packet, StateData),
+            if
+                Changed ->
+                    broadcast_changed_subject(From, FromNick, Packet, NewState);
+                not Changed ->
+                    change_subject_error(From, FromNick, Packet, Lang, NewState),
+                    {next_state, normal_state, NewState}
+            end;
+        not CanSendBroadcasts ->
+            ErrText = <<"Visitors are not allowed to send messages to all occupants">>,
+            Err = jlib:make_error_reply(Packet, ?ERRT_FORBIDDEN(Lang, ErrText)),
+            ejabberd_router:route(StateData#state.jid, From, Err),
+            {next_state, normal_state, StateData}
+    end.
+
+can_send_broadcasts(Role, StateData) ->
+    (Role == moderator)
+    or (Role == participant)
+    or ((StateData#state.config)#config.moderated == false).
+
+broadcast_changed_subject(From, FromNick, Packet, StateData) ->
+    case ejabberd_hooks:run_fold(filter_room_packet,
+                                 StateData#state.host, Packet,
+                                 [FromNick, From, StateData#state.jid])
+    of
+        drop ->
+            {next_state, normal_state, StateData};
+        FilteredPacket ->
+            RouteFrom = jlib:jid_replace_resource(StateData#state.jid,
+                                                  FromNick),
+            lists:foreach(fun({_LJID, Info}) ->
+                                  ejabberd_router:route(RouteFrom,
+                                                        Info#user.jid,
+                                                        FilteredPacket)
+                          end, ?DICT:to_list(StateData#state.users)),
+            NewStateData2 = add_message_to_history(FromNick,
+                                                   From,
+                                                   FilteredPacket,
+                                                   StateData),
+            {next_state, normal_state, NewStateData2}
+    end.
+
+change_subject_error(From, FromNick, Packet, Lang, StateData) ->
+    Err = case (StateData#state.config)#config.allow_change_subj of
+              true ->
+                  ?ERRT_FORBIDDEN(Lang,
+                                  <<"Only moderators and participants are allowed to change the subject in this room">>);
+              _ ->
+                  ?ERRT_FORBIDDEN(Lang,
+                                  <<"Only moderators are allowed to change the subject in this room">>)
+          end,
+    ejabberd_router:route(jlib:jid_replace_resource(StateData#state.jid,
+                                                    FromNick),
+                          From,
+                          jlib:make_error_reply(Packet, Err)).
+
+change_subject_if_allowed(FromNick, Role, Packet, StateData) ->
+    case check_subject(Packet) of
+        false ->
+            {StateData, true};
+        Subject ->
+            case can_change_subject(Role, StateData) of
+                true ->
+                    NSD = StateData#state{subject = Subject,
+                                          subject_author = FromNick},
+                    save_persistent_room_state(NSD),
+                    {NSD, true};
+                _ ->
+                    {StateData, false}
+            end
+    end.
+
+save_persistent_room_state(StateData) ->
+    case (StateData#state.config)#config.persistent of
+        true ->
+            mod_muc:store_room(StateData#state.host,
+                               StateData#state.room,
+                               make_opts(StateData));
+        _ ->
+            ok
+    end.
 
 %% @doc Check if this non participant can send message to room.
 %%
@@ -797,8 +805,8 @@ process_groupchat_message(From, #xmlel{name = <<"message">>,
 %% an implementation MAY allow users with certain privileges
 %% (e.g., a room owner, room admin, or service-level admin)
 %% to send messages to the room even if those users are not occupants.
--spec is_user_allowed_message_nonparticipant(ejabberd:jid(), state()) -> boolean().
-is_user_allowed_message_nonparticipant(JID, StateData) ->
+-spec is_allowed_nonparticipant(ejabberd:jid(), state()) -> boolean().
+is_allowed_nonparticipant(JID, StateData) ->
     get_service_affiliation(JID, StateData) =:= owner.
 
 
@@ -852,11 +860,13 @@ destroy_temporary_room_if_empty(StateData=#state{config=C=#config{}}) ->
     end.
 
 
--spec process_presence1(From :: ejabberd:jid(), Nick :: mod_muc:nick(),
-        Packet :: jlib:xmlel(), state()) -> state().
+-spec process_presence1(From, Nick, Packet, state()) -> state() when
+      From :: ejabberd:jid(),
+      Nick :: mod_muc:nick(),
+      Packet :: jlib:xmlel().
 process_presence1(From, Nick, #xmlel{name = <<"presence">>,
                                      attrs = Attrs} = Packet,
-         StateData=#state{}) ->
+                  StateData=#state{}) ->
     Type = xml:get_attr_s(<<"type">>, Attrs),
     Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
     case Type of
@@ -869,11 +879,10 @@ process_presence1(From, Nick, #xmlel{name = <<"presence">>,
                 true ->
                     case is_nick_change(From, Nick, StateData) of
                         true ->
-                            process_presence_nick_change(
-                                From, Nick, Packet, Lang, StateData);
+                            process_presence_nick_change(From, Nick, Packet,
+                                                         Lang, StateData);
                         _NotNickChange ->
-                            process_simple_presence(
-                                From, Packet, StateData)
+                            process_simple_presence(From, Packet, StateData)
                     end;
                 false ->
                     %% at this point we know that the presence has no type
@@ -881,8 +890,8 @@ process_presence1(From, Nick, #xmlel{name = <<"presence">>,
                     %% and that the user is not alredy online
                     handle_new_user(From, Nick, Packet, StateData, Attrs)
             end;
-            _NotOnline ->
-                StateData
+        _NotOnline ->
+            StateData
     end.
 
 
@@ -2210,71 +2219,104 @@ change_nick(JID, Nick, StateData) ->
 
 -spec send_nick_changing(ejabberd:jid(), mod_muc:nick(), state()) -> 'ok'.
 send_nick_changing(JID, OldNick, StateData) ->
+    User = ?DICT:find(jlib:jid_tolower(JID), StateData#state.users),
     {ok, #user{jid = RealJID,
-           nick = Nick,
-           role = Role,
-           last_presence = Presence}} =
-    ?DICT:find(jlib:jid_tolower(JID), StateData#state.users),
+               nick = Nick,
+               role = Role,
+               last_presence = Presence}} = User,
     Affiliation = get_affiliation(JID, StateData),
-    BAffiliation = affiliation_to_binary(Affiliation),
-    BRole = role_to_binary(Role),
-    lists:foreach(
-      fun({_LJID, Info}) ->
-          ItemAttrs1 =
-          case (Info#user.role == moderator) orelse
-              ((StateData#state.config)#config.anonymous == false) of
-              true ->
-              [{<<"jid">>, jlib:jid_to_binary(RealJID)},
-               {<<"affiliation">>, BAffiliation},
-               {<<"role">>, BRole},
-               {<<"nick">>, Nick}];
-              _ ->
-              [{<<"affiliation">>, BAffiliation},
-               {<<"role">>, BRole},
-               {<<"nick">>, Nick}]
-          end,
-          ItemAttrs2 =
-          case (Info#user.role == moderator) orelse
-              ((StateData#state.config)#config.anonymous == false) of
-              true ->
-              [{<<"jid">>, jlib:jid_to_binary(RealJID)},
-               {<<"affiliation">>, BAffiliation},
-               {<<"role">>, BRole}];
-              _ ->
-              [{<<"affiliation">>, BAffiliation},
-               {<<"role">>, BRole}]
-          end,
+    lists:foreach(mk_send_nick_change(Presence, OldNick, JID, RealJID,
+                                      Affiliation, Role, Nick, StateData),
+                  ?DICT:to_list(StateData#state.users)).
 
-		  SelfPresenceCode= if
-		  		JID == Info#user.jid ->
-				[#xmlel{name = <<"status">>,
-				        attrs = [{<<"code">>, <<"110">>}]}];
-			  true ->
-				  []
+mk_send_nick_change(Presence, OldNick, JID, RealJID,  Affiliation,
+                    Role, Nick, StateData) ->
+    fun({LJID, Info}) ->
+            send_nick_change(Presence, OldNick, JID, RealJID, Affiliation,
+                             Role, Nick, LJID, Info, StateData)
+    end.
+
+send_nick_change(Presence, OldNick, JID, RealJID, Affiliation, Role,
+                 Nick, _LJID, Info, #state{} = S) ->
+    MaybePublicJID = case is_nick_change_public(Info, S#state.config) of
+                         true -> RealJID;
+                         false -> undefined
+                     end,
+    MaybeSelfPresenceCode = if
+                                JID == Info#user.jid -> status_code(110);
+                                true -> undefined
                             end,
-          Packet1 =
-          #xmlel{name = <<"presence">>,
-                 attrs = [{<<"type">>, <<"unavailable">>}],
-                 children = [#xmlel{name = <<"x">>,
-                                    attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
-                                    children = [#xmlel{name = <<"item">>,
-                                                       attrs = ItemAttrs1},
-                                                #xmlel{name = <<"status">>,
-                                                       attrs = [{<<"code">>, <<"303">>}]}| SelfPresenceCode]}]},
-          Packet2 = xml:append_subtags(
-              Presence,
-              [#xmlel{name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
-                      children = [#xmlel{name = <<"item">>,
-                                         attrs = ItemAttrs2}| SelfPresenceCode]}]),
-          ejabberd_router:route(
-        jlib:jid_replace_resource(StateData#state.jid, OldNick),
-        Info#user.jid,
-        Packet1),
-          ejabberd_router:route(
-        jlib:jid_replace_resource(StateData#state.jid, Nick),
-        Info#user.jid,
-        Packet2)
-      end, ?DICT:to_list(StateData#state.users)).
+    Unavailable = nick_unavailable_presence(MaybePublicJID, Nick, Affiliation,
+                                            Role, MaybeSelfPresenceCode),
+    ejabberd_router:route(jlib:jid_replace_resource(S#state.jid, OldNick),
+                          Info#user.jid, Unavailable),
+    Available = nick_available_presence(Presence, MaybePublicJID, Affiliation,
+                                        Role, MaybeSelfPresenceCode),
+    ejabberd_router:route(jlib:jid_replace_resource(S#state.jid, Nick),
+                          Info#user.jid, Available).
+
+-spec is_nick_change_public(user(), config()) -> boolean().
+is_nick_change_public(UserInfo, RoomConfig) ->
+    UserInfo#user.role == moderator
+    orelse
+    RoomConfig#config.anonymous == false.
+
+-spec status_code(integer()) -> jlib:xmlel().
+status_code(Code) ->
+    #xmlel{name = <<"status">>,
+           attrs = [{<<"code">>, integer_to_binary(Code)}]}.
+
+-spec nick_unavailable_presence(MaybeJID, Nick, Affiliation, Role, MaybeCode) ->
+    jlib:xmlel() when
+      MaybeJID :: 'undefined' | ejabberd:jid(),
+      Nick :: mod_muc:nick(),
+      Affiliation :: mod_muc:affiliation(),
+      Role :: mod_muc:role(),
+      MaybeCode :: 'undefined' | jlib:xmlel().
+nick_unavailable_presence(MaybeJID, Nick, Affiliation, Role, MaybeCode) ->
+    presence(<<"unavailable">>,
+             [muc_user_x([muc_user_item(MaybeJID, Nick, Affiliation, Role),
+                          status_code(303)]
+                         ++ [MaybeCode || MaybeCode /= undefined])]).
+
+-spec nick_available_presence(LastPresence, MaybeJID, Affiliation,
+                              Role, MaybeCode) -> jlib:xmlel() when
+      LastPresence :: jlib:xmlel(),
+      MaybeJID :: 'undefined' | ejabberd:jid(),
+      Affiliation :: mod_muc:affiliation(),
+      Role :: mod_muc:role(),
+      MaybeCode :: 'undefined' | jlib:xmlel().
+nick_available_presence(LastPresence, MaybeJID, Affiliation, Role, MaybeCode) ->
+    Item = muc_user_item(MaybeJID, undefined, Affiliation, Role),
+    xml:append_subtags(LastPresence,
+                       [muc_user_x([Item] ++ [MaybeCode
+                                              || MaybeCode /= undefined])]).
+
+-spec muc_user_item(MaybeJID, MaybeNick, Affiliation, Role) -> jlib:xmlel() when
+      MaybeJID :: 'undefined' | ejabberd:jid(),
+      MaybeNick :: 'undefined' | mod_muc:nick(),
+      Affiliation :: mod_muc:affiliation(),
+      Role :: mod_muc:role().
+muc_user_item(MaybeJID, MaybeNick, Affiliation, Role) ->
+    #xmlel{name = <<"item">>,
+           attrs = [{<<"jid">>, jlib:jid_to_binary(MaybeJID)}
+                    || MaybeJID /= undefined] ++
+                   [{<<"nick">>, MaybeNick} || MaybeNick /= undefined] ++
+                   [{<<"affiliation">>, affiliation_to_binary(Affiliation)},
+                    {<<"role">>, role_to_binary(Role)}]}.
+
+-spec muc_user_x([jlib:xmlel()]) -> jlib:xmlel().
+muc_user_x(Children) ->
+    #xmlel{name = <<"x">>,
+           attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
+           children = Children}.
+
+-spec presence(binary(), [jlib:xmlel()]) -> jlib:xmlel().
+%% Add and validate other types if need be.
+presence(<<"unavailable">> = Type, Children) ->
+    #xmlel{name = <<"presence">>,
+           attrs = [{<<"type">>, Type} || Type /= <<"available">>],
+           children = Children}.
 
 
 -spec lqueue_new(integer()) -> lqueue().
@@ -2386,20 +2428,20 @@ send_subject(JID, _Lang, StateData) ->
 -spec check_subject(jlib:xmlel()) -> 'false' | binary().
 check_subject(Packet) ->
     case xml:get_subtag(Packet, <<"subject">>) of
-    false ->
-        false;
-    SubjEl ->
-        xml:get_tag_cdata(SubjEl)
+        false ->
+            false;
+        SubjEl ->
+            xml:get_tag_cdata(SubjEl)
     end.
 
 
 -spec can_change_subject(mod_muc:role(), state()) -> boolean().
 can_change_subject(Role, StateData) ->
     case (StateData#state.config)#config.allow_change_subj of
-    true ->
-        (Role == moderator) orelse (Role == participant);
-    _ ->
-        Role == moderator
+        true ->
+            (Role == moderator) orelse (Role == participant);
+        _ ->
+            Role == moderator
     end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -3969,10 +4011,11 @@ create_invite_message_elem(InviteEl, BodyEl, PasswdEl, RoomJID, Reason)
                     state(), ejabberd:simple_jid() | ejabberd:jid()) -> 'ok'.
 handle_roommessage_from_nonparticipant(Packet, Lang, StateData, From) ->
     case catch check_decline_invitation(Packet) of
-    {true, Decline_data} ->
-        send_decline_invitation(Decline_data, StateData#state.jid, From);
-    _ ->
-        send_error_only_occupants(Packet, Lang, StateData#state.jid, From)
+        {true, Decline_data} ->
+            send_decline_invitation(Decline_data, StateData#state.jid, From);
+        _ ->
+            send_error_only_occupants(<<"messages">>, Packet, Lang,
+                                      StateData#state.jid, From)
     end.
 
 
@@ -4013,11 +4056,13 @@ replace_subelement(XE = #xmlel{children = SubEls}, NewSubEl) ->
     SubEls2 = lists:keyreplace(NameNewSubEl, 2, SubEls, NewSubEl),
     XE#xmlel{children = SubEls2}.
 
-
--spec send_error_only_occupants(jlib:xmlel(), binary() | nonempty_string(),
+-spec send_error_only_occupants(binary(), jlib:xmlel(),
+                                binary() | nonempty_string(),
                                 ejabberd:jid(), ejabberd:jid()) -> 'ok'.
-send_error_only_occupants(Packet, Lang, RoomJID, From) ->
-    ErrText = <<"Only occupants are allowed to send messages to the conference">>,
+send_error_only_occupants(What, Packet, Lang, RoomJID, From)
+  when is_binary(What) ->
+    ErrText = <<"Only occupants are allowed to send ",
+                What/bytes, " to the conference">>,
     Err = jlib:make_error_reply(Packet, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)),
     ejabberd_router:route(RoomJID, From, Err).
 
@@ -4181,9 +4226,9 @@ route_message(#routed_message{allowed = true, type = <<"chat">>, from = From, pa
         From, Err),
     StateData;
 route_message(#routed_message{allowed = true, type = Type, from = From,
-    packet = #xmlel{name = <<"message">>,
-                    children = Els} = Packet, lang = Lang},
-    StateData) when (Type == <<>> orelse Type == <<"normal">>) ->
+                              packet = #xmlel{name = <<"message">>,
+                                              children = Els} = Packet, lang = Lang},
+              StateData) when (Type == <<>> orelse Type == <<"normal">>) ->
 
     Invite = xml:get_path_s(Packet, [{elem, <<"x">>}, {elem, <<"invite">>}]),
     case Invite of
@@ -4195,28 +4240,25 @@ route_message(#routed_message{allowed = true, type = Type, from = From,
             route_invitation(InType, From, Packet, Lang, StateData)
     end;
 route_message(#routed_message{allowed = true, from = From, packet = Packet,
-    lang = Lang}, StateData) ->
+                              lang = Lang}, StateData) ->
     ErrText = <<"Improper message type">>,
-    Err = jlib:make_error_reply(
-        Packet, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)),
-    ejabberd_router:route(
-              StateData#state.jid,
-              From, Err),
+    Err = jlib:make_error_reply(Packet, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)),
+    ejabberd_router:route(StateData#state.jid,
+                          From, Err),
     StateData;
 route_message(#routed_message{type = <<"error">>}, StateData) ->
     StateData;
 route_message(#routed_message{from = From, packet = Packet, lang = Lang},
-    StateData) ->
+              StateData) ->
     handle_roommessage_from_nonparticipant(Packet, Lang, StateData, From),
     StateData.
 
 
 -spec route_error(mod_muc:nick(), ejabberd:jid(), jlib:xmlel(), state()) -> state().
 route_error(Nick, From, Error, StateData) ->
-    ejabberd_router:route(
-        % TODO: s/Nick/<<>>/
-        jlib:jid_replace_resource(StateData#state.jid, Nick),
-        From, Error),
+    %% TODO: s/Nick/<<>>/
+    ejabberd_router:route(jlib:jid_replace_resource(StateData#state.jid, Nick),
+                          From, Error),
     StateData.
 
 
@@ -4225,36 +4267,41 @@ route_error(Nick, From, Error, StateData) ->
         ejabberd:lang(), state()) -> state().
 route_voice_approval({error, ErrType}, From, Packet, _Lang, StateData) ->
     ejabberd_router:route(StateData#state.jid, From,
-        jlib:make_error_reply(Packet, ErrType)),
+                          jlib:make_error_reply(Packet, ErrType)),
     StateData;
 route_voice_approval({form, RoleName}, From, _Packet, _Lang, StateData) ->
     {Nick, _} = get_participant_data(From, StateData),
-    lists:foreach(fun({_, Info}) ->
-        ejabberd_router:route(StateData#state.jid, Info#user.jid,
-            jlib:make_voice_approval_form(From, Nick, RoleName))
-    end, search_role(moderator, StateData)),
+    ApprovalForm = jlib:make_voice_approval_form(From, Nick, RoleName),
+    F = fun({_, Info}) ->
+                ejabberd_router:route(StateData#state.jid, Info#user.jid,
+                                      ApprovalForm)
+        end,
+    lists:foreach(F, search_role(moderator, StateData)),
     StateData;
 route_voice_approval({role, BRole, Nick}, From, Packet, Lang, StateData) ->
-    case process_admin_items_set(From,
-        [#xmlel{name = <<"item">>,
-                attrs = [{<<"role">>, BRole}, {<<"nick">>, Nick}]}],
-              Lang, StateData) of
+    Items = [#xmlel{name = <<"item">>,
+                    attrs = [{<<"role">>, BRole},
+                             {<<"nick">>, Nick}]}],
+    case process_admin_items_set(From, Items, Lang, StateData) of
         {result, _Res, SD1} -> SD1;
         {error, Error} ->
             ejabberd_router:route(StateData#state.jid, From,
-                jlib:make_error_reply(Packet, Error)),
+                                  jlib:make_error_reply(Packet, Error)),
             StateData
     end;
 route_voice_approval(_Type, From, Packet, _Lang, StateData) ->
     ejabberd_router:route(StateData#state.jid, From,
-        jlib:make_error_reply(Packet, ?ERR_BAD_REQUEST)),
+                          jlib:make_error_reply(Packet, ?ERR_BAD_REQUEST)),
     StateData.
 
 
--spec route_invitation(
-        {'error',jlib:xmlcdata() | jlib:xmlel()} | {'ok', ejabberd:jid()},
-        ejabberd:simple_jid() | ejabberd:jid(), jlib:xmlel(), ejabberd:lang(),
-        state()) -> state().
+-spec route_invitation(InvitationsOrError,
+                       From, Packet, Lang, state()) -> state() when
+      InvitationsOrError :: {'error', jlib:xmlcdata() | jlib:xmlel()}
+                          | {'ok', ejabberd:jid()},
+      From :: ejabberd:simple_jid() | ejabberd:jid(),
+      Packet :: jlib:xmlel(),
+      Lang :: ejabberd:lang().
 route_invitation({error, Error}, From, Packet, _Lang, StateData) ->
     Err = jlib:make_error_reply(Packet, Error),
     ejabberd_router:route(StateData#state.jid, From, Err),
@@ -4353,9 +4400,9 @@ route_nick_message(#routed_nick_message{decide = {expulse_sender, Reason},
     packet = Packet, lang = Lang, from = From}, StateData) ->
     ?DEBUG(Reason, []),
     ErrorText = <<"This participant is kicked from the room because he",
-        "sent an error message to another participant">>,
+                  "sent an error message to another participant">>,
     expulse_participant(Packet, From, StateData,
-        translate:translate(Lang, ErrorText));
+                        translate:translate(Lang, ErrorText));
 route_nick_message(#routed_nick_message{decide = forget_message}, StateData) ->
     StateData;
 route_nick_message(#routed_nick_message{decide = continue_delivery, allow_pm = true,
@@ -4389,15 +4436,13 @@ route_nick_message(#routed_nick_message{decide = continue_delivery, allow_pm = t
     ejabberd_router:route(
         jlib:jid_replace_resource(StateData#state.jid, FromNick), ToJID, Packet),
     StateData;
-route_nick_message(#routed_nick_message{decide = continue_delivery, allow_pm = true,
-    online = false, packet = Packet, from = From,
-    lang = Lang, nick = ToNick}, StateData) ->
-    ErrText = <<"Only occupants are allowed to send messages to the conference">>,
-    Err = jlib:make_error_reply(
-        Packet, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)),
-    ejabberd_router:route(
-        jlib:jid_replace_resource(StateData#state.jid, ToNick),
-        From, Err),
+route_nick_message(#routed_nick_message{decide = continue_delivery,
+                                        allow_pm = true,
+                                        online = false} = Routed, StateData) ->
+    #routed_nick_message{packet = Packet, from = From,
+                         lang = Lang, nick = ToNick} = Routed,
+    RoomJID = jlib:jid_replace_resource(StateData#state.jid, ToNick),
+    send_error_only_occupants(<<"messages">>, Packet, Lang, RoomJID, From),
     StateData;
 route_nick_message(#routed_nick_message{decide = continue_delivery, allow_pm = false,
     packet = Packet, from = From,
@@ -4435,23 +4480,18 @@ route_nick_iq(#routed_nick_iq{allow_query = true, online = {true, NewId, FromFul
 route_nick_iq(#routed_nick_iq{online = {false, _, _}, iq = reply}, _StateData) ->
     ok;
 route_nick_iq(#routed_nick_iq{online = {false, _, _}, from = From, nick = ToNick,
-    packet = Packet, lang = Lang}, StateData) ->
-    ErrText = <<"Only occupants are allowed to send queries to the conference">>,
-    Err = jlib:make_error_reply(
-        Packet, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)),
-    ejabberd_router:route(
-      jlib:jid_replace_resource(StateData#state.jid, ToNick),
-    From, Err);
+                              packet = Packet, lang = Lang}, StateData) ->
+    RoomJID = jlib:jid_replace_resource(StateData#state.jid, ToNick),
+    send_error_only_occupants(<<"queries">>, Packet, Lang, RoomJID, From);
 route_nick_iq(#routed_nick_iq{iq = reply}, _StateData) ->
     ok;
 route_nick_iq(#routed_nick_iq{packet = Packet, lang = Lang, nick = ToNick,
-    from = From}, StateData) ->
-    ErrText = <<"Queries to the conference members are not allowed in this room">>,
-    Err = jlib:make_error_reply(
-        Packet, ?ERRT_NOT_ALLOWED(Lang, ErrText)),
-    ejabberd_router:route(
-        jlib:jid_replace_resource(StateData#state.jid, ToNick),
-    From, Err).
+                              from = From}, StateData) ->
+    ErrText = <<"Queries to the conference members are "
+                "not allowed in this room">>,
+    Err = jlib:make_error_reply(Packet, ?ERRT_NOT_ALLOWED(Lang, ErrText)),
+    RouteFrom = jlib:jid_replace_resource(StateData#state.jid, ToNick),
+    ejabberd_router:route(RouteFrom, From, Err).
 
 
 -spec decode_reason(jlib:xmlel()) -> any().

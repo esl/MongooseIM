@@ -217,7 +217,7 @@ unregister_iq_handler(Host, XMLNS) ->
 refresh_iq_handlers() ->
     ejabberd_local ! refresh_iq_handlers.
 
--spec bounce_resource_packet(From :: ejabber:jid(),
+-spec bounce_resource_packet(From :: ejabberd:jid(),
                              To :: ejabberd:jid(),
                              Packet :: jlib:xmlel()) -> 'stop'.
 bounce_resource_packet(From, To, Packet) ->
@@ -345,7 +345,7 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
--spec do_route(From :: ejabber:jid(),
+-spec do_route(From :: ejabberd:jid(),
                To :: ejabberd:jid(),
                Packet :: jlib:xmlel()) -> 'nothing' | 'ok' | 'todo' | pid()
                                         | {'error','lager_not_running'}
