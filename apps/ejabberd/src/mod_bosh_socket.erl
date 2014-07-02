@@ -990,7 +990,7 @@ send_xml(Socket, #xmlstreamend{} = XML) ->
 
 -spec send(mod_bosh:socket(), _) -> 'ok'.
 send(#bosh_socket{pid = Pid}, Data) ->
-    Pid ! {send, xml:escape_cdata(Data)},
+    Pid ! {send, xml:escape_cdata_and_attr(Data)},
     ok.
 
 -spec change_shaper(mod_bosh:socket(), shaper:shaper()) -> mod_bosh:socket().

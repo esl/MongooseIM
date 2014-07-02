@@ -40,7 +40,7 @@
          start/0,
          replace_tag_attr/3]).
 
--export([escape_cdata/1]).
+-export([escape_cdata_and_attr/1]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -73,13 +73,18 @@ start() ->
     ok.
 -endif.
 
--spec escape_cdata(jlib:xmlel()) -> #xmlcdata{}.
-escape_cdata(#xmlel{ children = Children } = Data) ->
-    Data#xmlel{ children = [ escape_cdata(Child) || Child <- Children ] };
-escape_cdata(#xmlcdata{ content = Content }) ->
+-spec escape_cdata_and_attr(jlib:xmlel()) -> #xmlcdata{}.
+escape_cdata_and_attr(#xmlel{ children = Children, attrs = Attrs } = Data) ->
+    Data#xmlel{ children = [ escape_cdata_and_attr(Child) || Child <- Children ],
+                attrs = [escape_attr(Attr) || Attr <- Attrs]};
+escape_cdata_and_attr(#xmlcdata{ content = Content }) ->
     exml:escape_cdata(Content);
-escape_cdata(Elem) ->
+escape_cdata_and_attr(Elem) ->
     Elem.
+
+escape_attr({Name, Value}) when is_binary(Value) ->
+    {Name, exml:escape_attr(Value)};
+escape_attr(Attr) -> Attr.
 
 -spec element_to_binary(jlib:xmlel()) -> binary().
 element_to_binary(El) ->
