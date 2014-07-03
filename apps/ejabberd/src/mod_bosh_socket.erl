@@ -735,7 +735,7 @@ setup_inactivity_timer(S) ->
 cancel_inactivity_timer(#state{inactivity_tref = undefined} = S) ->
     S;
 cancel_inactivity_timer(S) ->
-    timer:cancel(S#state.inactivity_tref),
+    erlang:cancel_timer(S#state.inactivity_tref),
     S#state{inactivity_tref = undefined}.
 
 
