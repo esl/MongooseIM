@@ -43,6 +43,7 @@
                  members_by_default = true      :: boolean(),
                  members_only = false           :: boolean(),
                  allow_user_invites = false     :: boolean(),
+                 allow_multiple_sessions = true  :: boolean(),
                  password_protected = false     :: boolean(),
                  password = <<>>,
                  anonymous = true               :: boolean(),

@@ -3316,6 +3316,9 @@ get_config(Lang, StateData, From) ->
      boolxfield(<<"Allow users to send invites">>,
              <<"muc#roomconfig_allowinvites">>,
              (Config#config.allow_user_invites), Lang),
+     boolxfield(<<"Allow users to enter room with multiple sessions">>,
+             <<"muc#roomconfig_allowmultisessions">>,
+             (Config#config.allow_multiple_sessions), Lang),
      boolxfield(<<"Allow visitors to send status text in presence updates">>,
              <<"muc#roomconfig_allowvisitorstatus">>,
              (Config#config.allow_visitor_status), Lang),
@@ -3446,6 +3449,8 @@ set_xoption([{<<"muc#roomconfig_membersonly">>, [Val]} | Opts], Config) ->
     ?SET_BOOL_XOPT(members_only, Val);
 set_xoption([{<<"muc#roomconfig_allowinvites">>, [Val]} | Opts], Config) ->
     ?SET_BOOL_XOPT(allow_user_invites, Val);
+set_xoption([{<<"muc#roomconfig_allowmultisessions">>, [Val]} | Opts], Config) ->
+    ?SET_BOOL_XOPT(allow_multiple_sessions, Val);
 set_xoption([{<<"muc#roomconfig_passwordprotectedroom">>, [Val]} | Opts], Config) ->
     ?SET_BOOL_XOPT(password_protected, Val);
 set_xoption([{<<"muc#roomconfig_roomsecret">>, [Val]} | Opts], Config) ->
@@ -3548,6 +3553,8 @@ set_opts([{Opt, Val} | Opts], SD=#state{config = C = #config{}}) ->
             SD#state{config = C#config{members_only = Val}};
         allow_user_invites ->
             SD#state{config = C#config{allow_user_invites = Val}};
+        allow_multiple_sessions ->
+            SD#state{config = C#config{allow_multiple_sessions = Val}};
         password_protected ->
             SD#state{config = C#config{password_protected = Val}};
         password ->
@@ -3591,6 +3598,7 @@ make_opts(StateData) ->
      ?MAKE_CONFIG_OPT(members_by_default),
      ?MAKE_CONFIG_OPT(members_only),
      ?MAKE_CONFIG_OPT(allow_user_invites),
+     ?MAKE_CONFIG_OPT(allow_multiple_sessions),
      ?MAKE_CONFIG_OPT(password_protected),
      ?MAKE_CONFIG_OPT(password),
      ?MAKE_CONFIG_OPT(anonymous),
