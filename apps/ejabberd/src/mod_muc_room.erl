@@ -1664,6 +1664,21 @@ is_user_limit_reached(From, Affiliation, StateData) ->
        NUsers < MaxUsers) andalso
       NConferences < MaxConferences.
 
+is_another_session(Jid1, Jid2) ->
+  case {Jid1#jid.user == Jid2#jid.user,
+        Jid1#jid.server == Jid2#jid.server,
+        Jid1#jid.resource == Jid2#jid.resource} of
+      {true, true, false} ->
+        true;
+      _ ->
+        false
+  end.
+
+is_new_session_of_occupant(From, Nick, StateData) ->
+  case find_jid_by_nick(Nick, StateData) of
+    false -> false;
+    Jid -> is_another_session(From, Jid)
+  end.
 
 -spec choose_new_user_strategy(ejabberd:jid(), mod_muc:nick(),
         mod_muc:affiliation(), mod_muc:role(), [jlib:xmlcdata() | jlib:xmlel()],
@@ -1671,18 +1686,19 @@ is_user_limit_reached(From, Affiliation, StateData) ->
 choose_new_user_strategy(From, Nick, Affiliation, Role, Els, StateData) ->
     case {is_user_limit_reached(From, Affiliation, StateData),
           is_nick_exists(Nick, StateData),
+          is_new_session_of_occupant(From, Nick, StateData),
           mod_muc:can_use_nick(StateData#state.host, From, Nick),
           Role,
           Affiliation} of
-        {false, _, _, _, _} ->
+        {false, _, _, _, _, _} ->
             limit_reached;
-        {_, _, _, none, outcast} ->
+        {_, _, _, _, none, outcast} ->
             user_banned;
-        {_, _, _, none, _} ->
+        {_, _, _, _, none, _} ->
             require_membership;
-        {_, true, _, _, _} ->
+        {_, true, false, _, _, _} ->
             conflict_use;
-        {_, _, false, _, _} ->
+        {_, _, _, false, _, _} ->
             conflict_registered;
         _ ->
             ServiceAffiliation = get_service_affiliation(From, StateData),
