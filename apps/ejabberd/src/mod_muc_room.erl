@@ -1624,7 +1624,6 @@ strip_status(#xmlel{name = <<"presence">>, attrs = Attrs,
 
 -spec add_user_presence(ejabberd:jid(), jlib:xmlel(), state()) -> state().
 add_user_presence(JID, Presence, StateData) ->
-    % FIXME sessions
     LJID = jlib:jid_tolower(JID),
     FPresence = filter_presence(Presence),
     Users =
@@ -2166,9 +2165,9 @@ send_new_presence(NJID, Reason, StateData) ->
                      children = [#xmlel{name = <<"item">>, attrs = ItemAttrs,
                                         children = ItemEls} | Status2]}]),
           ejabberd_router:route(
-        jlib:jid_replace_resource(StateData#state.jid, Nick),
-        Info#user.jid,
-        Packet)
+            jlib:jid_replace_resource(StateData#state.jid, Nick),
+            Info#user.jid,
+            Packet)
       end, ?DICT:to_list(StateData#state.users)).
 
 
@@ -2182,42 +2181,41 @@ send_existing_presences(ToJID, StateData) ->
     % JIDsToSkip = [RealToJID | find_jids_by_nick(Nick, StateData)],
     JIDsToSkip = [RealToJID],
     lists:foreach(
-      fun({LJID, #user{jid = FromJID,
+        fun({LJID, #user{jid = FromJID,
                nick = FromNick,
                role = FromRole,
-               last_presence = Presence
-              }}) ->
-          case lists:member(FromJID, JIDsToSkip) of
-          true ->
-              ok;
-          _ ->
-              FromAffiliation = get_affiliation(LJID, StateData),
-              ItemAttrs =
-              case (Role == moderator) orelse
-                  ((StateData#state.config)#config.anonymous ==
-                   false) of
-                  true ->
-                  [{<<"jid">>, jlib:jid_to_binary(FromJID)},
-                   {<<"affiliation">>,
-                    affiliation_to_binary(FromAffiliation)},
-                   {<<"role">>, role_to_binary(FromRole)}];
-                  _ ->
-                  [{<<"affiliation">>,
-                    affiliation_to_binary(FromAffiliation)},
-                   {<<"role">>, role_to_binary(FromRole)}]
-              end,
-              Packet = xml:append_subtags(
-                 Presence,
-                 [#xmlel{name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
-                         children = [#xmlel{name = <<"item">>,
-                                            attrs = ItemAttrs}]}]),
-              ejabberd_router:route(
-            jlib:jid_replace_resource(
-              StateData#state.jid, FromNick),
-            RealToJID,
-            Packet)
-          end
-      end, ?DICT:to_list(StateData#state.users)).
+               last_presence = Presence}}) ->
+            case lists:member(FromJID, JIDsToSkip) of
+                true ->
+                    ok;
+                _ ->
+                    FromAffiliation = get_affiliation(LJID, StateData),
+                    ItemAttrs =
+                    case (Role == moderator) orelse
+                         ((StateData#state.config)#config.anonymous == false) of
+                        true ->
+                            [{<<"jid">>, jlib:jid_to_binary(FromJID)},
+                            {<<"affiliation">>,
+                            affiliation_to_binary(FromAffiliation)},
+                            {<<"role">>, role_to_binary(FromRole)}];
+                        _ ->
+                            [{<<"affiliation">>,
+                            affiliation_to_binary(FromAffiliation)},
+                            {<<"role">>, role_to_binary(FromRole)}]
+                    end,
+                    Packet = xml:append_subtags(
+                        Presence,
+                        [#xmlel{name = <<"x">>,
+                                attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
+                                children = [#xmlel{name = <<"item">>,
+                                                   attrs = ItemAttrs}]}]),
+                        ejabberd_router:route(
+                            jlib:jid_replace_resource(
+                                StateData#state.jid, FromNick),
+                            RealToJID,
+                            Packet)
+            end
+        end, ?DICT:to_list(StateData#state.users)).
 
 
 -spec send_config_update(atom(), state()) -> 'ok'.
