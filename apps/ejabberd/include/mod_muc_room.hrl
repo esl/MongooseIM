@@ -76,6 +76,7 @@
                 jid                 :: ejabberd:jid(),
                 config = #config{}  :: mod_muc_room:config(),
                 users = ?DICT:new(),
+                sessions = ?DICT:new(),
                 robots = ?DICT:new(),
                 affiliations = ?DICT:new(),
                 history,

@@ -464,7 +464,8 @@ normal_state({route, From, ToNick,
         lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
         decide = decide_fate_message(Type, Packet, From, StateData),
         packet = Packet,
-        jid = find_jid_by_nick(ToNick, StateData)}, StateData),
+        % FIXME sessions find_jids_by_nick returns many jids
+        jid = find_jids_by_nick(ToNick, StateData)}, StateData),
     {next_state, normal_state, NewStateData};
 normal_state({route, From, ToNick,
           #xmlel{name = <<"iq">>, attrs = Attrs} = Packet},
@@ -474,7 +475,8 @@ normal_state({route, From, ToNick,
     route_nick_iq(#routed_nick_iq{
         allow_query = (StateData#state.config)#config.allow_query_users,
         online = is_user_online_iq(StanzaId, From, StateData),
-        jid = find_jid_by_nick(ToNick, StateData),
+        % FIXME sessions find_jids_by_nick returns many jids
+        jid = find_jids_by_nick(ToNick, StateData),
         iq = jlib:iq_query_info(Packet),
         packet = Packet,
         lang = Lang,
@@ -1526,19 +1528,43 @@ prepare_room_queue(StateData) ->
         StateData
     end.
 
+-spec is_first_session(mod_muc:nick(), state()) -> boolean().
+is_first_session(Nick, StateData) -> 
+    case ?DICT:find(Nick, StateData#state.sessions) of
+        {ok, _Val} -> false;
+        false -> true
+    end.
+
+-spec is_last_session(mod_muc:nick(), state()) -> boolean().
+is_last_session(Nick, StateData) -> 
+    case ?DICT:fetch(Nick, StateData#state.sessions) of
+        [_Val] -> true;
+        _ -> false
+    end.
 
 -spec add_online_user(ejabberd:jid(), mod_muc:nick(), mod_muc:role(), state())
                         -> state().
 add_online_user(JID, Nick, Role, StateData) ->
+    
+    %
+    ?ERROR_MSG("LJID: ~p of nick: ~p with JID: ~p~n",[LJID, Nick, JID]),
+    %
+
     LJID = jlib:jid_tolower(JID),
+    Sessions = ?DICT:append(Nick, LJID, StateData#state.sessions),
     Users = ?DICT:store(LJID,
             #user{jid = JID,
                   nick = Nick,
                   role = Role},
             StateData#state.users),
-    add_to_log(join, Nick, StateData),
-    tab_add_online_user(JID, StateData),
-    StateData#state{users = Users}.
+    case is_first_session(Nick, StateData) of
+        true ->
+            add_to_log(join, Nick, StateData),
+            tab_add_online_user(JID, StateData),
+        _ ->
+            ok
+    end,
+    StateData#state{users = Users, sessions = Sessions}.
 
 
 -spec remove_online_user(ejabberd:jid(), state()) -> state().
@@ -1551,10 +1577,18 @@ remove_online_user(JID, StateData, Reason) ->
     LJID = jlib:jid_tolower(JID),
     {ok, #user{nick = Nick}} =
         ?DICT:find(LJID, StateData#state.users),
-    add_to_log(leave, {Nick, Reason}, StateData),
-    tab_remove_online_user(JID, StateData),
+    case is_last_session(Nick, StateData) of
+        true -> 
+            add_to_log(leave, {Nick, Reason}, StateData),
+            tab_remove_online_user(JID, StateData);
+        _ -> 
+            ok
+    end,
     Users = ?DICT:erase(LJID, StateData#state.users),
-    StateData#state{users = Users}.
+    IsOtherLJID = fun(LJ) -> LJ /= LJID end, 
+    F = fun (LJIDs) -> lists:filter(IsOtherLJID, LJIDs) end,
+    Sessions = ?DICT:update(Nick, F, StateData#state.sessions),
+    StateData#state{users = Users, sessions = Sessions}.
 
 
 -spec filter_presence(jlib:xmlel()) -> jlib:xmlel().
@@ -1590,14 +1624,15 @@ strip_status(#xmlel{name = <<"presence">>, attrs = Attrs,
 
 -spec add_user_presence(ejabberd:jid(), jlib:xmlel(), state()) -> state().
 add_user_presence(JID, Presence, StateData) ->
+    % FIXME sessions
     LJID = jlib:jid_tolower(JID),
     FPresence = filter_presence(Presence),
     Users =
     ?DICT:update(
-       LJID,
-       fun(#user{} = User) ->
-           User#user{last_presence = FPresence}
-       end, StateData#state.users),
+        LJID,
+        fun(#user{} = User) ->
+            User#user{last_presence = FPresence}
+        end, StateData#state.users),
     StateData#state{users = Users}.
 
 
@@ -1617,20 +1652,17 @@ add_user_presence_un(JID, Presence, StateData) ->
 
 -spec is_nick_exists(mod_muc:nick(), state()) -> boolean().
 is_nick_exists(Nick, StateData) ->
-    ?DICT:fold(fun(_, #user{nick = N}, B) ->
-               B orelse (N == Nick)
-           end, false, StateData#state.users).
+    ?DICT:is_key(Nick, StateData#state.sessions).
 
 
--spec find_jid_by_nick(mod_muc:nick(), state()) -> false | ejabberd:jid().
-find_jid_by_nick(Nick, StateData) ->
-    ?DICT:fold(fun(_, #user{jid = JID, nick = N}, R) ->
-               case Nick of
-               N -> JID;
-               _ -> R
-               end
-           end, false, StateData#state.users).
-
+-spec find_jids_by_nick(mod_muc:nick(), state()) -> false | [ejabberd:jid()].
+find_jids_by_nick(Nick, StateData) ->
+    case ?DICT:fetch(Nick, StateData#state.sessions) of
+        false -> false;
+        {ok, LJIDs} ->
+            [(?DICT:find(LJID, StateData#state.users))#user.jid 
+                || LJID <- LJIDs]
+    end.
 
 -spec is_nick_change(ejabberd:simple_jid() | ejabberd:jid(), mod_muc:nick(),
                      state()) -> boolean().
@@ -1669,18 +1701,21 @@ is_another_session(Jid1, Jid2) ->
         Jid1#jid.server == Jid2#jid.server,
         Jid1#jid.resource == Jid2#jid.resource} of
       {true, true, false} ->
-        true;
+          true;
       _ ->
-        false
+          false
   end.
 
-is_new_session_of_occupant(From, Nick, StateData) ->
+is_next_session_of_occupant(From, Nick, StateData) ->
   IsAllowed = (StateData#state.config)#config.allow_multiple_sessions,
   ?ERROR_MSG("allow_multiple_sessions: ", [IsAllowed]) ,
-  case {IsAllowed, find_jid_by_nick(Nick, StateData)} of
-    {false, _} -> false;
-    {_, false} -> false;
-    {true, Jid} -> is_another_session(From, Jid)
+  case {IsAllowed, find_jids_by_nick(Nick, StateData)} of
+    {false, _} ->
+        false;
+    {_, false} -> 
+        false;
+    {true, Jids} -> 
+        lists:all(fun(Jid) -> is_another_session(From, Jid) end, Jids)
   end.
 
 -spec choose_new_user_strategy(ejabberd:jid(), mod_muc:nick(),
@@ -1689,7 +1724,7 @@ is_new_session_of_occupant(From, Nick, StateData) ->
 choose_new_user_strategy(From, Nick, Affiliation, Role, Els, StateData) ->
     case {is_user_limit_reached(From, Affiliation, StateData),
           is_nick_exists(Nick, StateData),
-          is_new_session_of_occupant(From, Nick, StateData),
+          is_next_session_of_occupant(From, Nick, StateData),
           mod_muc:can_use_nick(StateData#state.host, From, Nick),
           Role,
           Affiliation} of
@@ -2140,16 +2175,20 @@ send_new_presence(NJID, Reason, StateData) ->
 -spec send_existing_presences(ejabberd:jid(), state()) -> 'ok'.
 send_existing_presences(ToJID, StateData) ->
     LToJID = jlib:jid_tolower(ToJID),
-    {ok, #user{jid = RealToJID, role = Role}} =
+    {ok, #user{jid = RealToJID, role = Role, nick = Nick}} =
     ?DICT:find(LToJID, StateData#state.users),
+    % if you don't want to send presences of other sessions of occupant with ToJID
+    % switch following lines
+    % JIDsToSkip = [RealToJID | find_jids_by_nick(Nick, StateData)],
+    JIDsToSkip = [RealToJID],
     lists:foreach(
       fun({LJID, #user{jid = FromJID,
                nick = FromNick,
                role = FromRole,
                last_presence = Presence
               }}) ->
-          case RealToJID of
-          FromJID ->
+          case lists:member(FromJID, JIDsToSkip) of
+          true ->
               ok;
           _ ->
               FromAffiliation = get_affiliation(LJID, StateData),
@@ -2691,13 +2730,15 @@ find_changed_items(UJID, UAffiliation, URole,
            _ ->
            case xml:get_attr(<<"nick">>, Attrs) of
                {value, N} ->
-               case find_jid_by_nick(N, StateData) of
+               case find_jids_by_nick(N, StateData) of
                    false ->
                    ErrText = <<(translate:translate(Lang, <<"Nickname ">>))/binary,
                       N/binary, (translate:translate(Lang, <<" does not exist in the room">>))/binary>>,
                    {error, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)};
-                   J ->
-                   {value, J}
+                   Jids ->
+                   % FIXME sessions J is now list of Jids
+                   % check where that is going
+                   {value, Jids}
                end;
                _ ->
                {error, ?ERR_BAD_REQUEST}
