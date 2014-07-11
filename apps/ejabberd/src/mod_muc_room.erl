@@ -2090,6 +2090,12 @@ update_matched_users_dict(F, LJID, Users) ->
     end.
 
 
+create_status_code(Code) ->
+    BCode = integer_to_binary(Code),
+    #xmlel{name = <<"status">>,
+           attrs = [{<<"code">>, BCode}]}.
+
+
 -spec send_new_presence(ejabberd:jid(), state()) -> 'ok'.
 send_new_presence(NJID, StateData) ->
     send_new_presence(NJID, <<>>, StateData).
@@ -2126,8 +2132,7 @@ send_new_presence(NJID, Reason, StateData) ->
                     end,
           Status = case StateData#state.just_created of
                true ->
-                   [#xmlel{name = <<"status">>,
-                           attrs = [{<<"code">>, <<"201">>}]}];
+                   [create_status_code(201)];
                false ->
                    []
                end,
@@ -2135,24 +2140,19 @@ send_new_presence(NJID, Reason, StateData) ->
                  true ->
                     Status0 = case   (StateData#state.config)#config.logging of
                             true ->
-                            [#xmlel{name = <<"status">>,
-                                    attrs = [{<<"code">>, <<"170">>}]}|Status];
+                            [create_status_code(170) | Status];
                             false ->
                             Status
                         end,
                     Status1 = case ((StateData#state.config)#config.anonymous==false) of
                             true ->
-                            [#xmlel{name = <<"status">>,
-                                    attrs = [{<<"code">>, <<"100">>}]}
-                            | Status0];
+                            [create_status_code(100) | Status0];
                             false ->
                             Status0
                         end,
                     case ((NJID == Info#user.jid)==true) of
                             true ->
-                            [#xmlel{name = <<"status">>,
-                                    attrs = [{<<"code">>, <<"110">>}]}
-                            | Status1];
+                            [create_status_code(110) | Status1];
                             false ->
                             Status1
                         end;
