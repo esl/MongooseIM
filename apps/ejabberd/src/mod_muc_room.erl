@@ -1675,9 +1675,12 @@ is_another_session(Jid1, Jid2) ->
   end.
 
 is_new_session_of_occupant(From, Nick, StateData) ->
-  case find_jid_by_nick(Nick, StateData) of
-    false -> false;
-    Jid -> is_another_session(From, Jid)
+  IsAllowed = (StateData#state.config)#config.allow_multiple_sessions,
+  ?ERROR_MSG("allow_multiple_sessions: ", [IsAllowed]) ,
+  case {IsAllowed, find_jid_by_nick(Nick, StateData)} of
+    {false, _} -> false;
+    {_, false} -> false;
+    {true, Jid} -> is_another_session(From, Jid)
   end.
 
 -spec choose_new_user_strategy(ejabberd:jid(), mod_muc:nick(),
