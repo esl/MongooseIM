@@ -456,7 +456,7 @@ normal_state({route, From, ToNick,
               #xmlel{name = <<"message">>, attrs = Attrs} = Packet},
              StateData) ->
     Type = xml:get_attr_s(<<"type">>, Attrs),
-    JIDs = find_jids_by_nick(ToNick, StateData)
+    JIDs = find_jids_by_nick(ToNick, StateData),
     FunRouteNickMessage = fun(JID, StateDataAcc) ->
         route_nick_message(#routed_nick_message{
         allow_pm = (StateData#state.config)#config.allow_private_messages,
@@ -476,7 +476,7 @@ normal_state({route, From, ToNick,
          StateData) ->
     Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
     StanzaId = xml:get_attr_s(<<"id">>, Attrs),
-    JIDs = find_jids_by_nick(ToNick, StateData)
+    JIDs = find_jids_by_nick(ToNick, StateData),
     [route_nick_iq(#routed_nick_iq{
         allow_query = (StateData#state.config)#config.allow_query_users,
         online = is_user_online_iq(StanzaId, From, StateData),
