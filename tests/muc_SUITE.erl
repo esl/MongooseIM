@@ -117,19 +117,27 @@ groups() -> [
                 ]},
         {occupant, [], [
                 %nick registration in a room is not implemented and will not be tested
-                groupchat_user_enter,
-                groupchat_user_enter_no_nickname,
-                muc_user_enter,
-                enter_non_anonymous_room,
-                deny_access_to_password_protected_room,
-                enter_password_protected_room,
-                deny_accesss_to_memebers_only_room,
-                deny_entry_to_a_banned_user,
-                deny_entry_nick_conflict,
-                enter_room_with_logging,
-                deny_entry_user_limit_reached,
-                send_history,
-                history_since,
+                % groupchat_user_enter,
+                % groupchat_user_enter_no_nickname,
+                % muc_user_enter,
+                % enter_non_anonymous_room,
+                % deny_access_to_password_protected_room,
+                % enter_password_protected_room,
+                % deny_accesss_to_memebers_only_room,
+                % deny_entry_to_a_banned_user,
+                % deny_entry_nick_conflict,
+                
+                multi_sessions_enter,
+                multi_sessions_messages,
+                multi_sessions_exit_session,
+                multi_sessions_exit
+                % deny_entry_with_multiple_sessions_disallowed% ,
+                
+                % enter_room_with_logging,
+                % deny_entry_user_limit_reached,
+                % send_history,
+                % history_since,
+                
                 %% the following tests fail and have been commented because
                 %% certain features are not implemented in ejabberd
                 %% send_non_anonymous_history,
@@ -137,18 +145,19 @@ groups() -> [
                 %% limit_history_messages,
                 %% recent_history, %unfinished,
                 %% no_history,
-                subject,
-                no_subject,
-                send_to_all,
-                send_and_receive_private_message,
-                send_private_groupchat,
-                change_nickname,
-                deny_nickname_change_conflict,
-                change_availability_status,
-                mediated_invite,
-                one2one_chat_to_muc,
-                exit_room,
-                exit_room_with_status
+                
+                % subject,
+                % no_subject,
+                % send_to_all,
+                % send_and_receive_private_message,
+                % send_private_groupchat,
+                % change_nickname,
+                % deny_nickname_change_conflict,
+                % change_availability_status,
+                % mediated_invite,
+                % one2one_chat_to_muc,
+                % exit_room,
+                % exit_room_with_status
                 ]},
         {owner, [], [
                 room_creation_not_allowed,
@@ -387,6 +396,31 @@ init_per_testcase(CaseName =deny_entry_nick_conflict, Config) ->
     Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"aliceonchat">>, []),
     escalus:init_per_testcase(CaseName, Config1);
 
+init_per_testcase(CaseName =multi_sessions_enter, Config) ->
+    [Alice | _] = ?config(escalus_users, Config),
+    Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"aliceonchat">>, [{allow_multiple_sessions, true}]),
+    escalus:init_per_testcase(CaseName, Config1);
+
+init_per_testcase(CaseName =multi_sessions_messages, Config) ->
+    [Alice | _] = ?config(escalus_users, Config),
+    Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"aliceonchat">>, [{allow_multiple_sessions, true}]),
+    escalus:init_per_testcase(CaseName, Config1);
+
+init_per_testcase(CaseName =multi_sessions_exit, Config) ->
+    [Alice | _] = ?config(escalus_users, Config),
+    Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"aliceonchat">>, [{allow_multiple_sessions, true}]),
+    escalus:init_per_testcase(CaseName, Config1);
+
+init_per_testcase(CaseName =multi_sessions_exit_session, Config) ->
+    [Alice | _] = ?config(escalus_users, Config),
+    Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"aliceonchat">>, [{allow_multiple_sessions, true}]),
+    escalus:init_per_testcase(CaseName, Config1);
+
+init_per_testcase(CaseName =deny_entry_with_multiple_sessions_disallowed, Config) ->
+    [Alice | _] = ?config(escalus_users, Config),
+    Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"aliceonchat">>, [{allow_multiple_sessions, false}]),
+    escalus:init_per_testcase(CaseName, Config1);
+
 init_per_testcase(CaseName =deny_entry_user_limit_reached, Config) ->
     [Alice | _] = ?config(escalus_users, Config),
     Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"aliceonchat">>, [{max_users, 1}]),
@@ -591,6 +625,26 @@ end_per_testcase(CaseName =deny_entry_to_a_banned_user, Config) ->
     escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName =deny_entry_nick_conflict, Config) ->
+    destroy_room(Config),
+    escalus:end_per_testcase(CaseName, Config);
+
+end_per_testcase(CaseName =multi_sessions_enter, Config) ->
+    destroy_room(Config),
+    escalus:end_per_testcase(CaseName, Config);
+
+end_per_testcase(CaseName =multi_sessions_messages, Config) ->
+    destroy_room(Config),
+    escalus:end_per_testcase(CaseName, Config);
+
+end_per_testcase(CaseName =multi_sessions_exit, Config) ->
+    destroy_room(Config),
+    escalus:end_per_testcase(CaseName, Config);
+
+end_per_testcase(CaseName =multi_sessions_exit_session, Config) ->
+    destroy_room(Config),
+    escalus:end_per_testcase(CaseName, Config);
+
+end_per_testcase(CaseName =deny_entry_with_multiple_sessions_disallowed, Config) ->
     destroy_room(Config),
     escalus:end_per_testcase(CaseName, Config);
 
@@ -1935,6 +1989,102 @@ deny_entry_nick_conflict(Config) ->
         escalus:wait_for_stanzas(Bob, 2),
         escalus:send(Eve, Enter_room_stanza),
         escalus_assert:is_error(escalus:wait_for_stanza(Eve), <<"cancel">>, <<"conflict">>)
+    end).
+
+% Entering the room by one user from different devices
+multi_sessions_messages(Config) -> 
+    escalus:story(Config, [1, 2], fun(Alice, Bob, Bob2) ->
+        
+        multiple_sessions_enter_room_helper(Alice, Bob, Bob2, Config),
+
+        % end of presences
+
+        Msg = <<"Hi, Bobs!">>,
+        escalus:send(Alice,escalus_stanza:groupchat_to(room_address(?config(room, Config)), Msg)),
+        
+        % ct:pal("Alice msg: ~p~n",[escalus:wait_for_stanza(Alice)]),
+        true = is_groupchat_message(escalus:wait_for_stanza(Alice)),
+        true = is_groupchat_message(escalus:wait_for_stanza(Bob)),
+        true = is_groupchat_message(escalus:wait_for_stanza(Bob2)),
+
+
+        Msg2 = <<"Chat, Bobs!">>,
+        ChatMessage = escalus_stanza:chat_to(room_address(?config(room, Config), escalus_utils:get_username(Bob)), Msg2),
+        escalus:send(Alice, ChatMessage),
+        
+        % ct:pal("Alice msg: ~p~n",[escalus:wait_for_stanza(Alice)]),
+        % is_message_correct(?config(room, Config), 
+        %   escalus_utils:get_username(Alice), <<"chat">>, Msg2, escalus:wait_for_stanza(Alice)),
+        is_message_correct(?config(room, Config),
+            escalus_utils:get_username(Alice), <<"chat">>, Msg2, escalus:wait_for_stanza(Bob)),
+        is_message_correct(?config(room, Config),
+            escalus_utils:get_username(Alice), <<"chat">>, Msg2, escalus:wait_for_stanza(Bob2)),
+
+        Msg3 = <<"Chat, Alice!">>,
+        ChatMessage2 = escalus_stanza:chat_to(room_address(?config(room, Config), escalus_utils:get_username(Alice)), Msg3),
+        escalus:send(Bob, ChatMessage2),
+        
+        is_message_correct(?config(room, Config),
+            escalus_utils:get_username(Bob), <<"chat">>, Msg3, escalus:wait_for_stanza(Alice)),
+        % is_message_correct(?config(room, Config),
+        %   escalus_utils:get_username(Bob), <<"chat">>, Msg3, escalus:wait_for_stanza(Bob)),
+        % is_message_correct(?config(room, Config),
+        %   escalus_utils:get_username(Bob), <<"chat">>, Msg3, escalus:wait_for_stanza(Bob2)),
+
+
+        % ct:pal("Alice msg: ~p~n",[escalus:wait_for_stanza(Alice)]),
+        % ct:pal("Bob msg: ~p~n",[escalus:wait_for_stanza(Bob)]),
+        % ct:pal("Bob2 msg: ~p~n",[escalus:wait_for_stanza(Bob2)]),
+        ok
+    end).
+
+% Entering the room by one user from different devices
+multi_sessions_enter(Config) -> 
+    escalus:story(Config, [1, 2], fun(Alice, Bob, Bob2) ->
+        multiple_sessions_enter_room_helper(Alice, Bob, Bob2, Config)
+    end).
+
+% Exiting from the room with multiple sessions
+multi_sessions_exit(Config) -> 
+    escalus:story(Config, [1, 2], fun(Alice, Bob, Bob2) ->
+        multiple_sessions_enter_room_helper(Alice, Bob, Bob2, Config),
+
+        escalus:send(Alice, stanza_to_room(escalus_stanza:presence(<<"unavailable">>), ?config(room, Config), escalus_utils:get_username(Alice))),
+        Message = escalus:wait_for_stanza(Alice),
+        has_status_codes(Message, [<<"110">>]),
+        is_exit_message_correct(Alice, <<"none">>, ?config(room, Config), Message),
+        is_exit_message_correct(Alice, <<"none">>, ?config(room, Config), escalus:wait_for_stanza(Bob)),
+        is_exit_message_correct(Alice, <<"none">>, ?config(room, Config), escalus:wait_for_stanza(Bob2))
+    end).
+
+% Exiting from the room with multiple sessions
+multi_sessions_exit_session(Config) -> 
+    escalus:story(Config, [1, 2], fun(Alice, Bob, Bob2) ->
+        multiple_sessions_enter_room_helper(Alice, Bob, Bob2, Config),
+
+        escalus:send(Bob, stanza_to_room(escalus_stanza:presence(<<"unavailable">>), ?config(room, Config), escalus_utils:get_username(Alice))),
+        Message = escalus:wait_for_stanza(Bob),
+        has_status_codes(Message, [<<"110">>]),
+        is_exit_message_correct(Bob, <<"owner">>, ?config(room, Config), Message),
+        is_exit_message_correct(Bob, <<"owner">>, ?config(room, Config), escalus:wait_for_stanza(Alice)),
+        is_exit_message_correct(Bob, <<"owner">>, ?config(room, Config), escalus:wait_for_stanza(Bob2)),
+        ok
+    end).
+
+% Entering the room by one user from different devices with multiple sessions disabled
+deny_entry_with_multiple_sessions_disallowed(Config) -> 
+    escalus:story(Config, [1, 2], fun(_Alice, Bob, Bob2) ->
+        Enter_room_stanza = stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Bob)), 
+        escalus:send(Bob, Enter_room_stanza),
+      
+        Presence = escalus:wait_for_stanza(Bob),
+        is_presence_with_affiliation(Presence, <<"none">>),
+        is_self_presence(Bob, ?config(room, Config), Presence),
+        % escalus:wait_for_stanza(Bob),   %topic
+
+        escalus:send(Bob2, Enter_room_stanza),
+        Stanza = escalus:wait_for_stanza(Bob2),
+        escalus_assert:is_error(Stanza, <<"cancel">>, <<"conflict">>)
     end).
 
 %Example 32
@@ -3561,6 +3711,47 @@ parse_result_query(#xmlel{name = <<"query">>, children = Children}) ->
 %%--------------------------------------------------------------------
 
 nick(User) -> escalus_utils:get_username(User).
+
+multiple_sessions_enter_room_helper(Alice, Bob, Bob2, Config) ->
+    % Bob enters
+    Enter_room_stanza = stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Bob)),         
+    escalus:send(Bob, Enter_room_stanza),
+    
+    Presence = escalus:wait_for_stanza(Bob),
+    is_presence_with_affiliation(Presence, <<"none">>),
+    is_self_presence(Bob, ?config(room, Config), Presence),
+
+    is_subject_message(escalus:wait_for_stanza(Bob)),        
+
+    % Alice enters
+    Enter_room_stanza2 = stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Alice)), 
+    escalus:send(Alice, Enter_room_stanza2),
+    
+    Presence1 = escalus:wait_for_stanza(Alice),
+    is_presence_with_affiliation(Presence1, <<"none">>),
+    is_presence_from(Bob, ?config(room, Config), Presence1),
+
+    Presence2 = escalus:wait_for_stanza(Alice),
+    is_presence_with_affiliation(Presence2, <<"none">>),
+    is_self_presence(Alice, ?config(room, Config), Presence2),
+    is_subject_message(escalus:wait_for_stanza(Alice)),
+    
+    is_presence_with_affiliation(escalus:wait_for_stanza(Bob), <<"none">>),
+
+    % bob2 enters
+
+    escalus:send(Bob2, Enter_room_stanza),
+
+    is_presence_with_affiliation(escalus:wait_for_stanza(Bob), <<"none">>),
+    is_presence_with_affiliation(escalus:wait_for_stanza(Alice), <<"none">>),
+
+    is_presence_with_affiliation(escalus:wait_for_stanza(Bob2), <<"none">>),
+    is_presence_with_affiliation(escalus:wait_for_stanza(Bob2), <<"none">>),
+
+    Presence3 = escalus:wait_for_stanza(Bob2),
+    is_presence_with_affiliation(Presence3, <<"none">>),
+    is_self_presence(Bob2, ?config(room, Config), Presence3),
+    is_subject_message(escalus:wait_for_stanza(Bob2)).
 
 is_history_message_correct(Room, SenderNick,Type,  Text, ReceivedMessage) ->
     %error_logger:info_msg("tested message: ~n~p~n", [ReceivedMessage]),
