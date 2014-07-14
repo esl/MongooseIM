@@ -425,6 +425,7 @@ normal_state({route, From, <<>>,
 normal_state({route, From, Nick,
               #xmlel{name = <<"presence">>} = Packet},
              StateData) ->
+    % FIXME sessions do we need to route presences to all sessions
     Activity = get_user_activity(From, StateData),
     Now = now_to_usec(now()),
     MinPresenceInterval =
@@ -455,7 +456,9 @@ normal_state({route, From, ToNick,
               #xmlel{name = <<"message">>, attrs = Attrs} = Packet},
              StateData) ->
     Type = xml:get_attr_s(<<"type">>, Attrs),
-    NewStateData = route_nick_message(#routed_nick_message{
+    JIDs = find_jids_by_nick(ToNick, StateData)
+    FunRouteNickMessage = fun(JID, StateDataAcc) ->
+        route_nick_message(#routed_nick_message{
         allow_pm = (StateData#state.config)#config.allow_private_messages,
         online = is_user_online(From, StateData),
         type = Type,
@@ -464,25 +467,26 @@ normal_state({route, From, ToNick,
         lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
         decide = decide_fate_message(Type, Packet, From, StateData),
         packet = Packet,
-        % FIXME sessions find_jids_by_nick returns many jids
-        jid = find_jids_by_nick(ToNick, StateData)}, StateData),
+        jid = JID}, StateDataAcc)
+    end,
+    NewStateData = lists:foldl(FunRouteNickMessage, StateData, JIDs),
     {next_state, normal_state, NewStateData};
 normal_state({route, From, ToNick,
           #xmlel{name = <<"iq">>, attrs = Attrs} = Packet},
          StateData) ->
     Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
     StanzaId = xml:get_attr_s(<<"id">>, Attrs),
-    route_nick_iq(#routed_nick_iq{
+    JIDs = find_jids_by_nick(ToNick, StateData)
+    [route_nick_iq(#routed_nick_iq{
         allow_query = (StateData#state.config)#config.allow_query_users,
         online = is_user_online_iq(StanzaId, From, StateData),
-        % FIXME sessions find_jids_by_nick returns many jids
-        jid = find_jids_by_nick(ToNick, StateData),
+        jid = JID,
         iq = jlib:iq_query_info(Packet),
         packet = Packet,
         lang = Lang,
         from = From,
         stanza = StanzaId,
-        nick = ToNick}, StateData),
+        nick = ToNick}, StateData) || JID <- JIDs],
     {next_state, normal_state, StateData};
 normal_state(_Event, StateData) ->
     {next_state, normal_state, StateData}.
@@ -1532,7 +1536,7 @@ prepare_room_queue(StateData) ->
 is_first_session(Nick, StateData) -> 
     case ?DICT:find(Nick, StateData#state.sessions) of
         {ok, _Val} -> false;
-        false -> true
+        error -> true
     end.
 
 -spec is_last_session(mod_muc:nick(), state()) -> boolean().
@@ -1545,12 +1549,12 @@ is_last_session(Nick, StateData) ->
 -spec add_online_user(ejabberd:jid(), mod_muc:nick(), mod_muc:role(), state())
                         -> state().
 add_online_user(JID, Nick, Role, StateData) ->
+    LJID = jlib:jid_tolower(JID),
     
     %
-    ?ERROR_MSG("LJID: ~p of nick: ~p with JID: ~p~n",[LJID, Nick, JID]),
+    ?INFO_MSG("adding New session: LJID: ~p of nick: ~p~n",[LJID, Nick]),
     %
 
-    LJID = jlib:jid_tolower(JID),
     Sessions = ?DICT:append(Nick, LJID, StateData#state.sessions),
     Users = ?DICT:store(LJID,
             #user{jid = JID,
@@ -1559,8 +1563,11 @@ add_online_user(JID, Nick, Role, StateData) ->
             StateData#state.users),
     case is_first_session(Nick, StateData) of
         true ->
+            %
+            ?INFO_MSG("it was adding new user with of nick: ~p~n",[Nick]),
+            %
             add_to_log(join, Nick, StateData),
-            tab_add_online_user(JID, StateData),
+            tab_add_online_user(JID, StateData);
         _ ->
             ok
     end,
@@ -1574,11 +1581,20 @@ remove_online_user(JID, StateData) ->
 
 -spec remove_online_user(ejabberd:jid(), state(), Reason :: binary()) -> state().
 remove_online_user(JID, StateData, Reason) ->
+    
     LJID = jlib:jid_tolower(JID),
     {ok, #user{nick = Nick}} =
         ?DICT:find(LJID, StateData#state.users),
+    
+    %
+    ?INFO_MSG("deleting session: LJID: ~p of nick: ~p~n",[LJID, Nick]),
+    %
+    
     case is_last_session(Nick, StateData) of
         true -> 
+            %
+            ?INFO_MSG("deleting user with nick: ~p~n",[Nick]),
+            %
             add_to_log(leave, {Nick, Reason}, StateData),
             tab_remove_online_user(JID, StateData);
         _ -> 
@@ -1656,10 +1672,14 @@ is_nick_exists(Nick, StateData) ->
 
 -spec find_jids_by_nick(mod_muc:nick(), state()) -> false | [ejabberd:jid()].
 find_jids_by_nick(Nick, StateData) ->
-    case ?DICT:fetch(Nick, StateData#state.sessions) of
-        false -> false;
+    %
+    ?INFO_MSG("find_jids: Nick ~p Dict ~p",[Nick, ?DICT:to_list(StateData#state.sessions)]),
+    %
+    
+    case ?DICT:find(Nick, StateData#state.sessions) of
+        error -> false;
         {ok, LJIDs} ->
-            [(?DICT:find(LJID, StateData#state.users))#user.jid 
+            [(?DICT:fetch(LJID, StateData#state.users))#user.jid 
                 || LJID <- LJIDs]
     end.
 
@@ -1707,7 +1727,7 @@ is_another_session(Jid1, Jid2) ->
 
 is_next_session_of_occupant(From, Nick, StateData) ->
   IsAllowed = (StateData#state.config)#config.allow_multiple_sessions,
-  ?ERROR_MSG("allow_multiple_sessions: ", [IsAllowed]) ,
+  % ?ERROR_MSG("allow_multiple_sessions: ", [IsAllowed]) ,
   case {IsAllowed, find_jids_by_nick(Nick, StateData)} of
     {false, _} ->
         false;
@@ -2729,7 +2749,7 @@ find_changed_items(UJID, UAffiliation, URole,
                    {error, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)};
                    Jids ->
                    % FIXME sessions J is now list of Jids
-                   % check where that is going
+                   % check where that is going ( TJID -> TJIDs)
                    {value, Jids}
                end;
                _ ->
