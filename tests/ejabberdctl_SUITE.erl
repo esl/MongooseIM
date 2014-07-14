@@ -57,7 +57,8 @@ sessions() -> [num_resources_num, kick_session, status,
 
 vcard() -> [vcard_rw, vcard2_rw, vcard2_multi_rw].
 
-roster() -> [rosteritem_rw, push_roster, push_roster_all, push_roster_alltoall].
+roster() -> [rosteritem_rw, presence_after_add_rosteritem,
+	     push_roster, push_roster_all, push_roster_alltoall].
 
 last() -> [set_last].
 
@@ -354,6 +355,20 @@ rosteritem_rw(Config) ->
 
                 escalus:send(Alice, escalus_stanza:roster_remove_contact(mike))  % cleanup
         end).
+
+presence_after_add_rosteritem(Config) ->
+     escalus:story(Config, [1,1], fun(Alice, Bob) ->
+                 {AliceName, Domain, _} = get_user_data(alice, Config),
+                 {BobName, Domain, _} = get_user_data(bob, Config),
+ 
+                 {_, 0} = ejabberdctl("add_rosteritem", [AliceName, Domain, BobName,
+                                                         Domain, "MyBob", "MyGroup", "both"], Config),
+ 
+                 escalus:send(Alice, escalus_stanza:presence(<<"available">>)),
+                 escalus:assert(is_presence, escalus:wait_for_stanza(Bob)),
+ 
+                 escalus:send(Alice, escalus_stanza:roster_remove_contact(bob))  % cleanup
+         end).
 
 push_roster(Config) ->
     escalus:story(Config, [1], fun(Alice) ->
