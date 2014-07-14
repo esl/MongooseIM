@@ -1716,9 +1716,9 @@ is_user_limit_reached(From, Affiliation, StateData) ->
       NConferences < MaxConferences.
 
 is_another_session(Jid1, Jid2) ->
-  case {Jid1#jid.user == Jid2#jid.user,
-        Jid1#jid.server == Jid2#jid.server,
-        Jid1#jid.resource == Jid2#jid.resource} of
+  case {Jid1#jid.luser == Jid2#jid.luser,
+        Jid1#jid.lserver == Jid2#jid.lserver,
+        Jid1#jid.lresource == Jid2#jid.lresource} of
       {true, true, false} ->
           true;
       _ ->
