@@ -117,26 +117,24 @@ groups() -> [
                 ]},
         {occupant, [], [
                 %nick registration in a room is not implemented and will not be tested
-                % groupchat_user_enter,
-                % groupchat_user_enter_no_nickname,
-                % muc_user_enter,
-                % enter_non_anonymous_room,
-                % deny_access_to_password_protected_room,
-                % enter_password_protected_room,
-                % deny_accesss_to_memebers_only_room,
-                % deny_entry_to_a_banned_user,
-                % deny_entry_nick_conflict,
-                
+                groupchat_user_enter,
+                groupchat_user_enter_no_nickname,
+                muc_user_enter,
+                enter_non_anonymous_room,
+                deny_access_to_password_protected_room,
+                enter_password_protected_room,
+                deny_accesss_to_memebers_only_room,
+                deny_entry_to_a_banned_user,
+                deny_entry_nick_conflict,
                 multi_sessions_enter,
                 multi_sessions_messages,
                 multi_sessions_exit_session,
-                multi_sessions_exit
-                % deny_entry_with_multiple_sessions_disallowed% ,
-                
-                % enter_room_with_logging,
-                % deny_entry_user_limit_reached,
-                % send_history,
-                % history_since,
+                multi_sessions_exit,
+                deny_entry_with_multiple_sessions_disallowed,
+                enter_room_with_logging,
+                deny_entry_user_limit_reached,
+                send_history,
+                history_since,
                 
                 %% the following tests fail and have been commented because
                 %% certain features are not implemented in ejabberd
@@ -146,18 +144,18 @@ groups() -> [
                 %% recent_history, %unfinished,
                 %% no_history,
                 
-                % subject,
-                % no_subject,
-                % send_to_all,
-                % send_and_receive_private_message,
-                % send_private_groupchat,
-                % change_nickname,
-                % deny_nickname_change_conflict,
-                % change_availability_status,
-                % mediated_invite,
-                % one2one_chat_to_muc,
-                % exit_room,
-                % exit_room_with_status
+                subject,
+                no_subject,
+                send_to_all,
+                send_and_receive_private_message,
+                send_private_groupchat,
+                change_nickname,
+                deny_nickname_change_conflict,
+                change_availability_status,
+                mediated_invite,
+                one2one_chat_to_muc,
+                exit_room,
+                exit_room_with_status
                 ]},
         {owner, [], [
                 room_creation_not_allowed,
@@ -2066,9 +2064,13 @@ multi_sessions_exit_session(Config) ->
         Message = escalus:wait_for_stanza(Bob),
         has_status_codes(Message, [<<"110">>]),
         is_exit_message_correct(Bob, <<"owner">>, ?config(room, Config), Message),
-        is_exit_message_correct(Bob, <<"owner">>, ?config(room, Config), escalus:wait_for_stanza(Alice)),
         is_exit_message_correct(Bob, <<"owner">>, ?config(room, Config), escalus:wait_for_stanza(Bob2)),
-        ok
+
+        escalus:send(Bob2, stanza_to_room(escalus_stanza:presence(<<"unavailable">>), ?config(room, Config), escalus_utils:get_username(Alice))),
+        Message2 = escalus:wait_for_stanza(Bob2),
+        has_status_codes(Message2, [<<"110">>]),
+        is_exit_message_correct(Bob2, <<"none">>, ?config(room, Config), Message2),
+        is_exit_message_correct(Bob2, <<"none">>, ?config(room, Config), escalus:wait_for_stanza(Alice))
     end).
 
 % Entering the room by one user from different devices with multiple sessions disabled
@@ -2080,7 +2082,7 @@ deny_entry_with_multiple_sessions_disallowed(Config) ->
         Presence = escalus:wait_for_stanza(Bob),
         is_presence_with_affiliation(Presence, <<"none">>),
         is_self_presence(Bob, ?config(room, Config), Presence),
-        % escalus:wait_for_stanza(Bob),   %topic
+        is_subject_message(escalus:wait_for_stanza(Bob)),
 
         escalus:send(Bob2, Enter_room_stanza),
         Stanza = escalus:wait_for_stanza(Bob2),
