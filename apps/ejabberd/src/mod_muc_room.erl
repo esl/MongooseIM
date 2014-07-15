@@ -2046,14 +2046,14 @@ foreach_user(F, #state{users=Users}) ->
 
 
 -spec erase_matched_users(ejabberd:simple_jid() | ejabberd:jid(), state()) -> state().
-erase_matched_users(JID, StateData=#state{users=Users}) ->
+erase_matched_users(JID, StateData=#state{users=Users, sessions=Sessions}) ->
     LJID = jlib:jid_tolower(JID),
-    NewUsers = erase_matched_users_dict(LJID, Users),
-    StateData#state{users=NewUsers}.
+    {NewUsers, NewSessions} = erase_matched_users_dict(LJID, Users, Sessions),
+    StateData#state{users=NewUsers, sessions=NewSessions}.
 
 
--spec erase_matched_users_dict('error' | ejabberd:simple_jid(), dict()) -> any().
-erase_matched_users_dict(LJID, Users) ->
+-spec erase_matched_users_dict('error' | ejabberd:simple_jid(), dict(), dict()) -> any().
+erase_matched_users_dict(LJID, Users, Sessions) ->
     case LJID of
         %% Match by bare JID
         {U, S, <<>>} ->
@@ -2063,10 +2063,19 @@ erase_matched_users_dict(LJID, Users) ->
                          _         -> Us
                      end
                  end,
-            ?DICT:fold(FF, Users, Users);
+            FF2 = fun(J, #user{nick=Nick}, Ss) ->
+                     case J of
+                         {U, S, _} -> ?DICT:erase(Nick, Ss);
+                         _         -> Ss
+                     end
+                 end,
+            {?DICT:fold(FF, Users, Users),
+             ?DICT:fold(FF2, Sessions, Users)};
         %% Match by full JID
         _ ->
-            ?DICT:erase(LJID, Users)
+            {ok, #user{nick=Nick}} = ?DICT:find(LJID, Users),
+            {?DICT:erase(LJID, Users),
+             ?DICT:erase(Nick, Sessions)}
     end.
 
 
