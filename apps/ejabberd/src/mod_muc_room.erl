@@ -930,7 +930,7 @@ process_presence_unavailable(From, Packet, StateData) ->
         true ->
             NewPacket = check_and_strip_visitor_status(From, Packet, StateData),
             NewState = add_user_presence_un(From, NewPacket, StateData),
-            send_new_presence(From, NewState),
+            send_new_presence_un(From, NewState),
             Reason = case xml:get_subtag(NewPacket, <<"status">>) of
                 false -> <<>>;
                 Status_el -> xml:get_tag_cdata(Status_el)
@@ -1208,7 +1208,7 @@ expulse_participant(Packet, From, StateData, Reason1) ->
                children = [#xmlel{name = <<"status">>,
                                   children = [#xmlcdata{content = Reason2}]}]},
     StateData),
-    send_new_presence(From, NewState),
+    send_new_presence_un(From, NewState),
     remove_online_user(From, NewState).
 
 
@@ -2109,6 +2109,23 @@ update_matched_users_dict(F, LJID, Users) ->
             end
     end.
 
+-spec send_new_presence_un(ejabberd:jid(), state()) -> 'ok'.
+send_new_presence_un(NJID, StateData) ->
+    send_new_presence_un(NJID, <<>>, StateData).
+
+
+-spec send_new_presence_un(ejabberd:jid(), binary(), state()) -> 'ok'.
+send_new_presence_un(NJID, Reason, StateData) ->
+    {ok, #user{ nick = Nick }} = ?DICT:find(jlib:jid_tolower(NJID), StateData#state.users),
+    case is_last_session(Nick, StateData) of
+        true -> 
+            send_new_presence(NJID, Reason, StateData);
+        false ->
+            UserLJIDs = ?DICT:fetch(Nick, StateData#state.sessions),
+            CurrentSessionUsers = [{LJID, ?DICT:fetch(LJID, StateData#state.users)} || LJID <- UserLJIDs],
+            send_new_presence_to(NJID, Reason, CurrentSessionUsers, StateData)
+    end.
+
 
 -spec send_new_presence(ejabberd:jid(), state()) -> 'ok'.
 send_new_presence(NJID, StateData) ->
@@ -2117,6 +2134,11 @@ send_new_presence(NJID, StateData) ->
 
 -spec send_new_presence(ejabberd:jid(), binary(), state()) -> 'ok'.
 send_new_presence(NJID, Reason, StateData) ->
+    send_new_presence_to(NJID, Reason, ?DICT:to_list(StateData#state.users), StateData).
+
+
+-spec send_new_presence_to(ejabberd:jid(), binary(), [{ejabberd:jid(), #user{}}], state()) -> 'ok'.
+send_new_presence_to(NJID, Reason, Receivers, StateData) ->
     {ok, #user{jid = RealJID,
            nick = Nick,
            role = Role,
@@ -2182,7 +2204,7 @@ send_new_presence(NJID, Reason, StateData) ->
             jlib:jid_replace_resource(StateData#state.jid, Nick),
             Info#user.jid,
             Packet)
-      end, ?DICT:to_list(StateData#state.users)).
+      end, Receivers).
 
 
 -spec send_existing_presences(ejabberd:jid(), state()) -> 'ok'.
