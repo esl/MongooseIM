@@ -469,7 +469,11 @@ normal_state({route, From, ToNick,
         packet = Packet,
         jid = JID}, StateDataAcc)
     end,
-    NewStateData = lists:foldl(FunRouteNickMessage, StateData, JIDs),
+    JIDs1 = case JIDs of
+        false -> [false];
+        _ -> JIDs
+    end,
+    NewStateData = lists:foldl(FunRouteNickMessage, StateData, JIDs1),
     {next_state, normal_state, NewStateData};
 normal_state({route, From, ToNick,
           #xmlel{name = <<"iq">>, attrs = Attrs} = Packet},
@@ -477,6 +481,10 @@ normal_state({route, From, ToNick,
     Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
     StanzaId = xml:get_attr_s(<<"id">>, Attrs),
     JIDs = find_jids_by_nick(ToNick, StateData),
+    JIDs1 = case JIDs of
+        false -> [false];
+        _ -> JIDs
+    end,
     [route_nick_iq(#routed_nick_iq{
         allow_query = (StateData#state.config)#config.allow_query_users,
         online = is_user_online_iq(StanzaId, From, StateData),
@@ -486,7 +494,7 @@ normal_state({route, From, ToNick,
         lang = Lang,
         from = From,
         stanza = StanzaId,
-        nick = ToNick}, StateData) || JID <- JIDs],
+        nick = ToNick}, StateData) || JID <- JIDs1],
     {next_state, normal_state, StateData};
 normal_state(_Event, StateData) ->
     {next_state, normal_state, StateData}.
@@ -1541,8 +1549,8 @@ is_first_session(Nick, StateData) ->
 
 -spec is_last_session(mod_muc:nick(), state()) -> boolean().
 is_last_session(Nick, StateData) -> 
-    case ?DICT:fetch(Nick, StateData#state.sessions) of
-        [_Val] -> true;
+    case ?DICT:find(Nick, StateData#state.sessions) of
+        {ok, [_Val]} -> true;
         _ -> false
     end.
 
@@ -1550,11 +1558,6 @@ is_last_session(Nick, StateData) ->
                         -> state().
 add_online_user(JID, Nick, Role, StateData) ->
     LJID = jlib:jid_tolower(JID),
-    
-    %
-    ?INFO_MSG("adding New session: LJID: ~p of nick: ~p~n",[LJID, Nick]),
-    %
-
     Sessions = ?DICT:append(Nick, LJID, StateData#state.sessions),
     Users = ?DICT:store(LJID,
             #user{jid = JID,
@@ -1563,9 +1566,6 @@ add_online_user(JID, Nick, Role, StateData) ->
             StateData#state.users),
     case is_first_session(Nick, StateData) of
         true ->
-            %
-            ?INFO_MSG("it was adding new user with of nick: ~p~n",[Nick]),
-            %
             add_to_log(join, Nick, StateData),
             tab_add_online_user(JID, StateData);
         _ ->
@@ -1585,25 +1585,18 @@ remove_online_user(JID, StateData, Reason) ->
     LJID = jlib:jid_tolower(JID),
     {ok, #user{nick = Nick}} =
         ?DICT:find(LJID, StateData#state.users),
-    
-    %
-    ?INFO_MSG("deleting session: LJID: ~p of nick: ~p~n",[LJID, Nick]),
-    %
-    
-    case is_last_session(Nick, StateData) of
+    Sessions = case is_last_session(Nick, StateData) of
         true -> 
-            %
-            ?INFO_MSG("deleting user with nick: ~p~n",[Nick]),
-            %
             add_to_log(leave, {Nick, Reason}, StateData),
-            tab_remove_online_user(JID, StateData);
-        _ -> 
-            ok
+            tab_remove_online_user(JID, StateData),
+            ?DICT:erase(Nick, StateData#state.sessions);
+        false ->
+            IsOtherLJID = fun(LJ) -> LJ /= LJID end, 
+            F = fun (LJIDs) -> lists:filter(IsOtherLJID, LJIDs) end,
+            ?DICT:update(Nick, F, StateData#state.sessions)
     end,
     Users = ?DICT:erase(LJID, StateData#state.users),
-    IsOtherLJID = fun(LJ) -> LJ /= LJID end, 
-    F = fun (LJIDs) -> lists:filter(IsOtherLJID, LJIDs) end,
-    Sessions = ?DICT:update(Nick, F, StateData#state.sessions),
+    
     StateData#state{users = Users, sessions = Sessions}.
 
 
@@ -1672,12 +1665,9 @@ is_nick_exists(Nick, StateData) ->
 
 -spec find_jids_by_nick(mod_muc:nick(), state()) -> false | [ejabberd:jid()].
 find_jids_by_nick(Nick, StateData) ->
-    %
-    ?INFO_MSG("find_jids: Nick ~p Dict ~p",[Nick, ?DICT:to_list(StateData#state.sessions)]),
-    %
-    
     case ?DICT:find(Nick, StateData#state.sessions) of
         error -> false;
+        {ok, []} -> false;
         {ok, LJIDs} ->
             [(?DICT:fetch(LJID, StateData#state.users))#user.jid 
                 || LJID <- LJIDs]
@@ -2210,11 +2200,11 @@ send_new_presence_to(NJID, Reason, Receivers, StateData) ->
 -spec send_existing_presences(ejabberd:jid(), state()) -> 'ok'.
 send_existing_presences(ToJID, StateData) ->
     LToJID = jlib:jid_tolower(ToJID),
-    {ok, #user{jid = RealToJID, role = Role, nick = Nick}} =
+    {ok, #user{jid = RealToJID, role = Role, nick = _Nick}} =
     ?DICT:find(LToJID, StateData#state.users),
     % if you don't want to send presences of other sessions of occupant with ToJID
     % switch following lines
-    % JIDsToSkip = [RealToJID | find_jids_by_nick(Nick, StateData)],
+    % JIDsToSkip = [RealToJID | find_jids_by_nick(_Nick, StateData)],
     JIDsToSkip = [RealToJID],
     lists:foreach(
         fun({LJID, #user{jid = FromJID,
@@ -2769,10 +2759,10 @@ find_changed_items(UJID, UAffiliation, URole,
                    ErrText = <<(translate:translate(Lang, <<"Nickname ">>))/binary,
                       N/binary, (translate:translate(Lang, <<" does not exist in the room">>))/binary>>,
                    {error, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)};
-                   Jids ->
+                   [FirstSessionJid | _RestOfSessions] ->
                    % FIXME sessions J is now list of Jids
                    % check where that is going ( TJID -> TJIDs)
-                   {value, Jids}
+                   {value, FirstSessionJid}
                end;
                _ ->
                {error, ?ERR_BAD_REQUEST}
