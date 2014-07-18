@@ -37,7 +37,8 @@
 -export([check_hosts/2, compare_modules/2, compare_listeners/2]).
 
 %% conf reload
--export([reload/1, apply_changes_safe/6, apply_changes/6, replace_config_file/2]).
+-export([reload_local/1, reload_cluster/1, apply_changes_safe/5,
+         apply_changes/5, replace_config_file/2]).
 
 -include("ejabberd.hrl").
 -include("ejabberd_config.hrl").
@@ -750,27 +751,55 @@ parse_file(ConfigFile) ->
     Terms_macros = replace_macros(Terms),
     lists:foldl(fun process_term/2, State, Terms_macros).
 
--spec reload(file:name()) -> {ok, binary()}.
-reload(NewConfigFilePath) ->
-    CurrentNode = node(),
-    State = parse_file(NewConfigFilePath),
-    {CC, LC, LHC} = get_config_diff(State),
+-spec reload_local(file:name()) -> ok.
+reload_local(NewConfigFilePath) ->
+    State0 = parse_file(NewConfigFilePath),
+    {CC, LC, LHC} = get_config_diff(State0),
+    ConfigVersion = compute_config_version(get_local_config(),
+                                           get_host_local_config()),
+    State1 = State0#state{override_global = true,
+                          override_local = true,
+                          override_acls = true},
+    try
+        {ok, _} = apply_changes(CC, LC, LHC, State1, ConfigVersion),
+        {ok, io_lib:format("# Reloaded: ~s", [node()])}
+    catch
+        Error:Reason ->
+            Reason = io_lib:format("failed to apply config on node:"
+                                   " ~p ~n Reason: ~p", [node(),
+                                                         Error]),
+            exit(lists:flatten(Reason))
+    end.
+            
 
-    ConfigVersion = compute_config_version(get_local_config(), get_host_local_config()),
-    {ok, NewBackupContent} = file:read_file(NewConfigFilePath),
+-spec reload_cluster(file:name()) -> {ok, binary()}.
+reload_cluster(NewConfigFilePath) ->
+    CurrentNode = node(),
+    State0 = parse_file(NewConfigFilePath),
+    {CC, LC, LHC} = get_config_diff(State0),
+
+    ConfigVersion = compute_config_version(get_local_config(),
+                                           get_host_local_config()),
     %% first apply on local
-    case catch apply_changes(CC, LC, LHC, State#state{override_global = true, override_local = true, override_acls = true}, NewBackupContent, ConfigVersion) of
+    State1 = State0#state{override_global = true, override_local = true,
+                         override_acls = true},
+    case catch apply_changes(CC, LC, LHC, State1, ConfigVersion) of
         {ok, CurrentNode} ->
             %% update global tables only once
-            NewState = State#state{override_global= false, override_acls = false},
+            State3 = State0#state{override_global= false,
+                                  override_acls = false},
             %% apply on other nodes
-            {S,F} = rpc:multicall(nodes(), ?MODULE, apply_changes_safe, [CC, LC, LHC, NewState, NewBackupContent, ConfigVersion],30000),
+            {S,F} = rpc:multicall(nodes(), ?MODULE, apply_changes_safe,
+                                  [CC, LC, LHC, State3, ConfigVersion],
+                                  30000),
             {S1,F1} = group_nodes_results([{ok,node()} | S],F),
 
             {ok, groups_to_string("# Reloaded:", S1) ++
                  groups_to_string("\n# Failed:", F1) };
         Error ->
-            Reason = io_lib:format("failed to apply config on node: ~p ~n Reason: ~p",[CurrentNode, Error]),
+            Reason = io_lib:format("failed to apply config on node:"
+                                   " ~p ~n Reason: ~p", [CurrentNode,
+                                                         Error]),
             exit(lists:flatten(Reason))
     end.
 
@@ -806,19 +835,27 @@ get_config_diff(State) ->
     LHC = compare_terms(group_host_changes(HostsLocal), group_host_changes(NewHostsLocal), 1, 2),
     {CC, LC, LHC}.
 
--spec apply_changes_safe(term(), term(), term(), state(), binary(), binary()) -> {ok, node()}| {error,node(),string()}.
-apply_changes_safe(ConfigChanges, LocalConfigChanges, LocalHostsChanges, State, NewBackupContent, DesiredVersion) ->
+-spec apply_changes_safe(term(), term(), term(), state(), binary()) ->
+                                {ok, node()}| {error,node(),string()}.
+apply_changes_safe(ConfigChanges, LocalConfigChanges,
+                   LocalHostsChanges, State, DesiredVersion) ->
     Node = node(),
-    case catch apply_changes(ConfigChanges, LocalConfigChanges, LocalHostsChanges, State, NewBackupContent, DesiredVersion) of
+    case catch apply_changes(ConfigChanges, LocalConfigChanges,
+                             LocalHostsChanges, State, DesiredVersion)
+    of
         {ok, Node} = R ->
             R;
         UnknownResult ->
-            {error, Node, lists:flatten(io_lib:format("~p",[UnknownResult]))}
+            {error, Node,
+             lists:flatten(io_lib:format("~p",[UnknownResult]))}
     end.
 
--spec apply_changes(term(), term(), term(), state(), binary(), binary()) -> {ok, node()}| {error, node(), string()}.
-apply_changes(ConfigChanges, LocalConfigChanges, LocalHostsChanges, State, NewBackupContent, DesiredVersion) ->
-    ConfigVersion = compute_config_version(get_local_config(), get_host_local_config()),
+-spec apply_changes(term(), term(), term(), state(), binary()) ->
+                           {ok, node()} | {error, node(), string()}.
+apply_changes(ConfigChanges, LocalConfigChanges, LocalHostsChanges,
+              State, DesiredVersion) ->
+    ConfigVersion = compute_config_version(get_local_config(),
+                                           get_host_local_config()),
     case ConfigVersion  of
         DesiredVersion  ->
             ok;
@@ -840,20 +877,11 @@ apply_changes(ConfigChanges, LocalConfigChanges, LocalHostsChanges, State, NewBa
     lists:foreach(fun handle_local_config_add/1, LCAdd),
     lists:foreach(fun handle_local_config_del/1, LCDel),
 
-    %%
     lists:foreach(fun handle_local_hosts_config_change/1, LCHChange),
     lists:foreach(fun handle_local_hosts_config_add/1, LCHAdd),
     lists:foreach(fun handle_local_hosts_config_del/1, LCHDel),
 
-    make_backup(NewBackupContent),
-
     {ok, node()}.
-
--spec make_backup(binary()) -> {ok, node()}.
-make_backup(NewBackupContent) ->
-    {{Y,M,D},{H,Min,S}}=calendar:now_to_datetime(erlang:now()),
-    BackupSuffix = lists:flatten(io_lib:format("~w-~2..0w-~2..0w-~2..0w:~2..0w:~2..0w",[Y,M,D,H,Min,S])),
-    {ok, _} = replace_config_file(NewBackupContent, BackupSuffix).
 
 -spec replace_config_file(binary(), string()) -> {ok, node()}.
 replace_config_file(NewConfig, BackupSuffix) ->
