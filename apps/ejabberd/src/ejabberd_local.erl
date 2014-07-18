@@ -271,14 +271,16 @@ init([]) ->
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 handle_call({unregister_host, Host}, _From, State) ->
+    [ejabberd_c2s:stop(Pid)
+     || {_, {_, Pid}, _, _} <- ejabberd_sm:get_vh_session_list(Host)],
     ejabberd_router:unregister_route(Host),
-       ejabberd_hooks:delete(local_send_to_resource_hook, Host,
-                                ?MODULE, bounce_resource_packet, 100),
+    ejabberd_hooks:delete(local_send_to_resource_hook, Host,
+                          ?MODULE, bounce_resource_packet, 100),
     {reply, ok, State};
 handle_call({register_host, Host}, _From, State) ->
     ejabberd_router:register_route(Host, {apply, ?MODULE, route}),
-       ejabberd_hooks:add(local_send_to_resource_hook, Host,
-                                ?MODULE, bounce_resource_packet, 100),
+    ejabberd_hooks:add(local_send_to_resource_hook, Host,
+                       ?MODULE, bounce_resource_packet, 100),
     {reply, ok, State};
 handle_call(_Request, _From, State) ->
     Reply = ok,

@@ -297,7 +297,7 @@ get_vh_session_number(Server) ->
     length(?SM_BACKEND:get_sessions(Server)).
 
 
--spec get_vh_session_list(ejabberd:server()) -> [session()].
+-spec get_vh_session_list(ejabberd:server()) -> [ses_tuple()].
 get_vh_session_list(Server) ->
     ?SM_BACKEND:get_sessions(Server).
 
