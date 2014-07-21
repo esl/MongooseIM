@@ -65,7 +65,7 @@ end_per_suite(Config) ->
 init_per_group(register, Config) ->
     case escalus_users:is_mod_register_enabled(Config) of
         true ->
-            escalus:create_users(Config, {by_name, [alice, bob]});
+            Config; % will create users inside test case
         _ ->
             {skip, mod_register_disabled}
     end;
@@ -138,13 +138,37 @@ end_per_testcase(CaseName, Config) ->
 %%--------------------------------------------------------------------
 
 register(Config) ->
-    %% User should be registered in an init function
-    [{_, UserSpec} | _] = escalus_config:get_config(escalus_users, Config),
-    [Username, Server, _Pass] = escalus_users:get_usp(Config, UserSpec),
-    true = escalus_ejabberd:rpc(ejabberd_auth, is_user_exists, [Username, Server]).
+    Users = escalus_config:get_config(escalus_users, Config),
+    [{Name1, UserSpec1}, {Name2, UserSpec2} | _] = Users,
+    {_, AdminSpec} = lists:keyfind(admin, 1, Users),
+    [Username1, Server1, _Pass1] = escalus_users:get_usp(Config, UserSpec1),
+    [Username2, Server2, _Pass2] = escalus_users:get_usp(Config, UserSpec2),
+    [AdminU, AdminS, AdminP] = escalus_users:get_usp(Config, AdminSpec),
+
+    {atomic, ok} = escalus_ejabberd:rpc(ejabberd_auth, try_register, [AdminU, AdminS, AdminP]),
+
+    escalus:story(Config, [{admin, 1}], fun(Admin) ->
+            escalus:create_users(Config, {by_name, [Name1, Name2]}),
+
+            Predicates = [
+                          fun(Stanza) ->
+                                  Body = exml_query:path(Stanza, [{element, <<"body">>}, cdata]),
+                                  escalus_pred:is_chat_message(Stanza)
+                                  andalso
+                                  re:run(Body, <<"registered">>, []) =/= nomatch
+                                  andalso
+                                  re:run(Body, Username, []) =/= nomatch
+                          end
+                          || Username <- [Username1, Username2]
+                         ],
+            escalus:assert_many(Predicates, escalus:wait_for_stanzas(Admin, 2)),
+
+            true = escalus_ejabberd:rpc(ejabberd_auth, is_user_exists, [Username1, Server1]),
+            true = escalus_ejabberd:rpc(ejabberd_auth, is_user_exists, [Username2, Server2])
+        end).
 
 check_unregistered(Config) ->
-    escalus:delete_users(Config, {by_name, [alice, bob]}),
+    escalus:delete_users(Config, {by_name, [admin, alice, bob]}),
     [{_, UserSpec}| _] = escalus_users:get_users(all),
     [Username, Server, _Pass] = escalus_users:get_usp(Config, UserSpec),
     false = escalus_ejabberd:rpc(ejabberd_auth, is_user_exists, [Username, Server]).
