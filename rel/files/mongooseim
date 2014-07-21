@@ -105,7 +105,7 @@ case "$1" in
 
         RES=`$NODETOOL ping`
         if [ "$RES" = "pong" ]; then
-            echo "Error: Node is already running! Stop the node and delete Mnesia database directory."
+            echo "Error: Node is already running! Stop the node and delete Mnesia database directory ($MNESIA_DIR)."
             exit 1
         fi
 
