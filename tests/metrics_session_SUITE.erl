@@ -60,7 +60,6 @@ init_per_group(_GroupName, Config) ->
 end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config, {by_name, [alice, bob]}).
 
-
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
@@ -73,6 +72,7 @@ end_per_testcase(CaseName, Config) ->
 
 
 login_one(Config) ->
+    metrics_helper:reset_counters(Config),
     {value, Logins} = get_counter_value(sessionSuccessfulLogins),
     assert_counter(0, sessionCount),
     escalus:story(Config, [1], fun(Alice) ->
@@ -89,6 +89,7 @@ login_one(Config) ->
     end).
 
 login_many(Config) ->
+    metrics_helper:reset_counters(Config),
     {value, Logins} = get_counter_value(sessionSuccessfulLogins),
     assert_counter(0, sessionCount),
     escalus:story(Config, [1, 1], fun(_Alice, _Bob) ->
@@ -98,8 +99,8 @@ login_many(Config) ->
 
         end).
 
-
 auth_failed(Config) ->
+    metrics_helper:reset_counters(Config),
     {value, AuthFails} = get_counter_value(sessionAuthFails),
     assert_counter(0, sessionCount),
 
@@ -128,4 +129,3 @@ session_unique(Config) ->
         assert_counter(2, globalSessionCount)
 
         end).
-

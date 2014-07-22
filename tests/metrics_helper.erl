@@ -1,13 +1,24 @@
 -module(metrics_helper).
 
-%%
-%%  @TODO Please consider refactoring this
-%%  module to use esl/fusco as the http client.
-%%
-
 -include_lib("common_test/include/ct.hrl").
 
 -compile(export_all).
+
+reset_counters(_Config) ->
+    StopModMetrics =
+        fun(Host) -> rpc:call(ct:get_config(ejabberd_node),
+                              mod_metrics, stop, [Host]) end,
+    RestartModMetrics =
+        fun(Host) -> rpc:call(ct:get_config(ejabberd_node),
+                              mod_metrics, start, [Host, []]) end,
+    Hosts = escalus_ejabberd:get_global_option(hosts),
+
+    rpc:call(ct:get_config(ejabberd_node), application, stop, [folsom]),
+    lists:foreach(StopModMetrics, Hosts),
+
+    rpc:call(ct:get_config(ejabberd_node), application, start, [folsom]),
+    lists:foreach(RestartModMetrics, Hosts).
+
 
 get_counter_value({_, _} = Counter) ->
     Result = rpc:call(ct:get_config(ejabberd_node),
