@@ -11,6 +11,7 @@ test/#*
 test/tests/.#
 test/tests/#
 test/ct_report
+**/.rebar
 *.swp
 *~
 contrib/extract_translations/extract_translations.beam
