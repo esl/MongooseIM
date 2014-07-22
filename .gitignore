@@ -66,6 +66,7 @@ apps/ejabberd/src/ejabberdctl.example
 apps/ejabberd/src/eldap_filter_yecc.erl
 apps/ejabberd/doc
 apps/mysql/doc
+apps/*/logs
 apps/stringprep/doc
 rel/mongooseim/
 apps/stringprep/ebin
