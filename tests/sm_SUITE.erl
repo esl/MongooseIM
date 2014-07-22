@@ -192,7 +192,7 @@ server_returns_failed(Config, ConnActions) ->
                                                   maybe_use_ssl]
                                                  ++ ConnActions),
     escalus_connection:send(Alice, escalus_stanza:enable_sm()),
-    escalus:assert(is_failed,
+    escalus:assert(is_failed, [<<"unexpected-request">>],
                    escalus_connection:get_stanza(Alice, enable_sm_failed)).
 
 basic_ack(Config) ->
@@ -350,7 +350,7 @@ resend_more_offline_messages_than_buffer_size(Config) ->
     ct:sleep(?CONSTRAINT_CHECK_TIMEOUT+1000),
 
     % should not receive anything especially any stream errors
-    false = escalus_client:has_stanzas(#client{conn = Alice}),
+    false = escalus_client:has_stanzas(Alice),
 
     escalus_connection:stop(Alice),
     escalus_connection:stop(Bob),
@@ -784,7 +784,7 @@ clear_session_table() ->
 clear_sm_session_table() ->
     escalus_ejabberd:rpc(mnesia, clear_table, [sm_session]).
 
-kill_connection(#transport{module = escalus_tcp, ssl = SSL,
+kill_connection(#client{module = escalus_tcp, ssl = SSL,
                            socket = Socket} = Conn) ->
     %% Ugly, but there's no API for killing the connection
     %% without sending </stream:stream>.

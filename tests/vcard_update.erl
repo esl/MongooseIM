@@ -20,7 +20,7 @@ discard_vcard_update(User, {mod_vcard_xupdate, true}) ->
 discard_vcard_update(_, _) ->
     0.
 
-do_discard_vcard_update(#client{conn = Conn}) ->
+do_discard_vcard_update(#client{} = Conn) ->
     do_discard_vcard_update(Conn);
 do_discard_vcard_update(Conn) ->
     Presence = escalus_connection:get_stanza(Conn, discard_vcard_update),
