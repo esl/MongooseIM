@@ -342,4 +342,7 @@
                   last :: pos_integer()
                  }).
 
+-type iq() :: #iq{}.
+-type jid() :: #jid{}.
+
 -endif.

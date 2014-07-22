@@ -44,10 +44,6 @@
                  | ejabberd_tls
                  | ejabberd_zlib.
 
--type jid() :: #jid{}.
-
--type iq() :: #iq{}.
-
 -type user()      :: binary().
 -type server()    :: binary().
 -type resource()  :: binary().

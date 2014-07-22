@@ -43,6 +43,7 @@
          nodeprep/1,
          nameprep/1,
          resourceprep/1,
+         jid_to_lower/1,
          jid_tolower/1,
          jid_remove_resource/1,
          jid_replace_resource/2,
@@ -416,11 +417,17 @@ resourceprep(_) ->
     error.
 
 
+%% @doc You are a bad person if you use this function.
 -spec jid_tolower(JID :: ejabberd:simple_jid() | ejabberd:jid()
                  ) -> error | ejabberd:simple_jid().
-jid_tolower(#jid{luser = U, lserver = S, lresource = R}) ->
+jid_tolower(Any) -> jid_to_lower(Any).
+
+
+-spec jid_to_lower(JID :: ejabberd:simple_jid() | ejabberd:jid()
+                 ) -> error | ejabberd:simple_jid().
+jid_to_lower(#jid{luser = U, lserver = S, lresource = R}) ->
     {U, S, R};
-jid_tolower({U, S, R}) ->
+jid_to_lower({U, S, R}) ->
     case nodeprep(U) of
         error -> error;
         LUser ->
