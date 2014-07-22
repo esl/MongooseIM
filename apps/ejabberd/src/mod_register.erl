@@ -30,11 +30,12 @@
 -behaviour(gen_mod).
 
 -export([start/2,
-	 stop/1,
-	 stream_feature_register/2,
-	 unauthenticated_iq_register/4,
-	 try_register/5,
-	 process_iq/3]).
+         stop/1,
+         clean_opts/1,
+         stream_feature_register/2,
+         unauthenticated_iq_register/4,
+         try_register/5,
+         process_iq/3]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -63,6 +64,15 @@ stop(Host) ->
 			  ?MODULE, unauthenticated_iq_register, 50),
     gen_iq_handler:remove_iq_handler(ejabberd_local, Host, ?NS_REGISTER),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_REGISTER).
+
+clean_opts(Opts) ->
+    lists:map(fun clean_opt/1, Opts).
+
+clean_opt({registration_watchers, Watchers}) ->
+    CleanWatchers = lists:map(fun ejabberd_binary:string_to_binary/1, Watchers),
+    {registration_watchers, CleanWatchers};
+clean_opt(Item) ->
+    Item.
 
 
 stream_feature_register(Acc, _Host) ->

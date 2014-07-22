@@ -72,7 +72,7 @@ start() ->
                    Module :: atom(),
                    Opts :: [any()] ) -> any() | none().
 start_module(Host, Module, Opts0) ->
-    Opts = proplists:unfold(Opts0),
+    Opts = clear_opts(Module, Opts0),
     set_module_opts_mnesia(Host, Module, Opts),
     ets:insert(ejabberd_modules,
                #ejabberd_module{module_host = {Module, Host},
@@ -309,3 +309,16 @@ get_module_proc(Host, Base) ->
 is_loaded(Host, Module) ->
     ets:member(ejabberd_modules, {Module, Host}).
 
+
+-spec clear_opts(atom(), list()) -> list().
+clear_opts(Module, Opts0) ->
+    Opts = proplists:unfold(Opts0),
+    %% the module has to be loaded,
+    %% otherwise the erlang:function_exported/3 returns false
+    code:ensure_loaded(Module),
+    case erlang:function_exported(Module, clean_opts, 1) of
+        true ->
+            Module:clean_opts(Opts);
+        _ ->
+            Opts
+    end.
