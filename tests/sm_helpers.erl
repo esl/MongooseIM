@@ -91,16 +91,11 @@ get_session_pid(UserSpec, Resource) ->
     ConfigUS = [proplists:get_value(username, UserSpec),
                 proplists:get_value(server, UserSpec)],
     [U, S] = [server_string(V) || V <- ConfigUS],
-    MatchSpec = match_session_pid({U, S, Resource}),
-    case escalus_ejabberd:rpc(ets, select, [session, MatchSpec]) of
-        [] ->
-            {error, not_found};
-        [{_, C2SPid}] ->
-            {ok, C2SPid};
-        [C2SPid] ->
-            {ok, C2SPid};
-        [_|_] = Sessions ->
-            {error, {multiple_sessions, Sessions}}
+    case escalus_ejabberd:rpc(ejabberd_sm, get_session_pid, [U, S, server_string(Resource)]) of
+        none ->
+            {error, no_found};
+        C2SPid ->
+            {ok, C2SPid}
     end.
 
 steps() ->
