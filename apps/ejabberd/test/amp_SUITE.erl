@@ -20,21 +20,24 @@ all() ->
     ].
 
 groups() ->
-    [{conversion, [amp_binaries_to_rule_test
-                  ,valid_rules_property
-                  ,invalid_rules_property
-                  ]}
-    ,{mutating, [strip_amp_el_test
-                ,strip_amp_el_noop_test
-                ]}
-    ,{classification, [extract_non_amp_test
-                      ,extract_simple_request_test
-                      ,extract_complex_request_test
-                      ,extract_amp_response_test
-                      ,extract_amp_error_response_test
-                      ,extract_not_acceptable_rules_test
-                      ,extract_incomplete_amp_test
-                      ]}
+    [{conversion, [parallel]
+     ,[amp_binaries_to_rule_test
+      ,valid_rules_property
+      ,invalid_rules_property
+      ]}
+    ,{mutating, [parallel]
+     ,[strip_amp_el_test
+      ,strip_amp_el_noop_test
+      ]}
+    ,{classification, [parallel]
+     ,[extract_non_amp_test
+      ,extract_simple_request_test
+      ,extract_complex_request_test
+      ,extract_amp_response_test
+      ,extract_amp_error_response_test
+      ,extract_not_acceptable_rules_test
+      ,extract_incomplete_amp_test
+      ]}
     ].
 
 amp_binaries_to_rule_test(_) ->

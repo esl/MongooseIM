@@ -25,20 +25,22 @@ all() ->
     ].
 
 groups() ->
-    [{deliver_strategy, [deliver_none_matches
-                        ,deliver_none_non_matches
-                        ,deliver_direct_matches
-                        ,deliver_direct_non_matches
-                        ,deliver_forward_matches
-                        ,deliver_forward_non_matches
-                        ]}
-    ,{match_resource_strategy, [match_res_any_matches
-                               ,match_res_any_matches_everything_except_undefined
-                               ,match_res_exact_matches
-                               ,match_res_exact_non_matches
-                               ,match_res_other_matches
-                               ,match_res_other_non_matches
-                               ]}
+    [{deliver_strategy, [parallel]
+     ,[deliver_none_matches
+      ,deliver_none_non_matches
+      ,deliver_direct_matches
+      ,deliver_direct_non_matches
+      ,deliver_forward_matches
+      ,deliver_forward_non_matches
+      ]}
+    ,{match_resource_strategy, [parallel]
+     ,[match_res_any_matches
+      ,match_res_any_matches_everything_except_undefined
+      ,match_res_exact_matches
+      ,match_res_exact_non_matches
+      ,match_res_other_matches
+      ,match_res_other_non_matches
+      ]}
     ,{folding, [fold_on_true_is_always_true]}
     ].
 
