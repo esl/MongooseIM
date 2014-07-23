@@ -33,7 +33,7 @@ mk_resume_stream(SMID, PrevH) ->
     fun (Conn, Props, Features) ->
             escalus_connection:send(Conn, escalus_stanza:resume(SMID, PrevH)),
             Resumed = escalus_connection:get_stanza(Conn, get_resumed),
-            true = escalus_pred:is_resumed(SMID, Resumed),
+            true = escalus_pred:is_sm_resumed(SMID, Resumed),
             {ok, PrevH} = escalus_connection:set_sm_h(Conn, PrevH),
             {Conn, [{smid, SMID} | Props], Features}
     end.

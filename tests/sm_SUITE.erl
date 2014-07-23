@@ -201,7 +201,7 @@ server_returns_failed(Config, ConnActions) ->
                                                   maybe_use_ssl]
                                                  ++ ConnActions),
     escalus_connection:send(Alice, escalus_stanza:enable_sm()),
-    escalus:assert(is_failed, [<<"unexpected-request">>],
+    escalus:assert(is_sm_failed, [<<"unexpected-request">>],
                    escalus_connection:get_stanza(Alice, enable_sm_failed)).
 
 basic_ack(Config) ->
@@ -217,7 +217,7 @@ basic_ack(Config) ->
     escalus:assert(is_roster_result,
                    escalus_connection:get_stanza(Alice, roster_result)),
     escalus_connection:send(Alice, escalus_stanza:sm_request()),
-    escalus:assert(is_ack,
+    escalus:assert(is_sm_ack,
                    escalus_connection:get_stanza(Alice, stream_mgmt_ack)).
 
 %% Test that "h" value is valid when:
@@ -232,7 +232,7 @@ h_ok_before_session(Config) ->
                                                   bind,
                                                   stream_management]),
     escalus_connection:send(Alice, escalus_stanza:sm_request()),
-    escalus:assert(is_ack, [0],
+    escalus:assert(is_sm_ack, [0],
                    escalus_connection:get_stanza(Alice, stream_mgmt_ack)).
 
 %% Test that "h" value is valid when:
@@ -248,7 +248,7 @@ h_ok_after_session_enabled_before_session(Config) ->
                                                   stream_management,
                                                   session]),
     escalus_connection:send(Alice, escalus_stanza:sm_request()),
-    escalus:assert(is_ack, [1],
+    escalus:assert(is_sm_ack, [1],
                    escalus_connection:get_stanza(Alice, stream_mgmt_ack)).
 
 %% Test that "h" value is valid when:
@@ -267,7 +267,7 @@ h_ok_after_session_enabled_after_session(Config) ->
     escalus:assert(is_roster_result,
                    escalus_connection:get_stanza(Alice, roster_result)),
     escalus_connection:send(Alice, escalus_stanza:sm_request()),
-    escalus:assert(is_ack, [1],
+    escalus:assert(is_sm_ack, [1],
                    escalus_connection:get_stanza(Alice, stream_mgmt_ack)).
 
 %% Test that "h" value is valid after exchanging a few messages.
@@ -287,7 +287,7 @@ h_ok_after_a_chat(Config) ->
         escalus:assert(is_chat_message, [<<"Pretty !@#$%^$">>],
                        escalus:wait_for_stanza(Bob)),
         escalus:send(Alice, escalus_stanza:sm_request()),
-        escalus:assert(is_ack, [3], escalus:wait_for_stanza(Alice)),
+        escalus:assert(is_sm_ack, [3], escalus:wait_for_stanza(Alice)),
         %% Ack, so that unacked messages don't go into offline store.
         escalus:send(Alice, escalus_stanza:sm_ack(3 + NDiscarded))
     end).
@@ -318,7 +318,7 @@ server_requests_ack(Config) ->
         escalus:send(Bob, escalus_stanza:chat_to(Alice, <<"Hi, Alice!">>)),
         escalus:assert(is_chat_message, [<<"Hi, Alice!">>],
                        escalus:wait_for_stanza(Alice)),
-        escalus:assert(is_ack_request, escalus:wait_for_stanza(Alice))
+        escalus:assert(is_sm_ack_request, escalus:wait_for_stanza(Alice))
     end),
     sm_helpers:discard_offline_messages(Config, alice).
 
@@ -412,7 +412,7 @@ preserve_order(Config) ->
     escalus_connection:send(Alice, escalus_stanza:presence(<<"available">>)),
     escalus_connection:get_stanza(Alice, presence),
 
-    escalus:assert(is_ack_request, escalus_connection:get_stanza(Alice, ack)),
+    escalus:assert(is_sm_ack_request, escalus_connection:get_stanza(Alice, ack)),
     escalus_connection:send(Bob, escalus_stanza:chat_to(get_bjid(AliceSpec), <<"1">>)),
 
     %% kill alice connection
@@ -485,7 +485,7 @@ resend_unacked_after_resume_timeout(Config) ->
     escalus_connection:send(Alice, escalus_stanza:presence(<<"available">>)),
     escalus_connection:get_stanza(Alice, presence),
 
-    escalus:assert(is_ack_request, escalus_connection:get_stanza(Alice, ack)),
+    escalus:assert(is_sm_ack_request, escalus_connection:get_stanza(Alice, ack)),
 
     escalus_connection:send(Bob, escalus_stanza:chat_to(get_bjid(AliceSpec), <<"msg-1">>)),
     %% kill alice connection
@@ -534,7 +534,7 @@ resume_session_state_send_message(Config) ->
     escalus_connection:send(Alice, escalus_stanza:presence(<<"available">>)),
     escalus_connection:get_stanza(Alice, presence),
 
-    escalus:assert(is_ack_request, escalus_connection:get_stanza(Alice, ack)),
+    escalus:assert(is_sm_ack_request, escalus_connection:get_stanza(Alice, ack)),
 
     escalus_connection:send(Bob, escalus_stanza:chat_to(get_bjid(AliceSpec), <<"msg-1">>)),
     %% kill alice connection
@@ -586,7 +586,7 @@ resume_session_state_stop_c2s(Config) ->
     escalus:assert(is_presence,
                    escalus_connection:get_stanza(Alice, presence)),
 
-    escalus:assert(is_ack_request, escalus_connection:get_stanza(Alice, ack)),
+    escalus:assert(is_sm_ack_request, escalus_connection:get_stanza(Alice, ack)),
     escalus_connection:send(Bob, escalus_stanza:chat_to(get_bjid(AliceSpec), <<"msg-1">>)),
 
     % kill alice connection
