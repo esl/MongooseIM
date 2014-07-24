@@ -89,8 +89,7 @@ end_per_group(reconnection, Config)->
     clear_session_table(),
     clear_sm_session_table(),
     true = escalus_ejabberd:rpc(?MOD_SM, set_ack_freq, [never]),
-    Config;
-
+    enable_manual_sm_for(Config, alice);
 end_per_group(_GroupName, Config) ->
     Config.
 
