@@ -2,7 +2,7 @@
 %% @doc Tests for resoloving server-side amp_strategy()
 %%      with amp_condition()/valu() pairs.
 %% @reference <a href="http://xmpp.org/extensions/xep-0079.html">XEP-0079</a>
-%% @author <simon.zelazny@erlang-solutions.com>
+%% @author <mongooseim@erlang-solutions.com>
 %% @copyright 2014 Erlang Solutions, Ltd.
 %% This work was sponsored by Grindr LLC
 
@@ -19,29 +19,28 @@
 -define(ae(Expected, Actual), ?assertEqual(Expected, Actual)).
 
 all() ->
-    [{group, deliver_strategy}
-    ,{group, match_resource_strategy}
-    ,{group, folding}
+    [{group, deliver_strategy},
+     {group, match_resource_strategy},
+     {group, folding}
     ].
 
 groups() ->
-    [{deliver_strategy, [parallel]
-     ,[deliver_none_matches
-      ,deliver_none_non_matches
-      ,deliver_direct_matches
-      ,deliver_direct_non_matches
-      ,deliver_forward_matches
-      ,deliver_forward_non_matches
-      ]}
-    ,{match_resource_strategy, [parallel]
-     ,[match_res_any_matches
-      ,match_res_any_matches_everything_except_undefined
-      ,match_res_exact_matches
-      ,match_res_exact_non_matches
-      ,match_res_other_matches
-      ,match_res_other_non_matches
-      ]}
-    ,{folding, [fold_on_true_is_always_true]}
+    [{deliver_strategy, [parallel],
+      [deliver_none_matches,
+       deliver_none_non_matches,
+       deliver_direct_matches,
+       deliver_direct_non_matches,
+       deliver_forward_matches,
+       deliver_forward_non_matches]},
+     {match_resource_strategy, [parallel],
+      [match_res_any_matches,
+       match_res_any_matches_everything_except_undefined,
+       match_res_exact_matches,
+       match_res_exact_non_matches,
+       match_res_other_matches,
+       match_res_other_non_matches]},
+     {folding, [fold_on_true_is_always_true]},
+     {null_strategy, [no_valid_rules_match_null_strategy]}
     ].
 
 fold_on_true_is_always_true(_) ->
@@ -49,6 +48,11 @@ fold_on_true_is_always_true(_) ->
          ?FORALL({Strategy, #amp_rule{condition=C, value=V}},
                  {amp_gen:strategy(), amp_gen:valid_rule()},
                  true == amp_resolver:check_condition(true, Strategy, C, V))).
+
+no_valid_rules_match_null_strategy(_) ->
+    prop(no_valid_rules_match_null_strategy,
+         ?FORALL(#amp_rule{condition=C, value=V}, amp_gen:valid_rule(),
+                 false == amp_resolver:check_condition(true, amp_strategy:null_strategy(), C, V))).
 
 deliver_none_matches(_)        -> strategy_match_prop(deliver, none).
 deliver_none_non_matches(_)    -> strategy_nomatch_prop(deliver, none).

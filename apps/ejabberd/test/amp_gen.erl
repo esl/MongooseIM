@@ -10,9 +10,9 @@ strategy() ->
          {valid_value_binary(<<"deliver">>),
           valid_value_binary(<<"match-resource">>, server_side),
           valid_value_binary(<<"expire-at">>)},
-         #amp_strategy{deliver = b2a(DeliverVal)
-                      ,'match-resource' = b2a(MatchResourceVal)
-                      ,'expire-at' = ExpireAtVal}).
+         #amp_strategy{deliver = b2a(DeliverVal),
+                       'match-resource' = b2a(MatchResourceVal),
+                       'expire-at' = ExpireAtVal}).
 
 strategy({deliver, Value}) ->
     ?LET(S, strategy(),
@@ -44,9 +44,8 @@ valid_value_binary(<<"match-resource">>, server_side) ->
     oneof(lists:delete(<<"any">>, ?AMP_LEGAL_MATCH_RESOURCE_VALUES)).
 
 invalid_cva_binaries() ->
-    {prop_helper:readable_bitstring()
-    ,prop_helper:readable_bitstring()
-    ,prop_helper:readable_bitstring()}.
-
+    {prop_helper:readable_bitstring(),
+     prop_helper:readable_bitstring(),
+     prop_helper:readable_bitstring()}.
 
 b2a(V) -> erlang:binary_to_atom(V, utf8).

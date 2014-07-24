@@ -2,11 +2,11 @@
 %% @doc This module is responsible for determining the server's strategy for a
 %% particular message. (See XEP section 2.2.2 "Determine Default Action")
 %% @reference <a href="http://xmpp.org/extensions/xep-0079.html">XEP-0079</a>
-%% @author <simon.zelazny@erlang-solutions.com>
+%% @author <mongooseim@erlang-solutions.com>
 %% @copyright 2014 Erlang Solutions, Ltd.
 %% This work was sponsored by Grindr LLC
--export([determine_strategy/2
-        ,null_strategy/0]).
+-export([determine_strategy/2,
+         null_strategy/0]).
 
 -include_lib("ejabberd/include/amp.hrl").
 -include_lib("ejabberd/include/ejabberd.hrl").
@@ -19,17 +19,17 @@ determine_strategy(_,{_From,To,_Packet} = HookData) ->
     Deliver = deliver_strategy(HookData, TargetResources),
     MatchResource = match_resource_strategy(HookData, TargetResources),
 
-    #amp_strategy{deliver = Deliver
-                 ,'match-resource' = MatchResource
-                 ,'expire-at' = undefined}.
+    #amp_strategy{deliver = Deliver,
+                  'match-resource' = MatchResource,
+                  'expire-at' = undefined}.
 
 %% @doc This strategy will never be matched by any amp_rules.
 %% Use it as a seed parameter to ejaberd_hooks:run_fold
 -spec null_strategy() -> amp_strategy().
 null_strategy() ->
-    #amp_strategy{deliver = undefined
-                 ,'match-resource' = undefined
-                 ,'expire-at' = undefined}.
+    #amp_strategy{deliver = undefined,
+                  'match-resource' = undefined,
+                  'expire-at' = undefined}.
 
 %% Internals
 get_target_resources(MessageTarget) ->
@@ -39,8 +39,8 @@ get_target_resources(MessageTarget) ->
     {ResourceSession, UserResources}.
 
 deliver_strategy(_, {offline, []}) -> 'none';
-deliver_strategy(_, {offline, _ }) -> 'forward';
-deliver_strategy(_, {Session, _ }) -> 'direct'.
+deliver_strategy(_, {offline,  _}) -> 'forward';
+deliver_strategy(_, {_Session, _}) -> 'direct'.
 
 %% @doc Notes on matching
 %%
@@ -50,6 +50,6 @@ deliver_strategy(_, {Session, _ }) -> 'direct'.
 %% the server will either match the exact resource, or not. (See match_res_any CT test)
 %% in apps/ejabberd/test/amp_resolver_SUITE.erl
 %%
-match_resource_strategy(_, {offline, []})           -> undefined;
-match_resource_strategy(_, {offline, [_|_ManyRes]}) -> 'other';
-match_resource_strategy(_, {Session, [_|ManyRes]})  -> 'exact'.
+match_resource_strategy(_, {offline, []})            -> undefined;
+match_resource_strategy(_, {offline, [_|_ManyRes]})  -> 'other';
+match_resource_strategy(_, {_Session, [_|_ManyRes]}) -> 'exact'.
