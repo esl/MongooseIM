@@ -11,6 +11,7 @@ test/#*
 test/tests/.#
 test/tests/#
 test/ct_report
+**/.rebar
 *.swp
 *~
 contrib/extract_translations/extract_translations.beam
@@ -65,6 +66,7 @@ apps/ejabberd/src/ejabberdctl.example
 apps/ejabberd/src/eldap_filter_yecc.erl
 apps/ejabberd/doc
 apps/mysql/doc
+apps/*/logs
 apps/stringprep/doc
 rel/mongooseim/
 apps/stringprep/ebin

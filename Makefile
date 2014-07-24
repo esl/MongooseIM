@@ -18,6 +18,13 @@ deps: rebar generate_snmp_header
 clean: rebar
 	./rebar clean
 
+quick_compile: rebar
+	./rebar compile skip_deps=true
+
+ct: deps quick_compile
+	@if [ "$(SUITE)" ]; then ./rebar -q ct suite=$(SUITE) skip_deps=true;\
+	else ./rebar -q ct skip_deps=true; fi
+
 test: test_deps
 	cd test/ejabberd_tests; make test
 
