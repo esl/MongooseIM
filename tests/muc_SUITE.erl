@@ -2008,16 +2008,16 @@ multi_sessions_messages(Config) ->
         ChatMessage = escalus_stanza:chat_to(room_address(?config(room, Config), escalus_utils:get_username(Bob)), Msg2),
         escalus:send(Alice, ChatMessage),
         
-        is_message_correct(?config(room, Config),
+        assert_is_message_correct(?config(room, Config),
             escalus_utils:get_username(Alice), <<"chat">>, Msg2, escalus:wait_for_stanza(Bob)),
-        is_message_correct(?config(room, Config),
+        assert_is_message_correct(?config(room, Config),
             escalus_utils:get_username(Alice), <<"chat">>, Msg2, escalus:wait_for_stanza(Bob2)),
 
         Msg3 = <<"Chat, Alice!">>,
         ChatMessage2 = escalus_stanza:chat_to(room_address(?config(room, Config), escalus_utils:get_username(Alice)), Msg3),
         escalus:send(Bob, ChatMessage2),
         
-        is_message_correct(?config(room, Config),
+        assert_is_message_correct(?config(room, Config),
             escalus_utils:get_username(Bob), <<"chat">>, Msg3, escalus:wait_for_stanza(Alice))
     end).
 
@@ -2035,9 +2035,9 @@ multi_sessions_exit(Config) ->
         escalus:send(Alice, stanza_to_room(escalus_stanza:presence(<<"unavailable">>), ?config(room, Config), escalus_utils:get_username(Alice))),
         Message = escalus:wait_for_stanza(Alice),
         has_status_codes(Message, [<<"110">>]),
-        is_exit_message_correct(Alice, <<"none">>, ?config(room, Config), Message),
-        is_exit_message_correct(Alice, <<"none">>, ?config(room, Config), escalus:wait_for_stanza(Bob)),
-        is_exit_message_correct(Alice, <<"none">>, ?config(room, Config), escalus:wait_for_stanza(Bob2))
+        assert_is_exit_message_correct(Alice, <<"none">>, ?config(room, Config), Message),
+        assert_is_exit_message_correct(Alice, <<"none">>, ?config(room, Config), escalus:wait_for_stanza(Bob)),
+        assert_is_exit_message_correct(Alice, <<"none">>, ?config(room, Config), escalus:wait_for_stanza(Bob2))
     end).
 
 % Exiting from the room with multiple sessions
@@ -2048,14 +2048,14 @@ multi_sessions_exit_session(Config) ->
         escalus:send(Bob, stanza_to_room(escalus_stanza:presence(<<"unavailable">>), ?config(room, Config), escalus_utils:get_username(Alice))),
         Message = escalus:wait_for_stanza(Bob),
         has_status_codes(Message, [<<"110">>]),
-        is_exit_message_correct(Bob, <<"owner">>, ?config(room, Config), Message),
-        is_exit_message_correct(Bob, <<"owner">>, ?config(room, Config), escalus:wait_for_stanza(Bob2)),
+        assert_is_exit_message_correct(Bob, <<"owner">>, ?config(room, Config), Message),
+        assert_is_exit_message_correct(Bob, <<"owner">>, ?config(room, Config), escalus:wait_for_stanza(Bob2)),
 
         escalus:send(Bob2, stanza_to_room(escalus_stanza:presence(<<"unavailable">>), ?config(room, Config), escalus_utils:get_username(Alice))),
         Message2 = escalus:wait_for_stanza(Bob2),
         has_status_codes(Message2, [<<"110">>]),
-        is_exit_message_correct(Bob2, <<"none">>, ?config(room, Config), Message2),
-        is_exit_message_correct(Bob2, <<"none">>, ?config(room, Config), escalus:wait_for_stanza(Alice))
+        assert_is_exit_message_correct(Bob2, <<"none">>, ?config(room, Config), Message2),
+        assert_is_exit_message_correct(Bob2, <<"none">>, ?config(room, Config), escalus:wait_for_stanza(Alice))
     end).
 
 % Entering the room by one user from different devices with multiple sessions disabled
@@ -2355,8 +2355,8 @@ send_to_all(Config) ->
 
         Msg = <<"chat message">>,
         escalus:send(Eve, escalus_stanza:groupchat_to(room_address(?config(room, Config)), Msg)),
-        is_message_correct(?config(room, Config), escalus_utils:get_username(Eve), <<"groupchat">>, Msg, escalus:wait_for_stanza(Bob)),
-        is_message_correct(?config(room, Config), escalus_utils:get_username(Eve), <<"groupchat">>, Msg, escalus:wait_for_stanza(Eve)),
+        assert_is_message_correct(?config(room, Config), escalus_utils:get_username(Eve), <<"groupchat">>, Msg, escalus:wait_for_stanza(Bob)),
+        assert_is_message_correct(?config(room, Config), escalus_utils:get_username(Eve), <<"groupchat">>, Msg, escalus:wait_for_stanza(Eve)),
         escalus_assert:has_no_stanzas(Bob),
         escalus_assert:has_no_stanzas(Eve)
     end).
@@ -2374,7 +2374,7 @@ send_and_receive_private_message(Config) ->
         Msg = <<"chat message">>,
         ChatMessage = escalus_stanza:chat_to(room_address(?config(room, Config), escalus_utils:get_username(Eve)), Msg),
         escalus:send(Bob,ChatMessage),
-        is_message_correct(?config(room, Config), escalus_utils:get_username(Bob), <<"chat">>, Msg, escalus:wait_for_stanza(Eve)),
+        assert_is_message_correct(?config(room, Config), escalus_utils:get_username(Bob), <<"chat">>, Msg, escalus:wait_for_stanza(Eve)),
         escalus_assert:has_no_stanzas(Bob),
         escalus_assert:has_no_stanzas(Eve)
     end).
@@ -2590,9 +2590,9 @@ exit_room(Config) ->
 		escalus:send(Alice, stanza_to_room(escalus_stanza:presence(<<"unavailable">>), ?config(room, Config), escalus_utils:get_username(Alice))),
 		Message = escalus:wait_for_stanza(Alice),
 		has_status_codes(Message, [<<"110">>]),
-		is_exit_message_correct(Alice, <<"owner">>, ?config(room, Config), Message),
-		is_exit_message_correct(Alice, <<"owner">>, ?config(room, Config), escalus:wait_for_stanza(Bob)),
-		is_exit_message_correct(Alice, <<"owner">>, ?config(room, Config), escalus:wait_for_stanza(Eve))
+		assert_is_exit_message_correct(Alice, <<"owner">>, ?config(room, Config), Message),
+		assert_is_exit_message_correct(Alice, <<"owner">>, ?config(room, Config), escalus:wait_for_stanza(Bob)),
+		assert_is_exit_message_correct(Alice, <<"owner">>, ?config(room, Config), escalus:wait_for_stanza(Eve))
     end).
 
 
@@ -3003,8 +3003,8 @@ configure_logging(Config) ->
         %% Simple message exchange
         Msg = <<"chat message">>,
         escalus:send(Bob, escalus_stanza:groupchat_to(room_address(?config(room, Config)), Msg)),
-        is_message_correct(?config(room, Config), escalus_utils:get_username(Bob), <<"groupchat">>, Msg, escalus:wait_for_stanza(Bob)),
-        is_message_correct(?config(room, Config), escalus_utils:get_username(Bob), <<"groupchat">>, Msg, escalus:wait_for_stanza(Kate)),
+        assert_is_message_correct(?config(room, Config), escalus_utils:get_username(Bob), <<"groupchat">>, Msg, escalus:wait_for_stanza(Bob)),
+        assert_is_message_correct(?config(room, Config), escalus_utils:get_username(Bob), <<"groupchat">>, Msg, escalus:wait_for_stanza(Kate)),
 
         %% Disable logging
         Form2 = stanza_configuration_form(?config(room, Config), [
@@ -3792,7 +3792,7 @@ is_availability_status_notification_correct(Room, SenderNick, NewStatus, Receive
 is_item_list_empty(#xmlel{children = [Query]}) ->
     Query#xmlel.children == [].
 
-is_message_correct(Room, SenderNick, Type, Text, ReceivedMessage) ->
+assert_is_message_correct(Room, SenderNick, Type, Text, ReceivedMessage) ->
     %error_logger:info_msg("tested message: ~n~p~n", [ReceivedMessage]),
     escalus_pred:is_message(ReceivedMessage),
     From = room_address(Room, SenderNick),
@@ -3801,7 +3801,7 @@ is_message_correct(Room, SenderNick, Type, Text, ReceivedMessage) ->
     Body = #xmlel{name = <<"body">>, children = [#xmlcdata{content=Text}]},
     Body = exml_query:subelement(ReceivedMessage, <<"body">>).
 
-is_exit_message_correct(LeavingUser,Affiliation,Room, Message) ->
+assert_is_exit_message_correct(LeavingUser,Affiliation,Room, Message) ->
 	escalus_pred:is_presence_with_type(<<"unavailable">>,Message),
 	is_presence_with_affiliation(Message,Affiliation), 
     From = room_address(Room, escalus_utils:get_username(LeavingUser)),
