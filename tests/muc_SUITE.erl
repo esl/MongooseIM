@@ -1992,10 +1992,7 @@ deny_entry_nick_conflict(Config) ->
 % Entering the room by one user from different devices
 multi_sessions_messages(Config) -> 
     escalus:story(Config, [1, 2], fun(Alice, Bob, Bob2) ->
-        
-        multiple_sessions_enter_room_helper(Alice, Bob, Bob2, Config),
-
-        % end of presences
+        populate_room_with_users([Alice, Bob, Bob2], Config),
 
         Msg = <<"Hi, Bobs!">>,
         escalus:send(Alice,escalus_stanza:groupchat_to(room_address(?config(room, Config)), Msg)),
@@ -2024,13 +2021,13 @@ multi_sessions_messages(Config) ->
 % Entering the room by one user from different devices
 multi_sessions_enter(Config) -> 
     escalus:story(Config, [1, 2], fun(Alice, Bob, Bob2) ->
-        multiple_sessions_enter_room_helper(Alice, Bob, Bob2, Config)
+        populate_room_with_users([Alice, Bob, Bob2], Config)
     end).
 
 % Exiting from the room with multiple sessions
 multi_sessions_exit(Config) -> 
     escalus:story(Config, [1, 2], fun(Alice, Bob, Bob2) ->
-        multiple_sessions_enter_room_helper(Alice, Bob, Bob2, Config),
+        populate_room_with_users([Alice, Bob, Bob2], Config),
 
         escalus:send(Alice, stanza_to_room(escalus_stanza:presence(<<"unavailable">>), ?config(room, Config), escalus_utils:get_username(Alice))),
         Message = escalus:wait_for_stanza(Alice),
@@ -2043,7 +2040,7 @@ multi_sessions_exit(Config) ->
 % Exiting from the room with multiple sessions
 multi_sessions_exit_session(Config) -> 
     escalus:story(Config, [1, 2], fun(Alice, Bob, Bob2) ->
-        multiple_sessions_enter_room_helper(Alice, Bob, Bob2, Config),
+        populate_room_with_users([Alice, Bob, Bob2], Config),
 
         escalus:send(Bob, stanza_to_room(escalus_stanza:presence(<<"unavailable">>), ?config(room, Config), escalus_utils:get_username(Alice))),
         Message = escalus:wait_for_stanza(Bob),
@@ -3699,12 +3696,12 @@ parse_result_query(#xmlel{name = <<"query">>, children = Children}) ->
 
 nick(User) -> escalus_utils:get_username(User).
 
-multiple_sessions_enter_room_helper(Alice, Bob, Bob2, Config) ->
+populate_room_with_users(Users, Config) ->
     Room = ?config(room, Config),
     lists:foldl(fun(User, AlreadyInRoom) ->
             enter_room(Room, User, AlreadyInRoom),
             [User | AlreadyInRoom]
-        end, [], [Alice, Bob, Bob2]).
+        end, [], Users).
 
 enter_room(Room, User, AlreadyInRoom) ->
     EnterRoomStanza = stanza_muc_enter_room(Room, escalus_utils:get_username(User)),
