@@ -1,8 +1,10 @@
 %% @doc XML Namespaces, records, types and legal value lists for XEP-0079
 %% @reference <a href="http://xmpp.org/extensions/xep-0079.html">XEP-0079</a>
-%% @author <simon.zelazny@erlang-solutions.com>
+%% @author <mongooseim@erlang-solutions.com>
 %% @copyright 2014 Erlang Solutions, Ltd.
 %% This work was sponsored by Grindr LLC
+
+%% @TODO: Declare types inside modules and export appropriately.
 
 -define(NS_AMP, <<"http://jabber.org/protocol/amp">>).
 -define(NS_AMP_FEATURE, <<"http://jabber.org/feature/amp">>).

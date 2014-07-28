@@ -14,29 +14,27 @@
 -define(ae(Expected, Actual), ?assertEqual(Expected, Actual)).
 
 all() ->
-    [{group, conversion}
-    ,{group, mutating}
-    ,{group, classification}
+    [{group, conversion},
+     {group, mutating},
+     {group, classification}
     ].
 
 groups() ->
-    [{conversion, [parallel]
-     ,[amp_binaries_to_rule_test
-      ,valid_rules_property
-      ,invalid_rules_property
-      ]}
-    ,{mutating, [parallel]
-     ,[strip_amp_el_test
-      ,strip_amp_el_noop_test
-      ]}
-    ,{classification, [parallel]
-     ,[extract_non_amp_test
-      ,extract_simple_request_test
-      ,extract_complex_request_test
-      ,extract_amp_response_test
-      ,extract_amp_error_response_test
-      ,extract_not_acceptable_rules_test
-      ,extract_incomplete_amp_test
+    [{conversion, [parallel],
+      [amp_binaries_to_rule_test,
+       valid_rules_property,
+       invalid_rules_property]},
+     {mutating, [parallel],
+      [strip_amp_el_test,
+       strip_amp_el_noop_test]},
+     {classification, [parallel],
+      [extract_non_amp_test,
+       extract_simple_request_test,
+       extract_complex_request_test,
+       extract_amp_response_test,
+       extract_amp_error_response_test,
+       extract_not_acceptable_rules_test,
+       extract_incomplete_amp_test
       ]}
     ].
 
@@ -82,9 +80,9 @@ extract_simple_request_test(_) ->
     <rule condition='deliver' action='notify' value='direct'/>
   </amp>
 </message> ">>),
-    ?assertEqual({rules, [#amp_rule{condition = 'deliver'
-                                   ,value     = 'direct'
-                                   ,action    = 'notify'}]},
+    ?assertEqual({rules, [#amp_rule{condition = 'deliver',
+                                    value     = 'direct',
+                                    action    = 'notify'}]},
                   amp:extract_requested_rules(M)).
 
 extract_complex_request_test(_) ->
@@ -99,16 +97,15 @@ extract_complex_request_test(_) ->
     <rule action='notify' condition='deliver' value='forward'/>
   </amp>
 </message>">>),
-    ?assertEqual({rules, [#amp_rule{condition = 'deliver'
-                                    ,value     = 'direct'
-                                    ,action    = 'notify'}
-                          ,#amp_rule{condition = 'deliver'
-                                    ,value     = 'none'
-                                    ,action    = 'error'}
-                          ,#amp_rule{condition = 'deliver'
-                                    ,value     = 'forward'
-                                    ,action    = 'notify'}
-                          ]},
+    ?assertEqual({rules, [#amp_rule{condition = 'deliver',
+                                    value     = 'direct',
+                                    action    = 'notify'},
+                          #amp_rule{condition = 'deliver',
+                                    value     = 'none',
+                                    action    = 'error'},
+                          #amp_rule{condition = 'deliver',
+                                    value     = 'forward',
+                                    action    = 'notify'}]},
        amp:extract_requested_rules(M)).
 
 extract_amp_response_test(_) ->
@@ -160,12 +157,11 @@ extract_not_acceptable_rules_test(_) ->
     <rule condition='hello' action='mike' value='!'/>
   </amp>
 </message> ">>),
-    ?assertEqual({errors, [
-                           {'not-acceptable',
-                            #amp_invalid_rule{action = <<"mike">>
-                                             ,condition = <<"hello">>
-                                             ,value = <<"!">>}}]},
-                amp:extract_requested_rules(M)).
+    ?assertEqual({errors, [{'not-acceptable',
+                            #amp_invalid_rule{action = <<"mike">>,
+                                              condition = <<"hello">>,
+                                              value = <<"!">>}}]},
+                 amp:extract_requested_rules(M)).
 
 extract_incomplete_amp_test(_) ->
     {ok, M} = exml:parse(<<"
@@ -182,46 +178,41 @@ extract_incomplete_amp_test(_) ->
                  amp:extract_requested_rules(M)).
 
 strip_amp_el_test(_) ->
-    AmpEl = #xmlel{name = <<"amp">>
-                  ,attrs = [{<<"xmlns">>,<<"http://jabber.org/protocol/amp">>}
-                           ,{<<"status">>,<<"notify">>}
-                           ,{<<"to">>,<<"bernardo@hamlet.lit/elsinore">>}
-                           ,{<<"from">>,<<"francisco@hamlet.lit">>}]
-                   ,children = [
-                                #xmlel{name = <<"rule">>,
-                                      attrs = [{<<"action">>,<<"notify">>}
-                                              ,{<<"condition">>,<<"deliver">>}
-                                              ,{<<"value">>,<<"stored">>}]}]},
+    AmpEl = #xmlel{name = <<"amp">>,
+                  attrs = [{<<"xmlns">>, <<"http://jabber.org/protocol/amp">>},
+                           {<<"status">>, <<"notify">>},
+                           {<<"to">>, <<"bernardo@hamlet.lit/elsinore">>},
+                           {<<"from">>, <<"francisco@hamlet.lit">>}],
+                   children = [#xmlel{name = <<"rule">>,
+                                      attrs = [{<<"action">>, <<"notify">>},
+                                              {<<"condition">>, <<"deliver">>},
+                                              {<<"value">>, <<"stored">>}]}]},
     BodyEl = #xmlel{name = <<"body">>,
                     attrs = [],
                     children = [#xmlcdata{content = <<"Hello there!">>}]},
-    M = #xmlel{name = <<"message">>
-              ,attrs =
-                   [{<<"from">>,<<"hamlet.lit">>}
-                   ,{<<"to">>,<<"bernardo@hamlet.lit/elsinore">>}
-                   ,{<<"id">>,<<"chatty2">>}]
-              ,children = [AmpEl,BodyEl]},
+    M = #xmlel{name = <<"message">>,
+               attrs = [{<<"from">>, <<"hamlet.lit">>},
+                        {<<"to">>, <<"bernardo@hamlet.lit/elsinore">>},
+                        {<<"id">>, <<"chatty2">>}],
+               children = [AmpEl, BodyEl]},
     ?assertEqual(
-       #xmlel{name = <<"message">>
-             ,attrs = [{<<"from">>, <<"hamlet.lit">>}
-                      ,{<<"to">>, <<"bernardo@hamlet.lit/elsinore">>}
-                      ,{<<"id">>, <<"chatty2">>}]
-             ,children = [BodyEl]
-             },
+       #xmlel{name = <<"message">>,
+              attrs = [{<<"from">>, <<"hamlet.lit">>},
+                       {<<"to">>, <<"bernardo@hamlet.lit/elsinore">>},
+                       {<<"id">>, <<"chatty2">>}],
+              children = [BodyEl]},
        amp:strip_amp_el(M)).
 
 strip_amp_el_noop_test(_) ->
     BodyEl = #xmlel{name = <<"body">>,
                     attrs = [],
                     children = [#xmlcdata{content = <<"Hello there!">>}]},
-    M = #xmlel{name = <<"message">>
-              ,attrs =
-                   [{<<"from">>,<<"hamlet.lit">>}
-                   ,{<<"to">>,<<"bernardo@hamlet.lit/elsinore">>}
-                   ,{<<"id">>,<<"chatty2">>}]
-              ,children = [BodyEl]},
+    M = #xmlel{name = <<"message">>,
+               attrs = [{<<"from">>, <<"hamlet.lit">>},
+                        {<<"to">>, <<"bernardo@hamlet.lit/elsinore">>},
+                        {<<"id">>, <<"chatty2">>}],
+               children = [BodyEl]},
     ?assertEqual(M, amp:strip_amp_el(M)).
-
 
 is_valid_rule(#amp_rule{}) -> true;
 is_valid_rule(#amp_invalid_rule{}) -> false.

@@ -2,8 +2,8 @@
 %% @doc This module is responsible for checking whether particular AMP semantics
 %%      apply for a given message.
 
--export([check_condition/4
-        ,verify_support/2
+-export([check_condition/4,
+         verify_support/2
         ]).
 
 -include_lib("ejabberd/include/amp.hrl").

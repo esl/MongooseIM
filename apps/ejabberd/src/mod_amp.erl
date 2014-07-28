@@ -1,16 +1,16 @@
 -module(mod_amp).
 %% @doc MongooseIM/Ejabberd module for (a subset of) XEP-0079 support.
 %% @reference <a href="http://xmpp.org/extensions/xep-0079.html">XEP-0079</a>
-%% @author <simon.zelazny@erlang-solutions.com>
+%% @author <mongooseim@erlang-solutions.com>
 %% @copyright 2014 Erlang Solutions, Ltd.
 %% This work was sponsored by Grindr LLC
 
 -behavior(gen_mod).
 
 -export([start/2, stop/1]).
--export([add_local_features/5
-        ,add_stream_feature/2
-        ,filter_packet/1
+-export([add_local_features/5,
+         add_stream_feature/2,
+         filter_packet/1
         ]).
 
 -include_lib("ejabberd/include/amp.hrl").
@@ -66,11 +66,11 @@ filter_packet(HookData) -> HookData.
 
 %% @doc This may eventually be configurable, but for now we return a constant list.
 amp_features() ->
-    [<<"http://jabber.org/protocol/amp">>
-    ,<<"http://jabber.org/protocol/amp?action=notify">>
-    ,<<"http://jabber.org/protocol/amp?action=error">>
-    ,<<"http://jabber.org/protocol/amp?condition=deliver">>
-    ,<<"http://jabber.org/protocol/amp?condition=match-resource">>
+    [<<"http://jabber.org/protocol/amp">>,
+     <<"http://jabber.org/protocol/amp?action=notify">>,
+     <<"http://jabber.org/protocol/amp?action=error">>,
+     <<"http://jabber.org/protocol/amp?condition=deliver">>,
+     <<"http://jabber.org/protocol/amp?condition=match-resource">>
     ].
 
 -spec process_amp_rules(hook_data(), amp_rules()) -> hook_data().
