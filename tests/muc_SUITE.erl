@@ -1877,8 +1877,8 @@ admin_mo_invite_mere(Config) ->
 %Example 18
 groupchat_user_enter(Config) ->
     escalus:story(Config, [1, 1], fun(_Alice, Bob) ->
-        Enter_room_stanza = stanza_groupchat_enter_room(?config(room, Config), escalus_utils:get_username(Bob)),
-        escalus:send(Bob, Enter_room_stanza),
+        EnterRoomStanza = stanza_groupchat_enter_room(?config(room, Config), escalus_utils:get_username(Bob)),
+        escalus:send(Bob, EnterRoomStanza),
         Presence = escalus:wait_for_stanza(Bob),
         escalus_pred:is_presence(Presence),
 		From = room_address(?config(room, Config), escalus_utils:get_username(Bob)), 
@@ -1982,10 +1982,10 @@ deny_entry_to_a_banned_user(Config) ->
 %Examlpe 31
 deny_entry_nick_conflict(Config) -> 
     escalus:story(Config, [1, 1, 1], fun(_Alice,  Bob, Eve) ->
-        Enter_room_stanza = stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Bob)), 
-        escalus:send(Bob, Enter_room_stanza),
+        EnterRoomStanza = stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Bob)),
+        escalus:send(Bob, EnterRoomStanza),
         escalus:wait_for_stanzas(Bob, 2),
-        escalus:send(Eve, Enter_room_stanza),
+        escalus:send(Eve, EnterRoomStanza),
         escalus_assert:is_error(escalus:wait_for_stanza(Eve), <<"cancel">>, <<"conflict">>)
     end).
 
@@ -2000,19 +2000,14 @@ multi_sessions_messages(Config) ->
         Msg = <<"Hi, Bobs!">>,
         escalus:send(Alice,escalus_stanza:groupchat_to(room_address(?config(room, Config)), Msg)),
         
-        % ct:pal("Alice msg: ~p~n",[escalus:wait_for_stanza(Alice)]),
         true = is_groupchat_message(escalus:wait_for_stanza(Alice)),
         true = is_groupchat_message(escalus:wait_for_stanza(Bob)),
         true = is_groupchat_message(escalus:wait_for_stanza(Bob2)),
-
 
         Msg2 = <<"Chat, Bobs!">>,
         ChatMessage = escalus_stanza:chat_to(room_address(?config(room, Config), escalus_utils:get_username(Bob)), Msg2),
         escalus:send(Alice, ChatMessage),
         
-        % ct:pal("Alice msg: ~p~n",[escalus:wait_for_stanza(Alice)]),
-        % is_message_correct(?config(room, Config), 
-        %   escalus_utils:get_username(Alice), <<"chat">>, Msg2, escalus:wait_for_stanza(Alice)),
         is_message_correct(?config(room, Config),
             escalus_utils:get_username(Alice), <<"chat">>, Msg2, escalus:wait_for_stanza(Bob)),
         is_message_correct(?config(room, Config),
@@ -2023,17 +2018,7 @@ multi_sessions_messages(Config) ->
         escalus:send(Bob, ChatMessage2),
         
         is_message_correct(?config(room, Config),
-            escalus_utils:get_username(Bob), <<"chat">>, Msg3, escalus:wait_for_stanza(Alice)),
-        % is_message_correct(?config(room, Config),
-        %   escalus_utils:get_username(Bob), <<"chat">>, Msg3, escalus:wait_for_stanza(Bob)),
-        % is_message_correct(?config(room, Config),
-        %   escalus_utils:get_username(Bob), <<"chat">>, Msg3, escalus:wait_for_stanza(Bob2)),
-
-
-        % ct:pal("Alice msg: ~p~n",[escalus:wait_for_stanza(Alice)]),
-        % ct:pal("Bob msg: ~p~n",[escalus:wait_for_stanza(Bob)]),
-        % ct:pal("Bob2 msg: ~p~n",[escalus:wait_for_stanza(Bob2)]),
-        ok
+            escalus_utils:get_username(Bob), <<"chat">>, Msg3, escalus:wait_for_stanza(Alice))
     end).
 
 % Entering the room by one user from different devices
@@ -2076,15 +2061,15 @@ multi_sessions_exit_session(Config) ->
 % Entering the room by one user from different devices with multiple sessions disabled
 deny_entry_with_multiple_sessions_disallowed(Config) -> 
     escalus:story(Config, [1, 2], fun(_Alice, Bob, Bob2) ->
-        Enter_room_stanza = stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Bob)), 
-        escalus:send(Bob, Enter_room_stanza),
+        EnterRoomStanza = stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Bob)),
+        escalus:send(Bob, EnterRoomStanza),
       
         Presence = escalus:wait_for_stanza(Bob),
         is_presence_with_affiliation(Presence, <<"none">>),
         is_self_presence(Bob, ?config(room, Config), Presence),
         is_subject_message(escalus:wait_for_stanza(Bob)),
 
-        escalus:send(Bob2, Enter_room_stanza),
+        escalus:send(Bob2, EnterRoomStanza),
         Stanza = escalus:wait_for_stanza(Bob2),
         escalus_assert:is_error(Stanza, <<"cancel">>, <<"conflict">>)
     end).
@@ -3716,8 +3701,8 @@ nick(User) -> escalus_utils:get_username(User).
 
 multiple_sessions_enter_room_helper(Alice, Bob, Bob2, Config) ->
     % Bob enters
-    Enter_room_stanza = stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Bob)),         
-    escalus:send(Bob, Enter_room_stanza),
+    EnterRoomStanza = stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Bob)),
+    escalus:send(Bob, EnterRoomStanza),
     
     Presence = escalus:wait_for_stanza(Bob),
     is_presence_with_affiliation(Presence, <<"none">>),
@@ -3726,8 +3711,8 @@ multiple_sessions_enter_room_helper(Alice, Bob, Bob2, Config) ->
     is_subject_message(escalus:wait_for_stanza(Bob)),        
 
     % Alice enters
-    Enter_room_stanza2 = stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Alice)), 
-    escalus:send(Alice, Enter_room_stanza2),
+    EnterRoomStanza2 = stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Alice)),
+    escalus:send(Alice, EnterRoomStanza2),
     
     Presence1 = escalus:wait_for_stanza(Alice),
     is_presence_with_affiliation(Presence1, <<"none">>),
@@ -3742,7 +3727,7 @@ multiple_sessions_enter_room_helper(Alice, Bob, Bob2, Config) ->
 
     % bob2 enters
 
-    escalus:send(Bob2, Enter_room_stanza),
+    escalus:send(Bob2, EnterRoomStanza),
 
     is_presence_with_affiliation(escalus:wait_for_stanza(Bob), <<"none">>),
     is_presence_with_affiliation(escalus:wait_for_stanza(Alice), <<"none">>),
