@@ -93,7 +93,7 @@ init_per_group(GroupName, Config) when
 init_per_group(_GroupName, Config) ->
     escalus:create_users(Config, {by_name, [alice, bob]}).
 
-end_per_group(register, _Config) ->
+end_per_group(register, Config) ->
     ok;
 end_per_group(registration_timeout, Config) ->
     Config1 = restore_registration_timeout(Config),

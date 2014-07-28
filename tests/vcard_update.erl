@@ -20,10 +20,8 @@ discard_vcard_update(User, {mod_vcard_xupdate, true}) ->
 discard_vcard_update(_, _) ->
     0.
 
-do_discard_vcard_update(#client{} = Conn) ->
-    do_discard_vcard_update(Conn);
-do_discard_vcard_update(Conn) ->
-    Presence = escalus_connection:get_stanza(Conn, discard_vcard_update),
+do_discard_vcard_update(Client) ->
+    Presence = escalus_connection:get_stanza(Client, discard_vcard_update),
     escalus:assert(fun is_vcard_update/1, Presence).
 
 is_vcard_update(#xmlel{name = <<"presence">>} = Stanza) ->
