@@ -485,16 +485,18 @@ normal_state({route, From, ToNick,
         false -> [false];
         _ -> JIDs
     end,
-    [route_nick_iq(#routed_nick_iq{
-        allow_query = (StateData#state.config)#config.allow_query_users,
-        online = is_user_online_iq(StanzaId, From, StateData),
-        jid = JID,
-        iq = jlib:iq_query_info(Packet),
-        packet = Packet,
-        lang = Lang,
-        from = From,
-        stanza = StanzaId,
-        nick = ToNick}, StateData) || JID <- JIDs1],
+    lists:foreach(fun(JID) ->
+        route_nick_iq(#routed_nick_iq{
+            allow_query = (StateData#state.config)#config.allow_query_users,
+            online = is_user_online_iq(StanzaId, From, StateData),
+            jid = JID,
+            iq = jlib:iq_query_info(Packet),
+            packet = Packet,
+            lang = Lang,
+            from = From,
+            stanza = StanzaId,
+            nick = ToNick}, StateData)
+        end, JIDs1),
     {next_state, normal_state, StateData};
 normal_state(_Event, StateData) ->
     {next_state, normal_state, StateData}.
@@ -1591,8 +1593,7 @@ remove_online_user(JID, StateData, Reason) ->
             tab_remove_online_user(JID, StateData),
             ?DICT:erase(Nick, StateData#state.sessions);
         false ->
-            IsOtherLJID = fun(LJ) -> LJ /= LJID end, 
-            F = fun (LJIDs) -> lists:filter(IsOtherLJID, LJIDs) end,
+            F = fun (LJIDs) -> lists:delete(LJID, LJIDs) end,
             ?DICT:update(Nick, F, StateData#state.sessions)
     end,
     Users = ?DICT:erase(LJID, StateData#state.users),
@@ -1717,7 +1718,6 @@ is_another_session(Jid1, Jid2) ->
 
 is_next_session_of_occupant(From, Nick, StateData) ->
   IsAllowed = (StateData#state.config)#config.allow_multiple_sessions,
-  % ?ERROR_MSG("allow_multiple_sessions: ", [IsAllowed]) ,
   case {IsAllowed, find_jids_by_nick(Nick, StateData)} of
     {false, _} ->
         false;
@@ -2057,20 +2057,13 @@ erase_matched_users_dict(LJID, Users, Sessions) ->
     case LJID of
         %% Match by bare JID
         {U, S, <<>>} ->
-            FF = fun(J, _, Us) ->
+            FF = fun(J, #user{nick=Nick}, {Us, Ss}) ->
                      case J of
-                         {U, S, _} -> ?DICT:erase(J, Us);
-                         _         -> Us
+                         {U, S, _} -> {?DICT:erase(J, Us),?DICT:erase(Nick, Ss)};
+                         _         -> {Us, Ss}
                      end
                  end,
-            FF2 = fun(J, #user{nick=Nick}, Ss) ->
-                     case J of
-                         {U, S, _} -> ?DICT:erase(Nick, Ss);
-                         _         -> Ss
-                     end
-                 end,
-            {?DICT:fold(FF, Users, Users),
-             ?DICT:fold(FF2, Sessions, Users)};
+            ?DICT:fold(FF, {Users, Sessions}, Users);
         %% Match by full JID
         _ ->
             {ok, #user{nick=Nick}} = ?DICT:find(LJID, Users),
@@ -2769,8 +2762,6 @@ find_changed_items(UJID, UAffiliation, URole,
                       N/binary, (translate:translate(Lang, <<" does not exist in the room">>))/binary>>,
                    {error, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)};
                    [FirstSessionJid | _RestOfSessions] ->
-                   % FIXME sessions J is now list of Jids
-                   % check where that is going ( TJID -> TJIDs)
                    {value, FirstSessionJid}
                end;
                _ ->
