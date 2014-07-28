@@ -3701,9 +3701,10 @@ nick(User) -> escalus_utils:get_username(User).
 
 multiple_sessions_enter_room_helper(Alice, Bob, Bob2, Config) ->
     Room = ?config(room, Config),
-    enter_room(Room, Bob, []),
-    enter_room(Room, Alice, [Bob]),
-    enter_room(Room, Bob2, [Alice, Bob]).
+    lists:foldl(fun(User, AlreadyInRoom) ->
+            enter_room(Room, User, AlreadyInRoom),
+            [User | AlreadyInRoom]
+        end, [], [Alice, Bob, Bob2]).
 
 enter_room(Room, User, AlreadyInRoom) ->
     EnterRoomStanza = stanza_muc_enter_room(Room, escalus_utils:get_username(User)),
