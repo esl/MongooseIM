@@ -3700,45 +3700,29 @@ parse_result_query(#xmlel{name = <<"query">>, children = Children}) ->
 nick(User) -> escalus_utils:get_username(User).
 
 multiple_sessions_enter_room_helper(Alice, Bob, Bob2, Config) ->
-    % Bob enters
-    EnterRoomStanza = stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Bob)),
-    escalus:send(Bob, EnterRoomStanza),
-    
-    Presence = escalus:wait_for_stanza(Bob),
+    Room = ?config(room, Config),
+    enter_room(Room, Bob, []),
+    enter_room(Room, Alice, [Bob]),
+    enter_room(Room, Bob2, [Alice, Bob]).
+
+enter_room(Room, User, AlreadyInRoom) ->
+    EnterRoomStanza = stanza_muc_enter_room(Room, escalus_utils:get_username(User)),
+    escalus:send(User, EnterRoomStanza),
+
+    lists:foreach(fun(UserInRoom) ->
+            % for every user in the room, receive presence
+            is_presence_with_affiliation(escalus:wait_for_stanza(User), <<"none">>),
+            % every user in the room receives presence from User
+            Pres = escalus:wait_for_stanza(UserInRoom),
+            is_presence_with_affiliation(Pres, <<"none">>),
+            is_presence_from(User, Room, Pres)
+        end,
+        AlreadyInRoom),
+
+    Presence = escalus:wait_for_stanza(User),
     is_presence_with_affiliation(Presence, <<"none">>),
-    is_self_presence(Bob, ?config(room, Config), Presence),
-
-    is_subject_message(escalus:wait_for_stanza(Bob)),        
-
-    % Alice enters
-    EnterRoomStanza2 = stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Alice)),
-    escalus:send(Alice, EnterRoomStanza2),
-    
-    Presence1 = escalus:wait_for_stanza(Alice),
-    is_presence_with_affiliation(Presence1, <<"none">>),
-    is_presence_from(Bob, ?config(room, Config), Presence1),
-
-    Presence2 = escalus:wait_for_stanza(Alice),
-    is_presence_with_affiliation(Presence2, <<"none">>),
-    is_self_presence(Alice, ?config(room, Config), Presence2),
-    is_subject_message(escalus:wait_for_stanza(Alice)),
-    
-    is_presence_with_affiliation(escalus:wait_for_stanza(Bob), <<"none">>),
-
-    % bob2 enters
-
-    escalus:send(Bob2, EnterRoomStanza),
-
-    is_presence_with_affiliation(escalus:wait_for_stanza(Bob), <<"none">>),
-    is_presence_with_affiliation(escalus:wait_for_stanza(Alice), <<"none">>),
-
-    is_presence_with_affiliation(escalus:wait_for_stanza(Bob2), <<"none">>),
-    is_presence_with_affiliation(escalus:wait_for_stanza(Bob2), <<"none">>),
-
-    Presence3 = escalus:wait_for_stanza(Bob2),
-    is_presence_with_affiliation(Presence3, <<"none">>),
-    is_self_presence(Bob2, ?config(room, Config), Presence3),
-    is_subject_message(escalus:wait_for_stanza(Bob2)).
+    is_self_presence(User, Room, Presence),
+    is_subject_message(escalus:wait_for_stanza(User)).
 
 is_history_message_correct(Room, SenderNick,Type,  Text, ReceivedMessage) ->
     %error_logger:info_msg("tested message: ~n~p~n", [ReceivedMessage]),
