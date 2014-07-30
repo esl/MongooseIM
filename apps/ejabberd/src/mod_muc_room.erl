@@ -456,36 +456,29 @@ normal_state({route, From, ToNick,
               #xmlel{name = <<"message">>, attrs = Attrs} = Packet},
              StateData) ->
     Type = xml:get_attr_s(<<"type">>, Attrs),
-    JIDs = find_jids_by_nick(ToNick, StateData),
     FunRouteNickMessage = fun(JID, StateDataAcc) ->
         route_nick_message(#routed_nick_message{
-        allow_pm = (StateData#state.config)#config.allow_private_messages,
-        online = is_user_online(From, StateData),
+        allow_pm = (StateDataAcc#state.config)#config.allow_private_messages,
+        online = is_user_online(From, StateDataAcc),
         type = Type,
         from = From,
         nick = ToNick,
         lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
-        decide = decide_fate_message(Type, Packet, From, StateData),
+        decide = decide_fate_message(Type, Packet, From, StateDataAcc),
         packet = Packet,
         jid = JID}, StateDataAcc)
     end,
-    JIDs1 = case JIDs of
-        false -> [false];
-        _ -> JIDs
+    NewStateData = case find_jids_by_nick(ToNick, StateData) of
+        false -> FunRouteNickMessage(false, StateData);
+        JIDs -> lists:foldl(FunRouteNickMessage, StateData, JIDs)
     end,
-    NewStateData = lists:foldl(FunRouteNickMessage, StateData, JIDs1),
     {next_state, normal_state, NewStateData};
 normal_state({route, From, ToNick,
           #xmlel{name = <<"iq">>, attrs = Attrs} = Packet},
          StateData) ->
     Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
     StanzaId = xml:get_attr_s(<<"id">>, Attrs),
-    JIDs = find_jids_by_nick(ToNick, StateData),
-    JIDs1 = case JIDs of
-        false -> [false];
-        _ -> JIDs
-    end,
-    lists:foreach(fun(JID) ->
+    FunRouteNickIq = fun(JID) ->
         route_nick_iq(#routed_nick_iq{
             allow_query = (StateData#state.config)#config.allow_query_users,
             online = is_user_online_iq(StanzaId, From, StateData),
@@ -496,7 +489,11 @@ normal_state({route, From, ToNick,
             from = From,
             stanza = StanzaId,
             nick = ToNick}, StateData)
-        end, JIDs1),
+    end,
+    case find_jids_by_nick(ToNick, StateData) of
+        false -> FunRouteNickIq(false);
+        JIDs -> lists:foreach(FunRouteNickIq, JIDs)
+    end,
     {next_state, normal_state, StateData};
 normal_state(_Event, StateData) ->
     {next_state, normal_state, StateData}.
