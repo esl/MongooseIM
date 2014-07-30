@@ -469,7 +469,7 @@ normal_state({route, From, ToNick,
         jid = JID}, StateDataAcc)
     end,
     NewStateData = case find_jids_by_nick(ToNick, StateData) of
-        false -> FunRouteNickMessage(false, StateData);
+        [] -> FunRouteNickMessage(false, StateData);
         JIDs -> lists:foldl(FunRouteNickMessage, StateData, JIDs)
     end,
     {next_state, normal_state, NewStateData};
@@ -491,7 +491,7 @@ normal_state({route, From, ToNick,
             nick = ToNick}, StateData)
     end,
     case find_jids_by_nick(ToNick, StateData) of
-        false -> FunRouteNickIq(false);
+        [] -> FunRouteNickIq(false);
         JIDs -> lists:foreach(FunRouteNickIq, JIDs)
     end,
     {next_state, normal_state, StateData};
@@ -1661,11 +1661,10 @@ is_nick_exists(Nick, StateData) ->
     ?DICT:is_key(Nick, StateData#state.sessions).
 
 
--spec find_jids_by_nick(mod_muc:nick(), state()) -> false | [ejabberd:jid()].
+-spec find_jids_by_nick(mod_muc:nick(), state()) -> [ejabberd:jid()].
 find_jids_by_nick(Nick, StateData) ->
     case ?DICT:find(Nick, StateData#state.sessions) of
-        error -> false;
-        {ok, []} -> false;
+        error -> [];
         {ok, LJIDs} ->
             [(?DICT:fetch(LJID, StateData#state.users))#user.jid 
                 || LJID <- LJIDs]
@@ -1718,7 +1717,7 @@ is_next_session_of_occupant(From, Nick, StateData) ->
   case {IsAllowed, find_jids_by_nick(Nick, StateData)} of
     {false, _} ->
         false;
-    {_, false} -> 
+    {_, []} -> 
         false;
     {true, Jids} -> 
         lists:all(fun(Jid) -> is_another_session(From, Jid) end, Jids)
@@ -2754,7 +2753,7 @@ find_changed_items(UJID, UAffiliation, URole,
            case xml:get_attr(<<"nick">>, Attrs) of
                {value, N} ->
                case find_jids_by_nick(N, StateData) of
-                   false ->
+                   [] ->
                    ErrText = <<(translate:translate(Lang, <<"Nickname ">>))/binary,
                       N/binary, (translate:translate(Lang, <<" does not exist in the room">>))/binary>>,
                    {error, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)};
