@@ -1557,7 +1557,7 @@ is_last_session(Nick, StateData) ->
                         -> state().
 add_online_user(JID, Nick, Role, StateData) ->
     LJID = jlib:jid_tolower(JID),
-    Sessions = ?DICT:append(Nick, LJID, StateData#state.sessions),
+    Sessions = ?DICT:append(Nick, JID, StateData#state.sessions),
     Users = ?DICT:store(LJID,
             #user{jid = JID,
                   nick = Nick,
@@ -1590,7 +1590,8 @@ remove_online_user(JID, StateData, Reason) ->
             tab_remove_online_user(JID, StateData),
             ?DICT:erase(Nick, StateData#state.sessions);
         false ->
-            F = fun (LJIDs) -> lists:delete(LJID, LJIDs) end,
+            IsOtherLJID = fun(J) -> jlib:jid_tolower(J) /= LJID end,
+            F = fun (JIDs) -> lists:filter(IsOtherLJID, JIDs) end,
             ?DICT:update(Nick, F, StateData#state.sessions)
     end,
     Users = ?DICT:erase(LJID, StateData#state.users),
@@ -1665,9 +1666,7 @@ is_nick_exists(Nick, StateData) ->
 find_jids_by_nick(Nick, StateData) ->
     case ?DICT:find(Nick, StateData#state.sessions) of
         error -> [];
-        {ok, LJIDs} ->
-            [(?DICT:fetch(LJID, StateData#state.users))#user.jid 
-                || LJID <- LJIDs]
+        {ok, JIDs} -> JIDs
     end.
 
 -spec is_nick_change(ejabberd:simple_jid() | ejabberd:jid(), mod_muc:nick(),
@@ -1717,10 +1716,13 @@ is_next_session_of_occupant(From, Nick, StateData) ->
   case {IsAllowed, find_jids_by_nick(Nick, StateData)} of
     {false, _} ->
         false;
-    {_, []} -> 
+    {_, []} ->
         false;
-    {true, Jids} -> 
-        lists:all(fun(Jid) -> is_another_session(From, Jid) end, Jids)
+    {true, Jids} ->
+        lists:any(fun(Jid) ->
+          From#jid.lserver == Jid#jid.lserver
+          andalso From#jid.luser == Jid#jid.luser
+        end, Jids)
   end.
 
 -spec choose_new_user_strategy(ejabberd:jid(), mod_muc:nick(),
@@ -2109,8 +2111,12 @@ send_new_presence_un(NJID, Reason, StateData) ->
         true -> 
             send_new_presence(NJID, Reason, StateData);
         false ->
-            UserLJIDs = ?DICT:fetch(Nick, StateData#state.sessions),
-            CurrentSessionUsers = [{LJID, ?DICT:fetch(LJID, StateData#state.users)} || LJID <- UserLJIDs],
+            UserJIDs = ?DICT:fetch(Nick, StateData#state.sessions),
+            GetUserTupleByJID = fun(JID) ->
+                LJID = jlib:jid_tolower(JID),
+                {LJID, ?DICT:fetch(LJID, StateData#state.users)}
+            end,
+            CurrentSessionUsers = lists:map(GetUserTupleByJID, UserJIDs),
             send_new_presence_to(NJID, Reason, CurrentSessionUsers, StateData)
     end.
 
