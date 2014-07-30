@@ -2297,7 +2297,9 @@ change_nick(JID, Nick, StateData) ->
        fun(#user{} = User) ->
            User#user{nick = Nick}
        end, StateData#state.users),
-    NewStateData = StateData#state{users = Users},
+    {ok, JIDs} = ?DICT:find(OldNick, StateData#state.sessions),
+    Sessions = ?DICT:erase(OldNick, ?DICT:store(Nick, JIDs, StateData#state.sessions)),
+    NewStateData = StateData#state{users = Users, sessions = Sessions},
     send_nick_changing(JID, OldNick, NewStateData),
     add_to_log(nickchange, {OldNick, Nick}, StateData),
     NewStateData.
