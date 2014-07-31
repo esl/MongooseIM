@@ -280,7 +280,7 @@ CREATE UNIQUE INDEX i_mam_user_name
 
 CREATE TABLE mam_server_user(
   id SERIAL UNIQUE PRIMARY KEY,
-  server    varchar(250) NOT NULL
+  server    varchar(250) NOT NULL,
   user_name varchar(250) NOT NULL
 );
 CREATE UNIQUE INDEX i_mam_server_user_name
