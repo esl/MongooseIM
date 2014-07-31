@@ -735,7 +735,7 @@ setup_inactivity_timer(S) ->
 cancel_inactivity_timer(#state{inactivity_tref = undefined} = S) ->
     S;
 cancel_inactivity_timer(S) ->
-    timer:cancel(S#state.inactivity_tref),
+    erlang:cancel_timer(S#state.inactivity_tref),
     S#state{inactivity_tref = undefined}.
 
 
@@ -990,7 +990,7 @@ send_xml(Socket, #xmlstreamend{} = XML) ->
 
 -spec send(mod_bosh:socket(), _) -> 'ok'.
 send(#bosh_socket{pid = Pid}, Data) ->
-    Pid ! {send, xml:escape_cdata(Data)},
+    Pid ! {send, xml:escape_cdata_and_attr(Data)},
     ok.
 
 -spec change_shaper(mod_bosh:socket(), shaper:shaper()) -> mod_bosh:socket().
