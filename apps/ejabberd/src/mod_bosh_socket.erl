@@ -54,7 +54,7 @@
 -type rid() :: pos_integer().
 
 -record(state, {c2s_pid         :: pid(),
-                handlers = []   :: [{rid(), timer:tref(), pid()}],
+                handlers = []   :: [{rid(), reference(), pid()}],
                 %% Elements buffered for sending to the client.
                 pending = []    :: [jlib:xmlstreamel()],
                 sid             :: mod_bosh:sid(),
@@ -68,7 +68,7 @@
                 sent = []       :: [cached_response()],
                 %% Allowed inactivity period in seconds.
                 inactivity      :: pos_integer() | 'infinity',
-                inactivity_tref,
+                inactivity_tref :: reference() | 'undefined',
                 %% Max pause period in seconds.
                 maxpause        :: pos_integer() | 'undefined',
                 %% Are acknowledgements used?
@@ -76,7 +76,7 @@
                 last_processed  :: rid() | 'undefined',
                 %% Report scheduled for sending at the earliest
                 %% possible occasion.
-                report = false  :: {rid(), timer:time()} | 'false'}).
+                report = false  :: {rid(), reference()} | 'false'}).
 -type state() :: #state{}.
 
 -type statename() :: 'accumulate' | 'normal'.
@@ -641,7 +641,7 @@ pick_handler(#state{handlers = Handlers} = S) ->
     [{Rid, TRef, Pid} | HRest] = lists:sort(Handlers),
     %% The cancellation might fail if the timer already fired.
     %% Don't worry, it's handled on receiving the timeout message.
-    timer:cancel(TRef),
+    erlang:cancel_timer(TRef),
     {{Rid, Pid}, S#state{handlers = HRest}}.
 
 
