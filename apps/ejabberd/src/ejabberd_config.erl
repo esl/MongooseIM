@@ -1042,23 +1042,13 @@ methods_to_auth_modules(A) when is_atom(A) ->
 
 
 compute_config_version(LC, LCH) ->
-    Ctx = lists:foldl(fun (El, Context) ->
-                        case El of
-                            #local_config{key = node_start} ->
-                                Context;
-                            _ ->
-                                BTerm = term_to_binary(El),
-                                crypto:hash_update(Context, BTerm)
-                        end
-                end, crypto:hash_init(sha), LC++LCH),
-    crypto:hash_final(Ctx).
+    L0 = lists:filter(mk_node_start_filter(), LC ++ LCH),
+    L1 = sort_config(L0),
+    crypto:hash(sha, term_to_binary(L1)).
 
 compute_config_file_version(#state{opts = Opts, hosts = Hosts}) ->
-    Ctx = lists:foldl(fun(El, Context) ->
-                              BTerm = term_to_binary(El),
-                              crypto:hash_update(Context, BTerm)
-                      end, crypto:hash_init(sha), Opts ++ Hosts),
-    crypto:hash_final(Ctx).
+    L = sort_config(Opts ++ Hosts),
+    crypto:hash(sha, term_to_binary(L)).
 
 -spec check_hosts([ejabberd:host()],[ejabberd:host()]) -> {[ejaberd:host()],[ejabberd:host()]}.
 check_hosts(NewHosts, OldHosts) ->
@@ -1233,3 +1223,20 @@ compare_terms(OldTerms, NewTerms, KeyPos, ValuePos) when is_integer(KeyPos), is_
                            end, [], NewTerms),
     {ToStart, ToStop, ToReload}.
 
+
+mk_node_start_filter() ->
+    fun(#local_config{key = node_start}) ->
+            false;
+       (_) ->
+            true
+    end.
+
+sort_config(Config) when is_list(Config) ->
+    L = lists:map(fun(ConfigItem) when is_list(ConfigItem) ->
+                          sort_config(ConfigItem);
+                     (ConfigItem) when is_tuple(ConfigItem) ->
+                          sort_config(tuple_to_list(ConfigItem));
+                     (ConfigItem) ->
+                          ConfigItem
+                  end, Config),
+    lists:sort(L).
