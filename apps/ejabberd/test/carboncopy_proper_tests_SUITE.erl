@@ -11,7 +11,7 @@ all() ->
     [{group, mod_message_carbons_proper_tests}].
 
 all_tests() ->
-    [chat_type_test, private_message_test, no_copy_type_test, received_type_test, sent_forwarded_type_test, sent_message_test, simple_chat_message_test].
+    [chat_type_test, private_message_test, no_copy_type_test, received_type_test, sent_forwarded_type_test, sent_message_test, simple_chat_message_test, simple_badarg_test].
 
 groups() ->
     [{mod_message_carbons_proper_tests, [sequence], all_tests()}].
@@ -43,6 +43,10 @@ sent_message_test(_) ->
 simple_chat_message_test(_) ->
 	property(simple_chat_message_test, ?FORALL(Msg, create_simple_chat_message(),
         forward == mod_carboncopy:classify_packet(Msg))).
+
+simple_badarg_test(_) ->
+	property(simple_badarg_test, ?FORALL(Msg, create_badarg_message(),
+        ignore == mod_carboncopy:classify_packet(Msg))).
 
 property(Name, Prop) ->
     Props = proper:conjunction([{Name, Prop}]),
@@ -80,6 +84,10 @@ create_sent_message() ->
 create_simple_chat_message() ->
 	%%xmlel("message", [{<<"type">>,<<"chat">>}],[#xmlel{name = <<"sent">>, attrs = [{<<"xmlns">>, <<"urn:xmpp:carbons:2">>}]}]).
 	xmlel("message", [{<<"type">>,<<"chat">>}],[]).
+
+create_badarg_message() ->
+	%%xmlel("message", [{<<"type">>,<<"chat">>}],[#xmlel{name = <<"sent">>, attrs = [{<<"xmlns">>, <<"urn:xmpp:carbons:2">>}]}]).
+	xmlel("message", [{<<"type">>,<<"123">>}],[]).
 
 ascii_text() ->
     non_empty(list(choose($a, $z))).
