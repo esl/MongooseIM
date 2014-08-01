@@ -76,7 +76,7 @@
                 last_processed  :: rid() | 'undefined',
                 %% Report scheduled for sending at the earliest
                 %% possible occasion.
-                report = false  :: {rid(), reference()} | 'false'}).
+                report = false  :: {rid(), timer:time()} | 'false'}).
 -type state() :: #state{}.
 
 -type statename() :: 'accumulate' | 'normal'.
