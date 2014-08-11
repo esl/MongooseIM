@@ -329,7 +329,7 @@ get_user_displayed_groups({User, Host}) ->
     Reply = lists:flatmap(fun (#eldap_entry{attributes =
 						Attrs}) ->
 				  case Attrs of
-				    [{GroupAttr, ValuesList}] -> ValuesList;
+				    [{GroupAttr, Value}] -> [Value];
 				    _ -> []
 				  end
 			  end,
@@ -412,7 +412,7 @@ search_group_info(State, Group) ->
 							  {ID, Desc,
 							   {value,
 							    {GroupMemberAttr,
-							     Members}}}
+							     Member}}}
 							      when ID /= <<"">>,
 								   GroupMemberAttr
 								     ==
@@ -447,8 +447,7 @@ search_group_info(State, Group) ->
 										    L
 									      end,
 									      [],
-									      lists:map(Extractor,
-											Members)),
+                                          [Extractor(Member)]),
 							      {Desc,
 							       [JIDs
 								| JIDsAcc]};
