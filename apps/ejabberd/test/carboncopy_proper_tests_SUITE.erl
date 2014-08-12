@@ -1,3 +1,10 @@
+%%%----------------------------------------------------------------------
+%%% File    : carboncopy_proper_tests_SUITE.erl
+%%% Author  : Shambhu Prasad <shambhuprasad58@gmail.com>
+%%% Purpose : Tests for mod_carboncopy.erl based on Proper API
+%%% Created : 15 July 2014 by Shambhu Prasad <shambhuprasad58@gmail.com>
+%%%-------------------------------------------------------------------
+
 -module(carboncopy_proper_tests_SUITE).
 -compile(export_all).
 
@@ -99,8 +106,6 @@ xmlel_attr() ->
 xmlel_attrs() ->
     ?LET(Len, choose(1, 5), vector(Len, xmlel_attr())).
 
-
-%%old
 
 xmlel(0) ->
     ?LET({Name, Attrs}, {ascii_text(), xmlel_attrs()},
