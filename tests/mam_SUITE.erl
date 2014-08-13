@@ -36,6 +36,7 @@
          range_archive_request_not_empty/1,
          limit_archive_request/1,
          prefs_set_request/1,
+         prefs_set_cdata_request/1,
          pagination_first5/1,
          pagination_last5/1,
          pagination_before10/1,
@@ -216,6 +217,7 @@ mam_cases() ->
      range_archive_request_not_empty,
      limit_archive_request,
      prefs_set_request,
+     prefs_set_cdata_request,
      iq_spoofing].
 
 mam_purge_cases() ->
@@ -1396,6 +1398,38 @@ prefs_set_request(Config) ->
         end,
     escalus:story(Config, [1], F).
 
+%% Test reproducing https://github.com/esl/MongooseIM/issues/263
+%% The idea is this: in a "perfect" world jid elements are put together
+%% without whitespaces. In the real world it is not true.
+%% Put "\n" between two jid elements.
+prefs_set_cdata_request(Config) ->
+    F = fun(Alice) ->
+        %% Send
+        %% 
+        %% <iq type='set' id='juliet2'>
+        %%   <prefs xmlns='urn:xmpp:mam:tmp' default="roster">
+        %%     <always>
+        %%       <jid>romeo@montague.net</jid>
+        %%       <jid>montague@montague.net</jid>
+        %%     </always>
+        %%   </prefs>
+        %% </iq>
+        escalus:send(Alice, stanza_prefs_set_request(<<"roster">>,
+                                                     [<<"romeo@montague.net">>,
+                                                      {xmlcdata, <<"\n">>}, %% Put as it is
+                                                      <<"montague@montague.net">>], [])),
+        ReplySet = escalus:wait_for_stanza(Alice),
+
+        escalus:send(Alice, stanza_prefs_get_request()),
+        ReplyGet = escalus:wait_for_stanza(Alice),
+
+        ResultIQ1 = parse_prefs_result_iq(ReplySet),
+        ResultIQ2 = parse_prefs_result_iq(ReplyGet),
+        ?assert_equal(ResultIQ1, ResultIQ2),
+        ok
+        end,
+    escalus:story(Config, [1], F).
+
 mam_service_discovery(Config) ->
     F = fun(Alice) ->
         Server = escalus_client:server(Alice),
@@ -1629,10 +1663,15 @@ stanza_prefs_get_request() ->
        attrs = [{<<"xmlns">>,mam_ns_binary()}]
     }]).
 
+%% Allows to cdata to be put as it is
 encode_jids(JIDs) ->
-    [#xmlel{name = <<"jid">>,
-            children = [#xmlcdata{content = JID}]}
-     || JID <- JIDs].
+    [encode_jid_or_cdata(JID) || JID <- JIDs].
+
+encode_jid_or_cdata({xmlcdata, Text}) ->
+    {xmlcdata, Text};
+encode_jid_or_cdata(JID) ->
+    #xmlel{name = <<"jid">>,
+           children = [#xmlcdata{content = JID}]}.
 
 %% ----------------------------------------------------------------------
 %% PARSING RESPONDS
