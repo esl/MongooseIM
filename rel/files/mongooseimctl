@@ -73,6 +73,7 @@ ctl ()
     # flock that can lock a file descriptor.
     MAXCONNID=100
     CONNLOCKDIR=$EJABBERD_DIR/var/lock/mongooseimctl
+    mkdir -p $CONNLOCKDIR
     FLOCK='/usr/bin/flock'
     if [ ! -x "$FLOCK" ] || [ ! -d "$CONNLOCKDIR" ] ; then
 	JOT='/usr/bin/jot'

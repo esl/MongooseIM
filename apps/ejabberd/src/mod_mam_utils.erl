@@ -439,9 +439,14 @@ parse_jid_list(El, Name) ->
     case xml:get_subtag(El, Name) of
         false -> [];
         #xmlel{children = JIDEls} ->
-            [xml:get_tag_cdata(JIDEl) || JIDEl <- JIDEls]
+            %% Ignore cdata between jid elements
+            [xml:get_tag_cdata(JIDEl) || JIDEl <- JIDEls, is_jid_element(JIDEl)]
     end.
 
+is_jid_element(#xmlel{name = <<"jid">>}) ->
+    true;
+is_jid_element(_) -> %% ignore cdata
+    false.
 
 -spec borders_decode(jlib:xmlel()) -> 'undefined' | mod_mam:borders().
 borders_decode(QueryEl) ->
@@ -560,8 +565,8 @@ check_stringprep() ->
 
 start_stringprep() ->
     EJ = code:lib_dir(ejabberd),
-    code:add_path(filename:join([EJ, "..", "p1_stringprep", "ebin"])),
-    ok = application:start(stringprep).
+    code:add_path(filename:join([EJ, "..", "..", "deps", "p1_stringprep", "ebin"])),
+    ok = application:start(p1_stringprep).
 
 is_loaded_application(AppName) when is_atom(AppName) ->
     lists:keymember(AppName, 1, application:loaded_applications()).

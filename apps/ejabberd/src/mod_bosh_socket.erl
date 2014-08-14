@@ -54,7 +54,7 @@
 -type rid() :: pos_integer().
 
 -record(state, {c2s_pid         :: pid(),
-                handlers = []   :: [{rid(), timer:tref(), pid()}],
+                handlers = []   :: [{rid(), reference(), pid()}],
                 %% Elements buffered for sending to the client.
                 pending = []    :: [jlib:xmlstreamel()],
                 sid             :: mod_bosh:sid(),
@@ -68,7 +68,7 @@
                 sent = []       :: [cached_response()],
                 %% Allowed inactivity period in seconds.
                 inactivity      :: pos_integer() | 'infinity',
-                inactivity_tref,
+                inactivity_tref :: reference() | 'undefined',
                 %% Max pause period in seconds.
                 maxpause        :: pos_integer() | 'undefined',
                 %% Are acknowledgements used?
@@ -641,7 +641,7 @@ pick_handler(#state{handlers = Handlers} = S) ->
     [{Rid, TRef, Pid} | HRest] = lists:sort(Handlers),
     %% The cancellation might fail if the timer already fired.
     %% Don't worry, it's handled on receiving the timeout message.
-    timer:cancel(TRef),
+    erlang:cancel_timer(TRef),
     {{Rid, Pid}, S#state{handlers = HRest}}.
 
 
@@ -735,7 +735,7 @@ setup_inactivity_timer(S) ->
 cancel_inactivity_timer(#state{inactivity_tref = undefined} = S) ->
     S;
 cancel_inactivity_timer(S) ->
-    timer:cancel(S#state.inactivity_tref),
+    erlang:cancel_timer(S#state.inactivity_tref),
     S#state{inactivity_tref = undefined}.
 
 
@@ -990,7 +990,7 @@ send_xml(Socket, #xmlstreamend{} = XML) ->
 
 -spec send(mod_bosh:socket(), _) -> 'ok'.
 send(#bosh_socket{pid = Pid}, Data) ->
-    Pid ! {send, xml:escape_cdata(Data)},
+    Pid ! {send, xml:escape_cdata_and_attr(Data)},
     ok.
 
 -spec change_shaper(mod_bosh:socket(), shaper:shaper()) -> mod_bosh:socket().

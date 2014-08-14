@@ -89,7 +89,7 @@ get_ldap_attr(LDAPAttr, Attributes) ->
                     case_insensitive_match(Name, LDAPAttr)
             end, Attributes),
     case Res of
-        [{_, [Value|_]}] -> Value;
+        [{_, Value}] -> Value;
         _ -> <<>>
     end.
 

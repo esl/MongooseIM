@@ -24,16 +24,14 @@
                | 'sum_metrics'.
 
 -spec start(ejabberd:server(), list()) -> ok.
-start(Host, Opts) ->
+start(Host, _Opts) ->
     init_folsom(Host),
-    start_cowboy(Opts),
     metrics_hooks(add, Host),
     ok.
 
 
 -spec stop(ejabberd:server()) -> ok.
 stop(Host) ->
-    stop_cowboy(),
     metrics_hooks(delete, Host),
     ok.
 
@@ -141,31 +139,3 @@ cowboy_router_paths(BasePath, _Opts) ->
         {[BasePath, "/host/:host/:metric"], ?REST_LISTENER, [host_metric]},
         {[BasePath, "/host/:host"], ?REST_LISTENER, [host_metrics]}
     ].
-
-
--spec start_cowboy(list()) -> 'ok' | {'error','badarg'}.
-start_cowboy(Opts) ->
-    NumAcceptors = gen_mod:get_opt(num_acceptors, Opts, 10),
-    IP = gen_mod:get_opt(ip, Opts, {0,0,0,0}),
-    case gen_mod:get_opt(port, Opts, undefined) of
-        undefined ->
-            ok;
-        Port ->
-            Dispatch = cowboy_router:compile([{'_',
-                                cowboy_router_paths("/metrics", [])}]),
-            case cowboy:start_http(?REST_LISTENER, NumAcceptors,
-                                   [{port, Port}, {ip, IP}],
-                                   [{env, [{dispatch, Dispatch}]}]) of
-                {error, {already_started, _Pid}} ->
-                    ok;
-                {ok, _Pid} ->
-                    ok;
-                {error, Reason} ->
-                    {error, Reason}
-            end
-    end.
-
-
--spec stop_cowboy() -> 'ok'.
-stop_cowboy() ->
-    cowboy:stop_listener(?REST_LISTENER).

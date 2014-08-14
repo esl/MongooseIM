@@ -3129,13 +3129,13 @@ no_buffer_test_() ->
      {with, [fun (State0) ->
 		     State = State0#state{stream_mgmt_buffer_max = infinity},
 		     ?eq([], State#state.stream_mgmt_buffer),
-		     NewState = buffer_out_stanza(fake_packet, State, true),
+		     NewState = buffer_out_stanza(fake_packet, State),
 		     ?eq([fake_packet], NewState#state.stream_mgmt_buffer)
 	     end,
 	     fun (State0) ->
 		     State = State0#state{stream_mgmt_buffer_max = no_buffer},
 		     ?eq([], State#state.stream_mgmt_buffer),
-		     NewState = buffer_out_stanza(fake_packet, State, true),
+		     NewState = buffer_out_stanza(fake_packet, State),
 		     ?eq([], NewState#state.stream_mgmt_buffer)
 	     end]}}.
 
@@ -3152,6 +3152,8 @@ enable_stream_resumption_test_() ->
                          fun (_) -> 100 end),
              meck:expect(mod_stream_management, get_ack_freq,
                          fun (_) -> 1 end),
+             meck:expect(mod_stream_management, get_resume_timeout,
+                         fun (DefaultValue) -> DefaultValue end),
              meck:expect(mod_stream_management, register_smid,
                          fun (_SMID, _SID) ->
                                  Self ! register_smid_called,
@@ -3166,7 +3168,7 @@ enable_stream_resumption_test_() ->
      {with, [fun (C2S) ->
                      Enable = #xmlel{name = <<"enable">>,
                                      attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3},
-                                              {<<"resume">>, "true"}]},
+                                              {<<"resume">>, <<"true">>}]},
                      ?GEN_FSM:send_event(C2S, {xmlstreamelement, Enable}),
                      receive
                          register_smid_called ->
@@ -3187,6 +3189,8 @@ create_c2s() ->
     create_c2s(c2s_initial_state(mgmt_on)).
 
 create_c2s(State) ->
+    meck:new(ejabberd_sm),
+    meck:expect(ejabberd_sm, close_session, fun(_SID, _User, _Server, _Resource) -> ok end),
     meck:new(ejabberd_socket),
     meck:expect(ejabberd_socket, close,
 		fun(_) ->
@@ -3217,7 +3221,8 @@ c2s_initial_state() ->
 cleanup_c2s(C2S) when is_pid(C2S) ->
     exit(C2S, normal),
     meck:unload(ejabberd_hooks),
-    meck:unload(ejabberd_socket).
+    meck:unload(ejabberd_socket),
+    meck:unload(ejabberd_sm).
 
 starts_with_empty_buffer(C2S) ->
     S = status_to_state(sys:get_status(C2S)),
@@ -3235,11 +3240,11 @@ status_to_state({status, _Pid, {module, ?GEN_FSM}, Data}) ->
     State.
 
 jid(Str) ->
-    jlib:string_to_jid(Str).
+    jlib:binary_to_jid(Str).
 
 message(Content) ->
     Body = #xmlel{name = <<"body">>,
-                  children = [#xmlcdata{cdata = Content}]},
+                  children = [#xmlcdata{content = Content}]},
     #xmlel{name = <<"message">>,
            attrs = [{<<"type">>, "chat"}],
            children = [Body]}.
