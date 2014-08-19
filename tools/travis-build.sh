@@ -32,6 +32,12 @@ ${EJD2CTL} ping
 make test_deps
 ${TOOLS}/set-odbc-password test ${TRAVIS_DB_PASSWORD}
 
+make ct
+EMBEDED_CT_STATUS=$?
+
+make eunit
+EMBEDED_EUNIT_STATUS=$?
+
 make test_preset TESTSPEC=default.spec PRESET=$TEST_CONFIG
 
 RAN_TESTS=`cat /tmp/ct_count`
@@ -52,11 +58,15 @@ CT_STATUS=$?
 
 echo
 echo "All tests done."
-if [ ${CT_STATUS} == 0 ]
+TEST_STATUSES="${EMBEDED_CT_STATUS}${EMBEDED_EUNIT_STATUS}${CT_STATUS}"
+
+if [ ${TEST_STATUSES} = "000" ]
 then
+    RESULT=0
     echo "Build succeeded"
 else
-    echo "Build failed"
+    RESULT=1
+    echo "Build failed - ${TEST_STATUSES}"
 fi
 
-exit ${CT_STATUS}
+exit ${RESULT}
