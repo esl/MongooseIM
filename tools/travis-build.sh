@@ -29,14 +29,26 @@ ${EJD1CTL} ping
 echo -n "pinging MongooseIM node 2: "
 ${EJD2CTL} ping
 
-make test_deps
-${TOOLS}/set-odbc-password test ${TRAVIS_DB_PASSWORD}
+echo "############################"
+echo "Running embeded common tests"
+echo "############################"
 
 make ct
 EMBEDED_CT_STATUS=$?
 
+echo "############################"
+echo "Running eunit tests"
+echo "############################"
+
 make eunit
 EMBEDED_EUNIT_STATUS=$?
+
+make test_deps
+${TOOLS}/set-odbc-password test ${TRAVIS_DB_PASSWORD}
+
+echo "############################"
+echo "Running ejabberd_tests"
+echo "############################"
 
 make test_preset TESTSPEC=default.spec PRESET=$TEST_CONFIG
 
