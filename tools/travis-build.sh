@@ -43,12 +43,12 @@ echo "############################"
 make eunit
 EMBEDED_EUNIT_STATUS=$?
 
-make test_deps
-${TOOLS}/set-odbc-password test ${TRAVIS_DB_PASSWORD}
-
 echo "############################"
 echo "Running ejabberd_tests"
 echo "############################"
+
+make test_deps
+${TOOLS}/set-odbc-password test ${TRAVIS_DB_PASSWORD}
 
 make test_preset TESTSPEC=default.spec PRESET=$TEST_CONFIG
 
