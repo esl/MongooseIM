@@ -37,13 +37,6 @@ make ct
 EMBEDED_CT_STATUS=$?
 
 echo "############################"
-echo "Running eunit tests"
-echo "############################"
-
-make eunit
-EMBEDED_EUNIT_STATUS=$?
-
-echo "############################"
 echo "Running ejabberd_tests"
 echo "############################"
 
@@ -70,9 +63,9 @@ CT_STATUS=$?
 
 echo
 echo "All tests done."
-TEST_STATUSES="${EMBEDED_CT_STATUS}${EMBEDED_EUNIT_STATUS}${CT_STATUS}"
+TEST_STATUSES="${EMBEDED_CT_STATUS}${CT_STATUS}"
 
-if [ ${TEST_STATUSES} = "000" ]
+if [ ${TEST_STATUSES} = "00" ]
 then
     RESULT=0
     echo "Build succeeded"
