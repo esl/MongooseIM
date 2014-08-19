@@ -26,5 +26,6 @@
 {suites, "tests", metrics_register_SUITE}.
 {suites, "tests", metrics_session_SUITE}.
 {suites, "tests", system_monitor_SUITE}.
+{suites, "tests", carboncopy_SUITE}.
 {config, ["test.config"]}.
 {logdir, "ct_report"}.
