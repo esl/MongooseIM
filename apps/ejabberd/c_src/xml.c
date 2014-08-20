@@ -2,19 +2,11 @@
 #include <string.h>
 #include <stdio.h>
 
-#ifdef SSL40
 #define ENIF_ALLOC(SIZE) enif_alloc(SIZE)
 #define ENIF_FREE(PTR) enif_free(PTR)
 #define ENIF_REALLOC(PTR, SIZE) enif_realloc(PTR, SIZE)
 #define ENIF_ALLOC_BINARY(SIZE, BIN) enif_alloc_binary(SIZE, BIN)
 #define ENIF_COMPARE(TERM1, TERM2) enif_compare(TERM1, TERM2)
-#else
-#define ENIF_ALLOC(SIZE) enif_alloc(env, SIZE)
-#define ENIF_FREE(PTR) enif_free(env, PTR)
-#define ENIF_REALLOC(PTR, SIZE) enif_realloc(env, PTR, SIZE)
-#define ENIF_ALLOC_BINARY(SIZE, BIN) enif_alloc_binary(env, SIZE, BIN)
-#define ENIF_COMPARE(TERM1, TERM2) enif_compare(env, TERM1, TERM2)
-#endif
 
 static ERL_NIF_TERM atom_xmlelement;
 static ERL_NIF_TERM atom_xmlcdata;
@@ -53,7 +45,7 @@ static void destroy_buf(ErlNifEnv* env, struct buf *rbuf)
   };
 }
 
-inline void resize_buf(ErlNifEnv* env, struct buf *rbuf, int len_to_add)
+inline static void resize_buf(ErlNifEnv* env, struct buf *rbuf, int len_to_add)
 {
   int new_len = rbuf->len + len_to_add;
   
@@ -77,7 +69,7 @@ static void buf_add_str(ErlNifEnv* env, struct buf *rbuf, char *data, int len)
   rbuf->len += len;
 }
 
-inline void crypt(ErlNifEnv* env, struct buf *rbuf, unsigned char *data, int len)
+inline static void crypt(ErlNifEnv* env, struct buf *rbuf, unsigned char *data, int len)
 {
   int i;
 
@@ -230,13 +222,11 @@ static ERL_NIF_TERM element_to(ErlNifEnv* env, int argc,
   return enif_make_badarg(env);
 }
 
-#ifdef SSL40
 static ERL_NIF_TERM element_to_string(ErlNifEnv* env, int argc,
 				      const ERL_NIF_TERM argv[])
 {
   return element_to(env, argc, argv, 1);
 }
-#endif
 
 static ERL_NIF_TERM element_to_binary(ErlNifEnv* env, int argc,
 				      const ERL_NIF_TERM argv[])
@@ -246,12 +236,7 @@ static ERL_NIF_TERM element_to_binary(ErlNifEnv* env, int argc,
 
 static ErlNifFunc nif_funcs[] =
   {
-    /* Stupid Erlang bug with enif_make_string() is fixed
-       in R14A only (OTP-8685), so we can't use
-       element_to_string in Erlang < R14A.*/
-#ifdef SSL40
     {"element_to_string", 1, element_to_string},
-#endif
     {"element_to_binary", 1, element_to_binary}
   };
 
