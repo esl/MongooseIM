@@ -63,8 +63,8 @@ commands() ->
 %%%
 
 %% Example usage:
-%% $ ejabberdctl private_set badlop localhost "\<aa\ xmlns=\'bb\'\>Cluth\</aa\>"
-%% $ ejabberdctl private_get badlop localhost aa bb
+%% $ mongooseimctl private_set badlop localhost "\<aa\ xmlns=\'bb\'\>Cluth\</aa\>"
+%% $ mongooseimctl private_get badlop localhost aa bb
 %% <aa xmlns='bb'>Cluth</aa>
 
 -spec private_get(ejabberd:user(), ejabberd:server(), jlib:xmlel(),

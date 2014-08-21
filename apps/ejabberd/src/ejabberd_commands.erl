@@ -133,7 +133,7 @@
 %%% That's all! Now when your module is started, the command will be
 %%% registered and any frontend can access it. For example:
 %%%
-%%% <pre>$ ejabberdctl help pow
+%%% <pre>$ mongooseimctl help pow
 %%%
 %%%   Command Name: pow
 %%%
@@ -149,7 +149,7 @@
 %%% This is an example command. The formula is:
 %%%  power = base ^ exponent
 %%%
-%%% $ ejabberdctl pow 3 4
+%%% $ mongooseimctl pow 3 4
 %%% 81
 %%% </pre>
 %%%
@@ -166,39 +166,21 @@
 %%% == Frontend to ejabberd commands ==
 %%%
 %%% Currently there are two frontends to ejabberd commands: the shell
-%%% script {@link ejabberd_ctl. ejabberdctl}, and the XML-RPC server
+%%% script {@link ejabberd_ctl. mongooseimctl}, and the XML-RPC server
 %%% ejabberd_xmlrpc.
 %%%
 %%%
-%%% === ejabberdctl as a frontend to ejabberd commands ===
+%%% === mongooseimctl as a frontend to ejabberd commands ===
 %%%
-%%% It is possible to use ejabberdctl to get documentation of any
-%%% command. But ejabberdctl does not support all the argument types
+%%% It is possible to use mongooseimctl to get documentation of any
+%%% command. But mongooseimctl does not support all the argument types
 %%% allowed in ejabberd commands, so there are some ejabberd commands
-%%% that cannot be executed using ejabberdctl.
+%%% that cannot be executed using mongooseimctl.
 %%%
-%%% Also note that the ejabberdctl shell administration script also
-%%% manages ejabberdctl commands, which are unrelated to ejabberd
-%%% commands and can only be executed using ejabberdctl.
+%%% Also note that the mongooseimctl shell administration script also
+%%% manages mongooseimctl commands, which are unrelated to ejabberd
+%%% commands and can only be executed using mongooseimctl.
 %%%
-%%%
-%%% === ejabberd_xmlrpc as a frontend to ejabberd commands ===
-%%%
-%%% ejabberd_xmlrpc provides an XML-RPC server to execute ejabberd commands.
-%%% ejabberd_xmlrpc is a contributed module published in ejabberd-modules SVN.
-%%%
-%%% Since ejabberd_xmlrpc does not provide any method to get documentation
-%%% of the ejabberd commands, please use ejabberdctl to know which
-%%% commands are available, and their usage.
-%%%
-%%% The number and format of the arguments provided when calling an
-%%% ejabberd command must match the definition of that command. Please
-%%% make sure the XML-RPC call provides the required arguments, with
-%%% the specified format. The order of the arguments in an XML-RPC
-%%% call is not important, because all the data is tagged and will be
-%%% correctly prepared by ejabberd_xmlrpc before executing the ejabberd
-%%% command.
-
 %%% TODO: consider this feature:
 %%% All commands are catched. If an error happens, return the restuple:
 %%%   {error, flattened error string}
