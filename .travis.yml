@@ -6,6 +6,7 @@ before_script:
 script: tools/travis-build.sh
 
 after_script:
+        - cat `ls -1 -d -t apps/ejabberd/logs/ct_run* | head -1`/apps.ejabberd.logs/run.*/suite.log
         - tail -100 dev/mongooseim_node1/log/ejabberd.log
         - if [ -s dev/mongooseim_node1/log/crash.log ]; then cat dev/mongooseim_node1/log/crash.log; fi
         - cat `ls -1 -d -t test/ejabberd_tests/ct_report/ct_run.* | head -1`/ejabberd_tests.*/run.*/suite.log

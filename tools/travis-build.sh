@@ -29,6 +29,17 @@ ${EJD1CTL} ping
 echo -n "pinging MongooseIM node 2: "
 ${EJD2CTL} ping
 
+echo "############################"
+echo "Running embeded common tests"
+echo "############################"
+
+make ct
+EMBEDED_CT_STATUS=$?
+
+echo "############################"
+echo "Running ejabberd_tests"
+echo "############################"
+
 make test_deps
 ${TOOLS}/set-odbc-password test ${TRAVIS_DB_PASSWORD}
 
@@ -52,11 +63,15 @@ CT_STATUS=$?
 
 echo
 echo "All tests done."
-if [ ${CT_STATUS} == 0 ]
+TEST_STATUSES="${EMBEDED_CT_STATUS}${CT_STATUS}"
+
+if [ ${TEST_STATUSES} = "00" ]
 then
+    RESULT=0
     echo "Build succeeded"
 else
-    echo "Build failed"
+    RESULT=1
+    echo "Build failed - ${TEST_STATUSES}"
 fi
 
-exit ${CT_STATUS}
+exit ${RESULT}
