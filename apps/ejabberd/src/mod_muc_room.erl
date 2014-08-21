@@ -425,6 +425,7 @@ normal_state({route, From, <<>>,
 normal_state({route, From, Nick,
               #xmlel{name = <<"presence">>} = Packet},
              StateData) ->
+    % FIXME sessions do we need to route presences to all sessions
     Activity = get_user_activity(From, StateData),
     Now = now_to_usec(now()),
     MinPresenceInterval =
@@ -455,32 +456,44 @@ normal_state({route, From, ToNick,
               #xmlel{name = <<"message">>, attrs = Attrs} = Packet},
              StateData) ->
     Type = xml:get_attr_s(<<"type">>, Attrs),
-    NewStateData = route_nick_message(#routed_nick_message{
-        allow_pm = (StateData#state.config)#config.allow_private_messages,
-        online = is_user_online(From, StateData),
+    FunRouteNickMessage = fun(JID, StateDataAcc) ->
+        route_nick_message(#routed_nick_message{
+        allow_pm = (StateDataAcc#state.config)#config.allow_private_messages,
+        online = is_user_online(From, StateDataAcc),
         type = Type,
         from = From,
         nick = ToNick,
         lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
-        decide = decide_fate_message(Type, Packet, From, StateData),
+        decide = decide_fate_message(Type, Packet, From, StateDataAcc),
         packet = Packet,
-        jid = find_jid_by_nick(ToNick, StateData)}, StateData),
+        jid = JID}, StateDataAcc)
+    end,
+    NewStateData = case find_jids_by_nick(ToNick, StateData) of
+        [] -> FunRouteNickMessage(false, StateData);
+        JIDs -> lists:foldl(FunRouteNickMessage, StateData, JIDs)
+    end,
     {next_state, normal_state, NewStateData};
 normal_state({route, From, ToNick,
           #xmlel{name = <<"iq">>, attrs = Attrs} = Packet},
          StateData) ->
     Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
     StanzaId = xml:get_attr_s(<<"id">>, Attrs),
-    route_nick_iq(#routed_nick_iq{
-        allow_query = (StateData#state.config)#config.allow_query_users,
-        online = is_user_online_iq(StanzaId, From, StateData),
-        jid = find_jid_by_nick(ToNick, StateData),
-        iq = jlib:iq_query_info(Packet),
-        packet = Packet,
-        lang = Lang,
-        from = From,
-        stanza = StanzaId,
-        nick = ToNick}, StateData),
+    FunRouteNickIq = fun(JID) ->
+        route_nick_iq(#routed_nick_iq{
+            allow_query = (StateData#state.config)#config.allow_query_users,
+            online = is_user_online_iq(StanzaId, From, StateData),
+            jid = JID,
+            iq = jlib:iq_query_info(Packet),
+            packet = Packet,
+            lang = Lang,
+            from = From,
+            stanza = StanzaId,
+            nick = ToNick}, StateData)
+    end,
+    case find_jids_by_nick(ToNick, StateData) of
+        [] -> FunRouteNickIq(false);
+        JIDs -> lists:foreach(FunRouteNickIq, JIDs)
+    end,
     {next_state, normal_state, StateData};
 normal_state(_Event, StateData) ->
     {next_state, normal_state, StateData}.
@@ -924,7 +937,7 @@ process_presence_unavailable(From, Packet, StateData) ->
         true ->
             NewPacket = check_and_strip_visitor_status(From, Packet, StateData),
             NewState = add_user_presence_un(From, NewPacket, StateData),
-            send_new_presence(From, NewState),
+            send_new_presence_un(From, NewState),
             Reason = case xml:get_subtag(NewPacket, <<"status">>) of
                 false -> <<>>;
                 Status_el -> xml:get_tag_cdata(Status_el)
@@ -1202,7 +1215,7 @@ expulse_participant(Packet, From, StateData, Reason1) ->
                children = [#xmlel{name = <<"status">>,
                                   children = [#xmlcdata{content = Reason2}]}]},
     StateData),
-    send_new_presence(From, NewState),
+    send_new_presence_un(From, NewState),
     remove_online_user(From, NewState).
 
 
@@ -1526,19 +1539,38 @@ prepare_room_queue(StateData) ->
         StateData
     end.
 
+-spec is_first_session(mod_muc:nick(), state()) -> boolean().
+is_first_session(Nick, StateData) -> 
+    case ?DICT:find(Nick, StateData#state.sessions) of
+        {ok, _Val} -> false;
+        error -> true
+    end.
+
+-spec is_last_session(mod_muc:nick(), state()) -> boolean().
+is_last_session(Nick, StateData) -> 
+    case ?DICT:find(Nick, StateData#state.sessions) of
+        {ok, [_Val]} -> true;
+        _ -> false
+    end.
 
 -spec add_online_user(ejabberd:jid(), mod_muc:nick(), mod_muc:role(), state())
                         -> state().
 add_online_user(JID, Nick, Role, StateData) ->
     LJID = jlib:jid_tolower(JID),
+    Sessions = ?DICT:append(Nick, JID, StateData#state.sessions),
     Users = ?DICT:store(LJID,
             #user{jid = JID,
                   nick = Nick,
                   role = Role},
             StateData#state.users),
-    add_to_log(join, Nick, StateData),
-    tab_add_online_user(JID, StateData),
-    StateData#state{users = Users}.
+    case is_first_session(Nick, StateData) of
+        true ->
+            add_to_log(join, Nick, StateData),
+            tab_add_online_user(JID, StateData);
+        _ ->
+            ok
+    end,
+    StateData#state{users = Users, sessions = Sessions}.
 
 
 -spec remove_online_user(ejabberd:jid(), state()) -> state().
@@ -1548,13 +1580,23 @@ remove_online_user(JID, StateData) ->
 
 -spec remove_online_user(ejabberd:jid(), state(), Reason :: binary()) -> state().
 remove_online_user(JID, StateData, Reason) ->
+    
     LJID = jlib:jid_tolower(JID),
     {ok, #user{nick = Nick}} =
         ?DICT:find(LJID, StateData#state.users),
-    add_to_log(leave, {Nick, Reason}, StateData),
-    tab_remove_online_user(JID, StateData),
+    Sessions = case is_last_session(Nick, StateData) of
+        true -> 
+            add_to_log(leave, {Nick, Reason}, StateData),
+            tab_remove_online_user(JID, StateData),
+            ?DICT:erase(Nick, StateData#state.sessions);
+        false ->
+            IsOtherLJID = fun(J) -> jlib:jid_tolower(J) /= LJID end,
+            F = fun (JIDs) -> lists:filter(IsOtherLJID, JIDs) end,
+            ?DICT:update(Nick, F, StateData#state.sessions)
+    end,
     Users = ?DICT:erase(LJID, StateData#state.users),
-    StateData#state{users = Users}.
+    
+    StateData#state{users = Users, sessions = Sessions}.
 
 
 -spec filter_presence(jlib:xmlel()) -> jlib:xmlel().
@@ -1594,10 +1636,10 @@ add_user_presence(JID, Presence, StateData) ->
     FPresence = filter_presence(Presence),
     Users =
     ?DICT:update(
-       LJID,
-       fun(#user{} = User) ->
-           User#user{last_presence = FPresence}
-       end, StateData#state.users),
+        LJID,
+        fun(#user{} = User) ->
+            User#user{last_presence = FPresence}
+        end, StateData#state.users),
     StateData#state{users = Users}.
 
 
@@ -1617,20 +1659,15 @@ add_user_presence_un(JID, Presence, StateData) ->
 
 -spec is_nick_exists(mod_muc:nick(), state()) -> boolean().
 is_nick_exists(Nick, StateData) ->
-    ?DICT:fold(fun(_, #user{nick = N}, B) ->
-               B orelse (N == Nick)
-           end, false, StateData#state.users).
+    ?DICT:is_key(Nick, StateData#state.sessions).
 
 
--spec find_jid_by_nick(mod_muc:nick(), state()) -> false | ejabberd:jid().
-find_jid_by_nick(Nick, StateData) ->
-    ?DICT:fold(fun(_, #user{jid = JID, nick = N}, R) ->
-               case Nick of
-               N -> JID;
-               _ -> R
-               end
-           end, false, StateData#state.users).
-
+-spec find_jids_by_nick(mod_muc:nick(), state()) -> [ejabberd:jid()].
+find_jids_by_nick(Nick, StateData) ->
+    case ?DICT:find(Nick, StateData#state.sessions) of
+        error -> [];
+        {ok, JIDs} -> JIDs
+    end.
 
 -spec is_nick_change(ejabberd:simple_jid() | ejabberd:jid(), mod_muc:nick(),
                      state()) -> boolean().
@@ -1664,6 +1701,29 @@ is_user_limit_reached(From, Affiliation, StateData) ->
        NUsers < MaxUsers) andalso
       NConferences < MaxConferences.
 
+is_another_session(Jid1, Jid2) ->
+  case {Jid1#jid.luser == Jid2#jid.luser,
+        Jid1#jid.lserver == Jid2#jid.lserver,
+        Jid1#jid.lresource == Jid2#jid.lresource} of
+      {true, true, false} ->
+          true;
+      _ ->
+          false
+  end.
+
+is_next_session_of_occupant(From, Nick, StateData) ->
+  IsAllowed = (StateData#state.config)#config.allow_multiple_sessions,
+  case {IsAllowed, find_jids_by_nick(Nick, StateData)} of
+    {false, _} ->
+        false;
+    {_, []} ->
+        false;
+    {true, Jids} ->
+        lists:any(fun(Jid) ->
+          From#jid.lserver == Jid#jid.lserver
+          andalso From#jid.luser == Jid#jid.luser
+        end, Jids)
+  end.
 
 -spec choose_new_user_strategy(ejabberd:jid(), mod_muc:nick(),
         mod_muc:affiliation(), mod_muc:role(), [jlib:xmlcdata() | jlib:xmlel()],
@@ -1671,18 +1731,19 @@ is_user_limit_reached(From, Affiliation, StateData) ->
 choose_new_user_strategy(From, Nick, Affiliation, Role, Els, StateData) ->
     case {is_user_limit_reached(From, Affiliation, StateData),
           is_nick_exists(Nick, StateData),
+          is_next_session_of_occupant(From, Nick, StateData),
           mod_muc:can_use_nick(StateData#state.host, From, Nick),
           Role,
           Affiliation} of
-        {false, _, _, _, _} ->
+        {false, _, _, _, _, _} ->
             limit_reached;
-        {_, _, _, none, outcast} ->
+        {_, _, _, _, none, outcast} ->
             user_banned;
-        {_, _, _, none, _} ->
+        {_, _, _, _, none, _} ->
             require_membership;
-        {_, true, _, _, _} ->
+        {_, true, false, _, _, _} ->
             conflict_use;
-        {_, _, false, _, _} ->
+        {_, _, _, false, _, _} ->
             conflict_registered;
         _ ->
             ServiceAffiliation = get_service_affiliation(From, StateData),
@@ -1983,27 +2044,29 @@ foreach_user(F, #state{users=Users}) ->
 
 
 -spec erase_matched_users(ejabberd:simple_jid() | ejabberd:jid(), state()) -> state().
-erase_matched_users(JID, StateData=#state{users=Users}) ->
+erase_matched_users(JID, StateData=#state{users=Users, sessions=Sessions}) ->
     LJID = jlib:jid_tolower(JID),
-    NewUsers = erase_matched_users_dict(LJID, Users),
-    StateData#state{users=NewUsers}.
+    {NewUsers, NewSessions} = erase_matched_users_dict(LJID, Users, Sessions),
+    StateData#state{users=NewUsers, sessions=NewSessions}.
 
 
--spec erase_matched_users_dict('error' | ejabberd:simple_jid(), dict()) -> any().
-erase_matched_users_dict(LJID, Users) ->
+-spec erase_matched_users_dict('error' | ejabberd:simple_jid(), dict(), dict()) -> any().
+erase_matched_users_dict(LJID, Users, Sessions) ->
     case LJID of
         %% Match by bare JID
         {U, S, <<>>} ->
-            FF = fun(J, _, Us) ->
+            FF = fun(J, #user{nick=Nick}, {Us, Ss}) ->
                      case J of
-                         {U, S, _} -> ?DICT:erase(J, Us);
-                         _         -> Us
+                         {U, S, _} -> {?DICT:erase(J, Us),?DICT:erase(Nick, Ss)};
+                         _         -> {Us, Ss}
                      end
                  end,
-            ?DICT:fold(FF, Users, Users);
+            ?DICT:fold(FF, {Users, Sessions}, Users);
         %% Match by full JID
         _ ->
-            ?DICT:erase(LJID, Users)
+            {ok, #user{nick=Nick}} = ?DICT:find(LJID, Users),
+            {?DICT:erase(LJID, Users),
+             ?DICT:erase(Nick, Sessions)}
     end.
 
 
@@ -2036,6 +2099,27 @@ update_matched_users_dict(F, LJID, Users) ->
             end
     end.
 
+-spec send_new_presence_un(ejabberd:jid(), state()) -> 'ok'.
+send_new_presence_un(NJID, StateData) ->
+    send_new_presence_un(NJID, <<>>, StateData).
+
+
+-spec send_new_presence_un(ejabberd:jid(), binary(), state()) -> 'ok'.
+send_new_presence_un(NJID, Reason, StateData) ->
+    {ok, #user{ nick = Nick }} = ?DICT:find(jlib:jid_tolower(NJID), StateData#state.users),
+    case is_last_session(Nick, StateData) of
+        true -> 
+            send_new_presence(NJID, Reason, StateData);
+        false ->
+            UserJIDs = ?DICT:fetch(Nick, StateData#state.sessions),
+            GetUserTupleByJID = fun(JID) ->
+                LJID = jlib:jid_tolower(JID),
+                {LJID, ?DICT:fetch(LJID, StateData#state.users)}
+            end,
+            CurrentSessionUsers = lists:map(GetUserTupleByJID, UserJIDs),
+            send_new_presence_to(NJID, Reason, CurrentSessionUsers, StateData)
+    end.
+
 
 -spec send_new_presence(ejabberd:jid(), state()) -> 'ok'.
 send_new_presence(NJID, StateData) ->
@@ -2044,6 +2128,11 @@ send_new_presence(NJID, StateData) ->
 
 -spec send_new_presence(ejabberd:jid(), binary(), state()) -> 'ok'.
 send_new_presence(NJID, Reason, StateData) ->
+    send_new_presence_to(NJID, Reason, ?DICT:to_list(StateData#state.users), StateData).
+
+
+-spec send_new_presence_to(ejabberd:jid(), binary(), [{ejabberd:jid(), #user{}}], state()) -> 'ok'.
+send_new_presence_to(NJID, Reason, Receivers, StateData) ->
     {ok, #user{jid = RealJID,
            nick = Nick,
            role = Role,
@@ -2073,8 +2162,7 @@ send_new_presence(NJID, Reason, StateData) ->
                     end,
           Status = case StateData#state.just_created of
                true ->
-                   [#xmlel{name = <<"status">>,
-                           attrs = [{<<"code">>, <<"201">>}]}];
+                   [status_code(201)];
                false ->
                    []
                end,
@@ -2082,24 +2170,19 @@ send_new_presence(NJID, Reason, StateData) ->
                  true ->
                     Status0 = case   (StateData#state.config)#config.logging of
                             true ->
-                            [#xmlel{name = <<"status">>,
-                                    attrs = [{<<"code">>, <<"170">>}]}|Status];
+                            [status_code(170) | Status];
                             false ->
                             Status
                         end,
                     Status1 = case ((StateData#state.config)#config.anonymous==false) of
                             true ->
-                            [#xmlel{name = <<"status">>,
-                                    attrs = [{<<"code">>, <<"100">>}]}
-                            | Status0];
+                            [status_code(100) | Status0];
                             false ->
                             Status0
                         end,
                     case ((NJID == Info#user.jid)==true) of
                             true ->
-                            [#xmlel{name = <<"status">>,
-                                    attrs = [{<<"code">>, <<"110">>}]}
-                            | Status1];
+                            [status_code(110) | Status1];
                             false ->
                             Status1
                         end;
@@ -2112,54 +2195,57 @@ send_new_presence(NJID, Reason, StateData) ->
                      children = [#xmlel{name = <<"item">>, attrs = ItemAttrs,
                                         children = ItemEls} | Status2]}]),
           ejabberd_router:route(
-        jlib:jid_replace_resource(StateData#state.jid, Nick),
-        Info#user.jid,
-        Packet)
-      end, ?DICT:to_list(StateData#state.users)).
+            jlib:jid_replace_resource(StateData#state.jid, Nick),
+            Info#user.jid,
+            Packet)
+      end, Receivers).
 
 
 -spec send_existing_presences(ejabberd:jid(), state()) -> 'ok'.
 send_existing_presences(ToJID, StateData) ->
     LToJID = jlib:jid_tolower(ToJID),
-    {ok, #user{jid = RealToJID, role = Role}} =
+    {ok, #user{jid = RealToJID, role = Role, nick = _Nick}} =
     ?DICT:find(LToJID, StateData#state.users),
+    % if you don't want to send presences of other sessions of occupant with ToJID
+    % switch following lines
+    % JIDsToSkip = [RealToJID | find_jids_by_nick(_Nick, StateData)],
+    JIDsToSkip = [RealToJID],
     lists:foreach(
-      fun({LJID, #user{jid = FromJID,
+        fun({LJID, #user{jid = FromJID,
                nick = FromNick,
                role = FromRole,
-               last_presence = Presence
-              }}) ->
-          case RealToJID of
-          FromJID ->
-              ok;
-          _ ->
-              FromAffiliation = get_affiliation(LJID, StateData),
-              ItemAttrs =
-              case (Role == moderator) orelse
-                  ((StateData#state.config)#config.anonymous ==
-                   false) of
-                  true ->
-                  [{<<"jid">>, jlib:jid_to_binary(FromJID)},
-                   {<<"affiliation">>,
-                    affiliation_to_binary(FromAffiliation)},
-                   {<<"role">>, role_to_binary(FromRole)}];
-                  _ ->
-                  [{<<"affiliation">>,
-                    affiliation_to_binary(FromAffiliation)},
-                   {<<"role">>, role_to_binary(FromRole)}]
-              end,
-              Packet = xml:append_subtags(
-                 Presence,
-                 [#xmlel{name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
-                         children = [#xmlel{name = <<"item">>,
-                                            attrs = ItemAttrs}]}]),
-              ejabberd_router:route(
-            jlib:jid_replace_resource(
-              StateData#state.jid, FromNick),
-            RealToJID,
-            Packet)
-          end
-      end, ?DICT:to_list(StateData#state.users)).
+               last_presence = Presence}}) ->
+            case lists:member(FromJID, JIDsToSkip) of
+                true ->
+                    ok;
+                _ ->
+                    FromAffiliation = get_affiliation(LJID, StateData),
+                    ItemAttrs =
+                    case (Role == moderator) orelse
+                         ((StateData#state.config)#config.anonymous == false) of
+                        true ->
+                            [{<<"jid">>, jlib:jid_to_binary(FromJID)},
+                            {<<"affiliation">>,
+                            affiliation_to_binary(FromAffiliation)},
+                            {<<"role">>, role_to_binary(FromRole)}];
+                        _ ->
+                            [{<<"affiliation">>,
+                            affiliation_to_binary(FromAffiliation)},
+                            {<<"role">>, role_to_binary(FromRole)}]
+                    end,
+                    Packet = xml:append_subtags(
+                        Presence,
+                        [#xmlel{name = <<"x">>,
+                                attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
+                                children = [#xmlel{name = <<"item">>,
+                                                   attrs = ItemAttrs}]}]),
+                        ejabberd_router:route(
+                            jlib:jid_replace_resource(
+                                StateData#state.jid, FromNick),
+                            RealToJID,
+                            Packet)
+            end
+        end, ?DICT:to_list(StateData#state.users)).
 
 
 -spec send_config_update(atom(), state()) -> 'ok'.
@@ -2211,7 +2297,9 @@ change_nick(JID, Nick, StateData) ->
        fun(#user{} = User) ->
            User#user{nick = Nick}
        end, StateData#state.users),
-    NewStateData = StateData#state{users = Users},
+    {ok, JIDs} = ?DICT:find(OldNick, StateData#state.sessions),
+    Sessions = ?DICT:erase(OldNick, ?DICT:store(Nick, JIDs, StateData#state.sessions)),
+    NewStateData = StateData#state{users = Users, sessions = Sessions},
     send_nick_changing(JID, OldNick, NewStateData),
     add_to_log(nickchange, {OldNick, Nick}, StateData),
     NewStateData.
@@ -2672,13 +2760,13 @@ find_changed_items(UJID, UAffiliation, URole,
            _ ->
            case xml:get_attr(<<"nick">>, Attrs) of
                {value, N} ->
-               case find_jid_by_nick(N, StateData) of
-                   false ->
+               case find_jids_by_nick(N, StateData) of
+                   [] ->
                    ErrText = <<(translate:translate(Lang, <<"Nickname ">>))/binary,
                       N/binary, (translate:translate(Lang, <<" does not exist in the room">>))/binary>>,
                    {error, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)};
-                   J ->
-                   {value, J}
+                   [FirstSessionJid | _RestOfSessions] ->
+                   {value, FirstSessionJid}
                end;
                _ ->
                {error, ?ERR_BAD_REQUEST}
@@ -3316,6 +3404,9 @@ get_config(Lang, StateData, From) ->
      boolxfield(<<"Allow users to send invites">>,
              <<"muc#roomconfig_allowinvites">>,
              (Config#config.allow_user_invites), Lang),
+     boolxfield(<<"Allow users to enter room with multiple sessions">>,
+             <<"muc#roomconfig_allowmultisessions">>,
+             (Config#config.allow_multiple_sessions), Lang),
      boolxfield(<<"Allow visitors to send status text in presence updates">>,
              <<"muc#roomconfig_allowvisitorstatus">>,
              (Config#config.allow_visitor_status), Lang),
@@ -3446,6 +3537,8 @@ set_xoption([{<<"muc#roomconfig_membersonly">>, [Val]} | Opts], Config) ->
     ?SET_BOOL_XOPT(members_only, Val);
 set_xoption([{<<"muc#roomconfig_allowinvites">>, [Val]} | Opts], Config) ->
     ?SET_BOOL_XOPT(allow_user_invites, Val);
+set_xoption([{<<"muc#roomconfig_allowmultisessions">>, [Val]} | Opts], Config) ->
+    ?SET_BOOL_XOPT(allow_multiple_sessions, Val);
 set_xoption([{<<"muc#roomconfig_passwordprotectedroom">>, [Val]} | Opts], Config) ->
     ?SET_BOOL_XOPT(password_protected, Val);
 set_xoption([{<<"muc#roomconfig_roomsecret">>, [Val]} | Opts], Config) ->
@@ -3548,6 +3641,8 @@ set_opts([{Opt, Val} | Opts], SD=#state{config = C = #config{}}) ->
             SD#state{config = C#config{members_only = Val}};
         allow_user_invites ->
             SD#state{config = C#config{allow_user_invites = Val}};
+        allow_multiple_sessions ->
+            SD#state{config = C#config{allow_multiple_sessions = Val}};
         password_protected ->
             SD#state{config = C#config{password_protected = Val}};
         password ->
@@ -3591,6 +3686,7 @@ make_opts(StateData) ->
      ?MAKE_CONFIG_OPT(members_by_default),
      ?MAKE_CONFIG_OPT(members_only),
      ?MAKE_CONFIG_OPT(allow_user_invites),
+     ?MAKE_CONFIG_OPT(allow_multiple_sessions),
      ?MAKE_CONFIG_OPT(password_protected),
      ?MAKE_CONFIG_OPT(password),
      ?MAKE_CONFIG_OPT(anonymous),
