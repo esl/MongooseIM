@@ -53,10 +53,10 @@
 	 remove_user/3,
 	 store_type/1,
 	 plain_password_required/0,
-	 get_vh_registered_users/2,        % not impl
-     get_vh_registered_users_number/1, % not impl
-     get_vh_registered_users_number/2, % not impl
-     get_password_s/2                  % not impl
+	 get_vh_registered_users/2,       
+	 get_vh_registered_users_number/1,
+	 get_vh_registered_users_number/2,
+	 get_password_s/2                  % not impl
 ]).
 
 -include("ejabberd.hrl").
@@ -322,10 +322,11 @@ plain_password_required() ->
     false.
 
 store_type(_) ->
-	plain.
+    plain.
 
+get_vh_registered_users_number(_Server) -> 0.
+
+get_vh_registered_users_number(_Server, _Opts) -> 0.
 
 %% @doc gen_auth unimplemented callbacks
-get_vh_registered_users_number(_Server) -> erlang:error(not_implemented).
-get_vh_registered_users_number(_Server, _Opts) -> erlang:error(not_implemented).
 get_password_s(_User, _Server) -> erlang:error(not_implemented).

@@ -147,7 +147,7 @@ set_password(User, Server, Password) ->
 	    {error, invalid_jid};
 	true ->
 	    F = fun() ->
-			Password2 = case scram:enabled() of
+			Password2 = case scram:enabled(Server) of
 					true -> scram:password_to_scram(Password, scram:iterations(Server));
 					false -> Password
 				    end,
