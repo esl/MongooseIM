@@ -50,6 +50,7 @@
 -define(ESCAPE_BINARY(CData), crypt(CData)).
 
 -spec start() -> ok.
+-ifdef(xml_nif).
 start() ->
     SOPath = filename:join(ejabberd:get_so_path(), "xml"),
     case catch erlang:load_nif(SOPath, 0) of
@@ -58,6 +59,10 @@ start() ->
         Err ->
             ?WARNING_MSG("unable to load xml NIF: ~p", [Err])
     end.
+-else.
+start() ->
+    ok.
+-endif.
 
 -spec escape_cdata_and_attr(jlib:xmlel()) -> #xmlcdata{}.
 escape_cdata_and_attr(#xmlel{ children = Children, attrs = Attrs } = Data) ->
