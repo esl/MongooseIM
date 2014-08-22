@@ -66,8 +66,7 @@
                     | ejabberd_auth_external
                     | ejabberd_auth_internal
                     | ejabberd_auth_ldap
-                    | ejabberd_auth_odbc
-                    | ejabberd_auth_pam.
+                    | ejabberd_auth_odbc.
 
 %%%----------------------------------------------------------------------
 %%% API

@@ -59,8 +59,9 @@
 
 -spec start(Host :: ejabberd:server()) -> 'ok'.
 start(Host) ->
-    extauth:start(
-      Host, ejabberd_config:get_local_option({extauth_program, Host})),
+    AuthOpts = ejabberd_config:get_local_option(auth_opts, Host),
+    {_, ExtauthProgram} = lists:keyfind(extauth_program, 1, AuthOpts),
+    extauth:start(Host, ExtauthProgram),
     case check_cache_last_options(Host) of
         cache ->
             ok = ejabberd_auth_internal:start(Host);
