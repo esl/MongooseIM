@@ -180,7 +180,7 @@ is_user_exists(User, Server) ->
     ?PREP,
     case make_req(get, <<"user_exists">>, LUser, LServer, <<"">>) of
         {ok, <<"true">>} -> true;
-        {ok, <<"false">>} -> false
+        _ -> false
     end.
 
 -spec remove_user(binary(), binary()) -> ok | not_exists | not_allowed | bad_request.
