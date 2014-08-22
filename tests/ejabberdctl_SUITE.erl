@@ -25,16 +25,26 @@
 %%--------------------------------------------------------------------
 
 all() ->
-    [
-        {group, accounts},
-        {group, sessions},
-        {group, vcard},
-        {group, roster},
-        {group, last},
-        {group, private},
-        {group, stanza},
-        {group, stats}
-    ].
+    Hosts = escalus_ejabberd:rpc(ejabberd_config, get_global_option, [hosts]),
+    AuthMods = lists:flatmap(
+                 fun(Host) ->
+                         escalus_ejabberd:rpc(ejabberd_auth, auth_modules, [Host])
+                 end, Hosts),
+    case lists:member(ejabberd_auth_external, AuthMods) of
+        true ->
+            {skip, external_auth_not_supported};
+        false ->
+            [
+             {group, accounts},
+             {group, sessions},
+             {group, vcard},
+             {group, roster},
+             {group, last},
+             {group, private},
+             {group, stanza},
+             {group, stats}
+            ]
+    end.
 
 groups() ->
      [
@@ -583,10 +593,10 @@ loop(Port, Data, Timeout) ->
 
 get_md5(AccountPass) ->
     lists:flatten([io_lib:format("~.16B", [X])
-                   || X <- binary_to_list(crypto:md5(AccountPass))]).
+                   || X <- binary_to_list(crypto:hash(md5, AccountPass))]).
 get_sha(AccountPass) ->
     lists:flatten([io_lib:format("~.16B", [X])
-                   || X <- binary_to_list(crypto:sha(AccountPass))]).
+                   || X <- binary_to_list(crypto:hash(sha, AccountPass))]).
 
 set_last(User, Domain, TStamp) ->
     Mod = escalus_ejabberd:rpc(mod_admin_extra_last, get_lastactivity_module, [Domain]),
