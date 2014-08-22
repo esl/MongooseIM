@@ -215,6 +215,10 @@ remove_user_req(LUser, LServer, Password, Method) ->
         _ -> ok
     end.
 
+%%%----------------------------------------------------------------------
+%%% Request maker
+%%%----------------------------------------------------------------------
+
 -spec make_req(post | get, binary(), binary(), binary(), binary()) ->
     {ok, Body :: binary()} | {error, term()}.
 make_req(_, _, LUser, LServer, _) when LUser == error orelse LServer == error ->
@@ -237,12 +241,15 @@ make_req(Method, Path, LUser, LServer, Password) ->
     Header = [{<<"Authorization">>, <<"Basic ", BasicAuth64/binary>>}],
     Connection = cuesport:get_worker(existing_pool_name(LServer)),
 
+    ?DEBUG("Making request '~s' for user ~s@~s...", [Path, LUser, LServer]),
     {ok, {{Code, _Reason}, _RespHeaders, RespBody, _, _}} = case Method of
         get -> fusco:request(Connection, <<PathPrefix/binary, Path/binary, "?", Query/binary>>,
                              "GET", Header, "", 2, 5000);
         post -> fusco:request(Connection, <<PathPrefix/binary, Path/binary>>,
                               "POST", Header, Query, 2, 5000)
     end,
+
+    ?DEBUG("Request result: ~s: ~p", [Code, RespBody]),
     case Code of
         <<"409">> -> {error, conflict};
         <<"404">> -> {error, not_found};
@@ -253,6 +260,10 @@ make_req(Method, Path, LUser, LServer, Password) ->
         <<"201">> -> {ok, created};
         <<"200">> -> {ok, RespBody}
     end.
+
+%%%----------------------------------------------------------------------
+%%% Other internal functions
+%%%----------------------------------------------------------------------
 
 -spec pool_name(binary()) -> atom().
 pool_name(Host) ->
