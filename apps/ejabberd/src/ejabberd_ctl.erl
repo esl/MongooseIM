@@ -26,11 +26,11 @@
 
 %%% @headerfile "ejabberd_ctl.hrl"
 
-%%% @doc Management of ejabberdctl commands and frontend to ejabberd commands.
+%%% @doc Management of mongooseimctl commands and frontend to ejabberd commands.
 %%%
-%%% An ejabberdctl command is an abstract function identified by a
+%%% An mongooseimctl command is an abstract function identified by a
 %%% name, with a defined number of calling arguments, that can be
-%%% defined in any Erlang module and executed using ejabberdctl
+%%% defined in any Erlang module and executed using mongooseimctl
 %%% administration script.
 %%%
 %%% Note: strings cannot have blankspaces
@@ -109,7 +109,7 @@ init() ->
 
 
 %%-----------------------------
-%% ejabberdctl Command managment
+%% mongooseimctl Command managment
 %%-----------------------------
 
 -spec register_commands(CmdDescs :: [tuple()] | tuple(),
@@ -252,7 +252,7 @@ process2(Args, Auth, AccessCommands) ->
 
 -spec get_accesscommands() -> [char() | tuple()].
 get_accesscommands() ->
-    case ejabberd_config:get_local_option(ejabberdctl_access_commands) of
+    case ejabberd_config:get_local_option(mongooseimctl_access_commands) of
         ACs when is_list(ACs) -> ACs;
         _ -> []
     end.
@@ -278,12 +278,12 @@ try_run_ctp(Args, Auth, AccessCommands) ->
     catch
         exit:Why ->
             print_usage(),
-            {io_lib:format("Error in ejabberd ctl process: ~p", [Why]), ?STATUS_USAGE};
+            {io_lib:format("Error in mongooseimctl process: ~p", [Why]), ?STATUS_USAGE};
         Error:Why ->
             %% In this case probably ejabberd is not started, so let's show Status
             process(["status"]),
             ?PRINT("~n", []),
-            {io_lib:format("Error in ejabberd ctl process: '~p' ~p", [Error, Why]), ?STATUS_USAGE}
+            {io_lib:format("Error in mongooseimctl process: '~p' ~p", [Error, Why]), ?STATUS_USAGE}
     end.
 
 
@@ -554,26 +554,26 @@ print_usage() ->
 print_usage(HelpMode, MaxC, ShCode) ->
     AllCommands =
         [
-         {"status", [], "Get ejabberd status"},
-         {"stop", [], "Stop ejabberd"},
-         {"restart", [], "Restart ejabberd"},
-         {"help", ["[--tags [tag] | com?*]"], "Show help (try: ejabberdctl help help)"},
+         {"status", [], "Get MongooseIM status"},
+         {"stop", [], "Stop MongooseIM"},
+         {"restart", [], "Restart MongooseIM"},
+         {"help", ["[--tags [tag] | com?*]"], "Show help (try: mongooseimctl help help)"},
          {"mnesia", ["[info]"], "show information of Mnesia system"}] ++
         get_list_commands() ++
         get_list_ctls(),
 
     ?PRINT(
-       ["Usage: ", ?B("ejabberdctl"), " [--node ", ?U("nodename"), "] [--auth ",
+       ["Usage: ", ?B("mongooseimctl"), " [--node ", ?U("nodename"), "] [--auth ",
         ?U("user"), " ", ?U("host"), " ", ?U("password"), "] ",
         ?U("command"), " [", ?U("options"), "]\n"
         "\n"
-        "Available commands in this ejabberd node:\n"], []),
+        "Available commands in this MongooseIM node:\n"], []),
     print_usage_commands(HelpMode, MaxC, ShCode, AllCommands),
     ?PRINT(
        ["\n"
         "Examples:\n"
-        "  ejabberdctl restart\n"
-        "  ejabberdctl --node ejabberd@host restart\n"],
+        "  mongooseimctl restart\n"
+        "  mongooseimctl --node mongooseim@host restart\n"],
        []).
 
 
@@ -756,8 +756,8 @@ print_usage_tags(Tag, MaxC, ShCode) ->
 
 print_usage_help(MaxC, ShCode) ->
     LongDesc =
-        ["The special 'help' ejabberdctl command provides help of ejabberd commands.\n\n"
-         "The format is:\n  ", ?B("ejabberdctl"), " ", ?B("help"), " [", ?B("--tags"), " ", ?U("[tag]"), " | ", ?U("com?*"), "]\n\n"
+        ["The special 'help' mongooseimctl command provides help of MongooseIM commands.\n\n"
+         "The format is:\n  ", ?B("mongooseimctl"), " ", ?B("help"), " [", ?B("--tags"), " ", ?U("[tag]"), " | ", ?U("com?*"), "]\n\n"
          "The optional arguments:\n"
          "  ",?B("--tags"),"      Show all tags and the names of commands in each tag\n"
          "  ",?B("--tags"), " ", ?U("tag"),"  Show description of commands in this tag\n"
@@ -767,18 +767,18 @@ print_usage_help(MaxC, ShCode) ->
          "              and * to match several characters.\n"
          "\n",
          "Some example usages:\n",
-         "  ejabberdctl help\n",
-         "  ejabberdctl help --tags\n",
-         "  ejabberdctl help --tags accounts\n",
-         "  ejabberdctl help register\n",
-         "  ejabberdctl help regist*\n",
+         " mongooseimctl help\n",
+         " mongooseimctl help --tags\n",
+         " mongooseimctl help --tags accounts\n",
+         " mongooseimctl help register\n",
+         " mongooseimctl help regist*\n",
          "\n",
-         "Please note that 'ejabberdctl help' shows all ejabberd commands,\n",
-         "even those that cannot be used in the shell with ejabberdctl.\n",
+         "Please note that 'mongooseimctl help' shows all MongooseIM commands,\n",
+         "even those that cannot be used in the shell with mongooseimctl.\n",
          "Those commands can be identified because the description starts with: *"],
     ArgsDef = [],
     C = #ejabberd_commands{
-      desc = "Show help of ejabberd commands",
+      desc = "Show help of MongooseIM commands",
       longdesc = LongDesc,
       args = ArgsDef,
       result = {help, string}},
@@ -883,7 +883,7 @@ print_usage_command(Cmd, C, MaxC, ShCode) ->
 
     NoteEjabberdctl = case is_supported_args(ArgsDef) of
                           true -> "";
-                          false -> ["  ", ?B("Note:"), " This command cannot be executed using ejabberdctl. Try ejabberd_xmlrpc.\n\n"]
+                          false -> ["  ", ?B("Note:"), " This command cannot be executed using mongooseimctl.\n\n"]
                       end,
 
     ?PRINT(["\n", NameFmt, "\n", ArgsFmt, "\n", ReturnsFmt, "\n\n", XmlrpcFmt, TagsFmt, "\n\n", DescFmt, "\n\n", LongDescFmt, NoteEjabberdctl], []).

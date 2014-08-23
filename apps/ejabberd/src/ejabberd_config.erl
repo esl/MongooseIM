@@ -89,7 +89,7 @@
                     | {watchdog_admins, _}
                     | {watchdog_large_heap, _}
                     | {registration_timeout, integer()}
-                    | {ejabberdctl_access_commands, list()}
+                    | {mongooseimctl_access_commands, list()}
                     | {loglevel, _}
                     | {max_fsm_queue, _}
                     | host_term().
@@ -526,8 +526,8 @@ process_term(Term, State) ->
             add_option(watchdog_large_heap, LH, State);
         {registration_timeout, Timeout} ->
             add_option(registration_timeout, Timeout, State);
-        {ejabberdctl_access_commands, ACs} ->
-            add_option(ejabberdctl_access_commands, ACs, State);
+        {mongooseimctl_access_commands, ACs} ->
+            add_option(mongooseimctl_access_commands, ACs, State);
         {loglevel, Loglevel} ->
             ejabberd_loglevel:set(Loglevel),
             State;

@@ -59,7 +59,7 @@ commands() ->
                            "put  \\ \" around the argument and\nseparate the "
                            "identifiers with \\ \\ n\n"
                            "For example:\n"
-                           "  ejabberdctl srg_create group3 localhost "
+                           "  mongooseimctl srg_create group3 localhost "
                            "name desc \\\"group1\\\\ngroup2\\\"",
                            module = ?MODULE, function = srg_create,
                            args = [{group, binary}, {host, binary},
