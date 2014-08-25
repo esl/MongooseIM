@@ -27,9 +27,11 @@ CREATE TABLE users (
 
 CREATE TABLE last (
     username varchar(250) PRIMARY KEY,
-    seconds text NOT NULL,
+    seconds integer NOT NULL,
     state text NOT NULL
 );
+
+CREATE INDEX i_last_seconds ON last USING btree (seconds);
 
 
 CREATE TABLE rosterusers (
