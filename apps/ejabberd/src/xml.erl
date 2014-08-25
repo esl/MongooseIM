@@ -29,7 +29,7 @@
 
 -export([element_to_string/1,
          element_to_binary/1,
-         crypt/1, make_text_node/1,
+         crypt/1,
          remove_cdata/1,
          get_cdata/1, get_tag_cdata/1,
          get_attr/2, get_attr_s/2,
@@ -47,19 +47,10 @@
 
 -type xmlel_or_cdata() :: jlib:xmlel() | jlib:xmlcdata().
 
-
-%% Select at compile time how to escape characters in binary text
-%% nodes.
-%% Can be choosen with ./configure --enable-full-xml
--ifdef(FULL_XML_SUPPORT).
--define(ESCAPE_BINARY(CData), make_text_node(CData)).
--else.
 -define(ESCAPE_BINARY(CData), crypt(CData)).
--endif.
 
-%% @doc Replace element_to_binary/1 with NIF
-%% Can be choosen with ./configure --enable-nif
--ifdef(NIF).
+-spec start() -> ok.
+-ifdef(xml_nif).
 start() ->
     SOPath = filename:join(ejabberd:get_so_path(), "xml"),
     case catch erlang:load_nif(SOPath, 0) of
@@ -145,23 +136,6 @@ crypt(S) when is_list(S) ->
      end || C <- S];
 crypt(S) when is_binary(S) ->
     crypt(binary_to_list(S)).
-
-
-%% @doc Make a cdata_binary depending on what characters it contains
--spec make_text_node(binary()) -> binary().
-make_text_node(CData) ->
-    case cdata_need_escape(CData) of
-        cdata ->
-            CDATA1 = <<"<![CDATA[">>,
-            CDATA2 = <<"]]>">>,
-            list_to_binary([CDATA1, CData, CDATA2]);
-        none ->
-            CData;
-        {cdata, EndTokens} ->
-            EscapedCData = escape_cdata(CData, EndTokens),
-            list_to_binary(EscapedCData)
-    end.
-
 
 %% @doc Returns escape type needed for the text node
 %% none, cdata, {cdata, [Positions]}
