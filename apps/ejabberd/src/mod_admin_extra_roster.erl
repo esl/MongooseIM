@@ -282,10 +282,10 @@ push_roster_all(File) ->
 -spec roster_list_to_binary([mod_roster:roster()]) -> [simple_roster()].
 roster_list_to_binary(Roster) ->
     [{
-        list_to_binary(Usr),
-        list_to_binary(Srv),
-        list_to_binary(Grp),
-        list_to_binary(Nick)} || {Usr, Srv, Grp, Nick} <- Roster].
+        ejabberd_binary:string_to_binary(Usr),
+        ejabberd_binary:string_to_binary(Srv),
+        ejabberd_binary:string_to_binary(Grp),
+        ejabberd_binary:string_to_binary(Nick)} || {Usr, Srv, Grp, Nick} <- Roster].
 
 
 -spec subscribe_all([simple_roster()]) -> 'ok'.
@@ -398,7 +398,7 @@ process_rosteritems(ActionS, SubsS, AsksS, UsersS, ContactsS) ->
                 (Sub, Subs) -> [Sub | Subs]
             end,
             [],
-            [list_to_atom(S) || S <- string:tokens(SubsS, ":")]
+            [list_to_existing_atom(S) || S <- string:tokens(SubsS, ":")]
             ),
 
     Asks = lists:foldl(
@@ -406,7 +406,7 @@ process_rosteritems(ActionS, SubsS, AsksS, UsersS, ContactsS) ->
                 (Ask, Asks) -> [Ask | Asks]
             end,
             [],
-            [list_to_atom(S) || S <- string:tokens(AsksS, ":")]
+            [list_to_existing_atom(S) || S <- string:tokens(AsksS, ":")]
             ),
 
     Users = lists:foldl(
@@ -414,7 +414,7 @@ process_rosteritems(ActionS, SubsS, AsksS, UsersS, ContactsS) ->
                 (U, Us) -> [U | Us]
             end,
             [],
-            [list_to_binary(S) || S <- string:tokens(UsersS, ":")]
+            [ejabberd_binary:string_to_binary(S) || S <- string:tokens(UsersS, ":")]
             ),
 
     Contacts = lists:foldl(
@@ -422,7 +422,7 @@ process_rosteritems(ActionS, SubsS, AsksS, UsersS, ContactsS) ->
                 (U, Us) -> [U | Us]
             end,
             [],
-            [list_to_binary(S) || S <- string:tokens(ContactsS, ":")]
+            [ejabberd_binary:string_to_binary(S) || S <- string:tokens(ContactsS, ":")]
             ),
 
     case rosteritem_purge({Action, Subs, Asks, Users, Contacts}) of

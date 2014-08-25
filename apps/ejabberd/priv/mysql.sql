@@ -29,9 +29,11 @@ CREATE TABLE users (
 
 CREATE TABLE last (
     username varchar(250) PRIMARY KEY,
-    seconds text NOT NULL,
+    seconds int NOT NULL,
     state text NOT NULl
 ) CHARACTER SET utf8;
+
+CREATE INDEX i_last_seconds ON last(seconds);
 
 
 CREATE TABLE rosterusers (
