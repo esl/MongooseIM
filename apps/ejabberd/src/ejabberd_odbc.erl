@@ -494,14 +494,14 @@ outer_transaction(F, NRestarts, _Reason) ->
                        [T]),
             erlang:exit(implementation_faulty)
     end,
-    sql_query_internal(<<"begin;">>),
+    sql_query_internal([<<"begin;">>]),
     put(?NESTING_KEY, PreviousNestingLevel + 1),
     Result = (catch F()),
     put(?NESTING_KEY, PreviousNestingLevel),
     case Result of
         {aborted, Reason} when NRestarts > 0 ->
             %% Retry outer transaction upto NRestarts times.
-            sql_query_internal(<<"rollback;">>),
+            sql_query_internal([<<"rollback;">>]),
             outer_transaction(F, NRestarts - 1, Reason);
         {aborted, Reason} when NRestarts =:= 0 ->
             %% Too many retries of outer transaction.
@@ -512,15 +512,15 @@ outer_transaction(F, NRestarts, _Reason) ->
                        "** When State == ~p",
                        [?MAX_TRANSACTION_RESTARTS, Reason,
                         erlang:get_stacktrace(), get(?STATE_KEY)]),
-            sql_query_internal(<<"rollback;">>),
+            sql_query_internal([<<"rollback;">>]),
             {aborted, Reason};
         {'EXIT', Reason} ->
             %% Abort sql transaction on EXIT from outer txn only.
-            sql_query_internal(<<"rollback;">>),
+            sql_query_internal([<<"rollback;">>]),
             {aborted, Reason};
         Res ->
             %% Commit successful outer txn
-            sql_query_internal(<<"commit;">>),
+            sql_query_internal([<<"commit;">>]),
             {atomic, Res}
     end.
 
@@ -541,7 +541,7 @@ sql_query_internal(Query) ->
     State = get(?STATE_KEY),
     Res = case State#state.db_type of
               odbc ->
-                  odbc:sql_query(State#state.db_ref, Query);
+                  binaryze_odbc(odbc:sql_query(State#state.db_ref, Query));
               pgsql ->
                   ?DEBUG("Postres, Send query~n~p~n", [Query]),
                   pgsql_to_odbc(pgsql:squery(State#state.db_ref, Query));
@@ -583,7 +583,15 @@ abort_on_driver_error(Reply, From) ->
 -spec odbc_connect(ConnString :: string()) -> {ok | error, _}.
 odbc_connect(SQLServer) ->
     application:start(odbc),
-    odbc:connect(SQLServer, [{scrollable_cursors, off}]).
+    odbc:connect(SQLServer, [{scrollable_cursors, off}, {binary_strings, on}]).
+
+binaryze_odbc(ODBCResults) when is_list(ODBCResults) ->
+    lists:map(fun binaryze_odbc/1, ODBCResults);
+binaryze_odbc({selected, ColNames, Rows}) ->
+    ColNamesB = lists:map(fun ejabberd_binary:string_to_binary/1, ColNames),
+    {selected, ColNamesB, Rows};
+binaryze_odbc(ODBCResult) ->
+    ODBCResult.
 
 %% == Native PostgreSQL code
 
@@ -736,3 +744,14 @@ fsm_limit_opts() ->
         _ ->
             []
     end.
+
+-spec try_binaryze(term()) -> term().
+try_binaryze(List) when is_list(List) ->
+    case io_lib:printable_unicode_list(List) of
+        true ->
+            ejabberd_binary:string_to_binary(List);
+        _ ->
+            List
+    end;
+try_binaryze(Other) ->
+    Other.

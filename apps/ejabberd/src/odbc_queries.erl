@@ -734,7 +734,7 @@ escape_character($\n) -> "\\n";
 escape_character($\t) -> "\\t";
 escape_character($\b) -> "\\b";
 escape_character($\r) -> "\\r";
-escape_character($')  -> "\\'";
+escape_character($')  -> "''";
 escape_character($")  -> "\\\"";
 escape_character($\\) -> "\\\\";
 escape_character(C)   -> C.
