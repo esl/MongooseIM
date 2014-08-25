@@ -30,7 +30,6 @@
 
 -include("ejabberd.hrl").
 
--define(PREP, begin LUser = jlib:nodeprep(User), LServer = jlib:nameprep(Server) end).
 
 %%%----------------------------------------------------------------------
 %%% API
@@ -65,7 +64,7 @@ store_type(Server) ->
 
 -spec check_password(binary(), binary(), binary()) -> boolean().
 check_password(User, Server, Password) ->
-    ?PREP,
+    {LUser, LServer} = stringprep(User, Server),
     case scram:enabled(Server) of
         false ->
             case make_req(get, <<"check_password">>, LUser, LServer, Password) of
@@ -78,7 +77,7 @@ check_password(User, Server, Password) ->
 
 -spec check_password(binary(), binary(), binary(), binary(), fun()) -> boolean().
 check_password(User, Server, Password, Digest, DigestGen) ->
-    ?PREP,
+    {LUser, LServer} = stringprep(User, Server),
     case make_req(get, <<"get_password">>, LUser, LServer, <<"">>) of
         {error, _} ->
             false;
@@ -99,7 +98,7 @@ check_password(User, Server, Password, Digest, DigestGen) ->
 
 -spec set_password(binary(), binary(), binary()) -> ok | {error, term()}.
 set_password(User, Server, Password) ->
-    ?PREP,
+    {LUser, LServer} = stringprep(User, Server),
     PasswordFinal = case scram:enabled(LServer) of
                         true -> scram:serialize(scram:password_to_scram(
                                                   Password, scram:iterations(Server)));
@@ -112,7 +111,7 @@ set_password(User, Server, Password) ->
 
 -spec try_register(binary(), binary(), binary()) -> {atomic, ok | exists} | {error, term()}.
 try_register(User, Server, Password) ->
-    ?PREP,
+    {LUser, LServer} = stringprep(User, Server),
     PasswordFinal = case scram:enabled(LServer) of
                         true -> scram:serialize(scram:password_to_scram(
                                                   Password, scram:iterations(Server)));
@@ -147,7 +146,7 @@ get_vh_registered_users_number(_Server, _Opts) ->
 -spec get_password(binary(), binary()) -> false | binary() |
                                           {binary(), binary(), binary(), integer()}.
 get_password(User, Server) ->
-    ?PREP,
+    {LUser, LServer} = stringprep(User, Server),
     case make_req(get, <<"get_password">>, LUser, LServer, <<"">>) of
         {error, _} ->
             false;
@@ -177,7 +176,7 @@ get_password_s(User, Server) ->
 
 -spec is_user_exists(binary(), binary()) -> boolean().
 is_user_exists(User, Server) ->
-    ?PREP,
+    {LUser, LServer} = stringprep(User, Server),
     case make_req(get, <<"user_exists">>, LUser, LServer, <<"">>) of
         {ok, <<"true">>} -> true;
         _ -> false
@@ -185,12 +184,12 @@ is_user_exists(User, Server) ->
 
 -spec remove_user(binary(), binary()) -> ok | not_exists | not_allowed | bad_request.
 remove_user(User, Server) ->
-    ?PREP,
+    {LUser, LServer} = stringprep(User, Server),
     remove_user_req(LUser, LServer, <<"">>, <<"remove_user">>).
 
 -spec remove_user(binary(), binary(), binary()) -> ok | not_exists | not_allowed | bad_request.
 remove_user(User, Server, Password) ->
-    ?PREP,
+    {LUser, LServer} = stringprep(User, Server),
     case scram:enabled(Server) of
         false ->
             remove_user_req(LUser, LServer, Password, <<"remove_user_validate">>);
@@ -264,6 +263,8 @@ make_req(Method, Path, LUser, LServer, Password) ->
 %%%----------------------------------------------------------------------
 %%% Other internal functions
 %%%----------------------------------------------------------------------
+
+stringprep(User, Server) -> {jlib:nodeprep(User), jlib:nameprep(Server)}.
 
 -spec pool_name(binary()) -> atom().
 pool_name(Host) ->
