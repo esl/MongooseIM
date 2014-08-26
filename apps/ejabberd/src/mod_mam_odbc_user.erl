@@ -125,14 +125,15 @@ query_archive_id(Host, UserName) ->
        "LIMIT 1"]),
 
     case Result of
-        {selected, [<<"id">>], [{IdBin}]} ->
+        {selected, [<<"id">>], [{IdBin}]} when binary(IdBin)->
             binary_to_integer(IdBin);
+        {selected, [<<"id">>], [{IdBin}]} ->
+            IdBin;
         {selected, [<<"id">>], []} ->
             %% The user is not found
             create_user_archive(Host, UserName),
             query_archive_id(Host, UserName)
     end.
-
 
 -spec create_user_archive(ejabberd:server(), ejabberd:user()) -> 'ok'.
 create_user_archive(Host, UserName) ->

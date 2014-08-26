@@ -489,11 +489,18 @@ before_id(ID, Filter) ->
 
 rows_to_uniform_format(Host, UserJID, MessageRows) ->
     EscFormat = ejabberd_odbc:escape_format(Host),
-    [row_to_uniform_format(UserJID, EscFormat, Row) || Row <- MessageRows].
+    DbEngine = ejabberd_odbc:db_engine(Host),
+    [row_to_uniform_format(DbEngine, UserJID, EscFormat, Row) || Row <- MessageRows].
 
-row_to_uniform_format(UserJID, EscFormat, {BMessID,BSrcJID,SData}) ->
+row_to_uniform_format(DbEngine, UserJID, EscFormat, {BMessID,BSrcJID,SDataRaw}) ->
     MessID = list_to_integer(binary_to_list(BMessID)),
     SrcJID = jlib:binary_to_jid(expand_minified_jid(UserJID, BSrcJID)),
+    SData = case DbEngine of
+                odbc ->
+                   ejabberd_odbc:unescape_binary(hex, <<"\\x", SDataRaw/binary>>);
+                _ ->
+                    SDataRaw
+            end,
     Data = ejabberd_odbc:unescape_binary(EscFormat, SData),
     Packet = binary_to_term(Data),
     {MessID, SrcJID, Packet}.

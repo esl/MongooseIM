@@ -198,6 +198,14 @@ escape_like(S) ->
 escape_format(Host) ->
     case db_engine(Host) of
         pgsql -> hex;
+        odbc ->
+            Key = {odbc_server_type, Host},
+            case ejabberd_config:get_local_option_or_default(Key, odbc) of
+                pgsql ->
+                    hex;
+                _ ->
+                    simple_escape
+            end;
         _     -> simple_escape
     end.
 
@@ -744,14 +752,3 @@ fsm_limit_opts() ->
         _ ->
             []
     end.
-
--spec try_binaryze(term()) -> term().
-try_binaryze(List) when is_list(List) ->
-    case io_lib:printable_unicode_list(List) of
-        true ->
-            ejabberd_binary:string_to_binary(List);
-        _ ->
-            List
-    end;
-try_binaryze(Other) ->
-    Other.
