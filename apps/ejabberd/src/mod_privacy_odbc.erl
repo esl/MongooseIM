@@ -318,6 +318,8 @@ sql_get_privacy_list_id_t(LUser, Name) ->
     SName = ejabberd_odbc:escape(Name),
     odbc_queries:get_privacy_list_id_t(Username, SName).
 
+sql_get_privacy_list_data_by_id(ID, LServer) when is_integer(ID) ->
+    odbc_queries:get_privacy_list_data_by_id(LServer, integer_to_binary(ID));
 sql_get_privacy_list_data_by_id(ID, LServer) ->
     odbc_queries:get_privacy_list_data_by_id(LServer, ID).
 
@@ -340,6 +342,8 @@ sql_add_privacy_list(LUser, Name) ->
     SName = ejabberd_odbc:escape(Name),
     odbc_queries:add_privacy_list(Username, SName).
 
+sql_set_privacy_list(ID, RItems) when is_integer(ID)->
+    odbc_queries:set_privacy_list(integer_to_binary(ID), RItems);
 sql_set_privacy_list(ID, RItems) ->
     odbc_queries:set_privacy_list(ID, RItems).
 
