@@ -28,4 +28,3 @@ string_to_binary(S) when is_list(S) ->
     end;
 string_to_binary(B) when is_binary(B) ->
     B.
-

@@ -720,7 +720,7 @@ set_privacy_list(ID, RItems) ->
 del_privacy_lists(LServer, _Server, Username) ->
     ejabberd_odbc:sql_query(
       LServer,
-      [<<"delete pld.* from privacy_list_data as pld left join privacy_list as pl on pld.id = pl.id where pl.username='">>,Username,<<"';">>]),
+      [<<"delete from privacy_list_data where id in ( select id from privacy_list as pl where pl.username='">>,Username,<<"');">>]),
     ejabberd_odbc:sql_query(
       LServer,
       [<<"delete from privacy_list where username='">>, Username, "';"]),
