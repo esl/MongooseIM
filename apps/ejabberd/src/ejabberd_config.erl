@@ -29,7 +29,8 @@
 
 -export([start/0, load_file/1,
          add_global_option/2, add_local_option/2,
-         get_global_option/1, get_local_option/1]).
+         get_global_option/1, get_local_option/1,
+         get_local_option_or_default/2]).
 -export([get_vh_by_auth_method/1]).
 -export([is_file_readable/1]).
 
@@ -701,6 +702,14 @@ get_local_option(Opt) ->
             undefined
     end.
 
+-spec get_local_option_or_default(key(), value()) -> value().
+get_local_option_or_default(Opt, Default) ->
+    case get_local_option(Opt) of
+        undefined ->
+            Default;
+        Value ->
+            Value
+    end.
 
 %% @doc Return the list of hosts handled by a given module
 get_vh_by_auth_method(AuthMethod) ->
