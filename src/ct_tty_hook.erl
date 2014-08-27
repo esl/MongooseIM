@@ -26,7 +26,7 @@
 -export([on_tc_skip/3]).
 
 -export([terminate/1]).
--record(state, { total, suite_total, ts, tcs, data }).
+-record(state, { total, suite_total, ts, tcs, data, print_group, print_case }).
 
 %% @doc Return a unique id for this CTH.
 id(_Opts) ->
@@ -34,8 +34,12 @@ id(_Opts) ->
 
 %% @doc Always called before any other callback function. Use this to initiate
 %% any common state.
-init(_Id, _Opts) ->
-    {ok, #state{ total = 0, data = [] }}.
+init(_Id, Opts) ->
+    Unfolded = proplists:unfold(Opts),
+    PrintGroup = proplists:get_value(print_group, Unfolded, false),
+    PrintCase = proplists:get_value(print_case, Unfolded, false),
+    {ok, #state{ total = 0, data = [],
+                 print_group = PrintGroup, print_case = PrintCase }}.
 
 %% @doc Called before init_per_suite is called.
 pre_init_per_suite(Suite,Config,State) ->
@@ -58,7 +62,8 @@ post_end_per_suite(Suite,_Config,Return,State) ->
                           total = State#state.total + State#state.suite_total } }.
 
 %% @doc Called before each init_per_group.
-pre_init_per_group(_Group,Config,State) ->
+pre_init_per_group(Group,Config,State) ->
+    print_group_enter(Group, State, "Starting"),
     {Config, State}.
 
 %% @doc Called after each init_per_group.
@@ -70,16 +75,19 @@ pre_end_per_group(_Group,Config,State) ->
     {Config, State}.
 
 %% @doc Called after each end_per_group.
-post_end_per_group(_Group,_Config,Return,State) ->
+post_end_per_group(Group,_Config,Return,State) ->
+    print_group_enter(Group, State, "Finished"),
     {Return, State}.
 
 %% @doc Called before each test case.
-pre_init_per_testcase(_TC,Config,State) ->
+pre_init_per_testcase(TC,Config,State) ->
+    print_case_enter(TC, State, "Starting"),
     {Config, State#state{ ts = now(), total = State#state.suite_total + 1 } }.
 
 %% @doc Called after each test case.
 post_end_per_testcase(TC,_Config,Return,State) ->
     TCInfo = {testcase, TC, Return, timer:now_diff(now(), State#state.ts)},
+    print_case_enter(TC, State, "Finished"),
     {Return, State#state{ ts = undefined, tcs = [TCInfo | State#state.tcs] } }.
 
 %% @doc Called after post_init_per_suite, post_end_per_suite, post_init_per_group,
@@ -128,3 +136,15 @@ maybe_print_test_case({testcase, _Name,ok,_})              -> ok;
 maybe_print_test_case({testcase, Name,{error, Content},_}) ->
     io:format("~n====== Test name: ~p", [Name]),
     io:format("~n====== Reason:    ~p~n", [Content]).
+
+print_group_enter(Group, #state{print_group = true}, Msg) ->
+    escalus_ejabberd:rpc(error_logger, warning_msg, ["====== ~s GROUP ~p",
+                         [Msg, Group]]);
+print_group_enter(_Group, _State, _Msg) ->
+    ok.
+
+print_case_enter(Group, #state{print_case = true}, Msg) ->
+    escalus_ejabberd:rpc(error_logger, warning_msg, ["====== ~s CASE ~p",
+        [Msg, Group]]);
+print_case_enter(_Group, _State, _Msg) ->
+    ok.
