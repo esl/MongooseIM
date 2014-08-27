@@ -407,15 +407,17 @@ before_id(ID, Filter) ->
 -spec rows_to_uniform_format([mod_mam_muc:row()], ejabberd:server(),
                              ejabberd:jid()) -> list().
 rows_to_uniform_format(MessageRows, Host, RoomJID) ->
-    [row_to_uniform_format(Row, Host, RoomJID) || Row <- MessageRows].
+    EscFormat = ejabberd_odbc:escape_format(Host),
+    DbEngine = ejabberd_odbc:db_engine(Host),
+    [row_to_uniform_format(DbEngine, EscFormat, Row, RoomJID) || Row <- MessageRows].
 
 
--spec row_to_uniform_format({_,_,_}, ejabberd:server(), ejabberd:jid())
+-spec row_to_uniform_format(atom(), atom(), {_,_,_}, ejabberd:jid())
             -> mod_mam_muc:row().
-row_to_uniform_format({BMessID,BNick,SData}, Host, RoomJID) ->
+row_to_uniform_format(DbEngine, EscFormat, {BMessID,BNick,SDataRaw}, RoomJID) ->
     MessID = list_to_integer(binary_to_list(BMessID)),
     SrcJID = jlib:jid_replace_resource(RoomJID, BNick),
-    EscFormat = ejabberd_odbc:escape_format(Host),
+    SData = ejabberd_odbc:unescape_odbc_binary(DbEngine, SDataRaw),
     Data = ejabberd_odbc:unescape_binary(EscFormat, SData),
     Packet = binary_to_term(Data),
     {MessID, SrcJID, Packet}.

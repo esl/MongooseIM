@@ -495,12 +495,7 @@ rows_to_uniform_format(Host, UserJID, MessageRows) ->
 row_to_uniform_format(DbEngine, UserJID, EscFormat, {BMessID,BSrcJID,SDataRaw}) ->
     MessID = list_to_integer(binary_to_list(BMessID)),
     SrcJID = jlib:binary_to_jid(expand_minified_jid(UserJID, BSrcJID)),
-    SData = case DbEngine of
-                odbc ->
-                   ejabberd_odbc:unescape_binary(hex, <<"\\x", SDataRaw/binary>>);
-                _ ->
-                    SDataRaw
-            end,
+    SData = ejabberd_odbc:unescape_odbc_binary(DbEngine, SDataRaw),
     Data = ejabberd_odbc:unescape_binary(EscFormat, SData),
     Packet = binary_to_term(Data),
     {MessID, SrcJID, Packet}.

@@ -47,7 +47,8 @@
 %% BLOB escaping
 -export([escape_format/1,
          escape_binary/2,
-         unescape_binary/2]).
+         unescape_binary/2,
+         unescape_odbc_binary/2]).
 
 %% gen_fsm callbacks
 -export([init/1,
@@ -219,6 +220,12 @@ escape_binary(simple_escape, Bin) when is_binary(Bin) ->
 unescape_binary(hex, <<"\\x", Bin/binary>>) when is_binary(Bin) ->
     hex_to_bin(Bin);
 unescape_binary(simple_escape, Bin) ->
+    Bin.
+
+-spec unescape_odbc_binary(atom(), binary()) -> binary().
+unescape_odbc_binary(odbc, Bin) when is_binary(Bin)->
+    hex_to_bin(Bin);
+unescape_odbc_binary(_, Bin) ->
     Bin.
 
 -spec hex_to_bin(binary()) -> <<_:_*1>>.
