@@ -153,6 +153,7 @@ server_enables_sm_before_session(Config) ->
     AliceSpec = [{stream_management, true}
                  | escalus_users:get_options(Config, alice)],
     {ok, _, _, _} = escalus_connection:start(AliceSpec, [start_stream,
+                                                         stream_features,
                                                          maybe_use_ssl,
                                                          authenticate,
                                                          bind,
@@ -162,6 +163,7 @@ server_enables_sm_after_session(Config) ->
     AliceSpec = [{stream_management, true}
                  | escalus_users:get_options(Config, alice)],
     {ok, _, _, _} = escalus_connection:start(AliceSpec, [start_stream,
+                                                         stream_features,
                                                          maybe_use_ssl,
                                                          authenticate,
                                                          bind,
@@ -180,6 +182,7 @@ server_enables_resumption(Config) ->
     %% Assert matches {ok, _, _, _}
     {ok, Alice, _, _} = escalus_connection:start(AliceSpec,
                                                  [start_stream,
+                                                  stream_features,
                                                   maybe_use_ssl,
                                                   authenticate,
                                                   bind,
@@ -192,6 +195,7 @@ server_returns_failed(Config, ConnActions) ->
                  | escalus_users:get_options(Config, alice)],
     {ok, Alice, _, _} = escalus_connection:start(AliceSpec,
                                                  [start_stream,
+                                                  stream_features,
                                                   maybe_use_ssl]
                                                  ++ ConnActions),
     escalus_connection:send(Alice, escalus_stanza:enable_sm()),
@@ -203,6 +207,7 @@ basic_ack(Config) ->
                  | escalus_users:get_options(Config, alice)],
     {ok, Alice, _, _} = escalus_connection:start(AliceSpec,
                                                  [start_stream,
+                                                  stream_features,
                                                   maybe_use_ssl,
                                                   authenticate,
                                                   bind,
@@ -223,6 +228,7 @@ h_ok_before_session(Config) ->
                  | escalus_users:get_options(Config, alice)],
     {ok, Alice, _, _} = escalus_connection:start(AliceSpec,
                                                  [start_stream,
+                                                  stream_features,
                                                   maybe_use_ssl,
                                                   authenticate,
                                                   bind,
@@ -239,6 +245,7 @@ h_ok_after_session_enabled_before_session(Config) ->
                  | escalus_users:get_options(Config, alice)],
     {ok, Alice, _, _} = escalus_connection:start(AliceSpec,
                                                  [start_stream,
+                                                  stream_features,
                                                   maybe_use_ssl,
                                                   authenticate,
                                                   bind,
@@ -256,6 +263,7 @@ h_ok_after_session_enabled_after_session(Config) ->
                  | escalus_users:get_options(Config, alice)],
     {ok, Alice, _, _} = escalus_connection:start(AliceSpec,
                                                  [start_stream,
+                                                  stream_features,
                                                   maybe_use_ssl,
                                                   authenticate,
                                                   bind,
@@ -322,6 +330,7 @@ server_requests_ack(Config) ->
 
 resend_more_offline_messages_than_buffer_size(Config) ->
     ConnSteps =  [start_stream,
+                  stream_features,
                   authenticate,
                   bind,
                   session],
@@ -395,6 +404,7 @@ preserve_order(Config) ->
     escalus_ejabberd:rpc(?MOD_SM, set_resume_timeout, [TIMEOUT]),
     escalus_ejabberd:rpc(?MOD_SM, set_ack_freq, [1]),
     ConnSteps =  [start_stream,
+                  stream_features,
                   authenticate,
                   bind,
                   session],
@@ -467,6 +477,7 @@ resend_unacked_after_resume_timeout(Config) ->
     escalus_ejabberd:rpc(?MOD_SM, set_resume_timeout, [TIMEOUT]),
     escalus_ejabberd:rpc(?MOD_SM, set_ack_freq, [1]),
     ConnSteps =  [start_stream,
+                  stream_features,
                   authenticate,
                   bind,
                   session],
@@ -516,6 +527,7 @@ resume_session_state_send_message(Config) ->
     escalus_ejabberd:rpc(?MOD_SM, set_ack_freq, [1]),
     ConnSteps =  [
                   start_stream,
+                  stream_features,
                   authenticate,
                   bind,
                   session],
@@ -566,6 +578,7 @@ resume_session_state_send_message(Config) ->
 resume_session_state_stop_c2s(Config) ->
     true = escalus_ejabberd:rpc(?MOD_SM, set_ack_freq, [1]),
     ConnSteps =  [start_stream,
+                  stream_features,
                   authenticate,
                   bind,
                   session],
@@ -647,6 +660,7 @@ resume_session(Config) ->
         {_, SMID} = buffer_unacked_messages_and_die(AliceSpec, Bob, Messages),
         %% Resume the session.
         Steps = [start_stream,
+                 stream_features,
                  maybe_use_ssl,
                  authenticate,
                  mk_resume_stream(SMID, 2)],
@@ -673,6 +687,7 @@ mk_resume_stream(SMID, PrevH) ->
 
 buffer_unacked_messages_and_die(AliceSpec, Bob, Messages) ->
     Steps = [start_stream,
+             stream_features,
              maybe_use_ssl,
              authenticate,
              bind,
