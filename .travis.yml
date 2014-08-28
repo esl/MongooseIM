@@ -25,6 +25,6 @@ notifications:
 otp_release:
         - R15B03
 env:
-        - TEST_CONFIG=mysql_mnesia DB=mysql
+#        - TEST_CONFIG=mysql_mnesia DB=mysql
         - TEST_CONFIG=odbc_pgsql_mnesia DB=pgsql
-        - TEST_CONFIG=pgsql_mnesia DB=pgsql
+#        - TEST_CONFIG=pgsql_mnesia DB=pgsql
