@@ -35,12 +35,14 @@ get_last(LUser, LServer) ->
     case catch odbc_queries:get_last(LServer, Username) of
         {selected, [<<"seconds">>, <<"state">>], []} ->
             not_found;
-        {selected, [<<"seconds">>, <<"state">>],
-            [{STimeStamp, Status}]} ->
+        {selected, [<<"seconds">>, <<"state">>], [{STimeStamp, Status}]} ->
             case catch binary_to_integer(STimeStamp) of
                 TimeStamp when is_integer(TimeStamp) ->
                     {ok, TimeStamp, Status};
-                Reason -> {error, {invalid_timestamp, Reason}}
+                _ when is_integer(STimeStamp) -> %%ODBC layer was used
+                    {ok, STimeStamp, Status};
+                Reason ->
+                    {error, {invalid_timestamp, Reason}}
             end;
         Reason -> {error, {invalid_result, Reason}}
     end.
