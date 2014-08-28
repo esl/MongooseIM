@@ -32,6 +32,8 @@
 
     add_rosteritem/7,
     delete_rosteritem/4,
+    befriend_users/5,
+    remove_friendship/4,
     process_rosteritems/5,
     get_roster/2,
     push_roster/3,
@@ -73,82 +75,95 @@
 commands() ->
     [
         #ejabberd_commands{name = add_rosteritem, tags = [roster],
-                           desc = "Add an item to a user's roster (supports ODBC)",
-                           module = ?MODULE, function = add_rosteritem,
-                           args = [{localuser, binary}, {localserver, binary},
-                                   {user, binary}, {server, binary},
-                                   {nick, binary}, {group, binary},
-                                   {subs, binary}],
-                           result = {res, rescode}},
+            desc = "Add an item to a user's roster (supports ODBC)",
+            module = ?MODULE, function = add_rosteritem,
+            args = [{localuser, binary}, {localserver, binary},
+                {user, binary}, {server, binary},
+                {nick, binary}, {group, binary},
+                {subs, binary}],
+            result = {res, rescode}},
         %%{"", "subs= none, from, to or both"},
         %%{"", "example: add-roster peter localhost mike server.com MiKe Employees both"},
         %%{"", "will add mike@server.com to peter@localhost roster"},
         #ejabberd_commands{name = delete_rosteritem, tags = [roster],
-                           desc = "Delete an item from a user's roster (supports ODBC)",
-                           module = ?MODULE, function = delete_rosteritem,
-                           args = [{localuser, binary}, {localserver, binary},
-                                   {user, binary}, {server, binary}],
-                           result = {res, rescode}},
+            desc = "Delete an item from a user's roster (supports ODBC)",
+            module = ?MODULE, function = delete_rosteritem,
+            args = [{localuser, binary}, {localserver, binary},
+                {user, binary}, {server, binary}],
+            result = {res, rescode}},
+        #ejabberd_commands{name = befriend_users, tags = [roster],
+            desc = "Establish a complete friendship between 2 users",
+            module = ?MODULE, function = befriend_users,
+            args = [{localuser1, binary}, {localserver1, binary},
+                {localuser2, binary}, {localserver2, binary},
+                {group, binary}],
+            result = {res, rescode}},
+        #ejabberd_commands{name = remove_friendship, tags = [roster],
+            desc = "Remove friendship between 2 users completely",
+            module = ?MODULE, function = remove_friendship,
+            args = [{localuser1, binary}, {localserver1, binary},
+                {localuser2, binary}, {localserver2, binary}],
+            result = {res, rescode}},
         #ejabberd_commands{name = process_rosteritems, tags = [roster],
-                           desc = "List or delete rosteritems that match filtering options (Mnesia only!)",
-                           longdesc = "Explanation of each argument:\n"
-                           " - action: what to do with each rosteritem that "
-                           "matches all the filtering options\n"
-                           " - subs: subscription type\n"
-                           " - asks: pending subscription\n"
-                           " - users: the JIDs of the local user\n"
-                           " - contacts: the JIDs of the contact in the roster\n"
-                           "\n"
-                           "Allowed values in the arguments:\n"
-                           "  ACTION = list | delete\n"
-                           "  SUBS = SUB[:SUB]* | any\n"
-                           "  SUB = none | from | to | both\n"
-                           "  ASKS = ASK[:ASK]* | any\n"
-                           "  ASK = none | out | in\n"
-                           "  USERS = JID[:JID]* | any\n"
-                           "  CONTACTS = JID[:JID]* | any\n"
-                           "  JID = characters valid in a JID, and can use the "
-                           "Regular expression syntax: http://www.erlang.org/doc/man/re.html#id212737\n"
-                           "\n"
-                           "This example will list roster items with subscription "
-                           "'none', 'from' or 'to' that have any ask property, of "
-                           "local users which JID is in the virtual host "
-                           "'example.org' and that the contact JID is either a "
-                           "bare server name (without user part) or that has a "
-                           "user part and the server part contains the word 'icq'"
-                           ":\n  list none:from:to any *@example.org *:*@*icq*",
-                           module = ?MODULE, function = process_rosteritems,
-                           args = [{action, string}, {subs, string},
-                                   {asks, string}, {users, string},
-                                   {contacts, string}],
-                           result = {res, rescode}},
+            desc = "List or delete rosteritems that match filtering options (Mnesia only!)",
+            longdesc = "Explanation of each argument:\n"
+            " - action: what to do with each rosteritem that "
+            "matches all the filtering options\n"
+            " - subs: subscription type\n"
+            " - asks: pending subscription\n"
+            " - users: the JIDs of the local user\n"
+            " - contacts: the JIDs of the contact in the roster\n"
+            "\n"
+            "Allowed values in the arguments:\n"
+            "  ACTION = list | delete\n"
+            "  SUBS = SUB[:SUB]* | any\n"
+            "  SUB = none | from | to | both\n"
+            "  ASKS = ASK[:ASK]* | any\n"
+            "  ASK = none | out | in\n"
+            "  USERS = JID[:JID]* | any\n"
+            "  CONTACTS = JID[:JID]* | any\n"
+            "  JID = characters valid in a JID, and can use the "
+            "Regular expression syntax: http://www.erlang.org/doc/man/re.html#id212737\n"
+            "\n"
+            "This example will list roster items with subscription "
+            "'none', 'from' or 'to' that have any ask property, of "
+            "local users which JID is in the virtual host "
+            "'example.org' and that the contact JID is either a "
+            "bare server name (without user part) or that has a "
+            "user part and the server part contains the word 'icq'"
+            ":\n  list none:from:to any *@example.org *:*@*icq*",
+            module = ?MODULE, function = process_rosteritems,
+            args = [{action, string}, {subs, string},
+                {asks, string}, {users, string},
+                {contacts, string}],
+            result = {res, rescode}},
         #ejabberd_commands{name = get_roster, tags = [roster],
-                           desc = "Get roster of a local user",
-                           module = ?MODULE, function = get_roster,
-                           args = [{user, binary}, {host, binary}],
-                           result = {contacts, {list, {contact, {tuple, [
-                                {jid, binary},
-                                {nick, binary},
-                                {subscription, binary},
-                                {ask, binary},
-                                {group, binary}
-                                ]}}}}},
+            desc = "Get roster of a local user",
+            module = ?MODULE, function = get_roster,
+            args = [{user, binary}, {host, binary}],
+            result = {contacts, {list, {contact, {tuple, [
+                {jid, binary},
+                {nick, binary},
+                {subscription, binary},
+                {ask, binary},
+                {group, binary}
+            ]}}}}},
         #ejabberd_commands{name = push_roster, tags = [roster],
-                           desc = "Push template roster from file to a user",
-                           module = ?MODULE, function = push_roster,
-                           args = [{file, string}, {user, binary}, {host, binary}],
-                           result = {res, rescode}},
+            desc = "Push template roster from file to a user",
+            module = ?MODULE, function = push_roster,
+            args = [{file, string}, {user, binary}, {host, binary}],
+            result = {res, rescode}},
         #ejabberd_commands{name = push_roster_all, tags = [roster],
-                           desc = "Push template roster from file to all those users",
-                           module = ?MODULE, function = push_roster_all,
-                           args = [{file, string}],
-                           result = {res, rescode}},
+            desc = "Push template roster from file to all those users",
+            module = ?MODULE, function = push_roster_all,
+            args = [{file, string}],
+            result = {res, rescode}},
         #ejabberd_commands{name = push_roster_alltoall, tags = [roster],
-                           desc = "Add all the users to all the users of Host in Group",
-                           module = ?MODULE, function = push_alltoall,
-                           args = [{host, binary}, {group, binary}],
-                           result = {res, rescode}}
-        ].
+            desc = "Add all the users to all the users of Host in Group",
+            module = ?MODULE, function = push_alltoall,
+            args = [{host, binary}, {group, binary}],
+            result = {res, rescode}}
+    ].
 
 %%%
 %%% Roster
@@ -202,6 +217,49 @@ delete_rosteritem(LocalUser, LocalServer, User, Server) ->
         _  ->
             error
     end.
+
+-spec befriend_users(ejabberd:user(), ejabberd:server(),
+                     ejabberd:user(), ejabberd:server(),
+                     binary() | string()) -> ok | {error, term()}.
+befriend_users(LocalUser1, LocalServer1, LocalUser2, LocalServer2, Rostergroup) ->
+    R1 = add_rosteritem(LocalUser1, LocalServer1,
+                        LocalUser2, LocalServer2, LocalUser2,
+                        Rostergroup, <<"both">>),
+    case R1 of
+        ok ->
+            R2 = add_rosteritem(LocalUser2, LocalServer2,
+                                LocalUser1, LocalServer1, LocalUser1,
+                                Rostergroup, <<"both">>),
+            case R2 of
+                ok ->
+                    ok;
+                _ ->
+                    {error, format_error("adding", LocalUser2, LocalServer2)}
+            end;
+        _ ->
+            {error, format_error("adding", LocalUser1, LocalServer1)}
+    end.
+
+-spec remove_friendship(ejabberd:user(), ejabberd:server(),
+                        ejabberd:user(), ejabberd:server())
+      -> ok | {error, term()}.
+remove_friendship(LocalUser1, LocalServer1, LocalUser2, LocalServer2) ->
+    R1 = delete_rosteritem(LocalUser1, LocalServer1, LocalUser2, LocalServer2),
+    case R1 of
+        ok ->
+            R2 = delete_rosteritem(LocalUser2, LocalServer2, LocalUser1, LocalServer1),
+            case R2 of
+                ok ->
+                    ok;
+                _ ->
+                    {error, format_error("removing", LocalUser2, LocalServer2)}
+            end;
+        _ ->
+            {error, format_error("removing", LocalUser1, LocalServer2)}
+    end.
+
+format_error(Action, User, Server) ->
+    io_lib:format("Failed while ~s rosteritem for user ~s@~s", [Action, User, Server]).
 
 
 %% @doc returns result of mnesia or odbc transaction
