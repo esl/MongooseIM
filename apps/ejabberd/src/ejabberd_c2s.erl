@@ -341,6 +341,9 @@ get_subscribed(FsmRef) ->
 
 -spec wait_for_stream(Item :: ejabberd:xml_stream_item(),
                       State :: state()) -> fsm_return().
+wait_for_stream({xmlstreamstart, <<"policy-file-request">>, _}, StateData) ->
+    send_text(StateData, flash_policy_string()),
+    {stop, normal, StateData};
 wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
     DefaultLang = case ?MYLANG of
                       undefined ->
@@ -3069,6 +3072,20 @@ defer_resource_constraint_check(#state{stream_mgmt_constraint_check_tref = undef
     State#state{stream_mgmt_constraint_check_tref = TRef};
 defer_resource_constraint_check(State)->
     State.
+
+flash_policy_string() ->
+    Listen = ejabberd_config:get_local_option(listen),
+    ClientPortsDeep = ["," ++ integer_to_list(Port)
+		       || {{Port, _IP, _Prot}, ejabberd_c2s, _Opts} <- Listen],
+    [$, | ToPortsString] = lists:flatten(ClientPortsDeep),
+    list_to_binary("<?xml version=\"1.0\"?>\n"
+	"<!DOCTYPE cross-domain-policy SYSTEM "
+	"\"http://www.macromedia.com/xml/dtds/cross-domain-policy.dtd\">\n"
+	"<cross-domain-policy>\n"
+	"  <allow-access-from domain=\"*\" to-ports=\""
+	++ ToPortsString ++
+	"\"/>\n"
+	"</cross-domain-policy>\n\0").
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
