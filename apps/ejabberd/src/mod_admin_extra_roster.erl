@@ -29,7 +29,6 @@
 
 -export([
     commands/0,
-
     add_rosteritem/7,
     delete_rosteritem/4,
     befriend_users/5,
@@ -222,22 +221,12 @@ delete_rosteritem(LocalUser, LocalServer, User, Server) ->
                      ejabberd:user(), ejabberd:server(),
                      binary() | string()) -> ok | {error, term()}.
 befriend_users(LocalUser1, LocalServer1, LocalUser2, LocalServer2, Rostergroup) ->
-    R1 = add_rosteritem(LocalUser1, LocalServer1,
-                        LocalUser2, LocalServer2, LocalUser2,
-                        Rostergroup, <<"both">>),
-    case R1 of
+    case subscribe_2way(LocalUser1, LocalServer1, LocalUser2, LocalServer2, Rostergroup) of
         ok ->
-            R2 = add_rosteritem(LocalUser2, LocalServer2,
-                                LocalUser1, LocalServer1, LocalUser1,
-                                Rostergroup, <<"both">>),
-            case R2 of
-                ok ->
-                    ok;
-                _ ->
-                    {error, format_error("adding", LocalUser2, LocalServer2)}
-            end;
-        _ ->
-            {error, format_error("adding", LocalUser1, LocalServer1)}
+            push_roster_item(LocalUser1, LocalServer1, LocalUser2, LocalServer2, {add, LocalUser2, <<"both">>, Rostergroup}),
+            push_roster_item(LocalUser2, LocalServer2, LocalUser1, LocalServer1, {add, LocalUser1, <<"both">>, Rostergroup});
+        {error, {User, Server}} ->
+            {error, format_error("adding", User, Server)}
     end.
 
 -spec remove_friendship(ejabberd:user(), ejabberd:server(),
@@ -259,7 +248,7 @@ remove_friendship(LocalUser1, LocalServer1, LocalUser2, LocalServer2) ->
     end.
 
 format_error(Action, User, Server) ->
-    io_lib:format("Failed while ~s rosteritem for user ~s@~s", [Action, User, Server]).
+    lists:flatten(io_lib:format("Failed while ~s rosteritem for user ~s@~s", [Action, User, Server])).
 
 
 %% @doc returns result of mnesia or odbc transaction
@@ -583,4 +572,33 @@ is_regexp_match(String, RegExp) ->
         {error, ErrDesc} ->
             io:format("Wrong regexp ~p: ~p", [RegExp, ErrDesc]),
             false
+    end.
+
+subscribe_retry(LocalUser1, LocalServer1, LocalUser2, LocalServer2, Rostergroup) ->
+    case subscribe(LocalUser1, LocalServer1,
+        LocalUser2, LocalServer2,
+        LocalUser2, Rostergroup, <<"both">>, []) of
+        {atomic, ok} ->
+            ok;
+        _ ->
+            {atomic, ok} = subscribe(LocalUser1, LocalServer1,
+                LocalUser2, LocalServer2,
+                LocalUser2, Rostergroup, <<"both">>, []),
+            ok
+    end.
+
+subscribe_2way(LocalUser1, LocalServer1, LocalUser2, LocalServer2, Rostergroup) ->
+    case subscribe(LocalUser1, LocalServer1,
+        LocalUser2, LocalServer2,
+        LocalUser2, Rostergroup, <<"both">>, []) of
+        {atomic, ok} ->
+            case catch subscribe_retry(LocalUser2, LocalServer2, LocalUser1, LocalServer1, Rostergroup) of
+                ok ->
+                    ok;
+                _ ->
+                    unsubscribe(LocalUser1, LocalServer1, LocalUser2, LocalServer2),
+                    {error, {LocalUser2, LocalServer2}}
+            end;
+        _ ->
+            {error, {LocalUser1, LocalServer1}}
     end.
