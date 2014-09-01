@@ -152,10 +152,17 @@ maybe_post_request(Data, Host, _ClientIp) ->
 	{String, ?STATUS_SUCCESS} ->
 	    {200, [], String};
 	{"", Code} ->
-	    {200, [], integer_to_list(Code)};
-	{String, _Code} ->
-	    {200, [], String}
+	    {make_status(Code), [], integer_to_list(Code)};
+	{String, Code} ->
+	    {make_status(Code), [], String}
     end.
+
+make_status(?STATUS_SUCCESS) ->
+    200;
+make_status(?STATUS_USAGE) ->
+    400;
+make_status(_) ->
+    500.
 
 %% This function throws an error if the module is not started in that VHost.
 try_get_option(Host, OptionName, DefaultValue) ->
