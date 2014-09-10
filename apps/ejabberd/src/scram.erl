@@ -50,8 +50,11 @@
          check_password/2
         ]).
 
+-export([serialize/1, deserialize/1]).
+
 -define(SALT_LENGTH, 16).
 -define(SCRAM_DEFAULT_ITERATION_COUNT, 4096).
+-define(SCRAM_SERIAL_PREFIX, "==SCRAM==,").
 
 -spec salted_password(binary(), binary(), non_neg_integer()) -> binary().
 salted_password(Password, Salt, IterationCount) ->
@@ -100,14 +103,24 @@ hi_round(Password, UPrev, IterationCount) ->
 
 
 enabled(Host) ->
-    scram == ejabberd_config:get_local_option({auth_password_format, Host}).
+    case ejabberd_config:get_local_option(auth_opts, Host) of
+        undefined ->
+            false;
+        AuthOpts ->
+            {password_format, scram} == lists:keyfind(password_format, 1, AuthOpts)
+    end.
 
 iterations() -> ?SCRAM_DEFAULT_ITERATION_COUNT.
 
 iterations(Host) ->
-    case ejabberd_config:get_local_option({auth_scram_iterations, Host}) of
-        undefined -> ?SCRAM_DEFAULT_ITERATION_COUNT;
-        Iterations -> Iterations
+    case ejabberd_config:get_local_option(auth_opts, Host) of
+        undefined ->
+            iterations();
+        AuthOpts ->
+            case lists:keyfind(scram_iterations, 1, AuthOpts) of
+                false -> iterations();
+                {_, Iterations} -> Iterations
+            end
     end.
 
 password_to_scram(Password) ->
@@ -131,6 +144,31 @@ check_password(Password, Scram) ->
     SaltedPassword = salted_password(Password, Salt, IterationCount),
     StoredKey = stored_key(client_key(SaltedPassword)),
     (base64:decode(Scram#scram.storedkey) == StoredKey).
+
+serialize(#scram{storedkey = StoredKey, serverkey = ServerKey,
+                     salt = Salt, iterationcount = IterationCount})->
+    IterationCountBin = integer_to_binary(IterationCount),
+    << <<?SCRAM_SERIAL_PREFIX>>/binary,
+       StoredKey/binary,$,,ServerKey/binary,
+       $,,Salt/binary,$,,IterationCountBin/binary>>;
+serialize(Other) ->
+    ?WARNING_MSG("Not a SCRAM record: ~p, ~p", [Other]),
+    {error, not_scram_record}.
+
+deserialize(<<?SCRAM_SERIAL_PREFIX, Serialized/binary>>) ->
+    case catch binary:split(Serialized, <<",">>, [global]) of
+        [StoredKey, ServerKey,Salt,IterationCount] ->
+            {ok, #scram{storedkey = StoredKey,
+                        serverkey = ServerKey,
+                        salt = Salt,
+                        iterationcount = binary_to_integer(IterationCount)}};
+        _ ->
+            ?WARNING_MSG("Incorrect serialized SCRAM: ~p, ~p", [Serialized]),
+            {error, incorrect_scram}
+    end;
+deserialize(Bin) ->
+    ?WARNING_MSG("Corrupted serialized SCRAM: ~p, ~p", [Bin]),
+    {error, corrupted_scram}.
 
 
 -ifdef(no_crypto_hmac).
