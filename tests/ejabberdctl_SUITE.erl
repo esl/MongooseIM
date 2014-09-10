@@ -25,16 +25,22 @@
 %%--------------------------------------------------------------------
 
 all() ->
-    [
-        {group, accounts},
-        {group, sessions},
-        {group, vcard},
-        {group, roster},
-        {group, last},
-        {group, private},
-        {group, stanza},
-        {group, stats}
-    ].
+    AuthMods = auth_modules(),
+    case lists:member(ejabberd_auth_external, AuthMods) of
+        true ->
+            {skip, external_auth_not_supported};
+        false ->
+            [
+             {group, accounts},
+             {group, sessions},
+             {group, vcard},
+             {group, roster},
+             {group, last},
+             {group, private},
+             {group, stanza},
+             {group, stats}
+            ]
+    end.
 
 groups() ->
      [
@@ -84,13 +90,18 @@ init_per_suite(Config) ->
                   true -> EjdWD ++ "/bin/ejabberdctl";
                   false -> EjdWD ++ "/bin/mongooseimctl"
               end,
+
+    AuthMods = auth_modules(),
+    
     NewConfig = escalus:init_per_suite([{ctl_path, CtlPath},
+                                        {ctl_auth_mods, AuthMods},
                                         {roster_template, TemplatePath} | Config]),
     escalus:create_users(NewConfig).
 
 end_per_suite(Config) ->
-    delete_users(Config),
-    escalus:end_per_suite(Config).
+    Config1 = lists:keydelete(ctl_auth_mods, 1, Config),
+    delete_users(Config1),
+    escalus:end_per_suite(Config1).
 
 init_per_group(_GroupName, Config) ->
     Config.
@@ -98,6 +109,16 @@ init_per_group(_GroupName, Config) ->
 end_per_group(_GroupName, Config) ->
     Config.
 
+init_per_testcase(CaseName, Config)
+  % these cases are incompatible with domainless odbc schema
+  when CaseName == delete_old_users_vhost
+       orelse CaseName == stats_global
+       orelse CaseName == stats_host ->
+    {_, AuthMods} = lists:keyfind(ctl_auth_mods, 1, Config),
+    case lists:member(ejabberd_auth_odbc, AuthMods) of
+        true -> {skip, vhost_odbc_incompatible};
+        false -> escalus:init_per_testcase(CaseName, Config)
+    end;
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
@@ -180,7 +201,7 @@ delete_old_users(Config) ->
     set_last(AliceName, Domain, Now),
     set_last(BobName, Domain, Now),
     set_last(MikeName, Domain, Now),
-
+    
     {_, 0} = ejabberdctl("delete_old_users", ["10"], Config),
     {_, 0} = ejabberdctl("check_account", [AliceName, Domain], Config),
     {_, ErrCode} = ejabberdctl("check_account", [KateName, Domain], Config),
@@ -542,6 +563,13 @@ stats_host(Config) ->
 %% Helpers
 %%-----------------------------------------------------------------
 
+auth_modules() ->
+    Hosts = escalus_ejabberd:rpc(ejabberd_config, get_global_option, [hosts]),
+    lists:flatmap(
+      fun(Host) ->
+              escalus_ejabberd:rpc(ejabberd_auth, auth_modules, [Host])
+      end, Hosts).
+
 start_mod_admin_extra() ->
     Domain = ct:get_config(ejabberd_domain),
     ok = dynamic_modules:restart(Domain, mod_admin_extra, []).
@@ -583,10 +611,10 @@ loop(Port, Data, Timeout) ->
 
 get_md5(AccountPass) ->
     lists:flatten([io_lib:format("~.16B", [X])
-                   || X <- binary_to_list(crypto:md5(AccountPass))]).
+                   || X <- binary_to_list(crypto:hash(md5, AccountPass))]).
 get_sha(AccountPass) ->
     lists:flatten([io_lib:format("~.16B", [X])
-                   || X <- binary_to_list(crypto:sha(AccountPass))]).
+                   || X <- binary_to_list(crypto:hash(sha, AccountPass))]).
 
 set_last(User, Domain, TStamp) ->
     Mod = escalus_ejabberd:rpc(mod_admin_extra_last, get_lastactivity_module, [Domain]),
