@@ -15,12 +15,14 @@
 -behaviour(mod_last).
 
 -include("mod_last.hrl").
+-include("ejabberd.hrl").
 
 %% API
 -export([init/2,
-    get_last/2,
-    set_last_info/4,
-    remove_user/2]).
+         get_last/2,
+         count_active_users/3,
+         set_last_info/4,
+         remove_user/2]).
 
 -spec init(ejabberd:server(), list()) -> no_return().
 init(_Host, _Opts) ->
@@ -41,6 +43,19 @@ get_last(LUser, LServer) ->
                 Reason -> {error, {invalid_timestamp, Reason}}
             end;
         Reason -> {error, {invalid_result, Reason}}
+    end.
+
+-spec count_active_users(ejabberd:lserver(), non_neg_integer(), '<' | '>') ->
+    non_neg_integer().
+count_active_users(LServer, TimeStamp, Comparator) ->
+    ComparatorBin = atom_to_binary(Comparator, utf8),
+    TimeStampBin = integer_to_binary(TimeStamp),
+    WhereClause = <<"where seconds ", ComparatorBin/binary, " ", TimeStampBin/binary >>,
+    case odbc_queries:count_records_where(LServer, <<"last">>, WhereClause) of
+        {selected, [_], [{Count}]} ->
+            binary_to_integer(Count);
+        _ ->
+            0
     end.
 
 -spec set_last_info(ejabberd:luser(), ejabberd:lserver(),

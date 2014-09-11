@@ -15,10 +15,12 @@
 -behaviour(mod_last).
 
 -include("mod_last.hrl").
+-include("ejabberd.hrl").
 
 %% API
 -export([init/2,
          get_last/2,
+         count_active_users/3,
          set_last_info/4,
          remove_user/2]).
 
@@ -39,6 +41,14 @@ get_last(LUser, LServer) ->
             status = Status}] ->
             {ok, TimeStamp, Status}
     end.
+
+-spec count_active_users(ejabberd:lserver(), non_neg_integer(), '<' | '>') ->
+    non_neg_integer().
+count_active_users(LServer, TimeStamp, Comparator) ->
+    MS = [{{last_activity,{'_',LServer},'$1','_'},
+        [{Comparator,'$1',TimeStamp}],
+        [true]}],
+    ets:select_count(last_activity, MS).
 
 -spec set_last_info(ejabberd:luser(), ejabberd:lserver(),
                     non_neg_integer(), binary()) ->
