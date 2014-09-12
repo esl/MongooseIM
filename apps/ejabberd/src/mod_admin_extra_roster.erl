@@ -237,7 +237,9 @@ loaded_module(Domain,Options) ->
 
 -spec get_roster(ejabberd:user(), ejabberd:server()) -> [jids_nick_subs_ask_grp()].
 get_roster(User, Server) ->
-    Items = ejabberd_hooks:run_fold(roster_get, Server, [], [{User, Server}]),
+    LUser = jlib:nodeprep(User),
+    LServer = jlib:nameprep(Server),
+    Items = ejabberd_hooks:run_fold(roster_get, Server, [], [{LUser, LServer}]),
     make_roster_xmlrpc(Items).
 
 
