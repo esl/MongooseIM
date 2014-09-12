@@ -1261,6 +1261,7 @@ admin_ban_higher_user(Config) ->
 admin_ban_list(Config) ->
     escalus:story(Config, [1, 1, 1], fun(Alice, Bob, Kate) ->
         %% Alice requests ban list
+
         escalus:send(Alice, stanza_ban_list_request(?config(room, Config))),
         List = escalus:wait_for_stanza(Alice),
         escalus:assert(is_iq_result, List),
@@ -2404,7 +2405,8 @@ send_private_groupchat(Config) ->
 % Fails - no 110 status code 
 change_nickname(Config) ->
     escalus:story(Config, [1, 1, 1], fun(_Alice,  Bob, Eve) ->
-        escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Bob))),
+        BobNick = escalus_utils:get_username(Bob),
+        escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), BobNick)),
         escalus:wait_for_stanzas(Bob, 2),
         escalus:send(Eve, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Eve))),
         escalus:wait_for_stanza(Bob),
@@ -2413,8 +2415,8 @@ change_nickname(Config) ->
         escalus:send(Bob, stanza_change_nick(?config(room, Config), <<"newbob">>)),
         Presence = escalus:wait_for_stanza(Bob),
 		has_status_codes(Presence, [<<"110">>]),
-        is_nick_unavailable_correct(?config(room, Config), <<"bob">>, <<"newbob">>, escalus:wait_for_stanza(Eve)),
-        is_nick_unavailable_correct(?config(room, Config), <<"bob">>, <<"newbob">>, Presence),
+        is_nick_unavailable_correct(?config(room, Config), BobNick, <<"newbob">>, escalus:wait_for_stanza(Eve)),
+        is_nick_unavailable_correct(?config(room, Config), BobNick, <<"newbob">>, Presence),
         is_nick_update_correct(?config(room, Config), <<"newbob">>, escalus:wait_for_stanza(Eve)),
         Presence2 = escalus:wait_for_stanza(Bob),
         is_nick_update_correct(?config(room, Config), <<"newbob">>, Presence2),
@@ -2957,8 +2959,8 @@ configure(Config) ->
 configure_logging(Config) ->
     escalus:story(Config, [1,1,1], fun(Alice, Bob, Kate) ->
         %% Bob joins room
-        escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
-        escalus:send(Kate, stanza_muc_enter_room(?config(room, Config), <<"kate">>)),
+        escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Bob))),
+        escalus:send(Kate, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Kate))),
         escalus:wait_for_stanzas(Bob, 3),
         escalus:wait_for_stanzas(Kate, 3),
 
@@ -3764,7 +3766,6 @@ is_presence_from(User, Room, Presence) ->
 
 %does not check the jid - the user might not be entitled to receive it.
 is_availability_status_notification_correct(Room, SenderNick, NewStatus, ReceivedMessage) ->
-    %error_logger:info_msg("tested message: ~n~p~n", [ReceivedMessage]),
     escalus_pred:is_presence(ReceivedMessage),
     From = room_address(Room, SenderNick),
     From  = exml_query:attr(ReceivedMessage, <<"from">>),
@@ -3775,7 +3776,6 @@ is_item_list_empty(#xmlel{children = [Query]}) ->
     Query#xmlel.children == [].
 
 assert_is_message_correct(Room, SenderNick, Type, Text, ReceivedMessage) ->
-    %error_logger:info_msg("tested message: ~n~p~n", [ReceivedMessage]),
     escalus_pred:is_message(ReceivedMessage),
     From = room_address(Room, SenderNick),
     From  = exml_query:attr(ReceivedMessage, <<"from">>),
@@ -3819,10 +3819,8 @@ print(Element) ->
 generate_rpc_jid({_,User}) ->
     {username, Username} = lists:keyfind(username, 1, User),
     {server, Server} = lists:keyfind(server, 1, User),
-    %% esl-ejabberd uses different record to store jids
-     %JID = <<Username/binary, "@", Server/binary, "/rpc">>,
-     %{jid, JID, Username, Server, <<"rpc">>}.
-    {jid, Username, Server, <<"rpc">>, Username, Server, <<"rpc">>}.
+    JID = <<Username/binary, "@", Server/binary, "/rpc">>,
+    escalus_ejabberd:rpc(jlib, binary_to_jid, [JID]).
 
 %Groupchat 1.0 protocol
 stanza_groupchat_enter_room(Room, Nick) ->
@@ -4213,8 +4211,8 @@ is_iq_with_short_jid(Stanza, User) ->
 
 is_short_jid(Stanza, User) ->
     Items = exml_query:subelements(Stanza, <<"item">>),
-    JID = escalus_utils:get_short_jid(User),
-    lists:any(fun(Item) -> exml_query:attr(Item, <<"jid">>) =:= JID end, Items).
+    JID = escalus_utils:jid_to_lower(escalus_utils:get_short_jid(User)),
+    lists:any(fun(Item) -> escalus_utils:jid_to_lower(exml_query:attr(Item, <<"jid">>)) =:= JID end, Items).
 
 is_presence_with_status_code(Presence, Code) ->
     escalus:assert(is_presence, Presence),

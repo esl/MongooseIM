@@ -79,12 +79,10 @@ suite() ->
 
 init_per_suite(Config) ->
     {ok, EjdWD} = escalus_ejabberd:rpc(file, get_cwd, []),
-
     Cwd0 = escalus_config:get_config(data_dir, Config),
     CwdTokens = string:tokens(Cwd0, "/"),
     Cwd =  [$/ | string:join(lists:sublist(CwdTokens, 1, length(CwdTokens)-2), "/")],
     TemplatePath = Cwd ++ "/roster.template",
-
     start_mod_admin_extra(),
     CtlPath = case filelib:is_file(EjdWD ++ "/bin/ejabberdctl") of
                   true -> EjdWD ++ "/bin/ejabberdctl";
@@ -96,7 +94,7 @@ init_per_suite(Config) ->
     NewConfig = escalus:init_per_suite([{ctl_path, CtlPath},
                                         {ctl_auth_mods, AuthMods},
                                         {roster_template, TemplatePath} | Config]),
-    escalus:create_users(NewConfig).
+    escalus:create_users(NewConfig, {by_name, [alice, mike, bob, kate]}).
 
 end_per_suite(Config) ->
     Config1 = lists:keydelete(ctl_auth_mods, 1, Config),
@@ -123,7 +121,7 @@ init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
 end_per_testcase(delete_old_users, Config) ->
-    Users = escalus_users:get_users(all),
+    Users = escalus_users:get_users({by_name, [alice, bob, kate, mike]}),
     lists:foreach(fun({_User, UserSpec}) ->
                 {Username, Domain, Pass} = get_user_data(UserSpec, Config),
                 escalus_ejabberd:rpc(ejabberd_auth, try_register, [Username, Domain, Pass])
@@ -187,7 +185,6 @@ num_active_users(Config) ->
     Now = Mega*1000000+Secs,
     set_last(AliceName, Domain, Now),
     set_last(MikeName, Domain, Now - 864000), %% Now - 10 days
-
     {"1\n", _} = ejabberdctl("num_active_users", [Domain, "5"], Config).
 
 delete_old_users(Config) ->
@@ -229,7 +226,7 @@ delete_old_users_vhost(Config) ->
 
 %% Checks both num_resources and resource_num
 num_resources_num(Config) ->
-    escalus:story(Config, [3, 1], fun(_, Alice2, _, _) ->
+    escalus:story(Config, [{alice, 3}, {bob, 1}], fun(_, Alice2, _, _) ->
                 {Username, Domain, _} = get_user_data(alice, Config),
                 ResName = binary_to_list(escalus_client:resource(Alice2)) ++ "\n",
 
@@ -238,7 +235,7 @@ num_resources_num(Config) ->
         end).
 
 kick_session(Config) ->
-    escalus:story(Config, [1], fun(Alice) ->
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
                 Username = escalus_client:username(Alice),
                 Domain = escalus_client:server(Alice),
                 Resource = escalus_client:resource(Alice),
@@ -288,7 +285,7 @@ sessions_info(Config) ->
         end).
 
 set_presence(Config) ->
-    escalus:story(Config, [1], fun(Alice) ->
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
                 Username = escalus_client:username(Alice), 
                 Domain = escalus_client:server(Alice), 
                 Resource = escalus_client:resource(Alice),
@@ -340,7 +337,7 @@ vcard2_multi_rw(Config) ->
 %%--------------------------------------------------------------------
 
 rosteritem_rw(Config) ->
-    escalus:story(Config, [1], fun(Alice) ->
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
                 {AliceName, Domain, _} = get_user_data(alice, Config),
                 {BobName, Domain, _} = get_user_data(bob, Config),
                 {MikeName, Domain, _} = get_user_data(mike, Config),
@@ -379,13 +376,13 @@ rosteritem_rw(Config) ->
         end).
 
 presence_after_add_rosteritem(Config) ->
-     escalus:story(Config, [1,1], fun(Alice, Bob) ->
+     escalus:story(Config, [{alice, 1}, {bob,1}], fun(Alice, Bob) ->
                  {AliceName, Domain, _} = get_user_data(alice, Config),
                  {BobName, Domain, _} = get_user_data(bob, Config),
  
                  {_, 0} = ejabberdctl("add_rosteritem", [AliceName, Domain, BobName,
                                                          Domain, "MyBob", "MyGroup", "both"], Config),
- 
+
                  escalus:send(Alice, escalus_stanza:presence(<<"available">>)),
                  escalus:assert(is_presence, escalus:wait_for_stanza(Bob)),
  
@@ -393,12 +390,11 @@ presence_after_add_rosteritem(Config) ->
          end).
 
 push_roster(Config) ->
-    escalus:story(Config, [1], fun(Alice) ->
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
                 {AliceName, Domain, _} = get_user_data(alice, Config),
                 TemplatePath = escalus_config:get_config(roster_template, Config),
                 
                 {_, 0} = ejabberdctl("push_roster", [TemplatePath, AliceName, Domain], Config),
-
                 escalus:send(Alice, escalus_stanza:roster_get()),
                 Roster1 = escalus:wait_for_stanza(Alice),
                 escalus:assert(is_roster_result, Roster1),
@@ -408,7 +404,7 @@ push_roster(Config) ->
         end).
 
 push_roster_all(Config) ->
-    escalus:story(Config, [1, 1], fun(Alice, Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob,1}], fun(Alice, Bob) ->
                 TemplatePath = escalus_config:get_config(roster_template, Config),
 
                 {_, 0} = ejabberdctl("push_roster_all", [TemplatePath], Config),
@@ -428,7 +424,7 @@ push_roster_all(Config) ->
         end).
 
 push_roster_alltoall(Config) ->
-    escalus:story(Config, [1], fun(Alice) ->
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
                 {_, Domain, _} = get_user_data(alice, Config),
 
                 {_, 0} = ejabberdctl("push_roster_alltoall", [Domain, "MyGroup"], Config),
@@ -447,7 +443,7 @@ push_roster_alltoall(Config) ->
 %%--------------------------------------------------------------------
 
 set_last(Config) ->
-    escalus:story(Config, [1], fun(Alice) ->
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
                 {AliceName, Domain, _} = get_user_data(alice, Config),
                 {BobName, Domain, _} = get_user_data(bob, Config),
                 
@@ -495,7 +491,7 @@ private_rw(Config) ->
 %%--------------------------------------------------------------------
 
 send_message(Config) ->
-    escalus:story(Config, [1, 2], fun(Alice, Bob1, Bob2) ->
+    escalus:story(Config, [{alice, 1}, {bob, 2}], fun(Alice, Bob1, Bob2) ->
                 {_, 0} = ejabberdctl("send_message_chat", [escalus_client:full_jid(Alice),
                                                            escalus_client:full_jid(Bob1),
                                                            "'\"Hi Bob!\"'"], Config),
@@ -504,15 +500,15 @@ send_message(Config) ->
                 
                 {_, 0} = ejabberdctl("send_message_headline", [escalus_client:full_jid(Alice),
                                                                     escalus_client:short_jid(Bob1),
-                                                                    "Subj", "'\"Hi Bob!\"'"], Config),
+                                                                    "Subj", "'\"Hi Bob!!\"'"], Config),
                 Stanza2 = escalus:wait_for_stanza(Bob1),
                 Stanza3 = escalus:wait_for_stanza(Bob2),
-                escalus:assert(is_headline_message, [<<"Subj">>, <<"Hi Bob!">>], Stanza2),
-                escalus:assert(is_headline_message, [<<"Subj">>, <<"Hi Bob!">>], Stanza3)
+                escalus:assert(is_headline_message, [<<"Subj">>, <<"Hi Bob!!">>], Stanza2),
+                escalus:assert(is_headline_message, [<<"Subj">>, <<"Hi Bob!!">>], Stanza3)
         end).
 
 send_stanza(Config) ->
-    escalus:story(Config, [1, 1], fun(Alice, Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob,1}], fun(Alice, Bob) ->
                 Domain = escalus_client:server(Alice),
                 Resource = escalus_client:resource(Alice),
                 {BobName, _, _} = get_user_data(bob, Config),
@@ -532,12 +528,12 @@ send_stanza(Config) ->
 %%--------------------------------------------------------------------
 
 stats_global(Config) ->
-    escalus:story(Config, [1, 1], fun(_Alice, _Bob) ->
-                Registered = integer_to_list(length(escalus_users:get_users(all))) ++ "\n",
+    escalus:story(Config, [{alice, 1}, {bob,1}], fun(_Alice, _Bob) ->
+                RegisteredCount = length(escalus_config:get_config(escalus_users, Config, [])),
+                Registered = integer_to_list(RegisteredCount) ++ "\n",
                 
                 {UpTime, 0} = ejabberdctl("stats", ["uptimeseconds"], Config),
                 _ = list_to_integer(string:strip(UpTime, both, $\n)),
-
                 {Registered, 0} = ejabberdctl("stats", ["registeredusers"], Config),
                 
                 {"2\n", 0} = ejabberdctl("stats", ["onlineusersnode"], Config),
@@ -546,8 +542,9 @@ stats_global(Config) ->
         end).
 
 stats_host(Config) ->
-    escalus:story(Config, [1, 1], fun(Alice, _Bob) ->
-                Registered = integer_to_list(length(escalus_users:get_users(all))) ++ "\n",
+    escalus:story(Config, [{alice, 1}, {bob,1}], fun(Alice, _Bob) ->
+                RegisteredCount = length(escalus_config:get_config(escalus_users, Config, [])),
+                Registered = integer_to_list(RegisteredCount) ++ "\n",
 
                 PriDomain = escalus_client:server(Alice),
                 SecDomain = escalus_config:get_config(ejabberd_secondary_domain, Config),
@@ -621,7 +618,7 @@ set_last(User, Domain, TStamp) ->
     escalus_ejabberd:rpc(Mod, store_last_info, [User, Domain, TStamp, <<>>]).
 
 delete_users(Config) ->
-    Users = escalus_users:get_users(all),
+    Users = escalus_users:get_users({by_name, [alice, bob, kate, mike]}),
     lists:foreach(fun({_User, UserSpec}) ->
                 {Username, Domain, _Pass} = get_user_data(UserSpec, Config),
                 escalus_ejabberd:rpc(ejabberd_auth, remove_user, [Username, Domain])
@@ -666,7 +663,7 @@ match_user_info2([User | UserR], UsersInfo) ->
     FullJID = Username ++ "@" ++ Domain ++ "/" ++ Resource,
 
     true = lists:any(fun(UserInfo) ->
-                string:str(UserInfo, FullJID) =:= 1
+                string:str(UserInfo, string:to_lower(FullJID)) =:= 1
         end, UsersInfo),
     match_user_info2(UserR, UsersInfo).
 
@@ -675,8 +672,11 @@ match_roster(ItemsValid, Items) ->
 
     true = (length(ItemsValid) == length(ItemsTokens)),
     true = lists:all(fun({Username, Domain, Nick, Group, Sub}) ->
-                    lists:any(fun(ItemTokens) ->
-                                ItemTokens =:= [binary_to_list(Username) ++ "@" ++ binary_to_list(Domain),
-                                                Nick, Sub, "none", Group]
-                        end, ItemsTokens)
+                    JID = escalus_utils:jid_to_lower(<<Username/binary, "@", Domain/binary >>),
+                    lists:any(fun
+                                ([RosterJID, Nick, Sub, "none", Group]) ->
+                                    JID =:= escalus_utils:jid_to_lower(list_to_binary(RosterJID));
+                                (_) ->
+                                    false
+                              end, ItemsTokens)
             end, ItemsValid).

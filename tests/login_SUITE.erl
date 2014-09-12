@@ -138,9 +138,8 @@ end_per_testcase(CaseName, Config) ->
 %%--------------------------------------------------------------------
 
 register(Config) ->
-    Users = escalus_config:get_config(escalus_users, Config),
-    [{Name1, UserSpec1}, {Name2, UserSpec2} | _] = Users,
-    {_, AdminSpec} = lists:keyfind(admin, 1, Users),
+    [{Name1, UserSpec1}, {Name2, UserSpec2}] = escalus_users:get_users({by_name, [alice, bob]}),
+    [{_, AdminSpec}] = escalus_users:get_users({by_name, [admin]}),
     [Username1, Server1, _Pass1] = escalus_users:get_usp(Config, UserSpec1),
     [Username2, Server2, _Pass2] = escalus_users:get_usp(Config, UserSpec2),
     [AdminU, AdminS, AdminP] = escalus_users:get_usp(Config, AdminSpec),
