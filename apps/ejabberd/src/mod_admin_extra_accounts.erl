@@ -131,15 +131,14 @@ get_sha(AccountPass) ->
 
 -spec num_active_users(ejabberd:server(), integer()) -> non_neg_integer().
 num_active_users(Host, Days) ->
-    Mod = mod_admin_extra_last:get_lastactivity_module(Host),
     {MegaSecs, Secs, _MicroSecs} = now(),
     TimeStamp = MegaSecs * 1000000 + Secs,
     TS = TimeStamp - Days * 86400,
-    case catch Mod:select(Host, TS, '>') of
+    case catch mod_last:count_active_users(Host, TS, '>') of
         {'EXIT', _Reason} ->
             0;
-        Vals0 ->
-            length(Vals0)
+        Val ->
+            Val
     end.
 
 

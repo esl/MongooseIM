@@ -37,6 +37,7 @@
          remove_attr/2,
          make_jid/3,
          make_jid/1,
+         are_equal_jids/2,
          binary_to_jid/1,
          jid_to_binary/1,
          is_nodename/1,
@@ -288,6 +289,13 @@ make_jid(User, Server, Resource) ->
 -spec make_jid(ejabberd:simple_jid()) -> ejabberd:jid() | error.
 make_jid({User, Server, Resource}) ->
     make_jid(User, Server, Resource).
+
+-spec are_equal_jids(ejabberd:jid(), ejabberd:jid()) -> boolean().
+are_equal_jids(#jid{luser = LUser, lserver = LServer, lresource = LRes},
+               #jid{luser = LUser, lserver = LServer, lresource = LRes}) ->
+    true;
+are_equal_jids(_, _) ->
+    false.
 
 
 -spec binary_to_jid(binary()) -> 'error' | ejabberd:jid().
