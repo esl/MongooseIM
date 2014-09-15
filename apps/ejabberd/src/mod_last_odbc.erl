@@ -1,7 +1,7 @@
 %%%----------------------------------------------------------------------
 %%% File    : mod_last.erl
 %%% Author  : Michał Piotrowski <michal.piotrowski@erlang-solutions.com>
-%%% Purpose : mod_last mnesia backend (XEP-0012)
+%%% Purpose : mod_last odbc backend (XEP-0012)
 %%%
 %%%
 %%% ejabberd, Copyright (C) 2002-2014   ProcessOne
