@@ -73,17 +73,13 @@ end_per_suite(Config) ->
 
 init_per_group(essential, Config) ->
     Config;
-init_per_group(chat, Config) ->
-    escalus_users:create_users(Config, {by_name, [carol, geralt, alice]});
 init_per_group(_GroupName, Config) ->
-    escalus:create_users(Config).
+    escalus_users:create_users(Config, {by_name, [carol, geralt, alice]}).
 
 end_per_group(essential, Config) ->
     Config;
-end_per_group(chat, Config) ->
-    escalus_users:delete_users(Config, {by_name, [carol, geralt, alice]});
 end_per_group(_GroupName, Config) ->
-    escalus:delete_users(Config).
+    escalus_users:delete_users(Config, {by_name, [carol, geralt, alice]}).
 
 
 init_per_testcase(disconnect_inactive = CaseName, Config) ->
@@ -185,12 +181,12 @@ interleave_requests(Config) ->
         Empty2 = escalus_bosh:empty_body(Rid + 1, Sid),
         Chat2 = Empty2#xmlel{
                 children = [escalus_stanza:chat_to(Geralt, <<"2nd!">>)]},
-        escalus_bosh:send_raw(Carol#client.conn, Chat2),
+        escalus_bosh:send_raw(Carol, Chat2),
 
         Empty1 = escalus_bosh:empty_body(Rid, Sid),
         Chat1 = Empty1#xmlel{
                 children = [escalus_stanza:chat_to(Geralt, <<"1st!">>)]},
-        escalus_bosh:send_raw(Carol#client.conn, Chat1),
+        escalus_bosh:send_raw(Carol, Chat1),
 
         escalus:assert(is_chat_message, [<<"1st!">>],
                        escalus_client:wait_for_stanza(Geralt)),
@@ -247,7 +243,7 @@ cant_send_invalid_rid(Config) ->
         InvalidRid = get_bosh_rid(Carol) + ?INVALID_RID_OFFSET,
         Sid = get_bosh_sid(Carol),
         Empty = escalus_bosh:empty_body(InvalidRid, Sid),
-        escalus_bosh:send_raw(Carol#client.conn, Empty),
+        escalus_bosh:send_raw(Carol, Empty),
 
         escalus:assert(is_stream_end, escalus:wait_for_stanza(Carol)),
         0 = length(get_bosh_sessions())
@@ -263,11 +259,11 @@ multiple_stanzas(Config) ->
                 Stanza2 = escalus_stanza:chat_to(Alice, <<"Hello">>),
                 Stanza3 = escalus_stanza:service_discovery(Server),
 
-                RID = escalus_bosh:get_rid(Carol#client.conn),
-                SID = escalus_bosh:get_sid(Carol#client.conn),
+                RID = escalus_bosh:get_rid(Carol),
+                SID = escalus_bosh:get_sid(Carol),
                 Body = escalus_bosh:empty_body(RID, SID),
                 Stanza = Body#xmlel{children=[Stanza1,Stanza2,Stanza1,Stanza3]},
-                escalus_bosh:send_raw(Carol#client.conn, Stanza),
+                escalus_bosh:send_raw(Carol, Stanza),
 
                 %% check whether each of stanzas has been processed correctly
                 escalus:assert(is_chat_message, [<<"Hello">>],
@@ -289,11 +285,11 @@ namespace(Config) ->
             Stanza2 = escalus_stanza:chat_to(Carol, <<"Hello">>),
             Stanza3 = escalus_stanza:presence_direct(Carol, <<"available">>),
 
-            RID = escalus_bosh:get_rid(Carol#client.conn),
-            SID = escalus_bosh:get_sid(Carol#client.conn),
+            RID = escalus_bosh:get_rid(Carol),
+            SID = escalus_bosh:get_sid(Carol),
             Body = escalus_bosh:empty_body(RID, SID),
             Stanza = Body#xmlel{children=[Stanza1]},
-            escalus_bosh:send_raw(Carol#client.conn, Stanza),
+            escalus_bosh:send_raw(Carol, Stanza),
 
             IQResp = escalus:wait_for_stanza(Carol),
 
@@ -385,7 +381,7 @@ reply_on_pause(Config) ->
         %% but the session should be alive.
         1 = length(get_bosh_sessions()),
         0 = length(get_handlers(CarolSessionPid)),
-        0 = escalus_bosh:get_requests(Carol#client.conn)
+        0 = escalus_bosh:get_requests(Carol)
 
         end).
 
@@ -453,7 +449,7 @@ reply_in_time(Config) ->
         Rid = get_bosh_rid(Carol),
         Sid = get_bosh_sid(Carol),
         Empty = escalus_bosh:empty_body(Rid, Sid),
-        escalus_bosh:send_raw(Carol#client.conn, Empty),
+        escalus_bosh:send_raw(Carol, Empty),
         timer:sleep(100),
         1 = length(get_handlers(CarolSessionPid)),
 
@@ -467,7 +463,7 @@ reply_in_time(Config) ->
 server_acks(Config) ->
     escalus:story(Config, [{carol, 1}, {geralt, 1}], fun(Carol, Geralt) ->
 
-        escalus_bosh:set_active(Carol#client.conn, false),
+        escalus_bosh:set_active(Carol, false),
         ExpectedRid = list_to_binary(integer_to_list(get_bosh_rid(Carol))),
         escalus_client:send(Carol, escalus_stanza:chat_to(Geralt, <<"1st!">>)),
         escalus_client:send(Carol, escalus_stanza:chat_to(Geralt, <<"2nd!">>)),
@@ -507,12 +503,12 @@ force_report(Config) ->
         [{_, _, CarolSessionPid}] = get_bosh_sessions(),
         set_client_acks(CarolSessionPid, true),
 
-        escalus_bosh:set_active(Carol#client.conn, false),
+        escalus_bosh:set_active(Carol, false),
         %% Send ack with StaleRid
         Rid = get_bosh_rid(Carol),
         Sid = get_bosh_sid(Carol),
         BodyWithAck = ack_body(escalus_bosh:empty_body(Rid, Sid), StaleRid),
-        escalus_bosh:send_raw(Carol#client.conn, BodyWithAck),
+        escalus_bosh:send_raw(Carol, BodyWithAck),
 
         %% Turn off client acknowledgement checking - don't cause server error
         %% on subsequent requests without 'ack' attribute.
@@ -540,7 +536,7 @@ force_retransmission(Config) ->
         %% Send msg, recv msg, send reply, recv reply.
         %% This synchronous sequence sets up the server
         %% to have the reply for Chat cached.
-        escalus_bosh:send_raw(Carol#client.conn, Chat),
+        escalus_bosh:send_raw(Carol, Chat),
         escalus:assert(is_chat_message, [<<"1st msg!">>],
                        wait_for_stanza(Geralt)),
         escalus_client:send(Geralt, chat_to(Carol, <<"1st rep!">>)),
@@ -548,7 +544,7 @@ force_retransmission(Config) ->
         escalus:assert(is_chat_message, [<<"1st rep!">>], ChatResponse),
 
         %% Resend msg.
-        escalus_bosh:resend_raw(Carol#client.conn, Chat),
+        escalus_bosh:resend_raw(Carol, Chat),
 
         %% Recv same reply again.
         ChatResponse = wait_for_stanza(Carol)
@@ -566,13 +562,13 @@ force_cache_trimming(Config) ->
         %% Ack now
         Rid1 = get_bosh_rid(Carol),
         Ack1 = ack_body(escalus_bosh:empty_body(Rid1, Sid), Rid1-1),
-        escalus_bosh:send_raw(Carol#client.conn, Ack1),
+        escalus_bosh:send_raw(Carol, Ack1),
 
         %% Exchange 2 messages
         Rid2 = get_bosh_rid(Carol),
         Chat = (escalus_bosh:empty_body(Rid2, Sid))#xmlel{
                 children = [escalus_stanza:chat_to(Geralt, <<"1st msg!">>)]},
-        escalus_bosh:send_raw(Carol#client.conn, Chat),
+        escalus_bosh:send_raw(Carol, Chat),
         escalus:assert(is_chat_message, [<<"1st msg!">>],
                        wait_for_stanza(Geralt)),
         escalus_client:send(Geralt, chat_to(Carol, <<"1st rep!">>)),
@@ -583,7 +579,7 @@ force_cache_trimming(Config) ->
         Rid3 = get_bosh_rid(Carol),
         AckedChat = (ack_body(escalus_bosh:empty_body(Rid3, Sid), Rid2))#xmlel{
                 children = [escalus_stanza:chat_to(Geralt, <<"2nd msg!">>)]},
-        escalus_bosh:send_raw(Carol#client.conn, AckedChat),
+        escalus_bosh:send_raw(Carol, AckedChat),
         escalus:assert(is_chat_message, [<<"2nd msg!">>],
                        wait_for_stanza(Geralt)),
 
@@ -610,24 +606,20 @@ get_bosh_sessions() ->
 get_handlers(BoshSessionPid) ->
     escalus_ejabberd:rpc(mod_bosh_socket, get_handlers, [BoshSessionPid]).
 
-get_bosh_sid(#transport{} = Transport) ->
-    escalus_bosh:get_sid(Transport);
-get_bosh_sid(#client{conn = Conn}) ->
-    get_bosh_sid(Conn).
+get_bosh_sid(#client{} = Client) ->
+    escalus_bosh:get_sid(Client).
 
 get_bosh_rid(#client{} = C) ->
-    escalus_bosh:get_rid(C#client.conn);
-get_bosh_rid(Transport) ->
-    escalus_bosh:get_rid(Transport).
+    escalus_bosh:get_rid(C).
 
 set_keepalive(#client{} = C, Keepalive) ->
-    escalus_bosh:set_keepalive(C#client.conn, Keepalive).
+    escalus_bosh:set_keepalive(C, Keepalive).
 
 mark_as_terminated(#client{} = C) ->
-    escalus_bosh:mark_as_terminated(C#client.conn).
+    escalus_bosh:mark_as_terminated(C).
 
 pause(#client{} = C, Seconds) ->
-    escalus_bosh:pause(C#client.conn, Seconds),
+    escalus_bosh:pause(C, Seconds),
     timer:sleep(100).
 
 start_client(Config, User, Res) ->
@@ -645,7 +637,7 @@ recv_all(Element, Client, Acc) ->
     recv_all(bosh_recv(Client), Client, [Element | Acc]).
 
 bosh_recv(#client{} = C) ->
-    escalus_bosh:recv(C#client.conn).
+    escalus_bosh:recv(C).
 
 chat_to(Client, Content) ->
     escalus_stanza:chat_to(Client, Content).
