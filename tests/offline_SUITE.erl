@@ -16,9 +16,6 @@
 
 all() ->
     [{group, mod_offline_tests}].
-    %% FIXME: uncomment mod_offline_odbc_tests when the module is ready
-    %% [{group, mod_offline_tests},
-    %%  {group, mod_offline_odbc_tests}].
 
 all_tests() ->
     [simple_message].
@@ -59,7 +56,7 @@ end_per_testcase(CaseName, Config) ->
 
 simple_message(Config) ->
     %% Alice sends a message to Bob, who is offline
-    escalus:story(Config, [1], fun(Alice) ->
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
         escalus:send(Alice, escalus_stanza:chat_to(bob, <<"Hi, Offline!">>))
     end),
 
