@@ -142,6 +142,8 @@ remove_old_messages(LServer, Days) ->
 
 count_offline_messages(LServer, SUser, SServer, Limit) ->
     case odbc_queries:count_offline_messages(LServer, SUser, SServer, Limit) of
+        {selected, [_], [{Count}]} when is_integer(Count) ->
+            Count;
         {selected, [_], [{Count}]} ->
             list_to_integer(binary_to_list(Count));
         Error ->
