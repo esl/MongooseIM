@@ -55,7 +55,12 @@ count_active_users(LServer, TimeStamp, Comparator) ->
     WhereClause = <<"where seconds ", ComparatorBin/binary, " ", TimeStampBin/binary >>,
     case odbc_queries:count_records_where(LServer, <<"last">>, WhereClause) of
         {selected, [_], [{Count}]} ->
-            binary_to_integer(Count);
+            case Count of
+                _ when is_integer(Count) ->
+                    Count;
+                _ ->
+                    binary_to_integer(Count)
+            end;
         _ ->
             0
     end.

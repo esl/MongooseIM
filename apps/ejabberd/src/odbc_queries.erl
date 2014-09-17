@@ -301,7 +301,7 @@ del_user_return_password(_LServer, Username, Pass) ->
 list_users(LServer) ->
     ejabberd_odbc:sql_query(
       LServer,
-      <<"select username from users">>).
+      [<<"select username from users">>]).
 
 list_users(LServer, [{from, Start}, {to, End}]) when is_integer(Start) and
                                                      is_integer(End) ->
