@@ -118,21 +118,16 @@ search(LServer, Data, _Lang, DefaultReportedFields) ->
 	    Limit = case gen_mod:get_module_opt(LServer, ?MODULE,
 						matches, ?JUD_MATCHES) of
 			infinity ->
-			    "";
+			    infinity;
 			Val when is_integer(Val) and (Val > 0) ->
-			    [" LIMIT ", integer_to_list(Val)];
+			    Val;
 			Val ->
 			    ?ERROR_MSG("Illegal option value ~p. "
 				       "Default value ~p substituted.",
 				       [{matches, Val}, ?JUD_MATCHES]),
-			    [" LIMIT ", integer_to_list(?JUD_MATCHES)]
+			    ?JUD_MATCHES
 		    end,
-	    case catch ejabberd_odbc:sql_query(
-			 LServer,
-			 ["select username, server, fn, family, given, middle, "
-			  "       nickname, bday, ctry, locality, "
-			  "       email, orgname, orgunit from vcard_search ",
-			  RestrictionSQL, Limit, ";"]) of
+	    case catch odbc_queries:search_vcard(LServer, RestrictionSQL, Limit) of
 		{selected, [<<"username">>, <<"server">>, <<"fn">>, <<"family">>, <<"given">>,
 			    <<"middle">>, <<"nickname">>, <<"bday">>, <<"ctry">>, <<"locality">>,
 			    <<"email">>, <<"orgname">>, <<"orgunit">>], Rs} when is_list(Rs) ->

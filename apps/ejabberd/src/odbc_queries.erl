@@ -89,6 +89,7 @@
 	 del_privacy_lists/3,
 	 set_vcard/26,
 	 get_vcard/2,
+     search_vcard/3,
 	 escape_string/1,
 	 escape_like_string/1,
 	 count_records_where/3,
@@ -113,6 +114,7 @@
 -include("ejabberd.hrl").
 
 -define(DELEGATE(F), F() -> odbc_queries_mssql:F()).
+-define(DELEGATE3(F), F(A,B,C) -> odbc_queries_mssql:F(A,B,C)).
 -define(DELEGATE4(F), F(A,B,C,D) -> odbc_queries_mssql:F(A,B,C,D)).
 %
 %% -----------------
@@ -639,6 +641,29 @@ get_vcard(LServer, Username) ->
       LServer,
       [<<"select vcard from vcard "
          "where username='">>, Username, <<"' and server='">>, LServer, "';"]).
+
+-ifndef(mssql).
+search_vcard(LServer, RestrictionSQL, Limit) ->
+    do_search_vcard(LServer, RestrictionSQL, Limit).
+-else.
+?DELEGATE3(search_vcard).
+-endif.
+
+-ifndef(mssql).
+do_search_vcard(LServer, RestrictionSQL, infinity) ->
+    do_search_vcard2(LServer, RestrictionSQL, <<"">>);
+do_search_vcard(LServer, RestrictionSQL, Limit) when is_integer(Limit) ->
+    BinLimit = integer_to_binary(Limit),
+    do_search_vcard2(LServer, RestrictionSQL, <<"LIMIT ", BinLimit/binary>>).
+
+do_search_vcard2(LServer, RestrictionSQL, Limit) ->
+    ejabberd_odbc:sql_query(
+        LServer,
+        [<<"select username, server, fn, family, given, middle, "
+        "nickname, bday, ctry, locality, "
+        "email, orgname, orgunit from vcard_search ">>,
+            RestrictionSQL, Limit, ";"]).
+-endif.
 
 get_default_privacy_list(LServer, Username) ->
     ejabberd_odbc:sql_query(
