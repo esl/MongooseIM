@@ -509,7 +509,7 @@ outer_transaction(F, NRestarts, _Reason) ->
                        [T]),
             erlang:exit(implementation_faulty)
     end,
-    sql_query_internal([<<"begin;">>]),
+    sql_query_internal(odbc_queries:begin_trans()),
     put(?NESTING_KEY, PreviousNestingLevel + 1),
     Result = (catch F()),
     put(?NESTING_KEY, PreviousNestingLevel),
