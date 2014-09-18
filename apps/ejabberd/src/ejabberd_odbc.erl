@@ -50,6 +50,9 @@
          unescape_binary/2,
          unescape_odbc_binary/2]).
 
+%% count / integra types decoding
+-export([result_to_integer/1]).
+
 %% gen_fsm callbacks
 -export([init/1,
          handle_event/3,
@@ -204,6 +207,8 @@ escape_format(Host) ->
             case ejabberd_config:get_local_option_or_default(Key, odbc) of
                 pgsql ->
                     hex;
+                mssql ->
+                    mssql_hex;
                 _ ->
                     simple_escape
             end;
@@ -213,13 +218,15 @@ escape_format(Host) ->
 -spec escape_binary('hex' | 'simple_escape', binary()) -> binary() | string().
 escape_binary(hex, Bin) when is_binary(Bin) ->
     <<"\\\\x", (bin_to_hex:bin_to_hex(Bin))/binary>>;
+escape_binary(mssql_hex, Bin) when is_binary(Bin) ->
+    bin_to_hex:bin_to_hex(Bin);
 escape_binary(simple_escape, Bin) when is_binary(Bin) ->
     escape(Bin).
 
 -spec unescape_binary('hex' | 'simple_escape', binary()) -> binary().
 unescape_binary(hex, <<"\\x", Bin/binary>>) when is_binary(Bin) ->
     hex_to_bin(Bin);
-unescape_binary(simple_escape, Bin) ->
+unescape_binary(_, Bin) ->
     Bin.
 
 -spec unescape_odbc_binary(atom(), binary()) -> binary().
@@ -227,6 +234,12 @@ unescape_odbc_binary(odbc, Bin) when is_binary(Bin)->
     hex_to_bin(Bin);
 unescape_odbc_binary(_, Bin) ->
     Bin.
+
+-spec result_to_integer(binary() | integer()) -> integer().
+result_to_integer(Int) when is_integer(Int) ->
+    Int;
+result_to_integer(Bin) when is_binary(Bin) ->
+    binary_to_integer(Bin).
 
 -spec hex_to_bin(binary()) -> <<_:_*1>>.
 hex_to_bin(Bin) when is_binary(Bin) ->

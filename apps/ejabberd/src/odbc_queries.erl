@@ -29,6 +29,8 @@
 
 -export([get_db_type/0,
          begin_trans/0,
+         get_db_specific_limits/1,
+         get_db_specific_offset/2,
 	 sql_transaction/2,
 	 get_last/2,
 	 select_last/3,
@@ -865,4 +867,28 @@ count_offline_messages(LServer, SUser, SServer, Limit) ->
             "limit ">>, integer_to_list(Limit)]).
 -else.
 ?DELEGATE4(count_offline_messages).
+-endif.
+
+-spec get_db_specific_limits(integer())
+        -> {SQL :: nonempty_string(), []} | {[], MSSQL::nonempty_string()}.
+get_db_specific_limits(Limit) ->
+    LimitStr = integer_to_list(Limit),
+    do_get_db_specific_limits(LimitStr).
+
+-spec get_db_specific_offset(integer(), integer()) -> iolist().
+get_db_specific_offset(Offset, Limit) ->
+    do_get_db_specific_offset(integer_to_list(Offset), integer_to_list(Limit)).
+
+-ifndef(mssql).
+do_get_db_specific_limits(LimitStr) ->
+    {"LIMIT " ++ LimitStr, ""}.
+do_get_db_specific_offset(Offset, _Limit) ->
+    [" OFFSET ", Offset].
+
+-else.
+do_get_db_specific_limits(LimitStr) ->
+    {"", "TOP " ++ LimitStr}.
+do_get_db_specific_offset(Offset, Limit) ->
+    [" OFFSET ", Offset, " ROWS"
+     " FETCH NEXT ", Limit, " ROWS ONLY"].
 -endif.
