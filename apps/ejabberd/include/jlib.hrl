@@ -57,6 +57,7 @@
 -define(NS_MUC_OWNER,   <<"http://jabber.org/protocol/muc#owner">>).
 -define(NS_MUC_UNIQUE,  <<"http://jabber.org/protocol/muc#unique">>).
 -define(NS_MUC_REQUEST,  <<"http://jabber.org/protocol/muc#request">>).
+-define(NS_MUC_CONFIG,  <<"http://jabber.org/protocol/muc#roomconfig">>).
 -define(NS_PING,        <<"urn:xmpp:ping">>).
 -define(NS_PUBSUB,      <<"http://jabber.org/protocol/pubsub">>).
 -define(NS_PUBSUB_EVENT,<<"http://jabber.org/protocol/pubsub#event">>).
@@ -343,5 +344,6 @@
 
 -type iq() :: #iq{}.
 -type jid() :: #jid{}.
+-type ljid() :: {ejabberd:user(), ejabberd:server(), ejabberd:resource()}.
 
 -endif.
