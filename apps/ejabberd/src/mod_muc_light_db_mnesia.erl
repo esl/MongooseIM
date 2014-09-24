@@ -206,7 +206,7 @@ destroy_room_transaction(RoomJID) ->
     RoomUS = to_us(RoomJID),
     case mnesia:wread({?TAB, RoomUS}) of
         [] -> {error, not_exists};
-        [#?TAB{ affiliations = [] }] -> mnesia:delete(?TAB, RoomUS);
+        [#?TAB{ affiliations = [] }] -> mnesia:delete({?TAB, RoomUS});
         _ -> {error, not_empty}
     end.
 

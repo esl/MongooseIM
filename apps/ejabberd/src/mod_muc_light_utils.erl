@@ -31,6 +31,8 @@
 -include("jlib.hrl").
 -include("mod_muc_light.hrl").
 
+-type new_owner() :: {old | new | random, ljid()}.
+
 %%====================================================================
 %% API
 %%====================================================================
@@ -74,12 +76,15 @@ validate_config_opt(Key, Value) when is_atom(Key) ->
      AffiliationsChanged :: affiliations()} | {error, only_owner_in_room}.
 change_affiliations(Affiliations, AffiliationsToChange) ->
     {OldOwner, _} = lists:keyfind(owner, 2, Affiliations),
-    case apply_affiliations_change(Affiliations, AffiliationsToChange) of
-        {ok, NewAffiliations} ->
-            ExtraAffiliationsChanged
-                = get_owner_affiliation_change(OldOwner, NewAffiliations),
-            {ok, NewAffiliations, AffiliationsToChange
-             ++ ExtraAffiliationsChanged};
+    case apply_affiliations_change(
+           Affiliations, lists:sort(AffiliationsToChange), {old, OldOwner}) of
+        {ok, NewAffiliations, ExtraChangedAffiliations} ->
+            AffiliationsChanged
+            = lists:foldl(
+                fun({User, _} = Affiliation, AffiliationsChangedAcc) ->
+                    lists:keystore(User, 1, AffiliationsChangedAcc, Affiliation)
+                end, AffiliationsToChange, ExtraChangedAffiliations),
+            {ok, NewAffiliations, AffiliationsChanged};
         Error ->
             Error
     end.
@@ -142,57 +147,40 @@ validate_type(Key, _Val, _Type) -> {error, {Key, type}}.
 
 %% ---------------- Affiliations manipulation ----------------
 
--spec apply_affiliations_change(AffiliationsAcc :: affiliations(),
-                                AffiliationsChanges :: affiliations()) ->
-    {ok, affiliations()} | {error, only_owner_in_room}.
-apply_affiliations_change(Affiliations, []) ->
-    {ok, Affiliations};
-apply_affiliations_change(Affiliations, [{User, none} | RToChange]) ->
+-spec apply_affiliations_change(
+        AffiliationsAcc :: affiliations(),
+        AffiliationsChanges :: affiliations(),
+        NewOwner :: new_owner()) ->
+    {ok, affiliations(), affiliations()} | {error, bad_request}.
+apply_affiliations_change(_, [{User, _}, {User, _} | _], _) ->
+    {error, bad_request};
+apply_affiliations_change(_, [{User, owner} | _], {new, User}) ->
+    {error, bad_request};
+apply_affiliations_change([{Excluded, _}], [], {random, Excluded}) ->
+    {ok, [{Excluded, owner}], [{Excluded, owner}]};
+apply_affiliations_change([{Excluded, ExclAff}, {NewOwner, _} | RAffiliations],
+                          [], {random, Excluded}) ->
+    {ok, [{Excluded, ExclAff}, {NewOwner, owner} | RAffiliations],
+     [{NewOwner, owner}]};
+apply_affiliations_change([{NewOwner, _} | RAffiliations],
+                          [], {random, _Excluded}) ->
+    {ok, [{NewOwner, owner} | RAffiliations], [{NewOwner, owner}]};
+apply_affiliations_change(Affiliations, [], _) ->
+    {ok, Affiliations, []};
+apply_affiliations_change(Affiliations, [{User, none} | RToChange], Owner) ->
     apply_affiliations_change(
-      ensure_one_owner(lists:keydelete(User, 1, Affiliations), any), RToChange);
-apply_affiliations_change([{Owner, _}], [{Owner, member} | _]) ->
-    {error, only_owner_in_room};
-apply_affiliations_change(Affiliations, [{User, member} | RToChange]) ->
+      lists:keydelete(User, 1, Affiliations),
+      RToChange, maybe_new_owner(User, Owner));
+apply_affiliations_change(Affiliations, [{User, member} | RToChange], Owner) ->
     apply_affiliations_change(
-      ensure_one_owner(lists:keystore(User, 1, Affiliations,
-                                      {User, member}), any), RToChange);
-apply_affiliations_change(Affiliations, [{User, owner} | RToChange]) ->
+      lists:keystore(User, 1, Affiliations, {User, member}),
+      RToChange, maybe_new_owner(User, Owner));
+apply_affiliations_change(Affiliations, [{User, owner} | RToChange], _Owner) ->
     apply_affiliations_change(
-      ensure_one_owner(Affiliations, User), RToChange).
+      lists:keystore(User, 1, Affiliations, {User, owner}),
+      RToChange, {new, User}).
 
--spec ensure_one_owner(affiliations(), any | jid() | ljid()) -> affiliations().
-ensure_one_owner([], _) ->
-    [];
-ensure_one_owner([{_, owner} | _] = Affiliations, any) ->
-    Affiliations;
-ensure_one_owner(Affiliations, any) ->
-    [{NewOwner, _} | Members] = owner_to_member(Affiliations),
-    [{NewOwner, owner} | Members];
-ensure_one_owner(Affiliations, NewOwner) ->
-    AffWOOwner = owner_to_member(Affiliations),
-    lists:keystore(NewOwner, 1, AffWOOwner, {NewOwner, owner}).
-
-%% If there is an owner, it is made a member.
--spec owner_to_member(affiliations()) -> affiliations().
-owner_to_member(Affiliations) ->
-    case lists:keyfind(owner, 2, Affiliations) of
-        false -> Affiliations;
-        {User, _} -> lists:keystore(
-                       User, 1, Affiliations, {User, member})
-    end.
-
--spec get_owner_affiliation_change(jid() | ljid(), affiliations()) -> affiliations().
-get_owner_affiliation_change(_OldOwner, []) ->
-    [];
-get_owner_affiliation_change(OldOwner, Affiliations) ->
-    case lists:keyfind(owner, 2, Affiliations) of
-        {OldOwner, _} ->
-            [];
-        {NewOwner, _} ->
-            [{NewOwner, owner} |
-             case lists:keyfind(OldOwner, Affiliations) of
-                 {_, member} -> [{OldOwner, member}];
-                 false -> []
-             end]
-    end.
+-spec maybe_new_owner(ljid(), new_owner()) -> new_owner().
+maybe_new_owner(OldOwner, {old, OldOwner}) -> {random, OldOwner};
+maybe_new_owner(_, NewOwner) -> NewOwner.
 

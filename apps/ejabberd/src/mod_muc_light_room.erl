@@ -138,9 +138,20 @@ handle_affiliation_iq(_From, _RoomJID, IQ, <<"get">>, _, Affiliations) ->
     Reply1 = jlib:make_result_iq_reply(IQ),
     {ok, Reply1#xmlel{ children =
                        [Query#xmlel{ children = Items }]}};
-handle_affiliation_iq(_From, RoomJID, IQ, <<"set">>, {_, owner}, _Affiliations) ->
-    Items = exml_query:paths(IQ, [{element, <<"query">>}, {element, <<"item">>}]),
-    case ?BACKEND:modify_affiliations(RoomJID, items_to_affiliations(Items)) of
+handle_affiliation_iq(_From, RoomJID, IQ, <<"set">>, Auth, Affiliations) ->
+    Items = exml_query:paths(IQ, [{element, <<"query">>},
+                                  {element, <<"item">>}]),
+    AffiliationsToChange = items_to_affiliations(Items),
+    IsAllowed = is_allowed_to_change_affiliations(Auth, Affiliations,
+                                                  AffiliationsToChange),
+    apply_affiliation_change(RoomJID, IQ, AffiliationsToChange, IsAllowed);
+handle_affiliation_iq(_From, _RoomJID, _IQ, _Type, _Auth, _Affiliations) ->
+    {error, not_allowed}.
+
+-spec apply_affiliation_change(jid(), #xmlel{}, affiliations(), boolean()) ->
+    packet_processing_result().
+apply_affiliation_change(RoomJID, IQ, AffiliationsToChange, true) ->
+    case ?BACKEND:modify_affiliations(RoomJID, AffiliationsToChange) of
         {ok, NewAffiliations, ChangedAffiliations} ->
             case NewAffiliations of
                 [] -> ?BACKEND:destroy_room(RoomJID);
@@ -151,7 +162,7 @@ handle_affiliation_iq(_From, RoomJID, IQ, <<"set">>, {_, owner}, _Affiliations) 
         Error ->
             Error
     end;
-handle_affiliation_iq(_From, _RoomJID, _IQ, _Type, _Auth, _Affiliations) ->
+apply_affiliation_change(_RoomJID, _IQ, _Items, false) ->
     {error, not_allowed}.
 
 -spec affiliation_change_bcast(jid(), #xmlel{}, affiliations(),
@@ -247,6 +258,26 @@ items_to_affiliations(Items) ->
 b2aff(<<"owner">>) -> owner;
 b2aff(<<"member">>) -> member;
 b2aff(<<"none">>) -> none.
+
+-spec is_allowed_to_change_affiliations(
+        affiliation_tuple(), affiliations(), affiliations()) -> boolean().
+is_allowed_to_change_affiliations({_User, owner}, _CurrentAffiliations,
+                                  _AffiliationsChange) ->
+    true;
+is_allowed_to_change_affiliations({User, member}, _CurrentAffiliations,
+                                 AffiliationsChange) ->
+    lists:all(
+      fun ({UserMatch, none}) when UserMatch =:= User ->
+              true;
+% Uncomment to allow everyone to invite others.
+% Will be configurable in the future
+%          ({OtherUser, member}) ->
+%              false == lists:keyfind(OtherUser, 1, CurrentAffiliations);
+          (_) ->
+              false
+      end, AffiliationsChange);
+is_allowed_to_change_affiliations(_, _, _) ->
+    false.
 
 -spec make_affiliation_message(jid(), affiliations()) -> #xmlel{}.
 make_affiliation_message(RoomJID, ChangedAffiliations) ->
