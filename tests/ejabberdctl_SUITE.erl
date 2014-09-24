@@ -101,6 +101,15 @@ end_per_suite(Config) ->
     delete_users(Config1),
     escalus:end_per_suite(Config1).
 
+init_per_group(vcard, Config) ->
+    case escalus_ejabberd:rpc(gen_mod,get_module_opt,
+                              [ct:get_config(ejabberd_domain),
+                               mod_vcard, backend, mnesia]) of
+        ldap ->
+            {skip, vcard_set_not_supported_with_ldap};
+        _ ->
+            Config
+    end;
 init_per_group(_GroupName, Config) ->
     Config.
 
@@ -113,8 +122,17 @@ init_per_testcase(CaseName, Config)
        orelse CaseName == stats_global
        orelse CaseName == stats_host ->
     {_, AuthMods} = lists:keyfind(ctl_auth_mods, 1, Config),
-    case lists:member(ejabberd_auth_odbc, AuthMods) of
+    case lists:member(ejabberd_auth_odbc, AuthMods) orelse
+         lists:member(ejabberd_auth_ldap, AuthMods) of
         true -> {skip, vhost_odbc_incompatible};
+        false -> escalus:init_per_testcase(CaseName, Config)
+    end;
+init_per_testcase(CaseName, Config)
+    when CaseName == check_password_hash;
+         CaseName == delete_old_users ->
+    {_, AuthMods} = lists:keyfind(ctl_auth_mods, 1, Config),
+    case lists:member(ejabberd_auth_ldap, AuthMods) of
+        true -> {skip, not_fully_supported_with_ldap};
         false -> escalus:init_per_testcase(CaseName, Config)
     end;
 init_per_testcase(CaseName, Config) ->
