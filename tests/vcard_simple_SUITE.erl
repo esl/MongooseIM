@@ -98,7 +98,7 @@ update_own_card(Config) ->
               fun(Client1) ->
                       %% set some initial value different from the actual test data
                       %% so we know it really got updated and wasn't just old data
-                      FN = get_FN(),
+                      FN = get_FN(Config),
                       Client1Fields = [{<<"FN">>, FN}],
                       Client1SetResultStanza
                       = escalus:send_and_wait(Client1,
@@ -118,7 +118,7 @@ retrieve_own_card(Config) ->
       fun(Client) ->
               Res = escalus:send_and_wait(Client,
                         escalus_stanza:vcard_request()),
-              ClientVCardTups = [{<<"FN">>, get_FN()}],
+              ClientVCardTups = [{<<"FN">>, get_FN(Config)}],
               check_vcard(ClientVCardTups, Res)
       end).
 
@@ -159,7 +159,7 @@ update_other_card(Config) ->
               %% check that nothing was changed
               Res2 = escalus:send_and_wait(Client,
                         escalus_stanza:vcard_request()),
-              ClientVCardTups = [{<<"FN">>, get_FN()}],
+              ClientVCardTups = [{<<"FN">>, get_FN(Config)}],
               check_vcard(ClientVCardTups, Res2),
 
               case escalus_pred:is_error(<<"cancel">>,
@@ -178,7 +178,7 @@ retrieve_others_card(Config) ->
               JID = escalus_client:short_jid(Client),
               Res = escalus:send_and_wait(OtherClient,
                         escalus_stanza:vcard_request(JID)),
-              OtherClientVCardTups = [{<<"FN">>, get_FN()}],
+              OtherClientVCardTups = [{<<"FN">>, get_FN(Config)}],
               check_vcard(OtherClientVCardTups, Res),
 
               %% In accordance with XMPP Core [5], a compliant server MUST
@@ -239,7 +239,7 @@ search_some(Config) ->
       fun(Client) ->
               Domain = escalus_config:get_ct(ejabberd_domain),
               DirJID = <<"vjud.",Domain/binary>>,
-              Fields = [{get_field_name(fn), get_FN()}],
+              Fields = [{get_field_name(fn), get_FN(Config)}],
               Res = escalus:send_and_wait(Client,
                                           escalus_stanza:search_iq(DirJID,
                                                                    escalus_stanza:search_fields(Fields))),
@@ -423,10 +423,10 @@ get_FN_wildcard() ->
         true -> <<"*li*e">>;
         false -> <<"old*">>
     end.
-get_FN() ->
+get_FN(Config) ->
     case is_vcard_ldap() of
         true ->
-            <<"alice">>;
+            escalus_users:get_username(Config, alice);
         false ->
             <<"Old Name">>
     end.
