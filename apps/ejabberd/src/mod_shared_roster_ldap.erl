@@ -315,6 +315,7 @@ get_user_displayed_groups({User, Host}) ->
                            [GroupAttr]),
     Reply = lists:flatmap(fun (#eldap_entry{attributes = Attrs}) ->
                                   case Attrs of
+                                      [{GroupAttr, [Value]}] -> [Value];
                                       [{GroupAttr, Value}] -> [Value];
                                       _ -> []
                                   end
@@ -393,8 +394,14 @@ search_group_info(State, Group) ->
                                eldap_utils:get_ldap_attr(State#state.group_desc, Attrs),
                                lists:keysearch(State#state.uid, 1, Attrs)}
                           of
-                              {ID, Desc, {value, {GroupMemberAttr, Member}}}
+                              {ID, Desc, {value, {GroupMemberAttr, MemberIn}}}
                                 when ID /= <<"">>, GroupMemberAttr == State#state.uid ->
+                                  Member = case MemberIn of
+                                               [M] ->
+                                                   M;
+                                               _ ->
+                                                   MemberIn
+                                           end,
                                   JIDs = lists:foldl(
                                            fun ({ok, UID}, L) ->
                                                    PUID = jlib:nodeprep(UID),
