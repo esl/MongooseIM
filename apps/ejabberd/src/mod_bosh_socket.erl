@@ -32,6 +32,7 @@
 -export([init/1,
          accumulate/2, accumulate/3,
          normal/2, normal/3,
+         closing/2, closing/3,
          handle_event/3,
          handle_sync_event/4,
          handle_info/3,
@@ -79,7 +80,7 @@
                 report = false  :: {rid(), timer:time()} | 'false'}).
 -type state() :: #state{}.
 
--type statename() :: 'accumulate' | 'normal'.
+-type statename() :: 'accumulate' | 'normal' | 'closing'.
 -type fsm_return() :: {'next_state', statename(), state()}.
 
 %%--------------------------------------------------------------------
@@ -224,6 +225,11 @@ normal(Event, State) ->
     ?DEBUG("Unhandled event in 'normal' state: ~w~n", [Event]),
     {next_state, normal, State}.
 
+
+closing(Event, State) ->
+    ?DEBUG("Unhandled event in 'normal' state: ~w~n", [Event]),
+    {next_state, closing, State}.
+
 %%--------------------------------------------------------------------
 %% @private
 %% @doc
@@ -244,11 +250,15 @@ normal(Event, State) ->
 %%--------------------------------------------------------------------
 accumulate(Event, _From, State) ->
     ?DEBUG("Unhandled sync event in 'accumulate' state: ~w~n", [Event]),
-    {reply, ok, state_name, State}.
+    {reply, ok, accumulate, State}.
 
 normal(Event, _From, State) ->
     ?DEBUG("Unhandled sync event in 'normal' state: ~w~n", [Event]),
-    {reply, ok, state_name, State}.
+    {reply, ok, normal, State}.
+
+closing(Event, _From, State) ->
+    ?DEBUG("Unhandled sync event in 'closing' state: ~w~n", [Event]),
+    {reply, ok, closing, State}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -271,14 +281,7 @@ handle_event({EventTag, Handler, #xmlel{} = Body}, SName, S) ->
         NNS = handle_stream_event({EventTag, Body, Rid}, Handler, SName, NS),
         %% TODO: it's the event which determines the next state,
         %%       this ought to be returned from handle_stream_event
-        case EventTag of
-            _ when EventTag == streamstart; EventTag == restart ->
-                timer:apply_after(?ACCUMULATE_PERIOD,
-                                  gen_fsm, send_event, [self(), acc_off]),
-                {next_state, accumulate, NNS};
-            _ ->
-                {next_state, SName, NNS}
-        end
+        determine_next_state(EventTag, SName, NNS)
     catch
         throw:{invalid_rid, TState} ->
             {stop, {shutdown, invalid_rid}, TState};
@@ -289,6 +292,19 @@ handle_event({EventTag, Handler, #xmlel{} = Body}, SName, S) ->
 handle_event(Event, StateName, State) ->
     ?DEBUG("Unhandled all state event: ~w~n", [Event]),
     {next_state, StateName, State}.
+
+
+determine_next_state(_EventTag, closing, NNS) ->
+    {stop, normal, NNS};
+determine_next_state(EventTag, SName, NNS) ->
+    case EventTag of
+        _ when EventTag == streamstart; EventTag == restart ->
+            timer:apply_after(?ACCUMULATE_PERIOD,
+                gen_fsm, send_event, [self(), acc_off]),
+            {next_state, accumulate, NNS};
+        _ ->
+            {next_state, SName, NNS}
+    end.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -341,10 +357,10 @@ handle_sync_event(Event, _From, StateName, State) ->
 %% @end
 %%--------------------------------------------------------------------
 
-handle_info({send, #xmlstreamend{} = StreamEnd}, _SName,
+handle_info({send, #xmlstreamend{} = StreamEnd}, normal = SName,
             #state{pending = Pending} = S) ->
     NS = send_or_store(Pending ++ [StreamEnd], S#state{pending = []}),
-    {next_state, normal, NS};
+    {next_state, SName, NS};
 handle_info({send, Data}, accumulate = SName, #state{} = S) ->
     {next_state, SName, store([Data], S)};
 handle_info({send, Data}, normal = SName, #state{} = S) ->
@@ -354,8 +370,10 @@ handle_info(reset_stream, SName, #state{} = S) ->
     %% TODO: actually reset the stream once it's stored per bosh session
     ?DEBUG("Stream reset by c2s~n", []),
     {next_state, SName, S};
-handle_info(close, _SName, State) ->
+handle_info(close, _SName, #state{pending = []} = State) ->
     {stop, normal, State};
+handle_info(close, _SName, State) ->
+    {next_state, closing, State};
 handle_info(inactivity_timeout, _SName, State) ->
     ?INFO_MSG("terminating due to client inactivity~n", []),
     {stop, {shutdown, inactivity_timeout}, State};
@@ -765,19 +783,23 @@ add_handler({Rid, Pid}, #state{handlers = Handlers} = S) ->
 
 
 %% @doc Keep in mind the hardcoding for hold == 1.
--spec return_surplus_handlers('accumulate' | 'normal', state()) -> state().
-return_surplus_handlers(accumulate, #state{handlers = []} = State) ->
+-spec return_surplus_handlers('accumulate' | 'normal' | 'closing', state()) -> state().
+return_surplus_handlers(SName, #state{handlers = []} = State)
+        when SName == accumulate; SName == normal; SName == closing ->
+    State;
+return_surplus_handlers(SName, #state{handlers = []} = State)
+        when SName == normal; SName == closing ->
     State;
 return_surplus_handlers(accumulate, #state{handlers = [_]} = State) ->
+    State;
+return_surplus_handlers(SName, #state{handlers = [_], pending = []} = State)
+    when SName == normal; SName == closing ->
     State;
 return_surplus_handlers(accumulate, #state{handlers = _} = S) ->
     NS = send_to_handler([], S),
     return_surplus_handlers(accumulate, NS);
-return_surplus_handlers(normal, #state{handlers = []} = State) ->
-    State;
-return_surplus_handlers(normal, #state{handlers = [_], pending = []} = State) ->
-    State;
-return_surplus_handlers(normal, #state{pending = Pending} = S) ->
+return_surplus_handlers(SName, #state{pending = Pending} = S)
+    when SName == normal; SName == closing ->
     NS = send_or_store(Pending, S#state{pending = []}),
     return_surplus_handlers(normal, NS).
 
