@@ -1,9 +1,14 @@
 language: erlang
-before_install: sudo apt-get install libpam0g-dev libexpat1-dev
+before_install:
+        - sudo apt-get install libpam0g-dev libexpat1-dev
+        - if [ $TEST_CONFIG = 'ldap_mnesia' ]; then sudo apt-get install slapd ldap-utils; fi
+        - tools/travis-generate-pass.sh
+        - tools/travis-check-tests-branch.sh
+install: tools/travis-build.sh
 before_script:
         - tools/travis-setup-db.sh
-        - tools/travis-check-tests-branch.sh
-script: tools/travis-build.sh
+        - if [ $TEST_CONFIG = 'ldap_mnesia' ]; then tools/travis-setup-ldap.sh; fi
+script: tools/travis-test.sh
 
 after_script:
         - cat `ls -1 -d -t apps/ejabberd/logs/ct_run* | head -1`/apps.ejabberd.logs/run.*/suite.log
@@ -22,7 +27,8 @@ otp_release:
 env:
         - TEST_CONFIG=internal_redis DB=mnesia
         - TEST_CONFIG=internal_mnesia DB=mnesia
-        - TEST_CONFIG=odbc_mnesia DB=mysql
         - TEST_CONFIG=odbc_redis DB=mysql
         - TEST_CONFIG=external_mnesia DB=mnesia
         - TEST_CONFIG=odbc_pgsql_mnesia DB=psql
+        - TEST_CONFIG=ldap_mnesia DB=mnesia
+

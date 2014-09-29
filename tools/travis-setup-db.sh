@@ -4,15 +4,11 @@ TOOLS=`dirname $0`
 
 echo $DB
 
-if [ `uname` = "Darwin" ]; then
-    BASE=$(cd "$TOOLS/.."; pwd -P)
-else
-    BASE=`readlink -f ${TOOLS}/..`
-fi
+source tools/travis-common-vars.sh
 
 SQLDIR=${BASE}/apps/ejabberd/priv
-TRAVIS_DB_PASSWORD=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 16 | head -n 1)
-echo ${TRAVIS_DB_PASSWORD} > /tmp/travis_db_password
+
+TRAVIS_DB_PASSWORD=$(cat /tmp/travis_db_password)
 
 if [ $DB = 'mysql' ]; then
     echo "Configuring mysql"

@@ -40,7 +40,8 @@
          get_mod_opt/4,
          get_config/2,
          decode_octet_string/3,
-         uids_domain_subst/2]).
+         uids_domain_subst/2,
+         singleton_value/1]).
 
 -include("ejabberd.hrl").
 -include("eldap.hrl").
@@ -88,8 +89,8 @@ get_ldap_attr(LDAPAttr, Attributes) ->
             fun({Name, _}) ->
                     case_insensitive_match(Name, LDAPAttr)
             end, Attributes),
-    case Res of
-        [{_, Value}] -> Value;
+    case singleton_value(Res) of
+        {_, Value} -> Value;
         _ -> <<>>
     end.
 
@@ -313,6 +314,13 @@ get_config(Host, Opts) ->
                   base = Base,
                   deref_aliases = DerefAliases}.
 
+-spec singleton_value(list()) -> {binary(), binary()} | false.
+singleton_value([{K, [V]}]) ->
+    {K, V};
+singleton_value([{_K, _V} = I]) ->
+    I;
+singleton_value(_) ->
+    false.
 %%----------------------------------------
 %% Borrowed from asn1rt_ber_bin_v2.erl
 %%----------------------------------------
