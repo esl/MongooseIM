@@ -30,6 +30,7 @@
 {suites, "tests", metrics_session_SUITE}.
 {suites, "tests", system_monitor_SUITE}.
 {suites, "tests", carboncopy_SUITE}.
+{suites, "tests", bosh_SUITE}.
 {config, ["test.config"]}.
 {logdir, "ct_report"}.
 {ct_hooks, [ct_tty_hook]}.
