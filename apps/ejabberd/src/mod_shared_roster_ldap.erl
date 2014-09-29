@@ -314,9 +314,8 @@ get_user_displayed_groups({User, Host}) ->
                            [eldap_filter:do_sub(State#state.rfilter, [{<<"%u">>, User}])],
                            [GroupAttr]),
     Reply = lists:flatmap(fun (#eldap_entry{attributes = Attrs}) ->
-                                  case Attrs of
-                                      [{GroupAttr, [Value]}] -> [Value];
-                                      [{GroupAttr, Value}] -> [Value];
+                                  case eldap_utils:singleton_value(Attrs) of
+                                      {GroupAttr, Value} -> [Value];
                                       _ -> []
                                   end
                           end,
