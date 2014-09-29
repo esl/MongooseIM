@@ -22,6 +22,8 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml.hrl").
 
+-define(USERS, {by_name, [alice, bob]}).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -43,7 +45,8 @@ init_per_suite(Config) ->
     case get_auth_method() of
         ldap ->
             start_roster_module(ldap),
-            escalus:init_per_suite(Config);
+            escalus:init_per_suite([{escalus_user_db, {module, ldap_helper}} | Config]);
+%%             escalus:init_per_suite(Config);
         _ ->
             {skip,no_shared_roster_available}
     end.
@@ -53,10 +56,10 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(_, Config) ->
-    escalus:create_users(Config).
+    escalus:create_users(Config, ?USERS).
 
 end_per_group(_, Config) ->
-    escalus:delete_users(Config).
+    escalus:delete_users(Config, ?USERS).
 
 init_per_testcase(CaseName,Config) ->
     escalus:init_per_testcase(CaseName,Config).
@@ -92,15 +95,16 @@ get_contacts(Config) ->
 
         % Roster contains all created users excluding Alice
         escalus:assert(is_roster_result,Roster),
-        NumOfOtherUsers = length(escalus_users:get_users(all))-1,
+        NumOfOtherUsers = length(escalus_users:get_users(?USERS))-1,
         escalus:assert(count_roster_items,[NumOfOtherUsers],Roster)
     end).
 
 delete_user(Config) ->
-    escalus:story(Config,[1],fun(Alice) -> 
-        NumOfOtherUsers = length(escalus_users:get_users(all))-2,
-        
-        escalus_users:delete_user(Config,escalus_users:get_user_by_name(bob)),
+    NumOfOtherUsers = length(escalus_users:get_users(?USERS))-2,
+    %% wait to invalidate the roster group cache
+    timer:sleep(1200),
+    escalus_users:delete_users(Config,{by_name, [bob]}),
+    escalus:story(Config,[1],fun(Alice) ->
         escalus_client:send(Alice, escalus_stanza:roster_get()),
         Roster=escalus_client:wait_for_stanza(Alice),
         
@@ -109,10 +113,11 @@ delete_user(Config) ->
     end).
 
 add_user(Config) ->
+    escalus_users:create_users(Config,{by_name, [bob]}),
+    timer:sleep(1200),
     escalus:story(Config,[1],fun(Alice) -> 
-        NumOfOtherUsers = length(escalus_users:get_users(all))-1,
+        NumOfOtherUsers = length(escalus_users:get_users(?USERS))-1,
 
-        escalus_users:create_user(Config,escalus_users:get_user_by_name(bob)),
         escalus_client:send(Alice, escalus_stanza:roster_get()),
         Roster=escalus_client:wait_for_stanza(Alice),
         
@@ -148,10 +153,12 @@ get_auth_method() ->
 get_ldap_args() ->
     [
      {ldap_base, "ou=Users,dc=ejd,dc=com"},
-     {ldap_groupattr, "cn"},
+     {ldap_groupattr, "ou"},
      {ldap_memberattr, "cn"},{ldap_userdesc, "cn"},
      {ldap_filter, "(objectClass=inetOrgPerson)"},
-     {ldap_rfilter, "(objectClass=inetOrgPerson)"}
+     {ldap_rfilter, "(objectClass=inetOrgPerson)"},
+     {ldap_group_cache_validity, 1},
+     {ldap_user_cache_validity, 1}
     ].
 
 no_stanzas(Users) ->

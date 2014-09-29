@@ -180,7 +180,6 @@ run_config_test({Name, Variables}, Test, N, Tests) ->
     error_logger:info_msg("Configuration ~p of ~p: ~p started.~n",
                           [N, Tests, Name]),
     Result = ct:run_test([{label, Name} | Test]),
-    ok = call(Node, file, write_file, [CfgFile, Template]),
     case Result of
         {error, Reason} ->
             throw({ct_error, Reason});
