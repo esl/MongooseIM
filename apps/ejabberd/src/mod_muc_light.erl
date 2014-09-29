@@ -35,6 +35,10 @@
 %% Router export
 -export([route/3]).
 
+%% Hook handlers
+-export([prevent_service_unavailable/3,
+         remove_user/2]).
+
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 -include("mod_muc_light.hrl").
@@ -63,6 +67,10 @@ default_configuration() ->
 
 -spec start(ejabberd:server(), list()) -> any().
 start(Host, Opts) ->
+    %% Prevent sending service-unavailable on groupchat messages
+    ejabberd_hooks:add(offline_message_hook, Host,
+                       ?MODULE, prevent_service_unavailable, 90),
+    ejabberd_hooks:add(remove_user, Host, ?MODULE, remove_user, 50)
     MyDomain = gen_mod:get_opt_host(Host, Opts, ?DEFAULT_HOST),
     ejabberd_router:register_route(MyDomain, {apply, ?MODULE, route}),
     (backend()):start(Host, MyDomain),
@@ -73,14 +81,19 @@ stop(Host) ->
     MyDomain = gen_mod:get_module_opt_host(Host, ?MODULE, ?DEFAULT_HOST),
     ejabberd_router:unregister_route(MyDomain),
     (backend()):stop(Host, MyDomain),
+    ejabberd_hooks:delete(offline_message_hook, Host,
+                          ?MODULE, prevent_service_unavailable, 90),
+    ejabberd_hooks:delete(remove_user, Host, ?MODULE, remove_user, 50),
     ok.
 
 %%====================================================================
 %% Routing
 %%====================================================================
 
--spec route(#jid{}, #jid{}, #xmlel{}) -> ok.
-route(From, #jid{ luser = <<>> } = To, Packet) ->
+-spec route(jid(), jid(), #xmlel{}) -> ok.
+route(From, #jid{ luser = LToU, lresource = LToR } = To, Packet)
+  when LToU =:= <<>> orelse LToR =/= <<>> ->
+    %% Stanza to the service must be bare JID
     ejabberd_router:route(
       To, From, jlib:make_error_reply(Packet, ?ERR_BAD_REQUEST));
 route(From, To, Packet) ->
@@ -110,6 +123,25 @@ create_room(From, To, #xmlel{ name = <<"iq">> } = IQ) ->
                             IQ, ?ERRT_NOT_ACCEPTABLE("en", ErrorText)),
             ejabberd_router:route(To, From, ErrorPacket)
     end.
+
+%%====================================================================
+%% Hook handlers
+%%====================================================================
+
+-spec prevent_service_unavailable(jid(), jid(), #xmlel{}) -> ok | stop.
+prevent_service_unavailable(_From, _To, Packet) ->
+  case xml:get_tag_attr_s(<<"type">>, Packet) of
+    <<"groupchat">> -> stop;
+    _Type           -> ok
+  end.
+
+-spec remove_user(binary(), binary()) -> ok.
+remove_user(_User, _Server) ->
+    % will be added soon
+    ok.
+%    LUser = jlib:nodeprep(User),
+%    LServer = jlib:nameprep(Server),
+%    ok = (backend()):remove_user({LUser, LServer, <<>>}).
 
 %%====================================================================
 %% Internal functions

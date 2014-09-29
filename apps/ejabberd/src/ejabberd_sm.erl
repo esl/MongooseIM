@@ -204,9 +204,7 @@ bounce_offline_message(#jid{server = Server} = From, To, Packet) ->
     ejabberd_router:route(To, From, Err),
     stop.
 
-
--spec disconnect_removed_user(User :: ejabberd:user(), Server :: ejabberd:server()) ->
-    'ok' | {'error','lager_not_running'}.
+-spec disconnect_removed_user(User :: ejabberd:user(), Server :: ejabberd:server()) -> ok.
 disconnect_removed_user(User, Server) ->
     ejabberd_sm:route(jid:make(<<>>, <<>>, <<>>),
                       jid:make(User, Server, <<>>),
@@ -712,10 +710,12 @@ route_message(From, To, Packet) ->
                 <<"error">> ->
                     ok;
                 <<"groupchat">> ->
-                    bounce_offline_message(From, To, Packet);
+                    ejabberd_hooks:run(offline_message_hook,
+                                       LServer,
+                                       [From, To, Packet]);
                 <<"headline">> ->
-                    bounce_offline_message(From, To, Packet);
-                _ ->
+                    bounce_offline_message(From, To,  Packet);
+                Type ->
                     case ejabberd_auth:is_user_exists(LUser, LServer) of
                         true ->
                             case is_privacy_allow(From, To, Packet) of
@@ -733,7 +733,6 @@ route_message(From, To, Packet) ->
                     end
             end
     end.
-
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 

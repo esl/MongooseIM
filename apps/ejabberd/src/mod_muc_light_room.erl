@@ -77,8 +77,7 @@ classify_operation(From, RoomJID, #xmlel{ name = <<"iq">> } = IQ, Type,
         ?NS_MUC_ADMIN -> handle_affiliation_iq(From, RoomJID, IQ, Type,
                                                Auth, Affiliations)
     end;
-classify_operation(From, #jid{ lresource = <<>> } = RoomJID,
-                   #xmlel{ name = <<"message">> } = Msg,
+classify_operation(From, RoomJID, #xmlel{ name = <<"message">> } = Msg,
                    <<"groupchat">>, _Auth, Affiliations) ->
     case exml_query:path(Msg, [{element, <<"body">>}]) of
         undefined -> handle_subject_message(From, RoomJID, Msg, Affiliations);
