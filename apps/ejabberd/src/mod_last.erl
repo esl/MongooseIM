@@ -91,6 +91,8 @@ start(Host, Opts) ->
         ?NS_LAST, ?MODULE, process_sm_iq, IQDisc),
     ejabberd_hooks:add(remove_user, Host, ?MODULE,
         remove_user, 50),
+    ejabberd_hooks:add(anonymous_purge_hook, Host,
+        ?MODULE, remove_user, 50),
     ejabberd_hooks:add(unset_presence_hook, Host, ?MODULE,
         on_presence_update, 50).
 
@@ -98,6 +100,8 @@ start(Host, Opts) ->
 stop(Host) ->
     ejabberd_hooks:delete(remove_user, Host, ?MODULE,
         remove_user, 50),
+    ejabberd_hooks:delete(anonymous_purge_hook, Host,
+        ?MODULE, remove_user, 50),
     ejabberd_hooks:delete(unset_presence_hook, Host,
         ?MODULE, on_presence_update, 50),
     gen_iq_handler:remove_iq_handler(ejabberd_local, Host,
@@ -246,7 +250,7 @@ count_active_users(LServer, Timestamp, Comparator) ->
 -spec on_presence_update(ejabberd:user(), ejabberd:server(), ejabberd:resource(),
                          Status :: binary()) -> {'aborted',_} | {'atomic',_}.
 on_presence_update(User, Server, _Resource, Status) ->
-    TimeStamp = now_to_seconds(now()),
+    TimeStamp = now_to_seconds(os:timestamp()),
     store_last_info(User, Server, TimeStamp, Status).
 
 -spec store_last_info(ejabberd:user(), ejabberd:server(), erlang:timestamp(),

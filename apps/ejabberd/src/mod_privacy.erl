@@ -129,6 +129,8 @@ start(Host, Opts) ->
                ?MODULE, updated_list, 50),
     ejabberd_hooks:add(remove_user, Host,
                ?MODULE, remove_user, 50),
+    ejabberd_hooks:add(anonymous_purge_hook, Host,
+        ?MODULE, remove_user, 50),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_PRIVACY,
                   ?MODULE, process_iq, IQDisc).
 
@@ -145,6 +147,8 @@ stop(Host) ->
               ?MODULE, updated_list, 50),
     ejabberd_hooks:delete(remove_user, Host,
               ?MODULE, remove_user, 50),
+    ejabberd_hooks:delete(anonymous_purge_hook, Host,
+        ?MODULE, remove_user, 50),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_PRIVACY).
 
 %% Dynamic modules
