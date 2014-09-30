@@ -28,6 +28,8 @@
 -export([terminate/1]).
 -record(state, { total, suite_total, ts, tcs, data }).
 
+-define(RPC(M,F,A), escalus_ejabberd:rpc(M, F, A)).
+
 %% @doc Return a unique id for this CTH.
 id(_Opts) ->
     "ct_tty_hook_001".
@@ -51,6 +53,7 @@ pre_end_per_suite(_Suite,Config,State) ->
 
 %% @doc Called after end_per_suite.
 post_end_per_suite(Suite,_Config,Return,State) ->
+    check_server_purity(Suite),
     Data = {suites, Suite, State#state.suite_total, lists:reverse(State#state.tcs)},
     {Return, State#state{ data = [Data | State#state.data] ,
                           total = State#state.total + State#state.suite_total } }.
@@ -126,3 +129,71 @@ maybe_print_test_case({testcase, _Name,ok,_})              -> ok;
 maybe_print_test_case({testcase, Name,{error, Content},_}) ->
     io:format("~n====== Test name: ~p", [Name]),
     io:format("~n====== Reason:    ~p~n", [Content]).
+
+check_server_purity(Suite) ->
+    case is_mongoose() of
+        true ->
+            case catch do_check_server_purity(Suite) of
+                [] ->
+                    ok;
+                R ->
+                    ct:pal(warning,
+                           "Suite: ~p finished dirty. Other suites may fail because of that. "
+                           "Details:~n~p",[Suite, R])
+            end;
+        _ ->
+            ok
+    end.
+
+do_check_server_purity(_Suite) ->
+    Funs = [fun check_sessions/0,
+            fun check_registered_users/0,
+            fun check_offline_messages/0,
+            fun check_active_users/0,
+            fun check_privacy/0,
+            fun check_private/0,
+            fun check_vcard/0,
+            fun check_roster/0],
+    lists:flatmap(fun(F) -> F() end, Funs).
+
+is_mongoose() ->
+    Apps = escalus_ejabberd:rpc(application, loaded_applications, []),
+    lists:keymember(mongooseim, 1, Apps).
+
+check_sessions() ->
+    case ?RPC(ejabberd_sm, get_full_session_list, []) of
+        [] -> [];
+        Sessions -> [{opened_sessions, Sessions}]
+    end.
+
+check_registered_users() ->
+    case ?RPC(ejabberd_auth, dirty_get_registered_users, []) of
+        [] -> [];
+        Users -> [{registered_users, Users}]
+    end.
+
+check_offline_messages() ->
+    generic_via_mongoose_helper(total_offline_messages).
+
+
+check_active_users() ->
+    generic_via_mongoose_helper(total_active_users).
+
+check_privacy() ->
+    generic_via_mongoose_helper(total_privacy_items).
+
+check_private() ->
+    generic_via_mongoose_helper(total_private_items).
+
+check_vcard() ->
+    generic_via_mongoose_helper(total_vcard_items).
+
+check_roster() ->
+    generic_via_mongoose_helper(total_roster_items).
+
+generic_via_mongoose_helper(Function) ->
+    case mongoose_helper:Function() of
+        0 -> [];
+        false -> [];
+        N -> [{Function, N}]
+    end.
