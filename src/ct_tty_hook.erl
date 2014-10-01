@@ -153,7 +153,8 @@ do_check_server_purity(_Suite) ->
             fun check_privacy/0,
             fun check_private/0,
             fun check_vcard/0,
-            fun check_roster/0],
+            fun check_roster/0,
+            fun check_carboncopy/0],
     lists:flatmap(fun(F) -> F() end, Funs).
 
 is_mongoose() ->
@@ -175,7 +176,6 @@ check_registered_users() ->
 check_offline_messages() ->
     generic_via_mongoose_helper(total_offline_messages).
 
-
 check_active_users() ->
     generic_via_mongoose_helper(total_active_users).
 
@@ -191,9 +191,24 @@ check_vcard() ->
 check_roster() ->
     generic_via_mongoose_helper(total_roster_items).
 
+check_carboncopy() ->
+    D = escalus_ct:get_config(ejabberd_domain),
+    case ?RPC(gen_mod, is_loaded, [D, mod_carboncopy]) of
+        true ->
+            do_check_carboncopy();
+        _ ->
+            []
+    end.
+
 generic_via_mongoose_helper(Function) ->
     case mongoose_helper:Function() of
         0 -> [];
         false -> [];
         N -> [{Function, N}]
+    end.
+
+do_check_carboncopy() ->
+    case ?RPC(ets, tab2list, [carboncopy]) of
+        [] -> [];
+        L -> [{remaining_carbon_copy_settings, L}]
     end.
