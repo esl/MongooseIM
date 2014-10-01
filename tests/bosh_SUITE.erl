@@ -65,7 +65,7 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    escalus:init_per_suite(Config).
+    escalus:init_per_suite([{escalus_user_db, ejabberd} | Config]).
 
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
@@ -79,7 +79,9 @@ init_per_group(_GroupName, Config) ->
 end_per_group(essential, Config) ->
     Config;
 end_per_group(_GroupName, Config) ->
-    escalus_users:delete_users(Config, {by_name, [carol, geralt, alice]}).
+    R = escalus_users:delete_users(Config, {by_name, [carol, geralt, alice]}),
+    mongoose_helper:clear_last_activity(Config, carol),
+    R.
 
 
 init_per_testcase(disconnect_inactive = CaseName, Config) ->

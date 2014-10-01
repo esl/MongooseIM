@@ -8,23 +8,31 @@
          total_vcard_items/0,
          total_roster_items/0]).
 
+-export([clear_last_activity/2]).
+
 -define(RPC(M,F,A), escalus_ejabberd:rpc(M, F, A)).
 
+-spec total_offline_messages() -> integer() | false.
 total_offline_messages() ->
     generic_count(mod_offline_backend).
 
+-spec total_active_users() -> integer() | false.
 total_active_users() ->
     generic_count(mod_last_backend).
 
+-spec total_privacy_items() -> integer() | false.
 total_privacy_items() ->
     generic_count(mod_privacy_backend).
 
+-spec total_private_items() -> integer() | false.
 total_private_items() ->
     generic_count(mod_private_backend).
 
+-spec total_vcard_items() -> integer() | false.
 total_vcard_items() ->
     generic_count(mod_vcard_backend).
 
+-spec total_roster_items() -> integer() | false.
 total_roster_items() ->
     Domain = escalus_ct:get_config(ejabberd_domain),
     RosterMnesia = ?RPC(gen_mod, is_loaded, [Domain, mod_roster]),
@@ -37,6 +45,32 @@ total_roster_items() ->
         _ ->
             false
     end.
+
+%% Need to clear last_activity after carol (connected over BOSH)
+%% It is possible that from time to time the unset_presence_hook,
+%% for user connected over BOSH, is called after user removal.
+%% This happens when the BOSH session is closed (on server side)
+%% after user's removal
+%% In such situation the last info is set back
+-spec clear_last_activity(list(), atom() | binary() | [atom() | binary()]) -> no_return().
+clear_last_activity(Config, User) ->
+    S = escalus_config:get_config(ejabberd_domain, Config),
+    case catch escalus_ejabberd:rpc(gen_mod, is_loaded, [S, mod_last]) of
+        true ->
+            do_clear_last_activity(Config, User);
+        _ ->
+            ok
+    end.
+
+do_clear_last_activity(Config, User) when is_atom(User)->
+    [U, S, _P] = escalus_users:get_usp(Config, carol),
+    escalus_ejabberd:rpc(mod_last, remove_user, [U, S]);
+do_clear_last_activity(_Config, User) when is_binary(User) ->
+    U = escalus_utils:get_username(User),
+    S = escalus_utils:get_server(User),
+    escalus_ejabberd:rpc(mod_last, remove_user, [U, S]);
+do_clear_last_activity(Config, Users) when is_list(Users) ->
+    lists:foreach(fun(User) -> do_clear_last_activity(Config, User) end, Users).
 
 get_backend(Module) ->
     try

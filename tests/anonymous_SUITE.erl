@@ -58,9 +58,7 @@ init_per_testcase(CaseName, Config0) ->
 
 end_per_testcase(CaseName, Config) ->
     AnonJID = erlang:get(anon_user),
-    U = escalus_utils:get_username(AnonJID),
-    S = escalus_utils:get_server(AnonJID),
-    escalus_ejabberd:rpc(mod_last, remove_user, [U, S]),
+    mongoose_helper:clear_last_activity(Config, AnonJID),
     escalus:end_per_testcase(CaseName, Config).
 
 %%--------------------------------------------------------------------
