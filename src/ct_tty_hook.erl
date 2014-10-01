@@ -148,6 +148,7 @@ check_server_purity(Suite) ->
 do_check_server_purity(_Suite) ->
     Funs = [fun check_sessions/0,
             fun check_registered_users/0,
+            fun check_registered_users_count/0,
             fun check_offline_messages/0,
             fun check_active_users/0,
             fun check_privacy/0,
@@ -171,6 +172,13 @@ check_registered_users() ->
     case ?RPC(ejabberd_auth, dirty_get_registered_users, []) of
         [] -> [];
         Users -> [{registered_users, Users}]
+    end.
+
+check_registered_users_count() ->
+    D = escalus_ct:get_config(ejabberd_domain),
+    case ?RPC(ejabberd_auth, get_vh_registered_users_number, [D]) of
+        0 -> [];
+        N -> [{registered_users_count, N}]
     end.
 
 check_offline_messages() ->
