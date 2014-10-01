@@ -249,15 +249,13 @@ count_active_users(LServer, Timestamp, Comparator) ->
 
 -spec on_presence_update(ejabberd:user(), ejabberd:server(), ejabberd:resource(),
                          Status :: binary()) -> {'aborted',_} | {'atomic',_}.
-on_presence_update(User, Server, _Resource, Status) ->
+on_presence_update(LUser, LServer, _Resource, Status) ->
     TimeStamp = now_to_seconds(os:timestamp()),
-    store_last_info(User, Server, TimeStamp, Status).
+    store_last_info(LUser, LServer, TimeStamp, Status).
 
 -spec store_last_info(ejabberd:user(), ejabberd:server(), erlang:timestamp(),
                       Status :: binary()) -> {'aborted',_} | {'atomic',_}.
-store_last_info(User, Server, TimeStamp, Status) ->
-    LUser = jlib:nodeprep(User),
-    LServer = jlib:nameprep(Server),
+store_last_info(LUser, LServer, TimeStamp, Status) ->
     ?BACKEND:set_last_info(LUser, LServer, TimeStamp, Status).
 
 -spec get_last_info(ejabberd:luser(), ejabberd:lserver())

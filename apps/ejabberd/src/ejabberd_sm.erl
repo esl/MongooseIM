@@ -252,8 +252,10 @@ set_presence(SID, User, Server, Resource, Priority, Presence, Info) ->
                      Info :: 'undefined' | [any()]) -> 'ok'.
 unset_presence(SID, User, Server, Resource, Status, Info) ->
     set_session(SID, User, Server, Resource, undefined, Info),
-    ejabberd_hooks:run(unset_presence_hook, jlib:nameprep(Server),
-                       [User, Server, Resource, Status]).
+    LServer = jlib:nameprep(Server),
+    ejabberd_hooks:run(unset_presence_hook, LServer,
+                       [jlib:nodeprep(User), LServer,
+                        jlib:resourceprep(Resource), Status]).
 
 
 -spec close_session_unset_presence(SID :: 'undefined' | sid(),
@@ -263,8 +265,10 @@ unset_presence(SID, User, Server, Resource, Status, Info) ->
                                    Status :: any()) -> 'ok'.
 close_session_unset_presence(SID, User, Server, Resource, Status) ->
     close_session(SID, User, Server, Resource),
-    ejabberd_hooks:run(unset_presence_hook, jlib:nameprep(Server),
-                       [User, Server, Resource, Status]).
+    LServer = jlib:nameprep(Server),
+    ejabberd_hooks:run(unset_presence_hook, LServer,
+                       [jlib:nodeprep(User), LServer,
+                        jlib:resourceprep(Resource), Status]).
 
 
 -spec get_session_pid(User :: ejabberd:user(),
