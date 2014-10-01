@@ -98,6 +98,10 @@ generic_count_backend(mod_private_mnesia) -> count_wildpattern(private_storage);
 generic_count_backend(mod_private_odbc) -> count_odbc(<<"private_storage">>);
 generic_count_backend(mod_vcard_mnesia) -> count_wildpattern(vcard);
 generic_count_backend(mod_vcard_odbc) -> count_odbc(<<"vcard">>);
+generic_count_backend(mod_vcard_ldap) ->
+    D = escalus_ct:get_config(ejabberd_domain),
+    %% number of vcards in ldap is the same as number of users
+    ?RPC(ejabberd_auth_ldap, get_vh_registered_users_number, [D]);
 generic_count_backend(mod_roster_mnesia) -> count_wildpattern(roster);
 generic_count_backend(mod_roster_odbc) -> count_odbc(<<"rosterusers">>).
 
