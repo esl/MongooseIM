@@ -250,6 +250,7 @@ cant_send_invalid_rid(Config) ->
         escalus_bosh:send_raw(Carol, Empty),
 
         escalus:assert(is_stream_end, escalus:wait_for_stanza(Carol)),
+        true = wait_for_close(Carol, 10),
         0 = length(get_bosh_sessions())
 
         end).
