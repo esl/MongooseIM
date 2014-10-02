@@ -42,7 +42,7 @@
          process_iq_disco_items/4,
          broadcast_service_message/2,
          can_use_nick/3,
-     room_jid_to_pid/1]).
+         room_jid_to_pid/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
