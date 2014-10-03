@@ -181,8 +181,7 @@ restart_ejabberd_node() ->
     ok = call_ejabberd(application, start, [ejabberd]).
 
 reload_through_ctl(Config) ->
-    ReloadCmd = ?CTL_PATH(Config) ++ " reload_local "
-        ++ ?CURRENT_CFG_PATH(Config),
+    ReloadCmd = ?CTL_PATH(Config) ++ " reload_local",
     OutputStr = call_ejabberd(os, cmd, [ReloadCmd]),
     ok = verify_reload_output(OutputStr).
 
