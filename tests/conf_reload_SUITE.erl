@@ -191,7 +191,8 @@ verify_reload_output(OutputStr) ->
         ExpectedOutput ->
             ok;
         _ ->
-            throw(conifig_reload_failed)
+            ct:pal("~ts", [OutputStr]),
+            error(config_reload_failed, [OutputStr])
     end.
     
 
