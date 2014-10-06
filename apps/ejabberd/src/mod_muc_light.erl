@@ -91,7 +91,10 @@ stop(Host) ->
 %%====================================================================
 
 -spec route(jid(), jid(), #xmlel{}) -> ok.
-route(From, #jid{ luser = <<>> } = To, Packet) ->
+route(From, #jid{ luser = LToU, lresource = LToR } = To,
+      #xmlel{ name = PName} = Packet)
+  when LToU =:= <<>> orelse LToR =/= <<>> orelse PName =:= <<"presence">> ->
+    %% Stanza to the service must be bare JID
     ejabberd_router:route(
       To, From, jlib:make_error_reply(Packet, ?ERR_BAD_REQUEST));
 route(From, To, Packet) ->
