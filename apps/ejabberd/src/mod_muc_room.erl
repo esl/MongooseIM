@@ -3294,7 +3294,7 @@ get_config(Lang, StateData, From) ->
             attrs = [{<<"type">>, <<"hidden">>},
           {<<"var">>, <<"FORM_TYPE">>}],
             children = [#xmlel{name = <<"value">>,
-                               children = [#xmlcdata{content = <<"http://jabber.org/protocol/muc#roomconfig">>}]}]},
+                               children = [#xmlcdata{content = ?NS_MUC_CONFIG}]}]},
      stringxfield(<<"Room title">>,
                <<"muc#roomconfig_roomname">>,
                 Config#config.title, Lang),
