@@ -76,26 +76,26 @@ stop(_Host, _MUCHost) ->
     ok.
 
 
--spec create_room(#jid{}, jid() | ljid(), configuration()) -> ok | {error, exists}.
+-spec create_room(jid(), ljid(), configuration()) -> ok | {error, exists}.
 create_room(RoomJID, Owner, Configuration) ->
     {atomic, Res} = mnesia:transaction(
                      fun create_room_transaction/3,
                      [RoomJID, Owner, Configuration]),
     Res.
 
--spec destroy_room(#jid{}) -> ok | {error, not_exists | not_empty}.
+-spec destroy_room(jid()) -> ok | {error, not_exists | not_empty}.
 destroy_room(RoomJID) ->
     {atomic, Res} = mnesia:transaction(
                      fun destroy_room_transaction/1,
                      [RoomJID]),
     Res.
 
--spec room_exists(#jid{}) -> boolean().
+-spec room_exists(jid()) -> boolean().
 room_exists(RoomJID) ->
     mnesia:dirty_read(?TAB, to_us(RoomJID)) =/= [].
 
 
--spec get_configuration(#jid{}) -> {ok, configuration()} | {error, not_exists}.
+-spec get_configuration(jid()) -> {ok, configuration()} | {error, not_exists}.
 get_configuration(RoomJID) ->
     case mnesia:dirty_read(?TAB, to_us(RoomJID)) of
         [] ->
@@ -104,7 +104,7 @@ get_configuration(RoomJID) ->
             {ok, Config}
     end.
 
--spec get_configuration(#jid{}, atom()) ->
+-spec get_configuration(jid(), atom()) ->
     {ok, term()} | {error, not_exists | invalid_opt}.
 get_configuration(RoomJID, Option) ->
     case get_configuration(RoomJID) of
@@ -117,32 +117,32 @@ get_configuration(RoomJID, Option) ->
             Error
     end.
 
--spec set_configuration(#jid{}, configuration()) -> ok | {error, not_exists}.
+-spec set_configuration(jid(), configuration()) -> ok | {error, not_exists}.
 set_configuration(RoomJID, ConfigurationChanges) ->
     {atomic, Res} = mnesia:transaction(
                      fun set_configuration_transaction/2,
                      [RoomJID, ConfigurationChanges]),
     Res.
 
--spec set_configuration(#jid{}, atom(), term()) -> ok | {error, not_exists}.
+-spec set_configuration(jid(), atom(), term()) -> ok | {error, not_exists}.
 set_configuration(RoomJID, Option, Value) ->
     set_configuration(RoomJID, [{Option, Value}]).
 
 
--spec get_room_process(#jid{}) -> pid() | {error, not_exists}.
+-spec get_room_process(jid()) -> pid() | {error, not_exists}.
 get_room_process(_RoomJID) ->
     throw(not_implemented).
 
--spec register_room_process(#jid{}, pid()) -> ok | {error, exists}.
+-spec register_room_process(jid(), pid()) -> ok | {error, exists}.
 register_room_process(_RoomJID, _Pid) ->
     throw(not_implemented).
 
--spec unregister_room_process(#jid{}) -> ok.
+-spec unregister_room_process(jid()) -> ok.
 unregister_room_process(_RoomJID) ->
     throw(not_implemented).
 
 
--spec get_affiliations(#jid{}) -> {ok, affiliations()} | {error, not_exists}.
+-spec get_affiliations(jid()) -> {ok, affiliations()} | {error, not_exists}.
 get_affiliations(RoomJID) ->
     case mnesia:dirty_read(?TAB, to_us(RoomJID)) of
         [] ->
@@ -151,7 +151,7 @@ get_affiliations(RoomJID) ->
             {ok, Affiliations}
     end.
 
--spec modify_affiliations(#jid{}, affiliations()) ->
+-spec modify_affiliations(jid(), affiliations()) ->
     {ok, CurrentAffiliations :: affiliations(), ChangedAffiliations :: affiliations()}
     | {error, not_exists | only_owner_in_room}.
 modify_affiliations(RoomJID, AffiliationsToChange) ->
@@ -164,7 +164,7 @@ modify_affiliations(RoomJID, AffiliationsToChange) ->
 %% API for tests
 %%====================================================================
 
--spec force_destroy_room(jid() | ljid()) -> ok.
+-spec force_destroy_room(ljid()) -> ok.
 force_destroy_room(RoomJID) ->
     mnesia:dirty_delete(?TAB, to_us(RoomJID)).
 
@@ -181,10 +181,10 @@ init_tables() ->
     set = mnesia:table_info(schema, type),
     ok. % checks if table exists
 
--spec to_us(#jid{}) -> {LUSer :: binary(), LServer :: binary()}.
+-spec to_us(jid()) -> {LUSer :: binary(), LServer :: binary()}.
 to_us(#jid{ luser = LUser, lserver = LServer }) -> {LUser, LServer}.
 
--spec create_room_transaction(#jid{}, jid() | ljid(), configuration()) ->
+-spec create_room_transaction(jid(), ljid(), configuration()) ->
     ok | {error, exists}.
 create_room_transaction(RoomJID, Owner, Configuration) ->
     RoomUS = to_us(RoomJID),
@@ -201,7 +201,7 @@ create_room_transaction(RoomJID, Owner, Configuration) ->
             ok
     end.
 
--spec destroy_room_transaction(#jid{}) -> ok | {error, not_exists | not_empty}.
+-spec destroy_room_transaction(jid()) -> ok | {error, not_exists | not_empty}.
 destroy_room_transaction(RoomJID) ->
     RoomUS = to_us(RoomJID),
     case mnesia:wread({?TAB, RoomUS}) of
@@ -210,7 +210,7 @@ destroy_room_transaction(RoomJID) ->
         _ -> {error, not_empty}
     end.
 
--spec set_configuration_transaction(#jid{}, configuration()) ->
+-spec set_configuration_transaction(jid(), configuration()) ->
     ok | {error, not_exists}.
 set_configuration_transaction(RoomJID, ConfigurationChanges) ->
     RoomUS = to_us(RoomJID),

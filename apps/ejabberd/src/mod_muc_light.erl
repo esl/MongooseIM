@@ -91,9 +91,7 @@ stop(Host) ->
 %%====================================================================
 
 -spec route(jid(), jid(), #xmlel{}) -> ok.
-route(From, #jid{ luser = LToU, lresource = LToR } = To, Packet)
-  when LToU =:= <<>> orelse LToR =/= <<>> ->
-    %% Stanza to the service must be bare JID
+route(From, #jid{ luser = <<>> } = To, Packet) ->
     ejabberd_router:route(
       To, From, jlib:make_error_reply(Packet, ?ERR_BAD_REQUEST));
 route(From, To, Packet) ->
@@ -104,7 +102,7 @@ route(From, To, Packet) ->
             create_room(From, To, Packet)
     end.
 
--spec create_room(#jid{}, #jid{}, #xmlel{}) -> ok.
+-spec create_room(jid(), jid(), #xmlel{}) -> ok.
 create_room(From, To, #xmlel{ name = <<"iq">> } = IQ) ->
     case mod_muc_light_utils:iq_to_config(IQ, default_configuration()) of
         {ok, Config} ->
@@ -147,7 +145,7 @@ remove_user(_User, _Server) ->
 %% Internal functions
 %%====================================================================
 
--spec lower_nores(#jid{}) -> {binary(), binary(), <<>>}.
+-spec lower_nores(jid()) -> {binary(), binary(), <<>>}.
 lower_nores(JID) -> jlib:jid_remove_resource(jlib:jid_to_lower(JID)).
 
 -spec format_config_error({binary(), atom()}) -> iolist().
