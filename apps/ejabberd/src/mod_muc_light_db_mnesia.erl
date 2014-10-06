@@ -42,8 +42,8 @@
          register_room_process/2,
          unregister_room_process/1,
 
-         get_affiliations/1,
-         modify_affiliations/2
+         get_affiliated_users/1,
+         modify_affiliated_users/2
         ]).
 
 %% Extra API for testing
@@ -60,7 +60,7 @@
 -record(?TAB, {
           room_us :: {ejabberd:username(), ejabberd:server()},
           config :: [{atom(), term()}],
-          affiliations :: affiliations()
+          affiliated_users :: affiliated_users()
          }).
 
 %%====================================================================
@@ -142,21 +142,21 @@ unregister_room_process(_RoomJID) ->
     throw(not_implemented).
 
 
--spec get_affiliations(jid()) -> {ok, affiliations()} | {error, not_exists}.
-get_affiliations(RoomJID) ->
+-spec get_affiliated_users(jid()) -> {ok, affiliated_users()} | {error, not_exists}.
+get_affiliated_users(RoomJID) ->
     case mnesia:dirty_read(?TAB, to_us(RoomJID)) of
         [] ->
             {error, not_exists};
-        [#?TAB{ affiliations = Affiliations }] ->
+        [#?TAB{ affiliated_users = Affiliations }] ->
             {ok, Affiliations}
     end.
 
--spec modify_affiliations(jid(), affiliations()) ->
-    {ok, CurrentAffiliations :: affiliations(), ChangedAffiliations :: affiliations()}
+-spec modify_affiliated_users(jid(), affiliated_users()) ->
+    {ok, CurrentAffiliations :: affiliated_users(), ChangedAffiliations :: affiliated_users()}
     | {error, not_exists | only_owner_in_room}.
-modify_affiliations(RoomJID, AffiliationsToChange) ->
+modify_affiliated_users(RoomJID, AffiliationsToChange) ->
     {atomic, Res} = mnesia:transaction(
-                      fun modify_affiliations_transaction/2,
+                      fun modify_affiliated_users_transaction/2,
                       [RoomJID, AffiliationsToChange]),
     Res.
 
@@ -195,7 +195,7 @@ create_room_transaction(RoomJID, Owner, Configuration) ->
             RoomRecord = #?TAB{
                              room_us = RoomUS,
                              config = Configuration,
-                             affiliations = [{Owner, owner}]
+                             affiliated_users = [{Owner, owner}]
                             },
             mnesia:write(RoomRecord),
             ok
@@ -206,7 +206,7 @@ destroy_room_transaction(RoomJID) ->
     RoomUS = to_us(RoomJID),
     case mnesia:wread({?TAB, RoomUS}) of
         [] -> {error, not_exists};
-        [#?TAB{ affiliations = [] }] -> mnesia:delete({?TAB, RoomUS});
+        [#?TAB{ affiliated_users = [] }] -> mnesia:delete({?TAB, RoomUS});
         _ -> {error, not_empty}
     end.
 
@@ -226,19 +226,19 @@ set_configuration_transaction(RoomJID, ConfigurationChanges) ->
             mnesia:write(Rec#?TAB{ config = NewConfig })
     end.
 
--spec modify_affiliations_transaction(jid(), affiliations()) ->
-    {ok, NewAffiliations :: affiliations(),
-     AffiliationsChanged :: affiliations()} | {error, only_owner_in_room}.
-modify_affiliations_transaction(RoomJID, AffiliationsToChange) ->
+-spec modify_affiliated_users_transaction(jid(), affiliated_users()) ->
+    {ok, NewAffiliations :: affiliated_users(),
+     AffiliationsChanged :: affiliated_users()} | {error, only_owner_in_room}.
+modify_affiliated_users_transaction(RoomJID, AffiliationsToChange) ->
     RoomUS = to_us(RoomJID),
     case mnesia:wread({?TAB, RoomUS}) of
         [] ->
             {error, not_exists};
-        [#?TAB{ affiliations = Affiliations } = Rec] ->
-            case mod_muc_light_utils:change_affiliations(
+        [#?TAB{ affiliated_users = Affiliations } = Rec] ->
+            case mod_muc_light_utils:change_affiliated_users(
                    Affiliations, AffiliationsToChange) of
                 {ok, NewAffiliations, AffiliationsChanged} ->
-                    mnesia:write(Rec#?TAB{ affiliations = NewAffiliations }),
+                    mnesia:write(Rec#?TAB{ affiliated_users = NewAffiliations }),
                     {ok, NewAffiliations, AffiliationsChanged};
                 Error ->
                     Error

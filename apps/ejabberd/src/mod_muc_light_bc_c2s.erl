@@ -34,7 +34,7 @@
 %% API
 %%====================================================================
 
--spec broadcast(jid(), #xmlel{}, affiliations()) -> ok.
+-spec broadcast(jid(), #xmlel{}, affiliated_users()) -> ok.
 broadcast(From, Packet, Affiliations) ->
     lists:foreach(
       fun({User, _}) ->

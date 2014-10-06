@@ -26,7 +26,7 @@
 
 %% API
 -export([iq_to_config/2, config_to_query/1, validate_config_opt/2]).
--export([change_affiliations/2]).
+-export([change_affiliated_users/2]).
 
 -include("jlib.hrl").
 -include("mod_muc_light.hrl").
@@ -71,12 +71,12 @@ validate_config_opt(Key, Value) when is_binary(Key) ->
 validate_config_opt(Key, Value) when is_atom(Key) ->
     validate_type(Key, Value, lists:keyfind(Key, 2, config_schema())).
 
--spec change_affiliations(affiliations(), affiliations()) ->
-    {ok, NewAffiliations :: affiliations(),
-     AffiliationsChanged :: affiliations()} | {error, only_owner_in_room}.
-change_affiliations(Affiliations, AffiliationsToChange) ->
+-spec change_affiliated_users(affiliated_users(), affiliated_users()) ->
+    {ok, NewAffiliations :: affiliated_users(),
+     AffiliationsChanged :: affiliated_users()} | {error, only_owner_in_room}.
+change_affiliated_users(Affiliations, AffiliationsToChange) ->
     {OldOwner, _} = lists:keyfind(owner, 2, Affiliations),
-    case apply_affiliations_change(
+    case apply_affiliated_users_change(
            Affiliations, lists:sort(AffiliationsToChange), {old, OldOwner}) of
         {ok, NewAffiliations, ExtraChangedAffiliations} ->
             AffiliationsChanged
@@ -147,36 +147,36 @@ validate_type(Key, _Val, _Type) -> {error, {Key, type}}.
 
 %% ---------------- Affiliations manipulation ----------------
 
--spec apply_affiliations_change(
-        AffiliationsAcc :: affiliations(),
-        AffiliationsChanges :: affiliations(),
+-spec apply_affiliated_users_change(
+        AffiliationsAcc :: affiliated_users(),
+        AffiliationsChanges :: affiliated_users(),
         NewOwner :: new_owner()) ->
-    {ok, affiliations(), affiliations()} | {error, bad_request}.
-apply_affiliations_change(_, [{User, _}, {User, _} | _], _) ->
+    {ok, affiliated_users(), affiliated_users()} | {error, bad_request}.
+apply_affiliated_users_change(_, [{User, _}, {User, _} | _], _) ->
     {error, bad_request};
-apply_affiliations_change(_, [{User, owner} | _], {new, User}) ->
+apply_affiliated_users_change(_, [{User, owner} | _], {new, User}) ->
     {error, bad_request};
-apply_affiliations_change([{Excluded, _}], [], {random, Excluded}) ->
+apply_affiliated_users_change([{Excluded, _}], [], {random, Excluded}) ->
     {ok, [{Excluded, owner}], [{Excluded, owner}]};
-apply_affiliations_change([{Excluded, ExclAff}, {NewOwner, _} | RAffiliations],
+apply_affiliated_users_change([{Excluded, ExclAff}, {NewOwner, _} | RAffiliations],
                           [], {random, Excluded}) ->
     {ok, [{Excluded, ExclAff}, {NewOwner, owner} | RAffiliations],
      [{NewOwner, owner}]};
-apply_affiliations_change([{NewOwner, _} | RAffiliations],
+apply_affiliated_users_change([{NewOwner, _} | RAffiliations],
                           [], {random, _Excluded}) ->
     {ok, [{NewOwner, owner} | RAffiliations], [{NewOwner, owner}]};
-apply_affiliations_change(Affiliations, [], _) ->
+apply_affiliated_users_change(Affiliations, [], _) ->
     {ok, Affiliations, []};
-apply_affiliations_change(Affiliations, [{User, none} | RToChange], Owner) ->
-    apply_affiliations_change(
+apply_affiliated_users_change(Affiliations, [{User, none} | RToChange], Owner) ->
+    apply_affiliated_users_change(
       lists:keydelete(User, 1, Affiliations),
       RToChange, maybe_new_owner(User, Owner));
-apply_affiliations_change(Affiliations, [{User, member} | RToChange], Owner) ->
-    apply_affiliations_change(
+apply_affiliated_users_change(Affiliations, [{User, member} | RToChange], Owner) ->
+    apply_affiliated_users_change(
       lists:keystore(User, 1, Affiliations, {User, member}),
       RToChange, maybe_new_owner(User, Owner));
-apply_affiliations_change(Affiliations, [{User, owner} | RToChange], _Owner) ->
-    apply_affiliations_change(
+apply_affiliated_users_change(Affiliations, [{User, owner} | RToChange], _Owner) ->
+    apply_affiliated_users_change(
       lists:keystore(User, 1, Affiliations, {User, owner}),
       RToChange, {new, User}).
 

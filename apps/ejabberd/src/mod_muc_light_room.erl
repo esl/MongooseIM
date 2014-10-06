@@ -43,7 +43,7 @@
 
 -spec handle_packet(jid(), jid(), #xmlel{}) -> ok.
 handle_packet(From, RoomJID, Packet) ->
-    AffiliationsRes = ?BACKEND:get_affiliations(RoomJID),
+    AffiliationsRes = ?BACKEND:get_affiliated_users(RoomJID),
     send_response(
       From, RoomJID, Packet,
       get_params_and_process_packet(From, RoomJID, Packet, AffiliationsRes)).
@@ -53,7 +53,7 @@ handle_packet(From, RoomJID, Packet) ->
 %%====================================================================
 
 -spec get_params_and_process_packet(jid(), jid(), #xmlel{},
-                                    {ok, affiliations()} | {error, term()}) ->
+                                    {ok, affiliated_users()}|{error, term()}) ->
     packet_processing_result().
 get_params_and_process_packet(_From, _RoomJID, _Packet, {error, Reason}) ->
     {error, Reason};
@@ -63,7 +63,7 @@ get_params_and_process_packet(From, RoomJID, Packet, {ok, Affiliations}) ->
     classify_operation(From, RoomJID, Packet, Type, Auth, Affiliations).
 
 -spec classify_operation(jid(), jid(), #xmlel{}, binary(),
-                         false | affiliation_tuple(), affiliations()) ->
+                         false | affiliated_user(), affiliated_users()) ->
     packet_processing_result().
 classify_operation(_From, _RoomJID, _Packet, _Type, false, _Affiliations) ->
     {error, registration_required};
@@ -89,7 +89,7 @@ classify_operation(_From, _RoomJID, _Packet, _Type, _Auth, _Affiliations) ->
 %% --------- IQ handlers ---------
 
 -spec handle_config_iq(jid(), jid(), #xmlel{},
-                       binary(), affiliation_tuple()) ->
+                       binary(), affiliated_user()) ->
     packet_processing_result().
 handle_config_iq(_From, RoomJID, IQ, <<"get">>, _) ->
     case ?BACKEND:get_configuration(RoomJID) of
@@ -118,7 +118,7 @@ handle_config_iq(_From, _RoomJID, _IQ, _Type, _FromAff) ->
     {error, bad_request}.
 
 -spec handle_affiliation_iq(jid(), jid(), #xmlel{}, binary(),
-                            affiliation_tuple(), affiliations()) ->
+                            affiliated_user(), affiliated_users()) ->
     packet_processing_result().
 handle_affiliation_iq(_From, _RoomJID, IQ, <<"get">>, _, Affiliations) ->
     Query = exml_query:path(IQ, [{element, <<"query">>}]),
@@ -133,24 +133,24 @@ handle_affiliation_iq(_From, _RoomJID, IQ, <<"get">>, _, Affiliations) ->
               {false, true} -> lists:keydelete(owner, 2, Affiliations)
           end,
 
-    Items = affiliations_to_items(AffiliationsFiltered),
+    Items = affiliated_users_to_items(AffiliationsFiltered),
     Reply1 = jlib:make_result_iq_reply(IQ),
     {ok, Reply1#xmlel{ children =
                        [Query#xmlel{ children = Items }]}};
 handle_affiliation_iq(_From, RoomJID, IQ, <<"set">>, Auth, Affiliations) ->
     Items = exml_query:paths(IQ, [{element, <<"query">>},
                                   {element, <<"item">>}]),
-    AffiliationsToChange = items_to_affiliations(Items),
-    IsAllowed = is_allowed_to_change_affiliations(Auth, Affiliations,
+    AffiliationsToChange = items_to_affiliated_users(Items),
+    IsAllowed = is_allowed_to_change_affiliated_users(Auth, Affiliations,
                                                   AffiliationsToChange),
     apply_affiliation_change(RoomJID, IQ, AffiliationsToChange, IsAllowed);
 handle_affiliation_iq(_From, _RoomJID, _IQ, _Type, _Auth, _Affiliations) ->
     {error, not_allowed}.
 
--spec apply_affiliation_change(jid(), #xmlel{}, affiliations(), boolean()) ->
+-spec apply_affiliation_change(jid(), #xmlel{}, affiliated_users(), boolean()) ->
     packet_processing_result().
 apply_affiliation_change(RoomJID, IQ, AffiliationsToChange, true) ->
-    case ?BACKEND:modify_affiliations(RoomJID, AffiliationsToChange) of
+    case ?BACKEND:modify_affiliated_users(RoomJID, AffiliationsToChange) of
         {ok, NewAffiliations, ChangedAffiliations} ->
             case NewAffiliations of
                 [] -> ?BACKEND:destroy_room(RoomJID);
@@ -164,8 +164,8 @@ apply_affiliation_change(RoomJID, IQ, AffiliationsToChange, true) ->
 apply_affiliation_change(_RoomJID, _IQ, _Items, false) ->
     {error, not_allowed}.
 
--spec affiliation_change_bcast(jid(), #xmlel{}, affiliations(),
-                               affiliations()) -> {ok, #xmlel{}}.
+-spec affiliation_change_bcast(jid(), #xmlel{}, affiliated_users(),
+                               affiliated_users()) -> {ok, #xmlel{}}.
 affiliation_change_bcast(RoomJID, IQ, NewAffiliations, ChangedAffiliations) ->
     %% Current occupants are notified first...
     ChangedAffMsg = make_affiliation_message(RoomJID, ChangedAffiliations),
@@ -183,7 +183,7 @@ affiliation_change_bcast(RoomJID, IQ, NewAffiliations, ChangedAffiliations) ->
 
 %% --------- Message handlers ---------
 
--spec handle_subject_message(jid(), jid(), #xmlel{}, affiliations()) ->
+-spec handle_subject_message(jid(), jid(), #xmlel{}, affiliated_users()) ->
     packet_processing_result().
 handle_subject_message(From, RoomJID, Msg, Affiliations) ->
     Subject = exml_query:path(Msg, [{element, <<"subject">>}, cdata]),
@@ -191,13 +191,13 @@ handle_subject_message(From, RoomJID, Msg, Affiliations) ->
     bcast_message(From, RoomJID, Msg, Affiliations),
     {ok, noreply}.
 
--spec handle_body_message(jid(), jid(), #xmlel{}, affiliations()) ->
+-spec handle_body_message(jid(), jid(), #xmlel{}, affiliated_users()) ->
     packet_processing_result().
 handle_body_message(From, RoomJID, Msg, Affiliations) ->
     bcast_message(From, RoomJID, Msg, Affiliations),
     {ok, noreply}.
 
--spec bcast_message(jid(), jid(), #xmlel{}, affiliations()) -> ok.
+-spec bcast_message(jid(), jid(), #xmlel{}, affiliated_users()) -> ok.
 bcast_message(From, RoomJID, Msg, Affiliations) ->
     MessageToSend = make_message_from_room(From, Msg),
     BCastFrom = rooms_user_jid(RoomJID, From),
@@ -233,8 +233,8 @@ send_response(From, RoomJID, OriginalPacket, {error, Reason}) ->
 %% Internal functions
 %%====================================================================
 
--spec affiliations_to_items(affiliations()) -> [#xmlel{}].
-affiliations_to_items(Affiliations) ->
+-spec affiliated_users_to_items(affiliated_users()) -> [#xmlel{}].
+affiliated_users_to_items(Affiliations) ->
     [ #xmlel{ name = <<"item">>,
               attrs = [{<<"affiliation">>, aff2b(Affiliation)},
                        {<<"jid">>, jlib:jid_to_binary(JID)}] }
@@ -245,8 +245,8 @@ aff2b(owner) -> <<"owner">>;
 aff2b(member) -> <<"member">>;
 aff2b(none) -> <<"none">>.
 
--spec items_to_affiliations([#xmlel{}]) -> affiliations().
-items_to_affiliations(Items) ->
+-spec items_to_affiliated_users([#xmlel{}]) -> affiliated_users().
+items_to_affiliated_users(Items) ->
     lists:map(fun(Item) ->
                       BinJID = exml_query:path(Item, [{attr, <<"jid">>}]),
                       BinAff = exml_query:path(Item, [{attr, <<"affiliation">>}]),
@@ -258,12 +258,12 @@ b2aff(<<"owner">>) -> owner;
 b2aff(<<"member">>) -> member;
 b2aff(<<"none">>) -> none.
 
--spec is_allowed_to_change_affiliations(
-        affiliation_tuple(), affiliations(), affiliations()) -> boolean().
-is_allowed_to_change_affiliations({_User, owner}, _CurrentAffiliations,
+-spec is_allowed_to_change_affiliated_users(
+        affiliated_user(), affiliated_users(), affiliated_users()) -> boolean().
+is_allowed_to_change_affiliated_users({_User, owner}, _CurrentAffiliations,
                                   _AffiliationsChange) ->
     true;
-is_allowed_to_change_affiliations({User, member}, _CurrentAffiliations,
+is_allowed_to_change_affiliated_users({User, member}, _CurrentAffiliations,
                                  AffiliationsChange) ->
     lists:all(
       fun ({UserMatch, none}) when UserMatch =:= User ->
@@ -275,13 +275,13 @@ is_allowed_to_change_affiliations({User, member}, _CurrentAffiliations,
           (_) ->
               false
       end, AffiliationsChange);
-is_allowed_to_change_affiliations(_, _, _) ->
+is_allowed_to_change_affiliated_users(_, _, _) ->
     false.
 
--spec make_affiliation_message(jid(), affiliations()) -> #xmlel{}.
+-spec make_affiliation_message(jid(), affiliated_users()) -> #xmlel{}.
 make_affiliation_message(RoomJID, ChangedAffiliations) ->
     XElem = #xmlel{ name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_MUC_LIGHT}],
-                    children = affiliations_to_items(ChangedAffiliations) },
+                    children = affiliated_users_to_items(ChangedAffiliations) },
     BodyText = lists:map(
                  fun
                      ({{Username, _, _}, none}) ->
