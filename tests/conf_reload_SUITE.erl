@@ -68,10 +68,10 @@ suite() ->
 init_per_suite(Config0) ->
     Config1 = escalus:init_per_suite(Config0),
     set_ejabberd_node_cwd(Config1).
-    
+
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
-    
+
 init_per_group(xmpp_domain_local_reload, Config0) ->
     F = fun(Cfg) ->
                 change_domain_in_config_file(Cfg)
@@ -103,10 +103,10 @@ domain_should_change(Config) ->
     %% GIVEN
     NewHosts = ?config(new_hosts_value, Config),
     ?assertNot(NewHosts == get_ejabberd_hosts()),
-    
+
     %% WHEN
     reload_through_ctl(Config),
-    
+
     %% THEN
     ?assertMatch(NewHosts, get_ejabberd_hosts()).
 
@@ -115,10 +115,10 @@ user_should_be_registered_and_unregistered_via_ctl(Config) ->
     [NewHost] = ?config(new_hosts_value, Config),
     ?assertMatch({cannot_register, _}, register_user_by_ejabberd_admin(
                                          ?SAMPLE_USERNAME, NewHost)),
-    
+
     %% WHEN
     reload_through_ctl(Config),
-    
+
     %% THEN
     ?assertMatch({ok, _}, register_user_by_ejabberd_admin(
                             ?SAMPLE_USERNAME, NewHost)),
@@ -141,7 +141,7 @@ user_should_be_registered_and_unregistered_via_xmpp(Config) ->
 user_should_be_disconnected_from_removed_domain(Config) ->
     %% GIVEN
     Conn = connect_user(?INITIAL_DOMAIN_USER, Config),
-    
+
     %% WHEN
     reload_through_ctl(Config),
 
@@ -245,7 +245,7 @@ connect_user(User, Config) ->
 get_user_domain(User) ->
     {User, UserSpec} = escalus_users:get_user_by_name(User),
     proplists:get_value(server, UserSpec).
-    
+
 create_user(User, Config) ->
     {User, UserSpec} = escalus_users:get_user_by_name(User),
     Result = escalus_users:create_user(Config, {User, UserSpec}),
