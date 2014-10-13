@@ -23,7 +23,6 @@
 -type state() :: #state{}.
 -type option() :: {atom(), any()}.
 
-
 %%--------------------------------------------------------------------
 %% gen_mod callbacks
 %%--------------------------------------------------------------------
@@ -57,6 +56,18 @@ terminate(_Reason, _Req, _State) ->
 %%--------------------------------------------------------------------
 
 %% Cowboy-like routing functions
+upstream_uri(<< "http://", Rest/binary >> = Upstream, Path) ->
+    upstream_uri(Rest, Upstream, Path);
+upstream_uri(<< "https://", Rest/binary >> = Upstream, Path) ->
+    upstream_uri(Rest, Upstream, Path).
+
+upstream_uri(Url, Upstream, Path) ->
+    case uri_or_host(Url, Upstream) of
+        {uri, Upstream} ->
+            Upstream;
+        {host, Upstream} ->
+            << Upstream/binary, Path/binary>>
+    end.
 
 match(Rules, Host, Path, Method) when is_list(Host), is_list(Path) ->
     match_rules(Rules, Host, Path, Method);
@@ -67,8 +78,8 @@ match_rules([], _, _, _) ->
     false;
 match_rules([Rule|Tail], Host, Path, Method) ->
     case match_method(Rule, Host, Path, Method) of
-        {true, Upstream} ->
-            {true, Upstream};
+        {Type, Upstream} ->
+            {Type, Upstream};
         _ ->
             match_rules(Tail, Host, Path, Method)
     end.
@@ -103,9 +114,9 @@ match_path(_, _, _) ->
     false.
 
 match_host({'_', _, _, Upstream}, _Host) ->
-    {true, Upstream};
+    Upstream;
 match_host({Host, _, _, Upstream}, Host) ->
-    {true, Upstream};
+    Upstream;
 match_host({_, _, _, _}, _) ->
     false.
 
@@ -138,14 +149,20 @@ compile_method(List) when is_list(List) ->
 compile_method(Atom) when is_atom(Atom) ->
     compile_method(atom_to_binary(Atom, utf8)).
 
-compile_upstream(<< "http://", _/bits >> = Bin) ->
-    Bin;
-compile_upstream(<< "https://", _/bits >> = Bin) ->
-    Bin;
+compile_upstream(<< "http://", Rest/binary >> = Bin) ->
+    uri_or_host(Rest, Bin);
+compile_upstream(<< "https://", Rest/binary >> = Bin) ->
+    uri_or_host(Rest, Bin);
 compile_upstream(List) when is_list(List) ->
-    list_to_binary(List);
+    compile_upstream(list_to_binary(List));
 compile_upstream(_) ->
     erlang:error(badarg).
+
+uri_or_host(Url, Upstream) ->
+    case binary:match(Url, <<"/">>) of
+        nomatch -> {host, Upstream};
+        _       -> {uri, Upstream}
+    end. 
 
 split_host(Host) ->
     binary:split(Host, <<".">>, [global, trim]).
@@ -162,50 +179,72 @@ split_path(_) ->
 -include_lib("eunit/include/eunit.hrl").
 
 example_routes() ->
-    [{"domain.com", "/abc", "_", "http://localhost:8080"},
+    [{"domain.com", "/abc", "_", "http://localhost:8080/"},
      {"domain.com", get, "http://localhost:1234"},
-     {"static.domain.com", get, "http://localhost:9999"},
+     {"static.domain.com", get, "http://localhost:9999/"},
      {"abc.domain.com", "/", "_", "http://localhost:8888"}]. 
 
 compile_test() ->
     Compiled = [{[<<"domain">>,<<"com">>],
                  [<<"abc">>],
                  '_',
-                 <<"http://localhost:8080">>},
+                 {uri,<<"http://localhost:8080/">>}},
                 {[<<"domain">>,<<"com">>],
                  '_',
                  <<"GET">>,
-                 <<"http://localhost:1234">>},
+                 {host,<<"http://localhost:1234">>}},
                 {[<<"static">>,<<"domain">>,<<"com">>],
                  '_',
                  <<"GET">>,
-                 <<"http://localhost:9999">>},
+                 {uri,<<"http://localhost:9999/">>}},
                 {[<<"abc">>,<<"domain">>,<<"com">>],
                  [],
                  '_',
-                 <<"http://localhost:8888">>}],
+                 {host,<<"http://localhost:8888">>}}],
     Compiled = compile(example_routes()).
 
 match_test_() ->
     Rules = compile(example_routes()),
-    Tests = [{{<<"domain.com">>, <<"/abc">>, <<"GET">>},
-              {true, <<"http://localhost:8080">>}},
-             {{<<"domain.com">>, <<"/abc/def">>, <<"GET">>},
-              {true, <<"http://localhost:1234">>}},
-             {{<<"unknown.com">>, <<"/somepath">>, <<"GET">>},
+    Tests = [{"domain.com/abc GET",
+              {<<"domain.com">>, <<"/abc">>, <<"GET">>},
+              {uri, <<"http://localhost:8080/">>}},
+             {"domain.com/abc/def GET",
+              {<<"domain.com">>, <<"/abc/def">>, <<"GET">>},
+              {host, <<"http://localhost:1234">>}},
+             {"unknown.com/somepath GET",
+              {<<"unknown.com">>, <<"/somepath">>, <<"GET">>},
               false},
-             {{<<"static.domain.com">>, <<"/file.html">>, <<"GET">>},
-              {true, <<"http://localhost:9999">>}},
-             {{<<"static.domain.com">>, <<"/file.html">>, <<"PUT">>},
+             {"static.domain.com/file.html GET",
+              {<<"static.domain.com">>, <<"/file.html">>, <<"GET">>},
+              {uri, <<"http://localhost:9999/">>}},
+             {"static.domain.com/file.html PUT",
+              {<<"static.domain.com">>, <<"/file.html">>, <<"PUT">>},
               false},
-             {{<<"domain.com">>, <<"/def">>, <<"POST">>},
+             {"domain.com/def POST",
+              {<<"domain.com">>, <<"/def">>, <<"POST">>},
               false},
-             {{<<"abc.domain.com">>, <<"/">>, <<"OPTIONS">>},
-              {true, <<"http://localhost:8888">>}},
-             {{<<"abc.domain.com">>, <<"/a">>, <<"DELETE">>},
+             {"abc.domain.com/ OPTIONS",
+              {<<"abc.domain.com">>, <<"/">>, <<"OPTIONS">>},
+              {host, <<"http://localhost:8888">>}},
+             {"abc.domain.com/a DELETE",
+              {<<"abc.domain.com">>, <<"/a">>, <<"DELETE">>},
               false}],
+    [{Title, fun() ->
+                Upstream = match(Rules, Host, Path, Method)
+             end} || {Title, {Host, Path, Method}, Upstream} <- Tests].
+
+url_test_() ->
+    Tests = [{<<"http://localhost:9999">>,
+              <<"/def/ghi/jkl/index.html">>,
+              <<"http://localhost:9999/def/ghi/jkl/index.html">>},
+             {<<"http://localhost:8888/">>,
+              <<"/abc">>,
+              <<"http://localhost:8888/">>},
+             {<<"https://localhost:1234">>,
+              <<"/">>,
+              <<"https://localhost:1234/">>}],
     [fun() ->
-        Upstream = match(Rules, Host, Path, Method)
-     end || {{Host, Path, Method}, Upstream} <- Tests].
+        URL = upstream_uri(Upstream, Path)
+     end || {Upstream, Path, URL} <- Tests].
 
 -endif.
