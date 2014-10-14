@@ -24,14 +24,16 @@
 -type state() :: #state{}.
 -type option() :: {atom(), any()}.
 
+-define(CRLF, "\n\r").
 %%--------------------------------------------------------------------
 %% gen_mod callbacks
 %%--------------------------------------------------------------------
 -spec start(ejabberd:host(), [option()]) -> any().
-start(Host, Opts) ->
-    Rules = gen_mod:get_opt(rules, Opts, []),
-    Module = gen_mod:get_module_proc(Host, ?MODULE),
-    mod_revproxy_rules:compile(Module, Rules),
+start(_Host, Opts) ->
+    Routes = gen_mod:get_opt(routes, Opts, []),
+    ModSrc = mod_revproxy_dynamic_src(Routes),
+    {Mod, Code} = dynamic_compile:from_string(ModSrc),
+    code:load_binary(Mod, "mod_revproxy_dynamic.erl", Code),
     ok.
 
 stop(_Host) ->
@@ -46,9 +48,11 @@ init(_Transport, Req, _Opts) ->
     {ok, Req, #state{}}.
 
 handle(Req, State) ->
-    {Rebuilt, Req1} = rebuild_req(Req),
-    io:format("~p~n",[Rebuilt]),
-    {ok, Req1, State}.
+    {Host, Req1} = cowboy_req:header(<<"host">>, Req),
+    {Path, Req2} = cowboy_req:path(Req1),
+    {Method, Req3} = cowboy_req:method(Req2),
+    Match = match(mod_revproxy_dynamic:rules(), Host, Path, Method),
+    handle_match(Match, Req3, State).
 
 terminate(_Reason, _Req, _State) ->
     ok.
@@ -57,12 +61,28 @@ terminate(_Reason, _Req, _State) ->
 %% Internal functions
 %%--------------------------------------------------------------------
 
+handle_match({_, _}=Upstream, Req, State) ->
+    io:format("Match for ~p~n", [Upstream]),
+    {ok, Req, State};
+handle_match(false, Req, State) ->
+    {ok, Req1} = cowboy_req:reply(404, Req),
+    {ok, Req1, State}.
+
+mod_revproxy_dynamic_src(Routes) ->
+    Rules = compile(Routes),
+    lists:flatten(
+        ["-module(mod_revproxy_dynamic).
+         -export([rules/0]).
+
+         rules() ->
+             ", io_lib:format("~p", [Rules]), ".\n"]).
+
 %% HTTP request rebuilder
 rebuild_req(Req) ->
     {Line, Req1} = request_line(Req),
     {Headers, Req2} = request_headers(Req1),
     {Body, Req3} = request_body(Req2),
-    Result = << Line/binary, Headers/binary, "\n\r", Body/binary >>,
+    Result = << Line/binary, Headers/binary, ?CRLF, Body/binary >>,
     {Result, Req3}.
 
 request_line(Req) ->
@@ -70,7 +90,7 @@ request_line(Req) ->
     {Path, Req2} = cowboy_req:path(Req1),
     {Version, Req3} = cowboy_req:version(Req2),
     VersionBin = atom_to_binary(Version, utf8),
-    Line = << Method/binary," ",Path/binary," ",VersionBin/binary,"\n\r" >>,
+    Line = << Method/binary," ",Path/binary," ",VersionBin/binary,?CRLF >>,
     {Line, Req3}.
 
 request_headers(Req) ->
@@ -81,7 +101,7 @@ request_headers(Req) ->
 rebuild_headers([], Acc) ->
     Acc;
 rebuild_headers([{Name, Value}|Tail], Acc) ->
-    Acc1 = << Acc/binary, Name/binary, ": ", Value/binary, "\n\r" >>,
+    Acc1 = << Acc/binary, Name/binary, ": ", Value/binary, ?CRLF >>,
     rebuild_headers(Tail, Acc1).
 
 %% this will only handle bodies that cowboy can read at once
@@ -96,18 +116,10 @@ request_body(Req) ->
     end.
 
 %% Cowboy-like routing functions
-upstream_uri(<< "http://", Rest/binary >> = Upstream, Path) ->
-    upstream_uri(Rest, Upstream, Path);
-upstream_uri(<< "https://", Rest/binary >> = Upstream, Path) ->
-    upstream_uri(Rest, Upstream, Path).
-
-upstream_uri(Url, Upstream, Path) ->
-    case uri_or_host(Url, Upstream) of
-        {uri, Upstream} ->
-            Upstream;
-        {host, Upstream} ->
-            << Upstream/binary, Path/binary>>
-    end.
+upstream_uri({uri, URI}, _Path) ->
+    URI;
+upstream_uri({host, Host}, Path) ->
+    << Host/binary, Path/binary >>.
 
 match(Rules, Host, Path, Method) when is_list(Host), is_list(Path) ->
     match_rules(Rules, Host, Path, Method);
@@ -123,21 +135,6 @@ match_rules([Rule|Tail], Host, Path, Method) ->
         _ ->
             match_rules(Tail, Host, Path, Method)
     end.
-
-compile(Routes) ->
-    compile(Routes, []).
-
-compile([], Acc) ->
-    lists:reverse(Acc);
-compile([{Host, Method, Upstream}|Tail], Acc) ->
-    compile([{Host, '_', Method, Upstream}|Tail], Acc);
-compile([{HostMatch,PathMatch,MethodMatch,UpstreamMatch}|Tail], Acc) ->
-    HostRule = compile_host(HostMatch),
-    Method = compile_method(MethodMatch),
-    Upstream = compile_upstream(UpstreamMatch),
-    PathRule = compile_path(PathMatch),
-    Host = {HostRule, PathRule, Method, Upstream},
-    compile(Tail, [Host|Acc]).
 
 match_method({_, _, '_', _}=Rule, Host, Path, _Method) ->
     match_path(Rule, Host, Path);
@@ -159,6 +156,21 @@ match_host({Host, _, _, Upstream}, Host) ->
     Upstream;
 match_host({_, _, _, _}, _) ->
     false.
+
+compile(Routes) ->
+    compile(Routes, []).
+
+compile([], Acc) ->
+    lists:reverse(Acc);
+compile([{Host, Method, Upstream}|Tail], Acc) ->
+    compile([{Host, '_', Method, Upstream}|Tail], Acc);
+compile([{HostMatch,PathMatch,MethodMatch,UpstreamMatch}|Tail], Acc) ->
+    HostRule = compile_host(HostMatch),
+    Method = compile_method(MethodMatch),
+    Upstream = compile_upstream(UpstreamMatch),
+    PathRule = compile_path(PathMatch),
+    Host = {HostRule, PathRule, Method, Upstream},
+    compile(Tail, [Host|Acc]).
 
 compile_host('_') ->
     '_';
@@ -274,13 +286,13 @@ match_test_() ->
              end} || {Title, {Host, Path, Method}, Upstream} <- Tests].
 
 url_test_() ->
-    Tests = [{<<"http://localhost:9999">>,
+    Tests = [{{host, <<"http://localhost:9999">>},
               <<"/def/ghi/jkl/index.html">>,
               <<"http://localhost:9999/def/ghi/jkl/index.html">>},
-             {<<"http://localhost:8888/">>,
+             {{uri, <<"http://localhost:8888/">>},
               <<"/abc">>,
               <<"http://localhost:8888/">>},
-             {<<"https://localhost:1234">>,
+             {{host, <<"https://localhost:1234">>},
               <<"/">>,
               <<"https://localhost:1234/">>}],
     [fun() ->
