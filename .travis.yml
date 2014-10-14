@@ -8,6 +8,10 @@ before_script:
         - tools/travis-setup-db.sh
 script: tools/travis-test.sh
 
+after_success:
+        - tar cvzf mongooseim.tar.gz ./rel/mongooseim/
+        - curl --ftp-create-dirs -T mongooseim.tar.gz -u $FTP_USER:$FTP_PASSWORD ftp://$FTP_SERVER/mongooseim/mongooseim.tar.gz
+
 after_script:
         - cat `ls -1 -d -t apps/ejabberd/logs/ct_run* | head -1`/apps.ejabberd.logs/run.*/suite.log
         - tail -100 dev/mongooseim_node1/log/ejabberd.log

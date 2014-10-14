@@ -6,6 +6,8 @@ TRAVIS_DB_PASSWORD=$(cat /tmp/travis_db_password)
 
 ${TOOLS}/set-odbc-password vars ${TRAVIS_DB_PASSWORD}
 
+make rel
+
 make devclean devrel
 echo -n "starting MongooseIM node 1: "
 ${EJD1CTL} start && echo ok || echo failed

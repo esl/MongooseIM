@@ -55,7 +55,8 @@ eunit: rebar deps
 	./rebar skip_deps=true eunit
 
 rel: rebar deps
-	./rebar compile generate -f
+	./rebar compile
+	(cd rel && ../rebar generate -f)
 
 devrel: $(DEVNODES)
 
