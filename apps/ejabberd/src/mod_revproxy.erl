@@ -17,7 +17,8 @@
          terminate/3]).
 
 -export([compile/1,
-         match/4]).
+         match/4,
+         rebuild_req/1]).
 
 -record(state, {}).
 -type state() :: #state{}.
@@ -45,8 +46,9 @@ init(_Transport, Req, _Opts) ->
     {ok, Req, #state{}}.
 
 handle(Req, State) ->
-    {Host, Req2} = cowboy_req:header(<<"host">>, Req),
-    {ok, Req2, State}.
+    {Rebuilt, Req1} = rebuild_req(Req),
+    io:format("~p~n",[Rebuilt]),
+    {ok, Req1, State}.
 
 terminate(_Reason, _Req, _State) ->
     ok.
@@ -54,6 +56,44 @@ terminate(_Reason, _Req, _State) ->
 %%--------------------------------------------------------------------
 %% Internal functions
 %%--------------------------------------------------------------------
+
+%% HTTP request rebuilder
+rebuild_req(Req) ->
+    {Line, Req1} = request_line(Req),
+    {Headers, Req2} = request_headers(Req1),
+    {Body, Req3} = request_body(Req2),
+    Result = << Line/binary, Headers/binary, "\n\r", Body/binary >>,
+    {Result, Req3}.
+
+request_line(Req) ->
+    {Method, Req1} = cowboy_req:method(Req),
+    {Path, Req2} = cowboy_req:path(Req1),
+    {Version, Req3} = cowboy_req:version(Req2),
+    VersionBin = atom_to_binary(Version, utf8),
+    Line = << Method/binary," ",Path/binary," ",VersionBin/binary,"\n\r" >>,
+    {Line, Req3}.
+
+request_headers(Req) ->
+    {Headers, Req1} = cowboy_req:headers(Req),
+    Result = rebuild_headers(Headers, <<>>),
+    {Result, Req1}.
+
+rebuild_headers([], Acc) ->
+    Acc;
+rebuild_headers([{Name, Value}|Tail], Acc) ->
+    Acc1 = << Acc/binary, Name/binary, ": ", Value/binary, "\n\r" >>,
+    rebuild_headers(Tail, Acc1).
+
+%% this will only handle bodies that cowboy can read at once
+%% (by default bodies up to 8 mb) tbd if chunks should be streamed or rejected
+request_body(Req) ->
+    case cowboy_req:has_body(Req) of
+        false ->
+            {<<>>, Req};
+        true ->
+            {ok, Data, Req1} = cowboy_req:body(Req),
+            {Data, Req1}
+    end.
 
 %% Cowboy-like routing functions
 upstream_uri(<< "http://", Rest/binary >> = Upstream, Path) ->
