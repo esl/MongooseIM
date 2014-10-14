@@ -16,15 +16,11 @@
          handle/2,
          terminate/3]).
 
--export([compile/1,
-         match/4,
-         rebuild_req/1]).
-
--record(state, {}).
--type state() :: #state{}.
 -type option() :: {atom(), any()}.
 
 -define(CRLF, "\n\r").
+-define(TIMEOUT, 5000).
+
 %%--------------------------------------------------------------------
 %% gen_mod callbacks
 %%--------------------------------------------------------------------
@@ -36,24 +32,27 @@ start(_Host, Opts) ->
     code:load_binary(Mod, "mod_revproxy_dynamic.erl", Code),
     ok.
 
+-spec stop(ejabberd:host()) -> ok.
 stop(_Host) ->
     ok.
 
 %%--------------------------------------------------------------------
 %% cowboy_http_handler callbacks
 %%--------------------------------------------------------------------
-%% @todo specs
-
+-spec init({atom(), http}, cowboy_req:req(), [option()])
+    -> {ok, cowboy_req:req(), no_state}.
 init(_Transport, Req, _Opts) ->
-    {ok, Req, #state{}}.
+    {ok, Req, no_state}.
 
+-spec handle(cowboy_req:req(), no_state) -> {ok, cowboy_req:req(), no_state}.
 handle(Req, State) ->
     {Host, Req1} = cowboy_req:header(<<"host">>, Req),
     {Path, Req2} = cowboy_req:path(Req1),
     {Method, Req3} = cowboy_req:method(Req2),
     Match = match(mod_revproxy_dynamic:rules(), Host, Path, Method),
-    handle_match(Match, Req3, State).
+    handle_match(Match, Method, Path, Req3, State).
 
+-spec terminate(any(), cowboy_req:req(), no_state) -> ok.
 terminate(_Reason, _Req, _State) ->
     ok.
 
@@ -61,48 +60,37 @@ terminate(_Reason, _Req, _State) ->
 %% Internal functions
 %%--------------------------------------------------------------------
 
-handle_match({_, _}=Upstream, Req, State) ->
-    io:format("Match for ~p~n", [Upstream]),
-    {ok, Req, State};
-handle_match(false, Req, State) ->
+%% Passing and receiving request via fusco
+handle_match({_, _}=Upstream, Method, Path, Req, State) ->
+    {UpstreamHost, UpstreamPath} = upstream_uri(Upstream, Path),
+    Req1 = pass_request(UpstreamHost, UpstreamPath, Method, Req),
+    {ok, Req1, State};
+handle_match(false, _, _, Req, State) ->
     {ok, Req1} = cowboy_req:reply(404, Req),
     {ok, Req1, State}.
 
-mod_revproxy_dynamic_src(Routes) ->
-    Rules = compile(Routes),
-    lists:flatten(
-        ["-module(mod_revproxy_dynamic).
-         -export([rules/0]).
-
-         rules() ->
-             ", io_lib:format("~p", [Rules]), ".\n"]).
-
-%% HTTP request rebuilder
-rebuild_req(Req) ->
-    {Line, Req1} = request_line(Req),
-    {Headers, Req2} = request_headers(Req1),
-    {Body, Req3} = request_body(Req2),
-    Result = << Line/binary, Headers/binary, ?CRLF, Body/binary >>,
-    {Result, Req3}.
-
-request_line(Req) ->
-    {Method, Req1} = cowboy_req:method(Req),
-    {Path, Req2} = cowboy_req:path(Req1),
-    {Version, Req3} = cowboy_req:version(Req2),
-    VersionBin = atom_to_binary(Version, utf8),
-    Line = << Method/binary," ",Path/binary," ",VersionBin/binary,?CRLF >>,
-    {Line, Req3}.
-
-request_headers(Req) ->
+pass_request(Host, Path, Method, Req) ->
+    Opts = [{connect_timeout, ?TIMEOUT}],
+    {ok, Pid} = fusco:start_link(Host, Opts),
     {Headers, Req1} = cowboy_req:headers(Req),
-    Result = rebuild_headers(Headers, <<>>),
-    {Result, Req1}.
-
-rebuild_headers([], Acc) ->
-    Acc;
-rebuild_headers([{Name, Value}|Tail], Acc) ->
-    Acc1 = << Acc/binary, Name/binary, ": ", Value/binary, ?CRLF >>,
-    rebuild_headers(Tail, Acc1).
+    {Body, Req2} = request_body(Req1),
+    case fusco:request(Pid, Path, Method, Headers, Body, ?TIMEOUT) of
+        {ok, {{Status, _}, ResponseHeaders, ResponseBody, _, _}} ->
+            {ok, Req3} = cowboy_req:reply(binary_to_integer(Status),
+                                          ResponseHeaders,
+                                          ResponseBody,
+                                          Req2),
+            Req3;
+        {error, connect_timeout} ->
+            {ok, Req3} = cowboy_req:reply(504, Req2),
+            Req3;
+        {error, timeout} ->
+            {ok, Req3} = cowboy_req:reply(504, Req2),
+            Req3;
+        {error, _Other} ->
+            {ok, Req3} = cowboy_req:reply(502, Req2),
+            Req3
+    end.
 
 %% this will only handle bodies that cowboy can read at once
 %% (by default bodies up to 8 mb) tbd if chunks should be streamed or rejected
@@ -116,10 +104,12 @@ request_body(Req) ->
     end.
 
 %% Cowboy-like routing functions
-upstream_uri({uri, URI}, _Path) ->
-    URI;
+upstream_uri({uri, URI}, _) ->
+    Size = byte_size(URI),
+    [Host, Path] = binary:split(URI, <<"/">>, [{scope,{8,Size-8}}]),
+    {binary_to_list(Host), << "/", Path/binary >>};
 upstream_uri({host, Host}, Path) ->
-    << Host/binary, Path/binary >>.
+    {binary_to_list(Host), Path}.
 
 match(Rules, Host, Path, Method) when is_list(Host), is_list(Path) ->
     match_rules(Rules, Host, Path, Method);
@@ -224,6 +214,16 @@ split_path(<<$/, Path/bits>>) ->
 split_path(_) ->
     erlang:error(badarg).
 
+%% Dynamically compiled configuration module
+mod_revproxy_dynamic_src(Routes) ->
+    Rules = compile(Routes),
+    lists:flatten(
+        ["-module(mod_revproxy_dynamic).
+         -export([rules/0]).
+
+         rules() ->
+             ", io_lib:format("~p", [Rules]), ".\n"]).
+
 %%--------------------------------------------------------------------
 %% Unit tests
 %%--------------------------------------------------------------------
@@ -288,13 +288,13 @@ match_test_() ->
 url_test_() ->
     Tests = [{{host, <<"http://localhost:9999">>},
               <<"/def/ghi/jkl/index.html">>,
-              <<"http://localhost:9999/def/ghi/jkl/index.html">>},
+              {"http://localhost:9999", <<"/def/ghi/jkl/index.html">>}},
              {{uri, <<"http://localhost:8888/">>},
               <<"/abc">>,
-              <<"http://localhost:8888/">>},
+              {"http://localhost:8888", <<"/">>}},
              {{host, <<"https://localhost:1234">>},
               <<"/">>,
-              <<"https://localhost:1234/">>}],
+              {"https://localhost:1234", <<"/">>}}],
     [fun() ->
         URL = upstream_uri(Upstream, Path)
      end || {Upstream, Path, URL} <- Tests].
