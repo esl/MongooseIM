@@ -71,7 +71,7 @@ init_per_suite(Config) ->
     Config.
 
 end_per_suite(Config) ->
-    exit(whereis(ejabberd_sup), shutdown),
+    exit(whereis(ejabberd_sup), kill),
     Config.
 
 init_per_group(GroupName, Config) ->
