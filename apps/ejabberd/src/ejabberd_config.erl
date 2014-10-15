@@ -885,19 +885,26 @@ apply_changes(ConfigChanges, LocalConfigChanges, LocalHostsChanges,
     {LCAdd, LCDel, LCChange} = LocalConfigChanges,
     {LCHAdd, LCHDel, LCHChange} = LocalHostsChanges,
 
-    lists:foreach(fun handle_config_change/1, CChange),
-    lists:foreach(fun handle_config_add/1, CAdd),
-    lists:foreach(fun handle_config_del/1, CDel),
-
-    lists:foreach(fun handle_local_config_change/1, LCChange),
-    lists:foreach(fun handle_local_config_add/1, LCAdd),
-    lists:foreach(fun handle_local_config_del/1, LCDel),
-
-    lists:foreach(fun handle_local_hosts_config_change/1, LCHChange),
-    lists:foreach(fun handle_local_hosts_config_add/1, LCHAdd),
-    lists:foreach(fun handle_local_hosts_config_del/1, LCHDel),
+    reload_config(CChange, CAdd, CDel),
+    reload_local_config(LCChange, LCAdd, LCDel),
+    reload_local_hosts_config(LCHChange, LCHAdd, LCHDel),
 
     {ok, node()}.
+
+reload_config(CChange, CAdd, CDel) ->
+    lists:foreach(fun handle_config_change/1, CChange),
+    lists:foreach(fun handle_config_add/1, CAdd),
+    lists:foreach(fun handle_config_del/1, CDel).
+
+reload_local_config(LCChange, LCAdd, LCDel) ->
+    lists:foreach(fun handle_local_config_change/1, LCChange),
+    lists:foreach(fun handle_local_config_add/1, LCAdd),
+    lists:foreach(fun handle_local_config_del/1, LCDel).
+
+reload_local_hosts_config(LCHChange, LCHAdd, LCHDel) ->
+    lists:foreach(fun handle_local_hosts_config_change/1, LCHChange),
+    lists:foreach(fun handle_local_hosts_config_add/1, LCHAdd),
+    lists:foreach(fun handle_local_hosts_config_del/1, LCHDel).
 
 -spec replace_config_file(binary(), string()) -> {ok, node()}.
 replace_config_file(NewConfig, BackupSuffix) ->
