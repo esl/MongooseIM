@@ -59,6 +59,7 @@
              | {atom(), ejabberd:server() | atom()}
              | {atom(), atom(), atom()}
              | binary(). % TODO: binary is questionable here
+
 -type value() :: atom()
                | integer()
                | string()
@@ -73,9 +74,9 @@
                 override_acls = false   :: boolean()
               }).
 
--record(compare_result, { to_add = [] :: list(),
-                          to_del = [] :: list(),
-                          to_change = [] :: list()}).
+-record(compare_result, {to_add    = [] :: list(),
+                         to_del    = [] :: list(),
+                         to_change = [] :: list()}).
 
 -type host() :: any(). % TODO: specify this
 -type state() :: #state{}.
@@ -117,11 +118,11 @@
                     | host_term().
 
 -type host_term() :: {acl, _, _}
-                  | {access, _, _}
-                  | {shaper, _, _}
-                  | {host, _}
-                  | {hosts, _}
-                  | {odbc_server, _}.
+                   | {access, _, _}
+                   | {shaper, _, _}
+                   | {host, _}
+                   | {hosts, _}
+                   | {odbc_server, _}.
 
 
 -spec start() -> ok.
@@ -859,7 +860,7 @@ get_config_diff(State) ->
     Local = get_local_config(),
     HostsLocal = get_host_local_config(),
     %% global config diff
-    CC= compare_terms(Config, NewConfig, 2, 3),
+    CC = compare_terms(Config, NewConfig, 2, 3),
     LC = compare_terms(Local, NewLocal, 2, 3),
     LHC = compare_terms(group_host_changes(HostsLocal), group_host_changes(NewHostsLocal), 1, 2),
     {CC, LC, LHC}.
