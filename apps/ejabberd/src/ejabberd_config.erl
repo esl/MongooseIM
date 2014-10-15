@@ -110,6 +110,7 @@
                     | {loglevel, _}
                     | {max_fsm_queue, _}
                     | host_term().
+
 -type host_term() :: {acl, _, _}
                   | {access, _, _}
                   | {shaper, _, _}
@@ -909,6 +910,7 @@ replace_config_file(NewConfig, BackupSuffix) ->
 %% ----------------------------------------------------------------
 handle_config_add(#config{key = hosts, value = Hosts}) when is_list(Hosts) ->
     lists:foreach(fun(Host) -> add_virtual_host(Host) end, Hosts).
+
 handle_config_del(#config{key = hosts,value =  Hosts}) ->
     lists:foreach(fun(Host) -> remove_virtual_host(Host) end, Hosts).
 
@@ -932,6 +934,7 @@ handle_local_config_add({Key, _Data} = El) ->
         false ->
             ?WARNING_MSG("local config add ~p option unhandled",[El])
     end.
+
 handle_local_config_del(#local_config{key = node_start}) ->
     %% do nothing with it
     ok;
@@ -942,6 +945,7 @@ handle_local_config_del({Key, _Data} = El) ->
         false ->
             ?WARNING_MSG("local config change: ~p unhandled",[El])
     end.
+
 handle_local_config_change({listen, Old, New}) ->
     reload_listeners(compare_listeners(Old, New));
 
@@ -956,6 +960,7 @@ handle_local_config_change({Key, _Old, _New} = El) ->
 %% ----------------------------------------------------------------
 %% LOCAL HOST CONFIG
 %% ----------------------------------------------------------------
+
 handle_local_hosts_config_add({{auth, Host}, _}) ->
     ejabberd_auth:start(Host);
 handle_local_hosts_config_add({{odbc, Host}, _}) ->
@@ -975,7 +980,7 @@ handle_local_hosts_config_add({{Key,_Host}, _} = El) ->
         false ->
             ?WARNING_MSG("local hosts config add option: ~p unhandled",[El])
     end.
-%% ----------------------------------------------------------------
+
 handle_local_hosts_config_del({{auth, Host}, Opts}) ->
     case lists:keyfind(auth_method, 1, Opts) of
         false ->
@@ -1003,7 +1008,7 @@ handle_local_hosts_config_del({{Key,_}, _} =El) ->
         false ->
             ?WARNING_MSG("local hosts config delete option: ~p unhandled",[El])
     end.
-%% ----------------------------------------------------------------
+
 handle_local_hosts_config_change({{odbc,Host}, Old, _}) ->
     %% stop rdbms
     case lists:keyfind({odbc_server, Host},1 ,Old) of
@@ -1027,7 +1032,6 @@ handle_local_hosts_config_change({{auth, Host}, OldVals, _}) ->
     ejabberd_auth:start(Host);
 handle_local_hosts_config_change({{ldap, Host}, _OldConfig, NewConfig}) ->
     ok = ejabberd_hooks:run_fold(host_config_update, Host, ok, [Host, ldap, NewConfig]);
-
 handle_local_hosts_config_change({{modules,Host}, OldModules, NewModules}) ->
     Res = compare_modules(OldModules, NewModules),
     reload_modules(Host, Res);
@@ -1120,6 +1124,7 @@ map_listeners(Listeners) ->
     lists:map(fun ({PortIP,Module,Opts})->
                       {{PortIP,Module},Opts}
               end, Listeners).
+
 % group values which can be grouped like odbc ones
 -spec group_host_changes([term()]) -> {atom(), [term()]}.
 group_host_changes(Changes) when is_list(Changes) ->
