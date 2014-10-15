@@ -40,6 +40,10 @@
 -export([reload_local/1, reload_cluster/1, apply_changes_remote/4,
          apply_changes/5, replace_config_file/2]).
 
+-export([compute_config_version/2,
+         get_local_config/0,
+         get_host_local_config/0]).
+
 -include("ejabberd.hrl").
 -include("ejabberd_config.hrl").
 -include_lib("kernel/include/file.hrl").
