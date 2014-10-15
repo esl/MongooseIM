@@ -7,6 +7,9 @@
 -behaviour(gen_mod).
 -behaviour(cowboy_http_handler).
 
+%% API
+-export([compile/1]).
+
 %% gen_mod callbacks
 -export([start/2,
          stop/1]).
@@ -16,21 +19,37 @@
          handle/2,
          terminate/3]).
 
--type option() :: {atom(), any()}.
+-record(state, {timeout, length}).
 
--define(CRLF, "\n\r").
--define(TIMEOUT, 5000).
+-type option() :: {atom(), any()}.
+-type state() :: #state{}.
+
+-type host()     :: '_' | string() | binary().
+-type path()     :: '_' | string() | binary().
+-type method()   :: '_' | atom() | string() | binary().
+-type upstream() :: string() | binary().
+-type route()    :: {host(), method(), upstream()} |
+                    {host(), path(), method(), upstream()}.
+
+-define(CRLF, "\r\n").
+
+%%--------------------------------------------------------------------
+%% API
+%%--------------------------------------------------------------------
+-spec compile([route()]) -> ok.
+compile(Routes) ->
+    Source = mod_revproxy_dynamic_src(Routes),
+    {Module, Code} = dynamic_compile:from_string(Source),
+    code:load_binary(Module, "mod_revproxy_dynamic.erl", Code),
+    ok.
 
 %%--------------------------------------------------------------------
 %% gen_mod callbacks
 %%--------------------------------------------------------------------
--spec start(ejabberd:host(), [option()]) -> any().
+-spec start(ejabberd:host(), [option()]) -> ok.
 start(_Host, Opts) ->
     Routes = gen_mod:get_opt(routes, Opts, []),
-    ModSrc = mod_revproxy_dynamic_src(Routes),
-    {Mod, Code} = dynamic_compile:from_string(ModSrc),
-    code:load_binary(Mod, "mod_revproxy_dynamic.erl", Code),
-    ok.
+    compile(Routes).
 
 -spec stop(ejabberd:host()) -> ok.
 stop(_Host) ->
@@ -40,11 +59,14 @@ stop(_Host) ->
 %% cowboy_http_handler callbacks
 %%--------------------------------------------------------------------
 -spec init({atom(), http}, cowboy_req:req(), [option()])
-    -> {ok, cowboy_req:req(), no_state}.
-init(_Transport, Req, _Opts) ->
-    {ok, Req, no_state}.
+    -> {ok, cowboy_req:req(), state()}.
+init(_Transport, Req, Opts) ->
+    Timeout = gen_mod:get_opt(timeout, Opts, 5000),
+    Length = gen_mod:get_opt(body_length, Opts, 8000000),
+    {ok, Req, #state{timeout=Timeout,
+                     length=Length}}.
 
--spec handle(cowboy_req:req(), no_state) -> {ok, cowboy_req:req(), no_state}.
+-spec handle(cowboy_req:req(), state()) -> {ok, cowboy_req:req(), state()}.
 handle(Req, State) ->
     {Host, Req1} = cowboy_req:header(<<"host">>, Req),
     {Path, Req2} = cowboy_req:path(Req1),
@@ -52,9 +74,10 @@ handle(Req, State) ->
     Match = match(mod_revproxy_dynamic:rules(), Host, Path, Method),
     handle_match(Match, Method, Path, Req3, State).
 
--spec terminate(any(), cowboy_req:req(), no_state) -> ok.
+-spec terminate(any(), cowboy_req:req(), state()) -> ok.
 terminate(_Reason, _Req, _State) ->
     ok.
+
 
 %%--------------------------------------------------------------------
 %% Internal functions
@@ -63,43 +86,40 @@ terminate(_Reason, _Req, _State) ->
 %% Passing and receiving request via fusco
 handle_match({_, _}=Upstream, Method, Path, Req, State) ->
     {UpstreamHost, UpstreamPath} = upstream_uri(Upstream, Path),
-    Req1 = pass_request(UpstreamHost, UpstreamPath, Method, Req),
-    {ok, Req1, State};
+    pass_request(UpstreamHost, UpstreamPath, Method, Req, State);
 handle_match(false, _, _, Req, State) ->
     {ok, Req1} = cowboy_req:reply(404, Req),
     {ok, Req1, State}.
 
-pass_request(Host, Path, Method, Req) ->
-    Opts = [{connect_timeout, ?TIMEOUT}],
-    {ok, Pid} = fusco:start_link(Host, Opts),
+pass_request(Host, Path, Method, Req, #state{timeout=Timeout}=State) ->
+    {ok, Pid} = fusco:start_link(Host, [{connect_timeout, Timeout}]),
     {Headers, Req1} = cowboy_req:headers(Req),
-    {Body, Req2} = request_body(Req1),
-    case fusco:request(Pid, Path, Method, Headers, Body, ?TIMEOUT) of
-        {ok, {{Status, _}, ResponseHeaders, ResponseBody, _, _}} ->
-            {ok, Req3} = cowboy_req:reply(binary_to_integer(Status),
-                                          ResponseHeaders,
-                                          ResponseBody,
-                                          Req2),
-            Req3;
-        {error, connect_timeout} ->
-            {ok, Req3} = cowboy_req:reply(504, Req2),
-            Req3;
-        {error, timeout} ->
-            {ok, Req3} = cowboy_req:reply(504, Req2),
-            Req3;
-        {error, _Other} ->
-            {ok, Req3} = cowboy_req:reply(502, Req2),
-            Req3
-    end.
+    {Body, Req2} = request_body(Req1, State),
+    Response = fusco:request(Pid, Path, Method, Headers, Body, Timeout),
+    return_response(Response, Req2, State).
+
+return_response({ok, {{Status, _}, Headers, Body, _, _}}, Req, State) ->
+    StatusI = binary_to_integer(Status),
+    {ok, Req1} = cowboy_req:reply(StatusI, Headers, Body, Req),
+    {ok, Req1, State};
+return_response({error, connect_timeout}, Req, State) ->
+    {ok, Req1} = cowboy_req:reply(504, Req),
+    {ok, Req1, State};
+return_response({error, timeout}, Req, State) ->
+    {ok, Req1} = cowboy_req:reply(504, Req),
+    {ok, Req1, State};
+return_response({error, _Other}, Req, State) ->
+    {ok, Req1} = cowboy_req:reply(502, Req),
+    {ok, Req1, State}.
 
 %% this will only handle bodies that cowboy can read at once
 %% (by default bodies up to 8 mb) tbd if chunks should be streamed or rejected
-request_body(Req) ->
+request_body(Req, #state{length=Length}) ->
     case cowboy_req:has_body(Req) of
         false ->
             {<<>>, Req};
         true ->
-            {ok, Data, Req1} = cowboy_req:body(Req),
+            {ok, Data, Req1} = cowboy_req:body(Req, [{length, Length}]),
             {Data, Req1}
     end.
 
@@ -147,20 +167,20 @@ match_host({Host, _, _, Upstream}, Host) ->
 match_host({_, _, _, _}, _) ->
     false.
 
-compile(Routes) ->
-    compile(Routes, []).
+compile_routes(Routes) ->
+    compile_routes(Routes, []).
 
-compile([], Acc) ->
+compile_routes([], Acc) ->
     lists:reverse(Acc);
-compile([{Host, Method, Upstream}|Tail], Acc) ->
-    compile([{Host, '_', Method, Upstream}|Tail], Acc);
-compile([{HostMatch,PathMatch,MethodMatch,UpstreamMatch}|Tail], Acc) ->
+compile_routes([{Host, Method, Upstream}|Tail], Acc) ->
+    compile_routes([{Host, '_', Method, Upstream}|Tail], Acc);
+compile_routes([{HostMatch,PathMatch,MethodMatch,UpstreamMatch}|Tail], Acc) ->
     HostRule = compile_host(HostMatch),
     Method = compile_method(MethodMatch),
     Upstream = compile_upstream(UpstreamMatch),
     PathRule = compile_path(PathMatch),
     Host = {HostRule, PathRule, Method, Upstream},
-    compile(Tail, [Host|Acc]).
+    compile_routes(Tail, [Host|Acc]).
 
 compile_host('_') ->
     '_';
@@ -216,7 +236,7 @@ split_path(_) ->
 
 %% Dynamically compiled configuration module
 mod_revproxy_dynamic_src(Routes) ->
-    Rules = compile(Routes),
+    Rules = compile_routes(Routes),
     lists:flatten(
         ["-module(mod_revproxy_dynamic).
          -export([rules/0]).
