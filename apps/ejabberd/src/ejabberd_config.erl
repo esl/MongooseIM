@@ -67,16 +67,17 @@
 
 -export_type([key/0, value/0]).
 
--record(state, {opts = []  :: list(),
-                hosts = [] :: [host()],
-                override_local = false  :: boolean(),
-                override_global = false :: boolean(),
-                override_acls = false   :: boolean()
-              }).
+-record(state, { opts = []  :: list(),
+                 hosts = [] :: [host()],
+                 override_local = false  :: boolean(),
+                 override_global = false :: boolean(),
+                 override_acls = false   :: boolean() }).
 
--record(compare_result, {to_add    = [] :: list(),
-                         to_del    = [] :: list(),
-                         to_change = [] :: list()}).
+-record(compare_result, {to_start  = [] :: list(),
+                         to_stop   = [] :: list(),
+                         to_reload = [] :: list()}).
+
+-type compare_result() :: #compare_result{}.
 
 -type host() :: any(). % TODO: specify this
 -type state() :: #state{}.
@@ -851,7 +852,12 @@ group_nodes_results(SuccessfullRPC, FailedRPC) ->
                         end, {[],[]}, SuccessfullRPC),
     {S,F ++ lists:map(fun (E) -> {atom_to_list(E)++" "++"RPC failed"} end, FailedRPC)}.
 
--spec get_config_diff(state()) -> {term(), term(), term()}.
+-spec get_config_diff(state()) -> {ConfigChanges,
+                                   LocalConfigChanges,
+                                   LocalHostsChanges} when
+      ConfigChanges :: compare_result(),
+      LocalConfigChanges :: compare_result(),
+      LocalHostsChanges :: compare_result().
 get_config_diff(State) ->
     % New Options
     {NewConfig, NewLocal, NewHostsLocal} = split_results(State#state.opts),
@@ -920,17 +926,20 @@ apply_changes(ConfigChanges, LocalConfigChanges, LocalHostsChanges,
 
     {ok, node()}.
 
-reload_config({CAdd, CDel, CChange}) ->
+reload_config(#compare_result{to_start = CAdd, to_stop = CDel,
+                              to_reload = CChange}) ->
     lists:foreach(fun handle_config_change/1, CChange),
     lists:foreach(fun handle_config_add/1, CAdd),
     lists:foreach(fun handle_config_del/1, CDel).
 
-reload_local_config({LCAdd, LCDel, LCChange}) ->
+reload_local_config(#compare_result{to_start = LCAdd, to_stop = LCDel,
+                                    to_reload = LCChange}) ->
     lists:foreach(fun handle_local_config_change/1, LCChange),
     lists:foreach(fun handle_local_config_add/1, LCAdd),
     lists:foreach(fun handle_local_config_del/1, LCDel).
 
-reload_local_hosts_config({LCHAdd, LCHDel, LCHChange}) ->
+reload_local_hosts_config(#compare_result{to_start = LCHAdd, to_stop = LCHDel,
+                                          to_reload = LCHChange}) ->
     lists:foreach(fun handle_local_hosts_config_change/1, LCHChange),
     lists:foreach(fun handle_local_hosts_config_add/1, LCHAdd),
     lists:foreach(fun handle_local_hosts_config_del/1, LCHDel).
@@ -1117,15 +1126,11 @@ remove_virtual_host(Host) ->
     ?DEBUG("Unregister host :~p", [Host]),
     ejabberd_local:unregister_host(Host).
 
--spec reload_modules(Host   :: ejabberd:host(),
-                     {
-                      Start  :: [{atom(), term()}],
-                      Stop   :: [{atom(), term()}],
-                      Reload :: [{atom(), term(), term()}]
-                     }) -> 'ok'.
-reload_modules(Host, {Start, Stop, Reload}) ->
-    ?DEBUG("reload modules start:~p, stop:~p, reload: ~p", [Start, Stop, Reload]),
-
+-spec reload_modules(Host :: ejabberd:host(),
+                     ChangedModules :: compare_result()) -> 'ok'.
+reload_modules(Host, #compare_result{to_start = Start, to_stop = Stop,
+                                     to_reload = Reload} = ChangedModules) ->
+    ?DEBUG("reload modules: ~p", [lager:pr(ChangedModules, ?MODULE)]),
     lists:foreach(fun ({M, _}) ->
                           gen_mod:stop_module(Host, M)
                   end, Stop),
@@ -1136,23 +1141,26 @@ reload_modules(Host, {Start, Stop, Reload}) ->
                           gen_mod:reload_module(Host, M, Args)
                   end, Reload).
 
-reload_listeners({Add, Del, Change}) ->
+-spec reload_listeners(ChangedListeners :: compare_result()) -> 'ok'.
+reload_listeners(#compare_result{to_start = Add, to_stop = Del,
+                                 to_reload = Change} = ChangedListeners) ->
+    ?DEBUG("reload listeners: ~p", [lager:pr(ChangedListeners, ?MODULE)]),
     lists:foreach(fun ({{PortIP, Module}, Opts}) ->
                           ejabberd_listener:delete_listener(PortIP, Module, Opts)
                   end, Del),
     lists:foreach(fun ({{PortIP, Module}, Opts}) ->
                           ejabberd_listener:add_listener(PortIP, Module, Opts)
                   end, Add),
-    lists:foreach(fun ({{PortIP,Module},OldOpts, NewOpts}) ->
-                        ejabberd_listener:delete_listener(PortIP, Module, OldOpts),
-                        ejabberd_listener:add_listener(PortIP, Module, NewOpts)
-                 end, Change).
+    lists:foreach(fun ({{PortIP,Module}, OldOpts, NewOpts}) ->
+                          ejabberd_listener:delete_listener(PortIP, Module, OldOpts),
+                          ejabberd_listener:add_listener(PortIP, Module, NewOpts)
+                  end, Change).
 
--spec compare_modules(term(), term()) -> {[term()], [term()], [term()]}.
+-spec compare_modules(term(), term()) -> compare_result().
 compare_modules(OldMods, NewMods) ->
     compare_terms(OldMods, NewMods, 1, 2).
 
--spec compare_listeners(term(), term()) -> {[term()], [term()], [term()]}.
+-spec compare_listeners(term(), term()) -> compare_result().
 compare_listeners(OldListeners, NewListeners) ->
     compare_terms(map_listeners(OldListeners), map_listeners(NewListeners), 1, 2).
 
@@ -1237,17 +1245,16 @@ get_key_group(_, Key) when is_atom(Key)->
 -spec compare_terms(OldTerms :: [tuple()],
                     NewTerms :: [tuple()],
                     KeyPos :: non_neg_integer(),
-                    ValuePos :: non_neg_integer()) ->
-    {ToAdd :: [term()],
-     ToRemove :: [term()],
-     Changed :: [term()] }.
+                    ValuePos :: non_neg_integer()) -> compare_result().
 compare_terms(OldTerms, NewTerms, KeyPos, ValuePos) when is_integer(KeyPos), is_integer(ValuePos) ->
     {ToStop, ToReload} = lists:foldl(pa:binary(fun find_modules_to_change/5,
                                                [KeyPos, NewTerms, ValuePos]),
                                      {[], []}, OldTerms),
     ToStart = lists:foldl(pa:binary(fun find_modules_to_start/4,
                                     [KeyPos, OldTerms]), [], NewTerms),
-    {ToStart, ToStop, ToReload}.
+    #compare_result{to_start  = ToStart,
+                    to_stop   = ToStop,
+                    to_reload = ToReload}.
 
 find_modules_to_start(KeyPos, OldTerms, Element, ToStart) ->
     case lists:keyfind(element(KeyPos, Element), KeyPos, OldTerms) of
