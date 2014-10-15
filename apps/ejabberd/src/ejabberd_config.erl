@@ -951,9 +951,13 @@ reload_local_hosts_config(#compare_result{to_start = LCHAdd, to_stop = LCHDel,
 
 -spec replace_config_file(binary(), string()) -> {ok, node()}.
 replace_config_file(NewConfig, BackupSuffix) ->
-    {ok, _} = file:copy(get_ejabberd_config_path(), get_ejabberd_config_path() ++"."++ BackupSuffix),
-    ok = file:write_file(get_ejabberd_config_path(), NewConfig),
+    ConfigPath = get_ejabberd_config_path(),
+    {ok, _} = file:copy(ConfigPath, backup_path(ConfigPath, BackupSuffix)),
+    ok = file:write_file(ConfigPath, NewConfig),
     {ok, node()}.
+
+backup_path(Path, BackupSuffix) ->
+    Path ++ "." ++ BackupSuffix.
 
 %% ----------------------------------------------------------------
 %% CONFIG
