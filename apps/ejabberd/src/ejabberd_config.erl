@@ -1177,15 +1177,15 @@ map_listeners(Listeners) ->
 % group values which can be grouped like odbc ones
 -spec group_host_changes([term()]) -> {atom(), [term()]}.
 group_host_changes(Changes) when is_list(Changes) ->
-    D = lists:foldl( fun  (#local_config{key = {Key, Host}, value = Val}, Dict) ->
-                             BKey = atom_to_binary(Key, utf8),
-                             case get_key_group(BKey,Key) of
-                                 Key ->
+    D = lists:foldl(fun (#local_config{key = {Key, Host}, value = Val}, Dict) ->
+                            BKey = atom_to_binary(Key, utf8),
+                            case get_key_group(BKey,Key) of
+                                Key ->
                                     dict:append({Key,Host}, Val, Dict);
-                                 NewKey ->
+                                NewKey ->
                                     dict:append({NewKey,Host}, {Key, Val}, Dict)
-                             end
-                     end, dict:new(), Changes),
+                            end
+                    end, dict:new(), Changes),
     lists:map(fun ({Group,[L]}) when is_list(L) ->
                       {Group, lists:sort(L)};
                   ({Group, L}) ->
