@@ -5,6 +5,7 @@
 -include_lib("eunit/include/eunit.hrl").
 
 -define(eq(Expected, Actual), ?assertEqual(Expected, Actual)).
+-define(ne(A, B), ?assertNot(A == B)).
 
 -import(ejabberd_helper, [start_ejabberd/1,
                           stop_ejabberd/0,
@@ -73,6 +74,24 @@ delete_a_module(Config) ->
     % cleanup
     ok = stop_ejabberd().
 
+reload_a_module(Config) ->
+    % given a running server with a specific module on
+    copy_config(Config, "ejabberd.with_mod_offline.cfg", "ejabberd.cfg"),
+    start_ejabberd_with_config(Config, "ejabberd.cfg"),
+    ?eq(true, gen_mod:is_loaded(<<"localhost">>, mod_offline)),
+    OfflineProcBefore = get_module_pid(mod_offline_localhost),
+    % when changing the module configuration
+    copy_config(Config,
+                "ejabberd.with_mod_offline.different_opts.cfg",
+                "ejabberd.cfg"),
+    ejabberd_config:reload_local(),
+    % then the module is reloaded
+    ?eq(true, gen_mod:is_loaded(<<"localhost">>, mod_offline)),
+    OfflineProcAfter = get_module_pid(mod_offline_localhost),
+    ?ne(OfflineProcBefore, OfflineProcAfter),
+    % cleanup
+    ok = stop_ejabberd().
+
 %%
 %% Helpers
 %%
@@ -94,3 +113,14 @@ copy_config(Config, Src, Dst) ->
     SrcConfigPath = filename:join([DataDir, Src]),
     DstConfigPath = filename:join([DataDir, Dst]),
     {ok, _} = file:copy(SrcConfigPath, DstConfigPath).
+
+get_module_pid(ModuleProcName) ->
+    %% We can't generate the proc name here using gen_mod:get_module_proc/2
+    %% from an XMPP domain and a module name,
+    %% since some modules use a macro embedded inside the module
+    %% as the second argument to gen_mod:get_module_proc/2.
+    %% We have to rely on the caller to **just know what he's doing**.
+    EjabberdProcesses = supervisor:which_children(ejabberd_sup),
+    {ModuleProcName,
+     ModulePid, _, _} = lists:keyfind(ModuleProcName, 1, EjabberdProcesses),
+    {ModuleProcName, ModulePid}.
