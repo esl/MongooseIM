@@ -111,19 +111,31 @@ given_vhost_config_split_into_multiple_files(C) ->
                                           suite_priv(C, "etc/fake.domain.two/")] ],
     copy(data(C, "ejabberd.split.cfg"), suite_priv(C, "etc/ejabberd.cfg")),
     copy(data(C, "ejabberd.hosts.cfg"), suite_priv(C, "etc/ejabberd.hosts.cfg")),
-    %copy(data(C, "fake.domain.one/host.cfg"),
-    %     suite_priv(C, "etc/fake.domain.one/host.cfg")),
-    %copy(data(C, "fake.domain.one/host.cfg"),
-    %     suite_priv(C, "etc/fake.domain.one/certfile.pem")),
-    %copy(data(C, "fake.domain.two/host.cfg"),
-    %     suite_priv(C, "etc/fake.domain.two/host.cfg")),
-    %copy(data(C, "fake.domain.two/host.cfg"),
-    %     suite_priv(C, "etc/fake.domain.two/certfile.pem")).
-    ok.
+    copy(data(C, "fake.domain.one/host.cfg"),
+         suite_priv(C, "etc/fake.domain.one/host.cfg")),
+    copy(data(C, "fake.domain.one/host.cfg"),
+         suite_priv(C, "etc/fake.domain.one/certfile.pem")),
+    copy(data(C, "fake.domain.two/host.cfg"),
+         suite_priv(C, "etc/fake.domain.two/host.cfg")),
+    copy(data(C, "fake.domain.two/host.cfg"),
+         suite_priv(C, "etc/fake.domain.two/certfile.pem")).
 
 then_vhost_config_works(_C) ->
     ?eq([{config, hosts, [<<"fake.domain.one">>, <<"fake.domain.two">>]}],
-        ets:lookup(config, hosts)).
+        ets:lookup(config, hosts)),
+    ?eq(false, is_empty(ets:lookup(local_config,
+                                   {domain_certfile, <<"fake.domain.one">>}))),
+    ?eq(false, is_empty(ets:lookup(local_config,
+                                   {domain_certfile, <<"fake.domain.two">>}))),
+    ?eq(true, gen_mod:is_loaded(<<"fake.domain.one">>, mod_ping)),
+    ?eq(true, gen_mod:is_loaded(<<"fake.domain.two">>, mod_roster)),
+    ?eq(true, gen_mod:is_loaded(<<"fake.domain.two">>, mod_offline)),
+    ?eq(false, gen_mod:is_loaded(<<"fake.domain.one">>, mod_roster)),
+    ?eq(false, gen_mod:is_loaded(<<"fake.domain.one">>, mod_offline)),
+    ?eq(false, gen_mod:is_loaded(<<"fake.domain.two">>, mod_ping)).
+
+is_empty([]) -> true;
+is_empty(_) -> false.
 
 %%
 %% Helpers
@@ -173,7 +185,13 @@ suite_priv(Config, PathSuffix) ->
     Dir = proplists:get_value(priv_dir, Config),
     FourDirsUp = lists:foldl(fun (_, Path) -> filename:dirname(Path) end,
                              Dir, lists:seq(1,4)),
-    filename:join([FourDirsUp, "log_private", PathSuffix]).
+    %% filename:join/1 strips trailing slashes... cool, ain't it?
+    preserve_trailing_slash(lists:last(PathSuffix),
+                            filename:join([FourDirsUp, "log_private",
+                                           PathSuffix])).
+
+preserve_trailing_slash($/, Path) -> Path ++ [$/];
+preserve_trailing_slash(__, Path) -> Path.
 
 times(N, E) -> times(N, E, []).
 
