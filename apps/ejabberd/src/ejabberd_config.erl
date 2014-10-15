@@ -763,8 +763,8 @@ is_file_readable(Path) ->
 parse_file(ConfigFile) ->
     Terms = get_plain_terms_file(ConfigFile),
     State = lists:foldl(fun search_hosts/2, #state{}, Terms),
-    Terms_macros = replace_macros(Terms),
-    lists:foldl(fun process_term/2, State, Terms_macros).
+    TermsWExpandedMacros = replace_macros(Terms),
+    lists:foldl(fun process_term/2, State, TermsWExpandedMacros).
 
 -spec reload_local(file:name()) -> ok.
 reload_local(NewConfigFilePath) ->
