@@ -1186,11 +1186,8 @@ group_host_changes(Changes) when is_list(Changes) ->
                                     dict:append({NewKey,Host}, {Key, Val}, Dict)
                             end
                     end, dict:new(), Changes),
-    lists:map(fun ({Group,[L]}) when is_list(L) ->
-                      {Group, lists:sort(L)};
-                  ({Group, L}) ->
-                      {Group, lists:sort(L)}
-              end, dict:to_list(D)).
+    [{Group, lists:sort(lists:flatten(MaybeDeepList))}
+     || {Group, MaybeDeepList} <- dict:to_list(D)].
 
 %% match all hosts
 -spec get_host_local_config() -> [{local_config, {term(), ejabberd:host()}, term()}].
