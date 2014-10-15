@@ -44,8 +44,8 @@
          compare_listeners/2]).
 
 %% conf reload
--export([reload_local/1,
-         reload_cluster/1,
+-export([reload_local/0,
+         reload_cluster/0,
          apply_changes_remote/4,
          apply_changes/5,
          replace_config_file/2]).
@@ -771,9 +771,10 @@ parse_file(ConfigFile) ->
     TermsWExpandedMacros = replace_macros(Terms),
     lists:foldl(fun process_term/2, State, TermsWExpandedMacros).
 
--spec reload_local(file:name()) -> ok.
-reload_local(NewConfigFilePath) ->
-    State0 = parse_file(NewConfigFilePath),
+-spec reload_local() -> ok.
+reload_local() ->
+    ConfigFile = get_ejabberd_config_path(),
+    State0 = parse_file(ConfigFile),
     {CC, LC, LHC} = get_config_diff(State0),
     ConfigVersion = compute_config_version(get_local_config(),
                                            get_host_local_config()),
@@ -782,7 +783,7 @@ reload_local(NewConfigFilePath) ->
                           override_acls = true},
     try
         {ok, _} = apply_changes(CC, LC, LHC, State1, ConfigVersion),
-        ?INFO_MSG("node config reloaded from ~s", [NewConfigFilePath]),
+        ?INFO_MSG("node config reloaded from ~s", [ConfigFile]),
         {ok, io_lib:format("# Reloaded: ~s", [node()])}
     catch
         Error:Reason ->
@@ -793,9 +794,9 @@ reload_local(NewConfigFilePath) ->
                          "config file: ~s~n"
                          "reason: ~p~n"
                          "stacktrace: ~p",
-                         [ConfigVersion, NewConfigFilePath, Msg,
+                         [ConfigVersion, ConfigFile, Msg,
                           erlang:get_stacktrace()]),
-            error(Msg, [NewConfigFilePath])
+            error(Msg)
     end.
 
 %% Won't be unnecessarily evaluated if used as an argument
@@ -803,16 +804,17 @@ reload_local(NewConfigFilePath) ->
 msg(Fmt, Args) ->
     lists:flatten(io_lib:format(Fmt, Args)).
 
--spec reload_cluster(file:name()) -> {ok, binary()}.
-reload_cluster(NewConfigFilePath) ->
+-spec reload_cluster() -> {ok, binary()}.
+reload_cluster() ->
     CurrentNode = node(),
-    State0 = parse_file(NewConfigFilePath),
+    ConfigFile = get_ejabberd_config_path(),
+    State0 = parse_file(ConfigFile),
     ConfigDiff = {CC, LC, LHC} = get_config_diff(State0),
 
     ConfigVersion = compute_config_version(get_local_config(),
                                            get_host_local_config()),
     FileVersion = compute_config_file_version(State0),
-    ?INFO_MSG("cluster config reload from ~s scheduled", [NewConfigFilePath]),
+    ?INFO_MSG("cluster config reload from ~s scheduled", [ConfigFile]),
     %% first apply on local
     State1 = State0#state{override_global = true,
                           override_local = true, override_acls = true},
@@ -820,7 +822,7 @@ reload_cluster(NewConfigFilePath) ->
         {ok, CurrentNode} ->
             %% apply on other nodes
             {S,F} = rpc:multicall(nodes(), ?MODULE, apply_changes_remote,
-                                  [NewConfigFilePath, ConfigDiff,
+                                  [ConfigFile, ConfigDiff,
                                    ConfigVersion, FileVersion],
                                   30000),
             {S1,F1} = group_nodes_results([{ok,node()} | S],F),
@@ -840,7 +842,7 @@ reload_cluster(NewConfigFilePath) ->
                                    [CurrentNode, Error]),
             ?WARNING_MSG("cluster config reload failed!~n"
                          "config file: ~s~n"
-                         "reason: ~p", [NewConfigFilePath, Reason]),
+                         "reason: ~p", [ConfigFile, Reason]),
             exit(lists:flatten(Reason))
     end.
 
@@ -1103,7 +1105,7 @@ handle_local_hosts_config_change({{Key,_Host},_Old,_New} = El) ->
     end.
 
 methods_to_auth_modules(L) when is_list(L) ->
-    [list_to_atom("ejabberd_auth_" ++ atom_to_list(M)) || M <-L];
+    [list_to_atom("ejabberd_auth_" ++ atom_to_list(M)) || M <- L];
 methods_to_auth_modules(A) when is_atom(A) ->
     methods_to_auth_modules([A]).
 
@@ -1268,7 +1270,8 @@ get_key_group(_, Key) when is_atom(Key)->
                     NewTerms :: [tuple()],
                     KeyPos :: non_neg_integer(),
                     ValuePos :: non_neg_integer()) -> compare_result().
-compare_terms(OldTerms, NewTerms, KeyPos, ValuePos) when is_integer(KeyPos), is_integer(ValuePos) ->
+compare_terms(OldTerms, NewTerms, KeyPos, ValuePos)
+  when is_integer(KeyPos), is_integer(ValuePos) ->
     {ToStop, ToReload} = lists:foldl(pa:binary(fun find_modules_to_change/5,
                                                [KeyPos, NewTerms, ValuePos]),
                                      {[], []}, OldTerms),

@@ -201,11 +201,11 @@ commands() ->
      #ejabberd_commands{name = reload_local, tags = [server],
                         desc = "Reload configuration file on the current node",
                         module = ejabberd_config, function = reload_local,
-                        args = [{file, string}], result = {res, restuple}},
+                        args = [], result = {res, restuple}},
      #ejabberd_commands{name = reload_cluster, tags = [server],
                         desc = "Reload configuration file in the cluster",
                         module = ejabberd_config, function = reload_cluster,
-                        args = [{file, string}], result = {res, restuple}}
+                        args = [], result = {res, restuple}}
     ].
 
 
