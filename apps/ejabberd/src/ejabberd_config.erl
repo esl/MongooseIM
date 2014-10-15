@@ -41,7 +41,8 @@
 %% for unit tests
 -export([check_hosts/2,
          compare_modules/2,
-         compare_listeners/2]).
+         compare_listeners/2,
+         group_host_changes/1]).
 
 %% conf reload
 -export([reload_local/0,
