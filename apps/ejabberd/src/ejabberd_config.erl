@@ -913,27 +913,23 @@ apply_changes(ConfigChanges, LocalConfigChanges, LocalHostsChanges,
     %% apply config
     set_opts(State),
 
-    {CAdd, CDel, CChange} = ConfigChanges,
-    {LCAdd, LCDel, LCChange} = LocalConfigChanges,
-    {LCHAdd, LCHDel, LCHChange} = LocalHostsChanges,
-
-    reload_config(CChange, CAdd, CDel),
-    reload_local_config(LCChange, LCAdd, LCDel),
-    reload_local_hosts_config(LCHChange, LCHAdd, LCHDel),
+    reload_config(ConfigChanges),
+    reload_local_config(LocalConfigChanges),
+    reload_local_hosts_config(LocalHostsChanges),
 
     {ok, node()}.
 
-reload_config(CChange, CAdd, CDel) ->
+reload_config({CAdd, CDel, CChange}) ->
     lists:foreach(fun handle_config_change/1, CChange),
     lists:foreach(fun handle_config_add/1, CAdd),
     lists:foreach(fun handle_config_del/1, CDel).
 
-reload_local_config(LCChange, LCAdd, LCDel) ->
+reload_local_config({LCAdd, LCDel, LCChange}) ->
     lists:foreach(fun handle_local_config_change/1, LCChange),
     lists:foreach(fun handle_local_config_add/1, LCAdd),
     lists:foreach(fun handle_local_config_del/1, LCDel).
 
-reload_local_hosts_config(LCHChange, LCHAdd, LCHDel) ->
+reload_local_hosts_config({LCHAdd, LCHDel, LCHChange}) ->
     lists:foreach(fun handle_local_hosts_config_change/1, LCHChange),
     lists:foreach(fun handle_local_hosts_config_add/1, LCHAdd),
     lists:foreach(fun handle_local_hosts_config_del/1, LCHDel).
