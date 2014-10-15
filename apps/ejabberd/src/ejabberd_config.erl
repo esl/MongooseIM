@@ -1242,32 +1242,36 @@ get_key_group(_, Key) when is_atom(Key)->
      ToRemove :: [term()],
      Changed :: [term()] }.
 compare_terms(OldTerms, NewTerms, KeyPos, ValuePos) when is_integer(KeyPos), is_integer(ValuePos) ->
-    {ToStop, ToReload} = lists:foldl(fun (Element, {ToStop, ToReload}) ->
-                                             case lists:keyfind(element(KeyPos, Element), KeyPos, NewTerms) of
-                                                 false ->
-                                                     { [Element | ToStop], ToReload };
-                                                 NewElement ->
-                                                     OldVal = element(ValuePos, Element),
-                                                     NewVal = element(ValuePos, NewElement),
-                                                     case OldVal == NewVal of
-                                                         true  ->
-                                                             {ToStop, ToReload};
-                                                         false ->
-                                                             %% add also old value
-                                                             {ToStop, [ {element(KeyPos,Element), OldVal, NewVal} | ToReload]}
-                                                     end
-                                             end
-                                     end, {[],[]}, OldTerms),
-    ToStart = lists:foldl( fun ( Element, ToStart ) ->
-                                   case lists:keyfind(element(KeyPos, Element), KeyPos, OldTerms) of
-                                       false ->
-                                           [ Element | ToStart ];
-                                       _ ->
-                                           ToStart
-                                   end
-                           end, [], NewTerms),
+    {ToStop, ToReload} = lists:foldl(pa:binary(fun find_modules_to_change/5,
+                                               [KeyPos, NewTerms, ValuePos]),
+                                     {[], []}, OldTerms),
+    ToStart = lists:foldl(pa:binary(fun find_modules_to_start/4,
+                                    [KeyPos, OldTerms]), [], NewTerms),
     {ToStart, ToStop, ToReload}.
 
+find_modules_to_start(KeyPos, OldTerms, Element, ToStart) ->
+    case lists:keyfind(element(KeyPos, Element), KeyPos, OldTerms) of
+        false -> [ Element | ToStart ];
+        _ -> ToStart
+    end.
+
+find_modules_to_change(KeyPos, NewTerms, ValuePos,
+                       Element, {ToStop, ToReload}) ->
+    case lists:keyfind(element(KeyPos, Element), KeyPos, NewTerms) of
+        false ->
+            { [Element | ToStop], ToReload };
+        NewElement ->
+            OldVal = element(ValuePos, Element),
+            NewVal = element(ValuePos, NewElement),
+            case OldVal == NewVal of
+                true  ->
+                    {ToStop, ToReload};
+                false ->
+                    %% add also old value
+                    {ToStop,
+                     [ {element(KeyPos, Element), OldVal, NewVal} | ToReload ]}
+            end
+    end.
 
 mk_node_start_filter() ->
     fun(#local_config{key = node_start}) ->
