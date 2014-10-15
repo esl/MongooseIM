@@ -39,11 +39,16 @@
 -export([is_file_readable/1]).
 
 %% for unit tests
--export([check_hosts/2, compare_modules/2, compare_listeners/2]).
+-export([check_hosts/2,
+         compare_modules/2,
+         compare_listeners/2]).
 
 %% conf reload
--export([reload_local/1, reload_cluster/1, apply_changes_remote/4,
-         apply_changes/5, replace_config_file/2]).
+-export([reload_local/1,
+         reload_cluster/1,
+         apply_changes_remote/4,
+         apply_changes/5,
+         replace_config_file/2]).
 
 -export([compute_config_version/2,
          get_local_config/0,
