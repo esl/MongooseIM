@@ -781,17 +781,22 @@ reload_local(NewConfigFilePath) ->
         {ok, io_lib:format("# Reloaded: ~s", [node()])}
     catch
         Error:Reason ->
-            Reason = io_lib:format("failed to apply config on node:"
-                                   " ~p ~n Reason: ~p",
-                                   [node(), Error]),
+            Msg = msg("failed to apply config on node: ~p~nReason: ~p",
+                      [node(), {Error, Reason}]),
             ?WARNING_MSG("node config reload failed!~n"
                          "current config version: ~p~n"
                          "config file: ~s~n"
-                         "reason: ~p",
-                         [ConfigVersion, NewConfigFilePath, Reason]),
-            exit(lists:flatten(Reason))
+                         "reason: ~p~n"
+                         "stacktrace: ~p",
+                         [ConfigVersion, NewConfigFilePath, Msg,
+                          erlang:get_stacktrace()]),
+            error(Msg, [NewConfigFilePath])
     end.
 
+%% Won't be unnecessarily evaluated if used as an argument
+%% to lager parse transform.
+msg(Fmt, Args) ->
+    lists:flatten(io_lib:format(Fmt, Args)).
 
 -spec reload_cluster(file:name()) -> {ok, binary()}.
 reload_cluster(NewConfigFilePath) ->
