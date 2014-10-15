@@ -38,9 +38,9 @@ end_per_testcase(_TestCase, _Config) ->
 %%
 
 smoke(Config) ->
-    % given
+    % when
     start_ejabberd_with_config(Config, "ejabberd.default.cfg"),
-    % when/then
+    % then
     ?assert(lists:keymember(ejabberd, 1, application:which_applications())),
     % cleanup
     ok = stop_ejabberd().
