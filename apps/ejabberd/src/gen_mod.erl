@@ -281,13 +281,17 @@ set_module_opts_mnesia(Host, Module, Opts) ->
 -spec del_module_mnesia(ejabberd:server(), atom()) -> {'aborted',_} | {'atomic',_}.
 del_module_mnesia(Host, Module) ->
     Modules = case ejabberd_config:get_local_option({modules, Host}) of
-        undefined ->
-            [];
-        Ls ->
-            Ls
-    end,
-    Modules1 = lists:keydelete(Module, 1, Modules),
-    ejabberd_config:add_local_option({modules, Host}, Modules1).
+                  undefined ->
+                      [];
+                  Ls ->
+                      Ls
+              end,
+    case lists:keydelete(Module, 1, Modules) of
+        [] ->
+            ejabberd_config:del_local_option({modules, Host});
+        OtherModules ->
+            ejabberd_config:add_local_option({modules, Host}, OtherModules)
+    end.
 
 get_hosts(Opts, Prefix) ->
     case catch gen_mod:get_opt(hosts, Opts) of
