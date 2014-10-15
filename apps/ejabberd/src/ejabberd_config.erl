@@ -783,7 +783,7 @@ reload_local() ->
                           override_acls = true},
     try
         {ok, _} = apply_changes(CC, LC, LHC, State1, ConfigVersion),
-        ?INFO_MSG("node config reloaded from ~s", [ConfigFile]),
+        ?WARNING_MSG("node config reloaded from ~s", [ConfigFile]),
         {ok, io_lib:format("# Reloaded: ~s", [node()])}
     catch
         Error:Reason ->
@@ -814,7 +814,7 @@ reload_cluster() ->
     ConfigVersion = compute_config_version(get_local_config(),
                                            get_host_local_config()),
     FileVersion = compute_config_file_version(State0),
-    ?INFO_MSG("cluster config reload from ~s scheduled", [ConfigFile]),
+    ?WARNING_MSG("cluster config reload from ~s scheduled", [ConfigFile]),
     %% first apply on local
     State1 = State0#state{override_global = true,
                           override_local = true, override_acls = true},
@@ -829,7 +829,7 @@ reload_cluster() ->
             ResultText = (groups_to_string("# Reloaded:", S1)
                           ++ groups_to_string("\n# Failed:", F1)),
             case F1 of
-                []    -> ?INFO_MSG("cluster config reloaded successfully", []);
+                []    -> ?WARNING_MSG("cluster config reloaded successfully", []);
                 [_|_] ->
                     FailedUpdateOrRPC = F ++ [Node || {error, Node, _} <- S],
                     ?WARNING_MSG("cluster config reload failed on nodes: ~p",
@@ -886,7 +886,7 @@ get_config_diff(State) ->
                                 {ok, node()}| {error,node(),string()}.
 apply_changes_remote(NewConfigFilePath, ConfigDiff,
                      DesiredConfigVersion, DesiredFileVersion) ->
-    ?INFO_MSG("remote config reload scheduled", []),
+    ?WARNING_MSG("remote config reload scheduled", []),
     ?DEBUG("~ndesired config version: ~p"
            "~ndesired file version: ~p",
            [DesiredConfigVersion, DesiredFileVersion]),
@@ -901,7 +901,7 @@ apply_changes_remote(NewConfigFilePath, ConfigDiff,
             case catch apply_changes(CC, LC, LHC, State1,
                                      DesiredConfigVersion) of
                 {ok, Node} = R ->
-                    ?INFO_MSG("remote config reload succeeded", []),
+                    ?WARNING_MSG("remote config reload succeeded", []),
                     R;
                 UnknownResult ->
                     ?WARNING_MSG("remote config reload failed! "
