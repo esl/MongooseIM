@@ -865,7 +865,7 @@ group_nodes_results(SuccessfullRPC, FailedRPC) ->
       LocalHostsChanges :: compare_result().
 get_config_diff(State) ->
     % New Options
-    {NewConfig, NewLocal, NewHostsLocal} = split_results(State#state.opts),
+    {NewConfig, NewLocal, NewHostsLocal} = categorize_options(State#state.opts),
     % Current Options
     Config = get_global_config(),
     Local = get_local_config(),
@@ -1219,21 +1219,29 @@ is_not_host_specific( Key ) when is_atom(Key) ->
 is_not_host_specific({Key, Host}) when is_atom(Key), is_binary(Host) ->
     false.
 
--spec split_results([term()]) -> {list(),list(),list()}.
-split_results(Opts)->
-    lists:foldl(fun ({config, _, _}=El, {Config, Local, HostLocal}) ->
-                        {[El | Config],Local, HostLocal};
-                    ({local_config, {Key, Host}, _} = El, {Config,Local,HostLocal})  when is_atom(Key), is_binary(Host)->
-                        { Config ,  Local, [El |HostLocal]};
-                    ({local_config, _, _} = El, {Config, Local, HostLocal})->
-                        { Config , [El | Local],  HostLocal};
-                    ({acl,_,_}, R) ->
+-spec categorize_options([term()]) -> {GlobalConfig, LocalConfig, HostsConfig} when
+      GlobalConfig :: list(),
+      LocalConfig :: list(),
+      HostsConfig :: list().
+categorize_options(Opts) ->
+    lists:foldl(fun ({config, _, _} = El, Acc) ->
+                        as_global(El, Acc);
+                    ({local_config, {Key, Host}, _} = El, Acc)
+                      when is_atom(Key), is_binary(Host) ->
+                        as_hosts(El, Acc);
+                    ({local_config, _, _} = El, Acc) ->
+                        as_local(El, Acc);
+                    ({acl, _, _}, R) ->
                         %% no need to do extra work here
                         R;
-                    (R,R2) ->
+                    (R, R2) ->
                         ?ERROR_MSG("not matched ~p", [R]),
                         R2
-                end, {[],[],[]}, Opts).
+                end, {[], [], []}, Opts).
+
+as_global(El, {Config, Local, HostLocal}) -> {[El | Config], Local, HostLocal}.
+as_local(El, {Config, Local, HostLocal}) -> {Config, [El | Local],  HostLocal}.
+as_hosts(El, {Config, Local, HostLocal}) -> {Config, Local, [El | HostLocal]}.
 
 -spec get_key_group(binary(), atom()) -> atom().
 get_key_group(<<"ldap_", _/binary>>, _) ->
