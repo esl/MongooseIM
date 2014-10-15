@@ -18,7 +18,8 @@ all() ->
 groups() ->
     [{reload_local, [], [coalesce_multiple_local_config_options,
                          add_a_module,
-                         delete_a_module]}].
+                         delete_a_module,
+                         reload_a_module]}].
 
 init_per_suite(Config) ->
     Config.
