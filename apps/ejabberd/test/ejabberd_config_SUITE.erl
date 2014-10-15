@@ -16,7 +16,8 @@ all() ->
 
 groups() ->
     [{reload_local, [], [coalesce_multiple_local_config_options,
-                         add_a_module]}].
+                         add_a_module,
+                         delete_a_module]}].
 
 init_per_suite(Config) ->
     Config.
@@ -56,6 +57,19 @@ add_a_module(Config) ->
     ejabberd_config:reload_local(),
     % then the new module gets started
     ?eq(true, gen_mod:is_loaded(<<"localhost">>, mod_offline)),
+    % cleanup
+    ok = stop_ejabberd().
+
+delete_a_module(Config) ->
+    % given a running server with a specific module on
+    copy_config(Config, "ejabberd.with_mod_offline.cfg", "ejabberd.cfg"),
+    start_ejabberd_with_config(Config, "ejabberd.cfg"),
+    ?eq(true, gen_mod:is_loaded(<<"localhost">>, mod_offline)),
+    % when deleting the module from the configuration
+    copy_config(Config, "ejabberd.default.cfg", "ejabberd.cfg"),
+    ejabberd_config:reload_local(),
+    % then the module is stopped
+    ?eq(false, gen_mod:is_loaded(<<"localhost">>, mod_offline)),
     % cleanup
     ok = stop_ejabberd().
 
