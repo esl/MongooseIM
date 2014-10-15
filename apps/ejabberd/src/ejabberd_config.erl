@@ -775,12 +775,18 @@ reload_local(NewConfigFilePath) ->
                           override_acls = true},
     try
         {ok, _} = apply_changes(CC, LC, LHC, State1, ConfigVersion),
+        ?INFO_MSG("node config reloaded from ~s", [NewConfigFilePath]),
         {ok, io_lib:format("# Reloaded: ~s", [node()])}
     catch
         Error:Reason ->
             Reason = io_lib:format("failed to apply config on node:"
-                                   " ~p ~n Reason: ~p", [node(),
-                                                         Error]),
+                                   " ~p ~n Reason: ~p",
+                                   [node(), Error]),
+            ?WARNING_MSG("node config reload failed!~n"
+                         "current config version: ~p~n"
+                         "config file: ~s~n"
+                         "reason: ~p",
+                         [ConfigVersion, NewConfigFilePath, Reason]),
             exit(lists:flatten(Reason))
     end.
 
@@ -794,7 +800,7 @@ reload_cluster(NewConfigFilePath) ->
     ConfigVersion = compute_config_version(get_local_config(),
                                            get_host_local_config()),
     FileVersion = compute_config_file_version(State0),
-
+    ?INFO_MSG("cluster config reload from ~s scheduled", [NewConfigFilePath]),
     %% first apply on local
     State1 = State0#state{override_global = true,
                           override_local = true, override_acls = true},
@@ -806,20 +812,30 @@ reload_cluster(NewConfigFilePath) ->
                                    ConfigVersion, FileVersion],
                                   30000),
             {S1,F1} = group_nodes_results([{ok,node()} | S],F),
-
-            {ok, groups_to_string("# Reloaded:", S1) ++
-                 groups_to_string("\n# Failed:", F1) };
+            ResultText = (groups_to_string("# Reloaded:", S1)
+                          ++ groups_to_string("\n# Failed:", F1)),
+            case F1 of
+                []    -> ?INFO_MSG("cluster config reloaded successfully", []);
+                [_|_] ->
+                    FailedUpdateOrRPC = F ++ [Node || {error, Node, _} <- S],
+                    ?WARNING_MSG("cluster config reload failed on nodes: ~p",
+                                 [FailedUpdateOrRPC])
+            end,
+            {ok,  ResultText};
         Error ->
             Reason = io_lib:format("failed to apply config on node:"
-                                   " ~p ~n Reason: ~p", [CurrentNode,
-                                                         Error]),
+                                   " ~p ~n Reason: ~p",
+                                   [CurrentNode, Error]),
+            ?WARNING_MSG("cluster config reload failed!~n"
+                         "config file: ~s~n"
+                         "reason: ~p", [NewConfigFilePath, Reason]),
             exit(lists:flatten(Reason))
     end.
 
 -spec groups_to_string(string(), [string()]) -> string().
-groups_to_string(_Header,[]) ->
+groups_to_string(_Header, []) ->
     "";
-groups_to_string(Header,S) ->
+groups_to_string(Header, S) ->
     Header++"\n"++string:join(S,"\n").
 
 -spec group_nodes_results(list(), [atom]) -> {[string()],[string()]}.
@@ -852,6 +868,10 @@ get_config_diff(State) ->
                                 {ok, node()}| {error,node(),string()}.
 apply_changes_remote(NewConfigFilePath, ConfigDiff,
                      DesiredConfigVersion, DesiredFileVersion) ->
+    ?INFO_MSG("remote config reload scheduled", []),
+    ?DEBUG("~ndesired config version: ~p"
+           "~ndesired file version: ~p",
+           [DesiredConfigVersion, DesiredFileVersion]),
     Node = node(),
     {CC, LC, LHC} = ConfigDiff,
     State0 = parse_file(NewConfigFilePath),    
@@ -863,28 +883,32 @@ apply_changes_remote(NewConfigFilePath, ConfigDiff,
             case catch apply_changes(CC, LC, LHC, State1,
                                      DesiredConfigVersion) of
                 {ok, Node} = R ->
+                    ?INFO_MSG("remote config reload succeeded", []),
                     R;
                 UnknownResult ->
+                    ?WARNING_MSG("remote config reload failed! "
+                                 "can't apply desired config", []),
                     {error, Node,
-                     lists:flatten(io_lib:format("~p",
-                                                 [UnknownResult]))}
+                     lists:flatten(io_lib:format("~p", [UnknownResult]))}
             end;
         _ ->
-            {error, Node, io_lib:format("Mismatching config file",[])}
+            ?WARNING_MSG("remote config reload failed! "
+                         "can't compute current config version", []),
+            {error, Node, io_lib:format("Mismatching config file", [])}
     end.
 
 -spec apply_changes(term(), term(), term(), state(), binary()) ->
                            {ok, node()} | {error, node(), string()}.
 apply_changes(ConfigChanges, LocalConfigChanges, LocalHostsChanges,
               State, DesiredConfigVersion) ->
-    
     ConfigVersion = compute_config_version(get_local_config(),
                                            get_host_local_config()),
-    case ConfigVersion  of
+    ?DEBUG("config version: ~p", [ConfigVersion]),
+    case ConfigVersion of
         DesiredConfigVersion  ->
             ok;
         _ ->
-            exit("Outdated configuration on node cannot apply new one")
+            exit("Outdated configuration on node; cannot apply new one")
     end,
     %% apply config
     set_opts(State),
