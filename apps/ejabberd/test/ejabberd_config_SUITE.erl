@@ -13,7 +13,8 @@
 
 all() ->
     [smoke,
-     {group, reload_local}].
+     {group, reload_local},
+     split_config].
 
 groups() ->
     [{reload_local, [], [coalesce_multiple_local_config_options,
@@ -92,6 +93,38 @@ reload_a_module(C) ->
     % cleanup
     ok = stop_ejabberd().
 
+split_config(Config) ->
+    % given
+    given_vhost_config_split_into_multiple_files(Config),
+    % when
+    application:load(ejabberd),
+    application:set_env(ejabberd, config, suite_priv(Config, "etc/ejabberd.cfg")),
+    ok = start_ejabberd(Config),
+    % then
+    then_vhost_config_works(Config),
+    % cleanup
+    ok = stop_ejabberd().
+
+given_vhost_config_split_into_multiple_files(C) ->
+    [ ok = filelib:ensure_dir(D) || D <- [suite_priv(C, "etc/"),
+                                          suite_priv(C, "etc/fake.domain.one/"),
+                                          suite_priv(C, "etc/fake.domain.two/")] ],
+    copy(data(C, "ejabberd.split.cfg"), suite_priv(C, "etc/ejabberd.cfg")),
+    copy(data(C, "ejabberd.hosts.cfg"), suite_priv(C, "etc/ejabberd.hosts.cfg")),
+    %copy(data(C, "fake.domain.one/host.cfg"),
+    %     suite_priv(C, "etc/fake.domain.one/host.cfg")),
+    %copy(data(C, "fake.domain.one/host.cfg"),
+    %     suite_priv(C, "etc/fake.domain.one/certfile.pem")),
+    %copy(data(C, "fake.domain.two/host.cfg"),
+    %     suite_priv(C, "etc/fake.domain.two/host.cfg")),
+    %copy(data(C, "fake.domain.two/host.cfg"),
+    %     suite_priv(C, "etc/fake.domain.two/certfile.pem")).
+    ok.
+
+then_vhost_config_works(_C) ->
+    ?eq([{config, hosts, [<<"fake.domain.one">>, <<"fake.domain.two">>]}],
+        ets:lookup(config, hosts)).
+
 %%
 %% Helpers
 %%
@@ -125,9 +158,24 @@ get_module_pid(ModuleProcName) ->
 data(Config, Path) ->
     rel(Config, data_dir, Path).
 
+%% This is the private config of a particular testcase and run, i.e.
+%% .../mongooseim/apps/ejabberd/logs/ct_run.test@x4.local.2014-10-08_16.33.48/apps.ejabberd.ejabberd_config_SUITE.split_config.logs/run.2014-10-08_16.33.48/log_private/
 priv(Config, Path) ->
     rel(Config, priv_dir, Path).
 
 rel(Config, To, Path) ->
     Dir = proplists:get_value(To, Config),
     filename:join([Dir, Path]).
+
+%% This is the suite-level private config for a test run.
+%% .../mongooseim/apps/ejabberd/logs/ct_run.test@x4.local.2014-10-08_16.33.48/log_private/
+suite_priv(Config, PathSuffix) ->
+    Dir = proplists:get_value(priv_dir, Config),
+    FourDirsUp = lists:foldl(fun (_, Path) -> filename:dirname(Path) end,
+                             Dir, lists:seq(1,4)),
+    filename:join([FourDirsUp, "log_private", PathSuffix]).
+
+times(N, E) -> times(N, E, []).
+
+times(0, _, Acc) -> Acc;
+times(N, E, Acc) -> times(N-1, E, [E | Acc]).
