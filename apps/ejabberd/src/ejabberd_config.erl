@@ -786,15 +786,15 @@ reload_local() ->
         {ok, io_lib:format("# Reloaded: ~s", [node()])}
     catch
         Error:Reason ->
-            Msg = msg("failed to apply config on node: ~p~nReason: ~p",
+            Msg = msg("failed to apply config on node: ~p~nreason: ~p",
                       [node(), {Error, Reason}]),
             ?WARNING_MSG("node config reload failed!~n"
                          "current config version: ~p~n"
                          "config file: ~s~n"
                          "reason: ~p~n"
-                         "stacktrace: ~p",
+                         "stacktrace: ~ts",
                          [ConfigVersion, ConfigFile, Msg,
-                          erlang:get_stacktrace()]),
+                          msg("~p", [erlang:get_stacktrace()])]),
             error(Msg)
     end.
 
@@ -836,13 +836,12 @@ reload_cluster() ->
             end,
             {ok,  ResultText};
         Error ->
-            Reason = io_lib:format("failed to apply config on node:"
-                                   " ~p ~n Reason: ~p",
-                                   [CurrentNode, Error]),
+            Reason = msg("failed to apply config on node: ~p~nreason: ~p",
+                         [CurrentNode, Error]),
             ?WARNING_MSG("cluster config reload failed!~n"
                          "config file: ~s~n"
-                         "reason: ~p", [ConfigFile, Reason]),
-            exit(lists:flatten(Reason))
+                         "reason: ~ts", [ConfigFile, Reason]),
+            exit(Reason)
     end.
 
 -spec groups_to_string(string(), [string()]) -> string().
