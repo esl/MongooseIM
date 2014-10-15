@@ -9,8 +9,8 @@ before_script:
 script: tools/travis-test.sh
 
 after_success:
-        - tar cvzf mongooseim.tar.gz ./rel/mongooseim/
-        - curl --ftp-create-dirs -T mongooseim.tar.gz -u $FTP_USER:$FTP_PASSWORD ftp://$FTP_SERVER/mongooseim/mongooseim.tar.gz
+        - tar cvzf $TARBALL_NAME -C rel/mongooseim/ .
+        - curl --ftp-create-dirs -T $TARBALL_NAME -u $FTP_USER:$FTP_PASSWORD ftp://$FTP_SERVER/mongooseim/$TARBALL_NAME
 
 after_script:
         - cat `ls -1 -d -t apps/ejabberd/logs/ct_run* | head -1`/apps.ejabberd.logs/run.*/suite.log
@@ -27,5 +27,8 @@ notifications:
 otp_release:
         - R15B03
 env:
-        - TEST_CONFIG=odbc_redis DB=mysql
+        global:
+                - TARBALL_NAME=${TRAVIS_BUILD_NUMBER}-${TRAVIS_COMMIT:0:6}.tar.gz
+        matrix:
+                - TEST_CONFIG=odbc_redis DB=mysql
 
