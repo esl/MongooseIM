@@ -47,8 +47,7 @@
 -export([reload_local/0,
          reload_cluster/0,
          apply_changes_remote/4,
-         apply_changes/5,
-         replace_config_file/2]).
+         apply_changes/5]).
 
 -export([compute_config_version/2,
          get_local_config/0,
@@ -955,16 +954,6 @@ reload_local_hosts_config(#compare_result{to_start = LCHAdd, to_stop = LCHDel,
     lists:foreach(fun handle_local_hosts_config_change/1, LCHChange),
     lists:foreach(fun handle_local_hosts_config_add/1, LCHAdd),
     lists:foreach(fun handle_local_hosts_config_del/1, LCHDel).
-
--spec replace_config_file(binary(), string()) -> {ok, node()}.
-replace_config_file(NewConfig, BackupSuffix) ->
-    ConfigPath = get_ejabberd_config_path(),
-    {ok, _} = file:copy(ConfigPath, backup_path(ConfigPath, BackupSuffix)),
-    ok = file:write_file(ConfigPath, NewConfig),
-    {ok, node()}.
-
-backup_path(Path, BackupSuffix) ->
-    Path ++ "." ++ BackupSuffix.
 
 %% ----------------------------------------------------------------
 %% CONFIG
