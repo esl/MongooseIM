@@ -48,42 +48,41 @@ coalesce_multiple_local_config_options(_Config) ->
     F = fun ejabberd_config:group_host_changes/1,
     ?eq(coalesced_modules_section(), F(multiple_modules_sections())).
 
-add_a_module(Config) ->
+add_a_module(C) ->
     % given a running server with a specific module off
-    copy_config(Config, "ejabberd.default.cfg", "ejabberd.cfg"),
-    start_ejabberd_with_config(Config, "ejabberd.cfg"),
+    copy(data(C, "ejabberd.default.cfg"), data(C, "ejabberd.cfg")),
+    start_ejabberd_with_config(C, "ejabberd.cfg"),
     ?eq(false, gen_mod:is_loaded(<<"localhost">>, mod_offline)),
     % when adding the module to the configuration
-    copy_config(Config, "ejabberd.with_mod_offline.cfg", "ejabberd.cfg"),
+    copy(data(C, "ejabberd.with_mod_offline.cfg"), data(C, "ejabberd.cfg")),
     ejabberd_config:reload_local(),
     % then the new module gets started
     ?eq(true, gen_mod:is_loaded(<<"localhost">>, mod_offline)),
     % cleanup
     ok = stop_ejabberd().
 
-delete_a_module(Config) ->
+delete_a_module(C) ->
     % given a running server with a specific module on
-    copy_config(Config, "ejabberd.with_mod_offline.cfg", "ejabberd.cfg"),
-    start_ejabberd_with_config(Config, "ejabberd.cfg"),
+    copy(data(C, "ejabberd.with_mod_offline.cfg"), data(C, "ejabberd.cfg")),
+    start_ejabberd_with_config(C, "ejabberd.cfg"),
     ?eq(true, gen_mod:is_loaded(<<"localhost">>, mod_offline)),
     % when deleting the module from the configuration
-    copy_config(Config, "ejabberd.default.cfg", "ejabberd.cfg"),
+    copy(data(C, "ejabberd.default.cfg"), data(C, "ejabberd.cfg")),
     ejabberd_config:reload_local(),
     % then the module is stopped
     ?eq(false, gen_mod:is_loaded(<<"localhost">>, mod_offline)),
     % cleanup
     ok = stop_ejabberd().
 
-reload_a_module(Config) ->
+reload_a_module(C) ->
     % given a running server with a specific module on
-    copy_config(Config, "ejabberd.with_mod_offline.cfg", "ejabberd.cfg"),
-    start_ejabberd_with_config(Config, "ejabberd.cfg"),
+    copy(data(C, "ejabberd.with_mod_offline.cfg"), data(C, "ejabberd.cfg")),
+    start_ejabberd_with_config(C, "ejabberd.cfg"),
     ?eq(true, gen_mod:is_loaded(<<"localhost">>, mod_offline)),
     OfflineProcBefore = get_module_pid(mod_offline_localhost),
     % when changing the module configuration
-    copy_config(Config,
-                "ejabberd.with_mod_offline.different_opts.cfg",
-                "ejabberd.cfg"),
+    copy(data(C, "ejabberd.with_mod_offline.different_opts.cfg"),
+         data(C, "ejabberd.cfg")),
     ejabberd_config:reload_local(),
     % then the module is reloaded
     ?eq(true, gen_mod:is_loaded(<<"localhost">>, mod_offline)),
@@ -108,11 +107,8 @@ coalesced_modules_section() ->
     [{{modules,<<"localhost">>}, [{mod_adhoc,[]},
                                   {mod_offline,[]}]}].
 
-copy_config(Config, Src, Dst) ->
-    DataDir = proplists:get_value(data_dir, Config),
-    SrcConfigPath = filename:join([DataDir, Src]),
-    DstConfigPath = filename:join([DataDir, Dst]),
-    {ok, _} = file:copy(SrcConfigPath, DstConfigPath).
+copy(Src, Dst) ->
+    {ok, _} = file:copy(Src, Dst).
 
 get_module_pid(ModuleProcName) ->
     %% We can't generate the proc name here using gen_mod:get_module_proc/2
@@ -124,3 +120,13 @@ get_module_pid(ModuleProcName) ->
     {ModuleProcName,
      ModulePid, _, _} = lists:keyfind(ModuleProcName, 1, EjabberdProcesses),
     {ModuleProcName, ModulePid}.
+
+data(Config, Path) ->
+    rel(Config, data_dir, Path).
+
+priv(Config, Path) ->
+    rel(Config, priv_dir, Path).
+
+rel(Config, To, Path) ->
+    Dir = proplists:get_value(To, Config),
+    filename:join([Dir, Path]).
