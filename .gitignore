@@ -78,3 +78,7 @@ apps/ejabberd/ebin/ejabberd.app
 dev/*
 test/*
 ebin/
+
+# IntelliJ
+.idea
+*.iml
