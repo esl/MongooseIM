@@ -11,7 +11,7 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml.hrl").
 
--define(NS_SIC, <<"urn:xmpp:sic:0">>).
+-define(NS_SIC, <<"urn:xmpp:sic:1">>).
 
 %%%===================================================================
 %%% Suite configuration
@@ -90,7 +90,11 @@ is_sic_response() ->
     fun(Stanza) ->
         escalus_pred:is_iq(<<"result">>, Stanza)
         andalso
-        <<"127.0.0.1">> == exml_query:path(Stanza, [{element, <<"ip">>}, cdata])
+        ?NS_SIC == exml_query:path(Stanza, [{element, <<"address">>}, {attr, <<"xmlns">>}])
+        andalso
+        <<"127.0.0.1">> == exml_query:path(Stanza, [{element, <<"address">>}, {element, <<"ip">>}, cdata])
+        andalso
+        is_binary(exml_query:path(Stanza, [{element, <<"address">>}, {element, <<"port">>}, cdata]))
     end.
 
 %%%===================================================================
@@ -107,7 +111,7 @@ stop_module(ModuleName) ->
 
 sic_iq_get() ->
     escalus_stanza:iq(<<"get">>, [#xmlel{
-        name = <<"ip">>,
+        name = <<"address">>,
         attrs = [{<<"xmlns">>, ?NS_SIC}],
         children = []
     }]).
