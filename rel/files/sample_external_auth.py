@@ -1,9 +1,17 @@
 #!/usr/bin/python
 
 import sys
+import pickle
 from struct import *
 
-users = {}
+outfile = '/tmp/external_auth_users'
+try:
+    f = open(outfile, 'r')
+    users = pickle.load(f)
+except:
+    users = {}
+else:
+    f.close()
 
 def from_ejabberd():
     input_length = sys.stdin.read(2)
@@ -35,11 +43,18 @@ def tryregister(username, server, password):
     if username in users:
         return False
     users[username] = password
+    serialize()
     return True
 
 def removeuser(username, server):
     del users[username]
+    serialize()
     return True
+
+def serialize():
+    f = open(outfile, 'a')
+    pickle.dump(users, f)
+    f.close()
 
 while True:
     data = from_ejabberd()
