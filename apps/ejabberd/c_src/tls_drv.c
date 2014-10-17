@@ -277,6 +277,10 @@ static void tls_drv_finish()
    }
 
    driver_free(ht.buckets);
+
+   ERR_free_strings();
+   CRYPTO_cleanup_all_ex_data();
+   EVP_cleanup();
 }
 
 static int is_key_file_modified(char *file, time_t *key_file_mtime)
