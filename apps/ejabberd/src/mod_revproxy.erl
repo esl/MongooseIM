@@ -19,6 +19,11 @@
          handle/2,
          terminate/3]).
 
+%% for use by tests only
+-export([compile_routes/1,
+         match/4,
+         upstream_uri/2]).
+
 -record(state, {timeout, length}).
 
 -type option() :: {atom(), any()}.
@@ -243,80 +248,3 @@ mod_revproxy_dynamic_src(Routes) ->
 
          rules() ->
              ", io_lib:format("~p", [Rules]), ".\n"]).
-
-%%--------------------------------------------------------------------
-%% Unit tests
-%%--------------------------------------------------------------------
--ifdef(TEST).
--include_lib("eunit/include/eunit.hrl").
-
-example_routes() ->
-    [{"domain.com", "/abc", "_", "http://localhost:8080/"},
-     {"domain.com", get, "http://localhost:1234"},
-     {"static.domain.com", get, "http://localhost:9999/"},
-     {"abc.domain.com", "/", "_", "http://localhost:8888"}]. 
-
-compile_test() ->
-    Compiled = [{[<<"domain">>,<<"com">>],
-                 [<<"abc">>],
-                 '_',
-                 {uri,<<"http://localhost:8080/">>}},
-                {[<<"domain">>,<<"com">>],
-                 '_',
-                 <<"GET">>,
-                 {host,<<"http://localhost:1234">>}},
-                {[<<"static">>,<<"domain">>,<<"com">>],
-                 '_',
-                 <<"GET">>,
-                 {uri,<<"http://localhost:9999/">>}},
-                {[<<"abc">>,<<"domain">>,<<"com">>],
-                 [],
-                 '_',
-                 {host,<<"http://localhost:8888">>}}],
-    Compiled = compile(example_routes()).
-
-match_test_() ->
-    Rules = compile(example_routes()),
-    Tests = [{"domain.com/abc GET",
-              {<<"domain.com">>, <<"/abc">>, <<"GET">>},
-              {uri, <<"http://localhost:8080/">>}},
-             {"domain.com/abc/def GET",
-              {<<"domain.com">>, <<"/abc/def">>, <<"GET">>},
-              {host, <<"http://localhost:1234">>}},
-             {"unknown.com/somepath GET",
-              {<<"unknown.com">>, <<"/somepath">>, <<"GET">>},
-              false},
-             {"static.domain.com/file.html GET",
-              {<<"static.domain.com">>, <<"/file.html">>, <<"GET">>},
-              {uri, <<"http://localhost:9999/">>}},
-             {"static.domain.com/file.html PUT",
-              {<<"static.domain.com">>, <<"/file.html">>, <<"PUT">>},
-              false},
-             {"domain.com/def POST",
-              {<<"domain.com">>, <<"/def">>, <<"POST">>},
-              false},
-             {"abc.domain.com/ OPTIONS",
-              {<<"abc.domain.com">>, <<"/">>, <<"OPTIONS">>},
-              {host, <<"http://localhost:8888">>}},
-             {"abc.domain.com/a DELETE",
-              {<<"abc.domain.com">>, <<"/a">>, <<"DELETE">>},
-              false}],
-    [{Title, fun() ->
-                Upstream = match(Rules, Host, Path, Method)
-             end} || {Title, {Host, Path, Method}, Upstream} <- Tests].
-
-url_test_() ->
-    Tests = [{{host, <<"http://localhost:9999">>},
-              <<"/def/ghi/jkl/index.html">>,
-              {"http://localhost:9999", <<"/def/ghi/jkl/index.html">>}},
-             {{uri, <<"http://localhost:8888/">>},
-              <<"/abc">>,
-              {"http://localhost:8888", <<"/">>}},
-             {{host, <<"https://localhost:1234">>},
-              <<"/">>,
-              {"https://localhost:1234", <<"/">>}}],
-    [fun() ->
-        URL = upstream_uri(Upstream, Path)
-     end || {Upstream, Path, URL} <- Tests].
-
--endif.
