@@ -19,10 +19,13 @@
          handle/2,
          terminate/3]).
 
-%% for use by tests only
+%% to be used by tests only
 -export([compile_routes/1,
          match/4,
-         upstream_uri/2]).
+         upstream_uri/1,
+         split/4]).
+
+-include("mod_revproxy.hrl").
 
 -record(state, {timeout, length}).
 
@@ -32,7 +35,6 @@
 -type host()     :: '_' | string() | binary().
 -type path()     :: '_' | string() | binary().
 -type method()   :: '_' | atom() | string() | binary().
--type upstream() :: string() | binary().
 -type route()    :: {host(), method(), upstream()} |
                     {host(), path(), method(), upstream()}.
 
@@ -77,22 +79,21 @@ handle(Req, State) ->
     {Path, Req2} = cowboy_req:path(Req1),
     {Method, Req3} = cowboy_req:method(Req2),
     Match = match(mod_revproxy_dynamic:rules(), Host, Path, Method),
-    handle_match(Match, Method, Path, Req3, State).
+    handle_match(Match, Method, Req3, State).
 
 -spec terminate(any(), cowboy_req:req(), state()) -> ok.
 terminate(_Reason, _Req, _State) ->
     ok.
-
 
 %%--------------------------------------------------------------------
 %% Internal functions
 %%--------------------------------------------------------------------
 
 %% Passing and receiving request via fusco
-handle_match({_, _}=Upstream, Method, Path, Req, State) ->
-    {UpstreamHost, UpstreamPath} = upstream_uri(Upstream, Path),
-    pass_request(UpstreamHost, UpstreamPath, Method, Req, State);
-handle_match(false, _, _, Req, State) ->
+handle_match(#match{}=Match, Method, Req, State) ->
+    {Host, Path} = upstream_uri(Match),
+    pass_request(Host, Path, Method, Req, State);
+handle_match(false, _, Req, State) ->
     {ok, Req1} = cowboy_req:reply(404, Req),
     {ok, Req1, State}.
 
@@ -117,8 +118,6 @@ return_response({error, _Other}, Req, State) ->
     {ok, Req1} = cowboy_req:reply(502, Req),
     {ok, Req1, State}.
 
-%% this will only handle bodies that cowboy can read at once
-%% (by default bodies up to 8 mb) tbd if chunks should be streamed or rejected
 request_body(Req, #state{length=Length}) ->
     case cowboy_req:has_body(Req) of
         false ->
@@ -129,13 +128,42 @@ request_body(Req, #state{length=Length}) ->
     end.
 
 %% Cowboy-like routing functions
-upstream_uri({uri, URI}, _) ->
-    Size = byte_size(URI),
-    [Host, Path] = binary:split(URI, <<"/">>, [{scope,{8,Size-8}}]),
-    {binary_to_list(Host), << "/", Path/binary >>};
-upstream_uri({host, Host}, Path) ->
-    {binary_to_list(Host), Path}.
+upstream_uri(#match{upstream={Type, Host}}=Match) ->
+    #match{remainder=Remainder, bindings=Bindings, path=Path} = Match,
+    Segments = case {Type,Path} of
+        {uri, _} -> Host ++ Remainder;
+        {_, '_'} -> Host ++ Remainder;
+        _        -> Host ++ Path ++ Remainder
+    end,
+    BoundURI = upstream_bindings(Segments, Bindings, <<>>),
+    upstream_host_path(BoundURI).
 
+upstream_host_path(<<"http://", Rest/binary>>) ->
+    upstream_host_path(Rest, <<"http://">>);
+upstream_host_path(<<"https://", Rest/binary>>) ->
+    upstream_host_path(Rest, <<"https://">>).
+
+upstream_host_path(HostPath, Prefix) ->
+    [Host, Path] = binary:split(HostPath, <<"/">>),
+    FullHost = <<Prefix/binary, Host/binary>>,
+    {binary_to_list(FullHost), <<"/", Path/binary>>}.
+
+upstream_bindings([], _, Acc) ->
+    Acc;
+upstream_bindings([<<>>|Tail], Bindings, Acc) when Tail =/= [] ->
+    upstream_bindings(Tail, Bindings, Acc);
+upstream_bindings([Binding|Tail], Bindings, Acc) when is_atom(Binding) ->
+    {Binding, Value} = lists:keyfind(Binding, 1, Bindings),
+    upstream_bindings(Tail, Bindings, upstream_append(Value, Acc));
+upstream_bindings([Head|Tail], Bindings, Acc) ->
+    upstream_bindings(Tail, Bindings, upstream_append(Head, Acc)).
+
+upstream_append(Value, <<>>) ->
+    Value;
+upstream_append(Value, Acc) ->
+    <<Acc/binary, "/", Value/binary>>.
+
+%% Matching request to the upstream
 match(Rules, Host, Path, Method) when is_list(Host), is_list(Path) ->
     match_rules(Rules, Host, Path, Method);
 match(Rules, Host, Path, Method) ->
@@ -145,10 +173,10 @@ match_rules([], _, _, _) ->
     false;
 match_rules([Rule|Tail], Host, Path, Method) ->
     case match_method(Rule, Host, Path, Method) of
-        {Type, Upstream} ->
-            {Type, Upstream};
-        _ ->
-            match_rules(Tail, Host, Path, Method)
+        false ->
+            match_rules(Tail, Host, Path, Method);
+        Result ->
+            Result
     end.
 
 match_method({_, _, '_', _}=Rule, Host, Path, _Method) ->
@@ -158,20 +186,65 @@ match_method({_, _, Method, _}=Rule, Host, Path, Method) ->
 match_method(_, _, _, _) ->
     false.
 
-match_path({_, '_', _, _}=Rule, Host, _Path) ->
-    match_host(Rule, Host);
-match_path({_, Path, _, _}=Rule, Host, Path) ->
-    match_host(Rule, Host);
-match_path(_, _, _) ->
+match_path({_, '_', _, _}=Rule, Host, Path) ->
+    match_host(Rule, Host, Path, []);
+match_path({_, RulePath, _, _}=Rule, Host, Path) ->
+    match_path_segments(RulePath, Path, Rule, Host, []).
+
+match_path_segments([], Remainder, Rule, Host, Bindings) ->
+    match_host(Rule, Host, Remainder, Bindings);
+match_path_segments([<<>>|T], Remainder, Rule, Host, Bindings) ->
+    match_path_segments(T, Remainder, Rule, Host, Bindings);
+match_path_segments([H|T1], [H|T2], Rule, Host, Bindings) ->
+    match_path_segments(T1, T2, Rule, Host, Bindings);
+match_path_segments([Binding|T1], [H|T2], Rule, Host, Bindings)
+        when is_atom(Binding) ->
+    case match_bindings(Binding, H, Bindings) of
+        false ->
+            false;
+        Bindings1 ->
+            match_path_segments(T1, T2, Rule, Host, Bindings1)
+    end;
+match_path_segments(_, _, _, _, _) ->
     false.
 
-match_host({'_', _, _, Upstream}, _Host) ->
-    Upstream;
-match_host({Host, _, _, Upstream}, Host) ->
-    Upstream;
-match_host({_, _, _, _}, _) ->
+match_host({'_', RulePath, _, Upstream}, _Host, Remainder, Bindings) ->
+    #match{upstream = Upstream,
+           path = RulePath,
+           remainder = Remainder,
+           bindings = Bindings};
+match_host({RuleHost, Path, _, Upstream}, Host, Remainder, Bindings) ->
+    match_host_segments(RuleHost, Host, Upstream, Remainder, Path, Bindings).
+
+match_host_segments([], [], Upstream, Remainder, Path, Bindings) ->
+    #match{upstream = Upstream,
+           path = Path,
+           remainder = Remainder,
+           bindings = Bindings};
+match_host_segments([H|T1], [H|T2], Upstream, Remainder, Path, Bindings) ->
+    match_host_segments(T1, T2, Upstream, Remainder, Path, Bindings);
+match_host_segments([Binding|T1], [H|T2], Upstream, Remainder, Path, Bindings)
+        when is_atom(Binding) ->
+    case match_bindings(Binding, H, Bindings) of
+        false ->
+            false;
+        Bindings1 ->
+            match_host_segments(T1, T2, Upstream, Remainder, Path, Bindings1)
+    end;
+match_host_segments(_, _, _, _, _, _) ->
     false.
 
+match_bindings(Binding, Value, Bindings) ->
+    case lists:keyfind(Binding, 1, Bindings) of
+        {Binding, Value} ->
+            Bindings;
+        {Binding, _} ->
+            false;
+        false ->
+            lists:keystore(Binding, 1, Bindings, {Binding, Value})
+    end.
+
+%% Rules compilation
 compile_routes(Routes) ->
     compile_routes(Routes, []).
 
@@ -216,28 +289,77 @@ compile_method(List) when is_list(List) ->
 compile_method(Atom) when is_atom(Atom) ->
     compile_method(atom_to_binary(Atom, utf8)).
 
-compile_upstream(<< "http://", Rest/binary >> = Bin) ->
-    uri_or_host(Rest, Bin);
-compile_upstream(<< "https://", Rest/binary >> = Bin) ->
-    uri_or_host(Rest, Bin);
+compile_upstream(<< "http://", _/binary >> = Bin) ->
+    uri_or_host(Bin);
+compile_upstream(<< "https://", _/binary >> = Bin) ->
+    uri_or_host(Bin);
 compile_upstream(List) when is_list(List) ->
     compile_upstream(list_to_binary(List));
+compile_upstream(Atom) when is_atom(Atom) ->
+    Atom;
 compile_upstream(_) ->
     erlang:error(badarg).
 
-uri_or_host(Url, Upstream) ->
-    case binary:match(Url, <<"/">>) of
-        nomatch -> {host, Upstream};
-        _       -> {uri, Upstream}
-    end. 
+uri_or_host(Upstream) ->
+    case split_upstream(Upstream) of
+        [<<>>|Tail] ->
+            {uri, lists:reverse(Tail)};
+        List ->
+            {host, lists:reverse(List)}
+    end.
 
 split_host(Host) ->
-    binary:split(Host, <<".">>, [global, trim]).
+    split(Host, $., [], <<>>).
 
-split_path(<<$/, Path/bits>>) ->
-    binary:split(Path, <<"/">>, [global, trim]);
-split_path(_) ->
-    erlang:error(badarg).
+split_path(Path) ->
+    Split = split(Path, $/, [], <<>>),
+    Trailing = include_trailing(Path, $/, Split),
+    lists:reverse(Trailing).
+
+split_upstream(Path) ->
+    Split = split(Path, $/, [], <<>>),
+    include_trailing(Path, $/, Split).
+
+include_trailing(<<Separator>>, Separator, Segments) ->
+    Segments;
+include_trailing(Bin, Separator, Segments) ->
+    case binary:at(Bin, byte_size(Bin)-1) of
+        Separator -> [<<>>|Segments];
+        _         -> Segments
+    end.
+
+split(<<>>, _S, Segments, <<>>) ->
+    Segments;
+split(<<>>, _S, Segments, Acc) ->
+    [Acc|Segments];
+split(<<"http://", Rest/binary>>, S, Segments, <<>>) ->
+    split(Rest, S, Segments, <<"http://">>);
+split(<<"https://", Rest/binary>>, S, Segments, <<>>) ->
+    split(Rest, S, Segments, <<"https://">>);
+split(<<S, Rest/binary>>, S, Segments, <<>>) ->
+    split(Rest, S, Segments, <<>>);
+split(<<S, Rest/binary>>, S, Segments, Acc) ->
+    split(Rest, S, [Acc|Segments], <<>>);
+split(<<$:, Rest/binary>>, S, Segments, <<>>) ->
+    {BindingBin, Rest1} = compile_binding(Rest, S, <<>>),
+    Binding = binary_to_atom(BindingBin, utf8),
+    split(Rest1, S, [Binding|Segments], <<>>);
+split(<<$:, D, Rest/binary>>, S, Segments, Acc)
+        when D >= $0, D =< $9 ->
+    split(Rest, S, Segments, <<Acc/binary, $:, D>>);
+split(<<$:, _Rest/binary>>, _S, _Segments, _Acc) ->
+    erlang:error(badarg);
+split(<<C, Rest/binary>>, S, Segments, Acc) ->
+    split(Rest, S, Segments, <<Acc/binary, C>>).
+
+compile_binding(<<>>, _S, <<>>) ->
+    erlang:error(badarg);
+compile_binding(<<>>, _S, Acc) ->
+    {Acc, <<>>};
+compile_binding(<<S, Rest/binary>>, S, Acc) ->
+    {Acc, Rest};
+compile_binding(<<C, Rest/binary>>, S, Acc) ->
+    compile_binding(Rest, S, <<Acc/binary, C>>).
 
 %% Dynamically compiled configuration module
 mod_revproxy_dynamic_src(Routes) ->
