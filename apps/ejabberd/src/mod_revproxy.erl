@@ -106,7 +106,8 @@ pass_request(Host, Path, Method, Req, #state{timeout=Timeout}=State) ->
 
 return_response({ok, {{Status, _}, Headers, Body, _, _}}, Req, State) ->
     StatusI = binary_to_integer(Status),
-    {ok, Req1} = cowboy_req:reply(StatusI, Headers, Body, Req),
+    Headers1 = remove_confusing_headers(Headers, []),
+    {ok, Req1} = cowboy_req:reply(StatusI, Headers1, Body, Req),
     {ok, Req1, State};
 return_response({error, connect_timeout}, Req, State) ->
     {ok, Req1} = cowboy_req:reply(504, Req),
@@ -127,41 +128,53 @@ request_body(Req, #state{length=Length}) ->
             {Data, Req1}
     end.
 
+remove_confusing_headers([], Acc) ->
+    lists:reverse(Acc);
+remove_confusing_headers([{Field,_}=Header|Tail], Acc) ->
+    case is_header_confusing(cowboy_bstr:to_lower(Field)) of
+        true ->
+            remove_confusing_headers(Tail, Acc);
+        false ->
+            remove_confusing_headers(Tail, [Header|Acc])
+    end.
+
+is_header_confusing(<<"transfer-encoding">>) -> true;
+is_header_confusing(_)                       -> false.
+
 %% Cowboy-like routing functions
-upstream_uri(#match{upstream={Type, Host}}=Match) ->
-    #match{remainder=Remainder, bindings=Bindings, path=Path} = Match,
-    Segments = case {Type,Path} of
-        {uri, _} -> Host ++ Remainder;
-        {_, '_'} -> Host ++ Remainder;
-        _        -> Host ++ Path ++ Remainder
+upstream_uri(#match{upstream=Upstream}=Match) ->
+    #upstream{type=Type,
+              protocol=Protocol,
+              host=UpHost,
+              path=UpPath} = Upstream,
+    #match{remainder=Remainder,
+           bindings=Bindings,
+           path=Path} = Match,
+    BoundHost = upstream_bindings(UpHost, $., Bindings, <<>>),
+    PathSegments = case {Type,Path} of
+        {uri, _} -> UpPath ++ Remainder;
+        {_, '_'} -> UpPath ++ Remainder;
+        _        -> UpPath ++ Path ++ Remainder
     end,
-    BoundURI = upstream_bindings(Segments, Bindings, <<>>),
-    upstream_host_path(BoundURI).
+    BoundPath = upstream_bindings(PathSegments, $/, Bindings, <<>>),
+    FullHost = <<Protocol/binary, BoundHost/binary>>,
+    FullPath = <<"/", BoundPath/binary>>,
+    {binary_to_list(FullHost), FullPath}.
 
-upstream_host_path(<<"http://", Rest/binary>>) ->
-    upstream_host_path(Rest, <<"http://">>);
-upstream_host_path(<<"https://", Rest/binary>>) ->
-    upstream_host_path(Rest, <<"https://">>).
-
-upstream_host_path(HostPath, Prefix) ->
-    [Host, Path] = binary:split(HostPath, <<"/">>),
-    FullHost = <<Prefix/binary, Host/binary>>,
-    {binary_to_list(FullHost), <<"/", Path/binary>>}.
-
-upstream_bindings([], _, Acc) ->
+upstream_bindings([], _, _,  Acc) ->
     Acc;
-upstream_bindings([<<>>|Tail], Bindings, Acc) when Tail =/= [] ->
-    upstream_bindings(Tail, Bindings, Acc);
-upstream_bindings([Binding|Tail], Bindings, Acc) when is_atom(Binding) ->
+upstream_bindings([<<>>|Tail], S, Bindings, Acc) when Tail =/= [] ->
+    upstream_bindings(Tail, S, Bindings, Acc);
+upstream_bindings([Binding|Tail], S, Bindings, Acc) when is_atom(Binding) ->
     {Binding, Value} = lists:keyfind(Binding, 1, Bindings),
-    upstream_bindings(Tail, Bindings, upstream_append(Value, Acc));
-upstream_bindings([Head|Tail], Bindings, Acc) ->
-    upstream_bindings(Tail, Bindings, upstream_append(Head, Acc)).
+    upstream_bindings(Tail, S, Bindings, upstream_append(Value, S, Acc));
+upstream_bindings([Head|Tail], S, Bindings, Acc) ->
+    upstream_bindings(Tail, S, Bindings, upstream_append(Head, S, Acc)).
 
-upstream_append(Value, <<>>) ->
+upstream_append(Value, _, <<>>) ->
     Value;
-upstream_append(Value, Acc) ->
-    <<Acc/binary, "/", Value/binary>>.
+upstream_append(Value, S, Acc) ->
+    <<Acc/binary, S, Value/binary>>.
 
 %% Matching request to the upstream
 match(Rules, Host, Path, Method) when is_list(Host), is_list(Path) ->
@@ -289,24 +302,14 @@ compile_method(List) when is_list(List) ->
 compile_method(Atom) when is_atom(Atom) ->
     compile_method(atom_to_binary(Atom, utf8)).
 
-compile_upstream(<< "http://", _/binary >> = Bin) ->
-    uri_or_host(Bin);
-compile_upstream(<< "https://", _/binary >> = Bin) ->
-    uri_or_host(Bin);
+compile_upstream(Bin) when is_binary(Bin) ->
+    split_upstream(Bin);
 compile_upstream(List) when is_list(List) ->
     compile_upstream(list_to_binary(List));
 compile_upstream(Atom) when is_atom(Atom) ->
     Atom;
 compile_upstream(_) ->
     erlang:error(badarg).
-
-uri_or_host(Upstream) ->
-    case split_upstream(Upstream) of
-        [<<>>|Tail] ->
-            {uri, lists:reverse(Tail)};
-        List ->
-            {host, lists:reverse(List)}
-    end.
 
 split_host(Host) ->
     split(Host, $., [], <<>>).
@@ -316,10 +319,27 @@ split_path(Path) ->
     Trailing = include_trailing(Path, $/, Split),
     lists:reverse(Trailing).
 
-split_upstream(Path) ->
-    Split = split(Path, $/, [], <<>>),
-    include_trailing(Path, $/, Split).
+split_upstream(<<"http://", Rest/binary>>) ->
+    split_upstream(Rest, #upstream{protocol = <<"http://">>});
+split_upstream(<<"https://", Rest/binary>>) ->
+    split_upstream(Rest, #upstream{protocol = <<"https://">>}).
 
+split_upstream(URI, Upstream) ->
+    {Host, Path, Type} = case binary:split(URI, <<"/">>) of
+        [HostSeg] ->
+            {HostSeg, <<>>, host};
+        [HostSeg, PathSeg] ->
+            {HostSeg, PathSeg, uri}
+    end,
+    HostSegments = split(Host, $., [], <<>>),
+    PathSegments = split(Path, $/, [], <<>>),
+    PathTrailing = include_trailing(Path, $/, PathSegments),
+    Upstream#upstream{type = Type,
+                      host = lists:reverse(HostSegments),
+                      path = lists:reverse(PathTrailing)}.
+
+include_trailing(<<>>, _, Segments) ->
+    Segments;
 include_trailing(<<Separator>>, Separator, Segments) ->
     Segments;
 include_trailing(Bin, Separator, Segments) ->
@@ -332,10 +352,6 @@ split(<<>>, _S, Segments, <<>>) ->
     Segments;
 split(<<>>, _S, Segments, Acc) ->
     [Acc|Segments];
-split(<<"http://", Rest/binary>>, S, Segments, <<>>) ->
-    split(Rest, S, Segments, <<"http://">>);
-split(<<"https://", Rest/binary>>, S, Segments, <<>>) ->
-    split(Rest, S, Segments, <<"https://">>);
 split(<<S, Rest/binary>>, S, Segments, <<>>) ->
     split(Rest, S, Segments, <<>>);
 split(<<S, Rest/binary>>, S, Segments, Acc) ->

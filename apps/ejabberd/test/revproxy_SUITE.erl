@@ -28,7 +28,8 @@
 all() ->
     [{group, compile_routes},
      {group, match_routes},
-     {group, generate_upstream}].
+     {group, generate_upstream},
+     {group, requests_http}].
 
 groups() ->
     [{compile_routes, [sequence], [compile_example_routes,
@@ -42,7 +43,11 @@ groups() ->
                                       upstream_host,
                                       upstream_bindings,
                                       upstream_slash_path,
-                                      upstream_slash_remainder]}].
+                                      upstream_slash_remainder]},
+     {requests_http, [sequence], [no_upstreams,
+                                  http_upstream,
+                                  nomatch_upstream,
+                                  https_upstream]}].
 
 suite() ->
     [].
@@ -51,12 +56,18 @@ suite() ->
 %% Init & teardown
 %%--------------------------------------------------------------------
 
+-define(APPS, [crypto, ssl, fusco, ranch, cowlib, cowboy]).
+
 init_per_suite(Config) ->
+    [application:start(App) || App <- ?APPS],
     Config.
 
 end_per_suite(Config) ->
     Config.
 
+init_per_group(requests_http, Config) ->
+    start_revproxy(),
+    Config;
 init_per_group(match_routes, Config) ->
     Rules = mod_revproxy:compile_routes(example_routes()),
     [{rules, Rules}|Config];
@@ -66,9 +77,21 @@ init_per_group(_GroupName, Config) ->
 end_per_group(_GroupName, Config) ->
     Config.
 
+init_per_testcase(http_upstream, Config) ->
+    start_http_upstream(),
+    Config;
+init_per_testcase(https_upstream, Config) ->
+    start_https_upstream(Config),
+    Config;
 init_per_testcase(_CaseName, Config) ->
     Config.
 
+end_per_testcase(http_upstream, Config) ->
+    stop_upstream(http_upstream),
+    Config;
+end_per_testcase(https_upstream, Config) ->
+    stop_upstream(https_upstream),
+    Config;
 end_per_testcase(_CaseName, Config) ->
     Config.
 
@@ -96,6 +119,67 @@ example_dynamic_compile(_Config) ->
     Expected = mod_revproxy_dynamic:rules().
 
 %%--------------------------------------------------------------------
+%% HTTP requests tests
+%%--------------------------------------------------------------------
+no_upstreams(_Config) ->
+    %% Given
+    Host = "http://localhost:8080",
+    Path = <<"/abc/index.html">>,
+    Method = "GET",
+    Headers = [{<<"host">>, <<"qwerty.com">>}],
+    Body = [],
+
+    %% When
+    Response = execute_request(Host, Path, Method, Headers, Body),
+
+    %% Then
+    true = is_status_code(Response, 502).
+
+http_upstream(_Config) ->
+    %% Given
+    Host = "http://localhost:8080",
+    Path = <<"/abc/">>,
+    Method = "GET",
+    Headers = [{<<"host">>, <<"qwerty.com">>}],
+    Body = [],
+
+    %% When
+    Response = execute_request(Host, Path, Method, Headers, Body),
+
+    %% Then
+    true = is_status_code(Response, 200),
+    error_logger:info_msg("~p~n", [Response]).
+
+nomatch_upstream(_Config) ->
+    %% Given
+    Host = "http://localhost:8080",
+    Path = <<"/abc/def">>,
+    Method = "GET",
+    Headers = [{<<"host">>, <<"domain.net">>}],
+    Body = [],
+
+    %% When
+    Response = execute_request(Host, Path, Method, Headers, Body),
+
+    %% Then
+    true = is_status_code(Response, 404).
+
+https_upstream(_Config) ->
+    %% Given
+    Host = "http://localhost:8080",
+    Path = <<"/admin/index.html">>,
+    Method = "POST",
+    Headers = [{<<"host">>, <<"otherdomain.com">>}],
+    Body = [],
+
+    %% When
+    Response = execute_request(Host, Path, Method, Headers, Body),
+    error_logger:info_msg("~p~n", [Response]),
+
+    %% Then
+    true = is_status_code(Response, 200).
+
+%%--------------------------------------------------------------------
 %% Routes matching tests
 %%--------------------------------------------------------------------
 exact_path_match(Config) ->
@@ -107,12 +191,15 @@ exact_path_match(Config) ->
     Method2 = <<"POST">>,
 
     %% When
-    Upstream1 = mod_revproxy:match(Rules, Host, Path, Method1),
-    Upstream2 = mod_revproxy:match(Rules, Host, Path, Method2),
+    Match1 = mod_revproxy:match(Rules, Host, Path, Method1),
+    Match2 = mod_revproxy:match(Rules, Host, Path, Method2),
 
     %% Then
-    #match{upstream = {uri, [<<"http://localhost:8080">>]}} = Upstream1
-                                                            = Upstream2.
+    Upstream = #upstream{type = uri,
+                         protocol = <<"http://">>,
+                         host = [<<"localhost:8080">>]},
+    #match{upstream = Upstream} = Match1
+                                = Match2.
 
 remainder_match(Config) ->
     %% Given
@@ -123,17 +210,23 @@ remainder_match(Config) ->
     Method = <<"GET">>,
 
     %% When
-    Upstream1 = mod_revproxy:match(Rules, Host, Path1, Method),
-    Upstream2 = mod_revproxy:match(Rules, Host, Path2, Method),
+    Match1 = mod_revproxy:match(Rules, Host, Path1, Method),
+    Match2 = mod_revproxy:match(Rules, Host, Path2, Method),
 
     %% Then
-    #match{upstream = {uri, [<<"http://localhost:8080">>]},
+    Upstream1 = #upstream{type = uri,
+                          protocol = <<"http://">>,
+                          host = [<<"localhost:8080">>]},
+    #match{upstream = Upstream1,
            remainder = [<<"def">>, <<"ghi">>, <<"index.html">>],
-           path = [<<"abc">>]} = Upstream1,
+           path = [<<"abc">>]} = Match1,
 
-    #match{upstream = {host, [<<"http://localhost:1234">>]},
+    Upstream2 = #upstream{type = host,
+                          protocol = <<"http://">>,
+                          host = [<<"localhost:1234">>]},
+    #match{upstream = Upstream2,
            remainder = [<<"def">>, <<"ghi">>, <<"index.html">>],
-           path = '_'} = Upstream2.
+           path = '_'} = Match2.
 
 capture_subdomain_match(Config) ->
     %% Given
@@ -144,18 +237,25 @@ capture_subdomain_match(Config) ->
     Method = <<"GET">>,
 
     %% When
-    Upstream1 = mod_revproxy:match(Rules, Host1, Path, Method),
-    Upstream2 = mod_revproxy:match(Rules, Host2, Path, Method),
+    Match1 = mod_revproxy:match(Rules, Host1, Path, Method),
+    Match2 = mod_revproxy:match(Rules, Host2, Path, Method),
 
     %% Then
-    #match{upstream = {uri, [<<"http://localhost:9999">>]},
+    Upstream1 = #upstream{type = uri,
+                          protocol = <<"http://">>,
+                          host = [<<"localhost:9999">>]},
+    #match{upstream = Upstream1,
            remainder = [<<"a">>, <<"b">>, <<"c">>],
-           path = '_'} = Upstream1,
+           path = '_'} = Match1,
 
-    #match{upstream = {uri, [<<"http://localhost:8888">>, whatever]},
+    Upstream2 = #upstream{type = uri,
+                          protocol = <<"http://">>,
+                          host = [<<"localhost:8888">>],
+                          path = [whatever, <<>>]},
+    #match{upstream = Upstream2,
            remainder = [<<"a">>, <<"b">>, <<"c">>],
            bindings = [{whatever, <<"nonstatic">>}],
-           path = []} = Upstream2.
+           path = []} = Match2.
 
 method_match(Config) ->
     %% Given
@@ -166,19 +266,25 @@ method_match(Config) ->
     Method2 = <<"POST">>,
 
     %% When
-    Upstream1 = mod_revproxy:match(Rules, Host, Path, Method1),
-    Upstream2 = mod_revproxy:match(Rules, Host, Path, Method2),
+    Match1 = mod_revproxy:match(Rules, Host, Path, Method1),
+    Match2 = mod_revproxy:match(Rules, Host, Path, Method2),
 
     %% Then
-    #match{upstream = {host, [<<"http://localhost:1234">>]},
+    Upstream1 = #upstream{type = host,
+                          protocol = <<"http://">>,
+                          host = [<<"localhost:1234">>]},
+    #match{upstream = Upstream1,
            remainder = [<<"path">>, <<"a">>, <<"b">>, <<"c">>],
-           path = '_'} = Upstream1,    
+           path = '_'} = Match1,
 
-    #match{upstream = {host, [<<"http://localhost:6543">>,<<"detailed_path">>,
-                              host, path]},
+    Upstream2 = #upstream{type = uri,
+                          protocol = <<"http://">>,
+                          host = [<<"localhost:6543">>],
+                          path = [<<"detailed_path">>, host, path]},
+    #match{upstream = Upstream2,
            remainder = [<<"b">>, <<"c">>],
            bindings = Bindings,
-           path = [<<"path">>, path, <<>>]} = Upstream2,
+           path = [<<"path">>, path, <<>>]} = Match2,
     <<"domain">> = proplists:get_value(host, Bindings),
     <<"a">> = proplists:get_value(path, Bindings).
 
@@ -190,20 +296,26 @@ slash_ending_match(Config) ->
     Method = <<"GET">>,
 
     %% When
-    Upstream = mod_revproxy:match(Rules, Host, Path, Method),
+    Match = mod_revproxy:match(Rules, Host, Path, Method),
 
     %% Then
-    #match{upstream = {host, [<<"http://localhost:5678">>, placeholder]},
+    Upstream = #upstream{type = uri,
+                         protocol = <<"http://">>,
+                         host = [<<"localhost:5678">>],
+                         path = [placeholder]},
+    #match{upstream = Upstream,
            remainder = [<<"a">>, <<"b">>, <<"c">>, <<>>],
            bindings = [{placeholder, <<"dummydomain">>}],
-           path = '_'} = Upstream.
+           path = '_'} = Match.
 
 %%--------------------------------------------------------------------
 %% Upstream URI generation
 %%--------------------------------------------------------------------
 upstream_uri(_Config) ->
     %% Given
-    Upstream = {uri, [<<"http://localhost:8080">>]},
+    Upstream = #upstream{type = uri,
+                         protocol = <<"http://">>,
+                         host = [<<"localhost:8080">>]},
     Remainder = [<<"def">>, <<"index.html">>],
     Bindings = [{host, <<"domain">>}],
     Path = [<<"host">>, host],
@@ -220,7 +332,9 @@ upstream_uri(_Config) ->
 
 upstream_host(_Config) ->
     %% Given
-    Upstream = {host, [<<"http://localhost:8080">>]},
+    Upstream = #upstream{type = host,
+                         protocol = <<"http://">>,
+                         host = [<<"localhost:8080">>]},
     Remainder = [<<"def">>, <<"index.html">>],
     Bindings = [],
     Path = [<<"host">>],
@@ -237,8 +351,10 @@ upstream_host(_Config) ->
 
 upstream_bindings(_Config) ->
     %% Given
-    Upstream = {uri, [<<"https://localhost:8080">>, <<"host">>, host, 
-                      <<"domain">>, domain]},
+    Upstream = #upstream{type = uri,
+                         protocol = <<"https://">>,
+                         host = [domain, host, <<"localhost:8080">>],
+                         path = [<<"host">>, host, <<"domain">>, domain]},
     Remainder = [<<"dir">>, <<"index.html">>],
     Bindings = [{host, <<"test_host">>}, {domain, <<"test_domain">>}],
     Path = '_',
@@ -251,12 +367,15 @@ upstream_bindings(_Config) ->
     URI = mod_revproxy:upstream_uri(Match),
 
     %% Then
-    {"https://localhost:8080",
+    {"https://test_domain.test_host.localhost:8080",
      <<"/host/test_host/domain/test_domain/dir/index.html">>} = URI.
 
 upstream_slash_path(_Config) ->
     %% Given
-    Upstream = {host, [<<"http://localhost:1234">>, <<"abc">>]},
+    Upstream = #upstream{type = host,
+                         protocol = <<"http://">>,
+                         host = [<<"localhost:1234">>],
+                         path = [<<"abc">>]},
     Path = [<<"abc">>, <<"def">>, <<>>],
     Match = #match{upstream = Upstream,
                    remainder = [],
@@ -271,7 +390,10 @@ upstream_slash_path(_Config) ->
 
 upstream_slash_remainder(_Config) ->
     %% Given
-    Upstream = {host, [<<"http://localhost:1234">>, <<"abc">>]},
+    Upstream = #upstream{type = host,
+                         protocol = <<"http://">>,
+                         host = [<<"localhost:1234">>],
+                         path = [<<"abc">>]},
     Path = [<<"abc">>, <<"def">>, <<>>],
     Remainder = [<<"ghi">>, <<"jkl">>, <<>>],
     Match = #match{upstream = Upstream,
@@ -299,14 +421,76 @@ example_routes() ->
 
 compiled_example_routes() ->
     [{[<<"com">>, <<"domain">>], [<<"abc">>], '_',
-      {uri, [<<"http://localhost:8080">>]}},
+      #upstream{type = uri,
+                protocol = <<"http://">>,
+                host = [<<"localhost:8080">>]}},
      {[<<"com">>, <<"domain">>], '_', <<"GET">>,
-      {host, [<<"http://localhost:1234">>]}},
+      #upstream{type = host,
+                protocol = <<"http://">>,
+                host = [<<"localhost:1234">>]}},
      {[<<"com">>,<<"domain">>,<<"static">>], '_', <<"GET">>,
-      {uri, [<<"http://localhost:9999">>]}},
+      #upstream{type = uri,
+                protocol = <<"http://">>,
+                host = [<<"localhost:9999">>]}},
      {[<<"com">>, host], [<<"path">>, path, <<>>], '_',
-      {host, [<<"http://localhost:6543">>, <<"detailed_path">>, host, path]}},
+      #upstream{type = uri,
+                protocol = <<"http://">>,
+                host = [<<"localhost:6543">>],
+                path = [<<"detailed_path">>, host, path]}},
      {[<<"com">>, placeholder], '_', <<"GET">>,
-      {host, [<<"http://localhost:5678">>, placeholder]}},
+      #upstream{type = uri,
+                protocol = <<"http://">>,
+                host = [<<"localhost:5678">>],
+                path = [placeholder]}},
      {[<<"com">>, <<"domain">>, whatever], [], '_',
-      {uri, [<<"http://localhost:8888">>, whatever]}}].
+      #upstream{type = uri,
+                protocol = <<"http://">>,
+                host = [<<"localhost:8888">>],
+                path = [whatever, <<>>]}}].
+
+start_revproxy() ->
+    Routes = {routes, [{":domain.com", "/admin", "_",
+                        "https://localhost:5678/secret_admin/:domain/"},
+                       {":domain.com", "/:path/", get,
+                        "http://:domain.localhost:1234/domain/:domain/path/:path/"}]},
+    Dispatch = cowboy_router:compile([
+                {'_', [{"/[...]", mod_revproxy, []}]}
+                ]),
+    mod_revproxy:start(nvm, [Routes]),
+    cowboy:start_http(revproxy_listener, 20, [{port, 8080}],
+                      [{env, [{dispatch, Dispatch}]}]).
+
+start_http_upstream() ->
+    Dispatch = cowboy_router:compile([
+                {'_', [{"/[...]", revproxy_handler, []}]}
+                ]),
+    cowboy:start_http(http_listener, 20, [{port, 1234}],
+                      [{env, [{dispatch, Dispatch}]}]).
+
+start_https_upstream(Config) ->
+    Dispatch = cowboy_router:compile([
+                {'_', [{"/[...]", revproxy_handler, []}]}
+                ]),
+    Opts = [{port, 5678},
+            {keyfile, data("server.key", Config)},
+            {certfile, data("server.crt", Config)}],
+    cowboy:start_https(https_listener, 20, Opts,
+                       [{env, [{dispatch, Dispatch}]}]).
+
+data(File, Config) ->
+    filename:join([?config(data_dir, Config), File]).
+
+stop_upstream(Upstream) ->
+    cowboy:stop_listener(Upstream).
+
+execute_request(Host, Path, Method, Headers, Body) ->
+    {ok, Pid} = fusco:start_link(Host, []),
+    Response = fusco:request(Pid, Path, Method, Headers, Body, 5000),
+    fusco:disconnect(Pid),
+    Response.
+
+is_status_code({ok, {{CodeBin, _}, _, _, _, _}}, Code) ->
+    case binary_to_integer(CodeBin) of
+        Code -> true;
+        _    -> false
+    end.
