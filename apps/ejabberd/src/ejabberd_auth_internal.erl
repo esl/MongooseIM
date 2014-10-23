@@ -69,7 +69,10 @@
 -spec start(Host :: ejabberd:server()) -> ok.
 start(Host) ->
     mnesia:create_table(passwd, [{disc_copies, [node()]},
-                                 {attributes, record_info(fields, passwd)}]),
+                                 {attributes, record_info(fields, passwd)},
+                                 {storage_properties,
+                                  [{ets, [{read_concurrency,true}]}]}
+                                  ]),
     mnesia:create_table(reg_users_counter,
 			[{ram_copies, [node()]},
 			 {attributes, record_info(fields, reg_users_counter)}]),

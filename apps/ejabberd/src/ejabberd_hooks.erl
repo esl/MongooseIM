@@ -200,7 +200,7 @@ run_fold(Hook, Host, Val, Args) ->
 %%          {stop, Reason}
 %%----------------------------------------------------------------------
 init([]) ->
-    ets:new(hooks, [named_table]),
+    ets:new(hooks, [named_table, {read_concurrency,true}]),
     {ok, #state{}}.
 
 %%----------------------------------------------------------------------
