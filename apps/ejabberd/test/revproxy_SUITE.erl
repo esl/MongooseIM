@@ -141,14 +141,18 @@ http_upstream(_Config) ->
     Path = <<"/abc/">>,
     Method = "GET",
     Headers = [{<<"host">>, <<"qwerty.com">>}],
-    Body = [],
+    Body = "some example body :)",
 
     %% When
     Response = execute_request(Host, Path, Method, Headers, Body),
 
     %% Then
     true = is_status_code(Response, 200),
-    error_logger:info_msg("~p~n", [Response]).
+    true = does_response_match(Response,
+                               <<"qwerty.com">>,
+                               <<"domain/qwerty/path/abc">>,
+                               Method,
+                               Body).
 
 nomatch_upstream(_Config) ->
     %% Given
@@ -177,7 +181,12 @@ https_upstream(_Config) ->
     error_logger:info_msg("~p~n", [Response]),
 
     %% Then
-    true = is_status_code(Response, 200).
+    true = is_status_code(Response, 200),
+    true = does_response_match(Response,
+                               <<"otherdomain.com">>,
+                               <<"secret_admin/otherdomain/index.html">>,
+                               Method,
+                               Body).
 
 %%--------------------------------------------------------------------
 %% Routes matching tests
@@ -494,3 +503,16 @@ is_status_code({ok, {{CodeBin, _}, _, _, _, _}}, Code) ->
         Code -> true;
         _    -> false
     end.
+
+does_response_match({ok, {{_, _}, _, Response, _, _}},
+                    Host, Path, Method, Body) ->
+    [RHost, RMethod, RPath, RBody] = binary:split(Response, <<"\n">>, [global]),
+    PathSegments = binary:split(Path, <<"/">>, [global, trim]),
+    RPath = to_formatted_binary(PathSegments),
+    RHost = to_formatted_binary(Host),
+    RMethod = to_formatted_binary(list_to_binary(Method)),
+    RBody = to_formatted_binary(list_to_binary(Body)),
+    true.
+
+to_formatted_binary(Subject) ->
+    iolist_to_binary(io_lib:format("~p", [Subject])).
