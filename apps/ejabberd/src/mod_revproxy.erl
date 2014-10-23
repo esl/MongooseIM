@@ -27,7 +27,7 @@
 
 -include("mod_revproxy.hrl").
 
--record(state, {timeout, length}).
+-record(state, {timeout, length, custom_headers}).
 
 -type option() :: {atom(), any()}.
 -type state() :: #state{}.
@@ -70,8 +70,10 @@ stop(_Host) ->
 init(_Transport, Req, Opts) ->
     Timeout = gen_mod:get_opt(timeout, Opts, 5000),
     Length = gen_mod:get_opt(body_length, Opts, 8000000),
+    Headers = gen_mod:get_opt(custom_headers, Opts, []),
     {ok, Req, #state{timeout=Timeout,
-                     length=Length}}.
+                     length=Length,
+                     custom_headers=Headers}}.
 
 -spec handle(cowboy_req:req(), state()) -> {ok, cowboy_req:req(), state()}.
 handle(Req, State) ->
@@ -97,11 +99,13 @@ handle_match(false, _, Req, State) ->
     {ok, Req1} = cowboy_req:reply(404, Req),
     {ok, Req1, State}.
 
-pass_request(Host, Path, Method, Req, #state{timeout=Timeout}=State) ->
+pass_request(Host, Path, Method, Req,
+             #state{timeout=Timeout, custom_headers=CustomHeaders}=State) ->
     {ok, Pid} = fusco:start_link(Host, [{connect_timeout, Timeout}]),
     {Headers, Req1} = cowboy_req:headers(Req),
     {Body, Req2} = request_body(Req1, State),
-    Response = fusco:request(Pid, Path, Method, Headers, Body, Timeout),
+    Headers1 = Headers ++ CustomHeaders,
+    Response = fusco:request(Pid, Path, Method, Headers1, Body, Timeout),
     return_response(Response, Req2, State).
 
 return_response({ok, {{Status, _}, Headers, Body, _, _}}, Req, State) ->
@@ -142,14 +146,12 @@ is_header_confusing(<<"transfer-encoding">>) -> true;
 is_header_confusing(_)                       -> false.
 
 %% Cowboy-like routing functions
-upstream_uri(#match{upstream=Upstream}=Match) ->
+upstream_uri(#match{upstream=Upstream, remainder=Remainder,
+                    bindings=Bindings, path=Path}) ->
     #upstream{type=Type,
               protocol=Protocol,
               host=UpHost,
               path=UpPath} = Upstream,
-    #match{remainder=Remainder,
-           bindings=Bindings,
-           path=Path} = Match,
     BoundHost = upstream_bindings(UpHost, $., Bindings, <<>>),
     PathSegments = case {Type,Path} of
         {uri, _} -> UpPath ++ Remainder;
@@ -331,12 +333,11 @@ split_upstream(URI, Upstream) ->
         [HostSeg, PathSeg] ->
             {HostSeg, PathSeg, uri}
     end,
-    HostSegments = split(Host, $., [], <<>>),
-    PathSegments = split(Path, $/, [], <<>>),
-    PathTrailing = include_trailing(Path, $/, PathSegments),
+    HostSegments = split_host(Host),
+    PathSegments = split_path(Path),
     Upstream#upstream{type = Type,
                       host = lists:reverse(HostSegments),
-                      path = lists:reverse(PathTrailing)}.
+                      path = PathSegments}.
 
 include_trailing(<<>>, _, Segments) ->
     Segments;

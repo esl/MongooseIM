@@ -152,7 +152,11 @@ http_upstream(_Config) ->
                                <<"qwerty.com">>,
                                <<"domain/qwerty/path/abc">>,
                                Method,
-                               Body).
+                               Body),
+
+    true = does_contain_header(Response, <<"custom-header-1">>, <<"value">>),
+    true = does_contain_header(Response, <<"custom-header-2">>,
+                               <<"some other value">>).
 
 nomatch_upstream(_Config) ->
     %% Given
@@ -462,8 +466,11 @@ start_revproxy() ->
                         "https://localhost:5678/secret_admin/:domain/"},
                        {":domain.com", "/:path/", get,
                         "http://:domain.localhost:1234/domain/:domain/path/:path/"}]},
+    CustomHeaders = [{<<"custom-header-1">>, <<"value">>},
+                     {<<"custom-header-2">>, <<"some other value">>}],
     Dispatch = cowboy_router:compile([
-                {'_', [{"/[...]", mod_revproxy, []}]}
+                {'_',
+                 [{"/[...]", mod_revproxy, [{custom_headers, CustomHeaders}]}]}
                 ]),
     mod_revproxy:start(nvm, [Routes]),
     cowboy:start_http(revproxy_listener, 20, [{port, 8080}],
@@ -506,7 +513,7 @@ is_status_code({ok, {{CodeBin, _}, _, _, _, _}}, Code) ->
 
 does_response_match({ok, {{_, _}, _, Response, _, _}},
                     Host, Path, Method, Body) ->
-    [RHost, RMethod, RPath, RBody] = binary:split(Response, <<"\n">>, [global]),
+    [RHost,RMethod,RPath,RBody|_] = binary:split(Response, <<"\n">>, [global]),
     PathSegments = binary:split(Path, <<"/">>, [global, trim]),
     RPath = to_formatted_binary(PathSegments),
     RHost = to_formatted_binary(Host),
@@ -516,3 +523,12 @@ does_response_match({ok, {{_, _}, _, Response, _, _}},
 
 to_formatted_binary(Subject) ->
     iolist_to_binary(io_lib:format("~p", [Subject])).
+
+does_contain_header({ok, {{_, _}, _, Response, _, _}}, Header, Value) ->
+    HeaderL = cowboy_bstr:to_lower(Header),
+    ValueL = cowboy_bstr:to_lower(Value),
+    Match = iolist_to_binary(io_lib:format("~p", [{HeaderL, ValueL}])),
+    case binary:match(Response, Match) of
+        nomatch -> false;
+        _       -> true
+    end.
