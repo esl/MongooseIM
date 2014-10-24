@@ -70,6 +70,7 @@
          search_reported = []       :: [{binary(), binary()}],
          search_reported_attrs = [] :: [binary()],
          search_operator            :: 'or' | 'and',
+         binary_search_fields       :: [binary()],
          deref_aliases = never      :: never | searching | finding | always,
          matches = 0                :: non_neg_integer()}).
 
@@ -374,6 +375,7 @@ search_items(Entries, State) ->
     SearchReported = State#state.search_reported,
     VCardMap = State#state.vcard_map,
     UIDs = State#state.uids,
+    BinFields = State#state.binary_search_fields,
     Attributes = lists:map(fun (E) ->
 				   #eldap_entry{attributes = Attrs} = E, Attrs
 			   end,
@@ -404,7 +406,8 @@ search_items(Entries, State) ->
 							       "@",
 							       LServer/binary>>)]
 						       ++
-						       [?FIELD(Name, Value)
+						       [?FIELD(Name,
+                                       search_item_value(Name,Value,BinFields))
 							|| {Name, Value}
 							       <- RFields],
 					    [#xmlel{name = <<"item">>,
@@ -422,6 +425,11 @@ search_items(Entries, State) ->
 %%%-----------------------
 %%% Auxiliary functions.
 %%%-----------------------
+search_item_value(Name, Value, BinaryFields) ->
+    case lists:member(Name, BinaryFields) of
+        true  -> jlib:encode_base64(Value);
+        false -> Value
+    end.
 
 map_vcard_attr(VCardName, Attributes, Pattern, UD) ->
     Res = lists:filter(fun ({Name, _, _}) ->
@@ -522,6 +530,8 @@ parse_options(Host, Opts) ->
     end,
     SearchOperator = eldap_utils:get_mod_opt(ldap_search_operator, Opts,
                                              SearchOperatorFun, 'and'),
+    BinaryFields = eldap_utils:get_mod_opt(ldap_binary_search_fields, Opts,
+                                           fun(X) -> X end, []),
     #state{serverhost = Host, myhost = MyHost,
            eldap_id = Eldap_ID, 
            servers = Cfg#eldap_config.servers,
@@ -536,6 +546,7 @@ parse_options(Host, Opts) ->
            vcard_map_attrs = VCardMapAttrs,
            user_filter = UserFilter, search_filter = SearchFilter,
            search_fields = SearchFields,
+           binary_search_fields = BinaryFields,
            search_reported = SearchReported,
            search_reported_attrs = SearchReportedAttrs,
            search_operator = SearchOperator,
