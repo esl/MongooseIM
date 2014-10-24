@@ -35,6 +35,7 @@
          stop_listener/2,
          parse_listener_portip/2,
          add_listener/3,
+         delete_listener/3,
          delete_listener/2
         ]).
 
@@ -50,44 +51,8 @@ start_link() ->
 
 init(_) ->
     ets:new(listen_sockets, [named_table, public]),
-    bind_tcp_ports(),
+    %bind_tcp_ports(),
     {ok, {{one_for_one, 10, 1}, []}}.
-
-
--spec bind_tcp_ports() -> 'ignore' | 'ok'.
-bind_tcp_ports() ->
-    case ejabberd_config:get_local_option(listen) of
-        undefined ->
-            ignore;
-        Ls ->
-            lists:foreach(
-              fun({Port, Module, Opts}) ->
-                      case Module:socket_type() of
-                          independent -> ok;
-                          _ ->
-                              bind_tcp_port(Port, Module, Opts)
-                      end
-              end, Ls)
-    end.
-
--spec bind_tcp_port(PortIP :: any(),
-                    Module :: atom() | tuple(),
-                    Opts :: [any()]) -> any().
-bind_tcp_port(PortIP, Module, RawOpts) ->
-    try check_listener_options(RawOpts) of
-        ok ->
-            {Port, IPT, IPS, IPV, Proto, OptsClean} = parse_listener_portip(PortIP, RawOpts),
-            {_Opts, SockOpts} = prepare_opts(IPT, IPV, OptsClean),
-            case Proto of
-                udp -> ok;
-                _ ->
-                    ListenSocket = listen_tcp(PortIP, Module, SockOpts, Port, IPS),
-                    ets:insert(listen_sockets, {PortIP, ListenSocket})
-            end
-    catch
-        throw:{error, Error} ->
-            ?ERROR_MSG(Error, [])
-    end.
 
 
 -spec start_listeners() -> 'ignore' | {'ok',{{_,_,_},[any()]}}.
@@ -202,7 +167,7 @@ listen_tcp(PortIP, Module, SockOpts, Port, IPS) ->
     case ets:lookup(listen_sockets, PortIP) of
         [{PortIP, ListenSocket}] ->
             ?INFO_MSG("Reusing listening port for ~p", [Port]),
-            ets:delete(listen_sockets, Port),
+            ets:delete(listen_sockets, PortIP),
             ListenSocket;
         _ ->
             SockOpts2 = try erlang:system_info(otp_release) >= "R13B" of
@@ -432,6 +397,13 @@ stop_listeners() ->
                     Module :: atom())
       -> 'ok' | {'error','not_found' | 'restarting' | 'running' | 'simple_one_for_one'}.
 stop_listener(PortIP, _Module) ->
+    case ets:match(listen_sockets, {PortIP,'$1'}) of
+        [[Socket]] ->
+            true = ets:delete_object(listen_sockets, {PortIP, Socket}),
+            ok = gen_tcp:close(Socket);
+        _ ->
+            ok
+    end,
     supervisor:terminate_child(ejabberd_listeners, PortIP),
     supervisor:delete_child(ejabberd_listeners, PortIP).
 

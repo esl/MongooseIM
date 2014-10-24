@@ -57,6 +57,8 @@
 %% Exported for behaviour but not implemented
 -export([login/2, get_password/3]).
 
+-export([config_change/4]).
+
 -include("ejabberd.hrl").
 -include("eldap.hrl").
 
@@ -97,9 +99,11 @@ start(Host) ->
     Proc = gen_mod:get_module_proc(Host, ?MODULE),
     ChildSpec = {Proc, {?MODULE, start_link, [Host]},
                  transient, 1000, worker, [?MODULE]},
+    ejabberd_hooks:add(host_config_update, Host, ?MODULE, config_change, 50),
     supervisor:start_child(ejabberd_sup, ChildSpec).
 
 stop(Host) ->
+    ejabberd_hooks:delete(host_config_update, Host, ?MODULE, config_change, 50),
     Proc = gen_mod:get_module_proc(Host, ?MODULE),
     gen_server:call(Proc, stop),
     supervisor:terminate_child(ejabberd_sup, Proc),
@@ -128,6 +132,13 @@ store_type(_) -> external.
 
 plain_password_required() -> true.
 
+
+config_change(Acc, Host, ldap, _NewConfig) ->
+    stop(Host),
+    start(Host),
+    Acc;
+config_change(Acc, _, _, _) ->
+    Acc.
 
 -spec check_password(User :: ejabberd:user(),
                      Server :: ejabberd:server(),
@@ -352,6 +363,8 @@ is_user_exists_ldap(User, Server) ->
 handle_call(get_state, _From, State) ->
     {reply, {ok, State}, State};
 handle_call(stop, _From, State) ->
+    eldap_pool:stop(State#state.eldap_id),
+    eldap_pool:stop(State#state.bind_eldap_id),
     {stop, normal, ok, State};
 handle_call(_Request, _From, State) ->
     {reply, bad_request, State}.

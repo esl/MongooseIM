@@ -25,7 +25,7 @@
 %%%----------------------------------------------------------------------
 
 %%TODO LDAP layer should be separated like odbc one. Now every ldap module creates its own ldap pool per vhost
-%%TODO gen_server is created only to store the state and create/destroy pool, should it be replaced ? 
+%%TODO gen_server is created only to store the state and create/destroy pool, should it be replaced ?
 
 -module(mod_vcard_ldap).
 -author('alexey@process-one.net').
@@ -42,6 +42,7 @@
 %% mod_vcards callbacks
 -export([init/2,remove_user/2, get_vcard/2, set_vcard/4, search/4, search_fields/1]).
 
+
 -include("ejabberd.hrl").
 -include("eldap.hrl").
 -include("mod_vcard.hrl").
@@ -50,25 +51,25 @@
 -define(PROCNAME, ejabberd_mod_vcard_ldap).
 
 -record(state,
-	{serverhost = <<"">>        :: binary(),
+        {serverhost = <<"">>        :: binary(),
          myhost = <<"">>            :: binary(),
          eldap_id = <<"">>          :: binary(),
          servers = []               :: [binary()],
          backups = []               :: [binary()],
-	 port = ?LDAP_PORT          :: inet:port_number(),
+         port = ?LDAP_PORT          :: inet:port_number(),
          tls_options = []           :: list(),
          dn = <<"">>                :: binary(),
          base = <<"">>              :: binary(),
          password = <<"">>          :: binary(),
          uids = []                  :: [{binary()} | {binary(), binary()}],
          vcard_map = []             :: [{binary(), binary(), [binary()]}],
-	 vcard_map_attrs = []       :: [binary()],
+         vcard_map_attrs = []       :: [binary()],
          user_filter = <<"">>       :: binary(),
          search_filter              :: eldap:filter(),
-	 search_fields = []         :: [{binary(), binary()}],
+         search_fields = []         :: [{binary(), binary()}],
          search_reported = []       :: [{binary(), binary()}],
          search_reported_attrs = [] :: [binary()],
-	 deref_aliases = never      :: never | searching | finding | always,
+         deref_aliases = never      :: never | searching | finding | always,
          matches = 0                :: non_neg_integer()}).
 
 -define(VCARD_MAP,
@@ -130,9 +131,9 @@ init(VHost, Options) ->
     ok.
 
 remove_user(_LUser, _LServer) ->
-    %% no need to handle this - in ldap 
+    %% no need to handle this - in ldap
     %% removing user = delete all user info
-    ok. 
+    ok.
 
 get_vcard(LUser, LServer) ->
     Proc = gen_mod:get_module_proc(LServer, ?PROCNAME),
@@ -141,11 +142,11 @@ get_vcard(LUser, LServer) ->
     case ejabberd_auth:is_user_exists(LUser, LServer) of
         true ->
             VCardMap = State#state.vcard_map,
-            case find_ldap_user(LUser,State) of 
+            case find_ldap_user(LUser,State) of
                 #eldap_entry{attributes = Attributes} ->
                     Vcard = ldap_attributes_to_vcard(Attributes, VCardMap,{LUser, LServer}),
                     {ok,Vcard};
-                _ -> 
+                _ ->
                     {ok, []}
             end;
         _ ->
@@ -177,6 +178,8 @@ search_fields(Host) ->
     {ok,State} = gen_server:call(Proc, get_state),
     State#state.search_fields.
 
+
+
 %%--------------------------------------------------------------------
 %% gen server callbacks
 %%--------------------------------------------------------------------
@@ -186,7 +189,7 @@ start_link(Host, Opts) ->
     gen_server:start_link({local, Proc}, ?MODULE,
 			  [Host, Opts], []).
 
-init([Host, Opts]) -> 
+init([Host, Opts]) ->
     process_flag(trap_exit, true),
     State = parse_options(Host, Opts),
     eldap_pool:start_link(State#state.eldap_id,
@@ -209,9 +212,10 @@ handle_cast(_Request, State) -> {noreply, State}.
 
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
-terminate(_Reason, State) -> 
+terminate(_Reason, State) ->
+    Host = State#state.serverhost,
     eldap_pool:stop(State#state.eldap_id).
-    
+
 %%--------------------------------------------------------------------
 %% Internal
 %%--------------------------------------------------------------------
@@ -512,7 +516,7 @@ parse_options(Host, Opts) ->
 						    SearchReported)
 					++ UIDAttrs),
     #state{serverhost = Host, myhost = MyHost,
-	   eldap_id = Eldap_ID, 
+	   eldap_id = Eldap_ID,
 	   servers = Cfg#eldap_config.servers,
 	   backups = Cfg#eldap_config.backups,
            port = Cfg#eldap_config.port,

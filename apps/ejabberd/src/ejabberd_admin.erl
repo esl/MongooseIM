@@ -197,7 +197,15 @@ commands() ->
      #ejabberd_commands{name = install_fallback, tags = [mnesia],
                         desc = "Install the database from a fallback file (only Mnesia)",
                         module = ?MODULE, function = install_fallback_mnesia,
-                        args = [{file, string}], result = {res, restuple}}
+                        args = [{file, string}], result = {res, restuple}},
+     #ejabberd_commands{name = reload_local, tags = [server],
+                        desc = "Reload configuration file on the current node",
+                        module = ejabberd_config, function = reload_local,
+                        args = [], result = {res, restuple}},
+     #ejabberd_commands{name = reload_cluster, tags = [server],
+                        desc = "Reload configuration file in the cluster",
+                        module = ejabberd_config, function = reload_cluster,
+                        args = [], result = {res, restuple}}
     ].
 
 

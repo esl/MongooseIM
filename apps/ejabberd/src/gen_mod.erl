@@ -31,6 +31,7 @@
          start_module/3,
          stop_module/2,
          stop_module_keep_config/2,
+         reload_module/3,
          get_opt/2,
          get_opt/3,
          get_opt_host/3,
@@ -145,6 +146,10 @@ stop_module_keep_config(Host, Module) ->
             ok
     end.
 
+-spec reload_module(ejabberd:server(), atom(), [any()]) -> 'error' | 'ok'.
+reload_module(Host, Module, Opts) ->
+    stop_module_keep_config(Host, Module),
+    start_module(Host, Module, Opts).
 
 -spec wait_for_process(atom() | pid() | {atom(),atom()}) -> 'ok'.
 wait_for_process(Process) ->
@@ -276,13 +281,17 @@ set_module_opts_mnesia(Host, Module, Opts) ->
 -spec del_module_mnesia(ejabberd:server(), atom()) -> {'aborted',_} | {'atomic',_}.
 del_module_mnesia(Host, Module) ->
     Modules = case ejabberd_config:get_local_option({modules, Host}) of
-        undefined ->
-            [];
-        Ls ->
-            Ls
-    end,
-    Modules1 = lists:keydelete(Module, 1, Modules),
-    ejabberd_config:add_local_option({modules, Host}, Modules1).
+                  undefined ->
+                      [];
+                  Ls ->
+                      Ls
+              end,
+    case lists:keydelete(Module, 1, Modules) of
+        [] ->
+            ejabberd_config:del_local_option({modules, Host});
+        OtherModules ->
+            ejabberd_config:add_local_option({modules, Host}, OtherModules)
+    end.
 
 get_hosts(Opts, Prefix) ->
     case catch gen_mod:get_opt(hosts, Opts) of

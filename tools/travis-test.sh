@@ -17,7 +17,15 @@ echo "############################"
 echo "Running ejabberd_tests"
 echo "############################"
 
-
+echo -n "starting MongooseIM node 1: "
+${EJD1CTL} start && echo ok || echo failed
+echo -n "starting MongooseIM node 2: "
+${EJD2CTL} start && echo ok || echo failed
+sleep 1
+echo -n "pinging MongooseIM node 1: "
+${EJD1CTL} ping
+echo -n "pinging MongooseIM node 2: "
+${EJD2CTL} ping
 
 make test_preset TESTSPEC=default.spec PRESET=$TEST_CONFIG
 

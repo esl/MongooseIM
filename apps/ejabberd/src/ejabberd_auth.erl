@@ -31,28 +31,30 @@
 
 %% External exports
 -export([start/0,
-	 set_password/3,
-	 check_password/3,
-	 check_password/5,
-	 check_password_with_authmodule/3,
-	 check_password_with_authmodule/5,
-	 try_register/3,
-	 dirty_get_registered_users/0,
-	 get_vh_registered_users/1,
-	 get_vh_registered_users/2,
-	 get_vh_registered_users_number/1,
-	 get_vh_registered_users_number/2,
-	 get_password/2,
-	 get_password_s/2,
-	 get_password_with_authmodule/2,
-	 is_user_exists/2,
-	 is_user_exists_in_other_modules/3,
-	 remove_user/2,
-	 remove_user/3,
-	 plain_password_required/1,
-	 store_type/1,
-	 entropy/1
-	]).
+         start/1,
+         stop/1,
+         set_password/3,
+         check_password/3,
+         check_password/5,
+         check_password_with_authmodule/3,
+         check_password_with_authmodule/5,
+         try_register/3,
+         dirty_get_registered_users/0,
+         get_vh_registered_users/1,
+         get_vh_registered_users/2,
+         get_vh_registered_users_number/1,
+         get_vh_registered_users_number/2,
+         get_password/2,
+         get_password_s/2,
+         get_password_with_authmodule/2,
+         is_user_exists/2,
+         is_user_exists_in_other_modules/3,
+         remove_user/2,
+         remove_user/3,
+         plain_password_required/1,
+         store_type/1,
+         entropy/1
+        ]).
 
 -export([check_digest/4]).
 
@@ -73,13 +75,21 @@
 %%%----------------------------------------------------------------------
 -spec start() -> 'ok'.
 start() ->
+    lists:foreach(fun start/1, ?MYHOSTS).
+
+-spec start(Host :: ejabberd:server()) -> 'ok'.
+start(Host) ->
     lists:foreach(
-      fun(Host) ->
-              lists:foreach(
-                fun(M) ->
-                        M:start(Host)
-                end, auth_modules(Host))
-      end, ?MYHOSTS).
+      fun(M) ->
+              M:start(Host)
+      end, auth_modules(Host)).
+
+-spec stop(Host :: ejabberd:server()) -> 'ok'.
+stop(Host) ->
+    lists:foreach(
+      fun(M) ->
+              M:stop(Host)
+      end, auth_modules(Host)).
 
 %% This is only executed by ejabberd_c2s for non-SASL auth client
 -spec plain_password_required(Server :: ejabberd:server()) -> boolean().
