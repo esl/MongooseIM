@@ -79,9 +79,16 @@ init(_Transport, Req, Opts) ->
 handle(Req, State) ->
     {Host, Req1} = cowboy_req:header(<<"host">>, Req),
     {Path, Req2} = cowboy_req:path(Req1),
-    {Method, Req3} = cowboy_req:method(Req2),
-    Match = match(mod_revproxy_dynamic:rules(), Host, Path, Method),
-    handle_match(Match, Method, Req3, State).
+    {QS, Req3} = cowboy_req:qs(Req2),
+    PathQS = case QS of
+        <<>> ->
+            Path;
+        _ ->
+            <<Path/binary, "?", QS/binary>>
+    end,
+    {Method, Req4} = cowboy_req:method(Req3),
+    Match = match(mod_revproxy_dynamic:rules(), Host, PathQS, Method),
+    handle_match(Match, Method, Req4, State).
 
 -spec terminate(any(), cowboy_req:req(), state()) -> ok.
 terminate(_Reason, _Req, _State) ->
