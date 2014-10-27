@@ -38,10 +38,12 @@ groups() ->
                                  remainder_match,
                                  capture_subdomain_match,
                                  method_match,
+                                 qs_match,
                                  slash_ending_match]},
      {generate_upstream, [sequence], [upstream_uri,
                                       upstream_host,
                                       upstream_bindings,
+                                      upstream_qs,
                                       upstream_slash_path,
                                       upstream_slash_remainder]},
      {requests_http, [sequence], [no_upstreams,
@@ -60,9 +62,11 @@ suite() ->
 
 init_per_suite(Config) ->
     [application:start(App) || App <- ?APPS],
-    Config.
+    Pid = create_handler(),
+    [{meck_pid, Pid}|Config].
 
 end_per_suite(Config) ->
+    remove_handler(Config),
     Config.
 
 init_per_group(requests_http, Config) ->
@@ -138,7 +142,8 @@ no_upstreams(_Config) ->
 http_upstream(_Config) ->
     %% Given
     Host = "http://localhost:8080",
-    Path = <<"/abc/">>,
+    QS = <<"ts=1231231232222&st=223232&page=32">>,
+    Path = <<"/abc/login.htm?", QS/binary>>,
     Method = "GET",
     Headers = [{<<"host">>, <<"qwerty.com">>}],
     Body = "some example body :)",
@@ -150,9 +155,10 @@ http_upstream(_Config) ->
     true = is_status_code(Response, 200),
     true = does_response_match(Response,
                                <<"qwerty.com">>,
-                               <<"domain/qwerty/path/abc">>,
+                               <<"domain/qwerty/path/abc/login.htm">>,
                                Method,
-                               Body),
+                               Body,
+                               QS),
 
     true = does_contain_header(Response, <<"custom-header-1">>, <<"value">>),
     true = does_contain_header(Response, <<"custom-header-2">>,
@@ -182,7 +188,6 @@ https_upstream(_Config) ->
 
     %% When
     Response = execute_request(Host, Path, Method, Headers, Body),
-    error_logger:info_msg("~p~n", [Response]),
 
     %% Then
     true = is_status_code(Response, 200),
@@ -190,7 +195,8 @@ https_upstream(_Config) ->
                                <<"otherdomain.com">>,
                                <<"secret_admin/otherdomain/index.html">>,
                                Method,
-                               Body).
+                               Body,
+                               <<>>).
 
 %%--------------------------------------------------------------------
 %% Routes matching tests
@@ -301,6 +307,29 @@ method_match(Config) ->
     <<"domain">> = proplists:get_value(host, Bindings),
     <<"a">> = proplists:get_value(path, Bindings).
 
+qs_match(Config) ->
+    %% Given
+    Rules = ?config(rules, Config),
+    Host = <<"dummydomain.com">>,
+    QS = <<"login.htm?ts=1231231232222&st=223232&page=32&ap=123442"
+            "&whatever=somewordshere">>,
+    Path = <<"/a/b/c/", QS/binary>>,
+    Method = <<"GET">>,
+
+    %% When
+    Match = mod_revproxy:match(Rules, Host, Path, Method),
+
+    %% Then
+    Upstream = #upstream{type = uri,
+                         protocol = <<"http://">>,
+                         host = [<<"localhost:5678">>],
+                         path = [placeholder]},
+    #match{upstream = Upstream,
+           remainder = [<<"a">>, <<"b">>, <<"c">>, QS],
+           bindings = [{placeholder, <<"dummydomain">>}],
+           path = '_'} = Match.
+
+
 slash_ending_match(Config) ->
     %% Given
     Rules = ?config(rules, Config),
@@ -382,6 +411,28 @@ upstream_bindings(_Config) ->
     %% Then
     {"https://test_domain.test_host.localhost:8080",
      <<"/host/test_host/domain/test_domain/dir/index.html">>} = URI.
+
+upstream_qs(_Config) ->
+    %% Given
+    Upstream = #upstream{type = uri,
+                         protocol = <<"http://">>,
+                         host = [<<"localhost:1234">>],
+                         path = [<<"ghi">>]},
+    Path = [<<"abc">>],
+    QS = <<"login.htm?ts=1231231232222&st=223232&page=32&ap=123442"
+            "&whatever=somewordshere">>,
+    Remainder = [<<"def">>, QS],
+    Match = #match{upstream = Upstream,
+                   remainder = Remainder,
+                   bindings = [],
+                   path = Path},
+
+    %% When
+    URI = mod_revproxy:upstream_uri(Match),
+
+    %% Then
+    Resource = <<"/ghi/def/", QS/binary>>,
+    {"http://localhost:1234", Resource} = URI.
 
 upstream_slash_path(_Config) ->
     %% Given
@@ -512,13 +563,15 @@ is_status_code({ok, {{CodeBin, _}, _, _, _, _}}, Code) ->
     end.
 
 does_response_match({ok, {{_, _}, _, Response, _, _}},
-                    Host, Path, Method, Body) ->
-    [RHost,RMethod,RPath,RBody|_] = binary:split(Response, <<"\n">>, [global]),
+                    Host, Path, Method, Body, QS) ->
+    ResponseEls = binary:split(Response, <<"\n">>, [global]),
+    [RHost,RMethod,RPath,RBody,RQS|_] = ResponseEls,
     PathSegments = binary:split(Path, <<"/">>, [global, trim]),
     RPath = to_formatted_binary(PathSegments),
     RHost = to_formatted_binary(Host),
     RMethod = to_formatted_binary(list_to_binary(Method)),
     RBody = to_formatted_binary(list_to_binary(Body)),
+    RQS = to_formatted_binary(QS), 
     true.
 
 to_formatted_binary(Subject) ->
@@ -532,3 +585,45 @@ does_contain_header({ok, {{_, _}, _, Response, _, _}}, Header, Value) ->
         nomatch -> false;
         _       -> true
     end.
+
+%%--------------------------------------------------------------------
+%% revproxy handler mock
+%%--------------------------------------------------------------------
+create_handler() ->
+    F = fun() ->
+            ok = meck:new(revproxy_handler, [non_strict]),
+            ok = meck:expect(revproxy_handler, init, fun handler_init/3),
+            ok = meck:expect(revproxy_handler, handle, fun handler_handle/2),
+            ok = meck:expect(revproxy_handler, terminate, fun handler_terminate/3),
+            timer:sleep(infinity)
+    end,
+    spawn(F).
+
+remove_handler(Config) ->
+    exit(?config(meck_pid, Config), kill),
+    meck:unload(revproxy_handler).
+
+handler_init(_Type, Req, _Opts) ->
+    {ok, Req, no_state}.
+
+handler_handle(Req, State) ->
+    {Host, Req2} = cowboy_req:host(Req),
+    {PathInfo, Req3} = cowboy_req:path_info(Req2),
+    {Method, Req4} = cowboy_req:method(Req3),
+    {Headers, Req5} = cowboy_req:headers(Req4),
+    ContentType = [{<<"content-type">>, <<"text/plain">>}],
+    {Body, Req7} = case cowboy_req:has_body(Req5) of
+        false ->
+            {<<>>, Req5};
+        true ->
+            {ok, Body1, Req6} = cowboy_req:body(Req5),
+            {Body1, Req6}
+    end,
+    {QS, Req8} = cowboy_req:qs(Req7),
+    Response = io_lib:format("~p~n~p~n~p~n~p~n~p~n~p",
+                             [Host, Method, PathInfo, Body, QS, Headers]),
+    {ok, Req9} = cowboy_req:reply(200, ContentType, Response, Req8),
+    {ok, Req9, State}.
+
+handler_terminate(_Reason, _Req, _State) ->
+    ok.
