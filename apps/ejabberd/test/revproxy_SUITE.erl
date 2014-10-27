@@ -62,7 +62,7 @@ suite() ->
 
 init_per_suite(Config) ->
     [application:start(App) || App <- ?APPS],
-    Pid = create_handler(),
+    {ok, Pid} = create_handler(),
     [{meck_pid, Pid}|Config].
 
 end_per_suite(Config) ->
@@ -596,14 +596,22 @@ does_contain_header({ok, {{_, _}, _, Response, _, _}}, Header, Value) ->
 %% revproxy handler mock
 %%--------------------------------------------------------------------
 create_handler() ->
+    Owner = self(),
     F = fun() ->
             ok = meck:new(revproxy_handler, [non_strict]),
             ok = meck:expect(revproxy_handler, init, fun handler_init/3),
             ok = meck:expect(revproxy_handler, handle, fun handler_handle/2),
             ok = meck:expect(revproxy_handler, terminate, fun handler_terminate/3),
+            Owner ! ok,
             timer:sleep(infinity)
     end,
-    spawn(F).
+    Pid = spawn(F),
+    receive
+        ok ->
+            {ok, Pid}
+    after 5000 ->
+            {error, timeout}
+    end.
 
 remove_handler(Config) ->
     meck:unload(revproxy_handler),
