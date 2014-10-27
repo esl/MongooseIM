@@ -117,7 +117,7 @@ pass_request(Host, Path, Method, Req,
 
 return_response({ok, {{Status, _}, Headers, Body, _, _}}, Req, State) ->
     StatusI = binary_to_integer(Status),
-    Headers1 = remove_confusing_headers(Headers, []),
+    Headers1 = remove_confusing_headers(Headers),
     {ok, Req1} = cowboy_req:reply(StatusI, Headers1, Body, Req),
     {ok, Req1, State};
 return_response({error, connect_timeout}, Req, State) ->
@@ -139,15 +139,9 @@ request_body(Req, #state{length=Length}) ->
             {Data, Req1}
     end.
 
-remove_confusing_headers([], Acc) ->
-    lists:reverse(Acc);
-remove_confusing_headers([{Field,_}=Header|Tail], Acc) ->
-    case is_header_confusing(cowboy_bstr:to_lower(Field)) of
-        true ->
-            remove_confusing_headers(Tail, Acc);
-        false ->
-            remove_confusing_headers(Tail, [Header|Acc])
-    end.
+remove_confusing_headers(List) ->
+    [Header || {Field,_}=Header <- List,
+               not is_header_confusing(cowboy_bstr:to_lower(Field))].
 
 is_header_confusing(<<"transfer-encoding">>) -> true;
 is_header_confusing(_)                       -> false.
