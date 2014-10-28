@@ -31,7 +31,9 @@ all() ->
 groups() ->
     [{routing, [sequence], [http_requests,
                             ws_request_bad_protocol,
-                            ws_requests_xmpp]}].
+                            ws_requests_xmpp,
+                            ws_requests_other,
+                            mixed_requests]}].
 
 suite() ->
     [].
@@ -63,6 +65,7 @@ init_per_testcase(_CaseName, Config) ->
     Config.
 
 end_per_testcase(_CaseName, Config) ->
+    reset_history(),
     Config.
 
 %%--------------------------------------------------------------------
@@ -104,17 +107,90 @@ ws_request_bad_protocol(_Config) ->
 
 ws_requests_xmpp(_Config) ->
     %% Given
-    Host = ?SERVER,
+    Host = "localhost",
+    Port = 8080,
+    Protocol = <<"xmpp">>,
+    BinaryPing = ws_tx_frame(<<"ping">>, 2),
+    BinaryPong = ws_rx_frame(<<"pong">>, 2),
+
+    %% When
+    {ok, Socket} = ws_handshake(Host, Port, Protocol),
+    Responses = [begin
+                ok = ws_send(Socket, BinaryPing),
+                ws_recv(Socket)
+            end || _ <- lists:seq(1, 50)],
+    ok = gen_tcp:close(Socket),
+
+    %% Then
+    %% dummy_ws1_handler:init/3 is not called since mod_cowboy takes over
+    Responses = lists:duplicate(50, BinaryPong),
+    1 = meck:num_calls(dummy_ws1_handler, websocket_init, '_'),
+    50 = meck:num_calls(dummy_ws1_handler, websocket_handle, '_'),
+    ok = meck:wait(dummy_ws1_handler, websocket_terminate, '_', 1000).
+
+ws_requests_other(_Config) ->
+    %% Given
+    Host = "localhost",
+    Port = 8080,
+    Protocol = <<"other">>,
+    TextPing = ws_tx_frame(<<"ping">>, 1),
+    TextPong = ws_rx_frame(<<"pong">>, 1),
+
+    %% When
+    {ok, Socket} = ws_handshake(Host, Port, Protocol),
+    Responses = [begin
+            ok = ws_send(Socket, TextPing),
+            ws_recv(Socket)
+        end || _ <- lists:seq(1, 50)],
+    ok = gen_tcp:close(Socket),
+
+    %% Then
+    Responses = lists:duplicate(50, TextPong),
+    1 = meck:num_calls(dummy_ws2_handler, websocket_init, '_'),
+    50 = meck:num_calls(dummy_ws2_handler, websocket_handle, '_'),
+    ok = meck:wait(dummy_ws2_handler, websocket_terminate, '_', 1000).
+
+mixed_requests(_Config) ->
+    %% Given
+    Protocol1 = <<"xmpp">>,
+    Protocol2 = <<"other">>,
+    Protocol3 = <<"non-existent">>,
+
+    TextPing = ws_tx_frame(<<"ping">>, 1),
+    TextPong = ws_rx_frame(<<"pong">>, 1),
+
+    Host = "localhost",
+    Port = 8080,
+
+    HTTPHost = ?SERVER,
     Path = <<"/">>,
     Method = "GET",
-    Headers = ws_headers(<<"xmpp">>),
+    Headers3 = ws_headers(Protocol3),
+    Headers4 = [],
     Body = [],
 
     %% When
-    Response = execute_request(Host, Path, Method, Headers, Body),
+    {ok, Socket1} = ws_handshake(Host, Port, Protocol1),
+    {ok, Socket2} = ws_handshake(Host, Port, Protocol2),
+
+    Responses = [begin
+                ok = ws_send(Socket1, TextPing),
+                Resp1 = ws_recv(Socket1),
+
+                Resp2 = execute_request(HTTPHost, Path, Method, Headers4, Body),
+                Status2 = is_status_code(Resp2, 200),
+
+                ok = ws_send(Socket2, TextPing),
+                Resp3 = ws_recv(Socket2),
+
+                Resp4 = execute_request(HTTPHost, Path, Method, Headers3, Body),
+                Status4 = is_status_code(Resp4, 404),
+
+                {Resp1, Status2, Resp3, Status4}
+            end || _ <- lists:seq(1, 50)],
 
     %% Then
-    true = is_status_code(Response, 101).
+    Responses = lists:duplicate(50, {TextPong, true, TextPong, true}). 
 
 %%--------------------------------------------------------------------
 %% Helpers
@@ -146,12 +222,47 @@ is_status_code({ok, {{CodeBin, _}, _, _, _, _}}, Code) ->
         _    -> false
     end.
 
+ws_send(Socket, Frame) ->
+    ok = gen_tcp:send(Socket, Frame).
+
+ws_recv(Socket) ->
+    {ok, Packet} = gen_tcp:recv(Socket, 0, 5000),
+    Packet.
+
+ws_handshake(Host, Port, Protocol) ->
+    {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {packet, raw},
+                                                {active, false}]),
+    ok = gen_tcp:send(Socket, [
+                "GET / HTTP/1.1\r\n"
+                "Host: localhost\r\n"
+                "Connection: upgrade\r\n"
+                "Origin: http://localhost\r\n"
+                "Sec-WebSocket-Key: x3JJHMbDL1EzLkh9GBhXDw==\r\n"
+                "Sec-WebSocket-Protocol: ", Protocol, "\r\n"
+                "Sec-WebSocket-Version: 13\r\n"
+                "Upgrade: websocket\r\n"
+                "\r\n"]),
+    {ok, Handshake} = gen_tcp:recv(Socket, 0, 5000),
+    Packet = erlang:decode_packet(http, Handshake, []),
+    {ok, {http_response, {1,1}, 101, "Switching Protocols"}, _Rest} = Packet,
+    {ok, Socket}.
+
 ws_headers(Protocol) ->
     [{<<"upgrade">>, <<"websocket">>},
      {<<"connection">>, <<"upgrade">>},
      {<<"sec-websocket-key">>, <<"x3JJHMbDL1EzLkh9GBhXDw==">>},
      {<<"sec-websocket-protocol">>, Protocol},
      {<<"sec-websocket-version">>, <<"13">>}].
+
+ws_tx_frame(Payload, Opcode) ->
+    Mask = 16#ffffffff,
+    Length = byte_size(Payload),
+    MaskedPayload = << <<(Byte bxor 16#ff):8>> || <<Byte:8>> <= Payload >>,
+    <<1:1, 0:3, Opcode:4, 1:1, Length:7, Mask:32, MaskedPayload/binary>>.
+
+ws_rx_frame(Payload, Opcode) ->
+    Length = byte_size(Payload),
+    <<1:1, 0:3, Opcode:4, 0:1, Length:7, Payload/binary>>.
 
 %%--------------------------------------------------------------------
 %% http/ws handlers mock
@@ -188,8 +299,11 @@ create_handler({Name, Functions}) ->
     [ok = meck:expect(Name, Function, Fun) || {Function, Fun} <- Functions].
 
 remove_handlers(Config) ->
-    exit(?config(meck_pid, Config), kill),
-    [meck:unload(Handler) || {Handler, _} <- handlers()].
+    [ok = meck:unload(Handler) || {Handler, _} <- handlers()],
+    exit(?config(meck_pid, Config), kill).
+
+reset_history() ->
+    [ok = meck:reset(Handler) || {Handler, _} <- handlers()].
 
 %% cowboy_http_handler
 handler_init(_Type, Req, _Opts) ->
@@ -209,8 +323,10 @@ ws_init(_Type, _Req, _Opts) ->
 ws_websocket_init(_Transport, Req, _Opts) ->
     {ok, Req, no_state}.
 
-ws_websocket_handle(<<"ping">>, Req, State) ->
-    {reply, <<"pong">>, Req, State};
+ws_websocket_handle({text,<<"ping">>}, Req, State) ->
+    {reply, {text, <<"pong">>}, Req, State};
+ws_websocket_handle({binary, <<"ping">>}, Req, State) ->
+    {reply, {binary, <<"pong">>}, Req, State};
 ws_websocket_handle(_Other, Req, State) ->
     {ok, Req, State}.
 
