@@ -45,22 +45,13 @@
 socket_type() ->
     independent.
 
-start_listener({Port, IP, tcp}, Opts) ->
-    %% ejabberd_listener brutally kills its children, and doesn't provide any
-    %% mechanism for doing a clean shutdown.  To work around this, we could
-    %% start two linked processes: one to be killed, and another to trap the
-    %% exit signal and shut down Cowboy cleanly.  However, a simpler solution is
-    %% to manually configure supervision and not use brutal_kill.  Calling
-    %% supervisor:start_child(ejabberd_listeners, ...) would hang since we're
-    %% running in the ejabberd_listeners process and start_child() is
-    %% synchronous.  So, simply use ejabberd_sup as the supervisor instead.
+start_listener({Port, IP, tcp}=Listener, Opts) ->
     IPPort = [inet_parse:ntoa(IP), <<"_">>, integer_to_list(Port)],
-    ChildSpec = {cowboy_ref(IPPort), {?MODULE, start_link, [IPPort]}, permanent,
+    ChildSpec = {Listener, {?MODULE, start_link, [IPPort]}, transient,
                  infinity, worker, [?MODULE]},
-    supervisor:start_child(ejabberd_sup, ChildSpec),
-    start_cowboy(IPPort, [{port, Port}, {ip, IP} | Opts]),
-    %% Tell ejabberd_listener not to supervise us
-    ignore.
+    {ok, Pid} = supervisor:start_child(ejabberd_listeners, ChildSpec),
+    {ok, _} = start_cowboy(IPPort, [{port, Port}, {ip, IP} | Opts]),
+    {ok, Pid}.
 
 %% @doc gen_server for handling shutdown when started via ejabberd_listener
 -spec start_link(_) -> 'ignore' | {'error',_} | {'ok',pid()}.
