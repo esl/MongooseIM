@@ -2,7 +2,8 @@
 
 -export([start_ejabberd/1,
          stop_ejabberd/0,
-         use_config_file/2]).
+         use_config_file/2,
+         start_ejabberd_with_config/2]).
 
 
 -spec start_ejabberd(any()) -> 'ok' | {error, any()}.
@@ -19,3 +20,9 @@ use_config_file(Config, ConfigFile) ->
     DataDir = proplists:get_value(data_dir, Config),
     ConfigPath = filename:join([DataDir, ConfigFile]),
     application:set_env(ejabberd, config, ConfigPath).
+
+-spec start_ejabberd_with_config(any(), file:name_all()) -> ok.
+start_ejabberd_with_config(Config, ConfigFile) ->
+    use_config_file(Config, ConfigFile),
+    ok = start_ejabberd(Config).
+

@@ -21,12 +21,18 @@
 
 -define(SERVER, "http://localhost:8080").
 
+-import(ejabberd_helper, [start_ejabberd/1,
+                          stop_ejabberd/0,
+                          use_config_file/2,
+                          start_ejabberd_with_config/2]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
 
 all() ->
-    [{group, routing}].
+    [{group, routing},
+     conf_reload].
 
 groups() ->
     [{routing, [sequence], [http_requests,
@@ -47,17 +53,21 @@ suite() ->
 init_per_suite(Config) ->
     [application:start(App) || App <- ?APPS],
     {ok, Pid} = create_handlers(),
-    start_cowboy(),
     [{meck_pid, Pid}|Config].
 
 end_per_suite(Config) ->
     remove_handlers(Config),
-    stop_cowboy(),
     Config.
 
+init_per_group(routing, Config) ->
+    start_cowboy(),
+    Config;
 init_per_group(_GroupName, Config) ->
     Config.
 
+end_per_group(routing, Config) ->
+    stop_cowboy(),
+    Config;
 end_per_group(_GroupName, Config) ->
     Config.
 
@@ -192,9 +202,48 @@ mixed_requests(_Config) ->
     %% Then
     Responses = lists:duplicate(50, {TextPong, true, TextPong, true}). 
 
+conf_reload(Config) ->
+    %% Given initial configuration
+    HTTPHost = "http://localhost:5280",
+    Path = <<"/">>,
+    Method = "GET",
+    Headers1 = [],
+    Headers2 = ws_headers(<<"xmpp">>),
+    Body = [],
+
+    copy(data(Config, "ejabberd.onlyhttp.cfg"), data(Config, "ejabberd.cfg")),
+    start_ejabberd_with_config(Config, "ejabberd.cfg"),
+
+    %% When making requests for http and ws
+    Response1 = execute_request(HTTPHost, Path, Method, Headers1, Body),
+    Response2 = execute_request(HTTPHost, Path, Method, Headers2, Body),
+
+    %% Then http returns 200 and ws returns 404
+    true = is_status_code(Response1, 200),
+    true = is_status_code(Response2, 404),
+
+    %% Given new configuration
+    copy(data(Config, "ejabberd.onlyws.cfg"), data(Config, "ejabberd.cfg")),
+    ejabberd_config:reload_local(),
+
+    %% When making requests for http and ws
+    Response3 = execute_request(HTTPHost, Path, Method, Headers1, Body),
+
+    %% Then http returns 404 and ws works fine
+    true = is_status_code(Response3, 404),
+
+    ok = stop_ejabberd().
+
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
+copy(Src, Dst) ->
+    {ok, _} = file:copy(Src, Dst).
+
+data(Config, Path) ->
+    Dir = proplists:get_value(data_dir, Config),
+    filename:join([Dir, Path]).
+
 start_cowboy() ->
     Dispatch = cowboy_router:compile([
                 {'_',
