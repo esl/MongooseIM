@@ -55,8 +55,8 @@
 -record(state, {socket,
                 sockmod     :: ejabberd:sockmod(),
                 streamid,
-                hosts       :: list(),
                 password    :: binary(),
+                host        :: binary(),
                 access,
                 check_from
               }).
@@ -143,31 +143,7 @@ init([{SockMod, Socket}, Opts]) ->
                  {value, {_, A}} -> A;
                  _ -> all
              end,
-    {Hosts, Password} =
-        case lists:keysearch(hosts, 1, Opts) of
-            {value, {_, Hs, HOpts}} ->
-                case lists:keysearch(password, 1, HOpts) of
-                    {value, {_, P}} ->
-                        {Hs, P};
-                    _ ->
-                        % TODO: generate error
-                        false
-                end;
-            _ ->
-                case lists:keysearch(host, 1, Opts) of
-                    {value, {_, H, HOpts}} ->
-                        case lists:keysearch(password, 1, HOpts) of
-                            {value, {_, P}} ->
-                                {[H], P};
-                            _ ->
-                                % TODO: generate error
-                                false
-                        end;
-                    _ ->
-                        % TODO: generate error
-                        false
-                end
-        end,
+    {password, Password} = lists:keyfind(password, 1, Opts),
     Shaper = case lists:keysearch(shaper_rule, 1, Opts) of
                  {value, {_, S}} -> S;
                  _ -> none
@@ -180,7 +156,6 @@ init([{SockMod, Socket}, Opts]) ->
     {ok, wait_for_stream, #state{socket = Socket,
                                  sockmod = SockMod,
                                  streamid = new_id(),
-                                 hosts = [iolist_to_binary(H) || H <- Hosts],
                                  password = Password,
                                  access = Access,
                                  check_from = CheckFrom
@@ -228,11 +203,12 @@ wait_for_handshake({xmlstreamelement, El}, StateData) ->
                          StateData#state.password) of
                 Digest ->
                     send_text(StateData, <<"<handshake/>">>),
-                    lists:foreach(
-                      fun(H) ->
-                              ejabberd_router:register_route(H),
-                              ?INFO_MSG("Route registered for service ~p~n", [H])
-                      end, StateData#state.hosts),
+
+                    %% register route for host
+                    Host = StateData#state.host,
+                    ejabberd_router:register_route(Host),
+                    ?INFO_MSG("Route registered for service ~p~n", [Host]),
+
                     {next_state, stream_established, StateData};
                 _ ->
                     send_text(StateData, ?INVALID_HANDSHAKE_ERR),
@@ -266,7 +242,7 @@ stream_established({xmlstreamelement, El}, StateData) ->
                       FromJID1 = jid:from_binary(From),
                       case FromJID1 of
                           #jid{lserver = Server} ->
-                              case lists:member(Server, StateData#state.hosts) of
+                              case Server =:= StateData#state.host of
                                   true -> FromJID1;
                                   false -> error
                               end;
@@ -380,10 +356,7 @@ terminate(Reason, StateName, StateData) ->
     ?INFO_MSG("terminated: ~p", [Reason]),
     case StateName of
         stream_established ->
-            lists:foreach(
-              fun(H) ->
-                      ejabberd_router:unregister_route(H)
-              end, StateData#state.hosts);
+            ejabberd_router:unregister_route(StateData#state.host);
         _ ->
             ok
     end,
