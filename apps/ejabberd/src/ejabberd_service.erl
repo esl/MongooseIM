@@ -53,10 +53,11 @@
 -include("jlib.hrl").
 
 -record(state, {socket,
-                sockmod     :: ejabberd:sockmod(),
+                sockmod      :: ejabberd:sockmod(),
                 streamid,
-                password    :: binary(),
-                host        :: binary(),
+                password     :: binary(),
+                host         :: binary(),
+                is_subdomain :: boolean(),
                 access,
                 check_from
               }).
@@ -178,8 +179,14 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
             %% so ejabberd doesn't check 'to' attribute (EJAB-717)
             To = xml:get_attr_s(<<"to">>, Attrs),
             Header = io_lib:format(?STREAM_HEADER, [StateData#state.streamid, To]),
+            IsSubdomain = case xml:get_attr_s(<<"is_subdomain">>, Attrs) of
+                <<"true">> -> true;
+                _          -> false
+            end,
             send_text(StateData, list_to_binary(Header)),
-            {next_state, wait_for_handshake, StateData};
+            StateData1 = StateData#state{host = To,
+                                         is_subdomain = IsSubdomain},
+            {next_state, wait_for_handshake, StateData1};
         _ ->
             send_text(StateData, ?INVALID_HEADER_ERR),
             {stop, normal, StateData}
@@ -205,9 +212,7 @@ wait_for_handshake({xmlstreamelement, El}, StateData) ->
                     send_text(StateData, <<"<handshake/>">>),
 
                     %% register route for host
-                    Host = StateData#state.host,
-                    ejabberd_router:register_route(Host),
-                    ?INFO_MSG("Route registered for service ~p~n", [Host]),
+                    register_routes(StateData),
 
                     {next_state, stream_established, StateData};
                 _ ->
@@ -224,7 +229,6 @@ wait_for_handshake({xmlstreamerror, _}, StateData) ->
     {stop, normal, StateData};
 wait_for_handshake(closed, StateData) ->
     {stop, normal, StateData}.
-
 
 -spec stream_established(ejabberd:xml_stream_item(), state()) -> fsm_return().
 stream_established({xmlstreamelement, El}, StateData) ->
@@ -356,7 +360,7 @@ terminate(Reason, StateName, StateData) ->
     ?INFO_MSG("terminated: ~p", [Reason]),
     case StateName of
         stream_established ->
-            ejabberd_router:unregister_route(StateData#state.host);
+            unregister_routes(StateData);
         _ ->
             ok
     end,
@@ -404,3 +408,23 @@ fsm_limit_opts(Opts) ->
             end
     end.
 
+-spec register_routes(state()) -> any().
+register_routes(#state{host=Subdomain, is_subdomain=true}) ->
+    Hosts = ejabberd_config:get_global_option(hosts),
+    [register_route(<<Subdomain/binary, ".", Host/binary>>) || Host <- Hosts];
+register_routes(#state{host=Host}) ->
+    register_route(Host).
+
+register_route(Host) ->
+    ejabberd_router:register_route(Host),
+    ?INFO_MSG("Route registered for service ~p~n", [Host]).
+
+-spec unregister_routes(state()) -> any().
+unregister_routes(#state{host=Subdomain, is_subdomain=true}) ->
+    Hosts = ejabberd_config:get_global_option(hosts),
+    [unregister_route(<<Subdomain/binary,".",Host/binary>>) || Host <- Hosts];
+unregister_routes(#state{host=Host}) ->
+    unregister_route(Host).
+
+unregister_route(Host) ->
+    ejabberd_router:unregister_route(Host).
