@@ -23,9 +23,15 @@ CREATE TABLE users (
     username varchar(250) PRIMARY KEY,
     password text NOT NULL,
     pass_details text,
+    email varchar(250),
+    cellphone varchar(250),
+    token varchar(250),
+    active varchar(10) DEFAULT "true",
     created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) CHARACTER SET utf8;
 
+CREATE INDEX i_users_email ON users(email);
+CREATE INDEX i_users_cellphone ON users(cellphone);
 
 CREATE TABLE last (
     username varchar(250) PRIMARY KEY,
@@ -103,6 +109,8 @@ CREATE TABLE vcard_search (
     llocality varchar(250) NOT NULL,
     email text NOT NULL,
     lemail varchar(250) NOT NULL,
+    cellphone text NOT NULL,
+    lcellphone varchar(250) NOT NULL,
     orgname text NOT NULL,
     lorgname varchar(250) NOT NULL,
     orgunit text NOT NULL,
@@ -120,6 +128,7 @@ CREATE INDEX i_vcard_search_lbday     ON vcard_search(lbday);
 CREATE INDEX i_vcard_search_lctry     ON vcard_search(lctry);
 CREATE INDEX i_vcard_search_llocality ON vcard_search(llocality);
 CREATE INDEX i_vcard_search_lemail    ON vcard_search(lemail);
+CREATE INDEX i_vcard_search_lcellphone ON vcard_search(lcellphone);
 CREATE INDEX i_vcard_search_lorgname  ON vcard_search(lorgname);
 CREATE INDEX i_vcard_search_lorgunit  ON vcard_search(lorgunit);
 

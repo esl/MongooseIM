@@ -30,7 +30,7 @@
 -export([start/0,
          register_mechanism/3,
          listmech/1,
-         server_new/7,
+         server_new/8,
          server_start/3,
          server_step/2]).
 
@@ -49,40 +49,46 @@
 -record(sasl_state, {service :: binary(),
                      myname :: ejabberd:server(),
                      realm :: binary(),
+                     get_info_by_loginname :: get_info_by_loginname_fun(),
                      get_password :: get_password_fun(),
                      check_password :: check_password_fun(),
                      check_password_digest :: check_pass_digest_fun(),
                      mech_mod :: sasl_module(),
                      mech_state :: tuple()
-                     }).
+                    }).
 -type sasl_state() :: #sasl_state{}.
 
+-type get_info_by_loginname_fun() :: fun((binary(), binary() ) ->
+                                               error  | _ ).
+
 -type get_password_fun() :: fun((ejabberd:user()) ->
-                          {binary(), ejabberd_auth:authmodule()} | {false, none}
-                        ).
+                                       {binary(), ejabberd_auth:authmodule()} | {false, none}
+                                           ).
 -type check_password_fun() :: fun((User :: ejabberd:user(),
                                    Password :: binary()) ->
-                                      'false' | {'true', ejabberd_auth:authmodule()}
-                                 ).
+                                         'false' | {'true', ejabberd_auth:authmodule()}
+                                             ).
 -type check_pass_digest_fun() :: fun((User :: ejabberd:user(),
-                                    Server :: ejabberd:server(),
-                                    Password :: binary(),
-                                    Digest :: binary(),
-                                    DigestGen :: fun()) ->
-                                      'false' | {'true', ejabberd_auth:authmodule()}
-                                  ).
--export_type([get_password_fun/0,
+                                      Server :: ejabberd:server(),
+                                      Password :: binary(),
+                                      Digest :: binary(),
+                                      DigestGen :: fun()) ->
+                                            'false' | {'true', ejabberd_auth:authmodule()}
+                                                ).
+-export_type([get_info_by_loginname_fun/0,
+              get_password_fun/0,
               check_password_fun/0,
               check_pass_digest_fun/0]).
 
 -callback mech_new(Host :: ejabberd:server(),
+                   GetInfo:: get_info_by_loginname_fun(),
                    GetPassword :: get_password_fun(),
                    CheckPassword :: check_password_fun(),
                    CheckPasswordDigest :: check_pass_digest_fun()
-                   ) -> {ok, tuple()}.
+                                          ) -> {ok, tuple()}.
 -callback mech_step(State :: tuple(),
                     ClientIn :: binary()
-                    ) -> {ok, proplists:proplist()} | {error, binary()}.
+                                ) -> {ok, proplists:proplist()} | {error, binary()}.
 
 -spec start() -> 'ok'.
 start() ->
@@ -100,9 +106,9 @@ start() ->
                          PasswordType :: plain | digest | scram) -> 'true'.
 register_mechanism(Mechanism, Module, PasswordType) ->
     ets:insert(sasl_mechanism,
-	       #sasl_mechanism{mechanism = Mechanism,
-			       module = Module,
-			       password_type = PasswordType}).
+               #sasl_mechanism{mechanism = Mechanism,
+                               module = Module,
+                               password_type = PasswordType}).
 
 %%% TODO: use callbacks
 %%-include("ejabberd.hrl").
@@ -164,24 +170,26 @@ listmech(Host) ->
                  ServerFQDN :: ejabberd:server(),
                  UserRealm :: binary(),
                  _SecFlags :: [any()],
+                 GetInfo :: get_info_by_loginname_fun(),
                  GetPassword :: get_password_fun(),
                  CheckPassword :: check_password_fun(),
                  CheckPasswordDigest :: check_pass_digest_fun()) -> sasl_state().
 server_new(Service, ServerFQDN, UserRealm, _SecFlags,
-           GetPassword, CheckPassword, CheckPasswordDigest) ->
+           GetInfo, GetPassword, CheckPassword, CheckPasswordDigest) ->
     #sasl_state{service = Service,
                 myname = ServerFQDN,
                 realm = UserRealm,
+                get_info_by_loginname = GetInfo,
                 get_password = GetPassword,
                 check_password = CheckPassword,
                 check_password_digest= CheckPasswordDigest}.
 
 -spec server_start(sasl_state(),
-                 Mech :: any(),
-                 ClientIn :: binary()) -> {ok, _}
-                                        | {error, binary()}
-                                        | {'continue',_,sasl_state()}
-                                        | {'error',binary(),ejabberd:user()}.
+                   Mech :: any(),
+                   ClientIn :: binary()) -> {ok, _}
+                                                | {error, binary()}
+                                                | {'continue',_,sasl_state()}
+                                                | {'error',binary(),ejabberd:user()}.
 server_start(State, Mech, ClientIn) ->
     case lists:member(Mech, listmech(State#sasl_state.myname)) of
         true ->
@@ -189,6 +197,7 @@ server_start(State, Mech, ClientIn) ->
                 [#sasl_mechanism{module = Module}] ->
                     {ok, MechState} = Module:mech_new(
                                         State#sasl_state.myname,
+                                        State#sasl_state.get_info_by_loginname,
                                         State#sasl_state.get_password,
                                         State#sasl_state.check_password,
                                         State#sasl_state.check_password_digest),
@@ -203,35 +212,35 @@ server_start(State, Mech, ClientIn) ->
     end.
 
 -spec server_step(State :: sasl_state(), ClientIn :: binary()) ->
-                                          {'error',_}
-                                          | {'ok',[any()]}
-                                          | {'continue',_,sasl_state()}
-                                          | {'error',binary(),ejabberd:user()}.
+                         {'error',_}
+                             | {'ok',[any()]}
+                             | {'continue',_,sasl_state()}
+                             | {'error',binary(),ejabberd:user()}.
 server_step(State, ClientIn) ->
     Module = State#sasl_state.mech_mod,
     MechState = State#sasl_state.mech_state,
     case Module:mech_step(MechState, ClientIn) of
-	{ok, Props} ->
-	    case check_credentials(State, Props) of
-		ok ->
-		    {ok, Props};
-		{error, Error} ->
-		    {error, Error}
-	    end;
-	{ok, Props, ServerOut} ->
-	    case check_credentials(State, Props) of
-		ok ->
-		    {ok, Props, ServerOut};
-		{error, Error} ->
-		    {error, Error}
-	    end;
-	{continue, ServerOut, NewMechState} ->
-	    {continue, ServerOut,
-	     State#sasl_state{mech_state = NewMechState}};
-	{error, Error, Username} ->
-	    {error, Error, Username};
-	{error, Error} ->
-	    {error, Error}
+        {ok, Props} ->
+            case check_credentials(State, Props) of
+                ok ->
+                    {ok, Props};
+                {error, Error} ->
+                    {error, Error}
+            end;
+        {ok, Props, ServerOut} ->
+            case check_credentials(State, Props) of
+                ok ->
+                    {ok, Props, ServerOut};
+                {error, Error} ->
+                    {error, Error}
+            end;
+        {continue, ServerOut, NewMechState} ->
+            {continue, ServerOut,
+             State#sasl_state{mech_state = NewMechState}};
+        {error, Error, Username} ->
+            {error, Error, Username};
+        {error, Error} ->
+            {error, Error}
     end.
 
 %% @doc Remove the anonymous mechanism from the list if not enabled for the

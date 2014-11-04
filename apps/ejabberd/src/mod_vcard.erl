@@ -48,7 +48,10 @@
 -export([init/1,handle_info/2, handle_call/3, handle_cast/2, terminate/2, code_change/3]).
 
 %% Hook handlers
--export([process_local_iq/3,process_sm_iq/3,get_local_features/5,remove_user/2]).
+-export([process_local_iq/3,process_sm_iq/3,get_local_features/5,remove_user/2, process_search_phonelist/3]).
+
+%%export this function.
+-export( [prepare_vcard_search_params/3] ).
 
 -export([start_link/2]).
 
@@ -130,6 +133,9 @@ init([VHost, Opts]) ->
                                   ?MODULE,process_sm_iq, IQDisc),
     gen_iq_handler:add_iq_handler(ejabberd_local, VHost, ?NS_VCARD,
                                   ?MODULE,process_local_iq, IQDisc),
+
+    gen_iq_handler:add_iq_handler( ejabberd_sm, VHost, ?NS_AFT_SEARCH_PHONELIST,
+                                  ?MODULE, process_search_phonelist, IQDisc),
 
     DirectoryHost = gen_mod:get_opt_host(VHost, Opts, "vjud.@HOST@"),
     Search = gen_mod:get_opt(search, Opts, true),
@@ -259,6 +265,62 @@ remove_user(User, Server) ->
     ?BACKEND:remove_user(LUser,LServer).
 
 %% ------------------------------------------------------------------
+%% process_search_phonelist.
+%%
+%% receive:
+%% <iq from="base@54.255.140.120/res" id="4923672" type="set">
+%%   <search xmlns="jabber:iq:aft_search" search_type="contact_phone_list">
+%%       13837125213,13598032758,15041129527, ...
+%%   </search>
+%% </iq>
+%%
+%% return:
+%% <iq xmlns="jabber:client" from="baseJID@54.255.140.120" to="baseJID@54.255.140.120/Res" type="result" id="5244001">
+%%   <search xmlns="jabber:iq:aft_search" search_type="contact_phone_list">
+%%     {"people":[{"15225181538":"jid@54.255.140.120"},{"15225181539":"jid@54.255.140.120"}]}
+%%   </search>
+%% </iq>
+%% ------------------------------------------------------------------
+process_search_phonelist( From, _To, #iq{type = set, sub_el = SubEl} = IQ ) ->
+  #jid{lserver = LServer} = From,
+  PhoneList = case xml:get_tag_attr(<<"search_type">>, SubEl) of
+    {value, <<"contact_phone_list">>} ->
+      lists:filter( fun( E ) ->
+                      case E of
+                        <<>> -> false;
+                      _ -> true end end,
+                    binary:split( xml:get_tag_cdata(SubEl),
+                                  [<<",">>, <<" ">>], [global] ) );
+    _ ->
+      error
+  end,
+
+case PhoneList of
+  error ->
+    IQ#iq{type = error, sub_el = [SubEl, ?ERR_BAD_REQUEST]};
+  _ ->
+    R1 = ejabberd_auth_odbc:phonelist_search( PhoneList, LServer ),
+    R2 = format_to_json( R1, LServer ),
+    IQ#iq{type = result, sub_el = SubEl#xmlel{children= [{xmlcdata, R2}] }}
+  end.
+
+format_to_json( JIDList, LServer ) ->
+  Acc0 = <<"{\"people\":[">>,
+  Result = lists:foldl( fun( {Number, UserName}, Acc ) ->
+    Acc1 = case Acc /= acc0 of
+            true -> << Acc/binary, "," >>;
+            _ -> Acc
+           end,
+      << Acc1/binary,
+         "{\"", Number/binary,
+         "\":\"", UserName/binary,
+        "@", LServer/binary, "\"}" >>
+      end,
+      Acc0, JIDList ),
+  << Result/binary, "]}">>.
+
+
+%% ------------------------------------------------------------------
 %% Dynamic modules
 %% ------------------------------------------------------------------
 start_backend_module(Opts) ->
@@ -276,6 +338,67 @@ mod_vcard_backend(Backend) when is_atom(Backend) ->
        mod_vcard_",
        atom_to_list(Backend),
        ".\n"]).
+
+parse_aft_submit_data( #xmlel{name = <<"x">>, attrs = Attrs, children = Els} ) ->
+  case xml:get_attr_s(<<"type">>, Attrs) of
+    <<"aft_submit">> ->
+      SearchType = xml:get_attr_s( <<"search_ID_type">>, Attrs),
+      if SearchType =:=  <<"phone">>; SearchType =:= <<"email">> ->
+        case xml:get_cdata(Els)  of
+          <<>> ->
+             invalid;
+          Data ->
+            { SearchType,  Data }
+        end;
+        true ->
+          invalid
+      end;
+    _ -> invalid
+  end.
+
+make_search_response( _, no, no, no, IQ, Type ) ->
+  IQ#iq{type = result,
+    sub_el =
+    [#xmlel{name = <<"query">>,
+      attrs =
+      [{<<"xmlns">>,?NS_SEARCH}],
+      children =
+      [#xmlel{name =
+      <<"x">>,
+        attrs =
+        [{<<"xmlns">>,?NS_XDATA},{<<"type">>,<<"result">>}, {<<"search_ID_type">>,Type}],
+        children =
+        [ {xmlcdata,  [] }]
+      }]}]};
+make_search_response( Key, JID, NickName, Photo, IQ, Type  ) ->
+  Fixed = << "{\"", Key/binary, "\":[{\"jid\":\"", JID/binary, "\"" >>,
+  Json1 = case NickName of
+    <<"">> -> Fixed;
+    _ -> << Fixed/binary, ",\"nickname\":\"", NickName/binary, "\"" >>
+  end,
+
+  Json2 = case Photo of
+    nophoto -> Json1;
+    _ -> << Json1/binary, ",\"photo\":\"", Photo/binary, "\"" >>
+  end,
+
+  Json3 = << Json2/binary, "}]}">>,
+
+  IQ#iq{type = result,
+    sub_el =
+    [#xmlel{name = <<"query">>,
+      attrs =
+      [{<<"xmlns">>,?NS_SEARCH}],
+      children =
+      [#xmlel{name =
+      <<"x">>,
+        attrs =
+        [{<<"xmlns">>,?NS_XDATA},{<<"type">>,<<"result">>}, {<<"search_ID_type">>,Type}],
+        children =
+        [ {xmlcdata,  Json3 }]
+      }]}]}.
+
+
 
 %% ------------------------------------------------------------------
 %% Internal
@@ -300,8 +423,25 @@ do_route(VHost, From, To, Packet, #iq{type = set,
             XData = jlib:parse_xdata_submit(XDataEl),
             case XData of
                 invalid ->
-                    Err = jlib:make_error_reply(Packet, ?ERR_BAD_REQUEST),
-                    ejabberd_router:route(To, From, Err);
+                  case parse_aft_submit_data( XDataEl ) of
+                    invalid ->
+                      Err = jlib:make_error_reply(Packet, ?ERR_BAD_REQUEST),
+                      ejabberd_router:route(To, From, Err);
+                    {KeyType, Data}->
+                       if KeyType =:= <<"phone">>; KeyType =:= <<"email">> ->
+                        case mod_vcard_odbc:search( VHost, KeyType, Data ) of
+                          { ok, JID, NickName, Photo } ->
+                            Response = make_search_response( Data, JID, NickName, Photo, IQ, KeyType ),
+                            ejabberd_router:route( To, From, jlib:iq_to_xml( Response ) );
+                          { error, _, _, _ } ->
+                            Response = make_search_response( Data, no, no, no, IQ, KeyType ),
+                            ejabberd_router:route( To, From, jlib:iq_to_xml( Response ) )
+                        end;
+                       true ->
+                         Err = jlib:make_error_reply(Packet, ?ERR_BAD_REQUEST),
+                         ejabberd_router:route(To, From, Err)
+                       end
+                  end;
                 _ ->
                     ResIQ = IQ#iq{
                               type = result,
@@ -420,6 +560,8 @@ prepare_vcard_search_params(User, VHost, VCARD) ->
     EMail1   = xml:get_path_s(VCARD, [{elem, <<"EMAIL">>},
                                       {elem, <<"USERID">>}, cdata]),
     EMail2   = xml:get_path_s(VCARD, [{elem, <<"EMAIL">>}, cdata]),
+    Cellphone= xml:get_path_s(VCARD, [{elem, <<"TEL">>},
+                                      {elem, <<"NUMBER">>}, cdata]),
     OrgName  = xml:get_path_s(VCARD, [{elem, <<"ORG">>},
                                       {elem, <<"ORGNAME">>}, cdata]),
     OrgUnit  = xml:get_path_s(VCARD, [{elem, <<"ORG">>},
@@ -441,6 +583,7 @@ prepare_vcard_search_params(User, VHost, VCARD) ->
     LCTRY     = stringprep:tolower(CTRY),
     LLocality = stringprep:tolower(Locality),
     LEMail    = stringprep:tolower(EMail),
+    LCellphone= stringprep:tolower(Cellphone),
     LOrgName  = stringprep:tolower(OrgName),
     LOrgUnit  = stringprep:tolower(OrgUnit),
 
@@ -457,6 +600,7 @@ prepare_vcard_search_params(User, VHost, VCARD) ->
         (LCTRY     == error) or
         (LLocality == error) or
         (LEMail    == error) or
+        (LCellphone== error) or
         (LOrgName  == error) or
         (LOrgUnit  == error) ->
             {error, badarg};
@@ -473,6 +617,7 @@ prepare_vcard_search_params(User, VHost, VCARD) ->
                                ctry      = CTRY,     lctry      = b2l(LCTRY),
                                locality  = Locality, llocality  = b2l(LLocality),
                                email     = EMail,    lemail     = b2l(LEMail),
+                               cellphone = Cellphone,lcellphone = b2l(LCellphone),
                                orgname   = OrgName,  lorgname   = b2l(LOrgName),
                                orgunit   = OrgUnit,  lorgunit   = b2l(LOrgUnit)
                               }}
@@ -492,6 +637,7 @@ get_default_reported_fields(Lang) ->
                        ?TLFIELD(<<"text-single">>, <<"Country">>, <<"ctry">>),
                        ?TLFIELD(<<"text-single">>, <<"City">>, <<"locality">>),
                        ?TLFIELD(<<"text-single">>, <<"Email">>, <<"email">>),
+                       ?TLFIELD(<<"text-single">>, <<"cellphone">>,<<"lcellphone">>),
                        ?TLFIELD(<<"text-single">>, <<"Organization Name">>, <<"orgname">>),
                        ?TLFIELD(<<"text-single">>, <<"Organization Unit">>, <<"orgunit">>)
                       ]}.

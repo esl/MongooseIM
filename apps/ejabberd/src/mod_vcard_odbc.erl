@@ -31,6 +31,9 @@
 %% mod_vcards callbacks
 -export([init/2,remove_user/2, get_vcard/2, set_vcard/4, search/4, search_fields/1]).
 
+%% API
+-export( [search/3, set_vcard_with_no_transaction/4] ).
+
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 -include("mod_vcard.hrl").
@@ -65,6 +68,58 @@ get_vcard(LUser, LServer) ->
             {error, ?ERR_SERVICE_UNAVAILABLE}
     end.
 
+set_vcard_with_no_transaction(User, VHost, VCard, VCardSearch) ->
+    LUser = jlib:nodeprep(User),
+    Username = ejabberd_odbc:escape(User),
+    LUsername = ejabberd_odbc:escape(LUser),
+    LServer = ejabberd_odbc:escape(VHost),
+    SVCARD = ejabberd_odbc:escape(
+               xml:element_to_binary(VCard)),
+
+    SFN = ejabberd_odbc:escape(VCardSearch#vcard_search.fn),
+    SLFN = ejabberd_odbc:escape(VCardSearch#vcard_search.lfn),
+    SFamily = ejabberd_odbc:escape(VCardSearch#vcard_search.family),
+    SLFamily = ejabberd_odbc:escape(VCardSearch#vcard_search.lfamily),
+    SGiven = ejabberd_odbc:escape(VCardSearch#vcard_search.given),
+    SLGiven = ejabberd_odbc:escape(VCardSearch#vcard_search.lgiven),
+    SMiddle = ejabberd_odbc:escape(VCardSearch#vcard_search.middle),
+    SLMiddle = ejabberd_odbc:escape(VCardSearch#vcard_search.lmiddle),
+    SNickname = ejabberd_odbc:escape(VCardSearch#vcard_search.nickname),
+    SLNickname = ejabberd_odbc:escape(VCardSearch#vcard_search.lnickname),
+    SBDay = ejabberd_odbc:escape(VCardSearch#vcard_search.bday),
+    SLBDay = ejabberd_odbc:escape(VCardSearch#vcard_search.lbday),
+    SCTRY = ejabberd_odbc:escape(VCardSearch#vcard_search.ctry),
+    SLCTRY = ejabberd_odbc:escape(VCardSearch#vcard_search.lctry),
+    SLocality = ejabberd_odbc:escape(VCardSearch#vcard_search.locality),
+    SLLocality = ejabberd_odbc:escape(VCardSearch#vcard_search.llocality),
+    SEMail = ejabberd_odbc:escape(VCardSearch#vcard_search.email),
+    SLEMail = ejabberd_odbc:escape(VCardSearch#vcard_search.lemail),
+    SCellphone = ejabberd_odbc:escape(VCardSearch#vcard_search.cellphone),
+    LSCellphone = ejabberd_odbc:escape(VCardSearch#vcard_search.lcellphone),
+    SOrgName = ejabberd_odbc:escape(VCardSearch#vcard_search.orgname),
+    SLOrgName = ejabberd_odbc:escape(VCardSearch#vcard_search.lorgname),
+    SOrgUnit = ejabberd_odbc:escape(VCardSearch#vcard_search.orgunit),
+    SLOrgUnit = ejabberd_odbc:escape(VCardSearch#vcard_search.lorgunit),
+
+                                                %{LServer, LUsername, SBDay, SCTRY, SEMail,SCellphone,
+                                                %  SFN, SFamily, SGiven, SLBDay, SLCTRY,
+                                                %  SLEMail, LSCellphone, SLFN, SLFamily, SLGiven,
+                                                %  SLLocality, SLMiddle, SLNickname,
+                                                %  SLOrgName, SLOrgUnit, SLocality,
+                                                %  SMiddle, SNickname, SOrgName,
+                                                %  SOrgUnit, SVCARD, Username};
+
+    odbc_queries:set_vcard_with_no_transaction(LServer, LUsername, SBDay, SCTRY, SEMail,SCellphone,
+                                               SFN, SFamily, SGiven, SLBDay, SLCTRY,
+                                               SLEMail, LSCellphone, SLFN, SLFamily, SLGiven,
+                                               SLLocality, SLMiddle, SLNickname,
+                                               SLOrgName, SLOrgUnit, SLocality,
+                                               SMiddle, SNickname, SOrgName,
+                                               SOrgUnit, SVCARD, Username).
+
+                                                %ejabberd_hooks:run(vcard_set, VHost, [LUser, VHost, VCard]),
+                                                %ok.
+
 set_vcard(User, VHost, VCard, VCardSearch) ->
     LUser = jlib:nodeprep(User),
     Username = ejabberd_odbc:escape(User),
@@ -91,14 +146,16 @@ set_vcard(User, VHost, VCard, VCardSearch) ->
     SLLocality = ejabberd_odbc:escape(VCardSearch#vcard_search.llocality),
     SEMail = ejabberd_odbc:escape(VCardSearch#vcard_search.email),
     SLEMail = ejabberd_odbc:escape(VCardSearch#vcard_search.lemail),
+    SCellphone = ejabberd_odbc:escape(VCardSearch#vcard_search.cellphone),
+    LSCellphone = ejabberd_odbc:escape(VCardSearch#vcard_search.lcellphone),
     SOrgName = ejabberd_odbc:escape(VCardSearch#vcard_search.orgname),
     SLOrgName = ejabberd_odbc:escape(VCardSearch#vcard_search.lorgname),
     SOrgUnit = ejabberd_odbc:escape(VCardSearch#vcard_search.orgunit),
     SLOrgUnit = ejabberd_odbc:escape(VCardSearch#vcard_search.lorgunit),
 
-    odbc_queries:set_vcard(LServer, LUsername, SBDay, SCTRY, SEMail,
+    odbc_queries:set_vcard(LServer, LUsername, SBDay, SCTRY, SEMail,SCellphone,
                            SFN, SFamily, SGiven, SLBDay, SLCTRY,
-                           SLEMail, SLFN, SLFamily, SLGiven,
+                           SLEMail, LSCellphone, SLFN, SLFamily, SLGiven,
                            SLLocality, SLMiddle, SLNickname,
                            SLOrgName, SLOrgUnit, SLocality,
                            SMiddle, SNickname, SOrgName,
@@ -107,57 +164,96 @@ set_vcard(User, VHost, VCard, VCardSearch) ->
     ejabberd_hooks:run(vcard_set, VHost, [LUser, VHost, VCard]),
     ok.
 
+search(LServer, Type, Key ) ->
+
+    Select = case Type of
+                 <<"email">> ->
+                     <<"select lusername, server, nickname from vcard_search where lemail='">>;
+                 <<"phone">> ->
+                     <<"select lusername, server, nickname from vcard_search where lcellphone='">>
+             end,
+
+    case catch  ejabberd_odbc:sql_query( LServer,
+                                         [ Select, Key, <<"';">>]) of
+        {selected, [<<"lusername">>, <<"server">>, <<"nickname">>], [ {UserName, Server, Nickname} ]} ->
+                                                %{UserName, Server, Nickname},
+            JID = << UserName/binary, "@", Server/binary >>,
+            case get_vcard( UserName, Server ) of
+                { ok, [VCARD] } ->
+                    Photo = xml:get_subtag( VCARD, <<"PHOTO">> ),
+                    case Photo of
+                        false -> { ok, JID, Nickname, nophoto };
+                        _ ->
+                            case xml:get_subtag( Photo, <<"BINVAL">> ) of
+                                false ->
+                                    { ok, JID, Nickname, nophoto };
+                                Binval ->
+                                    case xml:get_tag_cdata( Binval ) of
+                                        <<"">> -> { ok, JID, Nickname, nophoto };
+                                        Data ->{ ok, JID, Nickname, Data }
+                                    end
+                            end
+                    end;
+                { error, _ } ->
+                    { error, false, false, false }
+            end;
+        _ ->
+            { error, false, false, false }
+    end.
+
+
 search(LServer, Data, _Lang, DefaultReportedFields) ->
     RestrictionSQL = make_restriction_sql(LServer, Data),
     AllowReturnAll = gen_mod:get_module_opt(LServer, ?MODULE,
-					    allow_return_all, false),
+                                            allow_return_all, false),
     R=if
-	(RestrictionSQL == "") and (not AllowReturnAll) ->
-	    [];
-	true ->
-	    Limit = case gen_mod:get_module_opt(LServer, ?MODULE,
-						matches, ?JUD_MATCHES) of
-			infinity ->
-			    "";
-			Val when is_integer(Val) and (Val > 0) ->
-			    [" LIMIT ", integer_to_list(Val)];
-			Val ->
-			    ?ERROR_MSG("Illegal option value ~p. "
-				       "Default value ~p substituted.",
-				       [{matches, Val}, ?JUD_MATCHES]),
-			    [" LIMIT ", integer_to_list(?JUD_MATCHES)]
-		    end,
-	    case catch ejabberd_odbc:sql_query(
-			 LServer,
-			 ["select username, server, fn, family, given, middle, "
-			  "       nickname, bday, ctry, locality, "
-			  "       email, orgname, orgunit from vcard_search ",
-			  RestrictionSQL, Limit, ";"]) of
-		{selected, [<<"username">>, <<"server">>, <<"fn">>, <<"family">>, <<"given">>,
-			    <<"middle">>, <<"nickname">>, <<"bday">>, <<"ctry">>, <<"locality">>,
-			    <<"email">>, <<"orgname">>, <<"orgunit">>], Rs} when is_list(Rs) ->
-		    Rs;
-		Error ->
-		    ?ERROR_MSG("~p", [Error]),
-		    []
-	    end
-    end,
+          (RestrictionSQL == "") and (not AllowReturnAll) ->
+              [];
+          true ->
+              Limit = case gen_mod:get_module_opt(LServer, ?MODULE,
+                                                  matches, ?JUD_MATCHES) of
+                          infinity ->
+                              "";
+                          Val when is_integer(Val) and (Val > 0) ->
+                              [" LIMIT ", integer_to_list(Val)];
+                          Val ->
+                              ?ERROR_MSG("Illegal option value ~p. "
+                                         "Default value ~p substituted.",
+                                         [{matches, Val}, ?JUD_MATCHES]),
+                              [" LIMIT ", integer_to_list(?JUD_MATCHES)]
+                      end,
+              case catch ejabberd_odbc:sql_query(
+                           LServer,
+                           ["select username, server, fn, family, given, middle, "
+                            "       nickname, bday, ctry, locality, "
+                            "       email, cellphone, orgname, orgunit from vcard_search ",
+                            RestrictionSQL, Limit, ";"]) of
+                  {selected, [<<"username">>, <<"server">>, <<"fn">>, <<"family">>, <<"given">>,
+                              <<"middle">>, <<"nickname">>, <<"bday">>, <<"ctry">>, <<"locality">>,
+                              <<"email">>, <<"cellphone">>, <<"orgname">>, <<"orgunit">>], Rs} when is_list(Rs) ->
+                      Rs;
+                  Error ->
+                      ?ERROR_MSG("~p", [Error]),
+                      []
+              end
+      end,
     Items = lists:map(fun(I) -> record_to_item(LServer,I) end, R),
     [DefaultReportedFields | Items].
 
 search_fields(_VHost) ->
     [{<<"User">>, <<"user">>},
-	 {<<"Full Name">>, <<"fn">>},
-	 {<<"Given Name">>, <<"first">>},
-	 {<<"Middle Name">>, <<"middle">>},
-	 {<<"Family Name">>, <<"last">>},
-	 {<<"Nickname">>, <<"nick">>},
-	 {<<"Birthday">>, <<"bday">>},
-	 {<<"Country">>, <<"ctry">>},
+     {<<"Full Name">>, <<"fn">>},
+     {<<"Given Name">>, <<"first">>},
+     {<<"Middle Name">>, <<"middle">>},
+     {<<"Family Name">>, <<"last">>},
+     {<<"Nickname">>, <<"nick">>},
+     {<<"Birthday">>, <<"bday">>},
+     {<<"Country">>, <<"ctry">>},
      {<<"City">>, <<"locality">>},
-	 {<<"Email">>, <<"email">>},
-	 {<<"Organization Name">>, <<"orgname">>},
-	 {<<"Organization Unit">>, <<"orgunit">>}].
+     {<<"Email">>, <<"email">>},
+     {<<"Cellphone">>, <<"cellphone">>},
+     {<<"Organization Name">>, <<"orgname">>},
+     {<<"Organization Unit">>, <<"orgunit">>}].
 
 %%--------------------------------------------------------------------
 %% internal
@@ -167,12 +263,12 @@ make_restriction_sql(LServer, Data) ->
 
 filter_fields([], RestrictionSQL, _LServer) ->
     case RestrictionSQL of
-	"" ->
-	    "";
+        "" ->
+            "";
         <<>> ->
             <<>>;
-	_ ->
-	    [" where ", RestrictionSQL]
+        _ ->
+            [" where ", RestrictionSQL]
     end;
 filter_fields([{SVar, [Val]} | Ds], RestrictionSQL, LServer)
   when is_binary(Val) and (Val /= <<"">>) ->
@@ -189,6 +285,7 @@ filter_fields([{SVar, [Val]} | Ds], RestrictionSQL, LServer)
             <<"ctry">>     -> make_val(RestrictionSQL, "lctry",     LVal);
             <<"locality">> -> make_val(RestrictionSQL, "llocality", LVal);
             <<"email">>    -> make_val(RestrictionSQL, "lemail",    LVal);
+            <<"cellphone">> ->make_val(RestrictionSQL, "lcellphone",LVal);
             <<"orgname">>  -> make_val(RestrictionSQL, "lorgname",  LVal);
             <<"orgunit">>  -> make_val(RestrictionSQL, "lorgunit",  LVal);
             _              -> RestrictionSQL
@@ -198,45 +295,44 @@ filter_fields([_ | Ds], RestrictionSQL, LServer) ->
     filter_fields(Ds,RestrictionSQL , LServer).
 
 -spec make_val(RestrictionSQL, Field, Val) -> Result when
-    RestrictionSQL :: iolist(),
-    Field :: string(),
-    Val :: binary(),
-    Result :: iolist().
+      RestrictionSQL :: iolist(),
+      Field :: string(),
+      Val :: binary(),
+      Result :: iolist().
 make_val(RestrictionSQL, Field, Val) ->
     Condition =
-	case binary:last(Val) of
-	    $* ->
-		Val1 = binary:part(Val, 0, byte_size(Val)-1),
-		SVal = ejabberd_odbc:escape_like(Val1),
-		[Field, " LIKE '", SVal, "%'"];
-	    _ ->
-		SVal = ejabberd_odbc:escape(Val),
-		[Field, " = '", SVal, "'"]
-	end,
+        case binary:last(Val) of
+            $* ->
+                Val1 = binary:part(Val, 0, byte_size(Val)-1),
+                SVal = ejabberd_odbc:escape_like(Val1),
+                [Field, " LIKE '", SVal, "%'"];
+            _ ->
+                SVal = ejabberd_odbc:escape(Val),
+                [Field, " = '", SVal, "'"]
+        end,
     case RestrictionSQL of
-	"" ->
-	    Condition;
-	_ ->
-	    [RestrictionSQL, " and ", Condition]
+        "" ->
+            Condition;
+        _ ->
+            [RestrictionSQL, " and ", Condition]
     end.
 
 record_to_item(_CallerVHost, {Username, VCardVHost, FN, Family, Given, Middle,
-             Nickname, BDay, CTRY, Locality,
-             EMail, OrgName, OrgUnit}) ->
+                              Nickname, BDay, CTRY, Locality,
+                              EMail, Cellphone, OrgName, OrgUnit}) ->
     #xmlel{name = "item",
            children = [
-                        ?FIELD("jid", [Username, "@", VCardVHost]),
-                        ?FIELD("fn", FN),
-                        ?FIELD("last", Family),
-                        ?FIELD("first", Given),
-                        ?FIELD("middle", Middle),
-                        ?FIELD("nick", Nickname),
-                        ?FIELD("bday", BDay),
-                        ?FIELD("ctry", CTRY),
-                        ?FIELD("locality", Locality),
-                        ?FIELD("email", EMail),
-                        ?FIELD("orgname", OrgName),
-                        ?FIELD("orgunit", OrgUnit)
-                       ]}.
-
-
+                       ?FIELD("jid", [Username, "@", VCardVHost]),
+                       ?FIELD("fn", FN),
+                       ?FIELD("last", Family),
+                       ?FIELD("first", Given),
+                       ?FIELD("middle", Middle),
+                       ?FIELD("nick", Nickname),
+                       ?FIELD("bday", BDay),
+                       ?FIELD("ctry", CTRY),
+                       ?FIELD("locality", Locality),
+                       ?FIELD("email", EMail),
+                       ?FIELD("cellphone", Cellphone),
+                       ?FIELD("orgname", OrgName),
+                       ?FIELD("orgunit", OrgUnit)
+                      ]}.

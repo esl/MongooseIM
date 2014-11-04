@@ -31,28 +31,34 @@
 
 %% External exports
 -export([start/0,
-	 set_password/3,
-	 check_password/3,
-	 check_password/5,
-	 check_password_with_authmodule/3,
-	 check_password_with_authmodule/5,
-	 try_register/3,
-	 dirty_get_registered_users/0,
-	 get_vh_registered_users/1,
-	 get_vh_registered_users/2,
-	 get_vh_registered_users_number/1,
-	 get_vh_registered_users_number/2,
-	 get_password/2,
-	 get_password_s/2,
-	 get_password_with_authmodule/2,
-	 is_user_exists/2,
-	 is_user_exists_in_other_modules/3,
-	 remove_user/2,
-	 remove_user/3,
-	 plain_password_required/1,
-	 store_type/1,
-	 entropy/1
-	]).
+         set_password/3,
+         check_password/3,
+         check_password/5,
+         check_password_with_authmodule/3,
+         check_password_with_authmodule/5,
+         try_register/3,
+         try_register/5,
+         dirty_get_registered_users/0,
+         get_vh_registered_users/1,
+         get_vh_registered_users/2,
+         get_vh_registered_users_number/1,
+         get_vh_registered_users_number/2,
+         get_password/2,
+         get_password_s/2,
+         get_password_with_authmodule/2,
+         is_user_exists/2,
+         is_user_exists_in_other_modules/3,
+         remove_user/2,
+         remove_user/3,
+         plain_password_required/1,
+         store_type/1,
+         entropy/1,
+         get_jid_by_loginname/2,
+         get_info_by_loginname/2,
+         is_loginname_exist/2,
+         account_active_info/2,
+         active_user/2
+        ]).
 
 -export([check_digest/4]).
 
@@ -133,7 +139,7 @@ check_password(User, Server, Password, Digest, DigestGen) ->
 -spec check_password_with_authmodule(User :: binary(),
                                      Server :: binary(),
                                      Password :: binary()
-                                     ) -> 'false' | {'true', authmodule()}.
+                                                 ) -> 'false' | {'true', authmodule()}.
 check_password_with_authmodule(User, Server, Password) ->
     check_password_loop(auth_modules(Server), [User, Server, Password]).
 
@@ -142,14 +148,14 @@ check_password_with_authmodule(User, Server, Password) ->
                                      Password :: binary(),
                                      Digest :: binary(),
                                      DigestGen :: fun()
-                                     ) -> 'false' | {'true', authmodule()}.
+                                                  ) -> 'false' | {'true', authmodule()}.
 check_password_with_authmodule(User, Server, Password, Digest, DigestGen) ->
     check_password_loop(auth_modules(Server), [User, Server, Password,
                                                Digest, DigestGen]).
 
 -spec check_password_loop(AuthModules :: [authmodule()],
                           Args :: [any(),...]
-                          ) -> 'false' | {'true', authmodule()}.
+                                  ) -> 'false' | {'true', authmodule()}.
 check_password_loop([], _Args) ->
     false;
 check_password_loop([AuthModule | AuthModules], Args) ->
@@ -168,15 +174,15 @@ check_digest(Digest, DigestGen, Password, Passwd) ->
                      false
              end,
     if DigRes ->
-           true;
+            true;
        true ->
-           (Passwd == Password) and (Password /= <<>>)
+            (Passwd == Password) and (Password /= <<>>)
     end.
 
 -spec set_password(User :: ejabberd:user(),
                    Server :: ejabberd:server(),
                    Password :: binary()
-                  ) -> ok | {error, empty_password | not_allowed | invalid_jid}.
+                               ) -> ok | {error, empty_password | not_allowed | invalid_jid}.
 set_password(_User, _Server, "") ->
     %% We do not allow empty password
     {error, empty_password};
@@ -192,7 +198,7 @@ set_password(User, Server, Password) ->
 -spec try_register(User :: ejabberd:user(),
                    Server :: ejabberd:server(),
                    Password :: binary()
-                   ) -> {atomic, ok | exists} | {error, not_allowed}.
+                               ) -> {atomic, ok | exists} | {error, not_allowed}.
 try_register(_User, _Server, "") ->
     %% We do not allow empty password
     {error, not_allowed};
@@ -204,11 +210,11 @@ try_register(User, Server, Password) ->
             case lists:member(jlib:nameprep(Server), ?MYHOSTS) of
                 true ->
                     Res = lists:foldl(
-                      fun(_M, {atomic, ok} = Res) ->
-                              Res;
-                         (M, _) ->
-                              M:try_register(User, Server, Password)
-                      end, {error, not_allowed}, auth_modules(Server)),
+                            fun(_M, {atomic, ok} = Res) ->
+                                    Res;
+                               (M, _) ->
+                                    M:try_register(User, Server, Password)
+                            end, {error, not_allowed}, auth_modules(Server)),
                     case Res of
                         {atomic, ok} ->
                             ejabberd_hooks:run(register_user, Server,
@@ -219,6 +225,28 @@ try_register(User, Server, Password) ->
                 false ->
                     {error, not_allowed}
             end
+    end.
+
+%% register by email or passwd. 2014-10-27.
+%% User: email or passwd.
+try_register( User, Server, Password, Loginname, Type ) ->
+    %% has check Loginname uniqueness in mod_register.
+    case lists:member(jlib:nameprep(Server), ?MYHOSTS) of
+        true ->
+            Res = lists:foldl(fun(_M, {atomic, ok} = Res) -> Res;
+                                 (M, _) ->
+                                      M:try_register(User, Server, Password, Loginname, Type)
+                              end,
+                              {error, not_allowed}, auth_modules(Server)),
+            case Res of
+                {atomic, ok} ->
+
+                    ejabberd_hooks:run(register_user, Server,
+                                       [User, Server]),
+                    {atomic, ok};
+                _ -> Res
+            end;
+        false -> {error, not_allowed}
     end.
 
 
@@ -233,7 +261,7 @@ dirty_get_registered_users() ->
 
 %% @doc Registered users list do not include anonymous users logged
 -spec get_vh_registered_users(Server :: ejabberd:server()
-                             ) -> [ejabberd:simple_jid()].
+                                        ) -> [ejabberd:simple_jid()].
 get_vh_registered_users(Server) ->
     lists:flatmap(
       fun(M) ->
@@ -246,18 +274,18 @@ get_vh_registered_users(Server) ->
 get_vh_registered_users(Server, Opts) ->
     lists:flatmap(
       fun(M) ->
-                case erlang:function_exported(
-                       M, get_vh_registered_users, 2) of
-                    true ->
-                        M:get_vh_registered_users(Server, Opts);
-                    false ->
-                        M:get_vh_registered_users(Server)
-                end
+              case erlang:function_exported(
+                     M, get_vh_registered_users, 2) of
+                  true ->
+                      M:get_vh_registered_users(Server, Opts);
+                  false ->
+                      M:get_vh_registered_users(Server)
+              end
       end, auth_modules(Server)).
 
 
 -spec get_vh_registered_users_number(Server :: ejabberd:server()
-                                    ) -> integer().
+                                               ) -> integer().
 get_vh_registered_users_number(Server) ->
     lists:sum(
       lists:map(
@@ -288,6 +316,35 @@ get_vh_registered_users_number(Server, Opts) ->
         end, auth_modules(Server))).
 
 
+is_loginname_exist( LoginName, Server ) ->
+    case get_jid_by_loginname( LoginName, Server ) of
+        error -> false;
+        _ -> true
+    end.
+
+%% Get jid by loginname. loginname is cellphone or email.
+-spec get_jid_by_loginname( LoginName :: binary(),
+                            Server :: binary ) -> error | binary().
+get_jid_by_loginname( LoginName, Server ) ->
+    ListLoginName = binary_to_list( LoginName ),
+    Type = case string:str( ListLoginName, "@") of
+               0 -> cellphone;
+               _ -> email
+           end,
+    ejabberd_auth_odbc:get_jid_by_loginname( list_to_binary( ListLoginName ), Server, Type ).
+
+%% Get info by loginname. loginname is cellphone or email.
+-spec get_info_by_loginname( LoginName :: binary(),
+                             Server :: binary ) -> error | binary().
+get_info_by_loginname( LoginName, Server ) ->
+    ListLoginName = binary_to_list( LoginName ),
+    Type = case string:str( ListLoginName, "@") of
+               0 -> cellphone;
+               _ -> email
+           end,
+    ejabberd_auth_odbc:get_info_by_loginname( list_to_binary( ListLoginName ), Server, Type ).
+
+
 %% @doc Get the password of the user.
 -spec get_password(User :: ejabberd:user(),
                    Server :: ejabberd:server()) -> binary() | false.
@@ -314,7 +371,7 @@ get_password_s(User, Server) ->
 %% @doc Get the password of the user and the auth module.
 -spec get_password_with_authmodule(User :: ejabberd:user(),
                                    Server :: ejabberd:server())
-      -> {Password::binary(), AuthModule :: authmodule()} | {'false', 'none'}.
+                                  -> {Password::binary(), AuthModule :: authmodule()} | {'false', 'none'}.
 get_password_with_authmodule(User, Server) ->
     lists:foldl(
       fun(M, {false, _}) ->
@@ -348,7 +405,7 @@ is_user_exists(User, Server) ->
 -spec is_user_exists_in_other_modules(Module :: authmodule(),
                                       User :: ejabberd:user(),
                                       Server :: ejabberd:server()
-                                      ) -> boolean() | 'maybe'.
+                                                ) -> boolean() | 'maybe'.
 is_user_exists_in_other_modules(Module, User, Server) ->
     is_user_exists_in_other_modules_loop(
       auth_modules(Server)--[Module],
@@ -371,6 +428,22 @@ is_user_exists_in_other_modules_loop([AuthModule|AuthModules], User, Server) ->
     end.
 
 
+
+
+%% Note: be sure User is exist.
+-spec account_active_info(User :: ejabberd:user(),
+                          Server :: ejabberd:server()) -> { binary(), binary() }| error.
+account_active_info( User, Server) ->
+    [M] = auth_modules( Server ),
+    M:account_active_info( User, Server ).
+
+%% Note: be sure User is exist.
+-spec active_user(User :: ejabberd:user(),
+                  Server :: ejabberd:server()) -> ok | failed .
+active_user( User, Server ) ->
+    [M] = auth_modules( Server ),
+    M:active_user( User, Server ).
+
 %% @doc Remove user.
 %% Note: it may return ok even if there was some problem removing the user.
 -spec remove_user(User :: ejabberd:user(),
@@ -387,17 +460,17 @@ remove_user(User, Server) ->
 -spec remove_user(User :: ejabberd:user(),
                   Server :: ejabberd:server(),
                   Password :: binary()
-                  ) -> ok | not_exists | not_allowed | bad_request | error.
+                              ) -> ok | not_exists | not_allowed | bad_request | error.
 remove_user(User, Server, Password) ->
     R = lists:foldl(
-      fun(_M, ok = Res) ->
-              Res;
-         (M, _) ->
-              M:remove_user(User, Server, Password)
-      end, error, auth_modules(Server)),
+          fun(_M, ok = Res) ->
+                  Res;
+             (M, _) ->
+                  M:remove_user(User, Server, Password)
+          end, error, auth_modules(Server)),
     case R of
-      ok -> ejabberd_hooks:run(remove_user, jlib:nameprep(Server), [User, Server]);
-      _ -> none
+        ok -> ejabberd_hooks:run(remove_user, jlib:nameprep(Server), [User, Server]);
+        _ -> none
     end,
     R.
 

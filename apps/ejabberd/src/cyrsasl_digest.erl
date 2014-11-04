@@ -29,7 +29,7 @@
 
 -export([start/1,
          stop/0,
-         mech_new/4,
+         mech_new/5,
          mech_step/2]).
 
 -include("ejabberd.hrl").
@@ -40,11 +40,12 @@
                 nonce,
                 username :: ejabberd:user(),
                 authzid,
+                get_info_by_loginname :: cyrsasl:get_info_by_loginname_fun(),
                 get_password :: cyrsasl:get_password_fun(),
                 check_password :: cyrsasl:check_password_fun(),
                 auth_module :: ejabberd_auth:authmodule(),
                 host :: ejabberd:server()
-              }).
+               }).
 
 start(_Opts) ->
     cyrsasl:register_mechanism(<<"DIGEST-MD5">>, ?MODULE, digest).
@@ -53,24 +54,26 @@ stop() ->
     ok.
 
 -spec mech_new(Host :: ejabberd:server(),
+               GetInfo :: cyrsasl:get_info_by_loginname_fun(),
                GetPassword :: cyrsasl:get_password_fun(),
                CheckPassword :: cyrsasl:check_password_fun(),
                CheckPasswordDigest :: cyrsasl:check_pass_digest_fun()
-               ) -> {ok, tuple()}.
-mech_new(Host, GetPassword, _CheckPassword, CheckPasswordDigest) ->
+                                      ) -> {ok, tuple()}.
+mech_new(Host, GetInfo, GetPassword, _CheckPassword, CheckPasswordDigest) ->
     {ok, #state{step = 1,
                 nonce = randoms:get_string(),
                 host = Host,
+                get_info_by_loginname = GetInfo,
                 get_password = GetPassword,
                 check_password = CheckPasswordDigest}}.
 
 -spec mech_step(State :: tuple(),
                 ClientIn :: any()
-                ) -> {ok, proplists:proplist()} | {error, binary()}.
+                            ) -> {ok, proplists:proplist()} | {error, binary()}.
 mech_step(#state{step = 1, nonce = Nonce} = State, _) ->
     {continue,
      list_to_binary("nonce=\"" ++ Nonce ++
-     "\",qop=\"auth\",charset=utf-8,algorithm=md5-sess"),
+                        "\",qop=\"auth\",charset=utf-8,algorithm=md5-sess"),
      State#state{step = 3}};
 mech_step(#state{step = 3, nonce = Nonce} = State, ClientIn) ->
     case parse(ClientIn) of
@@ -78,36 +81,45 @@ mech_step(#state{step = 3, nonce = Nonce} = State, ClientIn) ->
             {error, <<"bad-protocol">>};
         KeyVals ->
             DigestURI = xml:get_attr_s(<<"digest-uri">>, KeyVals),
-            UserName = xml:get_attr_s(<<"username">>, KeyVals),
-            case is_digesturi_valid(DigestURI, State#state.host) of
-                false ->
-                    ?DEBUG("User login not authorized because digest-uri "
-                           "seems invalid: ~p", [DigestURI]),
-                    {error, <<"not-authorized">>, UserName};
-                true ->
-                    AuthzId = xml:get_attr_s(<<"authzid">>, KeyVals),
-                    case (State#state.get_password)(UserName) of
-                        {false, _} ->
-                            {error, <<"not-authorized">>, UserName};
-                        {Passwd, AuthModule} ->
-                                case (State#state.check_password)(UserName, <<>>,
-                                        xml:get_attr_s(<<"response">>, KeyVals),
-                                        fun(PW) -> response(KeyVals, UserName, PW, Nonce, AuthzId,
-                                                <<"AUTHENTICATE">>) end) of
-                                {true, _} ->
-                                    RspAuth = response(KeyVals,
-                                                       UserName, Passwd,
-                                                       Nonce, AuthzId, <<>>),
-                                    {continue,
-                                     list_to_binary([<<"rspauth=">>, RspAuth]),
-                                     State#state{step = 5,
-                                                 auth_module = AuthModule,
-                                                 username = UserName,
-                                                 authzid = AuthzId}};
-                                false ->
-                                    {error, <<"not-authorized">>, UserName};
+                                                %UserName = xml:get_attr_s(<<"username">>, KeyVals),
+            LoginName = proplists:get_value(<<"username">>, KeyVals, <<>>),
+            case (State#state.get_info_by_loginname)(LoginName) of
+                error ->
+                    {error, <<"not-authorized">>, LoginName};
+                {_UserName, _Passwd, <<"false">>, _Timestamp } ->
+                    {error, <<"not-actived">>, LoginName};
+                {UserName, _Passwd, <<"true">>, _Timestamp } ->
+                    case is_digesturi_valid(DigestURI, State#state.host) of
+                        false ->
+                            ?DEBUG("User login not authorized because digest-uri "
+                                   "seems invalid: ~p", [DigestURI]),
+                            {error, <<"not-authorized">>, LoginName};
+                        true ->
+
+                            AuthzId = xml:get_attr_s(<<"authzid">>, KeyVals),
+                            case (State#state.get_password)(UserName) of
                                 {false, _} ->
-                                    {error, <<"not-authorized">>, UserName}
+                                    {error, <<"not-authorized">>, LoginName};
+                                {Passwd, AuthModule} ->
+                                    case (State#state.check_password)(UserName, <<>>,
+                                                                      xml:get_attr_s(<<"response">>, KeyVals),
+                                                                      fun(PW) -> response(KeyVals, LoginName, PW, Nonce, AuthzId,
+                                                                                          <<"AUTHENTICATE">>) end) of
+                                        {true, _} ->
+                                            RspAuth = response(KeyVals,
+                                                               LoginName, Passwd,
+                                                               Nonce, AuthzId, <<>>),
+                                            {continue,
+                                             list_to_binary([<<"rspauth=">>, RspAuth]),
+                                             State#state{step = 5,
+                                                         auth_module = AuthModule,
+                                                         username = UserName,
+                                                         authzid = AuthzId}};
+                                        false ->
+                                            {error, <<"not-authorized">>, LoginName};
+                                        {false, _} ->
+                                            {error, <<"not-authorized">>, LoginName}
+                                    end
                             end
                     end
             end
@@ -142,24 +154,24 @@ parse1(<<>>, _S, _T) ->
 
 parse2(<<$\", Cs/binary>>, Key, Val, Ts) ->
     parse3(Cs, Key, Val, Ts);
-parse2(<<C, Cs/binary>>, Key, Val, Ts) ->
-    parse4(Cs, Key, <<C, Val/binary>>, Ts);
-parse2(<<>>, _, _, _) ->
-    bad.
+         parse2(<<C, Cs/binary>>, Key, Val, Ts) ->
+               parse4(Cs, Key, <<C, Val/binary>>, Ts);
+         parse2(<<>>, _, _, _) ->
+               bad.
 
 parse3(<<$\", Cs/binary>>, Key, Val, Ts) ->
     parse4(Cs, Key, Val, Ts);
-parse3(<<$\\, C, Cs/binary>>, Key, Val, Ts) ->
-    parse3(Cs, Key, <<C, Val/binary>>, Ts);
-parse3(<<C, Cs/binary>>, Key, Val, Ts) ->
-    parse3(Cs, Key, <<C, Val/binary>>, Ts);
-parse3(<<>>, _, _, _) ->
-    bad.
+         parse3(<<$\\, C, Cs/binary>>, Key, Val, Ts) ->
+               parse3(Cs, Key, <<C, Val/binary>>, Ts);
+         parse3(<<C, Cs/binary>>, Key, Val, Ts) ->
+               parse3(Cs, Key, <<C, Val/binary>>, Ts);
+         parse3(<<>>, _, _, _) ->
+               bad.
 
 -spec parse4(binary(),
-    Key :: binary(),
-    Val :: binary(),
-    Ts :: [{binary(),binary()}]) -> 'bad' | [{K :: binary(), V :: binary()}].
+             Key :: binary(),
+             Val :: binary(),
+             Ts :: [{binary(),binary()}]) -> 'bad' | [{K :: binary(), V :: binary()}].
 parse4(<<$, , Cs/binary>>, Key, Val, Ts) ->
     parse1(Cs, <<>>, [{Key, binary_reverse(Val)} | Ts]);
 parse4(<<$\s, Cs/binary>>, Key, Val, Ts) ->
@@ -227,26 +239,23 @@ response(KeyVals, User, Passwd, Nonce, AuthzId, A2Prefix) ->
     NC = xml:get_attr_s(<<"nc">>, KeyVals),
     QOP = xml:get_attr_s(<<"qop">>, KeyVals),
     A1 = case AuthzId of
-	     <<>> ->
-		 list_to_binary(
-		   [crypto:hash(md5, [User, <<":">>, Realm, <<":">>, Passwd]),
-		     <<":">>, Nonce, <<":">>, CNonce]);
-	     _ ->
-		 list_to_binary(
-		   [crypto:hash(md5, [User, <<":">>, Realm, <<":">>, Passwd]),
-		     <<":">>, Nonce, <<":">>, CNonce, <<":">>, AuthzId])
-	 end,
+             <<>> ->
+                 list_to_binary(
+                   [crypto:hash(md5, [User, <<":">>, Realm, <<":">>, Passwd]),
+                    <<":">>, Nonce, <<":">>, CNonce]);
+             _ ->
+                 list_to_binary(
+                   [crypto:hash(md5, [User, <<":">>, Realm, <<":">>, Passwd]),
+                    <<":">>, Nonce, <<":">>, CNonce, <<":">>, AuthzId])
+         end,
     A2 = case QOP of
-	     <<"auth">> ->
-		 [A2Prefix, <<":">>, DigestURI];
-	     _ ->
-		 [A2Prefix, <<":">>, DigestURI,
-		     <<":00000000000000000000000000000000">>]
-	 end,
+             <<"auth">> ->
+                 [A2Prefix, <<":">>, DigestURI];
+             _ ->
+                 [A2Prefix, <<":">>, DigestURI,
+                  <<":00000000000000000000000000000000">>]
+         end,
     T = [hex(crypto:hash(md5, A1)), <<":">>, Nonce, <<":">>,
-	NC, <<":">>, CNonce, <<":">>, QOP, <<":">>,
-	hex(crypto:hash(md5, A2))],
+         NC, <<":">>, CNonce, <<":">>, QOP, <<":">>,
+         hex(crypto:hash(md5, A2))],
     hex(crypto:hash(md5, T)).
-
-
-

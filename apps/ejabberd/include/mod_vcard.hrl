@@ -9,6 +9,7 @@
                       ctry, lctry,
                       locality, llocality,
                       email, lemail,
+                      cellphone, lcellphone,
                       orgname, lorgname,
                       orgunit, lorgunit}).
 -record(vcard, {us, vcard}).
