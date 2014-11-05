@@ -40,6 +40,8 @@ all() ->
 groups() ->
     [{xep0114, [], [register_one_component,
                     register_two_components,
+                    try_registering_component_twice,
+                    try_registering_existing_host,
                     disco_components]},
      {subdomain, [], [register_subdomain]}].
 
@@ -98,7 +100,9 @@ register_one_component(Config) ->
                 Reply2 = escalus:wait_for_stanza(Alice),
                 escalus:assert(is_chat_message, [<<"Oh hi!">>], Reply2),
                 escalus:assert(is_stanza_from, [ComponentAddr], Reply2)
-        end).
+        end),
+
+    ok = escalus_connection:stop(Component).
 
 register_two_components(Config) ->
     %% Given two connected components
@@ -135,12 +139,45 @@ register_two_components(Config) ->
                 %% Then she receives it
                 Reply4 = escalus:wait_for_stanza(Comp1),
                 escalus:assert(is_chat_message, [<<"jkl">>], Reply4)
-        end).
+        end),
+
+    ok = escalus_connection:stop(Comp1),
+    ok = escalus_connection:stop(Comp2).
+
+try_registering_component_twice(_Config) ->
+    %% Given two components with the same name
+    {Comp1, Addr, _} = connect_component(component1),
+
+    try
+        %% When trying to connect the second one
+        {Comp2, Addr, _} = connect_component(component1),
+        ok = escalus_connection:stop(Comp2),
+        ct:fail("second component connected successfully")
+    catch error:{badmatch, _} ->
+        %% Then it should fail to do so
+        ok
+    end,
+
+    ok = escalus_connection:stop(Comp1).
+
+try_registering_existing_host(_Config) ->
+    %% Given a external muc component
+    Component = muc_component,
+
+    try
+        %% When trying to connect it to the server
+        {Comp, Addr, _} = connect_component(Component),
+        ok = escalus_connection:stop(Comp),
+        ct:fail("muc component connected successfully")
+    catch error:{badmatch, _} ->
+        %% Then it should fail since muc service already exists on the server
+        ok
+    end.
 
 disco_components(Config) ->
     %% Given two connected components
-    {_Comp1, Addr1, _} = connect_component(component1),
-    {_Comp2, Addr2, _} = connect_component(component2),
+    {Comp1, Addr1, _} = connect_component(component1),
+    {Comp2, Addr2, _} = connect_component(component2),
 
     escalus:story(Config, [1], fun(Alice) ->
                 %% When server asked for the disco features
@@ -152,11 +189,14 @@ disco_components(Config) ->
                 DiscoReply = escalus:wait_for_stanza(Alice),
                 escalus:assert(has_service, [Addr1], DiscoReply),
                 escalus:assert(has_service, [Addr2], DiscoReply)
-        end).
+        end),
+
+    ok = escalus_connection:stop(Comp1),
+    ok = escalus_connection:stop(Comp2).
 
 register_subdomain(Config) ->
     %% Given one connected component
-    {_Comp, _Addr, Name} = connect_component_subdomain(component1),
+    {Comp, _Addr, Name} = connect_component_subdomain(component1),
 
     escalus:story(Config, [1,1], fun(Alice, Astrid) ->
                 %% When Alice asks for service discovery on the server
@@ -180,7 +220,9 @@ register_subdomain(Config) ->
                 ComponentHost2 = <<Name/binary, ".", Server2/binary>>,
                 escalus:assert(has_service, [ComponentHost2], DiscoReply2)
 
-        end).
+        end),
+
+    ok = escalus_connection:stop(Comp).
 
 %%--------------------------------------------------------------------
 %% Helpers
