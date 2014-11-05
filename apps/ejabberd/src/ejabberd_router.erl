@@ -102,7 +102,7 @@ route_error(From, To, ErrPacket, OrigPacket) ->
             ok
     end.
 
--spec register_components([Domain :: domain()]) -> {atomic, ok}.
+-spec register_components([Domain :: domain()]) -> ok | {error, any()}.
 register_components(Domains) ->
     LDomains = [{jlib:nameprep(Domain), Domain} || Domain <- Domains],
     Handler = make_handler(undefined),
@@ -110,7 +110,10 @@ register_components(Domains) ->
             [do_register_component(LDomain, Handler) || LDomain <- LDomains],
             ok
     end,
-    {atomic, ok} = mnesia:transaction(F).
+    case mnesia:transaction(F) of
+        {atomic, ok}      -> ok;
+        {aborted, Reason} -> {error, Reason}
+    end.
 
 -spec register_component(Domain :: domain()) -> {atomic, ok}.
 register_component(Domain) ->
@@ -120,7 +123,13 @@ do_register_component({error, Domain}, _Handler) ->
     error({invalid_domain, Domain});
 do_register_component({LDomain, _}, Handler) ->
     Component = #external_component{domain = LDomain, handler = Handler},
-    ok = mnesia:write(Component).
+    case {mnesia:read(route, LDomain),
+          mnesia:read(external_component, LDomain)} of
+        {[], []} ->
+            ok = mnesia:write(Component);
+        _ ->
+            mnesia:abort(route_already_exists)
+    end.
 
 -spec unregister_components([Domains :: domain()]) -> {atomic, ok}.
 unregister_components(Domains) ->

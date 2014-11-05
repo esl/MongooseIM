@@ -108,6 +108,8 @@
         exml:to_binary(?SERR_XML_NOT_WELL_FORMED)).
 -define(INVALID_NS_ERR,
         exml:to_binary(?SERR_INVALID_NAMESPACE)).
+-define(CONFLICT_ERR,
+        exml:to_binary(?SERR_CONFLICT)).
 
 %%%----------------------------------------------------------------------
 %%% API
@@ -209,12 +211,14 @@ wait_for_handshake({xmlstreamelement, El}, StateData) ->
             case sha:sha1_hex(StateData#state.streamid ++
                          StateData#state.password) of
                 Digest ->
-                    send_text(StateData, <<"<handshake/>">>),
-
-                    %% register route for host
-                    register_routes(StateData),
-
-                    {next_state, stream_established, StateData};
+                    case register_routes(StateData) of
+                        ok ->
+                            send_text(StateData, <<"<handshake/>">>),
+                            {next_state, stream_established, StateData};
+                        {error, _Reason} ->
+                            send_text(StateData, ?CONFLICT_ERR),
+                            {stop, normal, StateData}
+                    end;
                 _ ->
                     send_text(StateData, ?INVALID_HANDSHAKE_ERR),
                     {stop, normal, StateData}
