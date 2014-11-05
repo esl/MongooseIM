@@ -411,20 +411,19 @@ fsm_limit_opts(Opts) ->
 -spec register_routes(state()) -> any().
 register_routes(#state{host=Subdomain, is_subdomain=true}) ->
     Hosts = ejabberd_config:get_global_option(hosts),
-    [register_route(<<Subdomain/binary, ".", Host/binary>>) || Host <- Hosts];
+    Routes = component_routes(Subdomain, Hosts),
+    ejabberd_router:register_components(Routes);
 register_routes(#state{host=Host}) ->
-    register_route(Host).
-
-register_route(Host) ->
-    ejabberd_router:register_route(Host),
-    ?INFO_MSG("Route registered for service ~p~n", [Host]).
+    ejabberd_router:register_component(Host).
 
 -spec unregister_routes(state()) -> any().
 unregister_routes(#state{host=Subdomain, is_subdomain=true}) ->
     Hosts = ejabberd_config:get_global_option(hosts),
-    [unregister_route(<<Subdomain/binary,".",Host/binary>>) || Host <- Hosts];
+    Routes = component_routes(Subdomain, Hosts),
+    ejabberd_router:unregister_components(Routes);
 unregister_routes(#state{host=Host}) ->
-    unregister_route(Host).
+    ejabberd_router:unregister_component(Host).
 
-unregister_route(Host) ->
-    ejabberd_router:unregister_route(Host).
+-spec component_routes(binary(), [binary()]) -> [binary()].
+component_routes(Subdomain, Hosts) ->
+    [<<Subdomain/binary, ".", Host/binary>> || Host <- Hosts].
