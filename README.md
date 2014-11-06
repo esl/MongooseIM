@@ -42,3 +42,52 @@ will be overlaid with the original `ejabberd.cfg` file and ejabberd will be rest
 
 
 If there is no `ejabberd_configs` entry in the config file the test will run ordinarily with running ejabberd configuration.
+
+## Changing server configuration in suites ##
+
+Sometimes it is required to change server configuration for a particular
+test or test suite. [ejabberd_node_utils](tests/ejabberd_node_utils.erl)
+module introduces a set of functions allowing such server manipulation.
+
+For example to make server require `starttls` and utilize given certificate,
+use the module as follows:
+```erlang
+init_per_suite(Config) ->
+    setup_ejabberd_node(Config).
+
+end_per_suite(Config) ->
+    restore_ejabberd_node(Config).
+
+...
+
+setup_ejabberd_node(Config0) ->
+    Config1 = ejabberd_node_utils:init(Config0),
+    ejabberd_node_utils:backup_config_file(Config1),
+    assert_cert_file_exists(),
+    make_ejabberd_node_require_starttls(Config1),
+    ejabberd_node_utils:restart_application(ejabberd),
+    Config1.
+
+restore_ejabberd_node(Config) ->
+    ejabberd_node_utils:restore_config_file(Config),
+    ejabberd_node_utils:restart_application(ejabberd).
+
+assert_cert_file_exists() ->
+    ejabberd_node_utils:file_exists(?CERT_FILE) orelse
+        ct:fail("cert file ~s not exists", [?CERT_FILE]).
+
+make_ejabberd_node_require_starttls(Config) ->
+    ejabberd_node_utils:modify_config_file([mk_value_for_tls_config_pattern()],
+                                           Config).
+
+mk_value_for_tls_config_pattern() ->
+    {tls_config, "{certfile, \"" ++ ?CERT_FILE ++ "\"}, starttls_required,"}.
+```
+
+The above snippet backups current server's config file, asserts that
+the expected certificate files exists and then produces new config file.
+At the end it restart the server so that the new configuration can be applied.
+In the `end_per_suite` previously backuped config file is restored and
+the server is restarted again. See [ejabberd_node_utils](tests/ejabberd_node_utils.erl)
+for more information.
+
