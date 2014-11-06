@@ -29,13 +29,18 @@
                             restart_ejabberd_node/0,
                             set_ejabberd_node_cwd/1]).
 
+-import(distributed_helper, [add_node_to_cluster/1,
+                             remove_node_from_cluster/1,
+                             cluster_users/0]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
 
 all() ->
     [{group, xep0114},
-     {group, subdomain}].
+     {group, subdomain},
+     {group, distributed}].
 
 groups() ->
     [{xep0114, [], [register_one_component,
@@ -43,7 +48,8 @@ groups() ->
                     try_registering_component_twice,
                     try_registering_existing_host,
                     disco_components]},
-     {subdomain, [], [register_subdomain]}].
+     {subdomain, [], [register_subdomain]},
+     {distributed, [], [register_in_cluster]}].
 
 suite() ->
     escalus:suite().
@@ -61,12 +67,18 @@ end_per_suite(Config) ->
 init_per_group(subdomain, Config) ->
     Config1 = add_domain(Config),
     escalus:create_users(Config1, {by_name, [alice, astrid]});
+init_per_group(distributed, Config) ->
+    Config1 = add_node_to_cluster(Config),
+    escalus:create_users(Config1, cluster_users());
 init_per_group(_GroupName, Config) ->
     escalus:create_users(Config, {by_name, [alice, bob]}).
 
 end_per_group(subdomain, Config) ->
     escalus:delete_users(Config, {by_name, [alice, astrid]}),
     restore_domain(Config);
+end_per_group(distributed, Config) ->
+    escalus:delete_users(Config, ?config(escalus_users, Config)),
+    remove_node_from_cluster(Config);
 end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config, {by_name, [alice, bob]}).
 
@@ -220,6 +232,48 @@ register_subdomain(Config) ->
                 ComponentHost2 = <<Name/binary, ".", Server2/binary>>,
                 escalus:assert(has_service, [ComponentHost2], DiscoReply2)
 
+        end),
+
+    ok = escalus_connection:stop(Comp).
+
+
+register_in_cluster(Config) ->
+    %% Given one component contected to the cluster
+    {Comp, Addr, _Name} = connect_component(component1),
+
+    escalus:story(Config, [1,1], fun(Alice, Astrid) ->
+                %% When Alice sends a message to the component
+                Msg1 = escalus_stanza:chat_to(Addr, <<"Hi!">>),
+                escalus:send(Alice, Msg1),
+                %% Then component receives it
+                Reply1 = escalus:wait_for_stanza(Comp),
+                escalus:assert(is_chat_message, [<<"Hi!">>], Reply1),
+
+                %% When components sends a reply
+                Msg2 = escalus_stanza:chat_to(Alice, <<"Oh hi!">>),
+                escalus:send(Comp, escalus_stanza:from(Msg2, Addr)),
+
+                %% Then Alice receives it
+                Reply2 = escalus:wait_for_stanza(Alice),
+                escalus:assert(is_chat_message, [<<"Oh hi!">>], Reply2),
+                escalus:assert(is_stanza_from, [Addr], Reply2),
+
+                %% When Astrid (connected to the other node than component)
+                %% sends a message
+                Msg3 = escalus_stanza:chat_to(Addr, <<"Hello!">>),
+                escalus:send(Astrid, Msg3),
+                %% Then component receives it
+                Reply3 = escalus:wait_for_stanza(Comp),
+                escalus:assert(is_chat_message, [<<"Hello!">>], Reply3),
+
+                %% When components sends a reply
+                Msg4 = escalus_stanza:chat_to(Astrid, <<"Hola!">>),
+                escalus:send(Comp, escalus_stanza:from(Msg4, Addr)),
+
+                %% Then Astrid receives it
+                Reply4 = escalus:wait_for_stanza(Astrid),
+                escalus:assert(is_chat_message, [<<"Hola!">>], Reply4),
+                escalus:assert(is_stanza_from, [Addr], Reply4)
         end),
 
     ok = escalus_connection:stop(Comp).
