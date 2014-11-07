@@ -22,12 +22,12 @@
 -include_lib("exml/include/exml.hrl").
 -include_lib("exml/include/exml_stream.hrl").
 
--import(conf_reload_SUITE, [modify_config_file/2,
-                            bacup_ejabberd_config_file/1,
-                            restore_ejabberd_config_file/1,
-                            reload_through_ctl/1,
-                            restart_ejabberd_node/0,
-                            set_ejabberd_node_cwd/1]).
+-import(reload_helper, [modify_config_file/2,
+                        bacup_ejabberd_config_file/1,
+                        restore_ejabberd_config_file/1,
+                        reload_through_ctl/1,
+                        restart_ejabberd_node/0,
+                        set_ejabberd_node_cwd/1]).
 
 -import(distributed_helper, [add_node_to_cluster/1,
                              remove_node_from_cluster/1,
@@ -38,21 +38,27 @@
 %%--------------------------------------------------------------------
 
 all() ->
-    [{group, xep0114},
+    [{group, xep0114_tcp},
+     {group, xep0114_ws},
      {group, subdomain},
      {group, distributed}].
 
 groups() ->
-    [{xep0114, [], [register_one_component,
-                    register_two_components,
-                    try_registering_component_twice,
-                    try_registering_existing_host,
-                    disco_components]},
+    [{xep0114_tcp, [], xep0114_tests()},
+     {xep0114_ws, [], xep0114_tests()},
      {subdomain, [], [register_subdomain]},
      {distributed, [], [register_in_cluster]}].
 
 suite() ->
     escalus:suite().
+
+xep0114_tests() ->
+    [register_one_component,
+     register_two_components,
+     try_registering_with_wrong_password,
+     try_registering_component_twice,
+     try_registering_existing_host,
+     disco_components].
 
 %%--------------------------------------------------------------------
 %% Init & teardown
@@ -64,12 +70,24 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
+init_per_group(xep0114_tcp, Config) ->
+    Config1 = get_components([], Config),
+    escalus:create_users(Config1, {by_name, [alice, bob]});
+init_per_group(xep0114_ws, Config) ->
+    WSOpts = [{transport, ws},
+              {wspath, <<"/ws-xmpp">>},
+              {wslegacy, true},
+              {port, 5280}],
+    Config1 = get_components(WSOpts, Config),
+    escalus:create_users(Config1, {by_name, [alice, bob]});
 init_per_group(subdomain, Config) ->
-    Config1 = add_domain(Config),
-    escalus:create_users(Config1, {by_name, [alice, astrid]});
+    Config1 = get_components([], Config),
+    Config2 = add_domain(Config1),
+    escalus:create_users(Config2, {by_name, [alice, astrid]});
 init_per_group(distributed, Config) ->
-    Config1 = add_node_to_cluster(Config),
-    escalus:create_users(Config1, cluster_users());
+    Config1 = get_components([], Config),
+    Config2 = add_node_to_cluster(Config1),
+    escalus:create_users(Config2, cluster_users());
 init_per_group(_GroupName, Config) ->
     escalus:create_users(Config, {by_name, [alice, bob]}).
 
@@ -94,7 +112,8 @@ end_per_testcase(CaseName, Config) ->
 %%--------------------------------------------------------------------
 register_one_component(Config) ->
     %% Given one connected component
-    {Component, ComponentAddr, _} = connect_component(component1),
+    CompOpts = ?config(component1, Config),
+    {Component, ComponentAddr, _} = connect_component(CompOpts),
 
     escalus:story(Config, [1], fun(Alice) ->
                 %% When Alice sends a message to the component
@@ -118,8 +137,10 @@ register_one_component(Config) ->
 
 register_two_components(Config) ->
     %% Given two connected components
-    {Comp1, CompAddr1, _} = connect_component(component1),
-    {Comp2, CompAddr2, _} = connect_component(component2),
+    CompOpts1 = ?config(component1, Config),
+    CompOpts2 = ?config(component2, Config),
+    {Comp1, CompAddr1, _} = connect_component(CompOpts1),
+    {Comp2, CompAddr2, _} = connect_component(CompOpts2),
 
     escalus:story(Config, [1,1], fun(Alice, Bob) ->
                 %% When Alice sends a message to the first component
@@ -156,13 +177,30 @@ register_two_components(Config) ->
     ok = escalus_connection:stop(Comp1),
     ok = escalus_connection:stop(Comp2).
 
-try_registering_component_twice(_Config) ->
+try_registering_with_wrong_password(Config) ->
+    %% Given a component with a wrong password
+    CompOpts1 = ?config(component1, Config),
+    CompOpts2 = lists:keyreplace(password, 1, CompOpts1,
+                                 {password, <<"wrong_one">>}),
+
+    try
+        %% When trying to connect it
+        {Comp, Addr, _} = connect_component(CompOpts2),
+        ok = escalus_connection:stop(Comp),
+        ct:fail("component connected successfully with wrong password")
+    catch error:{badmatch, _} ->
+        %% Then it should fail to do so
+        ok
+    end.
+
+try_registering_component_twice(Config) ->
     %% Given two components with the same name
-    {Comp1, Addr, _} = connect_component(component1),
+    CompOpts1 = ?config(component1, Config),
+    {Comp1, Addr, _} = connect_component(CompOpts1),
 
     try
         %% When trying to connect the second one
-        {Comp2, Addr, _} = connect_component(component1),
+        {Comp2, Addr, _} = connect_component(CompOpts1),
         ok = escalus_connection:stop(Comp2),
         ct:fail("second component connected successfully")
     catch error:{badmatch, _} ->
@@ -172,9 +210,9 @@ try_registering_component_twice(_Config) ->
 
     ok = escalus_connection:stop(Comp1).
 
-try_registering_existing_host(_Config) ->
+try_registering_existing_host(Config) ->
     %% Given a external muc component
-    Component = muc_component,
+    Component = ?config(muc_component, Config),
 
     try
         %% When trying to connect it to the server
@@ -188,8 +226,10 @@ try_registering_existing_host(_Config) ->
 
 disco_components(Config) ->
     %% Given two connected components
-    {Comp1, Addr1, _} = connect_component(component1),
-    {Comp2, Addr2, _} = connect_component(component2),
+    CompOpts1 = ?config(component1, Config),
+    CompOpts2 = ?config(component2, Config),
+    {Comp1, Addr1, _} = connect_component(CompOpts1),
+    {Comp2, Addr2, _} = connect_component(CompOpts2),
 
     escalus:story(Config, [1], fun(Alice) ->
                 %% When server asked for the disco features
@@ -208,7 +248,8 @@ disco_components(Config) ->
 
 register_subdomain(Config) ->
     %% Given one connected component
-    {Comp, _Addr, Name} = connect_component_subdomain(component1),
+    CompOpts1 = ?config(component1, Config),
+    {Comp, _Addr, Name} = connect_component_subdomain(CompOpts1),
 
     escalus:story(Config, [1,1], fun(Alice, Astrid) ->
                 %% When Alice asks for service discovery on the server
@@ -239,7 +280,8 @@ register_subdomain(Config) ->
 
 register_in_cluster(Config) ->
     %% Given one component contected to the cluster
-    {Comp, Addr, _Name} = connect_component(component1),
+    CompOpts1 = ?config(component1, Config),
+    {Comp, Addr, Name} = connect_component(CompOpts1),
 
     escalus:story(Config, [1,1], fun(Alice, Astrid) ->
                 %% When Alice sends a message to the component
@@ -273,7 +315,27 @@ register_in_cluster(Config) ->
                 %% Then Astrid receives it
                 Reply4 = escalus:wait_for_stanza(Astrid),
                 escalus:assert(is_chat_message, [<<"Hola!">>], Reply4),
-                escalus:assert(is_stanza_from, [Addr], Reply4)
+                escalus:assert(is_stanza_from, [Addr], Reply4),
+
+                %% When Alice asks for the disco features
+                Server1 = escalus_client:server(Alice),
+                Disco1 = escalus_stanza:service_discovery(Server1),
+                escalus:send(Alice, Disco1),
+
+                %% Then it contains host of the service
+                DiscoReply1 = escalus:wait_for_stanza(Alice),
+                escalus:assert(has_service, [Addr], DiscoReply1),
+
+                %% When Astrid asks for the disco features on her server
+                Server2 = escalus_client:server(Astrid),
+                Disco2 = escalus_stanza:service_discovery(Server2),
+                escalus:send(Astrid, Disco2),
+
+                %% Then it also contains the service (with the other address though)
+                DiscoReply2 = escalus:wait_for_stanza(Astrid),
+                DistributedAddr = <<Name/binary, ".", Server2/binary>>,
+                escalus:assert(has_service, [DistributedAddr], DiscoReply2)
+
         end),
 
     ok = escalus_connection:stop(Comp).
@@ -281,14 +343,20 @@ register_in_cluster(Config) ->
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
-connect_component(Name) ->
-    connect_component(Name, component_start_stream).
+get_components(Opts, Config) ->
+    Components = [component1, component2, muc_component],
+    lists:foldl(fun(Name, Acc) ->
+                {_, ComponentOpts} = escalus_users:get_user_by_name(Name),
+                [{Name, Opts ++ ComponentOpts}|Acc]
+        end, [], Components) ++ Config.
 
-connect_component_subdomain(Name) ->
-    connect_component(Name, component_start_stream_subdomain).
+connect_component(Component) ->
+    connect_component(Component, component_start_stream).
 
-connect_component(Name, StartStep) ->
-    {_, ComponentOpts} = escalus_users:get_user_by_name(Name),
+connect_component_subdomain(Component) ->
+    connect_component(Component, component_start_stream_subdomain).
+
+connect_component(ComponentOpts, StartStep) ->
     {ok, Component, _, _} = escalus_connection:start(ComponentOpts,
                                                      [{?MODULE, StartStep},
                                                       {?MODULE, component_handshake}]),

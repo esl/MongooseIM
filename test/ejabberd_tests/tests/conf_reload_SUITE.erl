@@ -21,14 +21,18 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
+-import(reload_helper, [modify_config_file/2,
+                        bacup_ejabberd_config_file/1,
+                        restore_ejabberd_config_file/1,
+                        reload_through_ctl/1,
+                        restart_ejabberd_node/0,
+                        set_ejabberd_node_cwd/1]).
+
 -define(RELOADED_DOMAIN, ct:get_config(ejabberd_reloaded_domain)).
 
 -define(SAMPLE_USERNAME, <<"astrid">>).
 -define(RELOADED_DOMAIN_USER, astrid).
 -define(INITIAL_DOMAIN_USER, alice).
-
--define(CTL_RELOAD_OUTPUT_PREFIX,
-        "# Reloaded: " ++ atom_to_list(ct:get_config(ejabberd_node))).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
