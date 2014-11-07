@@ -225,9 +225,8 @@ normal(Event, State) ->
     ?DEBUG("Unhandled event in 'normal' state: ~w~n", [Event]),
     {next_state, normal, State}.
 
-
 closing(Event, State) ->
-    ?DEBUG("Unhandled event in 'normal' state: ~w~n", [Event]),
+    ?DEBUG("Unhandled event in 'closing' state: ~w~n", [Event]),
     {next_state, closing, State}.
 
 %%--------------------------------------------------------------------
