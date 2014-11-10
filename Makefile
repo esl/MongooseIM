@@ -63,11 +63,7 @@ $(DEVNODES): rebar deps compile deps_dev
 	@echo "building $@"
 	(cd rel && ../rebar generate -f target_dir=../dev/mongooseim_$@ overlay_vars=./reltool_vars/$@_vars.config)
 	cp apps/ejabberd/src/*.erl `ls -dt dev/mongooseim_$@/lib/ejabberd-2.1.8*/ebin/ | head -1`
-ifeq ($(shell uname), Linux)
-	cp -R `dirname $(shell readlink -f $(shell which erl))`/../lib/tools-* dev/mongooseim_$@/lib/
-else
-	cp -R `which erl`/../../lib/tools-* dev/mongooseim_$@/lib/
-endif
+	cp -R `dirname $(shell ./readlink.sh $(shell which erl))`/../lib/tools-* dev/mongooseim_$@/lib/
 
 deps_dev:
 	mkdir -p dev
