@@ -467,6 +467,11 @@ block_jid_presence_out(Config) ->
         %% Bob should NOT receive presence in
         escalus_client:send(Alice,
             escalus_stanza:presence_direct(bob, <<"available">>)),
+
+        %% Alice gets an error back from mod_privacy
+        Presence = escalus_client:wait_for_stanza(Alice),
+        escalus:assert(is_presence_with_type, [<<"error">>], Presence),
+
         timer:sleep(?SLEEP_TIME),
         escalus_assert:has_no_stanzas(Bob)
 
