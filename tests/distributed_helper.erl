@@ -35,6 +35,8 @@ add_node_to_cluster(Config) ->
     "Node added to cluster" ++ _ = Res3,
     ?assertEqual(Res4, ""),
 
+    verify_result(add),
+
     Config1.
 
 remove_node_from_cluster(Config) ->
@@ -59,6 +61,8 @@ remove_node_from_cluster(Config) ->
     ?assertEqual(Res2, "{atomic,ok}\n"),
     ?assertEqual(Res3, ""),
     ?assertEqual(Res4, ""),
+
+    verify_result(remove),
 
     ok.
 
@@ -103,3 +107,24 @@ wait_until_stopped(Cmd, Retries) ->
             timer:sleep(1000),
             wait_until_stopped(Cmd, Retries-1)
     end.
+
+verify_result(Op) ->
+    Node1 = ct:get_config(ejabberd_node),
+    Node2 = ct:get_config(ejabberd2_node),
+    Nodes1 = call_ejabberd(erlang, nodes, []),
+    Nodes2 = call_ejabberd2(erlang, nodes, []),
+    DbNodes1 = call_ejabberd(mnesia, system_info, [running_db_nodes]),
+    DbNodes2 = call_ejabberd2(mnesia, system_info, [running_db_nodes]),
+
+    Pairs = [{Node2, Nodes1,   should_belong(Op)},
+             {Node1, Nodes2,   should_belong(Op)},
+             {Node1, DbNodes2, should_belong(Op)},
+             {Node2, DbNodes1, should_belong(Op)},
+             {Node1, DbNodes1, true},
+             {Node2, DbNodes2, true}],
+
+    [?assertEqual(ShouldBelong, lists:member(Element, List))
+     || {Element, List, ShouldBelong} <- Pairs].
+
+should_belong(add)    -> true;
+should_belong(remove) -> false.
