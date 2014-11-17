@@ -71,19 +71,19 @@ end_per_testcase(CaseName, Config) ->
 
 one_to_one_message(Config) ->
     %% Given Alice connected to node one and ClusterGuy connected to node two
-    escalus:story(Config, [1,1], fun(Alice, ClusterGuy) ->
+    escalus:story(Config, [{alice, 1}, {clusterguy, 1}], fun(Alice, ClusterGuy) ->
                 %% When Alice sends a message to ClusterGuy
                 Msg1 = escalus_stanza:chat_to(ClusterGuy, <<"Hi!">>),
                 escalus:send(Alice, Msg1),
                 %% Then he receives it
-                Stanza1 = escalus:wait_for_stanza(ClusterGuy),
+                Stanza1 = escalus:wait_for_stanza(ClusterGuy, 5000),
                 escalus:assert(is_chat_message, [<<"Hi!">>], Stanza1),
 
                 %% When ClusterGuy sends a response
                 Msg2 = escalus_stanza:chat_to(Alice, <<"Oh hi!">>),
                 escalus:send(ClusterGuy, Msg2),
                 %% Then Alice also receives it
-                Stanza2 = escalus:wait_for_stanza(Alice),
+                Stanza2 = escalus:wait_for_stanza(Alice, 5000),
                 escalus:assert(is_chat_message, [<<"Oh hi!">>], Stanza2)
         end).
 
