@@ -274,6 +274,7 @@ start(Host, Opts) ->
     ejabberd_hooks:add(user_send_packet, Host, ?MODULE, user_send_packet, 90),
     ejabberd_hooks:add(filter_local_packet, Host, ?MODULE, filter_packet, 90),
     ejabberd_hooks:add(remove_user, Host, ?MODULE, remove_user, 50),
+    ejabberd_hooks:add(anonymous_purge_hook, Host, ?MODULE, remove_user, 50),
     ok.
 
 
@@ -283,6 +284,7 @@ stop(Host) ->
     ejabberd_hooks:delete(user_send_packet, Host, ?MODULE, user_send_packet, 90),
     ejabberd_hooks:delete(filter_local_packet, Host, ?MODULE, filter_packet, 90),
     ejabberd_hooks:delete(remove_user, Host, ?MODULE, remove_user, 50),
+    ejabberd_hooks:delete(anonymous_purge_hook, Host, ?MODULE, remove_user, 50),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_MAM),
     mod_disco:unregister_feature(Host, ?NS_MAM),
     ok.
