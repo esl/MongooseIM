@@ -83,7 +83,7 @@ get_ip({User, Server, Resource},
                     #xmlel{name = <<"ip">>,
                         children = [#xmlcdata{content = list_to_binary(inet_parse:ntoa(IP))}]},
                     #xmlel{name = <<"port">>,
-                        children = [#xmlcdata{content = list_to_binary(integer_to_list(Port))}]}
+                        children = [#xmlcdata{content = integer_to_binary(Port)}]}
 		       ]
 	        }]};
 	_ ->
