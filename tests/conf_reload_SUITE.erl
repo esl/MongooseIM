@@ -21,20 +21,6 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--define(CWD(Config), ?config(ejabberd_node_cwd, Config)).
--define(CURRENT_CFG_PATH(Config),
-        filename:join([?CWD(Config), "etc", "ejabberd.cfg"])).
--define(BACKUP_CFG_PATH(Config),
-        filename:join([?CWD(Config), "etc","ejabberd.cfg.bak"])).
--define(CFG_TEMPLATE_PATH(Config),
-        filename:join([?CWD(Config), "..", "..", "rel", "files",
-                       "ejabberd.cfg"])).
--define(CFG_VARS_PATH(Config),
-        filename:join([?CWD(Config), "..", "..", "rel",
-                       "vars.config"])).
--define(CTL_PATH(Config),
-        filename:join([?CWD(Config), "bin", "mongooseimctl"])).
-
 -define(RELOADED_DOMAIN, ct:get_config(ejabberd_reloaded_domain)).
 
 -define(SAMPLE_USERNAME, <<"astrid">>).
@@ -67,7 +53,7 @@ suite() ->
 
 init_per_suite(Config0) ->
     Config1 = escalus:init_per_suite(Config0),
-    set_ejabberd_node_cwd(Config1).
+    ejabberd_config_file_utils:init(Config1).
 
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
@@ -86,14 +72,14 @@ end_per_group(xmpp_domain_local_reload, Config) ->
 
 init_per_testcase(CaseName, Config0) ->
     Config1 = escalus:init_per_testcase(CaseName, Config0),
-    bacup_ejabberd_config_file(Config1),
+    ejabberd_node_utils:backup_config_file(Config1),
     run_config_file_modification_fun(Config1),
     Config1.
 
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config),
-    restore_ejabberd_config_file(Config),
-    restart_ejabberd_node().
+    ejabberd_node_utils:restore_config_file(Config),
+    ejabberd_node_utils:restart_application(ejabberd).
 
 %%--------------------------------------------------------------------
 %% Tests
@@ -153,36 +139,11 @@ user_should_be_disconnected_from_removed_domain(Config) ->
 %% Internal functions
 %%--------------------------------------------------------------------
 
-call_ejabberd(M, F, A) ->
-    Node = ct:get_config(ejabberd_node),
-    rpc:call(Node, M, F, A).
-
-spawn_on_ejabberd(Fun) ->
-    Node = ct:get_config(ejabberd_node),
-    spawn_link(Node, Fun).
-
 get_ejabberd_hosts() ->
-    call_ejabberd(ejabberd_config, get_global_option, [hosts]).
-
-set_ejabberd_node_cwd(Config) ->
-    {ok, Cwd} = call_ejabberd(file, get_cwd, []),
-    [{ejabberd_node_cwd, Cwd} | Config].
-
-bacup_ejabberd_config_file(Config) ->
-    {ok, _} = call_ejabberd(file, copy, [?CURRENT_CFG_PATH(Config),
-                                         ?BACKUP_CFG_PATH(Config)]).
-
-restore_ejabberd_config_file(Config) ->
-    ok = call_ejabberd(file, rename, [?BACKUP_CFG_PATH(Config),
-                                      ?CURRENT_CFG_PATH(Config)]).
-
-restart_ejabberd_node() ->
-    ok = call_ejabberd(application, stop, [ejabberd]),
-    ok = call_ejabberd(application, start, [ejabberd]).
+    ejabberd_node_utils:call_fun(ejabberd_config, get_global_option, [hosts]).
 
 reload_through_ctl(Config) ->
-    ReloadCmd = ?CTL_PATH(Config) ++ " reload_local",
-    OutputStr = call_ejabberd(os, cmd, [ReloadCmd]),
+    OutputStr = ejabberd_node_utils:call_ctl(reload_local, Config),
     ok = verify_reload_output(OutputStr).
 
 verify_reload_output(OutputStr) ->
@@ -194,17 +155,17 @@ verify_reload_output(OutputStr) ->
             ct:pal("~ts", [OutputStr]),
             error(config_reload_failed, [OutputStr])
     end.
-    
 
 register_user_by_ejabberd_admin(User, Host) ->
-    call_ejabberd(ejabberd_admin, register, [User, Host, <<"doctor">>]).
+    ejabberd_node_utils:call_fun(ejabberd_admin, register,
+                                 [User, Host, <<"doctor">>]).
 
 unregister_user_by_ejabberd_admin(User, Host) ->
-    call_ejabberd(ejabberd_admin, unregister, [User, Host]).
+    ejabberd_node_utils:call_fun(ejabberd_admin, unregister, [User, Host]).
 
 change_domain_in_config_file(Config) ->
-    modify_config_file([mk_value_for_hosts_pattern(?RELOADED_DOMAIN)],
-                       Config).
+    ejabberd_node_utils:modify_config_file(
+      [mk_value_for_hosts_pattern(?RELOADED_DOMAIN)], Config).
 
 mk_value_for_hosts_pattern(Domain) ->
     {hosts, "[\"" ++ binary_to_list(Domain) ++ "\"]"}.
@@ -212,24 +173,6 @@ mk_value_for_hosts_pattern(Domain) ->
 run_config_file_modification_fun(Config) ->
     Fun = ?config(modify_config_file_fun, Config),
     Fun(Config).
-
-modify_config_file(CfgVarsToChange, Config) ->
-    CurrentCfgPath = ?CURRENT_CFG_PATH(Config),
-    {ok, CfgTemplate} = call_ejabberd(file, read_file,
-                                      [?CFG_TEMPLATE_PATH(Config)]),
-    {ok, CfgVars} = call_ejabberd(file, consult,
-                                  [?CFG_VARS_PATH(Config)]),
-    UpdatedCfgVars = update_config_variables(CfgVarsToChange, CfgVars),
-    CfgTemplateList = binary_to_list(CfgTemplate),
-    UpdatedCfgFile = mustache:render(CfgTemplateList,
-                                     dict:from_list(UpdatedCfgVars)),
-    ok = call_ejabberd(file, write_file, [CurrentCfgPath,
-                                          UpdatedCfgFile]).
-
-update_config_variables(CfgVarsToChange, CfgVars) ->
-    lists:foldl(fun({Var, Val}, Acc) ->
-                        lists:keystore(Var, 1, Acc,{Var, Val})
-                end, CfgVars, CfgVarsToChange).
 
 create_user_in_initial_domain(User, Config) ->
     escalus:create_users(Config, {by_name, [User]}).
