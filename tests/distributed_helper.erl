@@ -1,6 +1,7 @@
 -module(distributed_helper).
 
 -include_lib("common_test/include/ct.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 -compile(export_all).
 
@@ -13,32 +14,33 @@ add_node_to_cluster(Config) ->
     Config1 = set_ejabberd_cwds(Config),
     StartCmd = ctl1_path(Config1) ++ " start",
     StopCmd = ctl1_path(Config1) ++ " stop",
+    StatusCmd = ctl1_path(Config1) ++ " status",
+
     Node2 = atom_to_list(ct:get_config(ejabberd2_node)),
     AddToClusterCmd = ctl1_path(Config1) ++ " add_to_cluster " ++ Node2,
 
     MnesiaDir = filename:join([?config(ejabberd_cwd, Config1), "Mnesia*"]),
     MnesiaCmd = "rm -rf " ++ MnesiaDir,
 
-    %% @todo make synchronous versions of start/stop commands
-    %%       in order not to use sleeps here
     Res1 = call_ejabberd2(os, cmd, [MnesiaCmd]),
     Res2 = call_ejabberd2(os, cmd, [StopCmd]),
-    timer:sleep(10000),
+    wait_until_stopped(StatusCmd, 120),
 
     Res3 = call_ejabberd2(os, cmd, [AddToClusterCmd]),
     Res4 = call_ejabberd2(os, cmd, [StartCmd]),
-    timer:sleep(10000),
+    wait_until_started(StatusCmd, 120),
 
-    "" = Res1,
-    "" = Res2,
+    ?assertEqual(Res1, ""),
+    ?assertEqual(Res2, ""),
     "Node added to cluster" ++ _ = Res3,
-    "" = Res4,
+    ?assertEqual(Res4, ""),
 
     Config1.
 
 remove_node_from_cluster(Config) ->
     StartCmd = ctl2_path(Config) ++ " start",
     StopCmd = ctl2_path(Config) ++ " stop",
+    StatusCmd = ctl2_path(Config) ++ " status",
     Node2 = atom_to_list(ct:get_config(ejabberd2_node)),
     RemoveCmd = ctl1_path(Config) ++ " remove_from_cluster " ++ Node2,
 
@@ -46,17 +48,18 @@ remove_node_from_cluster(Config) ->
     MnesiaCmd = "rm -rf " ++ MnesiaDir,
 
     Res1 = call_ejabberd(os, cmd, [StopCmd]),
-    timer:sleep(10000),
+    wait_until_stopped(StatusCmd, 120),
 
     Res2 = call_ejabberd(os, cmd, [RemoveCmd]),
     Res3 = call_ejabberd(os, cmd, [MnesiaCmd]),
     Res4 = call_ejabberd(os, cmd, [StartCmd]),
-    timer:sleep(10000),
+    wait_until_started(StatusCmd, 120),
 
-    "" = Res1,
-    "{atomic,ok}\n" = Res2,
-    "" = Res3,
-    "" = Res4,
+    ?assertEqual(Res1, ""),
+    ?assertEqual(Res2, "{atomic,ok}\n"),
+    ?assertEqual(Res3, ""),
+    ?assertEqual(Res4, ""),
+
     ok.
 
 set_ejabberd_cwds(Config) ->
@@ -78,3 +81,25 @@ call_ejabberd2(M, F, A) ->
     Node = ct:get_config(ejabberd2_node),
     rpc:call(Node, M, F, A).
 
+wait_until_started(_, 0) ->
+    erlang:error({timeout, starting_node});
+wait_until_started(Cmd, Retries) ->
+    Result = os:cmd(Cmd),
+    case re:run(Result, "The node .* is started") of
+        {match, _} ->
+            ok;
+        nomatch ->
+            timer:sleep(1000),
+            wait_until_started(Cmd, Retries-1)
+    end.
+
+wait_until_stopped(_, 0) ->
+    erlang:error({timeout, stopping_node});
+wait_until_stopped(Cmd, Retries) ->
+    case os:cmd(Cmd) of
+        "Failed RPC connection" ++ _ ->
+            ok;
+        "The node" ++ _ ->
+            timer:sleep(1000),
+            wait_until_stopped(Cmd, Retries-1)
+    end.
