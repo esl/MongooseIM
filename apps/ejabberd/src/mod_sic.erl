@@ -38,7 +38,7 @@
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 
--define(NS_SIC, <<"urn:xmpp:sic:0">>).
+-define(NS_SIC, <<"urn:xmpp:sic:1">>).
 
 start(Host, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
@@ -74,13 +74,18 @@ process_sm_iq(_From, _To, #iq{type = 'set', sub_el = SubEl} = IQ) ->
 get_ip({User, Server, Resource},
        #iq{sub_el = #xmlel{} = SubEl} = IQ) ->
     case ejabberd_sm:get_session_ip(User, Server, Resource) of
-	{IP, _} when is_tuple(IP) ->
+	{IP, Port} when is_tuple(IP) ->
 	    IQ#iq{
 	      type = 'result',
 	      sub_el = [
-			SubEl#xmlel{children = [#xmlcdata{content = list_to_binary(inet_parse:ntoa(IP))}]}
+			SubEl#xmlel{
+                children = [
+                    #xmlel{name = <<"ip">>,
+                        children = [#xmlcdata{content = list_to_binary(inet_parse:ntoa(IP))}]},
+                    #xmlel{name = <<"port">>,
+                        children = [#xmlcdata{content = integer_to_binary(Port)}]}
 		       ]
-	     };
+	        }]};
 	_ ->
 	    IQ#iq{
 	      type = 'error',
