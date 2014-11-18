@@ -6,20 +6,36 @@ main(Directories) ->
                                               "*", "suite.summary"]),
                     Acc ++ filelib:wildcard(Wildcard)
             end, [], Directories),
-    Result = lists:foldl(fun(Filename, {OkAcc, FAcc, USAcc, ASAcc}) ->
+    Result = lists:foldl(fun(Filename, {OkAcc, FAcc, USAcc, ASAcc, Problematic}) ->
         {ok, [{summary, {Ok, F, US, AS}}]} = file:consult(Filename),
-        {OkAcc+Ok, FAcc+F, USAcc+US, ASAcc+AS}
-    end, {0, 0, 0, 0}, Files),
-    {Ok, Failed, UserSkipped, AutoSkipped} = Result,
+        NProblematic = case AS  of
+            0 ->
+                Problematic;
+            _ ->
+                SuiteStr = filename:basename(filename:dirname(filename:dirname(Filename))),
+                {match, [_, {Start, Len}]} = re:run(SuiteStr, <<"ejabberd_tests\.(.*)\.logs">>),
+                Suite = lists:last(string:tokens(string:substr(SuiteStr, Start+1, Len), ".")),
+                [Suite | Problematic]
+        end,
+        {OkAcc+Ok, FAcc+F, USAcc+US, ASAcc+AS, NProblematic}
+    end, {0, 0, 0, 0, []}, Files),
+    {Ok, Failed, UserSkipped, AutoSkipped, Problematic} = Result,
     io:format("CT results:~n"
               "    ~p tests passed~n"
               "    ~p tests failed~n"
               "    ~p tests skipped by user~n"
               "    ~p tests skipped automatically~n",
           [Ok, Failed, UserSkipped, AutoSkipped]),
-    case Ok =< 0 of
-        true ->
-            erlang:halt(100404);
-        _ ->
-            erlang:halt(Failed)
+    case Problematic of
+        [] ->
+            case Ok =< 0 of
+                true ->
+                    erlang:halt(100404);
+                _ ->
+                    erlang:halt(Failed + AutoSkipped)
+            end;
+        _List ->
+            io:format("Problematic test suites:~n"),
+            lists:foreach(fun(S) -> io:format("    ~s~n", [S]) end, Problematic),
+            erlang:halt(100405)
     end.
