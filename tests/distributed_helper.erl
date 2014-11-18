@@ -5,6 +5,13 @@
 
 -compile(export_all).
 
+is_sm_distributed() ->
+    Backend = escalus_ejabberd:rpc(ejabberd_sm_backend, backend, []),
+    is_sm_backend_distributed(Backend).
+
+is_sm_backend_distributed(ejabberd_sm_mnesia) -> true;
+is_sm_backend_distributed(Other)              -> {false, Other}.
+
 cluster_users() ->
     AllUsers = ct:get_config(escalus_server2_users) ++
                ct:get_config(escalus_users),

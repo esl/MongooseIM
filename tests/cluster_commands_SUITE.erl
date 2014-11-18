@@ -19,7 +19,8 @@
 
 -import(distributed_helper, [add_node_to_cluster/1,
                              remove_node_from_cluster/1,
-                             cluster_users/0]).
+                             cluster_users/0,
+                             is_sm_distributed/0]).
 
 
 -include_lib("common_test/include/ct.hrl").
@@ -49,7 +50,14 @@ end_per_suite(Config) ->
 
 init_per_group(clustered, Config) ->
     Config1 = add_node_to_cluster(Config),
-    escalus:create_users(Config1, cluster_users());
+    case is_sm_distributed() of
+        true ->
+            escalus:create_users(Config1, cluster_users());
+        {false, Backend} ->
+            ct:pal("Backend ~p doesn't support distributed tests", [Backend]),
+            remove_node_from_cluster(Config1),
+            {skip, nondistributed_sm}
+    end;
 init_per_group(_GroupName, Config) ->
     escalus:create_users(Config).
 
