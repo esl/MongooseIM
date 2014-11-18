@@ -12,12 +12,12 @@
 -include_lib("ejabberd/include/ejabberd.hrl").
 -include_lib("ejabberd/include/jlib.hrl").
 
--spec determine_strategy(any(), {jid(), jid(), exml:xmlel()})
-                        -> amp_strategy().
-determine_strategy(_,{_From,To,_Packet} = HookData) ->
+-spec determine_strategy(amp_strategy(), jid() | undefined) -> amp_strategy().
+determine_strategy(_, undefined) -> null_strategy();
+determine_strategy(_, To) ->
     TargetResources = get_target_resources(To),
-    Deliver = deliver_strategy(HookData, TargetResources),
-    MatchResource = match_resource_strategy(HookData, TargetResources),
+    Deliver = deliver_strategy(TargetResources),
+    MatchResource = match_resource_strategy(TargetResources),
 
     #amp_strategy{deliver = Deliver,
                   'match-resource' = MatchResource,
@@ -38,9 +38,9 @@ get_target_resources(MessageTarget) ->
     UserResources = ejabberd_sm:get_user_resources(User, Server),
     {ResourceSession, UserResources}.
 
-deliver_strategy(_, {offline, []}) -> 'none';
-deliver_strategy(_, {offline,  _}) -> 'forward';
-deliver_strategy(_, {_Session, _}) -> 'direct'.
+deliver_strategy({offline, []})  -> 'none';
+deliver_strategy({offline, _ })  -> 'forward';
+deliver_strategy({_Session, _ }) -> 'direct'.
 
 %% @doc Notes on matching
 %%
@@ -50,6 +50,6 @@ deliver_strategy(_, {_Session, _}) -> 'direct'.
 %% the server will either match the exact resource, or not. (See match_res_any CT test)
 %% in apps/ejabberd/test/amp_resolver_SUITE.erl
 %%
-match_resource_strategy(_, {offline, []})            -> undefined;
-match_resource_strategy(_, {offline, [_|_ManyRes]})  -> 'other';
-match_resource_strategy(_, {_Session, [_|_ManyRes]}) -> 'exact'.
+match_resource_strategy({offline, []})            -> undefined;
+match_resource_strategy({offline, [_|_ManyRes]})  -> 'other';
+match_resource_strategy({_Session, [_|_ManyRes]}) -> 'exact'.

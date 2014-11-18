@@ -48,4 +48,5 @@ invalid_cva_binaries() ->
      prop_helper:readable_bitstring(),
      prop_helper:readable_bitstring()}.
 
+
 b2a(V) -> erlang:binary_to_atom(V, utf8).
