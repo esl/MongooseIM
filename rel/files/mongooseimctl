@@ -36,6 +36,16 @@ fi
 NAME_TYPE="${NODENAME_ARG% *}"
 NODENAME="${NODENAME_ARG#* }"
 
+add_to_cluster()
+{
+    $RUNNER_SCRIPT_DIR/mongooseim $ARGS
+}
+
+remove_from_cluster()
+{
+    $RUNNER_SCRIPT_DIR/mongooseim $ARGS
+}
+
 start ()
 {
     $RUNNER_SCRIPT_DIR/mongooseim start
@@ -60,6 +70,9 @@ help ()
     echo "  start  Start a MongooseIM node in server mode"
     echo "  debug  Attach an interactive Erlang shell to a running MongooseIM node"
     echo "  live   Start MongooseIM node in live (interactive) mode"
+    echo "MongooseIM cluster management commads:"
+    echo "  add_to_cluster other_node_name       Add current node to cluster"
+    echo "  remove_from_cluster dead_node_name   Remove other node from cluster"
     echo ""
 }
 
@@ -191,8 +204,10 @@ wait_for_status()
     return $status
 }
 
-case $ARGS in
+case "$ARGS" in
     ' start') start;;
+    \ add_to_cluster*) add_to_cluster;;
+    \ remove_from_cluster*) remove_from_cluster;;
     ' debug') debug;;
     ' live') live;;
     ' started') wait_for_status 0 30 2;; # wait 30x2s before timeout

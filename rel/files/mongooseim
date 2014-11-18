@@ -95,7 +95,43 @@ case "$1" in
             sleep 1
         done
         ;;
+    add_to_cluster)
+        NAME=$(echo $NAME_ARG | awk '{print $1}')
+        NODE=$(echo $NAME_ARG | awk '{print $2}')
+        NAME_TYPE=$(echo $NAME | sed 's/^\-//')
 
+        TARGETNODETOOL="$ERTS_PATH/escript $ERTS_PATH/nodetool $NAME $2 $COOKIE_ARG"
+        ADD_TO_CLUSTER_CMD="$ERTS_PATH/escript $ERTS_PATH/nodetool -exact_$NAME_TYPE $NODE $COOKIE_ARG add_to_cluster $2"
+
+        RES=`$NODETOOL ping`
+        if [ "$RES" = "pong" ]; then
+            echo "Error: Node is already running! Stop the node and delete Mnesia database directory ($MNESIA_DIR)."
+            exit 1
+        fi
+
+        MNESIA_DIR="$RUNNER_BASE_DIR/Mnesia.$NODE"
+        if [ -d "$MNESIA_DIR" ]; then
+            echo "Error: $MNESIA_DIR already exists. Please remove whole directory before continuing."
+            exit 1
+        fi
+        RES2=`$TARGETNODETOOL ping`
+        if [ "$RES2" = "pong" ]; then
+            RES3=`$ADD_TO_CLUSTER_CMD`
+            if [ "$RES3" = "ok" ]; then
+                echo "Node added to cluster. Run mongooseimctl live or mongooseimclt start."
+            else
+                echo "Adding Node to cluster failed:  $RES3"
+                exit 1
+            fi
+        else
+            echo "Error: Node $2 is not reachable."
+            exit 1
+        fi
+        ;;
+    remove_from_cluster)
+        ## See if the VM is alive
+        $NODETOOL remove_from_cluster $2
+        ;;
     restart)
         ## Restart the VM without exiting the process
         $NODETOOL restart
@@ -197,7 +233,7 @@ case "$1" in
         fi
         ;;
     *)
-        echo "Usage: $SCRIPT {start|stop|restart|reboot|ping|live|console|console_clean|attach|debug|version}"
+        echo "Usage: $SCRIPT {start|stop|restart|reboot|ping|live|console|console_clean|attach|debug|version|add_to_cluster|remove_from_cluster}"
         exit 1
         ;;
 esac

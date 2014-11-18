@@ -102,7 +102,8 @@ search_fields(_VHost) ->
 prepare_db() ->
     create_tables(),
     update_tables(),
-    set_indexes().
+    set_indexes(),
+    add_table_copies().
 
 create_tables() ->
     mnesia:create_table(vcard, [{disc_only_copies, [node()]},
@@ -114,6 +115,10 @@ create_tables() ->
 update_tables() ->
     update_vcard_table(),
     update_vcard_search_table().
+
+add_table_copies() ->
+    mnesia:add_table_copy(vcard, node(), disc_only_copies),
+    mnesia:add_table_copy(vcard_search, node(), disc_copies).
 
 set_indexes() ->
     mnesia:add_table_index(vcard_search, luser),
@@ -203,18 +208,18 @@ update_vcard_search_table() ->
                          mnesia:write_lock_table(mod_vcard_tmp_table),
                          mnesia:foldl(
                            fun({vcard_search,
-                                User,     LUser,     
-                                FN,       LFN,       
-                                Family,   LFamily,   
-                                Given,    LGiven,    
-                                Middle,   LMiddle,   
-                                Nickname, LNickname, 
-                                BDay,     LBDay,     
-                                CTRY,     LCTRY,     
-                                Locality, LLocality, 
-                                EMail,    LEMail,    
-                                OrgName,  LOrgName,  
-                                OrgUnit,  LOrgUnit   
+                                User,     LUser,
+                                FN,       LFN,
+                                Family,   LFamily,
+                                Given,    LGiven,
+                                Middle,   LMiddle,
+                                Nickname, LNickname,
+                                BDay,     LBDay,
+                                CTRY,     LCTRY,
+                                Locality, LLocality,
+                                EMail,    LEMail,
+                                OrgName,  LOrgName,
+                                OrgUnit,  LOrgUnit
                                }, _) ->
                                    mnesia:dirty_write(
                                      mod_vcard_tmp_table,

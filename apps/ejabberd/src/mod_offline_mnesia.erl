@@ -47,6 +47,7 @@ init(_Host, _Opts) ->
 			[{disc_only_copies, [node()]},
 			 {type, bag},
 			 {attributes, record_info(fields, offline_msg)}]),
+    mnesia:add_table_copy(offline_msg, node(), disc_only_copies),
     ok.
 
 pop_messages(LUser, LServer) ->
