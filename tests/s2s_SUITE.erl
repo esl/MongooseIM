@@ -31,7 +31,8 @@ suite() ->
 %%%===================================================================
 
 init_per_suite(Config0) ->
-    NewUsers = ct:get_config(escalus_server2_users) ++
+    OtherUsers = ct:get_config(escalus_server2_users),
+    NewUsers =  escalus_users:get_users({by_name, [alice2, bob2]}, OtherUsers) ++
                escalus_users:get_users({by_name, [alice, bob]}),
     Config1 = escalus:init_per_suite(Config0),
     escalus_users:create_users(Config1, NewUsers).
