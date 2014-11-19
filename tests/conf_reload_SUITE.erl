@@ -53,7 +53,7 @@ suite() ->
 
 init_per_suite(Config0) ->
     Config1 = escalus:init_per_suite(Config0),
-    ejabberd_config_file_utils:init(Config1).
+    ejabberd_node_utils:init(Config1).
 
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
