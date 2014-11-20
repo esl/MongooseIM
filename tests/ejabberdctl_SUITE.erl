@@ -113,6 +113,22 @@ init_per_group(vcard, Config) ->
 init_per_group(_GroupName, Config) ->
     Config.
 
+end_per_group(roster, Config) ->
+    TemplatePath = escalus_config:get_config(roster_template, Config),
+    RegUsers = [atom_to_list(U) || {U, _} <- escalus_config:get_config(escalus_users, Config)],
+    {ok, [Roster]} = file:consult(TemplatePath),
+    C = fun({U, S, _, _}) ->
+        case lists:member(U, RegUsers) of
+            true ->
+                ok;
+            _ ->
+                SB = list_to_binary(S),
+                UB = list_to_binary(U),
+                escalus_ejabberd:rpc(ejabberd_hooks, run, [remove_user, SB, [UB, SB]])
+        end
+    end,
+    lists:foreach(C, Roster),
+    Config;
 end_per_group(_GroupName, Config) ->
     Config.
 
@@ -633,7 +649,7 @@ get_sha(AccountPass) ->
 
 set_last(User, Domain, TStamp) ->
     Mod = escalus_ejabberd:rpc(mod_admin_extra_last, get_lastactivity_module, [Domain]),
-    escalus_ejabberd:rpc(Mod, store_last_info, [User, Domain, TStamp, <<>>]).
+    escalus_ejabberd:rpc(Mod, store_last_info, [escalus_utils:jid_to_lower(User), Domain, TStamp, <<>>]).
 
 delete_users(Config) ->
     Users = escalus_users:get_users({by_name, [alice, bob, kate, mike]}),

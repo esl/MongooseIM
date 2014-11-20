@@ -43,13 +43,28 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    escalus:init_per_suite(Config).
+    Config1 = escalus:init_per_suite(Config),
+
+    Node = ct:get_config(ejabberd2_node),
+    Config2 = ejabberd_node_utils:init(Node, Config1),
+    ejabberd_node_utils:backup_config_file(Node, Config2),
+    MainDomain = ct:get_config(ejabberd_domain),
+    Ch = [{hosts, "[\"" ++ binary_to_list(MainDomain) ++ "\"]"}],
+    ejabberd_node_utils:modify_config_file(Node, "reltool_vars/node2_vars.config", Ch, Config2),
+    ejabberd_node_utils:call_ctl(Node, reload_local, Config2),
+
+    Config2.
 
 end_per_suite(Config) ->
+    Node = ct:get_config(ejabberd2_node),
+    ejabberd_node_utils:restore_config_file(Node, Config),
+    ejabberd_node_utils:restart_application(Node, ejabberd),
     escalus:end_per_suite(Config).
 
 init_per_group(clustered, Config) ->
+
     Config1 = add_node_to_cluster(Config),
+
     case is_sm_distributed() of
         true ->
             escalus:create_users(Config1, cluster_users());

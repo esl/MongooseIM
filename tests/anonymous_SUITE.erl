@@ -46,17 +46,19 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(_GroupName, Config) ->
-    escalus:create_users(Config, {by_name, [alice, bob]}).
+    escalus:create_users(Config, {by_name, [alice]}).
 
 end_per_group(_GroupName, Config) ->
-    escalus:delete_users(Config, {by_name, [alice, bob]}).
+    escalus:delete_users(Config, {by_name, [alice]}).
 
 init_per_testcase(CaseName, Config0) ->
-    NewUsers = ct:get_config(escalus_users) ++ ct:get_config(escalus_anon_users),
+    NewUsers = proplists:get_value(escalus_users, Config0) ++ escalus_ct:get_config(escalus_anon_users),
     Config = [{escalus_users, NewUsers}] ++ Config0,
     escalus:init_per_testcase(CaseName, Config).
 
 end_per_testcase(CaseName, Config) ->
+    AnonJID = erlang:get(anon_user),
+    mongoose_helper:clear_last_activity(Config, AnonJID),
     escalus:end_per_testcase(CaseName, Config).
 
 %%--------------------------------------------------------------------
@@ -65,8 +67,10 @@ end_per_testcase(CaseName, Config) ->
 
 messages_story(Config) ->
     escalus:story(Config, [{alice, 1}, {jon, 1}], fun(Alice, Jon) ->
+        erlang:put(anon_user, escalus_utils:get_jid(Jon)),
         escalus_client:send(Jon, escalus_stanza:chat_to(Alice, <<"Hi!">>)),
         Stanza = escalus_client:wait_for_stanza(Alice),
+        %% Below's dirty, but there is no other easy way...
         escalus_assert:is_chat_message(<<"Hi!">>, Stanza)
     end).
 

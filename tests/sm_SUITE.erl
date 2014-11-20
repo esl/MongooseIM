@@ -765,16 +765,8 @@ ack_freq(AckFreq) ->
      AckFreq}.
 
 assert_no_offline_msgs() ->
-    Backend = escalus_ejabberd:rpc(mod_offline_backend,backend,[]),
-    case Backend of
-        mod_offline_mnesia ->
-            Pattern = escalus_ejabberd:rpc(mnesia, table_info,
-                                           [offline_msg, wild_pattern]),
-            0 = length(escalus_ejabberd:rpc(mnesia, dirty_match_object, [Pattern]));
-        mod_offline_odbc ->
-            {selected, _, [{<<"0">>}]} =
-            escalus_ejabberd:rpc(ejabberd_odbc,sql_query, [<<"localhost">>,<<"select count(*) from offline_message;">>])
-    end.
+    0 = mongoose_helper:total_offline_messages().
+
 
 
 assert_c2s_state(C2SPid, StateName) when is_pid(C2SPid) ->
