@@ -63,7 +63,7 @@ commands() ->
 -spec set_last(ejabberd:user(), ejabberd:server(), _, _) -> 'ok'.
 set_last(User, Server, Timestamp, Status) ->
     Mod = get_lastactivity_module(Server),
-    Mod:store_last_info(User, Server, Timestamp, Status),
+    Mod:store_last_info(jlib:nodeprep(User), jlib:nameprep(Server), Timestamp, Status),
     ok.
 
 

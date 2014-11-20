@@ -288,18 +288,20 @@ build_forward_packet(JID, Packet, Sender, Dest, Direction, ?NS_CC_1) ->
 
 
 enable(Host, U, R, CC)->
-    ?DEBUG("enabling for ~p", [U]),
-     try mnesia:dirty_write(#carboncopy{us = {U, Host}, resource=R, version = CC}) of
-	ok -> ok
-     catch _:Error -> {error, Error}
-     end.	
+    ?DEBUG("enabling for ~p/~p", [U, R]),
+    try mnesia:dirty_write(#carboncopy{us = {U, Host}, resource = R, version = CC}) of
+        ok -> ok
+    catch
+        _:Error -> {error, Error}
+    end.
 
 disable(Host, U, R)->
-    ?DEBUG("disabling for ~p", [U]),
+    ?DEBUG("disabling for ~p/~p", [U, R]),
     ToDelete = mnesia:dirty_match_object(?TABLE, #carboncopy{us = {U, Host}, resource = R, version = '_'}),
     try lists:foreach(fun mnesia:dirty_delete_object/1, ToDelete) of
-	ok -> ok
-    catch _:Error -> {error, Error}
+        ok -> ok
+    catch
+        _:Error -> {error, Error}
     end.
 
 complete_packet(From, #xmlel{name = <<"message">>, attrs = OrigAttrs} = Packet, sent) ->

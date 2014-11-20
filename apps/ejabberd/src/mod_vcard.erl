@@ -124,6 +124,8 @@ init([VHost, Opts]) ->
 
     ejabberd_hooks:add(remove_user, VHost,
                        ?MODULE, remove_user, 50),
+    ejabberd_hooks:add(anonymous_purge_hook, VHost,
+                       ?MODULE, remove_user, 50),
     ejabberd_hooks:add(disco_local_features, VHost,
                        ?MODULE, get_local_features,50),
 
@@ -155,6 +157,7 @@ terminate(_Reason, State) ->
             ok
     end,
     ejabberd_hooks:delete(remove_user, VHost, ?MODULE, remove_user, 50),
+    ejabberd_hooks:delete(anonymous_purge_hook, VHost, ?MODULE, remove_user, 50),
     gen_iq_handler:remove_iq_handler(ejabberd_local, VHost, ?NS_VCARD),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, VHost, ?NS_VCARD),
     ejabberd_hooks:delete(host_config_update, VHost, ?MODULE, config_change, 50),
