@@ -20,7 +20,7 @@ quicktest: prepare
 		$(ADD_OPTS) \
 		-s run_common_test main test=quick spec=$(TESTSPEC)
 
-quicktest_cover: prepare
+cover_quicktest: prepare
 	erl -noinput -sname test -setcookie ejabberd \
 		-pa `pwd`/tests \
 		    `pwd`/ebin \
@@ -36,13 +36,13 @@ test_preset: prepare
 		$(ADD_OPTS) \
 		-s run_common_test main test=full spec=$(TESTSPEC) preset=$(PRESET)
 
-test_config: prepare
+cover_test_preset: prepare
 	erl -noinput -sname test -setcookie ejabberd \
 		-pa `pwd`/tests \
 		    `pwd`/ebin \
 			`pwd`/deps/*/ebin \
 		$(ADD_OPTS) \
-		-s run_common_test main test=full spec=$(TESTSPEC) preset=$(CONFIG)
+		-s run_common_test main test=full spec=$(TESTSPEC) preset=$(PRESET) cover=true
 
 test: prepare
 	erl -noinput -sname test -setcookie ejabberd \
