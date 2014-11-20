@@ -16,6 +16,10 @@ after_script:
         - if [ -s dev/mongooseim_node1/log/crash.log ]; then cat dev/mongooseim_node1/log/crash.log; fi
         - cat `ls -1 -d -t test/ejabberd_tests/ct_report/ct_run.* | head -1`/ejabberd_tests.*/run.*/suite.log
         - cat dev/mongooseim_node1/etc/ejabberd.cfg
+
+after_success:
+        - make cover_report
+
 services: redis-server
 branches:
         only:

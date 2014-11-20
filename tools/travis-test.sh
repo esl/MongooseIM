@@ -27,7 +27,7 @@ ${EJD1CTL} ping
 echo -n "pinging MongooseIM node 2: "
 ${EJD2CTL} ping
 
-make test_preset TESTSPEC=default.spec PRESET=$TEST_CONFIG
+make cover_test_preset TESTSPEC=default.spec PRESET=$TEST_CONFIG
 
 RAN_TESTS=`cat /tmp/ct_count`
 

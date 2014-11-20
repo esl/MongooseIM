@@ -48,6 +48,9 @@ quickrun:
 cover_test: test_deps
 	cd test/ejabberd_tests; make cover_test
 
+cover_test_preset: test_deps
+	cd test/ejabberd_tests; make cover_test_preset
+
 quicktest: test_deps
 	cd test/ejabberd_tests; make quicktest
 
@@ -76,6 +79,10 @@ deps_dev:
 
 devclean:
 	rm -rf dev/*
+
+cover_report: $(shell ls -1rt `find dev/mongooseim_node1 -type f -name coverage.data 2>/dev/null` | tail -n1)
+	erl -noshell -pa apps/*/ebin deps/*/ebin -eval 'ecoveralls:travis_ci("$?"), init:stop()'
+
 
 generate_snmp_header: apps/ejabberd/include/EJABBERD-MIB.hrl
 
