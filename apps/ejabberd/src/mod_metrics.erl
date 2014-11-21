@@ -12,17 +12,6 @@
 
 -export ([start/2, stop/1]).
 
-%% ejabberd_cowboy API
--export ([cowboy_router_paths/2]).
-
--define(REST_LISTENER, ejabberd_metrics_rest).
-
--type paths() :: 'available_metrics'
-               | 'host_metric'
-               | 'host_metrics'
-               | 'sum_metric'
-               | 'sum_metrics'.
-
 -spec start(ejabberd:server(), list()) -> ok.
 start(Host, _Opts) ->
     init_folsom(Host),
@@ -128,14 +117,3 @@ get_general_counters(Host) ->
                             [{ejabberd:server(),'sessionCount'}].
 get_total_counters(Host) ->
     [{Host, Counter} || Counter <- ?TOTAL_COUNTERS].
-
--spec cowboy_router_paths(file:filename(), list()) ->
-    [{file:filename(), 'ejabberd_metrics_rest', [paths(),...]},...].
-cowboy_router_paths(BasePath, _Opts) ->
-    [
-        {BasePath, ?REST_LISTENER, [available_metrics]},
-        {[BasePath, "/m"], ?REST_LISTENER, [sum_metrics]},
-        {[BasePath, "/m/:metric"], ?REST_LISTENER, [sum_metric]},
-        {[BasePath, "/host/:host/:metric"], ?REST_LISTENER, [host_metric]},
-        {[BasePath, "/host/:host"], ?REST_LISTENER, [host_metrics]}
-    ].
