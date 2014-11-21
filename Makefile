@@ -80,8 +80,9 @@ deps_dev:
 devclean:
 	rm -rf dev/*
 
-cover_report: $(shell ls -1rt `find dev/mongooseim_node1 -type f -name coverage.data 2>/dev/null` | tail -n1)
-	erl -noshell -pa apps/*/ebin deps/*/ebin -eval 'ecoveralls:travis_ci("$?"), init:stop()'
+cover_report:
+	tools/combine_coverage
+	erl -noshell -pa apps/*/ebin deps/*/ebin -eval 'ecoveralls:travis_ci("combined.coverdata"), init:stop()'
 
 
 generate_snmp_header: apps/ejabberd/include/EJABBERD-MIB.hrl
