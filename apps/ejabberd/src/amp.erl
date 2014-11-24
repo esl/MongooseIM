@@ -14,10 +14,13 @@
          make_error_response/4,
          rule_to_xmlel/1,
          strip_amp_el/1,
+
          binaries_to_rule/3
         ]).
 
--export_type([amp_rule/0, amp_rules/0]).
+-export_type([amp_rule/0,
+             amp_rules/0]).
+
 
 -spec binaries_to_rule(binary(), binary(), binary()) -> amp_rule() | amp_invalid_rule().
 binaries_to_rule(<<"deliver">> = Condition, Value,Action) ->
@@ -72,7 +75,7 @@ make_error_response([E|_] = Errors, [_|_] = Rules, User, Packet) ->
     Error = make_error_el(Errors, Rules),
     Amp = #xmlel{name = <<"amp">>,
                  attrs = [{<<"xmlns">>, ?NS_AMP} |
-                         error_amp_attrs(E, User, Packet)],
+                          error_amp_attrs(E, User, Packet)],
                  children = [rule_to_xmlel(R) || R <- Rules]},
     #xmlel{name = <<"message">>,
            attrs = [{<<"id">>, OriginalId},
@@ -92,15 +95,15 @@ error_amp_attrs('undefined-condition', User, Packet) ->
 error_amp_attrs(_,_,_) -> [].
 
 
-%% The lists is guaranteed to be non-empty (by make_error_message/4
-%% And that their number is the same
+%% The lists are guaranteed to be non-empty and of equal
+%% length by make_error_message/4
 -spec make_error_el([amp_error()],[amp_any_rule()]) -> exml:xmlel().
 make_error_el(Errors, Rules) ->
     ErrorMarker = #xmlel{name = error_marker_name(hd(Errors)),
                          attrs = [{<<"xmlns">>, ?NS_STANZAS}]},
     RuleContainer = #xmlel{name = rule_container_name(hd(Errors)),
-                           attrs = [{<<"xmlns">>, ?NS_AMP}],
-                           children = [ rule_to_xmlel(R) || R <- Rules ]},
+                          attrs = [{<<"xmlns">>, ?NS_AMP}],
+                          children = [ rule_to_xmlel(R) || R <- Rules ]},
     #xmlel{name = <<"error">>,
            attrs = [{<<"type">>, <<"modify">>},
                     {<<"code">>, error_code(hd(Errors))}],
@@ -114,9 +117,9 @@ rule_to_xmlel(#amp_rule{condition=C, value=V, action=A}) ->
                     {<<"action">>, to_bin_(A)}]};
 rule_to_xmlel(#amp_invalid_rule{condition=C, value=V, action=A}) ->
     #xmlel{name = <<"rule">>,
-          attrs = [{<<"condition">>, C},
-                   {<<"value">>,V},
-                   {<<"action">>, A}]}.
+           attrs = [{<<"condition">>, C},
+                    {<<"value">>,V},
+                    {<<"action">>, A}]}.
 
 -spec strip_amp_el(exml:xmlel()) -> exml:xmlel().
 strip_amp_el(#xmlel{children = Children} = Elem) ->

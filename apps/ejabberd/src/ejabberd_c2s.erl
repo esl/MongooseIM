@@ -1094,7 +1094,7 @@ session_established({xmlstreamelement, El}, StateData) ->
 	_NewEl ->
 	    NewState = maybe_increment_sm_incoming(StateData#state.stream_mgmt,
 						   StateData),
-	    session_established2(El, NewState)
+      check_amp_maybe_send(FromJID#jid.lserver, NewState, {FromJID, El})
     end;
 %% We hibernate the process to reduce memory consumption after a
 %% configurable activity timeout
@@ -1120,6 +1120,13 @@ session_established(closed, StateData) ->
     ?DEBUG("Session established closed - trying to enter resume_session",[]),
     maybe_enter_resume_session(StateData#state.stream_mgmt_id, StateData).
 
+
+%%% XEP-0079 (AMP) related
+check_amp_maybe_send(Host, State, {_FromJID, _El} = HookData) ->
+    case ejabberd_hooks:run_fold(amp_check_packet, Host, HookData, []) of
+        drop      -> fsm_next_state(session_established, State);
+        {_,NewEl} -> session_established2(NewEl, State)
+    end.
 
 %% @doc Process packets sent by user (coming from user on c2s XMPP
 %% connection)

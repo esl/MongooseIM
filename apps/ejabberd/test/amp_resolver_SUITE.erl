@@ -21,6 +21,7 @@
 all() ->
     [{group, deliver_strategy},
      {group, match_resource_strategy},
+     {group, null_strategy},
      {group, folding}
     ].
 
@@ -39,8 +40,8 @@ groups() ->
        match_res_exact_non_matches,
        match_res_other_matches,
        match_res_other_non_matches]},
-     {folding, [fold_on_true_is_always_true]},
-     {null_strategy, [no_valid_rules_match_null_strategy]}
+     {null_strategy, [no_valid_rules_match_null_strategy]},
+     {folding, [fold_on_true_is_always_true]}
     ].
 
 fold_on_true_is_always_true(_) ->
@@ -48,11 +49,6 @@ fold_on_true_is_always_true(_) ->
          ?FORALL({Strategy, #amp_rule{condition=C, value=V}},
                  {amp_gen:strategy(), amp_gen:valid_rule()},
                  true == amp_resolver:check_condition(true, Strategy, C, V))).
-
-no_valid_rules_match_null_strategy(_) ->
-    prop(no_valid_rules_match_null_strategy,
-         ?FORALL(#amp_rule{condition=C, value=V}, amp_gen:valid_rule(),
-                 false == amp_resolver:check_condition(true, amp_strategy:null_strategy(), C, V))).
 
 deliver_none_matches(_)        -> strategy_match_prop(deliver, none).
 deliver_none_non_matches(_)    -> strategy_nomatch_prop(deliver, none).
@@ -77,6 +73,11 @@ match_res_any_matches_everything_except_undefined(_) ->
     ?ae(true, check_cond(MatchExactStrat, 'match-resource', 'any')),
     ?ae(true, check_cond(MatchOtherStrat, 'match-resource', 'any')).
 
+no_valid_rules_match_null_strategy(_) ->
+    prop(no_valid_rules_match_null_strategy,
+         ?FORALL(#amp_rule{condition=C, value=V}, amp_gen:valid_rule(),
+                 false == check_cond(amp_strategy:null_strategy(), C, V))).
+
 %% @doc Aspect is deliver, expire-at, or match-resource
 strategy_match_prop(Aspect, Value) ->
     prop(list_to_atom(a2l(Aspect) ++ "_" ++ a2l(Value) ++ "_matches"),
@@ -98,6 +99,3 @@ strategy_nomatch_prop(Aspect, Value) ->
 %% Short-cuts
 check_cond(S,C,V) -> amp_resolver:check_condition(false,S,C,V).
 a2l(A) -> atom_to_list(A).
-
-% If we'd like to see what is being called / returned
-% dbg:tracer(), dbg:tpl(amp_resolver, resolve, x), dbg:p(all, call),
