@@ -2,9 +2,6 @@
 
 -export([main/1]).
 
-%% Deprecated
--export([cover_summary/0]).
-
 -define(CT_DIR, filename:join([".", "tests"])).
 -define(CT_REPORT, filename:join([".", "ct_report"])).
 
@@ -46,11 +43,8 @@ main(RawArgs) ->
             init:stop("Test failed")
     end.
 
-run(#opts{test = quick, cover = true, spec = Spec}) ->
-    do_run_quick_test_with_cover(tests_to_run(Spec)),
-    cover_summary();
-run(#opts{test = quick, spec = Spec}) ->
-    do_run_quick_test(tests_to_run(Spec));
+run(#opts{test = quick, cover = Cover, spec = Spec}) ->
+    do_run_quick_test(tests_to_run(Spec), Cover);
 run(#opts{test = full, spec = Spec, preset = Preset, cover = Cover}) ->
     run_test(tests_to_run(Spec), case Preset of
                                      all -> all;
@@ -102,9 +96,6 @@ save_count(Test, Configs) ->
     end,
     file:write_file("/tmp/ct_count", integer_to_list(Repeat*Times)).
 
-run_test(Test) ->
-    run_test(Test, all, false).
-
 run_test(Test, PresetsToRun, CoverEnabled) ->
     prepare_cover(CoverEnabled),
     error_logger:info_msg("Presets to run ~p", [PresetsToRun]),
@@ -132,7 +123,7 @@ run_test(Test, PresetsToRun, CoverEnabled) ->
         _ ->
             error_logger:info_msg("Presets were not found in the config file ~ts",
                                   [ConfigFile]),
-            do_run_quick_test(Test)
+            do_run_quick_test(Test, CoverEnabled)
     end,
     analyze_coverage(CoverEnabled).
 
@@ -141,7 +132,8 @@ run_test(Test, PresetsToRun, CoverEnabled) ->
 preset_names(Presets) ->
     [Preset||{Preset, _} <- Presets].
 
-do_run_quick_test(Test) ->
+do_run_quick_test(Test, CoverEnabled) ->
+    prepare_cover(CoverEnabled),
     Result = ct:run_test(Test),
     case Result of
         {error, Reason} ->
@@ -149,18 +141,9 @@ do_run_quick_test(Test) ->
         _ ->
             ok
     end,
-    save_count(Test, []).
 
-do_run_quick_test_with_cover(Test) ->
-    prepare(),
-    do_run_quick_test(Test),
-    N = get_ejabberd_node(),
-    Files = rpc:call(N, filelib, wildcard, ["/tmp/ejd_test_run_*.coverdata"]),
-    [rpc:call(N, file, delete, [File]) || File <- Files],
-    {MS,S,_} = now(),
-    FileName = lists:flatten(io_lib:format("/tmp/ejd_test_run_~b~b.coverdata",[MS,S])),
-    io:format("export current cover ~p~n", [cover_call(export, [FileName])]),
-    io:format("test finished~n").
+    analyze_coverage(CoverEnabled),
+    save_count(Test, []).
 
 run_config_test({Name, Variables}, Test, N, Tests) ->
     Node = get_ejabberd_node(),
@@ -180,6 +163,7 @@ run_config_test({Name, Variables}, Test, N, Tests) ->
     call(Node, application, start, [ejabberd]),
     error_logger:info_msg("Configuration ~p of ~p: ~p started.~n",
                           [N, Tests, Name]),
+
     Result = ct:run_test([{label, Name} | Test]),
     case Result of
         {error, Reason} ->
@@ -197,17 +181,6 @@ call(Node, M, F, A) ->
         Result ->
             Result
     end.
-
-cover_summary() ->
-    prepare(),
-    Files = rpc:call(get_ejabberd_node(), filelib, wildcard, ["/tmp/ejd_test_run_*.coverdata"]),
-    lists:foreach(fun(F) ->
-                          io:format("import ~p cover ~p~n", [F, cover_call(import, [F])])
-                  end,
-                  Files),
-    analyze(summary),
-    io:format("summary completed~n"),
-    init:stop(0).
 
 get_apps() ->
     case file:list_dir("../../apps/") of
@@ -241,7 +214,6 @@ analyze(Node) ->
         _ ->
             ok
     end.
-
 
 make_html(Node) ->
     Modules = cover_call(modules),

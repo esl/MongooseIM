@@ -60,13 +60,6 @@ cover_test: prepare
 		$(ADD_OPTS) \
 		-s run_common_test main test=full spec=$(TESTSPEC) cover=true
 
-cover_summary: prepare
-	erl -noinput -sname test -setcookie ejabberd \
-		-pa `pwd`/tests \
-		    `pwd`/ebin \
-			`pwd`/deps/*/ebin \
-		-s run_common_test cover_summary
-
 prepare: compile
 	erlc -Ideps/exml/include \
 		 run_common_test.erl
