@@ -196,7 +196,7 @@ prepare_cover(_) ->
     ok.
 
 analyze_coverage(true) ->
-    analyze(get_ejabberd_node());
+    analyze();
 analyze_coverage(_) ->
     ok.
 
@@ -205,53 +205,48 @@ prepare() ->
     Compiled = rpc:call(get_ejabberd_node(), mongoose_cover_helper, start, [Apps]),
     io:format("Compiled modules ~p~n", [Compiled]).
 
-analyze(Node) ->
+analyze() ->
     io:format("Coverage analyzing~n"),
     rpc:call(get_ejabberd_node(), mongoose_cover_helper, analyze, []),
+    Files = filelib:wildcard("/tmp/*.coverdata"),
+    [cover:import(File) || File <- Files],
+    cover:export("/tmp/mongoose_combined.coverdata"),
     case os:getenv("TRAVIS_JOB_ID") of
         false ->
-            make_html(Node);
+            make_html();
         _ ->
             ok
     end.
 
-make_html(Node) ->
-    Modules = cover_call(modules),
-    io:format("node ~s~n", [Node]),
-    FilePath = case {Node, file:read_file(?CT_REPORT++"/index.html")} of
-        {summary, {ok, IndexFileData}} ->
+make_html() ->
+    Modules = cover:imported_modules(),
+    FilePath = case file:read_file(?CT_REPORT++"/index.html") of
+        {ok, IndexFileData} ->
             R = re:replace(IndexFileData, "<a href=\"all_runs.html\">ALL RUNS</a>", "& <a href=\"cover.html\" style=\"margin-right:5px\">COVER</a>"),
             file:write_file(?CT_REPORT++"/index.html", R),
             ?CT_REPORT++"/cover.html";
         _ -> skip
     end,
     CoverageDir = filename:dirname(FilePath)++"/coverage",
-    rpc:call(get_ejabberd_node(), file, make_dir, ["/tmp/coverage"]),
+    file:make_dir(CoverageDir),
     {ok, File} = file:open(FilePath, [write]),
-    file:write(File, "<html>\n<head></head>\n<body bgcolor=\"white\" text=\"black\" link=\"blue\" vlink=\"purple\" alink=\"red\">\n"),
-    file:write(File, "<h1>Coverage for application 'esl-ejabberd'</h1>\n"),
-    file:write(File, "<table border=3 cellpadding=5>\n"),
-    file:write(File, "<tr><th>Module</th><th>Covered (%)</th><th>Covered (Lines)</th><th>Not covered (Lines)</th><th>Total (Lines)</th></tr>"),
+    file:write(File, get_cover_header()),
     Fun = fun(Module, {CAcc, NCAcc}) ->
                   FileName = lists:flatten(io_lib:format("~s.COVER.html",[Module])),
-                  FilePathC = filename:join(["/tmp/coverage", FileName]),
-                  io:format("Analysing module ~s~n", [Module]),
-                  cover_call(analyse_to_file, [Module, FilePathC, [html]]),
-                  {ok, {Module, {C, NC}}} = cover_call(analyse, [Module, module]),
-                  file:write(File, row(atom_to_list(Module), C, NC, percent(C,NC),"coverage/"++FileName)),
-                  {CAcc + C, NCAcc + NC}
+
+                  case cover:analyse(Module, module) of
+                      {ok, {Module, {C, NC}}} ->
+                          file:write(File, row(atom_to_list(Module), C, NC, percent(C,NC),"coverage/"++FileName)),
+                          FilePathC = filename:join([CoverageDir, FileName]),
+                          catch cover:analyse_to_file(Module, FilePathC, [html]),
+                          {CAcc + C, NCAcc + NC};
+                      _ ->
+                          {CAcc, NCAcc}
+                  end
           end,
     {CSum, NCSum} = lists:foldl(Fun, {0, 0}, Modules),
-    os:cmd("cp -R /tmp/coverage "++CoverageDir),
     file:write(File, row("Summary", CSum, NCSum, percent(CSum, NCSum), "#")),
     file:close(File).
-
-
-cover_call(Function) ->
-    cover_call(Function, []).
-
-cover_call(Function, Args) ->
-    rpc:call(get_ejabberd_node(), cover, Function, Args).
 
 get_ejabberd_node() ->
     {ok, Props} = file:consult(ct_config_file()),
@@ -272,3 +267,9 @@ row(Row, C, NC, Percent, Path) ->
         "<td>", integer_to_list(C+NC), "</td>",
         "</tr>\n"
     ].
+
+get_cover_header() ->
+    "<html>\n<head></head>\n<body bgcolor=\"white\" text=\"black\" link=\"blue\" vlink=\"purple\" alink=\"red\">\n"
+    "<h1>Coverage for application 'MongooseIM'</h1>\n"
+    "<table border=3 cellpadding=5>\n"
+    "<tr><th>Module</th><th>Covered (%)</th><th>Covered (Lines)</th><th>Not covered (Lines)</th><th>Total (Lines)</th></tr>".
