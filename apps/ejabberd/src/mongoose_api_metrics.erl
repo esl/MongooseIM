@@ -4,11 +4,9 @@
 %%% @end
 %%%===================================================================
 
--module(ejabberd_api_metrics).
+-module(mongoose_api_metrics).
 
--behaviour(ejabberd_api).
-
-%% ejabberd_api callbacks
+%% mongoose_api callbacks
 -export([prefix/0,
          routes/0,
          handle_get/2]).
@@ -20,9 +18,14 @@
          host_metric/1,
          host_metrics/1]).
 
+%%--------------------------------------------------------------------
+%% mongoose_api callbacks
+%%--------------------------------------------------------------------
+-spec prefix() -> mongoose_api:prefix().
 prefix() ->
     "/metrics".
 
+-spec routes() -> mongoose_api:routes().
 routes() ->
     [{"/", [available_metrics]},
      {"/all", [sum_metrics]},
@@ -30,9 +33,14 @@ routes() ->
      {"/host/:host/:metric", [host_metric]},
      {"/host/:host", [host_metrics]}].
 
+-spec handle_get(mongoose_api:bindings(), mongoose_api:options()) ->
+    mongoose_api:response().
 handle_get(Bindings, [Command]) ->
     ?MODULE:Command(Bindings).
 
+%%--------------------------------------------------------------------
+%% mongoose_api commands actual handlers
+%%--------------------------------------------------------------------
 available_metrics(_Bindings) ->
     {Hosts, Metrics} = get_available_hosts_metrics(),
     Reply = [{hosts, Hosts}, {metrics, Metrics}],

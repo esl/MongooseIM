@@ -1,4 +1,4 @@
--module(ejabberd_api_xml).
+-module(mongoose_api_xml).
 
 -export([serialize/1]).
 

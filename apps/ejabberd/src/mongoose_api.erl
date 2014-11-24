@@ -1,4 +1,4 @@
--module(ejabberd_api).
+-module(mongoose_api).
 
 %% ejabberd_cowboy callbacks
 -export([cowboy_router_paths/2]).
@@ -17,14 +17,15 @@
 
 -type prefix() :: string().
 -type route() :: {string(), options()}.
+-type routes() :: [route()].
 -type bindings() :: proplists:proplist().
 -type options() :: [any()].
--export_type([prefix/0, route/0, bindings/0, options/0]).
+-type response() :: {ok, any()} | {error, atom()}.
+-export_type([prefix/0, routes/0, route/0, bindings/0, options/0, response/0]).
 
 -callback prefix() -> prefix().
--callback routes() -> [route()].
--callback handle_get(bindings(), options()) ->
-    {ok, Reply :: any()} | {error, Reason :: atom()}.
+-callback routes() -> routes().
+-callback handle_get(bindings(), options()) -> response().
 
 %%--------------------------------------------------------------------
 %% ejabberd_cowboy callbacks
@@ -61,10 +62,10 @@ content_types_provided(Req, State) ->
     {CTP, Req, State}.
 
 to_json(Req, State) ->
-    handle_get(ejabberd_api_json, Req, State).
+    handle_get(mongoose_api_json, Req, State).
 
 to_xml(Req, State) ->
-    handle_get(ejabberd_api_xml, Req, State).
+    handle_get(mongoose_api_xml, Req, State).
 
 %%--------------------------------------------------------------------
 %% HTTP verbs handlers
