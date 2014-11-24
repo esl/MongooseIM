@@ -3,5 +3,6 @@
 main(_Args) ->
     cover:import("apps/ejabberd/ct.coverdata"),
     cover:import("dev/mongooseim_node1/mongoose.coverdata"),
+    cover:import("dev/mongooseim_node2/mongoose.coverdata"),
     cover:export("combined.coverdata"),
     ok.
