@@ -25,7 +25,8 @@ start(Apps) ->
     lists:flatmap(fun cover_compile_app/1, Apps).
 
 analyze() ->
-    cover:export("mongoose.coverdata").
+    cover:export("/tmp/" ++ atom_to_list(node()) ++ ".coverdata"),
+    cover:stop().
 
 cover_compile_app(App) ->
     EbinDir = filename:join(code:lib_dir(App), "ebin"),
