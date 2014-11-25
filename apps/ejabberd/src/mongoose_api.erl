@@ -8,7 +8,8 @@
          rest_init/2,
          rest_terminate/2]).
 
--export([content_types_provided/2]).
+-export([allowed_methods/2,
+         content_types_provided/2]).
 
 -export([to_xml/2,
          to_json/2]).
@@ -56,11 +57,19 @@ rest_init(Req, Opts) ->
 rest_terminate(_Req, _State) ->
     ok.
 
+allowed_methods(Req, #state{handler=Handler}=State) ->
+    Methods = lists:foldl(fun collect_allowed_methods/2,
+                          [<<"OPTIONS">>], Handler:module_info(exports)),
+    {Methods, Req, State}.
+
 content_types_provided(Req, State) ->
     CTP = [{{<<"application">>, <<"json">>, '*'}, to_json},
            {{<<"application">>, <<"xml">>, '*'}, to_xml}],
     {CTP, Req, State}.
 
+%%--------------------------------------------------------------------
+%% content_types_provided/2 callbacks
+%%--------------------------------------------------------------------
 to_json(Req, State) ->
     handle_get(mongoose_api_json, Req, State).
 
@@ -78,6 +87,11 @@ handle_get(Serializer, Req, #state{opts=Opts}=State) ->
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
+collect_allowed_methods({handle_get, 2}, Acc) ->
+    [<<"HEAD">>, <<"GET">> | Acc];
+collect_allowed_methods(_Other, Acc) ->
+    Acc.
+
 handle_result({ok, Result}, Serializer, Req, State) ->
     serialize(Result, Serializer, Req, State);
 handle_result({error, Error}, _Serializer, Req, State) ->
