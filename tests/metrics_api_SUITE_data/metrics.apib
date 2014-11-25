@@ -1,3 +1,11 @@
+# 0. GET is the only allowed method
+
+OPTIONS /api/metrics/
+> User-Agent: katt
+> Host: {{<hostname}}:{{<port}}
+< 200
+< Allow: HEAD, GET, OPTIONS
+
 # 1. List of hosts and metrics
 
 GET /api/metrics/
