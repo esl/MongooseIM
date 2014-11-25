@@ -9,12 +9,14 @@
          rest_terminate/2]).
 
 -export([allowed_methods/2,
-         content_types_provided/2]).
+         content_types_provided/2,
+         content_types_accepted/2]).
 
 -export([to_xml/2,
-         to_json/2]).
+         to_json/2,
+         from_json/2]).
 
--record(state, {handler, opts}).
+-record(state, {handler, opts, bindings}).
 
 -type prefix() :: string().
 -type route() :: {string(), options()}.
@@ -48,8 +50,9 @@ init({_Transport, http}, Req, Opts) ->
 rest_init(Req, Opts) ->
     case lists:keytake(handler, 1, Opts) of
         {value, {handler, Handler}, Opts1} ->
-            State = #state{handler = Handler, opts = Opts1},
-            {ok, Req, State};
+            {Bindings, Req1} = cowboy_req:bindings(Req),
+            State = #state{handler=Handler, opts=Opts1, bindings=Bindings},
+            {ok, Req1, State};
         false ->
             erlang:throw(no_handler_defined)
     end.
@@ -67,6 +70,10 @@ content_types_provided(Req, State) ->
            {{<<"application">>, <<"xml">>, '*'}, to_xml}],
     {CTP, Req, State}.
 
+content_types_accepted(Req, State) ->
+    CTA = [{{<<"application">>, <<"json">>, '*'}, from_json}],
+    {CTA, Req, State}.
+
 %%--------------------------------------------------------------------
 %% content_types_provided/2 callbacks
 %%--------------------------------------------------------------------
@@ -77,26 +84,57 @@ to_xml(Req, State) ->
     handle_get(mongoose_api_xml, Req, State).
 
 %%--------------------------------------------------------------------
+%% content_types_accepted/2 callbacks
+%%--------------------------------------------------------------------
+from_json(Req, State) ->
+    handle_unsafe(mongoose_api_json, Req, State).
+
+%%--------------------------------------------------------------------
 %% HTTP verbs handlers
 %%--------------------------------------------------------------------
-handle_get(Serializer, Req, #state{opts=Opts}=State) ->
-    {Bindings, Req1} = cowboy_req:bindings(Req),
+handle_get(Serializer, Req, #state{opts=Opts, bindings=Bindings}=State) ->
     Result = call(handle_get, [Bindings, Opts], State),
-    handle_result(Result, Serializer, Req1, State).
+    handle_result(Result, Serializer, Req, State).
+
+handle_unsafe(Deserializer, Req, State) ->
+    {Method, Req1} = cowboy_req:method(Req),
+    {ok, Body, Req2} = cowboy_req:body(Req1),
+    case Deserializer:deserialize(Body) of
+        {ok, Data} ->
+            handle_unsafe(Method, Data, Req2, State);
+        {error, _Reason} ->
+            {false, Req2, State}
+    end.
+
+handle_unsafe(<<"POST">>, Data, Req, State) ->
+    handle_post(Data, Req, State);
+handle_unsafe(_Other, _Data, Req, State) ->
+    error_response(not_implemented, Req, State).
+
+handle_post(Data, Req, #state{opts=Opts, bindings=Bindings}=State) ->
+    Result = call(handle_post, [Data, Bindings, Opts], State),
+    handle_result(Result, Req, State).
 
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
 collect_allowed_methods({handle_get, 2}, Acc) ->
     [<<"HEAD">>, <<"GET">> | Acc];
+collect_allowed_methods({handle_post, 3}, Acc) ->
+    [<<"POST">> | Acc];
 collect_allowed_methods(_Other, Acc) ->
     Acc.
 
 handle_result({ok, Result}, Serializer, Req, State) ->
     serialize(Result, Serializer, Req, State);
-handle_result({error, Error}, _Serializer, Req, State) ->
+handle_result(Other, _Serializer, Req, State) ->
+    handle_result(Other, Req, State).
+
+handle_result(ok, Req, State) ->
+    {true, Req, State};
+handle_result({error, Error}, Req, State) ->
     error_response(Error, Req, State);
-handle_result(no_call, _Serializer, Req, State) ->
+handle_result(no_call, Req, State) ->
     error_response(not_implemented, Req, State).
 
 serialize(Data, Serializer, Req, State) ->
