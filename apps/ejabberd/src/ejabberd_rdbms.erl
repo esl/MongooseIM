@@ -32,6 +32,7 @@
 
 -spec start() -> 'ok' | {'error','lager_not_running'}.
 start() ->
+    compile_odbc_type_helper(),
     %% Check if ejabberd has been compiled with ODBC
     case catch ejabberd_odbc_sup:module_info() of
         {'EXIT',{undef,_}} ->
@@ -94,3 +95,23 @@ needs_odbc(Host) ->
             false;
         _ -> true
     end.
+
+compile_odbc_type_helper() ->
+    Key = {odbc_server_type, ?MYNAME},
+    Type = ejabberd_config:get_local_option(Key),
+    CodeStr = odbc_type_helper(Type),
+    {Mod, Code} = dynamic_compile:from_string(CodeStr),
+    code:load_binary(Mod, "ejabberd_odbc_type.erl", Code).
+
+odbc_type_helper(Type) ->
+    lists:flatten(
+        ["-module(ejabberd_odbc_type).
+         -export([get/0]).
+         -spec get() -> atom().
+         get() -> ", normalize_type(Type), ".\n"]
+    ).
+
+normalize_type(mssql) ->
+    "mssql";
+normalize_type(_) ->
+    "generic".

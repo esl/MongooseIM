@@ -113,11 +113,10 @@
 -define(generic, true).
 -endif.
 
+-define(ODBC_TYPE, (ejabberd_odbc_type:get())).
+
 -include("ejabberd.hrl").
 
--define(DELEGATE(F), F() -> odbc_queries_mssql:F()).
--define(DELEGATE3(F), F(A,B,C) -> odbc_queries_mssql:F(A,B,C)).
--define(DELEGATE4(F), F(A,B,C,D) -> odbc_queries_mssql:F(A,B,C,D)).
 %
 %% -----------------
 %% Common functions
@@ -155,12 +154,9 @@ escape_like_character(C)  -> escape_character(C).
 
 %% -----------------
 %% Generic queries
--ifndef(mssql).
+
 get_db_type() ->
-    generic.
--else.
-?DELEGATE(get_db_type).
--endif.
+    ?ODBC_TYPE.
 
 
 %% Safe atomic update.
@@ -239,12 +235,13 @@ update(LServer, Table, Fields, Vals, Where) ->
 sql_transaction(LServer, F) ->
     ejabberd_odbc:sql_transaction(LServer, F).
 
--ifndef(mssql).
 begin_trans() ->
+    begin_trans(?ODBC_TYPE).
+
+begin_trans(mssql) ->
+    odbc_queries_mssql:begin_trans();
+begin_trans(_) ->
     [<<"BEGIN;">>].
--else.
-?DELEGATE(begin_trans).
--endif.
 
 
 get_last(LServer, Username) ->
@@ -644,14 +641,17 @@ get_vcard(LServer, Username) ->
       [<<"select vcard from vcard "
          "where username='">>, Username, <<"' and server='">>, LServer, "';"]).
 
--ifndef(mssql).
-search_vcard(LServer, RestrictionSQL, Limit) ->
-    do_search_vcard(LServer, RestrictionSQL, Limit).
--else.
-?DELEGATE3(search_vcard).
--endif.
 
--ifndef(mssql).
+search_vcard(LServer, RestrictionSQL, Limit) ->
+    Type = ?ODBC_TYPE,
+    search_vcard(Type, LServer, RestrictionSQL, Limit).
+
+search_vcard(mssql, LServer, RestrictionSQL, Limit) ->
+    odbc_queries_mssql:search_vcard(LServer, RestrictionSQL, Limit);
+search_vcard(_, LServer, RestrictionSQL, Limit) ->
+    do_search_vcard(LServer, RestrictionSQL, Limit).
+
+
 do_search_vcard(LServer, RestrictionSQL, infinity) ->
     do_search_vcard2(LServer, RestrictionSQL, <<"">>);
 do_search_vcard(LServer, RestrictionSQL, Limit) when is_integer(Limit) ->
@@ -665,7 +665,6 @@ do_search_vcard2(LServer, RestrictionSQL, Limit) ->
         "nickname, bday, ctry, locality, "
         "email, orgname, orgunit from vcard_search ">>,
             RestrictionSQL, Limit, ";"]).
--endif.
 
 get_default_privacy_list(LServer, Username) ->
     ejabberd_odbc:sql_query(
@@ -857,38 +856,40 @@ push_offline_messages(LServer, Rows) ->
               "(username, server, timestamp, expire, from_jid, packet) "
             "VALUES ">>, join(Rows, ", ")]).
 
--ifndef(mssql).
+
 count_offline_messages(LServer, SUser, SServer, Limit) ->
+    count_offline_messages(?ODBC_TYPE, LServer, SUser, SServer, Limit).
+
+count_offline_messages(mssql, LServer, SUser, SServer, Limit) ->
+    odbc_queries_mssql:count_offline_messages(LServer, SUser, SServer, Limit);
+count_offline_messages(_, LServer, SUser, SServer, Limit) ->
     ejabberd_odbc:sql_query(
       LServer,
       [<<"select count(*) from offline_message "
             "where server = '">>, SServer, <<"' and "
                   "username = '">>, SUser, <<"' "
             "limit ">>, integer_to_list(Limit)]).
--else.
-?DELEGATE4(count_offline_messages).
--endif.
 
 -spec get_db_specific_limits(integer())
         -> {SQL :: nonempty_string(), []} | {[], MSSQL::nonempty_string()}.
 get_db_specific_limits(Limit) ->
     LimitStr = integer_to_list(Limit),
-    do_get_db_specific_limits(LimitStr).
+    do_get_db_specific_limits(?ODBC_TYPE, LimitStr).
 
 -spec get_db_specific_offset(integer(), integer()) -> iolist().
 get_db_specific_offset(Offset, Limit) ->
-    do_get_db_specific_offset(integer_to_list(Offset), integer_to_list(Limit)).
+    do_get_db_specific_offset(?ODBC_TYPE, integer_to_list(Offset), integer_to_list(Limit)).
 
--ifndef(mssql).
-do_get_db_specific_limits(LimitStr) ->
+
+do_get_db_specific_limits(mssql, LimitStr) ->
+    {"", "TOP " ++ LimitStr};
+do_get_db_specific_limits(_, LimitStr) ->
     {"LIMIT " ++ LimitStr, ""}.
-do_get_db_specific_offset(Offset, _Limit) ->
+
+do_get_db_specific_offset(mssql, Offset, Limit) ->
+    [" OFFSET ", Offset, " ROWS"
+    " FETCH NEXT ", Limit, " ROWS ONLY"];
+do_get_db_specific_offset(_, Offset, _Limit) ->
     [" OFFSET ", Offset].
 
--else.
-do_get_db_specific_limits(LimitStr) ->
-    {"", "TOP " ++ LimitStr}.
-do_get_db_specific_offset(Offset, Limit) ->
-    [" OFFSET ", Offset, " ROWS"
-     " FETCH NEXT ", Limit, " ROWS ONLY"].
--endif.
+

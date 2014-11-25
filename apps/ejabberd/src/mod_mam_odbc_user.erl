@@ -116,7 +116,8 @@ remove_archive(Host, _ArcID, _ArcJID=#jid{luser = UserName}) ->
 -spec query_archive_id(ejabberd:server(), ejabberd:user()) -> integer().
 query_archive_id(Host, UserName) ->
     SUserName = ejabberd_odbc:escape(UserName),
-    Result = do_query_archive_id(Host, SUserName),
+    DbType = ejabberd_odbc_type:get(),
+    Result = do_query_archive_id(DbType, Host, SUserName),
 
     case Result of
         {selected, [<<"id">>], [{IdBin}]} when binary(IdBin)->
@@ -139,18 +140,13 @@ create_user_archive(Host, UserName) ->
        "(user_name) VALUES ('", SUserName, "')"]),
     ok.
 
--ifndef(mssql).
-do_query_archive_id(Host, SUserName) ->
+
+do_query_archive_id(mssql, Host, SUserName) ->
+    odbc_queries_mssql:query_archive_id(Host, SUserName);
+do_query_archive_id(_, Host, SUserName) ->
     ejabberd_odbc:sql_query(
         Host,
         ["SELECT id "
         "FROM mam_user "
         "WHERE user_name='", SUserName, "' "
         "LIMIT 1"]).
-
--else.
-
-do_query_archive_id(Host, SUserName) ->
-    odbc_queries_mssql:query_archive_id(Host, SUserName).
-
--endif.

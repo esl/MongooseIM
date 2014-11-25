@@ -27,15 +27,11 @@
 -include("ejabberd.hrl").
 
 %% API
--export([get_db_type/0,
-         begin_trans/0,
+-export([begin_trans/0,
          query_archive_id/2,
          search_vcard/3,
          count_offline_messages/4]).
 
-
-get_db_type() ->
-    mssql.
 
 begin_trans() ->
     [<<"BEGIN TRANSACTION;">>].
