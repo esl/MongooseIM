@@ -2,7 +2,7 @@
 %% Source http://stackoverflow.com/questions/3768197/erlang-ioformatting-a-binary-to-hex
 -module(bin_to_hex).
 
--compile([native, {hipe, [o3]}]).
+-compile([native, {hipe, [o3]}, {inline, [hex/1]}]).
 
 -export([bin_to_hex/1]).
 
@@ -23,8 +23,6 @@ bin_to_hex_(<<A:8, B:8, C:8, D:8, E:8, F:8, G:8, H:8, Rest/binary>>, Acc) ->
     Rest,
     <<Acc/binary,
       ?H(A), ?H(B), ?H(C), ?H(D), ?H(E), ?H(F), ?H(G), ?H(H)>>).
-
--compile({inline, [hex/1]}).
 
 hex(X) ->
   element(
