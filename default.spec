@@ -13,7 +13,7 @@
 {suites, "tests", anonymous_SUITE}.
 {suites, "tests", bosh_SUITE}.
 {suites, "tests", carboncopy_SUITE}.
-{suites, "tests", cluster_commands_SUITE}.
+%{suites, "tests", cluster_commands_SUITE}.
 {suites, "tests", conf_reload_SUITE}.
 {suites, "tests", connect_SUITE}.
 {suites, "tests", ejabberdctl_SUITE}.

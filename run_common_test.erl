@@ -2,9 +2,6 @@
 
 -export([main/1]).
 
-%% Deprecated
--export([cover_summary/0]).
-
 -define(CT_DIR, filename:join([".", "tests"])).
 -define(CT_REPORT, filename:join([".", "ct_report"])).
 
@@ -46,20 +43,14 @@ main(RawArgs) ->
             init:stop("Test failed")
     end.
 
-run(#opts{test = quick, cover = true, spec = Spec}) ->
-    do_run_quick_test_with_cover(tests_to_run(Spec)),
-    cover_summary();
-run(#opts{test = quick, spec = Spec}) ->
-    do_run_quick_test(tests_to_run(Spec));
-run(#opts{test = full, cover = true, spec = Spec}) ->
-    run_ct_cover(tests_to_run(Spec)),
-    cover_summary();
-run(#opts{test = full, spec = Spec, preset = Preset}) ->
+run(#opts{test = quick, cover = Cover, spec = Spec}) ->
+    do_run_quick_test(tests_to_run(Spec), Cover);
+run(#opts{test = full, spec = Spec, preset = Preset, cover = Cover}) ->
     run_test(tests_to_run(Spec), case Preset of
                                      all -> all;
                                      undefined -> all;
                                      _   -> [Preset]
-                                 end).
+                                 end, Cover).
 
 %%
 %% Helpers
@@ -105,10 +96,8 @@ save_count(Test, Configs) ->
     end,
     file:write_file("/tmp/ct_count", integer_to_list(Repeat*Times)).
 
-run_test(Test) ->
-    run_test(Test, all).
-
-run_test(Test, PresetsToRun) ->
+run_test(Test, PresetsToRun, CoverEnabled) ->
+    prepare_cover(CoverEnabled),
     error_logger:info_msg("Presets to run ~p", [PresetsToRun]),
     ConfigFile = ct_config_file(),
     {ok, Props} = file:consult(ConfigFile),
@@ -134,13 +123,17 @@ run_test(Test, PresetsToRun) ->
         _ ->
             error_logger:info_msg("Presets were not found in the config file ~ts",
                                   [ConfigFile]),
-            do_run_quick_test(Test)
-    end.
+            do_run_quick_test(Test, CoverEnabled)
+    end,
+    analyze_coverage(CoverEnabled).
+
+
 
 preset_names(Presets) ->
     [Preset||{Preset, _} <- Presets].
 
-do_run_quick_test(Test) ->
+do_run_quick_test(Test, CoverEnabled) ->
+    prepare_cover(CoverEnabled),
     Result = ct:run_test(Test),
     case Result of
         {error, Reason} ->
@@ -148,18 +141,9 @@ do_run_quick_test(Test) ->
         _ ->
             ok
     end,
-    save_count(Test, []).
 
-do_run_quick_test_with_cover(Test) ->
-    prepare(),
-    do_run_quick_test(Test),
-    N = get_ejabberd_node(),
-    Files = rpc:call(N, filelib, wildcard, ["/tmp/ejd_test_run_*.coverdata"]),
-    [rpc:call(N, file, delete, [File]) || File <- Files],
-    {MS,S,_} = now(),
-    FileName = lists:flatten(io_lib:format("/tmp/ejd_test_run_~b~b.coverdata",[MS,S])),
-    io:format("export current cover ~p~n", [cover_call(export, [FileName])]),
-    io:format("test finished~n").
+    analyze_coverage(CoverEnabled),
+    save_count(Test, []).
 
 run_config_test({Name, Variables}, Test, N, Tests) ->
     Node = get_ejabberd_node(),
@@ -179,6 +163,7 @@ run_config_test({Name, Variables}, Test, N, Tests) ->
     call(Node, application, start, [ejabberd]),
     error_logger:info_msg("Configuration ~p of ~p: ~p started.~n",
                           [N, Tests, Name]),
+
     Result = ct:run_test([{label, Name} | Test]),
     case Result of
         {error, Reason} ->
@@ -197,87 +182,71 @@ call(Node, M, F, A) ->
             Result
     end.
 
-run_ct_cover(TestSpec) ->
-    prepare(),
-    run_test(tests_to_run(TestSpec)),
-    N = get_ejabberd_node(),
-    Files = rpc:call(N, filelib, wildcard, ["/tmp/ejd_test_run_*.coverdata"]),
-    [rpc:call(N, file, delete, [File]) || File <- Files],
-    {MS,S,_} = now(),
-    FileName = lists:flatten(io_lib:format("/tmp/ejd_test_run_~b~b.coverdata",[MS,S])),
-    io:format("export current cover ~p~n", [cover_call(export, [FileName])]),
-    io:format("test finished~n").
-
-cover_summary() ->
-    prepare(),
-    Files = rpc:call(get_ejabberd_node(), filelib, wildcard, ["/tmp/ejd_test_run_*.coverdata"]),
-    lists:foreach(fun(F) ->
-                          io:format("import ~p cover ~p~n", [F, cover_call(import, [F])])
-                  end,
-                  Files),
-    analyze(summary),
-    io:format("summary completed~n"),
-    init:stop(0).
-
-get_latest_revision(App) ->
-    Revs = rpc:call(get_ejabberd_node(), filelib, wildcard,
-                    ["lib/" ++ atom_to_list(App) ++ "-*"]),
-    hd(lists:reverse(lists:sort(Revs))).
-
 get_apps() ->
     case file:list_dir("../../apps/") of
         {ok, Filenames} -> lists:map(fun list_to_atom/1, Filenames);
         {error, _Reason} -> error("ejabberd parent project not found (expected apps in ../../apps)")
     end.
 
-prepare() ->
-    cover_call(start),
-    Apps = [get_latest_revision(A) || A <- get_apps()],
-    Cover = fun(App) -> cover_call(compile_beam_directory,[App ++ "/ebin"]) end,
-    Compiled = lists:flatmap(Cover, Apps),
-    rpc:call(get_ejabberd_node(), application, stop, [ejabberd]),
-    StartStatus = rpc:call(get_ejabberd_node(), application, start, [ejabberd, permanent]),
-    io:format("start ~p~n", [StartStatus]),
-    io:format("Compiled modules ~p~n", [Compiled]).
-    %%timer:sleep(10000).
 
-analyze(Node) ->
-    Modules = cover_call(modules),
-    io:format("node ~s~n", [Node]),
-    FilePath = case {Node, file:read_file(?CT_REPORT++"/index.html")} of
-        {summary, {ok, IndexFileData}} ->
+prepare_cover(true) ->
+    io:format("Preparing cover~n"),
+    prepare();
+prepare_cover(_) ->
+    ok.
+
+analyze_coverage(true) ->
+    analyze();
+analyze_coverage(_) ->
+    ok.
+
+prepare() ->
+    Apps = get_apps(),
+    Compiled = rpc:call(get_ejabberd_node(), mongoose_cover_helper, start, [Apps]),
+    io:format("Compiled modules ~p~n", [Compiled]).
+
+analyze() ->
+    io:format("Coverage analyzing~n"),
+    rpc:call(get_ejabberd_node(), mongoose_cover_helper, analyze, []),
+    Files = filelib:wildcard("/tmp/*.coverdata"),
+    [cover:import(File) || File <- Files],
+    cover:export("/tmp/mongoose_combined.coverdata"),
+    case os:getenv("TRAVIS_JOB_ID") of
+        false ->
+            make_html();
+        _ ->
+            ok
+    end.
+
+make_html() ->
+    Modules = cover:imported_modules(),
+    FilePath = case file:read_file(?CT_REPORT++"/index.html") of
+        {ok, IndexFileData} ->
             R = re:replace(IndexFileData, "<a href=\"all_runs.html\">ALL RUNS</a>", "& <a href=\"cover.html\" style=\"margin-right:5px\">COVER</a>"),
             file:write_file(?CT_REPORT++"/index.html", R),
             ?CT_REPORT++"/cover.html";
         _ -> skip
     end,
     CoverageDir = filename:dirname(FilePath)++"/coverage",
-    rpc:call(get_ejabberd_node(), file, make_dir, ["/tmp/coverage"]),
+    file:make_dir(CoverageDir),
     {ok, File} = file:open(FilePath, [write]),
-    file:write(File, "<html>\n<head></head>\n<body bgcolor=\"white\" text=\"black\" link=\"blue\" vlink=\"purple\" alink=\"red\">\n"),
-    file:write(File, "<h1>Coverage for application 'esl-ejabberd'</h1>\n"),
-    file:write(File, "<table border=3 cellpadding=5>\n"),
-    file:write(File, "<tr><th>Module</th><th>Covered (%)</th><th>Covered (Lines)</th><th>Not covered (Lines)</th><th>Total (Lines)</th></tr>"),
+    file:write(File, get_cover_header()),
     Fun = fun(Module, {CAcc, NCAcc}) ->
                   FileName = lists:flatten(io_lib:format("~s.COVER.html",[Module])),
-                  FilePathC = filename:join(["/tmp/coverage", FileName]),
-                  io:format("Analysing module ~s~n", [Module]),
-                  cover_call(analyse_to_file, [Module, FilePathC, [html]]),
-                  {ok, {Module, {C, NC}}} = cover_call(analyse, [Module, module]),
-                  file:write(File, row(atom_to_list(Module), C, NC, percent(C,NC),"coverage/"++FileName)),
-                  {CAcc + C, NCAcc + NC}
+
+                  case cover:analyse(Module, module) of
+                      {ok, {Module, {C, NC}}} ->
+                          file:write(File, row(atom_to_list(Module), C, NC, percent(C,NC),"coverage/"++FileName)),
+                          FilePathC = filename:join([CoverageDir, FileName]),
+                          catch cover:analyse_to_file(Module, FilePathC, [html]),
+                          {CAcc + C, NCAcc + NC};
+                      _ ->
+                          {CAcc, NCAcc}
+                  end
           end,
-    io:format("coverage analyzing~n"),
     {CSum, NCSum} = lists:foldl(Fun, {0, 0}, Modules),
-    os:cmd("cp -R /tmp/coverage "++CoverageDir),
     file:write(File, row("Summary", CSum, NCSum, percent(CSum, NCSum), "#")),
     file:close(File).
-
-cover_call(Function) ->
-    cover_call(Function, []).
-
-cover_call(Function, Args) ->
-    rpc:call(get_ejabberd_node(), cover, Function, Args).
 
 get_ejabberd_node() ->
     {ok, Props} = file:consult(ct_config_file()),
@@ -298,3 +267,9 @@ row(Row, C, NC, Percent, Path) ->
         "<td>", integer_to_list(C+NC), "</td>",
         "</tr>\n"
     ].
+
+get_cover_header() ->
+    "<html>\n<head></head>\n<body bgcolor=\"white\" text=\"black\" link=\"blue\" vlink=\"purple\" alink=\"red\">\n"
+    "<h1>Coverage for application 'MongooseIM'</h1>\n"
+    "<table border=3 cellpadding=5>\n"
+    "<tr><th>Module</th><th>Covered (%)</th><th>Covered (Lines)</th><th>Not covered (Lines)</th><th>Total (Lines)</th></tr>".
