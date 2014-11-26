@@ -36,29 +36,38 @@ all() ->
     ].
 
 groups() ->
-    [{essential, [{repeat,10}], [create_and_terminate_session]},
-     {chat, [shuffle, {repeat,10}], [interleave_requests,
-                                     simple_chat,
-                                     cdata_escape_chat,
-                                     escape_attr_chat,
-                                     cant_send_invalid_rid,
-                                     multiple_stanzas,
-                                     namespace,
-                                     stream_error]},
-     {time, [shuffle, {repeat,5}], [disconnect_inactive,
-                                    interrupt_long_poll_is_activity,
-                                    reply_on_pause,
-                                    cant_pause_for_too_long,
-                                    pause_request_is_activity,
-                                    reply_in_time
-                                   ]},
-     {acks, [shuffle, {repeat,5}], [server_acks,
-                                    force_report,
-                                    force_retransmission,
-                                    force_cache_trimming]}].
+    [{essential, [{repeat_until_any_fail,10}], [create_and_terminate_session]},
+     {chat, [shuffle, {repeat_until_any_fail,10}], chat_test_cases()},
+     {time, [shuffle, {repeat_until_any_fail,10}], time_test_cases()},
+     {acks, [shuffle, {repeat_until_any_fail,5}], acks_test_cases()}].
 
 suite() ->
     escalus:suite().
+
+chat_test_cases() ->
+    [interleave_requests,
+     simple_chat,
+     cdata_escape_chat,
+     escape_attr_chat,
+     cant_send_invalid_rid,
+     multiple_stanzas,
+     namespace,
+     stream_error].
+
+time_test_cases() ->
+    [disconnect_inactive,
+     interrupt_long_poll_is_activity,
+     reply_on_pause,
+     cant_pause_for_too_long,
+     pause_request_is_activity,
+     reply_in_time
+    ].
+
+acks_test_cases() ->
+    [server_acks,
+     force_report,
+     force_retransmission,
+     force_cache_trimming].
 
 %%--------------------------------------------------------------------
 %% Init & teardown
@@ -251,8 +260,7 @@ cant_send_invalid_rid(Config) ->
 
         escalus:assert(is_stream_end, escalus:wait_for_stanza(Carol)),
         true = wait_for_close(Carol, 10),
-        0 = length(get_bosh_sessions())
-
+        false = is_sesssion_alive(Sid)
         end).
 
 multiple_stanzas(Config) ->
@@ -330,15 +338,16 @@ disconnect_inactive(Config) ->
         escalus:assert(is_chat_message, [<<"Hello!">>],
                        escalus_client:wait_for_stanza(Carol)),
 
+        Sid = get_bosh_sid(Carol),
         %% Ensure all connections for Carol have been closed.
-        [{_, _, CarolSessionPid}] = get_bosh_sessions(),
+        {_, Sid, CarolSessionPid} = get_bosh_session(Sid),
         [] = get_handlers(CarolSessionPid),
 
         %% Wait for disconnection because of inactivity timeout.
         timer:sleep(2 * timer:seconds(?INACTIVITY)),
 
         %% Assert Carol has been disconnected due to inactivity.
-        0 = length(get_bosh_sessions()),
+        false = is_sesssion_alive(Sid),
 
         %% We don't need to close the session in escalus_bosh:stop/1
         mark_as_terminated(Carol)
@@ -352,7 +361,8 @@ interrupt_long_poll_is_activity(Config) ->
 
         %% Sanity check - there should be one BOSH session belonging
         %% to Carol and one handler for Carol.
-        [{_, _, CarolSessionPid}] = get_bosh_sessions(),
+        Sid = get_bosh_sid(Carol),
+        {_, _, CarolSessionPid} = get_bosh_session(Sid),
         1 = length(get_handlers(CarolSessionPid)),
 
         %% Send a message.  A new connection should be established, and
@@ -366,7 +376,7 @@ interrupt_long_poll_is_activity(Config) ->
 
         %% No disconnection should have occurred.
         escalus_assert:has_no_stanzas(Carol),
-        1 = length(get_bosh_sessions()),
+        true = is_sesssion_alive(Sid),
         1 = length(get_handlers(CarolSessionPid))
 
         end).
@@ -374,7 +384,9 @@ interrupt_long_poll_is_activity(Config) ->
 reply_on_pause(Config) ->
     escalus:story(Config, [{carol, 1}], fun(Carol) ->
 
-        [{_, _, CarolSessionPid}] = get_bosh_sessions(),
+
+        Sid = get_bosh_sid(Carol),
+        {_, _, CarolSessionPid} = get_bosh_session(Sid),
         set_keepalive(Carol, false),
 
         %% Sanity check - there should be one handler for Carol.
@@ -384,7 +396,7 @@ reply_on_pause(Config) ->
 
         %% There should be no handlers for Carol,
         %% but the session should be alive.
-        1 = length(get_bosh_sessions()),
+        true = is_sesssion_alive(Sid),
         0 = length(get_handlers(CarolSessionPid)),
         0 = escalus_bosh:get_requests(Carol)
 
@@ -393,7 +405,8 @@ reply_on_pause(Config) ->
 cant_pause_for_too_long(Config) ->
     escalus:story(Config, [{carol, 1}], fun(Carol) ->
 
-        [{_, _, CarolSessionPid}] = get_bosh_sessions(),
+        Sid = get_bosh_sid(Carol),
+        {_, _, CarolSessionPid} = get_bosh_session(Sid),
         set_keepalive(Carol, false),
 
         %% Sanity check - there should be one handler for Carol.
@@ -402,7 +415,7 @@ cant_pause_for_too_long(Config) ->
         pause(Carol, 10000),
 
         escalus:assert(is_stream_end, escalus:wait_for_stanza(Carol)),
-        0 = length(get_bosh_sessions())
+        false = is_sesssion_alive(Sid)
 
         end).
 
@@ -410,7 +423,8 @@ cant_pause_for_too_long(Config) ->
 pause_request_is_activity(Config) ->
     escalus:story(Config, [{carol, 1}], fun(Carol) ->
 
-        [{_, _, CarolSessionPid}] = get_bosh_sessions(),
+        Sid = get_bosh_sid(Carol),
+        {_, _, CarolSessionPid} = get_bosh_session(Sid),
         set_keepalive(Carol, false),
 
         %% Sanity check - there should be one handler for Carol.
@@ -427,7 +441,7 @@ pause_request_is_activity(Config) ->
 
         %% No disconnection should've occured.
         escalus_assert:has_no_stanzas(Carol),
-        1 = length(get_bosh_sessions())
+        true = is_sesssion_alive(Sid)
 
         end).
 
@@ -447,7 +461,7 @@ reply_in_time(Config) ->
                        escalus_client:wait_for_stanza(Carol)),
 
         %% Sanity check - there should be no awaiting handlers.
-        [{_, _, CarolSessionPid}] = get_bosh_sessions(),
+        {_, _, CarolSessionPid} = get_bosh_session(get_bosh_sid(Carol)),
         0 = length(get_handlers(CarolSessionPid)),
 
         %% Send a single request and assert it's registered by server.
@@ -505,7 +519,7 @@ force_report(Config) ->
                        wait_for_stanza(Carol)),
 
         %% Turn on client acknowledgement checking for Carol
-        [{_, _, CarolSessionPid}] = get_bosh_sessions(),
+        {_, _, CarolSessionPid} = get_bosh_session(get_bosh_sid(Carol)),
         set_client_acks(CarolSessionPid, true),
 
         escalus_bosh:set_active(Carol, false),
@@ -561,7 +575,7 @@ force_cache_trimming(Config) ->
 
         Sid = get_bosh_sid(Carol),
 
-        [{_, _, CarolSessionPid}] = get_bosh_sessions(),
+        {_, _, CarolSessionPid} = get_bosh_session(Sid),
         set_client_acks(CarolSessionPid, true),
 
         %% Ack now
@@ -589,7 +603,7 @@ force_cache_trimming(Config) ->
                        wait_for_stanza(Geralt)),
 
         %% The cache should now contain only entries newer than Rid2.
-        [{_, _, CarolSessionPid}] = get_bosh_sessions(),
+        {_, _, CarolSessionPid} = get_bosh_session(Sid),
         Cache = get_cached_responses(CarolSessionPid),
         true = lists:all(fun({R,_,_}) when R > Rid2 -> true; (_) -> false end,
                          Cache),
@@ -607,6 +621,10 @@ force_cache_trimming(Config) ->
 get_bosh_sessions() ->
     Backend = escalus_ejabberd:rpc(mod_bosh_dynamic, backend, []),
     escalus_ejabberd:rpc(Backend, get_sessions, []).
+
+get_bosh_session(Sid) ->
+    BoshSessions = get_bosh_sessions(),
+    lists:keyfind(Sid, 2, BoshSessions).
 
 get_handlers(BoshSessionPid) ->
     escalus_ejabberd:rpc(mod_bosh_socket, get_handlers, [BoshSessionPid]).
@@ -691,3 +709,7 @@ server_acks_opt() ->
      fun() -> escalus_ejabberd:rpc(mod_bosh, get_server_acks, []) end,
      fun(V) -> escalus_ejabberd:rpc(mod_bosh, set_server_acks, [V]) end,
      true}.
+
+is_sesssion_alive(Sid) ->
+    BoshSessions = get_bosh_sessions(),
+    lists:keymember(Sid, 2, BoshSessions).
