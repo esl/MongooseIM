@@ -260,7 +260,7 @@ cant_send_invalid_rid(Config) ->
 
         escalus:assert(is_stream_end, escalus:wait_for_stanza(Carol)),
         true = wait_for_close(Carol, 10),
-        false = is_sesssion_alive(Sid)
+        true = wait_for_session_close(Sid, 10)
         end).
 
 multiple_stanzas(Config) ->
@@ -713,3 +713,14 @@ server_acks_opt() ->
 is_sesssion_alive(Sid) ->
     BoshSessions = get_bosh_sessions(),
     lists:keymember(Sid, 2, BoshSessions).
+
+wait_for_session_close(Sid, 0) ->
+    false == is_sesssion_alive(Sid);
+wait_for_session_close(Sid, N) ->
+    case is_sesssion_alive(Sid) of
+        false ->
+            true;
+        _ ->
+            timer:sleep(100),
+            wait_for_session_close(Sid, N-1)
+    end.
