@@ -82,18 +82,14 @@ init_per_group(GroupName, Config) when
         external ->
             {skip, "external authentication requires plain password"};
         _ ->
-            case GroupName of
-                login_scram ->
-                    set_store_password(scram);
-                _ ->
-                    set_store_password(plain)
-            end,
-            escalus:create_users(Config, {by_name, [alice, bob]})
+            config_password_format(GroupName),
+            Config2 = escalus:create_users(Config, {by_name, [alice, bob]}),
+            assert_password_format(GroupName, Config2)
     end;
 init_per_group(_GroupName, Config) ->
     escalus:create_users(Config, {by_name, [alice, bob]}).
 
-end_per_group(register, Config) ->
+end_per_group(register, _Config) ->
     ok;
 end_per_group(registration_timeout, Config) ->
     Config1 = restore_registration_timeout(Config),
@@ -256,5 +252,38 @@ get_auth_method() ->
 set_store_password(Type) ->
     XMPPDomain = escalus_ejabberd:unify_str_arg(
                    ct:get_config(ejabberd_domain)),
+    AuthOpts = escalus_ejabberd:rpc(ejabberd_config, get_local_option,
+                                    [{auth_opts, XMPPDomain}]),
+    NewAuthOpts = lists:keystore(password_format, 1, AuthOpts, {password_format, Type}),
     escalus_ejabberd:rpc(ejabberd_config, add_local_option,
-                         [{auth_password_format, XMPPDomain}, Type]).
+                         [{auth_opts, XMPPDomain}, NewAuthOpts]).
+
+
+
+config_password_format(login_scram) ->
+    set_store_password(scram);
+config_password_format(_) ->
+    set_store_password(plain).
+
+assert_password_format(GroupName, Config) ->
+    Users = proplists:get_value(escalus_users, Config),
+    [verify_foramt(GroupName, User) || User <- Users],
+    Config.
+
+verify_foramt(GroupName, {_User, Props}) ->
+    Username = escalus_utils:jid_to_lower(proplists:get_value(username, Props)),
+    Server = proplists:get_value(server, Props),
+    Password = proplists:get_value(password, Props),
+
+    SPassword = escalus_ejabberd:rpc(ejabberd_auth, get_password, [Username, Server]),
+    do_verify_format(GroupName, Password, SPassword).
+
+do_verify_format(login_scram, _Password, SPassword) ->
+    %% returned password is a tuple containing scram data
+    {_, _, _, _} = SPassword;
+do_verify_format(_, Password, SPassword) ->
+    Password = SPassword.
+
+
+
+
