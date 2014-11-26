@@ -18,6 +18,7 @@
 %% mongoose_api callbacks
 -export([prefix/0,
          routes/0,
+         handle_options/2,
          handle_get/2]).
 
 %% internal exports
@@ -41,6 +42,11 @@ routes() ->
      {"/all/:metric", [sum_metric]},
      {"/host/:host/:metric", [host_metric]},
      {"/host/:host", [host_metrics]}].
+
+-spec handle_options(mongoose_api:bindings(), mongoose_api:options()) ->
+    mongoose_api:methods().
+handle_options(_Bindings, [_Command]) ->
+    [get].
 
 -spec handle_get(mongoose_api:bindings(), mongoose_api:options()) ->
     mongoose_api:response().

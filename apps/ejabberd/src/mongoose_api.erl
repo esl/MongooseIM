@@ -33,17 +33,21 @@
 
 -record(state, {handler, opts, bindings}).
 
--type prefix() :: string().
--type route() :: {string(), options()}.
--type routes() :: [route()].
+-type prefix()   :: string().
+-type route()    :: {string(), options()}.
+-type routes()   :: [route()].
 -type bindings() :: proplists:proplist().
--type options() :: [any()].
--type response() :: {ok, any()} | {error, atom()}.
+-type options()  :: [any()].
+-type method()   :: get | post | put | patch | delete.
+-type methods()  :: [method()].
+-type response() :: ok | {ok, any()} | {error, atom()}.
 -export_type([prefix/0, routes/0, route/0, bindings/0, options/0, response/0]).
 
 -callback prefix() -> prefix().
 -callback routes() -> routes().
+-callback handle_options(bindings(), options()) -> methods().
 -callback handle_get(bindings(), options()) -> response().
+-callback handle_post(term(), bindings(), options()) -> response().
 
 %%--------------------------------------------------------------------
 %% ejabberd_cowboy callbacks
@@ -75,10 +79,13 @@ rest_init(Req, Opts) ->
 rest_terminate(_Req, _State) ->
     ok.
 
-allowed_methods(Req, #state{handler=Handler}=State) ->
-    Methods = lists:foldl(fun collect_allowed_methods/2,
-                          [<<"OPTIONS">>], Handler:module_info(exports)),
-    {Methods, Req, State}.
+allowed_methods(Req, #state{bindings=Bindings, opts=Opts}=State) ->
+    case call(handle_options, [Bindings, Opts], State) of
+        no_call ->
+            allowed_methods_from_exports(Req, State);
+        Methods ->
+            allowed_methods_from_module(Methods, Req, State)
+    end.
 
 content_types_provided(Req, State) ->
     CTP = [{{<<"application">>, <<"json">>, '*'}, to_json},
@@ -133,13 +140,6 @@ handle_post(Data, Req, #state{opts=Opts, bindings=Bindings}=State) ->
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
-collect_allowed_methods({handle_get, 2}, Acc) ->
-    [<<"HEAD">>, <<"GET">> | Acc];
-collect_allowed_methods({handle_post, 3}, Acc) ->
-    [<<"POST">> | Acc];
-collect_allowed_methods(_Other, Acc) ->
-    Acc.
-
 handle_result({ok, Result}, Serializer, Req, State) ->
     serialize(Result, Serializer, Req, State);
 handle_result(Other, _Serializer, Req, State) ->
@@ -151,6 +151,26 @@ handle_result({error, Error}, Req, State) ->
     error_response(Error, Req, State);
 handle_result(no_call, Req, State) ->
     error_response(not_implemented, Req, State).
+
+allowed_methods_from_module(Methods, Req, State) ->
+    Methods1 = case lists:member(get, Methods) of
+        true  -> [head | Methods];
+        false -> Methods
+    end,
+    Methods2 = [options | Methods1],
+    {methods_to_binary(Methods2), Req, State}.
+
+allowed_methods_from_exports(Req, #state{handler=Handler}=State) ->
+    Exports = Handler:module_info(exports),
+    Methods = lists:foldl(fun collect_allowed_methods/2, [options], Exports),
+    {methods_to_binary(Methods), Req, State}.
+
+collect_allowed_methods({handle_get, 2}, Acc) ->
+    [head, get | Acc];
+collect_allowed_methods({handle_post, 3}, Acc) ->
+    [post | Acc];
+collect_allowed_methods(_Other, Acc) ->
+    Acc.
 
 serialize(Data, Serializer, Req, State) ->
     {Serializer:serialize(Data), Req, State}.
@@ -174,3 +194,14 @@ error_response(Reason, Req, State) ->
 error_code(not_found)       -> 404;
 error_code(conflict)        -> 409;
 error_code(not_implemented) -> 501.
+
+methods_to_binary(Methods) ->
+    [method_to_binary(Method) || Method <- Methods].
+
+method_to_binary(get)     -> <<"GET">>;
+method_to_binary(post)    -> <<"POST">>;
+method_to_binary(put)     -> <<"PUT">>;
+method_to_binary(delete)  -> <<"DELETE">>;
+method_to_binary(patch)   -> <<"PATCH">>;
+method_to_binary(options) -> <<"OPTIONS">>;
+method_to_binary(head)    -> <<"HEAD">>.
