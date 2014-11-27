@@ -40,7 +40,7 @@ run(BlueprintName, Config) ->
 
 run(BlueprintName, Config, Params) ->
     Blueprint = blueprint(BlueprintName, Config),
-    Params1 = [{host, "localhost"},
+    Params1 = [{hostname, "localhost"},
                {port, ct:get_config(ejabberd_metrics_rest_port)}],
     Params2 = Params ++ Params1,
     {TestResult, _, _, _, TransResults} = Result = katt:run(Blueprint, Params2),

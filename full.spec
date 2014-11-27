@@ -21,8 +21,10 @@
 {suites, "tests", privacy_SUITE}.
 {suites, "tests", private_SUITE}.
 {suites, "tests", sic_SUITE}.
+{suites, "tests", users_api_SUITE}.
 {suites, "tests", vcard_simple_SUITE}.
 {suites, "tests", websockets_SUITE}.
+{suites, "tests", metrics_api_SUITE}.
 {suites, "tests", metrics_c2s_SUITE}.
 {suites, "tests", metrics_roster_SUITE}.
 {suites, "tests", metrics_register_SUITE}.

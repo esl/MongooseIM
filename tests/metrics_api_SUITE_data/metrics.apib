@@ -1,10 +1,11 @@
-# 0. GET is the only allowed method
+# 0. GET is the only implemented allowed method
+#    (both OPTIONS and HEAD are for free then)
 
 OPTIONS /api/metrics/
 > User-Agent: katt
 > Host: {{<hostname}}:{{<port}}
 < 200
-< Allow: HEAD, GET, OPTIONS
+< Allow: OPTIONS, HEAD, GET
 
 # 1. List of hosts and metrics
 
