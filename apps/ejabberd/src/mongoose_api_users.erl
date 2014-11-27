@@ -20,11 +20,8 @@
          routes/0,
          handle_options/2,
          handle_get/2,
-         handle_put/3]).
-
-%% internal exports
--export([host_users/1,
-         host_user/2]).
+         handle_put/3,
+         handle_delete/2]).
 
 -define(ERROR, {error, unprocessable}).
 
@@ -45,30 +42,34 @@ routes() ->
 handle_options(_Bindings, [host_users]) ->
     [get];
 handle_options(_Bindings, [host_user]) ->
-    [put].
+    [put, delete].
 
 -spec handle_get(mongoose_api:bindings(), mongoose_api:options()) ->
     mongoose_api:response().
-handle_get(Bindings, [Command]) ->
-    ?MODULE:Command(Bindings).
+handle_get(Bindings, [host_users]) ->
+    get_users(Bindings).
 
 -spec handle_put(term(), mongoose_api:bindings(), mongoose_api:options()) ->
     mongoose_api:response().
-handle_put(Data, Bindings, [Command]) ->
-    ?MODULE:Command(Data, Bindings).
+handle_put(Data, Bindings, [host_user]) ->
+    put_user(Data, Bindings).
+
+-spec handle_delete(mongoonse_api:bindings(), mongoose_api:options()) ->
+    mongoose_api:response().
+handle_delete(Bindings, [host_user]) ->
+    delete_user(Bindings).
 
 %%--------------------------------------------------------------------
 %% mongoose_api commands actual handlers
 %%--------------------------------------------------------------------
-host_users(Bindings) ->
+get_users(Bindings) ->
     Host = proplists:get_value(host, Bindings),
     Users = ejabberd_auth:get_vh_registered_users(Host),
-    Count = ejabberd_auth:get_vh_registered_users_number(Host),
-    Response = [{count, Count},
+    Response = [{count, length(Users)},
                 {users, users_to_proplist(Users)}],
     {ok, Response}.
 
-host_user(Data, Bindings) ->
+put_user(Data, Bindings) ->
     Host = gen_mod:get_opt(host, Bindings),
     Username = gen_mod:get_opt(username, Bindings),
     case proplist_to_user(Data) of
@@ -76,6 +77,16 @@ host_user(Data, Bindings) ->
             maybe_register_user(Username, Host, Password);
         {error, _} ->
             ?ERROR
+    end.
+
+delete_user(Bindings) ->
+    Host = gen_mod:get_opt(host, Bindings),
+    Username = gen_mod:get_opt(username, Bindings),
+    case ejabberd_auth:is_user_exists(Username, Host) of
+        true ->
+            maybe_delete_user(Username, Host);
+        false ->
+            {error, not_found}
     end.
 
 %%--------------------------------------------------------------------
@@ -97,6 +108,14 @@ maybe_change_password(Username, Host, Password) ->
             ?ERROR;
         ok ->
             ok
+    end.
+
+maybe_delete_user(Username, Host) ->
+    case ejabberd_auth:remove_user(Username, Host) of
+        ok ->
+            ok;
+        _ ->
+            error
     end.
 
 users_to_proplist(Users) ->

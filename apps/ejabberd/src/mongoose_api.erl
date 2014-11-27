@@ -25,7 +25,8 @@
 
 -export([allowed_methods/2,
          content_types_provided/2,
-         content_types_accepted/2]).
+         content_types_accepted/2,
+         delete_resource/2]).
 
 -export([to_xml/2,
          to_json/2,
@@ -49,6 +50,7 @@
 -callback handle_get(bindings(), options()) -> response().
 -callback handle_post(term(), bindings(), options()) -> response().
 -callback handle_put(term(), bindings(), options()) -> response().
+-callback handle_delete(bindings(), options()) -> response().
 
 %%--------------------------------------------------------------------
 %% ejabberd_cowboy callbacks
@@ -97,6 +99,9 @@ content_types_accepted(Req, State) ->
     CTA = [{{<<"application">>, <<"json">>, '*'}, from_json}],
     {CTA, Req, State}.
 
+delete_resource(Req, State) ->
+    handle_delete(Req, State).
+
 %%--------------------------------------------------------------------
 %% content_types_provided/2 callbacks
 %%--------------------------------------------------------------------
@@ -138,6 +143,10 @@ handle_unsafe(Method, Data, Req, #state{opts=Opts, bindings=Bindings}=State) ->
             handle_result(Result, Req, State)
     end.
 
+handle_delete(Req, #state{opts=Opts, bindings=Bindings}=State) ->
+    Result = call(handle_delete, [Bindings, Opts], State),
+    handle_result(Result, Req, State).
+
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
@@ -172,6 +181,8 @@ collect_allowed_methods({handle_post, 3}, Acc) ->
     [post | Acc];
 collect_allowed_methods({handle_put, 3}, Acc) ->
     [put | Acc];
+collect_allowed_methods({handle_delete, 2}, Acc) ->
+    [delete | Acc];
 collect_allowed_methods(_Other, Acc) ->
     Acc.
 

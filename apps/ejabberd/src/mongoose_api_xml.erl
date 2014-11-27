@@ -19,6 +19,7 @@
 
 -export([serialize/1]).
 
+-include("ejabberd.hrl").
 -include_lib("exml/include/exml.hrl").
 
 %%--------------------------------------------------------------------
