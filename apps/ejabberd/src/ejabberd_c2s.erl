@@ -28,7 +28,7 @@
 -author('alexey@process-one.net').
 -update_info({update, 0}).
 
--define(GEN_FSM, p1_fsm).
+-define(GEN_FSM, p1_fsm_old).
 
 -behaviour(?GEN_FSM).
 
