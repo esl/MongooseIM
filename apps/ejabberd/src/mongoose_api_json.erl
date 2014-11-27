@@ -50,16 +50,30 @@ do_deserialize(Other) ->
 do_serialize(Data) ->
     mochijson2:encode(prepare_struct(Data)).
 
-prepare_struct({ElementName, Value}) ->
-    prepare_struct2([{ElementName, Value}]);
+prepare_struct({Key, Value}) ->
+    {struct, [{Key, prepare_struct(Value)}]};
+prepare_struct(List) when is_list(List) ->
+    case is_proplist(List) of
+        true  ->
+            Fields = [{K, prepare_struct(V)} || {K, V} <- List],
+            {struct, Fields};
+        false ->
+            [prepare_struct(Element) || Element <- List]
+    end;
 prepare_struct(Other) ->
-    prepare_struct2(Other).
-
-prepare_struct2({ElementName, [{_Key, _Value}|_Rest]=Proplist}) ->
-    {ElementName, prepare_struct2(Proplist)};
-prepare_struct2([{_,_}|_]=Proplist) ->
-    {struct, [prepare_struct2(Element) || Element <- Proplist]};
-prepare_struct2(List) when is_list(List) ->
-    [prepare_struct2(Element) || Element <- List];
-prepare_struct2(Other) ->
     Other.
+
+is_proplist(List) ->
+    is_proplist(List, sets:new()).
+
+is_proplist([], _Keys) ->
+    true;
+is_proplist([{Key, _}|Tail], Keys) ->
+    case sets:is_element(Key, Keys) of
+        true ->
+            false;
+        false ->
+            is_proplist(Tail, sets:add_element(Key, Keys))
+    end;
+is_proplist(_Other, _Keys) ->
+    false.

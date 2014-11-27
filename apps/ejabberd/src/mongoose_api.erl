@@ -48,6 +48,7 @@
 -callback handle_options(bindings(), options()) -> methods().
 -callback handle_get(bindings(), options()) -> response().
 -callback handle_post(term(), bindings(), options()) -> response().
+-callback handle_put(term(), bindings(), options()) -> response().
 
 %%--------------------------------------------------------------------
 %% ejabberd_cowboy callbacks
@@ -125,17 +126,17 @@ handle_unsafe(Deserializer, Req, State) ->
         {ok, Data} ->
             handle_unsafe(Method, Data, Req2, State);
         {error, _Reason} ->
-            {false, Req2, State}
+            error_response(bad_request, Req2, State)
     end.
 
-handle_unsafe(<<"POST">>, Data, Req, State) ->
-    handle_post(Data, Req, State);
-handle_unsafe(_Other, _Data, Req, State) ->
-    error_response(not_implemented, Req, State).
-
-handle_post(Data, Req, #state{opts=Opts, bindings=Bindings}=State) ->
-    Result = call(handle_post, [Data, Bindings, Opts], State),
-    handle_result(Result, Req, State).
+handle_unsafe(Method, Data, Req, #state{opts=Opts, bindings=Bindings}=State) ->
+    case method_callback(Method) of
+        not_implemented ->
+            error_response(not_implemented, Req, State);
+        Callback ->
+            Result = call(Callback, [Data, Bindings, Opts], State),
+            handle_result(Result, Req, State)
+    end.
 
 %%--------------------------------------------------------------------
 %% Helpers
@@ -169,6 +170,8 @@ collect_allowed_methods({handle_get, 2}, Acc) ->
     [head, get | Acc];
 collect_allowed_methods({handle_post, 3}, Acc) ->
     [post | Acc];
+collect_allowed_methods({handle_put, 3}, Acc) ->
+    [put | Acc];
 collect_allowed_methods(_Other, Acc) ->
     Acc.
 
@@ -191,8 +194,10 @@ error_response(Code, Req, State) when is_integer(Code) ->
 error_response(Reason, Req, State) ->
     error_response(error_code(Reason), Req, State).
 
+error_code(bad_request)     -> 400;
 error_code(not_found)       -> 404;
 error_code(conflict)        -> 409;
+error_code(unprocessable)   -> 422;
 error_code(not_implemented) -> 501.
 
 methods_to_binary(Methods) ->
@@ -205,3 +210,7 @@ method_to_binary(delete)  -> <<"DELETE">>;
 method_to_binary(patch)   -> <<"PATCH">>;
 method_to_binary(options) -> <<"OPTIONS">>;
 method_to_binary(head)    -> <<"HEAD">>.
+
+method_callback(<<"POST">>) -> handle_post;
+method_callback(<<"PUT">>)  -> handle_put;
+method_callback(_Other)     -> not_implemented.
