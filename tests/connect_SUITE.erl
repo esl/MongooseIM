@@ -24,7 +24,7 @@
 -include_lib("stdlib/include/ms_transform.hrl").
 
 -define(SECURE_USER, secure_joe).
--define(CERT_FILE, "../files/test_cert.pem").
+-define(CERT_FILE, "/tmp/server.pem").
 -define(TLS_VERSIONS, [tlsv1, 'tlsv1.1', 'tlsv1.2']).
 
 %%--------------------------------------------------------------------
