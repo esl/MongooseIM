@@ -32,7 +32,12 @@ groups() ->
     ].
 
 init_per_suite(Config) ->
-    katt_helper:init_per_suite(Config).
+    case is_external_auth() of
+        true ->
+            {skip, "users api not compatible with external authentication"};
+        false ->
+            katt_helper:init_per_suite(Config)
+    end.
 
 end_per_suite(Config) ->
     katt_helper:end_per_suite(Config).
@@ -65,3 +70,16 @@ user_transaction(Config) ->
 negative_calls(Config) ->
     Params = [{host, ct:get_config(ejabberd_domain)}],
     katt_helper:run(user_negative, Config, Params).
+
+%%--------------------------------------------------------------------
+%% internal functions
+%%--------------------------------------------------------------------
+is_external_auth() ->
+    lists:member(ejabberd_auth_external, auth_modules()).
+
+auth_modules() ->
+    Hosts = escalus_ejabberd:rpc(ejabberd_config, get_global_option, [hosts]),
+    lists:flatmap(
+      fun(Host) ->
+              escalus_ejabberd:rpc(ejabberd_auth, auth_modules, [Host])
+      end, Hosts).
