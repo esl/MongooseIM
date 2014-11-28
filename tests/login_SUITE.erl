@@ -267,10 +267,10 @@ config_password_format(_) ->
 
 assert_password_format(GroupName, Config) ->
     Users = proplists:get_value(escalus_users, Config),
-    [verify_foramt(GroupName, User) || User <- Users],
+    [verify_format(GroupName, User) || User <- Users],
     Config.
 
-verify_foramt(GroupName, {_User, Props}) ->
+verify_format(GroupName, {_User, Props}) ->
     Username = escalus_utils:jid_to_lower(proplists:get_value(username, Props)),
     Server = proplists:get_value(server, Props),
     Password = proplists:get_value(password, Props),
@@ -283,7 +283,3 @@ do_verify_format(login_scram, _Password, SPassword) ->
     {_, _, _, _} = SPassword;
 do_verify_format(_, Password, SPassword) ->
     Password = SPassword.
-
-
-
-
