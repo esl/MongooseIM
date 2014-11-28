@@ -74,7 +74,7 @@ acks_test_cases() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    escalus:init_per_suite([{escalus_user_db, ejabberd} | Config]).
+    escalus:init_per_suite([{escalus_user_db, {module, escalus_ejabberd}} | Config]).
 
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
