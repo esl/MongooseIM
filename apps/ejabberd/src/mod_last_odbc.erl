@@ -35,12 +35,12 @@ get_last(LUser, LServer) ->
     case catch odbc_queries:get_last(LServer, Username) of
         {selected, [<<"seconds">>, <<"state">>], []} ->
             not_found;
-        {selected, [<<"seconds">>, <<"state">>],
-            [{STimeStamp, Status}]} ->
-            case catch binary_to_integer(STimeStamp) of
+        {selected, [<<"seconds">>, <<"state">>], [{STimeStamp, Status}]} ->
+            case catch ejabberd_odbc:result_to_integer(STimeStamp) of
                 TimeStamp when is_integer(TimeStamp) ->
                     {ok, TimeStamp, Status};
-                Reason -> {error, {invalid_timestamp, Reason}}
+                Reason ->
+                    {error, {invalid_timestamp, Reason}}
             end;
         Reason -> {error, {invalid_result, Reason}}
     end.
@@ -53,7 +53,7 @@ count_active_users(LServer, TimeStamp, Comparator) ->
     WhereClause = <<"where seconds ", ComparatorBin/binary, " ", TimeStampBin/binary >>,
     case odbc_queries:count_records_where(LServer, <<"last">>, WhereClause) of
         {selected, [_], [{Count}]} ->
-            binary_to_integer(Count);
+            ejabberd_odbc:result_to_integer(Count);
         _ ->
             0
     end.

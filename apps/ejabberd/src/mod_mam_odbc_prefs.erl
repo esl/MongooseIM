@@ -171,10 +171,12 @@ remove_archive(Host, UserID, _ArcJID) ->
         SRemLJID :: binary() | string(), SRemLBareJID :: binary() | string()
         ) -> any().
 query_behaviour(Host, SUserID, SRemLJID, SRemLBareJID) ->
+    {LimitSQL, LimitMSSQL} = odbc_queries:get_db_specific_limits(1),
+
     Result =
     mod_mam_utils:success_sql_query(
       Host,
-      ["SELECT behaviour "
+      ["SELECT ", LimitMSSQL," behaviour "
        "FROM mam_config "
        "WHERE user_id='", SUserID, "' "
          "AND (remote_jid='' OR remote_jid='", SRemLJID, "'",
@@ -183,8 +185,8 @@ query_behaviour(Host, SUserID, SRemLJID, SRemLBareJID) ->
                     _        -> [" OR remote_jid='", SRemLBareJID, "'"]
                end,
          ") "
-       "ORDER BY remote_jid DESC "
-       "LIMIT 1"]),
+       "ORDER BY remote_jid DESC ",
+       LimitSQL]),
     ?DEBUG("query_behaviour query returns ~p", [Result]),
     Result.
 

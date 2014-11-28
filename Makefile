@@ -10,7 +10,7 @@ DEVNODES = node1 node2
 all: deps compile
 
 compile: rebar generate_snmp_header
-	./rebar compile
+	./rebar $(OPTS) compile
 
 deps: rebar generate_snmp_header
 	./rebar get-deps
@@ -19,7 +19,7 @@ clean: rebar
 	./rebar clean
 
 quick_compile: rebar
-	./rebar compile skip_deps=true
+	./rebar $(OPTS) compile skip_deps=true
 
 reload: quick_compile
 	@E=`ls ./rel/mongooseim/lib/ | grep ejabberd-2 | sort -r | head -n 1` ;\

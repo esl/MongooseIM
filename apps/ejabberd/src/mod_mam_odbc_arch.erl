@@ -198,7 +198,7 @@ archive_size(Size, Host, UserID, _UserJID) when is_integer(Size) ->
        "FROM ", select_table(UserID), " ",
        IndexHintSQL,
        "WHERE user_id = '", escape_user_id(UserID), "'"]),
-    Size + list_to_integer(binary_to_list(BSize)).
+    ejabberd_odbc:result_to_integer(BSize).
 
 
 -spec index_hint_sql(ejabberd:server()) -> string().
@@ -489,11 +489,13 @@ before_id(ID, Filter) ->
 
 rows_to_uniform_format(Host, UserJID, MessageRows) ->
     EscFormat = ejabberd_odbc:escape_format(Host),
-    [row_to_uniform_format(UserJID, EscFormat, Row) || Row <- MessageRows].
+    DbEngine = ejabberd_odbc:db_engine(Host),
+    [row_to_uniform_format(DbEngine, UserJID, EscFormat, Row) || Row <- MessageRows].
 
-row_to_uniform_format(UserJID, EscFormat, {BMessID,BSrcJID,SData}) ->
+row_to_uniform_format(DbEngine, UserJID, EscFormat, {BMessID,BSrcJID,SDataRaw}) ->
     MessID = list_to_integer(binary_to_list(BMessID)),
     SrcJID = jlib:binary_to_jid(expand_minified_jid(UserJID, BSrcJID)),
+    SData = ejabberd_odbc:unescape_odbc_binary(DbEngine, SDataRaw),
     Data = ejabberd_odbc:unescape_binary(EscFormat, SData),
     Packet = binary_to_term(Data),
     {MessID, SrcJID, Packet}.
@@ -558,34 +560,32 @@ extract_messages(_Host, _UserID, _Filter, _IOffset, 0, _) ->
     [];
 extract_messages(Host, UserID, Filter, IOffset, IMax, false) ->
     {selected, _ColumnNames, MessageRows} =
-    mod_mam_utils:success_sql_query(
-      Host,
-      ["SELECT id, from_jid, message "
-       "FROM ", select_table(UserID), " ",
-        Filter,
-       " ORDER BY id"
-       " LIMIT ", integer_to_list(IMax),
-         case IOffset of
-             0 -> "";
-             _ -> [" OFFSET ", integer_to_list(IOffset)]
-         end]),
+        do_extract_messages(Host, UserID, Filter, IOffset, IMax, " ORDER BY id "),
     ?DEBUG("extract_messages query returns ~p", [MessageRows]),
     MessageRows;
 extract_messages(Host, UserID, Filter, IOffset, IMax, true) ->
     {selected, _ColumnNames, MessageRows} =
-    mod_mam_utils:success_sql_query(
-      Host,
-      ["SELECT id, from_jid, message "
-       "FROM ", select_table(UserID), " ",
-        Filter,
-       " ORDER BY id DESC"
-       " LIMIT ", integer_to_list(IMax),
-         case IOffset of
-             0 -> "";
-             _ -> [" OFFSET ", integer_to_list(IOffset)]
-         end]),
+        do_extract_messages(Host, UserID, Filter, IOffset, IMax, " ORDER BY id DESC "),
     ?DEBUG("extract_messages query returns ~p", [MessageRows]),
     lists:reverse(MessageRows).
+
+do_extract_messages(Host, UserID, Filter, 0, IMax, Order) ->
+    {LimitSQL, LimitMSSQL} = odbc_queries:get_db_specific_limits(IMax),
+    mod_mam_utils:success_sql_query(
+        Host,
+        ["SELECT ", LimitMSSQL," id, from_jid, message "
+        "FROM ", select_table(UserID), " ",
+            Filter,
+            Order,
+            " ",LimitSQL]);
+do_extract_messages(Host, UserID, Filter, IOffset, IMax, Order) ->
+    {LimitSQL, _LimitMSSQL} = odbc_queries:get_db_specific_limits(IMax),
+    Offset = odbc_queries:get_db_specific_offset(IOffset, IMax),
+    mod_mam_utils:success_sql_query(
+        Host,
+        ["SELECT id, from_jid, message "
+         "FROM ", select_table(UserID), " ",
+         Filter, Order, LimitSQL, Offset]).
 
 %% @doc Calculate a zero-based index of the row with UID in the result test.
 %%
@@ -602,7 +602,7 @@ calc_index(Host, UserID, Filter, IndexHintSQL, SUID) ->
       Host,
       ["SELECT COUNT(*) FROM ", select_table(UserID), " ",
        IndexHintSQL, Filter, " AND id <= '", SUID, "'"]),
-    list_to_integer(binary_to_list(BIndex)).
+    ejabberd_odbc:result_to_integer(BIndex).
 
 %% @doc Count of elements in RSet before the passed element.
 %%
@@ -618,7 +618,7 @@ calc_before(Host, UserID, Filter, IndexHintSQL, SUID) ->
       Host,
       ["SELECT COUNT(*) FROM ", select_table(UserID), " ",
        IndexHintSQL, Filter, " AND id < '", SUID, "'"]),
-    list_to_integer(binary_to_list(BIndex)).
+    ejabberd_odbc:result_to_integer(BIndex).
 
 
 %% @doc Get the total result set size.
@@ -631,7 +631,7 @@ calc_count(Host, UserID, Filter, IndexHintSQL) ->
       Host,
       ["SELECT COUNT(*) FROM ", select_table(UserID), " ",
        IndexHintSQL, Filter]),
-    list_to_integer(binary_to_list(BCount)).
+    ejabberd_odbc:result_to_integer(BCount).
 
 
 -spec prepare_filter(UserID :: mod_mam:archive_id(), UserJID :: ejabberd:jid(),

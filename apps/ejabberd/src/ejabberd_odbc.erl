@@ -47,7 +47,11 @@
 %% BLOB escaping
 -export([escape_format/1,
          escape_binary/2,
-         unescape_binary/2]).
+         unescape_binary/2,
+         unescape_odbc_binary/2]).
+
+%% count / integra types decoding
+-export([result_to_integer/1]).
 
 %% gen_fsm callbacks
 -export([init/1,
@@ -198,20 +202,44 @@ escape_like(S) ->
 escape_format(Host) ->
     case db_engine(Host) of
         pgsql -> hex;
+        odbc ->
+            Key = {odbc_server_type, Host},
+            case ejabberd_config:get_local_option_or_default(Key, odbc) of
+                pgsql ->
+                    hex;
+                mssql ->
+                    mssql_hex;
+                _ ->
+                    simple_escape
+            end;
         _     -> simple_escape
     end.
 
 -spec escape_binary('hex' | 'simple_escape', binary()) -> binary() | string().
 escape_binary(hex, Bin) when is_binary(Bin) ->
     <<"\\\\x", (bin_to_hex:bin_to_hex(Bin))/binary>>;
+escape_binary(mssql_hex, Bin) when is_binary(Bin) ->
+    bin_to_hex:bin_to_hex(Bin);
 escape_binary(simple_escape, Bin) when is_binary(Bin) ->
     escape(Bin).
 
 -spec unescape_binary('hex' | 'simple_escape', binary()) -> binary().
 unescape_binary(hex, <<"\\x", Bin/binary>>) when is_binary(Bin) ->
     hex_to_bin(Bin);
-unescape_binary(simple_escape, Bin) ->
+unescape_binary(_, Bin) ->
     Bin.
+
+-spec unescape_odbc_binary(atom(), binary()) -> binary().
+unescape_odbc_binary(odbc, Bin) when is_binary(Bin)->
+    hex_to_bin(Bin);
+unescape_odbc_binary(_, Bin) ->
+    Bin.
+
+-spec result_to_integer(binary() | integer()) -> integer().
+result_to_integer(Int) when is_integer(Int) ->
+    Int;
+result_to_integer(Bin) when is_binary(Bin) ->
+    binary_to_integer(Bin).
 
 -spec hex_to_bin(binary()) -> <<_:_*1>>.
 hex_to_bin(Bin) when is_binary(Bin) ->
@@ -494,14 +522,14 @@ outer_transaction(F, NRestarts, _Reason) ->
                        [T]),
             erlang:exit(implementation_faulty)
     end,
-    sql_query_internal(<<"begin;">>),
+    sql_query_internal(odbc_queries:begin_trans()),
     put(?NESTING_KEY, PreviousNestingLevel + 1),
     Result = (catch F()),
     put(?NESTING_KEY, PreviousNestingLevel),
     case Result of
         {aborted, Reason} when NRestarts > 0 ->
             %% Retry outer transaction upto NRestarts times.
-            sql_query_internal(<<"rollback;">>),
+            sql_query_internal([<<"rollback;">>]),
             outer_transaction(F, NRestarts - 1, Reason);
         {aborted, Reason} when NRestarts =:= 0 ->
             %% Too many retries of outer transaction.
@@ -512,15 +540,15 @@ outer_transaction(F, NRestarts, _Reason) ->
                        "** When State == ~p",
                        [?MAX_TRANSACTION_RESTARTS, Reason,
                         erlang:get_stacktrace(), get(?STATE_KEY)]),
-            sql_query_internal(<<"rollback;">>),
+            sql_query_internal([<<"rollback;">>]),
             {aborted, Reason};
         {'EXIT', Reason} ->
             %% Abort sql transaction on EXIT from outer txn only.
-            sql_query_internal(<<"rollback;">>),
+            sql_query_internal([<<"rollback;">>]),
             {aborted, Reason};
         Res ->
             %% Commit successful outer txn
-            sql_query_internal(<<"commit;">>),
+            sql_query_internal([<<"commit;">>]),
             {atomic, Res}
     end.
 
@@ -541,7 +569,7 @@ sql_query_internal(Query) ->
     State = get(?STATE_KEY),
     Res = case State#state.db_type of
               odbc ->
-                  odbc:sql_query(State#state.db_ref, Query);
+                  binaryze_odbc(odbc:sql_query(State#state.db_ref, Query));
               pgsql ->
                   ?DEBUG("Postres, Send query~n~p~n", [Query]),
                   pgsql_to_odbc(pgsql:squery(State#state.db_ref, Query));
@@ -583,7 +611,15 @@ abort_on_driver_error(Reply, From) ->
 -spec odbc_connect(ConnString :: string()) -> {ok | error, _}.
 odbc_connect(SQLServer) ->
     application:start(odbc),
-    odbc:connect(SQLServer, [{scrollable_cursors, off}]).
+    odbc:connect(SQLServer, [{scrollable_cursors, off}, {binary_strings, on}]).
+
+binaryze_odbc(ODBCResults) when is_list(ODBCResults) ->
+    lists:map(fun binaryze_odbc/1, ODBCResults);
+binaryze_odbc({selected, ColNames, Rows}) ->
+    ColNamesB = lists:map(fun ejabberd_binary:string_to_binary/1, ColNames),
+    {selected, ColNamesB, Rows};
+binaryze_odbc(ODBCResult) ->
+    ODBCResult.
 
 %% == Native PostgreSQL code
 

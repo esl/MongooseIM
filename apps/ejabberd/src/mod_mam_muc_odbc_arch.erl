@@ -127,7 +127,7 @@ archive_size(Size, Host, RoomID, _RoomJID) when is_integer(Size) ->
       ["SELECT COUNT(*) "
        "FROM ", select_table(RoomID), " ",
        "WHERE room_id = '", escape_room_id(RoomID), "'"]),
-    list_to_integer(binary_to_list(BSize)).
+    ejabberd_odbc:result_to_integer(BSize).
 
 safe_archive_message(Result, Host, MessID, UserID,
                      LocJID, RemJID, SrcJID, Dir, Packet) ->
@@ -407,15 +407,17 @@ before_id(ID, Filter) ->
 -spec rows_to_uniform_format([mod_mam_muc:row()], ejabberd:server(),
                              ejabberd:jid()) -> list().
 rows_to_uniform_format(MessageRows, Host, RoomJID) ->
-    [row_to_uniform_format(Row, Host, RoomJID) || Row <- MessageRows].
+    EscFormat = ejabberd_odbc:escape_format(Host),
+    DbEngine = ejabberd_odbc:db_engine(Host),
+    [row_to_uniform_format(DbEngine, EscFormat, Row, RoomJID) || Row <- MessageRows].
 
 
--spec row_to_uniform_format({_,_,_}, ejabberd:server(), ejabberd:jid())
+-spec row_to_uniform_format(atom(), atom(), {_,_,_}, ejabberd:jid())
             -> mod_mam_muc:row().
-row_to_uniform_format({BMessID,BNick,SData}, Host, RoomJID) ->
+row_to_uniform_format(DbEngine, EscFormat, {BMessID,BNick,SDataRaw}, RoomJID) ->
     MessID = list_to_integer(binary_to_list(BMessID)),
     SrcJID = jlib:jid_replace_resource(RoomJID, BNick),
-    EscFormat = ejabberd_odbc:escape_format(Host),
+    SData = ejabberd_odbc:unescape_odbc_binary(DbEngine, SDataRaw),
     Data = ejabberd_odbc:unescape_binary(EscFormat, SData),
     Packet = binary_to_term(Data),
     {MessID, SrcJID, Packet}.
@@ -477,34 +479,32 @@ extract_messages(_Host, _RoomID, _Filter, _IOffset, 0, _) ->
     [];
 extract_messages(Host, RoomID, Filter, IOffset, IMax, false) ->
     {selected, _ColumnNames, MessageRows} =
-    mod_mam_utils:success_sql_query(
-      Host,
-      ["SELECT id, nick_name, message "
-       "FROM ", select_table(RoomID), " ",
-        Filter,
-       " ORDER BY id"
-       " LIMIT ", integer_to_list(IMax),
-         case IOffset of
-             0 -> "";
-             _ -> [" OFFSET ", integer_to_list(IOffset)]
-         end]),
+        do_extract_messages(Host, RoomID, Filter, IOffset, IMax, " ORDER BY id "),
     ?DEBUG("extract_messages query returns ~p", [MessageRows]),
     MessageRows;
 extract_messages(Host, RoomID, Filter, IOffset, IMax, true) ->
     {selected, _ColumnNames, MessageRows} =
-    mod_mam_utils:success_sql_query(
-      Host,
-      ["SELECT id, nick_name, message "
-       "FROM ", select_table(RoomID), " ",
-        Filter,
-       " ORDER BY id DESC"
-       " LIMIT ", integer_to_list(IMax),
-         case IOffset of
-             0 -> "";
-             _ -> [" OFFSET ", integer_to_list(IOffset)]
-         end]),
+        do_extract_messages(Host, RoomID, Filter, IOffset, IMax, " ORDER BY id DESC "),
     ?DEBUG("extract_messages query returns ~p", [MessageRows]),
     lists:reverse(MessageRows).
+
+do_extract_messages(Host, RoomID, Filter, 0, IMax, Order) ->
+    {LimitSQL, LimitMSSQL} = odbc_queries:get_db_specific_limits(IMax),
+    mod_mam_utils:success_sql_query(
+        Host,
+        ["SELECT ", LimitMSSQL, " id, nick_name, message "
+        "FROM ", select_table(RoomID), " ",
+            Filter,
+            Order,
+            " ", LimitSQL]);
+do_extract_messages(Host, RoomID, Filter, IOffset, IMax, Order) ->
+    {LimitSQL, _LimitMSSQL} = odbc_queries:get_db_specific_limits(IMax),
+    Offset = odbc_queries:get_db_specific_offset(IOffset, IMax),
+    mod_mam_utils:success_sql_query(
+        Host,
+        ["SELECT id, nick_name, message "
+         "FROM ", select_table(RoomID), " ",
+         Filter, Order, LimitSQL, Offset]).
 
 
 %% @doc Zero-based index of the row with UMessID in the result test.
@@ -520,7 +520,7 @@ calc_index(Host, RoomID, Filter, SUMessID) ->
       ["SELECT COUNT(*) "
        "FROM ", select_table(RoomID), " ",
        Filter, " AND id <= '", SUMessID, "'"]),
-    list_to_integer(binary_to_list(BIndex)).
+    ejabberd_odbc:result_to_integer(BIndex).
 
 
 %% @doc Count of elements in RSet before the passed element.
@@ -536,7 +536,7 @@ calc_before(Host, RoomID, Filter, SUMessID) ->
       ["SELECT COUNT(*) "
        "FROM ", select_table(RoomID), " ",
        Filter, " AND id < '", SUMessID, "'"]),
-    list_to_integer(binary_to_list(BIndex)).
+    ejabberd_odbc:result_to_integer(BIndex).
 
 
 %% @doc Get the total result set size.
@@ -549,7 +549,7 @@ calc_count(Host, RoomID, Filter) ->
       Host,
       ["SELECT COUNT(*) ",
        "FROM ", select_table(RoomID), " ", Filter]),
-    list_to_integer(binary_to_list(BCount)).
+    ejabberd_odbc:result_to_integer(BCount).
 
 
 %% @doc prepare_filter/5

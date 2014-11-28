@@ -28,78 +28,82 @@
 -author("mremond@process-one.net").
 
 -export([get_db_type/0,
-	 sql_transaction/2,
-	 get_last/2,
-	 select_last/3,
-	 set_last_t/4,
-	 del_last/2,
-	 get_password/2,
-	 set_password_t/3,
-	 add_user/3,
-	 del_user/2,
-	 del_user_return_password/3,
-	 list_users/1,
+         begin_trans/0,
+         get_db_specific_limits/1,
+         get_db_specific_offset/2,
+	     sql_transaction/2,
+	     get_last/2,
+	     select_last/3,
+	     set_last_t/4,
+	     del_last/2,
+	     get_password/2,
+	     set_password_t/3,
+	     add_user/3,
+	     del_user/2,
+	     del_user_return_password/3,
+	     list_users/1,
          list_users/2,
-	 users_number/1,
+	     users_number/1,
          users_number/2,
-	 get_users_without_scram/2,
-	 get_users_without_scram_count/1,
-	 add_spool_sql/2,
-	 add_spool/2,
-	 get_and_del_spool_msg_t/2,
-	 del_spool_msg/2,
-	 count_spool_msg/2,
+	     get_users_without_scram/2,
+	     get_users_without_scram_count/1,
+	     add_spool_sql/2,
+	     add_spool/2,
+	     get_and_del_spool_msg_t/2,
+	     del_spool_msg/2,
+	     count_spool_msg/2,
          get_average_roster_size/1,
          get_average_rostergroup_size/1,
          clear_rosters/1,
-	 get_roster/2,
-	 get_roster_jid_groups/2,
-	 get_roster_groups/3,
-	 del_user_roster_t/2,
-	 get_roster_by_jid/3,
-	 get_rostergroup_by_jid/3,
-	 del_roster/3,
-	 del_roster_sql/2,
-	 update_roster/5,
-	 update_roster_sql/4,
-	 roster_subscribe/4,
-	 get_subscription/3,
-	 set_private_data/4,
-	 set_private_data_sql/3,
-	 get_private_data/3,
-	 multi_get_private_data/3,
-	 multi_set_private_data/3,
-	 del_user_private_storage/2,
-	 get_default_privacy_list/2,
-	 get_default_privacy_list_t/1,
+	     get_roster/2,
+	     get_roster_jid_groups/2,
+	     get_roster_groups/3,
+	     del_user_roster_t/2,
+	     get_roster_by_jid/3,
+	     get_rostergroup_by_jid/3,
+	     del_roster/3,
+	     del_roster_sql/2,
+	     update_roster/5,
+	     update_roster_sql/4,
+	     roster_subscribe/4,
+	     get_subscription/3,
+	     set_private_data/4,
+	     set_private_data_sql/3,
+	     get_private_data/3,
+	     multi_get_private_data/3,
+	     multi_set_private_data/3,
+	     del_user_private_storage/2,
+	     get_default_privacy_list/2,
+	     get_default_privacy_list_t/1,
          count_privacy_lists/1,
          clear_privacy_lists/1,
-	 get_privacy_list_names/2,
-	 get_privacy_list_names_t/1,
-	 get_privacy_list_id/3,
-	 get_privacy_list_id_t/2,
-	 get_privacy_list_data/3,
-	 get_privacy_list_data_by_id/2,
-	 set_default_privacy_list/2,
-	 unset_default_privacy_list/2,
-	 remove_privacy_list/2,
-	 add_privacy_list/2,
-	 set_privacy_list/2,
-	 del_privacy_lists/3,
-	 set_vcard/26,
-	 get_vcard/2,
-	 escape_string/1,
-	 escape_like_string/1,
-	 count_records_where/3,
-	 get_roster_version/2,
-	 set_roster_version/2,
-	 prepare_offline_message/6,
-	 push_offline_messages/2,
-	 pop_offline_messages/4,
-	 count_offline_messages/4,
-	 remove_old_offline_messages/2,
-	 remove_expired_offline_messages/2,
-	 remove_offline_messages/3]).
+	     get_privacy_list_names/2,
+	     get_privacy_list_names_t/1,
+	     get_privacy_list_id/3,
+	     get_privacy_list_id_t/2,
+	     get_privacy_list_data/3,
+	     get_privacy_list_data_by_id/2,
+	     set_default_privacy_list/2,
+	     unset_default_privacy_list/2,
+	     remove_privacy_list/2,
+	     add_privacy_list/2,
+	     set_privacy_list/2,
+	     del_privacy_lists/3,
+	     set_vcard/26,
+	     get_vcard/2,
+         search_vcard/3,
+	     escape_string/1,
+	     escape_like_string/1,
+	     count_records_where/3,
+	     get_roster_version/2,
+	     set_roster_version/2,
+	     prepare_offline_message/6,
+	     push_offline_messages/2,
+	     pop_offline_messages/4,
+	     count_offline_messages/4,
+	     remove_old_offline_messages/2,
+	     remove_expired_offline_messages/2,
+	     remove_offline_messages/3]).
 
 %% We have only two compile time options for db queries:
 %%-define(generic, true).
@@ -109,8 +113,11 @@
 -define(generic, true).
 -endif.
 
+-define(ODBC_TYPE, (ejabberd_odbc_type:get())).
+
 -include("ejabberd.hrl").
 
+%
 %% -----------------
 %% Common functions
 
@@ -147,10 +154,10 @@ escape_like_character(C)  -> escape_character(C).
 
 %% -----------------
 %% Generic queries
--ifdef(generic).
 
 get_db_type() ->
-    generic.
+    ?ODBC_TYPE.
+
 
 %% Safe atomic update.
 update_t(Table, Fields, Vals, Where) ->
@@ -228,6 +235,15 @@ update(LServer, Table, Fields, Vals, Where) ->
 sql_transaction(LServer, F) ->
     ejabberd_odbc:sql_transaction(LServer, F).
 
+begin_trans() ->
+    begin_trans(?ODBC_TYPE).
+
+begin_trans(mssql) ->
+    odbc_queries_mssql:begin_trans();
+begin_trans(_) ->
+    [<<"BEGIN;">>].
+
+
 get_last(LServer, Username) ->
     ejabberd_odbc:sql_query(
       LServer,
@@ -301,7 +317,7 @@ del_user_return_password(_LServer, Username, Pass) ->
 list_users(LServer) ->
     ejabberd_odbc:sql_query(
       LServer,
-      <<"select username from users">>).
+      [<<"select username from users">>]).
 
 list_users(LServer, [{from, Start}, {to, End}]) when is_integer(Start) and
                                                      is_integer(End) ->
@@ -625,6 +641,31 @@ get_vcard(LServer, Username) ->
       [<<"select vcard from vcard "
          "where username='">>, Username, <<"' and server='">>, LServer, "';"]).
 
+
+search_vcard(LServer, RestrictionSQL, Limit) ->
+    Type = ?ODBC_TYPE,
+    search_vcard(Type, LServer, RestrictionSQL, Limit).
+
+search_vcard(mssql, LServer, RestrictionSQL, Limit) ->
+    odbc_queries_mssql:search_vcard(LServer, RestrictionSQL, Limit);
+search_vcard(_, LServer, RestrictionSQL, Limit) ->
+    do_search_vcard(LServer, RestrictionSQL, Limit).
+
+
+do_search_vcard(LServer, RestrictionSQL, infinity) ->
+    do_search_vcard2(LServer, RestrictionSQL, <<"">>);
+do_search_vcard(LServer, RestrictionSQL, Limit) when is_integer(Limit) ->
+    BinLimit = integer_to_binary(Limit),
+    do_search_vcard2(LServer, RestrictionSQL, <<"LIMIT ", BinLimit/binary>>).
+
+do_search_vcard2(LServer, RestrictionSQL, Limit) ->
+    ejabberd_odbc:sql_query(
+        LServer,
+        [<<"select username, server, fn, family, given, middle, "
+        "nickname, bday, ctry, locality, "
+        "email, orgname, orgunit from vcard_search ">>,
+            RestrictionSQL, Limit, ";"]).
+
 get_default_privacy_list(LServer, Username) ->
     ejabberd_odbc:sql_query(
       LServer,
@@ -720,7 +761,7 @@ set_privacy_list(ID, RItems) ->
 del_privacy_lists(LServer, _Server, Username) ->
     ejabberd_odbc:sql_query(
       LServer,
-      [<<"delete pld.* from privacy_list_data as pld left join privacy_list as pl on pld.id = pl.id where pl.username='">>,Username,<<"';">>]),
+      [<<"delete from privacy_list_data where id in ( select id from privacy_list as pl where pl.username='">>,Username,<<"');">>]),
     ejabberd_odbc:sql_query(
       LServer,
       [<<"delete from privacy_list where username='">>, Username, "';"]),
@@ -734,7 +775,7 @@ escape_character($\n) -> "\\n";
 escape_character($\t) -> "\\t";
 escape_character($\b) -> "\\b";
 escape_character($\r) -> "\\r";
-escape_character($')  -> "\\'";
+escape_character($')  -> "''";
 escape_character($")  -> "\\\"";
 escape_character($\\) -> "\\\\";
 escape_character(C)   -> C.
@@ -757,8 +798,6 @@ set_roster_version(LUser, Version) ->
       [<<"username">>, <<"version">>],
       [LUser, Version],
       [<<"username = '">>, LUser, "'"]).
-
--endif.
 
 
 pop_offline_messages(LServer, SUser, SServer, STimeStamp) ->
@@ -817,7 +856,13 @@ push_offline_messages(LServer, Rows) ->
               "(username, server, timestamp, expire, from_jid, packet) "
             "VALUES ">>, join(Rows, ", ")]).
 
+
 count_offline_messages(LServer, SUser, SServer, Limit) ->
+    count_offline_messages(?ODBC_TYPE, LServer, SUser, SServer, Limit).
+
+count_offline_messages(mssql, LServer, SUser, SServer, Limit) ->
+    odbc_queries_mssql:count_offline_messages(LServer, SUser, SServer, Limit);
+count_offline_messages(_, LServer, SUser, SServer, Limit) ->
     ejabberd_odbc:sql_query(
       LServer,
       [<<"select count(*) from offline_message "
@@ -825,325 +870,26 @@ count_offline_messages(LServer, SUser, SServer, Limit) ->
                   "username = '">>, SUser, <<"' "
             "limit ">>, integer_to_list(Limit)]).
 
+-spec get_db_specific_limits(integer())
+        -> {SQL :: nonempty_string(), []} | {[], MSSQL::nonempty_string()}.
+get_db_specific_limits(Limit) ->
+    LimitStr = integer_to_list(Limit),
+    do_get_db_specific_limits(?ODBC_TYPE, LimitStr).
 
-%% -----------------
-%% MSSQL queries
--ifdef(mssql).
+-spec get_db_specific_offset(integer(), integer()) -> iolist().
+get_db_specific_offset(Offset, Limit) ->
+    do_get_db_specific_offset(?ODBC_TYPE, integer_to_list(Offset), integer_to_list(Limit)).
 
-get_db_type() ->
-    mssql.
 
-%% Queries can be either a fun or a list of queries
-sql_transaction(LServer, Queries) when is_list(Queries) ->
-    %% SQL transaction based on a list of queries
-    %% This function automatically
-    F = fun() ->
-                lists:foreach(fun(Query) ->
-                                      ejabberd_odbc:sql_query(LServer, Query)
-                              end, Queries)
-        end,
-    {atomic, catch F()};
-sql_transaction(_LServer, FQueries) ->
-    {atomic, catch FQueries()}.
+do_get_db_specific_limits(mssql, LimitStr) ->
+    {"", "TOP " ++ LimitStr};
+do_get_db_specific_limits(_, LimitStr) ->
+    {"LIMIT " ++ LimitStr, ""}.
 
-get_last(LServer, Username) ->
-    ejabberd_odbc:sql_query(
-      LServer,
-      ["EXECUTE dbo.get_last '", Username, "'"]).
+do_get_db_specific_offset(mssql, Offset, Limit) ->
+    [" OFFSET ", Offset, " ROWS"
+    " FETCH NEXT ", Limit, " ROWS ONLY"];
+do_get_db_specific_offset(_, Offset, _Limit) ->
+    [" OFFSET ", Offset].
 
-set_last_t(LServer, Username, Seconds, State) ->
-    Result = ejabberd_odbc:sql_query(
-               LServer,
-               ["EXECUTE dbo.set_last '", Username, "', '", Seconds,
-                "', '", State, "'"]),
-    {atomic, Result}.
 
-del_last(LServer, Username) ->
-    ejabberd_odbc:sql_query(
-      LServer,
-      ["EXECUTE dbo.del_last '", Username, "'"]).
-
-get_password(LServer, Username) ->
-    ejabberd_odbc:sql_query(
-      LServer,
-      ["EXECUTE dbo.get_password '", Username, "'"]).
-
-set_password_t(LServer, Username, Pass) ->
-    Result = ejabberd_odbc:sql_query(
-               LServer,
-               ["EXECUTE dbo.set_password '", Username, "', '", Pass, "'"]),
-    {atomic, Result}.
-
-add_user(LServer, Username, Pass) ->
-    ejabberd_odbc:sql_query(
-      LServer,
-      ["EXECUTE dbo.add_user '", Username, "', '", Pass, "'"]).
-
-del_user(LServer, Username) ->
-    ejabberd_odbc:sql_query(
-      LServer,
-      ["EXECUTE dbo.del_user '", Username ,"'"]).
-
-del_user_return_password(LServer, Username, Pass) ->
-    ejabberd_odbc:sql_query(
-      LServer,
-      ["EXECUTE dbo.del_user_return_password '", Username, "'"]),
-    Pass.
-
-list_users(LServer) ->
-    ejabberd_odbc:sql_query(
-      LServer,
-      "EXECUTE dbo.list_users").
-
-list_users(LServer, _) ->
-    %% scope listing not supported
-    list_users(LServer).
-
-users_number(LServer) ->
-    ejabberd_odbc:sql_query(
-      LServer,
-      "select count(*) from users with (nolock)").
-
-users_number(LServer, _) ->
-    %% scope listing not supported
-    users_number(LServer).
-
-add_spool_sql(Username, XML) ->
-    ["EXECUTE dbo.add_spool '", Username, "' , '",XML,"'"].
-
-add_spool(LServer, Queries) ->
-    lists:foreach(fun(Query) ->
-			  ejabberd_odbc:sql_query(LServer, Query)
-		  end,
-		  Queries).
-
-get_and_del_spool_msg_t(LServer, Username) ->
-    [Result] = case ejabberd_odbc:sql_query(
-                      LServer,
-                      ["EXECUTE dbo.get_and_del_spool_msg '", Username, "'"]) of
-		   Rs when is_list(Rs) ->
-                       lists:filter(fun({selected, _Header, _Row}) ->
-                                            true;
-                                       ({updated, _N}) ->
-                                            false
-                                    end,
-                                    Rs);
-		   Rs -> [Rs]
-	       end,
-    {atomic, Result}.
-
-del_spool_msg(LServer, Username) ->
-    ejabberd_odbc:sql_query(
-      LServer,
-      ["EXECUTE dbo.del_spool_msg '", Username, "'"]).
-
-count_spool_msg(LServer, Username) ->
-    %% TODO
-    0.
-
-get_roster(LServer, Username) ->
-    ejabberd_odbc:sql_query(
-      LServer,
-      ["EXECUTE dbo.get_roster '", Username, "'"]).
-
-get_roster_jid_groups(LServer, Username) ->
-    ejabberd_odbc:sql_query(
-      LServer,
-      ["EXECUTE dbo.get_roster_jid_groups '", Username, "'"]).
-
-get_roster_groups(LServer, Username, SJID) ->
-    ejabberd_odbc:sql_query(
-      LServer,
-      ["EXECUTE dbo.get_roster_groups '", Username, "' , '", SJID, "'"]).
-
-del_user_roster_t(LServer, Username) ->
-    Result = ejabberd_odbc:sql_query(
-               LServer,
-               ["EXECUTE dbo.del_user_roster '", Username, "'"]),
-    {atomic, Result}.
-
-get_roster_by_jid(LServer, Username, SJID) ->
-    ejabberd_odbc:sql_query(
-      LServer,
-      ["EXECUTE dbo.get_roster_by_jid '", Username, "' , '", SJID, "'"]).
-
-get_rostergroup_by_jid(LServer, Username, SJID) ->
-    ejabberd_odbc:sql_query(
-      LServer,
-      ["EXECUTE dbo.get_rostergroup_by_jid '", Username, "' , '", SJID, "'"]).
-
-del_roster(LServer, Username, SJID) ->
-    ejabberd_odbc:sql_query(
-      LServer,
-      ["EXECUTE dbo.del_roster '", Username, "', '", SJID, "'"]).
-
-del_roster_sql(Username, SJID) ->
-    ["EXECUTE dbo.del_roster '", Username, "', '", SJID, "'"].
-
-update_roster(LServer, Username, SJID, ItemVals, ItemGroups) ->
-    Query1 = ["EXECUTE dbo.del_roster '", Username, "', '", SJID, "' "],
-    ejabberd_odbc:sql_query(LServer, lists:flatten(Query1)),
-    Query2 = ["EXECUTE dbo.add_roster_user ", ItemVals],
-    ejabberd_odbc:sql_query(LServer, lists:flatten(Query2)),
-    Query3 = ["EXECUTE dbo.del_roster_groups '", Username, "', '", SJID, "' "],
-    ejabberd_odbc:sql_query(LServer, lists:flatten(Query3)),
-    lists:foreach(fun(ItemGroup) ->
-			  Query = ["EXECUTE dbo.add_roster_group ",
-				   ItemGroup],
-			  ejabberd_odbc:sql_query(LServer,
-						  lists:flatten(Query))
-		  end,
-		  ItemGroups).
-
-update_roster_sql(Username, SJID, ItemVals, ItemGroups) ->
-    ["BEGIN TRANSACTION ",
-     "EXECUTE dbo.del_roster_groups '", Username, "','", SJID, "' ",
-     "EXECUTE dbo.add_roster_user ", ItemVals, " "] ++
-	[lists:flatten("EXECUTE dbo.add_roster_group ", ItemGroup, " ")
-	 || ItemGroup <- ItemGroups] ++
-	["COMMIT"].
-
-roster_subscribe(LServer, _Username, _SJID, ItemVals) ->
-    catch ejabberd_odbc:sql_query(
-	    LServer,
-	    ["EXECUTE dbo.add_roster_user ", ItemVals]).
-
-get_subscription(LServer, Username, SJID) ->
-    ejabberd_odbc:sql_query(
-      LServer,
-      ["EXECUTE dbo.get_subscription '", Username, "' , '", SJID, "'"]).
-
-set_private_data(LServer, Username, LXMLNS, SData) ->
-    ejabberd_odbc:sql_query(
-      LServer,
-      set_private_data_sql(Username, LXMLNS, SData)).
-
-set_private_data_sql(Username, LXMLNS, SData) ->
-    ["EXECUTE dbo.set_private_data '", Username, "' , '", LXMLNS, "' , '", SData, "'"].
-
-get_private_data(LServer, Username, LXMLNS) ->
-    ejabberd_odbc:sql_query(
-      LServer,
-      ["EXECUTE dbo.get_private_data '", Username, "' , '", LXMLNS, "'"]).
-
-del_user_private_storage(LServer, Username) ->
-    ejabberd_odbc:sql_query(
-      LServer,
-      ["EXECUTE dbo.del_user_storage '", Username, "'"]).
-
-set_vcard(LServer, LUsername, SBDay, SCTRY, SEMail, SFN, SFamily, SGiven,
-	  SLBDay, SLCTRY, SLEMail, SLFN, SLFamily, SLGiven, SLLocality,
-	  SLMiddle, SLNickname, SLOrgName, SLOrgUnit, SLocality, SMiddle,
-	  SNickname, SOrgName, SOrgUnit, SVCARD, Username) ->
-    ejabberd_odbc:sql_query(
-      LServer,
-      ["EXECUTE dbo.set_vcard '", SVCARD, "' , '", Username, "' , '",
-       LUsername, "' , '", LServer, "' , '",
-       SFN, "' , '", SLFN, "' , '", SFamily, "' , '", SLFamily, "' , '",
-       SGiven, "' , '", SLGiven, "' , '", SMiddle, "' , '", SLMiddle, "' , '",
-       SNickname, "' , '", SLNickname, "' , '", SBDay, "' , '", SLBDay, "' , '",
-       SCTRY, "' , '", SLCTRY, "' , '", SLocality, "' , '", SLLocality, "' , '",
-       SEMail, "' , '", SLEMail, "' , '", SOrgName, "' , '", SLOrgName, "' , '",
-       SOrgUnit, "' , '", SLOrgUnit, "'"]).
-
-get_vcard(LServer, Username) ->
-    ejabberd_odbc:sql_query(
-      LServer,
-      ["EXECUTE dbo.get_vcard '", Username, "' , '", LServer, "'"]).
-
-get_default_privacy_list(LServer, Username) ->
-    ejabberd_odbc:sql_query(
-      LServer,
-      ["EXECUTE dbo.get_default_privacy_list '", Username, "'"]).
-
-get_default_privacy_list_t(Username) ->
-    ejabberd_odbc:sql_query_t(
-      ["EXECUTE dbo.get_default_privacy_list '", Username, "'"]).
-
-get_privacy_list_names(LServer, Username) ->
-    ejabberd_odbc:sql_query(
-      LServer,
-      ["EXECUTE dbo.get_privacy_list_names '", Username, "'"]).
-
-get_privacy_list_names_t(Username) ->
-    ejabberd_odbc:sql_query_t(
-      ["EXECUTE dbo.get_privacy_list_names '", Username, "'"]).
-
-get_privacy_list_id(LServer, Username, SName) ->
-    ejabberd_odbc:sql_query(
-      LServer,
-      ["EXECUTE dbo.get_privacy_list_id '", Username, "' , '", SName, "'"]).
-
-get_privacy_list_id_t(Username, SName) ->
-    ejabberd_odbc:sql_query_t(
-      ["EXECUTE dbo.get_privacy_list_id '", Username, "' , '", SName, "'"]).
-
-get_privacy_list_data(LServer, Username, SName) ->
-    ejabberd_odbc:sql_query(
-      LServer,
-      ["EXECUTE dbo.get_privacy_list_data '", Username, "' , '", SName, "'"]).
-
-get_privacy_list_data_by_id(LServer, ID) ->
-    ejabberd_odbc:sql_query(
-      LServer,
-      ["EXECUTE dbo.get_privacy_list_data_by_id '", ID, "'"]).
-
-set_default_privacy_list(Username, SName) ->
-    ejabberd_odbc:sql_query_t(
-      ["EXECUTE dbo.set_default_privacy_list '", Username, "' , '", SName, "'"]).
-
-unset_default_privacy_list(LServer, Username) ->
-    ejabberd_odbc:sql_query(
-      LServer,
-      ["EXECUTE dbo.unset_default_privacy_list '", Username, "'"]).
-
-remove_privacy_list(Username, SName) ->
-    ejabberd_odbc:sql_query_t(
-      ["EXECUTE dbo.remove_privacy_list '", Username, "' , '", SName, "'"]).
-
-add_privacy_list(Username, SName) ->
-    ejabberd_odbc:sql_query_t(
-      ["EXECUTE dbo.add_privacy_list '", Username, "' , '", SName, "'"]).
-
-set_privacy_list(ID, RItems) ->
-    ejabberd_odbc:sql_query_t(
-      ["EXECUTE dbo.del_privacy_list_by_id '", ID, "'"]),
-
-    lists:foreach(fun(Items) ->
-			  ejabberd_odbc:sql_query_t(
-                            ["EXECUTE dbo.set_privacy_list '", ID, "', '", join(Items, "', '"), "'"])
-		  end, RItems).
-
-del_privacy_lists(LServer, Server, Username) ->
-    ejabberd_odbc:sql_query(
-      LServer,
-      ["EXECUTE dbo.del_privacy_lists @Server='", Server ,"' @username='", Username, "'"]).
-
-%% @doc Escape a character.
-%% Characters to escape.
-escape_character($\0) -> "\\0";
-escape_character($\t) -> "\\t";
-escape_character($\b) -> "\\b";
-escape_character($\r) -> "\\r";
-escape_character($')  -> "\''";
-escape_character($")  -> "\\\"";
-escape_character(C)   -> C.
-
-%% Count number of records in a table given a where clause
-count_records_where(LServer, Table, WhereClause) ->
-    ejabberd_odbc:sql_query(
-      LServer,
-      ["select count(*) from ", Table, " with (nolock) ", WhereClause]).
-
-get_roster_version(LServer, LUser) ->
-    ejabberd_odbc:sql_query(
-      LServer,
-      ["EXECUTE dbo.get_roster_version '", LUser, "'"]).
-
-set_roster_version(Username, Version) ->
-    %% This function doesn't know the vhost, so we hope it's the first one defined:
-    LServer = ?MYNAME,
-    ejabberd_odbc:sql_query(
-      LServer,
-      ["EXECUTE dbo.set_roster_version '", Username, "', '", Version, "'"]).
--endif.
