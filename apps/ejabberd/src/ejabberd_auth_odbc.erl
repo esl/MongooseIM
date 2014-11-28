@@ -136,7 +136,7 @@ check_password_wo_escape(User, Server, Password) ->
             false;
         {selected, [<<"password">>, <<"pass_details">>], [{_Password2, PassDetails}]} ->
             case scram:deserialize(PassDetails) of
-                #scram{} = Scram ->
+                {ok, Scram} ->
                     scram:check_password(Password, Scram);
                 _ ->
                     false %% Password is not correct
@@ -273,7 +273,7 @@ get_password(User, Server) ->
                     Password; %%Plain password
                 {selected, [<<"password">>, <<"pass_details">>], [{_Password, PassDetails}]} ->
                     case scram:deserialize(PassDetails) of
-                        #scram{} = Scram ->
+                        {ok, Scram} ->
                             {base64:decode(Scram#scram.storedkey),
                              base64:decode(Scram#scram.serverkey),
                              base64:decode(Scram#scram.salt),
@@ -378,13 +378,10 @@ remove_user(User, Server, Password) ->
 
 prepare_password(Iterations, Password) when is_integer(Iterations) ->
     Scram = scram:password_to_scram(Password, Iterations),
-    case scram:serialize(Scram) of
-        {ok, PassDetails} ->
-            PassDetailsEscaped = ejabberd_odbc:escape(PassDetails),
-            {<<"">>, PassDetailsEscaped};
-        _ ->
-            false
-    end;
+    PassDetails = scram:serialize(Scram),
+    PassDetailsEscaped = ejabberd_odbc:escape(PassDetails),
+    {<<"">>, PassDetailsEscaped};
+
 prepare_password(Server, Password) ->
     case scram:enabled(Server) of
         true ->

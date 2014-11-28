@@ -150,10 +150,7 @@ serialize(#scram{storedkey = StoredKey, serverkey = ServerKey,
     IterationCountBin = integer_to_binary(IterationCount),
     << <<?SCRAM_SERIAL_PREFIX>>/binary,
        StoredKey/binary,$,,ServerKey/binary,
-       $,,Salt/binary,$,,IterationCountBin/binary>>;
-serialize(Other) ->
-    ?WARNING_MSG("Not a SCRAM record: ~p, ~p", [Other]),
-    {error, not_scram_record}.
+       $,,Salt/binary,$,,IterationCountBin/binary>>.
 
 deserialize(<<?SCRAM_SERIAL_PREFIX, Serialized/binary>>) ->
     case catch binary:split(Serialized, <<",">>, [global]) of
