@@ -23,8 +23,6 @@
 -define(WAIT_TIME, 100).
 
 -import(metrics_helper, [assert_counter/2,
-                         assert_rest_counters/3,
-                         get_rest_counter_values/1,
                          get_counter_value/1]).
 
 %%--------------------------------------------------------------------
@@ -36,8 +34,7 @@ all() ->
      {group, multiple},
      {group, drop},
      {group, errors},
-     {group, count},
-     {group, single_rest}].
+     {group, count}].
 
 groups() ->
     [{single, [sequence], [message_one,
@@ -52,12 +49,7 @@ groups() ->
                            error_mesg,
                            error_iq,
                            error_presence]},
-     {count, [sequence], [stanza_count]},
-     {single_rest, [sequence], [message_one_rest,
-                                stanza_one_rest,
-                                presence_one_rest,
-                                presence_direct_one_rest,
-                                iq_one_rest]}].
+     {count, [sequence], [stanza_count]}].
 
 suite() ->
     [{require, ejabberd_node} | escalus:suite()].
@@ -67,12 +59,10 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    metrics_helper:start_fusco(),
     Config1 = dynamic_modules:stop_running(mod_offline, Config),
     escalus:init_per_suite(Config1).
 
 end_per_suite(Config) ->
-    metrics_helper:stop_fusco(),
     dynamic_modules:start_running(Config),
     escalus:end_per_suite(Config).
 
@@ -281,82 +271,3 @@ error_iq(Config) ->
     timer:sleep(?WAIT_TIME),
 
     assert_counter(Errors + 1, xmppErrorIq).
-
-message_one_rest(Config) ->
-    {value, MesgSentH, MesgSentT} = get_rest_counter_values(xmppMessageSent),
-    {value, MesgReceivedH, MesgReceivedT} = get_rest_counter_values(xmppMessageReceived),
-    escalus:story(Config, [1, 1], fun(Alice, Bob) ->
-
-        escalus_client:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi!">>)),
-        escalus_client:wait_for_stanza(Bob),
-
-        assert_rest_counters(MesgSentH + 1, MesgSentT + 1, xmppMessageSent),
-        assert_rest_counters(MesgReceivedH + 1, MesgReceivedT + 1, xmppMessageReceived)
-
-        end).
-
-stanza_one_rest(Config) ->
-    escalus:story(Config, [1, 1], fun(Alice, Bob) ->
-        {value, StanzaSentH, StanzaSentT} = get_rest_counter_values(xmppStanzaSent),
-        {value, StanzaReceivedH, StanzaReceivedT} = get_rest_counter_values(xmppStanzaReceived),
-
-        escalus_client:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi!">>)),
-        escalus_client:wait_for_stanza(Bob),
-
-        assert_rest_counters(StanzaSentH + 1, StanzaSentT + 1,  xmppStanzaSent),
-        assert_rest_counters(StanzaReceivedH + 1, StanzaReceivedT + 1, xmppStanzaReceived)
-
-        end).
-
-presence_one_rest(Config) ->
-    escalus:story(Config, [1], fun(Alice) ->
-        {value, PresenceSentH, PresenceSentT} = get_rest_counter_values(xmppPresenceSent),
-        {value, PresenceReceivedH, PresenceReceivedT} = get_rest_counter_values(xmppPresenceReceived),
-        {value, StanzaSentH, StanzaSentT} = get_rest_counter_values(xmppStanzaSent),
-        {value, StanzaReceivedH, StanzaReceivedT} = get_rest_counter_values(xmppStanzaReceived),
-
-        escalus:send(Alice, escalus_stanza:presence(<<"available">>)),
-        escalus:wait_for_stanza(Alice),
-
-        assert_rest_counters(PresenceSentH + 1, PresenceSentT + 1, xmppPresenceSent),
-        assert_rest_counters(PresenceReceivedH + 1, PresenceReceivedT + 1, xmppPresenceReceived),
-        assert_rest_counters(StanzaSentH + 1, StanzaSentT + 1, xmppStanzaSent),
-        assert_rest_counters(StanzaReceivedH + 1, StanzaReceivedT + 1, xmppStanzaReceived)
-
-        end).
-
-presence_direct_one_rest(Config) ->
-    escalus:story(Config, [1, 1], fun(Alice, Bob) ->
-        {value, PresenceSentH, PresenceSentT} = get_rest_counter_values(xmppPresenceSent),
-        {value, PresenceReceivedH, PresenceReceivedT} = get_rest_counter_values(xmppPresenceReceived),
-        {value, StanzaSentH, StanzaSentT} = get_rest_counter_values(xmppStanzaSent),
-        {value, StanzaReceivedH, StanzaReceivedT} = get_rest_counter_values(xmppStanzaReceived),
-
-        Presence = escalus_stanza:presence_direct(bob, <<"available">>),
-        escalus:send(Alice, Presence),
-        escalus:wait_for_stanza(Bob),
-
-        assert_rest_counters(PresenceSentH + 1, PresenceSentT + 1, xmppPresenceSent),
-        assert_rest_counters(PresenceReceivedH + 1, PresenceReceivedT + 1, xmppPresenceReceived),
-        assert_rest_counters(StanzaSentH + 1, StanzaSentT + 1, xmppStanzaSent),
-        assert_rest_counters(StanzaReceivedH + 1, StanzaReceivedT + 1, xmppStanzaReceived)
-
-        end).
-
-iq_one_rest(Config) ->
-    escalus:story(Config, [1], fun(Alice) ->
-        {value, IqSentH, IqSentT} = get_rest_counter_values(xmppIqSent),
-        {value, IqReceivedH, IqReceivedT} = get_rest_counter_values(xmppIqReceived),
-        {value, StanzaSentH, StanzaSentT} = get_rest_counter_values(xmppStanzaSent),
-        {value, StanzaReceivedH, StanzaReceivedT} = get_rest_counter_values(xmppStanzaReceived),
-
-        escalus_client:send(Alice,
-                            escalus_stanza:roster_get()),
-        escalus_client:wait_for_stanza(Alice),
-
-        assert_rest_counters(IqSentH + 1, IqSentT + 1, xmppIqSent),
-        assert_rest_counters(StanzaSentH + 1, StanzaSentT + 1, xmppStanzaSent),
-        assert_rest_counters(StanzaReceivedH + 1, StanzaReceivedT + 1, xmppStanzaReceived),
-        assert_rest_counters(IqReceivedH + 1, IqReceivedT + 1, xmppIqReceived)
-
-        end).
