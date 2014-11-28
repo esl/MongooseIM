@@ -20,7 +20,7 @@
          restart_application/1, restart_application/2,
          call_fun/3, call_fun/4,
          call_ctl/2, call_ctl/3,
-         file_exists/1,
+         file_exists/1, file_exists/2,
          backup_config_file/1, backup_config_file/2,
          restore_config_file/1, restore_config_file/2,
          modify_config_file/2, modify_config_file/4]).
@@ -116,6 +116,10 @@ call_ctl(Node, Cmd, Config) ->
 -spec file_exists(file:name_all()) -> term() | {badrpc, term()}.
 file_exists(Filename) ->
     call_fun(filelib, is_file, [Filename]).
+
+-spec file_exists(node(), file:name_all()) -> term() | {badrpc, term()}.
+file_exists(Node, Filename) ->
+    call_fun(Node, filelib, is_file, [Filename]).
 
 %% @doc Modifies default ejabberd config file: `etc/ejabberd.cfg'.
 %%
