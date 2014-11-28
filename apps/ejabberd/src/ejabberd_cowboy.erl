@@ -154,6 +154,7 @@ get_routes([{Host, BasePath, Module, Opts} | Tail], Routes) ->
         "_" -> '_';
         _ -> Host
     end,
+    {module, Module} = code:ensure_loaded(Module),
     Paths = proplists:get_value(CowboyHost, Routes, []) ++
     case erlang:function_exported(Module, cowboy_router_paths, 2) of
         true -> Module:cowboy_router_paths(BasePath, Opts);

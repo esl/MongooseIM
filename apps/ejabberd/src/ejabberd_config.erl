@@ -1263,11 +1263,11 @@ get_key_group(_, Key) when is_atom(Key)->
                     ValuePos :: non_neg_integer()) -> compare_result().
 compare_terms(OldTerms, NewTerms, KeyPos, ValuePos)
   when is_integer(KeyPos), is_integer(ValuePos) ->
-    {ToStop, ToReload} = lists:foldl(pa:binary(fun find_modules_to_change/5,
-                                               [KeyPos, NewTerms, ValuePos]),
+    {ToStop, ToReload} = lists:foldl(pa:bind(fun find_modules_to_change/5,
+                                             KeyPos, NewTerms, ValuePos),
                                      {[], []}, OldTerms),
-    ToStart = lists:foldl(pa:binary(fun find_modules_to_start/4,
-                                    [KeyPos, OldTerms]), [], NewTerms),
+    ToStart = lists:foldl(pa:bind(fun find_modules_to_start/4,
+                                  KeyPos, OldTerms), [], NewTerms),
     #compare_result{to_start  = ToStart,
                     to_stop   = ToStop,
                     to_reload = ToReload}.
