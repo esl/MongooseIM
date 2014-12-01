@@ -62,16 +62,6 @@ CREATE TABLE rostergroups (
 CREATE INDEX pk_rosterg_user_jid ON rostergroups(username(75), jid(75));
 
 
-CREATE TABLE spool (
-    username varchar(250) NOT NULL,
-    xml text NOT NULL,
-    seq BIGINT UNSIGNED NOT NULL AUTO_INCREMENT UNIQUE,
-    created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
-) CHARACTER SET utf8;
-
-CREATE INDEX i_despool USING BTREE ON spool(username);
-
-
 CREATE TABLE vcard (
     username varchar(150),
     server varchar(150),
