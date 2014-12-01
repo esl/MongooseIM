@@ -3,6 +3,9 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
+-import(ejabberd_node_utils, [get_cwd/2,
+                              call_fun/4]).
+
 -compile(export_all).
 
 is_sm_distributed() ->
@@ -17,24 +20,30 @@ cluster_users() ->
                ct:get_config(escalus_users),
     [proplists:lookup(alice, AllUsers), proplists:lookup(clusterguy, AllUsers)].
 
-add_node_to_cluster(Config) ->
-    Config1 = set_ejabberd_cwds(Config),
-    StartCmd = ctl1_path(Config1) ++ " start",
-    StopCmd = ctl1_path(Config1) ++ " stop",
-    StatusCmd = ctl1_path(Config1) ++ " status",
+add_node_to_cluster(ConfigIn) ->
+    Node = ct:get_config(ejabberd_node),
+    Node2 = ct:get_config(ejabberd2_node),
+    Config = ejabberd_node_utils:init(Node2,
+                                      ejabberd_node_utils:init(Node, ConfigIn)),
 
-    Node2 = atom_to_list(ct:get_config(ejabberd2_node)),
-    AddToClusterCmd = ctl1_path(Config1) ++ " add_to_cluster " ++ Node2,
+    Node2Ctl = ctl_path(Node2, Config),
 
-    MnesiaDir = filename:join([?config(ejabberd_cwd, Config1), "Mnesia*"]),
+    StartCmd = Node2Ctl ++ " start",
+    StopCmd = Node2Ctl  ++ " stop",
+    StatusCmd = Node2Ctl ++ " status",
+
+
+    AddToClusterCmd = ctl_path(Node2, Config) ++ " add_to_cluster " ++ atom_to_list(Node),
+
+    MnesiaDir = filename:join([get_cwd(Node2, Config), "Mnesia*"]),
     MnesiaCmd = "rm -rf " ++ MnesiaDir,
 
-    Res1 = call_ejabberd2(os, cmd, [MnesiaCmd]),
-    Res2 = call_ejabberd2(os, cmd, [StopCmd]),
+    Res1 = call_fun(Node, os, cmd, [MnesiaCmd]),
+    Res2 = call_fun(Node, os, cmd, [StopCmd]),
     wait_until_stopped(StatusCmd, 120),
 
-    Res3 = call_ejabberd2(os, cmd, [AddToClusterCmd]),
-    Res4 = call_ejabberd2(os, cmd, [StartCmd]),
+    Res3 = call_fun(Node, os, cmd, [AddToClusterCmd]),
+    Res4 = call_fun(Node, os, cmd, [StartCmd]),
     wait_until_started(StatusCmd, 120),
 
     ?assertEqual(Res1, ""),
@@ -44,24 +53,26 @@ add_node_to_cluster(Config) ->
 
     verify_result(add),
 
-    Config1.
+    Config.
 
 remove_node_from_cluster(Config) ->
-    StartCmd = ctl2_path(Config) ++ " start",
-    StopCmd = ctl2_path(Config) ++ " stop",
-    StatusCmd = ctl2_path(Config) ++ " status",
-    Node2 = atom_to_list(ct:get_config(ejabberd2_node)),
-    RemoveCmd = ctl1_path(Config) ++ " remove_from_cluster " ++ Node2,
+    Node = ct:get_config(ejabberd_node),
+    Node2 = ct:get_config(ejabberd2_node),
+    Node2Ctl = ctl_path(Node2, Config),
+    StartCmd = Node2Ctl ++ " start",
+    StopCmd = Node2Ctl ++ " stop",
+    StatusCmd = Node2Ctl ++ " status",
+    RemoveCmd = ctl_path(Node, Config) ++ " remove_from_cluster " ++ atom_to_list(Node2),
 
-    MnesiaDir = filename:join([?config(ejabberd2_cwd, Config), "Mnesia*"]),
+    MnesiaDir = filename:join([get_cwd(Node2, Config), "Mnesia*"]),
     MnesiaCmd = "rm -rf " ++ MnesiaDir,
 
-    Res1 = call_ejabberd(os, cmd, [StopCmd]),
+    Res1 = call_fun(Node, os, cmd, [StopCmd]),
     wait_until_stopped(StatusCmd, 120),
 
-    Res2 = call_ejabberd(os, cmd, [RemoveCmd]),
-    Res3 = call_ejabberd(os, cmd, [MnesiaCmd]),
-    Res4 = call_ejabberd(os, cmd, [StartCmd]),
+    Res2 = call_fun(Node, os, cmd, [RemoveCmd]),
+    Res3 = call_fun(Node, os, cmd, [MnesiaCmd]),
+    Res4 = call_fun(Node, os, cmd, [StartCmd]),
     wait_until_started(StatusCmd, 120),
 
     ?assertEqual(Res1, ""),
@@ -73,24 +84,9 @@ remove_node_from_cluster(Config) ->
 
     ok.
 
-set_ejabberd_cwds(Config) ->
-    {ok, Cwd1} = call_ejabberd(file, get_cwd, []),
-    {ok, Cwd2} = call_ejabberd2(file, get_cwd, []),
-    [{ejabberd_cwd, Cwd1}, {ejabberd2_cwd, Cwd2} | Config].
 
-ctl1_path(Config) ->
-    filename:join([?config(ejabberd_cwd, Config), "bin", "mongooseimctl"]).
-
-ctl2_path(Config) ->
-    filename:join([?config(ejabberd2_cwd, Config), "bin", "mongooseimctl"]).
-
-call_ejabberd(M, F, A) ->
-    Node = ct:get_config(ejabberd_node),
-    rpc:call(Node, M, F, A).
-
-call_ejabberd2(M, F, A) ->
-    Node = ct:get_config(ejabberd2_node),
-    rpc:call(Node, M, F, A).
+ctl_path(Node, Config) ->
+    filename:join([get_cwd(Node, Config), "bin", "mongooseimctl"]).
 
 wait_until_started(_, 0) ->
     erlang:error({timeout, starting_node});
@@ -118,10 +114,10 @@ wait_until_stopped(Cmd, Retries) ->
 verify_result(Op) ->
     Node1 = ct:get_config(ejabberd_node),
     Node2 = ct:get_config(ejabberd2_node),
-    Nodes1 = call_ejabberd(erlang, nodes, []),
-    Nodes2 = call_ejabberd2(erlang, nodes, []),
-    DbNodes1 = call_ejabberd(mnesia, system_info, [running_db_nodes]),
-    DbNodes2 = call_ejabberd2(mnesia, system_info, [running_db_nodes]),
+    Nodes1 = call_fun(Node1, erlang, nodes, []),
+    Nodes2 = call_fun(Node2, erlang, nodes, []),
+    DbNodes1 = call_fun(Node1, mnesia, system_info, [running_db_nodes]),
+    DbNodes2 = call_fun(Node2, mnesia, system_info, [running_db_nodes]),
 
     Pairs = [{Node2, Nodes1,   should_belong(Op)},
              {Node1, Nodes2,   should_belong(Op)},
