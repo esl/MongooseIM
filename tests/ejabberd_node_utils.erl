@@ -23,7 +23,8 @@
          file_exists/1, file_exists/2,
          backup_config_file/1, backup_config_file/2,
          restore_config_file/1, restore_config_file/2,
-         modify_config_file/2, modify_config_file/4]).
+         modify_config_file/2, modify_config_file/4,
+         get_cwd/2]).
 
 -include_lib("common_test/include/ct.hrl").
 
@@ -161,6 +162,10 @@ modify_config_file(Node, VarsFile, CfgVarsToChange, Config) ->
                                      dict:from_list(UpdatedCfgVars)),
     ok = ejabberd_node_utils:call_fun(Node, file, write_file, [CurrentCfgPath,
                                                                UpdatedCfgFile]).
+
+-spec get_cwd(node(), ct_config()) -> string().
+get_cwd(Node, Config) ->
+    ?CWD(Node, Config).
 
 %%--------------------------------------------------------------------
 %% Internal functions
