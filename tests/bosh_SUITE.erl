@@ -647,7 +647,7 @@ pause(#client{} = C, Seconds) ->
 
 start_client(Config, User, Res) ->
     NamedSpecs = escalus_config:get_config(escalus_users, Config),
-    UserSpec = proplists:get_value(User, NamedSpecs),
+    UserSpec = [{keepalive, false} | proplists:get_value(User, NamedSpecs)],
     {ok, Client} = escalus_client:start(Config, UserSpec, Res),
     Client.
 
