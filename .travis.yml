@@ -26,6 +26,7 @@ services: redis-server
 branches:
         only:
                 - master
+                - develop
 notifications:
         email: mongoose-im@erlang-solutions.com
 otp_release:
