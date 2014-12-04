@@ -363,7 +363,7 @@ interrupt_long_poll_is_activity(Config) ->
         %% to Carol and one handler for Carol.
         Sid = get_bosh_sid(Carol),
         {_, _, CarolSessionPid} = get_bosh_session(Sid),
-        1 = length(get_handlers(CarolSessionPid)),
+        1 = wait_for_handler(CarolSessionPid),
 
         %% Send a message.  A new connection should be established, and
         %% the existing long-poll connection should be closed.
@@ -377,7 +377,7 @@ interrupt_long_poll_is_activity(Config) ->
         %% No disconnection should have occurred.
         escalus_assert:has_no_stanzas(Carol),
         true = is_sesssion_alive(Sid),
-        1 = length(get_handlers(CarolSessionPid))
+        1 = wait_for_handler(CarolSessionPid)
 
         end).
 
@@ -390,7 +390,7 @@ reply_on_pause(Config) ->
         set_keepalive(Carol, false),
 
         %% Sanity check - there should be one handler for Carol.
-        1 = length(get_handlers(CarolSessionPid)),
+        1 = wait_for_handler(CarolSessionPid),
 
         pause(Carol, 10),
 
@@ -410,7 +410,7 @@ cant_pause_for_too_long(Config) ->
         set_keepalive(Carol, false),
 
         %% Sanity check - there should be one handler for Carol.
-        1 = length(get_handlers(CarolSessionPid)),
+        1 = wait_for_handler(CarolSessionPid),
 
         pause(Carol, 10000),
 
@@ -428,7 +428,7 @@ pause_request_is_activity(Config) ->
         set_keepalive(Carol, false),
 
         %% Sanity check - there should be one handler for Carol.
-        1 = length(get_handlers(CarolSessionPid)),
+        1 = wait_for_handler(CarolSessionPid),
 
         %% Wait most of the allowed inactivity interval.
         timer:sleep(timer:seconds(4)),
@@ -470,7 +470,7 @@ reply_in_time(Config) ->
         Empty = escalus_bosh:empty_body(Rid, Sid),
         escalus_bosh:send_raw(Carol, Empty),
         timer:sleep(100),
-        1 = length(get_handlers(CarolSessionPid)),
+        1 = wait_for_handler(CarolSessionPid),
 
         timer:sleep(timer:seconds(Wait) + 100),
 
@@ -647,7 +647,7 @@ pause(#client{} = C, Seconds) ->
 
 start_client(Config, User, Res) ->
     NamedSpecs = escalus_config:get_config(escalus_users, Config),
-    UserSpec = proplists:get_value(User, NamedSpecs),
+    UserSpec = [{keepalive, false} | proplists:get_value(User, NamedSpecs)],
     {ok, Client} = escalus_client:start(Config, UserSpec, Res),
     Client.
 
@@ -723,4 +723,18 @@ wait_for_session_close(Sid, N) ->
         _ ->
             timer:sleep(100),
             wait_for_session_close(Sid, N-1)
+    end.
+
+wait_for_handler(Pid) ->
+    wait_for_handler(Pid, 10).
+
+wait_for_handler(Pid, 0) ->
+    length(get_handlers(Pid));
+wait_for_handler(Pid, N) ->
+    case get_handlers(Pid) of
+        [] ->
+            timer:sleep(50),
+            wait_for_handler(Pid, N-1);
+        L ->
+            length(L)
     end.
