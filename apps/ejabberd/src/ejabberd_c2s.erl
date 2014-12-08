@@ -98,13 +98,26 @@
                 server = ?MYNAME     :: ejabberd:server(),
                 resource = <<>>      :: ejabberd:resource(),
                 sid                  :: ejabberd_sm:sid(),
+                %% We have _subscription to_ these users' presence status;
+                %% i.e. they send us presence updates.
+                %% This comes from the roster.
                 pres_t = ?SETS:new() :: gb_set(),
+                %% We have _subscription from_ these users,
+                %% i.e. they have subscription to us.
+                %% We send them presence updates.
+                %% This comes from the roster.
                 pres_f = ?SETS:new() :: gb_set(),
+                %% We're _available_ to these users,
+                %% i.e. we broadcast presence updates to them.
+                %% This may change throughout the session.
                 pres_a = ?SETS:new() :: gb_set(),
+                %% We are _invisible_ to these users.
+                %% This may change throughout the session.
                 pres_i = ?SETS:new() :: gb_set(),
                 pending_invitations = [],
                 pres_last, pres_pri,
                 pres_timestamp,
+                %% Are we invisible?
                 pres_invis = false :: boolean(),
                 privacy_list = #userlist{} :: mod_privacy:userlist(),
                 conn = unknown,
