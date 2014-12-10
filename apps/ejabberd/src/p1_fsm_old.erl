@@ -29,7 +29,7 @@
 %%   in case of a crash (just export the function print_state/1)
 %%     $Id$
 %%
--module(p1_fsm).
+-module(p1_fsm_old).
 
 %%%-----------------------------------------------------------------
 %%%

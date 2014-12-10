@@ -1,18 +1,16 @@
-.PHONY: rel deps test show_test_results generate_snmp_header
+.PHONY: rel deps test show_test_results
 
 EJABBERD_DIR = apps/ejabberd
 EJD_INCLUDE = $(EJABBERD_DIR)/include
 EJD_PRIV = $(EJABBERD_DIR)/priv
-EJD_PRIV_MIB = $(EJD_PRIV)/mibs
-EJD_MIB = $(EJABBERD_DIR)/mibs
 DEVNODES = node1 node2
 
 all: deps compile
 
-compile: rebar generate_snmp_header
-	./rebar $(OPTS) compile
+compile: rebar
+	./rebar $(OTPS) compile
 
-deps: rebar generate_snmp_header
+deps: rebar
 	./rebar get-deps
 
 clean: rebar
@@ -84,15 +82,6 @@ devclean:
 
 cover_report: /tmp/mongoose_combined.coverdata
 	erl -noshell -pa apps/*/ebin deps/*/ebin -eval 'ecoveralls:travis_ci("$?"), init:stop()'
-
-
-generate_snmp_header: apps/ejabberd/include/EJABBERD-MIB.hrl
-
-$(EJD_INCLUDE)/EJABBERD-MIB.hrl: $(EJD_PRIV_MIB)/EJABBERD-MIB.bin
-	erlc -o $(EJD_INCLUDE) $<
-
-$(EJD_PRIV_MIB)/EJABBERD-MIB.bin: $(EJD_MIB)/EJABBERD-MIB.mib $(EJD_MIB)/EJABBERD-MIB.funcs
-	erlc -o $(EJD_PRIV_MIB) $<
 
 relclean:
 	rm -rf rel/mongooseim
