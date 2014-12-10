@@ -211,6 +211,8 @@ get_vh_registered_users(LServer, Opts) ->
                                     ) -> integer().
 get_vh_registered_users_number(LServer) ->
     case catch odbc_queries:users_number(LServer) of
+        {selected, [_], [{Res}]} when is_integer(Res) ->
+            Res;
         {selected, [_], [{Res}]} ->
             list_to_integer(binary_to_list(Res));
         _ ->
