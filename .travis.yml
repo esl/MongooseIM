@@ -7,6 +7,7 @@ before_install:
 install: tools/travis-build.sh
 before_script:
         - tools/travis-setup-db.sh
+        - tools/travis-setup-cassandra.sh
         - if [ $TEST_CONFIG = 'ldap_mnesia' ]; then tools/travis-setup-ldap.sh; fi
 script: tools/travis-test.sh
 
