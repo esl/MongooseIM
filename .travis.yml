@@ -22,7 +22,10 @@ after_script:
 after_success:
         - make cover_report
 
-services: redis-server
+services:
+        - redis-server
+        - cassandra
+
 branches:
         only:
                 - master
