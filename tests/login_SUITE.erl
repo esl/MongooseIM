@@ -44,7 +44,7 @@ groups() ->
                           log_one_digest]},
      {login_scram, [sequence], scram_tests()},
      {login_scram_store_plain, [sequence], scram_tests()},
-     {messages, [sequence], [messages_story]}].
+     {messages, [sequence], [messages_story, message_zlib_limit]}].
 
 scram_tests() ->
     [log_one, log_one_scram].
@@ -121,9 +121,23 @@ init_per_testcase(log_one_basic_plain, Config) ->
     escalus:init_per_testcase(log_one_digest, Conf1);
 init_per_testcase(check_unregistered, Config) ->
     Config;
+init_per_testcase(message_zlib_limit, Config) ->
+    Listeners = [Listener
+                 || {Listener, _, _} <- escalus_ejabberd:rpc(ejabberd_config, get_local_option, [listen])],
+    [{_U, Props}] = escalus_users:get_users({by_name, [hacker]}),
+    Port = proplists:get_value(port, Props),
+    case lists:keymember(Port, 1, Listeners) of
+        true ->
+            escalus:create_users(Config, {by_name, [hacker]}),
+            escalus:init_per_testcase(message_zlib_limit, Config);
+        false ->
+            {skip, port_not_configured_on_server}
+    end;
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
+end_per_testcase(message_zlib_limit, Config) ->
+    escalus:delete_users(Config, {by_name, [hacker]});
 end_per_testcase(check_unregistered, Config) ->
     Config;
 end_per_testcase(CaseName, Config) ->
@@ -215,7 +229,10 @@ messages_story(Config) ->
     end).
 
 message_zlib_limit(Config) ->
-    escalus:story(Config, [{alice, 1}, {hacker, 1}], fun(Alice, Hacker) ->
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+        [{_, Spec}] = escalus_users:get_users({by_name, [hacker]}),
+        {ok, Hacker, _Spec2, _Features} = escalus_connection:start(Spec),
+
         ManySpaces = [ 32 || _N <- lists:seq(1, 10*1024) ],
 
         escalus:send(Hacker, escalus_stanza:chat_to(Alice, ManySpaces)),
