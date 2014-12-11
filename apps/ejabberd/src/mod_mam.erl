@@ -252,6 +252,8 @@ restore_dump_file_unsave(ArcJID, InFileName, Opts) ->
                                     ArcJID, FromJID, FromJID,
                                     incoming, MessElem);
                 _ ->
+                    lager:error("Failed to restore archive, file=~p, arc_jid=~p, from_jid=~p, to_jid=~p, elem=~p",
+                                [InFileName, ArcJID, FromJID, ToJID, MessElem]),
                     {error, no_local_jid}
             end
         end,
