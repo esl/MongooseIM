@@ -242,12 +242,14 @@ restore_dump_file_unsave(ArcJID, InFileName, Opts) ->
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
     WriterF = fun(MessID, FromJID, ToJID, MessElem) ->
-            case ArcJID of
-                FromJID ->
+            Outgoing = jlib:are_equal_jids(ArcJID, FromJID),
+            Incoming = jlib:are_equal_jids(ArcJID, ToJID),
+            case {Outgoing, Incoming} of
+                {true, false} ->
                     archive_message(Host, MessID, ArcID,
                                     ArcJID, ToJID, FromJID,
                                     outgoing, MessElem);
-                ToJID ->
+                {false, true} ->
                     archive_message(Host, MessID, ArcID,
                                     ArcJID, FromJID, FromJID,
                                     incoming, MessElem);
@@ -258,6 +260,8 @@ restore_dump_file_unsave(ArcJID, InFileName, Opts) ->
             end
         end,
     mod_mam_dump:restore_dump_file(WriterF, InFileName, Opts).
+
+
 
 
 %% ----------------------------------------------------------------------
