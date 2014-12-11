@@ -17,6 +17,17 @@ echo "############################"
 echo "Running ejabberd_tests"
 echo "############################"
 
+# Print logs to stdout
+mkdir -p ${BASE}/dev/mongooseim_node1/log
+mkdir -p ${BASE}/dev/mongooseim_node2/log
+
+touch ${BASE}/dev/mongooseim_node1/log/ejabberd.log
+touch ${BASE}/dev/mongooseim_node2/log/ejabberd.log
+
+tail -f ${BASE}/dev/mongooseim_node1/log/ejabberd.log &
+tail -f ${BASE}/dev/mongooseim_node2/log/ejabberd.log &
+
+# Actual run
 echo -n "starting MongooseIM node 1: "
 ${EJD1CTL} start && echo ok || echo failed
 echo -n "starting MongooseIM node 2: "
