@@ -239,116 +239,6 @@ CREATE TABLE [dbo].[private_storage](
 GO
 SET ANSI_PADDING OFF
 GO
-/****** Object:  Table [dbo].[pubsub_item]    Script Date: 9/17/2014 6:20:03 AM ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-SET ANSI_PADDING ON
-GO
-CREATE TABLE [dbo].[pubsub_item](
-	[nodeid] [bigint] NULL,
-	[itemid] [varchar](max) NULL,
-	[publisher] [varchar](max) NULL,
-	[creation] [varchar](max) NULL,
-	[modification] [varchar](max) NULL,
-	[payload] [varchar](max) NULL
-) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
-
-GO
-SET ANSI_PADDING OFF
-GO
-/****** Object:  Table [dbo].[pubsub_node]    Script Date: 9/17/2014 6:20:03 AM ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-SET ANSI_PADDING ON
-GO
-CREATE TABLE [dbo].[pubsub_node](
-	[host] [varchar](max) NULL,
-	[node] [varchar](max) NULL,
-	[parent] [varchar](max) NULL,
-	[type] [varchar](max) NULL,
-	[nodeid] [bigint] IDENTITY(1,1) NOT NULL,
- CONSTRAINT [PK_pubsub_node_nodeid] PRIMARY KEY CLUSTERED
-(
-	[nodeid] ASC
-)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
-) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
-
-GO
-SET ANSI_PADDING OFF
-GO
-/****** Object:  Table [dbo].[pubsub_node_option]    Script Date: 9/17/2014 6:20:03 AM ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-SET ANSI_PADDING ON
-GO
-CREATE TABLE [dbo].[pubsub_node_option](
-	[nodeid] [bigint] NULL,
-	[name] [varchar](max) NULL,
-	[val] [varchar](max) NULL
-) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
-
-GO
-SET ANSI_PADDING OFF
-GO
-/****** Object:  Table [dbo].[pubsub_node_owner]    Script Date: 9/17/2014 6:20:03 AM ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-SET ANSI_PADDING ON
-GO
-CREATE TABLE [dbo].[pubsub_node_owner](
-	[nodeid] [bigint] NULL,
-	[owner] [varchar](max) NULL
-) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
-
-GO
-SET ANSI_PADDING OFF
-GO
-/****** Object:  Table [dbo].[pubsub_state]    Script Date: 9/17/2014 6:20:03 AM ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-SET ANSI_PADDING ON
-GO
-CREATE TABLE [dbo].[pubsub_state](
-	[nodeid] [bigint] NULL,
-	[jid] [varchar](max) NULL,
-	[affiliation] [char](1) NULL,
-	[subscriptions] [varchar](max) NULL,
-	[stateid] [bigint] IDENTITY(1,1) NOT NULL,
- CONSTRAINT [PK_pubsub_state_stateid] PRIMARY KEY CLUSTERED
-(
-	[stateid] ASC
-)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
-) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
-
-GO
-SET ANSI_PADDING OFF
-GO
-/****** Object:  Table [dbo].[pubsub_subscription_opt]    Script Date: 9/17/2014 6:20:03 AM ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-SET ANSI_PADDING ON
-GO
-CREATE TABLE [dbo].[pubsub_subscription_opt](
-	[subid] [varchar](max) NULL,
-	[opt_name] [varchar](32) NULL,
-	[opt_value] [varchar](max) NULL
-) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
-
-GO
-SET ANSI_PADDING OFF
-GO
 /****** Object:  Table [dbo].[roster_version]    Script Date: 9/17/2014 6:20:03 AM ******/
 SET ANSI_NULLS ON
 GO
@@ -507,18 +397,6 @@ ALTER TABLE [dbo].[privacy_list_data] ADD  DEFAULT (NULL) FOR [id]
 GO
 ALTER TABLE [dbo].[private_storage] ADD  DEFAULT (getdate()) FOR [created_at]
 GO
-ALTER TABLE [dbo].[pubsub_item] ADD  DEFAULT (NULL) FOR [nodeid]
-GO
-ALTER TABLE [dbo].[pubsub_node_option] ADD  DEFAULT (NULL) FOR [nodeid]
-GO
-ALTER TABLE [dbo].[pubsub_node_owner] ADD  DEFAULT (NULL) FOR [nodeid]
-GO
-ALTER TABLE [dbo].[pubsub_state] ADD  DEFAULT (NULL) FOR [nodeid]
-GO
-ALTER TABLE [dbo].[pubsub_state] ADD  DEFAULT (NULL) FOR [affiliation]
-GO
-ALTER TABLE [dbo].[pubsub_subscription_opt] ADD  DEFAULT (NULL) FOR [opt_name]
-GO
 ALTER TABLE [dbo].[rosterusers] ADD  DEFAULT (getdate()) FOR [created_at]
 GO
 ALTER TABLE [dbo].[spool] ADD  DEFAULT (getdate()) FOR [created_at]
@@ -534,30 +412,6 @@ GO
 ALTER TABLE [dbo].[vcard_search] ADD  DEFAULT (N'') FOR [lusername]
 GO
 ALTER TABLE [dbo].[vcard_search] ADD  DEFAULT (N'') FOR [server]
-GO
-ALTER TABLE [dbo].[pubsub_item]  WITH CHECK ADD  CONSTRAINT [pubsub_item$pubsub_item_ibfk_1] FOREIGN KEY([nodeid])
-REFERENCES [dbo].[pubsub_node] ([nodeid])
-ON DELETE CASCADE
-GO
-ALTER TABLE [dbo].[pubsub_item] CHECK CONSTRAINT [pubsub_item$pubsub_item_ibfk_1]
-GO
-ALTER TABLE [dbo].[pubsub_node_option]  WITH CHECK ADD  CONSTRAINT [pubsub_node_option$pubsub_node_option_ibfk_1] FOREIGN KEY([nodeid])
-REFERENCES [dbo].[pubsub_node] ([nodeid])
-ON DELETE CASCADE
-GO
-ALTER TABLE [dbo].[pubsub_node_option] CHECK CONSTRAINT [pubsub_node_option$pubsub_node_option_ibfk_1]
-GO
-ALTER TABLE [dbo].[pubsub_node_owner]  WITH CHECK ADD  CONSTRAINT [pubsub_node_owner$pubsub_node_owner_ibfk_1] FOREIGN KEY([nodeid])
-REFERENCES [dbo].[pubsub_node] ([nodeid])
-ON DELETE CASCADE
-GO
-ALTER TABLE [dbo].[pubsub_node_owner] CHECK CONSTRAINT [pubsub_node_owner$pubsub_node_owner_ibfk_1]
-GO
-ALTER TABLE [dbo].[pubsub_state]  WITH CHECK ADD  CONSTRAINT [pubsub_state$pubsub_state_ibfk_1] FOREIGN KEY([nodeid])
-REFERENCES [dbo].[pubsub_node] ([nodeid])
-ON DELETE CASCADE
-GO
-ALTER TABLE [dbo].[pubsub_state] CHECK CONSTRAINT [pubsub_state$pubsub_state_ibfk_1]
 GO
 EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.last' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'last'
 GO
@@ -580,18 +434,6 @@ GO
 EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.privacy_list_data' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'privacy_list_data'
 GO
 EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.private_storage' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'private_storage'
-GO
-EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.pubsub_item' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'pubsub_item'
-GO
-EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.pubsub_node' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'pubsub_node'
-GO
-EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.pubsub_node_option' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'pubsub_node_option'
-GO
-EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.pubsub_node_owner' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'pubsub_node_owner'
-GO
-EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.pubsub_state' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'pubsub_state'
-GO
-EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.pubsub_subscription_opt' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'pubsub_subscription_opt'
 GO
 EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.roster_version' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'roster_version'
 GO
