@@ -29,8 +29,8 @@ reload_dev: quick_compile
 	rsync -uW ./apps/ejabberd/ebin/*beam ./dev/mongooseim_node1/lib/$$E/ebin/ ;\
 
 ct: deps quick_compile
-	@if [ "$(SUITE)" ]; then ./rebar -q ct suite=$(SUITE) skip_deps=true;\
-	else ./rebar -q ct skip_deps=true; fi
+	@if [ "$(SUITE)" ]; then ./rebar -r -q ct suite=$(SUITE) skip_deps=true;\
+	else ./rebar -r -q ct skip_deps=true; fi
 
 # This compiles and runs one test suite. For quick feedback/TDD.
 # Example:
@@ -70,7 +70,7 @@ show_test_results:
 
 eunit: rebar deps
 	./rebar compile
-	./rebar skip_deps=true eunit
+	./rebar -r skip_deps=true eunit
 
 configure:
 	./tools/configure $(filter-out $@,$(MAKECMDGOALS))
