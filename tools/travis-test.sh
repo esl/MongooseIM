@@ -34,9 +34,11 @@ mkdir -p ${BASE}/dev/mongooseim_node2/log
 
 touch ${BASE}/dev/mongooseim_node1/log/ejabberd.log
 touch ${BASE}/dev/mongooseim_node2/log/ejabberd.log
+touch /tmp/ct_travis_hook.log
 
 tail -f ${BASE}/dev/mongooseim_node1/log/ejabberd.log &
 tail -f ${BASE}/dev/mongooseim_node2/log/ejabberd.log &
+tail -f /tmp/ct_travis_hook.log &
 
 # Actual run
 fold_start "start_nodes" "Starting MongooseIM nodes"
