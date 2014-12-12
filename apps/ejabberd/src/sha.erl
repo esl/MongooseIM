@@ -26,19 +26,16 @@
 
 -module(sha).
 
--export([sha/1]).
+-export([sha/1, to_hexlist/1]).
 
 -include("ejabberd.hrl").
 
-
-digit_to_xchar(D) when (D >= 0) and (D < 10) ->
-    D + 48;
-digit_to_xchar(D) ->
-    D + 87.
-
 sha(Text) ->
     Bin = crypto:hash(sha, Text),
-    lists:reverse(ints_to_rxstr(binary_to_list(Bin), [])).
+    to_hexlist(Bin).
+
+to_hexlist(Bin) ->
+    list_to_binary(lists:reverse(ints_to_rxstr(binary_to_list(Bin), []))).
 
 ints_to_rxstr([], Res) ->
     Res;
@@ -46,3 +43,7 @@ ints_to_rxstr([N | Ns], Res) ->
     ints_to_rxstr(Ns, [digit_to_xchar(N rem 16),
                        digit_to_xchar(N div 16) | Res]).
 
+digit_to_xchar(D) when (D >= 0) and (D < 10) ->
+    D + 48;
+digit_to_xchar(D) ->
+    D + 87.

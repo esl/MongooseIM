@@ -128,10 +128,10 @@ process_local_iq(From, To, #iq{type = Type} = IQ) ->
     end.
 
 roster_hash(Items) ->
-	list_to_binary(sha:sha(term_to_binary(
+	sha:sha(term_to_binary(
               lists:sort(
                 [R#roster{groups = lists:sort(Grs)} ||
-                    R = #roster{groups = Grs} <- Items])))).
+                    R = #roster{groups = Grs} <- Items]))).
 
 roster_versioning_enabled(Host) ->
     gen_mod:get_module_opt(Host, ?MODULE, versioning, false).
