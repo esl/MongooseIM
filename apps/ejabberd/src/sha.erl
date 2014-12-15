@@ -27,13 +27,6 @@
 -module(sha).
 -export([sha1_hex/1]).
 -include("ejabberd.hrl").
--define(SHA1_SIZE, 160).
--define(SHA1_STRLEN, 40).
 
 -spec sha1_hex(binary()) -> binary().
-sha1_hex(Text) ->
-    hexstring(crypto:hash(sha, Text)).
-
--spec hexstring(binary()) -> binary().
-hexstring(<<X:?SHA1_SIZE/big-unsigned-integer>>) ->
-    list_to_binary(lists:flatten(io_lib:format("~40.16.0b", [X]))).
+sha1_hex(Text) -> base16:encode(crypto:hash(sha, Text)).

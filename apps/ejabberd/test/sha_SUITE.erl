@@ -1,16 +1,8 @@
 -module(sha_SUITE).
 -compile([export_all]).
 
--include_lib("ejabberd/include/amp.hrl").
--include_lib("exml/include/exml.hrl").
-
--include_lib("common_test/include/ct.hrl").
 -include_lib("proper/include/proper.hrl").
--include_lib("eunit/include/eunit.hrl").
--import(prop_helper, [prop/2, readable_bitstring/0]).
-
--define(ae(Expected, Actual), ?assertEqual(Expected, Actual)).
-
+-import(prop_helper, [prop/2]).
 
 all() ->
     [ sanity_check,
