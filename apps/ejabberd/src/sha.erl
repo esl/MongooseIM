@@ -26,15 +26,18 @@
 
 -module(sha).
 
--export([sha/1, to_hexlist/1]).
+-export([sha/1, to_hex/1]).
 
 -include("ejabberd.hrl").
 
+%% Returns hex representation of sha sum
+-spec sha(binary()) -> binary().
 sha(Text) ->
     Bin = crypto:hash(sha, Text),
-    to_hexlist(Bin).
+    to_hex(Bin).
 
-to_hexlist(Bin) ->
+-spec to_hex(binary()) -> binary().
+to_hex(Bin) ->
     list_to_binary(lists:reverse(ints_to_rxstr(binary_to_list(Bin), []))).
 
 ints_to_rxstr([], Res) ->
