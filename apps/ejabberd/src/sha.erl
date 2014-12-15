@@ -36,4 +36,4 @@ sha1_hex(Text) ->
 
 -spec hexstring(binary()) -> binary().
 hexstring(<<X:?SHA1_SIZE/big-unsigned-integer>>) ->
-    list_to_binary(lists:flatten(io_lib:format("~?SHA1_STRLEN.16.0b", [X]))).
+    list_to_binary(lists:flatten(io_lib:format("~40.16.0b", [X]))).
