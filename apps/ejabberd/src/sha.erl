@@ -25,28 +25,15 @@
 %%%----------------------------------------------------------------------
 
 -module(sha).
-
--export([sha/1, to_hex/1]).
-
+-export([sha1_hex/1]).
 -include("ejabberd.hrl").
+-define(SHA1_SIZE, 160).
+-define(SHA1_STRLEN, 40).
 
-%% Returns hex representation of sha sum
--spec sha(binary()) -> binary().
-sha(Text) ->
-    Bin = crypto:hash(sha, Text),
-    to_hex(Bin).
+-spec sha1_hex(binary()) -> binary().
+sha1_hex(Text) ->
+    hexstring(crypto:hash(sha, Text)).
 
--spec to_hex(binary()) -> binary().
-to_hex(Bin) ->
-    list_to_binary(lists:reverse(ints_to_rxstr(binary_to_list(Bin), []))).
-
-ints_to_rxstr([], Res) ->
-    Res;
-ints_to_rxstr([N | Ns], Res) ->
-    ints_to_rxstr(Ns, [digit_to_xchar(N rem 16),
-                       digit_to_xchar(N div 16) | Res]).
-
-digit_to_xchar(D) when (D >= 0) and (D < 10) ->
-    D + 48;
-digit_to_xchar(D) ->
-    D + 87.
+-spec hexstring(binary()) -> binary().
+hexstring(<<X:?SHA1_SIZE/big-unsigned-integer>>) ->
+    list_to_binary(lists:flatten(io_lib:format("~?SHA1_STRLEN.16.0b", [X]))).

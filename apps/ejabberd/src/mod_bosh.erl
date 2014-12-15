@@ -364,7 +364,7 @@ start_session(Peer, Body) ->
 -spec make_sid() -> binary().
 make_sid() ->
     %% TODO: now() skews system timer and ref() is unique enough as is
-    sha:sha(term_to_binary({now(), make_ref()})).
+    sha:sha1_hex(term_to_binary({now(), make_ref()})).
 
 %%--------------------------------------------------------------------
 %% HTTP errors

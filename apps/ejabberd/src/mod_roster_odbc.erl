@@ -128,7 +128,7 @@ process_local_iq(From, To, #iq{type = Type} = IQ) ->
     end.
 
 roster_hash(Items) ->
-	sha:sha(term_to_binary(
+	sha:sha1_hex(term_to_binary(
               lists:sort(
                 [R#roster{groups = lists:sort(Grs)} ||
                     R = #roster{groups = Grs} <- Items]))).
@@ -190,7 +190,7 @@ process_iq_get(From, To, #iq{sub_el = SubEl} = IQ) ->
                             {lists:map(fun item_to_xml/1,
                                        ejabberd_hooks:run_fold(roster_get, To#jid.lserver, [], [US])), NewVersion};
                         {selected, [<<"version">>], []} ->
-                            RosterVersion = sha:sha(term_to_binary(now())),
+                            RosterVersion = sha:sha1_hex(term_to_binary(now())),
                             {atomic, {updated,1}} = odbc_queries:sql_transaction(LServer,
                                                                                  fun() ->
                                                                                          odbc_queries:set_roster_version(ejabberd_odbc:escape(LUser), RosterVersion)
@@ -364,7 +364,7 @@ process_item_set(From, To, #xmlel{attrs = Attrs, children = Els}) ->
                         Item3 = ejabberd_hooks:run_fold(roster_process_item,
                                                         LServer, Item2, [LServer]),
                         case roster_version_on_db(LServer) of
-                            true -> odbc_queries:set_roster_version(ejabberd_odbc:escape(LUser), sha:sha(term_to_binary(now())));
+                            true -> odbc_queries:set_roster_version(ejabberd_odbc:escape(LUser), sha:sha1_hex(term_to_binary(now())));
                             false -> ok
                         end,
                         {Item, Item3}
@@ -591,7 +591,7 @@ process_subscription(Direction, User, Server, JID1, Type, Reason) ->
                         ItemVals = record_to_string(NewItem),
                         odbc_queries:roster_subscribe(LServer, Username, SJID, ItemVals),
                         case roster_version_on_db(LServer) of
-                            true -> odbc_queries:set_roster_version(ejabberd_odbc:escape(LUser), sha:sha(term_to_binary(now())));
+                            true -> odbc_queries:set_roster_version(ejabberd_odbc:escape(LUser), sha:sha1_hex(term_to_binary(now())));
                             false -> ok
                         end,
                         {{push, NewItem}, AutoReply}
