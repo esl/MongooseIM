@@ -92,6 +92,12 @@
 -include_lib("ejabberd/include/jlib.hrl").
 -include_lib("exml/include/exml.hrl").
 
+%% Contains all values required for logging
+%% See report_state() type for types
+%% See new_report_state/4 for initialization
+%% Use this record for logging only
+-record(mam_report_state, {action, from_jid, arc_jid, iq}).
+
 %% ----------------------------------------------------------------------
 %% Datetime types
 %% Microseconds from 01.01.1970
@@ -120,6 +126,14 @@
 -type preference() :: {DefaultMode :: archive_behaviour(),
                        AlwaysJIDs  :: [ejabberd:literal_jid()],
                        NeverJIDs   :: [ejabberd:literal_jid()]}.
+
+-type mam_action() :: atom().
+-type report_state() :: #mam_report_state{
+        action :: mam_action(),
+        from_jid :: ejabberd:jid(),
+        arc_jid :: ejabberd:jid(),
+        iq :: ejabberd:iq()}.
+
 -export_type([rewriter_fun/0,
               borders/0,
               preference/0,
@@ -242,20 +256,26 @@ restore_dump_file_unsave(ArcJID, InFileName, Opts) ->
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
     WriterF = fun(MessID, FromJID, ToJID, MessElem) ->
-            case ArcJID of
-                FromJID ->
+            Outgoing = jlib:are_equal_jids(ArcJID, FromJID),
+            Incoming = jlib:are_equal_jids(ArcJID, ToJID),
+            case {Outgoing, Incoming} of
+                {true, false} ->
                     archive_message(Host, MessID, ArcID,
                                     ArcJID, ToJID, FromJID,
                                     outgoing, MessElem);
-                ToJID ->
+                {false, true} ->
                     archive_message(Host, MessID, ArcID,
                                     ArcJID, FromJID, FromJID,
                                     incoming, MessElem);
                 _ ->
+                    lager:error("Failed to restore archive, file=~p, arc_jid=~p, from_jid=~p, to_jid=~p, elem=~p",
+                                [InFileName, ArcJID, FromJID, ToJID, MessElem]),
                     {error, no_local_jid}
             end
         end,
     mod_mam_dump:restore_dump_file(WriterF, InFileName, Opts).
+
+
 
 
 %% ----------------------------------------------------------------------
@@ -406,20 +426,21 @@ action_to_shaper_name(Action) -> list_to_atom(atom_to_list(Action) ++ "_shaper")
 action_to_global_shaper_name(Action) -> list_to_atom(atom_to_list(Action) ++ "_global_shaper").
 
 
--spec handle_mam_iq('mam_get_prefs', From :: ejabberd:jid(), To :: ejabberd:jid(),
+-spec handle_mam_iq(Action :: mam_action(), From :: ejabberd:jid(), To :: ejabberd:jid(),
                     IQ :: ejabberd:iq()) -> ejabberd:iq().
 handle_mam_iq(Action, From, To, IQ) ->
+    RS = new_report_state(Action, From, To, IQ),
     case Action of
     mam_get_prefs ->
-        handle_get_prefs(To, IQ);
+        handle_get_prefs(To, RS, IQ);
     mam_set_prefs ->
-        handle_set_prefs(To, IQ);
+        handle_set_prefs(To, RS, IQ);
     mam_lookup_messages ->
-        handle_lookup_messages(From, To, IQ);
+        handle_lookup_messages(From, To, RS, IQ);
     mam_purge_single_message ->
-        handle_purge_single_message(To, IQ);
+        handle_purge_single_message(To, RS, IQ);
     mam_purge_multiple_messages ->
-        handle_purge_multiple_messages(To, IQ)
+        handle_purge_multiple_messages(To, RS, IQ)
     end.
 
 
@@ -437,46 +458,51 @@ iq_action(#iq{type = Action, sub_el = SubEl = #xmlel{name = Category}}) ->
     end.
 
 
--spec handle_set_prefs(ejabberd:jid(), ejabberd:iq()) -> ejabberd:iq().
-handle_set_prefs(ArcJID=#jid{},
-                 IQ=#iq{sub_el = PrefsEl}) ->
+-spec handle_set_prefs(ArcJID :: ejabberd:jid(), RS :: report_state(),
+                       IQ :: ejabberd:iq()) -> ejabberd:iq().
+handle_set_prefs(ArcJID=#jid{}, RS, IQ=#iq{sub_el = PrefsEl}) ->
     {DefaultMode, AlwaysJIDs, NeverJIDs} = parse_prefs(PrefsEl),
     ?DEBUG("Parsed data~n\tDefaultMode ~p~n\tAlwaysJIDs ~p~n\tNeverJIDS ~p~n",
               [DefaultMode, AlwaysJIDs, NeverJIDs]),
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
     Res = set_prefs(Host, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs),
-    handle_set_prefs_result(Res, DefaultMode, AlwaysJIDs, NeverJIDs, IQ).
+    handle_set_prefs_result(Res, DefaultMode, AlwaysJIDs, NeverJIDs, RS, IQ).
 
-handle_set_prefs_result(ok, DefaultMode, AlwaysJIDs, NeverJIDs, IQ) ->
+handle_set_prefs_result(ok, DefaultMode, AlwaysJIDs, NeverJIDs, _RS, IQ) ->
     ResultPrefsEl = result_prefs(DefaultMode, AlwaysJIDs, NeverJIDs),
     IQ#iq{type = result, sub_el = [ResultPrefsEl]};
 handle_set_prefs_result({error, Reason},
-                        _DefaultMode, _AlwaysJIDs, _NeverJIDs, IQ) ->
+                        _DefaultMode, _AlwaysJIDs, _NeverJIDs, RS, IQ) ->
+    report_error(RS, "Set preferences failed", Reason),
     return_error_iq(IQ, Reason).
 
 
--spec handle_get_prefs(ejabberd:jid(), IQ :: ejabberd:iq()) -> ejabberd:iq().
-handle_get_prefs(ArcJID=#jid{}, IQ=#iq{}) ->
+-spec handle_get_prefs(ejabberd:jid(), RS :: report_state(),
+                       IQ :: ejabberd:iq()) -> ejabberd:iq().
+handle_get_prefs(ArcJID=#jid{}, RS, IQ=#iq{}) ->
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
     Res = get_prefs(Host, ArcID, ArcJID, always),
-    handle_get_prefs_result(Res, IQ).
+    handle_get_prefs_result(Res, RS, IQ).
 
-handle_get_prefs_result({DefaultMode, AlwaysJIDs, NeverJIDs}, IQ) ->
+handle_get_prefs_result({DefaultMode, AlwaysJIDs, NeverJIDs}, _RS, IQ) ->
     ?DEBUG("Extracted data~n\tDefaultMode ~p~n\tAlwaysJIDs ~p~n\tNeverJIDS ~p~n",
               [DefaultMode, AlwaysJIDs, NeverJIDs]),
     ResultPrefsEl = result_prefs(DefaultMode, AlwaysJIDs, NeverJIDs),
     IQ#iq{type = result, sub_el = [ResultPrefsEl]};
-handle_get_prefs_result({error, Reason}, IQ) ->
+handle_get_prefs_result({error, Reason}, RS, IQ) ->
+    report_error(RS, "Get preferences failed", Reason),
     return_error_iq(IQ, Reason).
     
 
 -spec handle_lookup_messages(From :: ejabberd:jid(), ArcJID :: ejabberd:jid(),
+                             RS :: report_state(),
                              IQ :: ejabberd:iq()) -> ejabberd:iq().
 handle_lookup_messages(
         From=#jid{},
         ArcJID=#jid{},
+        RS,
         IQ=#iq{sub_el = QueryEl}) ->
     Now = mod_mam_utils:now_to_microseconds(now()),
     Host = server_host(ArcJID),
@@ -504,6 +530,7 @@ handle_lookup_messages(
                                  <<"en">>, <<"Too many results">>),
         IQ#iq{type = error, sub_el = [ErrorEl]};
     {error, Reason} ->
+        report_error(RS, "lookup failed", Reason),
         return_error_iq(IQ, Reason);
     {ok, {TotalCount, Offset, MessageRows}} ->
         {FirstMessID, LastMessID} =
@@ -524,9 +551,10 @@ handle_lookup_messages(
 
 
 %% @doc Purging multiple messages
--spec handle_purge_multiple_messages(ejabberd:jid(), IQ :: ejabberd:iq()
-                                    ) -> ejabberd:iq().
+-spec handle_purge_multiple_messages(ejabberd:jid(), RS :: report_state(),
+                                     IQ :: ejabberd:iq()) -> ejabberd:iq().
 handle_purge_multiple_messages(ArcJID=#jid{},
+                               RS,
                                IQ=#iq{sub_el = PurgeEl}) ->
     Now = mod_mam_utils:now_to_microseconds(now()),
     Host = server_host(ArcJID),
@@ -541,12 +569,13 @@ handle_purge_multiple_messages(ArcJID=#jid{},
     With  = elem_to_with_jid(PurgeEl),
     Res = purge_multiple_messages(Host, ArcID, ArcJID, Borders,
                                   Start, End, Now, With),
-    return_purge_multiple_message_iq(IQ, Res).
+    return_purge_multiple_message_iq(RS, IQ, Res).
 
 
--spec handle_purge_single_message(ejabberd:jid(), IQ :: ejabberd:iq()
-                                 ) -> ejabberd:iq().
+-spec handle_purge_single_message(ejabberd:jid(), RS :: report_state(),
+                                  IQ :: ejabberd:iq()) -> ejabberd:iq().
 handle_purge_single_message(ArcJID=#jid{},
+                            RS,
                             IQ=#iq{sub_el = PurgeEl}) ->
     Now = mod_mam_utils:now_to_microseconds(now()),
     Host = server_host(ArcJID),
@@ -554,7 +583,7 @@ handle_purge_single_message(ArcJID=#jid{},
     BExtMessID = xml:get_tag_attr_s(<<"id">>, PurgeEl),
     MessID = mod_mam_utils:external_binary_to_mess_id(BExtMessID),
     PurgingResult = purge_single_message(Host, MessID, ArcID, ArcJID, Now),
-    return_purge_single_message_iq(IQ, PurgingResult).
+    return_purge_single_message_iq(RS, IQ, PurgingResult).
 
 
 -spec handle_package(Dir :: incoming | outgoing, ReturnMessID :: boolean(),
@@ -780,19 +809,22 @@ return_action_not_allowed_error_iq(IQ) ->
          <<"en">>, <<"The action is not allowed.">>),
     IQ#iq{type = error, sub_el = [ErrorEl]}.
 
-return_purge_multiple_message_iq(IQ, ok) ->
+return_purge_multiple_message_iq(_RS, IQ, ok) ->
     return_purge_success(IQ);
-return_purge_multiple_message_iq(IQ, {error, Reason}) ->
+return_purge_multiple_message_iq(RS, IQ, {error, Reason}) ->
+    report_error(RS, "Purge by range failed", Reason),
     return_error_iq(IQ, Reason).
 
--spec return_purge_single_message_iq(ejabberd:iq(),
+-spec return_purge_single_message_iq(RS :: report_state(),
+        IQ :: ejabberd:iq(),
         ok|{error, 'not-found'}|{error, Reason :: term()}
                                     ) -> ejabberd:iq().
-return_purge_single_message_iq(IQ, ok) ->
+return_purge_single_message_iq(_RS, IQ, ok) ->
     return_purge_success(IQ);
-return_purge_single_message_iq(IQ, {error, 'not-found'}) ->
+return_purge_single_message_iq(_RS, IQ, {error, 'not-found'}) ->
     return_purge_not_found_error_iq(IQ);
-return_purge_single_message_iq(IQ, {error, Reason}) ->
+return_purge_single_message_iq(RS, IQ, {error, Reason}) ->
+    report_error(RS, "Purge by id failed", Reason),
     return_error_iq(IQ, Reason).
 
 -spec return_purge_success(ejabberd:iq()) -> ejabberd:iq().
@@ -822,3 +854,27 @@ return_error_iq(IQ, _Reason) ->
     IQ#iq{type = error, sub_el = [?ERR_INTERNAL_SERVER_ERROR]}.
 
 
+
+-spec new_report_state(Action :: mam_action(),
+                       From :: ejabberd:jid(), ArcJID :: ejabberd:jid(),
+                       IQ :: ejabberd:iq()) -> ReportState :: report_state().
+new_report_state(Action, From=#jid{}, ArcJID=#jid{}, IQ=#iq{}) when is_atom(Action) ->
+    #mam_report_state{
+        action=Action,
+        from_jid=From,
+        arc_jid=ArcJID,
+        iq=IQ}.
+
+-spec report_error(ReportState :: report_state(), Desc :: string(),
+                   Reason :: term()) -> ok.
+report_error(ReportState=#mam_report_state{}, Desc, Reason) ->
+    #mam_report_state{
+        action=Action,
+        from_jid=From,
+        arc_jid=ArcJID,
+        iq=IQ} = ReportState,
+    BFrom = jlib:jid_to_binary(From),
+    BArcJID = jlib:jid_to_binary(ArcJID),
+    ?WARNING_MSG("~s, action=~p, from_jid=~ts, arc_jid=~ts, error=~p, iq=~p",
+                 [Desc, Action, BFrom, BArcJID, Reason, IQ]),
+    ok.

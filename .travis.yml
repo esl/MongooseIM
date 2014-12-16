@@ -7,6 +7,7 @@ before_install:
 install: tools/travis-build.sh
 before_script:
         - tools/travis-setup-db.sh
+        - tools/travis-setup-cassandra.sh
         - if [ $TEST_CONFIG = 'ldap_mnesia' ]; then tools/travis-setup-ldap.sh; fi
 script: tools/travis-test.sh
 
@@ -22,7 +23,10 @@ after_script:
 after_success:
         - make cover_report
 
-services: redis-server
+services:
+        - redis-server
+        - cassandra
+
 branches:
         only:
                 - master
@@ -31,13 +35,7 @@ notifications:
 otp_release:
         - R16B03
 env:
-        - TEST_CONFIG=internal_redis DB=mnesia
-        - TEST_CONFIG=internal_mnesia DB=mnesia
         - TEST_CONFIG=mysql_mnesia DB=mysql
-        - TEST_CONFIG=odbc_pgsql_mnesia DB=pgsql
-        - TEST_CONFIG=pgsql_mnesia DB=pgsql
-        - TEST_CONFIG=ldap_mnesia DB=mnesia
-        - TEST_CONFIG=external_mnesia DB=mnesia
 
 matrix:
     include:
