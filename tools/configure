@@ -1,0 +1,20 @@
+#!/usr/bin/env escript
+
+main(Opts) ->
+    {AppsToRun, AppsToInclude} = lists:foldl(fun(O, Acc) -> analyze_opt(O, Acc) end,
+                                             {[], []}, Opts),
+    Data = io_lib:fwrite("~p.~n~p.", [{apps_to_run, AppsToRun}, {apps_to_include, AppsToInclude}]),
+    file:write_file("configure.out", Data).
+
+analyze_opt("--with-mysql", {AppsToInclude, AppsToRun}) ->
+    {[mysql | AppsToInclude], AppsToRun};
+analyze_opt("--with-pgsql", {AppsToInclude, AppsToRun}) ->
+    {[pgsql | AppsToInclude], AppsToRun};
+analyze_opt("--with-odbc", {AppsToInclude, AppsToRun}) ->
+    {[odbc | AppsToInclude], AppsToRun};
+analyze_opt("--with-redis", {AppsToInclude, AppsToRun}) ->
+    {[redo | AppsToInclude], AppsToRun};
+analyze_opt("--with-cassandra", {AppsToInclude, AppsToRun}) ->
+    {[seestar | AppsToInclude], AppsToRun};
+analyze_opt(_, Acc) ->
+    Acc.
