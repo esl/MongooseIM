@@ -67,9 +67,6 @@ devrel: $(DEVNODES)
 $(DEVNODES): rebar deps compile deps_dev
 	@echo "building $@"
 	(cd rel && ../rebar generate -f target_dir=../dev/mongooseim_$@ overlay_vars=./reltool_vars/$@_vars.config)
-	cp -R apps/ejabberd/src `ls -dt dev/mongooseim_$@/lib/ejabberd-2.1.8*/ | head -1`
-	cp -R apps/pgsql/src `ls -dt dev/mongooseim_$@/lib/pgsql*/ | head -1`
-	cp -R apps/mysql/src `ls -dt dev/mongooseim_$@/lib/mysql*/ | head -1`
 	cp -R `dirname $(shell ./readlink.sh $(shell which erl))`/../lib/tools-* dev/mongooseim_$@/lib/
 
 deps_dev:
