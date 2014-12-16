@@ -141,10 +141,10 @@ process_local_iq(From, To, #iq{type = Type} = IQ) ->
     end.
 
 roster_hash(Items) ->
-	list_to_binary(sha:sha(term_to_binary(
+	sha:sha1_hex(term_to_binary(
 		lists:sort(
 			[R#roster{groups = lists:sort(Grs)} ||
-				R = #roster{groups = Grs} <- Items])))).
+				R = #roster{groups = Grs} <- Items]))).
 
 roster_versioning_enabled(Host) ->
     gen_mod:get_module_opt(Host, ?MODULE, versioning, false).
@@ -199,7 +199,7 @@ process_iq_get(From, To, #iq{sub_el = SubEl} = IQ) ->
                                         {lists:map(fun item_to_xml/1,
                                                 ejabberd_hooks:run_fold(roster_get, To#jid.lserver, [], [US])), NewVersion};
                                 [] ->
-                                        RosterVersion = sha:sha(term_to_binary(now())),
+                                        RosterVersion = sha:sha1_hex(term_to_binary(now())),
                                         mnesia:dirty_write(#roster_version{us = US, version = RosterVersion}),
                                         {lists:map(fun item_to_xml/1,
                                                 ejabberd_hooks:run_fold(roster_get, To#jid.lserver, [], [US])), RosterVersion}
@@ -324,7 +324,7 @@ process_item_set(From, To, #xmlel{attrs = Attrs, children = Els}) ->
                         Item3 = ejabberd_hooks:run_fold(roster_process_item,
                                                         LServer, Item2, [LServer]),
                         case roster_version_on_db(LServer) of
-                                true -> mnesia:write(#roster_version{us = {LUser, LServer}, version = sha:sha(term_to_binary(now()))});
+                                true -> mnesia:write(#roster_version{us = {LUser, LServer}, version = sha:sha1_hex(term_to_binary(now()))});
                                 false -> ok
                         end,
                         {Item, Item3}
@@ -550,7 +550,7 @@ process_subscription(Direction, User, Server, JID1, Type, Reason) ->
                                               askmessage = AskMessage},
                         mnesia:write(NewItem),
                         case roster_version_on_db(LServer) of
-                                true -> mnesia:write(#roster_version{us = {LUser, LServer}, version = sha:sha(term_to_binary(now()))});
+                                true -> mnesia:write(#roster_version{us = {LUser, LServer}, version = sha:sha1_hex(term_to_binary(now()))});
                                 false -> ok
                         end,
                         {{push, NewItem}, AutoReply}
