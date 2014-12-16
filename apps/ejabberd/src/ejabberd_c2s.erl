@@ -1881,26 +1881,14 @@ get_conn_type(StateData) ->
                              State :: state()) -> 'ok'.
 process_presence_probe(From, To, StateData) ->
     LFrom = jlib:jid_tolower(From),
-    LBFrom = setelement(3, LFrom, <<>>),
+    LBareFrom = setelement(3, LFrom, <<>>),
     case StateData#state.pres_last of
         undefined ->
             ok;
         _ ->
-            Cond1 = (not StateData#state.pres_invis)
-                andalso (?SETS:is_element(LFrom, StateData#state.pres_f)
-                         orelse
-                         ((LFrom /= LBFrom) andalso
-                          ?SETS:is_element(LBFrom, StateData#state.pres_f)))
-                andalso (not
-                         (?SETS:is_element(LFrom, StateData#state.pres_i)
-                          orelse
-                          ((LFrom /= LBFrom) andalso
-                           ?SETS:is_element(LBFrom, StateData#state.pres_i)))),
-            Cond2 = StateData#state.pres_invis
-                andalso ?SETS:is_element(LFrom, StateData#state.pres_f)
-                andalso ?SETS:is_element(LFrom, StateData#state.pres_a),
-            if
-                Cond1 ->
+            case {should_retransmit_last_presence(LFrom, LBareFrom, StateData),
+                  specifically_visible_to(LFrom, StateData)} of
+                {true, _} ->
                     Timestamp = StateData#state.pres_timestamp,
                     Packet = xml:append_subtags(
                                StateData#state.pres_last,
@@ -1912,8 +1900,10 @@ process_presence_probe(From, To, StateData) ->
                         deny ->
                             ok;
                         allow ->
-                            Pid=element(2, StateData#state.sid),
-                            ejabberd_hooks:run(presence_probe_hook, StateData#state.server, [From, To, Pid]),
+                            Pid = element(2, StateData#state.sid),
+                            ejabberd_hooks:run(presence_probe_hook,
+                                               StateData#state.server,
+                                               [From, To, Pid]),
                             %% Don't route a presence probe to oneself
                             case jlib:are_equal_jids(From, To) of
                                 false ->
@@ -1922,14 +1912,34 @@ process_presence_probe(From, To, StateData) ->
                                     ok
                             end
                     end;
-                Cond2 ->
-                    ejabberd_router:route(To, From,
-                                          #xmlel{name = <<"presence">>});
-                true ->
+                {false, true} ->
+                    ejabberd_router:route(To, From, #xmlel{name = <<"presence">>});
+                _ ->
                     ok
             end
     end.
 
+should_retransmit_last_presence(LFrom, LBareFrom,
+                                #state{pres_invis = Invisible} = S) ->
+    not Invisible
+    andalso is_subscribed_to_my_presence(LFrom, LBareFrom, S)
+    andalso not invisible_to(LFrom, LBareFrom, S).
+
+is_subscribed_to_my_presence(LFrom, LBareFrom, S) ->
+    ?SETS:is_element(LFrom, S#state.pres_f)
+    orelse (LFrom /= LBareFrom)
+    andalso ?SETS:is_element(LBareFrom, S#state.pres_f).
+
+invisible_to(LFrom, LBareFrom, S) ->
+    ?SETS:is_element(LFrom, S#state.pres_i)
+    orelse (LFrom /= LBareFrom)
+    andalso ?SETS:is_element(LBareFrom, S#state.pres_i).
+
+%% @doc Is generally invisible, but visible to a particular resource?
+specifically_visible_to(LFrom, #state{pres_invis = Invisible} = S) ->
+    Invisible
+    andalso ?SETS:is_element(LFrom, S#state.pres_f)
+    andalso ?SETS:is_element(LFrom, S#state.pres_a).
 
 %% @doc User updates his presence (non-directed presence packet)
 -spec presence_update(From :: 'undefined' | ejabberd:jid(),
