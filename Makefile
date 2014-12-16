@@ -44,11 +44,8 @@ quickrun: etc/ejabberd.cfg
 	erl -sname mongooseim@localhost -setcookie ejabberd -pa deps/*/ebin apps/*/ebin -config rel/files/app.config -s ejabberd
 
 etc/ejabberd.cfg:
-	erl -pa deps/mustache/ebin -noshell -eval \
-		'{ok, Template} = file:read_file("rel/files/ejabberd.cfg"), \
-		{ok, Vars} = file:consult("rel/vars.config"), \
-		file:write_file("etc/ejabberd.cfg", mustache:render(binary_to_list(Template), dict:from_list(Vars))), \
-		init:stop()'
+	tools/generate_cfg.es etc/ejabberd.cfg
+
 
 cover_test: test_deps
 	cd test/ejabberd_tests; make cover_test
