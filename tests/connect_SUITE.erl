@@ -33,9 +33,17 @@
 
 
 all() ->
+    [{group, starttls},
+     {group, tls}].
+
+groups() ->
+    [{starttls, test_cases()},
+     {tls, [should_pass_with_all_tls_versions_up_to_12]}].
+
+test_cases() ->
     [should_fail_with_sslv3,
      should_pass_with_all_tls_versions_up_to_12,
-     should_fail_to_authenticate_without_tls].
+     should_fail_to_authenticate_without_starttls].
 
 suite() ->
     escalus:suite().
@@ -44,15 +52,33 @@ suite() ->
 %% Init & teardown
 %%--------------------------------------------------------------------
 
-init_per_suite(Config0) ->
-    Config1 = escalus:init_per_suite(Config0),
-    Config2 = setup_ejabberd_node(Config1),
-    escalus:create_users(Config2, {by_name, [?SECURE_USER]}).
+init_per_suite(Config) ->
+    Config0 = escalus:init_per_suite([{escalus_user_db, {module, escalus_ejabberd, []}} | Config]),
+    Config1 = ejabberd_node_utils:init(Config0),
+    ejabberd_node_utils:backup_config_file(Config1),
+    assert_cert_file_exists(),
+    escalus:create_users(Config1, {by_name, [?SECURE_USER]}).
 
 end_per_suite(Config) ->
     escalus:delete_users(Config, {by_name, [?SECURE_USER]}),
     restore_ejabberd_node(Config),
     escalus:end_per_suite(Config).
+
+init_per_group(starttls, Config) ->
+    config_ejabberd_node_tls(Config, fun mk_value_for_starttls_required_config_pattern/0),
+    ejabberd_node_utils:restart_application(ejabberd),
+    Config;
+init_per_group(tls, Config) ->
+    config_ejabberd_node_tls(Config, fun mk_value_for_tls_config_pattern/0),
+    ejabberd_node_utils:restart_application(ejabberd),
+    Users = proplists:get_value(escalus_users, Config, []),
+    JoeSpec = lists:keydelete(starttls, 1, proplists:get_value(?SECURE_USER, Users)),
+    JoeSpec2 = {?SECURE_USER, lists:keystore(ssl, 1, JoeSpec, {ssl, true})},
+    NewUsers = lists:keystore(?SECURE_USER, 1, Users, JoeSpec2),
+    lists:keystore(escalus_users, 1, Config, {escalus_users, NewUsers}).
+
+end_per_group(_, Config) ->
+    Config.
 
 %%--------------------------------------------------------------------
 %% Tests
@@ -62,7 +88,6 @@ should_fail_with_sslv3(Config) ->
     %% GIVEN
     UserSpec0 = escalus_users:get_userspec(Config, ?SECURE_USER),
     UserSpec1 = set_secure_connection_protocol(UserSpec0, sslv3),
-
     %% WHEN
     try escalus_connection:start(UserSpec1) of
     %% THEN
@@ -70,7 +95,9 @@ should_fail_with_sslv3(Config) ->
             error(client_connected_using_sslv3)
     catch
         error:closed ->
-            ok
+            ok;
+        E:D ->
+            ct:print("asdf ~p:~p", [E,D])
     end.
 
 should_pass_with_all_tls_versions_up_to_12(Config) ->
@@ -85,7 +112,7 @@ should_pass_with_all_tls_versions_up_to_12(Config) ->
          ?assertMatch({ok, _, _, _}, Result)
      end || Version <- ?TLS_VERSIONS].
 
-should_fail_to_authenticate_without_tls(Config) ->
+should_fail_to_authenticate_without_starttls(Config) ->
     %% GIVEN
     UserSpec = escalus_users:get_userspec(Config, ?SECURE_USER),
     {Conn, Props, Features} = start_stream_with_compression(UserSpec),
@@ -107,14 +134,6 @@ should_fail_to_authenticate_without_tls(Config) ->
 %% Internal functions
 %%--------------------------------------------------------------------
 
-setup_ejabberd_node(Config0) ->
-    Config1 = ejabberd_node_utils:init(Config0),
-    ejabberd_node_utils:backup_config_file(Config1),
-    assert_cert_file_exists(),
-    make_ejabberd_node_require_starttls(Config1),
-    ejabberd_node_utils:restart_application(ejabberd),
-    Config1.
-
 restore_ejabberd_node(Config) ->
     ejabberd_node_utils:restore_config_file(Config),
     ejabberd_node_utils:restart_application(ejabberd).
@@ -123,11 +142,14 @@ assert_cert_file_exists() ->
     ejabberd_node_utils:file_exists(?CERT_FILE) orelse
         ct:fail("cert file ~s not exists", [?CERT_FILE]).
 
-make_ejabberd_node_require_starttls(Config) ->
-    ejabberd_node_utils:modify_config_file([mk_value_for_tls_config_pattern()],
+config_ejabberd_node_tls(Config, Fun) ->
+    ejabberd_node_utils:modify_config_file([Fun()],
                                            Config).
 
 mk_value_for_tls_config_pattern() ->
+    {tls_config, "{certfile, \"" ++ ?CERT_FILE ++ "\"}, tls,"}.
+
+mk_value_for_starttls_required_config_pattern() ->
     {tls_config, "{certfile, \"" ++ ?CERT_FILE ++ "\"}, starttls_required,"}.
 
 set_secure_connection_protocol(UserSpec, Version) ->
