@@ -59,6 +59,9 @@ eunit: rebar deps
 	./rebar compile
 	./rebar skip_deps=true eunit
 
+configure:
+	./tools/configure $(addprefix --, $(filter-out $@,$(MAKECMDGOALS)))
+
 rel: rebar deps
 	./rebar compile generate -f
 
@@ -109,8 +112,5 @@ cleanplt:
 test_deps: rebar
 	./rebar -C rebar.tests.config get-deps
 
-# This might download a version which can't build the project properly!
-# Compatible rebar version should be checked into the repository.
-rebar:
-	wget -q http://cloud.github.com/downloads/basho/rebar/rebar
-	chmod u+x rebar
+%:
+	@:

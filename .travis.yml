@@ -31,11 +31,11 @@ notifications:
 otp_release:
         - R16B03
 env:
-        - PRESET=internal_redis DB=mnesia REL_CONFIG=--with-redis
+        - PRESET=internal_redis DB=mnesia REL_CONFIG=with-redis
         - PRESET=internal_mnesia DB=mnesia
-        - PRESET=mysql_mnesia DB=mysql REL_CONFIG=--with-mysql
-        - PRESET=odbc_pgsql_mnesia DB=pgsql REL_CONFIG=--with-odbc
-        - PRESET=pgsql_mnesia DB=pgsql REL_CONFIG=--with-pgsql
+        - PRESET=mysql_mnesia DB=mysql REL_CONFIG=with-mysql
+        - PRESET=odbc_pgsql_mnesia DB=pgsql REL_CONFIG=with-odbc
+        - PRESET=pgsql_mnesia DB=pgsql REL_CONFIG=with-pgsql
         - PRESET=ldap_mnesia DB=mnesia
         - PRESET=external_mnesia DB=mnesia
 

@@ -6,8 +6,10 @@ TRAVIS_DB_PASSWORD=$(cat /tmp/travis_db_password)
 
 ${TOOLS}/set-odbc-password vars ${TRAVIS_DB_PASSWORD}
 
-${TOOLS}/configure $REL_CONFIG
+make configure $REL_CONFIG
+
 cat configure.out
+echo ""
 
 make devclean devrel
 make test_deps
