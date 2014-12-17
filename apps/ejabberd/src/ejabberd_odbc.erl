@@ -619,7 +619,10 @@ abort_on_driver_error(Reply, From) ->
 -spec odbc_connect(ConnString :: string()) -> {ok | error, _}.
 odbc_connect(SQLServer) ->
     application:start(odbc),
-    odbc:connect(SQLServer, [{scrollable_cursors, off}, {binary_strings, on}]).
+    Opts = [{scrollable_cursors, off},
+            {binary_strings, on},
+            {timeout, 5000}],
+    odbc:connect(SQLServer, Opts).
 
 binaryze_odbc(ODBCResults) when is_list(ODBCResults) ->
     lists:map(fun binaryze_odbc/1, ODBCResults);
