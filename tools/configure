@@ -40,4 +40,5 @@ all_opts_with_desc() ->
 usage() ->
     io:format("specifies which 3rd party deps will be included in release~n"),
     io:format("possible opptions:~n"),
-    [io:format("~s\t~s~n", [Opt, Desc]) || {Opt, Desc} <- all_opts_with_desc()].
+    [io:format("~s\t~s~n", [Opt, Desc]) || {Opt, Desc} <- all_opts_with_desc()],
+    io:format("~s\t\t~s~n", ["--all", "include all above deps"]).
