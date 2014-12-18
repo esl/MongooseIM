@@ -78,6 +78,7 @@ get-deps: rebar
 	./rebar get-deps
 
 clean: rebar
+	rm -rf tests/*.beam
 	./rebar clean
 
 rebar:
