@@ -20,6 +20,8 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml.hrl").
 
+-import(mongoose_helper, [auth_modules/0]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -593,13 +595,6 @@ stats_host(Config) ->
 %%-----------------------------------------------------------------
 %% Helpers
 %%-----------------------------------------------------------------
-
-auth_modules() ->
-    Hosts = escalus_ejabberd:rpc(ejabberd_config, get_global_option, [hosts]),
-    lists:flatmap(
-      fun(Host) ->
-              escalus_ejabberd:rpc(ejabberd_auth, auth_modules, [Host])
-      end, Hosts).
 
 start_mod_admin_extra() ->
     Domain = ct:get_config(ejabberd_domain),

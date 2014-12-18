@@ -1,6 +1,6 @@
 -module(run_common_test).
 
--export([main/1]).
+-export([main/1, analyze/0]).
 
 -define(CT_DIR, filename:join([".", "tests"])).
 -define(CT_REPORT, filename:join([".", "ct_report"])).
@@ -219,6 +219,9 @@ analyze() ->
     end.
 
 make_html() ->
+    {ok, Root} = file:get_cwd(),
+    SortScript = Root ++ "/priv/sorttable.js",
+    os:cmd("cp " ++ SortScript ++ " " ++ ?CT_REPORT),
     Modules = cover:imported_modules(),
     FilePath = case file:read_file(?CT_REPORT++"/index.html") of
         {ok, IndexFileData} ->
@@ -270,6 +273,7 @@ row(Row, C, NC, Percent, Path) ->
 
 get_cover_header() ->
     "<html>\n<head></head>\n<body bgcolor=\"white\" text=\"black\" link=\"blue\" vlink=\"purple\" alink=\"red\">\n"
+    "<head><script src='sorttable.js'></script></head>"
     "<h1>Coverage for application 'MongooseIM'</h1>\n"
-    "<table border=3 cellpadding=5>\n"
+    "<table class='sortable' border=3 cellpadding=5>\n"
     "<tr><th>Module</th><th>Covered (%)</th><th>Covered (Lines)</th><th>Not covered (Lines)</th><th>Total (Lines)</th></tr>".
