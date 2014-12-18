@@ -25,7 +25,7 @@
 
 -define(SECURE_USER, secure_joe).
 -define(CERT_FILE, "/tmp/server.pem").
--define(TLS_VERSIONS, [tlsv1, 'tlsv1.1', 'tlsv1.2']).
+-define(TLS_VERSIONS, ["tlsv1", "tlsv1.1", "tlsv1.2"]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -38,11 +38,11 @@ all() ->
 
 groups() ->
     [{starttls, test_cases()},
-     {tls, [should_pass_with_all_tls_versions_up_to_12]}].
+     {tls, generate_tls_vsn_tests()}].
 
 test_cases() ->
+    generate_tls_vsn_tests() ++
     [should_fail_with_sslv3,
-     should_pass_with_all_tls_versions_up_to_12,
      should_fail_to_authenticate_without_starttls].
 
 suite() ->
@@ -80,6 +80,10 @@ init_per_group(tls, Config) ->
 end_per_group(_, Config) ->
     Config.
 
+generate_tls_vsn_tests() ->
+    [list_to_existing_atom("should_pass_with_" ++ VSN)
+     || VSN <- ?TLS_VERSIONS].
+
 %%--------------------------------------------------------------------
 %% Tests
 %%--------------------------------------------------------------------
@@ -95,22 +99,28 @@ should_fail_with_sslv3(Config) ->
             error(client_connected_using_sslv3)
     catch
         error:closed ->
-            ok;
-        E:D ->
-            ct:print("asdf ~p:~p", [E,D])
+            ok
     end.
 
-should_pass_with_all_tls_versions_up_to_12(Config) ->
-    [begin
-         UserSpec0 = escalus_users:get_userspec(Config, ?SECURE_USER),
-         UserSpec1 = set_secure_connection_protocol(UserSpec0, Version),
+should_pass_with_tlsv1(Config) ->
+    should_pass_with_tls(tlsv1, Config).
 
-         %% WHEN
-         Result = escalus_connection:start(UserSpec1),
+'should_pass_with_tlsv1.1'(Config) ->
+    should_pass_with_tls('tlsv1.1', Config).
 
-         %% THEN
-         ?assertMatch({ok, _, _, _}, Result)
-     end || Version <- ?TLS_VERSIONS].
+'should_pass_with_tlsv1.2'(Config) ->
+    should_pass_with_tls('tlsv1.2', Config).
+
+
+should_pass_with_tls(Version, Config)->
+    UserSpec0 = escalus_users:get_userspec(Config, ?SECURE_USER),
+    UserSpec1 = set_secure_connection_protocol(UserSpec0, Version),
+
+    %% WHEN
+    Result = escalus_connection:start(UserSpec1),
+
+    %% THEN
+    ?assertMatch({ok, _, _, _}, Result).
 
 should_fail_to_authenticate_without_starttls(Config) ->
     %% GIVEN
@@ -160,8 +170,5 @@ start_stream_with_compression(UserSpec) ->
     {ok, Conn, Props, Features} = escalus_connection:start(UserSpec,
                                                             ConnetctionSteps),
     {Conn, Props, Features}.
-
-
-
 
 
