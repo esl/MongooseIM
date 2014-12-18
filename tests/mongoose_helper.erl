@@ -96,6 +96,7 @@ generic_count_backend(mod_privacy_mnesia) -> count_wildpattern(privacy);
 generic_count_backend(mod_privacy_odbc) -> count_odbc(<<"privacy_list">>);
 generic_count_backend(mod_private_mnesia) -> count_wildpattern(private_storage);
 generic_count_backend(mod_private_odbc) -> count_odbc(<<"private_storage">>);
+generic_count_backend(mod_private_mysql) -> count_odbc(<<"private_storage">>);
 generic_count_backend(mod_vcard_mnesia) -> count_wildpattern(vcard);
 generic_count_backend(mod_vcard_odbc) -> count_odbc(<<"vcard">>);
 generic_count_backend(mod_vcard_ldap) ->
