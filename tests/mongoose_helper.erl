@@ -1,6 +1,9 @@
 -module(mongoose_helper).
 
 %% API
+
+-export([auth_modules/0]).
+
 -export([total_offline_messages/0,
          total_active_users/0,
          total_privacy_items/0,
@@ -11,6 +14,14 @@
 -export([clear_last_activity/2]).
 
 -define(RPC(M,F,A), escalus_ejabberd:rpc(M, F, A)).
+
+-spec auth_modules() -> [atom()].
+auth_modules() ->
+    Hosts = escalus_ejabberd:rpc(ejabberd_config, get_global_option, [hosts]),
+    lists:flatmap(
+        fun(Host) ->
+            escalus_ejabberd:rpc(ejabberd_auth, auth_modules, [Host])
+        end, Hosts).
 
 -spec total_offline_messages() -> integer() | false.
 total_offline_messages() ->

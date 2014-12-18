@@ -33,8 +33,15 @@
 
 
 all() ->
-    [{group, starttls},
-     {group, tls}].
+    AuthMods = mongoose_helper:auth_modules(),
+    case lists:member(ejabberd_auth_external, AuthMods) of
+        true ->
+            {skip, "Conf reload doesn't work correctly with sample external auth"};
+        _ ->
+
+            [{group, starttls},
+                {group, tls}]
+    end.
 
 groups() ->
     [{starttls, test_cases()},
