@@ -152,9 +152,21 @@ modify_config_file(Node, VarsFile, CfgVarsToChange, Config) ->
     {ok, NodeVars} = ejabberd_node_utils:call_fun(Node, file, consult,
                                                   [?CFG_VARS_PATH(Node, Config, VarsFile)]),
 
-    CfgVars = dict:to_list(dict:merge(fun(_, V, _) -> V end,
+    PresetVars = case proplists:get_value(preset, Config) of
+                     undefined ->
+                         [];
+                     Name ->
+                         Presets = ct:get_config(ejabberd_presets),
+                         proplists:get_value(list_to_existing_atom(Name), Presets)
+                 end,
+
+    CfgVars1 = dict:to_list(dict:merge(fun(_, V, _) -> V end,
                                       dict:from_list(NodeVars),
                                       dict:from_list(DefaultVars))),
+
+    CfgVars = dict:to_list(dict:merge(fun(_, V, _) -> V end,
+                                      dict:from_list(PresetVars),
+                                      dict:from_list(CfgVars1))),
 
     UpdatedCfgVars = update_config_variables(CfgVarsToChange, CfgVars),
     CfgTemplateList = binary_to_list(CfgTemplate),
