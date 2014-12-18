@@ -44,8 +44,10 @@ init(_Id, Opts) ->
 
 %% @doc Called before init_per_suite is called.
 pre_init_per_suite(Suite,Config,State) ->
+    Preset = application:get_env(common_test, test_label, undefined),
+    NewConfig = [{preset, Preset} | Config],
     maybe_print_on_server(true, "SUITE", Suite, "starting"),
-    {Config, State}.
+    {NewConfig, State}.
 
 %% @doc Called after init_per_suite.
 post_init_per_suite(Suite,_Config,Return,State) ->
