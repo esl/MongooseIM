@@ -44,7 +44,10 @@ init(_Id, Opts) ->
 
 %% @doc Called before init_per_suite is called.
 pre_init_per_suite(Suite,Config,State) ->
-    Preset = application:get_env(common_test, test_label, undefined),
+    Preset = case application:get_env(common_test, test_label) of
+                 {ok, Value} -> Value;
+                 _ -> undefined
+             end,
     NewConfig = [{preset, Preset} | Config],
     maybe_print_on_server(true, "SUITE", Suite, "starting"),
     {NewConfig, State}.
