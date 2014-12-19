@@ -60,7 +60,7 @@ eunit: rebar deps
 	./rebar skip_deps=true eunit
 
 configure:
-	./tools/configure $(addprefix --, $(filter-out $@,$(MAKECMDGOALS)))
+	./tools/configure $(filter-out $@,$(MAKECMDGOALS))
 
 rel: rebar deps
 	./rebar compile generate -f
