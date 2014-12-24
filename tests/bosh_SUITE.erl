@@ -56,6 +56,7 @@ chat_test_cases() ->
 
 time_test_cases() ->
     [disconnect_inactive,
+     connection_interrupted,
      interrupt_long_poll_is_activity,
      reply_on_pause,
      cant_pause_for_too_long,
@@ -96,6 +97,9 @@ end_per_group(_GroupName, Config) ->
 init_per_testcase(disconnect_inactive = CaseName, Config) ->
     NewConfig = escalus_ejabberd:setup_option(inactivity(), Config),
     escalus:init_per_testcase(CaseName, NewConfig);
+init_per_testcase(connection_interrupted = CaseName, Config) ->
+    NewConfig = escalus_ejabberd:setup_option(inactivity(), Config),
+    escalus:init_per_testcase(CaseName, NewConfig);
 init_per_testcase(interrupt_long_poll_is_activity = CaseName, Config) ->
     InactConfig = escalus_ejabberd:setup_option(inactivity(), Config),
     NewConfig = escalus_users:update_userspec(InactConfig, carol, bosh_wait, 10),
@@ -117,6 +121,9 @@ init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
 end_per_testcase(disconnect_inactive = CaseName, Config) ->
+    NewConfig = escalus_ejabberd:reset_option(inactivity(), Config),
+    escalus:end_per_testcase(CaseName, NewConfig);
+end_per_testcase(connection_interrupted = CaseName, Config) ->
     NewConfig = escalus_ejabberd:reset_option(inactivity(), Config),
     escalus:end_per_testcase(CaseName, NewConfig);
 end_per_testcase(interrupt_long_poll_is_activity = CaseName, Config) ->
@@ -342,6 +349,29 @@ disconnect_inactive(Config) ->
         %% Ensure all connections for Carol have been closed.
         {_, Sid, CarolSessionPid} = get_bosh_session(Sid),
         [] = get_handlers(CarolSessionPid),
+
+        %% Wait for disconnection because of inactivity timeout.
+        timer:sleep(2 * timer:seconds(?INACTIVITY)),
+
+        %% Assert Carol has been disconnected due to inactivity.
+        false = is_sesssion_alive(Sid),
+
+        %% We don't need to close the session in escalus_bosh:stop/1
+        mark_as_terminated(Carol)
+
+        end).
+
+connection_interrupted(Config) ->
+    escalus:story(Config, [{carol, 1}], fun(Carol) ->
+
+        %% Sanity check - there should be one BOSH session belonging
+        %% to Carol.
+        1 = length(get_bosh_sessions()),
+
+        Sid = get_bosh_sid(Carol),
+
+        %% Terminate the connection, but don't notify the server.
+        escalus_connection:kill(Carol),
 
         %% Wait for disconnection because of inactivity timeout.
         timer:sleep(2 * timer:seconds(?INACTIVITY)),
