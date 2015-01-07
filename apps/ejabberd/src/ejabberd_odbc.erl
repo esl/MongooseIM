@@ -168,8 +168,15 @@ sql_call({_Host, Pid}, Msg) when is_pid(Pid) ->
 
 %% @doc perform a harmless query on all opened connexions to avoid connexion close.
 keep_alive(PID) ->
-    ?GEN_FSM:sync_send_event(PID, {sql_cmd, {sql_query, [?KEEPALIVE_QUERY]}, now()},
-                             ?KEEPALIVE_TIMEOUT).
+    Command = {sql_cmd, {sql_query, [?KEEPALIVE_QUERY]}, now()},
+    Result = ?GEN_FSM:sync_send_event(PID, Command, ?KEEPALIVE_TIMEOUT),
+    case Result of
+        {selected, _, _} ->
+            ok;
+        {error, _} ->
+            ?ERROR_MSG("Keepalive query failed, killing ~p", [PID]),
+            exit(PID, kill)
+    end.
 
 get_db_info(Pid) ->
     ?GEN_FSM:sync_send_all_state_event(Pid, get_db_info).
