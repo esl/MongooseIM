@@ -61,15 +61,34 @@ How to build
         $ ./rebar get-deps
         $ ./rebar compile
 
-    To generate MongooseIM release:
+    To generate minimal MongooseIM release (without mysql, pgsql or other deps):
 
         $ make rel
 
     or
 
         $ ./rebar generate
+    
+    If more advanced relase is required (with mysql or pgsql support) a `make configure` script with appropirate option(s) has to be run before `make rel` or `./rebar generate`. `make configre` without any option will print following help message.
+    
+    ```
+specifies which 3rd party deps will be included in release
+possible options:
+with-mysql	include mysql driver
+with-pgsql	include pgsql driver
+with-odbc	include standard ODBC driver shipped with Erlang/OTP
+with-redis	include redis driver
+with-cassandra	include cassandra driver
+full		include all above deps
+    ``` 
 
-    These commands will generate a self-contained OTP system image in the
+    For example if mysql and redis support has to be added to the release, following command has to be run before `make rel`:
+    
+        $ make configure with-mysql with-redis
+    
+    The `make configure` command has to be run only once (unless one need to change the relase config and include some other dependecies).    
+
+    `make rel` or `./rebar generate` commands will generate a self-contained OTP system image in the
     project's `rel/mongooseim` subdirectory. The contents of that directory are as
     follows:
     *   `rel/mongooseim/bin` - startup/administration scripts,
