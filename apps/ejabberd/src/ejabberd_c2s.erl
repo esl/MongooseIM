@@ -968,7 +968,7 @@ wait_for_bind_or_resume({xmlstreamelement, El}, StateData) ->
 					         attrs = [{<<"xmlns">>, ?NS_BIND}],
 					         children = [#xmlel{name = <<"jid">>,
 					                            children = [#xmlcdata{content = jlib:jid_to_binary(JID)}]}]}]},
-            XmlEl = jlib:iq_to_xml(Res),
+		    XmlEl = jlib:iq_to_xml(Res),
 		    send_element(StateData, XmlEl),
 		    fsm_next_state(wait_for_session_or_sm,
 				   StateData#state{resource = R, jid = JID})

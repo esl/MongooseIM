@@ -326,7 +326,9 @@ replace_stream_ns(#xmlel{ name = <<"stream:", ElementName/binary>> } = Element,
 replace_stream_ns(Element, #ws_state{ open_tag = open }) ->
     case should_have_jabber_client(Element) of
         true ->
-            NewAtrrs = [ {<<"xmlns">>, <<"jabber:client">>} | Element#xmlel.attrs],
+            JabberClient = {<<"xmlns">>, <<"jabber:client">>},
+            NewAtrrs = lists:keystore(<<"xmlns">>, 1,
+                                      Element#xmlel.attrs, JabberClient),
             Element#xmlel{attrs = NewAtrrs};
         false ->
             Element
