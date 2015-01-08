@@ -67,7 +67,9 @@ chat_msg(Config) ->
     escalus:story(Config, [{alice, 1}, {geralt, 1}, {oldie, 1}], fun(Alice, Geralt, Oldie) ->
 
         escalus_client:send(Alice, escalus_stanza:chat_to(Geralt, <<"Hi!">>)),
-        escalus:assert(is_chat_message, [<<"Hi!">>], escalus_client:wait_for_stanza(Geralt)),
+        FromAlice = escalus_client:wait_for_stanza(Geralt),
+        escalus:assert(is_chat_message, [<<"Hi!">>], FromAlice),
+        escalus:assert(has_ns, [<<"jabber:client">>], FromAlice),
 
         escalus_client:send(Geralt, escalus_stanza:chat_to(Alice, <<"Hello!">>)),
         escalus:assert(is_chat_message, [<<"Hello!">>], escalus_client:wait_for_stanza(Alice)),
@@ -90,8 +92,6 @@ escape_attrs(Config) ->
         special_chars_helper:check_attr_from_to(Alice, Geralt),
         special_chars_helper:check_attr_from_to(Geralt, Alice),
         special_chars_helper:check_attr_from_to(Geralt, Oldie)
-
-
 
     end).
 
