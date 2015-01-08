@@ -25,7 +25,8 @@
 %% Suite configuration
 %%--------------------------------------------------------------------
 
--define(INACTIVITY, 2).
+-define(INACTIVITY, 2). %% seconds
+-define(MAX_WAIT, 1). %% seconds
 -define(INVALID_RID_OFFSET, 999).
 
 all() ->
@@ -56,6 +57,7 @@ chat_test_cases() ->
 
 time_test_cases() ->
     [disconnect_inactive,
+     connection_interrupted,
      interrupt_long_poll_is_activity,
      reply_on_pause,
      cant_pause_for_too_long,
@@ -96,6 +98,10 @@ end_per_group(_GroupName, Config) ->
 init_per_testcase(disconnect_inactive = CaseName, Config) ->
     NewConfig = escalus_ejabberd:setup_option(inactivity(), Config),
     escalus:init_per_testcase(CaseName, NewConfig);
+init_per_testcase(connection_interrupted = CaseName, Config) ->
+    NewConfig = escalus_ejabberd:setup_option(inactivity(), Config),
+    NewerConfig = escalus_ejabberd:setup_option(max_wait(), NewConfig),
+    escalus:init_per_testcase(CaseName, NewerConfig);
 init_per_testcase(interrupt_long_poll_is_activity = CaseName, Config) ->
     InactConfig = escalus_ejabberd:setup_option(inactivity(), Config),
     NewConfig = escalus_users:update_userspec(InactConfig, carol, bosh_wait, 10),
@@ -119,6 +125,10 @@ init_per_testcase(CaseName, Config) ->
 end_per_testcase(disconnect_inactive = CaseName, Config) ->
     NewConfig = escalus_ejabberd:reset_option(inactivity(), Config),
     escalus:end_per_testcase(CaseName, NewConfig);
+end_per_testcase(connection_interrupted = CaseName, Config) ->
+    NewConfig = escalus_ejabberd:reset_option(max_wait(), Config),
+    NewerConfig = escalus_ejabberd:reset_option(inactivity(), NewConfig),
+    escalus:end_per_testcase(CaseName, NewerConfig);
 end_per_testcase(interrupt_long_poll_is_activity = CaseName, Config) ->
     NewConfig = escalus_ejabberd:reset_option(inactivity(), Config),
     escalus:end_per_testcase(CaseName, NewConfig);
@@ -351,6 +361,36 @@ disconnect_inactive(Config) ->
 
         %% We don't need to close the session in escalus_bosh:stop/1
         mark_as_terminated(Carol)
+
+        end).
+
+connection_interrupted(Config) ->
+    escalus:story(Config, [{carol, 1}], fun(Carol) ->
+
+        %% Sanity check - there should be one BOSH session belonging
+        %% to Carol.
+        1 = length(get_bosh_sessions()),
+
+        %% Turn off Escalus auto-reply, so that inactivity is triggered.
+        set_keepalive(Carol, false),
+
+        Sid = get_bosh_sid(Carol),
+
+        %% Terminate the connection, but don't notify the server.
+        escalus_connection:kill(Carol),
+
+        %% Assert Carol has not been disconnected yet.
+        timer:sleep(100),
+        true = is_sesssion_alive(Sid),
+
+        %% Wait for disconnection because of inactivity timeout.
+        %% Keep in mind this only works due to the max_wait also being lowered.
+        %% In other words, wait timeout must happen, so that there are
+        %% no requests held by the server for inactivity to cause disconnection.
+        timer:sleep(2 * timer:seconds(?INACTIVITY)),
+
+        %% Assert Carol has been disconnected due to inactivity.
+        false = is_sesssion_alive(Sid)
 
         end).
 
@@ -702,6 +742,15 @@ inactivity(Value) ->
     {inactivity,
      fun() -> escalus_ejabberd:rpc(mod_bosh, get_inactivity, []) end,
      fun(V) -> escalus_ejabberd:rpc(mod_bosh, set_inactivity, [V]) end,
+     Value}.
+
+max_wait() ->
+    max_wait(?MAX_WAIT).
+
+max_wait(Value) ->
+    {max_wait,
+     fun() -> escalus_ejabberd:rpc(mod_bosh, get_max_wait, []) end,
+     fun(V) -> escalus_ejabberd:rpc(mod_bosh, set_max_wait, [V]) end,
      Value}.
 
 server_acks_opt() ->
