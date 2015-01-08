@@ -43,7 +43,6 @@ init(_Id, Opts) ->
 
 %% @doc Called before init_per_suite is called.
 pre_init_per_suite(Suite,Config,State) ->
-    escalus_ejabberd:rpc(error_logger, warning_msg, ["====== Starting SUITE ~p", [Suite]]),
     {Config, State#state{ suite_total = 0, tcs = [] }}.
 
 %% @doc Called after init_per_suite.
@@ -56,7 +55,6 @@ pre_end_per_suite(_Suite,Config,State) ->
 
 %% @doc Called after end_per_suite.
 post_end_per_suite(Suite,_Config,Return,State) ->
-    escalus_ejabberd:rpc(error_logger, warning_msg, ["====== Finished SUITE ~p", [Suite]]),
     Data = {suites, Suite, State#state.suite_total, lists:reverse(State#state.tcs)},
     {Return, State#state{ data = [Data | State#state.data] ,
                           total = State#state.total + State#state.suite_total } }.
