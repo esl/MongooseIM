@@ -1020,29 +1020,30 @@ wait_for_session_or_sm({xmlstreamelement, El}, StateData0) ->
                               [StateData#state.socket,
                                jlib:jid_to_binary(JID)]),
                     Res = jlib:make_result_iq_reply(El),
-                    send_element(StateData, Res),
-                    change_shaper(StateData, JID),
+                    Packet = {jlib:jid_remove_resource(StateData#state.jid), StateData#state.jid, Res},
+                    {_, _, NewStateData0, _} = send_and_maybe_buffer_stanza(Packet, StateData, wait_for_session_or_sm),
+                    change_shaper(NewStateData0, JID),
                     {Fs, Ts, Pending} = ejabberd_hooks:run_fold(
                                   roster_get_subscription_lists,
-                                  StateData#state.server,
+                                  NewStateData0#state.server,
                                   {[], [], []},
-                                  [U, StateData#state.server]),
+                                  [U, NewStateData0#state.server]),
                     LJID = jlib:jid_tolower(jlib:jid_remove_resource(JID)),
                     Fs1 = [LJID | Fs],
                     Ts1 = [LJID | Ts],
                     PrivList =
                         ejabberd_hooks:run_fold(
-                          privacy_get_user_list, StateData#state.server,
+                          privacy_get_user_list, NewStateData0#state.server,
                           #userlist{},
-                          [U, StateData#state.server]),
+                          [U, NewStateData0#state.server]),
                     SID = {now(), self()},
-                    Conn = get_conn_type(StateData),
-                    Info = [{ip, StateData#state.ip}, {conn, Conn},
-                            {auth_module, StateData#state.auth_module}],
+                    Conn = get_conn_type(NewStateData0),
+                    Info = [{ip, NewStateData0#state.ip}, {conn, Conn},
+                            {auth_module, NewStateData0#state.auth_module}],
                     ejabberd_sm:open_session(
-                      SID, U, StateData#state.server, R, Info),
+                      SID, U, NewStateData0#state.server, R, Info),
                     NewStateData =
-                        StateData#state{
+                        NewStateData0#state{
 				     sid = SID,
 				     conn = Conn,
 				     pres_f = ?SETS:from_list(Fs1),
@@ -2858,17 +2859,17 @@ buffer_out_stanza(Packet, #state{stream_mgmt_buffer = Buffer,
 				 stream_mgmt_buffer_size = BufferSize,
 				 stream_mgmt_buffer_max = BufferMax} = S) ->
     NewSize = BufferSize + 1,
-    Timestamp = erlang:now(),
+    Timestamp = os:timestamp(),
 	NPacket = maybe_add_timestamp(Packet, Timestamp),
 
     NS = case is_buffer_full(NewSize, BufferMax) of
-             true->
+             true ->
                  defer_resource_constraint_check(S);
              _ ->
                  S
          end,
     NS#state{stream_mgmt_buffer_size = NewSize,
-		   stream_mgmt_buffer = [NPacket | Buffer]}.
+		     stream_mgmt_buffer = [NPacket | Buffer]}.
 
 is_buffer_full(_BufferSize, infinity) ->
     false;
