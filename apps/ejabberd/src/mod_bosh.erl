@@ -186,7 +186,7 @@ init(_Transport, Req, _Opts) ->
 
 -spec info(info(), req(), rstate()) -> {'ok',req(),_}.
 info(accept_options, Req, State) ->
-    {Origin, Req2} = cowboy_req:header(<<"origin">>, Req),
+    {Origin, Req2} = cowboy_req:header(<<"origin">>, Req, <<"*">>),
     Headers = ac_all(Origin),
     ?DEBUG("OPTIONS response: ~p~n", [Headers]),
     {ok, strip_ok(cowboy_req:reply(200, Headers, <<>>, Req2)), State};
