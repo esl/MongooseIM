@@ -323,6 +323,16 @@ process_server_stream_root(Element, _) ->
 replace_stream_ns(#xmlel{ name = <<"stream:", ElementName/binary>> } = Element,
                   #ws_state{ open_tag = open }) ->
     Element#xmlel{ name = ElementName, attrs = [{<<"xmlns">>, ?NS_STREAM} | Element#xmlel.attrs] };
+replace_stream_ns(Element, #ws_state{ open_tag = open }) ->
+    case should_have_jabber_client(Element) of
+        true ->
+            JabberClient = {<<"xmlns">>, <<"jabber:client">>},
+            NewAtrrs = lists:keystore(<<"xmlns">>, 1,
+                                      Element#xmlel.attrs, JabberClient),
+            Element#xmlel{attrs = NewAtrrs};
+        false ->
+            Element
+    end;
 replace_stream_ns(Element, _State) ->
     Element.
 
@@ -332,6 +342,11 @@ get_parser_opts(_) -> []. % old-type WS
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
+should_have_jabber_client(#xmlel{name = <<"iq">>}) -> true;
+should_have_jabber_client(#xmlel{name = <<"message">>}) -> true;
+should_have_jabber_client(#xmlel{name = <<"presence">>}) -> true;
+should_have_jabber_client(_) -> false.
+
 
 get_dispatch(Opts) ->
     WSHost = gen_mod:get_opt(host, Opts, '_'), %% default to any
