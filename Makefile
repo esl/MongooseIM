@@ -40,8 +40,12 @@ test_preset: test_deps
 
 run: deps compile quickrun
 
-quickrun:
-	erl -sname ejabberd -setcookie ejabberd -pa deps/*/ebin apps/*/ebin -config rel/files/app.run.config -s ejabberd -s sync
+quickrun: etc/ejabberd.cfg
+	erl -sname mongooseim@localhost -setcookie ejabberd -pa deps/*/ebin apps/*/ebin -config rel/files/app.config -s ejabberd
+
+etc/ejabberd.cfg:
+	tools/generate_cfg.es etc/ejabberd.cfg
+
 
 cover_test: test_deps
 	cd test/ejabberd_tests; make cover_test
