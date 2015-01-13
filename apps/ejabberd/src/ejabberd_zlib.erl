@@ -27,74 +27,20 @@
 -module(ejabberd_zlib).
 -author('alexey@process-one.net').
 
--behaviour(gen_server).
-
--export([start/0, start_link/0,
-         enable_zlib/3, disable_zlib/1,
+-export([enable_zlib/3, disable_zlib/1,
          send/2,
-         recv/2, recv/3, recv_data/2,
+         recv_data/2,
          setopts/2,
          sockname/1, peername/1,
          get_sockmod/1,
          controlling_process/2,
          close/1]).
 
-%% Internal exports, call-back functions.
--export([init/1,
-         handle_call/3,
-         handle_cast/2,
-         handle_info/2,
-         code_change/3,
-         terminate/2]).
-
 -define(DEFLATE, 1).
 -define(INFLATE, 2).
 
 -record(zlibsock, {sockmod, socket, zlibport, inflate_size_limit = 0}).
 -type zlibsock() :: #zlibsock{}.
-
--spec start() -> 'ignore' | {'error',_} | {'ok',pid()}.
-start() ->
-    gen_server:start({local, ?MODULE}, ?MODULE, [], []).
-
--spec start_link() -> 'ignore' | {'error',_} | {'ok',pid()}.
-start_link() ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
-
-init([]) ->
-    case erl_ddll:load_driver(ejabberd:get_so_path(), ejabberd_zlib_drv) of
-        ok -> ok;
-        {error, already_loaded} -> ok
-    end,
-    Port = open_port({spawn, ejabberd_zlib_drv}, [binary]),
-    {ok, Port}.
-
-
-%%% --------------------------------------------------------
-%%% The call-back functions.
-%%% --------------------------------------------------------
-
-handle_call(_, _, State) ->
-    {noreply, State}.
-
-handle_cast(_, State) ->
-    {noreply, State}.
-
-handle_info({'EXIT', Port, Reason}, Port) ->
-    {stop, {port_died, Reason}, Port};
-
-handle_info({'EXIT', _Pid, _Reason}, Port) ->
-    {noreply, Port};
-
-handle_info(_, State) ->
-    {noreply, State}.
-
-code_change(_OldVsn, State, _Extra) ->
-    {ok, State}.
-
-terminate(_Reason, Port) ->
-    Port ! {self, close},
-    ok.
 
 -spec enable_zlib(ejabberd:sockmod(), zlibsock(), integer()) -> {ok, zlibsock()}.
 enable_zlib(SockMod, Socket, InflateSizeLimit) ->
@@ -112,18 +58,6 @@ enable_zlib(SockMod, Socket, InflateSizeLimit) ->
 disable_zlib(#zlibsock{sockmod = SockMod, socket = Socket, zlibport = Port}) ->
     port_close(Port),
     {SockMod, Socket}.
-
--spec recv(zlibsock(), integer()) -> {ok, _} | {error, _}.
-recv(Socket, Length) ->
-    recv(Socket, Length, infinity).
-recv(#zlibsock{sockmod = SockMod, socket = Socket} = ZlibSock,
-     Length, Timeout) ->
-    case SockMod:recv(Socket, Length, Timeout) of
-        {ok, Packet} ->
-            recv_data(ZlibSock, Packet);
-        {error, _Reason} = Error ->
-            Error
-    end.
 
 -spec recv_data(zlibsock(), Packet :: string()|binary()) -> {ok, _} | {error, _}.
 recv_data(#zlibsock{sockmod = SockMod, socket = Socket} = ZlibSock, Packet) ->

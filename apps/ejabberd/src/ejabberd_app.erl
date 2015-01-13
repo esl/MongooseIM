@@ -65,7 +65,6 @@ start(normal, _Args) ->
     %% Profiling
     %%ejabberd_debug:eprof_start(),
     %%ejabberd_debug:fprof_start(),
-    maybe_add_nameservers(),
     start_modules(),
     ejabberd_listener:start_listeners(),
     ejabberd_admin:start(),
@@ -179,21 +178,6 @@ get_log_path() ->
                     Path
             end
     end.
-
-%% @doc If ejabberd is running on some Windows machine, get nameservers and
-%% add to Erlang
--spec maybe_add_nameservers() -> 'ok'.
-maybe_add_nameservers() ->
-    case os:type() of
-        {win32, _} -> add_windows_nameservers();
-        _ -> ok
-    end.
-
--spec add_windows_nameservers() -> 'ok'.
-add_windows_nameservers() ->
-    IPTs = win32_dns:get_nameservers(),
-    ?INFO_MSG("Adding machine's DNS IPs to Erlang system:~n~p", [IPTs]),
-    lists:foreach(fun(IPT) -> inet_db:add_ns(IPT) end, IPTs).
 
 -spec broadcast_c2s_shutdown() -> 'ok'.
 broadcast_c2s_shutdown() ->
