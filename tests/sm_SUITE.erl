@@ -43,6 +43,7 @@ groups() ->
       [shuffle, {repeat, 5}], [client_acks_more_than_sent,
                                too_many_unacked_stanzas,
                                server_requests_ack,
+                               server_requests_ack_after_session,
                                resend_more_offline_messages_than_buffer_size
                               ]},
      {reconnection, [shuffle, {repeat, 5}], [
@@ -110,6 +111,9 @@ init_per_testcase(server_requests_ack = CaseName, Config) ->
                   end,
     NewConfig = escalus_ejabberd:setup_option(ack_freq(AckFreq), Config),
     escalus:init_per_testcase(CaseName, NewConfig);
+init_per_testcase(server_requests_ack_after_session = CaseName, Config) ->
+    NewConfig = escalus_ejabberd:setup_option(ack_freq(1), Config),
+    escalus:init_per_testcase(CaseName, NewConfig);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
@@ -126,6 +130,9 @@ end_per_testcase(server_requests_ack = CaseName, Config) ->
                       _ -> 0
                   end,
     NewConfig = escalus_ejabberd:reset_option(ack_freq(AckFreq), Config),
+    escalus:end_per_testcase(CaseName, NewConfig);
+end_per_testcase(server_requests_ack_after_session = CaseName, Config) ->
+    NewConfig = escalus_ejabberd:reset_option(ack_freq(1), Config),
     escalus:end_per_testcase(CaseName, NewConfig);
 end_per_testcase(wait_for_resumption = CaseName, Config) ->
     discard_offline_messages(Config, alice),
@@ -327,6 +334,20 @@ server_requests_ack(Config) ->
         escalus:assert(is_sm_ack_request, escalus:wait_for_stanza(Alice))
     end),
     discard_offline_messages(Config, alice).
+
+server_requests_ack_after_session(Config) ->
+    AliceSpec = escalus_users:get_options(Config, alice),
+    {ok, Alice, _, _} = escalus_connection:start(AliceSpec,
+                                                 [start_stream,
+                                                  stream_features,
+                                                  maybe_use_ssl,
+                                                  authenticate,
+                                                  bind,
+                                                  stream_management,
+                                                  session
+                                                 ]),
+    escalus:assert(is_sm_ack_request, escalus_connection:get_stanza(Alice, stream_mgmt_req)).
+
 
 resend_more_offline_messages_than_buffer_size(Config) ->
     ConnSteps =  [start_stream,
