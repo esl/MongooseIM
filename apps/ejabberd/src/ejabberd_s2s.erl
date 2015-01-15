@@ -41,7 +41,8 @@
          dirty_get_connections/0,
          allow_host/2,
          incoming_s2s_number/0,
-         outgoing_s2s_number/0
+         outgoing_s2s_number/0,
+         domain_utf8_to_ascii/1
         ]).
 
 %% gen_server callbacks
@@ -462,6 +463,19 @@ parent_domains(<<_, Rest/binary>>, Acc) ->
 -spec send_element(pid(), jlib:xmlel()) -> {'send_element', jlib:xmlel()}.
 send_element(Pid, El) ->
     Pid ! {send_element, El}.
+
+%%--------------------------------------------------------------------
+%% Function: domain_utf8_to_ascii(Domain) -> binary() | false
+%% Description: Converts a UTF-8 domain to ASCII (IDNA)
+%% --------------------------------------------------------------------
+-spec domain_utf8_to_ascii(binary() | string()) -> binary() | false.
+domain_utf8_to_ascii(Domain) ->
+    case catch idna:utf8_to_ascii(Domain) of
+        {'EXIT', _} ->
+            false;
+        AsciiDomain ->
+            list_to_binary(AsciiDomain)
+    end.
 
 %%%----------------------------------------------------------------------
 %%% ejabberd commands
