@@ -41,7 +41,8 @@ BaseAppsToInclude = AppsToRun ++
                      base16,
                      cuesport,
                      alarms,
-                     idna],
+                     idna,
+                     recon],
 
 
 RemovedApps = [mysql,pgsql,redo,seestar,odbc],
