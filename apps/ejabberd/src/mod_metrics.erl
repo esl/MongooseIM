@@ -27,7 +27,6 @@ stop(Host) ->
 
 -spec init_folsom(ejabberd:server()) -> 'ok'.
 init_folsom(Host) ->
-    folsom:start(),
     lists:foreach(fun(Name) ->
         folsom_metrics:new_spiral(Name),
         folsom_metrics:tag_metric(Name, Host)

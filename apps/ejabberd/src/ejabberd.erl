@@ -29,6 +29,7 @@
 
 -export([start/0,
          stop/0,
+         ensure_started/1,
          get_pid_file/0,
          get_so_path/0,
          get_bin_path/0]).
@@ -89,21 +90,21 @@
 -export_type([dict_t/0, queue_t/0, set_t/0]).
 
 start() ->
-    %%ejabberd_cover:start(),
-    try_start(ejabberd).
+    ensure_started(ejabberd).
 
-try_start(AppName) ->
+ensure_started(AppName) ->
     case application:start(AppName) of
         ok ->
             ok;
+        {error, {already_started, AppName}} ->
+            ok;
         {error, {not_started, AppName2}} ->
-            ok = try_start(AppName2),
-            try_start(AppName)
+            ok = ensure_started(AppName2),
+            ensure_started(AppName)
     end.
 
 stop() ->
     application:stop(ejabberd).
-    %%ejabberd_cover:stop().
 
 -spec get_so_path() -> binary() | string().
 get_so_path() ->
