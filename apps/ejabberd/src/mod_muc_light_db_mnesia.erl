@@ -101,11 +101,11 @@ destroy_room(RoomJID) ->
 room_exists(RoomJID) ->
     mnesia:dirty_read(?ROOM_TAB, to_us(RoomJID)) =/= [].
 
--spec get_user_rooms(ljid()) -> {ok, [RoomBareJID :: binary()]} | {error, term()}.
+-spec get_user_rooms(ljid()) ->
+    {ok, [RoomUS :: {ejabberd:user(), ejabberd:server()}]} | {error, term()}.
 get_user_rooms(UserLJID) ->
     UsersRooms = mnesia:dirty_read(?USER_ROOM_TAB, to_us(UserLJID)),
-    {ok, [ <<RoomU/binary, $@, RoomS/binary>>
-           || #?USER_ROOM_TAB{ room_us = {RoomU, RoomS} } <- UsersRooms ]}.
+    {ok, [ UserRoom#?USER_ROOM_TAB.room_us || UserRoom <- UsersRooms ]}.
 
 -spec remove_user(ljid()) -> ok | {error, term()}.
 remove_user(UserLJID) ->

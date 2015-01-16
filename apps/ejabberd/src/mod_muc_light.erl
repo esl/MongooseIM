@@ -70,9 +70,10 @@ start(Host, Opts) ->
     %% Prevent sending service-unavailable on groupchat messages
     ejabberd_hooks:add(offline_message_hook, Host,
                        ?MODULE, prevent_service_unavailable, 90),
-    ejabberd_hooks:add(remove_user, Host, ?MODULE, remove_user, 50)
+    ejabberd_hooks:add(remove_user, Host, ?MODULE, remove_user, 50),
     MyDomain = gen_mod:get_opt_host(Host, Opts, ?DEFAULT_HOST),
     ejabberd_router:register_route(MyDomain, {apply, ?MODULE, route}),
+    code:load_file(mod_muc_light_utils),
     (backend()):start(Host, MyDomain),
     ok.
 
@@ -91,8 +92,16 @@ stop(Host) ->
 %%====================================================================
 
 -spec route(jid(), jid(), #xmlel{}) -> ok.
+route(From, #jid{ luser = <<>>, lresource = <<>> } = To, #xmlel{ name = <<"iq">> } = IQ) ->
+    case {exml_query:path(IQ, [{attr, <<"type">>}]),
+          exml_query:path(IQ, [{element, <<"query">>}, {attr, <<"xmlns">>}])} of
+        {<<"get">>, ?NS_DISCO_ITEMS} ->
+            handle_disco_get(From, To, IQ);
+        _ ->
+            ejabberd_router:route(To, From, jlib:make_error_reply(IQ, ?ERR_BAD_REQUEST))
+    end;
 route(From, #jid{ luser = LToU, lresource = LToR } = To,
-      #xmlel{ name = PName} = Packet)
+      #xmlel{ name = PName } = Packet)
   when LToU =:= <<>> orelse LToR =/= <<>> orelse PName =:= <<"presence">> ->
     %% Stanza to the service must be bare JID
     ejabberd_router:route(
@@ -137,12 +146,10 @@ prevent_service_unavailable(_From, _To, Packet) ->
   end.
 
 -spec remove_user(binary(), binary()) -> ok.
-remove_user(_User, _Server) ->
-    % will be added soon
-    ok.
-%    LUser = jlib:nodeprep(User),
-%    LServer = jlib:nameprep(Server),
-%    ok = (backend()):remove_user({LUser, LServer, <<>>}).
+remove_user(User, Server) ->
+    LUser = jlib:nodeprep(User),
+    LServer = jlib:nameprep(Server),
+    ok = (backend()):remove_user({LUser, LServer, <<>>}).
 
 %%====================================================================
 %% Internal functions
@@ -154,3 +161,31 @@ lower_nores(JID) -> jlib:jid_remove_resource(jlib:jid_to_lower(JID)).
 -spec format_config_error({binary(), atom()}) -> iolist().
 format_config_error({Key, Error}) ->
     io_lib:format("~s:~p", [Key, Error]).
+
+-spec handle_disco_get(jid(), jid(), #xmlel{}) -> ok.
+handle_disco_get(From, To,IQ) ->
+    case (backend()):get_user_rooms(jlib:jid_to_lower(From)) of
+        {ok, RoomsUSs} ->
+            Ch = exml_query:path(IQ, [{element, <<"query">>}]),
+            Items = rooms_to_items(RoomsUSs),
+            IQWithItems = IQ#xmlel{ children = [Ch#xmlel{ children = Items }] },
+            DiscoResult = jlib:make_result_iq_reply(IQWithItems),
+            ejabberd_router:route(To, From, DiscoResult);
+        {error, Error} ->
+            ?ERROR_MSG("Couldn't get room list for user ~p: ~p", [From, Error]),
+            ejabberd_router:route(To, From, jlib:make_error_reply(IQ, ?ERR_INTERNAL_SERVER_ERROR))
+    end.
+
+-spec rooms_to_items([{ejabberd:user(), ejabberd:server()}]) -> [#xmlel{}].
+rooms_to_items(RoomsUSs) ->
+    lists:map(
+      fun({RoomU, RoomS}) ->
+              {ok, RoomName}
+              = (backend()):get_configuration(jlib:make_jid(RoomU, RoomS, <<>>), roomname),
+              #xmlel{ name = <<"item">>,
+                      attrs = [
+                               {<<"jid">>, RoomBareJID},
+                               {<<"name">>, RoomName}
+                              ] }
+      end, RoomsUSs).
+
