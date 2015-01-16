@@ -112,7 +112,9 @@ run(Hook, Args) ->
 run(Hook, Host, Args) ->
     case ets:lookup(hooks, {Hook, Host}) of
         [{_, Ls}] ->
-            run1(Ls, Hook, Args);
+            {Time, Value} = timer:tc(fun run1/3, [Ls, Hook, Args]),
+            folsom_metrics:notify({Host, Hook}, Time),
+            Value;
         [] ->
             ok
     end.
@@ -129,7 +131,9 @@ run_fold(Hook, Val, Args) ->
 run_fold(Hook, Host, Val, Args) ->
     case ets:lookup(hooks, {Hook, Host}) of
         [{_, Ls}] ->
-            run_fold1(Ls, Hook, Val, Args);
+            {Time, Value} = timer:tc(fun run_fold1/4, [Ls, Hook, Val, Args]),
+            folsom_metrics:notify({Host, Hook}, Time),
+            Value;
         [] ->
             Val
     end.
@@ -173,6 +177,10 @@ handle_call({add, Hook, Host, Module, Function, Seq}, _From, State) ->
                 [] ->
                     NewLs = [{Seq, Module, Function}],
                     ets:insert(hooks, {{Hook, Host}, NewLs}),
+                    MetricName = {Host, Hook},
+                    folsom_metrics:new_histogram(MetricName, slide_uniform),
+                    folsom_metrics:tag_metric(MetricName, Host),
+                    folsom_metrics:tag_metric(MetricName, hooks),
                     ok
             end,
     {reply, Reply, State};
