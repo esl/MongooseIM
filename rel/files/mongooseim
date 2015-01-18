@@ -199,7 +199,7 @@ case "$1" in
         echo "and exit immediately if you are not completely sure."
         echo ""
         echo "To detach this shell from ejabberd, press:"
-        echo "  control+c, control+c"
+        echo "  Ctrl+G"
         echo ""
         echo "--------------------------------------------------------------------"
         echo "Press 'Enter' to continue"
