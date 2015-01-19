@@ -64,11 +64,12 @@
 
 -type roster() :: #roster{}.
 
--define(BACKEND, mod_roster_mnesia).
+-define(BACKEND, (mod_roster_backend:backend())).
 
 start(Host, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
 
+    start_backend_module(Opts),
     ?BACKEND:init(Host, Opts),
 
     ejabberd_hooks:add(roster_get, Host,
@@ -850,3 +851,19 @@ get_jid_info(_, User, Server, JID) ->
             end
     end.
 
+start_backend_module(Opts) ->
+    Backend = gen_mod:get_opt(backend, Opts, mnesia),
+    {Mod, Code} = dynamic_compile:from_string(mod_roster_backend(Backend)),
+    code:load_binary(Mod, "mod_last_backend.erl", Code).
+
+-spec mod_roster_backend(atom()) -> string().
+mod_roster_backend(Backend) when is_atom(Backend) ->
+    lists:flatten(
+        ["-module(mod_roster_backend).
+        -export([backend/0]).
+
+        -spec backend() -> atom().
+        backend() ->
+            mod_roster_",
+            atom_to_list(Backend),
+            ".\n"]).
