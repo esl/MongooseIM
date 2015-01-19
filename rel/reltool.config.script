@@ -57,7 +57,7 @@ IncludeApps = lists:map(fun(App) -> {app, App, [{incl_cond, include}]} end, Apps
 [{sys, [
         {lib_dirs, ["../apps", "../deps"]},
         {incl_cond, exclude},
-        {rel, "mongooseim", "", [mongoose | AppsToRun]},
+        {rel, "mongooseim", "", [mongooseim | AppsToRun]},
         {rel, "start_clean", "", [kernel,stdlib]},
         {boot_rel, "mongooseim"},
         {profile, embedded},
@@ -65,7 +65,7 @@ IncludeApps = lists:map(fun(App) -> {app, App, [{incl_cond, include}]} end, Apps
         {excl_sys_filters, ["^bin/.*",
                             "^erts.*/bin/(dialyzer|typer)"]},
 
-        {app, mongoose, [{incl_cond, include}, {lib_dir, ".."}]}
+        {app, mongooseim, [{incl_cond, include}, {lib_dir, ".."}]}
        ] ++ IncludeApps},
 
 
