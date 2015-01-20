@@ -346,30 +346,22 @@ do_process_item_set(JID1,
             ?DEBUG("ROSTER: roster item set error: ~p~n", [E]), ok
     end.
 
-%%TODO remove the case and match in function head
-process_item_attrs(Item, [{Attr, Val} | Attrs]) ->
-    case Attr of
-        <<"jid">> ->
-            case jlib:binary_to_jid(Val) of
-                error -> process_item_attrs(Item, Attrs);
-                JID1 ->
-                    JID = {JID1#jid.luser, JID1#jid.lserver,
-                           JID1#jid.lresource},
-                    process_item_attrs(Item#roster{jid = JID}, Attrs)
-            end;
-        <<"name">> ->
-            process_item_attrs(Item#roster{name = Val}, Attrs);
-        <<"subscription">> ->
-            case Val of
-                <<"remove">> ->
-                    process_item_attrs(Item#roster{subscription = remove},
-                                       Attrs);
-                _ -> process_item_attrs(Item, Attrs)
-            end;
-        <<"ask">> -> process_item_attrs(Item, Attrs);
-        _ -> process_item_attrs(Item, Attrs)
+process_item_attrs(Item, [{<<"jid">>, Val} | Attrs]) ->
+    case jlib:binary_to_jid(Val) of
+        error ->
+            process_item_attrs(Item, Attrs);
+        JID1 ->
+            JID = {JID1#jid.luser, JID1#jid.lserver, JID1#jid.lresource},
+            process_item_attrs(Item#roster{jid = JID}, Attrs)
     end;
-process_item_attrs(Item, []) -> Item.
+process_item_attrs(Item, [{<<"name">>, Val} | Attrs]) ->
+    process_item_attrs(Item#roster{name = Val}, Attrs);
+process_item_attrs(Item, [{<<"subscription">>, <<"remove">>} | Attrs]) ->
+    process_item_attrs(Item#roster{subscription = remove}, Attrs);
+process_item_attrs(Item, [_ | Attrs]) ->
+    process_item_attrs(Item, Attrs);
+process_item_attrs(Item, []) ->
+    Item.
 
 process_item_els(Item,
                  [#xmlel{name = Name, attrs = Attrs, children = SEls}
@@ -422,22 +414,22 @@ push_item(User, Server, Resource, From, Item, RosterVersion) ->
     ResIQ = #iq{type = set, xmlns = ?NS_ROSTER,
                 %% @doc Roster push, calculate and include the version attribute.
                 %% TODO: don't push to those who didn't load roster
-        id = list_to_binary("push" ++ randoms:get_string()),
-        sub_el =
-        [#xmlel{name = <<"query">>,
-            attrs = [{<<"xmlns">>, ?NS_ROSTER} | ExtraAttrs],
-            children = [item_to_xml(Item)]}]},
+                id = list_to_binary("push" ++ randoms:get_string()),
+                sub_el =
+                [#xmlel{name = <<"query">>,
+                        attrs = [{<<"xmlns">>, ?NS_ROSTER} | ExtraAttrs],
+                        children = [item_to_xml(Item)]}]},
     ejabberd_router:route(From,
-        jlib:make_jid(User, Server, Resource),
-        jlib:iq_to_xml(ResIQ)).
+                          jlib:make_jid(User, Server, Resource),
+                          jlib:iq_to_xml(ResIQ)).
 
 push_item_version(Server, User, From, Item,
-    RosterVersion) ->
+                  RosterVersion) ->
     lists:foreach(fun (Resource) ->
-        push_item(User, Server, Resource, From, Item,
-            RosterVersion)
-    end,
-        ejabberd_sm:get_user_resources(User, Server)).
+                          push_item(User, Server, Resource, From, Item,
+                                    RosterVersion)
+                  end,
+                  ejabberd_sm:get_user_resources(User, Server)).
 
 get_subscription_lists(Acc, User, Server) ->
     LUser = jlib:nodeprep(User),
@@ -450,25 +442,7 @@ get_subscription_lists(Acc, User, Server) ->
 fill_subscription_lists(JID, LServer, [#roster{} = I | Is], F, T, P) ->
     J = element(3, I#roster.usj),
 
-    NewP = case I#roster.ask of
-               Ask when Ask == in; Ask == both ->
-                   Message = I#roster.askmessage,
-                   Status  = if is_binary(Message) -> Message;
-                                 true -> <<>>
-                             end,
-                   StatusEl = #xmlel{
-                       name = <<"status">>,
-                       children = [#xmlcdata{content = Status}]},
-                   El = #xmlel{
-                       name = <<"presence">>,
-                       attrs = [{<<"from">>, jlib:jid_to_binary(I#roster.jid)},
-                           {<<"to">>, jlib:jid_to_binary(JID)},
-                           {<<"type">>, <<"subscribe">>}],
-                       children = [StatusEl]},
-                   [El | P];
-               _ ->
-                   P
-           end,
+    NewP = build_pending(I, JID, P),
 
     case I#roster.subscription of
         both ->
@@ -481,11 +455,31 @@ fill_subscription_lists(JID, LServer, [#roster{} = I | Is], F, T, P) ->
 fill_subscription_lists(JID, LServer, [RawI | Is], F, T, P) ->
     I = ?BACKEND:raw_to_record(LServer, RawI),
     case I of
-    %% Bad JID in database:
+        %% Bad JID in database:
         error -> fill_subscription_lists(JID, LServer, Is, F, T, P);
         _ -> fill_subscription_lists(JID, LServer, [I | Is], F, T, P)
     end;
 fill_subscription_lists(_, _LServer, [], F, T, P) -> {F, T, P}.
+
+build_pending(#roster{ask = Ask} = I, JID, P)
+  when Ask == in; Ask == both ->
+    Message = I#roster.askmessage,
+    Status  = if is_binary(Message) -> Message;
+                 true -> <<>>
+              end,
+    StatusEl = #xmlel{
+                  name = <<"status">>,
+                  children = [#xmlcdata{content = Status}]},
+    El = #xmlel{
+            name = <<"presence">>,
+            attrs = [{<<"from">>, jlib:jid_to_binary(I#roster.jid)},
+                     {<<"to">>, jlib:jid_to_binary(JID)},
+                     {<<"type">>, <<"subscribe">>}],
+            children = [StatusEl]},
+    [El | P];
+build_pending(_, _, P) ->
+    P.
+
 
 ask_to_pending(subscribe) -> out;
 ask_to_pending(unsubscribe) -> none;
@@ -502,16 +496,15 @@ transaction(LServer, F) ->
 
 in_subscription(_, User, Server, JID, Type, Reason) ->
     process_subscription(in, User, Server, JID, Type,
-        Reason).
+                         Reason).
 
-            out_subscription(User, Server, JID, Type) ->
+out_subscription(User, Server, JID, Type) ->
     process_subscription(out, User, Server, JID, Type, <<"">>).
 
 get_roster_by_jid_with_groups_t(LUser, LServer, LJID) ->
     ?BACKEND:get_roster_by_jid_with_groups_t(LUser, LServer, LJID).
 
-process_subscription(Direction, User, Server, JID1,
-                     Type, Reason) ->
+process_subscription(Direction, User, Server, JID1, Type, Reason) ->
     LUser = jlib:nodeprep(User),
     LServer = jlib:nameprep(Server),
     LJID = jlib:jid_tolower(JID1),
@@ -610,8 +603,7 @@ in_state_change(none, none, unsubscribed) -> none;
 in_state_change(none, out, subscribe) -> {none, both};
 in_state_change(none, out, subscribed) -> {to, none};
 in_state_change(none, out, unsubscribe) -> none;
-in_state_change(none, out, unsubscribed) ->
-    {none, none};
+in_state_change(none, out, unsubscribed) -> {none, none};
 in_state_change(none, in, subscribe) -> none;
 in_state_change(none, in, subscribed) -> ?NISD;
 in_state_change(none, in, unsubscribe) -> {none, none};
@@ -630,41 +622,33 @@ in_state_change(to, in, unsubscribe) -> {to, none};
 in_state_change(to, in, unsubscribed) -> {none, in};
 in_state_change(from, none, subscribe) -> none;
 in_state_change(from, none, subscribed) -> {both, none};
-in_state_change(from, none, unsubscribe) ->
-    {none, none};
+in_state_change(from, none, unsubscribe) -> {none, none};
 in_state_change(from, none, unsubscribed) -> none;
 in_state_change(from, out, subscribe) -> none;
 in_state_change(from, out, subscribed) -> {both, none};
 in_state_change(from, out, unsubscribe) -> {none, out};
-in_state_change(from, out, unsubscribed) ->
-    {from, none};
+in_state_change(from, out, unsubscribed) -> {from, none};
 in_state_change(both, none, subscribe) -> none;
 in_state_change(both, none, subscribed) -> none;
 in_state_change(both, none, unsubscribe) -> {to, none};
-in_state_change(both, none, unsubscribed) ->
-    {from, none}.
+in_state_change(both, none, unsubscribed) -> {from, none}.
 
 out_state_change(none, none, subscribe) -> {none, out};
 out_state_change(none, none, subscribed) -> none;
 out_state_change(none, none, unsubscribe) -> none;
 out_state_change(none, none, unsubscribed) -> none;
-out_state_change(none, out, subscribe) ->
-    {none,
-     out}; %% We need to resend query (RFC3921, section 9.2)
+out_state_change(none, out, subscribe) ->{none, out}; %% We need to resend query (RFC3921, section 9.2)
 out_state_change(none, out, subscribed) -> none;
-out_state_change(none, out, unsubscribe) ->
-    {none, none};
+out_state_change(none, out, unsubscribe) -> {none, none};
 out_state_change(none, out, unsubscribed) -> none;
 out_state_change(none, in, subscribe) -> {none, both};
 out_state_change(none, in, subscribed) -> {from, none};
 out_state_change(none, in, unsubscribe) -> none;
-out_state_change(none, in, unsubscribed) ->
-    {none, none};
+out_state_change(none, in, unsubscribed) -> {none, none};
 out_state_change(none, both, subscribe) -> none;
 out_state_change(none, both, subscribed) -> {from, out};
 out_state_change(none, both, unsubscribe) -> {none, in};
-out_state_change(none, both, unsubscribed) ->
-    {none, out};
+out_state_change(none, both, unsubscribed) -> {none, out};
 out_state_change(to, none, subscribe) -> none;
 out_state_change(to, none, subscribed) -> {both, none};
 out_state_change(to, none, unsubscribe) -> {none, none};
@@ -676,20 +660,15 @@ out_state_change(to, in, unsubscribed) -> {to, none};
 out_state_change(from, none, subscribe) -> {from, out};
 out_state_change(from, none, subscribed) -> none;
 out_state_change(from, none, unsubscribe) -> none;
-out_state_change(from, none, unsubscribed) ->
-    {none, none};
+out_state_change(from, none, unsubscribed) -> {none, none};
 out_state_change(from, out, subscribe) -> none;
 out_state_change(from, out, subscribed) -> none;
-out_state_change(from, out, unsubscribe) ->
-    {from, none};
-out_state_change(from, out, unsubscribed) ->
-    {none, out};
+out_state_change(from, out, unsubscribe) -> {from, none};
+out_state_change(from, out, unsubscribed) -> {none, out};
 out_state_change(both, none, subscribe) -> none;
 out_state_change(both, none, subscribed) -> none;
-out_state_change(both, none, unsubscribe) ->
-    {from, none};
-out_state_change(both, none, unsubscribed) ->
-    {to, none}.
+out_state_change(both, none, unsubscribe) -> {from, none};
+out_state_change(both, none, unsubscribed) -> {to, none}.
 
 in_auto_reply(from, none, subscribe) -> subscribed;
 in_auto_reply(from, out, subscribe) -> subscribed;
@@ -790,43 +769,30 @@ process_item_set_t(LUser, LServer,
     end;
 process_item_set_t(_LUser, _LServer, _) -> ok.
 
-%%TODO remove case and match in function head
-process_item_attrs_ws(Item, [{Attr, Val} | Attrs]) ->
-    case Attr of
-        <<"jid">> ->
-            case jlib:binary_to_jid(Val) of
-                error -> process_item_attrs_ws(Item, Attrs);
-                JID1 ->
-                    JID = {JID1#jid.luser, JID1#jid.lserver,
-                           JID1#jid.lresource},
-                    process_item_attrs_ws(Item#roster{jid = JID}, Attrs)
-            end;
-        <<"name">> ->
-            process_item_attrs_ws(Item#roster{name = Val}, Attrs);
-        <<"subscription">> ->
-            case Val of
-                <<"remove">> ->
-                    process_item_attrs_ws(Item#roster{subscription =
-                                                      remove},
-                                          Attrs);
-                <<"none">> ->
-                    process_item_attrs_ws(Item#roster{subscription = none},
-                                          Attrs);
-                <<"both">> ->
-                    process_item_attrs_ws(Item#roster{subscription = both},
-                                          Attrs);
-                <<"from">> ->
-                    process_item_attrs_ws(Item#roster{subscription = from},
-                                          Attrs);
-                <<"to">> ->
-                    process_item_attrs_ws(Item#roster{subscription = to},
-                                          Attrs);
-                _ -> process_item_attrs_ws(Item, Attrs)
-            end;
-        <<"ask">> -> process_item_attrs_ws(Item, Attrs);
-        _ -> process_item_attrs_ws(Item, Attrs)
+process_item_attrs_ws(Item, [{<<"jid">>, Val} | Attrs]) ->
+    case jlib:binary_to_jid(Val) of
+        error ->
+            process_item_attrs_ws(Item, Attrs);
+        JID1 ->
+            JID = {JID1#jid.luser, JID1#jid.lserver, JID1#jid.lresource},
+            process_item_attrs_ws(Item#roster{jid = JID}, Attrs)
     end;
-process_item_attrs_ws(Item, []) -> Item.
+process_item_attrs_ws(Item, [{<<"name">>, Val} | Attrs]) ->
+    process_item_attrs_ws(Item#roster{name = Val}, Attrs);
+process_item_attrs_ws(Item, [{<<"subscription">>, <<"remove">>} | Attrs]) ->
+    process_item_attrs_ws(Item#roster{subscription = remove}, Attrs);
+process_item_attrs_ws(Item, [{<<"subscription">>, <<"none">>} | Attrs]) ->
+    process_item_attrs_ws(Item#roster{subscription = none}, Attrs);
+process_item_attrs_ws(Item, [{<<"subscription">>, <<"both">>} | Attrs]) ->
+    process_item_attrs_ws(Item#roster{subscription = both}, Attrs);
+process_item_attrs_ws(Item, [{<<"subscription">>, <<"from">>} | Attrs]) ->
+    process_item_attrs_ws(Item#roster{subscription = from}, Attrs);
+process_item_attrs_ws(Item, [{<<"subscription">>, <<"to">>} | Attrs]) ->
+    process_item_attrs_ws(Item#roster{subscription = to}, Attrs);
+process_item_attrs_ws(Item, [_ | Attrs]) ->
+    process_item_attrs_ws(Item, Attrs);
+process_item_attrs_ws(Item, []) ->
+    Item.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
