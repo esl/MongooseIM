@@ -40,7 +40,7 @@ read_roster_version(LUser, LServer) ->
     Username = ejabberd_odbc:escape(LUser),
     case odbc_queries:get_roster_version(LServer, Username)
     of
-        {selected, [<<"version">>], [[Version]]} -> Version;
+        {selected, [<<"version">>], [{Version}]} -> Version;
         {selected, [<<"version">>], []} -> error
     end.
 

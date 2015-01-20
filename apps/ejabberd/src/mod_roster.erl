@@ -394,7 +394,7 @@ push_item(User, Server, From, Item) ->
     case roster_versioning_enabled(Server) of
         true ->
             push_item_version(Server, User, From, Item,
-                              roster_version(Server, User));
+                              roster_version(Server, jlib:nodeprep(User)));
         false ->
             lists:foreach(fun (Resource) ->
                                   push_item(User, Server, Resource, From, Item)
