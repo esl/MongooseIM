@@ -33,15 +33,15 @@
 init(_Host, _Opts) ->
     mnesia:create_table(roster,
                         [{disc_copies, [node()]},
-                        {attributes, record_info(fields, roster)}]),
+                         {attributes, record_info(fields, roster)}]),
     mnesia:create_table(roster_version,
                         [{disc_copies, [node()]},
-                        {attributes, record_info(fields, roster_version)}]),
+                         {attributes, record_info(fields, roster_version)}]),
     mnesia:add_table_index(roster, us),
     mnesia:add_table_index(roster_version, us).
 
 -spec read_roster_version(ejabberd:luser(), ejabberd:lserver())
-        -> binary() | error.
+-> binary() | error.
 read_roster_version(LUser, LServer) ->
     US = {LUser, LServer},
     case mnesia:dirty_read(roster_version, US) of
@@ -52,16 +52,16 @@ read_roster_version(LUser, LServer) ->
 write_roster_version(LUser, LServer, InTransaction, Ver) ->
     US = {LUser, LServer},
     if InTransaction ->
-        mnesia:write(#roster_version{us = US, version = Ver});
-        true ->
-            mnesia:dirty_write(#roster_version{us = US,
-                version = Ver})
+           mnesia:write(#roster_version{us = US, version = Ver});
+       true ->
+           mnesia:dirty_write(#roster_version{us = US,
+                                              version = Ver})
     end.
 
 get_roster(LUser, LServer) ->
     US = {LUser, LServer},
     case catch mnesia:dirty_index_read(roster, US,
-        #roster.us)
+                                       #roster.us)
     of
         Items  when is_list(Items)-> Items;
         _ -> []
@@ -71,10 +71,10 @@ get_roster_by_jid_t(LUser, LServer, LJID) ->
     case mnesia:read({roster, {LUser, LServer, LJID}}) of
         [] ->
             #roster{usj = {LUser, LServer, LJID},
-                us = {LUser, LServer}, jid = LJID};
+                    us = {LUser, LServer}, jid = LJID};
         [I] ->
             I#roster{jid = LJID, name = <<"">>, groups = [],
-                xs = []}
+                     xs = []}
     end.
 
 get_subscription_lists(_, LUser, LServer) ->
@@ -91,7 +91,7 @@ get_roster_by_jid_with_groups_t(LUser, LServer, LJID) ->
     case mnesia:read({roster, {LUser, LServer, LJID}}) of
         [] ->
             #roster{usj = {LUser, LServer, LJID},
-                us = {LUser, LServer}, jid = LJID};
+                    us = {LUser, LServer}, jid = LJID};
         [I] -> I
     end.
 
@@ -99,9 +99,9 @@ remove_user(LUser, LServer) ->
     US = {LUser, LServer},
     mod_roster:send_unsubscription_to_rosteritems(LUser, LServer),
     F = fun () ->
-        lists:foreach(fun (R) -> mnesia:delete_object(R) end,
-            mnesia:index_read(roster, US, #roster.us))
-    end,
+                lists:foreach(fun (R) -> mnesia:delete_object(R) end,
+                              mnesia:index_read(roster, US, #roster.us))
+        end,
     mnesia:transaction(F).
 
 update_roster_t(_LUser, _LServer, _LJID, Item) ->
@@ -113,12 +113,13 @@ del_roster_t(LUser, LServer, LJID) ->
 
 read_subscription_and_groups(LUser, LServer, LJID) ->
     case catch mnesia:dirty_read(roster,
-        {LUser, LServer, LJID})
+                                 {LUser, LServer, LJID})
     of
         [#roster{subscription = Subscription,
-            groups = Groups}] ->
+                 groups = Groups}] ->
             {Subscription, Groups};
         _ -> error
     end.
 
 raw_to_record(_, Item) -> Item.
+
