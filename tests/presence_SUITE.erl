@@ -28,6 +28,7 @@ all() ->
     [{group, presence},
      {group, presence_priority},
      {group, roster},
+     {group, roster_versioning},
      {group, subscribe_group}].
 
 groups() ->
@@ -39,6 +40,7 @@ groups() ->
      {roster, [sequence], [get_roster,
                            add_contact,
                            remove_contact]},
+     {roster_versioning, [sequence], [versioning]},
      {subscribe_group, [sequence], [subscribe,
                                     subscribe_decline,
                                     subscribe_relog,
@@ -64,6 +66,17 @@ init_per_group(_GroupName, Config) ->
 end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config, {by_name, [alice, bob]}).
 
+init_per_testcase(versioning, Config) ->
+    Host = escalus_ct:get_config(ejabberd_domain),
+
+    RosterVersioning = escalus_ejabberd:rpc(gen_mod, get_module_opt, [Host, mod_roster, versioning, false]),
+    RosterVersionOnDb = escalus_ejabberd:rpc(gen_mod, get_module_opt, [Host, mod_roster, store_current_id, false]),
+
+    escalus_ejabberd:rpc(gen_mod, set_module_opt, [Host, mod_roster, versioning, true]),
+    escalus_ejabberd:rpc(gen_mod, set_module_opt, [Host, mod_roster, store_current_id, true]),
+
+    escalus:init_per_testcase(versioning,
+        [{versioning, RosterVersioning}, {store_current_id, RosterVersionOnDb} | Config]);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
@@ -77,6 +90,16 @@ end_per_testcase(subscribe_decline, Config) ->
     end_rosters_remove(Config);
 end_per_testcase(unsubscribe, Config) ->
     end_rosters_remove(Config);
+end_per_testcase(versioning, Config) ->
+    Host = escalus_ct:get_config(ejabberd_domain),
+
+    RosterVersioning = proplists:get_value(versioning, Config),
+    RosterVersionOnDb = proplists:get_value(store_current_id, Config),
+
+    escalus_ejabberd:rpc(gen_mod, get_module_opt, [Host, mod_roster, versioning, RosterVersioning]),
+    escalus_ejabberd:rpc(gen_mod, get_module_opt, [Host, mod_roster, store_current_id, RosterVersionOnDb]),
+
+    escalus:end_per_testcase(versioning, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
@@ -260,6 +283,57 @@ remove_contact(Config) ->
 
     end).
 
+versioning(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+
+        escalus:send(Alice, escalus_stanza:roster_get(<<"">>)),
+        RosterResult = escalus:wait_for_stanza(Alice),
+
+        escalus_assert:is_roster_result(RosterResult),
+        Ver = exml_query:path(RosterResult, [{element, <<"query">>}, {attr, <<"ver">>}]),
+
+        true = Ver /= undefined,
+
+        %% add contact
+        Stanza = escalus_stanza:roster_add_contact(Bob, [<<"friends">>], <<"Bobby">>),
+        escalus:send(Alice, Stanza),
+        Received = escalus:wait_for_stanzas(Alice, 2),
+
+        escalus:assert_many([is_roster_set, is_iq_result], Received),
+
+        RosterSet = hd(Received),
+
+        Ver2 = exml_query:path(RosterSet, [{element, <<"query">>}, {attr, <<"ver">>}]),
+
+        true = Ver2 /= undefined,
+
+        Result = hd([R || R <- Received, escalus_pred:is_roster_set(R)]),
+        escalus:assert(count_roster_items, [1], Result),
+        escalus:send(Alice, escalus_stanza:iq_result(Result)),
+
+        %% check roster, send old ver
+        escalus:send(Alice, escalus_stanza:roster_get(Ver)),
+        Received2 = escalus:wait_for_stanza(Alice),
+
+        escalus:assert(is_roster_result, Received2),
+        escalus:assert(roster_contains, [bob], Received2),
+
+        %% check version
+
+        Ver2 = exml_query:path(Received2, [{element, <<"query">>}, {attr, <<"ver">>}]),
+
+        %% check roster, send correct Ver
+
+        escalus:send(Alice, escalus_stanza:roster_get(Ver2)),
+        Received3 = escalus:wait_for_stanza(Alice),
+
+        escalus:assert(is_iq_result, Received3),
+
+        %% There is no content as version matches
+
+        undefined = exml_query:path(Received3, [{element, <<"query">>}])
+
+    end).
 
 subscribe(Config) ->
     escalus:story(Config, [1, 1], fun(Alice, Bob) ->
