@@ -27,6 +27,9 @@
 %% API
 -export([handle_packet/3]).
 
+%% Callbacks
+-export([participant_limit_check/2]).
+
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 -include("mod_muc_light.hrl").
@@ -130,15 +133,25 @@ handle_affiliation_iq(_From, _RoomJID, IQ, <<"get">>, _, Affiliations) ->
 handle_affiliation_iq(_From, RoomJID, IQ, <<"set">>, Auth, Affiliations) ->
     Items = exml_query:paths(IQ, [{element, <<"query">>}, {element, <<"item">>}]),
     AffiliationsToChange = items_to_affiliated_users(Items),
-    IsAllowed = is_allowed_to_change_affiliated_users(Auth, Affiliations, AffiliationsToChange),
+    IsAllowed = is_allowed_to_change_affiliated_users(
+                  Auth, Affiliations, AffiliationsToChange, RoomJID),
     apply_affiliation_change(RoomJID, IQ, AffiliationsToChange, IsAllowed);
 handle_affiliation_iq(_From, _RoomJID, _IQ, _Type, _Auth, _Affiliations) ->
     {error, not_allowed}.
 
+-spec participant_limit_check(RoomJID :: jid(), NewAffiliations :: affiliated_users()) ->
+    ok | {error, any()}.
+participant_limit_check(RoomJID, Affiliations) ->
+    case length(Affiliations) > mod_muc_light:get_service_opt(RoomJID, participant_limit, 30) of
+        true -> {error, participant_limit_exceeded};
+        false -> ok
+    end.
+
 -spec apply_affiliation_change(jid(), #xmlel{}, affiliated_users(), boolean()) ->
     packet_processing_result().
 apply_affiliation_change(RoomJID, IQ, AffiliationsToChange, true) ->
-    case ?BACKEND:modify_affiliated_users(RoomJID, AffiliationsToChange) of
+    case ?BACKEND:modify_affiliated_users(RoomJID, AffiliationsToChange,
+                                          fun ?MODULE:participant_limit_check/2) of
         {ok, NewAffiliations, ChangedAffiliations} ->
             case NewAffiliations of
                 [] ->
@@ -246,46 +259,34 @@ items_to_affiliated_users(Items) ->
               end, Items).
 
 -spec is_allowed_to_change_affiliated_users(
-        affiliated_user(), affiliated_users(), affiliated_users()) -> boolean().
-is_allowed_to_change_affiliated_users({_User, owner}, _CurrentAffiliations, _AffiliationsChange) ->
+        affiliated_user(), affiliated_users(), affiliated_users(), jid()) -> boolean().
+is_allowed_to_change_affiliated_users(
+  {_User, owner}, _CurrentAffiliations, _AffiliationsChange, _RoomJID) ->
     true;
-is_allowed_to_change_affiliated_users({User, member}, _CurrentAffiliations, AffiliationsChange) ->
+is_allowed_to_change_affiliated_users(
+  {User, member}, CurrentAffiliations, AffiliationsChange, RoomJID) ->
+    EveryoneCanInvite = mod_muc_light:get_service_opt(RoomJID, everyone_can_invite, false),
     lists:all(
       fun ({UserMatch, none}) when UserMatch =:= User ->
               true;
-% Uncomment to allow everyone to invite others.
-% TODO: Will be configurable in the future
-%          ({OtherUser, member}) ->
-%              false == lists:keyfind(OtherUser, 1, CurrentAffiliations);
+          ({OtherUser, member}) ->
+              (false == lists:keyfind(OtherUser, 1, CurrentAffiliations))
+                andalso EveryoneCanInvite;
           (_) ->
               false
       end, AffiliationsChange);
-is_allowed_to_change_affiliated_users(_, _, _) ->
+is_allowed_to_change_affiliated_users(_, _, _, _) ->
     false.
 
-% TODO: Switch to IQ
 -spec make_affiliation_message(jid(), affiliated_users()) -> #xmlel{}.
 make_affiliation_message(RoomJID, ChangedAffiliations) ->
     XElem = #xmlel{ name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_MUC_LIGHT}],
                     children = affiliated_users_to_items(ChangedAffiliations) },
-    BodyText = lists:map(
-                 fun
-                     ({{Username, _, _}, none}) ->
-                         [<<"User ">>, Username,
-                         <<" has been removed from member list.\n">>];
-                     ({{Username, _, _}, member}) ->
-                         [<<"User ">>, Username,
-                          <<" is now a member.\n">>];
-                     ({{Username, _, _}, owner}) ->
-                         [<<"User ">>, Username,
-                          <<" is now the owner of this room.\n">>]
-                 end, ChangedAffiliations),
-    Body = #xmlel{ name = <<"body">>,
-                   children = [#xmlcdata{ content = BodyText }] },
+    EmptyBodyForMAM = #xmlel{ name = <<"body">> },
     #xmlel{ name = <<"message">>,
             attrs = [{<<"from">>, jlib:jid_to_binary(nores(RoomJID))},
                      {<<"type">>, <<"groupchat">>}],
-            children = [XElem, Body] }.
+            children = [XElem, EmptyBodyForMAM] }.
 
 -spec make_message_from_room(jid(), #xmlel{}) -> #xmlel{}.
 make_message_from_room(FromJID, Packet) ->

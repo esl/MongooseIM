@@ -28,6 +28,7 @@
 
 %% API
 -export([backend/0, bcaster/0, default_configuration/0]).
+-export([get_service_opt/3]).
 
 %% gen_mod callbacks
 -export([start/2, stop/1]).
@@ -60,6 +61,10 @@ bcaster() ->
 -spec default_configuration() -> configuration().
 default_configuration() ->
     [{roomname, <<"Untitled">>}].
+
+-spec get_service_opt(jid(), atom(), any()) -> any().
+get_service_opt(_RoomJID, OptName, Default) ->
+    gen_mod:get_module_opt(global, ?MODULE, OptName, Default).
 
 %%====================================================================
 %% gen_mod callbacks
@@ -184,7 +189,7 @@ rooms_to_items(RoomsUSs) ->
               = (backend()):get_configuration(jlib:make_jid(RoomU, RoomS, <<>>), roomname),
               #xmlel{ name = <<"item">>,
                       attrs = [
-                               {<<"jid">>, RoomBareJID},
+                               {<<"jid">>, <<RoomU/binary, $@, RoomS/binary>>},
                                {<<"name">>, RoomName}
                               ] }
       end, RoomsUSs).

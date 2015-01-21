@@ -74,7 +74,7 @@ validate_config_opt(Key, Value) when is_atom(Key) ->
     {ok, NewAffiliations :: affiliated_users(),
      AffiliationsChanged :: affiliated_users(),
      JoiningUsers :: [ljid()],
-     LeavingUsers :: [ljid()]} | {error, bad_request}.
+     LeavingUsers :: [ljid()]} | {error, bad_request} | {error, too_many_members}.
 change_affiliated_users(Affiliations, AffiliationsToChange) ->
     {OldOwner, _} = lists:keyfind(owner, 2, Affiliations),
     SaneAffiliationsToChange = sanitize_affiliations_changes(

@@ -41,7 +41,7 @@
          set_configuration/3,
 
          get_affiliated_users/1,
-         modify_affiliated_users/2
+         modify_affiliated_users/3
         ]).
 
 %% Extra API for testing
@@ -160,13 +160,13 @@ get_affiliated_users(RoomJID) ->
             {ok, Affiliations}
     end.
 
--spec modify_affiliated_users(jid(), affiliated_users()) ->
+-spec modify_affiliated_users(jid(), affiliated_users(), external_check_fun()) ->
     {ok, CurrentAffiliations :: affiliated_users(), ChangedAffiliations :: affiliated_users()}
-    | {error, not_exists | only_owner_in_room}.
-modify_affiliated_users(RoomJID, AffiliationsToChange) ->
+    | {error, any()}.
+modify_affiliated_users(RoomJID, AffiliationsToChange, ExternalCheck) ->
     {atomic, Res} = mnesia:transaction(
-                      fun modify_affiliated_users_transaction/2,
-                      [RoomJID, AffiliationsToChange]),
+                      fun modify_affiliated_users_transaction/3,
+                      [RoomJID, AffiliationsToChange, ExternalCheck]),
     Res.
 
 %%====================================================================
@@ -247,7 +247,7 @@ destroy_room_transaction(RoomJID) ->
 remove_user_transaction(UserLJID) ->
     lists:foreach(
       fun(#?USER_ROOM_TAB{ room_us = RoomUS }) ->
-        modify_affiliated_users_transaction(RoomUS, [{UserLJID, none}])
+        modify_affiliated_users_transaction(RoomUS, [{UserLJID, none}], fun(_, _) -> ok end)
       end, mnesia:read(?USER_ROOM_TAB, to_us(UserLJID))),
     ok.
 
@@ -271,24 +271,36 @@ set_configuration_transaction(RoomJID, ConfigurationChanges) ->
 %% ------------------------ Affiliations manipulation ------------------------
 
 -spec modify_affiliated_users_transaction(
-        jid() | {ejabberd:user(), ejabberd:server()}, affiliated_users()) ->
+        jid() | {ejabberd:user(), ejabberd:server()}, affiliated_users(), external_check_fun()) ->
     {ok, NewAffiliations :: affiliated_users(),
-     AffiliationsChanged :: affiliated_users()} | {error, only_owner_in_room}.
-modify_affiliated_users_transaction(Room, AffiliationsToChange) ->
+     AffiliationsChanged :: affiliated_users()} | {error, any()}.
+modify_affiliated_users_transaction(Room, AffiliationsToChange, ExternalCheck) ->
     RoomUS = to_us(Room),
     case mnesia:wread({?ROOM_TAB, RoomUS}) of
         [] ->
             {error, not_exists};
-        [#?ROOM_TAB{ affiliated_users = Affiliations } = Rec] ->
+        [#?ROOM_TAB{ affiliated_users = Affiliations } = RoomRec] ->
             case mod_muc_light_utils:change_affiliated_users(Affiliations, AffiliationsToChange) of
-                {ok, NewAffiliations, AffiliationsChanged, JoiningUsers, LeavingUsers} ->
-                    ok = mnesia:write(Rec#?ROOM_TAB{ affiliated_users = NewAffiliations }),
-                    update_users_rooms(RoomUS, JoiningUsers, LeavingUsers),
-                    {ok, NewAffiliations, AffiliationsChanged};
+                {ok, NewAffiliations, _, _, _} = ChangeResult ->
+                    verify_externally_and_submit(
+                      RoomUS, RoomRec, ChangeResult, ExternalCheck(Room, NewAffiliations));
                 Error ->
                     Error
             end
     end.
+
+-spec verify_externally_and_submit(
+        {ejabberd:user(), ejabberd:server()}, #?ROOM_TAB{},
+        {ok, affiliated_users(), affiliated_users(), [jid()], [jid()]}, ok | {error, any()}) ->
+    {ok, NewAffiliations :: affiliated_users(),
+     AffiliationsChanged :: affiliated_users()} | {error, any()}.
+verify_externally_and_submit(
+  RoomUS, RoomRec, {ok, NewAffiliations, AffiliationsChanged, JoiningUsers, LeavingUsers}, ok) ->
+    ok = mnesia:write(RoomRec#?ROOM_TAB{ affiliated_users = NewAffiliations }),
+    update_users_rooms(RoomUS, JoiningUsers, LeavingUsers),
+    {ok, NewAffiliations, AffiliationsChanged};
+verify_externally_and_submit(_, _, _, Error) ->
+    Error.
 
 -spec update_users_rooms({ejabberd:user(), ejabberd:server()}, [ljid()], [ljid()]) -> ok.
 update_users_rooms(RoomUS, [User | RJoiningUsers], LeavingUsers) ->
