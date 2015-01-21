@@ -40,7 +40,8 @@ groups() ->
      {roster, [sequence], [get_roster,
                            add_contact,
                            remove_contact]},
-     {roster_versioning, [sequence], [versioning]},
+     {roster_versioning, [sequence], [versioning,
+                                      versioning_no_store]},
      {subscribe_group, [sequence], [subscribe,
                                     subscribe_decline,
                                     subscribe_relog,
@@ -66,17 +67,12 @@ init_per_group(_GroupName, Config) ->
 end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config, {by_name, [alice, bob]}).
 
-init_per_testcase(versioning, Config) ->
-    Host = escalus_ct:get_config(ejabberd_domain),
-
-    RosterVersioning = escalus_ejabberd:rpc(gen_mod, get_module_opt, [Host, mod_roster, versioning, false]),
-    RosterVersionOnDb = escalus_ejabberd:rpc(gen_mod, get_module_opt, [Host, mod_roster, store_current_id, false]),
-
-    escalus_ejabberd:rpc(gen_mod, set_module_opt, [Host, mod_roster, versioning, true]),
-    escalus_ejabberd:rpc(gen_mod, set_module_opt, [Host, mod_roster, store_current_id, true]),
-
-    escalus:init_per_testcase(versioning,
-        [{versioning, RosterVersioning}, {store_current_id, RosterVersionOnDb} | Config]);
+init_per_testcase(versioning, ConfigIn) ->
+    Config = set_versioning(true, true, ConfigIn),
+    escalus:init_per_testcase(versioning, Config);
+init_per_testcase(versioning_no_store, ConfigIn) ->
+    Config = set_versioning(true, false, ConfigIn),
+    escalus:init_per_testcase(versioning_no_store, Config);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
@@ -90,15 +86,10 @@ end_per_testcase(subscribe_decline, Config) ->
     end_rosters_remove(Config);
 end_per_testcase(unsubscribe, Config) ->
     end_rosters_remove(Config);
-end_per_testcase(versioning, Config) ->
-    Host = escalus_ct:get_config(ejabberd_domain),
-
-    RosterVersioning = proplists:get_value(versioning, Config),
-    RosterVersionOnDb = proplists:get_value(store_current_id, Config),
-
-    escalus_ejabberd:rpc(gen_mod, get_module_opt, [Host, mod_roster, versioning, RosterVersioning]),
-    escalus_ejabberd:rpc(gen_mod, get_module_opt, [Host, mod_roster, store_current_id, RosterVersionOnDb]),
-
+end_per_testcase(VersionCases, Config)
+      when VersionCases =:= versioning; VersionCases =:= versioning_no_store ->
+    restore_versioning(Config),
+    end_rosters_remove(Config),
     escalus:end_per_testcase(versioning, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
@@ -334,6 +325,9 @@ versioning(Config) ->
         undefined = exml_query:path(Received3, [{element, <<"query">>}])
 
     end).
+
+versioning_no_store(Config) ->
+    versioning(Config).
 
 subscribe(Config) ->
     escalus:story(Config, [1, 1], fun(Alice, Bob) ->
@@ -598,3 +592,18 @@ remove_roster(Config, UserSpec) ->
                     throw(roster_not_loaded)
             end
     end.
+
+set_versioning(Versioning, VersionStore, Config) ->
+    Host = escalus_ct:get_config(ejabberd_domain),
+    RosterVersioning = escalus_ejabberd:rpc(gen_mod, get_module_opt, [Host, mod_roster, versioning, false]),
+    RosterVersionOnDb = escalus_ejabberd:rpc(gen_mod, get_module_opt, [Host, mod_roster, store_current_id, false]),
+    escalus_ejabberd:rpc(gen_mod, set_module_opt, [Host, mod_roster, versioning, Versioning]),
+    escalus_ejabberd:rpc(gen_mod, set_module_opt, [Host, mod_roster, store_current_id, VersionStore]),
+    [{versioning, RosterVersioning}, {store_current_id, RosterVersionOnDb} | Config].
+
+restore_versioning(Config) ->
+    Host = escalus_ct:get_config(ejabberd_domain),
+    RosterVersioning = proplists:get_value(versioning, Config),
+    RosterVersionOnDb = proplists:get_value(store_current_id, Config),
+    escalus_ejabberd:rpc(gen_mod, get_module_opt, [Host, mod_roster, versioning, RosterVersioning]),
+    escalus_ejabberd:rpc(gen_mod, get_module_opt, [Host, mod_roster, store_current_id, RosterVersionOnDb]).
