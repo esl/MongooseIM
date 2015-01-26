@@ -22,7 +22,7 @@ There are 2 types of options: params and features. Unlike params, features can b
  * **Example:** `"[\"localhost\", \"domain2\"]"`
 
 * **host_config** - feature
- * **Description:** List of specific options for chosen XMPP domains. They will override the global ones. Allowed keys are marked on [[Advanced configuration]] page
+ * **Description:** List of specific options for chosen XMPP domains. They will override the global ones. Allowed keys are marked on [Advanced configuration](Advanced-configuration.md) page
  
 * **Syntax:** `"{host_config, \"overridden-domain\", [{key, value}]}."`
  * **Example:** `"{host_config, \"localhost2\", [{auth_method, anonymous}, {allow_multiple_connections, false}]}." `
@@ -57,7 +57,7 @@ There are 2 types of options: params and features. Unlike params, features can b
  * **Description:** Port for all HTTP-based MongooseIM services like BOSH or Websockets. Default is 5280.
 
 * **mod_last, mod_offline, mod_privacy, mod_private, mod_roster, mod_vcard, mod_snmp** - feature
- * **Description:** Allows enabling/disabling specific modules and configuring them. Read more on the [[Modules]] page.
+ * **Description:** Allows enabling/disabling specific modules and configuring them. Read more on the [Modules](Modules.md) page.
 
 * **sm_backend** - param
  * **Description:** Defines the session management module (session storage backend).

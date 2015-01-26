@@ -1,5 +1,5 @@
 ### Module Description
-This module implements offline storage compliant with [XEP-0160 (Best Practices for Handling Offline Messages)](http://xmpp.org/extensions/xep-0160.html). It stores messages (only!) when recipient has no online resources. It is not well suited for applications supporting multiple user devices, because anything saved in DB, can be retrieved only once, so the message history is not synchronised between devices. Although `mod_offline` may be sufficient in some cases, it is preferable to use [[mod_mam]].
+This module implements offline storage compliant with [XEP-0160 (Best Practices for Handling Offline Messages)](http://xmpp.org/extensions/xep-0160.html). It stores messages (only!) when recipient has no online resources. It is not well suited for applications supporting multiple user devices, because anything saved in DB, can be retrieved only once, so the message history is not synchronised between devices. Although `mod_offline` may be sufficient in some cases, it is preferable to use [mod_mam](mod_mam.md).
 
 ### Options
 * **access_max_user_messages** (atom, default: `max_user_offline_messages`) - Access Rule to use for limiting storage size per user.
