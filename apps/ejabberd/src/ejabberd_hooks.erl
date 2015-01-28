@@ -50,8 +50,6 @@
 
 -include("ejabberd.hrl").
 
-%% Timeout of 5 seconds in calls to distributed hooks
--define(TIMEOUT_DISTRIBUTED_HOOK, 5000).
 
 -record(state, {}).
 
@@ -112,9 +110,8 @@ run(Hook, Args) ->
 run(Hook, Host, Args) ->
     case ets:lookup(hooks, {Hook, Host}) of
         [{_, Ls}] ->
-            {Time, Value} = timer:tc(fun run1/3, [Ls, Hook, Args]),
-            folsom_metrics:notify({Host, Hook}, Time),
-            Value;
+            mongoose_metrics:increment(Host, Hook),
+            run1(Ls, Hook, Args);
         [] ->
             ok
     end.
@@ -131,9 +128,8 @@ run_fold(Hook, Val, Args) ->
 run_fold(Hook, Host, Val, Args) ->
     case ets:lookup(hooks, {Hook, Host}) of
         [{_, Ls}] ->
-            {Time, Value} = timer:tc(fun run_fold1/4, [Ls, Hook, Val, Args]),
-            folsom_metrics:notify({Host, Hook}, Time),
-            Value;
+            mongoose_metrics:increment(Host, Hook),
+            run_fold1(Ls, Hook, Val, Args);
         [] ->
             Val
     end.
@@ -177,10 +173,7 @@ handle_call({add, Hook, Host, Module, Function, Seq}, _From, State) ->
                 [] ->
                     NewLs = [{Seq, Module, Function}],
                     ets:insert(hooks, {{Hook, Host}, NewLs}),
-                    MetricName = {Host, Hook},
-                    folsom_metrics:new_histogram(MetricName, slide_uniform),
-                    folsom_metrics:tag_metric(MetricName, Host),
-                    folsom_metrics:tag_metric(MetricName, hooks),
+                    mongoose_metrics:create_generic_hook_metric(Host, Hook),
                     ok
             end,
     {reply, Reply, State};
