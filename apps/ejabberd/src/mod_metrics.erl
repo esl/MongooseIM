@@ -42,7 +42,7 @@ init_folsom(Host) ->
 metrics_hooks(Op, Host) ->
     lists:foreach(fun(Hook) ->
         apply(ejabberd_hooks, Op, Hook)
-    end, ejabberd_metrics_hooks:get_hooks(Host)).
+    end, mongoose_metrics_hooks:get_hooks(Host)).
 
 -define (GENERAL_COUNTERS, [
          sessionSuccessfulLogins,

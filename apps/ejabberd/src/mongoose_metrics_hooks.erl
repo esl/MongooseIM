@@ -6,7 +6,7 @@
 %%% @end
 %%% Created : 23 Apr 2013 by Michal Piotrowski <michal.piotrowski@erlang-solutions.com>
 %%%-------------------------------------------------------------------
--module(ejabberd_metrics_hooks).
+-module(mongoose_metrics_hooks).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
