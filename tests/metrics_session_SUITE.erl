@@ -72,9 +72,7 @@ end_per_testcase(CaseName, Config) ->
 
 
 login_one(Config) ->
-    metrics_helper:reset_counters(Config),
     {value, Logins} = get_counter_value(sessionSuccessfulLogins),
-    assert_counter(0, sessionCount),
     escalus:story(Config, [1], fun(Alice) ->
 
         assert_counter(1, sessionCount),
@@ -89,9 +87,7 @@ login_one(Config) ->
     end).
 
 login_many(Config) ->
-    metrics_helper:reset_counters(Config),
     {value, Logins} = get_counter_value(sessionSuccessfulLogins),
-    assert_counter(0, sessionCount),
     escalus:story(Config, [1, 1], fun(_Alice, _Bob) ->
 
         assert_counter(2, sessionCount),
@@ -100,9 +96,7 @@ login_many(Config) ->
         end).
 
 auth_failed(Config) ->
-    metrics_helper:reset_counters(Config),
     {value, AuthFails} = get_counter_value(sessionAuthFails),
-    assert_counter(0, sessionCount),
 
     [{_, UserSpec} | _] = escalus_config:get_config(escalus_users, Config),
     UserSpecM = proplists:delete(password, UserSpec) ++ [{password, <<"mazabe">>}],
