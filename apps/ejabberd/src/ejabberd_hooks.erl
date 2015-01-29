@@ -110,7 +110,7 @@ run(Hook, Args) ->
 run(Hook, Host, Args) ->
     case ets:lookup(hooks, {Hook, Host}) of
         [{_, Ls}] ->
-            mongoose_metrics:increment(Host, Hook),
+            mongoose_metrics:increment_generic_hook_metric(Host, Hook),
             run1(Ls, Hook, Args);
         [] ->
             ok
@@ -128,7 +128,7 @@ run_fold(Hook, Val, Args) ->
 run_fold(Hook, Host, Val, Args) ->
     case ets:lookup(hooks, {Hook, Host}) of
         [{_, Ls}] ->
-            mongoose_metrics:increment(Host, Hook),
+            mongoose_metrics:increment_generic_hook_metric(Host, Hook),
             run_fold1(Ls, Hook, Val, Args);
         [] ->
             Val

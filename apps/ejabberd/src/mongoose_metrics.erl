@@ -15,13 +15,16 @@
 %%==============================================================================
 -module(mongoose_metrics).
 
--define(IMPL_MODULE, mongoose_metrics_hooks).
-
 %% API
--export([init_predefined_metrics/1,
+-export([update/2,
+         init_predefined_metrics/1,
          create_generic_hook_metric/2,
-         increment/2,
+         increment_generic_hook_metric/2,
          remove_host_metrics/1]).
+
+-spec update(term(), term()) -> no_return().
+update(Metric, Change) ->
+    folsom_metrics:notify(Metric, Change).
 
 -spec init_predefined_metrics(ejabberd:lserver()) -> no_return().
 init_predefined_metrics(Host) ->
@@ -33,6 +36,10 @@ init_predefined_metrics(Host) ->
 create_generic_hook_metric(Host, Hook) ->
     do_create_generic_hook_metric({Host, hook_to_name(Hook)}).
 
+-spec increment_generic_hook_metric(ejabberd:lserver(), atom()) -> no_return().
+increment_generic_hook_metric(Host, Hook) ->
+    do_increment_generic_hook_metric({Host, hook_to_name(Hook)}).
+
 do_create_generic_hook_metric({_, skip}) ->
     ok;
 do_create_generic_hook_metric({Host, _} = MetricName) ->
@@ -40,13 +47,10 @@ do_create_generic_hook_metric({Host, _} = MetricName) ->
     folsom_metrics:tag_metric(MetricName, Host),
     folsom_metrics:tag_metric(MetricName, hooks).
 
--spec increment(ejabberd:lserver(), atom()) -> no_return().
-increment(Host, Hook) ->
-    do_increment({Host, hook_to_name(Hook)}).
 
-do_increment({_, skip}) ->
+do_increment_generic_hook_metric({_, skip}) ->
     ok;
-do_increment(MetricName) ->
+do_increment_generic_hook_metric(MetricName) ->
     folsom_metrics:notify(MetricName, 1).
 
 remove_host_metrics(Host) ->

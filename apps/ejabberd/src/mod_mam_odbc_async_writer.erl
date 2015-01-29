@@ -161,7 +161,7 @@ archive_message(_Result, Host,
     gen_server:cast(srv_name(Host), {archive_message, Row}).
 
 
-%% @doc For folsom.
+%% @doc For metrics.
 -spec queue_length(ejabberd:server()) -> {'error','not_running'}
                                        | {'ok',non_neg_integer()}.
 queue_length(Host) ->

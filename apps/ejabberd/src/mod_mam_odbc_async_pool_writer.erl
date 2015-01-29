@@ -215,7 +215,7 @@ is_overloaded(Pid) ->
     {message_queue_len, Len} = erlang:process_info(Pid, message_queue_len),
     Len > 500.
 
-%% For folsom.
+%% For metrics.
 queue_length(Host) ->
     Len = lists:sum(queue_lengths(Host)),
     {ok, Len}.

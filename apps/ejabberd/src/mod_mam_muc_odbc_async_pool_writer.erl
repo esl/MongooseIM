@@ -204,7 +204,7 @@ is_overloaded(Pid) ->
     Len > 500.
 
 
-%% @doc For folsom.
+%% @doc For metrics.
 -spec queue_length(ejabberd:server()) -> {'ok',number()}.
 queue_length(Host) ->
     Len = lists:sum(queue_lengths(Host)),
