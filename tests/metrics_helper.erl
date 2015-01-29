@@ -7,13 +7,13 @@
 
 get_counter_value({_, _} = Counter) ->
     Result = rpc:call(ct:get_config(ejabberd_node),
-                      folsom_metrics,
+                      mongoose_metrics,
                       get_metric_value,
                       [Counter]),
     case Result of
-        [{count, Total}, {one, _}] ->
+        {ok, [{count, Total}, {one, _}]} ->
             {value, Total};
-        Value when is_integer(Value) ->
+        {ok, [{value, Value} | _]} when is_integer(Value) ->
             {value, Value};
         _ ->
             {error, unknown_counter}
