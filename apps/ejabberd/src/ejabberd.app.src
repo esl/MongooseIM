@@ -7,7 +7,7 @@
   {registered, [
                ]},
   {applications, [kernel, stdlib, inets, sasl, mnesia, ssl,
-                  p1_stringprep, exml, cowboy, folsom]},
+                  p1_stringprep, exml, cowboy, folsom, exometer]},
   {env, []},
   {mod, {ejabberd_app, []}}]}.
 

@@ -15,20 +15,26 @@
 %%==============================================================================
 -module(mongoose_metrics).
 
+-include("ejabberd.hrl").
+
 %% API
 -export([update/2,
+         get_metric_value/1,
          init_predefined_metrics/1,
          create_generic_hook_metric/2,
          increment_generic_hook_metric/2,
          remove_host_metrics/1]).
 
--spec update(term(), term()) -> no_return().
-update(Metric, Change) ->
-    folsom_metrics:notify(Metric, Change).
+-spec update({term(), term()}, term()) -> no_return().
+update(Name, Change) ->
+    exometer:update(tuple_to_list(Name), Change).
+
+get_metric_value({Host, Name}) ->
+    exometer:get_value([Host, Name]).
 
 -spec init_predefined_metrics(ejabberd:lserver()) -> no_return().
 init_predefined_metrics(Host) ->
-    init_folsom(Host),
+    create_metrics(Host),
     metrics_hooks(add, Host),
     ok.
 
@@ -42,20 +48,18 @@ increment_generic_hook_metric(Host, Hook) ->
 
 do_create_generic_hook_metric({_, skip}) ->
     ok;
-do_create_generic_hook_metric({Host, _} = MetricName) ->
-    folsom_metrics:new_spiral(MetricName),
-    folsom_metrics:tag_metric(MetricName, Host),
-    folsom_metrics:tag_metric(MetricName, hooks).
+do_create_generic_hook_metric(MetricName) ->
+    new_spiral(MetricName).
 
 
 do_increment_generic_hook_metric({_, skip}) ->
     ok;
 do_increment_generic_hook_metric(MetricName) ->
-    folsom_metrics:notify(MetricName, 1).
+    update(MetricName, 1).
 
 remove_host_metrics(Host) ->
-    [folsom_metrics:delete_metric(Metric) ||
-     {Metric, _} <- folsom_metrics:get_metrics_value(Host)].
+    %% TODO implement removing exometer metrics
+    ok.
 
 %% decided whether to use a metric for given hook or not
 filter_hook(sm_register_connection_hook) -> skip;
@@ -100,17 +104,21 @@ filter_hook(Hook) -> Hook.
 
 
 
--spec init_folsom(ejabberd:server()) -> 'ok'.
-init_folsom(Host) ->
+-spec create_metrics(ejabberd:server()) -> 'ok'.
+create_metrics(Host) ->
     lists:foreach(fun(Name) ->
-        folsom_metrics:new_spiral(Name),
-        folsom_metrics:tag_metric(Name, Host)
+        new_spiral(Name)
     end, get_general_counters(Host)),
 
     lists:foreach(fun(Name) ->
-        folsom_metrics:new_counter(Name),
-        folsom_metrics:tag_metric(Name, Host)
+        new_counter(Name)
     end, get_total_counters(Host)).
+
+new_counter({Host, Metric}) ->
+    exometer:new([Host, Metric], counter).
+
+new_spiral({Host, Metric}) ->
+    exometer:new([Host, Metric], spiral).
 
 
 -spec metrics_hooks('add' | 'delete', ejabberd:server()) -> 'ok'.

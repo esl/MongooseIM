@@ -111,13 +111,13 @@ get_hooks(Host) ->
                                  ) -> metrics_notify_return().
 sm_register_connection_hook(_,#jid{server = Server}, _) ->
     mongoose_metrics:update({Server, sessionSuccessfulLogins}, 1),
-    mongoose_metrics:update({Server, sessionCount}, {inc, 1}).
+    mongoose_metrics:update({Server, sessionCount}, 1).
 
 -spec sm_remove_connection_hook(tuple(), ejabberd:jid(), term()
                                ) -> metrics_notify_return().
 sm_remove_connection_hook(_,#jid{server = Server},_) ->
     mongoose_metrics:update({Server, sessionLogouts}, 1),
-    mongoose_metrics:update({Server, sessionCount}, {dec, 1}).
+    mongoose_metrics:update({Server, sessionCount}, -1).
 
 -spec auth_failed(binary(), binary()) -> metrics_notify_return().
 auth_failed(_,Server) ->
