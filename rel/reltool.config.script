@@ -19,7 +19,8 @@ BaseAppsToRun = [compiler,
                  exml,
                  cowboy,
                  fusco,
-                 folsom],
+                 folsom,
+                 exometer],
 
 AppsToRunIn = BaseAppsToRun ++ proplists:get_value(apps_to_run, Conf, []),
 
@@ -42,7 +43,9 @@ BaseAppsToInclude = AppsToRun ++
                      cuesport,
                      alarms,
                      idna,
-                     recon],
+                     recon,
+                     setup
+                     ],
 
 
 RemovedApps = [mysql,pgsql,redo,seestar,odbc],
