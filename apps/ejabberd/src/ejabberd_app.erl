@@ -163,24 +163,19 @@ connect_nodes() ->
                           end, Nodes)
     end.
 
-%% @doc Returns the full path to the ejabberd log file.
-%% It first checks for application configuration parameter 'log_path'.
-%% If not defined it checks the environment variable EJABBERD_LOG_PATH.
-%% And if that one is neither defined, returns the default value:
-%% "ejabberd.log" in current directory.
+%% @doc Rely completely on lager configuration in app.config for logfile
+%% management. Assume that app.config defines only one instance
+%% of lager_file_backend and return the path to the file it logs to.
+%%
+%% This is deprecated; left here only for compatibility with old ejabberd code.
 -spec get_log_path() -> string().
 get_log_path() ->
-    case application:get_env(log_path) of
-        {ok, Path} ->
-            Path;
-        undefined ->
-            case os:getenv("EJABBERD_LOG_PATH") of
-                false ->
-                    ?LOG_PATH;
-                Path ->
-                    Path
-            end
-    end.
+    Handlers = sys:get_state(lager_event),
+    catch [ throw(file_backend_path(State))
+            || {lager_file_backend, _File, State} <- Handlers ].
+
+file_backend_path(LagerFileBackendState) when element(1, LagerFileBackendState) =:= state ->
+    element(2, LagerFileBackendState).
 
 -spec broadcast_c2s_shutdown() -> 'ok'.
 broadcast_c2s_shutdown() ->

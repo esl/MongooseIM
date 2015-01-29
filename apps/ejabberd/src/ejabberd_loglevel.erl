@@ -56,26 +56,29 @@ log_path() ->
 
 -spec init() -> atom() | ets:tid().
 init() ->
-    %% If path is not default, reload lager with new settings.
-    case log_path() of
-        ?LOG_PATH  -> lager:start();
-        CustomPath -> apply_custom_log_path(CustomPath)
-    end,
+    lager:start(),
     ets:new(?ETS_TRACE_TAB, [set, named_table, public]).
 
 -spec get() -> {integer(), loglevel()}.
 get() ->
-    Name = lager:get_loglevel(lager_console_backend),
-    lists:keyfind(Name, 2, ?LOG_LEVELS).
+    Backends = gen_event:which_handlers(lager_event),
+    LevelName = (catch [ throw(lager:get_loglevel(Backend))
+                         || Backend <- Backends,
+                            Backend /= lager_backend_throttle ]),
+    lists:keyfind(LevelName, 2, ?LOG_LEVELS).
 
 -spec set(loglevel() | integer()) -> any().
 set(Level) when is_integer(Level) ->
     {_, Name} = lists:keyfind(Level, 1, ?LOG_LEVELS),
     set(Name);
 set(Level) ->
-    Path = log_path(),
-    lager:set_loglevel(lager_console_backend, Level),
-    lager:set_loglevel(lager_file_backend, Path, Level).
+    Backends = gen_event:which_handlers(lager_event),
+    Files = [ lager:set_loglevel(lager_file_backend, File, Level)
+              || {lager_file_backend, File} <- Backends ],
+    Consoles = [ lager:set_loglevel(lager_console_backend, Level)
+                 || lager_console_backend <- Backends ],
+    %% Should just flatten to a single 'ok'.
+    lists:usort(Files ++ Consoles).
 
 -spec set_custom(Module :: atom(), loglevel() | integer()) -> 'true'.
 set_custom(Module, Level) when is_integer(Level) ->
@@ -102,17 +105,3 @@ clear_custom(Module) when is_atom(Module) ->
         [] ->
             ok
     end.
-
--spec apply_custom_log_path(string()) -> 'ok'.
-apply_custom_log_path(Path) ->
-    {ok, Handlers} = application:get_env(lager, handlers),
-    LagerFileBackend = proplists:get_value(lager_file_backend, Handlers),
-    Handlers2 = proplists:delete(lager_file_backend, Handlers),
-    LagerFileBackend2 = proplists:delete(file, LagerFileBackend),
-    LagerFileBackend3 = [{file, Path}|LagerFileBackend2],
-    Handlers3 = [{lager_file_backend, LagerFileBackend3}|Handlers2],
-    application:stop(lager),
-    application:load(lager),
-    application:set_env(lager, handlers, Handlers3),
-    application:start(lager),
-    ok.
