@@ -22,8 +22,10 @@
          get_metric_value/1,
          get_metric_values/1,
          get_host_metric_names/1,
+         get_global_metric_names/0,
          get_aggregated_values/1,
-         init_predefined_metrics/1,
+         init_predefined_host_metrics/1,
+         create_global_metrics/0,
          create_generic_hook_metric/2,
          increment_generic_hook_metric/2,
          remove_host_metrics/1,
@@ -34,7 +36,10 @@ update(Name, Change) ->
     exometer:update(tuple_to_list(Name), Change).
 
 get_host_metric_names(Host) ->
-    [MetricName || {[Host, MetricName | _], _, _} <- exometer:find_entries([Host])].
+    [MetricName || {[_Host, MetricName | _], _, _} <- exometer:find_entries([Host])].
+
+get_global_metric_names() ->
+    get_host_metric_names(global).
 
 get_metric_value({Host, Name}) ->
     exometer:get_value([Host, Name]).
@@ -45,8 +50,8 @@ get_metric_values(Host) ->
 get_aggregated_values(Metric) ->
     exometer:aggregate([{{['_',Metric],'_','_'},[],[true]}], [one, count, value]).
 
--spec init_predefined_metrics(ejabberd:lserver()) -> no_return().
-init_predefined_metrics(Host) ->
+-spec init_predefined_host_metrics(ejabberd:lserver()) -> no_return().
+init_predefined_host_metrics(Host) ->
     create_metrics(Host),
     metrics_hooks(add, Host),
     ok.
@@ -219,3 +224,18 @@ get_general_counters(Host) ->
     [{ejabberd:server(),'sessionCount'}].
 get_total_counters(Host) ->
     [{Host, Counter} || Counter <- ?TOTAL_COUNTERS].
+
+-define(GLOBAL_COUNTERS,
+        [{[global, sessionCount],
+          {function, ejabberd_sm, get_total_sessions_number, [], value, []}},
+         {[global, uniqueSessionCount],
+          {function, ejabberd_sm, get_unique_sessions_number, [], value, []}},
+         {[global, nodeSessionCount],
+          {function, ejabberd_sm, get_node_sessions_number, [], value, []}}
+        ]
+).
+
+create_global_metrics() ->
+    lists:foreach(fun({Metric, Spec}) -> exometer:new(Metric, Spec) end,
+                  ?GLOBAL_COUNTERS).
+

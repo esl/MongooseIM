@@ -242,7 +242,8 @@ load_drivers([Driver | Rest]) ->
     end.
 
 init_metrics() ->
+    mongoose_metrics:create_global_metrics(),
     lists:foreach(
         fun(Host) ->
-            mongoose_metrics:init_predefined_metrics(Host)
+            mongoose_metrics:init_predefined_host_metrics(Host)
         end, ?MYHOSTS).
