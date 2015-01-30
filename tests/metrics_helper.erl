@@ -15,11 +15,16 @@ get_counter_value({_, _} = Counter) ->
             {value, Total};
         {ok, [{value, Value} | _]} when is_integer(Value) ->
             {value, Value};
+        {ok, Value} ->
+            {value, Value};
         _ ->
             {error, unknown_counter}
     end;
+get_counter_value([Host, Metric | _ ]) ->
+    get_counter_value({Host, Metric});
 get_counter_value(CounterName) ->
     get_counter_value({ct:get_config(ejabberd_domain), CounterName}).
+
 
 assert_counter(Value, CounterName) ->
     {value, Value} = get_counter_value(CounterName).

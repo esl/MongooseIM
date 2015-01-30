@@ -32,14 +32,15 @@
 %%--------------------------------------------------------------------
 
 all() ->
-    [{group, session}].
+    [{group, session},
+     {group, session_global}].
 
 groups() ->
     [{session, [sequence], [login_one,
                             login_many,
                             auth_failed]},
-     {session_rt, [sequence], [session_global,
-                               session_unique]}].
+     {session_global, [sequence], [session_global,
+                                   session_unique]}].
 
 suite() ->
     [{require, ejabberd_node} | escalus:suite()].
@@ -111,7 +112,7 @@ session_global(Config) ->
     escalus:story(Config, [1], fun(_Alice) ->
 
         timer:sleep(?GLOBAL_WAIT_TIME),
-        assert_counter(1, globalSessionCount)
+        assert_counter(1, [global, sessionCount])
 
         end).
 
@@ -119,7 +120,7 @@ session_unique(Config) ->
     escalus:story(Config, [2], fun(_Alice1, _Alice2) ->
 
         timer:sleep(?GLOBAL_WAIT_TIME),
-        assert_counter(1, globalUniqueSessionCount),
-        assert_counter(2, globalSessionCount)
+        assert_counter(1, [global, uniqueSessionCount]),
+        assert_counter(2, [global, sessionCount])
 
         end).
