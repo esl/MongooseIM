@@ -83,6 +83,7 @@ prep_stop(State) ->
     broadcast_c2s_shutdown(),
     mod_websockets:stop(),
     timer:sleep(5000),
+    mongoose_metrics:remove_all_metrics(),
     State.
 
 %% All the processes were killed when this function is called

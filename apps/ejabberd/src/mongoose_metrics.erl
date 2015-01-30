@@ -26,7 +26,8 @@
          init_predefined_metrics/1,
          create_generic_hook_metric/2,
          increment_generic_hook_metric/2,
-         remove_host_metrics/1]).
+         remove_host_metrics/1,
+         remove_all_metrics/0]).
 
 -spec update({term(), term()}, term()) -> no_return().
 update(Name, Change) ->
@@ -70,8 +71,15 @@ do_increment_generic_hook_metric(MetricName) ->
     update(MetricName, 1).
 
 remove_host_metrics(Host) ->
-    %% TODO implement removing exometer metrics
-    ok.
+    lists:foreach(fun remove_metric/1,
+                  exometer:find_entries([Host])).
+
+remove_all_metrics() ->
+    lists:foreach(fun remove_metric/1,
+                  exometer:find_entries([])).
+
+remove_metric({Name, _, _}) ->
+    exometer_admin:delete_entry(Name).
 
 %% decided whether to use a metric for given hook or not
 filter_hook(sm_register_connection_hook) -> skip;
