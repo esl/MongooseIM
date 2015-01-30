@@ -20,6 +20,9 @@
 %% API
 -export([update/2,
          get_metric_value/1,
+         get_metric_values/1,
+         get_host_metric_names/1,
+         get_aggregated_values/1,
          init_predefined_metrics/1,
          create_generic_hook_metric/2,
          increment_generic_hook_metric/2,
@@ -29,8 +32,17 @@
 update(Name, Change) ->
     exometer:update(tuple_to_list(Name), Change).
 
+get_host_metric_names(Host) ->
+    [MetricName || {[Host, MetricName | _], _, _} <- exometer:find_entries([Host])].
+
 get_metric_value({Host, Name}) ->
     exometer:get_value([Host, Name]).
+
+get_metric_values(Host) ->
+    exometer:get_values([Host]).
+
+get_aggregated_values(Metric) ->
+    exometer:aggregate([{{['_',Metric],'_','_'},[],[true]}], [one, count, value]).
 
 -spec init_predefined_metrics(ejabberd:lserver()) -> no_return().
 init_predefined_metrics(Host) ->
