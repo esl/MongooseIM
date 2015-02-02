@@ -17,63 +17,63 @@ The file contains erlang tuples terminated with period ('.'). For users not fami
 There are 2 types of options: params and features. Unlike params, features can be disabled.
 
 * **hosts** - param
- * **Description:** List of supported XMPP domains. Usually it's best to stick with just one or two domains.
- * **Warning:** extension modules and database backends will be started separately for every domain, so when increasing the number of domains please make sure you have enough resources available (e.g. connection limit set in DBMS).
- * **Example:** `"[\"localhost\", \"domain2\"]"`
+    * **Description:** List of supported XMPP domains. Usually it's best to stick with just one or two domains.
+    * **Warning:** extension modules and database backends will be started separately for every domain, so when increasing the number of domains please make sure you have enough resources available (e.g. connection limit set in DBMS).
+    * **Example:** `"[\"localhost\", \"domain2\"]"`
 
 * **host_config** - feature
- * **Description:** List of specific options for chosen XMPP domains. They will override the global ones. Allowed keys are marked on [Advanced configuration](Advanced-configuration.md) page
+    * **Description:** List of specific options for chosen XMPP domains. They will override the global ones. Allowed keys are marked on [Advanced configuration](Advanced-configuration.md) page
  
 * **Syntax:** `"{host_config, \"overridden-domain\", [{key, value}]}."`
- * **Example:** `"{host_config, \"localhost2\", [{auth_method, anonymous}, {allow_multiple_connections, false}]}." `
+    * **Example:** `"{host_config, \"localhost2\", [{auth_method, anonymous}, {allow_multiple_connections, false}]}." `
 
 * **odbc_server** - feature
- * **Description:** SQL DB connection configuration. Currently supported DB types are `mysql` and `pgsql`. To enable the connection, remove '%%' prefix from value.
- * **Syntax:** `"{odbc_server, {Type, Host, Port, DBName, Username, Password}}."`
+    * **Description:** SQL DB connection configuration. Currently supported DB types are `mysql` and `pgsql`. To enable the connection, remove '%%' prefix from value.
+    * **Syntax:** `"{odbc_server, {Type, Host, Port, DBName, Username, Password}}."`
 
 * **auth_ldap** - feature
- * **Description:** Put [[LDAP configuration]] here.
+    * **Description:** Put [[LDAP configuration]] here.
 
 * **s2s_addr** - feature
- * **Description:** Override DNS lookup for specific non-local XMPP domain and use predefined server IP and port for S2S connection (server-to-server).
- * **Syntax:** `"{ {s2s_addr, \"some-domain\"}, { {10,20,30,40}, 7890 } }."`
+    * **Description:** Override DNS lookup for specific non-local XMPP domain and use predefined server IP and port for S2S connection (server-to-server).
+    * **Syntax:** `"{ {s2s_addr, \"some-domain\"}, { {10,20,30,40}, 7890 } }."`
 
 * **s2s_default_policy** - param
- * **Description:** Default policy for new S2S (server-to-server) **both incoming and outgoing** connection to/from unknown remote server. 
+    * **Description:** Default policy for new S2S (server-to-server) **both incoming and outgoing** connection to/from unknown remote server. 
 
 * **outgoing_s2s_port** - param
- * **Description:** Port to be used locally when establishing outgoing S2S (server-to-server) connection. Default is 5269.
+    * **Description:** Port to be used locally when establishing outgoing S2S (server-to-server) connection. Default is 5269.
 
 * **node_name** - param
- * **Description:** Erlang node name. Should be changed when deploying MongooseIM cluster, otherwise not relevant.
+    * **Description:** Erlang node name. Should be changed when deploying MongooseIM cluster, otherwise not relevant.
 
 * **ejabberd_c2s_port** - param
- * **Description:** Port to listen on for standard incoming XMPP connections. Default is 5222.
+    * **Description:** Port to listen on for standard incoming XMPP connections. Default is 5222.
 
 * **ejabberd_s2s_port** - param
- * **Description:** Port to listen on for incoming S2S (server-to-server) connections. Default is 5269.
+    * **Description:** Port to listen on for incoming S2S (server-to-server) connections. Default is 5269.
 
 * **cowboy_port** - param
- * **Description:** Port for all HTTP-based MongooseIM services like BOSH or Websockets. Default is 5280.
+    * **Description:** Port for all HTTP-based MongooseIM services like BOSH or Websockets. Default is 5280.
 
 * **mod_last, mod_offline, mod_privacy, mod_private, mod_roster, mod_vcard, mod_snmp** - feature
- * **Description:** Allows enabling/disabling specific modules and configuring them. Read more on the [Modules](Modules.md) page.
+    * **Description:** Allows enabling/disabling specific modules and configuring them. Read more on the [Modules](Modules.md) page.
 
 * **sm_backend** - param
- * **Description:** Defines the session management module (session storage backend).
- * **Valid values:** `mnesia`, `redis`
+    * **Description:** Defines the session management module (session storage backend).
+    * **Valid values:** `mnesia`, `redis`
 
 * **auth_method** - param
- * **Description:** Chooses authentication modules. Can be either a single module or a list of modules to be tried in sequence until one of them succeeds.
- * **Valid values:** `internal`, `odbc`, `external`, `anonymous`, `ldap`
- * `internal` means Mnesia-based
- * **Examples:** `"odbc"`, `"[internal, anonymous]"`
+    * **Description:** Chooses authentication modules. Can be either a single module or a list of modules to be tried in sequence until one of them succeeds.
+    * **Valid values:** `internal`, `odbc`, `external`, `anonymous`, `ldap`
+    * `internal` means Mnesia-based
+    * **Examples:** `"odbc"`, `"[internal, anonymous]"`
 
 * **ext_auth_script** - feature
- * **Description:** Path to the authentication script used by `external` auth module. Script API specification can be found in [[External authentication script]].
+    * **Description:** Path to the authentication script used by `external` auth module. Script API specification can be found in [[External authentication script]].
 
 * **tls_config** - feature
- * **Description:** Allows enabling StartTLS feature in client-to-server XMPP connections. Just remove '%%' prefix and set path to PEM file containing certificate and (not protected by password) private key in X.509 format.
+    * **Description:** Allows enabling StartTLS feature in client-to-server XMPP connections. Just remove '%%' prefix and set path to PEM file containing certificate and (not protected by password) private key in X.509 format.
 
 * **zlib** - feature
- * **Description:** Controls the zlib compression feature for client-to-server XMPP connections. To enable it, remove '%%' prefix. You can define a limit for output data size to prevent killing the server with [zlib bomb](http://xmpp.org/resources/security-notices/uncontrolled-resource-consumption-with-highly-compressed-xmpp-stanzas/). Set it to `unlimited` to bypass the check (**not recommended**).
+    * **Description:** Controls the zlib compression feature for client-to-server XMPP connections. To enable it, remove '%%' prefix. You can define a limit for output data size to prevent killing the server with [zlib bomb](http://xmpp.org/resources/security-notices/uncontrolled-resource-consumption-with-highly-compressed-xmpp-stanzas/). Set it to `unlimited` to bypass the check (**not recommended**).
