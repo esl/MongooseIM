@@ -28,7 +28,10 @@
          sum_metrics/1,
          sum_metric/1,
          host_metric/1,
-         host_metrics/1]).
+         host_metrics/1,
+         global_metric/1,
+         global_metrics/1
+]).
 
 %%--------------------------------------------------------------------
 %% mongoose_api callbacks
@@ -42,6 +45,8 @@ routes() ->
     [{"/", [available_metrics]},
      {"/all", [sum_metrics]},
      {"/all/:metric", [sum_metric]},
+     {"/global", [global_metrics]},
+     {"/global/:metric", [global_metric]},
      {"/host/:host/:metric", [host_metric]},
      {"/host/:host", [host_metrics]}].
 
@@ -60,7 +65,8 @@ handle_get(Bindings, [Command]) ->
 %%--------------------------------------------------------------------
 available_metrics(_Bindings) ->
     {Hosts, Metrics} = get_available_hosts_metrics(),
-    Reply = [{hosts, Hosts}, {metrics, Metrics}],
+    Global = get_available_global_metrics(),
+    Reply = [{hosts, Hosts}, {metrics, Metrics}, {global, Global}],
     {ok, Reply}.
 
 sum_metrics(_Bindings) ->
@@ -100,6 +106,25 @@ host_metrics(Bindings) ->
             {ok, {metrics, Metrics}}
     end.
 
+global_metric(Bindings) ->
+    {metric, Metric} = lists:keyfind(metric, 1, Bindings),
+    MetricAtom = binary_to_existing_atom(Metric, utf8),
+    case mongoose_metrics:get_metric_value({global, MetricAtom}) of
+        {ok, Value} ->
+            {ok, {metric, Value}};
+        _Other ->
+            {error, not_found}
+    end.
+
+global_metrics(_Bindings) ->
+    case get_host_metrics(global) of
+        [] ->
+            {error, not_found};
+        Metrics ->
+            {ok, {metrics, Metrics}}
+    end.
+
+
 %%--------------------------------------------------------------------
 %% internal functions
 %%--------------------------------------------------------------------
@@ -117,6 +142,9 @@ get_available_hosts_metrics() ->
     Metrics = get_available_metrics(hd(Hosts)),
     {Hosts, Metrics}.
 
+get_available_global_metrics() ->
+    mongoose_metrics:get_global_metric_names().
+
 -spec get_sum_metrics() -> [{_,_}].
 get_sum_metrics() ->
     {_Hosts, Metrics} = get_available_hosts_metrics(),
@@ -129,4 +157,4 @@ get_sum_metric(Metric) ->
 -spec get_host_metrics('undefined' | ejabberd:server()) -> [{_,_}].
 get_host_metrics(Host) ->
     Metrics = mongoose_metrics:get_metric_values(Host),
-    [{Name, Value} || {[Host, Name | _], Value} <- Metrics].
+    [{Name, Value} || {[_Host, Name | _], Value} <- Metrics].
