@@ -112,7 +112,7 @@ session_global(Config) ->
     escalus:story(Config, [1], fun(_Alice) ->
 
         timer:sleep(?GLOBAL_WAIT_TIME),
-        assert_counter(1, [global, sessionCount])
+        assert_counter(1, [global, totalSessionCount])
 
         end).
 
@@ -121,6 +121,6 @@ session_unique(Config) ->
 
         timer:sleep(?GLOBAL_WAIT_TIME),
         assert_counter(1, [global, uniqueSessionCount]),
-        assert_counter(2, [global, sessionCount])
+        assert_counter(2, [global, totalSessionCount])
 
         end).
