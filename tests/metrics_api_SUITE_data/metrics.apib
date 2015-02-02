@@ -18,6 +18,7 @@ GET /api/metrics/
 {
     "hosts":   ["{{>example_host}}"],
     "metrics": ["{{>example_metric}}"],
+    "global": ["{{>example_global}}"],
     "{{_}}":   "{{unexpected}}"
 }
 
@@ -103,3 +104,29 @@ GET /api/metrics/host/{{<example_host}}/nonExistentMetric
 > User-Agent: katt
 > Host: {{<hostname}}:{{<port}}
 < 404
+
+# 6a. All global metric
+
+GET /api/metrics/global
+> Accept: application/json
+> User-Agent: katt
+> Host: {{<hostname}}:{{<port}}
+< 200
+< Content-Type: application/json
+{
+    "metrics": "{{_}}",
+    "{{_}}": "{{unexpected}}"
+}
+
+# 6b. An example global metric
+
+GET /api/metrics/global/{{<example_global}}
+> Accept: application/json
+> User-Agent: katt
+> Host: {{<hostname}}:{{<port}}
+< 200
+< Content-Type: application/json
+{
+    "metric": "{{_}}",
+    "{{_}}": "{{unexpected}}"
+}

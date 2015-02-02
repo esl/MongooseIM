@@ -23,7 +23,8 @@
 %%--------------------------------------------------------------------
 all() ->
     [{group, metrics},
-     {group, single_values}].
+     {group, single_values},
+     {group, global}].
 
 groups() ->
     [{metrics, [], [message_flow]},
@@ -31,7 +32,9 @@ groups() ->
                           stanza_one,
                           presence_one,
                           presence_direct_one,
-                          iq_one]}].
+                          iq_one]},
+     {global, [], [sessions]}
+    ].
 
 init_per_suite(Config) ->
     Config1 = dynamic_modules:stop_running(mod_offline, Config),
@@ -157,6 +160,12 @@ iq_one(Config) ->
                 assert_counter_inc(1, StanzaRecv1, StanzaRecv2)
         end).
 
+sessions(Config) ->
+    escalus:story(Config, [{alice, 2}, {bob, 1}], fun(_Alice1, _Alice2, _Bob) ->
+        3 = fetch_global_counter_value(totalSessionCount, Config),
+        2 = fetch_global_counter_value(uniqueSessionCount, Config)
+    end).
+
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
@@ -169,6 +178,15 @@ fetch_counter_value(Counter, Config) ->
     TotalValue = proplists:get_value("value_total", Vars),
     TotalValueList = proplists:get_value("value_total_list", Vars),
     [HostValue, HostValueList, TotalValue, TotalValueList].
+
+fetch_global_counter_value(Counter, Config) ->
+    Params = [{metric, atom_to_list(Counter)}],
+
+    {_, _, _, Vars, _} = katt_helper:run(global, Config, Params),
+
+    Value = proplists:get_value("value", Vars),
+    Value = proplists:get_value("value_list", Vars).
+
 
 assert_counter_inc(Inc, Counters1, Counters2) ->
     Counters2 = [Counter+Inc || Counter <- Counters1].
