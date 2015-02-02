@@ -226,7 +226,7 @@ get_total_counters(Host) ->
     [{Host, Counter} || Counter <- ?TOTAL_COUNTERS].
 
 -define(GLOBAL_COUNTERS,
-        [{[global, sessionCount],
+        [{[global, totalSessionCount],
           {function, ejabberd_sm, get_total_sessions_number, [], value, []}},
          {[global, uniqueSessionCount],
           {function, ejabberd_sm, get_unique_sessions_number, [], value, []}},
