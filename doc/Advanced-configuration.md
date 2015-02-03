@@ -59,7 +59,7 @@ The tuple order is important, unless the no host_config option is set. Retaining
 * **listen** (local)
     * **Description:** List of modules handling incoming connections. By default, 3 are enabled: `ejabberd_cowboy`, `ejabberd_c2s` and `ejabberd_s2s_in`. They accept XMPP, BOSH, Websocket and S2S connections (plus queries to metrics API).
     * **Syntax:** List of tuples: `{Port, Module, ModuleSpecificOptions}`
-    * **See also:** [Listener modules](Listener-modules.md)
+    * **See also:** [Listener modules](advanced-configuration/Listener-modules.md)
 
 * **s2s_use_starttls** (global)
     * **Description:** Controls StartTLS feature for S2S connections.
@@ -198,7 +198,7 @@ The tuple order is important, unless the no host_config option is set. Retaining
 
 ### Modules
 
-For specific configuration, please refer to [Modules](Modules.md) page.
+For specific configuration, please refer to [Modules](advanced-configuration/Modules.md) page.
 
 * **modules** (local)
     * **Description:** List of enabled modules with their options.
