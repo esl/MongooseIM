@@ -94,8 +94,7 @@ commands() ->
                         module = ejabberd_loglevel, function = get,
                         args = [],
                         result = {leveltuple, {tuple, [{levelnumber, integer},
-                                                       {levelatom, atom},
-                                                       {leveldesc, string}
+                                                       {levelatom, atom}
                                                       ]}}},
 
 %     #ejabberd_commands{name = update_list, tags = [server],
