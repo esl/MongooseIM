@@ -37,9 +37,9 @@ Currently it is not possible to use different ports e.g. for BOSH and Websockets
 * `key` (string, optional, no default value) - Path to the SSL private key in X509 format.
 * `key_pass` (string, optional, default: `undefined`) - Password to a private key, `undefined` for no password.
 * `modules` (list of tuples: `{Host, Path, Modules}`) - List of enabled HTTP-based modules. `"_"` equals any host.
-  * `mod_bosh` - BOSH connections handler. Default declaration: `{"_", "/http-bind", mod_bosh}`
-  * `mod_websockets` - Websocket connections, both [old](http://xmpp.org/extensions/xep-0206.html) and [new](http://datatracker.ietf.org/doc/draft-ietf-xmpp-websocket/?include_text=1) type. Default declaration: `{"_", "/ws-xmpp", mod_websockets}`
-  * `mod_metrics` - REST API for accessing internal MongooseIM metrics. Please refer to [REST interface to folsom metrics](REST-interface-to-folsom-metrics.md) for more information. Default declaration: `{"localhost", "/metrics", mod_metrics}`.
+    * `mod_bosh` - BOSH connections handler. Default declaration: `{"_", "/http-bind", mod_bosh}`
+    * `mod_websockets` - Websocket connections, both [old](http://xmpp.org/extensions/xep-0206.html) and [new](http://datatracker.ietf.org/doc/draft-ietf-xmpp-websocket/?include_text=1) type. Default declaration: `{"_", "/ws-xmpp", mod_websockets}`
+    * `mod_metrics` - REST API for accessing internal MongooseIM metrics. Please refer to [REST interface to folsom metrics](REST-interface-to-folsom-metrics.md) for more information. Default declaration: `{"localhost", "/metrics", mod_metrics}`.
 
 ## ejabberd_s2s_in
 

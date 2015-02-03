@@ -20,25 +20,25 @@ This module implements [XEP-0045 (Multi-User Chat)](http://xmpp.org/extensions/x
 * **user_presence_shaper** (atom, default: `none`) - Shaper for user presences processed by a room (global for the room).
 * **max_user_conferences** (non-negative, default: 10) - Specifies the number of rooms that a user can occupy simultaneously.
 * **default_room_options** (list of key-value tuples, default: `[]`) - List of room configuration options to be overridden in initial state.
-  * **title** (binary, default: `<<>>`) - Room title.
-  * **description** (binary, default: `<<>>`) - Room description.
-  * **allow_change_subj** (boolean, default: `true`) - Allow all occupants to change room subject.
-  * **allow_query_users** (boolean, default: `true`) - Allow occupants to send IQ queries to other occupants.
-  * **allow_private_messages** (boolean, default: `true`) - Allow private messaging between occupants.
-  * **allow_visitor_status** (boolean, default: `true`) - Allow occupants to use text statuses in presences. When disabled, text is removed by the room before broadcasting.
-  * **allow_visitor_nickchange** (boolean, default: `true`) - Allow occupants to change nicknames.
-  * **public** (boolean, default: `true`) - Room is included in the list available via Service Discovery.
-  * **public_list** (boolean, default: `true`) - Member list can be fetched by non-members.
-  * **persistent** (boolean, default: `false`) - Room will be stored in DB and survive even when last occupant leaves or node is restarted.
-  * **moderated** (boolean, default: `true`) - Only occupants with "voice" can send group messages.
-  * **members_by_default** (boolean, default: `true) - All new occupants are members by default (unless they have different affiliation assigned).
-  * **members_only** (boolean, default: `false`) - Only users with member affiliation can join the room.
-  * **allow_user_invites** (boolean, default: `false`) - Allow ordinary members to send mediated invitations.
-  * **password_protected** (boolean, default: `false`) - Room is protected with password.
-  * **password** (binary, default: `<<>>`) - Room password is required upon joining. This option has no effect when `password_protected` is `false`.
-  * **anonymous** (boolean, default: `true`) - Room is anonymous, meaning occupants can't see each others real JIDs, except for room moderators.
-  * **max_users** (positive integer, default: 200) - Maximum user count per room. Admins and room owner are not affected.
-  * **logging** (boolean, default: `false`) - Enables logging of room events (messages, presences) to file on disk. Uses `mod_muc_log`.
+    * **title** (binary, default: `<<>>`) - Room title.
+    * **description** (binary, default: `<<>>`) - Room description.
+    * **allow_change_subj** (boolean, default: `true`) - Allow all occupants to change room subject.
+    * **allow_query_users** (boolean, default: `true`) - Allow occupants to send IQ queries to other occupants.
+    * **allow_private_messages** (boolean, default: `true`) - Allow private messaging between occupants.
+    * **allow_visitor_status** (boolean, default: `true`) - Allow occupants to use text statuses in presences. When disabled, text is removed by the room before broadcasting.
+    * **allow_visitor_nickchange** (boolean, default: `true`) - Allow occupants to change nicknames.
+    * **public** (boolean, default: `true`) - Room is included in the list available via Service Discovery.
+    * **public_list** (boolean, default: `true`) - Member list can be fetched by non-members.
+    * **persistent** (boolean, default: `false`) - Room will be stored in DB and survive even when last occupant leaves or node is restarted.
+    * **moderated** (boolean, default: `true`) - Only occupants with "voice" can send group messages.
+    * **members_by_default** (boolean, default: `true) - All new occupants are members by default (unless they have different affiliation assigned).
+    * **members_only** (boolean, default: `false`) - Only users with member affiliation can join the room.
+    * **allow_user_invites** (boolean, default: `false`) - Allow ordinary members to send mediated invitations.
+    * **password_protected** (boolean, default: `false`) - Room is protected with password.
+    * **password** (binary, default: `<<>>`) - Room password is required upon joining. This option has no effect when `password_protected` is `false`.
+    * **anonymous** (boolean, default: `true`) - Room is anonymous, meaning occupants can't see each others real JIDs, except for room moderators.
+    * **max_users** (positive integer, default: 200) - Maximum user count per room. Admins and room owner are not affected.
+    * **logging** (boolean, default: `false`) - Enables logging of room events (messages, presences) to file on disk. Uses `mod_muc_log`.
 
 
 ### Example Configuration
