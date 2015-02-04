@@ -14,6 +14,7 @@ deps: rebar
 	./rebar get-deps
 
 clean: rebar
+	rm -rf apps/*/logs
 	./rebar clean
 
 quick_compile: rebar
@@ -30,6 +31,14 @@ reload_dev: quick_compile
 ct: deps quick_compile
 	@if [ "$(SUITE)" ]; then ./rebar -q ct suite=$(SUITE) skip_deps=true;\
 	else ./rebar -q ct skip_deps=true; fi
+
+# This compiles and runs one test suite. For quick feedback/TDD.
+# Example:
+# $ make qct SUITE=amp_resolver_SUITE
+qct:
+	mkdir -p /tmp/ct_log
+	ct_run -pa apps/*/ebin -pa deps/*/ebin -dir apps/*/test\
+        -I apps/*/include -logdir /tmp/ct_log -suite $(SUITE) -noshell
 
 test: test_deps
 	cd test/ejabberd_tests; make test
