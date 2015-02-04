@@ -2,3 +2,55 @@ site_name: MongooseIM
 docs_dir: doc
 theme: readthedocs
 extra_templates: []
+
+pages:
+  - ['README.md', 'MongooseIM documentation']
+  
+  - ['user-guide/Get-to-know-MongooseIM.md', 'User guide', 'Get to know MongooseIM']
+  - ['user-guide/Getting-started.md', 'User guide', 'Getting started']
+  
+  - ['Basic-configuration.md', 'Basic Configuration Overview']
+  
+  - ['Advanced-configuration.md', 'Advanced Configuration Overview']
+  - ['advanced-configuration/HTTP-authentication-module.md', 'Advanced Configuration', 'HTTP Authentication Module']
+  - ['advanced-configuration/Listener-modules.md',  'Advanced Configuration', 'Listener Modules']
+  - ['advanced-configuration/Modules.md',  'Advanced Configuration', 'Extension Modules']
+  
+  - ['modules/mod_adhoc.md', 'modules', 'mod_adhoc']
+  - ['modules/mod_admin_extra.md', 'modules', 'mod_admin_extra']
+  - ['modules/mod_amp.md', 'modules', 'mod_amp']
+  - ['modules/mod_bosh.md', 'modules', 'mod_bosh']
+  - ['modules/mod_carboncopy.md', 'modules', 'mod_carboncopy']
+  - ['modules/mod_disco.md', 'modules', 'mod_disco']
+  - ['modules/mod_last.md', 'modules', 'mod_last']
+  - ['modules/mod_mam.md', 'modules', 'mod_mam']
+  - ['modules/mod_metrics.md', 'modules', 'mod_metrics']
+  - ['modules/mod_muc.md', 'modules', 'mod_muc']
+  - ['modules/mod_muc_log.md', 'modules', 'mod_muc_log']
+  - ['modules/mod_offline.md', 'modules', 'mod_offline']
+  - ['modules/mod_privacy.md', 'modules', 'mod_privacy']
+  - ['modules/mod_private.md', 'modules', 'mod_private']
+  - ['modules/mod_register.md', 'modules', 'mod_register']
+  - ['modules/mod_roster.md', 'modules', 'mod_roster']
+  - ['modules/mod_shared_roster_ldap.md', 'modules', 'mod_shared_roster_ldap']
+  - ['modules/mod_sic.md', 'modules', 'mod_sic']
+  - ['modules/mod_stream_management.md', 'modules', 'mod_stream_management']
+  - ['modules/mod_vcard.md', 'modules', 'mod_vcard']
+  - ['modules/mod_websockets.md', 'modules', 'mod_websockets']
+  
+  - ['operation-and-maintenance/Cluster-configuration-and-node-management.md', 'Operation and maintenance', 'Cluster configuration and node management']
+  - ['operation-and-maintenance/Logging-&-monitoring.md', 'Operation and maintenance', 'Logging & monitoring']
+  - ['operation-and-maintenance/Reloading-configuration-on-a-running-system.md', 'Operation and maintenance', 'Reloading configuration on a running system']
+
+  - ['developers-guide/REST-interface-to-folsom-metrics.md', "Developer's guide", 'REST interface to metrics']  
+  - ['developers-guide/Hooks-and-handlers.md', "Developer's guide", 'Hooks and Handlers']
+  - ['developers-guide/mod_amp_developers_guide.md', "Developer's guide", 'mod_amp development']
+
+
+
+
+
+
+
+
+    
