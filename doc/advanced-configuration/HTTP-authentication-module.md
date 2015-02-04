@@ -10,7 +10,7 @@ The module can be especially useful for users maintaining their own, central use
 
 ### How to enable
 
-For full reference please check [Advanced-configuration#authentication](Advanced-configuration.md#authentication). The simplest way is to just replace default `auth_method` option in `rel/files/ejabberd.cfg` with `{auth_method, http}`.
+For full reference please check [Advanced-configuration#authentication](../Advanced-configuration.md#authentication). The simplest way is to just replace default `auth_method` option in `rel/files/ejabberd.cfg` with `{auth_method, http}`.
 
 Enabling the module **is not enough!** Please follow instructions below.
 
