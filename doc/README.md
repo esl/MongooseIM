@@ -16,5 +16,4 @@
     * [Reloading configuration on a running system](operation-and-maintenance/Reloading-configuration-on-a-running-system.md)
 * Misc
     * [Hooks and handler](misc/Hooks-and-handlers.md)
-    * [Folsom Metrics](misc/REST-interface-to-folsom-metrics.md)
-   
+    * [Metrics](misc/REST-interface-to-metrics.md)
