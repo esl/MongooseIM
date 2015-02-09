@@ -8,26 +8,26 @@ There are also some global metrics common for every hosts.
 
 | Metric name | Type | Group | Description |
 | ----------- | ---- | ----- | ----------- |
-| nodeSessionCount | function | global, XMPP | Number of connected users on given MongooseIM's node|
-| totalSessionCount | function | global, XMPP | Total number of connected users to MongooseIM cluster|
-| uniqueSessionCount | function | global, XMPP | Number of unique users connected to MongooseIM cluster |
-| adhoc_local_commands | spiral | host, system | Hook run when adhoc command was sent to the server's host |
-| adhoc_local_items | spiral | host, system | Hook run when adhoc command was sent to a user|
-| anonymous_purge_hook | spiral | host, system | Hook run after anonymous user disconnected |
-| c2s_stream_features | spiral | host, system | Hook run to collect stream features from optional modules / extensions |
-| c2s_unauthenticated_iq | spiral | host, system | Hook run when user sent iq before authentication |
-| disco_info | spiral | host, system | |
-| disco_local_features | spiral | host, system | |
-| disco_local_identity | spiral | host, system | |
-| disco_local_items | spiral | host, system | |
-| disco_sm_features | spiral | host, system | |
-| disco_sm_identity | spiral | host, system | |
-| disco_sm_items | spiral | host, system | |
-| host_config_update | spiral | host, system | |
-| local_send_to_resource_hook | spiral | host, system | |
-| mam_lookup_messages | spiral | host, system | |
-| mam_muc_purge_multiple_message | spiral | host, system | |
-| mam_purge_multiple_message | spiral | host, system | |
+| nodeSessionCount | value | global, XMPP | Number of connected users on given MongooseIM's node|
+| totalSessionCount | value | global, XMPP | Total number of connected users to MongooseIM cluster|
+| uniqueSessionCount | value | global, XMPP | Number of unique users connected to MongooseIM cluster |
+| adhoc_local_commands | spiral | host, hook | Hook run when adhoc command was sent to the server's host |
+| adhoc_local_items | spiral | host, hook | Hook run when adhoc command was sent to a user|
+| anonymous_purge_hook | spiral | host, hook | Hook run after anonymous user disconnected |
+| c2s_stream_features | spiral | host, hook | Hook run to collect stream features from optional modules / extensions |
+| c2s_unauthenticated_iq | spiral | host, hook | Hook run when user sent iq before authentication |
+| disco_info | spiral | host, hook | |
+| disco_local_features | spiral | host, hook | |
+| disco_local_identity | spiral | host, hook | |
+| disco_local_items | spiral | host, hook | |
+| disco_sm_features | spiral | host, hook | |
+| disco_sm_identity | spiral | host, hook | |
+| disco_sm_items | spiral | host, hook | |
+| host_config_update | spiral | host, hook | |
+| local_send_to_resource_hook | spiral | host, hook | |
+| mam_lookup_messages | spiral | host, hook | |
+| mam_muc_purge_multiple_message | spiral | host, hook | |
+| mam_purge_multiple_message | spiral | host, hook | |
 | modMamArchiveRemoved | spiral | host, XMPP | |
 | modMamArchived | spiral | host, XMPP | |
 | modMamDropped | spiral | host, XMPP | |
@@ -62,23 +62,23 @@ There are also some global metrics common for every hosts.
 | modRosterPush | spiral | host, XMPP | Number of roster pushes (after update to all user's resources) |
 | modRosterSets | spiral | host, XMPP | Number of roster changes |
 | modUnregisterCount | spiral | host, XMPP | Number of unregistrations (via mod_register module) |
-| offline_message_hook | spiral | host, system | Hook run when a message has been sent to a user without active resources |
-| privacy_get_user_list | spiral | host, system | |
-| privacy_updated_list | spiral | host, system | |
-| resend_offline_messages_hook |  spiral | host, system | Hook run when offline messages have been sent to newly connected users |
-| roster_get_jid_info | spiral | host, system | |
-| roster_get_subscription_lists |  spiral | host, system | |
-| roster_get_versioning_feature |  spiral | host, system | |
-| roster_in_subscription | spiral | host, system | Number of all presence subscriptions/unsubscriptions |
-| roster_out_subscription | spiral | host, system | Number of all presence subscription/unsubscription requests |
+| offline_message_hook | spiral | host, hook | Hook run when a message has been sent to a user without active resources |
+| privacy_get_user_list | spiral | host, hook | |
+| privacy_updated_list | spiral | host, hook | |
+| resend_offline_messages_hook |  spiral | host, hook | Hook run when offline messages have been sent to newly connected users |
+| roster_get_jid_info | spiral | host, hook | |
+| roster_get_subscription_lists |  spiral | host, hook | |
+| roster_get_versioning_feature |  spiral | host, hook | |
+| roster_in_subscription | spiral | host, hook | Number of all presence subscriptions/unsubscriptions |
+| roster_out_subscription | spiral | host, hook | Number of all presence subscription/unsubscription requests |
 | sessionAuthAnonymous | spiral | host, XMPP | Number of anonymous athentications |
 | sessionAuthFails | spiral | host, XMPP | Number of authentication failures |
 | sessionCount | counter | host, XMPP |  Number of active sessions|
 | sessionLogouts | spiral | host, XMPP | Number of users disconnections |
 | sessionSuccessfulLogins | spiral | host, XMPP | Number of successfull authentications |
-| sm_broadcast | spiral | host, system | |
-| sm_remove_connection_hook | spiral | host, system | |
-| unset_presence_hook | spiral | host, system | |
+| sm_broadcast | spiral | host, hook | |
+| sm_remove_connection_hook | spiral | host, hook | |
+| unset_presence_hook | spiral | host, hook | |
 | xmppErrorIq | spiral | host, XMPP | Number of IQ errors |
 | xmppErrorMessage | spiral | host, XMPP | Number of message errors |
 | xmppErrorPresence | spiral | host, XMPP | Number of presence errors |
@@ -94,3 +94,28 @@ There are also some global metrics common for every hosts.
 | xmppStanzaDropped | spiral | host, XMPP | Number of dropped stanzas |
 | xmppStanzaReceived | spiral | host, XMPP | Number of stanzas received by the server|
 | xmppStanzaSent | spiral | host, XMPP | Numb of stanzas sent to clients|
+
+
+## Metrics internals
+
+In exometer every metrics is treated as a path. Because of that exometer's name of above metrics looks like following:
+
+```erlang
+[HostOrGlobal, MetricName]
+```
+
+Where:
+
+  * `MetricName` is one of above metrics,
+  * `HostOrGlobal` is either atom `global` or binary string with XMPP host served by the server (f.e `<<"localhost">>`)
+
+### Metric types
+
+* `spiral` - returned value is `{ok,[{count,100},{one,10}]}` where `count` means total number of events and `one` - number of events in last minute 
+* `counter` - returned value is `{ok,[{value,10},{ms_since_reset,245940984}]}` where `value` is the value of the metric and `ms_since_reset` - number of milliseconds since metric reset
+* `value` - returned value is `{ok, 120}`
+
+### Metrics and hooks
+
+Metrics assgined to group `hook` are generic metrics update when given hook is run. In case of these metric its names are the same as corresponding hook name.
+Most of `XMPP` metrics are also triggered by hook and their count is the same as corresponding hook runs. They are named differently to maintain backward compatibility, to see hook <-> XMPP metric translation please refer to [mongoose_metrics_hooks](https://github.com/esl/MongooseIM/blob/exometer/apps/ejabberd/src/mongoose_metrics_hooks.erl#L71) file. 
