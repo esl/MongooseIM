@@ -23,8 +23,8 @@ There are also some global metrics common for every hosts.
 | disco_sm_features | spiral | host, hook | |
 | disco_sm_identity | spiral | host, hook | |
 | disco_sm_items | spiral | host, hook | |
-| host_config_update | spiral | host, hook | |
-| local_send_to_resource_hook | spiral | host, hook | |
+| host_config_update | spiral | host, hook | Hook run when config update is being performed. Currently this is run only if there is a change in ldap configuraiton |
+| local_send_to_resource_hook | spiral | host, hook | Hook run when a stanza is addressed to server's resource (f.e. localhost/watchdogs) |
 | mam_lookup_messages | spiral | host, hook | |
 | mam_muc_purge_multiple_message | spiral | host, hook | |
 | mam_purge_multiple_message | spiral | host, hook | |
