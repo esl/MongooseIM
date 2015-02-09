@@ -63,12 +63,12 @@ There are also some global metrics common for every hosts.
 | modRosterSets | spiral | host, XMPP | Number of roster changes |
 | modUnregisterCount | spiral | host, XMPP | Number of unregistrations (via mod_register module) |
 | offline_message_hook | spiral | host, hook | Hook run when a message has been sent to a user without active resources |
-| privacy_get_user_list | spiral | host, hook | |
-| privacy_updated_list | spiral | host, hook | |
+| privacy_get_user_list | spiral | host, hook | Hook run every time there is a need to get user's privacy list |
+| privacy_updated_list | spiral | host, hook | Hook run after privacy list update |
 | resend_offline_messages_hook |  spiral | host, hook | Hook run when offline messages have been sent to newly connected users |
-| roster_get_jid_info | spiral | host, hook | |
-| roster_get_subscription_lists |  spiral | host, hook | |
-| roster_get_versioning_feature |  spiral | host, hook | |
+| roster_get_jid_info | spiral | host, hook | Hook run to read roster information about specific user |
+| roster_get_subscription_lists |  spiral | host, hook | Hook run to obtain presence subscription lists (based on which presence updates are broadcast) |
+| roster_get_versioning_feature |  spiral | host, hook | Hook run to determine roster version support |
 | roster_in_subscription | spiral | host, hook | Number of all presence subscriptions/unsubscriptions |
 | roster_out_subscription | spiral | host, hook | Number of all presence subscription/unsubscription requests |
 | sessionAuthAnonymous | spiral | host, XMPP | Number of anonymous athentications |
@@ -76,9 +76,8 @@ There are also some global metrics common for every hosts.
 | sessionCount | counter | host, XMPP |  Number of active sessions|
 | sessionLogouts | spiral | host, XMPP | Number of users disconnections |
 | sessionSuccessfulLogins | spiral | host, XMPP | Number of successfull authentications |
-| sm_broadcast | spiral | host, hook | |
-| sm_remove_connection_hook | spiral | host, hook | |
-| unset_presence_hook | spiral | host, hook | |
+| sm_broadcast | spiral | host, hook | Hook run when a stanza is broadcast to all user's resources |
+| unset_presence_hook | spiral | host, hook | Hook run when a user disconnects or sends unavailable presence |
 | xmppErrorIq | spiral | host, XMPP | Number of IQ errors |
 | xmppErrorMessage | spiral | host, XMPP | Number of message errors |
 | xmppErrorPresence | spiral | host, XMPP | Number of presence errors |
