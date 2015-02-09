@@ -1,6 +1,7 @@
 site_name: MongooseIM
 docs_dir: doc
 theme: readthedocs
+site_favicon: favicon.ico
 extra_templates: []
 
 pages:
