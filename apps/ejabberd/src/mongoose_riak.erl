@@ -16,6 +16,7 @@
 -module(mongoose_riak).
 
 -include("ejabberd.hrl").
+-include_lib("riakc/include/riakc.hrl").
 
 %% API
 -export([start/0]).
@@ -29,12 +30,14 @@
 -export([update_type/3, update_type/4]).
 -export([fetch_type/2, fetch_type/3]).
 
+-compile({no_auto_import,[put/2]}).
+
 -define(CALL(F, Args), call_riak(F, Args)).
 
 -spec start() -> {ok, pid()} | ignore.
 start() ->
     case ejabberd_config:get_local_option({riak_config, ?MYNAME}) of
-        undefine ->
+        undefined ->
             ignore;
         RiakOpts ->
             {_, Workers} = lists:keyfind(workers, 1, RiakOpts),
