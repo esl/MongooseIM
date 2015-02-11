@@ -154,7 +154,7 @@ register(Config) ->
     [Username2, Server2, _Pass2] = escalus_users:get_usp(Config, UserSpec2),
     [AdminU, AdminS, AdminP] = escalus_users:get_usp(Config, AdminSpec),
 
-    {atomic, ok} = escalus_ejabberd:rpc(ejabberd_auth, try_register, [AdminU, AdminS, AdminP]),
+    ok = escalus_ejabberd:rpc(ejabberd_auth, try_register, [AdminU, AdminS, AdminP]),
 
     escalus:story(Config, [{admin, 1}], fun(Admin) ->
             escalus:create_users(Config, {by_name, [Name1, Name2]}),
@@ -170,10 +170,7 @@ register(Config) ->
                           end
                           || Username <- [Username1, Username2]
                          ],
-            escalus:assert_many(Predicates, escalus:wait_for_stanzas(Admin, 2)),
-
-            true = escalus_ejabberd:rpc(ejabberd_auth, is_user_exists, [Username1, Server1]),
-            true = escalus_ejabberd:rpc(ejabberd_auth, is_user_exists, [Username2, Server2])
+            escalus:assert_many(Predicates, escalus:wait_for_stanzas(Admin, 2))
         end).
 
 check_unregistered(Config) ->
