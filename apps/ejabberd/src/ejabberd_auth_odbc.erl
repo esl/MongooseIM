@@ -194,9 +194,9 @@ try_register(User, Server, Password) ->
                     LServer = jlib:nameprep(Server),
                     case catch odbc_queries:add_user(LServer, Username, Pass) of
                         {updated, 1} ->
-                            {atomic, ok};
+                            ok;
                         _ ->
-                            {atomic, exists}
+                            {error, exists}
                     end
             end
     end.

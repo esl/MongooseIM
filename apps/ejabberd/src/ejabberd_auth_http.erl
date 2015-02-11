@@ -8,6 +8,8 @@
 -module(ejabberd_auth_http).
 -author('piotr.nosek@erlang-solutions.com').
 
+-behaviour(ejabberd_gen_auth).
+
 %% External exports
 -export([start/1,
          set_password/3,
@@ -25,8 +27,9 @@
          remove_user/2,
          remove_user/3,
          plain_password_required/0,
-         store_type/1
-        ]).
+         store_type/1,
+         login/2,
+         get_password/3]).
 
 -include("ejabberd.hrl").
 
@@ -118,8 +121,8 @@ try_register(User, Server, Password) ->
                         false -> Password
                     end,
     case make_req(post, <<"register">>, LUser, LServer, PasswordFinal) of
-        {ok, created} -> {atomic, ok};
-        {error, conflict} -> {atomic, exists};
+        {ok, created} -> ok;
+        {error, conflict} -> {error, exists};
         Error -> Error
     end.
 
@@ -288,3 +291,9 @@ verify_scram_password(LUser, LServer, Password) ->
         _ ->
             {error, not_exists}
     end.
+
+login(_User, _Server) ->
+    erlang:error(not_implemented).
+
+get_password(_User, _Server, _DefaultValue) ->
+    erlang:error(not_implemented).

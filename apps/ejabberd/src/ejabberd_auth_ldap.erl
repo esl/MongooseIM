@@ -193,8 +193,8 @@ try_register(User, Server, Password) ->
               {"userPassword",[binary_to_list(Password)]},
               {"uid",[UserStr]}],
     case eldap_pool:add(State#state.eldap_id,DN,Attrs) of
-        ok -> {atomic, ok};
-        _ -> {atomic, exists}
+        ok -> ok;
+        _ -> {error, exists}
     end.
 
 

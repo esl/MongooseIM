@@ -7,6 +7,10 @@
 %%%-------------------------------------------------------------------
 -module(ejabberd_gen_auth).
 
+-callback start(Host :: ejabberd:server()) -> ok.
+
+-callback store_type(Host :: ejabberd:server()) -> scram | plain.
+
 -callback login(User :: ejabberd:user(),
                 Server :: ejabberd:server()) -> boolean().
 -callback set_password(User :: ejabberd:user(),
@@ -24,8 +28,8 @@
 -callback try_register(User :: ejabberd:user(),
                        Server :: ejabberd:server(),
                        Password :: binary()
-                       ) -> {atomic, ok | exists}
-                          | {error, invalid_jid | not_allowed} | {aborted, _}.
+                       ) -> ok
+                          | {error, invalid_jid | exists | not_allowed | {aborted, _}}.
 -callback dirty_get_registered_users() -> [ejabberd:simple_jid()].
 
 -callback get_vh_registered_users(Server :: ejabberd:server()

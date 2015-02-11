@@ -202,14 +202,14 @@ set_password(User, Server, Password) ->
 -spec try_register(User :: ejabberd:user(),
                    Server :: ejabberd:server(),
                    Password :: binary()
-                   ) -> {atomic, ok | exists} | {error, not_allowed}.
+                   ) -> ok | {error, exists | not_allowed | invalid_jid}.
 try_register(_User, _Server, "") ->
     %% We do not allow empty password
     {error, not_allowed};
 try_register(User, Server, Password) ->
     case is_user_exists(User,Server) of
         true ->
-            {atomic, exists};
+            {error, exists};
         false ->
             case lists:member(jlib:nameprep(Server), ?MYHOSTS) of
                 true ->
@@ -220,10 +220,10 @@ try_register(User, Server, Password) ->
                               M:try_register(User, Server, Password)
                       end, {error, not_allowed}, auth_modules(Server)),
                     case Res of
-                        {atomic, ok} ->
+                        ok ->
                             ejabberd_hooks:run(register_user, Server,
                                                [User, Server]),
-                            {atomic, ok};
+                            ok;
                         _ -> Res
                     end;
                 false ->

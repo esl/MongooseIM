@@ -199,7 +199,14 @@ try_register(User, Server, Password) ->
 				exists
 			end
 		end,
-	    mnesia:transaction(F)
+	    case mnesia:transaction(F) of
+            {atomic, ok} ->
+                ok;
+            {atomic, exists} ->
+                {error, exists};
+            {aborted, _} = Aborted ->
+                {error, Aborted}
+        end
     end.
 
 

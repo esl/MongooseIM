@@ -343,7 +343,7 @@ check_password_external_cache(User, Server, Password) ->
 %% @doc Try to register using extauth; if success then cache it
 try_register_external_cache(User, Server, Password) ->
     case try_register_extauth(User, Server, Password) of
-        {atomic, ok} = R ->
+        ok = R ->
             set_password_internal(User, Server, Password),
             R;
         _ -> {error, not_allowed}
