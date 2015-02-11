@@ -125,9 +125,9 @@ set_password(_Config) ->
     ok = ejabberd_auth_http:set_password(<<"alice">>, ?DOMAIN1, <<"makota">>).
 
 try_register(_Config) ->
-    {atomic, ok} = ejabberd_auth_http:try_register(<<"nonexistent">>, ?DOMAIN1, <<"newpass">>),
+    ok = ejabberd_auth_http:try_register(<<"nonexistent">>, ?DOMAIN1, <<"newpass">>),
     true = ejabberd_auth_http:check_password(<<"nonexistent">>, ?DOMAIN1, <<"newpass">>),
-    {atomic, exists} = ejabberd_auth_http:try_register(<<"nonexistent">>, ?DOMAIN1, <<"anypass">>).
+    {error, exists} = ejabberd_auth_http:try_register(<<"nonexistent">>, ?DOMAIN1, <<"anypass">>).
 
 % get_password + get_password_s
 get_password(_Config) ->
