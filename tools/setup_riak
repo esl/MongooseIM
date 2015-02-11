@@ -1,0 +1,161 @@
+#!/usr/bin/env escript
+%% -*- erlang -*-
+
+%% --------------------------------------------------
+%% Entry point
+%% --------------------------------------------------
+
+main(Args) ->
+    verify_tools(parse_args(Args)).
+
+parse_args([]) ->
+    "riak-admin";
+parse_args([Path]) ->
+    Path ++ "/riak-admin".
+
+script_dir() ->
+    filename:dirname(escript:script_name()).
+
+%% --------------------------------------------------
+%% Arguments verification
+%% --------------------------------------------------
+
+verify_tools(RiakAdmin) ->
+    case re:run(os:cmd(RiakAdmin), "Usage") of
+        nomatch ->
+            case RiakAdmin of
+                "riak-admin" ->
+                    io:format("riak-admin not found in $PATH~n", []),
+                    io:format("Please add it to $PATH or provide path where riak-admin is as script argument~n~n", []);
+                _ ->
+                    io:format("riak-admin not found in provided path~n~n")
+            end;
+        _ ->
+            case filelib:is_dir(lib_path("mochijson2")) of
+                true ->
+                    tools_verified(RiakAdmin);
+                false ->
+                    io:format("Please execute 'make' before running this script.~n", []),
+                    io:format("It requires one of MIM dependencies compiled.~n~n", [])
+            end
+    end.
+
+%% --------------------------------------------------
+%% Script steps and definitions
+%% --------------------------------------------------
+
+tools_verified(RiakAdmin) ->
+    add_code_path("mochijson2"),
+    ensure_buckets(RiakAdmin).
+
+add_code_path(Lib) -> true = code:add_path(lib_path(Lib)).
+
+lib_path(Lib) -> script_dir() ++ "/../deps/" ++ Lib ++ "/ebin".
+
+bucket_types() ->
+    [
+     {"users", [{"datatype", <<"map">>}]}
+    ].
+
+
+%% --------------------------------------------------
+%% Buckets
+%% --------------------------------------------------
+
+ensure_buckets(RiakAdmin) ->
+    io:format("Getting bucket types list...~n", []),
+    BucketTypes = os:cmd(RiakAdmin ++ " bucket-type list"),
+    io:format("~s~n", [BucketTypes]),
+
+    ExistingTypes = [ hd(string:tokens(T, " "))
+                      || T <- string:tokens(BucketTypes, "\n") ],
+    io:format("Verifying...~n"),
+    {ok, MissingTypes, InvalidTypes} = verify_bucket_types(
+                                         ExistingTypes,
+                                         bucket_types(), RiakAdmin),
+
+    case InvalidTypes of
+        [] ->
+            ok;
+        _ ->
+            io:format("~nThere are invalid types (SERIOUS PROBLEM:): ~p~n~n",
+                      InvalidTypes),
+            halt(1)
+    end,
+
+    case MissingTypes of
+        [] ->
+            io:format("~nThere are no missing bucket types~n");
+        _ ->
+            io:format("~nCreating missing bucket types...~n"),
+            create_bucket_types(MissingTypes, bucket_types(), RiakAdmin)
+    end.
+
+verify_bucket_types(ExistingTypes, BucketTypes, RiakAdmin) ->
+    verify_bucket_types(ExistingTypes, BucketTypes, [], [], RiakAdmin).
+
+verify_bucket_types(_, [], Missing, Invalid, _RiakAdmin) ->
+    {ok, Missing, Invalid};
+verify_bucket_types(ExistingTypes, [{TypeName, Props}|RTypes],
+                    Missing, Invalid, RiakAdmin) ->
+    io:format("~s: ", [TypeName]),
+    case lists:member(TypeName, ExistingTypes) of
+        false ->
+            io:format(" not exists~n", []),
+            verify_bucket_types(ExistingTypes, RTypes, [TypeName|Missing],
+                                Invalid, RiakAdmin);
+        true ->
+            case verify_bucket_type(TypeName, Props, RiakAdmin) of
+                invalid ->
+                    io:format(" invalid~n", []),
+                    verify_bucket_types(ExistingTypes, RTypes, Missing,
+                                        [TypeName|Invalid], RiakAdmin);
+                ok ->
+                    io:format(" OK~n", []),
+                    verify_bucket_types(ExistingTypes, RTypes, Missing,
+                                        Invalid, RiakAdmin)
+            end
+    end.
+
+verify_bucket_type(TypeName, Props, RiakAdmin) ->
+    Status = string:tokens(os:cmd(RiakAdmin ++ " bucket-type status "
+                                  ++ TypeName), "\n"),
+    Active = TypeName ++ " is active",
+    case hd(Status) of
+        IsActive when IsActive =:= Active ->
+            case verify_props(Props, Status) of
+                true -> ok;
+                false -> invalid
+            end;
+        _ -> invalid
+    end.
+
+verify_props(ValidProps, PropsToCheck) ->
+    lists:all(
+      fun({PropKey, PropValueBin}) ->
+              PropValue = binary_to_list(PropValueBin),
+              lists:member(PropKey ++ ": " ++ PropValue, PropsToCheck) orelse
+              lists:member(PropKey ++ ": " ++ lists:flatten(io_lib:format("~p", [PropValueBin])), PropsToCheck)
+      end, ValidProps).
+
+create_bucket_types(MissingTypes, TypesSpecs, RiakAdmin) ->
+    lists:foreach(
+      fun(TypeName) ->
+              io:format("~s... ", [TypeName]),
+              {_, Props} = lists:keyfind(TypeName, 1, TypesSpecs),
+
+              Created = TypeName ++ " created",
+              CreateRes = os:cmd(RiakAdmin ++ " bucket-type create " ++ TypeName
+                                 ++ " '" ++ props_to_json(Props) ++ "'"),
+              [Created|_R1] = string:tokens(CreateRes, "\n"),
+
+              Activated = TypeName ++ " has been activated",
+              ActivateRes = os:cmd(RiakAdmin ++ " bucket-type activate "
+                                   ++ TypeName),
+              [Activated|_R2] = string:tokens(ActivateRes, "\n"),
+
+              io:format("created~n", [])
+      end, MissingTypes).
+
+props_to_json(Props) ->
+    io_lib:format("~s", [mochijson2:encode({struct, [{"props", {struct, Props}}]})]).
