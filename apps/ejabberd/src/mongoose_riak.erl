@@ -29,8 +29,10 @@
 -export([delete/2, delete/3]).
 -export([update_type/3, update_type/4]).
 -export([fetch_type/2, fetch_type/3]).
+-export([list_keys/1]).
 -export([get_worker/0]).
 -export([create_new_map/1]).
+-export([update_map/2]).
 
 -compile({no_auto_import,[put/2]}).
 
@@ -115,9 +117,19 @@ fetch_type(Bucket, Key) ->
 fetch_type(Bucket, Key, Opts) ->
     ?CALL(fetch_type, [Bucket, Key, Opts]).
 
+-spec list_keys({binary(), binary()}) ->
+    {ok, [binary()]} | {error, term()}.
+list_keys(Bucket) ->
+    ?CALL(list_keys, [Bucket]).
+
+
 -spec create_new_map([riakc_map_op()]) -> riakc_map:crdt_map().
 create_new_map(Ops) ->
-    lists:foldl(fun update_map/2, riakc_map:new(), Ops).
+    update_map(riakc_map:new(), Ops).
+
+-spec update_map(riakc_map:crdt_map(), [riakc_map_op()]) -> riakc_map:crdt_map().
+update_map(Map, Ops) ->
+    lists:foldl(fun update_map_op/2, Map, Ops).
 
 -spec get_worker() -> pid() | undefined.
 get_worker() ->
@@ -128,7 +140,7 @@ get_worker() ->
             undefined
     end.
 
-update_map({Field, Fun}, Map) ->
+update_map_op({Field, Fun}, Map) ->
     riakc_map:update(Field, Fun, Map).
 
 call_riak(F, ArgsIn) ->
