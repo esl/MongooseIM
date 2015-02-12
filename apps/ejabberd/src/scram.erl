@@ -52,6 +52,8 @@
 
 -export([serialize/1, deserialize/1]).
 
+-export([scram_to_tuple/1]).
+
 -define(SALT_LENGTH, 16).
 -define(SCRAM_DEFAULT_ITERATION_COUNT, 4096).
 -define(SCRAM_SERIAL_PREFIX, "==SCRAM==,").
@@ -167,6 +169,11 @@ deserialize(Bin) ->
     ?WARNING_MSG("Corrupted serialized SCRAM: ~p, ~p", [Bin]),
     {error, corrupted_scram}.
 
+scram_to_tuple(Scram) ->
+    {base64:decode(Scram#scram.storedkey),
+     base64:decode(Scram#scram.serverkey),
+     base64:decode(Scram#scram.salt),
+     Scram#scram.iterationcount}.
 
 -ifdef(no_crypto_hmac).
 crypto_hmac(sha, Key, Data) ->

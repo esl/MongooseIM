@@ -274,10 +274,7 @@ get_password(User, Server) ->
                 {selected, [<<"password">>, <<"pass_details">>], [{_Password, PassDetails}]} ->
                     case scram:deserialize(PassDetails) of
                         {ok, Scram} ->
-                            {base64:decode(Scram#scram.storedkey),
-                             base64:decode(Scram#scram.serverkey),
-                             base64:decode(Scram#scram.salt),
-                             Scram#scram.iterationcount};
+                            scram:scram_to_tuple(Scram);
                         _ ->
                             false
                     end;
