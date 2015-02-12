@@ -29,10 +29,15 @@
 -export([delete/2, delete/3]).
 -export([update_type/3, update_type/4]).
 -export([fetch_type/2, fetch_type/3]).
+-export([get_worker/0]).
+-export([create_new_map/1]).
 
 -compile({no_auto_import,[put/2]}).
 
 -define(CALL(F, Args), call_riak(F, Args)).
+
+-type riakc_map_op() :: {{binary(), riakc_map:datatype()},
+                          fun((riakc_datatype:datatype()) -> riakc_datatype:datatype())}.
 
 -spec start() -> {ok, pid()} | ignore.
 start() ->
@@ -110,11 +115,11 @@ fetch_type(Bucket, Key) ->
 fetch_type(Bucket, Key, Opts) ->
     ?CALL(fetch_type, [Bucket, Key, Opts]).
 
-call_riak(F, ArgsIn) ->
-    Worker = get_worker(),
-    Args = [Worker | ArgsIn],
-    apply(riakc_pb_socket, F, Args).
+-spec create_new_map([riakc_map_op()]) -> riakc_map:crdt_map().
+create_new_map(Ops) ->
+    lists:foldl(fun update_map/2, riakc_map:new(), Ops).
 
+-spec get_worker() -> pid() | undefined.
 get_worker() ->
     case catch cuesport:get_worker(riak_pool) of
         Pid  when is_pid(Pid) ->
@@ -122,3 +127,12 @@ get_worker() ->
         _ ->
             undefined
     end.
+
+update_map({Field, Fun}, Map) ->
+    riakc_map:update(Field, Fun, Map).
+
+call_riak(F, ArgsIn) ->
+    Worker = get_worker(),
+    Args = [Worker | ArgsIn],
+    apply(riakc_pb_socket, F, Args).
+
