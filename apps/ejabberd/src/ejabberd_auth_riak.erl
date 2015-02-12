@@ -21,6 +21,7 @@
 
 %% API
 -export([start/1,
+         stop/1,
          store_type/1,
          login/2,
          set_password/3,
@@ -46,6 +47,10 @@
 start(_Host) ->
     ok.
 
+-spec stop(ejabberd:server()) -> ok.
+stop(_Host) ->
+    ok.
+
 -spec store_type(ejabberd:server()) -> plain | scram.
 store_type(Host) ->
     case scram:enabled(Host) of
@@ -53,8 +58,14 @@ store_type(Host) ->
         true -> scram
     end.
 
+-spec set_password(User :: ejabberd:user(),
+    Server :: ejabberd:server(),
+    Password :: binary()
+) -> ok | {error, not_allowed | invalid_jid}.
 set_password(User, Server, Password) ->
-    erlang:error(not_implemented).
+    LUser = jlib:nodeprep(User),
+    LServer = jlib:nameprep(Server),
+    do_set_password(LUser, LServer, Password).
 
 -spec check_password(User :: ejabberd:user(),
     Server :: ejabberd:server(),
@@ -79,17 +90,26 @@ try_register(User, Server, Password) ->
     LServer = jlib:nameprep(Server),
     try_register_if_does_not_exist(LUser, LServer, Password).
 
+-spec dirty_get_registered_users() -> [ejabberd:simple_jid()].
 dirty_get_registered_users() ->
-    erlang:error(not_implemented).
+    Servers = ejabberd_config:get_vh_by_auth_method(riak),
+    lists:flatmap(
+        fun(Server) ->
+            get_vh_registered_users(Server)
+        end, Servers).
 
+-spec get_vh_registered_users(ejabberd:server()) ->
+    [ejabberd:simple_jid()].
 get_vh_registered_users(Server) ->
-    erlang:error(not_implemented).
+    LServer = jlib:nameprep(Server),
+    do_get_vh_registered_users(LServer).
 
 get_vh_registered_users(Server, Opts) ->
     erlang:error(not_implemented).
 
+-spec get_vh_registered_users_number(ejabberd:server()) -> non_neg_integer().
 get_vh_registered_users_number(Server) ->
-    erlang:error(not_implemented).
+    length(get_vh_registered_users(Server)).
 
 get_vh_registered_users_number(Server, Opts) ->
     erlang:error(not_implemented).
@@ -154,8 +174,9 @@ try_register_if_does_not_exist(LUser, LServer, PasswordIn) ->
    end.
 
 try_register_with_password(LUser, LServer, Password) ->
+    Now = integer_to_binary(now_to_seconds(os:timestamp())),
     Ops = [{{<<"created">>, register},
-            fun(R) -> riakc_register:set(<<"A">>, R) end},
+            fun(R) -> riakc_register:set(Now, R) end},
            set_password_map_op(Password)],
     UserMap = mongoose_riak:create_new_map(Ops),
     case mongoose_riak:update_type(bucket_type(LServer), LUser,
@@ -183,7 +204,9 @@ do_check_password(LUser, LServer, Password) ->
         #scram{} = Scram ->
             scram:check_password(Password, Scram);
         Password when is_binary(Password) ->
-            Password /= <<"">>
+            Password /= <<"">>;
+        _ ->
+            false
     end.
 
 do_check_password(LUser, LServer, _, _, _)
@@ -209,6 +232,39 @@ do_get_password(LUser, LServer) ->
             extract_password(Map);
         _ ->
             false
+    end.
+
+do_set_password(LUser, LServer, _)
+    when LUser =:= error; LServer =:= error ->
+    {error, invalid_jid};
+do_set_password(LUser, LServer, Password) ->
+    case prepare_password(LServer, Password) of
+        false ->
+            {error, invalid_password};
+        Password ->
+            User = mongoose_riak:fetch_type(bucket_type(LServer), LUser),
+            do_set_password(User, LUser, LServer, Password)
+    end.
+
+do_set_password({error, {notfound, map}}, _, _, _) ->
+    {error, not_exists};
+do_set_password({ok, Map}, LUser, LServer, Password) ->
+    Ops = [set_password_map_op(Password)],
+    UpdateMap = mongoose_riak:update_map(Map, Ops),
+    case mongoose_riak:update_type(bucket_type(LServer), LUser,
+                                   riakc_map:to_op(UpdateMap)) of
+        ok ->
+            ok;
+        Reason ->
+            Reason
+    end.
+
+do_get_vh_registered_users(LServer) ->
+    case mongoose_riak:list_keys(bucket_type(LServer)) of
+        {ok, Users} ->
+            [{User, LServer} || User <- Users];
+        _ ->
+            []
     end.
 
 prepare_password(Iterations, Password) when is_integer(Iterations) ->
@@ -254,3 +310,6 @@ maybe_extract_scram_password({ok, ScramSerialised}) ->
         _ ->
             false
     end.
+
+now_to_seconds({MegaSecs, Secs, _MicroSecs}) ->
+    MegaSecs * 1000000 + Secs.
