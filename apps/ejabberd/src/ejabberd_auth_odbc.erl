@@ -109,9 +109,8 @@ check_password(User, Server, Password, Digest, DigestGen) ->
                     ejabberd_auth:check_digest(Digest, DigestGen, Password, Passwd);
                 {selected, [<<"password">>, <<"pass_details">>], [{_Passwd, PassDetails}]} ->
                     case scram:deserialize(PassDetails) of
-                        #scram{storedkey = StoredKey} ->
-                            Passwd = base64:decode(StoredKey),
-                            ejabberd_auth:check_digest(Digest, DigestGen, Password, Passwd);
+                        #scram{} = Scram ->
+                            scram:check_digest(Scram, Digest, DigestGen, Password);
                         _ ->
                             false
                     end;
