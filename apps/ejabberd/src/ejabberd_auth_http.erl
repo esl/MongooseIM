@@ -88,9 +88,8 @@ check_password(User, Server, Password, Digest, DigestGen) ->
             case scram:enabled(LServer) of
                 true ->
                     case scram:deserialize(GotPasswd) of
-                        {ok, #scram{storedkey = StoredKey}} ->
-                            Passwd = base64:decode(StoredKey),
-                            ejabberd_auth:check_digest(Digest, DigestGen, Password, Passwd);
+                        {ok, #scram{} = Scram} ->
+                            scram:check_digest(Scram, Digest, DigestGen, Password);
                         _ ->
                             false
                     end;
@@ -158,10 +157,7 @@ get_password(User, Server) ->
                 true ->
                     case scram:deserialize(Password) of
                         {ok, #scram{} = Scram} ->
-                            {base64:decode(Scram#scram.storedkey),
-                             base64:decode(Scram#scram.serverkey),
-                             base64:decode(Scram#scram.salt),
-                             Scram#scram.iterationcount};
+                            scram:scram_to_tuple(Scram);
                         _ ->
                             false
                     end;
