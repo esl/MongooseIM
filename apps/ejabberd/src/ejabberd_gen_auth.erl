@@ -9,6 +9,8 @@
 
 -callback start(Host :: ejabberd:server()) -> ok.
 
+-callback stop(Host :: ejabberd:server()) -> ok.
+
 -callback store_type(Host :: ejabberd:server()) -> scram | plain.
 
 -callback login(User :: ejabberd:user(),
