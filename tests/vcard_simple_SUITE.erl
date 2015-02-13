@@ -426,7 +426,7 @@ get_FN_wildcard() ->
 get_FN(Config) ->
     case is_vcard_ldap() of
         true ->
-            escalus_users:get_username(Config, alice);
+            escalus_utils:jid_to_lower(escalus_users:get_username(Config, alice));
         false ->
             <<"Old Name">>
     end.
