@@ -375,11 +375,18 @@ do_get_password(LUser, LServer) ->
         end, false, auth_modules(LServer)).
 
 
--spec get_password_s(User :: ejabberd:luser(),
-                     Server :: ejabberd:lserver()) -> binary().
-get_password_s(LUser, LServer) ->
+-spec get_password_s(User :: ejabberd:user(),
+                     Server :: ejabberd:server()) -> binary().
+get_password_s(User, Server) ->
+    LUser = jlib:nodeprep(User),
+    LServer = jlib:nameprep(Server),
+    do_get_password_s(LUser, LServer).
+
+do_get_password_s(LUser, LServer) when LUser =:= error; LServer =:= error ->
+    <<"">>;
+do_get_password_s(LUser, LServer) ->
     lists:foldl(
-        fun(M, false) ->
+        fun(M, <<"">>) ->
             M:get_password_s(LUser, LServer);
             (_M, Password) ->
                 Password
