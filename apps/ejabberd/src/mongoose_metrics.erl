@@ -34,11 +34,11 @@ init_predefined_metrics(Host) ->
 
 -spec create_generic_hook_metric(ejabberd:lserver(), atom()) -> no_return().
 create_generic_hook_metric(Host, Hook) ->
-    do_create_generic_hook_metric({Host, hook_to_name(Hook)}).
+    do_create_generic_hook_metric({Host, filter_hook(Hook)}).
 
 -spec increment_generic_hook_metric(ejabberd:lserver(), atom()) -> no_return().
 increment_generic_hook_metric(Host, Hook) ->
-    do_increment_generic_hook_metric({Host, hook_to_name(Hook)}).
+    do_increment_generic_hook_metric({Host, filter_hook(Hook)}).
 
 do_create_generic_hook_metric({_, skip}) ->
     ok;
@@ -57,47 +57,46 @@ remove_host_metrics(Host) ->
     [folsom_metrics:delete_metric(Metric) ||
      {Metric, _} <- folsom_metrics:get_metrics_value(Host)].
 
-%% allows to set a specifc name for metric
-%% or skip given hook
-hook_to_name(sm_register_connection_hook) -> skip;
-hook_to_name(sm_remove_connetion_hook) -> skip;
-hook_to_name(auth_failed) -> skip;
-hook_to_name(user_send_packet) -> skip;
-hook_to_name(user_receive_packet) -> skip;
-hook_to_name(xmpp_bounce_message) -> skip;
-hook_to_name(xmpp_stanza_dropped) -> skip;
-hook_to_name(xmpp_send_element) -> skip;
-hook_to_name(roster_get) -> skip;
-hook_to_name(roster_set) -> skip;
-hook_to_name(roster_push) -> skip;
-hook_to_name(register_user) -> skip;
-hook_to_name(remove_user) -> skip;
-hook_to_name(privacy_iq_get) -> skip;
-hook_to_name(privacy_iq_set) -> skip;
-hook_to_name(privacy_check_packet) -> skip;
-hook_to_name(mam_get_prefs) -> skip;
-hook_to_name(mam_set_prefs) -> skip;
-hook_to_name(mam_remove_archive) -> skip;
-hook_to_name(mam_archive_message) -> skip;
-hook_to_name(mam_flush_messages) -> skip;
-hook_to_name(mam_drop_message) -> skip;
-hook_to_name(mam_drop_iq) -> skip;
-hook_to_name(mam_drop_messages) -> skip;
-hook_to_name(mam_purge_single_message) -> skip;
-hook_to_name(mam_purge_multiple_messages) -> skip;
-hook_to_name(mam_muc_get_prefs) -> skip;
-hook_to_name(mam_muc_set_prefs) -> skip;
-hook_to_name(mam_muc_remove_archive) -> skip;
-hook_to_name(mam_muc_lookup_messages) -> skip;
-hook_to_name(mam_muc_archive_message) -> skip;
-hook_to_name(mam_muc_flush_messages) -> skip;
-hook_to_name(mam_muc_drop_message) -> skip;
-hook_to_name(mam_muc_drop_iq) -> skip;
-hook_to_name(mam_muc_drop_messages) -> skip;
-hook_to_name(mam_muc_purge_single_message) -> skip;
-hook_to_name(mam_muc_purge_multiple_messages) -> skip;
+%% decided whether to use a metric for given hook or not
+filter_hook(sm_register_connection_hook) -> skip;
+filter_hook(sm_remove_connetion_hook) -> skip;
+filter_hook(auth_failed) -> skip;
+filter_hook(user_send_packet) -> skip;
+filter_hook(user_receive_packet) -> skip;
+filter_hook(xmpp_bounce_message) -> skip;
+filter_hook(xmpp_stanza_dropped) -> skip;
+filter_hook(xmpp_send_element) -> skip;
+filter_hook(roster_get) -> skip;
+filter_hook(roster_set) -> skip;
+filter_hook(roster_push) -> skip;
+filter_hook(register_user) -> skip;
+filter_hook(remove_user) -> skip;
+filter_hook(privacy_iq_get) -> skip;
+filter_hook(privacy_iq_set) -> skip;
+filter_hook(privacy_check_packet) -> skip;
+filter_hook(mam_get_prefs) -> skip;
+filter_hook(mam_set_prefs) -> skip;
+filter_hook(mam_remove_archive) -> skip;
+filter_hook(mam_archive_message) -> skip;
+filter_hook(mam_flush_messages) -> skip;
+filter_hook(mam_drop_message) -> skip;
+filter_hook(mam_drop_iq) -> skip;
+filter_hook(mam_drop_messages) -> skip;
+filter_hook(mam_purge_single_message) -> skip;
+filter_hook(mam_purge_multiple_messages) -> skip;
+filter_hook(mam_muc_get_prefs) -> skip;
+filter_hook(mam_muc_set_prefs) -> skip;
+filter_hook(mam_muc_remove_archive) -> skip;
+filter_hook(mam_muc_lookup_messages) -> skip;
+filter_hook(mam_muc_archive_message) -> skip;
+filter_hook(mam_muc_flush_messages) -> skip;
+filter_hook(mam_muc_drop_message) -> skip;
+filter_hook(mam_muc_drop_iq) -> skip;
+filter_hook(mam_muc_drop_messages) -> skip;
+filter_hook(mam_muc_purge_single_message) -> skip;
+filter_hook(mam_muc_purge_multiple_messages) -> skip;
 
-hook_to_name(Hook) -> Hook.
+filter_hook(Hook) -> Hook.
 
 
 
