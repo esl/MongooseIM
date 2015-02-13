@@ -318,16 +318,9 @@ get_vh_registered_users(Server, Opts) ->
 do_get_vh_registered_users(error, _) ->
     [];
 do_get_vh_registered_users(LServer, Opts) ->
-    %%TODO do not check if function exported - implement this in backend modules
     lists:flatmap(
         fun(M) ->
-            case erlang:function_exported(
-                M, get_vh_registered_users, 2) of
-                true ->
-                    M:get_vh_registered_users(LServer, Opts);
-                false ->
-                    M:get_vh_registered_users(LServer)
-            end
+            M:get_vh_registered_users(LServer, Opts)
         end, auth_modules(LServer)).
 
 
@@ -356,17 +349,10 @@ get_vh_registered_users_number(Server, Opts) ->
 do_get_vh_registered_users_number(error, _) ->
     0;
 do_get_vh_registered_users_number(LServer, Opts) ->
-    %%TODO do not check if function exported - implement this in backend modules
     lists:sum(
         lists:map(
             fun(M) ->
-                case erlang:function_exported(
-                    M, get_vh_registered_users_number, 2) of
-                    true ->
-                        M:get_vh_registered_users_number(LServer, Opts);
-                    false ->
-                        length(M:get_vh_registered_users(LServer))
-                end
+                M:get_vh_registered_users_number(LServer, Opts)
             end, auth_modules(LServer))).
 
 
@@ -389,17 +375,15 @@ do_get_password(LUser, LServer) ->
         end, false, auth_modules(LServer)).
 
 
--spec get_password_s(User :: ejabberd:user(),
-                     Server :: ejabberd:server()) -> binary().
-get_password_s(User, Server) ->
-    %%TODO use get_password_s from modules
-    case get_password(User, Server) of
-        false ->
-            <<"">>;
-        Password ->
-            Password
-    end.
-
+-spec get_password_s(User :: ejabberd:luser(),
+                     Server :: ejabberd:lserver()) -> binary().
+get_password_s(LUser, LServer) ->
+    lists:foldl(
+        fun(M, false) ->
+            M:get_password_s(LUser, LServer);
+            (_M, Password) ->
+                Password
+        end, <<"">>, auth_modules(LServer)).
 
 %% @doc Get the password of the user and the auth module.
 -spec get_password_with_authmodule(User :: ejabberd:user(),
