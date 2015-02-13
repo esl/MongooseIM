@@ -118,8 +118,23 @@ route(From, To, Packet) ->
         true ->
             mod_muc_light_room:handle_packet(From, To, Packet);
         false when To#jid.lresource =:= <<>> ->
-            create_room(From, To, Packet)
+            case is_create_iq(Packet) of
+                true ->
+                    create_room(From, To, Packet);
+                false ->
+                    ejabberd_router:route(
+                      To, From, jlib:make_error_reply(Packet, ?ERR_BAD_REQUEST))
+            end
     end.
+
+-spec is_create_iq(#xmlel{}) -> boolean().
+is_create_iq(#xmlel{ name = <<"iq">> }=IQ) ->
+    case {exml_query:path(IQ, [{attr, <<"type">>}]),
+          exml_query:path(IQ, [{element, <<"query">>}, {attr, <<"xmlns">>}])} of
+        {<<"set">>, ?NS_MUC_OWNER} -> true;
+        {_Type    , _NS}           -> false
+    end;
+is_create_iq(_Packet)                      -> false.
 
 -spec create_room(jid(), jid(), #xmlel{}) -> ok.
 create_room(From, To, #xmlel{ name = <<"iq">> } = IQ) ->
@@ -213,4 +228,3 @@ rooms_to_items(RoomsUSs) ->
                                {<<"name">>, RoomName}
                               ] }
       end, RoomsUSs).
-
