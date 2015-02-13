@@ -36,7 +36,6 @@
          get_password/2,
          get_password_s/2,
          get_password/3,
-         is_user_exists/2,
          does_user_exist/2,
          remove_user/2,
          remove_user/3,
@@ -119,15 +118,18 @@ get_vh_registered_users(LServer) ->
             []
     end.
 
-get_vh_registered_users(_Server, _Opts) ->
-    erlang:error(not_implemented).
+-spec get_vh_registered_users(ejabberd:lserver(), list()) ->
+    [ejabberd:simple_jid()].
+get_vh_registered_users(LServer, _Opts) ->
+    get_vh_registered_users(LServer).
 
 -spec get_vh_registered_users_number(ejabberd:lserver()) -> non_neg_integer().
 get_vh_registered_users_number(LServer) ->
     length(get_vh_registered_users(LServer)).
 
-get_vh_registered_users_number(_LServer, _Opts) ->
-    erlang:error(not_implemented).
+-spec get_vh_registered_users_number(ejabberd:lserver(), list()) -> non_neg_integer().
+get_vh_registered_users_number(LServer, _Opts) ->
+    get_vh_registered_users_number(LServer).
 
 -spec get_password(ejabberd:luser(), ejabberd:lserver()) -> binary() | false | scram().
 get_password(LUser, LServer) ->
@@ -140,15 +142,16 @@ get_password(LUser, LServer) ->
             Password
     end.
 
-get_password_s(_LUser, _LServer) ->
-    erlang:error(not_implemented).
+get_password_s(LUser, LServer) ->
+    case get_password(LUser, LServer) of
+        Password when is_binary(Password) ->
+            Password;
+        _ ->
+            <<"">>
+    end.
 
 get_password(_LUser, _LServer, _DefaultValue) ->
     erlang:error(not_implemented).
-
--spec is_user_exists(ejabberd:luser(), ejabberd:lserver()) -> boolean().
-is_user_exists(LUser, LServer) ->
-    does_user_exist(LUser, LServer).
 
 -spec does_user_exist(ejabberd:luser(), ejabberd:lserver()) -> boolean().
 does_user_exist(LUser, LServer) ->
