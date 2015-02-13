@@ -50,8 +50,8 @@
 -callback get_password(User :: ejabberd:luser(),
                        Server :: ejabberd:lserver(),
                        DefaultValue :: binary()) -> binary() | false.
--callback is_user_exists(User :: ejabberd:luser(),
-                         Server :: ejabberd:lserver()
+-callback does_user_exist(User :: ejabberd:luser(),
+                          Server :: ejabberd:lserver()
                          ) -> boolean() | {error, atom()}.
 -callback remove_user(User :: ejabberd:luser(),
                       Server :: ejabberd:lserver()

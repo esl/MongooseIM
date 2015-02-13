@@ -144,20 +144,20 @@ get_password(_Config) ->
     <<>> = ejabberd_auth_http:get_password_s(<<"anakin">>, ?DOMAIN1).
     
 is_user_exists(_Config) ->
-    true = ejabberd_auth_http:is_user_exists(<<"alice">>, ?DOMAIN1),
-    false = ejabberd_auth_http:is_user_exists(<<"madhatter">>, ?DOMAIN1).
+    true = ejabberd_auth_http:does_user_exist(<<"alice">>, ?DOMAIN1),
+    false = ejabberd_auth_http:does_user_exist(<<"madhatter">>, ?DOMAIN1).
 
 % remove_user/2,3
 remove_user(_Config) ->
-    true = ejabberd_auth_http:is_user_exists(<<"toremove1">>, ?DOMAIN1),
+    true = ejabberd_auth_http:does_user_exist(<<"toremove1">>, ?DOMAIN1),
     ok = ejabberd_auth_http:remove_user(<<"toremove1">>, ?DOMAIN1),
-    false = ejabberd_auth_http:is_user_exists(<<"toremove1">>, ?DOMAIN1),
+    false = ejabberd_auth_http:does_user_exist(<<"toremove1">>, ?DOMAIN1),
 
-    true = ejabberd_auth_http:is_user_exists(<<"toremove2">>, ?DOMAIN1),
+    true = ejabberd_auth_http:does_user_exist(<<"toremove2">>, ?DOMAIN1),
     not_allowed = ejabberd_auth_http:remove_user(<<"toremove2">>, ?DOMAIN1, <<"wrongpass">>),
-    true = ejabberd_auth_http:is_user_exists(<<"toremove2">>, ?DOMAIN1),
+    true = ejabberd_auth_http:does_user_exist(<<"toremove2">>, ?DOMAIN1),
     ok = ejabberd_auth_http:remove_user(<<"toremove2">>, ?DOMAIN1, <<"pass">>),
-    false = ejabberd_auth_http:is_user_exists(<<"toremove2">>, ?DOMAIN1),
+    false = ejabberd_auth_http:does_user_exist(<<"toremove2">>, ?DOMAIN1),
 
     not_exists = ejabberd_auth_http:remove_user(<<"toremove3">>, ?DOMAIN1, <<"wrongpass">>).
 

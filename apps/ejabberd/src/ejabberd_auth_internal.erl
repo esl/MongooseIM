@@ -42,7 +42,7 @@
          get_vh_registered_users_number/2,
          get_password/2,
          get_password_s/2,
-         is_user_exists/2,
+         does_user_exist/2,
          remove_user/2,
          remove_user/3,
          store_type/1,
@@ -312,10 +312,10 @@ get_password_s(LUser, LServer) ->
     end.
 
 
--spec is_user_exists(LUser :: ejabberd:luser(),
+-spec does_user_exist(LUser :: ejabberd:luser(),
                      LServer :: ejabberd:lserver()
                      ) -> boolean() | {error, atom()}.
-is_user_exists(LUser, LServer) ->
+does_user_exist(LUser, LServer) ->
     US = {LUser, LServer},
     case catch mnesia:dirty_read({passwd, US}) of
         [] ->

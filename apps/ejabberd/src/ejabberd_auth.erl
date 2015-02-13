@@ -419,8 +419,7 @@ do_does_user_exist(LUser, LServer) when LUser =:= error; LServer =:= error ->
 do_does_user_exist(LUser, LServer) ->
     lists:any(
         fun(M) ->
-            %%TODO change the name in backend modules
-            case M:is_user_exists(LUser, LServer) of
+            case M:does_user_exist(LUser, LServer) of
                 {error, Error} ->
                     ?ERROR_MSG("The authentication module ~p returned an "
                     "error~nwhen checking user ~p in server ~p~n"

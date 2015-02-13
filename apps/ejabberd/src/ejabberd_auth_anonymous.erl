@@ -49,7 +49,7 @@
 	 get_vh_registered_users/1,
 	 get_password/2,
 	 get_password/3,
-	 is_user_exists/2,
+	 does_user_exist/2,
 	 remove_user/2,
 	 remove_user/3,
 	 store_type/1,
@@ -305,9 +305,9 @@ get_password(LUser, LServer, DefaultValue) ->
 
 %% @doc Returns true if the user exists in the DB or if an anonymous user is
 %% logged under the given name
--spec is_user_exists(LUser :: ejabberd:luser(),
+-spec does_user_exist(LUser :: ejabberd:luser(),
                      LServer :: ejabberd:lserver()) -> boolean().
-is_user_exists(LUser, LServer) ->
+does_user_exist(LUser, LServer) ->
     anonymous_user_exist(LUser, LServer).
 
 
