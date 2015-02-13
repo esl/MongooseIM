@@ -59,9 +59,9 @@
 start_link() ->
     gen_server:start_link({local, ejabberd_hooks}, ejabberd_hooks, [], []).
 
-%% @doc Adds a fun to given hook.
+%% @doc Add a fun to the given hook.
 %% The integer sequence is used to sort the calls:
-%% low number is called before high number.
+%% low numbers are executed before high numbers.
 -spec add(Hook :: atom(),
           Host :: ejabberd:server(),
           Function :: fun() | atom(),
@@ -69,9 +69,9 @@ start_link() ->
 add(Hook, Host, Function, Seq) when is_function(Function) ->
     add(Hook, Host, undefined, Function, Seq).
 
-%% @doc Adds a module and funciton to given hook.
+%% @doc Add a module and function to the given hook.
 %% The integer sequence is used to sort the calls:
-%% low number is called before high number.
+%% low numbers are executed before high numbers.
 -spec add(Hook :: atom(),
           Host :: ejabberd:server(),
           Module :: atom(),
