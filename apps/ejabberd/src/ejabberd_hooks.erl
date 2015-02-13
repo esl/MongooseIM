@@ -231,9 +231,9 @@ run1([], _Hook, _Args) ->
     ok;
 run1([{_Seq, Module, Function} | Ls], Hook, Args) ->
     Res = if is_function(Function) ->
-                  catch apply(Function, Args);
+                  safely:apply(Function, Args);
              true ->
-                  catch apply(Module, Function, Args)
+                  safely:apply(Module, Function, Args)
           end,
     case Res of
         {'EXIT', Reason} ->
@@ -246,14 +246,13 @@ run1([{_Seq, Module, Function} | Ls], Hook, Args) ->
             run1(Ls, Hook, Args)
     end.
 
-
 run_fold1([], _Hook, Val, _Args) ->
     Val;
 run_fold1([{_Seq, Module, Function} | Ls], Hook, Val, Args) ->
     Res = if is_function(Function) ->
-                  catch apply(Function, [Val | Args]);
+                  safely:apply(Function, [Val | Args]);
              true ->
-                  catch apply(Module, Function, [Val | Args])
+                  safely:apply(Module, Function, [Val | Args])
           end,
     case Res of
         {'EXIT', Reason} ->

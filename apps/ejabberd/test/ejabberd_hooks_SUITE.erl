@@ -18,7 +18,11 @@ all() ->
       hooks_run_fold_folds_with_binary_fun,
       hooks_run_fold_passes_acc_along,
       hooks_run_fold_stops_when_fun_returns_stop,
-      hooks_run_fold_preserves_order
+      hooks_run_fold_preserves_order,
+
+      error_in_run_fold_is_ignored,
+      throw_in_run_fold_is_ignored,
+      exit_in_run_fold_is_ignored
     ].
 
 a_fun_can_be_added(_) ->
@@ -184,9 +188,64 @@ hooks_run_fold_preserves_order(_) ->
     2 = R.
 
 
+error_in_run_fold_is_ignored(_) ->
+    given_hooks_started(),
+
+    given_module(failing_mod, broken, fun(_) -> error(broken) end),
+    given_hook_added(test_fold_hook, failing_mod, broken, 1),
+
+    given_module(working_mod, good, const(i_was_run)),
+    given_hook_added(test_fold_hook, working_mod, good, 2),
+
+    %% when
+    R = ejabberd_hooks:run_fold(test_fold_hook, ?HOST, initial, []),
+
+    %% then
+    i_was_run = R,
+    [{_Pid, {failing_mod,broken,[initial]}, error,broken, _Stacktrace}] =
+        meck:history(failing_mod).
+
+
+throw_in_run_fold_is_ignored(_) ->
+    given_hooks_started(),
+
+    given_module(throwing_mod, throwing_fun, fun(_) -> throw(ball) end),
+    given_hook_added(test_fold_hook, throwing_mod, throwing_fun, 1),
+
+    given_module(working_mod, good, fun(X) -> X end),
+    given_hook_added(test_fold_hook, working_mod, good, 2),
+
+    %% when
+    R = ejabberd_hooks:run_fold(test_fold_hook, ?HOST, initial, []),
+
+    %% then
+    initial = R,
+    [{_Pid, {throwing_mod,throwing_fun,[initial]}, throw, ball, _ST}] =
+        meck:history(throwing_mod).
+
+
+exit_in_run_fold_is_ignored(_) ->
+    given_hooks_started(),
+
+    given_module(exiting_mod, exiting_fun,
+                 fun(_) -> meck:exception(exit,oops) end),
+    given_hook_added(test_fold_hook, exiting_mod, exiting_fun, 1),
+
+    given_module(working_mod, good, fun(X) -> X end),
+    given_hook_added(test_fold_hook, working_mod, good, 2),
+
+    %% when
+    R = ejabberd_hooks:run_fold(test_fold_hook, ?HOST, initial, []),
+
+    %% then
+    initial = R,
+    [{_Pid, {exiting_mod,exiting_fun,[initial]}, exit, oops, _ST}] =
+        meck:history(exiting_mod).
+
+
+
 
 %% Givens
-
 const(N) -> fun(_) -> N end.
 
 given_hooks_started() ->
