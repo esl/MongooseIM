@@ -101,7 +101,9 @@ route(From, #jid{ luser = <<>>, lresource = <<>> } = To, #xmlel{ name = <<"iq">>
     case {exml_query:path(IQ, [{attr, <<"type">>}]),
           exml_query:path(IQ, [{element, <<"query">>}, {attr, <<"xmlns">>}])} of
         {<<"get">>, ?NS_DISCO_ITEMS} ->
-            handle_disco_get(From, To, IQ);
+            handle_disco_items_get(From, To, IQ);
+        {<<"get">>, ?NS_DISCO_INFO} ->
+            handle_disco_info_get(From, To, IQ);
         _ ->
             ejabberd_router:route(To, From, jlib:make_error_reply(IQ, ?ERR_BAD_REQUEST))
     end;
@@ -167,8 +169,26 @@ lower_nores(JID) -> jlib:jid_remove_resource(jlib:jid_to_lower(JID)).
 format_config_error({Key, Error}) ->
     io_lib:format("~s:~p", [Key, Error]).
 
--spec handle_disco_get(jid(), jid(), #xmlel{}) -> ok.
-handle_disco_get(From, To,IQ) ->
+-spec handle_disco_info_get(jid(), jid(), #xmlel{}) -> ok.
+handle_disco_info_get(From, To, Packet) ->
+    IQ = jlib:iq_query_info(Packet),
+    ResIQ = IQ#iq{
+               type=result,
+               sub_el=[#xmlel{name = <<"query">>,
+                              attrs =[{<<"xmlns">>,?NS_DISCO_INFO}],
+                              children = [#xmlel{name = <<"identity">>,
+                                                 attrs = [{<<"category">>, <<"conference">>},
+                                                          {<<"type">>, <<"test">>},
+                                                          {<<"name">>, <<"MUC Light">>}]},
+                                          #xmlel{name = <<"feature">>,
+                                                 attrs = [{<<"var">>, ?NS_MUC}]}
+                                         ]
+                             }]
+             },
+        ejabberd_router:route(To, From, jlib:iq_to_xml(ResIQ)).
+
+-spec handle_disco_items_get(jid(), jid(), #xmlel{}) -> ok.
+handle_disco_items_get(From, To,IQ) ->
     case (backend()):get_user_rooms(jlib:jid_to_lower(From)) of
         {ok, RoomsUSs} ->
             Ch = exml_query:path(IQ, [{element, <<"query">>}]),
