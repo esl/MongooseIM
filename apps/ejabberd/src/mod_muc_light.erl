@@ -123,7 +123,7 @@ route(From, To, Packet) ->
                     create_room(From, To, Packet);
                 false ->
                     ejabberd_router:route(
-                      To, From, jlib:make_error_reply(Packet, ?ERR_BAD_REQUEST))
+                      To, From, jlib:make_error_reply(Packet, ?ERR_ITEM_NOT_FOUND))
             end
     end.
 
