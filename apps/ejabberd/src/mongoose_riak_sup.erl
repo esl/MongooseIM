@@ -15,10 +15,10 @@
 %%==============================================================================
 -module(mongoose_riak_sup).
 
-
 -behaviour(supervisor).
 
 %% API
+-export([start/2]).
 -export([start_link/2]).
 -export([stop/0]).
 
@@ -27,10 +27,16 @@
 
 -define(SERVER, ?MODULE).
 
+-include("ejabberd.hrl").
+
 %%%===================================================================
 %%% API functions
 %%%===================================================================
 
+start(Workers, PoolsSpec) ->
+    ChildSpec = {?MODULE, {?MODULE, start_link, [Workers, PoolsSpec]},
+        transient, infinity, supervisor, [?MODULE]},
+    {ok, _} = supervisor:start_child(ejabberd_sup, ChildSpec).
 %%--------------------------------------------------------------------
 %% @doc
 %% Starts the supervisor
@@ -43,7 +49,8 @@ start_link(Workers, PoolSpec) ->
     supervisor:start_link({local, ?SERVER}, ?MODULE, [Workers, PoolSpec]).
 
 stop() ->
-    ok.
+    supervisor:terminate_child(ejabberd_sup, riak_pools_sup),
+    supervisor:delete_child(ejabberd_sup, riak_pools_sup).
 
 %%%===================================================================
 %%% Supervisor callbacks
@@ -66,25 +73,32 @@ stop() ->
          }} |
     ignore |
     {error, Reason :: term()}).
-init([Workers, RiakOpts]) ->
+init([Workers, Pools]) ->
     RestartStrategy = one_for_one,
     MaxRestarts = 10,
     MaxSecondsBetweenRestarts = 1,
 
     SupFlags = {RestartStrategy, MaxRestarts, MaxSecondsBetweenRestarts},
 
+    RiakPoolsCount = length(Pools),
+    ejabberd_config:add_local_option(riak_pools_count, RiakPoolsCount),
+    IdsPools = lists:zip(lists:seq(1, RiakPoolsCount), Pools),
+
+    Children = [child_spec(Workers, Id, RiakOpts) || {Id, RiakOpts} <- IdsPools],
+
+    {ok, {SupFlags, Children}}.
+
+child_spec(Workers, Id, RiakOpts) ->
     Restart = transient,
     Shutdown = 2000,
     Type = supervisor,
-
     ChildMods = [mongoose_riak, riakc_pb_socket],
     ChildMF = {mongoose_riak, start_worker},
+    RiakPoolName = mongoose_riak:make_pool_name(Id),
     ChildArgs = {for_all, RiakOpts},
-
-    AChild = {riak_pool, {cuesport, start_link, [riak_pool, Workers, ChildMods, ChildMF, ChildArgs]},
+    AChild = {RiakPoolName, {cuesport, start_link, [RiakPoolName, Workers, ChildMods, ChildMF, ChildArgs]},
         Restart, Shutdown, Type, ChildMods},
-
-    {ok, {SupFlags, [AChild]}}.
+    AChild.
 
 %%%===================================================================
 %%% Internal functions

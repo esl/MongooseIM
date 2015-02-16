@@ -34,9 +34,12 @@
 -export([create_new_map/1]).
 -export([update_map/2]).
 
+-export([make_pool_name/1, get_pool_name/1]).
+
 -compile({no_auto_import,[put/2]}).
 
 -define(CALL(F, Args), call_riak(F, Args)).
+-define(POOL_NAME(Id), "riak_pool_" ++ integer_to_list(Id)).
 
 -type riakc_map_op() :: {{binary(), riakc_map:datatype()},
                           fun((riakc_datatype:datatype()) -> riakc_datatype:datatype())}.
@@ -48,8 +51,8 @@ start() ->
             ignore;
         RiakOpts ->
             {_, Workers} = lists:keyfind(workers, 1, RiakOpts),
-            {_, PoolSpec} = lists:keyfind(connection_details, 1, RiakOpts),
-            mongoose_riak_sup:start_link(Workers, PoolSpec)
+            {_, PoolsSpec} = lists:keyfind(pools_spec, 1, RiakOpts),
+            mongoose_riak_sup:start(Workers, PoolsSpec)
     end.
 -spec stop() -> no_return().
 stop() ->
@@ -133,12 +136,19 @@ update_map(Map, Ops) ->
 
 -spec get_worker() -> pid() | undefined.
 get_worker() ->
-    case catch cuesport:get_worker(riak_pool) of
+    Pool = pick_pool(ejabberd_config:get_local_option(riak_pools_count)),
+    case catch cuesport:get_worker(Pool) of
         Pid  when is_pid(Pid) ->
             Pid;
         _ ->
             undefined
     end.
+-spec make_pool_name(integer()) -> atom().
+make_pool_name(Id) ->
+    list_to_atom(?POOL_NAME(Id)).
+-spec get_pool_name(integer()) -> atom().
+get_pool_name(Id) ->
+    list_to_existing_atom(?POOL_NAME(Id)).
 
 update_map_op({Field, Fun}, Map) ->
     riakc_map:update(Field, Fun, Map).
@@ -148,3 +158,10 @@ call_riak(F, ArgsIn) ->
     Args = [Worker | ArgsIn],
     apply(riakc_pb_socket, F, Args).
 
+pick_pool(undefined) ->
+    undefined;
+pick_pool(1) -> %% no need to draw a pool as there's only one
+    riak_pool_1;
+pick_pool(Count) ->
+    PoolId = erlang:phash2({os:timestamp(), self()}, Count) + 1,
+    get_pool_name(PoolId).
