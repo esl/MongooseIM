@@ -32,14 +32,15 @@
 %%--------------------------------------------------------------------
 
 all() ->
-    [{group, session}].
+    [{group, session},
+     {group, session_global}].
 
 groups() ->
     [{session, [sequence], [login_one,
                             login_many,
                             auth_failed]},
-     {session_rt, [sequence], [session_global,
-                               session_unique]}].
+     {session_global, [sequence], [session_global,
+                                   session_unique]}].
 
 suite() ->
     [{require, ejabberd_node} | escalus:suite()].
@@ -72,9 +73,7 @@ end_per_testcase(CaseName, Config) ->
 
 
 login_one(Config) ->
-    metrics_helper:reset_counters(Config),
     {value, Logins} = get_counter_value(sessionSuccessfulLogins),
-    assert_counter(0, sessionCount),
     escalus:story(Config, [1], fun(Alice) ->
 
         assert_counter(1, sessionCount),
@@ -89,9 +88,7 @@ login_one(Config) ->
     end).
 
 login_many(Config) ->
-    metrics_helper:reset_counters(Config),
     {value, Logins} = get_counter_value(sessionSuccessfulLogins),
-    assert_counter(0, sessionCount),
     escalus:story(Config, [1, 1], fun(_Alice, _Bob) ->
 
         assert_counter(2, sessionCount),
@@ -100,9 +97,7 @@ login_many(Config) ->
         end).
 
 auth_failed(Config) ->
-    metrics_helper:reset_counters(Config),
     {value, AuthFails} = get_counter_value(sessionAuthFails),
-    assert_counter(0, sessionCount),
 
     [{_, UserSpec} | _] = escalus_config:get_config(escalus_users, Config),
     UserSpecM = proplists:delete(password, UserSpec) ++ [{password, <<"mazabe">>}],
@@ -117,7 +112,7 @@ session_global(Config) ->
     escalus:story(Config, [1], fun(_Alice) ->
 
         timer:sleep(?GLOBAL_WAIT_TIME),
-        assert_counter(1, globalSessionCount)
+        assert_counter(1, [global, totalSessionCount])
 
         end).
 
@@ -125,7 +120,7 @@ session_unique(Config) ->
     escalus:story(Config, [2], fun(_Alice1, _Alice2) ->
 
         timer:sleep(?GLOBAL_WAIT_TIME),
-        assert_counter(1, globalUniqueSessionCount),
-        assert_counter(2, globalSessionCount)
+        assert_counter(1, [global, uniqueSessionCount]),
+        assert_counter(2, [global, totalSessionCount])
 
         end).
