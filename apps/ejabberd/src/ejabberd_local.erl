@@ -276,11 +276,13 @@ handle_call({unregister_host, Host}, _From, State) ->
     ejabberd_router:unregister_route(Host),
     ejabberd_hooks:delete(local_send_to_resource_hook, Host,
                           ?MODULE, bounce_resource_packet, 100),
+    mongoose_metrics:remove_host_metrics(Host),
     {reply, ok, State};
 handle_call({register_host, Host}, _From, State) ->
     ejabberd_router:register_route(Host, {apply, ?MODULE, route}),
     ejabberd_hooks:add(local_send_to_resource_hook, Host,
                        ?MODULE, bounce_resource_packet, 100),
+    mongoose_metrics:init_predefined_host_metrics(Host),
     {reply, ok, State};
 handle_call(_Request, _From, State) ->
     Reply = ok,

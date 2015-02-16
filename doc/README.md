@@ -12,9 +12,9 @@
         * [Extension modules](advanced-configuration/Modules.md)
         * [HTTP authentication module](advanced-configuration/HTTP-authentication-module.md)
 * Operation and maintenance
+    * [Metrics](operation-and-maintenance/Mongoose-metrics.md)
     * [Cluster configuration and node management](operation-and-maintenance/Cluster-configuration-and-node-management.md)
     * [Reloading configuration on a running system](operation-and-maintenance/Reloading-configuration-on-a-running-system.md)
 * Misc
     * [Hooks and handler](misc/Hooks-and-handlers.md)
-    * [Folsom Metrics](misc/REST-interface-to-folsom-metrics.md)
-   
+    * [Metrics over REST](misc/REST-interface-to-metrics.md)

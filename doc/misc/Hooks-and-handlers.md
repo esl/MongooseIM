@@ -154,6 +154,13 @@ interchangeable**.
 You must decide whether the hook is to return some value
 or only carry out an action when designing it.
 
+### Sidenote: Metrics
+
+Every time a hook is run via `ejabberd_hooks:run/3` or `ejabberd_hooks:run_fold/4` corresponding metric of the same name in the same host is updated by one.
+There are some exceptions though as some metrics where implemented before the generic hook metrics.
+List of hooks not updating generic metrics can be found in `mongoose_metrics:hook_to_name/1` function.
+Such skipped hooks updates metrics defined in `mongoose_metrics_hooks` module.
+
 ### Sidenote: Folds
 
 If you haven't encountered the term _fold_ before,

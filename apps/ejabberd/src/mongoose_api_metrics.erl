@@ -15,6 +15,8 @@
 %%==============================================================================
 -module(mongoose_api_metrics).
 
+-include("ejabberd.hrl").
+
 %% mongoose_api callbacks
 -export([prefix/0,
          routes/0,
@@ -26,7 +28,10 @@
          sum_metrics/1,
          sum_metric/1,
          host_metric/1,
-         host_metrics/1]).
+         host_metrics/1,
+         global_metric/1,
+         global_metrics/1
+]).
 
 %%--------------------------------------------------------------------
 %% mongoose_api callbacks
@@ -40,6 +45,8 @@ routes() ->
     [{"/", [available_metrics]},
      {"/all", [sum_metrics]},
      {"/all/:metric", [sum_metric]},
+     {"/global", [global_metrics]},
+     {"/global/:metric", [global_metric]},
      {"/host/:host/:metric", [host_metric]},
      {"/host/:host", [host_metrics]}].
 
@@ -58,7 +65,8 @@ handle_get(Bindings, [Command]) ->
 %%--------------------------------------------------------------------
 available_metrics(_Bindings) ->
     {Hosts, Metrics} = get_available_hosts_metrics(),
-    Reply = [{hosts, Hosts}, {metrics, Metrics}],
+    Global = get_available_global_metrics(),
+    Reply = [{hosts, Hosts}, {metrics, Metrics}, {global, Global}],
     {ok, Reply}.
 
 sum_metrics(_Bindings) ->
@@ -83,7 +91,7 @@ host_metric(Bindings) ->
     {metric, Metric} = lists:keyfind(metric, 1, Bindings),
     try
         MetricAtom = binary_to_existing_atom(Metric, utf8),
-        Value = folsom_metrics:get_metric_value({Host, MetricAtom}),
+        {ok, Value} = mongoose_metrics:get_metric_value({Host, MetricAtom}),
         {ok, {metric, Value}}
     catch error:badarg ->
         {error, not_found}
@@ -98,21 +106,35 @@ host_metrics(Bindings) ->
             {ok, {metrics, Metrics}}
     end.
 
+global_metric(Bindings) ->
+    {metric, Metric} = lists:keyfind(metric, 1, Bindings),
+    MetricAtom = binary_to_existing_atom(Metric, utf8),
+    case mongoose_metrics:get_metric_value({global, MetricAtom}) of
+        {ok, Value} ->
+            {ok, {metric, Value}};
+        _Other ->
+            {error, not_found}
+    end.
+
+global_metrics(_Bindings) ->
+    case get_host_metrics(global) of
+        [] ->
+            {error, not_found};
+        Metrics ->
+            {ok, {metrics, Metrics}}
+    end.
+
+
 %%--------------------------------------------------------------------
 %% internal functions
 %%--------------------------------------------------------------------
 -spec get_available_hosts() -> [ejabberd:server()].
 get_available_hosts() ->
-    HostsSet = lists:foldl(fun({Host, _Metric}, Hosts) ->
-                    ordsets:add_element(Host, Hosts)
-            end, ordsets:new(), folsom_metrics:get_metrics()),
-    ordsets:to_list(HostsSet).
+    ?MYHOSTS.
 
 -spec get_available_metrics(Host :: ejabberd:server()) -> [any()].
 get_available_metrics(Host) ->
-    Metrics = [Metric || {CurrentHost, Metric} <- folsom_metrics:get_metrics(),
-                         CurrentHost =:= Host],
-    lists:reverse(Metrics).
+    mongoose_metrics:get_host_metric_names(Host).
 
 -spec get_available_hosts_metrics() -> {[any(),...], [any()]}.
 get_available_hosts_metrics() ->
@@ -120,41 +142,19 @@ get_available_hosts_metrics() ->
     Metrics = get_available_metrics(hd(Hosts)),
     {Hosts, Metrics}.
 
+get_available_global_metrics() ->
+    mongoose_metrics:get_global_metric_names().
+
 -spec get_sum_metrics() -> [{_,_}].
 get_sum_metrics() ->
-    {Hosts, Metrics} = get_available_hosts_metrics(),
-    Sum = lists:foldl(fun({_Host, Metric}=Name, Dict) ->
-                    Value = folsom_metrics:get_metric_value(Name),
-                    case orddict:is_key(Metric, Dict) of
-                        false ->
-                            orddict:store(Metric, Value, Dict);
-                        true ->
-                            OldValue = orddict:fetch(Metric, Dict),
-                            NewMetric = update_sum_metric(OldValue, Value),
-                            orddict:store(Metric, NewMetric, Dict)
-                    end
-            end, orddict:new(), [{H, M} || H <- Hosts, M <- Metrics]),
-    orddict:to_list(Sum).
+    {_Hosts, Metrics} = get_available_hosts_metrics(),
+    [{Metric, get_sum_metric(Metric)} || Metric <- Metrics].
 
 -spec get_sum_metric(atom()) -> any().
 get_sum_metric(Metric) ->
-    {Hosts, _Metrics} = get_available_hosts_metrics(),
-    lists:foldl(fun(Host, Acc) ->
-                Value = folsom_metrics:get_metric_value({Host, Metric}),
-                update_sum_metric(Acc, Value)
-        end, nil, Hosts).
-
-update_sum_metric(nil, Value) ->
-    Value;
-update_sum_metric(OldValue, Value) when is_integer(Value) ->
-    OldValue+Value;
-update_sum_metric([{count, OldCount},{one, OldOne}],
-                  [{count, Count},{one, One}]) ->
-    [{count, OldCount+Count}, {one, OldOne+One}];
-update_sum_metric(OldValue, _Value) ->
-    OldValue.
+    mongoose_metrics:get_aggregated_values(Metric).
 
 -spec get_host_metrics('undefined' | ejabberd:server()) -> [{_,_}].
 get_host_metrics(Host) ->
-    Metrics = folsom_metrics:get_metrics_value(Host),
-    [{Name, Value} || {{_Host, Name}, Value} <- Metrics].
+    Metrics = mongoose_metrics:get_metric_values(Host),
+    [{Name, Value} || {[_Host, Name | _], Value} <- Metrics].
