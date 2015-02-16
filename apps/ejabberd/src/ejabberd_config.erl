@@ -1011,6 +1011,9 @@ handle_local_config_add({Key, _Data} = El) ->
 handle_local_config_del(#local_config{key = node_start}) ->
     %% do nothing with it
     ok;
+handle_local_config_del(#local_config{key = riak_pools_count}) ->
+    %% do nothing with it
+    ok;
 handle_local_config_del({Key, _Data} = El) ->
     case can_be_ignored(Key) of
         true ->
