@@ -67,8 +67,7 @@ increment_generic_hook_metric(Host, Hook) ->
 do_create_generic_hook_metric({_, skip}) ->
     ok;
 do_create_generic_hook_metric(MetricName) ->
-    new_spiral(MetricName).
-
+    ensure_metric(MetricName, spiral).
 
 do_increment_generic_hook_metric({_, skip}) ->
     ok;
@@ -131,20 +130,17 @@ filter_hook(Hook) -> Hook.
 
 -spec create_metrics(ejabberd:server()) -> 'ok'.
 create_metrics(Host) ->
-    lists:foreach(fun(Name) ->
-        new_spiral(Name)
-    end, get_general_counters(Host)),
+    lists:foreach(fun(Name) -> ensure_metric(Name, spiral) end,
+                  get_general_counters(Host)),
 
-    lists:foreach(fun(Name) ->
-        new_counter(Name)
-    end, get_total_counters(Host)).
+    lists:foreach(fun(Name) -> ensure_metric(Name, counter) end,
+                  get_total_counters(Host)).
 
-new_counter({Host, Metric}) ->
-    exometer:new([Host, Metric], counter).
-
-new_spiral({Host, Metric}) ->
-    exometer:new([Host, Metric], spiral).
-
+ensure_metric({Host, Metric}, Type) ->
+    case exometer:info([Host, Metric], type) of
+        Type -> {ok, already_present};
+        undefined -> exometer:new([Host, Metric], Type)
+    end.
 
 -spec metrics_hooks('add' | 'delete', ejabberd:server()) -> 'ok'.
 metrics_hooks(Op, Host) ->
@@ -236,4 +232,3 @@ get_total_counters(Host) ->
 create_global_metrics() ->
     lists:foreach(fun({Metric, Spec}) -> exometer:new(Metric, Spec) end,
                   ?GLOBAL_COUNTERS).
-
