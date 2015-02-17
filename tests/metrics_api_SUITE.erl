@@ -37,7 +37,6 @@ groups() ->
                     one_message_error,
                     one_iq_error,
                     one_presence_error
-
                    ]},
      {global, [], [session_counters]}
     ].
@@ -88,7 +87,8 @@ one_client_just_logs_in(Config) ->
           {xmppPresenceReceived, 0 + user_alpha(1)},
           {xmppStanzaSent, 0 + user_alpha(1)},
           {xmppStanzaReceived, 0 + user_alpha(1)},
-          {sessionSuccessfulLogins, 0 + user_alpha(1)}
+          {sessionSuccessfulLogins, 0 + user_alpha(1)},
+          {sessionLogouts, 0 + user_alpha(1)}
          ]).
 
 two_clients_just_log_in(Config) ->
@@ -101,7 +101,8 @@ two_clients_just_log_in(Config) ->
           {xmppStanzaReceived, 0 + user_alpha(2)},
           {xmppPresenceSent, 0 + user_alpha(2)},
           {xmppPresenceReceived, 0 + user_alpha(2)},
-          {sessionSuccessfulLogins, 0 + user_alpha(2)}
+          {sessionSuccessfulLogins, 0 + user_alpha(2)},
+          {sessionLogouts, 0 + user_alpha(2)}
          ]).
 
 one_message_sent(Config) ->
@@ -126,8 +127,7 @@ one_direct_presence_sent(Config) ->
        [{xmppPresenceSent, 1 + user_alpha(2)},
         {xmppPresenceReceived, 1 + user_alpha(2)},
         {xmppStanzaSent, 1 + user_alpha(2)},
-        {xmppStanzaReceived, 1 + user_alpha(2)}
-       ]).
+        {xmppStanzaReceived, 1 + user_alpha(2)}]).
 
 one_iq_sent(Config) ->
     instrumented_story
@@ -184,14 +184,15 @@ one_presence_error(Config) ->
         {xmppErrorMessage, 0},
         {xmppErrorPresence, 1}]).
 
-
-
-
 session_counters(Config) ->
-    escalus:story(Config, [{alice, 2}, {bob, 1}], fun(_Alice1, _Alice2, _Bob) ->
-        3 = fetch_global_counter_value(totalSessionCount, Config),
-        2 = fetch_global_counter_value(uniqueSessionCount, Config)
-    end).
+    escalus:story
+      (Config,
+       [{alice, 2}, {bob, 1}],
+       fun(_Alice1, _Alice2, _Bob) ->
+               3 = fetch_global_counter_value(totalSessionCount, Config),
+               2 = fetch_global_counter_value(uniqueSessionCount, Config),
+               3 = fetch_global_counter_value(nodeSessionCount, Config)
+       end).
 
 
 %%--------------------------------------------------------------------
