@@ -33,7 +33,8 @@ groups() ->
                     two_clients_just_log_in,
                     one_message_sent,
                     one_direct_presence_sent,
-                    one_iq_sent
+                    one_iq_sent,
+                    one_offline_error
                    ]},
      {global, [], [session_counters]}
     ].
@@ -75,6 +76,8 @@ one_client_just_logs_in(Config) ->
     instrumented_story
         (Config, [{alice, 1}],
          fun(_Alice) -> end_of_story end,
+
+         %% A list of metrics and their expected relative increase
          [{xmppIqSent, 0},
           {xmppIqReceived, 0},
 
@@ -135,8 +138,24 @@ one_iq_sent(Config) ->
         end,
        [{xmppIqSent, 1},
         {xmppIqReceived, 1},
+        {modRosterGets, 1},
         {xmppStanzaSent, 1 + user_alpha(1)},
         {xmppStanzaReceived, 1 + user_alpha(1)}]).
+
+
+one_offline_error(Config) ->
+    instrumented_story
+      (Config, [{alice, 1}],
+       fun(Alice) ->
+               Chat = escalus_stanza:chat_to
+                        (<<"nobody@localhost">>, <<"Hi!">>),
+               escalus_client:send(Alice, Chat),
+               escalus_client:wait_for_stanza(Alice)
+        end,
+       [{xmppErrorTotal, 1},
+        {xmppErrorMessage, 1},
+        {xmppErrorIq, 0}]).
+
 
 session_counters(Config) ->
     escalus:story(Config, [{alice, 2}, {bob, 1}], fun(_Alice1, _Alice2, _Bob) ->
