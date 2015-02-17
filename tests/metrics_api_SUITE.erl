@@ -86,8 +86,9 @@ one_client_just_logs_in(Config) ->
           {xmppMessageReceived, 0},
           {xmppPresenceSent, 0 + user_alpha(1)},
           {xmppPresenceReceived, 0 + user_alpha(1)},
-          {xmppStanzaSent, 1},
-          {xmppStanzaReceived, 1}
+          {xmppStanzaSent, 0 + user_alpha(1)},
+          {xmppStanzaReceived, 0 + user_alpha(1)},
+          {sessionSuccessfulLogins, 0 + user_alpha(1)}
          ]).
 
 two_clients_just_log_in(Config) ->
@@ -99,7 +100,8 @@ two_clients_just_log_in(Config) ->
           {xmppStanzaSent, 0 + user_alpha(2)},
           {xmppStanzaReceived, 0 + user_alpha(2)},
           {xmppPresenceSent, 0 + user_alpha(2)},
-          {xmppPresenceReceived, 0 + user_alpha(2)}
+          {xmppPresenceReceived, 0 + user_alpha(2)},
+          {sessionSuccessfulLogins, 0 + user_alpha(2)}
          ]).
 
 one_message_sent(Config) ->
@@ -141,7 +143,6 @@ one_iq_sent(Config) ->
         {xmppStanzaSent, 1 + user_alpha(1)},
         {xmppStanzaReceived, 1 + user_alpha(1)}]).
 
-
 one_message_error(Config) ->
     instrumented_story
       (Config, [{alice, 1}],
@@ -155,7 +156,6 @@ one_message_error(Config) ->
         {xmppErrorIq, 0},
         {xmppErrorMessage, 1},
         {xmppErrorPresence, 0}]).
-
 
 one_iq_error(Config) ->
     instrumented_story
