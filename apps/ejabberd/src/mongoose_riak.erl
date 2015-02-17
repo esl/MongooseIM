@@ -136,7 +136,7 @@ update_map(Map, Ops) ->
 
 -spec get_worker() -> pid() | undefined.
 get_worker() ->
-    Pool = pick_pool(ejabberd_config:get_local_option(riak_pools_count)),
+    Pool = pick_pool(mongoose_riak_sup:get_riak_pools_count()),
     case catch cuesport:get_worker(Pool) of
         Pid  when is_pid(Pid) ->
             Pid;

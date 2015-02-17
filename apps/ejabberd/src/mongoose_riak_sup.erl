@@ -21,6 +21,7 @@
 -export([start/2]).
 -export([start_link/2]).
 -export([stop/0]).
+-export([get_riak_pools_count/0]).
 
 %% Supervisor callbacks
 -export([init/1]).
@@ -48,10 +49,19 @@ start(Workers, PoolsSpec) ->
 start_link(Workers, PoolSpec) ->
     supervisor:start_link({local, ?SERVER}, ?MODULE, [Workers, PoolSpec]).
 
+-spec stop() -> no_return().
 stop() ->
     supervisor:terminate_child(ejabberd_sup, riak_pools_sup),
     supervisor:delete_child(ejabberd_sup, riak_pools_sup).
 
+-spec get_riak_pools_count() -> integer() | undefined.
+get_riak_pools_count() ->
+    case catch ets:lookup(riak_pools, pools_count) of
+        [{pools_count, I}] ->
+            I;
+        _ ->
+            undefined
+    end.
 %%%===================================================================
 %%% Supervisor callbacks
 %%%===================================================================
@@ -81,7 +91,8 @@ init([Workers, Pools]) ->
     SupFlags = {RestartStrategy, MaxRestarts, MaxSecondsBetweenRestarts},
 
     RiakPoolsCount = length(Pools),
-    ejabberd_config:add_local_option(riak_pools_count, RiakPoolsCount),
+    ets:new(riak_pools, [named_table, protected, {read_concurrency, true}]),
+    ets:insert(riak_pools, {pools_count, RiakPoolsCount}),
     IdsPools = lists:zip(lists:seq(1, RiakPoolsCount), Pools),
 
     Children = [child_spec(Workers, Id, RiakOpts) || {Id, RiakOpts} <- IdsPools],
