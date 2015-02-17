@@ -34,7 +34,10 @@ groups() ->
                     one_message_sent,
                     one_direct_presence_sent,
                     one_iq_sent,
-                    one_offline_error
+                    one_message_error,
+                    one_iq_error,
+                    one_presence_error
+
                    ]},
      {global, [], [session_counters]}
     ].
@@ -76,17 +79,13 @@ one_client_just_logs_in(Config) ->
     instrumented_story
         (Config, [{alice, 1}],
          fun(_Alice) -> end_of_story end,
-
          %% A list of metrics and their expected relative increase
          [{xmppIqSent, 0},
           {xmppIqReceived, 0},
-
           {xmppMessageSent, 0},
           {xmppMessageReceived, 0},
-
           {xmppPresenceSent, 0 + user_alpha(1)},
           {xmppPresenceReceived, 0 + user_alpha(1)},
-
           {xmppStanzaSent, 1},
           {xmppStanzaReceived, 1}
          ]).
@@ -143,7 +142,7 @@ one_iq_sent(Config) ->
         {xmppStanzaReceived, 1 + user_alpha(1)}]).
 
 
-one_offline_error(Config) ->
+one_message_error(Config) ->
     instrumented_story
       (Config, [{alice, 1}],
        fun(Alice) ->
@@ -153,8 +152,39 @@ one_offline_error(Config) ->
                escalus_client:wait_for_stanza(Alice)
         end,
        [{xmppErrorTotal, 1},
+        {xmppErrorIq, 0},
         {xmppErrorMessage, 1},
-        {xmppErrorIq, 0}]).
+        {xmppErrorPresence, 0}]).
+
+
+one_iq_error(Config) ->
+    instrumented_story
+      (Config, [{alice, 1}],
+       fun(Alice) ->
+               BadIQ = escalus_stanza:iq_set(<<"BadNS">>, []),
+               escalus_client:send(Alice, BadIQ),
+               escalus_client:wait_for_stanza(Alice)
+        end,
+       [{xmppErrorTotal, 1},
+        {xmppErrorIq, 1},
+        {xmppErrorMessage, 0},
+        {xmppErrorPresence, 0}]).
+
+one_presence_error(Config) ->
+    instrumented_story
+      (Config, [{alice, 1}],
+       fun(Alice) ->
+               BadPres = escalus_stanza:presence_direct
+                           (<<"nbody@wronghost">>,<<"subscribed">>,[]),
+               escalus_client:send(Alice, BadPres),
+               escalus_client:wait_for_stanza(Alice)
+        end,
+       [{xmppErrorTotal, 1},
+        {xmppErrorIq, 0},
+        {xmppErrorMessage, 0},
+        {xmppErrorPresence, 1}]).
+
+
 
 
 session_counters(Config) ->
