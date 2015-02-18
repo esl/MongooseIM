@@ -249,9 +249,23 @@ init_metrics() ->
         end, ?MYHOSTS).
 
 notify_fips_mode() ->
-    case erlang:function_exported(crypto, info_fips, 0) of
-        true ->
-            ?WARNING_MSG("fips mode ~p~n", [crypto:info_fips()]);
+    case application:get_env(crypto, fips_mode) of
+        {ok, true} ->
+            do_notify_fips_mode();
         _ ->
             ok
+    end.
+
+do_notify_fips_mode() ->
+    code:ensure_loaded(crypto),
+    case erlang:function_exported(crypto, info_fips, 0) of
+        true ->
+            case crypto:info_fips() of
+                enabled ->
+                    ?WARNING_MSG("FIPS mode enabled", []);
+                _ ->
+                    ?ERROR_MSG("FIPS mode disabled although it should be enabled", [])
+            end;
+        _ ->
+            ?INFO_MSG("Used Erlang/OTP does not support FIPS mode", [])
     end.
