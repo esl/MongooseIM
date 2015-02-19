@@ -1768,9 +1768,9 @@ process_presence_probe(From, To, StateData) ->
                     Packet = xml:append_subtags(
                                StateData#state.pres_last,
                                %% To is the one sending the presence (the target of the probe)
-                               [jlib:timestamp_to_xml(Timestamp, utc, To, <<>>),
+                               [jlib:timestamp_to_xml(Timestamp, utc, To, <<>>)]),
                                 %% TODO: Delete the next line once XEP-0091 is Obsolete
-                                jlib:timestamp_to_xml(Timestamp)]),
+                                %% jlib:timestamp_to_xml(Timestamp)]),
                     case privacy_check_packet(StateData, To, From, Packet, out) of
                         deny ->
                             ok;
@@ -2957,8 +2957,9 @@ add_timestamp({_,_,Micro} = TimeStamp, Server, Packet) ->
         false ->
             %% TODO: Delete the next element once XEP-0091 is Obsolete
             TimeStampLegacyXML = timestamp_legacy_xml(Server, Time),
-            TimeStampXML = jlib:timestamp_to_xml(Time),
-            xml:append_subtags(Packet, [TimeStampLegacyXML, TimeStampXML]);
+            %% TimeStampXML = jlib:timestamp_to_xml(Time),
+            %% xml:append_subtags(Packet, [TimeStampLegacyXML, TimeStampXML]);
+            xml:append_subtags(Packet, [TimeStampLegacyXML]);
         _ ->
             Packet
     end.

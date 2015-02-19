@@ -445,8 +445,9 @@ add_timestamp({_,_,Micro} = TimeStamp, Server, Packet) ->
     Time = {D,{H,M,S, Micro}},
     %% TODO: Delete the next element once XEP-0091 is Obsolete
     TimeStampLegacyXML = timestamp_legacy_xml(Server, Time),
-    TimeStampXML = jlib:timestamp_to_xml(Time),
-    xml:append_subtags(Packet, [TimeStampLegacyXML, TimeStampXML]).
+    %% TimeStampXML = jlib:timestamp_to_xml(Time),
+    %% xml:append_subtags(Packet, [TimeStampLegacyXML, TimeStampXML]).
+    xml:append_subtags(Packet, [TimeStampLegacyXML]).
 
 timestamp_legacy_xml(Server, Time) ->
     FromJID = jlib:make_jid(<<>>, Server, <<>>),
