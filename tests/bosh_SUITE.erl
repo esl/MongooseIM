@@ -31,14 +31,20 @@
 
 all() ->
     [{group, essential},
+     {group, essential_https},
+
      {group, chat},
+     {group, chat_https},
+
      {group, time},
      {group, acks}
     ].
 
 groups() ->
     [{essential, [{repeat_until_any_fail,10}], [create_and_terminate_session]},
+     {essential_https, [{repeat_until_any_fail,10}], [create_and_terminate_session]},
      {chat, [shuffle, {repeat_until_any_fail,10}], chat_test_cases()},
+     {chat_https, [shuffle, {repeat_until_any_fail,10}], chat_test_cases()},
      {time, [shuffle, {repeat_until_any_fail,10}], time_test_cases()},
      {acks, [shuffle, {repeat_until_any_fail,5}], acks_test_cases()}].
 
@@ -83,14 +89,23 @@ end_per_suite(Config) ->
 
 
 init_per_group(essential, Config) ->
-    Config;
-init_per_group(_GroupName, Config) ->
-    escalus_users:create_users(Config, {by_name, [carol, geralt, alice]}).
+    [{user, carol} | Config];
+init_per_group(essential_https, Config) ->
+    [{user, carol_s} | Config];
+init_per_group(GroupName, Config) ->
+    Config1 = escalus_users:create_users(Config, {by_name, [carol, carol_s, geralt, alice]}),
+    case GroupName of
+        chat_https ->
+            [{user, carol_s} | Config1];
+        _ ->
+            [{user, carol} | Config1]
+    end.
 
-end_per_group(essential, Config) ->
+end_per_group(GroupName, Config)
+    when GroupName =:= essential; GroupName =:= essential_https ->
     Config;
 end_per_group(_GroupName, Config) ->
-    R = escalus_users:delete_users(Config, {by_name, [carol, geralt, alice]}),
+    R = escalus_users:delete_users(Config, {by_name, [carol, carol_s, geralt, alice]}),
     mongoose_helper:clear_last_activity(Config, carol),
     R.
 
@@ -153,7 +168,7 @@ end_per_testcase(CaseName, Config) ->
 
 create_and_terminate_session(Config) ->
     NamedSpecs = escalus_config:get_config(escalus_users, Config),
-    CarolSpec = proplists:get_value(carol, NamedSpecs),
+    CarolSpec = proplists:get_value(?config(user, Config), NamedSpecs),
     {ok, Conn} = escalus_bosh:connect(CarolSpec),
 
     %% Assert there are no BOSH sessions on the server.
@@ -178,7 +193,7 @@ create_and_terminate_session(Config) ->
 
 stream_error(Config) ->
     escalus:story(
-      Config, [{carol, 1}],
+      Config, [{?config(user, Config), 1}],
       fun(Carol) ->
               %% Send a stanza with invalid 'from'
               %% attribute to trigger a stream error from
@@ -197,7 +212,7 @@ stream_error(Config) ->
 interleave_requests(Config) ->
     escalus:story(Config, [{geralt, 1}], fun(Geralt) ->
 
-        Carol = start_client(Config, carol, <<"bosh">>),
+        Carol = start_client(Config, ?config(user, Config), <<"bosh">>),
         Rid = get_bosh_rid(Carol),
         Sid = get_bosh_sid(Carol),
 
@@ -220,7 +235,7 @@ interleave_requests(Config) ->
 
 
 simple_chat(Config) ->
-    escalus:story(Config, [{carol, 1}, {geralt, 1}], fun(Carol, Geralt) ->
+    escalus:story(Config, [{?config(user, Config), 1}, {geralt, 1}], fun(Carol, Geralt) ->
 
         escalus_client:send(Carol, escalus_stanza:chat_to(Geralt, <<"Hi!">>)),
         escalus:assert(is_chat_message, [<<"Hi!">>],
@@ -234,20 +249,20 @@ simple_chat(Config) ->
         end).
 
 cdata_escape_chat(Config) ->
-    escalus:story(Config, [{carol, 1}, {geralt, 1}], fun(Carol, Geralt) ->
+    escalus:story(Config, [{?config(user, Config), 1}, {geralt, 1}], fun(Carol, Geralt) ->
         special_chars_helper:check_cdata_from_to(Carol, Carol, <<"Hi! & < > ">>),
         special_chars_helper:check_cdata_from_to(Geralt, Carol, <<"Hi there! & < > ">>)
 
     end).
 
 escape_attr_chat(Config) ->
-    escalus:story(Config, [{carol, 1}, {geralt, 1}], fun(Carol, Geralt) ->
+    escalus:story(Config, [{?config(user, Config), 1}, {geralt, 1}], fun(Carol, Geralt) ->
         special_chars_helper:check_attr_from_to(Carol, Geralt),
         special_chars_helper:check_attr_from_to(Geralt, Carol)
     end).
 
 cant_send_invalid_rid(Config) ->
-    escalus:story(Config, [{carol, 1}], fun(Carol) ->
+    escalus:story(Config, [{?config(user, Config), 1}], fun(Carol) ->
         %% ct:pal("This test will leave invalid rid, session not found"
         %%        " errors in the server log~n"),
 
@@ -274,7 +289,7 @@ cant_send_invalid_rid(Config) ->
         end).
 
 multiple_stanzas(Config) ->
-    escalus:story(Config, [{carol, 1},{geralt, 1},{alice, 1}],
+    escalus:story(Config, [{?config(user, Config), 1},{geralt, 1},{alice, 1}],
                   fun(Carol, Geralt, Alice) ->
                 %% send a multiple stanza
                 Server = escalus_client:server(Carol),
@@ -299,7 +314,7 @@ multiple_stanzas(Config) ->
         end).
 
 namespace(Config) ->
-    escalus:story(Config, [{carol, 1},{geralt, 1}],
+    escalus:story(Config, [{?config(user, Config), 1},{geralt, 1}],
         fun(Carol, Geralt) ->
             %% send a multiple stanza
             Server = escalus_client:server(Carol),
