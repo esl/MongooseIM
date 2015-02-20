@@ -23,17 +23,22 @@
 %%--------------------------------------------------------------------
 all() ->
     [{group, metrics},
-     {group, single_values},
-     {group, global}].
+     {group, stories},
+     {group, global}
+    ].
 
 groups() ->
     [{metrics, [], [message_flow]},
-     {single_values, [], [message_one,
-                          stanza_one,
-                          presence_one,
-                          presence_direct_one,
-                          iq_one]},
-     {global, [], [sessions]}
+     {stories, [], [one_client_just_logs_in,
+                    two_clients_just_log_in,
+                    one_message_sent,
+                    one_direct_presence_sent,
+                    one_iq_sent,
+                    one_message_error,
+                    one_iq_error,
+                    one_presence_error
+                   ]},
+     {global, [], [session_counters]}
     ].
 
 init_per_suite(Config) ->
@@ -58,6 +63,7 @@ init_per_testcase(CaseName, Config) ->
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
+
 %%--------------------------------------------------------------------
 %% metrics_api tests
 %%--------------------------------------------------------------------
@@ -67,108 +73,158 @@ message_flow(Config) ->
 %%--------------------------------------------------------------------
 %% metric update tests
 %%--------------------------------------------------------------------
-message_one(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-                MessageSent1 = fetch_counter_value(xmppMessageSent, Config),
-                MessageRecv1 = fetch_counter_value(xmppMessageReceived, Config),
 
-                Chat = escalus_stanza:chat_to(Bob, <<"Hi!">>),
-                escalus_client:send(Alice, Chat),
-                escalus_client:wait_for_stanza(Bob),
+one_client_just_logs_in(Config) ->
+    instrumented_story
+        (Config, [{alice, 1}],
+         fun(_Alice) -> end_of_story end,
+         %% A list of metrics and their expected relative increase
+         [{xmppIqSent, 0},
+          {xmppIqReceived, 0},
+          {xmppMessageSent, 0},
+          {xmppMessageReceived, 0},
+          {xmppPresenceSent, 0 + user_alpha(1)},
+          {xmppPresenceReceived, 0 + user_alpha(1)},
+          {xmppStanzaSent, 0 + user_alpha(1)},
+          {xmppStanzaReceived, 0 + user_alpha(1)},
+          {sessionSuccessfulLogins, 0 + user_alpha(1)},
+          {sessionLogouts, 0 + user_alpha(1)}
+         ]).
 
-                MessageSent2 = fetch_counter_value(xmppMessageSent, Config),
-                assert_counter_inc(1, MessageSent1, MessageSent2),
-                MessageRecv2 = fetch_counter_value(xmppMessageReceived, Config),
-                assert_counter_inc(1, MessageRecv1, MessageRecv2)
-        end).
+two_clients_just_log_in(Config) ->
+    instrumented_story
+        (Config, [{alice, 1}, {bob, 1}],
+         fun(_Alice, _Bob) -> end_of_story end,
+         [{xmppMessageSent, 0},
+          {xmppMessageReceived, 0},
+          {xmppStanzaSent, 0 + user_alpha(2)},
+          {xmppStanzaReceived, 0 + user_alpha(2)},
+          {xmppPresenceSent, 0 + user_alpha(2)},
+          {xmppPresenceReceived, 0 + user_alpha(2)},
+          {sessionSuccessfulLogins, 0 + user_alpha(2)},
+          {sessionLogouts, 0 + user_alpha(2)}
+         ]).
 
-stanza_one(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-                StanzaSent1 = fetch_counter_value(xmppStanzaSent, Config),
-                StanzaRecv1 = fetch_counter_value(xmppStanzaReceived, Config),
+one_message_sent(Config) ->
+    instrumented_story
+      (Config, [{alice, 1}, {bob, 1}],
+       fun(Alice, Bob) ->
+               Chat = escalus_stanza:chat_to(Bob, <<"Hi!">>),
+               escalus_client:send(Alice, Chat),
+               escalus_client:wait_for_stanza(Bob)
+       end,
+       [{xmppMessageSent,     1},
+        {xmppMessageReceived, 1}]).
 
-                Chat = escalus_stanza:chat_to(Bob, <<"Hi!">>),
-                escalus_client:send(Alice, Chat),
-                escalus_client:wait_for_stanza(Bob),
+one_direct_presence_sent(Config) ->
+    instrumented_story
+      (Config, [{alice, 1}, {bob, 1}],
+       fun(Alice, Bob) ->
+               Presence = escalus_stanza:presence_direct(bob, <<"available">>),
+               escalus:send(Alice, Presence),
+               escalus:wait_for_stanza(Bob)
+        end,
+       [{xmppPresenceSent, 1 + user_alpha(2)},
+        {xmppPresenceReceived, 1 + user_alpha(2)},
+        {xmppStanzaSent, 1 + user_alpha(2)},
+        {xmppStanzaReceived, 1 + user_alpha(2)}]).
 
-                StanzaSent2 = fetch_counter_value(xmppStanzaSent, Config),
-                assert_counter_inc(1, StanzaSent1, StanzaSent2),
-                StanzaRecv2 = fetch_counter_value(xmppStanzaReceived, Config),
-                assert_counter_inc(1, StanzaRecv1, StanzaRecv2)
-        end).
+one_iq_sent(Config) ->
+    instrumented_story
+      (Config, [{alice, 1}],
+       fun(Alice) ->
+               RosterIq = escalus_stanza:roster_get(),
+               escalus_client:send(Alice, RosterIq),
+               escalus_client:wait_for_stanza(Alice)
+        end,
+       [{xmppIqSent, 1},
+        {xmppIqReceived, 1},
+        {modRosterGets, 1},
+        {xmppStanzaSent, 1 + user_alpha(1)},
+        {xmppStanzaReceived, 1 + user_alpha(1)}]).
 
-presence_one(Config) ->
-    escalus:story(Config, [{alice, 1}], fun(Alice) ->
-                PresSent1 = fetch_counter_value(xmppPresenceSent, Config),
-                PresRecv1 = fetch_counter_value(xmppPresenceReceived, Config),
-                StanzaSent1 = fetch_counter_value(xmppStanzaSent, Config),
-                StanzaRecv1 = fetch_counter_value(xmppStanzaReceived, Config),
+one_message_error(Config) ->
+    instrumented_story
+      (Config, [{alice, 1}],
+       fun(Alice) ->
+               Chat = escalus_stanza:chat_to
+                        (<<"nobody@localhost">>, <<"Hi!">>),
+               escalus_client:send(Alice, Chat),
+               escalus_client:wait_for_stanza(Alice)
+        end,
+       [{xmppErrorTotal, 1},
+        {xmppErrorIq, 0},
+        {xmppErrorMessage, 1},
+        {xmppErrorPresence, 0}]).
 
-                Presence = escalus_stanza:presence(<<"available">>),
-                escalus:send(Alice, Presence),
-                escalus:wait_for_stanza(Alice),
+one_iq_error(Config) ->
+    instrumented_story
+      (Config, [{alice, 1}],
+       fun(Alice) ->
+               BadIQ = escalus_stanza:iq_set(<<"BadNS">>, []),
+               escalus_client:send(Alice, BadIQ),
+               escalus_client:wait_for_stanza(Alice)
+        end,
+       [{xmppErrorTotal, 1},
+        {xmppErrorIq, 1},
+        {xmppErrorMessage, 0},
+        {xmppErrorPresence, 0}]).
 
-                PresSent2 = fetch_counter_value(xmppPresenceSent, Config),
-                assert_counter_inc(1, PresSent1, PresSent2),
-                PresRecv2 = fetch_counter_value(xmppPresenceReceived, Config),
-                assert_counter_inc(1, PresRecv1, PresRecv2),
-                StanzaSent2 = fetch_counter_value(xmppStanzaSent, Config),
-                assert_counter_inc(1, StanzaSent1, StanzaSent2),
-                StanzaRecv2 = fetch_counter_value(xmppStanzaReceived, Config),
-                assert_counter_inc(1, StanzaRecv1, StanzaRecv2)
-        end).
+one_presence_error(Config) ->
+    instrumented_story
+      (Config, [{alice, 1}],
+       fun(Alice) ->
+               BadPres = escalus_stanza:presence_direct
+                           (<<"nbody@wronghost">>,<<"subscribed">>,[]),
+               escalus_client:send(Alice, BadPres),
+               escalus_client:wait_for_stanza(Alice)
+        end,
+       [{xmppErrorTotal, 1},
+        {xmppErrorIq, 0},
+        {xmppErrorMessage, 0},
+        {xmppErrorPresence, 1}]).
 
-presence_direct_one(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-                PresSent1 = fetch_counter_value(xmppPresenceSent, Config),
-                PresRecv1 = fetch_counter_value(xmppPresenceReceived, Config),
-                StanzaSent1 = fetch_counter_value(xmppStanzaSent, Config),
-                StanzaRecv1 = fetch_counter_value(xmppStanzaReceived, Config),
+session_counters(Config) ->
+    escalus:story
+      (Config,
+       [{alice, 2}, {bob, 1}],
+       fun(_Alice1, _Alice2, _Bob) ->
+               3 = fetch_global_counter_value(totalSessionCount, Config),
+               2 = fetch_global_counter_value(uniqueSessionCount, Config),
+               3 = fetch_global_counter_value(nodeSessionCount, Config)
+       end).
 
-                Presence = escalus_stanza:presence_direct(bob, <<"available">>),
-                escalus:send(Alice, Presence),
-                escalus:wait_for_stanza(Bob),
-
-                PresSent2 = fetch_counter_value(xmppPresenceSent, Config),
-                assert_counter_inc(1, PresSent1, PresSent2),
-                PresRecv2 = fetch_counter_value(xmppPresenceReceived, Config),
-                assert_counter_inc(1, PresRecv1, PresRecv2),
-                StanzaSent2 = fetch_counter_value(xmppStanzaSent, Config),
-                assert_counter_inc(1, StanzaSent1, StanzaSent2),
-                StanzaRecv2 = fetch_counter_value(xmppStanzaReceived, Config),
-                assert_counter_inc(1, StanzaRecv1, StanzaRecv2)
-        end).
-
-iq_one(Config) ->
-    escalus:story(Config, [{alice, 1}], fun(Alice) ->
-                IqSent1 = fetch_counter_value(xmppIqSent, Config),
-                IqRecv1 = fetch_counter_value(xmppIqReceived, Config),
-                StanzaSent1 = fetch_counter_value(xmppStanzaSent, Config),
-                StanzaRecv1 = fetch_counter_value(xmppStanzaReceived, Config),
-
-                RosterIq = escalus_stanza:roster_get(),
-                escalus_client:send(Alice, RosterIq),
-                escalus_client:wait_for_stanza(Alice),
-
-                IqSent2 = fetch_counter_value(xmppIqSent, Config),
-                assert_counter_inc(1, IqSent1, IqSent2),
-                IqRecv2 = fetch_counter_value(xmppIqReceived, Config),
-                assert_counter_inc(1, IqRecv1, IqRecv2),
-                StanzaSent2 = fetch_counter_value(xmppStanzaSent, Config),
-                assert_counter_inc(1, StanzaSent1, StanzaSent2),
-                StanzaRecv2 = fetch_counter_value(xmppStanzaReceived, Config),
-                assert_counter_inc(1, StanzaRecv1, StanzaRecv2)
-        end).
-
-sessions(Config) ->
-    escalus:story(Config, [{alice, 2}, {bob, 1}], fun(_Alice1, _Alice2, _Bob) ->
-        3 = fetch_global_counter_value(totalSessionCount, Config),
-        2 = fetch_global_counter_value(uniqueSessionCount, Config)
-    end).
 
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
+
+user_alpha(NumberOfUsers) ->
+    %% This represents the overhead of logging in N users via escalus:story/3
+    %% For each user,
+    %%     xmppStanza(sent|received)
+    %%     and
+    %%     xmppPresence(sent|recieved)
+    %% will be bumped by +1 at login.
+    NumberOfUsers.
+
+instrumented_story(Config, UsersSpecs, StoryFun, CounterSpecs) ->
+    Befores = fetch_all(Config, CounterSpecs),
+    StoryResult = escalus:story(Config, UsersSpecs, StoryFun),
+    Afters =  fetch_all(Config, CounterSpecs),
+    [ assert_counter_inc(Name, N, find(Name, Befores), find(Name, Afters))
+      || {Name, N} <- CounterSpecs ],
+    StoryResult.
+
+fetch_all(Config, CounterSpecs) ->
+    [ {Counter, fetch_counter_value(Counter, Config)}
+      || {Counter, _} <- CounterSpecs ].
+
+find(CounterName, CounterList) ->
+    case lists:keyfind(CounterName, 1, CounterList) of
+        false -> error(counter_defined_incorrectly);
+        {CounterName, Val} -> Val end.
+
 fetch_counter_value(Counter, Config) ->
     Params = [{host, ct:get_config(ejabberd_domain)},
               {metric, atom_to_list(Counter)}],
@@ -187,6 +243,14 @@ fetch_global_counter_value(Counter, Config) ->
     Value = proplists:get_value("value", Vars),
     Value = proplists:get_value("value_list", Vars).
 
+assert_counter_inc(Name, Inc, Counters1, Counters2) ->
+    ExpectedCounters = [Counter+Inc || Counter <- Counters1],
+    case ExpectedCounters == Counters2 of
+        false ->
+            ct:comment("Expected ~w, got: ~w", [ExpectedCounters, Counters2]),
+            error({unexpected_values, Name, get_diffs(ExpectedCounters, Counters2)});
+        true -> ok
+    end.
 
-assert_counter_inc(Inc, Counters1, Counters2) ->
-    Counters2 = [Counter+Inc || Counter <- Counters1].
+get_diffs(L1,L2) ->
+    lists:zip(L1, L2).
