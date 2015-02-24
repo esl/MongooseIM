@@ -91,12 +91,12 @@ end_per_suite(Config) ->
 init_per_group(essential, Config) ->
     [{user, carol} | Config];
 init_per_group(essential_https, Config) ->
-    [{user, carol_s} | Config];
+    maybe_skip_on_travis([{user, carol_s} | Config]);
 init_per_group(GroupName, Config) ->
     Config1 = escalus_users:create_users(Config, {by_name, [carol, carol_s, geralt, alice]}),
     case GroupName of
         chat_https ->
-            [{user, carol_s} | Config1];
+            maybe_skip_on_travis([{user, carol_s} | Config1]);
         _ ->
             [{user, carol} | Config1]
     end.
@@ -801,4 +801,12 @@ wait_for_handler(Pid, N) ->
             wait_for_handler(Pid, N-1);
         L ->
             length(L)
+    end.
+
+maybe_skip_on_travis(Config) ->
+    case {os:getenv("TRAVIS"), erlang:system_info(otp_release)} of
+        {"true", "R15" ++ _} ->
+            {skip, "https on travis and R15 is unpredictable"};
+        _ ->
+            Config
     end.
