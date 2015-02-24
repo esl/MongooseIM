@@ -8,10 +8,10 @@ case os:getenv("OPENSSL_LIB") of
         TlsDrvSpec = lists:keyfind(TlsDrvKey, 2, PortSpecs),
         Args = element(4, TlsDrvSpec),
         CFlags = {"CFLAGS", "$CFLAGS -I$OPENSSL_INC"},
-        NewTlsDrvSpec = setelement(4, TlsDrvSpec, NewArgs),
         LDFlags = {"LDFLAGS", "$LDFLAGS -Wl,-rpath=$OPENSSL_LIB -L$OPENSSL_LIB -lssl"},
         NewEnv = {env, [CFlags, LDFlags]},
         NewArgs = lists:keyreplace(env, 1, Args, NewEnv),
+        NewTlsDrvSpec = setelement(4, TlsDrvSpec, NewArgs),
         NewPortSpecs = lists:keyreplace(TlsDrvKey, 2, PortSpecs, NewTlsDrvSpec),
         lists:keyreplace(port_specs, 1, CONFIG, {port_specs, NewPortSpecs})
 end.
