@@ -141,6 +141,13 @@ static ErlDrvSSizeT ejabberd_zlib_drv_control(ErlDrvData handle,
                 d->d_stream->avail_out = BUF_SIZE;
 
                 err = deflate(d->d_stream, Z_SYNC_FLUSH);
+
+               // Output buffer was completely consumed and we have no more data to process
+               // http://www.zlib.net/zlib_faq.html#faq05
+               if(err == Z_BUF_ERROR && d->d_stream->avail_out == BUF_SIZE) {
+                  break;
+               }
+
                 die_unless((err == Z_OK) || (err == Z_STREAM_END),
                         "deflate_error");
 
@@ -169,6 +176,13 @@ static ErlDrvSSizeT ejabberd_zlib_drv_control(ErlDrvData handle,
                     d->i_stream->avail_out = BUF_SIZE;
 
                     err = inflate(d->i_stream, Z_SYNC_FLUSH);
+
+                    // Output buffer was completely consumed and we have no more data to process
+                    // http://www.zlib.net/zlib_faq.html#faq05
+                    if(err == Z_BUF_ERROR && d->i_stream->avail_out == BUF_SIZE) {
+                       break;
+                    }
+
                     die_unless((err == Z_OK) || (err == Z_STREAM_END),
                             "inflate_error");
 
