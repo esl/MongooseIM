@@ -52,7 +52,6 @@
          iq_query_or_response_info/1,
          iq_to_xml/1,
          parse_xdata_submit/1,
-         timestamp_to_iso/1, % TODO: Remove once XEP-0091 is Obsolete
          timestamp_to_xml/4,
          timestamp_to_mam_xml/4,
          now_to_utc_binary/1,
@@ -741,13 +740,6 @@ timestamp_to_iso({{Year, Month, Day}, {Hour, Minute, Second}}, Timezone) ->
                 io_lib:format("~s~2..0w:~2..0w", [Sign, abs(TZh),TZm])
         end,
     {Timestamp_string, Timezone_string}.
-
-
--spec timestamp_to_iso(calendar:datetime()) -> string().
-timestamp_to_iso({{Year, Month, Day}, {Hour, Minute, Second}}) ->
-    lists:flatten(
-      io_lib:format("~4..0w~2..0w~2..0wT~2..0w:~2..0w:~2..0w",
-                    [Year, Month, Day, Hour, Minute, Second])).
 
 
 -spec timestamp_to_xml(DateTime :: calendar:datetime(),
