@@ -443,10 +443,10 @@ add_timestamp(undefined, _Server, Packet) ->
 add_timestamp({_,_,Micro} = TimeStamp, Server, Packet) ->
     {D,{H,M,S}} = calendar:now_to_universal_time(TimeStamp),
     Time = {D,{H,M,S, Micro}},
-    TimeStampLegacyXML = timestamp_legacy_xml(Server, Time),
-    xml:append_subtags(Packet, [TimeStampLegacyXML]).
+    TimeStampXML = timestamp_xml(Server, Time),
+    xml:append_subtags(Packet, [TimeStampXML]).
 
-timestamp_legacy_xml(Server, Time) ->
+timestamp_xml(Server, Time) ->
     FromJID = jlib:make_jid(<<>>, Server, <<>>),
     jlib:timestamp_to_xml(Time, utc, FromJID, <<"Offline Storage">>).
 
