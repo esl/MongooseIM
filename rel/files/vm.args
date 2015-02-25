@@ -1,4 +1,8 @@
-## Name of the node
+## Name of the node:
+##   -sname node@host
+## or
+##   -name node@fully.qualified.domain.name
+## Without @something suffix `mongooseimctl debug` breaks.
 -sname {{node_name}}
 
 ## Cookie for distributed erlang
