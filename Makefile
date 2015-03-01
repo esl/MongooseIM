@@ -53,6 +53,7 @@ quickrun: etc/ejabberd.cfg
 	erl -sname mongooseim@localhost -setcookie ejabberd -pa deps/*/ebin apps/*/ebin -config rel/files/app.config -s ejabberd
 
 etc/ejabberd.cfg:
+	@mkdir -p $(@D)
 	tools/generate_cfg.es etc/ejabberd.cfg
 
 
