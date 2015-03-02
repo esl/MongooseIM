@@ -49,13 +49,12 @@ test_preset: test_deps
 
 run: deps compile quickrun
 
-quickrun: etc/ejabberd.cfg
+quickrun: etc/ejabberd.cfg certs_priv
 	erl -sname mongooseim@localhost -setcookie ejabberd -pa deps/*/ebin apps/*/ebin -config rel/files/app.config -s ejabberd
 
 etc/ejabberd.cfg:
 	@mkdir -p $(@D)
 	tools/generate_cfg.es etc/ejabberd.cfg
-
 
 cover_test: test_deps
 	cd test/ejabberd_tests; make cover_test
@@ -99,6 +98,10 @@ relclean:
 	rm -rf rel/mongooseim
 
 certs: fake_cert.pem fake_server.pem
+
+certs_priv: certs
+	@mkdir -p priv/ssl
+	@cp fake_*.pem priv/ssl
 
 fake_cert.pem:
 	openssl req \
