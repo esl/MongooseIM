@@ -33,6 +33,8 @@
 -export([safe_archive_message/9,
          safe_lookup_messages/14]).
 
+-export([key/3]).
+
 -define(BARE_JID(JID), jlib:jid_to_binary(jlib:jid_remove_resource(jlib:jid_to_lower(JID)))).
 
 start(Host, Opts) ->
@@ -127,7 +129,7 @@ lookup_messages(_Result, Host, _ArchiveID, ArchiveJID, RSM, Borders, Start, End,
                 Acc
         end
     end,
-    KeyFilters = key_filters(OwnerJID, WithJID),
+    KeyFilters = bucket_key_filters(OwnerJID, WithJID, Start, End),
     {TotalCount, Result} = fold_archive(F, KeyFilters, {0, []}),
     SortFun = fun({MsgId1, _, _}, {MsgId2, _, _}) ->
         MsgId1 =< MsgId2
@@ -139,7 +141,7 @@ lookup_messages(_Result, Host, _ArchiveID, ArchiveJID, RSM, Borders, Start, End,
 
 remove_archive(_Host, _ArchiveID, ArchiveJID) ->
     fold_archive(fun(Bucket, Key, _) -> mongoose_riak:delete(Bucket, Key) end,
-                 key_filters(?BARE_JID(ArchiveJID)), undefined).
+                 bucket_key_filters(?BARE_JID(ArchiveJID)), undefined).
 
 purge_single_message(Result, Host, MessID, ArchiveID, ArchiveJID, Now) ->
     erlang:error(not_implemented).
@@ -159,7 +161,7 @@ fold_archive(Fun, KeyFilters, InitialAcc) ->
     Result = riakc_pb_socket:mapred(Client, KeyFilters, []),
     case Result of
         {ok, []} ->
-            [];
+            InitialAcc;
         {ok, [{0, BucketKeys} | _]} ->
             do_fold_archive(Fun, BucketKeys, InitialAcc);
         {error, R} = Err ->
@@ -172,14 +174,45 @@ do_fold_archive(Fun, BucketKeys, InitialAcc) ->
         Fun(Bucket, Key, Acc)
     end, InitialAcc, BucketKeys).
 
-key_filters(Jid) ->
-    {bucket(), [[<<"starts_with">>,Jid]]}.
+bucket_key_filters(Jid) ->
+    {bucket(), key_filters(Jid)}.
 
-key_filters(Jid, undefined) ->
-    key_filters(Jid);
+bucket_key_filters(LocalJid, RemoteJid) ->
+    {bucket(), key_filters(LocalJid, RemoteJid)}.
+
+bucket_key_filters(LocalJid, RemoteJid, undefined, undefined) ->
+    bucket_key_filters(LocalJid, RemoteJid);
+bucket_key_filters(LocalJid, RemoteJid, Start, End) ->
+    {bucket(), key_filters(LocalJid, RemoteJid, Start, End)}.
+
+key_filters(Jid) ->
+    [[<<"starts_with">>,Jid]].
+
+key_filters(LocalJid, undefined) ->
+    key_filters(LocalJid);
 key_filters(LocalJid, RemoteJid) ->
     RemoteJidBin = ?BARE_JID(RemoteJid),
-    {bucket(), [[<<"starts_with">>, <<LocalJid/binary, $/, RemoteJidBin/binary>>]]}.
+    [[<<"starts_with">>, <<LocalJid/binary, $/, RemoteJidBin/binary>>]].
+
+key_filters(LocalJid, RemoteJid, Start, End) ->
+    JidFilter = key_filters(LocalJid, RemoteJid),
+    IdFilter = id_filters(Start, End),
+    [[<<"and">>, JidFilter, IdFilter]].
+
+id_filters(Start, undefined) ->
+    StartInt = mod_mam_utils:encode_compact_uuid(Start, 0),
+    transform() ++ [[<<"greater_than">>, StartInt]];
+id_filters(undefined, End) ->
+    EndInt = mod_mam_utils:encode_compact_uuid(End, 1000),
+    transform() ++ [[<<"less_than">>, EndInt]];
+id_filters(Start, End) ->
+    StartInt = mod_mam_utils:encode_compact_uuid(Start, 0),
+    EndInt = mod_mam_utils:encode_compact_uuid(End, 1000),
+    transform() ++ [[<<"between">>, StartInt, EndInt, true]].
+
+transform() ->
+    [[<<"tokenize">>, <<"/">>, 3], [<<"string_to_int">>]].
+
 
 encode_riak_obj(SourceJID, Packet) ->
     term_to_binary({SourceJID, Packet}).
