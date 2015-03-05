@@ -114,8 +114,8 @@ archive_message(_, _, MessID, _ArchiveID, LocJID, RemJID, SrcJID, Dir, Packet) -
     Obj = riakc_obj:new(bucket(), Key, encode_riak_obj(SourceJID, Packet)),
     mongoose_riak:put(Obj).
 
-lookup_messages(_Result, Host, _ArchiveID, ArchiveJID, RSM, Borders, Start, End,
-                Now, WithJID, PageSize, LimitPassed, MaxResultLimit, IsSimple) ->
+lookup_messages(_Result, _Host, _ArchiveID, ArchiveJID, _RSM, _Borders, Start, End,
+                _Now, WithJID, _PageSize, LimitPassed, MaxResultLimit, _IsSimple) ->
     OwnerJID = ?BARE_JID(ArchiveJID),
 
     F = fun(Bucket, Key, {Cnt, Msgs} = Acc) ->
@@ -135,8 +135,13 @@ lookup_messages(_Result, Host, _ArchiveID, ArchiveJID, RSM, Borders, Start, End,
         MsgId1 =< MsgId2
     end,
     SortedResult = lists:sort(SortFun, Result),
-
-    {ok, {TotalCount, 0, SortedResult}}.
+    Offset = 0,
+    case TotalCount - Offset > MaxResultLimit andalso not LimitPassed of
+        true ->
+            {error, 'policy-violation'};
+        _ ->
+            {ok, {TotalCount, Offset, SortedResult}}
+     end.
 
 
 remove_archive(_Host, _ArchiveID, ArchiveJID) ->
