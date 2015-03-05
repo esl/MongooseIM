@@ -140,14 +140,20 @@ lookup_messages(_Result, Host, _ArchiveID, ArchiveJID, RSM, Borders, Start, End,
 
 
 remove_archive(_Host, _ArchiveID, ArchiveJID) ->
-    fold_archive(fun(Bucket, Key, _) -> mongoose_riak:delete(Bucket, Key) end,
-                 bucket_key_filters(?BARE_JID(ArchiveJID)), undefined).
+    fold_archive(fun delete_key_fun/3, bucket_key_filters(?BARE_JID(ArchiveJID)), undefined).
 
-purge_single_message(Result, Host, MessID, ArchiveID, ArchiveJID, Now) ->
-    erlang:error(not_implemented).
+purge_single_message(_Result, _Host, MessID, _ArchiveID, ArchiveJID, _Now) ->
+    ArchiveJIDBin = ?BARE_JID(ArchiveJID),
+    KeyFilters = bucket_key_filters(ArchiveJIDBin, MessID),
+    fold_archive(fun delete_key_fun/3, KeyFilters, undefined).
 
-purge_multiple_messages(Result, Host, ArchiveID, ArchiveJID, Borders, Start, End, Now, WithJID) ->
-    erlang:error(not_implemented).
+purge_multiple_messages(_Result, _Host, _ArchiveID, ArchiveJID, _Borders, Start, End, _Now, WithJID) ->
+    ArchiveJIDBin = ?BARE_JID(ArchiveJID),
+    KeyFilters = bucket_key_filters(ArchiveJIDBin, WithJID, Start, End),
+    fold_archive(fun delete_key_fun/3, KeyFilters, undefined).
+
+delete_key_fun(Bucket, Key, _) ->
+    mongoose_riak:delete(Bucket, Key, [{dw, 2}]).
 
 
 key(LocalJID, RemoteJID, MsgId) ->
@@ -177,6 +183,10 @@ do_fold_archive(Fun, BucketKeys, InitialAcc) ->
 bucket_key_filters(Jid) ->
     {bucket(), key_filters(Jid)}.
 
+bucket_key_filters(LocalJid, MsgId) when is_integer(MsgId) ->
+    StartsWith = key_filters(LocalJid),
+    EndsWith = [[<<"ends_with">>, integer_to_binary(MsgId)]],
+    {bucket(), [[<<"and">>, StartsWith, EndsWith]]};
 bucket_key_filters(LocalJid, RemoteJid) ->
     {bucket(), key_filters(LocalJid, RemoteJid)}.
 
