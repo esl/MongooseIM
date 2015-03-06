@@ -19,6 +19,7 @@
 
 %% API
 -export([update/2,
+         start_reporting/3,
          get_metric_value/1,
          get_metric_values/1,
          get_host_metric_names/1,
@@ -34,6 +35,18 @@
 -spec update({term(), term()}, term()) -> no_return().
 update(Name, Change) ->
     exometer:update(tuple_to_list(Name), Change).
+
+start_reporting(Host, GraphiteHost, Interval) ->
+    GraphiteOpts = [{prefix, "exometer." ++ atom_to_list(node())},
+        {host, GraphiteHost},
+        {connect_timeout, 5000},
+        {port, 2003},
+        {api_key, ""}],
+    exometer_report:add_reporter(exometer_report_graphite, GraphiteOpts),
+    subscribe_metrics([count, one], Interval, get_general_counters(Host)),
+    subscribe_metrics([value], Interval, get_total_counters(Host)),
+    subscribe_metrics([mean, max, 95, 99, 999, median], Interval, get_histograms(Host)),
+    ok.
 
 get_host_metric_names(Host) ->
     [MetricName || {[_Host, MetricName | _], _, _} <- exometer:find_entries([Host])].
@@ -134,7 +147,10 @@ create_metrics(Host) ->
                   get_general_counters(Host)),
 
     lists:foreach(fun(Name) -> ensure_metric(Name, counter) end,
-                  get_total_counters(Host)).
+                  get_total_counters(Host)),
+
+    lists:foreach(fun(Name) -> ensure_metric(Name, histogram) end,
+                  get_histograms(Host)).
 
 ensure_metric({Host, Metric}, Type) ->
     case exometer:info([Host, Metric], type) of
@@ -207,7 +223,7 @@ metrics_hooks(Op, Host) ->
 
 -spec get_general_counters(ejabberd:server()) -> [{ejabberd:server(), atom()}].
 get_general_counters(Host) ->
-    [{Host, Counter} || Counter <- ?GENERAL_COUNTERS].
+    get_counters(Host, ?GENERAL_COUNTERS).
 
 -define (TOTAL_COUNTERS, [
     sessionCount
@@ -217,7 +233,16 @@ get_general_counters(Host) ->
 -spec get_total_counters(ejabberd:server()) ->
     [{ejabberd:server(),'sessionCount'}].
 get_total_counters(Host) ->
-    [{Host, Counter} || Counter <- ?TOTAL_COUNTERS].
+    get_counters(Host, ?TOTAL_COUNTERS).
+
+-define (HISTOGRAMS, [
+    mam_archive_time,
+    mam_lookup_time
+
+]).
+
+get_histograms(Host) ->
+    get_counters(Host, ?HISTOGRAMS).
 
 -define(GLOBAL_COUNTERS,
         [{[global, totalSessionCount],
@@ -232,3 +257,10 @@ get_total_counters(Host) ->
 create_global_metrics() ->
     lists:foreach(fun({Metric, Spec}) -> exometer:new(Metric, Spec) end,
                   ?GLOBAL_COUNTERS).
+
+get_counters(Host, Counters) ->
+    [{Host, Counter} || Counter <- Counters].
+
+subscribe_metrics(DataPoints, Interval, Metrics) ->
+    [exometer_report:subscribe(exometer_report_graphite, tuple_to_list(Metric), DataPoints, Interval)
+     || Metric <- Metrics].
