@@ -73,8 +73,13 @@ stop_chat_archive(Host) ->
 safe_archive_message(Result, Host, MessID, UserID,
                      LocJID, RemJID, SrcJID, Dir, Packet) ->
     try
-        archive_message(Result, Host, MessID, UserID,
-            LocJID, RemJID, SrcJID, Dir, Packet)
+        StartT = os:timestamp(),
+        R = archive_message(Result, Host, MessID, UserID,
+            LocJID, RemJID, SrcJID, Dir, Packet),
+        EndT = os:timestamp(),
+        Diff = timer:now_diff(EndT, StartT),
+        exometer:update([Host, mam_archive_time], Diff),
+        R
     catch _Type:Reason ->
         {error, Reason}
     end.
@@ -91,11 +96,16 @@ safe_lookup_messages(Result, Host,
                      PageSize, LimitPassed, MaxResultLimit,
                      IsSimple) ->
     try
-        lookup_messages(Result, Host,
+        StartT = os:timestamp(),
+        R = lookup_messages(Result, Host,
             UserID, UserJID, RSM, Borders,
             Start, End, Now, WithJID,
             PageSize, LimitPassed, MaxResultLimit,
-            IsSimple)
+            IsSimple),
+        EndT = os:timestamp(),
+        Diff = timer:now_diff(EndT, StartT),
+        exometer:update([Host, mam_lookup_time], Diff),
+        R
     catch _Type:Reason ->
         {error, Reason}
     end.
