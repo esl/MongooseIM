@@ -245,42 +245,39 @@ send_copies(JID, To, Packet, Direction) ->
                                    end,
                          OrigTo = fun(Res) -> lists:member({MaxPrio, Res}, PrioRes) end,
                          [ {jlib:make_jid({U, S, CCRes}), CC_Version}
-                           || {CCRes, CC_Version} <- list(U, S), not OrigTo(CCRes) ];
+                           || {CCRes, CC_Version} <- resources_to_cc(U, S), not OrigTo(CCRes) ];
                      true ->
                          [ {jlib:make_jid({U, S, CCRes}), CC_Version}
-                           || {CCRes, CC_Version} <- list(U, S), CCRes /= R ]
+                           || {CCRes, CC_Version} <- resources_to_cc(U, S), CCRes /= R ]
                  end,
-    lists:map(fun({Dest, Version}) ->
-                      {_, _, Resource} = jlib:jid_tolower(Dest),
-                      ?DEBUG("Sending:  ~p =/= ~p", [R, Resource]),
-                      Sender = jlib:make_jid({U, S, <<>>}),
-                      New = build_forward_packet(JID, Packet, Sender, Dest, Direction, Version),
-                      ejabberd_router:route(Sender, Dest, New)
-              end, TargetJIDs),
-    ok.
+    lists:foreach(fun({Dest, Version}) ->
+                          {_, _, Resource} = jlib:jid_tolower(Dest),
+                          ?DEBUG("Sending:  ~p =/= ~p", [R, Resource]),
+                          Sender = jlib:make_jid({U, S, <<>>}),
+                          New = build_forward_packet(JID, Packet, Sender, Dest, Direction, Version),
+                          ejabberd_router:route(Sender, Dest, New)
+                  end, TargetJIDs).
 
-build_forward_packet(JID, Packet, Sender, Dest, Direction, ?NS_CC_2) ->
+build_forward_packet(JID, Packet, Sender, Dest, Direction, Version) ->
     #xmlel{name = <<"message">>, 
            attrs = [{<<"xmlns">>, <<"jabber:client">>},
                     {<<"type">>, <<"chat">>},
                     {<<"from">>, jlib:jid_to_binary(Sender)},
                     {<<"to">>, jlib:jid_to_binary(Dest)}],
-           children = [ #xmlel{name = list_to_binary(atom_to_list(Direction)), 
-                               attrs = [{<<"xmlns">>, ?NS_CC_2}],
-                               children = [ #xmlel{name = <<"forwarded">>, 
-                                                   attrs = [{<<"xmlns">>, ?NS_FORWARD}],
-                                                   children = [ complete_packet(JID, Packet, Direction) ]} ]} ]};
-build_forward_packet(JID, Packet, Sender, Dest, Direction, ?NS_CC_1) ->
-    #xmlel{name = <<"message">>, 
-           attrs = [{<<"xmlns">>, <<"jabber:client">>},
-                    {<<"type">>, <<"chat">>},
-                    {<<"from">>, jlib:jid_to_binary(Sender)},
-                    {<<"to">>, jlib:jid_to_binary(Dest)}],
-           children = [ #xmlel{name = list_to_binary(atom_to_list(Direction)), 
-                               attrs = [{<<"xmlns">>, ?NS_CC_1}]},
-                        #xmlel{name = <<"forwarded">>, 
-                               attrs = [{<<"xmlns">>, ?NS_FORWARD}],
-                               children = [complete_packet(JID, Packet, Direction)]} ]}.
+           children = carbon_copy_children(Version, JID, Packet, Direction)}.
+
+carbon_copy_children(?NS_CC_1, JID, Packet, Direction) ->
+    [ #xmlel{name = list_to_binary(atom_to_list(Direction)),
+             attrs = [{<<"xmlns">>, ?NS_CC_1}]},
+      #xmlel{name = <<"forwarded">>,
+             attrs = [{<<"xmlns">>, ?NS_FORWARD}],
+             children = [complete_packet(JID, Packet, Direction)]} ];
+carbon_copy_children(?NS_CC_2, JID, Packet, Direction) ->
+    [ #xmlel{name = list_to_binary(atom_to_list(Direction)),
+             attrs = [{<<"xmlns">>, ?NS_CC_2}],
+             children = [ #xmlel{name = <<"forwarded">>,
+                                 attrs = [{<<"xmlns">>, ?NS_FORWARD}],
+                                 children = [complete_packet(JID, Packet, Direction)]} ]} ].
 
 enable(Host, U, R, CC) ->
     ?DEBUG("enabling for ~p/~p", [U, R]),
@@ -314,10 +311,13 @@ complete_packet(_From, #xmlel{name = <<"message">>, attrs=OrigAttrs} = Packet, r
     Attrs = lists:keystore(<<"xmlns">>, 1, OrigAttrs, {<<"xmlns">>, <<"jabber:client">>}),
     Packet#xmlel{attrs = Attrs}.
 
-%% list {resource, cc_version} with carbons enabled for given user and host
-list(User, Server) ->
-    mnesia:dirty_select(?TABLE, [{#carboncopy{us = {User, Server},
-                                              resource = '$2',
-                                              version = '$3'},
-                                  [],
-                                  [{{'$2','$3'}}]}]).
+%% resources_to_cc: {resource, cc_version} with carbons enabled for given user and host
+resources_to_cc(User, Server) ->
+    mnesia:dirty_select(?TABLE, resource_version_match_spec(User, Server)).
+
+resource_version_match_spec(User, Server) ->
+    [{#carboncopy{us = {User, Server},
+                  resource = '$2',
+                  version = '$3'},
+      [],
+      [{{'$2','$3'}}]}].
