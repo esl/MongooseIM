@@ -29,18 +29,18 @@
 
 -behavior(gen_mod).
 
-%% API:
+%% API
 -export([start/2,
-         stop/1]).
+         stop/1,
+         is_carbon_copy/1,
+         classify_packet/1]).
 
-%% Hooks:
+%% Hooks
 -export([user_send_packet/3,
          user_receive_packet/4,
          iq_handler2/3,
          iq_handler1/3,
-         remove_connection/4,
-         is_carbon_copy/1,
-         classify_packet/1]).
+         remove_connection/4]).
 
 -define(NS_CC_2, <<"urn:xmpp:carbons:2">>).
 -define(NS_CC_1, <<"urn:xmpp:carbons:1">>).
