@@ -47,7 +47,6 @@
 -define(NS_FORWARD, <<"urn:xmpp:forward:0">>).
 
 -include("ejabberd.hrl").
-%%-include("logger.hrl").
 -include("jlib.hrl").
 -define(PROCNAME, ?MODULE).
 -define(TABLE, carboncopy).
@@ -141,7 +140,7 @@ user_send_packet(From, To, Packet) ->
 user_receive_packet(JID, _From, To, Packet) ->
     check_and_forward(JID, To, Packet, received).
 
-% verifier si le trafic est local
+% Check if the traffic is local.
 % Modified from original version: 
 % - registered to the user_send_packet hook, to be called only once even for multicast
 % - do not support "private" message mode, and do not modify the original packet in any way
@@ -250,13 +249,11 @@ send_copies(JID, To, Packet, Direction) ->
                      true ->
                          [ {jlib:make_jid({U, S, CCRes}), CC_Version}
                            || {CCRes, CC_Version} <- list(U, S), CCRes /= R ]
-                         %TargetJIDs = lists:delete(JID, [ jlib:make_jid({U, S, CCRes}) || CCRes <- list(U, S) ]),
                  end,
     lists:map(fun({Dest, Version}) ->
                       {_, _, Resource} = jlib:jid_tolower(Dest),
                       ?DEBUG("Sending:  ~p =/= ~p", [R, Resource]),
                       Sender = jlib:make_jid({U, S, <<>>}),
-                      %{xmlelement, N, A, C} = Packet,
                       New = build_forward_packet(JID, Packet, Sender, Dest, Direction, Version),
                       ejabberd_router:route(Sender, Dest, New)
               end, TargetJIDs),
