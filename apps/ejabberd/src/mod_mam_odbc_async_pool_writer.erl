@@ -58,7 +58,14 @@ worker_prefix() ->
 %% or
 %% `worker_count(_) = 16, partition_count() = 16'.
 worker_count(_Host) ->
-    32.
+    1.
+
+worker_count(_Host, PoolSize) ->
+  PoolSize.
+
+
+worker_names(Host, PoolSize) ->
+  [{N, worker_name(Host, N)} || N <- lists:seq(0, worker_count(Host, PoolSize) - 1)].
 
 worker_names(Host) ->
     [{N, worker_name(Host, N)} || N <- lists:seq(0, worker_count(Host) - 1)].
@@ -80,7 +87,12 @@ worker_number(Host, ArcID) ->
 %% Starting and stopping functions for users' archives
 
 start(Host, Opts) ->
-    start_workers(Host),
+    DefaultPullSize = 32,
+    PoolSize = gen_mod:get_opt(pool_size, Opts, DefaultPullSize),
+    ?DEBUG("PoolSize ~p", [PoolSize]),
+
+    start_workers(Host, PoolSize),
+
     case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
         true ->
             start_pm(Host, Opts);
@@ -161,6 +173,10 @@ stop_muc(Host) ->
 start_workers(Host) ->
     [start_worker(WriterProc, N, Host)
      || {N, WriterProc} <- worker_names(Host)].
+
+start_workers(Host, PullSize) ->
+  [start_worker(WriterProc, N, Host)
+    || {N, WriterProc} <- worker_names(Host, PullSize)].
 
 stop_workers(Host) ->
     [stop_worker(WriterProc) ||  {_, WriterProc} <- worker_names(Host)].
