@@ -62,8 +62,8 @@ worker_prefix() ->
 %% `worker_count(_) = 32, partition_count() = 16'.
 %% or
 %% `worker_count(_) = 16, partition_count() = 16'.
-worker_count(_Host) ->
-    gen_mod:get_module_opt(_Host, ?MODULE, pool_size, ?DEFAULT_POOL_SIZE).
+worker_count(Host) ->
+    gen_mod:get_module_opt(Host, ?MODULE, pool_size, ?DEFAULT_POOL_SIZE).
 
 
 -spec worker_names(ejabberd:server()) -> [{integer(),atom()}].
