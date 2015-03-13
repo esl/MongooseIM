@@ -36,6 +36,8 @@
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 
+-define(DEFAULT_POOL_SIZE, 32).
+
 -record(state, {
     flush_interval=500,
     max_packet_size=30,
@@ -58,7 +60,7 @@ worker_prefix() ->
 %% or
 %% `worker_count(_) = 16, partition_count() = 16'.
 worker_count(_Host) ->
-    32.
+  gen_mod:get_module_opt(_Host, ?MODULE, pool_size, ?DEFAULT_POOL_SIZE).
 
 worker_names(Host) ->
     [{N, worker_name(Host, N)} || N <- lists:seq(0, worker_count(Host) - 1)].
@@ -81,6 +83,7 @@ worker_number(Host, ArcID) ->
 
 start(Host, Opts) ->
     start_workers(Host),
+
     case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
         true ->
             start_pm(Host, Opts);

@@ -1,0 +1,2 @@
+{apps_to_run,[seestar,redo,odbc,pgsql,mysql]}.
+{apps_to_include,[]}.

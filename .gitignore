@@ -82,3 +82,7 @@ test/*
 
 ebin/
 *.coverdata
+
+#idea
+*.iml
+.idea/
