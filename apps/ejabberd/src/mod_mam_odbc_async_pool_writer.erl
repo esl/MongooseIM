@@ -36,6 +36,8 @@
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 
+-define(DEFAULT_POOL_SIZE, 32).
+
 -record(state, {
     flush_interval=500,
     max_packet_size=30,
@@ -58,14 +60,7 @@ worker_prefix() ->
 %% or
 %% `worker_count(_) = 16, partition_count() = 16'.
 worker_count(_Host) ->
-    1.
-
-worker_count(_Host, PoolSize) ->
-  PoolSize.
-
-
-worker_names(Host, PoolSize) ->
-  [{N, worker_name(Host, N)} || N <- lists:seq(0, worker_count(Host, PoolSize) - 1)].
+  gen_mod:get_module_opt(_Host, ?MODULE, pool_size, ?DEFAULT_POOL_SIZE).
 
 worker_names(Host) ->
     [{N, worker_name(Host, N)} || N <- lists:seq(0, worker_count(Host) - 1)].
@@ -87,11 +82,7 @@ worker_number(Host, ArcID) ->
 %% Starting and stopping functions for users' archives
 
 start(Host, Opts) ->
-    DefaultPullSize = 32,
-    PoolSize = gen_mod:get_opt(pool_size, Opts, DefaultPullSize),
-    ?DEBUG("PoolSize ~p", [PoolSize]),
-
-    start_workers(Host, PoolSize),
+    start_workers(Host),
 
     case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
         true ->
@@ -173,10 +164,6 @@ stop_muc(Host) ->
 start_workers(Host) ->
     [start_worker(WriterProc, N, Host)
      || {N, WriterProc} <- worker_names(Host)].
-
-start_workers(Host, PullSize) ->
-  [start_worker(WriterProc, N, Host)
-    || {N, WriterProc} <- worker_names(Host, PullSize)].
 
 stop_workers(Host) ->
     [stop_worker(WriterProc) ||  {_, WriterProc} <- worker_names(Host)].
