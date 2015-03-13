@@ -77,10 +77,18 @@ safe_archive_message(Result, Host, MessID, UserID,
         R = archive_message(Result, Host, MessID, UserID,
             LocJID, RemJID, SrcJID, Dir, Packet),
         EndT = os:timestamp(),
-        Diff = timer:now_diff(EndT, StartT),
-        exometer:update([Host, mam_archive_time], Diff),
+        case R of
+            ok ->
+                Diff = timer:now_diff(EndT, StartT),
+                exometer:update([Host, mam_archive_time], Diff);
+            Other ->
+                ?WARNING_MSG("Could not write message to archive, reason: ~p", [Other]),
+                ejabberd_hooks:run(mam_drop_message, Host, [Host])
+        end,
         R
     catch _Type:Reason ->
+        ?WARNING_MSG("Could not write message to archive, reason: ~p", [Reason]),
+        ejabberd_hooks:run(mam_drop_message, Host, [Host]),
         {error, Reason}
     end.
 
