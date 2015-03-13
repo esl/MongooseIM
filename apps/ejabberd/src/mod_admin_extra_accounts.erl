@@ -245,7 +245,7 @@ set_random_password(User, Server, Reason) ->
 
 -spec build_random_password(Reason :: binary()) -> binary().
 build_random_password(Reason) ->
-    {{Year, Month, Day}, {Hour, Minute, Second}} = calendar:datetime(now()),
+    {{Year, Month, Day}, {Hour, Minute, Second}} = calendar:now_to_universal_time(now()),
     Date = list_to_binary(
              lists:flatten(
                io_lib:format("~4..0w-~2..0w-~2..0wT~2..0w:~2..0w:~2..0w",
