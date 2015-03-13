@@ -33,6 +33,8 @@
          terminate/2, code_change/3]).
 
 
+-define(DEFAULT_POOL_SIZE, 32).
+
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 
@@ -58,7 +60,7 @@ worker_prefix() ->
 %% or
 %% `worker_count(_) = 16, partition_count() = 16'.
 worker_count(_Host) ->
-    32.
+    gen_mod:get_module_opt(_Host, ?MODULE, pool_size, ?DEFAULT_POOL_SIZE).
 
 worker_names(Host) ->
     [{N, worker_name(Host, N)} || N <- lists:seq(0, worker_count(Host) - 1)].
