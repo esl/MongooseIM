@@ -245,8 +245,13 @@ set_random_password(User, Server, Reason) ->
 
 -spec build_random_password(Reason :: binary()) -> binary().
 build_random_password(Reason) ->
+    {{Year,Month,Day},{Hour,Minute,Second}} = calendar:universal_time(),
+    Date = list_to_binary(
+             lists:flatten(
+               io_lib:format("~4..0w-~2..0w-~2..0wT~2..0w:~2..0w:~2..0wZ",
+                             [Year, Month, Day, Hour, Minute, Second]))),
     RandomString = list_to_binary(randoms:get_string()),
-    <<"BANNED_ACCOUNT--", RandomString/binary, "--", Reason/binary>>.
+    <<"BANNED_ACCOUNT--", Date/binary, "--", RandomString/binary, "--", Reason/binary>>.
 
 
 -spec set_password_auth(ejabberd:user(), ejabberd:server(), binary()) -> 'ok'.
