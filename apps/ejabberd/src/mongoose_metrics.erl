@@ -20,6 +20,7 @@
 %% API
 -export([update/2,
          start_reporting/3,
+         start_vm_reporting/1,
          get_metric_value/1,
          get_metric_values/1,
          get_host_metric_names/1,
@@ -47,6 +48,10 @@ start_reporting(Host, GraphiteHost, Interval) ->
     subscribe_metrics([value], Interval, get_total_counters(Host)),
     subscribe_metrics([mean, max, 95, 99, 999, median], Interval, get_histograms(Host)),
     ok.
+%% requires graphite_reporter to be running!
+start_vm_reporting(Interval) ->
+    [exometer_report:subscribe(exometer_report_graphite, Metric, DataPoints, Interval)
+     || {Metric, _, DataPoints} <- get_vm_stats()].
 
 get_host_metric_names(Host) ->
     [MetricName || {[_Host, MetricName | _], _, _} <- exometer:find_entries([Host])].
@@ -254,7 +259,17 @@ get_histograms(Host) ->
         ]
 ).
 
+get_vm_stats() ->
+    [{[erlang, system_info], [function, erlang, system_info, ['$dp'], value],
+        [port_count, port_limit, process_count, process_limit, ets_limit]},
+     {[erlang, memory], [function, erlang, memory, ['$dp'], value],
+      [total, processes_used, atom_used, binary, ets, system]}].
+
 create_global_metrics() ->
+    lists:foreach(fun({Metric, FunSpec, DataPoints}) ->
+        FunSpecTuple = list_to_tuple(FunSpec ++ [DataPoints]),
+        exometer:new(Metric, FunSpecTuple)
+    end, get_vm_stats()),
     lists:foreach(fun({Metric, Spec}) -> exometer:new(Metric, Spec) end,
                   ?GLOBAL_COUNTERS).
 
