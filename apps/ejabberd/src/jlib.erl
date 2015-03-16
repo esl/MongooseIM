@@ -52,9 +52,7 @@
          iq_query_or_response_info/1,
          iq_to_xml/1,
          parse_xdata_submit/1,
-         timestamp_to_iso/1, % TODO: Remove once XEP-0091 is Obsolete
          timestamp_to_xml/4,
-         timestamp_to_xml/1, % TODO: Remove once XEP-0091 is Obsolete
          timestamp_to_mam_xml/4,
          now_to_utc_binary/1,
          datetime_binary_to_timestamp/1,
@@ -743,14 +741,6 @@ timestamp_to_iso({{Year, Month, Day}, {Hour, Minute, Second}}, Timezone) ->
         end,
     {Timestamp_string, Timezone_string}.
 
-
--spec timestamp_to_iso(calendar:datetime()) -> string().
-timestamp_to_iso({{Year, Month, Day}, {Hour, Minute, Second}}) ->
-    lists:flatten(
-      io_lib:format("~4..0w~2..0w~2..0wT~2..0w:~2..0w:~2..0w",
-                    [Year, Month, Day, Hour, Minute, Second])).
-
-
 -spec timestamp_to_xml(DateTime :: calendar:datetime(),
                        Timezone :: tz(),
                        FromJID :: ejabberd:simple_jid() | ejabberd:jid(),
@@ -777,24 +767,6 @@ timestamp_to_mam_xml(DateTime, Timezone, QueryID, MessageUID) ->
                     {<<"stamp">>, list_to_binary(T_string ++ Tz_string)},
                     {<<"id">>, MessageUID}] ++
                    [{<<"queryid">>, QueryID} || QueryID =/= undefined, QueryID =/= <<>>]}.
-
-
-%% @doc TODO: Remove this function once XEP-0091 is Obsolete
--spec timestamp_to_xml(calendar:datetime()) -> xmlel().
-timestamp_to_xml({{Year, Month, Day}, {Hour, Minute, Second, Micro}}) ->
-    #xmlel{name = <<"x">>,
-           attrs = [{<<"xmlns">>, ?NS_DELAY91},
-                    {<<"stamp">>, lists:flatten(
-                                    io_lib:format("~4..0w~2..0w~2..0wT~2..0w:~2..0w:~2..0w.~6..0w",
-                                                  [Year, Month, Day, Hour, Minute, Second, Micro]))}]};
-
-timestamp_to_xml({{Year, Month, Day}, {Hour, Minute, Second}}) ->
-    #xmlel{name = <<"x">>,
-           attrs = [{<<"xmlns">>, ?NS_DELAY91},
-                    {<<"stamp">>, lists:flatten(
-                                    io_lib:format("~4..0w~2..0w~2..0wT~2..0w:~2..0w:~2..0w",
-                                                  [Year, Month, Day, Hour, Minute, Second]))}]}.
-
 
 -spec now_to_utc_string(erlang:timestamp()) -> string().
 now_to_utc_string({MegaSecs, Secs, MicroSecs}) ->

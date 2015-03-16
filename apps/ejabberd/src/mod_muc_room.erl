@@ -2462,9 +2462,7 @@ add_message_to_history(FromNick, FromJID, Packet, StateData) ->
     false -> FromJID
     end,
     TSPacket = xml:append_subtags(Packet,
-                  [jlib:timestamp_to_xml(TimeStamp, utc, SenderJid, <<>>),
-                   %% TODO: Delete the next line once XEP-0091 is Obsolete
-                   jlib:timestamp_to_xml(TimeStamp)]),
+                  [jlib:timestamp_to_xml(TimeStamp, utc, SenderJid, <<>>)]),
     SPacket = jlib:replace_from_to(
         jlib:jid_replace_resource(StateData#state.jid, FromNick),
         StateData#state.jid,
