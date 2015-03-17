@@ -27,12 +27,18 @@
 -define(REGISTRATION_TIMEOUT, 2).  %% seconds
 
 all() ->
-    [{group, ws_chat}].
+    [{group, ws_chat},
+     {group, wss_chat}].
 
 groups() ->
-    [{ws_chat, [sequence], [chat_msg,
-                            escape_chat_msg,
-                            escape_attrs]}].
+    [{ws_chat, [sequence], test_cases()},
+     {wss_chat, [sequence], test_cases()}
+    ].
+
+test_cases() ->
+    [chat_msg,
+     escape_chat_msg,
+     escape_attrs].
 
 suite() ->
     escalus:suite().
@@ -47,11 +53,18 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
-init_per_group(_GroupName, Config) ->
-    escalus:create_users(Config, {by_name, [alice, geralt, oldie]}).
+init_per_group(GroupName, Config) ->
+    Config1 = escalus:create_users(Config, {by_name, [alice, geralt, geralt_s, oldie]}),
+    case GroupName of
+        wss_chat ->
+            [{user, geralt_s} | Config1];
+        _ ->
+            [{user, geralt} | Config1]
+    end.
+
 
 end_per_group(_GroupName, Config) ->
-    escalus:delete_users(Config, {by_name, [alice, geralt, oldie]}).
+    escalus:delete_users(Config, {by_name, [alice, geralt, geralt_s, oldie]}).
 
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
@@ -64,7 +77,7 @@ end_per_testcase(CaseName, Config) ->
 %%--------------------------------------------------------------------
 
 chat_msg(Config) ->
-    escalus:story(Config, [{alice, 1}, {geralt, 1}, {oldie, 1}], fun(Alice, Geralt, Oldie) ->
+    escalus:story(Config, [{alice, 1}, {?config(user, Config), 1}, {oldie, 1}], fun(Alice, Geralt, Oldie) ->
 
         escalus_client:send(Alice, escalus_stanza:chat_to(Geralt, <<"Hi!">>)),
         FromAlice = escalus_client:wait_for_stanza(Geralt),
@@ -80,7 +93,7 @@ chat_msg(Config) ->
         end).
 
 escape_chat_msg(Config) ->
-    escalus:story(Config, [{alice, 1}, {geralt, 1}, {oldie, 1}], fun(Alice, Geralt, Oldie) ->
+    escalus:story(Config, [{alice, 1}, {?config(user, Config), 1}, {oldie, 1}], fun(Alice, Geralt, Oldie) ->
         special_chars_helper:check_cdata_from_to(Alice, Geralt, <<"Hi! & < >">>),
         special_chars_helper:check_cdata_from_to(Geralt, Alice, <<"Hello! & < >">>),
         special_chars_helper:check_cdata_from_to(Geralt, Oldie, <<"Hey! & < >">>)
@@ -88,7 +101,7 @@ escape_chat_msg(Config) ->
     end).
 
 escape_attrs(Config) ->
-    escalus:story(Config, [{alice, 1}, {geralt, 1}, {oldie, 1}], fun(Alice, Geralt, Oldie) ->
+    escalus:story(Config, [{alice, 1}, {?config(user, Config), 1}, {oldie, 1}], fun(Alice, Geralt, Oldie) ->
         special_chars_helper:check_attr_from_to(Alice, Geralt),
         special_chars_helper:check_attr_from_to(Geralt, Alice),
         special_chars_helper:check_attr_from_to(Geralt, Oldie)
