@@ -79,7 +79,7 @@ apps/ejabberd/ebin/ejabberd.app
 apps/ejabberd/test/ejabberd_config_SUITE_data/ejabberd.cfg
 dev/*
 test/*
-
+fake_*.pem
 ebin/
 *.coverdata
 
