@@ -32,6 +32,8 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
+-define(DEFAULT_POOL_SIZE, 32).
+
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -60,8 +62,8 @@ worker_prefix() ->
 %% `worker_count(_) = 32, partition_count() = 16'.
 %% or
 %% `worker_count(_) = 16, partition_count() = 16'.
-worker_count(_Host) ->
-    32.
+worker_count(Host) ->
+    gen_mod:get_module_opt(Host, ?MODULE, pool_size, ?DEFAULT_POOL_SIZE).
 
 
 -spec worker_names(ejabberd:server()) -> [{integer(),atom()}].
