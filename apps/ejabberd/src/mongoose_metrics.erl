@@ -19,8 +19,10 @@
 
 %% API
 -export([update/2,
-         start_reporting/3,
-         start_vm_reporting/1,
+         start_graphite_reporter/1,
+         start_host_metrics_subscriptions/3,
+         start_vm_metrics_subscriptions/2,
+         start_global_metrics_subscriptions/2,
          get_metric_value/1,
          get_metric_values/1,
          get_host_metric_names/1,
@@ -37,21 +39,27 @@
 update(Name, Change) ->
     exometer:update(tuple_to_list(Name), Change).
 
-start_reporting(Host, GraphiteHost, Interval) ->
+start_graphite_reporter(GraphiteHost) ->
     GraphiteOpts = [{prefix, "exometer." ++ atom_to_list(node())},
         {host, GraphiteHost},
         {connect_timeout, 5000},
         {port, 2003},
         {api_key, ""}],
-    exometer_report:add_reporter(exometer_report_graphite, GraphiteOpts),
-    subscribe_metrics([count, one], Interval, get_general_counters(Host)),
-    subscribe_metrics([value], Interval, get_total_counters(Host)),
-    subscribe_metrics([mean, max, 95, 99, 999, median], Interval, get_histograms(Host)),
-    ok.
-%% requires graphite_reporter to be running!
-start_vm_reporting(Interval) ->
-    [exometer_report:subscribe(exometer_report_graphite, Metric, DataPoints, Interval)
-     || {Metric, _, DataPoints} <- get_vm_stats()].
+    case exometer_report:add_reporter(exometer_report_graphite, GraphiteOpts) of
+        ok ->
+            {ok, exometer_report_graphite};
+        Error ->
+            Error
+    end.
+
+start_host_metrics_subscriptions(Reporter, Host, Interval) ->
+    do_start_host_metrics_subscriptions(check_reporter(Reporter), Host, Interval).
+
+start_vm_metrics_subscriptions(Reporter, Interval) ->
+    do_start_vm_metrics_subscriptions(check_reporter(Reporter), Interval).
+
+start_global_metrics_subscriptions(Reporter, Interval) ->
+    do_start_global_metrics_subscriptions(check_reporter(Reporter), Interval).
 
 get_host_metric_names(Host) ->
     [MetricName || {[_Host, MetricName | _], _, _} <- exometer:find_entries([Host])].
@@ -249,13 +257,18 @@ get_total_counters(Host) ->
 get_histograms(Host) ->
     get_counters(Host, ?HISTOGRAMS).
 
+-define(EX_EVAL_SINGLE_VALUE, {[{l, [{t, [value, {v, 'Value'}]}]}],[value]}).
+
 -define(GLOBAL_COUNTERS,
         [{[global, totalSessionCount],
-          {function, ejabberd_sm, get_total_sessions_number, [], value, []}},
+          {function, ejabberd_sm, get_total_sessions_number, [],
+           eval, ?EX_EVAL_SINGLE_VALUE}},
          {[global, uniqueSessionCount],
-          {function, ejabberd_sm, get_unique_sessions_number, [], value, []}},
+          {function, ejabberd_sm, get_unique_sessions_number, [],
+           eval, ?EX_EVAL_SINGLE_VALUE}},
          {[global, nodeSessionCount],
-          {function, ejabberd_sm, get_node_sessions_number, [], value, []}}
+          {function, ejabberd_sm, get_node_sessions_number, [],
+           eval, ?EX_EVAL_SINGLE_VALUE}}
         ]
 ).
 
@@ -276,6 +289,34 @@ create_global_metrics() ->
 get_counters(Host, Counters) ->
     [{Host, Counter} || Counter <- Counters].
 
-subscribe_metrics(DataPoints, Interval, Metrics) ->
-    [exometer_report:subscribe(exometer_report_graphite, tuple_to_list(Metric), DataPoints, Interval)
+subscribe_metrics(Reporter, DataPoints, Interval, Metrics) ->
+    [exometer_report:subscribe(Reporter, tuple_to_list(Metric), DataPoints, Interval)
      || Metric <- Metrics].
+
+check_reporter(Reporter) ->
+    Reporters = exometer_report:list_reporters(),
+    case lists:keyfind(Reporter, 1, Reporters) of
+        {Reporter, _} ->
+            {ok, Reporter};
+        _ ->
+            {error, {no_such_reporter}}
+    end.
+
+do_start_host_metrics_subscriptions({ok, Reporter}, Host, Interval) ->
+    subscribe_metrics(Reporter, [count, one], Interval, get_general_counters(Host)),
+    subscribe_metrics(Reporter, [value], Interval, get_total_counters(Host)),
+    subscribe_metrics(Reporter, [mean, max, 95, 99, 999, median], Interval, get_histograms(Host)),
+    ok;
+do_start_host_metrics_subscriptions(Error, _, _) ->
+    Error.
+
+do_start_vm_metrics_subscriptions({ok, Reporter}, Interval) ->
+    [exometer_report:subscribe(Reporter, Metric, DataPoints, Interval)
+        || {Metric, _, DataPoints} <- get_vm_stats()];
+do_start_vm_metrics_subscriptions(Error, _) ->
+    Error.
+
+
+do_start_global_metrics_subscriptions({ok, Reporter}, Interval) ->
+    [exometer_report:subscribe(Reporter, Metric, default, Interval)
+        || {Metric, _} <- ?GLOBAL_COUNTERS].
