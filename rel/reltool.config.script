@@ -20,7 +20,8 @@ BaseAppsToRun = [compiler,
                  cowboy,
                  fusco,
                  folsom,
-                 exometer],
+                 exometer,
+                 gcm],
 
 AppsToRunIn = BaseAppsToRun ++ proplists:get_value(apps_to_run, Conf, []),
 
@@ -44,7 +45,9 @@ BaseAppsToInclude = AppsToRun ++
                      alarms,
                      idna,
                      recon,
-                     setup
+                     setup,
+                     gcm,
+                     jsx
                      ],
 
 
