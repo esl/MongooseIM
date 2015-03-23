@@ -244,7 +244,7 @@ get_status_list(Host, StatusRequired) ->
         all -> ejabberd_sm:get_full_session_list();
         _ -> ejabberd_sm:get_vh_session_list(Host)
     end,
-    Sessions = [ {ejabberd_c2s:get_presence(Pid), Server, Priority}
+    Sessions = [ {catch ejabberd_c2s:get_presence(Pid), Server, Priority}
                  || {{_, Server, _}, {_, Pid}, Priority, _} <- Sessions0 ],
 
     %% Filter by status
