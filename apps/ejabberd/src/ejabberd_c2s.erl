@@ -80,7 +80,6 @@ start_link(SockData, Opts) ->
     ?GEN_FSM:start_link(ejabberd_c2s, [SockData, Opts],
                         fsm_limit_opts(Opts) ++ ?FSMOPTS).
 
-
 socket_type() ->
     xml_stream.
 
@@ -1590,12 +1589,10 @@ change_shaper(StateData, JID) ->
 
 
 -spec send_text(state(), Text :: binary()) -> any().
-send_text(StateData, Text) when StateData#state.xml_socket ->
-    ?DEBUG("Send Text on stream = ~p", [lists:flatten(Text)]),
-    (StateData#state.sockmod):send_xml(StateData#state.socket,
-                                       {xmlstreamraw, Text});
 send_text(StateData, Text) ->
     ?DEBUG("Send XML on stream = ~p", [Text]),
+    Size = size(Text),
+    mongoose_metrics:update([global, sent, xml_stanza_size], Size),
     (StateData#state.sockmod):send(StateData#state.socket, Text).
 
 -spec maybe_send_element_safe(state(), El :: jlib:xmlel()) -> any().
@@ -1657,11 +1654,11 @@ send_header(StateData, Server, Version, Lang) ->
             "" -> "";
             _ -> [" xml:lang='", Lang, "'"]
         end,
-    Header = io_lib:format(?STREAM_HEADER,
+    Header = list_to_binary(io_lib:format(?STREAM_HEADER,
                            [StateData#state.streamid,
                             Server,
                             VersionStr,
-                            LangStr]),
+                            LangStr])),
     send_text(StateData, Header).
 
 -spec maybe_send_trailer_safe(State :: state()) -> any().

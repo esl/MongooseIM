@@ -70,7 +70,9 @@ get_global_metric_names() ->
     get_host_metric_names(global).
 
 get_metric_value({Host, Name}) ->
-    exometer:get_value([Host, Name]).
+    get_metric_value([Host, Name]);
+get_metric_value(Metric) ->
+    exometer:get_value(Metric).
 
 get_metric_values(Host) ->
     exometer:get_values([Host]).
@@ -273,7 +275,12 @@ get_histograms(Host) ->
         ]
 ).
 
--define(GLOBAL_HISTOGRAMS, [raw_data_size, xml_stanza_size]).
+-define(GLOBAL_HISTOGRAMS, [[global, received, encrypted_data_size],
+                            [global, received, compressed_data_size],
+                            [global, received, xml_stanza_size],
+                            [global, sent, encrypted_data_size],
+                            [global, sent, compressed_data_size],
+                            [global, sent, xml_stanza_size]]).
 
 create_global_metrics() ->
     lists:foreach(fun({Metric, FunSpec, DataPoints}) ->
@@ -282,7 +289,7 @@ create_global_metrics() ->
     end, get_vm_stats()),
     lists:foreach(fun({Metric, Spec}) -> exometer:new(Metric, Spec) end,
                   ?GLOBAL_COUNTERS),
-    lists:foreach(fun(Metric) -> exometer:new([global, Metric], histogram) end,
+    lists:foreach(fun(Metric) -> exometer:new(Metric, histogram) end,
                   ?GLOBAL_HISTOGRAMS).
 
 get_vm_stats() ->

@@ -217,10 +217,9 @@ handle_info({Tag, _TCPSocket, Data},
 		   c2s_pid = C2SPid,
 		   sock_mod = SockMod} = State)
   when (Tag == tcp) or (Tag == ssl) ->
-    RawSize = size(Data),
-    mongoose_metrics:update([global, raw_data_size], RawSize),
     case SockMod of
 	ejabberd_tls ->
+        mongoose_metrics:update([global, received, encrypted_data_size], size(Data)),
 	    case ejabberd_tls:recv_data(Socket, Data) of
 		{ok, TLSData} ->
 		    {noreply, process_data(TLSData, State),
@@ -229,6 +228,7 @@ handle_info({Tag, _TCPSocket, Data},
 		    {stop, normal, State}
 	    end;
 	ejabberd_zlib ->
+        mongoose_metrics:update([global, received, compressed_data_size], size(Data)),
 	    case ejabberd_zlib:recv_data(Socket, Data) of
 		{ok, ZlibData} ->
 		    {noreply, process_data(ZlibData, State),
@@ -337,7 +337,7 @@ process_data(Data,
                     c2s_pid = C2SPid} = State) ->
     ?DEBUG("Received XML on stream = \"~s\"", [Data]),
     Size = size(Data),
-    mongoose_metrics:update([global, xml_stanza_size], Size),
+    mongoose_metrics:update([global, received, xml_stanza_size], Size),
     XMLStreamState1 = xml_stream:parse(XMLStreamState, Data),
     {NewShaperState, Pause} = shaper:update(ShaperState, Size),
     if
