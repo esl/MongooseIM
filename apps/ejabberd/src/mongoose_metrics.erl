@@ -275,12 +275,12 @@ get_histograms(Host) ->
         ]
 ).
 
--define(GLOBAL_HISTOGRAMS, [[global, received, encrypted_data_size],
-                            [global, received, compressed_data_size],
-                            [global, received, xml_stanza_size],
-                            [global, sent, encrypted_data_size],
-                            [global, sent, compressed_data_size],
-                            [global, sent, xml_stanza_size]]).
+-define(GLOBAL_HISTOGRAMS, [[data, received, encrypted_data_size],
+                            [data, received, compressed_data_size],
+                            [data, received, xml_stanza_size],
+                            [data, sent, encrypted_data_size],
+                            [data, sent, compressed_data_size],
+                            [data, sent, xml_stanza_size]]).
 
 create_global_metrics() ->
     lists:foreach(fun({Metric, FunSpec, DataPoints}) ->
