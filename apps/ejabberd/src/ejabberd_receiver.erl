@@ -216,7 +216,9 @@ handle_info({Tag, _TCPSocket, Data},
 	    #state{socket = Socket,
 		   c2s_pid = C2SPid,
 		   sock_mod = SockMod} = State)
-  when (Tag == tcp) or (Tag == ssl) or (Tag == ejabberd_xml) ->
+  when (Tag == tcp) or (Tag == ssl) ->
+    RawSize = size(Data),
+    mongoose_metrics:update([global, raw_data_size], RawSize),
     case SockMod of
 	ejabberd_tls ->
 	    case ejabberd_tls:recv_data(Socket, Data) of
@@ -334,8 +336,10 @@ process_data(Data,
                     shaper_state = ShaperState,
                     c2s_pid = C2SPid} = State) ->
     ?DEBUG("Received XML on stream = \"~s\"", [Data]),
+    Size = size(Data),
+    mongoose_metrics:update([global, xml_stanza_size], Size),
     XMLStreamState1 = xml_stream:parse(XMLStreamState, Data),
-    {NewShaperState, Pause} = shaper:update(ShaperState, size(Data)),
+    {NewShaperState, Pause} = shaper:update(ShaperState, Size),
     if
         C2SPid == undefined ->
             ok;

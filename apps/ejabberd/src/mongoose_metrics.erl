@@ -36,8 +36,10 @@
          remove_all_metrics/0]).
 
 -spec update({term(), term()}, term()) -> no_return().
+update(Name, Change) when is_tuple(Name)->
+    update(tuple_to_list(Name), Change);
 update(Name, Change) ->
-    exometer:update(tuple_to_list(Name), Change).
+    exometer:update(Name, Change).
 
 start_graphite_reporter(GraphiteHost) ->
     GraphiteOpts = [{prefix, "exometer." ++ atom_to_list(node())},
@@ -258,7 +260,6 @@ get_histograms(Host) ->
     get_counters(Host, ?HISTOGRAMS).
 
 -define(EX_EVAL_SINGLE_VALUE, {[{l, [{t, [value, {v, 'Value'}]}]}],[value]}).
-
 -define(GLOBAL_COUNTERS,
         [{[global, totalSessionCount],
           {function, ejabberd_sm, get_total_sessions_number, [],
@@ -272,11 +273,7 @@ get_histograms(Host) ->
         ]
 ).
 
-get_vm_stats() ->
-    [{[erlang, system_info], [function, erlang, system_info, ['$dp'], value],
-        [port_count, port_limit, process_count, process_limit, ets_limit]},
-     {[erlang, memory], [function, erlang, memory, ['$dp'], value],
-      [total, processes_used, atom_used, binary, ets, system]}].
+-define(GLOBAL_HISTOGRAMS, [raw_data_size, xml_stanza_size]).
 
 create_global_metrics() ->
     lists:foreach(fun({Metric, FunSpec, DataPoints}) ->
@@ -284,7 +281,15 @@ create_global_metrics() ->
         exometer:new(Metric, FunSpecTuple)
     end, get_vm_stats()),
     lists:foreach(fun({Metric, Spec}) -> exometer:new(Metric, Spec) end,
-                  ?GLOBAL_COUNTERS).
+                  ?GLOBAL_COUNTERS),
+    lists:foreach(fun(Metric) -> exometer:new([global, Metric], histogram) end,
+                  ?GLOBAL_HISTOGRAMS).
+
+get_vm_stats() ->
+    [{[erlang, system_info], [function, erlang, system_info, ['$dp'], value],
+        [port_count, port_limit, process_count, process_limit, ets_limit]},
+     {[erlang, memory], [function, erlang, memory, ['$dp'], value],
+      [total, processes_used, atom_used, binary, ets, system]}].
 
 get_counters(Host, Counters) ->
     [{Host, Counter} || Counter <- Counters].

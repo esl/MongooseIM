@@ -119,10 +119,7 @@ parse(#xml_stream_state{callback_pid = CallbackPid,
                         stack = Stack,
                         size = Size,
                         maxsize = MaxSize} = State, Str) ->
-    StrSize = if
-                  is_list(Str) -> length(Str);
-                  is_binary(Str) -> size(Str)
-              end,
+    StrSize = size(Str),
     Res = port_control(Port, ?PARSE_COMMAND, Str),
     {NewStack, NewSize} =
         lists:foldl(
