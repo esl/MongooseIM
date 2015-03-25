@@ -23,6 +23,7 @@
          start_host_metrics_subscriptions/3,
          start_vm_metrics_subscriptions/2,
          start_global_metrics_subscriptions/2,
+         start_data_metrics_subscriptions/2,
          get_metric_value/1,
          get_metric_values/1,
          get_host_metric_names/1,
@@ -62,6 +63,9 @@ start_vm_metrics_subscriptions(Reporter, Interval) ->
 
 start_global_metrics_subscriptions(Reporter, Interval) ->
     do_start_global_metrics_subscriptions(check_reporter(Reporter), Interval).
+
+start_data_metrics_subscriptions(Reporter, Interval) ->
+    do_start_data_metrics_subscriptions(check_reporter(Reporter), Interval).
 
 get_host_metric_names(Host) ->
     [MetricName || {[_Host, MetricName | _], _, _} <- exometer:find_entries([Host])].
@@ -301,10 +305,6 @@ get_vm_stats() ->
 get_counters(Host, Counters) ->
     [{Host, Counter} || Counter <- Counters].
 
-subscribe_metrics(Reporter, DataPoints, Interval, Metrics) ->
-    [exometer_report:subscribe(Reporter, tuple_to_list(Metric), DataPoints, Interval)
-     || Metric <- Metrics].
-
 check_reporter(Reporter) ->
     Reporters = exometer_report:list_reporters(),
     case lists:keyfind(Reporter, 1, Reporters) of
@@ -315,20 +315,33 @@ check_reporter(Reporter) ->
     end.
 
 do_start_host_metrics_subscriptions({ok, Reporter}, Host, Interval) ->
-    subscribe_metrics(Reporter, [count, one], Interval, get_general_counters(Host)),
-    subscribe_metrics(Reporter, [value], Interval, get_total_counters(Host)),
-    subscribe_metrics(Reporter, [mean, max, 95, 99, 999, median], Interval, get_histograms(Host)),
-    ok;
+    [subscribe_metric(Reporter, Metric, Interval)
+     || Metric <- exometer:find_entries([Host])];
 do_start_host_metrics_subscriptions(Error, _, _) ->
     Error.
 
 do_start_vm_metrics_subscriptions({ok, Reporter}, Interval) ->
     [exometer_report:subscribe(Reporter, Metric, DataPoints, Interval)
-        || {Metric, _, DataPoints} <- get_vm_stats()];
+     || {Metric, _, DataPoints} <- get_vm_stats()];
 do_start_vm_metrics_subscriptions(Error, _) ->
     Error.
 
 
 do_start_global_metrics_subscriptions({ok, Reporter}, Interval) ->
     [exometer_report:subscribe(Reporter, Metric, default, Interval)
-        || {Metric, _} <- ?GLOBAL_COUNTERS].
+     || {Metric, _} <- ?GLOBAL_COUNTERS];
+do_start_global_metrics_subscriptions(Error, _) ->
+    Error.
+
+do_start_data_metrics_subscriptions({ok, Reporter}, Interval) ->
+    [subscribe_metric(Reporter, Metric, Interval)
+     || Metric <- exometer:find_entries([data])];
+do_start_data_metrics_subscriptions(Error, _) ->
+    Error.
+
+subscribe_metric(Reporter, {Name, counter, _}, Interval) ->
+    exometer_report:subscribe(Reporter, Name, [value], Interval);
+subscribe_metric(Reporter, {Name, histogram, _}, Interval) ->
+    exometer_report:subscribe(Reporter, Name, [min, mean, max, median, 95, 99, 999], Interval);
+subscribe_metric(Reporter, {Name, _, _}, Interval) ->
+    exometer_report:subscribe(Reporter, Name, default, Interval).
