@@ -33,6 +33,7 @@
          create_global_metrics/0,
          create_generic_hook_metric/2,
          increment_generic_hook_metric/2,
+         get_odbc_data_stats/0,
          remove_host_metrics/1,
          remove_all_metrics/0]).
 
@@ -107,6 +108,54 @@ do_increment_generic_hook_metric({_, skip}) ->
     ok;
 do_increment_generic_hook_metric(MetricName) ->
     update(MetricName, 1).
+
+
+get_odbc_data_stats() ->
+    RegularODBCWorkers = ejabberd_odbc_sup:get_pids(<<"localhost">>),
+    MamAsynODBCWorkers = [Pid || {_, Pid, worker, _} <- supervisor:which_children(mod_mam_sup)],
+
+    get_odbc_stats(RegularODBCWorkers ++ MamAsynODBCWorkers).
+
+get_odbc_stats(ODBCWorkers) ->
+    ODBCConnections = [catch ejabberd_odbc:get_db_info(Pid) || Pid <- ODBCWorkers],
+    Ports = [get_port_from_odbc_connection(Conn) || Conn <- ODBCConnections],
+    PortStats = [inet_stats(Port) || Port <- Ports],
+    merge_stats(PortStats).
+%%
+
+get_port_from_odbc_connection({ok, mysql, Pid}) ->
+    %% Pid of mysql_conn process
+    {links, [MySQLRecv]} = erlang:process_info(Pid, links),
+    %% Port is hold by mysql_recv process which is linked to the mysql_conn
+    {links, Links} = erlang:process_info(MySQLRecv, links),
+    hd([Port || Port <- Links, is_port(Port)]);
+get_port_from_odbc_connection(_) ->
+    undefined.
+
+-define(EMPTY_INET_STATS, [{recv_oct,0},
+                           {recv_cnt,0},
+                           {recv_max,0},
+                           {recv_avg,0},
+                           {recv_dvi,0},
+                           {send_oct,0},
+                           {send_cnt,0},
+                           {send_max,0},
+                           {send_avg,0},
+                           {send_pend,0}
+                          ]).
+
+merge_stats(Stats) ->
+    MergeFun = fun(_, V1, V2) -> V1 + V2 end,
+    lists:foldl(fun(Stat, Acc) ->
+        StatDict = orddict:from_list(Stat),
+        orddict:merge(MergeFun, Acc, StatDict)
+    end, orddict:from_list(?EMPTY_INET_STATS), Stats).
+
+inet_stats(Port) when is_port(Port) ->
+    {ok, Stats} = inet:getstat(Port),
+    Stats;
+inet_stats(_) ->
+    ?EMPTY_INET_STATS.
 
 remove_host_metrics(Host) ->
     lists:foreach(fun remove_metric/1,
