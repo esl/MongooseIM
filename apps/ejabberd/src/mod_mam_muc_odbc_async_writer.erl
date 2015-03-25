@@ -219,15 +219,15 @@ is_recent_entries_required(_End, _Now) ->
                                                 | {'ok','undefined' | pid(),_}.
 start_server(Host) ->
     WriterProc = srv_name(Host),
-    supervisor:start_child(ejabberd_sup, writer_child_spec(WriterProc, Host)).
+    supervisor:start_child(mod_mam_sup, writer_child_spec(WriterProc, Host)).
 
 
 -spec stop_server(ejabberd:server()) -> 'ok'
         | {'error','not_found' | 'restarting' | 'running' | 'simple_one_for_one'}.
 stop_server(Host) ->
     Proc = srv_name(Host),
-    supervisor:terminate_child(ejabberd_sup, Proc),
-    supervisor:delete_child(ejabberd_sup, Proc).
+    supervisor:terminate_child(mod_mam_sup, Proc),
+    supervisor:delete_child(mod_mam_sup, Proc).
 
 writer_child_spec(WriterProc, Host) ->
     {WriterProc,

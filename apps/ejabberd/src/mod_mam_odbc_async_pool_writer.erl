@@ -175,11 +175,11 @@ start_worker(WriterProc, N, Host) ->
      5000,
      worker,
      [mod_mam_odbc_async_writer]},
-    supervisor:start_child(ejabberd_sup, WriterChildSpec).
+    supervisor:start_child(mod_mam_sup, WriterChildSpec).
 
 stop_worker(Proc) ->
-    supervisor:terminate_child(ejabberd_sup, Proc),
-    supervisor:delete_child(ejabberd_sup, Proc).
+    supervisor:terminate_child(mod_mam_sup, Proc),
+    supervisor:delete_child(mod_mam_sup, Proc).
 
 
 start_link(ProcName, N, Host) ->

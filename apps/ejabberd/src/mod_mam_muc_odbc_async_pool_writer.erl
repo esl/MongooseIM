@@ -157,14 +157,14 @@ start_worker(WriterProc, N, Host) ->
      5000,
      worker,
      [mod_mam_muc_odbc_async_writer]},
-    supervisor:start_child(ejabberd_sup, WriterChildSpec).
+    supervisor:start_child(mod_mam_sup, WriterChildSpec).
 
 
 -spec stop_worker(atom()) -> 'ok'
         | {'error','not_found' | 'restarting' | 'running' | 'simple_one_for_one'}.
 stop_worker(Proc) ->
-    supervisor:terminate_child(ejabberd_sup, Proc),
-    supervisor:delete_child(ejabberd_sup, Proc).
+    supervisor:terminate_child(mod_mam_sup, Proc),
+    supervisor:delete_child(mod_mam_sup, Proc).
 
 
 -spec start_link(atom(),_,_) -> 'ignore' | {'error',_} | {'ok',pid()}.

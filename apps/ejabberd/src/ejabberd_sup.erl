@@ -169,6 +169,10 @@ init([]) ->
          brutal_kill,
          worker,
          [mod_muc_iq]},
+    MAM =
+        {mod_mam_sup,
+         {mod_mam_sup, start_link, []},
+         permanent, infinity, supervisor, [mod_mam_sup]},
     ShaperSpecs = shaper_srv:child_specs(),
 
     {ok, {{one_for_one, 10, 1},
@@ -190,4 +194,5 @@ init([]) ->
            IQSupervisor,
            STUNSupervisor,
            Listener,
-           MucIQ]}}.
+           MucIQ,
+           MAM]}}.

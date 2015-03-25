@@ -264,7 +264,7 @@ is_recent_entries_required(_End, _Now) ->
             | {'ok','undefined' | pid()} | {'ok','undefined' | pid(),_}.
 start_server(Host) ->
     WriterProc = srv_name(Host),
-    supervisor:start_child(ejabberd_sup, writer_child_spec(WriterProc, Host)).
+    supervisor:start_child(mod_mam_sup, writer_child_spec(WriterProc, Host)).
 
 
 -spec stop_server(ejabberd:server()) -> 'ok'
