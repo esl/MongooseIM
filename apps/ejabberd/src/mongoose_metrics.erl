@@ -353,12 +353,20 @@ get_histograms(Host) ->
         ]
 ).
 
--define(GLOBAL_HISTOGRAMS, [[data, received, encrypted_data_size],
-                            [data, received, compressed_data_size],
-                            [data, received, xml_stanza_size],
-                            [data, sent, encrypted_data_size],
-                            [data, sent, compressed_data_size],
-                            [data, sent, xml_stanza_size]]).
+-define(GLOBAL_HISTOGRAMS, [[data, xmpp, received, encrypted_size],
+                            [data, xmpp, received, compressed_size],
+                            [data, xmpp, received, xml_stanza_size],
+                            [data, xmpp, sent, encrypted_size],
+                            [data, xmpp, sent, compressed_size],
+                            [data, xmpp, sent, xml_stanza_size]]).
+
+-define(DATA_FUN_METRICS,
+        [{[data, odbc, regular],
+          {function, mongoose_metrics, get_odbc_data_stats, [], proplist, [workers | ?INET_STATS]}},
+         {[data, odbc, mam_async],
+          {function, mongoose_metrics, get_odbc_mam_async_stats, [], proplist, [workers | ?INET_STATS]}},
+         {[data, dist],
+          {function, mongoose_metrics, get_dist_data_stats, [], proplist, [connections | ?INET_STATS]}}]).
 
 create_global_metrics() ->
     lists:foreach(fun({Metric, FunSpec, DataPoints}) ->
@@ -367,8 +375,14 @@ create_global_metrics() ->
     end, get_vm_stats()),
     lists:foreach(fun({Metric, Spec}) -> exometer:new(Metric, Spec) end,
                   ?GLOBAL_COUNTERS),
+    create_data_metrics().
+
+create_data_metrics() ->
     lists:foreach(fun(Metric) -> exometer:new(Metric, histogram) end,
-                  ?GLOBAL_HISTOGRAMS).
+        ?GLOBAL_HISTOGRAMS),
+    lists:foreach(fun({Metric, Spec}) -> exometer:new(Metric, Spec) end,
+        ?DATA_FUN_METRICS).
+
 
 get_vm_stats() ->
     [{[erlang, system_info], [function, erlang, system_info, ['$dp'], value],
