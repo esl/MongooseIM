@@ -34,6 +34,7 @@
          create_generic_hook_metric/2,
          increment_generic_hook_metric/2,
          get_odbc_data_stats/0,
+         get_odbc_mam_async_stats/0,
          remove_host_metrics/1,
          remove_all_metrics/0]).
 
@@ -111,11 +112,13 @@ do_increment_generic_hook_metric(MetricName) ->
 
 
 get_odbc_data_stats() ->
-    RegularODBCWorkers = ejabberd_odbc_sup:get_pids(<<"localhost">>),
+    RegularODBCWorkers = [ejabberd_odbc_sup:get_pids(Host) || Host <- ?MYHOSTS],
+    get_odbc_stats(lists:flatten(RegularODBCWorkers)).
+
+get_odbc_mam_async_stats() ->
     %% MAM async ODBC workers are organized differently...
     MamAsynODBCWorkers = [element(2, gen_server:call(Pid, get_connection)) || {_, Pid, worker, _} <- supervisor:which_children(mod_mam_sup)],
-
-    {get_odbc_stats(RegularODBCWorkers),  get_odbc_stats(MamAsynODBCWorkers)}.
+    get_odbc_stats(MamAsynODBCWorkers).
 
 get_odbc_stats(ODBCWorkers) ->
     ODBCConnections = [catch ejabberd_odbc:get_db_info(Pid) || Pid <- ODBCWorkers],
