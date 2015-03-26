@@ -120,8 +120,8 @@ get_odbc_data_stats() ->
 get_odbc_stats(ODBCWorkers) ->
     ODBCConnections = [catch ejabberd_odbc:get_db_info(Pid) || Pid <- ODBCWorkers],
     Ports = [get_port_from_odbc_connection(Conn) || Conn <- ODBCConnections],
-    PortStats = [inet_stats(Port) || Port <- Ports],
-    merge_stats(PortStats).
+    PortStats = [inet_stats(Port) || Port <- lists:flatten(Ports)],
+    [{workers, length(ODBCConnections)} | merge_stats(PortStats)].
 %%
 
 get_port_from_odbc_connection({ok, DbType, Pid}) when DbType =:= mysql; DbType =:= pgsql ->
@@ -129,7 +129,10 @@ get_port_from_odbc_connection({ok, DbType, Pid}) when DbType =:= mysql; DbType =
     {links, [MySQLRecv]} = erlang:process_info(Pid, links),
     %% Port is hold by mysql_recv process which is linked to the mysql_conn
     {links, Links} = erlang:process_info(MySQLRecv, links),
-    hd([Port || Port <- Links, is_port(Port)]);
+    [Port || Port <- Links, is_port(Port)];
+get_port_from_odbc_connection({ok, odbc, Pid}) ->
+    {links, Links} = erlang:process_info(Pid, links),
+    [Port || Port <- Links, is_port(Port), {name, "tcp_inet"} == erlang:port_info(Port, name)];
 get_port_from_odbc_connection(_) ->
     undefined.
 
@@ -156,7 +159,7 @@ merge_stats(Stats) ->
         orddict:merge(fun merge_stats_fun/3, Acc, StatDict)
     end, orddict:from_list(?EMPTY_INET_STATS), Stats),
 
-    [{workers, length(Stats)} | orddict:to_list(OrdDict)].
+    orddict:to_list(OrdDict).
 
 merge_stats_fun(recv_max, V1, V2) ->
     erlang:max(V1, V2);
