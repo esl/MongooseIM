@@ -112,9 +112,10 @@ do_increment_generic_hook_metric(MetricName) ->
 
 get_odbc_data_stats() ->
     RegularODBCWorkers = ejabberd_odbc_sup:get_pids(<<"localhost">>),
-    MamAsynODBCWorkers = [Pid || {_, Pid, worker, _} <- supervisor:which_children(mod_mam_sup)],
+    %% MAM async ODBC workers are organized differently...
+    MamAsynODBCWorkers = [element(2, gen_server:call(Pid, get_connection)) || {_, Pid, worker, _} <- supervisor:which_children(mod_mam_sup)],
 
-    get_odbc_stats(RegularODBCWorkers ++ MamAsynODBCWorkers).
+    {get_odbc_stats(RegularODBCWorkers),  get_odbc_stats(MamAsynODBCWorkers)}.
 
 get_odbc_stats(ODBCWorkers) ->
     ODBCConnections = [catch ejabberd_odbc:get_db_info(Pid) || Pid <- ODBCWorkers],
@@ -132,27 +133,41 @@ get_port_from_odbc_connection({ok, mysql, Pid}) ->
 get_port_from_odbc_connection(_) ->
     undefined.
 
+-define (INET_STATS, [recv_oct,
+                      recv_cnt,
+                      recv_max,
+                      send_oct,
+                      send_max,
+                      send_cnt,
+                      send_pend
+                     ]).
 -define(EMPTY_INET_STATS, [{recv_oct,0},
                            {recv_cnt,0},
                            {recv_max,0},
-                           {recv_avg,0},
-                           {recv_dvi,0},
                            {send_oct,0},
-                           {send_cnt,0},
                            {send_max,0},
-                           {send_avg,0},
+                           {send_cnt,0},
                            {send_pend,0}
                           ]).
 
 merge_stats(Stats) ->
-    MergeFun = fun(_, V1, V2) -> V1 + V2 end,
-    lists:foldl(fun(Stat, Acc) ->
+    OrdDict = lists:foldl(fun(Stat, Acc) ->
         StatDict = orddict:from_list(Stat),
-        orddict:merge(MergeFun, Acc, StatDict)
-    end, orddict:from_list(?EMPTY_INET_STATS), Stats).
+        orddict:merge(fun merge_stats_fun/3, Acc, StatDict)
+    end, orddict:from_list(?EMPTY_INET_STATS), Stats),
+
+    [{workers, length(Stats)} | orddict:to_list(OrdDict)].
+
+merge_stats_fun(recv_max, V1, V2) ->
+    erlang:max(V1, V2);
+merge_stats_fun(send_max, V1, V2) ->
+    erlang:max(V1, V2);
+merge_stats_fun(_, V1, V2) ->
+    V1 + V2.
+
 
 inet_stats(Port) when is_port(Port) ->
-    {ok, Stats} = inet:getstat(Port),
+    {ok, Stats} = inet:getstat(Port, ?INET_STATS),
     Stats;
 inet_stats(_) ->
     ?EMPTY_INET_STATS.
