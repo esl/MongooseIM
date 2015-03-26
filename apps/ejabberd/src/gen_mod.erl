@@ -30,6 +30,8 @@
 -export([start/0,
          start_module/3,
          start_backend_module/2,
+         start_backend_module/3,
+         apply_backend_op/3,
          stop_module/2,
          stop_module_keep_config/2,
          reload_module/3,
@@ -107,11 +109,15 @@ start_module(Host, Module, Opts0) ->
 
 -spec start_backend_module(module(), list()) -> no_return().
 start_backend_module(Module, Opts) ->
+    start_backend_module(Module, Opts, []).
+
+start_backend_module(Module, Opts, TrackedOps) ->
     ModuleStr = atom_to_list(Module),
     BackendModuleStr = ModuleStr ++ "_backend",
     Backend = gen_mod:get_opt(backend, Opts, mnesia),
     {Mod, Code} = dynamic_compile:from_string(backend_code(ModuleStr, Backend)),
-    code:load_binary(Mod, BackendModuleStr ++ ".erl", Code).
+    code:load_binary(Mod, BackendModuleStr ++ ".erl", Code),
+    ensure_backend_metrics(Mod:backend(), TrackedOps).
 
 -spec backend_code(string(), atom()) -> string().
 backend_code(Module, Backend) when is_atom(Backend) ->
@@ -125,6 +131,24 @@ backend_code(Module, Backend) when is_atom(Backend) ->
             Module,"_",
             atom_to_list(Backend),
             ".\n"]).
+
+-define(METRIC(Module, Op), [backends, Module, Op]).
+
+ensure_backend_metrics(Module, Ops) ->
+    EnsureFun = fun(Op) ->
+        case exometer:info(?METRIC(Module, Op), type) of
+            undefined ->
+                exometer:new(?METRIC(Module, Op), histogram);
+            _ ->
+                ok
+        end
+    end,
+    lists:foreach(EnsureFun, Ops).
+
+apply_backend_op(Backend, Op, Args) ->
+    {Time, Result} = timer:tc(Backend, Op, Args),
+    mongoose_metrics:update(?METRIC(Backend, Op), Time),
+    Result.
 
 -spec is_app_running(_) -> boolean().
 is_app_running(AppName) ->
