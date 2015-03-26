@@ -71,7 +71,7 @@
 %% gen_mod callbacks
 
 start(Host, Opts) ->
-    gen_mod:start_backend_module(?MODULE, Opts),
+    gen_mod:start_backend_module(?MODULE, Opts, [multi_get_data, multi_set_data]),
     ?BACKEND:init(Host, Opts),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
     ejabberd_hooks:add(remove_user, Host, ?MODULE, remove_user, 50),
@@ -103,11 +103,11 @@ process_sm_iq(
     case Strategy of
         get ->
             NS2XML = to_map(Elems),
-            XMLs = ?BACKEND:multi_get_data(LUser, LServer, NS2XML),
+            XMLs = gen_mod:apply_backend_op(?BACKEND, multi_get_data, [LUser, LServer, NS2XML]),
             IQ#iq{type = result, sub_el = [SubElem#xmlel{children = XMLs}]};
         set ->
             NS2XML = to_map(Elems),
-            Result = ?BACKEND:multi_set_data(LUser, LServer, NS2XML),
+            Result = gen_mod:apply_backend_op(?BACKEND, multi_set_data, [LUser, LServer, NS2XML]),
             case Result of
                 {atomic, ok} ->
                     IQ#iq{type = result, sub_el = [SubElem]};
