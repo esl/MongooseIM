@@ -124,7 +124,7 @@ get_odbc_stats(ODBCWorkers) ->
     merge_stats(PortStats).
 %%
 
-get_port_from_odbc_connection({ok, mysql, Pid}) ->
+get_port_from_odbc_connection({ok, DbType, Pid}) when DbType =:= mysql; DbType =:= pgsql ->
     %% Pid of mysql_conn process
     {links, [MySQLRecv]} = erlang:process_info(Pid, links),
     %% Port is hold by mysql_recv process which is linked to the mysql_conn
