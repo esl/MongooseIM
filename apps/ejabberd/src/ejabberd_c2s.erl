@@ -1592,7 +1592,7 @@ change_shaper(StateData, JID) ->
 send_text(StateData, Text) ->
     ?DEBUG("Send XML on stream = ~p", [Text]),
     Size = size(Text),
-    mongoose_metrics:update([data, sent, xml_stanza_size], Size),
+    mongoose_metrics:update([data, xmpp, sent, xml_stanza_size], Size),
     (StateData#state.sockmod):send(StateData#state.socket, Text).
 
 -spec maybe_send_element_safe(state(), El :: jlib:xmlel()) -> any().
