@@ -374,6 +374,8 @@ init([Host, N]) ->
 %%--------------------------------------------------------------------
 -spec handle_call('wait_flushing', _, state())
       -> {'noreply', state()} | {'reply','ok',state()}.
+handle_call(get_connection, _From, State=#state{conn = Conn}) ->
+    {reply, Conn, State};
 handle_call(wait_flushing, _From, State=#state{acc=[]}) ->
     {reply, ok, State};
 handle_call(wait_flushing, From,

@@ -370,6 +370,8 @@ init([Host, N]) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
+handle_call(get_connection, _From, State=#state{conn = Conn}) ->
+    {reply, Conn, State};
 handle_call(wait_flushing, _From, State=#state{acc=[]}) ->
     {reply, ok, State};
 handle_call(wait_flushing, From,

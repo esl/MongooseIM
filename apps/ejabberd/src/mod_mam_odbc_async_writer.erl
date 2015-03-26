@@ -255,7 +255,6 @@ is_recent_entries_required(End, Now) when is_integer(End) ->
 is_recent_entries_required(_End, _Now) ->
     true.
 
-
 %%====================================================================
 %% Internal functions
 %%====================================================================
@@ -333,6 +332,8 @@ init([Host]) ->
 %%--------------------------------------------------------------------
 -spec handle_call('wait_flushing', _, state()) -> {'noreply',state()}
                                                 | {'reply','ok',state()}.
+handle_call(get_connection, _From, State=#state{conn = Conn}) ->
+    {reply, Conn, State};
 handle_call(wait_flushing, _From, State=#state{acc=[]}) ->
     {reply, ok, State};
 handle_call(wait_flushing, From, State=#state{subscribers=Subs}) ->
