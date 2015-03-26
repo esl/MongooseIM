@@ -35,6 +35,7 @@
          increment_generic_hook_metric/2,
          get_odbc_data_stats/0,
          get_odbc_mam_async_stats/0,
+         get_dist_data_stats/0,
          remove_host_metrics/1,
          remove_all_metrics/0]).
 
@@ -110,6 +111,9 @@ do_increment_generic_hook_metric({_, skip}) ->
 do_increment_generic_hook_metric(MetricName) ->
     update(MetricName, 1).
 
+get_dist_data_stats() ->
+    DistStats = [inet_stats(Port) || {_, Port} <- erlang:system_info(dist_ctrl)],
+    [{connections, length(DistStats)} | merge_stats(DistStats)].
 
 get_odbc_data_stats() ->
     RegularODBCWorkers = [ejabberd_odbc_sup:get_pids(Host) || Host <- ?MYHOSTS],
