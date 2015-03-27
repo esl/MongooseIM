@@ -15,6 +15,9 @@
 %% API
 -export([stop/1, start/2, send_notice/3]).
 
+% Mod private backend
+-define(BACKEND, (mod_private_backend:backend())).
+
 start(Host, Opts) ->
     ?INFO_MSG("Starting mod_offline_push", []),
     {api_key, ApiKey} = gen_mod:get_opt(gcm, Opts),
@@ -30,13 +33,41 @@ stop(Host)->
     ok.
 
 
-send_notice(_From, _To, Packet) ->
-    ?DEBUG("Packet: ~p", [Packet]),
+send_notice(_From, To, Packet) ->
     Body = xml:get_path_s(Packet, [{elem, list_to_binary("body")}, cdata]),
-    Message = [{<<"data">>, [{<<"message">>, Body}]}],
     if (Body /= <<"">>) ->
-        gcm:push(offline_push, [<<"APA91bHSpuWOr0kgUXbTjOFuu355PbYk-97_Z4pYfXatKC_1sJUwehFVnP89Mw0jHHf98rr9OaGAYntoQYpXAyak0BcSh3thTq0IiEnDrUdCpg_AFoZJiYanC9xDlbQRoe5F_CZzrq4_Xcj7sDdfWy65XuofClyUGdP-wCx_MAUFWFoDYYeu2C0">>], Message),
-        ok;
+        NS2Def = [{<<"notification:prefs">>,{xmlel,<<"notification">>,[{<<"xmlns">>,<<"notification:prefs">>}],[]}}],
+        NotifPrefs = get_notif_prefs(To#jid.luser, To#jid.lserver, NS2Def),
+        NotifFormat = [{<<"data">>, [{<<"message">>, Body}]}],
+        gcm:push(offline_push, [NotifPrefs], NotifFormat);
         true ->
-        ok
+            ok
     end.
+
+
+get_notif_prefs(LUser, LServer, NS2Def) ->
+    parse_private_xml(?BACKEND:multi_get_data(LUser, LServer, NS2Def)).
+
+parse_private_xml(PrivateData) ->
+    parse_private_xml(#xmlel{children = PrivateData}, <<"notification">>).
+
+parse_private_xml(OrigXML, Tag) ->
+    case xml:get_subtag(OrigXML, Tag) of
+        false ->
+            false;
+        NotifTag ->
+            parse_private_xml(OrigXML, NotifTag, <<"token">>)
+    end.
+
+parse_private_xml(_OrigXML, NotifTag, TokenTagName) ->
+
+    case xml:get_subtag(NotifTag, TokenTagName) of
+        false ->
+            false;
+        TokenTag ->
+            ?DEBUG("Token ~p", [xml:get_tag_cdata(TokenTag)]),
+            xml:get_tag_cdata(TokenTag)
+    end.
+
+
+
