@@ -42,7 +42,7 @@
 -include("jlib.hrl").
 -include("mod_privacy.hrl").
 
--define(BACKEND, (mod_privacy_backend:backend())).
+-define(BACKEND, mod_privacy_backend).
 
 -export_type([userlist/0]).
 
@@ -114,7 +114,10 @@
 %% ------------------------------------------------------------------
 
 start(Host, Opts) ->
-    gen_mod:start_backend_module(?MODULE, Opts),
+    gen_mod:start_backend_module(?MODULE, Opts, [get_privacy_list,get_list_names,
+                                                 set_default_list, forget_default_list,
+                                                 remove_privacy_list, replace_privacy_list,
+                                                 get_default_list]),
     ?BACKEND:init(Host, Opts),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
     ejabberd_hooks:add(privacy_iq_get, Host,
