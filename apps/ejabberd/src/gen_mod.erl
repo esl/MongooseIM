@@ -46,6 +46,7 @@
          loaded_modules_with_opts/1,
          get_hosts/2,
          get_module_proc/2,
+         backend_code/2,
          is_loaded/2]).
 
 -include("ejabberd.hrl").
@@ -113,24 +114,42 @@ start_backend_module(Module, Opts) ->
 
 start_backend_module(Module, Opts, TrackedOps) ->
     ModuleStr = atom_to_list(Module),
-    BackendModuleStr = ModuleStr ++ "_backend",
     Backend = gen_mod:get_opt(backend, Opts, mnesia),
-    {Mod, Code} = dynamic_compile:from_string(backend_code(ModuleStr, Backend)),
+    {BackendModuleStr, CodeString} = backend_code(Module, Backend),
+    {Mod, Code} = dynamic_compile:from_string(CodeString),
     code:load_binary(Mod, BackendModuleStr ++ ".erl", Code),
     ensure_backend_metrics(Mod:backend(), TrackedOps).
 
 -spec backend_code(string(), atom()) -> string().
 backend_code(Module, Backend) when is_atom(Backend) ->
-    BackendModule = Module ++ "_backend",
-    lists:flatten(
-        ["-module(",BackendModule,").
-        -export([backend/0]).
+    Callbacks = Module:behaviour_info(callbacks),
+    ModuleStr = atom_to_list(Module),
+    BackendModuleName = ModuleStr ++ "_backend",
+    RealBackendModule = ModuleStr++"_"++atom_to_list(Backend),
+    BehaviourExports = [generate_export(F, A) || {F, A} <- Callbacks],
 
-        -spec backend() -> atom().
-        backend() ->",
-            Module,"_",
-            atom_to_list(Backend),
-            ".\n"]).
+    BehaviourImpl = [generate_fun(RealBackendModule, F, A) || {F, A} <- Callbacks],
+    Code = lists:flatten(
+        ["-module(", BackendModuleName,").\n",
+        "-export([backend/0]).\n",
+        BehaviourExports,
+
+
+        "-spec backend() -> atom().\n",
+        "backend() ->", RealBackendModule,".\n",
+        BehaviourImpl
+        ]),
+    {BackendModuleName, Code}.
+
+generate_export(F, A) ->
+    "-export(["++atom_to_list(F)++"/"++integer_to_list(A)++"]).\n".
+
+generate_fun(RealBackendModule, F, A) ->
+    FS = atom_to_list(F),
+    Args = string:join(["A"++integer_to_list(I) || I <- lists:seq(1, A)], ", "),
+    FunHeader = [FS,"(",Args,")"],
+    [FunHeader," ->\n",
+     "    ",RealBackendModule,":",FunHeader,".\n"].
 
 -define(METRIC(Module, Op), [backends, Module, Op]).
 
