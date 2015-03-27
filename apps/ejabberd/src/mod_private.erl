@@ -37,7 +37,7 @@
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 
--define(BACKEND, (mod_private_backend:backend())).
+-define(BACKEND, mod_private_backend).
 
 %% ------------------------------------------------------------------
 %% Backend callbacks
@@ -103,11 +103,11 @@ process_sm_iq(
     case Strategy of
         get ->
             NS2XML = to_map(Elems),
-            XMLs = gen_mod:apply_backend_op(?BACKEND, multi_get_data, [LUser, LServer, NS2XML]),
+            XMLs = ?BACKEND:multi_get_data(LUser, LServer, NS2XML),
             IQ#iq{type = result, sub_el = [SubElem#xmlel{children = XMLs}]};
         set ->
             NS2XML = to_map(Elems),
-            Result = gen_mod:apply_backend_op(?BACKEND, multi_set_data, [LUser, LServer, NS2XML]),
+            Result = ?BACKEND:multi_set_data(LUser, LServer, NS2XML),
             case Result of
                 {atomic, ok} ->
                     IQ#iq{type = result, sub_el = [SubElem]};

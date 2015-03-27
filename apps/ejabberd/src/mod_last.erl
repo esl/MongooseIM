@@ -46,7 +46,7 @@
 -include("mod_privacy.hrl").
 -include("mod_last.hrl").
 
--define(BACKEND, (mod_last_backend:backend())).
+-define(BACKEND, mod_last_backend).
 
 %% ------------------------------------------------------------------
 %% Backend callbacks
@@ -219,7 +219,7 @@ get_last_iq(IQ, SubEl, LUser, LServer) ->
     end.
 
 get_last(LUser, LServer) ->
-    gen_mod:apply_backend_op(?BACKEND, get_last, [LUser, LServer]).
+    ?BACKEND:get_last(LUser, LServer).
 
 -spec count_active_users(ejabberd:lserver(), non_neg_integer(), '<' | '>')
         -> non_neg_integer().
@@ -235,7 +235,7 @@ on_presence_update(LUser, LServer, _Resource, Status) ->
 -spec store_last_info(ejabberd:user(), ejabberd:server(), erlang:timestamp(),
                       Status :: binary()) -> {'aborted',_} | {'atomic',_}.
 store_last_info(LUser, LServer, TimeStamp, Status) ->
-    gen_mod:apply_backend_op(?BACKEND, set_last_info, [LUser, LServer, TimeStamp, Status]).
+    ?BACKEND:set_last_info(LUser, LServer, TimeStamp, Status).
 
 -spec get_last_info(ejabberd:luser(), ejabberd:lserver())
         -> 'not_found' | {'ok',integer(),string()}.
