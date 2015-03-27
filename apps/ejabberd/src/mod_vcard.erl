@@ -55,7 +55,7 @@
 -export([config_change/4]).
 
 -define(PROCNAME, ejabberd_mod_vcard).
--define(BACKEND, (mod_vcard_backend:backend())).
+-define(BACKEND, mod_vcard_backend).
 
 -record(state,{search           :: boolean(),
                host             :: binary(),
@@ -100,7 +100,7 @@
 %% gen_mod callbacks
 %%--------------------------------------------------------------------
 start(VHost, Opts) ->
-    gen_mod:start_backend_module(?MODULE, Opts),
+    gen_mod:start_backend_module(?MODULE, Opts, [set_vcard, get_vcard, search]),
     Proc = gen_mod:get_module_proc(VHost,?PROCNAME),
     ChildSpec = {Proc, {?MODULE, start_link, [VHost,Opts]},
                  transient, 1000, worker, [?MODULE]},
