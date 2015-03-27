@@ -57,7 +57,7 @@
 
 %% default value for the maximum number of user messages
 -define(MAX_USER_MESSAGES, infinity).
--define(BACKEND, (mod_offline_backend:backend())).
+-define(BACKEND, mod_offline_backend).
 
 -record(state, {host, access_max_user_messages}).
 
@@ -67,7 +67,23 @@
 -callback init(Host, Opts) -> ok when
     Host :: binary(),
     Opts :: list().
-
+-callback pop_messages(LUser, LServer) -> Result when
+    LUser :: ejabberd:luser(),
+    LServer :: ejabberd:lserver(),
+    Result :: term().
+-callback write_messages(LUser, LServer, Msgs, MaxOfflineMsgs) -> Result when
+    LUser :: ejabberd:luser(),
+    LServer :: ejabberd:lserver(),
+    Msgs :: list(),
+    MaxOfflineMsgs :: integer(),
+    Result :: term().
+-callback remove_expired_messages(Host) -> Result when
+    Host :: ejabberd:lserver(),
+    Result :: term().
+-callback remove_old_messages(Host, Days) -> Result when
+    Host :: ejabberd:lserver(),
+    Days :: integer(),
+    Result :: term().
 -callback remove_user(LUser, LServer) -> ok when
     LUser :: binary(),
     LServer :: binary().
@@ -78,7 +94,7 @@
 start(Host, Opts) ->
     AccessMaxOfflineMsgs = gen_mod:get_opt(access_max_user_messages, Opts,
                                            max_user_offline_messages),
-    gen_mod:start_backend_module(?MODULE, Opts),
+    gen_mod:start_backend_module(?MODULE, Opts, [pop_messages, write_messages]),
     ?BACKEND:init(Host, Opts),
     start_worker(Host, AccessMaxOfflineMsgs),
     ejabberd_hooks:add(offline_message_hook, Host,
