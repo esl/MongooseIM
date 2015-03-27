@@ -64,6 +64,66 @@
 
 -type roster() :: #roster{}.
 
+-callback init(Host, Opts) -> ok when
+    Host :: ejabberd:server(),
+    Opts :: list().
+-callback read_roster_version(LUser, LServer) -> Result when
+    LUser :: ejabberd:luser(),
+    LServer :: ejabberd:lserver(),
+    Result :: term().
+-callback write_roster_version(LUser, LServer, InTransaction, Ver) -> Result when
+    LUser :: ejabberd:luser(),
+    LServer :: ejabberd:lserver(),
+    InTransaction :: boolean(),
+    Ver :: binary(),
+    Result :: term().
+-callback get_roster(LUser, LServer) -> Result when
+    LUser :: ejabberd:luser(),
+    LServer :: ejabberd:lserver(),
+    Result :: term().
+-callback get_roster_by_jid_t(LUser, LServer, LJid) -> Result when
+    LUser :: ejabberd:luser(),
+    LServer :: ejabberd:lserver(),
+    LJid :: ejabberd:simple_bare_jid(),
+    Result :: term().
+-callback get_subscription_lists(Acc, LUser, LServer) -> Result when
+    Acc :: term(),
+    LUser :: ejabberd:luser(),
+    LServer :: ejabberd:lserver(),
+    Result :: term().
+-callback roster_subscribe_t(LUser, LServer, LJid, SJid) -> Result when
+    LUser :: ejabberd:luser(),
+    LServer :: ejabberd:lserver(),
+    LJid :: ejabberd:simple_bare_jid(),
+    SJid :: roster(),
+    Result :: term().
+-callback get_roster_by_jid_with_groups_t(LUser, LServer, LJid) -> Result when
+    LUser :: ejabberd:luser(),
+    LServer :: ejabberd:lserver(),
+    LJid :: ejabberd:simple_bare_jid(),
+    Result :: term().
+-callback remove_user(LUser, LServer) -> Result when
+    LUser :: ejabberd:luser(),
+    LServer :: ejabberd:lserver(),
+    Result :: term().
+-callback update_roster_t(LUser, LServer, LJid, Item) -> Result when
+    LUser :: ejabberd:luser(),
+    LServer :: ejabberd:lserver(),
+    LJid :: ejabberd:simple_bare_jid(),
+    Item :: roster(),
+    Result :: term().
+-callback del_roster_t(LUser, LServer, LJid) -> Result when
+    LUser :: ejabberd:luser(),
+    LServer :: ejabberd:lserver(),
+    LJid :: ejabberd:simple_bare_jid(),
+    Result :: term().
+-callback read_subscription_and_groups(LUser, LServer, LJid) -> Result when
+    LUser :: ejabberd:luser(),
+    LServer :: ejabberd:lserver(),
+    LJid :: ejabberd:simple_bare_jid(),
+    Result :: term().
+
+
 -define(BACKEND, (mod_roster_backend:backend())).
 
 start(Host, Opts) ->
