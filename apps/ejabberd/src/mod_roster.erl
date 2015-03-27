@@ -124,12 +124,22 @@
     Result :: term().
 
 
--define(BACKEND, (mod_roster_backend:backend())).
+-define(BACKEND, mod_roster_backend).
 
 start(Host, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
-
-    gen_mod:start_backend_module(?MODULE, Opts),
+    TrackedFuns = [read_roster_version,
+                   write_roster_version,
+                   get_roster,
+                   get_roster_by_jid_t,
+                   get_subscription_lists,
+                   roster_subscribe_t,
+                   get_roster_by_jid_with_groups_t,
+                   update_roster_t,
+                   del_roster_t,
+                   read_subscription_and_groups
+                   ],
+    gen_mod:start_backend_module(?MODULE, Opts, TrackedFuns),
     ?BACKEND:init(Host, Opts),
 
     ejabberd_hooks:add(roster_get, Host,
