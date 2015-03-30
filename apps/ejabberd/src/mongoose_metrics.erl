@@ -81,8 +81,11 @@ get_metric_value({Host, Name}) ->
 get_metric_value(Metric) ->
     exometer:get_value(Metric).
 
+get_metric_values(Metric) when is_list(Metric) ->
+    exometer:get_values(Metric);
 get_metric_values(Host) ->
     exometer:get_values([Host]).
+
 
 get_aggregated_values(Metric) ->
     exometer:aggregate([{{['_',Metric],'_','_'},[],[true]}], [one, count, value]).
