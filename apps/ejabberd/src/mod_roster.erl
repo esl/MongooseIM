@@ -123,6 +123,11 @@
     LJid :: ejabberd:simple_bare_jid(),
     Result :: term().
 
+-callback raw_to_record(LServer, Item) -> Result when
+    LServer :: ejabberd:lserver(),
+    Item :: term(),
+    Result :: error | roster().
+
 
 -define(BACKEND, mod_roster_backend).
 
