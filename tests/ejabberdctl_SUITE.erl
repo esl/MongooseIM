@@ -133,8 +133,8 @@ end_per_group(roster, Config) ->
             true ->
                 ok;
             _ ->
-                SB = list_to_binary(S),
-                UB = list_to_binary(U),
+                SB = string_to_binary(S),
+                UB = string_to_binary(U),
                 escalus_ejabberd:rpc(ejabberd_hooks, run, [remove_user, SB, [UB, SB]])
         end
     end,
@@ -753,3 +753,11 @@ server_loglevel() ->
      fun () -> element(1, escalus_ejabberd:rpc(ejabberd_loglevel, get, [])) end,
      fun (Level) -> escalus_ejabberd:rpc(ejabberd_loglevel, set, [Level]) end,
      4}.
+
+string_to_binary(List) ->
+    case erlang:system_info(otp_release) of
+        [$R|_] ->
+            list_to_binary(List);
+        _ ->
+            unicode:characters_to_binary(List)
+    end.
