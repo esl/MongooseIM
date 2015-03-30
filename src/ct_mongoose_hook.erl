@@ -115,7 +115,7 @@ maybe_print_on_server(true, Event, EventName, EvenType) ->
                          ["====== ~s ~p ~s", [Event, EventName, EvenType]]).
 
 check_server_purity(Suite) ->
-    case is_mongoose() of
+    case escalus_ejabberd:is_mongoose() of
         true ->
             case catch do_check_server_purity(Suite) of
                 [] ->
@@ -141,10 +141,6 @@ do_check_server_purity(_Suite) ->
         fun check_roster/0,
         fun check_carboncopy/0],
     lists:flatmap(fun(F) -> F() end, Funs).
-
-is_mongoose() ->
-    Apps = escalus_ejabberd:rpc(application, loaded_applications, []),
-    lists:keymember(mongooseim, 1, Apps).
 
 check_sessions() ->
     case ?RPC(ejabberd_sm, get_full_session_list, []) of
