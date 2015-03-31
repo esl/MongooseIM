@@ -292,8 +292,12 @@ init_per_group(Group, Config) ->
     B = basic_group(Group),
     ct:pal("Init per group ~p; configuration ~p; basic group ~p",
            [Group, C, B]),
-    Config1 = init_modules(C, B, Config),
-    init_state(C, B, Config1).
+    case init_modules(C, B, Config) of
+        skip ->
+            {skip, {init_modules, C, B, Config}};
+        Config1 ->
+            init_state(C, B, Config1)
+    end.
     
 end_per_group(Group, Config) ->
     C = configuration(Group),
@@ -519,7 +523,7 @@ init_modules(odbc_async_cache, _, Config) ->
     init_module(host(), mod_mam_cache_user, [pm]),
     Config;
 init_modules(odbc_mnesia_muc_cache, _, Config) ->
-    error(skipped);
+    skip;
 init_modules(odbc_mnesia_cache, _, Config) ->
     init_module(host(), mod_mam, []),
     init_module(host(), mod_mam_odbc_arch, [pm]),
