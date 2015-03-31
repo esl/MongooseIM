@@ -6,5 +6,5 @@ all() ->
     [is_mongooseim].
 
 
-is_mongooseim(_Config) ->
-    true = escalus_ejabberd:is_mongoose().
+is_mongooseim(Config) ->
+    mongooseim = escalus_server:name(Config).
