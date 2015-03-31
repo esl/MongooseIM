@@ -2106,7 +2106,7 @@ muc_rewrite_jids_options(Room) ->
 %% @doc Get a binary jid of the user, that tagged with `UserName' in the config.
 nick_to_jid(UserName, Config) when is_atom(UserName) ->
     UserSpec = escalus_users:get_userspec(Config, UserName),
-    escalus_users:get_jid(Config, UserSpec).
+    escalus_utils:jid_to_lower(escalus_users:get_jid(Config, UserSpec)).
 
 make_jid(U, S, R) ->
     rpc_apply(jlib, make_jid, [U, S, R]).
