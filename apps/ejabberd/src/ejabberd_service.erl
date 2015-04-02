@@ -226,8 +226,8 @@ wait_for_handshake({xmlstreamelement, El}, StateData) ->
     #xmlel{name = Name, children = Els} = El,
     case {Name, xml:get_cdata(Els)} of
         {<<"handshake">>, Digest} ->
-            case list_to_binary(sha:sha(StateData#state.streamid ++
-                         StateData#state.password)) of
+            case sha:sha1_hex(StateData#state.streamid ++
+                         StateData#state.password) of
                 Digest ->
                     send_text(StateData, <<"<handshake/>">>),
                     lists:foreach(

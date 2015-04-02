@@ -82,7 +82,7 @@
 start(Host, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
 
-    start_backend_module(Opts),
+    gen_mod:start_backend_module(?MODULE, Opts),
     ?BACKEND:init(Host, Opts),
 
     gen_iq_handler:add_iq_handler(ejabberd_local, Host,
@@ -108,27 +108,6 @@ stop(Host) ->
         ?NS_LAST),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host,
         ?NS_LAST).
-
-%% ------------------------------------------------------------------
-%% Dynamic modules
-
-start_backend_module(Opts) ->
-    Backend = gen_mod:get_opt(backend, Opts, mnesia),
-    {Mod, Code} = dynamic_compile:from_string(mod_last_backend(Backend)),
-    code:load_binary(Mod, "mod_last_backend.erl", Code).
-
--spec mod_last_backend(atom()) -> string().
-mod_last_backend(Backend) when is_atom(Backend) ->
-    lists:flatten(
-        ["-module(mod_last_backend).
-        -export([backend/0]).
-
-        -spec backend() -> atom().
-        backend() ->
-            mod_last_",
-            atom_to_list(Backend),
-            ".\n"]).
-
 
 %%%
 %%% Uptime of ejabberd node

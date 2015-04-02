@@ -78,7 +78,7 @@
 start(Host, Opts) ->
     AccessMaxOfflineMsgs = gen_mod:get_opt(access_max_user_messages, Opts,
                                            max_user_offline_messages),
-    start_backend_module(Opts),
+    gen_mod:start_backend_module(?MODULE, Opts),
     ?BACKEND:init(Host, Opts),
     start_worker(Host, AccessMaxOfflineMsgs),
     ejabberd_hooks:add(offline_message_hook, Host,
@@ -109,25 +109,6 @@ stop(Host) ->
     stop_worker(Host),
     ok.
 
-
-%% Dynamic modules
-%% ------------------------------------------------------------------
-
-start_backend_module(Opts) ->
-    Backend = gen_mod:get_opt(backend, Opts, mnesia),
-    {Mod, Code} = dynamic_compile:from_string(mod_offline_backend(Backend)),
-    code:load_binary(Mod, "mod_offline_backend.erl", Code).
-
--spec mod_offline_backend(atom()) -> string().
-mod_offline_backend(Backend) when is_atom(Backend) ->
-    lists:flatten(
-      ["-module(mod_offline_backend).
-        -export([backend/0]).
-        -spec backend() -> atom().
-        backend() ->
-        mod_offline_",
-                   atom_to_list(Backend),
-                   ".\n"]).
 
 %% Server side functions
 %% ------------------------------------------------------------------

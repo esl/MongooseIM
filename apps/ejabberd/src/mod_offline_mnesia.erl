@@ -41,6 +41,7 @@
 -include("mod_offline.hrl").
 
 -define(OFFLINE_TABLE_LOCK_THRESHOLD, 1000).
+-define(BATCHSIZE, 100).
 
 init(_Host, _Opts) ->
     mnesia:create_table(offline_msg,
@@ -117,7 +118,13 @@ discard_all_messages_t(Msgs) ->
 
 count_offline_messages(LUser, LServer) ->
     US = {LUser, LServer},
-    p1_mnesia:count_records(offline_msg, #offline_msg{us=US, _='_'}).
+    F = fun () ->
+        count_mnesia_records(US)
+    end,
+    case catch mnesia:async_dirty(F) of
+        I when is_integer(I) -> I;
+        _ -> 0
+    end.
 
 remove_user(User, Server) ->
     LUser = jlib:nodeprep(User),
@@ -182,3 +189,23 @@ is_expired_message(TimeStamp, #offline_msg{expire=ExpireTimeStamp}) ->
 
 is_old_message(MaxAllowedTimeStamp, #offline_msg{timestamp=TimeStamp}) ->
     TimeStamp < MaxAllowedTimeStamp.
+
+count_mnesia_records(US) ->
+    MatchExpression = #offline_msg{us = US,  _ = '_'},
+    case mnesia:select(offline_msg, [{MatchExpression, [], [[]]}],
+        ?BATCHSIZE, read) of
+        {Result, Cont} ->
+            Count = length(Result),
+            count_records_cont(Cont, Count);
+        '$end_of_table' ->
+            0
+    end.
+
+count_records_cont(Cont, Count) ->
+    case mnesia:select(Cont) of
+        {Result, Cont} ->
+            NewCount = Count + length(Result),
+            count_records_cont(Cont, NewCount);
+        '$end_of_table' ->
+            Count
+    end.

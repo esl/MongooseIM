@@ -29,6 +29,7 @@
 
 -export([start/0,
          start_module/3,
+         start_backend_module/2,
          stop_module/2,
          stop_module_keep_config/2,
          reload_module/3,
@@ -104,6 +105,26 @@ start_module(Host, Module, Opts0) ->
             end
     end.
 
+-spec start_backend_module(module(), list()) -> no_return().
+start_backend_module(Module, Opts) ->
+    ModuleStr = atom_to_list(Module),
+    BackendModuleStr = ModuleStr ++ "_backend",
+    Backend = gen_mod:get_opt(backend, Opts, mnesia),
+    {Mod, Code} = dynamic_compile:from_string(backend_code(ModuleStr, Backend)),
+    code:load_binary(Mod, BackendModuleStr ++ ".erl", Code).
+
+-spec backend_code(string(), atom()) -> string().
+backend_code(Module, Backend) when is_atom(Backend) ->
+    BackendModule = Module ++ "_backend",
+    lists:flatten(
+        ["-module(",BackendModule,").
+        -export([backend/0]).
+
+        -spec backend() -> atom().
+        backend() ->",
+            Module,"_",
+            atom_to_list(Backend),
+            ".\n"]).
 
 -spec is_app_running(_) -> boolean().
 is_app_running(AppName) ->

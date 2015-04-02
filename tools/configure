@@ -1,0 +1,45 @@
+#!/usr/bin/env escript
+
+main([]) ->
+    usage();
+main(OptsIn) ->
+    Opts = case lists:member("full", OptsIn) of
+        false ->
+
+            OptsIn;
+        _ ->
+            all_opts()
+    end,
+    {AppsToRun, AppsToInclude} = lists:foldl(fun(O, Acc) -> analyze_opt(O, Acc) end,
+                                             {[], []}, Opts),
+    Data = io_lib:fwrite("~p.~n~p.", [{apps_to_run, AppsToRun}, {apps_to_include, AppsToInclude}]),
+    file:write_file("configure.out", Data).
+
+analyze_opt("with-mysql", {AppsToInclude, AppsToRun}) ->
+    {[mysql | AppsToInclude], AppsToRun};
+analyze_opt("with-pgsql", {AppsToInclude, AppsToRun}) ->
+    {[pgsql | AppsToInclude], AppsToRun};
+analyze_opt("with-odbc", {AppsToInclude, AppsToRun}) ->
+    {[odbc | AppsToInclude], AppsToRun};
+analyze_opt("with-redis", {AppsToInclude, AppsToRun}) ->
+    {[redo | AppsToInclude], AppsToRun};
+analyze_opt("with-cassandra", {AppsToInclude, AppsToRun}) ->
+    {[seestar | AppsToInclude], AppsToRun};
+analyze_opt(_, Acc) ->
+    Acc.
+
+all_opts() ->
+    [Opt || {Opt, _} <- all_opts_with_desc()].
+
+all_opts_with_desc() ->
+    [{"with-mysql", "include mysql driver"},
+     {"with-pgsql", "include pgsql driver"},
+     {"with-odbc", "include standard ODBC driver shipped with Erlang/OTP"},
+     {"with-redis", "include redis driver"},
+     {"with-cassandra", "include cassandra driver"}].
+
+usage() ->
+    io:format("specifies which 3rd party deps will be included in release~n"),
+    io:format("possible options:~n"),
+    [io:format("~s\t~s~n", [Opt, Desc]) || {Opt, Desc} <- all_opts_with_desc()],
+    io:format("~s\t\t~s~n", ["full", "include all above deps"]).

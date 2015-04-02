@@ -232,7 +232,7 @@ open_socket(init, StateData) ->
                                 StateData#state.new,
                                 StateData#state.verify}]),
     AddrList = get_predefined_addresses(StateData#state.server) ++
-               case idna:domain_utf8_to_ascii(StateData#state.server) of
+               case ejabberd_s2s:domain_utf8_to_ascii(StateData#state.server) of
                    false ->
                        [];
                    ASCIIAddr ->

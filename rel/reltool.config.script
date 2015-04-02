@@ -1,0 +1,87 @@
+{ok, Path} = file:get_cwd(),
+ConfigureOut = Path ++ "/../configure.out",
+Conf = case file:consult(ConfigureOut) of
+            {ok, Terms} -> Terms;
+            E -> io:format("WARN: error ~p reading file: ~p - using default rel config~n", [E, ConfigureOut]), []
+       end,
+
+BaseAppsToRun = [compiler,
+                 crypto,
+                 lager,
+                 kernel,
+                 mnesia,
+                 public_key,
+                 sasl,
+                 ssl,
+                 stdlib,
+                 ejabberd,
+                 inets,
+                 syntax_tools,
+                 p1_stringprep,
+                 exml,
+                 cowboy,
+                 fusco],
+
+AppsToRunIn = BaseAppsToRun ++ proplists:get_value(apps_to_run, Conf, []),
+
+AppsToRun = ordsets:to_list(ordsets:from_list(AppsToRunIn)),
+
+BaseAppsToInclude = AppsToRun ++
+                    [asn1,
+                     goldrush,
+                     runtime_tools,
+                     p1_utils,
+                     ranch,
+                     cowlib,
+                     bear,
+                     folsom,
+                     mochijson2,
+                     p1_cache_tab,
+                     pa,
+                     base16,
+                     cuesport,
+                     alarms,
+                     idna,
+                     recon],
+
+
+RemovedApps = [mysql,pgsql,redo,seestar,odbc],
+
+AppsToIncludeIn = BaseAppsToInclude ++ proplists:get_value(apps_to_include, Conf, []),
+
+AppsToInclude = ordsets:to_list(ordsets:from_list(AppsToIncludeIn)),
+
+IncludeApps = lists:map(fun(App) -> {app, App, [{incl_cond, include}]} end, AppsToInclude),
+
+
+[{sys, [
+        {lib_dirs, ["../apps", "../deps"]},
+        {incl_cond, exclude},
+        {rel, "mongooseim", "", [mongoose | AppsToRun]},
+        {rel, "start_clean", "", [kernel,stdlib]},
+        {boot_rel, "mongooseim"},
+        {profile, embedded},
+        {excl_archive_filters, [".*"]}, % do no archive built libs
+        {excl_sys_filters, ["^bin/.*",
+                            "^erts.*/bin/(dialyzer|typer)"]},
+
+        {app, mongoose, [{incl_cond, include}, {lib_dir, ".."}]}
+       ] ++ IncludeApps},
+
+
+{target_dir, "mongooseim"},
+
+{overlay_vars, "vars.config"},
+
+{overlay, [{mkdir, "log/sasl"},
+	       {copy, "files/erl", "\{\{erts_vsn\}\}/bin/erl"},
+	       {copy, "files/nodetool", "\{\{erts_vsn\}\}/bin/nodetool"},
+           {copy, "files/mongooseim", "bin/mongooseim"},
+           {copy, "files/mongooseimctl", "bin/mongooseimctl"},
+           {copy, "files/app.config", "etc/app.config"},
+           {template, "files/vm.args", "etc/vm.args"},
+           {template, "files/ejabberd.cfg", "etc/ejabberd.cfg"},
+           {mkdir, "var"},
+           {mkdir, "var/log"}
+          ]}
+].
