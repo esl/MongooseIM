@@ -387,8 +387,9 @@ handle_info({wait_timeout, {Rid, Pid}}, SName,
         false ->
             {next_state, SName, S};
         {value, {Rid, _, Pid}, NewHandlers} ->
-            NS = send_to_handler({Rid, Pid}, [], S),
-            {next_state, SName, NS#state{handlers = NewHandlers}}
+            NS = send_to_handler({Rid, Pid}, [],
+                                 S#state{handlers = NewHandlers}),
+            {next_state, SName, NS}
     end;
 handle_info(Info, SName, State) ->
     ?DEBUG("Unhandled info in '~s' state: ~w~n", [SName, Info]),

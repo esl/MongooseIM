@@ -47,11 +47,6 @@
          users_number/2,
 	     get_users_without_scram/2,
 	     get_users_without_scram_count/1,
-	     add_spool_sql/2,
-	     add_spool/2,
-	     get_and_del_spool_msg_t/2,
-	     del_spool_msg/2,
-	     count_spool_msg/2,
          get_average_roster_size/1,
          get_average_rostergroup_size/1,
          clear_rosters/1,
@@ -391,34 +386,6 @@ get_users_without_scram_count(LServer) ->
     ejabberd_odbc:sql_query(
       LServer,
       [<<"select count(*) from users where pass_details is null">>]).
-
-add_spool_sql(Username, XML) ->
-    [<<"insert into spool(username, xml) "
-       "values ('">>, Username, "', '", XML, "');"].
-
-add_spool(LServer, Queries) ->
-    ejabberd_odbc:sql_transaction(LServer, Queries).
-
-get_and_del_spool_msg_t(LServer, Username) ->
-    F = fun() ->
-		Result = ejabberd_odbc:sql_query_t(
-			   [<<"select username, xml from spool where username='">>, Username, <<"' "
-			      "order by seq;">>]),
-		ejabberd_odbc:sql_query_t(
-		  [<<"delete from spool where username='">>, Username, "';"]),
-		Result
-	end,
-    ejabberd_odbc:sql_transaction(LServer,F).
-
-del_spool_msg(LServer, Username) ->
-    ejabberd_odbc:sql_query(
-      LServer,
-      [<<"delete from spool where username='">>, Username, "';"]).
-
-count_spool_msg(LServer, Username) ->
-    ejabberd_odbc:sql_query(
-        LServer,
-        [<<"select count(*) from spool where username='">>, Username, "';"]).
 
 get_average_roster_size(Server) ->
     ejabberd_odbc:sql_query(

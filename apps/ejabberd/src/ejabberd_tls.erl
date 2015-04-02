@@ -27,18 +27,17 @@
 -module(ejabberd_tls).
 -author('alexey@process-one.net').
 
--export([start/0,
-         tcp_to_tls/2, tls_to_tcp/1,
+-export([tcp_to_tls/2, tls_to_tcp/1,
          send/2,
-         recv/2, recv/3, recv_data/2,
+         recv_data/2,
          setopts/2,
          sockname/1, peername/1,
          controlling_process/2,
          close/1,
          get_peer_certificate/1,
          get_verify_result/1,
-         get_cert_verify_string/2,
-         test/0]).
+         get_cert_verify_string/2
+         ]).
 
 -include("ejabberd.hrl").
 
@@ -65,17 +64,6 @@
                   tlsport  :: port()
                  }).
 -type tlssock() :: #tlssock{}.
-
--spec start() -> 'ok'.
-start() ->
-    case erl_ddll:load_driver(ejabberd:get_so_path(), tls_drv) of
-	ok -> ok;
-	{error, permanent} -> ok;
-	{error, already_loaded} -> ok;
-	{error, OtherError} ->
-	    erlang:error({cannot_load_tls_drv, erl_ddll:format_error(OtherError)})
-    end.
-
 
 -spec tcp_to_tls(gen_tcp:socket(), [any()]
                 ) -> {ok, tlssock()} | {'error','no_certfile' | string()}.
@@ -117,27 +105,6 @@ tcp_to_tls(TCPSocket, Options) ->
 tls_to_tcp(#tlssock{tcpsock = TCPSocket, tlsport = Port}) ->
     port_close(Port),
     TCPSocket.
-
-
--spec recv(tlssock(), integer()) -> any().
-recv(Socket, Length) ->
-    recv(Socket, Length, infinity).
-
-
--spec recv(TLSSock :: tlssock(),
-           _Length :: integer(),
-           Timeout :: 'infinity' | non_neg_integer()) -> any().
-recv(#tlssock{tcpsock = TCPSocket} = TLSSock,
-     _Length, Timeout) ->
-    %% The Length argument cannot be used for gen_tcp:recv/3, because the
-    %% compressed size does not equal the desired uncompressed one.
-    case gen_tcp:recv(TCPSocket, 0, Timeout) of
-        {ok, Packet} ->
-            recv_data(TLSSock, Packet);
-        {error, _Reason} = Error ->
-            Error
-    end.
-
 
 recv_data(TLSSock, Packet) ->
     case catch recv_data1(TLSSock, Packet) of
@@ -244,64 +211,10 @@ get_peer_certificate(#tlssock{tlsport = Port}) ->
             error
     end.
 
-
 -spec get_verify_result(tlssock()) -> byte().
 get_verify_result(#tlssock{tlsport = Port}) ->
     <<Res>> = port_control(Port, ?GET_VERIFY_RESULT, []),
     Res.
-
-
--spec test() -> no_return().
-test() ->
-    start(),
-    Port = open_port({spawn, tls_drv}, [binary]),
-    ?PRINT("open_port: ~p~n", [Port]),
-    PCRes = port_control(Port, ?SET_CERTIFICATE_FILE_ACCEPT,
-                         "./ssl.pem" ++ [0]),
-    ?PRINT("port_control: ~p~n", [PCRes]),
-    {ok, ListenSocket} = gen_tcp:listen(1234, [binary,
-                                               {packet, 0},
-                                               {active, true},
-                                               {reuseaddr, true},
-                                               {nodelay, true}]),
-    ?PRINT("listen: ~p~n", [ListenSocket]),
-    {ok, Socket} = gen_tcp:accept(ListenSocket),
-    ?PRINT("accept: ~p~n", [Socket]),
-    loop(Port, Socket).
-
-
--spec loop(_,_) -> no_return().
-loop(Port, Socket) ->
-    receive
-        {tcp, Socket, Data} ->
-            %?PRINT("read: ~p~n", [Data]),
-            Res = port_control(Port, ?SET_ENCRYPTED_INPUT, Data),
-            ?PRINT("SET_ENCRYPTED_INPUT: ~p~n", [Res]),
-
-            DIRes = port_control(Port, ?GET_DECRYPTED_INPUT, Data),
-            ?PRINT("GET_DECRYPTED_INPUT: ~p~n", [DIRes]),
-            case DIRes of
-                <<0, In/binary>> ->
-                    ?PRINT("input: ~s~n", [binary_to_list(In)]);
-                <<1, DIError/binary>> ->
-                    ?PRINT("GET_DECRYPTED_INPUT error: ~p~n", [binary_to_list(DIError)])
-            end,
-
-            EORes = port_control(Port, ?GET_ENCRYPTED_OUTPUT, Data),
-            ?PRINT("GET_ENCRYPTED_OUTPUT: ~p~n", [EORes]),
-            case EORes of
-                <<0, Out/binary>> ->
-                    gen_tcp:send(Socket, Out);
-                <<1, EOError/binary>> ->
-                    ?PRINT("GET_ENCRYPTED_OUTPUT error: ~p~n", [binary_to_list(EOError)])
-            end,
-
-
-            loop(Port, Socket);
-        Msg ->
-            ?PRINT("receive: ~p~n", [Msg]),
-            loop(Port, Socket)
-    end.
 
 
 -spec get_cert_verify_string(_,_) -> binary().

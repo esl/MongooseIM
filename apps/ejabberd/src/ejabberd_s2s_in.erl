@@ -332,7 +332,7 @@ wait_for_feature_request({xmlstreamelement, El}, StateData) ->
                                             error ->
                                                 false;
                                             _ ->
-                                                case idna:domain_utf8_to_ascii(AuthDomain) of
+                                                case ejabberd_s2s:domain_utf8_to_ascii(AuthDomain) of
                                                     false ->
                                                         false;
                                                     PCAuthDomain ->
@@ -757,7 +757,7 @@ get_cert_domains(Cert) ->
                                                 #jid{luser = <<"">>,
                                                      lserver = LD,
                                                      lresource = <<"">>} ->
-                                                    case idna:domain_utf8_to_ascii(LD) of
+                                                    case ejabberd_s2s:domain_utf8_to_ascii(LD) of
                                                         false ->
                                                             [];
                                                         PCLD ->

@@ -29,7 +29,12 @@ analyze() ->
     cover:stop().
 
 cover_compile_app(App) ->
-    EbinDir = filename:join(code:lib_dir(App), "ebin"),
+    do_cover_compile_app(App, code:lib_dir(App)).
+
+do_cover_compile_app(App, {error, Error}) ->
+    [{error, App, Error}];
+do_cover_compile_app(_App, AppPath) ->
+    EbinDir = filename:join(AppPath, "ebin"),
     BeamFilter = fun
         %% modules not compatible with cover
         (File) when File =:= "bin_to_hex.beam"; File =:= "cover.beam" ->
@@ -46,7 +51,7 @@ cover_compile_app(App) ->
             BeamFiles = [filename:join(EbinDir, File) || File <- BeamFileNames],
             compile_beams(BeamFiles, []);
         Error ->
-            Error
+            [{error, EbinDir, Error}]
     end.
 
 compile_beams([], Result) ->

@@ -71,7 +71,7 @@
 %% gen_mod callbacks
 
 start(Host, Opts) ->
-    start_backend_module(Opts),
+    gen_mod:start_backend_module(?MODULE, Opts),
     ?BACKEND:init(Host, Opts),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
     ejabberd_hooks:add(remove_user, Host, ?MODULE, remove_user, 50),
@@ -84,25 +84,6 @@ stop(Host) ->
     ejabberd_hooks:delete(anonymous_purge_hook, Host, ?MODULE, remove_user, 50),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_PRIVATE).
 
-%% ------------------------------------------------------------------
-%% Dynamic modules
-
-start_backend_module(Opts) ->
-    Backend = gen_mod:get_opt(backend, Opts, mnesia),
-    {Mod, Code} = dynamic_compile:from_string(mod_private_backend(Backend)),
-    code:load_binary(Mod, "mod_private_backend.erl", Code).
-
--spec mod_private_backend(atom()) -> string().
-mod_private_backend(Backend) when is_atom(Backend) ->
-    lists:flatten(
-      ["-module(mod_private_backend).
-        -export([backend/0]).
-
-        -spec backend() -> atom().
-        backend() ->
-            mod_private_",
-       atom_to_list(Backend),
-       ".\n"]).
 
 %% ------------------------------------------------------------------
 %% Handlers
