@@ -69,7 +69,7 @@ How to build
 
         $ ./rebar generate
     
-    If more advanced relase is required (with mysql or pgsql support) a `make configure` script with appropirate option(s) has to be run before `make rel` or `./rebar generate`. `make configre` without any option will print following help message.
+    If more advanced relase is required (with mysql or pgsql support) a `make configure` script with appropirate option(s) has to be run before `make rel` or `./rebar generate`. `make configure` without any option will print following help message.
     
     ```
 specifies which 3rd party deps will be included in release
