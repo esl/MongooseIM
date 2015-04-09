@@ -55,7 +55,7 @@ Up-to-date documentation for the MongooseIM master branch can be
 [See here for release 1.5.1 documentation](http://mongooseim.readthedocs.org/en/1.5.1/).
 
 When developing new features/modules, please take care to add basic documentation
-to the `doc/` directory, and add a link to your document in `doc/README.md'.
+to the `doc/` directory, and add a link to your document in `doc/README.md`.
 
 Original documentation for Ejabberd-2.1.8, from which MongooseIM was forked, is preserved
 in `doc/ejabberd-2.1.8-OLD`.
