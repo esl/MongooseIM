@@ -152,7 +152,19 @@ clean_up(C) ->
     UsersWithManyResources = generate_many_random_res(5, 3, [<<"localhost">>, <<"otherhost">>]),
     [given_session_opened(Sid, USR) || {Sid, USR} <- UsersWithManyResources],
     ?B(C):cleanup(node()),
-    [] = ?B(C):get_sessions().
+    %% give sm backend some time to clean all sessions
+    ensure_empty(C, 10, ?B(C):get_sessions()).
+
+ensure_empty(_C, 0, Sessions) ->
+    [] = Sessions;
+ensure_empty(C, N, Sessions) ->
+    case Sessions of
+        [] ->
+            ok;
+        _ ->
+            timer:sleep(50),
+            ensure_empty(C, N-1, ?B(C):get_sessions())
+    end.
 
 too_much_sessions(C) ->
     %% Max sessions set to ?MAX_USER_SESSIONS in init_per_testcase
