@@ -86,7 +86,6 @@
             ]).
 
 %% default value for the maximum number of user connections
--define(MAX_USER_SESSIONS, infinity).
 -define(SM_BACKEND, (ejabberd_sm_backend:backend())).
 
 %%====================================================================
@@ -764,8 +763,7 @@ get_max_user_sessions(LUser, Host) ->
     case acl:match_rule(
            Host, max_user_sessions, jlib:make_jid(LUser, Host, <<>>)) of
         Max when is_integer(Max) -> Max;
-        infinity -> infinity;
-        _ -> ?MAX_USER_SESSIONS
+        _ -> infinity
     end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
