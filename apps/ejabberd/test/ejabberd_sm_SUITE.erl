@@ -10,6 +10,8 @@
 -define(ne(E, I), ?assert(E =/= I)).
 
 -define(B(C), (proplists:get_value(backend, C))).
+-define(MAX_USER_SESSIONS, 2).
+
 
 all() -> [{group, mnesia}, {group, redis}].
 
@@ -35,6 +37,7 @@ tests() ->
      update_session,
      delete_session,
      clean_up,
+     too_much_sessions,
      unique_count].
 
 init_per_group(mnesia, Config) ->
@@ -58,11 +61,11 @@ init_redis_group(_, _) ->
 end_per_group(_, Config) ->
     Config.
 
+init_per_testcase(too_much_sessions, Config) ->
+    set_test_case_meck(?MAX_USER_SESSIONS),
+    Config;
 init_per_testcase(_, Config) ->
-    meck:new(acl, []),
-    meck:expect(acl, match_rule, fun(_, _, _) -> infinity end),
-    meck:new(ejabberd_hooks, []),
-    meck:expect(ejabberd_hooks, run, fun(_, _, _) -> ok end),
+    set_test_case_meck(infinity),
     Config.
 
 end_per_testcase(_, Config) ->
@@ -151,6 +154,24 @@ clean_up(C) ->
     ?B(C):cleanup(node()),
     [] = ?B(C):get_sessions().
 
+too_much_sessions(C) ->
+    %% Max sessions set to ?MAX_USER_SESSIONS in init_per_testcase
+    UserSessions = [generate_random_user(<<"a">>, <<"localhost">>) || _ <- lists:seq(1, ?MAX_USER_SESSIONS)],
+    {AddSid, AddUSR} = generate_random_user(<<"a">>, <<"localhost">>),
+
+    [given_session_opened(Sid, USR) || {Sid, USR} <- UserSessions],
+
+    given_session_opened(AddSid, AddUSR),
+
+    receive
+        replaced ->
+            ok
+    after 10 ->
+        ct:fail("replaced message not sent")
+    end.
+
+
+
 unique_count(C) ->
     UsersWithManyResources = generate_many_random_res(5, 3, [<<"localhost">>, <<"otherhost">>]),
     [given_session_opened(Sid, USR) || {Sid, USR} <- UsersWithManyResources],
@@ -176,6 +197,13 @@ unload_meck() ->
     meck:unload(ejabberd_config),
     meck:unload(ejabberd_hooks),
     meck:unload(ejabberd_commands).
+
+set_test_case_meck(MaxUserSessions) ->
+    meck:new(acl, []),
+    meck:expect(acl, match_rule, fun(_, _, _) -> MaxUserSessions end),
+    meck:new(ejabberd_hooks, []),
+    meck:expect(ejabberd_hooks, run, fun(_, _, _) -> ok end).
+
 
 make_sid() ->
     {now(), self()}.
