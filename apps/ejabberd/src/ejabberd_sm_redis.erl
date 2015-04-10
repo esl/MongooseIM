@@ -125,7 +125,8 @@ cleanup(Node) ->
     Hashes = ejabberd_redis:cmd(["SMEMBERS", n(Node)]),
     ejabberd_redis:cmd(["DEL", n(Node)]),
     lists:foreach(fun(H) ->
-                          [_, U, S, R | SID] = re:split(H, ":"),
+                          [_, U, S, R | SIDEncoded] = re:split(H, ":"),
+                          SID = binary_to_term(iolist_to_binary(SIDEncoded)),
                           delete_session(SID, U, S, R)
                   end, Hashes).
 
