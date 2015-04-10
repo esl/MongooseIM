@@ -24,7 +24,9 @@
 
 -spec start(list()) -> any().
 start(Opts) ->
-    ejabberd_redis:start_link(Opts).
+    ejabberd_redis:start_link(Opts),
+    %% Clean current node's sessions from previous life
+    cleanup(node()).
 
 
 -spec get_sessions() -> [[ejabberd_sm:ses_tuple()]]. % list of lists
