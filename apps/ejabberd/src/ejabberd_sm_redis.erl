@@ -128,10 +128,22 @@ cleanup(Node) ->
     ejabberd_redis:cmd(["DEL", n(Node)]),
     lists:foreach(fun(H) ->
                           [_, U, S, R | SIDEncoded] = re:split(H, ":"),
-                          SID = binary_to_term(iolist_to_binary(SIDEncoded)),
+                          %% Add possible removed ":" from encoded SID
+                          SID = binary_to_term(binary_join(SIDEncoded, <<":">>)),
                           delete_session(SID, U, S, R)
                   end, Hashes).
 
+binary_join([], _) ->
+    <<>>;
+binary_join([Part], _) ->
+    Part;
+binary_join(Parts, Sep) ->
+    iolist_to_binary(do_binary_join(Parts, Sep, [])).
+
+do_binary_join([Part], _, Acc) ->
+    lists:reverse([Part | Acc]);
+do_binary_join([Part | Rest], Sep, Acc) ->
+    do_binary_join(Rest, Sep, [Sep, Part | Acc]).
 
 -spec total_count() -> integer().
 total_count() ->
