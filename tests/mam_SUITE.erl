@@ -157,7 +157,8 @@ basic_group_names() ->
     bootstrapped,
     archived,
     policy_violation,
-    offline_message].
+    offline_message
+    ].
 
 all() ->
     Reasons =
@@ -1929,7 +1930,7 @@ send_muc_rsm_messages(Config) ->
         ok
         end,
     Config1 = escalus:init_per_testcase(pre_rsm, Config),
-    ok = escalus:story(Config1, [1, 1], F),
+    escalus:story(Config1, [1, 1], F),
     ParsedMessages = receive {parsed_messages, PM} -> PM
                      after 5000 -> error(receive_timeout) end,
 
@@ -1955,7 +1956,7 @@ send_rsm_messages(Config) ->
         ok
         end,
     Config1 = escalus:init_per_testcase(pre_rsm, Config),
-    ok = escalus:story(Config1, [1, 1], F),
+    escalus:story(Config1, [1, 1], F),
     ParsedMessages = receive {parsed_messages, PM} -> PM
                      after 5000 -> error(receive_timeout) end,
 
