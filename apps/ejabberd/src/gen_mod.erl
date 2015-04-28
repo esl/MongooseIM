@@ -116,7 +116,7 @@ start_backend_module(Module, Opts, TrackedFuncs) ->
     {BackendModuleStr, CodeString} = backend_code(Module, Backend, TrackedFuncs),
     {Mod, Code} = dynamic_compile:from_string(CodeString),
     code:load_binary(Mod, BackendModuleStr ++ ".erl", Code),
-    ensure_backend_metrics(Mod:backend(), TrackedFuncs).
+    ensure_backend_metrics(Module, TrackedFuncs).
 
 -spec backend_code(string(), atom(), list()) -> string().
 backend_code(Module, Backend, TrackedFuncs) when is_atom(Backend) ->
@@ -126,7 +126,7 @@ backend_code(Module, Backend, TrackedFuncs) when is_atom(Backend) ->
     RealBackendModule = ModuleStr++"_"++atom_to_list(Backend),
     BehaviourExports = [generate_export(F, A) || {F, A} <- Callbacks],
 
-    BehaviourImpl = [generate_fun(RealBackendModule, F, A, TrackedFuncs) || {F, A} <- Callbacks],
+    BehaviourImpl = [generate_fun(Module, RealBackendModule, F, A, TrackedFuncs) || {F, A} <- Callbacks],
     Code = lists:flatten(
         ["-module(", BackendModuleName,").\n",
         "-export([backend/0]).\n",
@@ -142,20 +142,20 @@ backend_code(Module, Backend, TrackedFuncs) when is_atom(Backend) ->
 generate_export(F, A) ->
     "-export(["++atom_to_list(F)++"/"++integer_to_list(A)++"]).\n".
 
-generate_fun(RealBackendModule, F, A, TrackedFuncs) ->
+generate_fun(BaseModule, RealBackendModule, F, A, TrackedFuncs) ->
     Args = string:join(["A"++integer_to_list(I) || I <- lists:seq(1, A)], ", "),
     IsTracked = lists:member(F, TrackedFuncs),
     [fun_header(F, Args)," ->\n",
-     generate_fun_body(IsTracked, RealBackendModule, F, Args)].
+     generate_fun_body(IsTracked, BaseModule, RealBackendModule, F, Args)].
 
 fun_header(F, Args) ->
     [atom_to_list(F),"(",Args,")"].
 
 -define(METRIC(Module, Op), [backends, Module, Op]).
 
-generate_fun_body(false, RealBackendModule, F, Args) ->
+generate_fun_body(false, _, RealBackendModule, F, Args) ->
     ["    ",RealBackendModule,":",fun_header(F, Args),".\n"];
-generate_fun_body(true, RealBackendModule, F, Args) ->
+generate_fun_body(true, BaseModule, RealBackendModule, F, Args) ->
     FS = atom_to_list(F),
 %%     returned is the following
 %%     {Time, Result} = timer:tc(Backend, F, Args),
@@ -163,7 +163,7 @@ generate_fun_body(true, RealBackendModule, F, Args) ->
 %%     Result.
     ["    {Time, Result} = timer:tc(",RealBackendModule,", ",FS,", [",Args,"]),\n",
      "    mongoose_metrics:update(",
-          io_lib:format("~p", [?METRIC(list_to_existing_atom(RealBackendModule), F)]),
+          io_lib:format("~p", [?METRIC(BaseModule, F)]),
           ", Time),\n",
      "    Result.\n"].
 
