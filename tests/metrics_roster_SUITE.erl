@@ -61,14 +61,13 @@ subscription_tests() -> [unsubscribe,
 
 init_per_suite(Config) ->
 
-    RosterBackend = escalus_ejabberd:rpc(mod_roster_backend, backend, []),
     MongooseMetrics = [{[data, xmpp, received, xml_stanza_size], changed},
                        {[data, xmpp, sent, xml_stanza_size], changed},
                        {fun roster_odbc_precondition/0, [data, odbc, regular],
                         [{recv_oct, '>'}, {send_oct, '>'}]},
-                       {[backends, RosterBackend, get_subscription_lists], changed}
+                       {[backends, mod_roster, get_subscription_lists], changed}
                        ],
-    [{roster_backend, RosterBackend}, {mongoose_metrics, MongooseMetrics} | escalus:init_per_suite(Config)].
+    [{mongoose_metrics, MongooseMetrics} | escalus:init_per_suite(Config)].
 
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
@@ -113,7 +112,7 @@ end_rosters_remove(Config) ->
 get_roster(ConfigIn) ->
     Metrics =
         [{['_', modRosterGets], 1},
-         {[backends, proplists:get_value(roster_backend, ConfigIn), get_roster], changed}
+         {[backends, mod_roster, get_roster], changed}
         ],
     Config = mongoose_metrics(ConfigIn, Metrics),
 
