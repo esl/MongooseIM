@@ -86,7 +86,8 @@
             ]).
 
 %% default value for the maximum number of user connections
--define(MAX_USER_SESSIONS, infinity).
+%% quite big but not infinity
+-define(MAX_USER_SESSIONS, 100).
 -define(SM_BACKEND, (ejabberd_sm_backend:backend())).
 
 %%====================================================================
