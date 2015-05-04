@@ -58,8 +58,16 @@ subscription_tests() -> [unsubscribe,
 %% Init & teardown
 %%--------------------------------------------------------------------
 
+
 init_per_suite(Config) ->
-    escalus:init_per_suite(Config).
+
+    MongooseMetrics = [{[data, xmpp, received, xml_stanza_size], changed},
+                       {[data, xmpp, sent, xml_stanza_size], changed},
+                       {fun roster_odbc_precondition/0, [data, odbc, regular],
+                        [{recv_oct, '>'}, {send_oct, '>'}]},
+                       {[backends, mod_roster, get_subscription_lists], changed}
+                       ],
+    [{mongoose_metrics, MongooseMetrics} | escalus:init_per_suite(Config)].
 
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
@@ -101,19 +109,22 @@ end_rosters_remove(Config) ->
 %% Tests
 %%--------------------------------------------------------------------
 
-get_roster(Config) ->
-    {value, Gets} = get_counter_value(modRosterGets),
+get_roster(ConfigIn) ->
+    Metrics =
+        [{['_', modRosterGets], 1},
+         {[backends, mod_roster, get_roster], changed}
+        ],
+    Config = mongoose_metrics(ConfigIn, Metrics),
+
     escalus:story(Config, [1, 1], fun(Alice,_Bob) ->
-
         escalus_client:send(Alice, escalus_stanza:roster_get()),
-        escalus_client:wait_for_stanza(Alice),
-
-        assert_counter(Gets + 1, modRosterGets)
+        escalus_client:wait_for_stanza(Alice)
 
         end).
 
-add_contact(Config) ->
-    {value, Sets} = get_counter_value(modRosterSets),
+add_contact(ConfigIn) ->
+    Config = mongoose_metrics(ConfigIn, [{['_', modRosterSets], 1}]),
+
     escalus:story(Config, [1, 1], fun(Alice, Bob) ->
 
         %% add contact
@@ -123,14 +134,14 @@ add_contact(Config) ->
                                                               <<"Bobby">>)),
         Received = escalus_client:wait_for_stanza(Alice),
         escalus_client:send(Alice, escalus_stanza:iq_result(Received)),
-        escalus_client:wait_for_stanza(Alice),
-
-        assert_counter(Sets + 1, modRosterSets)
+        escalus_client:wait_for_stanza(Alice)
 
         end).
 
-roster_push(Config) ->
-    {value, Pushes} = get_counter_value(modRosterPush),
+roster_push(ConfigIn) ->
+    Config = mongoose_metrics(ConfigIn, [{['_', modRosterSets], 1},
+                                         {['_', modRosterPush], 2}]),
+
     escalus:story(Config, [2, 1], fun(Alice1, Alice2, Bob) ->
 
         %% add contact
@@ -143,15 +154,14 @@ roster_push(Config) ->
         escalus_client:wait_for_stanza(Alice1),
 
         Received2 = escalus_client:wait_for_stanza(Alice2),
-        escalus_client:send(Alice2, escalus_stanza:iq_result(Received2)),
-
-        assert_counter(Pushes + 2, modRosterPush)
+        escalus_client:send(Alice2, escalus_stanza:iq_result(Received2))
 
         end).
 
 
-subscribe(Config) ->
-    {value, Subscriptions} = get_counter_value(modPresenceSubscriptions),
+subscribe(ConfigIn) ->
+    Config = mongoose_metrics(ConfigIn, [{['_', modPresenceSubscriptions], 1}]),
+
     escalus:story(Config, [1, 1], fun(Alice,Bob) ->
 
         %% add contact
@@ -181,14 +191,14 @@ subscribe(Config) ->
         escalus_client:wait_for_stanzas(Alice, 3),
 
         %% Bob receives roster push
-        escalus_client:wait_for_stanza(Bob),
+        escalus_client:wait_for_stanza(Bob)
 
-        assert_counter(Subscriptions +1, modPresenceSubscriptions)
 
         end).
 
-decline_subscription(Config) ->
-    {value, Subscriptions} = get_counter_value(modPresenceUnsubscriptions),
+decline_subscription(ConfigIn) ->
+    Config = mongoose_metrics(ConfigIn, [{['_', modPresenceUnsubscriptions], 1}]),
+
     escalus:story(Config, [1, 1], fun(Alice,Bob) ->
 
         %% add contact
@@ -206,15 +216,14 @@ decline_subscription(Config) ->
         escalus_client:send(Bob, escalus_stanza:presence_direct(alice, <<"unsubscribed">>)),
 
         %% Alice receives subscribed
-        escalus_client:wait_for_stanzas(Alice, 2),
-
-        assert_counter(Subscriptions +1, modPresenceUnsubscriptions)
+        escalus_client:wait_for_stanzas(Alice, 2)
 
         end).
 
 
-unsubscribe(Config) ->
-    {value, Subscriptions} = get_counter_value(modPresenceUnsubscriptions),
+unsubscribe(ConfigIn) ->
+    Config = mongoose_metrics(ConfigIn, [{['_', modPresenceUnsubscriptions], 1}]),
+
     escalus:story(Config, [1, 1], fun(Alice,Bob) ->
         %% add contact
         add_sample_contact(Alice, Bob),
@@ -255,9 +264,7 @@ unsubscribe(Config) ->
 
         %% Bob receives unsubscribe
 
-        escalus_client:wait_for_stanzas(Bob, 2),
-
-        assert_counter(Subscriptions +1, modPresenceUnsubscriptions)
+        escalus_client:wait_for_stanzas(Bob, 2)
 
     end).
 
@@ -281,3 +288,11 @@ remove_roster(Config, UserSpec) ->
     [Username, Server, _Pass] = escalus_users:get_usp(Config, UserSpec),
     escalus_ejabberd:rpc(mod_roster_odbc, remove_user, [Username, Server]),
     escalus_ejabberd:rpc(mod_roster, remove_user, [Username, Server]).
+
+mongoose_metrics(ConfigIn, Metrics) ->
+    Predefined = proplists:get_value(mongoose_metrics, ConfigIn, []),
+    MongooseMetrics = Predefined ++ Metrics,
+    [{mongoose_metrics, MongooseMetrics} | ConfigIn].
+
+roster_odbc_precondition() ->
+    mod_roster_odbc == escalus_ejabberd:rpc(mod_roster_backend, backend, []).

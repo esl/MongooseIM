@@ -61,9 +61,9 @@ pre_end_per_suite(_Suite,Config,State) ->
     {Config, State}.
 
 %% @doc Called after end_per_suite.
-post_end_per_suite(Suite,_Config,Return,State) ->
+post_end_per_suite(Suite, Config, Return, State) ->
     maybe_print_on_server(true, "SUITE", Suite, "finished"),
-    check_server_purity(Suite),
+    check_server_purity(Suite, Config),
     {Return, State}.
 
 %% @doc Called before each init_per_group.
@@ -114,9 +114,9 @@ maybe_print_on_server(true, Event, EventName, EvenType) ->
     escalus_ejabberd:rpc(error_logger, warning_msg,
                          ["====== ~s ~p ~s", [Event, EventName, EvenType]]).
 
-check_server_purity(Suite) ->
-    case is_mongoose() of
-        true ->
+check_server_purity(Suite, Config) ->
+    case escalus_server:name(Config) of
+        mongooseim ->
             case catch do_check_server_purity(Suite) of
                 [] ->
                     ok;
@@ -141,10 +141,6 @@ do_check_server_purity(_Suite) ->
         fun check_roster/0,
         fun check_carboncopy/0],
     lists:flatmap(fun(F) -> F() end, Funs).
-
-is_mongoose() ->
-    Apps = escalus_ejabberd:rpc(application, loaded_applications, []),
-    lists:keymember(mongooseim, 1, Apps).
 
 check_sessions() ->
     case ?RPC(ejabberd_sm, get_full_session_list, []) of

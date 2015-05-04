@@ -31,14 +31,21 @@
 
 all() ->
     [{group, essential},
-     {group, essential_https},
 
      {group, chat},
-     {group, chat_https},
 
      {group, time},
      {group, acks}
-    ].
+    ] ++ https().
+
+https() ->
+    case {os:getenv("TRAVIS"), erlang:system_info(otp_release)} of
+        {"true", "R15" ++ _} ->
+            [];
+        _ ->
+            [{group, essential_https},
+             {group, chat_https}]
+    end.
 
 groups() ->
     [{essential, [{repeat_until_any_fail,10}], [create_and_terminate_session]},
@@ -91,15 +98,13 @@ end_per_suite(Config) ->
 init_per_group(essential, Config) ->
     [{user, carol} | Config];
 init_per_group(essential_https, Config) ->
-    maybe_skip_on_travis([{user, carol_s} | Config]);
-init_per_group(GroupName, Config) ->
+    [{user, carol_s} | Config];
+init_per_group(chat_https, Config) ->
     Config1 = escalus_users:create_users(Config, {by_name, [carol, carol_s, geralt, alice]}),
-    case GroupName of
-        chat_https ->
-            maybe_skip_on_travis([{user, carol_s} | Config1]);
-        _ ->
-            [{user, carol} | Config1]
-    end.
+    [{user, carol_s} | Config1];
+init_per_group(_GroupName, Config) ->
+    Config1 = escalus_users:create_users(Config, {by_name, [carol, carol_s, geralt, alice]}),
+    [{user, carol} | Config1].
 
 end_per_group(GroupName, Config)
     when GroupName =:= essential; GroupName =:= essential_https ->

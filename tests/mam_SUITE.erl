@@ -157,7 +157,8 @@ basic_group_names() ->
     bootstrapped,
     archived,
     policy_violation,
-    offline_message].
+    offline_message
+    ].
 
 all() ->
     Reasons =
@@ -292,8 +293,12 @@ init_per_group(Group, Config) ->
     B = basic_group(Group),
     ct:pal("Init per group ~p; configuration ~p; basic group ~p",
            [Group, C, B]),
-    Config1 = init_modules(C, B, Config),
-    init_state(C, B, Config1).
+    case init_modules(C, B, Config) of
+        skip ->
+            {skip, {init_modules, C, B, Config}};
+        Config1 ->
+            init_state(C, B, Config1)
+    end.
     
 end_per_group(Group, Config) ->
     C = configuration(Group),
@@ -519,7 +524,7 @@ init_modules(odbc_async_cache, _, Config) ->
     init_module(host(), mod_mam_cache_user, [pm]),
     Config;
 init_modules(odbc_mnesia_muc_cache, _, Config) ->
-    error(skipped);
+    skip;
 init_modules(odbc_mnesia_cache, _, Config) ->
     init_module(host(), mod_mam, []),
     init_module(host(), mod_mam_odbc_arch, [pm]),
@@ -1925,7 +1930,7 @@ send_muc_rsm_messages(Config) ->
         ok
         end,
     Config1 = escalus:init_per_testcase(pre_rsm, Config),
-    ok = escalus:story(Config1, [1, 1], F),
+    escalus:story(Config1, [1, 1], F),
     ParsedMessages = receive {parsed_messages, PM} -> PM
                      after 5000 -> error(receive_timeout) end,
 
@@ -1951,7 +1956,7 @@ send_rsm_messages(Config) ->
         ok
         end,
     Config1 = escalus:init_per_testcase(pre_rsm, Config),
-    ok = escalus:story(Config1, [1, 1], F),
+    escalus:story(Config1, [1, 1], F),
     ParsedMessages = receive {parsed_messages, PM} -> PM
                      after 5000 -> error(receive_timeout) end,
 
@@ -2106,7 +2111,7 @@ muc_rewrite_jids_options(Room) ->
 %% @doc Get a binary jid of the user, that tagged with `UserName' in the config.
 nick_to_jid(UserName, Config) when is_atom(UserName) ->
     UserSpec = escalus_users:get_userspec(Config, UserName),
-    escalus_users:get_jid(Config, UserSpec).
+    escalus_utils:jid_to_lower(escalus_users:get_jid(Config, UserSpec)).
 
 make_jid(U, S, R) ->
     rpc_apply(jlib, make_jid, [U, S, R]).

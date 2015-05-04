@@ -28,6 +28,7 @@
 %% Suite configuration
 %%--------------------------------------------------------------------
 all() ->
+
     [{group, shared_roster}].
 
 groups() ->
@@ -45,10 +46,9 @@ init_per_suite(Config) ->
     case get_auth_method() of
         ldap ->
             start_roster_module(ldap),
-            escalus:init_per_suite([{escalus_user_db, {module, ldap_helper}} | Config]);
-%%             escalus:init_per_suite(Config);
+            escalus:init_per_suite([{escalus_user_db, {module, ldap_helper}}, {ldap_auth, true} | Config]);
         _ ->
-            {skip,no_shared_roster_available}
+            escalus:init_per_suite([{ldap_auth, false} | Config])
     end.
 
 end_per_suite(Config) ->
@@ -62,7 +62,12 @@ end_per_group(_, Config) ->
     escalus:delete_users(Config, ?USERS).
 
 init_per_testcase(CaseName,Config) ->
-    escalus:init_per_testcase(CaseName,Config).
+    case proplists:get_value(ldap_auth, Config) of
+        false ->
+            {skip, no_shared_roster_available};
+        _ ->
+            escalus:init_per_testcase(CaseName,Config)
+    end.
 
 end_per_testcase(CaseName,Config) ->
     escalus:end_per_testcase(CaseName,Config).
