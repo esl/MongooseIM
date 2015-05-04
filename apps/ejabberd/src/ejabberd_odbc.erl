@@ -68,6 +68,9 @@
          session_established/2,
          session_established/3]).
 
+%% internal usage
+-export([get_db_info/1]).
+
 -include("ejabberd.hrl").
 
 -record(state, {db_ref,
@@ -168,6 +171,8 @@ keep_alive(PID) ->
     ?GEN_FSM:sync_send_event(PID, {sql_cmd, {sql_query, ?KEEPALIVE_QUERY}, now()},
                              ?KEEPALIVE_TIMEOUT).
 
+get_db_info(Pid) ->
+    ?GEN_FSM:sync_send_all_state_event(Pid, get_db_info).
 %% This function is intended to be used from inside an sql_transaction:
 sql_query_t(Query) ->
     QRes = sql_query_internal(Query),
@@ -379,6 +384,9 @@ session_established(Event, State) ->
 handle_event(_Event, StateName, State) ->
     {next_state, StateName, State}.
 
+handle_sync_event(get_db_info, _, StateName,
+                  #state{db_ref = DbRef, db_type = DbType} = State) ->
+    {reply, {ok, DbType, DbRef}, StateName, State};
 handle_sync_event(_Event, _From, StateName, State) ->
     {reply, {error, badarg}, StateName, State}.
 

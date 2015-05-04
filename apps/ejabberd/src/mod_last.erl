@@ -46,7 +46,7 @@
 -include("mod_privacy.hrl").
 -include("mod_last.hrl").
 
--define(BACKEND, (mod_last_backend:backend())).
+-define(BACKEND, mod_last_backend).
 
 %% ------------------------------------------------------------------
 %% Backend callbacks
@@ -82,7 +82,7 @@
 start(Host, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
 
-    gen_mod:start_backend_module(?MODULE, Opts),
+    gen_mod:start_backend_module(?MODULE, Opts, [get_last, set_last_info]),
     ?BACKEND:init(Host, Opts),
 
     gen_iq_handler:add_iq_handler(ejabberd_local, Host,

@@ -50,7 +50,7 @@ test_preset: test_deps
 run: deps compile quickrun
 
 quickrun: etc/ejabberd.cfg certs_priv
-	erl -sname mongooseim@localhost -setcookie ejabberd -pa deps/*/ebin apps/*/ebin -config rel/files/app.config -s ejabberd
+	erl -sname mongooseim@localhost -setcookie ejabberd -pa ebin deps/*/ebin apps/*/ebin -config rel/files/app.config -s mongooseim
 
 etc/ejabberd.cfg:
 	@mkdir -p $(@D)

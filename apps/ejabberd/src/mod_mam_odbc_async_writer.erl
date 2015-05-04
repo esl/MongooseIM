@@ -255,7 +255,6 @@ is_recent_entries_required(End, Now) when is_integer(End) ->
 is_recent_entries_required(_End, _Now) ->
     true.
 
-
 %%====================================================================
 %% Internal functions
 %%====================================================================
@@ -264,7 +263,7 @@ is_recent_entries_required(_End, _Now) ->
             | {'ok','undefined' | pid()} | {'ok','undefined' | pid(),_}.
 start_server(Host) ->
     WriterProc = srv_name(Host),
-    supervisor:start_child(ejabberd_sup, writer_child_spec(WriterProc, Host)).
+    supervisor:start_child(mod_mam_sup, writer_child_spec(WriterProc, Host)).
 
 
 -spec stop_server(ejabberd:server()) -> 'ok'
@@ -333,6 +332,8 @@ init([Host]) ->
 %%--------------------------------------------------------------------
 -spec handle_call('wait_flushing', _, state()) -> {'noreply',state()}
                                                 | {'reply','ok',state()}.
+handle_call(get_connection, _From, State=#state{conn = Conn}) ->
+    {reply, Conn, State};
 handle_call(wait_flushing, _From, State=#state{acc=[]}) ->
     {reply, ok, State};
 handle_call(wait_flushing, From, State=#state{subscribers=Subs}) ->

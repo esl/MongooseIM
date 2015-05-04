@@ -30,6 +30,7 @@
 -export([start/0,
          start_module/3,
          start_backend_module/2,
+         start_backend_module/3,
          stop_module/2,
          stop_module_keep_config/2,
          reload_module/3,
@@ -44,6 +45,7 @@
          loaded_modules_with_opts/1,
          get_hosts/2,
          get_module_proc/2,
+         backend_code/3,
          is_loaded/2]).
 
 -include("ejabberd.hrl").
@@ -107,24 +109,74 @@ start_module(Host, Module, Opts0) ->
 
 -spec start_backend_module(module(), list()) -> no_return().
 start_backend_module(Module, Opts) ->
-    ModuleStr = atom_to_list(Module),
-    BackendModuleStr = ModuleStr ++ "_backend",
+    start_backend_module(Module, Opts, []).
+
+start_backend_module(Module, Opts, TrackedFuncs) ->
     Backend = gen_mod:get_opt(backend, Opts, mnesia),
-    {Mod, Code} = dynamic_compile:from_string(backend_code(ModuleStr, Backend)),
-    code:load_binary(Mod, BackendModuleStr ++ ".erl", Code).
+    {BackendModuleStr, CodeString} = backend_code(Module, Backend, TrackedFuncs),
+    {Mod, Code} = dynamic_compile:from_string(CodeString),
+    code:load_binary(Mod, BackendModuleStr ++ ".erl", Code),
+    ensure_backend_metrics(Module, TrackedFuncs).
 
--spec backend_code(string(), atom()) -> string().
-backend_code(Module, Backend) when is_atom(Backend) ->
-    BackendModule = Module ++ "_backend",
-    lists:flatten(
-        ["-module(",BackendModule,").
-        -export([backend/0]).
+-spec backend_code(string(), atom(), list()) -> string().
+backend_code(Module, Backend, TrackedFuncs) when is_atom(Backend) ->
+    Callbacks = Module:behaviour_info(callbacks),
+    ModuleStr = atom_to_list(Module),
+    BackendModuleName = ModuleStr ++ "_backend",
+    RealBackendModule = ModuleStr++"_"++atom_to_list(Backend),
+    BehaviourExports = [generate_export(F, A) || {F, A} <- Callbacks],
 
-        -spec backend() -> atom().
-        backend() ->",
-            Module,"_",
-            atom_to_list(Backend),
-            ".\n"]).
+    BehaviourImpl = [generate_fun(Module, RealBackendModule, F, A, TrackedFuncs) || {F, A} <- Callbacks],
+    Code = lists:flatten(
+        ["-module(", BackendModuleName,").\n",
+        "-export([backend/0]).\n",
+        BehaviourExports,
+
+
+        "-spec backend() -> atom().\n",
+        "backend() ->", RealBackendModule,".\n",
+        BehaviourImpl
+        ]),
+    {BackendModuleName, Code}.
+
+generate_export(F, A) ->
+    "-export(["++atom_to_list(F)++"/"++integer_to_list(A)++"]).\n".
+
+generate_fun(BaseModule, RealBackendModule, F, A, TrackedFuncs) ->
+    Args = string:join(["A"++integer_to_list(I) || I <- lists:seq(1, A)], ", "),
+    IsTracked = lists:member(F, TrackedFuncs),
+    [fun_header(F, Args)," ->\n",
+     generate_fun_body(IsTracked, BaseModule, RealBackendModule, F, Args)].
+
+fun_header(F, Args) ->
+    [atom_to_list(F),"(",Args,")"].
+
+-define(METRIC(Module, Op), [backends, Module, Op]).
+
+generate_fun_body(false, _, RealBackendModule, F, Args) ->
+    ["    ",RealBackendModule,":",fun_header(F, Args),".\n"];
+generate_fun_body(true, BaseModule, RealBackendModule, F, Args) ->
+    FS = atom_to_list(F),
+%%     returned is the following
+%%     {Time, Result} = timer:tc(Backend, F, Args),
+%%     mongoose_metrics:update(?METRIC(Backend, F), Time),
+%%     Result.
+    ["    {Time, Result} = timer:tc(",RealBackendModule,", ",FS,", [",Args,"]),\n",
+     "    mongoose_metrics:update(",
+          io_lib:format("~p", [?METRIC(BaseModule, F)]),
+          ", Time),\n",
+     "    Result.\n"].
+
+ensure_backend_metrics(Module, Ops) ->
+    EnsureFun = fun(Op) ->
+        case exometer:info(?METRIC(Module, Op), type) of
+            undefined ->
+                exometer:new(?METRIC(Module, Op), histogram);
+            _ ->
+                ok
+        end
+    end,
+    lists:foreach(EnsureFun, Ops).
 
 -spec is_app_running(_) -> boolean().
 is_app_running(AppName) ->

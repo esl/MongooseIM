@@ -14,6 +14,8 @@
 -include("mod_roster.hrl").
 -include("jlib.hrl").
 
+-behaviour(mod_roster).
+
 %% API
 -export([init/2,
          read_roster_version/2,

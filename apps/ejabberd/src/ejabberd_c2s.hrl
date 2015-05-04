@@ -118,7 +118,7 @@
         "id='~s' from='~s'~s~s>"
        ).
 
--define(STREAM_TRAILER, "</stream:stream>").
+-define(STREAM_TRAILER, <<"</stream:stream>">>).
 
 -define(INVALID_NS_ERR, ?SERR_INVALID_NAMESPACE).
 -define(INVALID_XML_ERR, ?SERR_XML_NOT_WELL_FORMED).

@@ -37,7 +37,7 @@
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 
--define(BACKEND, (mod_private_backend:backend())).
+-define(BACKEND, mod_private_backend).
 
 %% ------------------------------------------------------------------
 %% Backend callbacks
@@ -71,7 +71,7 @@
 %% gen_mod callbacks
 
 start(Host, Opts) ->
-    gen_mod:start_backend_module(?MODULE, Opts),
+    gen_mod:start_backend_module(?MODULE, Opts, [multi_get_data, multi_set_data]),
     ?BACKEND:init(Host, Opts),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
     ejabberd_hooks:add(remove_user, Host, ?MODULE, remove_user, 50),

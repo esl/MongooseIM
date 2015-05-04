@@ -64,12 +64,87 @@
 
 -type roster() :: #roster{}.
 
--define(BACKEND, (mod_roster_backend:backend())).
+-callback init(Host, Opts) -> ok when
+    Host :: ejabberd:server(),
+    Opts :: list().
+-callback read_roster_version(LUser, LServer) -> Result when
+    LUser :: ejabberd:luser(),
+    LServer :: ejabberd:lserver(),
+    Result :: term().
+-callback write_roster_version(LUser, LServer, InTransaction, Ver) -> Result when
+    LUser :: ejabberd:luser(),
+    LServer :: ejabberd:lserver(),
+    InTransaction :: boolean(),
+    Ver :: binary(),
+    Result :: term().
+-callback get_roster(LUser, LServer) -> Result when
+    LUser :: ejabberd:luser(),
+    LServer :: ejabberd:lserver(),
+    Result :: term().
+-callback get_roster_by_jid_t(LUser, LServer, LJid) -> Result when
+    LUser :: ejabberd:luser(),
+    LServer :: ejabberd:lserver(),
+    LJid :: ejabberd:simple_bare_jid(),
+    Result :: term().
+-callback get_subscription_lists(Acc, LUser, LServer) -> Result when
+    Acc :: term(),
+    LUser :: ejabberd:luser(),
+    LServer :: ejabberd:lserver(),
+    Result :: term().
+-callback roster_subscribe_t(LUser, LServer, LJid, SJid) -> Result when
+    LUser :: ejabberd:luser(),
+    LServer :: ejabberd:lserver(),
+    LJid :: ejabberd:simple_bare_jid(),
+    SJid :: roster(),
+    Result :: term().
+-callback get_roster_by_jid_with_groups_t(LUser, LServer, LJid) -> Result when
+    LUser :: ejabberd:luser(),
+    LServer :: ejabberd:lserver(),
+    LJid :: ejabberd:simple_bare_jid(),
+    Result :: term().
+-callback remove_user(LUser, LServer) -> Result when
+    LUser :: ejabberd:luser(),
+    LServer :: ejabberd:lserver(),
+    Result :: term().
+-callback update_roster_t(LUser, LServer, LJid, Item) -> Result when
+    LUser :: ejabberd:luser(),
+    LServer :: ejabberd:lserver(),
+    LJid :: ejabberd:simple_bare_jid(),
+    Item :: roster(),
+    Result :: term().
+-callback del_roster_t(LUser, LServer, LJid) -> Result when
+    LUser :: ejabberd:luser(),
+    LServer :: ejabberd:lserver(),
+    LJid :: ejabberd:simple_bare_jid(),
+    Result :: term().
+-callback read_subscription_and_groups(LUser, LServer, LJid) -> Result when
+    LUser :: ejabberd:luser(),
+    LServer :: ejabberd:lserver(),
+    LJid :: ejabberd:simple_bare_jid(),
+    Result :: term().
+
+-callback raw_to_record(LServer, Item) -> Result when
+    LServer :: ejabberd:lserver(),
+    Item :: term(),
+    Result :: error | roster().
+
+
+-define(BACKEND, mod_roster_backend).
 
 start(Host, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
-
-    gen_mod:start_backend_module(?MODULE, Opts),
+    TrackedFuns = [read_roster_version,
+                   write_roster_version,
+                   get_roster,
+                   get_roster_by_jid_t,
+                   get_subscription_lists,
+                   roster_subscribe_t,
+                   get_roster_by_jid_with_groups_t,
+                   update_roster_t,
+                   del_roster_t,
+                   read_subscription_and_groups
+                   ],
+    gen_mod:start_backend_module(?MODULE, Opts, TrackedFuns),
     ?BACKEND:init(Host, Opts),
 
     ejabberd_hooks:add(roster_get, Host,
