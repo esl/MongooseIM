@@ -62,7 +62,11 @@ plain_password_required() ->
 -spec store_type(binary()) -> plain | scram.
 store_type(Server) ->
     case scram:enabled(Server) of
-        false -> plain;
+        false ->
+            case is_external(Server) of
+                true -> external;
+                _ -> plain
+            end;
         true -> scram
     end.
 
@@ -286,3 +290,11 @@ get_password(_User, _Server, _DefaultValue) ->
 
 stop(_Host) ->
     ok.
+
+is_external(Host) ->
+    case ejabberd_config:get_local_option(auth_opts, Host) of
+        undefined ->
+            false;
+        AuthOpts ->
+            {is_external, true} == lists:keyfind(is_external, 1, AuthOpts)
+    end.
