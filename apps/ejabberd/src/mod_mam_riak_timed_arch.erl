@@ -35,6 +35,9 @@
 
 -export([key/3]).
 
+%% For tests only
+-export([create_obj/4, fold_archive/3, bucket_key_filters/4, bucket/1]).
+
 -define(BARE_JID(JID), jlib:jid_to_binary(jlib:jid_remove_resource(jlib:jid_to_lower(JID)))).
 
 start(Host, Opts) ->
@@ -121,7 +124,17 @@ safe_lookup_messages(Result, Host,
 archive_size(Size, _Host, _ArchiveID, _ArchiveJID) ->
     Size.
 
-bucket() -> <<"mam_test">>.
+bucket() ->
+    {Date, _} = calendar:local_time(),
+    bucket(Date).
+
+%% use correct bucket for given date
+-spec bucket(calendar:date()) -> binary().
+bucket(Date) ->
+    {Year, WeekNum} = calendar:iso_week_number(Date),
+    YearBin = integer_to_binary(Year),
+    WeekNumBin = integer_to_binary(WeekNum),
+    <<"mam_",YearBin/binary, "_", WeekNumBin/binary>>.
 
 archive_message(_, _, MessID, _ArchiveID, LocJID, RemJID, SrcJID, Dir, Packet) ->
     LocalJID = ?BARE_JID(LocJID),
@@ -129,8 +142,14 @@ archive_message(_, _, MessID, _ArchiveID, LocJID, RemJID, SrcJID, Dir, Packet) -
     SourceJID = ?BARE_JID(SrcJID),
     MsgId = integer_to_binary(MessID),
     Key = key(LocalJID, RemoteJID, MsgId),
-    Obj = riakc_obj:new(bucket(), Key, encode_riak_obj(SourceJID, Packet)),
+    Obj = create_obj(MessID, Key, SourceJID, Packet),
     mongoose_riak:put(Obj).
+
+create_obj(MsgId, Key, SourceJID, Packet) ->
+    {MicroSec, _} = mod_mam_utils:decode_compact_uuid(MsgId),
+    MsgNow = mod_mam_utils:microseconds_to_now(MicroSec),
+    {MsgDate, _} = calendar:now_to_datetime(MsgNow),
+    riakc_obj:new(bucket(MsgDate), Key, encode_riak_obj(SourceJID, Packet)).
 
 lookup_messages(_Result, _Host, _ArchiveID, ArchiveJID, _RSM, _Borders, Start, End,
                 _Now, WithJID, _PageSize, LimitPassed, MaxResultLimit, _IsSimple) ->
