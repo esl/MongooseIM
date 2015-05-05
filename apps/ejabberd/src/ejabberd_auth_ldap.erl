@@ -48,7 +48,7 @@
     get_vh_registered_users_number/2,
     get_password/2,
     get_password_s/2,
-    is_user_exists/2,
+    does_user_exist/2,
     remove_user/2,
     remove_user/3,
     store_type/1,
@@ -63,10 +63,10 @@
 -include("eldap.hrl").
 
 -record(state,
-       {host = <<"">>          :: ejabberd:server(),
+       {host = <<"">>          :: ejabberd:lserver(),
         eldap_id = <<"">>      :: binary(),
         bind_eldap_id = <<"">> :: binary(),
-        servers = []           :: [ejabberd:server()],
+        servers = []           :: [ejabberd:lserver()],
         backups = []           :: [binary()],
         port = ?LDAP_PORT      :: inet:port_number(),
         tls_options = []       :: list(),
@@ -115,7 +115,7 @@ start_link(Host) ->
 
 terminate(_Reason, _State) -> ok.
 
--spec init(Host :: ejabberd:server()) -> {'ok', state()}.
+-spec init(Host :: ejabberd:lserver()) -> {'ok', state()}.
 init(Host) ->
     State = parse_options(Host),
     eldap_pool:start_link(State#state.eldap_id,
@@ -140,13 +140,13 @@ config_change(Acc, Host, ldap, _NewConfig) ->
 config_change(Acc, _, _, _) ->
     Acc.
 
--spec check_password(User :: ejabberd:user(),
-                     Server :: ejabberd:server(),
+-spec check_password(LUser :: ejabberd:luser(),
+                     LServer :: ejabberd:lserver(),
                      Password :: binary()) -> boolean().
-check_password(User, Server, Password) ->
+check_password(LUser, LServer, Password) ->
     if Password == <<"">> -> false;
        true ->
-           case catch check_password_ldap(User, Server, Password)
+           case catch check_password_ldap(LUser, LServer, Password)
                of
              {'EXIT', _} -> false;
              Result -> Result
@@ -154,23 +154,23 @@ check_password(User, Server, Password) ->
     end.
 
 
--spec check_password(User :: ejabberd:user(),
-                     Server :: ejabberd:server(),
+-spec check_password(LUser :: ejabberd:luser(),
+                     LServer :: ejabberd:lserver(),
                      Password :: binary(),
                      Digest :: binary(),
                      DigestGen :: fun()) -> boolean().
-check_password(User, Server, Password, _Digest,
+check_password(LUser, LServer, Password, _Digest,
                _DigestGen) ->
-    check_password(User, Server, Password).
+    check_password(LUser, LServer, Password).
 
 
--spec set_password(User :: ejabberd:user(),
-                   Server :: ejabberd:server(),
+-spec set_password(LUser :: ejabberd:luser(),
+                   LServer :: ejabberd:lserver(),
                    Password :: binary())
       -> ok | {error, not_allowed | invalid_jid}.
-set_password(User, Server, Password) ->
-    {ok, State} = eldap_utils:get_state(Server, ?MODULE),
-    case find_user_dn(User, State) of
+set_password(LUser, LServer, Password) ->
+    {ok, State} = eldap_utils:get_state(LServer, ?MODULE),
+    case find_user_dn(LUser, State) of
       false -> {error, user_not_found};
       DN ->
           eldap_pool:modify_passwd(State#state.eldap_id, DN,
@@ -178,14 +178,14 @@ set_password(User, Server, Password) ->
     end.
 
 
--spec try_register(User :: ejabberd:user(),
-                   Server :: ejabberd:server(),
+-spec try_register(LUser :: ejabberd:luser(),
+                   LServer :: ejabberd:lserver(),
                    Password :: binary()) -> {atomic, ok | exists}
                             | {error, invalid_jid | not_allowed}
                             | {aborted, _}.
-try_register(User, Server, Password) ->
-    {ok, State} = eldap_utils:get_state(Server, ?MODULE),
-    UserStr=binary_to_list(User),
+try_register(LUser, LServer, Password) ->
+    {ok, State} = eldap_utils:get_state(LServer, ?MODULE),
+    UserStr=binary_to_list(LUser),
     DN = "cn="++UserStr++","++binary_to_list(State#state.base),
     Attrs =   [{"objectclass", ["inetOrgPerson"]},
               {"cn", [UserStr]},
@@ -193,84 +193,84 @@ try_register(User, Server, Password) ->
               {"userPassword",[binary_to_list(Password)]},
               {"uid",[UserStr]}],
     case eldap_pool:add(State#state.eldap_id,DN,Attrs) of
-        ok -> {atomic, ok};
-        _ -> {atomic, exists}
+        ok -> ok;
+        _ -> {error, exists}
     end.
 
 
 -spec dirty_get_registered_users() -> [ejabberd:simple_jid()].
 dirty_get_registered_users() ->
-    Servers = ejabberd_config:get_vh_by_auth_method(ldap),
-    lists:flatmap(fun (Server) ->
-                          get_vh_registered_users(Server)
+    LServers = ejabberd_config:get_vh_by_auth_method(ldap),
+    lists:flatmap(fun (LServer) ->
+                          get_vh_registered_users(LServer)
                   end,
-                  Servers).
+                  LServers).
 
 
--spec get_vh_registered_users(Server :: ejabberd:server()
+-spec get_vh_registered_users(LServer :: ejabberd:lserver()
                              ) -> [ejabberd:simple_jid()].
-get_vh_registered_users(Server) ->
-    case catch get_vh_registered_users_ldap(Server) of
+get_vh_registered_users(LServer) ->
+    case catch get_vh_registered_users_ldap(LServer) of
       {'EXIT', _} -> [];
       Result -> Result
     end.
 
 
--spec get_vh_registered_users(Server :: ejabberd:server(),
+-spec get_vh_registered_users(LServer :: ejabberd:lserver(),
                               Opts :: list()) -> [ejabberd:simple_jid()].
-get_vh_registered_users(Server, _) ->
-    get_vh_registered_users(Server).
+get_vh_registered_users(LServer, _) ->
+    get_vh_registered_users(LServer).
 
 
--spec get_vh_registered_users_number(Server :: ejabberd:server()) -> integer().
-get_vh_registered_users_number(Server) ->
-    length(get_vh_registered_users(Server)).
+-spec get_vh_registered_users_number(LServer :: ejabberd:lserver()) -> integer().
+get_vh_registered_users_number(LServer) ->
+    length(get_vh_registered_users(LServer)).
 
 
--spec get_vh_registered_users_number(Server :: ejabberd:server(),
+-spec get_vh_registered_users_number(LServer :: ejabberd:lserver(),
                                      Opts :: list()) -> integer().
-get_vh_registered_users_number(Server, _) ->
-    get_vh_registered_users_number(Server).
+get_vh_registered_users_number(LServer, _) ->
+    get_vh_registered_users_number(LServer).
 
 
--spec get_password(User :: ejabberd:user(),
-                   Server :: ejabberd:server()) -> binary() | false.
-get_password(_User, _Server) -> false.
+-spec get_password(LUser :: ejabberd:luser(),
+                   LServer :: ejabberd:lserver()) -> binary() | false.
+get_password(_LUser, _LServer) -> false.
 
 
--spec get_password_s(User :: ejabberd:user(),
-                     Server :: ejabberd:server()) -> binary().
-get_password_s(_User, _Server) -> <<"">>.
+-spec get_password_s(LUser :: ejabberd:luser(),
+                     LServer :: ejabberd:lserver()) -> binary().
+get_password_s(_LUser, _LServer) -> <<"">>.
 
 
--spec is_user_exists(User :: ejabberd:user(),
-                     Server :: ejabberd:server()
+-spec does_user_exist(LUser :: ejabberd:luser(),
+                     LServer :: ejabberd:lserver()
                      ) -> boolean() | {error, atom()}.
-is_user_exists(User, Server) ->
-    case catch is_user_exists_ldap(User, Server) of
+does_user_exist(LUser, LServer) ->
+    case catch is_user_exists_ldap(LUser, LServer) of
       {'EXIT', Error} -> {error, Error};
       Result -> Result
     end.
 
 
--spec remove_user(User :: ejabberd:user(),
-                  Server :: ejabberd:server()
+-spec remove_user(LUser :: ejabberd:luser(),
+                  LServer :: ejabberd:lserver()
                   ) -> ok | error | {error, not_allowed}.
-remove_user(User, Server) ->
-    {ok, State} = eldap_utils:get_state(Server, ?MODULE),
-    case find_user_dn(User, State) of
+remove_user(LUser, LServer) ->
+    {ok, State} = eldap_utils:get_state(LServer, ?MODULE),
+    case find_user_dn(LUser, State) of
       false -> error;
       DN -> eldap_pool:delete(State#state.eldap_id,DN)
     end.
 
 
--spec remove_user(User :: ejabberd:user(),
-                  Server :: ejabberd:server(),
+-spec remove_user(LUser :: ejabberd:luser(),
+                  LServer :: ejabberd:lserver(),
                   Password :: binary()
                   ) -> ok | not_exists | not_allowed | bad_request | error.
-remove_user(User, Server, Password) ->
-    {ok, State} = eldap_utils:get_state(Server, ?MODULE),
-    case find_user_dn(User, State) of
+remove_user(LUser, LServer, Password) ->
+    {ok, State} = eldap_utils:get_state(LServer, ?MODULE),
+    case find_user_dn(LUser, State) of
       false -> false;
       DN ->
             case eldap_pool:bind(State#state.bind_eldap_id, DN,Password) of
@@ -284,12 +284,12 @@ remove_user(User, Server, Password) ->
 %%% Internal functions
 %%%----------------------------------------------------------------------
 
--spec check_password_ldap(User :: ejabberd:user(),
-                          Server :: ejabberd:server(),
+-spec check_password_ldap(LUser :: ejabberd:luser(),
+                          LServer :: ejabberd:lserver(),
                           Password :: binary()) -> boolean().
-check_password_ldap(User, Server, Password) ->
-    {ok, State} = eldap_utils:get_state(Server, ?MODULE),
-    case find_user_dn(User, State) of
+check_password_ldap(LUser, LServer, Password) ->
+    {ok, State} = eldap_utils:get_state(LServer, ?MODULE),
+    case find_user_dn(LUser, State) of
       false -> false;
       DN ->
           case eldap_pool:bind(State#state.bind_eldap_id, DN, Password) of
@@ -299,13 +299,13 @@ check_password_ldap(User, Server, Password) ->
     end.
 
 
--spec get_vh_registered_users_ldap(Server :: ejabberd:server()
+-spec get_vh_registered_users_ldap(LServer :: ejabberd:lserver()
                                   ) -> [ejabberd:simple_jid()].
-get_vh_registered_users_ldap(Server) ->
-    {ok, State} = eldap_utils:get_state(Server, ?MODULE),
+get_vh_registered_users_ldap(LServer) ->
+    {ok, State} = eldap_utils:get_state(LServer, ?MODULE),
     UIDs = State#state.uids,
     Eldap_ID = State#state.eldap_id,
-    Server = State#state.host,
+    LServer = State#state.host,
     ResAttrs = result_attrs(State),
     case eldap_filter:parse(State#state.sfilter) of
       {ok, EldapFilter} ->
@@ -333,12 +333,7 @@ get_vh_registered_users_ldap(Server) ->
                                                                               UIDFormat)
                                                       of
                                                     {ok, U} ->
-                                                        case jlib:nodeprep(U) of
-                                                          error -> [];
-                                                          LU ->
-                                                              [{LU,
-                                                                jlib:nameprep(Server)}]
-                                                        end;
+                                                        [{U, LServer}];
                                                     _ -> []
                                                   end
                                             end
@@ -351,11 +346,11 @@ get_vh_registered_users_ldap(Server) ->
     end.
 
 
--spec is_user_exists_ldap(User :: ejabberd:user(),
-                          Server :: ejabberd:server()) -> boolean().
-is_user_exists_ldap(User, Server) ->
-    {ok, State} = eldap_utils:get_state(Server, ?MODULE),
-    case find_user_dn(User, State) of
+-spec is_user_exists_ldap(LUser :: ejabberd:luser(),
+                          LServer :: ejabberd:lserver()) -> boolean().
+is_user_exists_ldap(LUser, LServer) ->
+    {ok, State} = eldap_utils:get_state(LServer, ?MODULE),
+    case find_user_dn(LUser, State) of
       false -> false;
       _DN -> true
     end.
@@ -370,12 +365,12 @@ handle_call(_Request, _From, State) ->
     {reply, bad_request, State}.
 
 
--spec find_user_dn(User :: ejabberd:user(),
+-spec find_user_dn(LUser :: ejabberd:luser(),
                    State :: state()) -> 'false' | binary().
-find_user_dn(User, State) ->
+find_user_dn(LUser, State) ->
     ResAttrs = result_attrs(State),
     case eldap_filter:parse(State#state.ufilter,
-                            [{<<"%u">>, User}])
+                            [{<<"%u">>, LUser}])
         of
       {ok, Filter} ->
           case eldap_pool:search(State#state.eldap_id,
@@ -487,7 +482,7 @@ result_attrs(#state{uids = UIDs,
 %%% Auxiliary functions
 %%%----------------------------------------------------------------------
 
--spec parse_options(Host :: ejabberd:server()) -> state().
+-spec parse_options(Host :: ejabberd:lserver()) -> state().
 parse_options(Host) ->
     Cfg = eldap_utils:get_config(Host, []),
     Eldap_ID = atom_to_binary(gen_mod:get_module_proc(Host, ?MODULE),utf8),
@@ -556,5 +551,5 @@ check_filter(F) ->
 
 
 %% @doc gen_auth unimplemented callbacks
-login(_User, _Server) -> erlang:error(not_implemented).
-get_password(_User, _Server, _DefaultValue) -> erlang:error(not_implemented).
+login(_LUser, _LServer) -> erlang:error(not_implemented).
+get_password(_LUser, _LServer, _DefaultValue) -> erlang:error(not_implemented).

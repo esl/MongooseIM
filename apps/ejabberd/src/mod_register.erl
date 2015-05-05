@@ -278,14 +278,14 @@ try_register(User, Server, Password, SourceRaw, Lang) ->
 				true ->
 				    case ejabberd_auth:try_register(
 					   User, Server, Password) of
-					{atomic, ok} ->
+					ok ->
                         send_welcome_message(JID),
 					    send_registration_notifications(JID, Source),
 					    ok;
 					Error ->
 					    remove_timeout(Source),
  					    case Error of
-						{atomic, exists} ->
+						{error, exists} ->
 						    {error, ?ERR_CONFLICT};
 						{error, invalid_jid} ->
 						    {error, ?ERR_JID_MALFORMED};

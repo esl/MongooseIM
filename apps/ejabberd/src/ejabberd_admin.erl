@@ -340,9 +340,9 @@ update_module(ModuleNameString) ->
                                       | {'ok', io_lib:chars()}.
 register(User, Host, Password) ->
     case ejabberd_auth:try_register(User, Host, Password) of
-        {atomic, ok} ->
+        ok ->
             {ok, io_lib:format("User ~s@~s successfully registered", [User, Host])};
-        {atomic, exists} ->
+        {error, exists} ->
             String = io_lib:format("User ~s@~s already registered at node ~p",
                                    [User, Host, node()]),
             {exists, String};

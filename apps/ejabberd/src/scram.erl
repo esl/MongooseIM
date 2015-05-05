@@ -47,10 +47,13 @@
          iterations/1,
          password_to_scram/1,
          password_to_scram/2,
-         check_password/2
+         check_password/2,
+         check_digest/4
         ]).
 
 -export([serialize/1, deserialize/1]).
+
+-export([scram_to_tuple/1]).
 
 -define(SALT_LENGTH, 16).
 -define(SCRAM_DEFAULT_ITERATION_COUNT, 4096).
@@ -167,6 +170,17 @@ deserialize(Bin) ->
     ?WARNING_MSG("Corrupted serialized SCRAM: ~p, ~p", [Bin]),
     {error, corrupted_scram}.
 
+-spec scram_to_tuple(scram()) -> {binary(), binary(), binary(), non_neg_integer()}.
+scram_to_tuple(Scram) ->
+    {base64:decode(Scram#scram.storedkey),
+     base64:decode(Scram#scram.serverkey),
+     base64:decode(Scram#scram.salt),
+     Scram#scram.iterationcount}.
+
+-spec check_digest(scram(), binary(), fun(), binary()) -> boolean().
+check_digest(#scram{storedkey = StoredKey}, Digest, DigestGen, Password) ->
+    Passwd = base64:decode(StoredKey),
+    ejabberd_auth:check_digest(Digest, DigestGen, Password, Passwd).
 
 -ifdef(no_crypto_hmac).
 crypto_hmac(sha, Key, Data) ->

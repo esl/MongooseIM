@@ -42,7 +42,7 @@
          get_vh_registered_users_number/2,
          get_password/2,
          get_password_s/2,
-         is_user_exists/2,
+         does_user_exist/2,
          remove_user/2,
          remove_user/3,
          store_type/1,
@@ -97,59 +97,44 @@ plain_password_required() ->
 store_type(_) ->
 	external.
 
--spec check_password(User :: ejabberd:user(),
-                     Server :: ejabberd:server(),
+-spec check_password(LUser :: ejabberd:luser(),
+                     LServer :: ejabberd:lserver(),
                      Password :: binary()) -> boolean().
-check_password(User, Server, Password) ->
-    do_check_password(jlib:nodeprep(User), Server, Password).
-
-do_check_password(LUser, Server, Password) ->
-    case get_cache_option(Server) of
-        false -> check_password_extauth(LUser, Server, Password);
-        {true, CacheTime} -> check_password_cache(LUser, Server, Password, CacheTime)
+check_password(LUser, LServer, Password) ->
+    case get_cache_option(LServer) of
+        false -> check_password_extauth(LUser, LServer, Password);
+        {true, CacheTime} -> check_password_cache(LUser, LServer, Password, CacheTime)
     end.
 
 
--spec check_password(User :: ejabberd:user(),
-                     Server :: ejabberd:server(),
+-spec check_password(LUser :: ejabberd:luser(),
+                     LServer :: ejabberd:lserver(),
                      Password :: binary(),
                      Digest :: binary(),
                      DigestGen :: fun()) -> boolean().
-check_password(User, Server, Password, _Digest, _DigestGen) ->
-    check_password(User, Server, Password).
+check_password(LUser, LServer, Password, _Digest, _DigestGen) ->
+    check_password(LUser, LServer, Password).
 
 
--spec set_password(User :: ejabberd:user(),
-                   Server :: ejabberd:server(),
+-spec set_password(LUser :: ejabberd:luser(),
+                   LServer :: ejabberd:lserver(),
                    Password :: binary()) -> ok | {error, not_allowed}.
-set_password(User, Server, Password) ->
-    do_set_password(jlib:nodeprep(User), Server, Password).
-
-do_set_password(LUser, Server, Password) ->
-    case extauth:set_password(LUser, Server, Password) of
-        true -> set_password_internal(LUser, Server, Password),
+set_password(LUser, LServer, Password) ->
+    case extauth:set_password(LUser, LServer, Password) of
+        true -> set_password_internal(LUser, LServer, Password),
                 ok;
         _ -> {error, unknown_problem}
     end.
 
 
--spec try_register(User :: ejabberd:user(),
-                   Server :: ejabberd:server(),
+-spec try_register(LUser :: ejabberd:luser(),
+                   LServer :: ejabberd:lserver(),
                    Password :: binary()
                    ) -> {atomic, ok | exists} | {error, not_allowed}.
-try_register(User, Server, Password) ->
-    do_try_register(jlib:nodeprep(User), Server, Password).
-
--spec do_try_register(User :: error | ejabberd:luser(),
-                      Server :: ejabberd:server(),
-                      Password :: binary()
-                      ) -> {atomic, ok | exists} | {error, not_allowed}.
-do_try_register(error, _, _) ->
-    {error, invalid_jid};
-do_try_register(LUser, Server, Password) ->
-    case get_cache_option(Server) of
-        false -> try_register_extauth(LUser, Server, Password);
-        {true, _CacheTime} -> try_register_external_cache(LUser, Server, Password)
+try_register(LUser, LServer, Password) ->
+    case get_cache_option(LServer) of
+        false -> try_register_extauth(LUser, LServer, Password);
+        {true, _CacheTime} -> try_register_external_cache(LUser, LServer, Password)
     end.
 
 
@@ -158,89 +143,85 @@ dirty_get_registered_users() ->
     ejabberd_auth_internal:dirty_get_registered_users().
 
 
--spec get_vh_registered_users(Server :: ejabberd:server()) -> [ejabberd:simple_jid()].
-get_vh_registered_users(Server) ->
-    ejabberd_auth_internal:get_vh_registered_users(Server).
+-spec get_vh_registered_users(LServer :: ejabberd:lserver()) -> [ejabberd:simple_jid()].
+get_vh_registered_users(LServer) ->
+    ejabberd_auth_internal:get_vh_registered_users(LServer).
 
 
--spec get_vh_registered_users(Server :: ejabberd:server(),
+-spec get_vh_registered_users(LServer :: ejabberd:lserver(),
                               Opts :: list()) -> [ejabberd:simple_jid()].
-get_vh_registered_users(Server, Opts)  ->
-    ejabberd_auth_internal:get_vh_registered_users(Server, Opts).
+get_vh_registered_users(LServer, Opts)  ->
+    ejabberd_auth_internal:get_vh_registered_users(LServer, Opts).
 
 
--spec get_vh_registered_users_number(Server :: ejabberd:server()) -> integer().
-get_vh_registered_users_number(Server) ->
-    ejabberd_auth_internal:get_vh_registered_users_number(Server).
+-spec get_vh_registered_users_number(LServer :: ejabberd:lserver()) -> integer().
+get_vh_registered_users_number(LServer) ->
+    ejabberd_auth_internal:get_vh_registered_users_number(LServer).
 
 
--spec get_vh_registered_users_number(Server :: ejabberd:server(),
+-spec get_vh_registered_users_number(LServer :: ejabberd:lserver(),
                                      Opts :: list()) -> integer().
-get_vh_registered_users_number(Server, Opts) ->
-    ejabberd_auth_internal:get_vh_registered_users_number(Server, Opts).
+get_vh_registered_users_number(LServer, Opts) ->
+    ejabberd_auth_internal:get_vh_registered_users_number(LServer, Opts).
 
 
 %% @doc The password can only be returned if cache is enabled, cached info
 %% exists and is fresh enough.
--spec get_password(User :: ejabberd:user(),
-                   Server :: ejabberd:server()) -> binary() | false.
-get_password(User, Server) ->
-    LUser = jlib:nodeprep(User),
-    case get_cache_option(Server) of
+-spec get_password(LUser :: ejabberd:luser(),
+                   LServer :: ejabberd:lserver()) -> binary() | false.
+get_password(LUser, LServer) ->
+    case get_cache_option(LServer) of
         false -> false;
-        {true, CacheTime} -> get_password_cache(LUser, Server, CacheTime)
+        {true, CacheTime} -> get_password_cache(LUser, LServer, CacheTime)
     end.
 
 
--spec get_password_s(User :: ejabberd:user(),
-                     Server :: ejabberd:server()) -> binary().
-get_password_s(User, Server) ->
-    case get_password(User, Server) of
-        false -> [];
+-spec get_password_s(LUser :: ejabberd:luser(),
+                     LServer :: ejabberd:lserver()) -> binary().
+get_password_s(LUser, LServer) ->
+    case get_password(LUser, LServer) of
+        false -> <<"">>;
         Other -> Other
     end.
 
 
--spec is_user_exists(User :: ejabberd:user(),
-                     Server :: ejabberd:server()) -> boolean() | {error, atom()}.
-is_user_exists(User, Server) ->
-    LUser = jlib:nodeprep(User),
-    try extauth:is_user_exists(LUser, Server) of
+-spec does_user_exist(LUser :: ejabberd:luser(),
+                     LServer :: ejabberd:lserver()) -> boolean() | {error, atom()}.
+does_user_exist(LUser, LServer) ->
+    try extauth:is_user_exists(LUser, LServer) of
         Res -> Res
     catch
         _:Error -> {error, Error}
     end.
 
 
--spec remove_user(User :: ejabberd:user(),
-                  Server :: ejabberd:server()
+-spec remove_user(User :: ejabberd:luser(),
+                  Server :: ejabberd:lserver()
                   ) -> ok | error | {error, not_allowed}.
-remove_user(User, Server) ->
-    LUser = jlib:nodeprep(User),
-    case extauth:remove_user(LUser, Server) of
+remove_user(LUser, LServer) ->
+    case extauth:remove_user(LUser, LServer) of
         false -> false;
         true ->
-            case get_cache_option(Server) of
+            case get_cache_option(LServer) of
                 false -> false;
                 {true, _CacheTime} ->
-                    ejabberd_auth_internal:remove_user(LUser, Server)
+                    ejabberd_auth_internal:remove_user(LUser, LServer)
             end
     end.
 
 
--spec remove_user(User :: ejabberd:user(),
-                  Server :: ejabberd:server(),
+-spec remove_user(LUser :: ejabberd:luser(),
+                  LServer :: ejabberd:lserver(),
                   Password :: binary()
                   ) -> ok | not_exists | not_allowed | bad_request | error.
-remove_user(User, Server, Password) ->
-    LUser = jlib:nodeprep(User),
-    case extauth:remove_user(LUser, Server, Password) of
+remove_user(LUser, LServer, Password) ->
+    case extauth:remove_user(LUser, LServer, Password) of
         false -> false;
         true ->
-            case get_cache_option(Server) of
+            case get_cache_option(LServer) of
                 false -> false;
                 {true, _CacheTime} ->
-                    ejabberd_auth_internal:remove_user(LUser, Server, Password)
+                    ejabberd_auth_internal:remove_user(LUser, LServer, Password)
             end
     end.
 
@@ -248,7 +229,7 @@ remove_user(User, Server, Password) ->
 %%% Extauth cache management
 %%%
 
--spec get_cache_option(Host :: ejabberd:server()
+-spec get_cache_option(Host :: ejabberd:lserver()
                       ) -> false | {true, CacheTime::integer()}.
 get_cache_option(Host) ->
     case ejabberd_config:get_local_option({extauth_cache, Host}) of
@@ -257,64 +238,64 @@ get_cache_option(Host) ->
     end.
 
 
--spec check_password_extauth(User :: ejabberd:user(),
-                             Server :: ejabberd:server(),
+-spec check_password_extauth(LUser :: ejabberd:luser(),
+                             LServer :: ejabberd:lserver(),
                              Password :: binary()) -> boolean().
-check_password_extauth(User, Server, Password) ->
-    extauth:check_password(User, Server, Password) andalso Password /= "".
+check_password_extauth(LUser, LServer, Password) ->
+    extauth:check_password(LUser, LServer, Password) andalso Password /= "".
 
 
--spec try_register_extauth(User :: ejabberd:user(),
-                           Server :: ejabberd:server(),
+-spec try_register_extauth(LUser :: ejabberd:luser(),
+                           LServer :: ejabberd:lserver(),
                            Password :: binary()) -> boolean().
-try_register_extauth(User, Server, Password) ->
-    extauth:try_register(User, Server, Password).
+try_register_extauth(LUser, LServer, Password) ->
+    extauth:try_register(LUser, LServer, Password).
 
 
--spec check_password_cache(User :: ejabberd:user(),
-                           Server :: ejabberd:server(),
+-spec check_password_cache(LUser :: ejabberd:luser(),
+                           LServer :: ejabberd:lserver(),
                            Password :: binary(),
                            CacheTime :: integer()) -> boolean().
-check_password_cache(User, Server, Password, CacheTime) ->
-    case get_last_access(User, Server) of
+check_password_cache(LUser, LServer, Password, CacheTime) ->
+    case get_last_access(LUser, LServer) of
         online ->
-            check_password_internal(User, Server, Password);
+            check_password_internal(LUser, LServer, Password);
         never ->
-            check_password_external_cache(User, Server, Password);
+            check_password_external_cache(LUser, LServer, Password);
         mod_last_required ->
             ?ERROR_MSG("extauth is used, extauth_cache is enabled but mod_last is not enabled in that host", []),
-            check_password_external_cache(User, Server, Password);
+            check_password_external_cache(LUser, LServer, Password);
         TimeStamp ->
             %% If last access exists, compare last access with cache refresh time
             case is_fresh_enough(TimeStamp, CacheTime) of
                 %% If no need to refresh, check password against Mnesia
                 true ->
-                    case check_password_internal(User, Server, Password) of
+                    case check_password_internal(LUser, LServer, Password) of
                         %% If password valid in Mnesia, accept it
                         true ->
                             true;
                         %% Else (password nonvalid in Mnesia), check in extauth and cache result
                         false ->
-                            check_password_external_cache(User, Server, Password)
+                            check_password_external_cache(LUser, LServer, Password)
                     end;
                 %% Else (need to refresh), check in extauth and cache result
                 false ->
-                    check_password_external_cache(User, Server, Password)
+                    check_password_external_cache(LUser, LServer, Password)
             end
     end.
 
 
-get_password_internal(User, Server) ->
-    ejabberd_auth_internal:get_password(User, Server).
+get_password_internal(LUser, LServer) ->
+    ejabberd_auth_internal:get_password(LUser, LServer).
 
 
--spec get_password_cache(User :: ejabberd:user(),
-                         Server :: ejabberd:server(),
+-spec get_password_cache(LUser :: ejabberd:luser(),
+                         LServer :: ejabberd:lserver(),
                          CacheTime :: integer()) -> false | string().
-get_password_cache(User, Server, CacheTime) ->
-    case get_last_access(User, Server) of
+get_password_cache(LUser, LServer, CacheTime) ->
+    case get_last_access(LUser, LServer) of
         online ->
-            get_password_internal(User, Server);
+            get_password_internal(LUser, LServer);
         never ->
             false;
         mod_last_required ->
@@ -323,7 +304,7 @@ get_password_cache(User, Server, CacheTime) ->
         TimeStamp ->
             case is_fresh_enough(TimeStamp, CacheTime) of
                 true ->
-                    get_password_internal(User, Server);
+                    get_password_internal(LUser, LServer);
                 false ->
                     false
             end
@@ -331,37 +312,37 @@ get_password_cache(User, Server, CacheTime) ->
 
 
 %% @doc Check the password using extauth; if success then cache it
-check_password_external_cache(User, Server, Password) ->
-    case check_password_extauth(User, Server, Password) of
+check_password_external_cache(LUser, LServer, Password) ->
+    case check_password_extauth(LUser, LServer, Password) of
         true ->
-            set_password_internal(User, Server, Password), true;
+            set_password_internal(LUser, LServer, Password), true;
         false ->
             false
     end.
 
 
 %% @doc Try to register using extauth; if success then cache it
-try_register_external_cache(User, Server, Password) ->
-    case try_register_extauth(User, Server, Password) of
-        {atomic, ok} = R ->
-            set_password_internal(User, Server, Password),
+try_register_external_cache(LUser, LServer, Password) ->
+    case try_register_extauth(LUser, LServer, Password) of
+        ok = R ->
+            set_password_internal(LUser, LServer, Password),
             R;
         _ -> {error, not_allowed}
     end.
 
 
--spec check_password_internal(User :: ejabberd:user(),
-                              Server :: ejabberd:server(),
+-spec check_password_internal(LUser :: ejabberd:luser(),
+                              LServer :: ejabberd:lserver(),
                               Password :: binary()) -> boolean().
-check_password_internal(User, Server, Password) ->
-    ejabberd_auth_internal:check_password(User, Server, Password).
+check_password_internal(LUser, LServer, Password) ->
+    ejabberd_auth_internal:check_password(LUser, LServer, Password).
 
 
--spec set_password_internal(User :: ejabberd:user(),
-                            Server :: ejabberd:server(),
+-spec set_password_internal(LUser :: ejabberd:luser(),
+                            LServer :: ejabberd:lserver(),
                             Password :: binary()) -> ok | {error, invalid_jid}.
-set_password_internal(User, Server, Password) ->
-    ejabberd_auth_internal:set_password(User, Server, Password).
+set_password_internal(LUser, LServer, Password) ->
+    ejabberd_auth_internal:set_password(LUser, LServer, Password).
 
 
 -spec is_fresh_enough(TimeLast :: online | never | integer(),

@@ -49,7 +49,7 @@
 	 get_vh_registered_users/1,
 	 get_password/2,
 	 get_password/3,
-	 is_user_exists/2,
+	 does_user_exist/2,
 	 remove_user/2,
 	 remove_user/3,
 	 store_type/1,
@@ -90,14 +90,14 @@ stop(Host) ->
 
 
 %% @doc Return true if anonymous is allowed for host or false otherwise
--spec allow_anonymous(Host :: ejabberd:server()) -> boolean().
+-spec allow_anonymous(Host :: ejabberd:lserver()) -> boolean().
 allow_anonymous(Host) ->
     lists:member(?MODULE, ejabberd_auth:auth_modules(Host)).
 
 
 %% @doc Return true if anonymous mode is enabled and if anonymous protocol is
 %% SASL anonymous protocol can be: sasl_anon|login_anon|both
--spec is_sasl_anonymous_enabled(Host :: ejabberd:server()) -> boolean().
+-spec is_sasl_anonymous_enabled(Host :: ejabberd:lserver()) -> boolean().
 is_sasl_anonymous_enabled(Host) ->
     case allow_anonymous(Host) of
         false -> false;
@@ -113,7 +113,7 @@ is_sasl_anonymous_enabled(Host) ->
 %% @doc Return true if anonymous login is enabled on the server
 %% anonymous login can be use using standard authentication method (i.e. with
 %% clients that do not support anonymous login)
--spec is_login_anonymous_enabled(Host :: ejabberd:server()) -> boolean().
+-spec is_login_anonymous_enabled(Host :: ejabberd:lserver()) -> boolean().
 is_login_anonymous_enabled(Host) ->
     case allow_anonymous(Host) of
         false -> false;
@@ -128,7 +128,7 @@ is_login_anonymous_enabled(Host) ->
 
 %% @doc Return the anonymous protocol to use: sasl_anon|login_anon|both
 %% defaults to login_anon
--spec anonymous_protocol(Host :: ejabberd:server()) ->
+-spec anonymous_protocol(Host :: ejabberd:lserver()) ->
                                       'both' | 'login_anon' | 'sasl_anon'.
 anonymous_protocol(Host) ->
     case ejabberd_config:get_local_option({anonymous_protocol, Host}) of
@@ -141,17 +141,15 @@ anonymous_protocol(Host) ->
 
 %% @doc Return true if multiple connections have been allowed in the config file
 %% defaults to false
--spec allow_multiple_connections(Host :: ejabberd:server()) -> boolean().
+-spec allow_multiple_connections(Host :: ejabberd:lserver()) -> boolean().
 allow_multiple_connections(Host) ->
     ejabberd_config:get_local_option({allow_multiple_connections, Host}) =:= true.
 
 
 %% @doc Check if user exist in the anonymus database
--spec anonymous_user_exist(User :: ejabberd:user(),
-                           Server :: ejabberd:server()) -> boolean().
-anonymous_user_exist(User, Server) ->
-    LUser = jlib:nodeprep(User),
-    LServer = jlib:nameprep(Server),
+-spec anonymous_user_exist(LUser :: ejabberd:luser(),
+                           LServer :: ejabberd:lserver()) -> boolean().
+anonymous_user_exist(LUser, LServer) ->
     US = {LUser, LServer},
     case catch mnesia:dirty_read({anonymous, US}) of
         [] ->
@@ -215,35 +213,35 @@ purge_hook(true, LUser, LServer) ->
 
 %% @doc When anonymous login is enabled, check the password for permenant users
 %% before allowing access
--spec check_password(User :: ejabberd:user(),
-                     Server :: ejabberd:server(),
+-spec check_password(LUser :: ejabberd:luser(),
+                     LServer :: ejabberd:lserver(),
                      Password :: binary()) -> boolean().
-check_password(User, Server, Password) ->
-    check_password(User, Server, Password, undefined, undefined).
-check_password(User, Server, _Password, _Digest, _DigestGen) ->
+check_password(LUser, LServer, Password) ->
+    check_password(LUser, LServer, Password, undefined, undefined).
+check_password(LUser, LServer, _Password, _Digest, _DigestGen) ->
     %% We refuse login for registered accounts (They cannot logged but
     %% they however are "reserved")
     case ejabberd_auth:is_user_exists_in_other_modules(?MODULE,
-                                                       User, Server) of
+                                                       LUser, LServer) of
         %% If user exists in other module, reject anonnymous authentication
         true  -> false;
         %% If we are not sure whether the user exists in other module, reject anon auth
         maybe  -> false;
-        false -> login(User, Server)
+        false -> login(LUser, LServer)
     end.
 
 
--spec login(User :: ejabberd:user(),
-            Server :: ejabberd:server()) -> boolean().
-login(User, Server) ->
-    case is_login_anonymous_enabled(Server) of
+-spec login(LUser :: ejabberd:luser(),
+            LServer :: ejabberd:lserver()) -> boolean().
+login(LUser, LServer) ->
+    case is_login_anonymous_enabled(LServer) of
         false -> false;
         true  ->
-            case anonymous_user_exist(User, Server) of
+            case anonymous_user_exist(LUser, LServer) of
                 %% Reject the login if an anonymous user with the same login
                 %% is already logged and if multiple login has not been enable
                 %% in the config file.
-                true  -> allow_multiple_connections(Server);
+                true  -> allow_multiple_connections(LServer);
                 %% Accept login and add user to the anonymous table
                 false -> true
             end
@@ -252,11 +250,11 @@ login(User, Server) ->
 
 %% @doc When anonymous login is enabled, check that the user is permanent before
 %% changing its password
--spec set_password(User :: ejabberd:user(),
-                   Server :: ejabberd:server(),
+-spec set_password(LUser :: ejabberd:luser(),
+                   LServer :: ejabberd:lserver(),
                    Password :: binary()) -> ok | {error, not_allowed}.
-set_password(User, Server, _Password) ->
-    case anonymous_user_exist(User, Server) of
+set_password(LUser, LServer, _Password) ->
+    case anonymous_user_exist(LUser, LServer) of
         true ->
             ok;
         false ->
@@ -265,37 +263,37 @@ set_password(User, Server, _Password) ->
 
 %% @doc When anonymous login is enabled, check if permanent users are allowed on
 %% the server:
--spec try_register(User :: ejabberd:user(),
-                   Server :: ejabberd:server(),
+-spec try_register(LUser :: ejabberd:luser(),
+                   LServer :: ejabberd:lserver(),
                    Password :: binary()) -> {error, not_allowed}.
-try_register(_User, _Server, _Password) ->
+try_register(_LUser, _LServer, _Password) ->
     {error, not_allowed}.
 
 -spec dirty_get_registered_users() -> [].
 dirty_get_registered_users() ->
     [].
 
--spec get_vh_registered_users(Server :: ejabberd:server()
+-spec get_vh_registered_users(LServer :: ejabberd:lserver()
                              ) -> [ejabberd:simple_jid()].
-get_vh_registered_users(Server) ->
-    [{U, S} || {{U, S, _R}, _, _, _} <- ejabberd_sm:get_vh_session_list(Server)].
+get_vh_registered_users(LServer) ->
+    [{U, S} || {{U, S, _R}, _, _, _} <- ejabberd_sm:get_vh_session_list(LServer)].
 
-get_vh_registered_users(Server, _Opts) ->
-  get_vh_registered_users(Server).
+get_vh_registered_users(LServer, _Opts) ->
+  get_vh_registered_users(LServer).
 
 
 %% @doc Return password of permanent user or false for anonymous users
--spec get_password(User :: ejabberd:user(),
-                   Server :: ejabberd:server()) -> binary() | false.
-get_password(User, Server) ->
-    get_password(User, Server, "").
+-spec get_password(LUser :: ejabberd:luser(),
+                   LServer :: ejabberd:lserver()) -> binary() | false.
+get_password(LUser, LServer) ->
+    get_password(LUser, LServer, "").
 
 
--spec get_password(User :: ejabberd:user(),
-                   Server :: ejabberd:server(),
+-spec get_password(LUser :: ejabberd:luser(),
+                   LServer :: ejabberd:lserver(),
                    DefaultValue :: binary()) -> binary() | false.
-get_password(User, Server, DefaultValue) ->
-    case anonymous_user_exist(User, Server) or login(User, Server) of
+get_password(LUser, LServer, DefaultValue) ->
+    case anonymous_user_exist(LUser, LServer) or login(LUser, LServer) of
         %% We return the default value if the user is anonymous
         true ->
             DefaultValue;
@@ -307,22 +305,22 @@ get_password(User, Server, DefaultValue) ->
 
 %% @doc Returns true if the user exists in the DB or if an anonymous user is
 %% logged under the given name
--spec is_user_exists(User :: ejabberd:user(),
-                     Server :: ejabberd:server()) -> boolean().
-is_user_exists(User, Server) ->
-    anonymous_user_exist(User, Server).
+-spec does_user_exist(LUser :: ejabberd:luser(),
+                     LServer :: ejabberd:lserver()) -> boolean().
+does_user_exist(LUser, LServer) ->
+    anonymous_user_exist(LUser, LServer).
 
 
--spec remove_user(User :: ejabberd:user(),
-                  Server :: ejabberd:server()) -> {error, not_allowed}.
-remove_user(_User, _Server) ->
+-spec remove_user(LUser :: ejabberd:luser(),
+                  LServer :: ejabberd:lserver()) -> {error, not_allowed}.
+remove_user(_LUser, _LServer) ->
     {error, not_allowed}.
 
 
--spec remove_user(User :: ejabberd:user(),
-                  Server :: ejabberd:server(),
+-spec remove_user(LUser :: ejabberd:luser(),
+                  LServer :: ejabberd:lserver(),
                   Password :: binary()) -> 'not_allowed'.
-remove_user(_User, _Server, _Password) ->
+remove_user(_LUser, _LServer, _Password) ->
     not_allowed.
 
 
@@ -333,9 +331,9 @@ plain_password_required() ->
 store_type(_) ->
     plain.
 
-get_vh_registered_users_number(_Server) -> 0.
+get_vh_registered_users_number(_LServer) -> 0.
 
-get_vh_registered_users_number(_Server, _Opts) -> 0.
+get_vh_registered_users_number(_LServer, _Opts) -> 0.
 
 %% @doc gen_auth unimplemented callbacks
-get_password_s(_User, _Server) -> erlang:error(not_implemented).
+get_password_s(_LUser, _LServer) -> erlang:error(not_implemented).

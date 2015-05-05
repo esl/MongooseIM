@@ -42,7 +42,7 @@
          get_vh_registered_users_number/2,
          get_password/2,
          get_password_s/2,
-         is_user_exists/2,
+         does_user_exist/2,
          remove_user/2,
          remove_user/3,
          store_type/1,
@@ -77,59 +77,46 @@ store_type(Server) ->
         true -> scram
     end.
 
--spec check_password(User :: ejabberd:user(),
-                     Server :: ejabberd:server(),
+-spec check_password(LUser :: ejabberd:luser(),
+                     LServer :: ejabberd:lserver(),
                      Password :: binary()) -> boolean().
-check_password(User, Server, Password) ->
-    case jlib:nodeprep(User) of
-	error ->
-	    false;
-	LUser ->
-	    Username = ejabberd_odbc:escape(LUser),
-	    LServer = jlib:nameprep(Server),
-	    check_password_wo_escape(Username, LServer, Password)
-    end.
+check_password(LUser, LServer, Password) ->
+    Username = ejabberd_odbc:escape(LUser),
+    check_password_wo_escape(Username, LServer, Password).
 
 
--spec check_password(User :: ejabberd:user(),
-                     Server :: ejabberd:server(),
+-spec check_password(LUser :: ejabberd:luser(),
+                     LServer :: ejabberd:lserver(),
                      Password :: binary(),
                      Digest :: binary(),
                      DigestGen :: fun()) -> boolean().
-check_password(User, Server, Password, Digest, DigestGen) ->
-    case jlib:nodeprep(User) of
-        error ->
-            false;
-        LUser ->
-            Username = ejabberd_odbc:escape(LUser),
-            LServer = jlib:nameprep(Server),
-            try odbc_queries:get_password(LServer, Username) of
-                %% Account exists, check if password is valid
-                {selected, [<<"password">>, <<"pass_details">>], [{Passwd, null}]} ->
-                    ejabberd_auth:check_digest(Digest, DigestGen, Password, Passwd);
-                {selected, [<<"password">>, <<"pass_details">>], [{_Passwd, PassDetails}]} ->
-                    case scram:deserialize(PassDetails) of
-                        #scram{storedkey = StoredKey} ->
-                            Passwd = base64:decode(StoredKey),
-                            ejabberd_auth:check_digest(Digest, DigestGen, Password, Passwd);
-                        _ ->
-                            false
-                    end;
-                {selected, [<<"password">>, <<"pass_details">>], []} ->
-                    false; %% Account does not exist
-                {error, _Error} ->
-                    false %% Typical error is that table doesn't exist
-            catch
-                _:_ ->
-                    false %% Typical error is database not accessible
-            end
+check_password(LUser, LServer, Password, Digest, DigestGen) ->
+    Username = ejabberd_odbc:escape(LUser),
+    try odbc_queries:get_password(LServer, Username) of
+        %% Account exists, check if password is valid
+        {selected, [<<"password">>, <<"pass_details">>], [{Passwd, null}]} ->
+            ejabberd_auth:check_digest(Digest, DigestGen, Password, Passwd);
+        {selected, [<<"password">>, <<"pass_details">>], [{_Passwd, PassDetails}]} ->
+            case scram:deserialize(PassDetails) of
+                #scram{} = Scram ->
+                    scram:check_digest(Scram, Digest, DigestGen, Password);
+                _ ->
+                    false
+            end;
+        {selected, [<<"password">>, <<"pass_details">>], []} ->
+            false; %% Account does not exist
+        {error, _Error} ->
+            false %% Typical error is that table doesn't exist
+    catch
+        _:_ ->
+            false %% Typical error is database not accessible
     end.
 
--spec check_password_wo_escape(User::ejabberd:user(),
-                               Server::ejabberd:server(),
+-spec check_password_wo_escape(LUser::ejabberd:luser(),
+                               LServer::ejabberd:lserver(),
                                Password::binary()) -> boolean() | not_exists.
-check_password_wo_escape(User, Server, Password) ->
-    try odbc_queries:get_password(Server, User) of
+check_password_wo_escape(LUser, LServer, Password) ->
+    try odbc_queries:get_password(LServer, LUser) of
         {selected, [<<"password">>, <<"pass_details">>], [{Password, null}]} ->
             Password /= <<"">>; %% Password is correct, and not empty
         {selected, [<<"password">>, <<"pass_details">>], [{_Password2, null}]} ->
@@ -151,56 +138,43 @@ check_password_wo_escape(User, Server, Password) ->
     end.
 
 
--spec set_password(User :: ejabberd:user(),
-                   Server :: ejabberd:server(),
+-spec set_password(LUser :: ejabberd:luser(),
+                   LServer :: ejabberd:lserver(),
                    Password :: binary()
                    ) -> ok | {error, not_allowed | invalid_jid}.
-set_password(User, Server, Password) ->
-    case jlib:nodeprep(User) of
-        error ->
-            {error, invalid_jid};
-        LUser ->
-            Username = ejabberd_odbc:escape(LUser),
-            LServer = jlib:nameprep(Server),
-            case prepare_password(Server, Password) of
-                false ->
-                    {error, invalid_password};
-                Pass ->
-                    case catch odbc_queries:set_password_t(LServer, Username, Pass) of
-                        {atomic, ok} ->
-                            ok;
-                        Other ->
-                            {error, Other}
-                    end
+set_password(LUser, LServer, Password) ->
+    Username = ejabberd_odbc:escape(LUser),
+    case prepare_password(LServer, Password) of
+        false ->
+            {error, invalid_password};
+        Pass ->
+            case catch odbc_queries:set_password_t(LServer, Username, Pass) of
+                {atomic, ok} ->
+                    ok;
+                Other ->
+                    {error, Other}
             end
     end.
 
 
--spec try_register(User :: ejabberd:user(),
-                   Server :: ejabberd:server(),
+-spec try_register(LUser :: ejabberd:luser(),
+                   LServer :: ejabberd:lserver(),
                    Password :: binary()
                    ) -> {atomic, ok | exists}
                       | {error, invalid_jid | not_allowed} | {aborted, _}.
-try_register(User, Server, Password) ->
-    case jlib:nodeprep(User) of
-        error ->
-            {error, invalid_jid};
-        LUser ->
-            Username = ejabberd_odbc:escape(LUser),
-            case prepare_password(Server, Password) of
-                false ->
-                    {error, invalid_password};
-                Pass ->
-                    LServer = jlib:nameprep(Server),
-                    case catch odbc_queries:add_user(LServer, Username, Pass) of
-                        {updated, 1} ->
-                            {atomic, ok};
-                        _ ->
-                            {atomic, exists}
-                    end
+try_register(LUser, LServer, Password) ->
+    Username = ejabberd_odbc:escape(LUser),
+    case prepare_password(LServer, Password) of
+        false ->
+            {error, invalid_password};
+        Pass ->
+            case catch odbc_queries:add_user(LServer, Username, Pass) of
+                {updated, 1} ->
+                    ok;
+                _ ->
+                    {error, exists}
             end
     end.
-
 
 -spec dirty_get_registered_users() -> [ejabberd:simple_jid()].
 dirty_get_registered_users() ->
@@ -211,10 +185,9 @@ dirty_get_registered_users() ->
       end, Servers).
 
 
--spec get_vh_registered_users(Server :: ejabberd:server()
+-spec get_vh_registered_users(LServer :: ejabberd:lserver()
                              ) -> [ejabberd:simple_jid()].
-get_vh_registered_users(Server) ->
-    LServer = jlib:nameprep(Server),
+get_vh_registered_users(LServer) ->
     case catch odbc_queries:list_users(LServer) of
         {selected, [<<"username">>], Res} ->
             [{U, LServer} || {U} <- Res];
@@ -223,10 +196,9 @@ get_vh_registered_users(Server) ->
     end.
 
 
--spec get_vh_registered_users(Server :: ejabberd:server(), Opts :: list()
+-spec get_vh_registered_users(LServer :: ejabberd:lserver(), Opts :: list()
                              ) -> [ejabberd:simple_jid()].
-get_vh_registered_users(Server, Opts) ->
-    LServer = jlib:nameprep(Server),
+get_vh_registered_users(LServer, Opts) ->
     case catch odbc_queries:list_users(LServer, Opts) of
         {selected, [<<"username">>], Res} ->
             [{U, LServer} || {U} <- Res];
@@ -235,10 +207,9 @@ get_vh_registered_users(Server, Opts) ->
     end.
 
 
--spec get_vh_registered_users_number(Server :: ejabberd:server()
+-spec get_vh_registered_users_number(LServer :: ejabberd:lserver()
                                     ) -> integer().
-get_vh_registered_users_number(Server) ->
-    LServer = jlib:nameprep(Server),
+get_vh_registered_users_number(LServer) ->
     case catch odbc_queries:users_number(LServer) of
         {selected, [_], [{Res}]} ->
             list_to_integer(binary_to_list(Res));
@@ -247,10 +218,9 @@ get_vh_registered_users_number(Server) ->
     end.
 
 
--spec get_vh_registered_users_number(Server :: ejabberd:server(),
+-spec get_vh_registered_users_number(LServer :: ejabberd:lserver(),
                                      Opts :: list()) -> integer().
-get_vh_registered_users_number(Server, Opts) ->
-    LServer = jlib:nameprep(Server),
+get_vh_registered_users_number(LServer, Opts) ->
     case catch odbc_queries:users_number(LServer, Opts) of
         {selected, [_], [{Res}]} ->
             list_to_integer(Res);
@@ -259,117 +229,84 @@ get_vh_registered_users_number(Server, Opts) ->
     end.
 
 
--spec get_password(User :: ejabberd:user(),
-                   Server :: ejabberd:server()) -> binary() | false.
-get_password(User, Server) ->
-    case jlib:nodeprep(User) of
-        error ->
-            false;
-        LUser ->
-            Username = ejabberd_odbc:escape(LUser),
-            LServer = jlib:nameprep(Server),
-            case catch odbc_queries:get_password(LServer, Username) of
-                {selected, [<<"password">>, <<"pass_details">>], [{Password, null}]} ->
-                    Password; %%Plain password
-                {selected, [<<"password">>, <<"pass_details">>], [{_Password, PassDetails}]} ->
-                    case scram:deserialize(PassDetails) of
-                        {ok, Scram} ->
-                            {base64:decode(Scram#scram.storedkey),
-                             base64:decode(Scram#scram.serverkey),
-                             base64:decode(Scram#scram.salt),
-                             Scram#scram.iterationcount};
-                        _ ->
-                            false
-                    end;
+-spec get_password(User :: ejabberd:luser(),
+                   Server :: ejabberd:lserver()) -> binary() | false.
+get_password(LUser, LServer) ->
+    Username = ejabberd_odbc:escape(LUser),
+    case catch odbc_queries:get_password(LServer, Username) of
+        {selected, [<<"password">>, <<"pass_details">>], [{Password, null}]} ->
+            Password; %%Plain password
+        {selected, [<<"password">>, <<"pass_details">>], [{_Password, PassDetails}]} ->
+            case scram:deserialize(PassDetails) of
+                {ok, Scram} ->
+                    scram:scram_to_tuple(Scram);
                 _ ->
                     false
-            end
+            end;
+        _ ->
+            false
     end.
 
 
--spec get_password_s(User :: ejabberd:user(),
-                     Server :: ejabberd:server()) -> binary().
-get_password_s(User, Server) ->
-    case jlib:nodeprep(User) of
-        error ->
-            <<"">>;
-        LUser ->
-            Username = ejabberd_odbc:escape(LUser),
-            LServer = jlib:nameprep(Server),
-            case catch odbc_queries:get_password(LServer, Username) of
-                {selected, [<<"password">>, <<"pass_details">>], [{Password, _}]} ->
-                    Password;
-                _ ->
-                    <<"">>
-            end
+-spec get_password_s(LUser :: ejabberd:user(),
+                     LServer :: ejabberd:server()) -> binary().
+get_password_s(LUser, LServer) ->
+    Username = ejabberd_odbc:escape(LUser),
+    case catch odbc_queries:get_password(LServer, Username) of
+        {selected, [<<"password">>, <<"pass_details">>], [{Password, _}]} ->
+            Password;
+        _ ->
+            <<"">>
     end.
 
 
--spec is_user_exists(User :: ejabberd:user(),
-                     Server :: ejabberd:server()
+-spec does_user_exist(LUser :: ejabberd:luser(),
+                     LServer :: ejabberd:lserver()
                     ) -> boolean() | {error, atom()}.
-is_user_exists(User, Server) ->
-    case jlib:nodeprep(User) of
-        error ->
-            false;
-        LUser ->
-            Username = ejabberd_odbc:escape(LUser),
-            LServer = jlib:nameprep(Server),
-            try odbc_queries:get_password(LServer, Username) of
-                {selected, [<<"password">>, <<"pass_details">>], [{_Password, _}]} ->
-                    true; %% Account exists
-                {selected, [<<"password">>, <<"pass_details">>], []} ->
-                    false; %% Account does not exist
-                {error, Error} ->
-                    {error, Error} %% Typical error is that table doesn't exist
-            catch
-                _:B ->
-                    {error, B} %% Typical error is database not accessible
-            end
+does_user_exist(LUser, LServer) ->
+    Username = ejabberd_odbc:escape(LUser),
+    try odbc_queries:get_password(LServer, Username) of
+        {selected, [<<"password">>, <<"pass_details">>], [{_Password, _}]} ->
+            true; %% Account exists
+        {selected, [<<"password">>, <<"pass_details">>], []} ->
+            false; %% Account does not exist
+        {error, Error} ->
+            {error, Error} %% Typical error is that table doesn't exist
+    catch
+        _:B ->
+            {error, B} %% Typical error is database not accessible
     end.
 
 
 %% @doc Remove user.
 %% Note: it may return ok even if there was some problem removing the user.
--spec remove_user(User :: ejabberd:user(),
-                  Server :: ejabberd:server()
+-spec remove_user(LUser :: ejabberd:luser(),
+                  LServer :: ejabberd:lserver()
                   ) -> ok | error | {error, not_allowed}.
-remove_user(User, Server) ->
-    case jlib:nodeprep(User) of
-        error ->
-            error;
-        LUser ->
-            Username = ejabberd_odbc:escape(LUser),
-            LServer = jlib:nameprep(Server),
-            catch odbc_queries:del_user(LServer, Username),
-            ok
-    end.
+remove_user(LUser, LServer) ->
+    Username = ejabberd_odbc:escape(LUser),
+    catch odbc_queries:del_user(LServer, Username),
+    ok.
 
 
 %% @doc Remove user if the provided password is correct.
--spec remove_user(User :: ejabberd:user(),
-                  Server :: ejabberd:server(),
+-spec remove_user(LUser :: ejabberd:luser(),
+                  LServer :: ejabberd:lserver(),
                   Password :: binary()
                  ) -> ok | not_exists | not_allowed | bad_request | error.
-remove_user(User, Server, Password) ->
-    case jlib:nodeprep(User) of
-        error ->
-            error;
-        LUser ->
-            Username = ejabberd_odbc:escape(LUser),
-            Pass = ejabberd_odbc:escape(Password),
-            LServer = jlib:nameprep(Server),
-            case check_password_wo_escape(Username, LServer, Pass) of
-                true ->
-                    case catch odbc_queries:del_user(LServer, Username) of
-                        {'EXIT', _} -> error;
-                        _ -> ok
-                    end;
-                not_exists ->
-                    not_exists;
-                false ->
-                    not_allowed
-            end
+remove_user(LUser, LServer, Password) ->
+    Username = ejabberd_odbc:escape(LUser),
+    Pass = ejabberd_odbc:escape(Password),
+    case check_password_wo_escape(Username, LServer, Pass) of
+        true ->
+            case catch odbc_queries:del_user(LServer, Username) of
+                {'EXIT', _} -> error;
+                _ -> ok
+            end;
+        not_exists ->
+            not_exists;
+        false ->
+            not_allowed
     end.
 
 %%%------------------------------------------------------------------
