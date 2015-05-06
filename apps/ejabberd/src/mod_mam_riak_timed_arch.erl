@@ -36,9 +36,8 @@
 -export([key/3]).
 
 %% For tests only
--export([create_obj/4, fold_archive/3, bucket_key_filters/4, bucket/1]).
+-export([create_obj/4, read_archive/7, bucket_key_filters/4, bucket/1, get_message/3]).
 
--define(BARE_JID(JID), jlib:jid_to_binary(jlib:jid_remove_resource(jlib:jid_to_lower(JID)))).
 
 start(Host, Opts) ->
     start_chat_archive(Host, Opts).
@@ -137,9 +136,9 @@ bucket(Date) ->
     <<"mam_",YearBin/binary, "_", WeekNumBin/binary>>.
 
 archive_message(_, _, MessID, _ArchiveID, LocJID, RemJID, SrcJID, Dir, Packet) ->
-    LocalJID = ?BARE_JID(LocJID),
-    RemoteJID = ?BARE_JID(RemJID),
-    SourceJID = ?BARE_JID(SrcJID),
+    LocalJID = bare_jid(LocJID),
+    RemoteJID = bare_jid(RemJID),
+    SourceJID = bare_jid(SrcJID),
     MsgId = integer_to_binary(MessID),
     Key = key(LocalJID, RemoteJID, MsgId),
     Obj = create_obj(MessID, Key, SourceJID, Packet),
@@ -151,23 +150,14 @@ create_obj(MsgId, Key, SourceJID, Packet) ->
     {MsgDate, _} = calendar:now_to_datetime(MsgNow),
     riakc_obj:new(bucket(MsgDate), Key, encode_riak_obj(SourceJID, Packet)).
 
-lookup_messages(_Result, _Host, _ArchiveID, ArchiveJID, _RSM, _Borders, Start, End,
+lookup_messages(_Result, Host, _ArchiveID, ArchiveJID, _RSM, _Borders, Start, End,
                 _Now, WithJID, _PageSize, LimitPassed, MaxResultLimit, _IsSimple) ->
-    OwnerJID = ?BARE_JID(ArchiveJID),
+    OwnerJID = bare_jid(ArchiveJID),
+    RemoteJID = bare_jid(WithJID),
+    F = fun get_message/3,
+    MaxBuckets = gen_mod:get_module_opt(Host, ?MODULE, archive_size, 53),
+    {TotalCount, Result} = read_archive(OwnerJID, RemoteJID, Start, End, MaxResultLimit, MaxBuckets, F),
 
-    F = fun(Bucket, Key, {Cnt, Msgs} = Acc) ->
-        case mongoose_riak:get(Bucket, Key) of
-            {ok, Obj} ->
-                {SourceJID, Packet} = decode_riak_obj(riakc_obj:get_value(Obj)),
-                [_, _, MsgId] = decode_key(Key),
-                %% increment count and add message to the list
-                {Cnt + 1, [{binary_to_integer(MsgId), jlib:binary_to_jid(SourceJID), Packet} | Msgs]};
-            _ ->
-                Acc
-        end
-    end,
-    KeyFilters = bucket_key_filters(OwnerJID, WithJID, Start, End),
-    {TotalCount, Result} = fold_archive(F, KeyFilters, {0, []}),
     SortFun = fun({MsgId1, _, _}, {MsgId2, _, _}) ->
         MsgId1 =< MsgId2
     end,
@@ -180,17 +170,27 @@ lookup_messages(_Result, _Host, _ArchiveID, ArchiveJID, _RSM, _Borders, Start, E
             {ok, {TotalCount, Offset, SortedResult}}
      end.
 
+get_message(Bucket, Key, {Cnt, Msgs} = Acc) ->
+    case mongoose_riak:get(Bucket, Key) of
+        {ok, Obj} ->
+            {SourceJID, Packet} = decode_riak_obj(riakc_obj:get_value(Obj)),
+            [_, _, MsgId] = decode_key(Key),
+            %% increment count and add message to the list
+            {Cnt + 1, [{binary_to_integer(MsgId), jlib:binary_to_jid(SourceJID), Packet} | Msgs]};
+        _ ->
+            Acc
+    end.
 
 remove_archive(_Host, _ArchiveID, ArchiveJID) ->
-    fold_archive(fun delete_key_fun/3, bucket_key_filters(?BARE_JID(ArchiveJID)), undefined).
+    fold_archive(fun delete_key_fun/3, bucket_key_filters(bare_jid(ArchiveJID)), undefined).
 
 purge_single_message(_Result, _Host, MessID, _ArchiveID, ArchiveJID, _Now) ->
-    ArchiveJIDBin = ?BARE_JID(ArchiveJID),
+    ArchiveJIDBin = bare_jid(ArchiveJID),
     KeyFilters = bucket_key_filters(ArchiveJIDBin, MessID),
     fold_archive(fun delete_key_fun/3, KeyFilters, undefined).
 
 purge_multiple_messages(_Result, _Host, _ArchiveID, ArchiveJID, _Borders, Start, End, _Now, WithJID) ->
-    ArchiveJIDBin = ?BARE_JID(ArchiveJID),
+    ArchiveJIDBin = bare_jid(ArchiveJID),
     KeyFilters = bucket_key_filters(ArchiveJIDBin, WithJID, Start, End),
     fold_archive(fun delete_key_fun/3, KeyFilters, undefined).
 
@@ -203,6 +203,36 @@ key(LocalJID, RemoteJID, MsgId) ->
 
 decode_key(KeyBinary) ->
     binary:split(KeyBinary, <<"/">>, [global]).
+
+-spec read_archive(binary(),
+                   binary() | undefined,
+                   term(),
+                   term(),
+                   integer() | undefined,
+                   integer(),
+                   fun()) ->
+    {integer(), list()} | {error, term()}.
+read_archive(OwnerJID, WithJID, Start, End, MaxResults, MaxBuckets, Fun) ->
+    OldestYearWeek = get_oldest_year_week(Start, MaxBuckets),
+    NewestYearWeek = get_newest_year_week(End, MaxBuckets),
+    do_read_archive(OldestYearWeek, NewestYearWeek, {0, []},
+                    {OwnerJID, WithJID, Start, End, MaxResults, Fun}).
+
+do_read_archive(OldestYearWeek, CurrentYearWeek, Acc, _)
+    when CurrentYearWeek < OldestYearWeek ->
+    Acc;
+do_read_archive(OldestYearWeek, CurrentYearWeek, Acc,
+                {OwnerJID, WithJID, Start, End, MaxResults, Fun} = Spec) ->
+    KeyFilters = bucket_key_filters(OwnerJID, WithJID, Start, End),
+    {Cnt, _ } = NewAcc = fold_archive(Fun, KeyFilters, Acc),
+    case Cnt < MaxResults of
+        true ->
+            PrevWeek = prev_week(CurrentYearWeek),
+            do_read_archive(OldestYearWeek, PrevWeek, NewAcc, Spec);
+        _ ->
+            NewAcc
+    end.
+
 
 fold_archive(Fun, KeyFilters, InitialAcc) ->
     Client = mongoose_riak:get_worker(),
@@ -243,8 +273,7 @@ key_filters(Jid) ->
 key_filters(LocalJid, undefined) ->
     key_filters(LocalJid);
 key_filters(LocalJid, RemoteJid) ->
-    RemoteJidBin = ?BARE_JID(RemoteJid),
-    [[<<"starts_with">>, <<LocalJid/binary, $/, RemoteJidBin/binary>>]].
+    [[<<"starts_with">>, <<LocalJid/binary, $/, RemoteJid/binary>>]].
 
 key_filters(LocalJid, RemoteJid, Start, End) ->
     JidFilter = key_filters(LocalJid, RemoteJid),
@@ -271,3 +300,35 @@ encode_riak_obj(SourceJID, Packet) ->
 
 decode_riak_obj(Binary) ->
     binary_to_term(Binary).
+
+bare_jid(undefined) -> undefined;
+bare_jid(JID) ->
+    jlib:jid_to_binary(jlib:jid_remove_resource(jlib:jid_to_lower(JID))).
+
+get_oldest_year_week(undefined, MaxBuckets) ->
+    {Date, _} = calendar:local_time(),
+    CurrentDays = calendar:date_to_gregorian_days(Date),
+    OldestDay = CurrentDays - 7 * (MaxBuckets - 1),
+    OldestDate = calendar:gregorian_days_to_date(OldestDay),
+    calendar:iso_week_number(OldestDate);
+get_oldest_year_week(Start, MaxBuckets) ->
+    {Date, _} = mod_mam_utils:microseconds_to_datetime(Start),
+    OldestByStart = calendar:iso_week_number(Date),
+    OldestByConfig = get_oldest_year_week(undefined, MaxBuckets),
+    erlang:max(OldestByStart, OldestByConfig).
+
+get_newest_year_week(undefined, _) ->
+    {Date, _} = calendar:local_time(),
+    calendar:iso_week_number(Date);
+get_newest_year_week(Microsec, MaxBuckets) when is_integer(Microsec) ->
+    {Date, _} = calendar:now_to_datetime(Microsec),
+    OldestByConfig = get_oldest_year_week(undefined, MaxBuckets),
+    YearWeekByEnd = calendar:iso_week_number(Date),
+    erlang:max(OldestByConfig, YearWeekByEnd).
+
+prev_week({Year, 1}) ->
+    FirstYearWeekDays = calendar:date_to_gregorian_days({Year, 1, 1}),
+    LastYearWeekPrevYearDays = FirstYearWeekDays - 7,
+    calendar:iso_week_number(calendar:gregorian_days_to_date(LastYearWeekPrevYearDays));
+prev_week({Year, Week}) ->
+    {Year, Week - 1}.
