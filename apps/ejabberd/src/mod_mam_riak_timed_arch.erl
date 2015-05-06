@@ -36,7 +36,7 @@
 -export([key/3]).
 
 %% For tests only
--export([create_obj/4, read_archive/7, bucket_key_filters/4, bucket/1, get_message/3]).
+-export([create_obj/4, read_archive/7, bucket/1, get_message/3]).
 
 
 start(Host, Opts) ->
@@ -77,7 +77,7 @@ safe_archive_message(Result, Host, MessID, UserID,
     try
         StartT = os:timestamp(),
         R = archive_message(Result, Host, MessID, UserID,
-            LocJID, RemJID, SrcJID, Dir, Packet),
+                            LocJID, RemJID, SrcJID, Dir, Packet),
         EndT = os:timestamp(),
         case R of
             ok ->
@@ -123,16 +123,14 @@ safe_lookup_messages(Result, Host,
 archive_size(Size, _Host, _ArchiveID, _ArchiveJID) ->
     Size.
 
-bucket() ->
-    {Date, _} = calendar:local_time(),
-    bucket(Date).
-
 %% use correct bucket for given date
 -spec bucket(calendar:date()) -> binary().
-bucket(Date) ->
-    {Year, WeekNum} = calendar:iso_week_number(Date),
+bucket({_, _, _} = Date) ->
+    bucket(calendar:iso_week_number(Date));
+
+bucket({Year, Week}) ->
     YearBin = integer_to_binary(Year),
-    WeekNumBin = integer_to_binary(WeekNum),
+    WeekNumBin = integer_to_binary(Week),
     <<"mam_",YearBin/binary, "_", WeekNumBin/binary>>.
 
 archive_message(_, _, MessID, _ArchiveID, LocJID, RemJID, SrcJID, Dir, Packet) ->
@@ -155,7 +153,7 @@ lookup_messages(_Result, Host, _ArchiveID, ArchiveJID, _RSM, _Borders, Start, En
     OwnerJID = bare_jid(ArchiveJID),
     RemoteJID = bare_jid(WithJID),
     F = fun get_message/3,
-    MaxBuckets = gen_mod:get_module_opt(Host, ?MODULE, archive_size, 53),
+    MaxBuckets = get_max_buckets(Host),
     {TotalCount, Result} = read_archive(OwnerJID, RemoteJID, Start, End, MaxResultLimit, MaxBuckets, F),
 
     SortFun = fun({MsgId1, _, _}, {MsgId2, _, _}) ->
@@ -170,6 +168,10 @@ lookup_messages(_Result, Host, _ArchiveID, ArchiveJID, _RSM, _Borders, Start, En
             {ok, {TotalCount, Offset, SortedResult}}
      end.
 
+get_max_buckets(Host) ->
+    MaxBuckets = gen_mod:get_module_opt(Host, ?MODULE, archive_size, 53),
+    MaxBuckets.
+
 get_message(Bucket, Key, {Cnt, Msgs} = Acc) ->
     case mongoose_riak:get(Bucket, Key) of
         {ok, Obj} ->
@@ -181,18 +183,21 @@ get_message(Bucket, Key, {Cnt, Msgs} = Acc) ->
             Acc
     end.
 
-remove_archive(_Host, _ArchiveID, ArchiveJID) ->
-    fold_archive(fun delete_key_fun/3, bucket_key_filters(bare_jid(ArchiveJID)), undefined).
+remove_archive(Host, _ArchiveID, ArchiveJID) ->
+    fold_buckets(fun delete_key_fun/3, get_max_buckets(Host),
+                 [bare_jid(ArchiveJID), undefined, undefined, undefined], undefined).
 
-purge_single_message(_Result, _Host, MessID, _ArchiveID, ArchiveJID, _Now) ->
+purge_single_message(_Result, Host, MessID, _ArchiveID, ArchiveJID, _Now) ->
     ArchiveJIDBin = bare_jid(ArchiveJID),
-    KeyFilters = bucket_key_filters(ArchiveJIDBin, MessID),
-    fold_archive(fun delete_key_fun/3, KeyFilters, undefined).
+    KeyFilters = [ArchiveJIDBin, MessID, undefined, undefined],
+    fold_buckets(fun delete_key_fun/3, get_max_buckets(Host),
+                 KeyFilters, undefined).
 
-purge_multiple_messages(_Result, _Host, _ArchiveID, ArchiveJID, _Borders, Start, End, _Now, WithJID) ->
+purge_multiple_messages(_Result, Host, _ArchiveID, ArchiveJID, _Borders, Start, End, _Now, WithJID) ->
     ArchiveJIDBin = bare_jid(ArchiveJID),
-    KeyFilters = bucket_key_filters(ArchiveJIDBin, WithJID, Start, End),
-    fold_archive(fun delete_key_fun/3, KeyFilters, undefined).
+    KeyFilters = [ArchiveJIDBin, WithJID, Start, End],
+    fold_buckets(fun delete_key_fun/3, get_max_buckets(Host),
+                 KeyFilters, undefined).
 
 delete_key_fun(Bucket, Key, _) ->
     mongoose_riak:delete(Bucket, Key, [{dw, 2}]).
@@ -223,7 +228,7 @@ do_read_archive(OldestYearWeek, CurrentYearWeek, Acc, _)
     Acc;
 do_read_archive(OldestYearWeek, CurrentYearWeek, Acc,
                 {OwnerJID, WithJID, Start, End, MaxResults, Fun} = Spec) ->
-    KeyFilters = bucket_key_filters(OwnerJID, WithJID, Start, End),
+    KeyFilters = bucket_key_filters(CurrentYearWeek, OwnerJID, WithJID, Start, End),
     {Cnt, _ } = NewAcc = fold_archive(Fun, KeyFilters, Acc),
     case Cnt < MaxResults of
         true ->
@@ -252,20 +257,36 @@ do_fold_archive(Fun, BucketKeys, InitialAcc) ->
         Fun(Bucket, Key, Acc)
     end, InitialAcc, BucketKeys).
 
-bucket_key_filters(Jid) ->
-    {bucket(), key_filters(Jid)}.
 
-bucket_key_filters(LocalJid, MsgId) when is_integer(MsgId) ->
-    StartsWith = key_filters(LocalJid),
+fold_buckets(Fun, MaxBuckets, KeyFiltersOpts, InitialAcc) ->
+    {OldestYearWeek, NewestYearWeek} = get_week_boundaries(MaxBuckets, KeyFiltersOpts),
+    do_fold_buckets(OldestYearWeek, NewestYearWeek, Fun, KeyFiltersOpts, InitialAcc).
+
+do_fold_buckets(OldestYearWeek, CurrentYearWeek, _, _, Acc)
+    when CurrentYearWeek < OldestYearWeek ->
+    Acc;
+do_fold_buckets(OldestYearWeek, CurrentYearWeek, Fun, KeyFilterOpts, Acc) ->
+    AllKeyFilterOpts = [CurrentYearWeek | KeyFilterOpts],
+    KeyFilters = erlang:apply(fun bucket_key_filters/5, AllKeyFilterOpts),
+    NewAcc = fold_archive(Fun, KeyFilters, Acc),
+    do_fold_buckets(OldestYearWeek, prev_week(CurrentYearWeek), Fun, KeyFilterOpts, NewAcc).
+
+get_week_boundaries(MaxBuckets, [_, _, Start, End]) ->
+    OldestYearWeek = get_oldest_year_week(Start, MaxBuckets),
+    NewestYearWeek = get_newest_year_week(End, MaxBuckets),
+    {OldestYearWeek, NewestYearWeek}.
+
+bucket_key_filters(YearWeek, LocalJid, MsgId) when is_integer(MsgId) ->
+    StartsWith = key_filters(YearWeek, LocalJid),
     EndsWith = [[<<"ends_with">>, integer_to_binary(MsgId)]],
-    {bucket(), [[<<"and">>, StartsWith, EndsWith]]};
-bucket_key_filters(LocalJid, RemoteJid) ->
-    {bucket(), key_filters(LocalJid, RemoteJid)}.
+    {bucket(YearWeek), [[<<"and">>, StartsWith, EndsWith]]};
+bucket_key_filters(YearWeek, LocalJid, RemoteJid) ->
+    {bucket(YearWeek), key_filters(LocalJid, RemoteJid)}.
 
-bucket_key_filters(LocalJid, RemoteJid, undefined, undefined) ->
-    bucket_key_filters(LocalJid, RemoteJid);
-bucket_key_filters(LocalJid, RemoteJid, Start, End) ->
-    {bucket(), key_filters(LocalJid, RemoteJid, Start, End)}.
+bucket_key_filters(YearWeek, LocalJid, RemoteJid, undefined, undefined) ->
+    bucket_key_filters(YearWeek, LocalJid, RemoteJid);
+bucket_key_filters(YearWeek, LocalJid, RemoteJid, Start, End) ->
+    {bucket(YearWeek), key_filters(LocalJid, RemoteJid, Start, End)}.
 
 key_filters(Jid) ->
     [[<<"starts_with">>,Jid]].
