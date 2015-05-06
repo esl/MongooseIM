@@ -15,6 +15,9 @@
 
 all() -> [{group, mam}].
 
+groups() ->
+    [{mam, [], [put_in_different_buckets, read_all_from_different_buckets]}].
+
 init_per_suite(C) ->
     application:start(p1_stringprep),
     Parent = self(),
@@ -37,9 +40,6 @@ init_per_suite(C) ->
         {skip, "Riak is not running"}
     end.
 
-groups() ->
-    [{mam, [], [put_in_different_buckets]}].
-
 init_per_group(_, Config) ->
     Config.
 
@@ -52,8 +52,9 @@ init_per_testcase(_, Config) ->
 end_per_testcase(_, Config) ->
     Config.
 
-put_in_different_buckets(Config) ->
-    Entries = generate_msgs_in_different_buckets(2, {2, 4}, 3),
+put_in_different_buckets(_Config) ->
+    Users = generate_users(3),
+    Entries = generate_msgs_in_different_buckets(5, {2, 4}, Users),
     put_messages(Entries),
     MsgsInWeeks = msgs_in_weeks(Entries),
     try
@@ -65,10 +66,42 @@ put_in_different_buckets(Config) ->
         clear_buckets(MsgsInWeeks)
     end.
 
-generate_msgs_in_different_buckets(BucketsNo, MsgsFromGivenUserRange, DifferentUsersNo) ->
+read_all_from_different_buckets(_Config) ->
+    Weeks = 3,
+    Users = generate_users(3),
+    Entries = generate_msgs_in_different_buckets(Weeks, {2,4}, Users),
+    put_messages(Entries),
+    MsgsInWeeks = msgs_in_weeks(Entries),
+    UsersArchive = users_archive(Entries),
+    UserPairs = [{From, To} || From <- Users, To <- Users, To /= From],
+    F = fun mod_mam_riak_timed_arch:get_message/3,
+    try
+        UserPair = hd(UserPairs),
+        {OwnerJID, _RemoteJID} = UserPair,
+        {L, RiakMsgs} = R = mod_mam_riak_timed_arch:read_archive(OwnerJID, undefined,
+                                                 undefined, undefined,
+                                                 undefined, Weeks,  F),
+        UserArchive = dict:fetch(OwnerJID, UsersArchive),
+        F2 = fun({_, {MsgID, _, _, _, _} = Msg}) ->
+            case lists:keymember(MsgID, 1, RiakMsgs) of
+                false ->
+                    throw({missing_msg, Msg});
+                _ ->
+                    ok
+            end
+        end,
+        lists:foreach(F2, UserArchive),
+        L = length(UserArchive)
+    catch
+        Class:Reason  ->
+            ct:fail("assert msgs read failed ~p:~p~n~p", [Class, Reason, erlang:get_stacktrace()])
+    after
+        clear_buckets(MsgsInWeeks)
+    end.
+
+generate_msgs_in_different_buckets(BucketsNo, MsgsFromGivenUserRange, Users) ->
     random:seed(now()),
     Dates = generate_dates(BucketsNo),
-    Users = [generate_user() || _ <- lists:seq(1, DifferentUsersNo)],
     Msgs = [generate_msgs_in_week(Date, Users, MsgsFromGivenUserRange) || Date <- Dates],
     lists:flatten(Msgs).
 
@@ -81,10 +114,8 @@ generate_dates(BucketsNo) ->
 
 generate_msgs_in_week(Date, Users, MsgsFromGivenUserRange) ->
     [generate_msgs_in_week(Date, From, To, MsgsFromGivenUserRange)
-     || From <- Users, To <- Users].
+     || From <- Users, To <- Users, To /= From].
 
-generate_msgs_in_week(_, From, From, _) ->
-    [];
 generate_msgs_in_week(Date, From, To, {MinMsgs, MaxMsgs}) ->
     Diff = MaxMsgs - MinMsgs,
     Msgs = random:uniform(MinMsgs) + Diff,
@@ -94,7 +125,7 @@ generate_msg_in_week(Date, From, To) ->
     DateTimeInWeek = date_time_in_week(Date),
     Microseconds = mod_mam_utils:datetime_to_microseconds(DateTimeInWeek),
     MsgId = mod_mam_utils:encode_compact_uuid(Microseconds, random:uniform(20)),
-    Packet = {xmlel, <<"message">>, [{<<"to">>, To}], [{xmlcdata, <<"ala ma kota">>}]},
+    Packet = {xmlel, <<"message">>, [{<<"to">>, To}], [{xmlcdata, base16:encode(crypto:rand_bytes(4))}]},
     {Date, {MsgId, From, To, From, Packet}}.
 
 date_time_in_week(Date) ->
@@ -108,18 +139,24 @@ date_time_in_week(Date) ->
     RandSeconds = random:uniform(MaxSecondsInDay),
     {RandDateInWeek, calendar:seconds_to_time(RandSeconds)}.
 
+generate_users(DifferentUsersNo) ->
+    [generate_user() || _ <- lists:seq(1, DifferentUsersNo)].
+
 generate_user() ->
-    Username = base16:encode(crypto:rand_bytes(5)),
-    <<Username/binary, "@localhost">>.
+    Username = base16:encode(crypto:rand_bytes(1)),
+    MicroBin = int_to_binary(mod_mam_utils:now_to_microseconds(now())),
+    <<Username/binary, MicroBin/binary, "@localhost">>.
 
 put_messages(Entries) ->
     [put_message(Entry) || Entry <- Entries].
 
 put_message({_Date, {MsgId, From, To, SourceId, Packet}}) ->
-    Key = mod_mam_riak_timed_arch:key(From, To, msgid_to_binary(MsgId)),
-    RiakObj = mod_mam_riak_timed_arch:create_obj(MsgId, Key, SourceId, Packet),
-    mongoose_riak:put(RiakObj),
-    ok.
+    KeySender = mod_mam_riak_timed_arch:key(From, To, int_to_binary(MsgId)),
+    KeyReceiver = mod_mam_riak_timed_arch:key(To, From, int_to_binary(MsgId)),
+    RiakObjSender = mod_mam_riak_timed_arch:create_obj(MsgId, KeySender, SourceId, Packet),
+    RiakObjReceiver = mod_mam_riak_timed_arch:create_obj(MsgId, KeyReceiver, SourceId, Packet),
+    ok = mongoose_riak:put(RiakObjSender),
+    ok = mongoose_riak:put(RiakObjReceiver).
 
 assert_all_msgs_in_their_buckets(MsgsInWeeks) ->
     true = dict:fold(fun verify_bucket/3, false, MsgsInWeeks).
@@ -135,8 +172,10 @@ msgs_in_weeks(Entries) ->
 verify_bucket({Year, Week}, Msgs, _) ->
     {ok, KeysInRiak} = mongoose_riak:list_keys(bucket(Year, Week)),
     true = lists:all(fun({MsgId, From, To, _, _}) ->
-        Key = mod_mam_riak_timed_arch:key(From, To, msgid_to_binary(MsgId)),
-        true = lists:member(Key, KeysInRiak)
+        KeySender = mod_mam_riak_timed_arch:key(From, To, int_to_binary(MsgId)),
+        KeyReceiver = mod_mam_riak_timed_arch:key(To, From, int_to_binary(MsgId)),
+        true = lists:member(KeySender, KeysInRiak),
+        true = lists:member(KeyReceiver, KeysInRiak)
     end, Msgs).
 
 bucket(Year, WeekNum) ->
@@ -150,7 +189,14 @@ clear_buckets(MsgsInWeeks) ->
 
 clear_bucket(Bucket) ->
     {ok, Keys} = mongoose_riak:list_keys(Bucket),
-    [mongoose_riak:delete(Bucket, Key) || Key <- Keys].
+    [mongoose_riak:delete(Bucket, Key, [{dw, 2}]) || Key <- Keys].
 
-msgid_to_binary(MsgId) ->
+int_to_binary(MsgId) ->
     list_to_binary(integer_to_list(MsgId)).
+
+users_archive(Entries) ->
+    F = fun({_Date, {_, From, To, _, _}} = Msg, AccDict) ->
+        Dict1 = dict:append(From, Msg, AccDict),
+        dict:append(To, Msg, Dict1)
+    end,
+    lists:foldl(F, dict:new(), Entries).
