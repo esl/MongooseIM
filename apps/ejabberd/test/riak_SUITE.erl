@@ -2,21 +2,25 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("ejabberd/src/ejabberd_c2s.hrl").
 -include_lib("ejabberd/include/ejabberd.hrl").
+-include_lib("common_test/include/ct.hrl").
 -compile([export_all]).
 
 
--define(_eq(E, I), ?_assertEqual(E, I)).
--define(eq(E, I), ?assertEqual(E, I)).
--define(ne(E, I), ?assert(E =/= I)).
-
--define(B(C), (proplists:get_value(backend, C))).
--define(MAX_USER_SESSIONS, 2).
-
-
-all() -> [{group, mam}].
+all() -> [{group, mam_put},
+          {group, mam_read}].
 
 groups() ->
-    [{mam, [], [put_in_different_buckets, read_all_from_different_buckets]}].
+    [{mam_put, [], [put_in_different_buckets]},
+     {mam_read, [{repeat_until_any_fail,3}],
+                [read_all_from_all_buckets,
+                 read_with_jid_from_all_buckets,
+                 read_all_start_from_different_buckets,
+                 read_with_jid_start_from_different_buckets,
+                 read_all_end_from_different_buckets,
+                 read_with_jid_end_from_different_buckets,
+                 read_all_start_end_from_different_buckets,
+                 read_with_jid_start_end_from_different_buckets
+     ]}].
 
 init_per_suite(C) ->
     application:start(p1_stringprep),
@@ -40,17 +44,27 @@ init_per_suite(C) ->
         {skip, "Riak is not running"}
     end.
 
-init_per_group(_, Config) ->
-    Config.
+init_per_group(G, Config) ->
+    [{group, G} | Config].
 
 end_per_group(_, Config) ->
     Config.
 
 init_per_testcase(_, Config) ->
-    Config.
+    case ?config(group, Config) of
+        mam_put ->
+            Config;
+        _ ->
+            generate_msgs_for_testcase(Config)
+    end.
 
 end_per_testcase(_, Config) ->
-    Config.
+    case ?config(group, Config) of
+        mam_put ->
+            Config;
+        _ ->
+            clear_msgs_after_testcase(Config)
+    end.
 
 put_in_different_buckets(_Config) ->
     Users = generate_users(3),
@@ -63,41 +77,82 @@ put_in_different_buckets(_Config) ->
         Class:Reason  ->
             ct:fail("assert msgs in buckets failed ~p:~p", [Class, Reason])
     after
-        clear_buckets(MsgsInWeeks)
+        clear_buckets(dict:fetch_keys(MsgsInWeeks))
     end.
 
-read_all_from_different_buckets(_Config) ->
-    Weeks = 3,
-    Users = generate_users(3),
-    Entries = generate_msgs_in_different_buckets(Weeks, {2,4}, Users),
-    put_messages(Entries),
-    MsgsInWeeks = msgs_in_weeks(Entries),
-    UsersArchive = users_archive(Entries),
-    UserPairs = [{From, To} || From <- Users, To <- Users, To /= From],
+read_all_from_all_buckets(Config) ->
+    do_read_testcase(Config, false, false, false).
+
+read_with_jid_from_all_buckets(Config) ->
+    do_read_testcase(Config, true, false, false).
+
+read_all_start_from_different_buckets(Config) ->
+    do_read_testcase(Config, false, true, false).
+
+
+read_with_jid_start_from_different_buckets(Config) ->
+    do_read_testcase(Config, true, true, false).
+
+
+read_all_end_from_different_buckets(Config) ->
+    do_read_testcase(Config, false, false, true).
+
+read_with_jid_end_from_different_buckets(Config) ->
+    do_read_testcase(Config, true, false, true).
+
+read_all_start_end_from_different_buckets(Config) ->
+    do_read_testcase(Config, false, true, true).
+
+read_with_jid_start_end_from_different_buckets(Config) ->
+    do_read_testcase(Config, true, true, true).
+
+
+do_read_testcase(Config, TakeBoth, UseStart, UseEnd) ->
+    Users = ?config(users, Config),
+
+    UserPairs = generate_pairs(Users, TakeBoth),
+
+    [read_archive(Config, UserPair, UseStart, UseEnd)
+        || UserPair <- UserPairs].
+
+generate_pairs(Users, true) ->
+    [{From, To} || From <- Users, To <- Users, To /= From];
+generate_pairs(Users, _) ->
+    [{From, undefined} || From <- Users].
+
+read_archive(Config, UserPair, UseStart, UseEnd) ->
+    Weeks = ?config(weeks, Config),
+
+    SortFun = fun({MsgID1, _, _, _, _}, {MsgID2, _, _, _, _}) ->
+        {Micro1, _} = mod_mam_utils:decode_compact_uuid(MsgID1),
+        {Micro2, _} = mod_mam_utils:decode_compact_uuid(MsgID2),
+        Micro1 =< Micro2
+    end,
+
+    UsersArchive = ?config(archive, Config),
+    UserArchiveWhole = lists:sort(SortFun, dict:fetch(UserPair, UsersArchive)),
+
+    UserArchive = select_archive_part(UserArchiveWhole, UseStart, UseEnd),
+    {Start, End} = select_timestamps(UserArchive, UseStart, UseEnd),
+
+    {OwnerJID, RemoteJID} = UserPair,
+
     F = fun mod_mam_riak_timed_arch:get_message/3,
-    try
-        UserPair = hd(UserPairs),
-        {OwnerJID, _RemoteJID} = UserPair,
-        {L, RiakMsgs} = R = mod_mam_riak_timed_arch:read_archive(OwnerJID, undefined,
-                                                 undefined, undefined,
-                                                 undefined, Weeks,  F),
-        UserArchive = dict:fetch(OwnerJID, UsersArchive),
-        F2 = fun({_, {MsgID, _, _, _, _} = Msg}) ->
-            case lists:keymember(MsgID, 1, RiakMsgs) of
-                false ->
-                    throw({missing_msg, Msg});
-                _ ->
-                    ok
-            end
-        end,
-        lists:foreach(F2, UserArchive),
-        L = length(UserArchive)
-    catch
-        Class:Reason  ->
-            ct:fail("assert msgs read failed ~p:~p~n~p", [Class, Reason, erlang:get_stacktrace()])
-    after
-        clear_buckets(MsgsInWeeks)
-    end.
+    {L, RiakMsgs} = mod_mam_riak_timed_arch:read_archive(OwnerJID, RemoteJID,
+                                                         Start, End,
+                                                         undefined, Weeks, F),
+
+    F2 = fun({MsgID, _, _, _, _} = Msg) ->
+        case lists:keymember(MsgID, 1, RiakMsgs) of
+            false ->
+                throw({missing_msg, UserPair, Msg});
+            _ ->
+                ok
+        end
+    end,
+
+    lists:foreach(F2, UserArchive),
+    L = length(UserArchive).
 
 generate_msgs_in_different_buckets(BucketsNo, MsgsFromGivenUserRange, Users) ->
     random:seed(now()),
@@ -183,8 +238,7 @@ bucket(Year, WeekNum) ->
     WeekNumBin = integer_to_binary(WeekNum),
     <<"mam_",YearBin/binary, "_", WeekNumBin/binary>>.
 
-clear_buckets(MsgsInWeeks) ->
-    YearWeeks = dict:fetch_keys(MsgsInWeeks),
+clear_buckets(YearWeeks) ->
     [clear_bucket(bucket(Year, Week)) || {Year, Week} <- YearWeeks].
 
 clear_bucket(Bucket) ->
@@ -195,8 +249,55 @@ int_to_binary(MsgId) ->
     list_to_binary(integer_to_list(MsgId)).
 
 users_archive(Entries) ->
-    F = fun({_Date, {_, From, To, _, _}} = Msg, AccDict) ->
-        Dict1 = dict:append(From, Msg, AccDict),
-        dict:append(To, Msg, Dict1)
+    F = fun({_Date, {_, From, To, _, _}  = Msg}, AccDict) ->
+        Dict1 = dict:append({From, undefined}, Msg, AccDict),
+        Dict2 = dict:append({To, undefined}, Msg, Dict1),
+        Dict3 = dict:append({From, To}, Msg, Dict2),
+                dict:append({To, From}, Msg, Dict3)
     end,
     lists:foldl(F, dict:new(), Entries).
+
+generate_msgs_for_testcase(Config) ->
+    Weeks = 4,
+    Users = generate_users(4),
+    Entries = generate_msgs_in_different_buckets(Weeks, {2,4}, Users),
+    put_messages(Entries),
+    UsersArchive = users_archive(Entries),
+    [{users, Users}, {msgs, Entries}, {weeks, Weeks}, {archive, UsersArchive} | Config].
+
+clear_msgs_after_testcase(Config) ->
+    Weeks = ?config(weeks, Config),
+    YearWeeks = [calendar:iso_week_number(Date) || Date <- generate_dates(Weeks)],
+    clear_buckets(YearWeeks).
+
+select_archive_part(Archive, false, false) ->
+    Archive;
+select_archive_part(Archive, true, false) ->
+    Length = length(Archive),
+    HowManyToDiscard = random:uniform(Length div 2) + 2,
+    lists:nthtail(HowManyToDiscard, Archive);
+select_archive_part(Archive, false, true) ->
+    Length = length(Archive),
+    HowManyToTake = random:uniform(Length div 2) + 2,
+    lists:sublist(Archive, HowManyToTake);
+select_archive_part(Archive, true, true) ->
+    A1 = select_archive_part(Archive, true, false),
+    select_archive_part(A1, false, true).
+
+select_timestamps(Archive, Start, End) ->
+    {select_start_time(Archive, Start),
+     select_end_time(Archive, End)}.
+
+select_start_time(_, false) ->
+    undefined;
+select_start_time(Archive, _) ->
+    get_time_from_msg(hd(Archive)).
+
+select_end_time(_, false) ->
+    undefined;
+select_end_time(Archive, _) ->
+    get_time_from_msg(lists:last(Archive)).
+
+get_time_from_msg({MsgId, _, _, _, _}) ->
+    {Micro, _} = mod_mam_utils:decode_compact_uuid(MsgId),
+    Micro.
