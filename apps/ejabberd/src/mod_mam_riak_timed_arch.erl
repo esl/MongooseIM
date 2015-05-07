@@ -342,7 +342,7 @@ get_newest_year_week(undefined, _) ->
     {Date, _} = calendar:local_time(),
     calendar:iso_week_number(Date);
 get_newest_year_week(Microsec, MaxBuckets) when is_integer(Microsec) ->
-    {Date, _} = calendar:now_to_datetime(Microsec),
+    {Date, _} = mod_mam_utils:microseconds_to_datetime(Microsec),
     OldestByConfig = get_oldest_year_week(undefined, MaxBuckets),
     YearWeekByEnd = calendar:iso_week_number(Date),
     erlang:max(OldestByConfig, YearWeekByEnd).
