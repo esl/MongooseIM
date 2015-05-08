@@ -560,7 +560,7 @@ init_per_testcase(C=muc_private_message, Config) ->
     escalus:init_per_testcase(C, start_alice_room(Config));
 init_per_testcase(C=range_archive_request_not_empty, Config) ->
     escalus:init_per_testcase(C,
-        bootstrap_archive_same_ids(clean_archives(Config)));
+        bootstrap_archive(clean_archives(Config)));
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
@@ -688,9 +688,14 @@ simple_archive_request(Config) ->
 
 querying_for_all_messages_with_jid(Config) ->
     F = fun(Alice) ->
+        Pregenerated = ?config(pre_generated_msgs, Config),
         BWithJID = nick_to_jid(bob, Config),
+
+        WithBob = [1 || {_, _, {JID, _, _}, _, _} <- Pregenerated, JID == BWithJID],
+
+        CountWithBob = lists:sum(WithBob),
         escalus:send(Alice, stanza_filtered_by_jid_request(BWithJID)),
-        assert_respond_size(12, wait_archive_respond_iq_first(Alice)),
+        assert_respond_size(CountWithBob, wait_archive_respond_iq_first(Alice)),
         ok
         end,
     escalus:story(Config, [1], F).
@@ -879,9 +884,9 @@ offline_message(Config) ->
 
     %% Bob checks his archive.
     escalus:send(Bob, stanza_archive_request(<<"q1">>)),
-    [_ArcRes, ArcMsg] = wait_archive_respond_iq_first(Bob),
+    [_ArcRes | ArcMsgs] = R = wait_archive_respond_iq_first(Bob),
     #forwarded_message{message_body=ArcMsgBody} =
-        parse_forwarded_message(ArcMsg),
+        parse_forwarded_message(hd(lists:reverse(ArcMsgs))),
     ?assert_equal(Msg, ArcMsgBody),
     escalus_cleaner:clean(Config).
 
@@ -905,7 +910,9 @@ purge_single_message(Config) ->
 purge_old_single_message(Config) ->
     F = fun(Alice) ->
             escalus:send(Alice, stanza_archive_request(<<"q1">>)),
-            [_IQ|AllMessages] = assert_respond_size(12,
+            Pregenderated = ?config(pre_generated_msgs, Config),
+            AliceArchSize = length(Pregenderated),
+            [_IQ|AllMessages] = assert_respond_size(AliceArchSize,
                 wait_archive_respond_iq_first(Alice)),
             ParsedMessages = [parse_forwarded_message(M) || M <- AllMessages],
             %% Delete fifth message.
@@ -916,7 +923,7 @@ purge_old_single_message(Config) ->
             escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
             %% Check, that it was deleted.
             escalus:send(Alice, stanza_archive_request(<<"q2">>)),
-            assert_respond_size(11, wait_archive_respond_iq_first(Alice)),
+            assert_respond_size(AliceArchSize - 1, wait_archive_respond_iq_first(Alice)),
             ok
         end,
     escalus:story(Config, [1], F).
@@ -1149,8 +1156,9 @@ limit_archive_request(Config) ->
         %%   </query>
         %% </iq>
         escalus:send(Alice, stanza_limit_archive_request()),
-        IQ = escalus:wait_for_stanza(Alice, 5000),
+        [IQ | Msgs] = wait_archive_respond_iq_first(Alice),
         escalus:assert(is_iq_result, IQ),
+        10 = length(Msgs),
         ok
         end,
     escalus:story(Config, [1], F).
@@ -2035,14 +2043,6 @@ parse_messages(Messages) ->
     end.
 
 bootstrap_archive(Config) ->
-    DataDir = ?config(data_dir, Config),
-    FileName = filename:join(DataDir, "alice.xml"),
-    ArcJID = make_jid(<<"alice">>, <<"localhost">>, <<>>),
-    Opts = [{rewrite_jids, rewrite_jids_options(Config)}, new_message_ids],
-    ?assert_equal(ok, restore_dump_file(ArcJID, FileName, Opts)),
-    Config.
-
-bootstrap_archive_same_ids(Config) ->
     Domain = escalus_ct:get_config(ejabberd_domain),
     ArcJID = {<<"alice@",Domain/binary>>, make_jid(<<"alice">> ,Domain, <<>>),
              rpc_apply(mod_mam, archive_id, [Domain, <<"alice">>])},
