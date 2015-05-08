@@ -277,7 +277,7 @@ get_week_boundaries(MaxBuckets, [_, _, Start, End]) ->
     {OldestYearWeek, NewestYearWeek}.
 
 bucket_key_filters(YearWeek, LocalJid, MsgId) when is_integer(MsgId) ->
-    StartsWith = key_filters(YearWeek, LocalJid),
+    StartsWith = key_filters(LocalJid),
     EndsWith = [[<<"ends_with">>, integer_to_binary(MsgId)]],
     {bucket(YearWeek), [[<<"and">>, StartsWith, EndsWith]]};
 bucket_key_filters(YearWeek, LocalJid, RemoteJid) ->
