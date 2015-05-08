@@ -134,9 +134,8 @@ host() ->
     <<"localhost">>.
 
 configurations() ->
-    [odbc_async,
+    [odbc,
      odbc_async_pool,
-     odbc,
      odbc_mnesia,
      odbc_async_cache,
      odbc_cache,
@@ -324,16 +323,6 @@ init_modules(odbc, muc_with_pm, Config) ->
     init_module(host(), mod_mam, []),
     init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
     Config;
-init_modules(odbc_async, muc_with_pm, Config) ->
-    init_module(host(), mod_mam_muc_odbc_arch, [no_writer]),
-    init_module(host(), mod_mam_muc_odbc_async_writer, []),
-    init_module(host(), mod_mam_odbc_arch, [no_writer, pm]),
-    init_module(host(), mod_mam_odbc_async_writer, [pm]),
-    init_module(host(), mod_mam_odbc_prefs, [muc, pm]),
-    init_module(host(), mod_mam_odbc_user, [muc, pm]),
-    init_module(host(), mod_mam, []),
-    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
-    Config;
 init_modules(odbc_async_pool, muc_with_pm, Config) ->
     init_module(host(), mod_mam_muc_odbc_arch, [no_writer]),
     init_module(host(), mod_mam_muc_odbc_async_pool_writer, []),
@@ -374,7 +363,7 @@ init_modules(odbc_async_cache, muc_with_pm, Config) ->
     init_module(host(), mod_mam_muc_odbc_arch, [no_writer]),
     init_module(host(), mod_mam_muc_odbc_async_writer, []),
     init_module(host(), mod_mam_odbc_arch, [no_writer, pm]),
-    init_module(host(), mod_mam_odbc_async_writer, [pm]),
+    init_module(host(), mod_mam_odbc_async_pool_writer, [pm]),
     init_module(host(), mod_mam_odbc_prefs, [muc, pm]),
     init_module(host(), mod_mam_odbc_user, [muc, pm]),
     init_module(host(), mod_mam_cache_user, [muc, pm]),
@@ -409,13 +398,6 @@ init_modules(ca, muc, Config) ->
 init_modules(odbc, muc, Config) ->
     %% TODO test both mod_mam_muc_odbc_arch and mod_mam_odbc_arch
     init_module(host(), mod_mam_odbc_arch, [muc]),
-    init_module(host(), mod_mam_odbc_prefs, [muc]),
-    init_module(host(), mod_mam_odbc_user, [muc]),
-    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
-    Config;
-init_modules(odbc_async, muc, Config) ->
-    init_module(host(), mod_mam_muc_odbc_arch, [no_writer]),
-    init_module(host(), mod_mam_muc_odbc_async_writer, []),
     init_module(host(), mod_mam_odbc_prefs, [muc]),
     init_module(host(), mod_mam_odbc_user, [muc]),
     init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
@@ -481,13 +463,6 @@ init_modules(ca, _, Config) ->
     init_module(host(), mod_mam_odbc_user, [pm]),
     init_module(host(), mod_mam, []),
     Config;
-init_modules(odbc_async, _, Config) ->
-    init_module(host(), mod_mam, []),
-    init_module(host(), mod_mam_odbc_arch, [pm, no_writer]),
-    init_module(host(), mod_mam_odbc_async_writer, [pm]),
-    init_module(host(), mod_mam_odbc_prefs, [pm]),
-    init_module(host(), mod_mam_odbc_user, [pm]),
-    Config;
 init_modules(odbc_async_pool, _, Config) ->
     init_module(host(), mod_mam, []),
     init_module(host(), mod_mam_odbc_arch, [pm, no_writer]),
@@ -518,7 +493,7 @@ init_modules(odbc_mult_cache, _, Config) ->
 init_modules(odbc_async_cache, _, Config) ->
     init_module(host(), mod_mam, []),
     init_module(host(), mod_mam_odbc_arch, [pm, no_writer]),
-    init_module(host(), mod_mam_odbc_async_writer, [pm]),
+    init_module(host(), mod_mam_odbc_async_pool_writer, [pm]),
     init_module(host(), mod_mam_odbc_prefs, [pm]),
     init_module(host(), mod_mam_odbc_user, [pm]),
     init_module(host(), mod_mam_cache_user, [pm]),
@@ -546,7 +521,6 @@ mam_modules() ->
      mod_mam_odbc_arch,
      mod_mam_muc_odbc_arch,
      mod_mam_con_ca,
-     mod_mam_odbc_async_writer,
      mod_mam_muc_odbc_async_writer,
      mod_mam_odbc_async_pool_writer,
      mod_mam_muc_odbc_async_pool_writer,
