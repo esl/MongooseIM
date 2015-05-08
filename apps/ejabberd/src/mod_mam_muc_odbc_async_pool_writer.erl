@@ -156,7 +156,7 @@ start_worker(WriterProc, N, Host) ->
      permanent,
      5000,
      worker,
-     [mod_mam_muc_odbc_async_writer]},
+     [mod_mam_muc_odbc_async_pool_writer]},
     supervisor:start_child(mod_mam_sup, WriterChildSpec).
 
 

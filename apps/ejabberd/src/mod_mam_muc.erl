@@ -7,7 +7,7 @@
 %%%
 %%% <ul>
 %%% <li>Preference manager ({@link mod_mam_muc_odbc_prefs});</li>
-%%% <li>Writer ({@link mod_mam_muc_odbc_arch} or {@link mod_mam_muc_odbc_async_writer});</li>
+%%% <li>Writer ({@link mod_mam_muc_odbc_arch} or {@link mod_mam_muc_odbc_async_pool_writer});</li>
 %%% <li>Archive manager ({@link mod_mam_muc_odbc_arch});</li>
 %%% <li>User's ID generator ({@link mod_mam_muc_user}).</li>
 %%% </ul>
