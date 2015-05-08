@@ -28,7 +28,7 @@
 
 %% API
 -export([begin_trans/0,
-         query_archive_id/2,
+         query_archive_id/3,
          search_vcard/3,
          count_offline_messages/4]).
 
@@ -50,12 +50,12 @@ do_search_vcard(LServer, RestrictionSQL, Limit) ->
      "email, orgname, orgunit from vcard_search ">>,
      RestrictionSQL, ";"]).
 
-query_archive_id(Host, SUserName) ->
+query_archive_id(Host, SServer, SUserName) ->
     ejabberd_odbc:sql_query(
         Host,
         ["SELECT TOP 1 id "
-        "FROM mam_user "
-        "WHERE user_name='", SUserName, "' "]).
+        "FROM mam_server_user "
+        "WHERE server='",SServer, "' AND user_name='", SUserName, "'"]).
 
 count_offline_messages(LServer, SUser, SServer, Limit) ->
     ejabberd_odbc:sql_query(

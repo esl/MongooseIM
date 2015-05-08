@@ -1,11 +1,11 @@
 %%%-------------------------------------------------------------------
 %%% @author Uvarov Michael <arcusfelis@gmail.com>
 %%% @copyright (C) 2013, Uvarov Michael
-%%% @doc Assigns archive integer identifiers.
+%%% @doc Assigns archive integer identifiers (multihost version).
 %%%
-%%% This module does not support several hosts.
+%%% This module supports several hosts.
 %%%
-%%% Archive id is assigned based on user_name only.
+%%% Archive id is assigned based on user_name and host.
 %%% @end
 %%%-------------------------------------------------------------------
 -module(mod_mam_odbc_user).
@@ -89,64 +89,63 @@ stop_muc(Host) ->
 %%====================================================================
 %% API
 %%====================================================================
-
 -spec archive_id(undefined | mod_mam:archive_id(), ejabberd:server(),
                  ejabberd:jid()) -> mod_mam:archive_id().
-archive_id(undefined, Host, _ArcJID=#jid{luser = UserName}) ->
-    query_archive_id(Host, UserName);
+archive_id(undefined, Host, _ArcJID=#jid{lserver = Server, luser = UserName}) ->
+    query_archive_id(Host, Server, UserName);
 archive_id(ArcID, _Host, _ArcJID) ->
     ArcID.
 
-
 -spec remove_archive(Host :: ejabberd:server(),
     ArchiveID :: mod_mam:archive_id(), ArchiveJID :: ejabberd:jid()) -> 'ok'.
-remove_archive(Host, _ArcID, _ArcJID=#jid{luser = UserName}) ->
+remove_archive(Host, _ArcID, _ArcJID=#jid{lserver = Server, luser = UserName}) ->
     SUserName = ejabberd_odbc:escape(UserName),
+    SServer   = ejabberd_odbc:escape(Server),
     {updated, _} =
     ejabberd_odbc:sql_query(
       Host,
-      ["DELETE FROM mam_user "
-       "WHERE user_name = '", SUserName, "'"]),
+      ["DELETE FROM mam_server_user "
+       "WHERE server = '", SServer, "' AND user_name = '", SUserName, "'"]),
     ok.
 
 %%====================================================================
 %% Internal functions
 %%====================================================================
 
--spec query_archive_id(ejabberd:server(), ejabberd:user()) -> integer().
-query_archive_id(Host, UserName) ->
+-spec query_archive_id(ejabberd:server(), ejabberd:lserver(), ejabberd:user()) -> integer().
+query_archive_id(Host, Server, UserName) ->
+    SServer   = ejabberd_odbc:escape(Server),
     SUserName = ejabberd_odbc:escape(UserName),
     DbType = ejabberd_odbc_type:get(),
-    Result = do_query_archive_id(DbType, Host, SUserName),
+    Result = do_query_archive_id(DbType, Host, SServer, SUserName),
 
     case Result of
-        {selected, [<<"id">>], [{IdBin}]} when binary(IdBin)->
-            binary_to_integer(IdBin);
         {selected, [<<"id">>], [{IdBin}]} ->
-            IdBin;
+            binary_to_integer(IdBin);
         {selected, [<<"id">>], []} ->
             %% The user is not found
-            create_user_archive(Host, UserName),
-            query_archive_id(Host, UserName)
+            create_user_archive(Host, Server, UserName),
+            query_archive_id(Host, Server, UserName)
     end.
-
--spec create_user_archive(ejabberd:server(), ejabberd:user()) -> 'ok'.
-create_user_archive(Host, UserName) ->
+    
+-spec create_user_archive(ejabberd:server(), ejabberd:lserver(), ejabberd:user()) -> 'ok'.
+create_user_archive(Host, Server, UserName) ->
+    SServer   = ejabberd_odbc:escape(Server),
     SUserName = ejabberd_odbc:escape(UserName),
     {updated, 1} =
     ejabberd_odbc:sql_query(
       Host,
-      ["INSERT INTO mam_user "
-       "(user_name) VALUES ('", SUserName, "')"]),
+      ["INSERT INTO mam_server_user "
+       "(server, user_name) VALUES ('", SServer, "', '", SUserName, "')"]),
     ok.
 
 
-do_query_archive_id(mssql, Host, SUserName) ->
-    odbc_queries_mssql:query_archive_id(Host, SUserName);
-do_query_archive_id(_, Host, SUserName) ->
+do_query_archive_id(mssql, Host, SServer, SUserName) ->
+    odbc_queries_mssql:query_archive_id(Host, SServer, SUserName);
+do_query_archive_id(_, Host, SServer, SUserName) ->
     ejabberd_odbc:sql_query(
-        Host,
-        ["SELECT id "
-        "FROM mam_user "
-        "WHERE user_name='", SUserName, "' "
-        "LIMIT 1"]).
+      Host,
+      ["SELECT id "
+       "FROM mam_server_user "
+       "WHERE server = '", SServer, "' AND user_name = '", SUserName, "' "
+       "LIMIT 1"]).
