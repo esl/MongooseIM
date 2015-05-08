@@ -217,7 +217,8 @@ mam_cases() ->
      limit_archive_request,
      prefs_set_request,
      prefs_set_cdata_request,
-     iq_spoofing].
+     iq_spoofing
+     ].
 
 mam_purge_cases() ->
     [purge_single_message,
@@ -608,6 +609,8 @@ just_stop_module(Host, Mod) ->
 rpc_apply(M, F, Args) ->
     case escalus_ejabberd:rpc(M, F, Args) of
     {badrpc, Reason} ->
+        ct:print("~p:~p/~p with arguments ~w fails with reason ~p.",
+                 [M, F, length(Args), Args, Reason]),
         ct:fail("~p:~p/~p with arguments ~w fails with reason ~p.",
                 [M, F, length(Args), Args, Reason]);
     Result ->
@@ -1097,14 +1100,22 @@ range_archive_request(Config) ->
 
 range_archive_request_not_empty(Config) ->
     F = fun(Alice) ->
+        Msgs = ?config(pre_generated_msgs, Config),
+        [_, _, StartMsg, StopMsg | _] = Msgs,
+        {{StartMsgId, _}, _, _, _, _StartMsgPacket} = StartMsg,
+        {{StopMsgId, _}, _, _, _, _StopMsgPacket} = StopMsg,
+        {StartMicro, _} = rpc_apply(mod_mam_utils, decode_compact_uuid, [StartMsgId]),
+        {StopMicro, _} = rpc_apply(mod_mam_utils, decode_compact_uuid, [StopMsgId]),
+        StartTime = make_iso_time(StartMicro),
+        StopTime = make_iso_time(StopMicro),
         %% Send
         %% <iq type='get'>
         %%   <query xmlns='urn:xmpp:mam:tmp'>
-        %%     <start>2000-07-21T01:50:14Z</start>
-        %%     <end>2000-07-21T01:50:16Z</end>
+        %%     <start>StartTime</start>
+        %%     <end>StopTime</end>
         %%   </query>
         %% </iq>
-        escalus:send(Alice, stanza_date_range_archive_request_not_empty()),
+        escalus:send(Alice, stanza_date_range_archive_request_not_empty(StartTime, StopTime)),
         %% Receive two messages and IQ
         M1 = escalus:wait_for_stanza(Alice, 5000),
         M2 = escalus:wait_for_stanza(Alice, 5000),
@@ -1112,11 +1123,17 @@ range_archive_request_not_empty(Config) ->
         escalus:assert(is_iq_result, IQ),
         #forwarded_message{delay_stamp=Stamp1} = parse_forwarded_message(M1),
         #forwarded_message{delay_stamp=Stamp2} = parse_forwarded_message(M2),
-        ?assert_equal(<<"2000-07-21T01:50:15Z">>, Stamp1),
-        ?assert_equal(<<"2000-07-21T01:50:16Z">>, Stamp2),
+        ?assert_equal(list_to_binary(StartTime), Stamp1),
+        ?assert_equal(list_to_binary(StopTime), Stamp2),
         ok
         end,
     escalus:story(Config, [1], F).
+
+make_iso_time(Micro) ->
+    Now = usec:to_now(Micro),
+    DateTime = calendar:now_to_datetime(Now),
+    {Time, TimeZone} = rpc_apply(jlib, timestamp_to_iso, [DateTime, utc]),
+    Time ++ TimeZone.
 
 %% @doc A query using Result Set Management.
 %% See also `#rsm_in.max'.
@@ -1505,10 +1522,9 @@ stanza_date_range_archive_request() ->
                               "2010-06-07T00:00:00Z", "2010-07-07T13:23:54Z",
                               undefined, undefined).
 
-stanza_date_range_archive_request_not_empty() ->
+stanza_date_range_archive_request_not_empty(Start, Stop) ->
     stanza_lookup_messages_iq(undefined,
-                              %% One second before and after 2000-07-21T01:50:15Z
-                              "2000-07-21T01:50:14Z", "2000-07-21T01:50:16Z",
+                              Start, Stop,
                               undefined, undefined).
 
 stanza_limit_archive_request() ->
@@ -2027,12 +2043,67 @@ bootstrap_archive(Config) ->
     Config.
 
 bootstrap_archive_same_ids(Config) ->
-    DataDir = ?config(data_dir, Config),
-    FileName = filename:join(DataDir, "alice.xml"),
-    ArcJID = make_jid(<<"alice">>, <<"localhost">>, <<>>),
-    Opts = [{rewrite_jids, rewrite_jids_options(Config)}],
-    ?assert_equal(ok, restore_dump_file(ArcJID, FileName, Opts)),
-    Config.
+    Domain = escalus_ct:get_config(ejabberd_domain),
+    ArcJID = {<<"alice@",Domain/binary>>, make_jid(<<"alice">> ,Domain, <<>>),
+             rpc_apply(mod_mam, archive_id, [Domain, <<"alice">>])},
+    OtherUsers = [{<<"bob@",Domain/binary>>, make_jid(<<"bob">>, Domain, <<>>),
+                   rpc_apply(mod_mam, archive_id, [Domain, <<"bob">>])},
+                  {<<"carol@",Domain/binary>>, make_jid(<<"carol">>, Domain, <<>>),
+                   rpc_apply(mod_mam, archive_id, [Domain, <<"carol">>])}],
+    Msgs = generate_msgs_for_days(ArcJID, OtherUsers, 16),
+    put_msgs(Msgs),
+    SortFun = fun({{ID1, _}, _, _, _, _}, {{ID2, _}, _, _, _, _}) ->
+        ID1 =< ID2
+    end,
+    [{pre_generated_msgs, lists:sort(SortFun,Msgs)} | Config].
+
+generate_msgs_for_days(OwnerJID, OtherUsers, Days) ->
+    {TodayDate, _} = calendar:local_time(),
+    Today = calendar:date_to_gregorian_days(TodayDate),
+    StartDay = Today - Days,
+    lists:flatten([generate_msgs_for_day(Day, OwnerJID, OtherUsers)
+                   || Day <- lists:seq(StartDay, Today)]).
+
+generate_msgs_for_day(Day, OwnerJID, OtherUsers) ->
+    Date = calendar:gregorian_days_to_date(Day),
+
+    [generate_msg_for_date_user(OwnerJID, RemoteJID, {Date, random_time()})
+     || RemoteJID <- OtherUsers].
+
+generate_msg_for_date_user(Owner, {RemoteBin, _, _} = Remote, DateTime) ->
+    Microsec = datetime_to_microseconds(DateTime),
+    MsgIdOwner = rpc_apply(mod_mam_utils, encode_compact_uuid, [Microsec, random:uniform(20)]),
+    MsgIdRemote = rpc_apply(mod_mam_utils, encode_compact_uuid, [Microsec+1, random:uniform(20)]),
+    Packet = escalus_stanza:chat_to(RemoteBin, base16:encode(crypto:rand_bytes(4))),
+    {{MsgIdOwner, MsgIdRemote}, Owner, Remote, Owner, Packet}.
+
+random_time() ->
+    MaxSecondsInDay = 86399,
+    RandSeconds = random:uniform(MaxSecondsInDay),
+    calendar:seconds_to_time(RandSeconds).
+
+datetime_to_microseconds({{_,_,_}, {_,_,_}} = DateTime) ->
+    S1 = calendar:datetime_to_gregorian_seconds(DateTime),
+    S0 = calendar:datetime_to_gregorian_seconds({{1970, 1, 1}, {0, 0, 0}}),
+    Seconds = S1 - S0,
+    Seconds * 1000000.
+
+
+put_msgs(Msgs) ->
+    [put_msg(Msg) || Msg <- Msgs].
+
+put_msg({{MsgIdOwner, MsgIdRemote},
+         {_FromBin, FromJID, FromArcID},
+         {_ToBin, ToJID, ToArcID},
+         {_, Source, _}, Packet}) ->
+    Host = escalus_ct:get_config(ejabberd_domain),
+    archive_message([Host, MsgIdOwner, FromArcID, FromJID, ToJID, Source, outgoing, Packet]),
+    archive_message([Host, MsgIdRemote, ToArcID, ToJID, FromJID, Source, incoming, Packet]).
+
+archive_message(Args) ->
+    rpc_apply(mod_mam, archive_message, Args).
+
+
 
 muc_bootstrap_archive(Config) ->
     Room = ?config(room, Config),
