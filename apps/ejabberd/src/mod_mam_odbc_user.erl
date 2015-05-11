@@ -120,8 +120,10 @@ query_archive_id(Host, Server, UserName) ->
     Result = do_query_archive_id(DbType, Host, SServer, SUserName),
 
     case Result of
-        {selected, [<<"id">>], [{IdBin}]} ->
+        {selected, [<<"id">>], [{IdBin}]} when is_binary(IdBin) ->
             binary_to_integer(IdBin);
+        {selected, [<<"id">>], [{IdBin}]}->
+            IdBin;
         {selected, [<<"id">>], []} ->
             %% The user is not found
             create_user_archive(Host, Server, UserName),
