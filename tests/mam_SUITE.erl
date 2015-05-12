@@ -241,7 +241,8 @@ muc_cases() ->
      muc_multiple_devices,
      muc_private_message,
      muc_querying_for_all_messages,
-     muc_querying_for_all_messages_with_jid].
+     muc_querying_for_all_messages_with_jid
+     ].
 
 muc_rsm_cases() ->
     rsm_cases().
@@ -609,8 +610,6 @@ just_stop_module(Host, Mod) ->
 rpc_apply(M, F, Args) ->
     case escalus_ejabberd:rpc(M, F, Args) of
     {badrpc, Reason} ->
-        ct:print("~p:~p/~p with arguments ~w fails with reason ~p.",
-                 [M, F, length(Args), Args, Reason]),
         ct:fail("~p:~p/~p with arguments ~w fails with reason ~p.",
                 [M, F, length(Args), Args, Reason]);
     Result ->
@@ -701,26 +700,34 @@ querying_for_all_messages_with_jid(Config) ->
     escalus:story(Config, [1], F).
 
 muc_querying_for_all_messages(Config) ->
-    F = fun(Alice, Bob) ->
+    F = fun(Alice) ->
         Room = ?config(room, Config),
-        BWithJID = room_address(Room, nick(Bob)),
+        MucMsgs = ?config(pre_generated_muc_msgs, Config),
+
+        MucArchiveLen = length(MucMsgs),
 
         IQ = stanza_archive_request(<<>>),
         escalus:send(Alice, stanza_to_room(IQ, Room)),
-        assert_respond_size(12, wait_archive_respond_iq_first(Alice)),
+        assert_respond_size(MucArchiveLen, wait_archive_respond_iq_first(Alice)),
 
         ok
         end,
-    escalus:story(Config, [1, 1], F).
+    escalus:story(Config, [{alice, 1}], F).
 
 muc_querying_for_all_messages_with_jid(Config) ->
     F = fun(Alice, Bob) ->
         Room = ?config(room, Config),
         BWithJID = room_address(Room, nick(Bob)),
 
+        MucMsgs = ?config(pre_generated_muc_msgs, Config),
+        WithJID = [1 || {_, _, {JID, _, _}, _, _} <- MucMsgs, JID == BWithJID],
+        Len = lists:sum(WithJID),
+
         IQ = stanza_filtered_by_jid_request(BWithJID),
         escalus:send(Alice, stanza_to_room(IQ, Room)),
-        assert_respond_size(6, wait_archive_respond_iq_first(Alice)),
+        Result = wait_archive_respond_iq_first(Alice),
+
+        assert_respond_size(Len, Result),
         ok
         end,
     escalus:story(Config, [1, 1], F).
@@ -976,6 +983,7 @@ muc_archive_request(Config) ->
         By  = exml_query:attr(Arc, <<"by">>),
         %% Attribute giving the message's UID within the archive.
         Id  = exml_query:attr(Arc, <<"id">>),
+
 
         %% Bob requests the room's archive.
         escalus:send(Bob, stanza_to_room(stanza_archive_request(<<"q1">>), Room)),
@@ -2052,10 +2060,14 @@ bootstrap_archive(Config) ->
                    rpc_apply(mod_mam, archive_id, [Domain, <<"carol">>])}],
     Msgs = generate_msgs_for_days(ArcJID, OtherUsers, 16),
     put_msgs(Msgs),
+
+    [{pre_generated_msgs, sort_msgs(Msgs)} | Config].
+
+sort_msgs(Msgs) ->
     SortFun = fun({{ID1, _}, _, _, _, _}, {{ID2, _}, _, _, _, _}) ->
         ID1 =< ID2
     end,
-    [{pre_generated_msgs, lists:sort(SortFun,Msgs)} | Config].
+    lists:sort(SortFun,Msgs).
 
 generate_msgs_for_days(OwnerJID, OtherUsers, Days) ->
     {TodayDate, _} = calendar:local_time(),
@@ -2107,25 +2119,35 @@ archive_message(Args) ->
 
 muc_bootstrap_archive(Config) ->
     Room = ?config(room, Config),
-    DataDir = ?config(data_dir, Config),
-    FileName = filename:join(DataDir, "alice_forest.xml"),
-    ArcJID = make_jid(Room, muc_host(), <<>>),
-    Opts = [{rewrite_jids, muc_rewrite_jids_options(Room)}, new_message_ids],
-    ?assert_equal(ok, muc_restore_dump_file(ArcJID, FileName, Opts)),
-    Config.
 
-rewrite_jids_options(Config) ->
-    A = nick_to_jid(alice, Config),
-    B = nick_to_jid(bob,   Config),
-    [{<<"alice@wonderland">>, A}, {<<"cat@wonderland">>, B}].
-
-muc_rewrite_jids_options(Room) ->
     A = room_address(Room, nick(alice)),
     B = room_address(Room, nick(bob)),
     R = room_address(Room),
-    [{<<"alice@wonderland">>, A},
-     {<<"cat@wonderland">>, B},
-     {<<"forest@wonderland">>, R}].
+
+    Domain = muc_host(),
+    Host = host(),
+    RoomJid = make_jid(Room,Domain, <<>>),
+    ArcJID = {R, RoomJid,
+              rpc_apply(mod_mam_muc, archive_id, [Domain, Room])},
+    Msgs = generate_msgs_for_days(ArcJID,
+                                 [{B, make_jid(<<"bob">>, Host, <<"res1">>),
+                                  rpc_apply(jlib, jid_replace_resource, [RoomJid, nick(bob)])},
+                                  {A, make_jid(<<"alice">>, Host, <<"res1">>),
+                                   rpc_apply(jlib, jid_replace_resource, [RoomJid, nick(alice)])}], 16),
+
+    put_muc_msgs(Msgs),
+
+    [{pre_generated_muc_msgs, sort_msgs(Msgs)} | Config].
+
+put_muc_msgs(Msgs) ->
+    Host = host(),
+    [archive_muc_msg(Host, Msg) || Msg <- Msgs].
+
+archive_muc_msg(Host, {{MsgID, _},
+                {_RoomBin, RoomJID, RoomArcID},
+                {_FromBin, FromJID, SrcJID}, _, Packet}) ->
+    rpc_apply(mod_mam_muc, archive_message, [Host, MsgID, RoomArcID, RoomJID,
+                                             SrcJID, SrcJID, incoming, Packet]).
 
 %% @doc Get a binary jid of the user, that tagged with `UserName' in the config.
 nick_to_jid(UserName, Config) when is_atom(UserName) ->
@@ -2135,11 +2157,6 @@ nick_to_jid(UserName, Config) when is_atom(UserName) ->
 make_jid(U, S, R) ->
     rpc_apply(jlib, make_jid, [U, S, R]).
 
-restore_dump_file(ArcJID, FileName, Opts) ->
-    rpc_apply(mod_mam, restore_dump_file, [ArcJID, FileName, Opts]).
-
-muc_restore_dump_file(ArcJID, FileName, Opts) ->
-    rpc_apply(mod_mam_muc, restore_dump_file, [ArcJID, FileName, Opts]).
 
 is_odbc_enabled(Host) ->
     case sql_transaction(Host, fun erlang:now/0) of
