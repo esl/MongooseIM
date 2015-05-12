@@ -37,10 +37,6 @@
          archive_size/2,
          archive_id/2]).
 
-%% Utils
--export([create_dump_file/2,
-         restore_dump_file/3]).
-
 %% gen_mod handlers
 -export([start/2, stop/1]).
 
@@ -49,6 +45,9 @@
          archive_room_packet/4,
          room_process_mam_iq/3,
          forget_room/2]).
+
+%% private
+-export([archive_message/8]).
 
 %% ----------------------------------------------------------------------
 %% Imports
@@ -149,87 +148,6 @@ archive_id(Server, User)
     archive_id_int(Host, ArcJID).
 
 %% ----------------------------------------------------------------------
-%% Utils API
-
--spec new_iterator(ejabberd:jid()) -> mod_mam:iterator_fun().
-new_iterator(ArcJID=#jid{}) ->
-    Now = mod_mam_utils:now_to_microseconds(now()),
-    Host = server_host(ArcJID),
-    ArcID = archive_id_int(Host, ArcJID),
-    new_iterator(Host, ArcID, ArcJID, undefined,
-        undefined, undefined, undefined, Now, undefined, 50).
-
-
--spec new_iterator(ejabberd:server(), ArcID :: mod_mam:archive_id(),
-        ArcJID :: ejabberd:jid(), RSM :: jlib:rsm_in() | 'undefined',
-        Borders :: mod_mam:borders() | 'undefined',
-        Start :: unix_timestamp() | 'undefined',
-        End :: unix_timestamp() | 'undefined', Now :: unix_timestamp(),
-        WithJID :: ejabberd:jid() | 'undefined', PageSize :: integer())
-            -> mod_mam:iterator_fun().
-new_iterator(Host, ArcID, ArcJID, RSM, Borders,
-             Start, End, Now, WithJID, PageSize) ->
-    fun() ->
-        {ok, {TotalCount, Offset, MessageRows}} =
-        lookup_messages(Host, ArcID, ArcJID, RSM, Borders,
-                        Start, End, Now,
-                        WithJID, PageSize, true, PageSize, false),
-        Data = [exml:to_iolist(message_row_to_dump_xml(M))
-                || M <- MessageRows],
-        Cont = case is_last_page(TotalCount, Offset, PageSize) of
-            false ->
-                fun() -> {error, eof} end;
-            true ->
-                new_iterator(
-                    Host, ArcID, ArcJID, after_rsm(MessageRows), Borders,
-                    Start, End, Now, WithJID, PageSize)
-            end,
-        {ok, {Data, Cont}}
-        end.
-
-
--spec after_rsm([any(),...]) -> jlib:rsm_in().
-after_rsm(MessageRows) ->
-    {MessID,_SrcJID,_Packet} = lists:last(MessageRows),
-    #rsm_in{direction = aft, id = MessID}.
-
-
--spec is_last_page(TotalCount :: non_neg_integer(), Offset :: non_neg_integer(),
-                   PageSize :: pos_integer()) -> boolean().
-is_last_page(TotalCount, Offset, PageSize) ->
-    Offset - PageSize >= TotalCount.
-
-
--spec create_dump_file(ejabberd:jid(), file:name()) -> 'ok' | {'error',atom()}.
-create_dump_file(ArcJID, OutFileName) ->
-    mod_mam_dump:create_dump_file(new_iterator(ArcJID), OutFileName).
-
-
--spec restore_dump_file(ArcJID :: ejabberd:jid(), file:filename(),
-                        [mod_mam:restore_option()]) -> ok | {error, any()}.
-restore_dump_file(ArcJID, InFileName, Opts) ->
-    try
-        restore_dump_file_unsave(ArcJID, InFileName, Opts)
-    catch Type:Reason ->
-        Trace = erlang:get_stacktrace(),
-        lager:error("Error ~p:~p occured while restoring ~p from file ~ts.~nTrace: ~p",
-                    [Type, Reason, jlib:jid_to_binary(ArcJID), InFileName, Trace]),
-        {error, Reason}
-    end.
-
-
--spec restore_dump_file_unsave(ArcJID :: ejabberd:jid(), file:name(),
-                                Opts :: [mod_mam:restore_option()]) -> ok.
-restore_dump_file_unsave(ArcJID, InFileName, Opts) ->
-    Host = server_host(ArcJID),
-    ArcID = archive_id_int(Host, ArcJID),
-    WriterF = fun(MessID, FromJID, _ToJID, MessElem) ->
-            archive_message(Host, MessID, ArcID, ArcJID,
-                            FromJID, FromJID, incoming, MessElem)
-        end,
-    mod_mam_dump:restore_dump_file(WriterF, InFileName, Opts).
-
-%% ----------------------------------------------------------------------
 %% gen_mod callbacks
 %% Starting and stopping functions for MUC archives
 
@@ -245,8 +163,6 @@ start(ServerHost, Opts) ->
                                   ?MODULE, room_process_mam_iq, IQDisc),
     ejabberd_hooks:add(filter_room_packet, Host, ?MODULE,
                        filter_room_packet, 90),
-    ejabberd_hooks:add(archive_room_packet, Host, ?MODULE,
-                       archive_room_packet, 90),
     ejabberd_hooks:add(forget_room, Host, ?MODULE, forget_room, 90),
     ok.
 
@@ -257,7 +173,6 @@ stop(ServerHost) ->
         ServerHost, ?MODULE, <<"conference.@HOST@">>),
     ?DEBUG("mod_mam stopping", []),
     ejabberd_hooks:delete(filter_room_packet, Host, ?MODULE, filter_room_packet, 90),
-    ejabberd_hooks:delete(archive_room_packet, Host, ?MODULE, archive_room_packet, 90),
     ejabberd_hooks:delete(forget_room, Host, ?MODULE, forget_room, 90),
     gen_iq_handler:remove_iq_handler(mod_muc_iq, Host, ?NS_MAM),
     mod_disco:unregister_feature(Host, ?NS_MAM),
@@ -314,7 +229,7 @@ filter_room_packet(Packet, FromNick,
 -spec archive_room_packet(Packet :: packet(), FromNick :: ejabberd:user(),
         FromJID :: ejabberd:jid(), RoomJID :: ejabberd:jid()) -> packet().
 archive_room_packet(Packet, FromNick,
-                    FromJID=#jid{},
+                    _FromJID=#jid{},
                     RoomJID=#jid{}) ->
     Host = server_host(RoomJID),
     ArcID = archive_id_int(Host, RoomJID),
@@ -330,7 +245,7 @@ archive_room_packet(Packet, FromNick,
         true ->
             MessID = generate_message_id(),
             Result = archive_message(Host, MessID, ArcID,
-                                     RoomJID, FromJID, SrcJID, incoming, Packet),
+                                     RoomJID, SrcJID, SrcJID, incoming, Packet),
             case Result of
                 ok ->
                     BareRoomJID = jlib:jid_to_binary(RoomJID),
@@ -700,11 +615,6 @@ message_row_to_xml({MessID,SrcJID,Packet}, QueryID) ->
 -spec message_row_to_ext_id(row()) -> binary().
 message_row_to_ext_id({MessID,_,_}) ->
     mess_id_to_external_binary(MessID).
-
-
--spec message_row_to_dump_xml(row()) -> false | jlib:xmlel().
-message_row_to_dump_xml(M) ->
-     xml:get_subtag(message_row_to_xml(M, undefined), <<"result">>).
 
 
 -spec maybe_jid(ejabberd:literal_jid()) -> 'error' | 'undefined' | ejabberd:jid().
