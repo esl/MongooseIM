@@ -149,17 +149,14 @@ create_obj(MsgId, Key, SourceJID, Packet) ->
     riakc_obj:new(bucket(MsgDate), Key, encode_riak_obj(SourceJID, Packet)).
 
 lookup_messages(_Result, Host, _ArchiveID, ArchiveJID, _RSM, _Borders, Start, End,
-                _Now, WithJID, _PageSize, LimitPassed, MaxResultLimit, _IsSimple) ->
+                _Now, WithJID, PageSize, LimitPassed, MaxResultLimit, _IsSimple) ->
     OwnerJID = bare_jid(ArchiveJID),
     RemoteJID = bare_jid(WithJID),
     F = fun get_message/3,
     MaxBuckets = get_max_buckets(Host),
-    {TotalCount, Result} = read_archive(OwnerJID, RemoteJID, Start, End, MaxResultLimit, MaxBuckets, F),
+    {TotalCount, Result} = read_archive(OwnerJID, RemoteJID, Start, End, PageSize, MaxBuckets, F),
 
-    SortFun = fun({MsgId1, _, _}, {MsgId2, _, _}) ->
-        MsgId1 =< MsgId2
-    end,
-    SortedResult = lists:sort(SortFun, Result),
+    SortedResult = lists:sublist(sort_messages(Result), PageSize),
     Offset = 0,
     case TotalCount - Offset > MaxResultLimit andalso not LimitPassed of
         true ->
@@ -229,7 +226,7 @@ do_read_archive(OldestYearWeek, CurrentYearWeek, Acc, _)
 do_read_archive(OldestYearWeek, CurrentYearWeek, Acc,
                 {OwnerJID, WithJID, Start, End, MaxResults, Fun} = Spec) ->
     KeyFilters = bucket_key_filters(CurrentYearWeek, OwnerJID, WithJID, Start, End),
-    {Cnt, _ } = NewAcc = fold_archive(Fun, KeyFilters, Acc),
+    {Cnt, _} = NewAcc = fold_archive(Fun, KeyFilters, Acc),
     case Cnt < MaxResults of
         true ->
             PrevWeek = prev_week(CurrentYearWeek),
@@ -238,6 +235,11 @@ do_read_archive(OldestYearWeek, CurrentYearWeek, Acc,
             NewAcc
     end.
 
+sort_messages(Msgs) ->
+    SortFun = fun({MsgId1, _, _}, {MsgId2, _, _}) ->
+        MsgId1 =< MsgId2
+    end,
+    lists:sort(SortFun, Msgs).
 
 fold_archive(Fun, KeyFilters, InitialAcc) ->
     Client = mongoose_riak:get_worker(),
