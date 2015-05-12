@@ -52,7 +52,6 @@ Skipping this step will make mod_mam archive all the messages and users will not
 
 Enabling asynchronous writers will make debugging more difficult.
 
-* **mod_mam_odbc_async_writer** - Asynchronous writer, will insert batches of messages.
 * **mod_mam_odbc_async_pool_writer** - Asynchronous writer, will insert batches of messages, grouped by archive ID.
 
 **Options:** (common for both modules)
@@ -64,5 +63,4 @@ Enabling asynchronous writers will make debugging more difficult.
 
 Enabling asynchronous writers will make debugging more difficult.
 
-* **mod_mam_muc_odbc_async_writer** - Asynchronous writer, will insert batches of messages.
 * **mod_mam_muc_odbc_async_pool_writer** - Asychronous writer, will insert batches of messages, grouped by archive ID.
