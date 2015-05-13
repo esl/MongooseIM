@@ -75,17 +75,13 @@ stop_chat_archive(Host) ->
 safe_archive_message(Result, Host, MessID, UserID,
                      LocJID, RemJID, SrcJID, Dir, Packet) ->
     try
-        StartT = os:timestamp(),
         R = archive_message(Result, Host, MessID, UserID,
                             LocJID, RemJID, SrcJID, Dir, Packet),
-        EndT = os:timestamp(),
         case R of
             ok ->
-                Diff = timer:now_diff(EndT, StartT),
-                exometer:update([Host, mam_archive_time], Diff);
+                ok;
             Other ->
-                ?WARNING_MSG("Could not write message to archive, reason: ~p", [Other]),
-                ejabberd_hooks:run(mam_drop_message, Host, [Host])
+                throw(Other)
         end,
         R
     catch _Type:Reason ->
@@ -94,7 +90,7 @@ safe_archive_message(Result, Host, MessID, UserID,
         {error, Reason}
     end.
 
-safe_lookup_messages({error, Reason}=Result, _Host,
+safe_lookup_messages({error, _Reason} = Result, _Host,
                      _UserID, _UserJID, _RSM, _Borders,
                      _Start, _End, _Now, _WithJID,
                      _PageSize, _LimitPassed, _MaxResultLimit,
@@ -106,16 +102,11 @@ safe_lookup_messages(Result, Host,
                      PageSize, LimitPassed, MaxResultLimit,
                      IsSimple) ->
     try
-        StartT = os:timestamp(),
-        R = lookup_messages(Result, Host,
+        lookup_messages(Result, Host,
             UserID, UserJID, RSM, Borders,
             Start, End, Now, WithJID,
             PageSize, LimitPassed, MaxResultLimit,
-            IsSimple),
-        EndT = os:timestamp(),
-        Diff = timer:now_diff(EndT, StartT),
-        exometer:update([Host, mam_lookup_time], Diff),
-        R
+            IsSimple)
     catch _Type:Reason ->
         {error, Reason}
     end.
@@ -133,7 +124,7 @@ bucket({Year, Week}) ->
     WeekNumBin = integer_to_binary(Week),
     <<"mam_",YearBin/binary, "_", WeekNumBin/binary>>.
 
-archive_message(_, _, MessID, _ArchiveID, LocJID, RemJID, SrcJID, Dir, Packet) ->
+archive_message(_, _, MessID, _ArchiveID, LocJID, RemJID, SrcJID, _Dir, Packet) ->
     LocalJID = bare_jid(LocJID),
     RemoteJID = bare_jid(RemJID),
     SourceJID = bare_jid(SrcJID),
