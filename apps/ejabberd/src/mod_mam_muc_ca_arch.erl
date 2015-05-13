@@ -154,7 +154,7 @@ select_worker(Host, RoomID) ->
     end.
 
 group_name(Host) ->
-    {mam_muc_ca, Host}.
+    {mam_muc_ca, node(), Host}.
 
 start_link(Host, Addr, Port) ->
     gen_server:start_link(?MODULE, [Host, Addr, Port], []).

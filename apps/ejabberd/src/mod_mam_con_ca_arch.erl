@@ -233,7 +233,7 @@ select_worker(Host, UserJID) ->
     end.
 
 group_name(Host) ->
-    {mam_ca, Host}.
+    {mam_ca, node(), Host}.
 
 start_link(Host, Addr, Port) ->
     gen_server:start_link(?MODULE, [Host, Addr, Port], []).
