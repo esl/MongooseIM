@@ -143,11 +143,12 @@ lookup_messages(_Result, Host, _ArchiveID, ArchiveJID, _RSM, _Borders, Start, En
                 _Now, WithJID, PageSize, LimitPassed, MaxResultLimit, _IsSimple) ->
     OwnerJID = bare_jid(ArchiveJID),
     RemoteJID = bare_jid(WithJID),
-    F = fun get_message/3,
+    F = fun get_count_msg_id_key/3,
     MaxBuckets = get_max_buckets(Host),
     {TotalCount, Result} = read_archive(OwnerJID, RemoteJID, Start, End, PageSize, MaxBuckets, F),
 
-    SortedResult = lists:sublist(sort_messages(Result), PageSize),
+    SortedKeys = lists:sublist(sort_messages(Result), PageSize),
+    SortedResult = get_messages(SortedKeys),
     Offset = 0,
     case TotalCount - Offset > MaxResultLimit andalso not LimitPassed of
         true ->
@@ -160,6 +161,11 @@ get_max_buckets(Host) ->
     MaxBuckets = gen_mod:get_module_opt(Host, ?MODULE, archive_size, 53),
     MaxBuckets.
 
+get_count_msg_id_key(Bucket, Key, {Cnt, Msgs}) ->
+    [_, _, MsgId] = decode_key(Key),
+    Item = {binary_to_integer(MsgId), Bucket, Key},
+    {Cnt + 1, [Item | Msgs]}.
+
 get_message(Bucket, Key, {Cnt, Msgs} = Acc) ->
     case mongoose_riak:get(Bucket, Key) of
         {ok, Obj} ->
@@ -169,6 +175,18 @@ get_message(Bucket, Key, {Cnt, Msgs} = Acc) ->
             {Cnt + 1, [{binary_to_integer(MsgId), jlib:binary_to_jid(SourceJID), Packet} | Msgs]};
         _ ->
             Acc
+    end.
+
+get_messages(BucketKeys) ->
+    lists:flatten([get_message2(MsgId, Bucket, Key) || {MsgId, Bucket, Key} <- BucketKeys]).
+
+get_message2(MsgId, Bucket, Key) ->
+    case mongoose_riak:get(Bucket, Key) of
+        {ok, Obj} ->
+            {SourceJID, Packet} = decode_riak_obj(riakc_obj:get_value(Obj)),
+            {MsgId, jlib:binary_to_jid(SourceJID), Packet};
+        _ ->
+            []
     end.
 
 remove_archive(Host, _ArchiveID, ArchiveJID) ->
