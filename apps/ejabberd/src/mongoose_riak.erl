@@ -134,8 +134,7 @@ create_new_map(Ops) ->
 update_map(Map, Ops) ->
     lists:foldl(fun update_map_op/2, Map, Ops).
 
--spec mapred(mapred_inputs(), [mapred_queryterm()]) ->
-             {ok, mapred_result()} | {error, term()}.
+-spec mapred(mapred_inputs(), [mapred_queryterm()]) -> {ok, mapred_result()} | {error, term()}.
 mapred(KeyFileters, MapRed) ->
     ?CALL(mapred, [KeyFileters, MapRed]).
 
