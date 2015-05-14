@@ -185,8 +185,7 @@ decode_key(KeyBinary) ->
     binary:split(KeyBinary, <<"/">>, [global]).
 
 fold_archive(Fun, KeyFilters, InitialAcc) ->
-    Client = mongoose_riak:get_worker(),
-    Result = riakc_pb_socket:mapred(Client, KeyFilters, []),
+    Result = mongoose_riak:mapred(KeyFilters, []),
     case Result of
         {ok, []} ->
             InitialAcc;
