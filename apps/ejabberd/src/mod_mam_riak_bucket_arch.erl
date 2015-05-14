@@ -127,29 +127,37 @@ lookup_messages(_Result, _Host, _ArchiveID, ArchiveJID, _RSM, _Borders, Start, E
                 _Now, WithJID, PageSize, LimitPassed, MaxResultLimit, _IsSimple) ->
     OwnerJID = ?BARE_JID(ArchiveJID),
 
-    F = fun(Bucket, Key, {Cnt, Msgs} = Acc) ->
+    GetKeysF = fun(Bucket, Key, {Cnt, Msgs}) ->
+        [_, MsgId] = decode_key(Key),
+        Item = {binary_to_integer(MsgId), Bucket, Key},
+        {Cnt + 1, [Item | Msgs]}
+    end,
+
+    GetMsgF = fun(MsgId, Bucket, Key) ->
         case mongoose_riak:get(Bucket, Key) of
             {ok, Obj} ->
                 {SourceJID, Packet} = decode_riak_obj(riakc_obj:get_value(Obj)),
-                [_, MsgId] = decode_key(Key),
+
                 %% increment count and add message to the list
-                {Cnt + 1, [{binary_to_integer(MsgId), jlib:binary_to_jid(SourceJID), Packet} | Msgs]};
+                {MsgId, jlib:binary_to_jid(SourceJID), Packet};
             _ ->
-                Acc
+                []
         end
     end,
     KeyFilters = bucket_key_filters(OwnerJID, WithJID, Start, End),
-    {TotalCount, Result} = fold_archive(F, KeyFilters, {0, []}),
+    {TotalCount, Result} = fold_archive(GetKeysF, KeyFilters, {0, []}),
     SortFun = fun({MsgId1, _, _}, {MsgId2, _, _}) ->
         MsgId1 =< MsgId2
     end,
-    SortedResult = lists:sublist(lists:sort(SortFun, Result), PageSize),
+    SortedKeys = lists:sublist(lists:sort(SortFun, Result), PageSize),
+    SortedResult = [GetMsgF(MsgId, Bucket, Key) || {MsgId, Bucket, Key} <- SortedKeys],
+
     Offset = 0,
     case TotalCount - Offset > MaxResultLimit andalso not LimitPassed of
         true ->
             {error, 'policy-violation'};
         _ ->
-            {ok, {TotalCount, Offset, SortedResult}}
+            {ok, {TotalCount, Offset, lists:flatten(SortedResult)}}
      end.
 
 
