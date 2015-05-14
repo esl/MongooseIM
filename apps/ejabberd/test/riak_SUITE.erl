@@ -30,8 +30,10 @@ init_per_suite(C) ->
         R = mongoose_riak_sup:start(3, [["localhost", 8087]]),
         case R of
             {ok, _} ->
+                set_global_mock(),
                 Parent ! {self(), started},
-                receive stop -> ok end;
+                receive stop -> ok end,
+                unset_global_mock();
             _ ->
                 ok
         end
@@ -43,6 +45,11 @@ init_per_suite(C) ->
     after 2000 ->
         {skip, "Riak is not running"}
     end.
+
+end_per_suite(C) ->
+    Pid = ?config(pid, C),
+    Pid ! stop,
+    C.
 
 init_per_group(G, Config) ->
     [{group, G} | Config].
@@ -301,3 +308,10 @@ select_end_time(Archive, _) ->
 get_time_from_msg({MsgId, _, _, _, _}) ->
     {Micro, _} = mod_mam_utils:decode_compact_uuid(MsgId),
     Micro.
+
+set_global_mock() ->
+    meck:new(exometer, []),
+    meck:expect(exometer, update, fun(_, _) -> ok end).
+
+unset_global_mock() ->
+    meck:unload(exometer).
