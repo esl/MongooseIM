@@ -39,8 +39,8 @@
 -export([create_obj/3, read_archive/7, bucket/1,
          list_mam_buckets/0, remove_bucket/1]).
 
--define(YZ_SEARCH_INDEX, <<"mam_test_index3">>).
--define(MAM_BUCKET_TYPE, <<"mam_yz_test_map3">>).
+-define(YZ_SEARCH_INDEX, <<"mam">>).
+-define(MAM_BUCKET_TYPE, <<"mam_yz">>).
 
 start(Host, Opts) ->
     start_chat_archive(Host, Opts).
