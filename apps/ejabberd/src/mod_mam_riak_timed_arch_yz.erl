@@ -36,9 +36,11 @@
 -export([key/3]).
 
 %% For tests only
--export([create_obj/3, read_archive/7, bucket/1]).
+-export([create_obj/3, read_archive/7, bucket/1,
+         list_mam_buckets/0, remove_bucket/1]).
 
 -define(YZ_SEARCH_INDEX, <<"mam_test_index3">>).
+-define(MAM_BUCKET_TYPE, <<"mam_yz_test_map3">>).
 
 start(Host, Opts) ->
     start_chat_archive(Host, Opts).
@@ -128,7 +130,16 @@ bucket({_, _, _} = Date) ->
 bucket({Year, Week}) ->
     YearBin = integer_to_binary(Year),
     WeekNumBin = integer_to_binary(Week),
-    {<<"mam_yz_test_map3">>, <<"mam_",YearBin/binary, "_", WeekNumBin/binary>>}.
+    {?MAM_BUCKET_TYPE, <<"mam_",YearBin/binary, "_", WeekNumBin/binary>>}.
+
+list_mam_buckets() ->
+    {ok, Buckets} = riakc_pb_socket:list_buckets(mongoose_riak:get_worker(), ?MAM_BUCKET_TYPE),
+    [{?MAM_BUCKET_TYPE, Bucket} || Bucket <- Buckets].
+
+
+remove_bucket(Bucket) ->
+    {ok, Keys} = mongoose_riak:list_keys(Bucket),
+    [mongoose_riak:delete(Bucket, Key) || Key <- Keys].
 
 archive_message(_, _, MessID, _ArchiveID, LocJID, RemJID, SrcJID, _Dir, Packet) ->
     LocalJID = bare_jid(LocJID),
@@ -162,13 +173,12 @@ lookup_messages(_Result, Host, _ArchiveID, ArchiveJID, _RSM, _Borders, Start, En
     {TotalCount, Result} = read_archive(OwnerJID, RemoteJID, Start, End, PageSize, MaxBuckets, F),
 
     SortedKeys = lists:sublist(sort_messages(Result), PageSize),
-    SortedResult = get_messages(SortedKeys),
     Offset = 0,
     case TotalCount - Offset > MaxResultLimit andalso not LimitPassed of
         true ->
             {error, 'policy-violation'};
         _ ->
-            {ok, {TotalCount, Offset, SortedResult}}
+            {ok, {TotalCount, Offset, get_messages(SortedKeys)}}
      end.
 
 get_max_buckets(Host) ->
@@ -195,23 +205,54 @@ get_message2(MsgId, Bucket, Key) ->
     end.
 
 remove_archive(Host, _ArchiveID, ArchiveJID) ->
+    {ok, TotalCount, _, _} = R = remove_chunk(Host, ArchiveJID, 0),
+    Result = do_remove_archive(100, R, Host, ArchiveJID),
+    case Result of
+        {stopped, N} ->
+            lager:warning("archive removal stopped for jid after processing ~p items out of ~p total",
+                          [ArchiveJID, N, TotalCount]);
+        {ok, _} ->
+            ok
+    end,
+    Result.
+
+remove_chunk(Host, ArchiveJID, Acc) ->
     fold_buckets(fun delete_key_fun/3, get_max_buckets(Host),
-                 [bare_jid(ArchiveJID), undefined, undefined, undefined], undefined).
+        [bare_jid(ArchiveJID), undefined, undefined, undefined],
+        [{rows, 50}, {sort, <<"msg_id_register asc">>}], Acc).
+
+do_remove_archive(0, {ok, _, _, Acc}, _, _) ->
+    {stopped, Acc};
+do_remove_archive(_, {ok, 0, _, Acc}, _, _) ->
+    {ok, Acc};
+do_remove_archive(N, {ok, _TotalResults, _RowsIterated, Acc}, Host, ArchiveJID) ->
+    timer:sleep(1000), %% give Riak some time to clear after just removed keys
+    R = remove_chunk(Host, ArchiveJID, Acc),
+    do_remove_archive(N-1, R, Host, ArchiveJID).
 
 purge_single_message(_Result, Host, MessID, _ArchiveID, ArchiveJID, _Now) ->
     ArchiveJIDBin = bare_jid(ArchiveJID),
     KeyFilters = [ArchiveJIDBin, MessID, undefined, undefined],
-    fold_buckets(fun delete_key_fun/3, get_max_buckets(Host),
-                 KeyFilters, undefined).
+    {ok, 1, 1, 1} = fold_buckets(fun delete_key_fun/3, get_max_buckets(Host),
+                 KeyFilters, [], 0),
+    ok.
 
 purge_multiple_messages(_Result, Host, _ArchiveID, ArchiveJID, _Borders, Start, End, _Now, WithJID) ->
     ArchiveJIDBin = bare_jid(ArchiveJID),
     KeyFilters = [ArchiveJIDBin, WithJID, Start, End],
-    fold_buckets(fun delete_key_fun/3, get_max_buckets(Host),
-                 KeyFilters, undefined).
+    {ok, Total, _Iterated, Deleted} = fold_buckets(fun delete_key_fun/3, get_max_buckets(Host),
+                 KeyFilters, [{rows, 50}, {sort, <<"msg_id_register asc">>}], 0),
+    case Total == Deleted of
+        true ->
+            ok;
+        _ ->
+            lager:warning("not all messages have been purged for user ~p", [ArchiveJID]),
+            ok
+    end.
 
-delete_key_fun(Bucket, Key, _) ->
-    mongoose_riak:delete(Bucket, Key, [{dw, 2}]).
+delete_key_fun(Bucket, Key, N) ->
+    ok = mongoose_riak:delete(Bucket, Key, [{dw, 2}]),
+    N + 1.
 
 
 key(LocalJID, RemoteJID, MsgId) ->
@@ -231,16 +272,16 @@ decode_key(KeyBinary) ->
 read_archive(OwnerJID, WithJID, Start, End, MaxResults, MaxBuckets, Fun) ->
     OldestYearWeek = get_oldest_year_week(Start, MaxBuckets),
     NewestYearWeek = get_newest_year_week(End, MaxBuckets),
-    do_read_archive(OldestYearWeek, NewestYearWeek, [],
-                    {OwnerJID, WithJID, Start, End, MaxResults, Fun}).
+    do_read_archive(OldestYearWeek, NewestYearWeek, [{rows, MaxResults}], [],
+                    {OwnerJID, WithJID, Start, End, Fun}).
 
-do_read_archive(OldestYearWeek, CurrentYearWeek, Acc, _)
+do_read_archive(OldestYearWeek, CurrentYearWeek, _SearchOpts, Acc, _)
     when CurrentYearWeek < OldestYearWeek ->
     Acc;
-do_read_archive(OldestYearWeek, CurrentYearWeek, Acc,
-                {OwnerJID, WithJID, Start, End, MaxResults, Fun} = Spec) ->
+do_read_archive(_OldestYearWeek, CurrentYearWeek, SearchOpts, Acc,
+                {OwnerJID, WithJID, Start, End, Fun}) ->
     KeyFilters = bucket_key_filters(CurrentYearWeek, OwnerJID, WithJID, Start, End),
-    {ok, Cnt, NewAcc} = fold_archive(Fun, KeyFilters, Acc),
+    {ok, Cnt, _, NewAcc} = fold_archive(Fun, KeyFilters, SearchOpts, Acc),
     {Cnt, NewAcc}.
 
 
@@ -250,14 +291,13 @@ sort_messages(Msgs) ->
     end,
     lists:sort(SortFun, Msgs).
 
-fold_archive(Fun, {_Bucket, Query}, InitialAcc) ->
-    Result = mongoose_riak:search(?YZ_SEARCH_INDEX, Query),
+fold_archive(Fun, {_Bucket, Query}, SearchOpts, InitialAcc) ->
+    Result = mongoose_riak:search(?YZ_SEARCH_INDEX, Query, SearchOpts),
     case Result of
         {ok, {search_results, [], _, Count}} ->
-            {ok, Count, InitialAcc};
+            {ok, Count, 0, InitialAcc};
         {ok, {search_results, Results, _Score, Count}} ->
-            lager:warning("wtf ~p", [Results]),
-            {ok, Count, do_fold_archive(Fun, Results, InitialAcc)};
+            {ok, Count, length(Results), do_fold_archive(Fun, Results, InitialAcc)};
         {error, R} = Err ->
             ?WARNING_MSG("Error reading archive key_filters=~p, reason=~p", [Query, R]),
             Err
@@ -272,14 +312,14 @@ do_fold_archive(Fun, BucketKeys, InitialAcc) ->
     end, InitialAcc, BucketKeys).
 
 
-fold_buckets(Fun, MaxBuckets, KeyFiltersOpts, InitialAcc) ->
+fold_buckets(Fun, MaxBuckets, KeyFiltersOpts, SearchOpts, InitialAcc) ->
     {OldestYearWeek, NewestYearWeek} = get_week_boundaries(MaxBuckets, KeyFiltersOpts),
-    do_fold_buckets(OldestYearWeek, NewestYearWeek, Fun, KeyFiltersOpts, InitialAcc).
+    do_fold_buckets(OldestYearWeek, NewestYearWeek, Fun, KeyFiltersOpts, SearchOpts, InitialAcc).
 
-do_fold_buckets(OldestYearWeek, CurrentYearWeek, Fun, KeyFilterOpts, Acc) ->
+do_fold_buckets(_OldestYearWeek, CurrentYearWeek, Fun, KeyFilterOpts, SearchOpts, Acc) ->
     AllKeyFilterOpts = [CurrentYearWeek | KeyFilterOpts],
     KeyFilters = erlang:apply(fun bucket_key_filters/5, AllKeyFilterOpts),
-    fold_archive(Fun, KeyFilters, Acc).
+    fold_archive(Fun, KeyFilters, SearchOpts, Acc).
 %%     do_fold_buckets(OldestYearWeek, prev_week(CurrentYearWeek), Fun, KeyFilterOpts, NewAcc).
 
 get_week_boundaries(MaxBuckets, [_, _, Start, End]) ->
@@ -306,7 +346,7 @@ key_filters(Jid) ->
 key_filters(LocalJid, undefined) ->
     key_filters(LocalJid);
 key_filters(LocalJid, RemoteJid) ->
-    <<"_yz_rk:",LocalJid/binary,"/", RemoteJid/binary>>.
+    <<"_yz_rk:",LocalJid/binary,"/", RemoteJid/binary,"*">>.
 
 key_filters(LocalJid, RemoteJid, Start, End) ->
     JidFilter = key_filters(LocalJid, RemoteJid),
@@ -326,9 +366,6 @@ id_filters(Start, End) ->
 
 solr_id_filters(Start, End) ->
     <<"msg_id_register:[",Start/binary," TO ", End/binary," ]">>.
-
-decode_riak_obj(Binary) ->
-    binary_to_term(Binary).
 
 bare_jid(undefined) -> undefined;
 bare_jid(JID) ->
