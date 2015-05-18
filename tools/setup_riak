@@ -16,6 +16,14 @@ curl -XPUT $RIAK_HOST/search/index/vcard \
     -H 'Content-Type: application/json' \
     -d '{"schema":"vcard"}'
 
+curl -XPUT $RIAK_HOST/search/schema/mam \
+    -H 'Content-Type:application/xml' \
+    --data-binary @tools/mam_search_schema.xml
+
+curl -XPUT $RIAK_HOST/search/index/mam \
+    -H 'Content-Type: application/json' \
+    -d '{"schema":"mam"}'
+
 sleep 20
 
 ${1}riak-admin bucket-type create users '{"props":{"datatype":"map"}}'
@@ -26,3 +34,6 @@ ${1}riak-admin bucket-type activate private
 
 ${1}riak-admin bucket-type create vcard '{"props":{"last_write_wins":true, "search_index":"vcard"}}'
 ${1}riak-admin bucket-type activate vcard
+
+${1}riak-admin bucket-type create mam_yz '{"props":{"datatype":"map", "search_index":"mam"}}'
+${1}riak-admin bucket-type activate mam_yz
