@@ -184,6 +184,7 @@ start(Host, Opts) ->
     ejabberd_hooks:add(remove_user, Host, ?MODULE, remove_user, 50),
     ejabberd_hooks:add(anonymous_purge_hook, Host, ?MODULE, remove_user, 50),
     mongoose_metrics:create([backends, ?MODULE, lookup], histogram),
+    mongoose_metrics:create([Host, modMamLookups, simple], spiral),
     mongoose_metrics:create([backends, ?MODULE, archive], histogram),
     ok.
 

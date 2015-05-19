@@ -298,9 +298,15 @@ mam_lookup_messages(Result = {ok, {_TotalCount, _Offset, MessageRows}},
     Host, _ArcID, _ArcJID,
     _RSM, _Borders,
     _Start, _End, _Now, _WithJID,
-    _PageSize, _LimitPassed, _MaxResultLimit, _IsSimple) ->
+    _PageSize, _LimitPassed, _MaxResultLimit, IsSimple) ->
     mongoose_metrics:update({Host, modMamForwarded}, length(MessageRows)),
     mongoose_metrics:update({Host, modMamLookups}, 1),
+    case IsSimple of
+        true ->
+            mongoose_metrics:update([Host, modMamLookups, simple], 1);
+        _ ->
+            ok
+    end,
     Result;
 mam_lookup_messages(Result = {error, _},
     _Host, _ArcID, _ArcJID,
