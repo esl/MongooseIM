@@ -19,13 +19,14 @@
 -behaviour(gen_mod).
 
 -include("ejabberd.hrl").
+-include("jlib.hrl").
 
 %% API
 -export([start/2,
          stop/1,
          archive_size/4,
          archive_message/9,
-         lookup_messages/14,
+         lookup_messages/10,
          remove_archive/3,
          purge_single_message/6,
          purge_multiple_messages/9]).
@@ -36,7 +37,7 @@
 -export([key/3]).
 
 %% For tests only
--export([create_obj/3, read_archive/7, bucket/1,
+-export([create_obj/3, read_archive/6, bucket/1,
          list_mam_buckets/0, remove_bucket/1]).
 
 -define(YZ_SEARCH_INDEX, <<"mam">>).
@@ -99,17 +100,16 @@ safe_lookup_messages({error, _Reason} = Result, _Host,
                      _PageSize, _LimitPassed, _MaxResultLimit,
                      _IsSimple) ->
                      Result;
-safe_lookup_messages(Result, Host,
-                     UserID, UserJID, RSM, Borders,
-                     Start, End, Now, WithJID,
+safe_lookup_messages(_Result, _Host,
+                     _UserID, UserJID, RSM, Borders,
+                     Start, End, _Now, WithJID,
                      PageSize, LimitPassed, MaxResultLimit,
                      IsSimple) ->
     try
-        lookup_messages(Result, Host,
-            UserID, UserJID, RSM, Borders,
-            Start, End, Now, WithJID,
-            PageSize, LimitPassed, MaxResultLimit,
-            IsSimple)
+        lookup_messages(UserJID, RSM, Borders,
+                        Start, End, WithJID,
+                        PageSize, LimitPassed, MaxResultLimit,
+                        IsSimple)
     catch _Type:Reason ->
         {error, Reason}
     end.
@@ -130,7 +130,9 @@ bucket({_, _, _} = Date) ->
 bucket({Year, Week}) ->
     YearBin = integer_to_binary(Year),
     WeekNumBin = integer_to_binary(Week),
-    {?MAM_BUCKET_TYPE, <<"mam_",YearBin/binary, "_", WeekNumBin/binary>>}.
+    {?MAM_BUCKET_TYPE, <<"mam_",YearBin/binary, "_", WeekNumBin/binary>>};
+bucket(_) ->
+    undefined.
 
 list_mam_buckets() ->
     {ok, Buckets} = riakc_pb_socket:list_buckets(mongoose_riak:get_worker(), ?MAM_BUCKET_TYPE),
@@ -164,26 +166,62 @@ create_obj(MsgId, SourceJID, Packet) ->
 
     mongoose_riak:create_new_map(Ops).
 
-lookup_messages(_Result, Host, _ArchiveID, ArchiveJID, _RSM, _Borders, Start, End,
-                _Now, WithJID, PageSize, LimitPassed, MaxResultLimit, _IsSimple) ->
+lookup_messages(ArchiveJID, RSM, Borders, Start, End,
+                WithJID, PageSize, LimitPassed, MaxResultLimit, IsSimple) ->
+
     OwnerJID = bare_jid(ArchiveJID),
     RemoteJID = bare_jid(WithJID),
+
+    SearchOpts2 = add_sorting(RSM, [{rows, PageSize}]),
+    SearchOpts = add_offset(RSM, SearchOpts2),
+
     F = fun get_msg_id_key/3,
-    MaxBuckets = get_max_buckets(Host),
-    {TotalCount, Result} = read_archive(OwnerJID, RemoteJID, Start, End, PageSize, MaxBuckets, F),
 
-    SortedKeys = lists:sublist(sort_messages(Result), PageSize),
-    Offset = 0,
-    case TotalCount - Offset > MaxResultLimit andalso not LimitPassed of
+    {MsgIdStart, MsgIdEnd} = calculate_msg_id_borders(RSM, Borders, Start, End),
+    {TotalCountFullQuery, Result} = read_archive(OwnerJID, RemoteJID,
+                                                 MsgIdStart, MsgIdEnd,
+                                                 SearchOpts, F),
+
+    SortedKeys = sort_messages(Result),
+    case IsSimple of
         true ->
-            {error, 'policy-violation'};
+            {ok, {undefined, undefined, get_messages(SortedKeys)}};
         _ ->
-            {ok, {TotalCount, Offset, get_messages(SortedKeys)}}
-     end.
+            {MsgIdStartNoRSM, MsgIdEndNoRSM} = calculate_msg_id_borders(undefined, Borders, Start, End),
+            {TotalCount, _} = read_archive(OwnerJID, RemoteJID,
+                                           MsgIdStartNoRSM, MsgIdEndNoRSM,
+                                           [{rows, 1}], F),
+            Offset = calculate_offset(RSM, TotalCountFullQuery, length(SortedKeys),
+                                      {OwnerJID, RemoteJID, MsgIdStartNoRSM}),
+            case TotalCount - Offset > MaxResultLimit andalso not LimitPassed of
+                true ->
+                    {error, 'policy-violation'};
+                _ ->
+                    {ok, {TotalCount, Offset, get_messages(SortedKeys)}}
+            end
+    end.
 
-get_max_buckets(Host) ->
-    MaxBuckets = gen_mod:get_module_opt(Host, ?MODULE, archive_size, 53),
-    MaxBuckets.
+
+add_sorting(#rsm_in{direction = before}, Opts) ->
+    [{sort, <<"msg_id_register desc">>} | Opts];
+add_sorting(_, Opts) ->
+    [{sort, <<"msg_id_register asc">>} | Opts].
+
+add_offset(#rsm_in{index = Offset}, Opts) when is_integer(Offset) ->
+    [{start, Offset} | Opts];
+add_offset(_, Opts) ->
+    Opts.
+
+calculate_offset(#rsm_in{direction = before}, TotalCount, PageSize, _) ->
+    TotalCount - PageSize;
+calculate_offset(#rsm_in{direction = aft, id = Id}, _, _, {Owner, Remote, MsgIdStart}) when Id /= undefined ->
+    {Count, _} = read_archive(Owner, Remote, MsgIdStart, Id,
+                              [{rows, 1}], fun get_msg_id_key/3),
+    Count;
+calculate_offset(#rsm_in{direction = undefined, index = Index}, _, _, _) when is_integer(Index) ->
+    Index;
+calculate_offset(_, _TotalCount, _PageSize, _) ->
+    0.
 
 get_msg_id_key(Bucket, Key, Msgs) ->
     [_, _, MsgId] = decode_key(Key),
@@ -216,10 +254,10 @@ remove_archive(Host, _ArchiveID, ArchiveJID) ->
     end,
     Result.
 
-remove_chunk(Host, ArchiveJID, Acc) ->
-    fold_buckets(fun delete_key_fun/3, get_max_buckets(Host),
-        [bare_jid(ArchiveJID), undefined, undefined, undefined],
-        [{rows, 50}, {sort, <<"msg_id_register asc">>}], Acc).
+remove_chunk(_Host, ArchiveJID, Acc) ->
+    fold_buckets(fun delete_key_fun/3,
+                 [bare_jid(ArchiveJID), undefined, undefined, undefined],
+                  [{rows, 50}, {sort, <<"msg_id_register asc">>}], Acc).
 
 do_remove_archive(0, {ok, _, _, Acc}, _, _) ->
     {stopped, Acc};
@@ -230,18 +268,18 @@ do_remove_archive(N, {ok, _TotalResults, _RowsIterated, Acc}, Host, ArchiveJID) 
     R = remove_chunk(Host, ArchiveJID, Acc),
     do_remove_archive(N-1, R, Host, ArchiveJID).
 
-purge_single_message(_Result, Host, MessID, _ArchiveID, ArchiveJID, _Now) ->
+purge_single_message(_Result, _Host, MessID, _ArchiveID, ArchiveJID, _Now) ->
     ArchiveJIDBin = bare_jid(ArchiveJID),
     KeyFilters = [ArchiveJIDBin, MessID, undefined, undefined],
-    {ok, 1, 1, 1} = fold_buckets(fun delete_key_fun/3, get_max_buckets(Host),
-                 KeyFilters, [], 0),
+    {ok, 1, 1, 1} = fold_buckets(fun delete_key_fun/3, KeyFilters, [], 0),
     ok.
 
-purge_multiple_messages(_Result, Host, _ArchiveID, ArchiveJID, _Borders, Start, End, _Now, WithJID) ->
+purge_multiple_messages(_Result, _Host, _ArchiveID, ArchiveJID, _Borders, Start, End, _Now, WithJID) ->
     ArchiveJIDBin = bare_jid(ArchiveJID),
     KeyFilters = [ArchiveJIDBin, WithJID, Start, End],
-    {ok, Total, _Iterated, Deleted} = fold_buckets(fun delete_key_fun/3, get_max_buckets(Host),
-                 KeyFilters, [{rows, 50}, {sort, <<"msg_id_register asc">>}], 0),
+    {ok, Total, _Iterated, Deleted} = fold_buckets(fun delete_key_fun/3,
+                                                   KeyFilters,
+                                                   [{rows, 50}, {sort, <<"msg_id_register asc">>}], 0),
     case Total == Deleted of
         true ->
             ok;
@@ -266,21 +304,14 @@ decode_key(KeyBinary) ->
                    term(),
                    term(),
                    integer() | undefined,
-                   integer(),
                    fun()) ->
     {integer(), list()} | {error, term()}.
-read_archive(OwnerJID, WithJID, Start, End, MaxResults, MaxBuckets, Fun) ->
-    OldestYearWeek = get_oldest_year_week(Start, MaxBuckets),
-    NewestYearWeek = get_newest_year_week(End, MaxBuckets),
-    do_read_archive(OldestYearWeek, NewestYearWeek, [{rows, MaxResults}], [],
+read_archive(OwnerJID, WithJID, Start, End, SearchOpts, Fun) ->
+    do_read_archive(SearchOpts, [],
                     {OwnerJID, WithJID, Start, End, Fun}).
 
-do_read_archive(OldestYearWeek, CurrentYearWeek, _SearchOpts, Acc, _)
-    when CurrentYearWeek < OldestYearWeek ->
-    Acc;
-do_read_archive(_OldestYearWeek, CurrentYearWeek, SearchOpts, Acc,
-                {OwnerJID, WithJID, Start, End, Fun}) ->
-    KeyFilters = bucket_key_filters(CurrentYearWeek, OwnerJID, WithJID, Start, End),
+do_read_archive(SearchOpts, Acc, {OwnerJID, WithJID, Start, End, Fun}) ->
+    KeyFilters = bucket_key_filters(undefined, OwnerJID, WithJID, Start, End),
     {ok, Cnt, _, NewAcc} = fold_archive(Fun, KeyFilters, SearchOpts, Acc),
     {Cnt, NewAcc}.
 
@@ -312,20 +343,14 @@ do_fold_archive(Fun, BucketKeys, InitialAcc) ->
     end, InitialAcc, BucketKeys).
 
 
-fold_buckets(Fun, MaxBuckets, KeyFiltersOpts, SearchOpts, InitialAcc) ->
-    {OldestYearWeek, NewestYearWeek} = get_week_boundaries(MaxBuckets, KeyFiltersOpts),
-    do_fold_buckets(OldestYearWeek, NewestYearWeek, Fun, KeyFiltersOpts, SearchOpts, InitialAcc).
+fold_buckets(Fun, KeyFiltersOpts, SearchOpts, InitialAcc) ->
+    do_fold_buckets(Fun, KeyFiltersOpts, SearchOpts, InitialAcc).
 
-do_fold_buckets(_OldestYearWeek, CurrentYearWeek, Fun, KeyFilterOpts, SearchOpts, Acc) ->
-    AllKeyFilterOpts = [CurrentYearWeek | KeyFilterOpts],
+do_fold_buckets(Fun, KeyFilterOpts, SearchOpts, Acc) ->
+    AllKeyFilterOpts = [undefined | KeyFilterOpts],
     KeyFilters = erlang:apply(fun bucket_key_filters/5, AllKeyFilterOpts),
     fold_archive(Fun, KeyFilters, SearchOpts, Acc).
 %%     do_fold_buckets(OldestYearWeek, prev_week(CurrentYearWeek), Fun, KeyFilterOpts, NewAcc).
-
-get_week_boundaries(MaxBuckets, [_, _, Start, End]) ->
-    OldestYearWeek = get_oldest_year_week(Start, MaxBuckets),
-    NewestYearWeek = get_newest_year_week(End, MaxBuckets),
-    {OldestYearWeek, NewestYearWeek}.
 
 bucket_key_filters(YearWeek, LocalJid, MsgId) when is_integer(MsgId) ->
     StartsWith = key_filters(LocalJid),
@@ -353,48 +378,38 @@ key_filters(LocalJid, RemoteJid, Start, End) ->
     IdFilter = id_filters(Start, End),
     <<JidFilter/binary, " AND ", IdFilter/binary>>.
 
-id_filters(Start, undefined) ->
-    StartInt = mod_mam_utils:encode_compact_uuid(Start, 0),
+id_filters(StartInt, undefined) ->
     solr_id_filters(integer_to_binary(StartInt), <<"*">>);
-id_filters(undefined, End) ->
-    EndInt = mod_mam_utils:encode_compact_uuid(End, 1000),
+id_filters(undefined, EndInt) ->
     solr_id_filters(<<"*">>, integer_to_binary(EndInt));
-id_filters(Start, End) ->
-    StartInt = mod_mam_utils:encode_compact_uuid(Start, 0),
-    EndInt = mod_mam_utils:encode_compact_uuid(End, 1000),
+id_filters(StartInt, EndInt) ->
     solr_id_filters(integer_to_binary(StartInt), integer_to_binary(EndInt)).
 
 solr_id_filters(Start, End) ->
     <<"msg_id_register:[",Start/binary," TO ", End/binary," ]">>.
 
+calculate_msg_id_borders(#rsm_in{id = undefined}, Borders, Start, End) ->
+    calculate_msg_id_borders(undefined, Borders, Start, End);
+calculate_msg_id_borders(#rsm_in{direction = aft, id = Id}, Borders, Start, End) ->
+    {StartId, EndId} = calculate_msg_id_borders(undefined, Borders, Start, End),
+    NextId = Id + 1,
+    {mod_mam_utils:maybe_max(StartId, NextId), EndId};
+calculate_msg_id_borders(#rsm_in{direction = before, id = Id}, Borders, Start, End) ->
+    {StartId, EndId} = calculate_msg_id_borders(undefined, Borders, Start, End),
+    PrevId = Id - 1,
+    {StartId, mod_mam_utils:maybe_min(EndId, PrevId)};
+calculate_msg_id_borders(_RSM, Borders, Start, End) ->
+    StartID = maybe_encode_compact_uuid(Start, 0),
+    EndID = maybe_encode_compact_uuid(End, 255),
+    {mod_mam_utils:apply_start_border(Borders, StartID),
+     mod_mam_utils:apply_end_border(Borders, EndID)}.
+
 bare_jid(undefined) -> undefined;
 bare_jid(JID) ->
     jlib:jid_to_binary(jlib:jid_remove_resource(jlib:jid_to_lower(JID))).
 
-get_oldest_year_week(undefined, MaxBuckets) ->
-    {Date, _} = calendar:local_time(),
-    CurrentDays = calendar:date_to_gregorian_days(Date),
-    OldestDay = CurrentDays - 7 * (MaxBuckets - 1),
-    OldestDate = calendar:gregorian_days_to_date(OldestDay),
-    calendar:iso_week_number(OldestDate);
-get_oldest_year_week(Start, MaxBuckets) ->
-    {Date, _} = mod_mam_utils:microseconds_to_datetime(Start),
-    OldestByStart = calendar:iso_week_number(Date),
-    OldestByConfig = get_oldest_year_week(undefined, MaxBuckets),
-    erlang:max(OldestByStart, OldestByConfig).
 
-get_newest_year_week(undefined, _) ->
-    {Date, _} = calendar:local_time(),
-    calendar:iso_week_number(Date);
-get_newest_year_week(Microsec, MaxBuckets) when is_integer(Microsec) ->
-    {Date, _} = mod_mam_utils:microseconds_to_datetime(Microsec),
-    OldestByConfig = get_oldest_year_week(undefined, MaxBuckets),
-    YearWeekByEnd = calendar:iso_week_number(Date),
-    erlang:max(OldestByConfig, YearWeekByEnd).
-
-prev_week({Year, 1}) ->
-    FirstYearWeekDays = calendar:date_to_gregorian_days({Year, 1, 1}),
-    LastYearWeekPrevYearDays = FirstYearWeekDays - 7,
-    calendar:iso_week_number(calendar:gregorian_days_to_date(LastYearWeekPrevYearDays));
-prev_week({Year, Week}) ->
-    {Year, Week - 1}.
+maybe_encode_compact_uuid(undefined, _) ->
+    undefined;
+maybe_encode_compact_uuid(Microseconds, NodeID) ->
+    mod_mam_utils:encode_compact_uuid(Microseconds, NodeID).
