@@ -7,7 +7,6 @@ install:
         - tools/travis-build.sh
         - tools/travis-build-tests.sh
 before_script:
-        - tools/travis-setup-db.sh
         - if [ $PRESET = 'ldap_mnesia' ]; then tools/travis-setup-ldap.sh; fi
 script: tools/travis-test.sh
 
