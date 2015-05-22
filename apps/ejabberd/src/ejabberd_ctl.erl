@@ -915,14 +915,3 @@ format_usage_tuple([ElementDef | ElementsDef], Indentation) ->
     ElementFmt = format_usage_ctype(ElementDef, Indentation),
     MarginString = lists:duplicate(Indentation, $\s), % Put spaces
     [ElementFmt, ",\n", MarginString, format_usage_tuple(ElementsDef, Indentation)].
-
-
-%%-----------------------------
-%% Command managment
-%%-----------------------------
-
-%%+++
-%% Struct(Integer res) create_account(Struct(String user, String server, String password))
-%%format_usage_xmlrpc(ArgsDef, ResultDef) ->
-%%    ["aaaa bbb ccc"].
-
