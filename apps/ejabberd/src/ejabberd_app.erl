@@ -29,7 +29,7 @@
 
 -behaviour(application).
 
--export([start_modules/0,start/2, get_log_path/0, prep_stop/1, stop/1]).
+-export([start_modules/0,start/2, prep_stop/1, stop/1]).
 
 -include("ejabberd.hrl").
 
@@ -162,20 +162,6 @@ connect_nodes() ->
                                   net_kernel:connect_node(Node)
                           end, Nodes)
     end.
-
-%% @doc Rely completely on lager configuration in app.config for logfile
-%% management. Assume that app.config defines only one instance
-%% of lager_file_backend and return the path to the file it logs to.
-%%
-%% This is deprecated; left here only for compatibility with old ejabberd code.
--spec get_log_path() -> string().
-get_log_path() ->
-    Handlers = sys:get_state(lager_event),
-    catch [ throw(file_backend_path(State))
-            || {lager_file_backend, _File, State} <- Handlers ].
-
-file_backend_path(LagerFileBackendState) when element(1, LagerFileBackendState) =:= state ->
-    element(2, LagerFileBackendState).
 
 -spec broadcast_c2s_shutdown() -> 'ok'.
 broadcast_c2s_shutdown() ->

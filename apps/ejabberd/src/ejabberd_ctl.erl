@@ -148,10 +148,9 @@ process(["status"]) ->
     Applications = application:which_applications(),
     case lists:keyfind(mongooseim, 1, Applications) of
         false ->
-            EjabberdLogPath = ejabberd_app:get_log_path(),
             ?PRINT("MongooseIM is not running in that node~n"
-                   "Check for error messages: ~s~n"
-                   "or other files in that directory.~n", [EjabberdLogPath]),
+                   "Refer to log files or other files in their directory:~n~s~n",
+                   [string:join(get_log_files(), "\n")]),
             ?STATUS_ERROR;
         {_, _, Version} ->
             ?PRINT("MongooseIM version ~s is running on that node~n",
@@ -915,3 +914,15 @@ format_usage_tuple([ElementDef | ElementsDef], Indentation) ->
     ElementFmt = format_usage_ctype(ElementDef, Indentation),
     MarginString = lists:duplicate(Indentation, $\s), % Put spaces
     [ElementFmt, ",\n", MarginString, format_usage_tuple(ElementsDef, Indentation)].
+
+%%-----------------------------
+%% Lager specific helpers
+%%-----------------------------
+
+get_log_files() ->
+    Handlers = sys:get_state(lager_event),
+    [ file_backend_path(State)
+      || {lager_file_backend, _File, State} <- Handlers ].
+
+file_backend_path(LagerFileBackendState) when element(1, LagerFileBackendState) =:= state ->
+    element(2, LagerFileBackendState).
