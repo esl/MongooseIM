@@ -28,11 +28,7 @@
 
 -export([init/0,
          set/1,
-         get/0,
-         set_custom/2,
-         clear_custom/0,
-         clear_custom/1
-         ]).
+         get/0]).
 
 -include("ejabberd.hrl").
 
@@ -48,11 +44,6 @@
          {5, debug}]).
 
 -define(ETS_TRACE_TAB, ejabberd_lager_traces).
-
-%% @private
--spec log_path() -> string().
-log_path() ->
-    ejabberd_app:get_log_path().
 
 -spec init() -> atom() | ets:tid().
 init() ->
@@ -79,29 +70,3 @@ set(Level) ->
                  || lager_console_backend <- Backends ],
     %% Should just flatten to a single 'ok'.
     lists:usort(Files ++ Consoles).
-
--spec set_custom(Module :: atom(), loglevel() | integer()) -> 'true'.
-set_custom(Module, Level) when is_integer(Level) ->
-    {_, Name} = lists:keyfind(Level, 1, ?LOG_LEVELS),
-    set_custom(Module, Name);
-set_custom(Module, Level) when is_atom(Level) ->
-    clear_custom(Module),
-    Path = log_path(),
-    {ok, ConsoleTrace} = lager:trace_console([{module, Module}], Level),
-    {ok, FileTrace}  = lager:trace_file(Path, [{module, Module}], Level),
-    ets:insert(?ETS_TRACE_TAB, {Module, ConsoleTrace, FileTrace}).
-
--spec clear_custom() -> 'ok' | 'true'.
-clear_custom() ->
-    clear_custom('_').
-
--spec clear_custom(Module :: atom()) -> 'ok' | 'true'.
-clear_custom(Module) when is_atom(Module) ->
-    case ets:lookup(?ETS_TRACE_TAB, Module) of
-        [{_, ConsoleTrace, FileTrace}] ->
-            lager:stop_trace(ConsoleTrace),
-            lager:stop_trace(FileTrace),
-            ets:delete(?ETS_TRACE_TAB, Module);
-        [] ->
-            ok
-    end.
