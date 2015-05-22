@@ -640,11 +640,6 @@ message_row_to_ext_id({MessID,_,_}) ->
     mess_id_to_external_binary(MessID).
 
 
--spec message_row_to_dump_xml(messid_jid_packet()) -> false | jlib:xmlel().
-message_row_to_dump_xml(M) ->
-     xml:get_subtag(message_row_to_xml(M, undefined), <<"result">>).
-
-
 -spec maybe_jid(binary()) -> 'error' | 'undefined' | ejabberd:jid().
 maybe_jid(<<>>) ->
     undefined;
