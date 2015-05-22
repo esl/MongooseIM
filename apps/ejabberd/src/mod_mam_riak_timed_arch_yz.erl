@@ -255,8 +255,9 @@ remove_archive(Host, _ArchiveID, ArchiveJID) ->
     Result.
 
 remove_chunk(_Host, ArchiveJID, Acc) ->
-    fold_buckets(fun delete_key_fun/3,
-                 [bare_jid(ArchiveJID), undefined, undefined, undefined],
+    KeyFiletrs = key_filters(bare_jid(ArchiveJID)),
+    fold_archive(fun delete_key_fun/3,
+                 KeyFiletrs,
                   [{rows, 50}, {sort, <<"msg_id_register asc">>}], Acc).
 
 do_remove_archive(0, {ok, _, _, Acc}, _, _) ->
@@ -270,14 +271,14 @@ do_remove_archive(N, {ok, _TotalResults, _RowsIterated, Acc}, Host, ArchiveJID) 
 
 purge_single_message(_Result, _Host, MessID, _ArchiveID, ArchiveJID, _Now) ->
     ArchiveJIDBin = bare_jid(ArchiveJID),
-    KeyFilters = [ArchiveJIDBin, MessID, undefined, undefined],
-    {ok, 1, 1, 1} = fold_buckets(fun delete_key_fun/3, KeyFilters, [], 0),
+    KeyFilters = key_filters(ArchiveJIDBin, MessID),
+    {ok, 1, 1, 1} = fold_archive(fun delete_key_fun/3, KeyFilters, [], 0),
     ok.
 
 purge_multiple_messages(_Result, _Host, _ArchiveID, ArchiveJID, _Borders, Start, End, _Now, WithJID) ->
     ArchiveJIDBin = bare_jid(ArchiveJID),
-    KeyFilters = [ArchiveJIDBin, WithJID, Start, End],
-    {ok, Total, _Iterated, Deleted} = fold_buckets(fun delete_key_fun/3,
+    KeyFilters = key_filters(ArchiveJIDBin, WithJID, Start, End),
+    {ok, Total, _Iterated, Deleted} = fold_archive(fun delete_key_fun/3,
                                                    KeyFilters,
                                                    [{rows, 50}, {sort, <<"msg_id_register asc">>}], 0),
     case Total == Deleted of
@@ -307,12 +308,8 @@ decode_key(KeyBinary) ->
                    fun()) ->
     {integer(), list()} | {error, term()}.
 read_archive(OwnerJID, WithJID, Start, End, SearchOpts, Fun) ->
-    do_read_archive(SearchOpts, [],
-                    {OwnerJID, WithJID, Start, End, Fun}).
-
-do_read_archive(SearchOpts, Acc, {OwnerJID, WithJID, Start, End, Fun}) ->
-    KeyFilters = bucket_key_filters(undefined, OwnerJID, WithJID, Start, End),
-    {ok, Cnt, _, NewAcc} = fold_archive(Fun, KeyFilters, SearchOpts, Acc),
+    KeyFilters = key_filters(OwnerJID, WithJID, Start, End),
+    {ok, Cnt, _, NewAcc} = fold_archive(Fun, KeyFilters, SearchOpts, []),
     {Cnt, NewAcc}.
 
 
@@ -322,7 +319,7 @@ sort_messages(Msgs) ->
     end,
     lists:sort(SortFun, Msgs).
 
-fold_archive(Fun, {_Bucket, Query}, SearchOpts, InitialAcc) ->
+fold_archive(Fun, Query, SearchOpts, InitialAcc) ->
     Result = mongoose_riak:search(?YZ_SEARCH_INDEX, Query, SearchOpts),
     case Result of
         {ok, {search_results, [], _, Count}} ->
@@ -342,37 +339,20 @@ do_fold_archive(Fun, BucketKeys, InitialAcc) ->
         Fun({Type, Bucket}, Key, Acc)
     end, InitialAcc, BucketKeys).
 
-
-fold_buckets(Fun, KeyFiltersOpts, SearchOpts, InitialAcc) ->
-    do_fold_buckets(Fun, KeyFiltersOpts, SearchOpts, InitialAcc).
-
-do_fold_buckets(Fun, KeyFilterOpts, SearchOpts, Acc) ->
-    AllKeyFilterOpts = [undefined | KeyFilterOpts],
-    KeyFilters = erlang:apply(fun bucket_key_filters/5, AllKeyFilterOpts),
-    fold_archive(Fun, KeyFilters, SearchOpts, Acc).
-%%     do_fold_buckets(OldestYearWeek, prev_week(CurrentYearWeek), Fun, KeyFilterOpts, NewAcc).
-
-bucket_key_filters(YearWeek, LocalJid, MsgId) when is_integer(MsgId) ->
-    StartsWith = key_filters(LocalJid),
-    MsgIdBin = integer_to_binary(MsgId),
-    Q = <<StartsWith/binary, " AND msg_id_register:", MsgIdBin/binary>>,
-    {bucket(YearWeek), Q};
-bucket_key_filters(YearWeek, LocalJid, RemoteJid) ->
-    {bucket(YearWeek), key_filters(LocalJid, RemoteJid)}.
-
-bucket_key_filters(YearWeek, LocalJid, RemoteJid, undefined, undefined) ->
-    bucket_key_filters(YearWeek, LocalJid, RemoteJid);
-bucket_key_filters(YearWeek, LocalJid, RemoteJid, Start, End) ->
-    {bucket(YearWeek), key_filters(LocalJid, RemoteJid, Start, End)}.
-
 key_filters(Jid) ->
     <<"_yz_rk:",Jid/binary,"*">>.
 
 key_filters(LocalJid, undefined) ->
     key_filters(LocalJid);
+key_filters(LocalJid, MsgId) when is_integer(MsgId) ->
+    StartsWith = key_filters(LocalJid),
+    MsgIdBin = integer_to_binary(MsgId),
+    <<StartsWith/binary, " AND msg_id_register:", MsgIdBin/binary>>;
 key_filters(LocalJid, RemoteJid) ->
     <<"_yz_rk:",LocalJid/binary,"/", RemoteJid/binary,"*">>.
 
+key_filters(LocalJid, RemoteJid, undefined, undefined) ->
+    key_filters(LocalJid, RemoteJid);
 key_filters(LocalJid, RemoteJid, Start, End) ->
     JidFilter = key_filters(LocalJid, RemoteJid),
     IdFilter = id_filters(Start, End),
