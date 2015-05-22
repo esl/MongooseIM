@@ -24,7 +24,7 @@
 %%%----------------------------------------------------------------------
 
 -module(ejabberd_loglevel).
--author('piotr.nosek@erlang-solutions.com').
+-author('mongoose-im@erlang-solutions.com').
 
 -export([init/0,
          set/1,
