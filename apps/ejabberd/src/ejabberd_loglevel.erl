@@ -50,23 +50,28 @@ init() ->
     lager:start(),
     ets:new(?ETS_TRACE_TAB, [set, named_table, public]).
 
--spec get() -> {integer(), loglevel()}.
+-spec get() -> [{Backend, loglevel()}] when
+      Backend :: {lager_file_backend, string()} | lager_console_backend.
 get() ->
     Backends = gen_event:which_handlers(lager_event),
-    LevelName = (catch [ throw(lager:get_loglevel(Backend))
-                         || Backend <- Backends,
-                            Backend /= lager_backend_throttle ]),
-    lists:keyfind(LevelName, 2, ?LOG_LEVELS).
+    [ {Backend, lists:keyfind(Level, 2, ?LOG_LEVELS)}
+      || Backend <- Backends,
+         Backend /= lager_backend_throttle,
+         Level <- [lager:get_loglevel(Backend)] ].
 
--spec set(loglevel() | integer()) -> any().
+-spec set(loglevel() | integer()) -> [Result] when
+      Result :: { LagerBackend, ok | {error, Reason} },
+      %% Yes, these are two different errors!
+      Reason :: bad_log_level | bad_loglevel,
+      LagerBackend :: lager_console_backend | {lager_file_backend, Path},
+      Path :: string().
 set(Level) when is_integer(Level) ->
     {_, Name} = lists:keyfind(Level, 1, ?LOG_LEVELS),
     set(Name);
 set(Level) ->
     Backends = gen_event:which_handlers(lager_event),
-    Files = [ lager:set_loglevel(lager_file_backend, File, Level)
-              || {lager_file_backend, File} <- Backends ],
-    Consoles = [ lager:set_loglevel(lager_console_backend, Level)
-                 || lager_console_backend <- Backends ],
-    %% Should just flatten to a single 'ok'.
-    lists:usort(Files ++ Consoles).
+    Files = [ { B, lager:set_loglevel(lager_file_backend, File, Level) }
+              || B = {lager_file_backend, File} <- Backends ],
+    Consoles = [ { B, lager:set_loglevel(lager_console_backend, Level) }
+                 || B = lager_console_backend <- Backends ],
+    Files ++ Consoles.
