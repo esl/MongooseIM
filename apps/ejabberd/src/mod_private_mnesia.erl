@@ -51,7 +51,8 @@ init(_Host, _Opts) ->
 
 multi_set_data(LUser, LServer, NS2XML) ->
     F = fun() -> multi_set_data_t(LUser, LServer, NS2XML) end,
-    mnesia:transaction(F).
+    {atomic, ok} = mnesia:transaction(F),
+    ok.
 
 multi_set_data_t(LUser, LServer, NS2XML) ->
     [set_data_t(LUser, LServer, NS, XML) || {NS, XML} <- NS2XML],

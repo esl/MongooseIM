@@ -21,7 +21,7 @@ multi_set_data(LUser, LServer, NS2XML) ->
     replace_like_insert_result(
         odbc_queries:multi_set_private_data(LServer, SLUser, Rows)).
 
-replace_like_insert_result({updated, _})        -> {atomic, ok};
+replace_like_insert_result({updated, _})        -> ok;
 replace_like_insert_result({error, Reason})     -> {error, Reason};
 replace_like_insert_result({aborted, Reason})   -> {aborted, Reason}.
 
