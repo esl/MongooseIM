@@ -28,7 +28,9 @@
 
 -export([init/0,
          set/1,
-         get/0]).
+         get/0,
+         set_custom/2,
+         clear_custom/0, clear_custom/1]).
 
 -include("ejabberd.hrl").
 
@@ -48,7 +50,7 @@
 -spec init() -> atom() | ets:tid().
 init() ->
     lager:start(),
-    ets:new(?ETS_TRACE_TAB, [set, named_table, public]).
+    ets:new(?ETS_TRACE_TAB, [bag, named_table, public]).
 
 -spec get() -> [{Backend, loglevel()}] when
       Backend :: {lager_file_backend, string()} | lager_console_backend.
@@ -75,3 +77,45 @@ set(Level) ->
     Consoles = [ { B, lager:set_loglevel(lager_console_backend, Level) }
                  || B = lager_console_backend <- Backends ],
     Files ++ Consoles.
+
+-spec set_custom(Module :: atom(), loglevel() | integer()) -> [Result] when
+      Result :: {lager_console_backend | {lager_file_backend, string()},
+                 ok | {error, any()}}.
+set_custom(Module, Level) when is_integer(Level) ->
+    {_, Name} = lists:keyfind(Level, 1, ?LOG_LEVELS),
+    set_custom(Module, Name);
+set_custom(Module, Level) when is_atom(Level) ->
+    clear_custom(Module),
+    Backends = gen_event:which_handlers(lager_event),
+    [ {Backend, set_trace(Backend, Module, Level)}
+      || Backend <- Backends,
+         Backend /= lager_backend_throttle ].
+
+set_trace(Backend, Module, Level) ->
+    case lager:trace(Backend, [{module, Module}], Level) of
+        {error, _} = E -> E;
+        {ok, Trace} ->
+            true = ets:insert(?ETS_TRACE_TAB, {Module, Trace}),
+            ok
+    end.
+
+-spec clear_custom() -> ok.
+clear_custom() ->
+    ets:safe_fixtable(?ETS_TRACE_TAB, true),
+    ets:foldl(fun clear_trace/2, ok, ?ETS_TRACE_TAB),
+    ets:delete_all_objects(?ETS_TRACE_TAB),
+    ets:safe_fixtable(?ETS_TRACE_TAB, false),
+    ok.
+
+clear_trace({_Module, Trace}, ok) ->
+    lager:stop_trace(Trace).
+
+-spec clear_custom(Module :: atom()) -> ok.
+clear_custom(Module) when is_atom(Module) ->
+    case ets:lookup(?ETS_TRACE_TAB, Module) of
+        [] -> ok;
+        [_|_] = Traces ->
+            ets:delete(?ETS_TRACE_TAB, Module),
+            [ lager:stop_trace(Trace) || {_, Trace} <- Traces ],
+            ok
+    end.
