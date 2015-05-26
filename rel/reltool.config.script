@@ -82,8 +82,8 @@ IncludeApps = lists:map(fun(App) -> {app, App, [{incl_cond, include}]} end, Apps
            {mkdir, "priv"},
            {mkdir, "priv/ssl"},
 
-	       {copy, "files/erl", "\{\{erts_vsn\}\}/bin/erl"},
-	       {copy, "files/nodetool", "\{\{erts_vsn\}\}/bin/nodetool"},
+           {copy, "files/erl", "\{\{erts_vsn\}\}/bin/erl"},
+           {copy, "files/nodetool", "\{\{erts_vsn\}\}/bin/nodetool"},
            {copy, "files/mongooseim", "bin/mongooseim"},
            {copy, "files/mongooseimctl", "bin/mongooseimctl"},
            {copy, "files/app.config", "etc/app.config"},
