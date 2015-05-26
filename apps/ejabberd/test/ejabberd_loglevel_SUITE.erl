@@ -25,7 +25,7 @@ init_test(_) ->
 
 set_get_loglevel(C) ->
     %% given
-    ejabberd_loglevel_running(),
+    {ok, Backend} = ejabberd_loglevel_running(),
     Levels = [{0, none},
               {1, critical},
               {2, error},
@@ -36,7 +36,7 @@ set_get_loglevel(C) ->
     LevelsToTest = ([ {L, element(1, L)} || L <- Levels ] ++
                     [ {L, element(2, L)} || L <- Levels ]),
     %% when / then
-    [ set_get_loglevel(C, lager_console_backend, Expected, Level)
+    [ set_get_loglevel(C, Backend, Expected, Level)
       || {Expected, Level} <- LevelsToTest ].
 
 set_get_loglevel(_, Backend, Expected, Level) ->
@@ -60,7 +60,14 @@ set_custom_loglevel(_) ->
 
 ejabberd_loglevel_running() ->
     application:load(lager),
-    Backend = lager_console_backend,
-    application:set_env(lager, handlers, [{lager_console_backend, info}]),
+    BackendName = lager_file_backend,
+    File = "log/ejabberd.log",
+    Backend = {BackendName, [{file, File},
+                             {level, info},
+                             {size, 2097152},
+                             {date, "$D0"},
+                             {count, 5}]},
+    application:set_env(lager, handlers, [Backend]),
     ejabberd_loglevel:init(),
-    {ok, Backend}.
+    FileBackend = {BackendName, File},
+    {ok, FileBackend}.
