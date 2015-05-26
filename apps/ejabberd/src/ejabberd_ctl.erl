@@ -143,17 +143,23 @@ unregister_commands(CmdDescs, Module, Function) ->
 -spec process(_) -> integer().
 process(["status"]) ->
     {InternalStatus, ProvidedStatus} = init:get_status(),
-    ?PRINT("The node ~p is ~p with status: ~p~n",
+    ?PRINT("Node ~p is ~p with status: ~p~n",
            [node(), InternalStatus, ProvidedStatus]),
     Applications = application:which_applications(),
     case lists:keyfind(mongooseim, 1, Applications) of
         false ->
-            ?PRINT("MongooseIM is not running in that node~n"
-                   "Refer to log files or other files in their directory:~n~s~n",
-                   [string:join(get_log_files(), "\n")]),
+            ?PRINT("MongooseIM is not running on this node.~n", []),
+            case get_log_files() of
+                [] ->
+                    ?PRINT("No log files in use. "
+                           "Maybe you should enable logging to a file in app.config?~n", []);
+                LogFiles ->
+                    ?PRINT("Refer to the following log file(s):~n~s~n",
+                           [string:join(LogFiles, "\n")])
+            end,
             ?STATUS_ERROR;
         {_, _, Version} ->
-            ?PRINT("MongooseIM version ~s is running on that node~n",
+            ?PRINT("MongooseIM version ~s is running on this node~n",
                    [Version]),
             ?STATUS_SUCCESS
     end;
