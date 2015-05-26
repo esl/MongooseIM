@@ -6,7 +6,7 @@ RUNNER_SCRIPT_DIR=$(cd ${0%/*} && pwd)
 
 RUNNER_BASE_DIR=${RUNNER_SCRIPT_DIR%/*}
 RUNNER_ETC_DIR=$RUNNER_BASE_DIR/etc
-RUNNER_LOG_DIR=$RUNNER_BASE_DIR/log
+RUNNER_LOG_DIR={{mongooseim_runner_log_dir}}
 # Note the trailing slash on $PIPE_DIR/
 PIPE_DIR=/tmp/mongooseim_pipe_`whoami`/
 RUNNER_USER=
