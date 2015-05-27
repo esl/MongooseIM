@@ -139,7 +139,30 @@ handle_offline_msg(#offline_msg{us=US} = Msg, AccessMaxOfflineMsgs) ->
         AccessMaxOfflineMsgs, LUser, LServer),
     case ?BACKEND:write_messages(LUser, LServer, Msgs, MaxOfflineMsgs) of
         ok ->
-            ok;
+            %% To mitigate a race condition we check again here if the
+            %% user might have become available in the meantime and
+            %% then send along any spooled messages as if they were
+            %% just polled.
+            %% See
+            %% https://github.com/esl/MongooseIM/issues/435
+            %% and
+            %% https://support.process-one.net/browse/EJAB-1268
+            case ejabberd_sm:get_user_resources(LUser, LServer) of
+                [] ->
+                    ok;
+                _Resources ->
+                    %% Whoops, here we go.
+
+                    %% This is the lazy approach where we assume there
+                    %% is exactly one resource now - the newly created
+                    %% one.
+                    %% More accurately we should remember the last
+                    %% session that popped messages, check if it still
+                    %% alive and if so send messages to that resource
+                    %% explicitely.
+                    resend_offline_messages(LUser, LServer),
+                    ok
+            end;
         {discarded, DiscardedMsgs} ->
             discard_warn_sender(DiscardedMsgs);
         {error, Reason} ->
