@@ -61,16 +61,14 @@ log_at_every_level(C) ->
       end || {L, LName} <- levels() ].
 
 log_at_level(C, {0, none}) ->
-    %% Given level {0, none} as argument,
-    %% when logging on each possible level...
+    %% When log level {0, none} is set and we log on each possible level...
     Before = get_log("log/ejabberd.log"),
     [ log(C, LevelName, "", []) || {_, LevelName} <- levels(), LevelName /= none ],
     %% ...then nothing ends up in the log file.
     After = get_log("log/ejabberd.log"),
     ?eq([], After -- Before);
 log_at_level(C, {L, _}) ->
-    %% Given a level as argument,
-    %% when logging on each possible level...
+    %% When current log level is L and we log on each possible level...
     Before = get_log("log/ejabberd.log"),
     [ log(C, LevelName, "match-this", []) || {_, LevelName} <- levels(), LevelName /= none ],
     %% (give the file system time to flush)
@@ -78,7 +76,7 @@ log_at_level(C, {L, _}) ->
     %% ...then for each sensible level (i.e. less or equal to current level)
     %% we get a line in the log file.
     After = get_log("log/ejabberd.log"),
-    LinesDiff = filter_out_irrelevant(After -- Before, <<"match-this">>),
+    LinesDiff = filter_out_non_matching(After -- Before, <<"match-this">>),
     ExpectedContents = levels_less_than_or_equal_to(L) -- [<<"none">>],
     LinesWithExpectedContents = lists:zip(LinesDiff, ExpectedContents),
     [ ?assert('contains?'(Line, ExpectedLevel))
@@ -123,5 +121,5 @@ get_log(LogFile) ->
     {ok, Contents} = file:read_file(LogFile),
     binary:split(Contents, <<"\n">>, [global, trim]).
 
-filter_out_irrelevant(Lines, Pattern) ->
+filter_out_non_matching(Lines, Pattern) ->
     lists:filter(fun (L) -> 'contains?'(L, Pattern) end, Lines).
