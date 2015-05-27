@@ -14,33 +14,52 @@
 %% limitations under the License.
 %%==============================================================================
 
--module(roster_http_SUITE).
+-module(new_roster_http_SUITE).
 -compile(export_all).
+-author('piotr.nosek@erlang-solutions.com').
 
 -include_lib("common_test/include/ct.hrl").
 
--define(HOST_NAME, <<"localhost">>).
--define(PORT_NUMBER, <<"12000">>).
--define(ROSTER_PATH, <<"/roster/">>).
-
--define(DOMAIN, "localhost").
--define(ALICE, <<"alice">>).
+-define(DOMAIN1, <<"localhost">>).
 -define(DOMAIN2, <<"localhost2">>).
--define(ROSTER_HOST, "http://localhost:12000").
+-define(AUTH_HOST, "http://localhost:12000").
+-define(ROSTER_HOST, "http://localhost:12000"). %
 -define(BASIC_AUTH, "softkitty:purrpurrpurr").
+-define(ALICE, <<"alice">>).
+-define(BOB, <<"bob">>).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
 
 all() ->
-    [{group, roster}].
+    [
+     %% {group, auth_requests_plain},
+     %% {group, auth_requests_scram},
+     {group, roster}].
 
 groups() ->
-    [{roster, [sequence], all_tests()}].
+    [
+     %% {auth_requests_plain, [sequence], all_tests()},
+     %% {auth_requests_scram, [sequence], all_tests()},
+     {roster, [sequence], roster_tests()}
+    ].
 
-all_tests() ->
-    [get_roster].
+%% all_tests() ->
+%%     [
+%%      check_password,
+%%      set_password,
+%%      try_register,
+%%      get_password,
+%%      is_user_exists,
+%%      remove_user
+%%     ].
+
+roster_tests() ->
+    [
+     get_empty_roster,
+     get_roster
+    ].
 
 suite() ->
     [].
@@ -51,13 +70,16 @@ suite() ->
 
 init_per_suite(Config) ->
     application:start(p1_stringprep),
-    meck_config(),
+    meck_config(Config),
     mim_ct_rest:start(?BASIC_AUTH, Config),
     % Separate process needs to do this, because this one will terminate
     % so will supervisor and children and ETS tables
     mim_ct_rest:do(fun() ->
                            mim_ct_sup:start_link(ejabberd_sup),
-                           mod_roster_http:init(?ROSTER_HOST, [])
+                           %% ejabberd_auth_http:start(?DOMAIN1),
+                           %% confirms compatibility with multi-domain cluster
+                           %% ejabberd_auth_http:start(?DOMAIN2),
+			   mod_roster_http:init(?DOMAIN1, undefined)
                    end),
     meck_cleanup(),
     Config.
@@ -66,39 +88,38 @@ end_per_suite(Config) ->
     exit(whereis(ejabberd_sup), kill),
     Config.
 
-init_per_group(_GroupName, Config) ->
-    %% Config2 = lists:keystore(scram_group, 1, Config,
-    %%                          {scram_group, GroupName == auth_requests_scram}),
-    %% meck_config(Config2),
-    %% mim_ct_rest:register(<<"alice">>, ?DOMAIN1, do_scram(<<"makota">>, Config2)),
-    %% mim_ct_rest:register(<<"bob">>, ?DOMAIN1, do_scram(<<"niema5klepki">>, Config2)),
-    %% meck_cleanup(),
-    %% Config2.
-    Config.
+init_per_group(GroupName, Config) ->
+    Config2 = lists:keystore(scram_group, 1, Config,
+                             {scram_group, GroupName == auth_requests_scram}),
+    meck_config(Config2),
+    mim_ct_rest:register(<<"alice">>, ?DOMAIN1, do_scram(<<"makota">>, Config2)),
+    mim_ct_rest:register(<<"bob">>, ?DOMAIN1, do_scram(<<"niema5klepki">>, Config2)),
+    meck_cleanup(),
+    Config2.
 
 end_per_group(_GroupName, Config) ->
-    %% mim_ct_rest:remove_user(<<"alice">>, ?DOMAIN1),
-    %% mim_ct_rest:remove_user(<<"bob">>, ?DOMAIN1),
+    mim_ct_rest:remove_user(<<"alice">>, ?DOMAIN1),
+    mim_ct_rest:remove_user(<<"bob">>, ?DOMAIN1),
     Config.
 
-%% init_per_testcase(remove_user, Config) ->
-%%     meck_config(Config),
-%%     mim_ct_rest:register(<<"toremove1">>, ?DOMAIN1, do_scram(<<"pass">>, Config)),
-%%     mim_ct_rest:register(<<"toremove2">>, ?DOMAIN1, do_scram(<<"pass">>, Config)),
-%%     Config;
+init_per_testcase(remove_user, Config) ->
+    meck_config(Config),
+    mim_ct_rest:register(<<"toremove1">>, ?DOMAIN1, do_scram(<<"pass">>, Config)),
+    mim_ct_rest:register(<<"toremove2">>, ?DOMAIN1, do_scram(<<"pass">>, Config)),
+    Config;
 init_per_testcase(_CaseName, Config) ->
-    meck_config(),
+    meck_config(Config),
     Config.
 
-%% end_per_testcase(try_register, Config) ->
-%%     %% mim_ct_rest:remove_user(<<"nonexistent">>, ?DOMAIN1),
-%%     %% meck_cleanup(),
-%%     Config;
-%% end_per_testcase(remove_user, Config) ->
-%%     %% mim_ct_rest:remove_user(<<"toremove1">>, ?DOMAIN1),
-%%     %% mim_ct_rest:remove_user(<<"toremove2">>, ?DOMAIN1),
-%%     %% meck_cleanup(),
-%%     Config;
+end_per_testcase(try_register, Config) ->
+    mim_ct_rest:remove_user(<<"nonexistent">>, ?DOMAIN1),
+    meck_cleanup(),
+    Config;
+end_per_testcase(remove_user, Config) ->
+    mim_ct_rest:remove_user(<<"toremove1">>, ?DOMAIN1),
+    mim_ct_rest:remove_user(<<"toremove2">>, ?DOMAIN1),
+    meck_cleanup(),
+    Config;
 end_per_testcase(_CaseName, Config) ->
     meck_cleanup(),
     Config.
@@ -107,22 +128,95 @@ end_per_testcase(_CaseName, Config) ->
 %% Authentication tests
 %%--------------------------------------------------------------------
 
+check_password(_Config) ->
+    true = ejabberd_auth_http:check_password(<<"alice">>, ?DOMAIN1, <<"makota">>),
+    false = ejabberd_auth_http:check_password(<<"alice">>, ?DOMAIN1, <<"niemakota">>),
+    false = ejabberd_auth_http:check_password(<<"kate">>, ?DOMAIN1, <<"mapsa">>).
+
+set_password(_Config) ->
+    ok = ejabberd_auth_http:set_password(<<"alice">>, ?DOMAIN1, <<"mialakota">>),
+    true = ejabberd_auth_http:check_password(<<"alice">>, ?DOMAIN1, <<"mialakota">>),
+    ok = ejabberd_auth_http:set_password(<<"alice">>, ?DOMAIN1, <<"makota">>).
+
+try_register(_Config) ->
+    ok = ejabberd_auth_http:try_register(<<"nonexistent">>, ?DOMAIN1, <<"newpass">>),
+    true = ejabberd_auth_http:check_password(<<"nonexistent">>, ?DOMAIN1, <<"newpass">>),
+    {error, exists} = ejabberd_auth_http:try_register(<<"nonexistent">>, ?DOMAIN1, <<"anypass">>).
+
+% get_password + get_password_s
+get_password(_Config) ->
+    case scram:enabled(?DOMAIN1) of
+        false ->
+            <<"makota">> = ejabberd_auth_http:get_password(<<"alice">>, ?DOMAIN1),
+            <<"makota">> = ejabberd_auth_http:get_password_s(<<"alice">>, ?DOMAIN1);
+        true ->
+            % tuple with SCRAM data
+            {_, _, _, _} = ejabberd_auth_http:get_password(<<"alice">>, ?DOMAIN1),
+            <<>> = ejabberd_auth_http:get_password_s(<<"alice">>, ?DOMAIN1)
+    end,
+    false = ejabberd_auth_http:get_password(<<"anakin">>, ?DOMAIN1),
+    <<>> = ejabberd_auth_http:get_password_s(<<"anakin">>, ?DOMAIN1).
+    
+is_user_exists(_Config) ->
+    true = ejabberd_auth_http:does_user_exist(<<"alice">>, ?DOMAIN1),
+    false = ejabberd_auth_http:does_user_exist(<<"madhatter">>, ?DOMAIN1).
+
+% remove_user/2,3
+remove_user(_Config) ->
+    true = ejabberd_auth_http:does_user_exist(<<"toremove1">>, ?DOMAIN1),
+    ok = ejabberd_auth_http:remove_user(<<"toremove1">>, ?DOMAIN1),
+    false = ejabberd_auth_http:does_user_exist(<<"toremove1">>, ?DOMAIN1),
+
+    true = ejabberd_auth_http:does_user_exist(<<"toremove2">>, ?DOMAIN1),
+    not_allowed = ejabberd_auth_http:remove_user(<<"toremove2">>, ?DOMAIN1, <<"wrongpass">>),
+    true = ejabberd_auth_http:does_user_exist(<<"toremove2">>, ?DOMAIN1),
+    ok = ejabberd_auth_http:remove_user(<<"toremove2">>, ?DOMAIN1, <<"pass">>),
+    false = ejabberd_auth_http:does_user_exist(<<"toremove2">>, ?DOMAIN1),
+
+    not_exists = ejabberd_auth_http:remove_user(<<"toremove3">>, ?DOMAIN1, <<"wrongpass">>).
+
+%%--------------------------------------------------------------------
+%% Roster tests
+%%--------------------------------------------------------------------
+
+get_empty_roster(_Config) ->
+    [] = mod_roster_http:get_roster(?ALICE, ?DOMAIN1).
+
 get_roster(_Config) ->
-    [] = mod_roster_http:get_roster(?ALICE, ?DOMAIN).
+    [] = mod_roster_http:get_roster(?BOB, ?DOMAIN1).
 
 %%--------------------------------------------------------------------
-%% Helpers (mocking)
+%% Helpers
 %%--------------------------------------------------------------------
 
-meck_config() ->
+meck_config(Config) ->
+    ScramOpts = case lists:keyfind(scram_group, 1, Config) of
+                    {_, true} -> [{password_format, scram}];
+                    _ -> []
+                end,
     meck:new(ejabberd_config),
     meck:expect(ejabberd_config, get_local_option,
-                fun(roster_opts, _Host) ->
-                        [{host, ?HOST_NAME},
-			 {port, ?PORT_NUMBER},
-                         {path_prefix, ?ROSTER_PATH}]
-                end).
+                fun(auth_opts, _Host) ->
+                        [
+                         {host, ?AUTH_HOST},
+                         {path_prefix, "/auth/"},
+                         {basic_auth, ?BASIC_AUTH}
+                        ] ++ ScramOpts;
+		   (roster_opts, _Host) ->
+                        [
+                         {host, ?ROSTER_HOST},
+                         {path_prefix, "/roster/"}
+                        ]
+		end).
 
 meck_cleanup() ->
     meck:validate(ejabberd_config),
     meck:unload(ejabberd_config).
+
+do_scram(Pass, Config) ->
+    case lists:keyfind(scram_group, 1, Config) of
+        {_, true} ->
+            scram:serialize(scram:password_to_scram(Pass, scram:iterations(?DOMAIN1)));
+        _ ->
+            Pass
+    end.
