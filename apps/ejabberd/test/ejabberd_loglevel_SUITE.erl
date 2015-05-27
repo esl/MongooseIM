@@ -9,10 +9,13 @@
 -define(ne(A, B), ?assertNot(A == B)).
 
 all() ->
-    [init_test,
+    [
+     init_test,
      set_get_loglevel,
      set_custom_loglevel,
-     log_at_every_level].
+     log_at_every_level,
+     log_at_custom_level
+    ].
 
 end_per_testcase(_TestCase, _Config) ->
     application:stop(lager),
@@ -65,22 +68,48 @@ log_at_level(C, {0, none}) ->
     Before = get_log("log/ejabberd.log"),
     [ log(C, LevelName, "", []) || {_, LevelName} <- levels(), LevelName /= none ],
     %% ...then nothing ends up in the log file.
+    %% (polling doesn't make sense in this one case... we have to sleep)
+    timer:sleep(timer:seconds(2)),
     After = get_log("log/ejabberd.log"),
     ?eq([], After -- Before);
 log_at_level(C, {L, _}) ->
     %% When current log level is L and we log on each possible level...
     Before = get_log("log/ejabberd.log"),
-    [ log(C, LevelName, "match-this", []) || {_, LevelName} <- levels(), LevelName /= none ],
-    %% (give the file system time to flush)
-    timer:sleep(timer:seconds(1)),
+    [ log(C, LevelName, "match-this ~s", [LevelName]) || {_, LevelName} <- levels(), LevelName /= none ],
     %% ...then for each sensible level (i.e. less or equal to current level)
     %% we get a line in the log file.
-    After = get_log("log/ejabberd.log"),
-    LinesDiff = filter_out_non_matching(After -- Before, <<"match-this">>),
     ExpectedContents = levels_less_than_or_equal_to(L) -- [<<"none">>],
+    After = case get_at_least_n_log_lines("log/ejabberd.log",
+                                          length(Before) + length(ExpectedContents),
+                                          timer:seconds(5)) of
+                timeout -> ct:fail("timed out waiting for messages to reach the log file");
+                Res -> Res
+            end,
+    LinesDiff = filter_out_non_matching(After -- Before, <<"match-this">>),
     LinesWithExpectedContents = lists:zip(LinesDiff, ExpectedContents),
     [ ?assert('contains?'(Line, ExpectedLevel))
       || {Line, ExpectedLevel} <- LinesWithExpectedContents ].
+
+log_at_custom_level(C) ->
+    %% given logging on custom log level for the helper module
+    ejabberd_loglevel_running(),
+    ejabberd_loglevel:set(1),
+    ejabberd_loglevel:set_custom(ejabberd_loglevel_SUITE_helper, 5),
+    %% when we log from here and from the helper module
+    Before = get_log("log/ejabberd.log"),
+    log(C, debug, "suite", []),
+    ejabberd_loglevel_SUITE_helper:log(C, debug, "helper module", []),
+    %% then
+    After = case get_at_least_n_log_lines("log/ejabberd.log", length(Before) + 1, timer:seconds(5)) of
+                timeout -> ct:fail("timeout waiting for messages to reach the log file");
+                Res -> Res
+            end,
+    Diff = After -- Before,
+    %% ...nothing logged from the suite reaches the log file
+    ?eq([], filter_out_non_matching(Diff, <<"suite">>)),
+    %% ...logs from the helper module are found in the log file
+    [LogLine] = filter_out_non_matching(Diff, <<"helper module">>),
+    ?assert('contains?'(LogLine, <<"debug">>)).
 
 %%
 %% Helpers
@@ -123,3 +152,28 @@ get_log(LogFile) ->
 
 filter_out_non_matching(Lines, Pattern) ->
     lists:filter(fun (L) -> 'contains?'(L, Pattern) end, Lines).
+
+get_at_least_n_log_lines(LogFile, NLines, Timeout) ->
+    TRef = erlang:start_timer(Timeout, self(), get_at_least_n_log_lines),
+    get_at_least_n_log_lines(LogFile, NLines, TRef, get_log(LogFile)).
+
+get_at_least_n_log_lines(_LogFile, NLines, TRef, Lines)
+  when length(Lines) >= NLines ->
+    cancel_timer(TRef),
+    Lines;
+get_at_least_n_log_lines(LogFile, NLines, TRef, _Lines) ->
+    receive
+        {timeout, TRef, get_at_least_n_log_lines} ->
+            timeout
+    after 100 ->
+            get_at_least_n_log_lines(LogFile, NLines, TRef, get_log(LogFile))
+    end.
+
+cancel_timer(TRef) ->
+    case erlang:cancel_timer(TRef) of
+        false ->
+            receive {timeout, TRef, get_at_least_n_log_lines} -> ok
+            after 0 -> ok end;
+        _ ->
+            ok
+    end.
