@@ -10,6 +10,10 @@
 %%%----------------------------------------------------------------------
 -module(mod_roster_http).
 
+-include_lib("eunit/include/eunit.hrl").
+
+%% from mod_roster_mnesia
+
 -include("mod_roster.hrl").
 -include("jlib.hrl").
 
@@ -64,8 +68,9 @@ write_roster_version(LUser, LServer, InTransaction, Ver) ->
                                               version = Ver})
     end.
 
-get_roster(LUser, LServer) ->
-    [].
+get_roster(LocalUser, LocalServer) ->
+    {ok, JSONRoster} = make_req(get, undefined, LocalUser, LocalServer, undefined),
+    mochijson2:decode(JSONRoster).
 
 get_roster_by_jid_t(LUser, LServer, LJID) ->
     case mnesia:read({roster, {LUser, LServer, LJID}}) of
@@ -123,6 +128,70 @@ read_subscription_and_groups(LUser, LServer, LJID) ->
 
 raw_to_record(_, Item) -> Item.
 
--spec pool_name(binary()) -> atom().
+
+%% ~ From mim_ct_rest
+
+-spec pool_name(list()) -> atom().
 pool_name(Host) ->
     list_to_atom("mod_roster_http_" ++ binary_to_list(Host)).
+
+-spec existing_pool_name(list()) -> atom().
+existing_pool_name(Host) ->
+    list_to_existing_atom("mod_roster_http_" ++ binary_to_list(Host)).
+
+get_path_prefix(RosterOpts) ->
+    case lists:keyfind(path_prefix, 1, RosterOpts) of
+	{_, Prefix} -> ejabberd_binary:string_to_binary(Prefix);
+	false -> <<"/roster/">>
+    end.
+
+%% From ejabberd_auth_http
+
+-spec make_req(post | get, binary(), binary(), binary(), binary()) ->
+    {ok, Body :: binary()} | {error, term()}.
+make_req(_, _, LUser, LServer, _) when LUser == error orelse LServer == error ->
+    {error, {prep_failed, LUser, LServer}};
+make_req(Method, _Path, LUser, LServer, _Password) ->
+    AuthOpts = ejabberd_config:get_local_option(roster_opts, LServer),
+    PathPrefix = case lists:keyfind(path_prefix, 1, AuthOpts) of
+                     {_, Prefix} ->
+			 ejabberd_binary:string_to_binary(Prefix);
+                     false ->
+			 <<"/roster/">>
+                 end,
+    LUserE = list_to_binary(http_uri:encode(binary_to_list(LUser))),
+    LServerE = list_to_binary(http_uri:encode(binary_to_list(LServer))),
+    AtE = list_to_binary(http_uri:encode("@")),
+    %% PasswordE = list_to_binary(http_uri:encode(binary_to_list(Password))),
+    %% Query = <<"user=", LUserE/binary, "&server=", LServerE/binary, "&pass=", PasswordE/binary>>,
+    JID = <<LUserE/binary, AtE/binary, LServerE/binary>>,
+    %% Header = [{<<"Authorization">>, <<"Basic ", BasicAuth64/binary>>}],
+    Header = [],
+    Connection = cuesport:get_worker(existing_pool_name(LServer)),
+			
+    ?debugFmt("request with path ~p and JID ~p.~n", [PathPrefix, JID]),
+    {ok, {{Code, _Reason}, _RespHeaders, RespBody, _, _}} = 
+	case Method of
+	    %% get -> fusco:request(Connection, <<PathPrefix/binary, Path/binary, "?", Query/binary>>,
+	    %% 			 "GET", Header, "", 2, 5000);
+	    %% get ->
+	    %% 	fusco:request(Connection, <<PathPrefix/binary, JID/binary>>,
+	    %% 		      "GET", Header, "", 2, 5000);
+	    get ->
+		fusco:request(Connection, <<PathPrefix/binary, JID/binary>>,
+			      "GET", Header, "", 2, 5000)
+	    %% post -> fusco:request(Connection, <<PathPrefix/binary, Path/binary>>,
+	    %% 			  "POST", Header, Query, 2, 5000)
+	end,
+    
+    ?debugFmt("Request result: ~s: ~p", [Code, RespBody]),
+    case Code of
+        <<"409">> -> {error, conflict};
+        <<"404">> -> {error, not_found};
+        <<"401">> -> {error, not_authorized};
+        <<"403">> -> {error, not_allowed};
+        <<"400">> -> {error, RespBody};
+        <<"204">> -> {ok, <<"">>};
+        <<"201">> -> {ok, created};
+        <<"200">> -> {ok, RespBody}
+    end.

@@ -102,13 +102,20 @@ init([BasicAuth]) ->
     ensure_started(cowlib),
     ensure_started(ranch),
     ensure_started(cowboy),
-    DispatchEJD = cowboy_router:compile([
-					 {'_', [{"/auth/:method/", mim_ct_rest_handler, []}]},
-					 {'_', [{"/roster/:from_jid/", mim_ct_roster_handler, []}]}
-        ]),
+    %% DispatchEJD = cowboy_router:compile(
+    %% 		    [
+    %% 		     {'_', [{"/auth/:method/", mim_ct_rest_handler, []}]}
+    %% 		    ]),
+    RosterDispatchEJD = cowboy_router:compile( %%
+			  [
+			   {'_', [{"/roster/:from_jid/", mim_ct_roster_handler, []}]}
+			  ]),
 
-    {ok, _} = cowboy:start_http(tests_listener, 5, [{port, 12000}],
-                                [{env, [{dispatch, DispatchEJD}]}]),
+    %% {ok, _} = cowboy:start_http(tests_listener, 5, [{port, 12000}],
+    %%                             [{env, [{dispatch, DispatchEJD}]}]),
+    {ok, _} = cowboy:start_http(roster_tests_listener, 5, [{port, 12000}], %%
+                                [{env, [{dispatch, RosterDispatchEJD}]}]),
+
 
     {ok, #state{ basic_auth = list_to_binary(BasicAuth) }}.
 
