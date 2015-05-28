@@ -46,20 +46,15 @@ write_roster_version(LUser, LServer, InTransaction, Ver) ->
     ok.
 
 get_roster(User, Domain) ->
-    io:format("~p ~p ~n~n", [User, Domain]),
     %% TODO fetch from config
     URL = "http://localhost:7654",
     Options = [],
     {ok, Client} = fusco:start(URL, Options),
     {ok, Response} = fusco:request(Client, <<"/roster/",Domain/binary,"/",User/binary>>, "GET", [], [], 1, 1000),
     DecodedJson = mochijson2:decode(body(Response)),
-    io:format("DECODED JSON ~p~n", [DecodedJson]),
     Contacts = extract_contacts(DecodedJson),
-    io:format("CONTACTS ~p~n", [Contacts]),
     ProplistToRoster = fun(Contact) -> proplist_to_roster(User, Domain, Contact) end,
-    Result = lists:map(ProplistToRoster, Contacts),
-    io:format("RESULT ~p~n", [Result]),
-    Result.
+    lists:map(ProplistToRoster, Contacts).
 
 get_roster_by_jid_t(LUser, LServer, LJID) ->
     ok.
@@ -124,9 +119,9 @@ proplist_to_roster(LocalUser, LocalUserDomain, Contact) ->
 
 ensure_field(FieldNameBinary, Contact) ->
     case proplists:get_value(FieldNameBinary, Contact) of
-	undefined ->
-	    error("Field ~p must be defined", [FieldNameBinary]);
-	Value -> Value
+        undefined ->
+            error("Field ~p must be defined", [FieldNameBinary]);
+        Value -> Value
     end.
 
 field_to_atom(FieldNameBinary, Contact, Default) ->
