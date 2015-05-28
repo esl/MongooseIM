@@ -15,7 +15,7 @@
 
 -behaviour(mod_roster).
 
--backend('HTTP').
+-define(HOST, <<"localhost">>).
 
 %% API
 -export([init/2,
@@ -35,6 +35,9 @@
 
 -spec init(ejabberd:server(), list()) -> no_return().
 init(_Host, _Opts) ->
+    Opts = ejabberd_config:get_local_option(http_roster_opts, ?HOST),
+    undefined /= proplists:get_value(address, Opts),
+    undefined /= proplists:get_value(port, Opts),
     ok.
 
 -spec read_roster_version(ejabberd:luser(), ejabberd:lserver())
@@ -47,9 +50,13 @@ write_roster_version(LUser, LServer, InTransaction, Ver) ->
 
 get_roster(User, Domain) ->
     io:format("~p ~p ~n~n", [User, Domain]),
-    %% TODO fetch from config
-    URL = "http://localhost:7654",
+    Opts = ejabberd_config:get_local_option(http_roster_opts, ?HOST),
+    Address = proplists:get_value(address, Opts),
+    Port = proplists:get_value(port, Opts),
+    Path = proplists:get_value(path, Opts, <<"/roster/">>),
+    URL = "http://"++Address++":"++Port,
     Options = [],
+
     {ok, Client} = fusco:start(URL, Options),
     {ok, Response} = fusco:request(Client, <<"/roster/",Domain/binary,"/",User/binary>>, "GET", [], [], 1, 1000),
     DecodedJson = mochijson2:decode(body(Response)),
