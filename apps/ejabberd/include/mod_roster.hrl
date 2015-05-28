@@ -19,10 +19,10 @@
 %%%
 %%%----------------------------------------------------------------------
 
--record(roster, {usj,
-                 us,
-                 jid,
-                 name = <<>>,
+-record(roster, {usj, % {User, Server, Jid} who this roster belongs to
+                 us,  % {User, Server} of contact
+                 jid, % the contact jid
+                 name = <<>>, % contanct name
                  subscription = none,
                  ask = none,
                  groups = [],
