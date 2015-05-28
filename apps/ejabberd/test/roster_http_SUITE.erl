@@ -14,9 +14,9 @@
 %% limitations under the License.
 %%==============================================================================
 
--module(new_roster_http_SUITE).
+-module(roster_http_SUITE).
 -compile(export_all).
--author('piotr.nosek@erlang-solutions.com').
+-author('joseph.yiasemides@erlang-solutions.com').
 
 -include_lib("common_test/include/ct.hrl").
 
