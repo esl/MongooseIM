@@ -1,7 +1,7 @@
 %%%----------------------------------------------------------------------
-%%% File    : mod_roster_mnesia.erl
-%%% Author  : Michał Piotrowski <michal.piotrowski@erlang-solutions.com>
-%%% Purpose : mod_last mnesia backend (XEP-0012)
+%%% File    : mod_roster_http.erl
+%%% Authors : Joseph Yiasemides Tomasz Kowal <{joseph.yiasemides,tomasz.kowal}>@erlang-solutions.com>
+%%% Purpose : mod_roster http backend
 %%%
 %%%
 %%% ejabberd, Copyright (C) 2002-2014   ProcessOne
@@ -40,84 +40,51 @@ init(_Host, _Opts) ->
 -spec read_roster_version(ejabberd:luser(), ejabberd:lserver())
 -> binary() | error.
 read_roster_version(LUser, LServer) ->
-    US = {LUser, LServer},
-    case mnesia:dirty_read(roster_version, US) of
-        [#roster_version{version = V}] -> V;
-        [] -> error
-    end.
+    ok.
 
 write_roster_version(LUser, LServer, InTransaction, Ver) ->
-    US = {LUser, LServer},
-    if InTransaction ->
-           mnesia:write(#roster_version{us = US, version = Ver});
-       true ->
-           mnesia:dirty_write(#roster_version{us = US,
-                                              version = Ver})
-    end.
+    ok.
 
 get_roster(User, Domain) ->
+    io:format("~p ~p ~n~n", [User, Domain]),
     %% TODO fetch from config
     URL = "http://localhost:7654",
     Options = [],
     {ok, Client} = fusco:start(URL, Options),
     {ok, Response} = fusco:request(Client, <<"/roster/",Domain/binary,"/",User/binary>>, "GET", [], [], 1, 1000),
     DecodedJson = mochijson2:decode(body(Response)),
+    io:format("DECODED JSON ~p~n", [DecodedJson]),
     Contacts = extract_contacts(DecodedJson),
-    lists:map(fun proplist_to_roster/1, Contacts).
+    io:format("CONTACTS ~p~n", [Contacts]),
+    ProplistToRoster = fun(Contact) -> proplist_to_roster(User, Domain, Contact) end,
+    Result = lists:map(ProplistToRoster, Contacts),
+    io:format("RESULT ~p~n", [Result]),
+    Result.
 
 get_roster_by_jid_t(LUser, LServer, LJID) ->
-    case mnesia:read({roster, {LUser, LServer, LJID}}) of
-        [] ->
-            #roster{usj = {LUser, LServer, LJID},
-                    us = {LUser, LServer}, jid = LJID};
-        [I] ->
-            I#roster{jid = LJID, name = <<"">>, groups = [],
-                     xs = []}
-    end.
+    ok.
 
 get_subscription_lists(_, LUser, LServer) ->
-    US = {LUser, LServer},
-    case mnesia:dirty_index_read(roster, US, #roster.us) of
-        Items when is_list(Items) -> Items;
-        _ -> []
-    end.
+    [].
 
 roster_subscribe_t(_LUser, _LServer, _LJID, Item) ->
-    mnesia:write(Item).
+    ok.
 
 get_roster_by_jid_with_groups_t(LUser, LServer, LJID) ->
-    case mnesia:read({roster, {LUser, LServer, LJID}}) of
-        [] ->
-            #roster{usj = {LUser, LServer, LJID},
-                    us = {LUser, LServer}, jid = LJID};
-        [I] -> I
-    end.
+    ok.
 
 remove_user(LUser, LServer) ->
-    US = {LUser, LServer},
-    mod_roster:send_unsubscription_to_rosteritems(LUser, LServer),
-    F = fun () ->
-                lists:foreach(fun (R) -> mnesia:delete_object(R) end,
-                              mnesia:index_read(roster, US, #roster.us))
-        end,
-    mnesia:transaction(F).
+    ok.
 
 update_roster_t(_LUser, _LServer, _LJID, Item) ->
-    mnesia:write(Item).
+    ok.
 
 del_roster_t(LUser, LServer, LJID) ->
-    mnesia:delete({roster, {LUser, LServer, LJID}}).
+    ok.
 
 
 read_subscription_and_groups(LUser, LServer, LJID) ->
-    case catch mnesia:dirty_read(roster,
-                                 {LUser, LServer, LJID})
-    of
-        [#roster{subscription = Subscription,
-                 groups = Groups}] ->
-            {Subscription, Groups};
-        _ -> error
-    end.
+    ok.
 
 raw_to_record(_, Item) -> Item.
 
@@ -134,7 +101,7 @@ extract_contacts(JSONStruct) ->
 		      ItemFields end,
 	      Items).
 
-proplist_to_roster(Contact) ->
+proplist_to_roster(LocalUser, LocalUserDomain, Contact) ->
     Jid = ensure_field(<<"jid">>, Contact),
     [User, Domain] = binary:split(Jid, <<"@">>),
     Name = proplists:get_value(<<"name">>, Contact, <<"">>),
@@ -143,8 +110,9 @@ proplist_to_roster(Contact) ->
     Groups = proplists:get_value(<<"groups">>, Contact, []),
     Askmessage = proplists:get_value(<<"askmessage">>, Contact, <<"">>),
     #roster{
-       usj = {User, Domain, Jid},
-       jid = Jid,
+       usj = {LocalUser, LocalUserDomain, {User, Domain, <<>>}},
+       us = {LocalUser, LocalUserDomain},
+       jid = {User, Domain, <<>>},
        name = Name,
        subscription = Subscription,
        ask = Ask,
