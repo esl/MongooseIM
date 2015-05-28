@@ -98,6 +98,7 @@ extract_contacts(JSONStruct) ->
 
 proplist_to_roster(LocalUser, LocalUserDomain, Contact) ->
     Jid = ensure_field(<<"jid">>, Contact),
+    %% TODO: What about resource?
     [User, Domain] = binary:split(Jid, <<"@">>),
     Name = proplists:get_value(<<"name">>, Contact, <<"">>),
     Subscription = field_to_atom(<<"subscription">>, Contact, <<"none">>),
