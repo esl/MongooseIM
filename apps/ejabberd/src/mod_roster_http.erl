@@ -63,7 +63,7 @@ get_roster(User, Domain) ->
     {ok, Response} = fusco:request(Client, <<"/roster/",Domain/binary,"/",User/binary>>, "GET", [], [], 1, 1000),
     DecodedJson = mochijson2:decode(body(Response)),
     Contacts = extract_contacts(DecodedJson),
-    proplist_to_roster(Contacts).
+    lists:map(fun proplist_to_roster/1, Contacts).
 
 get_roster_by_jid_t(LUser, LServer, LJID) ->
     case mnesia:read({roster, {LUser, LServer, LJID}}) of
@@ -129,7 +129,40 @@ body({_, _, Body, _, _}) ->
 
 extract_contacts(JSONStruct) ->
     {struct, FieldsPropList} = JSONStruct,
-    Items = proplists:get(<<"items">>, FieldsPropList).
+    Items = proplists:get_value(<<"items">>, FieldsPropList),
+    lists:map(fun ({struct, ItemFields}) ->
+		      ItemFields end,
+	      Items).
 
 proplist_to_roster(Contact) ->
-    #roster{}.
+    Jid = ensure_field(<<"jid">>, Contact),
+    [User, Domain] = binary:split(Jid, <<"@">>),
+    Name = proplists:get_value(<<"name">>, Contact, <<"">>),
+    Subscription = field_to_atom(<<"subscription">>, Contact, <<"none">>),
+    Ask = field_to_atom(<<"ask">>, Contact, <<"none">>),
+    Groups = proplists:get_value(<<"groups">>, Contact, []),
+    Askmessage = proplists:get_value(<<"askmessage">>, Contact, <<"">>),
+    #roster{
+       usj = {User, Domain, Jid},
+       jid = Jid,
+       name = Name,
+       subscription = Subscription,
+       ask = Ask,
+       groups = Groups,
+       askmessage = Askmessage,
+       %% TODO: check, what that is and what should we set here
+       xs = []
+      }.
+
+ensure_field(FieldNameBinary, Contact) ->
+    case proplists:get_value(FieldNameBinary, Contact) of
+	undefined ->
+	    error("Field ~p must be defined", [FieldNameBinary]);
+	Value -> Value
+    end.
+
+field_to_atom(FieldNameBinary, Contact, Default) ->
+    binary_to_existing_atom(
+      proplists:get_value(FieldNameBinary, Contact, Default),
+      utf8
+     ).
