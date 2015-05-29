@@ -10,7 +10,7 @@ The module can be especially useful for users maintaining their own, central use
 
 ### How to enable
 
-Use the `mod_roster` option under the *modules* section in `rel/files/ejabberd.cfg`, the empty default `{mod_roster, []}` should be edited `{mod_roster, [mod_roster_http]}`.
+Use the `mod_roster` option under the *modules* section in `rel/files/ejabberd.cfg`, the empty default `{mod_roster, []}` should be edited to `{mod_roster, [{backend, http}]}`.
 
 ### Options
 
