@@ -4,13 +4,26 @@
 
 The purpose of this module is to connect with an external REST API and delegate the roster operations to it whenever possible. The component must implement the API described in one of the next sections for `mod_roster_http` to work out of the box.
 
-The module can be especially useful for users maintaining their own, central user database with contacts and friends information, which is shared with other services.
+The module can be especially useful for users maintaining their own, central user database with contacts and friend information, which is shared with other services.
 
 ## Configuration
 
 ### How to enable
 
-TODO
+Use the `mod_roster` option under the *modules* section in `rel/files/ejabberd.cfg`, the empty default `{mod_roster, []}` should be edited `{mod_roster, [mod_roster_http]}`.
+
+### Options
+
+Find the `http_roster_opts` tuple in `rel/files/ejabberd.cfg` to set the IP address, port number and path to the HTTP endpoint:
+
+```erlang
+{http_roster_opts, 
+ [
+  {address, "localhost"}, %% list
+  {port, "7654"},         %% list
+  {path, <<"/roster/">>}  %% binary
+ ]}.
+ ```
 
 ## Authentication service API
 
@@ -26,7 +39,7 @@ Both `:domain` and `:user` are URL encoded strings.
     * status 200
     * **JSON**
 ```
-{ "ver": version # (optional, opaque string)
+{"ver": version # (optional, opaque string)
   "items": [item]
 }
 ```
@@ -66,7 +79,7 @@ Where item is:
 * **Return values:**
     * status 200
     * **JSON** The same as in the request.
-* **Description:** If item with provided JID does not exist, it will be created. If item exists, it will be modified.
+* **Description:** If item with provided JID does not exist in `:user`@`:domain`'s roster, it will be created. If item exists, it will be modified.
 
 ### `delete_roster_contact`
 
@@ -74,4 +87,8 @@ Where item is:
 * **url** /:domain/:user/contacts/:domain2/:user2
 * **Return values:**
     * status 200
-* **Description:** Deletes item if it exists. The item to delete is provided in the url.
+* **Description:** Deletes item coresponding to `:user2`@`:domain2` from `:user`@`:domain`'s roster if it exists. The item to delete is provided in the url.
+
+## Implementation
+
+`mod_roster_http` is a callback module implementing the `mod_roster` behaviour, which services XMPP roster requests by registering handlers to hooks and providing all the machinery, it calls on a 'backend' module such as 'mod_roster_http' to interface with some kind of data-store.
