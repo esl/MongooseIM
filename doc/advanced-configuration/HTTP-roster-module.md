@@ -21,7 +21,7 @@ Find the `http_roster_opts` tuple in `rel/files/ejabberd.cfg` to set the IP addr
  [
   {address, "localhost"}, %% list
   {port, "7654"},         %% list
-  {path, <<"/roster/">>}  %% binary
+  {path, "/roster/"}  	  %% list
  ]}.
  ```
 
