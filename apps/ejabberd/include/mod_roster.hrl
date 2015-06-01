@@ -19,7 +19,10 @@
 %%%
 %%%----------------------------------------------------------------------
 
--record(roster, {usj, % {User, Server, Jid} who this roster belongs to
+-record(roster, {usj, % {User, Server, Jid} where `User' & `Server' 
+		 %% correspond to the entity whose roster this is
+		 %% but the tuple `Jid' is the contact's JID, a
+		 %% triple like this {user, domain, resource}
                  us,  % {User, Server} of contact
                  jid, % the contact jid
                  name = <<>>, % contanct name
