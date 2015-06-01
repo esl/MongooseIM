@@ -46,7 +46,7 @@ ensure_defined_field(Field, HTTPRosterOpts) ->
 	_ ->
 	    ok
     end.
-
+ 
 -spec read_roster_version(ejabberd:luser(), ejabberd:lserver())
 -> binary() | error.
 read_roster_version(LUser, LServer) ->
@@ -57,20 +57,24 @@ write_roster_version(LUser, LServer, InTransaction, Ver) ->
 
 get_roster(User, Domain) ->
     Opts = ejabberd_config:get_local_option(http_roster_opts, Domain),
+
     Address = proplists:get_value(address, Opts),
     Port = proplists:get_value(port, Opts),
     Path = list_to_binary(proplists:get_value(path, Opts, "/roster/")),
+
     URL = "http://"++Address++":"++Port,
     Options = [],
 
     {ok, Client} = fusco:start(URL, Options),
     {ok, Response} = fusco:request(Client, <<Path/binary,Domain/binary,"/",User/binary>>, "GET", [], [], 1, 1000),
+
     DecodedJson = mochijson2:decode(body(Response)),
     Contacts = extract_contacts(DecodedJson),
     ProplistToRoster = fun(Contact) -> proplist_to_roster(User, Domain, Contact) end,
     lists:map(ProplistToRoster, Contacts).
 
-get_roster_by_jid_t(LUser, LServer, LJID) ->
+get_roster_by_jid_t(User, Domain, {_U, _D, _R} = PossibleContactJID) ->
+    get_single_item({User, Domain}, PossibleContactJID),
     ok.
 
 get_subscription_lists(_, LUser, LServer) ->
@@ -100,6 +104,38 @@ raw_to_record(_, Item) -> Item.
 
 %% AUXILIARY
 
+get_single_item({User, Domain} = Owner, {_U, _D, _R} = ContactJID) ->
+    Opts = ejabberd_config:get_local_option(http_roster_opts, Domain),
+
+    Address = proplists:get_value(address, Opts),
+    Port = proplists:get_value(port, Opts),
+    Path = list_to_binary(proplists:get_value(path, Opts, "/roster/")),
+
+    URL = "http://"++Address++":"++Port,
+    Options = [],
+
+    {ok, Client} = fusco:start(URL, Options),
+    {ok, Response} = fusco:request(Client, <<Path/binary,Domain/binary,"/",User/binary>>, "GET", [], [], 1, 1000),
+
+    DecodedJson = mochijson2:decode(body(Response)),
+    Contacts = extract_contacts(DecodedJson),
+    case contact_in_list(ContactJID, Contacts) of
+	flase ->
+	    #roster{usj = {User, Domain, ContactJID},
+		    us = {User, Domain}, jid = ContactJID};
+	true ->
+	    proplist_to_roster(
+	      User, Domain,
+	      [{<<"jid">>, ContactJID},
+	       {<<"name">>, <<"">>},
+	       {<<"groups">>, []},
+	       {<<"xs">>, []}])
+    end.
+
+contact_in_list(ContactJID, List) ->
+    lists:keymember(ContactJID, #roster.jid, List).
+
+
 body({_, _, Body, _, _}) ->
     Body.
 
@@ -114,7 +150,7 @@ proplist_to_roster(LocalUser, LocalUserDomain, Contact) ->
     Jid = ensure_field(<<"jid">>, Contact),
     %% TODO: What about resource?
     [User, Domain] = binary:split(Jid, <<"@">>),
-    Name = proplists:get_value(<<"name">>, Contact, <<"">>),
+    Name = proplists:get_value(<<"name">>, Contact, <<>>),
     Subscription = field_to_atom(<<"subscription">>, Contact, <<"none">>),
     Ask = field_to_atom(<<"ask">>, Contact, <<"none">>),
     Groups = proplists:get_value(<<"groups">>, Contact, []),
