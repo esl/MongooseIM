@@ -45,19 +45,20 @@ write_roster_version(LUser, LServer, InTransaction, Ver) ->
     ok.
 
 get_roster(User, Domain) ->
-    fetch_roster(User, Domain).
+    fetch_entire_roster(User, Domain).
 
 get_roster_by_jid_t(User, Domain, {_U, _D, _R} = Contact) ->
     get_single_item({User, Domain}, Contact).
 
 get_subscription_lists(_Acc, User, Domain) ->
-    fetch_roster(User, Domain).
+    fetch_entire_roster(User, Domain).
 
-roster_subscribe_t(_LUser, _LServer, _LJID, Item) ->
+roster_subscribe_t(User, Domain, {_U, _D, _R} = Contact, Item) ->
+    put_single_item(User, Domain, Contact, Item),
     ok.
  
 get_roster_by_jid_with_groups_t(User, Domain, Contact) ->
-    Roster = fetch_roster(User, Domain),
+    Roster = fetch_entire_roster(User, Domain),
     case lists:filter(fun (Item) -> same_JID_tuple(Contact, Item) end, Roster) of
 	[] ->
 	    proplist_to_roster(User, Domain, [{<<"jid">>, Contact}]);
@@ -75,7 +76,7 @@ del_roster_t(LUser, LServer, LJID) ->
     ok.
 
 read_subscription_and_groups(User, Domain, Contact) ->
-    Roster = fetch_roster(User, Domain),
+    Roster = fetch_entire_roster(User, Domain),
     case lists:filter(fun (Item) -> same_JID_tuple(Contact, Item) end, Roster) of
         [#roster{subscription = Subscription, groups = Groups}] ->
             {Subscription, Groups};
@@ -88,12 +89,26 @@ raw_to_record(_, Item) -> Item.
 
 %% AUXILIARY
 
-fetch_roster(User, Domain) ->
+%%TBC
+put_single_item(User, Domain, Contact, Item) ->
+    #roster{
+       usj = {User, Domain, {U, D, R} = Contact},
+       us = {User, Domain},
+       jid = {U, D, R} = Contact,
+       name = Name,
+       subscription = Subscription,
+       ask = Ask,
+       groups = Groups,
+       askmessage = Askmessage,
+       %% TODO: check, what that is and what should we set here
+       xs = []} = Item.
+
+fetch_entire_roster(User, Domain) ->
     Opts = ejabberd_config:get_local_option(http_roster_opts, Domain),
     Address = proplists:get_value(address, Opts),
     Port = proplists:get_value(port, Opts),
     Path = list_to_binary(proplists:get_value(path, Opts, "/roster/")),
-    URLHead = "http://" ++ Address ++ ":"++Port,
+    URLHead = "http://" ++ Address ++ ":" ++ Port,
     Options = [],
 
     URLTail = <<Path/binary,Domain/binary,"/",User/binary>>,
@@ -129,7 +144,7 @@ proplist_to_roster(LocalUser, LocalUserDomain, Contact) ->
       }.
 
 get_single_item({User, Domain} = _Owner, {_U, _D, _R} = Contact) ->
-    Roster = fetch_roster(User, Domain),
+    Roster = fetch_entire_roster(User, Domain),
     case lists:filter(fun (Item) -> same_JID_tuple(Contact, Item) end, Roster) of
 	[] ->
 	    proplist_to_roster(User, Domain, [{<<"jid">>, Contact}]);
