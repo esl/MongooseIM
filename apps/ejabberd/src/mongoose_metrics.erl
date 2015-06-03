@@ -83,7 +83,7 @@ start_backend_metrics_subscriptions(Reporter, Interval) ->
     do_start_metrics_subscriptions(Reporter, Interval, [backends]).
 
 get_host_metric_names(Host) ->
-    [MetricName || {[_Host, MetricName | _], _, _} <- exometer:find_entries([Host])].
+    [MetricName || {[_Host | MetricName], _, _} <- exometer:find_entries([Host])].
 
 get_global_metric_names() ->
     get_host_metric_names(global).

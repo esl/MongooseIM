@@ -139,11 +139,11 @@ get_available_metrics(Host) ->
 -spec get_available_hosts_metrics() -> {[any(),...], [any()]}.
 get_available_hosts_metrics() ->
     Hosts = get_available_hosts(),
-    Metrics = get_available_metrics(hd(Hosts)),
+    Metrics = [Metric || [Metric] <- get_available_metrics(hd(Hosts))],
     {Hosts, Metrics}.
 
 get_available_global_metrics() ->
-    mongoose_metrics:get_global_metric_names().
+    [Metric || [Metric] <- mongoose_metrics:get_global_metric_names()].
 
 -spec get_sum_metrics() -> [{_,_}].
 get_sum_metrics() ->
@@ -157,4 +157,8 @@ get_sum_metric(Metric) ->
 -spec get_host_metrics(undefined | global | ejabberd:server()) -> [{_,_}].
 get_host_metrics(Host) ->
     Metrics = mongoose_metrics:get_metric_values(Host),
-    [{Name, Value} || {[_Host, Name | _], Value} <- Metrics].
+    [{prep_name(NameParts), Value} || {[_Host | NameParts], Value} <- Metrics].
+
+prep_name(NameParts) ->
+    ToStrings = [atom_to_list(NamePart) || NamePart <- NameParts],
+    string:join(ToStrings, "_").
