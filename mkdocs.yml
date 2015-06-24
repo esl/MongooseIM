@@ -5,7 +5,7 @@ site_favicon: favicon.ico
 extra_templates: []
 
 pages:
-  - 'MongooseIM documentation': 'README.md'
+  - Home: 'index.md'
   - User Guide:
       - 'Get to know MongooseIM': 'user-guide/Get-to-know-MongooseIM.md'
       - 'Getting started': 'user-guide/Getting-started.md'
