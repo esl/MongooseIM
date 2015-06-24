@@ -1,4 +1,57 @@
 site_name: MongooseIM
 docs_dir: doc
 theme: readthedocs
+site_favicon: favicon.ico
 extra_templates: []
+
+pages:
+  - Home: 'index.md'
+  - User Guide:
+      - 'Get to know MongooseIM': 'user-guide/Get-to-know-MongooseIM.md'
+      - 'Getting started': 'user-guide/Getting-started.md'
+  - 'Basic Configuration Overview': 'Basic-configuration.md'
+  - 'Advanced Configuration Overview': 'Advanced-configuration.md'
+  - 'Advanced Configuration':
+      - 'HTTP Authentication Module': 'advanced-configuration/HTTP-authentication-module.md'
+      - 'Listener Modules': 'advanced-configuration/Listener-modules.md'
+      - 'Extension Modules': 'advanced-configuration/Modules.md'
+  - 'Modules':
+      - 'mod_adhoc': 'modules/mod_adhoc.md'
+      - 'mod_admin_extra': 'modules/mod_admin_extra.md'
+      - 'mod_amp': 'modules/mod_amp.md'
+      - 'mod_bosh': 'modules/mod_bosh.md'
+      - 'mod_carboncopy': 'modules/mod_carboncopy.md'
+      - 'mod_disco': 'modules/mod_disco.md'
+      - 'mod_last': 'modules/mod_last.md'
+      - 'mod_mam': 'modules/mod_mam.md'
+      - 'mod_metrics': 'modules/mod_metrics.md'
+      - 'mod_muc': 'modules/mod_muc.md'
+      - 'mod_muc_log': 'modules/mod_muc_log.md'
+      - 'mod_offline': 'modules/mod_offline.md'
+      - 'mod_privacy': 'modules/mod_privacy.md'
+      - 'mod_private': 'modules/mod_private.md'
+      - 'mod_register': 'modules/mod_register.md'
+      - 'mod_roster': 'modules/mod_roster.md'
+      - 'mod_shared_roster_ldap': 'modules/mod_shared_roster_ldap.md'
+      - 'mod_sic': 'modules/mod_sic.md'
+      - 'mod_stream_management': 'modules/mod_stream_management.md'
+      - 'mod_vcard': 'modules/mod_vcard.md'
+      - 'mod_websockets': 'modules/mod_websockets.md'
+  - 'Operation and maintenance':
+      - 'Cluster configuration and node management': 'operation-and-maintenance/Cluster-configuration-and-node-management.md'
+      - 'Logging & monitoring': 'operation-and-maintenance/Logging-&-monitoring.md'
+      - 'Reloading configuration on a running system': 'operation-and-maintenance/Reloading-configuration-on-a-running-system.md'
+      - 'Metrics': 'operation-and-maintenance/Mongoose-metrics.md'
+  - "Developer's guide":
+      - 'REST interface to metrics': 'developers-guide/REST-interface-to-metrics.md'
+      - 'Hooks and Handlers': 'developers-guide/Hooks-and-handlers.md'
+      - 'mod_amp development': 'developers-guide/mod_amp_developers_guide.md'
+
+
+
+
+
+
+
+
+    
