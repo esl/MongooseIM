@@ -1,0 +1,4 @@
+site_name: MongooseIM
+docs_dir: doc
+theme: readthedocs
+extra_templates: []
