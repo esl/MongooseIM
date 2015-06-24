@@ -2,7 +2,7 @@
 
 {application, ejabberd,
  [{description, "ejabberd"},
-  {vsn, "2.1.8+mim-1.5.1"},
+  {vsn, "2.1.8+mim-1.5.2"},
   {modules, []},
   {registered, [
                ]},
