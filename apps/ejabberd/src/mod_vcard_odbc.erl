@@ -141,18 +141,7 @@ search(LServer, Data, _Lang, DefaultReportedFields) ->
     [DefaultReportedFields | Items].
 
 search_fields(_VHost) ->
-    [{<<"User">>, <<"user">>},
-	 {<<"Full Name">>, <<"fn">>},
-	 {<<"Given Name">>, <<"first">>},
-	 {<<"Middle Name">>, <<"middle">>},
-	 {<<"Family Name">>, <<"last">>},
-	 {<<"Nickname">>, <<"nick">>},
-	 {<<"Birthday">>, <<"bday">>},
-	 {<<"Country">>, <<"ctry">>},
-     {<<"City">>, <<"locality">>},
-	 {<<"Email">>, <<"email">>},
-	 {<<"Organization Name">>, <<"orgname">>},
-	 {<<"Organization Unit">>, <<"orgunit">>}].
+    mod_vcard:default_search_fields().
 
 %%--------------------------------------------------------------------
 %% internal

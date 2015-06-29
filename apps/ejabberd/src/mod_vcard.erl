@@ -51,6 +51,7 @@
 -export([process_local_iq/3,process_sm_iq/3,get_local_features/5,remove_user/2]).
 
 -export([start_link/2]).
+-export([default_search_fields/0]).
 
 -export([config_change/4]).
 
@@ -95,6 +96,21 @@
 -callback search_fields(VHost) ->
     Res :: list() when
     VHost :: binary().
+
+-spec default_search_fields() -> list().
+default_search_fields() ->
+    [{<<"User">>, <<"user">>},
+     {<<"Full Name">>, <<"fn">>},
+     {<<"Given Name">>, <<"first">>},
+     {<<"Middle Name">>, <<"middle">>},
+     {<<"Family Name">>, <<"last">>},
+     {<<"Nickname">>, <<"nick">>},
+     {<<"Birthday">>, <<"bday">>},
+     {<<"Country">>, <<"ctry">>},
+     {<<"City">>, <<"locality">>},
+     {<<"Email">>, <<"email">>},
+     {<<"Organization Name">>, <<"orgname">>},
+     {<<"Organization Unit">>, <<"orgunit">>}].
 
 %%--------------------------------------------------------------------
 %% gen_mod callbacks
