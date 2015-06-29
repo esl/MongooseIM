@@ -67,8 +67,10 @@
              | binary(). % TODO: binary is questionable here
 
 -type value() :: atom()
+               | binary()
                | integer()
                | string()
+               | [value()]
                | [tuple()].
 
 -export_type([key/0, value/0]).
