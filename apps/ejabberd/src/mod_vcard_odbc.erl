@@ -109,36 +109,39 @@ set_vcard(User, VHost, VCard, VCardSearch) ->
 
 search(LServer, Data, _Lang, DefaultReportedFields) ->
     RestrictionSQL = make_restriction_sql(LServer, Data),
-    AllowReturnAll = gen_mod:get_module_opt(LServer, ?MODULE,
+    AllowReturnAll = gen_mod:get_module_opt(LServer, mod_vcard,
 					    allow_return_all, false),
+
     R=if
 	(RestrictionSQL == "") and (not AllowReturnAll) ->
 	    [];
 	true ->
-	    Limit = case gen_mod:get_module_opt(LServer, ?MODULE,
-						matches, ?JUD_MATCHES) of
-			infinity ->
-			    infinity;
-			Val when is_integer(Val) and (Val > 0) ->
-			    Val;
-			Val ->
-			    ?ERROR_MSG("Illegal option value ~p. "
-				       "Default value ~p substituted.",
-				       [{matches, Val}, ?JUD_MATCHES]),
-			    ?JUD_MATCHES
-		    end,
-	    case catch odbc_queries:search_vcard(LServer, RestrictionSQL, Limit) of
-		{selected, [<<"username">>, <<"server">>, <<"fn">>, <<"family">>, <<"given">>,
-			    <<"middle">>, <<"nickname">>, <<"bday">>, <<"ctry">>, <<"locality">>,
-			    <<"email">>, <<"orgname">>, <<"orgunit">>], Rs} when is_list(Rs) ->
-		    Rs;
-		Error ->
-		    ?ERROR_MSG("~p", [Error]),
-		    []
-	    end
+        do_search(LServer, RestrictionSQL)
     end,
     Items = lists:map(fun(I) -> record_to_item(LServer,I) end, R),
     [DefaultReportedFields | Items].
+
+do_search(LServer, RestrictionSQL) ->
+    Limit = case gen_mod:get_module_opt(LServer, mod_vcard, matches, ?JUD_MATCHES) of
+                infinity ->
+                    infinity;
+                Val when is_integer(Val) and (Val > 0) ->
+                    Val;
+                Val ->
+                    ?ERROR_MSG("Illegal option value ~p. "
+                    "Default value ~p substituted.",
+                        [{matches, Val}, ?JUD_MATCHES]),
+                    ?JUD_MATCHES
+            end,
+    case catch odbc_queries:search_vcard(LServer, RestrictionSQL, Limit) of
+        {selected, [<<"username">>, <<"server">>, <<"fn">>, <<"family">>, <<"given">>,
+            <<"middle">>, <<"nickname">>, <<"bday">>, <<"ctry">>, <<"locality">>,
+            <<"email">>, <<"orgname">>, <<"orgunit">>], Rs} when is_list(Rs) ->
+            Rs;
+        Error ->
+            ?ERROR_MSG("~p", [Error]),
+            []
+    end.
 
 search_fields(_VHost) ->
     mod_vcard:default_search_fields().
