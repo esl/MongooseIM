@@ -24,5 +24,5 @@ ${1}riak-admin bucket-type activate users
 ${1}riak-admin bucket-type create private '{"props":{"last_write_wins":true}}'
 ${1}riak-admin bucket-type activate private
 
-${1}riak-admin bucket-type create vcard '{"props":{"search_index":"vcard"}}'
+${1}riak-admin bucket-type create vcard '{"props":{"last_write_wins":true, "search_index":"vcard"}}'
 ${1}riak-admin bucket-type activate vcard
