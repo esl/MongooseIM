@@ -51,7 +51,13 @@ get_vcard(LUser, LServer) ->
     case mongoose_riak:get(BucketType, LUser) of
         {ok, Obj} ->
             XMLBin = riakc_obj:get_value(Obj),
-            exml:parse(XMLBin);
+            case exml:parse(XMLBin) of
+                {ok, XMLEl} ->
+                    {ok, [XMLEl]};
+                {error, Reason} ->
+                    ?WARNING_MSG("not sending bad vcard reason=~p, xml=~n~p",[Reason,XMLBin]),
+                    {error, ?ERR_SERVICE_UNAVAILABLE}
+            end;
         {error, notfound} ->
             {error, ?ERR_SERVICE_UNAVAILABLE};
         Other ->
