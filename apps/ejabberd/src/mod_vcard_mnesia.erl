@@ -55,7 +55,7 @@ set_vcard(User, VHost, VCard, VCardSearch) ->
 
 search(VHost, Data, _Lang, DefaultReportedFields) ->
     MatchHead = make_matchhead(VHost, Data),
-    AllowReturnAll = gen_mod:get_module_opt(VHost, ?MODULE,
+    AllowReturnAll = gen_mod:get_module_opt(VHost, mod_vcard,
                                             allow_return_all, false),
     R=if
         (MatchHead == #vcard_search{_ = '_'}) and (not AllowReturnAll) ->
@@ -67,7 +67,7 @@ search(VHost, Data, _Lang, DefaultReportedFields) ->
                     ?ERROR_MSG("~p", [Reason]),
                     [];
                 Rs ->
-                    case gen_mod:get_module_opt(VHost, ?MODULE,
+                    case gen_mod:get_module_opt(VHost, mod_vcard,
                                                 matches, ?JUD_MATCHES) of
                         infinity ->
                             Rs;
@@ -277,7 +277,7 @@ filter_fields([{SVar, [Val]} | Ds], Match, VHost)
     NewMatch =
         case SVar of
             <<"user">> ->
-                case gen_mod:get_module_opt(VHost, ?MODULE,
+                case gen_mod:get_module_opt(VHost, mod_vcard,
                                             search_all_hosts, true) of
                     true ->
                         Match#vcard_search{luser = make_val(LVal)};
