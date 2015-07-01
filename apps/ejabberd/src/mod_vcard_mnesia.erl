@@ -277,14 +277,8 @@ filter_fields([{SVar, [Val]} | Ds], Match, VHost)
     NewMatch =
         case SVar of
             <<"user">> ->
-                case gen_mod:get_module_opt(VHost, mod_vcard,
-                                            search_all_hosts, true) of
-                    true ->
-                        Match#vcard_search{luser = make_val(LVal)};
-                    false ->
-                        Host = find_my_host(VHost),
-                        Match#vcard_search{us = {make_val(LVal), Host}}
-                end;
+                Host = find_my_host(VHost),
+                Match#vcard_search{us = {make_val(LVal), Host}};
             <<"fn">>       -> Match#vcard_search{lfn       = make_val(LVal)};
             <<"last">>     -> Match#vcard_search{lfamily   = make_val(LVal)};
             <<"first">>    -> Match#vcard_search{lgiven    = make_val(LVal)};
