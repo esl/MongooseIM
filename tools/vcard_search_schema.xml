@@ -26,7 +26,7 @@
         <field name="vCard.BDAY" type="string" indexed="true" stored="true" multiValued="false"/>
         <field name="vCard.ADR.CTRY" type="text_general" indexed="true" stored="true" multiValued="false"/>
         <field name="vCard.ADR.LOCALITY" type="text_general" indexed="true" stored="true" multiValued="false"/>
-        <field name="vCard.EMAIL" type="text_general" indexed="true" stored="true" multiValued="false"/>
+        <field name="vCard.EMAIL.USERID" type="text_general" indexed="true" stored="true" multiValued="false"/>
         <field name="vCard.ORG.ORGNAME" type="text_general" indexed="true" stored="true" multiValued="false"/>
         <field name="vCard.ORG.ORGUNIT" type="text_general" indexed="true" stored="true" multiValued="false"/>
 
