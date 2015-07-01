@@ -109,14 +109,12 @@ set_vcard(User, VHost, VCard, VCardSearch) ->
 
 search(LServer, Data, _Lang, DefaultReportedFields) ->
     RestrictionSQL = make_restriction_sql(LServer, Data),
-    AllowReturnAll = gen_mod:get_module_opt(LServer, mod_vcard,
-					    allow_return_all, false),
 
-    R=if
-	(RestrictionSQL == "") and (not AllowReturnAll) ->
-	    [];
-	true ->
-        do_search(LServer, RestrictionSQL)
+	R = case RestrictionSQL of
+        "" ->
+	        [];
+	    true ->
+            do_search(LServer, RestrictionSQL)
     end,
     Items = lists:map(fun(I) -> record_to_item(LServer,I) end, R),
     [DefaultReportedFields | Items].

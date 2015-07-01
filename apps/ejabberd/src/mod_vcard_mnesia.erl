@@ -55,12 +55,10 @@ set_vcard(User, VHost, VCard, VCardSearch) ->
 
 search(VHost, Data, _Lang, DefaultReportedFields) ->
     MatchHead = make_matchhead(VHost, Data),
-    AllowReturnAll = gen_mod:get_module_opt(VHost, mod_vcard,
-                                            allow_return_all, false),
-    R=if
-        (MatchHead == #vcard_search{_ = '_'}) and (not AllowReturnAll) ->
+    case MatchHead of
+        #vcard_search{_ = '_'} ->
             [];
-        true ->
+        _ ->
             case catch mnesia:dirty_select(vcard_search,
                                            [{MatchHead, [], ['$_']}]) of
                 {'EXIT', Reason} ->
