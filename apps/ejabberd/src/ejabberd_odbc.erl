@@ -752,7 +752,7 @@ db_opts(Host) ->
             [odbc, SQLServer]
     end.
 
--spec db_engine(Host :: odbc_server()) -> no_return().
+-spec db_engine(Host :: odbc_server()) -> ejabberd_config:value().
 db_engine(Host) when is_binary(Host) ->
     case ejabberd_config:get_local_option({odbc_server, Host}) of
         SQLServer when is_list(SQLServer) ->
