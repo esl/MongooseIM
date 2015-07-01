@@ -67,16 +67,26 @@ get_vcard(LUser, LServer) ->
 -spec search(ejabberd:lserver(), list(), binary(), list()) -> list().
 search(VHost, Data, _Lang, DefaultReportedFields) ->
     YZQuery = make_yz_query(Data, []),
+
+    %%TODO remove allow_return_all
+
+    Items = do_search(YZQuery, VHost),
+    [DefaultReportedFields | Items].
+
+do_search([], _) ->
+    [];
+do_search(YZQueryIn, VHost) ->
+    {_BucketType, BucketName} = bucket_type(VHost),
+    YZQuery = [<<"_yz_rb:", BucketName/binary>> |  YZQueryIn],
     YZQueryBin = ejabberd_binary:join(YZQuery, <<" AND ">>),
-    Items = case mongoose_riak:search(?YZ_VCARD_INDEX, YZQueryBin) of
+    case mongoose_riak:search(?YZ_VCARD_INDEX, YZQueryBin) of
         {ok, #search_results{docs=R, num_found = _N}} ->
             lists:map(fun({_Index, Props}) -> doc2item(VHost, Props) end, R);
         Err ->
             ?ERROR_MSG("Error while search vCard, index=~s, query=~s, error=~p",
-                       [?YZ_VCARD_INDEX, YZQueryBin, Err]),
+                [?YZ_VCARD_INDEX, YZQueryBin, Err]),
             []
-    end,
-    [DefaultReportedFields | Items].
+    end.
 
 -spec search_fields(ejabberd:lserver()) -> list().
 search_fields(_VHost) ->
@@ -96,7 +106,7 @@ riak_search_mapping(<<"nick">>) -> <<"vCard.NICKNAME">>;
 riak_search_mapping(<<"bday">>) -> <<"vCard.BDAY">>;
 riak_search_mapping(<<"ctry">>) -> <<"vCard.ADR.CTRY">>;
 riak_search_mapping(<<"locality">>) -> <<"vCard.ADR.LOCALITY">>;
-riak_search_mapping(<<"email">>) -> <<"vCard.EMAIL">>;
+riak_search_mapping(<<"email">>) -> <<"vCard.EMAIL.USERID">>;
 riak_search_mapping(<<"orgname">>) -> <<"vCard.ORG.ORGNAME">>;
 riak_search_mapping(<<"orgunit">>) -> <<"vCard.ORG.ORGUNIT">>.
 
@@ -110,14 +120,17 @@ make_val(Val) ->
     end.
 
 doc2item(VHost, Props) ->
-    Vals = lists:map(pa:bind(fun extract_field/3, VHost, Props), search_fields(VHost)),
+    Vals = lists:map(pa:bind(fun extract_field/2, Props), search_fields(VHost)),
     #xmlel{name = <<"item">>,
            children = Vals}.
 
-extract_field(VHost, Props, {_, <<"user">>}) ->
-    {_, Username}   = lists:keyfind(riak_search_mapping(<<"user">>), 1, Props),
-    ?FIELD("jid", [Username, "@", VHost]);
-extract_field(_, Props, {_, Field}) ->
+extract_field(Props, {_, <<"user">>}) ->
+    lager:warning("props: ~p", [Props]),
+    {_, Username} = lists:keyfind(riak_search_mapping(<<"user">>), 1, Props),
+    {_, Bucket} = lists:keyfind(<<"_yz_rb">>, 1, Props),
+    [_, Host] = binary:split(Bucket, <<"_">>),
+    ?FIELD("jid", [Username, "@", Host]);
+extract_field(Props, {_, Field}) ->
     V = case lists:keyfind(riak_search_mapping(Field), 1, Props) of
             {_, Val} ->
                 Val;
