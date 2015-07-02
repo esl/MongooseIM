@@ -1,5 +1,5 @@
 %%%----------------------------------------------------------------------
-%%% File    : mod_vcard_odbc.erl
+%%% File    : mod_vcard.erl
 %%% Author  : Alexey Shchepin <alexey@process-one.net>
 %%% Purpose : vCard support via ODBC
 %%% Created :  2 Jan 2003 by Alexey Shchepin <alexey@process-one.net>
@@ -136,10 +136,14 @@ search_fields(_VHost) ->
 make_restriction_sql(LServer, Data) ->
     filter_fields(Data, "", LServer).
 
-filter_fields([], RestrictionSQL, _LServer) ->
-    case RestrictionSQL of
-	"" -> "";
-	_ -> [" where ", RestrictionSQL]
+filter_fields([], RestrictionSQLIn, LServer) ->
+    case RestrictionSQLIn of
+	"" ->
+	    "";
+        <<>> ->
+            <<>>;
+	_ ->
+	    [" where ", [RestrictionSQLIn, " and ", ["server = '", ejabberd_odbc:escape(LServer),"'"]]]
     end;
 filter_fields([{SVar, [Val]} | Ds], RestrictionSQL, LServer)
   when is_binary(Val) and (Val /= <<"">>) ->

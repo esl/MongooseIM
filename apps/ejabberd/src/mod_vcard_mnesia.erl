@@ -61,7 +61,8 @@ search(VHost, Data, _Lang, DefaultReportedFields) ->
 
 do_search(_, #vcard_search{_ = '_'}) ->
     [];
-do_search(VHost, MatchHead) ->
+do_search(VHost, MatchHeadIn) ->
+    MatchHead = MatchHeadIn#vcard_search{us = {'_', VHost}},
     case catch mnesia:dirty_select(vcard_search,
         [{MatchHead, [], ['$_']}]) of
         {'EXIT', Reason} ->
@@ -269,9 +270,7 @@ filter_fields([{SVar, [Val]} | Ds], Match, VHost)
     LVal = stringprep:tolower(Val),
     NewMatch =
         case SVar of
-            <<"user">> ->
-                Host = find_my_host(VHost),
-                Match#vcard_search{us = {make_val(LVal), Host}};
+            <<"user">> -> Match#vcard_search{luser = make_val(LVal)};
             <<"fn">>       -> Match#vcard_search{lfn       = make_val(LVal)};
             <<"last">>     -> Match#vcard_search{lfamily   = make_val(LVal)};
             <<"first">>    -> Match#vcard_search{lgiven    = make_val(LVal)};
