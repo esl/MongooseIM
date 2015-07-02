@@ -68,16 +68,11 @@ do_search(VHost, MatchHead) ->
             ?ERROR_MSG("~p", [Reason]),
             [];
         Rs ->
-            case gen_mod:get_module_opt(VHost, mod_vcard,
-                matches, ?JUD_MATCHES) of
+            case mod_vcard:get_results_limit(VHost) of
                 infinity ->
                     Rs;
-                Val when is_integer(Val) and (Val > 0) ->
-                    lists:sublist(Rs, Val);
                 Val ->
-                    ?ERROR_MSG("Illegal option value ~p. Default value ~p substituted.",
-                        [{matches, Val}, ?JUD_MATCHES]),
-                    lists:sublist(Rs, ?JUD_MATCHES)
+                    lists:sublist(Rs, Val)
             end
     end.
 

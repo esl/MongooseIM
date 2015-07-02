@@ -116,17 +116,7 @@ search(LServer, Data, _Lang, DefaultReportedFields) ->
 do_search(_LServer, "") ->
     [];
 do_search(LServer, RestrictionSQL) ->
-    Limit = case gen_mod:get_module_opt(LServer, mod_vcard, matches, ?JUD_MATCHES) of
-                infinity ->
-                    infinity;
-                Val when is_integer(Val) and (Val > 0) ->
-                    Val;
-                Val ->
-                    ?ERROR_MSG("Illegal option value ~p. "
-                    "Default value ~p substituted.",
-                        [{matches, Val}, ?JUD_MATCHES]),
-                    ?JUD_MATCHES
-            end,
+    Limit = mod_vcard:get_results_limit(LServer),
     case catch odbc_queries:search_vcard(LServer, RestrictionSQL, Limit) of
         {selected, [<<"username">>, <<"server">>, <<"fn">>, <<"family">>, <<"given">>,
             <<"middle">>, <<"nickname">>, <<"bday">>, <<"ctry">>, <<"locality">>,

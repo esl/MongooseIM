@@ -52,6 +52,7 @@
 
 -export([start_link/2]).
 -export([default_search_fields/0]).
+-export([get_results_limit/1]).
 
 -export([config_change/4]).
 
@@ -111,6 +112,20 @@ default_search_fields() ->
      {<<"Email">>, <<"email">>},
      {<<"Organization Name">>, <<"orgname">>},
      {<<"Organization Unit">>, <<"orgunit">>}].
+
+-spec get_results_limit(ejabberd:lserver()) -> non_neg_integer() | inifinity.
+get_results_limit(LServer) ->
+    case gen_mod:get_module_opt(LServer, mod_vcard, matches, ?JUD_MATCHES) of
+        infinity ->
+            infinity;
+        Val when is_integer(Val) and (Val > 0) ->
+            Val;
+        Val ->
+            ?ERROR_MSG("Illegal option value ~p. "
+            "Default value ~p substituted.",
+                [{matches, Val}, ?JUD_MATCHES]),
+            ?JUD_MATCHES
+    end.
 
 %%--------------------------------------------------------------------
 %% gen_mod callbacks
