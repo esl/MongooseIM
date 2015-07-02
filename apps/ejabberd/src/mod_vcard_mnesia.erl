@@ -55,31 +55,31 @@ set_vcard(User, VHost, VCard, VCardSearch) ->
 
 search(VHost, Data, _Lang, DefaultReportedFields) ->
     MatchHead = make_matchhead(VHost, Data),
-    case MatchHead of
-        #vcard_search{_ = '_'} ->
-            [];
-        _ ->
-            case catch mnesia:dirty_select(vcard_search,
-                                           [{MatchHead, [], ['$_']}]) of
-                {'EXIT', Reason} ->
-                    ?ERROR_MSG("~p", [Reason]),
-                    [];
-                Rs ->
-                    case gen_mod:get_module_opt(VHost, mod_vcard,
-                                                matches, ?JUD_MATCHES) of
-                        infinity ->
-                            Rs;
-                        Val when is_integer(Val) and (Val > 0) ->
-                            lists:sublist(Rs, Val);
-                        Val ->
-                            ?ERROR_MSG("Illegal option value ~p. Default value ~p substituted.",
-                                       [{matches, Val}, ?JUD_MATCHES]),
-                            lists:sublist(Rs, ?JUD_MATCHES)
-                    end
-            end
-    end,
+    R = do_search(VHost, MatchHead),
     Items = lists:map(fun record_to_item/1,R),
     [DefaultReportedFields | Items].
+
+do_search(_, #vcard_search{_ = '_'}) ->
+    [];
+do_search(VHost, MatchHead) ->
+    case catch mnesia:dirty_select(vcard_search,
+        [{MatchHead, [], ['$_']}]) of
+        {'EXIT', Reason} ->
+            ?ERROR_MSG("~p", [Reason]),
+            [];
+        Rs ->
+            case gen_mod:get_module_opt(VHost, mod_vcard,
+                matches, ?JUD_MATCHES) of
+                infinity ->
+                    Rs;
+                Val when is_integer(Val) and (Val > 0) ->
+                    lists:sublist(Rs, Val);
+                Val ->
+                    ?ERROR_MSG("Illegal option value ~p. Default value ~p substituted.",
+                        [{matches, Val}, ?JUD_MATCHES]),
+                    lists:sublist(Rs, ?JUD_MATCHES)
+            end
+    end.
 
 search_fields(_VHost) ->
     mod_vcard:default_search_fields().
