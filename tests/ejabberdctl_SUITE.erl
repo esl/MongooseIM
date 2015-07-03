@@ -19,11 +19,6 @@
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml.hrl").
--include_lib("eunit/include/eunit.hrl").
-
--define(i2l(I), integer_to_list(I)).
--define(a2l(A), atom_to_list(A)).
--define(eq(Expected, Actual), ?assertEqual(Expected, Actual)).
 
 -import(mongoose_helper, [auth_modules/0]).
 
@@ -45,8 +40,7 @@ all() ->
              {group, last},
              {group, private},
              {group, stanza},
-             {group, stats},
-             {group, maintenance}
+             {group, stats}
             ]
     end.
 
@@ -59,8 +53,7 @@ groups() ->
         {last, [sequence], last()},
         {private, [sequence], private()},
         {stanza, [sequence], stanza()},
-        {stats, [sequence], stats()},
-        {maintenance, [sequence], maintenance()}
+        {stats, [sequence], stats()}
      ].
 
 accounts() -> [change_password, check_password_hash, check_password,
@@ -82,8 +75,6 @@ private() -> [private_rw].
 stanza() -> [send_message, send_stanza].
 
 stats() -> [stats_global, stats_host].
-
-maintenance() -> [loglevels].
 
 suite() ->
     escalus:suite().
@@ -602,32 +593,6 @@ stats_host(Config) ->
         end).
 
 %%-----------------------------------------------------------------
-%% mongooseimctl maintenance commands (start, started, stop, ...)
-%%-----------------------------------------------------------------
-
-loglevels(C) ->
-    %% setup
-    NC = escalus_ejabberd:setup_option(server_loglevel(), C),
-    try
-        [ loglevel(C, Level, Atom)
-          || {Level, Atom} <- [{0, none},
-                               {1, critical},
-                               {2, error},
-                               {3, warning},
-                               {4, info},
-                               {5, debug}] ]
-    after
-        %% cleanup
-        escalus_ejabberd:reset_option(server_loglevel(), NC)
-    end.
-
-loglevel(C, Level, Atom) ->
-    Control = escalus_config:get_config(ctl_path, C),
-    ok = escalus_ejabberd:rpc(ejabberd_loglevel, set, [Level]),
-    Result = os:cmd([Control, " ", "get_loglevel"]),
-    ?eq(textual_loglevel(Level, Atom), Result).
-
-%%-----------------------------------------------------------------
 %% Helpers
 %%-----------------------------------------------------------------
 
@@ -744,15 +709,6 @@ match_roster(ItemsValid, Items) ->
                                     false
                               end, ItemsTokens)
             end, ItemsValid).
-
-textual_loglevel(Level, Atom) ->
-    lists:flatten([?i2l(Level), $\t, ?a2l(Atom), $\n]).
-
-server_loglevel() ->
-    {server_loglevel,
-     fun () -> element(1, escalus_ejabberd:rpc(ejabberd_loglevel, get, [])) end,
-     fun (Level) -> escalus_ejabberd:rpc(ejabberd_loglevel, set, [Level]) end,
-     4}.
 
 string_to_binary(List) ->
     case erlang:system_info(otp_release) of
