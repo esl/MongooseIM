@@ -107,7 +107,7 @@ start_module(Host, Module, Opts0) ->
             end
     end.
 
--spec start_backend_module(module(), list()) -> no_return().
+-spec start_backend_module(module(), list()) -> any().
 start_backend_module(Module, Opts) ->
     start_backend_module(Module, Opts, []).
 
