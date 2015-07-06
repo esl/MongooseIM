@@ -1095,190 +1095,8 @@ handle_info(replaced, _StateName, StateData) ->
 %% Process Packets that are to be send to the user
 handle_info({route, From, To, Packet}, StateName, StateData) ->
     #xmlel{name = Name, attrs = Attrs, children = Els} = Packet,
-    {Pass, NewAttrs, NewState} =
-	case Name of
-	    <<"presence">> ->
-		State = ejabberd_hooks:run_fold(
-			  c2s_presence_in, StateData#state.server,
-			  StateData,
-			  [{From, To, Packet}]),
-		case xml:get_attr_s(<<"type">>, Attrs) of
-		    <<"probe">> ->
-			LFrom = jlib:jid_tolower(From),
-			LBFrom = jlib:jid_remove_resource(LFrom),
-			NewStateData =
-			    case ?SETS:is_element(
-				    LFrom, State#state.pres_a) orelse
-				?SETS:is_element(
-				   LBFrom, State#state.pres_a) of
-				true ->
-				    State;
-				false ->
-				    case ?SETS:is_element(
-					    LFrom, State#state.pres_f) of
-					true ->
-					    A = ?SETS:add_element(
-						   LFrom,
-						   State#state.pres_a),
-					    State#state{pres_a = A};
-					false ->
-					    case ?SETS:is_element(
-						    LBFrom, State#state.pres_f) of
-						true ->
-						    A = ?SETS:add_element(
-							   LBFrom,
-							   State#state.pres_a),
-						    State#state{pres_a = A};
-						false ->
-						    State
-					    end
-				    end
-			    end,
-			process_presence_probe(From, To, NewStateData),
-			{false, Attrs, NewStateData};
-		    <<"error">> ->
-			NewA = remove_element(jlib:jid_tolower(From),
-					      State#state.pres_a),
-			{true, Attrs, State#state{pres_a = NewA}};
-		    <<"invisible">> ->
-			Attrs1 = lists:keydelete(<<"type">>, 1, Attrs),
-			{true, [{<<"type">>, <<"unavailable">>} | Attrs1], State};
-		    <<"subscribe">> ->
-			SRes = is_privacy_allow(State, From, To, Packet, in),
-			{SRes, Attrs, State};
-		    <<"subscribed">> ->
-			SRes = is_privacy_allow(State, From, To, Packet, in),
-			{SRes, Attrs, State};
-		    <<"unsubscribe">> ->
-			SRes = is_privacy_allow(State, From, To, Packet, in),
-			{SRes, Attrs, State};
-		    <<"unsubscribed">> ->
-			SRes = is_privacy_allow(State, From, To, Packet, in),
-			{SRes, Attrs, State};
-		    _ ->
-			case privacy_check_packet(State, From, To, Packet, in) of
-			    allow ->
-				LFrom = jlib:jid_tolower(From),
-				LBFrom = jlib:jid_remove_resource(LFrom),
-				case ?SETS:is_element(
-					LFrom, State#state.pres_a) orelse
-				    ?SETS:is_element(
-				       LBFrom, State#state.pres_a) of
-				    true ->
-					{true, Attrs, State};
-				    false ->
-					case ?SETS:is_element(
-						LFrom, State#state.pres_f) of
-					    true ->
-						A = ?SETS:add_element(
-						       LFrom,
-						       State#state.pres_a),
-						{true, Attrs,
-						 State#state{pres_a = A}};
-					    false ->
-						case ?SETS:is_element(
-							LBFrom, State#state.pres_f) of
-						    true ->
-							A = ?SETS:add_element(
-							       LBFrom,
-							       State#state.pres_a),
-							{true, Attrs,
-							 State#state{pres_a = A}};
-						    false ->
-							{true, Attrs, State}
-						end
-					end
-				end;
-			    deny ->
-				{false, Attrs, State}
-			end
-		end;
-	    <<"broadcast">> ->
-		?DEBUG("broadcast~n~p~n", [Els]),
-		case Els of
-		    [{item, IJID, ISubscription}] ->
-			{false, Attrs,
-			 roster_change(IJID, ISubscription,
-				       StateData)};
-		    [{exit, Reason}] ->
-			{exit, Attrs, Reason};
-		    [{privacy_list, PrivList, PrivListName}] ->
-			case ejabberd_hooks:run_fold(
-			       privacy_updated_list, StateData#state.server,
-			       false,
-			       [StateData#state.privacy_list,
-				PrivList]) of
-			    false ->
-				{false, Attrs, StateData};
-			    NewPL ->
-				PrivPushIQ =
-				    #iq{type = set, xmlns = ?NS_PRIVACY,
-					id = list_to_binary("push" ++ randoms:get_string()),
-					sub_el = [#xmlel{name = <<"query">>,
-						         attrs = [{<<"xmlns">>, ?NS_PRIVACY}],
-							 children = [#xmlel{name = <<"list">>,
-									    attrs = [{<<"name">>, PrivListName}]}]}]},
-				    F = jlib:jid_remove_resource(StateData#state.jid),
-				    T = StateData#state.jid,
-				    PrivPushEl =
-				    jlib:replace_from_to(
-				      F,
-				      T,
-				      jlib:iq_to_xml(PrivPushIQ)),
-				    {send_new, {F, T, PrivPushEl}, StateData#state{privacy_list = NewPL}}
-			end;
-		    [{blocking, What}] ->
-			route_blocking(What, StateData),
-			{false, Attrs, StateData};
-		    _ ->
-			{false, Attrs, StateData}
-		end;
-	    <<"iq">> ->
-		IQ = jlib:iq_query_info(Packet),
-		case IQ of
-		    #iq{xmlns = ?NS_LAST} ->
-			LFrom = jlib:jid_tolower(From),
-			LBFrom = jlib:jid_remove_resource(LFrom),
-			HasFromSub = (?SETS:is_element(LFrom, StateData#state.pres_f) orelse ?SETS:is_element(LBFrom, StateData#state.pres_f))
-			   andalso is_privacy_allow(StateData, To, From, #xmlel{name = <<"presence">>}, out),
-			case HasFromSub of
-			    true ->
-				case privacy_check_packet(StateData, From, To, Packet, in) of
-				    allow ->
-					{true, Attrs, StateData};
-				    deny ->
-					{false, Attrs, StateData}
-				end;
-			    _ ->
-				Err = jlib:make_error_reply(Packet, ?ERR_FORBIDDEN),
-				ejabberd_router:route(To, From, Err),
-				{false, Attrs, StateData}
-			end;
-		    IQ when (is_record(IQ, iq)) or (IQ == reply) ->
-			case privacy_check_packet(StateData, From, To, Packet, in) of
-			    allow ->
-				{true, Attrs, StateData};
-			    deny when is_record(IQ, iq) ->
-				Err = jlib:make_error_reply(
-					Packet, ?ERR_SERVICE_UNAVAILABLE),
-				ejabberd_router:route(To, From, Err),
-				{false, Attrs, StateData};
-			    deny when IQ == reply ->
-				{false, Attrs, StateData}
-			end;
-		    IQ when (IQ == invalid) or (IQ == not_iq) ->
-			{false, Attrs, StateData}
-		end;
-	    <<"message">> ->
-		case privacy_check_packet(StateData, From, To, Packet, in) of
-		    allow ->
-			{true, Attrs, StateData};
-		    deny ->
-			{false, Attrs, StateData}
-		end;
-	    _ ->
-		{true, Attrs, StateData}
-	end,
+    {Pass, NewAttrs, NewState} = handle_routed(From, To, Packet, StateData,
+					       Name, Attrs, Els),
     if
 	Pass == exit ->
 	    %% When Pass==exit, NewState contains a string instead of a #state{}
@@ -1356,7 +1174,7 @@ handle_info(check_buffer_full, StateName, StateData) ->
     case is_buffer_full(StateData#state.stream_mgmt_buffer_size,
 			StateData#state.stream_mgmt_buffer_max) of
         true ->
-            Err = ?RESOURCE_CONSTRAINT_ERR(StateData#state.lang,
+            Err = ?RESOURCE_CONSTRAINT_ERR((StateData#state.lang),
                                            "too many unacked stanzas"),
             send_element(StateData, Err),
             send_trailer(StateData),
@@ -1369,6 +1187,171 @@ handle_info(Info, StateName, StateData) ->
     ?ERROR_MSG("Unexpected info: ~p", [Info]),
     fsm_next_state(StateName, StateData).
 
+handle_routed(From, To, Packet, StateData, <<"presence">>, Attrs, _Els) ->
+    handle_routed_presence(From, To, Packet, StateData, Attrs);
+handle_routed(_From, _To, _Packet, StateData, <<"broadcast">>, Attrs, Els) ->
+    handle_routed_broadcast(StateData, Attrs, Els);
+handle_routed(From, To, Packet, StateData, <<"iq">>, Attrs, _Els) ->
+    handle_routed_iq(From, To, Packet, StateData, Attrs);
+handle_routed(From, To, Packet, StateData, <<"message">>, Attrs, _Els) ->
+    case privacy_check_packet(StateData, From, To, Packet, in) of
+	allow ->
+	    {true, Attrs, StateData};
+	deny ->
+	    {false, Attrs, StateData}
+    end;
+handle_routed(_From, _To, _Packet, StateData, _, Attrs, _Els) ->
+    {true, Attrs, StateData}.
+
+handle_routed_iq(From, To, Packet, StateData, Attrs) ->
+    case jlib:iq_query_info(Packet) of
+	#iq{xmlns = ?NS_LAST} ->
+	    LFrom = jlib:jid_tolower(From),
+	    LBFrom = jlib:jid_remove_resource(LFrom),
+	    HasFromSub = ( ( ?SETS:is_element(LFrom, StateData#state.pres_f)
+			     orelse ?SETS:is_element(LBFrom, StateData#state.pres_f) )
+			   andalso is_privacy_allow(StateData, To, From, #xmlel{name = <<"presence">>}, out) ),
+	    case HasFromSub of
+		true ->
+		    case privacy_check_packet(StateData, From, To, Packet, in) of
+			allow ->
+			    {true, Attrs, StateData};
+			deny ->
+			    {false, Attrs, StateData}
+		    end;
+		_ ->
+		    Err = jlib:make_error_reply(Packet, ?ERR_FORBIDDEN),
+		    ejabberd_router:route(To, From, Err),
+		    {false, Attrs, StateData}
+	    end;
+	IQ when (is_record(IQ, iq)) or (IQ == reply) ->
+	    case privacy_check_packet(StateData, From, To, Packet, in) of
+		allow ->
+		    {true, Attrs, StateData};
+		deny when is_record(IQ, iq) ->
+		    Err = jlib:make_error_reply(Packet, ?ERR_SERVICE_UNAVAILABLE),
+		    ejabberd_router:route(To, From, Err),
+		    {false, Attrs, StateData};
+		deny when IQ == reply ->
+		    {false, Attrs, StateData}
+	    end;
+	IQ when (IQ == invalid) or (IQ == not_iq) ->
+	    {false, Attrs, StateData}
+    end.
+
+handle_routed_broadcast(StateData, Attrs, Els) ->
+    ?DEBUG("broadcast~n~p~n", [Els]),
+    case Els of
+	[{item, IJID, ISubscription}] ->
+	    {false, Attrs,
+	     roster_change(IJID, ISubscription, StateData)};
+	[{exit, Reason}] ->
+	    {exit, Attrs, Reason};
+	[{privacy_list, PrivList, PrivListName}] ->
+	    case ejabberd_hooks:run_fold(privacy_updated_list, StateData#state.server,
+					 false, [StateData#state.privacy_list, PrivList])
+	    of
+		false ->
+		    {false, Attrs, StateData};
+		NewPL ->
+		    PrivPushIQ = privacy_list_push_iq(PrivListName),
+		    F = jlib:jid_remove_resource(StateData#state.jid),
+		    T = StateData#state.jid,
+		    PrivPushEl = jlib:replace_from_to(F, T, jlib:iq_to_xml(PrivPushIQ)),
+		    {send_new, {F, T, PrivPushEl}, StateData#state{privacy_list = NewPL}}
+	    end;
+	[{blocking, What}] ->
+	    route_blocking(What, StateData),
+	    {false, Attrs, StateData};
+	_ ->
+	    {false, Attrs, StateData}
+    end.
+
+privacy_list_push_iq(PrivListName) ->
+    #iq{type = set, xmlns = ?NS_PRIVACY,
+	id = list_to_binary("push" ++ randoms:get_string()),
+	sub_el = [#xmlel{name = <<"query">>,
+			 attrs = [{<<"xmlns">>, ?NS_PRIVACY}],
+			 children = [#xmlel{name = <<"list">>,
+					    attrs = [{<<"name">>, PrivListName}]}]}]}.
+
+handle_routed_presence(From, To, Packet, StateData, Attrs) ->
+    State = ejabberd_hooks:run_fold(c2s_presence_in, StateData#state.server,
+				    StateData, [{From, To, Packet}]),
+    case xml:get_attr_s(<<"type">>, Attrs) of
+	<<"probe">> ->
+	    LFrom = jlib:jid_tolower(From),
+	    LBFrom = jlib:jid_remove_resource(LFrom),
+	    NewStateData = case am_i_available_to(LFrom, LBFrom, State) of
+			       true ->
+				   State;
+			       false ->
+				   case ?SETS:is_element(LFrom, State#state.pres_f) of
+				       true ->
+					   A = ?SETS:add_element(LFrom, State#state.pres_a),
+					   State#state{pres_a = A};
+				       false ->
+					   case ?SETS:is_element(LBFrom, State#state.pres_f) of
+					       true ->
+						   A = ?SETS:add_element(LBFrom, State#state.pres_a),
+						   State#state{pres_a = A};
+					       false ->
+						   State
+					   end
+				   end
+			   end,
+	    process_presence_probe(From, To, NewStateData),
+	    {false, Attrs, NewStateData};
+	<<"error">> ->
+	    NewA = remove_element(jlib:jid_tolower(From), State#state.pres_a),
+	    {true, Attrs, State#state{pres_a = NewA}};
+	<<"invisible">> ->
+	    Attrs1 = lists:keydelete(<<"type">>, 1, Attrs),
+	    {true, [{<<"type">>, <<"unavailable">>} | Attrs1], State};
+	<<"subscribe">> ->
+	    SRes = is_privacy_allow(State, From, To, Packet, in),
+	    {SRes, Attrs, State};
+	<<"subscribed">> ->
+	    SRes = is_privacy_allow(State, From, To, Packet, in),
+	    {SRes, Attrs, State};
+	<<"unsubscribe">> ->
+	    SRes = is_privacy_allow(State, From, To, Packet, in),
+	    {SRes, Attrs, State};
+	<<"unsubscribed">> ->
+	    SRes = is_privacy_allow(State, From, To, Packet, in),
+	    {SRes, Attrs, State};
+	_ ->
+	    case privacy_check_packet(State, From, To, Packet, in) of
+		allow ->
+		    LFrom = jlib:jid_tolower(From),
+		    LBFrom = jlib:jid_remove_resource(LFrom),
+		    case am_i_available_to(LFrom, LBFrom, State) of
+			true ->
+			    {true, Attrs, State};
+			false ->
+			    case ?SETS:is_element(LFrom, State#state.pres_f) of
+				true ->
+				    A = ?SETS:add_element(LFrom, State#state.pres_a),
+				    {true, Attrs, State#state{pres_a = A}};
+				false ->
+				    case ?SETS:is_element(LBFrom, State#state.pres_f) of
+					true ->
+					    A = ?SETS:add_element(LBFrom, State#state.pres_a),
+					    {true, Attrs, State#state{pres_a = A}};
+					false ->
+					    {true, Attrs, State}
+				    end
+			    end
+		    end;
+		deny ->
+		    {false, Attrs, State}
+	    end
+    end.
+
+am_i_available_to(LFrom, LBFrom, State) ->
+    ?SETS:is_element(LFrom, State#state.pres_a)
+    orelse (LFrom /= LBFrom)
+    andalso ?SETS:is_element(LBFrom, State#state.pres_a).
 
 %%----------------------------------------------------------------------
 %% Func: print_state/1
@@ -2307,8 +2290,7 @@ is_ip_blacklisted({IP,_Port}) ->
 
 
 %% @doc Check from attributes.
--spec check_from(El :: jlib:xmlel(),
-                 FromJID :: ejabberd:jid()) -> 'invalid-from' | jlib:xmlel().
+-spec check_from(El :: jlib:xmlel(), FromJID :: ejabberd:jid()) -> 'invalid-from'  | jlib:xmlel().
 check_from(El, FromJID) ->
     case xml:get_tag_attr(<<"from">>, El) of
         false ->
