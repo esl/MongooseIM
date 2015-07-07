@@ -1,7 +1,7 @@
 %%%----------------------------------------------------------------------
 %%% File    : mod_roster_http.erl
 %%% Authors : Joseph Yiasemides & Tomasz Kowal
-%%% Purpose : HTTP Roster
+%%% Purpose : Interface with an HTTP endpoint to do rostering
 %%%
 %%% MongooseIM, Copyright (C) 2015 Erlang Solutions Ltd.
 %%%----------------------------------------------------------------------
