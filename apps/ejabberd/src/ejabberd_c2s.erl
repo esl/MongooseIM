@@ -1094,9 +1094,8 @@ handle_info(replaced, _StateName, StateData) ->
     {stop, normal, StateData#state{authenticated = replaced}};
 %% Process Packets that are to be send to the user
 handle_info({route, From, To, Packet}, StateName, StateData) ->
-    #xmlel{name = Name, attrs = Attrs, children = Els} = Packet,
-    {Pass, NewAttrs, NewState} = handle_routed(From, To, Packet, StateData,
-					       Name, Attrs, Els),
+    {Pass, NewAttrs, NewState} = handle_routed(Packet#xmlel.name,
+					       From, To, Packet, StateData),
     if
 	Pass == exit ->
 	    %% When Pass==exit, NewState contains a string instead of a #state{}
@@ -1187,23 +1186,23 @@ handle_info(Info, StateName, StateData) ->
     ?ERROR_MSG("Unexpected info: ~p", [Info]),
     fsm_next_state(StateName, StateData).
 
-handle_routed(From, To, Packet, StateData, <<"presence">>, Attrs, _Els) ->
-    handle_routed_presence(From, To, Packet, StateData, Attrs);
-handle_routed(_From, _To, _Packet, StateData, <<"broadcast">>, Attrs, Els) ->
-    handle_routed_broadcast(StateData, Attrs, Els);
-handle_routed(From, To, Packet, StateData, <<"iq">>, Attrs, _Els) ->
-    handle_routed_iq(From, To, Packet, StateData, Attrs);
-handle_routed(From, To, Packet, StateData, <<"message">>, Attrs, _Els) ->
+handle_routed(<<"presence">>, From, To, Packet, StateData) ->
+    handle_routed_presence(From, To, Packet, StateData);
+handle_routed(<<"broadcast">>, _From, _To, Packet, StateData) ->
+    handle_routed_broadcast(Packet, StateData);
+handle_routed(<<"iq">>, From, To, Packet, StateData) ->
+    handle_routed_iq(From, To, Packet, StateData);
+handle_routed(<<"message">>, From, To, Packet, StateData) ->
     case privacy_check_packet(StateData, From, To, Packet, in) of
 	allow ->
-	    {true, Attrs, StateData};
+	    {true, Packet#xmlel.attrs, StateData};
 	deny ->
-	    {false, Attrs, StateData}
+	    {false, Packet#xmlel.attrs, StateData}
     end;
-handle_routed(_From, _To, _Packet, StateData, _, Attrs, _Els) ->
-    {true, Attrs, StateData}.
+handle_routed(_, _From, _To, Packet, StateData) ->
+    {true, Packet#xmlel.attrs, StateData}.
 
-handle_routed_iq(From, To, Packet, StateData, Attrs) ->
+handle_routed_iq(From, To, Packet = #xmlel{attrs = Attrs}, StateData) ->
     case jlib:iq_query_info(Packet) of
 	#iq{xmlns = ?NS_LAST} ->
 	    LFrom = jlib:jid_tolower(From),
@@ -1239,7 +1238,8 @@ handle_routed_iq(From, To, Packet, StateData, Attrs) ->
 	    {false, Attrs, StateData}
     end.
 
-handle_routed_broadcast(StateData, Attrs, Els) ->
+handle_routed_broadcast(Packet, StateData) ->
+    #xmlel{attrs = Attrs, children = Els} = Packet,
     ?DEBUG("broadcast~n~p~n", [Els]),
     case Els of
 	[{item, IJID, ISubscription}] ->
@@ -1275,7 +1275,7 @@ privacy_list_push_iq(PrivListName) ->
 			 children = [#xmlel{name = <<"list">>,
 					    attrs = [{<<"name">>, PrivListName}]}]}]}.
 
-handle_routed_presence(From, To, Packet, StateData, Attrs) ->
+handle_routed_presence(From, To, Packet = #xmlel{attrs = Attrs}, StateData) ->
     State = ejabberd_hooks:run_fold(c2s_presence_in, StateData#state.server,
 				    StateData, [{From, To, Packet}]),
     case xml:get_attr_s(<<"type">>, Attrs) of
