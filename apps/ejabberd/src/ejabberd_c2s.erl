@@ -1205,11 +1205,9 @@ handle_routed(_, _From, _To, Packet, StateData) ->
 handle_routed_iq(From, To, Packet = #xmlel{attrs = Attrs}, StateData) ->
     case jlib:iq_query_info(Packet) of
 	#iq{xmlns = ?NS_LAST} ->
-	    LFrom = jlib:jid_tolower(From),
-	    LBFrom = jlib:jid_remove_resource(LFrom),
-	    HasFromSub = ( ( ?SETS:is_element(LFrom, StateData#state.pres_f)
-			     orelse ?SETS:is_element(LBFrom, StateData#state.pres_f) )
-			   andalso is_privacy_allow(StateData, To, From, #xmlel{name = <<"presence">>}, out) ),
+	    HasFromSub = ( is_subscribed_to_my_presence(From, StateData)
+			   andalso is_privacy_allow(StateData, To, From,
+						    #xmlel{name = <<"presence">>}, out) ),
 	    case HasFromSub of
 		true ->
 		    case privacy_check_packet(StateData, From, To, Packet, in) of
@@ -1280,28 +1278,13 @@ handle_routed_presence(From, To, Packet = #xmlel{attrs = Attrs}, StateData) ->
 				    StateData, [{From, To, Packet}]),
     case xml:get_attr_s(<<"type">>, Attrs) of
 	<<"probe">> ->
-	    LFrom = jlib:jid_tolower(From),
-	    LBFrom = jlib:jid_remove_resource(LFrom),
-	    NewStateData = case am_i_available_to(LFrom, LBFrom, State) of
-			       true ->
-				   State;
-			       false ->
-				   case ?SETS:is_element(LFrom, State#state.pres_f) of
-				       true ->
-					   A = ?SETS:add_element(LFrom, State#state.pres_a),
-					   State#state{pres_a = A};
-				       false ->
-					   case ?SETS:is_element(LBFrom, State#state.pres_f) of
-					       true ->
-						   A = ?SETS:add_element(LBFrom, State#state.pres_a),
-						   State#state{pres_a = A};
-					       false ->
-						   State
-					   end
-				   end
-			   end,
-	    process_presence_probe(From, To, NewStateData),
-	    {false, Attrs, NewStateData};
+	    {LFrom, LBFrom} = lowcase_and_bare(From),
+	    NewState = case am_i_available_to(LFrom, LBFrom, State) of
+			   true -> State;
+			   false -> make_available_to(LFrom, LBFrom, State)
+		       end,
+	    process_presence_probe(From, To, NewState),
+	    {false, Attrs, NewState};
 	<<"error">> ->
 	    NewA = remove_element(jlib:jid_tolower(From), State#state.pres_a),
 	    {true, Attrs, State#state{pres_a = NewA}};
@@ -1323,25 +1306,10 @@ handle_routed_presence(From, To, Packet = #xmlel{attrs = Attrs}, StateData) ->
 	_ ->
 	    case privacy_check_packet(State, From, To, Packet, in) of
 		allow ->
-		    LFrom = jlib:jid_tolower(From),
-		    LBFrom = jlib:jid_remove_resource(LFrom),
+		    {LFrom, LBFrom} = lowcase_and_bare(From),
 		    case am_i_available_to(LFrom, LBFrom, State) of
-			true ->
-			    {true, Attrs, State};
-			false ->
-			    case ?SETS:is_element(LFrom, State#state.pres_f) of
-				true ->
-				    A = ?SETS:add_element(LFrom, State#state.pres_a),
-				    {true, Attrs, State#state{pres_a = A}};
-				false ->
-				    case ?SETS:is_element(LBFrom, State#state.pres_f) of
-					true ->
-					    A = ?SETS:add_element(LBFrom, State#state.pres_a),
-					    {true, Attrs, State#state{pres_a = A}};
-					false ->
-					    {true, Attrs, State}
-				    end
-			    end
+			true -> {true, Attrs, State};
+			false -> {true, Attrs, make_available_to(LFrom, LBFrom, State)}
 		    end;
 		deny ->
 		    {false, Attrs, State}
@@ -1352,6 +1320,21 @@ am_i_available_to(LFrom, LBFrom, State) ->
     ?SETS:is_element(LFrom, State#state.pres_a)
     orelse (LFrom /= LBFrom)
     andalso ?SETS:is_element(LBFrom, State#state.pres_a).
+
+make_available_to(LFrom, LBFrom, State) ->
+    case ?SETS:is_element(LFrom, State#state.pres_f) of
+	true ->
+	    A = ?SETS:add_element(LFrom, State#state.pres_a),
+	    State#state{pres_a = A};
+	false ->
+	    case ?SETS:is_element(LBFrom, State#state.pres_f) of
+		true ->
+		    A = ?SETS:add_element(LBFrom, State#state.pres_a),
+		    State#state{pres_a = A};
+		false ->
+		    State
+	    end
+    end.
 
 %%----------------------------------------------------------------------
 %% Func: print_state/1
@@ -1667,10 +1650,18 @@ should_retransmit_last_presence(LFrom, LBareFrom,
     andalso is_subscribed_to_my_presence(LFrom, LBareFrom, S)
     andalso not invisible_to(LFrom, LBareFrom, S).
 
+is_subscribed_to_my_presence(JID, S) ->
+    {Lowcase, Bare} = lowcase_and_bare(JID),
+    is_subscribed_to_my_presence(Lowcase, Bare, S).
+
 is_subscribed_to_my_presence(LFrom, LBareFrom, S) ->
     ?SETS:is_element(LFrom, S#state.pres_f)
     orelse (LFrom /= LBareFrom)
     andalso ?SETS:is_element(LBareFrom, S#state.pres_f).
+
+lowcase_and_bare(JID) ->
+    LJID = jlib:jid_tolower(JID),
+    { LJID, jlib:jid_remove_resource(LJID) }.
 
 invisible_to(LFrom, LBareFrom, S) ->
     ?SETS:is_element(LFrom, S#state.pres_i)
