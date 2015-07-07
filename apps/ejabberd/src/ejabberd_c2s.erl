@@ -1204,6 +1204,8 @@ handle_routed(_, _From, _To, Packet, StateData) ->
 
 handle_routed_iq(From, To, Packet = #xmlel{attrs = Attrs}, StateData) ->
     case jlib:iq_query_info(Packet) of
+	%% TODO: Support for mod_last / XEP-0012. Can we move it to the respective module?
+	%%	 Thanks to add_iq_handler(ejabberd_sm, ...)?
 	#iq{xmlns = ?NS_LAST} ->
 	    HasFromSub = ( is_subscribed_to_my_presence(From, StateData)
 			   andalso is_privacy_allow(StateData, To, From,
