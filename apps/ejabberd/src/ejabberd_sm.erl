@@ -664,29 +664,55 @@ route_message(From, To, Packet) ->
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 -spec clean_session_list([sid()]) -> [sid()].
 clean_session_list(Ss) ->
-    clean_session_list(lists:keysort(#session.usr, Ss), []).
+    BadSessions = find_bad_sessions(Ss),
+    lists:foreach(
+        fun(#session{sid=Sid, usr={User, Server, Resource}=Usr}) ->
+            ?DEBUG("closing dead session with SID: ~p, User: ~p", [Sid, Usr]),
+            spawn(?MODULE, close_session, [Sid, User, Server, Resource])
+        end,
+        BadSessions),
+    lists:filter(fun(S) -> not lists:member(S, BadSessions) end, Ss).
 
+-spec find_bad_sessions([sid()]) -> [sid()].
+find_bad_sessions(Ss) ->
+    lists:merge(find_dead_sessions(Ss), find_old_sessions(Ss)).
 
--spec clean_session_list([sid()],[sid()]) -> [sid()].
-clean_session_list([], Res) ->
+-spec find_old_sessions([sid()]) -> [sid()].
+find_old_sessions(Ss) ->
+    find_old_sessions(lists:keysort(#session.usr, Ss), []).
+
+-spec find_old_sessions([sid()],[sid()]) -> [sid()].
+find_old_sessions([], Res) ->
     Res;
-clean_session_list([S], Res) ->
-    [S | Res];
-clean_session_list([S1, S2 | Rest], Res) ->
+find_old_sessions([_S], Res) ->
+    Res;
+find_old_sessions([S1, S2 | Rest], Res) ->
     if
         S1#session.usr == S2#session.usr ->
+            ?DEBUG("found 2 sessions for same user, will close 1.  Sessions: ~p, ~p", [S1, S2]),
             if
-                S1#session.sid > S2#session.sid ->
-                    clean_session_list([S1 | Rest], Res);
+                S1#session.sid < S2#session.sid ->
+                    find_old_sessions([S1 | Rest], Res);
                 true ->
-                    clean_session_list([S2 | Rest], Res)
+                    find_old_sessions([S2 | Rest], Res)
             end;
         true ->
-            clean_session_list([S2 | Rest], [S1 | Res])
+            find_old_sessions([S2 | Rest], [S1 | Res])
     end.
+
+find_dead_sessions(Ss) ->
+    lists:filter(
+      fun(#session{sid = {_, Pid}=SID}) ->
+              case erlang:process_info(Pid) of
+                    undefined ->
+                        ?DEBUG("found dead session: ~p", [SID]),
+                        true;
+                  _ProcessInfo -> false
+              end
+      end, 
+      Ss).
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
