@@ -32,14 +32,14 @@
 -export([start_link/0,
          route/3,
          open_session/5, open_session/6,
-         close_session/4,
+         close_session/5,
          check_in_subscription/6,
          bounce_offline_message/3,
          disconnect_removed_user/2,
          get_user_resources/2,
          set_presence/7,
          unset_presence/6,
-         close_session_unset_presence/5,
+         close_session_unset_presence/6,
          get_unique_sessions_number/0,
          get_total_sessions_number/0,
          get_node_sessions_number/0,
@@ -79,10 +79,12 @@
                       Prio :: integer(),
                       Info :: list()}.
 -type backend() :: ejabberd_sm_mnesia | ejabberd_sm_redis.
+-type close_reason() :: resumed | normal | replaced.
 
 -export_type([session/0,
               sid/0,
-              backend/0
+              backend/0,
+              close_reason/0
             ]).
 
 %% default value for the maximum number of user connections
@@ -134,8 +136,9 @@ open_session(SID, User, Server, Resource, Priority, Info) ->
 -spec close_session(SID :: 'undefined' | sid(),
                     User :: ejabberd:user(),
                     Server :: ejabberd:server(),
-                    Resource :: ejabberd:resource()) -> 'ok'.
-close_session(SID, User, Server, Resource) ->
+                    Resource :: ejabberd:resource(),
+                    Reason :: close_reason()) -> 'ok'.
+close_session(SID, User, Server, Resource, Reason) ->
     LUser = jlib:nodeprep(User),
     LServer = jlib:nameprep(Server),
     LResource = jlib:resourceprep(Resource),
@@ -148,7 +151,7 @@ close_session(SID, User, Server, Resource) ->
     ?SM_BACKEND:delete_session(SID, LUser, LServer, LResource),
     JID = jlib:make_jid(User, Server, Resource),
     ejabberd_hooks:run(sm_remove_connection_hook, JID#jid.lserver,
-                       [SID, JID, Info]).
+                       [SID, JID, Info, Reason]).
 
 
 -spec check_in_subscription(Acc :: any(),
@@ -263,9 +266,10 @@ unset_presence(SID, User, Server, Resource, Status, Info) ->
                                    User :: ejabberd:user(),
                                    Server :: ejabberd:server(),
                                    Resource :: ejabberd:resource(),
-                                   Status :: any()) -> 'ok'.
-close_session_unset_presence(SID, User, Server, Resource, Status) ->
-    close_session(SID, User, Server, Resource),
+                                   Status :: any(),
+                                   Reason :: close_reason()) -> 'ok'.
+close_session_unset_presence(SID, User, Server, Resource, Status, Reason) ->
+    close_session(SID, User, Server, Resource, Reason),
     LServer = jlib:nameprep(Server),
     ejabberd_hooks:run(unset_presence_hook, LServer,
                        [jlib:nodeprep(User), LServer,

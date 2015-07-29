@@ -35,7 +35,7 @@
   anonymous_user_exist/2,
   allow_multiple_connections/1,
   register_connection/3,
-  unregister_connection/3
+  unregister_connection/4
   ]).
 
 -behaviour(ejabberd_gen_auth).
@@ -193,8 +193,8 @@ register_connection(SID, #jid{luser = LUser, lserver = LServer}, Info) ->
 %% @doc Remove an anonymous user from the anonymous users table
 -spec unregister_connection(SID :: ejabberd_sm:sid(),
                             JID :: ejabberd:jid(),
-                            any()) -> {atomic|error|aborted, _}.
-unregister_connection(SID, #jid{luser = LUser, lserver = LServer}, _) ->
+                            any(), ejabberd_sm:close_reason()) -> {atomic|error|aborted, _}.
+unregister_connection(SID, #jid{luser = LUser, lserver = LServer}, _, _) ->
     purge_hook(anonymous_user_exist(LUser, LServer),
                LUser, LServer),
     remove_connection(SID, LUser, LServer).
