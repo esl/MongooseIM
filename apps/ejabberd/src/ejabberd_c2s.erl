@@ -1376,7 +1376,8 @@ terminate(_Reason, StateName, StateData) ->
                       StateData#state.user,
                       StateData#state.server,
                       StateData#state.resource,
-                      "Replaced by new connection"),
+                      "Replaced by new connection",
+                      replaced),
                     presence_broadcast(
                       StateData, From, StateData#state.pres_a, Packet),
                     presence_broadcast(
@@ -1400,7 +1401,8 @@ terminate(_Reason, StateName, StateData) ->
                             ejabberd_sm:close_session(StateData#state.sid,
                                                       StateData#state.user,
                                                       StateData#state.server,
-                                                      StateData#state.resource);
+                                                      StateData#state.resource,
+                                                      normal);
                         _ ->
                             From = StateData#state.jid,
                             Packet = #xmlel{name = <<"presence">>,
@@ -1410,7 +1412,8 @@ terminate(_Reason, StateName, StateData) ->
                               StateData#state.user,
                               StateData#state.server,
                               StateData#state.resource,
-                              ""),
+                              "",
+                              normal),
                             presence_broadcast(
                               StateData, From, StateData#state.pres_a, Packet),
                             presence_broadcast(
@@ -2785,7 +2788,8 @@ handover_session(SD) ->
     ejabberd_sm:close_session(SD#state.sid,
                               SD#state.user,
                               SD#state.server,
-                              SD#state.resource),
+                              SD#state.resource,
+                              resumed),
     {N, Messages} = flush_messages(),
     NewSize = N + SD#state.stream_mgmt_buffer_size,
     NewBuffer = Messages ++ SD#state.stream_mgmt_buffer,

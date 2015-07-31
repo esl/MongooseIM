@@ -17,7 +17,7 @@
 %% Internal exports
 %%-------------------
 -export([sm_register_connection_hook/3,
-         sm_remove_connection_hook/3,
+         sm_remove_connection_hook/4,
          auth_failed/2,
          user_send_packet/3,
          user_receive_packet/4,
@@ -113,9 +113,10 @@ sm_register_connection_hook(_,#jid{server = Server}, _) ->
     mongoose_metrics:update({Server, sessionSuccessfulLogins}, 1),
     mongoose_metrics:update({Server, sessionCount}, 1).
 
--spec sm_remove_connection_hook(tuple(), ejabberd:jid(), term()
+-spec sm_remove_connection_hook(tuple(), ejabberd:jid(),
+                                term(), ejabberd_sm:close_reason()
                                ) -> metrics_notify_return().
-sm_remove_connection_hook(_,#jid{server = Server},_) ->
+sm_remove_connection_hook(_,#jid{server = Server},_, _Reason) ->
     mongoose_metrics:update({Server, sessionLogouts}, 1),
     mongoose_metrics:update({Server, sessionCount}, -1).
 

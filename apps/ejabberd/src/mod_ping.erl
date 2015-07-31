@@ -50,7 +50,7 @@
          handle_info/2, code_change/3]).
 
 %% Hook callbacks
--export([iq_ping/3, user_online/3, user_offline/3, user_send/3]).
+-export([iq_ping/3, user_online/3, user_offline/4, user_send/3]).
 
 -record(state, {host = <<"">>,
                 send_pings = ?DEFAULT_SEND_PINGS,
@@ -190,7 +190,7 @@ iq_ping(_From, _To, #iq{type = Type, sub_el = SubEl} = IQ) ->
 user_online(_SID, JID, _Info) ->
     start_ping(JID#jid.lserver, JID).
 
-user_offline(_SID, JID, _Info) ->
+user_offline(_SID, JID, _Info, _Reason) ->
     stop_ping(JID#jid.lserver, JID).
 
 user_send(JID, _From, _Packet) ->
