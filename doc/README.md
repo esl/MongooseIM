@@ -1,5 +1,6 @@
 
 * User Guide
+    * [Features and supported standards](user-guide/Features-and-supported-standards.md) contains the list of supported XEPs, RFCs and database backends.
     * [Get to know MongooseIM](user-guide/Get-to-know-MongooseIM.md) contains the overview of our application, its architecture and deployment strategies.
     * [Getting started](user-guide/Getting-started.md) is a step-by-step guide on how to:
         * Build MongooseIM on a supported OS
@@ -19,4 +20,4 @@
     * [Hooks and handlers](developers-guide/Hooks-and-handlers.md)
     * [Folsom Metrics](developers-guide/REST-interface-to-metrics.md)
     * [mod_amp developer's guide](developers-guide/mod_amp_developers_guide.md)
-   
+
