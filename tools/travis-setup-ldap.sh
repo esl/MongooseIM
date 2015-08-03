@@ -17,7 +17,7 @@ replace: olcRootPW
 olcRootPW: ${LDAP_P}
 EOL
 
-sudo ldapmodify -Y EXTERNAL -H ldapi:/// -f manager.ldif
+ldapmodify -Y EXTERNAL -H ldapi:/// -f manager.ldif
 
 cat > init_entries.ldif << EOL
 dn: dc=ejd,dc=com
