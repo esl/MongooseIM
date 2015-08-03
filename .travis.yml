@@ -1,8 +1,15 @@
 language: erlang
+sudo: required
+addons:
+    apt:
+        packages:
+        - libpam0g-dev
+        - libexpat1-dev
+        - odbc-postgresql
+        - libmyodbc
+        - slapd
+        - ldap-utils
 before_install:
-        - sudo apt-get update
-        - sudo apt-get install libpam0g-dev libexpat1-dev odbc-postgresql libmyodbc
-        - if [ $PRESET = 'ldap_mnesia' ]; then sudo apt-get install slapd ldap-utils; fi
         - tools/travis-generate-pass.sh
 install:
         - tools/travis-build.sh
