@@ -9,11 +9,11 @@ It provides support for WebSockets and reimplemented BOSH.
 Its home at GitHub is http://github.com/esl/MongooseIM.
 
 
-Quickstart guide
-----------------
+Download binaries
+-----------------
 For a quick start just
 [download the pre-built package](https://www.erlang-solutions.com/downloads/download-mongooseim)
-that suits your platform.
+that suits your platform: Ubuntu, Dedian, CentOS, and Mac OS X.
 
 
 Main differences from the parent project
