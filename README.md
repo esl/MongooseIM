@@ -15,6 +15,10 @@ For a quick start just
 [download the pre-built package](https://www.erlang-solutions.com/downloads/download-mongooseim)
 that suits your platform: Ubuntu, Debian, CentOS, and Mac OS X.
 
+Download
+--------
+Feel free to download MongooseIM at: https://www.erlang-solutions.com/downloads/download-mongooseim
+Packages exist for Ubuntu, Dedian, CentOS, and Mac OS X.
 
 Main differences from the parent project
 ----------------------------------------
