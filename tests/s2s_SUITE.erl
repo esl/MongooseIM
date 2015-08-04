@@ -33,11 +33,8 @@ suite() ->
 init_per_suite(Config0) ->
     Node = ct:get_config(ejabberd2_node),
     rpc:call(Node, mongoose_cover_helper, start, [[ejabberd]]),
-    OtherUsers = ct:get_config(escalus_server2_users),
-    NewUsers = escalus_users:get_users({by_name, [alice2, bob2]}, OtherUsers) ++
-               escalus_users:get_users({by_name, [alice, bob]}),
     Config1 = escalus:init_per_suite(Config0),
-    escalus_users:create_users(Config1, NewUsers).
+    escalus_users:create_users(Config1, {by_name, [alice2, bob2, alice, bob]}).
 
 end_per_suite(Config) ->
     Node = ct:get_config(ejabberd2_node),
