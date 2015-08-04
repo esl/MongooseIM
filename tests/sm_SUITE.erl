@@ -71,7 +71,7 @@ init_per_suite(Config) ->
 
 end_per_suite(Config) ->
     NewConfig = escalus_ejabberd:reset_option(ack_freq(never), Config),
-    NewConfig1 = escalus:delete_users(NewConfig, config),
+    NewConfig1 = escalus:delete_users(NewConfig, {by_name, [alice, bob]}),
     escalus:end_per_suite(NewConfig1).
 
 init_per_group(client_acking, Config) ->
