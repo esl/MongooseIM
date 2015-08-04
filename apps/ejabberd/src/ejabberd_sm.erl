@@ -671,32 +671,67 @@ route_message(From, To, Packet) ->
 
 -spec clean_session_list([sid()]) -> [sid()].
 clean_session_list(Ss) ->
-    clean_session_list(lists:keysort(#session.usr, Ss), []).
+    ?DEBUG("clean_session_list Ss: ~p",[Ss]),
+    CleanSessions = alive_session_list(recent_session_list(Ss)),
+    BadSessions = lists:filter(fun(S) -> not lists:member(S, CleanSessions) end, Ss),
+    ?DEBUG("bad sessions found: ~p", [BadSessions]),
+    lists:foreach(
+            fun(#session{sid=Sid, usr={User, Server, Resource}=Usr}) ->
+                    ?DEBUG("closing bad session with SID: ~p, User: ~p", [Sid, Usr]),
+                    spawn(?MODULE, close_session, [Sid, User, Server, Resource, replaced])
+            end,
+            BadSessions),
+    CleanSessions.
 
+-spec recent_session_list([sid()]) -> [sid()].
+recent_session_list(Ss) ->
+    recent_session_list(lists:keysort(#session.usr, Ss), []).
 
--spec clean_session_list([sid()],[sid()]) -> [sid()].
-clean_session_list([], Res) ->
+-spec recent_session_list([sid()],[sid()]) -> [sid()].
+recent_session_list([], Res) ->
     Res;
-clean_session_list([S], Res) ->
+recent_session_list([S], Res) ->
     [S | Res];
-clean_session_list([S1, S2 | Rest], Res) ->
+recent_session_list([S1, S2 | Rest], Res) ->
     if
         S1#session.usr == S2#session.usr ->
+            ?DEBUG("found 2 sessions for same user. Sessions: ~p, ~p", [S1, S2]),
             if
                 S1#session.sid > S2#session.sid ->
-                    clean_session_list([S1 | Rest], Res);
+                    recent_session_list([S1 | Rest], Res);
                 true ->
-                    clean_session_list([S2 | Rest], Res)
+                    recent_session_list([S2 | Rest], Res)
             end;
         true ->
-            clean_session_list([S2 | Rest], [S1 | Res])
+            recent_session_list([S2 | Rest], [S1 | Res])
     end.
+
+alive_session_list(Ss) ->
+    Self = self(),
+    ?DEBUG("~p find alive sessions in session list: ~p with nodes ~p", [Self, Ss, nodes()]),
+    lists:filter(fun(#session{sid={_, Pid}}) when (Pid =:= Self) ->
+        true;
+        (#session{sid={_, Pid}=SID}) ->
+            ?DEBUG("getting process_info for pid ~p", [Pid]),
+            case catch erlang:process_info(Pid, status) of
+                undefined ->
+                    ?DEBUG("found dead session: ~p", [SID]),
+                    false;
+                %% Other node will be responsible for cleaning it out if dead
+                {'EXIT', {badarg, _Stack}} ->
+                    ?DEBUG("~p not a local process - could be alive on another node. node: ~p, nodes: ~p", [Pid, node(), nodes()]),
+                    true;
+                _ProcessInfo ->
+                    true
+            end
+    end, 
+    Ss).
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 get_user_present_pids(LUser, LServer) ->
     Ss = clean_session_list(?SM_BACKEND:get_sessions(LUser, LServer)),
-    PrioRes = [{S#session.priority, element(2,S#session.sid)} ||
+    [{S#session.priority, element(2,S#session.sid)} ||
         S <- Ss, is_integer(S#session.priority)].
 
 -spec get_user_present_resources(LUser :: ejabberd:user(),
