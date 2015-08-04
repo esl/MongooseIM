@@ -97,11 +97,16 @@ zlib driver configuration (in c2s or s2s section) takes new parameter which is m
 
 2013-05-23
 
+- use upstream lager
+- added CHANGELOG file
+
 
 # MongooseIM 1.2.1
 
 2013-05-15
 
+- Folsom metrics improvements
+- BOSH fixes
 
 # MongooseIM 1.2.0
 
@@ -122,17 +127,28 @@ less effort.
 
 2012-12-04
 
+- list to binary conversion
+- Multi-User Chat (MUC) fixes and cleanups
+- style and indentation fixes
+- change logger to lager
+
 
 # MongooseIM 1.0.0
 
 2012-07-10
+
+- cleanups
 
 
 # MongooseIM 0.9.0
 
 2012-05-21
 
+- 
+
 
 # MongooseIM 0.1.0-pre
 
 2012-04-17
+
+- 
