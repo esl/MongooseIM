@@ -19,7 +19,6 @@
 
 -import(distributed_helper, [add_node_to_cluster/1,
                              remove_node_from_cluster/1,
-                             cluster_users/0,
                              is_sm_distributed/0]).
 
 
@@ -67,7 +66,7 @@ init_per_group(clustered, Config) ->
 
     case is_sm_distributed() of
         true ->
-            escalus:create_users(Config1, cluster_users());
+            escalus:create_users(Config1, {by_name, [alice, clusterguy]});
         {false, Backend} ->
             ct:pal("Backend ~p doesn't support distributed tests", [Backend]),
             remove_node_from_cluster(Config1),
@@ -77,7 +76,7 @@ init_per_group(_GroupName, Config) ->
     escalus:create_users(Config).
 
 end_per_group(clustered, Config) ->
-    escalus:delete_users(Config, ?config(escalus_users, Config)),
+    escalus:delete_users(Config, {by_name, [alice, clusterguy]}),
     remove_node_from_cluster(Config);
 end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config).

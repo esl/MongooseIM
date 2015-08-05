@@ -15,9 +15,6 @@ is_sm_distributed() ->
 is_sm_backend_distributed(ejabberd_sm_mnesia) -> true;
 is_sm_backend_distributed(Other)              -> {false, Other}.
 
-cluster_users() ->
-    escalus_users:get_users({by_name, [alice, clusterguy]}).
-
 add_node_to_cluster(ConfigIn) ->
     Node = ct:get_config(ejabberd_node),
     Node2 = ct:get_config(ejabberd2_node),
