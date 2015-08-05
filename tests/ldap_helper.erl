@@ -35,13 +35,15 @@ start(_) ->
 stop(_) ->
     ok.
 
--spec create_users(escalus:config(), escalus_users:who()) -> escallus:config().
-create_users(Config, Users) ->
+-spec create_users(escalus:config(), escalus_users:who()) -> escalus:config().
+create_users(Config, Who) ->
+    Users = escalus_users:get_users(Who),
     lists:foreach(fun create_user/1, Users),
-    Config.
+    lists:keystore(escalus_users, 1, Config, {escalus_users, Users}).
 
--spec delete_users(escalus:config(), escalus_users:who()) -> escallus:config().
-delete_users(Config, Users) ->
+-spec delete_users(escalus:config(), escalus_users:who()) -> escalus:config().
+delete_users(Config, Who) ->
+    Users = escalus_users:get_users(Who),
     lists:foreach(fun delete_user/1, Users),
     Config.
 
