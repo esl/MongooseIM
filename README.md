@@ -68,9 +68,9 @@ How to build
     or
 
         $ ./rebar generate
-    
+
     If more advanced relase is required (with mysql or pgsql support) a `make configure` script with appropirate option(s) has to be run before `make rel` or `./rebar generate`. `make configure` without any option will print following help message.
-    
+
     ```
 specifies which 3rd party deps will be included in release
 possible options:
@@ -80,13 +80,13 @@ with-odbc	include standard ODBC driver shipped with Erlang/OTP
 with-redis	include redis driver
 with-cassandra	include cassandra driver
 full		include all above deps
-    ``` 
+    ```
 
     For example if mysql and redis support has to be added to the release, following command has to be run before `make rel`:
-    
+
         $ make configure with-mysql with-redis
-    
-    The `make configure` command has to be run only once (unless one need to change the relase config and include some other dependecies).    
+
+    The `make configure` command has to be run only once (unless one need to change the relase config and include some other dependecies).
 
     `make rel` or `./rebar generate` commands will generate a self-contained OTP system image in the
     project's `rel/mongooseim` subdirectory. The contents of that directory are as
@@ -148,6 +148,14 @@ The main reason is that some rarely useful features were removed from
 the repository or are still waiting to be brought up to the Erlang Solutions standards.
 
 Don't forget to check out our [wiki](https://github.com/esl/MongooseIM/wiki) - hopefully, its scope will grow with time.
+
+Test suite
+----------
+
+In order to test and validate your XMPP servers, here is an ecosystem of useful tools:
+* [escalus](https://github.com/esl/escalus): Erlang XMPP client
+* [mercutio](https://github.com/esl/mercutio): test suite for XMPP servers (uses escalus)
+* [amoc](https://github.com/esl/amoc): a load testing tools (uses mercutio)
 
 
 Want to get in touch with us?
