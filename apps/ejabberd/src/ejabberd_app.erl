@@ -246,4 +246,17 @@ init_metrics() ->
     lists:foreach(
         fun(Host) ->
             mongoose_metrics:init_predefined_host_metrics(Host)
-        end, ?MYHOSTS).
+        end, ?MYHOSTS),
+    Reporters = exometer_report:list_reporters(),
+    lists:foreach(
+        fun({Name, _Reporter}) ->
+                Interval = application:get_env(exometer, mongooseim_interval, 5000),
+                start_subscriptions(Name, Interval)
+        end, Reporters).
+
+start_subscriptions(Reporter, Interval) ->
+    mongoose_metrics:start_global_metrics_subscriptions(Reporter, Interval),
+    lists:foreach(
+      fun(Host) ->
+              mongoose_metrics:start_host_metrics_subscriptions(Reporter, Host, Interval)
+      end, ?MYHOSTS).
