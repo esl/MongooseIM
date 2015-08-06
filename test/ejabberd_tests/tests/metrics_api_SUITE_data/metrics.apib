@@ -1,0 +1,132 @@
+# 0. GET is the only implemented allowed method
+#    (both OPTIONS and HEAD are for free then)
+
+OPTIONS /api/metrics/
+> User-Agent: katt
+> Host: {{<hostname}}:{{<port}}
+< 200
+< Allow: OPTIONS, HEAD, GET
+
+# 1. List of hosts and metrics
+
+GET /api/metrics/
+> Accept: application/json
+> User-Agent: katt
+> Host: {{<hostname}}:{{<port}}
+< 200
+< Content-Type: application/json
+{
+    "hosts":   ["{{>example_host}}"],
+    "metrics": ["{{>example_metric}}"],
+    "global": ["{{>example_global}}"],
+    "{{_}}":   "{{unexpected}}"
+}
+
+# 2. Sum of all metrics
+
+GET /api/metrics/all
+> Accept: application/json
+> User-Agent: katt
+> Host: {{<hostname}}:{{<port}}
+< 200
+< Content-Type: application/json
+{
+    "metrics": "{{_}}",
+    "{{_}}": "{{unexpected}}"
+}
+
+# 3a. Sum for a given metric
+
+GET /api/metrics/all/{{<example_metric}}
+> Accept: application/json
+> User-Agent: katt
+> Host: {{<hostname}}:{{<port}}
+< 200
+< Content-Type: application/json
+{"metric":
+    {
+      "one":     "{{_}}",
+      "count":   "{{_}}",
+      "{{_}}":   "{{unexpected}}"
+    },
+ "{{_}}": "{{unexpected}}"
+}
+
+# 3b. Negative case for a non-existent given metric
+
+GET /api/metrics/all/nonExistentMetric
+> Accept: application/json
+> User-Agent: katt
+> Host: {{<hostname}}:{{<port}}
+< 404
+
+# 4a. All metrics for an example host
+
+GET /api/metrics/host/{{<example_host}}
+> Accept: application/json
+> User-Agent: katt
+> Host: {{<hostname}}:{{<port}}
+< 200
+< Content-Type: application/json
+{
+    "metrics": "{{_}}",
+    "{{_}}": "{{unexpected}}"
+}
+
+# 4b. Negative case for a non-existent host
+GET /api/metrics/host/nonExistentHost
+> Accept: application/json
+> User-Agent: katt
+> Host: {{<hostname}}:{{<port}}
+< 404
+
+# 5a. An example metric for an example host
+
+GET /api/metrics/host/{{<example_host}}/{{<example_metric}}
+> Accept: application/json
+> User-Agent: katt
+> Host: {{<hostname}}:{{<port}}
+< 200
+< Content-Type: application/json
+{"metric":
+    {
+      "one":   "{{_}}",
+      "count": "{{_}}",
+      "{{_}}": "{{unexpected}}"
+    },
+    "{{_}}": "{{unexpected}}"
+}
+
+# 5b. Negative case for a non-existent (host, metric) pair
+
+GET /api/metrics/host/{{<example_host}}/nonExistentMetric
+> Accept: application/json
+> User-Agent: katt
+> Host: {{<hostname}}:{{<port}}
+< 404
+
+# 6a. All global metric
+
+GET /api/metrics/global
+> Accept: application/json
+> User-Agent: katt
+> Host: {{<hostname}}:{{<port}}
+< 200
+< Content-Type: application/json
+{
+    "metrics": "{{_}}",
+    "{{_}}": "{{unexpected}}"
+}
+
+# 6b. An example global metric
+
+GET /api/metrics/global/{{<example_global}}
+> Accept: application/json
+> User-Agent: katt
+> Host: {{<hostname}}:{{<port}}
+< 200
+< Content-Type: application/json
+{
+    "metric": "{{_}}",
+    "{{_}}": "{{unexpected}}"
+}
