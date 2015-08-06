@@ -58,7 +58,7 @@ start(normal, _Args) ->
     maybe_start_alarms(),
     connect_nodes(),
     {ok, _} = Sup = ejabberd_sup:start_link(),
-    init_metrics(),
+    mongoose_metrics:init(),
     ejabberd_system_monitor:add_handler(),
     ejabberd_rdbms:start(),
     ejabberd_auth:start(),
@@ -240,23 +240,3 @@ load_drivers([Driver | Rest]) ->
                           [erl_ddll:format_error(Reason)]),
             exit({driver_loading_failed, Driver, Reason})
     end.
-
-init_metrics() ->
-    mongoose_metrics:create_global_metrics(),
-    lists:foreach(
-        fun(Host) ->
-            mongoose_metrics:init_predefined_host_metrics(Host)
-        end, ?MYHOSTS),
-    Reporters = exometer_report:list_reporters(),
-    lists:foreach(
-        fun({Name, _ReporterPid}) ->
-                Interval = application:get_env(exometer, mongooseim_interval, 5000),
-                start_subscriptions(Name, Interval)
-        end, Reporters).
-
-start_subscriptions(Reporter, Interval) ->
-    mongoose_metrics:start_global_metrics_subscriptions(Reporter, Interval),
-    lists:foreach(
-      fun(Host) ->
-              mongoose_metrics:start_host_metrics_subscriptions(Reporter, Host, Interval)
-      end, ?MYHOSTS).

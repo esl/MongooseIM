@@ -18,7 +18,8 @@
 -include("ejabberd.hrl").
 
 %% API
--export([update/2,
+-export([init/0,
+         update/2,
          start_host_metrics_subscriptions/3,
          start_vm_metrics_subscriptions/2,
          start_global_metrics_subscriptions/2,
@@ -38,6 +39,20 @@
          get_dist_data_stats/0,
          remove_host_metrics/1,
          remove_all_metrics/0]).
+
+-spec init() -> ok.
+init() ->
+    create_global_metrics(),
+    lists:foreach(
+        fun(Host) ->
+            mongoose_metrics:init_predefined_host_metrics(Host)
+        end, ?MYHOSTS),
+    Reporters = exometer_report:list_reporters(),
+    lists:foreach(
+        fun({Name, _ReporterPid}) ->
+                Interval = application:get_env(exometer, mongooseim_interval, 5000),
+                subscribe_to_all(Name, Interval)
+        end, Reporters).
 
 -spec update({term(), term()}, term()) -> no_return().
 update(Name, Change) when is_tuple(Name)->
@@ -405,3 +420,9 @@ subscribe_metric(Reporter, {Name, histogram, _}, Interval) ->
 subscribe_metric(Reporter, {Name, _, _}, Interval) ->
     exometer_report:subscribe(Reporter, Name, default, Interval).
 
+subscribe_to_all(Reporter, Interval) ->
+    start_global_metrics_subscriptions(Reporter, Interval),
+    lists:foreach(
+      fun(Host) ->
+              start_host_metrics_subscriptions(Reporter, Host, Interval)
+      end, ?MYHOSTS).
