@@ -19,8 +19,6 @@
 
 %% API
 -export([update/2,
-         start_graphite_reporter/1,
-         start_graphite_reporter/2,
          start_host_metrics_subscriptions/3,
          start_vm_metrics_subscriptions/2,
          start_global_metrics_subscriptions/2,
@@ -47,33 +45,20 @@ update(Name, Change) when is_tuple(Name)->
 update(Name, Change) ->
     exometer:update(Name, Change).
 
-start_graphite_reporter(GraphiteHost) ->
-    start_graphite_reporter(GraphiteHost, []).
-start_graphite_reporter(GraphiteHost, Opts) ->
-    GraphiteOpts = [{prefix, "exometer." ++ atom_to_list(node())},
-                    {host, GraphiteHost}]
-                   ++ merge_opts(Opts),
-    case exometer_report:add_reporter(exometer_report_graphite, GraphiteOpts) of
-        ok ->
-            {ok, exometer_report_graphite};
-        Error ->
-            Error
-    end.
-
 start_host_metrics_subscriptions(Reporter, Host, Interval) ->
-    do_start_metrics_subscriptions(check_reporter(Reporter), Interval, [Host]).
+    do_start_metrics_subscriptions(Reporter, Interval, [Host]).
 
 start_vm_metrics_subscriptions(Reporter, Interval) ->
-    do_start_vm_metrics_subscriptions(check_reporter(Reporter), Interval).
+    do_start_vm_metrics_subscriptions(Reporter, Interval).
 
 start_global_metrics_subscriptions(Reporter, Interval) ->
-    do_start_global_metrics_subscriptions(check_reporter(Reporter), Interval).
+    do_start_global_metrics_subscriptions(Reporter, Interval).
 
 start_data_metrics_subscriptions(Reporter, Interval) ->
-    do_start_metrics_subscriptions(check_reporter(Reporter), Interval, [data]).
+    do_start_metrics_subscriptions(Reporter, Interval, [data]).
 
 start_backend_metrics_subscriptions(Reporter, Interval) ->
-    do_start_metrics_subscriptions(check_reporter(Reporter), Interval, [backends]).
+    do_start_metrics_subscriptions(Reporter, Interval, [backends]).
 
 get_host_metric_names(Host) ->
     [MetricName || {[_Host, MetricName | _], _, _} <- exometer:find_entries([Host])].
@@ -401,34 +386,17 @@ get_vm_stats() ->
 get_counters(Host, Counters) ->
     [{Host, Counter} || Counter <- Counters].
 
-check_reporter(Reporter) ->
-    Reporters = exometer_report:list_reporters(),
-    case lists:keyfind(Reporter, 1, Reporters) of
-        {Reporter, _} ->
-            {ok, Reporter};
-        _ ->
-            {error, {no_such_reporter}}
-    end.
-
-
-do_start_vm_metrics_subscriptions({ok, Reporter}, Interval) ->
+do_start_vm_metrics_subscriptions(Reporter, Interval) ->
     [exometer_report:subscribe(Reporter, Metric, DataPoints, Interval)
-     || {Metric, _, DataPoints} <- get_vm_stats()];
-do_start_vm_metrics_subscriptions(Error, _) ->
-    Error.
+     || {Metric, _, DataPoints} <- get_vm_stats()].
 
-do_start_global_metrics_subscriptions({ok, Reporter}, Interval) ->
+do_start_global_metrics_subscriptions(Reporter, Interval) ->
     [exometer_report:subscribe(Reporter, Metric, default, Interval)
-     || {Metric, _} <- ?GLOBAL_COUNTERS];
-do_start_global_metrics_subscriptions(Error, _) ->
-    Error.
+     || {Metric, _} <- ?GLOBAL_COUNTERS].
 
-do_start_metrics_subscriptions({ok, Reporter}, Interval, MetricPrefix) ->
+do_start_metrics_subscriptions(Reporter, Interval, MetricPrefix) ->
     [subscribe_metric(Reporter, Metric, Interval)
-     || Metric <- exometer:find_entries(MetricPrefix)];
-do_start_metrics_subscriptions(Error, _, _) ->
-    Error.
-
+     || Metric <- exometer:find_entries(MetricPrefix)].
 
 subscribe_metric(Reporter, {Name, counter, _}, Interval) ->
     exometer_report:subscribe(Reporter, Name, [value], Interval);
@@ -437,12 +405,3 @@ subscribe_metric(Reporter, {Name, histogram, _}, Interval) ->
 subscribe_metric(Reporter, {Name, _, _}, Interval) ->
     exometer_report:subscribe(Reporter, Name, default, Interval).
 
-merge_opts(Opts) ->
-    Defaults = [{connect_timeout, 5000},
-                {port, 2003},
-                {api_key, ""}],
-
-    MergeFun = fun(_, _, V2) -> V2 end,
-    orddict:to_list(orddict:merge(MergeFun,
-                                  orddict:from_list(Defaults),
-                                  orddict:from_list(Opts))).

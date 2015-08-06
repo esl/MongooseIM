@@ -249,7 +249,7 @@ init_metrics() ->
         end, ?MYHOSTS),
     Reporters = exometer_report:list_reporters(),
     lists:foreach(
-        fun({Name, _Reporter}) ->
+        fun({Name, _ReporterPid}) ->
                 Interval = application:get_env(exometer, mongooseim_interval, 5000),
                 start_subscriptions(Name, Interval)
         end, Reporters).
