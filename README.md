@@ -154,8 +154,7 @@ Test suite
 
 In order to test and validate your XMPP servers, here is an ecosystem of useful tools:
 * [escalus](https://github.com/esl/escalus): Erlang XMPP client
-* [mercutio](https://github.com/esl/mercutio): test suite for XMPP servers (uses escalus)
-* [amoc](https://github.com/esl/amoc): a load testing tools (uses mercutio)
+* [amoc](https://github.com/esl/amoc): a load testing tool
 
 
 Want to get in touch with us?
