@@ -1,5 +1,5 @@
 language: erlang
-sudo: false
+sudo: required
 addons:
     apt:
         packages:
@@ -30,7 +30,9 @@ after_script:
 after_success:
         - make cover_report
 
-services: redis-server
+services:
+        - redis-server
+        - docker
 branches:
         only:
                 - master
