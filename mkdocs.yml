@@ -25,7 +25,6 @@ pages:
       - 'mod_disco': 'modules/mod_disco.md'
       - 'mod_last': 'modules/mod_last.md'
       - 'mod_mam': 'modules/mod_mam.md'
-      - 'mod_metrics': 'modules/mod_metrics.md'
       - 'mod_muc': 'modules/mod_muc.md'
       - 'mod_muc_log': 'modules/mod_muc_log.md'
       - 'mod_offline': 'modules/mod_offline.md'
