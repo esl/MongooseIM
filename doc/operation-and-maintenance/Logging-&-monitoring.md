@@ -33,14 +33,12 @@ To monitor MongooseIM during load testing we recommend the following open source
 - Graphite (http://graphite.wikidot.com/) is used for data presentation 
 - collectd (http://collectd.org/) is a daemon running on monitored nodes capturing data related to CPU and Memory usage, IO etc. 
 
-### mod_metrics
+### mod_api_metrics
 
 It provides REST interface for Mongoose's metrics, so it can be easily integrated
 with other services.
 
-You can read more about it here:
-
-https://github.com/esl/MongooseIM/wiki/REST-interface-to-folsom-metrics
+You can read more about it here: [REST interface to metrics](/developers-guide/REST-interface-to-metrics)
 
 ### Wombat OAM
 

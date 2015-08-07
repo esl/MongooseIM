@@ -18,6 +18,6 @@
     * [Reloading configuration on a running system](operation-and-maintenance/Reloading-configuration-on-a-running-system.md)
 * For developers
     * [Hooks and handlers](developers-guide/Hooks-and-handlers.md)
-    * [Folsom Metrics](developers-guide/REST-interface-to-metrics.md)
+    * [REST Interface to Metrics](developers-guide/REST-interface-to-metrics.md)
     * [mod_amp developer's guide](developers-guide/mod_amp_developers_guide.md)
 
