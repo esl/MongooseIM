@@ -69,7 +69,7 @@ to graphite running on localhost.
 
 You can see an additional option not listed in the Exometer docs - `mongooseim_report_interval`.
 That option sets metrics resolution - in other words: how often Exometer gathers and sends metrics
-throught reporters. By default that is 60 seconds.
+through reporters. By default that is 60 seconds.
 
 ```erl
 ...
