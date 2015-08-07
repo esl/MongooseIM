@@ -1,4 +1,4 @@
-MongooseIM provides a wide range of pluggable modules, that implement various XEPs (like `mod_muc`) and custom functionalities (e.g. `mod_metrics`).
+MongooseIM provides a wide range of pluggable modules, that implement various XEPs (like `mod_muc`).
 
 ## Module list
 Some of the modules feature an `iqdisc` parameter. It defines the method of handling incoming IQ stanzas. Please refer to [[IQ handlers]] for more information. Valid values: `no_queue`, `one_queue`, `{queues, N}`, `parallel`. Default: `one_queue`.
@@ -25,10 +25,7 @@ Implements [XEP-0030 (Service Discovery)](http://xmpp.org/extensions/xep-0030.ht
 Implements [XEP-0012 (Last Activity)](http://xmpp.org/extensions/xep-0012.html). 
 
 ### [mod_mam](../modules/mod_mam.md)
-Implements revision 0.2 of [XEP-0313 (Message Archive Management)](http://xmpp.org/extensions/attic/xep-0313-0.2.html). 
-
-### [mod_metrics](../modules/mod_metrics.md)
-Enables the gathering various XMPP-related statistics.
+Implements revision 0.2 of [XEP-0313 (Message Archive Management)](http://xmpp.org/extensions/attic/xep-0313-0.2.html).
 
 ### [mod_muc](../modules/mod_muc.md)
 Implements [XEP-0045 (Multi-User Chat)](http://xmpp.org/extensions/xep-0045.html). 
