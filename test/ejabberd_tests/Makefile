@@ -3,6 +3,7 @@ all: test
 
 TESTSPEC ?= default.spec
 PRESET   ?= all
+PREPARE  ?= prepare
 
 test_clean: get-deps
 	rm -rf tests/*.beam
@@ -12,7 +13,7 @@ cover_test_clean: get-deps
 	rm -rf tests/*.beam
 	make cover_test
 
-quicktest: prepare
+quicktest: $(PREPARE)
 	erl -noinput -sname test -setcookie ejabberd \
 		-pa `pwd`/tests \
 		    `pwd`/ebin \
@@ -20,7 +21,7 @@ quicktest: prepare
 		$(ADD_OPTS) \
 		-s run_common_test main test=quick spec=$(TESTSPEC)
 
-cover_quicktest: prepare
+cover_quicktest: $(PREPARE)
 	erl -noinput -sname test -setcookie ejabberd \
 		-pa `pwd`/tests \
 		    `pwd`/ebin \
@@ -28,7 +29,7 @@ cover_quicktest: prepare
 		$(ADD_OPTS) \
 		-s run_common_test main test=quick spec=$(TESTSPEC) cover=true
 
-test_preset: prepare
+test_preset: $(PREPARE)
 	erl -noinput -sname test -setcookie ejabberd \
 		-pa `pwd`/tests \
 		    `pwd`/ebin \
@@ -36,7 +37,7 @@ test_preset: prepare
 		$(ADD_OPTS) \
 		-s run_common_test main test=full spec=$(TESTSPEC) preset=$(PRESET)
 
-cover_test_preset: prepare
+cover_test_preset: $(PREPARE)
 	erl -noinput -sname test -setcookie ejabberd \
 		-pa `pwd`/tests \
 		    `pwd`/ebin \
@@ -44,7 +45,7 @@ cover_test_preset: prepare
 		$(ADD_OPTS) \
 		-s run_common_test main test=full spec=$(TESTSPEC) preset=$(PRESET) cover=true
 
-test: prepare
+test: $(PREPARE)
 	erl -noinput -sname test -setcookie ejabberd \
 		-pa `pwd`/tests \
 		    `pwd`/ebin \
@@ -52,7 +53,7 @@ test: prepare
 		$(ADD_OPTS) \
 		-s run_common_test main test=full spec=$(TESTSPEC)
 
-cover_test: prepare
+cover_test: $(PREPARE)
 	erl -noinput -sname test -setcookie ejabberd \
 		-pa `pwd`/tests \
 		    `pwd`/ebin \
