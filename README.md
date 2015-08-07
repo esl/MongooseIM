@@ -6,6 +6,8 @@ it is fault-tolerant, can utilize resources of multiple clustered machines
 and easily scale in need of more capacity (by just adding a box/VM).
 It provides support for WebSockets and reimplemented BOSH.
 
+![MongooseIM](https://www.erlang-solutions.com/sites/all/themes/erlang/img/mongoose/MongooseIM_blue.png "MongooseIM's logo")
+
 Its home at GitHub is http://github.com/esl/MongooseIM.
 
 
