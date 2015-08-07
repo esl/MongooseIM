@@ -18,6 +18,7 @@ that suits your platform: Ubuntu, Debian, CentOS, and Mac OS X.
 An _experimental_ Docker image exists on: https://registry.hub.docker.com/u/mongooseim/mongooseim-docker/
 You can contribute on: https://github.com/ppikula/mongooseim-docker
 
+
 Main differences from the parent project
 ----------------------------------------
 This project began its life as a fork of
@@ -180,6 +181,14 @@ full		include all above deps
         $ make quicktest
 
     The test results will show up in the console`.
+
+
+Test suite
+----------
+
+In order to test and validate your XMPP servers, here are useful tools:
+* [escalus](https://github.com/esl/escalus): Erlang XMPP client
+* [amoc](https://github.com/esl/amoc): a load testing tools
 
 
 Want to get in touch with us?
