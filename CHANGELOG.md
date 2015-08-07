@@ -97,16 +97,22 @@ zlib driver configuration (in c2s or s2s section) takes new parameter which is m
 
 2013-05-23
 
-- use upstream lager
-- added CHANGELOG file
+* use upstream lager
+* added CHANGELOG file
+* replace exml tuples with record
+* don't use binaries in ejabberd.cfg
+* add support for alarms #82
 
 
 # MongooseIM 1.2.1
 
 2013-05-15
 
-- Folsom metrics improvements
-- BOSH fixes
+* Folsom metrics improvements
+* REST interface for accessing metrics
+* BOSH fixes
+* Don't allow session to hang forever after pause
+
 
 # MongooseIM 1.2.0
 
