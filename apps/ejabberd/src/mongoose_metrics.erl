@@ -50,7 +50,7 @@ init() ->
     Reporters = exometer_report:list_reporters(),
     lists:foreach(
         fun({Name, _ReporterPid}) ->
-                Interval = application:get_env(exometer, mongooseim_interval, 5000),
+                Interval = application:get_env(exometer, mongooseim_report_interval, 60000),
                 subscribe_to_all(Name, Interval)
         end, Reporters).
 
