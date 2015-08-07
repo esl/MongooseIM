@@ -9,12 +9,14 @@ It provides support for WebSockets and reimplemented BOSH.
 Its home at GitHub is http://github.com/esl/MongooseIM.
 
 
-Download binaries
+Download packages
 -----------------
 For a quick start just
 [download the pre-built package](https://www.erlang-solutions.com/downloads/download-mongooseim)
 that suits your platform: Ubuntu, Debian, CentOS, and Mac OS X.
 
+An _experimental_ Docker image exists on: https://registry.hub.docker.com/u/mongooseim/mongooseim-docker/
+You can contribute on: https://github.com/ppikula/mongooseim-docker
 
 Main differences from the parent project
 ----------------------------------------
