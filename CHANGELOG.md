@@ -137,18 +137,61 @@ less effort.
 
 2012-07-10
 
-- cleanups
+- remove tsung from source tree
+- add ejabberdctl with admin and admin_extra commands
+- add devrel target
+- binarise remaining modules
+- fix p1_fsm get_status handler
 
 
 # MongooseIM 0.9.0
 
 2012-05-21
 
-- 
+* add makefile target that downloads rebar
+* re-added mod_offline & mod_last_odbc & mod_sic
+* continue transition to binaries instead of strings and remove no ported modules:
+    * ejabberd_http
+    * ejabberd_http_bind
+    * ejabberd_http_poll
+    * mod_http_bind
+    * mod_adhoc
+    * mod_announce
+    * mod_blocking
+    * mod_configure
+    * mod_configure2
+    * mod_disco
+    * mod_echo
+    * mod_http_fileserver
+    * mod_last
+    * mod_muc,
+    * mod_muc_log
+    * mod_offline_odbc
+    * mod_ping
+    * mod_pres_counter
+    * mod_privacy_odbc
+    * mod_private
+    * mod_proxy65
+    * mod_pubsub
+    * mod_register_web
+    * mod_roster_odbc
+    * mod_service
+    * mod_shared_roster
+    * mod_shared_roster_ldap
+    * mod_stats
+    * mod_timea
+    * mod_vcard
+    * mod_vcard_odbc
+    * mod_vcard_xupdate
+    * mod_version
 
 
 # MongooseIM 0.1.0-pre
 
 2012-04-17
 
-- 
+* rebarify
+* add escalus tests
+* binarise core modules
+* dialyzer support
+* change table copy type of acl, config, local_config to ram_copies
