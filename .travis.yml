@@ -1,7 +1,15 @@
 language: erlang
+sudo: required
+addons:
+    apt:
+        packages:
+        - libpam0g-dev
+        - libexpat1-dev
+        - odbc-postgresql
+        - libmyodbc
+        - slapd
+        - ldap-utils
 before_install:
-        - sudo apt-get install libpam0g-dev libexpat1-dev odbc-postgresql libmyodbc
-        - if [ $PRESET = 'ldap_mnesia' ]; then sudo apt-get update && sudo apt-get install slapd ldap-utils; fi
         - tools/travis-generate-pass.sh
         - tools/travis-check-tests-branch.sh
 install: tools/travis-build.sh
@@ -22,7 +30,9 @@ after_script:
 after_success:
         - make cover_report
 
-services: redis-server
+services:
+        - redis-server
+        - docker
 branches:
         only:
                 - master
