@@ -32,7 +32,7 @@ Wait for the tests to finish and celebrate in joy (or despair in grief)!
 ## Step by step breakdown
 
 `make devrel` builds two server nodes:
-`$MONGOOSEIM/dev/mongooseim_node1` and `$MONGOOSEIM/dev/mongooseim_node1`.
+`$MONGOOSEIM/dev/mongooseim_node1` and `$MONGOOSEIM/dev/mongooseim_node2`.
 These are preconfigured for breadth of features and compatible
 with as many test suites as possible.
 There are two of them in order to test XMPP federation (server to server
