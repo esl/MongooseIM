@@ -1,14 +1,12 @@
 MongooseIM  [![Build Status](https://travis-ci.org/esl/MongooseIM.svg?branch=master)](https://travis-ci.org/esl/MongooseIM) [![Documentation Status](https://readthedocs.org/projects/mongooseim/badge/?version=latest)](https://readthedocs.org/projects/mongooseim/?badge=latest) [![Coverage Status](https://img.shields.io/coveralls/esl/MongooseIM.svg)](https://coveralls.io/r/esl/MongooseIM?branch=master)
 ============
-MongooseIM is Erlang Solutions' robust and efficient XMPP
-server aimed at large installations. Specifically designed for enterprise purposes,
-it is fault-tolerant, can utilize resources of multiple clustered machines
-and easily scale in need of more capacity (by just adding a box/VM).
-It provides support for WebSockets and reimplemented BOSH.
+<img align="left" src="https://www.erlang-solutions.com/sites/all/themes/erlang/img/mongoose/MongooseIM_blue.png"</img>
 
-![MongooseIM](https://www.erlang-solutions.com/sites/all/themes/erlang/img/mongoose/MongooseIM_blue.png "MongooseIM's logo")
+MongooseIM is Erlang Solutions' robust and efficient XMPP server aimed at large installations. Specifically designed for enterprise purposes, it is fault-tolerant, can utilize resources of multiple clustered machines and easily scale in need of more capacity (by just adding a box/VM). 
 
-Its home at GitHub is http://github.com/esl/MongooseIM.
+MongooseIM can accept client sessions over vanilla XMPP, Websockets, and HTTP long-polling (a.k.a. BOSH).
+
+Its home on GitHub is at http://github.com/esl/MongooseIM.
 
 
 Download packages
