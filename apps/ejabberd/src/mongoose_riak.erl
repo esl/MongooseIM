@@ -22,7 +22,7 @@
 -export([start/0]).
 -export([stop/0]).
 
--export([start_worker/2, start_worker/3]).
+-export([start_worker/3]).
 
 -export([put/1, put/2]).
 -export([get/2, get/3]).
@@ -34,34 +34,30 @@
 -export([create_new_map/1]).
 -export([update_map/2]).
 
--export([make_pool_name/1, get_pool_name/1]).
+-export([pool_name/0]).
 
 -compile({no_auto_import,[put/2]}).
 
 -define(CALL(F, Args), call_riak(F, Args)).
--define(POOL_NAME(Id), "riak_pool_" ++ integer_to_list(Id)).
 
 -type riakc_map_op() :: {{binary(), riakc_map:datatype()},
                           fun((riakc_datatype:datatype()) -> riakc_datatype:datatype())}.
 
 -spec start() -> {ok, pid()} | ignore.
 start() ->
-    case ejabberd_config:get_local_option({riak_config, ?MYNAME}) of
+    case ejabberd_config:get_local_option({riak_server, ?MYNAME}) of
         undefined ->
             ignore;
         RiakOpts ->
-            {_, Workers} = lists:keyfind(workers, 1, RiakOpts),
-            {_, PoolsSpec} = lists:keyfind(pools_spec, 1, RiakOpts),
-            mongoose_riak_sup:start(Workers, PoolsSpec)
+            {_, RiakAddr} = lists:keyfind(address, 1, RiakOpts),
+            {_, RiakPort} = lists:keyfind(port, 1, RiakOpts),
+            Workers = proplists:get_value(pool_size, RiakOpts, 20),
+            RiakPBOpts = proplists:get_value(riak_pb_socket_opts, RiakOpts, []),
+            mongoose_riak_sup:start(Workers, RiakAddr, RiakPort, RiakPBOpts)
     end.
 -spec stop() -> no_return().
 stop() ->
     mongoose_riak_sup:stop().
-
--spec start_worker(riakc_pb_socket:address(), riakc_pb_socket:portnum())
-        -> {ok, pid()} | {error, term()}.
-start_worker(Address, Port) ->
-    start_worker(Address, Port, []).
 
 -spec start_worker(riakc_pb_socket:address(), riakc_pb_socket:portnum(),
                    proplists:proplist())
@@ -136,19 +132,15 @@ update_map(Map, Ops) ->
 
 -spec get_worker() -> pid() | undefined.
 get_worker() ->
-    Pool = pick_pool(mongoose_riak_sup:get_riak_pools_count()),
-    case catch cuesport:get_worker(Pool) of
+    case catch cuesport:get_worker(pool_name()) of
         Pid  when is_pid(Pid) ->
             Pid;
         _ ->
             undefined
     end.
--spec make_pool_name(integer()) -> atom().
-make_pool_name(Id) ->
-    list_to_atom(?POOL_NAME(Id)).
--spec get_pool_name(integer()) -> atom().
-get_pool_name(Id) ->
-    list_to_existing_atom(?POOL_NAME(Id)).
+
+-spec pool_name() ->  atom().
+pool_name() -> riak_pool.
 
 update_map_op({Field, Fun}, Map) ->
     riakc_map:update(Field, Fun, Map).
@@ -157,11 +149,3 @@ call_riak(F, ArgsIn) ->
     Worker = get_worker(),
     Args = [Worker | ArgsIn],
     apply(riakc_pb_socket, F, Args).
-
-pick_pool(undefined) ->
-    undefined;
-pick_pool(1) -> %% no need to draw a pool as there's only one
-    riak_pool_1;
-pick_pool(Count) ->
-    PoolId = erlang:phash2({os:timestamp(), self()}, Count) + 1,
-    get_pool_name(PoolId).

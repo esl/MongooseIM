@@ -18,10 +18,9 @@
 -behaviour(supervisor).
 
 %% API
--export([start/2]).
--export([start_link/2]).
+-export([start/4]).
+-export([start_link/4]).
 -export([stop/0]).
--export([get_riak_pools_count/0]).
 
 %% Supervisor callbacks
 -export([init/1]).
@@ -34,8 +33,8 @@
 %%% API functions
 %%%===================================================================
 
-start(Workers, PoolsSpec) ->
-    ChildSpec = {?MODULE, {?MODULE, start_link, [Workers, PoolsSpec]},
+start(Workers, Addr, Port, PBOpts) ->
+    ChildSpec = {?MODULE, {?MODULE, start_link, [Workers, Addr, Port, PBOpts]},
         transient, infinity, supervisor, [?MODULE]},
     {ok, _} = supervisor:start_child(ejabberd_sup, ChildSpec).
 %%--------------------------------------------------------------------
@@ -44,24 +43,16 @@ start(Workers, PoolsSpec) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec(start_link(integer(), list()) ->
-    {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
-start_link(Workers, PoolSpec) ->
-    supervisor:start_link({local, ?SERVER}, ?MODULE, [Workers, PoolSpec]).
+%-spec(start_link(integer(), inet:ip(), ) ->
+%    {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
+start_link(Workers, Addr, Port, PBOpts) ->
+    supervisor:start_link({local, ?SERVER}, ?MODULE, [Workers, Addr, Port, PBOpts]).
 
 -spec stop() -> no_return().
 stop() ->
     supervisor:terminate_child(ejabberd_sup, riak_pools_sup),
     supervisor:delete_child(ejabberd_sup, riak_pools_sup).
 
--spec get_riak_pools_count() -> integer() | undefined.
-get_riak_pools_count() ->
-    case catch ets:lookup(riak_pools, pools_count) of
-        [{pools_count, I}] ->
-            I;
-        _ ->
-            undefined
-    end.
 %%%===================================================================
 %%% Supervisor callbacks
 %%%===================================================================
@@ -83,29 +74,21 @@ get_riak_pools_count() ->
          }} |
     ignore |
     {error, Reason :: term()}).
-init([Workers, Pools]) ->
+init([Workers, Address, Port, PBOpts]) ->
     RestartStrategy = one_for_one,
     MaxRestarts = 10,
     MaxSecondsBetweenRestarts = 1,
 
     SupFlags = {RestartStrategy, MaxRestarts, MaxSecondsBetweenRestarts},
+    {ok, {SupFlags, [child_spec(Workers, [Address, Port, PBOpts])] }}.
 
-    RiakPoolsCount = length(Pools),
-    ets:new(riak_pools, [named_table, protected, {read_concurrency, true}]),
-    ets:insert(riak_pools, {pools_count, RiakPoolsCount}),
-    IdsPools = lists:zip(lists:seq(1, RiakPoolsCount), Pools),
-
-    Children = [child_spec(Workers, Id, RiakOpts) || {Id, RiakOpts} <- IdsPools],
-
-    {ok, {SupFlags, Children}}.
-
-child_spec(Workers, Id, RiakOpts) ->
+child_spec(Workers, RiakOpts) ->
     Restart = transient,
     Shutdown = 2000,
     Type = supervisor,
     ChildMods = [mongoose_riak, riakc_pb_socket],
     ChildMF = {mongoose_riak, start_worker},
-    RiakPoolName = mongoose_riak:make_pool_name(Id),
+    RiakPoolName = mongoose_riak:pool_name(),
     ChildArgs = {for_all, RiakOpts},
     AChild = {RiakPoolName, {cuesport, start_link, [RiakPoolName, Workers, ChildMods, ChildMF, ChildArgs]},
         Restart, Shutdown, Type, ChildMods},
