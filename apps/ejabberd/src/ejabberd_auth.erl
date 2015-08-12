@@ -68,6 +68,7 @@
                     | ejabberd_auth_ldap
                     | ejabberd_auth_odbc.
 
+-define(METRIC(Host, Name), [backends, auth, Host, Name]).
 %%%----------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------
@@ -77,6 +78,7 @@ start() ->
 
 -spec start(Host :: ejabberd:server()) -> 'ok'.
 start(Host) ->
+    ensure_metrics(Host),
     lists:foreach(
       fun(M) ->
               M:start(Host)
@@ -196,12 +198,17 @@ do_check_password_with_authmodule(LUser, LServer, Password, Digest, DigestGen) -
                           ) -> 'false' | {'true', authmodule()}.
 check_password_loop([], _Args) ->
     false;
-check_password_loop([AuthModule | AuthModules], Args) ->
+check_password_loop(AuthModules, [_, LServer | _] = Args) ->
+    timed_call(LServer, check_password, fun do_check_password_loop/2, [AuthModules, Args]).
+
+do_check_password_loop([], _) ->
+    false;
+do_check_password_loop([AuthModule | AuthModules], Args) ->
     case apply(AuthModule, check_password, Args) of
         true ->
             {true, AuthModule};
         false ->
-            check_password_loop(AuthModules, Args)
+            do_check_password_loop(AuthModules, Args)
     end.
 
 -spec check_digest(binary(), fun(), binary(), binary()) -> boolean().
@@ -266,23 +273,26 @@ do_try_register_if_does_not_exist(true, _, _, _) ->
 do_try_register_if_does_not_exist(_, LUser, LServer, Password) ->
     case lists:member(LServer, ?MYHOSTS) of
         true ->
-            Res = lists:foldl(
-                fun(_M, {atomic, ok} = Res) ->
-                    Res;
-                    (M, _) ->
-                        M:try_register(LUser, LServer, Password)
-                end, {error, not_allowed}, auth_modules(LServer)),
-            case Res of
-                ok ->
-                    ejabberd_hooks:run(register_user, LServer,
-                        [LUser, LServer]),
-                    ok;
-                _ -> Res
-            end;
+            timed_call(LServer, try_register,
+                       fun do_try_register_if_does_not_exist_timed/3, [LUser, LServer, Password]);
         false ->
             {error, not_allowed}
     end.
 
+do_try_register_if_does_not_exist_timed(LUser, LServer, Password) ->
+    Res = lists:foldl(
+        fun(_M, ok = Res) ->
+            Res;
+            (M, _) ->
+                M:try_register(LUser, LServer, Password)
+        end, {error, not_allowed}, auth_modules(LServer)),
+    case Res of
+        ok ->
+            ejabberd_hooks:run(register_user, LServer,
+                [LUser, LServer]),
+            ok;
+        _ -> Res
+    end.
 
 %% @doc Registered users list do not include anonymous users logged
 -spec dirty_get_registered_users() -> [ejabberd:simple_jid()].
@@ -424,6 +434,9 @@ is_user_exists(User, Server) ->
 do_does_user_exist(LUser, LServer) when LUser =:= error; LServer =:= error ->
     false;
 do_does_user_exist(LUser, LServer) ->
+    timed_call(LServer, does_user_exist, fun does_user_exist_timed/2, [LUser, LServer]).
+
+does_user_exist_timed(LUser, LServer) ->
     lists:any(
         fun(M) ->
             case M:does_user_exist(LUser, LServer) of
@@ -566,3 +579,13 @@ auth_modules(LServer) ->
                   is_atom(Method) -> [Method]
               end,
     [list_to_atom("ejabberd_auth_" ++ atom_to_list(M)) || M <- Methods].
+
+ensure_metrics(Host) ->
+    Metrics = [check_password, try_register, does_user_exist],
+    [mongoose_metrics:ensure_metric(?METRIC(Host, Metric), histogram)
+     || Metric <- Metrics].
+
+timed_call(LServer, Metric, Fun, Args) ->
+    {Time, Result} = timer:tc(Fun, Args),
+    mongoose_metrics:update(?METRIC(LServer, Metric), Time),
+    Result.
