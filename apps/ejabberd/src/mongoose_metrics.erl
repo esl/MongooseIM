@@ -20,6 +20,7 @@
 %% API
 -export([init/0,
          update/2,
+         ensure_metric/2,
          start_host_metrics_subscriptions/3,
          start_vm_metrics_subscriptions/2,
          start_global_metrics_subscriptions/2,
@@ -103,11 +104,11 @@ init_predefined_host_metrics(Host) ->
 
 -spec create_generic_hook_metric(ejabberd:lserver(), atom()) -> no_return().
 create_generic_hook_metric(Host, Hook) ->
-    do_create_generic_hook_metric({Host, filter_hook(Hook)}).
+    do_create_generic_hook_metric([Host, filter_hook(Hook)]).
 
 -spec increment_generic_hook_metric(ejabberd:lserver(), atom()) -> no_return().
 increment_generic_hook_metric(Host, Hook) ->
-    do_increment_generic_hook_metric({Host, filter_hook(Hook)}).
+    do_increment_generic_hook_metric([Host, filter_hook(Hook)]).
 
 do_create_generic_hook_metric({_, skip}) ->
     ok;
@@ -255,10 +256,10 @@ create_metrics(Host) ->
     lists:foreach(fun(Name) -> ensure_metric(Name, histogram) end,
                   get_histograms(Host)).
 
-ensure_metric({Host, Metric}, Type) ->
-    case exometer:info([Host, Metric], type) of
+ensure_metric(Name, Type) ->
+    case exometer:info(Name, type) of
         Type -> {ok, already_present};
-        undefined -> exometer:new([Host, Metric], Type)
+        undefined -> exometer:new(Name, Type)
     end.
 
 -spec metrics_hooks('add' | 'delete', ejabberd:server()) -> 'ok'.
@@ -399,7 +400,7 @@ get_vm_stats() ->
       [total, processes_used, atom_used, binary, ets, system]}].
 
 get_counters(Host, Counters) ->
-    [{Host, Counter} || Counter <- Counters].
+    [[Host, Counter] || Counter <- Counters].
 
 do_start_vm_metrics_subscriptions(Reporter, Interval) ->
     [exometer_report:subscribe(Reporter, Metric, DataPoints, Interval)
