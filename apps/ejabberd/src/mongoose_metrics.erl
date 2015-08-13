@@ -125,7 +125,7 @@ get_dist_data_stats() ->
     [{connections, length(DistStats)} | merge_stats(DistStats)].
 
 get_odbc_data_stats() ->
-    RegularODBCWorkers = [ejabberd_odbc_sup:get_pids(Host) || Host <- ?MYHOSTS],
+    RegularODBCWorkers = [catch ejabberd_odbc_sup:get_pids(Host) || Host <- ?MYHOSTS],
     get_odbc_stats(lists:flatten(RegularODBCWorkers)).
 
 get_odbc_mam_async_stats() ->
@@ -423,6 +423,8 @@ subscribe_metric(Reporter, {Name, _, _}, Interval) ->
 
 subscribe_to_all(Reporter, Interval) ->
     start_global_metrics_subscriptions(Reporter, Interval),
+    start_backend_metrics_subscriptions(Reporter, Interval),
+    start_data_metrics_subscriptions(Reporter, Interval),
     lists:foreach(
       fun(Host) ->
               start_host_metrics_subscriptions(Reporter, Host, Interval)
