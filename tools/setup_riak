@@ -1,4 +1,8 @@
 #!/bin/bash
 
+sudo cp tools/advanced.config /etc/riak/
+
+service riak start
+
 ${1}riak-admin bucket-type create users '{"props":{"datatype":"map"}}'
 ${1}riak-admin bucket-type activate users

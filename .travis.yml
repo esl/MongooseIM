@@ -24,7 +24,6 @@ after_success:
 
 services:
         - redis-server
-        - riak
 branches:
         only:
                 - master
