@@ -83,7 +83,7 @@ riak-admin bucket-type activate users
 ```
 
 This will create a bucket type required for storing **users credentials** and it will
-active it.
+activate it.
 
 # Cassandra
 
