@@ -125,6 +125,7 @@ with-mysql	include mysql driver
 with-pgsql	include pgsql driver
 with-odbc	include standard ODBC driver shipped with Erlang/OTP
 with-redis	include redis driver
+with-riak      include riak driver
 with-cassandra	include cassandra driver
 full		include all above deps
     ```
@@ -134,6 +135,9 @@ full		include all above deps
         $ make configure with-mysql with-redis
 
     The `make configure` command has to be run only once (unless one need to change the relase config and include some other dependecies).
+
+    Take a look [here](http://mongooseim.readthedocs.org/en/latest/advanced-configuration/database-backends-configuration/)
+    for instructions how to setup the external databases.
 
     `make rel` or `./rebar generate` commands will generate a self-contained OTP system image in the
     project's `rel/mongooseim` subdirectory. The contents of that directory are as
