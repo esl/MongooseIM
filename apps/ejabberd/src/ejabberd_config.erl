@@ -605,6 +605,8 @@ process_host_term(Term, Host, State) ->
             State;
         {odbc_server, ODBC_server} ->
             add_option({odbc_server, Host}, ODBC_server, State);
+        {riak_server, RiakConfig} ->
+            add_option(riak_server, RiakConfig, State);
         {Opt, Val} ->
             add_option({Opt, Host}, Val, State)
     end.
@@ -1000,7 +1002,9 @@ handle_config_change({_Key, _OldValue, _NewValue}) ->
 %% ----------------------------------------------------------------
 %% LOCAL CONFIG
 %% ----------------------------------------------------------------
-handle_local_config_add({Key, _Data} = El) ->
+handle_local_config_add(#local_config{key = riak_server}) ->
+    mongoose_riak:start();
+handle_local_config_add(#local_config{key=Key} = El) ->
     case Key of
         true ->
             ok;
@@ -1008,10 +1012,12 @@ handle_local_config_add({Key, _Data} = El) ->
             ?WARNING_MSG("local config add ~p option unhandled",[El])
     end.
 
+handle_local_config_del(#local_config{key = riak_server}) ->
+    mongoose_riak:stop();
 handle_local_config_del(#local_config{key = node_start}) ->
     %% do nothing with it
     ok;
-handle_local_config_del({Key, _Data} = El) ->
+handle_local_config_del(#local_config{key=Key} = El) ->
     case can_be_ignored(Key) of
         true ->
             ok;
@@ -1021,6 +1027,10 @@ handle_local_config_del({Key, _Data} = El) ->
 
 handle_local_config_change({listen, Old, New}) ->
     reload_listeners(compare_listeners(Old, New));
+handle_local_config_change({riak_server, _Old, _New}) ->
+    mongoose_riak:stop(),
+    mongoose_riak:start(),
+    ok;
 
 handle_local_config_change({Key, _Old, _New} = El) ->
     case can_be_ignored(Key) of

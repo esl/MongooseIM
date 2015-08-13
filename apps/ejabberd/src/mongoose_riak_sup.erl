@@ -50,8 +50,8 @@ start_link(Workers, Addr, Port, PBOpts) ->
 
 -spec stop() -> no_return().
 stop() ->
-    supervisor:terminate_child(ejabberd_sup, riak_pools_sup),
-    supervisor:delete_child(ejabberd_sup, riak_pools_sup).
+    supervisor:terminate_child(ejabberd_sup, ?MODULE),
+    supervisor:delete_child(ejabberd_sup, ?MODULE).
 
 %%%===================================================================
 %%% Supervisor callbacks

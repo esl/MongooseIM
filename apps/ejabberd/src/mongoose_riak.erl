@@ -45,7 +45,7 @@
 
 -spec start() -> {ok, pid()} | ignore.
 start() ->
-    case ejabberd_config:get_local_option({riak_server, ?MYNAME}) of
+    case ejabberd_config:get_local_option(riak_server) of
         undefined ->
             ignore;
         RiakOpts ->
