@@ -22,12 +22,12 @@ after_script:
 after_success:
         - make cover_report
 
-services: redis-server
+services:
+        - redis-server
 branches:
         only:
                 - master
-notifications:
-        email: mongoose-im@erlang-solutions.com
+
 otp_release:
         - R16B03
 env:
@@ -37,6 +37,7 @@ env:
         - PRESET=odbc_pgsql_mnesia DB=pgsql REL_CONFIG=with-odbc
         - PRESET=pgsql_mnesia DB=pgsql REL_CONFIG=with-pgsql
         - PRESET=ldap_mnesia DB=mnesia
+        - PRESET=riak_mnesia DB=riak REL_CONFIG=with-riak
         - PRESET=external_mnesia DB=mnesia
 
 matrix:

@@ -10,11 +10,13 @@
 * Configuration
     * [Basic configuration](Basic-configuration.md)
     * [Advanced configuration](Advanced-configuration.md)
+        * [Database backends configuration](advanced-configuration/database-backends-configuration.md)
         * [Listener modules](advanced-configuration/Listener-modules.md)
         * [Extension modules](advanced-configuration/Modules.md)
         * [HTTP authentication module](advanced-configuration/HTTP-authentication-module.md)
 * Operation and maintenance
     * [Metrics](operation-and-maintenance/Mongoose-metrics.md)
+    * [Logging & monitoring](operation-and-maintenance/Logging-&-monitoring.md)
     * [Cluster configuration and node management](operation-and-maintenance/Cluster-configuration-and-node-management.md)
     * [Reloading configuration on a running system](operation-and-maintenance/Reloading-configuration-on-a-running-system.md)
 * For developers

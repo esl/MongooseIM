@@ -46,12 +46,13 @@ start(Host) ->
     PoolSize = proplists:get_value(connection_pool_size, AuthOpts, 10),
     Opts = proplists:get_value(connection_opts, AuthOpts, []),
     ChildMods = [fusco],
-    ChildMFA = {fusco, start_link, [AuthHost, Opts]},
+    ChildMF = {fusco, start_link},
+    ChildArgs = {for_all, [AuthHost, Opts]},
 
     {ok, _} = supervisor:start_child(ejabberd_sup,
                                      {{ejabberd_auth_http_sup, Host},
                                       {cuesport, start_link,
-                                       [pool_name(Host), PoolSize, ChildMods, ChildMFA]},
+                                       [pool_name(Host), PoolSize, ChildMods, ChildMF, ChildArgs]},
                                       transient, 2000, supervisor, [cuesport | ChildMods]}),
     ok.
 
