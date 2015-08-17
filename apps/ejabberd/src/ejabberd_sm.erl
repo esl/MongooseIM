@@ -91,6 +91,7 @@
 %% quite big but not infinity
 -define(MAX_USER_SESSIONS, 100).
 -define(SM_BACKEND, (ejabberd_sm_backend:backend())).
+-define(NODE_CLEANUP_LOCK, node_cleanup_lock).
 
 %%====================================================================
 %% API
@@ -406,7 +407,8 @@ handle_info({route, From, To, Packet}, State) ->
     end,
     {noreply, State};
 handle_info({nodedown, Node}, State) ->
-    ?SM_BACKEND:cleanup(Node),
+    global:trans({?NODE_CLEANUP_LOCK, self()},
+                 fun() -> ?SM_BACKEND:cleanup(Node) end),
     {noreply, State};
 handle_info({register_iq_handler, Host, XMLNS, Module, Function}, State) ->
     ets:insert(sm_iqtable, {{XMLNS, Host}, Module, Function}),
