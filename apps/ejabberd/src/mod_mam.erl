@@ -7,7 +7,7 @@
 %%%
 %%% <ul>
 %%% <li>Preference manager ({@link mod_mam_muc_odbc_prefs});</li>
-%%% <li>Writer ({@link mod_mam_muc_odbc_arch} or {@link mod_mam_muc_odbc_async_writer});</li>
+%%% <li>Writer ({@link mod_mam_muc_odbc_arch} or {@link mod_mam_muc_odbc_async_pool_writer});</li>
 %%% <li>Archive manager ({@link mod_mam_muc_odbc_arch});</li>
 %%% <li>User's ID generator ({@link mod_mam_muc_user}).</li>
 %%% </ul>
@@ -47,9 +47,8 @@
          remove_user/2,
          filter_packet/1]).
 
-%% Utils
--export([create_dump_file/2,
-         restore_dump_file/3]).
+%%private
+-export([archive_message/8]).
 
 %% ----------------------------------------------------------------------
 %% Imports
@@ -167,98 +166,6 @@ archive_id(Server, User)
     Host = server_host(ArcJID),
     archive_id_int(Host, ArcJID).
 
-
-%% ----------------------------------------------------------------------
-%% Utils API
-
--spec new_iterator(ejabberd:jid()) -> iterator_fun().
-new_iterator(ArcJID=#jid{}) ->
-    Now = mod_mam_utils:now_to_microseconds(now()),
-    Host = server_host(ArcJID),
-    ArcID = archive_id_int(Host, ArcJID),
-    new_iterator(Host, ArcID, ArcJID, undefined, undefined,
-        undefined, undefined, Now, undefined, 50).
-
-
--spec new_iterator(ejabberd:server(), ArcID :: archive_id(),
-          ArcJID :: ejabberd:jid(), RSM :: 'undefined', Borders :: 'undefined',
-          Start :: 'undefined', End :: 'undefined', Now :: non_neg_integer(),
-          WithJID :: 'undefined', PageSize :: 50) -> iterator_fun().
-new_iterator(Host, ArcID, ArcJID, RSM, Borders, Start, End, Now,
-             WithJID, PageSize) ->
-    fun() ->
-        {ok, {TotalCount, Offset, MessageRows}} =
-        lookup_messages(Host, ArcID, ArcJID, RSM, Borders,
-                        Start, End, Now,
-                        WithJID, PageSize, true, PageSize, false),
-        Data = [exml:to_iolist(message_row_to_dump_xml(M))
-                || M <- MessageRows],
-        Cont = case is_last_page(TotalCount, Offset, PageSize) of
-            false ->
-                fun() -> {error, eof} end;
-            true ->
-                new_iterator(
-                    Host, ArcID, ArcJID, after_rsm(MessageRows), Borders,
-                    Start, End, Now, WithJID, PageSize)
-            end,
-        {ok, {Data, Cont}}
-        end.
-
-
--spec after_rsm(MRows :: [any(),...]) -> jlib:rsm_in().
-after_rsm(MessageRows) ->
-    {MessID,_SrcJID,_Packet} = lists:last(MessageRows),
-    #rsm_in{direction = aft, id = MessID}.
-
-
--spec is_last_page(Total :: non_neg_integer(), Off :: non_neg_integer(),
-                   PageSize :: 50) -> boolean().
-is_last_page(TotalCount, Offset, PageSize) ->
-    Offset - PageSize >= TotalCount.
-
-
--spec create_dump_file(ArcJID :: ejabberd:jid(), file:name())
-                                                -> 'ok' | {'error',atom()}.
-create_dump_file(ArcJID, OutFileName) ->
-    mod_mam_dump:create_dump_file(new_iterator(ArcJID), OutFileName).
-
-
--spec restore_dump_file(ArcJID :: ejabberd:simple_jid() | ejabberd:jid(),
-    InFilename :: file:filename(), Opts :: [restore_option()]) -> {'error',_}.
-restore_dump_file(ArcJID, InFileName, Opts) ->
-    try
-        restore_dump_file_unsave(ArcJID, InFileName, Opts)
-    catch Type:Reason ->
-        Trace = erlang:get_stacktrace(),
-        lager:error("Error ~p:~p occured while restoring ~p from file ~ts.~nTrace: ~p",
-                    [Type, Reason, jlib:jid_to_binary(ArcJID), InFileName, Trace]),
-        {error, Reason}
-    end.
-
-
--spec restore_dump_file_unsave(ArcJID :: ejabberd:simple_jid() | ejabberd:jid(),
-    InFilename :: file:filename(), Opts :: [restore_option()]) -> {'error',_}.
-restore_dump_file_unsave(ArcJID, InFileName, Opts) ->
-    Host = server_host(ArcJID),
-    ArcID = archive_id_int(Host, ArcJID),
-    WriterF = fun(MessID, FromJID, ToJID, MessElem) ->
-            case ArcJID of
-                FromJID ->
-                    archive_message(Host, MessID, ArcID,
-                                    ArcJID, ToJID, FromJID,
-                                    outgoing, MessElem);
-                ToJID ->
-                    archive_message(Host, MessID, ArcID,
-                                    ArcJID, FromJID, FromJID,
-                                    incoming, MessElem);
-                _ ->
-                    {error, no_local_jid}
-            end
-        end,
-    mod_mam_dump:restore_dump_file(WriterF, InFileName, Opts).
-
-
-%% ----------------------------------------------------------------------
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
 

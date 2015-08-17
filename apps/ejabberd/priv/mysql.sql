@@ -200,14 +200,6 @@ CREATE TABLE mam_config(
 );
 CREATE INDEX i_mam_config USING HASH ON mam_config(user_id, remote_jid);
 
-CREATE TABLE mam_user(
-  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  user_name varchar(250) CHARACTER SET binary NOT NULL,
-  PRIMARY KEY(id) USING HASH,
-  CONSTRAINT uc_mam_user_name UNIQUE (user_name)
-);
-CREATE INDEX i_mam_user_name USING HASH ON mam_user(user_name);
-
 CREATE TABLE mam_server_user(
   id INT UNSIGNED NOT NULL AUTO_INCREMENT,
   server    varchar(250) CHARACTER SET binary NOT NULL,

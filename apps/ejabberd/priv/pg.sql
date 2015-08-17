@@ -210,15 +210,6 @@ CREATE INDEX i_mam_config
     ON mam_config
     (user_id, remote_jid);
 
-CREATE TABLE mam_user(
-  id SERIAL UNIQUE PRIMARY KEY,
-  user_name varchar(250) NOT NULL
-);
-CREATE UNIQUE INDEX i_mam_user_name
-    ON mam_user
-    USING BTREE
-    (user_name);
-
 CREATE TABLE mam_server_user(
   id SERIAL UNIQUE PRIMARY KEY,
   server    varchar(250) NOT NULL,
