@@ -52,7 +52,7 @@ start() ->
             {_, RiakAddr} = lists:keyfind(address, 1, RiakOpts),
             {_, RiakPort} = lists:keyfind(port, 1, RiakOpts),
             Workers = proplists:get_value(pool_size, RiakOpts, 20),
-            RiakPBOpts = proplists:get_value(riak_pb_socket_opts, RiakOpts, []),
+            RiakPBOpts = [auto_reconnect, keepalive],
             mongoose_riak_sup:start(Workers, RiakAddr, RiakPort, RiakPBOpts)
     end.
 -spec stop() -> no_return().

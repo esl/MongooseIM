@@ -32,8 +32,10 @@ There are 2 types of options: params and features. Unlike params, features can b
     * **Syntax:** `"{odbc_server, {Type, Host, Port, DBName, Username, Password}}."`
 
 * **riak_server** - feature
-    * **Description:** Riak connection pool configuration. Currently only one endpoint can be specified, to connect to more riak nodes you have to use load balancing techniques, for more details please see: [Load Balancing riak](http://docs.basho.com/riak/latest/ops/advanced/configs/load-balancing-proxy/) from basho. To enable, remove '%%' prefix from value.
-    * **Syntax:** `"{riak_server, [{pool_size, Size}, {address, Host}, {port, Port}}]}."`
+    * **Description:** Riak connection pool configuration. Currently only one endpoint can be specified, to connect to more riak nodes you have to use load balancing techniques, for more details see:
+    [Load Balancing riak](http://docs.basho.com/riak/latest/ops/advanced/configs/load-balancing-proxy/) from basho.
+    To enable, remove '%%' prefix from value.
+    * **Syntax:** `"{riak_server, [{pool_size, Size}, {address, Host}, {port, Port}]}."`
 
 * **auth_ldap** - feature
     * **Description:** Put [[LDAP configuration]] here.
