@@ -51,7 +51,7 @@ end_per_suite(Config) ->
 init_per_testcase(CaseName, Config)
   when CaseName == test_kill;
        CaseName == test_get_set_large_heap ->
-    LH = 100000,
+    LH = 10000000,
     start_alarms([], LH),
     escalus:create_users(Config, {by_name, [alice, bob]}),
     [{large_heap, LH} | escalus:init_per_testcase(CaseName, Config)];
@@ -101,7 +101,7 @@ test_kill(Config) ->
 
 test_kill_story(Alice) ->
     add_watchdog_admin(Alice),
-    Pid = rpc(system_monitor_SUITE, use_memory, [150000, 100000]),
+    Pid = rpc(system_monitor_SUITE, use_memory, [15000000, 100000]),
     PidStr = rpc(erlang, pid_to_list, [Pid]),
     Stanza = escalus_client:wait_for_stanza(Alice),
     escalus:assert(is_stanza_from, [?WATCHDOG_JID], Stanza),
@@ -130,7 +130,6 @@ test_kill_wait_for_ok(Alice, Pid, PidStr) ->
 test_kill_consume_large_heap_message(PidStr, Stanza) ->
     escalus:assert(is_chat_message, Stanza),
     Msg = exml_query:path(Stanza, [{element, <<"body">>}, cdata]),
-    ct:log("consume ~p~n",[Stanza]),
     NodeName = erlang:atom_to_list(ct:get_config(ejabberd_node)),
     ExpectedMsg = io_lib:format("(~s) The process ~s"
                                 " is consuming too much memory:",
