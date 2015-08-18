@@ -3,7 +3,7 @@ This module implements [XEP-0049 (Private XML Storage)](http://xmpp.org/extensio
 
 ### Options
 * **iqdisc**
-* **backend** (atom, default: `mnesia`) - Storage backend. Currently `mnesia`, `odbc` and `mysql` are supported . `mysql` uses MySQL-specific queries so in some cases it is more efficient than generic `odbc`.
+* **backend** (atom, default: `mnesia`) - Storage backend. Currently `mnesia`, `odbc`, `riak` and `mysql` are supported . `mysql` uses MySQL-specific queries so in some cases it is more efficient than generic `odbc`.
 
 ### Example Configuration
 ```

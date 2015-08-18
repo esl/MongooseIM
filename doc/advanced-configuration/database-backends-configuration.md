@@ -71,6 +71,7 @@ psql -h localhost -U user -q -d mongooseim -f pg.sql
 **Can be used for:**
 
 * users (credentials)
+* private storage
 
 **Setup**
 
@@ -80,6 +81,9 @@ be able to store **user credentials** one have to run the following command:
 ```bash
 riak-admin bucket-type create users '{"props":{"datatype":"map"}}'
 riak-admin bucket-type activate users
+
+riak-admin bucket-type create private '{"props":{"last_write_wins":true}}'
+riak-admin bucket-type activate private
 ```
 
 This will create a bucket type required for storing **users credentials** and it will
