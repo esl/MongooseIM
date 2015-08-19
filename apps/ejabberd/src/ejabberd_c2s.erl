@@ -589,9 +589,7 @@ wait_for_feature_request({xmlstreamelement, El}, StateData) ->
             Socket = StateData#state.socket,
             TLSSocket = (StateData#state.sockmod):starttls(
                                                     Socket, TLSOpts,
-                                                    xml:element_to_binary(
-                                                      #xmlel{name = <<"proceed">>,
-                                                             attrs = [{<<"xmlns">>, ?NS_TLS}]})),
+                                                    xml:element_to_binary(tls_proceed())),
             fsm_next_state(wait_for_stream,
                            StateData#state{socket = TLSSocket,
                                            streamid = new_id(),
@@ -602,31 +600,21 @@ wait_for_feature_request({xmlstreamelement, El}, StateData) ->
                                                  (SockMod == tls)) ->
             case xml:get_subtag(El, <<"method">>) of
                 false ->
-                    send_element(StateData,
-                                 #xmlel{name = <<"failure">>,
-                                        attrs = [{<<"xmlns">>, ?NS_COMPRESS}],
-                                        children = [#xmlel{name = <<"setup-failed">>}]}),
+                    send_element(StateData, compress_setup_failed()),
                     fsm_next_state(wait_for_feature_request, StateData);
                 Method ->
                     case xml:get_tag_cdata(Method) of
                         <<"zlib">> ->
                             Socket = StateData#state.socket,
-                            ZlibSocket = (StateData#state.sockmod):compress(
-                                                                     Socket, ZlibLimit,
-                                                                     xml:element_to_binary(
-                                                                       #xmlel{name = <<"compressed">>,
-                                                                              attrs = [{<<"xmlns">>, ?NS_COMPRESS}]})),
+                            ZlibSocket = (StateData#state.sockmod):compress(Socket, ZlibLimit,
+                                                                            xml:element_to_binary(compressed())),
                             fsm_next_state(wait_for_stream,
                                            StateData#state{socket = ZlibSocket,
                                                            streamid = new_id()
                                                           });
                         _ ->
-                            send_element(StateData,
-                                         #xmlel{name = <<"failure">>,
-                                                attrs = [{<<"xmlns">>, ?NS_COMPRESS}],
-                                                children = [#xmlel{name = <<"unsupported-method">>}]}),
-                            fsm_next_state(wait_for_feature_request,
-                                           StateData)
+                            send_element(StateData, compress_unsupported_method()),
+                            fsm_next_state(wait_for_feature_request, StateData)
                     end
             end;
         _ ->
@@ -654,6 +642,24 @@ wait_for_feature_request({xmlstreamerror, _}, StateData) ->
     {stop, normal, StateData};
 wait_for_feature_request(closed, StateData) ->
     {stop, normal, StateData}.
+
+compressed() ->
+    #xmlel{name = <<"compressed">>,
+           attrs = [{<<"xmlns">>, ?NS_COMPRESS}]}.
+
+compress_unsupported_method() ->
+    #xmlel{name = <<"failure">>,
+           attrs = [{<<"xmlns">>, ?NS_COMPRESS}],
+           children = [#xmlel{name = <<"unsupported-method">>}]}.
+
+tls_proceed() ->
+    #xmlel{name = <<"proceed">>,
+           attrs = [{<<"xmlns">>, ?NS_TLS}]}.
+
+compress_setup_failed() ->
+    #xmlel{name = <<"failure">>,
+           attrs = [{<<"xmlns">>, ?NS_COMPRESS}],
+           children = [#xmlel{name = <<"setup-failed">>}]}.
 
 -spec wait_for_sasl_response(Item :: ejabberd:xml_stream_item(),
                              State :: state()) -> fsm_return().
