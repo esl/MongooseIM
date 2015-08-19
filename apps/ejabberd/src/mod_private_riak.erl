@@ -33,8 +33,12 @@ init(_Host, _Opts) ->
 -spec multi_set_data(ejabberd:luser(), ejabberd:lserver(),
                     {binary(), ejabberd:xmlterm()}) -> ok.
 multi_set_data(LUser, LServer, NS2XML) ->
-    [set_private_data(LUser, LServer, NS, XML) || {NS, XML} <- NS2XML],
-    ok.
+    R = [set_private_data(LUser, LServer, NS, XML) || {NS, XML} <- NS2XML],
+    %% check if something returned with error msg
+    case lists:keyfind(error, 1, R) of
+        {error, Reason} -> {error, Reason};
+        false -> ok
+    end.
 
 -spec multi_get_data(ejabberd:luser(), ejabberd:lserver(),
                      {binary(), term()}) -> ok.
@@ -57,7 +61,7 @@ remove_user(LUser, LServer) ->
 
 set_private_data(LUser, LServer, NS, XML) ->
     Obj = riakc_obj:new(bucket_type(LServer), key(LUser, NS), xml:element_to_binary(XML)),
-    ok = mongoose_riak:put(Obj).
+    mongoose_riak:put(Obj).
 
 get_private_data(LUser, LServer, NS, Default) ->
     case mongoose_riak:get(bucket_type(LServer), key(LUser, NS)) of

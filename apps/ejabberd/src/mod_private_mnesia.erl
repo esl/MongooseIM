@@ -51,8 +51,10 @@ init(_Host, _Opts) ->
 
 multi_set_data(LUser, LServer, NS2XML) ->
     F = fun() -> multi_set_data_t(LUser, LServer, NS2XML) end,
-    {atomic, ok} = mnesia:transaction(F),
-    ok.
+    case mnesia:transaction(F) of
+        {atomic, ok} -> ok;
+        {aborted, Reason} -> {aborted, Reason}
+    end.
 
 multi_set_data_t(LUser, LServer, NS2XML) ->
     [set_data_t(LUser, LServer, NS, XML) || {NS, XML} <- NS2XML],
