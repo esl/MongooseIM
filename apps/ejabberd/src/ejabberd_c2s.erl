@@ -711,15 +711,6 @@ wait_for_bind_or_resume({xmlstreamelement, El}, StateData) ->
                     fsm_next_state(wait_for_bind_or_resume, StateData);
                 _ ->
                     JID = jlib:make_jid(U, StateData#state.server, R),
-                    %%Server = StateData#state.server,
-                    %%RosterVersioningFeature =
-                    %%  ejabberd_hooks:run_fold(
-                    %%  roster_get_versioning_feature, Server, [], [Server]),
-                    %%StreamFeatures = [{xmlel, "session",
-                    %%             [{"xmlns", ?NS_SESSION}], []} |
-                    %%            RosterVersioningFeature],
-                    %%send_element(StateData, {xmlel, "stream:features",
-                    %%               [], StreamFeatures}),
                     Res = IQ#iq{type = result,
                                 sub_el = [#xmlel{name = <<"bind">>,
                                                  attrs = [{<<"xmlns">>, ?NS_BIND}],
@@ -2141,18 +2132,7 @@ resend_offline_messages(StateData) ->
                              end,
                       if
                           Pass ->
-                              %% Attrs2 = jlib:replace_from_to_attrs(
-                              %%                 jlib:jid_to_binary(From),
-                              %%                 jlib:jid_to_binary(To),
-                              %%                 Attrs),
-                              %% FixedPacket = {xmlel, Name, Attrs2, Els},
-                              %% Use route instead of send_element to go through standard workflow
                               ejabberd_router:route(From, To, Packet);
-                          %% send_element(StateData, FixedPacket),
-                          %% ejabberd_hooks:run(user_receive_packet,
-                          %%                         StateData#state.server,
-                          %%                         [StateData#state.jid,
-                          %%                          From, To, FixedPacket]);
                           true ->
                               ok
                       end
