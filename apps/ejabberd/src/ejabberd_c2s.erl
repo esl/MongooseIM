@@ -120,10 +120,8 @@ get_subscription(From = #jid{}, StateData) ->
     get_subscription(jlib:jid_tolower(From), StateData);
 get_subscription(LFrom, StateData) ->
     LBFrom = setelement(3, LFrom, <<>>),
-    F = ?SETS:is_element(LFrom, StateData#state.pres_f) orelse
-    ?SETS:is_element(LBFrom, StateData#state.pres_f),
-    T = ?SETS:is_element(LFrom, StateData#state.pres_t) orelse
-    ?SETS:is_element(LBFrom, StateData#state.pres_t),
+    F = is_subscribed_to_my_presence(LFrom, LBFrom, StateData),
+    T = am_i_subscribed_to_presence(LFrom, LBFrom, StateData),
     if F and T -> both;
        F -> from;
        T -> to;
@@ -1663,6 +1661,11 @@ is_subscribed_to_my_presence(LFrom, LBareFrom, S) ->
     ?SETS:is_element(LFrom, S#state.pres_f)
     orelse (LFrom /= LBareFrom)
     andalso ?SETS:is_element(LBareFrom, S#state.pres_f).
+
+am_i_subscribed_to_presence(LJID, LBareJID, S) ->
+    ?SETS:is_element(LJID, S#state.pres_t)
+    orelse (LJID /= LBareJID)
+    andalso ?SETS:is_element(LBareJID, S#state.pres_t).
 
 lowcase_and_bare(JID) ->
     LJID = jlib:jid_tolower(JID),
