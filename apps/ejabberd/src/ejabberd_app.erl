@@ -29,7 +29,7 @@
 
 -behaviour(application).
 
--export([start_modules/0,start/2, get_log_path/0, prep_stop/1, stop/1]).
+-export([start_modules/0,start/2, prep_stop/1, stop/1]).
 
 -include("ejabberd.hrl").
 
@@ -161,25 +161,6 @@ connect_nodes() ->
             lists:foreach(fun(Node) ->
                                   net_kernel:connect_node(Node)
                           end, Nodes)
-    end.
-
-%% @doc Returns the full path to the ejabberd log file.
-%% It first checks for application configuration parameter 'log_path'.
-%% If not defined it checks the environment variable EJABBERD_LOG_PATH.
-%% And if that one is neither defined, returns the default value:
-%% "ejabberd.log" in current directory.
--spec get_log_path() -> string().
-get_log_path() ->
-    case application:get_env(log_path) of
-        {ok, Path} ->
-            Path;
-        undefined ->
-            case os:getenv("EJABBERD_LOG_PATH") of
-                false ->
-                    ?LOG_PATH;
-                Path ->
-                    Path
-            end
     end.
 
 -spec broadcast_c2s_shutdown() -> 'ok'.

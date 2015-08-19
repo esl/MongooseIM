@@ -143,18 +143,23 @@ unregister_commands(CmdDescs, Module, Function) ->
 -spec process(_) -> integer().
 process(["status"]) ->
     {InternalStatus, ProvidedStatus} = init:get_status(),
-    ?PRINT("The node ~p is ~p with status: ~p~n",
+    ?PRINT("Node ~p is ~p with status: ~p~n",
            [node(), InternalStatus, ProvidedStatus]),
     Applications = application:which_applications(),
     case lists:keyfind(mongooseim, 1, Applications) of
         false ->
-            EjabberdLogPath = ejabberd_app:get_log_path(),
-            ?PRINT("MongooseIM is not running in that node~n"
-                   "Check for error messages: ~s~n"
-                   "or other files in that directory.~n", [EjabberdLogPath]),
+            ?PRINT("MongooseIM is not running on this node.~n", []),
+            case get_log_files() of
+                [] ->
+                    ?PRINT("No log files in use. "
+                           "Maybe you should enable logging to a file in app.config?~n", []);
+                LogFiles ->
+                    ?PRINT("Refer to the following log file(s):~n~s~n",
+                           [string:join(LogFiles, "\n")])
+            end,
             ?STATUS_ERROR;
         {_, _, Version} ->
-            ?PRINT("MongooseIM version ~s is running on that node~n",
+            ?PRINT("MongooseIM version ~s is running on this node~n",
                    [Version]),
             ?STATUS_SUCCESS
     end;
@@ -916,13 +921,14 @@ format_usage_tuple([ElementDef | ElementsDef], Indentation) ->
     MarginString = lists:duplicate(Indentation, $\s), % Put spaces
     [ElementFmt, ",\n", MarginString, format_usage_tuple(ElementsDef, Indentation)].
 
-
 %%-----------------------------
-%% Command managment
+%% Lager specific helpers
 %%-----------------------------
 
-%%+++
-%% Struct(Integer res) create_account(Struct(String user, String server, String password))
-%%format_usage_xmlrpc(ArgsDef, ResultDef) ->
-%%    ["aaaa bbb ccc"].
+get_log_files() ->
+    Handlers = sys:get_state(lager_event),
+    [ file_backend_path(State)
+      || {lager_file_backend, _File, State} <- Handlers ].
 
+file_backend_path(LagerFileBackendState) when element(1, LagerFileBackendState) =:= state ->
+    element(2, LagerFileBackendState).

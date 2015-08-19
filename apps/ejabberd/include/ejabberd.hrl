@@ -31,7 +31,6 @@
 
 -define(MSGS_DIR,    "msgs").
 -define(CONFIG_PATH, "etc/ejabberd.cfg").
--define(LOG_PATH,    "log/ejabberd.log").
 
 -define(EJABBERD_URI, "http://www.process-one.net/en/ejabberd/").
 

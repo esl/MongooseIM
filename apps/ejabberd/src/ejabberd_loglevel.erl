@@ -24,15 +24,13 @@
 %%%----------------------------------------------------------------------
 
 -module(ejabberd_loglevel).
--author('piotr.nosek@erlang-solutions.com').
+-author('mongoose-im@erlang-solutions.com').
 
 -export([init/0,
          set/1,
          get/0,
          set_custom/2,
-         clear_custom/0,
-         clear_custom/1
-         ]).
+         clear_custom/0, clear_custom/1]).
 
 -include("ejabberd.hrl").
 
@@ -49,70 +47,75 @@
 
 -define(ETS_TRACE_TAB, ejabberd_lager_traces).
 
-%% @private
--spec log_path() -> string().
-log_path() ->
-    ejabberd_app:get_log_path().
-
 -spec init() -> atom() | ets:tid().
 init() ->
-    %% If path is not default, reload lager with new settings.
-    case log_path() of
-        ?LOG_PATH  -> lager:start();
-        CustomPath -> apply_custom_log_path(CustomPath)
-    end,
-    ets:new(?ETS_TRACE_TAB, [set, named_table, public]).
+    lager:start(),
+    ets:new(?ETS_TRACE_TAB, [bag, named_table, public]).
 
--spec get() -> {integer(), loglevel()}.
+-spec get() -> [{Backend, loglevel()}] when
+      Backend :: {lager_file_backend, string()} | lager_console_backend.
 get() ->
-    Name = lager:get_loglevel(lager_console_backend),
-    lists:keyfind(Name, 2, ?LOG_LEVELS).
+    Backends = gen_event:which_handlers(lager_event),
+    [ {Backend, lists:keyfind(Level, 2, ?LOG_LEVELS)}
+      || Backend <- Backends,
+         Backend /= lager_backend_throttle,
+         Level <- [lager:get_loglevel(Backend)] ].
 
--spec set(loglevel() | integer()) -> any().
+-spec set(loglevel() | integer()) -> [Result] when
+      Result :: { LagerBackend, ok | {error, Reason} },
+      %% Yes, these are two different errors!
+      Reason :: bad_log_level | bad_loglevel,
+      LagerBackend :: lager_console_backend | {lager_file_backend, Path},
+      Path :: string().
 set(Level) when is_integer(Level) ->
     {_, Name} = lists:keyfind(Level, 1, ?LOG_LEVELS),
     set(Name);
 set(Level) ->
-    Path = log_path(),
-    lager:set_loglevel(lager_console_backend, Level),
-    lager:set_loglevel(lager_file_backend, Path, Level).
+    Backends = gen_event:which_handlers(lager_event),
+    Files = [ { B, lager:set_loglevel(lager_file_backend, File, Level) }
+              || B = {lager_file_backend, File} <- Backends ],
+    Consoles = [ { B, lager:set_loglevel(lager_console_backend, Level) }
+                 || B = lager_console_backend <- Backends ],
+    Files ++ Consoles.
 
--spec set_custom(Module :: atom(), loglevel() | integer()) -> 'true'.
+-spec set_custom(Module :: atom(), loglevel() | integer()) -> [Result] when
+      Result :: {lager_console_backend | {lager_file_backend, string()},
+                 ok | {error, any()}}.
 set_custom(Module, Level) when is_integer(Level) ->
     {_, Name} = lists:keyfind(Level, 1, ?LOG_LEVELS),
     set_custom(Module, Name);
 set_custom(Module, Level) when is_atom(Level) ->
     clear_custom(Module),
-    Path = log_path(),
-    {ok, ConsoleTrace} = lager:trace_console([{module, Module}], Level),
-    {ok, FileTrace}  = lager:trace_file(Path, [{module, Module}], Level),
-    ets:insert(?ETS_TRACE_TAB, {Module, ConsoleTrace, FileTrace}).
+    Backends = gen_event:which_handlers(lager_event),
+    [ {Backend, set_trace(Backend, Module, Level)}
+      || Backend <- Backends,
+         Backend /= lager_backend_throttle ].
 
--spec clear_custom() -> 'ok' | 'true'.
-clear_custom() ->
-    clear_custom('_').
-
--spec clear_custom(Module :: atom()) -> 'ok' | 'true'.
-clear_custom(Module) when is_atom(Module) ->
-    case ets:lookup(?ETS_TRACE_TAB, Module) of
-        [{_, ConsoleTrace, FileTrace}] ->
-            lager:stop_trace(ConsoleTrace),
-            lager:stop_trace(FileTrace),
-            ets:delete(?ETS_TRACE_TAB, Module);
-        [] ->
+set_trace(Backend, Module, Level) ->
+    case lager:trace(Backend, [{module, Module}], Level) of
+        {error, _} = E -> E;
+        {ok, Trace} ->
+            true = ets:insert(?ETS_TRACE_TAB, {Module, Trace}),
             ok
     end.
 
--spec apply_custom_log_path(string()) -> 'ok'.
-apply_custom_log_path(Path) ->
-    {ok, Handlers} = application:get_env(lager, handlers),
-    LagerFileBackend = proplists:get_value(lager_file_backend, Handlers),
-    Handlers2 = proplists:delete(lager_file_backend, Handlers),
-    LagerFileBackend2 = proplists:delete(file, LagerFileBackend),
-    LagerFileBackend3 = [{file, Path}|LagerFileBackend2],
-    Handlers3 = [{lager_file_backend, LagerFileBackend3}|Handlers2],
-    application:stop(lager),
-    application:load(lager),
-    application:set_env(lager, handlers, Handlers3),
-    application:start(lager),
+-spec clear_custom() -> ok.
+clear_custom() ->
+    ets:safe_fixtable(?ETS_TRACE_TAB, true),
+    ets:foldl(fun clear_trace/2, ok, ?ETS_TRACE_TAB),
+    ets:delete_all_objects(?ETS_TRACE_TAB),
+    ets:safe_fixtable(?ETS_TRACE_TAB, false),
     ok.
+
+clear_trace({_Module, Trace}, ok) ->
+    lager:stop_trace(Trace).
+
+-spec clear_custom(Module :: atom()) -> ok.
+clear_custom(Module) when is_atom(Module) ->
+    case ets:lookup(?ETS_TRACE_TAB, Module) of
+        [] -> ok;
+        [_|_] = Traces ->
+            ets:delete(?ETS_TRACE_TAB, Module),
+            [ lager:stop_trace(Trace) || {_, Trace} <- Traces ],
+            ok
+    end.
