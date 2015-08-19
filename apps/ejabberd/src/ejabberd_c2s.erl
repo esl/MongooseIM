@@ -1480,38 +1480,32 @@ send_element(#state{server = Server} = StateData, El) ->
                   Lang :: ejabberd:lang()) -> any().
 send_header(StateData, Server, Version, Lang)
   when StateData#state.xml_socket ->
-    VersionAttr =
-    case Version of
-        "" -> [];
-        _ -> [{<<"version">>, Version}]
-    end,
-    LangAttr =
-    case Lang of
-        "" -> [];
-        _ -> [{<<"xml:lang">>, Lang}]
-    end,
-    Header =
-    {xmlstreamstart,
-     <<"stream:stream">>,
-     VersionAttr ++
-     LangAttr ++
-     [{<<"xmlns">>, ?NS_CLIENT},
-      {<<"xmlns:stream">>, <<"http://etherx.jabber.org/streams">>},
-      {<<"id">>, StateData#state.streamid},
-      {<<"from">>, Server}]},
-    (StateData#state.sockmod):send_xml(
-                                StateData#state.socket, Header);
+    VersionAttr = case Version of
+                      "" -> [];
+                      _ -> [{<<"version">>, Version}]
+                  end,
+    LangAttr = case Lang of
+                   "" -> [];
+                   _ -> [{<<"xml:lang">>, Lang}]
+               end,
+    Header = {xmlstreamstart,
+              <<"stream:stream">>,
+              VersionAttr ++
+              LangAttr ++
+              [{<<"xmlns">>, ?NS_CLIENT},
+               {<<"xmlns:stream">>, <<"http://etherx.jabber.org/streams">>},
+               {<<"id">>, StateData#state.streamid},
+               {<<"from">>, Server}]},
+    (StateData#state.sockmod):send_xml(StateData#state.socket, Header);
 send_header(StateData, Server, Version, Lang) ->
-    VersionStr =
-    case Version of
-        "" -> "";
-        _ -> [" version='", Version, "'"]
-    end,
-    LangStr =
-    case Lang of
-        "" -> "";
-        _ -> [" xml:lang='", Lang, "'"]
-    end,
+    VersionStr = case Version of
+                     "" -> "";
+                     _ -> [" version='", Version, "'"]
+                 end,
+    LangStr = case Lang of
+                  "" -> "";
+                  _ -> [" xml:lang='", Lang, "'"]
+              end,
     Header = list_to_binary(io_lib:format(?STREAM_HEADER,
                                           [StateData#state.streamid,
                                            Server,
@@ -2017,11 +2011,11 @@ roster_change(IJID, ISubscription, StateData) ->
             ?DEBUG("roster changed for ~p~n", [StateData#state.user]),
             From = StateData#state.jid,
             To = jlib:make_jid(IJID),
-            Cond1 = (not StateData#state.pres_invis) and IsFrom
-            and (not OldIsFrom),
-            Cond2 = (not IsFrom) and OldIsFrom
-            and (?SETS:is_element(LIJID, StateData#state.pres_a) or
-                 ?SETS:is_element(LIJID, StateData#state.pres_i)),
+            Cond1 = ( (not StateData#state.pres_invis) and IsFrom
+                      and (not OldIsFrom) ),
+            Cond2 = ( (not IsFrom) and OldIsFrom
+                      and (?SETS:is_element(LIJID, StateData#state.pres_a) or
+                           ?SETS:is_element(LIJID, StateData#state.pres_i)) ),
             if
                 Cond1 ->
                     ?DEBUG("C1: ~p~n", [LIJID]),
@@ -2118,15 +2112,13 @@ process_privacy_iq(From, To,
                 R -> {R, StateData}
             end
     end,
-    IQRes =
-    case Res of
-        {result, Result} ->
-            IQ#iq{type = result, sub_el = Result};
-        {error, Error} ->
-            IQ#iq{type = error, sub_el = [SubEl, Error]}
-    end,
-    ejabberd_router:route(
-      To, From, jlib:iq_to_xml(IQRes)),
+    IQRes = case Res of
+                {result, Result} ->
+                    IQ#iq{type = result, sub_el = Result};
+                {error, Error} ->
+                    IQ#iq{type = error, sub_el = [SubEl, Error]}
+            end,
+    ejabberd_router:route(To, From, jlib:iq_to_xml(IQRes)),
     NewStateData.
 
 
@@ -2381,17 +2373,12 @@ route_blocking(What, StateData) ->
             #xmlel{name = <<"unblock">>,
                    attrs = [{<<"xmlns">>, ?NS_BLOCKING}]}
     end,
-    PrivPushIQ =
-    #iq{type = set, xmlns = ?NS_BLOCKING,
-        id = <<"push">>,
-        sub_el = [SubEl]},
+    PrivPushIQ = #iq{type = set, xmlns = ?NS_BLOCKING,
+                     id = <<"push">>,
+                     sub_el = [SubEl]},
     F = jlib:jid_remove_resource(StateData#state.jid),
     T = StateData#state.jid,
-    PrivPushEl =
-    jlib:replace_from_to(
-      F,
-      T,
-      jlib:iq_to_xml(PrivPushIQ)),
+    PrivPushEl = jlib:replace_from_to(F, T, jlib:iq_to_xml(PrivPushIQ)),
     ejabberd_router:route(F, T, PrivPushEl),
     %% No need to replace active privacy list here,
     %% blocking pushes are always accompanied by
@@ -2885,9 +2872,8 @@ handle_sasl_step(#state{server = Server, socket= Sock} = State, StepRes) ->
             {wait_for_sasl_response, State#state{sasl_state = NewSASLState}};
         {error, Error, Username} ->
             IP = peerip(State#state.sockmod, Sock),
-            ?INFO_MSG(
-               "(~w) Failed authentication for ~s@~s from IP ~s (~w)",
-               [Sock, Username, Server, jlib:ip_to_list(IP), IP]),
+            ?INFO_MSG("(~w) Failed authentication for ~s@~s from IP ~s (~w)",
+                      [Sock, Username, Server, jlib:ip_to_list(IP), IP]),
             ejabberd_hooks:run(auth_failed, Server, [Username, Server]),
             send_element(State, sasl_failure_stanza(Error)),
             {wait_for_feature_request, State};
