@@ -228,18 +228,12 @@ wait_for_stream({xmlstreamstart, _Name, _} = StreamStart, StateData) ->
 wait_for_stream(timeout, StateData) ->
     {stop, normal, StateData};
 wait_for_stream({xmlstreamelement, _}, StateData) ->
-    send_element(StateData, ?INVALID_XML_ERR),
-    send_trailer(StateData),
-    {stop, normal, StateData};
+    c2s_stream_error(?INVALID_XML_ERR, StateData);
 wait_for_stream({xmlstreamend, _}, StateData) ->
-    send_element(StateData, ?INVALID_XML_ERR),
-    send_trailer(StateData),
-    {stop, normal, StateData};
+    c2s_stream_error(?INVALID_XML_ERR, StateData);
 wait_for_stream({xmlstreamerror, _}, StateData) ->
     send_header(StateData, ?MYNAME, "1.0", ""),
-    send_element(StateData, ?INVALID_XML_ERR),
-    send_trailer(StateData),
-    {stop, normal, StateData};
+    c2s_stream_error(?INVALID_XML_ERR, StateData);
 wait_for_stream(closed, StateData) ->
     {stop, normal, StateData}.
 
@@ -281,10 +275,8 @@ check_version_and_handle_stream_start(Attrs, StateData, Server) ->
             send_header(StateData, Server, "", default_language()),
             case is_tls_required_but_unavailable(StateData) of
                 true ->
-                    send_element(StateData,
-                                 ?POLICY_VIOLATION_ERR(Lang, "Use of STARTTLS required")),
-                    send_trailer(StateData),
-                    {stop, normal, StateData};
+                    E = ?POLICY_VIOLATION_ERR(Lang, "Use of STARTTLS required"),
+                    c2s_stream_error(E, StateData);
                 false ->
                     fsm_next_state(wait_for_auth,
                                    StateData#state{server = Server,
