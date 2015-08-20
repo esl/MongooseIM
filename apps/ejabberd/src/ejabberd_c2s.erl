@@ -244,24 +244,29 @@ wait_for_stream(closed, StateData) ->
     {stop, normal, StateData}.
 
 handle_stream_start({xmlstreamstart, _Name, Attrs}, StateData) ->
-    case xml:get_attr_s(<<"xmlns:stream">>, Attrs) of
-        ?NS_STREAM ->
-            Server = jlib:nameprep(xml:get_attr_s(<<"to">>, Attrs)),
-            case lists:member(Server, ?MYHOSTS) of
-                true ->
-                    check_version_and_handle_stream_start(Attrs, StateData, Server);
-                _ ->
-                    send_header(StateData, ?MYNAME, "", default_language()),
-                    send_element(StateData, ?HOST_UNKNOWN_ERR),
-                    send_trailer(StateData),
-                    {stop, normal, StateData}
-            end;
-        _ ->
-            send_header(StateData, ?MYNAME, "", default_language()),
-            send_element(StateData, ?INVALID_NS_ERR),
-            send_trailer(StateData),
-            {stop, normal, StateData}
+    Server = jlib:nameprep(xml:get_attr_s(<<"to">>, Attrs)),
+    case {xml:get_attr_s(<<"xmlns:stream">>, Attrs),
+          lists:member(Server, ?MYHOSTS)} of
+        {?NS_STREAM, true} ->
+            check_version_and_handle_stream_start(Attrs, StateData, Server);
+        {?NS_STREAM, false} ->
+            stream_start_error(?HOST_UNKNOWN_ERR, StateData);
+        {_InvalidNS, _} ->
+            stream_start_error(?INVALID_NS_ERR, StateData)
     end.
+
+stream_start_error(Error, StateData) ->
+    send_header(StateData, ?MYNAME, "", default_language()),
+    c2s_stream_error(Error, StateData).
+
+-spec c2s_stream_error(Error, State) -> Result when
+      Error :: jlib:xmlel(),
+      State :: state(),
+      Result :: {stop, normal, state()}.
+c2s_stream_error(Error, StateData) ->
+    send_element(StateData, Error),
+    send_trailer(StateData),
+    {stop, normal, StateData}.
 
 check_version_and_handle_stream_start(Attrs, StateData, Server) ->
     %% TODO: figure out why Lang is initialized so early,
