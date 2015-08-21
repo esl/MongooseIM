@@ -208,6 +208,7 @@ prepare() ->
 analyze() ->
     io:format("Coverage analyzing~n"),
     rpc:call(get_ejabberd_node(), mongoose_cover_helper, analyze, []),
+    file:delete("/tmp/mongoose_combined.coverdata"),
     Files = filelib:wildcard("/tmp/*.coverdata"),
     [cover:import(File) || File <- Files],
     cover:export("/tmp/mongoose_combined.coverdata"),
