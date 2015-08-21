@@ -44,14 +44,18 @@ init(_Host, _Opts) ->
 
 multi_set_data(LUser, LServer, NS2XML) ->
     F = fun() -> multi_set_data_t(LUser, LServer, NS2XML) end,
-    odbc_queries:sql_transaction(LServer, F).
+    case odbc_queries:sql_transaction(LServer, F) of
+        {atomic, ok} -> ok;
+        {aborted, Reason} -> {aborted, Reason};
+        {error, Reason} -> {error, Reason}
+    end.
 
 multi_set_data_t(LUser, LServer, NS2XML) ->
-    [set_data_t(LUser, LServer, NS, XML) || {NS, XML} <- NS2XML],
+    SLUser = ejabberd_odbc:escape(LUser),
+    [set_data_t(SLUser, LServer, NS, XML) || {NS, XML} <- NS2XML],
     ok.
 
-set_data_t(LUser, LServer, NS, XML) ->
-    SLUser = ejabberd_odbc:escape(LUser),
+set_data_t(SLUser, LServer, NS, XML) ->
     SNS = ejabberd_odbc:escape(NS),
     SData = ejabberd_odbc:escape(xml:element_to_binary(XML)),
     odbc_queries:set_private_data(LServer, SLUser, SNS, SData).

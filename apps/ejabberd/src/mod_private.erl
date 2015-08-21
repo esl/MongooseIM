@@ -53,7 +53,7 @@
     NS      :: binary(),
     XML     :: #xmlel{},
     Reason  :: term(),
-    Result  :: {atomic, ok} | {aborted, Reason} | {error, Reason}.
+    Result  :: ok | {aborted, Reason} | {error, Reason}.
 
 -callback multi_get_data(LUser, LServer, NS2Def) -> [XML | Default] when
     LUser   :: binary(),
@@ -109,7 +109,7 @@ process_sm_iq(
             NS2XML = to_map(Elems),
             Result = ?BACKEND:multi_set_data(LUser, LServer, NS2XML),
             case Result of
-                {atomic, ok} ->
+                ok ->
                     IQ#iq{type = result, sub_el = [SubElem]};
                 {error, Reason} ->
                     ?ERROR_MSG("~p:multi_set_data failed ~p for ~ts@~ts.",
