@@ -20,6 +20,7 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("escalus/include/escalus.hrl").
+-include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("exml/include/exml.hrl").
 -include_lib("stdlib/include/ms_transform.hrl").
 
@@ -31,20 +32,20 @@
 %% Suite configuration
 %%--------------------------------------------------------------------
 
-
 all() ->
     AuthMods = mongoose_helper:auth_modules(),
     case lists:member(ejabberd_auth_external, AuthMods) of
         true ->
             {skip, "Conf reload doesn't work correctly with sample external auth"};
         _ ->
-
-            [{group, starttls},
-                {group, tls}]
+            [{group, negative},
+             {group, starttls},
+             {group, tls}]
     end.
 
 groups() ->
-    [{starttls, test_cases()},
+    [{negative, [], [invalid_host]},
+     {starttls, test_cases()},
      {tls, generate_tls_vsn_tests()}].
 
 test_cases() ->
@@ -82,7 +83,9 @@ init_per_group(tls, Config) ->
     JoeSpec = lists:keydelete(starttls, 1, proplists:get_value(?SECURE_USER, Users)),
     JoeSpec2 = {?SECURE_USER, lists:keystore(ssl, 1, JoeSpec, {ssl, true})},
     NewUsers = lists:keystore(?SECURE_USER, 1, Users, JoeSpec2),
-    lists:keystore(escalus_users, 1, Config, {escalus_users, NewUsers}).
+    lists:keystore(escalus_users, 1, Config, {escalus_users, NewUsers});
+init_per_group(_, Config) ->
+    Config.
 
 end_per_group(_, Config) ->
     Config.
@@ -94,6 +97,21 @@ generate_tls_vsn_tests() ->
 %%--------------------------------------------------------------------
 %% Tests
 %%--------------------------------------------------------------------
+
+invalid_host(_Config) ->
+    %% given
+    JustConnectSpec = [{transport, tcp},
+                       {server, <<"localhost">>}],
+    %% when
+    {ok, Conn, _, _} = escalus_connection:start(JustConnectSpec,
+                                                [{?MODULE, connect_to_invalid_host}]),
+    [Start, Error, End] = escalus:wait_for_stanzas(Conn, 3),
+    %% then
+    %% See RFC 6120 4.9.1.3 (http://xmpp.org/rfcs/rfc6120.html#streams-error-rules-host).
+    %% Stream start from the server is required in this case.
+    escalus:assert(is_stream_start, Start),
+    escalus:assert(is_stream_error, [<<"host-unknown">>, <<>>], Error),
+    escalus:assert(is_stream_end, End).
 
 should_fail_with_sslv3(Config) ->
     %% GIVEN
@@ -178,4 +196,7 @@ start_stream_with_compression(UserSpec) ->
                                                             ConnetctionSteps),
     {Conn, Props, Features}.
 
-
+connect_to_invalid_host(Conn, UnusedProps, UnusedFeatures) ->
+    escalus:send(Conn, escalus_stanza:stream_start(<<"hopefullynonexistentdomain">>,
+                                                   ?NS_JABBER_CLIENT)),
+    {Conn, UnusedProps, UnusedFeatures}.
