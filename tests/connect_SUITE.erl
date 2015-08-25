@@ -44,7 +44,8 @@ all() ->
     end.
 
 groups() ->
-    [{negative, [], [invalid_host]},
+    [{negative, [], [invalid_host,
+                     invalid_stream_namespace]},
      {starttls, test_cases()},
      {tls, generate_tls_vsn_tests()}].
 
@@ -108,6 +109,16 @@ invalid_host(Config) ->
     %% Stream start from the server is required in this case.
     escalus:assert(is_stream_start, Start),
     escalus:assert(is_stream_error, [<<"host-unknown">>, <<>>], Error),
+    escalus:assert(is_stream_end, End).
+
+invalid_stream_namespace(Config) ->
+    %% given
+    Spec = escalus_users:get_userspec(Config, alice),
+    %% when
+    [Start, Error, End] = connect_with_invalid_stream_namespace(Spec),
+    %% then
+    escalus:assert(is_stream_start, Start),
+    escalus:assert(is_stream_error, [<<"invalid-namespace">>, <<>>], Error),
     escalus:assert(is_stream_end, End).
 
 should_fail_with_sslv3(Config) ->
@@ -194,11 +205,27 @@ start_stream_with_compression(UserSpec) ->
     {Conn, Props, Features}.
 
 connect_to_invalid_host(Spec) ->
-    {ok, Conn, _, _} = escalus_connection:start(Spec,
-                                                [{?MODULE, connect_to_invalid_host}]),
+    {ok, Conn, _, _} = escalus_connection:start(Spec, [{?MODULE, connect_to_invalid_host}]),
     escalus:wait_for_stanzas(Conn, 3).
 
 connect_to_invalid_host(Conn, UnusedProps, UnusedFeatures) ->
     escalus:send(Conn, escalus_stanza:stream_start(<<"hopefullynonexistentdomain">>,
                                                    ?NS_JABBER_CLIENT)),
     {Conn, UnusedProps, UnusedFeatures}.
+
+connect_with_invalid_stream_namespace(Spec) ->
+    F = fun (Conn, UnusedProps, UnusedFeatures) ->
+                escalus:send(Conn, invalid_stream_start(escalus_users:get_server([], Spec))),
+                {Conn, UnusedProps, UnusedFeatures}
+        end,
+    {ok, Conn, _, _} = escalus_connection:start(Spec, [F]),
+    escalus:wait_for_stanzas(Conn, 3).
+
+invalid_stream_start(To) ->
+    %% Be careful! The closing slash here is a hack to enable implementation of from_template/2
+    %% to parse the snippet properly. In standard XMPP <stream:stream> is just opening of an XML
+    %% element, NOT A SELF CLOSING element.
+    T = <<"<stream:stream version='1.0' xml:lang='en' xmlns='jabber:client' "
+          "               to='{{to}}' "
+          "               xmlns:stream='obviously-invalid-namespace' />">>,
+    escalus_stanza:from_template(T, [{to, To}]).
