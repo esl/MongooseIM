@@ -65,10 +65,10 @@ init_per_suite(Config) ->
     Config1 = ejabberd_node_utils:init(Config0),
     ejabberd_node_utils:backup_config_file(Config1),
     assert_cert_file_exists(),
-    escalus:create_users(Config1, {by_name, [?SECURE_USER]}).
+    escalus:create_users(Config1, {by_name, [?SECURE_USER, alice]}).
 
 end_per_suite(Config) ->
-    escalus:delete_users(Config, {by_name, [?SECURE_USER]}),
+    escalus:delete_users(Config, {by_name, [?SECURE_USER, alice]}),
     restore_ejabberd_node(Config),
     escalus:end_per_suite(Config).
 
@@ -98,14 +98,11 @@ generate_tls_vsn_tests() ->
 %% Tests
 %%--------------------------------------------------------------------
 
-invalid_host(_Config) ->
+invalid_host(Config) ->
     %% given
-    JustConnectSpec = [{transport, tcp},
-                       {server, <<"localhost">>}],
+    Spec = escalus_users:get_userspec(Config, alice),
     %% when
-    {ok, Conn, _, _} = escalus_connection:start(JustConnectSpec,
-                                                [{?MODULE, connect_to_invalid_host}]),
-    [Start, Error, End] = escalus:wait_for_stanzas(Conn, 3),
+    [Start, Error, End] = connect_to_invalid_host(Spec),
     %% then
     %% See RFC 6120 4.9.1.3 (http://xmpp.org/rfcs/rfc6120.html#streams-error-rules-host).
     %% Stream start from the server is required in this case.
@@ -195,6 +192,11 @@ start_stream_with_compression(UserSpec) ->
     {ok, Conn, Props, Features} = escalus_connection:start(UserSpec,
                                                             ConnetctionSteps),
     {Conn, Props, Features}.
+
+connect_to_invalid_host(Spec) ->
+    {ok, Conn, _, _} = escalus_connection:start(Spec,
+                                                [{?MODULE, connect_to_invalid_host}]),
+    escalus:wait_for_stanzas(Conn, 3).
 
 connect_to_invalid_host(Conn, UnusedProps, UnusedFeatures) ->
     escalus:send(Conn, escalus_stanza:stream_start(<<"hopefullynonexistentdomain">>,
