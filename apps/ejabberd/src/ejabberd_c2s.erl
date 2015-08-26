@@ -242,7 +242,10 @@ handle_stream_start({xmlstreamstart, _Name, Attrs}, StateData) ->
     case {xml:get_attr_s(<<"xmlns:stream">>, Attrs),
           lists:member(Server, ?MYHOSTS)} of
         {?NS_STREAM, true} ->
-            check_version_and_handle_stream_start(Attrs, StateData, Server);
+            change_shaper(StateData, jlib:make_jid(<<>>, Server, <<>>)),
+            Lang = get_xml_lang(Attrs),
+            Version = xml:get_attr_s(<<"version">>, Attrs),
+            stream_start_by_protocol_version(Version, Lang, Server, StateData);
         {?NS_STREAM, false} ->
             stream_start_error(?HOST_UNKNOWN_ERR, StateData);
         {_InvalidNS, _} ->
@@ -262,45 +265,49 @@ c2s_stream_error(Error, StateData) ->
     send_trailer(StateData),
     {stop, normal, StateData}.
 
-check_version_and_handle_stream_start(Attrs, StateData, Server) ->
-    %% TODO: figure out why Lang is initialized so early,
-    %%       but only used so late (way after default_language()!);
-    %%       is this required by some spec?!
-    Lang = get_xml_lang(Attrs),
-    change_shaper(StateData, jlib:make_jid(<<>>, Server, <<>>)),
-    case xml:get_attr_s(<<"version">>, Attrs) of
-        <<"1.0">> ->
-            do_handle_stream_start(Lang, Server, StateData);
-        _ ->
-            send_header(StateData, Server, "", default_language()),
-            case is_tls_required_but_unavailable(StateData) of
-                true ->
-                    E = ?POLICY_VIOLATION_ERR(Lang, "Use of STARTTLS required"),
-                    c2s_stream_error(E, StateData);
-                false ->
-                    fsm_next_state(wait_for_auth,
-                                   StateData#state{server = Server,
-                                                   lang = Lang})
-            end
+%% See RFC 6120 4.3.2:
+%%
+%%   If the initiating entity includes in the initial stream header
+%%   the 'version' attribute set to a value of at least "1.0" [...]
+%%   receiving entity MUST send a <features/> child element [...]
+%%
+%% (http://xmpp.org/rfcs/rfc6120.html#streams-negotiation-features)
+stream_start_by_protocol_version(<<"1.0">>, Lang, Server, StateData) ->
+    stream_start_negotiate_features(Lang, Server, StateData);
+stream_start_by_protocol_version(_Pre_1_0, Lang, Server, StateData) ->
+    send_header(StateData, Server, "", default_language()),
+    case is_tls_required_but_unavailable(StateData) of
+        false ->
+            wait_for_legacy_auth(Lang, Server, StateData);
+        true ->
+            c2s_stream_error(?POLICY_VIOLATION_ERR(Lang, "Use of STARTTLS required"),
+                             StateData)
     end.
 
-is_tls_required_but_unavailable(StateData) ->
-    (not StateData#state.tls_enabled) and StateData#state.tls_required.
-
-do_handle_stream_start(Lang, Server, StateData) ->
+stream_start_negotiate_features(Lang, Server, StateData) ->
     send_header(StateData, Server, "1.0", default_language()),
     case {StateData#state.authenticated, StateData#state.resource} of
         {false, _} ->
-            stream_start_not_authenticated(Lang, Server, StateData);
+            stream_start_features_before_auth(Lang, Server, StateData);
         {_, <<>>} ->
-            stream_start_no_resource(Lang, Server, StateData);
+            stream_start_features_before_bind(Lang, Server, StateData);
         {_, _} ->
             send_element(StateData, #xmlel{name = <<"stream:features">>}),
             fsm_next_state(wait_for_session_or_sm,
                            StateData#state{server = Server, lang = Lang})
     end.
 
-stream_start_not_authenticated(Lang, Server, StateData) ->
+is_tls_required_but_unavailable(StateData) ->
+    (not StateData#state.tls_enabled) and StateData#state.tls_required.
+
+%% TODO: Consider making this a completely different path (different FSM states!)
+%%       than SASL auth negotiation - once wait_for_auth is targeted by refactoring.
+%% For legacy auth see XEP-0078: Non-SASL Authentication
+%% (http://xmpp.org/extensions/xep-0078.html).
+wait_for_legacy_auth(Lang, Server, StateData) ->
+    fsm_next_state(wait_for_auth, StateData#state{server = Server, lang = Lang}).
+
+stream_start_features_before_auth(Lang, Server, StateData) ->
     SASLState = cyrsasl:server_new(<<"jabber">>, Server, <<>>, [],
                                    mk_get_password_with_authmodule(Server),
                                    mk_check_password3_with_authmodule(Server),
@@ -315,7 +322,7 @@ stream_start_not_authenticated(Lang, Server, StateData) ->
                                    sasl_state = SASLState,
                                    lang = Lang}).
 
-stream_start_no_resource(Lang, Server, StateData) ->
+stream_start_features_before_bind(Lang, Server, StateData) ->
     Features = ( [#xmlel{name = <<"bind">>,
                          attrs = [{<<"xmlns">>, ?NS_BIND}]},
                   #xmlel{name = <<"session">>,
