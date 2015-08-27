@@ -114,6 +114,10 @@ To see `hook <-> XMPP metric` translation please refer to [mongoose_metrics_hook
 | totalSessionCount | function | total number of sessions in the cluster |
 | uniqueSessionCount | function | number of unique sessions in the cluster |
 
+### Definitions
+* **session** - it is user and resource,
+* **unique session** - only user, without resource. E.g if a user is connected to the server from 3 different resource it will be counted 3 times in the session counter but only once in the unique sessions counter.
+
 ## Backends metrics description
 
 Existence of this kind of metrics is driven by the status of corresponding module.
