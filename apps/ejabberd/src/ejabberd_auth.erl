@@ -280,18 +280,18 @@ do_try_register_if_does_not_exist(_, LUser, LServer, Password) ->
     end.
 
 do_try_register_if_does_not_exist_timed(LUser, LServer, Password) ->
-    Res = lists:foldl(
-        fun(_M, ok = Res) ->
-            Res;
-            (M, _) ->
-                M:try_register(LUser, LServer, Password)
-        end, {error, not_allowed}, auth_modules(LServer)),
-    case Res of
+    Backends = auth_modules(LServer),
+    do_try_register_in_backend(Backends, LUser, LServer, Password).
+
+do_try_register_in_backend([], _, _, _) ->
+    {error, not_allowed};
+do_try_register_in_backend([M | Backends], LUser, LServer, Password) ->
+    case M:try_register(LUser, LServer, Password) of
         ok ->
             ejabberd_hooks:run(register_user, LServer,
-                [LUser, LServer]),
-            ok;
-        _ -> Res
+                [LUser, LServer]);
+        _ ->
+            do_try_register_in_backend(Backends, LUser, LServer, Password)
     end.
 
 %% @doc Registered users list do not include anonymous users logged
