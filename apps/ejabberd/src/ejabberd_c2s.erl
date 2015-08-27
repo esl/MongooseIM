@@ -227,6 +227,9 @@ wait_for_stream({xmlstreamstart, _Name, _} = StreamStart, StateData) ->
     handle_stream_start(StreamStart, StateData);
 wait_for_stream(timeout, StateData) ->
     {stop, normal, StateData};
+%% TODO: this clause is most likely dead code - can't be triggered
+%%       with XMPP level tests;
+%%       see github.com/esl/ejabberd_tests/tree/element-before-stream-start
 wait_for_stream({xmlstreamelement, _}, StateData) ->
     c2s_stream_error(?INVALID_XML_ERR, StateData);
 wait_for_stream({xmlstreamend, _}, StateData) ->
