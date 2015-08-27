@@ -257,7 +257,9 @@ stream_start(Context) ->
     T = <<"<stream:stream {{version}} xml:lang='en' xmlns='jabber:client' "
           "               to='{{to}}' "
           "               xmlns:stream='{{stream_ns}}' />">>,
-    escalus_stanza:from_template(T, Context).
+    %% So we rewrap the parsed contents from #xmlel{} to #xmlstreamstart{} here.
+    #xmlel{name = Name, attrs = Attrs, children = []} = escalus_stanza:from_template(T, Context),
+    #xmlstreamstart{name = Name, attrs = Attrs}.
 
 username(Username) when is_binary(Username) ->
     #xmlel{name = <<"username">>,
