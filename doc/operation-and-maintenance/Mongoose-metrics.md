@@ -1,10 +1,16 @@
 # MongooseIM metrics
 
-MongooseIM by default collects many metrics showing user behaviour and general system statistics. They are managed by [Feuerlabs/exometer](https://github.com/Feuerlabs/exometer). 
-Metrics are organized by XMPP hosts, meaning if MongooseIM servers host `a.com` and `b.com` metrics for specific host only can be obtained.
-There are also some global metrics common for every hosts.
+MongooseIM by default collects many metrics showing user behaviour and general system statistics.
+They are managed by [Feuerlabs/exometer](https://github.com/Feuerlabs/exometer).
+ 
+All metrics are divided into following groups:
 
-## Metrics description
+* host metrics - organized by XMPP hosts, meaning if MongooseIM servers host `a.com` and `b.com` metrics for specific host only can be obtained. 
+* global metrics - metrics common for all XMPP hosts 
+* backend metrics - these are mainly metrics specific for backend modules
+* data metrics - various metrics related to data sizes (e.g sent / received stanza size statistics)
+
+## Host metrics description
 
 | Metric name | Type | Group | Description |
 | ----------- | ---- | ----- | ----------- |
@@ -95,26 +101,41 @@ There are also some global metrics common for every hosts.
 | xmppStanzaSent | spiral | host, XMPP | Numb of stanzas sent to clients|
 
 
-## Metrics internals
+Metrics assgined to group `hook` are generic metrics updated when given hook is run. In case of these metric its names are the same as corresponding hook name.
+Most of `XMPP` metrics are also triggered by hook and their count is the same as corresponding hook runs. They are named differently to maintain backward compatibility.
+To see `hook <-> XMPP metric` translation please refer to [mongoose_metrics_hooks](https://github.com/esl/MongooseIM/blob/exometer/apps/ejabberd/src/mongoose_metrics_hooks.erl#L71) file.
+ 
 
-In exometer every metrics is treated as a path. Because of that exometer's name of above metrics looks like following:
+## Global metrics description
 
-```erlang
-[HostOrGlobal, MetricName]
-```
+| Metric name | Type | Description |
+| ----------- | ---- | ----------- |
+| nodeSessionCount | function | number of sessions on given Erlang node |
+| totalSessionCount | function | total number of sessions in the cluster |
+| uniqueSessionCount | function | number of unique sessions in the cluster |
 
-Where:
+### Definitions
+* **session** - it is user and resource,
+* **unique session** - only user, without resource. E.g if a user is connected to the server from 3 different resource it will be counted 3 times in the session counter but only once in the unique sessions counter.
 
-  * `MetricName` is one of above metrics,
-  * `HostOrGlobal` is either atom `global` or binary string with XMPP host served by the server (f.e `<<"localhost">>`)
+## Backends metrics description
 
-### Metric types
+Existence of this kind of metrics is driven by the status of corresponding module.
+For example if mod_roster is enabled relevant `backends` metrics for this module are created and updated.
+This kind of metrics are histograms and contain information about execution time of certain functions from backend module.
 
-* `spiral` - returned value is `{ok,[{count,100},{one,10}]}` where `count` means total number of events and `one` - number of events in last minute 
-* `counter` - returned value is `{ok,[{value,10},{ms_since_reset,245940984}]}` where `value` is the value of the metric and `ms_since_reset` - number of milliseconds since metric reset
-* `value` - returned value is `{ok, 120}`
+The only `backends` metrics which are always present are related to authentication module as this one is always enabled.
 
-### Metrics and hooks
+## Data metrics description
 
-Metrics assgined to group `hook` are generic metrics update when given hook is run. In case of these metric its names are the same as corresponding hook name.
-Most of `XMPP` metrics are also triggered by hook and their count is the same as corresponding hook runs. They are named differently to maintain backward compatibility, to see hook <-> XMPP metric translation please refer to [mongoose_metrics_hooks](https://github.com/esl/MongooseIM/blob/exometer/apps/ejabberd/src/mongoose_metrics_hooks.erl#L71) file. 
+| Metric name | Type | Description |
+| ----------- | ---- | ----------- |
+| [xmpp,received,xml_stanza_size] | histogram | Received (by the server) stanza size stats after possible decryption and decompression |
+| [xmpp,sent,xml_stanza_size] | histogra | Sent (to the clinet) stanza size stats before possible encryption and compression |
+| [xmpp,received,compressed_size] | histogram | Received compressed stanza size stats |
+| [xmpp,sent,compressed_size] | histogram | Sent compressed stanza size stats |
+| [xmpp,received,encrypted_size] | histogram | Received encrypted stanza size stats |
+| [xmpp,sent,encrypted_size] | histogram | Sent encrypted stanza size stats|
+| [odbc,regular] | function | Various network stats for regular ODBC workers |
+| [odbc,mam_async] | function | Various network stats for MAM async ODBC workers |
+| dist | function | Network stats for Erlang distributed communication |
