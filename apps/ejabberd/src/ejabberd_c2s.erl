@@ -240,19 +240,20 @@ wait_for_stream({xmlstreamerror, _}, StateData) ->
 wait_for_stream(closed, StateData) ->
     {stop, normal, StateData}.
 
-handle_stream_start({xmlstreamstart, _Name, Attrs}, StateData) ->
+handle_stream_start({xmlstreamstart, _Name, Attrs}, #state{} = S0) ->
     Server = jlib:nameprep(xml:get_attr_s(<<"to">>, Attrs)),
+    Lang = get_xml_lang(Attrs),
+    S = S0#state{server = Server, lang = Lang},
     case {xml:get_attr_s(<<"xmlns:stream">>, Attrs),
           lists:member(Server, ?MYHOSTS)} of
         {?NS_STREAM, true} ->
-            change_shaper(StateData, jlib:make_jid(<<>>, Server, <<>>)),
-            Lang = get_xml_lang(Attrs),
+            change_shaper(S, jlib:make_jid(<<>>, Server, <<>>)),
             Version = xml:get_attr_s(<<"version">>, Attrs),
-            stream_start_by_protocol_version(Version, Lang, Server, StateData);
+            stream_start_by_protocol_version(Version, S);
         {?NS_STREAM, false} ->
-            stream_start_error(?HOST_UNKNOWN_ERR, StateData);
+            stream_start_error(?HOST_UNKNOWN_ERR, S);
         {_InvalidNS, _} ->
-            stream_start_error(?INVALID_NS_ERR, StateData)
+            stream_start_error(?INVALID_NS_ERR, S)
     end.
 
 stream_start_error(Error, StateData) ->
@@ -275,66 +276,61 @@ c2s_stream_error(Error, StateData) ->
 %%   receiving entity MUST send a <features/> child element [...]
 %%
 %% (http://xmpp.org/rfcs/rfc6120.html#streams-negotiation-features)
-stream_start_by_protocol_version(<<"1.0">>, Lang, Server, StateData) ->
-    stream_start_negotiate_features(Lang, Server, StateData);
-stream_start_by_protocol_version(_Pre_1_0, Lang, Server, StateData) ->
-    send_header(StateData, Server, "", default_language()),
-    case is_tls_required_but_unavailable(StateData) of
+stream_start_by_protocol_version(<<"1.0">>, #state{} = S) ->
+    stream_start_negotiate_features(S);
+stream_start_by_protocol_version(_Pre_1_0, #state{lang = Lang, server = Server} = S) ->
+    send_header(S, Server, "", default_language()),
+    case is_tls_required_but_unavailable(S) of
         false ->
-            wait_for_legacy_auth(Lang, Server, StateData);
+            wait_for_legacy_auth(S);
         true ->
-            c2s_stream_error(?POLICY_VIOLATION_ERR(Lang, "Use of STARTTLS required"),
-                             StateData)
+            c2s_stream_error(?POLICY_VIOLATION_ERR(Lang, "Use of STARTTLS required"), S)
     end.
 
-stream_start_negotiate_features(Lang, Server, StateData) ->
-    send_header(StateData, Server, "1.0", default_language()),
-    case {StateData#state.authenticated, StateData#state.resource} of
+stream_start_negotiate_features(#state{} = S) ->
+    send_header(S, S#state.server, "1.0", default_language()),
+    case {S#state.authenticated, S#state.resource} of
         {false, _} ->
-            stream_start_features_before_auth(Lang, Server, StateData);
+            stream_start_features_before_auth(S);
         {_, <<>>} ->
-            stream_start_features_before_bind(Lang, Server, StateData);
+            stream_start_features_before_bind(S);
         {_, _} ->
-            send_element(StateData, #xmlel{name = <<"stream:features">>}),
-            fsm_next_state(wait_for_session_or_sm,
-                           StateData#state{server = Server, lang = Lang})
+            send_element(S, #xmlel{name = <<"stream:features">>}),
+            fsm_next_state(wait_for_session_or_sm, S)
     end.
 
-is_tls_required_but_unavailable(StateData) ->
-    (not StateData#state.tls_enabled) and StateData#state.tls_required.
+is_tls_required_but_unavailable(#state{} = S) ->
+    (not S#state.tls_enabled) and S#state.tls_required.
 
 %% TODO: Consider making this a completely different path (different FSM states!)
 %%       than SASL auth negotiation - once wait_for_auth is targeted by refactoring.
 %% For legacy auth see XEP-0078: Non-SASL Authentication
 %% (http://xmpp.org/extensions/xep-0078.html).
-wait_for_legacy_auth(Lang, Server, StateData) ->
-    fsm_next_state(wait_for_auth, StateData#state{server = Server, lang = Lang}).
+wait_for_legacy_auth(#state{} = S) ->
+    fsm_next_state(wait_for_auth, S).
 
-stream_start_features_before_auth(Lang, Server, StateData) ->
+stream_start_features_before_auth(#state{server = Server} = S) ->
     SASLState = cyrsasl:server_new(<<"jabber">>, Server, <<>>, [],
                                    mk_get_password_with_authmodule(Server),
                                    mk_check_password3_with_authmodule(Server),
                                    mk_check_password5_with_authmodule(Server)),
-    SockMod = (StateData#state.sockmod):get_sockmod(StateData#state.socket),
-    send_element(StateData, stream_features(maybe_tls_feature(SockMod, StateData) ++
-                                            maybe_compress_feature(SockMod, StateData) ++
-                                            maybe_sasl_mechanisms(Server) ++
-                                            hook_enabled_features(Server))),
+    SockMod = (S#state.sockmod):get_sockmod(S#state.socket),
+    send_element(S, stream_features(maybe_tls_feature(SockMod, S) ++
+                                    maybe_compress_feature(SockMod, S) ++
+                                    maybe_sasl_mechanisms(Server) ++
+                                    hook_enabled_features(Server))),
     fsm_next_state(wait_for_feature_request,
-                   StateData#state{server = Server,
-                                   sasl_state = SASLState,
-                                   lang = Lang}).
+                   S#state{sasl_state = SASLState}).
 
-stream_start_features_before_bind(Lang, Server, StateData) ->
+stream_start_features_before_bind(#state{server = Server} = S) ->
     Features = ( [#xmlel{name = <<"bind">>,
                          attrs = [{<<"xmlns">>, ?NS_BIND}]},
                   #xmlel{name = <<"session">>,
                          attrs = [{<<"xmlns">>, ?NS_SESSION}]}]
                  ++ maybe_roster_versioning_feature(Server)
                  ++ hook_enabled_features(Server) ),
-    send_element(StateData, stream_features(Features)),
-    fsm_next_state(wait_for_bind_or_resume,
-                   StateData#state{server = Server, lang = Lang}).
+    send_element(S, stream_features(Features)),
+    fsm_next_state(wait_for_bind_or_resume, S).
 
 maybe_roster_versioning_feature(Server) ->
     ejabberd_hooks:run_fold(roster_get_versioning_feature,
@@ -344,10 +340,8 @@ stream_features(FeatureElements) ->
     #xmlel{name = <<"stream:features">>,
            children = FeatureElements}.
 
-maybe_tls_feature(SockMod, StateData) ->
-    TLS = StateData#state.tls,
-    TLSEnabled = StateData#state.tls_enabled,
-    TLSRequired = StateData#state.tls_required,
+maybe_tls_feature(SockMod, #state{tls = TLS, tls_enabled = TLSEnabled,
+                                  tls_required = TLSRequired}) ->
     case can_use_tls(SockMod, TLS, TLSEnabled) of
         true ->
             case TLSRequired of
@@ -358,9 +352,8 @@ maybe_tls_feature(SockMod, StateData) ->
             []
     end.
 
-maybe_compress_feature(SockMod, StateData) ->
-    {Zlib, _} = StateData#state.zlib,
-    case can_use_zlib_compression(Zlib, SockMod) of
+maybe_compress_feature(SockMod, #state{zlib = {ZLib, _}}) ->
+    case can_use_zlib_compression(ZLib, SockMod) of
         true -> [compression_zlib()];
         _ -> []
     end.
