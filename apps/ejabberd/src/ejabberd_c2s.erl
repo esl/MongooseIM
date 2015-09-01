@@ -1316,7 +1316,7 @@ handle_routed_presence(From, To, Packet = #xmlel{attrs = Attrs}, StateData) ->
             process_presence_probe(From, To, NewState),
             {false, Attrs, NewState};
         <<"error">> ->
-            NewA = remove_element(jlib:jid_tolower(From), State#state.pres_a),
+            NewA = ?SETS:del_element(jlib:jid_tolower(From), State#state.pres_a),
             {true, Attrs, State#state{pres_a = NewA}};
         <<"invisible">> ->
             Attrs1 = lists:keydelete(<<"type">>, 1, Attrs),
@@ -1832,14 +1832,14 @@ presence_track(From, To, Packet, StateData) ->
     case xml:get_attr_s(<<"type">>, Attrs) of
         <<"unavailable">> ->
             check_privacy_route(From, StateData, From, To, Packet),
-            I = remove_element(LTo, StateData#state.pres_i),
-            A = remove_element(LTo, StateData#state.pres_a),
+            I = ?SETS:del_element(LTo, StateData#state.pres_i),
+            A = ?SETS:del_element(LTo, StateData#state.pres_a),
             StateData#state{pres_i = I,
                             pres_a = A};
         <<"invisible">> ->
             check_privacy_route(From, StateData, From, To, Packet),
             I = ?SETS:add_element(LTo, StateData#state.pres_i),
-            A = remove_element(LTo, StateData#state.pres_a),
+            A = ?SETS:del_element(LTo, StateData#state.pres_a),
             StateData#state{pres_i = I,
                             pres_a = A};
         <<"subscribe">> ->
@@ -1878,7 +1878,7 @@ presence_track(From, To, Packet, StateData) ->
             StateData;
         _ ->
             check_privacy_route(From, StateData, From, To, Packet),
-            I = remove_element(LTo, StateData#state.pres_i),
+            I = ?SETS:del_element(LTo, StateData#state.pres_i),
             A = ?SETS:add_element(LTo, StateData#state.pres_a),
             StateData#state{pres_i = I,
                             pres_a = A}
@@ -1931,7 +1931,7 @@ is_privacy_allow(StateData, From, To, Packet, Dir) ->
 
 -spec presence_broadcast(State :: state(),
                          From :: 'undefined' | ejabberd:jid(),
-                         JIDSet :: gb_set(),
+                         JIDSet :: jid_set(),
                          Packet :: jlib:xmlel()) -> 'ok'.
 presence_broadcast(StateData, From, JIDSet, Packet) ->
     lists:foreach(fun(JID) ->
@@ -1947,8 +1947,8 @@ presence_broadcast(StateData, From, JIDSet, Packet) ->
 
 -spec presence_broadcast_to_trusted(State :: state(),
                                     From :: 'undefined' | ejabberd:jid(),
-                                    T :: gb_set(),
-                                    A :: gb_set(),
+                                    T :: jid_set(),
+                                    A :: jid_set(),
                                     Packet :: jlib:xmlel()) -> 'ok'.
 presence_broadcast_to_trusted(StateData, From, T, A, Packet) ->
     lists:foreach(
@@ -2002,18 +2002,6 @@ presence_broadcast_first(From, StateData, Packet) ->
             StateData#state{pres_a = As}
     end.
 
-
--spec remove_element(E :: 'error' | tuple(),
-                     Set :: gb_set()) -> gb_set().
-remove_element(E, Set) ->
-    case ?SETS:is_element(E, Set) of
-        true ->
-            ?SETS:del_element(E, Set);
-        _ ->
-            Set
-    end.
-
-
 -spec roster_change(IJID :: ejabberd:simple_jid() | ejabberd:jid(),
                     ISubscription :: from | to | both | none,
                     State :: state()) -> state().
@@ -2026,13 +2014,13 @@ roster_change(IJID, ISubscription, StateData) ->
                IsFrom ->
                    ?SETS:add_element(LIJID, StateData#state.pres_f);
                true ->
-                   remove_element(LIJID, StateData#state.pres_f)
+                   ?SETS:del_element(LIJID, StateData#state.pres_f)
            end,
     TSet = if
                IsTo ->
                    ?SETS:add_element(LIJID, StateData#state.pres_t);
                true ->
-                   remove_element(LIJID, StateData#state.pres_t)
+                   ?SETS:del_element(LIJID, StateData#state.pres_t)
            end,
     case StateData#state.pres_last of
         undefined ->
@@ -2070,9 +2058,9 @@ roster_change(IJID, ISubscription, StateData) ->
                         allow ->
                             ejabberd_router:route(From, To, PU)
                     end,
-                    I = remove_element(LIJID,
+                    I = ?SETS:del_element(LIJID,
                                        StateData#state.pres_i),
-                    A = remove_element(LIJID,
+                    A = ?SETS:del_element(LIJID,
                                        StateData#state.pres_a),
                     StateData#state{pres_i = I,
                                     pres_a = A,
@@ -2411,6 +2399,9 @@ route_blocking(What, StateData) ->
 %%% JID Set memory footprint reduction code
 %%%----------------------------------------------------------------------
 
+-type pack_tree() :: gb_trees:tree(binary() | ejabberd:simple_jid(),
+                                   binary() | ejabberd:simple_jid()).
+
 %% @doc Try to reduce the heap footprint of the four presence sets
 %% by ensuring that we re-use strings and Jids wherever possible.
 -spec pack(S :: state()) -> state().
@@ -2431,14 +2422,16 @@ pack(S = #state{pres_a=A,
             pres_t=NewT}.
 
 
--spec pack_jid_set(Set :: gb_set(), Pack :: gb_tree()) -> {gb_set(),gb_tree()}.
+-spec pack_jid_set(Set :: jid_set(),
+                   Pack :: pack_tree()) -> {jid_set(), pack_tree()}.
 pack_jid_set(Set, Pack) ->
     Jids = ?SETS:to_list(Set),
     {PackedJids, NewPack} = pack_jids(Jids, Pack, []),
     {?SETS:from_list(PackedJids), NewPack}.
 
 
--spec pack_jids([{_,_,_}], Pack :: gb_tree(), Acc :: [any()]) -> {[any()],gb_tree()}.
+-spec pack_jids([{_,_,_}], Pack :: pack_tree(), Acc :: [ejabberd:simple_jid()]) ->
+    {[ejabberd:simple_jid()],pack_tree()}.
 pack_jids([], Pack, Acc) -> {Acc, Pack};
 pack_jids([{U,S,R}=Jid | Jids], Pack, Acc) ->
     case gb_trees:lookup(Jid, Pack) of
@@ -2454,7 +2447,7 @@ pack_jids([{U,S,R}=Jid | Jids], Pack, Acc) ->
     end.
 
 
--spec pack_string(String :: binary(), Pack :: gb_tree()) -> {binary(), gb_tree()}.
+-spec pack_string(String :: binary(), Pack :: pack_tree()) -> {binary(), pack_tree()}.
 pack_string(String, Pack) ->
     case gb_trees:lookup(String, Pack) of
         {value, PackedString} ->

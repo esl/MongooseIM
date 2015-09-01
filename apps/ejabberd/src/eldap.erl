@@ -1026,7 +1026,7 @@ check_extended_reply(Other, _From) ->
   {error, Other}.
 
 
--spec get_op_rec(_,dict()) -> {_,_,_,_}.
+-spec get_op_rec(_, dict:dict(non_neg_integer(), [tuple()])) -> {_,_,_,_}.
 get_op_rec(Id, Dict) ->
     case dict:find(Id, Dict) of
       {ok, [{Timer, _Command, From, Name} | Res]} ->

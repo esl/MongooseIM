@@ -79,6 +79,7 @@
               }).
 -type state() :: #state{}.
 
+-type element_queue() :: queue:queue(#xmlel{}).
 -type statename() :: open_socket
                    | wait_for_stream
                    | wait_for_features
@@ -967,7 +968,7 @@ send_element(StateData, El) ->
     send_text(StateData, xml:element_to_binary(El)).
 
 
--spec send_queue(state(), Q :: queue()) -> 'ok'.
+-spec send_queue(state(), Q :: element_queue()) -> 'ok'.
 send_queue(StateData, Q) ->
     case queue:out(Q) of
         {{value, El}, Q1} ->
@@ -993,7 +994,7 @@ bounce_element(El, Error) ->
     end.
 
 
--spec bounce_queue(Q :: queue(), Error :: jlib:xmlel()) -> 'ok'.
+-spec bounce_queue(Q :: element_queue(), Error :: jlib:xmlel()) -> 'ok'.
 bounce_queue(Q, Error) ->
     case queue:out(Q) of
         {{value, El}, Q1} ->
