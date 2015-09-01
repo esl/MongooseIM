@@ -45,3 +45,5 @@ matrix:
           env: PRESET=internal_mnesia DB=mnesia
         - otp_release: R16B03
           env: PRESET=internal_mnesia DB=mnesia
+        - otp_release: 18.0
+          env: PRESET=internal_mnesia DB=mnesia
