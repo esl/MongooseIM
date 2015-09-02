@@ -33,7 +33,7 @@
                          node :: ejabberd:server(),
                          sessionid :: binary(),
                          status :: atom(),
-                         defaultaction = "" :: string(),
+                         defaultaction = <<>> :: binary(),
                          actions = [],
                          notes = [] :: [tuple()],
                          elements = [] :: [jlib:xmlel()]
