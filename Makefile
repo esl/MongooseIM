@@ -123,7 +123,7 @@ BANNED_PATHS = $(addsuffix /ebin, $(addprefix deps/, $(BANNED_DEPS)))
 DEPS_LIBS = $(filter-out $(BANNED_PATHS), $(wildcard deps/*/ebin))
 MONGOOSE_LIBS = $(wildcard apps/ejabberd/ebin/*.beam)
 
-OTP_APPS = compiler crypto erts kernel stdlib mnesia ssl ssh xmerl public_key tools sasl hipe edoc syntax_tools runtime_tools inets webtool
+OTP_APPS = compiler crypto erts kernel stdlib mnesia ssl ssh xmerl public_key tools sasl hipe edoc syntax_tools runtime_tools inets webtool asn1
 DIALYZER_APPS = ejabberd mysql pgsql
 DIALYZER_APPS_PATHS = $(addsuffix /ebin, $(addprefix apps/, $(DIALYZER_APPS)))
 
