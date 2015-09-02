@@ -117,23 +117,25 @@ fake_server.pem:
 	cat fake_cert.pem fake_key.pem > fake_server.pem
 
 COMBO_PLT = .mongooseim_combo_dialyzer.plt
-DEPS_LIBS     = $(wildcard deps/*/ebin/*.beam)
+# We skip some deps, because they're Dialyzer-broken
+BANNED_DEPS = meck edown
+BANNED_PATHS = $(addsuffix /ebin, $(addprefix deps/, $(BANNED_DEPS)))
+DEPS_LIBS = $(filter-out $(BANNED_PATHS), $(wildcard deps/*/ebin))
 MONGOOSE_LIBS = $(wildcard apps/ejabberd/ebin/*.beam)
 
-OTP_APPS      = compiler crypto erts kernel stdlib mnesia ssl ssh
-DIALYZER_APPS = ejabberd
+OTP_APPS = compiler crypto erts kernel stdlib mnesia ssl ssh xmerl public_key tools sasl hipe edoc syntax_tools runtime_tools inets webtool
+DIALYZER_APPS = ejabberd mysql pgsql
 DIALYZER_APPS_PATHS = $(addsuffix /ebin, $(addprefix apps/, $(DIALYZER_APPS)))
 
 check_plt:
-	dialyzer --check_plt --plt $(COMBO_PLT) $(MONGOOSE_LIBS)
+	dialyzer --check_plt --plt $(COMBO_PLT)
 
 build_plt:
-	dialyzer --build_plt --apps $(OTP_APPS) \
-		--output_plt $(COMBO_PLT) $(DEPS_LIBS) $(MONGOOSE_LIBS)
+	dialyzer --build_plt --apps $(OTP_APPS) --output_plt $(COMBO_PLT) $(DEPS_LIBS)
 
-dialyzer: compile
-	dialyzer -Wno_return --fullpath --plt $(COMBO_PLT) $(DIALYZER_APPS_PATHS) | \
-	    fgrep -v -f ./dialyzer.ignore-warnings | tee dialyzer.log
+dialyzer:
+	dialyzer -Wno_return -Wno_unused --fullpath --plt $(COMBO_PLT) $(DIALYZER_APPS_PATHS)
+#	    fgrep -v -f ./dialyzer.ignore-warnings | tee dialyzer.log
 
 cleanplt:
 	rm $(COMBO_PLT)
