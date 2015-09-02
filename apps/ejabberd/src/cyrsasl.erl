@@ -36,13 +36,12 @@
 
 -include("ejabberd.hrl").
 
--record(sasl_mechanism, {mechanism :: mechanism(),
+-record(sasl_mechanism, {mechanism :: mechanism() | atom(), % atom() used in ets:select
                          module :: sasl_module(),
-                         password_type :: plain | digest | scram
+                         password_type :: plain | digest | scram | atom() % atom() used in ets:select
                         }).
 -type sasl_module() :: atom().
 -type mechanism() :: binary().
--type sasl_mechanism() :: #sasl_mechanism{}.
 
 -record(sasl_state, {service :: binary(),
                      myname :: ejabberd:server(),
@@ -128,8 +127,7 @@ register_mechanism(Mechanism, Module, PasswordType) ->
 
 -spec check_credentials(sasl_state(), list()) -> 'ok' | {'error', binary()}.
 check_credentials(_State, Props) ->
-    User = xml:get_attr_s(username, Props),
-    case jlib:nodeprep(User) of
+    case jlib:nodeprep(proplists:get_value(username, Props, <<>>)) of
         error ->
             {error, <<"not-authorized">>};
         <<>> ->
@@ -138,7 +136,7 @@ check_credentials(_State, Props) ->
             ok
     end.
 
--spec listmech(ejabberd:server()) -> [sasl_mechanism()].
+-spec listmech(ejabberd:server()) -> [mechanism()].
 listmech(Host) ->
     Mechs = ets:select(sasl_mechanism,
                        [{#sasl_mechanism{mechanism = '$1',
