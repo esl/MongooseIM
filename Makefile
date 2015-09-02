@@ -133,8 +133,10 @@ check_plt:
 build_plt:
 	dialyzer --build_plt --apps $(OTP_APPS) --output_plt $(COMBO_PLT) $(DEPS_LIBS)
 
-dialyzer:
-	dialyzer -Wno_return -Wno_unused --fullpath --plt $(COMBO_PLT) $(DIALYZER_APPS_PATHS)
+dialyzer: check_plt dialyzer_quick
+
+dialyzer_quick:
+	dialyzer -n -Wno_return -Wno_unused --fullpath --plt $(COMBO_PLT) $(DIALYZER_APPS_PATHS)
 #	    fgrep -v -f ./dialyzer.ignore-warnings | tee dialyzer.log
 
 cleanplt:
