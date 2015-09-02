@@ -37,7 +37,7 @@
 
 -include("ejabberd.hrl").
 
--export_type([rule/0]).
+-export_type([rule/0, host/0]).
 
 -type rule() :: 'all' | 'none' | atom().
 -type host() :: ejabberd:server() | 'global'.

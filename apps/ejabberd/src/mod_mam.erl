@@ -126,7 +126,8 @@
               iterator_fun/0,
               unix_timestamp/0,
               archive_id/0,
-              lookup_result/0
+              lookup_result/0,
+              message_id/0
             ]).
 
 %% ----------------------------------------------------------------------

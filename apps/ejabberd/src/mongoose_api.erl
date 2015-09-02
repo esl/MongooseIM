@@ -42,7 +42,7 @@
 -type method()   :: get | post | put | patch | delete.
 -type methods()  :: [method()].
 -type response() :: ok | {ok, any()} | {error, atom()}.
--export_type([prefix/0, routes/0, route/0, bindings/0, options/0, response/0]).
+-export_type([prefix/0, routes/0, route/0, bindings/0, options/0, response/0, methods/0]).
 
 -callback prefix() -> prefix().
 -callback routes() -> routes().

@@ -60,12 +60,12 @@
 -endif.
 
 
--record(tlssock, {tcpsock  :: gen_tcp:socket(),
+-record(tlssock, {tcpsock  :: port(),
                   tlsport  :: port()
                  }).
 -type tlssock() :: #tlssock{}.
 
--spec tcp_to_tls(gen_tcp:socket(), [any()]
+-spec tcp_to_tls(port(), [any()]
                 ) -> {ok, tlssock()} | {'error','no_certfile' | string()}.
 tcp_to_tls(TCPSocket, Options) ->
     case lists:keysearch(certfile, 1, Options) of
@@ -101,7 +101,7 @@ tcp_to_tls(TCPSocket, Options) ->
     end.
 
 
--spec tls_to_tcp(tlssock()) -> gen_tcp:socket().
+-spec tls_to_tcp(tlssock()) -> port().
 tls_to_tcp(#tlssock{tcpsock = TCPSocket, tlsport = Port}) ->
     port_close(Port),
     TCPSocket.

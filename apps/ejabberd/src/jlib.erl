@@ -86,7 +86,7 @@
 
 -export_type([xmlel/0, xmlstreamstart/0, xmlstreamend/0, xmlstreamel/0,
               binary_pair/0,
-              rsm_out/0,
+              rsm_in/0, rsm_out/0,
               xmlcdata/0
              ]).
 

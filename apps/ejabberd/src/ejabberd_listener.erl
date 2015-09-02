@@ -162,7 +162,7 @@ init_tcp(PortIP, Module, Opts, SockOpts, Port, IPS) ->
                  Module :: atom(),
                  SockOpts :: [gen_tcp:listen_option()],
                  Port :: inet:port_number(),
-                 IPS :: [any()]) -> gen_tcp:socket().
+                 IPS :: [any()]) -> port().
 listen_tcp(PortIP, Module, SockOpts, Port, IPS) ->
     case ets:lookup(listen_sockets, PortIP) of
         [{PortIP, ListenSocket}] ->

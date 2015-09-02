@@ -79,7 +79,7 @@
                 last_processed  :: rid() | 'undefined',
                 %% Report scheduled for sending at the earliest
                 %% possible occasion.
-                report = false  :: {rid(), timer:time()} | 'false'}).
+                report = false  :: {rid(), Time :: non_neg_integer()} | 'false'}).
 -type state() :: #state{}.
 
 -type statename() :: 'accumulate' | 'normal' | 'closing'.

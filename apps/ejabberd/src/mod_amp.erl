@@ -153,7 +153,7 @@ take_action({From, Packet} = HookData, #amp_rule{action=Action} = Rule) ->
         _        -> update_metric_and_drop(HookData)
     end.
 
--spec reply_to_sender(amp_rule(), jid(), jid(), exml:xmlel()) -> ok.
+-spec reply_to_sender(amp_rule(), jid(), jid(), #xmlel{}) -> ok.
 reply_to_sender(MatchedRule, ServerJid, OriginalSender, OriginalPacket) ->
     Response = amp:make_response(MatchedRule, OriginalSender, OriginalPacket),
     ejabberd_router:route(ServerJid, OriginalSender, Response).

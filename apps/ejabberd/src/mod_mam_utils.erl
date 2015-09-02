@@ -399,8 +399,8 @@ result_query(SetEl) ->
         children = [SetEl]}.
 
 -spec result_prefs(DefaultMode :: archive_behaviour(),
-                   AlwaysJIDs :: [mod_mam:literal_jid()],
-                   NeverJIDs :: [mod_mam:literal_jid()]) -> jlib:xmlel().
+                   AlwaysJIDs :: [ejabberd:literal_jid()],
+                   NeverJIDs :: [ejabberd:literal_jid()]) -> jlib:xmlel().
 result_prefs(DefaultMode, AlwaysJIDs, NeverJIDs) ->
     AlwaysEl = #xmlel{name = <<"always">>,
                       children = encode_jids(AlwaysJIDs)},
@@ -434,7 +434,7 @@ valid_behavior(<<"never">>)  -> never;
 valid_behavior(<<"roster">>) -> roster.
 
 
--spec parse_jid_list(jlib:xmlel(), binary()) -> [mod_mam:literal_jid()].
+-spec parse_jid_list(jlib:xmlel(), binary()) -> [ejabberd:literal_jid()].
 parse_jid_list(El, Name) ->
     case xml:get_subtag(El, Name) of
         false -> [];
@@ -493,7 +493,7 @@ decode_optimizations(QueryEl) ->
 %% JID serialization
 
 -spec jid_to_opt_binary(UserJID :: ejabberd:jid(), JID :: ejabberd:jid()
-                        ) -> mod_mam:literal_jid().
+                        ) -> ejabberd:literal_jid().
 jid_to_opt_binary(#jid{lserver=LServer, luser=LUser},
                   #jid{lserver=LServer, luser=LUser, lresource= <<>>}) ->
     <<>>;
@@ -517,7 +517,7 @@ jid_to_opt_binary(_,
 
 
 -spec expand_minified_jid(UserJID :: ejabberd:jid(),
-                    OptJID :: mod_mam:literal_jid()) -> mod_mam:literal_jid().
+                    OptJID :: ejabberd:literal_jid()) -> ejabberd:literal_jid().
 expand_minified_jid(#jid{lserver=LServer, luser=LUser}, <<>>) ->
     <<LUser/binary, $@, LServer/binary>>;
 expand_minified_jid(#jid{lserver=LServer, luser=LUser}, <<$/, LResource/binary>>) ->

@@ -113,7 +113,7 @@ set_server_acks(EnableServerAcks) ->
 %% gen_mod callbacks
 %%--------------------------------------------------------------------
 
--spec start(ejabberd:host(), [option()]) -> any().
+-spec start(ejabberd:server(), [option()]) -> any().
 start(_Host, Opts) ->
     try
         case gen_mod:get_opt(port, Opts, undefined) of

@@ -288,8 +288,8 @@ mam_get_prefs(Result, Host, _ArcID, _ArcJID) ->
 
 -spec mam_set_prefs(Result :: any(), Host :: ejabberd:server(),
     _ArcID :: mod_mam:archive_id(), _ArcJID :: ejabberd:jid(),
-    _DefaultMode :: any(), _AlwaysJIDs :: [mod_mam:literal_jid()],
-    _NeverJIDs :: [mod_mam:literal_jid()]) -> any().
+    _DefaultMode :: any(), _AlwaysJIDs :: [ejabberd:literal_jid()],
+    _NeverJIDs :: [ejabberd:literal_jid()]) -> any().
 mam_set_prefs(Result, Host, _ArcID, _ArcJID, _DefaultMode, _AlwaysJIDs, _NeverJIDs) ->
     mongoose_metrics:update({Host, modMamPrefsSets}, 1),
     Result.

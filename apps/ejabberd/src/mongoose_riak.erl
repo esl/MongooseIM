@@ -42,7 +42,7 @@
 
 -define(CALL(F, Args), call_riak(F, Args)).
 
--type riakc_map_op() :: {{binary(), riakc_map:datatype()},
+-type riakc_map_op() :: {{binary(), MapDataType :: atom()},
                           fun((riakc_datatype:datatype()) -> riakc_datatype:datatype())}.
 
 -spec start() -> {ok, pid()} | ignore.
@@ -61,9 +61,8 @@ start() ->
 stop() ->
     mongoose_riak_sup:stop().
 
--spec start_worker(riakc_pb_socket:address(), riakc_pb_socket:portnum(),
-                   proplists:proplist())
-        -> {ok, pid()} | {error, term()}.
+-spec start_worker(riakc_pb_socket:address(), riakc_pb_socket:portnum(), proplists:proplist()) ->
+    {ok, pid()} | {error, term()}.
 start_worker(Address, Port, Opts) ->
     riakc_pb_socket:start_link(Address, Port, Opts).
 

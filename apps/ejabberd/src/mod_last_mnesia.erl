@@ -62,7 +62,7 @@ set_last_info(LUser, LServer, TimeStamp, Status) ->
     end,
     mnesia:transaction(F).
 
--spec remove_user(ejabberd:luse(), ejabberd:lserver()) -> ok.
+-spec remove_user(ejabberd:luser(), ejabberd:lserver()) -> ok.
 remove_user(LUser, LServer) ->
     US = {LUser, LServer},
     F = fun() -> mnesia:delete({last_activity, US}) end,
