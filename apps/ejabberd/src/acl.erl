@@ -60,7 +60,7 @@
                 | {user_glob, regexp(), ejabberd:server()}
                 | {server_glob, regexp()}
                 | {resource_glob, regexp()}
-                | {node_glob, regexp()}.
+                | {node_glob, regexp(), regexp()}.
 
 -record(acl, {aclname :: acl_name(),
               aclspec :: aclspec()
@@ -268,9 +268,7 @@ match_acl(ACL, JID, Host) ->
                       ets:lookup(acl, {ACL, Host}))
     end.
 
--spec is_regexp_match(undefined | string(), Regex :: regexp()) -> boolean().
-is_regexp_match(undefined, _RegExp) ->
-    false;
+-spec is_regexp_match(binary(), Regex :: regexp()) -> boolean().
 is_regexp_match(String, RegExp) ->
     try re:run(String, RegExp, [{capture, none}]) of
         nomatch ->
@@ -282,6 +280,7 @@ is_regexp_match(String, RegExp) ->
             false
     end.
 
--spec is_glob_match(string(), Glob :: regexp()) -> boolean().
+-spec is_glob_match(binary(), Glob :: regexp()) -> boolean().
 is_glob_match(String, Glob) ->
     is_regexp_match(String, xmerl_regexp:sh_to_awk(Glob)).
+
