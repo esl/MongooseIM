@@ -206,10 +206,10 @@
 -include("ejabberd.hrl").
 
 %% Allowed types for arguments are integer, string, tuple and list.
--type atype() :: integer | string | {tuple, [aterm()]} | {list, aterm()}.
+-type atype() :: integer | string | binary | {tuple, [aterm()]} | {list, aterm()}.
 
 %% A rtype is either an atom or a tuple with two elements.
--type rtype() :: integer | string | atom | {tuple, [rterm()]}
+-type rtype() :: integer | string | atom | binary | {tuple, [rterm()]}
                | {list, rterm()} | rescode | restuple.
 
 %% An argument term is a tuple with the term name and the term type.

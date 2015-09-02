@@ -366,7 +366,6 @@ is_fresh_enough(TimeStampLast, CacheTime) ->
 get_last_access(User, Server) ->
     case ejabberd_sm:get_user_resources(User, Server) of
         [] ->
-            _US = {User, Server},
             case get_last_info(User, Server) of
                 mod_last_required ->
                     mod_last_required;
@@ -385,24 +384,10 @@ get_last_access(User, Server) ->
                     ) -> {ok, Timestamp :: integer(), Status :: binary()}
                          | not_found | mod_last_required.
 get_last_info(User, Server) ->
-    case get_mod_last_enabled(Server) of
-        mod_last -> mod_last:get_last_info(User, Server);
-        mod_last_odbc -> mod_last_odbc:get_last_info(User, Server);
-        no_mod_last -> mod_last_required
+    case gen_mod:is_loaded(Server, mod_last) of
+        true -> mod_last:get_last_info(User, Server);
+        _ -> mod_last_required
     end.
-
-
--spec get_mod_last_enabled(Server :: ejabberd:server()
-                          ) -> mod_last | mod_last_odbc | no_mod_last.
-get_mod_last_enabled(Server) ->
-    ML = gen_mod:is_loaded(Server, mod_last),
-    MLO = gen_mod:is_loaded(Server, mod_last_odbc),
-    case {ML, MLO} of
-        {true, _} -> mod_last;
-        {false, true} -> mod_last_odbc;
-        {false, false} -> no_mod_last
-    end.
-
 
 -spec get_mod_last_configured(Server :: ejabberd:server()
                              ) -> mod_last | mod_last_odbc | no_mod_last.

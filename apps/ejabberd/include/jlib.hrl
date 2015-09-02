@@ -319,7 +319,7 @@
              type         :: atom(),
              xmlns = <<>> :: binary(),
              lang = <<>>  :: ejabberd:lang(),
-             sub_el       :: [jlib:xmlel()]
+             sub_el       :: [jlib:xmlel()] | jlib:xmlel()
             }).
 
 -record(rsm_in, {max         :: non_neg_integer() | undefined | error,

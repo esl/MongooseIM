@@ -63,7 +63,7 @@ start_link() ->
 %% The integer sequence is used to sort the calls:
 %% low numbers are executed before high numbers.
 -spec add(Hook :: atom(),
-          Host :: ejabberd:server(),
+          Host :: ejabberd:server() | global,
           Function :: fun() | atom(),
           Seq :: integer()) -> ok.
 add(Hook, Host, Function, Seq) when is_function(Function) ->
@@ -73,7 +73,7 @@ add(Hook, Host, Function, Seq) when is_function(Function) ->
 %% The integer sequence is used to sort the calls:
 %% low numbers are executed before high numbers.
 -spec add(Hook :: atom(),
-          Host :: ejabberd:server(),
+          Host :: ejabberd:server() | global,
           Module :: atom(),
           Function :: fun() | atom(),
           Seq :: integer()) -> ok.
@@ -83,14 +83,14 @@ add(Hook, Host, Module, Function, Seq) ->
 %% @doc Delete a module and function from this hook.
 %% It is important to indicate exactly the same information than when the call was added.
 -spec delete(Hook :: atom(),
-             Host :: ejabberd:server(),
+             Host :: ejabberd:server() | global,
              Function :: fun() | atom(),
              Seq :: integer()) -> ok.
 delete(Hook, Host, Function, Seq) when is_function(Function) ->
     delete(Hook, Host, undefined, Function, Seq).
 
 -spec delete(Hook :: atom(),
-             Host :: ejabberd:server(),
+             Host :: ejabberd:server() | global,
              Module :: atom(),
              Function :: fun() | atom(),
              Seq :: integer()) -> ok.
@@ -105,7 +105,7 @@ run(Hook, Args) ->
     run(Hook, global, Args).
 
 -spec run(Hook :: atom(),
-          Host :: ejabberd:server(),
+          Host :: ejabberd:server() | global,
           Args :: [any()]) -> ok.
 run(Hook, Host, Args) ->
     case ets:lookup(hooks, {Hook, Host}) of

@@ -564,7 +564,7 @@ iq_to_xml(#iq{id = ID, type = Type, sub_el = SubEl}) ->
 
 %% @doc Convert `#iq.sub_el' back to `#xmlel.children'.
 %% @end
--spec sub_el_to_els([xmlel()]) -> [xmlel()].
+-spec sub_el_to_els([xmlel()] | xmlel()) -> [xmlel()].
 %% for requests.
 sub_el_to_els(#xmlel{}=E) -> [E];
 %% for replies.

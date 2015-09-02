@@ -27,14 +27,14 @@ start_link(Opts) ->
                              [?POOL_NAME, PoolSize, ChildMods, ChildMF, ChildArgs]},
                             transient, 2000, supervisor, [cuesport | ChildMods]}).
 
--spec cmd(iolist()) -> binary()
+-spec cmd(iolist()) -> undefined | binary()
                 | [binary() | [binary() | integer()] | integer() | {'error',_}]
                 | integer()
                 | {'error',_}.
 cmd(Cmd) ->
     redo:cmd(cuesport:get_worker(?POOL_NAME), Cmd).
 
--spec cmd(iolist(), integer()) -> binary()
+-spec cmd(iolist(), integer()) -> undefined | binary()
               | [binary() | [binary() | integer()] | integer() | {'error',_}]
               | integer()
               | {'error',_}.

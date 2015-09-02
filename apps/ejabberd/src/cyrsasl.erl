@@ -40,9 +40,7 @@
                          module :: sasl_module(),
                          password_type :: plain | digest | scram
                         }).
--type sasl_module() :: cyrsasl_anonymous
-                     | cyrsasl_digest
-                     | cyrsasl_plain.
+-type sasl_module() :: atom().
 -type mechanism() :: binary().
 -type sasl_mechanism() :: #sasl_mechanism{}.
 

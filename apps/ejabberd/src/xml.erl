@@ -234,7 +234,7 @@ get_attr(AttrName, Attrs) ->
     end.
 
 
--spec get_attr_s(string(), string()) -> string().
+-spec get_attr_s(binary(), list()) -> binary().
 get_attr_s(AttrName, Attrs) ->
     case lists:keysearch(AttrName, 1, Attrs) of
         {value, {_, Val}} ->
@@ -243,14 +243,12 @@ get_attr_s(AttrName, Attrs) ->
             context_default(AttrName)
     end.
 
-
--spec get_tag_attr(binary() | string(), jlib:xmlel()
-                  ) -> 'false' | {'value',binary() | string()}.
+-spec get_tag_attr(binary(), jlib:xmlel()) -> 'false' | {'value', binary()}.
 get_tag_attr(AttrName, #xmlel{attrs = Attrs}) ->
     get_attr(AttrName, Attrs).
 
 
--spec get_tag_attr_s(string(), jlib:xmlel()) -> string().
+-spec get_tag_attr_s(binary(), jlib:xmlel()) -> binary().
 get_tag_attr_s(AttrName, #xmlel{attrs = Attrs}) ->
     get_attr_s(AttrName, Attrs).
 
@@ -277,7 +275,7 @@ append_subtags(XE = #xmlel{children = SubTags1}, SubTags2) ->
     XE#xmlel{children = SubTags1 ++ SubTags2}.
 
 
--spec get_path_s(jlib:xmlel(), string()) -> string().
+-spec get_path_s(jlib:xmlel(), [{elem, binary()} | {attr, binary()} | cdata]) -> string().
 get_path_s(El, []) ->
     El;
 get_path_s(El, [{elem, Name} | Path]) ->
