@@ -62,6 +62,8 @@
 -type format_type() :: binary() | string() | char().
 -type cmd() :: {CallString :: string(), Args :: [string()], Desc :: string()}.
 
+-define(ASCII_SPACE_CHARACTER, $\s).
+
 %%-----------------------------
 %% Module
 %%-----------------------------
@@ -369,7 +371,7 @@ args_join_strings([ "\"", NextArg | RArgs ]) ->
     args_join_strings([ "\"" ++ NextArg | RArgs ]);
 args_join_strings([ [ $" | _ ] = Arg | RArgs ]) ->
     case lists:nthtail(length(Arg)-2, Arg) of
-        [C1, $"] when C1 /= $\ ->
+        [C1, $"] when C1 /= ?ASCII_SPACE_CHARACTER ->
             [ string:substr(Arg, 2, length(Arg)-2) | args_join_strings(RArgs) ];
         _ ->
             [NextArg | RArgs1] = RArgs,
