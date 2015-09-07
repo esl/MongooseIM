@@ -8,7 +8,7 @@ while [ $# -ne 0 ] ; do
     shift
     case $PARAM in
         --) break ;;
-        *) ARGS="$ARGS $PARAM" ;;
+        *) ARGS="$ARGS \"$PARAM\"" ;;
     esac
 done
 
@@ -79,7 +79,7 @@ help ()
 # common control function
 ctl ()
 {
-    COMMAND=$@
+    COMMAND="$@"
 
     # Control number of connections identifiers
     # using flock if available. Expects a linux-style
@@ -156,7 +156,7 @@ ctl ()
 ctlexec ()
 {
     CONN_NAME=$1; shift
-    COMMAND=$@
+    COMMAND="$@"
     $ERL \
       $NAME_TYPE ${CONN_NAME} \
       -noinput \
