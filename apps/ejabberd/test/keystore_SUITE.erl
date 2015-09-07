@@ -41,8 +41,8 @@ module_startup_read_key_from_file(_) ->
     %% when
     ok = mod_keystore:start(<<"localhost">>, key_from_file(KeyFile)),
     %% then
-    {key_from_file, RawKey} = ejabberd_hooks:run_fold(get_key, <<"localhost">>,
-                                                      undefined, [key_from_file]).
+    [{key_from_file, RawKey}] = ejabberd_hooks:run_fold(get_key, <<"localhost">>,
+                                                        [], [key_from_file]).
 
 %%
 %% Helpers
