@@ -34,6 +34,7 @@
 
 -include("ejabberd.hrl").
 
+-type http_error_atom() :: conflict | not_found | not_authorized | not_allowed.
 
 %%%----------------------------------------------------------------------
 %%% API
@@ -102,7 +103,7 @@ check_password(LUser, LServer, Password, Digest, DigestGen) ->
             end
     end.
 
--spec set_password(ejabberd:luser(), ejabberd:lserver(), binary()) -> ok | {error, term()}.
+-spec set_password(ejabberd:luser(), ejabberd:lserver(), binary()) -> ok | {error, not_allowed}.
 set_password(LUser, LServer, Password) ->
     PasswordFinal = case scram:enabled(LServer) of
                         true -> scram:serialize(scram:password_to_scram(
@@ -110,11 +111,13 @@ set_password(LUser, LServer, Password) ->
                         false -> Password
                     end,
     case make_req(post, <<"set_password">>, LUser, LServer, PasswordFinal) of
-        {error, _} = Err -> Err;
-        _ -> ok
+        {ok, _} -> ok;
+        {error, invalid_jid} = Error -> Error;
+        {error, _} -> {error, not_allowed}
     end.
 
--spec try_register(ejabberd:luser(), ejabberd:lserver(), binary()) -> {atomic, ok | exists} | {error, term()}.
+-spec try_register(ejabberd:luser(), ejabberd:lserver(), binary()) ->
+    ok | {error, exists | not_allowed}.
 try_register(LUser, LServer, Password) ->
     PasswordFinal = case scram:enabled(LServer) of
                         true -> scram:serialize(scram:password_to_scram(
@@ -124,7 +127,7 @@ try_register(LUser, LServer, Password) ->
     case make_req(post, <<"register">>, LUser, LServer, PasswordFinal) of
         {ok, created} -> ok;
         {error, conflict} -> {error, exists};
-        Error -> Error
+        _Error -> {error, not_allowed}
     end.
 
 -spec dirty_get_registered_users() -> [].
@@ -147,8 +150,7 @@ get_vh_registered_users_number(_Server) ->
 get_vh_registered_users_number(_Server, _Opts) ->
     0.
 
--spec get_password(ejabberd:luser(), ejabberd:lserver()) -> false | binary() |
-                                          {binary(), binary(), binary(), integer()}.
+-spec get_password(ejabberd:luser(), ejabberd:lserver()) -> false | binary() | scram:scram_tuple().
 get_password(LUser, LServer) ->
     case make_req(get, <<"get_password">>, LUser, LServer, <<"">>) of
         {error, _} ->
@@ -181,23 +183,26 @@ does_user_exist(LUser, LServer) ->
         _ -> false
     end.
 
--spec remove_user(ejabberd:luser(), ejabberd:lserver()) -> ok | not_exists | not_allowed | bad_request.
+-spec remove_user(ejabberd:luser(), ejabberd:lserver()) ->
+    ok | {error, not_allowed}.
 remove_user(LUser, LServer) ->
-    remove_user_req(LUser, LServer, <<"">>, <<"remove_user">>).
+    case remove_user_req(LUser, LServer, <<"">>, <<"remove_user">>) of
+        ok -> ok;
+        _ -> {error, not_allowed}
+    end.
 
--spec remove_user(ejabberd:luser(), ejabberd:lserver(), binary()) -> ok | not_exists | not_allowed | bad_request.
+-spec remove_user(ejabberd:luser(), ejabberd:lserver(), binary()) ->
+    ok | {error, not_allowed | not_exists | bad_request}.
 remove_user(LUser, LServer, Password) ->
     case scram:enabled(LServer) of
         false ->
             remove_user_req(LUser, LServer, Password, <<"remove_user_validate">>);
         true ->
             case verify_scram_password(LUser, LServer, Password) of
-                {ok, false} ->
-                    not_allowed;
                 {ok, true} ->
                     remove_user_req(LUser, LServer, <<"">>, <<"remove_user">>);
-                {error, Error} ->
-                    Error
+                {ok, false} ->
+                    {error, not_allowed}
             end
     end.
 
@@ -205,10 +210,10 @@ remove_user(LUser, LServer, Password) ->
     ok | not_exists | not_allowed | bad_request.
 remove_user_req(LUser, LServer, Password, Method) ->
     case make_req(post, Method, LUser, LServer, Password) of
-        {error, not_allowed} -> not_allowed;
-        {error, not_found} -> not_exists;
-        {error, _} -> bad_request;
-        _ -> ok
+        {error, not_allowed} -> {error, not_allowed};
+        {error, not_found} -> {error, not_exists};
+        {error, _} -> {error, bad_request};
+        {ok, _} -> ok
     end.
 
 %%%----------------------------------------------------------------------
@@ -216,9 +221,9 @@ remove_user_req(LUser, LServer, Password, Method) ->
 %%%----------------------------------------------------------------------
 
 -spec make_req(post | get, binary(), binary(), binary(), binary()) ->
-    {ok, Body :: binary()} | {error, term()}.
+    {ok, BodyOrCreated :: binary() | created} | {error, invalid_jid | http_error_atom() | binary()}.
 make_req(_, _, LUser, LServer, _) when LUser == error orelse LServer == error ->
-    {error, {prep_failed, LUser, LServer}};
+    {error, invalid_jid};
 make_req(Method, Path, LUser, LServer, Password) -> 
     AuthOpts = ejabberd_config:get_local_option(auth_opts, LServer),
     BasicAuth = case lists:keyfind(basic_auth, 1, AuthOpts) of

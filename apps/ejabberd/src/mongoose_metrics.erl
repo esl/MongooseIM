@@ -56,7 +56,7 @@ init() ->
                 subscribe_to_all(Name, Interval)
         end, Reporters).
 
--spec update({term(), term()}, term()) -> no_return().
+-spec update({term(), term()} | list(), term()) -> any().
 update(Name, Change) when is_tuple(Name)->
     update(tuple_to_list(Name), Change);
 update(Name, Change) ->

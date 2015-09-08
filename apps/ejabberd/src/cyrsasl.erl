@@ -62,7 +62,6 @@
                                       'false' | {'true', ejabberd_auth:authmodule()}
                                  ).
 -type check_pass_digest_fun() :: fun((User :: ejabberd:user(),
-                                    Server :: ejabberd:server(),
                                     Password :: binary(),
                                     Digest :: binary(),
                                     DigestGen :: fun()) ->

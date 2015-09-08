@@ -76,18 +76,17 @@ put(Obj) ->
 put(Obj, OptsOrTimeout) ->
     ?CALL(put, [Obj, OptsOrTimeout]).
 
--spec get(bucket(), key()) -> {ok, riakc_obj()} | {error, term()}.
+-spec get(bucket() | {binary(), bucket()}, key()) -> {ok, riakc_obj()} | {error, term()}.
 get(Bucket, Key) ->
     get(Bucket, Key, []).
 
--spec get(bucket(), key(), get_options() | timeout()) ->
+-spec get(bucket() | {binary(), bucket()}, key(), get_options() | timeout()) ->
     {ok, riakc_obj()} | {error, term()}.
 get(Bucket, Key, OptsOrTimeout) ->
     ?CALL(get, [Bucket, Key, OptsOrTimeout]).
 
 
--spec update_type({binary(), binary()}, binary(), riakc_datatype:update(term())) ->
-    ok.
+-spec update_type({binary(), binary()}, binary(), riakc_datatype:update(term())) -> ok.
 update_type(Bucket, Key, Update) ->
     update_type(Bucket, Key, Update, []).
 
@@ -97,12 +96,12 @@ update_type(Bucket, Key, Update) ->
 update_type(Bucket, Key, Update, Options) ->
     ?CALL(update_type, [Bucket, Key, Update, Options]).
 
--spec delete(bucket(), key()) ->
+-spec delete(bucket() | {binary(), bucket()}, key()) ->
     ok | {error, term()}.
 delete(Bucket, Key) ->
     delete(Bucket, Key, []).
 
--spec delete(bucket(), key(), delete_options() | timeout()) ->
+-spec delete(bucket() | {binary(), bucket()}, key(), delete_options() | timeout()) ->
     ok | {error, term()}.
 delete(Bucket, Key, OptsOrTimeout) ->
     ?CALL(delete, [Bucket, Key, OptsOrTimeout]).

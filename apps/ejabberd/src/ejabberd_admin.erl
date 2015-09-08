@@ -445,7 +445,7 @@ dump_table(Path, STable) ->
     Table = list_to_atom(STable),
     dump_tables(Path, [Table]).
 
--spec dump_tables(file:name(), Tables :: [string()]) ->
+-spec dump_tables(file:name(), Tables :: [atom()]) ->
                         {'cannot_dump', io_lib:chars()} | {'ok', []}.
 dump_tables(Path, Tables) ->
     case dump_to_textfile(Path, Tables) of

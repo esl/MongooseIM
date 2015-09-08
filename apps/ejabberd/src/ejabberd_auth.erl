@@ -62,11 +62,7 @@
 
 -export_type([authmodule/0]).
 
--type authmodule() :: ejabberd_auth_anonymous
-                    | ejabberd_auth_external
-                    | ejabberd_auth_internal
-                    | ejabberd_auth_ldap
-                    | ejabberd_auth_odbc.
+-type authmodule() :: atom().
 
 -define(METRIC(Host, Name), [backends, auth, Host, Name]).
 %%%----------------------------------------------------------------------
@@ -169,6 +165,10 @@ check_password_with_authmodule(User, Server, Password) ->
     LServer = jlib:nameprep(Server),
     do_check_password_with_authmodule(LUser, LServer, Password).
 
+-spec do_check_password_with_authmodule(LUser :: ejabberd:luser(),
+                                        LServer :: ejabberd:lserver(),
+                                        Password :: binary()
+                                       ) -> 'false' | {'true', authmodule()}.
 do_check_password_with_authmodule(LUser, LServer, _)
     when LUser =:= error; LServer =:= error ->
     false;
@@ -186,6 +186,12 @@ check_password_with_authmodule(User, Server, Password, Digest, DigestGen) ->
     LServer = jlib:nameprep(Server),
     do_check_password_with_authmodule(LUser, LServer, Password, Digest, DigestGen).
 
+-spec do_check_password_with_authmodule(LUser :: ejabberd:luser(),
+                                        LServer :: ejabberd:lserver(),
+                                        Password :: binary(),
+                                        Digest :: binary(),
+                                        DigestGen :: fun()
+                                     ) -> 'false' | {'true', authmodule()}.
 do_check_password_with_authmodule(LUser, LServer, _, _, _)
     when LUser =:= error; LServer =:= error ->
     false;
@@ -585,7 +591,9 @@ ensure_metrics(Host) ->
     [mongoose_metrics:ensure_metric(?METRIC(Host, Metric), histogram)
      || Metric <- Metrics].
 
+-spec timed_call(ejabberd:lserver(), term(), fun(), list()) -> term().
 timed_call(LServer, Metric, Fun, Args) ->
     {Time, Result} = timer:tc(Fun, Args),
     mongoose_metrics:update(?METRIC(LServer, Metric), Time),
     Result.
+

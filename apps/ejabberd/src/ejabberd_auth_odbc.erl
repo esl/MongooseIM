@@ -98,7 +98,7 @@ check_password(LUser, LServer, Password, Digest, DigestGen) ->
             ejabberd_auth:check_digest(Digest, DigestGen, Password, Passwd);
         {selected, [<<"password">>, <<"pass_details">>], [{_Passwd, PassDetails}]} ->
             case scram:deserialize(PassDetails) of
-                #scram{} = Scram ->
+                {ok, #scram{} = Scram} ->
                     scram:check_digest(Scram, Digest, DigestGen, Password);
                 _ ->
                     false
@@ -141,42 +141,33 @@ check_password_wo_escape(LUser, LServer, Password) ->
 -spec set_password(LUser :: ejabberd:luser(),
                    LServer :: ejabberd:lserver(),
                    Password :: binary()
-                   ) -> ok | {error, not_allowed | invalid_jid}.
+                   ) -> ok | {error, not_allowed}.
 set_password(LUser, LServer, Password) ->
     Username = ejabberd_odbc:escape(LUser),
-    case prepare_password(LServer, Password) of
-        false ->
-            {error, invalid_password};
-        Pass ->
-            case catch odbc_queries:set_password_t(LServer, Username, Pass) of
-                {atomic, ok} ->
-                    ok;
-                Other ->
-                    {error, Other}
-            end
+    PreparedPass = prepare_password(LServer, Password),
+    case catch odbc_queries:set_password_t(LServer, Username, PreparedPass) of
+        {atomic, ok} ->
+            ok;
+        Error ->
+            ?WARNING_MSG("Failed SQL request: ~p", [Error]),
+            {error, not_allowed}
     end.
-
 
 -spec try_register(LUser :: ejabberd:luser(),
                    LServer :: ejabberd:lserver(),
                    Password :: binary()
-                   ) -> {atomic, ok | exists}
-                      | {error, invalid_jid | not_allowed} | {aborted, _}.
+                   ) -> ok | {error, exists}.
 try_register(LUser, LServer, Password) ->
     Username = ejabberd_odbc:escape(LUser),
-    case prepare_password(LServer, Password) of
-        false ->
-            {error, invalid_password};
-        Pass ->
-            case catch odbc_queries:add_user(LServer, Username, Pass) of
-                {updated, 1} ->
-                    ok;
-                _ ->
-                    {error, exists}
-            end
+    PreparedPass = prepare_password(LServer, Password),
+    case catch odbc_queries:add_user(LServer, Username, PreparedPass) of
+        {updated, 1} ->
+            ok;
+        _ ->
+            {error, exists}
     end.
 
--spec dirty_get_registered_users() -> [ejabberd:simple_jid()].
+-spec dirty_get_registered_users() -> [ejabberd:simple_bare_jid()].
 dirty_get_registered_users() ->
     Servers = ejabberd_config:get_vh_by_auth_method(odbc),
     lists:flatmap(
@@ -185,8 +176,7 @@ dirty_get_registered_users() ->
       end, Servers).
 
 
--spec get_vh_registered_users(LServer :: ejabberd:lserver()
-                             ) -> [ejabberd:simple_jid()].
+-spec get_vh_registered_users(LServer :: ejabberd:lserver()) -> [ejabberd:simple_bare_jid()].
 get_vh_registered_users(LServer) ->
     case catch odbc_queries:list_users(LServer) of
         {selected, [<<"username">>], Res} ->
@@ -197,7 +187,7 @@ get_vh_registered_users(LServer) ->
 
 
 -spec get_vh_registered_users(LServer :: ejabberd:lserver(), Opts :: list()
-                             ) -> [ejabberd:simple_jid()].
+                             ) -> [ejabberd:simple_bare_jid()].
 get_vh_registered_users(LServer, Opts) ->
     case catch odbc_queries:list_users(LServer, Opts) of
         {selected, [<<"username">>], Res} ->
@@ -282,7 +272,7 @@ does_user_exist(LUser, LServer) ->
 %% Note: it may return ok even if there was some problem removing the user.
 -spec remove_user(LUser :: ejabberd:luser(),
                   LServer :: ejabberd:lserver()
-                  ) -> ok | error | {error, not_allowed}.
+                  ) -> ok.
 remove_user(LUser, LServer) ->
     Username = ejabberd_odbc:escape(LUser),
     catch odbc_queries:del_user(LServer, Username),
@@ -293,36 +283,43 @@ remove_user(LUser, LServer) ->
 -spec remove_user(LUser :: ejabberd:luser(),
                   LServer :: ejabberd:lserver(),
                   Password :: binary()
-                 ) -> ok | not_exists | not_allowed | bad_request | error.
+                 ) -> ok | {error, not_exists | not_allowed}.
 remove_user(LUser, LServer, Password) ->
     Username = ejabberd_odbc:escape(LUser),
     Pass = ejabberd_odbc:escape(Password),
     case check_password_wo_escape(Username, LServer, Pass) of
         true ->
             case catch odbc_queries:del_user(LServer, Username) of
-                {'EXIT', _} -> error;
-                _ -> ok
+                {'EXIT', Error} ->
+                    ?WARNING_MSG("Failed SQL query: ~p", [Error]),
+                    {error, not_allowed};
+                _ ->
+                    ok
             end;
         not_exists ->
-            not_exists;
+            {error, not_exists};
         false ->
-            not_allowed
+            {error, not_allowed}
     end.
 
 %%%------------------------------------------------------------------
 %%% SCRAM
 %%%------------------------------------------------------------------
 
-prepare_password(Iterations, Password) when is_integer(Iterations) ->
+-spec prepare_scrammed_password(Iterations :: pos_integer(), Password :: binary()) ->
+    {PreparedPassword :: binary(), ExtendedPassword :: binary()}.
+prepare_scrammed_password(Iterations, Password) when is_integer(Iterations) ->
     Scram = scram:password_to_scram(Password, Iterations),
     PassDetails = scram:serialize(Scram),
     PassDetailsEscaped = ejabberd_odbc:escape(PassDetails),
-    {<<"">>, PassDetailsEscaped};
+    {<<>>, PassDetailsEscaped}.
 
+-spec prepare_password(Server :: ejabberd:server(), Password :: binary()) ->
+    PreparedPassword :: {binary(), binary()} | binary().
 prepare_password(Server, Password) ->
     case scram:enabled(Server) of
         true ->
-            prepare_password(scram:iterations(Server), Password);
+            prepare_scrammed_password(scram:iterations(Server), Password);
         _ ->
             ejabberd_odbc:escape(Password)
     end.
@@ -349,7 +346,7 @@ scram_passwords1(LServer, Count, Interval, ScramIterationCount) ->
             ?INFO_MSG("Scramming ~p users...", [length(Results)]),
             lists:foreach(
               fun({Username, Password}) ->
-                      Scrammed = prepare_password(ScramIterationCount, Password),
+                      Scrammed = prepare_scrammed_password(ScramIterationCount, Password),
                       case catch odbc_queries:set_password_t(LServer, Username, Scrammed) of
                           {atomic, ok} -> ok;
                           Other -> ?ERROR_MSG("Could not scrammify user ~s@~s because: ~p", [Username, LServer, Other])

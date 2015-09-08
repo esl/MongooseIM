@@ -56,11 +56,11 @@
 
 -include("ejabberd.hrl").
 
--record(passwd, {us :: ejabberd:simple_bare_jid(),
-                 password :: binary()
+-record(passwd, {us :: ejabberd:simple_bare_jid() | atom(), % atom() for mnesia:dirty_select
+                 password :: binary() | #scram{} | atom() % atom() for mnesia:dirty_select
                 }).
 -record(reg_users_counter, {vhost :: binary(),
-                            count :: integer()
+                            count :: integer() | atom() % atom() for mnesia:dirty_select
                            }).
 
 %%%----------------------------------------------------------------------
@@ -113,7 +113,7 @@ store_type(Server) ->
 check_password(LUser, LServer, Password) ->
     US = {LUser, LServer},
     case catch mnesia:dirty_read({passwd, US}) of
-        [#passwd{password = Scram}] when is_record(Scram, scram) ->
+        [#passwd{password = #scram{} = Scram}] ->
             scram:check_password(Password, Scram);
         [#passwd{password = Password}] ->
             Password /= <<>>;
@@ -161,9 +161,7 @@ set_password(LUser, LServer, Password) ->
 -spec try_register(LUser :: ejabberd:luser(),
                    LServer :: ejabberd:lserver(),
                    Password :: binary()
-                   ) -> {atomic, ok | exists}
-                      | {error, invalid_jid | not_allowed}
-                      | {aborted, _}.
+                   ) -> ok | {error, exists | not_allowed}.
 try_register(LUser, LServer, Password) ->
     US = {LUser, LServer},
     F = fun() ->
@@ -189,19 +187,20 @@ try_register(LUser, LServer, Password) ->
             ok;
         {atomic, exists} ->
             {error, exists};
-        {aborted, _} = Aborted ->
-            {error, Aborted}
+        Result ->
+            ?ERROR_MSG("transaction_result=~p", [Result]),
+            {error, not_allowed}
     end.
 
 
 %% @doc Get all registered users in Mnesia
--spec dirty_get_registered_users() -> [ejabberd:simple_jid()].
+-spec dirty_get_registered_users() -> [ejabberd:simple_bare_jid()].
 dirty_get_registered_users() ->
     mnesia:dirty_all_keys(passwd).
 
 
 -spec get_vh_registered_users(LServer :: ejabberd:lserver()
-                             ) -> [ejabberd:simple_jid()].
+                             ) -> [ejabberd:simple_bare_jid()].
 get_vh_registered_users(LServer) ->
     mnesia:dirty_select(
       passwd,
@@ -211,10 +210,10 @@ get_vh_registered_users(LServer) ->
 
 
 -type query_keyword() :: from | to | limit | offset | prefix.
--type query_value() :: integer() | string().
+-type query_value() :: integer() | binary().
 -spec get_vh_registered_users(LServer :: ejabberd:lserver(),
                               Query :: [{query_keyword(), query_value()}]
-                              ) -> [ejabberd:simple_jid()].
+                              ) -> [ejabberd:simple_bare_jid()].
 get_vh_registered_users(LServer, [{from, Start}, {to, End}])
         when is_integer(Start) and is_integer(End) ->
     get_vh_registered_users(LServer, [{limit, End-Start+1}, {offset, Start}]);
@@ -233,15 +232,17 @@ get_vh_registered_users(LServer, [{limit, Limit}, {offset, Offset}])
         lists:sublist(Set, Start, Limit)
     end;
 get_vh_registered_users(LServer, [{prefix, Prefix}])
-        when is_list(Prefix) ->
-    Set = [{U,S} || {U, S} <- get_vh_registered_users(LServer), lists:prefix(Prefix, U)],
+        when is_binary(Prefix) ->
+    Set = [{U,S} || {U, S} <- get_vh_registered_users(LServer),
+                    binary:part(U, 0, bit_size(Prefix)) =:= Prefix],
     lists:keysort(1, Set);
 get_vh_registered_users(LServer, [{prefix, Prefix}, {from, Start}, {to, End}])
-        when is_list(Prefix) and is_integer(Start) and is_integer(End) ->
+        when is_binary(Prefix) and is_integer(Start) and is_integer(End) ->
     get_vh_registered_users(LServer, [{prefix, Prefix}, {limit, End-Start+1}, {offset, Start}]);
 get_vh_registered_users(LServer, [{prefix, Prefix}, {limit, Limit}, {offset, Offset}])
-        when is_list(Prefix) and is_integer(Limit) and is_integer(Offset) ->
-    case [{U,S} || {U, S} <- get_vh_registered_users(LServer), lists:prefix(Prefix, U)] of
+        when is_binary(Prefix) and is_integer(Limit) and is_integer(Offset) ->
+    case [{U,S} || {U, S} <- get_vh_registered_users(LServer),
+                   binary:part(U, 0, bit_size(Prefix)) =:= Prefix] of
     [] ->
         [];
     Users ->
@@ -273,10 +274,11 @@ get_vh_registered_users_number(LServer) ->
 
 
 -spec get_vh_registered_users_number(LServer :: ejabberd:lserver(),
-                                     Query :: [{prefix, string()}]
+                                     Query :: [{prefix, binary()}]
                                      ) -> integer().
-get_vh_registered_users_number(LServer, [{prefix, Prefix}]) when is_list(Prefix) ->
-    Set = [{U, S} || {U, S} <- get_vh_registered_users(LServer), lists:prefix(Prefix, U)],
+get_vh_registered_users_number(LServer, [{prefix, Prefix}]) when is_binary(Prefix) ->
+    Set = [{U, S} || {U, S} <- get_vh_registered_users(LServer),
+                     binary:part(U, 0, bit_size(Prefix)) =:= Prefix],
     length(Set);
 get_vh_registered_users_number(LServer, _) ->
     get_vh_registered_users_number(LServer).
@@ -299,7 +301,7 @@ get_password(LUser, LServer) ->
     end.
 
 -spec get_password_s(LUser :: ejabberd:luser(),
-                     LServer :: ejabberd:lserver()) -> binary() | false.
+                     LServer :: ejabberd:lserver()) -> binary().
 get_password_s(LUser, LServer) ->
     US = {LUser, LServer},
     case catch mnesia:dirty_read(passwd, US) of
@@ -310,7 +312,6 @@ get_password_s(LUser, LServer) ->
 	_ ->
 	    <<"">>
     end.
-
 
 -spec does_user_exist(LUser :: ejabberd:luser(),
                      LServer :: ejabberd:lserver()
@@ -331,7 +332,7 @@ does_user_exist(LUser, LServer) ->
 %% Note: it returns ok even if there was some problem removing the user.
 -spec remove_user(LUser :: ejabberd:luser(),
                   LServer :: ejabberd:lserver()
-                  ) -> ok | error | {error, not_allowed}.
+                  ) -> ok | {error, not_allowed}.
 remove_user(LUser, LServer) ->
     US = {LUser, LServer},
     F = fun() ->
@@ -347,7 +348,7 @@ remove_user(LUser, LServer) ->
 -spec remove_user(LUser :: ejabberd:luser(),
                   LServer :: ejabberd:lserver(),
                   Password :: binary()
-                  ) -> ok | not_exists | not_allowed | bad_request | error.
+                  ) -> ok | {error, not_exists | not_allowed | bad_request}.
 remove_user(LUser, LServer, Password) ->
     US = {LUser, LServer},
     F = fun() ->
@@ -374,10 +375,13 @@ remove_user(LUser, LServer, Password) ->
     case mnesia:transaction(F) of
         {atomic, ok} ->
             ok;
-        {atomic, Res} ->
-            Res;
-        _ ->
-            bad_request
+        {atomic, not_exists} ->
+            {error, not_exists};
+        {atomic, not_allowed} ->
+            {error, not_allowed};
+        Error ->
+            ?ERROR_MSG("Mnesia transaction fail: ~p", [Error]),
+            {error, bad_request}
     end.
 
 scram_passwords() ->
