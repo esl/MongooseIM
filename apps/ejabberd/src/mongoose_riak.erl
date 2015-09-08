@@ -57,7 +57,8 @@ start() ->
             RiakPBOpts = [auto_reconnect, keepalive],
             mongoose_riak_sup:start(Workers, RiakAddr, RiakPort, RiakPBOpts)
     end.
--spec stop() -> no_return().
+
+-spec stop() -> _.
 stop() ->
     mongoose_riak_sup:stop().
 

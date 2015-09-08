@@ -31,7 +31,7 @@
 
 -export([raw_to_record/2]).
 
--spec init(ejabberd:server(), list()) -> no_return().
+-spec init(ejabberd:server(), list()) -> ok.
 init(_Host, _Opts) ->
     mnesia:create_table(roster,
                         [{disc_copies, [node()]},
@@ -40,7 +40,8 @@ init(_Host, _Opts) ->
                         [{disc_copies, [node()]},
                          {attributes, record_info(fields, roster_version)}]),
     mnesia:add_table_index(roster, us),
-    mnesia:add_table_index(roster_version, us).
+    mnesia:add_table_index(roster_version, us),
+    ok.
 
 -spec read_roster_version(ejabberd:luser(), ejabberd:lserver())
 -> binary() | error.

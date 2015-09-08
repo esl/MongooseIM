@@ -97,17 +97,17 @@ get_metric_values(Host) ->
 get_aggregated_values(Metric) ->
     exometer:aggregate([{{['_',Metric],'_','_'},[],[true]}], [one, count, value]).
 
--spec init_predefined_host_metrics(ejabberd:lserver()) -> no_return().
+-spec init_predefined_host_metrics(ejabberd:lserver()) -> ok.
 init_predefined_host_metrics(Host) ->
     create_metrics(Host),
     metrics_hooks(add, Host),
     ok.
 
--spec create_generic_hook_metric(ejabberd:lserver(), atom()) -> no_return().
+-spec create_generic_hook_metric(ejabberd:lserver(), atom()) -> ok | {ok, already_present}.
 create_generic_hook_metric(Host, Hook) ->
     do_create_generic_hook_metric([Host, filter_hook(Hook)]).
 
--spec increment_generic_hook_metric(ejabberd:lserver(), atom()) -> no_return().
+-spec increment_generic_hook_metric(ejabberd:lserver(), atom()) -> ok | {error, any()}.
 increment_generic_hook_metric(Host, Hook) ->
     do_increment_generic_hook_metric([Host, filter_hook(Hook)]).
 

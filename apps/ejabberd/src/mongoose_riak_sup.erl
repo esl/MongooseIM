@@ -48,7 +48,7 @@ start(Workers, Addr, Port, PBOpts) ->
 start_link(Workers, Addr, Port, PBOpts) ->
     supervisor:start_link({local, ?SERVER}, ?MODULE, [Workers, Addr, Port, PBOpts]).
 
--spec stop() -> no_return().
+-spec stop() -> _.
 stop() ->
     supervisor:terminate_child(ejabberd_sup, ?MODULE),
     supervisor:delete_child(ejabberd_sup, ?MODULE).

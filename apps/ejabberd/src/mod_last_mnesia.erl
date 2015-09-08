@@ -24,12 +24,13 @@
          set_last_info/4,
          remove_user/2]).
 
--spec init(ejabberd:server(), list()) -> no_return().
+-spec init(ejabberd:server(), list()) -> ok.
 init(_Host, _Opts) ->
     mnesia:create_table(last_activity,
-        [{disc_copies, [node()]},
-            {attributes,
-                record_info(fields, last_activity)}]).
+                        [{disc_copies, [node()]},
+                         {attributes,
+                          record_info(fields, last_activity)}]),
+    ok.
 
 -spec get_last(ejabberd:luser(), ejabberd:lserver()) ->
     {ok, non_neg_integer(), binary()} | {error, term()} | not_found.

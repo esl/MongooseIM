@@ -1142,7 +1142,7 @@ compute_config_file_version(#state{opts = Opts, hosts = Hosts}) ->
     crypto:hash(sha, term_to_binary(L)).
 
 -spec check_hosts([ejabberd:server()], [ejabberd:server()]) -> {[ejabberd:server()],
-                                                            [ejabberd:server()]}.
+                                                                [ejabberd:server()]}.
 check_hosts(NewHosts, OldHosts) ->
     Old = sets:from_list(OldHosts),
     New = sets:from_list(NewHosts),
