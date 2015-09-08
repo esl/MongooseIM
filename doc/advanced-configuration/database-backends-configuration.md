@@ -52,7 +52,7 @@ psql -h localhost -U user -c "CREATE DATABASE mongooseim;"
 psql -h localhost -U user -q -d mongooseim -f pg.sql
 ```
 
-# MSSQL
+# MSSQL / Azure SQL
 
 **Can be used for:**
 
@@ -65,6 +65,61 @@ psql -h localhost -U user -q -d mongooseim -f pg.sql
 * mam (message archive)
 
 **Setup**
+
+MSSQL can be used from Mongoose through the ODBC layer, so you need to
+have it installed in your system. Moreover, an Erlang/OTP release must be
+built with the support for ODBC as well as MongooseIM itself.
+
+You can configure MongooseIM appropriately by using the following command: ``make configure with-odbc``.
+
+You also need FreeTDS (an ODBC driver for MSSQL) installed in your
+system.
+
+Then you need to configure ODBC and FreeTDS drivers. You can find an
+example configuration for CentOS, given that unixODBC and freetds packages have
+been installed.
+
+Add your database (``mongooseim`` here) to the ``/etc/odbc.ini`` file:
+```ini
+[mongoose-mssql]
+Driver = FreeTDS
+Servername = mssql-local
+Database = mongooseim
+```
+
+Add path to the ``FreeTDS`` driver to the ``/etc/odbcinst.ini`` file:
+```ini
+[FreeTDS]
+Description = TDS driver (Sybase/MS SQL)
+Setup = /usr/lib64/libtdsS.so.2
+Driver = /usr/lib64/libtdsodbc.so.0
+UsageCount = 1
+```
+For more details please refer to the [odbc.ini and odbcinst.ini
+documentation](http://www.unixodbc.org/odbcinst.html).
+
+Add database host to the ``/etc/freetds.conf`` file:
+```ini
+[mssql-local]
+    host = localhost
+    port = 1433
+    tds version = 8.0
+    client charset = UTF-8
+```
+For more details please refer to the [freetds.conf
+documentation](http://www.freetds.org/userguide/freetdsconf.htm).
+
+Then you need to import the SQL schema from either ``mssql2012.sql`` or
+``azuresql.sql`` file depending on which database you are using.
+You can use a Microsoft's GUI tool or one of the isql/osql/tsql for this.
+
+The final step is to configure ``ejabberd.cfg`` appropriately.
+Configure the database section as follows:
+```erlang
+{odbc_server, "DSN=mongoose-mssql;UID=username;PWD=password"}.
+{odbc_server_type, mssql}.
+```
+
 
 # Riak (versions >=2.0)
 
