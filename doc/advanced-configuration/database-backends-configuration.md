@@ -111,7 +111,13 @@ documentation](http://www.freetds.org/userguide/freetdsconf.htm).
 
 Then you need to import the SQL schema from either ``mssql2012.sql`` or
 ``azuresql.sql`` file depending on which database you are using.
-You can use a Microsoft's GUI tool or one of the isql/osql/tsql for this.
+You can use a Microsoft's GUI tool (the provided .sql files should work
+with it) or isql, but after a slight modification of the dump file:
+
+```bash
+cat azuresql.sql | tr -d '\r' | tr '\n' ' ' | sed 's/GO/\n/g' |
+isql mongoose-mssql username password -b
+```
 
 The final step is to configure ``ejabberd.cfg`` appropriately.
 Configure the database section as follows:
