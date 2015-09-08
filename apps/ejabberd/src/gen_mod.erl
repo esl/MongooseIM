@@ -50,9 +50,9 @@
 
 -include("ejabberd.hrl").
 
--record(ejabberd_module, {module_host :: ejabberd:server(),
-                          opts :: list()
-                         }).
+-record(ejabberd_module, {module_host, opts}).
+-type ejabberd_module() :: #ejabberd_module{module_host :: {module(), ejabberd:server()},
+                                            opts :: list()}.
 
 %% -export([behaviour_info/1]).
 %% behaviour_info(callbacks) ->
@@ -73,8 +73,8 @@ start() ->
 
 
 -spec start_module(Host :: ejabberd:server(),
-                   Module :: atom(),
-                   Opts :: [any()] ) -> any() | none().
+                   Module :: module(),
+                   Opts :: [any()]) -> any().
 start_module(Host, Module, Opts0) ->
     Opts = clear_opts(Module, Opts0),
     set_module_opts_mnesia(Host, Module, Opts),
@@ -118,7 +118,7 @@ start_backend_module(Module, Opts, TrackedFuncs) ->
     code:load_binary(Mod, BackendModuleStr ++ ".erl", Code),
     ensure_backend_metrics(Module, TrackedFuncs).
 
--spec backend_code(string(), atom(), list()) -> string().
+-spec backend_code(module(), atom(), list()) -> {string(), iolist()}.
 backend_code(Module, Backend, TrackedFuncs) when is_atom(Backend) ->
     Callbacks = Module:behaviour_info(callbacks),
     ModuleStr = atom_to_list(Module),
@@ -320,7 +320,7 @@ get_opt_host(Host, Opts, Default) ->
     re:replace(Val, "@HOST@", Host, [global, {return,binary}]).
 
 
--spec loaded_modules(ejabberd:server()) -> [atom()].
+-spec loaded_modules(ejabberd:server()) -> [module()].
 loaded_modules(Host) ->
     ets:select(ejabberd_modules,
                [{#ejabberd_module{_ = '_', module_host = {'$1', Host}},
@@ -328,7 +328,7 @@ loaded_modules(Host) ->
                  ['$1']}]).
 
 
--spec loaded_modules_with_opts(ejabberd:server()) -> [{atom(), list()}].
+-spec loaded_modules_with_opts(ejabberd:server()) -> [{module(), list()}].
 loaded_modules_with_opts(Host) ->
     ets:select(ejabberd_modules,
                [{#ejabberd_module{_ = '_', module_host = {'$1', Host},

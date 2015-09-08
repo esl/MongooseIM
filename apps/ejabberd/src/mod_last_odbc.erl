@@ -24,7 +24,7 @@
          set_last_info/4,
          remove_user/2]).
 
--spec init(ejabberd:server(), list()) -> no_return().
+-spec init(ejabberd:server(), list()) -> ok.
 init(_Host, _Opts) ->
     ok.
 
