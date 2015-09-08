@@ -22,9 +22,9 @@ init_per_testcase(_, Config) ->
     lists:keystore(async_helpers, 1, Config, {async_helpers, Helpers}).
 
 end_per_testcase(_, C) ->
+    meck:unload(mongoose_metrics),
     ok = mod_keystore:stop(),
     [ P ! stop || P <- proplists:get_value(async_helpers, C, []) ],
-    meck:unload(mongoose_metrics),
     C.
 
 %%
