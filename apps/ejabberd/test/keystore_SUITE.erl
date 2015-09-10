@@ -5,7 +5,9 @@
 all() ->
     [
      module_startup_no_opts,
-     module_startup_read_key_from_file
+     module_startup_read_key_from_file,
+     module_startup_create_ram_key,
+     module_startup_create_ram_key_of_given_size
     ].
 
 init_per_suite(C) ->
@@ -23,8 +25,9 @@ init_per_testcase(_, Config) ->
 
 end_per_testcase(_, C) ->
     meck:unload(mongoose_metrics),
-    ok = mod_keystore:stop(),
+    ok = mod_keystore:stop(<<"localhost">>),
     [ P ! stop || P <- proplists:get_value(async_helpers, C, []) ],
+    mnesia:delete_table(key),
     C.
 
 %%
@@ -43,6 +46,26 @@ module_startup_read_key_from_file(_) ->
     %% then
     [{key_from_file, RawKey}] = ejabberd_hooks:run_fold(get_key, <<"localhost">>,
                                                         [], [key_from_file]).
+
+module_startup_create_ram_key(Config) ->
+    module_startup_create_ram_key(Config, ram_key()),
+    %% then we can access the key
+    [{ram_key, Key}] = ejabberd_hooks:run_fold(get_key, <<"localhost">>, [], [ram_key]),
+    true = is_binary(Key).
+
+module_startup_create_ram_key_of_given_size(Config) ->
+    KeySize = 4,
+    module_startup_create_ram_key(Config, sized_ram_key(KeySize)),
+    %% then
+    [{ram_key, Key}] = ejabberd_hooks:run_fold(get_key, <<"localhost">>, [], [ram_key]),
+    true = is_binary(Key),
+    KeySize = byte_size(Key).
+
+module_startup_create_ram_key(_, ModKeystoreOpts) ->
+    %% given no key
+    [] = ejabberd_hooks:run_fold(get_key, <<"localhost">>, [], [ram_key]),
+    %% when keystore starts with config to generate a memory-only key
+    ok = mod_keystore:start(<<"localhost">>, ModKeystoreOpts).
 
 %%
 %% Helpers
@@ -75,6 +98,13 @@ key_at(Path, Data) ->
 
 key_from_file(KeyFile) ->
     [{keys, [{key_from_file, {file, KeyFile}}]}].
+
+ram_key() ->
+    [{keys, [{ram_key, ram}]}].
+
+sized_ram_key(Size) ->
+    [{keys, [{ram_key, ram}]},
+     {ram_key_size, Size}].
 
 mock_mongoose_metrics() ->
     meck:new(mongoose_metrics, []),
