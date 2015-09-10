@@ -13,13 +13,33 @@
 -export_type([key_id/0]).
 
 -include("ejabberd.hrl").
+-include("mod_keystore.hrl").
 
+-define(BACKEND, mod_keystore_backend).
+-define(DEFAULT_RAM_KEY_SIZE, 2048).
 -define(iol2b(L), iolist_to_binary(L)).
 
 -type key_id() :: atom().
--type key() :: binary().
--type key_list() :: [{key_id(), key()}].
+-type raw_key() :: binary().
+-type key_list() :: [{key_id(), raw_key()}].
 -type key_type() :: ram | {file, file:name_all()}.
+
+-type key() :: #key{id :: key_id(),
+                    key :: raw_key()}.
+
+-callback init(Domain, Opts) -> ok when
+      Domain :: ejabberd:server(),
+      Opts :: [any()].
+
+%% Cluster members race to decide whose key gets stored in the distributed database.
+%% That's why ProposedKey (the key this cluster member tries to propagate to other nodes)
+%% might not be the same as ActualKey (key of the member who will have won the race).
+-callback init_ram_key(ProposedKey) -> Result when
+      ProposedKey :: mod_keystore:key(),
+      Result :: {ok, ActualKey} | {error, any()},
+      ActualKey :: mod_keystore:key().
+
+-callback get_key(ID :: key_id()) -> key_list().
 
 %%
 %% gen_mod callbacks
@@ -28,7 +48,9 @@
 -spec start(ejabberd:server(), list()) -> ok.
 start(Domain, Opts) ->
     create_keystore_ets(),
-    load_keys(Opts),
+    gen_mod:start_backend_module(?MODULE, Opts),
+    ?BACKEND:init(Domain, Opts),
+    init_keys(Opts),
     [ ejabberd_hooks:add(Hook, Domain, ?MODULE, Handler, Priority)
       || {Hook, Handler, Priority} <- hook_handlers() ],
     ok.
@@ -50,7 +72,14 @@ stop(Domain) ->
       Result :: key_list().
 get_key(HandlerAcc, KeyID) ->
     try
-        ets:lookup(keystore, KeyID) ++ HandlerAcc
+        %% This is OK, because the key is
+        %% EITHER stored in ETS
+        %% OR stored in BACKEND,
+        %% with types of both stores returning
+        %% AT MOST ONE value per key.
+        (ets_get_key(KeyID) ++
+         ?BACKEND:get_key(KeyID) ++
+         HandlerAcc)
     catch
         E:R ->
             ?ERROR_MSG("handler error: {~p, ~p}", [E, R]),
@@ -81,15 +110,30 @@ delete_keystore_ets() ->
 does_table_exist(NameOrTID) ->
     ets:info(NameOrTID, name) /= undefined.
 
-load_keys(Opts) ->
-    [ load_key(K) || K <- proplists:get_value(keys, Opts, []) ].
+init_keys(Opts) ->
+    [ init_key(K, Opts) || K <- proplists:get_value(keys, Opts, []) ].
 
--spec load_key({key_id(), key_type()}) -> ok.
-load_key({KeyID, {file, Path}}) ->
+-spec init_key({key_id(), key_type()}, list()) -> ok.
+init_key({KeyID, {file, Path}}, _Opts) ->
     {ok, Data} = file:read_file(Path),
     Trimmed = ?iol2b(re:replace(Data, <<"[\n\r]+">>, <<>>,
                                 [global, {newline, any}])),
-    true = ets:insert(keystore, {KeyID, Trimmed}),
+    true = ets_store_key(KeyID, Trimmed),
     ok;
-load_key({KeyID, ram}) ->
-    error(not_implemented, [{KeyID, ram}]).
+init_key({KeyID, ram}, Opts) ->
+    ProposedKey = crypto:strong_rand_bytes(get_key_size(Opts)),
+    {ok, _ActualKey} = ?BACKEND:init_ram_key(#key{id = KeyID, key = ProposedKey}),
+    ok.
+
+%% It's easier to trace these than ets:{insert,lookup} - much less noise.
+ets_get_key(KeyID) ->
+    ets:lookup(keystore, KeyID).
+
+ets_store_key(KeyID, RawKey) ->
+    ets:insert(keystore, {KeyID, RawKey}).
+
+get_key_size(Opts) ->
+    case lists:keyfind(ram_key_size, 1, Opts) of
+        false -> ?DEFAULT_RAM_KEY_SIZE;
+        {ram_key_size, KeySize} -> KeySize
+    end.
