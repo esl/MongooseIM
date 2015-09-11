@@ -135,8 +135,8 @@ cleanplt:
 	rm $(COMBO_PLT)
 
 
-test_deps:
-	cd test/ejabberd_tests; make get-deps
+test_deps: rebar
+	./rebar -C rebar.tests.config get-deps
 
 %:
 	@:
