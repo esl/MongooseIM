@@ -1,0 +1,143 @@
+<?xml version="1.0"?>
+<!DOCTYPE tsung SYSTEM "/home/aleksandra.lipiec/tsung_dist/share/tsung/tsung-1.0.dtd">
+<tsung loglevel="error" version="1.0" dumptraffic="false">
+
+  <clients>
+    <client host="t-srv-tsung2" maxusers="200000">
+      <ip value="192.168.71.10"></ip>
+      <ip value="192.168.71.11"></ip>
+      <ip value="192.168.71.12"></ip>
+      <ip value="192.168.71.13"></ip>
+    </client>
+  </clients>
+
+  <servers>
+    <server host="192.168.79.10" port="5222" type="tcp"/>
+    <server host="192.168.79.11" port="5222" type="tcp"/>
+    <server host="192.168.79.12" port="5222" type="tcp"/>
+    <server host="192.168.79.13" port="5222" type="tcp"/>
+  </servers>
+
+
+  <load>
+    <arrivalphase phase="1" duration="14400" unit="minute">
+      <users maxnumber="100000" interarrival="0.001" unit="second"></users>
+    </arrivalphase>
+  </load>
+
+  <options>
+    <option type="ts_jabber" name="global_number" value="100"></option>
+    <option type="ts_jabber" name="userid_max" value="500000"></option>
+    <option type="ts_jabber" name="domain" value="localhost"></option>
+    <option type="ts_jabber" name="username" value="user"></option>
+    <option type="ts_jabber" name="passwd" value="pass"></option>
+    <!-- full name of the MUC component -->
+    <option type="ts_jabber" name="muc_service" value="muc.localhost"/>
+  </options>
+
+  <deffun name="now_to_microseconds" sourcetype="eval">
+    <code>
+      <![CDATA[
+        fun({Mega, Secs, Micro}) ->
+            (1000000 * Mega + Secs) * 1000000 + Micro
+        end.
+      ]]>
+    </code>
+  </deffun>
+
+  <deffun name="rand_mess_id" sourcetype="eval">
+    <code>
+      <!-- Returns a random message id of 10 minutes age -->
+      <![CDATA[
+        fun() ->
+            Now = now_to_microseconds(now()),
+            Microseconds = Now - random:uniform(600000000),
+            NodeId = random:uniform(255),
+            MessId = (Microseconds bsl 8) + NodeId,
+            list_to_binary(integer_to_list(MessId, 36))
+        end.
+      ]]>
+    </code>
+  </deffun>
+
+  <sessions>
+   <session bidi="true" probability="100" name="jabber-muc" type="ts_jabber">
+
+      <request subst="true">
+        <jabber type="connect" ack="no_ack"/>
+      </request>
+
+      <thinktime value="1"/>
+
+      <transaction name="auth">
+        <request><jabber type="auth_sasl" ack="local"/></request>
+        <request><jabber type="connect" ack="local"/></request>
+        <request><jabber type="auth_sasl_bind" ack="local"/></request>
+        <request><jabber type="auth_sasl_session" ack="local"/></request>
+      </transaction>
+
+      <thinktime value="1"/>
+
+      <request subst="true">
+        <jabber type="presence:initial" ack="no_ack"/>
+      </request>
+
+    <thinktime value="30"/>
+    
+    <!-- choose room name and nick. -->
+    <setdynvars sourcetype="random_number" start="1" end="40000">
+      <var name="room"/>
+    </setdynvars>
+
+    <setdynvars sourcetype="random_string" length="10">
+      <var name="nick1"/>
+    </setdynvars>
+
+    <!-- join an existing room or create a new one. -->
+    <request subst="true">
+      <jabber type='muc:join' ack="local" room="room%%_room%%" nick="%%_nick1%%"/>
+    </request>
+
+    <for from="1" to="10000" var="i">
+      <setdynvars sourcetype="random_number" start="1" end="100">
+        <var name="event"/>
+      </setdynvars>
+
+      <if var="event" lt="90">
+        <transaction name="online_chat">
+          <request subst="true">
+            <jabber type="muc:chat" ack="no_ack" size="16" room="room%%_room%%"/>
+          </request>
+        </transaction>
+      </if>
+
+      <if var="event" gt="90">
+        <setdynvars sourcetype="eval" code="fun(Param) -> rand_mess_id() end.">
+          <var name="random_mess_id" />
+        </setdynvars>
+        
+        <request subst="true" tag="query_rand_after10">
+          <jabber type="raw" ack="no_ack">
+            <data normalize_xml="true">
+              <![CDATA[
+                <iq type='get' to="room%%_room%%@muc.localhost">
+                  <query xmlns='urn:xmpp:mam:tmp' after_id="%%_random_mess_id%%">
+                    <opt_count/>
+                    <set xmlns='http://jabber.org/protocol/rsm'>
+                      <max>10</max>
+                      <before/>
+                    </set>
+                  </query>
+                </iq>
+              ]]>
+            </data>
+          </jabber>
+        </request>
+      </if>
+
+      <thinktime value="60"/>
+    </for>
+
+  </session>
+ </sessions>
+</tsung>

@@ -1,0 +1,67 @@
+# 1. Fetch a metric value for host
+
+GET /api/metrics/host/{{<host}}/{{<metric}}
+> Accept: application/json
+> User-Agent: katt
+> Host: {{<hostname}}:{{<port}}
+< 200
+< Content-Type: application/json
+{
+    "metric": {
+        "one": "{{_}}",
+        "count": "{{>value_host}}"
+    },
+    "{{_}}": "{{unexpected}}"
+}
+
+# 2. Fetch a metric value from list for host
+
+GET /api/metrics/host/{{<host}}
+> Accept: application/json
+> User-Agent: katt
+> Host: {{<hostname}}:{{<port}}
+< 200
+< Content-Type: application/json
+{
+    "metrics": {
+        "{{<metric}}": {
+            "one": "{{_}}",
+            "count": "{{>value_host_list}}"
+        },
+    },
+    "{{_}}": "{{unexpected}}"
+}
+
+# 3. Fetch a metric value for all hosts
+
+GET /api/metrics/all/{{<metric}}
+> Accept: application/json
+> User-Agent: katt
+> Host: {{<hostname}}:{{<port}}
+< 200
+< Content-Type: application/json
+{
+    "metric": {
+        "one": "{{_}}",
+        "count": "{{>value_total}}"
+    },
+    "{{_}}": "{{unexpected}}"
+}
+
+# 4. Fetch a metric value from list for all hosts
+
+GET /api/metrics/all
+> Accept: application/json
+> User-Agent: katt
+> Host: {{<hostname}}:{{<port}}
+< 200
+< Content-Type: application/json
+{
+    "metrics": {
+        "{{<metric}}": {
+            "one": "{{_}}",
+            "count": "{{>value_total_list}}"
+        },
+    },
+    "{{_}}": "{{unexpected}}"
+}

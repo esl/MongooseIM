@@ -1,0 +1,372 @@
+<?xml version="1.0"?>
+<!DOCTYPE tsung SYSTEM "/home/aleksandra.lipiec/tsung_dist/share/tsung/tsung-1.0.dtd">
+<tsung loglevel="error" version="1.0" dumptraffic="false">
+
+  <clients>
+    <client host="localhost" use_controller_vm="true" maxusers="100000"/>
+  </clients>
+
+  <servers>
+    <server host="127.0.0.1" port="5222" type="tcp"></server>
+  </servers>
+
+  <load>
+    <arrivalphase phase="1" duration="90" unit="minute">
+      <users maxnumber="30" interarrival="0.01" unit="second"></users>
+    </arrivalphase>
+  </load>
+
+  <options>
+    <option type="ts_jabber" name="global_number" value="10000"></option>
+    <option type="ts_jabber" name="userid_max" value="10000"></option>
+    <option type="ts_jabber" name="domain" value="localhost"></option>
+    <option type="ts_jabber" name="username" value="user"></option>
+    <option type="ts_jabber" name="passwd" value="pass"></option>
+  </options>
+
+  <deffun name="var" sourcetype="eval">
+    <code>
+      <![CDATA[
+        fun({_Session, DynVars}, Name) ->
+            {ok, Value} = ts_dynvars:lookup(Name, DynVars),
+            Value
+        end.
+      ]]>
+    </code>
+  </deffun>
+
+  <deffun name="date_to_string" sourcetype="eval">
+    <code>
+      <![CDATA[
+        fun({{Year, Month, Day}, {Hour, Minute, Second}}) ->
+          lists:flatten(
+            io_lib:format("~4..0w-~2..0w-~2..0wT~2..0w:~2..0w:~2..0wZ",
+                          [Year, Month, Day, Hour, Minute, Second]))
+        end.
+      ]]>
+    </code>
+  </deffun>
+
+  <deffun name="date_add_seconds" sourcetype="eval">
+    <code>
+      <![CDATA[
+        fun(DateTime, AddSeconds) when is_integer(AddSeconds) ->
+            Seconds = calendar:datetime_to_gregorian_seconds(DateTime),
+            calendar:gregorian_seconds_to_datetime(Seconds + AddSeconds)
+        end.
+      ]]>
+    </code>
+  </deffun>
+
+  <deffun name="date_diff" sourcetype="eval">
+    <code>
+      <![CDATA[
+        fun(DateTime1, DateTime2) ->
+            Seconds1 = calendar:datetime_to_gregorian_seconds(DateTime1),
+            Seconds2 = calendar:datetime_to_gregorian_seconds(DateTime2),
+            Seconds2 - Seconds1
+        end.
+      ]]>
+    </code>
+  </deffun>
+
+  <deffun name="rand_time" sourcetype="eval">
+    <code>
+      <!-- Returns a random point of time during testing -->
+      <![CDATA[
+        fun(Param) ->
+            InitTime  = var(Param, init_time),
+            NowTime   = erlang:localtime(),
+            WallTime  = date_diff(InitTime, NowTime),
+            date_add_seconds(InitTime, - random:uniform(WallTime))
+        end.
+      ]]>
+    </code>
+  </deffun>
+
+  <sessions>
+    <session name="mam" probability="100" type="ts_jabber">
+
+      <setdynvars sourcetype="eval"
+        code="fun(_) -> erlang:localtime() end.">
+        <var name="init_time" />
+      </setdynvars>
+
+      <request subst="true">
+        <jabber type="connect" ack="no_ack" />
+      </request>
+
+      <thinktime value="1" />
+
+      <transaction name="auth">
+        <request><jabber type="auth_sasl" ack="local" /></request>
+        <request><jabber type="connect" ack="local" /></request>
+        <request><jabber type="auth_sasl_bind" ack="local" /></request>
+        <request><jabber type="auth_sasl_session" ack="local" /></request>
+      </transaction>
+
+      <thinktime value="1" />
+
+      <request subst="true">
+        <jabber type="presence:initial" ack="no_ack"/>
+      </request>
+
+      <thinktime value="5" />
+
+<!--
+      <setdynvars sourcetype="eval">
+          <code>
+            <![CDATA[
+              fun({Session, DynVars}) ->
+                io:format("Session ~p~nDynVars ~p~n", [Session, DynVars]),
+                ok end.
+            ]]>
+          </code>
+        <var name="test" />
+      </setdynvars>
+-->
+
+      <request subst="true" tag="get_prefs">
+        <jabber type="raw" ack="local">
+          <data normalize_xml="true">
+            <![CDATA[
+              <iq type='get'>
+                <prefs xmlns='urn:xmpp:mam:tmp'/>
+              </iq>
+            ]]>
+          </data>
+        </jabber>
+      </request>
+
+      <thinktime value="5" />
+
+      <setdynvars sourcetype="erlang" callback="ts_jabber:random_jid">
+        <var name="random_jid1" />
+      </setdynvars>
+      <setdynvars sourcetype="erlang" callback="ts_jabber:random_jid">
+        <var name="random_jid2" />
+      </setdynvars>
+      <request subst="true" tag="set_prefs">
+        <jabber type="raw" ack="local">
+          <data normalize_xml="true">
+            <![CDATA[
+               <iq type='set'>
+                 <prefs xmlns='urn:xmpp:mam:tmp' default='always'>
+                   <always>
+                     <jid>%%_random_jid1%%</jid>
+                   </always>
+                   <never>
+                     <jid>%%_random_jid2%%</jid>
+                   </never>
+                 </prefs>
+               </iq>
+            ]]>
+          </data>
+        </jabber>
+      </request>
+
+      <thinktime value="5" />
+
+      <setdynvars sourcetype="eval">
+        <code>
+          <![CDATA[
+            fun(Param) ->
+              Gen = fun(Count) ->
+                lists:flatten([
+                    ["<jid>", ts_jabber:random_jid(Param), "</jid>"]
+                    || _ <- lists:seq(1, Count)])
+                end,
+              [Gen(10), Gen(10)]
+              end.
+          ]]>
+        </code>
+        <var name="random_jids1" />
+        <var name="random_jids2" />
+      </setdynvars>
+      <request subst="true" tag="set_prefs">
+        <jabber type="raw" ack="local">
+          <data normalize_xml="true">
+            <![CDATA[
+               <iq type='set'>
+                 <prefs xmlns='urn:xmpp:mam:tmp' default='always'>
+                   <always>%%_random_jids1%%</always>
+                   <never>%%_random_jids2%%</never>
+                 </prefs>
+               </iq>
+            ]]>
+          </data>
+        </jabber>
+      </request>
+
+      <thinktime value="5" />
+
+      <for from="1" to="1000" incr="1" var="i"> 
+        
+        <!-- Send 10 random messages. -->
+        <for from="1" to="10" incr="1" var="j">
+           <request subst="true">
+              <jabber type="chat" ack="no_ack" size="50" destination="online"/>
+           </request>
+           <thinktime value="10"/>
+        </for>
+
+        <!-- Querying the archive.
+             Get the whole dataset.
+         -->
+        <!--
+        <request subst="true" tag="query_all">
+            <data normalize_xml="true">
+              <![CDATA[
+                <iq type='get'>
+                  <query xmlns='urn:xmpp:mam:tmp' />
+                </iq>
+              ]]>
+            </data>
+        </request>
+         -->
+
+        <!-- Querying the archive.
+             Get the first page of size 10.
+         -->
+        <request subst="true" tag="query_first10">
+          <jabber type="raw" ack="no_ack">
+            <data normalize_xml="true">
+              <![CDATA[
+                <iq type='get'>
+                  <query xmlns='urn:xmpp:mam:tmp'>
+                    <set xmlns='http://jabber.org/protocol/rsm'>
+                       <max>10</max>
+                    </set>
+                  </query>
+                </iq>
+              ]]>
+            </data>
+          </jabber>
+        </request>
+        <thinktime value="2" />
+
+        <!-- Querying the archive.
+             Get the last page of size 10.
+             -->
+        <request subst="true" tag="query_last10">
+          <jabber type="raw" ack="no_ack">
+            <data normalize_xml="true">
+              <![CDATA[
+                <iq type='get'>
+                  <query xmlns='urn:xmpp:mam:tmp'>
+                    <set xmlns='http://jabber.org/protocol/rsm'>
+                      <max>10</max>
+                      <before/>
+                    </set>
+                  </query>
+                </iq>
+              ]]>
+            </data>
+          </jabber>
+        </request>
+
+        <thinktime value="2" />
+
+        <!-- Querying the archive for all messages in a certain timespan. -->
+        <setdynvars sourcetype="eval">
+          <code>
+            <![CDATA[
+              fun(Param) ->
+                Gen = fun() -> date_to_string(rand_time(Param)) end,
+                lists:sort([Gen(), Gen()])
+                end.
+            ]]>
+          </code>
+          <var name="start_time" />
+          <var name="end_time" />
+        </setdynvars>
+        <request subst="true" tag="query_date_range">
+          <jabber type="raw" ack="no_ack">
+            <data normalize_xml="true">
+              <![CDATA[
+                <iq type='get'>
+                  <query xmlns='urn:xmpp:mam:tmp'>
+                     <start>%%_start_time%%</start>
+                     <end>%%_end_time%%</end>
+                  </query>
+                </iq>
+              ]]>
+            </data>
+          </jabber>
+        </request>
+
+
+        <!-- Querying for all messages to/from a particular JID -->
+        <setdynvars sourcetype="erlang" callback="ts_jabber:random_jid">
+          <var name="random_jid3" />
+        </setdynvars>
+        <request subst="true" tag="query_date_range">
+          <jabber type="raw" ack="no_ack">
+            <data normalize_xml="true">
+              <![CDATA[
+                <iq type='get'>
+                  <query xmlns='urn:xmpp:mam:tmp'>
+                     <with>%%_random_jid3%%</with>
+                  </query>
+                </iq>
+              ]]>
+            </data>
+          </jabber>
+        </request>
+
+        <!-- Paginating forward -->
+<!--
+        <setdynvars sourcetype="value" value="">
+          <var name="after_elem"/>
+        </setdynvars>
+        <repeat name="paginating_forward" max_repeat="1000">
+          <request subst="true" tag="paging">
+            <dyn_variable name="last_message_id" re="&lt;last&gt;(.*)&lt;/last&gt;"/>
+            <jabber type="raw" ack="parse" regexp="&lt;/iq&gt;">
+              <data normalize_xml="true">
+                <![CDATA[
+                  <iq type='get'>
+                    <query xmlns='urn:xmpp:mam:tmp'>
+                      <set xmlns='http://jabber.org/protocol/rsm'>
+                         <max>10</max>
+                         %%_after_elem%%
+                      </set>
+                    </query>
+                  </iq>
+                ]]>
+              </data>
+            </jabber>
+          </request>
+          <setdynvars sourcetype="value">
+            <value>
+              <![CDATA[
+                <after>%%_last_message_id%%</after>
+              ]]>
+            </value>
+            <var name="after_elem"/>
+          </setdynvars>
+          <until var="last_message_id" eq=""/>
+        </repeat>
+-->
+
+
+        <thinktime value="2" />
+
+        <request subst="true">
+          <jabber type="presence:final" ack="no_ack"/>
+        </request>
+
+        <thinktime value="20" />
+
+        <request subst="true">
+          <jabber type="presence:initial" ack="no_ack"/>
+        </request>
+
+     </for> 
+
+     <request> <jabber type="close" ack="local"/> </request>
+ 
+    </session>
+
+  </sessions>
+</tsung>
