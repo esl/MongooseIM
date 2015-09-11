@@ -175,7 +175,7 @@ one_presence_error(Config) ->
       (Config, [{alice, 1}],
        fun(Alice) ->
                BadPres = escalus_stanza:presence_direct
-                           (<<"nbody@wronghost">>,<<"subscribed">>,[]),
+                           (<<"localhost/no-such-resource">>, <<"subscribed">>, []),
                escalus_client:send(Alice, BadPres),
                escalus_client:wait_for_stanza(Alice)
         end,

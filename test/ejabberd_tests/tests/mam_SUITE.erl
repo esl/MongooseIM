@@ -134,13 +134,11 @@ host() ->
     <<"localhost">>.
 
 configurations() ->
-    [odbc_async,
+    [odbc,
      odbc_async_pool,
-     odbc,
      odbc_mnesia,
      odbc_async_cache,
      odbc_cache,
-     odbc_mult_cache,
      odbc_mnesia_cache,
      odbc_mnesia_muc_cache,
      ca].
@@ -219,7 +217,8 @@ mam_cases() ->
      limit_archive_request,
      prefs_set_request,
      prefs_set_cdata_request,
-     iq_spoofing].
+     iq_spoofing
+     ].
 
 mam_purge_cases() ->
     [purge_single_message,
@@ -242,7 +241,8 @@ muc_cases() ->
      muc_multiple_devices,
      muc_private_message,
      muc_querying_for_all_messages,
-     muc_querying_for_all_messages_with_jid].
+     muc_querying_for_all_messages_with_jid
+     ].
 
 muc_rsm_cases() ->
     rsm_cases().
@@ -299,7 +299,7 @@ init_per_group(Group, Config) ->
         Config1 ->
             init_state(C, B, Config1)
     end.
-    
+
 end_per_group(Group, Config) ->
     C = configuration(Group),
     B = basic_group(Group),
@@ -319,16 +319,6 @@ init_modules(ca, muc_with_pm, Config) ->
 init_modules(odbc, muc_with_pm, Config) ->
     %% TODO test both mod_mam_muc_odbc_arch and mod_mam_odbc_arch
     init_module(host(), mod_mam_odbc_arch, [muc, pm]),
-    init_module(host(), mod_mam_odbc_prefs, [muc, pm]),
-    init_module(host(), mod_mam_odbc_user, [muc, pm]),
-    init_module(host(), mod_mam, []),
-    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
-    Config;
-init_modules(odbc_async, muc_with_pm, Config) ->
-    init_module(host(), mod_mam_muc_odbc_arch, [no_writer]),
-    init_module(host(), mod_mam_muc_odbc_async_writer, []),
-    init_module(host(), mod_mam_odbc_arch, [no_writer, pm]),
-    init_module(host(), mod_mam_odbc_async_writer, [pm]),
     init_module(host(), mod_mam_odbc_prefs, [muc, pm]),
     init_module(host(), mod_mam_odbc_user, [muc, pm]),
     init_module(host(), mod_mam, []),
@@ -361,20 +351,11 @@ init_modules(odbc_cache, muc_with_pm, Config) ->
     init_module(host(), mod_mam, []),
     init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
     Config;
-init_modules(odbc_mult_cache, muc_with_pm, Config) ->
-    init_module(host(), mod_mam_muc_odbc_arch, []),
-    init_module(host(), mod_mam_odbc_arch, [pm]),
-    init_module(host(), mod_mam_odbc_prefs, [muc, pm]),
-    init_module(host(), mod_mam_odbc_server_user, [muc, pm]),
-    init_module(host(), mod_mam_cache_user, [muc, pm]),
-    init_module(host(), mod_mam, []),
-    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
-    Config;
 init_modules(odbc_async_cache, muc_with_pm, Config) ->
     init_module(host(), mod_mam_muc_odbc_arch, [no_writer]),
-    init_module(host(), mod_mam_muc_odbc_async_writer, []),
+    init_module(host(), mod_mam_muc_odbc_async_pool_writer, []),
     init_module(host(), mod_mam_odbc_arch, [no_writer, pm]),
-    init_module(host(), mod_mam_odbc_async_writer, [pm]),
+    init_module(host(), mod_mam_odbc_async_pool_writer, [pm]),
     init_module(host(), mod_mam_odbc_prefs, [muc, pm]),
     init_module(host(), mod_mam_odbc_user, [muc, pm]),
     init_module(host(), mod_mam_cache_user, [muc, pm]),
@@ -413,13 +394,6 @@ init_modules(odbc, muc, Config) ->
     init_module(host(), mod_mam_odbc_user, [muc]),
     init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
     Config;
-init_modules(odbc_async, muc, Config) ->
-    init_module(host(), mod_mam_muc_odbc_arch, [no_writer]),
-    init_module(host(), mod_mam_muc_odbc_async_writer, []),
-    init_module(host(), mod_mam_odbc_prefs, [muc]),
-    init_module(host(), mod_mam_odbc_user, [muc]),
-    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
-    Config;
 init_modules(odbc_async_pool, muc, Config) ->
     init_module(host(), mod_mam_muc_odbc_arch, [no_writer]),
     init_module(host(), mod_mam_muc_odbc_async_pool_writer, []),
@@ -440,16 +414,9 @@ init_modules(odbc_cache, muc, Config) ->
     init_module(host(), mod_mam_cache_user, [muc]),
     init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
     Config;
-init_modules(odbc_mult_cache, muc, Config) ->
-    init_module(host(), mod_mam_muc_odbc_arch, []),
-    init_module(host(), mod_mam_odbc_prefs, [muc]),
-    init_module(host(), mod_mam_odbc_server_user, [muc]),
-    init_module(host(), mod_mam_cache_user, [muc]),
-    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
-    Config;
 init_modules(odbc_async_cache, muc, Config) ->
     init_module(host(), mod_mam_muc_odbc_arch, [no_writer]),
-    init_module(host(), mod_mam_muc_odbc_async_writer, []),
+    init_module(host(), mod_mam_muc_odbc_async_pool_writer, []),
     init_module(host(), mod_mam_odbc_prefs, [muc]),
     init_module(host(), mod_mam_odbc_user, [muc]),
     init_module(host(), mod_mam_cache_user, [muc]),
@@ -481,13 +448,6 @@ init_modules(ca, _, Config) ->
     init_module(host(), mod_mam_odbc_user, [pm]),
     init_module(host(), mod_mam, []),
     Config;
-init_modules(odbc_async, _, Config) ->
-    init_module(host(), mod_mam, []),
-    init_module(host(), mod_mam_odbc_arch, [pm, no_writer]),
-    init_module(host(), mod_mam_odbc_async_writer, [pm]),
-    init_module(host(), mod_mam_odbc_prefs, [pm]),
-    init_module(host(), mod_mam_odbc_user, [pm]),
-    Config;
 init_modules(odbc_async_pool, _, Config) ->
     init_module(host(), mod_mam, []),
     init_module(host(), mod_mam_odbc_arch, [pm, no_writer]),
@@ -508,17 +468,10 @@ init_modules(odbc_cache, _, Config) ->
     init_module(host(), mod_mam_odbc_user, [pm]),
     init_module(host(), mod_mam_cache_user, [pm]),
     Config;
-init_modules(odbc_mult_cache, _, Config) ->
-    init_module(host(), mod_mam, []),
-    init_module(host(), mod_mam_odbc_arch, [pm]),
-    init_module(host(), mod_mam_odbc_prefs, [pm]),
-    init_module(host(), mod_mam_odbc_server_user, [pm]),
-    init_module(host(), mod_mam_cache_user, [pm]),
-    Config;
 init_modules(odbc_async_cache, _, Config) ->
     init_module(host(), mod_mam, []),
     init_module(host(), mod_mam_odbc_arch, [pm, no_writer]),
-    init_module(host(), mod_mam_odbc_async_writer, [pm]),
+    init_module(host(), mod_mam_odbc_async_pool_writer, [pm]),
     init_module(host(), mod_mam_odbc_prefs, [pm]),
     init_module(host(), mod_mam_odbc_user, [pm]),
     init_module(host(), mod_mam_cache_user, [pm]),
@@ -546,15 +499,12 @@ mam_modules() ->
      mod_mam_odbc_arch,
      mod_mam_muc_odbc_arch,
      mod_mam_con_ca,
-     mod_mam_odbc_async_writer,
-     mod_mam_muc_odbc_async_writer,
      mod_mam_odbc_async_pool_writer,
      mod_mam_muc_odbc_async_pool_writer,
      mod_mam_odbc_prefs,
      mod_mam_mnesia_prefs,
      mod_mam_mnesia_dirty_prefs,
      mod_mam_odbc_user,
-     mod_mam_odbc_server_user,
      mod_mam_cache_user,
      mod_mam_muc_cache_user].
 
@@ -611,7 +561,7 @@ init_per_testcase(C=muc_private_message, Config) ->
     escalus:init_per_testcase(C, start_alice_room(Config));
 init_per_testcase(C=range_archive_request_not_empty, Config) ->
     escalus:init_per_testcase(C,
-        bootstrap_archive_same_ids(clean_archives(Config)));
+        bootstrap_archive(clean_archives(Config)));
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
@@ -737,34 +687,46 @@ simple_archive_request(Config) ->
 
 querying_for_all_messages_with_jid(Config) ->
     F = fun(Alice) ->
+        Pregenerated = ?config(pre_generated_msgs, Config),
         BWithJID = nick_to_jid(bob, Config),
+
+        WithBob = [1 || {_, _, {JID, _, _}, _, _} <- Pregenerated, JID == BWithJID],
+
+        CountWithBob = lists:sum(WithBob),
         escalus:send(Alice, stanza_filtered_by_jid_request(BWithJID)),
-        assert_respond_size(12, wait_archive_respond_iq_first(Alice)),
+        assert_respond_size(CountWithBob, wait_archive_respond_iq_first(Alice)),
         ok
         end,
     escalus:story(Config, [1], F).
 
 muc_querying_for_all_messages(Config) ->
-    F = fun(Alice, Bob) ->
+    F = fun(Alice) ->
         Room = ?config(room, Config),
-        BWithJID = room_address(Room, nick(Bob)),
+        MucMsgs = ?config(pre_generated_muc_msgs, Config),
+
+        MucArchiveLen = length(MucMsgs),
 
         IQ = stanza_archive_request(<<>>),
         escalus:send(Alice, stanza_to_room(IQ, Room)),
-        assert_respond_size(12, wait_archive_respond_iq_first(Alice)),
+        assert_respond_size(MucArchiveLen, wait_archive_respond_iq_first(Alice)),
 
         ok
         end,
-    escalus:story(Config, [1, 1], F).
+    escalus:story(Config, [{alice, 1}], F).
 
 muc_querying_for_all_messages_with_jid(Config) ->
     F = fun(Alice, Bob) ->
         Room = ?config(room, Config),
         BWithJID = room_address(Room, nick(Bob)),
+        MucMsgs = ?config(pre_generated_muc_msgs, Config),
+        WithJID = [1 || {_, _, {JID, _, _}, _, _} <- MucMsgs, JID == BWithJID],
+        Len = lists:sum(WithJID),
 
         IQ = stanza_filtered_by_jid_request(BWithJID),
         escalus:send(Alice, stanza_to_room(IQ, Room)),
-        assert_respond_size(6, wait_archive_respond_iq_first(Alice)),
+        Result = wait_archive_respond_iq_first(Alice),
+
+        assert_respond_size(Len, Result),
         ok
         end,
     escalus:story(Config, [1, 1], F).
@@ -881,7 +843,7 @@ assert_respond_size(ExpectedSize, Respond) ->
 %% stanzas may be pushed to a client in one request.
 %% If a query returns a number of stanzas greater than this limit and
 %% the client did not specify a limit using RSM then the server should
-%% return a policy-violation error to the client. 
+%% return a policy-violation error to the client.
 policy_violation(Config) ->
     F = fun(Alice, Bob) ->
         %% Alice sends messages to Bob.
@@ -919,7 +881,7 @@ offline_message(Config) ->
 
     %% Bob logs in
     Bob = login_send_presence(Config, bob),
-    
+
     %% If mod_offline is enabled, then an offline message
     %% will be delivered automatically.
 
@@ -928,9 +890,9 @@ offline_message(Config) ->
 
     %% Bob checks his archive.
     escalus:send(Bob, stanza_archive_request(<<"q1">>)),
-    [_ArcRes, ArcMsg] = wait_archive_respond_iq_first(Bob),
+    [_ArcRes | ArcMsgs] = R = wait_archive_respond_iq_first(Bob),
     #forwarded_message{message_body=ArcMsgBody} =
-        parse_forwarded_message(ArcMsg),
+        parse_forwarded_message(hd(lists:reverse(ArcMsgs))),
     ?assert_equal(Msg, ArcMsgBody),
     escalus_cleaner:clean(Config).
 
@@ -954,7 +916,9 @@ purge_single_message(Config) ->
 purge_old_single_message(Config) ->
     F = fun(Alice) ->
             escalus:send(Alice, stanza_archive_request(<<"q1">>)),
-            [_IQ|AllMessages] = assert_respond_size(12,
+            Pregenderated = ?config(pre_generated_msgs, Config),
+            AliceArchSize = length(Pregenderated),
+            [_IQ|AllMessages] = assert_respond_size(AliceArchSize,
                 wait_archive_respond_iq_first(Alice)),
             ParsedMessages = [parse_forwarded_message(M) || M <- AllMessages],
             %% Delete fifth message.
@@ -965,7 +929,7 @@ purge_old_single_message(Config) ->
             escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
             %% Check, that it was deleted.
             escalus:send(Alice, stanza_archive_request(<<"q2">>)),
-            assert_respond_size(11, wait_archive_respond_iq_first(Alice)),
+            assert_respond_size(AliceArchSize - 1, wait_archive_respond_iq_first(Alice)),
             ok
         end,
     escalus:story(Config, [1], F).
@@ -1149,14 +1113,22 @@ range_archive_request(Config) ->
 
 range_archive_request_not_empty(Config) ->
     F = fun(Alice) ->
+        Msgs = ?config(pre_generated_msgs, Config),
+        [_, _, StartMsg, StopMsg | _] = Msgs,
+        {{StartMsgId, _}, _, _, _, _StartMsgPacket} = StartMsg,
+        {{StopMsgId, _}, _, _, _, _StopMsgPacket} = StopMsg,
+        {StartMicro, _} = rpc_apply(mod_mam_utils, decode_compact_uuid, [StartMsgId]),
+        {StopMicro, _} = rpc_apply(mod_mam_utils, decode_compact_uuid, [StopMsgId]),
+        StartTime = make_iso_time(StartMicro),
+        StopTime = make_iso_time(StopMicro),
         %% Send
         %% <iq type='get'>
         %%   <query xmlns='urn:xmpp:mam:tmp'>
-        %%     <start>2000-07-21T01:50:14Z</start>
-        %%     <end>2000-07-21T01:50:16Z</end>
+        %%     <start>StartTime</start>
+        %%     <end>StopTime</end>
         %%   </query>
         %% </iq>
-        escalus:send(Alice, stanza_date_range_archive_request_not_empty()),
+        escalus:send(Alice, stanza_date_range_archive_request_not_empty(StartTime, StopTime)),
         %% Receive two messages and IQ
         M1 = escalus:wait_for_stanza(Alice, 5000),
         M2 = escalus:wait_for_stanza(Alice, 5000),
@@ -1164,11 +1136,17 @@ range_archive_request_not_empty(Config) ->
         escalus:assert(is_iq_result, IQ),
         #forwarded_message{delay_stamp=Stamp1} = parse_forwarded_message(M1),
         #forwarded_message{delay_stamp=Stamp2} = parse_forwarded_message(M2),
-        ?assert_equal(<<"2000-07-21T01:50:15Z">>, Stamp1),
-        ?assert_equal(<<"2000-07-21T01:50:16Z">>, Stamp2),
+        ?assert_equal(list_to_binary(StartTime), Stamp1),
+        ?assert_equal(list_to_binary(StopTime), Stamp2),
         ok
         end,
     escalus:story(Config, [1], F).
+
+make_iso_time(Micro) ->
+    Now = usec:to_now(Micro),
+    DateTime = calendar:now_to_datetime(Now),
+    {Time, TimeZone} = rpc_apply(jlib, timestamp_to_iso, [DateTime, utc]),
+    Time ++ TimeZone.
 
 %% @doc A query using Result Set Management.
 %% See also `#rsm_in.max'.
@@ -1184,8 +1162,9 @@ limit_archive_request(Config) ->
         %%   </query>
         %% </iq>
         escalus:send(Alice, stanza_limit_archive_request()),
-        IQ = escalus:wait_for_stanza(Alice, 5000),
+        [IQ | Msgs] = wait_archive_respond_iq_first(Alice),
         escalus:assert(is_iq_result, IQ),
+        10 = length(Msgs),
         ok
         end,
     escalus:story(Config, [1], F).
@@ -1377,7 +1356,7 @@ rsm_send_1(Config, User, Packet) ->
 prefs_set_request(Config) ->
     F = fun(Alice) ->
         %% Send
-        %% 
+        %%
         %% <iq type='set' id='juliet2'>
         %%   <prefs xmlns='urn:xmpp:mam:tmp' default="roster">
         %%     <always>
@@ -1410,7 +1389,7 @@ prefs_set_request(Config) ->
 prefs_set_cdata_request(Config) ->
     F = fun(Alice) ->
         %% Send
-        %% 
+        %%
         %% <iq type='set' id='juliet2'>
         %%   <prefs xmlns='urn:xmpp:mam:tmp' default="roster">
         %%     <always>
@@ -1557,10 +1536,9 @@ stanza_date_range_archive_request() ->
                               "2010-06-07T00:00:00Z", "2010-07-07T13:23:54Z",
                               undefined, undefined).
 
-stanza_date_range_archive_request_not_empty() ->
+stanza_date_range_archive_request_not_empty(Start, Stop) ->
     stanza_lookup_messages_iq(undefined,
-                              %% One second before and after 2000-07-21T01:50:15Z
-                              "2000-07-21T01:50:14Z", "2000-07-21T01:50:16Z",
+                              Start, Stop,
                               undefined, undefined).
 
 stanza_limit_archive_request() ->
@@ -1699,7 +1677,7 @@ parse_forwarded_message(#xmlel{name = <<"message">>,
 'parse_children[message/result]'(#xmlel{name = <<"forwarded">>,
                                         children = Children}, M) ->
     lists:foldl(fun 'parse_children[message/result/forwarded]'/2, M, Children).
-    
+
 
 'parse_children[message/result/forwarded]'(#xmlel{name = <<"delay">>,
                                                   attrs = Attrs}, M) ->
@@ -1827,7 +1805,7 @@ parse_jids(Els) ->
 %% </iq>
 parse_error_iq(#xmlel{name = <<"iq">>,
                       attrs = Attrs, children = Children}) ->
-    
+
     IQ = #error_iq{
         type = proplists:get_value(<<"type">>, Attrs),
         id   = proplists:get_value(<<"id">>, Attrs)},
@@ -1861,7 +1839,7 @@ generate_rpc_jid({_,User}) ->
      %JID = <<Username/binary, "@", Server/binary, "/rpc">>,
      %{jid, JID, Username, Server, <<"rpc">>}.
     {jid, Username, Server, <<"rpc">>, Username, Server, <<"rpc">>}.
-    
+
 start_alice_room(Config) ->
     %% TODO: ensure, that the room's archive is empty
     RoomName = <<"alicesroom">>,
@@ -2071,42 +2049,103 @@ parse_messages(Messages) ->
     end.
 
 bootstrap_archive(Config) ->
-    DataDir = ?config(data_dir, Config),
-    FileName = filename:join(DataDir, "alice.xml"),
-    ArcJID = make_jid(<<"alice">>, <<"localhost">>, <<>>),
-    Opts = [{rewrite_jids, rewrite_jids_options(Config)}, new_message_ids],
-    ?assert_equal(ok, restore_dump_file(ArcJID, FileName, Opts)),
-    Config.
+    Domain = escalus_ct:get_config(ejabberd_domain),
+    ArcJID = {<<"alice@",Domain/binary>>, make_jid(<<"alice">> ,Domain, <<>>),
+             rpc_apply(mod_mam, archive_id, [Domain, <<"alice">>])},
+    OtherUsers = [{<<"bob@",Domain/binary>>, make_jid(<<"bob">>, Domain, <<>>),
+                   rpc_apply(mod_mam, archive_id, [Domain, <<"bob">>])},
+                  {<<"carol@",Domain/binary>>, make_jid(<<"carol">>, Domain, <<>>),
+                   rpc_apply(mod_mam, archive_id, [Domain, <<"carol">>])}],
+    Msgs = generate_msgs_for_days(ArcJID, OtherUsers, 16),
+    put_msgs(Msgs),
 
-bootstrap_archive_same_ids(Config) ->
-    DataDir = ?config(data_dir, Config),
-    FileName = filename:join(DataDir, "alice.xml"),
-    ArcJID = make_jid(<<"alice">>, <<"localhost">>, <<>>),
-    Opts = [{rewrite_jids, rewrite_jids_options(Config)}],
-    ?assert_equal(ok, restore_dump_file(ArcJID, FileName, Opts)),
-    Config.
+    [{pre_generated_msgs, sort_msgs(Msgs)} | Config].
+
+sort_msgs(Msgs) ->
+    SortFun = fun({{ID1, _}, _, _, _, _}, {{ID2, _}, _, _, _, _}) ->
+        ID1 =< ID2
+    end,
+    lists:sort(SortFun,Msgs).
+
+generate_msgs_for_days(OwnerJID, OtherUsers, Days) ->
+    {TodayDate, _} = calendar:local_time(),
+    Today = calendar:date_to_gregorian_days(TodayDate),
+    StartDay = Today - Days,
+    lists:flatten([generate_msgs_for_day(Day, OwnerJID, OtherUsers)
+                   || Day <- lists:seq(StartDay, Today)]).
+
+generate_msgs_for_day(Day, OwnerJID, OtherUsers) ->
+    Date = calendar:gregorian_days_to_date(Day),
+
+    [generate_msg_for_date_user(OwnerJID, RemoteJID, {Date, random_time()})
+     || RemoteJID <- OtherUsers].
+
+generate_msg_for_date_user(Owner, {RemoteBin, _, _} = Remote, DateTime) ->
+    Microsec = datetime_to_microseconds(DateTime),
+    MsgIdOwner = rpc_apply(mod_mam_utils, encode_compact_uuid, [Microsec, random:uniform(20)]),
+    MsgIdRemote = rpc_apply(mod_mam_utils, encode_compact_uuid, [Microsec+1, random:uniform(20)]),
+    Packet = escalus_stanza:chat_to(RemoteBin, base16:encode(crypto:rand_bytes(4))),
+    {{MsgIdOwner, MsgIdRemote}, Owner, Remote, Owner, Packet}.
+
+random_time() ->
+    MaxSecondsInDay = 86399,
+    RandSeconds = random:uniform(MaxSecondsInDay),
+    calendar:seconds_to_time(RandSeconds).
+
+datetime_to_microseconds({{_,_,_}, {_,_,_}} = DateTime) ->
+    S1 = calendar:datetime_to_gregorian_seconds(DateTime),
+    S0 = calendar:datetime_to_gregorian_seconds({{1970, 1, 1}, {0, 0, 0}}),
+    Seconds = S1 - S0,
+    Seconds * 1000000.
+
+
+put_msgs(Msgs) ->
+    [put_msg(Msg) || Msg <- Msgs].
+
+put_msg({{MsgIdOwner, MsgIdRemote},
+         {_FromBin, FromJID, FromArcID},
+         {_ToBin, ToJID, ToArcID},
+         {_, Source, _}, Packet}) ->
+    Host = escalus_ct:get_config(ejabberd_domain),
+    archive_message([Host, MsgIdOwner, FromArcID, FromJID, ToJID, Source, outgoing, Packet]),
+    archive_message([Host, MsgIdRemote, ToArcID, ToJID, FromJID, Source, incoming, Packet]).
+
+archive_message(Args) ->
+    rpc_apply(mod_mam, archive_message, Args).
+
+
 
 muc_bootstrap_archive(Config) ->
     Room = ?config(room, Config),
-    DataDir = ?config(data_dir, Config),
-    FileName = filename:join(DataDir, "alice_forest.xml"),
-    ArcJID = make_jid(Room, muc_host(), <<>>),
-    Opts = [{rewrite_jids, muc_rewrite_jids_options(Room)}, new_message_ids],
-    ?assert_equal(ok, muc_restore_dump_file(ArcJID, FileName, Opts)),
-    Config.
 
-rewrite_jids_options(Config) ->
-    A = nick_to_jid(alice, Config),
-    B = nick_to_jid(bob,   Config),
-    [{<<"alice@wonderland">>, A}, {<<"cat@wonderland">>, B}].
-
-muc_rewrite_jids_options(Room) ->
     A = room_address(Room, nick(alice)),
     B = room_address(Room, nick(bob)),
     R = room_address(Room),
-    [{<<"alice@wonderland">>, A},
-     {<<"cat@wonderland">>, B},
-     {<<"forest@wonderland">>, R}].
+
+    Domain = muc_host(),
+    Host = host(),
+    RoomJid = make_jid(Room,Domain, <<>>),
+    ArcJID = {R, RoomJid,
+              rpc_apply(mod_mam_muc, archive_id, [Domain, Room])},
+    Msgs = generate_msgs_for_days(ArcJID,
+                                 [{B, make_jid(<<"bob">>, Host, <<"res1">>),
+                                  rpc_apply(jlib, jid_replace_resource, [RoomJid, nick(bob)])},
+                                  {A, make_jid(<<"alice">>, Host, <<"res1">>),
+                                   rpc_apply(jlib, jid_replace_resource, [RoomJid, nick(alice)])}], 16),
+
+    put_muc_msgs(Msgs),
+
+    [{pre_generated_muc_msgs, sort_msgs(Msgs)} | Config].
+
+put_muc_msgs(Msgs) ->
+    Host = host(),
+    [archive_muc_msg(Host, Msg) || Msg <- Msgs].
+
+archive_muc_msg(Host, {{MsgID, _},
+                {_RoomBin, RoomJID, RoomArcID},
+                {_FromBin, FromJID, SrcJID}, _, Packet}) ->
+    rpc_apply(mod_mam_muc, archive_message, [Host, MsgID, RoomArcID, RoomJID,
+                                             SrcJID, SrcJID, incoming, Packet]).
 
 %% @doc Get a binary jid of the user, that tagged with `UserName' in the config.
 nick_to_jid(UserName, Config) when is_atom(UserName) ->
@@ -2115,12 +2154,6 @@ nick_to_jid(UserName, Config) when is_atom(UserName) ->
 
 make_jid(U, S, R) ->
     rpc_apply(jlib, make_jid, [U, S, R]).
-
-restore_dump_file(ArcJID, FileName, Opts) ->
-    rpc_apply(mod_mam, restore_dump_file, [ArcJID, FileName, Opts]).
-
-muc_restore_dump_file(ArcJID, FileName, Opts) ->
-    rpc_apply(mod_mam_muc, restore_dump_file, [ArcJID, FileName, Opts]).
 
 is_odbc_enabled(Host) ->
     case sql_transaction(Host, fun erlang:now/0) of
@@ -2138,4 +2171,3 @@ login_send_presence(Config, User) ->
     {ok, Client} = escalus_client:start(Config, Spec, <<"dummy">>),
     escalus:send(Client, escalus_stanza:presence(<<"available">>)),
     Client.
-

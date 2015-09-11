@@ -1,6 +1,6 @@
 -module(run_common_test).
 
--export([main/1, analyze/0]).
+-export([main/1, analyze/1]).
 
 -define(CT_DIR, filename:join([".", "tests"])).
 -define(CT_REPORT, filename:join([".", "ct_report"])).
@@ -20,7 +20,7 @@
 opts() ->
     [{test,   #opts.test,   fun quick_or_full/1},
      {spec,   #opts.spec,   fun list_to_atom/1},
-     {cover,  #opts.cover,  fun ("true") -> true; (_) -> false end},
+     {cover,  #opts.cover,  fun bool_or_module_list/1},
      {preset, #opts.preset, fun preset/1}].
 
 %% Raw args are 'key=val' atoms.
@@ -96,8 +96,8 @@ save_count(Test, Configs) ->
     end,
     file:write_file("/tmp/ct_count", integer_to_list(Repeat*Times)).
 
-run_test(Test, PresetsToRun, CoverEnabled) ->
-    prepare_cover(CoverEnabled),
+run_test(Test, PresetsToRun, CoverOpts) ->
+    prepare_cover(CoverOpts),
     error_logger:info_msg("Presets to run ~p", [PresetsToRun]),
     ConfigFile = ct_config_file(),
     {ok, Props} = file:consult(ConfigFile),
@@ -123,17 +123,15 @@ run_test(Test, PresetsToRun, CoverEnabled) ->
         _ ->
             error_logger:info_msg("Presets were not found in the config file ~ts",
                                   [ConfigFile]),
-            do_run_quick_test(Test, CoverEnabled)
+            do_run_quick_test(Test, CoverOpts)
     end,
-    analyze_coverage(CoverEnabled).
-
-
+    analyze_coverage(CoverOpts).
 
 preset_names(Presets) ->
     [Preset||{Preset, _} <- Presets].
 
-do_run_quick_test(Test, CoverEnabled) ->
-    prepare_cover(CoverEnabled),
+do_run_quick_test(Test, CoverOpts) ->
+    prepare_cover(CoverOpts),
     Result = ct:run_test(Test),
     case Result of
         {error, Reason} ->
@@ -141,8 +139,7 @@ do_run_quick_test(Test, CoverEnabled) ->
         _ ->
             ok
     end,
-
-    analyze_coverage(CoverEnabled),
+    analyze_coverage(CoverOpts),
     save_count(Test, []).
 
 run_config_test({Name, Variables}, Test, N, Tests) ->
@@ -196,7 +193,9 @@ prepare_cover(_) ->
     ok.
 
 analyze_coverage(true) ->
-    analyze();
+    analyze(true);
+analyze_coverage(ModuleList) when is_list(ModuleList) ->
+    analyze(ModuleList);
 analyze_coverage(_) ->
     ok.
 
@@ -205,24 +204,24 @@ prepare() ->
     Compiled = rpc:call(get_ejabberd_node(), mongoose_cover_helper, start, [Apps]),
     io:format("Compiled modules ~p~n", [Compiled]).
 
-analyze() ->
+analyze(CoverOpts) ->
     io:format("Coverage analyzing~n"),
     rpc:call(get_ejabberd_node(), mongoose_cover_helper, analyze, []),
+    file:delete("/tmp/mongoose_combined.coverdata"),
     Files = filelib:wildcard("/tmp/*.coverdata"),
     [cover:import(File) || File <- Files],
     cover:export("/tmp/mongoose_combined.coverdata"),
     case os:getenv("TRAVIS_JOB_ID") of
         false ->
-            make_html();
+            make_html(modules_to_analyze(CoverOpts));
         _ ->
             ok
     end.
 
-make_html() ->
+make_html(Modules) ->
     {ok, Root} = file:get_cwd(),
     SortScript = Root ++ "/priv/sorttable.js",
     os:cmd("cp " ++ SortScript ++ " " ++ ?CT_REPORT),
-    Modules = cover:imported_modules(),
     FilePath = case file:read_file(?CT_REPORT++"/index.html") of
         {ok, IndexFileData} ->
             R = re:replace(IndexFileData, "<a href=\"all_runs.html\">ALL RUNS</a>", "& <a href=\"cover.html\" style=\"margin-right:5px\">COVER</a>"),
@@ -277,3 +276,16 @@ get_cover_header() ->
     "<h1>Coverage for application 'MongooseIM'</h1>\n"
     "<table class='sortable' border=3 cellpadding=5>\n"
     "<tr><th>Module</th><th>Covered (%)</th><th>Covered (Lines)</th><th>Not covered (Lines)</th><th>Total (Lines)</th></tr>".
+
+bool_or_module_list("true") ->
+    true;
+bool_or_module_list(ModuleList) when is_list(ModuleList) ->
+    [ list_to_atom(L) || L <- string:tokens("asd,qwe,zxc", ",") ];
+bool_or_module_list(_) ->
+    false.
+
+modules_to_analyze(true) ->
+    cover:imported_modules();
+modules_to_analyze(ModuleList) when is_list(ModuleList) ->
+    ModuleList.
+

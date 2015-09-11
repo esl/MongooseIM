@@ -87,7 +87,7 @@ wait_until_started(_, 0) ->
     erlang:error({timeout, starting_node});
 wait_until_started(Cmd, Retries) ->
     Result = os:cmd(Cmd),
-    case re:run(Result, "The node .* is started") of
+    case re:run(Result, "Node .* is started") of
         {match, _} ->
             ok;
         nomatch ->
@@ -101,7 +101,7 @@ wait_until_stopped(Cmd, Retries) ->
     case os:cmd(Cmd) of
         "Failed RPC connection" ++ _ ->
             ok;
-        "The node" ++ _ ->
+        "Node" ++ _ ->
             timer:sleep(1000),
             wait_until_stopped(Cmd, Retries-1)
     end.
