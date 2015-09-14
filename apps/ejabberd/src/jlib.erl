@@ -701,10 +701,12 @@ i2l(L) when is_list(L)    -> L.
 
 -type tzoffset() :: {TZh :: integer(), TZm :: integer()}.
 -type tz() :: 'utc' | {Sign :: string(), tzoffset()} | tzoffset().
+-type datetime_micro() :: {calendar:date(), {calendar:hour(), calendar:minute(), calendar:second(),
+                                             Micro :: non_neg_integer()}}.
 %% @doc Timezone = utc | {Sign::string(), {Hours, Minutes}} | {Hours, Minutes}
 %% Hours = integer()
 %% Minutes = integer()
--spec timestamp_to_iso(calendar:datetime(), tz()) -> {string(), io_lib:chars()}.
+-spec timestamp_to_iso(calendar:datetime() | datetime_micro(), tz()) -> {string(), io_lib:chars()}.
 timestamp_to_iso({{Year, Month, Day}, {Hour, Minute, Second, Micro}}, Timezone) ->
     Timestamp_string =
         lists:flatten(
@@ -742,10 +744,10 @@ timestamp_to_iso({{Year, Month, Day}, {Hour, Minute, Second}}, Timezone) ->
         end,
     {Timestamp_string, Timezone_string}.
 
--spec timestamp_to_xml(DateTime :: calendar:datetime(),
+-spec timestamp_to_xml(DateTime :: calendar:datetime() | datetime_micro(),
                        Timezone :: tz(),
                        FromJID :: ejabberd:simple_jid() | ejabberd:jid(),
-                       Desc :: iolist()) -> xmlel().
+                       Desc :: iodata()) -> xmlel().
 timestamp_to_xml(DateTime, Timezone, FromJID, Desc) ->
     {T_string, Tz_string} = timestamp_to_iso(DateTime, Timezone),
     Text = [#xmlcdata{content = Desc}],

@@ -174,6 +174,7 @@ server_new(Service, ServerFQDN, UserRealm, _SecFlags,
 -spec server_start(sasl_state(),
                  Mech :: any(),
                  ClientIn :: binary()) -> {ok, _}
+                                        | {ok, term(), term()}
                                         | {error, binary()}
                                         | {'continue',_,sasl_state()}
                                         | {'error',binary(),ejabberd:user()}.
@@ -198,10 +199,11 @@ server_start(State, Mech, ClientIn) ->
     end.
 
 -spec server_step(State :: sasl_state(), ClientIn :: binary()) ->
-                                          {'error',_}
-                                          | {'ok',[any()]}
-                                          | {'continue',_,sasl_state()}
-                                          | {'error',binary(),ejabberd:user()}.
+                                          {'error', _}
+                                          | {'ok', [any()]}
+                                          | {'ok', [any()], term()}
+                                          | {'continue', _, sasl_state()}
+                                          | {'error', binary(), ejabberd:user()}.
 server_step(State, ClientIn) ->
     Module = State#sasl_state.mech_mod,
     MechState = State#sasl_state.mech_state,

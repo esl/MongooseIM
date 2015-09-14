@@ -275,7 +275,7 @@ append_subtags(XE = #xmlel{children = SubTags1}, SubTags2) ->
     XE#xmlel{children = SubTags1 ++ SubTags2}.
 
 
--spec get_path_s(jlib:xmlel(), [{elem, binary()} | {attr, binary()} | cdata]) -> string().
+-spec get_path_s(jlib:xmlel(), [{elem, binary()} | {attr, binary()} | cdata]) -> binary().
 get_path_s(El, []) ->
     El;
 get_path_s(El, [{elem, Name} | Path]) ->

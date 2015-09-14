@@ -136,7 +136,7 @@ build_plt:
 dialyzer: check_plt dialyzer_quick
 
 dialyzer_quick:
-	dialyzer -n -Wno_return -Wno_unused --fullpath --plt $(COMBO_PLT) $(DIALYZER_APPS_PATHS)
+	dialyzer -n -Wno_return -Wno_unused -Wno_undefined_callbacks --fullpath --plt $(COMBO_PLT) $(DIALYZER_APPS_PATHS)
 #	    fgrep -v -f ./dialyzer.ignore-warnings | tee dialyzer.log
 
 cleanplt:

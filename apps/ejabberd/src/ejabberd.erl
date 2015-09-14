@@ -36,7 +36,7 @@
 
 -include("jlib.hrl").
 
--type lang() :: binary() | nonempty_string().
+-type lang() :: binary().
 
 -type sockmod() :: gen_tcp
                  | ejabberd_socket
