@@ -315,10 +315,8 @@ stream_start_features_before_auth(#state{server = Server} = S) ->
                                    mk_check_password3_with_authmodule(Server),
                                    mk_check_password5_with_authmodule(Server)),
     SockMod = (S#state.sockmod):get_sockmod(S#state.socket),
-    send_element(S, stream_features(maybe_tls_feature(SockMod, S) ++
-                                    maybe_compress_feature(SockMod, S) ++
-                                    maybe_sasl_mechanisms(Server) ++
-                                    hook_enabled_features(Server))),
+
+    send_element(S, stream_features(determine_features(SockMod, S))),
     fsm_next_state(wait_for_feature_request,
                    S#state{sasl_state = SASLState}).
 
@@ -340,16 +338,30 @@ stream_features(FeatureElements) ->
     #xmlel{name = <<"stream:features">>,
            children = FeatureElements}.
 
-maybe_tls_feature(SockMod, #state{tls = TLS, tls_enabled = TLSEnabled,
-                                  tls_required = TLSRequired}) ->
+%% From RFC 6120, section 5.3.1:
+%%
+%% If TLS is mandatory-to-negotiate, the receiving entity SHOULD NOT
+%% advertise support for any stream feature except STARTTLS during the
+%% initial stage of the stream negotiation process, because further stream
+%% features might depend on prior negotiation of TLS given the order of
+%% layers in XMPP (e.g., the particular SASL mechanisms offered by the
+%% receiving entity will likely depend on whether TLS has been negotiated).
+%%
+%% http://xmpp.org/rfcs/rfc6120.html#tls-rules-mtn
+determine_features(SockMod, #state{tls = TLS, tls_enabled = TLSEnabled,
+                                   tls_required = TLSRequired,
+                                   server = Server} = S) ->
+    OtherFeatures = maybe_compress_feature(SockMod, S)
+                 ++ maybe_sasl_mechanisms(Server)
+                 ++ hook_enabled_features(Server),
     case can_use_tls(SockMod, TLS, TLSEnabled) of
         true ->
             case TLSRequired of
                 true -> [starttls(required)];
-                _ -> [starttls(optional)]
+                _    -> [starttls(optional)] ++ OtherFeatures
             end;
         false ->
-            []
+            OtherFeatures
     end.
 
 maybe_compress_feature(SockMod, #state{zlib = {ZLib, _}}) ->
