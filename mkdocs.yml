@@ -44,7 +44,15 @@ pages:
       - 'Reloading configuration on a running system': 'operation-and-maintenance/Reloading-configuration-on-a-running-system.md'
       - 'Metrics': 'operation-and-maintenance/Mongoose-metrics.md'
   - "Developer's guide":
-      - 'Testing MongooseIM': 'developers-guide/Testing-MongooseIM.md'
       - 'REST interface to metrics': 'developers-guide/REST-interface-to-metrics.md'
       - 'Hooks and Handlers': 'developers-guide/Hooks-and-handlers.md'
       - 'mod_amp development': 'developers-guide/mod_amp_developers_guide.md'
+
+
+
+
+
+
+
+
+    

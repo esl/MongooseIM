@@ -3,6 +3,7 @@ before_install:
         - sudo apt-get install libpam0g-dev libexpat1-dev odbc-postgresql libmyodbc
         - if [ $PRESET = 'ldap_mnesia' ]; then sudo apt-get update && sudo apt-get install slapd ldap-utils; fi
         - tools/travis-generate-pass.sh
+        - tools/travis-check-tests-branch.sh
 install: tools/travis-build.sh
 before_script:
         - tools/travis-setup-db.sh

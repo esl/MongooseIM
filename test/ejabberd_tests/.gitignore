@@ -1,5 +1,0 @@
-*.beam
-/ct_report
-/ebin
-/deps
-/cover_summary.txt
