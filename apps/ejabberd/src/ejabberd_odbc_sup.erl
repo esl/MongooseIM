@@ -65,7 +65,7 @@ start_link(Host) ->
     supervisor:start_link({local, gen_mod:get_module_proc(Host, ?MODULE)},
                           ?MODULE, [Host]).
 
--spec get_dedicated_connection(Host :: atom())
+-spec get_dedicated_connection(Host :: ejabberd:server())
       -> 'ignore' | {'error',_} | {'ok',{Host :: atom(), pid()}}.
 get_dedicated_connection(Host) ->
     StartInterval = start_interval(Host)*1000,
@@ -76,7 +76,7 @@ get_dedicated_connection(Host) ->
             Other
     end.
 
--spec init([atom(),...]) -> {'ok',{{_,_,_},[any()]}}.
+-spec init([ejabberd:server(),...]) -> {'ok',{{_,_,_},[any()]}}.
 init([Host]) ->
     PoolSize = pool_size(Host),
     StartInterval = start_interval(Host)*1000,
@@ -96,7 +96,7 @@ get_pids(Host) ->
     Rs = mnesia:dirty_read(sql_pool, Host),
     [R#sql_pool.pid || R <- Rs].
 
--spec get_random_pid(_) -> [pid()].
+-spec get_random_pid(ejabberd:server()) -> pid().
 get_random_pid(Host) ->
     Pids = get_pids(Host),
     Pids == [] andalso erlang:error({empty_sql_pool, Host}),
@@ -124,12 +124,12 @@ remove_pid(Host, Pid) ->
         end,
     mnesia:ets(F).
 
--spec pool_size(atom()) -> integer().
+-spec pool_size(ejabberd:server()) -> integer().
 pool_size(Host) ->
     MaybeSize = ejabberd_config:get_local_option({odbc_pool_size, Host}),
     maybe_pool_size(Host, MaybeSize).
 
--spec maybe_pool_size(_, atom() | [char() | tuple()] | integer()) -> integer().
+-spec maybe_pool_size(ejabberd:server(), integer() | undefined | term()) -> integer().
 maybe_pool_size(_, undefined) ->
    ?DEFAULT_POOL_SIZE;
 maybe_pool_size(_, Size) when is_integer(Size) ->
@@ -141,13 +141,13 @@ maybe_pool_size(Host, InvalidSize) ->
                [InvalidSize, Host, Size]),
     Size.
 
--spec start_interval(atom()) -> integer().
+-spec start_interval(ejabberd:server()) -> integer().
 start_interval(Host) ->
     MaybeSize =
         ejabberd_config:get_local_option({odbc_start_interval, Host}),
     maybe_start_interval(Host, MaybeSize).
 
--spec maybe_start_interval(_,atom() | [char() | tuple()] | integer()) -> integer().
+-spec maybe_start_interval(ejabberd:server(), integer() | undefined | term()) -> integer().
 maybe_start_interval(_, undefined) ->
    ?DEFAULT_ODBC_START_INTERVAL;
 maybe_start_interval(_, Interval) when is_integer(Interval) ->
