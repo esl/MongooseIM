@@ -52,14 +52,11 @@ init() ->
     lager:start(),
     ets:new(?ETS_TRACE_TAB, [bag, named_table, public]).
 
--spec get() -> [{Backend, loglevel()}] when
-      Backend :: {lager_file_backend, string()} | lager_console_backend.
+-spec get() -> [{{atom(), term()} | atom(), {non_neg_integer(), loglevel()}}].
 get() ->
     Backends = gen_event:which_handlers(lager_event),
-    [ {Backend, lists:keyfind(Level, 2, ?LOG_LEVELS)}
-      || Backend <- Backends,
-         Backend /= lager_backend_throttle,
-         Level <- [lager:get_loglevel(Backend)] ].
+    [ {Backend, lists:keyfind(lager:get_loglevel(Backend), 2, ?LOG_LEVELS)}
+      || Backend <- Backends, Backend /= lager_backend_throttle ].
 
 -spec set(loglevel() | integer()) -> [Result] when
       Result :: { LagerBackend, ok | {error, Reason} },
