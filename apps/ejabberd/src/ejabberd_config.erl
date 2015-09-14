@@ -71,7 +71,7 @@
                | integer()
                | string()
                | [value()]
-               | [tuple()].
+               | tuple().
 
 -export_type([key/0, value/0]).
 
@@ -612,8 +612,8 @@ process_host_term(Term, Host, State) ->
     end.
 
 
--spec add_option(Opt :: hosts | language | sm_backend,
-                 Val :: term(),
+-spec add_option(Opt :: key(),
+                 Val :: value(),
                  State :: state()) -> state().
 add_option(Opt, Val, State) ->
     Table = case Opt of
@@ -796,7 +796,7 @@ parse_file(ConfigFile) ->
     TermsWExpandedMacros = replace_macros(Terms),
     lists:foldl(fun process_term/2, State, TermsWExpandedMacros).
 
--spec reload_local() -> ok.
+-spec reload_local() -> {ok, iolist()} | no_return().
 reload_local() ->
     ConfigFile = get_ejabberd_config_path(),
     State0 = parse_file(ConfigFile),
@@ -829,7 +829,7 @@ reload_local() ->
 msg(Fmt, Args) ->
     lists:flatten(io_lib:format(Fmt, Args)).
 
--spec reload_cluster() -> {ok, binary()}.
+-spec reload_cluster() -> {ok, string()} | no_return().
 reload_cluster() ->
     CurrentNode = node(),
     ConfigFile = get_ejabberd_config_path(),
@@ -1209,7 +1209,7 @@ map_listeners(Listeners) ->
               end, Listeners).
 
 % group values which can be grouped like odbc ones
--spec group_host_changes([term()]) -> {atom(), [term()]}.
+-spec group_host_changes([term()]) -> [{atom(), [term()]}].
 group_host_changes(Changes) when is_list(Changes) ->
     D = lists:foldl(fun (#local_config{key = {Key, Host}, value = Val}, Dict) ->
                             BKey = atom_to_binary(Key, utf8),
