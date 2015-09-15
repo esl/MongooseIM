@@ -82,7 +82,7 @@
 -type rsm_out()   :: #rsm_out{}.
 -type xmlcdata()  :: #xmlcdata{}.
 
--type binary_pair() :: {binary(),binary()}.
+-type binary_pair() :: {binary(), binary()}.
 
 -export_type([xmlel/0, xmlstreamstart/0, xmlstreamend/0, xmlstreamel/0,
               binary_pair/0,
@@ -571,7 +571,7 @@ sub_el_to_els(#xmlel{}=E) -> [E];
 sub_el_to_els(Es) when is_list(Es) -> Es.
 
 
--spec parse_xdata_submit(xmlel()) -> 'invalid' | [binary_pair()].
+-spec parse_xdata_submit(xmlel()) -> 'invalid' | [{binary(), [binary()]}].
 parse_xdata_submit(El) ->
     #xmlel{attrs = Attrs, children = Els} = El,
     case xml:get_attr_s(<<"type">>, Attrs) of
@@ -584,7 +584,8 @@ parse_xdata_submit(El) ->
     end.
 
 
--spec parse_xdata_fields([xmlcdata() | xmlel()], [binary_pair()]) -> [binary_pair()].
+-spec parse_xdata_fields([xmlcdata() | xmlel()], [{binary(), [binary()]}]) ->
+    [{binary(), [binary()]}].
 parse_xdata_fields([], Res) ->
     Res;
 parse_xdata_fields([#xmlel{name = Name, attrs = Attrs,
@@ -669,7 +670,7 @@ rsm_encode_out(#rsm_out{count=Count, index=Index, first=First, last=Last})->
     rsm_encode_count(Count, El2).
 
 
--spec rsm_encode_first(First :: 'undefined',
+-spec rsm_encode_first(First :: undefined | binary(),
                        Index :: 'undefined' | integer(),
                        Arr::[xmlel()]) -> [xmlel()].
 rsm_encode_first(undefined, undefined, Arr) ->
@@ -677,7 +678,7 @@ rsm_encode_first(undefined, undefined, Arr) ->
 rsm_encode_first(First, undefined, Arr) ->
     [#xmlel{name = <<"first">>, children = [#xmlcdata{content = First}]}|Arr];
 rsm_encode_first(First, Index, Arr) ->
-    [#xmlel{name = <<"first">>, attrs = [{<<"index">>, i2l(Index)}],
+    [#xmlel{name = <<"first">>, attrs = [{<<"index">>, i2b(Index)}],
             children = [#xmlcdata{content = First}]}|Arr].
 
 
@@ -691,13 +692,11 @@ rsm_encode_last(Last, Arr) ->
                        Arr :: [xmlel()]) -> [xmlel()].
 rsm_encode_count(undefined, Arr)-> Arr;
 rsm_encode_count(Count, Arr)->
-    [#xmlel{name = <<"count">>, children = [#xmlcdata{content = i2l(Count)}]} | Arr].
+    [#xmlel{name = <<"count">>, children = [#xmlcdata{content = i2b(Count)}]} | Arr].
 
 
--spec i2l(string() | pos_integer()) -> string().
-i2l(I) when is_integer(I) -> integer_to_list(I);
-i2l(L) when is_list(L)    -> L.
-
+-spec i2b(integer()) -> binary().
+i2b(I) -> list_to_binary(integer_to_list(I)).
 
 -type tzoffset() :: {TZh :: integer(), TZm :: integer()}.
 -type tz() :: 'utc' | {Sign :: string(), tzoffset()} | tzoffset().

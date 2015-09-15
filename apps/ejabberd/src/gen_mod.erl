@@ -118,7 +118,7 @@ start_backend_module(Module, Opts, TrackedFuncs) ->
     code:load_binary(Mod, BackendModuleStr ++ ".erl", Code),
     ensure_backend_metrics(Module, TrackedFuncs).
 
--spec backend_code(module(), atom(), list()) -> {string(), iolist()}.
+-spec backend_code(module(), atom(), list()) -> {nonempty_string(), list()}.
 backend_code(Module, Backend, TrackedFuncs) when is_atom(Backend) ->
     Callbacks = Module:behaviour_info(callbacks),
     ModuleStr = atom_to_list(Module),

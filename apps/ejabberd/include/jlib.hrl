@@ -337,8 +337,8 @@
 
 -record(rsm_out, {count :: pos_integer(),
                   index :: pos_integer(),
-                  first :: pos_integer(),
-                  last :: pos_integer()
+                  first :: binary(),
+                  last :: binary()
                  }).
 
 -type iq() :: #iq{}.
