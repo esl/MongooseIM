@@ -205,7 +205,7 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
             To = xml:get_attr_s(<<"to">>, Attrs),
             Header = io_lib:format(?STREAM_HEADER,
                                    [StateData#state.streamid, xml:crypt(To)]),
-            send_text(StateData, Header),
+            send_text(StateData, list_to_binary(Header)),
             {next_state, wait_for_handshake, StateData};
         _ ->
             send_text(StateData, ?INVALID_HEADER_ERR),
