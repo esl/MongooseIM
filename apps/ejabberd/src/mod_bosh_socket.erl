@@ -619,13 +619,13 @@ process_deferred_events(SName, #state{deferred = Deferred} = S) ->
                 lists:sort(Deferred)).
 
 
--spec is_expected_rid(rid(), rid()) -> boolean().
+-spec is_expected_rid(rid(), rid() | undefined) -> boolean().
 is_expected_rid(Rid, ExpectedRid) when Rid == ExpectedRid ->
     true;
 is_expected_rid(_, _) ->
     false.
 
--spec is_acceptable_rid(rid(), rid()) -> boolean().
+-spec is_acceptable_rid(rid(), rid() | undefined) -> boolean().
 is_acceptable_rid(Rid, ExpectedRid)
   when Rid > ExpectedRid,
        Rid < ExpectedRid + ?CONCURRENT_REQUESTS ->
@@ -840,9 +840,7 @@ bosh_unwrap(normal, Body, #state{sid = Sid} = State) ->
      State}.
 
 
--spec get_client_acks('restart' | 'streamstart', jlib:xmlel(), boolean()) -> boolean().
-get_client_acks(restart, _, Default) ->
-    Default;
+-spec get_client_acks(streamstart, jlib:xmlel(), boolean()) -> boolean().
 get_client_acks(streamstart, Element, Default) ->
     case exml_query:attr(Element, <<"ack">>) of
         undefined ->
@@ -1011,7 +1009,8 @@ reset_stream(#bosh_socket{pid = Pid} = SocketData) ->
     SocketData.
 
 
--spec send_xml(mod_bosh:socket(), jlib:xmlstreamel()) -> 'ok'.
+-spec send_xml(mod_bosh:socket(), {xmlstreamelement, jlib:xmlel()} | jlib:xmlstreamstart()
+                                  | jlib:xmlstreamend()) -> 'ok'.
 send_xml(Socket, {xmlstreamelement, XML}) ->
     send(Socket, XML);
 send_xml(Socket, #xmlstreamstart{} = XML) ->
@@ -1055,7 +1054,7 @@ peername(#bosh_socket{peer = Peer}) ->
 
 %% @doc Set Fields of the Record to Values,
 %% when {Field, Value} <- FieldValues (in list comprehension syntax).
--spec record_set(state(), [{6 | 7 | 10, _},...]) -> state().
+-spec record_set(state(), [{pos_integer(), _},...]) -> state().
 record_set(Record, FieldValues) ->
     F = fun({Field, Value}, Rec) ->
             setelement(Field, Rec, Value)

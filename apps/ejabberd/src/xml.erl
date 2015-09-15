@@ -64,7 +64,7 @@ start() ->
     ok.
 -endif.
 
--spec escape_cdata_and_attr(jlib:xmlel()) -> #xmlcdata{}.
+-spec escape_cdata_and_attr(#xmlel{} | #xmlcdata{} | any()) -> #xmlel{} | #xmlcdata{} | any().
 escape_cdata_and_attr(#xmlel{ children = Children, attrs = Attrs } = Data) ->
     Data#xmlel{ children = [ escape_cdata_and_attr(Child) || Child <- Children ],
                 attrs = [escape_attr(Attr) || Attr <- Attrs]};

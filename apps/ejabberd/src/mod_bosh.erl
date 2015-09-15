@@ -154,12 +154,7 @@ start_listener({Port, InetAddr, tcp}, Opts) ->
 %%--------------------------------------------------------------------
 
 -type option() :: {atom(), any()}.
--spec init(_Transport, req(), _Opts :: [option()])
-            -> {'loop', req(), rstate()}
-             | {no_body, req()}
-             | {{wrong_method, _}, req()}
-             | {forward_body, req()}
-             | {accept_options, req()}.
+-spec init(_Transport, req(), _Opts :: [option()]) -> {loop, req(), rstate()}.
 init(_Transport, Req, _Opts) ->
     ?DEBUG("New request~n", []),
     {Msg, NewReq} = try
@@ -249,8 +244,6 @@ start_cowboy(Port, Opts) ->
     TransOpts = [{port, Port}|get_option_pair(ip, Opts)],
     ProtoOpts = [{env, [{dispatch, Dispatch}]}],
     case cowboy:start_http(?LISTENER, NumAcceptors, TransOpts, ProtoOpts) of
-        {error, {already_started, _Pid}} ->
-            ok;
         {ok, _Pid} ->
             ok;
         {error, Reason} ->
@@ -339,7 +332,7 @@ get_session_socket(Sid) ->
     end.
 
 
--spec maybe_start_session(req(), binary()) -> {boolean(), req()}.
+-spec maybe_start_session(req(), jlib:xmlel()) -> {boolean(), req()}.
 maybe_start_session(Req, Body) ->
     try
         Hosts = ejabberd_config:get_global_option(hosts),
