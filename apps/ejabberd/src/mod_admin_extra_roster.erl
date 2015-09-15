@@ -346,7 +346,7 @@ push_roster_item(LU, LS, U, S, Action) ->
 push_roster_item(LU, LS, R, U, S, Action) ->
     LJID = jlib:make_jid(LU, LS, R),
     BroadcastEl = build_broadcast(U, S, Action),
-    ejabberd_router:route(LJID, LJID, BroadcastEl),
+    ejabberd_sm:route(LJID, LJID, BroadcastEl),
     Item = build_roster_item(U, S, Action),
     ResIQ = build_iq_roster_push(Item),
     ejabberd_router:route(LJID, LJID, ResIQ).
@@ -374,14 +374,14 @@ build_iq_roster_push(Item) ->
            children = [#xmlel{ name = <<"query">>, attrs = [{<<"xmlns">>, ?NS_ROSTER}], children = [Item]}] }.
 
 -spec build_broadcast(U :: ejabberd:user(), S :: ejabberd:server(),
-                      push_action()) -> jlib:xmlel().
+                      push_action()) -> ejabberd_c2s:broadcast_item().
 build_broadcast(U, S, {add, _Nick, Subs, _Group}) ->
     build_broadcast(U, S, list_to_existing_atom(binary_to_list(Subs)));
 build_broadcast(U, S, remove) ->
     build_broadcast(U, S, none);
 %% Subs = both | from | to | none
 build_broadcast(U, S, SubsAtom) when is_atom(SubsAtom) ->
-    #xmlel{ name = <<"broadcast">>, children = [{item, {U, S, <<"">>}, SubsAtom}] }.
+    {broadcast, {item, {U, S, <<"">>}, SubsAtom}}.
 
 %%-----------------------------
 %% Purge roster items

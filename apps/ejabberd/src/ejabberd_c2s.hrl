@@ -104,6 +104,8 @@
                         | {blocking, What :: blocking_type()}
                         | unknown.
 
+-type broadcast() :: {broadcast, broadcast_type()}.
+
 -type broadcast_result() :: {new_state, NewState :: state()}
                           | {exit, Reason :: binary()}
                           | {send_new, From :: ejabberd:jid(), To :: ejabberd:jid(),

@@ -1,7 +1,7 @@
 -module(ejabberd_gen_sm).
 
 -callback start(list()) -> any().
--callback get_sessions() -> [[ejabberd_sm:ses_tuple()]]. % list of lists
+-callback get_sessions() -> [ejabberd_sm:ses_tuple()].
 -callback get_sessions(ejabberd:server()) -> [ejabberd_sm:ses_tuple()].
 -callback get_sessions(ejabberd:user(), ejabberd:server()) -> [ejabberd_sm:session()].
 -callback get_sessions(ejabberd:user(), ejabberd:server(), ejabberd:resource()

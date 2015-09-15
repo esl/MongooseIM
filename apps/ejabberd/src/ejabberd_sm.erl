@@ -74,12 +74,18 @@
 
 -type sid() :: tuple().
 
--type session() :: #session{}.
+-type session() :: #session{
+                      sid      :: sid(),
+                      usr      :: ejabberd:simple_jid(),
+                      us       :: ejabberd:simple_bare_jid(),
+                      priority :: integer() | undefined,
+                      info     :: list()
+                     }.
 
 %% Session representation as 4-tuple.
 -type ses_tuple() :: {USR :: ejabberd:simple_jid(),
                       Sid :: ejabberd_sm:sid(),
-                      Prio :: integer(),
+                      Prio :: integer() | undefined,
                       Info :: list()}.
 -type backend() :: ejabberd_sm_mnesia | ejabberd_sm_redis.
 -type close_reason() :: resumed | normal | replaced.
@@ -109,12 +115,13 @@ start_link() ->
 
 -spec route(From :: ejabberd:jid(),
             To :: ejabberd:jid(),
-            Packet :: jlib:xmlel()) -> 'ok' | {'error','lager_not_running'}.
+            Packet :: jlib:xmlel() | ejabberd_c2s:broadcast()) -> ok.
 route(From, To, Packet) ->
     case catch do_route(From, To, Packet) of
         {'EXIT', Reason} ->
             ?ERROR_MSG("~p~nwhen processing: ~p",
-                       [Reason, {From, To, Packet}]);
+                       [Reason, {From, To, Packet}]),
+            ok;
         _ ->
             ok
     end.
@@ -128,6 +135,12 @@ route(From, To, Packet) ->
 open_session(SID, User, Server, Resource, Info) ->
     open_session(SID, User, Server, Resource, undefined, Info).
 
+-spec open_session(SID :: 'undefined' | sid(),
+                   User :: ejabberd:user(),
+                   Server :: ejabberd:server(),
+                   Resource :: binary(),
+                   Priority :: integer() | undefined,
+                   Info :: 'undefined' | [any()]) -> 'ok'.
 open_session(SID, User, Server, Resource, Priority, Info) ->
     set_session(SID, User, Server, Resource, Priority, Info),
     check_for_sessions_to_replace(User, Server, Resource),
@@ -190,8 +203,7 @@ bounce_offline_message(#jid{server = Server} = From, To, Packet) ->
 disconnect_removed_user(User, Server) ->
     ejabberd_sm:route(jlib:make_jid(<<>>, <<>>, <<>>),
                       jlib:make_jid(User, Server, <<>>),
-                      #xmlel{name = <<"broadcast">>,
-                             children = [{exit, <<"User removed">>}]}).
+                      {broadcast, {exit, <<"User removed">>}}).
 
 
 -spec get_user_resources(User :: ejabberd:user(),
@@ -485,7 +497,28 @@ set_session(SID, User, Server, Resource, Priority, Info) ->
 
 -spec do_route(From :: ejabberd:jid(),
                To :: ejabberd:jid(),
-               Packet :: jlib:xmlel()) -> any().
+               Packet :: jlib:xmlel() | ejabberd_c2s:broadcast()) -> any().
+do_route(From, To, {broadcast, _} = Broadcast) ->
+    ?DEBUG("from=~p,to=~p,broadcast=~p", [From, To, Broadcast]),
+    #jid{ luser = LUser, lserver = LServer, lresource = LResource} = To,
+    case LResource of
+        <<>> ->
+            CurrentPids = get_user_present_pids(LUser, LServer),
+            ejabberd_hooks:run(sm_broadcast, To#jid.lserver,
+                               [From, To, Broadcast, length(CurrentPids)]),
+            ?DEBUG("bc_to=~p~n", CurrentPids),
+            lists:foreach(fun({_, Pid}) -> Pid ! Broadcast end, CurrentPids);
+        _ ->
+            case ?SM_BACKEND:get_sessions(LUser, LServer, LResource) of
+                [] ->
+                    ok; % do nothing
+                Ss ->
+                    Session = lists:max(Ss),
+                    Pid = element(2, Session#session.sid),
+                    ?DEBUG("sending to process ~p~n", [Pid]),
+                    Pid ! Broadcast
+            end
+    end;
 do_route(From, To, Packet) ->
     ?DEBUG("session manager~n\tfrom ~p~n\tto ~p~n\tpacket ~P~n",
            [From, To, Packet, 8]),
@@ -563,11 +596,11 @@ do_route_no_resource(<<"message">>, _, From, To, Packet) ->
 do_route_no_resource(<<"iq">>, _, From, To, Packet) ->
         process_iq(From, To, Packet);
 do_route_no_resource(<<"broadcast">>, _, From, To, Packet) ->
-        ejabberd_hooks:run(sm_broadcast, To#jid.lserver, [From, To, Packet]),
-        broadcast_packet(From, To, Packet);
+    % Backward compatibility
+    ejabberd_hooks:run(sm_broadcast, To#jid.lserver, [From, To, Packet]),
+    broadcast_packet(From, To, Packet);
 do_route_no_resource(_, _, _, _, _) ->
         ok.
-
 
 -spec do_route_offline('undefined' | binary(),
                        T :: binary(),
@@ -585,9 +618,9 @@ do_route_offline(<<"iq">>, _, From, To, Packet) ->
         Err = jlib:make_error_reply(Packet, ?ERR_SERVICE_UNAVAILABLE),
         ejabberd_router:route(To, From, Err);
 do_route_offline(_, _, _, _, _) ->
-        ?DEBUG("packet droped~n", []).
+        ?DEBUG("packet droped~n", []). 
 
-
+% Backward compatibility
 -spec broadcast_packet(From :: ejabberd:jid(),
                        To :: ejabberd:jid(),
                        Packet :: jlib:xmlel()) -> ok.
@@ -599,7 +632,6 @@ broadcast_packet(From, To, Packet) ->
                        jlib:jid_replace_resource(To, R),
                        Packet)
       end, get_user_resources(User, Server)).
-
 
 %% @doc The default list applies to the user as a whole,
 %% and is processed if there is no active list set
@@ -709,8 +741,7 @@ clean_session_list([S1, S2 | Rest], Res) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 get_user_present_pids(LUser, LServer) ->
     Ss = clean_session_list(?SM_BACKEND:get_sessions(LUser, LServer)),
-    PrioRes = [{S#session.priority, element(2,S#session.sid)} ||
-        S <- Ss, is_integer(S#session.priority)].
+    [{S#session.priority, element(2,S#session.sid)} || S <- Ss, is_integer(S#session.priority)].
 
 -spec get_user_present_resources(LUser :: ejabberd:user(),
                                  LServer :: ejabberd:server()

@@ -462,10 +462,7 @@ process_item_els(Item, []) -> Item.
 push_item(User, Server, From, Item) ->
     ejabberd_sm:route(jlib:make_jid(<<"">>, <<"">>, <<"">>),
                       jlib:make_jid(User, Server, <<"">>),
-                      #xmlel{name = <<"broadcast">>,
-                             children = [{item,
-                                          Item#roster.jid,
-                                          Item#roster.subscription}]}),
+                      {broadcast, {item, Item#roster.jid, Item#roster.subscription}}),
     case roster_versioning_enabled(Server) of
         true ->
             push_item_version(Server, User, From, Item,

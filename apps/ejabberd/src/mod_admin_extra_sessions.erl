@@ -198,10 +198,10 @@ kick_session(User, Server, Resource, ReasonText) ->
 -spec kick_this_session(ejabberd:user(), ejabberd:server(), ejabberd:resource(),
         Reason :: binary()) -> ok | {error, lager_not_started}.
 kick_this_session(User, Server, Resource, Reason) ->
-    ejabberd_router:route(
+    ejabberd_sm:route(
         jlib:make_jid(<<"">>, <<"">>, <<"">>),
         jlib:make_jid(User, Server, Resource),
-        #xmlel{name = <<"broadcast">>, children=[{exit, Reason}]}).
+        {broadcast, {exit, Reason}}).
 
 
 -spec prepare_reason(binary() | string()) -> binary().
