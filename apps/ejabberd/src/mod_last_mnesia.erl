@@ -52,8 +52,7 @@ count_active_users(LServer, TimeStamp, Comparator) ->
     ets:select_count(last_activity, MS).
 
 -spec set_last_info(ejabberd:luser(), ejabberd:lserver(),
-                    non_neg_integer(), binary()) ->
-    {atomic, ok} | {aborted, term()}.
+                    non_neg_integer(), binary()) -> ok | {error, term()}.
 set_last_info(LUser, LServer, TimeStamp, Status) ->
     US = {LUser, LServer},
     F = fun() ->
@@ -61,10 +60,17 @@ set_last_info(LUser, LServer, TimeStamp, Status) ->
             timestamp = TimeStamp,
             status = Status})
     end,
-    mnesia:transaction(F).
+    wrap_transaction_result(mnesia:transaction(F)).
 
 -spec remove_user(ejabberd:luser(), ejabberd:lserver()) -> ok.
 remove_user(LUser, LServer) ->
     US = {LUser, LServer},
     F = fun() -> mnesia:delete({last_activity, US}) end,
-    mnesia:transaction(F).
+    wrap_transaction_result(mnesia:transaction(F)).
+
+-spec wrap_transaction_result({atomic, ok | term()} | term()) -> ok | {error, term()}.
+wrap_transaction_result({atomic, ok}) -> ok;
+wrap_transaction_result({atomic, Error}) -> {error, Error};
+wrap_transaction_result(Error) -> {error, Error}.
+
+
