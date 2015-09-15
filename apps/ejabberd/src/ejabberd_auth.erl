@@ -301,7 +301,7 @@ do_try_register_in_backend([M | Backends], LUser, LServer, Password) ->
     end.
 
 %% @doc Registered users list do not include anonymous users logged
--spec dirty_get_registered_users() -> [ejabberd:simple_jid()].
+-spec dirty_get_registered_users() -> [ejabberd:simple_bare_jid()].
 dirty_get_registered_users() ->
     lists:flatmap(
       fun(M) ->
@@ -311,7 +311,7 @@ dirty_get_registered_users() ->
 
 %% @doc Registered users list do not include anonymous users logged
 -spec get_vh_registered_users(Server :: ejabberd:server()
-                             ) -> [ejabberd:simple_jid()].
+                             ) -> [ejabberd:simple_bare_jid()].
 get_vh_registered_users(Server) ->
     LServer = jlib:nameprep(Server),
     do_get_vh_registered_users(LServer).
@@ -326,7 +326,7 @@ do_get_vh_registered_users(LServer) ->
 
 
 -spec get_vh_registered_users(Server :: ejabberd:server(),
-                              Opts :: [any()]) -> [ejabberd:simple_jid()].
+                              Opts :: [any()]) -> [ejabberd:simple_bare_jid()].
 get_vh_registered_users(Server, Opts) ->
     LServer = jlib:nameprep(Server),
     do_get_vh_registered_users(LServer, Opts).

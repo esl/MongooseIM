@@ -233,12 +233,12 @@ status_list(Host, Status) ->
     [{U, S, R, P, St} || {U, S, R, P, St} <- Res].
 
 
--spec status_list(status()) -> string().
+-spec status_list(binary()) -> [u_s_r_p_st()].
 status_list(Status) ->
     status_list(all, Status).
 
 
--spec get_status_list('all' | ejabberd:server(), status()) -> [{u_s_r_p_st()}].
+-spec get_status_list('all' | ejabberd:server(), status()) -> [u_s_r_p_st()].
 get_status_list(Host, StatusRequired) ->
     Sessions0 = case Host of
         all -> ejabberd_sm:get_full_session_list();
