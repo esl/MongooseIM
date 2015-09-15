@@ -1,0 +1,88 @@
+# 1. Fetch list of users
+
+GET /api/users/host/{{<host}}
+> Accept: application/json
+> User-Agent: katt
+> Host: {{<hostname}}:{{<port}}
+< 200
+< Content-Type: application/json
+{
+    "count": "{{>user_count_1}}",
+    "users": [],
+    "{{_}}": "{{unexpected}}"
+}
+
+# 2. Add new user
+
+PUT /api/users/host/{{<host}}/username/{{<username}}
+> User-Agent: katt
+> Host: {{<hostname}}:{{<port}}
+> Content-Type: application/json
+{
+    "user": {
+        "password": "my_http_password"
+    }
+}
+< 204
+
+# 3. Fetch list of users again
+
+GET /api/users/host/{{<host}}
+> Accept: application/json
+> User-Agent: katt
+> Host: {{<hostname}}:{{<port}}
+< 200
+< Content-Type: application/json
+{
+    "count": "{{>user_count_2}}",
+    "users": [],
+    "{{_}}": "{{unexpected}}"
+}
+
+# 4. Add him again (thus change his password) - check idempotency
+
+PUT /api/users/host/{{<host}}/username/{{<username}}
+> User-Agent: katt
+> Host: {{<hostname}}:{{<port}}
+> Content-Type: application/json
+{
+    "user": {
+        "password": "some_other_password"
+    }
+}
+< 204
+
+# 5. Fetch list again
+
+GET /api/users/host/{{<host}}
+> Accept: application/json
+> User-Agent: katt
+> Host: {{<hostname}}:{{<port}}
+< 200
+< Content-Type: application/json
+{
+    "count": "{{<user_count_2}}",
+    "users": [],
+    "{{_}}": "{{unexpected}}"
+}
+
+# 6. Delete him
+
+DELETE /api/users/host/{{<host}}/username/{{<username}}
+> User-Agent: katt
+> Host: {{<hostname}}:{{<port}}
+< 204
+
+# 7. Fetch list one more time
+
+GET /api/users/host/{{<host}}
+> Accept: application/json
+> User-Agent: katt
+> Host: {{<hostname}}:{{<port}}
+< 200
+< Content-Type: application/json
+{
+    "count": "{{<user_count_1}}",
+    "users": [],
+    "{{_}}": "{{unexpected}}"
+}
