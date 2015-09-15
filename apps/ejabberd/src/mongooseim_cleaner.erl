@@ -68,7 +68,7 @@ cleanup_modules(Node) ->
     LockRequest = {?NODE_CLEANUP_LOCK(Node), self()},
     C = fun () -> run_node_cleanup(Node) end,
     Nodes = [node() | nodes()],
-    Retries = 0,
+    Retries = 1,
     case global:trans(LockRequest, C, Nodes, Retries) of
         aborted ->
             ?DEBUG("could not get ~p~n" , [?NODE_CLEANUP_LOCK(Node)]),
