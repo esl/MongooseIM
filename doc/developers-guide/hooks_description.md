@@ -104,3 +104,17 @@ The hook is used to allow modules clean up the user data in any relevant
 way - in a process state, persistent storage or by notifying some external
 service.
 
+## `node_cleanup`
+```erlang
+ejabberd_hooks:run(node_cleanup, [Node])
+```
+
+`node_cleanup` is run by mongooseim_cleaner process which subscribes to 
+`nodedown` messages. Currently the hook is run inside global transaction
+(via `global:trans/4`).
+
+Number of retries for this transaction is set to 1 which means that in some
+situations the hook may be run on more than one node in the cluster, especially 
+when there is little garbage to clean after the dead node. Setting retries to 0
+is not good decision as it was observed that in some setups it may abort the
+transaction on all nodes.
