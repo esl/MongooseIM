@@ -48,7 +48,7 @@
 -include("ejabberd.hrl").
 
 -record(socket_state, {sockmod    :: ejabberd:sockmod(),
-                       socket     :: port(),
+                       socket     :: term(),
                        receiver   :: pid() | atom() | tuple()
                       }).
 -type socket_state() :: #socket_state{}.

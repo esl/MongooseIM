@@ -680,9 +680,10 @@ wait_for_starttls_proceed({xmlstreamelement, El}, StateData) ->
 						   tls_options = TLSOpts2
 						  },
 		    send_text(NewStateData,
-			      io_lib:format(?STREAM_HEADER,
-					    [StateData#state.myname, StateData#state.server,
-					     <<" version='1.0'">>])),
+                      list_to_binary(
+                        io_lib:format(?STREAM_HEADER,
+                                      [StateData#state.myname, StateData#state.server,
+                                       <<" version='1.0'">>]))),
 		    {next_state, wait_for_stream, NewStateData, ?FSMTIMEOUT};
 		_ ->
 		    send_text(StateData,

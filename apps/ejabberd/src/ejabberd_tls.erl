@@ -70,7 +70,7 @@
 tcp_to_tls(TCPSocket, Options) ->
     case lists:keysearch(certfile, 1, Options) of
 	{value, {certfile, CertFile}} ->
-	    Port = open_port({spawn, tls_drv}, [binary]),
+	    Port = open_port({spawn_driver, "tls_drv"}, [binary]),
 	    Flags =
 		case lists:member(verify_none, Options) of
 		    true ->
