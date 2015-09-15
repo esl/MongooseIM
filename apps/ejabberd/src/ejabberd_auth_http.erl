@@ -202,7 +202,9 @@ remove_user(LUser, LServer, Password) ->
                 {ok, true} ->
                     remove_user_req(LUser, LServer, <<"">>, <<"remove_user">>);
                 {ok, false} ->
-                    {error, not_allowed}
+                    {error, not_allowed};
+                {error, _} = Error ->
+                    Error
             end
     end.
 
