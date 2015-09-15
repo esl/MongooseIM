@@ -59,11 +59,15 @@
 -define(DEFAULT_MAX_S2S_CONNECTIONS_NUMBER_PER_NODE, 1).
 
 -type fromto() :: {'global' | ejabberd:server(), ejabberd:server()}.
--record(s2s, {fromto :: fromto(),
-              pid :: pid(),
-              key
-             }).
--type s2s() :: #s2s{}.
+-record(s2s, {
+          fromto,
+          pid,
+          key
+         }).
+-type s2s() :: #s2s{
+                  fromto :: fromto(),
+                  pid :: pid()
+                 }.
 -record(state, {}).
 
 %%====================================================================
@@ -436,7 +440,7 @@ needed_connections_number(Ls, MaxS2SConnectionsNumber,
 %% Description: Return true if the destination must be considered as a
 %% service.
 %% --------------------------------------------------------------------
--spec is_service(_, _) -> boolean().
+-spec is_service(ejabberd:jid(), ejabberd:jid()) -> boolean().
 is_service(From, To) ->
     LFromDomain = From#jid.lserver,
     case ejabberd_config:get_local_option({route_subdomains, LFromDomain}) of
@@ -448,11 +452,11 @@ is_service(From, To) ->
             lists:any(P, parent_domains(To#jid.lserver))
     end.
 
--spec parent_domains(ejabberd:server()) -> [any(),...].
+-spec parent_domains(binary()) -> [binary(),...].
 parent_domains(Domain) ->
     parent_domains(Domain, [Domain]).
 
--spec parent_domains(binary(),[any(),...]) -> [any(),...].
+-spec parent_domains(binary(),[binary(),...]) -> [binary(),...].
 parent_domains(<<>>, Acc) ->
     lists:reverse(Acc);
 parent_domains(<<$., Rest/binary>>, Acc) ->
@@ -566,7 +570,7 @@ allow_host1(MyHost, S2SHost) ->
     end.
 
 %% @doc Get information about S2S connections of the specified type.
--spec get_info_s2s_connections('in' | 'out') -> [{atom(), any()},...].
+-spec get_info_s2s_connections('in' | 'out') -> [[{atom(), any()}, ...]].
 get_info_s2s_connections(Type) ->
     ChildType = case Type of
                     in -> ejabberd_s2s_in_sup;

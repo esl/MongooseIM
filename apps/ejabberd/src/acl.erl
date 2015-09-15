@@ -139,7 +139,7 @@ normalize_spec(none) ->
 
 -spec match_rule(Host :: host(),
                  Rule :: rule(),
-                 JID :: ejabberd:jid()) -> allow | deny.
+                 JID :: ejabberd:jid()) -> allow | deny | term().
 match_rule(global, Rule, JID) ->
     case Rule of
         all -> allow;
@@ -185,7 +185,7 @@ match_rule(Host, Rule, JID) ->
 
 -spec match_acls(ACLs :: [{boolean(), rule()}],
                  JID :: ejabberd:jid(),
-                 Host :: host()) -> boolean().
+                 Host :: host()) -> deny | term().
 match_acls([], _, _Host) ->
     deny;
 match_acls([{Access, ACL} | ACLs], JID, Host) ->

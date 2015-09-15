@@ -62,7 +62,7 @@
 -define(CONFIG_RELOAD_TIMEOUT, 30000).
 
 -type key() :: atom()
-             | {atom(), ejabberd:server() | atom()}
+             | {key(), ejabberd:server() | atom() | list()}
              | {atom(), atom(), atom()}
              | binary(). % TODO: binary is questionable here
 
