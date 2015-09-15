@@ -103,18 +103,44 @@ test_kill_story(Alice) ->
     add_watchdog_admin(Alice),
     Pid = rpc(system_monitor_SUITE, use_memory, [150000, 100000]),
     PidStr = rpc(erlang, pid_to_list, [Pid]),
-    Stanza = escalus_client:wait_for_stanza(Alice),
-    escalus:assert(is_stanza_from, [?WATCHDOG_JID], Stanza),
-    test_kill_consume_large_heap_message(PidStr, Stanza),
+
+    % wait for at least one large heap message for this process
+    % scan no more than 1000 stanzas
+    test_kill_wait_for_large_heap_msg(Alice, PidStr, 1000),
+
+    % check if process is still alive
     {status, _} = rpc(erlang, process_info, [Pid, status]),
 
     % Alice decides to kill the process
     NodeName = erlang:atom_to_list(ct:get_config(ejabberd_node)),
     Cmd = iolist_to_binary(["kill ", NodeName, " ", PidStr]),
     escalus:send(Alice, escalus_stanza:chat_to(?WATCHDOG_JID, Cmd)),
-    test_kill_wait_for_ok(Alice, Pid, PidStr).
 
-test_kill_wait_for_ok(Alice, Pid, PidStr) ->
+    % expect ok message Pid to be dead
+    test_kill_wait_for_ok(Alice, Pid, PidStr, 1000).
+
+test_kill_wait_for_large_heap_msg(_Alice, _PidStr, 0) ->
+    throw(test_kill_no_large_heap_msg);
+test_kill_wait_for_large_heap_msg(Alice, PidStr, N) ->
+    Stanza = escalus_client:wait_for_stanza(Alice),
+    escalus:assert(is_stanza_from, [?WATCHDOG_JID], Stanza),
+    escalus:assert(is_chat_message, Stanza),
+
+    Body = exml_query:path(Stanza, [{element, <<"body">>}, cdata]),
+    NodeName = erlang:atom_to_list(ct:get_config(ejabberd_node)),
+    ExpectedMsg = io_lib:format("(~s) The process ~s"
+                                " is consuming too much memory:",
+                                [NodeName, PidStr]),
+    case binary:matches(Body, iolist_to_binary(ExpectedMsg)) of
+        [] ->
+            test_kill_wait_for_large_heap_msg(Alice, PidStr, N-1);
+        [{0, _}] ->
+            true
+    end.
+
+test_kill_wait_for_ok(_Alice, _Pid, _PidStr, 0) ->
+    throw(test_kill_no_ok_msg);
+test_kill_wait_for_ok(Alice, Pid, PidStr, N) ->
     Stanza = escalus_client:wait_for_stanza(Alice),
     escalus:assert(is_stanza_from, [?WATCHDOG_JID], Stanza),
     case escalus_pred:is_chat_message(<<"ok">>, Stanza) of
@@ -123,19 +149,8 @@ test_kill_wait_for_ok(Alice, Pid, PidStr) ->
             true;
         false ->
             % There might be more large heap messages
-            test_kill_consume_large_heap_message(PidStr, Stanza),
-            test_kill_wait_for_ok(Alice, Pid, PidStr)
+            test_kill_wait_for_ok(Alice, Pid, PidStr, N-1)
     end.
-
-test_kill_consume_large_heap_message(PidStr, Stanza) ->
-    escalus:assert(is_chat_message, Stanza),
-    Msg = exml_query:path(Stanza, [{element, <<"body">>}, cdata]),
-    ct:log("consume ~p~n",[Stanza]),
-    NodeName = erlang:atom_to_list(ct:get_config(ejabberd_node)),
-    ExpectedMsg = io_lib:format("(~s) The process ~s"
-                                " is consuming too much memory:",
-                                [NodeName, PidStr]),
-    [{0, _}] = binary:matches(Msg, iolist_to_binary(ExpectedMsg)).
 
 %% Alice - the watchdog admin - changes large_heap threshold
 test_get_set_large_heap(Config) ->

@@ -108,6 +108,7 @@ generic_count_backend(mod_privacy_odbc) -> count_odbc(<<"privacy_list">>);
 generic_count_backend(mod_private_mnesia) -> count_wildpattern(private_storage);
 generic_count_backend(mod_private_odbc) -> count_odbc(<<"private_storage">>);
 generic_count_backend(mod_private_mysql) -> count_odbc(<<"private_storage">>);
+generic_count_backend(mod_private_riak) -> count_riak(<<"private">>);
 generic_count_backend(mod_vcard_mnesia) -> count_wildpattern(vcard);
 generic_count_backend(mod_vcard_odbc) -> count_odbc(<<"vcard">>);
 generic_count_backend(mod_vcard_ldap) ->
@@ -130,3 +131,8 @@ count_to_integer(N) when is_binary(N) ->
     list_to_integer(binary_to_list(N));
 count_to_integer(N) when is_integer(N)->
     N.
+
+count_riak(BucketType) ->
+    {ok, Buckets} = ?RPC(mongoose_riak, list_buckets, [BucketType]),
+    BucketKeys = [?RPC(mongoose_riak, list_keys, [{BucketType, Bucket}]) || Bucket <- Buckets],
+    length(lists:flatten(BucketKeys)).
