@@ -178,7 +178,7 @@ is_stored_user_exists(LUser, LServer) ->
 is_anonymous_user(LUser, LServer) ->
     case lists:member(ejabberd_auth_anonymous, ejabberd_auth:auth_modules(LServer)) of
         true ->
-            ejabberd_auth_anonymous:is_user_exists(LUser, LServer);
+            ejabberd_auth_anonymous:does_user_exist(LUser, LServer);
         false ->
             false
     end.
