@@ -29,19 +29,7 @@ process_local_iq(_From, _To, #iq{type = set, sub_el = SubEl} = IQ) ->
     IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]};
 
 process_local_iq(_From, _To, #iq{type = get} = IQ) ->
-    Now = now(),
-    Now_universal = calendar:now_to_universal_time(Now),
-    Now_local = calendar:now_to_local_time(Now),
-    {UTC_time, UTC_diff} = jlib:timestamp_to_iso(Now_universal, utc),
-    UTC = list_to_binary(UTC_time ++ UTC_diff),
-    Seconds_diff =
-    calendar:datetime_to_gregorian_seconds(Now_local) -
-    calendar:datetime_to_gregorian_seconds(Now_universal),
-    {Hd, Md, _} =
-    calendar:seconds_to_time(abs(Seconds_diff)),
-    {_, TZO_diff} = jlib:timestamp_to_iso({{0, 1, 1},
-                                           {0, 0, 0}},
-                                          {sign(Seconds_diff), {Hd, Md}}),
+    {UTC, TZO_diff} = calculate_time(),
     IQ#iq{type = result,
           sub_el =
           [#xmlel{name = <<"time">>,
@@ -52,6 +40,22 @@ process_local_iq(_From, _To, #iq{type = get} = IQ) ->
                    #xmlel{name = <<"utc">>, attrs = [],
                           children =
                           [#xmlcdata{content = UTC}]}]}]}.
+
+calculate_time() ->
+    Now = now(),
+    Now_universal = calendar:now_to_universal_time(Now),
+    Now_local = calendar:now_to_local_time(Now),
+    {UTC_time, UTC_diff} = jlib:timestamp_to_iso(Now_universal, utc),
+    UTC = list_to_binary(UTC_time ++ UTC_diff),
+    Seconds_diff =
+    calendar:datetime_to_gregorian_seconds(Now_local) -
+    calendar:datetime_to_gregorian_seconds(Now_universal),
+    {Hd, Md, _} = calendar:seconds_to_time(abs(Seconds_diff)),
+    {_, TZO_diff} = jlib:timestamp_to_iso({{0, 1, 1},
+                                           {0, 0, 0}},
+                                          {sign(Seconds_diff), {Hd, Md}}),
+    {UTC, TZO_diff}.
+
 
 
 sign(N) when N < 0 -> <<"-">>;
