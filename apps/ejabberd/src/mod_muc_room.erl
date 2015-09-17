@@ -3990,7 +3990,7 @@ unsave_check_invitation(FromJID, Els, Lang,
                   PasswdEl = create_password_elem(StateData),
                   BodyEl = invite_body_elem(FromJID, Reason, Lang, StateData),
                   Msg = create_invite_message_elem(
-                          OutInviteEl, BodyEl, PasswdEl, RoomJID, Reason),
+                          OutInviteEl, BodyEl, PasswdEl, Reason),
                   ejabberd_hooks:run(invitation_sent, Host,
                                      [Host, ServerHost, RoomJID, FromJID, JID, Reason]),
                   ejabberd_router:route(StateData#state.jid, JID, Msg)
@@ -4079,23 +4079,18 @@ invite_body_text(FromJID, Reason, Lang,
 
 
 -spec create_invite_message_elem(Inv :: jlib:xmlel(), Body :: jlib:xmlel(),
-        Passwd :: [jlib:xmlel()], RoomJID :: ejabberd:jid(), Reason :: binary()
+        Passwd :: [jlib:xmlel()], Reason :: binary()
         ) -> jlib:xmlel().
-create_invite_message_elem(InviteEl, BodyEl, PasswdEl, RoomJID, Reason)
+create_invite_message_elem(InviteEl, BodyEl, PasswdEl, Reason)
     when is_list(PasswdEl), is_binary(Reason) ->
-    BRoomJID = jlib:jid_to_binary(RoomJID),
     UserXEl = #xmlel{
         name = <<"x">>,
         attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
         children = [InviteEl|PasswdEl]},
-    ConfXEl = #xmlel{
-        name = <<"x">>,
-        attrs = [{<<"xmlns">>, ?NS_XCONFERENCE}, {<<"jid">>, BRoomJID}],
-        children = [#xmlcdata{content = Reason}]},
     #xmlel{
         name = <<"message">>,
         attrs = [{<<"type">>, <<"normal">>}],
-        children = [UserXEl, ConfXEl, BodyEl]}.
+        children = [UserXEl, BodyEl]}.
 
 
 %% @doc Handle a message sent to the room by a non-participant.
