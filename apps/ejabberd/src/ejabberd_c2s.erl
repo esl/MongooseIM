@@ -1569,7 +1569,7 @@ send_and_maybe_buffer_stanza({_, _, Stanza} = Packet, State, StateName)->
 
 -spec new_id() -> string().
 new_id() ->
-    randoms:get_string().
+    iolist_to_binary(randoms:get_string()).
 
 
 -spec is_auth_packet(El :: jlib:xmlel()) -> boolean().
