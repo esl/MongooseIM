@@ -28,8 +28,6 @@
 -author('alexey@process-one.net').
 
 -export([start/0,
-         load_dir/1,
-         load_file/2,
          translate/2]).
 
 -include("ejabberd.hrl").
@@ -98,14 +96,34 @@ attempt_translation([], Msg) ->
 attempt_translation([mylang | Langs], Msg) ->
     case ?MYLANG of
         undefined ->
-            attempt_translation(Langs, Msg);
-        MyLang ->
-            case string:tokens(MyLang, "-") of
-                [_] ->
-                    attempt_translation([list_to_binary(MyLang) | Langs], Msg);
-                [MyLangBase | _] ->
-                    attempt_translation(
-                      [list_to_binary(MyLang), list_to_binary(MyLangBase) | Langs], Msg)
+            Msg;
+        <<"en">> ->
+            Msg;
+        Lang ->
+            LLang = ascii_tolower(binary:bin_to_list(Lang)),
+            case ets:lookup(translations, {LLang, Msg}) of
+                [{_, Trans}] ->
+                    Trans;
+                _ ->
+                    ShortLang = case string:tokens(LLang, "-") of
+                                    [] ->
+                                        LLang;
+                                    [SL | _] ->
+                                        SL
+                                end,
+                    case ShortLang of
+                        "en" ->
+                            Msg;
+                        Lang ->
+                            Msg;
+                        _ ->
+                            case ets:lookup(translations, {ShortLang, Msg}) of
+                                [{_, Trans}] ->
+                                    Trans;
+                                _ ->
+                                    Msg
+                            end
+                    end
             end
     end;
 attempt_translation([<<"en">> | _], Msg) ->
