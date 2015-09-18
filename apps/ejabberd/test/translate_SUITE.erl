@@ -15,21 +15,18 @@ all() ->
 test_undefined_translation(_Config) ->
     %% given - if undefined it should be english(pass through)
     given_default_language(undefined),
-    %% when
-    load_translations(),
+    given_loaded_translations(),
     %% then
-    ?assertEqual("undef" , translate:translate(<<"en">>, "undef")),
+    ?assertEqual("undef", translate:translate(<<"en">>, "undef")),
     ?assertEqual("undef2", translate:translate(<<"klingon">>, "undef2")),
 
-    %% tear down mocks
-    meck:unload(),
     ok.
 
 test_english_translation(_Config) ->
     %% given
     given_default_language(<<"en">>),
-    %% when
-    load_translations(),
+    given_loaded_translations(),
+
     %% then
     ?assertEqual("cat", translate:translate(<<"en">>, "cat")),
     ?assertEqual("dog", translate:translate(<<"en-us">>, "dog")),
@@ -44,8 +41,7 @@ test_english_translation(_Config) ->
 test_polish_translation(_Config) ->
     %% given
     given_default_language(<<"pl">>),
-    %% when
-    load_translations(),
+    given_loaded_translations(),
 
     ?assertEqual("Dodaj nowe", translate:translate(<<"pl">>, "Add New")),
     %% check if the languages in the form of en-us are handled correctly in case
@@ -56,31 +52,23 @@ test_polish_translation(_Config) ->
     %% in case of non-existing languege it will chouuse polish tranlation
     ?assertEqual("Dodaj nowe", translate:translate(<<"klingon">>, "Add New")),
 
-    %% tear down mocks
-    meck:unload(),
     ok.
 
 test_portuguese_translation(_Config)->
     %% given
     given_default_language(<<"pt">>),
-
-    %% when
-    load_translations(),
+    given_loaded_translations(),
 
     ?assertEqual("Adicionar usuário", translate:translate(<<"pt-br">>, "Add User")),
     %% check brasilian
     ?assertEqual("Adicionar utilizador", translate:translate(<<"pt">>, "Add User")),
 
-    %% tear down mocks
-    meck:unload(),
     ok.
 
 test_message_as_a_binary(_Config) ->
     %% given
     given_default_language(<<"en">>),
-
-    %% when
-    load_translations(),
+    given_loaded_translations(),
 
     %% then
     ?assertEqual("Dodaj nowe", translate:translate(<<"pl">>, "Add New")),
@@ -88,14 +76,13 @@ test_message_as_a_binary(_Config) ->
     ?assertEqual(<<"Add New">>, translate:translate(<<"unknown">>, <<"Add New">>)),
     ?assertEqual(<<"Adicionar usuário"/utf8>>, translate:translate(<<"pt-br">>, <<"Add User">>)),
 
-    %% tear down mocks
-    meck:unload(),
     ok.
 
-load_translations() ->
+given_loaded_translations() ->
     translate:start().
 
 given_default_language(Lang) ->
+    (catch meck:unload()),
     meck:new(ejabberd_config),
     meck:expect(ejabberd_config, get_global_option, fun(language) -> Lang end),
     ok.
