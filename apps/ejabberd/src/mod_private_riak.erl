@@ -66,7 +66,8 @@ get_private_data(LUser, LServer, NS, Default) ->
     case mongoose_riak:get(bucket_type(LServer), key(LUser, NS)) of
         {ok, Obj} ->
             Value = riakc_obj:get_value(Obj),
-            #xmlel{} = xml_stream:parse_element(Value);
+            {ok, #xmlel{} = DecodedXML} = exml:parse(Value),
+            DecodedXML;
         _ ->
             Default
     end.
