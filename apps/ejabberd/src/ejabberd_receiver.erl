@@ -168,7 +168,7 @@ handle_call(reset_stream, _From, #state{ parser = Parser } = State) ->
     NewParser = reset_parser(Parser),
     {reply, ok, State#state{parser = NewParser}, ?HIBERNATE_TIMEOUT};
 handle_call({become_controller, C2SPid}, _From, State) ->
-    {ok, Parser} = exml_stream:new_parser(),
+    Parser = reset_parser(State#state.parser),
     NewState = State#state{c2s_pid = C2SPid, parser = Parser},
     activate_socket(NewState),
     Reply = ok,
@@ -370,7 +370,8 @@ element_wrapper(Element) ->
     Element.
 
 reset_parser(undefined) ->
-    undefined;
+    {ok, NewParser} = exml_stream:new_parser(),
+    NewParser;
 reset_parser(Parser) ->
     {ok, NewParser} = exml_stream:reset_parser(Parser),
     NewParser.
