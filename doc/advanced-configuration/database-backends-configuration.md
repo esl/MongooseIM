@@ -28,6 +28,9 @@ mysql -h localhost -u user -p -e 'create database mongooseim'
 mysql -h localhost -u user -p mongooseim < mysql.sql
 ```
 
+You should also configure MySQL database in `[MongooseIM root]/rel/files/ejabberd.cfg` file. 
+Please refer to [Advanced configuration/Database setup](../Advanced-configuration.md) for more information.
+
 # Postgres
 
 **Can be used for:**
@@ -51,6 +54,8 @@ For example, you can use the following command to apply it on localhost:
 psql -h localhost -U user -c "CREATE DATABASE mongooseim;"
 psql -h localhost -U user -q -d mongooseim -f pg.sql
 ```
+You should also configure Postgres database in `[MongooseIM root]/rel/files/ejabberd.cfg` file. 
+Please refer to [Advanced configuration/Database setup](../Advanced-configuration.md) for more information.
 
 # MSSQL / Azure SQL
 
@@ -149,6 +154,9 @@ riak-admin bucket-type activate private
 
 This will create a bucket type required for storing **users credentials** and it will
 activate it.
+
+You should also configure Riak in `[MongooseIM root]/rel/files/ejabberd.cfg` file. 
+Please refer to [Advanced configuration/Database setup](../Advanced-configuration.md) for more information.
 
 # Cassandra
 
