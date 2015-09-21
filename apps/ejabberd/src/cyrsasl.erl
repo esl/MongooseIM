@@ -47,7 +47,6 @@
                              module :: sasl_module(),
                              password_type :: plain | digest | scram
                             }.
-
 -type mechanism() :: binary().
 
 -record(sasl_state, {service :: binary(),
@@ -96,6 +95,7 @@ start() ->
     cyrsasl_digest:start([]),
     cyrsasl_scram:start([]),
     cyrsasl_anonymous:start([]),
+    cyrsasl_oauth:start([]),
     ok.
 
 -spec register_mechanism(Mechanism :: mechanism(),

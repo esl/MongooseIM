@@ -1,4 +1,4 @@
-{export, "/tmp/mognoose_ct.coverdata"}.
+{export, "mognoose_ct.coverdata"}.
 {incl_dirs, ["ebin"]}.
 
 {src_dirs, myapp, ["src"]}.
