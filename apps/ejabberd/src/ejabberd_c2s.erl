@@ -424,7 +424,7 @@ get_xml_lang(Attrs) ->
         _ ->
             %% Do not store long language tag to
             %% avoid possible DoS/flood attacks
-            <<"">>
+           <<>>
     end.
 
 default_language() ->
@@ -1505,11 +1505,11 @@ send_element(#state{server = Server} = StateData, El) ->
 send_header(StateData, Server, Version, Lang)
   when StateData#state.xml_socket ->
     VersionAttr = case Version of
-                      <<"">> -> [];
+                      <<>> -> [];
                       _ -> [{<<"version">>, Version}]
                   end,
     LangAttr = case Lang of
-                   <<"">> -> [];
+                   <<>> -> [];
                    _ -> [{<<"xml:lang">>, Lang}]
                end,
     Header = {xmlstreamstart,
@@ -1523,12 +1523,12 @@ send_header(StateData, Server, Version, Lang)
     (StateData#state.sockmod):send_xml(StateData#state.socket, Header);
 send_header(StateData, Server, Version, Lang) ->
     VersionStr = case Version of
-                     <<"">> -> <<"">>;
-                     _ -> [<<" version='">>, Version, <<"'">>]
+                    <<>> -> [];
+                     _ -> [" version='", Version, "'"]
                  end,
     LangStr = case Lang of
-                  <<"">> -> <<"">>;
-                  _ -> [<<" xml:lang='">>, Lang, <<"'">>]
+                  <<>> -> [];
+                  _ -> [" xml:lang='", Lang, "'"]
               end,
     Header = list_to_binary(io_lib:format(?STREAM_HEADER,
                                           [StateData#state.streamid,
