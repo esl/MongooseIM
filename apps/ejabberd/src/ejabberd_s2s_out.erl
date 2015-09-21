@@ -131,13 +131,13 @@
 -define(STREAM_TRAILER, <<"</stream:stream>">>).
 
 -define(INVALID_NAMESPACE_ERR,
-        xml:element_to_binary(?SERR_INVALID_NAMESPACE)).
+        exml:to_binary(?SERR_INVALID_NAMESPACE)).
 
 -define(HOST_UNKNOWN_ERR,
-        xml:element_to_binary(?SERR_HOST_UNKNOWN)).
+        exml:to_binary(?SERR_HOST_UNKNOWN)).
 
 -define(INVALID_XML_ERR,
-        xml:element_to_binary(?SERR_XML_NOT_WELL_FORMED)).
+        exml:to_binary(?SERR_XML_NOT_WELL_FORMED)).
 
 -define(SOCKET_DEFAULT_RESULT, {error, badarg}).
 
@@ -559,7 +559,7 @@ wait_for_features({xmlstreamelement, El}, StateData) ->
             end;
         _ ->
             send_text(StateData,
-                      <<(xml:element_to_binary(?SERR_BAD_FORMAT))/binary,
+                      <<(exml:to_binary(?SERR_BAD_FORMAT))/binary,
                       (?STREAM_TRAILER)/binary>>),
             ?INFO_MSG("Closing s2s connection: ~s -> ~s (bad format)",
                       [StateData#state.myname, StateData#state.server]),
@@ -601,7 +601,7 @@ wait_for_auth_result({xmlstreamelement, El}, StateData) ->
                                     }, ?FSMTIMEOUT};
                 _ ->
                     send_text(StateData,
-                              <<(xml:element_to_binary(?SERR_BAD_FORMAT))/binary,
+                              <<(exml:to_binary(?SERR_BAD_FORMAT))/binary,
                               (?STREAM_TRAILER)/binary>>),
                     ?INFO_MSG("Closing s2s connection: ~s -> ~s (bad format)",
                               [StateData#state.myname, StateData#state.server]),
@@ -617,7 +617,7 @@ wait_for_auth_result({xmlstreamelement, El}, StateData) ->
                      StateData#state{socket = undefined}, ?FSMTIMEOUT};
                 _ ->
                     send_text(StateData,
-                              <<(xml:element_to_binary(?SERR_BAD_FORMAT))/binary,
+                              <<(exml:to_binary(?SERR_BAD_FORMAT))/binary,
                               (?STREAM_TRAILER)/binary>>),
                     ?INFO_MSG("Closing s2s connection: ~s -> ~s (bad format)",
                               [StateData#state.myname, StateData#state.server]),
@@ -625,7 +625,7 @@ wait_for_auth_result({xmlstreamelement, El}, StateData) ->
             end;
         _ ->
             send_text(StateData,
-                      <<(xml:element_to_binary(?SERR_BAD_FORMAT))/binary,
+                      <<(exml:to_binary(?SERR_BAD_FORMAT))/binary,
                               (?STREAM_TRAILER)/binary>>),
             ?INFO_MSG("Closing s2s connection: ~s -> ~s (bad format)",
                       [StateData#state.myname, StateData#state.server]),
@@ -687,7 +687,7 @@ wait_for_starttls_proceed({xmlstreamelement, El}, StateData) ->
 		    {next_state, wait_for_stream, NewStateData, ?FSMTIMEOUT};
 		_ ->
 		    send_text(StateData,
-			      <<(xml:element_to_string(?SERR_BAD_FORMAT))/binary,
+			      <<(exml:to_binary(?SERR_BAD_FORMAT))/binary,
 			      (?STREAM_TRAILER)/binary>>),
 		    ?INFO_MSG("Closing s2s connection: ~s -> ~s (bad format)",
 			      [StateData#state.myname, StateData#state.server]),
@@ -969,7 +969,7 @@ send_text(StateData, Text) ->
 
 -spec send_element(state(), jlib:xmlel()) -> 'ok'.
 send_element(StateData, El) ->
-    send_text(StateData, xml:element_to_binary(El)).
+    send_text(StateData, exml:to_binary(El)).
 
 
 -spec send_queue(state(), Q :: element_queue()) -> 'ok'.

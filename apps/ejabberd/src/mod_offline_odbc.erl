@@ -117,7 +117,7 @@ write_all_messages_t(LServer, SUser, SServer, Msgs) ->
 record_to_row(SUser, SServer, #offline_msg{
         from = From, packet = Packet, timestamp = TimeStamp, expire = Expire}) ->
     SFrom = ejabberd_odbc:escape(jlib:jid_to_binary(From)),
-    SPacket = ejabberd_odbc:escape(xml:element_to_binary(Packet)),
+    SPacket = ejabberd_odbc:escape(exml:to_binary(Packet)),
     STimeStamp = encode_timestamp(TimeStamp),
     SExpire = maybe_encode_timestamp(Expire),
     odbc_queries:prepare_offline_message(SUser, SServer, STimeStamp, SExpire, SFrom, SPacket).

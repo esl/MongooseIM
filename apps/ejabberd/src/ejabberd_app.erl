@@ -43,7 +43,6 @@ start(normal, _Args) ->
     ejabberd_loglevel:set(4),
     write_pid_file(),
     db_init(),
-    xml:start(),
     application:start(p1_cache_tab),
 
     load_drivers([tls_drv, expat_erl]),

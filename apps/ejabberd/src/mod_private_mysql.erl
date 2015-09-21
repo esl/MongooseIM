@@ -27,7 +27,7 @@ replace_like_insert_result({aborted, Reason})   -> {aborted, Reason}.
 
 sql_row(NS, XML) ->
     SNS = ejabberd_odbc:escape(NS),
-    SData = ejabberd_odbc:escape(xml:element_to_binary(XML)),
+    SData = ejabberd_odbc:escape(exml:to_binary(XML)),
     {SNS, SData}.
 
 multi_get_data(LUser, LServer, NS2Def) ->

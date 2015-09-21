@@ -613,7 +613,7 @@ wait_for_feature_request({xmlstreamelement, El}, StateData) ->
             Socket = StateData#state.socket,
             TLSSocket = (StateData#state.sockmod):starttls(
                                                     Socket, TLSOpts,
-                                                    xml:element_to_binary(tls_proceed())),
+                                                    exml:to_binary(tls_proceed())),
             fsm_next_state(wait_for_stream,
                            StateData#state{socket = TLSSocket,
                                            streamid = new_id(),
@@ -631,7 +631,7 @@ wait_for_feature_request({xmlstreamelement, El}, StateData) ->
                         <<"zlib">> ->
                             Socket = StateData#state.socket,
                             ZlibSocket = (StateData#state.sockmod):compress(Socket, ZlibLimit,
-                                                                            xml:element_to_binary(compressed())),
+                                                                            exml:to_binary(compressed())),
                             fsm_next_state(wait_for_stream,
                                            StateData#state{socket = ZlibSocket,
                                                            streamid = new_id()
@@ -1495,7 +1495,7 @@ send_element(#state{server = Server, sockmod = SockMod} = StateData, El)
 send_element(#state{server = Server} = StateData, El) ->
     ejabberd_hooks:run(xmpp_send_element,
                        Server, [Server, El]),
-    send_text(StateData, xml:element_to_binary(El)).
+    send_text(StateData, exml:to_binary(El)).
 
 
 -spec send_header(State :: state(),
