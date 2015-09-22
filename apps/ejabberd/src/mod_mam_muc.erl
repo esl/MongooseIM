@@ -340,7 +340,8 @@ action_to_global_shaper_name(Action) -> list_to_atom(atom_to_list(Action) ++ "_g
 
 
 -spec handle_mam_iq('mam_get_prefs', From :: ejabberd:jid(), ejabberd:jid(),
-                    ejabberd:iq()) -> ejabberd:iq().
+                    ejabberd:iq()) ->
+    ejabberd:iq() | {error, any(), ejabberd:iq()}.
 handle_mam_iq(Action, From, To, IQ) ->
     case Action of
         mam_get_prefs ->
@@ -370,7 +371,8 @@ iq_action(#iq{type = Action, sub_el = SubEl = #xmlel{name = Category}}) ->
     end.
 
 
--spec handle_set_prefs(ejabberd:jid(), ejabberd:iq()) -> ejabberd:iq().
+-spec handle_set_prefs(ejabberd:jid(), ejabberd:iq()) ->
+    ejabberd:iq() | {error, any(), ejabberd:iq()}.
 handle_set_prefs(ArcJID=#jid{},
                  IQ=#iq{sub_el = PrefsEl}) ->
     {DefaultMode, AlwaysJIDs, NeverJIDs} = parse_prefs(PrefsEl),
@@ -389,7 +391,8 @@ handle_set_prefs_result({error, Reason},
     return_error_iq(IQ, Reason).
 
 
--spec handle_get_prefs(ejabberd:jid(), ejabberd:iq()) -> ejabberd:iq().
+-spec handle_get_prefs(ejabberd:jid(), ejabberd:iq()) ->
+    ejabberd:iq() | {error, any(), ejabberd:iq()}.
 handle_get_prefs(ArcJID=#jid{}, IQ=#iq{}) ->
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
@@ -406,7 +409,7 @@ handle_get_prefs_result({error, Reason}, IQ) ->
 
 
 -spec handle_lookup_messages(From :: ejabberd:jid(), ArcJID :: ejabberd:jid(),
-        IQ :: ejabberd:iq()) -> ejabberd:iq().
+        IQ :: ejabberd:iq()) -> ejabberd:iq() | {error, any(), ejabberd:iq()}.
 handle_lookup_messages(
         From=#jid{},
         ArcJID=#jid{},
@@ -457,7 +460,8 @@ handle_lookup_messages(
 
 
 %% @doc Purging multiple messages.
--spec handle_purge_multiple_messages(ejabberd:jid(), ejabberd:iq()) -> ejabberd:iq().
+-spec handle_purge_multiple_messages(ejabberd:jid(), ejabberd:iq()) ->
+    ejabberd:iq() | {error, any(), ejabberd:iq()}.
 handle_purge_multiple_messages(ArcJID=#jid{},
                                IQ=#iq{sub_el = PurgeEl}) ->
     Now = mod_mam_utils:now_to_microseconds(now()),
@@ -476,7 +480,8 @@ handle_purge_multiple_messages(ArcJID=#jid{},
     return_purge_multiple_message_iq(IQ, Res).
 
 
--spec handle_purge_single_message(ejabberd:jid(), ejabberd:iq()) -> ejabberd:iq().
+-spec handle_purge_single_message(ejabberd:jid(), ejabberd:iq()) ->
+    ejabberd:iq() | {error, any(), ejabberd:iq()}.
 handle_purge_single_message(ArcJID=#jid{},
                             IQ=#iq{sub_el = PurgeEl}) ->
     Now = mod_mam_utils:now_to_microseconds(now()),
@@ -490,7 +495,7 @@ handle_purge_single_message(ArcJID=#jid{},
 %% ----------------------------------------------------------------------
 %% Backend wrappers
 
--spec archive_id_int(ejabberd:server(), ejabberd:jid()) -> integer().
+-spec archive_id_int(ejabberd:server(), ejabberd:jid()) -> integer() | undefined.
 archive_id_int(Host, ArcJID=#jid{}) ->
     ejabberd_hooks:run_fold(mam_muc_archive_id, Host, undefined, [Host, ArcJID]).
 
@@ -660,17 +665,17 @@ elem_to_limit(QueryEl) ->
         [{elem, <<"set">>}, {elem, <<"limit">>}, cdata]
     ]).
 
-handle_error_iq(Host, To, Action, IQ=#iq{type = {error, Reason}}) ->
+handle_error_iq(Host, To, Action, {error, Reason, IQ}) ->
     ejabberd_hooks:run(mam_muc_drop_iq, Host,
         [Host, To, IQ, Action, Reason]),
-    IQ#iq{type = error};
+    IQ;
 handle_error_iq(_Host, _To, _Action, IQ) ->
     IQ.
 
 return_error_iq(IQ, timeout) ->
-    IQ#iq{type = {error, timeout}, sub_el = [?ERR_SERVICE_UNAVAILABLE]};
+    {error, timeout, IQ#iq{type = error, sub_el = [?ERR_SERVICE_UNAVAILABLE]}};
 return_error_iq(IQ, Reason) ->
-    IQ#iq{type = {error, Reason}, sub_el = [?ERR_INTERNAL_SERVER_ERROR]}.
+    {error, Reason, IQ#iq{type = error, sub_el = [?ERR_INTERNAL_SERVER_ERROR]}}.
 
 -spec return_action_not_allowed_error_iq(ejabberd:iq()) -> ejabberd:iq().
 return_action_not_allowed_error_iq(IQ) ->
@@ -704,7 +709,8 @@ return_max_delay_reached_error_iq(IQ) ->
 
 
 -spec return_purge_single_message_iq(ejabberd:iq(),
-        'ok' | {'error','not-found'} | {error, Reason :: term()}) -> ejabberd:iq().
+        'ok' | {'error','not-found'} | {error, Reason :: term()}) ->
+    ejabberd:iq() | {error, any(), ejabberd:iq()}.
 return_purge_single_message_iq(IQ, ok) ->
     return_purge_success(IQ);
 return_purge_single_message_iq(IQ, {error, 'not-found'}) ->

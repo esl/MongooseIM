@@ -89,7 +89,7 @@
 %% ----------------------------------------------------------------------
 %% Types
 
--type filter() :: iolist().
+-type filter() :: #mam_ca_filter{}.
 -type message_id() :: non_neg_integer().
 -type user_id() :: non_neg_integer().
 -type server_hostname() :: binary().
@@ -625,7 +625,7 @@ does_conversation_exist(Worker, BUserJID, BWithJID) ->
     end.
 
 -spec purge_single_message(_Result, Host, MessID, _UserID, UserJID, Now) ->
-    ok | {error, 'not-allowed' | 'not-found'} when
+    ok | {error, 'not-supported'} when
     Host    :: server_host(),
     MessID  :: message_id(),
     _UserID  :: user_id(),
@@ -638,7 +638,7 @@ purge_single_message(_Result, Host, MessID, _UserID, _UserJID, _Now) ->
 -spec purge_multiple_messages(_Result, Host,
                               _UserID, UserJID, Borders,
                               Start, End, Now, WithJID) ->
-    ok | {error, 'not-allowed'} when
+    {error, 'not-supported'} when
     Host    :: server_host(),
     _UserID  :: user_id(),
     UserJID :: #jid{},
@@ -656,14 +656,14 @@ purge_multiple_messages(_Result, Host, _UserID, UserJID, Borders,
 %% `{<<"13663125233">>,<<"bob@localhost">>,<<"res1">>,<<binary>>}'.
 %% Columns are `["id","from_jid","message"]'.
 -spec extract_messages(Worker, Host, Filter, IOffset, IMax, ReverseLimit) ->
-    [Record] when
+    [Row] when
     Worker  :: worker(),
     Host    :: server_hostname(),
     Filter  :: filter(),
     IOffset :: non_neg_integer(),
     IMax    :: pos_integer(),
     ReverseLimit :: boolean(),
-    Record :: tuple().
+    Row :: list().
 extract_messages(_Worker, _Host, _Filter, _IOffset, 0, _) ->
     [];
 extract_messages(Worker, Host, Filter, 0, IMax, false) ->
@@ -762,7 +762,7 @@ select_filter(#mam_ca_filter{
     select_filter(StartID, EndID).
 
 
--spec select_filter(StartID, EndID) -> filter()
+-spec select_filter(StartID, EndID) -> all | 'end' | start | start_end
     when
     StartID :: integer() | undefined,
     EndID   :: integer() | undefined.

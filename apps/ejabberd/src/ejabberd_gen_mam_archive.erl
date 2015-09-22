@@ -7,7 +7,7 @@
 -callback archive_message(_Result, ejabberd:server(),
         MessID :: mod_mam:message_id(), ArchiveID :: mod_mam:archive_id(),
         LocJID :: ejabberd:jid(), RemJID :: ejabberd:jid(),
-        SrcJID :: ejabberd:jid(), Dir :: atom(), Packet :: any()) -> ok.
+        SrcJID :: ejabberd:jid(), Dir :: atom(), Packet :: any()) -> ok | {error, timeout}.
 
 -callback lookup_messages(Result :: any(), Host :: ejabberd:server(),
         ArchiveID :: mod_mam:archive_id(), ArchiveJID :: ejabberd:jid(),
@@ -22,10 +22,10 @@
 -callback remove_archive(Host :: ejabberd:server(),
     ArchiveID :: mod_mam:archive_id(), ArchiveJID :: ejabberd:jid()) -> 'ok'.
 
--callback purge_single_message(Result :: any(), Host :: ejabberd:server(),
+-callback purge_single_message(Result :: purge_single_message_result(), Host :: ejabberd:server(),
         MessID :: mod_mam:message_id(), ArchiveID :: mod_mam:archive_id(),
         ArchiveJID :: ejabberd:jid(), Now :: mod_mam:unix_timestamp())
-            -> ok | {error, 'not-allowed' | 'not-found'}.
+            -> purge_single_message_result().
 
 -callback purge_multiple_messages(Result :: any(), Host :: ejabberd:server(),
         ArchiveID :: mod_mam:archive_id(), ArchiveJID :: ejabberd:jid(),
@@ -34,3 +34,8 @@
         End :: mod_mam:unix_timestamp() | undefined,
         Now :: mod_mam:unix_timestamp(),
         WithJID :: ejabberd:jid() | undefined) -> ok | {error, 'not-allowed'}.
+
+-type purge_single_message_result() :: ok | {error, 'not-allowed' | 'not-found' | term()}.
+
+-export_type([purge_single_message_result/0]).
+

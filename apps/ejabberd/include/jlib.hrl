@@ -325,7 +325,7 @@
 -record(rsm_in, {max         :: non_neg_integer() | undefined | error,
                  direction   :: before | aft | undefined,
                 %% id is empty, if cdata does not exist
-                 id          :: binary() | undefined,
+                 id          :: binary() | integer() | undefined,
                  index       :: non_neg_integer() | undefined | error
                 }).
 
