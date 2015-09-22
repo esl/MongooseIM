@@ -45,7 +45,7 @@
 -include("jlib.hrl").
 -include("mod_muc_room.hrl").
 
--define(T(Text), translate:translate(Lang, Text)).
+-define(T(Text), list_to_binary(translate:translate(Lang, Text))).
 -define(PROCNAME, ejabberd_mod_muc_log).
 -record(room, {jid, title, subject, subject_author, config}).
 
@@ -60,13 +60,16 @@
 
 -type jid_nick_role() :: {ejabberd:jid(), mod_muc:nick(), mod_muc:role()}.
 -type jid_nick() :: {ejabberd:jid(), mod_muc:nick()}.
+-type dir_type() :: 'plain' | 'subdirs'.
+-type dir_name() :: 'room_jid' | 'room_name'.
+-type file_format() :: 'html' | 'plaintext'.
 
 -record(logstate, {host         :: ejabberd:server(),
-                   out_dir      :: file:filename(),
-                   dir_type,
-                   dir_name     :: file:filename(),
-                   file_format,
-                   css_file     :: file:filename(),
+                   out_dir      :: binary(),
+                   dir_type     :: dir_type(),
+                   dir_name     :: dir_name(),
+                   file_format  :: file_format(),
+                   css_file     :: file:filename() | false,
                    access,
                    lang         :: ejabberd:lang(),
                    timezone,
@@ -271,12 +274,9 @@ add_to_log2(kickban, {Nick, Reason, Code}, Room, Opts, State) ->
 %%----------------------------------------------------------------------
 %% Core
 
--type dir_type() :: 'plain' | 'subdirs'.
--type dir_name() :: 'room_jid' | 'room_name'.
--type file_format() :: 'html' | 'plaintext'.
--spec build_filename_string(calendar:datetime(), OutDir :: file:filename(),
+-spec build_filename_string(calendar:datetime(), OutDir :: binary(),
         RoomJID :: ejabberd:literal_jid(), dir_type(), dir_name(), file_format())
-            -> {file:filename(), file:filename(), file:filename()}.
+            -> {binary(), binary(), binary()}.
 build_filename_string(TimeStamp, OutDir, RoomJID, DirType, DirName, FileFormat) ->
     {{Year, Month, Day}, _Time} = TimeStamp,
 
@@ -325,8 +325,7 @@ get_timestamp_daydiff(TimeStamp, Daydiff) ->
 
 
 %% @doc Try to close the previous day log, if it exists
--spec close_previous_log(file:filename(), any(), file_format())
-                                                    -> 'ok' | {'error',atom()}.
+-spec close_previous_log(binary(), any(), file_format()) -> 'ok' | {'error',atom()}.
 close_previous_log(Fn, Images_dir, FileFormat) ->
     case file:read_file_info(Fn) of
         {ok, _} ->
@@ -337,7 +336,7 @@ close_previous_log(Fn, Images_dir, FileFormat) ->
     end.
 
 
--spec write_last_lines(file:io_device(), file:filename(), file_format()) -> 'ok'.
+-spec write_last_lines(file:io_device(), binary(), file_format()) -> 'ok'.
 write_last_lines(_, _, plaintext) ->
     ok;
 write_last_lines(F, ImagesDir, _FileFormat) ->
@@ -350,8 +349,8 @@ write_last_lines(F, ImagesDir, _FileFormat) ->
     fw(F, <<"</span></div></body></html>">>).
 
 
--spec add_message_to_log(mod_muc:nick(), Message :: binary(),
-    RoomJID :: ejabberd:literal_jid(), Opts :: list(), State :: logstate()) -> ok.
+-spec add_message_to_log(mod_muc:nick(), Message :: atom() | tuple(),
+    RoomJID :: ejabberd:simple_jid() | ejabberd:jid(), Opts :: list(), State :: logstate()) -> ok.
 add_message_to_log(Nick1, Message, RoomJID, Opts, State) ->
     #logstate{out_dir = OutDir,
            dir_type = DirType,
@@ -485,14 +484,14 @@ add_message_to_log(Nick1, Message, RoomJID, Opts, State) ->
 %% Utilities
 
 -spec get_room_existence_string('created' | 'destroyed' | 'started' | 'stopped',
-        ejabberd:lang()) -> string().
+        binary()) -> binary().
 get_room_existence_string(created, Lang) -> ?T(<<"Chatroom is created">>);
 get_room_existence_string(destroyed, Lang) -> ?T(<<"Chatroom is destroyed">>);
 get_room_existence_string(started, Lang) -> ?T(<<"Chatroom is started">>);
 get_room_existence_string(stopped, Lang) -> ?T(<<"Chatroom is stopped">>).
 
 
--spec get_dateweek(calendar:datetime(), ejabberd:lang()) -> binary().
+-spec get_dateweek(calendar:date(), binary()) -> binary().
 get_dateweek(Date, Lang) ->
     Weekday = case calendar:day_of_the_week(Date) of
                   1 -> ?T(<<"Monday">>);
@@ -528,7 +527,7 @@ get_dateweek(Date, Lang) ->
     end.
 
 
--spec make_dir_rec(file:name()) -> 'ok' | {'error',atom()}.
+-spec make_dir_rec(binary()) -> 'ok' | {'error',atom()}.
 make_dir_rec(Dir) ->
     case file:read_file_info(Dir) of
         {ok, _} ->
@@ -674,7 +673,7 @@ image_base64(<<"powered-by-ejabberd.png">>) ->
         "AElFTkSuQmCC">>.
 
 
--spec create_image_files(file:filename()) -> 'ok'.
+-spec create_image_files(<<_:8,_:_*8>>) -> 'ok'.
 create_image_files(Images_dir) ->
     Filenames = [<<"powered-by-ejabberd.png">>,
                  <<"powered-by-erlang.png">>,
@@ -709,7 +708,7 @@ fw(F, S, FileFormat) ->
     io:format(F, S2, []).
 
 
--spec put_header(file:io_device(), Room :: mod_muc:room(), Date :: binary(),
+-spec put_header(file:io_device(), Room :: #room{}, Date :: binary(),
         CSSFile :: boolean(), Lang :: ejabberd:lang(), Hour_offset :: integer(),
         Date_prev :: binary(), Date_next :: binary(), Top_link :: tuple(),
         file_format()) -> 'ok'.
@@ -779,7 +778,8 @@ put_header_css(F, false) ->
     fw(F, <<".w3c {position: absolute; right: 10px; width: 60%; text-align: right; font-family: monospace; letter-spacing: 1px;}">>),
     fw(F, <<"//-->">>),
     fw(F, <<"</style>">>);
-put_header_css(F, CSSFile) ->
+put_header_css(F, CSSFileStr) ->
+    CSSFile = list_to_binary(CSSFileStr),
     fw(F, <<"<link rel=\"stylesheet\" type=\"text/css\" href=\"", CSSFile/binary, "\" media=\"all\">">>).
 
 put_header_script(F) ->
@@ -990,9 +990,8 @@ group_by_role(Users) ->
         ++ case Ns of [] -> []; _ -> [{"None", Ns}] end.
 
 
-%% @doc Role = atom()
 %% Users = [{JID, Nick}]
--spec role_users_to_string(mod_muc:role(), [jid_nick()]) -> [string(),...].
+-spec role_users_to_string(string(), [jid_nick()]) -> [string(),...].
 role_users_to_string(RoleS, Users) ->
     SortedUsers = lists:keysort(2, Users),
     UsersString = [[Nick, "<br/>"] || {_JID, Nick} <- SortedUsers],

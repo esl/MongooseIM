@@ -67,24 +67,40 @@
 -type affiliation() :: admin | owner | member | outcast | none.
 -type room() :: binary().
 -type nick() :: binary().
--type room_host() :: ejabberd:literal_jid(). % binary() too
+-type room_host() :: ejabberd:simple_bare_jid().
 -type packet() :: jlib:xmlel().
 -type from_to_packet() ::
         {From :: ejabberd:jid(), To :: ejabberd:jid(), Packet :: packet()}.
 -type access() :: {_AccessRoute, _AccessCreate, _AccessAdmin, _AccessPersistent}.
 
--record(muc_room, {name_host    :: room_host(),
-                   opts         :: list()
-                  }).
+-record(muc_room, {
+          name_host,
+          opts
+         }).
 
--record(muc_online_room, {name_host :: room_host(),
-                          pid       :: pid()
+-type muc_room() :: #muc_room{
+                       name_host    :: room_host(),
+                       opts         :: list()
+                      }.
+
+-record(muc_online_room, {name_host, 
+                          pid 
                          }).
--type muc_online_room() :: #muc_online_room{}.
 
--record(muc_registered, {us_host    :: ejabberd:literal_jid(),
-                         nick       :: nick
-                        }).
+-type muc_online_room() :: #muc_online_room{
+                              name_host :: room_host(),
+                              pid       :: pid()
+                             }.
+
+-record(muc_registered, {
+          us_host,
+          nick
+         }).
+
+-type muc_registered() :: #muc_registered{
+                             us_host    :: ejabberd:literal_jid(),
+                             nick       :: nick()
+                            }.
 
 -record(state, {host                :: ejabberd:server(),
                 server_host         :: ejabberd:literal_jid(),
@@ -93,9 +109,13 @@
                 default_room_opts   :: list(),
                 room_shaper         :: shaper:shaper()
               }).
+
 -type state() :: #state{}.
 
+-export_type([muc_room/0, muc_registered/0]).
+
 -define(PROCNAME, ejabberd_mod_muc).
+
 
 %%====================================================================
 %% API
@@ -668,7 +688,7 @@ iq_disco_info(Lang) ->
     [#xmlel{name = <<"identity">>,
             attrs = [{<<"category">>, <<"conference">>},
                      {<<"type">>, <<"text">>},
-                     {<<"name">>, translate:translate(Lang, <<"Chatrooms">>)}]},
+                     {<<"name">>, list_to_binary(translate:translate(Lang, <<"Chatrooms">>))}]},
      #xmlel{name = <<"feature">>, attrs = [{<<"var">>, ?NS_DISCO_INFO}]},
      #xmlel{name = <<"feature">>, attrs = [{<<"var">>, ?NS_DISCO_ITEMS}]},
      #xmlel{name = <<"feature">>, attrs = [{<<"var">>, ?NS_MUC}]},
@@ -750,8 +770,8 @@ get_vh_rooms(Host, #rsm_in{max=M, direction=Direction, id=I, index=Index}) ->
             H = hd(L2),
             NewIndex = get_room_pos(H, AllRooms),
             T=lists:last(L2),
-            {F, _}=H#muc_online_room.name_host,
-            {Last, _}=T#muc_online_room.name_host,
+            {F, _} = H#muc_online_room.name_host,
+            {Last, _} = T#muc_online_room.name_host,
             {L2, #rsm_out{first=F, last=Last, count=Count, index=NewIndex}}
     end.
 
@@ -783,7 +803,7 @@ flush() ->
 xfield(Type, Label, Var, Val, Lang) ->
     #xmlel{name = <<"field">>,
            attrs = [{<<"type">>, Type},
-                     {<<"label">>, translate:translate(Lang, Label)},
+                     {<<"label">>, list_to_binary(translate:translate(Lang, Label))},
                      {<<"var">>, Var}],
            children = [#xmlel{name = <<"value">>,
                               children = [#xmlcdata{content = Val}]}]}.

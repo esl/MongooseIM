@@ -623,7 +623,7 @@ parse_xdata_values([_ | Els], Res) ->
     parse_xdata_values(Els, Res).
 
 
--spec rsm_decode(xmlel()) -> 'none' | #rsm_in{}.
+-spec rsm_decode(xmlel() | iq()) -> 'none' | #rsm_in{}.
 rsm_decode(#iq{sub_el=SubEl})->
     rsm_decode(SubEl);
 rsm_decode(#xmlel{}=SubEl) ->
