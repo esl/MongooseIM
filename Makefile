@@ -29,8 +29,8 @@ reload_dev: quick_compile
 	rsync -uW ./apps/ejabberd/ebin/*beam ./dev/mongooseim_node1/lib/$$E/ebin/ ;\
 
 ct: deps quick_compile
-	@if [ "$(SUITE)" ]; then ./rebar -q ct suite=$(SUITE) skip_deps=true;\
-	else ./rebar -q ct skip_deps=true; fi
+	@if [ "$(SUITE)" ]; then ./rebar ct suite=$(SUITE) skip_deps=true;\
+	else ./rebar ct skip_deps=true; fi
 
 # This compiles and runs one test suite. For quick feedback/TDD.
 # Example:
