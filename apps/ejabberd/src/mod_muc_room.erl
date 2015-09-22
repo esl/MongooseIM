@@ -3284,7 +3284,7 @@ get_config(Lang, StateData, From) ->
     {MaxUsersRoomInteger, MaxUsersRoomString} =
     case get_max_users(StateData) of
         N when is_integer(N) ->
-        {N, erlang:integer_to_binary(N)};
+        {N, integer_to_binary(N)};
         _ -> {0, <<"none">>}
     end,
     Res =
@@ -3341,15 +3341,9 @@ get_config(Lang, StateData, From) ->
                                                       children = [#xmlcdata{content = <<"none">>}]}]}]
                        end ++
                        [#xmlel{name = <<"option">>,
-<<<<<<< HEAD
                                attrs = [{<<"label">>, list_to_binary(integer_to_list(N))}],
                                children = [#xmlel{name = <<"value">>,
                                                   children = [#xmlcdata{content = list_to_binary(integer_to_list(N))}]}]} ||
-=======
-                               attrs = [{<<"label">>, erlang:integer_to_binary(N)}],
-                               children = [#xmlel{name = <<"value">>,
-                                                  children = [#xmlcdata{content = erlang:integer_to_binary(N)}]}]} ||
->>>>>>> remove xml nif, use exml to encode/decode xmls
                                                                       N <- lists:usort([ServiceMaxUsers, DefaultRoomMaxUsers, MaxUsersRoomInteger |
                                                                                ?MAX_USERS_DEFAULT_LIST]), N =< ServiceMaxUsers]},
      #xmlel{name = <<"field">>,
@@ -3809,11 +3803,7 @@ iq_disco_info_extras(Lang, StateData) ->
                         rfield(<<"Room description">>, <<"muc#roominfo_description">>,
                             RoomDescription, Lang),
                         rfield(<<"Number of occupants">>, <<"muc#roominfo_occupants">>,
-<<<<<<< HEAD
                             (list_to_binary(integer_to_list(Len))), Lang)
-=======
-                            (integer_to_binary(Len)), Lang)
->>>>>>> remove xml nif, use exml to encode/decode xmls
                        ]}].
 
 

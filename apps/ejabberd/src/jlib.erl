@@ -695,7 +695,7 @@ rsm_encode_count(Count, Arr)->
     [#xmlel{name = <<"count">>, children = [#xmlcdata{content = i2b(Count)}]} | Arr].
 
 -spec i2b(binary() | pos_integer()) -> binary().
-i2b(I) when is_integer(I) -> integer_to_binary(I);
+i2b(I) when is_integer(I) -> list_to_binary(integer_to_list(I));
 i2b(L) when is_binary(L)    -> L.
 
 -type tzoffset() :: {TZh :: integer(), TZm :: integer()}.
