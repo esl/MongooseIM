@@ -316,7 +316,7 @@ is_room_action_allowed_by_default(Action, From, To) ->
 
 -spec is_room_owner(From :: ejabberd:jid(), To :: ejabberd:jid()) -> boolean().
 is_room_owner(From, To) ->
-    case mod_mam_room:is_room_owner(To, From) of
+    case mod_muc_room:is_room_owner(To, From) of
         {error, _} -> false;
         {ok, IsOwner} -> IsOwner
     end.
