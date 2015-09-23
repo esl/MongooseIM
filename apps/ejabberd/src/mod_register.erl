@@ -194,12 +194,12 @@ process_iq(From, To, #iq{type = Type, lang = Lang, sub_el = SubEl, id = ID} = IQ
 			{false, [], []}
 		end,
         TranslatedMsg = translate:translate(
-                          Lang, "Choose a username and password to register with this server"),
+                          Lang, <<"Choose a username and password to register with this server">>),
 		    IQ#iq{type = result,
 		  sub_el = [#xmlel{name = <<"query">>,
 				   attrs = [{<<"xmlns">>, <<"jabber:iq:register">>}],
 				   children = [#xmlel{name = <<"instructions">>,
-				              children = [#xmlcdata{content = list_to_binary(TranslatedMsg)}]},
+				              children = [#xmlcdata{content = TranslatedMsg}]},
 				       #xmlel{name = <<"username">>,
 					      children = UsernameSubels},
 				       #xmlel{name = <<"password">>}

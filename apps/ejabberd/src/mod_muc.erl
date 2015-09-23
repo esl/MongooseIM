@@ -688,7 +688,7 @@ iq_disco_info(Lang) ->
     [#xmlel{name = <<"identity">>,
             attrs = [{<<"category">>, <<"conference">>},
                      {<<"type">>, <<"text">>},
-                     {<<"name">>, list_to_binary(translate:translate(Lang, <<"Chatrooms">>))}]},
+                     {<<"name">>, translate:translate(Lang, <<"Chatrooms">>)}]},
      #xmlel{name = <<"feature">>, attrs = [{<<"var">>, ?NS_DISCO_INFO}]},
      #xmlel{name = <<"feature">>, attrs = [{<<"var">>, ?NS_DISCO_ITEMS}]},
      #xmlel{name = <<"feature">>, attrs = [{<<"var">>, ?NS_MUC}]},
@@ -803,7 +803,7 @@ flush() ->
 xfield(Type, Label, Var, Val, Lang) ->
     #xmlel{name = <<"field">>,
            attrs = [{<<"type">>, Type},
-                     {<<"label">>, list_to_binary(translate:translate(Lang, Label))},
+                     {<<"label">>, translate:translate(Lang, Label)},
                      {<<"var">>, Var}],
            children = [#xmlel{name = <<"value">>,
                               children = [#xmlcdata{content = Val}]}]}.

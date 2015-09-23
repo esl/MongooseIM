@@ -913,8 +913,7 @@ process_presence_error(From, Packet, Lang, StateData) ->
     case is_user_online(From, StateData) of
         true ->
             ErrorText = <<"This participant is kicked from the room because he sent an error presence">>,
-            expulse_participant(Packet, From, StateData,
-                list_to_binary(translate:translate(Lang, ErrorText))),
+            expulse_participant(Packet, From, StateData, translate:translate(Lang, ErrorText)),
             StateData;
         _ ->
             StateData
@@ -2731,8 +2730,8 @@ find_changed_items(UJID, UAffiliation, URole,
            {value, S} ->
            case jlib:binary_to_jid(S) of
                error ->
-               ErrText = <<(list_to_binary(translate:translate(Lang, <<"Jabber ID ">>)))/binary,
-                  S/binary, (list_to_binary(translate:translate(Lang, <<" is invalid">>)))/binary>>,
+               ErrText = <<(translate:translate(Lang, <<"Jabber ID ">>))/binary,
+                  S/binary, (translate:translate(Lang, <<" is invalid">>))/binary>>,
                {error, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)};
                J ->
                {value, J}
@@ -2742,8 +2741,8 @@ find_changed_items(UJID, UAffiliation, URole,
                {value, N} ->
                case find_jids_by_nick(N, StateData) of
                    [] ->
-                   ErrText = <<(list_to_binary(translate:translate(Lang, <<"Nickname ">>)))/binary,
-                      N/binary, (list_to_binary(translate:translate(Lang, <<" does not exist in the room">>)))/binary>>,
+                   ErrText = <<(translate:translate(Lang, <<"Nickname ">>))/binary,
+                      N/binary, (translate:translate(Lang, <<" does not exist in the room">>))/binary>>,
                    {error, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)};
                    [FirstSessionJid | _RestOfSessions] ->
                    {value, FirstSessionJid}
@@ -2764,7 +2763,7 @@ find_changed_items(UJID, UAffiliation, URole,
             {value, BAffiliation} ->
                 case catch binary_to_affiliation(BAffiliation) of
                 {'EXIT', _} ->
-                    ErrText1 = <<(list_to_binary(translate:translate(Lang, <<"Invalid affiliation ">>)))/binary,
+                    ErrText1 = <<(translate:translate(Lang, <<"Invalid affiliation ">>))/binary,
                         BAffiliation/binary>>,
                     {error, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText1)};
                 Affiliation ->
@@ -2816,7 +2815,7 @@ find_changed_items(UJID, UAffiliation, URole,
         {value, BRole} ->
             case catch binary_to_role(BRole) of
             {'EXIT', _} ->
-                ErrText1 = <<(list_to_binary(translate:translate(Lang, <<"Invalid role ">>)))/binary,
+                ErrText1 = <<(translate:translate(Lang, <<"Invalid role ">>))/binary,
                     BRole/binary>>,
                 {error, ?ERRT_BAD_REQUEST(Lang, ErrText1)};
             Role ->
@@ -3159,7 +3158,7 @@ process_iq_owner(From, get, Lang, SubEl, StateData) ->
             {value, BAffiliation} ->
                 case catch binary_to_affiliation(BAffiliation) of
                 {'EXIT', _} ->
-                    ErrText = <<(list_to_binary(translate:translate(Lang, <<"Invalid affiliation ">>)))/binary,
+                    ErrText = <<(translate:translate(Lang, <<"Invalid affiliation ">>))/binary,
                         BAffiliation/binary>>,
                     {error, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)};
                 Affiliation ->
@@ -3288,7 +3287,7 @@ get_config(Lang, StateData, From) ->
     end,
     Res =
     [#xmlel{name = <<"title">>,
-            children = [#xmlcdata{content = <<(list_to_binary(translate:translate(Lang, <<"Configuration of room ">>)))/binary,
+            children = [#xmlcdata{content = <<(translate:translate(Lang, <<"Configuration of room ">>))/binary,
                                     (jlib:jid_to_binary(StateData#state.jid))/binary>>}]},
      #xmlel{name = <<"field">>,
             attrs = [{<<"type">>, <<"hidden">>},
@@ -3327,7 +3326,7 @@ get_config(Lang, StateData, From) ->
             end, Lang),
      #xmlel{name = <<"field">>,
             attrs = [{<<"type">>, <<"list-single">>},
-                     {<<"label">>, list_to_binary(translate:translate(Lang, <<"Maximum Number of Occupants">>))},
+                     {<<"label">>, translate:translate(Lang, <<"Maximum Number of Occupants">>)},
                      {<<"var">>, <<"muc#roomconfig_maxusers">>}],
             children = [#xmlel{name = <<"value">>,
                                children = [#xmlcdata{content = MaxUsersRoomString}]}] ++
@@ -3335,7 +3334,7 @@ get_config(Lang, StateData, From) ->
                            is_integer(ServiceMaxUsers) -> [];
                            true ->
                            [#xmlel{name = <<"option">>,
-                                   attrs = [{<<"label">>, list_to_binary(translate:translate(Lang, <<"No limit">>))}],
+                                   attrs = [{<<"label">>, translate:translate(Lang, <<"No limit">>)}],
                                    children = [#xmlel{name = <<"value">>,
                                                       children = [#xmlcdata{content = <<"none">>}]}]}]
                        end ++
@@ -3347,7 +3346,7 @@ get_config(Lang, StateData, From) ->
                                                                                ?MAX_USERS_DEFAULT_LIST]), N =< ServiceMaxUsers]},
      #xmlel{name = <<"field">>,
             attrs = [{<<"type">>, <<"list-single">>},
-                     {<<"label">>, list_to_binary(translate:translate(Lang, <<"Present real Jabber IDs to">>))},
+                     {<<"label">>, translate:translate(Lang, <<"Present real Jabber IDs to">>)},
                      {<<"var">>, <<"muc#roomconfig_whois">>}],
             children = [#xmlel{name = <<"value">>,
                                children = [#xmlcdata{content = if Config#config.anonymous ->
@@ -3356,11 +3355,11 @@ get_config(Lang, StateData, From) ->
                                                                        <<"anyone">>
                                                                end}]},
                         #xmlel{name = <<"option">>,
-                               attrs = [{<<"label">>, list_to_binary(translate:translate(Lang, <<"moderators only">>))}],
+                               attrs = [{<<"label">>, translate:translate(Lang, <<"moderators only">>)}],
                                children = [#xmlel{name = <<"value">>,
                                                   children = [#xmlcdata{content = <<"moderators">>}]}]},
                         #xmlel{name = <<"option">>,
-                               attrs = [{<<"label">>, list_to_binary(translate:translate(Lang, <<"anyone">>))}],
+                               attrs = [{<<"label">>, translate:translate(Lang, <<"anyone">>)}],
                                children = [#xmlel{name = <<"value">>,
                                                   children = [#xmlcdata{content = <<"anyone">>}]}]}]},
      boolxfield(<<"Make room members-only">>,
@@ -3404,8 +3403,8 @@ get_config(Lang, StateData, From) ->
         _ -> []
     end,
     {result, [#xmlel{name = <<"instructions">>,
-                     children = [#xmlcdata{content = list_to_binary(translate:translate(
-                                                       Lang, <<"You need an x:data capable client to configure room">>))}]},
+                     children = [#xmlcdata{content = translate:translate(
+                                                       Lang, <<"You need an x:data capable client to configure room">>)}]},
           #xmlel{name = <<"x">>,
                  attrs = [{<<"xmlns">>, ?NS_XDATA},
                {<<"type">>, <<"form">>}],
@@ -3679,14 +3678,14 @@ make_opts(StateData) ->
     ].
 
 
--spec destroy_room(jlib:xmlel(), state()) -> {'result',[],'stop'}.
+-spec destroy_room(jlib:xmlel(), state()) -> {'result', [], 'stop'}.
 destroy_room(DestroyEl, StateData) ->
     remove_each_occupant_from_room(DestroyEl, StateData),
     case (StateData#state.config)#config.persistent of
-    true ->
-        mod_muc:forget_room(StateData#state.host, StateData#state.room);
-    false ->
-        ok
+        true ->
+            mod_muc:forget_room(StateData#state.host, StateData#state.room);
+        false ->
+            ok
     end,
     {result, [], stop}.
 
@@ -3785,7 +3784,7 @@ rfieldt(Type, Var, Val) ->
 -spec rfield(binary(), binary(), binary() | iolist(), ejabberd:lang()) -> jlib:xmlel().
 rfield(Label, Var, Val, Lang) ->
     #xmlel{name = <<"field">>,
-           attrs = [{<<"label">>, list_to_binary(translate:translate(Lang, Label))},
+           attrs = [{<<"label">>, translate:translate(Lang, Label)},
              {<<"var">>, Var}],
            children = [#xmlel{name = <<"value">>,
                               children = [#xmlcdata{content = Val}]}]}.
@@ -3854,11 +3853,11 @@ get_roomdesc_reply(JID, StateData, Tail) ->
 -spec get_roomdesc_tail(state(), ejabberd:lang()) -> binary().
 get_roomdesc_tail(StateData, Lang) ->
     Desc = case (StateData#state.config)#config.public of
-           true ->
-           <<>>;
-           _ ->
-           list_to_binary(translate:translate(Lang, <<"private, ">>))
-       end,
+               true ->
+                   <<>>;
+               _ ->
+                   translate:translate(Lang, <<"private, ">>)
+           end,
     Count = count_users(StateData),
     CountBin = list_to_binary(integer_to_list(Count)),
     <<" (", Desc/binary, CountBin/binary, ")">>.
@@ -4045,11 +4044,11 @@ invite_body_text(FromJID, Reason, Lang,
                 password=Password}}) ->
     BFromJID = jlib:jid_to_binary(FromJID),
     BRoomJID = jlib:jid_to_binary(RoomJID),
-    ITranslate = list_to_binary(translate:translate(Lang, <<" invites you to the room ">>)),
+    ITranslate = translate:translate(Lang, <<" invites you to the room ">>),
     IMessage = <<BFromJID/binary, ITranslate/binary, BRoomJID/binary>>,
     BPassword = case IsProtected of
         true ->
-            PTranslate = list_to_binary(translate:translate(Lang, <<"the password is">>)),
+            PTranslate = translate:translate(Lang, <<"the password is">>),
             <<", ", PTranslate/binary, " '", Password/binary, "'">>;
         _ ->
             <<>>
@@ -4281,8 +4280,7 @@ route_message(#routed_message{allowed = true, type = <<"error">>, from = From,
     case is_user_online(From, StateData) of
         true ->
             ErrorText = <<"This participant is kicked from the room because he sent an error message">>,
-            NewState = expulse_participant(Packet, From, StateData,
-                list_to_binary(translate:translate(Lang, ErrorText))),
+            NewState = expulse_participant(Packet, From, StateData, translate:translate(Lang, ErrorText)),
             NewState;
         _ ->
             StateData
@@ -4473,8 +4471,7 @@ route_nick_message(#routed_nick_message{decide = {expulse_sender, Reason},
     ?DEBUG(Reason, []),
     ErrorText = <<"This participant is kicked from the room because he",
                   "sent an error message to another participant">>,
-    expulse_participant(Packet, From, StateData,
-                        list_to_binary(translate:translate(Lang, ErrorText)));
+    expulse_participant(Packet, From, StateData, translate:translate(Lang, ErrorText));
 route_nick_message(#routed_nick_message{decide = forget_message}, StateData) ->
     StateData;
 route_nick_message(#routed_nick_message{decide = continue_delivery, allow_pm = true,
@@ -4575,7 +4572,7 @@ decode_reason(Elem) ->
 xfield(Type, Label, Var, Val, Lang) ->
     #xmlel{name = <<"field">>,
            attrs = [{<<"type">>, Type},
-                         {<<"label">>, list_to_binary(translate:translate(Lang, Label))},
+                         {<<"label">>, translate:translate(Lang, Label)},
                          {<<"var">>, Var}],
            children = [#xmlel{name = <<"value">>,
                               children = [#xmlcdata{content = Val}]}]}.

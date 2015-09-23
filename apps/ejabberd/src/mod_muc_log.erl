@@ -45,7 +45,7 @@
 -include("jlib.hrl").
 -include("mod_muc_room.hrl").
 
--define(T(Text), list_to_binary(translate:translate(Lang, Text))).
+-define(T(Text), translate:translate(Lang, Text)).
 -define(PROCNAME, ejabberd_mod_muc_log).
 -record(room, {jid, title, subject, subject_author, config}).
 
@@ -885,7 +885,7 @@ get_room_info(RoomJID, Opts) ->
             {value, {_, SA}} -> SA;
             false -> <<"">>
         end,
-    #room{jid = jlib:jid_to_binary(RoomJID),
+    #room{jid = RoomJID,
           title = Title,
           subject = Subject,
           subject_author = SubjectAuthor,

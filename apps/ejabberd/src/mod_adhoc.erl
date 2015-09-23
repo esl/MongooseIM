@@ -95,8 +95,7 @@ get_local_commands(Acc, _From, #jid{lserver = LServer} = _To, <<"">>, Lang) ->
             Nodes = [#xmlel{name = <<"item">>,
                             attrs = [{<<"jid">>, LServer},
                                      {<<"node">>, ?NS_COMMANDS},
-                                     {<<"name">>, list_to_binary(
-                                                    translate:translate(Lang, <<"Commands">>))}]}],
+                                     {<<"name">>, translate:translate(Lang, <<"Commands">>)}]}],
             {result, Items ++ Nodes}
     end;
 get_local_commands(_Acc, From, #jid{lserver = LServer} = To, ?NS_COMMANDS, Lang) ->
@@ -126,8 +125,7 @@ get_sm_commands(Acc, _From, #jid{lserver = LServer} = To, <<"">>, Lang) ->
             Nodes = [#xmlel{name = <<"item">>,
                             attrs = [{<<"jid">>, jlib:jid_to_binary(To)},
                                      {<<"node">>, ?NS_COMMANDS},
-                                     {<<"name">>, list_to_binary(
-                                                    translate:translate(Lang, <<"Commands">>))}]}],
+                                     {<<"name">>, translate:translate(Lang, <<"Commands">>)}]}],
             {result, Items ++ Nodes}
     end;
 
@@ -149,13 +147,12 @@ get_local_identity(Acc, _From, _To, ?NS_COMMANDS, Lang) ->
     [#xmlel{name = <<"identity">>,
             attrs = [{<<"category">>, <<"automation">>},
                      {<<"type">>, <<"command-list">>},
-                     {<<"name">>, list_to_binary(
-                                    translate:translate(Lang, <<"Commands">>))}]} | Acc];
+                     {<<"name">>, translate:translate(Lang, <<"Commands">>)}]} | Acc];
 get_local_identity(Acc, _From, _To, <<"ping">>, Lang) ->
     [#xmlel{name = <<"identity">>,
             attrs = [{<<"category">>, <<"automation">>},
                      {<<"type">>, <<"command-node">>},
-                     {<<"name">>, list_to_binary(translate:translate(Lang, <<"Ping">>))}]} | Acc];
+                     {<<"name">>, translate:translate(Lang, <<"Ping">>)}]} | Acc];
 get_local_identity(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
@@ -171,7 +168,7 @@ get_sm_identity(Acc, _From, _To, ?NS_COMMANDS, Lang) ->
     [#xmlel{name = <<"identity">>,
             attrs = [{<<"category">>, <<"automation">>},
                      {<<"type">>, <<"command-list">>},
-                     {<<"name">>, list_to_binary(translate:translate(Lang, <<"Commands">>))}]} | Acc];
+                     {<<"name">>, translate:translate(Lang, <<"Commands">>)}]} | Acc];
 get_sm_identity(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
@@ -267,8 +264,7 @@ ping_item(Acc, _From, #jid{lserver = Server} = _To, Lang) ->
     Nodes = [#xmlel{name = <<"item">>,
                     attrs = [{<<"jid">>, Server},
                              {<<"node">>, <<"ping">>},
-                             {<<"name">>, list_to_binary(
-                                            translate:translate(Lang, <<"Ping">>))}]}],
+                             {<<"name">>, translate:translate(Lang, <<"Ping">>)}]}],
     {result, Items ++ Nodes}.
 
 
@@ -286,8 +282,7 @@ ping_command(_Acc, _From, _To,
             adhoc:produce_response(
               Request,
               #adhoc_response{status = completed,
-                              notes = [{<<"info">>, list_to_binary(
-                                                      translate:translate(Lang, <<"Pong">>))}]});
+                              notes = [{<<"info">>, translate:translate(Lang, <<"Pong">>)}]});
         true ->
             {error, ?ERR_BAD_REQUEST}
     end;
