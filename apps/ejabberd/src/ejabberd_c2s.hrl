@@ -98,7 +98,7 @@
 
 -type broadcast_type() :: {exit, Reason :: binary()}
                         | {item, IJID :: ejabberd:simple_jid() | ejabberd:jid(),
-                           ISubscription :: from | to | both | none}
+                           ISubscription :: from | to | both | none | remove}
                         | {privacy_list, PrivList :: mod_privacy:userlist(),
                            PrivListName :: binary()}
                         | {blocking, What :: blocking_type()}

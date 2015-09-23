@@ -57,7 +57,7 @@
     Host    :: binary(),
     Opts    :: list().
 
--callback remove_user(LUser, LServer) -> ok when
+-callback remove_user(LUser, LServer) -> any() when
     LUser   :: binary(),
     LServer :: binary().
 

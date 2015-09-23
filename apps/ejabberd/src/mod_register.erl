@@ -100,11 +100,7 @@ unauthenticated_iq_register(Acc, _Server, _IQ, _IP) ->
 process_iq(From, To, IQ) ->
     process_iq(From, To, IQ, jlib:jid_tolower(From)).
 
-process_iq(From, To,
-	   #iq{type = Type, lang = Lang1, sub_el = SubEl, id = ID} = IQ,
-	   Source) ->
-    Lang = binary_to_list(Lang1),
-
+process_iq(From, To, #iq{type = Type, lang = Lang, sub_el = SubEl, id = ID} = IQ, Source) ->
     case Type of
 	set ->
 	    UTag = xml:get_subtag(SubEl, <<"username">>),
@@ -197,14 +193,13 @@ process_iq(From, To,
 		    _ ->
 			{false, [], []}
 		end,
+        TranslatedMsg = translate:translate(
+                          Lang, "Choose a username and password to register with this server"),
 		    IQ#iq{type = result,
 		  sub_el = [#xmlel{name = <<"query">>,
 				   attrs = [{<<"xmlns">>, <<"jabber:iq:register">>}],
 				   children = [#xmlel{name = <<"instructions">>,
-				              children = [#xmlcdata{content = translate:translate(
-				                                                Lang,
-					                                        "Choose a username and password "
-					                                        "to register with this server")}]},
+				              children = [#xmlcdata{content = list_to_binary(TranslatedMsg)}]},
 				       #xmlel{name = <<"username">>,
 					      children = UsernameSubels},
 				       #xmlel{name = <<"password">>}
@@ -246,12 +241,10 @@ try_set_password(User, Server, Password, IQ, SubEl, Lang) ->
 		{error, not_allowed} ->
 		    IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]};
 		{error, invalid_jid} ->
-		    IQ#iq{type = error, sub_el = [SubEl, ?ERR_ITEM_NOT_FOUND]};
-		_ ->
-		    IQ#iq{type = error, sub_el = [SubEl, ?ERR_INTERNAL_SERVER_ERROR]}
+		    IQ#iq{type = error, sub_el = [SubEl, ?ERR_ITEM_NOT_FOUND]}
 	    end;
 	false ->
-	    ErrText = "The password is too weak",
+	    ErrText = <<"The password is too weak">>,
 	    IQ#iq{type = error,
 		  sub_el = [SubEl, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)]}
     end.
@@ -290,18 +283,15 @@ try_register(User, Server, Password, SourceRaw, Lang) ->
 						{error, invalid_jid} ->
 						    {error, ?ERR_JID_MALFORMED};
 						{error, not_allowed} ->
-						    {error, ?ERR_NOT_ALLOWED};
-						{error, _Reason} ->
-						    {error, ?ERR_INTERNAL_SERVER_ERROR}
+						    {error, ?ERR_NOT_ALLOWED}
 					    end
 				    end;
 				false ->
-				    ErrText = "The password is too weak",
+				    ErrText = <<"The password is too weak">>,
 				    {error, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)}
 			    end;
 			false ->
-			    ErrText = "Users are not allowed to register "
-				"accounts so quickly",
+			    ErrText = <<"Users are not allowed to register accounts so quickly">>,
 			    {error, ?ERRT_RESOURCE_CONSTRAINT(Lang, ErrText)}
 		    end
 	    end
