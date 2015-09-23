@@ -1026,22 +1026,12 @@ muc_archive_purge(Config) ->
         %% User's archive is disabled (i.e. bob@localhost).
         BobMsg = escalus:wait_for_stanza(Bob),
         escalus:assert(is_message, BobMsg),
-        Arc = exml_query:subelement(BobMsg, <<"archived">>),
-        %% JID of the archive (i.e. where the client would send queries to)
-        By  = exml_query:attr(Arc, <<"by">>),
-        %% Attribute giving the message's UID within the archive.
-        Id  = exml_query:attr(Arc, <<"id">>),
-
-
-        %% Bob requests the room's archive.
-        escalus:send(Bob, stanza_to_room(stanza_purge_multiple_messages_muc(
-           undefined, undefined, undefined, undefined), Room)),
-        [_ArcRes, ArcMsg] = assert_respond_size(1, wait_archive_respond_iq_first(Bob)),
-        #forwarded_message{result_id=ArcId, message_body=ArcMsgBody} =
-        parse_forwarded_message(ArcMsg),
-        ?assert_equal(Text, ArcMsgBody),
-        ?assert_equal(ArcId, Id),
-        ?assert_equal(RoomAddr, By),
+        %% Flush all msgs to Alice
+        escalus:wait_for_stanzas(Alice, 6),
+        %% Alice purges the room's archive.
+        escalus:send(Alice, stanza_to_room(stanza_purge_multiple_messages(
+           undefined, undefined, undefined), Room)),
+        escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
         ok
     end,
     escalus:story(Config, [1, 1], F).
@@ -1543,19 +1533,6 @@ stanza_purge_multiple_messages(BStart, BEnd, BWithJID) ->
            maybe_with_elem(BWithJID)])
     }]).
 
-stanza_purge_multiple_messages_muc(BStart, BEnd, BWithJID, RSM) ->
-    escalus_stanza:iq(<<"set">>, [#xmlel{
-        name = <<"purge">>,
-        attrs = mam_ns_attr()
-                   ++ border_attributes(RSM),
-        children = skip_undefined([
-                                      maybe_simple_elem(RSM),
-                                      maybe_opt_count_elem(RSM),
-                                      maybe_start_elem(BStart),
-                                      maybe_end_elem(BEnd),
-                                      maybe_with_elem(BWithJID),
-                                      maybe_rsm_elem(RSM)])
-    }]).
 
 skip_undefined(Xs) ->
     [X || X <- Xs, X =/= undefined].
@@ -1900,10 +1877,9 @@ parse_error_iq(#xmlel{name = <<"iq">>,
 generate_rpc_jid({_,User}) ->
     {username, Username} = lists:keyfind(username, 1, User),
     {server, Server} = lists:keyfind(server, 1, User),
-    %% esl-ejabberd uses different record to store jids
-     %JID = <<Username/binary, "@", Server/binary, "/rpc">>,
-     %{jid, JID, Username, Server, <<"rpc">>}.
-    {jid, Username, Server, <<"rpc">>, Username, Server, <<"rpc">>}.
+    LUsername = escalus_utils:jid_to_lower(Username),
+    LServer = escalus_utils:jid_to_lower(Server),
+    {jid, Username, Server, <<"rpc">>, LUsername, LServer, <<"rpc">>}.
     
 start_alice_room(Config) ->
     %% TODO: ensure, that the room's archive is empty
