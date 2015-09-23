@@ -31,6 +31,7 @@
 -define(CONFIG_PATH, "etc/ejabberd.cfg").
 
 -define(EJABBERD_URI, "http://www.process-one.net/en/ejabberd/").
+-define(MONGOOSE_URI, <<"https://www.erlang-solutions.com/products/mongooseim-massively-scalable-ejabberd-platform">>).
 
 -define(S2STIMEOUT, 600000).
 
