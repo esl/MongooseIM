@@ -3819,8 +3819,9 @@ print(Element) ->
 generate_rpc_jid({_,User}) ->
     {username, Username} = lists:keyfind(username, 1, User),
     {server, Server} = lists:keyfind(server, 1, User),
-    JID = <<Username/binary, "@", Server/binary, "/rpc">>,
-    escalus_ejabberd:rpc(jlib, binary_to_jid, [JID]).
+    LUsername = escalus_utils:jid_to_lower(Username),
+    LServer = escalus_utils:jid_to_lower(Server),
+    {jid, Username, Server, <<"rpc">>, LUsername, LServer, <<"rpc">>}.
 
 %Groupchat 1.0 protocol
 stanza_groupchat_enter_room(Room, Nick) ->

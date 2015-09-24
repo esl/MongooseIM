@@ -30,6 +30,7 @@
          muc_service_discovery/1,
          simple_archive_request/1,
          muc_archive_request/1,
+         muc_archive_purge/1,
          muc_multiple_devices/1,
          muc_private_message/1,
          range_archive_request/1,
@@ -238,6 +239,7 @@ offline_message_cases() ->
 muc_cases() ->
     [muc_service_discovery,
      muc_archive_request,
+     muc_archive_purge,
      muc_multiple_devices,
      muc_private_message,
      muc_querying_for_all_messages,
@@ -555,6 +557,8 @@ init_per_testcase(C=muc_querying_for_all_messages_with_jid, Config) ->
         muc_bootstrap_archive(start_alice_room(Config)));
 init_per_testcase(C=muc_archive_request, Config) ->
     escalus:init_per_testcase(C, clean_room_archive(start_alice_room(Config)));
+init_per_testcase(C=muc_archive_purge, Config) ->
+    escalus:init_per_testcase(C, clean_room_archive(start_alice_room(Config)));
 init_per_testcase(C=muc_multiple_devices, Config) ->
     escalus:init_per_testcase(C, clean_room_archive(start_alice_room(Config)));
 init_per_testcase(C=muc_private_message, Config) ->
@@ -566,6 +570,9 @@ init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
 end_per_testcase(C=muc_archive_request, Config) ->
+    destroy_room(Config),
+    escalus:end_per_testcase(C, Config);
+end_per_testcase(C=muc_archive_purge, Config) ->
     destroy_room(Config),
     escalus:end_per_testcase(C, Config);
 end_per_testcase(C=muc_multiple_devices, Config) ->
@@ -995,6 +1002,38 @@ muc_archive_request(Config) ->
         ?assert_equal(RoomAddr, By),
         ok
         end,
+    escalus:story(Config, [1, 1], F).
+%% Copied from 'muc_archive_reuest' test in case to show some bug in mod_mam_muc related to issue #512
+muc_archive_purge(Config) ->
+    F = fun(Alice, Bob) ->
+        Room = ?config(room, Config),
+        RoomAddr = room_address(Room),
+        Text = <<"Hi, Bob!">>,
+        escalus:send(Alice, stanza_muc_enter_room(Room, nick(Alice))),
+        escalus:send(Bob, stanza_muc_enter_room(Room, nick(Bob))),
+
+        %% Bob received presences.
+        escalus:wait_for_stanzas(Bob, 2),
+
+        %% Bob received the room's subject.
+        escalus:wait_for_stanzas(Bob, 1),
+
+        %% Alice sends to the chat room.
+        escalus:send(Alice, escalus_stanza:groupchat_to(RoomAddr, Text)),
+
+        %% Bob received the message "Hi, Bob!".
+        %% This message will be archived (by alicesroom@localhost).
+        %% User's archive is disabled (i.e. bob@localhost).
+        BobMsg = escalus:wait_for_stanza(Bob),
+        escalus:assert(is_message, BobMsg),
+        %% Flush all msgs to Alice
+        escalus:wait_for_stanzas(Alice, 6),
+        %% Alice purges the room's archive.
+        escalus:send(Alice, stanza_to_room(stanza_purge_multiple_messages(
+           undefined, undefined, undefined), Room)),
+        escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+        ok
+    end,
     escalus:story(Config, [1, 1], F).
 
 muc_multiple_devices(Config) ->
@@ -1494,6 +1533,7 @@ stanza_purge_multiple_messages(BStart, BEnd, BWithJID) ->
            maybe_with_elem(BWithJID)])
     }]).
 
+
 skip_undefined(Xs) ->
     [X || X <- Xs, X =/= undefined].
 
@@ -1837,10 +1877,9 @@ parse_error_iq(#xmlel{name = <<"iq">>,
 generate_rpc_jid({_,User}) ->
     {username, Username} = lists:keyfind(username, 1, User),
     {server, Server} = lists:keyfind(server, 1, User),
-    %% esl-ejabberd uses different record to store jids
-     %JID = <<Username/binary, "@", Server/binary, "/rpc">>,
-     %{jid, JID, Username, Server, <<"rpc">>}.
-    {jid, Username, Server, <<"rpc">>, Username, Server, <<"rpc">>}.
+    LUsername = escalus_utils:jid_to_lower(Username),
+    LServer = escalus_utils:jid_to_lower(Server),
+    {jid, Username, Server, <<"rpc">>, LUsername, LServer, <<"rpc">>}.
     
 start_alice_room(Config) ->
     %% TODO: ensure, that the room's archive is empty
