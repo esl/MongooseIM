@@ -74,8 +74,7 @@ escape_cdata_and_attr(Elem) ->
     Elem.
 
 escape_attr({Name, Value}) when is_binary(Value) ->
-    {Name, exml:escape_attr(Value)};
-escape_attr(Attr) -> Attr.
+    {Name, exml:escape_attr(Value)}.
 
 -spec element_to_binary(jlib:xmlel()) -> binary().
 element_to_binary(El) ->

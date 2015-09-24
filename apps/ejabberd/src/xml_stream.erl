@@ -105,7 +105,7 @@ process_data(CallbackPid, Stack, Data) ->
 
 -spec new(pid(), non_neg_integer()) -> xmlstreamstate().
 new(CallbackPid, MaxSize) ->
-    Port = open_port({spawn, expat_erl}, [binary]),
+    Port = open_port({spawn, "expat_erl"}, [binary]),
     #xml_stream_state{callback_pid = CallbackPid,
                       port = Port,
                       stack = [],
@@ -147,7 +147,7 @@ close(#xml_stream_state{port = Port}) ->
 
 -spec parse_element(string() | binary()) -> any().
 parse_element(Str) ->
-    Port = open_port({spawn, expat_erl}, [binary]),
+    Port = open_port({spawn, "expat_erl"}, [binary]),
     Res = port_control(Port, ?PARSE_FINAL_COMMAND, Str),
     port_close(Port),
     process_element_events(binary_to_term(Res)).

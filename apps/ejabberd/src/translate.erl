@@ -108,8 +108,6 @@ attempt_translation([mylang | Langs], Msg) ->
                       [list_to_binary(MyLang), list_to_binary(MyLangBase) | Langs], Msg)
             end
     end;
-attempt_translation([undefined | Langs], Msg) ->
-    attempt_translation(Langs, Msg);
 attempt_translation([<<"en">> | _], Msg) ->
     Msg;
 attempt_translation([Lang | Langs], Msg) ->
