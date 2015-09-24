@@ -286,17 +286,15 @@ add_feature(_, Feature) ->
     {result, [Feature]}.
 
 inspect_packet(From, To, Packet) ->
-    Type = xml:get_tag_attr_s(<<"type">>, Packet),
-    inspect_packet_by_type(Type, From, To, Packet).
-
-inspect_packet_by_type(<<"error">>, _, _, _)     -> false;
-inspect_packet_by_type(<<"groupchat">>, _, _, _) -> false;
-inspect_packet_by_type(<<"headline">>, _, _, _)  -> false;
-inspect_packet_by_type(_Type, From, To, Packet) ->
-    case check_event_chatstates(From, To, Packet) of
+    case is_interesting_packet(Packet) of
         true ->
-            store_packet(From, To, Packet),
-            stop;
+            case check_event_chatstates(From, To, Packet) of
+                true ->
+                    store_packet(From, To, Packet),
+                    stop;
+                false ->
+                    ok
+            end;
         false ->
             ok
     end.
@@ -329,6 +327,15 @@ store_packet(
              packet = jlib:remove_delay_tags(Packet)},
     Pid ! Msg,
     ok.
+
+is_interesting_packet(Packet) ->
+    Type = xml:get_tag_attr_s(<<"type">>, Packet),
+    is_interesting_packet_type(Type).
+
+is_interesting_packet_type(<<"error">>)     -> false;
+is_interesting_packet_type(<<"groupchat">>) -> false;
+is_interesting_packet_type(<<"headline">>)  -> false;
+is_interesting_packet_type(_)               -> true.
 
 %% Check if the packet has any content about XEP-0022 or XEP-0085
 check_event_chatstates(From, To, Packet) ->
