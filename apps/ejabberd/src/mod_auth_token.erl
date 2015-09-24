@@ -27,13 +27,13 @@ stop(Host) ->
   ok.
 
 validate_access_token(TokenIn) ->
-    io:format("~n validate_access_token: : ~n~p~n ", [TokenIn]),
+    %% io:format("~n validate_access_token: : ~n~p~n ", [TokenIn]),
     TokenReceivedRec = get_token_as_record(TokenIn),
-    io:format("~n Token Parsed as: : ~n~p~n ", [TokenReceivedRec]),
+    %% io:format("~n Token Parsed as: : ~n~p~n ", [TokenReceivedRec]),
     #auth_token{user_jid = TokenOwnerUser} = TokenReceivedRec,
     io:format("~n Token Owner: ~n~p~n ", [TokenOwnerUser]),
     UsersKey = acquire_key_for_user(TokenOwnerUser),
-    io:format("~n Token Owner Key: ~n~p~n ", [UsersKey]),
+    %% io:format("~n Token Owner Key: ~n~p~n ", [UsersKey]),
 
     #auth_token{token_body = RecvdTokenBody} = TokenReceivedRec,
     MACreference = get_token_mac(RecvdTokenBody, UsersKey, get_hash_algorithm()),
@@ -86,6 +86,7 @@ tokens_body(User) ->
     Halgo = get_hash_algorithm(),
     UserBareJid = get_bare_jid_binary(User),
 
+    %% todo: handle revocation!
     SeqNo = 555,
     ExpiryDate = get_expiry_date_from_config(),
     UserKey  = acquire_key_for_user(UserBareJid),
@@ -95,11 +96,6 @@ tokens_body(User) ->
 
     AccessTokenMac = concat_token_mac(AccessToken, MacAccess),
     RefreshTokenMac = concat_token_mac(RefreshToken, MacRefresh),
-
-    %% ------------ test !!!  -------
-    %% S = split_token_from_transport(encode_for_transport(AccessTokenMac)),
-    %% split_token_from_transport(encode_for_transport(RefreshTokenMac)),
-    %% --end---------- test !!!  -------
 
     [
      #xmlel{ name = <<"access_token">>,
@@ -138,8 +134,8 @@ assemble_token_from_params(TokenParams) ->
 generate_access_token(UserBareJid, ExpiryDateTime, Key, HashAlgorithm) ->
     RawAccessToken  = generate_access_token_body(UserBareJid, ExpiryDateTime),
     Mac = get_token_mac(RawAccessToken, Key, HashAlgorithm),
-    io:format("~n Access Token (raw) ~p ~n ", [RawAccessToken]),
-    io:format("~n MAC ~p ~n ", [Mac]),
+    %% io:format("~n Access Token (raw) ~p ~n ", [RawAccessToken]),
+    %% io:format("~n MAC ~p ~n ", [Mac]),
     {RawAccessToken, Mac}.
 
 generate_access_token_body(UserBareJid, ExpiryDateTime) ->
@@ -196,34 +192,16 @@ get_token_as_record(TokenIn) ->
                 token_body = Token
                }.
 
-%% =============================================== TESTS =======================================
-
-%% -spec split_token_from_transport(TokenWithMacEncoded :: binary()) ->
-%%                                         [{'token', binary()}, {'mac', binary()}].
-split_token_from_transport(TokenWithMAC) ->
-    DecodedToken = decode_from_transport(TokenWithMAC),
-    {TokenReceived, MACReceived}  = token_mac_split(DecodedToken),
-    [{token, TokenReceived}, {mac, MACReceived}].
-
-
-%%    MACforCheck = create_hmac_signature(TokenReceived, SecretKey),
-%%    TokTokens = token_split(TokenReceived),
-%%    io:format("~n decoding token ~p ~n elements: ~p ~n",[Token, TokTokens]),
+acquire_key_for_user(User) ->
+    #jid{lserver = UsersHost} = jlib:binary_to_jid(User),
+    %% todo : extract key name from config (possible resolution by host)
+    [{asdqwe_access_secret, RawKey}] = ejabberd_hooks:run_fold(get_key, UsersHost, [], [asdqwe_access_secret]),
+    RawKey.
 
 split_token(TokenBody) ->
     Parts = token_body_split(TokenBody).
 
-
-%% =============================================== TESTS =======================================
-
-
-
-% ---------------------------- tokens disassembly/verification routines ----------------
-
-
-
-%% -------------------------------------------------- auxiliary functions --------------------
-
+%% consider reading it out of config file
 get_hash_algorithm() ->
     sha384.
 
@@ -235,50 +213,12 @@ decode_from_transport(Data) ->
 encode_for_transport(Data) ->
     base64:encode(Data).
 
-acquire_key_for_user(User) ->
-    [{asdqwe_access_secret, RawKey}] = ejabberd_hooks:run_fold(get_key, <<"localhost">>, [], [asdqwe_access_secret]),
-    io:format("~n result from mod_keystore ~p ~n ", [RawKey]),
-    RawKey.
-
 
 %% args: -record #jid
 get_bare_jid_binary(User) ->
     U = User#jid.luser,
     S = User#jid.lserver,
     <<U/binary,"@",S/binary>>.
-
-%% Store token parameters for later assembly
-%% args: (binary(), integer())
-%%get_user_access_token_params(User,ExpiryDate) when is_binary(User) ->
-%%    get_token_assembly_params({access, User,ExpiryDate}).
-    %% [{user_jid, User},
-    %%  {expiry_date, term_to_binary(ExpiryDate)},
-    %%  {sequence_no, term_to_binary(Seq)}].
-
-%% Store token parameters for later assembly
-%% args: (binary(), integer(), integer())
-%%get_user_refresh_token_params(User,ExpiryDate,Seq) when is_binary(User) ->
-%%    get_token_assembly_params({refresh,User,ExpiryDate, Seq}).
-    %% [{type, Type},
-    %%  {user_jid, User},
-    %%  {expiry_date, term_to_binary(ExpiryDate)},
-    %%  {sequence_no, term_to_binary(Seq)}].
-
-%% get_token_assembly_params(AssemblyParams) ->
-%%     [{user_jid, User},
-%%      {expiry_date, term_to_binary(ExpiryDate)},
-%%      {sequence_no, term_to_binary(Seq)}].
-
-
-%% get_token_assembly_params(User,ExpiryDate,Seq) when is_binary(User) ->
-%%     [{user_jid, User},
-%%      {expiry_date, term_to_binary(ExpiryDate)},
-%%      {sequence_no, term_to_binary(Seq)}].
-
-%% get_token_assembly_params(User,ExpiryDate) when is_binary(User) ->
-%%     [{user_jid, User},
-%%      {expiry_date, term_to_binary(ExpiryDate)},
-%%      {sequence_no, term_to_binary(Seq)}].
 
 
 
