@@ -17,7 +17,7 @@
 
 -behaviour(mongoose_api_format).
 
--export([serialize/1]).
+-export([serialize/1, deserialize/1]).
 
 -include("ejabberd.hrl").
 -include_lib("exml/include/exml.hrl").
@@ -27,6 +27,10 @@
 %%--------------------------------------------------------------------
 serialize(Data) ->
     do_serialize(Data).
+
+deserialize(IOList) ->
+    {ok, ParsedXML} = exml:parse(iolist_to_binary([IOList])),
+    ParsedXML.
 
 %%--------------------------------------------------------------------
 %% internal functions
