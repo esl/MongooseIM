@@ -842,8 +842,8 @@ iq_get_register_info(Host, From, Lang) ->
                                                   Lang, <<"You need a client that supports x:data to register the nickname">>)}]},
          #xmlel{name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_XDATA}],
                 children = [#xmlel{name = <<"title">>,
-                                   children = [#xmlcdata{content = translate:translate(
-                                                                     Lang, <<"Nickname Registration at ">>) ++ Host}]},
+                                   children = [#xmlcdata{content = <<(translate:translate(
+                                                                     Lang, <<"Nickname Registration at ">>))/binary, Host/binary>>}]},
                             #xmlel{name = <<"instructions">>,
                                    children = [#xmlcdata{content = translate:translate(
                                                                      Lang, <<"Enter nickname you want to register">>)}]},
@@ -941,8 +941,9 @@ iq_get_vcard(Lang) ->
             children = [#xmlcdata{content = <<"ejabberd/mod_muc">>}]},
      #xmlel{name = <<"URL">>, children = [#xmlcdata{content = ?EJABBERD_URI}]},
      #xmlel{name = <<"DESC">>,
-            children = [#xmlcdata{content = translate:translate(Lang, <<"ejabberd MUC module">>) ++
-                                    <<"\nCopyright (c) 2003-2011 ProcessOne">>}]}].
+            children = [#xmlcdata{content =
+                                  <<(translate:translate(Lang, <<"ejabberd MUC module">>))/binary,
+                                    "\nCopyright (c) 2003-2011 ProcessOne">>}]}].
 
 
 -spec broadcast_service_message(ejabberd:server(), binary() | string()) -> ok.

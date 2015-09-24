@@ -322,7 +322,7 @@ is_query_allowed(Query) ->
 -spec locked_state_process_owner_iq(ejabberd:jid(), jlib:xmlel(),
         ejabberd:lang(), 'error' | 'get' | 'invalid' | 'result',_)
             -> {{'error', jlib:xmlel()}, statename()}
-               | {result, [jlib:xmlel() | jlib:xmlcdata()], state()}.
+               | {result, [jlib:xmlel() | jlib:xmlcdata()], state() | stop}.
 locked_state_process_owner_iq(From, Query, Lang, set, StateData) ->
     Result = case is_query_allowed(Query) of
                  true ->
@@ -343,13 +343,10 @@ locked_state_process_owner_iq(_From, _Query, Lang, _Type, _StateData) ->
 locked_state({route, From, _ToNick,
               #xmlel{name = <<"iq">>} = Packet}, StateData) ->
     #iq{lang = Lang, sub_el = Query} = IQ = jlib:iq_query_info(Packet),
-    {Result, NextState} =
-        case IQ#iq.xmlns == ?NS_MUC_OWNER andalso
-            get_affiliation(From, StateData)  =:= owner
-        of
+    {Result, NextState1} =
+        case IQ#iq.xmlns == ?NS_MUC_OWNER andalso get_affiliation(From, StateData)  =:= owner of
             true ->
-                locked_state_process_owner_iq(From, Query, Lang,
-                                              IQ#iq.type, StateData);
+                locked_state_process_owner_iq(From, Query, Lang, IQ#iq.type, StateData);
             false ->
                 ErrText = <<"This room is locked">>,
                 {{error, ?ERRT_ITEM_NOT_FOUND(Lang, ErrText)}, locked_state}
@@ -360,17 +357,20 @@ locked_state({route, From, _ToNick,
                                              attrs = [{<<"xmlns">>, ?NS_MUC_OWNER}],
                                              children = Res}]}
                     end,
-    {IQRes, StateData3} =
+    {IQRes, StateData3, NextState2} =
         case Result of
-            {result, Res, StateData2} -> {MkQueryResult(Res), StateData2};
-            {error, Error} -> {IQ#iq{type = error, sub_el = [Query, Error]}, StateData}
+            {result, InnerRes, stop} -> {MkQueryResult(InnerRes), StateData, stop};
+            {result, InnerRes, StateData2} -> {MkQueryResult(InnerRes), StateData2, NextState1};
+            {error, Error} -> {IQ#iq{type = error, sub_el = [Query, Error]}, StateData, NextState1}
         end,
     ejabberd_router:route(StateData3#state.jid, From, jlib:iq_to_xml(IQRes)),
-    case NextState of
+    case NextState2 of
+        stop ->
+            {stop, normal, StateData3};
         locked_state ->
-            {next_state, NextState, StateData3};
+            {next_state, NextState2, StateData3};
         normal_state ->
-            {next_state, NextState, StateData3#state{just_created = false}}
+            {next_state, NextState2, StateData3#state{just_created = false}}
     end;
 %% Let owner leave. Destroy the room.
 locked_state({route, From, ToNick,
@@ -408,11 +408,14 @@ normal_state({route, From, <<>>,
 normal_state({route, From, <<>>,
           #xmlel{name = <<"iq">>} = Packet},
          StateData) ->
-    NewStateData = route_iq(#routed_iq{
+    {RoutingEffect, NewStateData} = route_iq(#routed_iq{
         iq = jlib:iq_query_info(Packet),
         from = From,
         packet = Packet}, StateData),
-    {next_state, normal_state, NewStateData};
+    case RoutingEffect of
+        ok -> {next_state, normal_state, NewStateData};
+        stop -> {stop, normal, NewStateData}
+    end;
 normal_state({route, From, Nick,
               #xmlel{name = <<"presence">>} = Packet},
              StateData) ->
@@ -3095,7 +3098,7 @@ send_kickban_presence1(UJID, Reason, Code, Affiliation, StateData) ->
 % Owner stuff
 
 -spec process_iq_owner(ejabberd:jid(), 'get' | 'set', ejabberd:lang(), jlib:xmlel(), state()) ->
-    {'error', jlib:xmlel()} | {result, [jlib:xmlel() | jlib:xmlcdata()], state()}.
+    {'error', jlib:xmlel()} | {result, [jlib:xmlel() | jlib:xmlcdata()], state() | stop}.
 process_iq_owner(From, set, Lang, SubEl, StateData) ->
     FAffiliation = get_affiliation(From, StateData),
     case FAffiliation of
@@ -3678,7 +3681,7 @@ make_opts(StateData) ->
     ].
 
 
--spec destroy_room(jlib:xmlel(), state()) -> {'result', [], 'stop'}.
+-spec destroy_room(jlib:xmlel(), state()) -> {result, [], stop}.
 destroy_room(DestroyEl, StateData) ->
     remove_each_occupant_from_room(DestroyEl, StateData),
     case (StateData#state.config)#config.persistent of
@@ -4406,7 +4409,7 @@ route_invitation({ok, IJIDs}, _From, _Packet, _Lang, StateData0) ->
     end.
 
 
--spec route_iq(routed_iq(), state()) -> state().
+-spec route_iq(routed_iq(), state()) -> {ok | stop, state()}.
 route_iq(#routed_iq{iq = #iq{type = Type, xmlns = ?NS_MUC_ADMIN, lang = Lang,
     sub_el = SubEl}, from = From} = Routed, StateData) ->
     Res = process_iq_admin(From, Type, Lang, SubEl, StateData),
@@ -4434,35 +4437,41 @@ route_iq(#routed_iq{iq = IQ = #iq{}, packet = Packet, from = From},
         ResIQ ->
             ejabberd_router:route(RoomJID, From, jlib:iq_to_xml(ResIQ))
     end,
-    StateData;
+    {ok, StateData};
 route_iq(#routed_iq{iq = reply}, StateData) ->
-    StateData;
+    {ok, StateData};
 route_iq(#routed_iq{packet = Packet, from = From}, StateData) ->
     Err = jlib:make_error_reply(
         Packet, ?ERR_FEATURE_NOT_IMPLEMENTED),
     ejabberd_router:route(StateData#state.jid, From, Err),
-    StateData.
+    {ok, StateData}.
 
 
 -spec do_route_iq({result, [jlib:xmlel()], state()} | {error, jlib:xmlel()},
-                  routed_iq(), state()) -> state().
+                  routed_iq(), state()) -> {ok | stop, state()}.
 do_route_iq(Res1, #routed_iq{iq = #iq{xmlns = XMLNS, sub_el = SubEl} = IQ,
     from = From}, StateData) ->
-    {IQRes, NewStateData} = case Res1 of
+    {IQRes, RoutingResult} = case Res1 of
         {result, Res, SD} ->
-            {IQ#iq{type = result,
+            {
+             IQ#iq{type = result,
                 sub_el = [#xmlel{name = <<"query">>,
                                  attrs = [{<<"xmlns">>, XMLNS}],
                                  children = Res}]},
-            SD};
+             case SD of
+                 stop -> {stop, StateData};
+                 _ -> {ok, SD}
+             end
+            };
         {error, Error} ->
-            {IQ#iq{type = error,
-                sub_el = [SubEl, Error]},
-            StateData}
+            {
+             IQ#iq{type = error, sub_el = [SubEl, Error]},
+             {ok, StateData}
+            }
     end,
     ejabberd_router:route(StateData#state.jid, From,
         jlib:iq_to_xml(IQRes)),
-    NewStateData.
+    RoutingResult.
 
 
 -spec route_nick_message(routed_nick_message(), state()) -> state().
