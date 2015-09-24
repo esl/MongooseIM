@@ -18,7 +18,7 @@
 
 start(Host, Opts) ->
    mod_disco:register_feature(Host, ?NS_AUTH_TOKEN),
-   IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
+   IQDisc = gen_mod:get_opt(iqdisc, Opts, no_queue),
    gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_AUTH_TOKEN, ?MODULE, process_iq, IQDisc),
    ok.
 
@@ -26,60 +26,42 @@ stop(Host) ->
   gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_AUTH_TOKEN),
   ok.
 
+validate_access_token(TokenIn) ->
+    io:format("~n validate_access_token: : ~n~p~n ", [TokenIn]),
+    TokenReceivedRec = get_token_as_record(TokenIn),
+    io:format("~n Token Parsed as: : ~n~p~n ", [TokenReceivedRec]),
+    #auth_token{user_jid = TokenOwnerUser} = TokenReceivedRec,
+    io:format("~n Token Owner: ~n~p~n ", [TokenOwnerUser]),
+    UsersKey = acquire_key_for_user(TokenOwnerUser),
+    io:format("~n Token Owner Key: ~n~p~n ", [UsersKey]),
+
+    #auth_token{token_body = RecvdTokenBody} = TokenReceivedRec,
+    MACreference = get_token_mac(RecvdTokenBody, UsersKey, get_hash_algorithm()),
+
+    #auth_token{mac_signature = MACReceived} = TokenReceivedRec,
+
+    MACCheckResult = MACReceived =:= MACreference,
+   {MACCheckResult, mod_auth_token}.
 
 process_iq(From, _To, #iq{type = Type, sub_el = SubEl} = IQ) ->
-    io:format("~ngot something !!! : ~p~n ", [IQ]),
+%%    io:format("~ngot something !!! : ~p~n ", [IQ]),
     case xml:get_tag_attr(<<"xmlns">>, SubEl) of
         false ->
             {error, ?ERR_BAD_REQUEST};
         {value, Ns} ->
             case Ns of
                 ?NS_AUTH_TOKEN ->
-                    io:format(" ----NS MATCH--- ~n ~p ~n -----", [Ns]),
                     create_token_response(From, IQ);
-
                 _OTHER  ->
                     {error, ?ERR_BAD_REQUEST}
                 end
     end.
-
 
 create_token_response(From, IQ) ->
     IQ#iq{type = result,
           sub_el = [#xmlel{name = <<"items">>,
                            attrs = [{<<"xmlns">>, ?NS_AUTH_TOKEN}],
                            children = tokens_body(From)}]}.
-
-
-    %% case xml:get_subtag(IQ, <<"query">>) of
-    %% false ->
-    %%     {error, ?ERR_BAD_REQUEST};
-
-    %% Item ->
-    %%    case xml:get_tag_attr(<<"query">>, Item) of
-    %%        false -> bubu;
-
-    %%        {value, Bib} ->
-    %%            io:format(" ------- ~n ~p ~n -----", [Bib])
-    %%        end
-    %% end.
-
-
-
-
-    %% case Type of
-    %%   set ->
-    %%         IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]};
-    %%   get ->
-    %%         IQ#iq{type = result,
-    %%               sub_el =
-    %%                   [#xmlel{name = <<"items">>,
-    %%                           attrs =
-    %%                               [{<<"xmlns">>, ?NS_AUTH_TOKEN}],
-    %%                           children = tokens_body(From)}]}
-    %% end.
-
-
 
 %% generate expiry date for access/refresh/provisioning tokens
 %% Expiry date/time is returned as gregorian seconds
@@ -111,16 +93,13 @@ tokens_body(User) ->
     {AccessToken, MacAccess}  = generate_access_token(UserBareJid, ExpiryDate, UserKey, Halgo),
     {RefreshToken, MacRefresh} = generate_refresh_token(UserBareJid, ExpiryDate, UserKey, Halgo, SeqNo),
 
-    %% token formats:
-    %% Access Token: <<AToken>>\0<<Mac>> where AToken = <<user_bare_jid>>\0<<expiry_date>>
-    %% Refresh Token: <<RToken>>\0<<Mac>> where RToken = <<user_bare_jid>>\0<<expiry_date>>\0<<sequence_number>>
-
     AccessTokenMac = concat_token_mac(AccessToken, MacAccess),
     RefreshTokenMac = concat_token_mac(RefreshToken, MacRefresh),
 
     %% ------------ test !!!  -------
-    S = split_token_from_transport(encode_for_transport(AccessTokenMac)),
+    %% S = split_token_from_transport(encode_for_transport(AccessTokenMac)),
     %% split_token_from_transport(encode_for_transport(RefreshTokenMac)),
+    %% --end---------- test !!!  -------
 
     [
      #xmlel{ name = <<"access_token">>,
@@ -257,9 +236,10 @@ encode_for_transport(Data) ->
     base64:encode(Data).
 
 acquire_key_for_user(User) ->
-    <<"123abc">>.
-    % Res = ejabberd_hooks:run_fold(get_key, <<"localhost">>, [], [ram_key]),a
-    % io:format("~n result from mod_keystore ~p ~n ", [Res]).
+    [{asdqwe_access_secret, RawKey}] = ejabberd_hooks:run_fold(get_key, <<"localhost">>, [], [asdqwe_access_secret]),
+    io:format("~n result from mod_keystore ~p ~n ", [RawKey]),
+    RawKey.
+
 
 %% args: -record #jid
 get_bare_jid_binary(User) ->

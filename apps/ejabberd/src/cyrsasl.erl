@@ -95,7 +95,7 @@ start() ->
     cyrsasl_digest:start([]),
     cyrsasl_scram:start([]),
     cyrsasl_anonymous:start([]),
-    cyrsasl_oauth:start([]),
+    cyrsasl_oauth:start([]), %%todo: consider moving it somewhere else....
     ok.
 
 -spec register_mechanism(Mechanism :: mechanism(),
