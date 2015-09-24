@@ -374,7 +374,7 @@ build_iq_roster_push(Item) ->
            children = [#xmlel{ name = <<"query">>, attrs = [{<<"xmlns">>, ?NS_ROSTER}], children = [Item]}] }.
 
 -spec build_broadcast(U :: ejabberd:user(), S :: ejabberd:server(),
-                      push_action()) -> ejabberd_c2s:broadcast_item().
+                      push_action()) -> ejabberd_c2s:broadcast().
 build_broadcast(U, S, {add, _Nick, Subs, _Group}) ->
     build_broadcast(U, S, list_to_existing_atom(binary_to_list(Subs)));
 build_broadcast(U, S, remove) ->
