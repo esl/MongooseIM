@@ -17,34 +17,48 @@
 
 
 start(Host, Opts) ->
-   mod_disco:register_feature(Host, ?NS_AUTH_TOKEN),
-   IQDisc = gen_mod:get_opt(iqdisc, Opts, no_queue),
-   gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_AUTH_TOKEN, ?MODULE, process_iq, IQDisc),
-   ok.
+    mod_disco:register_feature(Host, ?NS_AUTH_TOKEN),
+    IQDisc = gen_mod:get_opt(iqdisc, Opts, no_queue),
+    gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_AUTH_TOKEN, ?MODULE, process_iq, IQDisc),
+    ok.
 
 stop(Host) ->
   gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_AUTH_TOKEN),
   ok.
 
+%% todo: consider changing name to just validate_token()
 validate_access_token(TokenIn) ->
-    %% io:format("~n validate_access_token: : ~n~p~n ", [TokenIn]),
     TokenReceivedRec = get_token_as_record(TokenIn),
-    %% io:format("~n Token Parsed as: : ~n~p~n ", [TokenReceivedRec]),
-    #auth_token{user_jid = TokenOwnerUser} = TokenReceivedRec,
-    io:format("~n Token Owner: ~n~p~n ", [TokenOwnerUser]),
-    UsersKey = acquire_key_for_user(TokenOwnerUser),
-    %% io:format("~n Token Owner Key: ~n~p~n ", [UsersKey]),
+    io:format("~n Token Parsed as: : ~n~p~n ", [TokenReceivedRec]),
+    #auth_token{user_jid = TokenOwnerUser,
+                mac_signature = MACReceived,
+                token_body = RecvdTokenBody} = TokenReceivedRec,
 
-    #auth_token{token_body = RecvdTokenBody} = TokenReceivedRec,
+    UsersKey = acquire_key_for_user(TokenOwnerUser),
     MACreference = get_token_mac(RecvdTokenBody, UsersKey, get_hash_algorithm()),
 
-    #auth_token{mac_signature = MACReceived} = TokenReceivedRec,
-
     MACCheckResult = MACReceived =:= MACreference,
-   {MACCheckResult, mod_auth_token}.
+    ValidityCheckResult =  is_token_valid(TokenReceivedRec),
+
+    ValidationResult = case MACCheckResult and ValidityCheckResult of
+                           true -> ok;
+                           _  -> error
+                       end,
+
+    {ValidationResult, mod_auth_token, get_username_from_jid(TokenOwnerUser)}.
+
+%% args: binary() -> binary()
+get_username_from_jid(User) when is_binary(User) ->
+  hd(binary:split(User,[<<"@">>])).
+
+%% args: #auth_token -> true | false
+is_token_valid(Token) ->
+    #auth_token{expiry_datetime = ExpiryDateTime} = Token,
+    TokenDateTimeSecs = calendar:datetime_to_gregorian_seconds(ExpiryDateTime),
+    SystemTimeSecs = calendar:datetime_to_gregorian_seconds(calendar:local_time()),
+    TokenDateTimeSecs - SystemTimeSecs > 0.
 
 process_iq(From, _To, #iq{type = Type, sub_el = SubEl} = IQ) ->
-%%    io:format("~ngot something !!! : ~p~n ", [IQ]),
     case xml:get_tag_attr(<<"xmlns">>, SubEl) of
         false ->
             {error, ?ERR_BAD_REQUEST};
@@ -63,11 +77,6 @@ create_token_response(From, IQ) ->
                            attrs = [{<<"xmlns">>, ?NS_AUTH_TOKEN}],
                            children = tokens_body(From)}]}.
 
-%% generate expiry date for access/refresh/provisioning tokens
-%% Expiry date/time is returned as gregorian seconds
-get_token_expiry_date() ->
-    get_expiry_date_from_config().
-
 %% DateTime -> integer()
 datetime_to_seconds(DateTime) ->
     calendar:datetime_to_gregorian_seconds(DateTime).
@@ -76,23 +85,44 @@ datetime_to_seconds(DateTime) ->
 seconds_to_datetime(Seconds) ->
     calendar:gregorian_seconds_to_datetime(Seconds).
 
-%% returns DateTime
-get_expiry_date_from_config() ->
-    %% todo: set / parametrize it somehow - tbd
-    calendar:local_time().
+%% returns tokens validity periods expressed in days
+get_expiry_dates_from_config(User) ->
+    UserBareJid = get_bare_jid_binary(User),
+    UsersHost = get_users_host(UserBareJid),
+    ValidityOpts = gen_mod:get_module_opt(UsersHost, ?MODULE, validity_durations, 0),
+    {access_token_validity_days, AccessTokenValidityPeriod} = hd(ValidityOpts),
+    {refresh_token_validity_days, RefreshTokenValidityPeriod} = lists:last(ValidityOpts),
+
+    SecondsInDay = 86400,
+
+    NowSecs = calendar:datetime_to_gregorian_seconds(calendar:local_time()),
+
+    AccessTokeExpirationDateTime = calendar:gregorian_seconds_to_datetime(
+                                     NowSecs + (SecondsInDay * AccessTokenValidityPeriod)),
+
+    RefreshTokenExpirationDateTime = calendar:gregorian_seconds_to_datetime(
+                                     NowSecs + (SecondsInDay * RefreshTokenValidityPeriod)),
+
+    [{access_token_expiry, AccessTokeExpirationDateTime},
+     {refresh_token_expiry, RefreshTokenExpirationDateTime}].
+
 
 tokens_body(User) ->
-
     Halgo = get_hash_algorithm(),
     UserBareJid = get_bare_jid_binary(User),
 
     %% todo: handle revocation!
     SeqNo = 555,
-    ExpiryDate = get_expiry_date_from_config(),
+    ExpiryDates = get_expiry_dates_from_config(User),
+
+
+    AccessTokenExpiryDateTime = proplists:get_value(access_token_expiry, ExpiryDates),
+    RefreshTokenExpiryDateTime = proplists:get_value(refresh_token_expiry, ExpiryDates),
+
     UserKey  = acquire_key_for_user(UserBareJid),
 
-    {AccessToken, MacAccess}  = generate_access_token(UserBareJid, ExpiryDate, UserKey, Halgo),
-    {RefreshToken, MacRefresh} = generate_refresh_token(UserBareJid, ExpiryDate, UserKey, Halgo, SeqNo),
+    {AccessToken, MacAccess}  = generate_access_token(UserBareJid, AccessTokenExpiryDateTime, UserKey, Halgo),
+    {RefreshToken, MacRefresh} = generate_refresh_token(UserBareJid, RefreshTokenExpiryDateTime, UserKey, Halgo, SeqNo),
 
     AccessTokenMac = concat_token_mac(AccessToken, MacAccess),
     RefreshTokenMac = concat_token_mac(RefreshToken, MacRefresh),
@@ -139,29 +169,23 @@ generate_access_token(UserBareJid, ExpiryDateTime, Key, HashAlgorithm) ->
     {RawAccessToken, Mac}.
 
 generate_access_token_body(UserBareJid, ExpiryDateTime) ->
-
     UserAccessTokenParams = [
                              term_to_binary(access),    %% eg. access
                              UserBareJid,               %% <<"bob@host.com">>
                              term_to_binary(datetime_to_seconds(ExpiryDateTime)) %% {{2015,9,21},{12,29,51}}
                             ],
 
-    io:format("~n UserAccessTokenParams: ~p ~n", [UserAccessTokenParams]),
     assemble_token_from_params(UserAccessTokenParams).
 
 
 generate_refresh_token(UserBareJid, ExpiryDateTime, Key, HashAlgorithm, SeqNo) ->
-
     RawRefreshToken = generate_refresh_token_body(
                                UserBareJid, ExpiryDateTime, SeqNo),
 
     Mac = get_token_mac(RawRefreshToken, Key, HashAlgorithm),
-    io:format("~n Refresh Token (raw)  ~p ~n ", [RawRefreshToken]),
-    io:format("~n MAC ~p ~n ", [Mac]),
     {RawRefreshToken, Mac}.
 
 generate_refresh_token_body(UserBareJid, ExpiryDateTime, SeqNo) ->
-
     UserRefreshTokenParams = [
                               term_to_binary(refresh),
                               UserBareJid,
@@ -193,10 +217,14 @@ get_token_as_record(TokenIn) ->
                }.
 
 acquire_key_for_user(User) ->
-    #jid{lserver = UsersHost} = jlib:binary_to_jid(User),
+    UsersHost = get_users_host(User),
     %% todo : extract key name from config (possible resolution by host)
     [{asdqwe_access_secret, RawKey}] = ejabberd_hooks:run_fold(get_key, UsersHost, [], [asdqwe_access_secret]),
     RawKey.
+
+get_users_host(User) when is_binary(User) ->
+    #jid{lserver = UsersHost} = jlib:binary_to_jid(User),
+    UsersHost.
 
 split_token(TokenBody) ->
     Parts = token_body_split(TokenBody).
