@@ -276,10 +276,10 @@ suite() ->
     escalus:suite().
 
 init_per_suite(Config) ->
-    create_users(escalus:init_per_suite(Config)).
+    escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
-    escalus:end_per_suite(delete_users(Config)).
+    escalus:end_per_suite(Config).
 
 user_names() ->
     [alice, bob].
@@ -288,9 +288,10 @@ create_users(Config) ->
     escalus:create_users(Config, {by_name, user_names()}).
 
 delete_users(Config) ->
-    escalus:create_users(Config, {by_name, user_names()}).
+    escalus:delete_users(Config, {by_name, user_names()}).
 
-init_per_group(Group, Config) ->
+init_per_group(Group, ConfigIn) ->
+    Config = create_users(ConfigIn),
     C = configuration(Group),
     B = basic_group(Group),
     ct:pal("Init per group ~p; configuration ~p; basic group ~p",
@@ -303,6 +304,7 @@ init_per_group(Group, Config) ->
     end.
     
 end_per_group(Group, Config) ->
+    delete_users(Config),
     C = configuration(Group),
     B = basic_group(Group),
     Config1 = end_state(C, B, Config),
