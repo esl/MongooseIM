@@ -45,7 +45,7 @@ start(normal, _Args) ->
     db_init(),
     application:start(p1_cache_tab),
 
-    load_drivers([tls_drv, expat_erl]),
+    load_drivers([tls_drv]),
     translate:start(),
     acl:start(),
     ejabberd_node_id:start(),
