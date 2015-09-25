@@ -10,7 +10,11 @@
 -export([get_key/2]).
 
 %% Public types
--export_type([key_id/0]).
+-export_type([key/0,
+              key_id/0,
+              key_list/0,
+              key_name/0,
+              raw_key/0]).
 
 -include("ejabberd.hrl").
 -include("mod_keystore.hrl").
@@ -19,13 +23,20 @@
 -define(DEFAULT_RAM_KEY_SIZE, 2048).
 -define(iol2b(L), iolist_to_binary(L)).
 
--type key_id() :: atom().
+%% A key name is used in the config file to name a key (a class of keys).
+%% The name doesn't differentiate between virtual hosts
+%% (i.e. there are multiple keys with the same name,
+%% one per each XMPP domain).
+-type key_name() :: any().
+%% A key ID is used to uniquely identify a key for storage backends.
+%% It's used to maintain separate instances of a key with the same name
+%% for different virtual hosts.
+-type key_id() :: {key_name(), ejabberd:server()}.
 -type raw_key() :: binary().
 -type key_list() :: [{key_id(), raw_key()}].
 -type key_type() :: ram | {file, file:name_all()}.
 
--type key() :: #key{id :: key_id(),
-                    key :: raw_key()}.
+-type key() :: #key{id :: key_id(), key :: raw_key()}.
 
 -callback init(Domain, Opts) -> ok when
       Domain :: ejabberd:server(),
@@ -50,7 +61,7 @@ start(Domain, Opts) ->
     create_keystore_ets(),
     gen_mod:start_backend_module(?MODULE, Opts),
     ?BACKEND:init(Domain, Opts),
-    init_keys(Opts),
+    init_keys(Domain, Opts),
     [ ejabberd_hooks:add(Hook, Domain, ?MODULE, Handler, Priority)
       || {Hook, Handler, Priority} <- hook_handlers() ],
     ok.
@@ -110,19 +121,21 @@ delete_keystore_ets() ->
 does_table_exist(NameOrTID) ->
     ets:info(NameOrTID, name) /= undefined.
 
-init_keys(Opts) ->
-    [ init_key(K, Opts) || K <- proplists:get_value(keys, Opts, []) ].
+init_keys(Domain, Opts) ->
+    [ init_key(K, Domain, Opts) || K <- proplists:get_value(keys, Opts, []) ].
 
--spec init_key({key_id(), key_type()}, list()) -> ok.
-init_key({KeyID, {file, Path}}, _Opts) ->
+-spec init_key({key_name(), key_type()}, ejabberd:server(), list()) -> ok.
+init_key({KeyName, {file, Path}}, Domain, _Opts) ->
     {ok, Data} = file:read_file(Path),
     Trimmed = ?iol2b(re:replace(Data, <<"[\n\r]+">>, <<>>,
                                 [global, {newline, any}])),
-    true = ets_store_key(KeyID, Trimmed),
+    true = ets_store_key({KeyName, Domain}, Trimmed),
     ok;
-init_key({KeyID, ram}, Opts) ->
+init_key({KeyName, ram}, Domain, Opts) ->
     ProposedKey = crypto:strong_rand_bytes(get_key_size(Opts)),
-    {ok, _ActualKey} = ?BACKEND:init_ram_key(#key{id = KeyID, key = ProposedKey}),
+    KeyRecord = #key{id = {KeyName, Domain},
+                     key = ProposedKey},
+    {ok, _ActualKey} = ?BACKEND:init_ram_key(KeyRecord),
     ok.
 
 %% It's easier to trace these than ets:{insert,lookup} - much less noise.

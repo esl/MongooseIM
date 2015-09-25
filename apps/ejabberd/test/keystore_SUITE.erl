@@ -47,43 +47,43 @@ module_startup_read_key_from_file(_) ->
     %% when
     ok = mod_keystore:start(<<"localhost">>, key_from_file(KeyFile)),
     %% then
-    [{key_from_file, RawKey}] = ejabberd_hooks:run_fold(get_key, <<"localhost">>,
-                                                        [], [key_from_file]).
+    ?ae([{{key_from_file, <<"localhost">>}, RawKey}],
+        get_key(<<"localhost">>, key_from_file)).
 
 module_startup_create_ram_key(Config) ->
     module_startup_create_ram_key(Config, ram_key()),
     %% then we can access the key
-    [{ram_key, Key}] = ejabberd_hooks:run_fold(get_key, <<"localhost">>, [], [ram_key]),
+    [{{ram_key, <<"localhost">>}, Key}] = get_key(<<"localhost">>, ram_key),
     true = is_binary(Key).
 
 module_startup_create_ram_key_of_given_size(Config) ->
     KeySize = 4,
     module_startup_create_ram_key(Config, sized_ram_key(KeySize)),
     %% then
-    [{ram_key, Key}] = ejabberd_hooks:run_fold(get_key, <<"localhost">>, [], [ram_key]),
+    [{{ram_key, <<"localhost">>}, Key}] = get_key(<<"localhost">>, ram_key),
     true = is_binary(Key),
     KeySize = byte_size(Key).
 
 module_startup_create_ram_key(_, ModKeystoreOpts) ->
     %% given no key
-    [] = ejabberd_hooks:run_fold(get_key, <<"localhost">>, [], [ram_key]),
+    [] = get_key(<<"localhost">>, ram_key),
     %% when keystore starts with config to generate a memory-only key
     ok = mod_keystore:start(<<"localhost">>, ModKeystoreOpts).
 
 module_startup_for_multiple_domains(_Config) ->
     %% given
-    FirstKey = <<"first.com/key">>,
-    SecondKey = <<"second.com/key">>,
+    FirstKey = <<"random-first.com-key-content">>,
+    SecondKey = <<"random-second.com-key-content">>,
     {ok, FirstKeyFile} = key_at("/tmp/first.com", FirstKey),
     {ok, SecondKeyFile} = key_at("/tmp/second.com", SecondKey),
     %% when
     ok = mod_keystore:start(<<"first.com">>, key_from_file(FirstKeyFile)),
     ok = mod_keystore:start(<<"second.com">>, key_from_file(SecondKeyFile)),
     %% then
-    ?ae([{key_from_file, FirstKey}],
-        ejabberd_hooks:run_fold(get_key, <<"first.com">>, [], [key_from_file])),
-    ?ae([{key_from_file, SecondKey}],
-        ejabberd_hooks:run_fold(get_key, <<"second.com">>, [], [key_from_file])).
+    ?ae([{{key_from_file, <<"first.com">>}, FirstKey}],
+        get_key(<<"first.com">>, key_from_file)),
+    ?ae([{{key_from_file, <<"second.com">>}, SecondKey}],
+        get_key(<<"second.com">>, key_from_file)).
 
 %%
 %% Helpers
@@ -130,6 +130,14 @@ mock_mongoose_metrics() ->
     meck:expect(mongoose_metrics, create_generic_hook_metric, fun (_, _) -> ok end),
     meck:expect(mongoose_metrics, increment_generic_hook_metric, fun (_, _) -> ok end),
     ok.
+
+%% Use a function like this in your module which is a client of mod_keystore.
+-spec get_key(Domain, KeyName) -> Result when
+      Domain :: ejabberd:server(),
+      KeyName :: mod_keystore:key_name(),
+      Result :: mod_keystore:key_list().
+get_key(Domain, KeyName) ->
+    ejabberd_hooks:run_fold(get_key, Domain, [], [{KeyName, Domain}]).
 
 %%{mod_keystore, [{keys, [{asdqwe_access_secret, ram},
 %%                        {asdqwe_access_psk,    {file, "priv/asdqwe_access_psk"}},
