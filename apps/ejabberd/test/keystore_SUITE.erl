@@ -2,12 +2,15 @@
 -include_lib("eunit/include/eunit.hrl").
 -compile([export_all]).
 
+-define(ae(Expected, Actual), ?assertEqual(Expected, Actual)).
+
 all() ->
     [
      module_startup_no_opts,
      module_startup_read_key_from_file,
      module_startup_create_ram_key,
-     module_startup_create_ram_key_of_given_size
+     module_startup_create_ram_key_of_given_size,
+     module_startup_for_multiple_domains
     ].
 
 init_per_suite(C) ->
@@ -66,6 +69,21 @@ module_startup_create_ram_key(_, ModKeystoreOpts) ->
     [] = ejabberd_hooks:run_fold(get_key, <<"localhost">>, [], [ram_key]),
     %% when keystore starts with config to generate a memory-only key
     ok = mod_keystore:start(<<"localhost">>, ModKeystoreOpts).
+
+module_startup_for_multiple_domains(_Config) ->
+    %% given
+    FirstKey = <<"first.com/key">>,
+    SecondKey = <<"second.com/key">>,
+    {ok, FirstKeyFile} = key_at("/tmp/first.com", FirstKey),
+    {ok, SecondKeyFile} = key_at("/tmp/second.com", SecondKey),
+    %% when
+    ok = mod_keystore:start(<<"first.com">>, key_from_file(FirstKeyFile)),
+    ok = mod_keystore:start(<<"second.com">>, key_from_file(SecondKeyFile)),
+    %% then
+    ?ae([{key_from_file, FirstKey}],
+        ejabberd_hooks:run_fold(get_key, <<"first.com">>, [], [key_from_file])),
+    ?ae([{key_from_file, SecondKey}],
+        ejabberd_hooks:run_fold(get_key, <<"second.com">>, [], [key_from_file])).
 
 %%
 %% Helpers
