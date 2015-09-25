@@ -6,15 +6,14 @@
 -include("jlib.hrl").
 -include("mod_auth_token.hrl").
 
-
 %% gen_mod callbacks
 -export([start/2,
          stop/1]).
 
 -export([process_iq/3]).
 
+%% TODO: TEMP! remove before merge to master!
 -compile([export_all]).
-
 
 start(Host, Opts) ->
     mod_disco:register_feature(Host, ?NS_AUTH_TOKEN),
@@ -243,13 +242,8 @@ decode_from_transport(Data) ->
 encode_for_transport(Data) ->
     base64:encode(Data).
 
-
 %% args: -record #jid
 get_bare_jid_binary(User) ->
     U = User#jid.luser,
     S = User#jid.lserver,
     <<U/binary,"@",S/binary>>.
-
-
-
-
