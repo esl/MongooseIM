@@ -38,6 +38,7 @@
          get_odbc_data_stats/0,
          get_odbc_mam_async_stats/0,
          get_dist_data_stats/0,
+         get_up_time/0,
          remove_host_metrics/1,
          remove_all_metrics/0]).
 
@@ -109,6 +110,10 @@ create_generic_hook_metric(Host, Hook) ->
 -spec increment_generic_hook_metric(ejabberd:lserver(), atom()) -> no_return().
 increment_generic_hook_metric(Host, Hook) ->
     do_increment_generic_hook_metric([Host, filter_hook(Hook)]).
+
+-spec get_up_time() -> {value, integer()}.
+get_up_time() ->
+    {value, erlang:round(element(1, erlang:statistics(wall_clock))/1000)}.
 
 do_create_generic_hook_metric({_, skip}) ->
     ok;
@@ -358,7 +363,10 @@ get_histograms(Host) ->
            eval, ?EX_EVAL_SINGLE_VALUE}},
          {[global, nodeSessionCount],
           {function, ejabberd_sm, get_node_sessions_number, [],
-           eval, ?EX_EVAL_SINGLE_VALUE}}
+           eval, ?EX_EVAL_SINGLE_VALUE}},
+         {[global, nodeUpTime],
+          {function, mongoose_metrics, get_up_time, [],
+           tagged, [value]}}
         ]
 ).
 
