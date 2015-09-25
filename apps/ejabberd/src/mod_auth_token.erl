@@ -12,8 +12,12 @@
 
 -export([process_iq/3]).
 
+-export_type([token_type/0]).
+
 %% TODO: TEMP! remove before merge to master!
 -compile([export_all]).
+
+-type token_type() :: access | refresh | provision.
 
 start(Host, Opts) ->
     mod_disco:register_feature(Host, ?NS_AUTH_TOKEN),
