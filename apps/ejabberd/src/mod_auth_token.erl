@@ -59,11 +59,8 @@ get_username_from_jid(User) when is_binary(User) ->
   hd(binary:split(User,[<<"@">>])).
 
 %% args: #auth_token -> true | false
-is_token_valid(Token) ->
-    #auth_token{expiry_datetime = ExpiryDateTime} = Token,
-    TokenDateTimeSecs = calendar:datetime_to_gregorian_seconds(ExpiryDateTime),
-    SystemTimeSecs = calendar:datetime_to_gregorian_seconds(calendar:local_time()),
-    TokenDateTimeSecs - SystemTimeSecs > 0.
+is_token_valid(#auth_token{expiry_datetime = Expiry}) ->
+    utc_now_as_seconds() < datetime_to_seconds(Expiry).
 
 process_iq(From, _To, #iq{sub_el = SubEl} = IQ) ->
     case xml:get_tag_attr(<<"xmlns">>, SubEl) of
@@ -108,9 +105,10 @@ get_expiry_dates_from_config(User) ->
 
 get_expiry_date(ValidityPeriod) ->
     SecondsInDay = 86400,
-    NowSecs = calendar:datetime_to_gregorian_seconds(calendar:local_time()),
-    calendar:gregorian_seconds_to_datetime(
-                                     NowSecs + (SecondsInDay * ValidityPeriod)).
+    seconds_to_datetime(utc_now_as_seconds() + (SecondsInDay * ValidityPeriod)).
+
+utc_now_as_seconds() ->
+    datetime_to_seconds(calendar:universal_time()).
 
 tokens_body(User) ->
     Halgo = get_hash_algorithm(),
