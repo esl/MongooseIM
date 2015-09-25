@@ -31,6 +31,9 @@
 -define(NS_VCARD_UPDATE, <<"vcard-temp:x:update">>).
 -define(NS_AUTH,         <<"jabber:iq:auth">>).
 -define(NS_AUTH_ERROR,   <<"jabber:iq:auth:error">>).
+-define(NS_OAUTH_0, <<"urn:xmpp:oauth:0">>).% Defined by XEP-0235: Authorization Tokens.
+-define(NS_OAUTH_ERRORS_0, <<"urn:xmpp:oauth:0:errors">>).%% Deferred : XEP-0235: Authorization Tokens.
+-define(NS_AUTH_TOKEN, <<"urn:xmpp:tmp:auth-token">>).
 -define(NS_REGISTER,     <<"jabber:iq:register">>).
 -define(NS_SEARCH,       <<"jabber:iq:search">>).
 -define(NS_ROSTER,       <<"jabber:iq:roster">>).
