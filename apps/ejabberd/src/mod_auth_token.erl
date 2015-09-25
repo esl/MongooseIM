@@ -27,9 +27,9 @@ stop(Host) ->
   ok.
 
 %% todo: consider changing name to just validate_token()
-validate_access_token(TokenIn) ->
+validate_token(TokenIn) ->
     TokenReceivedRec = get_token_as_record(TokenIn),
-    io:format("~n Token Parsed as: : ~n~p~n ", [TokenReceivedRec]),
+    %% io:format("~n Token Parsed as: : ~n~p~n ", [TokenReceivedRec]),
     #auth_token{user_jid = TokenOwnerUser,
                 mac_signature = MACReceived,
                 token_body = RecvdTokenBody} = TokenReceivedRec,
@@ -37,8 +37,12 @@ validate_access_token(TokenIn) ->
     UsersKey = acquire_key_for_user(TokenOwnerUser),
     MACreference = get_token_mac(RecvdTokenBody, UsersKey, get_hash_algorithm()),
 
+    %% validation criteria
+
     MACCheckResult = MACReceived =:= MACreference,
     ValidityCheckResult =  is_token_valid(TokenReceivedRec),
+
+    %% validation results processing
 
     ValidationResult = case MACCheckResult and ValidityCheckResult of
                            true -> ok;
