@@ -26,9 +26,8 @@ mech_new(Host, GetPassword, CheckPassword, CheckPasswordDigest) ->
                 ClientIn :: binary()
                 ) -> {ok, proplists:proplist()} | {error, binary()}.
 mech_step(State, ClientIn) ->
-    AuthzId = mock,
     %% ClientIn is a token decoded from CDATA <auth body sent by client
-    case mod_auth_token:validate_access_token(ClientIn) of
+    case mod_auth_token:validate_token(ClientIn) of
         {ok, AuthModule, User} -> {ok,
                                    [
                                     {username, User},
