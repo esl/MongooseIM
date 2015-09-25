@@ -148,6 +148,9 @@ The tuple order is important, unless the no host_config option is set. Retaining
 * **odbc_keepalive_interval** (local)
     * **Description:** When enabled, will send `SELECT 1` query through every DB connection at given interval to keep them open.
 
+You should remember that SQL databases require also defining schema.
+See [Database backends configuration](./advanced-configuration/database-backends-configuration.md) for more information
+
 ### Traffic shapers
 
 * **shaper** (mutli, global)
