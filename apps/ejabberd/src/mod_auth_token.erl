@@ -58,7 +58,7 @@ is_token_valid(Token) ->
     SystemTimeSecs = calendar:datetime_to_gregorian_seconds(calendar:local_time()),
     TokenDateTimeSecs - SystemTimeSecs > 0.
 
-process_iq(From, _To, #iq{type = Type, sub_el = SubEl} = IQ) ->
+process_iq(From, _To, #iq{sub_el = SubEl} = IQ) ->
     case xml:get_tag_attr(<<"xmlns">>, SubEl) of
         false ->
             {error, ?ERR_BAD_REQUEST};
@@ -93,19 +93,17 @@ get_expiry_dates_from_config(User) ->
     {access_token_validity_days, AccessTokenValidityPeriod} = hd(ValidityOpts),
     {refresh_token_validity_days, RefreshTokenValidityPeriod} = lists:last(ValidityOpts),
 
-    SecondsInDay = 86400,
-
-    NowSecs = calendar:datetime_to_gregorian_seconds(calendar:local_time()),
-
-    AccessTokeExpirationDateTime = calendar:gregorian_seconds_to_datetime(
-                                     NowSecs + (SecondsInDay * AccessTokenValidityPeriod)),
-
-    RefreshTokenExpirationDateTime = calendar:gregorian_seconds_to_datetime(
-                                     NowSecs + (SecondsInDay * RefreshTokenValidityPeriod)),
+    AccessTokeExpirationDateTime = get_expiry_date(AccessTokenValidityPeriod),
+    RefreshTokenExpirationDateTime = get_expiry_date(RefreshTokenValidityPeriod),
 
     [{access_token_expiry, AccessTokeExpirationDateTime},
      {refresh_token_expiry, RefreshTokenExpirationDateTime}].
 
+get_expiry_date(ValidityPeriod) ->
+    SecondsInDay = 86400,
+    NowSecs = calendar:datetime_to_gregorian_seconds(calendar:local_time()),
+    calendar:gregorian_seconds_to_datetime(
+                                     NowSecs + (SecondsInDay * ValidityPeriod)).
 
 tokens_body(User) ->
     Halgo = get_hash_algorithm(),
@@ -227,7 +225,7 @@ get_users_host(User) when is_binary(User) ->
     UsersHost.
 
 split_token(TokenBody) ->
-    Parts = token_body_split(TokenBody).
+    token_body_split(TokenBody).
 
 %% consider reading it out of config file
 get_hash_algorithm() ->
