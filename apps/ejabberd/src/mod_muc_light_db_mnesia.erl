@@ -183,9 +183,10 @@ force_destroy_room(RoomJID) ->
 
 %% ------------------------ Utils ------------------------
 
--spec to_us(jid() | ljid()) -> {LUSer :: binary(), LServer :: binary()}.
+-spec to_us(jid() | ljid() | {binary(), binary()}) -> {LUser :: binary(), LServer :: binary()}.
 to_us(#jid{ luser = LUser, lserver = LServer }) -> {LUser, LServer};
-to_us({LUser, LServer, _}) -> {LUser, LServer}.
+to_us({LUser, LServer, _}) -> {LUser, LServer};
+to_us({_, _} = US) -> US.
 
 %% ------------------------ Schema creation ------------------------
 
@@ -196,7 +197,7 @@ init_tables() ->
                   {attributes, record_info(fields, ?ROOM_TAB)}]),
     create_table(?USER_ROOM_TAB,
                  [{disc_copies, [node()]},
-                  {attributes, record_info(fields, ?ROOM_TAB)},
+                  {attributes, record_info(fields, ?USER_ROOM_TAB)},
                   {type, bag}]),
     ok.
 
@@ -204,11 +205,13 @@ init_tables() ->
 create_table(Name, TabDef) ->
     case mnesia:create_table(Name, TabDef) of
         {atomic, ok} -> ok;
-        {aborted, exists} -> ok
+        {aborted, exists} -> ok;
+        {aborted, {already_exists, _}} -> ok
     end,
     case mnesia:add_table_copy(Name, node(), disc_copies) of
         {atomic, ok} -> ok;
-        {aborted, exists} -> ok
+        {aborted, exists} -> ok;
+        {aborted, {already_exists, _, _}} -> ok
     end.
 
 %% ------------------------ General room management ------------------------

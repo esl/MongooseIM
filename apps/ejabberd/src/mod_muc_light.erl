@@ -162,10 +162,10 @@ create_room(From, To, #xmlel{ name = <<"iq">> } = IQ) ->
 
 -spec prevent_service_unavailable(jid(), jid(), #xmlel{}) -> ok | stop.
 prevent_service_unavailable(_From, _To, Packet) ->
-  case xml:get_tag_attr_s(<<"type">>, Packet) of
-    <<"groupchat">> -> stop;
-    _Type           -> ok
-  end.
+    case xml:get_tag_attr_s(<<"type">>, Packet) of
+        <<"groupchat">> -> stop;
+        _Type           -> ok
+    end.
 
 -spec remove_user(binary(), binary()) -> ok.
 remove_user(User, Server) ->

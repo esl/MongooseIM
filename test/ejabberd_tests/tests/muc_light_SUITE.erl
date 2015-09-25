@@ -25,9 +25,10 @@
 -import(escalus_ejabberd, [rpc/3]).
 
 -define(ROOM, <<"testroom">>).
--define(MUCHOST, <<"muc.localhost">>).
+-define(MUCHOST, <<"muclight.localhost">>).
 
 -define(NS_MUC_LIGHT, <<"mongooseim:muc:light">>).
+-define(NS_MUC_CONFIG,  <<"http://jabber.org/protocol/muc#roomconfig">>).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -63,10 +64,10 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(_GroupName, Config) ->
-    escalus:create_users(Config).
+    escalus:create_users(Config, {by_name, [alice, bob, kate]}).
 
 end_per_group(_GroupName, Config) ->
-    escalus:delete_users(Config).
+    escalus:delete_users(Config, {by_name, [alice, bob, kate]}).
 
 init_per_testcase(create_room, Config) ->
     escalus:init_per_testcase(create_room, Config);
@@ -89,7 +90,7 @@ end_per_testcase(CaseName, Config) ->
 %%--------------------------------------------------------------------
 
 create_room(Config) ->
-    escalus:story(Config, [1], fun(Alice) ->
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
             CreateRequest = room_config_set([]),
             escalus:send(Alice, CreateRequest),
             RoomCreated = escalus:wait_for_stanza(Alice),
@@ -99,7 +100,7 @@ create_room(Config) ->
         end).
 
 set_get_config(Config) ->
-    escalus:story(Config, [1, 1], fun(Alice, Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
             %% Both owner and member can get configuration
             ConfigGet = room_config_get(),
             escalus:send(Alice, ConfigGet),
@@ -121,7 +122,7 @@ set_get_config(Config) ->
         end).
 
 get_affiliations(Config) ->
-    escalus:story(Config, [1, 1], fun(Alice, Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
             %% Both owner and member can get affiliation list
             ConfigGet = affiliations_get([<<"member">>, <<"owner">>]),
             escalus:send(Alice, ConfigGet),
@@ -184,7 +185,7 @@ invite_remove_others(Config) ->
         end).
 
 leave_room(Config) ->
-    escalus:story(Config, [1, 1], fun(Alice, Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
             % Bob is already a member, so he will leave...
             BobJID = escalus_users:get_jid(Config, bob),
             BobLeave = [{BobJID, <<"none">>}],
@@ -199,8 +200,7 @@ leave_room(Config) ->
         end).
 
 leave_new_owner(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}],
-                  fun(Alice, Bob, Kate) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
             AliceJID = escalus_users:get_jid(Config, alice),
             BobJID = escalus_users:get_jid(Config, bob),
             KateJID = escalus_users:get_jid(Config, kate),
@@ -235,7 +235,7 @@ leave_new_owner(Config) ->
         end).
 
 change_subject(Config) ->
-    escalus:story(Config, [1, 1], fun(Alice, Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
             % Non-owner will change subject and it will become a part
             % of room configuration
             escalus:send(Bob, set_subject(<<"Cookies!">>)),
@@ -317,24 +317,26 @@ verify_msg_bcast(Users) ->
                 end, Users)
       end, Users).
 
-verify_aff_bcast(Users, Affiliations) ->
+verify_aff_bcast(Users, Affiliations0) ->
+    NormalizedAffiliations = [{binary_to_lower(JID), Aff} || {JID, Aff} <- Affiliations0],
     lists:foreach(
       fun(Recipient) ->
               Stanza = escalus:wait_for_stanza(Recipient),
               XEl = exml_query:path(Stanza, [{element, <<"x">>}]),
               ?NS_MUC_LIGHT = exml_query:path(XEl, [{attr, <<"xmlns">>}]),
               Items = exml_query:paths(XEl, [{element, <<"item">>}]),
-              true = (length(Items) == length(Affiliations)),
+              true = (length(Items) == length(NormalizedAffiliations)),
               [] = lists:foldl(
                      fun(Item, AffAcc) ->
                              JID = exml_query:path(
                                      Item, [{attr, <<"jid">>}]),
                              Aff = exml_query:path(
                                      Item, [{attr, <<"affiliation">>}]),
-                             true = lists:member({JID, Aff}, AffAcc),
-                             lists:delete({JID, Aff}, AffAcc)
-                     end, Affiliations, Items)
+                             verify_keytake(lists:keytake(JID, 1, AffAcc), JID, Aff, AffAcc)
+                     end, NormalizedAffiliations, Items)
       end, Users).
+
+verify_keytake({value, {_, Aff}, NewAffAcc}, _JID, Aff, _AffAcc) -> NewAffAcc.
 
 %%--------------------------------------------------------------------
 %% Other helpers
@@ -366,13 +368,17 @@ add_occupant(RoomU, MUCHost, User, Config) ->
     UserLJID = lower(user_jid(User, Config)),
     RoomJID = make_jid(RoomU, MUCHost),
     NewAff = [{UserLJID, member}],
-    {ok, _, _} = rpc(backend(), modify_affiliated_users, [RoomJID, NewAff]).
+    {ok, _, _} = rpc(backend(), modify_affiliated_users,
+                     [RoomJID, NewAff, fun mod_muc_light_room:participant_limit_check/2]).
 
 make_jid(User, Server) ->
     escalus_ejabberd:rpc(jlib, make_jid, [User, Server, <<>>]).
 
 lower(JID) ->
     escalus_ejabberd:rpc(jlib, jid_to_lower, [JID]).
+
+binary_to_lower(Bin) ->
+    list_to_binary(string:to_lower(binary_to_list(Bin))).
 
 backend() ->
     rpc(mod_muc_light, backend, []).
