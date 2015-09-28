@@ -27,8 +27,7 @@ all() ->
 
 groups() ->
     [{tokencreation, [],
-      [basic,
-       basic2,
+      [
        token_mac_concat_test,
        expiry_date_roundtrip_test,
        get_bare_jid_binary_test,
@@ -38,52 +37,6 @@ groups() ->
        package_token_token_test
       ]}
     ].
-
-
-init_per_suite(Config) ->
-    Config.
-
-end_per_suite(Config) ->
-    Config.
-
-init_per_testcase(_, Config) ->
-    mock_keystore(),
-    Config.
-
-end_per_testcase(_, Config) ->
-    meck:unload(dog),
-    Config.
-
-basic(_Config) ->
-   % Ed = mod_auth_token:concat_token_mac(<<>>, <<>>),
-    mod_keystore:get_key([], 23),
-    mod_auth_token:get_hash_algorithm(),
-    Ed = mod_auth_token:get_token_expiry_date(),
-    ct:pal(" a gugugu ~p ", [Ed]).
-
-mock_keystore() ->
-    meck:new(dog, [non_strict]),
-    meck:expect(dog, bark, fun() -> "Woof!" end).
-
-basic2(_Config) ->
-
-  %%   {ok, M} = exml:parse(<<"
-  %% <iq to='alicE@localhost'
-  %%     id='123'
-  %%     type='get'><query xmlns='bbubuanamespace'/></iq>">>),
-  %%   ct:pal(" xml  2 ~p ", [M]),
-
-%%    TokenRequest = exml:to_binary(generate_new_tokens_request()),
-
-    Res = dog:bark(),
-    ct:pal("Meck works  ~p ", [Res]).
-
-
-expiry_date_roundtrip_test(_) ->
-    D = {{2015,9,17},{20,28,21}}, %% DateTime
-    S =  mod_auth_token:datetime_to_seconds(D),
-    ResD = mod_auth_token:seconds_to_datetime(S),
-    true = D =:= ResD.
 
 token_mac_concat_test(_) ->
     DummyToken = <<"someuser@somehost&dummytime&seq">>,
@@ -95,6 +48,12 @@ token_mac_concat_test(_) ->
     ct:pal("~n token_mac_concat_test: ~p ~n ", [Elems]),
     true = DummyToken =:= element(1, Elems),
     true = DummyMAC =:= element(2, Elems).
+
+expiry_date_roundtrip_test(_) ->
+    D = {{2015,9,17},{20,28,21}}, %% DateTime
+    S =  mod_auth_token:datetime_to_seconds(D),
+    ResD = mod_auth_token:seconds_to_datetime(S),
+    true = D =:= ResD.
 
 access_token_body_reassembly_test(_) ->
 
