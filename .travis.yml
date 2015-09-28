@@ -26,7 +26,7 @@ services:
 branches:
         only:
                 - master
-
+                - stable
 otp_release:
         - R16B03
 env:
