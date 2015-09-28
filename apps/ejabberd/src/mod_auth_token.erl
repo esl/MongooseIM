@@ -34,9 +34,9 @@ validate_token(TokenIn) ->
     io:format("~n ==== Token Raws ====  ~n~p~n ", [TokenIn]),
     TokenReceivedRec = get_token_as_record(TokenIn),
     % io:format("~n ==== Token Parsed as ====  ~n~p~n ", [TokenReceivedRec]),
-    #auth_token{user_jid = TokenOwnerUser,
-                mac_signature = MACReceived,
-                token_body = RecvdTokenBody} = TokenReceivedRec,
+    #token{user_jid = TokenOwnerUser,
+           mac_signature = MACReceived,
+           token_body = RecvdTokenBody} = TokenReceivedRec,
 
     UsersKey = acquire_key_for_user(TokenOwnerUser),
     MACreference = get_token_mac(RecvdTokenBody, UsersKey, get_hash_algorithm()),
@@ -55,7 +55,7 @@ validate_token(TokenIn) ->
 
     ValidationResultBase = {ValidationResult, mod_auth_token, get_username_from_jid(TokenOwnerUser)},
 
-    #auth_token{type = TokenType} = TokenReceivedRec,
+    #token{type = TokenType} = TokenReceivedRec,
 
     case TokenType of
         access ->
@@ -73,8 +73,8 @@ get_requested_tokens() ->
 get_username_from_jid(User) when is_binary(User) ->
   hd(binary:split(User,[<<"@">>])).
 
-%% args: #auth_token -> true | false
-is_token_valid(#auth_token{expiry_datetime = Expiry}) ->
+%% args: #token -> true | false
+is_token_valid(#token{expiry_datetime = Expiry}) ->
     utc_now_as_seconds() < datetime_to_seconds(Expiry).
 
 process_iq(From, _To, #iq{sub_el = SubEl} = IQ) ->
@@ -221,10 +221,10 @@ generate_refresh_token_body(UserBareJid, ExpiryDateTime, SeqNo) ->
 
     assemble_token_from_params(UserRefreshTokenParams).
 
-%% args: Token with Mac decoded from transport, #auth_token
+%% args: Token with Mac decoded from transport, #token
 %% is shared between tokens. Introduce other container types if
 %% they start to differ more than a few fields.
-%% args: {binary(),binary()} -> #auth_token()
+%% args: {binary(),binary()} -> #token()
 get_token_as_record(TokenIn) ->
     {Token, MAC} = token_mac_split(TokenIn),
     TokenParts =  token_body_split(Token),
@@ -234,13 +234,13 @@ get_token_as_record(TokenIn) ->
                 refresh -> binary_to_term(lists:nth(4, TokenParts))
             end,
 
-    #auth_token{type = TokenType,
-                expiry_datetime = seconds_to_datetime(binary_to_term(lists:nth(3, TokenParts))),
-                user_jid = lists:nth(2, TokenParts),
-                sequence_no = SeqNo,
-                mac_signature = MAC,
-                token_body = Token
-               }.
+    #token{type = TokenType,
+           expiry_datetime = seconds_to_datetime(binary_to_term(lists:nth(3, TokenParts))),
+           user_jid = lists:nth(2, TokenParts),
+           sequence_no = SeqNo,
+           mac_signature = MAC,
+           token_body = Token
+          }.
 
 acquire_key_for_user(User) ->
     UsersHost = get_users_host(User),

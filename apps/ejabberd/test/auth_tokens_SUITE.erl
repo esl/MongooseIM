@@ -105,7 +105,7 @@ package_token_token_test(_) ->
     R = mod_auth_token:get_token_as_record(TokenDecoded),
     ct:pal(" ~n --- token record : ~p ~n",[R]),
 
-    #auth_token{type = Type, expiry_datetime = Expiry, user_jid =User, mac_signature = MAC, token_body = TokenBody} = R,
+    #token{type = Type, expiry_datetime = Expiry, user_jid =User, mac_signature = MAC, token_body = TokenBody} = R,
 
     true = Type =:= access,
     true = User =:= RequesterUser,
@@ -115,7 +115,7 @@ package_token_token_test(_) ->
 
 
 %% args: Token with Mac decoded from transport
-%% args: {binary(),binary()} -> #auth_token()
+%% args: {binary(),binary()} -> #token()
 %% get_token_as_record(TokenIn) ->
 %%     {Token, MAC} = mod_auth_token:token_mac_split(TokenIn),
 %%     TokenParts =  mod_auth_token:token_body_split(Token),
@@ -125,13 +125,13 @@ package_token_token_test(_) ->
 %%                 refresh -> binary_to_term(lists:nth(4, TokenParts))
 %%             end,
 
-%%     #auth_token{type = TokenType,
-%%                 expiry_datetime = mod_auth_token:seconds_to_datetime(binary_to_term(lists:nth(3, TokenParts))),
-%%                 user_jid = lists:nth(2, TokenParts),
-%%                 sequence_no = SeqNo,
-%%                 mac_signature = MAC,
-%%                 token_body = Token
-%%                }.
+%%     #token{type = TokenType,
+%%            expiry_datetime = mod_auth_token:seconds_to_datetime(binary_to_term(lists:nth(3, TokenParts))),
+%%            user_jid = lists:nth(2, TokenParts),
+%%            sequence_no = SeqNo,
+%%            mac_signature = MAC,
+%%            token_body = Token
+%%           }.
 
 
 %% args: binary() -> []
