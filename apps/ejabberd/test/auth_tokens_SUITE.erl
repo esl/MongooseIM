@@ -6,7 +6,7 @@
 -include_lib("proper/include/proper.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--include_lib("ejabberd/src/mod_auth_token.hrl").
+-include("mod_auth_token.hrl").
 
 
 -compile([export_all]).
