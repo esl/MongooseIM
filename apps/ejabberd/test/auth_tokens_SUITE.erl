@@ -34,7 +34,8 @@ groups() ->
        access_token_body_reassembly_test,
        refresh_token_body_reassembly_test,
        access_token_mac_reassembly_test,
-       package_token_token_test
+       package_token_token_test,
+       mac_may_contain_spurious_separator
       ]}
     ].
 
@@ -113,6 +114,15 @@ package_token_token_test(_) ->
     true = MAC =:= MacNew,
     true = TokenBody =:= Token.
 
+mac_may_contain_spurious_separator(_) ->
+    %% given
+    RawToken = <<"access&alice@localhost&63609740901">>,
+    MAC = crypto:hmac(sha384, <<"unused_key">>, RawToken),
+    %% when joining 2 parts to make the token
+    Token = <<RawToken/bytes, "+", MAC/bytes>>,
+    %% then we get 3 parts when splitting the same token - this is obviously wrong!
+    Parts = binary:split(Token, <<"+">>, [global]),
+    3 = length(Parts).
 
 %% args: Token with Mac decoded from transport
 %% args: {binary(),binary()} -> #token()
