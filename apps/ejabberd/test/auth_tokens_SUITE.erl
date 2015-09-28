@@ -1,5 +1,5 @@
 -module(auth_tokens_SUITE).
-
+-compile([export_all]).
 
 -include_lib("exml/include/exml.hrl").
 -include_lib("common_test/include/ct.hrl").
@@ -8,10 +8,13 @@
 
 -include("mod_auth_token.hrl").
 
+-import(prop_helper, [prop/2]).
 
--compile([export_all]).
 
 -define(NS_AUTH_TOKEN, <<"urn:xmpp:tmp:auth-token">>).
+
+-define(l2b(List), list_to_binary(List)).
+-define(i2b(I), integer_to_binary(I)).
 
 -record(iq, {id = <<>>,
              type     ,
@@ -35,7 +38,8 @@ groups() ->
        refresh_token_body_reassembly_test,
        access_token_mac_reassembly_test,
        package_token_token_test,
-       mac_may_contain_spurious_separator
+       mac_may_contain_spurious_separator,
+       join_and_split_no_base64_are_bidirectional_property
       ]}
     ].
 
@@ -123,6 +127,36 @@ mac_may_contain_spurious_separator(_) ->
     %% then we get 3 parts when splitting the same token - this is obviously wrong!
     Parts = binary:split(Token, <<"+">>, [global]),
     3 = length(Parts).
+
+join_and_split_no_base64_are_bidirectional_property(_) ->
+    prop(join_and_split_are_bidirectional_property,
+         ?FORALL(RawToken, token(<<"&">>), is_split_join_no_base64_bidirectional(RawToken, <<"+">>))).
+
+is_split_join_no_base64_bidirectional(RawToken, MACSep) ->
+    MAC = crypto:hmac(sha384, <<"unused_key">>, RawToken),
+    Token = <<RawToken/bytes, MACSep/bytes, MAC/bytes>>,
+    Parts = binary:split(Token, MACSep, [global]),
+    case 2 == length(Parts) of
+        true -> true;
+        false ->
+            ct:pal("invalid MAC: ~s", [MAC]),
+            false
+    end.
+
+token(Sep) ->
+    ?LET({Type, JID, Expiry, SeqNo},
+         {oneof([<<"access">>, <<"refresh">>]), bare_jid(), expiry_date(), seq_no()},
+         case Type of
+             <<"access">> ->
+                 <<"access", Sep/bytes, JID/bytes, Sep/bytes, (?i2b(Expiry))/bytes>>;
+             <<"refresh">> ->
+                 <<"refresh", Sep/bytes, JID/bytes, Sep/bytes, (?i2b(Expiry))/bytes,
+                   Sep/bytes, (?i2b(SeqNo))/bytes>>
+         end).
+
+expiry_date() -> pos_integer().
+
+seq_no() -> pos_integer().
 
 %% args: Token with Mac decoded from transport
 %% args: {binary(),binary()} -> #token()
@@ -270,5 +304,23 @@ generate_new_tokens_request() ->
     %%                            attrs = [{<<"xmlns">>,?NS_AUTH_TOKEN}]
     %%                           }]}.
 
+bare_jid() ->
+    ?LET({Username, Domain}, {username(), domain()},
+         <<(?l2b(Username))/bytes, "@", (?l2b(Domain))/bytes>>).
 
+%full_jid() ->
+%    ?LET({Username, Domain, Res}, {username(), domain(), resource()},
+%         <<(?l2b(Username))/bytes, "@", (?l2b(Domain))/bytes, "/", (?l2b(Res))/bytes>>).
 
+username() -> ascii_string().
+domain()   -> ascii_string().
+%resource() -> ascii_string().
+
+ascii_string() ->
+    ?LET({Alpha, Alnum}, {ascii_alpha(), list(ascii_alnum())}, [Alpha | Alnum]).
+
+ascii_digit() -> choose($0, $9).
+ascii_lower() -> choose($a, $z).
+ascii_upper() -> choose($A, $Z).
+ascii_alpha() -> union([ascii_lower(), ascii_upper()]).
+ascii_alnum() -> union([ascii_alpha(), ascii_digit()]).
