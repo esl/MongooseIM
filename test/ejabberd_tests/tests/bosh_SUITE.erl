@@ -48,8 +48,8 @@ https() ->
     end.
 
 groups() ->
-    [{essential, [{repeat_until_any_fail,10}], [create_and_terminate_session]},
-     {essential_https, [{repeat_until_any_fail,10}], [create_and_terminate_session]},
+    [{essential, [{repeat_until_any_fail,10}], essential_test_cases()},
+     {essential_https, [{repeat_until_any_fail,10}], essential_test_cases()},
      {chat, [shuffle, {repeat_until_any_fail,10}], chat_test_cases()},
      {chat_https, [shuffle, {repeat_until_any_fail,10}], chat_test_cases()},
      {time, [shuffle, {repeat_until_any_fail,10}], time_test_cases()},
@@ -57,6 +57,11 @@ groups() ->
 
 suite() ->
     escalus:suite().
+
+essential_test_cases() ->
+    [create_and_terminate_session,
+     accept_higher_hold_value,
+     do_not_accept_0_hold_value].
 
 chat_test_cases() ->
     [interleave_requests,
@@ -194,6 +199,44 @@ create_and_terminate_session(Config) ->
     timer:sleep(100),
     %% Assert the session was terminated.
     0 = length(get_bosh_sessions()).
+
+accept_higher_hold_value(Config) ->
+    #xmlel{attrs = RespAttrs} = send_specific_hold(Config, <<"2">>),
+    {<<"hold">>, <<"1">>} = lists:keyfind(<<"hold">>, 1, RespAttrs).
+
+do_not_accept_0_hold_value(Config) ->
+    #xmlel{attrs = RespAttrs} = send_specific_hold(Config, <<"0">>),
+    {<<"type">>, <<"terminate">>} = lists:keyfind(<<"type">>, 1, RespAttrs).
+
+
+send_specific_hold(Config, HoldValue) ->
+    NamedSpecs = escalus_config:get_config(escalus_users, Config),
+    CarolSpec = proplists:get_value(?config(user, Config), NamedSpecs),
+    Server = proplists:get_value(server, CarolSpec),
+    Path = proplists:get_value(path, CarolSpec),
+    Port = proplists:get_value(port, CarolSpec),
+    UseSSL = proplists:get_value(ssl, CarolSpec, false),
+    Rid = random:uniform(1000000),
+    Body0 = escalus_bosh:session_creation_body(2, <<"1.0">>, <<"en">>, Rid, Server, nil),
+    #xmlel{attrs = Attrs0} = Body0,
+    Attrs = lists:keyreplace(<<"hold">>, 1, Attrs0, {<<"hold">>, HoldValue}),
+    Body = Body0#xmlel{attrs = Attrs},
+
+    {ok, Client} = fusco_cp:start_link({binary_to_list(Server), Port, UseSSL}, [],1),
+    Headers = [{<<"Content-Type">>, <<"text/xml; charset=utf-8">>}],
+    {ok, Result} = fusco_cp:request(Client, Path, "POST", Headers, exml:to_iolist(Body), 2, 5000),
+    {{<<"200">>,<<"OK">>}, _Headers, RespBody, _, _} = Result,
+    {ok, #xmlel{attrs = RespAttrs} = Resp} = exml:parse(RespBody),
+    case lists:keyfind(<<"sid">>, 1, RespAttrs) of
+        {<<"sid">>, SID} ->
+            TerminateBody = escalus_bosh:session_termination_body(Rid + 1, SID),
+            fusco_cp:request(Client, Path, "POST", Headers,
+                             exml:to_iolist(TerminateBody), 2, 5000);
+        _ ->
+            skip
+    end,
+    fusco_cp:stop(Client),
+    Resp.
 
 
 stream_error(Config) ->

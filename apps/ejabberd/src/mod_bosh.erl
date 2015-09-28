@@ -331,16 +331,15 @@ get_session_socket(Sid) ->
 -spec maybe_start_session(req(), binary()) -> {boolean(), req()}.
 maybe_start_session(Req, Body) ->
     try
-        {<<"hold">>, <<"1">>} = {<<"hold">>,
-                                 exml_query:attr(Body, <<"hold">>)},
         Hosts = ejabberd_config:get_global_option(hosts),
         {<<"to">>, true} = {<<"to">>,
                             lists:member(exml_query:attr(Body, <<"to">>),
                                          Hosts)},
         %% Version isn't checked as it would be meaningless when supporting
         %% only a subset of the specification.
+        {ok, NewBody} = set_max_hold(Body),
         {Peer, Req1} = cowboy_req:peer(Req),
-        start_session(Peer, Body),
+        start_session(Peer, NewBody),
         {true, Req1}
     catch
         error:{badmatch, {<<"to">>, _}} ->
@@ -458,3 +457,18 @@ get_option_pair(Key, Opts) ->
         undefined -> [];
         Value     -> [{Key, Value}]
     end.
+
+set_max_hold(Body) ->
+    HoldBin = exml_query:attr(Body, <<"hold">>),
+    ClientHold = binary_to_integer(HoldBin),
+    maybe_set_max_hold(ClientHold, Body).
+
+
+maybe_set_max_hold(1, Body) ->
+    {ok, Body};
+maybe_set_max_hold(ClientHold, #xmlel{attrs = Attrs} = Body) when ClientHold > 1 ->
+    NewAttrs = lists:keyreplace(<<"hold">>, 1, Attrs, {<<"hold">>, <<"1">>}),
+    {ok, Body#xmlel{attrs = NewAttrs}};
+maybe_set_max_hold(_, _) ->
+    {error, invalid_hold}.
+
