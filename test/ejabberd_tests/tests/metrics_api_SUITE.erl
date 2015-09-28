@@ -38,7 +38,8 @@ groups() ->
                     one_iq_error,
                     one_presence_error
                    ]},
-     {global, [], [session_counters]}
+     {global, [], [session_counters,
+                   node_uptime]}
     ].
 
 init_per_suite(Config) ->
@@ -194,7 +195,11 @@ session_counters(Config) ->
                3 = fetch_global_counter_value(nodeSessionCount, Config)
        end).
 
-
+node_uptime(Config) ->
+      X = fetch_global_counter_value(nodeUpTime, Config),
+      timer:sleep(timer:seconds(1)),
+      Y = fetch_global_counter_value(nodeUpTime, Config),
+      true = Y > X.
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
