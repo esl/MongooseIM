@@ -49,12 +49,16 @@ test_preset: test_deps
 
 run: deps compile quickrun
 
-quickrun: etc/ejabberd.cfg certs_priv
-	erl -sname mongooseim@localhost -setcookie ejabberd -pa ebin deps/*/ebin apps/*/ebin -config rel/files/app.config -s mongooseim
+quickrun: etc/ejabberd.cfg etc/app.config certs_priv
+	erl -sname mongooseim@localhost -setcookie ejabberd -pa ebin deps/*/ebin apps/*/ebin -config etc/app.config -s mongooseim
 
 etc/ejabberd.cfg:
 	@mkdir -p $(@D)
-	tools/generate_cfg.es etc/ejabberd.cfg
+	tools/generate_cfg.es etc/ejabberd.cfg rel/files/ejabberd.cfg
+
+etc/app.config:
+	@mkdir -p $(@D)
+	tools/generate_cfg.es etc/app.config rel/files/app.config
 
 cover_test: test_deps
 	cd test/ejabberd_tests; make cover_test
