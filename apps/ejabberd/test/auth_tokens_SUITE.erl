@@ -333,15 +333,15 @@ get_bare_jid_binary_test(_) ->
 
 %% simulates what is passed to process_iq handler of modules under test.
 get_alice_jid_serverside() ->
-   {jid, <<"alicE">>,<<"localhost">>,<<"res1">>,<<"alice">>,<<"localhost">>,<<"res1">>}.
+    {jid, <<"alicE">>,<<"localhost">>,<<"res1">>,<<"alice">>,<<"localhost">>,<<"res1">>}.
 
-   %% #jid{
-   %%    user = <<"alicE">>,
-   %%    server = <<"localhost">>,
-   %%    resource = <<"res1">>,
-   %%    luser = <<"alice">>,
-   %%    lserver = <<"localhost">>,
-   %%    lresource = <<"res1">>}.
+    %% #jid{
+    %%    user = <<"alicE">>,
+    %%    server = <<"localhost">>,
+    %%    resource = <<"res1">>,
+    %%    luser = <<"alice">>,
+    %%    lserver = <<"localhost">>,
+    %%    lresource = <<"res1">>}.
 
 get_token_expiry_date() ->
     DT =  {{2015,9,17},{12,59,24}},
