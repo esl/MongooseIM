@@ -26,9 +26,8 @@ start(Host, Opts) ->
     ok.
 
 stop(Host) ->
-  gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_AUTH_TOKEN),
-  ok.
-
+    gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_AUTH_TOKEN),
+    ok.
 
 validate_token(TokenIn) ->
     %%io:format("~n ==== Token Raws ====  ~n~p~n ", [TokenIn]),
@@ -71,7 +70,7 @@ get_requested_tokens() ->
 
 %% args: binary() -> binary()
 get_username_from_jid(User) when is_binary(User) ->
-  hd(binary:split(User,[<<"@">>])).
+    hd(binary:split(User,[<<"@">>])).
 
 %% args: #token -> true | false
 is_token_valid(#token{expiry_datetime = Expiry}) ->
@@ -184,7 +183,7 @@ get_token_mac(TokenBin, SecretKey, Method) ->
 
 assemble_token_from_params(TokenParams) ->
     lists:foldl(fun(X,Sum) -> <<Sum/binary, X/binary,"&">> end, <<>> , TokenParams).
-   % https://developers.google.com/talk/jep_extensions/oauth
+    % https://developers.google.com/talk/jep_extensions/oauth
 
 %% args: binary(), datetime(), binary(), atom() -> {binary(), binary()}
 generate_access_token(UserBareJid, ExpiryDateTime, Key, HashAlgorithm) ->
