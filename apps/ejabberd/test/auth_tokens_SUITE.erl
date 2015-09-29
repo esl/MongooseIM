@@ -48,6 +48,39 @@ groups() ->
       ]}
     ].
 
+init_per_suite(C) ->
+    stringprep:start(),
+    xml:start(),
+    C.
+
+init_per_testcase(serialize_deserialize_property, Config) ->
+    mock_mongoose_metrics(),
+    {ok, P} = async_helper:start(ejabberd_hooks, start_link, []),
+    mock_keystore(),
+    %ct:pal("t2l hooks: ~p", [ets:tab2list(hooks)]),
+    Helpers = [P | proplists:get_value(async_helpers, Config, [])],
+    lists:keystore(async_helpers, 1, Config, {async_helpers, Helpers});
+init_per_testcase(_, C) -> C.
+
+end_per_testcase(serialize_deserialize_property, C) ->
+    meck:unload(mongoose_metrics),
+    [ P ! stop || P <- proplists:get_value(async_helpers, C, []) ],
+    C;
+end_per_testcase(_, C) -> C.
+
+mock_mongoose_metrics() ->
+    meck:new(mongoose_metrics, []),
+    meck:expect(mongoose_metrics, ensure_metric, fun (_, _) -> ok end),
+    meck:expect(mongoose_metrics, create_generic_hook_metric, fun (_, _) -> ok end),
+    meck:expect(mongoose_metrics, increment_generic_hook_metric, fun (_, _) -> ok end),
+    ok.
+
+mock_keystore() ->
+    ejabberd_hooks:add(get_key, <<"localhost">>, ?MODULE, mod_keystore_get_key, 50).
+
+mod_keystore_get_key(_, KeyID) ->
+    [{KeyID, <<"unused_key">>}].
+
 token_mac_concat_test(_) ->
     DummyToken = <<"someuser@somehost&dummytime&seq">>,
     DummyMAC = <<"123">>,
@@ -406,7 +439,7 @@ bare_jid() ->
 %         <<(?l2b(Username))/bytes, "@", (?l2b(Domain))/bytes, "/", (?l2b(Res))/bytes>>).
 
 username() -> ascii_string().
-domain()   -> ascii_string().
+domain()   -> "localhost".
 %resource() -> ascii_string().
 
 ascii_string() ->
