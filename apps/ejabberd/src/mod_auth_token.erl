@@ -24,6 +24,8 @@
 -export([expiry_datetime/3,
          token_with_mac/1]).
 
+-export([validate_token/1]).
+
 -export_type([token/0,
               token_type/0]).
 
@@ -54,7 +56,7 @@ stop(Host) ->
 serialize(#token{mac_signature = undefined} = T) -> error(incomplete_token, [T]);
 serialize(#token{token_body = undefined} = T)    -> error(incomplete_token, [T]);
 serialize(#token{token_body = Body, mac_signature = MAC}) ->
-    base64:encode(<<Body/bytes, (field_separator()), (base16:encode(MAC))/bytes>>).
+    <<Body/bytes, (field_separator()), (base16:encode(MAC))/bytes>>.
 
 token_with_mac(#token{mac_signature = undefined, token_body = undefined} = T) ->
     Body = join_fields(T),
@@ -91,11 +93,12 @@ hmac_opts() ->
 
 -spec deserialize(serialized()) -> token().
 deserialize(Serialized) when is_binary(Serialized) ->
-    get_token_as_record(base64:decode(Serialized)).
+    get_token_as_record(Serialized).
 
 validate_token(TokenIn) ->
     %%io:format("~n ==== Token Raws ====  ~n~p~n ", [TokenIn]),
     TokenReceivedRec = deserialize(TokenIn),
+%%    TokenReceivedRec = get_token_as_record(TokenIn),
     % io:format("~n ==== Token Parsed as ====  ~n~p~n ", [TokenReceivedRec]),
     #token{user_jid = TokenOwner,
            mac_signature = MACReceived,
@@ -214,7 +217,7 @@ token_to_xmlel(#token{type = Type} = T) ->
                   end,
            %% TODO: namespace!
            attrs = [{<<"xmlns">>, <<"some-sensible-ns">>}],
-           children = [#xmlcdata{content = serialize(T)}]}.
+           children = [#xmlcdata{content = jlib:encode_base64(serialize(T))}]}.
 
 default_validity_period(access) -> {1, hours};
 default_validity_period(refresh) -> {25, days}.
