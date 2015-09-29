@@ -17,7 +17,18 @@
 %% TODO: TEMP! remove before merge to master!
 -compile([export_all]).
 
+-type token() :: #token{}.
 -type token_type() :: access | refresh | provision.
+-type serialized() :: binary().
+
+-define(a2b(A), atom_to_binary(A, utf8)).
+-define(b2a(B), binary_to_atom(B, utf8)).
+
+-define(i2b(I), integer_to_binary(I)).
+-define(b2i(B), binary_to_integer(B)).
+
+-define(l2b(L), list_to_binary(L)).
+-define(b2l(B), binary_to_list(B)).
 
 start(Host, Opts) ->
     mod_disco:register_feature(Host, ?NS_AUTH_TOKEN),
@@ -28,6 +39,48 @@ start(Host, Opts) ->
 stop(Host) ->
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_AUTH_TOKEN),
     ok.
+
+-spec serialize(token()) -> serialized().
+serialize(#token{mac_signature = undefined} = T) -> error(incomplete_token, [T]);
+serialize(#token{token_body = undefined} = T)    -> error(incomplete_token, [T]);
+serialize(#token{token_body = Body, mac_signature = MAC}) ->
+    <<Body/bytes, (field_separator()), (base16:encode(MAC))/bytes>>.
+
+token_with_mac(#token{mac_signature = undefined, token_body = undefined} = T) ->
+    Body = join_fields(T),
+    HMACOpts = lists:keystore(key, 1, hmac_opts(),
+                              {key, acquire_key_for_user(T#token.user_jid)}),
+    MAC = keyed_hash(Body, HMACOpts),
+    T#token{token_body = Body, mac_signature = MAC}.
+
+field_separator() -> 0.
+
+join_fields(T) ->
+    Sep = field_separator(),
+    #token{type = Type, expiry_datetime = Expiry, user_jid = JID, sequence_no = SeqNo} = T,
+    case {Type, SeqNo} of
+        {access, undefined} ->
+            <<(?a2b(Type))/bytes, Sep,
+              JID/bytes, Sep,
+              (?i2b(datetime_to_seconds(Expiry)))/bytes>>;
+        {refresh, _} ->
+            <<(?a2b(Type))/bytes, Sep,
+              JID/bytes, Sep,
+              (?i2b(datetime_to_seconds(Expiry)))/bytes, Sep,
+              (?i2b(SeqNo))/bytes>>
+    end.
+
+keyed_hash(Data, Opts) ->
+    Type = proplists:get_value(hmac_type, Opts, sha384),
+    {key, Key} = lists:keyfind(key, 1, Opts),
+    crypto:hmac(Type, Key, Data).
+
+hmac_opts() ->
+    [].
+
+-spec deserialize(serialized()) -> token().
+deserialize(Serialized) when is_binary(Serialized) ->
+    get_token_as_record(Serialized).
 
 validate_token(TokenIn) ->
     %%io:format("~n ==== Token Raws ====  ~n~p~n ", [TokenIn]),
@@ -224,22 +277,19 @@ generate_refresh_token_body(UserBareJid, ExpiryDateTime, SeqNo) ->
 %% is shared between tokens. Introduce other container types if
 %% they start to differ more than a few fields.
 %% args: {binary(),binary()} -> #token()
-get_token_as_record(TokenIn) ->
-    {Token, MAC} = token_mac_split(TokenIn),
-    TokenParts =  token_body_split(Token),
-    TokenType = binary_to_term(lists:nth(1, TokenParts)),
-    SeqNo = case TokenType of
-                access -> -1;
-                refresh -> lists:nth(4, TokenParts)
-            end,
-
-    #token{type = TokenType,
-           expiry_datetime = seconds_to_datetime(binary_to_term(lists:nth(3, TokenParts))),
-           user_jid = lists:nth(2, TokenParts),
-           sequence_no = SeqNo,
-           mac_signature = MAC,
-           token_body = Token
-          }.
+get_token_as_record(BToken) ->
+    [BType, User, Expiry | Rest] = binary:split(BToken, <<(field_separator())>>, [global]),
+    T = #token{type = ?b2a(BType),
+               expiry_datetime = seconds_to_datetime(binary_to_integer(Expiry)),
+               user_jid = User},
+    {SeqNo, MAC} = case {BType, Rest} of
+                             {<<"access">>, [BMAC]} ->
+                                 {undefined, base16:decode(BMAC)};
+                             {<<"refresh">>, [BSeqNo, BMAC]} ->
+                                 {?b2i(BSeqNo), base16:decode(BMAC)}
+                         end,
+    T1 = T#token{sequence_no = SeqNo, mac_signature = MAC},
+    T1#token{token_body = join_fields(T1)}.
 
 acquire_key_for_user(User) ->
     UsersHost = get_users_host(User),
@@ -251,9 +301,6 @@ acquire_key_for_user(User) ->
 get_users_host(User) when is_binary(User) ->
     #jid{lserver = UsersHost} = jlib:binary_to_jid(User),
     UsersHost.
-
-split_token(TokenBody) ->
-    token_body_split(TokenBody).
 
 %% consider reading it out of config file
 get_hash_algorithm() ->
