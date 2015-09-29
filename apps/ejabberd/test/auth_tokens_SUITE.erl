@@ -209,7 +209,7 @@ is_join_and_split_with_base16_and_zeros_reversible(RawToken) ->
     end.
 
 is_serialization_reversible(Token) ->
-    Token = ?TESTED:deserialize(?TESTED:serialize(Token)).
+    Token =:= ?TESTED:deserialize(?TESTED:serialize(Token)).
 
 token() ->
     ?LET(TokenParts, {token_type(), expiry_datetime(),
@@ -220,12 +220,11 @@ token_gen({Type, Expiry, JID, SeqNo}) ->
     T = #token{type = Type,
                expiry_datetime = Expiry,
                user_jid = JID},
-    HMACOpts = ?TESTED:hmac_opts(),
     case Type of
         access ->
-            ?TESTED:hash_token(T, HMACOpts);
+            ?TESTED:token_with_mac(T);
         refresh ->
-            ?TESTED:hash_token(T#token{sequence_no = SeqNo}, HMACOpts)
+            ?TESTED:token_with_mac(T#token{sequence_no = SeqNo})
     end.
 
 token(Sep) ->
