@@ -31,7 +31,7 @@ stop(Host) ->
 
 
 validate_token(TokenIn) ->
-    io:format("~n ==== Token Raws ====  ~n~p~n ", [TokenIn]),
+    %%io:format("~n ==== Token Raws ====  ~n~p~n ", [TokenIn]),
     TokenReceivedRec = get_token_as_record(TokenIn),
     % io:format("~n ==== Token Parsed as ====  ~n~p~n ", [TokenReceivedRec]),
     #token{user_jid = TokenOwnerUser,
@@ -111,7 +111,7 @@ get_expiry_dates_from_config(User) ->
     ValidityOpts = gen_mod:get_module_opt(UsersHost, ?MODULE, validity_durations, []),
 
     case ValidityOpts of
-        [] -> throw(missing_token_validity_configuration);
+        [] -> error(missing_token_validity_configuration);
         _ ->
             Unit = proplists:get_value(duration_unit, ValidityOpts, seconds),
             AccessTokenValidityPeriod = proplists:get_value(access_token_validity_days, ValidityOpts, 1),
@@ -216,7 +216,7 @@ generate_refresh_token_body(UserBareJid, ExpiryDateTime, SeqNo) ->
                               term_to_binary(refresh),
                               UserBareJid,
                               term_to_binary(datetime_to_seconds(ExpiryDateTime)),
-                              term_to_binary(SeqNo)   %%  234982
+                              <<SeqNo>>
                              ],
 
     assemble_token_from_params(UserRefreshTokenParams).
@@ -231,7 +231,7 @@ get_token_as_record(TokenIn) ->
     TokenType = binary_to_term(lists:nth(1, TokenParts)),
     SeqNo = case TokenType of
                 access -> -1;
-                refresh -> binary_to_term(lists:nth(4, TokenParts))
+                refresh -> lists:nth(4, TokenParts)
             end,
 
     #token{type = TokenType,
