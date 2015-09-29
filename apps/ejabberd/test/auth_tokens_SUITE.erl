@@ -39,10 +39,10 @@ groups() ->
        access_token_mac_reassembly_test,
        package_token_token_test,
        mac_may_contain_spurious_separator,
-       join_and_split_no_base64_are_not_bidirectional_property,
-       join_and_split_with_base64_are_not_bidirectional_property,
-       join_and_split_with_base16_are_bidirectional_property,
-       join_and_split_with_base16_and_zeros_are_bidirectional_property
+       join_and_split_no_base64_are_not_reversible_property,
+       join_and_split_with_base64_are_not_reversible_property,
+       join_and_split_with_base16_are_reversible_property,
+       join_and_split_with_base16_and_zeros_are_reversible_property
       ]}
     ].
 
@@ -131,25 +131,25 @@ mac_may_contain_spurious_separator(_) ->
     Parts = binary:split(Token, <<"+">>, [global]),
     3 = length(Parts).
 
-join_and_split_no_base64_are_not_bidirectional_property(_) ->
-    negative_prop(join_and_split_no_base64_are_not_bidirectional_property,
+join_and_split_no_base64_are_not_reversible_property(_) ->
+    negative_prop(join_and_split_no_base64_are_not_reversible_property,
                   ?FORALL(RawToken, token(<<"&">>),
-                          is_join_and_split_no_base64_bidirectional(RawToken, <<"+">>))).
+                          is_join_and_split_no_base64_reversible(RawToken, <<"+">>))).
 
-join_and_split_with_base64_are_not_bidirectional_property(_) ->
-    negative_prop(join_and_split_are_bidirectional_property,
+join_and_split_with_base64_are_not_reversible_property(_) ->
+    negative_prop(join_and_split_are_reversible_property,
                   ?FORALL(RawToken, token(<<"&">>),
-                          is_join_and_split_with_base64_bidirectional(RawToken, <<"+">>))).
+                          is_join_and_split_with_base64_reversible(RawToken, <<"+">>))).
 
-join_and_split_with_base16_are_bidirectional_property(_) ->
-    prop(join_and_split_are_bidirectional_property,
+join_and_split_with_base16_are_reversible_property(_) ->
+    prop(join_and_split_are_reversible_property,
          ?FORALL(RawToken, token(<<"&">>),
-                 is_join_and_split_with_base16_bidirectional(RawToken, <<"+">>))).
+                 is_join_and_split_with_base16_reversible(RawToken, <<"+">>))).
 
-join_and_split_with_base16_and_zeros_are_bidirectional_property(_) ->
-    prop(join_and_split_are_bidirectional_property,
+join_and_split_with_base16_and_zeros_are_reversible_property(_) ->
+    prop(join_and_split_are_reversible_property,
          ?FORALL(RawToken, token(<<0>>),
-                 is_join_and_split_with_base16_and_zeros_bidirectional(RawToken))).
+                 is_join_and_split_with_base16_and_zeros_reversible(RawToken))).
 
 %% This is a negative test case helper - that's why we invert the logic below.
 %% I.e. we expect the property to fail.
@@ -157,7 +157,7 @@ negative_prop(Name, Prop) ->
     Props = proper:conjunction([{Name, Prop}]),
     [[{Name, _}]] = proper:quickcheck(Props, [verbose, long_result, {numtests, 50}]).
 
-is_join_and_split_no_base64_bidirectional(RawToken, MACSep) ->
+is_join_and_split_no_base64_reversible(RawToken, MACSep) ->
     MAC = crypto:hmac(sha384, <<"unused_key">>, RawToken),
     Token = <<RawToken/bytes, MACSep/bytes, MAC/bytes>>,
     Parts = binary:split(Token, MACSep, [global]),
@@ -168,7 +168,7 @@ is_join_and_split_no_base64_bidirectional(RawToken, MACSep) ->
             false
     end.
 
-is_join_and_split_with_base64_bidirectional(RawToken, MACSep) ->
+is_join_and_split_with_base64_reversible(RawToken, MACSep) ->
     MAC = base64:encode(crypto:hmac(sha384, <<"unused_key">>, RawToken)),
     Token = <<RawToken/bytes, MACSep/bytes, MAC/bytes>>,
     Parts = binary:split(Token, MACSep, [global]),
@@ -179,7 +179,7 @@ is_join_and_split_with_base64_bidirectional(RawToken, MACSep) ->
             false
     end.
 
-is_join_and_split_with_base16_bidirectional(RawToken, MACSep) ->
+is_join_and_split_with_base16_reversible(RawToken, MACSep) ->
     MAC = base16:encode(crypto:hmac(sha384, <<"unused_key">>, RawToken)),
     Token = <<RawToken/bytes, MACSep/bytes, MAC/bytes>>,
     Parts = binary:split(Token, MACSep, [global]),
@@ -190,7 +190,7 @@ is_join_and_split_with_base16_bidirectional(RawToken, MACSep) ->
             false
     end.
 
-is_join_and_split_with_base16_and_zeros_bidirectional(RawToken) ->
+is_join_and_split_with_base16_and_zeros_reversible(RawToken) ->
     MAC = base16:encode(crypto:hmac(sha384, <<"unused_key">>, RawToken)),
     Token = <<RawToken/bytes, 0, MAC/bytes>>,
     BodyPartsLen = length(binary:split(RawToken, <<0>>, [global])),
