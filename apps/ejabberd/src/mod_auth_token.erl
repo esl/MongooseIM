@@ -178,16 +178,15 @@ utc_now_as_seconds() ->
     datetime_to_seconds(calendar:universal_time()).
 
 token(Type, User) ->
-    Domain = get_users_host(User),
     T = #token{type = Type,
-               expiry_datetime = expiry_datetime(Domain, Type, utc_now_as_seconds()),
+               expiry_datetime = expiry_datetime(User#jid.lserver, Type, utc_now_as_seconds()),
                user_jid = User,
                sequence_no = case Type of
                                  access -> undefined;
                                  %% TODO: this is just a stub
                                  refresh -> 666
                              end},
-    token_to_xmlel(T).
+    token_to_xmlel(token_with_mac(T)).
 
 %% {modules, [
 %%            {mod_auth_token, [{{validity_period, access}, {13, minutes}},
@@ -239,15 +238,11 @@ get_token_as_record(BToken) ->
     T1#token{token_body = join_fields(T1)}.
 
 acquire_key_for_user(User) ->
-    UsersHost = get_users_host(User),
+    UsersHost = User#jid.lserver,
     %% todo : extract key name from config (possible resolution by host)
     [{{asdqwe_access_secret, UsersHost}, RawKey}] = ejabberd_hooks:run_fold(
                                          get_key, UsersHost, [], [{asdqwe_access_secret, UsersHost}]),
     RawKey.
-
-get_users_host(User) when is_binary(User) ->
-    #jid{lserver = UsersHost} = jlib:binary_to_jid(User),
-    UsersHost.
 
 %% args: binary() -> binary()
 decode_from_transport(Data) ->
