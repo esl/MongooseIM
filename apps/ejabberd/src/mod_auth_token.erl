@@ -72,11 +72,11 @@ join_fields(T) ->
     case {Type, SeqNo} of
         {access, undefined} ->
             <<(?a2b(Type))/bytes, Sep,
-              JID/bytes, Sep,
+              (jlib:jid_to_binary(JID))/bytes, Sep,
               (?i2b(datetime_to_seconds(Expiry)))/bytes>>;
         {refresh, _} ->
             <<(?a2b(Type))/bytes, Sep,
-              JID/bytes, Sep,
+              (jlib:jid_to_binary(JID))/bytes, Sep,
               (?i2b(datetime_to_seconds(Expiry)))/bytes, Sep,
               (?i2b(SeqNo))/bytes>>
     end.
