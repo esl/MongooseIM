@@ -10,12 +10,22 @@
 -export([start/2,
          stop/1]).
 
+%% gen_iq_handler callbacks
 -export([process_iq/3]).
 
--export_type([token_type/0]).
+%% Public API
+-export([token/2]).
 
-%% TODO: TEMP! remove before merge to master!
--compile([export_all]).
+%% Token serialization
+-export([deserialize/1,
+         serialize/1]).
+
+%% Test only!
+-export([expiry_datetime/3,
+         token_with_mac/1]).
+
+-export_type([token/0,
+              token_type/0]).
 
 -type token() :: #token{}.
 -type token_type() :: access | refresh | provision.
@@ -48,10 +58,11 @@ serialize(#token{token_body = Body, mac_signature = MAC}) ->
 
 token_with_mac(#token{mac_signature = undefined, token_body = undefined} = T) ->
     Body = join_fields(T),
-    HMACOpts = lists:keystore(key, 1, hmac_opts(),
-                              {key, acquire_key_for_user(T#token.user_jid)}),
-    MAC = keyed_hash(Body, HMACOpts),
+    MAC = keyed_hash(Body, user_hmac_opts(T#token.user_jid)),
     T#token{token_body = Body, mac_signature = MAC}.
+
+user_hmac_opts(User) ->
+    lists:keystore(key, 1, hmac_opts(), {key, acquire_key_for_user(User)}).
 
 field_separator() -> 0.
 
@@ -86,12 +97,11 @@ validate_token(TokenIn) ->
     %%io:format("~n ==== Token Raws ====  ~n~p~n ", [TokenIn]),
     TokenReceivedRec = get_token_as_record(TokenIn),
     % io:format("~n ==== Token Parsed as ====  ~n~p~n ", [TokenReceivedRec]),
-    #token{user_jid = TokenOwnerUser,
+    #token{user_jid = TokenOwner,
            mac_signature = MACReceived,
            token_body = RecvdTokenBody} = TokenReceivedRec,
 
-    UsersKey = acquire_key_for_user(TokenOwnerUser),
-    MACreference = get_token_mac(RecvdTokenBody, UsersKey, get_hash_algorithm()),
+    MACreference = keyed_hash(RecvdTokenBody, user_hmac_opts(TokenOwner)),
 
     %% validation criteria
 
@@ -105,7 +115,7 @@ validate_token(TokenIn) ->
                            _  -> error
                        end,
 
-    ValidationResultBase = {ValidationResult, mod_auth_token, get_username_from_jid(TokenOwnerUser)},
+    ValidationResultBase = {ValidationResult, mod_auth_token, get_username_from_jid(TokenOwner)},
 
     #token{type = TokenType} = TokenReceivedRec,
 
@@ -146,7 +156,8 @@ create_token_response(From, IQ) ->
     IQ#iq{type = result,
           sub_el = [#xmlel{name = <<"items">>,
                            attrs = [{<<"xmlns">>, ?NS_AUTH_TOKEN}],
-                           children = tokens_body(From)}]}.
+                           children = [token(access, From),
+                                       token(refresh, From)]}]}.
 
 %% DateTime -> integer()
 datetime_to_seconds(DateTime) ->
@@ -156,24 +167,6 @@ datetime_to_seconds(DateTime) ->
 seconds_to_datetime(Seconds) ->
     calendar:gregorian_seconds_to_datetime(Seconds).
 
-%% returns tokens validity periods expressed in days
-get_expiry_dates_from_config(User) ->
-    UserBareJid = get_bare_jid_binary(User),
-    UsersHost = get_users_host(UserBareJid),
-    ValidityOpts = gen_mod:get_module_opt(UsersHost, ?MODULE, validity_durations, []),
-
-    case ValidityOpts of
-        [] -> error(missing_token_validity_configuration);
-        _ ->
-            Unit = proplists:get_value(duration_unit, ValidityOpts, seconds),
-            AccessTokenValidityPeriod = proplists:get_value(access_token_validity_days, ValidityOpts, 1),
-            RefreshTokenValidityPeriod = proplists:get_value(refresh_token_validity_days, ValidityOpts, 1),
-            AccessTokeExpirationDateTime = get_expiry_date(AccessTokenValidityPeriod, Unit),
-            RefreshTokenExpirationDateTime = get_expiry_date(RefreshTokenValidityPeriod, Unit),
-            [{access_token_expiry, AccessTokeExpirationDateTime},
-             {refresh_token_expiry, RefreshTokenExpirationDateTime}]
-    end.
-
 get_expiry_date(ValidityPeriod, days) ->
     SecondsInDay = 86400,
     seconds_to_datetime(utc_now_as_seconds() + (SecondsInDay * ValidityPeriod));
@@ -181,97 +174,51 @@ get_expiry_date(ValidityPeriod, days) ->
 get_expiry_date(ValidityPeriod, seconds) ->
     seconds_to_datetime(utc_now_as_seconds() + ValidityPeriod).
 
-
 utc_now_as_seconds() ->
     datetime_to_seconds(calendar:universal_time()).
 
-tokens_body(User) ->
-    Halgo = get_hash_algorithm(),
-    UserBareJid = get_bare_jid_binary(User),
+token(Type, User) ->
+    Domain = get_users_host(User),
+    T = #token{type = Type,
+               expiry_datetime = expiry_datetime(Domain, Type, utc_now_as_seconds()),
+               user_jid = User,
+               sequence_no = case Type of
+                                 access -> undefined;
+                                 %% TODO: this is just a stub
+                                 refresh -> 666
+                             end},
+    token_to_xmlel(T).
 
-    %% todo: handle revocation!
-    SeqNo = 555,
-    ExpiryDates = get_expiry_dates_from_config(User),
+%% {modules, [
+%%            {mod_auth_token, [{{validity_period, access}, {13, minutes}},
+%%                              {{validity_period, refresh}, {13, days}}]}
+%%           ]}.
+expiry_datetime(Domain, Type, UTCSeconds) ->
+    Period = get_validity_period(Domain, Type),
+    seconds_to_datetime(UTCSeconds + period_to_seconds(Period)).
 
+get_validity_period(Domain, Type) ->
+    gen_mod:get_module_opt(Domain, ?MODULE, {validity_period, Type},
+                           default_validity_period(Type)).
 
-    AccessTokenExpiryDateTime = proplists:get_value(access_token_expiry, ExpiryDates),
-    RefreshTokenExpiryDateTime = proplists:get_value(refresh_token_expiry, ExpiryDates),
+period_to_seconds({Days, days}) -> milliseconds_to_seconds(timer:hours(24 * Days));
+period_to_seconds({Hours, hours}) -> milliseconds_to_seconds(timer:hours(Hours));
+period_to_seconds({Minutes, minutes}) -> milliseconds_to_seconds(timer:minutes(Minutes));
+period_to_seconds({Seconds, seconds}) -> milliseconds_to_seconds(timer:seconds(Seconds)).
 
-    UserKey  = acquire_key_for_user(UserBareJid),
+milliseconds_to_seconds(Millis) -> erlang:round(Millis / 1000).
 
-    {AccessToken, MacAccess}  = generate_access_token(UserBareJid, AccessTokenExpiryDateTime, UserKey, Halgo),
-    {RefreshToken, MacRefresh} = generate_refresh_token(UserBareJid, RefreshTokenExpiryDateTime, UserKey, Halgo, SeqNo),
+token_to_xmlel(#token{type = Type} = T) ->
+    #xmlel{name = case Type of
+                      access -> <<"access_token">>;
+                      refresh -> <<"refresh_token">>
+                  end,
+           %% TODO: namespace!
+           attrs = [{<<"xmlns">>, <<"some-sensible-ns">>}],
+           children = [#xmlcdata{content = serialize(T)}]}.
 
-    AccessTokenMac = concat_token_mac(AccessToken, MacAccess),
-    RefreshTokenMac = concat_token_mac(RefreshToken, MacRefresh),
-
-    [
-     #xmlel{ name = <<"access_token">>,
-             children=[#xmlcdata{content = encode_for_transport(AccessTokenMac)}] },
-     #xmlel{ name = <<"refresh_token">>,
-             children=[#xmlcdata{content = encode_for_transport(RefreshTokenMac)}]}
-    ].
-
-% ----------------------------- tokens assembly routines -----------------
-%% returns binary Token + Mac glued together using + separator.
-%% args: binary(), binary() -> binary()
-concat_token_mac(TokenRaw, Mac) when is_binary(TokenRaw), is_binary(Mac) ->
-    <<TokenRaw/binary, "+", Mac/binary>>.
-
-%% returns Token body and the MAC as tuple {Token, MAC}
-%% args: binary() -> {binary(), binary()}
-token_mac_split(Token) when is_binary(Token) ->
-    R = binary:split(Token, <<"+">>, [global]),
-    {hd(R), lists:last(R)}.
-
-%% split decoded (eg from base64) token to list of binaries
-%% args: binary() -> [binary()]
-token_body_split(Token) when is_binary(Token) ->
-    binary:split(Token, <<"&">>, [global]).
-
-
-%% generate Message Authentication Code based on content and secret key
-get_token_mac(TokenBin, SecretKey, Method) ->
-    crypto:hmac(Method, SecretKey, TokenBin).
-
-assemble_token_from_params(TokenParams) ->
-    lists:foldl(fun(X,Sum) -> <<Sum/binary, X/binary,"&">> end, <<>> , TokenParams).
-    % https://developers.google.com/talk/jep_extensions/oauth
-
-%% args: binary(), datetime(), binary(), atom() -> {binary(), binary()}
-generate_access_token(UserBareJid, ExpiryDateTime, Key, HashAlgorithm) ->
-    RawAccessToken  = generate_access_token_body(UserBareJid, ExpiryDateTime),
-    Mac = get_token_mac(RawAccessToken, Key, HashAlgorithm),
-    %% io:format("~n Access Token (raw) ~p ~n ", [RawAccessToken]),
-    %% io:format("~n MAC ~p ~n ", [Mac]),
-    {RawAccessToken, Mac}.
-
-generate_access_token_body(UserBareJid, ExpiryDateTime) ->
-    UserAccessTokenParams = [
-                             term_to_binary(access),    %% eg. access
-                             UserBareJid,               %% <<"bob@host.com">>
-                             term_to_binary(datetime_to_seconds(ExpiryDateTime)) %% {{2015,9,21},{12,29,51}}
-                            ],
-
-    assemble_token_from_params(UserAccessTokenParams).
-
-
-generate_refresh_token(UserBareJid, ExpiryDateTime, Key, HashAlgorithm, SeqNo) ->
-    RawRefreshToken = generate_refresh_token_body(
-                               UserBareJid, ExpiryDateTime, SeqNo),
-
-    Mac = get_token_mac(RawRefreshToken, Key, HashAlgorithm),
-    {RawRefreshToken, Mac}.
-
-generate_refresh_token_body(UserBareJid, ExpiryDateTime, SeqNo) ->
-    UserRefreshTokenParams = [
-                              term_to_binary(refresh),
-                              UserBareJid,
-                              term_to_binary(datetime_to_seconds(ExpiryDateTime)),
-                              <<SeqNo>>
-                             ],
-
-    assemble_token_from_params(UserRefreshTokenParams).
+default_validity_period(access) -> {1, hours};
+default_validity_period(refresh) -> {25, days}.
 
 %% args: Token with Mac decoded from transport, #token
 %% is shared between tokens. Introduce other container types if
@@ -301,10 +248,6 @@ acquire_key_for_user(User) ->
 get_users_host(User) when is_binary(User) ->
     #jid{lserver = UsersHost} = jlib:binary_to_jid(User),
     UsersHost.
-
-%% consider reading it out of config file
-get_hash_algorithm() ->
-    sha384.
 
 %% args: binary() -> binary()
 decode_from_transport(Data) ->
