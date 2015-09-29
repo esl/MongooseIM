@@ -12,6 +12,7 @@
 
 
 -define(NS_AUTH_TOKEN, <<"urn:xmpp:tmp:auth-token">>).
+-define(TESTED, mod_auth_token).
 
 -define(l2b(List), list_to_binary(List)).
 -define(i2b(I), integer_to_binary(I)).
@@ -42,7 +43,8 @@ groups() ->
        join_and_split_no_base64_are_not_reversible_property,
        join_and_split_with_base64_are_not_reversible_property,
        join_and_split_with_base16_are_reversible_property,
-       join_and_split_with_base16_and_zeros_are_reversible_property
+       join_and_split_with_base16_and_zeros_are_reversible_property,
+       serialize_deserialize_property
       ]}
     ].
 
@@ -151,6 +153,10 @@ join_and_split_with_base16_and_zeros_are_reversible_property(_) ->
          ?FORALL(RawToken, token(<<0>>),
                  is_join_and_split_with_base16_and_zeros_reversible(RawToken))).
 
+serialize_deserialize_property(_) ->
+    prop(serialize_deserialize_property,
+         ?FORALL(Token, token(), is_serialization_reversible(Token))).
+
 %% This is a negative test case helper - that's why we invert the logic below.
 %% I.e. we expect the property to fail.
 negative_prop(Name, Prop) ->
@@ -202,6 +208,26 @@ is_join_and_split_with_base16_and_zeros_reversible(RawToken) ->
             false
     end.
 
+is_serialization_reversible(Token) ->
+    Token = ?TESTED:deserialize(?TESTED:serialize(Token)).
+
+token() ->
+    ?LET(TokenParts, {token_type(), expiry_datetime(),
+                      bare_jid(), seq_no()},
+         token_gen(TokenParts)).
+
+token_gen({Type, Expiry, JID, SeqNo}) ->
+    T = #token{type = Type,
+               expiry_datetime = Expiry,
+               user_jid = JID},
+    HMACOpts = ?TESTED:hmac_opts(),
+    case Type of
+        access ->
+            ?TESTED:hash_token(T, HMACOpts);
+        refresh ->
+            ?TESTED:hash_token(T#token{sequence_no = SeqNo}, HMACOpts)
+    end.
+
 token(Sep) ->
     ?LET({Type, JID, Expiry, SeqNo},
          {oneof([<<"access">>, <<"refresh">>]), bare_jid(), expiry_date(), seq_no()},
@@ -212,6 +238,15 @@ token(Sep) ->
                  <<"refresh", Sep/bytes, JID/bytes, Sep/bytes, (?i2b(Expiry))/bytes,
                    Sep/bytes, (?i2b(SeqNo))/bytes>>
          end).
+
+token_type() ->
+    oneof([access, refresh]).
+
+expiry_datetime() ->
+    ?LET(Seconds, pos_integer(), seconds_to_datetime(Seconds)).
+
+seconds_to_datetime(Seconds) ->
+    calendar:gregorian_seconds_to_datetime(Seconds).
 
 expiry_date() -> pos_integer().
 
