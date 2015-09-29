@@ -203,7 +203,7 @@ is_join_and_split_no_base64_reversible(RawToken, MACSep) ->
     case 2 == length(Parts) of
         true -> true;
         false ->
-            ct:pal("invalid MAC: ~s", [MAC]),
+            %ct:pal("invalid MAC: ~s", [MAC]),
             false
     end.
 
@@ -214,7 +214,7 @@ is_join_and_split_with_base64_reversible(RawToken, MACSep) ->
     case 2 == length(Parts) of
         true -> true;
         false ->
-            ct:pal("invalid MAC: ~s", [MAC]),
+            %ct:pal("invalid MAC: ~s", [MAC]),
             false
     end.
 
