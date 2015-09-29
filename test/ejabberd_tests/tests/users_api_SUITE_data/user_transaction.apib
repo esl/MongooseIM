@@ -8,7 +8,7 @@ GET /api/users/host/{{<host}}
 < Content-Type: application/json
 {
     "count": "{{>user_count_1}}",
-    "users": [],
+    "users": {},
     "{{_}}": "{{unexpected}}"
 }
 
@@ -35,7 +35,7 @@ GET /api/users/host/{{<host}}
 < Content-Type: application/json
 {
     "count": "{{>user_count_2}}",
-    "users": [],
+    "users": {},
     "{{_}}": "{{unexpected}}"
 }
 
@@ -62,18 +62,53 @@ GET /api/users/host/{{<host}}
 < Content-Type: application/json
 {
     "count": "{{<user_count_2}}",
+    "users": {},
+    "{{_}}": "{{unexpected}}"
+}
+
+# 6. Add another user
+
+PUT /api/users/host/{{<host}}/username/http_guy2
+> User-Agent: katt
+> Host: {{<hostname}}:{{<port}}
+> Content-Type: application/json
+{
+    "user": {
+        "password": "my_http_password"
+    }
+}
+< 204
+
+# 7. Fetch list again (expect 2 users now)
+
+GET /api/users/host/{{<host}}
+> Accept: application/json
+> User-Agent: katt
+> Host: {{<hostname}}:{{<port}}
+< 200
+< Content-Type: application/json
+{
+    "count": "{{>user_count_3}}",
     "users": [],
     "{{_}}": "{{unexpected}}"
 }
 
-# 6. Delete him
+
+# 8. Delete him
 
 DELETE /api/users/host/{{<host}}/username/{{<username}}
 > User-Agent: katt
 > Host: {{<hostname}}:{{<port}}
 < 204
 
-# 7. Fetch list one more time
+# 8. Delete the other too
+
+DELETE /api/users/host/{{<host}}/username/http_guy2
+> User-Agent: katt
+> Host: {{<hostname}}:{{<port}}
+< 204
+
+# 9. Fetch list one more time
 
 GET /api/users/host/{{<host}}
 > Accept: application/json
@@ -83,6 +118,6 @@ GET /api/users/host/{{<host}}
 < Content-Type: application/json
 {
     "count": "{{<user_count_1}}",
-    "users": [],
+    "users": {},
     "{{_}}": "{{unexpected}}"
 }
