@@ -10,9 +10,9 @@
 
 -import(prop_helper, [prop/2]).
 
-
 -define(NS_AUTH_TOKEN, <<"urn:xmpp:tmp:auth-token">>).
 -define(TESTED, mod_auth_token).
+-define(ae(Expected, Actual), ?assertEqual(Expected, Actual)).
 
 -define(l2b(List), list_to_binary(List)).
 -define(i2b(I), integer_to_binary(I)).
@@ -44,7 +44,8 @@ groups() ->
        join_and_split_with_base64_are_not_reversible_property,
        join_and_split_with_base16_are_reversible_property,
        join_and_split_with_base16_and_zeros_are_reversible_property,
-       serialize_deserialize_property
+       serialize_deserialize_property,
+       validity_period_test
       ]}
     ].
 
@@ -55,17 +56,26 @@ init_per_suite(C) ->
 
 init_per_testcase(serialize_deserialize_property, Config) ->
     mock_mongoose_metrics(),
-    {ok, P} = async_helper:start(ejabberd_hooks, start_link, []),
+    Config1 = async_helper:start(Config, ejabberd_hooks, start_link, []),
     mock_keystore(),
-    %ct:pal("t2l hooks: ~p", [ets:tab2list(hooks)]),
-    Helpers = [P | proplists:get_value(async_helpers, Config, [])],
-    lists:keystore(async_helpers, 1, Config, {async_helpers, Helpers});
+    Config1;
+
+init_per_testcase(validity_period_test, Config) ->
+    mock_gen_iq_handler(),
+    async_helper:start(Config, gen_mod, start, []);
+
 init_per_testcase(_, C) -> C.
 
 end_per_testcase(serialize_deserialize_property, C) ->
     meck:unload(mongoose_metrics),
-    [ P ! stop || P <- proplists:get_value(async_helpers, C, []) ],
+    async_helper:stop_all(C),
     C;
+
+end_per_testcase(validity_period_test, C) ->
+    meck:unload(gen_iq_handler),
+    async_helper:stop_all(C),
+    C;
+
 end_per_testcase(_, C) -> C.
 
 mock_mongoose_metrics() ->
@@ -77,6 +87,10 @@ mock_mongoose_metrics() ->
 
 mock_keystore() ->
     ejabberd_hooks:add(get_key, <<"localhost">>, ?MODULE, mod_keystore_get_key, 50).
+
+mock_gen_iq_handler() ->
+    meck:new(gen_iq_handler, []),
+    meck:expect(gen_iq_handler, add_iq_handler, fun (_, _, _, _, _, _) -> ok end).
 
 mod_keystore_get_key(_, KeyID) ->
     [{KeyID, <<"unused_key">>}].
@@ -189,6 +203,33 @@ join_and_split_with_base16_and_zeros_are_reversible_property(_) ->
 serialize_deserialize_property(_) ->
     prop(serialize_deserialize_property,
          ?FORALL(Token, token(), is_serialization_reversible(Token))).
+
+validity_period_test(_) ->
+    %% given
+    ok = ?TESTED:start(<<"localhost">>,
+                       validity_period_cfg(access, {13, hours})),
+    UTCSeconds = utc_now_as_seconds(),
+    ExpectedSeconds = UTCSeconds + (    13 %% hours
+                                    * 3600 %% seconds per hour
+                                   ),
+    %% when
+    ActualDT = ?TESTED:expiry_datetime(<<"localhost">>, access, UTCSeconds),
+    %% then
+    ?ae(calendar:gregorian_seconds_to_datetime(ExpectedSeconds),
+        ActualDT).
+
+utc_now_as_seconds() ->
+    calendar:datetime_to_gregorian_seconds(calendar:universal_time()).
+
+%% Like in:
+%% {modules, [
+%%            {mod_auth_token, [{{validity_period, access}, {13, minutes}},
+%%                              {{validity_period, refresh}, {13, days}}]}
+%%           ]}.
+validity_period_cfg(Type, Period) ->
+    Opts = [ {{validity_period, Type}, Period} ],
+    ets:insert(ejabberd_modules, {ejabberd_module, {?TESTED, <<"localhost">>}, Opts}),
+    Opts.
 
 %% This is a negative test case helper - that's why we invert the logic below.
 %% I.e. we expect the property to fail.
