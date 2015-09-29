@@ -28,11 +28,15 @@ mech_new(Host, GetPassword, CheckPassword, CheckPasswordDigest) ->
 mech_step(State, ClientIn) ->
     %% ClientIn is a token decoded from CDATA <auth body sent by client
     case mod_auth_token:validate_token(ClientIn) of
-        {ok, AuthModule, User} -> {ok,
-                                   [
-                                    {username, User},
-                                    {auth_module, AuthModule}
-                                   ]};
+        % Validating access token
+        {ok, AuthModule, User} ->
+            {ok,[{username, User},
+                 {auth_module, AuthModule}]};
+        % Validating refresh token and returning new tokens
+        {ok, AuthModule, User, Tokens} ->
+            {ok,[{username, User},
+                 {auth_module, AuthModule},
+                 {tokens, Tokens}]};
         _ ->
             {error, <<"not-authorized">>}
     end.

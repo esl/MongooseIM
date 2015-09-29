@@ -29,10 +29,11 @@ stop(Host) ->
   gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_AUTH_TOKEN),
   ok.
 
-%% todo: consider changing name to just validate_token()
+
 validate_token(TokenIn) ->
+    io:format("~n ==== Token Raws ====  ~n~p~n ", [TokenIn]),
     TokenReceivedRec = get_token_as_record(TokenIn),
-    %% io:format("~n Token Parsed as: : ~n~p~n ", [TokenReceivedRec]),
+    % io:format("~n ==== Token Parsed as ====  ~n~p~n ", [TokenReceivedRec]),
     #auth_token{user_jid = TokenOwnerUser,
                 mac_signature = MACReceived,
                 token_body = RecvdTokenBody} = TokenReceivedRec,
@@ -52,7 +53,21 @@ validate_token(TokenIn) ->
                            _  -> error
                        end,
 
-    {ValidationResult, mod_auth_token, get_username_from_jid(TokenOwnerUser)}.
+    ValidationResultBase = {ValidationResult, mod_auth_token, get_username_from_jid(TokenOwnerUser)},
+
+    #auth_token{type = TokenType} = TokenReceivedRec,
+
+    case TokenType of
+        access ->
+            ValidationResultBase;
+        refresh ->
+            io:format(" validate_token: refresh tokens case "),
+            erlang:append_element(ValidationResultBase, get_requested_tokens());
+        _Other -> {error, <<"token-type-not-supported">>}
+    end.
+
+get_requested_tokens() ->
+    <<"test response">>.
 
 %% args: binary() -> binary()
 get_username_from_jid(User) when is_binary(User) ->
@@ -93,19 +108,27 @@ seconds_to_datetime(Seconds) ->
 get_expiry_dates_from_config(User) ->
     UserBareJid = get_bare_jid_binary(User),
     UsersHost = get_users_host(UserBareJid),
-    ValidityOpts = gen_mod:get_module_opt(UsersHost, ?MODULE, validity_durations, 0),
-    {access_token_validity_days, AccessTokenValidityPeriod} = hd(ValidityOpts),
-    {refresh_token_validity_days, RefreshTokenValidityPeriod} = lists:last(ValidityOpts),
+    ValidityOpts = gen_mod:get_module_opt(UsersHost, ?MODULE, validity_durations, []),
 
-    AccessTokeExpirationDateTime = get_expiry_date(AccessTokenValidityPeriod),
-    RefreshTokenExpirationDateTime = get_expiry_date(RefreshTokenValidityPeriod),
+    case ValidityOpts of
+        [] -> throw(missing_token_validity_configuration);
+        _ ->
+            Unit = proplists:get_value(duration_unit, ValidityOpts, seconds),
+            AccessTokenValidityPeriod = proplists:get_value(access_token_validity_days, ValidityOpts, 1),
+            RefreshTokenValidityPeriod = proplists:get_value(refresh_token_validity_days, ValidityOpts, 1),
+            AccessTokeExpirationDateTime = get_expiry_date(AccessTokenValidityPeriod, Unit),
+            RefreshTokenExpirationDateTime = get_expiry_date(RefreshTokenValidityPeriod, Unit),
+            [{access_token_expiry, AccessTokeExpirationDateTime},
+             {refresh_token_expiry, RefreshTokenExpirationDateTime}]
+    end.
 
-    [{access_token_expiry, AccessTokeExpirationDateTime},
-     {refresh_token_expiry, RefreshTokenExpirationDateTime}].
-
-get_expiry_date(ValidityPeriod) ->
+get_expiry_date(ValidityPeriod, days) ->
     SecondsInDay = 86400,
-    seconds_to_datetime(utc_now_as_seconds() + (SecondsInDay * ValidityPeriod)).
+    seconds_to_datetime(utc_now_as_seconds() + (SecondsInDay * ValidityPeriod));
+
+get_expiry_date(ValidityPeriod, seconds) ->
+    seconds_to_datetime(utc_now_as_seconds() + ValidityPeriod).
+
 
 utc_now_as_seconds() ->
     datetime_to_seconds(calendar:universal_time()).
@@ -222,7 +245,8 @@ get_token_as_record(TokenIn) ->
 acquire_key_for_user(User) ->
     UsersHost = get_users_host(User),
     %% todo : extract key name from config (possible resolution by host)
-    [{asdqwe_access_secret, RawKey}] = ejabberd_hooks:run_fold(get_key, UsersHost, [], [asdqwe_access_secret]),
+    [{{asdqwe_access_secret, UsersHost}, RawKey}] = ejabberd_hooks:run_fold(
+                                         get_key, UsersHost, [], [{asdqwe_access_secret, UsersHost}]),
     RawKey.
 
 get_users_host(User) when is_binary(User) ->
