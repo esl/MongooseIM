@@ -91,11 +91,11 @@ hmac_opts() ->
 
 -spec deserialize(serialized()) -> token().
 deserialize(Serialized) when is_binary(Serialized) ->
-    base64:decode(get_token_as_record(Serialized)).
+    get_token_as_record(base64:decode(Serialized)).
 
 validate_token(TokenIn) ->
     %%io:format("~n ==== Token Raws ====  ~n~p~n ", [TokenIn]),
-    TokenReceivedRec = get_token_as_record(TokenIn),
+    TokenReceivedRec = deserialize(TokenIn),
     % io:format("~n ==== Token Parsed as ====  ~n~p~n ", [TokenReceivedRec]),
     #token{user_jid = TokenOwner,
            mac_signature = MACReceived,
@@ -227,7 +227,7 @@ get_token_as_record(BToken) ->
     [BType, User, Expiry | Rest] = binary:split(BToken, <<(field_separator())>>, [global]),
     T = #token{type = ?b2a(BType),
                expiry_datetime = seconds_to_datetime(binary_to_integer(Expiry)),
-               user_jid = User},
+               user_jid = jlib:binary_to_jid(User)},
     {SeqNo, MAC} = case {BType, Rest} of
                              {<<"access">>, [BMAC]} ->
                                  {undefined, base16:decode(BMAC)};

@@ -293,7 +293,7 @@ token() ->
 token_gen({Type, Expiry, JID, SeqNo}) ->
     T = #token{type = Type,
                expiry_datetime = Expiry,
-               user_jid = JID},
+               user_jid = jlib:binary_to_jid(JID)},
     case Type of
         access ->
             ?TESTED:token_with_mac(T);
