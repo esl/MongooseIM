@@ -54,7 +54,7 @@ stop(Host) ->
 serialize(#token{mac_signature = undefined} = T) -> error(incomplete_token, [T]);
 serialize(#token{token_body = undefined} = T)    -> error(incomplete_token, [T]);
 serialize(#token{token_body = Body, mac_signature = MAC}) ->
-    <<Body/bytes, (field_separator()), (base16:encode(MAC))/bytes>>.
+    base64:encode(<<Body/bytes, (field_separator()), (base16:encode(MAC))/bytes>>).
 
 token_with_mac(#token{mac_signature = undefined, token_body = undefined} = T) ->
     Body = join_fields(T),
@@ -91,7 +91,7 @@ hmac_opts() ->
 
 -spec deserialize(serialized()) -> token().
 deserialize(Serialized) when is_binary(Serialized) ->
-    get_token_as_record(Serialized).
+    base64:decode(get_token_as_record(Serialized)).
 
 validate_token(TokenIn) ->
     %%io:format("~n ==== Token Raws ====  ~n~p~n ", [TokenIn]),
