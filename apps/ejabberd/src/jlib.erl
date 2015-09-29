@@ -699,7 +699,7 @@ rsm_encode_count(Count, Arr)->
 i2b(I) -> list_to_binary(integer_to_list(I)).
 
 -type tzoffset() :: {TZh :: integer(), TZm :: integer()}.
--type tz() :: 'utc' | {Sign :: string(), tzoffset()} | tzoffset().
+-type tz() :: 'utc' | {Sign :: string() | binary(), tzoffset()} | tzoffset().
 -type datetime_micro() :: {calendar:date(), {calendar:hour(), calendar:minute(), calendar:second(),
                                              Micro :: non_neg_integer()}}.
 %% @doc Timezone = utc | {Sign::string(), {Hours, Minutes}} | {Hours, Minutes}
