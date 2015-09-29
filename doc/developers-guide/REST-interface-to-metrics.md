@@ -6,16 +6,21 @@ To expose MongooseIM metrics, an adequate endpoint must be included in the cowbo
 It may look as follows:
 ```
 ...
-{ 5280, ejabberd_cowboy, [
+{ {5288, "127.0.0.1"}, ejabberd_cowboy, [
     ...
     {modules, [
-        %% Modules used here should also be listed in the MODULES section.
-        ...
         {"localhost", "/api", [{handlers, [mongoose_api_metrics]}]}
     ]}
 ]}
 ...
 ```
+
+### Security notice
+
+Currently there is no auth mechanism for the HTTP API. That's why we recommend
+to expose this API only on some private interface or port hidden behind a firewall
+so not everyone can access the API. Above configuration starts the API only on
+loopback interface.
 
 ## Response format
 
