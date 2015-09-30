@@ -136,8 +136,7 @@ validate_token(TokenIn) ->
             ValidationResultBase;
         refresh ->
             Token = token(refresh, TokenOwner),
-            erlang:append_element(ValidationResultBase, serialize(Token));
-        _Other -> {error, <<"token-type-not-supported">>}
+            erlang:append_element(ValidationResultBase, serialize(Token))
     end.
 
 -spec is_token_valid(token()) -> boolean().
@@ -145,18 +144,10 @@ is_token_valid(#token{expiry_datetime = Expiry}) ->
     utc_now_as_seconds() < datetime_to_seconds(Expiry).
 
 -spec process_iq(jid(), jid(), iq()) -> iq() | error().
-process_iq(From, _To, #iq{sub_el = SubEl} = IQ) ->
-    case xml:get_tag_attr(<<"xmlns">>, SubEl) of
-        false ->
-            {error, ?ERR_BAD_REQUEST};
-        {value, Ns} ->
-            case Ns of
-                ?NS_AUTH_TOKEN ->
-                    create_token_response(From, IQ);
-                _OTHER  ->
-                    {error, ?ERR_BAD_REQUEST}
-                end
-    end.
+process_iq(From, _To, #iq{xmlns = ?NS_AUTH_TOKEN} = IQ) ->
+    create_token_response(From, IQ);
+process_iq(_From, _To, #iq{}) ->
+    {error, ?ERR_BAD_REQUEST}.
 
 create_token_response(From, IQ) ->
     IQ#iq{type = result,
