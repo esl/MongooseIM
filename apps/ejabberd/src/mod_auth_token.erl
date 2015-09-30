@@ -27,18 +27,34 @@
          token_with_mac/1]).
 
 -export_type([period/0,
+              sequence_no/0,
               token/0,
               token_type/0]).
 
 -type error() :: error | {error, any()}.
 -type period() :: {Count :: non_neg_integer(),
                    Unit  :: 'days' | 'hours' | 'minutes' | 'seconds'}.
+-type sequence_no() :: integer().
 -type serialized() :: binary().
 -type token() :: #token{}.
 -type token_type() :: access | refresh | provision.
 -type validation_result() :: {ok, module(), ejabberd:user()}
                            | {ok, module(), ejabberd:user(), binary()}
                            | error().
+
+-callback is_revoked(Type, Owner, SeqNo) -> boolean() when
+      Type :: token_type(),
+      Owner :: ejabberd:jid(),
+      SeqNo :: sequence_no().
+
+-callback revoke(Type, Owner, SeqNo) -> ok when
+      Type :: token_type(),
+      Owner :: ejabberd:jid(),
+      SeqNo :: sequence_no().
+
+-callback get_sequence_number(Type, Owner) -> integer() when
+      Type :: token_type(),
+      Owner :: ejabberd:jid().
 
 -define(a2b(A), atom_to_binary(A, utf8)).
 -define(b2a(B), binary_to_atom(B, utf8)).
@@ -49,8 +65,11 @@
 -define(l2b(L), list_to_binary(L)).
 -define(b2l(B), binary_to_list(B)).
 
+-define(BACKEND, mod_auth_token_backend).
+
 -spec start(ejabberd:server(), list()) -> ok.
 start(Host, Opts) ->
+    gen_mod:start_backend_module(?MODULE, Opts),
     mod_disco:register_feature(Host, ?NS_AUTH_TOKEN),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, no_queue),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_AUTH_TOKEN, ?MODULE, process_iq, IQDisc),
