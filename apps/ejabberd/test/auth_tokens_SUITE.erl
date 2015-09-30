@@ -24,10 +24,6 @@ groups() ->
     [{tokencreation, [],
       [
        expiry_date_roundtrip_test,
-       mac_may_contain_spurious_separator,
-       join_and_split_no_base64_are_not_reversible_property,
-       join_and_split_with_base64_are_not_reversible_property,
-       join_and_split_with_base16_are_reversible_property,
        join_and_split_with_base16_and_zeros_are_reversible_property,
        serialize_deserialize_property,
        validity_period_test
@@ -73,31 +69,6 @@ expiry_date_roundtrip_test(_) ->
     ResD = mod_auth_token:seconds_to_datetime(S),
     ?ae(D, ResD).
 
-mac_may_contain_spurious_separator(_) ->
-    %% given
-    RawToken = <<"access&alice@localhost&63609740901">>,
-    MAC = crypto:hmac(sha384, <<"unused_key">>, RawToken),
-    %% when joining 2 parts to make the token
-    Token = <<RawToken/bytes, "+", MAC/bytes>>,
-    %% then we get 3 parts when splitting the same token - this is obviously wrong!
-    Parts = binary:split(Token, <<"+">>, [global]),
-    3 = length(Parts).
-
-join_and_split_no_base64_are_not_reversible_property(_) ->
-    negative_prop(join_and_split_no_base64_are_not_reversible_property,
-                  ?FORALL(RawToken, token(<<"&">>),
-                          is_join_and_split_no_base64_reversible(RawToken, <<"+">>))).
-
-join_and_split_with_base64_are_not_reversible_property(_) ->
-    negative_prop(join_and_split_are_reversible_property,
-                  ?FORALL(RawToken, token(<<"&">>),
-                          is_join_and_split_with_base64_reversible(RawToken, <<"+">>))).
-
-join_and_split_with_base16_are_reversible_property(_) ->
-    prop(join_and_split_are_reversible_property,
-         ?FORALL(RawToken, token(<<"&">>),
-                 is_join_and_split_with_base16_reversible(RawToken, <<"+">>))).
-
 join_and_split_with_base16_and_zeros_are_reversible_property(_) ->
     prop(join_and_split_are_reversible_property,
          ?FORALL(RawToken, token(<<0>>),
@@ -120,39 +91,6 @@ validity_period_test(_) ->
     %% then
     ?ae(calendar:gregorian_seconds_to_datetime(ExpectedSeconds),
         ActualDT).
-
-is_join_and_split_no_base64_reversible(RawToken, MACSep) ->
-    MAC = crypto:hmac(sha384, <<"unused_key">>, RawToken),
-    Token = <<RawToken/bytes, MACSep/bytes, MAC/bytes>>,
-    Parts = binary:split(Token, MACSep, [global]),
-    case 2 == length(Parts) of
-        true -> true;
-        false ->
-            %ct:pal("invalid MAC: ~s", [MAC]),
-            false
-    end.
-
-is_join_and_split_with_base64_reversible(RawToken, MACSep) ->
-    MAC = base64:encode(crypto:hmac(sha384, <<"unused_key">>, RawToken)),
-    Token = <<RawToken/bytes, MACSep/bytes, MAC/bytes>>,
-    Parts = binary:split(Token, MACSep, [global]),
-    case 2 == length(Parts) of
-        true -> true;
-        false ->
-            %ct:pal("invalid MAC: ~s", [MAC]),
-            false
-    end.
-
-is_join_and_split_with_base16_reversible(RawToken, MACSep) ->
-    MAC = base16:encode(crypto:hmac(sha384, <<"unused_key">>, RawToken)),
-    Token = <<RawToken/bytes, MACSep/bytes, MAC/bytes>>,
-    Parts = binary:split(Token, MACSep, [global]),
-    case 2 == length(Parts) of
-        true -> true;
-        false ->
-            ct:pal("invalid MAC: ~s", [MAC]),
-            false
-    end.
 
 is_join_and_split_with_base16_and_zeros_reversible(RawToken) ->
     MAC = base16:encode(crypto:hmac(sha384, <<"unused_key">>, RawToken)),
