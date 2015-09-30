@@ -33,10 +33,10 @@ mech_step(State, ClientIn) ->
             {ok,[{username, User},
                  {auth_module, AuthModule}]};
         % Validating refresh token and returning new tokens
-        {ok, AuthModule, User, Tokens} ->
+        {ok, AuthModule, User, AccessToken} ->
             {ok,[{username, User},
                  {auth_module, AuthModule}],
-             {tokens, Tokens}};
+             AccessToken};
         _ ->
             {error, <<"not-authorized">>}
     end.

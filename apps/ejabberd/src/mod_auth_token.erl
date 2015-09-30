@@ -96,15 +96,13 @@ deserialize(Serialized) when is_binary(Serialized) ->
     get_token_as_record(Serialized).
 
 validate_token(TokenIn) ->
-    %%io:format("~n ==== Token Raws ====  ~n~p~n ", [TokenIn]),
     TokenReceivedRec = deserialize(TokenIn),
-%%    TokenReceivedRec = get_token_as_record(TokenIn),
-    % io:format("~n ==== Token Parsed as ====  ~n~p~n ", [TokenReceivedRec]),
-    #token{user_jid = TokenOwner,
+
+    #token{user_jid = TokenOwnerJid,
            mac_signature = MACReceived,
            token_body = RecvdTokenBody} = TokenReceivedRec,
 
-    MACreference = keyed_hash(RecvdTokenBody, user_hmac_opts(TokenOwner)),
+    MACreference = keyed_hash(RecvdTokenBody, user_hmac_opts(TokenOwnerJid)),
 
     %% validation criteria
 
@@ -118,25 +116,18 @@ validate_token(TokenIn) ->
                            _  -> error
                        end,
 
-    ValidationResultBase = {ValidationResult, mod_auth_token, get_username_from_jid(TokenOwner)},
-
+    #jid{user = UserName} = TokenOwnerJid,
+    ValidationResultBase = {ValidationResult, mod_auth_token, UserName},
     #token{type = TokenType} = TokenReceivedRec,
 
     case TokenType of
         access ->
             ValidationResultBase;
         refresh ->
-            io:format(" validate_token: refresh tokens case "),
-            erlang:append_element(ValidationResultBase, get_requested_tokens());
+            Token = token(refresh, TokenOwnerJid),
+            erlang:append_element(ValidationResultBase, serialize(Token));
         _Other -> {error, <<"token-type-not-supported">>}
     end.
-
-get_requested_tokens() ->
-    <<"test response">>.
-
-%% args: binary() -> binary()
-get_username_from_jid(User) when is_binary(User) ->
-    hd(binary:split(User,[<<"@">>])).
 
 %% args: #token -> true | false
 is_token_valid(#token{expiry_datetime = Expiry}) ->
@@ -159,8 +150,8 @@ create_token_response(From, IQ) ->
     IQ#iq{type = result,
           sub_el = [#xmlel{name = <<"items">>,
                            attrs = [{<<"xmlns">>, ?NS_AUTH_TOKEN}],
-                           children = [token(access, From),
-                                       token(refresh, From)]}]}.
+                           children = [token_element(token(access, From)),
+                                       token_element(token(refresh, From))]}]}.
 
 %% DateTime -> integer()
 datetime_to_seconds(DateTime) ->
@@ -189,7 +180,10 @@ token(Type, User) ->
                                  %% TODO: this is just a stub
                                  refresh -> 666
                              end},
-    token_to_xmlel(token_with_mac(T)).
+    token_with_mac(T).
+
+token_element(SerializedToken) ->
+    token_to_xmlel(SerializedToken).
 
 %% {modules, [
 %%            {mod_auth_token, [{{validity_period, access}, {13, minutes}},
