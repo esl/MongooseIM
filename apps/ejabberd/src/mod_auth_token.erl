@@ -21,6 +21,8 @@
          serialize/1]).
 
 %% Test only!
+-export([datetime_to_seconds/1,
+         seconds_to_datetime/1]).
 -export([expiry_datetime/3,
          token_with_mac/1]).
 
