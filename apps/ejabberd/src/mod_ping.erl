@@ -36,6 +36,7 @@
 -define(SUPERVISOR, ejabberd_sup).
 -define(DEFAULT_SEND_PINGS, false). % bool()
 -define(DEFAULT_PING_INTERVAL, 60). % seconds
+-define(DEFAULT_PING_REQ_TIMEOUT, 32).
 
 -define(DICT, dict).
 
@@ -56,6 +57,7 @@
                 send_pings = ?DEFAULT_SEND_PINGS,
                 ping_interval = ?DEFAULT_PING_INTERVAL,
                 timeout_action = none,
+                ping_req_timeout = ?DEFAULT_PING_REQ_TIMEOUT,
                 timers = ?DICT:new()}).
 
 %%====================================================================
@@ -84,7 +86,9 @@ start(Host, Opts) ->
 
 stop(Host) ->
     Proc = gen_mod:get_module_proc(Host, ?MODULE),
+    Pid = erlang:whereis(Proc),
     gen_server:call(Proc, stop),
+    wait_for_process_to_stop(Pid),
     supervisor:delete_child(?SUPERVISOR, Proc).
 
 %%====================================================================
@@ -93,6 +97,7 @@ stop(Host) ->
 init([Host, Opts]) ->
     SendPings = gen_mod:get_opt(send_pings, Opts, ?DEFAULT_SEND_PINGS),
     PingInterval = gen_mod:get_opt(ping_interval, Opts, ?DEFAULT_PING_INTERVAL),
+    PingReqTimeout = gen_mod:get_opt(ping_req_timeout, Opts, ?DEFAULT_PING_REQ_TIMEOUT),
     TimeoutAction = gen_mod:get_opt(timeout_action, Opts, none),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, no_queue),
     mod_disco:register_feature(Host, ?NS_PING),
@@ -113,8 +118,9 @@ init([Host, Opts]) ->
     end,
     {ok, #state{host = Host,
                 send_pings = SendPings,
-                ping_interval = PingInterval,
+                ping_interval = timer:seconds(PingInterval),
                 timeout_action = TimeoutAction,
+                ping_req_timeout = timer:seconds(PingReqTimeout),
                 timers = ?DICT:new()}}.
 
 terminate(_Reason, #state{host = Host}) ->
@@ -158,7 +164,8 @@ handle_cast({iq_pong, JID, timeout}, State) ->
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
-handle_info({timeout, _TRef, {ping, JID}}, State) ->
+handle_info({timeout, _TRef, {ping, JID}},
+            #state{ping_req_timeout = PingReqTimeout} = State) ->
     IQ = #iq{type = get,
              sub_el = [#xmlel{name = <<"ping">>,
                               attrs = [{<<"xmlns">>, ?NS_PING}]}]},
@@ -167,7 +174,7 @@ handle_info({timeout, _TRef, {ping, JID}}, State) ->
                 gen_server:cast(Pid, {iq_pong, JID, Response})
         end,
     From = jlib:make_jid(<<"">>, State#state.host, <<"">>),
-    ejabberd_local:route_iq(From, JID, IQ, F),
+    ejabberd_local:route_iq(From, JID, IQ, F, PingReqTimeout),
     Timers = add_timer(JID, State#state.ping_interval, State#state.timers),
     {noreply, State#state{timers = Timers}};
 handle_info(_Info, State) ->
@@ -208,7 +215,7 @@ add_timer(JID, Interval, Timers) ->
                     _ ->
                         Timers
                 end,
-    TRef = erlang:start_timer(Interval * 1000, self(), {ping, JID}),
+    TRef = erlang:start_timer(Interval, self(), {ping, JID}),
     ?DICT:store(LJID, TRef, NewTimers).
 
 del_timer(JID, Timers) ->
@@ -233,3 +240,14 @@ cancel_timer(TRef) ->
         _ ->
             ok
     end.
+
+wait_for_process_to_stop(Pid) ->
+    do_wait_for_process_to_stop(erlang:is_process_alive(Pid), Pid, 10).
+
+do_wait_for_process_to_stop(Alive, _, 0) ->
+    Alive;
+do_wait_for_process_to_stop(false, _Pid, _) ->
+    false;
+do_wait_for_process_to_stop(true, Pid, N) ->
+    erlang:yield(),
+    do_wait_for_process_to_stop(erlang:is_process_alive(Pid), Pid, N - 1).
