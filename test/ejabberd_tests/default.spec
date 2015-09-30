@@ -28,8 +28,9 @@
 {suites, "tests", metrics_roster_SUITE}.
 {suites, "tests", metrics_register_SUITE}.
 {suites, "tests", metrics_session_SUITE}.
-{suites, "tests", muc_SUITE}.
+{suites, "tests", mod_ping_SUITE}.
 {suites, "tests", mod_time_SUITE}.
+{suites, "tests", muc_SUITE}.
 {suites, "tests", offline_SUITE}.
 {suites, "tests", presence_SUITE}.
 {suites, "tests", privacy_SUITE}.
