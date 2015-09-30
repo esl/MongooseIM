@@ -111,39 +111,43 @@ deserialize(Serialized) when is_binary(Serialized) ->
     get_token_as_record(Serialized).
 
 -spec validate_token(serialized()) -> validation_result().
-validate_token(TokenIn) ->
-    TokenReceivedRec = deserialize(TokenIn),
-    #token{user_jid = TokenOwner,
-           mac_signature = MACReceived,
-           token_body = RecvdTokenBody} = TokenReceivedRec,
-    MACreference = keyed_hash(RecvdTokenBody, user_hmac_opts(TokenOwner)),
+validate_token(SerializedToken) ->
+    #token{user_jid = Owner} = Token = deserialize(SerializedToken),
 
     %% validation criteria
-
-    MACCheckResult = MACReceived =:= MACreference,
-    ValidityCheckResult = is_token_valid(TokenReceivedRec),
-
-    %% validation results processing
-
-    ValidationResult = case MACCheckResult and ValidityCheckResult of
-                           true -> ok;
-                           _  -> error
+    Criteria = [{mac_valid, is_mac_valid(Token)},
+                {not_expired, is_not_expired(Token)},
+                {not_revoked, is_not_revoked(Token)}],
+    ValidationResult = case Criteria of
+                           [{_, true}, {_, true}, {_, true}] -> ok;
+                           _ -> error
                        end,
+    ?INFO_MSG("result: ~p, criteria: ~p", [ValidationResult, Criteria]),
 
-    ValidationResultBase = {ValidationResult, mod_auth_token, TokenOwner#jid.luser},
-    #token{type = TokenType} = TokenReceivedRec,
+    ValidationResultBase = {ValidationResult, mod_auth_token, Owner#jid.luser},
 
-    case TokenType of
+    case Token#token.type of
         access ->
             ValidationResultBase;
         refresh ->
-            Token = token(access, TokenOwner),
+            Token = token(access, Owner),
             erlang:append_element(ValidationResultBase, serialize(Token))
     end.
 
--spec is_token_valid(token()) -> boolean().
-is_token_valid(#token{expiry_datetime = Expiry}) ->
+is_mac_valid(#token{user_jid = Owner, token_body = Body,
+                    mac_signature = ReceivedMAC}) ->
+    ComputedMAC = keyed_hash(Body, user_hmac_opts(Owner)),
+    ReceivedMAC =:= ComputedMAC.
+
+is_not_expired(#token{expiry_datetime = Expiry}) ->
     utc_now_as_seconds() < datetime_to_seconds(Expiry).
+
+is_not_revoked(#token{type = access}) ->
+    true;
+is_not_revoked(#token{type = refresh} = T) ->
+    %% TODO: check for revocation
+    %not ?BACKEND:is_revoked(T).
+    false.
 
 -spec process_iq(jid(), jid(), iq()) -> iq() | error().
 process_iq(From, _To, #iq{xmlns = ?NS_AUTH_TOKEN} = IQ) ->
