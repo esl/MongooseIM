@@ -14,7 +14,7 @@
 -export([process_iq/3]).
 
 %% Public API
--export([token/2]).
+-export([validate_token/1]).
 
 %% Token serialization
 -export([deserialize/1,
@@ -23,8 +23,6 @@
 %% Test only!
 -export([expiry_datetime/3,
          token_with_mac/1]).
-
--export([validate_token/1]).
 
 -export_type([token/0,
               token_type/0]).
@@ -97,17 +95,15 @@ deserialize(Serialized) when is_binary(Serialized) ->
 
 validate_token(TokenIn) ->
     TokenReceivedRec = deserialize(TokenIn),
-
-    #token{user_jid = TokenOwnerJid,
+    #token{user_jid = TokenOwner,
            mac_signature = MACReceived,
            token_body = RecvdTokenBody} = TokenReceivedRec,
-
-    MACreference = keyed_hash(RecvdTokenBody, user_hmac_opts(TokenOwnerJid)),
+    MACreference = keyed_hash(RecvdTokenBody, user_hmac_opts(TokenOwner)),
 
     %% validation criteria
 
     MACCheckResult = MACReceived =:= MACreference,
-    ValidityCheckResult =  is_token_valid(TokenReceivedRec),
+    ValidityCheckResult = is_token_valid(TokenReceivedRec),
 
     %% validation results processing
 
@@ -116,15 +112,14 @@ validate_token(TokenIn) ->
                            _  -> error
                        end,
 
-    #jid{user = UserName} = TokenOwnerJid,
-    ValidationResultBase = {ValidationResult, mod_auth_token, UserName},
+    ValidationResultBase = {ValidationResult, mod_auth_token, TokenOwner#jid.luser},
     #token{type = TokenType} = TokenReceivedRec,
 
     case TokenType of
         access ->
             ValidationResultBase;
         refresh ->
-            Token = token(refresh, TokenOwnerJid),
+            Token = token(refresh, TokenOwner),
             erlang:append_element(ValidationResultBase, serialize(Token));
         _Other -> {error, <<"token-type-not-supported">>}
     end.
@@ -150,8 +145,8 @@ create_token_response(From, IQ) ->
     IQ#iq{type = result,
           sub_el = [#xmlel{name = <<"items">>,
                            attrs = [{<<"xmlns">>, ?NS_AUTH_TOKEN}],
-                           children = [token_element(token(access, From)),
-                                       token_element(token(refresh, From))]}]}.
+                           children = [token_to_xmlel(token(access, From)),
+                                       token_to_xmlel(token(refresh, From))]}]}.
 
 %% DateTime -> integer()
 datetime_to_seconds(DateTime) ->
@@ -181,9 +176,6 @@ token(Type, User) ->
                                  refresh -> 666
                              end},
     token_with_mac(T).
-
-token_element(SerializedToken) ->
-    token_to_xmlel(SerializedToken).
 
 %% {modules, [
 %%            {mod_auth_token, [{{validity_period, access}, {13, minutes}},
@@ -240,17 +232,3 @@ acquire_key_for_user(User) ->
     [{{asdqwe_access_secret, UsersHost}, RawKey}] = ejabberd_hooks:run_fold(
                                          get_key, UsersHost, [], [{asdqwe_access_secret, UsersHost}]),
     RawKey.
-
-%% args: binary() -> binary()
-decode_from_transport(Data) ->
-    base64:decode(Data).
-
-%% args: binary() -> binary()
-encode_for_transport(Data) ->
-    base64:encode(Data).
-
-%% args: -record #jid
-get_bare_jid_binary(User) ->
-    U = User#jid.luser,
-    S = User#jid.lserver,
-    <<U/binary,"@",S/binary>>.
