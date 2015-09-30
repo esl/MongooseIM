@@ -137,7 +137,7 @@ validate_token(TokenIn) ->
         access ->
             ValidationResultBase;
         refresh ->
-            Token = token(refresh, TokenOwner),
+            Token = token(access, TokenOwner),
             erlang:append_element(ValidationResultBase, serialize(Token))
     end.
 
