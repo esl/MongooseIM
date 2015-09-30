@@ -217,8 +217,7 @@ token_to_xmlel(#token{type = Type} = T) ->
                       access -> <<"access_token">>;
                       refresh -> <<"refresh_token">>
                   end,
-           %% TODO: namespace!
-           attrs = [{<<"xmlns">>, <<"some-sensible-ns">>}],
+           attrs = [{<<"xmlns">>, ?NS_AUTH_TOKEN}],
            children = [#xmlcdata{content = jlib:encode_base64(serialize(T))}]}.
 
 default_validity_period(access) -> {1, hours};
