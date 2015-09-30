@@ -26,12 +26,19 @@
 -export([expiry_datetime/3,
          token_with_mac/1]).
 
--export_type([token/0,
+-export_type([period/0,
+              token/0,
               token_type/0]).
 
+-type error() :: error | {error, any()}.
+-type period() :: {Count :: non_neg_integer(),
+                   Unit  :: 'days' | 'hours' | 'minutes' | 'seconds'}.
+-type serialized() :: binary().
 -type token() :: #token{}.
 -type token_type() :: access | refresh | provision.
--type serialized() :: binary().
+-type validation_result() :: {ok, module(), ejabberd:user()}
+                           | {ok, module(), ejabberd:user(), binary()}
+                           | error().
 
 -define(a2b(A), atom_to_binary(A, utf8)).
 -define(b2a(B), binary_to_atom(B, utf8)).
@@ -58,6 +65,12 @@ serialize(#token{token_body = undefined} = T)    -> error(incomplete_token, [T])
 serialize(#token{token_body = Body, mac_signature = MAC}) ->
     <<Body/bytes, (field_separator()), (base16:encode(MAC))/bytes>>.
 
+%% #token{} contains fields which are:
+%% - primary - these have to be supplied on token creation,
+%% - dependent - these are computed based on the primary fields.
+%% `token_with_mac/1` computes dependent fields and stores them in the record
+%% based on a record with just the primary fields.
+-spec token_with_mac(token()) -> token().
 token_with_mac(#token{mac_signature = undefined, token_body = undefined} = T) ->
     Body = join_fields(T),
     MAC = keyed_hash(Body, user_hmac_opts(T#token.user_jid)),
@@ -95,6 +108,7 @@ hmac_opts() ->
 deserialize(Serialized) when is_binary(Serialized) ->
     get_token_as_record(Serialized).
 
+-spec validate_token(serialized()) -> validation_result().
 validate_token(TokenIn) ->
     TokenReceivedRec = deserialize(TokenIn),
     #token{user_jid = TokenOwner,
@@ -126,10 +140,11 @@ validate_token(TokenIn) ->
         _Other -> {error, <<"token-type-not-supported">>}
     end.
 
-%% args: #token -> true | false
+-spec is_token_valid(token()) -> boolean().
 is_token_valid(#token{expiry_datetime = Expiry}) ->
     utc_now_as_seconds() < datetime_to_seconds(Expiry).
 
+-spec process_iq(jid(), jid(), iq()) -> iq() | error().
 process_iq(From, _To, #iq{sub_el = SubEl} = IQ) ->
     case xml:get_tag_attr(<<"xmlns">>, SubEl) of
         false ->
@@ -150,11 +165,11 @@ create_token_response(From, IQ) ->
                            children = [token_to_xmlel(token(access, From)),
                                        token_to_xmlel(token(refresh, From))]}]}.
 
-%% DateTime -> integer()
+-spec datetime_to_seconds(calendar:datetime()) -> non_neg_integer().
 datetime_to_seconds(DateTime) ->
     calendar:datetime_to_gregorian_seconds(DateTime).
 
-%% integer -> DateTime
+-spec seconds_to_datetime(non_neg_integer()) -> calendar:datetime().
 seconds_to_datetime(Seconds) ->
     calendar:gregorian_seconds_to_datetime(Seconds).
 
@@ -183,10 +198,16 @@ token(Type, User) ->
 %%            {mod_auth_token, [{{validity_period, access}, {13, minutes}},
 %%                              {{validity_period, refresh}, {13, days}}]}
 %%           ]}.
+-spec expiry_datetime(Domain, Type, UTCSeconds) -> ExpiryDatetime when
+      Domain :: ejabberd:server(),
+      Type :: token_type(),
+      UTCSeconds :: non_neg_integer(),
+      ExpiryDatetime :: calendar:datetime().
 expiry_datetime(Domain, Type, UTCSeconds) ->
     Period = get_validity_period(Domain, Type),
     seconds_to_datetime(UTCSeconds + period_to_seconds(Period)).
 
+-spec get_validity_period(ejabberd:server(), token_type()) -> period().
 get_validity_period(Domain, Type) ->
     gen_mod:get_module_opt(Domain, ?MODULE, {validity_period, Type},
                            default_validity_period(Type)).
@@ -213,7 +234,9 @@ default_validity_period(refresh) -> {25, days}.
 %% args: Token with Mac decoded from transport, #token
 %% is shared between tokens. Introduce other container types if
 %% they start to differ more than a few fields.
-%% args: {binary(),binary()} -> #token()
+-spec get_token_as_record(BToken) -> Token when
+      BToken :: serialized(),
+      Token :: token().
 get_token_as_record(BToken) ->
     [BType, User, Expiry | Rest] = binary:split(BToken, <<(field_separator())>>, [global]),
     T = #token{type = ?b2a(BType),
