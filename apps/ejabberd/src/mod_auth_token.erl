@@ -49,12 +49,14 @@
 -define(l2b(L), list_to_binary(L)).
 -define(b2l(B), binary_to_list(B)).
 
+-spec start(ejabberd:server(), list()) -> ok.
 start(Host, Opts) ->
     mod_disco:register_feature(Host, ?NS_AUTH_TOKEN),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, no_queue),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_AUTH_TOKEN, ?MODULE, process_iq, IQDisc),
     ok.
 
+-spec stop(ejabberd:server()) -> ok.
 stop(Host) ->
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_AUTH_TOKEN),
     ok.
