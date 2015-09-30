@@ -24,11 +24,13 @@
 %%--------------------------------------------------------------------
 all() ->
     [{group, transaction},
-     {group, negative}].
+     {group, negative},
+     {group, utf}].   
 
 groups() ->
-    [{transaction, [{repeat_until_any_fail, 10}], [user_transaction]},
-     {negative, [], [negative_calls]}
+    [{transaction, [{repeat_until_any_fail, 10}], [user_transaction ]},
+     {negative, [], [negative_calls]},
+     {utf, [], [user_utf]}
     ].
 
 init_per_suite(Config) ->
@@ -56,16 +58,29 @@ end_per_testcase(_CaseName, _Config) ->
 
 %%--------------------------------------------------------------------
 %% users_api tests
+%%
+%% NOTE:  In case all tests fail remove everything inside ebin/ directory
 %%--------------------------------------------------------------------
 user_transaction(Config) ->
     Params = [{host, ct:get_config(ejabberd_domain)},
               {username, "http_guy"}],
     Result = katt_helper:run(user_transaction, Config, Params),
     Vars = element(4, Result),
+    UserCount1 = proplists:get_value("user_count_1", Vars),
+    UserCount2 = proplists:get_value("user_count_2", Vars),
+    
+    ?assertEqual(UserCount1+1, UserCount2).
 
+user_utf(Config) ->
+    Params = [{host, ct:get_config(ejabberd_domain)},
+              {username, <<"utfguy">>},
+              {password, <<34,"\\ud835","\\udf15",34>>}], % <<utf16>>,
+    Result = katt_helper:run(user_utf, Config, Params),
+    Vars = element(4, Result),
     UserCount1 = proplists:get_value("user_count_1", Vars),
     UserCount2 = proplists:get_value("user_count_2", Vars),
     ?assertEqual(UserCount1+1, UserCount2).
+
 
 negative_calls(Config) ->
     Params = [{host, ct:get_config(ejabberd_domain)}],

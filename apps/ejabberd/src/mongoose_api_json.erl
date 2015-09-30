@@ -25,12 +25,13 @@
 %% mongoose_api_format callbacks
 %%--------------------------------------------------------------------
 deserialize(Json) ->
-    try mochijson2:decode(Json) of
+    try mochi2jsx:j2m(jsx:decode(Json)) of
         Data ->
             {ok, do_deserialize(Data)}
     catch _:_ ->
         {error, unprocessable}
     end.
+    
 
 serialize(Data) ->
     do_serialize(Data).
@@ -48,7 +49,7 @@ do_deserialize(Other) ->
     Other.
 
 do_serialize(Data) ->
-    mochijson2:encode(prepare_struct(Data)).
+    jsx:encode(mochi2jsx:m2j(prepare_struct(Data))).
 
 prepare_struct({Key, Value}) ->
     {struct, [{Key, prepare_struct(Value)}]};
