@@ -173,13 +173,6 @@ datetime_to_seconds(DateTime) ->
 seconds_to_datetime(Seconds) ->
     calendar:gregorian_seconds_to_datetime(Seconds).
 
-get_expiry_date(ValidityPeriod, days) ->
-    SecondsInDay = 86400,
-    seconds_to_datetime(utc_now_as_seconds() + (SecondsInDay * ValidityPeriod));
-
-get_expiry_date(ValidityPeriod, seconds) ->
-    seconds_to_datetime(utc_now_as_seconds() + ValidityPeriod).
-
 utc_now_as_seconds() ->
     datetime_to_seconds(calendar:universal_time()).
 
