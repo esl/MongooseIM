@@ -228,11 +228,11 @@ get_token_as_record(BToken) ->
                expiry_datetime = seconds_to_datetime(binary_to_integer(Expiry)),
                user_jid = jlib:binary_to_jid(User)},
     {SeqNo, MAC} = case {BType, Rest} of
-                             {<<"access">>, [BMAC]} ->
-                                 {undefined, base16:decode(BMAC)};
-                             {<<"refresh">>, [BSeqNo, BMAC]} ->
-                                 {?b2i(BSeqNo), base16:decode(BMAC)}
-                         end,
+                       {<<"access">>, [BMAC]} ->
+                           {undefined, base16:decode(BMAC)};
+                       {<<"refresh">>, [BSeqNo, BMAC]} ->
+                           {?b2i(BSeqNo), base16:decode(BMAC)}
+                   end,
     T1 = T#token{sequence_no = SeqNo, mac_signature = MAC},
     T1#token{token_body = join_fields(T1)}.
 
