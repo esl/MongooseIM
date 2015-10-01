@@ -18,16 +18,22 @@
 -define(i2b(I), integer_to_binary(I)).
 
 all() ->
-    [{group, tokencreation}].
+    [{group, creation},
+     {group, revocation}].
 
 groups() ->
-    [{tokencreation, [],
+    [
+     {creation, [],
       [
        expiry_date_roundtrip_test,
        join_and_split_with_base16_and_zeros_are_reversible_property,
        serialize_deserialize_property,
        validity_period_test
-      ]}
+      ]},
+      {revocation, [],
+       [
+        revoked_token_is_not_valid
+       ]}
     ].
 
 init_per_suite(C) ->
@@ -45,6 +51,11 @@ init_per_testcase(validity_period_test, Config) ->
     mock_gen_iq_handler(),
     async_helper:start(Config, gen_mod, start, []);
 
+init_per_testcase(revoked_token_is_not_valid, Config) ->
+    mock_mongoose_metrics(),
+    mock_tested_backend(),
+    async_helper:start(Config, gen_mod, start, []);
+
 init_per_testcase(_, C) -> C.
 
 end_per_testcase(serialize_deserialize_property, C) ->
@@ -54,6 +65,12 @@ end_per_testcase(serialize_deserialize_property, C) ->
 
 end_per_testcase(validity_period_test, C) ->
     meck:unload(gen_iq_handler),
+    async_helper:stop_all(C),
+    C;
+
+end_per_testcase(revoked_token_is_not_valid, C) ->
+    meck:unload(mongoose_metrics),
+    meck:unload(mod_auth_token_odbc),
     async_helper:stop_all(C),
     C;
 
@@ -107,6 +124,18 @@ is_join_and_split_with_base16_and_zeros_reversible(RawToken) ->
 is_serialization_reversible(Token) ->
     Token =:= ?TESTED:deserialize(?TESTED:serialize(Token)).
 
+revoked_token_is_not_valid(_) ->
+    %% given
+    T0 = #token{type = refresh,
+                expiry_datetime = ?TESTED:seconds_to_datetime(utc_now_as_seconds() + 10),
+                user_jid = jlib:binary_to_jid(<<"alice@localhost">>),
+                sequence_no = 123456},
+    Revoked = ?TESTED:serialize(?TESTED:token_with_mac(T0)),
+    %% when
+    ValidationResult = ?TESTED:validate_token(Revoked),
+    %% then
+    {error, _} = ValidationResult.
+
 %%
 %% Helpers
 %%
@@ -150,6 +179,9 @@ mock_gen_iq_handler() ->
 mod_keystore_get_key(_, KeyID) ->
     [{KeyID, <<"unused_key">>}].
 
+mock_tested_backend() ->
+    meck:new(mod_auth_token_odbc, []),
+    meck:expect(mod_auth_token_odbc, is_revoked, fun (_, _, _) -> true end).
 
 %%
 %% Generators

@@ -132,7 +132,6 @@ deserialize(Serialized) when is_binary(Serialized) ->
 -spec validate_token(serialized()) -> validation_result().
 validate_token(SerializedToken) ->
     #token{user_jid = Owner} = Token = deserialize(SerializedToken),
-
     %% validation criteria
     Criteria = [{mac_valid, is_mac_valid(Token)},
                 {not_expired, is_not_expired(Token)},
@@ -142,15 +141,13 @@ validate_token(SerializedToken) ->
                            _ -> error
                        end,
     ?INFO_MSG("result: ~p, criteria: ~p", [ValidationResult, Criteria]),
-
-    ValidationResultBase = {ValidationResult, mod_auth_token, Owner#jid.luser},
-
-    case Token#token.type of
-        access ->
-            ValidationResultBase;
-        refresh ->
-            Token = token(access, Owner),
-            erlang:append_element(ValidationResultBase, serialize(Token))
+    case {ValidationResult, Token#token.type} of
+        {ok, access} ->
+            {ok, mod_auth_token, Owner#jid.luser};
+        {ok, refresh} ->
+            {ok, mod_auth_token, Owner#jid.luser, serialize(token(access, Owner))};
+        {error, _} ->
+            {error, [ Criterion || {_, false} = Criterion <- Criteria ]}
     end.
 
 is_mac_valid(#token{user_jid = Owner, token_body = Body,
