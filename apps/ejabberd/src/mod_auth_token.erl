@@ -14,7 +14,8 @@
 -export([process_iq/3]).
 
 %% Public API
--export([validate_token/1]).
+-export([token/2,
+         validate_token/1]).
 
 %% Token serialization
 -export([deserialize/1,
@@ -69,11 +70,14 @@
 
 -spec start(ejabberd:server(), list()) -> ok.
 start(Host, Opts) ->
-    gen_mod:start_backend_module(?MODULE, Opts),
+    gen_mod:start_backend_module(?MODULE, default_opts(Opts)),
     mod_disco:register_feature(Host, ?NS_AUTH_TOKEN),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, no_queue),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_AUTH_TOKEN, ?MODULE, process_iq, IQDisc),
     ok.
+
+default_opts(Opts) ->
+    [{backend, odbc} || not proplists:is_defined(backend, Opts)] ++ Opts.
 
 -spec stop(ejabberd:server()) -> ok.
 stop(Host) ->

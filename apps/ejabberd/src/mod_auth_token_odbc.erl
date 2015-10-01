@@ -7,7 +7,7 @@
 
 %-spec get_sequence_number(Type, Owner) -> integer().
 get_sequence_number(_, _) ->
-    ok.
+    666.
 
 -spec is_revoked(Type, Owner, SeqNo) -> boolean() when
       Type :: mod_auth_token:token_type(),
