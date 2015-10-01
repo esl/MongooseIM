@@ -147,7 +147,8 @@ validate_token(SerializedToken) ->
         {ok, refresh} ->
             {ok, mod_auth_token, Owner#jid.luser, serialize(token(access, Owner))};
         {error, _} ->
-            {error, [ Criterion || {_, false} = Criterion <- Criteria ]}
+            {error, {Owner#jid.luser, [ Criterion
+                                        || {_, false} = Criterion <- Criteria ]}}
     end.
 
 is_mac_valid(#token{user_jid = Owner, token_body = Body,

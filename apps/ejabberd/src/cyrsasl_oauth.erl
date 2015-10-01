@@ -37,6 +37,6 @@ mech_step(State, ClientIn) ->
             {ok,[{username, User},
                  {auth_module, AuthModule}],
              AccessToken};
-        _ ->
-            {error, <<"not-authorized">>}
+        {error, {Username, _}} ->
+            {error, <<"not-authorized">>, Username}
     end.
