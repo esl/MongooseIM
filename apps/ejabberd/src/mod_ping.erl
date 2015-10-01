@@ -242,12 +242,12 @@ cancel_timer(TRef) ->
     end.
 
 wait_for_process_to_stop(Pid) ->
-    do_wait_for_process_to_stop(erlang:is_process_alive(Pid), Pid, 10).
+    Ref = erlang:monitor(process, Pid),
+    receive
+        {'DOWN', Ref, process, Pid, _} ->
+            ok
+    after
+        1000 ->
+            {error, still_running}
+    end.
 
-do_wait_for_process_to_stop(Alive, _, 0) ->
-    Alive;
-do_wait_for_process_to_stop(false, _Pid, _) ->
-    false;
-do_wait_for_process_to_stop(true, Pid, N) ->
-    erlang:yield(),
-    do_wait_for_process_to_stop(erlang:is_process_alive(Pid), Pid, N - 1).
