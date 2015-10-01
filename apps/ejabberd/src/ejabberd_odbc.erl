@@ -174,7 +174,7 @@ keep_alive(PID) ->
         {selected, _, _} ->
             ok;
         {error, _} ->
-            ?ERROR_MSG("Keepalive query failed, killing ~p", [PID]),
+            ?ERROR_MSG("Keep-alive query failed, killing ~p", [PID]),
             exit(PID, kill)
     end.
 
@@ -584,7 +584,7 @@ sql_query_internal(Query) ->
     State = get(?STATE_KEY),
     Res = case State#state.db_type of
               odbc ->
-                  binaryze_odbc(odbc:sql_query(State#state.db_ref, Query, 5000));
+                  binaryze_odbc(odbc:sql_query(State#state.db_ref, Query));
               pgsql ->
                   ?DEBUG("Postres, Send query~n~p~n", [Query]),
                   pgsql_to_odbc(pgsql:squery(State#state.db_ref, Query));
