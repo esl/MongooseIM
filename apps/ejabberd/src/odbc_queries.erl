@@ -344,13 +344,7 @@ list_users(LServer, [{prefix, Prefix},
          "offset ">>, integer_to_list(Offset)]).
 
 users_number(LServer) ->
-    Database = case ejabberd_config:get_local_option({odbc_server, LServer}) of
-        Tuple when is_tuple(Tuple) ->
-            element(1, Tuple);
-        _Other ->
-            ejabberd_config:get_local_option({odbc_server_type, LServer})
-    end,
-    case Database of
+    case ejabberd_odbc:db_engine(LServer) of
         mysql ->
             ejabberd_odbc:sql_query(
               LServer,
