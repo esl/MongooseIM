@@ -249,3 +249,8 @@ CREATE INDEX i_offline_message
     ON offline_message
     USING BTREE
     (server, username, id);
+
+CREATE TABLE auth_token(
+    owner   TEXT    NOT NULL PRIMARY KEY,
+    seq_no  BIGINT  NOT NULL
+);
