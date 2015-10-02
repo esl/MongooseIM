@@ -187,16 +187,17 @@ seconds_to_datetime(Seconds) ->
 utc_now_as_seconds() ->
     datetime_to_seconds(calendar:universal_time()).
 
+-spec token(token_type(), ejabberd:jid()) -> token().
 token(Type, User) ->
     T = #token{type = Type,
                expiry_datetime = expiry_datetime(User#jid.lserver, Type, utc_now_as_seconds()),
-               user_jid = User,
-               sequence_no = case Type of
-                                 access -> undefined;
-                                 %% TODO: this is just a stub
-                                 refresh -> 666
-                             end},
-    token_with_mac(T).
+               user_jid = User},
+    token_with_mac(case Type of
+                       access -> T;
+                       refresh ->
+                           ValidSeqNo = ?BACKEND:get_valid_sequence_number(User),
+                           T#token{sequence_no = ValidSeqNo}
+                   end).
 
 %% {modules, [
 %%            {mod_auth_token, [{{validity_period, access}, {13, minutes}},
