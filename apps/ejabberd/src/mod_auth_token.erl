@@ -68,6 +68,7 @@ start(Host, Opts) ->
     mod_disco:register_feature(Host, ?NS_AUTH_TOKEN),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, no_queue),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_AUTH_TOKEN, ?MODULE, process_iq, IQDisc),
+    %% TODO: register handler for user data cleanup!
     ok.
 
 default_opts(Opts) ->
