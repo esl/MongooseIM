@@ -35,6 +35,8 @@ groups() ->
 
 all_tests() ->
     [ping,
+     active,
+     active_keep_alive,
      server_ping_pong,
      server_ping_pang].
 suite() ->
@@ -88,6 +90,30 @@ ping(Config) ->
 
                 PingResp = escalus_client:wait_for_stanza(Alice),
                 escalus:assert(is_iq_result, [PingReq], PingResp)
+        end).
+
+active(Config) ->
+    escalus:story(Config, [{alice, 1}],
+        fun(Alice) ->
+                Domain = ct:get_config(ejabberd_domain),
+                ct:sleep(timer:seconds(6)), % wait 6s (ping_interval is 8)
+                escalus_client:send(Alice, escalus_stanza:ping_request(Domain)),
+                escalus:assert(is_iq_result, escalus_client:wait_for_stanza(Alice)),
+                ct:sleep(timer:seconds(4)), % wait another 4s and check if connection we got ping req
+
+                false = escalus_client:has_stanzas(Alice)
+        end).
+
+active_keep_alive(Config) ->
+    escalus:story(Config, [{alice, 1}],
+        fun(Alice) ->
+                Domain = ct:get_config(ejabberd_domain),
+                ct:sleep(timer:seconds(6)), % wait 6s (ping_interval is 8)
+                Socket = Alice#client.socket,
+                gen_tcp:send(Socket, <<"\n">>),
+                ct:sleep(timer:seconds(4)), % wait another 4s and check if connection we got ping req
+
+                false = escalus_client:has_stanzas(Alice)
         end).
 
 server_ping_pong(Config) ->
