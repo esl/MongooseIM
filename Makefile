@@ -42,9 +42,9 @@ ct: deps quick_compile
 qct:
 	mkdir -p /tmp/ct_log
 	@if [ "$(SUITE)" ]; then ct_run -pa apps/*/ebin -pa deps/*/ebin -pa ebin -dir apps/*/test\
-        -I apps/*/include -logdir /tmp/ct_log -suite $(SUITE)_SUITE -noshell;\
+        -I apps/*/include -I apps/*/src -logdir /tmp/ct_log -suite $(SUITE)_SUITE -noshell;\
 	else ct_run -pa apps/*/ebin -pa deps/*/ebin -pa ebin -dir apps/*/test\
-        -I apps/*/include -logdir /tmp/ct_log -noshell; fi
+        -I apps/*/include -I apps/*/src -logdir /tmp/ct_log -noshell; fi
 
 test: test_deps
 	cd test/ejabberd_tests; make test
