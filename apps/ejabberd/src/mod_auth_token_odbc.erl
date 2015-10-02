@@ -2,9 +2,10 @@
 -behaviour(mod_auth_token).
 
 -export([get_valid_sequence_number/1,
-         revoke/3]).
+         revoke/1]).
 
 -include("jlib.hrl").
+-include("ejabberd.hrl").
 
 %% Assumption: all sequence numbers less than the current valid one
 %%             are not valid.
@@ -26,13 +27,23 @@ valid_sequence_number_query(EOwner) when is_binary(EOwner) ->
        "                  FROM auth_token at "
        "                  WHERE at.owner = '", EOwner/bytes, "') "
        "INSERT INTO auth_token "
-       "SELECT '", EOwner/bytes, "', 1 "
+         "SELECT '", EOwner/bytes, "', 1 "
        "WHERE NOT EXISTS (SELECT * FROM existing); "
        "SELECT seq_no "
        "FROM auth_token "
        "WHERE owner = '", EOwner/bytes, "'; "
        "COMMIT;">>].
 
-%-spec revoke(Type, Owner, SeqNo) -> ok.
-revoke(_, _, _) ->
+-spec revoke(JID) -> ok when
+      JID :: ejabberd:jid().
+revoke(#jid{lserver = LServer} = JID) ->
+    BBareJID = jlib:jid_to_binary(jlib:jid_remove_resource(JID)),
+    EBareJID = ejabberd_odbc:escape(BBareJID),
+    RevokeQuery = revoke_query(EBareJID),
+    QueryResult = ejabberd_odbc:sql_query(LServer, RevokeQuery),
+    ?DEBUG("result ~p", [Res]),
+    {updated, _} = QueryResult,
     ok.
+
+revoke_query(EOwner) when is_binary(EOwner) ->
+  [<<"UPDATE auth_token SET seq_no=seq_no+1 WHERE owner = '", EOwner/bytes, "';">>].

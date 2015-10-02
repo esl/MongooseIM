@@ -15,7 +15,8 @@
 
 %% Public API
 -export([token/2,
-         validate_token/1]).
+         validate_token/1,
+         revoke/1]).
 
 %% Token serialization
 -export([deserialize/1,
@@ -43,10 +44,8 @@
                            | {ok, module(), ejabberd:user(), binary()}
                            | error().
 
--callback revoke(Type, Owner, SeqNo) -> ok when
-      Type :: token_type(),
-      Owner :: ejabberd:jid(),
-      SeqNo :: sequence_no().
+-callback revoke(Owner) -> ok when
+      Owner :: ejabberd:jid().
 
 -callback get_valid_sequence_number(Owner) -> integer() when
       Owner :: ejabberd:jid().
@@ -127,6 +126,12 @@ hmac_opts() ->
 -spec deserialize(serialized()) -> token().
 deserialize(Serialized) when is_binary(Serialized) ->
     get_token_as_record(Serialized).
+
+
+-spec revoke(Owner) -> ok when
+      Owner :: ejabberd:jid().
+revoke(Owner) ->
+    ?BACKEND:revoke(Owner).
 
 -spec validate_token(serialized()) -> validation_result().
 validate_token(SerializedToken) ->
