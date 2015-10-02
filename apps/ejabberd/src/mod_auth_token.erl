@@ -43,18 +43,12 @@
                            | {ok, module(), ejabberd:user(), binary()}
                            | error().
 
--callback is_revoked(Type, Owner, SeqNo) -> boolean() when
-      Type :: token_type(),
-      Owner :: ejabberd:jid(),
-      SeqNo :: sequence_no().
-
 -callback revoke(Type, Owner, SeqNo) -> ok when
       Type :: token_type(),
       Owner :: ejabberd:jid(),
       SeqNo :: sequence_no().
 
--callback get_sequence_number(Type, Owner) -> integer() when
-      Type :: token_type(),
+-callback get_valid_sequence_number(Owner) -> integer() when
       Owner :: ejabberd:jid().
 
 -define(a2b(A), atom_to_binary(A, utf8)).
@@ -139,7 +133,7 @@ validate_token(SerializedToken) ->
     %% validation criteria
     Criteria = [{mac_valid, is_mac_valid(Token)},
                 {not_expired, is_not_expired(Token)},
-                {not_revoked, is_not_revoked(Token)}],
+                {not_revoked, not is_revoked(Token)}],
     ValidationResult = case Criteria of
                            [{_, true}, {_, true}, {_, true}] -> ok;
                            _ -> error
@@ -163,12 +157,11 @@ is_mac_valid(#token{user_jid = Owner, token_body = Body,
 is_not_expired(#token{expiry_datetime = Expiry}) ->
     utc_now_as_seconds() < datetime_to_seconds(Expiry).
 
-is_not_revoked(#token{type = access}) ->
-    true;
-is_not_revoked(#token{type = refresh} = T) ->
-    %% TODO: check for revocation
-    %not ?BACKEND:is_revoked(T).
-    false.
+is_revoked(#token{type = access}) ->
+    false;
+is_revoked(#token{type = refresh, sequence_no = TokenSeqNo} = T) ->
+    ValidSeqNo = ?BACKEND:get_valid_sequence_number(T#token.user_jid),
+    TokenSeqNo < ValidSeqNo.
 
 -spec process_iq(jid(), jid(), iq()) -> iq() | error().
 process_iq(From, _To, #iq{xmlns = ?NS_AUTH_TOKEN} = IQ) ->
