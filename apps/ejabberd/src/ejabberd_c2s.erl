@@ -1018,6 +1018,7 @@ session_established2(El, StateData) ->
                     StateData
             end
     end,
+    ?INFO_MSG("Third state : ~n~n~p~n~n",[NewState#state.privacy_list]),
     ejabberd_hooks:run(c2s_loop_debug, [{xmlstreamelement, El}]),
     fsm_next_state(session_established, NewState).
 
@@ -2135,7 +2136,7 @@ process_privacy_iq(From, To,
             case ejabberd_hooks:run_fold(
                    privacy_iq_set, StateData#state.server,
                    {error, ?ERR_FEATURE_NOT_IMPLEMENTED},
-                   [From, To, IQ]) of
+                   [From, To, IQ, StateData#state.privacy_list]) of
                 {result, R, NewPrivList} ->
                     {{result, R},
                      StateData#state{privacy_list = NewPrivList}};

@@ -31,7 +31,7 @@
          register_user/2,
          remove_user/2,
          privacy_iq_get/5,
-         privacy_iq_set/4,
+         privacy_iq_set/5,
          privacy_check_packet/6,
          privacy_list_push/3,
          mam_get_prefs/4,
@@ -228,8 +228,9 @@ privacy_iq_get(Acc, #jid{server  = Server}, _, _, _) ->
 -spec privacy_iq_set(Acc :: term(),
                      From :: ejabberd:jid(),
                      _To :: ejabberd:jid(),
-                     _IQ :: ejabberd:iq()) -> ok | metrics_notify_return() | term().
-privacy_iq_set(Acc, #jid{server = Server}, _To, #iq{sub_el = SubEl}) ->
+                     _IQ :: ejabberd:iq(),
+                     State :: any()) -> ok | metrics_notify_return() | term().
+privacy_iq_set(Acc, #jid{server = Server}, _To, #iq{sub_el = SubEl}, State) ->
     #xmlel{children = Els} = SubEl,
     case xml:remove_cdata(Els) of
         [#xmlel{name = <<"active">>}] ->

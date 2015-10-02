@@ -30,19 +30,22 @@
 -behaviour(gen_mod).
 
 -export([start/2, stop/1,
-     process_iq/3,
-     process_iq_set/4,
-     process_iq_get/5,
-     get_user_list/3,
-     check_packet/6,
-     remove_user/2,
-     updated_list/3]).
+         process_iq/3,
+         process_iq_set/5,
+         process_iq_get/5,
+         get_user_list/3,
+         check_packet/6,
+         remove_user/2,
+         updated_list/3]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 -include("mod_privacy.hrl").
 
 -define(BACKEND, mod_privacy_backend).
+-define(MOD_BLOCKING, mod_block).
+-define(BLOCKING_OPT, block).
+-define(MODULE_BLOCKING, mod_block).
 
 -export_type([userlist/0]).
 
@@ -110,6 +113,33 @@
     Items   :: list(list_item()),
     Reason  :: not_found | term().
 
+%% XEP 0191 Blocking Commands callbacks
+
+-callback block_user(LUser, LServer, Items) ->
+    {ok, Name, List} | {error, Reason} when
+    LUser   :: binary(),
+    LServer :: binary(),
+    Items   :: userlist(),
+    Name    :: list_name(),
+    List    :: userlist(),
+    Reason  :: conflict | term().
+
+-callback unblock_user(LUser, LServer, Items) ->
+    {ok, {Name, List}} | {error, Reason} when
+    LUser   :: binary(),
+    LServer :: binary(),
+    Items   :: userlist(),
+    Name    :: list_name(),
+    List    :: userlist(),
+    Reason  :: conflict | term().
+
+-callback unblock_all(LUser, LServer) ->
+    {ok, Name} | {error, Reason} when
+    LUser   :: binary(),
+    LServer :: binary(),
+    Name    :: list_name(),
+    Reason  :: conflict | term().
+
 %% gen_mod callbacks
 %% ------------------------------------------------------------------
 
@@ -117,29 +147,44 @@ start(Host, Opts) ->
     gen_mod:start_backend_module(?MODULE, Opts, [get_privacy_list,get_list_names,
                                                  set_default_list, forget_default_list,
                                                  remove_privacy_list, replace_privacy_list,
-                                                 get_default_list]),
+                                                 get_default_list, block_user, unblock_user, unblock_all]),
     ?BACKEND:init(Host, Opts),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
-    ejabberd_hooks:add(privacy_iq_get, Host,
-               ?MODULE, process_iq_get, 50),
-    ejabberd_hooks:add(privacy_iq_set, Host,
-               ?MODULE, process_iq_set, 50),
-    ejabberd_hooks:add(privacy_get_user_list, Host,
-               ?MODULE, get_user_list, 50),
+    UseBlocking = gen_mod:get_opt(?BLOCKING_OPT, Opts, false),
     ejabberd_hooks:add(privacy_check_packet, Host,
-               ?MODULE, check_packet, 50),
+                       ?MODULE, check_packet, 50),
     ejabberd_hooks:add(privacy_updated_list, Host,
-               ?MODULE, updated_list, 50),
+                       ?MODULE, updated_list, 50),
     ejabberd_hooks:add(remove_user, Host,
-               ?MODULE, remove_user, 50),
+                       ?MODULE, remove_user, 50),
     ejabberd_hooks:add(anonymous_purge_hook, Host,
-        ?MODULE, remove_user, 50),
+                       ?MODULE, remove_user, 50),
+    ejabberd_hooks:add(privacy_get_user_list, Host,
+                       ?MODULE, get_user_list, 50),
+    case UseBlocking of
+        false ->
+            ejabberd_hooks:add(privacy_iq_get, Host,
+                               ?MODULE, process_iq_get, 50),
+            ejabberd_hooks:add(privacy_iq_set, Host,
+                               ?MODULE, process_iq_set, 50);
+        true ->
+            mod_disco:register_feature(Host, ?NS_BLOCKING),
+            ejabberd_hooks:add(privacy_iq_get, Host,
+                               ?MODULE_BLOCKING, process_iq_get, 50),
+            ejabberd_hooks:add(privacy_iq_set, Host,
+                               ?MODULE_BLOCKING, process_iq_set, 50)
+    end,
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_PRIVACY,
                   ?MODULE, process_iq, IQDisc).
 
 stop(Host) ->
+    mod_disco:unregister_feature(Host, ?NS_BLOCKING),
     ejabberd_hooks:delete(privacy_iq_get, Host,
               ?MODULE, process_iq_get, 50),
+    ejabberd_hooks:delete(privacy_iq_get, Host,
+              ?MODULE_BLOCKING, process_iq_get, 50),
+    ejabberd_hooks:delete(privacy_iq_set, Host,
+              ?MODULE_BLOCKING, process_iq_set, 50),
     ejabberd_hooks:delete(privacy_iq_set, Host,
               ?MODULE, process_iq_set, 50),
     ejabberd_hooks:delete(privacy_get_user_list, Host,
@@ -204,7 +249,8 @@ process_list_get(LUser, LServer, {value, Name}) ->
 process_list_get(_LUser, _LServer, false) ->
     {error, ?ERR_BAD_REQUEST}.
 
-process_iq_set(_, From, _To, #iq{sub_el = SubEl}) ->
+%% The last argument is privacy_list from state of ejabberd_c2s
+process_iq_set(_, From, _To, #iq{sub_el = SubEl}, _) ->
     #jid{luser = LUser, lserver = LServer} = From,
     #xmlel{children = Els} = SubEl,
     case xml:remove_cdata(Els) of
@@ -280,7 +326,7 @@ remove_privacy_list(LUser, LServer, Name) ->
             {error, ?ERR_INTERNAL_SERVER_ERROR}
     end.
 
-replace_privacy_list(LUser, LServer, Name, List) ->
+ replace_privacy_list(LUser, LServer, Name, List) ->
     case ?BACKEND:replace_privacy_list(LUser, LServer, Name, List) of
         ok ->
             NeedDb = is_list_needdb(List),

@@ -31,80 +31,85 @@
          begin_trans/0,
          get_db_specific_limits/1,
          get_db_specific_offset/2,
-	     sql_transaction/2,
-	     get_last/2,
-	     select_last/3,
-	     set_last_t/4,
-	     del_last/2,
-	     get_password/2,
-	     set_password_t/3,
-	     add_user/3,
-	     del_user/2,
-	     del_user_return_password/3,
-	     list_users/1,
+         sql_transaction/2,
+         get_last/2,
+         select_last/3,
+         set_last_t/4,
+         del_last/2,
+         get_password/2,
+         set_password_t/3,
+         add_user/3,
+         del_user/2,
+         del_user_return_password/3,
+         list_users/1,
          list_users/2,
-	     users_number/1,
+         users_number/1,
          users_number/2,
-	     get_users_without_scram/2,
-	     get_users_without_scram_count/1,
+         get_users_without_scram/2,
+         get_users_without_scram_count/1,
          get_average_roster_size/1,
          get_average_rostergroup_size/1,
          clear_rosters/1,
-	     get_roster/2,
-	     get_roster_jid_groups/2,
-	     get_roster_groups/3,
-	     del_user_roster_t/2,
-	     get_roster_by_jid/3,
-	     get_rostergroup_by_jid/3,
-	     del_roster/3,
-	     del_roster_sql/2,
-	     update_roster/5,
-	     update_roster_sql/4,
-	     roster_subscribe/4,
-	     get_subscription/3,
-	     set_private_data/4,
-	     set_private_data_sql/3,
-	     get_private_data/3,
-	     multi_get_private_data/3,
-	     multi_set_private_data/3,
-	     del_user_private_storage/2,
-	     get_default_privacy_list/2,
-	     get_default_privacy_list_t/1,
+         get_roster/2,
+         get_roster_jid_groups/2,
+         get_roster_groups/3,
+         del_user_roster_t/2,
+         get_roster_by_jid/3,
+         get_rostergroup_by_jid/3,
+         del_roster/3,
+         del_roster_sql/2,
+         update_roster/5,
+         update_roster_sql/4,
+         roster_subscribe/4,
+         get_subscription/3,
+         set_private_data/4,
+         set_private_data_sql/3,
+         get_private_data/3,
+         multi_get_private_data/3,
+         multi_set_private_data/3,
+         del_user_private_storage/2,
+         get_default_privacy_list/2,
+         get_default_privacy_list_t/1,
          count_privacy_lists/1,
          clear_privacy_lists/1,
-	     get_privacy_list_names/2,
-	     get_privacy_list_names_t/1,
-	     get_privacy_list_id/3,
-	     get_privacy_list_id_t/2,
-	     get_privacy_list_data/3,
-	     get_privacy_list_data_by_id/2,
-	     set_default_privacy_list/2,
-	     unset_default_privacy_list/2,
-	     remove_privacy_list/2,
-	     add_privacy_list/2,
-	     set_privacy_list/2,
-	     del_privacy_lists/3,
-	     set_vcard/26,
-	     get_vcard/2,
+         get_privacy_list_names/2,
+         get_privacy_list_names_t/1,
+         get_privacy_list_id/3,
+         get_privacy_list_id_t/2,
+         get_privacy_list_data/3,
+         get_privacy_list_data_by_id/2,
+         set_default_privacy_list/2,
+         unset_default_privacy_list/2,
+         remove_privacy_list/2,
+         add_privacy_list/2,
+         set_privacy_list/2,
+         del_privacy_lists/3,
+         set_vcard/26,
+         get_vcard/2,
          search_vcard/3,
-	     escape_string/1,
-	     escape_like_string/1,
-	     count_records_where/3,
-	     get_roster_version/2,
-	     set_roster_version/2,
-	     prepare_offline_message/6,
-	     push_offline_messages/2,
-	     pop_offline_messages/4,
-	     count_offline_messages/4,
-	     remove_old_offline_messages/2,
-	     remove_expired_offline_messages/2,
-	     remove_offline_messages/3]).
+         escape_string/1,
+         escape_like_string/1,
+         count_records_where/3,
+         get_roster_version/2,
+         set_roster_version/2,
+         prepare_offline_message/6,
+         push_offline_messages/2,
+         pop_offline_messages/4,
+         count_offline_messages/4,
+         remove_old_offline_messages/2,
+         remove_expired_offline_messages/2,
+         remove_offline_messages/3,
+         check_contact_blocked/3,
+         get_latest_ord/2,
+         block_contacts/2,
+         unblock_contacts/2]).
 
 %% We have only two compile time options for db queries:
 %%-define(generic, true).
 %%-define(mssql, true).
 -ifndef(mssql).
 -undef(generic).
+-define(BLOCK_NAME, <<"block">>).
 -define(generic, true).
 -endif.
 
@@ -683,12 +688,13 @@ get_privacy_list_data(LServer, Username, SName) ->
          "order by ord;">>]).
 
 get_privacy_list_data_by_id(LServer, ID) ->
-    ejabberd_odbc:sql_query(
-      LServer,
-      [<<"select t, value, action, ord, match_all, match_iq, "
-         "match_message, match_presence_in, match_presence_out "
-         "from privacy_list_data "
-         "where id='">>, ID, <<"' order by ord;">>]).
+            Res = ejabberd_odbc:sql_query(
+            LServer,
+            [<<"select t, value, action, ord, match_all, match_iq, "
+               "match_message, match_presence_in, match_presence_out "
+               "from privacy_list_data "
+         "where id='">>, ID, <<"' order by ord;">>]),
+    Res.
 
 set_default_privacy_list(Username, SName) ->
     update_t(<<"privacy_default_list">>, [<<"username">>, <<"name">>],
@@ -735,6 +741,45 @@ del_privacy_lists(LServer, _Server, Username) ->
     ejabberd_odbc:sql_query(
       LServer,
       [<<"delete from privacy_default_list where username='">>, Username, "';"]).
+
+check_contact_blocked(Username, Contact, ListName) ->
+    ejabberd_odbc:sql_query_t([<<"select value "
+                                       "from privacy_list_data "
+                                       "where id = (select id from privacy_list where "
+                                       "username='">>, Username, <<"' and name='">>,ListName, <<"') and value ='">>,Contact,<<"' "
+                                                                                              "order by ord;">>]).
+get_latest_ord(Username, ListName) ->
+    ejabberd_odbc:sql_query_t([<<"select ord "
+                                 "from privacy_list_data "
+                                 "where id = (select id from privacy_list where "
+                                 "username='">>, Username, <<"' and name='">>,ListName, <<"') order by ord desc limit 1;">>]).   %% I hope it works in postgres
+
+block_contacts(ID, RItems) ->
+    lists:foreach(fun(Items) ->
+        ejabberd_odbc:sql_query_t(
+            [<<"insert into privacy_list_data("
+               "id, t, value, action, ord, match_all, match_iq, "
+               "match_message, match_presence_in, "
+               "match_presence_out "
+               ") "
+               "values ('">>, ID, "', '",
+                join(Items, "', '"), "');"])
+                  end, RItems).
+
+unblock_contacts(ID, RItems) ->
+    lists:foreach(fun(Item) ->
+        [T, Value, Action, _, MAll, MIQ, MMessage, MPresenceUn, MPresenceOut] = Item,
+        ejabberd_odbc:sql_query_t(
+            [<<"delete from privacy_list_data "
+            "where id = '">>,ID,<<"' "
+            " and t = '">>, T ,<<"'"
+            " and value = '">>, Value ,<<"'"
+            " and action = '">>, Action ,<<"'"
+            " and match_all = '">>, MAll ,<<"'"
+            " and match_iq = '">>, MIQ ,<<"'"
+            " and match_message = '">>, MMessage ,<<"'"
+            " and match_presence_in = '">>, MPresenceUn ,<<"'"
+            " and match_presence_out = '">>, MPresenceOut,<<"'">>]) end, RItems).
 
 %% Characters to escape
 escape_character($\0) -> "\\0";

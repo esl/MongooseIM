@@ -42,6 +42,7 @@ management_test_cases() ->
     get_many_lists,
     get_nonexistent_list,
     set_list,
+     get_all_lists,
     activate,
     activate_nonexistent,
     deactivate,
@@ -56,15 +57,16 @@ management_test_cases() ->
     ].
 
 blocking_test_cases() ->
-    [block_jid_message,
-    block_group_message,
-    block_subscription_message,
-    block_all_message,
-    block_jid_presence_in,
-    block_jid_presence_out,
-    block_jid_iq,
-    block_jid_all,
-    block_jid_message_but_not_presence
+    [block_jid_message
+%%         ,
+%%     block_group_message,
+%%     block_subscription_message,
+%%     block_all_message,
+%%     block_jid_presence_in,
+%%     block_jid_presence_out,
+%%     block_jid_iq,
+%%     block_jid_all,
+%%     block_jid_message_but_not_presence
     ].
 
 suite() ->
@@ -136,7 +138,9 @@ get_all_lists(Config) ->
     escalus:story(Config, [1], fun(Alice) ->
 
         escalus:send(Alice, escalus_stanza:privacy_get_all()),
-        escalus:assert(is_privacy_result, escalus:wait_for_stanza(Alice))
+        Stanza = escalus:wait_for_stanza(Alice),
+        io:format("All lists are:~n~p~n",[Stanza]),
+        escalus:assert(is_privacy_result, Stanza)
 
         end).
 
