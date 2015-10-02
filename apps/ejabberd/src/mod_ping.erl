@@ -36,6 +36,7 @@
 -define(SUPERVISOR, ejabberd_sup).
 -define(DEFAULT_SEND_PINGS, false). % bool()
 -define(DEFAULT_PING_INTERVAL, 60). % seconds
+-define(DEFAULT_PING_REQ_TIMEOUT, 32).
 
 -define(DICT, dict).
 
@@ -56,6 +57,7 @@
                 send_pings = ?DEFAULT_SEND_PINGS,
                 ping_interval = ?DEFAULT_PING_INTERVAL,
                 timeout_action = none,
+                ping_req_timeout = ?DEFAULT_PING_REQ_TIMEOUT,
                 timers = ?DICT:new()}).
 
 %%====================================================================
@@ -84,7 +86,9 @@ start(Host, Opts) ->
 
 stop(Host) ->
     Proc = gen_mod:get_module_proc(Host, ?MODULE),
+    Pid = erlang:whereis(Proc),
     gen_server:call(Proc, stop),
+    wait_for_process_to_stop(Pid),
     supervisor:delete_child(?SUPERVISOR, Proc).
 
 %%====================================================================
@@ -93,6 +97,7 @@ stop(Host) ->
 init([Host, Opts]) ->
     SendPings = gen_mod:get_opt(send_pings, Opts, ?DEFAULT_SEND_PINGS),
     PingInterval = gen_mod:get_opt(ping_interval, Opts, ?DEFAULT_PING_INTERVAL),
+    PingReqTimeout = gen_mod:get_opt(ping_req_timeout, Opts, ?DEFAULT_PING_REQ_TIMEOUT),
     TimeoutAction = gen_mod:get_opt(timeout_action, Opts, none),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, no_queue),
     mod_disco:register_feature(Host, ?NS_PING),
@@ -106,24 +111,25 @@ init([Host, Opts]) ->
                                ?MODULE, user_online, 100),
             ejabberd_hooks:add(sm_remove_connection_hook, Host,
                                ?MODULE, user_offline, 100),
-	    ejabberd_hooks:add(user_send_packet, Host,
-			       ?MODULE, user_send, 100);
+            ejabberd_hooks:add(user_send_packet, Host,
+                               ?MODULE, user_send, 100);
         _ ->
             ok
     end,
     {ok, #state{host = Host,
                 send_pings = SendPings,
-                ping_interval = PingInterval,
-		timeout_action = TimeoutAction,
+                ping_interval = timer:seconds(PingInterval),
+                timeout_action = TimeoutAction,
+                ping_req_timeout = timer:seconds(PingReqTimeout),
                 timers = ?DICT:new()}}.
 
 terminate(_Reason, #state{host = Host}) ->
     ejabberd_hooks:delete(sm_remove_connection_hook, Host,
-			  ?MODULE, user_offline, 100),
+                          ?MODULE, user_offline, 100),
     ejabberd_hooks:delete(sm_register_connection_hook, Host,
-			  ?MODULE, user_online, 100),
+                          ?MODULE, user_online, 100),
     ejabberd_hooks:delete(user_send_packet, Host,
-			  ?MODULE, user_send, 100),
+                          ?MODULE, user_send, 100),
     gen_iq_handler:remove_iq_handler(ejabberd_local, Host, ?NS_PING),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_PING),
     mod_disco:unregister_feature(Host, ?NS_PING).
@@ -143,31 +149,32 @@ handle_cast({iq_pong, JID, timeout}, State) ->
     Timers = del_timer(JID, State#state.timers),
     ejabberd_hooks:run(user_ping_timeout, State#state.host, [JID]),
     case State#state.timeout_action of
-	kill ->
-	    #jid{user = User, server = Server, resource = Resource} = JID,
-	    case ejabberd_sm:get_session_pid(User, Server, Resource) of
-		Pid when is_pid(Pid) ->
-		    ejabberd_c2s:stop(Pid);
-		_ ->
-		    ok
-	    end;
-	_ ->
-	    ok
+        kill ->
+            #jid{user = User, server = Server, resource = Resource} = JID,
+            case ejabberd_sm:get_session_pid(User, Server, Resource) of
+                Pid when is_pid(Pid) ->
+                    ejabberd_c2s:stop(Pid);
+                _ ->
+                    ok
+            end;
+        _ ->
+            ok
     end,
     {noreply, State#state{timers = Timers}};
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
-handle_info({timeout, _TRef, {ping, JID}}, State) ->
+handle_info({timeout, _TRef, {ping, JID}},
+            #state{ping_req_timeout = PingReqTimeout} = State) ->
     IQ = #iq{type = get,
              sub_el = [#xmlel{name = <<"ping">>,
                               attrs = [{<<"xmlns">>, ?NS_PING}]}]},
     Pid = self(),
     F = fun(Response) ->
-		gen_server:cast(Pid, {iq_pong, JID, Response})
-	end,
+                gen_server:cast(Pid, {iq_pong, JID, Response})
+        end,
     From = jlib:make_jid(<<"">>, State#state.host, <<"">>),
-    ejabberd_local:route_iq(From, JID, IQ, F),
+    ejabberd_local:route_iq(From, JID, IQ, F, PingReqTimeout),
     Timers = add_timer(JID, State#state.ping_interval, State#state.timers),
     {noreply, State#state{timers = Timers}};
 handle_info(_Info, State) ->
@@ -202,34 +209,45 @@ user_send(JID, _From, _Packet) ->
 add_timer(JID, Interval, Timers) ->
     LJID = jlib:jid_tolower(JID),
     NewTimers = case ?DICT:find(LJID, Timers) of
-		    {ok, OldTRef} ->
-			cancel_timer(OldTRef),
-			?DICT:erase(LJID, Timers);
-		    _ ->
-			Timers
-		end,
-    TRef = erlang:start_timer(Interval * 1000, self(), {ping, JID}),
+                    {ok, OldTRef} ->
+                        cancel_timer(OldTRef),
+                        ?DICT:erase(LJID, Timers);
+                    _ ->
+                        Timers
+                end,
+    TRef = erlang:start_timer(Interval, self(), {ping, JID}),
     ?DICT:store(LJID, TRef, NewTimers).
 
 del_timer(JID, Timers) ->
     LJID = jlib:jid_tolower(JID),
     case ?DICT:find(LJID, Timers) of
         {ok, TRef} ->
-	    cancel_timer(TRef),
-	    ?DICT:erase(LJID, Timers);
+            cancel_timer(TRef),
+            ?DICT:erase(LJID, Timers);
         _ ->
-	    Timers
+            Timers
     end.
 
 cancel_timer(TRef) ->
     case erlang:cancel_timer(TRef) of
-	false ->
-	    receive
+        false ->
+            receive
                 {timeout, TRef, _} ->
                     ok
             after 0 ->
-                    ok
+                      ok
             end;
         _ ->
             ok
     end.
+
+wait_for_process_to_stop(Pid) ->
+    Ref = erlang:monitor(process, Pid),
+    receive
+        {'DOWN', Ref, process, Pid, _} ->
+            ok
+    after
+        1000 ->
+            {error, still_running}
+    end.
+

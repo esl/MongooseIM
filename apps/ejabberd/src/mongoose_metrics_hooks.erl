@@ -34,6 +34,7 @@
          privacy_iq_set/4,
          privacy_check_packet/6,
          privacy_list_push/3,
+         user_ping_timeout/1,
          mam_get_prefs/4,
          mam_set_prefs/7,
          mam_remove_archive/3,
@@ -55,7 +56,8 @@
          mam_muc_drop_iq/5,
          mam_muc_drop_messages/2,
          mam_muc_purge_single_message/6,
-         mam_muc_purge_multiple_messages/9]).
+         mam_muc_purge_multiple_messages/9
+        ]).
 
 -type hook() :: [atom() | ejabberd:server() | integer(),...].
 -type metrics_notify_return() ::
@@ -87,6 +89,7 @@ get_hooks(Host) ->
      [privacy_iq_set,         Host, ?MODULE, privacy_iq_set, 1],
      [privacy_check_packet,   Host, ?MODULE, privacy_check_packet, 55],
      [sm_broadcast,           Host, ?MODULE, privacy_list_push, 1],
+     [user_ping_timeout,      Host, ?MODULE, user_ping_timeout, 50],
      [mam_set_prefs, Host, ?MODULE, mam_set_prefs, 50],
      [mam_get_prefs, Host, ?MODULE, mam_get_prefs, 50],
      [mam_archive_message, Host, ?MODULE, mam_archive_message, 50],
@@ -255,6 +258,9 @@ privacy_list_push(_From, #jid{server = Server} = To, Packet) ->
             ok
     end.
 
+user_ping_timeout(_JID) ->
+    ok.
+
 -spec privacy_check_packet(Acc :: allow | deny,
                           binary(),
                           Server :: ejabberd:server(),
@@ -375,7 +381,7 @@ mam_muc_lookup_messages(Result = {error, _},
     _Start, _End, _Now, _WithJID,
     _PageSize, _LimitPassed, _MaxResultLimit, _IsSimple) ->
     Result.
-    
+
 
 mam_muc_archive_message(Result, Host,
     _MessID, _ArcID, _LocJID, _RemJID, _SrcJID, _Dir, _Packet) ->

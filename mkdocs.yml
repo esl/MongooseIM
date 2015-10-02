@@ -29,6 +29,7 @@ pages:
       - 'mod_muc': 'modules/mod_muc.md'
       - 'mod_muc_log': 'modules/mod_muc_log.md'
       - 'mod_offline': 'modules/mod_offline.md'
+      - 'mod_ping': 'modules/mod_ping.md'
       - 'mod_privacy': 'modules/mod_privacy.md'
       - 'mod_private': 'modules/mod_private.md'
       - 'mod_register': 'modules/mod_register.md'
