@@ -169,6 +169,8 @@ init(_Transport, Req, _Opts) ->
             <<"POST">> ->
                 {has_body, true} = {has_body, cowboy_req:has_body(Req2)},
                 {forward_body, Req2};
+            <<"GET">> ->
+                {accept_get, Req2};
             _ ->
                 error({badmatch, {Method, Req2}})
         end
@@ -190,6 +192,14 @@ info(accept_options, Req, State) ->
     Headers = ac_all(Origin),
     ?DEBUG("OPTIONS response: ~p~n", [Headers]),
     {ok, strip_ok(cowboy_req:reply(200, Headers, <<>>, Req2)), State};
+info(accept_get, Req, State) ->
+    Headers = [content_type(),
+               ac_allow_methods(),
+               ac_allow_headers(),
+               ac_max_age()],
+    {ok,
+     strip_ok(cowboy_req:reply(200, Headers, <<"MongooseIM bosh endpoint">>, Req)),
+     State};
 info(no_body, Req, State) ->
     ?DEBUG("Missing request body: ~p~n", [Req]),
     {ok, no_body_error(Req), State};
@@ -434,7 +444,7 @@ ac_allow_origin(Origin) ->
     {<<"Access-Control-Allow-Origin">>, Origin}.
 
 ac_allow_methods() ->
-    {<<"Access-Control-Allow-Methods">>, <<"POST, OPTIONS">>}.
+    {<<"Access-Control-Allow-Methods">>, <<"POST, OPTIONS, GET">>}.
 
 ac_allow_headers() ->
     {<<"Access-Control-Allow-Headers">>, <<"Content-Type">>}.
