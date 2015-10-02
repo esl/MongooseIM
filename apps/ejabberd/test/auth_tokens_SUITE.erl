@@ -126,11 +126,14 @@ is_serialization_reversible(Token) ->
 
 revoked_token_is_not_valid(_) ->
     %% given
-    T0 = #token{type = refresh,
-                expiry_datetime = ?TESTED:seconds_to_datetime(utc_now_as_seconds() + 10),
-                user_jid = jlib:binary_to_jid(<<"alice@localhost">>),
-                sequence_no = 123456},
-    Revoked = ?TESTED:serialize(?TESTED:token_with_mac(T0)),
+    ValidSeqNo = 123456,
+    RevokedSeqNo = 123455,
+    self() ! {valid_seq_no, ValidSeqNo},
+    T = #token{type = refresh,
+               expiry_datetime = ?TESTED:seconds_to_datetime(utc_now_as_seconds() + 10),
+               user_jid = jlib:binary_to_jid(<<"alice@localhost">>),
+               sequence_no = RevokedSeqNo},
+    Revoked = ?TESTED:serialize(?TESTED:token_with_mac(T)),
     %% when
     ValidationResult = ?TESTED:validate_token(Revoked),
     %% then
@@ -181,7 +184,10 @@ mod_keystore_get_key(_, KeyID) ->
 
 mock_tested_backend() ->
     meck:new(mod_auth_token_odbc, []),
-    meck:expect(mod_auth_token_odbc, is_revoked, fun (_, _, _) -> true end).
+    meck:expect(mod_auth_token_odbc, get_valid_sequence_number,
+                fun (_) ->
+                        receive {valid_seq_no, SeqNo} -> SeqNo end
+                end).
 
 %%
 %% Generators
