@@ -193,3 +193,4 @@ replace_privacy_list(LUser, LServer, Name, List) ->
 remove_user(LUser, LServer) ->
     F = fun() -> mnesia:delete({privacy, {LUser, LServer}}) end,
     mnesia:transaction(F).
+
