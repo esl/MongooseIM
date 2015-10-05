@@ -34,7 +34,7 @@ valid_sequence_number_query(EOwner) when is_binary(EOwner) ->
        "WHERE owner = '", EOwner/bytes, "'; "
        "COMMIT;">>].
 
--spec revoke(JID) -> ok when
+-spec revoke(JID) -> ok | not_found when
       JID :: ejabberd:jid().
 revoke(#jid{lserver = LServer} = JID) ->
     BBareJID = jlib:jid_to_binary(jlib:jid_remove_resource(JID)),
@@ -42,8 +42,10 @@ revoke(#jid{lserver = LServer} = JID) ->
     RevokeQuery = revoke_query(EBareJID),
     QueryResult = ejabberd_odbc:sql_query(LServer, RevokeQuery),
     ?DEBUG("result ~p", [QueryResult]),
-    {updated, _} = QueryResult,
-    ok.
+    case QueryResult of
+        {updated, 1} -> ok;
+        {updated, 0} -> not_found
+    end.
 
 revoke_query(EOwner) when is_binary(EOwner) ->
-  [<<"UPDATE auth_token SET seq_no=seq_no+1 WHERE owner = '", EOwner/bytes, "';">>].
+    [<<"UPDATE auth_token SET seq_no=seq_no+1 WHERE owner = '", EOwner/bytes, "';">>].

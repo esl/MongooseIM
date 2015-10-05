@@ -3,6 +3,7 @@
 -behavior(gen_mod).
 
 -include("ejabberd.hrl").
+-include("ejabberd_commands.hrl").
 -include("jlib.hrl").
 -include("mod_auth_token.hrl").
 
@@ -21,6 +22,9 @@
 %% Token serialization
 -export([deserialize/1,
          serialize/1]).
+
+%% Command-line interface
+-export([revoke_token_command/1]).
 
 %% Test only!
 -export([datetime_to_seconds/1,
@@ -44,7 +48,7 @@
                            | {ok, module(), ejabberd:user(), binary()}
                            | error().
 
--callback revoke(Owner) -> ok when
+-callback revoke(Owner) -> ok | not_found when
       Owner :: ejabberd:jid().
 
 -callback get_valid_sequence_number(Owner) -> integer() when
@@ -68,6 +72,7 @@ start(Host, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, no_queue),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_AUTH_TOKEN, ?MODULE, process_iq, IQDisc),
     %% TODO: register handler for user data cleanup!
+    ejabberd_commands:register_commands(commands()),
     ok.
 
 default_opts(Opts) ->
@@ -77,6 +82,13 @@ default_opts(Opts) ->
 stop(Host) ->
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_AUTH_TOKEN),
     ok.
+
+-spec commands() -> [ejabberd_commands:cmd()].
+commands() ->
+    [#ejabberd_commands{ name = revoke_token, tags = [tokens],
+                         desc = "Revoke REFRESH token",
+                         module = ?MODULE, function = revoke_token_command,
+                         args = [{owner, binary}], result = {res, restuple} }].
 
 -spec serialize(token()) -> serialized().
 serialize(#token{mac_signature = undefined} = T) -> error(incomplete_token, [T]);
@@ -128,7 +140,7 @@ deserialize(Serialized) when is_binary(Serialized) ->
     get_token_as_record(Serialized).
 
 
--spec revoke(Owner) -> ok when
+-spec revoke(Owner) -> ok | not_found when
       Owner :: ejabberd:jid().
 revoke(Owner) ->
     ?BACKEND:revoke(Owner).
@@ -267,3 +279,17 @@ acquire_key_for_user(User) ->
     [{{asdqwe_access_secret, UsersHost}, RawKey}] = ejabberd_hooks:run_fold(
                                          get_key, UsersHost, [], [{asdqwe_access_secret, UsersHost}]),
     RawKey.
+
+-spec revoke_token_command(Owner) -> ResTuple when
+      Owner :: binary(),
+      ResCode :: ok | not_found | error,
+      ResTuple :: {ResCode, string()}.
+revoke_token_command(Owner) ->
+    try revoke(jlib:binary_to_jid(Owner)) of
+        not_found ->
+            {not_found, "User or token not found."};
+        ok ->
+            {ok, "Revoked."}
+    catch _:_ ->
+            {error, "Internal server error"}
+    end.
