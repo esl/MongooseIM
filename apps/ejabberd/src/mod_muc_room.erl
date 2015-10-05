@@ -117,6 +117,8 @@
                            | 'require_membership'
                            | 'require_password'
                            | 'user_banned'.
+-type users_dict() :: dict:dict(ejabberd:simple_jid(), user()).
+-type sessions_dict() :: dict:dict(mod_muc:nick(), ejabberd:jid()).
 
 -define(MAX_USERS_DEFAULT_LIST,
         [5, 10, 20, 30, 50, 100, 200, 500, 1000, 2000, 5000]).
@@ -427,7 +429,7 @@ normal_state({route, From, Nick,
              StateData) ->
     % FIXME sessions do we need to route presences to all sessions
     Activity = get_user_activity(From, StateData),
-    Now = now_to_usec(now()),
+    Now = now_to_usec(os:timestamp()),
     MinPresenceInterval =
         trunc(gen_mod:get_module_opt(StateData#state.server_host,
                                      mod_muc, min_presence_interval, 0)
@@ -1368,17 +1370,17 @@ is_empty_room(#state{users=Users}) ->
     is_empty_dict(Users).
 
 
--spec is_empty_dict(dict()) -> boolean().
+-spec is_empty_dict(dict:dict(term(), term())) -> boolean().
 is_empty_dict(Dict) ->
     dict:size(Dict) =:= 0.
 
 
--spec dict_foreach_value(fun((_) -> 'ok'), dict()) -> any().
+-spec dict_foreach_value(fun((_) -> 'ok'), users_dict()) -> any().
 dict_foreach_value(F, Users) ->
     ?DICT:fold(fun(_LJID, User, _) -> F(User) end, undefined, Users).
 
 
--spec dict_to_values(dict()) -> [any()].
+-spec dict_to_values(dict:dict(term(), term())) -> [any()].
 dict_to_values(Dict) ->
     [V || {_, V} <- ?DICT:to_list(Dict)].
 
@@ -1442,7 +1444,7 @@ store_user_activity(JID, UserActivity, StateData) ->
       StateData#state.server_host,
       mod_muc, min_presence_interval, 0),
     Key = jlib:jid_tolower(JID),
-    Now = now_to_usec(now()),
+    Now = now_to_usec(os:timestamp()),
     Activity1 = clean_treap(StateData#state.activity, {1, -Now}),
     Activity =
     case treap:lookup(Key, Activity1) of
@@ -1879,7 +1881,7 @@ count_stanza_shift(Nick, Els, StateData) ->
              0;
          _ ->
              Sec = calendar:datetime_to_gregorian_seconds(
-                 calendar:now_to_universal_time(now())) - Seconds,
+                 calendar:now_to_universal_time(os:timestamp())) - Seconds,
              count_seconds_shift(Sec, HL)
          end,
     MaxStanzas = extract_history(Els, <<"maxstanzas">>),
@@ -2050,7 +2052,8 @@ erase_matched_users(JID, StateData=#state{users=Users, sessions=Sessions}) ->
     StateData#state{users=NewUsers, sessions=NewSessions}.
 
 
--spec erase_matched_users_dict('error' | ejabberd:simple_jid(), dict(), dict()) -> any().
+-spec erase_matched_users_dict('error' | ejabberd:simple_jid(),
+                               users_dict(), sessions_dict()) -> any().
 erase_matched_users_dict(LJID, Users, Sessions) ->
     case LJID of
         %% Match by bare JID
@@ -2079,7 +2082,7 @@ update_matched_users(F, JID, StateData=#state{users=Users}) ->
 
 
 -spec update_matched_users_dict(fun((user()) -> user()),
-                              'error' | ejabberd:simple_jid(), dict()) -> any().
+                              'error' | ejabberd:simple_jid(), users_dict()) -> any().
 update_matched_users_dict(F, LJID, Users) ->
     case LJID of
         %% Match by bare JID
@@ -2452,7 +2455,7 @@ add_message_to_history(FromNick, FromJID, Packet, StateData) ->
               _ ->
               true
           end,
-    TimeStamp = calendar:now_to_universal_time(now()),
+    TimeStamp = calendar:now_to_universal_time(os:timestamp()),
     %% Chatroom history is stored as XMPP packets, so
     %% the decision to include the original sender's JID or not is based on the
     %% chatroom configuration when the message was originally sent.
@@ -4225,7 +4228,7 @@ element_size(El) ->
 route_message(#routed_message{allowed = true, type = <<"groupchat">>,
     from = From, packet = Packet, lang = Lang}, StateData) ->
     Activity = get_user_activity(From, StateData),
-    Now = now_to_usec(now()),
+    Now = now_to_usec(os:timestamp()),
     MinMessageInterval = trunc(gen_mod:get_module_opt(
         StateData#state.server_host,
         mod_muc, min_message_interval, 0) * 1000000),
