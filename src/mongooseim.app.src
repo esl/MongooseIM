@@ -2,7 +2,7 @@
 %% dependency in other erlang applications.
 {application,mongooseim,
              [{description,"MongooseIM"},
-              {vsn,"1.5.2"},
+              {vsn,"1.6.0"},
               {modules,[]},
               {registered,[]},
               {applications,[]}]}.
