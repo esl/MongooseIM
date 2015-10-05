@@ -59,9 +59,9 @@ suite() ->
     escalus:suite().
 
 essential_test_cases() ->
-    [%create_and_terminate_session,
-     %accept_higher_hold_value,
-     %do_not_accept_0_hold_value,
+    [create_and_terminate_session,
+     accept_higher_hold_value,
+     do_not_accept_0_hold_value,
      options_request,
      get_request,
      post_empty_body,
