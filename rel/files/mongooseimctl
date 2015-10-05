@@ -201,8 +201,8 @@ do
         --)
 	    break ;;
          *)
-	    ARGS+=$PARAM; ARGS+=" ";
-	    QUOTED_ARGS+='"'$PARAM'"'; QUOTED_ARGS+=" " ;;
+	    ARGS="$ARGS$PARAM"; ARGS="$ARGS ";
+	    QUOTED_ARGS=$QUOTED_ARGS'"'$PARAM'"'; QUOTED_ARGS=$QUOTED_ARGS" " ;;
     esac
 done
 
