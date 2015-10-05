@@ -1141,8 +1141,8 @@ compute_config_file_version(#state{opts = Opts, hosts = Hosts}) ->
     L = sort_config(Opts ++ Hosts),
     crypto:hash(sha, term_to_binary(L)).
 
--spec check_hosts([ejabberd:host()], [ejabberd:host()]) -> {[ejabberd:host()],
-                                                            [ejabberd:host()]}.
+-spec check_hosts([ejabberd:server()], [ejabberd:server()]) -> {[ejabberd:server()],
+                                                                [ejabberd:server()]}.
 check_hosts(NewHosts, OldHosts) ->
     Old = sets:from_list(OldHosts),
     New = sets:from_list(NewHosts),
@@ -1150,7 +1150,7 @@ check_hosts(NewHosts, OldHosts) ->
     ListToDel = sets:to_list(sets:subtract(Old,New)),
     {ListToDel, ListToAdd}.
 
--spec add_virtual_host(Host :: ejabber:host()) -> any().
+-spec add_virtual_host(Host :: ejabberd:server()) -> any().
 add_virtual_host(Host) ->
     ?DEBUG("Register host:~p",[Host]),
     ejabberd_local:register_host(Host).
@@ -1165,7 +1165,7 @@ remove_virtual_host(Host) ->
     ?DEBUG("Unregister host :~p", [Host]),
     ejabberd_local:unregister_host(Host).
 
--spec reload_modules(Host :: ejabberd:host(),
+-spec reload_modules(Host :: ejabberd:server(),
                      ChangedModules :: compare_result()) -> 'ok'.
 reload_modules(Host, #compare_result{to_start = Start, to_stop = Stop,
                                      to_reload = Reload} = ChangedModules) ->
@@ -1224,7 +1224,7 @@ group_host_changes(Changes) when is_list(Changes) ->
      || {Group, MaybeDeepList} <- dict:to_list(D)].
 
 %% match all hosts
--spec get_host_local_config() -> [{local_config, {term(), ejabberd:host()}, term()}].
+-spec get_host_local_config() -> [{local_config, {term(), ejabberd:server()}, term()}].
 get_host_local_config() ->
     mnesia:dirty_match_object({local_config, {'_','_'}, '_'}).
 
@@ -1240,7 +1240,7 @@ get_local_config() ->
 get_global_config() ->
     mnesia:dirty_match_object(config, {config, '_', '_'}).
 
--spec is_not_host_specific(atom() | {atom(), ejabberd:host()}) -> boolean().
+-spec is_not_host_specific(atom() | {atom(), ejabberd:server()}) -> boolean().
 is_not_host_specific( Key ) when is_atom(Key) ->
     true;
 is_not_host_specific({Key, Host}) when is_atom(Key), is_binary(Host) ->

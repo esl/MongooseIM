@@ -32,7 +32,7 @@
 
 -export([raw_to_record/2]).
 
--spec init(ejabberd:server(), list()) -> no_return().
+-spec init(ejabberd:server(), list()) -> ok.
 init(_Host, _Opts) ->
     ok.
 

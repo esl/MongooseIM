@@ -105,7 +105,7 @@ run(Hook, Args) ->
     run(Hook, global, Args).
 
 -spec run(Hook :: atom(),
-          Host :: ejabberd:server(),
+          Host :: 'global' | ejabberd:server(),
           Args :: [any()]) -> ok.
 run(Hook, Host, Args) ->
     case ets:lookup(hooks, {Hook, Host}) of
