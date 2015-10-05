@@ -41,7 +41,7 @@ revoke(#jid{lserver = LServer} = JID) ->
     EBareJID = ejabberd_odbc:escape(BBareJID),
     RevokeQuery = revoke_query(EBareJID),
     QueryResult = ejabberd_odbc:sql_query(LServer, RevokeQuery),
-    ?DEBUG("result ~p", [Res]),
+    ?DEBUG("result ~p", [QueryResult]),
     {updated, _} = QueryResult,
     ok.
 
