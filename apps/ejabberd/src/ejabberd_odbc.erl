@@ -173,9 +173,9 @@ keep_alive(PID) ->
     case Result of
         {selected, _, _} ->
             ok;
-        {error, _} ->
-            ?ERROR_MSG("Keep-alive query failed, killing ~p", [PID]),
-            exit(PID, kill)
+        {error, _}=Error ->
+            ok = ?GEN_FSM:sync_send_all_state_event(PID,
+                                                    {keepalive_failed, Error})
     end.
 
 get_db_info(Pid) ->
@@ -394,6 +394,8 @@ handle_event(_Event, StateName, State) ->
 handle_sync_event(get_db_info, _, StateName,
                   #state{db_ref = DbRef, db_type = DbType} = State) ->
     {reply, {ok, DbType, DbRef}, StateName, State};
+handle_sync_event({keepalive_failed, Error}, _From, _StateName, State) ->
+    {stop, {keepalive_failed, Error}, ok, State};
 handle_sync_event(_Event, _From, StateName, State) ->
     {reply, {error, badarg}, StateName, State}.
 
