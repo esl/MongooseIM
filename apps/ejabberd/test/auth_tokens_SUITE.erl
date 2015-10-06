@@ -49,6 +49,7 @@ init_per_testcase(serialize_deserialize_property, Config) ->
 
 init_per_testcase(validity_period_test, Config) ->
     mock_gen_iq_handler(),
+    mock_ejabberd_commands(),
     async_helper:start(Config, gen_mod, start, []);
 
 init_per_testcase(revoked_token_is_not_valid, Config) ->
@@ -65,6 +66,7 @@ end_per_testcase(serialize_deserialize_property, C) ->
 
 end_per_testcase(validity_period_test, C) ->
     meck:unload(gen_iq_handler),
+    meck:unload(ejabberd_commands),
     async_helper:stop_all(C),
     C;
 
@@ -188,6 +190,10 @@ mock_tested_backend() ->
                 fun (_) ->
                         receive {valid_seq_no, SeqNo} -> SeqNo end
                 end).
+
+mock_ejabberd_commands() ->
+    meck:new(ejabberd_commands, []),
+    meck:expect(ejabberd_commands, register_commands, fun (_) -> ok end).
 
 %%
 %% Generators
