@@ -11,6 +11,9 @@
 -export([start/2,
          stop/1]).
 
+%% Hook handlers
+-export([clean_tokens/2]).
+
 %% gen_iq_handler callbacks
 -export([process_iq/3]).
 
@@ -54,6 +57,9 @@
 -callback get_valid_sequence_number(Owner) -> integer() when
       Owner :: ejabberd:jid().
 
+-callback clean_tokens(Owner) -> ok when
+      Owner :: ejabberd:jid().
+
 -define(a2b(A), atom_to_binary(A, utf8)).
 -define(b2a(B), binary_to_atom(B, utf8)).
 
@@ -65,23 +71,33 @@
 
 -define(BACKEND, mod_auth_token_backend).
 
+%%
+%% gen_mod callbacks
+%%
+
 -spec start(ejabberd:server(), list()) -> ok.
-start(Host, Opts) ->
+start(Domain, Opts) ->
     gen_mod:start_backend_module(?MODULE, default_opts(Opts)),
-    mod_disco:register_feature(Host, ?NS_AUTH_TOKEN),
+    mod_disco:register_feature(Domain, ?NS_AUTH_TOKEN),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, no_queue),
-    gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_AUTH_TOKEN, ?MODULE, process_iq, IQDisc),
-    %% TODO: register handler for user data cleanup!
+    [ ejabberd_hooks:add(Hook, Domain, ?MODULE, Handler, Priority)
+      || {Hook, Handler, Priority} <- hook_handlers() ],
+    gen_iq_handler:add_iq_handler(ejabberd_sm, Domain, ?NS_AUTH_TOKEN, ?MODULE, process_iq, IQDisc),
     ejabberd_commands:register_commands(commands()),
+    ok.
+
+-spec stop(ejabberd:server()) -> ok.
+stop(Domain) ->
+    gen_iq_handler:remove_iq_handler(ejabberd_sm, Domain, ?NS_AUTH_TOKEN),
+    [ ejabberd_hooks:delete(Hook, Domain, ?MODULE, Handler, Priority)
+      || {Hook, Handler, Priority} <- hook_handlers() ],
     ok.
 
 default_opts(Opts) ->
     [{backend, odbc} || not proplists:is_defined(backend, Opts)] ++ Opts.
 
--spec stop(ejabberd:server()) -> ok.
-stop(Host) ->
-    gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_AUTH_TOKEN),
-    ok.
+hook_handlers() ->
+    [{remove_user, clean_tokens, 50}].
 
 -spec commands() -> [ejabberd_commands:cmd()].
 commands() ->
@@ -89,6 +105,10 @@ commands() ->
                          desc = "Revoke REFRESH token",
                          module = ?MODULE, function = revoke_token_command,
                          args = [{owner, binary}], result = {res, restuple} }].
+
+%%
+%% Other stuff
+%%
 
 -spec serialize(token()) -> serialized().
 serialize(#token{mac_signature = undefined} = T) -> error(incomplete_token, [T]);
@@ -318,4 +338,14 @@ revoke_token_command(Owner) ->
             {error, "Internal server error"}
     catch _:_ ->
             {error, "Internal server error"}
+    end.
+
+-spec clean_tokens(User :: ejabberd:user(), Server :: ejabberd:server()) -> ok.
+clean_tokens(User, Server) ->
+    try
+        Owner = jlib:make_jid(User, Server, <<>>),
+        ?BACKEND:clean_tokens(Owner)
+    catch
+        E:R -> ?ERROR_MSG("clean_tokens backend error: ~p", [{E, R}]),
+               ok
     end.

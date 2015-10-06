@@ -2,7 +2,8 @@
 -behaviour(mod_auth_token).
 
 -export([get_valid_sequence_number/1,
-         revoke/1]).
+         revoke/1,
+         clean_tokens/1]).
 
 -include("jlib.hrl").
 -include("ejabberd.hrl").
@@ -49,3 +50,15 @@ revoke(#jid{lserver = LServer} = JID) ->
 
 revoke_query(EOwner) when is_binary(EOwner) ->
     [<<"UPDATE auth_token SET seq_no=seq_no+1 WHERE owner = '", EOwner/bytes, "';">>].
+
+-spec clean_tokens(Owner) -> ok when
+      Owner :: ejabberd:jid().
+clean_tokens(#jid{lserver = LServer} = Owner) ->
+    BBareJID = jlib:jid_to_binary(jlib:jid_remove_resource(Owner)),
+    EBareJID = ejabberd_odbc:escape(BBareJID),
+    Q = clean_tokens_query(EBareJID),
+    {updated, _} = ejabberd_odbc:sql_query(LServer, Q),
+    ok.
+
+clean_tokens_query(EOwner) when is_binary(EOwner) ->
+    [<<"DELETE FROM auth_token WHERE owner = '", EOwner/bytes, "';">>].
