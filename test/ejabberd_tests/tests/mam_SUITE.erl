@@ -901,11 +901,9 @@ offline_message(Config) ->
     %% Bob checks his archive.
     escalus:send(Bob, stanza_archive_request(<<"q1">>)),
     [_ArcRes | ArcMsgs] = R = wait_archive_respond_iq_first(Bob),
-    #forwarded_message{message_body=ArcMsgBody} =
-        parse_forwarded_message(hd(lists:reverse(ArcMsgs))),
-    ?assert_equal(Msg, ArcMsgBody),
-    escalus_cleaner:clean(Config).
+    assert_only_one_of_many_is_equal(ArcMsgs, Msg),
 
+    escalus_cleaner:clean(Config).
 
 purge_single_message(Config) ->
     F = fun(Alice, Bob) ->
@@ -1668,6 +1666,15 @@ add_with_jid(BWithJID,
         Query=#xmlel{children=QueryChildren}]}) ->
     IQ#xmlel{children=[
         Query#xmlel{children=[maybe_with_elem(BWithJID) | QueryChildren]}]}.
+
+assert_only_one_of_many_is_equal(Archived, Sent) ->
+    Scanned = lists:map(fun parse_forwarded_message/1, Archived),
+    Same = lists:filter(fun (Stanza) -> is_same_message_text(Stanza, Sent) end, Scanned),
+    ?assert_equal(1, erlang:length(Same)).
+
+is_same_message_text(Stanza, Raw) ->
+    #forwarded_message{message_body = A} = Stanza,
+    A =:= Raw.
 
 %% ----------------------------------------------------------------------
 %% PREFERENCE QUERIES
