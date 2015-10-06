@@ -37,6 +37,7 @@ BaseAppsToInclude = AppsToRun ++
                      ranch,
                      cowlib,
                      bear,
+                     jsx,
                      mochijson2,
                      p1_cache_tab,
                      pa,
