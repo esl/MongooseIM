@@ -140,10 +140,15 @@ deserialize(Serialized) when is_binary(Serialized) ->
     get_token_as_record(Serialized).
 
 
--spec revoke(Owner) -> ok | not_found when
+-spec revoke(Owner) -> ok | not_found | error when
       Owner :: ejabberd:jid().
 revoke(Owner) ->
-    ?BACKEND:revoke(Owner).
+    try
+        ?BACKEND:revoke(Owner)
+    catch
+        E:R -> ?ERROR_MSG("backend error!",[{E,R}]),
+               error
+    end.
 
 -spec validate_token(serialized()) -> validation_result().
 validate_token(SerializedToken) ->
@@ -161,7 +166,12 @@ validate_token(SerializedToken) ->
         {ok, access} ->
             {ok, mod_auth_token, Owner#jid.luser};
         {ok, refresh} ->
-            {ok, mod_auth_token, Owner#jid.luser, serialize(token(access, Owner))};
+            case token(access, Owner) of
+                #token{} = T ->
+                    {ok, mod_auth_token, Owner#jid.luser, serialize(T)};
+                {error, R} ->
+                    {error, R}
+            end;
         {error, _} ->
             {error, {Owner#jid.luser, [ Criterion
                                         || {_, false} = Criterion <- Criteria ]}}
@@ -178,8 +188,13 @@ is_not_expired(#token{expiry_datetime = Expiry}) ->
 is_revoked(#token{type = access}) ->
     false;
 is_revoked(#token{type = refresh, sequence_no = TokenSeqNo} = T) ->
-    ValidSeqNo = ?BACKEND:get_valid_sequence_number(T#token.user_jid),
-    TokenSeqNo < ValidSeqNo.
+    try
+        ValidSeqNo = ?BACKEND:get_valid_sequence_number(T#token.user_jid),
+        TokenSeqNo < ValidSeqNo
+    catch
+        E:R -> ?ERROR_MSG("error checking revocation status: ~p", [{E,R}]),
+               true
+    end.
 
 -spec process_iq(jid(), jid(), iq()) -> iq() | error().
 process_iq(From, _To, #iq{xmlns = ?NS_AUTH_TOKEN} = IQ) ->
@@ -188,11 +203,15 @@ process_iq(_From, _To, #iq{}) ->
     {error, ?ERR_BAD_REQUEST}.
 
 create_token_response(From, IQ) ->
-    IQ#iq{type = result,
-          sub_el = [#xmlel{name = <<"items">>,
-                           attrs = [{<<"xmlns">>, ?NS_AUTH_TOKEN}],
-                           children = [token_to_xmlel(token(access, From)),
-                                       token_to_xmlel(token(refresh, From))]}]}.
+    case {token(access, From), token(refresh, From)} of
+        {#token{} = AccessToken, #token{} = RefreshToken} ->
+            IQ#iq{type = result,
+                  sub_el = [#xmlel{name = <<"items">>,
+                                   attrs = [{<<"xmlns">>, ?NS_AUTH_TOKEN}],
+                                   children = [token_to_xmlel(AccessToken),
+                                               token_to_xmlel(RefreshToken)]}]};
+        {_,_} -> {error, ?ERR_INTERNAL_SERVER_ERROR}
+    end.
 
 -spec datetime_to_seconds(calendar:datetime()) -> non_neg_integer().
 datetime_to_seconds(DateTime) ->
@@ -205,17 +224,22 @@ seconds_to_datetime(Seconds) ->
 utc_now_as_seconds() ->
     datetime_to_seconds(calendar:universal_time()).
 
--spec token(token_type(), ejabberd:jid()) -> token().
+-spec token(token_type(), ejabberd:jid()) -> token() | error().
 token(Type, User) ->
     T = #token{type = Type,
                expiry_datetime = expiry_datetime(User#jid.lserver, Type, utc_now_as_seconds()),
                user_jid = User},
-    token_with_mac(case Type of
-                       access -> T;
-                       refresh ->
-                           ValidSeqNo = ?BACKEND:get_valid_sequence_number(User),
-                           T#token{sequence_no = ValidSeqNo}
-                   end).
+    try
+        token_with_mac(case Type of
+                           access -> T;
+                           refresh ->
+                               ValidSeqNo = ?BACKEND:get_valid_sequence_number(User),
+                               T#token{sequence_no = ValidSeqNo}
+                       end)
+    catch
+        E:R -> ?ERROR_MSG("error creating token sequence number", [{E,R}]),
+               {error, {E,R}}
+    end.
 
 %% {modules, [
 %%            {mod_auth_token, [{{validity_period, access}, {13, minutes}},
@@ -289,7 +313,9 @@ revoke_token_command(Owner) ->
         not_found ->
             {not_found, "User or token not found."};
         ok ->
-            {ok, "Revoked."}
+            {ok, "Revoked."};
+        error ->
+            {error, "Internal server error"}
     catch _:_ ->
             {error, "Internal server error"}
     end.
