@@ -21,6 +21,9 @@ all() ->
 init_per_suite(Config) ->
     Config.
 
+end_per_suite(_Config) ->
+    meck:unload().
+
 groups() ->
     [{odbc, [], tests()},
      {mysql, [], tests()},
