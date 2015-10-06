@@ -22,6 +22,9 @@
 
 -import(mongoose_helper, [auth_modules/0]).
 
+-define(SINGLE_QUOTE_CHAR, $\').
+-define(DOUBLE_QUOTE_CHAR, $\").
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -276,7 +279,7 @@ kick_session(Config) ->
                 Domain = escalus_client:server(Alice),
                 Resource = escalus_client:resource(Alice),
 
-                {_, 0} = ejabberdctl("kick_session", [Username, Domain, Resource, "'\"Because I can!\"'"], Config),
+                {_, 0} = ejabberdctl("kick_session", [Username, Domain, Resource, "\"Because I can!\""], Config),
                 Stanza = escalus:wait_for_stanza(Alice),
                 escalus:assert(is_stream_error, [<<"conflict">>, <<"Because I can!">>], Stanza)
         end).
@@ -381,7 +384,7 @@ rosteritem_rw(Config) ->
                 {_, 0} = ejabberdctl("add_rosteritem", [AliceName, Domain, BobName,
                                                         Domain, "MyBob", "MyGroup", "both"], Config),
                 {_, 0} = ejabberdctl("add_rosteritem", [AliceName, Domain, MikeName,
-                                                        Domain, "MyMike", "MyGroup", "both"], Config),
+                                                        Domain, "\"My Mike\"", "\'My Group\'", "both"], Config),
 
                 [Push1, Push2] = escalus:wait_for_stanzas(Alice, 2), % Check roster broadcasts
                 escalus:assert(is_roster_set, Push1),
@@ -530,13 +533,13 @@ send_message(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 2}], fun(Alice, Bob1, Bob2) ->
                 {_, 0} = ejabberdctl("send_message_chat", [escalus_client:full_jid(Alice),
                                                            escalus_client:full_jid(Bob1),
-                                                           "'\"Hi Bob!\"'"], Config),
+                                                           "\"Hi Bob!\""], Config),
                 Stanza1 = escalus:wait_for_stanza(Bob1),
                 escalus:assert(is_chat_message, [<<"Hi Bob!">>], Stanza1),
                 
                 {_, 0} = ejabberdctl("send_message_headline", [escalus_client:full_jid(Alice),
                                                                     escalus_client:short_jid(Bob1),
-                                                                    "Subj", "'\"Hi Bob!!\"'"], Config),
+                                                                    "Subj", "\"Hi Bob!!\""], Config),
                 Stanza2 = escalus:wait_for_stanza(Bob1),
                 Stanza3 = escalus:wait_for_stanza(Bob2),
                 escalus:assert(is_headline_message, [<<"Subj">>, <<"Hi Bob!!">>], Stanza2),
@@ -551,8 +554,8 @@ send_stanza(Config) ->
                 BobJID = <<BobName/binary, $@, Domain/binary, $/, (escalus_client:resource(Bob))/binary>>,
 
                 Stanza = re:replace(exml:to_binary(escalus_stanza:from(escalus_stanza:chat_to(Alice, "Hi"), BobJID)),
-                                    <<"\'">>, <<"\"">>, [global, {return, binary}]),
-                {_, 0} = ejabberdctl("send_stanza_c2s", [BobName, Domain, Resource, <<$', Stanza/binary, $'>>], Config),
+                                    <<?DOUBLE_QUOTE_CHAR>>, <<?SINGLE_QUOTE_CHAR>>, [global, {return, binary}]),
+                {_, 0} = ejabberdctl("send_stanza_c2s", [BobName, Domain, Resource, <<$\", Stanza/binary, $\">>], Config),
 
                 Message = escalus:wait_for_stanza(Alice),
                 escalus:assert(is_chat_message, [<<"Hi">>], Message),
