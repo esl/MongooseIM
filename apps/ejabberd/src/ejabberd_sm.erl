@@ -57,6 +57,9 @@
          get_user_present_resources/2
         ]).
 
+%% Hook handlers
+-export([node_cleanup/1]).
+
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
@@ -88,7 +91,6 @@
             ]).
 
 %% default value for the maximum number of user connections
-%% quite big but not infinity
 -define(MAX_USER_SESSIONS, 100).
 -define(SM_BACKEND, (ejabberd_sm_backend:backend())).
 
@@ -334,6 +336,13 @@ unregister_iq_handler(Host, XMLNS) ->
     ejabberd_sm ! {unregister_iq_handler, Host, XMLNS}.
 
 %%====================================================================
+%% Hook handlers
+%%====================================================================
+
+node_cleanup(Node) ->
+    gen_server:call(?MODULE, {node_cleanup, Node}).
+
+%%====================================================================
 %% gen_server callbacks
 %%====================================================================
 
@@ -350,8 +359,8 @@ init([]) ->
     {Mod, Code} = dynamic_compile:from_string(sm_backend(Backend)),
     code:load_binary(Mod, "ejabberd_sm_backend.erl", Code),
 
-    net_kernel:monitor_nodes(true),
     ets:new(sm_iqtable, [named_table]),
+    ejabberd_hooks:add(node_cleanup, global, ?MODULE, node_cleanup, 50),
     lists:foreach(
       fun(Host) ->
               ejabberd_hooks:add(roster_in_subscription, Host,
@@ -376,6 +385,12 @@ init([]) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
+handle_call({node_cleanup, Node}, _From, State) ->
+    BackendModule = ?SM_BACKEND,
+    {TimeDiff, _R} = timer:tc(fun BackendModule:cleanup/1, [Node]),
+    ?INFO_MSG("sessions cleanup after node=~p, took=~pms",
+              [Node, erlang:round(TimeDiff / 1000)]),
+    {reply, ok, State};
 handle_call(_Request, _From, State) ->
     Reply = ok,
     {reply, Reply, State}.
@@ -404,9 +419,6 @@ handle_info({route, From, To, Packet}, State) ->
         _ ->
             ok
     end,
-    {noreply, State};
-handle_info({nodedown, Node}, State) ->
-    ?SM_BACKEND:cleanup(Node),
     {noreply, State};
 handle_info({register_iq_handler, Host, XMLNS, Module, Function}, State) ->
     ets:insert(sm_iqtable, {{XMLNS, Host}, Module, Function}),

@@ -49,6 +49,13 @@ init([]) ->
          brutal_kill,
          worker,
          [ejabberd_hooks]},
+    Cleaner =
+        {mongooseim_cleaner,
+         {mongooseim_cleaner, start_link, []},
+         permanent,
+         brutal_kill,
+         worker,
+         [mongooseim_cleaner]},
     Router =
         {ejabberd_router,
          {ejabberd_router, start_link, []},
@@ -179,6 +186,7 @@ init([]) ->
           ShaperSpecs ++
           [Randoms,
            Hooks,
+           Cleaner,
            SMBackendSupervisor,
            Router,
            SM,

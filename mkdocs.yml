@@ -49,4 +49,6 @@ pages:
       - 'Testing MongooseIM': 'developers-guide/Testing-MongooseIM.md'
       - 'REST interface to metrics': 'developers-guide/REST-interface-to-metrics.md'
       - 'Hooks and Handlers': 'developers-guide/Hooks-and-handlers.md'
+      - 'Hooks description': 'developers-guide/hooks_description.md'
+      - 'Stanza routing': 'developers-guide/message_routing.md'
       - 'mod_amp development': 'developers-guide/mod_amp_developers_guide.md'
