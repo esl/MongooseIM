@@ -87,39 +87,39 @@ meck_db(odbc) ->
     meck:new(odbc, [no_link]),
     meck:expect(odbc, connect, fun(_, _) -> {ok, self()} end),
     meck:expect(odbc, sql_query,
-                fun(_Ref, _Query) ->
+                fun(_Ref, _Query, _Timeout) ->
                         {selected, ["column"], ["row"]}
                 end);
 meck_db(mysql) ->
     meck:new(mysql_conn, [no_link]),
     meck:expect(mysql_conn, start, fun(_, _, _, _, _, _) -> {ok, self()} end),
     meck:expect(mysql_conn, fetch,
-               fun(_Ref, _Query, _Pid) ->
+               fun(_Ref, _Query, _Pid, _Timeout) ->
                        {data, {mysql_result, [], [], 0, ""}}
                end);
 meck_db(pgsql) ->
     meck:new(pgsql, [no_link]),
     meck:expect(pgsql, connect, fun(_) -> {ok, self()} end),
     meck:expect(pgsql, squery,
-                fun(_Ref, "SET" ++ _) ->
+                fun(_Ref, "SET" ++ _, _Timeout) ->
                         {ok, [<<"SET">>]};
-                   (_Ref, [<<"SELECT", _/binary>>]) ->
+                   (_Ref, [<<"SELECT", _/binary>>], _Timeout) ->
                         {ok, [{<<"SELECT">>, [], []}]}
                 end).
 
 meck_error(odbc) ->
     meck:expect(odbc, sql_query,
-                fun(_Ref, _Query) ->
+                fun(_Ref, _Query, _Timeout) ->
                         {error, "connection broken"}
                 end);
 meck_error(mysql) ->
     meck:expect(mysql_conn, fetch,
-                fun(_Ref, _Query, _Pid) ->
+                fun(_Ref, _Query, _Pid, _Timeout) ->
                         {error, "connection broken"}
                 end);
 meck_error(pgsql) ->
     meck:expect(pgsql, squery,
-                fun(_Ref, _Query) ->
+                fun(_Ref, _Query, _Timeout) ->
                         {ok, [{error, "connection broken"}]}
                 end).
 
@@ -147,11 +147,11 @@ mf(pgsql) ->
     {pgsql, squery}.
 
 a(odbc) ->
-    ['_', [?KEEPALIVE_QUERY]];
-a(mysql) ->
     ['_', [?KEEPALIVE_QUERY], '_'];
+a(mysql) ->
+    ['_', [?KEEPALIVE_QUERY], '_', '_'];
 a(pgsql) ->
-    ['_', [?KEEPALIVE_QUERY]].
+    ['_', [?KEEPALIVE_QUERY], '_'].
 
 server(odbc) ->
     "fake-connection-string";
