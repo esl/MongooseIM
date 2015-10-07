@@ -344,7 +344,7 @@ process_data(Data,
     State#state{xml_stream_state = XMLStreamState1,
                 shaper_state = NewShaperState}.
 
-maybe_pause(_, #state{c2s_pid = undefinde}) ->
+maybe_pause(_, #state{c2s_pid = undefined}) ->
     ok;
 maybe_pause(Pause, _State) when Pause > 0 ->
     erlang:start_timer(Pause, self(), activate);
