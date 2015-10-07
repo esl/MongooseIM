@@ -48,6 +48,7 @@ init_per_testcase(serialize_deserialize_property, Config) ->
     Config1;
 
 init_per_testcase(validity_period_test, Config) ->
+    mock_mongoose_metrics(),
     mock_gen_iq_handler(),
     mock_ejabberd_commands(),
     async_helper:start(Config, gen_mod, start, []);
@@ -65,6 +66,7 @@ end_per_testcase(serialize_deserialize_property, C) ->
     C;
 
 end_per_testcase(validity_period_test, C) ->
+    meck:unload(mongoose_metrics),
     meck:unload(gen_iq_handler),
     meck:unload(ejabberd_commands),
     async_helper:stop_all(C),
