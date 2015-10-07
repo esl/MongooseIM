@@ -320,8 +320,8 @@ get_token_as_record(BToken) ->
 acquire_key_for_user(User) ->
     UsersHost = User#jid.lserver,
     %% todo : extract key name from config (possible resolution by host)
-    [{{asdqwe_access_secret, UsersHost}, RawKey}] = ejabberd_hooks:run_fold(
-                                         get_key, UsersHost, [], [{asdqwe_access_secret, UsersHost}]),
+    [{{token_secret, UsersHost}, RawKey}] = ejabberd_hooks:run_fold(
+                                         get_key, UsersHost, [], [{token_secret, UsersHost}]),
     RawKey.
 
 -spec revoke_token_command(Owner) -> ResTuple when
