@@ -62,7 +62,7 @@
 
 -export_type([authmodule/0]).
 
--type authmodule() :: atom().
+-type authmodule() :: module().
 
 -define(METRIC(Host, Name), [backends, auth, Host, Name]).
 %%%----------------------------------------------------------------------

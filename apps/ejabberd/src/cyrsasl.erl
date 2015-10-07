@@ -41,7 +41,7 @@
           module,
           password_type
          }).
--type sasl_module() :: atom().
+-type sasl_module() :: module().
 -type sasl_mechanism() :: #sasl_mechanism{
                              mechanism :: mechanism(),
                              module :: sasl_module(),

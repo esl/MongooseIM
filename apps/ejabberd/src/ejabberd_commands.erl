@@ -223,7 +223,7 @@
                   tags :: [atom()],
                   desc :: string(),
                   longdesc :: string(),
-                  module :: atom(),
+                  module :: module(),
                   function :: atom(),
                   args :: [ejabberd_commands:aterm()],
                   result :: ejabberd_commands:rterm()

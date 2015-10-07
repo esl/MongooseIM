@@ -365,7 +365,7 @@ start_listener2(Port, Module, Opts) ->
     start_module_sup(Port, Module),
     start_listener_sup(Port, Module, Opts).
 
--spec start_module_sup(_, Module :: atom())
+-spec start_module_sup(_, Module :: module())
       -> {'error',_} | {'ok','undefined' | pid()} | {'ok','undefined' | pid(),_}.
 start_module_sup(_PortIPProto, Module) ->
     Proc1 = gen_mod:get_module_proc("sup", Module),

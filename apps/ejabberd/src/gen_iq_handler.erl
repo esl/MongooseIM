@@ -44,7 +44,7 @@
 -include("ejabberd.hrl").
 
 -record(state, {host     :: ejabberd:server(),
-                module   :: atom(),
+                module   :: module(),
                 function :: atom()
                }).
 -type state()     :: #state{}.
