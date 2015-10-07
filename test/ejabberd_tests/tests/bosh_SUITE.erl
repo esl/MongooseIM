@@ -48,8 +48,8 @@ https() ->
     end.
 
 groups() ->
-    [{essential, [{repeat_until_any_fail,10}], essential_test_cases()},
-     {essential_https, [{repeat_until_any_fail,10}], essential_test_cases()},
+    [{essential, [shuffle, {repeat_until_any_fail,10}], essential_test_cases()},
+     {essential_https, [shuffle, {repeat_until_any_fail,10}], essential_test_cases()},
      {chat, [shuffle, {repeat_until_any_fail,10}], chat_test_cases()},
      {chat_https, [shuffle, {repeat_until_any_fail,10}], chat_test_cases()},
      {time, [shuffle, {repeat_until_any_fail,10}], time_test_cases()},
@@ -61,7 +61,11 @@ suite() ->
 essential_test_cases() ->
     [create_and_terminate_session,
      accept_higher_hold_value,
-     do_not_accept_0_hold_value].
+     do_not_accept_0_hold_value,
+     options_request,
+     get_request,
+     post_empty_body,
+     put_request].
 
 chat_test_cases() ->
     [interleave_requests,
@@ -210,34 +214,74 @@ do_not_accept_0_hold_value(Config) ->
 
 
 send_specific_hold(Config, HoldValue) ->
-    NamedSpecs = escalus_config:get_config(escalus_users, Config),
-    CarolSpec = proplists:get_value(?config(user, Config), NamedSpecs),
-    Server = proplists:get_value(server, CarolSpec),
-    Path = proplists:get_value(path, CarolSpec),
-    Port = proplists:get_value(port, CarolSpec),
-    UseSSL = proplists:get_value(ssl, CarolSpec, false),
+    {Server, Path, Client} = get_fusco_connection(Config),
+
     Rid = random:uniform(1000000),
     Body0 = escalus_bosh:session_creation_body(2, <<"1.0">>, <<"en">>, Rid, Server, nil),
     #xmlel{attrs = Attrs0} = Body0,
     Attrs = lists:keyreplace(<<"hold">>, 1, Attrs0, {<<"hold">>, HoldValue}),
     Body = Body0#xmlel{attrs = Attrs},
 
-    {ok, Client} = fusco_cp:start_link({binary_to_list(Server), Port, UseSSL}, [],1),
-    Headers = [{<<"Content-Type">>, <<"text/xml; charset=utf-8">>}],
-    {ok, Result} = fusco_cp:request(Client, Path, "POST", Headers, exml:to_iolist(Body), 2, 5000),
+    Result = fusco_request(Client, <<"POST">>, Path, exml:to_iolist(Body)),
     {{<<"200">>,<<"OK">>}, _Headers, RespBody, _, _} = Result,
+
     {ok, #xmlel{attrs = RespAttrs} = Resp} = exml:parse(RespBody),
     case lists:keyfind(<<"sid">>, 1, RespAttrs) of
         {<<"sid">>, SID} ->
             TerminateBody = escalus_bosh:session_termination_body(Rid + 1, SID),
-            fusco_cp:request(Client, Path, "POST", Headers,
-                             exml:to_iolist(TerminateBody), 2, 5000);
+            fusco_request(Client, <<"POST">>, Path, exml:to_iolist(TerminateBody));
         _ ->
             skip
     end,
     fusco_cp:stop(Client),
     Resp.
 
+fusco_request(Client, Method, Path, Body) ->
+    fusco_request(Client, Method, Path, Body, []).
+
+fusco_request(Client, Method, Path, Body, HeadersIn) ->
+    Headers = [{<<"Content-Type">>, <<"text/xml; charset=utf-8">>} | HeadersIn],
+    {ok, Result} = fusco_cp:request(Client, Path, Method, Headers, Body, 2, 5000),
+    Result.
+
+
+options_request(Config) ->
+    {Server, Path, Client} = get_fusco_connection(Config),
+    Result = fusco_request(Client, <<"OPTIONS">>, Path, <<>>, [{<<"Origin">>, Server}]),
+    fusco_cp:stop(Client),
+    {{<<"200">>, <<"OK">>}, Headers, <<>>, _, _} = Result,
+    <<"1728000">> = proplists:get_value(<<"access-control-max-age">>, Headers),
+    <<"Content-Type">> = proplists:get_value(<<"access-control-allow-headers">>, Headers),
+    <<"POST, OPTIONS, GET">> = proplists:get_value(<<"access-control-allow-methods">>, Headers),
+    Server = proplists:get_value(<<"access-control-allow-origin">>, Headers).
+
+get_request(Config) ->
+    {_Server, Path, Client} = get_fusco_connection(Config),
+    Result = fusco_request(Client, <<"GET">>, Path, <<>>),
+    fusco_cp:stop(Client),
+    {{<<"200">>,<<"OK">>}, _, _, _, _} = Result.
+
+put_request(Config) ->
+    {_Server, Path, Client} = get_fusco_connection(Config),
+    Result = fusco_request(Client, <<"PUT">>, Path, <<"not allowed body">>),
+    fusco_cp:stop(Client),
+    {{<<"405">>,<<"Method Not Allowed">>}, _, _, _, _} = Result.
+
+post_empty_body(Config) ->
+    {_Server, Path, Client} = get_fusco_connection(Config),
+    Result = fusco_request(Client, <<"POST">>, Path, <<>>),
+    fusco_cp:stop(Client),
+    {{<<"400">>,<<"Bad Request">>}, _, _, _, _} = Result.
+
+get_fusco_connection(Config) ->
+    NamedSpecs = escalus_config:get_config(escalus_users, Config),
+    CarolSpec = proplists:get_value(?config(user, Config), NamedSpecs),
+    Server = proplists:get_value(server, CarolSpec),
+    Path = proplists:get_value(path, CarolSpec),
+    Port = proplists:get_value(port, CarolSpec),
+    UseSSL = proplists:get_value(ssl, CarolSpec, false),
+    {ok, Client} = fusco_cp:start_link({binary_to_list(Server), Port, UseSSL}, [], 1),
+    {Server, Path, Client}.
 
 stream_error(Config) ->
     escalus:story(
