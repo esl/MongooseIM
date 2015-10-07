@@ -62,6 +62,7 @@
 -type req() :: cowboy_req:req().
 
 -type info() :: 'accept_options'
+              | 'accept_get'
               | 'item_not_found'
               | 'no_body'
               | 'policy_violation'
