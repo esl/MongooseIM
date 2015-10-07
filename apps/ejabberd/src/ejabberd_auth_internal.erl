@@ -56,12 +56,19 @@
 
 -include("ejabberd.hrl").
 
--record(passwd, {us :: ejabberd:simple_bare_jid() | atom(), % atom() for mnesia:dirty_select
-                 password :: binary() | #scram{} | atom() % atom() for mnesia:dirty_select
-                }).
--record(reg_users_counter, {vhost :: binary(),
-                            count :: integer() | atom() % atom() for mnesia:dirty_select
-                           }).
+-record(passwd, {us, password}).
+
+-type passwd() :: #passwd{
+                     us :: ejabberd:simple_bare_jid(),
+                     password :: binary() | #scram{}
+                    }.
+
+-record(reg_users_counter, {vhost, count}).
+
+-type users_counter() :: #reg_users_counter {
+                            vhost :: binary(),
+                            count :: integer()
+                           }.
 
 %%%----------------------------------------------------------------------
 %%% API
@@ -92,8 +99,7 @@ update_reg_users_counter_table(Server) ->
     Size = length(Set),
     LServer = jlib:nameprep(Server),
     F = fun() ->
-            mnesia:write(#reg_users_counter{vhost = LServer,
-                                            count = Size})
+            write_counter(#reg_users_counter{vhost = LServer, count = Size})
         end,
     mnesia:sync_dirty(F).
 
@@ -112,7 +118,7 @@ store_type(Server) ->
                      Password :: binary()) -> boolean().
 check_password(LUser, LServer, Password) ->
     US = {LUser, LServer},
-    case catch mnesia:dirty_read({passwd, US}) of
+    case catch dirty_read_passwd(US) of
         [#passwd{password = #scram{} = Scram}] ->
             scram:check_password(Password, Scram);
         [#passwd{password = Password}] ->
@@ -129,7 +135,7 @@ check_password(LUser, LServer, Password) ->
                      DigestGen :: fun()) -> boolean().
 check_password(LUser, LServer, Password, Digest, DigestGen) ->
     US = {LUser, LServer},
-    case catch mnesia:dirty_read({passwd, US}) of
+    case catch dirty_read_passwd(US) of
 	[#passwd{password = Scram}] when is_record(Scram, scram) ->
             Passwd = base64:decode(Scram#scram.storedkey),
             ejabberd_auth:check_digest(Digest, DigestGen, Password, Passwd);
@@ -151,8 +157,7 @@ set_password(LUser, LServer, Password) ->
                             scram:password_to_scram(Password, scram:iterations(LServer));
                         false -> Password
                     end,
-        mnesia:write(#passwd{us = US,
-            password = Password2})
+        write_passwd(#passwd{us = US, password = Password2})
     end,
     {atomic, ok} = mnesia:transaction(F),
     ok.
@@ -165,18 +170,15 @@ set_password(LUser, LServer, Password) ->
 try_register(LUser, LServer, Password) ->
     US = {LUser, LServer},
     F = fun() ->
-        case mnesia:read({passwd, US}) of
+        case read_passwd(US) of
             [] ->
                 Password2 = case scram:enabled(LServer) and is_binary(Password) of
                                 true ->
                                     scram:password_to_scram(Password, scram:iterations(LServer));
                                 false -> Password
                             end,
-                mnesia:write(#passwd{us = US,
-                    password = Password2}),
-                mnesia:dirty_update_counter(
-                    reg_users_counter,
-                    LServer, 1),
+                write_passwd(#passwd{us = US, password = Password2}),
+                mnesia:dirty_update_counter(reg_users_counter, LServer, 1),
                 ok;
             [_E] ->
                 exists
@@ -288,7 +290,7 @@ get_vh_registered_users_number(LServer, _) ->
                    LServer :: ejabberd:lserver()) -> binary() | false.
 get_password(LUser, LServer) ->
     US = {LUser, LServer},
-    case catch mnesia:dirty_read(passwd, US) of
+    case catch dirty_read_passwd(US) of
 	[#passwd{password = Scram}] when is_record(Scram, scram) ->
 	    {base64:decode(Scram#scram.storedkey),
 	     base64:decode(Scram#scram.serverkey),
@@ -304,7 +306,7 @@ get_password(LUser, LServer) ->
                      LServer :: ejabberd:lserver()) -> binary().
 get_password_s(LUser, LServer) ->
     US = {LUser, LServer},
-    case catch mnesia:dirty_read(passwd, US) of
+    case catch dirty_read_passwd(US) of
 	[#passwd{password = Scram}] when is_record(Scram, scram) ->
 	    <<"">>;
 	[#passwd{password = Password}] ->
@@ -318,7 +320,7 @@ get_password_s(LUser, LServer) ->
                      ) -> boolean() | {error, atom()}.
 does_user_exist(LUser, LServer) ->
     US = {LUser, LServer},
-    case catch mnesia:dirty_read({passwd, US}) of
+    case catch dirty_read_passwd(US) of
         [] ->
             false;
         [_] ->
@@ -352,7 +354,7 @@ remove_user(LUser, LServer) ->
 remove_user(LUser, LServer, Password) ->
     US = {LUser, LServer},
     F = fun() ->
-                case mnesia:read({passwd, US}) of
+                case read_passwd(US) of
                     [#passwd{password = Scram}] when is_record(Scram, scram) ->
                         case scram:check_password(Password, Scram) of
                             true ->
@@ -384,16 +386,34 @@ remove_user(LUser, LServer, Password) ->
             {error, bad_request}
     end.
 
+-spec scram_passwords() -> {atomic, ok}.
 scram_passwords() ->
     ?INFO_MSG("Converting the stored passwords into SCRAM bits", []),
-    Fun = fun(#passwd{us = {_, Server}, password = Password} = P) ->
-                  Scram = scram:password_to_scram(Password, scram:iterations(Server)),
-                  P#passwd{password = Scram}
-          end,
     Fields = record_info(fields, passwd),
-    mnesia:transform_table(passwd, Fun, Fields).
+    {atomic, ok} = mnesia:transform_table(passwd, fun scramming_function/1, Fields).
 
+-spec scramming_function(passwd()) -> passwd().
+scramming_function(#passwd{us = {_, Server}, password = Password} = P) ->
+    Scram = scram:password_to_scram(Password, scram:iterations(Server)),
+    P#passwd{password = Scram}.
+
+-spec dirty_read_passwd(US :: ejabberd:simple_bare_jid()) -> [passwd()].
+dirty_read_passwd(US) ->
+    mnesia:dirty_read(passwd, US).
+
+-spec read_passwd(US :: ejabberd:simple_bare_jid()) -> [passwd()].
+read_passwd(US) ->
+    mnesia:read({passwd, US}).
+
+-spec write_passwd(passwd()) -> ok.
+write_passwd(#passwd{} = Passwd) ->
+    mnesia:write(Passwd).
+
+-spec write_counter(users_counter()) -> ok.
+write_counter(#reg_users_counter{} = Counter) ->
+    mnesia:write(Counter).
 
 %% @doc gen_auth unimplemented callbacks
 login(_User, _Server) -> erlang:error(not_implemented).
 get_password(_User, _Server, _DefaultValue) -> erlang:error(not_implemented).
+

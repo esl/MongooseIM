@@ -36,11 +36,18 @@
 
 -include("ejabberd.hrl").
 
--record(sasl_mechanism, {mechanism :: mechanism() | atom(), % atom() used in ets:select
-                         module :: sasl_module(),
-                         password_type :: plain | digest | scram | atom() % atom() used in ets:select
-                        }).
+-record(sasl_mechanism, {
+          mechanism,
+          module,
+          password_type
+         }).
 -type sasl_module() :: atom().
+-type sasl_mechanism() :: #sasl_mechanism{
+                             mechanism :: mechanism(),
+                             module :: sasl_module(),
+                             password_type :: plain | digest | scram
+                            }.
+
 -type mechanism() :: binary().
 
 -record(sasl_state, {service :: binary(),
@@ -93,12 +100,15 @@ start() ->
 
 -spec register_mechanism(Mechanism :: mechanism(),
                          Module :: sasl_module(),
-                         PasswordType :: plain | digest | scram) -> 'true'.
+                         PasswordType :: plain | digest | scram) -> true.
 register_mechanism(Mechanism, Module, PasswordType) ->
-    ets:insert(sasl_mechanism,
-	       #sasl_mechanism{mechanism = Mechanism,
-			       module = Module,
-			       password_type = PasswordType}).
+    ets_insert_mechanism(#sasl_mechanism{mechanism = Mechanism,
+                                         module = Module,
+                                         password_type = PasswordType}).
+
+-spec ets_insert_mechanism(MechanismRec :: sasl_mechanism()) -> true.
+ets_insert_mechanism(MechanismRec) ->
+    ets:insert(sasl_mechanism, MechanismRec).
 
 %%% TODO: use callbacks
 %%-include("ejabberd.hrl").
@@ -172,7 +182,7 @@ server_new(Service, ServerFQDN, UserRealm, _SecFlags,
                 check_password_digest= CheckPasswordDigest}.
 
 -spec server_start(sasl_state(),
-                 Mech :: any(),
+                 Mech :: mechanism(),
                  ClientIn :: binary()) -> {ok, _}
                                         | {ok, term(), term()}
                                         | {error, binary()}
@@ -181,7 +191,7 @@ server_new(Service, ServerFQDN, UserRealm, _SecFlags,
 server_start(State, Mech, ClientIn) ->
     case lists:member(Mech, listmech(State#sasl_state.myname)) of
         true ->
-            case ets:lookup(sasl_mechanism, Mech) of
+            case lookup_mech(Mech) of
                 [#sasl_mechanism{module = Module}] ->
                     {ok, MechState} = Module:mech_new(
                                         State#sasl_state.myname,
@@ -197,6 +207,10 @@ server_start(State, Mech, ClientIn) ->
         false ->
             {error, <<"no-mechanism">>}
     end.
+
+-spec lookup_mech(Mech :: mechanism()) -> [sasl_mechanism()].
+lookup_mech(Mech) ->
+    ets:lookup(sasl_mechanism, Mech).
 
 -spec server_step(State :: sasl_state(), ClientIn :: binary()) ->
                                           {'error', _}
