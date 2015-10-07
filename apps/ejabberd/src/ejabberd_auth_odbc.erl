@@ -82,7 +82,7 @@ store_type(Server) ->
                      Password :: binary()) -> boolean().
 check_password(LUser, LServer, Password) ->
     Username = ejabberd_odbc:escape(LUser),
-    check_password_wo_escape(Username, LServer, Password).
+    true == check_password_wo_escape(Username, LServer, Password).
 
 
 -spec check_password(LUser :: ejabberd:luser(),
