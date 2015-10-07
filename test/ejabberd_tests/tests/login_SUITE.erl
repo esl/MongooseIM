@@ -40,14 +40,22 @@ groups() ->
     [{register, [sequence], [register,
                              check_unregistered]},
      {registration_timeout, [sequence], [registration_timeout]},
-     {login, [sequence], [log_one,
-                          log_one_digest]},
+     {login, [sequence], all_tests()},
      {login_scram, [sequence], scram_tests()},
      {login_scram_store_plain, [sequence], scram_tests()},
      {messages, [sequence], [messages_story, message_zlib_limit]}].
 
 scram_tests() ->
     [log_one, log_one_scram].
+
+all_tests() ->
+    [log_one,
+     log_non_existent_plain,
+     log_one_digest,
+     log_non_existent_digest,
+     log_one_scram,
+     log_non_existent_scram
+    ].
 
 suite() ->
     escalus:suite().
@@ -100,25 +108,16 @@ end_per_group(login_scram, Config) ->
 end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config, {by_name, [alice, bob]}).
 
-init_per_testcase(log_one_digest, Config) ->
+init_per_testcase(LoginDigest, Config) when
+      LoginDigest =:= log_one_digest; LoginDigest =:= log_non_existent_digest ->
     case get_auth_method() of
         external ->
             {skip, "external authentication requires plain password"};
         ldap ->
             {skip, "ldap authentication requires plain password"};
         _ ->
-            Conf1 = [ {escalus_auth_method, <<"DIGEST-MD5">>} | Config],
-            escalus:init_per_testcase(log_one_digest, Conf1)
+            escalus:init_per_testcase(LoginDigest, Config)
     end;
-init_per_testcase(log_one_scram, Config) ->
-    Conf1 = [{escalus_auth_method, <<"SCRAM-SHA-1">>} | Config],
-    escalus:init_per_testcase(log_one_digest, Conf1);
-init_per_testcase(log_one_basic_digest, Config) ->
-    Conf1 = [ {escalus_auth_method, digest} | Config],
-    escalus:init_per_testcase(log_one_digest, Conf1);
-init_per_testcase(log_one_basic_plain, Config) ->
-    Conf1 = [ {escalus_auth_method, password} | Config],
-    escalus:init_per_testcase(log_one_digest, Conf1);
 init_per_testcase(check_unregistered, Config) ->
     Config;
 init_per_testcase(message_zlib_limit, Config) ->
@@ -202,17 +201,27 @@ log_one(Config) ->
         end).
 
 log_one_digest(Config) ->
-    log_one(Config).
+    log_one([{escalus_auth_method, <<"DIGEST-MD5">>} | Config]).
 
 log_one_scram(Config) ->
-    log_one(Config).
+    log_one([{escalus_auth_method, <<"SCRAM-SHA-1">>} | Config]).
 
-log_one_basic_plain(Config) ->
-    log_one(Config).
 
-log_one_basic_digest(Config) ->
-    log_one(Config).
+log_non_existent_plain(Config) ->
+    {auth_failed, _, _} = log_non_existent(Config).
 
+log_non_existent_digest(Config) ->
+    R = log_non_existent([{escalus_auth_method, <<"DIGEST-MD5">>} | Config]),
+    {expected_challenge, _, _} = R.
+
+log_non_existent_scram(Config) ->
+    R = log_non_existent([{escalus_auth_method, <<"SCRAM-SHA-1">>} | Config]),
+    {expected_challenge, _, _} = R.
+
+log_non_existent(Config) ->
+    [{kate, UserSpec}] = escalus_users:get_users({by_name, [kate]}),
+    {error, {connection_step_failed, _, R}} = escalus_client:start(Config, UserSpec, <<"res">>),
+    R.
 
 messages_story(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
