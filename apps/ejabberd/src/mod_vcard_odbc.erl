@@ -138,12 +138,10 @@ make_restriction_sql(LServer, Data) ->
 
 filter_fields([], RestrictionSQLIn, LServer) ->
     case RestrictionSQLIn of
-	"" ->
-	    "";
-        <<>> ->
-            <<>>;
-	_ ->
-	    [" where ", [RestrictionSQLIn, " and ", ["server = '", ejabberd_odbc:escape(LServer),"'"]]]
+        "" ->
+            "";
+        _ ->
+            [" where ", [RestrictionSQLIn, " and ", ["server = '", ejabberd_odbc:escape(LServer),"'"]]]
     end;
 filter_fields([{SVar, [Val]} | Ds], RestrictionSQL, LServer)
   when is_binary(Val) and (Val /= <<"">>) ->

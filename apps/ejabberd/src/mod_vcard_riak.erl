@@ -64,7 +64,7 @@ get_vcard(LUser, LServer) ->
             Other
     end.
 
--spec search(ejabberd:lserver(), list(), binary(), list()) -> list().
+-spec search(ejabberd:lserver(), list(), binary(), #xmlel{}) -> list().
 search(VHost, Data, _Lang, DefaultReportedFields) ->
     YZQuery = make_yz_query(Data, []),
 
@@ -130,7 +130,7 @@ extract_field(Props, {_, <<"user">>}) ->
     {_, Username} = lists:keyfind(riak_search_mapping(<<"user">>), 1, Props),
     {_, Bucket} = lists:keyfind(<<"_yz_rb">>, 1, Props),
     [_, Host] = binary:split(Bucket, <<"_">>),
-    ?FIELD("jid", [Username, "@", Host]);
+    ?FIELD(<<"jid">>, iolist_to_binary([Username, "@", Host]));
 extract_field(Props, {_, Field}) ->
     V = case lists:keyfind(riak_search_mapping(Field), 1, Props) of
             {_, Val} ->
