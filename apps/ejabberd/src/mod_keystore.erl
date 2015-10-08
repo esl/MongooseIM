@@ -9,6 +9,9 @@
 %% Hook handlers
 -export([get_key/2]).
 
+%% Tests only!
+-export([validate_opts/1]).
+
 %% Public types
 -export_type([key/0,
               key_id/0,
@@ -58,6 +61,7 @@
 
 -spec start(ejabberd:server(), list()) -> ok.
 start(Domain, Opts) ->
+    validate_opts(Opts),
     create_keystore_ets(),
     gen_mod:start_backend_module(?MODULE, Opts),
     ?BACKEND:init(Domain, Opts),
@@ -149,4 +153,15 @@ get_key_size(Opts) ->
     case lists:keyfind(ram_key_size, 1, Opts) of
         false -> ?DEFAULT_RAM_KEY_SIZE;
         {ram_key_size, KeySize} -> KeySize
+    end.
+
+validate_opts(Opts) ->
+    validate_key_ids(proplists:get_value(keys, Opts, [])).
+
+validate_key_ids(KeySpecs) ->
+    KeyIDs = [ KeyID || {KeyID, _} <- KeySpecs ],
+    SortedAndUniqueKeyIDs = lists:usort(KeyIDs),
+    case KeyIDs -- SortedAndUniqueKeyIDs of
+        [] -> ok;
+        [_|_] -> error(non_unique_key_ids, KeySpecs)
     end.

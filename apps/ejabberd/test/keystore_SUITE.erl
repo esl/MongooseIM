@@ -10,7 +10,8 @@ all() ->
      module_startup_read_key_from_file,
      module_startup_create_ram_key,
      module_startup_create_ram_key_of_given_size,
-     module_startup_for_multiple_domains
+     module_startup_for_multiple_domains,
+     module_startup_non_unique_key_ids
     ].
 
 init_per_suite(C) ->
@@ -84,6 +85,18 @@ module_startup_for_multiple_domains(_Config) ->
         get_key(<<"first.com">>, key_from_file)),
     ?ae([{{key_from_file, <<"second.com">>}, SecondKey}],
         get_key(<<"second.com">>, key_from_file)).
+
+module_startup_non_unique_key_ids(_) ->
+    %% given
+    NonUniqueKeyIDsOpts = [{keys, [{some_key, ram},
+                                   {some_key, {file, "some_key.dat"}}]}],
+    %% when
+    try
+        mod_keystore:start(<<"localhost">>, NonUniqueKeyIDsOpts)
+    %% then
+    catch
+        error:non_unique_key_ids -> ok
+    end.
 
 %%
 %% Helpers
