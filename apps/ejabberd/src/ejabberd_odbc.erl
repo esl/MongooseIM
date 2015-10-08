@@ -95,6 +95,8 @@
 -define(KEEPALIVE_TIMEOUT, 60000).
 -define(KEEPALIVE_QUERY, <<"SELECT 1;">>).
 
+-define(QUERY_TIMEOUT, 5000).
+
 %%-define(DBGFSM, true).
 
 -ifdef(DBGFSM).
@@ -168,8 +170,15 @@ sql_call({_Host, Pid}, Msg) when is_pid(Pid) ->
 
 %% @doc perform a harmless query on all opened connexions to avoid connexion close.
 keep_alive(PID) ->
-    ?GEN_FSM:sync_send_event(PID, {sql_cmd, {sql_query, ?KEEPALIVE_QUERY}, now()},
-                             ?KEEPALIVE_TIMEOUT).
+    Command = {sql_cmd, {sql_query, [?KEEPALIVE_QUERY]}, now()},
+    Result = ?GEN_FSM:sync_send_event(PID, Command, ?KEEPALIVE_TIMEOUT),
+    case Result of
+        {selected, _, _} ->
+            ok;
+        {error, _}=Error ->
+            ok = ?GEN_FSM:sync_send_all_state_event(PID,
+                                                    {keepalive_failed, Error})
+    end.
 
 get_db_info(Pid) ->
     ?GEN_FSM:sync_send_all_state_event(Pid, get_db_info).
@@ -387,6 +396,8 @@ handle_event(_Event, StateName, State) ->
 handle_sync_event(get_db_info, _, StateName,
                   #state{db_ref = DbRef, db_type = DbType} = State) ->
     {reply, {ok, DbType, DbRef}, StateName, State};
+handle_sync_event({keepalive_failed, Error}, _From, _StateName, State) ->
+    {stop, {keepalive_failed, Error}, ok, State};
 handle_sync_event(_Event, _From, StateName, State) ->
     {reply, {error, badarg}, StateName, State}.
 
@@ -578,14 +589,16 @@ sql_query_internal(Query) ->
     State = get(?STATE_KEY),
     Res = case State#state.db_type of
               odbc ->
-                  binaryze_odbc(odbc:sql_query(State#state.db_ref, Query));
+                  binaryze_odbc(odbc:sql_query(State#state.db_ref, Query,
+                                               ?QUERY_TIMEOUT));
               pgsql ->
                   ?DEBUG("Postres, Send query~n~p~n", [Query]),
-                  pgsql_to_odbc(pgsql:squery(State#state.db_ref, Query));
+                  pgsql_to_odbc(pgsql:squery(State#state.db_ref, Query,
+                                             ?QUERY_TIMEOUT));
               mysql ->
                   ?DEBUG("MySQL, Send query~n~p~n", [Query]),
-                  R = mysql_to_odbc(mysql_conn:fetch(State#state.db_ref,
-                                                     Query, self())),
+                  R = mysql_to_odbc(mysql_conn:fetch(State#state.db_ref, Query,
+                                                     self(), ?QUERY_TIMEOUT)),
                   %% ?INFO_MSG("MySQL, Received result~n~p~n", [R]),
                   R
           end,
@@ -620,7 +633,10 @@ abort_on_driver_error(Reply, From) ->
 -spec odbc_connect(ConnString :: string()) -> {ok | error, _}.
 odbc_connect(SQLServer) ->
     application:start(odbc),
-    odbc:connect(SQLServer, [{scrollable_cursors, off}, {binary_strings, on}]).
+    Opts = [{scrollable_cursors, off},
+            {binary_strings, on},
+            {timeout, 5000}],
+    odbc:connect(SQLServer, Opts).
 
 binaryze_odbc(ODBCResults) when is_list(ODBCResults) ->
     lists:map(fun binaryze_odbc/1, ODBCResults);
@@ -645,7 +661,7 @@ pgsql_connect(Server, Port, DB, Username, Password) ->
     case pgsql:connect(Params) of
         {ok, Ref} ->
             {ok,[<<"SET">>]} =
-            pgsql:squery(Ref, "SET standard_conforming_strings=off;"),
+            pgsql:squery(Ref, "SET standard_conforming_strings=off;", ?QUERY_TIMEOUT),
             {ok, Ref};
         Err -> Err
     end.
@@ -692,8 +708,10 @@ pgsql_item_to_odbc(_) ->
 mysql_connect(Server, Port, Database, Username, Password) ->
     case mysql_conn:start(Server, Port, Username, Password, Database, fun log/3) of
         {ok, Ref} ->
-            mysql_conn:fetch(Ref, [<<"set names 'utf8';">>], self()),
-            mysql_conn:fetch(Ref, [<<"SET SESSION query_cache_type=1;">>], self()),
+            mysql_conn:fetch(Ref, [<<"set names 'utf8';">>],
+                             self(), ?QUERY_TIMEOUT),
+            mysql_conn:fetch(Ref, [<<"SET SESSION query_cache_type=1;">>],
+                             self(), ?QUERY_TIMEOUT),
             {ok, Ref};
         Err ->
             Err
