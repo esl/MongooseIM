@@ -203,12 +203,12 @@ the server - unless used tokens are expired or/and the keys could not be retriev
 ### Login with refresh token
 
 When using refresh token to authenticate with the server - server will respond with new **access token** - the
-token will be issued as body of `response` as follows;
+token will be issued as body of `success` element as follows;
 
 ```
-<response xmlns="urn:ietf:params:xml:ns:xmpp-sasl">
+<success xmlns="urn:ietf:params:xml:ns:xmpp-sasl">
 cmVmcmVzaAGQ1Mzk1MmZlYzhkYjhlOTQzM2UxMw==
-</response>
+</success>
 ```
 
 Above response is to be expected unless refresh token used is expired or there were some problems with key
