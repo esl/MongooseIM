@@ -47,19 +47,18 @@ they will be used to generate key.
 
 Example configurations from `ejabberd.cfg`.
 
-Keys stored only in RAM, key name: token_secret:
+Keys stored only in RAM, key name - `token_secret`:
 
 ```
-{mod_keystore, [{keys, [{token_secret, localhost, ram}
-                    %%  {token_psk, localhost,  {file, "priv/token_psk"}},
-                    %%  {token_provision_psk, localhost, {file, "priv/provision_psk"}}
-                    ]}]}
+{mod_keystore, [{keys, [
+                        {token_secret, ram}
+                       ]}]}
 ```
 
-Pre-shared key stored on a disk, key name: `token_secret`, key filename: `token_psk`:
+Pre-shared key stored on a disk, key name - `token_secret`, key filename - `token_psk`:
 
 ```
-{mod_keystore, [{keys,  {token_secret_psk, localhost,  {file, "priv/token_psk"}} ]}]}
+{mod_keystore, [{keys, [{token_psk, {file, "priv/token_psk"}}]}]}
 ```
 
 ### Token format description.
@@ -151,11 +150,10 @@ Content of IQ query:
 
 Example:
 
-```
-<iq type='get' to='john@localhost'/>
-    <query xmlns:urn:xmpp:tmp:auth-token/>
+```xml
+<iq type='get' to='john@localhost' id='123'/>
+    <query xmlns='urn:xmpp:tmp:auth-token'/>
 </iq>
-
 ```
 
 Please note, that *we'll change namespace value* soon to keep it consistent with all the other namespaces 
@@ -174,7 +172,7 @@ Example response (encoded tokens have been truncated in this example):
 
 ```
 <iq type='result' to='john@localhost/res1' id='123' from='john@localhost' />
-    <items xmlns:urn:xmpp:tmp:auth-token>
+    <items xmlns='urn:xmpp:tmp:auth-token'>
         <access_token>cmVmcmVzaAGQ1Mzk1MmZlYzhkYjhlOTQzM2UxMw==</access_token>
         <refresh_token>cmVmcmVzaAGQ1Mzk1MmZlYzhkYjhlOTQzM2UxMw==</refresh_token>
     </items>
