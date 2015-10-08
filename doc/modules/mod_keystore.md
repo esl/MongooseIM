@@ -10,6 +10,9 @@ and pre-shared keys which can be read from a file.
 RAM-only keys provide better security since they are never written to persistent
 storage - at the cost of loss in case of a cluster-global failure or restart.
 
+As of now [`mod_auth_token`](mod_auth_token) is the only module
+dependent on `mod_keystore`.
+
 ### Example Configuration
 
 It's crucial to understand the distinction between single-tenant and
