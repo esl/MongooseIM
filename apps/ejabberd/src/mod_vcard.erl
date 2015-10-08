@@ -59,7 +59,7 @@
 
 -record(state,{search           :: boolean(),
                host             :: binary(),
-               directory_host   :: string()
+               directory_host   :: binary()
               }).
 
 %%--------------------------------------------------------------------
@@ -69,7 +69,7 @@
     Host :: binary(),
     Opts :: list().
 
--callback remove_user(LUser, LServer) -> ok when
+-callback remove_user(LUser, LServer) -> any() when
     LUser :: binary(),
     LServer :: binary().
 
@@ -146,7 +146,7 @@ init([VHost, Opts]) ->
         _ ->
             ok
     end,
-    {ok,#state{host=VHost, search = Search, directory_host = DirectoryHost}}.
+    {ok, #state{host = VHost, search = Search, directory_host = DirectoryHost}}.
 
 terminate(_Reason, State) ->
     VHost = State#state.host,
@@ -195,16 +195,14 @@ process_local_iq(_From,_To,#iq{type = set, sub_el = SubEl} = IQ) ->
     IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]};
 process_local_iq(_From,_To,#iq{type = get, lang = Lang} = IQ) ->
     IQ#iq{type = result,
-          sub_el = [#xmlel{name = <<"vCard">>, attrs = [{"xmlns", ?NS_VCARD}],
+          sub_el = [#xmlel{name = <<"vCard">>, attrs = [{<<"xmlns">>, ?NS_VCARD}],
                            children = [#xmlel{name = <<"FN">>,
-                                              children = [#xmlcdata{content = <<"ejabberd">>}]},
+                                              children = [#xmlcdata{content = <<"MongooseIM">>}]},
                                        #xmlel{name = <<"URL">>,
-                                              children = [#xmlcdata{content = ?EJABBERD_URI}]},
+                                              children = [#xmlcdata{content = ?MONGOOSE_URI}]},
                                        #xmlel{name = <<"DESC">>,
-                                              children = [#xmlcdata{content = [translate:translate(Lang,<<"Erlang Jabber Server">>),
-                                                                               <<"\nCopyright (c) 2002-2011 ProcessOne">>]}]},
-                                       #xmlel{name = <<"BDAY">>,
-                                              children = [#xmlcdata{content = <<"2002-11-16">>}]}
+                                              children = [#xmlcdata{content = [translate:translate(Lang,<<"MongooseIM XMPP Server">>),
+                                                                               <<"\nCopyright (c) Erlang Solutions Ltd.">>]}]}
                                       ]}]}.
 process_sm_iq(From, To, #iq{type = set, sub_el = VCARD} = IQ) ->
     #jid{user = FromUser, lserver = FromVHost} = From,
@@ -268,7 +266,7 @@ remove_user(User, Server) ->
 
 %% react to "global" config change
 config_change(Acc, Host, ldap, _NewConfig) ->
-    case ?BACKEND of
+    case ?BACKEND:backend() of
         mod_vcard_ldap ->
             Mods = ejabberd_config:get_local_option({modules, Host}),
             Opts = proplists:get_value(?MODULE, Mods, []),
@@ -379,7 +377,7 @@ do_route(_VHost, From, To, Packet, _IQ) ->
 iq_get_vcard(Lang) ->
     [#xmlel{name = <<"FN">>,
             children = [#xmlcdata{content = <<"ejabberd/mod_vcard">>}]},
-     #xmlel{name = <<"URL">>, children = [#xmlcdata{content = ?EJABBERD_URI}]},
+     #xmlel{name = <<"URL">>, children = [#xmlcdata{content = ?MONGOOSE_URI}]},
      #xmlel{name = <<"DESC">>,
             children = [#xmlcdata{content = [translate:translate(
                                                Lang,
@@ -430,10 +428,8 @@ prepare_vcard_search_params(User, VHost, VCARD) ->
     OrgUnit  = xml:get_path_s(VCARD, [{elem, <<"ORG">>},
                                       {elem, <<"ORGUNIT">>}, cdata]),
     EMail = case EMail1 of
-                "" ->
-                    EMail2;
-                _ ->
-                    EMail1
+                <<"">> -> EMail2;
+                _ -> EMail1
             end,
 
     LUser     = jlib:nodeprep(User),

@@ -84,7 +84,7 @@
 -callback get_roster_by_jid_t(LUser, LServer, LJid) -> Result when
     LUser :: ejabberd:luser(),
     LServer :: ejabberd:lserver(),
-    LJid :: ejabberd:simple_bare_jid(),
+    LJid :: ejabberd:simple_jid(),
     Result :: term().
 -callback get_subscription_lists(Acc, LUser, LServer) -> Result when
     Acc :: term(),
@@ -94,13 +94,13 @@
 -callback roster_subscribe_t(LUser, LServer, LJid, SJid) -> Result when
     LUser :: ejabberd:luser(),
     LServer :: ejabberd:lserver(),
-    LJid :: ejabberd:simple_bare_jid(),
+    LJid :: ejabberd:simple_jid(),
     SJid :: roster(),
     Result :: term().
 -callback get_roster_by_jid_with_groups_t(LUser, LServer, LJid) -> Result when
     LUser :: ejabberd:luser(),
     LServer :: ejabberd:lserver(),
-    LJid :: ejabberd:simple_bare_jid(),
+    LJid :: ejabberd:simple_jid(),
     Result :: term().
 -callback remove_user(LUser, LServer) -> Result when
     LUser :: ejabberd:luser(),
@@ -109,18 +109,18 @@
 -callback update_roster_t(LUser, LServer, LJid, Item) -> Result when
     LUser :: ejabberd:luser(),
     LServer :: ejabberd:lserver(),
-    LJid :: ejabberd:simple_bare_jid(),
+    LJid :: ejabberd:simple_jid(),
     Item :: roster(),
     Result :: term().
 -callback del_roster_t(LUser, LServer, LJid) -> Result when
     LUser :: ejabberd:luser(),
     LServer :: ejabberd:lserver(),
-    LJid :: ejabberd:simple_bare_jid(),
+    LJid :: ejabberd:simple_jid(),
     Result :: term().
 -callback read_subscription_and_groups(LUser, LServer, LJid) -> Result when
     LUser :: ejabberd:luser(),
     LServer :: ejabberd:lserver(),
-    LJid :: ejabberd:simple_bare_jid(),
+    LJid :: ejabberd:simple_jid(),
     Result :: term().
 
 -callback raw_to_record(LServer, Item) -> Result when
@@ -391,7 +391,7 @@ do_process_item_set(JID1,
                     #jid{user = User, luser = LUser, lserver = LServer} = From,
                     To,
                     #xmlel{attrs = Attrs, children = Els}) ->
-    LJID = jlib:jid_tolower(JID1),
+    LJID = jlib:jid_to_lower(JID1),
     F = fun () ->
                 Item = get_roster_by_jid_t(LUser, LServer, LJID),
                 Item1 = process_item_attrs(Item, Attrs),
@@ -462,10 +462,7 @@ process_item_els(Item, []) -> Item.
 push_item(User, Server, From, Item) ->
     ejabberd_sm:route(jlib:make_jid(<<"">>, <<"">>, <<"">>),
                       jlib:make_jid(User, Server, <<"">>),
-                      #xmlel{name = <<"broadcast">>,
-                             children = [{item,
-                                          Item#roster.jid,
-                                          Item#roster.subscription}]}),
+                      {broadcast, {item, Item#roster.jid, Item#roster.subscription}}),
     case roster_versioning_enabled(Server) of
         true ->
             push_item_version(Server, User, From, Item,

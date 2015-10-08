@@ -97,10 +97,14 @@ check_password(LUser, LServer, Password, Digest, DigestGen) ->
             ejabberd_auth:check_digest(Digest, DigestGen, Password, PassRiak)
     end.
 
+-spec try_register(User :: ejabberd:luser(),
+                   Server :: ejabberd:lserver(),
+                   Password :: binary()
+                  ) -> ok | {error, term()}.
 try_register(LUser, LServer, Password) ->
     try_register_if_does_not_exist(LUser, LServer, Password).
 
--spec dirty_get_registered_users() -> [ejabberd:simple_jid()].
+-spec dirty_get_registered_users() -> [ejabberd:simple_bare_jid()].
 dirty_get_registered_users() ->
     Servers = ejabberd_config:get_vh_by_auth_method(riak),
     lists:flatmap(
@@ -109,7 +113,7 @@ dirty_get_registered_users() ->
         end, Servers).
 
 -spec get_vh_registered_users(ejabberd:lserver()) ->
-    [ejabberd:simple_jid()].
+    [ejabberd:simple_bare_jid()].
 get_vh_registered_users(LServer) ->
     case mongoose_riak:list_keys(bucket_type(LServer)) of
         {ok, Users} ->
@@ -119,7 +123,7 @@ get_vh_registered_users(LServer) ->
     end.
 
 -spec get_vh_registered_users(ejabberd:lserver(), list()) ->
-    [ejabberd:simple_jid()].
+    [ejabberd:simple_bare_jid()].
 get_vh_registered_users(LServer, _Opts) ->
     get_vh_registered_users(LServer).
 
@@ -131,7 +135,7 @@ get_vh_registered_users_number(LServer) ->
 get_vh_registered_users_number(LServer, _Opts) ->
     get_vh_registered_users_number(LServer).
 
--spec get_password(ejabberd:luser(), ejabberd:lserver()) -> binary() | false | scram().
+-spec get_password(ejabberd:luser(), ejabberd:lserver()) -> binary() | false | scram:scram_tuple().
 get_password(LUser, LServer) ->
     case do_get_password(LUser, LServer) of
         false ->
@@ -163,9 +167,14 @@ does_user_exist(LUser, LServer) ->
     end.
 
 -spec remove_user(ejabberd:luser(), ejabberd:lserver()) ->
-    ok | {error, term()}.
+    ok | {error, not_allowed}.
 remove_user(LUser, LServer) ->
-    mongoose_riak:delete(bucket_type(LServer), LUser).
+    case mongoose_riak:delete(bucket_type(LServer), LUser) of
+        ok -> ok;
+        Error ->
+            ?WARNING_MSG("Failed Riak query: ~p", [Error]),
+            {error, not_allowed}
+    end.
 
 remove_user(_LUser, _LServer, _Password) ->
     erlang:error(not_implemented).
@@ -202,13 +211,7 @@ try_register_with_password(LUser, LServer, Password) ->
             fun(R) -> riakc_register:set(Now, R) end},
            set_password_map_op(Password)],
     UserMap = mongoose_riak:create_new_map(Ops),
-    case mongoose_riak:update_type(bucket_type(LServer), LUser,
-                                   riakc_map:to_op(UserMap)) of
-        {ok, _Map} ->
-            ok;
-        Error ->
-            Error
-    end.
+    mongoose_riak:update_type(bucket_type(LServer), LUser, riakc_map:to_op(UserMap)).
 
 do_get_password(LUser, LServer) ->
     case mongoose_riak:fetch_type(bucket_type(LServer), LUser) of
@@ -221,13 +224,7 @@ do_get_password(LUser, LServer) ->
 do_set_password({ok, Map}, LUser, LServer, Password) ->
     Ops = [set_password_map_op(Password)],
     UpdateMap = mongoose_riak:update_map(Map, Ops),
-    case mongoose_riak:update_type(bucket_type(LServer), LUser,
-                                   riakc_map:to_op(UpdateMap)) of
-        ok ->
-            ok;
-        Reason ->
-            Reason
-    end.
+    mongoose_riak:update_type(bucket_type(LServer), LUser, riakc_map:to_op(UpdateMap)).
 
 prepare_password(Iterations, Password) when is_integer(Iterations) ->
     Scram = scram:password_to_scram(Password, Iterations),
@@ -255,15 +252,18 @@ extract_password(Map) ->
             Password
     end.
 
-maybe_extract_scram_password(false) ->
-    false;
+-spec maybe_extract_scram_password({ok, binary()} | error) -> #scram{} | false.
 maybe_extract_scram_password({ok, ScramSerialised}) ->
     case scram:deserialize(ScramSerialised) of
         {ok, Scram} ->
             Scram;
         _ ->
             false
-    end.
+    end;
+maybe_extract_scram_password(_) ->
+    false.
 
+-spec now_to_seconds(erlang:timestamp()) -> non_neg_integer().
 now_to_seconds({MegaSecs, Secs, _MicroSecs}) ->
     MegaSecs * 1000000 + Secs.
+

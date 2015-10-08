@@ -50,7 +50,7 @@ enable_zlib(SockMod, Socket, InflateSizeLimit) ->
 	{error, OtherError} ->
 	    erlang:error({cannot_load_ejabberd_zlib_drv, erl_ddll:format_error(OtherError)})
     end,
-    Port = open_port({spawn, ejabberd_zlib_drv}, [binary]),
+    Port = open_port({spawn_driver, "ejabberd_zlib_drv"}, [binary]),
     {ok, #zlibsock{sockmod = SockMod, socket = Socket, zlibport = Port,
                    inflate_size_limit = InflateSizeLimit}}.
 

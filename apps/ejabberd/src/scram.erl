@@ -55,6 +55,11 @@
 
 -export([scram_to_tuple/1]).
 
+-type scram_tuple() :: { StoredKey :: binary(), ServerKey :: binary(),
+                         Salt :: binary(), Iterations :: non_neg_integer() }.
+
+-export_type([scram_tuple/0]).
+
 -define(SALT_LENGTH, 16).
 -define(SCRAM_DEFAULT_ITERATION_COUNT, 4096).
 -define(SCRAM_SERIAL_PREFIX, "==SCRAM==,").
@@ -170,7 +175,7 @@ deserialize(Bin) ->
     ?WARNING_MSG("Corrupted serialized SCRAM: ~p, ~p", [Bin]),
     {error, corrupted_scram}.
 
--spec scram_to_tuple(scram()) -> {binary(), binary(), binary(), non_neg_integer()}.
+-spec scram_to_tuple(scram()) -> scram_tuple().
 scram_to_tuple(Scram) ->
     {base64:decode(Scram#scram.storedkey),
      base64:decode(Scram#scram.serverkey),

@@ -54,7 +54,7 @@ handle_get(Bindings, [host_users]) ->
 handle_put(Data, Bindings, [host_user]) ->
     put_user(Data, Bindings).
 
--spec handle_delete(mongoonse_api:bindings(), mongoose_api:options()) ->
+-spec handle_delete(mongoose_api:bindings(), mongoose_api:options()) ->
     mongoose_api:response().
 handle_delete(Bindings, [host_user]) ->
     delete_user(Bindings).

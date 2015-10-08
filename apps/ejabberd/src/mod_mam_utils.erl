@@ -90,7 +90,8 @@ mam_ns_binary() -> <<"urn:xmpp:mam:tmp">>.
 
 %% ----------------------------------------------------------------------
 %% Datetime types
--type iso8601_datetime_binary() :: binary().
+-type ne_binary() :: <<_:8,_:_*8>>.
+-type iso8601_datetime_binary() :: ne_binary().
 %% Microseconds from 01.01.1970
 -type unix_timestamp() :: mod_mam:unix_timestamp().
 
@@ -128,7 +129,7 @@ microseconds_to_now(MicroSeconds) when is_integer(MicroSeconds) ->
 
 %% @doc Returns time in `now()' format.
 -spec iso8601_datetime_binary_to_timestamp(iso8601_datetime_binary())
-        -> erlang:timestamp().
+        -> erlang:timestamp() | undefined.
 iso8601_datetime_binary_to_timestamp(DateTime) when is_binary(DateTime) ->
     jlib:datetime_binary_to_timestamp(DateTime).
 
@@ -180,10 +181,7 @@ mess_id_to_external_binary(MessID) when is_integer(MessID) ->
     list_to_binary(integer_to_list(MessID, 32)).
 
 
--spec maybe_external_binary_to_mess_id('undefined' | binary())
-                                                -> 'undefined' | integer().
-maybe_external_binary_to_mess_id(undefined) ->
-    undefined;
+-spec maybe_external_binary_to_mess_id(binary()) -> undefined | integer().
 maybe_external_binary_to_mess_id(<<>>) ->
     undefined;
 maybe_external_binary_to_mess_id(BExtMessID) ->
@@ -399,8 +397,8 @@ result_query(SetEl) ->
         children = [SetEl]}.
 
 -spec result_prefs(DefaultMode :: archive_behaviour(),
-                   AlwaysJIDs :: [mod_mam:literal_jid()],
-                   NeverJIDs :: [mod_mam:literal_jid()]) -> jlib:xmlel().
+                   AlwaysJIDs :: [ejabberd:literal_jid()],
+                   NeverJIDs :: [ejabberd:literal_jid()]) -> jlib:xmlel().
 result_prefs(DefaultMode, AlwaysJIDs, NeverJIDs) ->
     AlwaysEl = #xmlel{name = <<"always">>,
                       children = encode_jids(AlwaysJIDs)},
@@ -434,7 +432,7 @@ valid_behavior(<<"never">>)  -> never;
 valid_behavior(<<"roster">>) -> roster.
 
 
--spec parse_jid_list(jlib:xmlel(), binary()) -> [mod_mam:literal_jid()].
+-spec parse_jid_list(jlib:xmlel(), binary()) -> [ejabberd:literal_jid()].
 parse_jid_list(El, Name) ->
     case xml:get_subtag(El, Name) of
         false -> [];
@@ -493,7 +491,7 @@ decode_optimizations(QueryEl) ->
 %% JID serialization
 
 -spec jid_to_opt_binary(UserJID :: ejabberd:jid(), JID :: ejabberd:jid()
-                        ) -> mod_mam:literal_jid().
+                        ) -> ejabberd:literal_jid().
 jid_to_opt_binary(#jid{lserver=LServer, luser=LUser},
                   #jid{lserver=LServer, luser=LUser, lresource= <<>>}) ->
     <<>>;
@@ -517,7 +515,7 @@ jid_to_opt_binary(_,
 
 
 -spec expand_minified_jid(UserJID :: ejabberd:jid(),
-                    OptJID :: mod_mam:literal_jid()) -> mod_mam:literal_jid().
+                    OptJID :: ejabberd:literal_jid()) -> ejabberd:literal_jid().
 expand_minified_jid(#jid{lserver=LServer, luser=LUser}, <<>>) ->
     <<LUser/binary, $@, LServer/binary>>;
 expand_minified_jid(#jid{lserver=LServer, luser=LUser}, <<$/, LResource/binary>>) ->
@@ -591,21 +589,23 @@ is_function_exist(M, F, A) ->
     lists:member({F, A}, M:module_info(exports)).
 
 
--spec apply_start_border('undefined' | mod_mam:borders(), integer()) -> integer().
+-spec apply_start_border('undefined' | mod_mam:borders(), undefined | integer()) ->
+    undefined | integer().
 apply_start_border(undefined, StartID) ->
     StartID;
 apply_start_border(#mam_borders{after_id=AfterID, from_id=FromID}, StartID) ->
     maybe_max(maybe_next_id(AfterID), maybe_max(FromID, StartID)).
 
 
--spec apply_end_border('undefined' | mod_mam:borders(), integer()) -> integer().
+-spec apply_end_border('undefined' | mod_mam:borders(), undefined | integer()) ->
+    undefined | integer().
 apply_end_border(undefined, EndID) ->
     EndID;
 apply_end_border(#mam_borders{before_id=BeforeID, to_id=ToID}, EndID) ->
     maybe_min(maybe_previous_id(BeforeID), maybe_min(ToID, EndID)).
 
 
--spec maybe_min('undefined' | integer(), integer()) -> integer().
+-spec maybe_min('undefined' | integer(), undefined | integer()) -> integer().
 maybe_min(undefined, Y) ->
     Y;
 maybe_min(X, undefined) ->
@@ -614,7 +614,7 @@ maybe_min(X, Y) ->
     min(X, Y).
 
 
--spec maybe_max('undefined' | integer(), integer()) -> integer().
+-spec maybe_max('undefined' | integer(), undefined | integer()) -> integer().
 maybe_max(undefined, Y) ->
     Y;
 maybe_max(X, undefined) ->

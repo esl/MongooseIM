@@ -29,57 +29,48 @@ start(Opts) ->
     cleanup(node()).
 
 
--spec get_sessions() -> [[ejabberd_sm:ses_tuple()]]. % list of lists
+-spec get_sessions() -> [ejabberd_sm:ses_tuple()].
 get_sessions() ->
     Keys = ejabberd_redis:cmd(["KEYS", hash(<<"*">>)]),
-    Res = lists:map(fun(K) ->
-                      Sessions = ejabberd_redis:cmd(["SMEMBERS", K]),
-                      lists:map(fun(S) ->
-                                  Session = binary_to_term(S),
-                                  { Session#session.usr,
-                                    Session#session.sid,
-                                    Session#session.priority,
-                                    Session#session.info }
-                                end,
-                      Sessions)
-                    end, Keys),
-    lists:flatten(Res).
-
+    lists:flatmap(fun(K) ->
+                          Sessions = ejabberd_redis:cmd(["SMEMBERS", K]),
+                          lists:map(fun(S) ->
+                                            Session = binary_to_term(S),
+                                            { Session#session.usr,
+                                              Session#session.sid,
+                                              Session#session.priority,
+                                              Session#session.info }
+                                    end,
+                                    Sessions)
+                  end, Keys).
 
 -spec get_sessions(ejabberd:server()) -> [ejabberd_sm:ses_tuple()].
 get_sessions(Server) ->
     Keys = ejabberd_redis:cmd(["KEYS", hash(Server)]),
-    Res = lists:map(fun(K) ->
-                      Sessions = ejabberd_redis:cmd(["SMEMBERS", K]),
-                      lists:map(fun(S) ->
-                                  Session = binary_to_term(S),
-                                  {Session#session.usr,
-                                   Session#session.sid,
-                                   Session#session.priority,
-                                   Session#session.info}
-                                end,
-                                Sessions)
-                    end, Keys),
-    lists:flatten(Res).
-
+    lists:flatmap(fun(K) ->
+                          Sessions = ejabberd_redis:cmd(["SMEMBERS", K]),
+                          lists:map(fun(S) ->
+                                            Session = binary_to_term(S),
+                                            {Session#session.usr,
+                                             Session#session.sid,
+                                             Session#session.priority,
+                                             Session#session.info}
+                                    end,
+                                    Sessions)
+                  end, Keys).
 
 -spec get_sessions(ejabberd:user(), ejabberd:server()) -> [ejabberd_sm:session()].
 get_sessions(User, Server) ->
     Sessions = ejabberd_redis:cmd(["SMEMBERS", hash(User, Server)]),
 
-    lists:map(fun(S) ->
-                      binary_to_term(S)
-              end, Sessions).
-
+    lists:map(fun(S) -> binary_to_term(S) end, Sessions).
 
 -spec get_sessions(ejabberd:user(), ejabberd:server(), ejabberd:resource()
                   ) -> [ejabberd_sm:session()].
 get_sessions(User, Server, Resource) ->
     Sessions = ejabberd_redis:cmd(["SMEMBERS", hash(User, Server, Resource)]),
 
-    lists:map(fun(S) ->
-                      binary_to_term(S)
-              end, Sessions).
+    lists:map(fun(S) -> binary_to_term(S) end, Sessions).
 
 -spec create_session(User :: ejabberd:user(),
                      Server :: ejabberd:server(),
@@ -92,15 +83,17 @@ create_session(User, Server, Resource, Session) ->
         {value, OldSession} ->
             BOldSession = term_to_binary(OldSession),
 
-            ejabberd_redis:cmd([["SADD", n(node()), hash(User, Server, Resource, Session#session.sid)],
-                                ["SREM", hash(User, Server), BOldSession],
-                                ["SREM", hash(User, Server, Resource), BOldSession],
-                                ["SADD", hash(User, Server), BSession],
-                                ["SADD", hash(User, Server, Resource), BSession]]);
+            error_or_ok(
+              ejabberd_redis:cmd([["SADD", n(node()), hash(User, Server, Resource, Session#session.sid)],
+                                  ["SREM", hash(User, Server), BOldSession],
+                                  ["SREM", hash(User, Server, Resource), BOldSession],
+                                  ["SADD", hash(User, Server), BSession],
+                                  ["SADD", hash(User, Server, Resource), BSession]]));
         false ->
-            ejabberd_redis:cmd([["SADD", n(node()), hash(User, Server, Resource, Session#session.sid)],
-                                ["SADD", hash(User, Server), BSession],
-                                ["SADD", hash(User, Server, Resource), BSession]])
+            error_or_ok(
+              ejabberd_redis:cmd([["SADD", n(node()), hash(User, Server, Resource, Session#session.sid)],
+                                  ["SADD", hash(User, Server), BSession],
+                                  ["SADD", hash(User, Server, Resource), BSession]]))
     end.
 
 
@@ -172,7 +165,7 @@ hash(Val1, Val2, Val3) ->
     ["s3:", Val1, ":", Val2, ":", Val3].
 
 
--spec hash(binary(), binary(), binary(), binary()) -> iolist().
+-spec hash(binary(), binary(), binary(), ejabberd_sm:sid()) -> iolist().
 hash(Val1, Val2, Val3, Val4) ->
     ["s4:", Val1, ":", Val2, ":", Val3, ":", term_to_binary(Val4)].
 
@@ -180,3 +173,8 @@ hash(Val1, Val2, Val3, Val4) ->
 -spec n(atom()) -> iolist().
 n(Node) ->
     ["n:", atom_to_list(Node)].
+
+-spec error_or_ok(any() | {error, term()}) -> ok | {error, term()}.
+error_or_ok({error, _} = Error) -> Error;
+error_or_ok(_) -> ok.
+

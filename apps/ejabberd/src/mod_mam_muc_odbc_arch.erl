@@ -13,7 +13,8 @@
 -export([start/2, stop/1]).
 
 %% MAM hook handlers
--behaviour(ejabberd_gen_mam_hook).
+-behaviour(ejabberd_gen_mam_archive).
+
 -export([archive_size/4,
          safe_archive_message/9,
          safe_lookup_messages/14,
@@ -48,10 +49,11 @@
 %% Types
 
 -type filter() :: iolist().
--type escaped_message_id() :: binary(). % string?
+-type escaped_message_id() :: string().
 -type escaped_jid() :: binary().
 -type unix_timestamp() :: mod_mam:unix_timestamp().
 -type packet() :: any().
+-type raw_row() :: {binary(), binary(), binary()}.
 
 
 -ifdef(HAND_MADE_PARTITIONS).
@@ -160,8 +162,8 @@ archive_message_1(Host, MessID, RoomID, FromNick, Packet) ->
     write_message(Host, SMessID, RoomID, SRoomID, SFromNick, SData).
 
 
--spec write_message(ejabberd:server(), mod_mam:message_id(), RoomId :: mod_mam:archive_id(),
-        SRoomId :: mod_mam:archive_id(), SFromNick :: ejabberd:user(), SData :: any()) -> 'ok'.
+-spec write_message(ejabberd:server(), string(), RoomId :: mod_mam:archive_id(),
+        SRoomId :: string(), SFromNick :: ejabberd:user(), SData :: binary()) -> 'ok'.
 write_message(Host, SMessID, RoomID, SRoomID, SFromNick, SData) ->
     {updated, 1} =
     mod_mam_utils:success_sql_query(
@@ -240,8 +242,7 @@ safe_lookup_messages(Result, Host,
         LimitPassed :: boolean(), MaxResultLimit :: integer(),
         IsSimple :: boolean() | opt_count) ->
             {ok, mod_mam:lookup_result()}
-            | {error, 'policy-violation'}
-            | {error, Reason :: term()}.
+            | {error, 'policy-violation'}.
 lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
                 #rsm_in{direction = aft, id = ID}, Borders,
                 Start, End, _Now, WithJID,
@@ -404,16 +405,15 @@ before_id(ID, Filter) ->
     [Filter, " AND id < '", SID, "'"].
 
 
--spec rows_to_uniform_format([mod_mam_muc:row()], ejabberd:server(),
-                             ejabberd:jid()) -> list().
+-spec rows_to_uniform_format([raw_row()], ejabberd:server(), ejabberd:jid()) ->
+    [mod_mam_muc:row()].
 rows_to_uniform_format(MessageRows, Host, RoomJID) ->
     EscFormat = ejabberd_odbc:escape_format(Host),
     DbEngine = ejabberd_odbc:db_engine(Host),
     [row_to_uniform_format(DbEngine, EscFormat, Row, RoomJID) || Row <- MessageRows].
 
 
--spec row_to_uniform_format(atom(), atom(), {_,_,_}, ejabberd:jid())
-            -> mod_mam_muc:row().
+-spec row_to_uniform_format(atom(), atom(), raw_row(), ejabberd:jid()) -> mod_mam_muc:row().
 row_to_uniform_format(DbEngine, EscFormat, {BMessID,BNick,SDataRaw}, RoomJID) ->
     MessID = list_to_integer(binary_to_list(BMessID)),
     SrcJID = jlib:jid_replace_resource(RoomJID, BNick),
@@ -474,7 +474,7 @@ purge_multiple_messages(_Result, Host, RoomID, _RoomJID, Borders,
 %% @doc Columns are `["id","nick_name","message"]'.
 -spec extract_messages(Host :: ejabberd:server(), RoomID :: mod_mam:archive_id(),
         Filter :: filter(), IOffset :: non_neg_integer(), IMax :: pos_integer(),
-        ReverseLimit :: boolean()) -> [tuple()].
+        ReverseLimit :: boolean()) -> [raw_row()].
 extract_messages(_Host, _RoomID, _Filter, _IOffset, 0, _) ->
     [];
 extract_messages(Host, RoomID, Filter, IOffset, IMax, false) ->
@@ -512,7 +512,7 @@ do_extract_messages(Host, RoomID, Filter, IOffset, IMax, Order) ->
 %% be returned instead.
 %% "SELECT COUNT(*) as "index" FROM mam_muc_message WHERE id <= '",  UMessID
 -spec calc_index(Host :: ejabberd:server(), RoomID :: mod_mam:archive_id(),
-    Filter :: filter(), SUMessID :: escaped_message_id()) -> non_neg_integer().
+    Filter :: iodata(), SUMessID :: escaped_message_id()) -> non_neg_integer().
 calc_index(Host, RoomID, Filter, SUMessID) ->
     {selected, _ColumnNames, [{BIndex}]} =
     mod_mam_utils:success_sql_query(
@@ -528,7 +528,7 @@ calc_index(Host, RoomID, Filter, SUMessID) ->
 %% @end
 %% "SELECT COUNT(*) as "count" FROM mam_muc_message WHERE id < '",  UMessID
 -spec calc_before(Host :: ejabberd:server(), RoomID :: mod_mam:archive_id(),
-    Filter :: filter(), SUMessID :: escaped_message_id()) -> non_neg_integer().
+    Filter :: iodata(), SUMessID :: escaped_message_id()) -> non_neg_integer().
 calc_before(Host, RoomID, Filter, SUMessID) ->
     {selected, _ColumnNames, [{BIndex}]} =
     mod_mam_utils:success_sql_query(

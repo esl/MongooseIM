@@ -84,7 +84,7 @@
     Host :: ejabberd:lserver(),
     Days :: integer(),
     Result :: term().
--callback remove_user(LUser, LServer) -> ok when
+-callback remove_user(LUser, LServer) -> any() when
     LUser :: binary(),
     LServer :: binary().
 
@@ -398,7 +398,7 @@ find_x_expire(TimeStamp, [El | Els]) ->
     case xml:get_tag_attr_s(<<"xmlns">>, El) of
 	?NS_EXPIRE ->
 	    Val = xml:get_tag_attr_s(<<"seconds">>, El),
-	    case catch list_to_integer(Val) of
+	    case catch list_to_integer(binary_to_list(Val)) of
 		{'EXIT', _} ->
 		    never;
 		Int when Int > 0 ->

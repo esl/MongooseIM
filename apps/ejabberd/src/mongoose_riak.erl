@@ -42,7 +42,7 @@
 
 -define(CALL(F, Args), call_riak(F, Args)).
 
--type riakc_map_op() :: {{binary(), riakc_map:datatype()},
+-type riakc_map_op() :: {{binary(), MapDataType :: atom()},
                           fun((riakc_datatype:datatype()) -> riakc_datatype:datatype())}.
 
 -spec start() -> {ok, pid()} | ignore.
@@ -57,13 +57,13 @@ start() ->
             RiakPBOpts = [auto_reconnect, keepalive],
             mongoose_riak_sup:start(Workers, RiakAddr, RiakPort, RiakPBOpts)
     end.
--spec stop() -> no_return().
+
+-spec stop() -> _.
 stop() ->
     mongoose_riak_sup:stop().
 
--spec start_worker(riakc_pb_socket:address(), riakc_pb_socket:portnum(),
-                   proplists:proplist())
-        -> {ok, pid()} | {error, term()}.
+-spec start_worker(riakc_pb_socket:address(), riakc_pb_socket:portnum(), proplists:proplist()) ->
+    {ok, pid()} | {error, term()}.
 start_worker(Address, Port, Opts) ->
     riakc_pb_socket:start_link(Address, Port, Opts).
 
@@ -77,18 +77,17 @@ put(Obj) ->
 put(Obj, OptsOrTimeout) ->
     ?CALL(put, [Obj, OptsOrTimeout]).
 
--spec get(bucket(), key()) -> {ok, riakc_obj()} | {error, term()}.
+-spec get(bucket() | {binary(), bucket()}, key()) -> {ok, riakc_obj()} | {error, term()}.
 get(Bucket, Key) ->
     get(Bucket, Key, []).
 
--spec get(bucket(), key(), get_options() | timeout()) ->
+-spec get(bucket() | {binary(), bucket()}, key(), get_options() | timeout()) ->
     {ok, riakc_obj()} | {error, term()}.
 get(Bucket, Key, OptsOrTimeout) ->
     ?CALL(get, [Bucket, Key, OptsOrTimeout]).
 
 
--spec update_type({binary(), binary()}, binary(), riakc_datatype:update(term())) ->
-    ok.
+-spec update_type({binary(), binary()}, binary(), riakc_datatype:update(term())) -> ok.
 update_type(Bucket, Key, Update) ->
     update_type(Bucket, Key, Update, []).
 
@@ -98,12 +97,12 @@ update_type(Bucket, Key, Update) ->
 update_type(Bucket, Key, Update, Options) ->
     ?CALL(update_type, [Bucket, Key, Update, Options]).
 
--spec delete(bucket(), key()) ->
+-spec delete(bucket() | {binary(), bucket()}, key()) ->
     ok | {error, term()}.
 delete(Bucket, Key) ->
     delete(Bucket, Key, []).
 
--spec delete(bucket(), key(), delete_options() | timeout()) ->
+-spec delete(bucket() | {binary(), bucket()}, key(), delete_options() | timeout()) ->
     ok | {error, term()}.
 delete(Bucket, Key, OptsOrTimeout) ->
     ?CALL(delete, [Bucket, Key, OptsOrTimeout]).

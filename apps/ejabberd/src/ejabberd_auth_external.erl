@@ -130,7 +130,7 @@ set_password(LUser, LServer, Password) ->
 -spec try_register(LUser :: ejabberd:luser(),
                    LServer :: ejabberd:lserver(),
                    Password :: binary()
-                   ) -> {atomic, ok | exists} | {error, not_allowed}.
+                   ) -> ok | {error, not_allowed}.
 try_register(LUser, LServer, Password) ->
     case get_cache_option(LServer) of
         false -> try_register_extauth(LUser, LServer, Password);
@@ -138,18 +138,18 @@ try_register(LUser, LServer, Password) ->
     end.
 
 
--spec dirty_get_registered_users() -> [ejabberd:simple_jid()].
+-spec dirty_get_registered_users() -> [ejabberd:simple_bare_jid()].
 dirty_get_registered_users() ->
     ejabberd_auth_internal:dirty_get_registered_users().
 
 
--spec get_vh_registered_users(LServer :: ejabberd:lserver()) -> [ejabberd:simple_jid()].
+-spec get_vh_registered_users(LServer :: ejabberd:lserver()) -> [ejabberd:simple_bare_jid()].
 get_vh_registered_users(LServer) ->
     ejabberd_auth_internal:get_vh_registered_users(LServer).
 
 
 -spec get_vh_registered_users(LServer :: ejabberd:lserver(),
-                              Opts :: list()) -> [ejabberd:simple_jid()].
+                              Opts :: list()) -> [ejabberd:simple_bare_jid()].
 get_vh_registered_users(LServer, Opts)  ->
     ejabberd_auth_internal:get_vh_registered_users(LServer, Opts).
 
@@ -197,32 +197,34 @@ does_user_exist(LUser, LServer) ->
 
 -spec remove_user(User :: ejabberd:luser(),
                   Server :: ejabberd:lserver()
-                  ) -> ok | error | {error, not_allowed}.
+                  ) -> ok | {error, not_allowed}.
 remove_user(LUser, LServer) ->
     case extauth:remove_user(LUser, LServer) of
-        false -> false;
+        false -> {error, not_allowed};
         true ->
             case get_cache_option(LServer) of
-                false -> false;
+                false -> ok;
                 {true, _CacheTime} ->
                     ejabberd_auth_internal:remove_user(LUser, LServer)
-            end
+            end,
+            ok
     end.
 
 
 -spec remove_user(LUser :: ejabberd:luser(),
                   LServer :: ejabberd:lserver(),
                   Password :: binary()
-                  ) -> ok | not_exists | not_allowed | bad_request | error.
+                  ) -> ok | {error, not_allowed}.
 remove_user(LUser, LServer, Password) ->
     case extauth:remove_user(LUser, LServer, Password) of
-        false -> false;
+        false -> {error, not_allowed};
         true ->
             case get_cache_option(LServer) of
-                false -> false;
+                false -> ok;
                 {true, _CacheTime} ->
                     ejabberd_auth_internal:remove_user(LUser, LServer, Password)
-            end
+            end,
+            ok
     end.
 
 %%%
@@ -247,7 +249,7 @@ check_password_extauth(LUser, LServer, Password) ->
 
 -spec try_register_extauth(LUser :: ejabberd:luser(),
                            LServer :: ejabberd:lserver(),
-                           Password :: binary()) -> boolean().
+                           Password :: binary()) -> ok | {error, not_allowed}.
 try_register_extauth(LUser, LServer, Password) ->
     extauth:try_register(LUser, LServer, Password).
 
@@ -322,6 +324,9 @@ check_password_external_cache(LUser, LServer, Password) ->
 
 
 %% @doc Try to register using extauth; if success then cache it
+-spec try_register_external_cache(LUser :: ejabberd:luser(),
+                                  LServer :: ejabberd:lserver(),
+                                  Password :: binary()) -> ok | {error, not_allowed}.
 try_register_external_cache(LUser, LServer, Password) ->
     case try_register_extauth(LUser, LServer, Password) of
         ok = R ->
@@ -345,12 +350,8 @@ set_password_internal(LUser, LServer, Password) ->
     ejabberd_auth_internal:set_password(LUser, LServer, Password).
 
 
--spec is_fresh_enough(TimeLast :: online | never | integer(),
-                      CacheTime :: integer() | false) -> boolean().
-is_fresh_enough(online, _CacheTime) ->
-    true;
-is_fresh_enough(never, _CacheTime) ->
-    false;
+-spec is_fresh_enough(TimeLast :: integer(),
+                      CacheTime :: integer()) -> boolean().
 is_fresh_enough(TimeStampLast, CacheTime) ->
     {MegaSecs, Secs, _MicroSecs} = now(),
     Now = MegaSecs * 1000000 + Secs,
@@ -366,7 +367,6 @@ is_fresh_enough(TimeStampLast, CacheTime) ->
 get_last_access(User, Server) ->
     case ejabberd_sm:get_user_resources(User, Server) of
         [] ->
-            _US = {User, Server},
             case get_last_info(User, Server) of
                 mod_last_required ->
                     mod_last_required;
@@ -385,24 +385,10 @@ get_last_access(User, Server) ->
                     ) -> {ok, Timestamp :: integer(), Status :: binary()}
                          | not_found | mod_last_required.
 get_last_info(User, Server) ->
-    case get_mod_last_enabled(Server) of
-        mod_last -> mod_last:get_last_info(User, Server);
-        mod_last_odbc -> mod_last_odbc:get_last_info(User, Server);
-        no_mod_last -> mod_last_required
+    case gen_mod:is_loaded(Server, mod_last) of
+        true -> mod_last:get_last_info(User, Server);
+        _ -> mod_last_required
     end.
-
-
--spec get_mod_last_enabled(Server :: ejabberd:server()
-                          ) -> mod_last | mod_last_odbc | no_mod_last.
-get_mod_last_enabled(Server) ->
-    ML = gen_mod:is_loaded(Server, mod_last),
-    MLO = gen_mod:is_loaded(Server, mod_last_odbc),
-    case {ML, MLO} of
-        {true, _} -> mod_last;
-        {false, true} -> mod_last_odbc;
-        {false, false} -> no_mod_last
-    end.
-
 
 -spec get_mod_last_configured(Server :: ejabberd:server()
                              ) -> mod_last | mod_last_odbc | no_mod_last.

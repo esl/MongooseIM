@@ -50,9 +50,9 @@
 
 -include("ejabberd.hrl").
 
--record(ejabberd_module, {module_host :: ejabberd:server(),
-                          opts :: list()
-                         }).
+-record(ejabberd_module, {module_host, opts}).
+-type ejabberd_module() :: #ejabberd_module{module_host :: {module(), ejabberd:server()},
+                                            opts :: list()}.
 
 %% -export([behaviour_info/1]).
 %% behaviour_info(callbacks) ->
@@ -73,8 +73,8 @@ start() ->
 
 
 -spec start_module(Host :: ejabberd:server(),
-                   Module :: atom(),
-                   Opts :: [any()] ) -> any() | none().
+                   Module :: module(),
+                   Opts :: [any()]) -> any().
 start_module(Host, Module, Opts0) ->
     Opts = clear_opts(Module, Opts0),
     set_module_opts_mnesia(Host, Module, Opts),
@@ -118,7 +118,7 @@ start_backend_module(Module, Opts, TrackedFuncs) ->
     code:load_binary(Mod, BackendModuleStr ++ ".erl", Code),
     ensure_backend_metrics(Module, TrackedFuncs).
 
--spec backend_code(string(), atom(), list()) -> string().
+-spec backend_code(module(), atom(), list()) -> {nonempty_string(), list()}.
 backend_code(Module, Backend, TrackedFuncs) when is_atom(Backend) ->
     Callbacks = Module:behaviour_info(callbacks),
     ModuleStr = atom_to_list(Module),
@@ -186,7 +186,7 @@ is_app_running(AppName) ->
 
 
 %% @doc Stop the module in a host, and forget its configuration.
--spec stop_module(ejabberd:server(), atom()) -> 'error' | {'aborted',_} | {'atomic',_}.
+-spec stop_module(ejabberd:server(), module()) -> 'error' | {'aborted',_} | {'atomic',_}.
 stop_module(Host, Module) ->
     case stop_module_keep_config(Host, Module) of
         error ->
@@ -200,7 +200,7 @@ stop_module(Host, Module) ->
 %% configuration is kept in the Mnesia local_config table, when ejabberd is
 %% restarted the module will be started again. This function is useful when
 %% ejabberd is being stopped and it stops all modules.
--spec stop_module_keep_config(ejabberd:server(), atom()) -> 'error' | 'ok'.
+-spec stop_module_keep_config(ejabberd:server(), module()) -> 'error' | 'ok'.
 stop_module_keep_config(Host, Module) ->
     case catch Module:stop(Host) of
         {'EXIT', Reason} ->
@@ -219,7 +219,7 @@ stop_module_keep_config(Host, Module) ->
             ok
     end.
 
--spec reload_module(ejabberd:server(), atom(), [any()]) -> 'error' | 'ok'.
+-spec reload_module(ejabberd:server(), module(), [any()]) -> 'error' | 'ok'.
 reload_module(Host, Module, Opts) ->
     stop_module_keep_config(Host, Module),
     start_module(Host, Module, Opts).
@@ -294,7 +294,7 @@ get_module_opt(Host, Module, Opt, Default) ->
 
 
 %% @doc Non-atomic! You have been warned.
--spec set_module_opt(ejabberd:server(), atom(), _Opt, _Value) -> boolean().
+-spec set_module_opt(ejabberd:server(), module(), _Opt, _Value) -> boolean().
 set_module_opt(Host, Module, Opt, Value) ->
     Key = {Module, Host},
     OptsList = ets:lookup(ejabberd_modules, Key),
@@ -308,7 +308,7 @@ set_module_opt(Host, Module, Opt, Value) ->
     end.
 
 
--spec get_module_opt_host(ejabberd:server(), atom(), _) -> ejabberd:server().
+-spec get_module_opt_host(ejabberd:server(), module(), _) -> ejabberd:server().
 get_module_opt_host(Host, Module, Default) ->
     Val = get_module_opt(Host, Module, host, Default),
     re:replace(Val, "@HOST@", Host, [global, {return,binary}]).
@@ -320,7 +320,7 @@ get_opt_host(Host, Opts, Default) ->
     re:replace(Val, "@HOST@", Host, [global, {return,binary}]).
 
 
--spec loaded_modules(ejabberd:server()) -> [atom()].
+-spec loaded_modules(ejabberd:server()) -> [module()].
 loaded_modules(Host) ->
     ets:select(ejabberd_modules,
                [{#ejabberd_module{_ = '_', module_host = {'$1', Host}},
@@ -328,7 +328,7 @@ loaded_modules(Host) ->
                  ['$1']}]).
 
 
--spec loaded_modules_with_opts(ejabberd:server()) -> [{atom(), list()}].
+-spec loaded_modules_with_opts(ejabberd:server()) -> [{module(), list()}].
 loaded_modules_with_opts(Host) ->
     ets:select(ejabberd_modules,
                [{#ejabberd_module{_ = '_', module_host = {'$1', Host},
@@ -337,7 +337,7 @@ loaded_modules_with_opts(Host) ->
                  [{{'$1', '$2'}}]}]).
 
 
--spec set_module_opts_mnesia(ejabberd:server(), atom(), [any()]
+-spec set_module_opts_mnesia(ejabberd:server(), module(), [any()]
                             ) -> {'aborted',_} | {'atomic',_}.
 set_module_opts_mnesia(Host, Module, Opts) ->
     Modules = case ejabberd_config:get_local_option({modules, Host}) of
@@ -351,7 +351,7 @@ set_module_opts_mnesia(Host, Module, Opts) ->
     ejabberd_config:add_local_option({modules, Host}, Modules2).
 
 
--spec del_module_mnesia(ejabberd:server(), atom()) -> {'aborted',_} | {'atomic',_}.
+-spec del_module_mnesia(ejabberd:server(), module()) -> {'aborted',_} | {'atomic',_}.
 del_module_mnesia(Host, Module) ->
     Modules = case ejabberd_config:get_local_option({modules, Host}) of
                   undefined ->
@@ -380,8 +380,8 @@ get_hosts(Opts, Prefix) ->
     end.
 
 
--spec get_module_proc(binary() | string(),atom()) -> atom().
-get_module_proc(Host, Base) when erlang:is_binary(Host) ->
+-spec get_module_proc(binary() | string(), module()) -> atom().
+get_module_proc(Host, Base) when is_binary(Host) ->
     get_module_proc(binary_to_list(Host), Base);
 get_module_proc(Host, Base) ->
     list_to_atom(atom_to_list(Base) ++ "_" ++ Host).

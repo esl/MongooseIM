@@ -56,7 +56,7 @@ init() ->
                 subscribe_to_all(Name, Interval)
         end, Reporters).
 
--spec update({term(), term()}, term()) -> no_return().
+-spec update({term(), term()} | list(), term()) -> any().
 update(Name, Change) when is_tuple(Name)->
     update(tuple_to_list(Name), Change);
 update(Name, Change) ->
@@ -97,17 +97,17 @@ get_metric_values(Host) ->
 get_aggregated_values(Metric) ->
     exometer:aggregate([{{['_',Metric],'_','_'},[],[true]}], [one, count, value]).
 
--spec init_predefined_host_metrics(ejabberd:lserver()) -> no_return().
+-spec init_predefined_host_metrics(ejabberd:lserver()) -> ok.
 init_predefined_host_metrics(Host) ->
     create_metrics(Host),
     metrics_hooks(add, Host),
     ok.
 
--spec create_generic_hook_metric(ejabberd:lserver(), atom()) -> no_return().
+-spec create_generic_hook_metric(ejabberd:lserver(), atom()) -> ok | {ok, already_present}.
 create_generic_hook_metric(Host, Hook) ->
     do_create_generic_hook_metric([Host, filter_hook(Hook)]).
 
--spec increment_generic_hook_metric(ejabberd:lserver(), atom()) -> no_return().
+-spec increment_generic_hook_metric(ejabberd:lserver(), atom()) -> ok | {error, any()}.
 increment_generic_hook_metric(Host, Hook) ->
     do_increment_generic_hook_metric([Host, filter_hook(Hook)]).
 
@@ -115,13 +115,11 @@ increment_generic_hook_metric(Host, Hook) ->
 get_up_time() ->
     {value, erlang:round(element(1, erlang:statistics(wall_clock))/1000)}.
 
-do_create_generic_hook_metric({_, skip}) ->
-    ok;
+-spec do_create_generic_hook_metric(list()) -> ok | {ok, already_present}.
 do_create_generic_hook_metric(MetricName) ->
     ensure_metric(MetricName, spiral).
 
-do_increment_generic_hook_metric({_, skip}) ->
-    ok;
+-spec do_increment_generic_hook_metric(list()) -> ok | {error, any()}.
 do_increment_generic_hook_metric(MetricName) ->
     update(MetricName, 1).
 
@@ -330,7 +328,7 @@ metrics_hooks(Op, Host) ->
 ]).
 
 
--spec get_general_counters(ejabberd:server()) -> [{ejabberd:server(), atom()}].
+-spec get_general_counters(ejabberd:server()) -> [[ejabberd:server() | atom(), ...]].
 get_general_counters(Host) ->
     get_counters(Host, ?GENERAL_COUNTERS).
 
@@ -339,8 +337,7 @@ get_general_counters(Host) ->
 ]).
 
 
--spec get_total_counters(ejabberd:server()) ->
-    [{ejabberd:server(),'sessionCount'}].
+-spec get_total_counters(ejabberd:server()) -> [[ejabberd:server() | atom(), ...]].
 get_total_counters(Host) ->
     get_counters(Host, ?TOTAL_COUNTERS).
 
@@ -388,7 +385,7 @@ get_histograms(Host) ->
 create_global_metrics() ->
     lists:foreach(fun({Metric, FunSpec, DataPoints}) ->
         FunSpecTuple = list_to_tuple(FunSpec ++ [DataPoints]),
-        exometer:new(Metric, FunSpecTuple)
+        catch exometer:new(Metric, FunSpecTuple)
     end, get_vm_stats()),
     lists:foreach(fun({Metric, Spec}) -> exometer:new(Metric, Spec) end,
                   ?GLOBAL_COUNTERS),

@@ -18,8 +18,6 @@
 %%% 02111-1307 USA
 %%%
 %%%----------------------------------------------------------------------
--ifndef(MONGOOSEIM_EJABBERD_HRL).
--define(MONGOOSEIM_EJABBERD_HRL, true).
 
 %% This macro returns a string of the ejabberd version running, e.g. "2.3.4"
 %% If the ejabberd application description isn't loaded, returns atom: undefined
@@ -33,6 +31,7 @@
 -define(CONFIG_PATH, "etc/ejabberd.cfg").
 
 -define(EJABBERD_URI, "http://www.process-one.net/en/ejabberd/").
+-define(MONGOOSE_URI, <<"https://www.erlang-solutions.com/products/mongooseim-massively-scalable-ejabberd-platform">>).
 
 -define(S2STIMEOUT, 600000).
 
@@ -40,10 +39,6 @@
 
 %% ---------------------------------
 %% Logging mechanism
-
-%% Print in standard output
--define(PRINT(Format, Args),
-    io:format(Format, Args)).
 
 -define(DEBUG(Format, Args),
     lager:debug(Format, Args)).
@@ -60,11 +55,11 @@
 -define(CRITICAL_MSG(Format, Args),
     lager:critical(Format, Args)).
 
--record(session, {sid      :: ejabberd_sm:sid(),
-                  usr      :: ejabberd:simple_jid(),
-                  us       :: ejabberd:simple_bare_jid(),
-                  priority :: integer(),
-                  info     :: list()
+-record(session, {sid,
+                  usr,
+                  us,
+                  priority,
+                  info
                  }).
 
 -ifdef(no_binary_to_integer).
@@ -82,4 +77,3 @@
 
 -type scram() :: #scram{}.
 
--endif. % ifdef MONGOOSEIM_EJABBERD_HRL

@@ -175,7 +175,7 @@ start_link(ProcName, N, Host) ->
 -spec archive_message(_, Host :: ejabberd:server(), MessID :: mod_mam:message_id(),
     ArcID :: mod_mam:archive_id(), LocJID :: ejabberd:jid(),
     RemJID :: ejabberd:jid(), SrcJID :: ejabberd:jid(), Dir :: atom(),
-    Packet :: packet()) -> any().
+    Packet :: packet()) -> ok | {error, timeout}.
 archive_message(_Result, Host,
         MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet) ->
     Row = mod_mam_muc_odbc_arch:prepare_message(Host,
@@ -259,9 +259,10 @@ remove_archive(Host, ArcID, _ArcJID) ->
     ok.
 
 
--spec purge_single_message(any(), ejabberd:server(), MessId :: mod_mam:message_id(),
+-spec purge_single_message(ejabberd_gen_mam_archive:purge_single_message_result(),
+    ejabberd:server(), MessId :: mod_mam:message_id(),
     ArcID :: mod_mam:archive_id(), _ArcJID :: ejabberd:jid(),
-    Now :: mod_mam:unix_timestamp()) -> any().
+    Now :: mod_mam:unix_timestamp()) -> ejabberd_gen_mam_archive:purge_single_message_result().
 purge_single_message(Result, Host, MessID, ArcID, _ArcJID, Now) ->
     {Microseconds, _NodeMessID} = mod_mam_utils:decode_compact_uuid(MessID),
     wait_flushing_before(Host, ArcID, Microseconds, Now),
@@ -272,20 +273,20 @@ purge_single_message(Result, Host, MessID, ArcID, _ArcJID, Now) ->
     ArcID :: mod_mam:archive_id(), _ArcJID :: ejabberd:jid(),
     _Borders :: mod_mam:borders(), _Start :: mod_mam:unix_timestamp(),
     End :: mod_mam:unix_timestamp(), Now :: mod_mam:unix_timestamp(),
-    _WithJID :: ejabberd:jid()) -> any().
+    _WithJID :: ejabberd:jid()) -> ok.
 purge_multiple_messages(Result, Host, ArcID, _ArcJID, _Borders,
                         _Start, End, Now, _WithJID) ->
     wait_flushing_before(Host, ArcID, End, Now),
     Result.
 
 
--spec wait_flushing(ejabberd:server(), mod_mam:archive_id()) -> any().
+-spec wait_flushing(ejabberd:server(), mod_mam:archive_id()) -> ok.
 wait_flushing(Host, ArcID) ->
     gen_server:call(select_worker(Host, ArcID), wait_flushing).
 
 
 -spec wait_flushing_before(ejabberd:server(), mod_mam:archive_id(),
-      End :: mod_mam:unix_timestamp(), Now :: mod_mam:unix_timestamp()) -> any().
+      End :: mod_mam:unix_timestamp(), Now :: mod_mam:unix_timestamp()) -> ok.
 wait_flushing_before(Host, ArcID, End, Now) ->
     case is_recent_entries_required(End, Now) of
         true ->

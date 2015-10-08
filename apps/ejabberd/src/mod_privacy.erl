@@ -57,7 +57,7 @@
     Host    :: binary(),
     Opts    :: list().
 
--callback remove_user(LUser, LServer) -> ok when
+-callback remove_user(LUser, LServer) -> any() when
     LUser   :: binary(),
     LServer :: binary().
 
@@ -671,13 +671,11 @@ binary_to_order_s(Order) ->
 
 broadcast_privacy_list(LUser, LServer, Name, UserList) ->
     UserJID = jlib:make_jid(LUser, LServer, <<>>),
-    ejabberd_router:route(UserJID, UserJID, broadcast_privacy_list_packet(Name, UserList)).
+    ejabberd_sm:route(UserJID, UserJID, broadcast_privacy_list_packet(Name, UserList)).
 
 %% TODO this is dirty
 broadcast_privacy_list_packet(Name, UserList) ->
-    #xmlel{
-        name = <<"broadcast">>,
-        children = [{privacy_list, UserList, Name}]}.
+    {broadcast, {privacy_list, UserList, Name}}.
 
 roster_get_jid_info(Host, User, Server, LJID) ->
     ejabberd_hooks:run_fold(

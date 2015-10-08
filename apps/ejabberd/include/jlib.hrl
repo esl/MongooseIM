@@ -319,13 +319,13 @@
              type         :: atom(),
              xmlns = <<>> :: binary(),
              lang = <<>>  :: ejabberd:lang(),
-             sub_el       :: [jlib:xmlel()]
+             sub_el       :: [jlib:xmlel()] | jlib:xmlel()
             }).
 
 -record(rsm_in, {max         :: non_neg_integer() | undefined | error,
                  direction   :: before | aft | undefined,
                 %% id is empty, if cdata does not exist
-                 id          :: binary() | undefined,
+                 id          :: binary() | integer() | undefined,
                  index       :: non_neg_integer() | undefined | error
                 }).
 
@@ -337,8 +337,8 @@
 
 -record(rsm_out, {count :: pos_integer(),
                   index :: pos_integer(),
-                  first :: pos_integer(),
-                  last :: pos_integer()
+                  first :: binary(),
+                  last :: binary()
                  }).
 
 -type iq() :: #iq{}.

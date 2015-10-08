@@ -24,7 +24,7 @@
          set_last_info/4,
          remove_user/2]).
 
--spec init(ejabberd:server(), list()) -> no_return().
+-spec init(ejabberd:server(), list()) -> ok.
 init(_Host, _Opts) ->
     ok.
 
@@ -60,14 +60,19 @@ count_active_users(LServer, TimeStamp, Comparator) ->
 
 -spec set_last_info(ejabberd:luser(), ejabberd:lserver(),
                     non_neg_integer(), binary()) ->
-    {atomic, ok} | {error, term()}.
+    ok | {error, term()}.
 set_last_info(LUser, LServer, TimeStamp, Status) ->
     Username = ejabberd_odbc:escape(LUser),
     Seconds = ejabberd_odbc:escape(integer_to_binary(TimeStamp)),
     State = ejabberd_odbc:escape(Status),
-    odbc_queries:set_last_t(LServer, Username, Seconds, State).
+    wrap_odbc_result(odbc_queries:set_last_t(LServer, Username, Seconds, State)).
 
--spec remove_user(ejabberd:luser(), ejabberd:lserver()) -> ok.
+-spec remove_user(ejabberd:luser(), ejabberd:lserver()) -> ok | {error, term()}.
 remove_user(LUser, LServer) ->
     Username = ejabberd_odbc:escape(LUser),
-    odbc_queries:del_last(LServer, Username).
+    wrap_odbc_result(odbc_queries:del_last(LServer, Username)).
+
+-spec wrap_odbc_result({error, term()} | any()) -> ok | {error, term()}.
+wrap_odbc_result({error, _} = Error) -> Error;
+wrap_odbc_result(_) -> ok.
+

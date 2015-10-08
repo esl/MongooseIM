@@ -106,7 +106,7 @@ set_ack_freq(Freq) when is_integer(Freq), Freq > 0 ->
 get_resume_timeout(Default) ->
     gen_mod:get_module_opt(?MYNAME, ?MODULE, resume_timeout, Default).
 
--spec set_resume_timeout(pos_integer()) -> ok.
+-spec set_resume_timeout(pos_integer()) -> boolean().
 set_resume_timeout(ResumeTimeout) ->
     set_module_opt(?MYNAME, ?MODULE, resume_timeout, ResumeTimeout).
 

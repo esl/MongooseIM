@@ -1,5 +1,5 @@
 %%%----------------------------------------------------------------------
-%%% File    : mod_vcard.erl
+%%% File    : mod_vcard_odbc.erl
 %%% Author  : Alexey Shchepin <alexey@process-one.net>
 %%% Purpose : vCard support via ODBC
 %%% Created :  2 Jan 2003 by Alexey Shchepin <alexey@process-one.net>
@@ -162,12 +162,8 @@ make_restriction_sql(LServer, Data) ->
 
 filter_fields([], RestrictionSQL, _LServer) ->
     case RestrictionSQL of
-	"" ->
-	    "";
-        <<>> ->
-            <<>>;
-	_ ->
-	    [" where ", RestrictionSQL]
+	"" -> "";
+	_ -> [" where ", RestrictionSQL]
     end;
 filter_fields([{SVar, [Val]} | Ds], RestrictionSQL, LServer)
   when is_binary(Val) and (Val /= <<"">>) ->
@@ -218,20 +214,20 @@ make_val(RestrictionSQL, Field, Val) ->
 record_to_item(_CallerVHost, {Username, VCardVHost, FN, Family, Given, Middle,
              Nickname, BDay, CTRY, Locality,
              EMail, OrgName, OrgUnit}) ->
-    #xmlel{name = "item",
+    #xmlel{name = <<"item">>,
            children = [
-                        ?FIELD("jid", [Username, "@", VCardVHost]),
-                        ?FIELD("fn", FN),
-                        ?FIELD("last", Family),
-                        ?FIELD("first", Given),
-                        ?FIELD("middle", Middle),
-                        ?FIELD("nick", Nickname),
-                        ?FIELD("bday", BDay),
-                        ?FIELD("ctry", CTRY),
-                        ?FIELD("locality", Locality),
-                        ?FIELD("email", EMail),
-                        ?FIELD("orgname", OrgName),
-                        ?FIELD("orgunit", OrgUnit)
+                        ?FIELD(<<"jid">>, <<Username/binary, "@", VCardVHost/binary>>),
+                        ?FIELD(<<"fn">>, FN),
+                        ?FIELD(<<"last">>, Family),
+                        ?FIELD(<<"first">>, Given),
+                        ?FIELD(<<"middle">>, Middle),
+                        ?FIELD(<<"nick">>, Nickname),
+                        ?FIELD(<<"bday">>, BDay),
+                        ?FIELD(<<"ctry">>, CTRY),
+                        ?FIELD(<<"locality">>, Locality),
+                        ?FIELD(<<"email">>, EMail),
+                        ?FIELD(<<"orgname">>, OrgName),
+                        ?FIELD(<<"orgunit">>, OrgUnit)
                        ]}.
 
 

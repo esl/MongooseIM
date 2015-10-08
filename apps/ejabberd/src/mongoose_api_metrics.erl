@@ -77,7 +77,7 @@ sum_metric(Bindings) ->
     {metric, Metric} = lists:keyfind(metric, 1, Bindings),
     try
         case get_sum_metric(binary_to_existing_atom(Metric, utf8)) of
-            {error, _, _} ->
+            [] ->
                 {error, not_found};
             Value ->
                 {ok, {metric, Value}}
@@ -150,11 +150,11 @@ get_sum_metrics() ->
     {_Hosts, Metrics} = get_available_hosts_metrics(),
     [{Metric, get_sum_metric(Metric)} || Metric <- Metrics].
 
--spec get_sum_metric(atom()) -> any().
+-spec get_sum_metric(atom()) -> [{_,_}].
 get_sum_metric(Metric) ->
     mongoose_metrics:get_aggregated_values(Metric).
 
--spec get_host_metrics('undefined' | ejabberd:server()) -> [{_,_}].
+-spec get_host_metrics(undefined | global | ejabberd:server()) -> [{_,_}].
 get_host_metrics(Host) ->
     Metrics = mongoose_metrics:get_metric_values(Host),
     [{Name, Value} || {[_Host, Name | _], Value} <- Metrics].

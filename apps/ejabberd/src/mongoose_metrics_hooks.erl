@@ -33,8 +33,8 @@
          privacy_iq_get/5,
          privacy_iq_set/4,
          privacy_check_packet/6,
-         privacy_list_push/3,
          user_ping_timeout/1,
+         privacy_list_push/4,
          mam_get_prefs/4,
          mam_set_prefs/7,
          mam_remove_archive/3,
@@ -247,16 +247,10 @@ privacy_iq_set(Acc, #jid{server = Server}, _To, #iq{sub_el = SubEl}) ->
 
 -spec privacy_list_push(_From :: ejabberd:jid(),
                         To :: ejabberd:jid(),
-                        Packet :: jlib:xmlel()) -> ok | metrics_notify_return().
-privacy_list_push(_From, #jid{server = Server} = To, Packet) ->
-    case Packet of
-        #xmlel{name = <<"broadcast">>, children = [{privacy_list, _, _}]} ->
-            #jid{user = User, server = Server} = To,
-            Count = length(ejabberd_sm:get_user_resources(User, Server)),
-            mongoose_metrics:update({Server, modPrivacyPush}, Count);
-        _ ->
-            ok
-    end.
+                        Broadcast :: ejabberd_c2s:broadcast(),
+                        SessionCount :: non_neg_integer()) -> ok | metrics_notify_return().
+privacy_list_push(_From, #jid{server = Server} = _To, _Broadcast, SessionCount) ->
+    mongoose_metrics:update({Server, modPrivacyPush}, SessionCount).
 
 user_ping_timeout(_JID) ->
     ok.
@@ -288,8 +282,8 @@ mam_get_prefs(Result, Host, _ArcID, _ArcJID) ->
 
 -spec mam_set_prefs(Result :: any(), Host :: ejabberd:server(),
     _ArcID :: mod_mam:archive_id(), _ArcJID :: ejabberd:jid(),
-    _DefaultMode :: any(), _AlwaysJIDs :: [mod_mam:literal_jid()],
-    _NeverJIDs :: [mod_mam:literal_jid()]) -> any().
+    _DefaultMode :: any(), _AlwaysJIDs :: [ejabberd:literal_jid()],
+    _NeverJIDs :: [ejabberd:literal_jid()]) -> any().
 mam_set_prefs(Result, Host, _ArcID, _ArcJID, _DefaultMode, _AlwaysJIDs, _NeverJIDs) ->
     mongoose_metrics:update({Host, modMamPrefsSets}, 1),
     Result.

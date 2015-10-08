@@ -48,7 +48,7 @@ start(Workers, Addr, Port, PBOpts) ->
 start_link(Workers, Addr, Port, PBOpts) ->
     supervisor:start_link({local, ?SERVER}, ?MODULE, [Workers, Addr, Port, PBOpts]).
 
--spec stop() -> no_return().
+-spec stop() -> _.
 stop() ->
     supervisor:terminate_child(ejabberd_sup, ?MODULE),
     supervisor:delete_child(ejabberd_sup, ?MODULE).
@@ -69,11 +69,9 @@ stop() ->
 %%--------------------------------------------------------------------
 -spec(init(Args :: term()) ->
     {ok, {SupFlags :: {RestartStrategy :: supervisor:strategy(),
-          MaxR :: non_neg_integer(), MaxT :: non_neg_integer()},
+          MaxR :: non_neg_integer(), MaxT :: pos_integer()},
           [ChildSpec :: supervisor:child_spec()]
-         }} |
-    ignore |
-    {error, Reason :: term()}).
+         }}).
 init([Workers, Address, Port, PBOpts]) ->
     RestartStrategy = one_for_one,
     MaxRestarts = 10,

@@ -177,15 +177,14 @@ remove_connection(SID, LUser, LServer) ->
                           JID :: ejabberd:jid(),
                           Info :: list()) -> ok.
 register_connection(SID, #jid{luser = LUser, lserver = LServer}, Info) ->
-    AuthModule = xml:get_attr_s(auth_module, Info),
-    case AuthModule == ?MODULE of
-        true ->
+    case lists:keyfind(auth_module, 1, Info) of
+        {_, ?MODULE} ->
             ejabberd_hooks:run(register_user, LServer, [LUser, LServer]),
             US = {LUser, LServer},
             mnesia:sync_dirty(
               fun() -> mnesia:write(#anonymous{us = US, sid=SID})
               end);
-        false ->
+        _ ->
             ok
     end.
 
@@ -273,11 +272,12 @@ try_register(_LUser, _LServer, _Password) ->
 dirty_get_registered_users() ->
     [].
 
--spec get_vh_registered_users(LServer :: ejabberd:lserver()
-                             ) -> [ejabberd:simple_jid()].
+-spec get_vh_registered_users(LServer :: ejabberd:lserver()) -> [ejabberd:simple_bare_jid()].
 get_vh_registered_users(LServer) ->
     [{U, S} || {{U, S, _R}, _, _, _} <- ejabberd_sm:get_vh_session_list(LServer)].
 
+-spec get_vh_registered_users(LServer :: ejabberd:lserver(), Opts :: list()) ->
+    [ejabberd:simple_bare_jid()].
 get_vh_registered_users(LServer, _Opts) ->
   get_vh_registered_users(LServer).
 
@@ -286,7 +286,7 @@ get_vh_registered_users(LServer, _Opts) ->
 -spec get_password(LUser :: ejabberd:luser(),
                    LServer :: ejabberd:lserver()) -> binary() | false.
 get_password(LUser, LServer) ->
-    get_password(LUser, LServer, "").
+    get_password(LUser, LServer, <<"">>).
 
 
 -spec get_password(LUser :: ejabberd:luser(),
@@ -319,9 +319,9 @@ remove_user(_LUser, _LServer) ->
 
 -spec remove_user(LUser :: ejabberd:luser(),
                   LServer :: ejabberd:lserver(),
-                  Password :: binary()) -> 'not_allowed'.
+                  Password :: binary()) -> {error, not_allowed}.
 remove_user(_LUser, _LServer, _Password) ->
-    not_allowed.
+    {error, not_allowed}.
 
 
 -spec plain_password_required() -> 'false'.

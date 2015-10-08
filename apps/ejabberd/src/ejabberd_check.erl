@@ -61,19 +61,19 @@ check_database_module(pgsql) ->
 
 %% @doc Issue a critical error and throw an exit if needing module is
 %% missing.
--spec check_modules(atom(), [atom()]) -> 'ok'.
+-spec check_modules(atom(), [module()]) -> 'ok'.
 check_modules(DB, Modules) ->
     case get_missing_modules(Modules) of
         [] ->
             ok;
-        MissingModules when is_list(MissingModules) ->
+        MissingModules ->
             ?CRITICAL_MSG("ejabberd is configured to use '~p', but the following Erlang modules are not installed: '~p'", [DB, MissingModules]),
             exit(database_module_missing)
     end.
 
 
 %% @doc Return the list of undefined modules
--spec get_missing_modules([atom()]) -> [atom()].
+-spec get_missing_modules([module()]) -> [module()].
 get_missing_modules(Modules) ->
     lists:filter(fun(Module) ->
                          case catch Module:module_info() of

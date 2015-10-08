@@ -48,7 +48,7 @@
 -include("ejabberd.hrl").
 
 -record(socket_state, {sockmod    :: ejabberd:sockmod(),
-                       socket     :: gen_tcp:socket(),
+                       socket     :: term(),
                        receiver   :: pid() | atom() | tuple()
                       }).
 -type socket_state() :: #socket_state{}.
@@ -61,7 +61,7 @@
 %% Description:
 %%--------------------------------------------------------------------
 -spec start(atom() | tuple(), ejabberd:sockmod(),
-    Socket :: gen_tcp:socket(), Opts :: [{atom(),_}]) -> ok.
+    Socket :: port(), Opts :: [{atom(),_}]) -> ok.
 start(Module, SockMod, Socket, Opts) ->
     case Module:socket_type() of
         xml_stream ->

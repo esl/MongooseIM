@@ -121,8 +121,8 @@ start_link(Host, StartInterval, Dedicated) when is_boolean(Dedicated) ->
 sql_query(Host, Query) ->
     sql_call(Host, {sql_query, Query}).
 
--spec get_dedicated_connection(Host :: atom())
-      -> 'ignore' | {'error',_} | {'ok',{Host :: atom(), pid()}}.
+-spec get_dedicated_connection(Host :: ejabberd:server())
+      -> 'ignore' | {'error',_} | {'ok',{Host :: ejabberd:server(), pid()}}.
 get_dedicated_connection(Host) ->
     ejabberd_odbc_sup:get_dedicated_connection(Host).
 
@@ -394,7 +394,8 @@ code_change(_OldVsn, StateName, State, _Extra) ->
     {ok, StateName, State}.
 
 %% We receive the down from our parent.
--spec handle_info(_,_,_) -> {'next_state',_,_} | {'stop',_,state()}.
+-spec handle_info(_, StateName :: atom(), state()) ->
+    {'next_state', atom(), state()} | {'stop', _, state()}.
 handle_info({'DOWN', _MonitorRef, process, ParentPid, Reason}, _StateName,
     State=#state{parent_pid=ParentPid}) ->
     {stop, Reason, State};
@@ -735,7 +736,7 @@ log(Level, Format, Args) ->
             ?ERROR_MSG(Format, Args)
     end.
 
--spec db_opts(Host :: atom()) -> ['odbc' | [char() | tuple()],...].
+-spec db_opts(Host :: atom()) -> [odbc | mysql | pgsql | [char() | tuple()],...].
 db_opts(Host) ->
     case ejabberd_config:get_local_option({odbc_server, Host}) of
         %% Default pgsql port

@@ -72,8 +72,8 @@
                 try_auth = true         :: boolean(),
                 myname, server, queue,
                 delay_to_retry = undefined_delay,
-                new = false             :: boolean(),
-                verify = false          :: boolean(),
+                new = false             :: false | binary(),
+                verify = false          :: false | {pid(), Key :: binary(), SID :: binary()},
                 bridge,
                 timer                   :: reference()
               }).
@@ -85,6 +85,7 @@
                    | wait_for_features
                    | wait_for_auth_result
                    | wait_for_starttls_proceed
+                   | wait_for_validation
                    | wait_before_retry
                    | relay_to_bridge.
 %% FSM handler return value
@@ -257,9 +258,10 @@ open_socket(init, StateData) ->
             NewStateData = StateData#state{socket = Socket,
                                            tls_enabled = false,
                                            streamid = new_id()},
-            send_text(NewStateData, io_lib:format(?STREAM_HEADER,
-                                                  [StateData#state.myname, StateData#state.server,
-                                                   Version])),
+            send_text(NewStateData, list_to_binary(
+                                      io_lib:format(?STREAM_HEADER,
+                                                    [StateData#state.myname, StateData#state.server,
+                                                     Version]))),
             {next_state, wait_for_stream, NewStateData, ?FSMTIMEOUT};
         {error, _Reason} ->
             ?INFO_MSG("s2s connection: ~s -> ~s (remote server not found)",
@@ -454,7 +456,7 @@ wait_for_validation({xmlstreamerror, _}, StateData) ->
               <<(?INVALID_XML_ERR)/binary, (?STREAM_TRAILER)/binary>>),
     {stop, normal, StateData};
 wait_for_validation(timeout, #state{verify = {VPid, VKey, SID}} = StateData)
-  when is_pid(VPid) and is_list(VKey) and is_list(SID) ->
+  when is_pid(VPid) and is_binary(VKey) and is_binary(SID) ->
     %% This is an auxiliary s2s connection for dialback.
     %% This timeout is normal and doesn't represent a problem.
     ?DEBUG("wait_for_validation: ~s -> ~s (timeout in verify connection)",
@@ -589,9 +591,10 @@ wait_for_auth_result({xmlstreamelement, El}, StateData) ->
                                          StateData#state.server}]),
                     ejabberd_socket:reset_stream(StateData#state.socket),
                     send_text(StateData,
-                              io_lib:format(?STREAM_HEADER,
-                                            [StateData#state.myname, StateData#state.server,
-                                             <<" version='1.0'">>])),
+                              list_to_binary(
+                                io_lib:format(?STREAM_HEADER,
+                                              [StateData#state.myname, StateData#state.server,
+                                               <<" version='1.0'">>]))),
                     {next_state, wait_for_stream,
                      StateData#state{streamid = new_id(),
                                      authenticated = true
@@ -677,9 +680,10 @@ wait_for_starttls_proceed({xmlstreamelement, El}, StateData) ->
 						   tls_options = TLSOpts2
 						  },
 		    send_text(NewStateData,
-			      io_lib:format(?STREAM_HEADER,
-					    [StateData#state.myname, StateData#state.server,
-					     <<" version='1.0'">>])),
+                      list_to_binary(
+                        io_lib:format(?STREAM_HEADER,
+                                      [StateData#state.myname, StateData#state.server,
+                                       <<" version='1.0'">>]))),
 		    {next_state, wait_for_stream, NewStateData, ?FSMTIMEOUT};
 		_ ->
 		    send_text(StateData,

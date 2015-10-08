@@ -36,15 +36,19 @@
 
 -include("ejabberd.hrl").
 
--record(sasl_mechanism, {mechanism :: mechanism(),
-                         module :: sasl_module(),
-                         password_type :: plain | digest | scram
-                        }).
--type sasl_module() :: cyrsasl_anonymous
-                     | cyrsasl_digest
-                     | cyrsasl_plain.
+-record(sasl_mechanism, {
+          mechanism,
+          module,
+          password_type
+         }).
+-type sasl_module() :: module().
+-type sasl_mechanism() :: #sasl_mechanism{
+                             mechanism :: mechanism(),
+                             module :: sasl_module(),
+                             password_type :: plain | digest | scram
+                            }.
+
 -type mechanism() :: binary().
--type sasl_mechanism() :: #sasl_mechanism{}.
 
 -record(sasl_state, {service :: binary(),
                      myname :: ejabberd:server(),
@@ -65,7 +69,6 @@
                                       'false' | {'true', ejabberd_auth:authmodule()}
                                  ).
 -type check_pass_digest_fun() :: fun((User :: ejabberd:user(),
-                                    Server :: ejabberd:server(),
                                     Password :: binary(),
                                     Digest :: binary(),
                                     DigestGen :: fun()) ->
@@ -97,12 +100,15 @@ start() ->
 
 -spec register_mechanism(Mechanism :: mechanism(),
                          Module :: sasl_module(),
-                         PasswordType :: plain | digest | scram) -> 'true'.
+                         PasswordType :: plain | digest | scram) -> true.
 register_mechanism(Mechanism, Module, PasswordType) ->
-    ets:insert(sasl_mechanism,
-	       #sasl_mechanism{mechanism = Mechanism,
-			       module = Module,
-			       password_type = PasswordType}).
+    ets_insert_mechanism(#sasl_mechanism{mechanism = Mechanism,
+                                         module = Module,
+                                         password_type = PasswordType}).
+
+-spec ets_insert_mechanism(MechanismRec :: sasl_mechanism()) -> true.
+ets_insert_mechanism(MechanismRec) ->
+    ets:insert(sasl_mechanism, MechanismRec).
 
 %%% TODO: use callbacks
 %%-include("ejabberd.hrl").
@@ -130,8 +136,7 @@ register_mechanism(Mechanism, Module, PasswordType) ->
 
 -spec check_credentials(sasl_state(), list()) -> 'ok' | {'error', binary()}.
 check_credentials(_State, Props) ->
-    User = xml:get_attr_s(username, Props),
-    case jlib:nodeprep(User) of
+    case jlib:nodeprep(proplists:get_value(username, Props, <<>>)) of
         error ->
             {error, <<"not-authorized">>};
         <<>> ->
@@ -140,7 +145,7 @@ check_credentials(_State, Props) ->
             ok
     end.
 
--spec listmech(ejabberd:server()) -> [sasl_mechanism()].
+-spec listmech(ejabberd:server()) -> [mechanism()].
 listmech(Host) ->
     Mechs = ets:select(sasl_mechanism,
                        [{#sasl_mechanism{mechanism = '$1',
@@ -177,15 +182,16 @@ server_new(Service, ServerFQDN, UserRealm, _SecFlags,
                 check_password_digest= CheckPasswordDigest}.
 
 -spec server_start(sasl_state(),
-                 Mech :: any(),
+                 Mech :: mechanism(),
                  ClientIn :: binary()) -> {ok, _}
+                                        | {ok, term(), term()}
                                         | {error, binary()}
                                         | {'continue',_,sasl_state()}
                                         | {'error',binary(),ejabberd:user()}.
 server_start(State, Mech, ClientIn) ->
     case lists:member(Mech, listmech(State#sasl_state.myname)) of
         true ->
-            case ets:lookup(sasl_mechanism, Mech) of
+            case lookup_mech(Mech) of
                 [#sasl_mechanism{module = Module}] ->
                     {ok, MechState} = Module:mech_new(
                                         State#sasl_state.myname,
@@ -202,11 +208,16 @@ server_start(State, Mech, ClientIn) ->
             {error, <<"no-mechanism">>}
     end.
 
+-spec lookup_mech(Mech :: mechanism()) -> [sasl_mechanism()].
+lookup_mech(Mech) ->
+    ets:lookup(sasl_mechanism, Mech).
+
 -spec server_step(State :: sasl_state(), ClientIn :: binary()) ->
-                                          {'error',_}
-                                          | {'ok',[any()]}
-                                          | {'continue',_,sasl_state()}
-                                          | {'error',binary(),ejabberd:user()}.
+                                          {'error', _}
+                                          | {'ok', [any()]}
+                                          | {'ok', [any()], term()}
+                                          | {'continue', _, sasl_state()}
+                                          | {'error', binary(), ejabberd:user()}.
 server_step(State, ClientIn) ->
     Module = State#sasl_state.mech_mod,
     MechState = State#sasl_state.mech_state,

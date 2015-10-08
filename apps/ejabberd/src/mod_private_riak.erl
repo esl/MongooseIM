@@ -30,8 +30,8 @@
 init(_Host, _Opts) ->
     ok.
 
--spec multi_set_data(ejabberd:luser(), ejabberd:lserver(),
-                    {binary(), ejabberd:xmlterm()}) -> ok.
+-spec multi_set_data(ejabberd:luser(), ejabberd:lserver(), [{binary(), jlib:xmlel()}]) ->
+    ok | {error, term()}.
 multi_set_data(LUser, LServer, NS2XML) ->
     R = [set_private_data(LUser, LServer, NS, XML) || {NS, XML} <- NS2XML],
     %% check if something returned with error msg
@@ -40,8 +40,7 @@ multi_set_data(LUser, LServer, NS2XML) ->
         false -> ok
     end.
 
--spec multi_get_data(ejabberd:luser(), ejabberd:lserver(),
-                     {binary(), term()}) -> ok.
+-spec multi_get_data(ejabberd:luser(), ejabberd:lserver(), [{binary(), term()}]) -> [any()].
 multi_get_data(LUser, LServer, NS2Def) ->
     [get_private_data(LUser, LServer, NS, Default) || {NS, Default} <- NS2Def].
 
@@ -49,7 +48,7 @@ multi_get_data(LUser, LServer, NS2Def) ->
 remove_user(LUser, LServer) ->
     KeyFilter = [[<<"starts_with">>,LUser]],
     Bucket = bucket_type(LServer),
-    case mongoose_riak:mapred({Bucket, KeyFilter}, []) of
+    case mongoose_riak:mapred([{Bucket, KeyFilter}], []) of
         {ok, []} ->
             ok;
         {ok, [{0, BucketKeys} | _]} ->

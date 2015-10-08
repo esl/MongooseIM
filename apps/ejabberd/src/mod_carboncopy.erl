@@ -148,8 +148,7 @@ user_receive_packet(JID, _From, To, Packet) ->
 check_and_forward(JID, To, #xmlel{name = <<"message">>} = Packet, Direction) ->
     case classify_packet(Packet) of
         ignore -> stop;
-        forward  -> send_copies(JID, To, Packet, Direction);
-        _ -> stop
+        forward  -> send_copies(JID, To, Packet, Direction)
     end;
 
 check_and_forward(_JID, _To, _Packet, _) -> ok.

@@ -62,11 +62,7 @@
 
 -export_type([authmodule/0]).
 
--type authmodule() :: ejabberd_auth_anonymous
-                    | ejabberd_auth_external
-                    | ejabberd_auth_internal
-                    | ejabberd_auth_ldap
-                    | ejabberd_auth_odbc.
+-type authmodule() :: module().
 
 -define(METRIC(Host, Name), [backends, auth, Host, Name]).
 %%%----------------------------------------------------------------------
@@ -169,6 +165,10 @@ check_password_with_authmodule(User, Server, Password) ->
     LServer = jlib:nameprep(Server),
     do_check_password_with_authmodule(LUser, LServer, Password).
 
+-spec do_check_password_with_authmodule(LUser :: ejabberd:luser(),
+                                        LServer :: ejabberd:lserver(),
+                                        Password :: binary()
+                                       ) -> 'false' | {'true', authmodule()}.
 do_check_password_with_authmodule(LUser, LServer, _)
     when LUser =:= error; LServer =:= error ->
     false;
@@ -186,6 +186,12 @@ check_password_with_authmodule(User, Server, Password, Digest, DigestGen) ->
     LServer = jlib:nameprep(Server),
     do_check_password_with_authmodule(LUser, LServer, Password, Digest, DigestGen).
 
+-spec do_check_password_with_authmodule(LUser :: ejabberd:luser(),
+                                        LServer :: ejabberd:lserver(),
+                                        Password :: binary(),
+                                        Digest :: binary(),
+                                        DigestGen :: fun()
+                                     ) -> 'false' | {'true', authmodule()}.
 do_check_password_with_authmodule(LUser, LServer, _, _, _)
     when LUser =:= error; LServer =:= error ->
     false;
@@ -295,7 +301,7 @@ do_try_register_in_backend([M | Backends], LUser, LServer, Password) ->
     end.
 
 %% @doc Registered users list do not include anonymous users logged
--spec dirty_get_registered_users() -> [ejabberd:simple_jid()].
+-spec dirty_get_registered_users() -> [ejabberd:simple_bare_jid()].
 dirty_get_registered_users() ->
     lists:flatmap(
       fun(M) ->
@@ -305,7 +311,7 @@ dirty_get_registered_users() ->
 
 %% @doc Registered users list do not include anonymous users logged
 -spec get_vh_registered_users(Server :: ejabberd:server()
-                             ) -> [ejabberd:simple_jid()].
+                             ) -> [ejabberd:simple_bare_jid()].
 get_vh_registered_users(Server) ->
     LServer = jlib:nameprep(Server),
     do_get_vh_registered_users(LServer).
@@ -320,7 +326,7 @@ do_get_vh_registered_users(LServer) ->
 
 
 -spec get_vh_registered_users(Server :: ejabberd:server(),
-                              Opts :: [any()]) -> [ejabberd:simple_jid()].
+                              Opts :: [any()]) -> [ejabberd:simple_bare_jid()].
 get_vh_registered_users(Server, Opts) ->
     LServer = jlib:nameprep(Server),
     do_get_vh_registered_users(LServer, Opts).
@@ -585,7 +591,9 @@ ensure_metrics(Host) ->
     [mongoose_metrics:ensure_metric(?METRIC(Host, Metric), histogram)
      || Metric <- Metrics].
 
+-spec timed_call(ejabberd:lserver(), term(), fun(), list()) -> term().
 timed_call(LServer, Metric, Fun, Args) ->
     {Time, Result} = timer:tc(Fun, Args),
     mongoose_metrics:update(?METRIC(LServer, Metric), Time),
     Result.
+

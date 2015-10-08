@@ -238,7 +238,7 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
                     CertError = ejabberd_tls:get_cert_verify_string(CertVerifyResult, Certificate),
                     RemoteServer = xml:get_attr_s(<<"from">>, Attrs),
                     ?INFO_MSG("Closing s2s connection: ~s <--> ~s (~s)", [StateData#state.server, RemoteServer, CertError]),
-                    send_text(StateData, xml:element_to_string(?SERRT_POLICY_VIOLATION(<<"en">>, CertError))),
+                    send_text(StateData, xml:element_to_binary(?SERRT_POLICY_VIOLATION(<<"en">>, CertError))),
                     {atomic, Pid} = ejabberd_s2s:find_connection(jlib:make_jid(<<"">>, Server, <<"">>), jlib:make_jid(<<"">>, RemoteServer, <<"">>)),
                     ejabberd_s2s_out:stop_connection(Pid),
 
@@ -565,7 +565,7 @@ handle_event(_Event, StateName, StateData) ->
 %%   Reply = {state_infos, [{InfoName::atom(), InfoValue::any()]
 %%----------------------------------------------------------------------
 -spec handle_sync_event(any(), any(), statename(), state()
-                       ) -> {'reply','ok' | {'state_infos',[any(),...]},_,_}.
+                       ) -> {'reply','ok' | {'state_infos',[any(),...]}, atom(), state()}.
 handle_sync_event(get_state_infos, _From, StateName, StateData) ->
     SockMod = StateData#state.sockmod,
     {Addr,Port} = try SockMod:peername(StateData#state.socket) of
@@ -622,7 +622,7 @@ code_change(_OldVsn, StateName, StateData, _Extra) ->
 %%          {next_state, NextStateName, NextStateData, Timeout} |
 %%          {stop, Reason, NewStateData}
 %%----------------------------------------------------------------------
--spec handle_info(_,_,_) -> fsm_return().
+-spec handle_info(_,_,_) -> {next_state, atom(), state()} | {stop, normal, state()}.
 handle_info({send_text, Text}, StateName, StateData) ->
     send_text(StateData, Text),
     {next_state, StateName, StateData};

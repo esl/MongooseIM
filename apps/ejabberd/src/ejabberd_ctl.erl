@@ -63,6 +63,7 @@
 -type cmd() :: {CallString :: string(), Args :: [string()], Desc :: string()}.
 
 -define(ASCII_SPACE_CHARACTER, $\s).
+-define(PRINT(Format, Args), io:format(lists:flatten(Format), Args)).
 
 %%-----------------------------
 %% Module
@@ -119,8 +120,7 @@ init() ->
                         Function :: atom()) -> 'ok'.
 register_commands(CmdDescs, Module, Function) ->
     ets:insert(ejabberd_ctl_cmds, CmdDescs),
-    ejabberd_hooks:add(ejabberd_ctl_process,
-                       Module, Function, 50),
+    ejabberd_hooks:add(ejabberd_ctl_process, global, Module, Function, 50),
     ok.
 
 
@@ -131,8 +131,7 @@ unregister_commands(CmdDescs, Module, Function) ->
     lists:foreach(fun(CmdDesc) ->
                           ets:delete_object(ejabberd_ctl_cmds, CmdDesc)
                   end, CmdDescs),
-    ejabberd_hooks:delete(ejabberd_ctl_process,
-                          Module, Function, 50),
+    ejabberd_hooks:delete(ejabberd_ctl_process, global, Module, Function, 50),
     ok.
 
 
@@ -229,7 +228,8 @@ process(Args) ->
                AccessCommands :: [ejabberd_commands:access_cmd()]
                ) -> {String::string(), Code::integer()}.
 process2(["--auth", User, Server, Pass | Args], AccessCommands) ->
-    process2(Args, {User, Server, Pass}, AccessCommands);
+    process2(Args, {list_to_binary(User), list_to_binary(Server), list_to_binary(Pass)},
+             AccessCommands);
 process2(Args, AccessCommands) ->
     process2(Args, noauth, AccessCommands).
 
@@ -237,21 +237,15 @@ process2(Args, AccessCommands) ->
 %% @private
 process2(Args, Auth, AccessCommands) ->
     case try_run_ctp(Args, Auth, AccessCommands) of
-        {String, wrong_command_arguments}
-        when is_list(String) ->
+        {String, wrong_command_arguments} when is_list(String) ->
             io:format(lists:flatten(["\n" | String]++["\n"])),
             [CommandString | _] = Args,
             process(["help" | [CommandString]]),
             {lists:flatten(String), ?STATUS_ERROR};
-        {String, Code}
-        when is_list(String) and is_integer(Code) ->
+        {String, Code} when is_list(String) and is_integer(Code) ->
             {lists:flatten(String), Code};
-        String
-        when is_list(String) ->
+        String when is_list(String) ->
             {lists:flatten(String), ?STATUS_SUCCESS};
-        Code
-        when is_integer(Code) ->
-            {"", Code};
         Other ->
             {"Erroneous result: " ++ io_lib:format("~p", [Other]), ?STATUS_ERROR}
     end.
@@ -302,8 +296,6 @@ try_call_command(Args, Auth, AccessCommands) ->
     try call_command(Args, Auth, AccessCommands) of
         {error, command_unknown} ->
             {io_lib:format("Error: command ~p not known.", [hd(Args)]), ?STATUS_ERROR};
-        {error, wrong_number_parameters} ->
-            {"Error: wrong number of parameters", ?STATUS_ERROR};
         Res ->
             Res
     catch
@@ -348,7 +340,7 @@ call_command([CmdString | Args], Auth, AccessCommands) ->
 %%-----------------------------
 
 %% @private
--spec args_join_xml(string()) -> string().
+-spec args_join_xml([string()]) -> [string()].
 args_join_xml([]) ->
     [];
 args_join_xml([ [ $< | _ ] = Arg | RArgs ]) ->
@@ -455,7 +447,7 @@ format_result(String, {_Name, string}) ->
 format_result(Binary, {_Name, binary}) ->
     io_lib:format("~s", [Binary]);
 format_result(Code, {_Name, rescode}) ->
-    make_status(Code);
+    {"", make_status(Code)};
 format_result({Code, Text}, {_Name, restuple}) ->
     {io_lib:format("~s", [Text]), make_status(Code)};
 %% The result is a list of something: [something()]
@@ -785,9 +777,12 @@ print_usage_help(MaxC, ShCode) ->
          "Those commands can be identified because the description starts with: *"],
     ArgsDef = [],
     C = #ejabberd_commands{
+      name = help,
       desc = "Show help of MongooseIM commands",
-      longdesc = LongDesc,
+      longdesc = lists:flatten(LongDesc),
       args = ArgsDef,
+      module = none,
+      function = none,
       result = {help, string}},
     print_usage_command("help", C, MaxC, ShCode).
 

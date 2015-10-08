@@ -126,7 +126,8 @@
               iterator_fun/0,
               unix_timestamp/0,
               archive_id/0,
-              lookup_result/0
+              lookup_result/0,
+              message_id/0
             ]).
 
 %% ----------------------------------------------------------------------
@@ -314,7 +315,7 @@ action_to_global_shaper_name(Action) -> list_to_atom(atom_to_list(Action) ++ "_g
 
 
 -spec handle_mam_iq('mam_get_prefs', From :: ejabberd:jid(), To :: ejabberd:jid(),
-                    IQ :: ejabberd:iq()) -> ejabberd:iq().
+                    IQ :: ejabberd:iq()) -> ejabberd:iq() | {error, term(), ejabberd:iq()}.
 handle_mam_iq(Action, From, To, IQ) ->
     case Action of
     mam_get_prefs ->
@@ -344,7 +345,8 @@ iq_action(#iq{type = Action, sub_el = SubEl = #xmlel{name = Category}}) ->
     end.
 
 
--spec handle_set_prefs(ejabberd:jid(), ejabberd:iq()) -> ejabberd:iq().
+-spec handle_set_prefs(ejabberd:jid(), ejabberd:iq()) ->
+    ejabberd:iq() | {error, term(), ejabberd:iq()}.
 handle_set_prefs(ArcJID=#jid{},
                  IQ=#iq{sub_el = PrefsEl}) ->
     {DefaultMode, AlwaysJIDs, NeverJIDs} = parse_prefs(PrefsEl),
@@ -363,7 +365,8 @@ handle_set_prefs_result({error, Reason},
     return_error_iq(IQ, Reason).
 
 
--spec handle_get_prefs(ejabberd:jid(), IQ :: ejabberd:iq()) -> ejabberd:iq().
+-spec handle_get_prefs(ejabberd:jid(), IQ :: ejabberd:iq()) ->
+    ejabberd:iq() | {error, term(), ejabberd:iq()}.
 handle_get_prefs(ArcJID=#jid{}, IQ=#iq{}) ->
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
@@ -380,7 +383,8 @@ handle_get_prefs_result({error, Reason}, IQ) ->
     
 
 -spec handle_lookup_messages(From :: ejabberd:jid(), ArcJID :: ejabberd:jid(),
-                             IQ :: ejabberd:iq()) -> ejabberd:iq().
+                             IQ :: ejabberd:iq()) ->
+    ejabberd:iq() | {error, term(), ejabberd:iq()}.
 handle_lookup_messages(
         From=#jid{},
         ArcJID=#jid{},
@@ -431,8 +435,8 @@ handle_lookup_messages(
 
 
 %% @doc Purging multiple messages
--spec handle_purge_multiple_messages(ejabberd:jid(), IQ :: ejabberd:iq()
-                                    ) -> ejabberd:iq().
+-spec handle_purge_multiple_messages(ejabberd:jid(), IQ :: ejabberd:iq()) ->
+    ejabberd:iq() | {error, term(), ejabberd:iq()}.
 handle_purge_multiple_messages(ArcJID=#jid{},
                                IQ=#iq{sub_el = PurgeEl}) ->
     Now = mod_mam_utils:now_to_microseconds(now()),
@@ -451,8 +455,8 @@ handle_purge_multiple_messages(ArcJID=#jid{},
     return_purge_multiple_message_iq(IQ, Res).
 
 
--spec handle_purge_single_message(ejabberd:jid(), IQ :: ejabberd:iq()
-                                 ) -> ejabberd:iq().
+-spec handle_purge_single_message(ejabberd:jid(), IQ :: ejabberd:iq()) ->
+    ejabberd:iq() | {error, term(), ejabberd:iq()}.
 handle_purge_single_message(ArcJID=#jid{},
                             IQ=#iq{sub_el = PurgeEl}) ->
     Now = mod_mam_utils:now_to_microseconds(now()),
@@ -674,10 +678,9 @@ elem_to_limit(QueryEl) ->
         [{elem, <<"set">>}, {elem, <<"limit">>}, cdata]
     ]).
 
-handle_error_iq(Host, To, Action, IQ=#iq{type = {error, Reason}}) ->
-    ejabberd_hooks:run(mam_drop_iq, Host,
-        [Host, To, IQ, Action, Reason]),
-    IQ#iq{type = error};
+handle_error_iq(Host, To, Action, {error, Reason, IQ}) ->
+    ejabberd_hooks:run(mam_drop_iq, Host, [Host, To, IQ, Action, Reason]),
+    IQ;
 handle_error_iq(_Host, _To, _Action, IQ) ->
     IQ.
 
@@ -722,10 +725,9 @@ return_max_delay_reached_error_iq(IQ) ->
     IQ#iq{type = error, sub_el = [ErrorEl]}.
 
 
--spec return_error_iq(ejabberd:iq(), Reason :: term()) -> ejabberd:iq().
+-spec return_error_iq(ejabberd:iq(), Reason :: term()) -> {error, term(), ejabberd:iq()}.
 return_error_iq(IQ, timeout) ->
-    IQ#iq{type = error, sub_el = [?ERR_SERVICE_UNAVAILABLE]};
-return_error_iq(IQ, _Reason) ->
-    IQ#iq{type = error, sub_el = [?ERR_INTERNAL_SERVER_ERROR]}.
-
+    {error, timeout, IQ#iq{type = error, sub_el = [?ERR_SERVICE_UNAVAILABLE]}};
+return_error_iq(IQ, Reason) ->
+    {error, Reason, IQ#iq{type = error, sub_el = [?ERR_INTERNAL_SERVER_ERROR]}}.
 

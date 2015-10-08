@@ -67,24 +67,40 @@
 -type affiliation() :: admin | owner | member | outcast | none.
 -type room() :: binary().
 -type nick() :: binary().
--type room_host() :: ejabberd:literal_jid(). % binary() too
+-type room_host() :: ejabberd:simple_bare_jid().
 -type packet() :: jlib:xmlel().
 -type from_to_packet() ::
         {From :: ejabberd:jid(), To :: ejabberd:jid(), Packet :: packet()}.
 -type access() :: {_AccessRoute, _AccessCreate, _AccessAdmin, _AccessPersistent}.
 
--record(muc_room, {name_host    :: room_host(),
-                   opts         :: list()
-                  }).
+-record(muc_room, {
+          name_host,
+          opts
+         }).
 
--record(muc_online_room, {name_host :: room_host(),
-                          pid       :: pid()
+-type muc_room() :: #muc_room{
+                       name_host    :: room_host(),
+                       opts         :: list()
+                      }.
+
+-record(muc_online_room, {name_host, 
+                          pid 
                          }).
--type muc_online_room() :: #muc_online_room{}.
 
--record(muc_registered, {us_host    :: ejabberd:literal_jid(),
-                         nick       :: nick
-                        }).
+-type muc_online_room() :: #muc_online_room{
+                              name_host :: room_host(),
+                              pid       :: pid()
+                             }.
+
+-record(muc_registered, {
+          us_host,
+          nick
+         }).
+
+-type muc_registered() :: #muc_registered{
+                             us_host    :: ejabberd:literal_jid(),
+                             nick       :: nick()
+                            }.
 
 -record(state, {host                :: ejabberd:server(),
                 server_host         :: ejabberd:literal_jid(),
@@ -93,9 +109,13 @@
                 default_room_opts   :: list(),
                 room_shaper         :: shaper:shaper()
               }).
+
 -type state() :: #state{}.
 
+-export_type([muc_room/0, muc_registered/0]).
+
 -define(PROCNAME, ejabberd_mod_muc).
+
 
 %%====================================================================
 %% API
@@ -750,8 +770,8 @@ get_vh_rooms(Host, #rsm_in{max=M, direction=Direction, id=I, index=Index}) ->
             H = hd(L2),
             NewIndex = get_room_pos(H, AllRooms),
             T=lists:last(L2),
-            {F, _}=H#muc_online_room.name_host,
-            {Last, _}=T#muc_online_room.name_host,
+            {F, _} = H#muc_online_room.name_host,
+            {Last, _} = T#muc_online_room.name_host,
             {L2, #rsm_out{first=F, last=Last, count=Count, index=NewIndex}}
     end.
 
@@ -822,8 +842,8 @@ iq_get_register_info(Host, From, Lang) ->
                                                   Lang, <<"You need a client that supports x:data to register the nickname">>)}]},
          #xmlel{name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_XDATA}],
                 children = [#xmlel{name = <<"title">>,
-                                   children = [#xmlcdata{content = translate:translate(
-                                                                     Lang, <<"Nickname Registration at ">>) ++ Host}]},
+                                   children = [#xmlcdata{content = <<(translate:translate(
+                                                                     Lang, <<"Nickname Registration at ">>))/binary, Host/binary>>}]},
                             #xmlel{name = <<"instructions">>,
                                    children = [#xmlcdata{content = translate:translate(
                                                                      Lang, <<"Enter nickname you want to register">>)}]},
@@ -921,8 +941,9 @@ iq_get_vcard(Lang) ->
             children = [#xmlcdata{content = <<"ejabberd/mod_muc">>}]},
      #xmlel{name = <<"URL">>, children = [#xmlcdata{content = ?EJABBERD_URI}]},
      #xmlel{name = <<"DESC">>,
-            children = [#xmlcdata{content = translate:translate(Lang, <<"ejabberd MUC module">>) ++
-                                    <<"\nCopyright (c) 2003-2011 ProcessOne">>}]}].
+            children = [#xmlcdata{content =
+                                  <<(translate:translate(Lang, <<"ejabberd MUC module">>))/binary,
+                                    "\nCopyright (c) 2003-2011 ProcessOne">>}]}].
 
 
 -spec broadcast_service_message(ejabberd:server(), binary() | string()) -> ok.

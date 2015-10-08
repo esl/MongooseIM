@@ -31,13 +31,9 @@
          %% Server
          status/0, reopen_log/0,
          stop_kindly/2, send_service_message_all_mucs/2,
-         %% Erlang
-         update_list/0, update/1,
          %% Accounts
          register/3, unregister/2,
          registered_users/1,
-         %% Migration jabberd1.4
-         import_file/1, import_dir/1,
          %% Purge DB
          delete_expired_messages/0, delete_old_messages/1,
          %% Mnesia
@@ -97,17 +93,6 @@ commands() ->
                                                        {levelatom, atom}
                                                       ]}}},
 
-%     #ejabberd_commands{name = update_list, tags = [server],
-%                       desc = "List modified modules that can be updated",
-%                       module = ?MODULE, function = update_list,
-%                       args = [],
-%                       result = {modules, {list, {module, string}}}},
-%     #ejabberd_commands{name = update, tags = [server],
-%                       desc = "Update the given module, or use the keyword: all",
-%                       module = ?MODULE, function = update,
-%                       args = [{module, string}],
-%                       result = {res, restuple}},
-
      #ejabberd_commands{name = register, tags = [accounts],
                         desc = "Register a user",
                         module = ?MODULE, function = register,
@@ -123,16 +108,6 @@ commands() ->
                         module = ?MODULE, function = registered_users,
                         args = [{host, binary}],
                         result = {users, {list, {username, binary}}}},
-
-%     #ejabberd_commands{name = import_file, tags = [mnesia],
-%                       desc = "Import user data from jabberd14 spool file",
-%                       module = ?MODULE, function = import_file,
-%                       args = [{file, string}], result = {res, restuple}},
-%     #ejabberd_commands{name = import_dir, tags = [mnesia],
-%                       desc = "Import users data from jabberd14 spool dir",
-%                       module = ?MODULE, function = import_dir,
-%                       args = [{file, string}],
-%                       result = {res, restuple}},
 
 %     #ejabberd_commands{name = import_piefxis, tags = [mnesia],
 %                       desc = "Import users data from a PIEFXIS file (XEP-0227)",
@@ -305,31 +280,6 @@ send_service_message_all_mucs(Subject, AnnouncementText) ->
       ?MYHOSTS).
 
 %%%
-%%% ejabberd_update
-%%%
-
--spec update_list() -> [string()].
-update_list() ->
-    {ok, _Dir, UpdatedBeams, _Script, _LowLevelScript, _Check} =
-        ejabberd_update:update_info(),
-    [atom_to_list(Beam) || Beam <- UpdatedBeams].
-
--spec update(string()) -> [{'error',_} | {'ok',[any()]}]
-                        | {'error',_} | {'ok',io_lib:chars()}.
-update("all") ->
-    [update_module(ModStr) || ModStr <- update_list()];
-update(ModStr) ->
-    update_module(ModStr).
-
--spec update_module(string()) -> {'error',_} | {'ok', io_lib:chars()}.
-update_module(ModuleNameString) ->
-    ModuleName = list_to_atom(ModuleNameString),
-    case ejabberd_update:update([ModuleName]) of
-          {ok, Res} -> {ok, io_lib:format("Updated: ~p", [Res])};
-          {error, Reason} -> {error, Reason}
-    end.
-
-%%%
 %%% Account management
 %%%
 
@@ -365,46 +315,18 @@ registered_users(Host) ->
     SUsers = lists:sort(Users),
     lists:map(fun({U, _S}) -> U end, SUsers).
 
-
-%%%
-%%% Migration management
-%%%
-
--spec import_file(file:name()) -> {'cannot_import_file', io_lib:chars()} | {'ok',[]}.
-import_file(Path) ->
-    case jd2ejd:import_file(Path) of
-        ok ->
-            {ok, ""};
-        {error, Reason} ->
-            String = io_lib:format("Can't import jabberd14 spool file ~p at node ~p: ~p",
-                                   [filename:absname(Path), node(), Reason]),
-            {cannot_import_file, String}
-    end.
-
--spec import_dir(file:name()) -> {'cannot_import_dir', io_lib:chars()} | {'ok',[]}.
-import_dir(Path) ->
-    case jd2ejd:import_dir(Path) of
-        ok ->
-            {ok, ""};
-        {error, Reason} ->
-            String = io_lib:format("Can't import jabberd14 spool dir ~p at node ~p: ~p",
-                                   [filename:absname(Path), node(), Reason]),
-            {cannot_import_dir, String}
-    end.
-
-
 %%%
 %%% Purge DB
 %%%
 
 -spec delete_expired_messages() -> 'ok'.
 delete_expired_messages() ->
-    {atomic, ok} = mod_offline:remove_expired_messages(),
+    {atomic, ok} = mod_offline:remove_expired_messages(?MYNAME),
     ok.
 
 -spec delete_old_messages(Days :: integer()) -> 'ok'.
 delete_old_messages(Days) ->
-    {atomic, _} = mod_offline:remove_old_messages(Days),
+    {atomic, _} = mod_offline:remove_old_messages(?MYNAME, Days),
     ok.
 
 
@@ -523,7 +445,7 @@ dump_table(Path, STable) ->
     Table = list_to_atom(STable),
     dump_tables(Path, [Table]).
 
--spec dump_tables(file:name(), Tables :: [string()]) ->
+-spec dump_tables(file:name(), Tables :: [atom()]) ->
                         {'cannot_dump', io_lib:chars()} | {'ok', []}.
 dump_tables(Path, Tables) ->
     case dump_to_textfile(Path, Tables) of

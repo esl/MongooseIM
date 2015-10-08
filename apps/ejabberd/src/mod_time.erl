@@ -50,7 +50,7 @@ calculate_time() ->
     UTC = list_to_binary(UTC_time ++ UTC_diff),
     Seconds_diff = difference_in_secs(Now_local, Now_universal),
     {Hd, Md, _} = calendar:seconds_to_time(abs(Seconds_diff)),
-    {_, TZO_diff} = jlib:timestamp_to_iso({{0, 1, 1},
+    {_, TZO_diff} = jlib:timestamp_to_iso({{2000, 1, 1},
                                            {0, 0, 0}},
                                           {sign(Seconds_diff), {Hd, Md}}),
     {UTC, TZO_diff}.
