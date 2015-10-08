@@ -1,17 +1,5 @@
 #!/bin/sh
 
-
-# parse command line parameters
-ARGS=
-while [ $# -ne 0 ] ; do
-    PARAM=$1
-    shift
-    case $PARAM in
-        --) break ;;
-        *) ARGS="$ARGS $PARAM" ;;
-    esac
-done
-
 RUNNER_SCRIPT_DIR=$(cd ${0%/*} && pwd)
 EJABBERD_DIR=${RUNNER_SCRIPT_DIR%/*}
 EJABBERD_VMARGS_PATH=$EJABBERD_DIR/etc/vm.args
@@ -204,13 +192,27 @@ wait_for_status()
     return $status
 }
 
-case "$ARGS" in
-    ' start') start;;
-    \ add_to_cluster*) add_to_cluster;;
-    \ remove_from_cluster*) remove_from_cluster;;
-    ' debug') debug;;
-    ' live') live;;
-    ' started') wait_for_status 0 30 2;; # wait 30x2s before timeout
-    ' stopped') wait_for_status 3 15 2; stop_epmd;; # wait 15x2s before timeout
-    *) ctl $ARGS;;
+
+# parse command line parameters
+ARGS=""; QUOTED_ARGS=""
+for PARAM in "$@"
+do
+    case $PARAM in
+        --)
+	    break ;;
+         *)
+	    ARGS="$ARGS$PARAM"; ARGS="$ARGS ";
+	    QUOTED_ARGS=$QUOTED_ARGS'"'$PARAM'"'; QUOTED_ARGS=$QUOTED_ARGS" " ;;
+    esac
+done
+
+case $1 in
+    'start') start;;
+    'add_to_cluster') add_to_cluster;;
+    'remove_from_cluster') remove_from_cluster;;
+    'debug') debug;;
+    'live') live;;
+    'started') wait_for_status 0 30 2;; # wait 30x2s before timeout
+    'stopped') wait_for_status 3 15 2; stop_epmd;; # wait 15x2s before timeout
+    *) ctl $QUOTED_ARGS;;
 esac

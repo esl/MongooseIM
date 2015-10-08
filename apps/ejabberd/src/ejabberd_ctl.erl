@@ -62,6 +62,8 @@
 -type format_type() :: binary() | string() | char().
 -type cmd() :: {CallString :: string(), Args :: [string()], Desc :: string()}.
 
+-define(ASCII_SPACE_CHARACTER, $\s).
+
 %%-----------------------------
 %% Module
 %%-----------------------------
@@ -369,7 +371,7 @@ args_join_strings([ "\"", NextArg | RArgs ]) ->
     args_join_strings([ "\"" ++ NextArg | RArgs ]);
 args_join_strings([ [ $" | _ ] = Arg | RArgs ]) ->
     case lists:nthtail(length(Arg)-2, Arg) of
-        [C1, $"] when C1 /= $\ ->
+        [C1, $"] when C1 /= ?ASCII_SPACE_CHARACTER ->
             [ string:substr(Arg, 2, length(Arg)-2) | args_join_strings(RArgs) ];
         _ ->
             [NextArg | RArgs1] = RArgs,
@@ -389,7 +391,7 @@ bal(String, Left, Right) ->
 -spec bal(string(), L :: char(), R :: char(), Bal :: integer()) -> boolean().
 bal([], _Left, _Right, Bal) ->
     Bal == 0;
-bal([$\ , _NextChar | T], Left, Right, Bal) ->
+bal([?ASCII_SPACE_CHARACTER, _NextChar | T], Left, Right, Bal) ->
     bal(T, Left, Right, Bal);
 bal([Left | T], Left, Right, Bal) ->
     bal(T, Left, Right, Bal-1);
@@ -644,7 +646,7 @@ prepare_description(DescInit, MaxC, Desc) ->
                         ) -> [[[any()]],...].
 prepare_long_line(DescInit, MaxC, Words) ->
     MaxSegmentLen = MaxC - DescInit,
-    MarginString = lists:duplicate(DescInit, $\s), % Put spaces
+    MarginString = lists:duplicate(DescInit, ?ASCII_SPACE_CHARACTER), % Put spaces
     [FirstSegment | MoreSegments] = split_desc_segments(MaxSegmentLen, Words),
     MoreSegmentsMixed = mix_desc_segments(MarginString, MoreSegments),
     [FirstSegment | MoreSegmentsMixed].
@@ -704,7 +706,7 @@ format_command_lines(CALD, MaxCmdLen, MaxC, ShCode, dual) ->
     lists:map(
       fun({Cmd, Args, CmdArgsL, Desc}) ->
               DescFmt = prepare_description(MaxCmdLen+4, MaxC, Desc),
-              ["  ", ?B(Cmd), " ", [[?U(Arg), " "] || Arg <- Args], string:chars($\s, MaxCmdLen - CmdArgsL + 1),
+              ["  ", ?B(Cmd), " ", [[?U(Arg), " "] || Arg <- Args], string:chars(?ASCII_SPACE_CHARACTER, MaxCmdLen - CmdArgsL + 1),
                DescFmt, "\n"]
       end, CALD);
 format_command_lines(CALD, _MaxCmdLen, MaxC, ShCode, long) ->
@@ -864,7 +866,7 @@ print_usage_command(Cmd, C, MaxC, ShCode) ->
 
     %% Initial indentation of result is 13 = length("  Arguments: ")
     Args = [format_usage_ctype(ArgDef, 13) || ArgDef <- ArgsDef],
-    ArgsMargin = lists:duplicate(13, $\s),
+    ArgsMargin = lists:duplicate(13, ?ASCII_SPACE_CHARACTER),
     ArgsListFmt = case Args of
                       [] -> "\n";
                       _ -> [ [Arg, "\n", ArgsMargin] || Arg <- Args]
@@ -918,7 +920,7 @@ format_usage_tuple([ElementDef], Indentation) ->
     [format_usage_ctype(ElementDef, Indentation) , " }"];
 format_usage_tuple([ElementDef | ElementsDef], Indentation) ->
     ElementFmt = format_usage_ctype(ElementDef, Indentation),
-    MarginString = lists:duplicate(Indentation, $\s), % Put spaces
+    MarginString = lists:duplicate(Indentation, ?ASCII_SPACE_CHARACTER), % Put spaces
     [ElementFmt, ",\n", MarginString, format_usage_tuple(ElementsDef, Indentation)].
 
 %%-----------------------------

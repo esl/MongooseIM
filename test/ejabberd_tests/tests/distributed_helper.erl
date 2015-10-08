@@ -33,18 +33,17 @@ add_node_to_cluster(ConfigIn) ->
     MnesiaDir = filename:join([get_cwd(Node2, Config), "Mnesia*"]),
     MnesiaCmd = "rm -rf " ++ MnesiaDir,
 
-    Res1 = call_fun(Node, os, cmd, [MnesiaCmd]),
-    Res2 = call_fun(Node, os, cmd, [StopCmd]),
+    Res1 = call_fun(Node, os, cmd, [StopCmd]),
+    ?assertEqual("", Res1),
     wait_until_stopped(StatusCmd, 120),
+    Res2 = call_fun(Node, os, cmd, [MnesiaCmd]),
+    ?assertEqual("", Res2),
 
     Res3 = call_fun(Node, os, cmd, [AddToClusterCmd]),
+    ?assertMatch("Node added to cluster" ++ _, Res3),
     Res4 = call_fun(Node, os, cmd, [StartCmd]),
+    ?assertEqual("", Res4),
     wait_until_started(StatusCmd, 120),
-
-    ?assertEqual(Res1, ""),
-    ?assertEqual(Res2, ""),
-    "Node added to cluster" ++ _ = Res3,
-    ?assertEqual(Res4, ""),
 
     verify_result(add),
 
