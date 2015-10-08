@@ -58,7 +58,7 @@ for each virtual XMPP domain):
 
 ### Options
 
-*   **key_size** - size to use when generating RAM-only keys (designated
+*   **ram_key_size** - size to use when generating RAM-only keys (designated
     by type `ram`)
 
 *   **keys** - list of _specifiers_ of keys which will be provided by the
