@@ -108,15 +108,16 @@ end_per_group(login_scram, Config) ->
 end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config, {by_name, [alice, bob]}).
 
-init_per_testcase(LoginDigest, Config) when
-      LoginDigest =:= log_one_digest; LoginDigest =:= log_non_existent_digest ->
+init_per_testcase(DigestOrScram, Config) when
+      DigestOrScram =:= log_one_digest; DigestOrScram =:= log_non_existent_digest;
+      DigestOrScram =:= log_one_scram; DigestOrScram =:= log_non_existent_scram ->
     case get_auth_method() of
         external ->
             {skip, "external authentication requires plain password"};
         ldap ->
             {skip, "ldap authentication requires plain password"};
         _ ->
-            escalus:init_per_testcase(LoginDigest, Config)
+            escalus:init_per_testcase(DigestOrScram, Config)
     end;
 init_per_testcase(check_unregistered, Config) ->
     Config;
