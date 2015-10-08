@@ -138,11 +138,12 @@ Configure the database section as follows:
 
 * users (credentials)
 * private storage
+* vCard and vCard search
 
 **Setup**
 
-We are using the riak data types, so the minimal supported version is 2.0. To
-be able to store **user credentials** one have to run the following command:
+We are using the riak data types, so the minimal supported version is 2.0.
+To be able to store above persistent date one have to run the following command:
 
 ```bash
 riak-admin bucket-type create users '{"props":{"datatype":"map"}}'
@@ -150,6 +151,21 @@ riak-admin bucket-type activate users
 
 riak-admin bucket-type create private '{"props":{"last_write_wins":true}}'
 riak-admin bucket-type activate private
+
+RIAK_HOST="http://localhost:8098"
+
+curl -XPUT $RIAK_HOST/search/schema/vcard \
+    -H 'Content-Type:application/xml' \
+    --data-binary @tools/vcard_search_schema.xml
+
+curl $RIAK_HOST/search/schema/vcard
+
+curl -XPUT $RIAK_HOST/search/index/vcard \
+    -H 'Content-Type: application/json' \
+    -d '{"schema":"vcard"}'
+
+riak-admin bucket-type create vcard '{"props":{"last_write_wins":true, "search_index":"vcard"}}'
+riak-admin bucket-type activate vcard
 ```
 
 This will create a bucket type required for storing **users credentials** and it will
