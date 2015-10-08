@@ -151,7 +151,7 @@ Content of IQ query:
 Example:
 
 ```xml
-<iq type='get' to='john@localhost' id='123'/>
+<iq type='get' to='john@localhost' id='123'>
     <query xmlns='urn:xmpp:tmp:auth-token'/>
 </iq>
 ```
@@ -171,7 +171,7 @@ Requested tokens are being returned by server wrapped in /IQ/ stanza with the fo
 Example response (encoded tokens have been truncated in this example):
 
 ```
-<iq type='result' to='john@localhost/res1' id='123' from='john@localhost' />
+<iq type='result' to='john@localhost/res1' id='123' from='john@localhost'>
     <items xmlns='urn:xmpp:tmp:auth-token'>
         <access_token>cmVmcmVzaAGQ1Mzk1MmZlYzhkYjhlOTQzM2UxMw==</access_token>
         <refresh_token>cmVmcmVzaAGQ1Mzk1MmZlYzhkYjhlOTQzM2UxMw==</refresh_token>
