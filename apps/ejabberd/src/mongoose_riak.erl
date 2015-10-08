@@ -89,13 +89,14 @@ get(Bucket, Key, OptsOrTimeout) ->
     ?CALL(get, [Bucket, Key, OptsOrTimeout]).
 
 
--spec update_type({binary(), binary()}, binary(), riakc_datatype:update(term())) -> ok.
+-spec update_type({binary(), binary()}, binary(), riakc_datatype:update(term())) ->
+    ok | {error, term()}.
 update_type(Bucket, Key, Update) ->
     update_type(Bucket, Key, Update, []).
 
 -spec update_type({binary(), binary()}, binary(),
     riakc_datatype:update(term()), [proplists:property()]) ->
-    ok.
+    ok | {error, term()}.
 update_type(Bucket, Key, Update, Options) ->
     ?CALL(update_type, [Bucket, Key, Update, Options]).
 

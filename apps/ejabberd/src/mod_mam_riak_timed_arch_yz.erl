@@ -32,7 +32,7 @@
          purge_multiple_messages/9]).
 
 -export([safe_archive_message/9,
-         safe_lookup_messages/14]).
+         lookup_messages/14]).
 
 -export([key/3]).
 
@@ -54,7 +54,7 @@ start_chat_archive(Host, _Opts) ->
             ejabberd_hooks:add(mam_archive_message, Host, ?MODULE, safe_archive_message, 50)
     end,
     ejabberd_hooks:add(mam_archive_size, Host, ?MODULE, archive_size, 50),
-    ejabberd_hooks:add(mam_lookup_messages, Host, ?MODULE, safe_lookup_messages, 50),
+    ejabberd_hooks:add(mam_lookup_messages, Host, ?MODULE, lookup_messages, 50),
     ejabberd_hooks:add(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
     ejabberd_hooks:add(mam_purge_single_message, Host, ?MODULE, purge_single_message, 50),
     ejabberd_hooks:add(mam_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 50).
@@ -94,13 +94,13 @@ safe_archive_message(Result, Host, MessID, UserID,
         {error, Reason}
     end.
 
-safe_lookup_messages({error, _Reason} = Result, _Host,
+lookup_messages({error, _Reason} = Result, _Host,
                      _UserID, _UserJID, _RSM, _Borders,
                      _Start, _End, _Now, _WithJID,
                      _PageSize, _LimitPassed, _MaxResultLimit,
                      _IsSimple) ->
                      Result;
-safe_lookup_messages(_Result, _Host,
+lookup_messages(_Result, _Host,
                      _UserID, UserJID, RSM, Borders,
                      Start, End, _Now, WithJID,
                      PageSize, LimitPassed, MaxResultLimit,
@@ -119,7 +119,8 @@ archive_size(Size, _Host, _ArchiveID, _ArchiveJID) ->
 
 %% use correct bucket for given date
 
--spec bucket(calendar:date() | integer()) -> binary().
+-spec bucket(calendar:date() | calendar:yearweeknum() | integer()) ->
+    {binary(), binary()} | undefined.
 bucket(MsgId) when is_integer(MsgId) ->
     {MicroSec, _} = mod_mam_utils:decode_compact_uuid(MsgId),
     MsgNow = mod_mam_utils:microseconds_to_now(MicroSec),
@@ -248,11 +249,11 @@ remove_archive(Host, _ArchiveID, ArchiveJID) ->
     case Result of
         {stopped, N} ->
             lager:warning("archive removal stopped for jid after processing ~p items out of ~p total",
-                          [ArchiveJID, N, TotalCount]);
+                          [ArchiveJID, N, TotalCount]),
+            ok;
         {ok, _} ->
             ok
-    end,
-    Result.
+    end.
 
 remove_chunk(_Host, ArchiveJID, Acc) ->
     KeyFiletrs = key_filters(bare_jid(ArchiveJID)),
@@ -265,7 +266,7 @@ do_remove_archive(0, {ok, _, _, Acc}, _, _) ->
 do_remove_archive(_, {ok, 0, _, Acc}, _, _) ->
     {ok, Acc};
 do_remove_archive(N, {ok, _TotalResults, _RowsIterated, Acc}, Host, ArchiveJID) ->
-    timer:sleep(1000), %% give Riak some time to clear after just removed keys
+    timer:sleep(1000), % give Riak some time to clear after just removed keys
     R = remove_chunk(Host, ArchiveJID, Acc),
     do_remove_archive(N-1, R, Host, ArchiveJID).
 
@@ -300,11 +301,11 @@ key(LocalJID, RemoteJID, MsgId) ->
 decode_key(KeyBinary) ->
     binary:split(KeyBinary, <<"/">>, [global]).
 
--spec read_archive(binary(),
+-spec read_archive(binary() | undefined,
                    binary() | undefined,
                    term(),
                    term(),
-                   integer() | undefined,
+                   [term()],
                    fun()) ->
     {integer(), list()} | {error, term()}.
 read_archive(OwnerJID, WithJID, Start, End, SearchOpts, Fun) ->
