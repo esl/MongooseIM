@@ -29,7 +29,7 @@
 
 -behavior(gen_mod).
 -behavior(gen_server).
-
+-xep([{xep, 199}, {version, "2.0"}]).
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 

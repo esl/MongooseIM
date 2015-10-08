@@ -26,7 +26,7 @@
 
 -module(mod_muc_room).
 -author('alexey@process-one.net').
-
+-xep([{xep, 68}, {version, "1.2"}]).
 -behaviour(gen_fsm).
 
 

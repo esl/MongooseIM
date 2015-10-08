@@ -26,7 +26,8 @@
 
 -module(jlib).
 -author('alexey@process-one.net').
-
+-xep([{xep, 59}, {version, "1.0"}]).
+-xep([{xep, 68}, {version, "1.2"}]).
 -export([make_result_iq_reply/1,
          make_error_reply/2,
          make_invitation/3,

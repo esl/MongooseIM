@@ -26,7 +26,10 @@
 
 -module(mod_disco).
 -author('alexey@process-one.net').
-
+-xep([{xep, 30}, {version, "2.4"}]).
+-xep([{xep, 68}, {version, "1.2"}]).
+-xep([{xep, 157}, {version, "1.0"}]).
+-xep([{xep, 212}, {version, "1.0"}]).
 -behaviour(gen_mod).
 
 -export([start/2,

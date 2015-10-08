@@ -26,7 +26,8 @@
 
 -module(mod_privacy).
 -author('alexey@process-one.net').
-
+-xep([{xep, 16}, {version, "1.6"}]).
+-xep([{xep, 126}, {version, "1.1"}]).
 -behaviour(gen_mod).
 
 -export([start/2, stop/1,

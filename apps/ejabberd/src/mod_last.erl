@@ -27,6 +27,8 @@
 
 -author('alexey@process-one.net').
 
+-xep([{xep, 12}, {version, "2.0"}]).
+
 -behaviour(gen_mod).
 
 -export([start/2,

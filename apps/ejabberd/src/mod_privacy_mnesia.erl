@@ -29,7 +29,7 @@
 -module(mod_privacy_mnesia).
 -author('alexey@process-one.net').
 -author('arcusfelis@gmail.com').
-
+-xep([{xep, 16}, {version, "1.6"}]).
 -behaviour(mod_privacy).
 
 -export([init/2,

@@ -26,7 +26,7 @@
 
 -module(mod_offline_odbc).
 -behaviour(mod_offline).
-
+-xep([{xep, 160}, {version, "1.0"}]).
 -export([init/2,
          pop_messages/2,
          write_messages/4,

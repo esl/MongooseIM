@@ -43,7 +43,8 @@
 -include("jlib.hrl").
 -include_lib("exml/include/exml_stream.hrl").
 -include("mod_bosh.hrl").
-
+-xep([{xep, 206}, {version, "1.4"}]).
+-xep([{xep, 124}, {version, "1.11"}]).
 -define(ACCUMULATE_PERIOD, 10).
 -define(DEFAULT_HOLD, 1).
 -define(CONCURRENT_REQUESTS, 2).

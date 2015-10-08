@@ -26,7 +26,8 @@
 
 -module(mod_muc).
 -author('alexey@process-one.net').
-
+-xep([{xep, 45}, {version, "1.25"}]).
+-xep([{xep, 68}, {version, "1.2"}]).
 -behaviour(gen_server).
 -behaviour(gen_mod).
 

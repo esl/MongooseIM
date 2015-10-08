@@ -36,7 +36,7 @@
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
-
+-xep([{xep, 49}, {version, "1.2"}]).
 -define(BACKEND, mod_private_backend).
 
 %% ------------------------------------------------------------------

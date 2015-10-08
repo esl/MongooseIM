@@ -26,7 +26,8 @@
 
 -module(ejabberd_s2s_in).
 -author('alexey@process-one.net').
-
+-xep([{xep, 175}, {version, "1.2"}]).
+-xep([{xep, 198}, {version, "1.3"}]).
 -behaviour(gen_fsm).
 
 %% External exports

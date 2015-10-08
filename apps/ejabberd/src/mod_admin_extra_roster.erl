@@ -26,7 +26,7 @@
 
 -module(mod_admin_extra_roster).
 -author('badlop@process-one.net').
-
+-xep([{xep, 93}, {version, "1.2"}]).
 -export([
     commands/0,
 

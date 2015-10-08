@@ -35,7 +35,9 @@
 
 -module(mod_roster).
 -author('alexey@process-one.net').
-
+-xep([{xep, 237}, {version, "1.3"}]).
+-xep([{xep, 83}, {version, "1.0"}]).
+-xep([{xep, 93}, {version, "1.2"}]).
 -behaviour(gen_mod).
 
 -export([start/2,

@@ -26,7 +26,7 @@
 
 -module(mod_sic).
 -author('karim.gemayel@process-one.net').
-
+-xep([{xep, 279}, {verion, "0.2"}]).
 -behaviour(gen_mod).
 
 -export([start/2,

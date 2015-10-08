@@ -26,7 +26,8 @@
 
 -module(mod_register).
 -author('alexey@process-one.net').
-
+-xep([{xep, 77}, {version, "2.4"}]).
+-xep([{xep, 170}, {version, "1.0"}]).
 -behaviour(gen_mod).
 
 -export([start/2,
