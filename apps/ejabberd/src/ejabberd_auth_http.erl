@@ -209,7 +209,7 @@ remove_user(LUser, LServer, Password) ->
     end.
 
 -spec remove_user_req(binary(), binary(), binary(), binary()) ->
-    ok | not_exists | not_allowed | bad_request.
+    ok | {error, not_exists | not_allowed | bad_request}.
 remove_user_req(LUser, LServer, Password, Method) ->
     case make_req(post, Method, LUser, LServer, Password) of
         {error, not_allowed} -> {error, not_allowed};
