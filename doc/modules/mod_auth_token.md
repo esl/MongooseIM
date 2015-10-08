@@ -30,7 +30,7 @@ unless defined, the default values for tokens are:
 
 Example configuration from `ejabberd.cfg` - inside `modules` section:
 
-```
+```erlang
 {modules, [
     {mod_auth_token, [{{validity_period, access}, {13, minutes}},
                       {{validity_period, refresh}, {13, days}}]
@@ -49,7 +49,7 @@ Example configurations from `ejabberd.cfg`.
 
 Keys stored only in RAM, key name - `token_secret`:
 
-```
+```erlang
 {mod_keystore, [{keys, [
                         {token_secret, ram}
                        ]}]}
@@ -57,7 +57,7 @@ Keys stored only in RAM, key name - `token_secret`:
 
 Pre-shared key stored on a disk, key name - `token_secret`, key filename - `token_psk`:
 
-```
+```erlang
 {mod_keystore, [{keys, [{token_psk, {file, "priv/token_psk"}}]}]}
 ```
 
@@ -68,7 +68,7 @@ Each binary token consists of a number of fields described in this section.
 
 On erlang/server side the a token is represented as a record of following structure:
 
-```
+```erlang
 -record (token, { type              :: mod_auth_token:token_type(),
                   expiry_datetime   :: calendar:datetime(),
                   user_jid          :: ejabberd:jid(),
@@ -170,7 +170,7 @@ Requested tokens are being returned by server wrapped in /IQ/ stanza with the fo
 
 Example response (encoded tokens have been truncated in this example):
 
-```
+```xml
 <iq type='result' to='john@localhost/res1' id='123' from='john@localhost'>
     <items xmlns='urn:xmpp:tmp:auth-token'>
         <access_token>cmVmcmVzaAGQ1Mzk1MmZlYzhkYjhlOTQzM2UxMw==</access_token>
@@ -182,7 +182,7 @@ Example response (encoded tokens have been truncated in this example):
 Once client obtained an acccess token - he may start authenticating himself next time choosing **X-OAUTH** SASL mechanism
 by issuing following SASL command:
 
-```
+```xml
 <auth xmlns="urn:ietf:params:xml:ns:xmpp-sasl" mechanism="X-OAUTH"/>
 ```
 
@@ -191,7 +191,7 @@ by issuing following SASL command:
 In order to log into XMPP server using previously requested binary access token - client should issue following
 stanza (The base64 encoded CDATA content is an **access** or **refresh** token.
 
-```
+```xml
 <auth xmlns="urn:ietf:params:xml:ns:xmpp-sasl" mechanism="X-OAUTH">
 cmVmcmVzaAGQ1Mzk1MmZlYzhkYjhlOTQzM2UxMw== 
 </auth>
@@ -205,7 +205,7 @@ the server - unless used tokens are expired or/and the keys could not be retriev
 When using refresh token to authenticate with the server - server will respond with new **access token** - the
 token will be issued as body of `success` element as follows;
 
-```
+```xml
 <success xmlns="urn:ietf:params:xml:ns:xmpp-sasl">
 cmVmcmVzaAGQ1Mzk1MmZlYzhkYjhlOTQzM2UxMw==
 </success>
@@ -225,4 +225,6 @@ Administrator may **revoke** refresh tokens - which means that client can no lon
 authentication nor requesting new access tokens. For client, in order to obtain a new refresh token - it's
 necessary to log in first once it's been revoked.
 
-` mongooseimctl revoke_token owner@xmpphost `
+```sh
+mongooseimctl revoke_token owner@xmpphost
+```
