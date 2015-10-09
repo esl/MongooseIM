@@ -430,7 +430,7 @@ get_xml_lang(Attrs) ->
 default_language() ->
     case ?MYLANG of
         undefined -> <<"en">>;
-        DL -> list_to_binary(DL)
+        DL -> DL
     end.
 
 -spec wait_for_auth(Item :: ejabberd:xml_stream_item(),
