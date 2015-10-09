@@ -29,19 +29,25 @@
          start/2,
          stop/2,
 
-         create_room/3,
+         create_room/4,
          destroy_room/1,
          room_exists/1,
          get_user_rooms/1,
-         remove_user/1,
+         remove_user/2,
 
-         get_configuration/1,
-         get_configuration/2,
-         set_configuration/2,
-         set_configuration/3,
+         get_config/1,
+         get_config/2,
+         set_config/3,
+         set_config/4,
 
-         get_affiliated_users/1,
-         modify_affiliated_users/3
+         get_blocking/1,
+         get_blocking/2,
+         set_blocking/2,
+
+         get_aff_users/1,
+         modify_aff_users/4,
+
+         get_info/1
         ]).
 
 %% Extra API for testing
@@ -55,16 +61,23 @@
 
 -define(ROOM_TAB, muc_light_room).
 -define(USER_ROOM_TAB, muc_light_user_room).
+-define(BLOCKING_TAB, muc_light_blocking).
 
 -record(?ROOM_TAB, {
-          room_us :: {ejabberd:username(), ejabberd:server()},
+          room :: {ejabberd:username(), ejabberd:server()},
           config :: [{atom(), term()}],
-          affiliated_users :: affiliated_users()
+          aff_users :: aff_users(),
+          version :: binary()
          }).
 
 -record(?USER_ROOM_TAB, {
-           user_us :: {ejabberd:username(), ejabberd:server()},
-           room_us :: {ejabberd:username(), ejabberd:server()}
+           user :: ejabberd:simple_bare_jid(),
+           room :: ejabberd:simple_bare_jid()
+          }).
+
+-record(?BLOCKING_TAB, {
+           user :: ejabberd:simple_bare_jid(),
+           item :: {user | room, ejabberd:simple_bare_jid()}
           }).
 
 %%====================================================================
@@ -73,120 +86,154 @@
 
 %% ------------------------ Backend start/stop ------------------------
 
--spec start(ejabberd:server(), ejabberd:server()) -> ok.
+-spec start(Host :: ejabberd:server(), MUCHost :: ejabberd:server()) -> ok.
 start(_Host, _MUCHost) ->
     init_tables().
 
--spec stop(ejabberd:server(), ejabberd:server()) -> ok.
+-spec stop(Host :: ejabberd:server(), MUCHost :: ejabberd:server()) -> ok.
 stop(_Host, _MUCHost) ->
     ok.
 
 %% ------------------------ General room management ------------------------
 
--spec create_room(jid(), ljid(), configuration()) -> ok | {error, exists}.
-create_room(RoomJID, Owner, Configuration) ->
-    {atomic, Res} = mnesia:transaction(
-                     fun create_room_transaction/3,
-                     [RoomJID, Owner, Configuration]),
+-spec create_room(RoomUS :: ejabberd:simple_bare_jid(), Config :: config(),
+                  AffUsers :: aff_users(), Version :: binary()) ->
+    {ok, FinalRoomUS :: ejabberd:simple_bare_jid()} | {error, exists}.
+create_room(RoomUS, Config, AffUsers, Version) ->
+    {atomic, Res} = mnesia:transaction(fun create_room_transaction/4,
+                                       [RoomUS, Config, AffUsers, Version]),
     Res.
 
--spec destroy_room(jid()) -> ok | {error, not_exists | not_empty}.
-destroy_room(RoomJID) ->
-    {atomic, Res} = mnesia:transaction(
-                     fun destroy_room_transaction/1,
-                     [RoomJID]),
+-spec destroy_room(RoomUS :: ejabberd:simple_bare_jid()) -> ok | {error, not_exists | not_empty}.
+destroy_room(RoomUS) ->
+    {atomic, Res} = mnesia:transaction(fun destroy_room_transaction/1, [RoomUS]),
     Res.
 
--spec room_exists(jid()) -> boolean().
-room_exists(RoomJID) ->
-    mnesia:dirty_read(?ROOM_TAB, to_us(RoomJID)) =/= [].
+-spec room_exists(RoomUS :: ejabberd:simple_bare_jid()) -> boolean().
+room_exists(RoomUS) ->
+    mnesia:dirty_read(?ROOM_TAB, RoomUS) =/= [].
 
--spec get_user_rooms(ljid()) ->
-    {ok, [RoomUS :: {ejabberd:user(), ejabberd:server()}]} | {error, term()}.
-get_user_rooms(UserLJID) ->
-    UsersRooms = mnesia:dirty_read(?USER_ROOM_TAB, to_us(UserLJID)),
-    {ok, [ UserRoom#?USER_ROOM_TAB.room_us || UserRoom <- UsersRooms ]}.
+-spec get_user_rooms(UserUS :: ejabberd:simple_bare_jid()) ->
+    {ok, [RoomUS :: ejabberd:simple_bare_jid()]} | {error, term()}.
+get_user_rooms(UserUS) ->
+    UsersRooms = mnesia:dirty_read(?USER_ROOM_TAB, UserUS),
+    {ok, [ UserRoom#?USER_ROOM_TAB.room || UserRoom <- UsersRooms ]}.
 
--spec remove_user(ljid()) -> ok | {error, term()}.
-remove_user(UserLJID) ->
-    {atomic, Res} = mnesia:transaction(
-                     fun remove_user_transaction/1,
-                     [UserLJID]),
+-spec remove_user(UserUS :: ejabberd:simple_bare_jid(), Version :: binary()) ->
+    mod_muc_light_db:remove_user_return() | {error, term()}.
+remove_user(UserUS, Version) ->
+    {atomic, Res} = mnesia:transaction(fun remove_user_transaction/2, [UserUS, Version]),
     Res.
 
 %% ------------------------ Configuration manipulation ------------------------
 
--spec get_configuration(jid()) -> {ok, configuration()} | {error, not_exists}.
-get_configuration(RoomJID) ->
-    case mnesia:dirty_read(?ROOM_TAB, to_us(RoomJID)) of
-        [] ->
-            {error, not_exists};
-        [#?ROOM_TAB{ config = Config }] ->
-            {ok, Config}
+-spec get_config(RoomUS :: ejabberd:simple_bare_jid()) ->
+    {ok, config(), Version :: binary()} | {error, not_exists}.
+get_config(RoomUS) ->
+    case mnesia:dirty_read(?ROOM_TAB, RoomUS) of
+        [] -> {error, not_exists};
+        [#?ROOM_TAB{ config = Config, version = Version }] -> {ok, Config, Version}
     end.
 
--spec get_configuration(jid(), atom()) ->
-    {ok, term()} | {error, not_exists | invalid_opt}.
-get_configuration(RoomJID, Option) ->
-    case get_configuration(RoomJID) of
-        {ok, Config} ->
+-spec get_config(RoomUS :: ejabberd:simple_bare_jid(), Key :: atom()) ->
+    {ok, term(), Version :: binary()} | {error, not_exists | invalid_opt}.
+get_config(RoomUS, Option) ->
+    case get_config(RoomUS) of
+        {ok, Config, Version} ->
             case lists:keyfind(Option, 1, Config) of
-                {_, Value} -> {ok, Value};
+                {_, Value} -> {ok, Value, Version};
                 false -> {error, invalid_opt}
             end;
         Error ->
             Error
     end.
 
--spec set_configuration(jid(), configuration()) -> ok | {error, not_exists}.
-set_configuration(RoomJID, ConfigurationChanges) ->
-    {atomic, Res} = mnesia:transaction(
-                     fun set_configuration_transaction/2,
-                     [RoomJID, ConfigurationChanges]),
+-spec set_config(RoomUS :: ejabberd:simple_bare_jid(), Config :: config(), Version :: binary()) ->
+    {ok, PrevVersion :: binary()} | {error, not_exists}.
+set_config(RoomUS, ConfigChanges, Version) ->
+    {atomic, Res} = mnesia:transaction(fun set_config_transaction/3,
+                                       [RoomUS, ConfigChanges, Version]),
     Res.
 
--spec set_configuration(jid(), atom(), term()) -> ok | {error, not_exists}.
-set_configuration(RoomJID, Option, Value) ->
-    set_configuration(RoomJID, [{Option, Value}]).
+-spec set_config(RoomUS :: ejabberd:simple_bare_jid(),
+                 Key :: atom(), Val :: term(), Version :: binary()) ->
+    {ok, PrevVersion :: binary()} | {error, not_exists}.
+set_config(RoomJID, Key, Val, Version) ->
+    set_config(RoomJID, [{Key, Val}], Version).
+
+%% ------------------------ Blocking manipulation ------------------------
+
+-spec get_blocking(UserUS :: ejabberd:simple_bare_jid()) -> {ok, [blocking_item()]}.
+get_blocking(UserUS) ->
+    [ {What, deny, Who}
+      || #?BLOCKING_TAB{ item = {What, Who} } <- dirty_get_blocking_raw(UserUS) ].
+
+-spec get_blocking(UserUS :: ejabberd:simple_bare_jid(),
+                   WhatWhos :: [{blocking_who(), ejabberd:simple_bare_jid()}]) ->
+    blocking_action().
+get_blocking(UserUS, WhatWhos) ->
+    Blocklist = dirty_get_blocking_raw(UserUS),
+    case lists:any(
+           fun(WhatWho) ->
+                   lists:keyfind(WhatWho, #?BLOCKING_TAB.item, Blocklist) =/= false
+           end, WhatWhos) of
+        true -> deny;
+        false -> allow
+    end.
+
+-spec set_blocking(UserUS :: ejabberd:simple_bare_jid(), BlockingItems :: [blocking_item()]) -> ok.
+set_blocking(_UserUS, []) ->
+    ok;
+set_blocking(UserUS, [{What, allow, Who} | RBlockingItems]) ->
+    mnesia:dirty_write(#?BLOCKING_TAB{ user = UserUS, item = {What, Who} }),
+    set_blocking(UserUS, RBlockingItems);
+set_blocking(UserUS, [{What, deny, Who} | RBlockingItems]) ->
+    mnesia:dirty_delete_object(#?BLOCKING_TAB{ user = UserUS, item = {What, Who} }),
+    set_blocking(UserUS, RBlockingItems).
 
 %% ------------------------ Affiliations manipulation ------------------------
 
--spec get_affiliated_users(jid()) -> {ok, affiliated_users()} | {error, not_exists}.
-get_affiliated_users(RoomJID) ->
-    case mnesia:dirty_read(?ROOM_TAB, to_us(RoomJID)) of
-        [] ->
-            {error, not_exists};
-        [#?ROOM_TAB{ affiliated_users = Affiliations }] ->
-            {ok, Affiliations}
+-spec get_aff_users(RoomUS :: ejabberd:simple_bare_jid()) ->
+    {ok, aff_users(), Version :: binary()} | {error, not_exists}.
+get_aff_users(RoomUS) ->
+    case mnesia:dirty_read(?ROOM_TAB, RoomUS) of
+        [] -> {error, not_exists};
+        [#?ROOM_TAB{ aff_users = AffUsers, version = Version }] -> {ok, AffUsers, Version}
     end.
 
--spec modify_affiliated_users(jid(), affiliated_users(), external_check_fun()) ->
-    {ok, CurrentAffiliations :: affiliated_users(), ChangedAffiliations :: affiliated_users()}
-    | {error, any()}.
-modify_affiliated_users(RoomJID, AffiliationsToChange, ExternalCheck) ->
-    {atomic, Res} = mnesia:transaction(
-                      fun modify_affiliated_users_transaction/3,
-                      [RoomJID, AffiliationsToChange, ExternalCheck]),
+-spec modify_aff_users(RoomUS :: ejabberd:simple_bare_jid(),
+                       AffUsersChanges :: aff_users(),
+                       ExternalCheck :: external_check_fun(),
+                       Version :: binary()) ->
+    mod_muc_light_db:modify_aff_users_return().
+modify_aff_users(RoomUS, AffUsersChanges, ExternalCheck, Version) ->
+    {atomic, Res} = mnesia:transaction(fun modify_aff_users_transaction/4,
+                                       [RoomUS, AffUsersChanges, ExternalCheck, Version]),
     Res.
+
+%% ------------------------ Misc ------------------------
+
+-spec get_info(RoomUS :: ejabberd:simple_bare_jid()) ->
+    {ok, config(), aff_users(), Version :: binary()} | {error, not_exists}.
+get_info(RoomUS) ->
+    case mnesia:dirty_read(?ROOM_TAB, RoomUS) of
+        [] ->
+            {error, not_exists};
+        [#?ROOM_TAB{ config = Config, aff_users = AffUsers, version = Version }] ->
+            {ok, Config, AffUsers, Version}
+    end.
 
 %%====================================================================
 %% API for tests
 %%====================================================================
 
--spec force_destroy_room(ljid()) -> ok.
-force_destroy_room(RoomJID) ->
-    mnesia:dirty_delete(?ROOM_TAB, to_us(RoomJID)).
+-spec force_destroy_room(RoomUS :: ejabberd:simple_bare_jid()) -> ok.
+force_destroy_room(RoomUS) ->
+    mnesia:dirty_delete(?ROOM_TAB, RoomUS).
 
 %%====================================================================
 %% Internal functions
 %%====================================================================
-
-%% ------------------------ Utils ------------------------
-
--spec to_us(jid() | ljid() | {binary(), binary()}) -> {LUser :: binary(), LServer :: binary()}.
-to_us(#jid{ luser = LUser, lserver = LServer }) -> {LUser, LServer};
-to_us({LUser, LServer, _}) -> {LUser, LServer};
-to_us({_, _} = US) -> US.
 
 %% ------------------------ Schema creation ------------------------
 
@@ -199,9 +246,13 @@ init_tables() ->
                  [{disc_copies, [node()]},
                   {attributes, record_info(fields, ?USER_ROOM_TAB)},
                   {type, bag}]),
+    create_table(?BLOCKING_TAB,
+                 [{disc_copies, [node()]},
+                  {attributes, record_info(fields, ?BLOCKING_TAB)},
+                  {type, bag}]),
     ok.
 
--spec create_table(atom(), list()) -> ok.
+-spec create_table(Name :: atom(), TabDef :: list()) -> ok.
 create_table(Name, TabDef) ->
     case mnesia:create_table(Name, TabDef) of
         {atomic, ok} -> ok;
@@ -216,101 +267,123 @@ create_table(Name, TabDef) ->
 
 %% ------------------------ General room management ------------------------
 
--spec create_room_transaction(jid(), ljid(), configuration()) ->
-    ok | {error, exists}.
-create_room_transaction(RoomJID, Owner, Configuration) ->
-    RoomUS = to_us(RoomJID),
+-spec create_room_transaction(RoomUS :: ejabberd:simple_bare_jid(),
+                              Config :: config(), AffUsers :: aff_users(),
+                              Version :: binary()) ->
+    {ok, FinalRoomUS :: ejabberd:simple_bare_jid()} | {error, exists}.
+create_room_transaction({<<>>, Domain}, Config, AffUsers, Version) ->
+    NodeCandidate = mod_muc_light_utils:bin_ts(),
+    NewNode = case mnesia:wread({?ROOM_TAB, {NodeCandidate, Domain}}) of
+                  [_] -> <<>>;
+                  [] -> NodeCandidate
+              end,
+    create_room_transaction({NewNode, Domain}, Config, AffUsers, Version);
+create_room_transaction(RoomUS, Config, AffUsers, Version) ->
     case mnesia:wread({?ROOM_TAB, RoomUS}) of
         [_] ->
             {error, exists};
         [] ->
             RoomRecord = #?ROOM_TAB{
-                             room_us = RoomUS,
-                             config = Configuration,
-                             affiliated_users = [{Owner, owner}]
+                             room = RoomUS,
+                             config = Config,
+                             aff_users = AffUsers,
+                             version = Version
                             },
             ok = mnesia:write(RoomRecord),
-            UserRoomRecord = #?USER_ROOM_TAB{
-                                 user_us = to_us(Owner),
-                                 room_us = RoomUS
-                                },
-            ok = mnesia:write(UserRoomRecord)
+            lists:foreach(
+              fun({User, _}) ->
+                      UserRoomRecord = #?USER_ROOM_TAB{
+                                           user = User,
+                                           room = RoomUS
+                                          },
+                      ok = mnesia:write(UserRoomRecord)
+              end, AffUsers)
     end.
 
--spec destroy_room_transaction(jid()) -> ok | {error, not_exists | not_empty}.
-destroy_room_transaction(RoomJID) ->
-    RoomUS = to_us(RoomJID),
+-spec destroy_room_transaction(RoomUS :: ejabberd:simple_bare_jid()) ->
+    ok | {error, not_exists | not_empty}.
+destroy_room_transaction(RoomUS) ->
     case mnesia:wread({?ROOM_TAB, RoomUS}) of
         [] -> {error, not_exists};
-        [#?ROOM_TAB{ affiliated_users = [] }] -> mnesia:delete({?ROOM_TAB, RoomUS});
-        _ -> {error, not_empty}
+        [#?ROOM_TAB{ aff_users = [] }] -> mnesia:delete({?ROOM_TAB, RoomUS});
+        [_] -> {error, not_empty}
     end.
 
--spec remove_user_transaction(ljid()) -> ok.
-remove_user_transaction(UserLJID) ->
-    lists:foreach(
-      fun(#?USER_ROOM_TAB{ room_us = RoomUS }) ->
-        modify_affiliated_users_transaction(RoomUS, [{UserLJID, none}], fun(_, _) -> ok end)
-      end, mnesia:read(?USER_ROOM_TAB, to_us(UserLJID))),
-    ok.
+-spec remove_user_transaction(UserUS :: ejabberd:simple_bare_jid(), Version :: binary()) ->
+    mod_muc_light_db:remove_user_return().
+remove_user_transaction(UserUS, Version) ->
+    lists:map(
+      fun(#?USER_ROOM_TAB{ room = RoomUS }) ->
+              {RoomUS, modify_aff_users_transaction(
+                         RoomUS, [{UserUS, none}], fun(_,_) -> ok end, Version)}
+      end, mnesia:read(?USER_ROOM_TAB, UserUS)).
 
 %% ------------------------ Configuration manipulation ------------------------
 
--spec set_configuration_transaction(jid(), configuration()) ->
-    ok | {error, not_exists}.
-set_configuration_transaction(RoomJID, ConfigurationChanges) ->
-    RoomUS = to_us(RoomJID),
+-spec set_config_transaction(RoomUS :: ejabberd:simple_bare_jid(),
+                             ConfigChanges :: config(),
+                             Version :: binary()) ->
+    {ok, PrevVersion :: binary()} | {error, not_exists}.
+set_config_transaction(RoomUS, ConfigChanges, Version) ->
     case mnesia:wread({?ROOM_TAB, RoomUS}) of
         [] ->
             {error, not_exists};
         [#?ROOM_TAB{ config = Config } = Rec] ->
-            NewConfig = lists:foldl(
-                          fun({Key, Val}, ConfigAcc) ->
-                                  lists:keystore(Key, 1, ConfigAcc, {Key, Val})
-                          end, Config, ConfigurationChanges),
-            mnesia:write(Rec#?ROOM_TAB{ config = NewConfig })
+            NewConfig = lists:umerge(ConfigChanges, Config),
+            mnesia:write(Rec#?ROOM_TAB{ config = NewConfig, version = Version }),
+            {ok, Rec#?ROOM_TAB.version}
     end.
+
+%% ------------------------ Blocking manipulation ------------------------
+
+-spec dirty_get_blocking_raw(UserUS :: ejabberd:simple_bare_jid()) -> [#?BLOCKING_TAB{}].
+dirty_get_blocking_raw(UserUS) ->
+    mnesia:dirty_read(?BLOCKING_TAB, UserUS).
 
 %% ------------------------ Affiliations manipulation ------------------------
 
--spec modify_affiliated_users_transaction(
-        jid() | {ejabberd:user(), ejabberd:server()}, affiliated_users(), external_check_fun()) ->
-    {ok, NewAffiliations :: affiliated_users(),
-     AffiliationsChanged :: affiliated_users()} | {error, any()}.
-modify_affiliated_users_transaction(Room, AffiliationsToChange, ExternalCheck) ->
-    RoomUS = to_us(Room),
+-spec modify_aff_users_transaction(RoomUS :: ejabberd:simple_bare_jid(),
+                                   AffUsersChanges :: aff_users(),
+                                   ExternalCheck :: external_check_fun(),
+                                   Version :: binary()) ->
+    mod_muc_light_db:modify_aff_users_return().
+modify_aff_users_transaction(RoomUS, AffUsersChanges, ExternalCheck, Version) ->
     case mnesia:wread({?ROOM_TAB, RoomUS}) of
         [] ->
             {error, not_exists};
-        [#?ROOM_TAB{ affiliated_users = Affiliations } = RoomRec] ->
-            case mod_muc_light_utils:change_affiliated_users(Affiliations, AffiliationsToChange) of
-                {ok, NewAffiliations, _, _, _} = ChangeResult ->
+        [#?ROOM_TAB{ aff_users = AffUsers } = RoomRec] ->
+            case mod_muc_light_utils:change_aff_users(AffUsers, AffUsersChanges) of
+                {ok, NewAffUsers, _, _, _} = ChangeResult ->
                     verify_externally_and_submit(
-                      RoomUS, RoomRec, ChangeResult, ExternalCheck(Room, NewAffiliations));
+                      RoomUS, RoomRec, ChangeResult, ExternalCheck(RoomUS, NewAffUsers), Version);
                 Error ->
                     Error
             end
     end.
 
--spec verify_externally_and_submit(
-        {ejabberd:user(), ejabberd:server()}, #?ROOM_TAB{},
-        {ok, affiliated_users(), affiliated_users(), [jid()], [jid()]}, ok | {error, any()}) ->
-    {ok, NewAffiliations :: affiliated_users(),
-     AffiliationsChanged :: affiliated_users()} | {error, any()}.
+-spec verify_externally_and_submit(RoomUS :: ejabberd:simple_bare_jid(),
+                                   RoomRec :: #?ROOM_TAB{},
+                                   ChangeResult :: mod_muc_light_utils:change_aff_success(),
+                                   CheckResult :: ok | {error, any()},
+                                   Version :: binary()) ->
+    mod_muc_light_db:modify_aff_users_return().
 verify_externally_and_submit(
-  RoomUS, RoomRec, {ok, NewAffiliations, AffiliationsChanged, JoiningUsers, LeavingUsers}, ok) ->
-    ok = mnesia:write(RoomRec#?ROOM_TAB{ affiliated_users = NewAffiliations }),
+  RoomUS, #?ROOM_TAB{ aff_users = OldAffUsers, version = PrevVersion } = RoomRec,
+  {ok, NewAffUsers, AffUsersChanged, JoiningUsers, LeavingUsers}, ok, Version) ->
+    ok = mnesia:write(RoomRec#?ROOM_TAB{ aff_users = NewAffUsers, version = Version }),
     update_users_rooms(RoomUS, JoiningUsers, LeavingUsers),
-    {ok, NewAffiliations, AffiliationsChanged};
-verify_externally_and_submit(_, _, _, Error) ->
+    {ok, OldAffUsers, NewAffUsers, AffUsersChanged, PrevVersion};
+verify_externally_and_submit(_, _, _, Error, _) ->
     Error.
 
--spec update_users_rooms({ejabberd:user(), ejabberd:server()}, [ljid()], [ljid()]) -> ok.
+-spec update_users_rooms(RoomUS :: ejabberd:simple_bare_jid(),
+                         JoiningUsers :: [ejabberd:simple_bare_jid()],
+                         LeavingUsers :: [ejabberd:simple_bare_jid()]) -> ok.
 update_users_rooms(RoomUS, [User | RJoiningUsers], LeavingUsers) ->
-    ok = mnesia:write(#?USER_ROOM_TAB{ user_us = to_us(User), room_us = RoomUS }),
+    ok = mnesia:write(#?USER_ROOM_TAB{ user = User, room = RoomUS }),
     update_users_rooms(RoomUS, RJoiningUsers, LeavingUsers);
 update_users_rooms(RoomUS, [], [User | RLeavingUsers]) ->
-    ok = mnesia:delete_object(#?USER_ROOM_TAB{ user_us = to_us(User), room_us = RoomUS }),
+    ok = mnesia:delete_object(#?USER_ROOM_TAB{ user = User, room = RoomUS }),
     update_users_rooms(RoomUS, [], RLeavingUsers);
 update_users_rooms(_RoomUS, [], []) ->
     ok.

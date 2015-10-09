@@ -25,7 +25,7 @@
 -author('piotr.nosek@erlang-solutions.com').
 
 %% API
--export([handle_packet/3]).
+-export([handle_request/3]).
 
 %% Callbacks
 -export([participant_limit_check/2]).
@@ -34,278 +34,229 @@
 -include("jlib.hrl").
 -include("mod_muc_light.hrl").
 
--define(BACKEND, (mod_muc_light:backend())).
--define(BCASTER, (mod_muc_light:bcaster())).
-
--type packet_processing_result() :: {ok, noreply} | {ok, #xmlel{}}
-                                    | {error, Reason :: term()}.
+-type packet_processing_result() :: muc_light_encode_request() | {error, Reason :: term()}.
 
 %%====================================================================
 %% API
 %%====================================================================
 
--spec handle_packet(jid(), jid(), #xmlel{}) -> ok.
-handle_packet(From, RoomJID, Packet) ->
-    AffiliationsRes = ?BACKEND:get_affiliated_users(RoomJID),
-    Response = get_params_and_process_packet(From, RoomJID, Packet, AffiliationsRes),
-    send_response(From, RoomJID, Packet, Response).
+-spec handle_request(From :: jlib:jid(), RoomJID :: jlib:jid(), Request :: muc_light_packet()) -> ok.
+handle_request(From, To, Request) ->
+    RoomUS = jlib:jid_to_lus(To),
+    AffUsersRes = ?BACKEND:get_aff_users(RoomUS),
+    Response = process_request(From, RoomUS, Request, AffUsersRes),
+    send_response(From, To, RoomUS, Request, Response).
+
+%%====================================================================
+%% Callbacks
+%%====================================================================
+
+-spec participant_limit_check(RoomUS :: ejabberd:simple_bare_jid(),
+                              NewAffUsers :: aff_users()) ->
+    ok | {error, occupant_limit_exceeded}.
+participant_limit_check(_RoomUS, NewAffUsers) ->
+    MaxOccupants = mod_muc_light:get_service_opt(max_occupants, ?DEFAULT_MAX_OCCUPANTS),
+    case length(NewAffUsers) > MaxOccupants of
+        true -> {error, occupant_limit_exceeded};
+        false -> ok
+    end.
 
 %%====================================================================
 %% Packet handling
 %%====================================================================
 
--spec get_params_and_process_packet(
-        jid(), jid(), #xmlel{},{ok, affiliated_users()} | {error, term()}) ->
+-spec process_request(From :: jlib:jid(),
+                      RoomUS :: ejabberd:simple_bare_jid(),
+                      Request :: muc_light_packet(),
+                      AffUsersRes :: {ok, aff_users()} | {error, term()}) ->
     packet_processing_result().
-get_params_and_process_packet(_From, _RoomJID, _Packet, {error, Reason}) ->
-    {error, Reason};
-get_params_and_process_packet(From, RoomJID, Packet, {ok, Affiliations}) ->
-    Auth = lists:keyfind(lower_nores(From), 1, Affiliations),
-    Type = exml_query:path(Packet, [{attr, <<"type">>}]),
-    classify_operation(From, RoomJID, Packet, Type, Auth, Affiliations).
+process_request(_From, _RoomUS, _Request, {error, _} = Error) ->
+    Error;
+process_request(From, RoomUS, Request, {ok, AffUsers}) ->
+    UserUS = jlib:jid_to_lus(From),
+    Auth = lists:keyfind(UserUS, 1, AffUsers),
+    process_request(Request, From, UserUS, RoomUS, Auth, AffUsers).
 
--spec classify_operation(jid(), jid(), #xmlel{}, binary(),
-                         false | affiliated_user(), affiliated_users()) ->
+-spec process_request(Request :: muc_light_packet(),
+                      From :: jid(),
+                      UserUS :: ejabberd:simple_bare_jid(),
+                      RoomUS :: ejabberd:simple_bare_jid(),
+                      Auth :: false | aff_user(),
+                      AffUsers :: aff_users()) ->
     packet_processing_result().
-classify_operation(_From, _RoomJID, _Packet, _Type, false, _Affiliations) ->
-    {error, registration_required};
-classify_operation(_From, _RoomJID, #xmlel{ name = <<"iq">> }, <<"error">>, _Auth, _Affiliations) ->
-    {ok, noreply};
-classify_operation(From, RoomJID, #xmlel{ name = <<"iq">> } = IQ, Type, Auth, Affiliations) ->
-    case exml_query:path(IQ, [{element, <<"query">>}, {attr, <<"xmlns">>}]) of
-        ?NS_MUC_OWNER -> handle_config_iq(From, RoomJID, IQ, Type, Auth);
-        ?NS_MUC_ADMIN -> handle_affiliation_iq(From, RoomJID, IQ, Type, Auth, Affiliations);
-        _ -> handle_other_iq(RoomJID#jid.lserver, From, RoomJID, IQ)
-    end;
-classify_operation(From, RoomJID, #xmlel{ name = <<"message">> } = Msg,
-                   <<"groupchat">>, _Auth, Affiliations) ->
-    case exml_query:path(Msg, [{element, <<"body">>}]) of
-        undefined -> handle_subject_message(From, RoomJID, Msg, Affiliations);
-        _Body -> handle_body_message(From, RoomJID, Msg, Affiliations)
-    end;
-classify_operation(_From, _RoomJID, _Packet, _Type, _Auth, _Affiliations) ->
-    {error, bad_request}.
-    
-%% --------- IQ handlers ---------
-
--spec handle_config_iq(jid(), jid(), #xmlel{},
-                       binary(), affiliated_user()) ->
-    packet_processing_result().
-handle_config_iq(_From, RoomJID, IQ, <<"get">>, _) ->
-    case ?BACKEND:get_configuration(RoomJID) of
-        {ok, Config} ->
-            ResultIQ1 = jlib:make_result_iq_reply(IQ),
-            ResultIQ = ResultIQ1#xmlel{children = [mod_muc_light_utils:config_to_query(Config)]},
-            {ok, ResultIQ};
-        Error ->
-            Error
-    end;
-handle_config_iq(_From, RoomJID, IQ, <<"set">>, {_, owner}) ->
-    {ok, ConfigurationChange} = mod_muc_light_utils:iq_to_config(IQ, []),
-    case ?BACKEND:set_configuration(RoomJID, ConfigurationChange) of
-        ok -> {ok, (jlib:make_result_iq_reply(IQ))#xmlel{ children = [] }};
-        Error -> Error
-    end;
-handle_config_iq(_From, _RoomJID, _IQ, <<"set">>, _) ->
-    {error, not_allowed};
-handle_config_iq(_From, _RoomJID, _IQ, <<"error">>, _) ->
-    {ok, noreply};
-handle_config_iq(_From, _RoomJID, _IQ, _Type, _FromAff) ->
-    {error, bad_request}.
-
--spec handle_affiliation_iq(jid(), jid(), #xmlel{}, binary(),
-                            affiliated_user(), affiliated_users()) ->
-    packet_processing_result().
-handle_affiliation_iq(_From, _RoomJID, IQ, <<"get">>, _, Affiliations) ->
-    Query = exml_query:path(IQ, [{element, <<"query">>}]),
-    QueryAffiliations = exml_query:paths(Query, [{element, <<"item">>}, {attr, <<"affiliation">>}]),
-    AffiliationsFiltered
-    = case {lists:member(<<"owner">>, QueryAffiliations),
-            lists:member(<<"member">>, QueryAffiliations)} of
-          {true, true} -> Affiliations;
-          {true, false} -> [lists:keyfind(owner, 2, Affiliations)];
-          {false, true} -> lists:keydelete(owner, 2, Affiliations)
+process_request(_Request, _From, _UserUS, _RoomUS, false, _AffUsers) ->
+    {error, item_not_found};
+process_request(#subject{ text = Subject }, _From, _UserUS, RoomUS, _Auth, _AffUsers) ->
+    NewVersion = mod_muc_utils:bin_ts(),
+    {ok, OldVersion} = ?BACKEND:set_config(RoomUS, subject, Subject, NewVersion),
+    {set, #config{ id = mod_muc_utils:bin_ts(), prev_version = OldVersion,
+                   version = NewVersion, raw_config = [{<<"subject">>, Subject}] }};
+process_request(#msg{} = Msg, _From, _UserUS, _RoomUS, _Auth, AffUsers) ->
+    {Msg, AffUsers};
+process_request({get, #config{} = ConfigReq}, _From, _UserUS, RoomUS, _Auth, _AffUsers) ->
+    {ok, Config, RoomVersion} = ?BACKEND:get_config(RoomUS),
+    {get, ConfigReq#config{ version = RoomVersion,
+                            raw_config = mod_muc_light_utils:config_to_raw(Config) }};
+process_request({get, #affiliations{} = AffReq}, _From, _UserUS, RoomUS, _Auth, _AffUsers) ->
+    {ok, AffUsers, RoomVersion} = ?BACKEND:get_aff_users(RoomUS),
+    {get, AffReq#affiliations{ version = RoomVersion,
+                               aff_users = AffUsers }};
+process_request({get, #info{} = InfoReq}, _From, _UserUS, RoomUS, _Auth, _AffUsers) ->
+    {ok, Config, AffUsers, RoomVersion} = ?BACKEND:get_info(RoomUS),
+    {get, InfoReq#info{ version = RoomVersion, aff_users = AffUsers,
+                        raw_config = mod_muc_light_utils:config_to_raw(Config) }};
+process_request({set, #config{} = ConfigReq}, _From, _UserUS, RoomUS, {_, UserAff}, AffUsers) ->
+    AllCanConfigure = mod_muc_light:get_service_opt(all_can_configure, ?DEFAULT_ALL_CAN_CONFIGURE),
+    process_config_set(ConfigReq, RoomUS, UserAff, AffUsers, AllCanConfigure);
+process_request({set, #affiliations{} = AffReq}, _From, UserUS, RoomUS, {_, UserAff}, AffUsers) ->
+    OwnerUS = case lists:keyfind(owner, 2, AffUsers) of
+                  false -> undefined;
+                  {OwnerUS0, _} -> OwnerUS0
+              end,
+    Blocking = mod_muc_light:get_service_opt(blocking, ?DEFAULT_BLOCKING),
+    RoomsPerUser = mod_muc_light:get_service_opt(rooms_per_user, ?DEFAULT_ROOMS_PER_USER),
+    ValidateResult
+    = case UserAff of
+          owner ->
+              validate_aff_changes_by_owner(
+                AffReq#affiliations.aff_users, [], UserUS, RoomUS, Blocking, RoomsPerUser);
+          member ->
+              AllCanInvite = mod_muc_light:get_service_opt(all_can_invite, ?DEFAULT_ALL_CAN_INVITE),
+              validate_aff_changes_by_member(AffReq#affiliations.aff_users, [], UserUS, OwnerUS,
+                                             RoomUS, Blocking, RoomsPerUser, AllCanInvite)
       end,
+    process_aff_set(AffReq, RoomUS, ValidateResult);
+process_request({set, #destroy{} = DestroyReq}, _From, _UserUS, RoomUS, {_, owner}, AffUsers) ->
+    ok = ?BACKEND:destroy_room(RoomUS),
+    maybe_forget_room(RoomUS, []),
+    {set, DestroyReq, AffUsers};
+process_request({set, #destroy{}}, _From, _UserUS, _RoomUS, _Auth, _AffUsers) ->
+    {error, not_allowed};
+process_request(_UnknownReq, _From, _UserUS, _RoomUS, _Auth, _AffUsers) ->
+    {error, bad_request}.
 
-    Items = affiliated_users_to_items(AffiliationsFiltered),
-    Reply1 = jlib:make_result_iq_reply(IQ),
-    {ok, Reply1#xmlel{ children = [Query#xmlel{ children = Items }]}};
-handle_affiliation_iq(_From, RoomJID, IQ, <<"set">>, Auth, Affiliations) ->
-    Items = exml_query:paths(IQ, [{element, <<"query">>}, {element, <<"item">>}]),
-    AffiliationsToChange = items_to_affiliated_users(Items),
-    IsAllowed = is_allowed_to_change_affiliated_users(
-                  Auth, Affiliations, AffiliationsToChange, RoomJID),
-    apply_affiliation_change(RoomJID, IQ, AffiliationsToChange, IsAllowed);
-handle_affiliation_iq(_From, _RoomJID, _IQ, _Type, _Auth, _Affiliations) ->
-    {error, not_allowed}.
+%% --------- Config set ---------
 
--spec participant_limit_check(RoomJID :: jid(), NewAffiliations :: affiliated_users()) ->
-    ok | {error, any()}.
-participant_limit_check(RoomJID, Affiliations) ->
-    case length(Affiliations) > mod_muc_light:get_service_opt(RoomJID, participant_limit, 30) of
-        true -> {error, participant_limit_exceeded};
-        false -> ok
+-spec process_config_set(ConfigReq :: #config{}, RoomUS :: ejabberd:simple_bare_jid(),
+                         UserAff :: member | owner, AffUsers :: aff_users(),
+                         AllCanConfigure :: boolean()) ->
+    {set, #config{}} | {error, not_allowed} | validation_error().
+process_config_set(_ConfigReq, _RoomUS, member, _AffUsers, false) ->
+    {error, not_allowed};
+process_config_set(ConfigReq, RoomUS, _UserAff, AffUsers, _AllCanConfigure) ->
+    case mod_muc_light_utils:process_raw_config(ConfigReq#config.raw_config) of
+        {ok, Config} ->
+            NewVersion = mod_muc_light_utils:bin_ts(),
+            {ok, PrevVersion} = ?BACKEND:set_config(RoomUS, Config, NewVersion),
+            {set, ConfigReq#config{ prev_version = PrevVersion, version = NewVersion }, AffUsers};
+        Error ->
+            Error
     end.
 
--spec apply_affiliation_change(jid(), #xmlel{}, affiliated_users(), boolean()) ->
-    packet_processing_result().
-apply_affiliation_change(RoomJID, IQ, AffiliationsToChange, true) ->
-    case ?BACKEND:modify_affiliated_users(RoomJID, AffiliationsToChange,
-                                          fun ?MODULE:participant_limit_check/2) of
-        {ok, NewAffiliations, ChangedAffiliations} ->
-            case NewAffiliations of
-                [] ->
-                    ejabberd_hooks:run(forget_room, RoomJID#jid.lserver,
-                                       [RoomJID#jid.lserver, RoomJID#jid.luser]),
-                    ?BACKEND:destroy_room(RoomJID);
-                _ -> my_room_will_go_on
-            end,
-            affiliation_change_bcast(RoomJID, IQ, NewAffiliations, ChangedAffiliations);
+%% --------- Affiliation set ---------
+
+-spec filter_aff_changes(AffUser :: aff_user(),
+                         AffUsersAcc :: aff_users(),
+                         FromUS :: ejabberd:simple_bare_jid(),
+                         RoomUS :: ejabberd:simple_bare_jid(),
+                         Blocking :: boolean(),
+                         RoomsPerUser :: rooms_per_user()) ->
+    aff_users().
+filter_aff_changes({UserUS, _} = AffUser, AffUsersAcc, FromUS, RoomUS, Blocking, RoomsPerUser) ->
+    case (not Blocking orelse ?BACKEND:get_blocking(
+                                 UserUS, [{room, RoomUS}, {user, FromUS}]) == allow)
+         andalso
+         (RoomsPerUser == infinity orelse length(?BACKEND:get_user_rooms(UserUS)) < RoomsPerUser) of
+        true -> [AffUser | AffUsersAcc];
+        false -> AffUsersAcc
+    end.
+
+-spec validate_aff_changes_by_owner(AffUsersChanges :: aff_users(),
+                                   AffUsersChangesAcc :: aff_users(),
+                                   UserUS :: ejabberd:simple_bare_jid(),
+                                   RoomUS :: ejabberd:simple_bare_jid(),
+                                   Blocking :: boolean(),
+                                   RoomsPerUser :: rooms_per_user()) ->
+    {ok, aff_users()}.
+validate_aff_changes_by_owner([], Acc, _OwnerUS, _RoomUS, _Blocking, _RoomsPerUser) ->
+    {ok, Acc};
+validate_aff_changes_by_owner([AffUserChange | RAffUsersChanges], Acc0, OwnerUS, RoomUS,
+                              Blocking, RoomsPerUser) ->
+    Acc = filter_aff_changes(AffUserChange, Acc0, OwnerUS, RoomUS, Blocking, RoomsPerUser),
+    validate_aff_changes_by_owner(RAffUsersChanges, Acc, OwnerUS, RoomUS, Blocking, RoomsPerUser).
+
+%% Member can only add new members or leave
+-spec validate_aff_changes_by_member(AffUsersChanges :: aff_users(),
+                                   AffUsersChangesAcc :: aff_users(),
+                                   UserUS :: ejabberd:simple_bare_jid(),
+                                   OwnerUS :: ejabberd:simple_bare_jid(),
+                                   RoomUS :: ejabberd:simple_bare_jid(),
+                                   Blocking :: boolean(),
+                                   RoomsPerUser :: rooms_per_user(),
+                                   AllCanInvite :: boolean()) ->
+    {ok, aff_users()} | {error, not_allowed}.
+validate_aff_changes_by_member([], Acc, _UserUS, _OwnerUS, _RoomUS, _Blocking,
+                               _RoomsPerUser, _AllCanInvite) ->
+    {ok, Acc};
+validate_aff_changes_by_member([{UserUS, none} | RAffUsersChanges], Acc, UserUS, OwnerUS,
+                               RoomUS, Blocking, RoomsPerUser, AllCanInvite) ->
+    validate_aff_changes_by_member(RAffUsersChanges, [{UserUS, none} | Acc], UserUS, OwnerUS,
+                                   RoomUS, Blocking, RoomsPerUser, AllCanInvite);
+validate_aff_changes_by_member([{OwnerUS, _} | _RAffUsersChanges], _Acc, _UserUS, OwnerUS,
+                               _RoomUS, _Blocking, _RoomsPerUser, _AllCanInvite) ->
+    {error, not_allowed};
+validate_aff_changes_by_member([{_, member} = AffUserChange | RAffUsersChanges], Acc0, UserUS,
+                               OwnerUS, RoomUS, Blocking, RoomsPerUser, true) ->
+    Acc = filter_aff_changes(AffUserChange, Acc0, OwnerUS, RoomUS, Blocking, RoomsPerUser),
+    validate_aff_changes_by_member(
+      RAffUsersChanges, Acc, UserUS, OwnerUS, RoomUS, Blocking, RoomsPerUser, true);
+validate_aff_changes_by_member(_AffUsersChanges, _Acc, _UserUS, _OwnerUS, _RoomUS, _Blocking,
+                               _RoomsPerUser, _AllCanInvite) ->
+    {error, not_allowed}.
+
+-spec process_aff_set(AffReq :: #affiliations{},
+                      RoomUS :: ejabberd:simple_bare_jid(),
+                      ValidateResult :: {ok, aff_users()} | {error, not_allowed}) ->
+    {set, #affiliations{}, OldAffUsers :: aff_users(), NewAffUsers :: aff_users()}
+    | {error, not_allowed}.
+process_aff_set(AffReq, _RoomUS, {ok, []}) -> % It seems that all users blocked this request
+    {set, AffReq, []}; % Just return result to the user, don't change or broadcast anything
+process_aff_set(AffReq, RoomUS, {ok, FilteredAffUsers}) ->
+    NewVersion = mod_muc_light_utils:bin_ts(),
+    case ?BACKEND:modify_aff_users(RoomUS, FilteredAffUsers,
+                                   fun ?MODULE:participant_limit_check/2, NewVersion) of
+        {ok, OldAffUsers, NewAffUsers, AffUsersChanged, OldVersion} ->
+            maybe_forget_room(RoomUS, NewAffUsers),
+            {set, AffReq#affiliations{
+                    prev_version = OldVersion,
+                    version = NewVersion,
+                    aff_users = AffUsersChanged
+                   }, OldAffUsers, NewAffUsers};
         Error ->
             Error
     end;
-apply_affiliation_change(_RoomJID, _IQ, _Items, false) ->
-    {error, not_allowed}.
-
--spec affiliation_change_bcast(jid(), #xmlel{}, affiliated_users(),
-                               affiliated_users()) -> {ok, #xmlel{}}.
-affiliation_change_bcast(RoomJID, IQ, NewAffiliations, ChangedAffiliations) ->
-    %% Current occupants are notified first...
-    ChangedAffMsg = make_affiliation_message(RoomJID, ChangedAffiliations),
-    ?BCASTER:broadcast(nores(RoomJID), ChangedAffMsg, NewAffiliations),
-    %% Now we tell the ones that were removed
-    lists:foreach(
-      fun
-          ({_, none} = KickedUser) ->
-              KickedMessage = make_affiliation_message(RoomJID, [KickedUser]),
-              ?BCASTER:broadcast(nores(RoomJID), KickedMessage, [KickedUser]);
-          (_) ->
-              ignore
-      end, ChangedAffiliations),
-    {ok, (jlib:make_result_iq_reply(IQ))#xmlel{ children = [] }}.
-
-handle_other_iq(Host, From, RoomJID, IQ) ->
-    case mod_muc_iq:process_iq(Host, From, RoomJID, jlib:iq_query_info(IQ)) of
-        ignore -> {ok, noreply};
-        error -> {error, not_implemented};
-        ResIQ -> {ok, jlib:iq_to_xml(ResIQ)}
-    end.
-
-%% --------- Message handlers ---------
-
--spec handle_subject_message(jid(), jid(), #xmlel{}, affiliated_users()) ->
-    packet_processing_result().
-handle_subject_message(From, RoomJID, Msg, Affiliations) ->
-    Subject = exml_query:path(Msg, [{element, <<"subject">>}, cdata]),
-    ?BACKEND:set_configuration(RoomJID, roomname, Subject),
-    bcast_message(From, RoomJID, Msg, Affiliations),
-    {ok, noreply}.
-
--spec handle_body_message(jid(), jid(), #xmlel{}, affiliated_users()) ->
-    packet_processing_result().
-handle_body_message(From, RoomJID, Msg, Affiliations) ->
-    bcast_message(From, RoomJID, Msg, Affiliations),
-    {ok, noreply}.
-
--spec bcast_message(jid(), jid(), #xmlel{}, affiliated_users()) -> ok.
-bcast_message(From, RoomJID, Msg, Affiliations) ->
-    MessageToSend = make_message_from_room(From, Msg),
-    BCastFrom = rooms_user_jid(RoomJID, From),
-    case ejabberd_hooks:run_fold(filter_room_packet, RoomJID#jid.lserver, MessageToSend,
-                                 [jlib:jid_to_binary(lower_nores(From)), From, RoomJID]) of
-        drop -> ok;
-        FilteredMessage -> ?BCASTER:broadcast(BCastFrom, FilteredMessage, Affiliations)
-    end,
-    {ok, noreply}.
+process_aff_set(_AffReq, _RoomUS, Error) ->
+    Error.
 
 %%====================================================================
 %% Response processing
 %%====================================================================
 
--spec send_response(jid(), jid(), #xmlel{}, packet_processing_result()) -> ok.
-send_response(_From, _RoomJID, _OriginalPacket, {ok, noreply}) ->
-    ok;
-send_response(From, RoomJID, _OriginalPacket, {ok, Packet}) ->
-    ejabberd_router:route(RoomJID, From, Packet);
-send_response(From, RoomJID, OriginalPacket, {error, Reason}) ->
-    Reply = jlib:make_error_reply(OriginalPacket, reason_to_error_elem(Reason)),
-    ejabberd_router:route(RoomJID, From, Reply).
-
--spec reason_to_error_elem(any()) -> #xmlel{}.
-reason_to_error_elem(registration_required) -> ?ERR_REGISTRATION_REQUIRED;
-reason_to_error_elem(bad_request) -> ?ERR_BAD_REQUEST;
-reason_to_error_elem(not_exists) -> ?ERR_ITEM_NOT_FOUND;
-reason_to_error_elem(not_allowed) -> ?ERR_NOT_ALLOWED;
-reason_to_error_elem(not_implemented) -> ?ERR_FEATURE_NOT_IMPLEMENTED;
-reason_to_error_elem(Reason) -> ?ERRT_BAD_REQUEST(<<"en">>, io_lib:format("~p", [Reason])).
+-spec send_response(From :: jlib:jid(), RoomJID :: jlib:jid(), RoomUS :: ejabberd:simple_bare_jid(),
+                    OrigPacket :: jlib:xmlel(), Result :: packet_processing_result()) -> ok.
+send_response(From, RoomJID, _RoomUS, OrigPacket, {error, _} = Err) ->
+    mod_muc_light_codec:encode_error(Err, From, RoomJID, OrigPacket, fun ejabberd_router:route/3);
+send_response(From, _RoomJID, RoomUS, _OriginalPacket, Response) ->
+    ?CODEC:encode(Response, From, RoomUS, fun ejabberd_router:route/3).
 
 %%====================================================================
 %% Internal functions
 %%====================================================================
 
--spec affiliated_users_to_items(affiliated_users()) -> [#xmlel{}].
-affiliated_users_to_items(Affiliations) ->
-    [ #xmlel{ name = <<"item">>,
-              attrs = [{<<"affiliation">>, mod_muc_light_utils:aff2b(Affiliation)},
-                       {<<"jid">>, jlib:jid_to_binary(JID)}] }
-      || {JID, Affiliation} <- Affiliations ].
+-spec maybe_forget_room(RoomUS :: ejabberd:simple_bare_jid(), NewAffUsers :: aff_users()) -> any().
+maybe_forget_room({RoomU, RoomS} = RoomUS, []) ->
+    ejabberd_hooks:run(forget_room, RoomS, [RoomS, RoomU]),
+    ?BACKEND:destroy_room(RoomUS);
+maybe_forget_room(_, _) ->
+    my_room_will_go_on.
 
--spec items_to_affiliated_users([#xmlel{}]) -> affiliated_users().
-items_to_affiliated_users(Items) ->
-    lists:map(fun(Item) ->
-                      BinJID = exml_query:path(Item, [{attr, <<"jid">>}]),
-                      BinAff = exml_query:path(Item, [{attr, <<"affiliation">>}]),
-                      {lower_nores(jlib:binary_to_jid(BinJID)), mod_muc_light_utils:b2aff(BinAff)}
-              end, Items).
-
--spec is_allowed_to_change_affiliated_users(
-        affiliated_user(), affiliated_users(), affiliated_users(), jid()) -> boolean().
-is_allowed_to_change_affiliated_users(
-  {_User, owner}, _CurrentAffiliations, _AffiliationsChange, _RoomJID) ->
-    true;
-is_allowed_to_change_affiliated_users(
-  {User, member}, CurrentAffiliations, AffiliationsChange, RoomJID) ->
-    EveryoneCanInvite = mod_muc_light:get_service_opt(RoomJID, everyone_can_invite, false),
-    lists:all(
-      fun ({UserMatch, none}) when UserMatch =:= User ->
-              true;
-          ({OtherUser, member}) ->
-              (false == lists:keyfind(OtherUser, 1, CurrentAffiliations))
-                andalso EveryoneCanInvite;
-          (_) ->
-              false
-      end, AffiliationsChange);
-is_allowed_to_change_affiliated_users(_, _, _, _) ->
-    false.
-
--spec make_affiliation_message(jid(), affiliated_users()) -> #xmlel{}.
-make_affiliation_message(RoomJID, ChangedAffiliations) ->
-    XElem = #xmlel{ name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_MUC_LIGHT}],
-                    children = affiliated_users_to_items(ChangedAffiliations) },
-    EmptyBodyForMAM = #xmlel{ name = <<"body">> },
-    #xmlel{ name = <<"message">>,
-            attrs = [{<<"from">>, jlib:jid_to_binary(nores(RoomJID))},
-                     {<<"type">>, <<"groupchat">>}],
-            children = [XElem, EmptyBodyForMAM] }.
-
--spec make_message_from_room(jid(), #xmlel{}) -> #xmlel{}.
-make_message_from_room(FromJID, Packet) ->
-    RoomBin = exml_query:path(Packet, [{attr, <<"to">>}]),
-    UserBareBin = jlib:jid_to_binary(nores(FromJID)),
-    NewFrom = <<RoomBin/binary, $/, UserBareBin/binary>>,
-    NewAttrs = lists:keystore(<<"from">>, 1, Packet#xmlel.attrs,
-                              {<<"from">>, NewFrom}),
-    Packet#xmlel{ attrs = NewAttrs }.
-
-%% --------- Utils ---------
-
--spec rooms_user_jid(jid(), jid()) -> jid().
-rooms_user_jid(RoomJID, From) ->
-    jlib:jid_replace_resource(RoomJID, jlib:jid_to_binary(lower_nores(From))).
-
-%% Tiny helpers. I hate using these long-named functions from jlib. :)
--spec nores(jid()) -> jid().
-nores(JID) -> jlib:jid_remove_resource(JID).
-
--spec lower_nores(jid()) -> {binary(), binary(), <<>>}.
-lower_nores(JID) -> jlib:jid_remove_resource(jlib:jid_to_lower(JID)).

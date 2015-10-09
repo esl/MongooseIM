@@ -25,71 +25,94 @@
 -author('piotr.nosek@erlang-solutions.com').
 
 %% API
--export([iq_to_config/2, config_to_query/1, validate_config_opt/2]).
--export([change_affiliated_users/2]).
+-export([process_raw_config/2, config_to_raw/1]).
+-export([change_aff_users/2]).
 -export([b2aff/1, aff2b/1]).
+-export([bin_ts/0]).
 
 -include("jlib.hrl").
+-include("ejabberd.hrl").
 -include("mod_muc_light.hrl").
+
+-type value_type() :: binary.
+-type schema_item() :: {FormFieldName :: binary(), OptionName :: atom(),
+                        ValueType :: value_type()}.
+
+-type change_aff_success() :: {ok, NewAffUsers :: aff_users(), ChangedAffUsers :: aff_users(),
+                               JoiningUsers :: [ejabberd:simple_bare_jid()],
+                               LeavingUsers :: [ejabberd:simple_bare_jid()]}.
+
+-export_type([change_aff_success/0]).
 
 %%====================================================================
 %% API
 %%====================================================================
 
--spec iq_to_config(#xmlel{}, configuration()) ->
-    {ok, configuration()} | validation_error().
-iq_to_config(Packet, Defaults) ->
-    Xs = exml_query:paths(Packet, [{element, <<"query">>}, {element, <<"x">>}]),
-    process_form(find_form(Xs), Defaults).
+-spec process_raw_config(RawConfig :: raw_config(), Config :: config()) ->
+    {ok, config()} | validation_error().
+process_raw_config([], Config) ->
+    {ok, Config};
+process_raw_config([{KeyBin, ValBin} | RRawConfig], Config) ->
+    case process_raw_config_opt(KeyBin, ValBin) of
+        {ok, Key, Val} ->
+            process_raw_config(RRawConfig, lists:keystore(Key, 1, Config, {Key, Val}));
+        Error ->
+            Error
+    end.
 
--spec config_to_query(configuration()) -> #xmlel{}.
-config_to_query(Config) ->
-    Fields = lists:map(
-               fun
-                   ({Var, VarAtom, binary}) ->
-                       {_, Value} = lists:keyfind(VarAtom, 1, Config),
-                       make_field(Var, Value, []);
-                   ({<<"FORM_TYPE">>, _, Value}) ->
-                       make_field(<<"FORM_TYPE">>, Value,
-                                  [{<<"type">>, <<"hidden">>}]);
-                   ({Var, _, Value}) when is_binary(Value) ->
-                       make_field(Var, Value, [])
-               end, config_schema()),
-    #xmlel{ name = <<"query">>, attrs = [{<<"xmlns">>, ?NS_MUC_OWNER}],
-            children = [
-                        #xmlel{ name = <<"x">>,
-                                attrs = [{<<"xmlns">>, ?NS_XDATA},
-                                         {<<"type">>, <<"form">>}],
-                                children = Fields }
-                       ] }.
+-spec config_to_raw(Config :: config()) -> raw_config().
+config_to_raw([]) ->
+    [];
+config_to_raw([{Key, Val} | RConfig]) ->
+    {KeyBin, _, ValType} = lists:keyfind(Key, 2, config_schema()),
+    [{KeyBin, value2b(Val, ValType)} | config_to_raw(RConfig)].
 
--spec validate_config_opt(binary() | atom(), term()) ->
-    {ok, AtomKey :: atom()} | validation_error().
-validate_config_opt(Key, Value) when is_binary(Key) ->
-    validate_type(Key, Value, lists:keyfind(Key, 1, config_schema()));
-validate_config_opt(Key, Value) when is_atom(Key) ->
-    validate_type(Key, Value, lists:keyfind(Key, 2, config_schema())).
+-spec change_aff_users(CurrentAffUsers :: aff_users(), AffUsersChangesAssorted :: aff_users()) ->
+    change_aff_success() | {error, bad_request}.
+change_aff_users(AffUsers, AffUsersChangesAssorted) ->
+    case {lists:keyfind(owner, 2, AffUsers), lists:keyfind(owner, 2, AffUsersChangesAssorted)} of
+        {false, false} -> % simple, no special cases
+            apply_aff_users_change(AffUsers, lists:sort(AffUsersChangesAssorted), none);
+        {false, {_, _}} -> % ownerless room!
+            {error, bad_request};
+        {{Owner, _}, NewAffOwner} ->
+            case {lists:keyfind(Owner, 1, AffUsersChangesAssorted), NewAffOwner} of
+                {{_, _}, false} -> % need to pick new owner, may also result in improper state
+                    {ok, NewAffUsers0, AffUsersChanged0, JoiningUsers, LeavingUsers} =
+                    apply_aff_users_change(AffUsers, lists:sort(AffUsersChangesAssorted), pick),
+                    {NewAffUsers, AffUsersChanged} =
+                    case NewAffUsers0 of
+                        [{Owner, member}] -> % edge case but can happen
+                            {[{Owner, owner}], lists:keydelete(Owner, 1, AffUsersChanged0)};
+                        _ ->
+                            {NewAffUsers0, AffUsersChanged0}
+                    end,
+                    {ok, NewAffUsers, AffUsersChanged, JoiningUsers, LeavingUsers};
+                {false, true} -> % just need to degrade old owner
+                    apply_aff_users_change(
+                      AffUsers, lists:sort([{Owner, member} | AffUsersChangesAssorted]), none);
+                _ -> % simple case
+                    apply_aff_users_change(AffUsers, lists:sort(AffUsersChangesAssorted), none)
+            end
+    end.
 
--spec change_affiliated_users(affiliated_users(), affiliated_users()) ->
-    {ok, NewAffiliations :: affiliated_users(),
-     AffiliationsChanged :: affiliated_users(),
-     JoiningUsers :: [ljid()],
-     LeavingUsers :: [ljid()]} | {error, bad_request} | {error, too_many_members}.
-change_affiliated_users(Affiliations, AffiliationsToChange) ->
-    {OldOwner, _} = lists:keyfind(owner, 2, Affiliations),
-    SaneAffiliationsToChange = sanitize_affiliations_changes(
-                                 Affiliations, AffiliationsToChange),
-    apply_affiliated_users_change(Affiliations, SaneAffiliationsToChange, OldOwner).
-
--spec aff2b(affiliation()) -> binary().
+-spec aff2b(Aff :: aff()) -> binary().
 aff2b(owner) -> <<"owner">>;
 aff2b(member) -> <<"member">>;
 aff2b(none) -> <<"none">>.
 
--spec b2aff(binary()) -> affiliation().
+-spec b2aff(AffBin :: binary()) -> aff().
 b2aff(<<"owner">>) -> owner;
 b2aff(<<"member">>) -> member;
 b2aff(<<"none">>) -> none.
+
+-spec bin_ts() -> binary().
+bin_ts() ->
+    {Mega, Secs, Micro} = os:timestamp(),
+    MegaB = integer_to_binary(Mega),
+    SecsB = integer_to_binary(Secs),
+    MicroB = integer_to_binary(Micro),
+    <<MegaB/binary, $-, SecsB/binary, $-, MicroB/binary>>.
 
 %%====================================================================
 %% Internal functions
@@ -97,155 +120,87 @@ b2aff(<<"none">>) -> none.
 
 %% ---------------- Configuration processing ----------------
 
--spec find_form([#xmlel{}]) -> FormFields :: [#xmlel{}].
-find_form([]) ->
-    [];
-find_form([XElem | XRest]) ->
-    case exml_query:attr(XElem, <<"xmlns">>) of
-        ?NS_XDATA -> exml_query:paths(XElem, [{element, <<"field">>}]);
-        _ -> find_form(XRest)
-    end.
-
--spec process_form([#xmlel{}], configuration()) ->
-    {ok, configuration()} | validation_error().
-process_form([], Config) ->
-    {ok, Config};
-process_form([Field | Fields], Config) ->
-    case exml_query:attr(Field, <<"var">>) of
-        undefined ->
-            process_form(Fields, Config);
-        Key ->
-            Value = exml_query:path(Field, [{element, <<"value">>}, cdata]),
-            case validate_config_opt(Key, Value) of
-                {ok, AtomKey} ->
-                    process_form(Fields, lists:keystore(
-                                           AtomKey, 1, Config, {AtomKey, Value}));
-                Error ->
-                    Error
-            end
-    end.
-
--spec config_schema() ->
-    [{FormFieldName :: binary(), OptionName :: atom(), ValueTypeOrValue :: term()}].
+-spec config_schema() -> [schema_item()].
 config_schema() ->
     [
-     {<<"FORM_TYPE">>, form_type, ?NS_MUC_CONFIG},
-     {<<"roomname">>, roomname, binary}
+     {<<"roomname">>, roomname, binary},
+     {<<"subject">>, subject, binary}
     ].
 
--spec make_field(binary(), binary(), [{binary(), binary()}]) -> #xmlel{}.
-make_field(Name, Value, ExtraAttrs) ->
-    #xmlel{ name = <<"field">>, attrs = [{<<"var">>, Name} | ExtraAttrs],
-            children = [
-                        #xmlel{ name = <<"value">>,
-                                children = [ #xmlcdata{ content = Value } ] }
-                       ]}.
+-spec process_raw_config_opt(KeyBin :: binary(), ValBin :: binary()) ->
+    {ok, Key :: atom(), Val :: any()} | validation_error().
+process_raw_config_opt(KeyBin, ValBin) ->
+    case lists:keyfind(KeyBin, 1, config_schema()) of
+        {_, Key, Type} -> {ok, Key, b2value(ValBin, Type)};
+        _ -> {error, {KeyBin, unknown}}
+    end.
 
--spec validate_type(binary() | atom(), term(), term()) ->
-    {ok, AtomKey :: atom()} | validation_error().
-validate_type(Key, _Val, false) -> {error, {Key, unknown}};
-validate_type(_Key, Val, {_, AtomKey, binary}) when is_binary(Val) -> {ok, AtomKey};
-validate_type(_Key, Val, {_, AtomKey, Val}) when is_binary(Val) -> {ok, AtomKey};
-validate_type(Key, _Val, _Type) -> {error, {Key, type}}.
+-spec b2value(ValBin :: binary(), Type :: value_type()) -> Converted :: any().
+b2value(ValBin, binary) -> ValBin.
+
+-spec value2b(Val :: any(), Type :: value_type()) -> Converted :: binary().
+value2b(Val, binary) -> Val.
 
 %% ---------------- Affiliations manipulation ----------------
 
--spec sanitize_affiliations_changes(affiliated_users(), affiliated_users()) ->
-    affiliated_users() | {error, bad_request}.
-sanitize_affiliations_changes(Affiliations, AffiliationChangesUnsorted) ->
-    sanitize_affiliations_changes(lists:sort(AffiliationChangesUnsorted), [], false, Affiliations).
+-spec apply_aff_users_change(AffUsers :: aff_users(),
+                             AffUsersChanges :: aff_users(),
+                             NewOwner :: none | pick) ->
+    {ok, NewAffUsers :: aff_users(), AffUsersChangesDone :: aff_users(),
+     JoiningAcc :: [ejabberd:simple_bare_jid()], LeavingAcc :: [ejabberd:simple_bare_jid()]}.
+apply_aff_users_change(AU, AUC, NO) ->
+    apply_aff_users_change(AU, [], AUC, [], NO, [], []).
 
--spec sanitize_affiliations_changes(
-        affiliated_users(), affiliated_users(), boolean(), affiliated_users()) ->
-    affiliated_users() | {error, bad_request}.
-%% Cannot change affiliation for the same user twice in the same request
-sanitize_affiliations_changes([{User, _}, {User, _} | _], _, _, _) ->
+-spec apply_aff_users_change(AffUsers :: aff_users(),
+                             NewAffUsers :: aff_users(),
+                             AffUsersChanges :: aff_users(),
+                             ChangesDone :: aff_users(),
+                             NewOwner :: none | pick | promoted,
+                             JoiningAcc :: [ejabberd:simple_bare_jid()],
+                             LeavingAcc :: [ejabberd:simple_bare_jid()]) ->
+    {ok, NewAffUsers :: aff_users(), AffUsersChangesDone :: aff_users(),
+     JoiningAcc :: [ejabberd:simple_bare_jid()], LeavingAcc :: [ejabberd:simple_bare_jid()]}.
+apply_aff_users_change(_AU, NAU, [], CD, _NO, JA, LA) ->
+    %% User list must be sorted ascending but acc is currently sorted descending
+    {ok, lists:reverse(NAU), CD, JA, LA};
+apply_aff_users_change(_AU, _NAU, [{User, _}, {User, _} | _RAUC], _CD, _NO, _JA, _LA) ->
+    %% Cannot change affiliation for the same user twice in the same request
     {error, bad_request};
-%% Only one new owner can be explicitly stated
-sanitize_affiliations_changes([{_, owner} | _], _, true, _) ->
+apply_aff_users_change(_AU, _NAU, [{_, owner} | _RAUC], _CD, promoted, _JA, _LA) ->
+    %% Only one new owner can be explicitly stated
     {error, bad_request};
-sanitize_affiliations_changes([{User, Affiliation} = Entry | Rest], Sane, OwnerFound, Affiliations) ->
-    %% Only meaningful changes are allowed
-    case {lists:keyfind(User, 1, Affiliations), Affiliation} of
-        {false, none} -> {error, bad_request};
-        {{_, member}, member} -> {error, bad_request};
-        {{_, owner}, owner} -> {error, bad_request};
-        _ -> sanitize_affiliations_changes(Rest, [Entry | Sane], OwnerFound, Affiliations)
-    end;
-sanitize_affiliations_changes([], Sane, _, _) ->
-    Sane.
-
--spec apply_affiliated_users_change(
-        affiliated_users(), affiliated_users() | {error, any()}, ljid()) ->
-    {ok, affiliated_users(), affiliated_users(), [ljid()], [ljid()]} | {error, bad_request}.
-apply_affiliated_users_change(_, {error, _} = Error, _) ->
-    Error;
-apply_affiliated_users_change(Affiliations0, AffiliationsChanges, OldOwner) ->
-    %% Only transfering ownership is a tricky stuff so let's modify the affiliations so the list
-    %% will look like we expected the client to provide all necessary explicit changes.
-    {ok, Affiliations1, JoiningUsers, LeavingUsers}
-    = naive_affiliated_users_change(Affiliations0, AffiliationsChanges),
-
-    %% Now we fix the list if there is incorrect owner count.
-    {ok, Affiliations, AffiliationsChanged}
-    = ensure_one_owner(Affiliations1, AffiliationsChanges, OldOwner),
-
-    {ok, Affiliations, AffiliationsChanged, JoiningUsers, LeavingUsers}.
-
--spec naive_affiliated_users_change(affiliated_users(), affiliated_users()) ->
-    {ok, affiliated_users(), [ljid()], [ljid()]}.
-naive_affiliated_users_change(Affiliations, AffiliationsChanges) ->
-    naive_affiliated_users_change(Affiliations, AffiliationsChanges, [], []).
-
--spec naive_affiliated_users_change(affiliated_users(), affiliated_users(), [ljid()], [ljid()]) ->
-    {ok, affiliated_users(), [ljid()], [ljid()]}.
-naive_affiliated_users_change(Affiliations, [{User, none} | RAffiliationsChanges], JoiningUsers, LeavingUsers) ->
-    naive_affiliated_users_change(lists:keydelete(User, 1, Affiliations), RAffiliationsChanges, JoiningUsers, [User | LeavingUsers]);
-naive_affiliated_users_change(Affiliations, [{User, Affiliation} | RAffiliationsChanges], JoiningUsers0, LeavingUsers) ->
-    JoiningUsers = case lists:keyfind(User, 1, Affiliations) of
-                       false -> [User | JoiningUsers0];
-                       _ -> JoiningUsers0
-                   end,
-    naive_affiliated_users_change(lists:keystore(User, 1, Affiliations, {User, Affiliation}), RAffiliationsChanges, JoiningUsers, LeavingUsers);
-naive_affiliated_users_change(Affiliations, [], JoiningUsers, LeavingUsers) ->
-    {ok, Affiliations, JoiningUsers, LeavingUsers}.
-
--spec ensure_one_owner(affiliated_users(), affiliated_users(), ljid()) ->
-    {ok, affiliated_users(), affiliated_users()}.
-ensure_one_owner(Affiliations, AffiliationsChanges, OldOwner) ->
-    OwnersC = lists:foldl(
-                fun ({_, owner}, N) -> N + 1;
-                    (_, N) -> N
-                end, 0, Affiliations),
-    ensure_one_owner(Affiliations, AffiliationsChanges, OldOwner, OwnersC).
-
-%% Now, since we enforce only one 'owner' item in affiliations change request,
-%% there are only 3 possibilities here (regarding the state of affiliated users list):
-%% 1. no owners: old owner made himself a member or even left the room
-%% 2. one owner: cool, either no change in ownership or the old owner chose new owner
-%% 3. two owners: someone was promoted to the owner status but old owner did not change own affiliation
-%%
-%% Here is how we deal with these cases:
-%% 0. First of all, if the users list is empty, we do nothing :)
-%% 1. We pick first user that is not the old owner; if the old owner is the only user left,
-%%    then we force him back to owner status.
-%% 2. One of the owners is the old one so we downgrade to 'member'
--spec ensure_one_owner(affiliated_users(), affiliated_users(), ljid(), non_neg_integer()) ->
-    {ok, affiliated_users(), affiliated_users()}.
-ensure_one_owner(Affiliations, AffiliationsChanges, OldOwner, 0) ->
-    pick_new_owner(Affiliations, Affiliations, AffiliationsChanges, OldOwner);
-ensure_one_owner(Affiliations, AffiliationsChanges, _, 1) ->
-    {ok, Affiliations, AffiliationsChanges};
-ensure_one_owner(Affiliations, AffiliationsChanges, OldOwner, 2) ->
-    {ok, lists:keystore(OldOwner, 1, Affiliations, {OldOwner, member}), lists:keystore(OldOwner, 1, AffiliationsChanges, {OldOwner, member})}.
-
--spec pick_new_owner(affiliated_users(), affiliated_users(), affiliated_users(), ljid()) ->
-    {ok, affiliated_users(), affiliated_users()}.
-pick_new_owner([{NewOwner, _} | Rest], Affiliations, AffiliationsChanges, Excluded)
-  when NewOwner =/= Excluded orelse Rest =:= []->
-    {ok, lists:keystore(NewOwner, 1, Affiliations, {NewOwner, owner}), lists:keystore(NewOwner, 1, AffiliationsChanges, {NewOwner, owner})};
-pick_new_owner([_ | Rest], Affiliations, AffiliationsChanges, Excluded) ->
-    pick_new_owner(Rest, Affiliations, AffiliationsChanges, Excluded);
-pick_new_owner([], Affiliations, AffiliationsChanges, _Excluded) ->
-    {ok, Affiliations, AffiliationsChanges}.
+apply_aff_users_change([], _NAU, [{_, none} | _RAUC], _CD, _NO, _JA, _LA) ->
+    %% Meaningless change - user not in the room
+    {error, bad_request};
+apply_aff_users_change([], NAU, [{User, _} = AffUser | RAUC], CD, NO, JA, LA) ->
+    %% Reached end of current users' list, just appending now
+    apply_aff_users_change([], [AffUser | NAU], RAUC, [AffUser | CD], NO, [User | JA], LA);
+apply_aff_users_change([AffUser | _], _NAU, [AffUser | _], _CD, _NO, _JA, _LA) ->
+    %% Meaningless change
+    {error, bad_request};
+apply_aff_users_change([{User, _} | RAU], NAU, [{User, none} | RAUC], CD, NO, JA, LA) ->
+    %% Leaving / removed user
+    apply_aff_users_change(RAU, NAU, RAUC, [{User, none} | CD], NO, JA, [User | LA]);
+apply_aff_users_change([{User, _} | RAU], NAU, [{User, NewAff} | RAUC], CD, NO, JA, LA) ->
+    %% Changing affiliation, owner -> member or member -> owner
+    apply_aff_users_change(RAU, [{User, NewAff} | NAU], RAUC, [{User, NewAff} | CD], NO, JA, LA);
+apply_aff_users_change([{User1, _} | _] = AU, NAU, [{User2, member} | RAUC], CD, pick, JA, LA) when User1 > User2 ->
+    %% Adding member to a room, we have to pick new owner so we promote newcomer
+    apply_aff_users_change(AU, NAU, [{User2, owner} | RAUC], CD, none, JA, LA);
+apply_aff_users_change([{User1, _} | _] = _AU, _NAU, [{User2, none} | _RAUC], _CD, _PO, _JA, _LA) when User1 > User2 ->
+    % Meaningless change - user not in the room
+    {error, bad_request}; 
+apply_aff_users_change([{User1, _} | _] = AU, NAU, [{User2, _} = NewAffUser | RAUC], CD, PO0, JA, LA)  when User1 > User2 ->
+    %% Adding new member to a room - owner or member
+    PO = case NewAffUser of
+             {_, owner} -> promoted;
+             _ -> PO0
+         end,
+    apply_aff_users_change(AU, [NewAffUser | NAU], RAUC, [NewAffUser | CD], PO, [NewAffUser | JA], LA);
+apply_aff_users_change([{User, _} | _] = AU, NAU, AUC, CD, pick, JA, LA) ->
+    %% Unaffected user, we have to pick new owner - we inject promotion
+    apply_aff_users_change(AU, NAU, [{User, owner} | AUC], CD, none, JA, LA);
+apply_aff_users_change([AffUser | RAU], NAU, AUC, CD, PO, JA, LA) ->
+    %% Unaffected user, just appending
+    apply_aff_users_change(RAU, [AffUser | NAU], AUC, CD, PO, JA, LA).
 

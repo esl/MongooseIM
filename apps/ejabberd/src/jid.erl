@@ -25,6 +25,7 @@
 -export([nameprep/1]).
 -export([resourceprep/1]).
 -export([to_lower/1]).
+-export([to_lus/1]).
 -export([to_bare/1]).
 -export([replace_resource/2]).
 
@@ -115,9 +116,11 @@ binary_to_jid3(<<>>, N, S, R) ->
     make(list_to_binary(N), list_to_binary(S), list_to_binary(lists:reverse(R))).
 
 
--spec to_binary(ejabberd:simple_jid()  | ejabberd:jid()) ->  binary().
+-spec to_binary(ejabberd:simple_jid() | ejabberd:simple_bare_jid() | ejabberd:jid()) ->  binary().
 to_binary(#jid{user = User, server = Server, resource = Resource}) ->
     to_binary({User, Server, Resource});
+to_binary({User, Server}) ->
+    to_binary({User, Server, <<>>});
 to_binary({Node, Server, Resource}) ->
     S1 = case Node of
              <<>> ->
@@ -193,6 +196,9 @@ to_lower({U, S, R}) ->
             end
     end.
 
+-spec to_lus(JID :: ejabberd:jid()) -> error | ejabberd:simple_bare_jid().
+to_lus(#jid{luser = U, lserver = S}) ->
+    {U, S}.
 
 -spec to_bare(ejabberd:simple_jid()  | ejabberd:jid()) -> 
                  ejabberd:simple_jid()  | ejabberd:jid().
