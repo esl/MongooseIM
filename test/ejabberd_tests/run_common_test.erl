@@ -1,6 +1,6 @@
 -module(run_common_test).
 
--export([main/1, analyze/1]).
+-export([main/1, analyze/2]).
 
 -define(CT_DIR, filename:join([".", "tests"])).
 -define(CT_REPORT, filename:join([".", "ct_report"])).
@@ -75,9 +75,11 @@ quick_or_full("full")  -> full.
 preset(undefined) -> undefined;
 preset(Preset) -> list_to_atom(Preset).
 
-ct_config_file() ->
+read_file(ConfigFile) when is_list(ConfigFile) ->
     {ok, CWD} = file:get_cwd(),
-    filename:join([CWD, "test.config"]).
+    filename:join([CWD, ConfigFile]),
+    {ok, Props} = file:consult(ConfigFile),
+    Props.
 
 tests_to_run(TestSpec) ->
     TestSpecFile = atom_to_list(TestSpec),
@@ -97,10 +99,9 @@ save_count(Test, Configs) ->
     file:write_file("/tmp/ct_count", integer_to_list(Repeat*Times)).
 
 run_test(Test, PresetsToRun, CoverOpts) ->
-    prepare_cover(CoverOpts),
+    prepare_cover(Test, CoverOpts),
     error_logger:info_msg("Presets to run ~p", [PresetsToRun]),
-    ConfigFile = ct_config_file(),
-    {ok, Props} = file:consult(ConfigFile),
+    {ConfigFile, Props} = get_ct_config(Test),
     case proplists:lookup(ejabberd_presets, Props) of
         {ejabberd_presets, Presets} ->
             Presets1 = case PresetsToRun of
@@ -125,15 +126,22 @@ run_test(Test, PresetsToRun, CoverOpts) ->
                                   [ConfigFile]),
             do_run_quick_test(Test, CoverOpts)
     end,
-    analyze_coverage(CoverOpts).
+    analyze_coverage(Test, CoverOpts).
 
-
+get_ct_config([{spec, Spec}]) ->
+    Props = read_file(Spec),
+    ConfigFile = case proplists:lookup(config, Props) of
+        {config, [Config]} -> Config;
+        _                  -> "test.config"
+    end,
+    {ok, ConfigProps} = file:consult(ConfigFile),
+    {ConfigFile, ConfigProps}.
 
 preset_names(Presets) ->
     [Preset||{Preset, _} <- Presets].
 
 do_run_quick_test(Test, CoverOpts) ->
-    prepare_cover(CoverOpts),
+    prepare_cover(Test, CoverOpts),
     Result = ct:run_test(Test),
     case Result of
         {error, Reason} ->
@@ -142,11 +150,11 @@ do_run_quick_test(Test, CoverOpts) ->
             ok
     end,
 
-    analyze_coverage(CoverOpts),
+    analyze_coverage(Test, CoverOpts),
     save_count(Test, []).
 
 run_config_test({Name, Variables}, Test, N, Tests) ->
-    Node = get_ejabberd_node(),
+    Node = get_ejabberd_node(Test),
     {ok, Cwd} = call(Node, file, get_cwd, []),
     Cfg = filename:join([Cwd, "..", "..", "rel", "files", "ejabberd.cfg"]),
     Vars = filename:join([Cwd, "..", "..", "rel", "reltool_vars", "node1_vars.config"]),
@@ -189,28 +197,27 @@ get_apps() ->
     end.
 
 
-prepare_cover(true) ->
+prepare_cover(Test, true) ->
     io:format("Preparing cover~n"),
-    prepare();
-prepare_cover(_) ->
+    prepare(Test);
+prepare_cover(_, _) ->
     ok.
 
-analyze_coverage(true) ->
-    analyze(true);
-analyze_coverage(ModuleList) when is_list(ModuleList) ->
-    analyze(ModuleList);
-analyze_coverage(_) ->
+analyze_coverage(Test, true) ->
+    analyze(Test, true);
+analyze_coverage(Test, ModuleList) when is_list(ModuleList) ->
+    analyze(Test, ModuleList);
+analyze_coverage(_, _) ->
     ok.
 
-prepare() ->
+prepare(Test) ->
     Apps = get_apps(),
-    Compiled = rpc:call(get_ejabberd_node(), mongoose_cover_helper, start, [Apps]),
+    Compiled = rpc:call(get_ejabberd_node(Test), mongoose_cover_helper, start, [Apps]),
     io:format("Compiled modules ~p~n", [Compiled]).
 
-analyze(CoverOpts) ->
+analyze(Test, CoverOpts) ->
     io:format("Coverage analyzing~n"),
-    rpc:call(get_ejabberd_node(), mongoose_cover_helper, analyze, []),
-    file:delete("/tmp/mongoose_combined.coverdata"),
+    rpc:call(get_ejabberd_node(Test), mongoose_cover_helper, analyze, []),
     Files = filelib:wildcard("/tmp/*.coverdata"),
     [cover:import(File) || File <- Files],
     cover:export("/tmp/mongoose_combined.coverdata"),
@@ -253,8 +260,8 @@ make_html(Modules) ->
     file:write(File, row("Summary", CSum, NCSum, percent(CSum, NCSum), "#")),
     file:close(File).
 
-get_ejabberd_node() ->
-    {ok, Props} = file:consult(ct_config_file()),
+get_ejabberd_node(Test) ->
+    {_File, Props} = get_ct_config(Test),
     {ejabberd_node, Node} = proplists:lookup(ejabberd_node, Props),
     Node.
 
