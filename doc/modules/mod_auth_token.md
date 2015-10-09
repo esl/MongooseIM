@@ -146,13 +146,13 @@ IQ wrapper stanza fields required:
 
 Content of IQ query:
 
-- "query" xml node with "xmlns" attribute `urn:xmpp:tmp:auth-token`
+- "query" xml node with "xmlns" attribute `erlang-solutions.com:xmpp:token-auth:0`
 
 Example:
 
 ```xml
 <iq type='get' to='john@localhost' id='123'>
-    <query xmlns='urn:xmpp:tmp:auth-token'/>
+    <query xmlns='erlang-solutions.com:xmpp:token-auth:0'/>
 </iq>
 ```
 
@@ -172,7 +172,7 @@ Example response (encoded tokens have been truncated in this example):
 
 ```xml
 <iq type='result' to='john@localhost/res1' id='123' from='john@localhost'>
-    <items xmlns='urn:xmpp:tmp:auth-token'>
+    <items xmlns='erlang-solutions.com:xmpp:token-auth:0'>
         <access_token>cmVmcmVzaAGQ1Mzk1MmZlYzhkYjhlOTQzM2UxMw==</access_token>
         <refresh_token>cmVmcmVzaAGQ1Mzk1MmZlYzhkYjhlOTQzM2UxMw==</refresh_token>
     </items>
