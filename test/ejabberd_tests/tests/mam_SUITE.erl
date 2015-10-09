@@ -281,7 +281,8 @@ suite() ->
     escalus:suite().
 
 init_per_suite(Config) ->
-    escalus:init_per_suite(Config).
+    [{escalus_user_db, {module, escalus_ejabberd}}
+     | escalus:init_per_suite(Config)].
 
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
@@ -296,30 +297,32 @@ delete_users(Config) ->
     escalus:delete_users(Config, {by_name, user_names()}).
 
 init_per_group(Group, ConfigIn) ->
-    Config0 = create_users(ConfigIn),
-    C = configuration(Group),
-    B = basic_group(Group),
-    Config = case C of
-                 riak_timed_yz_buckets ->
-                     [{yz_wait, 2500} | Config0];
-                 _ ->
-                     Config0
-             end,
-    ct:pal("Init per group ~p; configuration ~p; basic group ~p",
-           [Group, C, B]),
-    case init_modules(C, B, Config) of
+   C = configuration(Group),
+   B = basic_group(Group),
+   case init_modules(C, B, ConfigIn) of
         skip ->
-            {skip, {init_modules, C, B, Config}};
-        Config1 ->
+            {skip, {init_modules, C, B, ConfigIn}};
+        Config0 ->
+            ct:pal("Init per group ~p; configuration ~p; basic group ~p",
+                   [Group, C, B]),
+            Config1 = do_init_per_group(C, Config0),
             [{basic_group, B}, {configuration, C} | init_state(C, B, Config1)]
+    end.
+
+do_init_per_group(C, ConfigIn) ->
+    Config0 = create_users(ConfigIn),
+    case C of
+        riak_timed_yz_buckets ->
+            [{yz_wait, 2500} | Config0];
+        _ ->
+            Config0
     end.
 
 end_per_group(Group, Config) ->
     delete_users(Config),
     C = configuration(Group),
     B = basic_group(Group),
-    Config1 = end_state(C, B, Config),
-    end_modules(C, B, Config1).
+    end_modules(C, B, Config).
 
 init_modules(C, muc_rsm, Config) ->
     init_modules(C, muc, Config);
@@ -502,7 +505,7 @@ init_modules(odbc_async_cache, _, Config) ->
     init_module(host(), mod_mam_odbc_user, [pm]),
     init_module(host(), mod_mam_cache_user, [pm]),
     Config;
-init_modules(odbc_mnesia_muc_cache, _, Config) ->
+init_modules(odbc_mnesia_muc_cache, _, _Config) ->
     skip;
 init_modules(odbc_mnesia_cache, _, Config) ->
     init_module(host(), mod_mam, []),
@@ -533,9 +536,7 @@ mam_modules() ->
      mod_mam_odbc_user,
      mod_mam_cache_user,
      mod_mam_muc_cache_user,
-     mod_mam_riak_timed_arch,
-     mod_mam_riak_timed_arch_yz,
-     mod_mam_riak_bucket_arch].
+     mod_mam_riak_timed_arch_yz].
 
 init_state(_, muc_rsm, Config) ->
     Config1 = start_alice_room(Config),
@@ -554,8 +555,6 @@ init_state(_, with_rsm, Config) ->
 init_state(_, _, Config) ->
     clean_archives(Config).
 
-end_state(_, _, Config) ->
-    Config.
 
 init_per_testcase(C=archived, Config) ->
     escalus:init_per_testcase(C, clean_archives(Config));
@@ -2270,7 +2269,7 @@ is_odbc_enabled(Host) ->
     case sql_transaction(Host, fun erlang:now/0) of
         {atomic, _} -> true;
         Other ->
-            ct:pal("ODBC disabled (check failed ~p)", [Other]),
+            %ct:pal("ODBC disabled (check failed ~p)", [Other]),
             false
     end.
 
