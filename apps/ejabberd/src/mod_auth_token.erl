@@ -78,17 +78,18 @@
 -spec start(ejabberd:server(), list()) -> ok.
 start(Domain, Opts) ->
     gen_mod:start_backend_module(?MODULE, default_opts(Opts)),
-    mod_disco:register_feature(Domain, ?NS_AUTH_TOKEN),
+    mod_disco:register_feature(Domain, ?NS_ESL_TOKEN_AUTH),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, no_queue),
     [ ejabberd_hooks:add(Hook, Domain, ?MODULE, Handler, Priority)
       || {Hook, Handler, Priority} <- hook_handlers() ],
-    gen_iq_handler:add_iq_handler(ejabberd_sm, Domain, ?NS_AUTH_TOKEN, ?MODULE, process_iq, IQDisc),
+    gen_iq_handler:add_iq_handler(ejabberd_sm, Domain, ?NS_ESL_TOKEN_AUTH,
+                                  ?MODULE, process_iq, IQDisc),
     ejabberd_commands:register_commands(commands()),
     ok.
 
 -spec stop(ejabberd:server()) -> ok.
 stop(Domain) ->
-    gen_iq_handler:remove_iq_handler(ejabberd_sm, Domain, ?NS_AUTH_TOKEN),
+    gen_iq_handler:remove_iq_handler(ejabberd_sm, Domain, ?NS_ESL_TOKEN_AUTH),
     [ ejabberd_hooks:delete(Hook, Domain, ?MODULE, Handler, Priority)
       || {Hook, Handler, Priority} <- hook_handlers() ],
     ok.
@@ -217,7 +218,7 @@ is_revoked(#token{type = refresh, sequence_no = TokenSeqNo} = T) ->
     end.
 
 -spec process_iq(jid(), jid(), iq()) -> iq() | error().
-process_iq(From, _To, #iq{xmlns = ?NS_AUTH_TOKEN} = IQ) ->
+process_iq(From, _To, #iq{xmlns = ?NS_ESL_TOKEN_AUTH} = IQ) ->
     create_token_response(From, IQ);
 process_iq(_From, _To, #iq{}) ->
     {error, ?ERR_BAD_REQUEST}.
@@ -227,7 +228,7 @@ create_token_response(From, IQ) ->
         {#token{} = AccessToken, #token{} = RefreshToken} ->
             IQ#iq{type = result,
                   sub_el = [#xmlel{name = <<"items">>,
-                                   attrs = [{<<"xmlns">>, ?NS_AUTH_TOKEN}],
+                                   attrs = [{<<"xmlns">>, ?NS_ESL_TOKEN_AUTH}],
                                    children = [token_to_xmlel(AccessToken),
                                                token_to_xmlel(RefreshToken)]}]};
         {_,_} -> {error, ?ERR_INTERNAL_SERVER_ERROR}
@@ -291,7 +292,7 @@ token_to_xmlel(#token{type = Type} = T) ->
                       access -> <<"access_token">>;
                       refresh -> <<"refresh_token">>
                   end,
-           attrs = [{<<"xmlns">>, ?NS_AUTH_TOKEN}],
+           attrs = [{<<"xmlns">>, ?NS_ESL_TOKEN_AUTH}],
            children = [#xmlcdata{content = jlib:encode_base64(serialize(T))}]}.
 
 default_validity_period(access) -> {1, hours};
