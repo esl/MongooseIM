@@ -32,8 +32,6 @@
 
 -include("ejabberd.hrl").
 
--type lang_string() :: string().
-
 %%
 %% Public
 %%
@@ -44,16 +42,10 @@ start() ->
     ok = load_translations_from_dir(lang_files_directory()),
     ok.
 
--spec translate(ejabberd:lang() | lang_string(), string()| binary()) -> string()|binary().
-translate(Lang, Msg) when is_binary(Lang) ->
-    translate(binary:bin_to_list(Lang), Msg);
-translate(Lang, Msg) when is_binary(Msg) ->
-    %% For compatibility
-    %% when we use binary Message we expect binary result
-    %% I would like to leave one interface, eventually the same story about lang
-    unicode:characters_to_binary(translate(Lang, binary:bin_to_list(Msg)));
+-spec translate(ejabberd:lang(), binary()) -> binary().
 translate(Lang, Msg) ->
-    case get_translation(string:to_lower(Lang), Msg) of
+    LLang = to_lower(Lang),
+    case get_translation(LLang, Msg) of
         {ok, Trans} -> Trans;
         {error, not_found} -> get_default_server_lang_translation(Msg)
     end.
@@ -90,7 +82,7 @@ load_translation_files(Dir, MsgFiles) ->
                           load_file(Lang, Dir ++ "/" ++ Filename)
                   end, MsgFiles).
 
--spec lang_from_file_name(file:filename()) -> lang_string().
+-spec lang_from_file_name(file:filename()) -> string().
 lang_from_file_name(Filename) ->
     string:to_lower(filename:rootname(Filename)).
 
@@ -98,12 +90,15 @@ lang_from_file_name(Filename) ->
 has_msg_extension(FileName) ->
     filename:extension(FileName) == ".msg".
 
--spec load_file(lang_string(), file:name()) -> 'ok'.
+-spec load_file(string(), file:name()) -> 'ok'.
 load_file(Lang, File) ->
+    BLang = list_to_binary(Lang),
     case file:consult(File) of
         {ok, Terms} ->
             lists:foreach(fun({Orig, Trans}) ->
-                                  insert_translation(Lang, Orig, Trans)
+                                  insert_translation(BLang,
+                                                     unicode:characters_to_binary(Orig),
+                                                     unicode:characters_to_binary(Trans))
                           end, Terms);
         %% Code copied from ejabberd_config.erl
         {error, {_LineNumber, erl_parse, _ParseMessage} = Reason} ->
@@ -117,20 +112,20 @@ load_file(Lang, File) ->
             exit(ExitText)
     end.
 
--spec insert_translation(lang_string(), string(), string()) -> string().
-insert_translation(Lang, Msg, "") ->
+-spec insert_translation(ejabberd:lang(), binary(), binary()) -> true.
+insert_translation(Lang, Msg, <<"">>) ->
     insert_translation(Lang, Msg, Msg); %% use key if it is not defined
 insert_translation(Lang, Msg, Trans) ->
     ets:insert(translations, {{Lang, Msg}, Trans}).
 
--spec get_default_server_lang_translation(string()) ->  string().
+-spec get_default_server_lang_translation(binary()) ->  binary().
 get_default_server_lang_translation(Msg) ->
     case get_translation(default_server_lang(), Msg) of
         {ok, DefaultTrans} -> DefaultTrans;
         {error, not_found} -> Msg
     end.
 
--spec get_translation(lang_string(), string()) -> {ok, string()} | {error, not_found}.
+-spec get_translation(ejabberd:lang(), binary()) -> {ok, binary()} | {error, not_found}.
 get_translation(LLang, Msg) ->
     case read_trans(LLang, Msg) of
         {error, not_found} ->
@@ -139,10 +134,8 @@ get_translation(LLang, Msg) ->
             {ok, Trans}
     end.
 
--spec read_trans(lang_string(), string()) -> {ok, string()} | {error, not_found}.
-read_trans(undefined, Msg) ->
-    {ok, Msg};
-read_trans("en", Msg) ->
+-spec read_trans(ejabberd:lang(), binary()) -> {ok, binary()} | {error, not_found}.
+read_trans(<<"en">>, Msg) ->
     {ok, Msg};
 read_trans(LLang, Msg) ->
     case ets:lookup(translations, {LLang, Msg}) of
@@ -150,17 +143,21 @@ read_trans(LLang, Msg) ->
         _ -> {error, not_found}
     end.
 
--spec short_lang(lang_string()) -> ejabberd:lang().
+-spec short_lang(ejabberd:lang()) -> ejabberd:lang().
 short_lang(LLang) ->
-    case string:tokens(LLang, "-") of
+    case string:tokens(binary_to_list(LLang), "-") of
         [] -> LLang;
-        [ShortLang | _] -> ShortLang
+        [ShortLang | _] -> list_to_binary(ShortLang)
     end.
 
--spec default_server_lang() ->  ejabberd:lang().
+-spec default_server_lang() -> ejabberd:lang().
 default_server_lang() ->
     case ?MYLANG of
-        undefined -> "en";
-        <<"en">> ->  "en";
-        Lang -> binary:bin_to_list(Lang)
+        undefined -> <<"en">>;
+        <<"en">> ->  <<"en">>;
+        Lang -> Lang
     end.
+
+-spec to_lower(binary()) -> binary().
+to_lower(Bin) ->
+    list_to_binary(string:to_lower(binary_to_list(Bin))).

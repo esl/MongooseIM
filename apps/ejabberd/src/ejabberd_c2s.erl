@@ -1567,7 +1567,7 @@ send_and_maybe_buffer_stanza({_, _, Stanza} = Packet, State, StateName)->
             maybe_enter_resume_session(BufferedStateData#state.stream_mgmt_id, BufferedStateData)
     end.
 
--spec new_id() -> string().
+-spec new_id() -> binary().
 new_id() ->
     iolist_to_binary(randoms:get_string()).
 
