@@ -1055,6 +1055,10 @@ resume_session(resume, _From, SD) ->
 %%          {next_state, NextStateName, NextStateData, Timeout} |
 %%          {stop, Reason, NewStateData}
 %%----------------------------------------------------------------------
+handle_event(keep_alive_packet, session_established,
+             #state{server = Server, jid = JID} = StateData) ->
+    ejabberd_hooks:run(user_sent_keep_alive, Server, [JID]),
+    fsm_next_state(session_established, StateData);
 handle_event(_Event, StateName, StateData) ->
     fsm_next_state(StateName, StateData).
 

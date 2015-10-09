@@ -51,7 +51,11 @@
          handle_info/2, code_change/3]).
 
 %% Hook callbacks
--export([iq_ping/3, user_online/3, user_offline/4, user_send/3]).
+-export([iq_ping/3,
+         user_online/3,
+         user_offline/4,
+         user_send/3,
+         user_keep_alive/1]).
 
 -record(state, {host = <<"">>,
                 send_pings = ?DEFAULT_SEND_PINGS,
@@ -105,23 +109,27 @@ init([Host, Opts]) ->
                                   ?MODULE, iq_ping, IQDisc),
     gen_iq_handler:add_iq_handler(ejabberd_local, Host, ?NS_PING,
                                   ?MODULE, iq_ping, IQDisc),
-    case SendPings of
-        true ->
-            ejabberd_hooks:add(sm_register_connection_hook, Host,
-                               ?MODULE, user_online, 100),
-            ejabberd_hooks:add(sm_remove_connection_hook, Host,
-                               ?MODULE, user_offline, 100),
-            ejabberd_hooks:add(user_send_packet, Host,
-                               ?MODULE, user_send, 100);
-        _ ->
-            ok
-    end,
+
+    maybe_add_hooks_handlers(Host, SendPings),
+
     {ok, #state{host = Host,
                 send_pings = SendPings,
                 ping_interval = timer:seconds(PingInterval),
                 timeout_action = TimeoutAction,
                 ping_req_timeout = timer:seconds(PingReqTimeout),
                 timers = ?DICT:new()}}.
+
+maybe_add_hooks_handlers(Host, true) ->
+    ejabberd_hooks:add(sm_register_connection_hook, Host,
+                       ?MODULE, user_online, 100),
+    ejabberd_hooks:add(sm_remove_connection_hook, Host,
+                       ?MODULE, user_offline, 100),
+    ejabberd_hooks:add(user_send_packet, Host,
+                       ?MODULE, user_send, 100),
+    ejabberd_hooks:add(user_sent_keep_alive, Host,
+                       ?MODULE, user_keep_alive, 100);
+maybe_add_hooks_handlers(_, _) ->
+    ok.
 
 terminate(_Reason, #state{host = Host}) ->
     ejabberd_hooks:delete(sm_remove_connection_hook, Host,
@@ -130,6 +138,8 @@ terminate(_Reason, #state{host = Host}) ->
                           ?MODULE, user_online, 100),
     ejabberd_hooks:delete(user_send_packet, Host,
                           ?MODULE, user_send, 100),
+    ejabberd_hooks:delete(user_sent_keep_alive, Host,
+                          ?MODULE, user_keep_alive, 100),
     gen_iq_handler:remove_iq_handler(ejabberd_local, Host, ?NS_PING),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_PING),
     mod_disco:unregister_feature(Host, ?NS_PING).
@@ -201,6 +211,9 @@ user_offline(_SID, JID, _Info, _Reason) ->
     stop_ping(JID#jid.lserver, JID).
 
 user_send(JID, _From, _Packet) ->
+    start_ping(JID#jid.lserver, JID).
+
+user_keep_alive(JID) ->
     start_ping(JID#jid.lserver, JID).
 
 %%====================================================================
