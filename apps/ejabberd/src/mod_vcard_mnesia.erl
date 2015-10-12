@@ -31,6 +31,12 @@ get_vcard(LUser, LServer) ->
                  mnesia:read({vcard, US})
          end,
     case mnesia:transaction(F) of
+        %% TODO: the first clause to be out of place here - see
+        %% http://xmpp.org/extensions/xep-0054.html examples 2, 3, 4:
+        %%
+        %%   If no vCard exists, the server MUST return a stanza error
+        %%   (which SHOULD be <item-not-found/>) or an IQ-result containing
+        %%   an empty <vCard/> element.
         {atomic, []} ->
             {error, ?ERR_SERVICE_UNAVAILABLE};
         {atomic, Rs} ->
