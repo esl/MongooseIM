@@ -85,9 +85,11 @@ do_search(VHost, MatchHeadIn) ->
 
 search_fields(_VHost) ->
     mod_vcard:default_search_fields().
+
 %%--------------------------------------------------------------------
 %% internal
 %%--------------------------------------------------------------------
+
 prepare_db() ->
     create_tables(),
     update_tables(),
