@@ -139,6 +139,7 @@ Configure the database section as follows:
 * users (credentials)
 * private storage
 * vCard and vCard search
+* MAM (experimental feature for one-to-one archives)
 
 **Setup**
 
@@ -146,19 +147,20 @@ We are using the riak data types, so the minimal supported version is 2.0.
 To be able to store above persistent date one have to run the following command:
 
 ```bash
+# user base
 riak-admin bucket-type create users '{"props":{"datatype":"map"}}'
 riak-admin bucket-type activate users
 
+# private storage
 riak-admin bucket-type create private '{"props":{"last_write_wins":true}}'
 riak-admin bucket-type activate private
 
+# vCard
 RIAK_HOST="http://localhost:8098"
 
 curl -XPUT $RIAK_HOST/search/schema/vcard \
     -H 'Content-Type:application/xml' \
     --data-binary @tools/vcard_search_schema.xml
-
-curl $RIAK_HOST/search/schema/vcard
 
 curl -XPUT $RIAK_HOST/search/index/vcard \
     -H 'Content-Type: application/json' \
@@ -166,10 +168,23 @@ curl -XPUT $RIAK_HOST/search/index/vcard \
 
 riak-admin bucket-type create vcard '{"props":{"last_write_wins":true, "search_index":"vcard"}}'
 riak-admin bucket-type activate vcard
+
+#MAM
+curl -XPUT $RIAK_HOST/search/schema/mam \
+    -H 'Content-Type:application/xml' \
+    --data-binary @tools/mam_search_schema.xml
+
+curl -XPUT $RIAK_HOST/search/index/mam \
+    -H 'Content-Type: application/json' \
+    -d '{"schema":"mam"}'
+
+riak-admin bucket-type create mam_yz '{"props":{"datatype":"map", "search_index":"mam"}}'
+riak-admin bucket-type activate mam_yz
+
 ```
 
-This will create a bucket type required for storing **users credentials** and it will
-activate it.
+This will create backed types, search schemas and indexes required
+for storing above persitent date and it will activate them.
 
 You should also configure Riak in `ejabberd.cfg` file. 
 Please refer to [Advanced configuration/Database setup](../Advanced-configuration.md) for more information.
