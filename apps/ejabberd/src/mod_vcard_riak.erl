@@ -68,8 +68,6 @@ get_vcard(LUser, LServer) ->
 search(VHost, Data, _Lang, DefaultReportedFields) ->
     YZQuery = make_yz_query(Data, []),
 
-    %%TODO remove allow_return_all
-
     Items = do_search(YZQuery, VHost),
     [DefaultReportedFields | Items].
 

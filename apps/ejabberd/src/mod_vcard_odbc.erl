@@ -109,7 +109,7 @@ set_vcard(User, VHost, VCard, VCardSearch) ->
 
 search(LServer, Data, _Lang, DefaultReportedFields) ->
     RestrictionSQL = make_restriction_sql(LServer, Data),
-	R = do_search(LServer, RestrictionSQL),
+    R = do_search(LServer, RestrictionSQL),
     Items = lists:map(fun(I) -> record_to_item(LServer,I) end, R),
     [DefaultReportedFields | Items].
 
