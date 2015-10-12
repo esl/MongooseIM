@@ -240,6 +240,7 @@ process_local_iq(_From,_To,#iq{type = get, lang = Lang} = IQ) ->
                                               children = [#xmlcdata{content = [<<"MongooseIM XMPP Server">>,
                                                                                <<"\nCopyright (c) Erlang Solutions Ltd.">>]}]}
                                       ]}]}.
+
 process_sm_iq(From, To, #iq{type = set, sub_el = VCARD} = IQ) ->
     #jid{user = FromUser, lserver = FromVHost} = From,
     #jid{user = ToUser, lserver = ToVHost, resource = ToResource} = To,
