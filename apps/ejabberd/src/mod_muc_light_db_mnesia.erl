@@ -163,7 +163,7 @@ set_config(RoomJID, Key, Val, Version) ->
 
 %% ------------------------ Blocking manipulation ------------------------
 
--spec get_blocking(UserUS :: ejabberd:simple_bare_jid()) -> {ok, [blocking_item()]}.
+-spec get_blocking(UserUS :: ejabberd:simple_bare_jid()) -> [blocking_item()].
 get_blocking(UserUS) ->
     [ {What, deny, Who}
       || #?BLOCKING_TAB{ item = {What, Who} } <- dirty_get_blocking_raw(UserUS) ].

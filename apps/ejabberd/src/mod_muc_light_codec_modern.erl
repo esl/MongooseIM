@@ -218,7 +218,7 @@ parse_aff_users([#xmlel{ name = <<"user">>, attrs = [{<<"affiliation">>, AffBin}
                           AffUsersAcc) ->
     #jid{} = JID = jlib:binary_to_jid(JIDBin),
     Aff = mod_muc_light_utils:b2aff(AffBin),
-    parse_aff_users(RItemsEls, [{JID, Aff} | AffUsersAcc]);
+    parse_aff_users(RItemsEls, [{jlib:jid_to_lus(JID), Aff} | AffUsersAcc]);
 parse_aff_users(_, _) ->
     {error, bad_request}.
 
@@ -236,7 +236,7 @@ parse_blocking_list([#xmlel{ name = WhatBin, attrs = [{<<"action">>, ActionBin}]
     #jid{} = JID = jlib:binary_to_jid(JIDBin),
     Action = b2action(ActionBin),
     What = b2what(WhatBin),
-    parse_blocking_list(RItemsEls, [{What, Action, JID} | ItemsAcc]);
+    parse_blocking_list(RItemsEls, [{What, Action, jlib:jid_to_lus(JID)} | ItemsAcc]);
 parse_blocking_list(_, _) ->
     {error, bad_request}.
 

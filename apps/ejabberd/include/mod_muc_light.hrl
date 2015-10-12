@@ -45,7 +45,9 @@
 
 -record(disco_items, {
           id = <<>> :: binary(),
-          rooms = [] :: [{ejabberd:simple_bare_jid(), binary()}]
+          rooms = [] :: [{RoomUS :: ejabberd:simple_bare_jid(),
+                          RoomName :: binary(),
+                          RoomVersion :: binary()}]
          }).
 
 -record(subject, {

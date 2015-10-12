@@ -86,7 +86,7 @@ start(Host, Opts) ->
                      get_config, set_config, get_blocking, set_blocking,
                      get_aff_users, modify_aff_users],
     gen_mod:start_backend_module(mod_muc_light_db, Opts, TrackedDBFuns),
-    Codec = case gen_mod:get_opt(legacy_mode, ?DEFAULT_LEGACY_MODE) of
+    Codec = case gen_mod:get_opt(legacy_mode, Opts, ?DEFAULT_LEGACY_MODE) of
         false -> modern;
         true -> legacy
     end,
@@ -127,7 +127,7 @@ process_packet(From, To, {ok, {get, #disco_items{} = DI}}, OrigPacket) ->
 process_packet(From, #jid{ luser = RoomU } = To, {ok, RequestToRoom}, OrigPacket)
   when RoomU =/= <<>> ->
     case ?BACKEND:room_exists(jlib:jid_to_lus(To)) of
-        true -> mod_muc_light_room:handle_request(From, To, RequestToRoom);
+        true -> mod_muc_light_room:handle_request(From, To, OrigPacket, RequestToRoom);
         false -> mod_muc_light_codec:encode_error({error, item_not_found}, From, To, OrigPacket,
                                                   fun ejabberd_router:route/3)
     end;
@@ -194,14 +194,17 @@ create_room(From, To, #create{ raw_config = RawConfig } = Create0, OrigPacket) -
                     mod_muc_light_codec:encode_error({error, conflict}, From, To, OrigPacket,
                                                      fun ejabberd_router:route/3)
             end;
-        {error, Error} ->
+        {{error, Error}, _} ->
             ErrorText = io_lib:format("~s:~p", tuple_to_list(Error)),
             mod_muc_light_codec:encode_error({error, bad_request, ErrorText}, From, To, OrigPacket,
+                                             fun ejabberd_router:route/3);
+        {_, {error, bad_request} = Error} ->
+            mod_muc_light_codec:encode_error(Error, From, To, OrigPacket,
                                              fun ejabberd_router:route/3)
     end.
 
 -spec process_create_aff_users(Creator :: ejabberd:simple_bare_jid(), AffUsers :: aff_users()) ->
-    aff_users().
+    {ok, aff_users()} | {error, bad_request}.
 process_create_aff_users(Creator, AffUsers) ->
     case lists:any(fun ({User, _}) when User =:= Creator -> true;
                        ({_, Aff}) -> Aff =:= none end, AffUsers) of
@@ -213,10 +216,11 @@ process_create_aff_users(Creator, AffUsers) ->
     end.
 
 -spec process_create_aff_users(Creator :: ejabberd:simple_bare_jid(), AffUsers :: aff_users(),
-                               EqualOccupants :: boolean()) -> aff_users().
+                               EqualOccupants :: boolean()) ->
+    {ok, aff_users()} | {error, bad_request}.
 process_create_aff_users(Creator, AffUsers, EqualOccupants) ->
     case mod_muc_light_utils:change_aff_users([{Creator, creator_aff(EqualOccupants)}], AffUsers) of
-        {ok, FinalAffUsers, _ChangedAffUsers, _JoiningUsers, _LeavingUsers} -> FinalAffUsers;
+        {ok, FinalAffUsers, _ChangedAffUsers, _JoiningUsers, _LeavingUsers} -> {ok, FinalAffUsers};
         Error -> Error
     end.
 
@@ -254,24 +258,29 @@ get_rooms_info([RoomUS | RRooms]) ->
 -spec bcast_removed_user(UserUS :: ejabberd:simple_bare_jid(),
                          AffectedRooms :: mod_muc_light_db:remove_user_return(),
                          Version :: binary()) -> ok.
-bcast_removed_user(UserUS, AffectedRooms, Version) ->
-    bcast_removed_user(UserUS, AffectedRooms, Version, mod_muc_light_utils:bin_ts()).
+bcast_removed_user({UserU, UserS}, AffectedRooms, Version) ->
+    bcast_removed_user(jlib:make_jid_noprep(UserU, UserS, <<>>), AffectedRooms,
+                       Version, mod_muc_light_utils:bin_ts()).
 
-bcast_removed_user(_UserUS, [], _Version, _ID) ->
+-spec bcast_removed_user(UserJID :: jlib:jid(),
+                         AffectedRooms :: mod_muc_light_db:remove_user_return(),
+                         Version :: binary(),
+                         PacketID :: binary()) -> ok.
+bcast_removed_user(_UserJID, [], _Version, _ID) ->
     ok;
-bcast_removed_user(
-  UserUS, [{RoomUS, {ok, OldAffUsers, NewAffUsers, AffUsersChanged, PrevVersion}} | RAffected],
-  Version, ID) ->
+bcast_removed_user(UserJID,
+                   [{RoomUS, {ok, OldAffUsers, NewAffUsers, AffUsersChanged, PrevVersion}}
+                    | RAffected], Version, ID) ->
     Affiliations = #affiliations{
                       id = ID,
                       prev_version = PrevVersion,
                       version = Version,
                       aff_users = AffUsersChanged
                      },
-    ?CODEC:encode({set, Affiliations, OldAffUsers, NewAffUsers}, jlib:make_jid(UserUS),
-                  RoomUS, fun ejabberd_router:route/3),
-    bcast_removed_user(UserUS, RAffected, Version, ID);
-bcast_removed_user(UserUS, [{RoomUS, Error} | RAffected], Version, ID) ->
-    ?ERROR_MSG("user=~p, room=~p, remove_user_error=~p", [UserUS, RoomUS, Error]),
-    bcast_removed_user(UserUS, RAffected, Version, ID).
+    ?CODEC:encode({set, Affiliations, OldAffUsers, NewAffUsers},
+                  UserJID, RoomUS, fun ejabberd_router:route/3),
+    bcast_removed_user(UserJID, RAffected, Version, ID);
+bcast_removed_user(UserJID, [{RoomUS, Error} | RAffected], Version, ID) ->
+    ?ERROR_MSG("user=~p, room=~p, remove_user_error=~p", [UserJID, RoomUS, Error]),
+    bcast_removed_user(UserJID, RAffected, Version, ID).
 

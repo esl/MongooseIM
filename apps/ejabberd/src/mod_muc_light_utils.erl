@@ -88,7 +88,7 @@ change_aff_users(AffUsers, AffUsersChangesAssorted) ->
                             {NewAffUsers0, AffUsersChanged0}
                     end,
                     {ok, NewAffUsers, AffUsersChanged, JoiningUsers, LeavingUsers};
-                {false, true} -> % just need to degrade old owner
+                {false, {_, _}} -> % just need to degrade old owner
                     apply_aff_users_change(
                       AffUsers, lists:sort([{Owner, member} | AffUsersChangesAssorted]), none);
                 _ -> % simple case

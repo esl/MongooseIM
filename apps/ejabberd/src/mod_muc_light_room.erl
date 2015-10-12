@@ -25,7 +25,7 @@
 -author('piotr.nosek@erlang-solutions.com').
 
 %% API
--export([handle_request/3]).
+-export([handle_request/4]).
 
 %% Callbacks
 -export([participant_limit_check/2]).
@@ -40,12 +40,13 @@
 %% API
 %%====================================================================
 
--spec handle_request(From :: jlib:jid(), RoomJID :: jlib:jid(), Request :: muc_light_packet()) -> ok.
-handle_request(From, To, Request) ->
+-spec handle_request(From :: jlib:jid(), RoomJID :: jlib:jid(),
+                     OrigPacket :: jlib:xmlel(), Request :: muc_light_packet()) -> ok.
+handle_request(From, To, OrigPacket, Request) ->
     RoomUS = jlib:jid_to_lus(To),
     AffUsersRes = ?BACKEND:get_aff_users(RoomUS),
     Response = process_request(From, RoomUS, Request, AffUsersRes),
-    send_response(From, To, RoomUS, Request, Response).
+    send_response(From, To, RoomUS, OrigPacket, Response).
 
 %%====================================================================
 %% Callbacks
@@ -144,7 +145,7 @@ process_request(_UnknownReq, _From, _UserUS, _RoomUS, _Auth, _AffUsers) ->
 process_config_set(_ConfigReq, _RoomUS, member, _AffUsers, false) ->
     {error, not_allowed};
 process_config_set(ConfigReq, RoomUS, _UserAff, AffUsers, _AllCanConfigure) ->
-    case mod_muc_light_utils:process_raw_config(ConfigReq#config.raw_config) of
+    case mod_muc_light_utils:process_raw_config(ConfigReq#config.raw_config, []) of
         {ok, Config} ->
             NewVersion = mod_muc_light_utils:bin_ts(),
             {ok, PrevVersion} = ?BACKEND:set_config(RoomUS, Config, NewVersion),

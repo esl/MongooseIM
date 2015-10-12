@@ -44,6 +44,7 @@ encode_error(ErrMsg, OrigFrom, OrigTo, OrigPacket, HandleFun) ->
     ErrorPacket = jlib:make_error_reply(OrigPacket#xmlel{ children = [] }, ErrorElem),
     HandleFun(OrigTo, OrigFrom, ErrorPacket).
 
+-spec make_error_elem(tuple()) -> jlib:xmlel().
 make_error_elem({error, bad_request}) ->
     ?ERR_BAD_REQUEST;
 make_error_elem({error, item_not_found}) ->
@@ -51,7 +52,7 @@ make_error_elem({error, item_not_found}) ->
 make_error_elem({error, conflict}) ->
     ?ERR_CONFLICT;
 make_error_elem({error, bad_request, Text}) ->
-    ?ERRT_BAD_REQUEST(<<"en">>, Text);
+    ?ERRT_BAD_REQUEST(<<"en">>, iolist_to_binary(Text));
 make_error_elem({error, internal_server_error}) ->
     ?ERR_INTERNAL_SERVER_ERROR.
 

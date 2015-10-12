@@ -63,7 +63,7 @@
 
 %% ------------------------ Blocking manipulation ------------------------
 
--callback get_blocking(UserUS :: ejabberd:simple_bare_jid()) -> {ok, [blocking_item()]}.
+-callback get_blocking(UserUS :: ejabberd:simple_bare_jid()) -> [blocking_item()].
 
 -callback get_blocking(UserUS :: ejabberd:simple_bare_jid(),
                        WhatWhos :: [{blocking_who(), ejabberd:simple_bare_jid()}]) ->
