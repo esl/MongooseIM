@@ -4,8 +4,25 @@ sudo cp tools/advanced.config /etc/riak/
 
 service riak start
 
+RIAK_HOST="http://localhost:8098"
+
+curl -XPUT $RIAK_HOST/search/schema/vcard \
+    -H 'Content-Type:application/xml' \
+    --data-binary @tools/vcard_search_schema.xml
+
+curl $RIAK_HOST/search/schema/vcard
+
+curl -XPUT $RIAK_HOST/search/index/vcard \
+    -H 'Content-Type: application/json' \
+    -d '{"schema":"vcard"}'
+
+sleep 20
+
 ${1}riak-admin bucket-type create users '{"props":{"datatype":"map"}}'
 ${1}riak-admin bucket-type activate users
 
 ${1}riak-admin bucket-type create private '{"props":{"last_write_wins":true}}'
 ${1}riak-admin bucket-type activate private
+
+${1}riak-admin bucket-type create vcard '{"props":{"last_write_wins":true, "search_index":"vcard"}}'
+${1}riak-admin bucket-type activate vcard

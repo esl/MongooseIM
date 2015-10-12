@@ -17,7 +17,7 @@ unsafe_stop(Domain, Mod) ->
     case escalus_ejabberd:rpc(gen_mod, stop_module, [Domain, Mod]) of
         {badrpc, Reason} ->
             ct:fail("Cannot stop module ~p reason ~p", [Mod, Reason]);
-        _ -> ok
+        R -> R
     end.
 
 start(Domain, Mod, Args) ->
@@ -25,7 +25,7 @@ start(Domain, Mod, Args) ->
     case escalus_ejabberd:rpc(gen_mod, start_module, [Domain, Mod, Args]) of
         {badrpc, Reason} ->
             ct:fail("Cannot start module ~p reason ~p", [Mod, Reason]);
-        _ -> ok
+        R -> R
     end.
 
 restart(Domain, Mod, Args) ->

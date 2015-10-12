@@ -111,6 +111,7 @@ generic_count_backend(mod_private_mysql) -> count_odbc(<<"private_storage">>);
 generic_count_backend(mod_private_riak) -> count_riak(<<"private">>);
 generic_count_backend(mod_vcard_mnesia) -> count_wildpattern(vcard);
 generic_count_backend(mod_vcard_odbc) -> count_odbc(<<"vcard">>);
+generic_count_backend(mod_vcard_riak) -> count_riak(<<"vcard">>);
 generic_count_backend(mod_vcard_ldap) ->
     D = escalus_ct:get_config(ejabberd_domain),
     %% number of vcards in ldap is the same as number of users

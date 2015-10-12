@@ -39,7 +39,7 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    ok = dynamic_modules:start(<<"localhost">>, mod_time, []),
+    dynamic_modules:start(<<"localhost">>, mod_time, []),
     escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->

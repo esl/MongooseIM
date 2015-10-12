@@ -51,6 +51,8 @@
 -export([process_local_iq/3,process_sm_iq/3,get_local_features/5,remove_user/2]).
 
 -export([start_link/2]).
+-export([default_search_fields/0]).
+-export([get_results_limit/1]).
 
 -export([config_change/4]).
 
@@ -95,6 +97,35 @@
 -callback search_fields(VHost) ->
     Res :: list() when
     VHost :: binary().
+
+-spec default_search_fields() -> list().
+default_search_fields() ->
+    [{<<"User">>, <<"user">>},
+     {<<"Full Name">>, <<"fn">>},
+     {<<"Given Name">>, <<"first">>},
+     {<<"Middle Name">>, <<"middle">>},
+     {<<"Family Name">>, <<"last">>},
+     {<<"Nickname">>, <<"nick">>},
+     {<<"Birthday">>, <<"bday">>},
+     {<<"Country">>, <<"ctry">>},
+     {<<"City">>, <<"locality">>},
+     {<<"Email">>, <<"email">>},
+     {<<"Organization Name">>, <<"orgname">>},
+     {<<"Organization Unit">>, <<"orgunit">>}].
+
+-spec get_results_limit(ejabberd:lserver()) -> non_neg_integer() | inifinity.
+get_results_limit(LServer) ->
+    case gen_mod:get_module_opt(LServer, mod_vcard, matches, ?JUD_MATCHES) of
+        infinity ->
+            infinity;
+        Val when is_integer(Val) and (Val > 0) ->
+            Val;
+        Val ->
+            ?ERROR_MSG("Illegal option value ~p. "
+            "Default value ~p substituted.",
+                [{matches, Val}, ?JUD_MATCHES]),
+            ?JUD_MATCHES
+    end.
 
 %%--------------------------------------------------------------------
 %% gen_mod callbacks
