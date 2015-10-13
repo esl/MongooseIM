@@ -4,6 +4,8 @@ EJABBERD_DIR = apps/ejabberd
 EJD_INCLUDE = $(EJABBERD_DIR)/include
 EJD_PRIV = $(EJABBERD_DIR)/priv
 DEVNODES = node1 node2
+DEVNODESCD = node1cd node2cd
+REL_DEST = ./paczka #todo: change name
 
 all: deps compile
 
@@ -145,6 +147,61 @@ cleanplt:
 
 test_deps:
 	cd test/ejabberd_tests; make get-deps
+
+# CONTINUOUS DELIVERY TARGETS invoked by building/testing agents
+
+cd_copyrel:
+	mkdir $(REL_DEST)
+	rsync -uWr --exclude="*.erl" --exclude="*.spec" --exclude=".git" --exclude="logs/" --exclude="test/" ./apps $(REL_DEST)
+	rsync -uWr --exclude="*.erl" --exclude="*.spec" --exclude=".git" --exclude="test/" ./deps $(REL_DEST)
+	rsync -uWr --exclude="log/" ./rel $(REL_DEST)
+	rsync -uWr rebar $(REL_DEST)
+	rsync -uWr rebar.config $(REL_DEST)
+	rsync -uWr rebar.config.script $(REL_DEST)
+	rsync -uWr rebar.tests.config $(REL_DEST)
+	rsync -uWr Makefile $(REL_DEST)
+	rsync -uWr readlink.sh $(REL_DEST)
+	rsync -uWr ./ebin $(REL_DEST)
+	rsync -uWr --exclude="*.erl" ./src $(REL_DEST)
+	rsync -uWr ./tools/configure $(REL_DEST)
+	tar -cf paczka.tar $(REL_DEST)/*
+
+cd_copyrel_unpack:
+	mv ./* ../
+
+
+# ---------------- UAT test release , 2 nodes. It ONLY generates testable releases to "dev" folder.
+cd_two_nodes_release: $(DEVNODESCD)
+
+# run very basic test to check if release has been generated properly
+cd_release_smoketest:
+	@echo "this configuration ($@) seems to work!"
+
+$(DEVNODESCD): rebar
+	@echo "building $@"
+	(cd rel && ../rebar generate -f target_dir=../dev/mongooseim_$@ overlay_vars=./reltool_vars/$@_vars.config)
+	cp -R /usr/OTP_174/lib/tools-* dev/mongooseim_$@/lib/
+#cp -R $(erl_tools) dev/mongooseim_$@/lib/    - ucina sciezke do toolsow w go-cd serwerze. zaraz cos mnie trafi.
+
+# UAT test release, minimalistic 1-node deployment to dev. todo: change cp to relative paths
+cd_release_base: rebar
+	(cd rel && ../rebar generate -f target_dir=../dev/mynode overlay_vars=./reltool_vars/mynode_vars.config)
+	cp -R /usr/OTP_174/lib/tools-* dev/mynode/lib/
+
+# run very basic test to check if release has been generated properly
+cd_release_base_smoketest:
+	@echo "this configuration ($@) seems to work!"
+
+# called by external integration tool. prerequisites: targets deps,compile
+# have been called already.
+cd_ct:
+	mkdir -v apps/ejabberd/ctlogs
+	ct_run -pa apps/*/ebin -pa deps/*/ebin -dir apps/*/test\
+        -I apps/*/include -logdir apps/ejabberd/ctlogs  -noshell
+# -ct_hooks cth_surefire -logdir apps/ejabberd/ct_surefire_logs
+
+
+# CD END ----------
 
 %:
 	@:
