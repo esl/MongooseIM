@@ -158,7 +158,6 @@ cd_copyrel:
 	rsync -uWr rebar $(REL_DEST)
 	rsync -uWr rebar.config $(REL_DEST)
 	rsync -uWr rebar.config.script $(REL_DEST)
-	rsync -uWr rebar.tests.config $(REL_DEST)
 	rsync -uWr Makefile $(REL_DEST)
 	rsync -uWr readlink.sh $(REL_DEST)
 	rsync -uWr ./ebin $(REL_DEST)
