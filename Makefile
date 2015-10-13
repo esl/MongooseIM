@@ -5,7 +5,7 @@ EJD_INCLUDE = $(EJABBERD_DIR)/include
 EJD_PRIV = $(EJABBERD_DIR)/priv
 DEVNODES = node1 node2
 DEVNODESCD = node1cd node2cd
-REL_DEST = ./paczka #todo: change name
+REL_DEST = ./paczka
 
 all: deps compile
 
