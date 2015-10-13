@@ -62,14 +62,16 @@
 -define(CONFIG_RELOAD_TIMEOUT, 30000).
 
 -type key() :: atom()
-             | {atom(), ejabberd:server() | atom()}
+             | {key(), ejabberd:server() | atom() | list()}
              | {atom(), atom(), atom()}
              | binary(). % TODO: binary is questionable here
 
 -type value() :: atom()
+               | binary()
                | integer()
                | string()
-               | [tuple()].
+               | [value()]
+               | tuple().
 
 -export_type([key/0, value/0]).
 
@@ -261,7 +263,7 @@ normalize_hosts(Hosts) ->
 normalize_hosts([], PrepHosts) ->
     lists:reverse(PrepHosts);
 normalize_hosts([Host|Hosts], PrepHosts) ->
-    case jlib:nodeprep(list_to_binary(Host)) of
+    case jlib:nodeprep(host_to_binary(Host)) of
         error ->
             ?ERROR_MSG("Can't load config file: "
                        "invalid host name [~p]", [Host]),
@@ -270,6 +272,13 @@ normalize_hosts([Host|Hosts], PrepHosts) ->
             normalize_hosts(Hosts, [PrepHost|PrepHosts])
     end.
 
+-ifdef(latin1_characters).
+host_to_binary(Host) ->
+    list_to_binary(Host).
+-else.
+host_to_binary(Host) ->
+    unicode:characters_to_binary(Host).
+-endif.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Errors reading the config file
@@ -596,13 +605,15 @@ process_host_term(Term, Host, State) ->
             State;
         {odbc_server, ODBC_server} ->
             add_option({odbc_server, Host}, ODBC_server, State);
+        {riak_server, RiakConfig} ->
+            add_option(riak_server, RiakConfig, State);
         {Opt, Val} ->
             add_option({Opt, Host}, Val, State)
     end.
 
 
--spec add_option(Opt :: hosts | language | sm_backend,
-                 Val :: term(),
+-spec add_option(Opt :: key(),
+                 Val :: value(),
                  State :: state()) -> state().
 add_option(Opt, Val, State) ->
     Table = case Opt of
@@ -785,7 +796,7 @@ parse_file(ConfigFile) ->
     TermsWExpandedMacros = replace_macros(Terms),
     lists:foldl(fun process_term/2, State, TermsWExpandedMacros).
 
--spec reload_local() -> ok.
+-spec reload_local() -> {ok, iolist()} | no_return().
 reload_local() ->
     ConfigFile = get_ejabberd_config_path(),
     State0 = parse_file(ConfigFile),
@@ -818,7 +829,7 @@ reload_local() ->
 msg(Fmt, Args) ->
     lists:flatten(io_lib:format(Fmt, Args)).
 
--spec reload_cluster() -> {ok, binary()}.
+-spec reload_cluster() -> {ok, string()} | no_return().
 reload_cluster() ->
     CurrentNode = node(),
     ConfigFile = get_ejabberd_config_path(),
@@ -991,7 +1002,9 @@ handle_config_change({_Key, _OldValue, _NewValue}) ->
 %% ----------------------------------------------------------------
 %% LOCAL CONFIG
 %% ----------------------------------------------------------------
-handle_local_config_add({Key, _Data} = El) ->
+handle_local_config_add(#local_config{key = riak_server}) ->
+    mongoose_riak:start();
+handle_local_config_add(#local_config{key=Key} = El) ->
     case Key of
         true ->
             ok;
@@ -999,10 +1012,12 @@ handle_local_config_add({Key, _Data} = El) ->
             ?WARNING_MSG("local config add ~p option unhandled",[El])
     end.
 
+handle_local_config_del(#local_config{key = riak_server}) ->
+    mongoose_riak:stop();
 handle_local_config_del(#local_config{key = node_start}) ->
     %% do nothing with it
     ok;
-handle_local_config_del({Key, _Data} = El) ->
+handle_local_config_del(#local_config{key=Key} = El) ->
     case can_be_ignored(Key) of
         true ->
             ok;
@@ -1012,6 +1027,10 @@ handle_local_config_del({Key, _Data} = El) ->
 
 handle_local_config_change({listen, Old, New}) ->
     reload_listeners(compare_listeners(Old, New));
+handle_local_config_change({riak_server, _Old, _New}) ->
+    mongoose_riak:stop(),
+    mongoose_riak:start(),
+    ok;
 
 handle_local_config_change({Key, _Old, _New} = El) ->
     case can_be_ignored(Key) of
@@ -1122,8 +1141,8 @@ compute_config_file_version(#state{opts = Opts, hosts = Hosts}) ->
     L = sort_config(Opts ++ Hosts),
     crypto:hash(sha, term_to_binary(L)).
 
--spec check_hosts([ejabberd:host()], [ejabberd:host()]) -> {[ejabberd:host()],
-                                                            [ejabberd:host()]}.
+-spec check_hosts([ejabberd:server()], [ejabberd:server()]) -> {[ejabberd:server()],
+                                                                [ejabberd:server()]}.
 check_hosts(NewHosts, OldHosts) ->
     Old = sets:from_list(OldHosts),
     New = sets:from_list(NewHosts),
@@ -1131,7 +1150,7 @@ check_hosts(NewHosts, OldHosts) ->
     ListToDel = sets:to_list(sets:subtract(Old,New)),
     {ListToDel, ListToAdd}.
 
--spec add_virtual_host(Host :: ejabber:host()) -> any().
+-spec add_virtual_host(Host :: ejabberd:server()) -> any().
 add_virtual_host(Host) ->
     ?DEBUG("Register host:~p",[Host]),
     ejabberd_local:register_host(Host).
@@ -1146,7 +1165,7 @@ remove_virtual_host(Host) ->
     ?DEBUG("Unregister host :~p", [Host]),
     ejabberd_local:unregister_host(Host).
 
--spec reload_modules(Host :: ejabberd:host(),
+-spec reload_modules(Host :: ejabberd:server(),
                      ChangedModules :: compare_result()) -> 'ok'.
 reload_modules(Host, #compare_result{to_start = Start, to_stop = Stop,
                                      to_reload = Reload} = ChangedModules) ->
@@ -1190,7 +1209,7 @@ map_listeners(Listeners) ->
               end, Listeners).
 
 % group values which can be grouped like odbc ones
--spec group_host_changes([term()]) -> {atom(), [term()]}.
+-spec group_host_changes([term()]) -> [{atom(), [term()]}].
 group_host_changes(Changes) when is_list(Changes) ->
     D = lists:foldl(fun (#local_config{key = {Key, Host}, value = Val}, Dict) ->
                             BKey = atom_to_binary(Key, utf8),
@@ -1205,7 +1224,7 @@ group_host_changes(Changes) when is_list(Changes) ->
      || {Group, MaybeDeepList} <- dict:to_list(D)].
 
 %% match all hosts
--spec get_host_local_config() -> [{local_config, {term(), ejabberd:host()}, term()}].
+-spec get_host_local_config() -> [{local_config, {term(), ejabberd:server()}, term()}].
 get_host_local_config() ->
     mnesia:dirty_match_object({local_config, {'_','_'}, '_'}).
 
@@ -1221,7 +1240,7 @@ get_local_config() ->
 get_global_config() ->
     mnesia:dirty_match_object(config, {config, '_', '_'}).
 
--spec is_not_host_specific(atom() | {atom(), ejabberd:host()}) -> boolean().
+-spec is_not_host_specific(atom() | {atom(), ejabberd:server()}) -> boolean().
 is_not_host_specific( Key ) when is_atom(Key) ->
     true;
 is_not_host_specific({Key, Host}) when is_atom(Key), is_binary(Host) ->

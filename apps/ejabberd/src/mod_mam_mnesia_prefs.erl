@@ -26,8 +26,8 @@
                         behaviour}).
 -record(mam_prefs_user, {host_user,
                         default_mode,
-                        always_rules :: [ejabberd:literal_jid()],
-                        never_rules :: [ejabberd:literal_jid()]}).
+                        always_rules :: [ejabberd:simple_jid() | ejabberd:simple_bare_jid()],
+                        never_rules :: [ejabberd:simple_jid() | ejabberd:simple_bare_jid()]}).
 -type ls() :: ejabberd:lserver().
 -type lu() :: ejabberd:luser().
 -type lr() :: ejabberd:lresource().

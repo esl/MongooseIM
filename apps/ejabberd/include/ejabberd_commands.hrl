@@ -18,21 +18,18 @@
 %%% 02111-1307 USA
 %%%
 %%%----------------------------------------------------------------------
--ifndef(MONGOOSEIM_EJABBERD_COMMANDS_HRL).
--define(MONGOOSEIM_EJABBERD_COMMANDS_HRL, true).
 
 -record(ejabberd_commands, {name :: atom(),
-                            tags = [] :: [atom()],
+                            tags = [],
   %% Description of the command
-                            desc = "" :: string(),
-                            longdesc = "" :: string(),
-                            module :: atom(),
-                            function :: atom(),
+                            desc = "", 
+                            longdesc = "",
+                            module,
+                            function,
   %% Describe the accepted arguments.
   %% This way the function that calls the command can format the arguments
   %% before calling
-                            args = [] :: [ejabberd_commands:aterm()],
-                            result = rescode :: ejabberd_commands:rterm()
+                            args = [],
+                            result = rescode
                            }).
 
--endif.

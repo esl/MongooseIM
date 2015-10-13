@@ -64,7 +64,7 @@ start() ->
     ok.
 -endif.
 
--spec escape_cdata_and_attr(jlib:xmlel()) -> #xmlcdata{}.
+-spec escape_cdata_and_attr(#xmlel{} | #xmlcdata{} | any()) -> #xmlel{} | #xmlcdata{} | any().
 escape_cdata_and_attr(#xmlel{ children = Children, attrs = Attrs } = Data) ->
     Data#xmlel{ children = [ escape_cdata_and_attr(Child) || Child <- Children ],
                 attrs = [escape_attr(Attr) || Attr <- Attrs]};
@@ -74,8 +74,7 @@ escape_cdata_and_attr(Elem) ->
     Elem.
 
 escape_attr({Name, Value}) when is_binary(Value) ->
-    {Name, exml:escape_attr(Value)};
-escape_attr(Attr) -> Attr.
+    {Name, exml:escape_attr(Value)}.
 
 -spec element_to_binary(jlib:xmlel()) -> binary().
 element_to_binary(El) ->
@@ -234,7 +233,7 @@ get_attr(AttrName, Attrs) ->
     end.
 
 
--spec get_attr_s(string(), string()) -> string().
+-spec get_attr_s(binary(), list()) -> binary().
 get_attr_s(AttrName, Attrs) ->
     case lists:keysearch(AttrName, 1, Attrs) of
         {value, {_, Val}} ->
@@ -243,14 +242,12 @@ get_attr_s(AttrName, Attrs) ->
             context_default(AttrName)
     end.
 
-
--spec get_tag_attr(binary() | string(), jlib:xmlel()
-                  ) -> 'false' | {'value',binary() | string()}.
+-spec get_tag_attr(binary(), jlib:xmlel()) -> 'false' | {'value', binary()}.
 get_tag_attr(AttrName, #xmlel{attrs = Attrs}) ->
     get_attr(AttrName, Attrs).
 
 
--spec get_tag_attr_s(string(), jlib:xmlel()) -> string().
+-spec get_tag_attr_s(binary(), jlib:xmlel()) -> binary().
 get_tag_attr_s(AttrName, #xmlel{attrs = Attrs}) ->
     get_attr_s(AttrName, Attrs).
 
@@ -277,7 +274,7 @@ append_subtags(XE = #xmlel{children = SubTags1}, SubTags2) ->
     XE#xmlel{children = SubTags1 ++ SubTags2}.
 
 
--spec get_path_s(jlib:xmlel(), string()) -> string().
+-spec get_path_s(jlib:xmlel(), [{elem, binary()} | {attr, binary()} | cdata]) -> binary().
 get_path_s(El, []) ->
     El;
 get_path_s(El, [{elem, Name} | Path]) ->

@@ -75,7 +75,7 @@
 %% ----------------------------------------------------------------------
 %% Types
 
--type filter() :: iolist().
+-type filter() :: #mam_muc_ca_filter{}.
 -type message_id() :: non_neg_integer().
 -type room_id() :: non_neg_integer().
 -type server_hostname() :: binary().
@@ -154,7 +154,7 @@ select_worker(Host, RoomID) ->
     end.
 
 group_name(Host) ->
-    {mam_muc_ca, Host}.
+    {mam_muc_ca, node(), Host}.
 
 start_link(Host, Addr, Port) ->
     gen_server:start_link(?MODULE, [Host, Addr, Port], []).
@@ -397,7 +397,7 @@ remove_archive(Host, RoomID, _RoomJID) ->
     gen_server:call(Worker, {remove_archive, RoomID}).
 
 -spec purge_single_message(_Result, Host, MessID, RoomID, RoomJID, Now) ->
-    ok | {error, 'not-allowed' | 'not-found'} when
+    {error, 'not-supported'} when
     Host    :: server_host(),
     MessID  :: message_id(),
     RoomID  :: room_id(),
@@ -410,7 +410,7 @@ purge_single_message(_Result, Host, MessID, RoomID, _RoomJID, _Now) ->
 -spec purge_multiple_messages(_Result, Host,
                               RoomID, RoomJID, Borders,
                               Start, End, Now, WithJID) ->
-    ok | {error, 'not-allowed'} when
+    {error, 'not-supported'} when
     Host    :: server_host(),
     RoomID  :: room_id(),
     RoomJID :: #jid{},
@@ -428,14 +428,14 @@ purge_multiple_messages(_Result, Host, RoomID, RoomJID, Borders,
 %% `{<<"13663125233">>,<<"bob@localhost">>,<<"res1">>,<<binary>>}'.
 %% Columns are `["id","from_jid","message"]'.
 -spec extract_messages(Worker, Host, _RoomID, Filter, IOffset, IMax, ReverseLimit) ->
-    [Record] when
+    [Row] when
     Worker  :: worker(),
     Host    :: server_hostname(),
     Filter  :: filter(),
     IOffset :: non_neg_integer(),
     IMax    :: pos_integer(),
     ReverseLimit :: boolean(),
-    Record :: tuple().
+    Row :: list().
 extract_messages(_Worker, _Host, _RoomID, _Filter, _IOffset, 0, _) ->
     [];
 extract_messages(Worker, Host, RoomID, Filter, 0, IMax, false) ->
@@ -535,7 +535,7 @@ select_filter(#mam_muc_ca_filter{
     select_filter(StartID, EndID).
 
 
--spec select_filter(StartID, EndID) -> filter()
+-spec select_filter(StartID, EndID) -> all | 'end' | start | start_end
     when
     StartID :: integer() | undefined,
     EndID   :: integer() | undefined.

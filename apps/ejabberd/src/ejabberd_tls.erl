@@ -60,17 +60,17 @@
 -endif.
 
 
--record(tlssock, {tcpsock  :: gen_tcp:socket(),
+-record(tlssock, {tcpsock  :: port(),
                   tlsport  :: port()
                  }).
 -type tlssock() :: #tlssock{}.
 
--spec tcp_to_tls(gen_tcp:socket(), [any()]
+-spec tcp_to_tls(port(), [any()]
                 ) -> {ok, tlssock()} | {'error','no_certfile' | string()}.
 tcp_to_tls(TCPSocket, Options) ->
     case lists:keysearch(certfile, 1, Options) of
 	{value, {certfile, CertFile}} ->
-	    Port = open_port({spawn, tls_drv}, [binary]),
+	    Port = open_port({spawn_driver, "tls_drv"}, [binary]),
 	    Flags =
 		case lists:member(verify_none, Options) of
 		    true ->
@@ -101,7 +101,7 @@ tcp_to_tls(TCPSocket, Options) ->
     end.
 
 
--spec tls_to_tcp(tlssock()) -> gen_tcp:socket().
+-spec tls_to_tcp(tlssock()) -> port().
 tls_to_tcp(#tlssock{tcpsock = TCPSocket, tlsport = Port}) ->
     port_close(Port),
     TCPSocket.
@@ -149,6 +149,7 @@ send(#tlssock{tcpsock = TCPSocket, tlsport = Port} = TLSSock, Packet) ->
             %?PRINT("OUT: ~p~n", [{TCPSocket, lists:flatten(Packet)}]),
             case port_control(Port, ?GET_ENCRYPTED_OUTPUT, []) of
                 <<0, Out/binary>> ->
+                    mongoose_metrics:update([data, xmpp, sent, encrypted_size], size(Out)),
                     gen_tcp:send(TCPSocket, Out);
                 <<1, Error/binary>> ->
                     {error, binary_to_list(Error)}

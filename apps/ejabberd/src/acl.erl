@@ -37,7 +37,7 @@
 
 -include("ejabberd.hrl").
 
--export_type([rule/0]).
+-export_type([rule/0, host/0]).
 
 -type rule() :: 'all' | 'none' | atom().
 -type host() :: ejabberd:server() | 'global'.
@@ -60,7 +60,7 @@
                 | {user_glob, regexp(), ejabberd:server()}
                 | {server_glob, regexp()}
                 | {resource_glob, regexp()}
-                | {node_glob, regexp()}.
+                | {node_glob, regexp(), regexp()}.
 
 -record(acl, {aclname :: acl_name(),
               aclspec :: aclspec()
@@ -139,7 +139,7 @@ normalize_spec(none) ->
 
 -spec match_rule(Host :: host(),
                  Rule :: rule(),
-                 JID :: ejabberd:jid()) -> allow | deny.
+                 JID :: ejabberd:jid()) -> allow | deny | term().
 match_rule(global, Rule, JID) ->
     case Rule of
         all -> allow;
@@ -185,7 +185,7 @@ match_rule(Host, Rule, JID) ->
 
 -spec match_acls(ACLs :: [{boolean(), rule()}],
                  JID :: ejabberd:jid(),
-                 Host :: host()) -> boolean().
+                 Host :: host()) -> deny | term().
 match_acls([], _, _Host) ->
     deny;
 match_acls([{Access, ACL} | ACLs], JID, Host) ->
@@ -268,9 +268,7 @@ match_acl(ACL, JID, Host) ->
                       ets:lookup(acl, {ACL, Host}))
     end.
 
--spec is_regexp_match(undefined | string(), Regex :: regexp()) -> boolean().
-is_regexp_match(undefined, _RegExp) ->
-    false;
+-spec is_regexp_match(binary(), Regex :: regexp()) -> boolean().
 is_regexp_match(String, RegExp) ->
     try re:run(String, RegExp, [{capture, none}]) of
         nomatch ->
@@ -282,6 +280,7 @@ is_regexp_match(String, RegExp) ->
             false
     end.
 
--spec is_glob_match(string(), Glob :: regexp()) -> boolean().
+-spec is_glob_match(binary(), Glob :: regexp()) -> boolean().
 is_glob_match(String, Glob) ->
     is_regexp_match(String, xmerl_regexp:sh_to_awk(Glob)).
+

@@ -32,6 +32,8 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
+-define(DEFAULT_POOL_SIZE, 32).
+
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -60,8 +62,8 @@ worker_prefix() ->
 %% `worker_count(_) = 32, partition_count() = 16'.
 %% or
 %% `worker_count(_) = 16, partition_count() = 16'.
-worker_count(_Host) ->
-    32.
+worker_count(Host) ->
+    gen_mod:get_module_opt(Host, ?MODULE, pool_size, ?DEFAULT_POOL_SIZE).
 
 
 -spec worker_names(ejabberd:server()) -> [{integer(),atom()}].
@@ -154,15 +156,15 @@ start_worker(WriterProc, N, Host) ->
      permanent,
      5000,
      worker,
-     [mod_mam_muc_odbc_async_writer]},
-    supervisor:start_child(ejabberd_sup, WriterChildSpec).
+     [mod_mam_muc_odbc_async_pool_writer]},
+    supervisor:start_child(mod_mam_sup, WriterChildSpec).
 
 
 -spec stop_worker(atom()) -> 'ok'
         | {'error','not_found' | 'restarting' | 'running' | 'simple_one_for_one'}.
 stop_worker(Proc) ->
-    supervisor:terminate_child(ejabberd_sup, Proc),
-    supervisor:delete_child(ejabberd_sup, Proc).
+    supervisor:terminate_child(mod_mam_sup, Proc),
+    supervisor:delete_child(mod_mam_sup, Proc).
 
 
 -spec start_link(atom(),_,_) -> 'ignore' | {'error',_} | {'ok',pid()}.
@@ -173,7 +175,7 @@ start_link(ProcName, N, Host) ->
 -spec archive_message(_, Host :: ejabberd:server(), MessID :: mod_mam:message_id(),
     ArcID :: mod_mam:archive_id(), LocJID :: ejabberd:jid(),
     RemJID :: ejabberd:jid(), SrcJID :: ejabberd:jid(), Dir :: atom(),
-    Packet :: packet()) -> any().
+    Packet :: packet()) -> ok | {error, timeout}.
 archive_message(_Result, Host,
         MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet) ->
     Row = mod_mam_muc_odbc_arch:prepare_message(Host,
@@ -204,7 +206,7 @@ is_overloaded(Pid) ->
     Len > 500.
 
 
-%% @doc For folsom.
+%% @doc For metrics.
 -spec queue_length(ejabberd:server()) -> {'ok',number()}.
 queue_length(Host) ->
     Len = lists:sum(queue_lengths(Host)),
@@ -257,9 +259,10 @@ remove_archive(Host, ArcID, _ArcJID) ->
     ok.
 
 
--spec purge_single_message(any(), ejabberd:server(), MessId :: mod_mam:message_id(),
+-spec purge_single_message(ejabberd_gen_mam_archive:purge_single_message_result(),
+    ejabberd:server(), MessId :: mod_mam:message_id(),
     ArcID :: mod_mam:archive_id(), _ArcJID :: ejabberd:jid(),
-    Now :: mod_mam:unix_timestamp()) -> any().
+    Now :: mod_mam:unix_timestamp()) -> ejabberd_gen_mam_archive:purge_single_message_result().
 purge_single_message(Result, Host, MessID, ArcID, _ArcJID, Now) ->
     {Microseconds, _NodeMessID} = mod_mam_utils:decode_compact_uuid(MessID),
     wait_flushing_before(Host, ArcID, Microseconds, Now),
@@ -270,20 +273,20 @@ purge_single_message(Result, Host, MessID, ArcID, _ArcJID, Now) ->
     ArcID :: mod_mam:archive_id(), _ArcJID :: ejabberd:jid(),
     _Borders :: mod_mam:borders(), _Start :: mod_mam:unix_timestamp(),
     End :: mod_mam:unix_timestamp(), Now :: mod_mam:unix_timestamp(),
-    _WithJID :: ejabberd:jid()) -> any().
+    _WithJID :: ejabberd:jid()) -> ok.
 purge_multiple_messages(Result, Host, ArcID, _ArcJID, _Borders,
                         _Start, End, Now, _WithJID) ->
     wait_flushing_before(Host, ArcID, End, Now),
     Result.
 
 
--spec wait_flushing(ejabberd:server(), mod_mam:archive_id()) -> any().
+-spec wait_flushing(ejabberd:server(), mod_mam:archive_id()) -> ok.
 wait_flushing(Host, ArcID) ->
     gen_server:call(select_worker(Host, ArcID), wait_flushing).
 
 
 -spec wait_flushing_before(ejabberd:server(), mod_mam:archive_id(),
-      End :: mod_mam:unix_timestamp(), Now :: mod_mam:unix_timestamp()) -> any().
+      End :: mod_mam:unix_timestamp(), Now :: mod_mam:unix_timestamp()) -> ok.
 wait_flushing_before(Host, ArcID, End, Now) ->
     case is_recent_entries_required(End, Now) of
         true ->
@@ -372,6 +375,8 @@ init([Host, N]) ->
 %%--------------------------------------------------------------------
 -spec handle_call('wait_flushing', _, state())
       -> {'noreply', state()} | {'reply','ok',state()}.
+handle_call(get_connection, _From, State=#state{conn = Conn}) ->
+    {reply, Conn, State};
 handle_call(wait_flushing, _From, State=#state{acc=[]}) ->
     {reply, ok, State};
 handle_call(wait_flushing, From,

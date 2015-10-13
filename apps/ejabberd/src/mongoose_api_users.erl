@@ -54,7 +54,7 @@ handle_get(Bindings, [host_users]) ->
 handle_put(Data, Bindings, [host_user]) ->
     put_user(Data, Bindings).
 
--spec handle_delete(mongoonse_api:bindings(), mongoose_api:options()) ->
+-spec handle_delete(mongoose_api:bindings(), mongoose_api:options()) ->
     mongoose_api:response().
 handle_delete(Bindings, [host_user]) ->
     delete_user(Bindings).
@@ -96,9 +96,9 @@ maybe_register_user(Username, Host, Password) ->
     case ejabberd_auth:try_register(Username, Host, Password) of
         {error, not_allowed} ->
             ?ERROR;
-        {atomic, exists} ->
+        {error, exists} ->
             maybe_change_password(Username, Host, Password);
-        {atomic, ok} ->
+        ok ->
             ok
     end.
 

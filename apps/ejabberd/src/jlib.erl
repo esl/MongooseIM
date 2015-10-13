@@ -52,10 +52,9 @@
          iq_query_or_response_info/1,
          iq_to_xml/1,
          parse_xdata_submit/1,
-         timestamp_to_iso/1, % TODO: Remove once XEP-0091 is Obsolete
          timestamp_to_xml/4,
-         timestamp_to_xml/1, % TODO: Remove once XEP-0091 is Obsolete
          timestamp_to_mam_xml/4,
+         timestamp_to_iso/2,
          now_to_utc_binary/1,
          datetime_binary_to_timestamp/1,
          decode_base64/1,
@@ -83,11 +82,11 @@
 -type rsm_out()   :: #rsm_out{}.
 -type xmlcdata()  :: #xmlcdata{}.
 
--type binary_pair() :: {binary(),binary()}.
+-type binary_pair() :: {binary(), binary()}.
 
 -export_type([xmlel/0, xmlstreamstart/0, xmlstreamend/0, xmlstreamel/0,
               binary_pair/0,
-              rsm_out/0,
+              rsm_in/0, rsm_out/0,
               xmlcdata/0
              ]).
 
@@ -565,14 +564,14 @@ iq_to_xml(#iq{id = ID, type = Type, sub_el = SubEl}) ->
 
 %% @doc Convert `#iq.sub_el' back to `#xmlel.children'.
 %% @end
--spec sub_el_to_els([xmlel()]) -> [xmlel()].
+-spec sub_el_to_els([xmlel()] | xmlel()) -> [xmlel()].
 %% for requests.
 sub_el_to_els(#xmlel{}=E) -> [E];
 %% for replies.
 sub_el_to_els(Es) when is_list(Es) -> Es.
 
 
--spec parse_xdata_submit(xmlel()) -> 'invalid' | [binary_pair()].
+-spec parse_xdata_submit(xmlel()) -> 'invalid' | [{binary(), [binary()]}].
 parse_xdata_submit(El) ->
     #xmlel{attrs = Attrs, children = Els} = El,
     case xml:get_attr_s(<<"type">>, Attrs) of
@@ -585,7 +584,8 @@ parse_xdata_submit(El) ->
     end.
 
 
--spec parse_xdata_fields([xmlcdata() | xmlel()], [binary_pair()]) -> [binary_pair()].
+-spec parse_xdata_fields([xmlcdata() | xmlel()], [{binary(), [binary()]}]) ->
+    [{binary(), [binary()]}].
 parse_xdata_fields([], Res) ->
     Res;
 parse_xdata_fields([#xmlel{name = Name, attrs = Attrs,
@@ -623,7 +623,7 @@ parse_xdata_values([_ | Els], Res) ->
     parse_xdata_values(Els, Res).
 
 
--spec rsm_decode(xmlel()) -> 'none' | xmlel().
+-spec rsm_decode(xmlel() | iq()) -> 'none' | #rsm_in{}.
 rsm_decode(#iq{sub_el=SubEl})->
     rsm_decode(SubEl);
 rsm_decode(#xmlel{}=SubEl) ->
@@ -670,7 +670,7 @@ rsm_encode_out(#rsm_out{count=Count, index=Index, first=First, last=Last})->
     rsm_encode_count(Count, El2).
 
 
--spec rsm_encode_first(First :: 'undefined',
+-spec rsm_encode_first(First :: undefined | binary(),
                        Index :: 'undefined' | integer(),
                        Arr::[xmlel()]) -> [xmlel()].
 rsm_encode_first(undefined, undefined, Arr) ->
@@ -678,7 +678,7 @@ rsm_encode_first(undefined, undefined, Arr) ->
 rsm_encode_first(First, undefined, Arr) ->
     [#xmlel{name = <<"first">>, children = [#xmlcdata{content = First}]}|Arr];
 rsm_encode_first(First, Index, Arr) ->
-    [#xmlel{name = <<"first">>, attrs = [{<<"index">>, i2l(Index)}],
+    [#xmlel{name = <<"first">>, attrs = [{<<"index">>, i2b(Index)}],
             children = [#xmlcdata{content = First}]}|Arr].
 
 
@@ -692,20 +692,20 @@ rsm_encode_last(Last, Arr) ->
                        Arr :: [xmlel()]) -> [xmlel()].
 rsm_encode_count(undefined, Arr)-> Arr;
 rsm_encode_count(Count, Arr)->
-    [#xmlel{name = <<"count">>, children = [#xmlcdata{content = i2l(Count)}]} | Arr].
+    [#xmlel{name = <<"count">>, children = [#xmlcdata{content = i2b(Count)}]} | Arr].
 
 
--spec i2l(string() | pos_integer()) -> string().
-i2l(I) when is_integer(I) -> integer_to_list(I);
-i2l(L) when is_list(L)    -> L.
-
+-spec i2b(integer()) -> binary().
+i2b(I) -> list_to_binary(integer_to_list(I)).
 
 -type tzoffset() :: {TZh :: integer(), TZm :: integer()}.
--type tz() :: 'utc' | {Sign :: string(), tzoffset()} | tzoffset().
+-type tz() :: 'utc' | {Sign :: string() | binary(), tzoffset()} | tzoffset().
+-type datetime_micro() :: {calendar:date(), {calendar:hour(), calendar:minute(), calendar:second(),
+                                             Micro :: non_neg_integer()}}.
 %% @doc Timezone = utc | {Sign::string(), {Hours, Minutes}} | {Hours, Minutes}
 %% Hours = integer()
 %% Minutes = integer()
--spec timestamp_to_iso(calendar:datetime(), tz()) -> {string(), io_lib:chars()}.
+-spec timestamp_to_iso(calendar:datetime() | datetime_micro(), tz()) -> {string(), io_lib:chars()}.
 timestamp_to_iso({{Year, Month, Day}, {Hour, Minute, Second, Micro}}, Timezone) ->
     Timestamp_string =
         lists:flatten(
@@ -743,18 +743,10 @@ timestamp_to_iso({{Year, Month, Day}, {Hour, Minute, Second}}, Timezone) ->
         end,
     {Timestamp_string, Timezone_string}.
 
-
--spec timestamp_to_iso(calendar:datetime()) -> string().
-timestamp_to_iso({{Year, Month, Day}, {Hour, Minute, Second}}) ->
-    lists:flatten(
-      io_lib:format("~4..0w~2..0w~2..0wT~2..0w:~2..0w:~2..0w",
-                    [Year, Month, Day, Hour, Minute, Second])).
-
-
--spec timestamp_to_xml(DateTime :: calendar:datetime(),
+-spec timestamp_to_xml(DateTime :: calendar:datetime() | datetime_micro(),
                        Timezone :: tz(),
                        FromJID :: ejabberd:simple_jid() | ejabberd:jid(),
-                       Desc :: iolist()) -> xmlel().
+                       Desc :: iodata()) -> xmlel().
 timestamp_to_xml(DateTime, Timezone, FromJID, Desc) ->
     {T_string, Tz_string} = timestamp_to_iso(DateTime, Timezone),
     Text = [#xmlcdata{content = Desc}],
@@ -777,24 +769,6 @@ timestamp_to_mam_xml(DateTime, Timezone, QueryID, MessageUID) ->
                     {<<"stamp">>, list_to_binary(T_string ++ Tz_string)},
                     {<<"id">>, MessageUID}] ++
                    [{<<"queryid">>, QueryID} || QueryID =/= undefined, QueryID =/= <<>>]}.
-
-
-%% @doc TODO: Remove this function once XEP-0091 is Obsolete
--spec timestamp_to_xml(calendar:datetime()) -> xmlel().
-timestamp_to_xml({{Year, Month, Day}, {Hour, Minute, Second, Micro}}) ->
-    #xmlel{name = <<"x">>,
-           attrs = [{<<"xmlns">>, ?NS_DELAY91},
-                    {<<"stamp">>, lists:flatten(
-                                    io_lib:format("~4..0w~2..0w~2..0wT~2..0w:~2..0w:~2..0w.~6..0w",
-                                                  [Year, Month, Day, Hour, Minute, Second, Micro]))}]};
-
-timestamp_to_xml({{Year, Month, Day}, {Hour, Minute, Second}}) ->
-    #xmlel{name = <<"x">>,
-           attrs = [{<<"xmlns">>, ?NS_DELAY91},
-                    {<<"stamp">>, lists:flatten(
-                                    io_lib:format("~4..0w~2..0w~2..0wT~2..0w:~2..0w:~2..0w",
-                                                  [Year, Month, Day, Hour, Minute, Second]))}]}.
-
 
 -spec now_to_utc_string(erlang:timestamp()) -> string().
 now_to_utc_string({MegaSecs, Secs, MicroSecs}) ->

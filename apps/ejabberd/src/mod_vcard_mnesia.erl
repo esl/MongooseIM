@@ -55,47 +55,30 @@ set_vcard(User, VHost, VCard, VCardSearch) ->
 
 search(VHost, Data, _Lang, DefaultReportedFields) ->
     MatchHead = make_matchhead(VHost, Data),
-    AllowReturnAll = gen_mod:get_module_opt(VHost, ?MODULE,
-                                            allow_return_all, false),
-    R=if
-        (MatchHead == #vcard_search{_ = '_'}) and (not AllowReturnAll) ->
-            [];
-        true ->
-            case catch mnesia:dirty_select(vcard_search,
-                                           [{MatchHead, [], ['$_']}]) of
-                {'EXIT', Reason} ->
-                    ?ERROR_MSG("~p", [Reason]),
-                    [];
-                Rs ->
-                    case gen_mod:get_module_opt(VHost, ?MODULE,
-                                                matches, ?JUD_MATCHES) of
-                        infinity ->
-                            Rs;
-                        Val when is_integer(Val) and (Val > 0) ->
-                            lists:sublist(Rs, Val);
-                        Val ->
-                            ?ERROR_MSG("Illegal option value ~p. Default value ~p substituted.",
-                                       [{matches, Val}, ?JUD_MATCHES]),
-                            lists:sublist(Rs, ?JUD_MATCHES)
-                    end
-            end
-    end,
+    R = do_search(VHost, MatchHead),
     Items = lists:map(fun record_to_item/1,R),
     [DefaultReportedFields | Items].
 
+do_search(_, #vcard_search{_ = '_'}) ->
+    [];
+do_search(VHost, MatchHeadIn) ->
+    MatchHead = MatchHeadIn#vcard_search{us = {'_', VHost}},
+    case catch mnesia:dirty_select(vcard_search,
+        [{MatchHead, [], ['$_']}]) of
+        {'EXIT', Reason} ->
+            ?ERROR_MSG("~p", [Reason]),
+            [];
+        Rs ->
+            case mod_vcard:get_results_limit(VHost) of
+                infinity ->
+                    Rs;
+                Val ->
+                    lists:sublist(Rs, Val)
+            end
+    end.
+
 search_fields(_VHost) ->
-    [{<<"User">>, <<"user">>},
-     {<<"Full Name">>, <<"fn">>},
-     {<<"Given Name">>, <<"first">>},
-     {<<"Middle Name">>, <<"middle">>},
-     {<<"Family Name">>, <<"last">>},
-     {<<"Nickname">>, <<"nick">>},
-     {<<"Birthday">>, <<"bday">>},
-     {<<"Country">>, <<"ctry">>},
-     {<<"City">>, <<"locality">>},
-     {<<"Email">>, <<"email">>},
-     {<<"Organization Name">>, <<"orgname">>},
-	 {<<"Organization Unit">>, <<"orgunit">>}].
+    mod_vcard:default_search_fields().
 %%--------------------------------------------------------------------
 %% internal
 %%--------------------------------------------------------------------
@@ -287,15 +270,7 @@ filter_fields([{SVar, [Val]} | Ds], Match, VHost)
     LVal = stringprep:tolower(Val),
     NewMatch =
         case SVar of
-            <<"user">> ->
-                case gen_mod:get_module_opt(VHost, ?MODULE,
-                                            search_all_hosts, true) of
-                    true ->
-                        Match#vcard_search{luser = make_val(LVal)};
-                    false ->
-                        Host = find_my_host(VHost),
-                        Match#vcard_search{us = {make_val(LVal), Host}}
-                end;
+            <<"user">> -> Match#vcard_search{luser = make_val(LVal)};
             <<"fn">>       -> Match#vcard_search{lfn       = make_val(LVal)};
             <<"last">>     -> Match#vcard_search{lfamily   = make_val(LVal)};
             <<"first">>    -> Match#vcard_search{lgiven    = make_val(LVal)};

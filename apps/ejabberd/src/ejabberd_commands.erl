@@ -206,10 +206,10 @@
 -include("ejabberd.hrl").
 
 %% Allowed types for arguments are integer, string, tuple and list.
--type atype() :: integer | string | {tuple, [aterm()]} | {list, aterm()}.
+-type atype() :: integer | string | binary | {tuple, [aterm()]} | {list, aterm()}.
 
 %% A rtype is either an atom or a tuple with two elements.
--type rtype() :: integer | string | atom | {tuple, [rterm()]}
+-type rtype() :: integer | string | atom | binary | {tuple, [rterm()]}
                | {list, rterm()} | rescode | restuple.
 
 %% An argument term is a tuple with the term name and the term type.
@@ -218,10 +218,18 @@
 %% A result term is a tuple with the term name and the term type.
 -type rterm() :: {Name::atom(), Type::rtype()}.
 
--type cmd() :: #ejabberd_commands{}.
+-type cmd() :: #ejabberd_commands{
+                  name :: atom(),
+                  tags :: [atom()],
+                  desc :: string(),
+                  longdesc :: string(),
+                  module :: module(),
+                  function :: atom(),
+                  args :: [ejabberd_commands:aterm()],
+                  result :: ejabberd_commands:rterm()
+                 }.
 
-%% TODO: should this be binary?
--type auth() :: {User::string(), Server::string(), Password::string()} | noauth.
+-type auth() :: {User :: binary(), Server :: binary(), Password :: binary()} | noauth.
 
 -type cmd_error() :: command_unknown | account_unprivileged
                    | invalid_account_data | no_auth_provided.
@@ -406,9 +414,7 @@ check_access_commands(AccessCommands, Auth, Method, Command, Arguments) ->
 
 %% @private
 %% May throw {error, invalid_account_data}
--spec check_auth(auth()) -> 'no_auth_provided' | none().
-check_auth(noauth) ->
-    no_auth_provided;
+-spec check_auth(auth()) -> {ok, User :: binary(), Server :: binary()} | no_return().
 check_auth({User, Server, Password}) ->
     %% Check the account exists and password is valid
     AccountPass = ejabberd_auth:get_password_s(User, Server),
@@ -420,7 +426,7 @@ check_auth({User, Server, Password}) ->
     end.
 
 
--spec get_md5(string()) -> string().
+-spec get_md5(iodata()) -> string().
 get_md5(AccountPass) ->
     lists:flatten([io_lib:format("~.16B", [X])
 		           || X <- binary_to_list(crypto:hash(md5, AccountPass))]).
@@ -429,6 +435,8 @@ get_md5(AccountPass) ->
 -spec check_access(Access :: acl:rule(), Auth :: auth()) -> boolean().
 check_access(all, _) ->
     true;
+check_access(_, noauth) ->
+    false;
 check_access(Access, Auth) ->
     {ok, User, Server} = check_auth(Auth),
     %% Check this user has access permission

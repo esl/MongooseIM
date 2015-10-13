@@ -37,67 +37,37 @@
 -spec start() -> 'ok'.
 start() ->
     ets:new(translations, [named_table, public]),
-    Dir =
-        case os:getenv("EJABBERD_MSGS_PATH") of
-            false ->
-                case code:priv_dir(ejabberd) of
-                    {error, _} ->
-                        ?MSGS_DIR;
-                    Path ->
-                        Path
-                end;
-            Path ->
-                Path
-        end,
-    load_dir(Dir),
-    ok.
+    Dir = case code:priv_dir(ejabberd) of
+              {error, _} ->
+                  ?MSGS_DIR;
+              Path ->
+                  Path
+          end,
+    load_dir(Dir).
 
-
--spec load_dir(file:name()) -> 'ok' | {'error','lager_not_running'}.
+-spec load_dir(file:name()) -> any().
 load_dir(Dir) ->
-    case file:list_dir(Dir) of
-        {ok, Files} ->
-            MsgFiles = lists:filter(
-                         fun(FN) ->
-                                 case string:len(FN) > 4 of
-                                     true ->
-                                         string:substr(
-                                           FN,
-                                           string:len(FN) - 3) == ".msg";
-                                     _ ->
-                                         false
-                                 end
-                         end, Files),
+    MsgFiles = filelib:wildcard("*.msg", Dir),
             lists:foreach(
               fun(FN) ->
-                      LP = ascii_tolower(
-                             string:substr(FN, 1, string:len(FN) - 4)),
-                      L = case string:tokens(LP, ".") of
-                              [Language] -> Language;
-                              [Language, _Project] -> Language
-                          end,
-                      load_file(L, Dir ++ "/" ++ FN)
-              end, MsgFiles),
-            ok;
-        {error, Reason} ->
-            ?ERROR_MSG("~p", [Reason])
-    end.
-
+                      [Lang, _] = string:tokens(FN, "."),
+                      LLang = string:to_lower(Lang),
+                      load_file(list_to_binary(LLang), filename:join(Dir, FN))
+              end, MsgFiles).
 
 -spec load_file(ejabberd:lang(), file:name()) -> 'ok'.
 load_file(Lang, File) ->
     case file:consult(File) of
         {ok, Terms} ->
-            lists:foreach(fun({Orig, Trans}) ->
-                                  Trans1 = case Trans of
-                                               "" ->
-                                                   Orig;
-                                               _ ->
-                                                   Trans
-                                           end,
-                                  ets:insert(translations,
-                                             {{Lang, Orig}, Trans1})
-                          end, Terms);
+            lists:foreach(
+              fun({OrigStr, TransStr0}) ->
+                      TransStr = case TransStr0 of
+                                     "" -> OrigStr;
+                                     _ -> TransStr0
+                                 end,
+                      Trans = unicode:characters_to_binary(TransStr),
+                      ets:insert(translations, {{Lang, list_to_binary(OrigStr)}, Trans})
+              end, Terms);
         %% Code copied from ejabberd_config.erl
         {error, {_LineNumber, erl_parse, _ParseMessage} = Reason} ->
             ExitText = lists:flatten(File ++ " approximately in the line "
@@ -111,78 +81,53 @@ load_file(Lang, File) ->
     end.
 
 
--spec translate(ejabberd:lang(), binary() | string()) -> string().
-translate(Lang, Msg) when is_binary(Lang) ->
-    translate(binary:bin_to_list(Lang), Msg);
+-spec translate(ejabberd:lang(), binary()) -> binary().
+translate(<<"en">>, Msg) ->
+    Msg;
 translate(Lang, Msg) ->
-    LLang = ascii_tolower(Lang),
-    case ets:lookup(translations, {LLang, Msg}) of
-        [{_, Trans}] ->
-            Trans;
-        _ ->
-            ShortLang = case string:tokens(LLang, "-") of
-                            [] ->
-                                LLang;
-                            [SL | _] ->
-                                SL
-                        end,
-            case ShortLang of
-                "en" ->
-                    Msg;
-                LLang ->
-                    translate(Msg);
-                _ ->
-                    case ets:lookup(translations, {ShortLang, Msg}) of
-                        [{_, Trans}] ->
-                            Trans;
-                        _ ->
-                            translate(Msg)
-                    end
-            end
+    case normalise_and_split(Lang) of
+        {LLang, <<>>} -> % LLang is actually a base language
+            attempt_translation([LLang, mylang], Msg);
+        {LLang, LBaseLang} ->
+            attempt_translation([LLang, LBaseLang, mylang], Msg)
     end.
 
-
--spec translate(string()) -> string().
-translate(Msg) ->
+-spec attempt_translation(Langs :: [binary()], Msg :: binary()) -> binary().
+attempt_translation([], Msg) ->
+    Msg;
+attempt_translation([mylang | Langs], Msg) ->
     case ?MYLANG of
         undefined ->
-            Msg;
-        "en" ->
-            Msg;
-        Lang ->
-            LLang = ascii_tolower(Lang),
-            case ets:lookup(translations, {LLang, Msg}) of
-                [{_, Trans}] ->
-                    Trans;
-                _ ->
-                    ShortLang = case string:tokens(LLang, "-") of
-                                    [] ->
-                                        LLang;
-                                    [SL | _] ->
-                                        SL
-                                end,
-                    case ShortLang of
-                        "en" ->
-                            Msg;
-                        Lang ->
-                            Msg;
-                        _ ->
-                            case ets:lookup(translations, {ShortLang, Msg}) of
-                                [{_, Trans}] ->
-                                    Trans;
-                                _ ->
-                                    Msg
-                            end
-                    end
+            attempt_translation(Langs, Msg);
+        MyLang ->
+            case string:tokens(MyLang, "-") of
+                [_] ->
+                    attempt_translation([list_to_binary(MyLang) | Langs], Msg);
+                [MyLangBase | _] ->
+                    attempt_translation(
+                      [list_to_binary(MyLang), list_to_binary(MyLangBase) | Langs], Msg)
             end
+    end;
+attempt_translation([<<"en">> | _], Msg) ->
+    Msg;
+attempt_translation([Lang | Langs], Msg) ->
+    case ets:lookup(translations, {Lang, Msg}) of
+        [{_, Trans}] -> Trans;
+        _ -> attempt_translation(Langs, Msg)
     end.
 
+-spec normalise_and_split(binary()) -> {Lower :: binary(), LowerBase :: binary()}.
+normalise_and_split(Bin) ->
+    normalise_and_split(Bin, <<>>, <<>>).
 
--spec ascii_tolower(string()) -> [string()].
-ascii_tolower([C | Cs]) when C >= $A, C =< $Z ->
-    [C + ($a - $A) | ascii_tolower(Cs)];
-ascii_tolower([C | Cs]) ->
-    [C | ascii_tolower(Cs)];
-ascii_tolower([]) ->
-    [].
+-spec normalise_and_split(Bin :: binary(), LowerAcc :: binary(), LowerBaseAcc :: binary()) ->
+    {Lower :: binary(), LowerBase :: binary()}.
+normalise_and_split(<<$-, _/binary>> = Cs, LowerAcc, <<>>) ->
+    normalise_and_split(Cs, LowerAcc, LowerAcc);
+normalise_and_split(<<C, Cs/binary>>, LowerAcc, LowerBaseAcc) when C >= $A, C =< $Z ->
+    normalise_and_split(Cs, <<LowerAcc/binary, (C + ($a - $A))>>, LowerBaseAcc);
+normalise_and_split(<<C, Cs/binary>>, LowerAcc, LowerBaseAcc) ->
+    normalise_and_split(Cs, <<LowerAcc/binary, C>>, LowerBaseAcc);
+normalise_and_split(<<>>, LowerAcc, LowerBaseAcc) ->
+    {LowerAcc, LowerBaseAcc}.
 

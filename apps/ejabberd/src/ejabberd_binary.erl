@@ -1,6 +1,7 @@
 -module(ejabberd_binary).
 
 -export([string_to_binary/1]).
+-export([join/2]).
 
 -ifdef(no_binary_to_integer).
 
@@ -28,3 +29,16 @@ string_to_binary(S) when is_list(S) ->
     end;
 string_to_binary(B) when is_binary(B) ->
     B.
+
+
+join([], _) ->
+    <<>>;
+join([Part], _) ->
+    Part;
+join(Parts, Sep) ->
+    iolist_to_binary(do_join(Parts, Sep, [])).
+
+do_join([Part], _, Acc) ->
+    lists:reverse([Part | Acc]);
+do_join([Part | Rest], Sep, Acc) ->
+    do_join(Rest, Sep, [Sep, Part | Acc]).

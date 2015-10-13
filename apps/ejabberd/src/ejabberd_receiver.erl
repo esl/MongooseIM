@@ -216,9 +216,10 @@ handle_info({Tag, _TCPSocket, Data},
 	    #state{socket = Socket,
 		   c2s_pid = C2SPid,
 		   sock_mod = SockMod} = State)
-  when (Tag == tcp) or (Tag == ssl) or (Tag == ejabberd_xml) ->
+  when (Tag == tcp) or (Tag == ssl) ->
     case SockMod of
 	ejabberd_tls ->
+        mongoose_metrics:update([data, xmpp, received, encrypted_size], size(Data)),
 	    case ejabberd_tls:recv_data(Socket, Data) of
 		{ok, TLSData} ->
 		    {noreply, process_data(TLSData, State),
@@ -227,6 +228,7 @@ handle_info({Tag, _TCPSocket, Data},
 		    {stop, normal, State}
 	    end;
 	ejabberd_zlib ->
+        mongoose_metrics:update([data, xmpp, received, compressed_size], size(Data)),
 	    case ejabberd_zlib:recv_data(Socket, Data) of
 		{ok, ZlibData} ->
 		    {noreply, process_data(ZlibData, State),
@@ -331,21 +333,31 @@ process_data([Element|Els], #state{c2s_pid = C2SPid} = State)
 %% Data processing for connectors receivind data as string.
 process_data(Data,
              #state{xml_stream_state = XMLStreamState,
-                    shaper_state = ShaperState,
-                    c2s_pid = C2SPid} = State) ->
+                    shaper_state = ShaperState} = State) ->
     ?DEBUG("Received XML on stream = \"~s\"", [Data]),
+    Size = size(Data),
+    mongoose_metrics:update([data, xmpp, received, xml_stanza_size], Size),
+    maybe_run_keep_alive_hook(Size, State),
     XMLStreamState1 = xml_stream:parse(XMLStreamState, Data),
-    {NewShaperState, Pause} = shaper:update(ShaperState, size(Data)),
-    if
-        C2SPid == undefined ->
-            ok;
-        Pause > 0 ->
-            erlang:start_timer(Pause, self(), activate);
-        true ->
-            activate_socket(State)
-    end,
+    {NewShaperState, Pause} = shaper:update(ShaperState, Size),
+    maybe_pause(Pause, State),
     State#state{xml_stream_state = XMLStreamState1,
                 shaper_state = NewShaperState}.
+
+maybe_pause(_, #state{c2s_pid = undefined}) ->
+    ok;
+maybe_pause(Pause, _State) when Pause > 0 ->
+    erlang:start_timer(Pause, self(), activate);
+maybe_pause(_, State) ->
+    activate_socket(State).
+
+maybe_run_keep_alive_hook(Size, #state{c2s_pid = C2SPid})
+  when Size < 3, is_pid(C2SPid) ->
+    %% yes it can happen that the data is shorter than 3 bytes and contain some part of xml
+    %% but this will not harm the keep_alive_hook
+    gen_fsm:send_all_state_event(C2SPid, keep_alive_packet);
+maybe_run_keep_alive_hook(_, _) ->
+    ok.
 
 %% @doc Element coming from XML parser are wrapped inside xmlstreamelement
 %% When we receive directly xmlel tuple (from a socket module

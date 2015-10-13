@@ -23,7 +23,7 @@
                  us,
                  jid,
                  name = <<>>,
-                 subscription = none,
+                 subscription = none :: both | from | to | none | remove,
                  ask = none,
                  groups = [],
                  askmessage = <<>>,

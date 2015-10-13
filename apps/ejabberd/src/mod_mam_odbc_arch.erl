@@ -58,7 +58,7 @@
 %% Types
 
 -type filter()            :: iolist().
--type escaped_message_id() :: binary().
+-type escaped_message_id() :: string().
 -type escaped_jid()       :: binary().
 -type escaped_resource()  :: binary().
 
@@ -549,13 +549,12 @@ purge_multiple_messages(_Result, Host, UserID, UserJID, Borders,
 
 
 %% @doc Each record is a tuple of form
-%% `{<<"13663125233">>,<<"bob@localhost">>,<<"res1">>,<<binary>>}'.
+%% `{<<"13663125233">>,<<"bob@localhost">>,<<binary>>}'.
 %% Columns are `["id","from_jid","message"]'.
--type msg() :: {binary(), ejabberd:literal_jid(), ejabberd:resource(), binary()}.
--type col() :: [binary() | msg()].
+-type msg() :: {binary(), ejabberd:literal_jid(), binary()}.
 -spec extract_messages(Host :: ejabberd:server(), _UserID :: mod_mam:archive_id(),
         Filter :: filter(), IOffset :: non_neg_integer(), IMax :: pos_integer(),
-        ReverseLimit :: boolean()) -> [col()].
+        ReverseLimit :: boolean()) -> [msg()].
 extract_messages(_Host, _UserID, _Filter, _IOffset, 0, _) ->
     [];
 extract_messages(Host, UserID, Filter, IOffset, IMax, false) ->
@@ -685,7 +684,7 @@ prepare_filter_sql(UserID, StartID, EndID, SWithJID, SWithResource) ->
 %%    direction = before | aft | undefined,
 %%    id = binary() | undefined,
 %%    index = non_neg_integer() | undefined}
--spec calc_offset(Host :: ejabberd:server(), UserID :: ejabberd:user(),
+-spec calc_offset(Host :: ejabberd:server(), UserID :: mod_mam:archive_id(),
         Filter :: filter(), IndexHintSQL :: string(), PageSize :: non_neg_integer(),
         TotalCount :: non_neg_integer(), RSM :: jlib:rsm_in()) -> non_neg_integer().
 calc_offset(_LS, _UserID, _F, _IH, _PS, _TC, #rsm_in{direction = undefined, index = Index})

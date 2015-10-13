@@ -59,7 +59,7 @@ parse_request(#iq{type = set, lang = Lang, sub_el = SubEl, xmlns = ?NS_COMMANDS}
 
     #adhoc_request{lang = Lang,
                    node = Node,
-                   sessionid = SessionID,
+                   session_id = SessionID,
                    action = Action,
                    xdata = XData,
                    others = Others};
@@ -87,23 +87,23 @@ find_xdata_el1([_ | Els]) ->
 %% @doc Produce a <command/> node to use as response from an adhoc_response
 %% record, filling in values for language, node and session id from
 %% the request.
--spec produce_response(request(), response()) -> response().
+-spec produce_response(request(), response()) -> #xmlel{}.
 produce_response(#adhoc_request{lang = Lang,
                                 node = Node,
-                                sessionid = SessionID},
+                                session_id = SessionID},
                  Response) ->
     produce_response(Response#adhoc_response{lang = Lang,
                                              node = Node,
-                                             sessionid = SessionID}).
+                                             session_id = SessionID}).
 
 %% @doc Produce a <command/> node to use as response from an adhoc_response
 %% record.
 -spec produce_response(response()) -> jlib:xmlel().
 produce_response(#adhoc_response{lang = _Lang,
                                  node = Node,
-                                 sessionid = ProvidedSessionID,
+                                 session_id = ProvidedSessionID,
                                  status = Status,
-                                 defaultaction = DefaultAction,
+                                 default_action = DefaultAction,
                                  actions = Actions,
                                  notes = Notes,
                                  elements = Elements}) ->
@@ -112,19 +112,17 @@ produce_response(#adhoc_response{lang = _Lang,
                    true ->
                         jlib:now_to_utc_binary(os:timestamp())
                 end,
-    case Actions of
-        [] ->
-            ActionsEls = [];
-        _ ->
-            case DefaultAction of
-                <<"">> ->
-                    ActionsElAttrs = [];
-                _ ->
-                    ActionsElAttrs = [{<<"execute">>, DefaultAction}]
-            end,
-            ActionsEls = [#xmlel{name = <<"actions">>, attrs = ActionsElAttrs,
+    ActionsEls = case Actions of
+                     [] ->
+                         [];
+                     _ ->
+                         ActionsElAttrs = case DefaultAction of
+                                              <<"">> -> [];
+                                              _ -> [{<<"execute">>, DefaultAction}]
+                                          end,
+                         [#xmlel{name = <<"actions">>, attrs = ActionsElAttrs,
                                  children = [#xmlel{name = Action} || Action <- Actions]}]
-    end,
+                 end,
     NotesEls = lists:map(fun({Type, Text}) ->
                                  #xmlel{name = <<"note">>,
                                         attrs = [{<<"type">>, Type}],
@@ -134,5 +132,6 @@ produce_response(#adhoc_response{lang = _Lang,
            attrs = [{<<"xmlns">>, ?NS_COMMANDS},
                     {<<"sessionid">>, SessionID},
                     {<<"node">>, Node},
-                    {"status", list_to_binary(atom_to_list(Status))}],
+                    {<<"status">>, list_to_binary(atom_to_list(Status))}],
            children = ActionsEls ++ NotesEls ++ Elements}.
+

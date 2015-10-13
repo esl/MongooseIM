@@ -145,7 +145,7 @@ get_module_resource(Server) ->
             -> [Cdata :: binary()] | none().
 get_vcard_content(User, Server, Data) ->
     [{_, Module, Function, _Opts}] = ets:lookup(sm_iqtable, {?NS_VCARD, Server}),
-    JID = jlib:make_jid(User, Server, get_module_resource(Server)),
+    JID = jlib:make_jid(User, Server, list_to_binary(get_module_resource(Server))),
     IQ = #iq{type = get, xmlns = ?NS_VCARD},
     %% TODO: This may benefit from better type control
     IQr = Module:Function(JID, JID, IQ),

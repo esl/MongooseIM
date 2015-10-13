@@ -26,7 +26,7 @@
 
 -module(sha).
 -export([sha1_hex/1]).
--include("ejabberd.hrl").
 
--spec sha1_hex(binary()) -> binary().
+-spec sha1_hex(iodata()) -> binary().
 sha1_hex(Text) -> base16:encode(crypto:hash(sha, Text)).
+

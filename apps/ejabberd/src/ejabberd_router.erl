@@ -73,12 +73,13 @@ start_link() ->
 
 -spec route(From   :: ejabberd:jid(),
             To     :: ejabberd:jid(),
-            Packet :: jlib:xmlel()) -> ok | {error, lager_not_started}.
+            Packet :: jlib:xmlel()) -> ok.
 route(From, To, Packet) ->
     case catch do_route(From, To, Packet) of
         {'EXIT', Reason} ->
             ?ERROR_MSG("~p~nwhen processing: ~p",
-                       [Reason, {From, To, Packet}]);
+                       [Reason, {From, To, Packet}]),
+            ok;
         _ ->
             ok
     end.

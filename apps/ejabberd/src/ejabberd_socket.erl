@@ -33,7 +33,6 @@
 	 connect/4,
 	 starttls/2,
 	 starttls/3,
-	 compress/1,
 	 compress/3,
 	 reset_stream/1,
 	 send/2,
@@ -49,7 +48,7 @@
 -include("ejabberd.hrl").
 
 -record(socket_state, {sockmod    :: ejabberd:sockmod(),
-                       socket     :: gen_tcp:socket(),
+                       socket     :: term(),
                        receiver   :: pid() | atom() | tuple()
                       }).
 -type socket_state() :: #socket_state{}.
@@ -62,7 +61,7 @@
 %% Description:
 %%--------------------------------------------------------------------
 -spec start(atom() | tuple(), ejabberd:sockmod(),
-    Socket :: gen_tcp:socket(), Opts :: [{atom(),_}]) -> ok.
+    Socket :: port(), Opts :: [{atom(),_}]) -> ok.
 start(Module, SockMod, Socket, Opts) ->
     case Module:socket_type() of
         xml_stream ->
@@ -170,16 +169,6 @@ starttls(SocketData, TLSOpts, Data) ->
     ejabberd_receiver:starttls(SocketData#socket_state.receiver, TLSSocket),
     send(SocketData, Data),
     SocketData#socket_state{socket = TLSSocket, sockmod = ejabberd_tls}.
-
-
--spec compress(socket_state()) -> socket_state().
-compress(SocketData) ->
-    {ok, ZlibSocket} = ejabberd_zlib:enable_zlib(
-                         SocketData#socket_state.sockmod,
-                         SocketData#socket_state.socket),
-    ejabberd_receiver:compress(SocketData#socket_state.receiver, ZlibSocket),
-    SocketData#socket_state{socket = ZlibSocket, sockmod = ejabberd_zlib}.
-
 
 -spec compress(socket_state(), integer(), _) -> socket_state().
 compress(SocketData, InflateSizeLimit, Data) ->

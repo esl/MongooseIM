@@ -6,11 +6,9 @@ Conf = case file:consult(ConfigureOut) of
        end,
 
 BaseAppsToRun = [compiler,
-                 crypto,
                  lager,
                  kernel,
                  mnesia,
-                 public_key,
                  sasl,
                  ssl,
                  stdlib,
@@ -18,9 +16,12 @@ BaseAppsToRun = [compiler,
                  inets,
                  syntax_tools,
                  p1_stringprep,
+                 xmerl,
                  exml,
                  cowboy,
-                 fusco],
+                 fusco,
+                 folsom,
+                 exometer],
 
 AppsToRunIn = BaseAppsToRun ++ proplists:get_value(apps_to_run, Conf, []),
 
@@ -28,13 +29,14 @@ AppsToRun = ordsets:to_list(ordsets:from_list(AppsToRunIn)),
 
 BaseAppsToInclude = AppsToRun ++
                     [asn1,
+                     crypto,
+                     public_key,
                      goldrush,
                      runtime_tools,
                      p1_utils,
                      ranch,
                      cowlib,
                      bear,
-                     folsom,
                      mochijson2,
                      p1_cache_tab,
                      pa,
@@ -42,7 +44,9 @@ BaseAppsToInclude = AppsToRun ++
                      cuesport,
                      alarms,
                      idna,
-                     recon],
+                     recon,
+                     setup
+                     ],
 
 
 RemovedApps = [mysql,pgsql,redo,seestar,odbc],
@@ -74,14 +78,23 @@ IncludeApps = lists:map(fun(App) -> {app, App, [{incl_cond, include}]} end, Apps
 {overlay_vars, "vars.config"},
 
 {overlay, [{mkdir, "log/sasl"},
-	       {copy, "files/erl", "\{\{erts_vsn\}\}/bin/erl"},
-	       {copy, "files/nodetool", "\{\{erts_vsn\}\}/bin/nodetool"},
-           {copy, "files/mongooseim", "bin/mongooseim"},
+           {mkdir, "var"},
+           {mkdir, "var/log"},
+           {mkdir, "priv"},
+           {mkdir, "priv/ssl"},
+
+           {copy, "files/erl", "\{\{erts_vsn\}\}/bin/erl"},
+           {copy, "files/nodetool", "\{\{erts_vsn\}\}/bin/nodetool"},
            {copy, "files/mongooseimctl", "bin/mongooseimctl"},
-           {copy, "files/app.config", "etc/app.config"},
+
+           {template, "files/mongooseim", "bin/mongooseim"},
+           {template, "files/app.config", "etc/app.config"},
            {template, "files/vm.args", "etc/vm.args"},
            {template, "files/ejabberd.cfg", "etc/ejabberd.cfg"},
-           {mkdir, "var"},
-           {mkdir, "var/log"}
+
+           {copy, "../fake_cert.pem", "priv/ssl/fake_cert.pem"},
+           {copy, "../fake_key.pem", "priv/ssl/fake_key.pem"},
+           {copy, "../fake_server.pem", "priv/ssl/fake_server.pem"},
+           {copy, "files/sample_external_auth.py", "priv/sample_external_auth.py"}
           ]}
 ].

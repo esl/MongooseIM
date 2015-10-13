@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+ Licensed to the Apache Software Foundation (ASF) under one or more
+ contributor license agreements.  See the NOTICE file distributed with
+ this work for additional information regarding copyright ownership.
+ The ASF licenses this file to You under the Apache License, Version 2.0
+ (the "License"); you may not use this file except in compliance with
+ the License.  You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+-->
+
+<schema name="mam_search_schema" version="1.5">
+    <fields>
+        <field name="vCard.FN" type="text_general" indexed="true" stored="true" multiValued="false"/>
+        <field name="vCard.N.FAMILY" type="text_general" indexed="true" stored="true" multiValued="false"/>
+        <field name="vCard.N.GIVEN" type="text_general" indexed="true" stored="true" multiValued="false"/>
+        <field name="vCard.N.MIDDLE" type="text_general" indexed="true" stored="true" multiValued="false"/>
+        <field name="vCard.NICKNAME" type="text_general" indexed="true" stored="true" multiValued="false"/>
+        <field name="vCard.BDAY" type="string" indexed="true" stored="true" multiValued="false"/>
+        <field name="vCard.ADR.CTRY" type="text_general" indexed="true" stored="true" multiValued="false"/>
+        <field name="vCard.ADR.LOCALITY" type="text_general" indexed="true" stored="true" multiValued="false"/>
+        <field name="vCard.EMAIL.USERID" type="text_general" indexed="true" stored="true" multiValued="false"/>
+        <field name="vCard.ORG.ORGNAME" type="text_general" indexed="true" stored="true" multiValued="false"/>
+        <field name="vCard.ORG.ORGUNIT" type="text_general" indexed="true" stored="true" multiValued="false"/>
+
+        <!-- catch-all field -->
+        <dynamicField name="*" type="ignored" />
+
+        <field name="_yz_id" type="_yz_str" indexed="true" stored="true" multiValued="false" required="true"/>
+
+        <!-- Entropy Data: Data related to anti-entropy -->
+        <field name="_yz_ed" type="_yz_str" indexed="true" stored="false" multiValued="false"/>
+
+        <!-- Partition Number: Used as a filter query param -->
+        <field name="_yz_pn" type="_yz_str" indexed="true" stored="false" multiValued="false"/>
+
+        <!-- First Partition Number: The first partition in this doc's
+             preflist, used for further filtering on overlapping partitions. -->
+        <field name="_yz_fpn" type="_yz_str" indexed="true" stored="false" multiValued="false"/>
+
+        <!-- If there is a sibling, use vtag to differentiate them -->
+        <field name="_yz_vtag" type="_yz_str" indexed="true" stored="false" multiValued="false"/>
+
+        <!-- Riak Key: The key of the Riak object this doc corresponds to. -->
+        <field name="_yz_rk" type="_yz_str" indexed="true" stored="true" multiValued="false"/>
+
+        <!-- Riak Bucket Type: The bucket type of the Riak object this doc corresponds to. -->
+        <field name="_yz_rt" type="_yz_str" indexed="true" stored="true" multiValued="false"/>
+
+        <!-- Riak Bucket: The bucket of the Riak object this doc corresponds to. -->
+        <field name="_yz_rb" type="_yz_str" indexed="true" stored="true" multiValued="false"/>
+
+        <!-- Flag indicating if this doc is the product of a failed object extraction -->
+        <field name="_yz_err" type="_yz_str" indexed="true" stored="false" multiValued="false"/>
+    </fields>
+
+    <uniqueKey>_yz_id</uniqueKey>
+
+    <types>
+        <!-- YZ String: Used for non-analyzed fields -->
+        <fieldType name="_yz_str" class="solr.StrField" sortMissingLast="true" />
+
+        <fieldType name="string" class="solr.StrField" sortMissingLast="true" />
+
+        <!-- since fields of this type are by default not stored or indexed,
+             any data added to them will be ignored outright.  -->
+        <fieldtype name="ignored" stored="false" indexed="false" multiValued="true" class="solr.StrField" />
+
+        <fieldType name="text_general" class="solr.TextField" positionIncrementGap="100">
+            <analyzer type="index">
+                <tokenizer class="solr.StandardTokenizerFactory"/>
+                <filter class="solr.StopFilterFactory" ignoreCase="true" words="stopwords.txt" />
+                <filter class="solr.LowerCaseFilterFactory"/>
+            </analyzer>
+            <analyzer type="query">
+                <tokenizer class="solr.StandardTokenizerFactory"/>
+                <filter class="solr.StopFilterFactory" ignoreCase="true" words="stopwords.txt" />
+                <filter class="solr.SynonymFilterFactory" synonyms="synonyms.txt" ignoreCase="true" expand="true"/>
+                <filter class="solr.LowerCaseFilterFactory"/>
+            </analyzer>
+        </fieldType>
+
+    </types>
+
+</schema>

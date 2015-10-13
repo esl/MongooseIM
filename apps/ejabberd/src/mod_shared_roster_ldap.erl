@@ -470,7 +470,7 @@ get_user_part_re(String, Pattern) ->
     case catch re:run(String, Pattern) of
         {match, Captured} ->
             {First, Len} = lists:nth(2, Captured),
-            Result = str:sub_string(String, First + 1, First + Len),
+            Result = binary:part(String, First, Len),
             {ok, Result};
         _ -> {error, badmatch}
     end.

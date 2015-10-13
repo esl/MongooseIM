@@ -67,8 +67,7 @@ commands() ->
 %% $ mongooseimctl private_get badlop localhost aa bb
 %% <aa xmlns='bb'>Cluth</aa>
 
--spec private_get(ejabberd:user(), ejabberd:server(), jlib:xmlel(),
-                  binary()) -> binary().
+-spec private_get(ejabberd:user(), ejabberd:server(), binary(), binary()) -> binary().
 private_get(Username, Host, Element, Ns) ->
     M = get_private_module(Host),
     From = jlib:make_jid(Username, Host, <<"">>),
@@ -85,7 +84,7 @@ private_get(Username, Host, Element, Ns) ->
 
 
 -spec private_set(ejabberd:user(), ejabberd:server(),
-                  ElementString :: binary()) -> binary().
+                  ElementString :: binary()) -> error | ok.
 private_set(Username, Host, ElementString) ->
     case exml:parse(ElementString) of
         {error, Error} ->
@@ -97,7 +96,7 @@ private_set(Username, Host, ElementString) ->
     end.
 
 
--spec private_set2(ejabberd:user(), ejabberd:server(), Xml :: jlib:xmlel()) -> binary().
+-spec private_set2(ejabberd:user(), ejabberd:server(), Xml :: jlib:xmlel()) -> ok.
 private_set2(Username, Host, Xml) ->
     M = get_private_module(Host),
     From = jlib:make_jid(Username, Host, <<"">>),

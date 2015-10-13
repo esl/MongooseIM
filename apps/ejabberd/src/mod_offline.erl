@@ -57,7 +57,7 @@
 
 %% default value for the maximum number of user messages
 -define(MAX_USER_MESSAGES, infinity).
--define(BACKEND, (mod_offline_backend:backend())).
+-define(BACKEND, mod_offline_backend).
 
 -record(state, {host, access_max_user_messages}).
 
@@ -67,8 +67,24 @@
 -callback init(Host, Opts) -> ok when
     Host :: binary(),
     Opts :: list().
-
--callback remove_user(LUser, LServer) -> ok when
+-callback pop_messages(LUser, LServer) -> Result when
+    LUser :: ejabberd:luser(),
+    LServer :: ejabberd:lserver(),
+    Result :: term().
+-callback write_messages(LUser, LServer, Msgs, MaxOfflineMsgs) -> Result when
+    LUser :: ejabberd:luser(),
+    LServer :: ejabberd:lserver(),
+    Msgs :: list(),
+    MaxOfflineMsgs :: integer(),
+    Result :: term().
+-callback remove_expired_messages(Host) -> Result when
+    Host :: ejabberd:lserver(),
+    Result :: term().
+-callback remove_old_messages(Host, Days) -> Result when
+    Host :: ejabberd:lserver(),
+    Days :: integer(),
+    Result :: term().
+-callback remove_user(LUser, LServer) -> any() when
     LUser :: binary(),
     LServer :: binary().
 
@@ -78,7 +94,7 @@
 start(Host, Opts) ->
     AccessMaxOfflineMsgs = gen_mod:get_opt(access_max_user_messages, Opts,
                                            max_user_offline_messages),
-    gen_mod:start_backend_module(?MODULE, Opts),
+    gen_mod:start_backend_module(?MODULE, Opts, [pop_messages, write_messages]),
     ?BACKEND:init(Host, Opts),
     start_worker(Host, AccessMaxOfflineMsgs),
     ejabberd_hooks:add(offline_message_hook, Host,
@@ -382,7 +398,7 @@ find_x_expire(TimeStamp, [El | Els]) ->
     case xml:get_tag_attr_s(<<"xmlns">>, El) of
 	?NS_EXPIRE ->
 	    Val = xml:get_tag_attr_s(<<"seconds">>, El),
-	    case catch list_to_integer(Val) of
+	    case catch list_to_integer(binary_to_list(Val)) of
 		{'EXIT', _} ->
 		    never;
 		Int when Int > 0 ->
@@ -443,12 +459,10 @@ add_timestamp(undefined, _Server, Packet) ->
 add_timestamp({_,_,Micro} = TimeStamp, Server, Packet) ->
     {D,{H,M,S}} = calendar:now_to_universal_time(TimeStamp),
     Time = {D,{H,M,S, Micro}},
-    %% TODO: Delete the next element once XEP-0091 is Obsolete
-    TimeStampLegacyXML = timestamp_legacy_xml(Server, Time),
-    TimeStampXML = jlib:timestamp_to_xml(Time),
-    xml:append_subtags(Packet, [TimeStampLegacyXML, TimeStampXML]).
+    TimeStampXML = timestamp_xml(Server, Time),
+    xml:append_subtags(Packet, [TimeStampXML]).
 
-timestamp_legacy_xml(Server, Time) ->
+timestamp_xml(Server, Time) ->
     FromJID = jlib:make_jid(<<>>, Server, <<>>),
     jlib:timestamp_to_xml(Time, utc, FromJID, <<"Offline Storage">>).
 

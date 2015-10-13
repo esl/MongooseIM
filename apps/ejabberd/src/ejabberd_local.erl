@@ -157,7 +157,7 @@ route_iq(From, To, IQ, F) ->
                To :: ejabberd:jid(),
                IQ :: ejabberd:iq(),
                F :: fun(),
-               Timeout :: integer()) -> 'ok'.
+               Timeout :: undefined | integer()) -> 'ok'.
 route_iq(From, To, #iq{type = Type} = IQ, F, Timeout) when is_function(F) ->
     Packet = if Type == set; Type == get ->
                      ID = list_to_binary(randoms:get_string()),
@@ -276,11 +276,13 @@ handle_call({unregister_host, Host}, _From, State) ->
     ejabberd_router:unregister_route(Host),
     ejabberd_hooks:delete(local_send_to_resource_hook, Host,
                           ?MODULE, bounce_resource_packet, 100),
+    mongoose_metrics:remove_host_metrics(Host),
     {reply, ok, State};
 handle_call({register_host, Host}, _From, State) ->
     ejabberd_router:register_route(Host, {apply, ?MODULE, route}),
     ejabberd_hooks:add(local_send_to_resource_hook, Host,
                        ?MODULE, bounce_resource_packet, 100),
+    mongoose_metrics:init_predefined_host_metrics(Host),
     {reply, ok, State};
 handle_call(_Request, _From, State) ->
     Reply = ok,
@@ -413,7 +415,7 @@ update_table() ->
             ok
     end.
 
--spec get_iq_callback(ID :: id()) -> 'error' | {'ok', Mod :: atom(), fun()}.
+-spec get_iq_callback(ID :: id()) -> 'error' | {'ok', Mod :: atom(), fun() | atom()}.
 get_iq_callback(ID) ->
     case mnesia:dirty_read(iq_response, ID) of
         [#iq_response{module = Module, timer = TRef,

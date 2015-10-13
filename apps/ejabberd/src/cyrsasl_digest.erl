@@ -41,7 +41,7 @@
                 username :: ejabberd:user(),
                 authzid,
                 get_password :: cyrsasl:get_password_fun(),
-                check_password :: cyrsasl:check_password_fun(),
+                check_password :: cyrsasl:check_pass_digest_fun(),
                 auth_module :: ejabberd_auth:authmodule(),
                 host :: ejabberd:server()
               }).
@@ -56,7 +56,7 @@ stop() ->
                GetPassword :: cyrsasl:get_password_fun(),
                CheckPassword :: cyrsasl:check_password_fun(),
                CheckPasswordDigest :: cyrsasl:check_pass_digest_fun()
-               ) -> {ok, tuple()}.
+               ) -> {ok, #state{}}.
 mech_new(Host, GetPassword, _CheckPassword, CheckPasswordDigest) ->
     {ok, #state{step = 1,
                 nonce = randoms:get_string(),
@@ -105,8 +105,6 @@ mech_step(#state{step = 3, nonce = Nonce} = State, ClientIn) ->
                                                  username = UserName,
                                                  authzid = AuthzId}};
                                 false ->
-                                    {error, <<"not-authorized">>, UserName};
-                                {false, _} ->
                                     {error, <<"not-authorized">>, UserName}
                             end
                     end

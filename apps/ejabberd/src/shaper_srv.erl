@@ -93,7 +93,7 @@ worker_number(Host, Tag) ->
 
 %% @doc Shapes the caller from executing the action.
 -spec wait(_Host :: ejabberd:server(), _Action :: atom(),
-           _FromJID :: ejabberd:jid(), _Size :: integer()
+           _FromJID :: ejabberd:jid() | global, _Size :: integer()
            ) -> ok | {error, max_delay_reached}.
 wait(Host, Action, FromJID, Size) ->
     gen_server:call(select_worker(Host, FromJID), {wait, Host, Action, FromJID, Size}).
@@ -146,7 +146,7 @@ code_change(_OldVsn, State, _Extra) ->
 %% ------------------------------------------------------------------
 
 -type key() :: {global | ejabberd:server(), atom(), ejabberd:jid()}.
--spec new_key(ejabberd:server(), atom(), ejabberd:jid()) -> key().
+-spec new_key(ejabberd:server() | global, atom(), ejabberd:jid()) -> key().
 new_key(Host, Action, FromJID) ->
     {Host, Action, FromJID}.
 
@@ -221,3 +221,4 @@ reply_after(DelayMs, {Pid, Tag}, Reply) ->
 -spec subtract_seconds(erlang:timestamp(), non_neg_integer()) -> erlang:timestamp().
 subtract_seconds({MegaSecs, Secs, MicroSecs}, SubSecs) ->
     {MegaSecs - (SubSecs div 1000000), Secs - (SubSecs rem 1000000), MicroSecs}.
+

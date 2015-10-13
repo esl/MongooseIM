@@ -1,0 +1,11 @@
+os:putenv("EXOMETER_PACKAGES", "(minimal)"),
+case erlang:system_info(otp_release) of
+    "R15" ++ _ ->
+        {deps, Deps} = lists:keyfind(deps, 1, CONFIG),
+        io:format("using patched cowboy 1.0.1 for Erlang/OTP R15B03~n"),
+        CowDep = {cowboy,".*", {git,"git://github.com/michalwski/cowboy.git",{branch,"1.0.1-R15"}}},
+        NewDeps = lists:keyreplace(cowboy, 1, Deps, CowDep),
+        lists:keyreplace(deps, 1, CONFIG, {deps, NewDeps});
+    _ ->
+        CONFIG
+end.

@@ -55,14 +55,15 @@
                                    _Ask,
                                    _Group}.
 -type subs() :: atom() | binary().
--type push_action() :: 'remove'
-                     | {'add', Nick :: binary(), Subs :: subs(),
-                               Group :: binary() | string()}.
+-type push_action() :: remove
+                     | none
+                     | {add, Nick :: binary(), Subs :: subs(),
+                        Group :: binary() | string()}.
 
 -type delete_action() :: {'delete', Subs :: [atom()], Asks :: [atom()],
-                                    ejabberd:user(), Contact:: binary()}.
+                                    [ejabberd:user()], Contacts :: [binary()]}.
 -type list_action() :: {'list', Subs :: [atom()], Asks :: [atom()],
-                                ejabberd:user(), Contact:: binary()}.
+                                [ejabberd:user()], Contacts :: [binary()]}.
 
 
 %%%
@@ -272,7 +273,7 @@ make_roster_xmlrpc(Roster) ->
 -spec push_roster(file:name(), ejabberd:user(), ejabberd:server()) -> 'ok'.
 push_roster(File, User, Server) ->
     {ok, [Roster]} = file:consult(File),
-    subscribe_roster({User, Server, "", User}, roster_list_to_binary(Roster)).
+    subscribe_roster({User, Server, <<"">>, User}, roster_list_to_binary(Roster)).
 
 
 -spec push_roster_all(file:name()) -> 'ok'.
@@ -342,15 +343,14 @@ push_roster_item(LU, LS, U, S, Action) ->
 
 
 -spec push_roster_item(ejabberd:luser(), ejabberd:lserver(), ejabberd:user(),
-        ejabberd:server(), R :: ejabberd:iq(), Action :: push_action()) -> 'ok'.
+        ejabberd:user(), ejabberd:server(), Action :: push_action()) -> 'ok'.
 push_roster_item(LU, LS, R, U, S, Action) ->
     LJID = jlib:make_jid(LU, LS, R),
     BroadcastEl = build_broadcast(U, S, Action),
-    ejabberd_router:route(LJID, LJID, BroadcastEl),
+    ejabberd_sm:route(LJID, LJID, BroadcastEl),
     Item = build_roster_item(U, S, Action),
     ResIQ = build_iq_roster_push(Item),
     ejabberd_router:route(LJID, LJID, ResIQ).
-
 
 -spec build_roster_item(ejabberd:user(), ejabberd:server(), push_action()
                        ) -> jlib:xmlel().
@@ -374,14 +374,14 @@ build_iq_roster_push(Item) ->
            children = [#xmlel{ name = <<"query">>, attrs = [{<<"xmlns">>, ?NS_ROSTER}], children = [Item]}] }.
 
 -spec build_broadcast(U :: ejabberd:user(), S :: ejabberd:server(),
-                      push_action()) -> jlib:xmlel().
+                      push_action()) -> ejabberd_c2s:broadcast().
 build_broadcast(U, S, {add, _Nick, Subs, _Group}) ->
     build_broadcast(U, S, list_to_existing_atom(binary_to_list(Subs)));
 build_broadcast(U, S, remove) ->
     build_broadcast(U, S, none);
 %% Subs = both | from | to | none
 build_broadcast(U, S, SubsAtom) when is_atom(SubsAtom) ->
-    #xmlel{ name = <<"broadcast">>, children = [{item, {U, S, <<"">>}, SubsAtom}] }.
+    {broadcast, {item, {U, S, <<"">>}, SubsAtom}}.
 
 %%-----------------------------
 %% Purge roster items
@@ -427,17 +427,8 @@ process_rosteritems(ActionS, SubsS, AsksS, UsersS, ContactsS) ->
             [ejabberd_binary:string_to_binary(S) || S <- string:tokens(ContactsS, ":")]
             ),
 
-    case rosteritem_purge({Action, Subs, Asks, Users, Contacts}) of
-        {atomic, ok} ->
-            ok;
-        {error, Reason} ->
-            io:format("Error purging rosteritems: ~p~n", [Reason]),
-            error;
-        {badrpc, Reason} ->
-            io:format("BadRPC purging rosteritems: ~p~n", [Reason]),
-            error
-    end.
-
+    rosteritem_purge({Action, Subs, Asks, Users, Contacts}),
+    ok.
 
 -spec rosteritem_purge(delete_action() | list_action()) -> {'atomic','ok'}.
 rosteritem_purge(Options) ->
@@ -448,8 +439,8 @@ rosteritem_purge(Options) ->
     {atomic, ok}.
 
 
--spec rip(atom() | any(), delete_action() | list_action(),
-         {integer(),number(),non_neg_integer(),non_neg_integer()}) -> 'ok'.
+-spec rip('$end_of_table' | any(), delete_action() | list_action(),
+          {integer(), integer(), non_neg_integer(), non_neg_integer()}) -> 'ok'.
 rip('$end_of_table', _Options, Counters) ->
     print_progress_line(Counters),
     ok;
@@ -476,7 +467,7 @@ apply_action(delete, Key) ->
     mnesia:dirty_delete(roster, Key).
 
 print_progress_line({Pr, NT, NV, ND}) ->
-    Pr2 = trunc((NV/NT)*100),
+    Pr2 = NV * 100 div NT,
     case Pr == Pr2 of
         true ->
             ok;
@@ -506,25 +497,22 @@ decide_rip_jid({UName, UServer}, MatchList) ->
                 MName = MJID#jid.luser,
                 MServer = MJID#jid.lserver,
                 IsServer = is_regexp_match(UServer, MServer),
-                case MName of
-                    [] when UName == [] ->
-                        IsServer;
-                    [] ->
-                        false;
-                    _ ->
-                        IsServer
-                        andalso is_regexp_match(UName, MName)
+                case {MName, UName} of
+                    {<<>>, <<>>} -> IsServer;
+                    {<<>>, _} -> false;
+                    _ -> IsServer andalso is_regexp_match(UName, MName)
                 end
         end,
         MatchList).
 
 is_regexp_match(String, RegExp) ->
-    case re:run(String, RegExp) of
+    case catch re:run(String, RegExp) of
         nomatch ->
             false;
         {match, _} ->
             true;
-        {error, ErrDesc} ->
-            io:format("Wrong regexp ~p: ~p", [RegExp, ErrDesc]),
+        Error ->
+            io:format("Wrong regexp ~p: ~p", [RegExp, Error]),
             false
     end.
+

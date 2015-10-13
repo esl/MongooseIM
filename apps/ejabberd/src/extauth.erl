@@ -103,10 +103,10 @@ set_password(User, Server, Password) ->
 
 
 -spec try_register(ejabberd:user(), ejabberd:server(), binary()
-                  ) -> {atomic|error, ok|not_allowed}.
+                  ) -> ok | {error, not_allowed}.
 try_register(User, Server, Password) ->
     case call_port(Server, [<<"tryregister">>, User, Server, Password]) of
-        true -> {atomic, ok};
+        true -> ok;
         false -> {error, not_allowed}
     end.
 
