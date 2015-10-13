@@ -14,7 +14,7 @@
 %%% * all_can_configure (false) - Every room occupant can change room configuration
 %%% * all_can_invite (false) - Every room occupant can invite a user to the room
 %%% * max_occupants (infinity) - Maximal occupant count per room
-%%% * simple_aff_changes_model (false) - If enabled, only these aff changes requests are allowed
+%%% !!NOT IMPLEMENTED YET!! * simple_aff_changes_model (false) - If enabled, only these aff changes requests are allowed
 %%%                                      (simpler, more efficient algorithm can be used):
 %%%     * owner leaves (and optionally picks the successor)
 %%%     * owner adds and removes member (no change in membership)
@@ -124,6 +124,8 @@ process_packet(From, To, {ok, {get, #disco_info{} = DI}}, _OrigPacket) ->
     handle_disco_info_get(From, To, DI);
 process_packet(From, To, {ok, {get, #disco_items{} = DI}}, OrigPacket) ->
     handle_disco_items_get(From, To, DI, OrigPacket);
+process_packet(From, To, {ok, {_, #blocking{}} = Blocking}, _OrigPacket) ->
+    handle_blocking(From, To, Blocking);
 process_packet(From, #jid{ luser = RoomU } = To, {ok, RequestToRoom}, OrigPacket)
   when RoomU =/= <<>> ->
     case ?BACKEND:room_exists(jlib:jid_to_lus(To)) of
@@ -254,6 +256,15 @@ get_rooms_info([]) ->
 get_rooms_info([RoomUS | RRooms]) ->
     {ok, RoomName, Version} = ?BACKEND:get_config(RoomUS, roomname),
     [{RoomUS, RoomName, Version} | get_rooms_info(RRooms)].
+
+-spec handle_blocking(From :: jlib:jid(), To :: jlib:jid(),
+                      BlockingReq :: {get | set, #blocking{}}) -> any().
+handle_blocking(From, To, {get, #blocking{} = Blocking}) ->
+    ?CODEC:encode({get, Blocking#blocking{ items = ?BACKEND:get_blocking(jlib:jid_to_lus(From)) }},
+                  From, jlib:jid_to_lus(To), fun ejabberd_router:route/3);
+handle_blocking(From, To, {set, #blocking{ items = Items }} = BlockingReq) ->
+    ok = ?BACKEND:set_blocking(jlib:jid_to_lus(From), Items),
+    ?CODEC:encode(BlockingReq, From, jlib:jid_to_lus(To), fun ejabberd_router:route/3).
 
 -spec bcast_removed_user(UserUS :: ejabberd:simple_bare_jid(),
                          AffectedRooms :: mod_muc_light_db:remove_user_return(),
