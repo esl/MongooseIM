@@ -7,7 +7,7 @@ XEP_TOOL = tools/xep_tool
 EJD_EBIN = $(EJABBERD_DIR)/ebin
 DEVNODES = node1 node2
 DEVNODESCD = node1cd node2cd
-REL_DEST = ./paczka #todo: change name
+REL_DEST = ./paczka
 
 all: deps compile
 
