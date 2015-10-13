@@ -101,6 +101,7 @@
 %% default value for the maximum number of user connections
 -define(MAX_USER_SESSIONS, 100).
 -define(SM_BACKEND, (ejabberd_sm_backend:backend())).
+-define(UNIQUE_COUNT_CACHE, [cache, unique_sessions_number]).
 
 %%====================================================================
 %% API
@@ -111,6 +112,7 @@
 %%--------------------------------------------------------------------
 -spec start_link() -> 'ignore' | {'error',_} | {'ok',pid()}.
 start_link() ->
+    mongoose_metrics:ensure_metric(?UNIQUE_COUNT_CACHE, gauge),
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 
@@ -318,7 +320,14 @@ get_session_pid(User, Server, Resource) ->
 
 -spec get_unique_sessions_number() -> integer().
 get_unique_sessions_number() ->
-    ?SM_BACKEND:unique_count().
+    try
+        C = ?SM_BACKEND:unique_count(),
+        mongoose_metrics:update(?UNIQUE_COUNT_CACHE, C),
+        C
+    catch
+        _:_ ->
+            get_cached_unique_count()
+    end.
 
 
 -spec get_total_sessions_number() -> integer().
@@ -927,4 +936,13 @@ sm_backend(Backend) ->
             ejabberd_sm_",
        atom_to_list(Backend),
        ".\n"]).
+
+-spec get_cached_unique_count() -> non_neg_integer().
+get_cached_unique_count() ->
+    case mongoose_metrics:get_metric_value(?UNIQUE_COUNT_CACHE) of
+        {ok, DataPoints} ->
+            proplists:get_value(value, DataPoints);
+        _ ->
+            0
+    end.
 

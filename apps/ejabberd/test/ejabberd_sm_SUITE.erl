@@ -17,6 +17,11 @@ all() -> [{group, mnesia}, {group, redis}].
 
 init_per_suite(C) ->
     application:start(p1_stringprep),
+    application:start(syntax_tools),
+    application:start(compiler),
+    application:start(goldrush),
+    application:start(lager),
+    application:start(exometer),
     F = fun() ->
         ejabberd_sm_backend_sup:start_link(),
         receive stop -> ok end
@@ -38,7 +43,8 @@ tests() ->
      delete_session,
      clean_up,
      too_much_sessions,
-     unique_count].
+     unique_count,
+     unique_count_while_removing_entries].
 
 init_per_group(mnesia, Config) ->
     application:start(mnesia),
@@ -72,6 +78,7 @@ end_per_testcase(_, Config) ->
     clean_sessions(Config),
     meck:unload(acl),
     meck:unload(ejabberd_hooks),
+    meck:unload(?B(Config)),
     Config.
 
 open_session(C) ->
@@ -188,8 +195,21 @@ unique_count(C) ->
     UsersWithManyResources = generate_many_random_res(5, 3, [<<"localhost">>, <<"otherhost">>]),
     [given_session_opened(Sid, USR) || {Sid, USR} <- UsersWithManyResources],
     USDict = get_unique_us_dict(UsersWithManyResources),
-    UniqueCount = ?B(C):unique_count(),
+    UniqueCount = ejabberd_sm:get_unique_sessions_number(),
     UniqueCount = dict:size(USDict).
+
+
+unique_count_while_removing_entries(C) ->
+    unique_count(C),
+    UniqueCount = ejabberd_sm:get_unique_sessions_number(),
+    %% Register more sessions and mock the crash
+    UsersWithManyResources = generate_many_random_res(10, 3, [<<"localhost">>, <<"otherhost">>]),
+    [given_session_opened(Sid, USR) || {Sid, USR} <- UsersWithManyResources],
+    set_test_case_meck_unique_count_crash(?B(C)),
+    USDict = get_unique_us_dict(UsersWithManyResources),
+    %% Check if unique count equals prev cached value
+    UniqueCount = ejabberd_sm:get_unique_sessions_number(),
+    true = UniqueCount /= dict:size(USDict) + UniqueCount.
 
 set_meck(SMBackend) ->
     meck:new(ejabberd_config, []),
@@ -216,6 +236,19 @@ set_test_case_meck(MaxUserSessions) ->
     meck:new(ejabberd_hooks, []),
     meck:expect(ejabberd_hooks, run, fun(_, _, _) -> ok end).
 
+set_test_case_meck_unique_count_crash(Backend) ->
+    F = get_fun_for_unique_count(Backend),
+    meck:new(Backend, []),
+    meck:expect(Backend, unique_count, F).
+
+get_fun_for_unique_count(ejabberd_sm_mnesia) ->
+    fun() ->
+        mnesia:abort({badarg,[session,{{1442,941593,580189},list_to_pid("<0.23291.6>")}]})
+    end;
+get_fun_for_unique_count(ejabberd_sm_redis) ->
+    fun() ->
+        length({error, timeout})
+    end.
 
 make_sid() ->
     {now(), self()}.
