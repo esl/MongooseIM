@@ -3,6 +3,8 @@
 EJABBERD_DIR = apps/ejabberd
 EJD_INCLUDE = $(EJABBERD_DIR)/include
 EJD_PRIV = $(EJABBERD_DIR)/priv
+XEP_TOOL = tools/xep_tool
+EJD_EBIN = $(EJABBERD_DIR)/ebin
 DEVNODES = node1 node2
 
 all: deps compile
@@ -138,6 +140,9 @@ dialyzer: check_plt dialyzer_quick
 dialyzer_quick:
 	dialyzer -n -Wno_return -Wno_unused -Wno_undefined_callbacks --fullpath --plt $(COMBO_PLT) $(DIALYZER_APPS_PATHS)
 #	    fgrep -v -f ./dialyzer.ignore-warnings | tee dialyzer.log
+
+xeplist: escript
+	escript $(XEP_TOOL)/xep_tool.escript $(EJD_EBIN)
 
 cleanplt:
 	rm $(COMBO_PLT)
