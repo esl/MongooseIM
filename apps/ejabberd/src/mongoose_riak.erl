@@ -35,7 +35,9 @@
 -export([create_new_map/1]).
 -export([update_map/2]).
 -export([mapred/2]).
--export([search/2, search/3]).
+-export([search/2]).
+-export([search/3]).
+
 -export([pool_name/0]).
 
 -compile({no_auto_import,[put/2]}).
@@ -87,13 +89,14 @@ get(Bucket, Key, OptsOrTimeout) ->
     ?CALL(get, [Bucket, Key, OptsOrTimeout]).
 
 
--spec update_type({binary(), binary()}, binary(), riakc_datatype:update(term())) -> ok.
+-spec update_type({binary(), binary()}, binary(), riakc_datatype:update(term())) ->
+    ok | {error, term()}.
 update_type(Bucket, Key, Update) ->
     update_type(Bucket, Key, Update, []).
 
 -spec update_type({binary(), binary()}, binary(),
     riakc_datatype:update(term()), [proplists:property()]) ->
-    ok.
+    ok | {error, term()}.
 update_type(Bucket, Key, Update, Options) ->
     ?CALL(update_type, [Bucket, Key, Update, Options]).
 
@@ -134,8 +137,7 @@ create_new_map(Ops) ->
 update_map(Map, Ops) ->
     lists:foldl(fun update_map_op/2, Map, Ops).
 
--spec mapred(mapred_inputs(), [mapred_queryterm()]) ->
-             {ok, mapred_result()} | {error, term()}.
+-spec mapred(mapred_inputs(), [mapred_queryterm()]) -> {ok, mapred_result()} | {error, term()}.
 mapred(KeyFileters, MapRed) ->
     ?CALL(mapred, [KeyFileters, MapRed]).
 

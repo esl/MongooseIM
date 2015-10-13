@@ -36,7 +36,7 @@ init_per_suite(Config) ->
         true ->
             {skip, "users api not compatible with external authentication"};
         false ->
-            katt_helper:init_per_suite(Config)
+            [{riak_auth, is_riak_auth()} | katt_helper:init_per_suite(Config)]
     end.
 
 end_per_suite(Config) ->
@@ -65,7 +65,8 @@ user_transaction(Config) ->
 
     UserCount1 = proplists:get_value("user_count_1", Vars),
     UserCount2 = proplists:get_value("user_count_2", Vars),
-    ?assertEqual(UserCount1+1, UserCount2).
+    ?assertEqual(UserCount1+1, UserCount2),
+    wait_for_user_removal(proplists:get_value(riak_auth, Config)).
 
 negative_calls(Config) ->
     Params = [{host, ct:get_config(ejabberd_domain)}],
@@ -77,9 +78,29 @@ negative_calls(Config) ->
 is_external_auth() ->
     lists:member(ejabberd_auth_external, auth_modules()).
 
+is_riak_auth() ->
+    lists:member(ejabberd_auth_riak, auth_modules()).
+
 auth_modules() ->
     Hosts = escalus_ejabberd:rpc(ejabberd_config, get_global_option, [hosts]),
     lists:flatmap(
       fun(Host) ->
               escalus_ejabberd:rpc(ejabberd_auth, auth_modules, [Host])
       end, Hosts).
+
+wait_for_user_removal(false) ->
+    ok;
+wait_for_user_removal(_) ->
+    do_wait_for_user_removal(10).
+
+do_wait_for_user_removal(0) ->
+    ok;
+do_wait_for_user_removal(N) ->
+    Domain = ct:get_config(ejabberd_domain),
+    case escalus_ejabberd:rpc(ejabberd_auth_riak, get_vh_registered_users_number, [Domain]) of
+        0 ->
+            ok;
+        _ ->
+            timer:sleep(500),
+            do_wait_for_user_removal(N-1)
+    end.

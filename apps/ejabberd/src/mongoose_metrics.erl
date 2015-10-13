@@ -20,6 +20,7 @@
 %% API
 -export([init/0,
          update/2,
+         create/2,
          ensure_metric/2,
          start_host_metrics_subscriptions/3,
          start_vm_metrics_subscriptions/2,
@@ -62,6 +63,10 @@ update(Name, Change) when is_tuple(Name)->
 update(Name, Change) ->
     exometer:update(Name, Change).
 
+-spec create(list(), term()) -> ok | {error, term()}.
+create(Metric, Spec) ->
+    ensure_metric(Metric, Spec).
+
 start_host_metrics_subscriptions(Reporter, Host, Interval) ->
     do_start_metrics_subscriptions(Reporter, Interval, [Host]).
 
@@ -78,7 +83,7 @@ start_backend_metrics_subscriptions(Reporter, Interval) ->
     do_start_metrics_subscriptions(Reporter, Interval, [backends]).
 
 get_host_metric_names(Host) ->
-    [MetricName || {[_Host, MetricName | _], _, _} <- exometer:find_entries([Host])].
+    [MetricName || {[_Host | MetricName], _, _} <- exometer:find_entries([Host])].
 
 get_global_metric_names() ->
     get_host_metric_names(global).
@@ -254,15 +259,14 @@ create_metrics(Host) ->
                   get_general_counters(Host)),
 
     lists:foreach(fun(Name) -> ensure_metric(Name, counter) end,
-                  get_total_counters(Host)),
+                  get_total_counters(Host)).
 
-    lists:foreach(fun(Name) -> ensure_metric(Name, histogram) end,
-                  get_histograms(Host)).
-
-ensure_metric(Name, Type) ->
-    case exometer:info(Name, type) of
+ensure_metric(Metric, Type) when is_tuple(Metric)->
+    ensure_metric(tuple_to_list(Metric), Type);
+ensure_metric(Metric, Type) when is_list(Metric) ->
+    case exometer:info(Metric, type) of
         Type -> {ok, already_present};
-        undefined -> exometer:new(Name, Type)
+        undefined -> exometer:new(Metric, Type)
     end.
 
 -spec metrics_hooks('add' | 'delete', ejabberd:server()) -> 'ok'.
@@ -341,15 +345,6 @@ get_general_counters(Host) ->
 get_total_counters(Host) ->
     get_counters(Host, ?TOTAL_COUNTERS).
 
--define (HISTOGRAMS, [
-    mam_archive_time,
-    mam_lookup_time
-
-]).
-
-get_histograms(Host) ->
-    get_counters(Host, ?HISTOGRAMS).
-
 -define(EX_EVAL_SINGLE_VALUE, {[{l, [{t, [value, {v, 'Value'}]}]}],[value]}).
 -define(GLOBAL_COUNTERS,
         [{[global, totalSessionCount],
@@ -387,7 +382,7 @@ create_global_metrics() ->
         FunSpecTuple = list_to_tuple(FunSpec ++ [DataPoints]),
         catch exometer:new(Metric, FunSpecTuple)
     end, get_vm_stats()),
-    lists:foreach(fun({Metric, Spec}) -> exometer:new(Metric, Spec) end,
+    lists:foreach(fun({Metric, Spec}) -> create(Metric, Spec) end,
                   ?GLOBAL_COUNTERS),
     create_data_metrics().
 

@@ -1,5 +1,7 @@
-### Module Description
+# Module Description
 This module implements revision 0.2 of [XEP-0313 (Message Archive Management)](http://xmpp.org/extensions/attic/xep-0313-0.2.html). It is a highly customizable module, that requires some skill and knowledge to operate properly and efficiently.
+
+## Configuring MAM with ODBC backend
 
 ### Options
 * **mod_mam_odbc_prefs, mod_mam_mnesia_prefs, mod_mam_dirty_prefs**
@@ -64,3 +66,18 @@ Enabling asynchronous writers will make debugging more difficult.
 Enabling asynchronous writers will make debugging more difficult.
 
 * **mod_mam_muc_odbc_async_pool_writer** - Asychronous writer, will insert batches of messages, grouped by archive ID.
+
+## Configuring MAM with Riak backend
+
+In order to use Riak as the backend for one-to-one archives, the following configuration must be used:
+
+```erlang
+{mod_mam, []}.
+{mod_mam_riak_timed_arch_yz, []}.
+```
+
+The Riak backend for MAM stores messages in weekly buckets so it's easier to remove old buckets.
+Archive querying is done using Riak 2.0 [search mechanism](http://docs.basho.com/riak/2.1.1/dev/using/search/)
+called Yokozuna. Your instance of Riak must be configured with Yokozuna enabled.
+
+This backend works with Riak 2.0 and above, but the recommend version is 2.1.1

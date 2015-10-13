@@ -101,14 +101,14 @@ DELETE /api/users/host/{{<host}}/username/{{<username}}
 > Host: {{<hostname}}:{{<port}}
 < 204
 
-# 8. Delete the other too
+# 9. Delete the other too
 
 DELETE /api/users/host/{{<host}}/username/http_guy2
 > User-Agent: katt
 > Host: {{<hostname}}:{{<port}}
 < 204
 
-# 9. Fetch list one more time
+# 10. Fetch list one more time
 
 GET /api/users/host/{{<host}}
 > Accept: application/json

@@ -183,6 +183,9 @@ start(Host, Opts) ->
     ejabberd_hooks:add(filter_local_packet, Host, ?MODULE, filter_packet, 90),
     ejabberd_hooks:add(remove_user, Host, ?MODULE, remove_user, 50),
     ejabberd_hooks:add(anonymous_purge_hook, Host, ?MODULE, remove_user, 50),
+    mongoose_metrics:create([backends, ?MODULE, lookup], histogram),
+    mongoose_metrics:create([Host, modMamLookups, simple], spiral),
+    mongoose_metrics:create([backends, ?MODULE, archive], histogram),
     ok.
 
 
@@ -569,10 +572,14 @@ remove_archive(Host, ArcID, ArcJID=#jid{}) ->
             | {error, Reason :: term()}.
 lookup_messages(Host, ArcID, ArcJID, RSM, Borders, Start, End, Now,
                 WithJID, PageSize, LimitPassed, MaxResultLimit, IsSimple) ->
-    ejabberd_hooks:run_fold(mam_lookup_messages, Host, {ok, {0, 0, []}},
+    StartT = os:timestamp(),
+    R = ejabberd_hooks:run_fold(mam_lookup_messages, Host, {ok, {0, 0, []}},
         [Host, ArcID, ArcJID, RSM, Borders,
          Start, End, Now, WithJID,
-         PageSize, LimitPassed, MaxResultLimit, IsSimple]).
+         PageSize, LimitPassed, MaxResultLimit, IsSimple]),
+    Diff = timer:now_diff(os:timestamp(), StartT),
+    mongoose_metrics:update([backends, ?MODULE, lookup], Diff),
+    R.
 
 
 -spec archive_message(Host :: ejabberd:server(), MessID :: message_id(),
@@ -580,9 +587,12 @@ lookup_messages(Host, ArcID, ArcJID, RSM, Borders, Start, End, Now,
     SrcJID :: ejabberd:jid(), Dir :: incoming | outgoing, Packet :: term()
     ) -> ok | {error, timeout}.
 archive_message(Host, MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet) ->
-    ejabberd_hooks:run_fold(mam_archive_message, Host, ok,
-        [Host, MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet]).
-
+    StartT = os:timestamp(),
+    R = ejabberd_hooks:run_fold(mam_archive_message, Host, ok,
+        [Host, MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet]),
+    Diff = timer:now_diff(os:timestamp(), StartT),
+    mongoose_metrics:update([backends, ?MODULE, archive], Diff),
+    R.
 
 -spec purge_single_message(Host :: ejabberd:server(), MessID :: message_id(),
     ArcID  :: archive_id(), ArcJID :: ejabberd:jid(), Now :: unix_timestamp()
@@ -628,11 +638,6 @@ message_row_to_xml({MessID,SrcJID,Packet}, QueryID) ->
 -spec message_row_to_ext_id(messid_jid_packet()) -> binary().
 message_row_to_ext_id({MessID,_,_}) ->
     mess_id_to_external_binary(MessID).
-
-
--spec message_row_to_dump_xml(messid_jid_packet()) -> false | jlib:xmlel().
-message_row_to_dump_xml(M) ->
-     xml:get_subtag(message_row_to_xml(M, undefined), <<"result">>).
 
 
 -spec maybe_jid(binary()) -> 'error' | 'undefined' | ejabberd:jid().
