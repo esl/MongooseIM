@@ -52,3 +52,4 @@ pages:
       - 'Hooks description': 'developers-guide/hooks_description.md'
       - 'Stanza routing': 'developers-guide/message_routing.md'
       - 'mod_amp development': 'developers-guide/mod_amp_developers_guide.md'
+      - 'xep-tool usage': 'developers-guide/xep_tool.md'
