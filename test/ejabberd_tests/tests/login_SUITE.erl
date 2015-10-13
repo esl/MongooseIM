@@ -20,6 +20,8 @@
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
 
+-include_lib("exml/include/exml.hrl").
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -39,7 +41,8 @@ all() ->
 
 groups() ->
     [{register, [sequence], [register,
-                             check_unregistered]},
+                             check_unregistered,
+			     bad_request_registration_cancelation]},
      {registration_timeout, [sequence], [registration_timeout]},
      {login, [sequence], all_tests()},
      {login_scram, [sequence], scram_tests()},
@@ -195,6 +198,25 @@ check_unregistered(Config) ->
     [{_, UserSpec}| _] = escalus_users:get_users(all),
     [Username, Server, _Pass] = escalus_users:get_usp(Config, UserSpec),
     false = escalus_ejabberd:rpc(ejabberd_auth, is_user_exists, [Username, Server]).
+
+bad_request_registration_cancelation(Config) ->
+
+    %% To quote XEP 0077, section 3.2, table 1 (unregister error
+    %% cases): "The <remove/> element [is] not the only child element
+    %% of the <query/> element."
+
+    escalus:create_users(Config, {by_name, [alice]}),
+
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+
+        %% Alice sends cancelation request
+        escalus:send(Alice, bad_cancelation_stanza()),
+
+        %% Alice receives failure response
+        escalus:assert(is_iq_error,
+                       escalus:wait_for_stanza(Alice))
+
+    end).
 
 registration_timeout(Config) ->
     [Alice, Bob] = escalus_users:get_users({by_name, [alice, bob]}),
@@ -378,3 +400,11 @@ do_verify_format(login_scram, _Password, SPassword) ->
     {_, _, _, _} = SPassword;
 do_verify_format(_, Password, SPassword) ->
     Password = SPassword.
+
+bad_cancelation_stanza() ->
+    escalus_stanza:iq(<<"set">>, [#xmlel{name = <<"query">>,
+        attrs = [{<<"xmlns">>, <<"jabber:iq:register">>}],
+	children = [#xmlel{name = <<"remove">>},
+	%% The <remove/> element was not the only child element of the
+	%% <query/> element.
+	#xmlel{name = <<"foo">>}]}]).
