@@ -13,7 +13,7 @@ MIM_LDAP_CONTAINERS=`docker ps -s -f "name=${LDAP_CONT_NAME}" | wc -l`
 
 if [ ${MIM_LDAP_CONTAINERS} -le 1 ]; then
 
-docker run --name {LDAP_CONT_NAME} \
+docker run --name ${LDAP_CONT_NAME} \
 	-p ${LDAP_PORT}:389 \
 	-e LDAP_DOMAIN=esl.com \
 	-e LDAP_ORGANISATION="MongooseIM" \
