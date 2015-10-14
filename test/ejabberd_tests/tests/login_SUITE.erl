@@ -40,9 +40,10 @@ all() ->
     ].
 
 groups() ->
-    [{register, [sequence], [register,
-                             check_unregistered,
-			     bad_request_registration_cancelation]},
+    [{register, [no_sequence], [register,
+				check_unregistered,
+				bad_request_registration_cancelation,
+				not_allowed_registration_cancelation]},
      {registration_timeout, [sequence], [registration_timeout]},
      {login, [sequence], all_tests()},
      {login_scram, [sequence], scram_tests()},
@@ -131,6 +132,9 @@ init_per_testcase(DigestOrScram, Config) when
     end;
 init_per_testcase(check_unregistered, Config) ->
     Config;
+init_per_testcase(not_allowed_registration_cancelation, Config) ->
+    ok = dynamic_modules:stop(<<"localhost">>, mod_register),
+    escalus:init_per_testcase(not_allowed_registration_cancelation, Config);
 init_per_testcase(message_zlib_limit, Config) ->
     Listeners = [Listener
                  || {Listener, _, _} <- escalus_ejabberd:rpc(ejabberd_config, get_local_option, [listen])],
@@ -160,6 +164,9 @@ end_per_testcase(message_zlib_limit, Config) ->
     escalus:delete_users(Config, {by_name, [hacker]});
 end_per_testcase(check_unregistered, Config) ->
     Config;
+end_per_testcase(not_allowed_registration_cancelation, Config) ->
+    ok = dynamic_modules:start(<<"localhost">>, mod_register, []),
+    escalus:end_per_testcase(not_allowed_registration_cancelation, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
@@ -217,6 +224,27 @@ bad_request_registration_cancelation(Config) ->
                        escalus:wait_for_stanza(Alice))
 
     end).
+
+not_allowed_registration_cancelation(Config) ->
+
+    %% To quote XEP 0077, section 3.2, table 1 (unregister error
+    %% cases): "No sender is allowed to cancel registrations in-band."
+    %% Presumably when registration itself is not enabled.
+
+    escalus:create_users(Config, {by_name, [alice]}),
+
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+
+        %% Alice sends cancelation request
+        escalus:send(Alice, escalus_stanza:remove_account()),
+
+        %% Alice receives failure response
+        escalus:assert(is_iq_error,
+                       escalus:wait_for_stanza(Alice))
+
+    end),
+
+    escalus_users:delete_users(Config, {by_name, [alice]}).
 
 registration_timeout(Config) ->
     [Alice, Bob] = escalus_users:get_users({by_name, [alice, bob]}),
