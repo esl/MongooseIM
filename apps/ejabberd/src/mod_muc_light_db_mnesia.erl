@@ -52,7 +52,7 @@
 
 %% Extra API for testing
 -export([
-         force_destroy_room/1
+         force_clear/0
         ]).
 
 -include("ejabberd.hrl").
@@ -228,9 +228,9 @@ get_info(RoomUS) ->
 %% API for tests
 %%====================================================================
 
--spec force_destroy_room(RoomUS :: ejabberd:simple_bare_jid()) -> ok.
-force_destroy_room(RoomUS) ->
-    mnesia:dirty_delete(?ROOM_TAB, RoomUS).
+-spec force_clear() -> ok.
+force_clear() ->
+    lists:foreach(fun mnesia:clear_table/1, [?ROOM_TAB, ?USER_ROOM_TAB, ?BLOCKING_TAB]).
 
 %%====================================================================
 %% Internal functions
@@ -298,16 +298,15 @@ create_room_transaction(RoomUS, Config, AffUsers, Version) ->
                                            room = RoomUS
                                           },
                       ok = mnesia:write(UserRoomRecord)
-              end, AffUsers)
+              end, AffUsers),
+            {ok, RoomUS}
     end.
 
--spec destroy_room_transaction(RoomUS :: ejabberd:simple_bare_jid()) ->
-    ok | {error, not_exists | not_empty}.
+-spec destroy_room_transaction(RoomUS :: ejabberd:simple_bare_jid()) -> ok | {error, not_exists}.
 destroy_room_transaction(RoomUS) ->
     case mnesia:wread({?ROOM_TAB, RoomUS}) of
         [] -> {error, not_exists};
-        [#?ROOM_TAB{ aff_users = [] }] -> mnesia:delete({?ROOM_TAB, RoomUS});
-        [_] -> {error, not_empty}
+        [_] -> mnesia:delete({?ROOM_TAB, RoomUS})
     end.
 
 -spec remove_user_transaction(UserUS :: ejabberd:simple_bare_jid(), Version :: binary()) ->

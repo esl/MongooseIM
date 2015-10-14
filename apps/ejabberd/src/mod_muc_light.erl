@@ -30,7 +30,7 @@
 
 %% API
 -export([default_config/0]).
--export([get_service_opt/2]).
+-export([get_service_opt/2, set_service_opt/2]).
 
 %% gen_mod callbacks
 -export([start/2, stop/1]).
@@ -63,6 +63,12 @@ default_config() ->
 -spec get_service_opt(OptName :: atom(), Default :: any()) -> any().
 get_service_opt(OptName, Default) ->
     gen_mod:get_module_opt(global, ?MODULE, OptName, Default).
+
+-spec set_service_opt(OptName :: atom(), Value :: any()) -> any().
+set_service_opt(OptName, Default) ->
+    lists:foreach(fun(Host) ->
+                          gen_mod:set_module_opt(Host, ?MODULE, OptName, Default)
+                  end, ?MYHOSTS).
 
 %%====================================================================
 %% gen_mod callbacks
@@ -184,7 +190,7 @@ remove_user(User, Server) ->
                   OrigPacket :: jlib:xmlel()) -> ok.
 create_room(From, To, #create{ raw_config = RawConfig } = Create0, OrigPacket) ->
     FromUS = jlib:jid_to_lus(From),
-    RoomUS = jlib:jid_to_lus(To), % might be service JID for room autogeneration
+    {RoomU, _} = RoomUS = jlib:jid_to_lus(To), % might be service JID for room autogeneration
     InitialAffUsers = mod_muc_light_utils:filter_out_prevented(
                         FromUS, RoomUS, Create0#create.aff_users),
     case {mod_muc_light_utils:process_raw_config(RawConfig, default_config()),
@@ -194,7 +200,8 @@ create_room(From, To, #create{ raw_config = RawConfig } = Create0, OrigPacket) -
             case ?BACKEND:create_room(RoomUS, lists:sort(Config0), FinalAffUsers, Version) of
                 {ok, FinalRoomUS} ->
                     Create = Create0#create{ version = Version, aff_users = FinalAffUsers },
-                    ?CODEC:encode({set, Create}, From, FinalRoomUS, fun ejabberd_router:route/3);
+                    ?CODEC:encode({set, Create, RoomU == <<>>}, From,
+                                  FinalRoomUS, fun ejabberd_router:route/3);
                 {error, exists} ->
                     mod_muc_light_codec:encode_error({error, conflict}, From, To, OrigPacket,
                                                      fun ejabberd_router:route/3)

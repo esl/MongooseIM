@@ -45,6 +45,8 @@ encode_error(ErrMsg, OrigFrom, OrigTo, OrigPacket, HandleFun) ->
     HandleFun(OrigTo, OrigFrom, ErrorPacket).
 
 -spec make_error_elem(tuple()) -> jlib:xmlel().
+make_error_elem({error, not_allowed}) ->
+    ?ERR_NOT_ALLOWED;
 make_error_elem({error, bad_request}) ->
     ?ERR_BAD_REQUEST;
 make_error_elem({error, item_not_found}) ->

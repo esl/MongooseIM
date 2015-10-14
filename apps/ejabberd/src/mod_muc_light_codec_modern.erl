@@ -297,7 +297,7 @@ encode_iq({set, #create{} = Create, UniqueRequested}, RoomJID, RoomBin, HandleFu
             ],
 
     VersionEl = kv_to_el(<<"version">>, Create#create.version),
-    bcast_aff_messages(RoomJID, Create#create.aff_users, [], Attrs, VersionEl, [], HandleFun),
+    bcast_aff_messages(RoomJID, [], Create#create.aff_users, Attrs, VersionEl, [], HandleFun),
 
     %% IQ reply "from"
     %% Sent from service JID when unique room was requested
@@ -307,7 +307,7 @@ encode_iq({set, #create{} = Create, UniqueRequested}, RoomJID, RoomBin, HandleFu
                                             RoomJID#jid.lserver};
                                    false -> {RoomJID, RoomBin}
                                end,
-    {reply, ResFromJID, ResFromBin, <<>>, [], Create#create.id};
+    {reply, ResFromJID, ResFromBin, <<>>, undefined, Create#create.id};
 encode_iq({set, #destroy{ id = ID }, AffUsers}, RoomJID, RoomBin, HandleFun) ->
     Attrs = [
              {<<"id">>, ID},

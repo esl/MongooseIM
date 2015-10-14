@@ -183,7 +183,7 @@ validate_aff_changes_by_member(_AffUsersChanges, _Acc, _UserUS, _OwnerUS, _RoomU
     {set, #affiliations{}, OldAffUsers :: aff_users(), NewAffUsers :: aff_users()}
     | {error, not_allowed}.
 process_aff_set(AffReq, _RoomUS, {ok, []}) -> % It seems that all users blocked this request
-    {set, AffReq, []}; % Just return result to the user, don't change or broadcast anything
+    {set, AffReq, [], []}; % Just return result to the user, don't change or broadcast anything
 process_aff_set(AffReq, RoomUS, {ok, FilteredAffUsers}) ->
     NewVersion = mod_muc_light_utils:bin_ts(),
     case ?BACKEND:modify_aff_users(RoomUS, FilteredAffUsers,

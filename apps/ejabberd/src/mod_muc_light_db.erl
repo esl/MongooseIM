@@ -35,8 +35,7 @@
                       AffUsers :: aff_users(), Version :: binary()) ->
     {ok, FinalRoomUS :: ejabberd:simple_bare_jid()} | {error, exists}.
 
--callback destroy_room(RoomUS :: ejabberd:simple_bare_jid()) ->
-    ok | {error, not_exists | not_empty}.
+-callback destroy_room(RoomUS :: ejabberd:simple_bare_jid()) -> ok | {error, not_exists}.
 
 -callback room_exists(RoomUS :: ejabberd:simple_bare_jid()) -> boolean().
 
@@ -90,5 +89,5 @@
 
 %% ------------------------ API for tests ------------------------
 
--callback force_destroy_room(RoomUS :: ejabberd:simple_bare_jid()) -> ok.
+-callback force_clear() -> ok.
 
