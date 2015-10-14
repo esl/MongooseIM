@@ -7,7 +7,7 @@ XEP_TOOL = tools/xep_tool
 EJD_EBIN = $(EJABBERD_DIR)/ebin
 DEVNODES = node1 node2
 DEVNODESCD = node1cd node2cd
-REL_DEST = ./paczka
+REL_DEST = ./uat_package
 
 all: deps compile
 
@@ -162,6 +162,8 @@ test_deps:
 
 # CONTINUOUS DELIVERY TARGETS invoked by building/testing agents
 
+# after successful build and common tests passed - expose all binaries for uat testing.
+# additional files for release generation should be included as well.
 cd_copyrel:
 	mkdir $(REL_DEST)
 	rsync -uWr --exclude="*.erl" --exclude="*.spec" --exclude=".git" --exclude="logs/" --exclude="test/" ./apps $(REL_DEST)
@@ -175,7 +177,7 @@ cd_copyrel:
 	rsync -uWr ./ebin $(REL_DEST)
 	rsync -uWr --exclude="*.erl" ./src $(REL_DEST)
 	rsync -uWr ./tools/configure $(REL_DEST)
-	tar -cf paczka.tar $(REL_DEST)/*
+	tar -cf uat_package.tar $(REL_DEST)/*
 
 cd_copyrel_unpack:
 	mv ./* ../
