@@ -102,3 +102,9 @@ ebin/
 #idea
 .idea/
 *.iml
+dialyzer/
+site/
+etc/
+log/
+Mnesia.*
+tags
