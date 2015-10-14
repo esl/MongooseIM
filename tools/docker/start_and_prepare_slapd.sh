@@ -9,7 +9,7 @@ LDAP_ROOTPASS="mongoose"
 
 LDAP_CONT_NAME="mongooseim_ldap"
 
-MIM_LDAP_CONTAINERS=`docker ps -s -f "name=${LDAP_CONT_NAME}" | wc -l`
+MIM_LDAP_CONTAINERS=`docker ps -a -s -f "name=${LDAP_CONT_NAME}" | wc -l`
 
 if [ ${MIM_LDAP_CONTAINERS} -le 1 ]; then
 
