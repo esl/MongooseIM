@@ -49,6 +49,7 @@ env:
         - PRESET=ldap_mnesia DB=mnesia REL_CONFIG=minimal
         - PRESET=riak_mnesia DB=riak REL_CONFIG=with-riak
         - PRESET=external_mnesia DB=mnesia REL_CONFIG=minimal
+        - PRESET=dialyzer_only
 
 matrix:
     include:
