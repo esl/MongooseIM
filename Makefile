@@ -211,8 +211,22 @@ cd_ct:
         -I apps/*/include -logdir apps/ejabberd/ctlogs  -noshell
 # -ct_hooks cth_surefire -logdir apps/ejabberd/ct_surefire_logs
 
+# --runtime control---- start test deployments for varios UAT/functional test targets.
+# After starting - invote ALL/some functional user acceptance tests.
+# -------- against configurations.
 
-# CD END ----------
+cd_uat_test_two_nodes_start:
+	cd dev/mongooseim_node1cd/bin && ./mongooseimctl start
+	sleep 3
+	cd dev/mongooseim_node2cd/bin && ./mongooseimctl start
+
+cd_uat_test_two_nodes_stop:
+	cd dev/mongooseim_node1cd/bin && ./mongooseimctl stop
+	sleep 3
+	cd dev/mongooseim_node2cd/bin && ./mongooseimctl stop
+
+cd_uat_test_full:
+	cd test/ejabberd_tests && make test
 
 %:
 	@:
