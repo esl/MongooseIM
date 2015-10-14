@@ -73,7 +73,7 @@ participant_limit_check(_RoomUS, NewAffUsers) ->
     packet_processing_result().
 process_request(_From, _RoomUS, _Request, {error, _} = Error) ->
     Error;
-process_request(From, RoomUS, Request, {ok, AffUsers}) ->
+process_request(From, RoomUS, Request, {ok, AffUsers, _Ver}) ->
     UserUS = jlib:jid_to_lus(From),
     Auth = lists:keyfind(UserUS, 1, AffUsers),
     process_request(Request, From, UserUS, RoomUS, Auth, AffUsers).
@@ -87,11 +87,6 @@ process_request(From, RoomUS, Request, {ok, AffUsers}) ->
     packet_processing_result().
 process_request(_Request, _From, _UserUS, _RoomUS, false, _AffUsers) ->
     {error, item_not_found};
-process_request(#subject{ text = Subject }, _From, _UserUS, RoomUS, _Auth, _AffUsers) ->
-    NewVersion = mod_muc_utils:bin_ts(),
-    {ok, OldVersion} = ?BACKEND:set_config(RoomUS, subject, Subject, NewVersion),
-    {set, #config{ id = mod_muc_utils:bin_ts(), prev_version = OldVersion,
-                   version = NewVersion, raw_config = [{<<"subject">>, Subject}] }};
 process_request(#msg{} = Msg, _From, _UserUS, _RoomUS, _Auth, AffUsers) ->
     {Msg, AffUsers};
 process_request({get, #config{} = ConfigReq}, _From, _UserUS, RoomUS, _Auth, _AffUsers) ->
@@ -114,17 +109,15 @@ process_request({set, #affiliations{} = AffReq}, _From, UserUS, RoomUS, {_, User
                   false -> undefined;
                   {OwnerUS0, _} -> OwnerUS0
               end,
-    Blocking = mod_muc_light:get_service_opt(blocking, ?DEFAULT_BLOCKING),
-    RoomsPerUser = mod_muc_light:get_service_opt(rooms_per_user, ?DEFAULT_ROOMS_PER_USER),
     ValidateResult
     = case UserAff of
           owner ->
-              validate_aff_changes_by_owner(
-                AffReq#affiliations.aff_users, [], UserUS, RoomUS, Blocking, RoomsPerUser);
+              {ok, mod_muc_light_utils:filter_out_prevented(
+                     UserUS, RoomUS, AffReq#affiliations.aff_users)};
           member ->
               AllCanInvite = mod_muc_light:get_service_opt(all_can_invite, ?DEFAULT_ALL_CAN_INVITE),
-              validate_aff_changes_by_member(AffReq#affiliations.aff_users, [], UserUS, OwnerUS,
-                                             RoomUS, Blocking, RoomsPerUser, AllCanInvite)
+              validate_aff_changes_by_member(
+                AffReq#affiliations.aff_users, [], UserUS, OwnerUS, RoomUS, AllCanInvite)
       end,
     process_aff_set(AffReq, RoomUS, ValidateResult);
 process_request({set, #destroy{} = DestroyReq}, _From, _UserUS, RoomUS, {_, owner}, AffUsers) ->
@@ -142,6 +135,10 @@ process_request(_UnknownReq, _From, _UserUS, _RoomUS, _Auth, _AffUsers) ->
                          UserAff :: member | owner, AffUsers :: aff_users(),
                          AllCanConfigure :: boolean()) ->
     {set, #config{}} | {error, not_allowed} | validation_error().
+process_config_set(#config{ raw_config = [{<<"subject">>, _}] } = ConfigReq, RoomUS, UserAff,
+                   AffUsers, false) ->
+    % Everyone is allowed to change subject
+    process_config_set(ConfigReq, RoomUS, UserAff, AffUsers, true);
 process_config_set(_ConfigReq, _RoomUS, member, _AffUsers, false) ->
     {error, not_allowed};
 process_config_set(ConfigReq, RoomUS, _UserAff, AffUsers, _AllCanConfigure) ->
@@ -156,63 +153,28 @@ process_config_set(ConfigReq, RoomUS, _UserAff, AffUsers, _AllCanConfigure) ->
 
 %% --------- Affiliation set ---------
 
--spec filter_aff_changes(AffUser :: aff_user(),
-                         AffUsersAcc :: aff_users(),
-                         FromUS :: ejabberd:simple_bare_jid(),
-                         RoomUS :: ejabberd:simple_bare_jid(),
-                         Blocking :: boolean(),
-                         RoomsPerUser :: rooms_per_user()) ->
-    aff_users().
-filter_aff_changes({UserUS, _} = AffUser, AffUsersAcc, FromUS, RoomUS, Blocking, RoomsPerUser) ->
-    case (not Blocking orelse ?BACKEND:get_blocking(
-                                 UserUS, [{room, RoomUS}, {user, FromUS}]) == allow)
-         andalso
-         (RoomsPerUser == infinity orelse length(?BACKEND:get_user_rooms(UserUS)) < RoomsPerUser) of
-        true -> [AffUser | AffUsersAcc];
-        false -> AffUsersAcc
-    end.
-
--spec validate_aff_changes_by_owner(AffUsersChanges :: aff_users(),
-                                   AffUsersChangesAcc :: aff_users(),
-                                   UserUS :: ejabberd:simple_bare_jid(),
-                                   RoomUS :: ejabberd:simple_bare_jid(),
-                                   Blocking :: boolean(),
-                                   RoomsPerUser :: rooms_per_user()) ->
-    {ok, aff_users()}.
-validate_aff_changes_by_owner([], Acc, _OwnerUS, _RoomUS, _Blocking, _RoomsPerUser) ->
-    {ok, Acc};
-validate_aff_changes_by_owner([AffUserChange | RAffUsersChanges], Acc0, OwnerUS, RoomUS,
-                              Blocking, RoomsPerUser) ->
-    Acc = filter_aff_changes(AffUserChange, Acc0, OwnerUS, RoomUS, Blocking, RoomsPerUser),
-    validate_aff_changes_by_owner(RAffUsersChanges, Acc, OwnerUS, RoomUS, Blocking, RoomsPerUser).
-
 %% Member can only add new members or leave
 -spec validate_aff_changes_by_member(AffUsersChanges :: aff_users(),
                                    AffUsersChangesAcc :: aff_users(),
                                    UserUS :: ejabberd:simple_bare_jid(),
                                    OwnerUS :: ejabberd:simple_bare_jid(),
                                    RoomUS :: ejabberd:simple_bare_jid(),
-                                   Blocking :: boolean(),
-                                   RoomsPerUser :: rooms_per_user(),
                                    AllCanInvite :: boolean()) ->
     {ok, aff_users()} | {error, not_allowed}.
-validate_aff_changes_by_member([], Acc, _UserUS, _OwnerUS, _RoomUS, _Blocking,
-                               _RoomsPerUser, _AllCanInvite) ->
+validate_aff_changes_by_member([], Acc, _UserUS, _OwnerUS, _RoomUS, _AllCanInvite) ->
     {ok, Acc};
 validate_aff_changes_by_member([{UserUS, none} | RAffUsersChanges], Acc, UserUS, OwnerUS,
-                               RoomUS, Blocking, RoomsPerUser, AllCanInvite) ->
+                               RoomUS, AllCanInvite) ->
     validate_aff_changes_by_member(RAffUsersChanges, [{UserUS, none} | Acc], UserUS, OwnerUS,
-                                   RoomUS, Blocking, RoomsPerUser, AllCanInvite);
+                                   RoomUS, AllCanInvite);
 validate_aff_changes_by_member([{OwnerUS, _} | _RAffUsersChanges], _Acc, _UserUS, OwnerUS,
-                               _RoomUS, _Blocking, _RoomsPerUser, _AllCanInvite) ->
+                               _RoomUS, _AllCanInvite) ->
     {error, not_allowed};
-validate_aff_changes_by_member([{_, member} = AffUserChange | RAffUsersChanges], Acc0, UserUS,
-                               OwnerUS, RoomUS, Blocking, RoomsPerUser, true) ->
-    Acc = filter_aff_changes(AffUserChange, Acc0, OwnerUS, RoomUS, Blocking, RoomsPerUser),
+validate_aff_changes_by_member([{_, member} = AffUserChange | RAffUsersChanges], Acc, UserUS,
+                               OwnerUS, RoomUS, true) ->
     validate_aff_changes_by_member(
-      RAffUsersChanges, Acc, UserUS, OwnerUS, RoomUS, Blocking, RoomsPerUser, true);
-validate_aff_changes_by_member(_AffUsersChanges, _Acc, _UserUS, _OwnerUS, _RoomUS, _Blocking,
-                               _RoomsPerUser, _AllCanInvite) ->
+      RAffUsersChanges, [AffUserChange | Acc], UserUS, OwnerUS, RoomUS, true);
+validate_aff_changes_by_member(_AffUsersChanges, _Acc, _UserUS, _OwnerUS, _RoomUS, _AllCanInvite) ->
     {error, not_allowed}.
 
 -spec process_aff_set(AffReq :: #affiliations{},

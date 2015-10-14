@@ -50,10 +50,6 @@
                           RoomVersion :: binary()}]
          }).
 
--record(subject, {
-          text = <<>> :: binary()
-         }).
-
 -record(msg, {
           id = <<>> :: binary(),
           children = [] :: [jlib:xmlch()]
@@ -99,7 +95,7 @@
 
 -type muc_light_disco() :: {get, #disco_info{} | #disco_items{}}.
 
--type muc_light_packet() :: #subject{} | #msg{}
+-type muc_light_packet() :: #msg{}
                           | {set | get, #config{} | #affiliations{} | #blocking{}}
                           | {get, #info{}}
                           | {set, #create{} | #destroy{}}.

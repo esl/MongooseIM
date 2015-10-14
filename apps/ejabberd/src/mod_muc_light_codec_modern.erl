@@ -25,8 +25,8 @@
     {ok, muc_light_packet()} | {error, bad_request} | ignore.
 decode(_From, #jid{ lresource = Resource }, _Stanza) when Resource =/= <<>> ->
     {error, bad_request};
-decode(From, _To, #xmlel{ name = <<"message">> } = Stanza) ->
-    decode_message(From, Stanza);
+decode(_From, _To, #xmlel{ name = <<"message">> } = Stanza) ->
+    decode_message(Stanza);
 decode(From, _To, #xmlel{ name = <<"iq">> } = Stanza) ->
     decode_iq(From, jlib:iq_query_info(Stanza));
 decode(_, _, _) ->
@@ -35,8 +35,9 @@ decode(_, _, _) ->
 -spec encode(Request :: muc_light_encode_request(), OriginalSender :: jlib:jid(),
              RoomUS :: ejabberd:simple_bare_jid(),
              HandleFun :: mod_muc_light_codec:encoded_packet_handler()) -> any().
-encode({#msg{} = Msg, AffUsers}, #jid{ lresource = <<>> } = Sender, RoomUS, HandleFun) ->
-    {RoomJID, RoomBin} = jids_from_room_with_resource(RoomUS, jlib:jid_to_binary(Sender)),
+encode({#msg{} = Msg, AffUsers}, Sender, RoomUS, HandleFun) ->
+    {RoomJID, RoomBin} = jids_from_room_with_resource(
+                           RoomUS, jlib:jid_to_binary(jlib:jid_to_lower(Sender))),
     Attrs = [
              {<<"id">>, Msg#msg.id},
              {<<"type">>, <<"groupchat">>},
@@ -50,7 +51,7 @@ encode(OtherCase, Sender, RoomUS, HandleFun) ->
     {RoomJID, RoomBin} = jids_from_room_with_resource(RoomUS, <<>>),
     case encode_iq(OtherCase, RoomJID, RoomBin, HandleFun) of
         {reply, ID} ->
-            IQRes = make_iq_result(RoomBin, jlib:jid_to_binary(Sender), ID, <<>>, []),
+            IQRes = make_iq_result(RoomBin, jlib:jid_to_binary(Sender), ID, <<>>, undefined),
             HandleFun(RoomJID, Sender, IQRes);
         {reply, XMLNS, Els, ID} ->
             IQRes = make_iq_result(RoomBin, jlib:jid_to_binary(Sender), ID, XMLNS, Els),
@@ -64,34 +65,18 @@ encode(OtherCase, Sender, RoomUS, HandleFun) ->
 %% Message decoding
 %%====================================================================
 
--spec decode_message(From :: jlib:jid(), Packet :: jlib:xmlel()) ->
+-spec decode_message(Packet :: jlib:xmlel()) ->
     {ok, muc_light_packet()} | {error, bad_request} | ignore.
-decode_message(From, #xmlel{ attrs = Attrs, children = Children }) ->
-    decode_message(From, lists:keyfind(<<"type">>, 1, Attrs),
-                   lists:keyfind(<<"subject">>, #xmlel.name, Children), Children).
+decode_message(#xmlel{ attrs = Attrs, children = Children }) ->
+    decode_message_by_type(lists:keyfind(<<"type">>, 1, Attrs), Children).
 
--spec decode_message(From :: jlib:jid(), Type :: {binary(), binary()} | false,
-                     Subject :: jlib:xmlel() | false, Children :: [jlib:xmlch()]) ->
-    {ok, muc_light_packet()} | {error, bad_request} | ignore.
-decode_message(From, {_, <<"groupchat">>}, SubjectEl, Children) ->
-    decode_gc_message(From, SubjectEl, Children);
-decode_message(_, {_, <<"error">>}, _, _) ->
+-spec decode_message_by_type(Type :: {binary(), binary()} | false, Children :: [jlib:xmlch()]) ->
+    {ok, #msg{}} | {error, bad_request} | ignore.
+decode_message_by_type({_, <<"groupchat">>}, Children) ->
+    {ok, #msg{ children = Children }};
+decode_message_by_type({_, <<"error">>}, _) ->
     ignore;
-decode_message(_, _, _, _) ->
-    {error, bad_request}.
-
--spec decode_gc_message(From :: jlib:jid(), Subject :: jlib:xmlel() | false,
-                        Children :: [jlib:xmlch()]) ->
-    {ok, muc_light_packet()} | {error, bad_request}.
-decode_gc_message(_From, #xmlel{ children = [#xmlcdata{ content = Subject }] }, [_]) ->
-    {ok, #subject{
-            text = Subject
-           }};
-decode_gc_message(_From, false, Children) ->
-    {ok, #msg{
-            children = Children
-           }};
-decode_gc_message(_, _, _) ->
+decode_message_by_type(_, _) ->
     {error, bad_request}.
 
 %%====================================================================
@@ -158,7 +143,7 @@ decode_iq(_From, #iq{ xmlns = ?NS_MUC_LIGHT_BLOCKING, type = set,
             ?WARNING_MSG("query_els=~p, error=~p", [QueryEls, Error]),
             {error, bad_request}
     end;
-decode_iq(From, #iq{ xmlns = ?NS_MUC_LIGHT_CREATE, type = set, sub_el = QueryEl, id = ID }) ->
+decode_iq(_From, #iq{ xmlns = ?NS_MUC_LIGHT_CREATE, type = set, sub_el = QueryEl, id = ID }) ->
     ConfigEl = exml_query:path(QueryEl, [{element, <<"configuration">>}], #xmlel{}),
     OccupantsEl = exml_query:path(QueryEl, [{element, <<"occupants">>}], #xmlel{}),
     case {catch parse_config(ConfigEl#xmlel.children),
@@ -268,9 +253,10 @@ encode_iq({get, #config{} = Config}, _RoomJID, _RoomBin, _HandleFun) ->
 encode_iq({get, #affiliations{ prev_version = SameVersion, version = SameVersion, id = ID }},
           _RoomJID, _RoomBin, _HandleFun) ->
     {reply, ID};
-encode_iq({get, #affiliations{} = Affs}, _RoomJID, _RoomBin, _HandleFun) ->
+encode_iq({get, #affiliations{ version = Version } = Affs}, _RoomJID, _RoomBin, _HandleFun) ->
     AffEls = [ aff_user_to_el(AffUser) || AffUser <- Affs#affiliations.aff_users ],
-    {reply, ?NS_MUC_LIGHT_AFFILIATIONS, AffEls, Affs#affiliations.id};
+    {reply, ?NS_MUC_LIGHT_AFFILIATIONS, [kv_to_el(<<"version">>, Version) | AffEls],
+     Affs#affiliations.id};
 encode_iq({get, #info{ prev_version = SameVersion, version = SameVersion, id = ID }},
           _RoomJID, _RoomBin, _HandleFun) ->
     {reply, ID};
@@ -283,7 +269,7 @@ encode_iq({get, #info{ version = Version } = Info}, _RoomJID, _RoomBin, _HandleF
                #xmlel{ name = <<"occupants">>, children = AffEls }
               ],
     {reply, ?NS_MUC_LIGHT_INFO, InfoEls, Info#info.id};
-encode_iq({set, Affs, OldAffUsers, NewAffUsers}, RoomJID, RoomBin, HandleFun) ->
+encode_iq({set, #affiliations{} = Affs, OldAffUsers, NewAffUsers}, RoomJID, RoomBin, HandleFun) ->
     Attrs = [
              {<<"id">>, Affs#affiliations.id},
              {<<"type">>, <<"groupchat">>},
@@ -434,7 +420,7 @@ jids_from_room_with_resource({RoomU, RoomS}, Resource) ->
     {From, FromBin}.
 
 -spec make_iq_result(FromBin :: binary(), ToBin :: binary(), ID :: binary(),
-                     XMLNS :: binary(), Els :: [jlib:xmlch()]) -> jlib:xmlel().
+                     XMLNS :: binary(), Els :: [jlib:xmlch()] | undefined) -> jlib:xmlel().
 make_iq_result(FromBin, ToBin, ID, XMLNS, Els) ->
     Attrs = [
              {<<"from">>, FromBin},
@@ -445,8 +431,8 @@ make_iq_result(FromBin, ToBin, ID, XMLNS, Els) ->
     Query = make_query_el(XMLNS, Els),
     #xmlel{ name = <<"iq">>, attrs = Attrs, children = Query }.
 
--spec make_query_el(binary(), [jlib:xmlch()]) -> [jlib:xmlel()].
-make_query_el(_, []) ->
+-spec make_query_el(binary(), [jlib:xmlch()] | undefined) -> [jlib:xmlel()].
+make_query_el(_, undefined) ->
     [];
 make_query_el(XMLNS, Els) ->
     [#xmlel{ name = <<"query">>, attrs = [{<<"xmlns">>, XMLNS}], children = Els }].

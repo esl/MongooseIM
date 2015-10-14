@@ -122,6 +122,7 @@ get_user_rooms(UserUS) ->
 -spec remove_user(UserUS :: ejabberd:simple_bare_jid(), Version :: binary()) ->
     mod_muc_light_db:remove_user_return() | {error, term()}.
 remove_user(UserUS, Version) ->
+    mnesia:dirty_delete(?BLOCKING_TAB, UserUS),
     {atomic, Res} = mnesia:transaction(fun remove_user_transaction/2, [UserUS, Version]),
     Res.
 
@@ -184,10 +185,10 @@ get_blocking(UserUS, WhatWhos) ->
 -spec set_blocking(UserUS :: ejabberd:simple_bare_jid(), BlockingItems :: [blocking_item()]) -> ok.
 set_blocking(_UserUS, []) ->
     ok;
-set_blocking(UserUS, [{What, allow, Who} | RBlockingItems]) ->
+set_blocking(UserUS, [{What, deny, Who} | RBlockingItems]) ->
     mnesia:dirty_write(#?BLOCKING_TAB{ user = UserUS, item = {What, Who} }),
     set_blocking(UserUS, RBlockingItems);
-set_blocking(UserUS, [{What, deny, Who} | RBlockingItems]) ->
+set_blocking(UserUS, [{What, allow, Who} | RBlockingItems]) ->
     mnesia:dirty_delete_object(#?BLOCKING_TAB{ user = UserUS, item = {What, Who} }),
     set_blocking(UserUS, RBlockingItems).
 

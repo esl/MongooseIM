@@ -113,7 +113,7 @@ stop(Host) ->
 
 -spec route(From :: jlib:jid(), To :: jlib:jid(), Packet :: jlib:xmlel()) -> any().
 route(From, To, Packet) ->
-    process_packet(From, To, ?CODEC:decode(From, Packet), Packet).
+    process_packet(From, To, ?CODEC:decode(From, To, Packet), Packet).
 
 -spec process_packet(From :: jlib:jid(), To :: jlib:jid(),
                      DecodedPacket :: mod_muc_light_codec:decode_result(),
@@ -124,8 +124,8 @@ process_packet(From, To, {ok, {get, #disco_info{} = DI}}, _OrigPacket) ->
     handle_disco_info_get(From, To, DI);
 process_packet(From, To, {ok, {get, #disco_items{} = DI}}, OrigPacket) ->
     handle_disco_items_get(From, To, DI, OrigPacket);
-process_packet(From, To, {ok, {_, #blocking{}} = Blocking}, _OrigPacket) ->
-    handle_blocking(From, To, Blocking);
+process_packet(From, To, {ok, {_, #blocking{}} = Blocking}, OrigPacket) ->
+    handle_blocking(From, To, Blocking, OrigPacket);
 process_packet(From, #jid{ luser = RoomU } = To, {ok, RequestToRoom}, OrigPacket)
   when RoomU =/= <<>> ->
     case ?BACKEND:room_exists(jlib:jid_to_lus(To)) of
@@ -183,10 +183,13 @@ remove_user(User, Server) ->
 -spec create_room(From :: jlib:jid(), To :: jlib:jid(), Create :: #create{},
                   OrigPacket :: jlib:xmlel()) -> ok.
 create_room(From, To, #create{ raw_config = RawConfig } = Create0, OrigPacket) ->
+    FromUS = jlib:jid_to_lus(From),
+    RoomUS = jlib:jid_to_lus(To), % might be service JID for room autogeneration
+    InitialAffUsers = mod_muc_light_utils:filter_out_prevented(
+                        FromUS, RoomUS, Create0#create.aff_users),
     case {mod_muc_light_utils:process_raw_config(RawConfig, default_config()),
-          process_create_aff_users(jlib:jid_to_lus(From), Create0#create.aff_users)} of
+          process_create_aff_users(FromUS, InitialAffUsers)} of
         {{ok, Config0}, {ok, FinalAffUsers}} ->
-            RoomUS = jlib:jid_to_lus(To), % might be service JID for room autogeneration
             Version = mod_muc_light_utils:bin_ts(),
             case ?BACKEND:create_room(RoomUS, lists:sort(Config0), FinalAffUsers, Version) of
                 {ok, FinalRoomUS} ->
@@ -258,13 +261,20 @@ get_rooms_info([RoomUS | RRooms]) ->
     [{RoomUS, RoomName, Version} | get_rooms_info(RRooms)].
 
 -spec handle_blocking(From :: jlib:jid(), To :: jlib:jid(),
-                      BlockingReq :: {get | set, #blocking{}}) -> any().
-handle_blocking(From, To, {get, #blocking{} = Blocking}) ->
+                      BlockingReq :: {get | set, #blocking{}},
+                      OrigPacket :: jlib:xmlel()) -> any().
+handle_blocking(From, To, {get, #blocking{} = Blocking}, _OrigPacket) ->
     ?CODEC:encode({get, Blocking#blocking{ items = ?BACKEND:get_blocking(jlib:jid_to_lus(From)) }},
                   From, jlib:jid_to_lus(To), fun ejabberd_router:route/3);
-handle_blocking(From, To, {set, #blocking{ items = Items }} = BlockingReq) ->
-    ok = ?BACKEND:set_blocking(jlib:jid_to_lus(From), Items),
-    ?CODEC:encode(BlockingReq, From, jlib:jid_to_lus(To), fun ejabberd_router:route/3).
+handle_blocking(From, To, {set, #blocking{ items = Items }} = BlockingReq, OrigPacket) ->
+    case lists:any(fun({_, _, {WhoU, WhoS}}) -> WhoU =:= <<>> orelse WhoS =:= <<>> end, Items) of
+        true ->
+            mod_muc_light_codec:encode_error({error, bad_request}, From, To, OrigPacket,
+                                             fun ejabberd_router:route/3);
+        false ->
+            ok = ?BACKEND:set_blocking(jlib:jid_to_lus(From), Items),
+            ?CODEC:encode(BlockingReq, From, jlib:jid_to_lus(To), fun ejabberd_router:route/3)
+    end.
 
 -spec bcast_removed_user(UserUS :: ejabberd:simple_bare_jid(),
                          AffectedRooms :: mod_muc_light_db:remove_user_return(),
