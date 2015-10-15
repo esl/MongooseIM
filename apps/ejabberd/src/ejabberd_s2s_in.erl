@@ -106,16 +106,16 @@
 -define(STREAM_TRAILER, <<"</stream:stream>">>).
 
 -define(INVALID_NAMESPACE_ERR,
-        xml:element_to_binary(?SERR_INVALID_NAMESPACE)).
+        exml:to_binary(?SERR_INVALID_NAMESPACE)).
 
 -define(HOST_UNKNOWN_ERR,
-        xml:element_to_binary(?SERR_HOST_UNKNOWN)).
+        exml:to_binary(?SERR_HOST_UNKNOWN)).
 
 -define(INVALID_FROM_ERR,
-        xml:element_to_binary(?SERR_INVALID_FROM)).
+        exml:to_binary(?SERR_INVALID_FROM)).
 
 -define(INVALID_XML_ERR,
-        xml:element_to_binary(?SERR_XML_NOT_WELL_FORMED)).
+        exml:to_binary(?SERR_XML_NOT_WELL_FORMED)).
 
 %%%----------------------------------------------------------------------
 %%% API
@@ -238,7 +238,7 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
                     CertError = ejabberd_tls:get_cert_verify_string(CertVerifyResult, Certificate),
                     RemoteServer = xml:get_attr_s(<<"from">>, Attrs),
                     ?INFO_MSG("Closing s2s connection: ~s <--> ~s (~s)", [StateData#state.server, RemoteServer, CertError]),
-                    send_text(StateData, xml:element_to_binary(?SERRT_POLICY_VIOLATION(<<"en">>, CertError))),
+                    send_text(StateData, exml:to_binary(?SERRT_POLICY_VIOLATION(<<"en">>, CertError))),
                     {atomic, Pid} = ejabberd_s2s:find_connection(jlib:make_jid(<<"">>, Server, <<"">>), jlib:make_jid(<<"">>, RemoteServer, <<"">>)),
                     ejabberd_s2s_out:stop_connection(Pid),
 
@@ -306,9 +306,9 @@ wait_for_feature_request({xmlstreamelement, El}, StateData) ->
                       end,
             TLSSocket = (StateData#state.sockmod):starttls(
                           Socket, TLSOpts,
-                          xml:element_to_binary(
-                             #xmlel{name = <<"proceed">>,
-                                    attrs = [{<<"xmlns">>, ?NS_TLS}]})),
+                          exml:to_binary(
+                            #xmlel{name = <<"proceed">>,
+                                   attrs = [{<<"xmlns">>, ?NS_TLS}]})),
             {next_state, wait_for_stream,
              StateData#state{socket = TLSSocket,
                              streamid = new_id(),
@@ -655,7 +655,7 @@ send_text(StateData, Text) ->
 
 -spec send_element(state(), jlib:xmlel()) -> binary().
 send_element(StateData, El) ->
-    send_text(StateData, xml:element_to_binary(El)).
+    send_text(StateData, exml:to_binary(El)).
 
 
 -spec change_shaper(state(), Host :: 'global' | binary(), ejabberd:jid()) -> any().

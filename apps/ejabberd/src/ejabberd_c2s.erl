@@ -424,13 +424,13 @@ get_xml_lang(Attrs) ->
         _ ->
             %% Do not store long language tag to
             %% avoid possible DoS/flood attacks
-            <<"">>
+           <<>>
     end.
 
 default_language() ->
     case ?MYLANG of
         undefined -> <<"en">>;
-        DL -> list_to_binary(DL)
+        DL -> DL
     end.
 
 -spec wait_for_auth(Item :: ejabberd:xml_stream_item(),
@@ -613,7 +613,7 @@ wait_for_feature_request({xmlstreamelement, El}, StateData) ->
             Socket = StateData#state.socket,
             TLSSocket = (StateData#state.sockmod):starttls(
                                                     Socket, TLSOpts,
-                                                    xml:element_to_binary(tls_proceed())),
+                                                    exml:to_binary(tls_proceed())),
             fsm_next_state(wait_for_stream,
                            StateData#state{socket = TLSSocket,
                                            streamid = new_id(),
@@ -631,7 +631,7 @@ wait_for_feature_request({xmlstreamelement, El}, StateData) ->
                         <<"zlib">> ->
                             Socket = StateData#state.socket,
                             ZlibSocket = (StateData#state.sockmod):compress(Socket, ZlibLimit,
-                                                                            xml:element_to_binary(compressed())),
+                                                                            exml:to_binary(compressed())),
                             fsm_next_state(wait_for_stream,
                                            StateData#state{socket = ZlibSocket,
                                                            streamid = new_id()
@@ -1495,7 +1495,7 @@ send_element(#state{server = Server, sockmod = SockMod} = StateData, El)
 send_element(#state{server = Server} = StateData, El) ->
     ejabberd_hooks:run(xmpp_send_element,
                        Server, [Server, El]),
-    send_text(StateData, xml:element_to_binary(El)).
+    send_text(StateData, exml:to_binary(El)).
 
 
 -spec send_header(State :: state(),
@@ -1505,11 +1505,11 @@ send_element(#state{server = Server} = StateData, El) ->
 send_header(StateData, Server, Version, Lang)
   when StateData#state.xml_socket ->
     VersionAttr = case Version of
-                      <<"">> -> [];
+                      <<>> -> [];
                       _ -> [{<<"version">>, Version}]
                   end,
     LangAttr = case Lang of
-                   <<"">> -> [];
+                   <<>> -> [];
                    _ -> [{<<"xml:lang">>, Lang}]
                end,
     Header = {xmlstreamstart,
@@ -1523,12 +1523,12 @@ send_header(StateData, Server, Version, Lang)
     (StateData#state.sockmod):send_xml(StateData#state.socket, Header);
 send_header(StateData, Server, Version, Lang) ->
     VersionStr = case Version of
-                     <<"">> -> <<"">>;
-                     _ -> [<<" version='">>, Version, <<"'">>]
+                    <<>> -> [];
+                     _ -> [" version='", Version, "'"]
                  end,
     LangStr = case Lang of
-                  <<"">> -> <<"">>;
-                  _ -> [<<" xml:lang='">>, Lang, <<"'">>]
+                  <<>> -> [];
+                  _ -> [" xml:lang='", Lang, "'"]
               end,
     Header = list_to_binary(io_lib:format(?STREAM_HEADER,
                                           [StateData#state.streamid,
@@ -1567,9 +1567,9 @@ send_and_maybe_buffer_stanza({_, _, Stanza} = Packet, State, StateName)->
             maybe_enter_resume_session(BufferedStateData#state.stream_mgmt_id, BufferedStateData)
     end.
 
--spec new_id() -> string().
+-spec new_id() -> binary().
 new_id() ->
-    randoms:get_string().
+    iolist_to_binary(randoms:get_string()).
 
 
 -spec is_auth_packet(El :: jlib:xmlel()) -> boolean().

@@ -1,3 +1,52 @@
+# MongooseIM 1.6.0
+
+2016-10-15
+
+This release includes:
+
+- Riak backends for the following modules:
+  - authentication [#378](https://github.com/esl/MongooseIM/pull/378)
+  - VCard [#460](https://github.com/esl/MongooseIM/pull/460)
+  - Private XML Storage [#445](https://github.com/esl/MongooseIM/pull/445)
+  - MAM (one-to-one only) [#452](https://github.com/esl/MongooseIM/pull/452)
+- Improved and extended metrics
+  - metrics based on hooks [#354](https://github.com/esl/MongooseIM/pull/354)
+  - exometer instead of folsom [#365](https://github.com/esl/MongooseIM/pull/365)
+  - automatic metrics for specified function in backend modules [#412](https://github.com/esl/MongooseIM/pull/412)
+  - optionally start exometer graphite reporter via app.config file [#481](https://github.com/esl/MongooseIM/pull/481)
+  - authentication related metrics [#488](https://github.com/esl/MongooseIM/pull/488)
+  - MongooseIM node uptime metric [#525](https://github.com/esl/MongooseIM/pull/525)
+- Merging of ejabberd_tests repo into MongooseIM [#482](https://github.com/esl/MongooseIM/pull/482),[#509](https://github.com/esl/MongooseIM/pull/509)
+- Improved Redis backend for sessions [#422](https://github.com/esl/MongooseIM/pull/422)
+- Tons of refactoring:
+  - authentication mechanism [#426](https://github.com/esl/MongooseIM/pull/426)
+  - ejabberd_c2s [#364](https://github.com/esl/MongooseIM/pull/364),[#463](https://github.com/esl/MongooseIM/pull/463),[#465](https://github.com/esl/MongooseIM/pull/465),[#495](https://github.com/esl/MongooseIM/pull/495)
+  - simplified MAM [#438](https://github.com/esl/MongooseIM/pull/438)
+    - removed dead code
+    - removed async_writer as it was special case of async_pool_writer
+    - mod_mam_odbc_server_user and mod_mam_odbc_user have been merged into one module
+- XMPP improvements:
+  - removed obsolete XEP-0091 timestamp [#383](https://github.com/esl/MongooseIM/pull/383)
+  - omit some features when STARTTLS is required [#498](https://github.com/esl/MongooseIM/pull/498)
+  - add XEP-0202: Entity Time [#510](https://github.com/esl/MongooseIM/pull/510)
+  - BOSH - accept a higher hold attribute than one [#511](https://github.com/esl/MongooseIM/pull/511)
+  - remove obsolete namespace from mediated invitation stanza [#513](https://github.com/esl/MongooseIM/pull/513)
+- other improvements:
+  - mod_offline_stub module to prevent service-unavailable errors [#429](https://github.com/esl/MongooseIM/pull/429)
+  - improved log handling [#448](https://github.com/esl/MongooseIM/pull/448)
+  - compatibility with Erlang/OTP 18 [#497](https://github.com/esl/MongooseIM/pull/497)
+  - improved ODBC connectivity layer [#542](https://github.com/esl/MongooseIM/pull/542)
+  - session cleanup after node death [#490](https://github.com/esl/MongooseIM/pull/490)
+  - unified xml parsing and memory footprint optimisations [#183](https://github.com/esl/MongooseIM/pull/183)
+  - supported XEPs are now documented
+  - Dialyzer fixes & additions [#508](https://github.com/esl/MongooseIM/pull/508)
+  - experimental [Docker image](https://hub.docker.com/r/mongooseim/mongooseim-docker/) 
+  - [complete list of merged PRs](https://github.com/esl/MongooseIM/pulls?utf8=%E2%9C%93&q=is%3Apr+base%3Amaster+merged%3A%222015-02-04..2015-10-15%22+sort%3Acreated-asc+)
+  - [complete list of closed issues](https://github.com/esl/MongooseIM/issues?utf8=%E2%9C%93&q=closed%3A%222015-02-04..2015-10-15%22+is%3Aissue+sort%3Acreated-desc+)
+
+Special thanks to our contributors: @rgrinberg, @vooolll, @syhpoon, @mweibel, @Stelminator, @larshesel, @ruanpienaar, @aszlig, @jonathanve, @gmodarelli
+
+This release repo [history](https://github.com/esl/MongooseIM/graphs/contributors?from=2015-02-04&to=2015-10-15&type=c)
 
 # MongooseIM 1.5.1
 
