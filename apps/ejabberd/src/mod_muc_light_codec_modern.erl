@@ -35,17 +35,19 @@ decode(_, _, _) ->
 -spec encode(Request :: muc_light_encode_request(), OriginalSender :: jlib:jid(),
              RoomUS :: ejabberd:simple_bare_jid(),
              HandleFun :: mod_muc_light_codec:encoded_packet_handler()) -> any().
-encode({#msg{} = Msg, AffUsers}, Sender, RoomUS, HandleFun) ->
-    {RoomJID, RoomBin} = jids_from_room_with_resource(
-                           RoomUS, jlib:jid_to_binary(jlib:jid_to_lower(Sender))),
+encode({#msg{} = Msg, AffUsers}, Sender, {_, RoomS} = RoomUS, HandleFun) ->
+    FromNick = jlib:jid_to_binary(jlib:jid_to_lus(Sender)),
+    {RoomJID, RoomBin} = jids_from_room_with_resource(RoomUS, FromNick),
     Attrs = [
              {<<"id">>, Msg#msg.id},
              {<<"type">>, <<"groupchat">>},
              {<<"from">>, RoomBin}
             ],
+    Children = ejabberd_hooks:run_fold(
+                 archive_muclight_message, RoomS, Msg#msg.children, [FromNick, RoomUS]),
     lists:foreach(
       fun({{U, S}, _}) ->
-              msg_to_aff_user(RoomJID, U, S, Attrs, Msg#msg.children, HandleFun)
+              msg_to_aff_user(RoomJID, U, S, Attrs, Children, HandleFun)
       end, AffUsers);
 encode(OtherCase, Sender, RoomUS, HandleFun) ->
     {RoomJID, RoomBin} = jids_from_room_with_resource(RoomUS, <<>>),
@@ -280,8 +282,12 @@ encode_iq({set, #affiliations{} = Affs, OldAffUsers, NewAffUsers}, RoomJID, Room
     VersionEl = kv_to_el(<<"version">>, Affs#affiliations.version),
     NotifForCurrent = [ kv_to_el(<<"prev-version">>, Affs#affiliations.prev_version),
                         VersionEl | AllAffsEls ],
+    EnvelopedChildrenForCurrent = msg_envelope(?NS_MUC_LIGHT_AFFILIATIONS, NotifForCurrent),
+    FinalChildrenForCurrent
+    = ejabberd_hooks:run_fold(archive_muclight_message, RoomJID#jid.lserver,
+                              EnvelopedChildrenForCurrent, [<<>>, jlib:jid_to_lus(RoomJID)]),
     bcast_aff_messages(RoomJID, OldAffUsers, NewAffUsers, Attrs, VersionEl,
-                       msg_envelope(?NS_MUC_LIGHT_AFFILIATIONS, NotifForCurrent), HandleFun),
+                       FinalChildrenForCurrent, HandleFun),
 
     {reply, Affs#affiliations.id};
 encode_iq({get, #blocking{} = Blocking}, _RoomJID, _RoomBin, _HandleFun) ->
@@ -298,6 +304,11 @@ encode_iq({set, #create{} = Create, UniqueRequested}, RoomJID, RoomBin, HandleFu
 
     VersionEl = kv_to_el(<<"version">>, Create#create.version),
     bcast_aff_messages(RoomJID, [], Create#create.aff_users, Attrs, VersionEl, [], HandleFun),
+
+    AllAffsEls = [ aff_user_to_el(AffUser) || AffUser <- Create#create.aff_users ],
+    EnvelopedChildrenForArchiving = msg_envelope(?NS_MUC_LIGHT_AFFILIATIONS, AllAffsEls),
+    ejabberd_hooks:run_fold(archive_muclight_message, RoomJID#jid.lserver,
+                            EnvelopedChildrenForArchiving, [<<>>, jlib:jid_to_lus(RoomJID)]),
 
     %% IQ reply "from"
     %% Sent from service JID when unique room was requested
@@ -336,10 +347,14 @@ encode_iq({set, #config{} = Config, AffUsers}, RoomJID, RoomBin, HandleFun) ->
     ConfigNotif = [ kv_to_el(<<"prev-version">>, Config#config.prev_version),
                     kv_to_el(<<"version">>, Config#config.version)
                     | ConfigEls ],
-    ConfigNotifEnveloped = msg_envelope(?NS_MUC_LIGHT_CONFIGURATION, ConfigNotif),
+    EnvelopedConfigNotif = msg_envelope(?NS_MUC_LIGHT_CONFIGURATION, ConfigNotif),
+    FinalConfigNotif
+    = ejabberd_hooks:run_fold(archive_muclight_message, RoomJID#jid.lserver,
+                              EnvelopedConfigNotif, [<<>>, jlib:jid_to_lus(RoomJID)]),
+
     lists:foreach(
       fun({{U, S}, _}) ->
-              msg_to_aff_user(RoomJID, U, S, Attrs, ConfigNotifEnveloped, HandleFun)
+              msg_to_aff_user(RoomJID, U, S, Attrs, FinalConfigNotif, HandleFun)
       end, AffUsers),
 
     {reply, Config#config.id}.
