@@ -43,12 +43,13 @@ all() ->
              {group, last},
              {group, private},
              {group, stanza},
-             {group, stats}
+             {group, stats},
+             {group, basic}
             ]
     end.
 
 groups() ->
-     [
+     [{basic, [sequence], basic()},
         {accounts, [sequence], accounts()},
         {sessions, [sequence], sessions()},
         {vcard, [sequence], vcard()},
@@ -58,6 +59,16 @@ groups() ->
         {stanza, [sequence], stanza()},
         {stats, [sequence], stats()}
      ].
+
+basic() ->
+    [simple_register, simple_unregister, register_twice,
+    set_master_node,
+    backup_restore_mnesia,
+    restore_mnesia_wrong,
+    dump_and_load,
+    load_mnesia_wrong,
+    dump_table,
+    get_loglevel].
 
 accounts() -> [change_password, check_password_hash, check_password,
                check_account, ban_account, num_active_users, delete_old_users,
@@ -595,6 +606,95 @@ stats_host(Config) ->
                 {"0\n", 0} = ejabberdctl("stats_host", ["onlineusers", SecDomain], Config)
         end).
 
+
+
+%%-----------------------------------------------------------------
+%% Improve coverage
+%%-----------------------------------------------------------------
+
+
+
+simple_register(Config) ->
+    {_, Domain, _} = get_user_data(kate, Config),
+    {Name, Password} = {<<"tyler">>, <<"durden">>},
+    {_, _} = ejabberdctl("register", [Name, Domain, Password], Config),
+    {R2, _} = ejabberdctl("registered_users", [Domain], Config),
+    {match, _} = re:run(R2, ".*(" ++binary_to_list(Name)++").*").
+
+simple_unregister(Config) ->
+    {_, Domain, _} = get_user_data(kate, Config),
+    {Name, _} = {<<"tyler">>, <<"durden">>},
+    {_, _} = ejabberdctl("unregister", [Name, Domain], Config),
+    {R2, _} = ejabberdctl("registered_users", [Domain], Config),
+    nomatch = re:run(R2, ".*(" ++binary_to_list(Name)++").*").
+
+register_twice(Config) ->
+    {_, Domain, _} = get_user_data(kate, Config),
+    {Name,  Password} = {<<"tyler">>, <<"durden">>},
+    {_, _} = ejabberdctl("register", [Name, Domain, Password], Config),
+    {R, _} = ejabberdctl("register", [Name, Domain, Password], Config),
+    {match, _} = re:run(R, ".*(already registered).*"),
+    {_, _} = ejabberdctl("unregister", [Name, Domain], Config).
+
+%% Fix it
+set_master_node(Config) ->
+    {R, _} = ejabberdctl("set_master", ["self"], Config),
+    nomatch = re:run(R, ".+").
+
+
+backup_restore_mnesia(Config) ->
+    TableName = passwd,
+    TableSize =rpc_apply(mnesia, table_info, [TableName, size]),
+    io:format("Table size is ~n~p~n", [TableSize]),
+    %% Table passwd should not be empty
+    FileName = "backup_mnesia.bup",
+    {R, _} = ejabberdctl("backup", [FileName], Config),
+    nomatch = re:run(R, ".+"),
+    rpc_apply(mnesia, clear_table, [TableName]),
+    0 = rpc_apply(mnesia, table_info, [TableName, size]),
+    {R2, _} = ejabberdctl("restore", [FileName], Config),
+    nomatch = re:run(R2, ".+"),
+    TableSize = rpc_apply(mnesia, table_info, [TableName, size]).
+
+restore_mnesia_wrong(Config) ->
+    FileName = "file that doesnt exist13123.bup",
+    {R2, _} = ejabberdctl("restore", [FileName], Config),
+    {match, _} = re:run(R2, ".+").
+
+dump_and_load(Config) ->
+    FileName = "dump.bup",
+    TableName = passwd,
+    %% Table passwd should not be empty
+    TableSize =rpc_apply(mnesia, table_info, [TableName, size]),
+    {_, _} = ejabberdctl("dump", [FileName], Config),
+    rpc_apply(mnesia, clear_table, [TableName]),
+    0 = rpc_apply(mnesia, table_info, [TableName, size]),
+    {R, _} = ejabberdctl("load", [FileName], Config),
+    {match, _} = re:run(R, ".+"),
+    TableSize = rpc_apply(mnesia, table_info, [TableName, size]).
+
+load_mnesia_wrong(Config) ->
+    FileName = "file that doesnt existRHCP.bup",
+    {R2, _} = ejabberdctl("restore", [FileName], Config),
+    {match, _} = re:run(R2, ".+").
+
+dump_table(Config) ->
+    FileName = "dump.mn",
+    TableName = passwd,
+    %% Table passwd should not be empty
+    TableSize =rpc_apply(mnesia, table_info, [TableName, size]),
+    {_, _} = ejabberdctl("dump_table", [FileName, TableName], Config),
+    rpc_apply(mnesia, clear_table, [TableName]),
+    0 = rpc_apply(mnesia, table_info, [TableName, size]),
+    {R, _} = ejabberdctl("load", [FileName], Config),
+    {match, _} = re:run(R, ".+"),
+    TableSize = rpc_apply(mnesia, table_info, [TableName, size]).
+
+get_loglevel(Config) ->
+    {R, _} = ejabberdctl("get_loglevel", [], Config),
+    true = is_integer(R).
+
+
 %%-----------------------------------------------------------------
 %% Helpers
 %%-----------------------------------------------------------------
@@ -719,4 +819,13 @@ string_to_binary(List) ->
             list_to_binary(List);
         _ ->
             unicode:characters_to_binary(List)
+    end.
+
+rpc_apply(M, F, Args) ->
+    case escalus_ejabberd:rpc(M, F, Args) of
+        {badrpc, Reason} ->
+            ct:fail("~p:~p/~p with arguments ~w fails with reason ~p.",
+                    [M, F, length(Args), Args, Reason]);
+        Result ->
+            Result
     end.
