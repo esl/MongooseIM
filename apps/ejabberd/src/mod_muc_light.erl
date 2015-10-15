@@ -8,18 +8,14 @@
 %%% * backend (mnesia) - DB backend
 %%% * equal_occupants (false) - When enabled, everyone in the room will have 'member' status,
 %%%                             including creator
-%%% * legacy_mode (false) - Enables XEP-0045 compatibility mode
+%%% !!NOT IMPLEMENTED YET!! * legacy_mode (false) - Enables XEP-0045 compatibility mode
 %%% * rooms_per_user (infinity) - Default maximum count of rooms the user can occupy
 %%% * blocking (true) - Blocking feature enabled/disabled
 %%% * all_can_configure (false) - Every room occupant can change room configuration
 %%% * all_can_invite (false) - Every room occupant can invite a user to the room
 %%% * max_occupants (infinity) - Maximal occupant count per room
-%%% !!NOT IMPLEMENTED YET!! * simple_aff_changes_model (false) - If enabled, only these aff changes requests are allowed
-%%%                                      (simpler, more efficient algorithm can be used):
-%%%     * owner leaves (and optionally picks the successor)
-%%%     * owner adds and removes member (no change in membership)
-%%%     * member adds users
-%%%     * member leaves
+%%% !!NOT IMPLEMENTED YET!! * rooms_in_rosters (false) - If enabled, rooms that user occupies will be included in
+%%%                                                      user's roster
 %%%
 %%%----------------------------------------------------------------------
 
@@ -125,13 +121,25 @@ route(From, To, Packet) ->
                      DecodedPacket :: mod_muc_light_codec:decode_result(),
                      OrigPacket :: jlib:xmlel()) -> any().
 process_packet(From, To, {ok, {set, #create{} = Create}}, OrigPacket) ->
-    create_room(From, To, Create, OrigPacket);
+    RoomsPerUser = mod_muc_light:get_service_opt(rooms_per_user, ?DEFAULT_ROOMS_PER_USER),
+    FromUS = jlib:jid_to_lus(From),
+    case RoomsPerUser == infinity orelse length(?BACKEND:get_user_rooms(FromUS)) < RoomsPerUser of
+        true ->
+            create_room(From, FromUS, To, Create, OrigPacket);
+        false -> 
+            mod_muc_light_codec:encode_error(
+              {error, bad_request}, From, To, OrigPacket, fun ejabberd_router:route/3)
+    end;
 process_packet(From, To, {ok, {get, #disco_info{} = DI}}, _OrigPacket) ->
     handle_disco_info_get(From, To, DI);
 process_packet(From, To, {ok, {get, #disco_items{} = DI}}, OrigPacket) ->
     handle_disco_items_get(From, To, DI, OrigPacket);
 process_packet(From, To, {ok, {_, #blocking{}} = Blocking}, OrigPacket) ->
-    handle_blocking(From, To, Blocking, OrigPacket);
+    case get_service_opt(blocking, ?DEFAULT_BLOCKING) of
+        true -> handle_blocking(From, To, Blocking, OrigPacket);
+        false -> mod_muc_light_codec:encode_error(
+                   {error, bad_request}, From, To, OrigPacket, fun ejabberd_router:route/3)
+    end;
 process_packet(From, #jid{ luser = RoomU } = To, {ok, RequestToRoom}, OrigPacket)
   when RoomU =/= <<>> ->
     case ?BACKEND:room_exists(jlib:jid_to_lus(To)) of
@@ -186,16 +194,16 @@ remove_user(User, Server) ->
 %% Internal functions
 %%====================================================================
 
--spec create_room(From :: jlib:jid(), To :: jlib:jid(), Create :: #create{},
-                  OrigPacket :: jlib:xmlel()) -> ok.
-create_room(From, To, #create{ raw_config = RawConfig } = Create0, OrigPacket) ->
-    FromUS = jlib:jid_to_lus(From),
+-spec create_room(From :: jlib:jid(), FromUS :: ejabberd:simple_bare_jid(), To :: jlib:jid(),
+                  Create :: #create{}, OrigPacket :: jlib:xmlel()) -> ok.
+create_room(From, FromUS, To, #create{ raw_config = RawConfig } = Create0, OrigPacket) ->
     {RoomU, _} = RoomUS = jlib:jid_to_lus(To), % might be service JID for room autogeneration
     InitialAffUsers = mod_muc_light_utils:filter_out_prevented(
                         FromUS, RoomUS, Create0#create.aff_users),
+    MaxOccupants = get_service_opt(max_occupants, ?DEFAULT_MAX_OCCUPANTS),
     case {mod_muc_light_utils:process_raw_config(RawConfig, default_config()),
           process_create_aff_users(FromUS, InitialAffUsers)} of
-        {{ok, Config0}, {ok, FinalAffUsers}} ->
+        {{ok, Config0}, {ok, FinalAffUsers}} when length(FinalAffUsers) =< MaxOccupants ->
             Version = mod_muc_light_utils:bin_ts(),
             case ?BACKEND:create_room(RoomUS, lists:sort(Config0), FinalAffUsers, Version) of
                 {ok, FinalRoomUS} ->
@@ -210,8 +218,8 @@ create_room(From, To, #create{ raw_config = RawConfig } = Create0, OrigPacket) -
             ErrorText = io_lib:format("~s:~p", tuple_to_list(Error)),
             mod_muc_light_codec:encode_error({error, bad_request, ErrorText}, From, To, OrigPacket,
                                              fun ejabberd_router:route/3);
-        {_, {error, bad_request} = Error} ->
-            mod_muc_light_codec:encode_error(Error, From, To, OrigPacket,
+        {_, _} ->
+            mod_muc_light_codec:encode_error({error, bad_request}, From, To, OrigPacket,
                                              fun ejabberd_router:route/3)
     end.
 

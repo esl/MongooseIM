@@ -212,9 +212,9 @@ apply_aff_users_change(AU, AUC, NO) ->
                              JoiningAcc :: [ejabberd:simple_bare_jid()],
                              LeavingAcc :: [ejabberd:simple_bare_jid()]) ->
     change_aff_success() | {error, bad_request}.
-apply_aff_users_change(AU, NAU, [], CD, _NO, JA, LA) ->
+apply_aff_users_change([], NAU, [], CD, _NO, JA, LA) ->
     %% User list must be sorted ascending but acc is currently sorted descending
-    {ok, lists:reverse(NAU) ++ AU, CD, JA, LA};
+    {ok, lists:reverse(NAU), CD, JA, LA};
 apply_aff_users_change(_AU, _NAU, [{User, _}, {User, _} | _RAUC], _CD, _NO, _JA, _LA) ->
     %% Cannot change affiliation for the same user twice in the same request
     {error, bad_request};
