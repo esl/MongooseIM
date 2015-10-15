@@ -25,10 +25,19 @@
 -import(escalus_ejabberd, [rpc/3]).
 
 -define(ROOM, <<"testroom">>).
+-define(ROOM2, <<"testroom2">>).
+
 -define(MUCHOST, <<"muclight.localhost">>).
 
--define(NS_MUC_LIGHT, <<"mongooseim:muc:light">>).
--define(NS_MUC_CONFIG,  <<"http://jabber.org/protocol/muc#roomconfig">>).
+-define(NS_MUC_LIGHT, <<"urn:xmpp:muclight:0">>).
+-define(NS_MUC_LIGHT_CONFIGURATION, <<"urn:xmpp:muclight:0#configuration">>).
+-define(NS_MUC_LIGHT_AFFILIATIONS, <<"urn:xmpp:muclight:0#affiliations">>).
+-define(NS_MUC_LIGHT_INFO, <<"urn:xmpp:muclight:0#info">>).
+-define(NS_MUC_LIGHT_BLOCKING, <<"urn:xmpp:muclight:0#blocking">>).
+-define(NS_MUC_LIGHT_CREATE, <<"urn:xmpp:muclight:0#create">>).
+-define(NS_MUC_LIGHT_DESTROY, <<"urn:xmpp:muclight:0#destroy">>).
+
+-define(CHECK_FUN, fun mod_muc_light_room:participant_limit_check/2).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -36,19 +45,39 @@
 
 all() ->
     [
-     {group, muc_light_ops}
+     {group, disco},
+     {group, occupant},
+     {group, owner},
+     {group, blocking}
     ].
 
 groups() ->
-    [{muc_light_ops, [sequence], [
-                             create_room,
-                             set_get_config,
-                             get_affiliations,
-                             invite_remove_others,
-                             leave_room,
-                             leave_new_owner,
-                             change_subject
-                            ]}].
+    [
+     {disco, [sequence], [
+                            disco_service,
+                            disco_features,
+                            disco_rooms
+                         ]},
+     {occupant, [sequence], [
+                             send_message,
+                             change_subject,
+                             get_room_config,
+                             get_room_occupants,
+                             get_room_info,
+                             leave_room
+                            ]},
+     {owner, [sequence], [
+                          create_room,
+                          destroy_room,
+                          set_config,
+                          remove_and_add_users
+                         ]},
+     {blocking, [sequence], [
+                             manage_blocklist,
+                             block_room,
+                             block_user
+                            ]}
+    ].
 
 suite() ->
     escalus:suite().
@@ -61,6 +90,7 @@ init_per_suite(Config) ->
     escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
+    clear_db(),
     escalus:end_per_suite(Config).
 
 init_per_group(_GroupName, Config) ->
@@ -69,272 +99,482 @@ init_per_group(_GroupName, Config) ->
 end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config, {by_name, [alice, bob, kate]}).
 
-init_per_testcase(create_room, Config) ->
-    escalus:init_per_testcase(create_room, Config);
-init_per_testcase(leave_new_owner, Config) ->
-    create_room(?ROOM, ?MUCHOST, alice, Config),
-    add_occupant(?ROOM, ?MUCHOST, bob, Config),
-    add_occupant(?ROOM, ?MUCHOST, kate, Config),
-    escalus:init_per_testcase(leave_new_owner, Config);
 init_per_testcase(CaseName, Config) ->
-    create_room(?ROOM, ?MUCHOST, alice, Config),
-    add_occupant(?ROOM, ?MUCHOST, bob, Config),
+    set_default_mod_config(),
+    create_room(?ROOM, ?MUCHOST, alice, Config, ver(-1)),
+    add_occupant(?ROOM, ?MUCHOST, bob, Config, ver(0)),
+    add_occupant(?ROOM, ?MUCHOST, kate, Config, ver(1)),
     escalus:init_per_testcase(CaseName, Config).
 
 end_per_testcase(CaseName, Config) ->
-    destroy_room(?ROOM, ?MUCHOST),
+    clear_db(),
     escalus:end_per_testcase(CaseName, Config).
 
 %%--------------------------------------------------------------------
 %% MUC light tests
 %%--------------------------------------------------------------------
 
-create_room(Config) ->
+%% ---------------------- Disco ----------------------
+
+disco_service(Config) ->
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
-            CreateRequest = room_config_set([]),
-            escalus:send(Alice, CreateRequest),
-            RoomCreated = escalus:wait_for_stanza(Alice),
-            escalus:assert(is_iq_result, [CreateRequest], RoomCreated),
-
-            no_stanzas([Alice])
+            Server = escalus_client:server(Alice),
+            escalus:send(Alice, escalus_stanza:service_discovery(Server)),
+            Stanza = escalus:wait_for_stanza(Alice),
+            escalus:assert(has_service, [?MUCHOST], Stanza),
+            escalus:assert(is_stanza_from, [escalus_config:get_config(ejabberd_domain, Config)], Stanza)
         end).
 
-set_get_config(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-            %% Both owner and member can get configuration
-            ConfigGet = room_config_get(),
-            escalus:send(Alice, ConfigGet),
-            escalus:send(Bob, ConfigGet),
-            escalus:assert(is_iq_result, [ConfigGet],
-                           escalus:wait_for_stanza(Alice)),
-            escalus:assert(is_iq_result, [ConfigGet],
-                           escalus:wait_for_stanza(Bob)),
-
-            %% Only owner can set configuration
-            ConfigRequest = room_config_set([{<<"roomname">>, <<"newname">>}]),
-            escalus:send(Alice, ConfigRequest),
-            escalus:assert(is_iq_result, [ConfigRequest],
-                           escalus:wait_for_stanza(Alice)),
-            escalus:send(Bob, ConfigRequest),
-            escalus:assert(is_iq_error, escalus:wait_for_stanza(Bob)),
-            
-            no_stanzas([Alice, Bob])
+disco_features(Config) ->
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+            DiscoStanza = escalus_stanza:to(escalus_stanza:iq_get(?NS_DISCO_INFO, []), ?MUCHOST),
+            escalus:send(Alice, DiscoStanza),
+            Stanza = escalus:wait_for_stanza(Alice),
+            <<"conference">> = exml_query:path(Stanza, [{element, <<"query">>},
+                                                        {element, <<"identity">>},
+                                                        {attr, <<"category">>}]),
+            ?NS_MUC_LIGHT = exml_query:path(Stanza, [{element, <<"query">>},
+                                                     {element, <<"feature">>},
+                                                     {attr, <<"var">>}]),
+            escalus:assert(is_stanza_from, [?MUCHOST], Stanza)
         end).
 
-get_affiliations(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-            %% Both owner and member can get affiliation list
-            ConfigGet = affiliations_get([<<"member">>, <<"owner">>]),
-            escalus:send(Alice, ConfigGet),
-            escalus:send(Bob, ConfigGet),
-            escalus:assert(is_iq_result, [ConfigGet],
-                           escalus:wait_for_stanza(Alice)),
-            escalus:assert(is_iq_result, [ConfigGet],
-                           escalus:wait_for_stanza(Bob)),
-
-            %% User can get only the current owner
-            OwnerGet = affiliations_get([<<"owner">>]),
-            escalus:send(Bob, OwnerGet),
-            escalus:assert(is_iq_result, [OwnerGet],
-                           escalus:wait_for_stanza(Bob)),
-
-            %% User can get only members
-            MembersGet = affiliations_get([<<"member">>]),
-            escalus:send(Bob, MembersGet),
-            escalus:assert(is_iq_result, [MembersGet],
-                           escalus:wait_for_stanza(Bob)),
-
-            no_stanzas([Alice, Bob])
+disco_rooms(Config) ->
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+            {?ROOM2, ?MUCHOST} = create_room(?ROOM2, ?MUCHOST, kate, Config, ver(0)),
+            DiscoStanza = escalus_stanza:to(escalus_stanza:iq_get(?NS_DISCO_ITEMS, []), ?MUCHOST),
+            escalus:send(Alice, DiscoStanza),
+            %% we should get 1 room, Alice is not in the second one
+            Stanza = escalus:wait_for_stanza(Alice),
+            [Item] = exml_query:paths(Stanza, [{element, <<"query">>}, {element, <<"item">>}]),
+            ProperJID = room_bin_jid(),
+            ProperJID = exml_query:path(Item, [{attr, <<"jid">>}]),
+            ProperVer = ver(1),
+            ProperVer = exml_query:path(Item, [{attr, <<"version">>}]),
+            escalus:assert(is_stanza_from, [?MUCHOST], Stanza)
         end).
 
-invite_remove_others(Config) ->
+%% ---------------------- Occupant ----------------------
+
+send_message(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
-            KateJID = escalus_users:get_jid(Config, kate),
-            AddKate = [{KateJID, <<"member">>}],
-            AddKateStanza = affiliations_set(AddKate),
-            RemoveKate = [{KateJID, <<"none">>}],
-            RemoveKateStanza = affiliations_set(RemoveKate),
-            
-            % Owner can invite
-            verify_msg_bcast([Alice, Bob]),
-            escalus:send(Alice, AddKateStanza),
-            verify_aff_bcast([Alice, Bob, Kate], AddKate),
-            escalus:assert(is_iq_result, [AddKateStanza],
-                           escalus:wait_for_stanza(Alice)),
-            verify_msg_bcast([Alice, Bob, Kate]),
-           
-            % Non-owner can't remove
-            escalus:send(Bob, RemoveKateStanza),
-            escalus:assert(is_iq_error, escalus:wait_for_stanza(Bob)),
-            verify_msg_bcast([Alice, Bob, Kate]),
-
-            % Owner can remove
-            escalus:send(Alice, RemoveKateStanza),
-            verify_aff_bcast([Alice, Bob, Kate], RemoveKate),
-            escalus:assert(is_iq_result, [RemoveKateStanza],
-                           escalus:wait_for_stanza(Alice)),
-            verify_msg_bcast([Alice, Bob]),
-
-            % Non-owner cannot invite
-            escalus:send(Bob, AddKateStanza),
-            escalus:assert(is_iq_error, escalus:wait_for_stanza(Bob)),
-            verify_msg_bcast([Alice, Bob]),
-
-            
-            no_stanzas([Alice, Bob, Kate])
-        end).
-
-leave_room(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-            % Bob is already a member, so he will leave...
-            BobJID = escalus_users:get_jid(Config, bob),
-            BobLeave = [{BobJID, <<"none">>}],
-            BobLeaveStanza = affiliations_set(BobLeave),
-            escalus:send(Bob, BobLeaveStanza),
-            verify_aff_bcast([Alice, Bob], BobLeave),
-            escalus:assert(is_iq_result, [BobLeaveStanza],
-                           escalus:wait_for_stanza(Bob)),
-            verify_msg_bcast([Alice]),
-
-            no_stanzas([Alice, Bob])
-        end).
-
-leave_new_owner(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
-            AliceJID = escalus_users:get_jid(Config, alice),
-            BobJID = escalus_users:get_jid(Config, bob),
-            KateJID = escalus_users:get_jid(Config, kate),
-
-            % Alice leaves and selects Kate as new owner
-            AliceLeave = [{AliceJID, <<"none">>}, {KateJID, <<"owner">>}],
-            AliceLeaveStanza = affiliations_set(AliceLeave),
-            escalus:send(Alice, AliceLeaveStanza),
-            verify_aff_bcast([Bob, Kate], AliceLeave),
-            verify_aff_bcast([Alice], [{AliceJID, <<"none">>}]),
-            escalus:assert(is_iq_result, [AliceLeaveStanza],
-                           escalus:wait_for_stanza(Alice)),
-
-            % Now Kate leaves and room should automatically
-            % pick Bob for new owner
-            KateLeave = [{KateJID, <<"none">>}],
-            KateLeaveStanza = affiliations_set(KateLeave),
-            escalus:send(Kate, KateLeaveStanza),
-            verify_aff_bcast([Bob], [{BobJID, <<"owner">>} | KateLeave]),
-            verify_aff_bcast([Kate], KateLeave),
-            escalus:assert(is_iq_result, [KateLeaveStanza],
-                           escalus:wait_for_stanza(Kate)),
-
-            % Now last owner leaves, room should be destroyed
-            BobLeave = [{BobJID, <<"none">>}],
-            BobLeaveStanza = affiliations_set(BobLeave),
-            escalus:send(Bob, BobLeaveStanza),
-            verify_aff_bcast([Bob], BobLeave),
-            escalus:assert(is_iq_result, [BobLeaveStanza],
-                           escalus:wait_for_stanza(Bob)),
-            false = room_exists(?ROOM, ?MUCHOST)
+            Msg = <<"Heyah!">>,
+            Stanza = escalus_stanza:groupchat_to(room_bin_jid(), Msg),
+            foreach_occupant([Alice, Bob, Kate], Stanza,
+                            fun(Incoming) ->
+                                    escalus:assert(is_groupchat_message, [Msg], Incoming)
+                            end)
         end).
 
 change_subject(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-            % Non-owner will change subject and it will become a part
-            % of room configuration
-            escalus:send(Bob, set_subject(<<"Cookies!">>)),
-            escalus:assert(is_groupchat_message, escalus:wait_for_stanza(Alice)),
-            escalus:assert(is_groupchat_message, escalus:wait_for_stanza(Bob)),
-
-            escalus:send(Alice, room_config_get()),
-            RoomConfig = escalus:wait_for_stanza(Alice),
-            <<"Cookies!">> = get_room_config(<<"roomname">>, RoomConfig)
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+            ConfigChange = [{<<"subject">>, <<"new subject">>}],
+            Stanza = stanza_config_set(ConfigChange),
+            foreach_occupant([Alice, Bob, Kate], Stanza, config_msg_verify_fun(ConfigChange))
         end).
+
+get_room_config(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+            Stanza = stanza_config_get(<<"oldver">>),
+            ConfigKV = [{version, ver(1)} | default_config()],
+            ConfigKVBin = [{list_to_binary(atom_to_list(Key)), Val} || {Key, Val} <- ConfigKV],
+            foreach_occupant([Alice, Bob, Kate], Stanza, config_iq_verify_fun(ConfigKVBin))
+        end).
+            
+get_room_occupants(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+            foreach_occupant([Alice, Bob, Kate], stanza_aff_get(<<"oldver">>),
+                             aff_iq_verify_fun(Config, default_aff_users(), ver(1)))
+        end).
+
+get_room_info(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+            Stanza = stanza_info_get(<<"oldver">>),
+            ConfigKV = default_config(),
+            ConfigKVBin = [{list_to_binary(atom_to_list(Key)), Val} || {Key, Val} <- ConfigKV],
+            foreach_occupant([Alice, Bob, Kate], Stanza,
+                             info_iq_verify_fun(Config, default_aff_users(), ver(1), ConfigKVBin))
+        end).
+
+leave_room(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+            InitOccupants = [
+                             {Alice, alice},
+                             {Bob, bob},
+                             {Kate, kate}
+                            ],
+            lists:foldr(
+              fun(User, {Occupants, Outsiders}) ->
+                      {value, {_, UserAtom}, NewOccupants} = lists:keytake(User, 1, Occupants),
+                      user_leave(User, UserAtom, NewOccupants, Config),
+                      no_stanzas(Outsiders),
+                      {NewOccupants, [User | Outsiders]}
+              end, {InitOccupants, []}, [Alice, Bob, Kate])
+        end).
+
+%% ---------------------- owner ----------------------
+
+create_room(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+            InitOccupants = [
+                             {Alice, alice, member},
+                             {Kate, kate, member}
+                            ],
+            InitConfig = [{<<"roomname">>, <<"Bob's room">>}],
+            RoomNode = <<"bobroom">>,
+            escalus:send(Bob, stanza_create_room(Config, RoomNode, InitConfig, InitOccupants)),
+            verify_aff_bcast(
+              Config, [{Bob, owner}, {Alice, member}, {Kate, member}],
+              [{Bob, bob, owner} | InitOccupants]),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob))
+        end).
+
+destroy_room(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+            escalus:send(Alice, stanza_destroy_room()),
+            verify_aff_bcast(Config, [], [{Bob, bob, none},
+                                          {Alice, alice, none},
+                                          {Kate, kate, none}], [?NS_MUC_LIGHT_DESTROY]),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice))
+        end).
+
+
+set_config(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+            ConfigChange = [{<<"roomname">>, <<"The Coven">>}],
+            escalus:send(Alice, stanza_config_set(ConfigChange)),
+            foreach_recipient([Alice, Bob, Kate], config_msg_verify_fun(ConfigChange)),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice))
+        end).
+
+remove_and_add_users(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+            AffUsersChanges1 = [{Bob, bob, none},
+                                {Kate, kate, none}],
+            escalus:send(Alice, stanza_aff_set(Config, AffUsersChanges1)),
+            verify_aff_bcast(Config, [{Alice, alice}], AffUsersChanges1),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+            AffUsersChanges2 = [{Bob, bob, member},
+                                {Kate, kate, member}],
+            escalus:send(Alice, stanza_aff_set(Config, AffUsersChanges2)),
+            verify_aff_bcast(Config, [{Alice, alice}, {Bob, bob}, {Kate, kate}], AffUsersChanges2),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice))
+        end).
+
+
+%% ---------------------- blocking ----------------------
+
+manage_blocklist(Config) ->
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+            escalus:send(Alice, stanza_blocking_get()),
+            GetResult1 = escalus:wait_for_stanza(Alice),
+            escalus:assert(is_iq_result, GetResult1),
+            [QueryEl1] = exml_query:paths(GetResult1, [{element, <<"query">>}]),
+            verify_blocklist(QueryEl1, []),
+            
+            BlocklistChange1 = [
+                                {user, deny, <<"user@localhost">>},
+                                {room, deny, room_bin_jid()}
+                               ],
+            escalus:send(Alice, stanza_blocking_set(BlocklistChange1)),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+            escalus:send(Alice, stanza_blocking_get()),
+            GetResult2 = escalus:wait_for_stanza(Alice),
+            escalus:assert(is_iq_result, GetResult2),
+            [QueryEl2] = exml_query:paths(GetResult2, [{element, <<"query">>}]),
+            verify_blocklist(QueryEl2, BlocklistChange1),
+            
+            BlocklistChange2 = [
+                                {user, allow, <<"user@localhost">>},
+                                {room, allow, room_bin_jid()}
+                               ],
+            escalus:send(Alice, stanza_blocking_set(BlocklistChange2)),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+            escalus:send(Alice, stanza_blocking_get()),
+            GetResult3 = escalus:wait_for_stanza(Alice),
+            escalus:assert(is_iq_result, GetResult3),
+            % Match below checks for empty list
+            [QueryEl1] = exml_query:paths(GetResult3, [{element, <<"query">>}])
+        end).
+
+block_room(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+            BlocklistChange = [{room, deny, room_bin_jid()}],
+            escalus:send(Bob, stanza_blocking_set(BlocklistChange)),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
+            user_leave(Bob, bob, [{Alice, alice}, {Kate, kate}], Config),
+
+            % Alice tries to readd Bob to the room but fails
+            BobReadd = [{Bob, bob, member}],
+            FailStanza = stanza_aff_set(Config, BobReadd),
+            escalus:send(Alice, FailStanza),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+            no_stanzas([Alice, Bob, Kate]),
+
+            % But Alice can add Bob to another room!
+            InitOccupants = [{Bob, bob, member}],
+            escalus:send(Alice, stanza_create_room(Config, <<"newroom">>, [], InitOccupants)),
+            verify_aff_bcast(Config, [{Alice, owner}, {Bob, member}],
+                             [{Alice, alice, owner} | InitOccupants]),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice))
+        end).
+
+block_user(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+            AliceJIDBin = binary_to_lower(escalus_users:get_jid(Config, alice)),
+            BlocklistChange = [{user, deny, AliceJIDBin}],
+            escalus:send(Bob, stanza_blocking_set(BlocklistChange)),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
+            user_leave(Bob, bob, [{Alice, alice}, {Kate, kate}], Config),
+            
+            % Alice tries to create new room with Bob but Bob is not added
+            escalus:send(Alice, stanza_create_room(Config, <<"new">>, [], [{Bob, bob, member}])),
+            verify_aff_bcast(Config, [{Alice, owner}], [{Alice, alice, owner}]),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+            no_stanzas([Alice, Bob, Kate]),
+
+            % But Kate can add Bob to the main room!
+            set_mod_config(all_can_invite, true),
+            BobReadd = [{Bob, bob, member}],
+            SuccessStanza = stanza_aff_set(Config, BobReadd),
+            escalus:send(Kate, SuccessStanza),
+            verify_aff_bcast(
+              Config, [{Alice, owner}, {Bob, member}, {Kate, member}], BobReadd),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Kate)),
+            no_stanzas([Alice, Bob, Kate])
+
+        end).
+
+%%--------------------------------------------------------------------
+%% Blocklist manipulation
+%%--------------------------------------------------------------------
+
+stanza_blocking_get() ->
+    escalus_stanza:to(escalus_stanza:iq_get(?NS_MUC_LIGHT_BLOCKING, []), ?MUCHOST).
+
+stanza_blocking_set(BlocklistChanges) ->
+    Items = [#xmlel{ name = list_to_binary(atom_to_list(What)),
+                     attrs = [{<<"action">>, list_to_binary(atom_to_list(Action))}],
+                     children = [#xmlcdata{ content = Who }] }
+             || {What, Action, Who} <- BlocklistChanges],
+    escalus_stanza:to(escalus_stanza:iq_set(?NS_MUC_LIGHT_BLOCKING, Items), ?MUCHOST).
+
+verify_blocklist(Query, ProperBlocklist) ->
+    ?NS_MUC_LIGHT_BLOCKING = exml_query:path(Query, [{attr, <<"xmlns">>}]),
+    BlockedRooms = exml_query:paths(Query, [{element, <<"room">>}]),
+    BlockedUsers = exml_query:paths(Query, [{element, <<"user">>}]),
+    BlockedItems = [{list_to_atom(binary_to_list(What)),
+                     list_to_atom(binary_to_list(Action)),
+                     Who} || #xmlel{name = What,
+                                    attrs = [{<<"action">>, Action}],
+                                    children = [#xmlcdata{ content = Who }]}
+                             <- BlockedRooms ++ BlockedUsers],
+    true = (length(BlockedItems) == length(ProperBlocklist)),
+    [] = lists:foldl(fun lists:delete/2, BlockedItems, ProperBlocklist).
 
 %%--------------------------------------------------------------------
 %% Room configuration manipulation
 %%--------------------------------------------------------------------
 
-room_config_get() ->
-    escalus_stanza:to(escalus_stanza:iq_get(?NS_MUC_OWNER, []),
-                     room_bin_jid()).
+stanza_config_get(Version) ->
+    escalus_stanza:to(
+      escalus_stanza:iq_get(?NS_MUC_LIGHT_CONFIGURATION, [version_el(Version)]), room_bin_jid()).
 
-room_config_set(Options) ->
-    Fields = escalus_stanza:search_fields(
-               [ {<<"FORM_TYPE">>, ?NS_MUC_CONFIG} | Options ]),
-    Form = escalus_stanza:x_data_form(<<"submit">>, Fields),
-    escalus_stanza:to(escalus_stanza:iq_set(?NS_MUC_OWNER, Form),
-                      room_bin_jid()).
+stanza_info_get(Version) ->
+    escalus_stanza:to(
+      escalus_stanza:iq_get(?NS_MUC_LIGHT_INFO, [version_el(Version)]), room_bin_jid()).
 
-get_room_config(Name, ConfigIQ) ->
-    Path = [{element, <<"query">>},{element, <<"x">>},{element, <<"field">>}],
-    find_config_field(Name, exml_query:paths(ConfigIQ, Path)).
-
-set_subject(Subject) ->
-    SubjectElement = #xmlel{ name = <<"subject">>,
-                             children = [#xmlcdata{ content = Subject }] },
-    SubjectStanza = #xmlel{ name = <<"message">>,
-                            attrs = [{<<"type">>, <<"groupchat">>}],
-                            children = [SubjectElement] },
-    escalus_stanza:to(SubjectStanza, room_bin_jid()).
-
-find_config_field(_Name, []) ->
-    undefined;
-find_config_field(Name, [Field | RFields]) ->
-    case exml_query:path(Field, [{attr, <<"var">>}]) of
-        Name -> exml_query:path(Field, [{element, <<"value">>}, cdata]);
-        _ -> find_config_field(Name, RFields)
-    end.
+stanza_config_set(ConfigChanges) ->
+    Items = [#xmlel{ name = Key, children = [#xmlcdata{ content = Value }] }
+             || {Key, Value} <- ConfigChanges],
+    escalus_stanza:to(escalus_stanza:iq_set(?NS_MUC_LIGHT_CONFIGURATION, Items), room_bin_jid()).
 
 %%--------------------------------------------------------------------
 %% Affiliations manipulation
 %%--------------------------------------------------------------------
 
-affiliations_get(Affiliations) ->
-    Items = [ #xmlel{ name = <<"item">>, 
-                      attrs = [{<<"affiliation">>, Affiliation}] }
-              || Affiliation <- Affiliations ],
-    escalus_stanza:to(escalus_stanza:iq_get(?NS_MUC_ADMIN, Items),
-                     room_bin_jid()).
+stanza_aff_get(Version) ->
+    escalus_stanza:to(
+      escalus_stanza:iq_get(?NS_MUC_LIGHT_AFFILIATIONS, [version_el(Version)]), room_bin_jid()).
 
-affiliations_set(Affiliations) ->
-    Items = [ #xmlel{ name = <<"item">>, 
-                      attrs = [{<<"affiliation">>, Affiliation},
-                               {<<"jid">>, JID}] }
-              || {JID, Affiliation} <- Affiliations ],
-    escalus_stanza:to(escalus_stanza:iq_set(?NS_MUC_ADMIN, Items),
-                     room_bin_jid()).
+stanza_aff_set(Config, AffUsers0) ->
+    NormalizedAffUsers = normalize_aff_users(Config, AffUsers0),
+    Items = [#xmlel{ name = <<"user">>, attrs = [{<<"affiliation">>, AffBin}],
+                     children = [#xmlcdata{ content = UserBin }] }
+             || {UserBin, AffBin} <- NormalizedAffUsers],
+    escalus_stanza:to(escalus_stanza:iq_set(?NS_MUC_LIGHT_AFFILIATIONS, Items), room_bin_jid()).
+
+verify_aff_bcast(Config, CurrentOccupants, AffUsersChanges) ->
+    verify_aff_bcast(Config, CurrentOccupants, AffUsersChanges, []).
+
+verify_aff_bcast(Config, CurrentOccupants, AffUsersChanges, ExtraNSs) ->
+    NormalizedAffUsersChanges = normalize_aff_users(Config, AffUsersChanges),
+    foreach_recipient([ User || {User, _} <- CurrentOccupants ],
+                      aff_msg_verify_fun(NormalizedAffUsersChanges)),
+    lists:foreach(
+      fun({Leaver, LeaverAtom}) ->
+              Incoming = escalus:wait_for_stanza(Leaver),
+              {[X], []} = lists:foldl(
+                            fun(XEl, {XAcc, NSAcc}) ->
+                                    XMLNS = exml_query:attr(XEl, <<"xmlns">>),
+                                    case lists:member(XMLNS, NSAcc) of
+                                        true -> {XAcc, lists:delete(XMLNS, NSAcc)};
+                                        false -> {[XEl | XAcc], NSAcc}
+                                    end
+                            end, {[], ExtraNSs}, exml_query:subelements(Incoming, <<"x">>)),
+              ?NS_MUC_LIGHT_AFFILIATIONS = exml_query:path(X, [{attr, <<"xmlns">>}]),
+              [Item] = exml_query:paths(X, [{element, <<"user">>}]),
+              <<"none">> = exml_query:path(Item, [{attr, <<"affiliation">>}]),
+              LeaverJIDBin = binary_to_lower(escalus_users:get_jid(Config, LeaverAtom)),
+              LeaverJIDBin = exml_query:path(Item, [cdata])
+      end, [ {User, UserAtom} || {User, UserAtom, _Aff} <- AffUsersChanges, _Aff == none]).
+
+-spec user_leave(User :: any(), UserAtom :: atom(),
+                 RemainingOccupants :: [{User :: any(), UserAtom :: atom()}],
+                 Config :: list()) -> any().
+user_leave(User, UserAtom, RemainingOccupants, Config) ->
+    AffUsersChanges = [{User, UserAtom, none}],
+    Stanza = stanza_aff_set(Config, AffUsersChanges),
+    escalus:send(User, Stanza),
+    % bcast
+    verify_aff_bcast(Config, RemainingOccupants, AffUsersChanges),
+    escalus:assert(is_iq_result, escalus:wait_for_stanza(User)).
 
 %%--------------------------------------------------------------------
-%% Broadcast verifiers
+%% Room create & destroy
 %%--------------------------------------------------------------------
 
-verify_msg_bcast(Users) ->
-    Msg = escalus_stanza:groupchat_to(room_bin_jid(), <<"Heyah">>),
+stanza_create_room(Config, RoomNode, InitConfig, InitOccupants) ->
+    RoomBinJID = case RoomNode of
+                     undefined -> ?MUCHOST;
+                     _ -> <<RoomNode/binary, $@, (?MUCHOST)/binary>>
+                 end,
+    ConfigItem = #xmlel{ name = <<"configuration">>,
+                         children = [ kv_el(K, V) || {K, V} <- InitConfig ] },
+    OccupantsItems = [ #xmlel{ name = <<"user">>,
+                               attrs = [{<<"affiliation">>, NormAff}],
+                               children = [#xmlcdata{ content = NormJID }] }
+                       || {NormJID, NormAff} <- normalize_aff_users(Config, InitOccupants) ],
+    OccupantsItem = #xmlel{ name = <<"occupants">>, children = OccupantsItems },
+    escalus_stanza:to(escalus_stanza:iq_set(
+                        ?NS_MUC_LIGHT_CREATE, [ConfigItem, OccupantsItem]), RoomBinJID).
+
+stanza_destroy_room() ->
+    escalus_stanza:to(escalus_stanza:iq_set(?NS_MUC_LIGHT_DESTROY, []), room_bin_jid()).
+
+%%--------------------------------------------------------------------
+%% Iterators
+%%--------------------------------------------------------------------
+
+foreach_occupant(Users, Stanza, VerifyFun) ->
     lists:foreach(
       fun(Sender) ->
-              escalus:send(Sender, Msg),
-              lists:foreach(
-                fun(Recipient) ->
-                        escalus:assert(is_groupchat_message, [<<"Heyah">>],
-                                       escalus:wait_for_stanza(Recipient))
-                end, Users)
+              escalus:send(Sender, Stanza),
+              case exml_query:path(Stanza, [{attr, <<"type">>}]) of
+                  <<"get">> ->
+                      Incoming = escalus:wait_for_stanza(Sender),
+                      escalus:assert(is_iq_result, Incoming),
+                      VerifyFun(Incoming);
+                  _ ->
+                      foreach_recipient(Users, VerifyFun),
+                      case Stanza of
+                          #xmlel{ name = <<"iq">> } ->
+                              escalus:assert(is_iq_result, escalus:wait_for_stanza(Sender));
+                          _ ->
+                              ok
+                      end
+              end
       end, Users).
 
-verify_aff_bcast(Users, Affiliations0) ->
-    NormalizedAffiliations = [{binary_to_lower(JID), Aff} || {JID, Aff} <- Affiliations0],
+foreach_recipient(Users, VerifyFun) ->
     lists:foreach(
       fun(Recipient) ->
-              Stanza = escalus:wait_for_stanza(Recipient),
-              XEl = exml_query:path(Stanza, [{element, <<"x">>}]),
-              ?NS_MUC_LIGHT = exml_query:path(XEl, [{attr, <<"xmlns">>}]),
-              Items = exml_query:paths(XEl, [{element, <<"item">>}]),
-              true = (length(Items) == length(NormalizedAffiliations)),
-              [] = lists:foldl(
-                     fun(Item, AffAcc) ->
-                             JID = exml_query:path(
-                                     Item, [{attr, <<"jid">>}]),
-                             Aff = exml_query:path(
-                                     Item, [{attr, <<"affiliation">>}]),
-                             verify_keytake(lists:keytake(JID, 1, AffAcc), JID, Aff, AffAcc)
-                     end, NormalizedAffiliations, Items)
+              VerifyFun(escalus:wait_for_stanza(Recipient))
       end, Users).
+
+%%--------------------------------------------------------------------
+%% Verification funs generators
+%%--------------------------------------------------------------------
+
+config_msg_verify_fun(Config) ->
+    fun(Incoming) ->
+            escalus:assert(is_groupchat_message, Incoming),
+            [X] = exml_query:paths(Incoming, [{element, <<"x">>}]),
+            ?NS_MUC_LIGHT_CONFIGURATION = exml_query:path(X, [{attr, <<"xmlns">>}]),
+            PrevVersion = exml_query:path(X, [{element, <<"prev-version">>}, cdata]),
+            Version = exml_query:path(X, [{element, <<"version">>}, cdata]),
+            true = is_binary(Version),
+            true = is_binary(PrevVersion),
+            true = Version =/= PrevVersion,
+            lists:foreach(
+              fun({Key, Val}) ->
+                      Val = exml_query:path(X, [{element, Key}, cdata])
+              end, Config)
+    end.
+
+config_iq_verify_fun(Config) ->
+    fun(Incoming) ->
+            [Query] = exml_query:paths(Incoming, [{element, <<"query">>}]),
+            ?NS_MUC_LIGHT_CONFIGURATION = exml_query:path(Query, [{attr, <<"xmlns">>}]),
+            verify_config(Query, Config)
+    end.
+
+aff_iq_verify_fun(Config, AffUsers0, Version) ->
+    NormalizedAffUsers = normalize_aff_users(Config, AffUsers0),
+    fun(Incoming) ->
+            [Query] = exml_query:paths(Incoming, [{element, <<"query">>}]),
+            ?NS_MUC_LIGHT_AFFILIATIONS = exml_query:path(Query, [{attr, <<"xmlns">>}]),
+            Version = exml_query:path(Query, [{element, <<"version">>}, cdata]),
+            Items = exml_query:paths(Query, [{element, <<"user">>}]),
+            verify_aff_users(Items, NormalizedAffUsers)
+    end.
+
+aff_msg_verify_fun(NormalizedAffUsersChanges) ->
+    fun(Incoming) ->
+            [X] = exml_query:subelements(Incoming, <<"x">>),
+            ?NS_MUC_LIGHT_AFFILIATIONS = exml_query:path(X, [{attr, <<"xmlns">>}]),
+            PrevVersion = exml_query:path(X, [{element, <<"prev-version">>}, cdata]),
+            Version = exml_query:path(X, [{element, <<"version">>}, cdata]),
+            [Item | RItems] = Items = exml_query:subelements(X, <<"user">>),
+            [ToBin | _] = binary:split(exml_query:attr(Incoming, <<"to">>), <<"/">>),
+            true = is_binary(Version),
+            true = Version =/= PrevVersion,
+            case {ToBin == exml_query:cdata(Item), RItems} of
+                {true, []} ->
+                    {_, ProperAff} = lists:keyfind(ToBin, 1, NormalizedAffUsersChanges),
+                    ProperAff = exml_query:attr(Item, <<"affiliation">>);
+                _ ->
+                    true = is_binary(PrevVersion),
+                    verify_aff_users(Items, NormalizedAffUsersChanges)
+            end
+    end.
+
+info_iq_verify_fun(Config, AffUsers0, Version, ConfigKVBin) ->
+    NormalizedAffUsers = normalize_aff_users(Config, AffUsers0),
+    fun(Incoming) ->
+            [Query] = exml_query:paths(Incoming, [{element, <<"query">>}]),
+            ?NS_MUC_LIGHT_INFO = exml_query:path(Query, [{attr, <<"xmlns">>}]),
+            Version = exml_query:path(Query, [{element, <<"version">>}, cdata]),
+            UsersItems = exml_query:paths(Query, [{element, <<"occupants">>}, {element, <<"user">>}]),
+            verify_aff_users(UsersItems, NormalizedAffUsers),
+            ConfigurationEl = exml_query:path(Query, [{element, <<"configuration">>}]),
+            verify_config(ConfigurationEl, ConfigKVBin)
+    end.
+
+verify_config(ConfigRoot, Config) ->
+    lists:foreach(
+      fun({Key, Val}) ->
+              Val = exml_query:path(ConfigRoot, [{element, Key}, cdata])
+      end, Config).
+
+verify_aff_users(Items, NormalizedAffUsers) ->
+    true = (length(Items) == length(NormalizedAffUsers)),
+    [] = lists:foldl(
+           fun(Item, AffAcc) ->
+                   JID = exml_query:path(Item, [cdata]),
+                   Aff = exml_query:path(Item, [{attr, <<"affiliation">>}]),
+                   verify_keytake(lists:keytake(JID, 1, AffAcc), JID, Aff, AffAcc)
+           end, NormalizedAffUsers, Items).
 
 verify_keytake({value, {_, Aff}, NewAffAcc}, _JID, Aff, _AffAcc) -> NewAffAcc.
 
@@ -342,21 +582,41 @@ verify_keytake({value, {_, Aff}, NewAffAcc}, _JID, Aff, _AffAcc) -> NewAffAcc.
 %% Other helpers
 %%--------------------------------------------------------------------
 
-create_room(RoomU, MUCHost, Owner, Config) ->
-    DefaultConfig = rpc(mod_muc_light, default_configuration, []),
-    RoomJID = make_jid(RoomU, MUCHost),
-    OwnerJID = lower(user_jid(Owner, Config)),
-    ok = rpc(backend(), create_room, [RoomJID, OwnerJID, DefaultConfig]).
+ver(Int) ->
+    <<"ver-", (list_to_binary(integer_to_list(Int)))/binary>>.
 
-destroy_room(RoomU, MUCHost) ->
-    RoomJID = make_jid(RoomU, MUCHost),
-    ok = rpc(backend(), force_destroy_room, [RoomJID]).
+version_el(Version) ->
+    #xmlel{ name = <<"version">>, children = [#xmlcdata{ content = Version }] }.
+
+default_aff_users() ->
+    [
+     {alice, owner},
+     {bob, member},
+     {kate, member}
+    ].
+
+normalize_aff_users(Config, AffUsers0) ->
+    [normalize_aff_user(AffUser, Config) || AffUser <- AffUsers0].
+
+normalize_aff_user({UserAtom, Aff}, Config) ->
+    {binary_to_lower(escalus_users:get_jid(Config, UserAtom)), list_to_binary(atom_to_list(Aff))};
+normalize_aff_user({_User, UserAtom, Aff}, Config) ->
+    normalize_aff_user({UserAtom, Aff}, Config).
+
+create_room(RoomU, MUCHost, Owner, Config, Version) ->
+    DefaultConfig = default_config(),
+    RoomUS = {RoomU, MUCHost},
+    OwnerUS = to_lus(jid(Owner, Config)),
+    {ok, US} = rpc(backend(), create_room, [RoomUS, DefaultConfig, [{OwnerUS, owner}], Version]),
+    US.
+
+clear_db() ->
+    rpc(backend(), force_clear, []).
 
 room_exists(RoomU, MUCHost) ->
-    RoomJID = make_jid(RoomU, MUCHost),
-    rpc(backend(), room_exists, [RoomJID]).
+    rpc(backend(), room_exists, [{RoomU, MUCHost}]).
 
-user_jid(User, Config) ->
+jid(User, Config) ->
     UserU = escalus_users:get_username(Config, User),
     UserS = escalus_users:get_server(Config, User),
     make_jid(UserU, UserS).
@@ -364,27 +624,48 @@ user_jid(User, Config) ->
 room_bin_jid() ->
     <<(?ROOM)/binary, $@, (?MUCHOST)/binary>>.
 
-add_occupant(RoomU, MUCHost, User, Config) ->
-    UserLJID = lower(user_jid(User, Config)),
-    RoomJID = make_jid(RoomU, MUCHost),
+add_occupant(RoomU, MUCHost, User, Config, Version) ->
+    UserLJID = to_lus(jid(User, Config)),
+    RoomUS = {RoomU, MUCHost},
     NewAff = [{UserLJID, member}],
-    {ok, _, _} = rpc(backend(), modify_affiliated_users,
-                     [RoomJID, NewAff, fun mod_muc_light_room:participant_limit_check/2]).
+    {ok, _, _, _, _} = rpc(backend(), modify_aff_users, [RoomUS, NewAff, ?CHECK_FUN, Version]).
 
 make_jid(User, Server) ->
     escalus_ejabberd:rpc(jlib, make_jid, [User, Server, <<>>]).
 
-lower(JID) ->
-    escalus_ejabberd:rpc(jlib, jid_to_lower, [JID]).
+to_lus(JID) ->
+    escalus_ejabberd:rpc(jlib, jid_to_lus, [JID]).
 
 binary_to_lower(Bin) ->
     list_to_binary(string:to_lower(binary_to_list(Bin))).
 
 backend() ->
-    rpc(mod_muc_light, backend, []).
+    mod_muc_light_db_backend.
+
+default_config() ->
+    rpc(mod_muc_light, default_config, []).
 
 no_stanzas(Users) ->
     lists:foreach(
       fun(User) ->
-              false = escalus_client:has_stanzas(User)
+              {false, _} = {escalus_client:has_stanzas(User), User}
       end, Users).
+
+set_default_mod_config() ->
+    lists:foreach(
+      fun({K, V}) -> set_mod_config(K, V) end,
+      [
+       {equal_occupants, false},
+       {rooms_per_user, infinity},
+       {blocking, true},
+       {all_can_configure, false},
+       {all_can_invite, false},
+       {max_occupants, infinity}
+      ]).
+
+set_mod_config(K, V) ->
+    rpc(mod_muc_light, set_service_opt, [K, V]).
+
+kv_el(K, V) ->
+    #xmlel{ name = K, children = [ #xmlcdata{ content = V } ] }.
+
