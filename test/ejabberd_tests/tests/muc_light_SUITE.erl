@@ -53,7 +53,7 @@
 
 all() ->
     [
-     {group, disco},
+     {group, entity},
      {group, occupant},
      {group, owner},
      {group, blocking}
@@ -61,29 +61,44 @@ all() ->
 
 groups() ->
     [
-     {disco, [sequence], [
+     {entity, [sequence], [
                             disco_service,
                             disco_features,
-                            disco_rooms
+                            disco_rooms,
+                            unauthorized_stanza
                          ]},
      {occupant, [sequence], [
                              send_message,
                              change_subject,
+                             all_can_configure,
+                             set_config_deny,
                              get_room_config,
                              get_room_occupants,
                              get_room_info,
-                             leave_room
+                             leave_room,
+                             change_other_aff_deny
                             ]},
      {owner, [sequence], [
                           create_room,
+                          create_room_unique,
+                          create_room_with_equal_occupants,
+                          create_existing_room_deny,
                           destroy_room,
                           set_config,
-                          remove_and_add_users
+                          remove_and_add_users,
+                          explicit_owner_change,
+                          implicit_owner_change,
+                          edge_case_owner_change
                          ]},
+     {limits, [sequence], [
+                           rooms_per_user,
+                           max_occupants
+                          ]},
      {blocking, [sequence], [
                              manage_blocklist,
                              block_room,
-                             block_user
+                             block_user,
+                             blocking_disabled
                             ]}
     ].
 
@@ -95,17 +110,19 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    escalus:init_per_suite(Config).
+    Config1 = escalus:init_per_suite(Config),
+    escalus:create_users(Config1, {by_name, [alice, bob, kate, mike]}).
 
 end_per_suite(Config) ->
     clear_db(),
-    escalus:end_per_suite(Config).
+    Config1 = escalus:delete_users(Config, {by_name, [alice, bob, kate, mike]}),
+    escalus:end_per_suite(Config1).
 
 init_per_group(_GroupName, Config) ->
-    escalus:create_users(Config, {by_name, [alice, bob, kate]}).
+    Config.
 
 end_per_group(_GroupName, Config) ->
-    escalus:delete_users(Config, {by_name, [alice, bob, kate]}).
+    Config.
 
 init_per_testcase(CaseName, Config) ->
     set_default_mod_config(),
@@ -179,6 +196,16 @@ disco_rooms(Config) ->
             escalus:assert(is_stanza_from, [?MUCHOST], Stanza)
         end).
 
+unauthorized_stanza(Config) ->
+    escalus:story(Config, [{alice, 1}, {kate, 1}], fun(Alice, Kate) ->
+            {ok, {?ROOM2, ?MUCHOST}} = create_room(?ROOM2, ?MUCHOST, kate, [], Config, ver(0)),
+            MsgStanza = escalus_stanza:groupchat_to(room_bin_jid(?ROOM2), <<"malicious">>),
+            escalus:send(Alice, MsgStanza),
+            escalus:assert(is_error, [<<"cancel">>, <<"item-not-found">>],
+                           escalus:wait_for_stanza(Alice)),
+            verify_no_stanzas([Alice, Kate])
+        end).
+
 %% ---------------------- Occupant ----------------------
 
 send_message(Config) ->
@@ -198,19 +225,47 @@ change_subject(Config) ->
             foreach_occupant([Alice, Bob, Kate], Stanza, config_msg_verify_fun(ConfigChange))
         end).
 
+all_can_configure(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+            set_mod_config(all_can_configure, true),
+            ConfigChange = [{<<"roomname">>, <<"new subject">>}],
+            Stanza = stanza_config_set(?ROOM, ConfigChange),
+            foreach_occupant([Alice, Bob, Kate], Stanza, config_msg_verify_fun(ConfigChange))
+        end).
+
+set_config_deny(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+            ConfigChange = [{<<"roomname">>, <<"new subject">>}],
+            Stanza = stanza_config_set(?ROOM, ConfigChange),
+            escalus:send(Kate, Stanza),
+            escalus:assert(is_error, [<<"cancel">>, <<"not-allowed">>],
+                           escalus:wait_for_stanza(Kate)),
+            verify_no_stanzas([Alice, Bob, Kate])
+        end).
+
 get_room_config(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
             Stanza = stanza_config_get(?ROOM, <<"oldver">>),
             ConfigKV = [{version, ver(1)} | default_config()],
             ConfigKVBin = [{list_to_binary(atom_to_list(Key)), Val} || {Key, Val} <- ConfigKV],
-            foreach_occupant([Alice, Bob, Kate], Stanza, config_iq_verify_fun(ConfigKVBin))
+            foreach_occupant([Alice, Bob, Kate], Stanza, config_iq_verify_fun(ConfigKVBin)),
+
+            escalus:send(Bob, stanza_config_get(?ROOM, ver(1))),
+            IQRes = escalus:wait_for_stanza(Bob),
+            escalus:assert(is_iq_result, IQRes),
+            undefined = exml_query:subelement(IQRes, <<"query">>)
         end).
             
 get_room_occupants(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
             AffUsers = [{Alice, owner}, {Bob, member}, {Kate, member}],
             foreach_occupant([Alice, Bob, Kate], stanza_aff_get(?ROOM, <<"oldver">>),
-                             aff_iq_verify_fun(AffUsers, ver(1)))
+                             aff_iq_verify_fun(AffUsers, ver(1))),
+
+            escalus:send(Bob, stanza_aff_get(?ROOM, ver(1))),
+            IQRes = escalus:wait_for_stanza(Bob),
+            escalus:assert(is_iq_result, IQRes),
+            undefined = exml_query:subelement(IQRes, <<"query">>)
         end).
 
 get_room_info(Config) ->
@@ -219,7 +274,12 @@ get_room_info(Config) ->
             ConfigKV = default_config(),
             ConfigKVBin = [{list_to_binary(atom_to_list(Key)), Val} || {Key, Val} <- ConfigKV],
             foreach_occupant([Alice, Bob, Kate], Stanza,
-                             info_iq_verify_fun(?DEFAULT_AFF_USERS, ver(1), ConfigKVBin))
+                             info_iq_verify_fun(?DEFAULT_AFF_USERS, ver(1), ConfigKVBin)),
+
+            escalus:send(Bob, stanza_aff_get(?ROOM, ver(1))),
+            IQRes = escalus:wait_for_stanza(Bob),
+            escalus:assert(is_iq_result, IQRes),
+            undefined = exml_query:subelement(IQRes, <<"query">>)
         end).
 
 leave_room(Config) ->
@@ -234,6 +294,52 @@ leave_room(Config) ->
               end, {?DEFAULT_AFF_USERS, []}, [Alice, Bob, Kate])
         end).
 
+change_other_aff_deny(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}, {mike, 1}],
+                  fun(Alice, Bob, Kate, Mike) ->
+            AffUsersChanges1 = [{Bob, none}],
+            escalus:send(Kate, stanza_aff_set(?ROOM, AffUsersChanges1)),
+            escalus:assert(is_error, [<<"cancel">>, <<"not-allowed">>],
+                           escalus:wait_for_stanza(Kate)),
+
+            AffUsersChanges2 = [{Alice, member}, {Kate, owner}],
+            escalus:send(Kate, stanza_aff_set(?ROOM, AffUsersChanges2)),
+            escalus:assert(is_error, [<<"cancel">>, <<"not-allowed">>],
+                           escalus:wait_for_stanza(Kate)),
+
+            set_mod_config(all_can_invite, false),
+            AffUsersChanges3 = [{Mike, member}],
+            escalus:send(Kate, stanza_aff_set(?ROOM, AffUsersChanges3)),
+            escalus:assert(is_error, [<<"cancel">>, <<"not-allowed">>],
+                           escalus:wait_for_stanza(Kate)),
+
+            verify_no_stanzas([Alice, Bob, Kate, Mike])
+        end).
+
+explicit_owner_change(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+            AffUsersChanges1 = [{Bob, none}, {Alice, none}, {Kate, owner}],
+            escalus:send(Alice, stanza_aff_set(?ROOM, AffUsersChanges1)),
+            verify_aff_bcast([{Kate, owner}], AffUsersChanges1),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice))
+        end).
+
+implicit_owner_change(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+            AffUsersChanges1 = [{Bob, none}, {Alice, member}],
+            escalus:send(Alice, stanza_aff_set(?ROOM, AffUsersChanges1)),
+            verify_aff_bcast([{Kate, owner}, {Alice, member}], [{Kate, owner} | AffUsersChanges1]),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice))
+        end).
+
+edge_case_owner_change(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+            AffUsersChanges1 = [{Alice, member}, {Bob, none}, {Kate, none}],
+            escalus:send(Alice, stanza_aff_set(?ROOM, AffUsersChanges1)),
+            verify_aff_bcast([{Alice, owner}], [{Kate, none}, {Bob, none}]),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice))
+        end).
+
 %% ---------------------- owner ----------------------
 
 create_room(Config) ->
@@ -246,6 +352,29 @@ create_room(Config) ->
             escalus:send(Bob, stanza_create_room(RoomNode, InitConfig, InitOccupants)),
             verify_aff_bcast(FinalOccupants, FinalOccupants),
             escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob))
+        end).
+
+create_room_unique(Config) ->
+    escalus:story(Config, [{bob, 1}], fun(Bob) ->
+            InitConfig = [{<<"roomname">>, <<"Bob's room">>}],
+            escalus:send(Bob, stanza_create_room(undefined, InitConfig, [])),
+            verify_aff_bcast([{Bob, owner}], [{Bob, owner}]),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob))
+        end).
+
+create_room_with_equal_occupants(Config) ->
+    escalus:story(Config, [{bob, 1}], fun(Bob) ->
+            set_mod_config(equal_occupants, true),
+            InitConfig = [{<<"roomname">>, <<"Bob's room">>}],
+            escalus:send(Bob, stanza_create_room(undefined, InitConfig, [])),
+            verify_aff_bcast([{Bob, member}], [{Bob, member}]),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob))
+        end).
+
+create_existing_room_deny(Config) ->
+    escalus:story(Config, [{bob, 1}], fun(Bob) ->
+            escalus:send(Bob, stanza_create_room(?ROOM, [], [])),
+            escalus:assert(is_error, [<<"cancel">>, <<"conflict">>], escalus:wait_for_stanza(Bob))
         end).
 
 destroy_room(Config) ->
@@ -274,6 +403,44 @@ remove_and_add_users(Config) ->
             escalus:send(Alice, stanza_aff_set(?ROOM, AffUsersChanges2)),
             verify_aff_bcast([{Alice, owner}, {Bob, member}, {Kate, member}], AffUsersChanges2),
             escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice))
+        end).
+
+%% ---------------------- limits ----------------------
+
+rooms_per_user(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}, {mike, 1}],
+                  fun(Alice, Bob, Kate, Mike) ->
+            set_mod_config(rooms_per_user, 1),
+            escalus:send(Bob, stanza_create_room(undefined, [], [])),
+            escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
+                           escalus:wait_for_stanza(Bob)),
+
+            escalus:send(Mike, stanza_create_room(<<"mikeroom">>, [], [])),
+            verify_aff_bcast([{Mike, owner}], [{Mike, owner}]),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Mike)),
+            KateAdd = [{Kate, member}],
+            escalus:send(Mike, stanza_aff_set(<<"mikeroom">>, KateAdd)),
+            escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
+                           escalus:wait_for_stanza(Bob)),
+
+            verify_no_stanzas([Alice, Bob, Kate, Mike])
+        end).
+
+
+max_occupants(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}, {mike, 1}],
+                  fun(Alice, Bob, Kate, Mike) ->
+            set_mod_config(max_occupants, 1),
+            escalus:send(Bob, stanza_create_room(undefined, [], [{Alice, member}, {Kate, member}])),
+            escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
+                           escalus:wait_for_stanza(Bob)),
+
+            MikeAdd = [{Mike, member}],
+            escalus:send(Alice, stanza_aff_set(?ROOM, MikeAdd)),
+            escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
+                           escalus:wait_for_stanza(Bob)),
+
+            verify_no_stanzas([Alice, Bob, Kate, Mike])
         end).
 
 %% ---------------------- blocking ----------------------
@@ -352,6 +519,20 @@ block_user(Config) ->
             escalus:assert(is_iq_result, escalus:wait_for_stanza(Kate)),
             verify_no_stanzas([Alice, Bob, Kate])
 
+        end).
+
+blocking_disabled(Config) ->
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+            set_mod_config(blocking, false),
+            escalus:send(Alice, stanza_blocking_get()),
+            escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
+                           escalus:wait_for_stanza(Alice)),
+            
+            BlocklistChange1 = [{user, deny, <<"user@localhost">>},
+                                {room, deny, room_bin_jid(?ROOM)}],
+            escalus:send(Alice, stanza_blocking_set(BlocklistChange1)),
+            escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
+                           escalus:wait_for_stanza(Alice))
         end).
 
 %%--------------------------------------------------------------------
@@ -462,6 +643,8 @@ verify_aff_bcast(CurrentOccupants, AffUsersChanges, ExtraNSs) ->
     lists:foreach(
       fun({Leaver, none}) ->
               Incoming = escalus:wait_for_stanza(Leaver),
+              %% This notification must come from the room bare JID
+              [_, ?MUCHOST] = binary:split(exml_query:attr(Incoming, <<"from">>), <<"@">>),
               {[X], []} = lists:foldl(
                             fun(XEl, {XAcc, NSAcc}) ->
                                     XMLNS = exml_query:attr(XEl, <<"xmlns">>),
