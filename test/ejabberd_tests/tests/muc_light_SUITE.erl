@@ -212,10 +212,7 @@ send_message(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
             Msg = <<"Heyah!">>,
             Stanza = escalus_stanza:groupchat_to(room_bin_jid(?ROOM), Msg),
-            foreach_occupant([Alice, Bob, Kate], Stanza,
-                            fun(Incoming) ->
-                                    escalus:assert(is_groupchat_message, [Msg], Incoming)
-                            end)
+            foreach_occupant([Alice, Bob, Kate], Stanza, gc_message_verify_fun(?ROOM, Msg))
         end).
 
 change_subject(Config) ->
@@ -726,6 +723,15 @@ foreach_recipient(Users, VerifyFun) ->
 %%--------------------------------------------------------------------
 %% Verification funs generators
 %%--------------------------------------------------------------------
+
+-spec gc_message_verify_fun(Room :: binary(), MsgText :: binary()) -> verify_fun().
+gc_message_verify_fun(Room, MsgText) ->
+    fun(Incoming) ->
+            escalus:assert(is_groupchat_message, [MsgText], Incoming),
+            [RoomBareJID, FromNick] = binary:split(exml_query:attr(Incoming, <<"from">>), <<"/">>),
+            [Room, ?MUCHOST] = binary:split(RoomBareJID, <<"@">>),
+            [_] = binary:split(FromNick, <<"/">>) % nick is bare JID
+    end.
 
 -spec config_msg_verify_fun(RoomConfig :: [{binary(), binary()}]) -> verify_fun().
 config_msg_verify_fun(RoomConfig) ->
