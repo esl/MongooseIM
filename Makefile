@@ -206,17 +206,17 @@ cd_ct:
 # -------- against configurations.
 
 cd_uat_test_two_nodes_start:
-	cd dev/mongooseim_node1cd/bin && ./mongooseimctl start
+	cd mongooseim_node1cd/bin && ./mongooseimctl start
 	sleep 3
-	cd dev/mongooseim_node2cd/bin && ./mongooseimctl start
+	cd mongooseim_node2cd/bin && ./mongooseimctl start
 
 cd_uat_test_two_nodes_stop:
-	cd dev/mongooseim_node1cd/bin && ./mongooseimctl stop
+	cd mongooseim_node1cd/bin && ./mongooseimctl stop
 	sleep 3
-	cd dev/mongooseim_node2cd/bin && ./mongooseimctl stop
+	cd mongooseim_node2cd/bin && ./mongooseimctl stop
 
 cd_uat_test_full:
-	cd test/ejabberd_tests && make test
+	cd ejabberd_tests_for_execution/test/ejabberd_tests && make test
 
 %:
 	@:
