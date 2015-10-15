@@ -152,14 +152,14 @@ init([Host, Opts]) ->
     {TL1, TL2} = gen_mod:get_opt(top_link, Opts, {"/", "Home"}),
     Top_link = {list_to_binary(TL1), list_to_binary(TL2)},
     NoFollow = gen_mod:get_opt(spam_prevention, Opts, true),
-    Lang = list_to_binary(case ejabberd_config:get_local_option({language, Host}) of
+    Lang = case ejabberd_config:get_local_option({language, Host}) of
                undefined ->
                        case ejabberd_config:get_global_option(language) of
-                           undefined -> "en";
+                           undefined -> <<"en">>;
                            L -> L
                        end;
                L -> L
-           end),
+           end,
     {ok, #logstate{host = Host,
                 out_dir = OutDir,
                 dir_type = DirType,

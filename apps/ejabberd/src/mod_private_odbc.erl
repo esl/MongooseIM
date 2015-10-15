@@ -57,7 +57,7 @@ multi_set_data_t(LUser, LServer, NS2XML) ->
 
 set_data_t(SLUser, LServer, NS, XML) ->
     SNS = ejabberd_odbc:escape(NS),
-    SData = ejabberd_odbc:escape(xml:element_to_binary(XML)),
+    SData = ejabberd_odbc:escape(exml:to_binary(XML)),
     odbc_queries:set_private_data(LServer, SLUser, SNS, SData).
 
 multi_get_data(LUser, LServer, NS2Def) ->
@@ -69,7 +69,8 @@ get_data(LUser, LServer, NS, Default) ->
     SNS = ejabberd_odbc:escape(NS),
     case catch odbc_queries:get_private_data(LServer, SLUser, SNS) of
         {selected, [<<"data">>], [{SData}]} ->
-            #xmlel{} = xml_stream:parse_element(SData);
+	    {ok, Elem} = exml:parse(SData),
+	    Elem;
         _ ->
             Default
     end.

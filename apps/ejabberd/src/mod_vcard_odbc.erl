@@ -54,11 +54,11 @@ get_vcard(LUser, LServer) ->
     S = ejabberd_odbc:escape(LServer),
     case odbc_queries:get_vcard(S,U) of
         {selected, [<<"vcard">>], [{SVCARD}]} ->
-            case xml_stream:parse_element(SVCARD) of
+            case exml:parse(SVCARD) of
                 {error, Reason} ->
                     ?WARNING_MSG("not sending bad vcard xml ~p~n~p",[Reason,SVCARD]),
                     {error, ?ERR_SERVICE_UNAVAILABLE};
-                VCARD ->
+		{ok, VCARD} ->
                     {ok, [VCARD]}
             end;
         {selected, [<<"vcard">>],[]} ->
@@ -70,8 +70,7 @@ set_vcard(User, VHost, VCard, VCardSearch) ->
     Username = ejabberd_odbc:escape(User),
     LUsername = ejabberd_odbc:escape(LUser),
     LServer = ejabberd_odbc:escape(VHost),
-    SVCARD = ejabberd_odbc:escape(
-               xml:element_to_binary(VCard)),
+    SVCARD = ejabberd_odbc:escape( exml:to_binary(VCard)),
 
     SFN = ejabberd_odbc:escape(VCardSearch#vcard_search.fn),
     SLFN = ejabberd_odbc:escape(VCardSearch#vcard_search.lfn),

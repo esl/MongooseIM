@@ -529,7 +529,7 @@ process_term(Term, State) ->
                   Listeners),
             add_option(listen, Listeners2, State);
         {language, Val} ->
-            add_option(language, Val, State);
+            add_option(language, list_to_binary(Val), State);
         {sm_backend, Val} ->
             add_option(sm_backend, Val, State);
         {outgoing_s2s_port, Port} ->

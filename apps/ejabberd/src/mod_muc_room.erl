@@ -1533,14 +1533,14 @@ prepare_room_queue(StateData) ->
     end.
 
 -spec is_first_session(mod_muc:nick(), state()) -> boolean().
-is_first_session(Nick, StateData) -> 
+is_first_session(Nick, StateData) ->
     case ?DICT:find(Nick, StateData#state.sessions) of
         {ok, _Val} -> false;
         error -> true
     end.
 
 -spec is_last_session(mod_muc:nick(), state()) -> boolean().
-is_last_session(Nick, StateData) -> 
+is_last_session(Nick, StateData) ->
     case ?DICT:find(Nick, StateData#state.sessions) of
         {ok, [_Val]} -> true;
         _ -> false
@@ -1573,12 +1573,12 @@ remove_online_user(JID, StateData) ->
 
 -spec remove_online_user(ejabberd:jid(), state(), Reason :: binary()) -> state().
 remove_online_user(JID, StateData, Reason) ->
-    
+
     LJID = jlib:jid_tolower(JID),
     {ok, #user{nick = Nick}} =
         ?DICT:find(LJID, StateData#state.users),
     Sessions = case is_last_session(Nick, StateData) of
-        true -> 
+        true ->
             add_to_log(leave, {Nick, Reason}, StateData),
             tab_remove_online_user(JID, StateData),
             ?DICT:erase(Nick, StateData#state.sessions);
@@ -1588,7 +1588,7 @@ remove_online_user(JID, StateData, Reason) ->
             ?DICT:update(Nick, F, StateData#state.sessions)
     end,
     Users = ?DICT:erase(LJID, StateData#state.users),
-    
+
     StateData#state{users = Users, sessions = Sessions}.
 
 
@@ -2094,7 +2094,7 @@ send_new_presence_un(NJID, StateData) ->
 send_new_presence_un(NJID, Reason, StateData) ->
     {ok, #user{ nick = Nick }} = ?DICT:find(jlib:jid_tolower(NJID), StateData#state.users),
     case is_last_session(Nick, StateData) of
-        true -> 
+        true ->
             send_new_presence(NJID, Reason, StateData);
         false ->
             UserJIDs = ?DICT:fetch(Nick, StateData#state.sessions),
@@ -3283,10 +3283,9 @@ get_config(Lang, StateData, From) ->
     Config = StateData#state.config,
     {MaxUsersRoomInteger, MaxUsersRoomString} =
     case get_max_users(StateData) of
-        none ->
-            {0, <<"none">>};
-        MaxUsers ->
-            {MaxUsers, list_to_binary(integer_to_list(MaxUsers))}
+        N when is_integer(N) ->
+        {N, integer_to_binary(N)};
+        _ -> {0, <<"none">>}
     end,
     Res =
     [#xmlel{name = <<"title">>,
@@ -4200,7 +4199,7 @@ tab_count_user(JID) ->
     end.
 
 element_size(El) ->
-    size(xml:element_to_binary(El)).
+    exml:xml_size(El).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Routing functions

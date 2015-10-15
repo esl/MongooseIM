@@ -59,14 +59,15 @@ remove_user(LUser, LServer) ->
     end.
 
 set_private_data(LUser, LServer, NS, XML) ->
-    Obj = riakc_obj:new(bucket_type(LServer), key(LUser, NS), xml:element_to_binary(XML)),
+    Obj = riakc_obj:new(bucket_type(LServer), key(LUser, NS), exml:to_binary(XML)),
     mongoose_riak:put(Obj).
 
 get_private_data(LUser, LServer, NS, Default) ->
     case mongoose_riak:get(bucket_type(LServer), key(LUser, NS)) of
         {ok, Obj} ->
             Value = riakc_obj:get_value(Obj),
-            #xmlel{} = xml_stream:parse_element(Value);
+            {ok, #xmlel{} = DecodedXML} = exml:parse(Value),
+            DecodedXML;
         _ ->
             Default
     end.
