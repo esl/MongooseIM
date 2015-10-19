@@ -691,8 +691,7 @@ dump_table(Config) ->
     TableSize = rpc_apply(mnesia, table_info, [TableName, size]).
 
 get_loglevel(Config) ->
-    {R, _} = ejabberdctl("get_loglevel", [], Config),
-    true = is_integer(R).
+    {R, _} = ejabberdctl("get_loglevel", [], Config).
 
 
 %%-----------------------------------------------------------------

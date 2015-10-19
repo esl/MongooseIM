@@ -44,7 +44,7 @@
          dump_to_textfile/1, dump_to_textfile/2,
          mnesia_change_nodename/4,
          restore/1 % Still used by some modules
-        ]).
+    ,    get_loglevel/0]).
 
 -include("ejabberd.hrl").
 -include("ejabberd_commands.hrl").
@@ -87,12 +87,9 @@ commands() ->
 %                       result = {res, rescode}},
      #ejabberd_commands{name = get_loglevel, tags = [logs, server],
                         desc = "Get the current loglevel",
-                        module = ejabberd_loglevel, function = get,
+                        module = ?MODULE, function = get_loglevel,
                         args = [],
-                        result = {leveltuple, {tuple, [{levelnumber, integer},
-                                                       {levelatom, atom}
-                                                      ]}}},
-
+                        result = {res, restuple}},
      #ejabberd_commands{name = register, tags = [accounts],
                         desc = "Register a user",
                         module = ?MODULE, function = register,
@@ -314,6 +311,17 @@ registered_users(Host) ->
     Users = ejabberd_auth:get_vh_registered_users(Host),
     SUsers = lists:sort(Users),
     lists:map(fun({U, _S}) -> U end, SUsers).
+
+get_loglevel() ->
+    BackendList = ejabberd_loglevel:get(),
+    F = fun({Backend, Level}) ->
+        {Number, Name} = Level,
+        io_lib:format("loglevel for ~p is ~p which is '~p'",
+                      [Backend, Number, Name])
+        end,
+    StringList = lists:map(F, BackendList),
+    JoinedList = string:join(StringList, "\n"),
+    {ok, JoinedList}.
 
 %%%
 %%% Purge DB
