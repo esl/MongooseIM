@@ -67,8 +67,7 @@ Features and supported standards
 Documentation
 -------------
 
-Up-to-date documentation for the MongooseIM master branch can be
-[found here](http://mongooseim.readthedocs.org/en/latest/).
+Up-to-date documentation for the MongooseIM master branch can be found on ReadTheDocs: http://mongooseim.readthedocs.org/en/latest/
 [See here for release 1.5.1 documentation](http://mongooseim.readthedocs.org/en/1.5.1/).
 
 When developing new features/modules, please take care to add basic documentation
@@ -193,6 +192,15 @@ Test suite
 In order to test and validate your XMPP servers, here are useful tools:
 * [escalus](https://github.com/esl/escalus): Erlang XMPP client
 * [amoc](https://github.com/esl/amoc): a load testing tools
+
+Public testing
+--------------
+
+Continuous integration:
+https://travis-ci.org/esl/MongooseIM
+
+Code coverage:
+https://coveralls.io/github/esl/MongooseIM
 
 
 Want to get in touch with us?
