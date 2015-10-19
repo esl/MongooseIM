@@ -68,6 +68,9 @@
          session_established/2,
          session_established/3]).
 
+%% internal usage
+-export([get_db_info/1]).
+
 -include("ejabberd.hrl").
 
 -record(state, {db_ref,
@@ -91,6 +94,8 @@
 -define(TRANSACTION_TIMEOUT, 60000). % milliseconds
 -define(KEEPALIVE_TIMEOUT, 60000).
 -define(KEEPALIVE_QUERY, <<"SELECT 1;">>).
+
+-define(QUERY_TIMEOUT, 5000).
 
 %%-define(DBGFSM, true).
 
@@ -118,8 +123,8 @@ start_link(Host, StartInterval, Dedicated) when is_boolean(Dedicated) ->
 sql_query(Host, Query) ->
     sql_call(Host, {sql_query, Query}).
 
--spec get_dedicated_connection(Host :: atom())
-      -> 'ignore' | {'error',_} | {'ok',{Host :: atom(), pid()}}.
+-spec get_dedicated_connection(Host :: ejabberd:server())
+      -> 'ignore' | {'error',_} | {'ok',{Host :: ejabberd:server(), pid()}}.
 get_dedicated_connection(Host) ->
     ejabberd_odbc_sup:get_dedicated_connection(Host).
 
@@ -165,9 +170,18 @@ sql_call({_Host, Pid}, Msg) when is_pid(Pid) ->
 
 %% @doc perform a harmless query on all opened connexions to avoid connexion close.
 keep_alive(PID) ->
-    ?GEN_FSM:sync_send_event(PID, {sql_cmd, {sql_query, ?KEEPALIVE_QUERY}, now()},
-                             ?KEEPALIVE_TIMEOUT).
+    Command = {sql_cmd, {sql_query, [?KEEPALIVE_QUERY]}, now()},
+    Result = ?GEN_FSM:sync_send_event(PID, Command, ?KEEPALIVE_TIMEOUT),
+    case Result of
+        {selected, _, _} ->
+            ok;
+        {error, _}=Error ->
+            ok = ?GEN_FSM:sync_send_all_state_event(PID,
+                                                    {keepalive_failed, Error})
+    end.
 
+get_db_info(Pid) ->
+    ?GEN_FSM:sync_send_all_state_event(Pid, get_db_info).
 %% This function is intended to be used from inside an sql_transaction:
 sql_query_t(Query) ->
     QRes = sql_query_internal(Query),
@@ -379,6 +393,11 @@ session_established(Event, State) ->
 handle_event(_Event, StateName, State) ->
     {next_state, StateName, State}.
 
+handle_sync_event(get_db_info, _, StateName,
+                  #state{db_ref = DbRef, db_type = DbType} = State) ->
+    {reply, {ok, DbType, DbRef}, StateName, State};
+handle_sync_event({keepalive_failed, Error}, _From, _StateName, State) ->
+    {stop, {keepalive_failed, Error}, ok, State};
 handle_sync_event(_Event, _From, StateName, State) ->
     {reply, {error, badarg}, StateName, State}.
 
@@ -386,7 +405,8 @@ code_change(_OldVsn, StateName, State, _Extra) ->
     {ok, StateName, State}.
 
 %% We receive the down from our parent.
--spec handle_info(_,_,_) -> {'next_state',_,_} | {'stop',_,state()}.
+-spec handle_info(_, StateName :: atom(), state()) ->
+    {'next_state', atom(), state()} | {'stop', _, state()}.
 handle_info({'DOWN', _MonitorRef, process, ParentPid, Reason}, _StateName,
     State=#state{parent_pid=ParentPid}) ->
     {stop, Reason, State};
@@ -569,14 +589,16 @@ sql_query_internal(Query) ->
     State = get(?STATE_KEY),
     Res = case State#state.db_type of
               odbc ->
-                  binaryze_odbc(odbc:sql_query(State#state.db_ref, Query));
+                  binaryze_odbc(odbc:sql_query(State#state.db_ref, Query,
+                                               ?QUERY_TIMEOUT));
               pgsql ->
                   ?DEBUG("Postres, Send query~n~p~n", [Query]),
-                  pgsql_to_odbc(pgsql:squery(State#state.db_ref, Query));
+                  pgsql_to_odbc(pgsql:squery(State#state.db_ref, Query,
+                                             ?QUERY_TIMEOUT));
               mysql ->
                   ?DEBUG("MySQL, Send query~n~p~n", [Query]),
-                  R = mysql_to_odbc(mysql_conn:fetch(State#state.db_ref,
-                                                     Query, self())),
+                  R = mysql_to_odbc(mysql_conn:fetch(State#state.db_ref, Query,
+                                                     self(), ?QUERY_TIMEOUT)),
                   %% ?INFO_MSG("MySQL, Received result~n~p~n", [R]),
                   R
           end,
@@ -611,7 +633,10 @@ abort_on_driver_error(Reply, From) ->
 -spec odbc_connect(ConnString :: string()) -> {ok | error, _}.
 odbc_connect(SQLServer) ->
     application:start(odbc),
-    odbc:connect(SQLServer, [{scrollable_cursors, off}, {binary_strings, on}]).
+    Opts = [{scrollable_cursors, off},
+            {binary_strings, on},
+            {timeout, 5000}],
+    odbc:connect(SQLServer, Opts).
 
 binaryze_odbc(ODBCResults) when is_list(ODBCResults) ->
     lists:map(fun binaryze_odbc/1, ODBCResults);
@@ -636,7 +661,7 @@ pgsql_connect(Server, Port, DB, Username, Password) ->
     case pgsql:connect(Params) of
         {ok, Ref} ->
             {ok,[<<"SET">>]} =
-            pgsql:squery(Ref, "SET standard_conforming_strings=off;"),
+            pgsql:squery(Ref, "SET standard_conforming_strings=off;", ?QUERY_TIMEOUT),
             {ok, Ref};
         Err -> Err
     end.
@@ -683,8 +708,10 @@ pgsql_item_to_odbc(_) ->
 mysql_connect(Server, Port, Database, Username, Password) ->
     case mysql_conn:start(Server, Port, Username, Password, Database, fun log/3) of
         {ok, Ref} ->
-            mysql_conn:fetch(Ref, [<<"set names 'utf8';">>], self()),
-            mysql_conn:fetch(Ref, [<<"SET SESSION query_cache_type=1;">>], self()),
+            mysql_conn:fetch(Ref, [<<"set names 'utf8';">>],
+                             self(), ?QUERY_TIMEOUT),
+            mysql_conn:fetch(Ref, [<<"SET SESSION query_cache_type=1;">>],
+                             self(), ?QUERY_TIMEOUT),
             {ok, Ref};
         Err ->
             Err
@@ -727,7 +754,7 @@ log(Level, Format, Args) ->
             ?ERROR_MSG(Format, Args)
     end.
 
--spec db_opts(Host :: atom()) -> ['odbc' | [char() | tuple()],...].
+-spec db_opts(Host :: atom()) -> [odbc | mysql | pgsql | [char() | tuple()],...].
 db_opts(Host) ->
     case ejabberd_config:get_local_option({odbc_server, Host}) of
         %% Default pgsql port
@@ -744,7 +771,7 @@ db_opts(Host) ->
             [odbc, SQLServer]
     end.
 
--spec db_engine(Host :: odbc_server()) -> no_return().
+-spec db_engine(Host :: odbc_server()) -> ejabberd_config:value().
 db_engine(Host) when is_binary(Host) ->
     case ejabberd_config:get_local_option({odbc_server, Host}) of
         SQLServer when is_list(SQLServer) ->

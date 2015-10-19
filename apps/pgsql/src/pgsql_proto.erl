@@ -411,7 +411,7 @@ process_equery_datarow(Types, Log, Info={Command, Desc, Status}) ->
 	{pgsql, {ready_for_query, Status1}} ->
 	    {ok, Command, Desc, Status1, lists:reverse(Log)};
 	{pgsql, {data_row, Row}} ->
-	    {ok, DecodedRow} = pgsql_util:decode_row(Types, Row),
+	    {ok, DecodedRow} = pgsql_util:decode_row(Types, Row, true),
 	    process_equery_datarow(Types, [DecodedRow|Log], Info);
 	{pgsql, Any} ->
 	    process_equery_datarow(Types, [Any|Log], Info)
@@ -492,7 +492,7 @@ process_execute_resultset(Sock, Types, Log) ->
 	{pgsql, {command_complete, Command}} ->
 	    {ok, to_atom(Command), lists:reverse(Log)};
 	{pgsql, {data_row, Row}} ->
-	    {ok, DecodedRow} = pgsql_util:decode_row(Types, Row),
+	    {ok, DecodedRow} = pgsql_util:decode_row(Types, Row, true),
 	    process_execute_resultset(Sock, Types, [DecodedRow|Log]);
 	{pgsql, {portal_suspended, _}} ->
 	    throw(portal_suspended);

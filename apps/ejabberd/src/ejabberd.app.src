@@ -2,11 +2,12 @@
 
 {application, ejabberd,
  [{description, "ejabberd"},
-  {vsn, "2.1.8+mim-1.5.2"},
+  {vsn, "2.1.8+mim-1.6.0"},
   {modules, []},
   {registered, [
                ]},
-  {applications, [kernel, stdlib, sasl, mnesia, public_key, ssl, crypto, p1_stringprep, inets, exml, ranch, cowboy]},
+  {applications, [kernel, stdlib, inets, sasl, mnesia, ssl,
+                  p1_stringprep, exml, cowboy, folsom, exometer]},
   {env, []},
   {mod, {ejabberd_app, []}}]}.
 

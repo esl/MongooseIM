@@ -54,11 +54,11 @@ get_vcard(LUser, LServer) ->
     S = ejabberd_odbc:escape(LServer),
     case odbc_queries:get_vcard(S,U) of
         {selected, [<<"vcard">>], [{SVCARD}]} ->
-            case xml_stream:parse_element(SVCARD) of
+            case exml:parse(SVCARD) of
                 {error, Reason} ->
                     ?WARNING_MSG("not sending bad vcard xml ~p~n~p",[Reason,SVCARD]),
                     {error, ?ERR_SERVICE_UNAVAILABLE};
-                VCARD ->
+		{ok, VCARD} ->
                     {ok, [VCARD]}
             end;
         {selected, [<<"vcard">>],[]} ->
@@ -70,8 +70,7 @@ set_vcard(User, VHost, VCard, VCardSearch) ->
     Username = ejabberd_odbc:escape(User),
     LUsername = ejabberd_odbc:escape(LUser),
     LServer = ejabberd_odbc:escape(VHost),
-    SVCARD = ejabberd_odbc:escape(
-               xml:element_to_binary(VCard)),
+    SVCARD = ejabberd_odbc:escape( exml:to_binary(VCard)),
 
     SFN = ejabberd_odbc:escape(VCardSearch#vcard_search.fn),
     SLFN = ejabberd_odbc:escape(VCardSearch#vcard_search.lfn),
@@ -109,50 +108,26 @@ set_vcard(User, VHost, VCard, VCardSearch) ->
 
 search(LServer, Data, _Lang, DefaultReportedFields) ->
     RestrictionSQL = make_restriction_sql(LServer, Data),
-    AllowReturnAll = gen_mod:get_module_opt(LServer, ?MODULE,
-					    allow_return_all, false),
-    R=if
-	(RestrictionSQL == "") and (not AllowReturnAll) ->
-	    [];
-	true ->
-	    Limit = case gen_mod:get_module_opt(LServer, ?MODULE,
-						matches, ?JUD_MATCHES) of
-			infinity ->
-			    infinity;
-			Val when is_integer(Val) and (Val > 0) ->
-			    Val;
-			Val ->
-			    ?ERROR_MSG("Illegal option value ~p. "
-				       "Default value ~p substituted.",
-				       [{matches, Val}, ?JUD_MATCHES]),
-			    ?JUD_MATCHES
-		    end,
-	    case catch odbc_queries:search_vcard(LServer, RestrictionSQL, Limit) of
-		{selected, [<<"username">>, <<"server">>, <<"fn">>, <<"family">>, <<"given">>,
-			    <<"middle">>, <<"nickname">>, <<"bday">>, <<"ctry">>, <<"locality">>,
-			    <<"email">>, <<"orgname">>, <<"orgunit">>], Rs} when is_list(Rs) ->
-		    Rs;
-		Error ->
-		    ?ERROR_MSG("~p", [Error]),
-		    []
-	    end
-    end,
+    R = do_search(LServer, RestrictionSQL),
     Items = lists:map(fun(I) -> record_to_item(LServer,I) end, R),
     [DefaultReportedFields | Items].
 
+do_search(_LServer, "") ->
+    [];
+do_search(LServer, RestrictionSQL) ->
+    Limit = mod_vcard:get_results_limit(LServer),
+    case catch odbc_queries:search_vcard(LServer, RestrictionSQL, Limit) of
+        {selected, [<<"username">>, <<"server">>, <<"fn">>, <<"family">>, <<"given">>,
+            <<"middle">>, <<"nickname">>, <<"bday">>, <<"ctry">>, <<"locality">>,
+            <<"email">>, <<"orgname">>, <<"orgunit">>], Rs} when is_list(Rs) ->
+            Rs;
+        Error ->
+            ?ERROR_MSG("~p", [Error]),
+            []
+    end.
+
 search_fields(_VHost) ->
-    [{<<"User">>, <<"user">>},
-	 {<<"Full Name">>, <<"fn">>},
-	 {<<"Given Name">>, <<"first">>},
-	 {<<"Middle Name">>, <<"middle">>},
-	 {<<"Family Name">>, <<"last">>},
-	 {<<"Nickname">>, <<"nick">>},
-	 {<<"Birthday">>, <<"bday">>},
-	 {<<"Country">>, <<"ctry">>},
-     {<<"City">>, <<"locality">>},
-	 {<<"Email">>, <<"email">>},
-	 {<<"Organization Name">>, <<"orgname">>},
-	 {<<"Organization Unit">>, <<"orgunit">>}].
+    mod_vcard:default_search_fields().
 
 %%--------------------------------------------------------------------
 %% internal
@@ -160,14 +135,12 @@ search_fields(_VHost) ->
 make_restriction_sql(LServer, Data) ->
     filter_fields(Data, "", LServer).
 
-filter_fields([], RestrictionSQL, _LServer) ->
-    case RestrictionSQL of
-	"" ->
-	    "";
-        <<>> ->
-            <<>>;
-	_ ->
-	    [" where ", RestrictionSQL]
+filter_fields([], RestrictionSQLIn, LServer) ->
+    case RestrictionSQLIn of
+        "" ->
+            "";
+        _ ->
+            [" where ", [RestrictionSQLIn, " and ", ["server = '", ejabberd_odbc:escape(LServer),"'"]]]
     end;
 filter_fields([{SVar, [Val]} | Ds], RestrictionSQL, LServer)
   when is_binary(Val) and (Val /= <<"">>) ->
@@ -218,20 +191,20 @@ make_val(RestrictionSQL, Field, Val) ->
 record_to_item(_CallerVHost, {Username, VCardVHost, FN, Family, Given, Middle,
              Nickname, BDay, CTRY, Locality,
              EMail, OrgName, OrgUnit}) ->
-    #xmlel{name = "item",
+    #xmlel{name = <<"item">>,
            children = [
-                        ?FIELD("jid", [Username, "@", VCardVHost]),
-                        ?FIELD("fn", FN),
-                        ?FIELD("last", Family),
-                        ?FIELD("first", Given),
-                        ?FIELD("middle", Middle),
-                        ?FIELD("nick", Nickname),
-                        ?FIELD("bday", BDay),
-                        ?FIELD("ctry", CTRY),
-                        ?FIELD("locality", Locality),
-                        ?FIELD("email", EMail),
-                        ?FIELD("orgname", OrgName),
-                        ?FIELD("orgunit", OrgUnit)
+                        ?FIELD(<<"jid">>, <<Username/binary, "@", VCardVHost/binary>>),
+                        ?FIELD(<<"fn">>, FN),
+                        ?FIELD(<<"last">>, Family),
+                        ?FIELD(<<"first">>, Given),
+                        ?FIELD(<<"middle">>, Middle),
+                        ?FIELD(<<"nick">>, Nickname),
+                        ?FIELD(<<"bday">>, BDay),
+                        ?FIELD(<<"ctry">>, CTRY),
+                        ?FIELD(<<"locality">>, Locality),
+                        ?FIELD(<<"email">>, EMail),
+                        ?FIELD(<<"orgname">>, OrgName),
+                        ?FIELD(<<"orgunit">>, OrgUnit)
                        ]}.
 
 

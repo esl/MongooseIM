@@ -62,6 +62,7 @@
 -type req() :: cowboy_req:req().
 
 -type info() :: 'accept_options'
+              | 'accept_get'
               | 'item_not_found'
               | 'no_body'
               | 'policy_violation'
@@ -112,7 +113,7 @@ set_server_acks(EnableServerAcks) ->
 %% gen_mod callbacks
 %%--------------------------------------------------------------------
 
--spec start(ejabberd:host(), [option()]) -> any().
+-spec start(ejabberd:server(), [option()]) -> any().
 start(_Host, Opts) ->
     try
         case gen_mod:get_opt(port, Opts, undefined) of
@@ -153,12 +154,7 @@ start_listener({Port, InetAddr, tcp}, Opts) ->
 %%--------------------------------------------------------------------
 
 -type option() :: {atom(), any()}.
--spec init(_Transport, req(), _Opts :: [option()])
-            -> {'loop', req(), rstate()}
-             | {no_body, req()}
-             | {{wrong_method, _}, req()}
-             | {forward_body, req()}
-             | {accept_options, req()}.
+-spec init(_Transport, req(), _Opts :: [option()]) -> {loop, req(), rstate()}.
 init(_Transport, Req, _Opts) ->
     ?DEBUG("New request~n", []),
     {Msg, NewReq} = try
@@ -169,6 +165,8 @@ init(_Transport, Req, _Opts) ->
             <<"POST">> ->
                 {has_body, true} = {has_body, cowboy_req:has_body(Req2)},
                 {forward_body, Req2};
+            <<"GET">> ->
+                {accept_get, Req2};
             _ ->
                 error({badmatch, {Method, Req2}})
         end
@@ -190,6 +188,14 @@ info(accept_options, Req, State) ->
     Headers = ac_all(Origin),
     ?DEBUG("OPTIONS response: ~p~n", [Headers]),
     {ok, strip_ok(cowboy_req:reply(200, Headers, <<>>, Req2)), State};
+info(accept_get, Req, State) ->
+    Headers = [content_type(),
+               ac_allow_methods(),
+               ac_allow_headers(),
+               ac_max_age()],
+    {ok,
+     strip_ok(cowboy_req:reply(200, Headers, <<"MongooseIM bosh endpoint">>, Req)),
+     State};
 info(no_body, Req, State) ->
     ?DEBUG("Missing request body: ~p~n", [Req]),
     {ok, no_body_error(Req), State};
@@ -238,8 +244,6 @@ start_cowboy(Port, Opts) ->
     TransOpts = [{port, Port}|get_option_pair(ip, Opts)],
     ProtoOpts = [{env, [{dispatch, Dispatch}]}],
     case cowboy:start_http(?LISTENER, NumAcceptors, TransOpts, ProtoOpts) of
-        {error, {already_started, _Pid}} ->
-            ok;
         {ok, _Pid} ->
             ok;
         {error, Reason} ->
@@ -328,19 +332,18 @@ get_session_socket(Sid) ->
     end.
 
 
--spec maybe_start_session(req(), binary()) -> {boolean(), req()}.
+-spec maybe_start_session(req(), jlib:xmlel()) -> {boolean(), req()}.
 maybe_start_session(Req, Body) ->
     try
-        {<<"hold">>, <<"1">>} = {<<"hold">>,
-                                 exml_query:attr(Body, <<"hold">>)},
         Hosts = ejabberd_config:get_global_option(hosts),
         {<<"to">>, true} = {<<"to">>,
                             lists:member(exml_query:attr(Body, <<"to">>),
                                          Hosts)},
         %% Version isn't checked as it would be meaningless when supporting
         %% only a subset of the specification.
+        {ok, NewBody} = set_max_hold(Body),
         {Peer, Req1} = cowboy_req:peer(Req),
-        start_session(Peer, Body),
+        start_session(Peer, NewBody),
         {true, Req1}
     catch
         error:{badmatch, {<<"to">>, _}} ->
@@ -435,7 +438,7 @@ ac_allow_origin(Origin) ->
     {<<"Access-Control-Allow-Origin">>, Origin}.
 
 ac_allow_methods() ->
-    {<<"Access-Control-Allow-Methods">>, <<"POST, OPTIONS">>}.
+    {<<"Access-Control-Allow-Methods">>, <<"POST, OPTIONS, GET">>}.
 
 ac_allow_headers() ->
     {<<"Access-Control-Allow-Headers">>, <<"Content-Type">>}.
@@ -458,3 +461,18 @@ get_option_pair(Key, Opts) ->
         undefined -> [];
         Value     -> [{Key, Value}]
     end.
+
+set_max_hold(Body) ->
+    HoldBin = exml_query:attr(Body, <<"hold">>),
+    ClientHold = binary_to_integer(HoldBin),
+    maybe_set_max_hold(ClientHold, Body).
+
+
+maybe_set_max_hold(1, Body) ->
+    {ok, Body};
+maybe_set_max_hold(ClientHold, #xmlel{attrs = Attrs} = Body) when ClientHold > 1 ->
+    NewAttrs = lists:keyreplace(<<"hold">>, 1, Attrs, {<<"hold">>, <<"1">>}),
+    {ok, Body#xmlel{attrs = NewAttrs}};
+maybe_set_max_hold(_, _) ->
+    {error, invalid_hold}.
+

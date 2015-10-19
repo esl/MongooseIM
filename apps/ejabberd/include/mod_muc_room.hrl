@@ -47,7 +47,7 @@
                  password_protected = false     :: boolean(),
                  password = <<>>,
                  anonymous = true               :: boolean(),
-                 max_users = ?MAX_USERS_DEFAULT,
+                 max_users = ?MAX_USERS_DEFAULT :: pos_integer() | none,
                  logging = false                :: boolean()
                 }).
 
@@ -88,7 +88,15 @@
                 room_queue = queue:new()
                }).
 
--record(muc_online_users, {us :: ejabberd:simple_bare_jid(),
-                           room :: mod_muc:room(),
-                           host :: ejabberd:server()
-                          }).
+-record(muc_online_users, {
+          us,
+          room,
+          host
+         }).
+
+-type muc_online_users() :: #muc_online_users{
+        us :: ejabberd:simple_bare_jid(),
+        room :: mod_muc:room(),
+        host :: ejabberd:server()
+       }.
+

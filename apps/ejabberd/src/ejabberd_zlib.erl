@@ -50,7 +50,7 @@ enable_zlib(SockMod, Socket, InflateSizeLimit) ->
 	{error, OtherError} ->
 	    erlang:error({cannot_load_ejabberd_zlib_drv, erl_ddll:format_error(OtherError)})
     end,
-    Port = open_port({spawn, ejabberd_zlib_drv}, [binary]),
+    Port = open_port({spawn_driver, "ejabberd_zlib_drv"}, [binary]),
     {ok, #zlibsock{sockmod = SockMod, socket = Socket, zlibport = Port,
                    inflate_size_limit = InflateSizeLimit}}.
 
@@ -95,6 +95,7 @@ send(#zlibsock{sockmod = SockMod, socket = Socket, zlibport = Port},
      Packet) ->
     case port_control(Port, ?DEFLATE, Packet) of
 	<<0, Out/binary>> ->
+        mongoose_metrics:update([data, xmpp, sent, compressed_size], size(Out)),
 	    SockMod:send(Socket, Out);
 	<<1, Error/binary>> ->
 	    {error, erlang:binary_to_existing_atom(Error, utf8)};

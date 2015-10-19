@@ -45,6 +45,8 @@
 
 -import(lists, [reverse/1, keyreplace/4]).
 
+-type macro_dict() :: dict:dict(term(), term()).
+
 %%====================================================================
 %% API
 %%====================================================================
@@ -108,8 +110,8 @@ from_string(CodeStr, CompileFormsOptions) ->
                     _CurrFilename :: file:name(),
                     _CurrLine :: integer() | {integer(),pos_integer()},
                     RevForms :: [any()],
-                    MacroDict :: dict(),
-                    _IncludeSearchPath :: [file:name()]) -> {[any()],dict()}.
+                    MacroDict :: macro_dict(),
+                    _IncludeSearchPath :: [file:name()]) -> {[any()], macro_dict()}.
 scan_and_parse([], _CurrFilename, _CurrLine, RevForms, MacroDict, _IncludeSearchPath) ->
     {RevForms, MacroDict};
 scan_and_parse(RemainingText, CurrFilename, CurrLine, RevForms, MacroDict, IncludeSearchPath) ->
@@ -142,10 +144,10 @@ scan_and_parse(RemainingText, CurrFilename, CurrLine, RevForms, MacroDict, Inclu
 %% @private
 -spec scanner(Text :: 'eof' | string(),
               Line :: integer() | {integer(),pos_integer()},
-              MacroDict :: dict()) ->
+              MacroDict :: macro_dict()) ->
       'done'
       | {'include',integer() | {integer(),pos_integer()},'eof' | string(),_}
-      | {'macro',integer() | {integer(),pos_integer()},'eof' | string(),dict()}
+      | {'macro',integer() | {integer(),pos_integer()},'eof' | string(), macro_dict()}
       | {'tokens',integer() | {integer(),pos_integer()},'eof' | string(),[any()]}.
 scanner(Text, Line, MacroDict) ->
     case erl_scan:tokens([],Text,Line) of
@@ -190,7 +192,7 @@ is_only_comments([_   |T], in_comment)     -> is_only_comments(T, in_comment).  
 %% -define(MACRO, something).
 %% -define(MACRO(VAR1,VARN),{stuff,VAR1,more,stuff,VARN,extra,stuff}).
 %% @private
--spec pre_proc([{_,_} | {_,_,_}],dict()) -> {'include',_} | {'macro',dict()} | {'tokens',[any()]}.
+-spec pre_proc([{_,_} | {_,_,_}], macro_dict()) -> {'include',_} | {'macro', macro_dict()} | {'tokens',[any()]}.
 pre_proc([{'-',_},{atom,_,define},{'(',_},{_,_,Name}|DefToks],MacroDict) ->
     false = dict:is_key(Name, MacroDict),
     case DefToks of
@@ -225,14 +227,14 @@ macro_body_def([Tok|Toks], RevMacroBodyToks) ->
     macro_body_def(Toks, [Tok | RevMacroBodyToks]).
 
 %% @private
--spec subst_macros(Toks :: [{_,_} | {_,_,_}], MacroDict :: dict()) -> [any()].
+-spec subst_macros(Toks :: [{_,_} | {_,_,_}], MacroDict :: macro_dict()) -> [any()].
 subst_macros(Toks, MacroDict) ->
     reverse(subst_macros_rev(Toks, MacroDict, [])).
 
 %% @doc Returns a reversed list of tokens
 %% @private
 -spec subst_macros_rev(Tokens :: maybe_improper_list(),
-                       MacroDict :: dict(),
+                       MacroDict :: macro_dict(),
                        RevOutToks :: [any()]) -> [any()].
 subst_macros_rev([{'?',_}, {_,LineNum,'LINE'} | Toks], MacroDict, RevOutToks) ->
     %% special-case for ?LINE, to avoid creating a new MacroDict for every line in the source file

@@ -1,0 +1,31 @@
+# 1. Try to add malformed user
+
+PUT /api/users/host/{{<host}}/username/{{<username}}
+> User-Agent: katt
+> Host: {{<hostname}}:{{<port}}
+> Content-Type: application/json
+{
+    "user": {
+        "password": "my_http_password"
+}
+< 400
+
+# 2. Try to add user without proper fields
+
+PUT /api/users/host/{{<host}}/username/{{<username}}
+> User-Agent: katt
+> Host: {{<hostname}}:{{<port}}
+> Content-Type: application/json
+{
+    "user": {
+        "pazzwourd": "my_http_password"
+    }
+}
+< 422
+
+# 3. Try to delete non-existent user
+
+DELETE /api/users/hosts/{{<host}}/username/i_don_exist
+> User-Agent: katt
+> Host: {{<hostname}}:{{<port}}
+< 404

@@ -29,7 +29,7 @@
 
 -behaviour(application).
 
--export([start_modules/0,start/2, get_log_path/0, prep_stop/1, stop/1]).
+-export([start_modules/0,start/2, prep_stop/1, stop/1]).
 
 -include("ejabberd.hrl").
 
@@ -43,10 +43,9 @@ start(normal, _Args) ->
     ejabberd_loglevel:set(4),
     write_pid_file(),
     db_init(),
-    xml:start(),
     application:start(p1_cache_tab),
 
-    load_drivers([tls_drv, expat_erl]),
+    load_drivers([tls_drv]),
     translate:start(),
     acl:start(),
     ejabberd_node_id:start(),
@@ -60,12 +59,14 @@ start(normal, _Args) ->
     {ok, _} = Sup = ejabberd_sup:start_link(),
     ejabberd_system_monitor:add_handler(),
     ejabberd_rdbms:start(),
+    mongoose_riak:start(),
     ejabberd_auth:start(),
     cyrsasl:start(),
     %% Profiling
     %%ejabberd_debug:eprof_start(),
     %%ejabberd_debug:fprof_start(),
     start_modules(),
+    mongoose_metrics:init(),
     ejabberd_listener:start_listeners(),
     ejabberd_admin:start(),
     ?INFO_MSG("ejabberd ~s is started in the node ~p", [?VERSION, node()]),
@@ -82,6 +83,7 @@ prep_stop(State) ->
     broadcast_c2s_shutdown(),
     mod_websockets:stop(),
     timer:sleep(5000),
+    mongoose_metrics:remove_all_metrics(),
     State.
 
 %% All the processes were killed when this function is called
@@ -158,25 +160,6 @@ connect_nodes() ->
             lists:foreach(fun(Node) ->
                                   net_kernel:connect_node(Node)
                           end, Nodes)
-    end.
-
-%% @doc Returns the full path to the ejabberd log file.
-%% It first checks for application configuration parameter 'log_path'.
-%% If not defined it checks the environment variable EJABBERD_LOG_PATH.
-%% And if that one is neither defined, returns the default value:
-%% "ejabberd.log" in current directory.
--spec get_log_path() -> string().
-get_log_path() ->
-    case application:get_env(log_path) of
-        {ok, Path} ->
-            Path;
-        undefined ->
-            case os:getenv("EJABBERD_LOG_PATH") of
-                false ->
-                    ?LOG_PATH;
-                Path ->
-                    Path
-            end
     end.
 
 -spec broadcast_c2s_shutdown() -> 'ok'.

@@ -50,11 +50,15 @@
 -define(GEN_FSM, p1_fsm).
 -define(NS_FRAMING, <<"urn:ietf:params:xml:ns:xmpp-framing">>).
 
--record(websocket, {pid :: pid(),
-                    peername :: string()}).
--record(ws_state, {c2s_pid :: pid(),
-                   open_tag :: stream | open,
-                   parser :: exml_stream:parser()}).
+-record(websocket, {
+          pid :: pid(),
+          peername :: {inet:ip_address(), inet:port_number()}
+         }).
+-record(ws_state, {
+          c2s_pid :: pid(),
+          open_tag :: stream | open,
+          parser :: exml_stream:parser()
+         }).
 
 %%--------------------------------------------------------------------
 %% ejabberd_listener compatibility
@@ -101,8 +105,9 @@ start_ws(NumAcceptors, Port, IP, Dispatch) ->
     case cowboy:start_http(?LISTENER, NumAcceptors,
                                 [{port, Port}, {ip, IP}],
                                 [{env, [{dispatch, Dispatch}]}]) of
-        {error, {already_started, Pid}} ->
-            {ok, Pid};
+% Uncomment when cowboy 1.1.0 is released with fixed spec
+%        {error, {already_started, Pid}} ->
+%            {ok, Pid};
         {ok, Pid} ->
             {ok, Pid};
         {error, Reason} ->
@@ -121,8 +126,9 @@ start_wss(NumAcceptors, Port, IP, Cert, Key, Pass, Dispatch) ->
                                     {port, Port}
                                 ],
                                 [{env, [{dispatch, Dispatch}]}]) of
-        {error, {already_started, Pid}} ->
-            {ok, Pid};
+% Uncomment when cowboy 1.1.0 is released with fixed spec
+%        {error, {already_started, Pid}} ->
+%            {ok, Pid};
         {ok, Pid} ->
             {ok, Pid};
         {error, Reason} ->
@@ -159,7 +165,7 @@ terminate(_Reason, _Req, _State) ->
 websocket_init(Transport, Req, Opts) ->
     ?DEBUG("websocket_init: ~p~n", [{Transport, Req, Opts}]),
     {Peer, NewReq} = cowboy_req:peer(Req),
-    NewReq2 = cowboy_req:set_resp_header("Sec-WebSocket-Protocol", "xmpp", NewReq),
+    NewReq2 = cowboy_req:set_resp_header(<<"Sec-WebSocket-Protocol">>, <<"xmpp">>, NewReq),
     SocketData = #websocket{pid=self(),
                             peername = Peer},
     C2SOpts = [{xml_socket, true} | Opts],
@@ -260,7 +266,7 @@ send_xml(SocketData, {xmlstreamraw, Text}) ->
 send_xml(SocketData, {xmlstreamelement, XML}) ->
     send_xml(SocketData, XML);
 send_xml(#websocket{pid = Pid}, XML) ->
-    Pid ! {send_xml, xml:escape_cdata_and_attr(XML)},
+    Pid ! {send_xml, XML},
     ok.
 
 send(#websocket{pid = Pid}, Data) ->

@@ -64,12 +64,87 @@
 
 -type roster() :: #roster{}.
 
--define(BACKEND, (mod_roster_backend:backend())).
+-callback init(Host, Opts) -> ok when
+    Host :: ejabberd:server(),
+    Opts :: list().
+-callback read_roster_version(LUser, LServer) -> Result when
+    LUser :: ejabberd:luser(),
+    LServer :: ejabberd:lserver(),
+    Result :: term().
+-callback write_roster_version(LUser, LServer, InTransaction, Ver) -> Result when
+    LUser :: ejabberd:luser(),
+    LServer :: ejabberd:lserver(),
+    InTransaction :: boolean(),
+    Ver :: binary(),
+    Result :: term().
+-callback get_roster(LUser, LServer) -> Result when
+    LUser :: ejabberd:luser(),
+    LServer :: ejabberd:lserver(),
+    Result :: term().
+-callback get_roster_by_jid_t(LUser, LServer, LJid) -> Result when
+    LUser :: ejabberd:luser(),
+    LServer :: ejabberd:lserver(),
+    LJid :: ejabberd:simple_jid(),
+    Result :: term().
+-callback get_subscription_lists(Acc, LUser, LServer) -> Result when
+    Acc :: term(),
+    LUser :: ejabberd:luser(),
+    LServer :: ejabberd:lserver(),
+    Result :: term().
+-callback roster_subscribe_t(LUser, LServer, LJid, SJid) -> Result when
+    LUser :: ejabberd:luser(),
+    LServer :: ejabberd:lserver(),
+    LJid :: ejabberd:simple_jid(),
+    SJid :: roster(),
+    Result :: term().
+-callback get_roster_by_jid_with_groups_t(LUser, LServer, LJid) -> Result when
+    LUser :: ejabberd:luser(),
+    LServer :: ejabberd:lserver(),
+    LJid :: ejabberd:simple_jid(),
+    Result :: term().
+-callback remove_user(LUser, LServer) -> Result when
+    LUser :: ejabberd:luser(),
+    LServer :: ejabberd:lserver(),
+    Result :: term().
+-callback update_roster_t(LUser, LServer, LJid, Item) -> Result when
+    LUser :: ejabberd:luser(),
+    LServer :: ejabberd:lserver(),
+    LJid :: ejabberd:simple_jid(),
+    Item :: roster(),
+    Result :: term().
+-callback del_roster_t(LUser, LServer, LJid) -> Result when
+    LUser :: ejabberd:luser(),
+    LServer :: ejabberd:lserver(),
+    LJid :: ejabberd:simple_jid(),
+    Result :: term().
+-callback read_subscription_and_groups(LUser, LServer, LJid) -> Result when
+    LUser :: ejabberd:luser(),
+    LServer :: ejabberd:lserver(),
+    LJid :: ejabberd:simple_jid(),
+    Result :: term().
+
+-callback raw_to_record(LServer, Item) -> Result when
+    LServer :: ejabberd:lserver(),
+    Item :: term(),
+    Result :: error | roster().
+
+
+-define(BACKEND, mod_roster_backend).
 
 start(Host, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
-
-    gen_mod:start_backend_module(?MODULE, Opts),
+    TrackedFuns = [read_roster_version,
+                   write_roster_version,
+                   get_roster,
+                   get_roster_by_jid_t,
+                   get_subscription_lists,
+                   roster_subscribe_t,
+                   get_roster_by_jid_with_groups_t,
+                   update_roster_t,
+                   del_roster_t,
+                   read_subscription_and_groups
+                   ],
+    gen_mod:start_backend_module(?MODULE, Opts, TrackedFuns),
     ?BACKEND:init(Host, Opts),
 
     ejabberd_hooks:add(roster_get, Host,
@@ -316,7 +391,7 @@ do_process_item_set(JID1,
                     #jid{user = User, luser = LUser, lserver = LServer} = From,
                     To,
                     #xmlel{attrs = Attrs, children = Els}) ->
-    LJID = jlib:jid_tolower(JID1),
+    LJID = jlib:jid_to_lower(JID1),
     F = fun () ->
                 Item = get_roster_by_jid_t(LUser, LServer, LJID),
                 Item1 = process_item_attrs(Item, Attrs),
@@ -387,10 +462,7 @@ process_item_els(Item, []) -> Item.
 push_item(User, Server, From, Item) ->
     ejabberd_sm:route(jlib:make_jid(<<"">>, <<"">>, <<"">>),
                       jlib:make_jid(User, Server, <<"">>),
-                      #xmlel{name = <<"broadcast">>,
-                             children = [{item,
-                                          Item#roster.jid,
-                                          Item#roster.subscription}]}),
+                      {broadcast, {item, Item#roster.jid, Item#roster.subscription}}),
     case roster_versioning_enabled(Server) of
         true ->
             push_item_version(Server, User, From, Item,

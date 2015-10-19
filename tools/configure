@@ -21,6 +21,8 @@ analyze_opt("with-pgsql", {AppsToInclude, AppsToRun}) ->
     {[pgsql | AppsToInclude], AppsToRun};
 analyze_opt("with-odbc", {AppsToInclude, AppsToRun}) ->
     {[odbc | AppsToInclude], AppsToRun};
+analyze_opt("with-riak", {AppsToInclude, AppsToRun}) ->
+    {[riakc, riak_pb, protobuffs | AppsToInclude], AppsToRun};
 analyze_opt("with-redis", {AppsToInclude, AppsToRun}) ->
     {[redo | AppsToInclude], AppsToRun};
 analyze_opt("with-cassandra", {AppsToInclude, AppsToRun}) ->
@@ -35,6 +37,7 @@ all_opts_with_desc() ->
     [{"with-mysql", "include mysql driver"},
      {"with-pgsql", "include pgsql driver"},
      {"with-odbc", "include standard ODBC driver shipped with Erlang/OTP"},
+     {"with-riak", "include riak client"},
      {"with-redis", "include redis driver"},
      {"with-cassandra", "include cassandra driver"}].
 

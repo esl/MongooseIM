@@ -62,6 +62,9 @@
 -type format_type() :: binary() | string() | char().
 -type cmd() :: {CallString :: string(), Args :: [string()], Desc :: string()}.
 
+-define(ASCII_SPACE_CHARACTER, $\s).
+-define(PRINT(Format, Args), io:format(lists:flatten(Format), Args)).
+
 %%-----------------------------
 %% Module
 %%-----------------------------
@@ -117,8 +120,7 @@ init() ->
                         Function :: atom()) -> 'ok'.
 register_commands(CmdDescs, Module, Function) ->
     ets:insert(ejabberd_ctl_cmds, CmdDescs),
-    ejabberd_hooks:add(ejabberd_ctl_process,
-                       Module, Function, 50),
+    ejabberd_hooks:add(ejabberd_ctl_process, global, Module, Function, 50),
     ok.
 
 
@@ -129,8 +131,7 @@ unregister_commands(CmdDescs, Module, Function) ->
     lists:foreach(fun(CmdDesc) ->
                           ets:delete_object(ejabberd_ctl_cmds, CmdDesc)
                   end, CmdDescs),
-    ejabberd_hooks:delete(ejabberd_ctl_process,
-                          Module, Function, 50),
+    ejabberd_hooks:delete(ejabberd_ctl_process, global, Module, Function, 50),
     ok.
 
 
@@ -143,18 +144,23 @@ unregister_commands(CmdDescs, Module, Function) ->
 -spec process(_) -> integer().
 process(["status"]) ->
     {InternalStatus, ProvidedStatus} = init:get_status(),
-    ?PRINT("The node ~p is ~p with status: ~p~n",
+    ?PRINT("Node ~p is ~p with status: ~p~n",
            [node(), InternalStatus, ProvidedStatus]),
     Applications = application:which_applications(),
     case lists:keyfind(mongooseim, 1, Applications) of
         false ->
-            EjabberdLogPath = ejabberd_app:get_log_path(),
-            ?PRINT("MongooseIM is not running in that node~n"
-                   "Check for error messages: ~s~n"
-                   "or other files in that directory.~n", [EjabberdLogPath]),
+            ?PRINT("MongooseIM is not running on this node.~n", []),
+            case get_log_files() of
+                [] ->
+                    ?PRINT("No log files in use. "
+                           "Maybe you should enable logging to a file in app.config?~n", []);
+                LogFiles ->
+                    ?PRINT("Refer to the following log file(s):~n~s~n",
+                           [string:join(LogFiles, "\n")])
+            end,
             ?STATUS_ERROR;
         {_, _, Version} ->
-            ?PRINT("MongooseIM version ~s is running on that node~n",
+            ?PRINT("MongooseIM version ~s is running on this node~n",
                    [Version]),
             ?STATUS_SUCCESS
     end;
@@ -222,7 +228,8 @@ process(Args) ->
                AccessCommands :: [ejabberd_commands:access_cmd()]
                ) -> {String::string(), Code::integer()}.
 process2(["--auth", User, Server, Pass | Args], AccessCommands) ->
-    process2(Args, {User, Server, Pass}, AccessCommands);
+    process2(Args, {list_to_binary(User), list_to_binary(Server), list_to_binary(Pass)},
+             AccessCommands);
 process2(Args, AccessCommands) ->
     process2(Args, noauth, AccessCommands).
 
@@ -230,21 +237,15 @@ process2(Args, AccessCommands) ->
 %% @private
 process2(Args, Auth, AccessCommands) ->
     case try_run_ctp(Args, Auth, AccessCommands) of
-        {String, wrong_command_arguments}
-        when is_list(String) ->
+        {String, wrong_command_arguments} when is_list(String) ->
             io:format(lists:flatten(["\n" | String]++["\n"])),
             [CommandString | _] = Args,
             process(["help" | [CommandString]]),
             {lists:flatten(String), ?STATUS_ERROR};
-        {String, Code}
-        when is_list(String) and is_integer(Code) ->
+        {String, Code} when is_list(String) and is_integer(Code) ->
             {lists:flatten(String), Code};
-        String
-        when is_list(String) ->
+        String when is_list(String) ->
             {lists:flatten(String), ?STATUS_SUCCESS};
-        Code
-        when is_integer(Code) ->
-            {"", Code};
         Other ->
             {"Erroneous result: " ++ io_lib:format("~p", [Other]), ?STATUS_ERROR}
     end.
@@ -295,8 +296,6 @@ try_call_command(Args, Auth, AccessCommands) ->
     try call_command(Args, Auth, AccessCommands) of
         {error, command_unknown} ->
             {io_lib:format("Error: command ~p not known.", [hd(Args)]), ?STATUS_ERROR};
-        {error, wrong_number_parameters} ->
-            {"Error: wrong number of parameters", ?STATUS_ERROR};
         Res ->
             Res
     catch
@@ -341,7 +340,7 @@ call_command([CmdString | Args], Auth, AccessCommands) ->
 %%-----------------------------
 
 %% @private
--spec args_join_xml(string()) -> string().
+-spec args_join_xml([string()]) -> [string()].
 args_join_xml([]) ->
     [];
 args_join_xml([ [ $< | _ ] = Arg | RArgs ]) ->
@@ -364,7 +363,7 @@ args_join_strings([ "\"", NextArg | RArgs ]) ->
     args_join_strings([ "\"" ++ NextArg | RArgs ]);
 args_join_strings([ [ $" | _ ] = Arg | RArgs ]) ->
     case lists:nthtail(length(Arg)-2, Arg) of
-        [C1, $"] when C1 /= $\ ->
+        [C1, $"] when C1 /= ?ASCII_SPACE_CHARACTER ->
             [ string:substr(Arg, 2, length(Arg)-2) | args_join_strings(RArgs) ];
         _ ->
             [NextArg | RArgs1] = RArgs,
@@ -384,7 +383,7 @@ bal(String, Left, Right) ->
 -spec bal(string(), L :: char(), R :: char(), Bal :: integer()) -> boolean().
 bal([], _Left, _Right, Bal) ->
     Bal == 0;
-bal([$\ , _NextChar | T], Left, Right, Bal) ->
+bal([?ASCII_SPACE_CHARACTER, _NextChar | T], Left, Right, Bal) ->
     bal(T, Left, Right, Bal);
 bal([Left | T], Left, Right, Bal) ->
     bal(T, Left, Right, Bal-1);
@@ -448,7 +447,7 @@ format_result(String, {_Name, string}) ->
 format_result(Binary, {_Name, binary}) ->
     io_lib:format("~s", [Binary]);
 format_result(Code, {_Name, rescode}) ->
-    make_status(Code);
+    {"", make_status(Code)};
 format_result({Code, Text}, {_Name, restuple}) ->
     {io_lib:format("~s", [Text]), make_status(Code)};
 %% The result is a list of something: [something()]
@@ -639,7 +638,7 @@ prepare_description(DescInit, MaxC, Desc) ->
                         ) -> [[[any()]],...].
 prepare_long_line(DescInit, MaxC, Words) ->
     MaxSegmentLen = MaxC - DescInit,
-    MarginString = lists:duplicate(DescInit, $\s), % Put spaces
+    MarginString = lists:duplicate(DescInit, ?ASCII_SPACE_CHARACTER), % Put spaces
     [FirstSegment | MoreSegments] = split_desc_segments(MaxSegmentLen, Words),
     MoreSegmentsMixed = mix_desc_segments(MarginString, MoreSegments),
     [FirstSegment | MoreSegmentsMixed].
@@ -699,7 +698,7 @@ format_command_lines(CALD, MaxCmdLen, MaxC, ShCode, dual) ->
     lists:map(
       fun({Cmd, Args, CmdArgsL, Desc}) ->
               DescFmt = prepare_description(MaxCmdLen+4, MaxC, Desc),
-              ["  ", ?B(Cmd), " ", [[?U(Arg), " "] || Arg <- Args], string:chars($\s, MaxCmdLen - CmdArgsL + 1),
+              ["  ", ?B(Cmd), " ", [[?U(Arg), " "] || Arg <- Args], string:chars(?ASCII_SPACE_CHARACTER, MaxCmdLen - CmdArgsL + 1),
                DescFmt, "\n"]
       end, CALD);
 format_command_lines(CALD, _MaxCmdLen, MaxC, ShCode, long) ->
@@ -778,9 +777,12 @@ print_usage_help(MaxC, ShCode) ->
          "Those commands can be identified because the description starts with: *"],
     ArgsDef = [],
     C = #ejabberd_commands{
+      name = help,
       desc = "Show help of MongooseIM commands",
-      longdesc = LongDesc,
+      longdesc = lists:flatten(LongDesc),
       args = ArgsDef,
+      module = none,
+      function = none,
       result = {help, string}},
     print_usage_command("help", C, MaxC, ShCode).
 
@@ -859,7 +861,7 @@ print_usage_command(Cmd, C, MaxC, ShCode) ->
 
     %% Initial indentation of result is 13 = length("  Arguments: ")
     Args = [format_usage_ctype(ArgDef, 13) || ArgDef <- ArgsDef],
-    ArgsMargin = lists:duplicate(13, $\s),
+    ArgsMargin = lists:duplicate(13, ?ASCII_SPACE_CHARACTER),
     ArgsListFmt = case Args of
                       [] -> "\n";
                       _ -> [ [Arg, "\n", ArgsMargin] || Arg <- Args]
@@ -913,16 +915,17 @@ format_usage_tuple([ElementDef], Indentation) ->
     [format_usage_ctype(ElementDef, Indentation) , " }"];
 format_usage_tuple([ElementDef | ElementsDef], Indentation) ->
     ElementFmt = format_usage_ctype(ElementDef, Indentation),
-    MarginString = lists:duplicate(Indentation, $\s), % Put spaces
+    MarginString = lists:duplicate(Indentation, ?ASCII_SPACE_CHARACTER), % Put spaces
     [ElementFmt, ",\n", MarginString, format_usage_tuple(ElementsDef, Indentation)].
 
-
 %%-----------------------------
-%% Command managment
+%% Lager specific helpers
 %%-----------------------------
 
-%%+++
-%% Struct(Integer res) create_account(Struct(String user, String server, String password))
-%%format_usage_xmlrpc(ArgsDef, ResultDef) ->
-%%    ["aaaa bbb ccc"].
+get_log_files() ->
+    Handlers = sys:get_state(lager_event),
+    [ file_backend_path(State)
+      || {lager_file_backend, _File, State} <- Handlers ].
 
+file_backend_path(LagerFileBackendState) when element(1, LagerFileBackendState) =:= state ->
+    element(2, LagerFileBackendState).

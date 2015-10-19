@@ -33,7 +33,7 @@ start(_Opts) ->
     mnesia:add_table_copy(session, node(), ram_copies).
 
 
--spec get_sessions() -> [[ejabberd_sm:ses_tuple()]]. % list of lists
+-spec get_sessions() -> [ejabberd_sm:ses_tuple()].
 get_sessions() ->
     mnesia:activity(transaction,
         fun() ->

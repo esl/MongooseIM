@@ -29,8 +29,8 @@ reload_dev: quick_compile
 	rsync -uW ./apps/ejabberd/ebin/*beam ./dev/mongooseim_node1/lib/$$E/ebin/ ;\
 
 ct: deps quick_compile
-	@if [ "$(SUITE)" ]; then ./rebar -q ct suite=$(SUITE) skip_deps=true;\
-	else ./rebar -q ct skip_deps=true; fi
+	@if [ "$(SUITE)" ]; then ./rebar ct suite=$(SUITE) skip_deps=true;\
+	else ./rebar ct skip_deps=true; fi
 
 # This compiles and runs one test suite. For quick feedback/TDD.
 # Example:
@@ -49,12 +49,16 @@ test_preset: test_deps
 
 run: deps compile quickrun
 
-quickrun: etc/ejabberd.cfg
-	erl -sname mongooseim@localhost -setcookie ejabberd -pa deps/*/ebin apps/*/ebin -config rel/files/app.config -s ejabberd
+quickrun: etc/ejabberd.cfg etc/app.config certs_priv
+	erl -sname mongooseim@localhost -setcookie ejabberd -pa ebin deps/*/ebin apps/*/ebin -config etc/app.config -s mongooseim
 
 etc/ejabberd.cfg:
-	tools/generate_cfg.es etc/ejabberd.cfg
+	@mkdir -p $(@D)
+	tools/generate_cfg.es etc/ejabberd.cfg rel/files/ejabberd.cfg
 
+etc/app.config:
+	@mkdir -p $(@D)
+	tools/generate_cfg.es etc/app.config rel/files/app.config
 
 cover_test: test_deps
 	cd test/ejabberd_tests; make cover_test
@@ -75,10 +79,10 @@ eunit: rebar deps
 configure:
 	./tools/configure $(filter-out $@,$(MAKECMDGOALS))
 
-rel: rebar deps
+rel: certs rebar deps
 	./rebar compile generate -f
 
-devrel: $(DEVNODES)
+devrel: certs $(DEVNODES)
 
 $(DEVNODES): rebar deps compile deps_dev
 	@echo "building $@"
@@ -87,8 +91,6 @@ $(DEVNODES): rebar deps compile deps_dev
 
 deps_dev:
 	mkdir -p dev
-	cp rel/files/test_cert.pem /tmp/server.pem
-	cp rel/files/sample_external_auth.py /tmp
 
 devclean:
 	rm -rf dev/*
@@ -99,31 +101,50 @@ cover_report: /tmp/mongoose_combined.coverdata
 relclean:
 	rm -rf rel/mongooseim
 
+certs: fake_cert.pem fake_server.pem
+
+certs_priv: certs
+	@mkdir -p priv/ssl
+	@cp fake_*.pem priv/ssl
+
+fake_cert.pem:
+	openssl req \
+	-x509 -nodes -days 365 \
+	-subj '/C=PL/ST=ML/L=Krakow/CN=mongoose-im' \
+	-newkey rsa:2048 -keyout fake_key.pem -out fake_cert.pem
+
+fake_server.pem:
+	cat fake_cert.pem fake_key.pem > fake_server.pem
+
 COMBO_PLT = .mongooseim_combo_dialyzer.plt
-DEPS_LIBS     = $(wildcard deps/*/ebin/*.beam)
+# We skip some deps, because they're Dialyzer-broken
+BANNED_DEPS = meck edown
+BANNED_PATHS = $(addsuffix /ebin, $(addprefix deps/, $(BANNED_DEPS)))
+DEPS_LIBS = $(filter-out $(BANNED_PATHS), $(wildcard deps/*/ebin))
 MONGOOSE_LIBS = $(wildcard apps/ejabberd/ebin/*.beam)
 
-OTP_APPS      = compiler crypto erts kernel stdlib mnesia ssl ssh
-DIALYZER_APPS = ejabberd
+OTP_APPS = compiler crypto erts kernel stdlib mnesia ssl ssh xmerl public_key tools sasl hipe edoc syntax_tools runtime_tools inets webtool asn1
+DIALYZER_APPS = ejabberd mysql pgsql
 DIALYZER_APPS_PATHS = $(addsuffix /ebin, $(addprefix apps/, $(DIALYZER_APPS)))
 
 check_plt:
-	dialyzer --check_plt --plt $(COMBO_PLT) $(MONGOOSE_LIBS)
+	dialyzer --check_plt --plt $(COMBO_PLT)
 
 build_plt:
-	dialyzer --build_plt --apps $(OTP_APPS) \
-		--output_plt $(COMBO_PLT) $(DEPS_LIBS) $(MONGOOSE_LIBS)
+	dialyzer --build_plt --apps $(OTP_APPS) --output_plt $(COMBO_PLT) $(DEPS_LIBS)
 
-dialyzer: compile
-	dialyzer -Wno_return --fullpath --plt $(COMBO_PLT) $(DIALYZER_APPS_PATHS) | \
-	    fgrep -v -f ./dialyzer.ignore-warnings | tee dialyzer.log
+dialyzer: check_plt dialyzer_quick
+
+dialyzer_quick:
+	dialyzer -n -Wno_return -Wno_unused -Wno_undefined_callbacks --fullpath --plt $(COMBO_PLT) $(DIALYZER_APPS_PATHS)
+#	    fgrep -v -f ./dialyzer.ignore-warnings | tee dialyzer.log
 
 cleanplt:
 	rm $(COMBO_PLT)
 
 
-test_deps: rebar
-	./rebar -C rebar.tests.config get-deps
+test_deps:
+	cd test/ejabberd_tests; make get-deps
 
 %:
 	@:

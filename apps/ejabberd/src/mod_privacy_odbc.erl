@@ -351,4 +351,3 @@ sql_del_privacy_lists(LUser, LServer) ->
     Username = ejabberd_odbc:escape(LUser),
     Server = ejabberd_odbc:escape(LServer),
     odbc_queries:del_privacy_lists(LServer, Server, Username).
-

@@ -12,7 +12,6 @@ all() -> [ c2s_start_stop_test ].
 
 init_per_suite(C) ->
     stringprep:start(),
-    xml:start(),
     C.
 
 c2s_start_stop_test(_) ->

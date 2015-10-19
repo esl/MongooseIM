@@ -35,6 +35,8 @@
 
 -type shaper() :: none | #maxrate{}.
 
+-export_type([shaper/0]).
+
 -spec new(atom()) -> shaper().
 new(Name) ->
     Data = case ejabberd_config:get_global_option({shaper, Name, global}) of

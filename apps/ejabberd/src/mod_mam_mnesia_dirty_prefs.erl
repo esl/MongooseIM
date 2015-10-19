@@ -27,7 +27,7 @@
 -include_lib("exml/include/exml.hrl").
 
 -record(mam_prefs, {arc_id :: mod_mam:archive_id(),
-                    host_user :: ejabberd:user(),
+                    host_user :: {ejabberd:server(), ejabberd:user()},
                     default_mode,
                     always_rules :: list(),
                     never_rules  :: list()

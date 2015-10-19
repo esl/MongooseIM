@@ -105,9 +105,9 @@
        ).
 
 -define(INVALID_XML_ERR,
-        xml:element_to_binary(?SERR_XML_NOT_WELL_FORMED)).
+        exml:to_binary(?SERR_XML_NOT_WELL_FORMED)).
 -define(INVALID_NS_ERR,
-        xml:element_to_binary(?SERR_INVALID_NAMESPACE)).
+        exml:to_binary(?SERR_INVALID_NAMESPACE)).
 
 %%%----------------------------------------------------------------------
 %%% API
@@ -203,9 +203,8 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
             %% However several transports don't respect that,
             %% so ejabberd doesn't check 'to' attribute (EJAB-717)
             To = xml:get_attr_s(<<"to">>, Attrs),
-            Header = io_lib:format(?STREAM_HEADER,
-                                   [StateData#state.streamid, xml:crypt(To)]),
-            send_text(StateData, Header),
+            Header = io_lib:format(?STREAM_HEADER, [StateData#state.streamid, To]),
+            send_text(StateData, list_to_binary(Header)),
             {next_state, wait_for_handshake, StateData};
         _ ->
             send_text(StateData, ?INVALID_HEADER_ERR),
@@ -361,7 +360,7 @@ handle_info({route, From, To, Packet}, StateName, StateData) ->
             Attrs2 = jlib:replace_from_to_attrs(jlib:jid_to_binary(From),
                                                 jlib:jid_to_binary(To),
                                                 Attrs),
-            Text = xml:element_to_binary( #xmlel{name = Name, attrs = Attrs2,children = Els}),
+            Text = exml:to_binary( #xmlel{name = Name, attrs = Attrs2,children = Els}),
             send_text(StateData, Text);
         deny ->
             Err = jlib:make_error_reply(Packet, ?ERR_NOT_ALLOWED),
@@ -411,7 +410,7 @@ send_text(StateData, Text) ->
 
 -spec send_element(state(), jlib:xmlel()) -> binary().
 send_element(StateData, El) ->
-    send_text(StateData, xml:element_to_binary(El)).
+    send_text(StateData, exml:to_binary(El)).
 
 
 -spec new_id() -> string().

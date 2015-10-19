@@ -100,7 +100,7 @@ start_cowboy(Ref, Opts) ->
     IP = gen_mod:get_opt(ip, Opts, {0,0,0,0}),
     SSLCert = gen_mod:get_opt(cert, Opts, undefined),
     SSLKey = gen_mod:get_opt(key, Opts, undefined),
-    SSLKeyPass = gen_mod:get_opt(key_pass, Opts, undefined),
+    SSLKeyPass = gen_mod:get_opt(key_pass, Opts, ""),
     NumAcceptors = gen_mod:get_opt(num_acceptors, Opts, 100),
     MaxConns = gen_mod:get_opt(max_connections, Opts, 1024),
     Middlewares = case gen_mod:get_opt(middlewares, Opts, undefined) of

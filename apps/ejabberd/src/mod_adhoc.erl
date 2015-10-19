@@ -275,16 +275,14 @@ ping_item(Acc, _From, #jid{lserver = Server} = _To, Lang) ->
 ping_command(_Acc, _From, _To,
              #adhoc_request{lang = Lang,
                             node = <<"ping">>,
-                            sessionid = _Sessionid,
+                            session_id = _Sessionid,
                             action = Action} = Request) ->
     if
         Action == <<"">>; Action == <<"execute">> ->
             adhoc:produce_response(
               Request,
               #adhoc_response{status = completed,
-                              notes = [{<<"info">>, translate:translate(
-                                                      Lang,
-                                                      <<"Pong">>)}]});
+                              notes = [{<<"info">>, translate:translate(Lang, <<"Pong">>)}]});
         true ->
             {error, ?ERR_BAD_REQUEST}
     end;

@@ -8,7 +8,7 @@
 
 %% `ejabberd_hooks' handlers
 -export([add_sm_feature/2,
-         remove_smid/3]).
+         remove_smid/4]).
 
 %% `ejabberd.cfg' options (don't use outside of tests)
 -export([get_buffer_max/1,
@@ -60,7 +60,7 @@ sm() ->
     #xmlel{name = <<"sm">>,
            attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3}]}.
 
-remove_smid(SID, _JID, _Info) ->
+remove_smid(SID, _JID, _Info, _Reason) ->
     case mnesia:dirty_index_read(sm_session, SID, #sm_session.sid) of
         [] ->
             ok;
@@ -106,7 +106,7 @@ set_ack_freq(Freq) when is_integer(Freq), Freq > 0 ->
 get_resume_timeout(Default) ->
     gen_mod:get_module_opt(?MYNAME, ?MODULE, resume_timeout, Default).
 
--spec set_resume_timeout(pos_integer()) -> ok.
+-spec set_resume_timeout(pos_integer()) -> boolean().
 set_resume_timeout(ResumeTimeout) ->
     set_module_opt(?MYNAME, ?MODULE, resume_timeout, ResumeTimeout).
 

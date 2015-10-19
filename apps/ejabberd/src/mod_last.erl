@@ -46,7 +46,7 @@
 -include("mod_privacy.hrl").
 -include("mod_last.hrl").
 
--define(BACKEND, (mod_last_backend:backend())).
+-define(BACKEND, mod_last_backend).
 
 %% ------------------------------------------------------------------
 %% Backend callbacks
@@ -72,9 +72,9 @@
     LServer :: ejabberd:lserver(),
     Timestamp :: non_neg_integer(),
     Status  :: binary(),
-    Result  :: {atomic, ok} | {error, term()}.
+    Result  :: ok | {error, term()}.
 
--callback remove_user(LUser, LServer) -> ok when
+-callback remove_user(LUser, LServer) -> ok | {error, term()} when
     LUser   :: ejabberd:luser(),
     LServer :: ejabberd:lserver().
 
@@ -82,7 +82,7 @@
 start(Host, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
 
-    gen_mod:start_backend_module(?MODULE, Opts),
+    gen_mod:start_backend_module(?MODULE, Opts, [get_last, set_last_info]),
     ?BACKEND:init(Host, Opts),
 
     gen_iq_handler:add_iq_handler(ejabberd_local, Host,
@@ -227,13 +227,13 @@ count_active_users(LServer, Timestamp, Comparator) ->
     ?BACKEND:count_active_users(LServer, Timestamp, Comparator).
 
 -spec on_presence_update(ejabberd:user(), ejabberd:server(), ejabberd:resource(),
-                         Status :: binary()) -> {'aborted',_} | {'atomic',_}.
+                         Status :: binary()) -> ok | {error, term()}.
 on_presence_update(LUser, LServer, _Resource, Status) ->
     TimeStamp = now_to_seconds(os:timestamp()),
     store_last_info(LUser, LServer, TimeStamp, Status).
 
--spec store_last_info(ejabberd:user(), ejabberd:server(), erlang:timestamp(),
-                      Status :: binary()) -> {'aborted',_} | {'atomic',_}.
+-spec store_last_info(ejabberd:user(), ejabberd:server(), non_neg_integer(),
+                      Status :: binary()) -> ok | {error, term()}.
 store_last_info(LUser, LServer, TimeStamp, Status) ->
     ?BACKEND:set_last_info(LUser, LServer, TimeStamp, Status).
 
@@ -245,9 +245,9 @@ get_last_info(LUser, LServer) ->
         Res -> Res
     end.
 
--spec remove_user(ejabberd:user(), ejabberd:server())
-        -> {'aborted',_} | {'atomic',_}.
+-spec remove_user(ejabberd:user(), ejabberd:server()) -> ok | {error, term()}.
 remove_user(User, Server) ->
     LUser = jlib:nodeprep(User),
     LServer = jlib:nameprep(Server),
     ?BACKEND:remove_user(LUser, LServer).
+

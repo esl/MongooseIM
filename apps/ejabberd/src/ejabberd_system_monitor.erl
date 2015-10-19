@@ -231,7 +231,7 @@ send_message(From, To, Body) ->
     ejabberd_router:route(From, To, El).
 
 
--spec get_admin_jids() -> [ejabberd:jid()].
+-spec get_admin_jids() -> [ejabberd:simple_jid()].
 get_admin_jids() ->
     case ejabberd_config:get_local_option(watchdog_admins) of
         JIDs when is_list(JIDs) ->

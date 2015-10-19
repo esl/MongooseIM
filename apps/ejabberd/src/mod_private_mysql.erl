@@ -21,13 +21,13 @@ multi_set_data(LUser, LServer, NS2XML) ->
     replace_like_insert_result(
         odbc_queries:multi_set_private_data(LServer, SLUser, Rows)).
 
-replace_like_insert_result({updated, _})        -> {atomic, ok};
+replace_like_insert_result({updated, _})        -> ok;
 replace_like_insert_result({error, Reason})     -> {error, Reason};
 replace_like_insert_result({aborted, Reason})   -> {aborted, Reason}.
 
 sql_row(NS, XML) ->
     SNS = ejabberd_odbc:escape(NS),
-    SData = ejabberd_odbc:escape(xml:element_to_binary(XML)),
+    SData = ejabberd_odbc:escape(exml:to_binary(XML)),
     {SNS, SData}.
 
 multi_get_data(LUser, LServer, NS2Def) ->
@@ -44,7 +44,8 @@ multi_get_data(LUser, LServer, NS2Def) ->
 select_value({NS, Def}, RowsDict) ->
     case dict:find(NS, RowsDict) of
         {ok, SData} ->
-            #xmlel{} = xml_stream:parse_element(SData);
+	    {ok, Elem} = exml:parse(SData),
+	    Elem;
         error ->
             Def
     end.

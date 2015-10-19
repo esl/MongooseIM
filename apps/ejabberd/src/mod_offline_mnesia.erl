@@ -63,8 +63,6 @@ pop_messages(LUser, LServer) ->
             TimeStamp = now(),
             {ok, skip_expired_messages(TimeStamp, lists:keysort(#offline_msg.timestamp, Rs))};
         {aborted, Reason} ->
-            {error, Reason};
-        {error, Reason} ->
             {error, Reason}
     end.
 
@@ -74,9 +72,7 @@ write_messages(LUser, LServer, Msgs, MaxOfflineMsgs) ->
         {atomic, Result} ->
             Result;
         {aborted, Reason} ->
-            {error, {aborted, Reason}};
-        {error, Reason} ->
-            {error, Reason}
+            {error, {aborted, Reason}}
     end.
 
 write_messages_t(LUser, LServer, Msgs, MaxOfflineMsgs) ->

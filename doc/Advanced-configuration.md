@@ -4,7 +4,7 @@ For advanced configuration use the following files: `ejabberd.cfg`, `vm.args` an
 
 This file consists of multiple erlang tuples, terminated with a period. It can be found in `[MongooseIM root]/rel/files/`.
 
-The tuple order is important, unless the no host_config option is set. Retaining the default layout is recommended so that experienced MongooseIM users can smoothly traverse the file. 
+The tuple order is important, unless the no `host_config` option is set. Retaining the default layout is recommended so that experienced MongooseIM users can smoothly traverse the file.
 
 `ejabberd.cfg` is full of useful comments and in most cases they should be sufficient help in changing the configuration.
 
@@ -147,6 +147,14 @@ The tuple order is important, unless the no host_config option is set. Retaining
 
 * **odbc_keepalive_interval** (local)
     * **Description:** When enabled, will send `SELECT 1` query through every DB connection at given interval to keep them open.
+    This option should be used to ensure that database connections are
+    restarted after they became broken (e.g. due to database restart or a load
+    balancer dropping connections). Currently, not every network related error
+    returned from a database driver to a regular query will imply a connection
+    restart.
+
+You should remember that SQL databases require also defining schema.
+See [Database backends configuration](./advanced-configuration/database-backends-configuration.md) for more information
 
 ### Traffic shapers
 
@@ -218,7 +226,7 @@ Section below describes the default options.
 
 ## Options
 
-*    `-sname` - Erlang node name. Can be changed to `name`, if necessary
+* `-sname` - Erlang node name. Can be changed to `name`, if necessary
 * `-setcookie` - Erlang cookie. All nodes in a cluster must use the same cookie value.
 * `+K` - Enables kernel polling. It improves the stability when a large number of sockets is opened, but some systems might benefit from disabling it. Might be a subject of individual load testing.
 * `+A 5` - Sets the asynchronous threads number. Async threads improve I/O operations efficiency by relieving scheduler threads of IO waits.

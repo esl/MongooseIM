@@ -35,4 +35,8 @@ Protocol    = 9.3.5
 Debug       = 1
 EOL
 
+elif [ $DB = 'riak' ]; then
+    riak version
+    sudo tools/setup_riak
+
 fi

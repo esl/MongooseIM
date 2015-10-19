@@ -24,7 +24,7 @@
 -export([get_conversations_after/3]).
 
 %% Internal exports
--export([start_link/3]).
+-export([start_link/4]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -89,7 +89,7 @@
 %% ----------------------------------------------------------------------
 %% Types
 
--type filter() :: iolist().
+-type filter() :: #mam_ca_filter{}.
 -type message_id() :: non_neg_integer().
 -type user_id() :: non_neg_integer().
 -type server_hostname() :: binary().
@@ -103,7 +103,7 @@
 
 start(Host, Opts) ->
     create_worker_pool(Host),
-    mod_mam_con_ca_sup:start(Host, servers(Host)),
+    mod_mam_con_ca_sup:start(Host, cassandra_config(Host)),
     case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
         true ->
             start_pm(Host, Opts);
@@ -133,8 +133,10 @@ stop(Host) ->
     delete_worker_pool(Host),
     mod_mam_con_ca_sup:stop(Host).
 
-servers(Host) ->
-    gen_mod:get_module_opt(Host, ?MODULE, servers, [{"localhost", 9042, 1}]).
+cassandra_config(Host) ->
+    gen_mod:get_module_opt(Host, ?MODULE, cassandra_config, [{servers, [{"localhost", 9042, 1}]},
+                                                             {keyspace, "mam"},
+                                                             {credentials, undefined}]).
 
 
 %% ----------------------------------------------------------------------
@@ -233,10 +235,10 @@ select_worker(Host, UserJID) ->
     end.
 
 group_name(Host) ->
-    {mam_ca, Host}.
+    {mam_ca, node(), Host}.
 
-start_link(Host, Addr, Port) ->
-    gen_server:start_link(?MODULE, [Host, Addr, Port], []).
+start_link(Host, Addr, Port, ClientOptions) ->
+    gen_server:start_link(?MODULE, [Host, Addr, Port, ClientOptions], []).
 
 
 %% ----------------------------------------------------------------------
@@ -623,7 +625,7 @@ does_conversation_exist(Worker, BUserJID, BWithJID) ->
     end.
 
 -spec purge_single_message(_Result, Host, MessID, _UserID, UserJID, Now) ->
-    ok | {error, 'not-allowed' | 'not-found'} when
+    ok | {error, 'not-supported'} when
     Host    :: server_host(),
     MessID  :: message_id(),
     _UserID  :: user_id(),
@@ -636,7 +638,7 @@ purge_single_message(_Result, Host, MessID, _UserID, _UserJID, _Now) ->
 -spec purge_multiple_messages(_Result, Host,
                               _UserID, UserJID, Borders,
                               Start, End, Now, WithJID) ->
-    ok | {error, 'not-allowed'} when
+    {error, 'not-supported'} when
     Host    :: server_host(),
     _UserID  :: user_id(),
     UserJID :: #jid{},
@@ -654,14 +656,14 @@ purge_multiple_messages(_Result, Host, _UserID, UserJID, Borders,
 %% `{<<"13663125233">>,<<"bob@localhost">>,<<"res1">>,<<binary>>}'.
 %% Columns are `["id","from_jid","message"]'.
 -spec extract_messages(Worker, Host, Filter, IOffset, IMax, ReverseLimit) ->
-    [Record] when
+    [Row] when
     Worker  :: worker(),
     Host    :: server_hostname(),
     Filter  :: filter(),
     IOffset :: non_neg_integer(),
     IMax    :: pos_integer(),
     ReverseLimit :: boolean(),
-    Record :: tuple().
+    Row :: list().
 extract_messages(_Worker, _Host, _Filter, _IOffset, 0, _) ->
     [];
 extract_messages(Worker, Host, Filter, 0, IMax, false) ->
@@ -760,7 +762,7 @@ select_filter(#mam_ca_filter{
     select_filter(StartID, EndID).
 
 
--spec select_filter(StartID, EndID) -> filter()
+-spec select_filter(StartID, EndID) -> all | 'end' | start | start_end
     when
     StartID :: integer() | undefined,
     EndID   :: integer() | undefined.
@@ -912,9 +914,8 @@ forward_query_respond(ResultF, QueryRef,
 %%                         {stop, Reason}
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
-init([Host, Addr, Port]) ->
+init([Host, Addr, Port, ClientOptions]) ->
     register_worker(Host, self()),
-    ClientOptions = [{keyspace, "mam"}],
     {ok, ConnPid} = seestar_session:start_link(Addr, Port, ClientOptions),
 
     InsertQuery = "INSERT INTO mam_con_message "

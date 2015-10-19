@@ -49,7 +49,6 @@
 -define(NS_EXPIRE,       <<"jabber:x:expire">>).
 -define(NS_EVENT,       <<"jabber:x:event">>).
 -define(NS_CHATSTATES,  <<"http://jabber.org/protocol/chatstates">>).
--define(NS_XCONFERENCE, <<"jabber:x:conference">>).
 -define(NS_STATS,       <<"http://jabber.org/protocol/stats">>).
 -define(NS_MUC,         <<"http://jabber.org/protocol/muc">>).
 -define(NS_MUC_S,       "http://jabber.org/protocol/muc").
@@ -320,13 +319,13 @@
              type         :: atom(),
              xmlns = <<>> :: binary(),
              lang = <<>>  :: ejabberd:lang(),
-             sub_el       :: [jlib:xmlel()]
+             sub_el       :: [jlib:xmlel()] | jlib:xmlel()
             }).
 
 -record(rsm_in, {max         :: non_neg_integer() | undefined | error,
                  direction   :: before | aft | undefined,
                 %% id is empty, if cdata does not exist
-                 id          :: binary() | undefined,
+                 id          :: binary() | integer() | undefined,
                  index       :: non_neg_integer() | undefined | error
                 }).
 
@@ -338,8 +337,8 @@
 
 -record(rsm_out, {count :: pos_integer(),
                   index :: pos_integer(),
-                  first :: pos_integer(),
-                  last :: pos_integer()
+                  first :: binary(),
+                  last :: binary()
                  }).
 
 -type iq() :: #iq{}.
