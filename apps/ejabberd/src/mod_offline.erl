@@ -470,7 +470,7 @@ remove_expired_messages(Host) ->
     ?BACKEND:remove_expired_messages(Host).
 
 remove_old_messages(Host, Days) ->
-    ?BACKEND:remove_expired_messages(Host, Days).
+    ?BACKEND:remove_old_messages(Host, Days).
 
 remove_user(User, Server) ->
     ?BACKEND:remove_user(User, Server).
