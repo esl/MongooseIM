@@ -32,6 +32,7 @@
 all() ->
     [
      {group, register},
+     {group, cancel},
      {group, registration_timeout},
      {group, login},
      {group, login_scram},
@@ -41,10 +42,10 @@ all() ->
     ].
 
 groups() ->
-    [{register, [no_sequence], [register,
-				check_unregistered,
-				bad_request_registration_cancelation,
-				not_allowed_registration_cancelation]},
+    [{register, [sequence], [register,
+			     check_unregistered]},
+     {cancel, [no_sequence], [bad_request_registration_cancelation,
+			      not_allowed_registration_cancelation]},
      {registration_timeout, [sequence], [registration_timeout]},
      {login, [sequence], all_tests()},
      {login_scram, [sequence], scram_tests()},
@@ -82,12 +83,9 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(register, Config) ->
-    case escalus_users:is_mod_register_enabled(Config) of
-        true ->
-            Config; % will create users inside test case
-        _ ->
-            {skip, mod_register_disabled}
-    end;
+    skip_if_mod_register_not_enabled(Config);
+init_per_group(cancel, Config) ->
+    skip_if_mod_register_not_enabled(Config);
 init_per_group(registration_timeout, Config) ->
     case escalus_users:is_mod_register_enabled(Config) of
         true ->
@@ -109,6 +107,8 @@ init_per_group(_GroupName, Config) ->
     escalus:create_users(Config, {by_name, [alice, bob]}).
 
 end_per_group(register, _Config) ->
+    ok;
+end_per_group(cancel, _Config) ->
     ok;
 end_per_group(registration_timeout, Config) ->
     Config1 = restore_registration_timeout(Config),
@@ -133,10 +133,13 @@ init_per_testcase(DigestOrScram, Config) when
     end;
 init_per_testcase(check_unregistered, Config) ->
     Config;
-init_per_testcase(not_allowed_registration_cancelation, Config) ->
-    ok = dynamic_modules:stop(<<"localhost">>, mod_register),
-    escalus:init_per_testcase(not_allowed_registration_cancelation, Config),
-    escalus:create_users(Config, {by_name, [alice]});
+init_per_testcase(bad_request_registration_cancelation, Config0) ->
+    Config1 =  escalus:init_per_testcase(bad_request_registration, Config0),
+    escalus:create_users(Config1, {by_name, [alice]});
+init_per_testcase(not_allowed_registration_cancelation, Config0) ->
+    Config1 = change_mod_register_to_deny_inband_registration(Config0),
+    Config2 = escalus:init_per_testcase(not_allowed_registration_cancelation, Config1),
+    escalus:create_users(Config2, {by_name, [alice]});
 init_per_testcase(message_zlib_limit, Config) ->
     Listeners = [Listener
                  || {Listener, _, _} <- escalus_ejabberd:rpc(ejabberd_config, get_local_option, [listen])],
@@ -166,10 +169,13 @@ end_per_testcase(message_zlib_limit, Config) ->
     escalus:delete_users(Config, {by_name, [hacker]});
 end_per_testcase(check_unregistered, Config) ->
     Config;
-end_per_testcase(not_allowed_registration_cancelation, Config) ->
-    escalus_users:delete_users(Config, {by_name, [alice]}),
-    ok = dynamic_modules:start(<<"localhost">>, mod_register, []),
-    escalus:end_per_testcase(not_allowed_registration_cancelation, Config);
+end_per_testcase(bad_request_registration_cancelation, Config0) ->
+    Config1 = escalus:delete_users(Config0, {by_name, [alice]}),
+    escalus:end_per_testcase(bad_request_registration_cancelation, Config1);
+end_per_testcase(not_allowed_registration_cancelation, Config0) ->
+    restore_mod_register_options(Config0),
+    Config1 = escalus_users:delete_users(Config0, {by_name, [alice]}),
+    escalus:end_per_testcase(not_allowed_registration_cancelation, Config1);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
@@ -215,8 +221,6 @@ bad_request_registration_cancelation(Config) ->
     %% cases): "The <remove/> element [is] not the only child element
     %% of the <query/> element."
 
-    escalus:create_users(Config, {by_name, [alice]}),
-
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
 
         %% Alice sends bad cancelation request
@@ -233,7 +237,6 @@ not_allowed_registration_cancelation(Config) ->
 
     %% To quote XEP 0077, section 3.2, table 1 (unregister error
     %% cases): "No sender is allowed to cancel registrations in-band."
-    %% Presumably when registration itself is not enabled.
 
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
 
@@ -376,6 +379,14 @@ legacy_blocked_user(Config) ->
 %% Helpers
 %%--------------------------------------------------------------------
 
+skip_if_mod_register_not_enabled(Config) ->
+    case escalus_users:is_mod_register_enabled(Config) of
+        true ->
+            Config; % will create users inside test case
+        _ ->
+            {skip, mod_register_disabled}
+    end.
+
 set_registration_timeout(Config) ->
     Record = {local_config, registration_timeout, ?REGISTRATION_TIMEOUT},
     OldTimeout = escalus_ejabberd:rpc(ejabberd_config, get_local_option,
@@ -437,3 +448,23 @@ bad_cancelation_stanza() ->
 	%% The <remove/> element was not the only child element of the
 	%% <query/> element.
 	#xmlel{name = <<"foo">>}]}]).
+
+change_mod_register_to_deny_inband_registration(Config) ->
+    Domain = escalus_config:get_config(ejabberd_domain, Config),
+    ct:pal("DOMAIN ON SET = ~p.~n", [Domain]),
+    AllOpts = escalus_ejabberd:rpc(gen_mod, loaded_modules_with_opts, [Domain]),
+    {mod_register, RegisterOpts} = lists:keyfind(mod_register, 1, AllOpts),
+    ct:pal("REGISTER OPTIONS = ~p.~n", [RegisterOpts]),
+    ok = dynamic_modules:stop(Domain, mod_register),
+    %% ok = dynamic_modules:start(Domain, mod_register, lists:keyreplace(access, 1, RegisterOpts, {access, none})),
+    ct:pal("CHANGE REGISTER OPTIONS = ~p.~n", [lists:keyreplace(access, 1, RegisterOpts, {access, none})]),
+    ok = dynamic_modules:start(Domain, mod_register, RegisterOpts),
+    [{old_mod_register_opts, RegisterOpts}|Config].
+
+restore_mod_register_options(Config) ->
+    Domain = escalus_config:get_config(ejabberd_domain, Config),
+    ct:pal("DOMAIN ON GET = ~p.~n", [Domain]),
+    RegisterOpts = ?config(old_mod_register_opts, Config),
+    ok = dynamic_modules:stop(Domain, mod_register),
+    ok = dynamic_modules:start(Domain, mod_register, RegisterOpts),
+    Config.
