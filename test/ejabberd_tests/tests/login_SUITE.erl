@@ -230,6 +230,7 @@ bad_request_registration_cancelation(Config) ->
         Stanza = escalus:wait_for_stanza(Alice),
         ct:pal("STANZA = ~p.~n", [Stanza]),
         escalus:assert(is_iq_error, Stanza),
+        escalus:assert(is_error, [<<"modify">>, <<"bad-request">>], Stanza),
         ?assertNotMatch(undefined, exml_query:path(Stanza, [{element, <<"error">>}, {element, <<"bad-request">>}]))
 
     end).
@@ -248,6 +249,7 @@ not_allowed_registration_cancelation(Config) ->
         Stanza = escalus:wait_for_stanza(Alice),
 	ct:pal("STANZA = ~p.~n", [Stanza]),
         escalus:assert(is_iq_error, Stanza),
+        escalus:assert(is_error, [<<"cancel">>, <<"not-allowed">>], Stanza),
         ?assertNotMatch(undefined, exml_query:path(Stanza, [{element, <<"error">>}, {element, <<"not-allowed">>}]))
 
     end).
@@ -447,9 +449,9 @@ bad_cancelation_stanza() ->
     escalus_stanza:iq(<<"set">>, [#xmlel{name = <<"query">>,
         attrs = [{<<"xmlns">>, <<"jabber:iq:register">>}],
 	children = [#xmlel{name = <<"remove">>},
-	%% The <remove/> element was not the only child element of the
-	%% <query/> element.
-	#xmlel{name = <<"foo">>}]}]).
+		    %% The <remove/> element is not the only child element of the
+		    %% <query/> element.
+		    #xmlel{name = <<"foo">>}]}]).
 
 change_mod_register_to_deny_inband_registration(Config) ->
     Domain = escalus_config:get_config(ejabberd_domain, Config),
