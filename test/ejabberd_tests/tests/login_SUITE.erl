@@ -137,9 +137,9 @@ init_per_testcase(bad_request_registration_cancelation, Config0) ->
     Config1 =  escalus:init_per_testcase(bad_request_registration, Config0),
     escalus:create_users(Config1, {by_name, [alice]});
 init_per_testcase(not_allowed_registration_cancelation, Config0) ->
-    Config1 = change_mod_register_to_deny_inband_registration(Config0),
-    Config2 = escalus:init_per_testcase(not_allowed_registration_cancelation, Config1),
-    escalus:create_users(Config2, {by_name, [alice]});
+    Config1 = escalus:init_per_testcase(not_allowed_registration_cancelation, Config0),
+    Config2 = escalus:create_users(Config1, {by_name, [alice]}),
+    change_mod_register_to_deny_inband_registration(Config2);
 init_per_testcase(message_zlib_limit, Config) ->
     Listeners = [Listener
                  || {Listener, _, _} <- escalus_ejabberd:rpc(ejabberd_config, get_local_option, [listen])],
@@ -169,13 +169,11 @@ end_per_testcase(message_zlib_limit, Config) ->
     escalus:delete_users(Config, {by_name, [hacker]});
 end_per_testcase(check_unregistered, Config) ->
     Config;
-end_per_testcase(bad_request_registration_cancelation, Config0) ->
-    Config1 = escalus:delete_users(Config0, {by_name, [alice]}),
-    escalus:end_per_testcase(bad_request_registration_cancelation, Config1);
-end_per_testcase(not_allowed_registration_cancelation, Config0) ->
-    restore_mod_register_options(Config0),
-    Config1 = escalus_users:delete_users(Config0, {by_name, [alice]}),
-    escalus:end_per_testcase(not_allowed_registration_cancelation, Config1);
+end_per_testcase(bad_request_registration_cancelation, Config) ->
+    Config;
+end_per_testcase(not_allowed_registration_cancelation, Config) ->
+    restore_mod_register_options(Config),
+    escalus:delete_users(Config, {by_name, [alice]});
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
@@ -228,6 +226,7 @@ bad_request_registration_cancelation(Config) ->
 
         %% Alice receives failure response
         Stanza = escalus:wait_for_stanza(Alice),
+        ct:pal("STANZA = ~p.~n", [Stanza]),
         escalus:assert(is_iq_error, Stanza),
         ?assertNotMatch(undefined, exml_query:path(Stanza, [{element, <<"error">>}, {element, <<"bad-request">>}]))
 
@@ -245,6 +244,7 @@ not_allowed_registration_cancelation(Config) ->
 
         %% Alice receives failure response
         Stanza = escalus:wait_for_stanza(Alice),
+	ct:pal("STANZA = ~p.~n", [Stanza]),
         escalus:assert(is_iq_error, Stanza),
         ?assertNotMatch(undefined, exml_query:path(Stanza, [{element, <<"error">>}, {element, <<"not-allowed">>}]))
 
@@ -451,19 +451,14 @@ bad_cancelation_stanza() ->
 
 change_mod_register_to_deny_inband_registration(Config) ->
     Domain = escalus_config:get_config(ejabberd_domain, Config),
-    ct:pal("DOMAIN ON SET = ~p.~n", [Domain]),
     AllOpts = escalus_ejabberd:rpc(gen_mod, loaded_modules_with_opts, [Domain]),
     {mod_register, RegisterOpts} = lists:keyfind(mod_register, 1, AllOpts),
-    ct:pal("REGISTER OPTIONS = ~p.~n", [RegisterOpts]),
     ok = dynamic_modules:stop(Domain, mod_register),
-    %% ok = dynamic_modules:start(Domain, mod_register, lists:keyreplace(access, 1, RegisterOpts, {access, none})),
-    ct:pal("CHANGE REGISTER OPTIONS = ~p.~n", [lists:keyreplace(access, 1, RegisterOpts, {access, none})]),
-    ok = dynamic_modules:start(Domain, mod_register, RegisterOpts),
+    ok = dynamic_modules:start(Domain, mod_register, lists:keyreplace(access, 1, RegisterOpts, {access, none})),
     [{old_mod_register_opts, RegisterOpts}|Config].
 
 restore_mod_register_options(Config) ->
     Domain = escalus_config:get_config(ejabberd_domain, Config),
-    ct:pal("DOMAIN ON GET = ~p.~n", [Domain]),
     RegisterOpts = ?config(old_mod_register_opts, Config),
     ok = dynamic_modules:stop(Domain, mod_register),
     ok = dynamic_modules:start(Domain, mod_register, RegisterOpts),
