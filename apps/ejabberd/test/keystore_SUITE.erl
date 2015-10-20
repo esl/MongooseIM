@@ -27,9 +27,12 @@ init_per_testcase(_, Config) ->
     Helpers = [P | proplists:get_value(async_helpers, Config, [])],
     lists:keystore(async_helpers, 1, Config, {async_helpers, Helpers}).
 
-end_per_testcase(_, C) ->
+end_per_testcase(CaseName, C) ->
     meck:unload(mongoose_metrics),
-    ok = mod_keystore:stop(<<"localhost">>),
+    case CaseName =/= module_startup_non_unique_key_ids of
+        true -> ok = mod_keystore:stop(<<"localhost">>);
+        _    -> ok
+    end,
     [ P ! stop || P <- proplists:get_value(async_helpers, C, []) ],
     mnesia:delete_table(key),
     C.
