@@ -67,8 +67,12 @@ Features and supported standards
 Documentation
 -------------
 
-Up-to-date documentation for the MongooseIM master branch can be found on ReadTheDocs: http://mongooseim.readthedocs.org/en/latest/
-[See here for release 1.5.1 documentation](http://mongooseim.readthedocs.org/en/1.5.1/).
+Up-to-date documentation for the MongooseIM master branch can be found on ReadTheDocs:
+* http://mongooseim.readthedocs.org/en/latest/
+* Older versions:
+  * [release 1.6.0](http://mongooseim.readthedocs.org/en/1.6.0/)
+  * [release 1.5.1](http://mongooseim.readthedocs.org/en/1.5.1/)
+
 
 When developing new features/modules, please take care to add basic documentation
 to the `doc/` directory, and add a link to your document in `doc/README.md`.
