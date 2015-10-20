@@ -28,6 +28,7 @@ services:
 branches:
         only:
                 - master
+                - stable
 
 otp_release:
         - 17.5
