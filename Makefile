@@ -8,6 +8,7 @@ EJD_EBIN = $(EJABBERD_DIR)/ebin
 DEVNODES = node1 node2
 DEVNODESCD = node1cd node2cd
 REL_DEST = ./uat_package
+COVER_SOURCES = ./cover_sources
 
 all: deps compile
 
@@ -178,6 +179,13 @@ cd_copyrel:
 	rsync -uWr --exclude="*.erl" ./src $(REL_DEST)
 	rsync -uWr ./tools/configure $(REL_DEST)
 	tar -cf uat_package.tar $(REL_DEST)/*
+
+# copy selected sources so that test "presets" still can be used as in Travis
+cd_copy_for_cover:
+	mkdir $(COVER_SOURCES)
+	rsync -uWr ./rel $(COVER_SOURCES)
+	rsync -uWr --exclude="*.spec" --exclude=".git" --exclude="logs/" --exclude="test/" ./apps $(COVER_SOURCES)
+	tar -cf cover_sources.tar $(COVER_SOURCES)/*
 
 cd_copyrel_unpack:
 	mv ./* ../
