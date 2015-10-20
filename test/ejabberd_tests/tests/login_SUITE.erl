@@ -170,9 +170,11 @@ end_per_testcase(message_zlib_limit, Config) ->
 end_per_testcase(check_unregistered, Config) ->
     Config;
 end_per_testcase(bad_request_registration_cancelation, Config) ->
+    true = user_exists(alice, Config),
     Config;
 end_per_testcase(not_allowed_registration_cancelation, Config) ->
     restore_mod_register_options(Config),
+    true = user_exists(alice, Config),
     escalus:delete_users(Config, {by_name, [alice]});
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
@@ -463,3 +465,8 @@ restore_mod_register_options(Config) ->
     ok = dynamic_modules:stop(Domain, mod_register),
     ok = dynamic_modules:start(Domain, mod_register, RegisterOpts),
     Config.
+
+user_exists(Name, Config) ->
+    {Name, Client} = escalus_users:get_user_by_name(Name),
+    [Username, Server, _Pass] = escalus_users:get_usp(Config, Client),
+    escalus_ejabberd:rpc(ejabberd_auth, is_user_exists, [Username, Server]).
