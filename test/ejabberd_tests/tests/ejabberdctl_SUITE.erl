@@ -61,14 +61,18 @@ groups() ->
      ].
 
 basic() ->
-    [simple_register, simple_unregister, register_twice,
-    set_master_node,
-    backup_restore_mnesia,
-    restore_mnesia_wrong,
-    dump_and_load,
-    load_mnesia_wrong,
-    dump_table,
-    get_loglevel].
+    [
+        simple_register, simple_unregister, register_twice,
+        set_master_node,
+        backup_restore_mnesia,
+        restore_mnesia_wrong,
+        dump_and_load,
+        load_mnesia_wrong,
+        dump_table,
+        get_loglevel,
+        remove_old_messages_test,
+        remove_expired_messages_test
+    ].
 
 accounts() -> [change_password, check_password_hash, check_password,
                check_account, ban_account, num_active_users, delete_old_users,
@@ -615,24 +619,33 @@ stats_host(Config) ->
 
 
 simple_register(Config) ->
+    %% given
     {_, Domain, _} = get_user_data(kate, Config),
     {Name, Password} = {<<"tyler">>, <<"durden">>},
+    %% when
     {_, _} = ejabberdctl("register", [Name, Domain, Password], Config),
     {R2, _} = ejabberdctl("registered_users", [Domain], Config),
+    %% then
     {match, _} = re:run(R2, ".*(" ++binary_to_list(Name)++").*").
 
 simple_unregister(Config) ->
+    %% given
     {_, Domain, _} = get_user_data(kate, Config),
     {Name, _} = {<<"tyler">>, <<"durden">>},
+    %% when
     {_, _} = ejabberdctl("unregister", [Name, Domain], Config),
     {R2, _} = ejabberdctl("registered_users", [Domain], Config),
+    %% then
     nomatch = re:run(R2, ".*(" ++binary_to_list(Name)++").*").
 
 register_twice(Config) ->
+    %% given
     {_, Domain, _} = get_user_data(kate, Config),
     {Name,  Password} = {<<"tyler">>, <<"durden">>},
+    %% when
     {_, _} = ejabberdctl("register", [Name, Domain, Password], Config),
     {R, _} = ejabberdctl("register", [Name, Domain, Password], Config),
+    %% then
     {match, _} = re:run(R, ".*(already registered).*"),
     {_, _} = ejabberdctl("unregister", [Name, Domain], Config).
 
@@ -643,16 +656,19 @@ set_master_node(Config) ->
 
 
 backup_restore_mnesia(Config) ->
+    %% given
     TableName = passwd,
     TableSize =rpc_apply(mnesia, table_info, [TableName, size]),
     io:format("Table size is ~n~p~n", [TableSize]),
     %% Table passwd should not be empty
     FileName = "backup_mnesia.bup",
+    %% when
     {R, _} = ejabberdctl("backup", [FileName], Config),
     nomatch = re:run(R, ".+"),
     rpc_apply(mnesia, clear_table, [TableName]),
     0 = rpc_apply(mnesia, table_info, [TableName, size]),
     {R2, _} = ejabberdctl("restore", [FileName], Config),
+    %% then
     nomatch = re:run(R2, ".+"),
     TableSize = rpc_apply(mnesia, table_info, [TableName, size]).
 
@@ -683,7 +699,7 @@ dump_table(Config) ->
     TableName = passwd,
     %% Table passwd should not be empty
     TableSize =rpc_apply(mnesia, table_info, [TableName, size]),
-    {_, _} = ejabberdctl("dump_table", [FileName, TableName], Config),
+    {_, _} = ejabberdctl("dump_table", [FileName, atom_to_list(TableName)], Config),
     rpc_apply(mnesia, clear_table, [TableName]),
     0 = rpc_apply(mnesia, table_info, [TableName, size]),
     {R, _} = ejabberdctl("load", [FileName], Config),
@@ -691,12 +707,90 @@ dump_table(Config) ->
     TableSize = rpc_apply(mnesia, table_info, [TableName, size]).
 
 get_loglevel(Config) ->
-    {R, _} = ejabberdctl("get_loglevel", [], Config).
+    {R, _} = ejabberdctl("get_loglevel", [], Config),
+    {match, _} = re:run(R, ".+").
 
+remove_old_messages_test(Config) ->
+    escalus:story(Config, [{alice, 1}], fun(_) ->
+        %% given
+        JidA = nick_to_jid(alice, Config),
+        JidB = nick_to_jid(bob, Config),
+        JidRecordAlice = rpc_apply(jlib, binary_to_jid, [JidA]),
+        JidRecordBob = rpc_apply(jlib, binary_to_jid, [JidB]),
+        Msg1 = escalus_stanza:chat_to(<<"bob@localhost">>, "Hi, how are you? Its old message!"),
+        Msg2 = escalus_stanza:chat_to(<<"bob@localhost">>, "Hello its new message!"),
+        OldTimestamp = fallback_timestamp(10, now()),
+        OfflineOld = generate_offline_message(JidRecordAlice, JidRecordBob, Msg1, OldTimestamp),
+        OfflineNew = generate_offline_message(JidRecordAlice, JidRecordBob, Msg2, now()),
+        {jid, _, _, _, LUser, LServer, _} = JidRecordBob,
+        rpc_apply(mod_offline_backend, write_messages, [LUser, LServer, [OfflineOld, OfflineNew], 100]),
+        {selected, _, List} = rpc_apply(ejabberd_odbc, sql_query, [LServer, [<<"Select * from offline_message where username='bob'">>]]),
+        2 = length(List),
+        %% when
+        {_, _} = ejabberdctl("delete_old_messages", ["1"], Config),
+        {selected, _,  SecondList} = rpc_apply(ejabberd_odbc, sql_query, [LServer, [<<"Select * from offline_message where username='bob'">>]]),
+        %% then
+        1 = length(SecondList)
+    end).
+
+remove_expired_messages_test(Config) ->
+    escalus:story(Config, [{mike, 1}], fun(_) ->
+        %% given
+        JidA = nick_to_jid(mike, Config),
+        JidB = nick_to_jid(kate, Config),
+        JidRecordAlice = rpc_apply(jlib, binary_to_jid, [JidA]),
+        JidRecordBob = rpc_apply(jlib, binary_to_jid, [JidB]),
+        Msg1 = escalus_stanza:chat_to(<<"kate@localhost">>, "Rolling stones"),
+        Msg2 = escalus_stanza:chat_to(<<"kate@localhost">>, "Arctic monkeys!"),
+        Msg3 = escalus_stanza:chat_to(<<"kate@localhost">>, "More wine..."),
+        Msg4 = escalus_stanza:chat_to(<<"kate@localhost">>, "kings of leon"),
+        OldTimestamp = fallback_timestamp(10, now()),
+        ExpirationTime = fallback_timestamp(2, now()),
+        ExpirationTimeFuture= fallback_timestamp(-5, now()),
+        OfflineOld = generate_offline_expired_message(JidRecordAlice, JidRecordBob, Msg1, OldTimestamp, ExpirationTime),
+        OfflineNow = generate_offline_expired_message(JidRecordAlice, JidRecordBob, Msg2, now(), ExpirationTime),
+        OfflineFuture = generate_offline_expired_message(JidRecordAlice, JidRecordBob, Msg3, now(), ExpirationTimeFuture),
+        OfflineFuture2 = generate_offline_expired_message(JidRecordAlice, JidRecordBob, Msg4, OldTimestamp, ExpirationTimeFuture),
+        {jid, _, _, _, LUser, LServer, _} = JidRecordBob,
+        rpc_apply(mod_offline_backend, write_messages, [LUser, LServer, [OfflineOld, OfflineNow, OfflineFuture, OfflineFuture2], 100]),
+        {selected, _, List} = rpc_apply(ejabberd_odbc, sql_query, [LServer, [<<"Select * from offline_message where username='kate'">>]]),
+        4 = length(List),
+        %% when
+        {_, _} = ejabberdctl("delete_expired_messages", [], Config),
+        {selected, _,  SecondList} = rpc_apply(ejabberd_odbc, sql_query, [LServer, [<<"Select * from offline_message where username='kate'">>]]),
+        %% then
+        2 = length(SecondList)
+    end).
 
 %%-----------------------------------------------------------------
 %% Helpers
 %%-----------------------------------------------------------------
+
+
+nick_to_jid(UserName, Config) when is_atom(UserName) ->
+    UserSpec = escalus_users:get_userspec(Config, UserName),
+    escalus_utils:jid_to_lower(escalus_users:get_jid(Config, UserSpec)).
+
+generate_offline_message(From, To, Msg, TimeStamp) ->
+    {jid, _, _, _, LUser, LServer, _} = To,
+    #offline_msg{us={LUser, LServer}, timestamp=TimeStamp, expire=never,from=From, to=To, packet=Msg}.
+
+generate_offline_expired_message(From, To, Msg, TimeStamp, ExpirationTime) ->
+    {jid, _, _, _, LUser, LServer, _} = To,
+    #offline_msg{us={LUser, LServer}, timestamp=TimeStamp, expire=ExpirationTime,from=From, to=To, packet=Msg}.
+
+
+fallback_timestamp(Days, {MegaSecs, Secs, _MicroSecs}) ->
+    S = MegaSecs * 1000000 + Secs - 60 * 60 * 24 * Days,
+    MegaSecs1 = S div 1000000,
+    Secs1 = S rem 1000000,
+    {MegaSecs1, Secs1, 0}.
+
+encode_timestamp(TimeStamp) ->
+    integer_to_list(now_to_microseconds(TimeStamp)).
+
+now_to_microseconds({Mega, Secs, Micro}) ->
+(1000000 * Mega + Secs) * 1000000 + Micro.
 
 start_mod_admin_extra() ->
     Domain = ct:get_config(ejabberd_domain),

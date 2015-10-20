@@ -329,12 +329,12 @@ get_loglevel() ->
 
 -spec delete_expired_messages() -> 'ok'.
 delete_expired_messages() ->
-    {atomic, ok} = mod_offline:remove_expired_messages(?MYNAME),
+    {updated, _} = mod_offline:remove_expired_messages(?MYNAME),
     ok.
 
 -spec delete_old_messages(Days :: integer()) -> 'ok'.
 delete_old_messages(Days) ->
-    {atomic, _} = mod_offline:remove_old_messages(?MYNAME, Days),
+    {updated, _} = mod_offline:remove_old_messages(?MYNAME, Days),
     ok.
 
 
