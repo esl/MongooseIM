@@ -171,7 +171,6 @@ negative_prop(Name, Prop) ->
 
 mock_mongoose_metrics() ->
     meck:new(mongoose_metrics, []),
-    meck:expect(mongoose_metrics, ensure_metric, fun (_, _) -> ok end),
     meck:expect(mongoose_metrics, create_generic_hook_metric, fun (_, _) -> ok end),
     meck:expect(mongoose_metrics, increment_generic_hook_metric, fun (_, _) -> ok end),
     ok.
