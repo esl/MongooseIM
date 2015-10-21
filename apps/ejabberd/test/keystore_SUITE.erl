@@ -24,10 +24,7 @@ end_per_suite(C) -> C.
 
 init_per_testcase(_, Config) ->
     mock_mongoose_metrics(),
-    {ok, P} = start_async(ejabberd_hooks, start_link, []),
-    %ct:pal("t2l hooks: ~p", [ets:tab2list(hooks)]),
-    Helpers = [P | proplists:get_value(async_helpers, Config, [])],
-    lists:keystore(async_helpers, 1, Config, {async_helpers, Helpers}).
+    async_helper:start(Config, ejabberd_hooks, start_link, []).
 
 end_per_testcase(CaseName, C) ->
     meck:unload(mongoose_metrics),
@@ -35,7 +32,7 @@ end_per_testcase(CaseName, C) ->
         true -> ok = mod_keystore:stop(<<"localhost">>);
         _    -> ok
     end,
-    [ P ! stop || P <- proplists:get_value(async_helpers, C, []) ],
+    async_helper:stop_all(C),
     mnesia:delete_table(key),
     C.
 
