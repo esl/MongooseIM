@@ -122,19 +122,18 @@ make_result_iq_reply_attrs(Attrs) ->
     Attrs2 = lists:keydelete(<<"from">>, 1, Attrs1),
     Attrs3 = case To of
                  {value, ToVal} ->
-                     [{<<"from">>, binary_to_list(ToVal)} | Attrs2];
+                     [{<<"from">>, ToVal} | Attrs2];
                  _ ->
                      Attrs2
              end,
     Attrs4 = case From of
                  {value, FromVal} ->
-                     [{<<"to">>, binary_to_list(FromVal)} | Attrs3];
+                     [{<<"to">>, FromVal} | Attrs3];
                  _ ->
                      Attrs3
              end,
     Attrs5 = lists:keydelete(<<"type">>, 1, Attrs4),
-    Attrs6 = [{<<"type">>, <<"result">>} | Attrs5],
-    Attrs6.
+    [{<<"type">>, <<"result">>} | Attrs5].
 
 
 -spec make_error_reply(xmlel(), xmlcdata() | xmlel()) -> xmlel().
