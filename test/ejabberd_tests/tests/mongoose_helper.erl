@@ -84,19 +84,17 @@ do_clear_last_activity(Config, Users) when is_list(Users) ->
     lists:foreach(fun(User) -> do_clear_last_activity(Config, User) end, Users).
 
 get_backend(Module) ->
-    try
-        ?RPC(Module, backend, [])
-    catch
-        _:_  ->
-            false
-    end.
+  case ?RPC(Module, backend, []) of
+    {badrpc, _Reason} -> false;
+    Backend -> Backend
+  end.
 
 generic_count(Module) ->
     case get_backend(Module) of
-        B when is_atom(B) ->
-            generic_count_backend(B);
         false -> %% module disabled
-            false
+            false;
+        B when is_atom(B) ->
+            generic_count_backend(B)
     end.
 
 generic_count_backend(mod_offline_mnesia) -> count_wildpattern(offline_msg);
