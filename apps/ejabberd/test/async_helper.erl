@@ -3,11 +3,11 @@
 
 start(Config, M, F, A) ->
     {ok, P} = start(M, F, A),
-    Helpers = [P | proplists:get_value(async_helpers, Config, [])],
+    Helpers = [{M, F, A, P} | proplists:get_value(async_helpers, Config, [])],
     lists:keystore(async_helpers, 1, Config, {async_helpers, Helpers}).
 
 stop_all(Config) ->
-    [ P ! stop || P <- proplists:get_value(async_helpers, Config, []) ],
+    [ P ! stop || {_,_,_,P} <- proplists:get_value(async_helpers, Config, []) ],
     ok.
 
 start(M, F, A) ->
