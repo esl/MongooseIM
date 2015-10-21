@@ -78,6 +78,8 @@ module_startup_create_ram_key(_, ModKeystoreOpts) ->
 
 module_startup_for_multiple_domains(_Config) ->
     %% given
+    [] = get_key(<<"first.com">>, key_from_file),
+    [] = get_key(<<"second.com">>, key_from_file),
     FirstKey = <<"random-first.com-key-content">>,
     SecondKey = <<"random-second.com-key-content">>,
     {ok, FirstKeyFile} = key_at("/tmp/first.com", FirstKey),
