@@ -87,9 +87,10 @@ route(From, To, Packet) ->
     case catch do_route(From, To, Packet) of
         {'EXIT', Reason} ->
             ?ERROR_MSG("~p~nwhen processing: ~p",
-                       [Reason, {From, To, Packet}]);
-        _ ->
-            ok
+                       [Reason, {From, To, Packet}]),
+            {error, Reason};
+        R ->
+            R
     end.
 
 -spec remove_connection(_, pid(), _) -> 'ok' | {'aborted',_} | {'atomic',_}.
