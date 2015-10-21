@@ -455,14 +455,14 @@ change_mod_register_to_deny_inband_registration(Config) ->
     Domain = escalus_config:get_config(ejabberd_domain, Config),
     AllOpts = escalus_ejabberd:rpc(gen_mod, loaded_modules_with_opts, [Domain]),
     {mod_register, RegisterOpts} = lists:keyfind(mod_register, 1, AllOpts),
-    ok = dynamic_modules:stop(Domain, mod_register),
+    {atomic, ok} = dynamic_modules:stop(Domain, mod_register),
     ok = dynamic_modules:start(Domain, mod_register, lists:keyreplace(access, 1, RegisterOpts, {access, none})),
     [{old_mod_register_opts, RegisterOpts}|Config].
 
 restore_mod_register_options(Config) ->
     Domain = escalus_config:get_config(ejabberd_domain, Config),
     RegisterOpts = ?config(old_mod_register_opts, Config),
-    ok = dynamic_modules:stop(Domain, mod_register),
+    {atomic, ok} = dynamic_modules:stop(Domain, mod_register),
     ok = dynamic_modules:start(Domain, mod_register, RegisterOpts),
     Config.
 
