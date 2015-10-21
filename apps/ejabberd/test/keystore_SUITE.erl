@@ -20,6 +20,8 @@ init_per_suite(C) ->
     {ok, _} = application:ensure_all_started(mnesia),
     C.
 
+end_per_suite(C) -> C.
+
 init_per_testcase(_, Config) ->
     mock_mongoose_metrics(),
     {ok, P} = start_async(ejabberd_hooks, start_link, []),

@@ -41,6 +41,8 @@ init_per_suite(C) ->
     xml:start(),
     C.
 
+end_per_suite(C) -> C.
+
 init_per_testcase(serialize_deserialize_property, Config) ->
     mock_mongoose_metrics(),
     Config1 = async_helper:start(Config, ejabberd_hooks, start_link, []),
