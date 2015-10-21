@@ -43,8 +43,8 @@
          install_fallback_mnesia/1,
          dump_to_textfile/1, dump_to_textfile/2,
          mnesia_change_nodename/4,
-         restore/1 % Still used by some modules
-    ,    get_loglevel/0]).
+         restore/1, % Still used by some modules%%
+         get_loglevel/0]).
 
 -include("ejabberd.hrl").
 -include("ejabberd_commands.hrl").
