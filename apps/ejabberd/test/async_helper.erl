@@ -12,8 +12,20 @@ start(Config, MFAs) when is_list(MFAs) ->
                 end, Config, MFAs).
 
 stop_all(Config) ->
-    [ P ! stop || {_,_,_,P} <- proplists:get_value(async_helpers, Config, []) ],
+    Helpers = proplists:get_value(async_helpers, Config, []),
+    Refs = [ monitor_and_stop(P) || {_,_,_,P} <- Helpers ],
+    [ receive_down_message(R) || R <- Refs ],
     ok.
+
+monitor_and_stop(Pid) ->
+    Ref = erlang:monitor(process, Pid),
+    Pid ! stop,
+    Ref.
+
+receive_down_message(Ref) ->
+    receive
+        {'DOWN', Ref, process, _, _} -> ok
+    end.
 
 start(M, F, A) ->
     Self = self(),
