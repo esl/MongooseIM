@@ -44,6 +44,6 @@ start(M, F, A) ->
 
 helper_loop() ->
     receive
-        stop -> exit(normal);
+        stop -> exit(stop_and_kill_linked_processes);
         _    -> helper_loop()
     end.
