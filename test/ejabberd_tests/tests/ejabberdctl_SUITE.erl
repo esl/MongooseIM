@@ -25,6 +25,8 @@
 -define(SINGLE_QUOTE_CHAR, $\').
 -define(DOUBLE_QUOTE_CHAR, $\").
 
+-record(offline_msg, {us, timestamp, expire, from, to, packet}).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
