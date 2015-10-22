@@ -159,6 +159,12 @@ process_iq(From, To, #iq{type = Type, lang = Lang, sub_el = SubEl, id = ID} = IQ
 			    ResIQ = #iq{type = result, xmlns = ?NS_REGISTER,
 					id = ID,
 					sub_el = [SubEl]},
+			    %% The response must be sent *before* the
+			    %% XML stream is closed (the call to
+			    %% `ejabberd_auth:remove_user/2' does
+			    %% this): as it is, when canceling a
+			    %% registration, there is no way to deal
+			    %% with failure.
 			    ejabberd_router:route(
 			      jid:make(User, Server, Resource),
 			      jid:make(User, Server, Resource),
