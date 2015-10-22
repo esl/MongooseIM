@@ -29,10 +29,12 @@
 %%--------------------------------------------------------------------
 
 all() ->
-    [{group, clustered}].
+    [{group, clustered},
+     {group, ejabberdctl}].
 
 groups() ->
-    [{clustered, [], [one_to_one_message]}].
+    [{clustered, [], [one_to_one_message]},
+     {ejabberdctl, [], [set_master_test]}].
 
 suite() ->
     escalus:suite().
@@ -51,8 +53,12 @@ init_per_suite(Config) ->
     Ch = [{hosts, "[\"" ++ binary_to_list(MainDomain) ++ "\"]"}],
     ejabberd_node_utils:modify_config_file(Node, "reltool_vars/node2_vars.config", Ch, Config2),
     ejabberd_node_utils:call_ctl(Node, reload_local, Config2),
-
-    Config2.
+    {ok, EjdWD} = escalus_ejabberd:rpc(file, get_cwd, []),
+    CtlPath = case filelib:is_file(EjdWD ++ "/bin/ejabberdctl") of
+                  true -> EjdWD ++ "/bin/ejabberdctl";
+                  false -> EjdWD ++ "/bin/mongooseimctl"
+              end,
+    escalus:init_per_suite([{ctl_path, CtlPath} | Config2]).
 
 end_per_suite(Config) ->
     Node = ct:get_config(ejabberd2_node),
@@ -60,7 +66,7 @@ end_per_suite(Config) ->
     ejabberd_node_utils:restart_application(Node, ejabberd),
     escalus:end_per_suite(Config).
 
-init_per_group(clustered, Config) ->
+init_per_group(Group, Config) when Group == clustered orelse Group == ejabberdctl ->
 
     Config1 = add_node_to_cluster(Config),
 
@@ -75,7 +81,7 @@ init_per_group(clustered, Config) ->
 init_per_group(_GroupName, Config) ->
     escalus:create_users(Config).
 
-end_per_group(clustered, Config) ->
+end_per_group(Group, Config) when Group == clustered orelse Group == ejabberdctl ->
     escalus:delete_users(Config, {by_name, [alice, clusterguy]}),
     remove_node_from_cluster(Config);
 end_per_group(_GroupName, Config) ->
@@ -110,7 +116,59 @@ one_to_one_message(ConfigIn) ->
                 Stanza2 = escalus:wait_for_stanza(Alice, 5000),
                 escalus:assert(is_chat_message, [<<"Oh hi!">>], Stanza2)
         end).
+%%--------------------------------------------------------------------
+%% Ejabberdctl tests
+%%--------------------------------------------------------------------
+
+set_master_test(ConfigIn) ->
+    TableName = passwd,
+    NodeList = nodes(),
+    ejabberdctl("set_master", ["self"], ConfigIn),
+    [MasterNode] = rpc_call(mnesia, table_info, [TableName, master_nodes]),
+    true = lists:member(MasterNode, NodeList),
+    RestNodesList = lists:delete(MasterNode, NodeList),
+    OtherNode = hd(RestNodesList),
+    ejabberdctl("set_master", [atom_to_list(OtherNode)], ConfigIn),
+    [OtherNode] = rpc_call(mnesia, table_info, [TableName, master_nodes]),
+    ejabberdctl("set_master", ["self"], ConfigIn),
+    [MasterNode] = rpc_call(mnesia, table_info, [TableName, master_nodes]).
 
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
+
+ejabberdctl(Cmd, Args, Config) ->
+    CtlCmd = escalus_config:get_config(ctl_path, Config),
+    run(string:join([CtlCmd, Cmd | normalize_args(Args)], " ")).
+
+rpc_call(M, F, Args) ->
+    case escalus_ejabberd:rpc(M, F, Args) of
+        {badrpc, Reason} ->
+            ct:fail("~p:~p/~p with arguments ~w fails with reason ~p.",
+                    [M, F, length(Args), Args, Reason]);
+        Result ->
+            Result
+    end.
+
+normalize_args(Args) ->
+    lists:map(fun
+                  (Arg) when is_binary(Arg) ->
+                      binary_to_list(Arg);
+                  (Arg) when is_list(Arg) ->
+                      Arg
+              end, Args).
+
+run(Cmd) ->
+    run(Cmd, 5000).
+
+run(Cmd, Timeout) ->
+    Port = erlang:open_port({spawn, Cmd},[exit_status]),
+    loop(Port,[], Timeout).
+
+loop(Port, Data, Timeout) ->
+    receive
+        {Port, {data, NewData}} -> loop(Port, Data++NewData, Timeout);
+        {Port, {exit_status, ExitStatus}} -> {Data, ExitStatus}
+    after Timeout ->
+        throw(timeout)
+    end.
