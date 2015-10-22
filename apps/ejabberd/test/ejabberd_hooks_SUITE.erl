@@ -250,7 +250,6 @@ const(N) -> fun(_) -> N end.
 
 given_hooks_started() ->
     error_logger:tty(false),
-    application:start(folsom),
     ejabberd_hooks:start_link().
 
 given_hook_added(HookName, ModName, FunName, Prio) ->
