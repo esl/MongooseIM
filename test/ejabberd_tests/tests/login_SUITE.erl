@@ -32,7 +32,7 @@
 all() ->
     [
      {group, register},
-     {group, cancel},
+     {group, cancelation_error},
      {group, registration_timeout},
      {group, login},
      {group, login_scram},
@@ -44,8 +44,8 @@ all() ->
 groups() ->
     [{register, [sequence], [register,
 			     check_unregistered]},
-     {cancel, [no_sequence], [bad_request_registration_cancelation,
-			      not_allowed_registration_cancelation]},
+     {cancelation_error, [no_sequence], [bad_request_registration_cancelation,
+					 not_allowed_registration_cancelation]},
      {registration_timeout, [sequence], [registration_timeout]},
      {login, [sequence], all_tests()},
      {login_scram, [sequence], scram_tests()},
@@ -84,7 +84,7 @@ end_per_suite(Config) ->
 
 init_per_group(register, Config) ->
     skip_if_mod_register_not_enabled(Config);
-init_per_group(cancel, Config) ->
+init_per_group(cancelation_error, Config) ->
     skip_if_mod_register_not_enabled(Config);
 init_per_group(registration_timeout, Config) ->
     case escalus_users:is_mod_register_enabled(Config) of
@@ -108,7 +108,7 @@ init_per_group(_GroupName, Config) ->
 
 end_per_group(register, _Config) ->
     ok;
-end_per_group(cancel, _Config) ->
+end_per_group(cancelation_error, _Config) ->
     ok;
 end_per_group(registration_timeout, Config) ->
     Config1 = restore_registration_timeout(Config),
