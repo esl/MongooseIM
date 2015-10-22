@@ -165,25 +165,15 @@ start_link(VHost, Opts) ->
 init([VHost, Opts]) ->
     process_flag(trap_exit, true),
     ?BACKEND:init(VHost, Opts),
-
-    ejabberd_hooks:add(remove_user, VHost,
-                       ?MODULE, remove_user, 50),
-    ejabberd_hooks:add(anonymous_purge_hook, VHost,
-                       ?MODULE, remove_user, 50),
-    ejabberd_hooks:add(disco_local_features, VHost,
-                       ?MODULE, get_local_features,50),
-
-    ejabberd_hooks:add(host_config_update, VHost,
-                       ?MODULE, config_change, 50),
+    [ ejabberd_hooks:add(Hook, VHost, M, F, Prio)
+      || {Hook, M, F, Prio} <- hook_handlers() ],
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
     gen_iq_handler:add_iq_handler(ejabberd_sm, VHost, ?NS_VCARD,
                                   ?MODULE,process_sm_iq, IQDisc),
     gen_iq_handler:add_iq_handler(ejabberd_local, VHost, ?NS_VCARD,
                                   ?MODULE,process_local_iq, IQDisc),
-
     DirectoryHost = gen_mod:get_opt_host(VHost, Opts, "vjud.@HOST@"),
     Search = gen_mod:get_opt(search, Opts, true),
-
     case Search of
         true ->
             ejabberd_router:register_route(DirectoryHost);
@@ -200,12 +190,17 @@ terminate(_Reason, State) ->
         _ ->
             ok
     end,
-    ejabberd_hooks:delete(remove_user, VHost, ?MODULE, remove_user, 50),
-    ejabberd_hooks:delete(anonymous_purge_hook, VHost, ?MODULE, remove_user, 50),
+    [ ejabberd_hooks:delete(Hook, VHost, M, F, Prio)
+      || {Hook, M, F, Prio} <- hook_handlers() ],
     gen_iq_handler:remove_iq_handler(ejabberd_local, VHost, ?NS_VCARD),
-    gen_iq_handler:remove_iq_handler(ejabberd_sm, VHost, ?NS_VCARD),
-    ejabberd_hooks:delete(host_config_update, VHost, ?MODULE, config_change, 50),
-    ejabberd_hooks:delete(disco_local_features, VHost, ?MODULE, get_local_features, 50).
+    gen_iq_handler:remove_iq_handler(ejabberd_sm, VHost, ?NS_VCARD).
+
+hook_handlers() ->
+    %% Hook, Module, Function, Priority
+    [{remove_user,          ?MODULE, remove_user,        50},
+     {anonymous_purge_hook, ?MODULE, remove_user,        50},
+     {disco_local_features, ?MODULE, get_local_features, 50},
+     {host_config_update,   ?MODULE, config_change,      50}].
 
 handle_call(get_state, _From, State) ->
     {reply, {ok, State}, State};
