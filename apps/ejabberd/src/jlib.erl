@@ -404,15 +404,8 @@ nameprep(_) ->
     error.
 
 
--spec resourceprep(string() | ejabberd:resource()) ->
+-spec resourceprep(ejabberd:resource()) ->
                                         'error' | ejabberd:lresource().
-resourceprep(S) when is_list(S) ->
-    case resourceprep(list_to_binary(S)) of
-        error ->
-            error;
-        Binary ->
-            binary_to_list(Binary)
-    end;
 resourceprep(S) when size(S) < ?SANE_LIMIT ->
     R = stringprep:resourceprep(S),
     if
