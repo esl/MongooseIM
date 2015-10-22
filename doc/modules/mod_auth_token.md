@@ -12,6 +12,7 @@ The module itself does not implement protocol related details - these are implem
 Generation of keys necessary to sign binary tokens is delegated to module `mod_keystore.erl`.
 
 ### Configuration
+
 #### Validity periods
 
 Access and refresh tokens validity periods can be defined independently.
@@ -66,7 +67,7 @@ Pre-shared key stored on a disk, key name - `token_secret`, key filename - `toke
 Both tokens (access/refresh) are to be exchanged as *base64 encoded* binary buffers.
 Each binary token consists of a number of fields described in this section.
 
-On erlang/server side the a token is represented as a record of following structure:
+On the server side a token is represented as an Erlang record of the following structure:
 
 ```erlang
 -record (token, { type              :: mod_auth_token:token_type(),
