@@ -46,10 +46,18 @@
 -export([start/2,stop/1]).
 
 %% gen_server handlers
--export([init/1,handle_info/2, handle_call/3, handle_cast/2, terminate/2, code_change/3]).
+-export([init/1,
+         handle_info/2,
+         handle_call/3,
+         handle_cast/2,
+         terminate/2,
+         code_change/3]).
 
 %% Hook handlers
--export([process_local_iq/3,process_sm_iq/3,get_local_features/5,remove_user/2]).
+-export([process_local_iq/3,
+         process_sm_iq/3,
+         get_local_features/5,
+         remove_user/2]).
 
 -export([start_link/2]).
 -export([default_search_fields/0]).
@@ -134,7 +142,7 @@ get_results_limit(LServer) ->
 start(VHost, Opts) ->
     gen_mod:start_backend_module(?MODULE, Opts, [set_vcard, get_vcard, search]),
     Proc = gen_mod:get_module_proc(VHost,?PROCNAME),
-    ChildSpec = {Proc, {?MODULE, start_link, [VHost,Opts]},
+    ChildSpec = {Proc, {?MODULE, start_link, [VHost, Opts]},
                  transient, 1000, worker, [?MODULE]},
     supervisor:start_child(ejabberd_sup, ChildSpec).
 
@@ -319,7 +327,6 @@ config_change(Acc, _, _, _) ->
 do_route(_VHost, From, #jid{user = User,
                             resource =Resource} = To, Packet, _IQ)
   when (User /= <<"">>) or (Resource /= <<"">>) ->
-
     Err = jlib:make_error_reply(Packet, ?ERR_SERVICE_UNAVAILABLE),
     ejabberd_router:route(To, From, Err);
 do_route(VHost, From, To, Packet, #iq{type = set,
