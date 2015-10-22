@@ -85,132 +85,137 @@ unauthenticated_iq_register(_Acc,
 		 {A, _Port} -> A;
 		  _ -> undefined
 	      end,
-    ResIQ = process_iq(jid:make(<<>>, <<>>, <<>>),
-                        jid:make(<<>>, Server, <<>>),
- 		       IQ,
-		       Address),
-    Res1 = jlib:replace_from_to(jid:make(<<>>, Server, <<>>),
-                                 jid:make(<<>>, <<>>, <<>>),
+    ResIQ = process_unauthenticated_iq(jlib:make_jid(<<>>, <<>>, <<>>),
+				       jlib:make_jid(<<>>, Server, <<>>),
+				       IQ,
+				       Address),
+    Res1 = jlib:replace_from_to(jlib:make_jid(<<>>, Server, <<>>),
+ 				jlib:make_jid(<<>>, <<>>, <<>>),
  				jlib:iq_to_xml(ResIQ)),
     jlib:remove_attr(<<"to">>, Res1);
-
 unauthenticated_iq_register(Acc, _Server, _IQ, _IP) ->
     Acc.
 
-process_iq(From, To, IQ) ->
-    process_iq(From, To, IQ, jid:to_lower(From)).
+%% Clients must register before being able to authenticate.
+process_unauthenticated_iq(Sender, Receiver, #iq{type = set} = Stanza, IPAddr) ->
+    process_iq_set(Sender, Receiver, Stanza, IPAddr);
+process_unauthenticated_iq(Sender, Receiver, #iq{type = get} = Stanza, IPAddr) ->
+    process_iq_get(Sender, Receiver, Stanza, IPAddr).
 
-process_iq(From, To, #iq{type = Type, lang = Lang, sub_el = SubEl, id = ID} = IQ, Source) ->
-    case Type of
-	set ->
-	    UTag = xml:get_subtag(SubEl, <<"username">>),
-	    PTag = xml:get_subtag(SubEl, <<"password">>),
-	    RTag = xml:get_subtag(SubEl, <<"remove">>),
-	    Server = To#jid.lserver,
-        Access = gen_mod:get_module_opt(Server, ?MODULE, access, all),
-	    AllowRemove = (allow == acl:match_rule(Server, Access, From)),
-	    if
-		(UTag /= false) and (RTag /= false) and AllowRemove ->
-		    User = xml:get_tag_cdata(UTag),
-		    case From of
-			#jid{user = User, lserver = Server} ->
-			    ejabberd_auth:remove_user(User, Server),
-			    IQ#iq{type = result, sub_el = [SubEl]};
-			_ ->
-			    if
-				PTag /= false ->
-				    Password = xml:get_tag_cdata(PTag),
-				    case ejabberd_auth:remove_user(User,
-								   Server,
-								   Password) of
-					ok ->
-					    IQ#iq{type = result,
-						  sub_el = [SubEl]};
-					%% TODO FIXME: This piece of
-					%% code does not work since
-					%% the code have been changed
-					%% to allow several auth
-					%% modules.  lists:foreach can
-					%% only return ok:
-					not_allowed ->
-					    IQ#iq{type = error,
-						  sub_el =
-						  [SubEl, ?ERR_NOT_ALLOWED]};
-					not_exists ->
-					    IQ#iq{type = error,
-						  sub_el =
-						  [SubEl, ?ERR_ITEM_NOT_FOUND]};
-					_ ->
-					    IQ#iq{type = error,
-						  sub_el =
-						  [SubEl,
-						   ?ERR_INTERNAL_SERVER_ERROR]}
-				    end;
-				true ->
+process_iq(From, To, #iq{type = set} = IQ) ->
+    process_iq_set(From, To, IQ, jlib:jid_tolower(From));
+process_iq(From, To, #iq{type = get} = IQ) ->
+    process_iq_get(From, To, IQ, jlib:jid_tolower(From)).
+
+process_iq_set(From, To, #iq{lang = Lang, sub_el = SubEl, id = ID} = IQ, Source) ->
+    UTag = xml:get_subtag(SubEl, <<"username">>),
+    PTag = xml:get_subtag(SubEl, <<"password">>),
+    RTag = xml:get_subtag(SubEl, <<"remove">>),
+    Server = To#jid.lserver,
+    Access = gen_mod:get_module_opt(Server, ?MODULE, access, all),
+    AllowRemove = (allow == acl:match_rule(Server, Access, From)),
+    if
+	(UTag /= false) and (RTag /= false) and AllowRemove ->
+	    User = xml:get_tag_cdata(UTag),
+	    case From of
+		#jid{user = User, lserver = Server} ->
+		    ejabberd_auth:remove_user(User, Server),
+		    IQ#iq{type = result, sub_el = [SubEl]};
+		_ ->
+		    if
+			PTag /= false ->
+			    Password = xml:get_tag_cdata(PTag),
+			    case ejabberd_auth:remove_user(User,
+							   Server,
+							   Password) of
+				ok ->
+				    IQ#iq{type = result,
+					  sub_el = [SubEl]};
+				%% TODO FIXME: This piece of
+				%% code does not work since
+				%% the code have been changed
+				%% to allow several auth
+				%% modules.  lists:foreach can
+				%% only return ok:
+				not_allowed ->
 				    IQ#iq{type = error,
-					  sub_el = [SubEl, ?ERR_BAD_REQUEST]}
-			    end
-		    end;
-		(UTag == false) and (RTag /= false) and AllowRemove ->
-		    case From of
-			#jid{user = User,
-			     lserver = Server,
-			     resource = Resource} ->
-			    ResIQ = #iq{type = result, xmlns = ?NS_REGISTER,
-					id = ID,
-					sub_el = [SubEl]},
-			    %% The response must be sent *before* the
-			    %% XML stream is closed (the call to
-			    %% `ejabberd_auth:remove_user/2' does
-			    %% this): as it is, when canceling a
-			    %% registration, there is no way to deal
-			    %% with failure.
-			    ejabberd_router:route(
-			      jid:make(User, Server, Resource),
-			      jid:make(User, Server, Resource),
-			      jlib:iq_to_xml(ResIQ)),
-			    ejabberd_auth:remove_user(User, Server),
-			    ignore;
-			_ ->
+					  sub_el =
+					      [SubEl, ?ERR_NOT_ALLOWED]};
+				not_exists ->
+				    IQ#iq{type = error,
+					  sub_el =
+					      [SubEl, ?ERR_ITEM_NOT_FOUND]};
+				_ ->
+				    IQ#iq{type = error,
+					  sub_el =
+					      [SubEl,
+					       ?ERR_INTERNAL_SERVER_ERROR]}
+			    end;
+			true ->
 			    IQ#iq{type = error,
-				  sub_el = [SubEl, ?ERR_NOT_ALLOWED]}
-		    end;
-		(UTag /= false) and (PTag /= false) ->
-		    User = xml:get_tag_cdata(UTag),
-		    Password = xml:get_tag_cdata(PTag),
-		    try_register_or_set_password(
-		      User, Server, Password, From,
-		      IQ, SubEl, Source, Lang);
-		true ->
+				  sub_el = [SubEl, ?ERR_BAD_REQUEST]}
+		    end
+	    end;
+	(UTag == false) and (RTag /= false) and AllowRemove ->
+	    case From of
+		#jid{user = User,
+		     lserver = Server,
+		     resource = Resource} ->
+		    ResIQ = #iq{type = result, xmlns = ?NS_REGISTER,
+				id = ID,
+				sub_el = [SubEl]},
+		    %% The response must be sent *before* the
+		    %% XML stream is closed (the call to
+		    %% `ejabberd_auth:remove_user/2' does
+		    %% this): as it is, when canceling a
+		    %% registration, there is no way to deal
+		    %% with failure.
+		    ejabberd_router:route(
+		      jlib:make_jid(User, Server, Resource),
+		      jlib:make_jid(User, Server, Resource),
+		      jlib:iq_to_xml(ResIQ)),
+		    ejabberd_auth:remove_user(User, Server),
+		    ignore;
+		_ ->
 		    IQ#iq{type = error,
 			  sub_el = [SubEl, ?ERR_BAD_REQUEST]}
 	    end;
-	get ->
-	    {_IsRegistered, UsernameSubels, QuerySubels} =
-		case From of
-		    #jid{user = User, lserver = Server} ->
-			case ejabberd_auth:is_user_exists(User, Server) of
-			    true ->
-				{true, [#xmlcdata{content = User}],
-				 [#xmlel{name = <<"registered">>}]};
+	(UTag /= false) and (PTag /= false) ->
+	    User = xml:get_tag_cdata(UTag),
+	    Password = xml:get_tag_cdata(PTag),
+	    try_register_or_set_password(
+	      User, Server, Password, From,
+	      IQ, SubEl, Source, Lang);
+	true ->
+	    IQ#iq{type = error,
+		  sub_el = [SubEl, ?ERR_BAD_REQUEST]}
+    end.
+
+process_iq_get(From, _To, #iq{lang = Lang} = IQ, _Source) ->
+    {_IsRegistered, UsernameSubels, QuerySubels} =
+	case From of
+	    #jid{user = User, lserver = Server} ->
+		case ejabberd_auth:is_user_exists(User, Server) of
+		    true ->
+			{true, [#xmlcdata{content = User}],
+			 [#xmlel{name = <<"registered">>}]};
 			    false ->
-				{false, [#xmlcdata{content = User}], []}
-			end;
-		    _ ->
-			{false, [], []}
-		end,
-        TranslatedMsg = translate:translate(
-                          Lang, <<"Choose a username and password to register with this server">>),
-		    IQ#iq{type = result,
-		  sub_el = [#xmlel{name = <<"query">>,
-				   attrs = [{<<"xmlns">>, <<"jabber:iq:register">>}],
-				   children = [#xmlel{name = <<"instructions">>,
+			{false, [#xmlcdata{content = User}], []}
+		end;
+	    _ ->
+		{false, [], []}
+	end,
+    TranslatedMsg = translate:translate(
+		      Lang, <<"Choose a username and password to register with this server">>),
+    IQ#iq{type = result,
+	  sub_el = [#xmlel{name = <<"query">>,
+			   attrs = [{<<"xmlns">>, <<"jabber:iq:register">>}],
+			   children = [#xmlel{name = <<"instructions">>,
 				              children = [#xmlcdata{content = TranslatedMsg}]},
 				       #xmlel{name = <<"username">>,
 					      children = UsernameSubels},
 				       #xmlel{name = <<"password">>}
-				       | QuerySubels]}]}
-    end.
+				       | QuerySubels]}]}.
 
 try_register_or_set_password(User, Server, Password, From, IQ,
 			     SubEl, Source, Lang) ->
