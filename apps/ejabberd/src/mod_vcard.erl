@@ -57,7 +57,8 @@
 -export([process_local_iq/3,
          process_sm_iq/3,
          get_local_features/5,
-         remove_user/2]).
+         remove_user/2,
+         set_vcard/3]).
 
 -export([start_link/2]).
 -export([default_search_fields/0]).
@@ -200,7 +201,8 @@ hook_handlers() ->
     [{remove_user,          ?MODULE, remove_user,        50},
      {anonymous_purge_hook, ?MODULE, remove_user,        50},
      {disco_local_features, ?MODULE, get_local_features, 50},
-     {host_config_update,   ?MODULE, config_change,      50}].
+     {host_config_update,   ?MODULE, config_change,      50},
+     {set_vcard,            ?MODULE, set_vcard,          50}].
 
 handle_call(get_state, _From, State) ->
     {reply, {ok, State}, State};
@@ -253,17 +255,16 @@ process_sm_iq(From, To, #iq{type = set, sub_el = VCARD} = IQ) ->
                   ToResource == <<>>;
                   ToUser == <<>>,
                   ToVHost == <<>> ->
-
-            {ok, VcardSearch} = prepare_vcard_search_params(FromUser, FromVHost, VCARD),
-            case catch ?BACKEND:set_vcard(FromUser, FromVHost,VCARD, VcardSearch) of
+            try unsafe_set_vcard(From, VCARD) of
                 ok ->
                     IQ#iq{type = result,
                           sub_el = []};
                 {error, Reason} ->
                     IQ#iq{type = error,
-                          sub_el = [VCARD, Reason]};
-                Else ->
-                    ?ERROR_MSG("~p",[Else]),
+                          sub_el = [VCARD, Reason]}
+            catch
+                E:R ->
+                    ?ERROR_MSG("~p", [{E,R}]),
                     IQ#iq{type = error,
                           sub_el = [VCARD, ?ERR_INTERNAL_SERVER_ERROR]}
             end;
@@ -279,9 +280,27 @@ process_sm_iq(_From, To, #iq{type = get, sub_el = SubEl} = IQ) ->
         {error, Reason} ->
             IQ#iq{type = error, sub_el = [SubEl,Reason]};
         Else ->
-            ?ERROR_MSG("~p",[Else]),
+            ?ERROR_MSG("~p", [Else]),
             IQ#iq{type = error,
                   sub_el = [SubEl, ?ERR_INTERNAL_SERVER_ERROR]}
+    end.
+
+unsafe_set_vcard(From, VCARD) ->
+    #jid{user = FromUser, lserver = FromVHost} = From,
+    {ok, VcardSearch} = prepare_vcard_search_params(FromUser, FromVHost, VCARD),
+    ?BACKEND:set_vcard(FromUser, FromVHost, VCARD, VcardSearch).
+
+set_vcard(ok, From, VCARD) ->
+    ?DEBUG("hook call already handled - skipping", []),
+    ok;
+set_vcard(_, From, VCARD) ->
+    try unsafe_set_vcard(From, VCARD) of
+        ok -> ok;
+        {error, Reason} ->
+            ?ERROR_MSG("unsafe set_vcard failed: ~p", [Reason]),
+            false
+    catch
+        E:R -> false
     end.
 
 get_local_features({error, _Error}=Acc, _From, _To, _Node, _Lang) ->
