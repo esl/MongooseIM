@@ -208,10 +208,10 @@ mock_ejabberd_commands() ->
 
 token() ->
     ?LET(TokenParts, {token_type(), expiry_datetime(),
-                      bare_jid(), seq_no()},
+                      bare_jid(), seq_no(), vcard()},
          token_gen(TokenParts)).
 
-token_gen({Type, Expiry, JID, SeqNo}) ->
+token_gen({Type, Expiry, JID, SeqNo, VCard}) ->
     T = #token{type = Type,
                expiry_datetime = Expiry,
                user_jid = jlib:binary_to_jid(JID)},
@@ -219,7 +219,9 @@ token_gen({Type, Expiry, JID, SeqNo}) ->
         access ->
             ?TESTED:token_with_mac(T);
         refresh ->
-            ?TESTED:token_with_mac(T#token{sequence_no = SeqNo})
+            ?TESTED:token_with_mac(T#token{sequence_no = SeqNo});
+        provision ->
+            ?TESTED:token_with_mac(T#token{vcard = VCard})
     end.
 
 token(Sep) ->
@@ -234,7 +236,7 @@ token(Sep) ->
          end).
 
 token_type() ->
-    oneof([access, refresh]).
+    oneof([access, refresh, provision]).
 
 expiry_datetime() ->
     ?LET(Seconds, pos_integer(), seconds_to_datetime(Seconds)).
@@ -242,6 +244,10 @@ expiry_datetime() ->
 expiry_date_as_seconds() -> pos_integer().
 
 seq_no() -> pos_integer().
+
+vcard() ->
+    ?LET(Element, xmlel_gen:xmlel(3),
+         Element#xmlel{name = <<"vCard">>}).
 
 bare_jid() ->
     ?LET({Username, Domain}, {username(), domain()},
