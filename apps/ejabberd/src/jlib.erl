@@ -298,54 +298,50 @@ are_equal_jids(_, _) ->
 
 -spec binary_to_jid(binary()) -> 'error' | ejabberd:jid().
 binary_to_jid(J) ->
-    binary_to_jid1(J, <<>>).
+    binary_to_jid1(J, []).
 
 
 -spec binary_to_jid1(binary(), binary()) -> 'error' | ejabberd:jid().
-binary_to_jid1(<<$@, _J/binary>>, <<>>) ->
+binary_to_jid1(<<$@, _J/binary>>, []) ->
     error;
 binary_to_jid1(<<$@, J/binary>>, N) ->
-    binary_to_jid2(J, binary_reverse(N), <<>>);
-binary_to_jid1(<<$/, _J/binary>>, <<>>) ->
+    binary_to_jid2(J, lists:reverse(N), []);
+binary_to_jid1(<<$/, _J/binary>>, []) ->
     error;
 binary_to_jid1(<<$/, J/binary>>, N) ->
-    binary_to_jid3(J, <<>>, binary_reverse(N), <<>>);
+    binary_to_jid3(J, [], lists:reverse(N), []);
 binary_to_jid1(<<C, J/binary>>, N) ->
-    binary_to_jid1(J, <<C, N/binary>>);
-binary_to_jid1(<<>>, <<>>) ->
+    binary_to_jid1(J, [C | N]);
+binary_to_jid1(<<>>, []) ->
     error;
 binary_to_jid1(<<>>, N) ->
-    make_jid(<<>>, binary_reverse(N), <<>>).
+    make_jid(<<>>, list_to_binary(lists:reverse(N)), <<>>).
 
 
 %% @doc Only one "@" is admitted per JID
 -spec binary_to_jid2(binary(),binary(),binary()) -> 'error' | ejabberd:jid().
 binary_to_jid2(<<$@, _J/binary>>, _N, _S) ->
     error;
-binary_to_jid2(<<$/, _J/binary>>, _N, <<>>) ->
+binary_to_jid2(<<$/, _J/binary>>, _N, []) ->
     error;
 binary_to_jid2(<<$/, J/binary>>, N, S) ->
-    binary_to_jid3(J, N, binary_reverse(S), <<>>);
+    binary_to_jid3(J, N, lists:reverse(S), []);
 binary_to_jid2(<<C, J/binary>>, N, S) ->
-    binary_to_jid2(J, N, <<C, S/binary>>);
-binary_to_jid2(<<>>, _N, <<>>) ->
+    binary_to_jid2(J, N, [C | S]);
+binary_to_jid2(<<>>, _N, []) ->
     error;
 binary_to_jid2(<<>>, N, S) ->
-    make_jid(N, binary_reverse(S), <<>>).
+    make_jid(list_to_binary(N), list_to_binary(lists:reverse(S)), <<>>).
 
 
 -spec binary_to_jid3(binary(),binary(),binary(),binary()) -> 'error' | ejabberd:jid().
 binary_to_jid3(<<C, J/binary>>, N, S, R) ->
-    binary_to_jid3(J, N, S, <<C, R/binary>>);
+    binary_to_jid3(J, N, S, [C | R]);
 binary_to_jid3(<<>>, N, S, R) ->
-    make_jid(N, S, binary_reverse(R)).
+    make_jid(list_to_binary(N), list_to_binary(S), list_to_binary(lists:reverse(R))).
 
 
--spec binary_reverse(binary()) -> binary().
-binary_reverse(<<>>) ->
-    <<>>;
-binary_reverse(<<H,T/binary>>) ->
-    <<(binary_reverse(T))/binary,H>>.
+
 
 
 -spec jid_to_binary(ejabberd:simple_jid() | ejabberd:jid()) -> binary().
@@ -372,14 +368,6 @@ is_nodename([]) ->
     false;
 is_nodename(J) ->
     nodeprep(J) /= error.
-
-%% -define(LOWER(Char),
-%%         if
-%%             Char >= $A, Char =< $Z ->
-%%                 Char + 32;
-%%             true ->
-%%                 Char
-%%         end).
 
 -define(SANE_LIMIT, 1024).
 -spec nodeprep(ejabberd:server()) -> 'error' | ejabberd:lserver().
