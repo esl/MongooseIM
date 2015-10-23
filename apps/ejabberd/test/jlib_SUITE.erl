@@ -11,27 +11,10 @@
 prohibited_output_node() ->
     [$", $&, $', $/, $:, $<, $>, $@, " "].
 
-prohibited_c_1_2() ->
-    [<<"\x{00A0}"/utf8>>,% NO-BREAK SPACE
-     <<"\x{1680}"/utf8>>,% OGHAM SPACE MARK
-     <<"\x{2000}"/utf8>>,% EN QUAD
-     <<"\x{2001}"/utf8>>,% EM QUAD
-     <<"\x{2002}"/utf8>>,% EN SPACE
-     <<"\x{2003}"/utf8>>,% EM SPACE
-     <<"\x{2004}"/utf8>>,% THREE-PER-EM SPACE
-     <<"\x{2005}"/utf8>>,% FOUR-PER-EM SPACE
-     <<"\x{2006}"/utf8>>,% SIX-PER-EM SPACE
-     <<"\x{2007}"/utf8>>,% FIGURE SPACE
-     <<"\x{2008}"/utf8>>,% PUNCTUATION SPACE
-     <<"\x{2009}"/utf8>>,% THIN SPACE
-     <<"\x{200A}"/utf8>>,% HAIR SPACE
-     <<"\x{200B}"/utf8>>,% ZERO WIDTH SPACE
-     <<"\x{202F}"/utf8>>,% NARROW NO-BREAK SPACE
-     <<"\x{205F}"/utf8>>,% MEDIUM MATHEMATICAL SPACE
-     <<"\x{3000}"/utf8>>].% IDEOGRAPHIC SPACE
-
 all() -> [make_iq_reply_switch_to_from,
           binary_to_jid,
+          binary_to_jid_incorrect,
+          empty_binary_to_jid,
           make_jid,
           correct_but_too_long_username,
           correct_but_too_long_domain,
@@ -88,9 +71,18 @@ make_iq() ->
                       ]}.
 
 binary_to_jid(_C) ->
-    prop(correct_jid_property,
-         ?FORALL(BinJid, valid_jid(),
-                   is_valid_jid_record(jlib:binary_to_jid(BinJid)))).
+    Prop = ?FORALL(BinJid, valid_jid(),
+                   is_valid_jid_record(jlib:binary_to_jid(BinJid))),
+    prop(correct_binary_to_jid, Prop).
+
+
+binary_to_jid_incorrect(_C) ->
+    Prop = ?FORALL(BinJid, invalid_jid(),
+                   error == jlib:binary_to_jid(BinJid)),
+    big_size_property(Prop, 100, 1, 42).
+
+empty_binary_to_jid(_) ->
+    error = jlib:binary_to_jid(<<>>).
 
 make_jid(_) ->
     Prop = ?FORALL({U, S, R}, {valid_username(), valid_domain(), valid_resource()},
@@ -120,24 +112,10 @@ big_size_property(Prop, NumTest, StartSize, StopSize) ->
                                      {start_size, StartSize},
                                      {max_size, StopSize}])).
 
-
 incorrect_username(_) ->
     prop(incorrect_username_property,
          ?FORALL(Bin, invalid_username(),
                 error == jlib:nodeprep(Bin))).
-
-incorrect_resource(_) ->
-    prop(incorrect_resource_property,
-         ?FORALL(Bin, invalid_resource(),
-                error == jlib:resourceprep(Bin))).
-
-incorrect_domain(_) ->
-    dbg:tracer(),
-    dbg:p(all, c),
-    dbg:tp(jlib, nameprep, x),
-    prop(incorrect_resource_property,
-         ?FORALL(Bin, invalid_domain(),
-                error == jlib:nameprep(Bin))).
 
 
 is_valid_jid_record(#jid{}) ->
@@ -154,7 +132,7 @@ check_output(_, _, _, _) ->
     false.
 
 valid_jid() ->
-    oneof([valid_full_jid(), valid_bare_jid()]).
+    oneof([valid_full_jid(), valid_bare_jid(), valid_domain()]).
 
 valid_bare_jid() ->
     ?LET({Username, Domain}, {valid_username(), valid_domain()},
@@ -167,20 +145,28 @@ valid_full_jid() ->
 valid_username() ->
     ?SIZED(S, always_correct_xmpp_binary(S)).
 
-invalid_username() ->
-    invalid_xmpp_binary(prohibited_output_node()).
-
-invalid_domain() ->
-    invalid_xmpp_binary(prohibited_c_1_2()).
-
-invalid_resource() ->
-    invalid_xmpp_binary(prohibited_c_1_2()).
-
 valid_domain() ->
     ?SIZED(S, always_correct_xmpp_binary(round(S*1.5))).
 
 valid_resource() ->
     ?SIZED(S, always_correct_xmpp_binary(round(S*1.7))).
+
+invalid_jid() ->
+    oneof([invalid_full_jid(), invalid_bare_jid()]).
+
+invalid_bare_jid() ->
+    %%Oh yes, jids like domain/resource are allowed in both ejabberd and MongooseIM
+    ?LET({U, S}, {?SUCHTHAT(E, invalid_username(), size(E) == 1 orelse binary:matches(E, <<"/">>) == []),
+                  valid_domain()},
+         <<U/binary, $@, S/binary>>).
+
+invalid_full_jid() ->
+    ?LET({BareJid, R}, {invalid_bare_jid(), valid_resource()},
+         <<BareJid/binary, $/, R/binary>>).
+
+invalid_username() ->
+    invalid_xmpp_binary(prohibited_output_node()).
+
 
 always_correct_xmpp_binary(S) ->
     ?LET(Str, always_correct_xmpp_string(S), list_to_binary(Str)).
@@ -196,13 +182,12 @@ always_correct_xmpp_string(S) ->
 invalid_xmpp_binary(ProhibitedOutput) ->
     ?LET({NotAllowed, Str},
          {oneof(ProhibitedOutput),
-          maybe_invalid_xmpp_string(ProhibitedOutput)},
+          frequency([{1, []}, {5, maybe_invalid_xmpp_string(ProhibitedOutput)}])},
          erlang:iolist_to_binary([NotAllowed | Str])).
 
 maybe_invalid_xmpp_string(ProhibitedOutput) ->
-    non_empty(
       list(
         oneof([allowed_output(),
-               oneof(ProhibitedOutput)]))).
+               oneof(ProhibitedOutput)])).
 
 
