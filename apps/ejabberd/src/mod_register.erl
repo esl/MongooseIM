@@ -107,10 +107,11 @@ process_iq(From, To, #iq{type = set} = IQ) ->
 process_iq(From, To, #iq{type = get} = IQ) ->
     process_iq_get(From, To, IQ, jlib:jid_tolower(From)).
 
-process_iq_set(From, To, #iq{lang = Lang, sub_el = SubEl, id = ID} = IQ, Source) ->
-    UTag = xml:get_subtag(SubEl, <<"username">>),
-    PTag = xml:get_subtag(SubEl, <<"password">>),
-    RTag = xml:get_subtag(SubEl, <<"remove">>),
+process_iq_set(From, To, #iq{lang = Lang, sub_el = Child, id = ID} = IQ, Source) ->
+    true = is_query_element(Child),
+    UTag = xml:get_subtag(Child, <<"username">>),
+    PTag = xml:get_subtag(Child, <<"password">>),
+    RTag = xml:get_subtag(Child, <<"remove">>),
     Server = To#jid.lserver,
     Access = gen_mod:get_module_opt(Server, ?MODULE, access, all),
     AllowRemove = (allow == acl:match_rule(Server, Access, From)),
@@ -120,7 +121,7 @@ process_iq_set(From, To, #iq{lang = Lang, sub_el = SubEl, id = ID} = IQ, Source)
 	    case From of
 		#jid{user = User, lserver = Server} ->
 		    ejabberd_auth:remove_user(User, Server),
-		    IQ#iq{type = result, sub_el = [SubEl]};
+		    IQ#iq{type = result, sub_el = [Child]};
 		_ ->
 		    if
 			PTag /= false ->
@@ -130,7 +131,7 @@ process_iq_set(From, To, #iq{lang = Lang, sub_el = SubEl, id = ID} = IQ, Source)
 							   Password) of
 				ok ->
 				    IQ#iq{type = result,
-					  sub_el = [SubEl]};
+					  sub_el = [Child]};
 				%% TODO FIXME: This piece of
 				%% code does not work since
 				%% the code have been changed
@@ -140,20 +141,20 @@ process_iq_set(From, To, #iq{lang = Lang, sub_el = SubEl, id = ID} = IQ, Source)
 				not_allowed ->
 				    IQ#iq{type = error,
 					  sub_el =
-					      [SubEl, ?ERR_NOT_ALLOWED]};
+					      [Child, ?ERR_NOT_ALLOWED]};
 				not_exists ->
 				    IQ#iq{type = error,
 					  sub_el =
-					      [SubEl, ?ERR_ITEM_NOT_FOUND]};
+					      [Child, ?ERR_ITEM_NOT_FOUND]};
 				_ ->
 				    IQ#iq{type = error,
 					  sub_el =
-					      [SubEl,
+					      [Child,
 					       ?ERR_INTERNAL_SERVER_ERROR]}
 			    end;
 			true ->
 			    IQ#iq{type = error,
-				  sub_el = [SubEl, ?ERR_BAD_REQUEST]}
+				  sub_el = [Child, ?ERR_BAD_REQUEST]}
 		    end
 	    end;
 	(UTag == false) and (RTag /= false) and AllowRemove ->
@@ -163,7 +164,7 @@ process_iq_set(From, To, #iq{lang = Lang, sub_el = SubEl, id = ID} = IQ, Source)
 		     resource = Resource} ->
 		    ResIQ = #iq{type = result, xmlns = ?NS_REGISTER,
 				id = ID,
-				sub_el = [SubEl]},
+				sub_el = [Child]},
 		    %% The response must be sent *before* the
 		    %% XML stream is closed (the call to
 		    %% `ejabberd_auth:remove_user/2' does
@@ -178,20 +179,21 @@ process_iq_set(From, To, #iq{lang = Lang, sub_el = SubEl, id = ID} = IQ, Source)
 		    ignore;
 		_ ->
 		    IQ#iq{type = error,
-			  sub_el = [SubEl, ?ERR_BAD_REQUEST]}
+			  sub_el = [Child, ?ERR_NOT_ALLOWED]}
 	    end;
 	(UTag /= false) and (PTag /= false) ->
 	    User = xml:get_tag_cdata(UTag),
 	    Password = xml:get_tag_cdata(PTag),
 	    try_register_or_set_password(
 	      User, Server, Password, From,
-	      IQ, SubEl, Source, Lang);
+	      IQ, Child, Source, Lang);
 	true ->
 	    IQ#iq{type = error,
-		  sub_el = [SubEl, ?ERR_BAD_REQUEST]}
+		  sub_el = [Child, ?ERR_BAD_REQUEST]}
     end.
 
-process_iq_get(From, _To, #iq{lang = Lang} = IQ, _Source) ->
+process_iq_get(From, _To, #iq{lang = Lang, sub_el = Child} = IQ, _Source) ->
+    true = is_query_element(Child),
     {_IsRegistered, UsernameSubels, QuerySubels} =
 	case From of
 	    #jid{user = User, lserver = Server} ->
@@ -568,3 +570,8 @@ ip_to_integer({IP1, IP2, IP3, IP4}) ->
 ip_to_integer({IP1, IP2, IP3, IP4, IP5, IP6, IP7, IP8}) ->
     (((((((((((((IP1 bsl 16) bor IP2) bsl 16) bor IP3) bsl 16) bor IP4)
 	   bsl 16) bor IP5) bsl 16) bor IP6) bsl 16) bor IP7) bsl 16) bor IP8.
+
+is_query_element(#xmlel{name = <<"query">>}) ->
+    true;
+is_query_element(_) ->
+    false.
