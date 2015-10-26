@@ -182,15 +182,68 @@ process_iq_set(From, To, #iq{lang = Lang, sub_el = Child, id = ID} = IQ, Source)
 			  sub_el = [Child, ?ERR_NOT_ALLOWED]}
 	    end;
 	(UTag /= false) and (PTag /= false) ->
-	    User = xml:get_tag_cdata(UTag),
-	    Password = xml:get_tag_cdata(PTag),
-	    try_register_or_set_password(
-	      User, Server, Password, From,
-	      IQ, Child, Source, Lang);
+	    %% User = xml:get_tag_cdata(UTag),
+	    %% Password = xml:get_tag_cdata(PTag),
+	    handle_set(Child, {extras, [Server, From, IQ, Child, Source, Lang]});
+	    %% try_register_or_set_password(
+	    %%   User, Server, Password, From,
+	    %%   IQ, Child, Source, Lang);
 	true ->
 	    IQ#iq{type = error,
 		  sub_el = [Child, ?ERR_BAD_REQUEST]}
     end.
+
+handle_set(#xmlel{name = <<"query">>} = Query, {extras, _} = Extras) ->
+    case
+	Query#xmlel.children
+    of
+	[_,_] = Information  ->
+	    register_or_change_password(Information, Extras);
+	[#xmlel{name = <<"x">>}] ->
+	    three_cases_not_implemented;
+	[#xmlel{name = <<"remove">>}] ->
+	    one_case_not_implemented;
+	_ ->
+	    #xmlel{name = <<"bad-request">>}
+    end;
+handle_set(_, _) ->
+    not_implemented.
+
+register_or_change_password(Details, {extras, [Server, From, IQ, Children, IPAddr, Lang]}) ->
+    case
+	username_and_password_present(Details)
+    of
+	true ->
+	    [Username, Password] = extract_values(Details),
+	    try_register_or_set_password(Username, Server, Password, From, IQ, Children, IPAddr, Lang);
+	    %% case
+	    %% 	ejabberd_auth:is_user_exists(),
+	    %% of
+	    %% 	true ->
+	    %% 	    change_password(Username, Password);
+	    %% 	false ->
+	    %% 	    register_user(Username, Password)
+	    %% end;
+	false ->
+	    not_implemented
+    end.
+
+username_and_password_present(Fields) ->
+    lists:keymember(<<"username">>, #xmlel.name, Fields)
+    and
+    lists:keymember(<<"password">>, #xmlel.name, Fields).
+
+extract_values(Fields) ->
+    [
+     exml_query:cdata(lists:keyfind(<<"username">>, #xmlel.name, Fields)),
+     exml_query:cdata(lists:keyfind(<<"password">>, #xmlel.name, Fields))
+    ].
+
+%% register_user(_Username, _Password) ->
+%%     ok.
+
+%% change_password(_Username, _Password) ->
+%%     ok.
 
 process_iq_get(From, _To, #iq{lang = Lang, sub_el = Child} = IQ, _Source) ->
     true = is_query_element(Child),
