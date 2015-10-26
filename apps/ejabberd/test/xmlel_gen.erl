@@ -12,8 +12,12 @@ xmlel_attr() ->
     ?LET({Key, Val}, {ascii_text(), ascii_text()},
          {list_to_binary(Key), list_to_binary(Val)}).
 
-xmlel_attrs() ->
+xmlel_attrs_non_unique() ->
     ?LET(Len, choose(1, 5), vector(Len, xmlel_attr())).
+
+xmlel_attrs() ->
+    ?SUCHTHAT(Attrs, xmlel_attrs_non_unique(),
+              length(lists:ukeysort(1, Attrs)) == length(Attrs)).
 
 xmlel(0) ->
     ?LET({Name, Attrs}, {ascii_text(), xmlel_attrs()},
