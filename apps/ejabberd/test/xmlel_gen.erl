@@ -16,10 +16,10 @@ xmlel(0) ->
                                    attrs = Attrs}));
 
 xmlel(Size) ->
-    ?LET({Name, Attrs}, {ascii_text(), xmlel_attrs()},
+    ?LET({Name, Attrs, Children}, {ascii_text(), xmlel_attrs(), xmlel_children(Size)},
          normalization_hack(#xmlel{name = list_to_binary(Name),
                                    attrs = Attrs,
-                                   children = xmlel_children(Size)})).
+                                   children = Children})).
 
 xmlel(FixedName, FixedAttrs, FixedChildren) ->
     ?LET(Element, ?SIZED(Size, xmlel(Size, FixedName, FixedAttrs, FixedChildren)),
@@ -50,10 +50,10 @@ xmlel(0, FixedName, FixedAttrs, FixedChildren) ->
                 children = FixedChildren});
 
 xmlel(Size, FixedName, FixedAttrs, FixedChildren) ->
-    ?LET({Attrs}, {xmlel_attrs()},
+    ?LET({Attrs, Children}, {xmlel_attrs(), xmlel_children(Size)},
          #xmlel{name = list_to_binary(FixedName),
                 attrs = Attrs ++ FixedAttrs,
-                children = FixedChildren ++ xmlel_children(Size)}).
+                children = FixedChildren ++ Children}).
 
 xmlel_children(Size) ->
     ?LET(Len, choose(0, 5), vector(Len, xmlel_child(Size))).
