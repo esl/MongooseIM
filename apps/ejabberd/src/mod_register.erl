@@ -120,7 +120,8 @@ process_iq_set(From, To, #iq{lang = Lang, sub_el = Child, id = ID} = IQ, Source)
 	    User = xml:get_tag_cdata(UTag),
 	    case From of
 		#jid{user = User, lserver = Server} ->
-		    ejabberd_auth:remove_user(User, Server),
+		    handle_set(Child, {extras, [Server, From, IQ, Child, Source, Lang, User]}),
+		    %% ejabberd_auth:remove_user(User, Server),
 		    IQ#iq{type = result, sub_el = [Child]};
 		_ ->
 		    if
@@ -175,7 +176,8 @@ process_iq_set(From, To, #iq{lang = Lang, sub_el = Child, id = ID} = IQ, Source)
 		      jlib:make_jid(User, Server, Resource),
 		      jlib:make_jid(User, Server, Resource),
 		      jlib:iq_to_xml(ResIQ)),
-		    ejabberd_auth:remove_user(User, Server),
+		    %% ejabberd_auth:remove_user(User, Server),
+		    handle_set(Child, {extras, [Server, From, IQ, Child, Source, Lang, User]}),
 		    ignore;
 		_ ->
 		    IQ#iq{type = error,
@@ -184,7 +186,7 @@ process_iq_set(From, To, #iq{lang = Lang, sub_el = Child, id = ID} = IQ, Source)
 	(UTag /= false) and (PTag /= false) ->
 	    %% User = xml:get_tag_cdata(UTag),
 	    %% Password = xml:get_tag_cdata(PTag),
-	    handle_set(Child, {extras, [Server, From, IQ, Child, Source, Lang]});
+	    handle_set(Child, {extras, [Server, From, IQ, Child, Source, Lang, undefined]});
 	    %% try_register_or_set_password(
 	    %%   User, Server, Password, From,
 	    %%   IQ, Child, Source, Lang);
@@ -197,22 +199,40 @@ handle_set(#xmlel{name = <<"query">>} = Query, {extras, _} = Extras) ->
     case
 	Query#xmlel.children
     of
-	[#xmlel{name = <<"x">>}] ->
-	    three_cases_not_implemented;
+	[#xmlel{name = <<"x">>}] = Form ->
+	    handle_data_submission(Form);
 
-	[#xmlel{name = <<"remove">>}] ->
-	    one_case_not_implemented;
+	[#xmlel{name = <<"remove">>}] -> %% The `remove' element is the ONLY child.
+	    attempt_cancelation(Extras);
 
 	[_,_] = Information  ->
-	    register_or_change_password(Information, Extras)
+	    register_or_change_password(Information, Extras);
 
 	_ ->
-	    #xmlel{name = <<"bad-request">>}
+	    error
     end;
 handle_set(_, _) ->
     not_implemented.
 
-register_or_change_password(Details, {extras, [Server, From, IQ, Children, IPAddr, Lang]}) ->
+handle_data_submission(Form) ->
+    case
+	is_submission_data(Form)
+    of
+        _ ->
+	    ignore
+    end.
+
+is_submission_data(Form) ->
+    case
+	exml_query:attr(Form, <<"type">>, undefined)
+    of
+	{<<"type">>, <<"submit">>} ->
+	    true;
+	undefined ->
+	    false
+    end.
+
+register_or_change_password(Details, {extras, [Server, From, IQ, Children, IPAddr, Lang, Usrnm]}) ->
     case
 	username_and_password_present(Details)
     of
@@ -241,6 +261,9 @@ extract_values(Fields) ->
      exml_query:cdata(lists:keyfind(<<"username">>, #xmlel.name, Fields)),
      exml_query:cdata(lists:keyfind(<<"password">>, #xmlel.name, Fields))
     ].
+
+attempt_cancelation({extras, [Server, _From, _IQ, _Children, _IPAddr, _Lang, Username]}) ->
+    ok = ejabberd_auth:remove_user(Username, Server).
 
 %% register_user(_Username, _Password) ->
 %%     ok.
