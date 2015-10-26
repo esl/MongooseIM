@@ -301,7 +301,7 @@ binary_to_jid(J) ->
     binary_to_jid1(J, []).
 
 
--spec binary_to_jid1(binary(), binary()) -> 'error' | ejabberd:jid().
+-spec binary_to_jid1(binary(), [byte()]) -> 'error' | ejabberd:jid().
 binary_to_jid1(<<$@, _J/binary>>, []) ->
     error;
 binary_to_jid1(<<$@, J/binary>>, N) ->
@@ -319,7 +319,7 @@ binary_to_jid1(<<>>, N) ->
 
 
 %% @doc Only one "@" is admitted per JID
--spec binary_to_jid2(binary(),binary(),binary()) -> 'error' | ejabberd:jid().
+-spec binary_to_jid2(binary(),[byte()],[byte()]) -> 'error' | ejabberd:jid().
 binary_to_jid2(<<$@, _J/binary>>, _N, _S) ->
     error;
 binary_to_jid2(<<$/, _J/binary>>, _N, []) ->
@@ -334,7 +334,7 @@ binary_to_jid2(<<>>, N, S) ->
     make_jid(list_to_binary(N), list_to_binary(lists:reverse(S)), <<>>).
 
 
--spec binary_to_jid3(binary(),binary(),binary(),binary()) -> 'error' | ejabberd:jid().
+-spec binary_to_jid3(binary(),[byte()],[byte()],[byte()]) -> 'error' | ejabberd:jid().
 binary_to_jid3(<<C, J/binary>>, N, S, R) ->
     binary_to_jid3(J, N, S, [C | R]);
 binary_to_jid3(<<>>, N, S, R) ->
