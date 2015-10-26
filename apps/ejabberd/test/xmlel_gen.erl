@@ -12,18 +12,17 @@
 
 xmlel(0) ->
     ?LET({Name, Attrs}, {ascii_text(), xmlel_attrs()},
-         normalization_hack(#xmlel{name = list_to_binary(Name),
-                                   attrs = Attrs}));
+         #xmlel{name = list_to_binary(Name),
+                attrs = Attrs});
 
 xmlel(Size) ->
     ?LET({Name, Attrs, Children}, {ascii_text(), xmlel_attrs(), xmlel_children(Size)},
-         normalization_hack(#xmlel{name = list_to_binary(Name),
-                                   attrs = Attrs,
-                                   children = Children})).
+         #xmlel{name = list_to_binary(Name),
+                attrs = Attrs,
+                children = join_consecutive_cdata(Children)}).
 
 xmlel(FixedName, FixedAttrs, FixedChildren) ->
-    ?LET(Element, ?SIZED(Size, xmlel(Size, FixedName, FixedAttrs, FixedChildren)),
-         normalization_hack(Element)).
+    ?SIZED(Size, xmlel(Size, FixedName, FixedAttrs, FixedChildren)).
 
 %%
 %% Internal
@@ -53,7 +52,7 @@ xmlel(Size, FixedName, FixedAttrs, FixedChildren) ->
     ?LET({Attrs, Children}, {xmlel_attrs(), xmlel_children(Size)},
          #xmlel{name = list_to_binary(FixedName),
                 attrs = Attrs ++ FixedAttrs,
-                children = FixedChildren ++ Children}).
+                children = join_consecutive_cdata(FixedChildren ++ Children)}).
 
 xmlel_children(Size) ->
     ?LET(Len, choose(0, 5), vector(Len, xmlel_child(Size))).
@@ -63,26 +62,12 @@ xmlel_child(Size) ->
          oneof([#xmlcdata{content = list_to_binary(CData)},
                 xmlel(Size div 3)])).
 
-normalization_hack(Element) ->
-    %% Hack!
-    %% Because a exml:to_binary composed with exml:parse might merge cdata fields [1],
-    %% we do it once here to reach some kind-of-normalized representation
-    %% of the XML element.
-    %%
-    %% [1] example:
-    %%
-    %%   > T1#token.vcard.
-    %%   {xmlel,<<"vCard">>,
-    %%          [{<<"a">>,<<"a">>}],
-    %%          [{xmlel,<<"a">>,
-    %%                  [{<<"a">>,<<"a">>}],
-    %%                  [{xmlcdata,<<"a">>},{xmlcdata,<<"a">>}]}]}
-    %%   > exml:parse(exml:to_binary(T1#token.vcard)).
-    %%   {ok,{xmlel,<<"vCard">>,
-    %%              [{<<"a">>,<<"a">>}],
-    %%              [{xmlel,<<"a">>,
-    %%                      [{<<"a">>,<<"a">>}],
-    %%                      [{xmlcdata,<<"aa">>}]}]}}
-    %%
-    {ok, Normalized} = exml:parse(exml:to_binary(Element)),
-    Normalized.
+join_consecutive_cdata([]) -> [];
+join_consecutive_cdata([H|T]) ->
+    join_consecutive_cdata(T, [H]).
+
+join_consecutive_cdata([], Acc) -> lists:reverse(Acc);
+join_consecutive_cdata([#xmlcdata{content = B} | Tail], [#xmlcdata{content = A} | Acc]) ->
+    join_consecutive_cdata(Tail, [#xmlcdata{content = <<A/bytes, B/bytes>>} | Acc]);
+join_consecutive_cdata([El | Tail], Acc) ->
+    join_consecutive_cdata(Tail, [El | Acc]).
