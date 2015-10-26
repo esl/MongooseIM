@@ -363,14 +363,14 @@ jid_to_binary({Node, Server, Resource}) ->
          end,
     S3.
 
--spec is_nodename([] | binary()) -> boolean().
+-spec is_nodename(<<>> | binary()) -> boolean().
 is_nodename([]) ->
     false;
 is_nodename(J) ->
     nodeprep(J) /= error.
 
 -define(SANE_LIMIT, 1024).
--spec nodeprep(ejabberd:server()) -> 'error' | ejabberd:lserver().
+-spec nodeprep(ejabberd:user()) -> 'error' | ejabberd:lserver().
 nodeprep(S) when is_binary(S), size(S) < ?SANE_LIMIT ->
     R = stringprep:nodeprep(S),
     if
@@ -381,7 +381,8 @@ nodeprep(_) ->
     error.
 
 
--spec nameprep(ejabberd:user()) -> 'error' | ejabberd:luser().
+-spec nameprep(ejabberd:server()) -> 'error' | ejabberd:luser().
+nameprep(<<>>) -> error;
 nameprep(S) when is_binary(S), size(S) < ?SANE_LIMIT ->
     R = stringprep:nameprep(S),
     if
