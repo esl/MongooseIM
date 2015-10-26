@@ -135,7 +135,8 @@ field_separator() -> 0.
 
 join_fields(T) ->
     Sep = field_separator(),
-    #token{type = Type, expiry_datetime = Expiry, user_jid = JID, sequence_no = SeqNo} = T,
+    #token{type = Type, expiry_datetime = Expiry, user_jid = JID,
+           sequence_no = SeqNo, vcard = VCard} = T,
     case {Type, SeqNo} of
         {access, undefined} ->
             <<(?a2b(Type))/bytes, Sep,
@@ -145,7 +146,12 @@ join_fields(T) ->
             <<(?a2b(Type))/bytes, Sep,
               (jlib:jid_to_binary(JID))/bytes, Sep,
               (?i2b(datetime_to_seconds(Expiry)))/bytes, Sep,
-              (?i2b(SeqNo))/bytes>>
+              (?i2b(SeqNo))/bytes>>;
+        {provision, undefined} ->
+            <<(?a2b(Type))/bytes, Sep,
+              (jlib:jid_to_binary(JID))/bytes, Sep,
+              (?i2b(datetime_to_seconds(Expiry)))/bytes, Sep,
+              (exml:to_binary(VCard))/bytes>>
     end.
 
 keyed_hash(Data, Opts) ->
@@ -159,7 +165,6 @@ hmac_opts() ->
 -spec deserialize(serialized()) -> token().
 deserialize(Serialized) when is_binary(Serialized) ->
     get_token_as_record(Serialized).
-
 
 -spec revoke(Owner) -> ok | not_found | error when
       Owner :: ejabberd:jid().
@@ -309,13 +314,17 @@ get_token_as_record(BToken) ->
     T = #token{type = ?b2a(BType),
                expiry_datetime = seconds_to_datetime(binary_to_integer(Expiry)),
                user_jid = jlib:binary_to_jid(User)},
-    {SeqNo, MAC} = case {BType, Rest} of
-                       {<<"access">>, [BMAC]} ->
-                           {undefined, base16:decode(BMAC)};
-                       {<<"refresh">>, [BSeqNo, BMAC]} ->
-                           {?b2i(BSeqNo), base16:decode(BMAC)}
-                   end,
-    T1 = T#token{sequence_no = SeqNo, mac_signature = MAC},
+    T1 = case {BType, Rest} of
+             {<<"access">>, [BMAC]} ->
+                 T#token{mac_signature = base16:decode(BMAC)};
+             {<<"refresh">>, [BSeqNo, BMAC]} ->
+                 T#token{sequence_no = ?b2i(BSeqNo),
+                         mac_signature = base16:decode(BMAC)};
+             {<<"provision">>, [BVCard, BMAC]} ->
+                 {ok, VCard} = exml:parse(BVCard),
+                 T#token{vcard = VCard,
+                         mac_signature = base16:decode(BMAC)}
+         end,
     T1#token{token_body = join_fields(T1)}.
 
 acquire_key_for_user(User) ->
