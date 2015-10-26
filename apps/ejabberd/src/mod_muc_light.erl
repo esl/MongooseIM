@@ -140,6 +140,15 @@ process_packet(From, To, {ok, {_, #blocking{}} = Blocking}, OrigPacket) ->
         false -> mod_muc_light_codec:encode_error(
                    {error, bad_request}, From, To, OrigPacket, fun ejabberd_router:route/3)
     end;
+process_packet(From, To, {ok, #iq{} = IQ}, OrigPacket) ->
+    case mod_muc_iq:process_iq(To#jid.lserver, From, To, IQ) of
+        ignore -> ok;
+        error ->
+            mod_muc_light_codec:encode_error(
+              {error, feature_not_implemented}, From, To, OrigPacket, fun ejabberd_router:route/3);
+        ResIQ ->
+            ejabberd_router:route(To, From, jlib:iq_to_xml(ResIQ))
+    end;
 process_packet(From, #jid{ luser = RoomU } = To, {ok, RequestToRoom}, OrigPacket)
   when RoomU =/= <<>> ->
     case ?BACKEND:room_exists(jlib:jid_to_lus(To)) of

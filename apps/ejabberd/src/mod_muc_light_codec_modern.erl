@@ -22,7 +22,7 @@
 %%====================================================================
 
 -spec decode(From :: jlib:jid(), To :: jlib:jid(), Stanza :: jlib:xmlel()) ->
-    {ok, muc_light_packet()} | {error, bad_request} | ignore.
+    mod_muc_light_codec:decode_result().
 decode(_From, #jid{ lresource = Resource }, _Stanza) when Resource =/= <<>> ->
     {error, bad_request};
 decode(_From, _To, #xmlel{ name = <<"message">> } = Stanza) ->
@@ -35,7 +35,7 @@ decode(_, _, _) ->
 -spec encode(Request :: muc_light_encode_request(), OriginalSender :: jlib:jid(),
              RoomUS :: ejabberd:simple_bare_jid(),
              HandleFun :: mod_muc_light_codec:encoded_packet_handler()) -> any().
-encode({#msg{} = Msg, AffUsers}, Sender, {_, RoomS} = RoomUS, HandleFun) ->
+encode({#msg{} = Msg, AffUsers}, Sender, {RoomU, RoomS} = RoomUS, HandleFun) ->
     FromNick = jlib:jid_to_binary(jlib:jid_to_lus(Sender)),
     {RoomJID, RoomBin} = jids_from_room_with_resource(RoomUS, FromNick),
     Attrs = [
@@ -43,8 +43,10 @@ encode({#msg{} = Msg, AffUsers}, Sender, {_, RoomS} = RoomUS, HandleFun) ->
              {<<"type">>, <<"groupchat">>},
              {<<"from">>, RoomBin}
             ],
-    Children = ejabberd_hooks:run_fold(
-                 archive_muclight_message, RoomS, Msg#msg.children, [FromNick, RoomUS]),
+    MsgForArch = #xmlel{ name = <<"message">>, attrs = Attrs, children = Msg#msg.children },
+    #xmlel{ children = Children }
+    = ejabberd_hooks:run_fold(filter_room_packet, RoomS, MsgForArch,
+                              [FromNick, Sender, jlib:make_jid_noprep({RoomU, RoomS, <<>>})]),
     lists:foreach(
       fun({{U, S}, _}) ->
               msg_to_aff_user(RoomJID, U, S, Attrs, Children, HandleFun)
@@ -86,7 +88,7 @@ decode_message_by_type(_, _) ->
 %%====================================================================
 
 -spec decode_iq(From :: jlib:jid(), IQ :: jlib:iq()) ->
-    {ok, muc_light_packet() | muc_light_disco()} | {error, bad_request} | ignore.
+    {ok, muc_light_packet() | muc_light_disco() | jlib:iq()} | {error, bad_request} | ignore.
 decode_iq(_From, #iq{ xmlns = ?NS_MUC_LIGHT_CONFIGURATION, type = get,
                       sub_el = QueryEl, id = ID }) ->
     Version = exml_query:path(QueryEl, [{element, <<"version">>}, cdata], <<>>),
@@ -168,6 +170,8 @@ decode_iq(_From, #iq{ xmlns = ?NS_DISCO_INFO, type = get, id = ID}) ->
     {ok, {get, #disco_info{ id = ID }}};
 decode_iq(_From, #iq{ type = error }) ->
     ignore;
+decode_iq(_From, #iq{} = IQ) ->
+    {ok, IQ};
 decode_iq(_, _) ->
     {error, bad_request}.
 
@@ -280,12 +284,15 @@ encode_iq({set, #affiliations{} = Affs, OldAffUsers, NewAffUsers}, RoomJID, Room
 
     AllAffsEls = [ aff_user_to_el(AffUser) || AffUser <- Affs#affiliations.aff_users ],
     VersionEl = kv_to_el(<<"version">>, Affs#affiliations.version),
-    NotifForCurrent = [ kv_to_el(<<"prev-version">>, Affs#affiliations.prev_version),
-                        VersionEl | AllAffsEls ],
-    EnvelopedChildrenForCurrent = msg_envelope(?NS_MUC_LIGHT_AFFILIATIONS, NotifForCurrent),
-    FinalChildrenForCurrent
-    = ejabberd_hooks:run_fold(archive_muclight_message, RoomJID#jid.lserver,
-                              EnvelopedChildrenForCurrent, [<<>>, jlib:jid_to_lus(RoomJID)]),
+    NotifForCurrentNoPrevVersion = [ VersionEl | AllAffsEls ],
+    MsgForArch = #xmlel{ name = <<"message">>, attrs = Attrs,
+                         children = msg_envelope(?NS_MUC_LIGHT_AFFILIATIONS,
+                                                 NotifForCurrentNoPrevVersion) },
+    #xmlel{ children = FinalChildrenForCurrentNoPrevVersion }
+    = ejabberd_hooks:run_fold(filter_room_packet, RoomJID#jid.lserver, MsgForArch,
+                              [<<>>, RoomJID, RoomJID]),
+    FinalChildrenForCurrent = inject_prev_version(FinalChildrenForCurrentNoPrevVersion,
+                                                  Affs#affiliations.prev_version),
     bcast_aff_messages(RoomJID, OldAffUsers, NewAffUsers, Attrs, VersionEl,
                        FinalChildrenForCurrent, HandleFun),
 
@@ -306,9 +313,10 @@ encode_iq({set, #create{} = Create, UniqueRequested}, RoomJID, RoomBin, HandleFu
     bcast_aff_messages(RoomJID, [], Create#create.aff_users, Attrs, VersionEl, [], HandleFun),
 
     AllAffsEls = [ aff_user_to_el(AffUser) || AffUser <- Create#create.aff_users ],
-    EnvelopedChildrenForArchiving = msg_envelope(?NS_MUC_LIGHT_AFFILIATIONS, AllAffsEls),
-    ejabberd_hooks:run_fold(archive_muclight_message, RoomJID#jid.lserver,
-                            EnvelopedChildrenForArchiving, [<<>>, jlib:jid_to_lus(RoomJID)]),
+    MsgForArch = #xmlel{ name = <<"message">>, attrs = Attrs,
+                         children = msg_envelope(?NS_MUC_LIGHT_AFFILIATIONS, AllAffsEls) },
+    ejabberd_hooks:run_fold(filter_room_packet, RoomJID#jid.lserver, MsgForArch,
+                              [<<>>, RoomJID, RoomJID]),
 
     %% IQ reply "from"
     %% Sent from service JID when unique room was requested
@@ -347,10 +355,11 @@ encode_iq({set, #config{} = Config, AffUsers}, RoomJID, RoomBin, HandleFun) ->
     ConfigNotif = [ kv_to_el(<<"prev-version">>, Config#config.prev_version),
                     kv_to_el(<<"version">>, Config#config.version)
                     | ConfigEls ],
-    EnvelopedConfigNotif = msg_envelope(?NS_MUC_LIGHT_CONFIGURATION, ConfigNotif),
-    FinalConfigNotif
-    = ejabberd_hooks:run_fold(archive_muclight_message, RoomJID#jid.lserver,
-                              EnvelopedConfigNotif, [<<>>, jlib:jid_to_lus(RoomJID)]),
+    MsgForArch = #xmlel{ name = <<"message">>, attrs = Attrs,
+                         children = msg_envelope(?NS_MUC_LIGHT_CONFIGURATION, ConfigNotif) },
+    #xmlel{ children = FinalConfigNotif }
+    = ejabberd_hooks:run_fold(filter_room_packet, RoomJID#jid.lserver, MsgForArch,
+                              [<<>>, RoomJID, RoomJID]),
 
     lists:foreach(
       fun({{U, S}, _}) ->
@@ -385,6 +394,13 @@ kv_to_el(Key, Value) ->
 msg_envelope(XMLNS, Children) ->
     [ #xmlel{ name = <<"x">>, attrs = [{<<"xmlns">>, XMLNS}], children = Children },
       #xmlel{ name = <<"body">> } ].
+
+-spec inject_prev_version(IQChildren :: [jlib:xmlch()], PrevVersion :: binary()) -> [jlib:xmlch()].
+inject_prev_version([#xmlel{ name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_MUC_LIGHT_AFFILIATIONS}],
+                             children = Items} = XEl | REls], PrevVersion) ->
+    [XEl#xmlel{ children = [kv_to_el(<<"prev-version">>, PrevVersion) | Items] } | REls];
+inject_prev_version([El | REls], PrevVersion) ->
+    [El | inject_prev_version(REls, PrevVersion)].
 
 -spec bcast_aff_messages(From :: jlib:jid(), OldAffUsers :: aff_users(), NewAffUsers :: aff_users(),
                          Attrs :: [{binary(), binary()}], VersionEl :: jlib:xmlel(),

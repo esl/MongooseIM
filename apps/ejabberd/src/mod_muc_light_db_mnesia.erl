@@ -230,6 +230,8 @@ get_info(RoomUS) ->
 
 -spec force_clear() -> ok.
 force_clear() ->
+    lists:foreach(fun({RoomU, RoomS}) -> ejabberd_hooks:run(forget_room, RoomS, [RoomS, RoomU]) end,
+                  mnesia:dirty_all_keys(?ROOM_TAB)),
     lists:foreach(fun mnesia:clear_table/1, [?ROOM_TAB, ?USER_ROOM_TAB, ?BLOCKING_TAB]).
 
 %%====================================================================

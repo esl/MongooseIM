@@ -37,10 +37,10 @@
 
 all() ->
     [
-%     {group, entity},
-     {group, occupant}
-%     {group, owner},
-%     {group, blocking}
+     {group, entity},
+     {group, occupant},
+     {group, owner},
+     {group, blocking}
     ].
 
 groups() ->
@@ -52,15 +52,15 @@ groups() ->
                             unauthorized_stanza
                          ]},
      {occupant, [sequence], [
-%                             send_message,
-%                             change_subject,
-%                             all_can_configure,
-%                             set_config_deny,
-%                             get_room_config,
-%                             get_room_occupants,
-%                             get_room_info,
-%                             leave_room,
-%                             change_other_aff_deny,
+                             send_message,
+                             change_subject,
+                             all_can_configure,
+                             set_config_deny,
+                             get_room_config,
+                             get_room_occupants,
+                             get_room_info,
+                             leave_room,
+                             change_other_aff_deny,
                              simple_mam
                             ]},
      {owner, [sequence], [

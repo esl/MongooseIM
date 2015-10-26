@@ -17,7 +17,7 @@
 -type encoded_packet_handler() ::
     fun((From :: jlib:jid(), To :: jlib:jid(), Packet :: jlib:xmlel()) -> any()).
 
--type decode_result() :: {ok, muc_light_packet() | muc_light_disco()}
+-type decode_result() :: {ok, muc_light_packet() | muc_light_disco() | jlib:iq()}
                        | {error, bad_request} | ignore.
 
 -export_type([encoded_packet_handler/0, decode_result/0]).
@@ -55,6 +55,8 @@ make_error_elem({error, conflict}) ->
     ?ERR_CONFLICT;
 make_error_elem({error, bad_request, Text}) ->
     ?ERRT_BAD_REQUEST(<<"en">>, iolist_to_binary(Text));
+make_error_elem({error, feature_not_implemented}) ->
+    ?ERR_FEATURE_NOT_IMPLEMENTED;
 make_error_elem({error, internal_server_error}) ->
     ?ERR_INTERNAL_SERVER_ERROR.
 
