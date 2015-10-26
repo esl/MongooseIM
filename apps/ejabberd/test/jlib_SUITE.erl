@@ -19,7 +19,9 @@ all() -> [make_iq_reply_switch_to_from,
           correct_but_too_long_username,
           correct_but_too_long_domain,
           correct_but_too_long_resource,
-          incorrect_username].
+          incorrect_username,
+          incorrect_resource,
+          incorrect_domain].
 
 init_per_suite(C) ->
     application:start(p1_stringprep),
@@ -117,6 +119,15 @@ incorrect_username(_) ->
          ?FORALL(Bin, invalid_username(),
                 error == jlib:nodeprep(Bin))).
 
+incorrect_resource(_) ->
+    prop(incorrect_resource_property,
+         ?FORALL(Bin, invalid_resource(),
+                error == jlib:resourceprep(Bin))).
+
+incorrect_domain(_) ->
+    prop(incorrect_domain_property,
+         ?FORALL(Bin, invalid_domain(),
+                error == jlib:nameprep(Bin))).
 
 is_valid_jid_record(#jid{}) ->
     true;
@@ -167,6 +178,12 @@ invalid_full_jid() ->
 invalid_username() ->
     invalid_xmpp_binary(prohibited_output_node()).
 
+invalid_resource() ->
+    invalid_xmpp_binary([<<238,190,187>>]). %<<"\x{EFBB}"/utf8>>
+
+invalid_domain() ->
+    invalid_resource().
+
 
 always_correct_xmpp_binary(S) ->
     ?LET(Str, always_correct_xmpp_string(S), list_to_binary(Str)).
@@ -174,6 +191,7 @@ always_correct_xmpp_binary(S) ->
 allowed_output() ->
     oneof([choose($a, $z),
            choose($A, $Z),
+           oneof([$., $-, $_]),
            choose($0, $9)]).
 
 always_correct_xmpp_string(S) ->
