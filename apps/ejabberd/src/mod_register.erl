@@ -197,12 +197,15 @@ handle_set(#xmlel{name = <<"query">>} = Query, {extras, _} = Extras) ->
     case
 	Query#xmlel.children
     of
-	[_,_] = Information  ->
-	    register_or_change_password(Information, Extras);
 	[#xmlel{name = <<"x">>}] ->
 	    three_cases_not_implemented;
+
 	[#xmlel{name = <<"remove">>}] ->
 	    one_case_not_implemented;
+
+	[_,_] = Information  ->
+	    register_or_change_password(Information, Extras)
+
 	_ ->
 	    #xmlel{name = <<"bad-request">>}
     end;
