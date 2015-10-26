@@ -858,8 +858,6 @@ print_usage_command(Cmd, C, MaxC, ShCode) ->
     ResultFmt = format_usage_ctype(ResultDef, 11),
     ReturnsFmt = ["  ",?B("Returns"),": ", ResultFmt],
 
-    XmlrpcFmt = "", %%+++ ["  ",?B("XML-RPC"),": ", format_usage_xmlrpc(ArgsDef, ResultDef), "\n\n"],
-
     TagsFmt = ["  ",?B("Tags"),": ", prepare_long_line(8, MaxC, [atom_to_list(TagA) || TagA <- TagsAtoms])],
 
     DescFmt = ["  ",?B("Description"),": ", prepare_description(15, MaxC, Desc)],
@@ -869,7 +867,7 @@ print_usage_command(Cmd, C, MaxC, ShCode) ->
                       _ -> ["", prepare_description(0, MaxC, LongDesc), "\n\n"]
                   end,
 
-    ?PRINT(["\n", NameFmt, "\n", ArgsFmt, "\n", ReturnsFmt, "\n\n", XmlrpcFmt, TagsFmt, "\n\n", DescFmt, "\n\n", LongDescFmt], []).
+    ?PRINT(["\n", NameFmt, "\n", ArgsFmt, "\n", ReturnsFmt, "\n\n", TagsFmt, "\n\n", DescFmt, "\n\n", LongDescFmt], []).
 
 
 format_usage_ctype(Type, _Indentation)

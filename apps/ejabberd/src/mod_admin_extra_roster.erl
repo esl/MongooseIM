@@ -241,13 +241,13 @@ get_roster(User, Server) ->
     LUser = jlib:nodeprep(User),
     LServer = jlib:nameprep(Server),
     Items = ejabberd_hooks:run_fold(roster_get, Server, [], [{LUser, LServer}]),
-    make_roster_xmlrpc(Items).
+    make_roster(Items).
 
 
 %% @doc Note: if a contact is in several groups, the contact is returned
 %% several times, each one in a different group.
--spec make_roster_xmlrpc([mod_roster:roster()]) -> [jids_nick_subs_ask_grp()].
-make_roster_xmlrpc(Roster) ->
+-spec make_roster([mod_roster:roster()]) -> [jids_nick_subs_ask_grp()].
+make_roster(Roster) ->
     lists:foldl(
         fun(Item, Res) ->
                 JIDS = jlib:jid_to_binary(Item#roster.jid),
