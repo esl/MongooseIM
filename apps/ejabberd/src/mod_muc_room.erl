@@ -293,21 +293,21 @@ locked_error({route, From, ToNick, #xmlel{attrs = Attrs} = Packet},
 -spec initial_state({'route', From :: ejabberd:jid(), To :: mod_muc:nick(),
                     Presence :: jlib:xmlel()}, state()) -> fsm_return().
 initial_state({route, From, ToNick,
-              #xmlel{name = <<"presence">>,
-                     attrs = Attrs} = Presence}, StateData) ->
+              #xmlel{name = <<"presence">>} = Presence}, StateData) ->
     %% this should never happen so crash if it does
-    <<>> = xml:get_attr_s(<<"type">>, Attrs),
-    case  xml:get_path_s(Presence,[{elem, <<"x">>}, {attr, <<"xmlns">>}]) of
-        ?NS_MUC ->
+    <<>> = exml_query:attr(Presence, <<"type">>, <<>>),
+    XNamespaces = exml_query:paths(Presence, [{element, <<"x">>}, {attr, <<"xmlns">>}]),
+    case lists:member(?NS_MUC, XNamespaces) of
+        true ->
             %% FIXME
             add_to_log(room_existence, started, StateData),
             process_presence(From, ToNick, Presence, StateData, locked_state);
             %% The fragment of normal_state with Activity that used to do this - how does that work?
             %% Seems to work without it
-        <<>> ->
+        false ->
             %% groupchat 1.0 user, straight to normal_state
             process_presence(From, ToNick, Presence, StateData)
-        end.
+    end.
 
 
 -spec is_query_allowed(jlib:xmlel()) -> boolean().

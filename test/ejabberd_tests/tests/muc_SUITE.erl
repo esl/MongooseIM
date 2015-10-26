@@ -186,7 +186,8 @@ groups() -> [
                 configure_anonymous
                 ]},
         {room_management, [], [
-                create_and_destroy_room
+                create_and_destroy_room,
+                create_and_destroy_room_multiple_x_elements
                 ]}
         ].
 
@@ -2686,6 +2687,23 @@ create_and_destroy_room(Config) ->
         was_destroy_presented(Presence)
     end).
 
+
+%% test if we are able to create room when presence has more than one subelemnets
+%% https://github.com/esl/MongooseIM/issues/376
+create_and_destroy_room_multiple_x_elements(Config) ->
+    escalus:story(Config, [1], fun(Alice) ->
+        Room2 = stanza_join_room_many_x_elements(<<"room2">>, <<"nick2">>),
+        escalus:send(Alice, Room2),
+        was_room_created(escalus:wait_for_stanza(Alice)),
+        escalus:wait_for_stanza(Alice),
+
+        DestroyRoom2 = stanza_destroy_room(<<"room2">>),
+        escalus:send(Alice, DestroyRoom2),
+        [Presence, Iq] = escalus:wait_for_stanzas(Alice, 2),
+        was_room_destroyed(Iq),
+        was_destroy_presented(Presence)
+    end).
+
 %% DOES NOT FAIL ANYMORE
 %% Example 152. Service Informs User of Inability to Create a Room
 %% As of writing this testcase (2012-07-24) it fails. Room is not created
@@ -4007,6 +4025,19 @@ stanza_join_room(Room, Nick) ->
         }
     },Room, Nick).
 
+%% stanza with multiple x subelements - empathy send additional x's
+stanza_join_room_many_x_elements(Room, Nick) ->
+    stanza_to_room(#xmlel{name = <<"presence">>, children =
+                          [#xmlel{
+                              name = <<"x">>,
+                              attrs = [{<<"xmlns">>,<<"vcard-temp:x:update">>}]
+                             },
+                           #xmlel{
+                              name = <<"x">>,
+                              attrs = [{<<"xmlns">>,<<"http://jabber.org/protocol/muc">>}]
+                             }]
+                         }, Room, Nick).
+
 stanza_voice_request_form(Room) ->
     Payload = [ form_field({<<"muc#role">>, <<"participant">>, <<"text-single">>}) ],
     stanza_message_to_room(Room, stanza_form(Payload, ?NS_MUC_REQUEST)).
@@ -4226,7 +4257,7 @@ is_message_with_status_code(Message, Code) ->
         {attr, <<"code">>}]).
 
 has_status_codes(Stanza, CodeList) ->
-    StatusList = exml_query:subelements(exml_query:subelement(Stanza, <<"x">>), <<"status">>),
+    StatusList = exml_query:paths(Stanza, [{element, <<"x">>},{element, <<"status">>}]),
     StanzaCodes = lists:map(fun(Status) ->
                     exml_query:attr(Status, <<"code">>)
         end, StatusList),
@@ -4251,13 +4282,15 @@ was_room_destroyed(Query) ->
     timer:sleep(?WAIT_TIME),
     <<"result">> = exml_query:attr(Query, <<"type">>).
 
-was_room_created(Stanza = #xmlel{children = [X]}) ->
+was_room_created(Stanza) ->
     timer:sleep(?WAIT_TIME),
     has_status_codes(Stanza, [<<"201">>, <<"110">>]),
-    <<"owner">> = exml_query:path(X, [{element, <<"item">>},
-                                      {attr, <<"affiliation">>}]),
-    <<"moderator">> = exml_query:path(X, [{element, <<"item">>},
-                                          {attr, <<"role">>}]).
+    [<<"owner">>] = exml_query:paths(Stanza, [{element, <<"x">>},
+                                              {element, <<"item">>},
+                                              {attr, <<"affiliation">>}]),
+    [<<"moderator">>] = exml_query:paths(Stanza, [{element, <<"x">>},
+                                                  {element, <<"item">>},
+                                                  {attr, <<"role">>}]).
 
 has_room(JID, #xmlel{children = [ #xmlel{children = Rooms} ]}) ->
     %% <iq from='chat.shakespeare.lit'
