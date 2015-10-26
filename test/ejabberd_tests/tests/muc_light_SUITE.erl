@@ -1,19 +1,3 @@
-%%==============================================================================
-%% Copyright 2014 Erlang Solutions Ltd.
-%%
-%% Licensed under the Apache License, Version 2.0 (the "License");
-%% you may not use this file except in compliance with the License.
-%% You may obtain a copy of the License at
-%%
-%% http://www.apache.org/licenses/LICENSE-2.0
-%%
-%% Unless required by applicable law or agreed to in writing, software
-%% distributed under the License is distributed on an "AS IS" BASIS,
-%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-%% See the License for the specific language governing permissions and
-%% limitations under the License.
-%%==============================================================================
-
 -module(muc_light_SUITE).
 -compile(export_all).
 
@@ -53,10 +37,10 @@
 
 all() ->
     [
-     {group, entity},
-     {group, occupant},
-     {group, owner},
-     {group, blocking}
+%     {group, entity},
+     {group, occupant}
+%     {group, owner},
+%     {group, blocking}
     ].
 
 groups() ->
@@ -68,15 +52,16 @@ groups() ->
                             unauthorized_stanza
                          ]},
      {occupant, [sequence], [
-                             send_message,
-                             change_subject,
-                             all_can_configure,
-                             set_config_deny,
-                             get_room_config,
-                             get_room_occupants,
-                             get_room_info,
-                             leave_room,
-                             change_other_aff_deny
+%                             send_message,
+%                             change_subject,
+%                             all_can_configure,
+%                             set_config_deny,
+%                             get_room_config,
+%                             get_room_occupants,
+%                             get_room_info,
+%                             leave_room,
+%                             change_other_aff_deny,
+                             simple_mam
                             ]},
      {owner, [sequence], [
                           create_room,
@@ -124,6 +109,8 @@ init_per_group(_GroupName, Config) ->
 end_per_group(_GroupName, Config) ->
     Config.
 
+init_per_testcase(mam_simple, Config) ->
+    escalus:init_per_testcase(mam_simple, Config);
 init_per_testcase(CaseName, Config) ->
     set_default_mod_config(),
     create_room(?ROOM, ?MUCHOST, alice, [bob, kate], Config, ver(1)),
@@ -335,6 +322,31 @@ edge_case_owner_change(Config) ->
             escalus:send(Alice, stanza_aff_set(?ROOM, AffUsersChanges1)),
             verify_aff_bcast([{Alice, owner}], [{Kate, none}, {Bob, none}]),
             escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice))
+        end).
+
+simple_mam(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+            escalus:send(Alice, stanza_create_room(?ROOM2, [], [])),
+            verify_aff_bcast([{Alice, owner}], [{Alice, owner}]),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+
+            MsgBody1 = <<"Message 1">>,
+            Stanza1 = escalus_stanza:groupchat_to(room_bin_jid(?ROOM2), MsgBody1),
+            foreach_occupant([Alice], Stanza1, gc_message_verify_fun(?ROOM2, MsgBody1)),
+            MsgBody2 = <<"Message 2">>,
+            Stanza2 = escalus_stanza:groupchat_to(room_bin_jid(?ROOM2), MsgBody2),
+            foreach_occupant([Alice], Stanza2, gc_message_verify_fun(?ROOM2, MsgBody2)),
+            escalus:send(Alice, stanza_aff_set(?ROOM2, [{Bob, member}])),
+            verify_aff_bcast([{Alice, owner}, {Bob, member}], [{Bob, member}]),
+
+            ArchReq = escalus_stanza:iq_get(?NS_MAM, []),
+            escalus:send(Bob, escalus_stanza:to(ArchReq, room_bin_jid(?ROOM2))),
+            [CreateEvent, Msg1, Msg2, BobAdd, IQRes] = escalus:wait_for_stanzas(Bob, 5),
+            escalus:assert(is_iq_result, [ArchReq], IQRes),
+            MsgBody1 = exml_query:path(extract_forwarded(Msg1), [{element, <<"body">>}, cdata]),
+            MsgBody2 = exml_query:path(extract_forwarded(Msg2), [{element, <<"body">>}, cdata]),
+            verify_archived_aff_msg(extract_forwarded(CreateEvent), [{Alice, owner}], true),
+            verify_archived_aff_msg(extract_forwarded(BobAdd), [{Bob, member}], false)
         end).
 
 %% ---------------------- owner ----------------------
@@ -683,6 +695,19 @@ verify_aff_users(Items, BinAffUsers) ->
                    verify_keytake(lists:keytake(JID, 1, AffAcc), JID, Aff, AffAcc)
            end, BinAffUsers, Items).
 
+-spec verify_archived_aff_msg(
+        Stanza :: #xmlel{}, AffUsersChanges :: [{escalus:client(), binary()}],
+        IsCreate :: boolean()) -> [].
+verify_archived_aff_msg(Stanza, AffUsersChanges, IsCreate) ->
+    BinAffUsersChanges = bin_aff_users(AffUsersChanges),
+    [X] = exml_query:subelements(Stanza, <<"x">>),
+    ?NS_MUC_LIGHT_AFFILIATIONS = exml_query:attr(X, <<"xmlns">>),
+    undefined = exml_query:subelement(X, <<"prev-version">>),
+    Version = exml_query:path(X, [{element, <<"version">>}, cdata]),
+    true = IsCreate orelse is_binary(Version),
+    Items = exml_query:subelements(X, <<"user">>),
+    verify_aff_users(Items, BinAffUsersChanges).
+
 -spec verify_keytake(Result :: {value, Item :: tuple(), Acc :: list()}, JID :: binary(),
                      Aff :: binary(), AffAcc :: list()) -> list().
 verify_keytake({value, {_, Aff}, NewAffAcc}, _JID, Aff, _AffAcc) -> NewAffAcc.
@@ -859,4 +884,9 @@ set_default_mod_config() ->
 -spec set_mod_config(K :: atom(), V :: any()) -> ok.
 set_mod_config(K, V) ->
     rpc(mod_muc_light, set_service_opt, [K, V]).
+
+-spec extract_forwarded(Stanza :: #xmlel{}) -> #xmlel{}.
+extract_forwarded(Stanza) ->
+    exml_query:path(Stanza, [{element, <<"result">>}, {element, <<"forwarded">>},
+                             {element, <<"message">>}]).
 
