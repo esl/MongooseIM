@@ -248,7 +248,31 @@ seq_no() -> pos_integer().
 
 vcard() ->
     ?LET(Element, xmlel_gen:xmlel(3),
-         Element#xmlel{name = <<"vCard">>}).
+         normalization_hack(Element#xmlel{name = <<"vCard">>})).
+
+normalization_hack(Element) ->
+    %% Hack!
+    %% Because a exml:to_binary composed with exml:parse might merge cdata fields [1],
+    %% we do it once here to reach some kind-of-normalized representation
+    %% of the XML element.
+    %%
+    %% [1] example:
+    %%
+    %%   > T1#token.vcard.
+    %%   {xmlel,<<"vCard">>,
+    %%          [{<<"a">>,<<"a">>}],
+    %%          [{xmlel,<<"a">>,
+    %%                  [{<<"a">>,<<"a">>}],
+    %%                  [{xmlcdata,<<"a">>},{xmlcdata,<<"a">>}]}]}
+    %%   > exml:parse(exml:to_binary(T1#token.vcard)).
+    %%   {ok,{xmlel,<<"vCard">>,
+    %%              [{<<"a">>,<<"a">>}],
+    %%              [{xmlel,<<"a">>,
+    %%                      [{<<"a">>,<<"a">>}],
+    %%                      [{xmlcdata,<<"aa">>}]}]}}
+    %%
+    {ok, Normalized} = exml:parse(exml:to_binary(Element)),
+    Normalized.
 
 bare_jid() ->
     ?LET({Username, Domain}, {username(), domain()},
