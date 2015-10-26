@@ -275,8 +275,8 @@ do_route(From, To, Packet) ->
         {atomic, Pid} when is_pid(Pid) ->
             ?DEBUG("sending to process ~p~n", [Pid]),
             #xmlel{attrs = Attrs} = Packet,
-            NewAttrs = jlib:replace_from_to_attrs(jlib:jid_to_binary(From),
-                                                  jlib:jid_to_binary(To),
+            NewAttrs = jlib:replace_from_to_attrs(jid:to_binary(From),
+                                                  jid:to_binary(To),
                                                   Attrs),
             #jid{lserver = MyServer} = From,
             ejabberd_hooks:run(
@@ -357,7 +357,7 @@ choose_pid(From, Pids) ->
     % Use sticky connections based on the JID of the sender (whithout
     % the resource to ensure that a muc room always uses the same
     % connection)
-    Pid = lists:nth(erlang:phash(jlib:jid_remove_resource(From), length(Pids1)),
+    Pid = lists:nth(erlang:phash(jid:remove_resource(From), length(Pids1)),
                     Pids1),
     ?DEBUG("Using ejabberd_s2s_out ~p~n", [Pid]),
     Pid.
@@ -416,7 +416,7 @@ new_connection(MyServer, Server, From, FromTo,
 -spec max_s2s_connections_number(fromto()) -> pos_integer().
 max_s2s_connections_number({From, To}) ->
     case acl:match_rule(
-           From, max_s2s_connections, jlib:make_jid(<<"">>, To, <<"">>)) of
+           From, max_s2s_connections, jid:make(<<"">>, To, <<"">>)) of
         Max when is_integer(Max) -> Max;
         _ -> ?DEFAULT_MAX_S2S_CONNECTIONS_NUMBER
     end.
@@ -424,7 +424,7 @@ max_s2s_connections_number({From, To}) ->
 -spec max_s2s_connections_number_per_node(fromto()) -> pos_integer().
 max_s2s_connections_number_per_node({From, To}) ->
     case acl:match_rule(
-           From, max_s2s_connections_per_node, jlib:make_jid(<<"">>, To, <<"">>)) of
+           From, max_s2s_connections_per_node, jid:make(<<"">>, To, <<"">>)) of
         Max when is_integer(Max) -> Max;
         _ -> ?DEFAULT_MAX_S2S_CONNECTIONS_NUMBER_PER_NODE
     end.

@@ -137,7 +137,7 @@ srg_get_info(Group, Host) ->
 -spec srg_get_members(group(), ejabberd:server()) -> [binary()].
 srg_get_members(Group, Host) ->
     Members = mod_shared_roster:get_group_explicit_users(Host,Group),
-    [jlib:jid_to_binary(jlib:make_jid(MUser, MServer, <<"">>))
+    [jid:to_binary(jid:make(MUser, MServer, <<"">>))
      || {MUser, MServer} <- Members].
 
 

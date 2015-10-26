@@ -177,11 +177,11 @@ is_supported_rule(_)              -> false.
 hd_host({#jid{lserver=Host}, _}) -> Host.
 
 server_jid(#jid{lserver = Host}) ->
-    jlib:binary_to_jid(Host).
+    jid:from_binary(Host).
 
 -spec message_target(hook_data()) -> jid() | undefined.
 message_target({_,El}) ->
     case exml_query:attr(El, <<"to">>) of
         undefined -> undefined;
-        J         -> jlib:binary_to_jid(J)
+        J -> jid:from_binary(J)
     end.

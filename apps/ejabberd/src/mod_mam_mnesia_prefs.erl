@@ -236,7 +236,7 @@ key(#jid{lserver=LocLServer, luser=LocLUser}, {RemLServer, RemLUser, RemLResourc
 
 -spec jids([{ls(),lu()} | {ls(),lu(),lr()}]) -> [ejabberd:literal_jid()].
 jids(Rules) ->
-    [jlib:jid_to_binary(rule_to_jid(Rule)) || Rule <- Rules].
+    [jid:to_binary(rule_to_jid(Rule)) || Rule <- Rules].
 
 
 -spec rule_to_jid({ls(), lu()} | {ls(), lu(), lr()}) -> {lu(), ls(), lr()}.
@@ -248,7 +248,7 @@ rule_to_jid({RemLServer, RemLUser}) ->
 
 -spec rules([ejabberd:literal_jid()]) -> [{ls(), lu()} | {ls(), lu(), lr()}].
 rules(BinJIDs) ->
-    [rule(jlib:binary_to_jid(BinJID)) || BinJID <- BinJIDs].
+    [rule(jid:from_binary(BinJID)) || BinJID <- BinJIDs].
 
 
 -spec rule(ejabberd:jid()) -> {ls(), lu()} | {ls(), lu(), lr()}.

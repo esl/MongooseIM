@@ -155,7 +155,7 @@ handle_offline_msg(#offline_msg{us=US} = Msg, AccessMaxOfflineMsgs) ->
 
 %% Function copied from ejabberd_sm.erl:
 get_max_user_messages(AccessRule, LUser, Host) ->
-    case acl:match_rule(Host, AccessRule, jlib:make_jid(LUser, Host, <<>>)) of
+    case acl:match_rule(Host, AccessRule, jid:make(LUser, Host, <<>>)) of
 	Max when is_integer(Max) -> Max;
 	infinity -> infinity;
 	_ -> ?MAX_USER_MESSAGES
@@ -426,8 +426,8 @@ pop_offline_messages(Ls, User, Server) ->
     Ls ++ pop_offline_messages(User, Server).
 
 pop_offline_messages(User, Server) ->
-    LUser = jlib:nodeprep(User),
-    LServer = jlib:nameprep(Server),
+    LUser = jid:nodeprep(User),
+    LServer = jid:nameprep(Server),
     case ?BACKEND:pop_messages(LUser, LServer) of
         {ok, Rs} ->
             lists:map(fun(R) ->
@@ -440,8 +440,8 @@ pop_offline_messages(User, Server) ->
     end.
 
 resend_offline_messages(User, Server) ->
-    LUser = jlib:nodeprep(User),
-    LServer = jlib:nameprep(Server),
+    LUser = jid:nodeprep(User),
+    LServer = jid:nameprep(Server),
     case ?BACKEND:pop_messages(LUser, LServer) of
         {ok, Rs} ->
             lists:foreach(fun(R) ->
@@ -471,7 +471,7 @@ add_timestamp({_,_,Micro} = TimeStamp, Server, Packet) ->
     xml:append_subtags(Packet, [TimeStampXML]).
 
 timestamp_xml(Server, Time) ->
-    FromJID = jlib:make_jid(<<>>, Server, <<>>),
+    FromJID = jid:make(<<>>, Server, <<>>),
     jlib:timestamp_to_xml(Time, utc, FromJID, <<"Offline Storage">>).
 
 remove_expired_messages(Host) ->

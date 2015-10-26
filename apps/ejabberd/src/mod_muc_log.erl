@@ -311,7 +311,7 @@ build_filename_string(TimeStamp, OutDir, RoomJID, DirType, DirName, FileFormat) 
 
 -spec get_room_name(ejabberd:literal_jid()) -> mod_muc:room().
 get_room_name(RoomJID) ->
-    JID = jlib:binary_to_jid(RoomJID),
+    JID = jid:from_binary(RoomJID),
     JID#jid.user.
 
 
@@ -1000,7 +1000,7 @@ role_users_to_string(RoleS, Users) ->
 
 -spec get_room_occupants(ejabberd:literal_jid()) -> [jid_nick_role()].
 get_room_occupants(RoomJIDString) ->
-    RoomJID = jlib:binary_to_jid(RoomJIDString),
+    RoomJID = jid:from_binary(RoomJIDString),
     {ok, Users} = mod_muc_room:get_room_users(RoomJID),
     [{U#user.jid, U#user.nick, U#user.role}
      || U <- Users].

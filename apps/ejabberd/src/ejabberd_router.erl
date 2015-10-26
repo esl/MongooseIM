@@ -106,7 +106,7 @@ register_route(Domain) ->
 -spec register_route(Domain :: domain(),
                      Handler :: handler()) -> any().
 register_route(Domain, Handler) ->
-    register_route_to_ldomain(jlib:nameprep(Domain), Domain, Handler).
+    register_route_to_ldomain(jid:nameprep(Domain), Domain, Handler).
 
 -spec register_routes([domain()]) -> 'ok'.
 register_routes(Domains) ->
@@ -136,7 +136,7 @@ make_handler({apply, Module, Function} = Handler)
     Handler.
 
 unregister_route(Domain) ->
-    case jlib:nameprep(Domain) of
+    case jid:nameprep(Domain) of
         error ->
             erlang:error({invalid_domain, Domain});
         LDomain ->

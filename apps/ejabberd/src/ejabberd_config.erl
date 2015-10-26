@@ -261,7 +261,7 @@ normalize_hosts(Hosts) ->
 normalize_hosts([], PrepHosts) ->
     lists:reverse(PrepHosts);
 normalize_hosts([Host|Hosts], PrepHosts) ->
-    case jlib:nodeprep(host_to_binary(Host)) of
+    case jid:nodeprep(host_to_binary(Host)) of
         error ->
             ?ERROR_MSG("Can't load config file: "
                        "invalid host name [~p]", [Host]),

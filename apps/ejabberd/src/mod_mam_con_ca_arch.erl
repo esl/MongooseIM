@@ -310,28 +310,22 @@ safe_lookup_messages(Result, Host,
         {error, Reason}
     end.
 
--spec lookup_messages(Result, Host,
-                      _UserID, UserJID, RSM, Borders,
-                      Start, End, Now, WithJID,
-                      PageSize, LimitPassed, MaxResultLimit,
-                      IsSimple) -> Result when
-    Host    :: server_host(),
-    UserJID :: #jid{},
-    _UserID  :: user_id(),
-    RSM     :: #rsm_in{} | undefined,
-    Borders :: #mam_borders{} | undefined,
-    Start   :: unix_timestamp() | undefined,
-    End     :: unix_timestamp() | undefined,
-    Now     :: unix_timestamp(),
-    PageSize :: non_neg_integer(),
-    WithJID :: #jid{} | undefined,
-    LimitPassed :: boolean(),
-    MaxResultLimit :: non_neg_integer(),
-    IsSimple :: boolean(),
-    Result :: {ok, {TotalCount, Offset, MessageRows}} | {error, 'policy-violation'},
-    TotalCount :: non_neg_integer(),
-    Offset  :: non_neg_integer(),
-    MessageRows :: list(tuple()).
+-spec lookup_messages(Result, Host, _UserID, UserJID, RSM, Borders,
+                      Start, End, Now, WithJID, PageSize, LimitPassed,
+                      MaxResultLimit, IsSimple) ->
+                         Result when
+                     Host :: server_host(), UserJID :: #jid{},
+                     _UserID :: user_id(), RSM :: #rsm_in{}  | undefined,
+                     Borders :: #mam_borders{}  | undefined,
+                     Start :: unix_timestamp()  | undefined,
+                     End :: unix_timestamp()  | undefined,
+                     Now :: unix_timestamp(), PageSize :: non_neg_integer(),
+                     WithJID :: #jid{}  | undefined, LimitPassed :: boolean(),
+                     MaxResultLimit :: non_neg_integer(), IsSimple :: boolean(),
+                     Result :: {ok, {TotalCount, Offset, MessageRows}}
+                                | {error, 'policy-violation'},
+                     TotalCount :: non_neg_integer(),
+                     Offset :: non_neg_integer(), MessageRows :: [tuple()].
 
 lookup_messages(_Result, _Host, _UserID, _UserJID,
                 _RSM, Borders,
@@ -393,8 +387,8 @@ lookup_messages(_Result, Host, _UserID, UserJID = #jid{},
 
 
 %% Cannot be optimized:
-%% - #rsm_in{direction = aft, id = ID} 
-%% - #rsm_in{direction = before, id = ID} 
+%% - #rsm_in{direction = aft, id = ID}
+%% - #rsm_in{direction = before, id = ID}
 
 lookup_messages(_Result, Host, _UserID, UserJID = #jid{},
                 #rsm_in{direction = before, id = undefined}, Borders,
@@ -483,7 +477,7 @@ lookup_messages(_Result, Host, _UserID, UserJID = #jid{},
     Offset     = calc_offset(Worker, Host, Filter, PageSize, TotalCount, RSM),
     %% If a query returns a number of stanzas greater than this limit and the
     %% client did not specify a limit using RSM then the server should return
-    %% a policy-violation error to the client. 
+    %% a policy-violation error to the client.
     case TotalCount - Offset > MaxResultLimit andalso not LimitPassed of
         true ->
             {error, 'policy-violation'};
@@ -507,7 +501,7 @@ lookup_messages(_Result, Host, _UserID, UserJID = #jid{},
     Offset     = calc_offset(Worker, Host, Filter, PageSize, TotalCount, RSM),
     %% If a query returns a number of stanzas greater than this limit and the
     %% client did not specify a limit using RSM then the server should return
-    %% a policy-violation error to the client. 
+    %% a policy-violation error to the client.
     case TotalCount - Offset > MaxResultLimit andalso not LimitPassed of
         true ->
             {error, 'policy-violation'};
@@ -531,7 +525,7 @@ lookup_messages(_Result, Host, _UserID, UserJID = #jid{},
     Offset     = calc_offset(Worker, Host, Filter, PageSize, TotalCount, RSM),
     %% If a query returns a number of stanzas greater than this limit and the
     %% client did not specify a limit using RSM then the server should return
-    %% a policy-violation error to the client. 
+    %% a policy-violation error to the client.
     case TotalCount - Offset > MaxResultLimit andalso not LimitPassed of
         true ->
             {error, 'policy-violation'};
@@ -624,35 +618,31 @@ does_conversation_exist(Worker, BUserJID, BWithJID) ->
         0 -> false
     end.
 
--spec purge_single_message(_Result, Host, MessID, _UserID, UserJID, Now) ->
-    ok | {error, 'not-supported'} when
-    Host    :: server_host(),
-    MessID  :: message_id(),
-    _UserID  :: user_id(),
-    UserJID :: #jid{},
-    Now     :: unix_timestamp().
+-spec purge_single_message(_Result, Host, MessID, _UserID, UserJID,
+                           Now) ->
+                              ok  | {error, 'not-supported'} when
+                          Host :: server_host(), MessID :: message_id(),
+                          _UserID :: user_id(), UserJID :: #jid{},
+                          Now :: unix_timestamp().
 purge_single_message(_Result, Host, MessID, _UserID, _UserJID, _Now) ->
    {error, 'not-supported'}.
 
 
--spec purge_multiple_messages(_Result, Host,
-                              _UserID, UserJID, Borders,
+-spec purge_multiple_messages(_Result, Host, _UserID, UserJID, Borders,
                               Start, End, Now, WithJID) ->
-    {error, 'not-supported'} when
-    Host    :: server_host(),
-    _UserID  :: user_id(),
-    UserJID :: #jid{},
-    Borders :: #mam_borders{},
-    Start   :: unix_timestamp() | undefined,
-    End     :: unix_timestamp() | undefined,
-    Now     :: unix_timestamp(),
-    WithJID :: #jid{} | undefined.
+                                 {error, 'not-supported'} when
+                             Host :: server_host(), _UserID :: user_id(),
+                             UserJID :: #jid{}, Borders :: #mam_borders{},
+                             Start :: unix_timestamp()  | undefined,
+                             End :: unix_timestamp()  | undefined,
+                             Now :: unix_timestamp(),
+                             WithJID :: #jid{}  | undefined.
 purge_multiple_messages(_Result, Host, _UserID, UserJID, Borders,
                         Start, End, _Now, WithJID) ->
    {error, 'not-supported'}.
 
 
-%% Each record is a tuple of form 
+%% Each record is a tuple of form
 %% `{<<"13663125233">>,<<"bob@localhost">>,<<"res1">>,<<binary>>}'.
 %% Columns are `["id","from_jid","message"]'.
 -spec extract_messages(Worker, Host, Filter, IOffset, IMax, ReverseLimit) ->
@@ -762,10 +752,10 @@ select_filter(#mam_ca_filter{
     select_filter(StartID, EndID).
 
 
--spec select_filter(StartID, EndID) -> all | 'end' | start | start_end
-    when
-    StartID :: integer() | undefined,
-    EndID   :: integer() | undefined.
+-spec select_filter(StartID, EndID) ->
+                       all  | 'end'  | start  | start_end when
+                   StartID :: integer()  | undefined,
+                   EndID :: integer()  | undefined.
 select_filter(undefined, undefined) ->
     all;
 select_filter(undefined, _) ->
@@ -824,10 +814,10 @@ maybe_encode_compact_uuid(Microseconds, NodeID) ->
     encode_compact_uuid(Microseconds, NodeID).
 
 serialize_jid(JID) ->
-    jlib:jid_to_binary(jlib:jid_tolower(jlib:jid_remove_resource(JID))).
+    jid:to_binary(jid:to_lower(jid:remove_resource(JID))).
 
 unserialize_jid(BJID) ->
-    jlib:binary_to_jid(BJID).
+    jid:from_binary(BJID).
 
 is_user_exists(#jid{lserver=LServer, luser=LUser}) ->
     ejabberd_users:is_user_exists(LUser, LServer).
@@ -873,7 +863,7 @@ execute_calc_count(ConnPid, Handler, Filter) ->
     FilterName = select_filter(Filter),
     PreparedQuery = dict:fetch(FilterName, Handler),
     execute_prepared_query(ConnPid, PreparedQuery, Params).
-    
+
 prepare_query(ConnPid, Query) ->
     {ok, Res} = seestar_session:prepare(ConnPid, Query),
     Types = seestar_result:types(Res),
@@ -1053,7 +1043,7 @@ handle_call({remove_conversations, BUserJID}, From,
     {noreply, save_query_ref(From, QueryRef, State)};
 handle_call(_, _From, State=#state{}) ->
     {reply, ok, State}.
- 
+
 
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |

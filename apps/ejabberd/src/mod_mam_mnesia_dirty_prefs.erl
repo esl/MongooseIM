@@ -216,7 +216,7 @@ su_key(#jid{lserver=LocLServer, luser=LocLUser}) ->
     [ejabberd:literal_jid() | ejabberd:simple_bare_jid() | ejabberd:simple_jid()]
     ) -> [ejabberd:literal_jid()].
 jids(ArcJID, Rules) ->
-    [jlib:jid_to_binary(rule_to_jid(ArcJID, Rule)) || Rule <- Rules].
+    [jid:to_binary(rule_to_jid(ArcJID, Rule)) || Rule <- Rules].
 
 
 -spec rule_to_jid(ejabberd:jid(),
@@ -233,7 +233,7 @@ rule_to_jid(_ArcJID, {RemLServer, RemLUser}) ->
 -spec rules(ejabberd:jid(), [ejabberd:literal_jid()]) ->
     [ejabberd:literal_jid() | ejabberd:simple_bare_jid() | ejabberd:simple_jid()].
 rules(ArcJID, BinJIDs) ->
-    [rule(ArcJID, jlib:binary_to_jid(BinJID)) || BinJID <- BinJIDs].
+    [rule(ArcJID, jid:from_binary(BinJID)) || BinJID <- BinJIDs].
 
 
 -spec rule(ejabberd:jid(), ejabberd:jid()) ->
@@ -257,7 +257,7 @@ match_jid(ArcJID, JID, JIDs) ->
     true ->
         ordsets:is_element(rule(ArcJID, JID), JIDs);
     false ->
-        BareJID = jlib:jid_remove_resource(JID),
+        BareJID = jid:remove_resource(JID),
         ordsets:is_element(rule(ArcJID, BareJID), JIDs)
             orelse
         ordsets:is_element(rule(ArcJID, JID), JIDs)

@@ -136,7 +136,7 @@ add_list(Host, ACLs, Clear) ->
 normalize(A) when is_list(A) ->
     normalize(list_to_binary(A));
 normalize(A) ->
-    jlib:nodeprep(A).
+    jid:nodeprep(A).
 
 -spec normalize_spec(aclspec())
       -> aclspec()
@@ -219,7 +219,7 @@ match_acl(ACL, JID, Host) ->
         all -> true;
         none -> false;
         _ ->
-            {User, Server, Resource} = jlib:jid_tolower(JID),
+            {User, Server, Resource} = jid:to_lower(JID),
             lists:any(fun(#acl{aclspec = Spec}) ->
                               case Spec of
                                   all ->

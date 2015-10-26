@@ -92,7 +92,7 @@ get_roster(LUser, LServer) ->
                                                error -> [];
                                                R ->
                                                    SJID =
-                                                   jlib:jid_to_binary(R#roster.jid),
+                                                   jid:to_binary(R#roster.jid),
                                                    Groups = case dict:find(SJID,
                                                                            GroupsDict)
                                                             of
@@ -109,7 +109,7 @@ get_roster(LUser, LServer) ->
 
 get_roster_by_jid_t(LUser, LServer, LJID) ->
     Username = ejabberd_odbc:escape(LUser),
-    SJID = ejabberd_odbc:escape(jlib:jid_to_binary(LJID)),
+    SJID = ejabberd_odbc:escape(jid:to_binary(LJID)),
     {selected,
      [<<"username">>, <<"jid">>, <<"nick">>,
       <<"subscription">>, <<"ask">>, <<"askmessage">>,
@@ -149,13 +149,13 @@ get_subscription_lists(_, LUser, LServer) ->
 roster_subscribe_t(LUser, LServer, LJID, Item) ->
     ItemVals = record_to_string(Item),
     Username = ejabberd_odbc:escape(LUser),
-    SJID = ejabberd_odbc:escape(jlib:jid_to_binary(LJID)),
+    SJID = ejabberd_odbc:escape(jid:to_binary(LJID)),
     odbc_queries:roster_subscribe(LServer, Username, SJID,
                                   ItemVals).
 
 get_roster_by_jid_with_groups_t(LUser, LServer, LJID) ->
     Username = ejabberd_odbc:escape(LUser),
-    SJID = ejabberd_odbc:escape(jlib:jid_to_binary(LJID)),
+    SJID = ejabberd_odbc:escape(jid:to_binary(LJID)),
     case odbc_queries:get_roster_by_jid(LServer, Username,
                                         SJID)
     of
@@ -189,23 +189,23 @@ remove_user(LUser, LServer) ->
 
 update_roster_t(LUser, LServer, LJID, Item) ->
     Username = ejabberd_odbc:escape(LUser),
-    SJID = ejabberd_odbc:escape(jlib:jid_to_binary(LJID)),
+    SJID = ejabberd_odbc:escape(jid:to_binary(LJID)),
     ItemVals = record_to_string(Item),
     ItemGroups = groups_to_string(Item),
     odbc_queries:update_roster(LServer, Username, SJID, ItemVals, ItemGroups).
 
 del_roster_t(LUser, LServer, LJID) ->
     Username = ejabberd_odbc:escape(LUser),
-    SJID = ejabberd_odbc:escape(jlib:jid_to_binary(LJID)),
+    SJID = ejabberd_odbc:escape(jid:to_binary(LJID)),
     odbc_queries:del_roster(LServer, Username, SJID).
 
 raw_to_record(LServer,
               {User, SJID, Nick, SSubscription, SAsk, SAskMessage,
                _SServer, _SSubscribe, _SType}) ->
-    case jlib:binary_to_jid(SJID) of
+    case jid:from_binary(SJID) of
         error -> error;
         JID ->
-            LJID = jlib:jid_tolower(JID),
+            LJID = jid:to_lower(JID),
             Subscription = case SSubscription of
                                <<"B">> -> both;
                                <<"T">> -> to;
@@ -228,7 +228,7 @@ raw_to_record(LServer,
 
 read_subscription_and_groups(LUser, LServer, LJID) ->
     Username = ejabberd_odbc:escape(LUser),
-    SJID = ejabberd_odbc:escape(jlib:jid_to_binary(LJID)),
+    SJID = ejabberd_odbc:escape(jid:to_binary(LJID)),
     case catch odbc_queries:get_subscription(LServer,
                                              Username, SJID)
     of
@@ -260,7 +260,7 @@ record_to_string(#roster{us = {User, _Server},
                          ask = Ask, askmessage = AskMessage}) ->
     Username = ejabberd_odbc:escape(User),
     SJID =
-    ejabberd_odbc:escape(jlib:jid_to_binary(jlib:jid_tolower(JID))),
+    ejabberd_odbc:escape(jid:to_binary(jid:to_lower(JID))),
     Nick = ejabberd_odbc:escape(Name),
     SSubscription = case Subscription of
                         both -> <<"B">>;
@@ -284,7 +284,7 @@ groups_to_string(#roster{us = {User, _Server},
                          jid = JID, groups = Groups}) ->
     Username = ejabberd_odbc:escape(User),
     SJID =
-    ejabberd_odbc:escape(jlib:jid_to_binary(jlib:jid_tolower(JID))),
+    ejabberd_odbc:escape(jid:to_binary(jid:to_lower(JID))),
     lists:foldl(fun (<<"">>, Acc) -> Acc;
                     (Group, Acc) ->
                         G = ejabberd_odbc:escape(Group),

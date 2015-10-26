@@ -322,15 +322,19 @@ safe_lookup_messages(Result, Host,
     end.
 
 -spec lookup_messages(Result :: any(), Host :: ejabberd:server(),
-        ArchiveID :: mod_mam:archive_id(), ArchiveJID :: ejabberd:jid(),
-        RSM :: jlib:rsm_in() | undefined, Borders :: mod_mam:borders() | undefined,
-        Start :: mod_mam:unix_timestamp() | undefined,
-        End :: mod_mam:unix_timestamp() | undefined, Now :: mod_mam:unix_timestamp(),
-        WithJID :: ejabberd:jid() | undefined, PageSize :: non_neg_integer(),
-        LimitPassed :: boolean(), MaxResultLimit :: non_neg_integer(),
-        IsSimple :: boolean() | opt_count) ->
-                {ok, mod_mam:lookup_result()}
-                | {error, 'policy-violation'}.
+                      ArchiveID :: mod_mam:archive_id(),
+                      ArchiveJID :: ejabberd:jid(),
+                      RSM :: jlib:rsm_in()  | undefined,
+                      Borders :: mod_mam:borders()  | undefined,
+                      Start :: mod_mam:unix_timestamp()  | undefined,
+                      End :: mod_mam:unix_timestamp()  | undefined,
+                      Now :: mod_mam:unix_timestamp(),
+                      WithJID :: ejabberd:jid()  | undefined,
+                      PageSize :: non_neg_integer(), LimitPassed :: boolean(),
+                      MaxResultLimit :: non_neg_integer(),
+                      IsSimple :: boolean()  | opt_count) ->
+                         {ok, mod_mam:lookup_result()}
+                          | {error, 'policy-violation'}.
 lookup_messages(_Result, Host, UserID, UserJID = #jid{},
                 #rsm_in{direction = aft, id = ID}, Borders,
                 Start, End, _Now, WithJID,
@@ -494,7 +498,7 @@ rows_to_uniform_format(Host, UserJID, MessageRows) ->
 
 row_to_uniform_format(DbEngine, UserJID, EscFormat, {BMessID,BSrcJID,SDataRaw}) ->
     MessID = list_to_integer(binary_to_list(BMessID)),
-    SrcJID = jlib:binary_to_jid(expand_minified_jid(UserJID, BSrcJID)),
+    SrcJID = jid:from_binary(expand_minified_jid(UserJID, BSrcJID)),
     SData = ejabberd_odbc:unescape_odbc_binary(DbEngine, SDataRaw),
     Data = ejabberd_odbc:unescape_binary(EscFormat, SData),
     Packet = binary_to_term(Data),
@@ -515,9 +519,11 @@ remove_archive(Host, UserID, _UserJID) ->
     ok.
 
 -spec purge_single_message(Result :: any(), Host :: ejabberd:server(),
-        MessID :: mod_mam:message_id(), ArchiveID :: mod_mam:archive_id(),
-        RoomJID :: ejabberd:jid(), Now :: mod_mam:unix_timestamp())
-            -> ok | {error, 'not-allowed' | 'not-found'}.
+                           MessID :: mod_mam:message_id(),
+                           ArchiveID :: mod_mam:archive_id(),
+                           RoomJID :: ejabberd:jid(),
+                           Now :: mod_mam:unix_timestamp()) ->
+                              ok  | {error, 'not-allowed'  | 'not-found'}.
 purge_single_message(_Result, Host, MessID, UserID, _UserJID, _Now) ->
     Result =
     mod_mam_utils:success_sql_query(
@@ -530,13 +536,16 @@ purge_single_message(_Result, Host, MessID, UserID, _UserJID, _Now) ->
         {updated, 1} -> ok
     end.
 
--spec purge_multiple_messages(Result :: any(), Host :: ejabberd:server(),
-        ArchiveID :: mod_mam:archive_id(), RoomJID :: ejabberd:jid(),
-        Borders :: mod_mam:borders() | undefined,
-        Start :: mod_mam:unix_timestamp() | undefined,
-        End :: mod_mam:unix_timestamp() | undefined,
-        Now :: mod_mam:unix_timestamp(),
-        WithJID :: ejabberd:jid() | undefined) -> ok | {error, 'not-allowed'}.
+-spec purge_multiple_messages(Result :: any(),
+                              Host :: ejabberd:server(),
+                              ArchiveID :: mod_mam:archive_id(),
+                              RoomJID :: ejabberd:jid(),
+                              Borders :: mod_mam:borders()  | undefined,
+                              Start :: mod_mam:unix_timestamp()  | undefined,
+                              End :: mod_mam:unix_timestamp()  | undefined,
+                              Now :: mod_mam:unix_timestamp(),
+                              WithJID :: ejabberd:jid()  | undefined) ->
+                                 ok  | {error, 'not-allowed'}.
 purge_multiple_messages(_Result, Host, UserID, UserJID, Borders,
                         Start, End, _Now, WithJID) ->
     Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID),
@@ -712,7 +721,7 @@ escape_user_id(UserID) when is_integer(UserID) ->
 
 %% @doc Strip resource, minify and escape JID.
 minify_and_escape_bare_jid(LocJID, JID) ->
-    ejabberd_odbc:escape(jid_to_opt_binary(LocJID, jlib:jid_remove_resource(JID))).
+    ejabberd_odbc:escape(jid_to_opt_binary(LocJID, jid:remove_resource(JID))).
 
 minify_and_escape_jid(LocJID, JID) ->
     ejabberd_odbc:escape(jid_to_opt_binary(LocJID, JID)).

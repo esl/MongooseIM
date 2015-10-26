@@ -113,7 +113,7 @@ iq_handler1(From, To, IQ) ->
 
 iq_handler(From, _To,  #iq{type = set, sub_el = #xmlel{name = Operation, children = []}} = IQ, CC) ->
     ?DEBUG("carbons IQ received: ~p", [IQ]),
-    {U, S, R} = jlib:jid_tolower(From),
+    {U, S, R} = jid:to_lower(From),
     Result = case Operation of
                  <<"enable">> ->
                      ?INFO_MSG("carbons enabled for user ~s@~s/~s", [U,S,R]),
@@ -222,7 +222,7 @@ remove_connection(User, Server, Resource, _Status) ->
 
 %% Direction = received | sent <received xmlns='urn:xmpp:carbons:1'/>
 send_copies(JID, To, Packet, Direction) ->
-    {U, S, R} = jlib:jid_tolower(JID),
+    {U, S, R} = jid:to_lower(JID),
     PrioRes = ejabberd_sm:get_user_present_resources(U, S),
     IsBareTo = case {Direction, To} of
                    {received, #jid{lresource = <<>>}} -> true;
@@ -243,16 +243,16 @@ send_copies(JID, To, Packet, Direction) ->
                                        _ -> 0
                                    end,
                          OrigTo = fun(Res) -> lists:member({MaxPrio, Res}, PrioRes) end,
-                         [ {jlib:make_jid({U, S, CCRes}), CC_Version}
-                           || {CCRes, CC_Version} <- resources_to_cc(U, S), not OrigTo(CCRes) ];
+                         [{jid:make({U, S, CCRes}), CC_Version}
+                          || {CCRes, CC_Version} <- resources_to_cc(U, S), not OrigTo(CCRes)];
                      true ->
-                         [ {jlib:make_jid({U, S, CCRes}), CC_Version}
-                           || {CCRes, CC_Version} <- resources_to_cc(U, S), CCRes /= R ]
+                         [{jid:make({U, S, CCRes}), CC_Version}
+                          || {CCRes, CC_Version} <- resources_to_cc(U, S), CCRes /= R]
                  end,
     lists:foreach(fun({Dest, Version}) ->
-                          {_, _, Resource} = jlib:jid_tolower(Dest),
+                          {_, _, Resource} = jid:to_lower(Dest),
                           ?DEBUG("Sending:  ~p =/= ~p", [R, Resource]),
-                          Sender = jlib:make_jid({U, S, <<>>}),
+                          Sender = jid:make({U, S, <<>>}),
                           New = build_forward_packet(JID, Packet, Sender, Dest, Direction, Version),
                           ejabberd_router:route(Sender, Dest, New)
                   end, TargetJIDs).
@@ -261,8 +261,8 @@ build_forward_packet(JID, Packet, Sender, Dest, Direction, Version) ->
     #xmlel{name = <<"message">>, 
            attrs = [{<<"xmlns">>, <<"jabber:client">>},
                     {<<"type">>, <<"chat">>},
-                    {<<"from">>, jlib:jid_to_binary(Sender)},
-                    {<<"to">>, jlib:jid_to_binary(Dest)}],
+                    {<<"from">>, jid:to_binary(Sender)},
+                    {<<"to">>, jid:to_binary(Dest)}],
            children = carbon_copy_children(Version, JID, Packet, Direction)}.
 
 carbon_copy_children(?NS_CC_1, JID, Packet, Direction) ->
@@ -302,7 +302,7 @@ complete_packet(From, #xmlel{name = <<"message">>, attrs = OrigAttrs} = Packet, 
     Attrs = lists:keystore(<<"xmlns">>, 1, OrigAttrs, {<<"xmlns">>, <<"jabber:client">>}),
     case proplists:get_value(<<"from">>, Attrs) of
         undefined ->
-            Packet#xmlel{attrs = [{<<"from">>, jlib:jid_to_binary(From)}|Attrs]};
+            Packet#xmlel{attrs = [{<<"from">>, jid:to_binary(From)}|Attrs]};
         _ ->
             Packet#xmlel{attrs = Attrs}
     end;

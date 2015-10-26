@@ -96,8 +96,8 @@ send_message_headline(From, To, Subject, Body) ->
 -spec send_packet_all_resources(FromJIDStr :: binary(), ToJIDString :: binary(),
                                 jlib:xmlel()) -> 'ok'.
 send_packet_all_resources(FromJIDString, ToJIDString, Packet) ->
-    FromJID = jlib:binary_to_jid(FromJIDString),
-    ToJID = jlib:binary_to_jid(ToJIDString),
+    FromJID = jid:from_binary(FromJIDString),
+    ToJID = jid:from_binary(ToJIDString),
     ToUser = ToJID#jid.user,
     ToServer = ToJID#jid.server,
     case ToJID#jid.resource of
@@ -129,7 +129,7 @@ send_packet_all_resources(FromJID, ToUser, ToServer, Packet) ->
 -spec send_packet_all_resources(ejabberd:jid(), ToU :: binary(), ToS :: binary(),
                                 ToR :: binary(), jlib:xmlel()) -> 'ok'.
 send_packet_all_resources(FromJID, ToU, ToS, ToR, Packet) ->
-    ToJID = jlib:make_jid(ToU, ToS, ToR),
+    ToJID = jid:make(ToU, ToS, ToR),
     ejabberd_router:route(FromJID, ToJID, Packet).
 
 

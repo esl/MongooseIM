@@ -109,9 +109,9 @@ stop_muc(Host) ->
         Host :: ejabberd:server(), ArchiveID :: mod_mam:archive_id(),
         LocJID :: ejabberd:jid(), RemJID :: ejabberd:jid()) -> any().
 get_behaviour(DefaultBehaviour, Host, UserID, _LocJID, RemJID) ->
-    RemLJID      = jlib:jid_tolower(RemJID),
-    SRemLBareJID = esc_jid(jlib:jid_remove_resource(RemLJID)),
-    SRemLJID     = esc_jid(jlib:jid_tolower(RemJID)),
+    RemLJID      = jid:to_lower(RemJID),
+    SRemLBareJID = esc_jid(jid:remove_resource(RemLJID)),
+    SRemLJID     = esc_jid(jid:to_lower(RemJID)),
     SUserID      = integer_to_list(UserID),
     case query_behaviour(Host, SUserID, SRemLJID, SRemLBareJID) of
         {selected, ["behaviour"], [{Behavour}]} ->
@@ -207,7 +207,7 @@ decode_behaviour(<<"N">>) -> never.
 
 -spec esc_jid(ejabberd:simple_jid() | ejabberd:jid()) -> binary().
 esc_jid(JID) ->
-    ejabberd_odbc:escape(jlib:jid_to_binary(JID)).
+    ejabberd_odbc:escape(jid:to_binary(JID)).
 
 
 -spec encode_first_config_row(SUserID :: string(), SBehaviour :: [65|78|82,...],

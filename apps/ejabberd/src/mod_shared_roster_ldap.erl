@@ -152,8 +152,8 @@ process_item(RosterItem, _Host) ->
     end.
 
 get_subscription_lists({F, T, P}, User, Server) ->
-    LUser = jlib:nodeprep(User),
-    LServer = jlib:nameprep(Server),
+    LUser = jid:nodeprep(User),
+    LServer = jid:nameprep(Server),
     US = {LUser, LServer},
     DisplayedGroups = get_user_displayed_groups(US),
     SRUsers = lists:usort(lists:flatmap(fun (Group) ->
@@ -164,10 +164,10 @@ get_subscription_lists({F, T, P}, User, Server) ->
     {lists:usort(SRJIDs ++ F), lists:usort(SRJIDs ++ T), P}.
 
 get_jid_info({Subscription, Groups}, User, Server, JID) ->
-    LUser = jlib:nodeprep(User),
-    LServer = jlib:nameprep(Server),
+    LUser = jid:nodeprep(User),
+    LServer = jid:nameprep(Server),
     US = {LUser, LServer},
-    {U1, S1, _} = jlib:jid_tolower(JID),
+    {U1, S1, _} = jid:to_lower(JID),
     US1 = {U1, S1},
     SRUsers = get_user_to_groups_map(US, false),
     case dict:find(US1, SRUsers) of
@@ -186,10 +186,10 @@ out_subscription(User, Server, JID, Type) ->
     process_subscription(out, User, Server, JID, Type, false).
 
 process_subscription(Direction, User, Server, JID, _Type, Acc) ->
-    LUser = jlib:nodeprep(User),
-    LServer = jlib:nameprep(Server),
+    LUser = jid:nodeprep(User),
+    LServer = jid:nameprep(Server),
     US = {LUser, LServer},
-    {U1, S1, _} = jlib:jid_tolower(jlib:jid_remove_resource(JID)),
+    {U1, S1, _} = jid:to_lower(jid:remove_resource(JID)),
     US1 = {U1, S1},
     DisplayedGroups = get_user_displayed_groups(US),
     SRUsers = lists:usort(lists:flatmap(
@@ -422,7 +422,7 @@ search_group_info(State, Group) ->
                                            end,
                                   JIDs = lists:foldl(
                                            fun ({ok, UID}, L) ->
-                                                   PUID = jlib:nodeprep(UID),
+                                                   PUID = jid:nodeprep(UID),
                                                    case PUID of
                                                        error ->
                                                            L;
