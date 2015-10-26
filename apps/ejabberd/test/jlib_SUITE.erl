@@ -16,6 +16,8 @@ all() -> [make_iq_reply_switch_to_from,
           binary_to_jid_incorrect,
           empty_binary_to_jid,
           make_jid,
+          jid_to_lower,
+          jid_replace_resource,
           correct_but_too_long_username,
           correct_but_too_long_domain,
           correct_but_too_long_resource,
@@ -79,36 +81,45 @@ binary_to_jid(_C) ->
 
 
 binary_to_jid_incorrect(_C) ->
-    Prop = ?FORALL(BinJid, invalid_jid(),
-                   error == jlib:binary_to_jid(BinJid)),
-    big_size_property(Prop, 100, 1, 42).
+    Prop = ?FORALL(BinJid, (invalid_jid()),
+                   (error == jlib:binary_to_jid(BinJid))),
+    property_with_custom_opts(Prop, 100, 1, 42).
 
 empty_binary_to_jid(_) ->
     error = jlib:binary_to_jid(<<>>).
 
 make_jid(_) ->
     Prop = ?FORALL({U, S, R}, {valid_username(), valid_domain(), valid_resource()},
-                   check_output(U, S, R, jlib:make_jid(U, S, R))),
-    big_size_property(Prop, 100, 500, 1500).
+                   (check_output(U, S, R, jlib:make_jid(U, S, R)))),
+    property_with_custom_opts(Prop, 100, 500, 1500).
 
+jid_to_lower(_) ->
+    Prop = ?FORALL({U, S, R}, {maybe_valid_username(), maybe_valid_domain(), maybe_valid_resource()},
+                   (check_jid_to_lower_output(U, S, R, jlib:jid_to_lower({U, S, R})))),
+    property_with_custom_opts(Prop, 150, 1, 42).
 
 correct_but_too_long_username(_C) ->
-    Prop = ?FORALL(Bin, valid_username(),
-                   error == jlib:nodeprep(Bin)),
-    big_size_property(Prop, 5, 1024, 2048).
+    Prop = ?FORALL(Bin, (valid_username()),
+                   (error == jlib:nodeprep(Bin))),
+    property_with_custom_opts(Prop, 5, 1024, 2048).
 
 correct_but_too_long_domain(_C) ->
-    Prop = ?FORALL(Bin, valid_domain(),
-                   error == jlib:nameprep(Bin)),
-    big_size_property(Prop, 5, 1024, 2048).
+    Prop = ?FORALL(Bin, (valid_domain()),
+                   (error == jlib:nameprep(Bin))),
+    property_with_custom_opts(Prop, 5, 1024, 2048).
 
 correct_but_too_long_resource(_C) ->
-    Prop = ?FORALL(Bin, valid_resource(),
-                   error == jlib:resourceprep(Bin)),
-    big_size_property(Prop, 5, 1024, 2048).
+    Prop = ?FORALL(Bin, (valid_resource()),
+                   (error == jlib:resourceprep(Bin))),
+    property_with_custom_opts(Prop, 5, 1024, 2048).
 
+jid_replace_resource(_) ->
+    Prop = ?FORALL({BinJid, MaybeCorrectRes},
+                   {valid_bare_jid(), maybe_valid_resource()},
+                   jid_replace_resource(BinJid, MaybeCorrectRes)),
+    prop(jid_replace_resource, Prop).
 
-big_size_property(Prop, NumTest, StartSize, StopSize) ->
+property_with_custom_opts(Prop, NumTest, StartSize, StopSize) ->
     ?assert(proper:quickcheck(Prop, [verbose, long_result,
                                      {numtests, NumTest},
                                      {start_size, StartSize},
@@ -142,6 +153,27 @@ check_output(_, _, _, error) ->
 check_output(_, _, _, _) ->
     false.
 
+check_jid_to_lower_output(<<>>, <<>>, <<>>, Result) ->
+    error == Result;
+check_jid_to_lower_output(U, S, R, {_, _, _}) ->
+    jlib:nodeprep(U) =/= error orelse
+    jlib:nameprep(S) =/= error orelse
+    jlib:resourceprep(R) =/= error;
+check_jid_to_lower_output(U, S, R, error) ->
+    jlib:nodeprep(U) == error orelse
+    jlib:nameprep(S) == error orelse
+    jlib:resourceprep(R) == error.
+
+jid_replace_resource(BinJid, Res) ->
+    Jid = jlib:binary_to_jid(BinJid),
+    Jid2 = jlib:jid_replace_resource(Jid, Res),
+    check_jid_replace_resource_output(Res, Jid2).
+
+check_jid_replace_resource_output(Resource, error) ->
+    jlib:resourceprep(Resource) == error;
+check_jid_replace_resource_output(Resource, #jid{}) ->
+    jlib:resourceprep(Resource) =/= error.
+
 valid_jid() ->
     oneof([valid_full_jid(), valid_bare_jid(), valid_domain()]).
 
@@ -168,18 +200,27 @@ invalid_jid() ->
 invalid_bare_jid() ->
     %%Oh yes, jids like domain/resource are allowed in both ejabberd and MongooseIM
     ?LET({U, S}, {?SUCHTHAT(E, invalid_username(), size(E) == 1 orelse binary:matches(E, <<"/">>) == []),
-                  valid_domain()},
+                  maybe_valid_domain()},
          <<U/binary, $@, S/binary>>).
 
 invalid_full_jid() ->
     ?LET({BareJid, R}, {invalid_bare_jid(), valid_resource()},
          <<BareJid/binary, $/, R/binary>>).
 
+maybe_valid_username() ->
+    oneof([valid_username, <<>>, invalid_username()]).
+
 invalid_username() ->
     invalid_xmpp_binary(prohibited_output_node()).
 
+maybe_valid_resource() ->
+    oneof([valid_resource(), <<>>, invalid_resource()]).
+
 invalid_resource() ->
     invalid_xmpp_binary([<<238,190,187>>]). %<<"\x{EFBB}"/utf8>>
+
+maybe_valid_domain() ->
+    oneof([valid_domain(), <<>>, invalid_domain()]).
 
 invalid_domain() ->
     invalid_resource().
