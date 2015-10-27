@@ -17,6 +17,7 @@
 -define(DEFAULT_ALL_CAN_INVITE, false).
 -define(DEFAULT_MAX_OCCUPANTS, infinity).
 -define(DEFAULT_ROOMS_PER_PAGE, 10).
+-define(DEFAULT_ROOMS_IN_ROSTERS, false).
 
 -type config() :: [{Key :: atom(), Value :: term()}].
 -type raw_config() :: [{Key :: binary(), Value :: binary()}].

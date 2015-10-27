@@ -15,8 +15,8 @@
 %%% * all_can_invite (false) - Every room occupant can invite a user to the room
 %%% * max_occupants (infinity) - Maximal occupant count per room
 %%% * rooms_per_page (10) - Maximal room count per result page in room disco
-%%% !!NOT IMPLEMENTED YET!! * rooms_in_rosters (false) - If enabled, rooms that user occupies will be included in
-%%%                                                      user's roster
+%%% * rooms_in_rosters (false) - If enabled, rooms that user occupies will be included in
+%%%                              user's roster
 %%%
 %%%----------------------------------------------------------------------
 
@@ -38,7 +38,8 @@
 %% Hook handlers
 -export([prevent_service_unavailable/3,
          get_muc_service/5,
-         remove_user/2]).
+         remove_user/2,
+         add_rooms_to_roster/2]).
 
 %% For propEr
 -export([apply_rsm/3]).
@@ -46,6 +47,7 @@
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 -include("mod_muc_light.hrl").
+-include("mod_roster.hrl").
 
 -define(DEFAULT_HOST, <<"muclight.@HOST@">>).
 
@@ -81,6 +83,12 @@ start(Host, Opts) ->
                        ?MODULE, prevent_service_unavailable, 90),
     ejabberd_hooks:add(remove_user, Host, ?MODULE, remove_user, 50),
     ejabberd_hooks:add(disco_local_items, Host, ?MODULE, get_muc_service, 50),
+    case gen_mod:get_opt(rooms_in_rosters, Opts, ?DEFAULT_ROOMS_IN_ROSTERS) of
+        false ->
+            ignore;
+        true ->
+            ejabberd_hooks:add(roster_get, Host, ?MODULE, add_rooms_to_roster, 50)
+    end,
 
     MyDomain = gen_mod:get_opt_host(Host, Opts, ?DEFAULT_HOST),
     ejabberd_router:register_route(MyDomain, {apply, ?MODULE, route}),
@@ -107,6 +115,7 @@ stop(Host) ->
 
     ?BACKEND:stop(Host, MyDomain),
 
+    ejabberd_hooks:delete(roster_get, Host, ?MODULE, add_rooms_to_roster, 50),
     ejabberd_hooks:delete(offline_message_hook, Host,
                           ?MODULE, prevent_service_unavailable, 90),
     ejabberd_hooks:delete(remove_user, Host, ?MODULE, remove_user, 50),
@@ -201,6 +210,26 @@ remove_user(User, Server) ->
     case ?BACKEND:remove_user(UserUS, Version) of
         {error, _} = Err -> ?ERROR_MSG("hook=remove_user,error=~p", [Err]);
         AffectedRooms -> bcast_removed_user(UserUS, AffectedRooms, Version)
+    end.
+
+-spec add_rooms_to_roster(Acc :: [#roster{}], UserUS :: ejabberd:simple_bare_jid()) -> [#roster{}].
+add_rooms_to_roster(Acc, UserUS) ->
+    case ?BACKEND:get_user_rooms(UserUS) of
+        {ok, Rooms} ->
+            lists:foldl(
+              fun({{RoomU, RoomS}, RoomName, RoomVersion}, Acc0) ->
+                      Item = #roster{
+                                jid = jlib:make_jid_noprep(RoomU, RoomS, <<>>),
+                                name = RoomName,
+                                subscription = to,
+                                groups = [?NS_MUC_LIGHT],
+                                xs = [#xmlel{ name = <<"version">>,
+                                              children = [#xmlcdata{ content = RoomVersion }] }]
+                               },
+                      [Item | Acc0]
+              end, Acc, get_rooms_info(lists:sort(Rooms)));
+        _ ->
+            Acc
     end.
 
 %%====================================================================

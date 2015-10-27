@@ -50,6 +50,7 @@ groups() ->
                             disco_features,
                             disco_rooms,
                             disco_rooms_rsm,
+                            rooms_in_rosters,
                             unauthorized_stanza
                          ]},
      {occupant, [sequence], [
@@ -226,6 +227,22 @@ disco_rooms_rsm(Config) ->
             escalus:send(Alice, DiscoStanza3),
             escalus:assert(is_error, [<<"cancel">>, <<"item-not-found">>],
                            escalus:wait_for_stanza(Alice))
+        end).
+
+rooms_in_rosters(Config) ->
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+            escalus:send(Alice, escalus_stanza:roster_get()),
+            RosterResult = escalus:wait_for_stanza(Alice),
+            escalus_assert:is_roster_result(RosterResult),
+
+            [Item] = exml_query:paths(
+                       RosterResult, [{element, <<"query">>}, {element, <<"item">>}]),
+            ProperJID = room_bin_jid(?ROOM),
+            ProperJID = exml_query:attr(Item, <<"jid">>),
+            ProperName = proplists:get_value(roomname, default_config()),
+            ProperName = exml_query:attr(Item, <<"name">>),
+            ProperVer = ver(1),
+            ProperVer = exml_query:path(Item, [{element, <<"version">>}, cdata])
         end).
 
 unauthorized_stanza(Config) ->
