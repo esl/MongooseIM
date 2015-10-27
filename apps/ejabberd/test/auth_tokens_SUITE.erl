@@ -109,7 +109,6 @@ join_and_split_with_base16_and_zeros_are_reversible_property(_) ->
          ?FORALL(RawToken, serialized_token(<<0>>),
                  is_join_and_split_with_base16_and_zeros_reversible(RawToken))).
 
-%% TODO: fails due to attrs / children non-guaranteed order
 serialize_deserialize_property(_) ->
     prop(serialize_deserialize_property,
          ?FORALL(Token, token(), is_serialization_reversible(Token))).
