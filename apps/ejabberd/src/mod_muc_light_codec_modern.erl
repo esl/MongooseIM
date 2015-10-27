@@ -164,8 +164,8 @@ decode_iq(_From, #iq{ xmlns = ?NS_MUC_LIGHT_CREATE, type = set, sub_el = QueryEl
     end;
 decode_iq(_From, #iq{ xmlns = ?NS_MUC_LIGHT_DESTROY, type = set, id = ID }) ->
     {ok, {set, #destroy{ id = ID }}};
-decode_iq(_From, #iq{ xmlns = ?NS_DISCO_ITEMS, type = get, id = ID}) ->
-    {ok, {get, #disco_items{ id = ID }}};
+decode_iq(_From, #iq{ xmlns = ?NS_DISCO_ITEMS, type = get, id = ID} = IQ) ->
+    {ok, {get, #disco_items{ id = ID, rsm = jlib:rsm_decode(IQ) }}};
 decode_iq(_From, #iq{ xmlns = ?NS_DISCO_INFO, type = get, id = ID}) ->
     {ok, {get, #disco_info{ id = ID }}};
 decode_iq(_From, #iq{ type = error }) ->
@@ -242,13 +242,14 @@ encode_iq({get, #disco_info{ id = ID }}, _RoomJID, _RoomBin, _HandleFun) ->
                                 {<<"name">>, <<"MUC Light">>}]},
                 #xmlel{name = <<"feature">>, attrs = [{<<"var">>, ?NS_MUC_LIGHT}]}],
     {reply, ?NS_DISCO_INFO, DiscoEls, ID};
-encode_iq({get, #disco_items{ rooms = Rooms, id = ID }}, _RoomJID, _RoomBin, _HandleFun) ->
+encode_iq({get, #disco_items{ rooms = Rooms, id = ID, rsm = RSMOut }},
+          _RoomJID, _RoomBin, _HandleFun) ->
     DiscoEls = [ #xmlel{ name = <<"item">>,
                          attrs = [{<<"jid">>, <<RoomU/binary, $@, RoomS/binary>>},
                                   {<<"name">>, RoomName},
                                   {<<"version">>, RoomVersion}] }
                  || {{RoomU, RoomS}, RoomName, RoomVersion} <- Rooms ],
-    {reply, ?NS_DISCO_INFO, DiscoEls, ID};
+    {reply, ?NS_DISCO_INFO, jlib:rsm_encode(RSMOut) ++ DiscoEls, ID};
 encode_iq({get, #config{ prev_version = SameVersion, version = SameVersion, id = ID }},
           _RoomJID, _RoomBin, _HandleFun) ->
     {reply, ID};

@@ -14,6 +14,7 @@
 %%% * all_can_configure (false) - Every room occupant can change room configuration
 %%% * all_can_invite (false) - Every room occupant can invite a user to the room
 %%% * max_occupants (infinity) - Maximal occupant count per room
+%%% * rooms_per_page (10) - Maximal room count per result page in room disco
 %%% !!NOT IMPLEMENTED YET!! * rooms_in_rosters (false) - If enabled, rooms that user occupies will be included in
 %%%                                                      user's roster
 %%%
@@ -266,23 +267,92 @@ handle_disco_info_get(From, To, DiscoInfo) ->
 handle_disco_items_get(From, To, DiscoItems0, OrigPacket) ->
     case ?BACKEND:get_user_rooms(jlib:jid_to_lus(From)) of
         {ok, Rooms} ->
-            RoomsInfo = get_rooms_info(Rooms),
-            DiscoItems = DiscoItems0#disco_items{ rooms = RoomsInfo },
-            ?CODEC:encode({get, DiscoItems}, From, jlib:jid_to_lus(To),
-                          fun ejabberd_router:route/3);
+            RoomsInfo = get_rooms_info(lists:sort(Rooms)),
+            RoomsPerPage = get_service_opt(rooms_per_page, ?DEFAULT_ROOMS_PER_PAGE),
+            case apply_rsm(RoomsInfo, length(RoomsInfo),
+                           page_service_limit(DiscoItems0#disco_items.rsm, RoomsPerPage)) of
+                {ok, RoomsInfoSlice, RSMOut} ->
+                    DiscoItems = DiscoItems0#disco_items{ rooms = RoomsInfoSlice, rsm = RSMOut },
+                    ?CODEC:encode({get, DiscoItems}, From, jlib:jid_to_lus(To),
+                                  fun ejabberd_router:route/3);
+                {error, item_not_found} ->
+                    mod_muc_light_codec:encode_error({error, item_not_found}, From, To, OrigPacket,
+                                                     fun ejabberd_router:route/3)
+
+            end;
         {error, Error} ->
             ?ERROR_MSG("Couldn't get room list for user ~p: ~p", [From, Error]),
             mod_muc_light_codec:encode_error({error, internal_server_error}, From, To, OrigPacket,
                                              fun ejabberd_router:route/3)
     end.
 
--spec get_rooms_info(Rooms :: [ejabberd:simple_bare_jid()]) ->
-    [{RoomUS :: ejabberd:simple_bare_jid(), RoomName :: binary(), RoomVersion :: binary()}].
+-spec get_rooms_info(Rooms :: [ejabberd:simple_bare_jid()]) -> [disco_room_info()].
 get_rooms_info([]) ->
     [];
 get_rooms_info([RoomUS | RRooms]) ->
     {ok, RoomName, Version} = ?BACKEND:get_config(RoomUS, roomname),
     [{RoomUS, RoomName, Version} | get_rooms_info(RRooms)].
+
+-spec apply_rsm(RoomsInfo :: [disco_room_info()], RoomsInfoLen :: non_neg_integer(),
+                RSMIn :: jlib:rsm_in()) ->
+    {ok, RoomsInfoSlice :: [disco_room_info()], RSMOut :: jlib:rsm_out()} | {error, item_not_found}.
+apply_rsm(RoomsInfo, _RoomsInfoLen, none) ->
+    {ok, RoomsInfo, none};
+apply_rsm(_RoomsInfo, _RoomsInfoLen, #rsm_in{ max = Max }) when Max < 0 ->
+    {error, item_not_found};
+apply_rsm(_RoomsInfo, RoomsInfoLen, #rsm_in{ max = 0 }) ->
+    {ok, [], #rsm_out{ count = RoomsInfoLen }};
+apply_rsm(RoomsInfo, RoomsInfoLen, #rsm_in{ direction = undefined, id = undefined,
+                                            index = undefined } = RSMIn) ->
+    apply_rsm(RoomsInfo, RoomsInfoLen, RSMIn#rsm_in{ index = 0 });
+apply_rsm(RoomsInfo, RoomsInfoLen, #rsm_in{ direction = before, id = <<>>, max = Max }) ->
+    apply_rsm(RoomsInfo, RoomsInfoLen, #rsm_in{ max = Max, index = RoomsInfoLen - Max });
+apply_rsm(RoomsInfo, RoomsInfoLen, #rsm_in{ index = undefined, direction = Direction,
+                                            id = RoomUSBin, max = Max }) ->
+    case find_room_pos(RoomUSBin, RoomsInfo) of
+        {error, item_not_found} ->
+            {error, item_not_found};
+        RoomPos ->
+            FirstPos = case {Direction, RoomPos - Max} of
+                           {aft, _} -> RoomPos + 1;
+                           {before, TooLow} when TooLow < 1 -> 1;
+                           {before, FirstPos0} -> FirstPos0
+                       end,
+            [{FirstRoomUS, _, _} | _] = RoomsInfoSlice = lists:sublist(RoomsInfo, FirstPos, Max),
+            {LastRoomUS, _, _} = lists:last(RoomsInfoSlice),
+            {ok, RoomsInfoSlice, #rsm_out{ count = RoomsInfoLen,
+                                           index = FirstPos - 1,
+                                           first = jlib:jid_to_binary(FirstRoomUS),
+                                           last = jlib:jid_to_binary(LastRoomUS) }}
+    end;
+apply_rsm(RoomsInfo, RoomsInfoLen, #rsm_in{ max = Max, index = Index}) when Index < RoomsInfoLen ->
+    [{FirstRoomUS, _, _} | _] = RoomsInfoSlice = lists:sublist(RoomsInfo, Index + 1, Max),
+    {LastRoomUS, _, _} = lists:last(RoomsInfoSlice),
+    {ok, RoomsInfoSlice, #rsm_out{ count = RoomsInfoLen,
+                                   index = Index,
+                                   first = jlib:jid_to_binary(FirstRoomUS),
+                                   last = jlib:jid_to_binary(LastRoomUS) }}.
+
+-spec page_service_limit(RSMIn :: jlib:rsm_in() | undefined, ServiceMax :: integer()) ->
+    jlib:rsm_in() | none.
+page_service_limit(none, infinity) -> none;
+page_service_limit(none, ServiceMax) -> #rsm_in{ max = ServiceMax };
+page_service_limit(#rsm_in{ max = Max } = RSMIn, ServiceMax) when Max =< ServiceMax -> RSMIn;
+page_service_limit(RSMIn, ServiceMax) -> RSMIn#rsm_in{ max = ServiceMax }.
+
+-spec find_room_pos(RoomUSBin :: binary(), RoomsInfo :: [disco_room_info()]) ->
+    pos_integer() | {error, item_not_found}.
+find_room_pos(RoomUSBin, RoomsInfo) ->
+    case jlib:binary_to_jid(RoomUSBin) of
+        error -> {error, item_not_found};
+        #jid{ luser = RoomU, lserver = RoomS } -> find_room_pos({RoomU, RoomS}, RoomsInfo, 1)
+    end.
+
+-spec find_room_pos(RoomUS :: ejabberd:simple_bare_jid(), RoomsInfo :: [disco_room_info()],
+                    Pos :: pos_integer()) -> pos_integer() | {error, item_not_found}.
+find_room_pos(RoomUS, [{RoomUS, _, _} | _], Pos) -> Pos;
+find_room_pos(RoomUS, [_ | RRooms], Pos) -> find_room_pos(RoomUS, RRooms, Pos + 1);
+find_room_pos(_, [], _) -> {error, item_not_found}.
 
 -spec handle_blocking(From :: jlib:jid(), To :: jlib:jid(),
                       BlockingReq :: {get | set, #blocking{}},

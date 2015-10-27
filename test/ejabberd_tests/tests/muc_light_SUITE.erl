@@ -49,6 +49,7 @@ groups() ->
                             disco_service,
                             disco_features,
                             disco_rooms,
+                            disco_rooms_rsm,
                             unauthorized_stanza
                          ]},
      {occupant, [sequence], [
@@ -111,6 +112,12 @@ end_per_group(_GroupName, Config) ->
 
 init_per_testcase(mam_simple, Config) ->
     escalus:init_per_testcase(mam_simple, Config);
+init_per_testcase(disco_rooms_rsm, Config) ->
+    set_default_mod_config(),
+    set_mod_config(rooms_per_page, 1),
+    create_room(?ROOM, ?MUCHOST, alice, [bob, kate], Config, ver(1)),
+    create_room(?ROOM2, ?MUCHOST, alice, [bob, kate], Config, ver(1)),
+    escalus:init_per_testcase(disco_rooms_rsm, Config);
 init_per_testcase(CaseName, Config) ->
     set_default_mod_config(),
     create_room(?ROOM, ?MUCHOST, alice, [bob, kate], Config, ver(1)),
@@ -181,6 +188,44 @@ disco_rooms(Config) ->
             ProperVer = ver(1),
             ProperVer = exml_query:attr(Item, <<"version">>),
             escalus:assert(is_stanza_from, [?MUCHOST], Stanza)
+        end).
+
+disco_rooms_rsm(Config) ->
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+            DiscoStanza = escalus_stanza:to(escalus_stanza:iq_get(?NS_DISCO_ITEMS, []), ?MUCHOST),
+            escalus:send(Alice, DiscoStanza),
+            %% we should get 1 room with RSM info
+            Stanza = escalus:wait_for_stanza(Alice),
+            [Item] = exml_query:paths(Stanza, [{element, <<"query">>}, {element, <<"item">>}]),
+            ProperJID = room_bin_jid(?ROOM),
+            ProperJID = exml_query:attr(Item, <<"jid">>),
+
+            RSM = #xmlel{ name = <<"set">>,
+                          attrs = [{<<"xmlns">>, ?NS_RSM}],
+                          children = [ #xmlel{ name = <<"max">>,
+                                               children = [#xmlcdata{ content = <<"10">> }] },
+                                       #xmlel{ name = <<"before">> } ]  },
+            DiscoStanza2 = escalus_stanza:to(
+                             escalus_stanza:iq_get(?NS_DISCO_ITEMS, [RSM]), ?MUCHOST),
+            escalus:send(Alice, DiscoStanza2),
+            %% we should get second room
+            Stanza2 = escalus:wait_for_stanza(Alice),
+            [Item2] = exml_query:paths(Stanza2, [{element, <<"query">>}, {element, <<"item">>}]),
+            ProperJID2 = room_bin_jid(?ROOM2),
+            ProperJID2 = exml_query:attr(Item2, <<"jid">>),
+
+            BadAfter = #xmlel{ name = <<"after">>,
+                               children = [#xmlcdata{ content = <<"oops@muclight.localhost">> }] },
+            RSM2 = #xmlel{ name = <<"set">>,
+                          attrs = [{<<"xmlns">>, ?NS_RSM}],
+                          children = [ #xmlel{ name = <<"max">>,
+                                               children = [#xmlcdata{ content = <<"10">> }] },
+                                       BadAfter ]  },
+            DiscoStanza3 = escalus_stanza:to(
+                             escalus_stanza:iq_get(?NS_DISCO_ITEMS, [RSM2]), ?MUCHOST),
+            escalus:send(Alice, DiscoStanza3),
+            escalus:assert(is_error, [<<"cancel">>, <<"item-not-found">>],
+                           escalus:wait_for_stanza(Alice))
         end).
 
 unauthorized_stanza(Config) ->
@@ -878,7 +923,8 @@ set_default_mod_config() ->
        {blocking, true},
        {all_can_configure, false},
        {all_can_invite, false},
-       {max_occupants, infinity}
+       {max_occupants, infinity},
+       {rooms_per_page, infinity}
       ]).
 
 -spec set_mod_config(K :: atom(), V :: any()) -> ok.

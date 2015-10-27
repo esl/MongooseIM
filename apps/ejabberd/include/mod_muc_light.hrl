@@ -16,7 +16,7 @@
 -define(DEFAULT_ALL_CAN_CONFIGURE, false).
 -define(DEFAULT_ALL_CAN_INVITE, false).
 -define(DEFAULT_MAX_OCCUPANTS, infinity).
--define(SIMPLE_AFF_CHANGES_MODEL, false).
+-define(DEFAULT_ROOMS_PER_PAGE, 10).
 
 -type config() :: [{Key :: atom(), Value :: term()}].
 -type raw_config() :: [{Key :: binary(), Value :: binary()}].
@@ -39,15 +39,18 @@
         Who :: ejabberd:simple_bare_jid()
        }.
 
+-type disco_room_info() :: {RoomUS :: ejabberd:simple_bare_jid(),
+                            RoomName :: binary(),
+                            RoomVersion :: binary()}.
+
 -record(disco_info, {
           id = <<>> :: binary()
          }).
 
 -record(disco_items, {
           id = <<>> :: binary(),
-          rooms = [] :: [{RoomUS :: ejabberd:simple_bare_jid(),
-                          RoomName :: binary(),
-                          RoomVersion :: binary()}]
+          rooms = [] :: [disco_room_info()],
+          rsm = none :: none | jlib:rsm_in() | jlib:rsm_out()
          }).
 
 -record(msg, {
