@@ -11,7 +11,10 @@
 prohibited_output_node() ->
     [$", $&, $', $/, $:, $<, $>, $@, " "].
 
-all() -> [make_iq_reply_switch_to_from,
+all() -> [make_iq_reply_changes_type_to_result,
+          make_iq_reply_changes_to_to_from,
+          make_iq_reply_switches_from_to_to,
+          make_iq_reply_switches_to_and_from_attrs,
           binary_to_jid,
           binary_to_jid_incorrect,
           empty_binary_to_jid,
@@ -34,45 +37,52 @@ end_per_suite(C) ->
     C.
 
 
-make_iq_reply_switch_to_from(_C) ->
+make_iq_reply_switches_to_and_from_attrs(_C) ->
     ToJid = <<"test@esl.com/res">>,
     FromJid = <<"test2@esl.com/res2">>,
-
-    #xmlel{attrs = Attrs} = BaseIQ = make_iq(),
-
-    BaseIQReply = jlib:make_result_iq_reply(BaseIQ),
-    <<"result">> = exml_query:attr(BaseIQReply, <<"type">>),
-
-    IQWithTo = BaseIQ#xmlel{attrs = [{<<"to">>, ToJid} | Attrs]},
-    WithToReply = jlib:make_result_iq_reply(IQWithTo),
-    <<"result">> = exml_query:attr(WithToReply, <<"type">>),
-    ToJid = exml_query:attr(WithToReply, <<"from">>),
-
-    IQWithFrom = BaseIQ#xmlel{attrs = [{<<"from">>, FromJid} | Attrs]},
-    WithFromReply = jlib:make_result_iq_reply(IQWithFrom),
-    <<"result">> = exml_query:attr(WithFromReply, <<"type">>),
-    FromJid = exml_query:attr(WithFromReply, <<"to">>),
-
+    #xmlel{attrs = Attrs} = BaseIQ = base_iq(),
 
     IQWithToAndFrom = BaseIQ#xmlel{attrs = [{<<"to">>, ToJid},
                                             {<<"from">>, FromJid} | Attrs]},
 
     WithToFromReply = jlib:make_result_iq_reply(IQWithToAndFrom),
+
     <<"result">> = exml_query:attr(WithToFromReply, <<"type">>),
     FromJid = exml_query:attr(WithToFromReply, <<"to">>),
-    ToJid = exml_query:attr(WithToFromReply, <<"from">>),
-    ok.
+    ToJid = exml_query:attr(WithToFromReply, <<"from">>).
 
+make_iq_reply_switches_from_to_to(_C) ->
+    FromJid = <<"test2@esl.com/res2">>,
+    #xmlel{attrs = Attrs} = BaseIQ = base_iq(),
+    IQWithFrom = BaseIQ#xmlel{attrs = [{<<"from">>, FromJid} | Attrs]},
 
+    WithFromReply = jlib:make_result_iq_reply(IQWithFrom),
 
-make_iq() ->
+    <<"result">> = exml_query:attr(WithFromReply, <<"type">>),
+    FromJid = exml_query:attr(WithFromReply, <<"to">>).
+
+make_iq_reply_changes_to_to_from(_C) ->
+    ToJid = <<"test@esl.com/res">>,
+    #xmlel{attrs = Attrs} = BaseIQ = base_iq(),
+    IQWithTo = BaseIQ#xmlel{attrs = [{<<"to">>, ToJid} | Attrs]},
+
+    WithToReply = jlib:make_result_iq_reply(IQWithTo),
+
+    <<"result">> = exml_query:attr(WithToReply, <<"type">>),
+    ToJid = exml_query:attr(WithToReply, <<"from">>).
+
+make_iq_reply_changes_type_to_result(_) ->
+    BaseIQReply = jlib:make_result_iq_reply(base_iq()),
+    <<"result">> = exml_query:attr(BaseIQReply, <<"type">>).
+
+base_iq() ->
     #xmlel{name = <<"iq">>,
-           attrs = [{<<"id">>, base64:encode(crypto:rand_bytes(4))},
-                    {<<"xmlns">>, <<"jabber:client">>},
-                    {<<"type">>, <<"set">>}],
-           children = [#xmlel{name = <<"session">>,
-                              attrs = [{<<"xmlns">>, <<"urn:ietf:params:xml:ns:xmpp-session">>}]}
-                      ]}.
+  attrs = [{<<"id">>, base64:encode(crypto:rand_bytes(4))},
+           {<<"xmlns">>, <<"jabber:client">>},
+           {<<"type">>, <<"set">>}],
+  children = [#xmlel{name = <<"session">>,
+                     attrs = [{<<"xmlns">>, <<"urn:ietf:params:xml:ns:xmpp-session">>}]}
+             ]}.
 
 binary_to_jid(_C) ->
     Prop = ?FORALL(BinJid, valid_jid(),
