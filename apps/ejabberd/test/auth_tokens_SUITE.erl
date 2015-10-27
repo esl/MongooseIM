@@ -189,6 +189,9 @@ revoked_token_is_not_valid(_) ->
 %% Helpers
 %%
 
+datetime_to_seconds(DateTime) ->
+    calendar:datetime_to_gregorian_seconds(DateTime).
+
 seconds_to_datetime(Seconds) ->
     calendar:gregorian_seconds_to_datetime(Seconds).
 
@@ -255,7 +258,7 @@ valid_seq_no_threshold() ->
     3.
 
 valid_expiry_datetime() ->
-    ?LET(Seconds, uniform( datetime_to_seconds(validity_threshold()),
+    ?LET(Seconds, integer( datetime_to_seconds(validity_threshold()),
                            datetime_to_seconds({{2100,1,1},{0,0,0}}) ),
          seconds_to_datetime(Seconds)).
 
