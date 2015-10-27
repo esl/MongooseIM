@@ -98,7 +98,7 @@ expiry_date_roundtrip_test(_) ->
 
 join_and_split_with_base16_and_zeros_are_reversible_property(_) ->
     prop(join_and_split_are_reversible_property,
-         ?FORALL(RawToken, token(<<0>>),
+         ?FORALL(RawToken, serialized_token(<<0>>),
                  is_join_and_split_with_base16_and_zeros_reversible(RawToken))).
 
 %% TODO: fails due to attrs / children non-guaranteed order
@@ -225,7 +225,7 @@ token_gen({Type, Expiry, JID, SeqNo, VCard}) ->
             ?TESTED:token_with_mac(T#token{vcard = VCard})
     end.
 
-token(Sep) ->
+serialized_token(Sep) ->
     ?LET({Type, JID, Expiry, SeqNo},
          {oneof([<<"access">>, <<"refresh">>]), bare_jid(), expiry_date_as_seconds(), seq_no()},
          case Type of
