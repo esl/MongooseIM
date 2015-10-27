@@ -5,6 +5,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("common_test/include/ct.hrl").
 -include("mod_muc_light.hrl").
+-include("jlib.hrl").
 
 -define(DOMAIN, <<"localhost">>).
 
@@ -14,7 +15,8 @@
 
 all() ->
     [
-     {group, aff_changes}
+     {group, aff_changes},
+     {group, rsm_disco}
     ].
 
 groups() ->
@@ -22,8 +24,21 @@ groups() ->
      {aff_changes, [parallel], [
                                 aff_change_success,
                                 aff_change_bad_request
-                               ]}
+                               ]},
+     {rsm_disco, [parallel], [
+                              rsm_disco_success,
+                              rsm_disco_item_not_found
+                             ]}
     ].
+
+init_per_group(rsm_disco, Config) ->
+    application:start(p1_stringprep),
+    Config;
+init_per_group(_, Config) ->
+    Config.
+
+end_per_group(_, Config) ->
+    Config.
 
 %% ------------------------------------------------------------------
 %% Test cases
@@ -34,6 +49,12 @@ aff_change_success(_Config) ->
 
 aff_change_bad_request(_Config) ->
     ?assert(proper:quickcheck(prop_aff_change_bad_request())).
+
+rsm_disco_success(_Config) ->
+    ?assert(proper:quickcheck(prop_rsm_disco_success())).
+
+rsm_disco_item_not_found(_Config) ->
+    ?assert(proper:quickcheck(prop_rsm_disco_item_not_found())).
 
 %% ------------------------------------------------------------------
 %% Properties and validators
@@ -79,9 +100,40 @@ prop_aff_change_bad_request() ->
                 true
             end).
 
+prop_rsm_disco_success() ->
+    ?FORALL({RoomsInfo, RSMIn, ProperSlice, FirstIndex}, valid_rsm_disco(),
+            begin
+                RoomsInfoLen = length(RoomsInfo),
+                {ok, ProperSlice, RSMOut} = mod_muc_light:apply_rsm(
+                                              RoomsInfo, RoomsInfoLen, RSMIn),
+                RoomsInfoLen = RSMOut#rsm_out.count,
+                case RSMIn#rsm_in.max of
+                    0 ->
+                        true;
+                    _ ->
+                        #rsm_out{ first = RSMFirst, last = RSMLast } = RSMOut,
+                        FirstIndex = RSMOut#rsm_out.index,
+                        {FirstRoom, _, _} = hd(ProperSlice),
+                        {LastRoom, _, _} = lists:last(ProperSlice),
+                        RSMFirst = jlib:jid_to_binary(FirstRoom),
+                        RSMLast = jlib:jid_to_binary(LastRoom),
+                        true
+                end
+            end).
+
+prop_rsm_disco_item_not_found() ->
+    ?FORALL({RoomsInfo, RSMIn}, invalid_rsm_disco(),
+            begin
+                {error, item_not_found} = mod_muc_light:apply_rsm(
+                                            RoomsInfo, length(RoomsInfo), RSMIn),
+                true
+            end).
+
 %% ------------------------------------------------------------------
 %% Complex generators
 %% ------------------------------------------------------------------
+
+%% ----------------------- Affilliations -----------------------
 
 change_aff_params() ->
     ?LET(WithOwner, with_owner(),
@@ -172,6 +224,60 @@ meaningless_change_by_aff(AffUsers, Changes0, other) ->
              {AffUsers, Changes}
          end).
 
+%% ----------------------- Disco RSM -----------------------
+
+valid_rsm_disco() ->
+    ?LET(RSMType, rsm_type(), valid_rsm_disco(RSMType)).
+
+valid_rsm_disco(RSMType) ->
+    ?LET({BeforeL0, ProperSlice, AfterL0},
+         {rooms_info(<<"-">>, RSMType == aft), rooms_info(<<>>), rooms_info(<<"+">>)},
+         begin
+             BeforeL = lists:usort(BeforeL0),
+             AfterL = lists:usort(AfterL0),
+             RoomsInfo = BeforeL ++ ProperSlice ++ AfterL,
+             FirstIndex = length(BeforeL),
+             RSMIn = make_rsm_in(RSMType, ProperSlice, FirstIndex, BeforeL, AfterL),
+             {RoomsInfo, RSMIn, ProperSlice, FirstIndex}
+         end).
+
+make_rsm_in(index, ProperSlice, FirstIndex, _BeforeL, _AfterL) ->
+    #rsm_in{
+       max = length(ProperSlice),
+       index = FirstIndex
+      };
+make_rsm_in(aft, ProperSlice, _FirstIndex, BeforeL, _AfterL) ->
+    #rsm_in{
+       max = length(ProperSlice),
+       direction = aft,
+       id = jlib:jid_to_binary(element(1, lists:last(BeforeL)))
+      };
+make_rsm_in(before, ProperSlice, _FirstIndex, _BeforeL, AfterL) ->
+    #rsm_in{
+       max = length(ProperSlice),
+       direction = before,
+       id = case AfterL of
+                [] -> <<>>;
+                _ -> jlib:jid_to_binary(element(1, hd(AfterL)))
+            end
+      }.
+
+invalid_rsm_disco() ->
+    ?LET({RoomsInfo, Nonexistent, RSMType}, {rooms_info(<<"-">>), room_us(<<"+">>), rsm_type()},
+             {RoomsInfo, make_invalid_rsm_in(RSMType, RoomsInfo, Nonexistent)}).
+
+make_invalid_rsm_in(index, RoomsInfo, _Nonexistent) ->
+    #rsm_in{
+       max = 10,
+       index = length(RoomsInfo) + 1
+      };
+make_invalid_rsm_in(Direction, _RoomsInfo, Nonexistent) ->
+    #rsm_in{
+       max = 10,
+       direction = Direction,
+       id = jlib:jid_to_binary(Nonexistent)
+      }.
+
 %% ------------------------------------------------------------------
 %% Simple generators
 %% ------------------------------------------------------------------
@@ -187,6 +293,21 @@ with_owner(L, _) -> L.
 
 fail_gen_fun() ->
     oneof([owner_problem, duplicated_user, meaningless_change]).
+
+rsm_type() ->
+    oneof([before, aft, index]).
+
+rooms_info(Prefix) ->
+    rooms_info(Prefix, false).
+
+rooms_info(Prefix, true = _NonEmpty) ->
+    non_empty(rooms_info(Prefix, false));
+rooms_info(Prefix, false) ->
+    list({room_us(Prefix), any, any}).
+
+room_us(Prefix) ->
+    ?LET({U, S}, {prop_helper:alnum_bitstring(), prop_helper:alnum_bitstring()},
+         {<<Prefix/binary, U/binary>>, S}).
 
 %% ------------------------------------------------------------------
 %% Utils

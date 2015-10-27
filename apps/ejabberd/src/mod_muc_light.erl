@@ -40,6 +40,9 @@
          get_muc_service/5,
          remove_user/2]).
 
+%% For propEr
+-export([apply_rsm/3]).
+
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 -include("mod_muc_light.hrl").
@@ -331,7 +334,9 @@ apply_rsm(RoomsInfo, RoomsInfoLen, #rsm_in{ max = Max, index = Index}) when Inde
     {ok, RoomsInfoSlice, #rsm_out{ count = RoomsInfoLen,
                                    index = Index,
                                    first = jlib:jid_to_binary(FirstRoomUS),
-                                   last = jlib:jid_to_binary(LastRoomUS) }}.
+                                   last = jlib:jid_to_binary(LastRoomUS) }};
+apply_rsm(_RoomsInfo, _RoomsInfoLen, _RSMIn) ->
+    {error, item_not_found}.
 
 -spec page_service_limit(RSMIn :: jlib:rsm_in() | undefined, ServiceMax :: integer()) ->
     jlib:rsm_in() | none.
