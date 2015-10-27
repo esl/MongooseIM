@@ -39,19 +39,24 @@ groups() ->
     ].
 
 init_per_suite(C) ->
+    %lager:start(),
     stringprep:start(),
     xml:start(),
     C.
 
-end_per_suite(C) -> C.
+end_per_suite(C) ->
+    %application:stop(lager),
+    C.
 
 init_per_testcase(Test, Config)
         when Test =:= serialize_deserialize_property;
              Test =:= validation_test;
              Test =:= validation_property ->
     mock_mongoose_metrics(),
-    Config1 = async_helper:start(Config, ejabberd_hooks, start_link, []),
+    Config1 = async_helper:start(Config, [{ejabberd_hooks, start_link, []},
+                                          {gen_mod, start, []}]),
     mock_keystore(),
+    mock_odbc_backend(),
     Config1;
 
 init_per_testcase(validity_period_test, Config) ->
@@ -76,6 +81,7 @@ end_per_testcase(Test, C)
              Test =:= validation_test;
              Test =:= validation_property ->
     meck:unload(mongoose_metrics),
+    meck:unload(mod_auth_token_odbc),
     async_helper:stop_all(C),
     C;
 
@@ -113,9 +119,13 @@ serialize_deserialize_property(_) ->
     prop(serialize_deserialize_property,
          ?FORALL(Token, token(), is_serialization_reversible(Token))).
 
-validation_test(_) ->
+validation_test(Config) ->
+    validation_test(Config, provision_token_example()),
+    validation_test(Config, refresh_token_example()).
+
+validation_test(_, ExampleToken) ->
     %% given
-    Serialized = ?TESTED:serialize(provision_token_example()),
+    Serialized = ?TESTED:serialize(ExampleToken),
     %% when
     Result = ?TESTED:validate_token(Serialized),
     %% then
@@ -219,6 +229,12 @@ mock_mongoose_metrics() ->
     meck:expect(mongoose_metrics, increment_generic_hook_metric, fun (_, _) -> ok end),
     ok.
 
+mock_odbc_backend() ->
+    gen_mod:start_backend_module(?TESTED, [{backend, odbc}]),
+    meck:new(mod_auth_token_odbc, []),
+    meck:expect(mod_auth_token_odbc, get_valid_sequence_number,
+                fun (_) -> valid_seq_no_threshold() end).
+
 mock_keystore() ->
     ejabberd_hooks:add(get_key, <<"localhost">>, ?MODULE, mod_keystore_get_key, 50).
 
@@ -319,6 +335,9 @@ provision_token_example() ->
        97,39,47,62,98,103,120,108,121,
        113,100,101,101,117,111,60,47,
        118,67,97,114,100,62>>}.
+
+refresh_token_example() ->
+    {token,refresh,{{2055,10,27},{10,54,14}},{jid,<<97>>,<<108,111,99,97,108,104,111,115,116>>,<<>>,<<97>>,<<108,111,99,97,108,104,111,115,116>>,<<>>},4,undefined,<<17,226,96,93,198,66,53,59,145,93,193,67,156,81,58,217,54,6,231,193,76,232,217,18,218,174,100,211,144,74,147,113,78,82,206,227,61,250,32,139,86,182,29,45,140,49,130,186>>,<<114,101,102,114,101,115,104,0,97,64,108,111,99,97,108,104,111,115,116,0,54,52,56,55,53,52,54,54,52,53,52,0,52>>}.
 
 %%
 %% Generators
