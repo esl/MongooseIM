@@ -43,9 +43,9 @@ all() ->
 
 groups() ->
     [{register, [sequence], [register,
-			     check_unregistered]},
+                             check_unregistered]},
      {cancelation_error, [no_sequence], [bad_request_registration_cancelation,
-					 not_allowed_registration_cancelation]},
+                                         not_allowed_registration_cancelation]},
      {registration_timeout, [sequence], [registration_timeout]},
      {login, [sequence], all_tests()},
      {login_scram, [sequence], scram_tests()},
@@ -246,7 +246,7 @@ not_allowed_registration_cancelation(Config) ->
 
         %% Alice receives failure response
         Stanza = escalus:wait_for_stanza(Alice),
-	ct:pal("STANZA = ~p.~n", [Stanza]),
+        ct:pal("STANZA = ~p.~n", [Stanza]),
         escalus:assert(is_iq_error, Stanza),
         escalus:assert(is_error, [<<"cancel">>, <<"not-allowed">>], Stanza)
 
@@ -446,10 +446,10 @@ do_verify_format(_, Password, SPassword) ->
 bad_cancelation_stanza() ->
     escalus_stanza:iq(<<"set">>, [#xmlel{name = <<"query">>,
         attrs = [{<<"xmlns">>, <<"jabber:iq:register">>}],
-	children = [#xmlel{name = <<"remove">>},
-		    %% The <remove/> element is not the only child element of the
-		    %% <query/> element.
-		    #xmlel{name = <<"foo">>}]}]).
+        children = [#xmlel{name = <<"remove">>},
+                    %% The <remove/> element is not the only child element of the
+                    %% <query/> element.
+                    #xmlel{name = <<"foo">>}]}]).
 
 change_mod_register_to_deny_inband_registration(Config) ->
     Domain = escalus_config:get_config(ejabberd_domain, Config),
