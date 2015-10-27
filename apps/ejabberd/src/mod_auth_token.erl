@@ -189,7 +189,8 @@ validate_token(SerializedToken) ->
                        end,
     ?INFO_MSG("result: ~p, criteria: ~p", [ValidationResult, Criteria]),
     case {ValidationResult, Token#token.type} of
-        {ok, access} ->
+        {ok, T} when T =:= access;
+                     T =:= provision ->
             {ok, mod_auth_token, Owner#jid.luser};
         {ok, refresh} ->
             case token(access, Owner) of
@@ -211,7 +212,8 @@ is_mac_valid(#token{user_jid = Owner, token_body = Body,
 is_not_expired(#token{expiry_datetime = Expiry}) ->
     utc_now_as_seconds() < datetime_to_seconds(Expiry).
 
-is_revoked(#token{type = access}) ->
+is_revoked(#token{type = T}) when T =:= access;
+                                  T =:= provision ->
     false;
 is_revoked(#token{type = refresh, sequence_no = TokenSeqNo} = T) ->
     try
