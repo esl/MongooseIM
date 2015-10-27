@@ -28,6 +28,7 @@ groups() ->
        expiry_date_roundtrip_test,
        join_and_split_with_base16_and_zeros_are_reversible_property,
        serialize_deserialize_property,
+       validation_test,
        validity_period_test
       ]},
       {revocation, [],
@@ -44,6 +45,12 @@ init_per_suite(C) ->
 end_per_suite(C) -> C.
 
 init_per_testcase(serialize_deserialize_property, Config) ->
+    mock_mongoose_metrics(),
+    Config1 = async_helper:start(Config, ejabberd_hooks, start_link, []),
+    mock_keystore(),
+    Config1;
+
+init_per_testcase(validation_test, Config) ->
     mock_mongoose_metrics(),
     Config1 = async_helper:start(Config, ejabberd_hooks, start_link, []),
     mock_keystore(),
@@ -67,6 +74,11 @@ init_per_testcase(revoked_token_is_not_valid, Config) ->
 init_per_testcase(_, C) -> C.
 
 end_per_testcase(serialize_deserialize_property, C) ->
+    meck:unload(mongoose_metrics),
+    async_helper:stop_all(C),
+    C;
+
+end_per_testcase(validation_test, C) ->
     meck:unload(mongoose_metrics),
     async_helper:stop_all(C),
     C;
@@ -105,6 +117,19 @@ join_and_split_with_base16_and_zeros_are_reversible_property(_) ->
 serialize_deserialize_property(_) ->
     prop(serialize_deserialize_property,
          ?FORALL(Token, token(), is_serialization_reversible(Token))).
+
+validation_test(_) ->
+    %% given
+    {ok, ValidToken} = proper_gen:pick(valid_token()),
+    SerializedToken = ?TESTED:serialize(ValidToken),
+    %% when
+    Result = ?TESTED:validate_token(SerializedToken),
+    %% then
+    case Result of
+        {ok, _, _} -> ok;
+        {ok, _, _, _} -> ok;
+        _ -> ct:fail(token_not_valid)
+    end.
 
 validity_period_test(_) ->
     %% given
@@ -209,6 +234,20 @@ mock_ejabberd_commands() ->
 %%
 %% Generators
 %%
+
+valid_token() ->
+    ?SUCHTHAT(T, token(),
+              (T#token.expiry_datetime > validity_threshold()
+               andalso
+               T#token.sequence_no >= valid_seq_no())).
+
+%% Arbitrary date in the far future, i.e. now + 100 years.
+%% Make sure it's in the range of expiry_datetime generator defined below!
+validity_threshold() ->
+    {{2115,10,27}, {10,54,14}}.
+
+valid_seq_no() ->
+    13.
 
 token() ->
     ?LET(TokenParts, {token_type(), expiry_datetime(),
