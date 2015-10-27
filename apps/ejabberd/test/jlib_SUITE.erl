@@ -15,18 +15,18 @@ all() -> [make_iq_reply_changes_type_to_result,
           make_iq_reply_changes_to_to_from,
           make_iq_reply_switches_from_to_to,
           make_iq_reply_switches_to_and_from_attrs,
-          binary_to_jid,
-          binary_to_jid_incorrect,
-          empty_binary_to_jid,
-          make_jid,
-          jid_to_lower,
-          jid_replace_resource,
-          correct_but_too_long_username,
-          correct_but_too_long_domain,
-          correct_but_too_long_resource,
-          incorrect_username,
-          incorrect_resource,
-          incorrect_domain].
+          binary_to_jid_succeeds_with_valid_binaries,
+          binary_to_jid_fails_with_invalid_binaries,
+          binary_to_jid_fails_with_empty_binary,
+          make_jid_fails_on_binaries_that_are_too_long,
+          jid_to_lower_fails_if_any_binary_is_invalid,
+          jid_replace_resource_failes_for_invalid_resource,
+          nodeprep_fails_with_too_long_username,
+          nameprep_fails_with_too_long_domain,
+          resourceprep_fails_with_too_long_resource,
+          nodeprep_fails_with_incorrect_username,
+          resourceprep_fails_with_incorrect_resource,
+          nameprep_fails_with_incorrect_domain].
 
 init_per_suite(C) ->
     application:start(p1_stringprep),
@@ -84,95 +84,66 @@ base_iq() ->
                      attrs = [{<<"xmlns">>, <<"urn:ietf:params:xml:ns:xmpp-session">>}]}
              ]}.
 
-binary_to_jid(_C) ->
+binary_to_jid_succeeds_with_valid_binaries(_C) ->
     Prop = ?FORALL(BinJid, valid_jid(),
-                   is_valid_jid_record(jlib:binary_to_jid(BinJid))),
-    prop(correct_binary_to_jid, Prop).
+                   is_record(jlib:binary_to_jid(BinJid), jid)),
+    prop(binary_to_jid_succeeds_with_valid_binaries, Prop).
 
 
-binary_to_jid_incorrect(_C) ->
-    Prop = ?FORALL(BinJid, (invalid_jid()),
-                   (error == jlib:binary_to_jid(BinJid))),
-    property_with_custom_opts(Prop, 100, 1, 42).
+binary_to_jid_fails_with_invalid_binaries(_C) ->
+    Prop = ?FORALL(BinJid, invalid_jid(),
+                   error == jlib:binary_to_jid(BinJid)),
+    run_property(Prop, 100, 1, 42).
 
-empty_binary_to_jid(_) ->
+binary_to_jid_fails_with_empty_binary(_) ->
     error = jlib:binary_to_jid(<<>>).
 
-make_jid(_) ->
+make_jid_fails_on_binaries_that_are_too_long(_) ->
     Prop = ?FORALL({U, S, R}, {valid_username(), valid_domain(), valid_resource()},
-                   (check_output(U, S, R, jlib:make_jid(U, S, R)))),
-    property_with_custom_opts(Prop, 100, 500, 1500).
+                   case element_length_is_too_big([U,S,R]) of
+                        true -> error == jlib:make_jid(U,S,R);
+                        false -> is_record(jlib:make_jid(U,S,R), jid)
+                   end),
+    run_property(Prop, 100, 500, 1500).
 
-jid_to_lower(_) ->
+element_length_is_too_big(Els) ->
+    lists:any(fun(El) -> size(El) >= 1024 end, Els).
+
+jid_to_lower_fails_if_any_binary_is_invalid(_) ->
     Prop = ?FORALL({U, S, R}, {maybe_valid_username(), maybe_valid_domain(), maybe_valid_resource()},
-                   (check_jid_to_lower_output(U, S, R, jlib:jid_to_lower({U, S, R})))),
-    property_with_custom_opts(Prop, 150, 1, 42).
+                   case jlib:jid_to_lower({U, S, R}) of
+                       {LU, LS, LR} ->
+                           jlib:nodeprep(U) == LU andalso
+                           jlib:nameprep(S) == LS andalso
+                           jlib:resourceprep(R) == LR;
+                       error ->
+                           jlib:nodeprep(U) == error orelse
+                           jlib:nameprep(S) == error orelse
+                           jlib:resourceprep(R) == error
+                   end),
 
-correct_but_too_long_username(_C) ->
-    Prop = ?FORALL(Bin, (valid_username()),
-                   (error == jlib:nodeprep(Bin))),
-    property_with_custom_opts(Prop, 5, 1024, 2048).
+    run_property(Prop, 150, 1, 42).
 
-correct_but_too_long_domain(_C) ->
-    Prop = ?FORALL(Bin, (valid_domain()),
-                   (error == jlib:nameprep(Bin))),
-    property_with_custom_opts(Prop, 5, 1024, 2048).
+nodeprep_fails_with_too_long_username(_C) ->
+    Prop = ?FORALL(Bin, valid_username(),
+                   error == jlib:nodeprep(Bin)),
+    run_property(Prop, 5, 1024, 2048).
 
-correct_but_too_long_resource(_C) ->
-    Prop = ?FORALL(Bin, (valid_resource()),
-                   (error == jlib:resourceprep(Bin))),
-    property_with_custom_opts(Prop, 5, 1024, 2048).
+nameprep_fails_with_too_long_domain(_C) ->
+    Prop = ?FORALL(Bin, valid_domain(),
+                   error == jlib:nameprep(Bin)),
+    run_property(Prop, 5, 1024, 2048).
 
-jid_replace_resource(_) ->
+resourceprep_fails_with_too_long_resource(_C) ->
+    Prop = ?FORALL(Bin, valid_resource(),
+                   error == jlib:resourceprep(Bin)),
+    run_property(Prop, 5, 1024, 2048).
+
+jid_replace_resource_failes_for_invalid_resource(_) ->
     Prop = ?FORALL({BinJid, MaybeCorrectRes},
                    {valid_bare_jid(), maybe_valid_resource()},
                    jid_replace_resource(BinJid, MaybeCorrectRes)),
     prop(jid_replace_resource, Prop).
-
-property_with_custom_opts(Prop, NumTest, StartSize, StopSize) ->
-    ?assert(proper:quickcheck(Prop, [verbose, long_result,
-                                     {numtests, NumTest},
-                                     {start_size, StartSize},
-                                     {max_size, StopSize}])).
-
-incorrect_username(_) ->
-    prop(incorrect_username_property,
-         ?FORALL(Bin, invalid_username(),
-                error == jlib:nodeprep(Bin))).
-
-incorrect_resource(_) ->
-    prop(incorrect_resource_property,
-         ?FORALL(Bin, invalid_resource(),
-                error == jlib:resourceprep(Bin))).
-
-incorrect_domain(_) ->
-    prop(incorrect_domain_property,
-         ?FORALL(Bin, invalid_domain(),
-                error == jlib:nameprep(Bin))).
-
-is_valid_jid_record(#jid{}) ->
-    true;
-is_valid_jid_record(_) ->
-    false.
-
-check_output(U, S, R, #jid{})
-  when size(U) < 1024, size(S) < 1024, size(R) < 1024 ->
-    true;
-check_output(_, _, _, error) ->
-    true;
-check_output(_, _, _, _) ->
-    false.
-
-check_jid_to_lower_output(<<>>, <<>>, <<>>, Result) ->
-    error =/= Result;
-check_jid_to_lower_output(U, S, R, {_, _, _}) ->
-    jlib:nodeprep(U) =/= error orelse
-    jlib:nameprep(S) =/= error orelse
-    jlib:resourceprep(R) =/= error;
-check_jid_to_lower_output(U, S, R, error) ->
-    jlib:nodeprep(U) == error orelse
-    jlib:nameprep(S) == error orelse
-    jlib:resourceprep(R) == error.
 
 jid_replace_resource(BinJid, Res) ->
     Jid = jlib:binary_to_jid(BinJid),
@@ -183,6 +154,28 @@ check_jid_replace_resource_output(Resource, error) ->
     jlib:resourceprep(Resource) == error;
 check_jid_replace_resource_output(Resource, #jid{}) ->
     jlib:resourceprep(Resource) =/= error.
+
+
+run_property(Prop, NumTest, StartSize, StopSize) ->
+    ?assert(proper:quickcheck(Prop, [verbose, long_result,
+                                     {numtests, NumTest},
+                                     {start_size, StartSize},
+                                     {max_size, StopSize}])).
+
+nodeprep_fails_with_incorrect_username(_) ->
+    prop(incorrect_username_property,
+         ?FORALL(Bin, invalid_username(),
+                 error == jlib:nodeprep(Bin))).
+
+resourceprep_fails_with_incorrect_resource(_) ->
+    prop(incorrect_resource_property,
+         ?FORALL(Bin, invalid_resource(),
+                 error == jlib:resourceprep(Bin))).
+
+nameprep_fails_with_incorrect_domain(_) ->
+    prop(incorrect_domain_property,
+         ?FORALL(Bin, invalid_domain(),
+                 error == jlib:nameprep(Bin))).
 
 valid_jid() ->
     oneof([valid_full_jid(), valid_bare_jid(), valid_domain()]).
