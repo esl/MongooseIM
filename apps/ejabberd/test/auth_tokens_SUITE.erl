@@ -29,6 +29,7 @@ groups() ->
        join_and_split_with_base16_and_zeros_are_reversible_property,
        serialize_deserialize_property,
        validation_test,
+       validation_property,
        validity_period_test
       ]},
       {revocation, [],
@@ -44,13 +45,10 @@ init_per_suite(C) ->
 
 end_per_suite(C) -> C.
 
-init_per_testcase(serialize_deserialize_property, Config) ->
-    mock_mongoose_metrics(),
-    Config1 = async_helper:start(Config, ejabberd_hooks, start_link, []),
-    mock_keystore(),
-    Config1;
-
-init_per_testcase(validation_test, Config) ->
+init_per_testcase(Test, Config)
+        when Test =:= serialize_deserialize_property;
+             Test =:= validation_test;
+             Test =:= validation_property ->
     mock_mongoose_metrics(),
     Config1 = async_helper:start(Config, ejabberd_hooks, start_link, []),
     mock_keystore(),
@@ -73,12 +71,10 @@ init_per_testcase(revoked_token_is_not_valid, Config) ->
 
 init_per_testcase(_, C) -> C.
 
-end_per_testcase(serialize_deserialize_property, C) ->
-    meck:unload(mongoose_metrics),
-    async_helper:stop_all(C),
-    C;
-
-end_per_testcase(validation_test, C) ->
+end_per_testcase(Test, C)
+        when Test =:= serialize_deserialize_property;
+             Test =:= validation_test;
+             Test =:= validation_property ->
     meck:unload(mongoose_metrics),
     async_helper:stop_all(C),
     C;
@@ -130,6 +126,11 @@ validation_test(_) ->
         {ok, _, _, _} -> ok;
         _ -> ct:fail(token_not_valid)
     end.
+
+validation_property(_) ->
+    ct:pal("valid token sample:~n~p",
+           [proper_gen:pick(valid_token())]),
+    ct:fail(not_implemented_yet).
 
 validity_period_test(_) ->
     %% given
