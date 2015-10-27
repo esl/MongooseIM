@@ -6,7 +6,7 @@
 %% This work was sponsored by Grindr LLC
 
 -behavior(gen_mod).
--xep([{xep, 79}, {vesion, "1.2"}, {comment, "partial implemented."}]).
+-xep([{xep, 79}, {vesion, "1.2"}, {comment, "partially implemented."}]).
 -export([start/2, stop/1]).
 -export([add_local_features/5,
          add_stream_feature/2,

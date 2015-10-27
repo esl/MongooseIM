@@ -1,57 +1,57 @@
-Xep-tool usage
+XEP-tool usage
 ================================
 
-Xep-tool is the answer for developers who wonder how to maintain actual set of supported XEPs.
-It's fast and easy way to automatically produce documentation from raw, beam files.
-This is quick guide how to enjoy the usage of Xep-tool.
+The XEP-tool is the answer for developers who wonder how to maintain an actual list of supported XEPs.
+It's a fast and easy way to automatically produce documentation from raw, beam files.
+This is a quick guide on how to enjoy the usage of the XEP-tool.
 
 ###  Sign your module file first.
 
 
-Architecture of MongooseIM determines that quite every XEP or feature implementation
-stands in it's own file. It is not strict law but usually the file is named with
+The Architecture of MongooseIM determines that almost every XEP or feature implementation
+resides in it's own file. It is not strictly enforced but usually the file is named with
 `mod_` prefix. For example `mod_privacy` file implements [XEP-0016](http://xmpp.org/extensions/xep-0016.html).
-In order to let know your Xep-tool about that we add special attribute `xep`
-in the begining of the `mod_privacy` module:
+In order to let the XEP-tool know about your module we add a special attribute `xep`
+at the begining of the `mod_privacy` module:
 
 ```
 -xep([{xep, 16}, {version, "1.6"}]).
 ```
 
-and from now we know that this module relates to [XEP-0016](http://xmpp.org/extensions/xep-0016.html) with version 1.6.
-It gives enough information to generate url link to the XEP homepage.
-There are also some variations of `xep` attribute like:
+and from now on we know that this module implements to [XEP-0016](http://xmpp.org/extensions/xep-0016.html) with version 1.6.
+It gives the tool enough information to generate url link to the XEP homepage.
+There are also some variations of the `xep` attribute like:
 
 * to set down the specific URL for the XEP:
 ```
 -xep([{xep, 16}, {version, "1.6"}, {url, "http://xmpp.org/extensions/xep-0016.html"}]).
 ```
 
-* to add some comment to the XEP:
+* to add a comment to the XEP:
 ```
 -xep([{xep, 16}, {version, "1.6"}, {comment, "Example comment: Partial Implemented"}]).
 ```
 
 You ought to remember to specify `xep` and `version` attributes every time.
-You can also put several `xep` attributes to one module.
-For example `mod_mam_muc` relates to [XEP-0313](http://xmpp.org/extensions/xep-0313.html) and also to [XEP-0045](http://xmpp.org/extensions/xep-0045.html).
-Just put them one after another:
+You can also put several `xep` attributes in one module.
+For example `mod_mam_muc` implements to [XEP-0313](http://xmpp.org/extensions/xep-0313.html) and also to [XEP-0045](http://xmpp.org/extensions/xep-0045.html).
+Just list them one after another:
 
 ```erlang
 -xep([{xep, 45}, {version, "1.25"}]).
 -xep([{xep, 313}, {version, "0.2"}]).
 ```
 
-and xep-tool will do the work!
+and XEP-tool will do the work!
 
 
 
 
 ### Compile and run
 
-You've just ended signing your modules. All what you should do now is to
-`make compile` whole MongooseIM in case to generate .beam files.
-Finally, to run our xep-tool type:
+You've just ended marking your modules. The only thing left is to
+`make compile` MongooseIM in order to generate .beam files.
+Finally, to run our XEP-tool type:
 
 `make xeplist`
 
@@ -59,12 +59,12 @@ or do it manually:
 
 `escript <PATH_TO_EBIN> <OPTIONAL_OUTPUT_FILE>`
 
-in our case, from mongoose root dir:
+in our case, from Mongooseim root dir:
 
 `escript ./tools/xep_tool/xep_tool.escript apps/ejabberd/ebin list.md`
 
-Markdown with unique xep names and urls is saved to file `list.md`
-You can copy-paste content of this file to your main README file.
+The Markdown with unique XEP names and urls is saved to file `list.md`
+You can copy-paste the content of this file to your main README file.
 
 
 ### Example look of generated file
