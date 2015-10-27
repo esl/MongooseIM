@@ -2,9 +2,7 @@
 
 # ==== POSTGRESQL =====
 
-DATABASE_NAME="mongooseimdb"
-DATABASE_ROLE="mongooseimrole"
-DATABASE_PASS="mongoosepass"
-DATABASE_IP="10.100.10.57"
-
-
+PG_DATABASE_NAME="mongooseimdb"
+PG_DATABASE_ROLE="mongooseimrole"
+PG_DATABASE_PASS="mongoosepass"
+PG_DATABASE_IP="10.100.10.57"
