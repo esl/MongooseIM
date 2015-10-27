@@ -120,16 +120,11 @@ validation_test(_) ->
     %% when
     Result = ?TESTED:validate_token(SerializedToken),
     %% then
-    case Result of
-        {ok, _, _} -> ok;
-        {ok, _, _, _} -> ok;
-        _ -> ct:fail(token_not_valid)
-    end.
+    ?ae(true, is_validation_success(Result)).
 
 validation_property(_) ->
-    ct:pal("valid token sample:~n~p",
-           [proper_gen:pick(valid_token())]),
-    ct:fail(not_implemented_yet).
+    prop(validation_property,
+         ?FORALL(Token, valid_token(), is_valid_token_prop(Token))).
 
 validity_period_test(_) ->
     %% given
@@ -159,6 +154,21 @@ is_join_and_split_with_base16_and_zeros_reversible(RawToken) ->
 
 is_serialization_reversible(Token) ->
     Token =:= ?TESTED:deserialize(?TESTED:serialize(Token)).
+
+is_valid_token_prop(Token) ->
+    Serialized = ?TESTED:serialize(Token),
+    R = ?TESTED:validate_token(Serialized),
+    case is_validation_success(R) of
+        true -> true;
+        _    -> ct:fail(R)
+    end.
+
+is_validation_success(Result) ->
+    case Result of
+        {ok, _, _} -> true;
+        {ok, _, _, _} -> true;
+        _ -> false
+    end.
 
 revoked_token_is_not_valid(_) ->
     %% given
@@ -236,25 +246,31 @@ mock_ejabberd_commands() ->
 %%
 
 valid_token() ->
-    ?SUCHTHAT(T, token(),
-              (T#token.expiry_datetime > validity_threshold()
-               andalso
-               T#token.sequence_no >= valid_seq_no())).
+    ?LET(TokenParts, {token_type(), valid_expiry_datetime(),
+                      bare_jid(), valid_seq_no(), vcard()},
+         make_token(TokenParts)).
 
-%% Arbitrary date in the far future, i.e. now + 100 years.
-%% Make sure it's in the range of expiry_datetime generator defined below!
+%% Arbitrary date in the future.
 validity_threshold() ->
-    {{2115,10,27}, {10,54,14}}.
+    {{2055,10,27}, {10,54,14}}.
+
+valid_seq_no_threshold() ->
+    3.
+
+valid_expiry_datetime() ->
+    ?LET(Seconds, uniform( datetime_to_seconds(validity_threshold()),
+                           datetime_to_seconds({{2100,1,1},{0,0,0}}) ),
+         seconds_to_datetime(Seconds)).
 
 valid_seq_no() ->
-    13.
+    integer(valid_seq_no_threshold() + 1, inf).
 
 token() ->
     ?LET(TokenParts, {token_type(), expiry_datetime(),
                       bare_jid(), seq_no(), vcard()},
-         token_gen(TokenParts)).
+         make_token(TokenParts)).
 
-token_gen({Type, Expiry, JID, SeqNo, VCard}) ->
+make_token({Type, Expiry, JID, SeqNo, VCard}) ->
     T = #token{type = Type,
                expiry_datetime = Expiry,
                user_jid = jlib:binary_to_jid(JID)},
