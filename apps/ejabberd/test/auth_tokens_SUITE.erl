@@ -32,10 +32,10 @@ groups() ->
        validation_property,
        validity_period_test
       ]},
-      {revocation, [],
-       [
-        revoked_token_is_not_valid
-       ]}
+     {revocation, [],
+      [
+       revoked_token_is_not_valid
+      ]}
     ].
 
 init_per_suite(C) ->
@@ -336,11 +336,6 @@ validity_threshold() ->
 valid_seq_no_threshold() ->
     3.
 
-valid_expiry_datetime() ->
-    ?LET(Seconds, integer( datetime_to_seconds(validity_threshold()),
-                           datetime_to_seconds({{2100,1,1},{0,0,0}}) ),
-         seconds_to_datetime(Seconds)).
-
 valid_seq_no() ->
     integer(valid_seq_no_threshold() + 1, inf).
 
@@ -378,6 +373,11 @@ token_type() ->
 
 expiry_datetime() ->
     ?LET(Seconds, pos_integer(), seconds_to_datetime(Seconds)).
+
+valid_expiry_datetime() ->
+    ?LET(Seconds, integer( datetime_to_seconds(validity_threshold()),
+                           datetime_to_seconds({{2100,1,1},{0,0,0}}) ),
+         seconds_to_datetime(Seconds)).
 
 expiry_date_as_seconds() -> pos_integer().
 
