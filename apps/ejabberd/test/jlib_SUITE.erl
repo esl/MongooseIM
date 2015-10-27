@@ -154,7 +154,7 @@ check_output(_, _, _, _) ->
     false.
 
 check_jid_to_lower_output(<<>>, <<>>, <<>>, Result) ->
-    error == Result;
+    error =/= Result;
 check_jid_to_lower_output(U, S, R, {_, _, _}) ->
     jlib:nodeprep(U) =/= error orelse
     jlib:nameprep(S) =/= error orelse

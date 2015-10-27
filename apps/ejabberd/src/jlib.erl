@@ -382,7 +382,6 @@ nodeprep(_) ->
 
 
 -spec nameprep(ejabberd:server()) -> 'error' | ejabberd:luser().
-nameprep(<<>>) -> error;
 nameprep(S) when is_binary(S), size(S) < ?SANE_LIMIT ->
     R = stringprep:nameprep(S),
     if
