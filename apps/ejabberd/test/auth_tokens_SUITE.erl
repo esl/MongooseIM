@@ -189,14 +189,11 @@ revoked_token_is_not_valid(_) ->
 %% Helpers
 %%
 
-datetime_to_seconds(DateTime) ->
-    calendar:datetime_to_gregorian_seconds(DateTime).
-
 seconds_to_datetime(Seconds) ->
     calendar:gregorian_seconds_to_datetime(Seconds).
 
 utc_now_as_seconds() ->
-    datetime_to_seconds(calendar:universal_time()).
+    calendar:datetime_to_gregorian_seconds(calendar:universal_time()).
 
 %% Like in:
 %% {modules, [
@@ -298,18 +295,7 @@ token_type() ->
     oneof([access, refresh, provision]).
 
 expiry_datetime() ->
-    ?LET(Seconds, uniform( datetime_to_seconds({{1900,1,1},{0,0,0}}),
-                           datetime_to_seconds({{2200,1,1},{0,0,0}}) ),
-         seconds_to_datetime(Seconds)).
-
-%% This is quirky, but integer(From, To) doesn't give a uniform distribution over the range.
-%% All the samples are very close to From, hence this hacky generator.
-uniform(From, To) when is_integer(From),
-                       is_integer(To) ->
-    ?LET(BigFloat, float(to_float(From), to_float(To)),
-         erlang:round(BigFloat)).
-
-to_float(Int) when is_integer(Int) -> Int * 1.0.
+    ?LET(Seconds, pos_integer(), seconds_to_datetime(Seconds)).
 
 expiry_date_as_seconds() -> pos_integer().
 
