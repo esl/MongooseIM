@@ -3,10 +3,11 @@
 This module implements handling of tokens in oAuth-like authentication scheme. It provides necessary services to:
 
 * deserialize/serialize binary tokens received and issued by server,
-* validate incoming binary tokens, eg:
-    * integrity checking based on Message Authentication Codes (MAC) with use of server-side stored user keys,
-    * checking validity against configured validity duration times,
-    * checking validity against `sequence_no` - a sequence number stored in `auth_token` table.
+* validate incoming binary tokens, i.e.:
+    * check integrity using Message Authentication Codes (MAC) with use of server-side stored user keys,
+    * check validity against configured validity duration times,
+    * check revocation status,
+* handle token requests from logged in users.
 
 The module itself does not implement protocol related details - these are implemented in `cyrsasl.erl`.
 Generation of keys necessary to sign binary tokens is delegated to module `mod_keystore.erl`.
@@ -38,33 +39,31 @@ Example configuration from `ejabberd.cfg` - inside `modules` section:
 ]}.
 ```
 
-#### Key names
+Validity period configuration for provision tokens is outside the module scope
+since the server does not generate provision tokens - it only validates them.
 
-Key names are used for signing binary tokens using HMAC with SHA-2 family function SHA-384.
-Minimal configuration consists of at least one entry - if more key storage methods are configured -
-they will be used to generate key.
+#### Required keys
 
-*Important*
+Keys are used for signing binary tokens using an HMAC with SHA-2 family function SHA-384.
+Therefore, `mod_auth_token` requires `mod_keystore` to provide some predefined keys.
 
-Example configurations from `ejabberd.cfg`.
-
-Keys stored only in RAM, key name - `token_secret`:
+The required keys are (example from `ejabberd.cfg`):
 
 ```erlang
-{mod_keystore, [{keys, [
-                        {token_secret, ram}
-                       ]}]}
+{mod_keystore, [{keys, [{token_secret, ram},
+                        {provision_pre_shared, {file, "priv/provision_pre_shared.key"}}]}]}
 ```
 
-Pre-shared key stored on a disk, key name - `token_secret`, key filename - `token_psk`:
+`token_secret` is a RAM-only (i.e. generated on cluster startup, never written to disk)
+key used for signing and verifying access and refresh tokens.
 
-```erlang
-{mod_keystore, [{keys, [{token_psk, {file, "priv/token_psk"}}]}]}
-```
+`provision_pre_shared` is a key read from file.
+As its name suggests, it's pre shared with the service issuing provision
+tokens which clients then use to authenticate with MongooseIM.
 
-### Token format description.
+### Token internal representation
 
-Both tokens (access/refresh) are to be exchanged as *base64 encoded* binary buffers.
+All tokens (access / refresh / provision) are to be exchanged as *base64 encoded* binary data.
 Each binary token consists of a number of fields described in this section.
 
 On the server side a token is represented as an Erlang record of the following structure:
@@ -78,78 +77,69 @@ On the server side a token is represented as an Erlang record of the following s
                   token_body        :: binary() | undefined }).
 ```
 
-Token consists of two parts:
+Fields description:
 
-* token body - internal fields are separated with use of binary zero separator,
-* token MAC (message authentication code) appended with use of binary zero.
+-   `type`
 
-----
-#### ** Fields description **
-----
+    Erlang term (atom). Allowed/handled values:
 
-** `type` **
+    * refresh
+    * access
+    * provision
 
-Erlang term (atom). Allowed/handled values:
+-   `expiry_datetime`
 
-* refresh
-* access
-* provision
+    Seconds from the beginning of the epoch, eg: 63610072334
 
-** `expiry_datetime` **
+-   `user_jid`
 
-Seconds from the beginning of the epoch, eg: 63610072334
+    String of following form: `username@servername.ext`
 
-** `user_jid` **
+    Server sends _normalized_ form of a user's bare jid.
+    No resource is allowed at the end of the string
+    (this is not enforced though - the server just doesn't append a user's resource identifier
+    because it should not be used in context of this implementation by either side).
 
-String of following form :
+-   `sequence_no`
 
-username@servername.ext
+    Makes sense only in context of *refresh* token. A positive integer number. 
+    Generated and tracked by server to handle revocation.
 
-*Comment*:
-Server sends /normalized/ form of user's bare jid. No resource is allowed at the end of the string. (this is not 
-enforced though - server just doesn't append user's resource identifier because it should not be used in context of
-this implementation by neither side).
+-   `mac_signature`
 
-** `sequence_no` **
+    HMAC (hashed message authentication code) generated out of all the fields described above
+    using *sha384* hashing algorithm and a secret key generated and stored on server side only.
+    Used to check token integrity and authenticity of a sender.
 
-Makes sense only in context of *refresh* token. A positive integer number. 
+### Token serialization format
 
-*Comment*:
-Generated and tracked by server to handle revocation.
+Serialization format of the token is dependent on its type:
 
-** `mac_signature` **
-HMAC (hashed message authentication code) Generated out of all the fields described above using *sha384* hashing
-algorithm and a secret key generated and stored on server side only. Used to check token integrity and authenticity of a sender.
+```
+'access' \0 <BARE_JID> \0 <EXPIRES_AT> \0 <MAC>
 
-----
-#### Token layout 
-----
+'refresh' \0 <BARE_JID> \0 <EXPIRES_AT> \0 <SEQUENCE_NO> \0 <MAC>
 
-Order of fields in a body should follow the following format - fields are binaries:
+'provision' \0 <BARE_JID> \0 <EXPIRES_AT> \0 <VCARD> \0 <MAC>
+```
 
-`[type]0[expiry_datetime]0[user_jid]0[sequence_no]`
+For example (these tokens are randomly generated,
+hence field values don't make much sense,
+line breaks are inserted only for the sake of formatting,
+`<vCard/>` inner HTML is snipped):
 
-Token, before sending, gets binary MAC appended at the end and the resulting format looks as follows:
+```
+'access' \0 Q8@localhost \0 64875466454
+    \0 0acd0a66d06934791d046060cf9f1ad3c2abb3274cc7e7d7b2bc7e2ac4453ed774b6c6813b40ebec2bbc3774d59d4087
 
-`[type]0[expiry_datetime]0[user_jid]0[sequence_no]0[MAC]`
+'refresh' \0 qp@localhost \0 64875466457 \0 6
+    \0 8f57cb019cd6dc6e7779be165b9558611baf71ee4a40d03e77b78b069f482f96c9d23b1ac1ef69f64c1a1db3d36a96ad
 
+'provision' \0 Xmi4@localhost \0 64875466458 \0 <vCard>...</vCard>
+    \0 86cd344c98b345390c1961e12cd4005659b4b0b3c7ec475bde9acc9d47eec27e8ddc67003696af582747fb52e578a715
+```
 
-### Token request format 
-
-To request access and refresh tokens for the first time client should generate and send the following **IQ** stanza -
-**after he successfuly authenticated for the first time using scram-sha1 method (preferred)**.
-
-IQ wrapper stanza fields required:
-
-- "to" (bare user JID)
-- "type" (aways "get")
-- "id" (use is not obligatory - server overwrites this value and sends back to client)
-
-Content of IQ query:
-
-- "query" xml node with "xmlns" attribute `erlang-solutions.com:xmpp:token-auth:0`
-
-Example:
+### Requesting access / refresh tokens when logged in
 
 ```xml
 <iq type='get' to='john@localhost' id='123'>
@@ -157,12 +147,13 @@ Example:
 </iq>
 ```
 
-Please note, that *we'll change namespace value* soon to keep it consistent with all the other namespaces 
-(the final value is not decided at the time of writing this document).
+To request access and refresh tokens for the first time a client should
+send an IQ stanza - after he has successfully authenticated
+for the first time using some other method.
 
 ### Token response format
 
-Requested tokens are being returned by server wrapped in /IQ/ stanza with the following fields:
+Requested tokens are being returned by server wrapped in IQ stanza with the following fields:
 
 - `from` (bare user JID)
 - `to` (full user JID)
@@ -180,17 +171,14 @@ Example response (encoded tokens have been truncated in this example):
 </iq>
 ```
 
-Once client obtained an acccess token - he may start authenticating himself next time choosing **X-OAUTH** SASL mechanism
-by issuing following SASL command:
-
-```xml
-<auth xmlns="urn:ietf:params:xml:ns:xmpp-sasl" mechanism="X-OAUTH"/>
-```
+Once a client has obtained an access token (s)he may start authenticating
+using the `X-OAUTH` SASL mechanism when reaching the authentication
+phase of an XMPP connection initiation.
 
 ### Login with access/refresh token
 
-In order to log into XMPP server using previously requested binary access token - client should issue following
-stanza (The base64 encoded CDATA content is an **access** or **refresh** token.
+In order to log into the XMPP server using a previously requested token
+a client should send the following stanza:
 
 ```xml
 <auth xmlns="urn:ietf:params:xml:ns:xmpp-sasl" mechanism="X-OAUTH">
@@ -198,13 +186,12 @@ cmVmcmVzaAGQ1Mzk1MmZlYzhkYjhlOTQzM2UxMw==
 </auth>
 ```
 
-Both of the above will result in successful authentication and assigning a resource (binding) to a client by
-the server - unless used tokens are expired or/and the keys could not be retrieved/generated by the server.
+The base64 encoded content is a token obtained prior to authentication.
+Authentication will succeed unless the used tokens are expired, revoked,
+or the keys required for MAC verification could not be found by the server.
 
-### Login with refresh token
-
-When using refresh token to authenticate with the server - server will respond with new **access token** - the
-token will be issued as body of `success` element as follows;
+**When using a refresh token to authenticate with the server**,
+the server will respond with a new *access token*:
 
 ```xml
 <success xmlns="urn:ietf:params:xml:ns:xmpp-sasl">
@@ -212,20 +199,23 @@ cmVmcmVzaAGQ1Mzk1MmZlYzhkYjhlOTQzM2UxMw==
 </success>
 ```
 
-Above response is to be expected unless refresh token used is expired or there were some problems with key
-processing on server side.
+The above response is to be expected unless the refresh token used is expired
+or there were some problems processing the key on the server side.
 
 ### Token revocation using command line tool
 
-Refresh tokens issued by the server serve as :
+Refresh tokens issued by the server serve as:
 
-* authentication valet - to login user
-* to request issuing of a **new access token** - in principle - with refreshed expiry date
+* to login a user - as an authentication valet,
+* to request issuing of *a new access token* - in principle - with refreshed expiry date.
 
-Administrator may **revoke** refresh tokens - which means that client can no longer use them neither for
-authentication nor requesting new access tokens. For client, in order to obtain a new refresh token - it's
-necessary to log in first once it's been revoked.
+An administrator may *revoke* a refresh token:
 
 ```sh
 mongooseimctl revoke_token owner@xmpphost
 ```
+
+A client can no longer use a revoked token either for authentication
+or requesting new access tokens.
+After a client's token has been revoked in order to obtain a new refresh token
+a client has to log in using some other method.
