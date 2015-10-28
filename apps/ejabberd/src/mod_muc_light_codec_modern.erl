@@ -249,7 +249,7 @@ encode_iq({get, #disco_items{ rooms = Rooms, id = ID, rsm = RSMOut }},
                                   {<<"name">>, RoomName},
                                   {<<"version">>, RoomVersion}] }
                  || {{RoomU, RoomS}, RoomName, RoomVersion} <- Rooms ],
-    {reply, ?NS_DISCO_INFO, jlib:rsm_encode(RSMOut) ++ DiscoEls, ID};
+    {reply, ?NS_DISCO_ITEMS, jlib:rsm_encode(RSMOut) ++ DiscoEls, ID};
 encode_iq({get, #config{ prev_version = SameVersion, version = SameVersion, id = ID }},
           _RoomJID, _RoomBin, _HandleFun) ->
     {reply, ID};
