@@ -38,7 +38,7 @@ ct: deps quick_compile
 qct:
 	mkdir -p /tmp/ct_log
 	ct_run -pa apps/*/ebin -pa deps/*/ebin -dir apps/*/test\
-        -I apps/*/include -logdir /tmp/ct_log -suite $(SUITE) -noshell
+        -I apps/*/include -logdir /tmp/ct_log -suite $(SUITE)_SUITE -noshell
 
 test: test_deps
 	cd test/ejabberd_tests; make test

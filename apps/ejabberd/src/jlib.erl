@@ -122,19 +122,18 @@ make_result_iq_reply_attrs(Attrs) ->
     Attrs2 = lists:keydelete(<<"from">>, 1, Attrs1),
     Attrs3 = case To of
                  {value, ToVal} ->
-                     [{<<"from">>, binary_to_list(ToVal)} | Attrs2];
+                     [{<<"from">>, ToVal} | Attrs2];
                  _ ->
                      Attrs2
              end,
     Attrs4 = case From of
                  {value, FromVal} ->
-                     [{<<"to">>, binary_to_list(FromVal)} | Attrs3];
+                     [{<<"to">>, FromVal} | Attrs3];
                  _ ->
                      Attrs3
              end,
     Attrs5 = lists:keydelete(<<"type">>, 1, Attrs4),
-    Attrs6 = [{<<"type">>, <<"result">>} | Attrs5],
-    Attrs6.
+    [{<<"type">>, <<"result">>} | Attrs5].
 
 
 -spec make_error_reply(xmlel(), xmlcdata() | xmlel()) -> xmlel().
@@ -299,54 +298,50 @@ are_equal_jids(_, _) ->
 
 -spec binary_to_jid(binary()) -> 'error' | ejabberd:jid().
 binary_to_jid(J) ->
-    binary_to_jid1(J, <<>>).
+    binary_to_jid1(J, []).
 
 
--spec binary_to_jid1(binary(), binary()) -> 'error' | ejabberd:jid().
-binary_to_jid1(<<$@, _J/binary>>, <<>>) ->
+-spec binary_to_jid1(binary(), [byte()]) -> 'error' | ejabberd:jid().
+binary_to_jid1(<<$@, _J/binary>>, []) ->
     error;
 binary_to_jid1(<<$@, J/binary>>, N) ->
-    binary_to_jid2(J, binary_reverse(N), <<>>);
-binary_to_jid1(<<$/, _J/binary>>, <<>>) ->
+    binary_to_jid2(J, lists:reverse(N), []);
+binary_to_jid1(<<$/, _J/binary>>, []) ->
     error;
 binary_to_jid1(<<$/, J/binary>>, N) ->
-    binary_to_jid3(J, <<>>, binary_reverse(N), <<>>);
+    binary_to_jid3(J, [], lists:reverse(N), []);
 binary_to_jid1(<<C, J/binary>>, N) ->
-    binary_to_jid1(J, <<C, N/binary>>);
-binary_to_jid1(<<>>, <<>>) ->
+    binary_to_jid1(J, [C | N]);
+binary_to_jid1(<<>>, []) ->
     error;
 binary_to_jid1(<<>>, N) ->
-    make_jid(<<>>, binary_reverse(N), <<>>).
+    make_jid(<<>>, list_to_binary(lists:reverse(N)), <<>>).
 
 
 %% @doc Only one "@" is admitted per JID
--spec binary_to_jid2(binary(),binary(),binary()) -> 'error' | ejabberd:jid().
+-spec binary_to_jid2(binary(),[byte()],[byte()]) -> 'error' | ejabberd:jid().
 binary_to_jid2(<<$@, _J/binary>>, _N, _S) ->
     error;
-binary_to_jid2(<<$/, _J/binary>>, _N, <<>>) ->
+binary_to_jid2(<<$/, _J/binary>>, _N, []) ->
     error;
 binary_to_jid2(<<$/, J/binary>>, N, S) ->
-    binary_to_jid3(J, N, binary_reverse(S), <<>>);
+    binary_to_jid3(J, N, lists:reverse(S), []);
 binary_to_jid2(<<C, J/binary>>, N, S) ->
-    binary_to_jid2(J, N, <<C, S/binary>>);
-binary_to_jid2(<<>>, _N, <<>>) ->
+    binary_to_jid2(J, N, [C | S]);
+binary_to_jid2(<<>>, _N, []) ->
     error;
 binary_to_jid2(<<>>, N, S) ->
-    make_jid(N, binary_reverse(S), <<>>).
+    make_jid(list_to_binary(N), list_to_binary(lists:reverse(S)), <<>>).
 
 
--spec binary_to_jid3(binary(),binary(),binary(),binary()) -> 'error' | ejabberd:jid().
+-spec binary_to_jid3(binary(),[byte()],[byte()],[byte()]) -> 'error' | ejabberd:jid().
 binary_to_jid3(<<C, J/binary>>, N, S, R) ->
-    binary_to_jid3(J, N, S, <<C, R/binary>>);
+    binary_to_jid3(J, N, S, [C | R]);
 binary_to_jid3(<<>>, N, S, R) ->
-    make_jid(N, S, binary_reverse(R)).
+    make_jid(list_to_binary(N), list_to_binary(S), list_to_binary(lists:reverse(R))).
 
 
--spec binary_reverse(binary()) -> binary().
-binary_reverse(<<>>) ->
-    <<>>;
-binary_reverse(<<H,T/binary>>) ->
-    <<(binary_reverse(T))/binary,H>>.
+
 
 
 -spec jid_to_binary(ejabberd:simple_jid() | ejabberd:jid()) -> binary().
@@ -368,22 +363,14 @@ jid_to_binary({Node, Server, Resource}) ->
          end,
     S3.
 
--spec is_nodename([] | binary()) -> boolean().
-is_nodename([]) ->
+-spec is_nodename(<<>> | binary()) -> boolean().
+is_nodename(<<>>) ->
     false;
 is_nodename(J) ->
     nodeprep(J) /= error.
 
-%% -define(LOWER(Char),
-%%         if
-%%             Char >= $A, Char =< $Z ->
-%%                 Char + 32;
-%%             true ->
-%%                 Char
-%%         end).
-
 -define(SANE_LIMIT, 1024).
--spec nodeprep(ejabberd:server()) -> 'error' | ejabberd:lserver().
+-spec nodeprep(ejabberd:user()) -> 'error' | ejabberd:lserver().
 nodeprep(S) when is_binary(S), size(S) < ?SANE_LIMIT ->
     R = stringprep:nodeprep(S),
     if
@@ -394,7 +381,7 @@ nodeprep(_) ->
     error.
 
 
--spec nameprep(ejabberd:user()) -> 'error' | ejabberd:luser().
+-spec nameprep(ejabberd:server()) -> 'error' | ejabberd:luser().
 nameprep(S) when is_binary(S), size(S) < ?SANE_LIMIT ->
     R = stringprep:nameprep(S),
     if
@@ -405,15 +392,8 @@ nameprep(_) ->
     error.
 
 
--spec resourceprep(string() | ejabberd:resource()) ->
+-spec resourceprep(ejabberd:resource()) ->
                                         'error' | ejabberd:lresource().
-resourceprep(S) when is_list(S) ->
-    case resourceprep(list_to_binary(S)) of
-        error ->
-            error;
-        Binary ->
-            binary_to_list(Binary)
-    end;
 resourceprep(S) when size(S) < ?SANE_LIMIT ->
     R = stringprep:resourceprep(S),
     if
