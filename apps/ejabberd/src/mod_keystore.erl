@@ -131,9 +131,7 @@ init_keys(Domain, Opts) ->
 -spec init_key({key_name(), key_type()}, ejabberd:server(), list()) -> ok.
 init_key({KeyName, {file, Path}}, Domain, _Opts) ->
     {ok, Data} = file:read_file(Path),
-    Trimmed = ?iol2b(re:replace(Data, <<"[\n\r]+">>, <<>>,
-                                [global, {newline, any}])),
-    true = ets_store_key({KeyName, Domain}, Trimmed),
+    true = ets_store_key({KeyName, Domain}, Data),
     ok;
 init_key({KeyName, ram}, Domain, Opts) ->
     ProposedKey = crypto:strong_rand_bytes(get_key_size(Opts)),
