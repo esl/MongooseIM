@@ -34,6 +34,7 @@
          seconds_to_datetime/1]).
 -export([expiry_datetime/3,
          token_with_mac/1]).
+-export([get_key_for_user/2]).
 
 -export_type([period/0,
               sequence_no/0,
@@ -125,11 +126,13 @@ serialize(#token{token_body = Body, mac_signature = MAC}) ->
 -spec token_with_mac(token()) -> token().
 token_with_mac(#token{mac_signature = undefined, token_body = undefined} = T) ->
     Body = join_fields(T),
-    MAC = keyed_hash(Body, user_hmac_opts(T#token.user_jid)),
+    MAC = keyed_hash(Body, user_hmac_opts(T#token.type, T#token.user_jid)),
     T#token{token_body = Body, mac_signature = MAC}.
 
-user_hmac_opts(User) ->
-    lists:keystore(key, 1, hmac_opts(), {key, acquire_key_for_user(User)}).
+-spec user_hmac_opts(token_type(), jid()) -> [{any(), any()}].
+user_hmac_opts(TokenType, User) ->
+    lists:keystore(key, 1, hmac_opts(),
+                   {key, get_key_for_user(TokenType, User)}).
 
 field_separator() -> 0.
 
@@ -204,9 +207,9 @@ validate_token(SerializedToken) ->
                                         || {_, false} = Criterion <- Criteria ]}}
     end.
 
-is_mac_valid(#token{user_jid = Owner, token_body = Body,
-                    mac_signature = ReceivedMAC}) ->
-    ComputedMAC = keyed_hash(Body, user_hmac_opts(Owner)),
+is_mac_valid(#token{type = Type, user_jid = Owner,
+                    token_body = Body, mac_signature = ReceivedMAC}) ->
+    ComputedMAC = keyed_hash(Body, user_hmac_opts(Type, Owner)),
     ReceivedMAC =:= ComputedMAC.
 
 is_not_expired(#token{expiry_datetime = Expiry}) ->
@@ -329,12 +332,19 @@ get_token_as_record(BToken) ->
          end,
     T1#token{token_body = join_fields(T1)}.
 
-acquire_key_for_user(User) ->
+-spec get_key_for_user(token_type(), jid()) -> binary().
+get_key_for_user(TokenType, User) ->
     UsersHost = User#jid.lserver,
-    %% todo : extract key name from config (possible resolution by host)
-    [{{token_secret, UsersHost}, RawKey}] = ejabberd_hooks:run_fold(
-                                         get_key, UsersHost, [], [{token_secret, UsersHost}]),
+    KeyName = key_name(TokenType),
+    [{{KeyName, UsersHost},
+      RawKey}] = ejabberd_hooks:run_fold(get_key, UsersHost, [],
+                                         [{KeyName, UsersHost}]),
     RawKey.
+
+-spec key_name(token_type()) -> token_secret | provision_pre_shared.
+key_name(access)    -> token_secret;
+key_name(refresh)   -> token_secret;
+key_name(provision) -> provision_pre_shared.
 
 -spec revoke_token_command(Owner) -> ResTuple when
       Owner :: binary(),

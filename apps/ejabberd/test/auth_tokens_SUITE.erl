@@ -30,7 +30,8 @@ groups() ->
        serialize_deserialize_property,
        validation_test,
        validation_property,
-       validity_period_test
+       validity_period_test,
+       choose_key_by_token_type
       ]},
      {revocation, [],
       [
@@ -51,7 +52,8 @@ end_per_suite(C) ->
 init_per_testcase(Test, Config)
         when Test =:= serialize_deserialize_property;
              Test =:= validation_test;
-             Test =:= validation_property ->
+             Test =:= validation_property;
+             Test =:= choose_key_by_token_type ->
     mock_mongoose_metrics(),
     Config1 = async_helper:start(Config, [{ejabberd_hooks, start_link, []},
                                           {gen_mod, start, []}]),
@@ -79,7 +81,8 @@ init_per_testcase(_, C) -> C.
 end_per_testcase(Test, C)
         when Test =:= serialize_deserialize_property;
              Test =:= validation_test;
-             Test =:= validation_property ->
+             Test =:= validation_property;
+             Test =:= choose_key_by_token_type ->
     meck:unload(mongoose_metrics),
     meck:unload(mod_auth_token_odbc),
     async_helper:stop_all(C),
@@ -148,6 +151,15 @@ validity_period_test(_) ->
     %% then
     ?ae(calendar:gregorian_seconds_to_datetime(ExpectedSeconds),
         ActualDT).
+
+choose_key_by_token_type(_) ->
+    %% given mocked keystore (see init_per_testcase)
+    JID = jlib:binary_to_jid(<<"alice@localhost">>),
+    %% when mod_auth_token asks for key for given token type
+    %% then the correct key is returned
+    ?ae(<<"access_or_refresh">>, ?TESTED:get_key_for_user(access, JID)),
+    ?ae(<<"access_or_refresh">>, ?TESTED:get_key_for_user(refresh, JID)),
+    ?ae(<<"provision">>, ?TESTED:get_key_for_user(provision, JID)).
 
 is_join_and_split_with_base16_and_zeros_reversible(RawToken) ->
     MAC = base16:encode(crypto:hmac(sha384, <<"unused_key">>, RawToken)),
@@ -242,8 +254,11 @@ mock_gen_iq_handler() ->
     meck:new(gen_iq_handler, []),
     meck:expect(gen_iq_handler, add_iq_handler, fun (_, _, _, _, _, _) -> ok end).
 
-mod_keystore_get_key(_, KeyID) ->
-    [{KeyID, <<"unused_key">>}].
+mod_keystore_get_key(_, {KeyName, _} = KeyID) ->
+    case KeyName of
+        token_secret -> [{KeyID, <<"access_or_refresh">>}];
+        provision_pre_shared -> [{KeyID, <<"provision">>}]
+    end.
 
 mock_tested_backend() ->
     meck:new(mod_auth_token_odbc, []),
