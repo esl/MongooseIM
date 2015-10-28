@@ -21,7 +21,7 @@
 %% API
 %%====================================================================
 
--spec decode(From :: jlib:jid(), To :: jlib:jid(), Stanza :: jlib:xmlel()) ->
+-spec decode(From :: ejabberd:jid(), To :: ejabberd:jid(), Stanza :: jlib:xmlel()) ->
     mod_muc_light_codec:decode_result().
 decode(_From, #jid{ lresource = Resource }, _Stanza) when Resource =/= <<>> ->
     {error, bad_request};
@@ -32,7 +32,7 @@ decode(From, _To, #xmlel{ name = <<"iq">> } = Stanza) ->
 decode(_, _, _) ->
     {error, bad_request}.
 
--spec encode(Request :: muc_light_encode_request(), OriginalSender :: jlib:jid(),
+-spec encode(Request :: muc_light_encode_request(), OriginalSender :: ejabberd:jid(),
              RoomUS :: ejabberd:simple_bare_jid(),
              HandleFun :: mod_muc_light_codec:encoded_packet_handler()) -> any().
 encode({#msg{} = Msg, AffUsers}, Sender, {RoomU, RoomS} = RoomUS, HandleFun) ->
@@ -87,8 +87,8 @@ decode_message_by_type(_, _) ->
 %% IQ decoding
 %%====================================================================
 
--spec decode_iq(From :: jlib:jid(), IQ :: jlib:iq()) ->
-    {ok, muc_light_packet() | muc_light_disco() | jlib:iq()} | {error, bad_request} | ignore.
+-spec decode_iq(From :: ejabberd:jid(), IQ :: ejabberd:iq()) ->
+    {ok, muc_light_packet() | muc_light_disco() | ejabberd:iq()} | {error, bad_request} | ignore.
 decode_iq(_From, #iq{ xmlns = ?NS_MUC_LIGHT_CONFIGURATION, type = get,
                       sub_el = QueryEl, id = ID }) ->
     Version = exml_query:path(QueryEl, [{element, <<"version">>}, cdata], <<>>),
@@ -403,9 +403,9 @@ inject_prev_version([#xmlel{ name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_MUC_LIGH
 inject_prev_version([El | REls], PrevVersion) ->
     [El | inject_prev_version(REls, PrevVersion)].
 
--spec bcast_aff_messages(From :: jlib:jid(), OldAffUsers :: aff_users(), NewAffUsers :: aff_users(),
-                         Attrs :: [{binary(), binary()}], VersionEl :: jlib:xmlel(),
-                         Children :: [jlib:xmlch()],
+-spec bcast_aff_messages(From :: ejabberd:jid(), OldAffUsers :: aff_users(),
+                         NewAffUsers :: aff_users(), Attrs :: [{binary(), binary()}],
+                         VersionEl :: jlib:xmlel(), Children :: [jlib:xmlch()],
                          HandleFun :: mod_muc_light_codec:encoded_packet_handler()) -> ok.
 bcast_aff_messages(_, [], [], _, _, _, _) ->
     ok;
@@ -427,14 +427,14 @@ bcast_aff_messages(From, OldAffUsers, [{{ToU, ToS}, _} = AffUser | RNewAffUsers]
     msg_to_aff_user(From, ToU, ToS, Attrs, NotifForNewcomer, HandleFun),
     bcast_aff_messages(From, OldAffUsers, RNewAffUsers, Attrs, VersionEl, Children, HandleFun).
 
--spec msg_to_leaving_user(From :: jlib:jid(), User :: ejabberd:simple_bare_jid(),
+-spec msg_to_leaving_user(From :: ejabberd:jid(), User :: ejabberd:simple_bare_jid(),
                           Attrs :: [{binary(), binary()}],
                           HandleFun :: mod_muc_light_codec:encoded_packet_handler()) -> ok.
 msg_to_leaving_user(From, {ToU, ToS} = User, Attrs, HandleFun) ->
     NotifForLeaving = msg_envelope(?NS_MUC_LIGHT_AFFILIATIONS, [ aff_user_to_el({User, none}) ]),
     msg_to_aff_user(From, ToU, ToS, Attrs, NotifForLeaving, HandleFun).
 
--spec msg_to_aff_user(From :: jlib:jid(), ToU :: ejabberd:luser(), ToS :: ejabberd:lserver(),
+-spec msg_to_aff_user(From :: ejabberd:jid(), ToU :: ejabberd:luser(), ToS :: ejabberd:lserver(),
                       Attrs :: [{binary(), binary()}], Children :: [jlib:xmlch()],
                       HandleFun :: mod_muc_light_codec:encoded_packet_handler()) -> ok.
 msg_to_aff_user(From, ToU, ToS, Attrs, Children, HandleFun) ->
@@ -445,7 +445,7 @@ msg_to_aff_user(From, ToU, ToS, Attrs, Children, HandleFun) ->
     HandleFun(From, To, Packet).
 
 -spec jids_from_room_with_resource(RoomUS :: ejabberd:simple_bare_jid(), binary()) ->
-    {jlib:jid(), binary()}.
+    {ejabberd:jid(), binary()}.
 jids_from_room_with_resource({RoomU, RoomS}, Resource) ->
     FromBin = jlib:jid_to_binary({RoomU, RoomS, Resource}),
     From = jlib:make_jid_noprep({RoomU, RoomS, Resource}),

@@ -34,6 +34,7 @@
          make_invitation/3,
          make_config_change_message/1,
          make_voice_approval_form/3,
+         form_field/1,
          replace_from_to_attrs/3,
          replace_from_to/3,
          remove_attr/2,

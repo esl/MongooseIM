@@ -64,7 +64,7 @@
 -define(BLOCKING_TAB, muc_light_blocking).
 
 -record(?ROOM_TAB, {
-          room :: {ejabberd:username(), ejabberd:server()},
+          room :: ejabberd:simple_bare_jid(),
           config :: [{atom(), term()}],
           aff_users :: aff_users(),
           version :: binary()

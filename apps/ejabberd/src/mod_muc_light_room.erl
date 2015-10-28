@@ -40,7 +40,7 @@
 %% API
 %%====================================================================
 
--spec handle_request(From :: jlib:jid(), RoomJID :: jlib:jid(),
+-spec handle_request(From :: ejabberd:jid(), RoomJID :: ejabberd:jid(),
                      OrigPacket :: jlib:xmlel(), Request :: muc_light_packet()) -> ok.
 handle_request(From, To, OrigPacket, Request) ->
     RoomUS = jlib:jid_to_lus(To),
@@ -66,7 +66,7 @@ participant_limit_check(_RoomUS, NewAffUsers) ->
 %% Packet handling
 %%====================================================================
 
--spec process_request(From :: jlib:jid(),
+-spec process_request(From :: ejabberd:jid(),
                       RoomUS :: ejabberd:simple_bare_jid(),
                       Request :: muc_light_packet(),
                       AffUsersRes :: {ok, aff_users()} | {error, term()}) ->
@@ -205,8 +205,9 @@ process_aff_set(_AffReq, _RoomUS, Error) ->
 %% Response processing
 %%====================================================================
 
--spec send_response(From :: jlib:jid(), RoomJID :: jlib:jid(), RoomUS :: ejabberd:simple_bare_jid(),
-                    OrigPacket :: jlib:xmlel(), Result :: packet_processing_result()) -> ok.
+-spec send_response(From :: ejabberd:jid(), RoomJID :: ejabberd:jid(),
+                    RoomUS :: ejabberd:simple_bare_jid(), OrigPacket :: jlib:xmlel(),
+                    Result :: packet_processing_result()) -> ok.
 send_response(From, RoomJID, _RoomUS, OrigPacket, {error, _} = Err) ->
     mod_muc_light_codec:encode_error(Err, From, RoomJID, OrigPacket, fun ejabberd_router:route/3);
 send_response(From, _RoomJID, RoomUS, _OriginalPacket, Response) ->

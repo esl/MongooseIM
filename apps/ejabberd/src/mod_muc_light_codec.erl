@@ -15,9 +15,9 @@
 -export([encode_error/5]).
 
 -type encoded_packet_handler() ::
-    fun((From :: jlib:jid(), To :: jlib:jid(), Packet :: jlib:xmlel()) -> any()).
+    fun((From :: ejabberd:jid(), To :: ejabberd:jid(), Packet :: jlib:xmlel()) -> any()).
 
--type decode_result() :: {ok, muc_light_packet() | muc_light_disco() | jlib:iq()}
+-type decode_result() :: {ok, muc_light_packet() | muc_light_disco() | ejabberd:iq()}
                        | {error, bad_request} | ignore.
 
 -export_type([encoded_packet_handler/0, decode_result/0]).
@@ -26,9 +26,10 @@
 %% Behaviour callbacks
 %%====================================================================
 
--callback decode(From :: jlib:jid(), To :: jlib:jid(), Stanza :: jlib:xmlel()) -> decode_result().
+-callback decode(From :: ejabberd:jid(), To :: ejabberd:jid(), Stanza :: jlib:xmlel()) ->
+    decode_result().
 
--callback encode(Request :: muc_light_encode_request(), OriginalSender :: jlib:jid(),
+-callback encode(Request :: muc_light_encode_request(), OriginalSender :: ejabberd:jid(),
                  RoomUS :: ejabberd:simple_bare_jid(), % may be just service domain
                  HandleFun :: mod_muc_light_codec:encoded_packet_handler()) -> any().
 
@@ -36,7 +37,7 @@
 %% API
 %%====================================================================
 
--spec encode_error(ErrMsg :: tuple(), OrigFrom :: jlib:jid(), OrigTo :: jlib:jid(),
+-spec encode_error(ErrMsg :: tuple(), OrigFrom :: ejabberd:jid(), OrigTo :: ejabberd:jid(),
                    OrigPacket :: jlib:xmlel(), HandleFun :: encoded_packet_handler()) ->
     any().
 encode_error(ErrMsg, OrigFrom, OrigTo, OrigPacket, HandleFun) ->
