@@ -14,7 +14,7 @@
 %% Hook handlers
 -export([clean_tokens/2]).
 
-%% gen_iq_handler callbacks
+%% gen_iq_handler handlers
 -export([process_iq/3]).
 
 %% Public API
