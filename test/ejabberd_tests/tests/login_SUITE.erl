@@ -169,9 +169,9 @@ end_per_testcase(message_zlib_limit, Config) ->
     escalus:delete_users(Config, {by_name, [hacker]});
 end_per_testcase(check_unregistered, Config) ->
     Config;
-end_per_testcase(bad_request_registration_cancelation, Config) ->
-    true = user_exists(alice, Config),
-    Config;
+end_per_testcase(bad_request_registration_cancelation, Config0) ->
+    true = user_exists(alice, Config0),
+    escalus:delete_users(Config0, {by_name, [alice]});
 end_per_testcase(not_allowed_registration_cancelation, Config) ->
     restore_mod_register_options(Config),
     true = user_exists(alice, Config),
