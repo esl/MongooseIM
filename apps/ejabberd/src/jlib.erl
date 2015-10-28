@@ -364,7 +364,7 @@ jid_to_binary({Node, Server, Resource}) ->
     S3.
 
 -spec is_nodename(<<>> | binary()) -> boolean().
-is_nodename([]) ->
+is_nodename(<<>>) ->
     false;
 is_nodename(J) ->
     nodeprep(J) /= error.

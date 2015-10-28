@@ -23,7 +23,8 @@ all() -> [make_iq_reply_changes_type_to_result,
           resourceprep_fails_with_too_long_resource,
           nodeprep_fails_with_incorrect_username,
           resourceprep_fails_with_incorrect_resource,
-          nameprep_fails_with_incorrect_domain].
+          nameprep_fails_with_incorrect_domain,
+          is_nodename_fails_for_empty_binary].
 
 init_per_suite(C) ->
     application:start(p1_stringprep),
@@ -175,4 +176,7 @@ nameprep_fails_with_incorrect_domain(_) ->
     prop(incorrect_domain_property,
          ?FORALL(Bin, jid_gen:invalid_domain(),
                  error == jlib:nameprep(Bin))).
+
+is_nodename_fails_for_empty_binary(_) ->
+    false = jlib:is_nodename(<<>>).
 
