@@ -113,108 +113,149 @@ inband_cancelation_allowed(Server, JID) ->
 
 process_iq_set(From, To, #iq{lang = Lang, sub_el = Child, id = ID} = IQ, Source) ->
     true = is_query_element(Child),
-    handle_set(Child, {extras, [From, To, IQ, Child, Source, Lang]}).
-UTag = xml:get_subtag(Child, <<"username">>),
-PTag = xml:get_subtag(Child, <<"password">>),
-RTag = xml:get_subtag(Child, <<"remove">>),
-Server = To#jid.lserver,
-Access = gen_mod:get_module_opt(Server, ?MODULE, access, all),
-AllowRemove = (allow == acl:match_rule(Server, Access, From)),
-if
-    (UTag /= false) and (RTag /= false) and AllowRemove ->
-        User = xml:get_tag_cdata(UTag),
-        case From of
-            #jid{user = User, lserver = Server} ->
-                handle_set(Child, {extras, [From, To, IQ, Child, Source, Lang]}),
-                %% ejabberd_auth:remove_user(User, Server),
-                IQ#iq{type = result, sub_el = [Child]};
-            _ ->
-                if
-                    PTag /= false ->
-                        Password = xml:get_tag_cdata(PTag),
-                        case ejabberd_auth:remove_user(User,
-                                                       Server,
-                                                       Password) of
-                            ok ->
-                                IQ#iq{type = result,
-                                      sub_el = [Child]};
-                            %% TODO FIXME: This piece of
-                            %% code does not work since
-                            %% the code have been changed
-                            %% to allow several auth
-                            %% modules.  lists:foreach can
-                            %% only return ok:
-                            not_allowed ->
-                                IQ#iq{type = error,
-                                      sub_el =
-                                          [Child, ?ERR_NOT_ALLOWED]};
-                            not_exists ->
-                                IQ#iq{type = error,
-                                      sub_el =
-                                          [Child, ?ERR_ITEM_NOT_FOUND]};
-                            _ ->
-                                IQ#iq{type = error,
-                                      sub_el =
-                                          [Child,
-                                           ?ERR_INTERNAL_SERVER_ERROR]}
-                        end;
-                    true ->
-                        IQ#iq{type = error,
-                              sub_el = [Child, ?ERR_BAD_REQUEST]}
-                end
-        end;
-    (UTag == false) and (RTag /= false) and AllowRemove ->
-        case From of
-            #jid{user = User,
-                 lserver = Server,
-                 resource = Resource} ->
-                ResIQ = #iq{type = result, xmlns = ?NS_REGISTER,
-                            id = ID,
-                            sub_el = [Child]},
-                %% The response must be sent *before* the
-                %% XML stream is closed (the call to
-                %% `ejabberd_auth:remove_user/2' does
-                %% this): as it is, when canceling a
-                %% registration, there is no way to deal
-                %% with failure.
-                ejabberd_router:route(
-                  jlib:make_jid(User, Server, Resource),
-                  jlib:make_jid(User, Server, Resource),
-                  jlib:iq_to_xml(ResIQ)),
-                %% ejabberd_auth:remove_user(User, Server),
-                handle_set(Child, {extras, [From, To, IQ, Child, Source, Lang]}),
-                ignore;
-            _ ->
-                IQ#iq{type = error,
-                      sub_el = [Child, ?ERR_NOT_ALLOWED]}
-        end;
-    (UTag /= false) and (PTag /= false) ->
-        %% User = xml:get_tag_cdata(UTag),
-        %% Password = xml:get_tag_cdata(PTag),
-        handle_set(Child, {extras, [From, To, IQ, Child, Source, Lang]});
-    %% try_register_or_set_password(
-    %%   User, Server, Password, From,
-    %%   IQ, Child, Source, Lang);
-    true ->
-        IQ#iq{type = error,
-              sub_el = [Child, ?ERR_BAD_REQUEST]}
-end.
+    UTag = xml:get_subtag(Child, <<"username">>),
+    PTag = xml:get_subtag(Child, <<"password">>),
+    RTag = xml:get_subtag(Child, <<"remove">>),
+    Server = To#jid.lserver,
+    Access = gen_mod:get_module_opt(Server, ?MODULE, access, all),
+    AllowRemove = (allow == acl:match_rule(Server, Access, From)),
+    if
+        (UTag /= false) and (RTag /= false) and AllowRemove ->
+            User = xml:get_tag_cdata(UTag),
+            case From of
+                #jid{user = User, lserver = Server} ->
+                    handle_set(Child, {extras, [From, To, IQ, Child, Source, Lang]});
+                _ ->
+                    if
+                        PTag /= false ->
+                            Password = xml:get_tag_cdata(PTag),
+                            case ejabberd_auth:remove_user(User,
+                                                           Server,
+                                                           Password) of
+                                ok ->
+                                    IQ#iq{type = result,
+                                          sub_el = [Child]};
+                                %% TODO FIXME: This piece of
+                                %% code does not work since
+                                %% the code have been changed
+                                %% to allow several auth
+                                %% modules.  lists:foreach can
+                                %% only return ok:
+                                not_allowed ->
+                                    IQ#iq{type = error,
+                                          sub_el =
+                                              [Child, ?ERR_NOT_ALLOWED]};
+                                not_exists ->
+                                    IQ#iq{type = error,
+                                          sub_el =
+                                              [Child, ?ERR_ITEM_NOT_FOUND]};
+                                _ ->
+                                    IQ#iq{type = error,
+                                          sub_el =
+                                              [Child,
+                                               ?ERR_INTERNAL_SERVER_ERROR]}
+                            end;
+                        true ->
+                            IQ#iq{type = error,
+                                  sub_el = [Child, ?ERR_BAD_REQUEST]}
+                    end
+            end;
+        (UTag == false) and (RTag /= false) and AllowRemove ->
+            case From of
+                #jid{user = User,
+                     lserver = Server,
+                     resource = Resource} ->
+                    ResIQ = #iq{type = result, xmlns = ?NS_REGISTER,
+                                id = ID,
+                                sub_el = [Child]},
+                    %% The response must be sent *before* the
+                    %% XML stream is closed (the call to
+                    %% `ejabberd_auth:remove_user/2' does
+                    %% this): as it is, when canceling a
+                    %% registration, there is no way to deal
+                    %% with failure.
+                    handle_set(Child, {extras, [From, To, IQ, Child, Source, Lang]});
+                _ ->
+                    IQ#iq{type = error,
+                          sub_el = [Child, ?ERR_NOT_ALLOWED]}
+            end;
+        (UTag /= false) and (PTag /= false) ->
+            User = xml:get_tag_cdata(UTag),
+            Password = xml:get_tag_cdata(PTag),
+        try_register_or_set_password(
+          User, Server, Password, From,
+          IQ, Child, Source, Lang);
+        true ->
+            IQ#iq{type = error,
+                  sub_el = [Child, ?ERR_BAD_REQUEST]}
+    end.
 
-handle_set(#xmlel{name = <<"query">>} = Query, {extras, _} = Extras) ->
+handle_set(#xmlel{name = <<"query">>} = Query, {extras, [_,_,Stanza|_]} = Extras) ->
     case
-        Query#xmlel.children
+        has_only_remove_child(Query)
     of
-        [#xmlel{name = <<"x">>}] = Form ->
-            handle_data_submission(Form);
-        [#xmlel{name = <<"remove">>}] -> %% The `remove' element is the ONLY child.
+        true ->
             attempt_cancelation(Extras);
-        [_,_] = Information  ->
-            register_or_change_password(Information, Extras);
-        _ ->
-            error
-    end;
+        {false, more} ->
+            Stanza#iq{type = error, sub_el = [?ERR_BAD_REQUEST]};
+        {false, absent} ->
+            case
+                has_form_data_child(Query)
+            of
+                true ->
+                    Form = get_data(Query),
+                    handle_data_submission(Form);
+                false ->
+                    case
+                        has_username_and_password_children(Query)
+                    of
+                        true ->
+                            [Username, Password] = get_username_and_password_values(Query),
+                            handle_data_submission(Query);
+                        false ->
+                            ignore
+                    end
+            end
+    end;                        
 handle_set(_, _) ->
-    not_implemented.
+    %% XEP 0077 describes how to service lone `query' elements in a request.
+    ignore.
+
+has_only_remove_child(#xmlel{children = C} = Q) when length(C) =:= 1 ->
+    case
+        exml_query:path(Q, [{element, <<"remove">>}], absent)
+    of
+        absent ->
+            {false, absent};
+        _ ->
+            true
+    end;
+has_only_remove_child(#xmlel{children = C} = Q) when length(C) > 1 ->
+    case
+        exml_query:path(Q, [{element, <<"remove">>}], absent)
+    of
+        absent ->
+            {false, absent};
+        _ ->
+            {false, more}
+    end.
+
+has_form_data_child(Q) ->
+    absent =/= get_data(Q).
+
+get_data(Q) ->
+    exml_query:path(Q, [{element, <<"x">>}], absent).
+
+has_username_and_password_children(Q) ->
+    [absent, absent] =/= get_username_and_password_elements(Q).
+
+get_username_and_password_elements(Q) ->
+    [exml_query:path(Q, [{element, <<"username">>}], absent),
+     exml_query:path(Q, [{element, <<"password">>}], absent)].
+
+get_username_and_password_values(Q) ->
+    [exml_query:path(Q, [{element, <<"username">>}, cdata]),
+     exml_query:path(Q, [{element, <<"password">>}, cdata])].
 
 handle_data_submission(Form) ->
     case
@@ -234,39 +275,12 @@ is_submission_data(Form) ->
             false
     end.
 
-register_or_change_password(Details, {extras, [From, #jid{lserver = Server} = To, IQ, Children, IPAddr, Lang]}) ->
+register_or_change_password([Username, Password], {extras, [From, #jid{lserver = Server} = To, IQ, Children, IPAddr, Lang]}) ->
+            try_register_or_set_password(Username, Server, Password, From, IQ, Children, IPAddr, Lang).
+
+attempt_cancelation({extras, [#jid{user = Username, lserver = S0, resource = Resource} = From, #jid{lserver = S1} = To, #iq{id = ID} = IQ, Child, _IPAddr, _Lang]}) ->
     case
-        username_and_password_present(Details)
-    of
-        true ->
-            [Username, Password] = extract_values(Details),
-            try_register_or_set_password(Username, Server, Password, From, IQ, Children, IPAddr, Lang);
-        case
-                ejabberd_auth:is_user_exists(),
-        of
-                true ->
-                    change_password(Username, Password);
-                false ->
-                    register_user(Username, Password)
-        end;
-        false ->
-            not_implemented
-    end.
-
-username_and_password_present(Fields) ->
-    lists:keymember(<<"username">>, #xmlel.name, Fields)
-        and
-        lists:keymember(<<"password">>, #xmlel.name, Fields).
-
-extract_values(Fields) ->
-    [
-     exml_query:cdata(lists:keyfind(<<"username">>, #xmlel.name, Fields)),
-     exml_query:cdata(lists:keyfind(<<"password">>, #xmlel.name, Fields))
-    ].
-
-attempt_cancelation({extras, [#jid{user = Username, lserver = S1, resource = Resource} = From, #jid{lserver = S0} = To, #iq{id = ID} = IQ, Child, _IPAddr, _Lang]}) ->
-    case
-        inband_cancelation_allowed(S0, From)
+        inband_cancelation_allowed(S1, From)
     of
         true ->
             %% The response must be sent *before* the
@@ -279,19 +293,14 @@ attempt_cancelation({extras, [#jid{user = Username, lserver = S1, resource = Res
                         id = ID,
                         sub_el = [Child]},
             ejabberd_router:route(
-              jlib:make_jid(Username, S1, Resource),
-              jlib:make_jid(Username, S1, Resource),
+              jlib:make_jid(<<>>, <<>>, <<>>),
+              jlib:make_jid(Username, S0, Resource),
               jlib:iq_to_xml(ResIQ)),
-            ok = ejabberd_auth:remove_user(Username, S1);
+            ejabberd_auth:remove_user(Username, S0),
+            ignore;
         false ->
             error
     end.
-
-%% register_user(_Username, _Password) ->
-%%     ok.
-
-%% change_password(_Username, _Password) ->
-%%     ok.
 
 process_iq_get(From, _To, #iq{lang = Lang, sub_el = Child} = IQ, _Source) ->
     true = is_query_element(Child),
