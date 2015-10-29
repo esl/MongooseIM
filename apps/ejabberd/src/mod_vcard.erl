@@ -75,6 +75,8 @@
                directory_host   :: binary()
               }).
 
+-type error() :: error | {error, any()}.
+
 %%--------------------------------------------------------------------
 %% backend callbacks
 %%--------------------------------------------------------------------
@@ -290,18 +292,25 @@ unsafe_set_vcard(From, VCARD) ->
     {ok, VcardSearch} = prepare_vcard_search_params(FromUser, FromVHost, VCARD),
     ?BACKEND:set_vcard(FromUser, FromVHost, VCARD, VcardSearch).
 
-set_vcard(ok, From, VCARD) ->
+-spec set_vcard(HandlerAcc, From, VCARD) -> Result when
+      HandlerAcc :: ok | error(),
+      From :: jid(),
+      VCARD :: jlib:xmlel(),
+      Result :: ok | error().
+set_vcard(ok, _From, _VCARD) ->
     ?DEBUG("hook call already handled - skipping", []),
     ok;
-set_vcard(_, From, VCARD) ->
+set_vcard({error, no_handler_defined}, From, VCARD) ->
     try unsafe_set_vcard(From, VCARD) of
         ok -> ok;
         {error, Reason} ->
             ?ERROR_MSG("unsafe set_vcard failed: ~p", [Reason]),
-            false
+            {error, Reason}
     catch
-        E:R -> false
-    end.
+        E:R -> ?ERROR_MSG("unsafe set_vcard failed: ~p", [{E, R}]),
+               {error, {E, R}}
+    end;
+set_vcard({error, _} = E, _From, _VCARD) -> E.
 
 get_local_features({error, _Error}=Acc, _From, _To, _Node, _Lang) ->
     Acc;
