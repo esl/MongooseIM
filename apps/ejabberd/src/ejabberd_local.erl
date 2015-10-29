@@ -48,6 +48,8 @@
          bounce_resource_packet/3
         ]).
 
+-export([acl_match/2]).
+
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
@@ -235,6 +237,16 @@ register_host(Host) ->
 unregister_host(Host) ->
     gen_server:call(?MODULE,{unregister_host,Host}).
 
+-spec acl_match(Acc :: allow | deny, JID :: ejabberd:jid()) ->
+    {stop, deny} | allow.
+acl_match(_Acc, #jid{lserver = Server} = JID) ->
+     case acl:match_rule(Server, c2s, JID) of
+         allow ->
+             allow;
+         deny ->
+             {stop, deny}
+     end.
+
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -247,12 +259,7 @@ unregister_host(Host) ->
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
 init([]) ->
-    lists:foreach(
-      fun(Host) ->
-              ejabberd_router:register_route(Host, {apply, ?MODULE, route}),
-              ejabberd_hooks:add(local_send_to_resource_hook, Host,
-                                 ?MODULE, bounce_resource_packet, 100)
-      end, ?MYHOSTS),
+    lists:foreach(fun do_register_host/1, ?MYHOSTS),
     catch ets:new(?IQTABLE, [named_table, public]),
     update_table(),
     mnesia:create_table(iq_response,
@@ -273,15 +280,11 @@ init([]) ->
 handle_call({unregister_host, Host}, _From, State) ->
     [ejabberd_c2s:stop(Pid)
      || {_, {_, Pid}, _, _} <- ejabberd_sm:get_vh_session_list(Host)],
-    ejabberd_router:unregister_route(Host),
-    ejabberd_hooks:delete(local_send_to_resource_hook, Host,
-                          ?MODULE, bounce_resource_packet, 100),
+    do_unregister_host(Host),
     mongoose_metrics:remove_host_metrics(Host),
     {reply, ok, State};
 handle_call({register_host, Host}, _From, State) ->
-    ejabberd_router:register_route(Host, {apply, ?MODULE, route}),
-    ejabberd_hooks:add(local_send_to_resource_hook, Host,
-                       ?MODULE, bounce_resource_packet, 100),
+    do_register_host(Host),
     mongoose_metrics:init_predefined_host_metrics(Host),
     {reply, ok, State};
 handle_call(_Request, _From, State) ->
@@ -458,3 +461,16 @@ cancel_timer(TRef) ->
         _ ->
             ok
     end.
+
+do_register_host(Host) ->
+    ejabberd_hooks:add(check_user_allowed, Host, ?MODULE, acl_match, 10),
+    ejabberd_router:register_route(Host, {apply, ?MODULE, route}),
+    ejabberd_hooks:add(local_send_to_resource_hook, Host,
+                       ?MODULE, bounce_resource_packet, 100).
+
+do_unregister_host(Host) ->
+    ejabberd_router:unregister_route(Host),
+    ejabberd_hooks:delete(check_user_allowed, Host, ?MODULE, acl_match, 10),
+    ejabberd_hooks:delete(local_send_to_resource_hook, Host,
+                          ?MODULE, bounce_resource_packet, 100).
+

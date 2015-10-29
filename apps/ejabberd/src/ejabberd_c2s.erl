@@ -479,8 +479,9 @@ wait_for_auth({xmlstreamelement, El}, StateData) ->
         {auth, _ID, set, {U, P, D, R}} ->
             JID = jlib:make_jid(U, StateData#state.server, R),
             case (JID /= error) andalso
-                 (acl:match_rule(StateData#state.server,
-                                 StateData#state.access, JID) == allow) of
+                 (allow == ejabberd_hooks:run_fold(check_user_allowed,
+                                                   StateData#state.server,
+                                                   deny, [JID])) of
                 true ->
                     DGen = fun(PW) ->
                                    sha:sha1_hex(StateData#state.streamid
@@ -790,8 +791,9 @@ wait_for_session_or_sm({xmlstreamelement, El}, StateData0) ->
             U = StateData#state.user,
             R = StateData#state.resource,
             JID = StateData#state.jid,
-            case acl:match_rule(StateData#state.server,
-                                StateData#state.access, JID) of
+            case ejabberd_hooks:run_fold(check_user_allowed,
+                                         StateData#state.server,
+                                         deny, [JID]) of
                 allow ->
                     ?INFO_MSG("(~w) Opened session for ~s",
                               [StateData#state.socket,
