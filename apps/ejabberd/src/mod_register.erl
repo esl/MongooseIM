@@ -41,7 +41,6 @@
 -include("jlib.hrl").
 
 start(Host, Opts) ->
-    print_it("SETTINGS", Opts),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
     gen_iq_handler:add_iq_handler(ejabberd_local, Host, ?NS_REGISTER,
                                   ?MODULE, process_iq, IQDisc),
@@ -99,26 +98,17 @@ unauthenticated_iq_register(Acc, _Server, _IQ, _IP) ->
 
 %% Clients must register before being able to authenticate.
 process_unauthenticated_iq(Sender, Receiver, #iq{type = set} = Stanza, IPAddr) ->
-    Result = process_iq_set(Sender, Receiver, Stanza, IPAddr),
-    Result;
+    process_iq_set(Sender, Receiver, Stanza, IPAddr);
 process_unauthenticated_iq(Sender, Receiver, #iq{type = get} = Stanza, IPAddr) ->
     process_iq_get(Sender, Receiver, Stanza, IPAddr).
 
 process_iq(From, To, #iq{type = set} = IQ) ->
-    Result = process_iq_set(From, To, IQ, jlib:jid_tolower(From)),
-    print_it("RESULT", Result),
-    Result;
+    process_iq_set(From, To, IQ, jlib:jid_tolower(From));
 process_iq(From, To, #iq{type = get} = IQ) ->
     process_iq_get(From, To, IQ, jlib:jid_tolower(From)).
 
-inband_cancelation_allowed(Server, JID) ->
-    Rule = gen_mod:get_module_opt(Server, ?MODULE, access, none),
-    print_it("RULE", acl:match_rule(Server, Rule, JID)),
-    allow =:= acl:match_rule(Server, Rule, JID).
-
 process_iq_set(From, To, #iq{lang = Lang, sub_el = Child, id = ID} = IQ, Source) ->
     true = is_query_element(Child),
-    print_it("SET", {"SENDER", From, "of", IQ}),
     handle_set(Child, {extras, [From, To, IQ, Child, Source, Lang]}).
 
 handle_set(#xmlel{name = <<"query">>} = Query, {extras, [_,_,Stanza|_]} = Extras) ->
@@ -128,30 +118,24 @@ handle_set(#xmlel{name = <<"query">>} = Query, {extras, [_,_,Stanza|_]} = Extras
         true ->
             attempt_cancelation(Extras);
         {false, more} ->
-            print_it("HERE", ?LINE),
-            Stanza#iq{type = error, sub_el = [?ERR_BAD_REQUEST]};
+            error_response(Stanza, ?ERR_BAD_REQUEST);
         {false, absent} ->
             case
-                has_form_data_child(Query)
+                has_username_and_password_children(Query)
             of
                 true ->
-                    Form = get_data(Query),
-                    handle_data_submission(Form);
+                    Credentials = {_Username, _Password} = get_username_and_password_values(Query),
+                    register_or_change_password(Credentials, Extras);
                 false ->
-                    case
-                        has_username_and_password_children(Query)
-                    of
-                        true ->
-                            Credentials = [_Username, _Password] = get_username_and_password_values(Query),
-                            register_or_change_password(Credentials, Extras);
-                        false ->
-                            ignore
-                    end
+                    ignore
             end
     end;                        
 handle_set(_, _) ->
     %% XEP 0077 describes how to service lone `query' elements in a request.
     ignore.
+
+error_response(Request, Reason) ->
+    Request#iq{type = error, sub_el = [Reason]}.
 
 has_only_remove_child(#xmlel{children = C} = Q) when length(C) =:= 1 ->
     case
@@ -172,12 +156,6 @@ has_only_remove_child(#xmlel{children = C} = Q) when length(C) > 1 ->
             {false, more}
     end.
 
-has_form_data_child(Q) ->
-    absent =/= get_data(Q).
-
-get_data(Q) ->
-    exml_query:path(Q, [{element, <<"x">>}], absent).
-
 has_username_and_password_children(Q) ->
     [absent, absent] =/= get_username_and_password_elements(Q).
 
@@ -186,29 +164,12 @@ get_username_and_password_elements(Q) ->
      exml_query:path(Q, [{element, <<"password">>}], absent)].
 
 get_username_and_password_values(Q) ->
-    [exml_query:path(Q, [{element, <<"username">>}, cdata]),
-     exml_query:path(Q, [{element, <<"password">>}, cdata])].
+    {exml_query:path(Q, [{element, <<"username">>}, cdata]),
+     exml_query:path(Q, [{element, <<"password">>}, cdata])}.
 
-handle_data_submission(Form) ->
-    case
-        is_submission_data(Form)
-    of
-        _ ->
-            ignore
-    end.
-
-is_submission_data(Form) ->
-    case
-        exml_query:attr(Form, <<"type">>, undefined)
-    of
-        {<<"type">>, <<"submit">>} ->
-            true;
-        undefined ->
-            false
-    end.
-
-register_or_change_password([Username, Password], {extras, [From, #jid{lserver = Server} = To, IQ, Children, IPAddr, Lang]}) ->
-            try_register_or_set_password(Username, Server, Password, From, IQ, Children, IPAddr, Lang).
+register_or_change_password(Credentials, {extras, [From, #jid{lserver = Server} = To, IQ, Children, IPAddr, Lang]}) ->
+    {Username, Password} = Credentials,
+    try_register_or_set_password(Username, Server, Password, From, IQ, Children, IPAddr, Lang).
 
 attempt_cancelation({extras, [#jid{user = Username, lserver = S0, resource = Resource} = From, #jid{lserver = S1} = To, #iq{id = ID} = IQ, Child, _IPAddr, _Lang]}) ->
     case
@@ -231,10 +192,12 @@ attempt_cancelation({extras, [#jid{user = Username, lserver = S0, resource = Res
             ejabberd_auth:remove_user(Username, S0),
             ignore;
         false ->
-            print_it("DENIED", ?LINE),
-            print_it("STANZA", IQ#iq{type = error, sub_el = [?ERR_NOT_ALLOWED]}),
-            IQ#iq{type = error, sub_el = [?ERR_NOT_ALLOWED]}
+            error_response(IQ, ?ERR_NOT_ALLOWED)
     end.
+
+inband_cancelation_allowed(Server, JID) ->
+    Rule = gen_mod:get_module_opt(Server, ?MODULE, access, none),
+    allow =:= acl:match_rule(Server, Rule, JID).
 
 process_iq_get(From, _To, #iq{lang = Lang, sub_el = Child} = IQ, _Source) ->
     true = is_query_element(Child),
