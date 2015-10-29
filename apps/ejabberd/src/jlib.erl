@@ -26,7 +26,9 @@
 
 -module(jlib).
 -author('alexey@process-one.net').
+-on_load(init/0).
 
+-export([init/0]).
 -export([make_result_iq_reply/1,
          make_error_reply/2,
          make_invitation/3,
@@ -107,6 +109,21 @@
                        'false' | non_neg_integer(),
                        'false' | non_neg_integer()}.
 
+-spec init() -> ok.
+init() ->
+    PrivDir = case code:priv_dir(?MODULE) of
+                  {error, _} ->
+                      EbinDir = filename:dirname(code:which(?MODULE)),
+                      AppPath = filename:dirname(EbinDir),
+                      filename:join(AppPath, "priv");
+                  Path ->
+                      Path
+              end,
+    case catch erlang:load_nif(filename:join([PrivDir, "lib", "jlib"]), none) of
+        ok -> ok;
+        Error -> lager:warning("Could not load jlib NIF: ~p", [Error])
+    end,
+    ok.
 
 -spec make_result_iq_reply(xmlel()) -> xmlel().
 make_result_iq_reply(XE = #xmlel{attrs = Attrs}) ->
@@ -284,9 +301,9 @@ make_jid(User, Server, Resource) ->
     end.
 
 
--spec make_jid(ejabberd:simple_jid()) -> ejabberd:jid() | error.
-make_jid({User, Server, Resource}) ->
-    make_jid(User, Server, Resource).
+-spec make_jid(ejabberd:simple_jid() | error) -> ejabberd:jid() | error.
+make_jid(error) -> error;
+make_jid({User, Server, Resource}) -> make_jid(User, Server, Resource).
 
 -spec are_equal_jids(ejabberd:jid(), ejabberd:jid()) -> boolean().
 are_equal_jids(#jid{luser = LUser, lserver = LServer, lresource = LRes},
@@ -298,10 +315,13 @@ are_equal_jids(_, _) ->
 
 -spec binary_to_jid(binary()) -> 'error' | ejabberd:jid().
 binary_to_jid(J) ->
+    make_jid(binary_to_jid0(J)).
+
+-spec binary_to_jid0(binary()) -> 'error' | ejabberd:simple_jid().
+binary_to_jid0(J) ->
     binary_to_jid1(J, []).
 
-
--spec binary_to_jid1(binary(), [byte()]) -> 'error' | ejabberd:jid().
+-spec binary_to_jid1(binary(), [byte()]) -> 'error' | ejabberd:simple_jid().
 binary_to_jid1(<<$@, _J/binary>>, []) ->
     error;
 binary_to_jid1(<<$@, J/binary>>, N) ->
@@ -315,11 +335,11 @@ binary_to_jid1(<<C, J/binary>>, N) ->
 binary_to_jid1(<<>>, []) ->
     error;
 binary_to_jid1(<<>>, N) ->
-    make_jid(<<>>, list_to_binary(lists:reverse(N)), <<>>).
+    {<<>>, list_to_binary(lists:reverse(N)), <<>>}.
 
 
 %% @doc Only one "@" is admitted per JID
--spec binary_to_jid2(binary(),[byte()],[byte()]) -> 'error' | ejabberd:jid().
+-spec binary_to_jid2(binary(),[byte()],[byte()]) -> 'error' | ejabberd:simple_jid().
 binary_to_jid2(<<$@, _J/binary>>, _N, _S) ->
     error;
 binary_to_jid2(<<$/, _J/binary>>, _N, []) ->
@@ -331,17 +351,13 @@ binary_to_jid2(<<C, J/binary>>, N, S) ->
 binary_to_jid2(<<>>, _N, []) ->
     error;
 binary_to_jid2(<<>>, N, S) ->
-    make_jid(list_to_binary(N), list_to_binary(lists:reverse(S)), <<>>).
+    {list_to_binary(N), list_to_binary(lists:reverse(S)), <<>>}.
 
-
--spec binary_to_jid3(binary(),[byte()],[byte()],[byte()]) -> 'error' | ejabberd:jid().
+-spec binary_to_jid3(binary(),[byte()],[byte()],[byte()]) -> 'error' | ejabberd:simple_jid().
 binary_to_jid3(<<C, J/binary>>, N, S, R) ->
     binary_to_jid3(J, N, S, [C | R]);
 binary_to_jid3(<<>>, N, S, R) ->
-    make_jid(list_to_binary(N), list_to_binary(S), list_to_binary(lists:reverse(R))).
-
-
-
+    {list_to_binary(N), list_to_binary(S), list_to_binary(lists:reverse(R))}.
 
 
 -spec jid_to_binary(ejabberd:simple_jid() | ejabberd:jid()) -> binary().
