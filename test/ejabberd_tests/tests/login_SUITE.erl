@@ -33,7 +33,7 @@ all() ->
      {group, login},
      {group, login_scram},
      {group, login_scram_store_plain},
-     {group, banned_users},
+     {group, legacy_auth},
      {group, messages}
     ].
 
@@ -44,7 +44,9 @@ groups() ->
      {login, [sequence], all_tests()},
      {login_scram, [sequence], scram_tests()},
      {login_scram_store_plain, [sequence], scram_tests()},
-     {banned_users, [sequence], [alice_cannot_authenticate]},
+     {legacy_auth, [sequence], [legacy_successful_plain,
+                                %legacy_successful_digest,
+                                legacy_blocked_user]},
      {messages, [sequence], [messages_story, message_zlib_limit]}].
 
 scram_tests() ->
@@ -56,7 +58,8 @@ all_tests() ->
      log_one_digest,
      log_non_existent_digest,
      log_one_scram,
-     log_non_existent_scram
+     log_non_existent_scram,
+     blocked_user
     ].
 
 suite() ->
@@ -135,14 +138,16 @@ init_per_testcase(message_zlib_limit, Config) ->
         false ->
             {skip, port_not_configured_on_server}
     end;
-init_per_testcase(alice_cannot_authenticate, Config) ->
+init_per_testcase(Name, Config)
+  when Name == blocked_user; Name == legacy_blocked_user ->
     Domain = ct:get_config(ejabberd_domain),
     escalus_ejabberd:rpc(acl, add, [Domain, blocked, {user, <<"alice">>}]),
-    escalus:init_per_testcase(alice_cannot_authenticate, Config);
+    escalus:init_per_testcase(Name, Config);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
-end_per_testcase(alice_cannot_authenticate, Config) ->
+end_per_testcase(Name, Config)
+  when Name == blocked_user; Name == legacy_blocked_user ->
     Domain = ct:get_config(ejabberd_domain),
     escalus_ejabberd:rpc(acl, delete, [Domain, blocked, {user, <<"alice">>}]),
     Config;
@@ -234,7 +239,7 @@ log_non_existent(Config) ->
     {error, {connection_step_failed, _, R}} = escalus_client:start(Config, UserSpec, <<"res">>),
     R.
 
-alice_cannot_authenticate(_Config) ->
+blocked_user(_Config) ->
     [{_, Spec}] = escalus_users:get_users({by_name, [alice]}),
     try
         {ok, _Alice, _Spec2, _Features} = escalus_connection:start(Spec),
@@ -270,6 +275,36 @@ message_zlib_limit(Config) ->
         escalus:assert(is_stream_end, escalus:wait_for_stanza(Hacker))
 
     end).
+
+legacy_successful_digest(Config) ->
+    legacy_auth(Config, legacy_auth_digest).
+
+legacy_successful_plain(Config) ->
+    legacy_auth(Config, legacy_auth_plain).
+
+legacy_auth(Config, Function) ->
+    %% given
+    Spec = escalus_users:get_userspec(Config, alice),
+    Steps = [
+             %% when
+             {legacy_stream_helper, start_stream_pre_xmpp_1_0},
+             {legacy_stream_helper, Function}
+            ],
+    %% ok, now do the plan from above
+    {ok, Conn, _, _} = escalus_connection:start(Spec, Steps),
+    escalus_connection:stop(Conn).
+
+
+legacy_blocked_user(Config) ->
+    try
+        legacy_auth(Config, legacy_auth_plain),
+        ct:fail("alice authenticated but shouldn't")
+    catch
+        error:{assertion_failed, assert, is_iq_result, _, Stanza, _Bin} ->
+            <<"cancel">> = exml_query:path(Stanza,
+                                           [{element, <<"error">>},
+                                            {attr, <<"type">>}])
+    end.
 
 %%--------------------------------------------------------------------
 %% Helpers
