@@ -20,5 +20,5 @@ else
     sed "s/USER/$3/g" -i ${SCRIPT_TO_PREPARE}
     sed "s/DATABASENAME/$4/g" -i ${SCRIPT_TO_PREPARE}
     sed "s/DBPASSWORD/$5/g" -i ${SCRIPT_TO_PREPARE}
-    source set-odbc-params.sh
+    source set-odbc-params.sh runinplace
 fi
