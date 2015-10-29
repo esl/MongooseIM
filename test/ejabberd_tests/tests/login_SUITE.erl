@@ -33,6 +33,7 @@ all() ->
      {group, login},
      {group, login_scram},
      {group, login_scram_store_plain},
+     {group, banned_users},
      {group, messages}
     ].
 
@@ -43,6 +44,7 @@ groups() ->
      {login, [sequence], all_tests()},
      {login_scram, [sequence], scram_tests()},
      {login_scram_store_plain, [sequence], scram_tests()},
+     {banned_users, [sequence], [alice_cannot_authenticate]},
      {messages, [sequence], [messages_story, message_zlib_limit]}].
 
 scram_tests() ->
@@ -133,9 +135,17 @@ init_per_testcase(message_zlib_limit, Config) ->
         false ->
             {skip, port_not_configured_on_server}
     end;
+init_per_testcase(alice_cannot_authenticate, Config) ->
+    Domain = ct:get_config(ejabberd_domain),
+    escalus_ejabberd:rpc(acl, add, [Domain, blocked, {user, <<"alice">>}]),
+    escalus:init_per_testcase(alice_cannot_authenticate, Config);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
+end_per_testcase(alice_cannot_authenticate, Config) ->
+    Domain = ct:get_config(ejabberd_domain),
+    escalus_ejabberd:rpc(acl, delete, [Domain, blocked, {user, <<"alice">>}]),
+    Config;
 end_per_testcase(message_zlib_limit, Config) ->
     escalus:delete_users(Config, {by_name, [hacker]});
 end_per_testcase(check_unregistered, Config) ->
@@ -223,6 +233,17 @@ log_non_existent(Config) ->
     [{kate, UserSpec}] = escalus_users:get_users({by_name, [kate]}),
     {error, {connection_step_failed, _, R}} = escalus_client:start(Config, UserSpec, <<"res">>),
     R.
+
+alice_cannot_authenticate(_Config) ->
+    [{_, Spec}] = escalus_users:get_users({by_name, [alice]}),
+    try
+        {ok, _Alice, _Spec2, _Features} = escalus_connection:start(Spec),
+        ct:fail("Alice authenticated but shouldn't")
+    catch
+        error:{assertion_failed, assert, is_iq_result, Stanza, _Bin} ->
+            <<"cancel">> = exml_query:path(Stanza, [{element, <<"error">>}, {attr, <<"type">>}])
+    end,
+    ok.
 
 messages_story(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
