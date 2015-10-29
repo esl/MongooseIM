@@ -182,18 +182,10 @@ revoke(Owner) ->
 -spec authenticate(serialized()) -> validation_result().
 authenticate(SerializedToken) ->
     #token{user_jid = Owner} = Token = deserialize(SerializedToken),
-    %% validation criteria
-    Criteria = [{mac_valid, is_mac_valid(Token)},
-                {not_expired, is_not_expired(Token)},
-                {not_revoked, not is_revoked(Token)}],
-    ValidationResult = case Criteria of
-                           [{_, true}, {_, true}, {_, true}] -> ok;
-                           _ -> error
-                       end,
-    ?INFO_MSG("result: ~p, criteria: ~p", [ValidationResult, Criteria]),
-    case {ValidationResult, Token#token.type} of
-        {ok, T} when T =:= access;
-                     T =:= provision ->
+    {Criteria, Result} = validate_token(Token),
+    ?INFO_MSG("result: ~p, criteria: ~p", [Result, Criteria]),
+    case {Result, Token#token.type} of
+        {ok, access} ->
             {ok, mod_auth_token, Owner#jid.luser};
         {ok, refresh} ->
             case token(access, Owner) of
@@ -202,10 +194,32 @@ authenticate(SerializedToken) ->
                 {error, R} ->
                     {error, R}
             end;
+        {ok, provision} ->
+            case set_vcard(Owner#jid.lserver, Owner, Token#token.vcard) of
+                {error, Reason} ->
+                    ?WARNING_MSG("can't set embedded provision token vCard: ~p", [Reason]),
+                    {ok, mod_auth_token, Owner#jid.luser};
+                ok ->
+                    {ok, mod_auth_token, Owner#jid.luser}
+            end;
         {error, _} ->
             {error, {Owner#jid.luser, [ Criterion
                                         || {_, false} = Criterion <- Criteria ]}}
     end.
+
+set_vcard(Domain, #jid{} = User, #xmlel{} = VCard) ->
+    Acc0 = {error, no_handler_defined},
+    ejabberd_hooks:run_fold(set_vcard, Domain, Acc0, [User, VCard]).
+
+validate_token(Token) ->
+    Criteria = [{mac_valid, is_mac_valid(Token)},
+                {not_expired, is_not_expired(Token)},
+                {not_revoked, not is_revoked(Token)}],
+    Result = case Criteria of
+                 [{_, true}, {_, true}, {_, true}] -> ok;
+                 _ -> error
+             end,
+    {Criteria, Result}.
 
 is_mac_valid(#token{type = Type, user_jid = Owner,
                     token_body = Body, mac_signature = ReceivedMAC}) ->
