@@ -18,9 +18,9 @@
 -export([process_iq/3]).
 
 %% Public API
--export([token/2,
-         validate_token/1,
-         revoke/1]).
+-export([authenticate/1,
+         revoke/1,
+         token/2]).
 
 %% Token serialization
 -export([deserialize/1,
@@ -33,8 +33,8 @@
 -export([datetime_to_seconds/1,
          seconds_to_datetime/1]).
 -export([expiry_datetime/3,
+         get_key_for_user/2,
          token_with_mac/1]).
--export([get_key_for_user/2]).
 
 -export_type([period/0,
               sequence_no/0,
@@ -179,8 +179,8 @@ revoke(Owner) ->
                error
     end.
 
--spec validate_token(serialized()) -> validation_result().
-validate_token(SerializedToken) ->
+-spec authenticate(serialized()) -> validation_result().
+authenticate(SerializedToken) ->
     #token{user_jid = Owner} = Token = deserialize(SerializedToken),
     %% validation criteria
     Criteria = [{mac_valid, is_mac_valid(Token)},

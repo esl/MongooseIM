@@ -25,9 +25,9 @@ mech_new(Host, GetPassword, CheckPassword, CheckPasswordDigest) ->
 -spec mech_step(State :: tuple(),
                 ClientIn :: binary()
                 ) -> {ok, proplists:proplist()} | {error, binary()}.
-mech_step(State, ClientIn) ->
-    %% ClientIn is a token decoded from CDATA <auth body sent by client
-    case mod_auth_token:validate_token(ClientIn) of
+mech_step(State, SerializedToken) ->
+    %% SerializedToken is a token decoded from CDATA <auth/> body sent by client
+    case mod_auth_token:authenticate(SerializedToken) of
         % Validating access token
         {ok, AuthModule, User} ->
             {ok,[{username, User},

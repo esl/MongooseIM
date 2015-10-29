@@ -130,7 +130,7 @@ validation_test(_, ExampleToken) ->
     %% given
     Serialized = ?TESTED:serialize(ExampleToken),
     %% when
-    Result = ?TESTED:validate_token(Serialized),
+    Result = ?TESTED:authenticate(Serialized),
     %% then
     ?ae(true, is_validation_success(Result)).
 
@@ -178,7 +178,7 @@ is_serialization_reversible(Token) ->
 
 is_valid_token_prop(Token) ->
     Serialized = ?TESTED:serialize(Token),
-    R = ?TESTED:validate_token(Serialized),
+    R = ?TESTED:authenticate(Serialized),
     case is_validation_success(R) of
         true -> true;
         _    -> ct:fail(R)
@@ -202,7 +202,7 @@ revoked_token_is_not_valid(_) ->
                sequence_no = RevokedSeqNo},
     Revoked = ?TESTED:serialize(?TESTED:token_with_mac(T)),
     %% when
-    ValidationResult = ?TESTED:validate_token(Revoked),
+    ValidationResult = ?TESTED:authenticate(Revoked),
     %% then
     {error, _} = ValidationResult.
 
