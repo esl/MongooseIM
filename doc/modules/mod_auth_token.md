@@ -61,59 +61,10 @@ key used for signing and verifying access and refresh tokens.
 As its name suggests, it's pre shared with the service issuing provision
 tokens which clients then use to authenticate with MongooseIM.
 
-### Token internal representation
-
-All tokens (access / refresh / provision) are to be exchanged as *base64 encoded* binary data.
-Each binary token consists of a number of fields described in this section.
-
-On the server side a token is represented as an Erlang record of the following structure:
-
-```erlang
--record (token, { type              :: mod_auth_token:token_type(),
-                  expiry_datetime   :: calendar:datetime(),
-                  user_jid          :: ejabberd:jid(),
-                  sequence_no       :: mod_auth_token:sequence_no() | undefined,
-                  mac_signature     :: binary() | undefined,
-                  token_body        :: binary() | undefined }).
-```
-
-Fields description:
-
--   `type`
-
-    Erlang term (atom). Allowed/handled values:
-
-    * refresh
-    * access
-    * provision
-
--   `expiry_datetime`
-
-    Seconds from the beginning of the epoch, eg: 63610072334
-
--   `user_jid`
-
-    String of following form: `username@servername.ext`
-
-    Server sends _normalized_ form of a user's bare jid.
-    No resource is allowed at the end of the string
-    (this is not enforced though - the server just doesn't append a user's resource identifier
-    because it should not be used in context of this implementation by either side).
-
--   `sequence_no`
-
-    Makes sense only in context of *refresh* token. A positive integer number. 
-    Generated and tracked by server to handle revocation.
-
--   `mac_signature`
-
-    HMAC (hashed message authentication code) generated out of all the fields described above
-    using *sha384* hashing algorithm and a secret key generated and stored on server side only.
-    Used to check token integrity and authenticity of a sender.
-
 ### Token serialization format
 
-Serialization format of the token is dependent on its type:
+All tokens (access / refresh / provision) are to be exchanged as *Base64 encoded* binary data.
+Serialization format of the token before encoding with Base64 is dependent on its type:
 
 ```
 'access' \0 <BARE_JID> \0 <EXPIRES_AT> \0 <MAC>
@@ -186,7 +137,7 @@ cmVmcmVzaAGQ1Mzk1MmZlYzhkYjhlOTQzM2UxMw==
 </auth>
 ```
 
-The base64 encoded content is a token obtained prior to authentication.
+The Base64 encoded content is a token obtained prior to authentication.
 Authentication will succeed unless the used tokens are expired, revoked,
 or the keys required for MAC verification could not be found by the server.
 
