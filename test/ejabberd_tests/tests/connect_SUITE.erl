@@ -28,8 +28,6 @@
 -define(SECURE_USER, secure_joe).
 -define(CERT_FILE, "priv/ssl/fake_server.pem").
 -define(TLS_VERSIONS, ["tlsv1", "tlsv1.1", "tlsv1.2"]).
--define(NS_AUTH, <<"jabber:iq:auth">>).
-
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -131,8 +129,8 @@ pre_xmpp_1_0_stream(Config) ->
     Spec = escalus_users:get_userspec(Config, alice),
     Steps = [
              %% when
-             {?MODULE, start_stream_pre_xmpp_1_0},
-             {?MODULE, failed_legacy_auth}
+             {legacy_stream_helper, start_stream_pre_xmpp_1_0},
+             {legacy_stream_helper, failed_legacy_auth}
             ],
     %% ok, now do the plan from above
     {ok, Conn, _, _} = escalus_connection:start(Spec, Steps),
@@ -251,74 +249,11 @@ connect_with_invalid_stream_namespace(Spec) ->
     escalus:wait_for_stanzas(Conn, 3).
 
 stream_start_invalid_stream_ns(To) ->
-    stream_start(lists:keystore(stream_ns, 1, default_context(To),
+    legacy_stream_helper:stream_start(lists:keystore(stream_ns, 1, default_context(To),
                                 {stream_ns, <<"obviously-invalid-namespace">>})).
-
-stream_start_pre_xmpp_1_0(To) ->
-    stream_start(lists:keystore(version, 1, default_context(To), {version, <<>>})).
 
 default_context(To) ->
     [{version, <<"version='1.0'">>},
      {to, To},
      {stream_ns, ?NS_XMPP}].
 
-stream_start(Context) ->
-    %% Be careful! The closing slash here is a hack to enable implementation of from_template/2
-    %% to parse the snippet properly. In standard XMPP <stream:stream> is just opening of an XML
-    %% element, NOT A SELF CLOSING element.
-    T = <<"<stream:stream {{version}} xml:lang='en' xmlns='jabber:client' "
-          "               to='{{to}}' "
-          "               xmlns:stream='{{stream_ns}}' />">>,
-    %% So we rewrap the parsed contents from #xmlel{} to #xmlstreamstart{} here.
-    #xmlel{name = Name, attrs = Attrs, children = []} = escalus_stanza:from_template(T, Context),
-    #xmlstreamstart{name = Name, attrs = Attrs}.
-
-username(Username) when is_binary(Username) ->
-    #xmlel{name = <<"username">>,
-           children = [exml:escape_cdata(Username)]}.
-
-digest(Digest) when is_binary(Digest) ->
-    #xmlel{name = <<"digest">>,
-           children = [exml:escape_cdata(Digest)]}.
-
-generate_digest(SID, Password) ->
-    %% compute digest
-    D = binary_to_list(SID) ++ binary_to_list(Password),
-    sha(D).
-
-digit_to_xchar(D) when (D >= 0) and (D < 10) ->
-    D + 48;
-digit_to_xchar(D) ->
-    D + 87.
-
-sha(Text) ->
-    Bin = crypto:hash(sha256, Text),
-    lists:reverse(ints_to_rxstr(binary_to_list(Bin), [])).
-
-ints_to_rxstr([], Res) ->
-    Res;
-ints_to_rxstr([N | Ns], Res) ->
-    ints_to_rxstr(Ns, [digit_to_xchar(N rem 16),
-                       digit_to_xchar(N div 16) | Res]).
-
-start_stream_pre_xmpp_1_0(Conn, Props, UnusedFeatures) ->
-    escalus:send(Conn, stream_start_pre_xmpp_1_0(escalus_users:get_server([], Props))),
-    #xmlstreamstart{attrs = StreamAttrs} = StreamStart = escalus:wait_for_stanza(Conn),
-    escalus:assert(is_stream_start, StreamStart),
-    {<<"id">>, StreamID} = lists:keyfind(<<"id">>, 1, StreamAttrs),
-    {Conn, [{stream_id, StreamID} | Props], UnusedFeatures}.
-
-failed_legacy_auth(Conn, Props, UnusedFeatures) ->
-    {stream_id, StreamID} = lists:keyfind(stream_id, 1, Props),
-    %ct:pal("id: ~p", [StreamID]),
-    [Username, _, Password] = escalus_users:get_usp([], Props),
-    Digest = list_to_binary(generate_digest(StreamID, Password)),
-    AuthReq = escalus_stanza:iq_set(?NS_AUTH, [username(Username), digest(Digest)]),
-    escalus:send(Conn, AuthReq),
-    %ct:pal("la req: ~p", [AuthReq]),
-    Response = escalus:wait_for_stanza(Conn),
-    %ct:pal("la response: ~p", [Response]),
-    %% This is the success case - we want to assert the error case.
-    %escalus:assert(is_iq_result, Response),
-    escalus:assert(is_error, [<<"modify">>, <<"not-acceptable">>], Response),
-    {Conn, Props, UnusedFeatures}.
