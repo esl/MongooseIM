@@ -45,7 +45,7 @@ groups() ->
      {login_scram, [sequence], scram_tests()},
      {login_scram_store_plain, [sequence], scram_tests()},
      {legacy_auth, [sequence], [legacy_successful_plain,
-                                %legacy_successful_digest,
+                                legacy_successful_digest,
                                 legacy_blocked_user]},
      {messages, [sequence], [messages_story, message_zlib_limit]}].
 

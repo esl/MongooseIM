@@ -101,7 +101,7 @@ digit_to_xchar(D) ->
     D + 87.
 
 sha(Text) ->
-    Bin = crypto:hash(sha256, Text),
+    Bin = crypto:hash(sha, Text),
     lists:reverse(ints_to_rxstr(binary_to_list(Bin), [])).
 
 ints_to_rxstr([], Res) ->
