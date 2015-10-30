@@ -74,7 +74,6 @@ clean_opt({registration_watchers, Watchers}) ->
 clean_opt(Item) ->
     Item.
 
-
 stream_feature_register(Acc, _Host) ->
     [#xmlel{name = <<"register">>,
             attrs = [{<<"xmlns">>, ?NS_FEATURE_IQREGISTER}]} | Acc].
@@ -112,24 +111,20 @@ process_iq_set(From, To, #iq{lang = Lang, sub_el = Child, id = ID} = IQ, Source)
     handle_set(Child, {extras, [From, To, IQ, Child, Source, Lang]}).
 
 handle_set(#xmlel{name = <<"query">>} = Query, {extras, [_,_,Stanza|_]} = Extras) ->
-    case
-        has_only_remove_child(Query)
-    of
+    case has_only_remove_child(Query) of
         true ->
             attempt_cancelation(Extras);
         {false, more} ->
             error_response(Stanza, ?ERR_BAD_REQUEST);
         {false, absent} ->
-            case
-                has_username_and_password_children(Query)
-            of
+            case has_username_and_password_children(Query) of
                 true ->
-                    Credentials = {_Username, _Password} = get_username_and_password_values(Query),
+                    Credentials = get_username_and_password_values(Query),
                     register_or_change_password(Credentials, Extras);
                 false ->
                     ignore
             end
-    end;                        
+    end;
 handle_set(_, _) ->
     %% XEP 0077 describes how to service lone `query' elements in a request.
     ignore.
@@ -138,18 +133,14 @@ error_response(Request, Reason) ->
     Request#iq{type = error, sub_el = [Reason]}.
 
 has_only_remove_child(#xmlel{children = C} = Q) when length(C) =:= 1 ->
-    case
-        exml_query:path(Q, [{element, <<"remove">>}], absent)
-    of
+    case exml_query:path(Q, [{element, <<"remove">>}], absent) of
         absent ->
             {false, absent};
         _ ->
             true
     end;
 has_only_remove_child(#xmlel{children = C} = Q) when length(C) > 1 ->
-    case
-        exml_query:path(Q, [{element, <<"remove">>}], absent)
-    of
+    case exml_query:path(Q, [{element, <<"remove">>}], absent) of
         absent ->
             {false, absent};
         _ ->
@@ -172,9 +163,7 @@ register_or_change_password(Credentials, {extras, [From, #jid{lserver = Server} 
     try_register_or_set_password(Username, Server, Password, From, IQ, Children, IPAddr, Lang).
 
 attempt_cancelation({extras, [#jid{user = Username, lserver = S0, resource = Resource} = From, #jid{lserver = S1} = To, #iq{id = ID} = IQ, Child, _IPAddr, _Lang]}) ->
-    case
-        inband_cancelation_allowed(S1, From)
-    of
+    case inband_cancelation_allowed(S1, From) of
         true ->
             %% The response must be sent *before* the
             %% XML stream is closed (the call to
