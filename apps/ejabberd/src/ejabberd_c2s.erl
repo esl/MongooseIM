@@ -478,14 +478,13 @@ wait_for_auth({xmlstreamelement, El}, StateData) ->
             fsm_next_state(wait_for_auth, StateData);
         {auth, _ID, set, {U, P, D, R}} ->
             JID = jlib:make_jid(U, StateData#state.server, R),
-            case (JID /= error) andalso
-                 (allow == ejabberd_hooks:run_fold(check_user_allowed,
-                                                   StateData#state.server,
-                                                   deny, [JID])) of
+            case (JID /= error) andalso user_allowed(JID, StateData) of
                 true ->
                     DGen = fun(PW) ->
-                                   sha:sha1_hex(StateData#state.streamid
-                                                ++ binary_to_list(PW)) end,
+                                   Sid = StateData#state.streamid,
+                                   sha:sha1_hex(<<Sid/binary,
+                                                PW/binary>>)
+                           end,
                     case ejabberd_auth:check_password_with_authmodule(
                            U, StateData#state.server, P, D, DGen) of
                         {true, AuthModule} ->
@@ -791,10 +790,8 @@ wait_for_session_or_sm({xmlstreamelement, El}, StateData0) ->
             U = StateData#state.user,
             R = StateData#state.resource,
             JID = StateData#state.jid,
-            case ejabberd_hooks:run_fold(check_user_allowed,
-                                         StateData#state.server,
-                                         deny, [JID]) of
-                allow ->
+            case user_allowed(JID, StateData) of
+                true ->
                     ?INFO_MSG("(~w) Opened session for ~s",
                               [StateData#state.socket,
                                jlib:jid_to_binary(JID)]),
@@ -2890,3 +2887,16 @@ handle_sasl_step(#state{server = Server, socket= Sock} = State, StepRes) ->
             send_element(State, sasl_failure_stanza(Error)),
             {wait_for_feature_request, State}
     end.
+
+user_allowed(JID, #state{server = Server, access = Access}) ->
+    case acl:match_rule(Server, Access, JID)  of
+        allow ->
+            user_allowed_hook(Server, JID);
+        deny ->
+            false
+    end.
+
+user_allowed_hook(Server, JID) ->
+    allow == ejabberd_hooks:run_fold(check_user_allowed,
+                                     Server,
+                                     allow, [JID]).

@@ -48,8 +48,6 @@
          bounce_resource_packet/3
         ]).
 
--export([acl_match/2]).
-
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
@@ -237,15 +235,6 @@ register_host(Host) ->
 unregister_host(Host) ->
     gen_server:call(?MODULE,{unregister_host,Host}).
 
--spec acl_match(Acc :: allow | deny, JID :: ejabberd:jid()) ->
-    {stop, deny} | allow.
-acl_match(_Acc, #jid{lserver = Server} = JID) ->
-     case acl:match_rule(Server, c2s, JID) of
-         allow ->
-             allow;
-         deny ->
-             {stop, deny}
-     end.
 
 %%====================================================================
 %% gen_server callbacks
@@ -463,14 +452,12 @@ cancel_timer(TRef) ->
     end.
 
 do_register_host(Host) ->
-    ejabberd_hooks:add(check_user_allowed, Host, ?MODULE, acl_match, 10),
     ejabberd_router:register_route(Host, {apply, ?MODULE, route}),
     ejabberd_hooks:add(local_send_to_resource_hook, Host,
                        ?MODULE, bounce_resource_packet, 100).
 
 do_unregister_host(Host) ->
     ejabberd_router:unregister_route(Host),
-    ejabberd_hooks:delete(check_user_allowed, Host, ?MODULE, acl_match, 10),
     ejabberd_hooks:delete(local_send_to_resource_hook, Host,
                           ?MODULE, bounce_resource_packet, 100).
 

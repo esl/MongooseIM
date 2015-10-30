@@ -218,18 +218,13 @@ do_check_password_loop([AuthModule | AuthModules], Args) ->
     end.
 
 -spec check_digest(binary(), fun(), binary(), binary()) -> boolean().
-check_digest(Digest, DigestGen, Password, Passwd) ->
-    DigRes = if
-                 Digest /= <<>> ->
-                     Digest == DigestGen(Passwd);
-                 true ->
-                     false
-             end,
-    if DigRes ->
-           true;
-       true ->
-           (Passwd == Password) and (Password /= <<>>)
-    end.
+check_digest(<<>>, _, <<>>, _) ->
+    false; %%empty digest and password
+check_digest(<<>>, _, Password, Passwd) ->
+    Passwd == Password;
+check_digest(Digest, DigestGen, _Password, Passwd) ->
+    ?WARNING_MSG("Computed digest for password ~p is: ~p", [Passwd, DigestGen(Passwd)]),
+    Digest == DigestGen(Passwd).
 
 -spec set_password(User :: ejabberd:user(),
                    Server :: ejabberd:server(),
