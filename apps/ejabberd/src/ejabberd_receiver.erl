@@ -325,13 +325,20 @@ process_data(Data, #state{parser = Parser,
     mongoose_metrics:update([data, xmpp, received, xml_stanza_size], Size),
 
     maybe_run_keep_alive_hook(Size, State),
-    {ok, NewParser, Elems} = exml_stream:parse(Parser, Data),
-    {NewShaperState, Pause} = shaper:update(ShaperState, Size),
-    ValidElems = replace_too_big_elems_with_stream_error(Elems, MaxSize),
-    [gen_fsm:send_event(C2SPid, wrap_if_xmlel(E)) || E <- ValidElems],
-    maybe_pause(Pause, State),
-    State#state{parser = NewParser,
-                shaper_state = NewShaperState}.
+    case exml_stream:parse(Parser, Data) of
+        {ok, NewParser, Elems} ->
+            {NewShaperState, Pause} = shaper:update(ShaperState, Size),
+            ValidElems = replace_too_big_elems_with_stream_error(Elems, MaxSize),
+            [gen_fsm:send_event(C2SPid, wrap_if_xmlel(E)) || E <- ValidElems],
+            maybe_pause(Pause, State),
+            State#state{parser = NewParser,
+                        shaper_state = NewShaperState};
+        {error, Reason} ->
+            {NewShaperState, Pause} = shaper:update(ShaperState, Size),
+            gen_fsm:send_event(C2SPid, {xmlstreamerror, Reason}),
+            maybe_pause(Pause, State),
+            State#state{shaper_state = NewShaperState}
+    end.
 
 wrap_if_xmlel(#xmlel{} = E) -> {xmlstreamelement, E};
 wrap_if_xmlel(E) -> E.
