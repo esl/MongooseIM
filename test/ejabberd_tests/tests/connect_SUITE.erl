@@ -104,6 +104,18 @@ generate_tls_vsn_tests() ->
 %% Tests
 %%--------------------------------------------------------------------
 
+bad_xml(Config) ->
+    %% given
+    Spec = escalus_users:get_userspec(Config, alice),
+    %% when
+    [Start, Error, End] = connect_with_bad_xml(Spec),
+    %% then
+    %% See RFC 6120 4.9.1.3 (http://xmpp.org/rfcs/rfc6120.html#streams-error-rules-host).
+    %% Stream start from the server is required in this case.
+    escalus:assert(is_stream_start, Start),
+    escalus:assert(is_stream_error, [<<"xml-not-well-formed">>, <<>>], Error),
+    escalus:assert(is_stream_end, End).
+
 invalid_host(Config) ->
     %% given
     Spec = escalus_users:get_userspec(Config, alice),
@@ -239,6 +251,14 @@ connect_to_invalid_host(Spec) ->
 connect_to_invalid_host(Conn, UnusedProps, UnusedFeatures) ->
     escalus:send(Conn, escalus_stanza:stream_start(<<"hopefullynonexistentdomain">>,
                                                    ?NS_JABBER_CLIENT)),
+    {Conn, UnusedProps, UnusedFeatures}.
+
+connect_with_bad_xml(Spec) ->
+    {ok, Conn, _, _} = escalus_connection:start(Spec, [{?MODULE, connect_with_bad_xml}]),
+    escalus:wait_for_stanzas(Conn, 3).
+
+connect_with_bad_xml(Conn, UnusedProps, UnusedFeatures) ->
+    escalus_connection:send(Conn, #xmlcdata{content = "asdf\n"}),
     {Conn, UnusedProps, UnusedFeatures}.
 
 connect_with_invalid_stream_namespace(Spec) ->
