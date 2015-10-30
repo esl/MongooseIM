@@ -250,7 +250,7 @@ make_html(Modules) ->
                       {ok, {Module, {C, NC}}} ->
                           file:write(File, row(atom_to_list(Module), C, NC, percent(C,NC),"coverage/"++FileName)),
                           FilePathC = filename:join([CoverageDir, FileName]),
-                          catch cover:analyse_to_file(Module, FilePathC, [html]),
+                          catch cover:async_analyse_to_file(Module, FilePathC, [html]),
                           {CAcc + C, NCAcc + NC};
                       _ ->
                           {CAcc, NCAcc}
