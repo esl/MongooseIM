@@ -129,9 +129,6 @@ handle_set(_, _) ->
     %% XEP 0077 describes how to service lone `query' elements in a request.
     ignore.
 
-error_response(Request, Reason) ->
-    Request#iq{type = error, sub_el = [Reason]}.
-
 has_only_remove_child(#xmlel{children = C} = Q) when length(C) =:= 1 ->
     case exml_query:path(Q, [{element, <<"remove">>}], absent) of
         absent ->
@@ -229,12 +226,10 @@ try_register_or_set_password(User, Server, Password, From, IQ,
                             IQ#iq{type = result,
                                   sub_el = [SubEl]};
                         {error, Error} ->
-                            IQ#iq{type = error,
-                                  sub_el = [SubEl, Error]}
+                            error_response(IQ, [SubEl, Error])
                     end;
                 deny ->
-                    IQ#iq{type = error,
-                          sub_el = [SubEl, ?ERR_FORBIDDEN]}
+                    error_response(IQ, [SubEl, ?ERR_FORBIDDEN])
             end
     end.
 
@@ -246,16 +241,15 @@ try_set_password(User, Server, Password, IQ, SubEl, Lang) ->
                 ok ->
                     IQ#iq{type = result, sub_el = [SubEl]};
                 {error, empty_password} ->
-                    IQ#iq{type = error, sub_el = [SubEl, ?ERR_BAD_REQUEST]};
+                    error_response(IQ, [SubEl, ?ERR_BAD_REQUEST]);
                 {error, not_allowed} ->
-                    IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]};
+                    error_response(IQ, [SubEl, ?ERR_NOT_ALLOWED]);
                 {error, invalid_jid} ->
-                    IQ#iq{type = error, sub_el = [SubEl, ?ERR_ITEM_NOT_FOUND]}
+                    error_response(IQ, [SubEl, ?ERR_ITEM_NOT_FOUND])
             end;
         false ->
             ErrText = <<"The password is too weak">>,
-            IQ#iq{type = error,
-                  sub_el = [SubEl, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)]}
+            error_response(IQ, [SubEl, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)])
     end.
 
 try_register(User, Server, Password, SourceRaw, Lang) ->
@@ -571,6 +565,11 @@ is_query_element(#xmlel{name = <<"query">>}) ->
     true;
 is_query_element(_) ->
     false.
+
+error_response(Request, Reasons) when is_list(Reasons) ->
+    Request#iq{type = error, sub_el = Reasons};
+error_response(Request, Reason) ->
+    Request#iq{type = error, sub_el = Reason}.
 
 print_it(Text, Value) ->
     lager:error("***** ~s = ~p *****~n", [Text, Value]).
