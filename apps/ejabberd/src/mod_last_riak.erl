@@ -36,9 +36,10 @@ get_last(LUser, LServer) ->
             Value = riakc_obj:get_value(Obj),
             {Timestamp, Status} = binary_to_term(Value),
             {ok, Timestamp, Status};
-        _ ->
-            %??
-            not_found
+        {error, notfound} ->
+            not_found;
+        {error, Reason} ->
+            {error, Reason}
     end.
 
 -spec count_active_users(ejabberd:lserver(), non_neg_integer(), '<' | '>') ->
