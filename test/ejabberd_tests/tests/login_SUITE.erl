@@ -115,7 +115,8 @@ end_per_group(_GroupName, Config) ->
 
 init_per_testcase(DigestOrScram, Config) when
       DigestOrScram =:= log_one_digest; DigestOrScram =:= log_non_existent_digest;
-      DigestOrScram =:= log_one_scram; DigestOrScram =:= log_non_existent_scram ->
+      DigestOrScram =:= log_one_scram; DigestOrScram =:= log_non_existent_scram;
+      DigestOrScram =:= legacy_successful_digest ->
     case get_auth_method() of
         external ->
             {skip, "external authentication requires plain password"};
