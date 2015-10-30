@@ -1,4 +1,4 @@
-%%%----------------------------------------------------------------------
+
 %%% File    : ejabberd_auth.erl
 %%% Author  : Alexey Shchepin <alexey@process-one.net>
 %%% Purpose : Authentification
@@ -223,7 +223,6 @@ check_digest(<<>>, _, <<>>, _) ->
 check_digest(<<>>, _, Password, Passwd) ->
     Passwd == Password;
 check_digest(Digest, DigestGen, _Password, Passwd) ->
-    ?WARNING_MSG("Computed digest for password ~p is: ~p", [Passwd, DigestGen(Passwd)]),
     Digest == DigestGen(Passwd).
 
 -spec set_password(User :: ejabberd:user(),
