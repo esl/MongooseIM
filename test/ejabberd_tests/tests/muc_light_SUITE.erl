@@ -97,11 +97,15 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
+    dynamic_modules:start(<<"localhost">>, mod_muc_light,
+                          [{host, binary_to_list(?MUCHOST)},
+                           {rooms_in_rosters, true}]),
     Config1 = escalus:init_per_suite(Config),
     escalus:create_users(Config1, {by_name, [alice, bob, kate, mike]}).
 
 end_per_suite(Config) ->
     clear_db(),
+    dynamic_modules:stop(<<"localhost">>, mod_muc_light),
     Config1 = escalus:delete_users(Config, {by_name, [alice, bob, kate, mike]}),
     escalus:end_per_suite(Config1).
 
@@ -946,7 +950,7 @@ set_default_mod_config() ->
 
 -spec set_mod_config(K :: atom(), V :: any()) -> ok.
 set_mod_config(K, V) ->
-    rpc(mod_muc_light, set_service_opt, [K, V]).
+    true = rpc(mod_muc_light, set_opt, [?MUCHOST, K, V]).
 
 -spec extract_forwarded(Stanza :: #xmlel{}) -> #xmlel{}.
 extract_forwarded(Stanza) ->
