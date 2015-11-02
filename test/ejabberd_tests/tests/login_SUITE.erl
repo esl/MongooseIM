@@ -32,6 +32,7 @@
 all() ->
     [
      {group, register},
+     {group, bad_registration},
      {group, bad_cancelation},
      {group, registration_timeout},
      {group, login},
@@ -44,8 +45,9 @@ all() ->
 groups() ->
     [{register, [sequence], [register,
                              check_unregistered]},
+     {bad_registration, [no_sequence], [null_password]},
      {bad_cancelation, [no_sequence], [bad_request_registration_cancelation,
-                                         not_allowed_registration_cancelation]},
+                                       not_allowed_registration_cancelation]},
      {registration_timeout, [sequence], [registration_timeout]},
      {login, [sequence], all_tests()},
      {login_scram, [sequence], scram_tests()},
@@ -84,6 +86,8 @@ end_per_suite(Config) ->
 
 init_per_group(register, Config) ->
     skip_if_mod_register_not_enabled(Config);
+init_per_group(bad_registration, Config) ->
+    Config;
 init_per_group(bad_cancelation, Config) ->
     skip_if_mod_register_not_enabled(Config);
 init_per_group(registration_timeout, Config) ->
@@ -107,6 +111,8 @@ init_per_group(_GroupName, Config) ->
     escalus:create_users(Config, {by_name, [alice, bob]}).
 
 end_per_group(register, _Config) ->
+    ok;
+end_per_group(bad_registration, _Config) ->
     ok;
 end_per_group(bad_cancelation, _Config) ->
     ok;
@@ -208,6 +214,15 @@ register(Config) ->
                          ],
             escalus:assert_many(Predicates, escalus:wait_for_stanzas(Admin, 2))
         end).
+
+null_password(Config) ->
+    Jimmy = {jimmy,
+             [{username, <<"jimmy">>},
+              {password, <<>>},
+              {server,<<"localhost">>}]},
+    {error, _, Response} = escalus_users:create_user(Config, Jimmy),
+    escalus:assert(is_iq_error, Response),
+    escalus:assert(is_error, [<<"modify">>, <<"not-acceptable">>], Response).
 
 check_unregistered(Config) ->
     escalus:delete_users(Config, {by_name, [admin, alice, bob]}),
