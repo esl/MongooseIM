@@ -57,7 +57,6 @@ start(normal, _Args) ->
     maybe_start_alarms(),
     connect_nodes(),
     {ok, _} = Sup = ejabberd_sup:start_link(),
-    ejabberd_system_monitor:add_handler(),
     ejabberd_rdbms:start(),
     mongoose_riak:start(),
     ejabberd_auth:start(),

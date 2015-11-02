@@ -40,9 +40,6 @@ The tuple order is important, unless the no `host_config` option is set. Retaini
         * `alarms_folsom_handler` - stores alarm details in folsom metrics
     * **Example:** `{alarms, [{long_gc, 10000}, {large_heap, 1000000}, {handlers, [alarms_basic_handler]}]}.`
 
-* **watchdog_admins** (global)
-    * **Descritption:** List of JIDs, that should receive information about alarms.
-
 ### Served hostnames
 
 * **hosts** (global)

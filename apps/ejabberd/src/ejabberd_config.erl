@@ -118,8 +118,6 @@
                     | {domain_certfile, _, _}
                     | {node_type, _}
                     | {cluster_nodes, _}
-                    | {watchdog_admins, _}
-                    | {watchdog_large_heap, _}
                     | {registration_timeout, integer()}
                     | {mongooseimctl_access_commands, list()}
                     | {loglevel, _}
