@@ -88,10 +88,7 @@ unauthenticated_iq_register(_Acc,
                                        jlib:make_jid(<<>>, Server, <<>>),
                                        IQ,
                                        Address),
-    Res1 = jlib:replace_from_to(jlib:make_jid(<<>>, Server, <<>>),
-                                jlib:make_jid(<<>>, <<>>, <<>>),
-                                jlib:iq_to_xml(ResIQ)),
-    jlib:remove_attr(<<"to">>, Res1);
+    set_sender(jlib:iq_to_xml(ResIQ), jlib:make_jid(<<>>, Server, <<>>));
 unauthenticated_iq_register(Acc, _Server, _IQ, _IP) ->
     Acc.
 
@@ -560,6 +557,9 @@ ip_to_integer({IP1, IP2, IP3, IP4}) ->
 ip_to_integer({IP1, IP2, IP3, IP4, IP5, IP6, IP7, IP8}) ->
     (((((((((((((IP1 bsl 16) bor IP2) bsl 16) bor IP3) bsl 16) bor IP4)
                bsl 16) bor IP5) bsl 16) bor IP6) bsl 16) bor IP7) bsl 16) bor IP8.
+
+set_sender(#xmlel{attrs = A} = Stanza, #jid{} = Sender) ->
+    Stanza#xmlel{attrs = [{<<"from">>, jlib:jid_to_binary(Sender)}|A]}.
 
 is_query_element(#xmlel{name = <<"query">>}) ->
     true;
