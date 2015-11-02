@@ -234,7 +234,8 @@ null_password(Config) ->
     %% This error response means there was no character data,
     %% i.e. elements `<password\>' or `<password></password>' where
     %% indeed present.
-    escalus:assert(is_error, [<<"modify">>, <<"not-acceptable">>], Response).
+    escalus:assert(is_error, [<<"modify">>, <<"not-acceptable">>], Response),
+    false = escalus_ejabberd:rpc(ejabberd_auth, is_user_exists, [<<"jimmy">>, <<"localhost">>]).
 
 check_unregistered(Config) ->
     escalus:delete_users(Config, {by_name, [admin, alice, bob]}),
