@@ -145,7 +145,9 @@ init_per_testcase(bad_request_registration_cancelation, Config0) ->
 init_per_testcase(not_allowed_registration_cancelation, Config0) ->
     Config1 = escalus:init_per_testcase(not_allowed_registration_cancelation, Config0),
     Config2 = escalus:create_users(Config1, {by_name, [alice]}),
-    change_mod_register_to_deny_inband_registration(Config2);
+    %% Use a configuration that will not allow inband cancelation (and
+    %% registration).
+    restart_mod_register_with_option(Config2, access, {access, none});
 init_per_testcase(message_zlib_limit, Config) ->
     Listeners = [Listener
                  || {Listener, _, _} <- escalus_ejabberd:rpc(ejabberd_config, get_local_option, [listen])],
@@ -466,20 +468,22 @@ bad_cancelation_stanza() ->
                     %% <query/> element.
                     #xmlel{name = <<"foo">>}]}]).
 
-change_mod_register_to_deny_inband_registration(Config) ->
+restart_mod_register_with_option(Config, Name, Value) ->
     Domain = escalus_config:get_config(ejabberd_domain, Config),
-    AllOpts = escalus_ejabberd:rpc(gen_mod, loaded_modules_with_opts, [Domain]),
-    {mod_register, RegisterOpts} = lists:keyfind(mod_register, 1, AllOpts),
+    ModuleOptions = escalus_ejabberd:rpc(gen_mod, loaded_modules_with_opts, [Domain]),
+    {mod_register, OldRegisterOptions} = lists:keyfind(mod_register, 1, ModuleOptions),
     {atomic, ok} = dynamic_modules:stop(Domain, mod_register),
-    ok = dynamic_modules:start(Domain, mod_register, lists:keyreplace(access, 1, [{test, true}|RegisterOpts], {access, none})),
-    [{old_mod_register_opts, RegisterOpts}|Config].
+    NewRegisterOptions = lists:keystore(Name, 1, OldRegisterOptions, Value),
+    ok = dynamic_modules:start(Domain, mod_register, NewRegisterOptions),
+    [{old_mod_register_opts, OldRegisterOptions}|Config].
 
-restore_mod_register_options(Config) ->
-    Domain = escalus_config:get_config(ejabberd_domain, Config),
-    RegisterOpts = ?config(old_mod_register_opts, Config),
+restore_mod_register_options(Config0) ->
+    Domain = escalus_config:get_config(ejabberd_domain, Config0),
+    {value, {old_mod_register_opts, RegisterOpts}, Config1} =
+        lists:keytake(old_mod_register_opts, 1, Config0),
     {atomic, ok} = dynamic_modules:stop(Domain, mod_register),
     ok = dynamic_modules:start(Domain, mod_register, RegisterOpts),
-    Config.
+    Config1.
 
 user_exists(Name, Config) ->
     {Name, Client} = escalus_users:get_user_by_name(Name),
