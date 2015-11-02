@@ -23,14 +23,20 @@
 -define(URL, url).
 -define(FILE_NAME, "Xep_List.md").
 -define(MAX_LENGTH, 100).
--record(xep, {xep = none, name, url, version}).
--record(module_xep, {xeps = [], module}).
+-type ver() :: string().
+-type xep() :: integer().
+-type url() :: string().
+-type name() :: string().
+-record(xep, {xep :: xep(), name :: name(), url :: url(), version :: ver()}).
+-record(module_xep, {xeps = [], module :: module()}).
 
+-spec get_xep(module()) -> {module(), list({atom(), any()})}.
 get_xep(Module) ->
     Info = Module:module_info(attributes),
     Values = [Value || {xep, Value} <- Info],
     {Module, Values}.
 
+-spec match_zeros(xep()) -> string().
 match_zeros(Number) when Number > 99 ->
     "0" ++ integer_to_list(Number);
 match_zeros(Number) when Number > 9 ->
@@ -38,6 +44,7 @@ match_zeros(Number) when Number > 9 ->
 match_zeros(Number) ->
     "000" ++ integer_to_list(Number).
 
+-spec main(list(string())) -> ok.
 main([InDir]) ->
     code:set_path(code:get_path() ++ [InDir]),
     do(?FILE_NAME);
@@ -47,8 +54,11 @@ main([InDir, Output]) ->
     do(Output);
 
 main(_) ->
-    io:format("~n ***  Set path to ebin files as an argument~n").
+    io:format("~n ***  Bad Arguments. Try:~nxep_tool.escript <path_to_ebin_files>"
+    "[output_file]~n~nExample usage (from mongooseim repo root):
+./tools/xep_tool/xep_tool.escript apps/ejabberd/ebin/ Xep_list.md~n").
 
+-spec do(string()) -> ok.
 do(Output) ->
     EjabberdAPP = code:where_is_file("ejabberd.app"),
     case file:consult(EjabberdAPP) of
@@ -59,28 +69,54 @@ do(Output) ->
                                               ({Module, List}) -> {true, {Module, List}}
                                            end, XEPs),
             ToRecord = lists:map(fun({Module, List}) ->
-                #module_xep{module = Module, xeps = [proplist_to_xep_record(X) || X <- List]}
+                #module_xep{module = Module, xeps = [proplist_to_half_record(X) || X <- List]}
                                  end, FilteredXeps),
-            Map = generate_map(ToRecord),
-            Table = generate_table(Map),
+            UsortedTupleList = usort_all(ToRecord),
+            RecordList = generate_full_record_list(UsortedTupleList),
+            Table = generate_table(RecordList),
             file:write_file(Output, Table),
-            io:format("~n ***  Markdown with unique xep names and urls saved to file ~p~n", [Output]);
+            io:format("~n ***  Markdown with unique xep names and urls saved to file ~p~n",
+                      [Output]);
         _ ->
             io:format("~n ***  Beam files not found. First compile MongooseIM to generate beam files~n")
     end.
 
-generate_map(ModuleXepList) ->
+-spec usort_all(list(#module_xep{})) -> list({{xep(), ver()}, url()}).
+usort_all(ModuleXepList) ->
     F = fun(Rec, Dict) ->
-        XEPTuple = [{Number, Name, Url} || #xep{xep = Number, name = Name, url = Url} <- (Rec#module_xep.xeps)],
-        lists:foldl(fun({A, B, C}, Acc) -> maps:put(A, {B, C}, Acc) end, Dict, XEPTuple)
+        List = [{{XepNumber, Version}, Url} ||
+            #xep{xep = XepNumber, version = Version, url = Url} <- Rec#module_xep.xeps],
+        NoDup = lists:ukeysort(1, List),
+        lists:umerge([Dict, NoDup])
     end,
-    lists:foldl(F, maps:new(), ModuleXepList).
+    lists:foldl(F, [], ModuleXepList).
 
-generate_table(Map) ->
+-spec generate_full_record_list(list({{xep(), ver()}, url()})) -> list(#xep{}).
+generate_full_record_list(HalfRecordList) ->
+    F = fun({{Xep, Ver}, Url}) ->
+        {Name, MasterVer} = get_title_and_ver(Url),
+        NewUrl = if MasterVer == Ver ->
+            Url;
+                     true ->
+                         case Ver of
+                             undefined ->
+                                 Url;
+                             SomeVer ->
+                                 ?HTTP_PREFIX_VER ++
+                                 match_zeros(Xep) ++
+                                 "-" ++ SomeVer ++ ?HTTP_SUFIX
+                         end
+                 end,
+        #xep{xep = Xep, version = Ver, url = NewUrl, name = Name}
+        end,
+        lists:map(F, HalfRecordList).
+
+-spec generate_table(list(#xep{})) -> string().
+generate_table(List) ->
     TablePrefix = "|||||\n"
                   "| ------------- | ------------- | ------------- |------------- |\n"
                   "|",
-    F = fun(_, {Name, Url}, {Num, BuildingTable}) ->
+    F = fun(#xep{name=Name, url=Url}, {Num, BuildingTable}) ->
         Add = case Num rem 4 of
                   0 ->
                       "\n";
@@ -89,20 +125,21 @@ generate_table(Map) ->
               end,
         {Num + 1, BuildingTable ++ "[" ++ Name ++ "](" ++ Url ++ ") |" ++ Add}
     end,
-    {_, TableListElement} = maps:fold(F, {1, ""}, Map),
+    {_, TableListElement} = lists:foldl(F, {1, ""}, List),
     TablePrefix ++ TableListElement.
 
+-spec get_title_and_ver(url()) -> {name(), ver()}.
 get_title_and_ver(URL) ->
     io:format("Getting XEP name for ~p~n", [URL]),
     {ok, {{_, 200, _}, _, Body}} =
     httpc:request(URL),
-    {match, [Title]} = re:run(Body, "<title>(?<FOO>.*)</title>", [{capture, ['FOO'], list}]),
+    {match, [Name]} = re:run(Body, "<title>(?<FOO>.*)</title>", [{capture, ['FOO'], list}]),
     {match, [Ver]} = re:run(Body, "Version: (?<FOO>.*)<br", [{capture, ['FOO'], list}]),
-    {Title, Ver}.
+    {Name, Ver}.
 
 
-
-proplist_to_xep_record(Proplist) ->
+-spec proplist_to_half_record(list({atom(), any()})) -> #xep{}.
+proplist_to_half_record(Proplist) ->
     XEP = case lists:keysearch(xep, 1, Proplist) of
               {value, {?XEP, V}} ->
                   V;
@@ -120,14 +157,5 @@ proplist_to_xep_record(Proplist) ->
                         ?HTTP_PREFIX ++ match_zeros(XEP) ++ ?HTTP_SUFIX
 
                 end,
-    {NAME, XepMasterVersion} = get_title_and_ver(MasterURL),
-    URL = if XepMasterVersion == VER -> MasterURL; true ->
-        case VER of
-            undefined ->
-                MasterURL;
-            SomeVer ->
-                ?HTTP_PREFIX_VER ++ match_zeros(XEP) ++ "-" ++ SomeVer ++ ?HTTP_SUFIX
-        end
-          end,
-    #xep{xep = XEP, name = NAME, url = URL, version = VER}.
+    #xep{xep = XEP, version = VER, url = MasterURL}.
 
