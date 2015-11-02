@@ -47,7 +47,8 @@ all() ->
     end.
 
 groups() ->
-    [{negative, [], [invalid_host,
+    [{negative, [], [bad_xml,
+                     invalid_host,
                      invalid_stream_namespace]},
      {pre_xmpp_1_0, [], [pre_xmpp_1_0_stream]},
      {starttls, test_cases()},
