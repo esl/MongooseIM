@@ -112,9 +112,9 @@ bin_ts() ->
 -spec filter_out_prevented(FromUS :: ejabberd:simple_bare_jid(),
                           RoomUS :: ejabberd:simple_bare_jid(),
                           AffUsers :: aff_users()) -> aff_users().
-filter_out_prevented(FromUS, {RoomU, _} = RoomUS, AffUsers) ->
-    RoomsPerUser = mod_muc_light:get_service_opt(rooms_per_user, ?DEFAULT_ROOMS_PER_USER),
-    BlockingQuery = case mod_muc_light:get_service_opt(blocking, ?DEFAULT_BLOCKING) of
+filter_out_prevented(FromUS, {RoomU, MUCServer} = RoomUS, AffUsers) ->
+    RoomsPerUser = mod_muc_light:get_opt(MUCServer, rooms_per_user, ?DEFAULT_ROOMS_PER_USER),
+    BlockingQuery = case mod_muc_light:get_opt(MUCServer, blocking, ?DEFAULT_BLOCKING) of
                         true ->
                             [{user, FromUS}
                              | if

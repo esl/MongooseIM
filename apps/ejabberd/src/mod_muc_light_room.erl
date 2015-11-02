@@ -55,8 +55,8 @@ handle_request(From, To, OrigPacket, Request) ->
 -spec participant_limit_check(RoomUS :: ejabberd:simple_bare_jid(),
                               NewAffUsers :: aff_users()) ->
     ok | {error, occupant_limit_exceeded}.
-participant_limit_check(_RoomUS, NewAffUsers) ->
-    MaxOccupants = mod_muc_light:get_service_opt(max_occupants, ?DEFAULT_MAX_OCCUPANTS),
+participant_limit_check({_, MUCServer} = _RoomUS, NewAffUsers) ->
+    MaxOccupants = mod_muc_light:get_opt(MUCServer, max_occupants, ?DEFAULT_MAX_OCCUPANTS),
     case length(NewAffUsers) > MaxOccupants of
         true -> {error, occupant_limit_exceeded};
         false -> ok
@@ -101,10 +101,13 @@ process_request({get, #info{} = InfoReq}, _From, _UserUS, RoomUS, _Auth, _AffUse
     {ok, Config, AffUsers, RoomVersion} = ?BACKEND:get_info(RoomUS),
     {get, InfoReq#info{ version = RoomVersion, aff_users = AffUsers,
                         raw_config = mod_muc_light_utils:config_to_raw(Config) }};
-process_request({set, #config{} = ConfigReq}, _From, _UserUS, RoomUS, {_, UserAff}, AffUsers) ->
-    AllCanConfigure = mod_muc_light:get_service_opt(all_can_configure, ?DEFAULT_ALL_CAN_CONFIGURE),
+process_request({set, #config{} = ConfigReq}, _From, _UserUS, {_, MUCServer} = RoomUS,
+                {_, UserAff}, AffUsers) ->
+    AllCanConfigure = mod_muc_light:get_opt(
+                        MUCServer, all_can_configure, ?DEFAULT_ALL_CAN_CONFIGURE),
     process_config_set(ConfigReq, RoomUS, UserAff, AffUsers, AllCanConfigure);
-process_request({set, #affiliations{} = AffReq}, _From, UserUS, RoomUS, {_, UserAff}, AffUsers) ->
+process_request({set, #affiliations{} = AffReq}, _From, UserUS, {_, MUCServer} = RoomUS,
+                {_, UserAff}, AffUsers) ->
     OwnerUS = case lists:keyfind(owner, 2, AffUsers) of
                   false -> undefined;
                   {OwnerUS0, _} -> OwnerUS0
@@ -115,7 +118,8 @@ process_request({set, #affiliations{} = AffReq}, _From, UserUS, RoomUS, {_, User
               {ok, mod_muc_light_utils:filter_out_prevented(
                      UserUS, RoomUS, AffReq#affiliations.aff_users)};
           member ->
-              AllCanInvite = mod_muc_light:get_service_opt(all_can_invite, ?DEFAULT_ALL_CAN_INVITE),
+              AllCanInvite = mod_muc_light:get_opt(
+                               MUCServer, all_can_invite, ?DEFAULT_ALL_CAN_INVITE),
               validate_aff_changes_by_member(
                 AffReq#affiliations.aff_users, [], UserUS, OwnerUS, RoomUS, AllCanInvite)
       end,

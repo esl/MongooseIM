@@ -27,7 +27,7 @@
 
 %% API
 -export([default_config/0]).
--export([get_service_opt/2, set_service_opt/2]).
+-export([get_opt/3, set_opt/3]).
 
 %% gen_mod callbacks
 -export([start/2, stop/1]).
@@ -52,6 +52,7 @@
 -include("mod_roster.hrl").
 
 -define(DEFAULT_HOST, <<"muclight.@HOST@">>).
+-define(CONFIG_TAB, muc_light_config).
 
 %%====================================================================
 %% API
@@ -64,15 +65,18 @@ default_config() ->
      {subject, <<>>}
     ].
 
--spec get_service_opt(OptName :: atom(), Default :: any()) -> any().
-get_service_opt(OptName, Default) ->
-    gen_mod:get_module_opt(global, ?MODULE, OptName, Default).
+-spec get_opt(MUCServer :: ejabberd:lserver(), OptName :: atom(), Default :: any()) -> any().
+get_opt(MUCServer, OptName, Default) ->
+    [{_, Opts}] = ets:lookup(?CONFIG_TAB, MUCServer),
+    case lists:keyfind(OptName, 1, Opts) of
+        false -> Default;
+        {_, Val} -> Val
+    end.
 
--spec set_service_opt(OptName :: atom(), Value :: any()) -> any().
-set_service_opt(OptName, Default) ->
-    lists:foreach(fun(Host) ->
-                          gen_mod:set_module_opt(Host, ?MODULE, OptName, Default)
-                  end, ?MYHOSTS).
+-spec set_opt(MUCServer :: ejabberd:lserver(), OptName :: atom(), Value :: any()) -> any().
+set_opt(MUCServer, OptName, Value) ->
+    [{_, Opts}] = ets:lookup(?CONFIG_TAB, MUCServer),
+    ets:insert(?CONFIG_TAB, {MUCServer, lists:keystore(OptName, 1, Opts, {OptName, Value})}).
 
 %%====================================================================
 %% gen_mod callbacks
@@ -108,12 +112,22 @@ start(Host, Opts) ->
     ?BACKEND:start(Host, MyDomain),
     ejabberd_router:register_route(MyDomain, {apply, ?MODULE, route}),
 
+    EjdSupPid = whereis(ejabberd_sup),
+    HeirOpt = case self() =:= EjdSupPid of
+                  true -> [];
+                  false -> [{heir, EjdSupPid, testing}] % for dynamic start from tests
+              end,
+    catch ets:new(?CONFIG_TAB, [set, public, named_table, {read_concurrency, true} | HeirOpt]),
+    ets:insert(?CONFIG_TAB, {MyDomain, Opts}),
+
     ok.
 
 -spec stop(Host :: ejabberd:server()) -> ok.
 stop(Host) ->
     MyDomain = gen_mod:get_module_opt_host(Host, ?MODULE, ?DEFAULT_HOST),
     ejabberd_router:unregister_route(MyDomain),
+
+    ets:delete(?CONFIG_TAB, MyDomain),
 
     ?BACKEND:stop(Host, MyDomain),
 
@@ -138,7 +152,7 @@ route(From, To, Packet) ->
                      DecodedPacket :: mod_muc_light_codec:decode_result(),
                      OrigPacket :: jlib:xmlel()) -> any().
 process_packet(From, To, {ok, {set, #create{} = Create}}, OrigPacket) ->
-    RoomsPerUser = mod_muc_light:get_service_opt(rooms_per_user, ?DEFAULT_ROOMS_PER_USER),
+    RoomsPerUser = get_opt(To#jid.lserver, rooms_per_user, ?DEFAULT_ROOMS_PER_USER),
     FromUS = jlib:jid_to_lus(From),
     case RoomsPerUser == infinity orelse length(?BACKEND:get_user_rooms(FromUS)) < RoomsPerUser of
         true ->
@@ -152,7 +166,7 @@ process_packet(From, To, {ok, {get, #disco_info{} = DI}}, _OrigPacket) ->
 process_packet(From, To, {ok, {get, #disco_items{} = DI}}, OrigPacket) ->
     handle_disco_items_get(From, To, DI, OrigPacket);
 process_packet(From, To, {ok, {_, #blocking{}} = Blocking}, OrigPacket) ->
-    case get_service_opt(blocking, ?DEFAULT_BLOCKING) of
+    case get_opt(To#jid.lserver, blocking, ?DEFAULT_BLOCKING) of
         true ->
             case handle_blocking(From, To, Blocking) of
                 ok ->
@@ -200,7 +214,7 @@ prevent_service_unavailable(_From, _To, Packet) ->
 -spec get_muc_service(Acc :: {result, [jlib:xmlel()]}, From :: ejabberd:jid(), To :: ejabberd:jid(),
                       NS :: binary(), ejabberd:lang()) -> {result, [jlib:xmlel()]}.
 get_muc_service({result, Nodes}, _From, #jid{lserver = LServer} = _To, <<"">>, _Lang) ->
-    XMLNS = case get_service_opt(legacy_mode, ?DEFAULT_LEGACY_MODE) of
+    XMLNS = case get_opt(LServer, legacy_mode, ?DEFAULT_LEGACY_MODE) of
                 true -> ?NS_MUC;
                 false -> ?NS_MUC_LIGHT
             end,
@@ -247,7 +261,7 @@ add_rooms_to_roster(Acc, UserUS) ->
                      IQ :: #iq{}, ActiveList :: binary()) ->
     {stop, {result, [jlib:xmlel()]}} | {error, #xmlel{}}.
 process_iq_get(_Acc, From, To, #iq{} = IQ, _ActiveList) ->
-    case {?CODEC:decode(From, To, IQ), get_service_opt(blocking, ?DEFAULT_BLOCKING)} of
+    case {?CODEC:decode(From, To, IQ), get_opt(To#jid.lserver, blocking, ?DEFAULT_BLOCKING)} of
         {{ok, {get, #blocking{} = Blocking}}, true} ->
             Items = ?BACKEND:get_blocking(jlib:jid_to_lus(From)),
             ?CODEC:encode({get, Blocking#blocking{ items = Items }}, From, jlib:jid_to_lus(To),
@@ -261,7 +275,7 @@ process_iq_get(_Acc, From, To, #iq{} = IQ, _ActiveList) ->
 -spec process_iq_set(Acc :: any(), From :: #jid{}, To :: #jid{}, IQ :: #iq{}) ->
     {stop, {result, [jlib:xmlel()]}} | {error, #xmlel{}}.
 process_iq_set(_Acc, From, To, #iq{} = IQ) ->
-    case {?CODEC:decode(From, To, IQ), get_service_opt(blocking, ?DEFAULT_BLOCKING)} of
+    case {?CODEC:decode(From, To, IQ), get_opt(To#jid.lserver, blocking, ?DEFAULT_BLOCKING)} of
         {{ok, {set, #blocking{ items = Items }} = Blocking}, true} ->
             case lists:any(fun({_, _, {WhoU, WhoS}}) ->
                                    WhoU =:= <<>> orelse WhoS =:= <<>>
@@ -289,9 +303,9 @@ create_room(From, FromUS, To, #create{ raw_config = RawConfig } = Create0, OrigP
     {RoomU, _} = RoomUS = jlib:jid_to_lus(To), % might be service JID for room autogeneration
     InitialAffUsers = mod_muc_light_utils:filter_out_prevented(
                         FromUS, RoomUS, Create0#create.aff_users),
-    MaxOccupants = get_service_opt(max_occupants, ?DEFAULT_MAX_OCCUPANTS),
+    MaxOccupants = get_opt(To#jid.lserver, max_occupants, ?DEFAULT_MAX_OCCUPANTS),
     case {mod_muc_light_utils:process_raw_config(RawConfig, default_config()),
-          process_create_aff_users(FromUS, InitialAffUsers)} of
+          process_create_aff_users_if_valid(To#jid.lserver, FromUS, InitialAffUsers)} of
         {{ok, Config0}, {ok, FinalAffUsers}} when length(FinalAffUsers) =< MaxOccupants ->
             Version = mod_muc_light_utils:bin_ts(),
             case ?BACKEND:create_room(RoomUS, lists:sort(Config0), FinalAffUsers, Version) of
@@ -312,14 +326,16 @@ create_room(From, FromUS, To, #create{ raw_config = RawConfig } = Create0, OrigP
                                              fun ejabberd_router:route/3)
     end.
 
--spec process_create_aff_users(Creator :: ejabberd:simple_bare_jid(), AffUsers :: aff_users()) ->
+-spec process_create_aff_users_if_valid(MUCServer :: ejabberd:lserver(),
+                                        Creator :: ejabberd:simple_bare_jid(),
+                                        AffUsers :: aff_users()) ->
     {ok, aff_users()} | {error, bad_request}.
-process_create_aff_users(Creator, AffUsers) ->
+process_create_aff_users_if_valid(MUCServer, Creator, AffUsers) ->
     case lists:any(fun ({User, _}) when User =:= Creator -> true;
                        ({_, Aff}) -> Aff =:= none end, AffUsers) of
         false ->
             process_create_aff_users(
-              Creator, AffUsers, get_service_opt(equal_occupants, ?DEFAULT_EQUAL_OCCUPANTS));
+              Creator, AffUsers, get_opt(MUCServer, equal_occupants, ?DEFAULT_EQUAL_OCCUPANTS));
         true ->
             {error, bad_request}
     end.
@@ -347,7 +363,7 @@ handle_disco_items_get(From, To, DiscoItems0, OrigPacket) ->
     case ?BACKEND:get_user_rooms(jlib:jid_to_lus(From)) of
         {ok, Rooms} ->
             RoomsInfo = get_rooms_info(lists:sort(Rooms)),
-            RoomsPerPage = get_service_opt(rooms_per_page, ?DEFAULT_ROOMS_PER_PAGE),
+            RoomsPerPage = get_opt(To#jid.lserver, rooms_per_page, ?DEFAULT_ROOMS_PER_PAGE),
             case apply_rsm(RoomsInfo, length(RoomsInfo),
                            page_service_limit(DiscoItems0#disco_items.rsm, RoomsPerPage)) of
                 {ok, RoomsInfoSlice, RSMOut} ->
