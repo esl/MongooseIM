@@ -125,6 +125,10 @@ end_per_group(login_scram, Config) ->
 end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config, {by_name, [alice, bob]}).
 
+init_per_testcase(null_password, Config) ->
+    %% A non-zero "password strength" should trigger an error response
+    %% if a user tries to register with an empty password.
+    restart_mod_register_with_option(Config, password_strength, {password_strength, 16});
 init_per_testcase(DigestOrScram, Config) when
       DigestOrScram =:= log_one_digest; DigestOrScram =:= log_non_existent_digest;
       DigestOrScram =:= log_one_scram; DigestOrScram =:= log_non_existent_scram;
@@ -173,6 +177,8 @@ end_per_testcase(Name, Config)
     Domain = ct:get_config(ejabberd_domain),
     escalus_ejabberd:rpc(acl, delete, [Domain, blocked, {user, <<"alice">>}]),
     Config;
+end_per_testcase(null_password, Config) ->
+    restore_mod_register_options(Config);
 end_per_testcase(message_zlib_limit, Config) ->
     escalus:delete_users(Config, {by_name, [hacker]});
 end_per_testcase(check_unregistered, Config) ->
@@ -223,7 +229,11 @@ null_password(Config) ->
               {password, <<>>},
               {server,<<"localhost">>}]},
     {error, _, Response} = escalus_users:create_user(Config, Jimmy),
+            ct:pal("STANZA = ~p.~n", [Response]),
     escalus:assert(is_iq_error, Response),
+    %% This error response means there was no character data,
+    %% i.e. elements `<password\>' or `<password></password>' where
+    %% indeed present.
     escalus:assert(is_error, [<<"modify">>, <<"not-acceptable">>], Response).
 
 check_unregistered(Config) ->
