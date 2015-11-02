@@ -115,6 +115,9 @@ generic_count_backend(mod_vcard_ldap) ->
     %% number of vcards in ldap is the same as number of users
     ?RPC(ejabberd_auth_ldap, get_vh_registered_users_number, [D]);
 generic_count_backend(mod_roster_mnesia) -> count_wildpattern(roster);
+generic_count_backend(mod_roster_riak) ->
+    count_riak(<<"rosters">>),
+    count_riak(<<"roster_versions">>);
 generic_count_backend(mod_roster_odbc) -> count_odbc(<<"rosterusers">>).
 
 count_wildpattern(Table) ->
