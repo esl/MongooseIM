@@ -19,6 +19,7 @@
 
 %% API
 -export([init/0,
+         init_subscriptions/0,
          update/2,
          create/2,
          ensure_metric/2,
@@ -50,6 +51,9 @@ init() ->
         fun(Host) ->
             mongoose_metrics:init_predefined_host_metrics(Host)
         end, ?MYHOSTS),
+    init_subscriptions().
+
+init_subscriptions() ->
     Reporters = exometer_report:list_reporters(),
     lists:foreach(
         fun({Name, _ReporterPid}) ->
@@ -121,10 +125,14 @@ get_up_time() ->
     {value, erlang:round(element(1, erlang:statistics(wall_clock))/1000)}.
 
 -spec do_create_generic_hook_metric(list()) -> ok | {ok, already_present}.
+do_create_generic_hook_metric([_, skip]) ->
+    ok;
 do_create_generic_hook_metric(MetricName) ->
     ensure_metric(MetricName, spiral).
 
 -spec do_increment_generic_hook_metric(list()) -> ok | {error, any()}.
+do_increment_generic_hook_metric([_, skip]) ->
+    ok;
 do_increment_generic_hook_metric(MetricName) ->
     update(MetricName, 1).
 
