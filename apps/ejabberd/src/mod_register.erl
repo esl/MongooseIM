@@ -84,11 +84,15 @@ unauthenticated_iq_register(_Acc,
                   {A, _Port} -> A;
                   _ -> undefined
               end,
-    ResIQ = process_unauthenticated_iq(jlib:make_jid(<<>>, <<>>, <<>>),
-                                       jlib:make_jid(<<>>, Server, <<>>),
+    ResIQ = process_unauthenticated_iq(no_JID,
+                                       %% For the above: the client is
+                                       %% not registered (no JID), at
+                                       %% least not yet, so they can
+                                       %% not be authenticated either.
+                                       make_host_only_JID(Server),
                                        IQ,
                                        Address),
-    set_sender(jlib:iq_to_xml(ResIQ), jlib:make_jid(<<>>, Server, <<>>));
+    set_sender(jlib:iq_to_xml(ResIQ), make_host_only_JID(Server));
 unauthenticated_iq_register(Acc, _Server, _IQ, _IP) ->
     Acc.
 
@@ -142,11 +146,11 @@ has_only_remove_child(#xmlel{children = C} = Q) when length(C) > 1 ->
     end.
 
 has_username_and_password_children(Q) ->
-    [absent, absent] =/= get_username_and_password_elements(Q).
+    {absent, absent} =/= get_username_and_password_elements(Q).
 
 get_username_and_password_elements(Q) ->
-    [exml_query:path(Q, [{element, <<"username">>}], absent),
-     exml_query:path(Q, [{element, <<"password">>}], absent)].
+    {exml_query:path(Q, [{element, <<"username">>}], absent),
+     exml_query:path(Q, [{element, <<"password">>}], absent)}.
 
 get_username_and_password_values(Q) ->
     {exml_query:path(Q, [{element, <<"username">>}, cdata]),
@@ -154,10 +158,16 @@ get_username_and_password_values(Q) ->
 
 register_or_change_password(Credentials, {extras, [From, #jid{lserver = Server} = To, IQ, Children, IPAddr, Lang]}) ->
     {Username, Password} = Credentials,
-    try_register_or_set_password(Username, Server, Password, From, IQ, Children, IPAddr, Lang).
+    case inband_registration_and_cancelation_allowed(Server, From) of
+        true ->
+            try_register_or_set_password(Username, Server, Password, From, IQ, Children, IPAddr, Lang);
+        false ->
+            %% This is not described in XEP 0077.
+            error_response(IQ, ?ERR_FORBIDDEN)
+    end.
 
 attempt_cancelation({extras, [#jid{user = Username, lserver = S0, resource = Resource} = From, #jid{lserver = S1} = To, #iq{id = ID} = IQ, Child, _IPAddr, _Lang]}) ->
-    case inband_cancelation_allowed(S1, From) of
+    case inband_registration_and_cancelation_allowed(S1, From) of
         true ->
             %% The response must be sent *before* the
             %% XML stream is closed (the call to
@@ -178,7 +188,7 @@ attempt_cancelation({extras, [#jid{user = Username, lserver = S0, resource = Res
             error_response(IQ, ?ERR_NOT_ALLOWED)
     end.
 
-inband_cancelation_allowed(Server, JID) ->
+inband_registration_and_cancelation_allowed(Server, JID) ->
     Rule = gen_mod:get_module_opt(Server, ?MODULE, access, none),
     allow =:= acl:match_rule(Server, Rule, JID).
 
@@ -345,7 +355,7 @@ send_registration_notifications(UJID, Source) ->
             ok
     end.
 
-check_from(#jid{user = <<>>, server = <<>>}, _Server) ->
+check_from(no_JID, _Server) ->
     allow;
 check_from(JID, Server) ->
     Access = gen_mod:get_module_opt(Server, ?MODULE, access_from, none),
@@ -557,6 +567,9 @@ ip_to_integer({IP1, IP2, IP3, IP4}) ->
 ip_to_integer({IP1, IP2, IP3, IP4, IP5, IP6, IP7, IP8}) ->
     (((((((((((((IP1 bsl 16) bor IP2) bsl 16) bor IP3) bsl 16) bor IP4)
                bsl 16) bor IP5) bsl 16) bor IP6) bsl 16) bor IP7) bsl 16) bor IP8.
+
+make_host_only_JID(Name) when is_binary(Name) ->
+    jlib:make_jid(<<>>, Name, <<>>).
 
 set_sender(#xmlel{attrs = A} = Stanza, #jid{} = Sender) ->
     Stanza#xmlel{attrs = [{<<"from">>, jlib:jid_to_binary(Sender)}|A]}.
