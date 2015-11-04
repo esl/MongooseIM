@@ -111,7 +111,7 @@ process_iq_set(From, To, #iq{lang = Lang, sub_el = Child} = IQ, Source) ->
     true = is_query_element(Child),
     handle_set(Child, {extras, [From, To, IQ, Child, Source, Lang]}).
 
-handle_set(#xmlel{name = <<"query">>} = Query, {extras, [ClientJID, ServerJID, Stanza|_]} = Extras) ->
+handle_set(#xmlel{name = <<"query">>} = Query, {extras, [ClientJID, ServerJID, Stanza, _, Source, _]} = Extras) ->
     case has_only_remove_child(Query) of
         true ->
             attempt_cancelation(ClientJID, ServerJID, Stanza);
@@ -121,7 +121,7 @@ handle_set(#xmlel{name = <<"query">>} = Query, {extras, [ClientJID, ServerJID, S
             case has_username_and_password_children(Query) of
                 true ->
                     Credentials = get_username_and_password_values(Query),
-                    register_or_change_password(Credentials, Extras);
+                    register_or_change_password(Credentials, ClientJID, ServerJID, Stanza, Source);
                 false ->
                     ignore
             end
@@ -156,11 +156,12 @@ get_username_and_password_values(Q) ->
     {exml_query:path(Q, [{element, <<"username">>}, cdata]),
      exml_query:path(Q, [{element, <<"password">>}, cdata])}.
 
-register_or_change_password(Credentials, {extras, [From, #jid{lserver = Server}, IQ, Children, IPAddr, Lang]}) ->
+register_or_change_password(Credentials, ClientJID, #jid{lserver = ServerDomain}, IQ, IPAddr) ->
     {Username, Password} = Credentials,
-    case inband_registration_and_cancelation_allowed(Server, From) of
+    case inband_registration_and_cancelation_allowed(ServerDomain, ClientJID) of
         true ->
-            try_register_or_set_password(Username, Server, Password, From, IQ, Children, IPAddr, Lang);
+            #iq{sub_el = Children, lang = Lang} = IQ,
+            try_register_or_set_password(Username, ServerDomain, Password, ClientJID, IQ, Children, IPAddr, Lang);
         false ->
             %% This is not described in XEP 0077.
             error_response(IQ, ?ERR_FORBIDDEN)
