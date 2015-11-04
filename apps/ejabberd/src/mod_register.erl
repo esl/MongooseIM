@@ -107,11 +107,12 @@ process_iq(From, To, #iq{type = set} = IQ) ->
 process_iq(From, To, #iq{type = get} = IQ) ->
     process_iq_get(From, To, IQ, jlib:jid_tolower(From)).
 
-process_iq_set(From, To, #iq{lang = Lang, sub_el = Child} = IQ, Source) ->
+process_iq_set(From, To, #iq{sub_el = Child} = IQ, Source) ->
     true = is_query_element(Child),
-    handle_set(Child, {extras, [From, To, IQ, Child, Source, Lang]}).
+    handle_set(IQ, From, To, Source).
 
-handle_set(#xmlel{name = <<"query">>} = Query, {extras, [ClientJID, ServerJID, Stanza, _, Source, _]} = Extras) ->
+handle_set(Stanza, ClientJID, ServerJID, Source) ->
+    #iq{sub_el = Query} = Stanza,
     case has_only_remove_child(Query) of
         true ->
             attempt_cancelation(ClientJID, ServerJID, Stanza);
@@ -125,10 +126,7 @@ handle_set(#xmlel{name = <<"query">>} = Query, {extras, [ClientJID, ServerJID, S
                 false ->
                     ignore
             end
-    end;
-handle_set(_, _) ->
-    %% XEP 0077 describes how to service lone `query' elements in a request.
-    ignore.
+    end.
 
 has_only_remove_child(#xmlel{children = C} = Q) when length(C) =:= 1 ->
     case exml_query:path(Q, [{element, <<"remove">>}], absent) of
