@@ -6,15 +6,16 @@
 %% add attribute `xep` to relevant module as below:
 %% -xep([{xep, 313}, {version, "0.2"}]).
 %% or
-%% -xep([{xep, 313}, {version, "0.2"}, {url, "http://xmpp.org/extensions/attic/xep-0313-0.2.html"}]).
+%% -xep([{xep, 313}, {version, "0.2"},
+%% { url, "http://xmpp.org/extensions/attic/xep-0313-0.2.html"}]).
+%%
 %% you can add also comment to the xep like:
-%% -xep([{xep, 313}, {version, "0.2"}, {comment, "Some example comment, for example: Partial Implemented}]).
+%% -xep([{xep, 313}, {version, "0.2"},
+%% {comment, "Some example comment, for example: Partial Implemented}]).
+%%
 %% and run:
 %% $> escript xep_tool.escript <PATH_TO_BEAM> <OUTPUT_FILE>
 %% Escript will produce markdown with list of available XEPs.
-
--export([get_xep/1]).
--mode(compile).
 -define(HTTP_PREFIX, "http://www.xmpp.org/extensions/xep-").
 -define(HTTP_PREFIX_VER, "http://xmpp.org/extensions/attic/xep-").
 -define(HTTP_SUFIX, ".html").
@@ -36,15 +37,15 @@ get_xep(Module) ->
     Values = [Value || {xep, Value} <- Info],
     {Module, Values}.
 
--spec match_zeros(xep()) -> string().
+-spec match_zeros(xep()) -> iolist().
 match_zeros(Number) when Number > 99 ->
-    "0" ++ integer_to_list(Number);
+    ["0", integer_to_list(Number)];
 match_zeros(Number) when Number > 9 ->
-    "00" ++ integer_to_list(Number);
+    ["00", integer_to_list(Number)];
 match_zeros(Number) ->
-    "000" ++ integer_to_list(Number).
+    ["000", integer_to_list(Number)].
 
--spec main(list(string())) -> ok.
+-spec main(list(iolist())) -> ok.
 main([InDir]) ->
     code:set_path(code:get_path() ++ [InDir]),
     do(?FILE_NAME);
@@ -54,108 +55,122 @@ main([InDir, Output]) ->
     do(Output);
 
 main(_) ->
-    io:format("~n ***  Bad Arguments. Try:~nxep_tool.escript <path_to_ebin_files>"
-    "[output_file]~n~nExample usage (from mongooseim repo root):
-./tools/xep_tool/xep_tool.escript apps/ejabberd/ebin/ Xep_list.md~n").
+    io:format("~n ***  Bad Arguments. "
+              "Try:~nxep_tool.escript <path_to_ebin_files>"
+              " [output_file]~n~nExample usage (from mongooseim repo root):~n"
+              "./tools/xep_tool/xep_tool.escript apps/ejabberd/ebin/ "
+              "Xep_list.md~n").
 
 -spec do(string()) -> ok.
 do(Output) ->
     EjabberdAPP = code:where_is_file("ejabberd.app"),
     case file:consult(EjabberdAPP) of
         {ok, [{application, ejabberd, FileStruct}]} ->
-            [Modules] = [M || {modules, M} <- FileStruct],
-            XEPs = lists:map(fun get_xep/1, Modules),
-            FilteredXeps = lists:filtermap(fun({_, []}) -> false;
-                                              ({Module, List}) -> {true, {Module, List}}
-                                           end, XEPs),
-            ToRecord = lists:map(fun({Module, List}) ->
-                #module_xep{module = Module, xeps = [proplist_to_half_record(X) || X <- List]}
-                                 end, FilteredXeps),
-            UsortedTupleList = usort_all(ToRecord),
-            RecordList = generate_full_record_list(UsortedTupleList),
-            Table = generate_table(RecordList),
+            Table = filestruct_to_table(FileStruct),
             file:write_file(Output, Table),
-            io:format("~n ***  Markdown with unique xep names and urls saved to file ~p~n",
+            io:format("~n ***  Markdown with unique xep names "
+                      "and urls saved to file ~p~n",
                       [Output]);
         _ ->
-            io:format("~n ***  Beam files not found. First compile MongooseIM to generate beam files~n")
+            io:format("~n ***  Beam files not found."
+                      " First compile MongooseIM to generate beam files~n")
     end.
 
--spec usort_all(list(#module_xep{})) -> list({{xep(), ver()}, url()}).
-usort_all(ModuleXepList) ->
-    F = fun(Rec, Dict) ->
-        List = [{{XepNumber, Version}, Url} ||
-            #xep{xep = XepNumber, version = Version, url = Url} <- Rec#module_xep.xeps],
-        NoDup = lists:ukeysort(1, List),
-        lists:umerge([Dict, NoDup])
+-spec to_usorted_tuple_list(list(#module_xep{})) ->
+    list({{xep(), ver()}, url()}).
+to_usorted_tuple_list(ModuleXepList) ->
+    F = fun(#module_xep{xeps = Xeps}) ->
+        [{{X#xep.xep, X#xep.name}, X#xep.url} || X <- Xeps]
     end,
-    lists:foldl(F, [], ModuleXepList).
+    XepList = lists:flatmap(F, ModuleXepList),
+    lists:ukeysort(1, XepList).
+
+-spec tuple_to_full_record({{xep(), ver()}, url()}) -> #xep{}.
+tuple_to_full_record({{Xep, Ver}, Url}) ->
+    {Name, MasterVer} = get_title_and_ver(Url),
+    NewUrl = case MasterVer of
+                 Ver ->
+                     Url;
+                 _ ->
+                     case Ver of
+                         undefined ->
+                             Url;
+                         SomeVer ->
+                             [?HTTP_PREFIX_VER,
+                              match_zeros(Xep),
+                              "-", SomeVer, ?HTTP_SUFIX]
+                     end
+             end,
+    #xep{xep = Xep, version = Ver, url = NewUrl, name = Name}.
+
+-spec proplist_to_half_record(list({atom(), any()})) -> #xep{}.
+proplist_to_half_record(Proplist) ->
+    XEP = case lists:keyfind(xep, 1, Proplist) of
+              {?XEP, V} ->
+                  V;
+              false ->
+                  undefined
+          end,
+    VER = case lists:keyfind(version, 1, Proplist) of
+              {?VERSION, V1} ->
+                  V1;
+              false ->
+                  undefined
+          end,
+    MasterURL = case lists:keyfind(?URL, 1, Proplist) of
+                    {url, Value} ->
+                        Value;
+                    false ->
+                        [?HTTP_PREFIX, match_zeros(XEP), ?HTTP_SUFIX]
+                end,
+    #xep{xep = XEP, version = VER, url = MasterURL}.
 
 -spec generate_full_record_list(list({{xep(), ver()}, url()})) -> list(#xep{}).
 generate_full_record_list(HalfRecordList) ->
-    F = fun({{Xep, Ver}, Url}) ->
-        {Name, MasterVer} = get_title_and_ver(Url),
-        NewUrl = if MasterVer == Ver ->
-            Url;
-                     true ->
-                         case Ver of
-                             undefined ->
-                                 Url;
-                             SomeVer ->
-                                 ?HTTP_PREFIX_VER ++
-                                 match_zeros(Xep) ++
-                                 "-" ++ SomeVer ++ ?HTTP_SUFIX
-                         end
-                 end,
-        #xep{xep = Xep, version = Ver, url = NewUrl, name = Name}
-        end,
-        lists:map(F, HalfRecordList).
+    [tuple_to_full_record(HalfRecord) || HalfRecord <- HalfRecordList].
 
--spec generate_table(list(#xep{})) -> string().
+-spec generate_module_xep_list({module(), list(#xep{})}) -> #module_xep{}.
+generate_module_xep_list({Module, List}) ->
+    HalfRecords = [proplist_to_half_record(X) || X <- List],
+    #module_xep{module = Module, xeps   = HalfRecords}.
+
+-spec filestruct_to_table(list({modules, module()})) -> iolist().
+filestruct_to_table(FileStruct) ->
+    [Modules] = [M || {modules, M} <- FileStruct],
+    XEPs = [get_xep(M) || M <- Modules],
+    FilteredXeps = [X || X = {_, List} <- XEPs, [] =/= List],
+    ToRecord = [generate_module_xep_list(M)|| M <- FilteredXeps],
+    UsortedTupleList = to_usorted_tuple_list(ToRecord),
+    RecordList = generate_full_record_list(UsortedTupleList),
+    generate_table(RecordList).
+
+-spec generate_table(list(#xep{})) -> iolist().
 generate_table(List) ->
-    TablePrefix = "|||||\n"
-                  "| ------------- | ------------- | ------------- |------------- |\n"
-                  "|",
-    F = fun(#xep{name=Name, url=Url}, {Num, BuildingTable}) ->
+    F = fun(#xep{name = Name, url = Url}, {Num, BuildingTable}) ->
         Add = case Num rem 4 of
                   0 ->
                       "\n";
                   _ ->
                       " "
               end,
-        {Num + 1, BuildingTable ++ "[" ++ Name ++ "](" ++ Url ++ ") |" ++ Add}
+        {Num + 1, [BuildingTable, "[", Name, "](", Url, ") |", Add]}
     end,
     {_, TableListElement} = lists:foldl(F, {1, ""}, List),
-    TablePrefix ++ TableListElement.
+    [generate_prefix(), TableListElement].
 
 -spec get_title_and_ver(url()) -> {name(), ver()}.
 get_title_and_ver(URL) ->
-    io:format("Getting XEP name for ~p~n", [URL]),
-    {ok, {{_, 200, _}, _, Body}} =
-    httpc:request(URL),
-    {match, [Name]} = re:run(Body, "<title>(?<FOO>.*)</title>", [{capture, ['FOO'], list}]),
-    {match, [Ver]} = re:run(Body, "Version: (?<FOO>.*)<br", [{capture, ['FOO'], list}]),
+    io:format("Getting XEP name for ~s~n", [URL]),
+    LUrl = lists:flatten(URL),
+    {ok, {{_, 200, _}, _, Body}} = httpc:request(LUrl),
+    {match, [Name]} = re:run(Body, "<title>(?<FOO>.*)</title>",
+                             [{capture, ['FOO'], list}]),
+    {match, [Ver]} = re:run(Body, "Version: (?<FOO>.*)<br",
+                            [{capture, ['FOO'], list}]),
     {Name, Ver}.
 
-
--spec proplist_to_half_record(list({atom(), any()})) -> #xep{}.
-proplist_to_half_record(Proplist) ->
-    XEP = case lists:keysearch(xep, 1, Proplist) of
-              {value, {?XEP, V}} ->
-                  V;
-              false -> undefined
-          end,
-    VER = case lists:keysearch(version, 1, Proplist) of
-              {value, {?VERSION, V1}} ->
-                  V1;
-              false -> undefined
-          end,
-    MasterURL = case lists:keysearch(?URL, 1, Proplist) of
-                    {value, {url, Value}} ->
-                        Value;
-                    false ->
-                        ?HTTP_PREFIX ++ match_zeros(XEP) ++ ?HTTP_SUFIX
-
-                end,
-    #xep{xep = XEP, version = VER, url = MasterURL}.
-
+-spec generate_prefix() -> string().
+generate_prefix() ->
+    "|||||\n"
+    "|-------------|-------------|-------------|-------------|\n"
+    "|".
