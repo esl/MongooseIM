@@ -21,7 +21,7 @@
 %% API
 -export([init/2,
          get_last/2,
-         count_active_users/3,
+         count_active_users/2,
          set_last_info/4,
          remove_user/2]).
 
@@ -45,11 +45,9 @@ get_last(LUser, LServer) ->
             {error, Reason}
     end.
 
--spec count_active_users(ejabberd:lserver(), non_neg_integer(), '<' | '>') ->
-    non_neg_integer().
-count_active_users(LServer, TimeStamp, Comparator) ->
-    {S, E} = timestamp_range(TimeStamp, Comparator),
-    Idx = {index, bucket_type(LServer), ?TIMESTAMP_IDX, S, E},
+-spec count_active_users(ejabberd:lserver(), non_neg_integer()) -> non_neg_integer().
+count_active_users(LServer, TimeStamp) ->
+    Idx = {index, bucket_type(LServer), ?TIMESTAMP_IDX, TimeStamp+1, infinity()},
     RedMF = {modfun, riak_kv_mapreduce, reduce_count_inputs},
     Red = [{reduce, RedMF, [{reduce_phase_batch_size, 1000}], true}],
     {ok, [{0, [Count]}]}  = mongoose_riak:mapred(Idx, Red),
@@ -71,13 +69,8 @@ remove_user(LUser, LServer) ->
 
 bucket_type(LServer) -> {<<"last">>, LServer}.
 
--spec timestamp_range(non_neg_integer(), '<' | '>') ->
-    {non_neg_integer(), non_neg_integer()}.
-timestamp_range(Timestamp, '<') -> {0, Timestamp-1};
-timestamp_range(Timestamp, '>') -> {Timestamp+1, now_plus_one_day()}.
-
--spec now_plus_one_day() -> non_neg_integer().
-now_plus_one_day() ->
-    OneDay = 86400,
-    {MegaSecs, Secs, _MicroSecs} = os:timestamp(),
-    OneDay + MegaSecs * 1000000 + Secs.
+-spec infinity() -> non_neg_integer().
+infinity() ->
+    % almost infinity ... Wed, 16 Nov 5138 09:46:39 GMT
+    % I think Mongoose won't live so long ;)
+    99999999999.

@@ -134,7 +134,7 @@ num_active_users(Host, Days) ->
     {MegaSecs, Secs, _MicroSecs} = now(),
     TimeStamp = MegaSecs * 1000000 + Secs,
     TS = TimeStamp - Days * 86400,
-    case catch mod_last:count_active_users(Host, TS, '>') of
+    case catch mod_last:count_active_users(Host, TS) of
         {'EXIT', _Reason} ->
             0;
         Val ->
