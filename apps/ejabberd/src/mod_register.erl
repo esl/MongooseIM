@@ -107,14 +107,14 @@ process_iq(From, To, #iq{type = set} = IQ) ->
 process_iq(From, To, #iq{type = get} = IQ) ->
     process_iq_get(From, To, IQ, jlib:jid_tolower(From)).
 
-process_iq_set(From, To, #iq{lang = Lang, sub_el = Child, id = ID} = IQ, Source) ->
+process_iq_set(From, To, #iq{lang = Lang, sub_el = Child} = IQ, Source) ->
     true = is_query_element(Child),
     handle_set(Child, {extras, [From, To, IQ, Child, Source, Lang]}).
 
-handle_set(#xmlel{name = <<"query">>} = Query, {extras, [_,_,Stanza|_]} = Extras) ->
+handle_set(#xmlel{name = <<"query">>} = Query, {extras, [ClientJID, ServerJID, Stanza|_]} = Extras) ->
     case has_only_remove_child(Query) of
         true ->
-            attempt_cancelation(Extras);
+            attempt_cancelation(ClientJID, ServerJID, Stanza);
         {false, more} ->
             error_response(Stanza, ?ERR_BAD_REQUEST);
         {false, absent} ->
@@ -156,7 +156,7 @@ get_username_and_password_values(Q) ->
     {exml_query:path(Q, [{element, <<"username">>}, cdata]),
      exml_query:path(Q, [{element, <<"password">>}, cdata])}.
 
-register_or_change_password(Credentials, {extras, [From, #jid{lserver = Server} = To, IQ, Children, IPAddr, Lang]}) ->
+register_or_change_password(Credentials, {extras, [From, #jid{lserver = Server}, IQ, Children, IPAddr, Lang]}) ->
     {Username, Password} = Credentials,
     case inband_registration_and_cancelation_allowed(Server, From) of
         true ->
@@ -166,8 +166,9 @@ register_or_change_password(Credentials, {extras, [From, #jid{lserver = Server} 
             error_response(IQ, ?ERR_FORBIDDEN)
     end.
 
-attempt_cancelation({extras, [#jid{user = Username, lserver = S0, resource = Resource} = From, #jid{lserver = S1} = To, #iq{id = ID} = IQ, Child, _IPAddr, _Lang]}) ->
-    case inband_registration_and_cancelation_allowed(S1, From) of
+attempt_cancelation(ClientJID, #jid{lserver = ServerDomain}, #iq{id = ID, sub_el = Child} = IQ) ->
+    #jid{user = Username, lserver = UserDomain, resource = Resource} = ClientJID,
+    case inband_registration_and_cancelation_allowed(ServerDomain, ClientJID) of
         true ->
             %% The response must be sent *before* the
             %% XML stream is closed (the call to
@@ -180,9 +181,9 @@ attempt_cancelation({extras, [#jid{user = Username, lserver = S0, resource = Res
                         sub_el = [Child]},
             ejabberd_router:route(
               jlib:make_jid(<<>>, <<>>, <<>>),
-              jlib:make_jid(Username, S0, Resource),
+              jlib:make_jid(Username, UserDomain, Resource),
               jlib:iq_to_xml(ResIQ)),
-            ejabberd_auth:remove_user(Username, S0),
+            ejabberd_auth:remove_user(Username, UserDomain),
             ignore;
         false ->
             error_response(IQ, ?ERR_NOT_ALLOWED)
