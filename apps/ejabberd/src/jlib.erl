@@ -28,6 +28,14 @@
 -author('alexey@process-one.net').
 -xep([{xep, 59}, {version, "1.0"}]).
 -xep([{xep, 68}, {version, "1.2"}]).
+-xep([{xep, 18}, {version, "0.2"}]).
+-xep([{xep, 175}, {version, "1.2"}]).
+-xep([{xep, 157}, {version, "1.0"}]).
+-xep([{xep, 212}, {version, "1.0"}]).
+-xep([{xep, 114}, {version, "1.6"}]).
+-xep([{xep, 85}, {version, "2.1"}]).
+-xep([{xep, 126}, {version, "1.1"}]).
+-xep([{xep, 170}, {version, "1.0"}]).
 -export([make_result_iq_reply/1,
          make_error_reply/2,
          make_invitation/3,

@@ -27,7 +27,6 @@
 -module(adhoc).
 -author('henoch@dtek.chalmers.se').
 -xep([{xep, 50}, {version, "1.2"}]).
--xep([{xep, 68}, {version, "1.2"}]).
 -export([parse_request/1,
          produce_response/2,
          produce_response/1]).

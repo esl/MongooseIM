@@ -26,8 +26,6 @@
 
 -module(ejabberd_service).
 -author('alexey@process-one.net').
--xep([{xep, 114}, {version, "1.6"}]).
--xep([{xep, 198}, {version, "1.3"}]).
 -define(GEN_FSM, p1_fsm).
 
 -behaviour(?GEN_FSM).

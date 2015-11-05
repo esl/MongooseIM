@@ -23,7 +23,6 @@
 
 -module(mod_offline_stub).
 -author('mongoose-im@erlang-solutions.com').
--xep([{xep, 160}, {version, "1.0"}]).
 -behaviour(gen_mod).
 
 %% gen_mod callbacks

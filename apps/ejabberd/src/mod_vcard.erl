@@ -35,8 +35,6 @@
 -author('alexey@process-one.net').
 -xep([{xep, 54}, {version, "1.2"}]).
 -xep([{xep, 55}, {version, "1.3"}]).
--xep([{xep, 68}, {version, "1.2"}]).
--xep([{xep, 82}, {version, "1.1"}]).
 -behaviour(gen_mod).
 -behaviour(gen_server).
 

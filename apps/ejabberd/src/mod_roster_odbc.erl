@@ -10,9 +10,6 @@
 %%%----------------------------------------------------------------------
 
 -module(mod_roster_odbc).
--xep([{xep, 237}, {version, "1.3"}]).
--xep([{xep, 83}, {version, "1.0"}]).
--xep([{xep, 93}, {version, "1.2"}]).
 -include("mod_roster.hrl").
 -include("jlib.hrl").
 

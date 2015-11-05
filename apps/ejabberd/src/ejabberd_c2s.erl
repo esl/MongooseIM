@@ -27,12 +27,10 @@
 -module(ejabberd_c2s).
 -author('alexey@process-one.net').
 -update_info({update, 0}).
--xep([{xep, 18}, {version, "0.2"}]).
+
 -xep([{xep, 78}, {version, "2.5"}]).
 -xep([{xep, 86}, {version, "1.0"}]).
 -xep([{xep, 138}, {version, "2.0"}]).
--xep([{xep, 175}, {version, "1.2"}]).
--xep([{xep, 198}, {version, "1.3"}]).
 %% External exports
 -export([start/2,
          stop/1,
