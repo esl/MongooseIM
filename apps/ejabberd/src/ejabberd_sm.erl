@@ -27,6 +27,7 @@
 -author('alexey@process-one.net').
 
 -behaviour(gen_server).
+-behaviour(xmpp_router).
 
 %% API
 -export([start_link/0,
@@ -63,6 +64,9 @@
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
+
+%% xmpp_router callback
+-export([do_route/3]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -121,15 +125,7 @@ start_link() ->
       To :: ejabberd:jid(),
       Packet :: jlib:xmlel() | ejabberd_c2s:broadcast().
 route(From, To, Packet) ->
-    case catch do_route(From, To, Packet) of
-        {'EXIT', Reason} ->
-            ?ERROR_MSG("~p~nwhen processing: ~p",
-                       [Reason, {From, To, Packet}]),
-            ok;
-        _ ->
-            ok
-    end.
-
+    xmpp_router:route(?MODULE, From, To, Packet).
 
 -spec open_session(SID, User, Server, Resource, Info) -> ok when
       SID :: 'undefined' | sid(),
@@ -444,13 +440,7 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 -spec handle_info(_,_) -> {'noreply',_}.
 handle_info({route, From, To, Packet}, State) ->
-    case catch do_route(From, To, Packet) of
-        {'EXIT', Reason} ->
-            ?ERROR_MSG("~p~nwhen processing: ~p",
-                       [Reason, {From, To, Packet}]);
-        _ ->
-            ok
-    end,
+    xmpp_router:route(?MODULE,From,To,Packet),
     {noreply, State};
 handle_info({register_iq_handler, Host, XMLNS, Module, Function}, State) ->
     ets:insert(sm_iqtable, {{XMLNS, Host}, Module, Function}),
