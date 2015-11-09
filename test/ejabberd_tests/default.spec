@@ -45,7 +45,6 @@
 {suites, "tests", vcard_simple_SUITE}.
 {suites, "tests", vcard_SUITE}.
 {suites, "tests", websockets_SUITE}.
-
 {config, ["test.config"]}.
 {logdir, "ct_report"}.
 {ct_hooks, [ct_tty_hook, ct_mongoose_hook]}.
