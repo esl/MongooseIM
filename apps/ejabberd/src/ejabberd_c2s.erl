@@ -506,29 +506,7 @@ maybe_legacy_auth(error, El, StateData, U, _P, _D, R) ->
 maybe_legacy_auth(JID, El, StateData, U, P, D, R) ->
     case user_allowed(JID, StateData) of
         true ->
-            DGen = fun(PW) ->
-                           Sid = StateData#state.streamid,
-                           sha:sha1_hex(<<Sid/binary,
-                                          PW/binary>>)
-                   end,
-            case ejabberd_auth:check_password_with_authmodule(
-                   U, StateData#state.server, P, D, DGen) of
-                {true, AuthModule} ->
-                    do_open_legacy_session(El, StateData, U, R, JID,
-                                           AuthModule);
-                _ ->
-                    IP = peerip(StateData#state.sockmod, StateData#state.socket),
-                    ?INFO_MSG(
-                       "(~w) Failed legacy authentication for ~s from IP ~s (~w)",
-                       [StateData#state.socket,
-                        jlib:jid_to_binary(JID), jlib:ip_to_list(IP), IP]),
-                    Err = jlib:make_error_reply(
-                            El, ?ERR_NOT_AUTHORIZED),
-                    ejabberd_hooks:run(auth_failed, StateData#state.server,
-                                       [U, StateData#state.server]),
-                    send_element(StateData, Err),
-                    fsm_next_state(wait_for_auth, StateData)
-            end;
+            do_legacy_auth(JID, El, StateData, U, P, D, R);
         _ ->
 
             ?INFO_MSG(
@@ -536,6 +514,31 @@ maybe_legacy_auth(JID, El, StateData, U, P, D, R) ->
                [StateData#state.socket,
                 jlib:jid_to_binary(JID)]),
             Err = jlib:make_error_reply(El, ?ERR_NOT_ALLOWED),
+            send_element(StateData, Err),
+            fsm_next_state(wait_for_auth, StateData)
+    end.
+
+do_legacy_auth(JID, El, StateData, U, P, D, R) ->
+    DGen = fun(PW) ->
+                   Sid = StateData#state.streamid,
+                   sha:sha1_hex(<<Sid/binary,
+                                  PW/binary>>)
+           end,
+    case ejabberd_auth:check_password_with_authmodule(
+           U, StateData#state.server, P, D, DGen) of
+        {true, AuthModule} ->
+            do_open_legacy_session(El, StateData, U, R, JID,
+                                   AuthModule);
+        _ ->
+            IP = peerip(StateData#state.sockmod, StateData#state.socket),
+            ?INFO_MSG(
+               "(~w) Failed legacy authentication for ~s from IP ~s (~w)",
+               [StateData#state.socket,
+                jlib:jid_to_binary(JID), jlib:ip_to_list(IP), IP]),
+            Err = jlib:make_error_reply(
+                    El, ?ERR_NOT_AUTHORIZED),
+            ejabberd_hooks:run(auth_failed, StateData#state.server,
+                               [U, StateData#state.server]),
             send_element(StateData, Err),
             fsm_next_state(wait_for_auth, StateData)
     end.
