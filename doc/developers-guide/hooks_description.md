@@ -105,6 +105,7 @@ way - in a process state, persistent storage or by notifying some external
 service.
 
 ## `node_cleanup`
+
 ```erlang
 ejabberd_hooks:run(node_cleanup, [Node])
 ```
@@ -118,3 +119,18 @@ situations the hook may be run on more than one node in the cluster, especially
 when there is little garbage to clean after the dead node. Setting retries to 0
 is not good decision as it was observed that in some setups it may abort the
 transaction on all nodes.
+
+## `session_opening_allowed_for_user`
+```erlang
+ejabberd_hooks:run_fold(session_opening_allowed_for_user,
+                        Server,
+                        allow, [JID]).
+```
+
+This hook is run after authentication when user sends the iq opening a session.
+Handler function are expected to return:
+
+* `allow` if given JID is allowed to open a new sessions
+* `deny` if the JID is not allowed but other handlers should be run
+* `{stop, deny}` if the JID is not allowed but other handlers should be run
+

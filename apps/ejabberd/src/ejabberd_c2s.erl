@@ -2880,12 +2880,12 @@ handle_sasl_step(#state{server = Server, socket= Sock} = State, StepRes) ->
 user_allowed(JID, #state{server = Server, access = Access}) ->
     case acl:match_rule(Server, Access, JID)  of
         allow ->
-            user_allowed_hook(Server, JID);
+            open_session_allowed_hook(Server, JID);
         deny ->
             false
     end.
 
-user_allowed_hook(Server, JID) ->
-    allow == ejabberd_hooks:run_fold(check_user_allowed,
+open_session_allowed_hook(Server, JID) ->
+    allow == ejabberd_hooks:run_fold(session_opening_allowed_for_user,
                                      Server,
                                      allow, [JID]).
