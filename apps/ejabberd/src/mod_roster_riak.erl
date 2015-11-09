@@ -1,7 +1,8 @@
 %%%----------------------------------------------------------------------
 %%% File    : mod_roster_riak.erl
 %%% Author  : Piotr Nosek <piotr.nosek@erlang-solutions.com>
-%%% Purpose : mod_roster Riak backend
+%%% Purpose : mod_roster Riak backend with quasi-transaction support
+%%%           (see comment before transaction/1)
 %%%
 %%% MongooseIM, Copyright (C) 2015      Erlang Solutions Ltd.
 %%%
@@ -36,23 +37,26 @@
 init(_Host, _Opts) ->
     ok. % Common Riak pool is used
 
+%% WARNING: Riak does not support *real* transactions, so we are in fact applying
+%% all accumulated changes with no rollback support so it is possible to end up with
+%% inconsistent state e.g. if Riak connectivity goes down in the middle of application.
 -spec transaction(F :: fun()) -> {aborted, Reason :: any()} | {atomic, Result :: any()}.
 transaction(F) ->
     put(riak_roster_t, []),
     put(riak_version_t, []),
-    Return = case catch F() of
-                 {'EXIT', Reason} ->
-                     {aborted, Reason};
-                 Result ->
-                     %% Commiting...
-                     commit_t_roster(),
-                     commit_t_version(),
-                     put(riak_roster_t, []),
-                     {atomic, Result}
-             end,
-    lists:foreach(fun(Key) -> erase({riak_roster_t, Key}) end, erase(riak_roster_t)),
-    erase(riak_version_t),
-    Return.
+    try F() of
+        Result ->
+            %% Applying
+            apply_t_roster(),
+            apply_t_version(),
+            put(riak_roster_t, []),
+            {atomic, Result}
+    catch
+        _:Reason -> {aborted, Reason}
+    after
+        lists:foreach(fun(Key) -> erase({riak_roster_t, Key}) end, erase(riak_roster_t)),
+        erase(riak_version_t)
+    end.
 
 %% --------------------- Inside "transactions" --------------------------------
 
@@ -173,8 +177,8 @@ del_t_roster(LUser, LServer, LJID) ->
                 end,
     put({riak_roster_t, {LUser, LServer}}, RosterMap).
 
--spec commit_t_roster() -> ok.
-commit_t_roster() ->
+-spec apply_t_roster() -> ok.
+apply_t_roster() ->
     lists:foreach(
       fun({LUser, LServer} = LUS) ->
               RosterMap = erase({riak_roster_t, LUS}),
@@ -184,8 +188,8 @@ commit_t_roster() ->
               end
       end, get(riak_roster_t)).
 
--spec commit_t_version() -> ok.
-commit_t_version() ->
+-spec apply_t_version() -> ok.
+apply_t_version() ->
     lists:foreach(
       fun({{LUser, LServer}, NewVer}) ->
               catch write_roster_version(LUser, LServer, false, NewVer)
