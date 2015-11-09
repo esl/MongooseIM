@@ -58,6 +58,10 @@ Whenever the specification says "anything else", service should use one of the c
 
 Some requests consider multiple return codes a "success". It is up to the server-side developer to pick one of the codes.
 
+#### `Content-Length`
+
+**IMPORTANT:** The authentication server MUST include a `Content-Length` header in the response. A body can be missing in the first data chunk read from a socket, leading to strange authentication errors.
+
 ### `check_password`
 
 * **Method:** GET
