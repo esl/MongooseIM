@@ -76,19 +76,19 @@ legacy_auth_plain(Conn, Props, UnusedFeatures) ->
 
 res(Res) when is_binary(Res) ->
     #xmlel{name = <<"resource">>,
-           children = [exml:escape_cdata(Res)]}.
+           children = [#xmlcdata{content = Res}]}.
 
 username(Username) when is_binary(Username) ->
     #xmlel{name = <<"username">>,
-           children = [exml:escape_cdata(Username)]}.
+           children = [#xmlcdata{content = Username}]}.
 
 digest(Digest) when is_binary(Digest) ->
     #xmlel{name = <<"digest">>,
-           children = [exml:escape_cdata(Digest)]}.
+           children = [#xmlcdata{content = Digest}]}.
 
 password(Password) when is_binary(Password) ->
     #xmlel{name = <<"password">>,
-           children = [exml:escape_cdata(Password)]}.
+           children = [#xmlcdata{content = Password}]}.
 
 generate_digest(SID, Password) ->
     %% compute digest
