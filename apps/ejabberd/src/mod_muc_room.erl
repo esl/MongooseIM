@@ -26,7 +26,6 @@
 
 -module(mod_muc_room).
 -author('alexey@process-one.net').
-
 -behaviour(gen_fsm).
 
 

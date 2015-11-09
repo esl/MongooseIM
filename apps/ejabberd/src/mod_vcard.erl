@@ -33,7 +33,8 @@
 
 -module(mod_vcard).
 -author('alexey@process-one.net').
-
+-xep([{xep, 54}, {version, "1.2"}]).
+-xep([{xep, 55}, {version, "1.3"}]).
 -behaviour(gen_mod).
 -behaviour(gen_server).
 

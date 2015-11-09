@@ -26,9 +26,8 @@
 
 -module(ejabberd_service).
 -author('alexey@process-one.net').
-
 -define(GEN_FSM, p1_fsm).
-
+-xep([{xep, 114}, {version, "1.6"}]).
 -behaviour(?GEN_FSM).
 
 %% External exports

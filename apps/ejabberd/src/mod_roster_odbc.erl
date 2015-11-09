@@ -1,7 +1,7 @@
 %%%----------------------------------------------------------------------
 %%% File    : mod_roster_odbc.erl
 %%% Author  : Michał Piotrowski <michal.piotrowski@erlang-solutions.com>
-%%% Purpose : mod_roster_odbc odbc backend (XEP-0012)
+%%% Purpose : mod_roster_odbc odbc backend
 %%%
 %%%
 %%% ejabberd, Copyright (C) 2002-2014   ProcessOne
@@ -10,7 +10,6 @@
 %%%----------------------------------------------------------------------
 
 -module(mod_roster_odbc).
-
 -include("mod_roster.hrl").
 -include("jlib.hrl").
 

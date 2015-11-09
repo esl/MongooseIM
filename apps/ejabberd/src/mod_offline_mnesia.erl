@@ -28,7 +28,6 @@
 
 -module(mod_offline_mnesia).
 -behaviour(mod_offline).
-
 -export([init/2,
          pop_messages/2,
          write_messages/4,

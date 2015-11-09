@@ -26,7 +26,6 @@
 
 -module(mod_admin_extra_roster).
 -author('badlop@process-one.net').
-
 -export([
     commands/0,
 

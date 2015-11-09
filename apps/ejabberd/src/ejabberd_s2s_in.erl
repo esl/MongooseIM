@@ -26,7 +26,6 @@
 
 -module(ejabberd_s2s_in).
 -author('alexey@process-one.net').
-
 -behaviour(gen_fsm).
 
 %% External exports

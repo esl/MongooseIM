@@ -26,7 +26,7 @@
 
 -module(ejabberd_zlib).
 -author('alexey@process-one.net').
-
+-xep([{xep, 138}, {version, "2.0"}]).
 -export([enable_zlib/3, disable_zlib/1,
          send/2,
          recv_data/2,

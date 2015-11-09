@@ -1,5 +1,5 @@
 -module(mod_stream_management).
-
+-xep([{xep, 198}, {version, "1.3"}]).
 -behaviour(gen_mod).
 
 %% `gen_mod' callbacks

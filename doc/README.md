@@ -24,4 +24,5 @@
     * [Hooks and handlers](developers-guide/Hooks-and-handlers.md)
     * [REST Interface to Metrics](developers-guide/REST-interface-to-metrics.md)
     * [mod_amp developer's guide](developers-guide/mod_amp_developers_guide.md)
+    * [xep-tool usage](developers-guide/xep_tool.md)
 

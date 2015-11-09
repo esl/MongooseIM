@@ -1,7 +1,7 @@
 %%%----------------------------------------------------------------------
 %%% File    : mod_roster_mnesia.erl
 %%% Author  : Michał Piotrowski <michal.piotrowski@erlang-solutions.com>
-%%% Purpose : mod_last mnesia backend (XEP-0012)
+%%% Purpose : mod_roster mnesia backend
 %%%
 %%%
 %%% ejabberd, Copyright (C) 2002-2014   ProcessOne
@@ -12,7 +12,6 @@
 
 -include("mod_roster.hrl").
 -include("jlib.hrl").
-
 -behaviour(mod_roster).
 
 %% API

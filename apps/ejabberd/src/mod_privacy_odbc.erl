@@ -29,7 +29,6 @@
 -module(mod_privacy_odbc).
 -author('alexey@process-one.net').
 -author('arcusfelis@gmail.com').
-
 -behaviour(mod_privacy).
 
 -export([init/2,
