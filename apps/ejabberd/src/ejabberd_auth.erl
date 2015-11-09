@@ -220,8 +220,6 @@ do_check_password_loop([AuthModule | AuthModules], Args) ->
 -spec check_digest(binary(), fun(), binary(), binary()) -> boolean().
 check_digest(<<>>, _, <<>>, _) ->
     false; %%empty digest and password
-check_digest(<<>>, _, Password, Passwd) ->
-    Passwd == Password;
 check_digest(Digest, DigestGen, _Password, Passwd) ->
     Digest == DigestGen(Passwd).
 
