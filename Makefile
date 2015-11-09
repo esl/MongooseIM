@@ -166,6 +166,7 @@ cd_copyrel:
 	rsync -uWr ./ebin $(REL_DEST)
 	rsync -uWr --exclude="*.erl" ./src $(REL_DEST)
 	rsync -uWr ./tools/configure $(REL_DEST)
+	rsync -uWr ./tools/provision_pgsql.sh $(REL_DEST)
 	tar -cf uat_package.tar $(REL_DEST)/*
 
 # copy selected sources so that test "presets" still can be used as in Travis
