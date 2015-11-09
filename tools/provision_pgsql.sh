@@ -32,7 +32,7 @@ then
     PROVISIONING_SQL_PATH=`dirname "${PROVISIONING_SQL_FULLFILENAME}"`
 else
     PROVISIONING_SQL_FILENAME="pg.sql"
-    PROVISIONING_SQL_PATH="/var/lib/go-agent/pipelines/Baseline-build/apps/ejabberd/priv"
+    PROVISIONING_SQL_PATH="apps/ejabberd/priv"
 fi
 
 PROVISIONING_SQL_FULLFILENAME=${PROVISIONING_SQL_PATH}/${PROVISIONING_SQL_FILENAME}
