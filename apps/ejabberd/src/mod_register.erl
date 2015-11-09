@@ -97,10 +97,10 @@ unauthenticated_iq_register(Acc, _Server, _IQ, _IP) ->
     Acc.
 
 %% Clients must register before being able to authenticate.
-process_unauthenticated_iq(Sender, Receiver, #iq{type = set} = Stanza, IPAddr) ->
-    process_iq_set(Sender, Receiver, Stanza, IPAddr);
-process_unauthenticated_iq(Sender, Receiver, #iq{type = get} = Stanza, IPAddr) ->
-    process_iq_get(Sender, Receiver, Stanza, IPAddr).
+process_unauthenticated_iq(From, To, #iq{type = set} = IQ, IPAddr) ->
+    process_iq_set(From, To, IQ, IPAddr);
+process_unauthenticated_iq(From, To, #iq{type = get} = IQ, IPAddr) ->
+    process_iq_get(From, To, IQ, IPAddr).
 
 process_iq(From, To, #iq{type = set} = IQ) ->
     process_iq_set(From, To, IQ, jlib:jid_tolower(From));
@@ -111,18 +111,18 @@ process_iq_set(From, To, #iq{sub_el = Child} = IQ, Source) ->
     true = is_query_element(Child),
     handle_set(IQ, From, To, Source).
 
-handle_set(Stanza, ClientJID, ServerJID, Source) ->
-    #iq{sub_el = Query} = Stanza,
+handle_set(IQ, ClientJID, ServerJID, Source) ->
+    #iq{sub_el = Query} = IQ,
     case has_only_remove_child(Query) of
         true ->
-            attempt_cancelation(ClientJID, ServerJID, Stanza);
+            attempt_cancelation(ClientJID, ServerJID, IQ);
         {false, more} ->
-            error_response(Stanza, ?ERR_BAD_REQUEST);
+            error_response(IQ, ?ERR_BAD_REQUEST);
         {false, absent} ->
             case has_username_and_password_children(Query) of
                 true ->
                     Credentials = get_username_and_password_values(Query),
-                    register_or_change_password(Credentials, ClientJID, ServerJID, Stanza, Source);
+                    register_or_change_password(Credentials, ClientJID, ServerJID, IQ, Source);
                 false ->
                     ignore
             end
@@ -571,8 +571,8 @@ ip_to_integer({IP1, IP2, IP3, IP4, IP5, IP6, IP7, IP8}) ->
 make_host_only_JID(Name) when is_binary(Name) ->
     jlib:make_jid(<<>>, Name, <<>>).
 
-set_sender(#xmlel{attrs = A} = Stanza, #jid{} = Sender) ->
-    Stanza#xmlel{attrs = [{<<"from">>, jlib:jid_to_binary(Sender)}|A]}.
+set_sender(#xmlel{attrs = A} = Stanza, #jid{} = From) ->
+    Stanza#xmlel{attrs = [{<<"from">>, jlib:jid_to_binary(From)}|A]}.
 
 is_query_element(#xmlel{name = <<"query">>}) ->
     true;
