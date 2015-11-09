@@ -30,7 +30,7 @@
 -xep([{xep, 160}, {version, "1.0"}]).
 -xep([{xep, 23}, {version, "1.3"}]).
 -xep([{xep, 22}, {version, "1.4"}]).
-
+-xep([{xep, 85}, {version, "2.1"}]).
 -behaviour(gen_mod).
 
 %% gen_mod handlers

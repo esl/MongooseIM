@@ -45,32 +45,49 @@ match_zeros(Number) when Number > 9 ->
 match_zeros(Number) ->
     ["000", integer_to_list(Number)].
 
--spec main(list(iolist())) -> ok.
-main([InDir]) ->
+-spec main(list(iolist())) -> ok | no_return().
+main([Command, InDir]) ->
     code:set_path(code:get_path() ++ [InDir]),
-    do(?FILE_NAME);
+    do(Command, ?FILE_NAME);
 
-main([InDir, Output]) ->
+main([Command, InDir, Output]) ->
     code:set_path(code:get_path() ++ [InDir]),
-    do(Output);
+    do(Command, Output);
 
 main(_) ->
-    io:format("~n ***  Bad Arguments. "
-              "Try:~nxep_tool.escript <path_to_ebin_files>"
-              " [output_file]~n~nExample usage (from mongooseim repo root):~n"
-              "./tools/xep_tool/xep_tool.escript apps/ejabberd/ebin/ "
-              "Xep_list.md~n").
+    usage().
 
--spec do(string()) -> ok.
-do(Output) ->
+-spec usage() -> no_return().
+usage() ->
+    io:format("***  Bad Arguments. "
+                "Try:~nxep_tool.escript list|markdown <path_to_ebin_files>"
+                " [output_file]~n~nCommand could be one of the following: ~n"
+                "list -  prints the list of the supported XEPs to the console~nmarkdown - creates markdown"
+                " of supported XEPs to a file. This command requires also to indicate the output file.~n~n"
+                "Example usage (from mongooseim repo root):~n"
+                "./tools/xep_tool/xep_tool.escript apps/ejabberd/ebin/ "
+                "Xep_list.md~n"),
+    erlang:halt(1).
+
+-spec do(string(), string()) -> ok | no_return().
+do(Command, Output) ->
     EjabberdAPP = code:where_is_file("ejabberd.app"),
     case file:consult(EjabberdAPP) of
         {ok, [{application, ejabberd, FileStruct}]} ->
-            Table = filestruct_to_table(FileStruct),
-            file:write_file(Output, Table),
-            io:format("~n ***  Markdown with unique xep names "
-                      "and urls saved to file ~p~n",
-                      [Output]);
+            case Command of
+                "markdown" ->
+                    Table = filestruct_to_table(FileStruct),
+                    file:write_file(Output, Table),
+                    io:format("~n ***  Markdown with unique xep names "
+                              "and urls saved to file ~p~n",
+                              [Output]);
+                "list" ->
+                    ToPrint = filestruct_to_output_list(FileStruct),
+                    io:format("~nList of supported XEPs with versions: ~n"),
+                    io:format(ToPrint);
+                _ ->
+                    usage()
+            end;
         _ ->
             io:format("~n ***  Beam files not found."
                       " First compile MongooseIM to generate beam files~n")
@@ -80,7 +97,7 @@ do(Output) ->
     list({{xep(), ver()}, url()}).
 to_usorted_tuple_list(ModuleXepList) ->
     F = fun(#module_xep{xeps = Xeps}) ->
-        [{{X#xep.xep, X#xep.name}, X#xep.url} || X <- Xeps]
+        [{{X#xep.xep, X#xep.version}, X#xep.url} || X <- Xeps]
     end,
     XepList = lists:flatmap(F, ModuleXepList),
     lists:ukeysort(1, XepList).
@@ -134,15 +151,30 @@ generate_module_xep_list({Module, List}) ->
     HalfRecords = [proplist_to_half_record(X) || X <- List],
     #module_xep{module = Module, xeps   = HalfRecords}.
 
--spec filestruct_to_table(list({modules, module()})) -> iolist().
-filestruct_to_table(FileStruct) ->
+-spec filestruct_to_record_list(list({modules, module()})) -> list(#xep{}).
+filestruct_to_record_list(FileStruct) ->
     [Modules] = [M || {modules, M} <- FileStruct],
     XEPs = [get_xep(M) || M <- Modules],
     FilteredXeps = [X || X = {_, List} <- XEPs, [] =/= List],
     ToRecord = [generate_module_xep_list(M)|| M <- FilteredXeps],
     UsortedTupleList = to_usorted_tuple_list(ToRecord),
-    RecordList = generate_full_record_list(UsortedTupleList),
+    generate_full_record_list(UsortedTupleList).
+
+-spec filestruct_to_table(list({modules, module()})) -> iolist().
+filestruct_to_table(FileStruct) ->
+    RecordList = filestruct_to_record_list(FileStruct),
     generate_table(RecordList).
+
+-spec filestruct_to_output_list(list({modules, module()})) -> iolist().
+filestruct_to_output_list(FileStruct) ->
+    RecordList = filestruct_to_record_list(FileStruct),
+    record_list_to_output_list(RecordList).
+
+-spec record_list_to_output_list(list(#xep{})) -> iolist().
+record_list_to_output_list(RecordList) ->
+    SimpleList = [{Name, Version}|| #xep{name=Name, version=Version} <- RecordList],
+    io_lib:format("~p~n", [SimpleList]).
+
 
 -spec generate_table(list(#xep{})) -> iolist().
 generate_table(List) ->

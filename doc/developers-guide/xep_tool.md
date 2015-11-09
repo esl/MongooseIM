@@ -51,17 +51,26 @@ and XEP-tool will do the work!
 
 You've just ended marking your modules. The only thing left is to
 `make compile` MongooseIM in order to generate .beam files.
-Finally, to run our XEP-tool type:
+To run the XEP tool, you must issue an additional subcommand. There are two choices:
+
+* `markdown`
+to produce markdown of supported XEPs. This option needs also an output file as an argument
+
+* `list`
+to print out supported xeps to the console
+
+
+For example, to run our XEP-tool with `markdown` command type:
 
 `make xeplist`
 
 or do it manually:
 
-`escript <PATH_TO_EBIN> <OPTIONAL_OUTPUT_FILE>`
+`$MONGOOSEIM_ROOT/tools/xep_tool/xep_tool.escript markdown <PATH_TO_EBIN> <OPTIONAL_OUTPUT_FILE>`
 
 in our case, from Mongooseim root dir:
 
-`escript ./tools/xep_tool/xep_tool.escript apps/ejabberd/ebin list.md`
+`./tools/xep_tool/xep_tool.escript markdown apps/ejabberd/ebin list.md`
 
 The Markdown with unique XEP names and urls is saved to file `list.md`
 You can copy-paste the content of this file to your main README file.

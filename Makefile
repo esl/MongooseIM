@@ -142,7 +142,7 @@ dialyzer_quick:
 #	    fgrep -v -f ./dialyzer.ignore-warnings | tee dialyzer.log
 
 xeplist: escript
-	escript $(XEP_TOOL)/xep_tool.escript $(EJD_EBIN)
+	escript $(XEP_TOOL)/xep_tool.escript markdown $(EJD_EBIN)
 
 cleanplt:
 	rm $(COMBO_PLT)
