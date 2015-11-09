@@ -51,6 +51,10 @@
 %% Internal exports
 -export([route/2]).
 
+%% Hooks handlers
+-export([is_room_owner/3,
+         muc_room_pid/2]).
+
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 
@@ -290,6 +294,9 @@ init([Host, Opts]) ->
             history_size = HistorySize,
             room_shaper = RoomShaper},
 
+    ejabberd_hooks:add(is_muc_room_owner, MyHost, ?MODULE, is_room_owner, 50),
+    ejabberd_hooks:add(muc_room_pid, MyHost, ?MODULE, muc_room_pid, 50),
+
     F = fun(From, To, Packet) ->
             mod_muc:route({From, To, Packet}, State)
         end,
@@ -311,6 +318,9 @@ init([Host, Opts]) ->
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 handle_call(stop, _From, State) ->
+    ejabberd_hooks:delete(is_muc_room_owner, State#state.host, ?MODULE, is_room_owner, 50),
+    ejabberd_hooks:delete(muc_room_pid, State#state.host, ?MODULE, muc_room_pid, 50),
+    
     {stop, normal, ok, State};
 
 handle_call({create_instant, Room, From, Nick, Opts},
@@ -1084,3 +1094,16 @@ update_muc_registered_table(Host) ->
             ?INFO_MSG("Recreating muc_registered table", []),
             mnesia:transform_table(muc_registered, ignore, Fields)
     end.
+
+%%====================================================================
+%% Hooks handlers
+%%====================================================================
+
+-spec is_room_owner(Acc :: boolean(), Room :: ejabberd:jid(), User :: ejabberd:jid()) -> boolean().
+is_room_owner(_, Room, User) ->
+    mod_muc_room:is_room_owner(Room, User) =:= {ok, true}.
+
+-spec muc_room_pid(Acc :: any(), Room :: ejabberd:jid()) -> {ok, pid()} | {error, not_found}.
+muc_room_pid(_, Room) ->
+    room_jid_to_pid(Room).
+

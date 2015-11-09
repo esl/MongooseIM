@@ -63,6 +63,7 @@
          querying_for_all_messages_with_jid/1,
          muc_querying_for_all_messages/1,
          muc_querying_for_all_messages_with_jid/1,
+         muc_light_simple/1,
          iq_spoofing/1]).
 
 -include_lib("escalus/include/escalus.hrl").
@@ -89,15 +90,16 @@
         }).
 
 -record(forwarded_message, {
-    from           :: binary() | undefined,
-    to             :: binary() | undefined,
-    result_queryid :: binary() | undefined,
-    result_id      :: binary() | undefined,
-    delay_from     :: binary() | undefined,
-    delay_stamp    :: binary() | undefined,
-    message_to     :: binary() | undefined,
-    message_type   :: binary() | undefined,
-    message_body   :: binary() | undefined
+    from             :: binary() | undefined,
+    to               :: binary() | undefined,
+    result_queryid   :: binary() | undefined,
+    result_id        :: binary() | undefined,
+    delay_from       :: binary() | undefined,
+    delay_stamp      :: binary() | undefined,
+    message_to       :: binary() | undefined,
+    message_type     :: binary() | undefined,
+    message_body     :: binary() | undefined,
+    message_xs = []  :: [#xmlel{}]
 }).
 
 -record(result_iq, {
@@ -131,6 +133,9 @@
 muc_host() ->
     <<"muc.localhost">>.
 
+muc_light_host() ->
+    <<"muclight.localhost">>.
+
 host() ->
     <<"localhost">>.
 
@@ -160,6 +165,7 @@ basic_group_names() ->
     mam_purge,
     muc,
     muc_with_pm,
+    muc_light,
     rsm,
     with_rsm,
     muc_rsm,
@@ -193,7 +199,7 @@ groups() ->
         not is_skipped(C, G)].
 
 is_skipped(riak_timed_yz_buckets, G) ->
-    lists:member(G, [muc, muc_with_pm, muc_rsm]);
+    lists:member(G, [muc, muc_with_pm, muc_rsm, muc_light]);
 is_skipped(_, _) ->
     false.
 
@@ -206,6 +212,7 @@ basic_groups() ->
      {policy_violation, [], policy_violation_cases()},
      {offline_message,  [], offline_message_cases()},
      {muc,              [], muc_cases()},
+     {muc_light,        [], muc_light_cases()},
      {muc_with_pm,      [], muc_cases()},
      {rsm,              [], rsm_cases()},
      {muc_rsm,          [], muc_rsm_cases()},
@@ -250,6 +257,9 @@ muc_cases() ->
      muc_querying_for_all_messages,
      muc_querying_for_all_messages_with_jid
      ].
+
+muc_light_cases() ->
+    [muc_light_simple].
 
 muc_rsm_cases() ->
     rsm_cases().
@@ -319,13 +329,21 @@ do_init_per_group(C, ConfigIn) ->
     end.
 
 end_per_group(Group, Config) ->
-    delete_users(Config),
     C = configuration(Group),
     B = basic_group(Group),
-    end_modules(C, B, Config).
+    Config1 = end_state(C, B, Config),
+    Config2 = end_modules(C, B, Config1),
+    delete_users(Config2).
 
 init_modules(C, muc_rsm, Config) ->
     init_modules(C, muc, Config);
+
+init_modules(C, muc_light, Config) ->
+    dynamic_modules:start(host(), mod_muc_light, [{host, binary_to_list(muc_light_host())}]),
+    Config1 = init_modules(C, muc, Config),
+    stop_module(host(), mod_mam_muc),
+    init_module(host(), mod_mam_muc, [{host, binary_to_list(muc_light_host())}]),
+    Config1;
 
 init_modules(ca, muc_with_pm, Config) ->
     %% TODO add mod_mam with Cassandra
@@ -515,6 +533,9 @@ init_modules(odbc_mnesia_cache, _, Config) ->
     init_module(host(), mod_mam_cache_user, [pm]),
     Config.
 
+end_modules(C, muc_light, Config) ->
+    dynamic_modules:stop(host(), mod_muc_light),
+    end_modules(C, generic, Config);
 end_modules(_, _, Config) ->
     [stop_module(host(), M) || M <- mam_modules()],
     Config.
@@ -547,6 +568,8 @@ init_state(_, muc, Config) ->
     Config;
 init_state(_, muc_with_pm, Config) ->
     Config;
+init_state(C, muc_light, Config) ->
+    init_state(C, muc, Config);
 init_state(_, rsm, Config) ->
     send_rsm_messages(clean_archives(Config));
 init_state(_, with_rsm, Config) ->
@@ -555,6 +578,11 @@ init_state(_, with_rsm, Config) ->
 init_state(_, _, Config) ->
     clean_archives(Config).
 
+end_state(C, muc_light, Config) ->
+    muc_light_SUITE:clear_db(),
+    end_state(C, generic, Config);
+end_state(_, _, Config) ->
+    Config.
 
 init_per_testcase(C=archived, ConfigIn) ->
     Config = case ?config(configuration, ConfigIn) of
@@ -797,6 +825,38 @@ muc_querying_for_all_messages_with_jid(Config) ->
         end,
     escalus:story(Config, [1, 1], F).
 
+muc_light_simple(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+            Room2 = muc_light_SUITE:room2(),
+            escalus:send(Alice, muc_light_SUITE:stanza_create_room(Room2, [], [])),
+            muc_light_SUITE:verify_aff_bcast([{Alice, owner}], [{Alice, owner}]),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+
+            Room2BinJID = muc_light_SUITE:room_bin_jid(Room2),
+            MsgBody1 = <<"Message 1">>,
+            Stanza1 = escalus_stanza:groupchat_to(Room2BinJID, MsgBody1),
+            muc_light_SUITE:foreach_occupant(
+              [Alice], Stanza1, muc_light_SUITE:gc_message_verify_fun(Room2, MsgBody1)),
+            MsgBody2 = <<"Message 2">>,
+            Stanza2 = escalus_stanza:groupchat_to(Room2BinJID, MsgBody2),
+            muc_light_SUITE:foreach_occupant(
+              [Alice], Stanza2, muc_light_SUITE:gc_message_verify_fun(Room2, MsgBody2)),
+            escalus:send(Alice, muc_light_SUITE:stanza_aff_set(Room2, [{Bob, member}])),
+            muc_light_SUITE:verify_aff_bcast([{Alice, owner}, {Bob, member}], [{Bob, member}]),
+
+            escalus:send(Bob, escalus_stanza:to(stanza_archive_request(<<"mlight">>), Room2BinJID)),
+            [_IQRes, CreateEvent, Msg1, Msg2, BobAdd] = assert_respond_size(
+                                                          4, wait_archive_respond_iq_first(Bob)),
+
+            #forwarded_message{message_body = MsgBody1} = parse_forwarded_message(Msg1),
+            #forwarded_message{message_body = MsgBody2} = parse_forwarded_message(Msg2),
+
+            verify_archived_muc_light_aff_msg(parse_forwarded_message(CreateEvent),
+                                              [{Alice, owner}], true),
+            verify_archived_muc_light_aff_msg(parse_forwarded_message(BobAdd),
+                                              [{Bob, member}], false)
+        end).
+
 archived(Config) ->
     F = fun(Alice, Bob) ->
         %% Archive must be empty.
@@ -960,7 +1020,7 @@ offline_message(Config) ->
 
     %% Bob checks his archive.
     escalus:send(Bob, stanza_archive_request(<<"q1">>)),
-    [_ArcRes | ArcMsgs] = R = wait_archive_respond_iq_first(Bob),
+    [_ArcRes | ArcMsgs] = wait_archive_respond_iq_first(Bob),
     assert_only_one_of_many_is_equal(ArcMsgs, Msg),
 
     escalus_cleaner:clean(Config).
@@ -1738,6 +1798,20 @@ is_same_message_text(Stanza, Raw) ->
     #forwarded_message{message_body = A} = Stanza,
     A =:= Raw.
 
+-spec verify_archived_muc_light_aff_msg(
+        Msg :: #forwarded_message{}, AffUsersChanges :: [{escalus:client(), binary()}],
+        IsCreate :: boolean()) -> [].
+verify_archived_muc_light_aff_msg(Msg, AffUsersChanges, IsCreate) ->
+    BinAffUsersChanges = muc_light_SUITE:bin_aff_users(AffUsersChanges),
+    [X] = Msg#forwarded_message.message_xs,
+    ProperNS = muc_light_SUITE:ns_muc_light_affiliations(),
+    ProperNS = exml_query:attr(X, <<"xmlns">>),
+    undefined = exml_query:subelement(X, <<"prev-version">>),
+    Version = exml_query:path(X, [{element, <<"version">>}, cdata]),
+    true = IsCreate orelse is_binary(Version),
+    Items = exml_query:subelements(X, <<"user">>),
+    muc_light_SUITE:verify_aff_users(Items, BinAffUsersChanges).
+
 %% ----------------------------------------------------------------------
 %% PREFERENCE QUERIES
 
@@ -1809,6 +1883,8 @@ parse_forwarded_message(#xmlel{name = <<"message">>,
 'parse_children[message/result/forwarded/message]'(#xmlel{name = <<"body">>,
         children = [{xmlcdata, Body}]}, M) ->
     M#forwarded_message{message_body = Body};
+'parse_children[message/result/forwarded/message]'(#xmlel{name = <<"x">>} = XEl, M) ->
+    M#forwarded_message{message_xs = [XEl | M#forwarded_message.message_xs]};
 %% Parse `<archived />' here.
 'parse_children[message/result/forwarded/message]'(_, M) ->
     M.
@@ -2029,7 +2105,6 @@ send_muc_rsm_messages(Config) ->
 
 send_rsm_messages(Config) ->
     Pid = self(),
-    Room = ?config(room, Config),
     F = fun(Alice, Bob) ->
         %% Alice sends messages to Bob.
         [escalus:send(Alice,
@@ -2259,7 +2334,7 @@ put_muc_msgs(Msgs) ->
 
 archive_muc_msg(Host, {{MsgID, _},
                 {_RoomBin, RoomJID, RoomArcID},
-                {_FromBin, FromJID, SrcJID}, _, Packet}) ->
+                {_FromBin, _FromJID, SrcJID}, _, Packet}) ->
     rpc_apply(mod_mam_muc, archive_message, [Host, MsgID, RoomArcID, RoomJID,
                                              SrcJID, SrcJID, incoming, Packet]).
 

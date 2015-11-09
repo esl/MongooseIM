@@ -62,8 +62,7 @@ groups() ->
                              get_room_occupants,
                              get_room_info,
                              leave_room,
-                             change_other_aff_deny,
-                             simple_mam
+                             change_other_aff_deny
                             ]},
      {owner, [sequence], [
                           create_room,
@@ -388,31 +387,6 @@ edge_case_owner_change(Config) ->
             escalus:send(Alice, stanza_aff_set(?ROOM, AffUsersChanges1)),
             verify_aff_bcast([{Alice, owner}], [{Kate, none}, {Bob, none}]),
             escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice))
-        end).
-
-simple_mam(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-            escalus:send(Alice, stanza_create_room(?ROOM2, [], [])),
-            verify_aff_bcast([{Alice, owner}], [{Alice, owner}]),
-            escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
-
-            MsgBody1 = <<"Message 1">>,
-            Stanza1 = escalus_stanza:groupchat_to(room_bin_jid(?ROOM2), MsgBody1),
-            foreach_occupant([Alice], Stanza1, gc_message_verify_fun(?ROOM2, MsgBody1)),
-            MsgBody2 = <<"Message 2">>,
-            Stanza2 = escalus_stanza:groupchat_to(room_bin_jid(?ROOM2), MsgBody2),
-            foreach_occupant([Alice], Stanza2, gc_message_verify_fun(?ROOM2, MsgBody2)),
-            escalus:send(Alice, stanza_aff_set(?ROOM2, [{Bob, member}])),
-            verify_aff_bcast([{Alice, owner}, {Bob, member}], [{Bob, member}]),
-
-            ArchReq = escalus_stanza:iq_get(?NS_MAM, []),
-            escalus:send(Bob, escalus_stanza:to(ArchReq, room_bin_jid(?ROOM2))),
-            [CreateEvent, Msg1, Msg2, BobAdd, IQRes] = escalus:wait_for_stanzas(Bob, 5),
-            escalus:assert(is_iq_result, [ArchReq], IQRes),
-            MsgBody1 = exml_query:path(extract_forwarded(Msg1), [{element, <<"body">>}, cdata]),
-            MsgBody2 = exml_query:path(extract_forwarded(Msg2), [{element, <<"body">>}, cdata]),
-            verify_archived_aff_msg(extract_forwarded(CreateEvent), [{Alice, owner}], true),
-            verify_archived_aff_msg(extract_forwarded(BobAdd), [{Bob, member}], false)
         end).
 
 %% ---------------------- owner ----------------------
@@ -761,19 +735,6 @@ verify_aff_users(Items, BinAffUsers) ->
                    verify_keytake(lists:keytake(JID, 1, AffAcc), JID, Aff, AffAcc)
            end, BinAffUsers, Items).
 
--spec verify_archived_aff_msg(
-        Stanza :: #xmlel{}, AffUsersChanges :: [{escalus:client(), binary()}],
-        IsCreate :: boolean()) -> [].
-verify_archived_aff_msg(Stanza, AffUsersChanges, IsCreate) ->
-    BinAffUsersChanges = bin_aff_users(AffUsersChanges),
-    [X] = exml_query:subelements(Stanza, <<"x">>),
-    ?NS_MUC_LIGHT_AFFILIATIONS = exml_query:attr(X, <<"xmlns">>),
-    undefined = exml_query:subelement(X, <<"prev-version">>),
-    Version = exml_query:path(X, [{element, <<"version">>}, cdata]),
-    true = IsCreate orelse is_binary(Version),
-    Items = exml_query:subelements(X, <<"user">>),
-    verify_aff_users(Items, BinAffUsersChanges).
-
 -spec verify_keytake(Result :: {value, Item :: tuple(), Acc :: list()}, JID :: binary(),
                      Aff :: binary(), AffAcc :: list()) -> list().
 verify_keytake({value, {_, Aff}, NewAffAcc}, _JID, Aff, _AffAcc) -> NewAffAcc.
@@ -952,8 +913,11 @@ set_default_mod_config() ->
 set_mod_config(K, V) ->
     true = rpc(mod_muc_light, set_opt, [?MUCHOST, K, V]).
 
--spec extract_forwarded(Stanza :: #xmlel{}) -> #xmlel{}.
-extract_forwarded(Stanza) ->
-    exml_query:path(Stanza, [{element, <<"result">>}, {element, <<"forwarded">>},
-                             {element, <<"message">>}]).
+-spec ns_muc_light_affiliations() -> binary().
+ns_muc_light_affiliations() ->
+    ?NS_MUC_LIGHT_AFFILIATIONS.
+
+-spec room2() -> binary().
+room2() ->
+    ?ROOM2.
 

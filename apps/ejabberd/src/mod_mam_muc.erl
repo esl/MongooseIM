@@ -78,7 +78,6 @@
 %% Other
 -import(mod_mam_utils,
         [maybe_integer/2,
-         is_function_exist/3,
          mess_id_to_external_binary/1]).
 
 %% ejabberd
@@ -317,11 +316,7 @@ is_room_action_allowed_by_default(Action, From, To) ->
 
 -spec is_room_owner(From :: ejabberd:jid(), To :: ejabberd:jid()) -> boolean().
 is_room_owner(From, To) ->
-    case mod_muc_room:is_room_owner(To, From) of
-        {error, _} -> false;
-        {ok, IsOwner} -> IsOwner
-    end.
-
+    ejabberd_hooks:run_fold(is_muc_room_owner, To#jid.lserver, false, [To, From]).
 
 -spec action_type(action()) -> 'get' | 'set'.
 action_type(mam_get_prefs)                  -> get;

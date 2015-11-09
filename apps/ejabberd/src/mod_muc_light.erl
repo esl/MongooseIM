@@ -41,7 +41,9 @@
          remove_user/2,
          add_rooms_to_roster/2,
          process_iq_get/5,
-         process_iq_set/4]).
+         process_iq_set/4,
+         is_room_owner/3,
+         muc_room_pid/2]).
 
 %% For propEr
 -export([apply_rsm/3]).
@@ -111,6 +113,9 @@ start(Host, Opts) ->
     MyDomain = gen_mod:get_opt_host(Host, Opts, ?DEFAULT_HOST),
     ?BACKEND:start(Host, MyDomain),
     ejabberd_router:register_route(MyDomain, {apply, ?MODULE, route}),
+    
+    ejabberd_hooks:add(is_muc_room_owner, MyDomain, ?MODULE, is_room_owner, 50),
+    ejabberd_hooks:add(muc_room_pid, MyDomain, ?MODULE, muc_room_pid, 50),
 
     EjdSupPid = whereis(ejabberd_sup),
     HeirOpt = case self() =:= EjdSupPid of
@@ -130,6 +135,9 @@ stop(Host) ->
     ets:delete(?CONFIG_TAB, MyDomain),
 
     ?BACKEND:stop(Host, MyDomain),
+    
+    ejabberd_hooks:delete(is_muc_room_owner, MyDomain, ?MODULE, is_room_owner, 50),
+    ejabberd_hooks:delete(muc_room_pid, MyDomain, ?MODULE, muc_room_pid, 50),
 
     ejabberd_hooks:delete(roster_get, Host, ?MODULE, add_rooms_to_roster, 50),
     ejabberd_hooks:delete(privacy_iq_get, Host, ?MODULE, process_iq_get, 1),
@@ -292,6 +300,22 @@ process_iq_set(_Acc, From, To, #iq{} = IQ) ->
         _ ->
             {error, ?ERR_BAD_REQUEST}
     end.
+
+-spec is_room_owner(Acc :: boolean(), Room :: ejabberd:jid(), User :: ejabberd:jid()) -> boolean().
+is_room_owner(_, Room, User) ->
+    case ?BACKEND:get_aff_users(jlib:jid_to_lus(Room)) of
+        {ok, AffUsers, _} ->
+            case lists:keyfind(jlib:jid_to_lus(User), 1, AffUsers) of
+                {_, owner} -> true;
+                _ -> false
+            end;
+        _ ->
+            false
+    end.
+
+-spec muc_room_pid(Acc :: any(), Room :: ejabberd:jid()) -> {ok, processless}.
+muc_room_pid(_, _) ->
+    {ok, processless}.
 
 %%====================================================================
 %% Internal functions

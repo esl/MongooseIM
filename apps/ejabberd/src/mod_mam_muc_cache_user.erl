@@ -52,8 +52,7 @@ su_key(#jid{lserver = LServer, luser = LUser}) ->
     {LServer, LUser}.
 
 room_pid(RoomJID=#jid{}) ->
-    {ok, Pid} = mod_muc:room_jid_to_pid(RoomJID),
-    Pid.
+    ejabberd_hooks:run_fold(muc_room_pid, RoomJID#jid.lserver, undefined, [RoomJID]).
 
 %% ----------------------------------------------------------------------
 %% gen_mod callbacks
@@ -88,11 +87,13 @@ stop_server(_Host) ->
 start_muc(Host, _Opts) ->
     ejabberd_hooks:add(mam_muc_archive_id, Host, ?MODULE, cached_archive_id, 30),
     ejabberd_hooks:add(mam_muc_archive_id, Host, ?MODULE, store_archive_id, 70),
+    ejabberd_hooks:add(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50),
     ok.
 
 stop_muc(Host) ->
     ejabberd_hooks:delete(mam_muc_archive_id, Host, ?MODULE, cached_archive_id, 30),
     ejabberd_hooks:delete(mam_muc_archive_id, Host, ?MODULE, store_archive_id, 70),
+    ejabberd_hooks:delete(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50),
     ok.
 
 
@@ -177,8 +178,13 @@ init([]) ->
 %%--------------------------------------------------------------------
 handle_call({cache_archive_id, ArcJID, UserID, RoomPid}, _From, State) ->
     Key = su_key(ArcJID),
-    MonRef = erlang:monitor(process, RoomPid),
-    ets:insert(tbl_name_monitor(), {MonRef, Key}),
+    case RoomPid of
+        {ok, processless} ->
+            ok;
+        {ok, Pid} ->
+            MonRef = erlang:monitor(process, Pid),
+            ets:insert(tbl_name_monitor(), {MonRef, Key})
+    end,
     ets:insert(tbl_name_archive_id(), {Key, UserID}),
     {reply, ok, State}.
 

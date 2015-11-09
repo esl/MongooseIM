@@ -193,9 +193,8 @@ get_room_users(RoomJID) ->
             {error, Reason}
     end.
 
--spec is_room_owner( RoomJID :: ejabberd:jid()
-                   , UserJID :: ejabberd:jid()
-                   ) -> {ok, boolean()} | {error, not_found}.
+-spec is_room_owner(RoomJID :: ejabberd:jid(), UserJID :: ejabberd:jid()) ->
+    {ok, boolean()} | {error, not_found}.
 is_room_owner(RoomJID, UserJID) ->
     case mod_muc:room_jid_to_pid(RoomJID) of
         {ok, Pid} ->
