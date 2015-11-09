@@ -519,13 +519,7 @@ maybe_legacy_auth(JID, El, StateData, U, P, D, R) ->
     end.
 
 do_legacy_auth(JID, El, StateData, U, P, D, R) ->
-    DGen = fun(PW) ->
-                   Sid = StateData#state.streamid,
-                   sha:sha1_hex(<<Sid/binary,
-                                  PW/binary>>)
-           end,
-    case ejabberd_auth:check_password_with_authmodule(
-           U, StateData#state.server, P, D, DGen) of
+    case check_password_with_auth_module(U, StateData, P, D) of
         {true, AuthModule} ->
             do_open_legacy_session(El, StateData, U, R, JID,
                                    AuthModule);
@@ -542,6 +536,17 @@ do_legacy_auth(JID, El, StateData, U, P, D, R) ->
             send_element(StateData, Err),
             fsm_next_state(wait_for_auth, StateData)
     end.
+
+check_password_with_auth_module(User, #state{server = Server}, Password, <<>>) ->
+    ejabberd_auth:check_password_with_authmodule(User, Server, Password);
+check_password_with_auth_module(User, StateData, _, Digest) ->
+    DGen = fun(PW) ->
+                   Sid = StateData#state.streamid,
+                   sha:sha1_hex(<<Sid/binary,
+                                  PW/binary>>)
+           end,
+    ejabberd_auth:check_password_with_authmodule(User, StateData#state.server,
+                                                 <<>>, Digest, DGen).
 
 do_open_legacy_session(El, StateData, U, R, JID, AuthModule) ->
     ?INFO_MSG(
