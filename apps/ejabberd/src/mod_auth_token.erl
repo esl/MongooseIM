@@ -181,6 +181,13 @@ revoke(Owner) ->
 
 -spec authenticate(serialized()) -> validation_result().
 authenticate(SerializedToken) ->
+    try
+        do_authenticate(SerializedToken)
+    catch
+        _:_ -> {error, internal_server_error}
+    end.
+
+do_authenticate(SerializedToken) ->
     #token{user_jid = Owner} = Token = deserialize(SerializedToken),
     {Criteria, Result} = validate_token(Token),
     ?INFO_MSG("result: ~p, criteria: ~p", [Result, Criteria]),

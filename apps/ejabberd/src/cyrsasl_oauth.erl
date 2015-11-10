@@ -38,5 +38,7 @@ mech_step(State, SerializedToken) ->
                  {auth_module, AuthModule}],
              AccessToken};
         {error, {Username, _}} ->
-            {error, <<"not-authorized">>, Username}
+            {error, <<"not-authorized">>, Username};
+        {error, _Reason} ->
+            {error, <<"not-authorized">>}
     end.
