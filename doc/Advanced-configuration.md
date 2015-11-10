@@ -246,4 +246,4 @@ TLS is configured in one of two ways: some modules need a private key and certif
 * Server-to-server connections need both in the __same__ `.pem` file (find more information under Listening Ports in *Advanced Configuration Overview*)
 * BOSH & Web Sockets use Cowboy, which uses OTP's `ssl` module like all our HTTPS endpoints, so they need them in __separate__ files (find more information in *Listener Modules*)
 
-Where they need be in the same file, it should suffice to concatenate a files containing the private key with one containing the certificate (chain).
+When the private key and certificate (chain) need be in the same file it should suffice to concatenate them.
