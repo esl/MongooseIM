@@ -58,8 +58,19 @@ The required keys are (example from `ejabberd.cfg`):
 key used for signing and verifying access and refresh tokens.
 
 `provision_pre_shared` is a key read from file.
-As its name suggests, it's pre shared with the service issuing provision
-tokens which clients then use to authenticate with MongooseIM.
+As its name suggests, it's a key shared with a service issuing provision tokens.
+Clients then use these provision tokens to authenticate with MongooseIM.
+
+While it's not enforced by the server and left completely to the operator,
+`provision_pre_shared` keys probably should not be shared between virtual
+XMPP domains hosted by the server.
+That is, make sure module configuration specifying a `provision_pre_shared` key
+is specific to an XMPP domain.
+
+MongooseIM can't generate provision tokens on its own (neither can it distribute them to clients),
+so while configuring a `provision_pre_shared` key to be RAM-only is technically possible,
+it would in practice disable provision token support
+(as no external service could generate a valid token with this particular RAM key).
 
 ### Token serialization format
 
@@ -122,7 +133,7 @@ Example response (encoded tokens have been truncated in this example):
 </iq>
 ```
 
-Once a client has obtained an access token (s)he may start authenticating
+Once a client has obtained a token (s)he may start authenticating
 using the `X-OAUTH` SASL mechanism when reaching the authentication
 phase of an XMPP connection initiation.
 
@@ -155,10 +166,10 @@ or there were some problems processing the key on the server side.
 
 ### Token revocation using command line tool
 
-Refresh tokens issued by the server serve as:
+Refresh tokens issued by the server can be used to:
 
-* to login a user - as an authentication valet,
-* to request issuing of *a new access token* - in principle - with refreshed expiry date.
+* log in a user - as an authentication valet,
+* request *a new access token* with refreshed expiry date.
 
 An administrator may *revoke* a refresh token:
 
@@ -170,3 +181,12 @@ A client can no longer use a revoked token either for authentication
 or requesting new access tokens.
 After a client's token has been revoked in order to obtain a new refresh token
 a client has to log in using some other method.
+
+**Caveat:** as of now, the user's session is not terminated automatically on token revocation.
+Therefore, the user might request a new set of tokens for as long as the session is active,
+even though his/her previous token was just revoked (possibly due to a breach / token leak).
+Moreover, an access token still kept on a compromised device can be used
+to establish a new session for as long as it's valid - access tokens can't be revoked.
+To alleviate rerequesting tokens by the user an operator can use
+`mod_admin` extension allowing to terminate the user's connection.
+Access token validity can't be sidestepped right now.
