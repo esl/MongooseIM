@@ -99,11 +99,11 @@ commands() ->
      #ejabberd_commands{name = delete_expired_messages, tags = [purge],
                         desc = "Delete expired offline messages from database",
                         module = ?MODULE, function = delete_expired_messages,
-                        args = [], result = {res, rescode}},
+                        args = [], result = {res, restuple}},
      #ejabberd_commands{name = delete_old_messages, tags = [purge],
                         desc = "Delete offline messages older than DAYS",
                         module = ?MODULE, function = delete_old_messages,
-                        args = [{days, integer}], result = {res, rescode}},
+                        args = [{days, integer}], result = {res, restuple}},
      #ejabberd_commands{name = set_master, tags = [mnesia],
                         desc = "Set master node of the clustered Mnesia tables",
                         longdesc = "If you provide as nodename \"self\", this "
@@ -235,13 +235,21 @@ get_loglevel() ->
 
 -spec delete_expired_messages() -> 'ok'.
 delete_expired_messages() ->
-    {updated, _} = mod_offline:remove_expired_messages(?MYNAME),
-    ok.
+    case mod_offline:remove_expired_messages(?MYNAME) of
+        {atomic, _} ->
+            {ok, ""};
+        {aborted, Reason} ->
+            {error, io_lib:format("Can't delete expired messages: ~n~p", [Reason])}
+    end.
 
 -spec delete_old_messages(Days :: integer()) -> 'ok'.
 delete_old_messages(Days) ->
-    {updated, _} = mod_offline:remove_old_messages(?MYNAME, Days),
-    ok.
+    case mod_offline:remove_old_messages(?MYNAME, Days) of
+        {atomic, _} ->
+            {ok, ""};
+        {aborted, Reason} ->
+            {error, io_lib:format("Can't remove old messages: ~n~p", [Reason])}
+    end.
 
 
 %%%
