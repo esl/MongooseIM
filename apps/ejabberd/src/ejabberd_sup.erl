@@ -50,12 +50,12 @@ init([]) ->
          worker,
          [ejabberd_hooks]},
     Cleaner =
-        {mongooseim_cleaner,
-         {mongooseim_cleaner, start_link, []},
+        {mongoose_cleaner,
+         {mongoose_cleaner, start_link, []},
          permanent,
          brutal_kill,
          worker,
-         [mongooseim_cleaner]},
+         [mongoose_cleaner]},
     Router =
         {ejabberd_router,
          {ejabberd_router, start_link, []},

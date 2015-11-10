@@ -1,4 +1,4 @@
--module(mongooseim_cleaner_SUITE).
+-module(mongoose_cleaner_SUITE).
 -compile([export_all]).
 
 all() ->
@@ -15,7 +15,7 @@ cleaner_runs_hook_on_nodedown(_) ->
     setup_meck(),
     %% given
     {ok, _HooksServer} = ejabberd_hooks:start_link(),
-    {ok, Cleaner} = mongooseim_cleaner:start_link(),
+    {ok, Cleaner} = mongoose_cleaner:start_link(),
     Self = self(),
     NotifySelf = fun (Node) -> Self ! {got_nodedown, Node} end,
     ejabberd_hooks:add(node_cleanup, global, undefined, NotifySelf, 50),
