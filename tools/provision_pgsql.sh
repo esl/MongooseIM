@@ -43,9 +43,6 @@ echo "trying to stop docker container...";
 ssh ${SSH_DOCKERMACHINE_ALIAS} 'docker stop '${INSTANCE_NAME}''
 echo "trying to remove docker container...";
 ssh ${SSH_DOCKERMACHINE_ALIAS} 'docker rm '${INSTANCE_NAME}''
-# echo "creating new container from dockerfile...";
-# ssh ${SSH_DOCKERMACHINE_ALIAS} 'docker build -t '${IMAGE_NAME}' -f '${DOCKERFILE_HOME}'/'${DOCKERFILE}' .'
-# ssh ${SSH_DOCKERMACHINE_ALIAS} 'docker build -t '${IMAGE_NAME}' '${DOCKERFILE_HOME}'/.'
 echo "starting the container with postgresql..."
 ssh ${SSH_DOCKERMACHINE_ALIAS} 'docker run --name '${INSTANCE_NAME}' -p 5432:5432 -d '${IMAGE_NAME}''
 
@@ -60,6 +57,7 @@ while :
 do
     ssh ${SSH_DOCKERMACHINE_ALIAS} psql '-h localhost -U postgres < ~/createrole_sql'
     if [ $? -eq 0 ]; then echo "provisioning database success"; break; fi
+    sleep 1
 done
 
 echo "checking if role has been added"

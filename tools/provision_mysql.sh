@@ -1,14 +1,11 @@
 #!/bin/bash
 
-# Docker image description. top.
 DOCKERFILE_HOME="~/docker-mysql"
-# DOCKERFILE="docker_mysql"
 INSTANCE_NAME="mongooseim-mysql"
-IMAGE_NAME="mongooseimim-mysql-backend"
+IMAGE_NAME="astachurski/docker-mysql"
 
 # SSH alias for target docker host machine
 SSH_DOCKERMACHINE_ALIAS="docker_mysql"
-
 
 # First 3 parameters: db role to be created, db role password, db to be created
 if [ $# -ge 3 ]
@@ -40,15 +37,11 @@ PROVISIONING_SQL_FULLFILENAME=${PROVISIONING_SQL_PATH}/${PROVISIONING_SQL_FILENA
 
 echo "Provisioning SQL fullname is:" ${PROVISIONING_SQL_FULLFILENAME}
 
-echo "stopping docker container...";
+echo "trying to stop docker container...";
 ssh ${SSH_DOCKERMACHINE_ALIAS} 'docker stop '${INSTANCE_NAME}''
-echo "removing docker container...";
+echo "trying to remove docker container...";
 ssh ${SSH_DOCKERMACHINE_ALIAS} 'docker rm '${INSTANCE_NAME}''
-echo "creating new container from dockerfile...";
-# ssh ${SSH_DOCKERMACHINE_ALIAS} 'docker build -t '${IMAGE_NAME}' -f '${DOCKERFILE_HOME}'/'${DOCKERFILE}' .'
-ssh ${SSH_DOCKERMACHINE_ALIAS} 'docker build -t '${IMAGE_NAME}' '${DOCKERFILE_HOME}'/.'
 echo "starting the container with mysql..."
-
 ssh ${SSH_DOCKERMACHINE_ALIAS} 'docker run --name '${INSTANCE_NAME}' -p 3306:3306 -d '${IMAGE_NAME}''
 
 # MYSQL SPECIFIC PART - provision database with role, schema and tables
@@ -61,6 +54,7 @@ while :
 do
    ssh ${SSH_DOCKERMACHINE_ALIAS} "mysql --host=127.0.0.1 -u ${ROLE_NAME} --password=${ROLE_DB_PASSWORD} ${DATABASE_NAME}  < ~/${PROVISIONING_SQL_FILENAME}"
    if [ $? -eq 0 ]; then echo "provisioning database success"; break; fi
+   sleep 1
 done
 
 # clean temporary files remotely
