@@ -249,10 +249,24 @@ is_revoked(#token{type = refresh, sequence_no = TokenSeqNo} = T) ->
     end.
 
 -spec process_iq(jid(), jid(), iq()) -> iq() | error().
-process_iq(From, _To, #iq{xmlns = ?NS_ESL_TOKEN_AUTH} = IQ) ->
-    create_token_response(From, IQ);
-process_iq(_From, _To, #iq{}) ->
-    {error, ?ERR_BAD_REQUEST}.
+process_iq(From, To, #iq{xmlns = ?NS_ESL_TOKEN_AUTH} = IQ) ->
+    case lists:member(From#jid.lserver, ?MYHOSTS) of
+        true -> process_local_iq(From, To, IQ);
+        false -> iq_error(IQ, [?ERR_ITEM_NOT_FOUND])
+    end;
+process_iq(_From, _To, #iq{} = IQ) ->
+    iq_error(IQ, [?ERR_BAD_REQUEST]).
+
+process_local_iq(From, _To, IQ) ->
+    try create_token_response(From, IQ) of
+        #iq{} = Response -> Response;
+        {error, Reason} -> iq_error(IQ, [Reason])
+    catch
+        _:_ -> iq_error(IQ, [?ERR_INTERNAL_SERVER_ERROR])
+    end.
+
+iq_error(IQ, SubElements) when is_list(SubElements) ->
+    IQ#iq{type = error, sub_el = SubElements}.
 
 create_token_response(From, IQ) ->
     case {token(access, From), token(refresh, From)} of
