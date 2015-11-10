@@ -4,7 +4,7 @@ DOCKERFILE_HOME="~/docker-pgsql"
 # DOCKERFILE="docker_pgsql"
 
 INSTANCE_NAME="mongooseim-postgre"
-IMAGE_NAME="mongooseim-postgresql-backend"
+IMAGE_NAME="astachurski/docker-pgsql"
 
 # SSH alias for target docker host machine
 SSH_DOCKERMACHINE_ALIAS="docker_pgsql"
@@ -39,13 +39,13 @@ PROVISIONING_SQL_FULLFILENAME=${PROVISIONING_SQL_PATH}/${PROVISIONING_SQL_FILENA
 
 echo "Provisioning SQL fullname is:" ${PROVISIONING_SQL_FULLFILENAME}
 
-echo "stopping docker container...";
+echo "trying to stop docker container...";
 ssh ${SSH_DOCKERMACHINE_ALIAS} 'docker stop '${INSTANCE_NAME}''
-echo "removing docker container...";
+echo "trying to remove docker container...";
 ssh ${SSH_DOCKERMACHINE_ALIAS} 'docker rm '${INSTANCE_NAME}''
-echo "creating new container from dockerfile...";
+# echo "creating new container from dockerfile...";
 # ssh ${SSH_DOCKERMACHINE_ALIAS} 'docker build -t '${IMAGE_NAME}' -f '${DOCKERFILE_HOME}'/'${DOCKERFILE}' .'
-ssh ${SSH_DOCKERMACHINE_ALIAS} 'docker build -t '${IMAGE_NAME}' '${DOCKERFILE_HOME}'/.'
+# ssh ${SSH_DOCKERMACHINE_ALIAS} 'docker build -t '${IMAGE_NAME}' '${DOCKERFILE_HOME}'/.'
 echo "starting the container with postgresql..."
 ssh ${SSH_DOCKERMACHINE_ALIAS} 'docker run --name '${INSTANCE_NAME}' -p 5432:5432 -d '${IMAGE_NAME}''
 
