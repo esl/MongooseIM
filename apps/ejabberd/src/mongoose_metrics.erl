@@ -81,7 +81,7 @@ start_global_metrics_subscriptions(Reporter, Interval) ->
     do_start_global_metrics_subscriptions(Reporter, Interval).
 
 start_data_metrics_subscriptions(Reporter, Interval) ->
-    do_start_metrics_subscriptions(Reporter, Interval, [data]).
+    do_start_metrics_subscriptions(Reporter, Interval, [data, xmpp]).
 
 start_backend_metrics_subscriptions(Reporter, Interval) ->
     do_start_metrics_subscriptions(Reporter, Interval, [backends]).
@@ -269,8 +269,6 @@ create_metrics(Host) ->
     lists:foreach(fun(Name) -> ensure_metric(Name, counter) end,
                   get_total_counters(Host)).
 
-ensure_metric(Metric, Type) when is_tuple(Metric)->
-    ensure_metric(tuple_to_list(Metric), Type);
 ensure_metric(Metric, Type) when is_list(Metric) ->
     case exometer:info(Metric, type) of
         Type -> {ok, already_present};
