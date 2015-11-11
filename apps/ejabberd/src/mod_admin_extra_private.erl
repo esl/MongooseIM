@@ -29,7 +29,7 @@
 
 -export([
     commands/0,
-
+    get_private_module/1,
     private_get/4,
     private_set/3
     ]).
