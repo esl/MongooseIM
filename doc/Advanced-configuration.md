@@ -237,3 +237,13 @@ Section below describes the default options.
 A file with Erlang application configuration. It can be found in `[MongooseIM root]/rel/files/`. By default only Lager config can be found there. Check [Lager's documentation](https://github.com/basho/lager) for more information.
 
 Here you can change logs location and file names (`file`), rotation strategy (`size` and `count`) and date formatting (`date`). Ignore log level parameters - they are overridden with the value in `ejabberd.cfg`.
+
+# Configuring TLS: Certificates & Keys
+
+TLS is configured in one of two ways: some modules need a private key and certificate (chain) in __separate__ files, while others need both in a __single__ file. This is because recent additions use OTP's `ssl` library, while older modules use `p1_tls`, respectively.
+
+* Client-to-server connections need both in the __same__ `.pem` file (find more information under *Options* in *Basic Configuration Overview* and *Listener Modules*)
+* Server-to-server connections need both in the __same__ `.pem` file (find more information under Listening Ports in *Advanced Configuration Overview*)
+* BOSH & Web Sockets use Cowboy, which uses OTP's `ssl` module like all our HTTPS endpoints, so they need them in __separate__ files (find more information in *Listener Modules*)
+
+When the private key and certificate (chain) need be in the same file it should suffice to concatenate them.
