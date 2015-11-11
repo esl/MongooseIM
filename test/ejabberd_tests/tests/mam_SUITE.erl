@@ -556,7 +556,17 @@ init_state(_, _, Config) ->
     clean_archives(Config).
 
 
-init_per_testcase(C=archived, Config) ->
+init_per_testcase(C=archived, ConfigIn) ->
+    Config = case ?config(configuration, ConfigIn) of
+                 odbc_async_pool ->
+                     MongooseMetrics = [
+                                        {[data, odbc, mam_async],
+                                         [{recv_oct, '>'}, {send_oct, '>'}]}
+                                       ],
+                     [{mongoose_metrics, MongooseMetrics} | ConfigIn];
+                 _ ->
+                     ConfigIn
+             end,
     escalus:init_per_testcase(C, clean_archives(Config));
 init_per_testcase(C=strip_archived, Config) ->
     escalus:init_per_testcase(C, clean_archives(Config));
