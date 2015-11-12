@@ -16,7 +16,7 @@
 
 %% API
 -export([init/2,
-         transaction/1,
+         transaction/2,
          read_roster_version/2,
          write_roster_version/4,
          get_roster/2,
@@ -43,12 +43,12 @@ init(_Host, _Opts) ->
     mnesia:add_table_index(roster_version, us),
     ok.
 
--spec transaction(F :: fun()) -> {aborted, Reason :: any()} | {atomic, Result :: any()}.
-transaction(F) ->
+-spec transaction(LServer :: ejabberd:lserver(), F :: fun()) ->
+    {aborted, Reason :: any()} | {atomic, Result :: any()}.
+transaction(_LServer, F) ->
     mnesia:transaction(F).
 
--spec read_roster_version(ejabberd:luser(), ejabberd:lserver())
--> binary() | error.
+-spec read_roster_version(ejabberd:luser(), ejabberd:lserver()) -> binary() | error.
 read_roster_version(LUser, LServer) ->
     US = {LUser, LServer},
     case mnesia:dirty_read(roster_version, US) of

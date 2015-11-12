@@ -16,7 +16,7 @@
 
 %% API
 -export([init/2,
-         transaction/1,
+         transaction/2,
          read_roster_version/2,
          write_roster_version/4,
          get_roster/2,
@@ -40,8 +40,9 @@ init(_Host, _Opts) ->
 %% WARNING: Riak does not support *real* transactions, so we are in fact applying
 %% all accumulated changes with no rollback support so it is possible to end up with
 %% inconsistent state e.g. if Riak connectivity goes down in the middle of application.
--spec transaction(F :: fun()) -> {aborted, Reason :: any()} | {atomic, Result :: any()}.
-transaction(F) ->
+-spec transaction(LServer :: ejabberd:lserver(), F :: fun()) ->
+    {aborted, Reason :: any()} | {atomic, Result :: any()}.
+transaction(_LServer, F) ->
     put(riak_roster_t, []),
     put(riak_version_t, []),
     try F() of
@@ -158,7 +159,7 @@ get_t_roster(LUser, LServer) ->
 
 -spec set_t_roster(LUser :: ejabberd:luser(),
                    LServer :: ejabberd:lserver(),
-                   LJID :: ejabberd:simple_bare_jid(),
+                   LJID :: ejabberd:simple_jid(),
                    Item :: mod_roster:roster()) -> any().
 set_t_roster(LUser, LServer, LJID, Item) ->
     RosterMap1 = get_t_roster(LUser, LServer),
@@ -168,7 +169,7 @@ set_t_roster(LUser, LServer, LJID, Item) ->
 
 -spec del_t_roster(LUser :: ejabberd:luser(),
                    LServer :: ejabberd:lserver(),
-                   LJID :: ejabberd:simple_bare_jid()) -> any().
+                   LJID :: ejabberd:simple_jid()) -> any().
 del_t_roster(LUser, LServer, LJID) ->
     RosterMap1 = get_t_roster(LUser, LServer),
     RosterMap = case catch riakc_map:erase({jlib:jid_to_binary(LJID), register}, RosterMap1) of

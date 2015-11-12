@@ -69,7 +69,8 @@
 -callback init(Host, Opts) -> ok when
     Host :: ejabberd:server(),
     Opts :: list().
--callback transaction(F) -> {aborted, Reason} | {atomic, Result} when
+-callback transaction(LServer, F) -> {aborted, Reason} | {atomic, Result} when
+    LServer :: ejabberd:lserver(),
     F :: fun(),
     Reason :: any(),
     Result :: any().
@@ -564,8 +565,8 @@ ask_to_pending(Ask) -> Ask.
 roster_subscribe_t(LUser, LServer, LJID, Item) ->
     ?BACKEND:roster_subscribe_t(LUser, LServer, LJID, Item).
 
-transaction(_LServer, F) ->
-    ?BACKEND:transaction(F).
+transaction(LServer, F) ->
+    ?BACKEND:transaction(LServer, F).
 
 in_subscription(_, User, Server, JID, Type, Reason) ->
     process_subscription(in, User, Server, JID, Type,
