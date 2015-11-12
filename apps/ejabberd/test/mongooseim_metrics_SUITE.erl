@@ -43,8 +43,7 @@ init_per_suite(C) ->
                      {accepting, Pid} ->
                          Pid
                  end,
-    {ok, Apps} = application:ensure_all_started(exometer),
-    ct:print("started apps ~p", [Apps]),
+    {ok, _Apps} = ejabberd_helper:ensure_all_started(exometer),
     setup_meck(),
     exometer:new([carbon, packets], spiral),
     [{carbon_port, Port}, {test_sup, Sup}, {carbon_server, PortServer}, {carbon_socket, Socket} | C].
