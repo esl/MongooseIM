@@ -67,16 +67,19 @@
 -callback init(Host, Opts) -> ok when
     Host :: binary(),
     Opts :: list().
--callback pop_messages(LUser, LServer) -> Result when
+-callback pop_messages(LUser, LServer) -> {ok, Result} | {error, Reason} when
     LUser :: ejabberd:luser(),
     LServer :: ejabberd:lserver(),
-    Result :: term().
--callback write_messages(LUser, LServer, Msgs, MaxOfflineMsgs) -> Result when
+    Reason :: term(),
+    Result :: list(#offline_msg{}).
+-callback write_messages(LUser, LServer, Msgs, MaxOfflineMsgs) ->
+    ok | {discarded, DiscardedMsgs} | {error, Reason}  when
     LUser :: ejabberd:luser(),
     LServer :: ejabberd:lserver(),
     Msgs :: list(),
     MaxOfflineMsgs :: integer(),
-    Result :: term().
+    DiscardedMsgs :: list(#offline_msg{}),
+    Reason :: term().
 -callback remove_expired_messages(Host) -> {error, Reason} | {ok, Count} when
     Host :: ejabberd:lserver(),
     Reason :: term(),
