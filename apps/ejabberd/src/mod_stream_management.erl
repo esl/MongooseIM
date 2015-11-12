@@ -8,7 +8,8 @@
 
 %% `ejabberd_hooks' handlers
 -export([add_sm_feature/2,
-         remove_smid/4]).
+         remove_smid/4,
+         session_cleanup/4]).
 
 %% `ejabberd.cfg' options (don't use outside of tests)
 -export([get_buffer_max/1,
@@ -33,10 +34,9 @@
 
 start(Host, _Opts) ->
     ?INFO_MSG("mod_stream_management starting", []),
-    ejabberd_hooks:add(c2s_stream_features,
-                       Host, ?MODULE, add_sm_feature, 50),
-    ejabberd_hooks:add(sm_remove_connection_hook,
-                       Host, ?MODULE, remove_smid, 50),
+    ejabberd_hooks:add(c2s_stream_features, Host, ?MODULE, add_sm_feature, 50),
+    ejabberd_hooks:add(sm_remove_connection_hook, Host, ?MODULE, remove_smid, 50),
+    ejabberd_hooks:add(session_cleanup, Host, ?MODULE, session_cleanup, 50),
     mnesia:create_table(sm_session, [{ram_copies, [node()]},
                                      {attributes, record_info(fields, sm_session)}]),
     mnesia:add_table_index(sm_session, sid),
@@ -44,10 +44,9 @@ start(Host, _Opts) ->
 
 stop(Host) ->
     ?INFO_MSG("mod_stream_management stopping", []),
-    ejabberd_hooks:delete(sm_remove_connection_hook,
-                          Host, ?MODULE, remove_smid, 50),
-    ejabberd_hooks:delete(c2s_stream_features,
-                          Host, ?MODULE, add_sm_feature, 50).
+    ejabberd_hooks:delete(sm_remove_connection_hook, Host, ?MODULE, remove_smid, 50),
+    ejabberd_hooks:delete(c2s_stream_features, Host, ?MODULE, add_sm_feature, 50),
+    ejabberd_hooks:delete(session_cleanup, Host, ?MODULE, session_cleanup, 50).
 
 %%
 %% `ejabberd_hooks' handlers
@@ -67,6 +66,11 @@ remove_smid(SID, _JID, _Info, _Reason) ->
         [#sm_session{} = SMSession] ->
             mnesia:sync_dirty(fun mnesia:delete_object/1, [SMSession])
     end.
+
+-spec session_cleanup(LUser :: ejabber:luser(), LServer :: ejabberd:lserver(),
+                   LResource :: ejabberd:lresource(), SID :: ejabberd_sm:sid()) -> any().
+session_cleanup(_LUser, _LServer, _LResource, SID) ->
+    remove_smid(SID, undefined, undefined, undefined).
 
 %%
 %% `ejabberd.cfg' options (don't use outside of tests)

@@ -31,7 +31,8 @@
 
 -behaviour(gen_mod).
 
--export([start/2,
+-export([
+         start/2,
          stop/1,
          process_local_iq/3,
          process_sm_iq/3,
@@ -39,7 +40,9 @@
          store_last_info/4,
          get_last_info/2,
          count_active_users/2,
-         remove_user/2]).
+         remove_user/2,
+         session_cleanup/4
+        ]).
 
 -include("ejabberd.hrl").
 
@@ -90,25 +93,19 @@ start(Host, Opts) ->
         ?NS_LAST, ?MODULE, process_local_iq, IQDisc),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host,
         ?NS_LAST, ?MODULE, process_sm_iq, IQDisc),
-    ejabberd_hooks:add(remove_user, Host, ?MODULE,
-        remove_user, 50),
-    ejabberd_hooks:add(anonymous_purge_hook, Host,
-        ?MODULE, remove_user, 50),
-    ejabberd_hooks:add(unset_presence_hook, Host, ?MODULE,
-        on_presence_update, 50).
+    ejabberd_hooks:add(remove_user, Host, ?MODULE, remove_user, 50),
+    ejabberd_hooks:add(anonymous_purge_hook, Host, ?MODULE, remove_user, 50),
+    ejabberd_hooks:add(unset_presence_hook, Host, ?MODULE, on_presence_update, 50),
+    ejabberd_hooks:add(session_cleanup, Host, ?MODULE, session_cleanup, 50).
 
 -spec stop(ejabberd:server()) -> ok.
 stop(Host) ->
-    ejabberd_hooks:delete(remove_user, Host, ?MODULE,
-        remove_user, 50),
-    ejabberd_hooks:delete(anonymous_purge_hook, Host,
-        ?MODULE, remove_user, 50),
-    ejabberd_hooks:delete(unset_presence_hook, Host,
-        ?MODULE, on_presence_update, 50),
-    gen_iq_handler:remove_iq_handler(ejabberd_local, Host,
-        ?NS_LAST),
-    gen_iq_handler:remove_iq_handler(ejabberd_sm, Host,
-        ?NS_LAST).
+    ejabberd_hooks:delete(remove_user, Host, ?MODULE, remove_user, 50),
+    ejabberd_hooks:delete(anonymous_purge_hook, Host, ?MODULE, remove_user, 50),
+    ejabberd_hooks:delete(unset_presence_hook, Host, ?MODULE, on_presence_update, 50),
+    ejabberd_hooks:delete(session_cleanup, Host, ?MODULE, session_cleanup, 50),
+    gen_iq_handler:remove_iq_handler(ejabberd_local, Host, ?NS_LAST),
+    gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_LAST).
 
 %%%
 %%% Uptime of ejabberd node
@@ -250,4 +247,9 @@ remove_user(User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
     ?BACKEND:remove_user(LUser, LServer).
+
+-spec session_cleanup(LUser :: ejabber:luser(), LServer :: ejabberd:lserver(),
+                   LResource :: ejabberd:lresource(), SID :: ejabberd_sm:sid()) -> any().
+session_cleanup(LUser, LServer, LResource, _SID) ->
+    on_presence_update(LUser, LServer, LResource, <<>>).
 

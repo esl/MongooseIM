@@ -27,16 +27,18 @@
 -module(ejabberd_auth_anonymous).
 -author('mickael.remond@process-one.net').
 
--export([start/1,
+-export([
+         start/1,
          stop/1,
-  allow_anonymous/1,
-  is_sasl_anonymous_enabled/1,
-  is_login_anonymous_enabled/1,
-  anonymous_user_exist/2,
-  allow_multiple_connections/1,
-  register_connection/3,
-  unregister_connection/4
-  ]).
+         allow_anonymous/1,
+         is_sasl_anonymous_enabled/1,
+         is_login_anonymous_enabled/1,
+         anonymous_user_exist/2,
+         allow_multiple_connections/1,
+         register_connection/3,
+         unregister_connection/4,
+         session_cleanup/4
+        ]).
 
 -behaviour(ejabberd_gen_auth).
 %% Function used by ejabberd_auth:
@@ -75,17 +77,15 @@ start(Host) ->
                                     {attributes, record_info(fields, anonymous)}]),
     mnesia:add_table_copy(anonymous, node(), ram_copies),
     %% The hooks are needed to add / remove users from the anonymous tables
-    ejabberd_hooks:add(sm_register_connection_hook, Host,
-                       ?MODULE, register_connection, 100),
-    ejabberd_hooks:add(sm_remove_connection_hook, Host,
-                       ?MODULE, unregister_connection, 100),
+    ejabberd_hooks:add(sm_register_connection_hook, Host, ?MODULE, register_connection, 100),
+    ejabberd_hooks:add(sm_remove_connection_hook, Host, ?MODULE, unregister_connection, 100),
+    ejabberd_hooks:add(session_cleanup, Host, ?MODULE, session_cleanup, 50),
     ok.
 
 stop(Host) ->
-    ejabberd_hooks:delete(sm_register_connection_hook, Host,
-                          ?MODULE, register_connection, 100),
-    ejabberd_hooks:delete(sm_remove_connection_hook, Host,
-                          ?MODULE, unregister_connection, 100),
+    ejabberd_hooks:delete(sm_register_connection_hook, Host, ?MODULE, register_connection, 100),
+    ejabberd_hooks:delete(sm_remove_connection_hook, Host, ?MODULE, unregister_connection, 100),
+    ejabberd_hooks:delete(session_cleanup, Host, ?MODULE, session_cleanup, 50),
     ok.
 
 
@@ -205,6 +205,11 @@ purge_hook(false, _LUser, _LServer) ->
     ok;
 purge_hook(true, LUser, LServer) ->
     ejabberd_hooks:run(anonymous_purge_hook, LServer, [LUser, LServer]).
+
+-spec session_cleanup(LUser :: ejabber:luser(), LServer :: ejabberd:lserver(),
+                   LResource :: ejabberd:lresource(), SID :: ejabberd_sm:sid()) -> any().
+session_cleanup(LUser, LServer, _LResource, SID) ->
+    remove_connection(SID, LUser, LServer).
 
 %% ---------------------------------
 %% Specific anonymous auth functions
