@@ -19,7 +19,9 @@
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml.hrl").
+-include_lib("exml/include/exml.hrl").
 
+-import(ejabberdctl_helper, [ejabberdctl/3, rpc_call/3]).
 -import(mongoose_helper, [auth_modules/0]).
 
 -define(SINGLE_QUOTE_CHAR, $\').
@@ -788,18 +790,6 @@ start_mod_admin_extra() ->
     Domain = ct:get_config(ejabberd_domain),
     ok = dynamic_modules:restart(Domain, mod_admin_extra, []).
 
-normalize_args(Args) ->
-    lists:map(fun
-            (Arg) when is_binary(Arg) ->
-                binary_to_list(Arg);
-            (Arg) when is_list(Arg) ->
-                Arg
-        end, Args).
-
-ejabberdctl(Cmd, Args, Config) ->
-    CtlCmd = escalus_config:get_config(ctl_path, Config),
-    run(string:join([CtlCmd, Cmd | normalize_args(Args)], " ")).
-
 get_user_data(User, Config) when is_atom(User) ->
     get_user_data(escalus_users:get_options(Config, User, <<"newres">>), Config);
 get_user_data(User, _Config) ->
@@ -807,21 +797,6 @@ get_user_data(User, _Config) ->
     {_, Username} = lists:keyfind(username, 1, User),
     {_, Domain} = lists:keyfind(server, 1, User),
     {Username, Domain, Password}.
-
-run(Cmd) -> 
-    run(Cmd, 5000).
-
-run(Cmd, Timeout) ->
-    Port = erlang:open_port({spawn, Cmd},[exit_status]),
-    loop(Port,[], Timeout).
-
-loop(Port, Data, Timeout) ->
-    receive
-        {Port, {data, NewData}} -> loop(Port, Data++NewData, Timeout);
-        {Port, {exit_status, ExitStatus}} -> {Data, ExitStatus}
-    after Timeout ->
-            throw(timeout)
-    end.
 
 get_md5(AccountPass) ->
     lists:flatten([io_lib:format("~.16B", [X])
@@ -904,13 +879,4 @@ string_to_binary(List) ->
             list_to_binary(List);
         _ ->
             unicode:characters_to_binary(List)
-    end.
-
-rpc_call(M, F, Args) ->
-    case escalus_ejabberd:rpc(M, F, Args) of
-        {badrpc, Reason} ->
-            ct:fail("~p:~p/~p with arguments ~w fails with reason ~p.",
-                    [M, F, length(Args), Args, Reason]);
-        Result ->
-            Result
     end.
