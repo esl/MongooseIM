@@ -62,7 +62,6 @@ end_per_suite(C) ->
 
 subscriptions_initialised(_C) ->
     mongoose_metrics:init(),
-    ct:sleep(timer:seconds(10)),
     true = wait_for_update(exometer:get_value([carbon, packets], count), 60).
 
 wait_for_update({ok, [{count,X}]}, 0) ->
