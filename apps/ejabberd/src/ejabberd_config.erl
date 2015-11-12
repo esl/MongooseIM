@@ -148,7 +148,7 @@ start() ->
                          {attributes, record_info(fields, local_config)}]),
     mnesia:add_table_copy(local_config, node(), ram_copies),
     Config = get_ejabberd_config_path(),
-    load_file(Config),
+    ejabberd_config:load_file(Config),
     %% This start time is used by mod_last:
     add_local_option(node_start, now()),
     ok.
@@ -915,7 +915,7 @@ apply_changes_remote(NewConfigFilePath, ConfigDiff,
            [DesiredConfigVersion, DesiredFileVersion]),
     Node = node(),
     {CC, LC, LHC} = ConfigDiff,
-    State0 = parse_file(NewConfigFilePath),    
+    State0 = parse_file(NewConfigFilePath),
     case compute_config_file_version(State0) of
         DesiredFileVersion ->
             State1 = State0#state{override_global = false,
