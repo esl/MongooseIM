@@ -77,13 +77,15 @@
     Msgs :: list(),
     MaxOfflineMsgs :: integer(),
     Result :: term().
--callback remove_expired_messages(Host) -> Result when
+-callback remove_expired_messages(Host) -> {error, Reason} | {ok, Count} when
     Host :: ejabberd:lserver(),
-    Result :: term().
--callback remove_old_messages(Host, Days) -> Result when
+    Reason :: term(),
+    Count :: integer().
+-callback remove_old_messages(Host, Days) -> {error, Reason} | {ok, Count} when
     Host :: ejabberd:lserver(),
     Days :: integer(),
-    Result :: term().
+    Reason :: term(),
+    Count :: integer().
 -callback remove_user(LUser, LServer) -> any() when
     LUser :: binary(),
     LServer :: binary().

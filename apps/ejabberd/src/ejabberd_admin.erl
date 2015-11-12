@@ -236,18 +236,18 @@ get_loglevel() ->
 -spec delete_expired_messages() -> 'ok'.
 delete_expired_messages() ->
     case mod_offline:remove_expired_messages(?MYNAME) of
-        {atomic, _} ->
-            {ok, ""};
-        {aborted, Reason} ->
+        {ok, C} ->
+            {ok, io_lib:format("Removed ~p messages", [C])};
+        {error, Reason} ->
             {error, io_lib:format("Can't delete expired messages: ~n~p", [Reason])}
     end.
 
 -spec delete_old_messages(Days :: integer()) -> 'ok'.
 delete_old_messages(Days) ->
     case mod_offline:remove_old_messages(?MYNAME, Days) of
-        {atomic, _} ->
-            {ok, ""};
-        {aborted, Reason} ->
+        {ok, C} ->
+            {ok, io_lib:format("Removed ~p messages", [C])};
+        {error, Reason} ->
             {error, io_lib:format("Can't remove old messages: ~n~p", [Reason])}
     end.
 
