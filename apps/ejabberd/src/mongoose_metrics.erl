@@ -44,6 +44,9 @@
          remove_host_metrics/1,
          remove_all_metrics/0]).
 
+-define(DEFAULT_REPORT_INTERVAL, 60000). %%60s
+
+
 -spec init() -> ok.
 init() ->
     create_global_metrics(),
@@ -57,9 +60,17 @@ init_subscriptions() ->
     Reporters = exometer_report:list_reporters(),
     lists:foreach(
         fun({Name, _ReporterPid}) ->
-                Interval = application:get_env(exometer, mongooseim_report_interval, 60000),
+                Interval = get_report_interval(),
                 subscribe_to_all(Name, Interval)
         end, Reporters).
+
+get_report_interval() ->
+    case application:get_env(exometer, mongooseim_report_interval) of
+        undefined ->
+            ?DEFAULT_REPORT_INTERVAL;
+        {ok, Val} ->
+            Val
+    end.
 
 -spec update({term(), term()} | list(), term()) -> any().
 update(Name, Change) when is_tuple(Name)->
