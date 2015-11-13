@@ -48,8 +48,6 @@
                 | {server, ejabberd:server()}
                 | {resource, ejabberd:resource()}
                 | {user_regexp, regexp()}
-                | {shared_group, _}
-                | {shared_group, _, _}
                 | {user_regexp, regexp(), ejabberd:server()}
                 | {server_regexp, regexp()}
                 | {resource_regexp, regexp()}
@@ -122,58 +120,50 @@ normalize_spec(none) ->
 -spec match_rule(Host :: host(),
                  Rule :: rule(),
                  JID :: ejabberd:jid()) -> allow | deny | term().
+match_rule(_, all, _) ->
+    allow;
+match_rule(_, none, _) ->
+    deny;
 match_rule(global, Rule, JID) ->
-    case Rule of
-        all -> allow;
-        none -> deny;
-        _ ->
-            case ejabberd_config:get_global_option({access, Rule, global}) of
-                undefined ->
-                    deny;
-                GACLs ->
-                    match_acls(GACLs, JID, global)
-            end
+    case ejabberd_config:get_global_option({access, Rule, global}) of
+        undefined ->
+            deny;
+        GACLs ->
+            match_acls(GACLs, JID, global)
     end;
 match_rule(Host, Rule, JID) ->
-    case Rule of
-        all -> allow;
-        none -> deny;
-        _ ->
-            case ejabberd_config:get_global_option({access, Rule, global}) of
-                undefined ->
-                    case ejabberd_config:get_global_option({access, Rule, Host}) of
-                        undefined ->
-                            deny;
-                        ACLs ->
-                            match_acls(ACLs, JID, Host)
-                    end;
-                GACLs ->
-                    case ejabberd_config:get_global_option({access, Rule, Host}) of
-                        undefined ->
-                            match_acls(GACLs, JID, Host);
-                        ACLs ->
-                            case lists:reverse(GACLs) of
-                                [{allow, all} | Rest] ->
-                                    match_acls(
-                                      lists:reverse(Rest) ++ ACLs ++
-                                      [{allow, all}],
-                                      JID, Host);
-                                _ ->
-                                    match_acls(GACLs ++ ACLs, JID, Host)
-                            end
-                    end
-            end
+    GlobalACLs = ejabberd_config:get_global_option({access, Rule, global}),
+    HostACLs = ejabberd_config:get_global_option({access, Rule, Host}),
+
+    case {GlobalACLs, HostACLs} of
+        {undefined, undefined} ->
+            deny;
+        {undefined, HostACLs} ->
+            match_acls(HostACLs, JID, Host);
+        {GlobalACLs, undefined} ->
+            match_acls(GlobalACLs, JID, Host);
+        {GlobalACLs, HostACLs} ->
+            match_acls(merge_acls(GlobalACLs, HostACLs), JID, Host)
     end.
 
--spec match_acls(ACLs :: [{boolean(), rule()}],
+-spec merge_acls([{any(), rule()}], [{any(), rule()}]) -> [{any(), rule()}].
+merge_acls(Global, HostLocal) ->
+    case lists:reverse(Global) of
+        [{allow, all} | Rest] ->
+            lists:reverse(Rest) ++ HostLocal ++ [{allow, all}];
+        _ ->
+            Global ++ HostLocal
+    end.
+
+-spec match_acls(ACLs :: [{any(), rule()}],
                  JID :: ejabberd:jid(),
                  Host :: host()) -> deny | term().
 match_acls([], _, _Host) ->
     deny;
-match_acls([{Access, ACL} | ACLs], JID, Host) ->
+match_acls([{Value, ACL} | ACLs], JID, Host) ->
     case match_acl(ACL, JID, Host) of
         true ->
-            Access;
+            Value;
         _ ->
             match_acls(ACLs, JID, Host)
     end.
@@ -181,74 +171,62 @@ match_acls([{Access, ACL} | ACLs], JID, Host) ->
 -spec match_acl(ACL :: rule(),
                 JID :: ejabberd:jid(),
                 Host :: host()) -> boolean().
+match_acl(all, _JID, _Host) ->
+    true;
+match_acl(none, _JID, _Host) ->
+    false;
 match_acl(ACL, JID, Host) ->
-    case ACL of
-        all -> true;
-        none -> false;
-        _ ->
-            {User, Server, Resource} = jid:to_lower(JID),
-            lists:any(fun(#acl{aclspec = Spec}) ->
-                              case Spec of
-                                  all ->
-                                      true;
-                                  {user, U} ->
-                                      (U == User)
-                                          andalso
-                                            ((Host == Server) orelse
-                                             ((Host == global) andalso
-                                              lists:member(Server, ?MYHOSTS)));
-                                  {user, U, S} ->
-                                      (U == User) andalso (S == Server);
-                                  {server, S} ->
-                                      S == Server;
-                                  {resource, R} ->
-                                      R == Resource;
-                                  {user_regexp, UR} ->
-                                      ((Host == Server) orelse
-                                       ((Host == global) andalso
-                                        lists:member(Server, ?MYHOSTS)))
-                                          andalso is_regexp_match(User, UR);
-                                  {shared_group, G} ->
-                                      mod_shared_roster:is_user_in_group({User, Server}, G, Host);
-                                  {shared_group, G, H} ->
-                                      mod_shared_roster:is_user_in_group({User, Server}, G, H);
-                                  {user_regexp, UR, S} ->
-                                      (S == Server) andalso
-                                          is_regexp_match(User, UR);
-                                  {server_regexp, SR} ->
-                                      is_regexp_match(Server, SR);
-                                  {resource_regexp, RR} ->
-                                      is_regexp_match(Resource, RR);
-                                  {node_regexp, UR, SR} ->
-                                      is_regexp_match(Server, SR) andalso
-                                          is_regexp_match(User, UR);
-                                  {user_glob, UR} ->
-                                      ((Host == Server) orelse
-                                       ((Host == global) andalso
-                                        lists:member(Server, ?MYHOSTS)))
-                                          andalso
-                                          is_glob_match(User, UR);
-                                  {user_glob, UR, S} ->
-                                      (S == Server) andalso
-                                          is_glob_match(User, UR);
-                                  {server_glob, SR} ->
-                                      is_glob_match(Server, SR);
-                                  {resource_glob, RR} ->
-                                      is_glob_match(Resource, RR);
-                                  {node_glob, UR, SR} ->
-                                      is_glob_match(Server, SR) andalso
-                                          is_glob_match(User, UR);
-                                  WrongSpec ->
-                                      ?ERROR_MSG(
-                                         "Wrong ACL expression: ~p~n"
-                                         "Check your config file and reload it with the override_acls option enabled",
-                                         [WrongSpec]),
-                                      false
-                              end
-                      end,
-                      ets:lookup(acl, {ACL, global}) ++
-                      ets:lookup(acl, {ACL, Host}))
-    end.
+    LJID = jid:to_lower(JID),
+    AllSpecs = ets:lookup(acl, {ACL, global}) ++ ets:lookup(acl, {ACL, Host}),
+    Pred = fun(#acl{aclspec = S}) -> match(S, LJID, Host) end,
+    lists:any(Pred, AllSpecs).
+
+-spec is_server_valid(host(), ejabberd:server()) -> boolean().
+is_server_valid(Host, Host) ->
+    true;
+is_server_valid(global, JIDServer) ->
+    lists:member(JIDServer, ?MYHOSTS);
+is_server_valid(_Host, _JIDServer) ->
+    false.
+
+-spec match(aclspec(), ejabberd:simple_jid(), host()) -> boolean().
+match(all, _LJID, _Host) ->
+    true;
+match({user, U}, {User, Server, _Resource}, Host) ->
+    U == User andalso is_server_valid(Host, Server);
+match({user, U, S}, {User, Server ,_Resource}, _Host) ->
+    U == User andalso S == Server;
+match({server, S}, {_User, Server, _Resource}, _Host) ->
+    S == Server;
+match({resource, Res}, {_User, _Server, Resource}, _Host) ->
+    Resource == Res;
+match({user_regexp, UserReg}, {User, Server, _Resource}, Host) ->
+    is_server_valid(Host, Server) andalso is_regexp_match(User, UserReg);
+match({user_regexp, UserReg, MServer}, {User, Server, _Resource}, _Host) ->
+    MServer == Server andalso is_regexp_match(User, UserReg);
+match({server_regexp, ServerReg}, {_User, Server, _Resource}, _Host) ->
+    is_regexp_match(Server, ServerReg);
+match({resource_regexp, ResourceReg}, {_User, _Server, Resource}, _Host) ->
+    is_regexp_match(Resource, ResourceReg);
+match({node_regexp, UserReg, ServerReg}, {User, Server, _Resource}, _Host) ->
+    is_regexp_match(Server, ServerReg) andalso
+    is_regexp_match(User, UserReg);
+match({user_glob, UserGlob}, {User, Server, _Resource}, Host) ->
+    is_server_valid(Host, Server) andalso is_glob_match(User, UserGlob);
+match({user_glob, UserGlob, MServer}, {User, Server, _Resource}, _Host) ->
+    MServer == Server andalso is_glob_match(User, UserGlob);
+match({server_glob, ServerGlob}, {_User, Server, _Resource}, _Host) ->
+    is_glob_match(Server, ServerGlob);
+match({resource_glob, ResourceGlob}, {_User, _Server, Resource}, _Host) ->
+    is_glob_match(Resource, ResourceGlob);
+match({node_glob, UserGlob, ServerGlob}, {User, Server, _Resource}, _Host) ->
+    is_glob_match(Server, ServerGlob) andalso is_glob_match(User, UserGlob);
+match(WrongSpec, _LJID, _Host) ->
+    ?ERROR_MSG(
+       "Wrong ACL expression: ~p~n"
+       "Check your config file and reload it with the override_acls option enabled",
+       [WrongSpec]),
+    false.
 
 -spec is_regexp_match(binary(), Regex :: regexp()) -> boolean().
 is_regexp_match(String, RegExp) ->
