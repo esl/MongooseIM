@@ -19,10 +19,24 @@ all() ->
      different_specs_matching_the_same_user
     ].
 
-all_rule_returns_allow(_Config) ->
-    given_acl_started(),
-    given_stringprep_loaded(),
+init_per_suite(Config) ->
+    ok = mnesia:start(),
+    ok = stringprep:start(),
+    ok = acl:start(),
+    Config.
 
+end_per_suite(_Config) ->
+    ok.
+
+init_per_testcase(_TC, Config) ->
+    mnesia:clear_table(acl),
+    given_clean_config(),
+    Config.
+
+end_per_testcase(_TC, _Config) ->
+    ok.
+
+all_rule_returns_allow(_Config) ->
     JID = jlib:make_jid(<<"pawel">>, <<"phost">>, <<"test">>),
     ?assertEqual(allow, acl:match_rule(global, all, JID)),
     ?assertEqual(allow, acl:match_rule(<<"phost">>, all, JID)),
@@ -30,9 +44,6 @@ all_rule_returns_allow(_Config) ->
     ok.
 
 none_rule_returns_deny(_Config) ->
-    given_acl_started(),
-    given_stringprep_loaded(),
-
     JID = jlib:make_jid(<<"gawel">>, <<"phost">>, <<"test">>),
     ?assertEqual(deny, acl:match_rule(global, none, JID)),
     ?assertEqual(deny, acl:match_rule(<<"phosty">>, none, JID)),
@@ -40,10 +51,6 @@ none_rule_returns_deny(_Config) ->
     ok.
 
 basic_access_rules(_Config) ->
-    given_acl_started(),
-    given_stringprep_loaded(),
-    given_clean_config(),
-
     JID = jlib:make_jid(<<"pawel">>, <<"phost">>, <<"test">>),
 
     %% rule is not defined deny by default - deny
@@ -67,9 +74,6 @@ basic_access_rules(_Config) ->
     ok.
 
 host_sepcific_access_rules(_Config) ->
-    given_stringprep_loaded(),
-    given_acl_started(),
-    given_clean_config(),
     given_registered_domains([<<"poznan">>, <<"wroclaw">>]),
 
     PozAdmin = jlib:make_jid(<<"gawel">>, <<"poznan">>, <<"test">>),
@@ -87,12 +91,7 @@ host_sepcific_access_rules(_Config) ->
     ?assertEqual(allow, acl:match_rule(<<"wroclaw">>, only_poz_admin, Pawel)),
     ok.
 
-%% local overrides global?
-
 compound_access_rules(_Config) ->
-    given_stringprep_loaded(),
-    given_acl_started(),
-    given_clean_config(),
     given_registered_domains([<<"krakow">>]),
 
     KrkAdmin = jlib:make_jid(<<"gawel">>, <<"krakow">>, <<"test">>),
@@ -113,9 +112,6 @@ compound_access_rules(_Config) ->
     ok.
 
 global_host_priority(_Config) ->
-    given_stringprep_loaded(),
-    given_acl_started(),
-    given_clean_config(),
     given_registered_domains([<<"rzeszow">>, <<"lublin">>]),
 
     RzeAdmin = jlib:make_jid(<<"pawel">>, <<"rzeszow">>, <<"test">>),
@@ -141,9 +137,6 @@ global_host_priority(_Config) ->
     ok.
 
 all_and_none_specs(_Config) ->
-    given_stringprep_loaded(),
-    given_acl_started(),
-    given_clean_config(),
     given_registered_domains([<<"zakopane">>]),
 
     User = jlib:make_jid(<<"pawel">>, <<"zakopane">>, <<"test">>),
@@ -158,9 +151,6 @@ all_and_none_specs(_Config) ->
     ok.
 
 invalid_spec(_Config) ->
-    given_stringprep_loaded(),
-    given_acl_started(),
-    given_clean_config(),
     given_registered_domains([<<"bialystok">>]),
 
     User = jlib:make_jid(<<"pawel">>, <<"bialystok">>, <<"test">>),
@@ -171,9 +161,6 @@ invalid_spec(_Config) ->
     ok.
 
 different_specs_matching_the_same_user(_Config) ->
-    given_stringprep_loaded(),
-    given_acl_started(),
-    given_clean_config(),
     given_registered_domains([<<"gdansk">>, <<"koszalin">>]),
 
     UserGd = jlib:make_jid(<<"pawel">>, <<"gdansk">>,  <<"res">>),
@@ -266,21 +253,11 @@ different_specs_matching_the_same_user(_Config) ->
     ?assertEqual(allow, acl:match_rule(global, allow_admin, UserGd)),
     ?assertEqual(deny, acl:match_rule(global, allow_admin, UserKo)),
 
-    %% TODO: shared roster groups using mocks
-    ok.
-
-given_acl_started() ->
-    ok = acl:start(),
-    mnesia:clear_table(acl).
-
-given_stringprep_loaded() ->
-    stringprep:start(),
     ok.
 
 given_clean_config() ->
     (catch meck:unload()),
     %% skip loading part
-    mnesia:start(),
     meck:new(ejabberd_config, [passthrough]),
     meck:expect(ejabberd_config, load_file, fun(_File) -> ok end),
     ejabberd_config:start(),
