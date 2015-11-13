@@ -88,3 +88,14 @@ ebin/
 #idea
 .idea/
 *.iml
+/tools/set-redis-params.sh
+*.d
+/all_runs.html
+/apps/ejabberd/src/TAGS
+/apps/ejabberd/test/#ejabberd_loglevel_SUITE.erl#
+/ct_default.css
+*.js
+/last_interactive.html
+/oauth.plt
+/variables-ct@Adrians-MacBook-Pro
+/variables-ct@Mac-Pro-Adrian
