@@ -31,10 +31,7 @@
          to_record/3,
          add/3,
          delete/3,
-         add_list/3,
-         match_rule/3,
-         % for debugging only
-         match_acl/3]).
+         match_rule/3]).
 
 -include("ejabberd.hrl").
 
@@ -101,36 +98,6 @@ delete(Host, ACLName, ACLSpec) ->
                 mnesia:delete_object(ACLRecord)
         end,
     mnesia:transaction(F).
-
-
-add_list(Host, ACLs, Clear) ->
-    F = fun() ->
-                if
-                    Clear ->
-                        Ks = mnesia:select(
-                               acl, [{{acl, {'$1', Host}, '$2'}, [], ['$1']}]),
-                        lists:foreach(fun(K) ->
-                                              mnesia:delete({acl, {K, Host}})
-                                      end, Ks);
-                    true ->
-                        ok
-                end,
-                lists:foreach(fun(ACL) ->
-                                      case ACL of
-                                          #acl{aclname = ACLName,
-                                               aclspec = ACLSpec} ->
-                                              mnesia:write(
-                                                #acl{aclname = {ACLName, Host},
-                                                     aclspec = normalize_spec(ACLSpec)})
-                                      end
-                              end, ACLs)
-        end,
-    case mnesia:transaction(F) of
-        {atomic, _} ->
-            ok;
-        _ ->
-            false
-    end.
 
 -spec normalize(_) -> 'error' | binary() | tuple().
 normalize(A) when is_list(A) ->

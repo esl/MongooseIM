@@ -13,6 +13,9 @@ all() ->
      basic_access_rules,
      compound_access_rules,
      host_sepcific_access_rules,
+     global_host_priority,
+     all_and_none_specs,
+     invalid_spec,
      different_specs_matching_the_same_user
     ].
 
@@ -109,6 +112,64 @@ compound_access_rules(_Config) ->
     ?assertEqual(deny,  acl:match_rule(global, only_wawa_admin, KrkAdmin)),
     ok.
 
+global_host_priority(_Config) ->
+    given_stringprep_loaded(),
+    given_acl_started(),
+    given_clean_config(),
+    given_registered_domains([<<"rzeszow">>, <<"lublin">>]),
+
+    RzeAdmin = jlib:make_jid(<<"pawel">>, <<"rzeszow">>, <<"test">>),
+
+    %% add admin user rule
+    acl:add(<<"rzeszow">>, admin, {user, <<"pawel">>, <<"rzeszow">>}),
+    acl:add(global, admin, {user, <<"pawel">>, <<"lublin">>}),
+
+    %% allow only admin
+    set_global_rule(only_admin, [{allow, admin}, {deny, all}]),
+    %% deny all
+    set_host_rule(only_admin, <<"rzeszow">>, [{deny, admin}, {deny, all}]),
+
+    set_global_rule(ban_admin, [{allow, all}]),
+    set_host_rule(ban_admin, <<"rzeszow">>, [{deny, admin}, {allow, all}]),
+
+    %% host rule is more important than the host one
+    ?assertEqual(allow, acl:match_rule(<<"rzeszow">>, only_admin, RzeAdmin)),
+
+    %% host rule applies when global doesn't match and ends up with {allow, all}
+    %% ...
+    ?assertEqual(deny, acl:match_rule(<<"rzeszow">>, ban_admin, RzeAdmin)),
+    ok.
+
+all_and_none_specs(_Config) ->
+    given_stringprep_loaded(),
+    given_acl_started(),
+    given_clean_config(),
+    given_registered_domains([<<"zakopane">>]),
+
+    User = jlib:make_jid(<<"pawel">>, <<"zakopane">>, <<"test">>),
+    acl:add(global, a_users, all),
+    acl:add(global, n_users, none),
+
+    set_global_rule(all_users, [{allow, a_users}, {deny, all}]),
+    set_global_rule(none_users, [{allow, n_users}, {deny, all}]),
+
+    ?assertEqual(allow, acl:match_rule(global, all_users, User)),
+    ?assertEqual(deny, acl:match_rule(global, none_users, User)),
+    ok.
+
+invalid_spec(_Config) ->
+    given_stringprep_loaded(),
+    given_acl_started(),
+    given_clean_config(),
+    given_registered_domains([<<"bialystok">>]),
+
+    User = jlib:make_jid(<<"pawel">>, <<"bialystok">>, <<"test">>),
+    acl:add(global, invalid, {non_existing_spec, "lalala"}),
+
+    set_global_rule(invalid, [{allow, invalid}, {deny, all}]),
+    ?assertEqual(deny, acl:match_rule(global, invalid, User)),
+    ok.
+
 different_specs_matching_the_same_user(_Config) ->
     given_stringprep_loaded(),
     given_acl_started(),
@@ -151,6 +212,12 @@ different_specs_matching_the_same_user(_Config) ->
     ?assertEqual(allow, acl:match_rule(global, allow_admin, UserGd)),
     ?assertEqual(allow, acl:match_rule(global, allow_admin, UserKo)),
 
+    %% match on user regex
+    mnesia:clear_table(acl),
+    acl:add(global, admin, {user_regexp, "^paw.*", "gdansk"}),
+    ?assertEqual(allow, acl:match_rule(global, allow_admin, UserGd)),
+    ?assertEqual(deny, acl:match_rule(global, allow_admin, UserKo)),
+
     %% match on server regex
     mnesia:clear_table(acl),
     acl:add(global, admin, {server_regexp, "^gda.*"}),
@@ -174,6 +241,12 @@ different_specs_matching_the_same_user(_Config) ->
     acl:add(global, admin, {user_glob, "paw??"}),
     ?assertEqual(allow, acl:match_rule(global, allow_admin, UserGd)),
     ?assertEqual(allow, acl:match_rule(global, allow_admin, UserKo)),
+
+    %% match on user glob
+    mnesia:clear_table(acl),
+    acl:add(global, admin, {user_glob, "paw??", "gdansk"}),
+    ?assertEqual(allow, acl:match_rule(global, allow_admin, UserGd)),
+    ?assertEqual(deny, acl:match_rule(global, allow_admin, UserKo)),
 
     %% match on server glob
     mnesia:clear_table(acl),
