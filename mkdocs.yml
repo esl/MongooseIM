@@ -17,6 +17,7 @@ pages:
       - 'HTTP Authentication Module': 'advanced-configuration/HTTP-authentication-module.md'
       - 'Listener Modules': 'advanced-configuration/Listener-modules.md'
       - 'Extension Modules': 'advanced-configuration/Modules.md'
+      - 'ACL': 'advanced-configuration/acl.md'
   - 'Modules':
       - 'mod_adhoc': 'modules/mod_adhoc.md'
       - 'mod_admin_extra': 'modules/mod_admin_extra.md'
