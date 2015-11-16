@@ -4333,7 +4333,8 @@ has_features(#xmlel{children = [ Query ]}) ->
 
     Identity = exml_query:subelement(Query, <<"identity">>),
     <<"conference">> = exml_query:attr(Identity, <<"category">>),
-    #xmlel{name = _Name, attrs = _Attrs, children = _Body} = exml_query:subelement(Query, <<"feature">>).
+    true = lists:member(?NS_MUC, exml_query:paths(Query, [{element, <<"feature">>},
+                                                          {attr, <<"var">>}])).
 
 has_muc(#xmlel{children = [ #xmlel{children = Services} ]}) ->
     %% should be along the lines of (taken straight from the XEP):

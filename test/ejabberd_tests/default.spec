@@ -31,6 +31,7 @@
 {suites, "tests", mod_ping_SUITE}.
 {suites, "tests", muc_SUITE}.
 {suites, "tests", muc_light_SUITE}.
+{suites, "tests", muc_light_legacy_SUITE}.
 {suites, "tests", mod_time_SUITE}.
 {suites, "tests", offline_SUITE}.
 {suites, "tests", presence_SUITE}.

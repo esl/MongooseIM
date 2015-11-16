@@ -835,11 +835,11 @@ muc_light_simple(Config) ->
             Room2BinJID = muc_light_SUITE:room_bin_jid(Room2),
             MsgBody1 = <<"Message 1">>,
             Stanza1 = escalus_stanza:groupchat_to(Room2BinJID, MsgBody1),
-            muc_light_SUITE:foreach_occupant(
+            muc_helper:foreach_occupant(
               [Alice], Stanza1, muc_light_SUITE:gc_message_verify_fun(Room2, MsgBody1)),
             MsgBody2 = <<"Message 2">>,
             Stanza2 = escalus_stanza:groupchat_to(Room2BinJID, MsgBody2),
-            muc_light_SUITE:foreach_occupant(
+            muc_helper:foreach_occupant(
               [Alice], Stanza2, muc_light_SUITE:gc_message_verify_fun(Room2, MsgBody2)),
             escalus:send(Alice, muc_light_SUITE:stanza_aff_set(Room2, [{Bob, member}])),
             muc_light_SUITE:verify_aff_bcast([{Alice, owner}, {Bob, member}], [{Bob, member}]),
