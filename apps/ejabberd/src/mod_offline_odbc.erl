@@ -129,15 +129,30 @@ remove_user(LUser, LServer) ->
     SServer = ejabberd_odbc:escape(LServer),
     odbc_queries:remove_offline_messages(LServer, SUser, SServer).
 
+-spec remove_expired_messages(ejabberd:lserver()) -> {error, term()} | {ok, HowManyRemoved} when
+    HowManyRemoved :: integer().
 remove_expired_messages(LServer) ->
     TimeStamp = now(),
     STimeStamp = encode_timestamp(TimeStamp),
-    odbc_queries:remove_expired_offline_messages(LServer, STimeStamp).
-
+    Result = odbc_queries:remove_expired_offline_messages(LServer, STimeStamp),
+    case Result of
+        {aborted, Reason} ->
+            {error, Reason};
+        {updated, Count} ->
+            {ok, Count}
+    end.
+-spec remove_old_messages(ejabberd:lserver(), integer()) -> {error, term()} | {ok, HowManyRemoved} when
+    HowManyRemoved :: integer().
 remove_old_messages(LServer, Days) ->
     TimeStamp = fallback_timestamp(Days, now()),
     STimeStamp = encode_timestamp(TimeStamp),
-    odbc_queries:remove_old_offline_messages(LServer, STimeStamp).
+    Result = odbc_queries:remove_old_offline_messages(LServer, STimeStamp),
+    case Result of
+        {aborted, Reason} ->
+            {error, Reason};
+        {updated, Count} ->
+            {ok, Count}
+    end.
 
 count_offline_messages(LServer, SUser, SServer, Limit) ->
     case odbc_queries:count_offline_messages(LServer, SUser, SServer, Limit) of

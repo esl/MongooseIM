@@ -70,23 +70,28 @@
 -callback init(Host, Opts) -> ok when
     Host :: binary(),
     Opts :: list().
--callback pop_messages(LUser, LServer) -> Result when
+-callback pop_messages(LUser, LServer) -> {ok, Result} | {error, Reason} when
     LUser :: ejabberd:luser(),
     LServer :: ejabberd:lserver(),
-    Result :: term().
--callback write_messages(LUser, LServer, Msgs, MaxOfflineMsgs) -> Result when
+    Reason :: term(),
+    Result :: list(#offline_msg{}).
+-callback write_messages(LUser, LServer, Msgs, MaxOfflineMsgs) ->
+    ok | {discarded, DiscardedMsgs} | {error, Reason}  when
     LUser :: ejabberd:luser(),
     LServer :: ejabberd:lserver(),
     Msgs :: list(),
     MaxOfflineMsgs :: integer(),
-    Result :: term().
--callback remove_expired_messages(Host) -> Result when
+    DiscardedMsgs :: list(#offline_msg{}),
+    Reason :: term().
+-callback remove_expired_messages(Host) -> {error, Reason} | {ok, Count} when
     Host :: ejabberd:lserver(),
-    Result :: term().
--callback remove_old_messages(Host, Days) -> Result when
+    Reason :: term(),
+    Count :: integer().
+-callback remove_old_messages(Host, Days) -> {error, Reason} | {ok, Count} when
     Host :: ejabberd:lserver(),
     Days :: integer(),
-    Result :: term().
+    Reason :: term(),
+    Count :: integer().
 -callback remove_user(LUser, LServer) -> any() when
     LUser :: binary(),
     LServer :: binary().
@@ -473,7 +478,7 @@ remove_expired_messages(Host) ->
     ?BACKEND:remove_expired_messages(Host).
 
 remove_old_messages(Host, Days) ->
-    ?BACKEND:remove_expired_messages(Host, Days).
+    ?BACKEND:remove_old_messages(Host, Days).
 
 remove_user(User, Server) ->
     ?BACKEND:remove_user(User, Server).

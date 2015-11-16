@@ -29,8 +29,8 @@
 
 -export([start/0, stop/0,
          %% Server
-         status/0, reopen_log/0,
-         stop_kindly/2, send_service_message_all_mucs/2,
+         status/0,
+         send_service_message_all_mucs/2,
          %% Accounts
          register/3, unregister/2,
          registered_users/1,
@@ -43,8 +43,8 @@
          install_fallback_mnesia/1,
          dump_to_textfile/1, dump_to_textfile/2,
          mnesia_change_nodename/4,
-         restore/1 % Still used by some modules
-        ]).
+         restore/1, % Still used by some modules%%
+         get_loglevel/0]).
 
 -include("ejabberd.hrl").
 -include("ejabberd_commands.hrl").
@@ -76,23 +76,11 @@ commands() ->
                         desc = "Restart ejabberd gracefully",
                         module = init, function = restart,
                         args = [], result = {res, rescode}},
-%     #ejabberd_commands{name = reopen_log, tags = [logs, server],
-%                       desc = "Reopen the log files",
-%                       module = ?MODULE, function = reopen_log,
-%                       args = [], result = {res, rescode}},
-%     #ejabberd_commands{name = stop_kindly, tags = [server],
-%                       desc = "Inform users and rooms, wait, and stop the server",
-%                       module = ?MODULE, function = stop_kindly,
-%                       args = [{delay, integer}, {announcement, string}],
-%                       result = {res, rescode}},
      #ejabberd_commands{name = get_loglevel, tags = [logs, server],
                         desc = "Get the current loglevel",
-                        module = ejabberd_loglevel, function = get,
+                        module = ?MODULE, function = get_loglevel,
                         args = [],
-                        result = {leveltuple, {tuple, [{levelnumber, integer},
-                                                       {levelatom, atom}
-                                                      ]}}},
-
+                        result = {res, restuple}},
      #ejabberd_commands{name = register, tags = [accounts],
                         desc = "Register a user",
                         module = ?MODULE, function = register,
@@ -108,34 +96,14 @@ commands() ->
                         module = ?MODULE, function = registered_users,
                         args = [{host, binary}],
                         result = {users, {list, {username, binary}}}},
-
-%     #ejabberd_commands{name = import_piefxis, tags = [mnesia],
-%                       desc = "Import users data from a PIEFXIS file (XEP-0227)",
-%                       module = ejabberd_piefxis, function = import_file,
-%                       args = [{file, string}], result = {res, rescode}},
-%     #ejabberd_commands{name = export_piefxis, tags = [mnesia],
-%                       desc = "Export data of all users in the server to PIEFXIS files (XEP-0227)",
-%                       module = ejabberd_piefxis, function = export_server,
-%                       args = [{dir, string}], result = {res, rescode}},
-%     #ejabberd_commands{name = export_piefxis_host, tags = [mnesia],
-%                       desc = "Export data of users in a host to PIEFXIS files (XEP-0227)",
-%                       module = ejabberd_piefxis, function = export_host,
-%                       args = [{dir, string}, {host, string}], result = {res, rescode}},
-
      #ejabberd_commands{name = delete_expired_messages, tags = [purge],
                         desc = "Delete expired offline messages from database",
                         module = ?MODULE, function = delete_expired_messages,
-                        args = [], result = {res, rescode}},
+                        args = [], result = {res, restuple}},
      #ejabberd_commands{name = delete_old_messages, tags = [purge],
                         desc = "Delete offline messages older than DAYS",
                         module = ?MODULE, function = delete_old_messages,
-                        args = [{days, integer}], result = {res, rescode}},
-
-%     #ejabberd_commands{name = rename_default_nodeplugin, tags = [mnesia],
-%                       desc = "Update PubSub table from old ejabberd trunk SVN to 2.1.0",
-%                       module = mod_pubsub, function = rename_default_nodeplugin,
-%                       args = [], result = {res, rescode}},
-
+                        args = [{days, integer}], result = {res, restuple}},
      #ejabberd_commands{name = set_master, tags = [mnesia],
                         desc = "Set master node of the clustered Mnesia tables",
                         longdesc = "If you provide as nodename \"self\", this "
@@ -201,71 +169,6 @@ status() ->
         end,
     {Is_running, String1 ++ String2}.
 
--spec reopen_log() -> ok.
-reopen_log() ->
-    ejabberd_hooks:run(reopen_log_hook, []),
-    %% TODO: Use the Reopen log API for logger_h ?
-    ejabberd_logger_h:reopen_log(),
-    case application:get_env(sasl,sasl_error_logger) of
-        {ok, {file, SASLfile}} ->
-            error_logger:delete_report_handler(sasl_report_file_h),
-            ejabberd_logger_h:rotate_log(SASLfile),
-            error_logger:add_report_handler(sasl_report_file_h,
-                {SASLfile, get_sasl_error_logger_type()});
-        _ -> false
-        end,
-    ok.
-
-%% @doc Function copied from Erlang/OTP lib/sasl/src/sasl.erl which doesn't export it
--spec get_sasl_error_logger_type() -> 'all' | 'error' | 'progress'.
-get_sasl_error_logger_type () ->
-    case application:get_env (sasl, errlog_type) of
-        {ok, error} -> error;
-        {ok, progress} -> progress;
-        {ok, all} -> all;
-        {ok, Bad} -> exit ({bad_config, {sasl, {errlog_type, Bad}}});
-        _ -> all
-    end.
-
-%%%
-%%% Stop Kindly
-%%%
-
--spec stop_kindly(DelaySeconds :: number(),
-                  AnnouncementText :: string()) -> 'ok'.
-stop_kindly(DelaySeconds, AnnouncementText) ->
-    Subject = io_lib:format("Server stop in ~p seconds!", [DelaySeconds]),
-    WaitingDesc = io_lib:format("Waiting ~p seconds", [DelaySeconds]),
-    Steps = [
-             {"Stopping ejabberd port listeners",
-              ejabberd_listener, stop_listeners, []},
-             {"Sending announcement to connected users",
-              mod_announce, send_announcement_to_all,
-              [?MYNAME, Subject, AnnouncementText]},
-             {"Sending service message to MUC rooms",
-              ejabberd_admin, send_service_message_all_mucs,
-              [Subject, AnnouncementText]},
-             {WaitingDesc, timer, sleep, [DelaySeconds * 1000]},
-             {"Stopping ejabberd", application, stop, [ejabberd]},
-             {"Stopping Mnesia", mnesia, stop, []},
-             {"Stopping Erlang node", init, stop, []}
-    ],
-    NumberLast = length(Steps),
-    TimestampStart = calendar:datetime_to_gregorian_seconds({date(), time()}),
-    lists:foldl(
-      fun({Desc, Mod, Func, Args}, NumberThis) ->
-              SecondsDiff =
-                  calendar:datetime_to_gregorian_seconds({date(), time()})
-                  - TimestampStart,
-              io:format("[~p/~p ~ps] ~s... ",
-                        [NumberThis, NumberLast, SecondsDiff, Desc]),
-              Result = apply(Mod, Func, Args),
-              io:format("~p~n", [Result]),
-              NumberThis+1
-      end,
-      1,
-      Steps),
-    ok.
 
 -spec send_service_message_all_mucs(Subject :: string() | binary(),
                               AnnouncementText :: string() | binary()) -> 'ok'.
@@ -315,19 +218,38 @@ registered_users(Host) ->
     SUsers = lists:sort(Users),
     lists:map(fun({U, _S}) -> U end, SUsers).
 
+get_loglevel() ->
+    BackendList = ejabberd_loglevel:get(),
+    F = fun({Backend, Level}) ->
+        {Number, Name} = Level,
+        io_lib:format("loglevel for ~p is ~p which is '~p'",
+                      [Backend, Number, Name])
+        end,
+    StringList = lists:map(F, BackendList),
+    JoinedList = string:join(StringList, "\n"),
+    {ok, JoinedList}.
+
 %%%
 %%% Purge DB
 %%%
 
 -spec delete_expired_messages() -> 'ok'.
 delete_expired_messages() ->
-    {atomic, ok} = mod_offline:remove_expired_messages(?MYNAME),
-    ok.
+    case mod_offline:remove_expired_messages(?MYNAME) of
+        {ok, C} ->
+            {ok, io_lib:format("Removed ~p messages", [C])};
+        {error, Reason} ->
+            {error, io_lib:format("Can't delete expired messages: ~n~p", [Reason])}
+    end.
 
 -spec delete_old_messages(Days :: integer()) -> 'ok'.
 delete_old_messages(Days) ->
-    {atomic, _} = mod_offline:remove_old_messages(?MYNAME, Days),
-    ok.
+    case mod_offline:remove_old_messages(?MYNAME, Days) of
+        {ok, C} ->
+            {ok, io_lib:format("Removed ~p messages", [C])};
+        {error, Reason} ->
+            {error, io_lib:format("Can't remove old messages: ~n~p", [Reason])}
+    end.
 
 
 %%%
