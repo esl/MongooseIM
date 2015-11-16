@@ -132,5 +132,5 @@ Handler function are expected to return:
 
 * `allow` if given JID is allowed to open a new sessions
 * `deny` if the JID is not allowed but other handlers should be run
-* `{stop, deny}` if the JID is not allowed but other handlers should be run
+* `{stop, deny}` if the JID is not allowed but other handlers should **not** be run
 
