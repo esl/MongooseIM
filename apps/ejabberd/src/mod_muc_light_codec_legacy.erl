@@ -11,7 +11,7 @@
 -behaviour(mod_muc_light_codec).
 
 %% API
--export([decode/3, encode/4]).
+-export([decode/3, encode/4, encode_error/5]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -23,21 +23,22 @@
 
 -spec decode(From :: ejabberd:jid(), To :: ejabberd:jid(),
              Stanza :: ejabberd:iq() | jlib:xmlel()) -> mod_muc_light_codec:decode_result().
-decode(_From, #jid{ lresource = Resource }, _Stanza) when Resource =/= <<>> ->
-    {error, bad_request};
-decode(_From, _To, #xmlel{ name = <<"message">> } = Stanza) ->
-    decode_message(Stanza);
-decode(From, To, #xmlel{ name = <<"iq">> } = Stanza) ->
-    decode(From, To, jlib:iq_query_info(Stanza));
-decode(From, _To, #iq{} = IQ) ->
-    decode_iq(From, IQ);
-decode(_From, _To, #xmlel{ name = <<"presence">> } = Stanza) ->
+decode(_From, #jid{ luser = ToU } = _To, #xmlel{ name = <<"presence">> } = Stanza)
+  when ToU =/= <<>> ->
     case {exml_query:path(Stanza, [{element, <<"x">>}, {attr, <<"xmlns">>}]),
-          exml_query:attr(Stanza, <<"type">>)} of
+         exml_query:attr(Stanza, <<"type">>)} of
         {?NS_MUC, Available} when Available =:= undefined orelse
                                   Available =:= <<"available">> -> {ok, {set, #create{}}};
         _ -> ignore
     end;
+decode(_From, #jid{ lresource = Resource }, _Stanza) when Resource =/= <<>> ->
+    {error, bad_request};
+decode(_From, _To, #xmlel{ name = <<"message">> } = Stanza) ->
+    decode_message(Stanza);
+decode(From, _To, #xmlel{ name = <<"iq">> } = Stanza) ->
+    decode_iq(From, jlib:iq_query_info(Stanza));
+decode(From, _To, #iq{} = IQ) ->
+    decode_iq(From, IQ);
 decode(_, _, _) ->
     {error, bad_request}.
 
@@ -62,7 +63,7 @@ encode({#msg{} = Msg, AffUsers}, Sender, {RoomU, RoomS} = RoomUS, HandleFun) ->
       end, AffUsers);
 encode(OtherCase, Sender, RoomUS, HandleFun) ->
     {RoomJID, RoomBin} = jids_from_room_with_resource(RoomUS, <<>>),
-    case encode_meta(OtherCase, RoomJID, RoomBin, HandleFun) of
+    case encode_meta(OtherCase, RoomJID, Sender, HandleFun) of
         {iq_reply, ID} ->
             IQRes = make_iq_result(RoomBin, jlib:jid_to_binary(Sender), ID, <<>>, undefined),
             HandleFun(RoomJID, Sender, IQRes);
@@ -72,6 +73,18 @@ encode(OtherCase, Sender, RoomUS, HandleFun) ->
         noreply ->
             ok
     end.
+
+-spec encode_error(
+        ErrMsg :: tuple(), OrigFrom :: ejabberd:jid(), OrigTo :: ejabberd:jid(),
+        OrigPacket :: jlib:xmlel(), HandleFun :: mod_muc_light_codec:encoded_packet_handler()) ->
+    any().
+encode_error(_, OrigFrom, OrigTo, #xmlel{ name = <<"presence">> } = OrigPacket, HandleFun) ->
+    %% The only error case for valid presence is registration-required for room creation
+    X = #xmlel{ name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_MUC}] },
+    mod_muc_light_codec:encode_error({error, registration_required}, [X], OrigFrom, OrigTo,
+                                     OrigPacket, HandleFun);
+encode_error(ErrMsg, OrigFrom, OrigTo, OrigPacket, HandleFun) ->
+    mod_muc_light_codec:encode_error(ErrMsg, [], OrigFrom, OrigTo, OrigPacket, HandleFun).
 
 %%====================================================================
 %% Message decoding
@@ -205,7 +218,13 @@ parse_blocking_list([Item | RItemsEls], ItemsAcc) ->
 %% Encoding
 %%====================================================================
 
-encode_meta({get, #disco_info{ id = ID }}, _RoomJID, _RoomBin, _HandleFun) ->
+-spec encode_meta(Request :: muc_light_encode_request(), RoomJID :: ejabberd:jid(),
+                  SenderJID :: ejabberd:jid(),
+                  HandleFun :: mod_muc_light_codec:encoded_packet_handler()) ->
+    {iq_reply, ID :: binary()} |
+    {iq_reply, XMLNS :: binary(), Els :: [jlib:xmlch()], ID :: binary()} |
+    noreply.
+encode_meta({get, #disco_info{ id = ID }}, _RoomJID, _SenderJID, _HandleFun) ->
     DiscoEls = [#xmlel{name = <<"identity">>,
                        attrs = [{<<"category">>, <<"conference">>},
                                 {<<"type">>, <<"text">>},
@@ -213,13 +232,13 @@ encode_meta({get, #disco_info{ id = ID }}, _RoomJID, _RoomBin, _HandleFun) ->
                 #xmlel{name = <<"feature">>, attrs = [{<<"var">>, ?NS_MUC}]}],
     {iq_reply, ?NS_DISCO_INFO, DiscoEls, ID};
 encode_meta({get, #disco_items{ rooms = Rooms, id = ID, rsm = RSMOut }},
-          _RoomJID, _RoomBin, _HandleFun) ->
+          _RoomJID, _SenderJID, _HandleFun) ->
     DiscoEls = [ #xmlel{ name = <<"item">>,
                          attrs = [{<<"jid">>, <<RoomU/binary, $@, RoomS/binary>>},
                                   {<<"name">>, RoomName}] }
                  || {{RoomU, RoomS}, RoomName, _RoomVersion} <- Rooms ],
     {iq_reply, ?NS_DISCO_ITEMS, jlib:rsm_encode(RSMOut) ++ DiscoEls, ID};
-encode_meta({get, #config{} = Config}, _RoomJID, _RoomBin, _HandleFun) ->
+encode_meta({get, #config{} = Config}, _RoomJID, _SenderJID, _HandleFun) ->
     ConfigEls = [ jlib:form_field({K, <<"text-single">>, V, K})
                   || {K, V} <- Config#config.raw_config ],
     XEl = #xmlel{ name = <<"x">>,
@@ -230,35 +249,40 @@ encode_meta({get, #config{} = Config}, _RoomJID, _RoomBin, _HandleFun) ->
                                                <<"http://jabber.org/protocol/muc#roomconfig">>})
                               | ConfigEls] },
     {iq_reply, ?NS_MUC_OWNER, XEl, Config#config.id};
-encode_meta({get, #affiliations{} = Affs}, _RoomJID, _RoomBin, _HandleFun) ->
+encode_meta({get, #affiliations{} = Affs}, _RoomJID, _SenderJID, _HandleFun) ->
     AffEls = [ aff_user_to_item(AffUser) || AffUser <- Affs#affiliations.aff_users ],
     {iq_reply, ?NS_MUC_ADMIN, AffEls, Affs#affiliations.id};
-encode_meta({set, #affiliations{} = Affs, OldAffUsers, NewAffUsers}, RoomJID, RoomBin, HandleFun) ->
-    bcast_aff_messages(RoomJID, OldAffUsers, NewAffUsers, RoomBin,
+encode_meta({set, #affiliations{} = Affs, OldAffUsers, NewAffUsers},
+            RoomJID, SenderJID, HandleFun) ->
+    bcast_aff_messages(RoomJID, OldAffUsers, NewAffUsers, SenderJID,
                        Affs#affiliations.aff_users, HandleFun),
-
     {iq_reply, Affs#affiliations.id};
-encode_meta({get, #blocking{} = Blocking}, RoomJID, _RoomBin, _HandleFun) ->
-    BlockingEls = [ blocking_to_el(BlockingItem, RoomJID#jid.lserver)
+encode_meta({get, #blocking{} = Blocking}, SenderBareJID, _SenderJID, _HandleFun) ->
+    MUCHost = gen_mod:get_module_opt_host(SenderBareJID#jid.lserver, mod_muc_light, ?DEFAULT_HOST),
+    BlockingEls = [ blocking_to_el(BlockingItem, MUCHost)
                     || BlockingItem <- Blocking#blocking.items ],
     Blocklist = #xmlel{ name = <<"list">>, attrs = [{<<"name">>, ?NS_MUC_LIGHT}],
                         children = BlockingEls },
     {iq_reply, ?NS_PRIVACY, Blocklist, Blocking#blocking.id};
-encode_meta({set, #blocking{ id = ID }}, _RoomJID, _RoomBin, _HandleFun) ->
+encode_meta({set, #blocking{ id = ID }}, _RoomJID, _SenderJID, _HandleFun) ->
     {iq_reply, ID};
-encode_meta({set, #create{} = Create, _UniqueRequested}, RoomJID, RoomBin, HandleFun) ->
-    [{{ToU, ToS}, _}] = Create#create.aff_users,
+encode_meta({set, #create{} = Create, _UniqueRequested}, RoomJID, _SenderJID, HandleFun) ->
+    [{{ToU, ToS}, CreatorAff}] = Create#create.aff_users,
     ToBin = jlib:jid_to_binary({ToU, ToS, <<>>}),
-    Attrs = [{<<"from">>, <<RoomBin/binary, $/, ToBin/binary>>}],
+    {From, FromBin} = jids_from_room_with_resource({RoomJID#jid.luser, RoomJID#jid.lserver}, ToBin),
+    Attrs = [{<<"from">>, FromBin}],
+    {AffBin, RoleBin} = case CreatorAff of
+                            owner -> {<<"owner">>, <<"moderator">>};
+                            member -> {<<"member">>, <<"participant">>}
+                        end,
     NotifEls = [ #xmlel{ name = <<"item">>,
-                         attrs = [{<<"affiliation">>, <<"owner">>}, {<<"role">>, <<"moderator">>}]},
+                         attrs = [{<<"affiliation">>, AffBin}, {<<"role">>, RoleBin}]},
                  status(<<"110">>), status(<<"201">>) ],
     Children = envelope(?NS_MUC_USER, NotifEls),
 
-    send_to_aff_user(jlib:jid_replace_resource(RoomJID, ToBin), ToU, ToS,
-                     <<"presence">>, Attrs, Children, HandleFun),
+    send_to_aff_user(From, ToU, ToS, <<"presence">>, Attrs, Children, HandleFun),
     noreply;
-encode_meta({set, #destroy{ id = ID }, AffUsers}, RoomJID, _RoomBin, HandleFun) ->
+encode_meta({set, #destroy{ id = ID }, AffUsers}, RoomJID, _SenderJID, HandleFun) ->
     lists:foreach(
       fun({{U, S}, _}) ->
               FromJID = jlib:jid_replace_resource(RoomJID, jlib:jid_to_binary({U, S, <<>>})),
@@ -274,11 +298,11 @@ encode_meta({set, #destroy{ id = ID }, AffUsers}, RoomJID, _RoomBin, HandleFun) 
 
     {iq_reply, ID};
 encode_meta({set, #config{ raw_config = [{<<"subject">>, Subject}], id = ID }, AffUsers},
-          RoomJID, RoomBin, HandleFun) ->
+          RoomJID, _SenderJID, HandleFun) ->
     Attrs = [
              {<<"id">>, ID},
              {<<"type">>, <<"groupchat">>},
-             {<<"from">>, RoomBin}
+             {<<"from">>, jlib:jid_to_binary(RoomJID)}
             ],
     SubjectEl = #xmlel{ name = <<"subject">>, children = [ #xmlcdata{ content = Subject } ] },
     lists:foreach(
@@ -286,9 +310,9 @@ encode_meta({set, #config{ raw_config = [{<<"subject">>, Subject}], id = ID }, A
               send_to_aff_user(RoomJID, U, S, <<"message">>, Attrs, [SubjectEl], HandleFun)
       end, AffUsers),
     noreply;
-encode_meta({set, #config{} = Config, AffUsers}, RoomJID, RoomBin, HandleFun) ->
+encode_meta({set, #config{} = Config, AffUsers}, RoomJID, _SenderJID, HandleFun) ->
     Attrs = [{<<"id">>, Config#config.id},
-             {<<"from">>, RoomBin},
+             {<<"from">>, jlib:jid_to_binary(RoomJID)},
              {<<"type">>, <<"groupchat">>}],
     ConfigNotif = envelope(?NS_MUC_USER, [status(<<"104">>)]),
     lists:foreach(
@@ -336,45 +360,56 @@ kv_to_el(Key, Value) ->
 envelope(XMLNS, Children) ->
     [ #xmlel{ name = <<"x">>, attrs = [{<<"xmlns">>, XMLNS}], children = Children } ].
 
--spec bcast_aff_messages(From :: ejabberd:jid(), OldAffUsers :: aff_users(),
-                         NewAffUsers :: aff_users(), RoomBin :: binary(),
+-spec bcast_aff_messages(Room :: ejabberd:jid(), OldAffUsers :: aff_users(),
+                         NewAffUsers :: aff_users(), SenderJID :: ejabberd:jid(),
                          ChangedAffUsers :: aff_users(),
                          HandleFun :: mod_muc_light_codec:encoded_packet_handler()) -> ok.
 bcast_aff_messages(_, [], [], _, _, _) ->
     ok;
-bcast_aff_messages(From, [{User, _} | ROldAffUsers], [], RoomBin, ChangedAffUsers, HandleFun) ->
-    msg_to_leaving_user(From, User, RoomBin, HandleFun),
-    bcast_aff_messages(From, ROldAffUsers, [], RoomBin, ChangedAffUsers, HandleFun);
-bcast_aff_messages(From, [{{ToU, ToS} = User, _} | ROldAffUsers], [{User, _} | RNewAffUsers],
-                   RoomBin, ChangedAffUsers, HandleFun) ->
+bcast_aff_messages(Room, [{User, _} | ROldAffUsers], [], SenderJID, ChangedAffUsers, HandleFun) ->
+    msg_to_leaving_user(Room, User, HandleFun),
+    bcast_aff_messages(Room, ROldAffUsers, [], SenderJID, ChangedAffUsers, HandleFun);
+bcast_aff_messages(Room, [{{ToU, ToS} = User, _} | ROldAffUsers], [{User, _} | RNewAffUsers],
+                   SenderJID, ChangedAffUsers, HandleFun) ->
     lists:foreach(
-      fun({{ChangedU, ChangedS}, _} = ChangedAffUser) ->
+      fun({{ChangedU, ChangedS}, NewAff} = ChangedAffUser) ->
               ChangedUserBin = jlib:jid_to_binary({ChangedU, ChangedS, <<>>}),
-              Attrs = [{<<"from">>, <<RoomBin/binary, $/, ChangedUserBin/binary>>}],
-              Children = envelope(?NS_MUC_USER, [aff_user_to_item(ChangedAffUser)]),
+              {From, FromBin} = jids_from_room_with_resource({Room#jid.luser, Room#jid.lserver},
+                                                             ChangedUserBin),
+              Attrs0 = [{<<"from">>, FromBin}],
+              ElToEnvelope0 = aff_user_to_item(ChangedAffUser),
+              {Attrs, ElsToEnvelope} = case NewAff of
+                                           none -> {[{<<"type">>, <<"unavailable">>} | Attrs0],
+                                                    [ElToEnvelope0, status(<<"321">>)]};
+                                           _ -> {Attrs0, [ElToEnvelope0]}
+                                       end,
+              Children = envelope(?NS_MUC_USER, ElsToEnvelope),
               send_to_aff_user(From, ToU, ToS, <<"presence">>, Attrs, Children, HandleFun)
       end, ChangedAffUsers),
-    bcast_aff_messages(From, ROldAffUsers, RNewAffUsers, RoomBin, ChangedAffUsers, HandleFun);
-bcast_aff_messages(From, [{User1, _} | ROldAffUsers], [{User2, _} | _] = NewAffUsers,
-                   RoomBin, ChangedAffUsers, HandleFun) when User1 < User2 ->
-    msg_to_leaving_user(From, User1, RoomBin, HandleFun),
-    bcast_aff_messages(From, ROldAffUsers, NewAffUsers, RoomBin, ChangedAffUsers, HandleFun);
-bcast_aff_messages(From, OldAffUsers, [{{ToU, ToS}, _} | RNewAffUsers],
-                   RoomBin, ChangedAffUsers, HandleFun) ->
+    bcast_aff_messages(Room, ROldAffUsers, RNewAffUsers, SenderJID, ChangedAffUsers, HandleFun);
+bcast_aff_messages(Room, [{User1, _} | ROldAffUsers], [{User2, _} | _] = NewAffUsers,
+                   SenderJID, ChangedAffUsers, HandleFun) when User1 < User2 ->
+    msg_to_leaving_user(Room, User1, HandleFun),
+    bcast_aff_messages(Room, ROldAffUsers, NewAffUsers, SenderJID, ChangedAffUsers, HandleFun);
+bcast_aff_messages(Room, OldAffUsers, [{{ToU, ToS}, _} | RNewAffUsers],
+                   SenderJID, ChangedAffUsers, HandleFun) ->
+    InviterBin = jlib:jid_to_binary({SenderJID#jid.luser, SenderJID#jid.lserver, <<>>}),
+    RoomBin = jlib:jid_to_binary(jlib:jid_to_lower(Room)),
     InviteEl = #xmlel{ name = <<"invite">>,
-                       attrs = [{<<"from">>, RoomBin}] },
+                       attrs = [{<<"from">>, InviterBin}] },
     NotifForNewcomer = envelope(?NS_MUC_USER, [InviteEl]),
-    send_to_aff_user(From, ToU, ToS, <<"message">>, [{<<"from">>, RoomBin}],
+    send_to_aff_user(Room, ToU, ToS, <<"message">>, [{<<"from">>, RoomBin}],
                      NotifForNewcomer, HandleFun),
-    bcast_aff_messages(From, OldAffUsers, RNewAffUsers, RoomBin, ChangedAffUsers, HandleFun).
+    bcast_aff_messages(Room, OldAffUsers, RNewAffUsers, SenderJID, ChangedAffUsers, HandleFun).
 
--spec msg_to_leaving_user(
-        From :: ejabberd:jid(), User :: ejabberd:simple_bare_jid(), RoomBin :: binary(),
-        HandleFun :: mod_muc_light_codec:encoded_packet_handler()) -> ok.
-msg_to_leaving_user(From, {ToU, ToS} = User, RoomBin, HandleFun) ->
+-spec msg_to_leaving_user(Room :: ejabberd:jid(), User :: ejabberd:simple_bare_jid(),
+                          HandleFun :: mod_muc_light_codec:encoded_packet_handler()) -> ok.
+msg_to_leaving_user(Room, {ToU, ToS} = User, HandleFun) ->
     UserBin = jlib:jid_to_binary({ToU, ToS, <<>>}),
-    Attrs = [{<<"from">>, <<RoomBin/binary, $/, UserBin/binary>>}],
-    NotifForLeaving = envelope(?NS_MUC_USER, [ aff_user_to_item({User, none}), status(<<"307">>) ]),
+    {From, FromBin} = jids_from_room_with_resource({Room#jid.luser, Room#jid.lserver}, UserBin),
+    Attrs = [{<<"from">>, FromBin},
+             {<<"type">>, <<"unavailable">>}],
+    NotifForLeaving = envelope(?NS_MUC_USER, [ aff_user_to_item({User, none}), status(<<"321">>) ]),
     send_to_aff_user(From, ToU, ToS, <<"presence">>, Attrs, NotifForLeaving, HandleFun).
 
 -spec send_to_aff_user(From :: ejabberd:jid(), ToU :: ejabberd:luser(), ToS :: ejabberd:lserver(),

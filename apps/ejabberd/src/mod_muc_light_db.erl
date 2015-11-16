@@ -40,7 +40,7 @@
 -callback room_exists(RoomUS :: ejabberd:simple_bare_jid()) -> boolean().
 
 -callback get_user_rooms(UserUS :: ejabberd:simple_bare_jid()) ->
-    {ok, [RoomUS :: ejabberd:simple_bare_jid()]} | {error, term()}.
+    [RoomUS :: ejabberd:simple_bare_jid()].
 
 -callback remove_user(UserUS :: ejabberd:simple_bare_jid(), Version :: binary()) ->
     remove_user_return() | {error, term()}.

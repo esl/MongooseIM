@@ -11,7 +11,7 @@
 -behaviour(mod_muc_light_codec).
 
 %% API
--export([decode/3, encode/4]).
+-export([decode/3, encode/4, encode_error/5]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -64,6 +64,13 @@ encode(OtherCase, Sender, RoomUS, HandleFun) ->
             IQRes = make_iq_result(FromBin, jlib:jid_to_binary(Sender), ID, XMLNS, Els),
             HandleFun(FromJID, Sender, IQRes)
     end.
+
+-spec encode_error(
+        ErrMsg :: tuple(), OrigFrom :: ejabberd:jid(), OrigTo :: ejabberd:jid(),
+        OrigPacket :: jlib:xmlel(), HandleFun :: mod_muc_light_codec:encoded_packet_handler()) ->
+    any().
+encode_error(ErrMsg, OrigFrom, OrigTo, OrigPacket, HandleFun) ->
+    mod_muc_light_codec:encode_error(ErrMsg, [], OrigFrom, OrigTo, OrigPacket, HandleFun).
 
 %%====================================================================
 %% Message decoding

@@ -213,7 +213,7 @@ process_aff_set(_AffReq, _RoomUS, Error) ->
                     RoomUS :: ejabberd:simple_bare_jid(), OrigPacket :: jlib:xmlel(),
                     Result :: packet_processing_result()) -> ok.
 send_response(From, RoomJID, _RoomUS, OrigPacket, {error, _} = Err) ->
-    mod_muc_light_codec:encode_error(Err, From, RoomJID, OrigPacket, fun ejabberd_router:route/3);
+    ?CODEC:encode_error(Err, From, RoomJID, OrigPacket, fun ejabberd_router:route/3);
 send_response(From, _RoomJID, RoomUS, _OriginalPacket, Response) ->
     ?CODEC:encode(Response, From, RoomUS, fun ejabberd_router:route/3).
 

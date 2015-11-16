@@ -114,10 +114,10 @@ room_exists(RoomUS) ->
     mnesia:dirty_read(?ROOM_TAB, RoomUS) =/= [].
 
 -spec get_user_rooms(UserUS :: ejabberd:simple_bare_jid()) ->
-    {ok, [RoomUS :: ejabberd:simple_bare_jid()]} | {error, term()}.
+    [RoomUS :: ejabberd:simple_bare_jid()].
 get_user_rooms(UserUS) ->
     UsersRooms = mnesia:dirty_read(?USER_ROOM_TAB, UserUS),
-    {ok, [ UserRoom#?USER_ROOM_TAB.room || UserRoom <- UsersRooms ]}.
+    [ UserRoom#?USER_ROOM_TAB.room || UserRoom <- UsersRooms ].
 
 -spec remove_user(UserUS :: ejabberd:simple_bare_jid(), Version :: binary()) ->
     mod_muc_light_db:remove_user_return() | {error, term()}.

@@ -53,7 +53,6 @@
 -include("mod_muc_light.hrl").
 -include("mod_roster.hrl").
 
--define(DEFAULT_HOST, <<"muclight.@HOST@">>).
 -define(CONFIG_TAB, muc_light_config).
 
 %%====================================================================
@@ -166,7 +165,7 @@ process_packet(From, To, {ok, {set, #create{} = Create}}, OrigPacket) ->
         true ->
             create_room(From, FromUS, To, Create, OrigPacket);
         false -> 
-            mod_muc_light_codec:encode_error(
+            ?CODEC:encode_error(
               {error, bad_request}, From, To, OrigPacket, fun ejabberd_router:route/3)
     end;
 process_packet(From, To, {ok, {get, #disco_info{} = DI}}, _OrigPacket) ->
@@ -180,17 +179,17 @@ process_packet(From, To, {ok, {_, #blocking{}} = Blocking}, OrigPacket) ->
                 ok ->
                     ok;
                 Error ->
-                    mod_muc_light_codec:encode_error(Error, From, To, OrigPacket,
+                    ?CODEC:encode_error(Error, From, To, OrigPacket,
                                                      fun ejabberd_router:route/3)
             end;
-        false -> mod_muc_light_codec:encode_error(
+        false -> ?CODEC:encode_error(
                    {error, bad_request}, From, To, OrigPacket, fun ejabberd_router:route/3)
     end;
 process_packet(From, To, {ok, #iq{} = IQ}, OrigPacket) ->
     case mod_muc_iq:process_iq(To#jid.lserver, From, To, IQ) of
         ignore -> ok;
         error ->
-            mod_muc_light_codec:encode_error(
+            ?CODEC:encode_error(
               {error, feature_not_implemented}, From, To, OrigPacket, fun ejabberd_router:route/3);
         ResIQ ->
             ejabberd_router:route(To, From, jlib:iq_to_xml(ResIQ))
@@ -199,13 +198,13 @@ process_packet(From, #jid{ luser = RoomU } = To, {ok, RequestToRoom}, OrigPacket
   when RoomU =/= <<>> ->
     case ?BACKEND:room_exists(jlib:jid_to_lus(To)) of
         true -> mod_muc_light_room:handle_request(From, To, OrigPacket, RequestToRoom);
-        false -> mod_muc_light_codec:encode_error({error, item_not_found}, From, To, OrigPacket,
+        false -> ?CODEC:encode_error({error, item_not_found}, From, To, OrigPacket,
                                                   fun ejabberd_router:route/3)
     end;
 process_packet(From, To, {error, _} = Err, OrigPacket) ->
-    mod_muc_light_codec:encode_error(Err, From, To, OrigPacket, fun ejabberd_router:route/3);
+    ?CODEC:encode_error(Err, From, To, OrigPacket, fun ejabberd_router:route/3);
 process_packet(From, To, _InvalidReq, OrigPacket) ->
-    mod_muc_light_codec:encode_error(
+    ?CODEC:encode_error(
       {error, bad_request}, From, To, OrigPacket, fun ejabberd_router:route/3).
 
 %%====================================================================
@@ -247,49 +246,48 @@ remove_user(User, Server) ->
 
 -spec add_rooms_to_roster(Acc :: [#roster{}], UserUS :: ejabberd:simple_bare_jid()) -> [#roster{}].
 add_rooms_to_roster(Acc, UserUS) ->
-    case ?BACKEND:get_user_rooms(UserUS) of
-        {ok, Rooms} ->
-            lists:foldl(
-              fun({{RoomU, RoomS}, RoomName, RoomVersion}, Acc0) ->
-                      Item = #roster{
-                                jid = jlib:make_jid_noprep(RoomU, RoomS, <<>>),
-                                name = RoomName,
-                                subscription = to,
-                                groups = [?NS_MUC_LIGHT],
-                                xs = [#xmlel{ name = <<"version">>,
-                                              children = [#xmlcdata{ content = RoomVersion }] }]
-                               },
-                      [Item | Acc0]
-              end, Acc, get_rooms_info(lists:sort(Rooms)));
-        _ ->
-            Acc
-    end.
+    lists:foldl(
+      fun({{RoomU, RoomS}, RoomName, RoomVersion}, Acc0) ->
+              Item = #roster{
+                        jid = jlib:make_jid_noprep(RoomU, RoomS, <<>>),
+                        name = RoomName,
+                        subscription = to,
+                        groups = [?NS_MUC_LIGHT],
+                        xs = [#xmlel{ name = <<"version">>,
+                                      children = [#xmlcdata{ content = RoomVersion }] }]
+                       },
+              [Item | Acc0]
+      end, Acc, get_rooms_info(lists:sort(?BACKEND:get_user_rooms(UserUS)))).
 
 -spec process_iq_get(Acc :: any(), From :: #jid{}, To :: #jid{},
                      IQ :: #iq{}, ActiveList :: binary()) ->
     {stop, {result, [jlib:xmlel()]}} | {error, #xmlel{}}.
-process_iq_get(_Acc, From, To, #iq{} = IQ, _ActiveList) ->
-    case {?CODEC:decode(From, To, IQ), get_opt(To#jid.lserver, blocking, ?DEFAULT_BLOCKING)} of
+process_iq_get(_Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ, _ActiveList) ->
+    MUCHost = gen_mod:get_module_opt_host(FromS, ?MODULE, ?DEFAULT_HOST),
+    case {?CODEC:decode(From, To, IQ), get_opt(MUCHost, blocking, ?DEFAULT_BLOCKING)} of
         {{ok, {get, #blocking{} = Blocking}}, true} ->
             Items = ?BACKEND:get_blocking(jlib:jid_to_lus(From)),
             ?CODEC:encode({get, Blocking#blocking{ items = Items }}, From, jlib:jid_to_lus(To),
                           fun(_, _, Packet) -> put(encode_res, Packet) end),
             #xmlel{ children = ResponseChildren } = erase(encode_res),
             {stop, {result, ResponseChildren}};
+        {{ok, {get, #blocking{}}}, false} ->
+            {stop, {error, ?ERR_BAD_REQUEST}};
         _ ->
             {error, ?ERR_BAD_REQUEST}
     end.
 
 -spec process_iq_set(Acc :: any(), From :: #jid{}, To :: #jid{}, IQ :: #iq{}) ->
     {stop, {result, [jlib:xmlel()]}} | {error, #xmlel{}}.
-process_iq_set(_Acc, From, To, #iq{} = IQ) ->
-    case {?CODEC:decode(From, To, IQ), get_opt(To#jid.lserver, blocking, ?DEFAULT_BLOCKING)} of
+process_iq_set(_Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ) ->
+    MUCHost = gen_mod:get_module_opt_host(FromS, ?MODULE, ?DEFAULT_HOST),
+    case {?CODEC:decode(From, To, IQ), get_opt(MUCHost, blocking, ?DEFAULT_BLOCKING)} of
         {{ok, {set, #blocking{ items = Items }} = Blocking}, true} ->
             case lists:any(fun({_, _, {WhoU, WhoS}}) ->
                                    WhoU =:= <<>> orelse WhoS =:= <<>>
                            end, Items) of
                 true ->
-                    {error, ?ERR_BAD_REQUEST};
+                    {stop, {error, ?ERR_BAD_REQUEST}};
                 false ->
                     ok = ?BACKEND:set_blocking(jlib:jid_to_lus(From), Items),
                     ?CODEC:encode(Blocking, From, jlib:jid_to_lus(To),
@@ -297,6 +295,8 @@ process_iq_set(_Acc, From, To, #iq{} = IQ) ->
                     #xmlel{ children = ResponseChildren } = erase(encode_res),
                     {stop, {result, ResponseChildren}}
             end;
+        {{ok, {set, #blocking{}}}, false} ->
+            {stop, {error, ?ERR_BAD_REQUEST}};
         _ ->
             {error, ?ERR_BAD_REQUEST}
     end.
@@ -338,15 +338,15 @@ create_room(From, FromUS, To, #create{ raw_config = RawConfig } = Create0, OrigP
                     ?CODEC:encode({set, Create, RoomU == <<>>}, From,
                                   FinalRoomUS, fun ejabberd_router:route/3);
                 {error, exists} ->
-                    mod_muc_light_codec:encode_error({error, conflict}, From, To, OrigPacket,
+                    ?CODEC:encode_error({error, conflict}, From, To, OrigPacket,
                                                      fun ejabberd_router:route/3)
             end;
         {{error, Error}, _} ->
             ErrorText = io_lib:format("~s:~p", tuple_to_list(Error)),
-            mod_muc_light_codec:encode_error({error, bad_request, ErrorText}, From, To, OrigPacket,
+            ?CODEC:encode_error({error, bad_request, ErrorText}, From, To, OrigPacket,
                                              fun ejabberd_router:route/3);
         {_, _} ->
-            mod_muc_light_codec:encode_error({error, bad_request}, From, To, OrigPacket,
+            ?CODEC:encode_error({error, bad_request}, From, To, OrigPacket,
                                              fun ejabberd_router:route/3)
     end.
 
@@ -384,8 +384,12 @@ handle_disco_info_get(From, To, DiscoInfo) ->
 -spec handle_disco_items_get(From :: jid(), To :: jid(), DiscoItems :: #disco_items{},
                             OrigPacket :: jlib:xmlel()) -> ok.
 handle_disco_items_get(From, To, DiscoItems0, OrigPacket) ->
-    case ?BACKEND:get_user_rooms(jlib:jid_to_lus(From)) of
-        {ok, Rooms} ->
+    case catch ?BACKEND:get_user_rooms(jlib:jid_to_lus(From)) of
+        {error, Error} ->
+            ?ERROR_MSG("Couldn't get room list for user ~p: ~p", [From, Error]),
+            ?CODEC:encode_error({error, internal_server_error}, From, To, OrigPacket,
+                                fun ejabberd_router:route/3);
+        Rooms ->
             RoomsInfo = get_rooms_info(lists:sort(Rooms)),
             RoomsPerPage = get_opt(To#jid.lserver, rooms_per_page, ?DEFAULT_ROOMS_PER_PAGE),
             case apply_rsm(RoomsInfo, length(RoomsInfo),
@@ -395,14 +399,10 @@ handle_disco_items_get(From, To, DiscoItems0, OrigPacket) ->
                     ?CODEC:encode({get, DiscoItems}, From, jlib:jid_to_lus(To),
                                   fun ejabberd_router:route/3);
                 {error, item_not_found} ->
-                    mod_muc_light_codec:encode_error({error, item_not_found}, From, To, OrigPacket,
-                                                     fun ejabberd_router:route/3)
+                    ?CODEC:encode_error({error, item_not_found}, From, To, OrigPacket,
+                                        fun ejabberd_router:route/3)
 
-            end;
-        {error, Error} ->
-            ?ERROR_MSG("Couldn't get room list for user ~p: ~p", [From, Error]),
-            mod_muc_light_codec:encode_error({error, internal_server_error}, From, To, OrigPacket,
-                                             fun ejabberd_router:route/3)
+            end
     end.
 
 -spec get_rooms_info(Rooms :: [ejabberd:simple_bare_jid()]) -> [disco_room_info()].

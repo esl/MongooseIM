@@ -12,7 +12,7 @@
 -include("jlib.hrl").
 
 %% API
--export([encode_error/5]).
+-export([encode_error/6]).
 
 -type encoded_packet_handler() ::
     fun((From :: ejabberd:jid(), To :: ejabberd:jid(), Packet :: jlib:xmlel()) -> any()).
@@ -31,18 +31,22 @@
 
 -callback encode(Request :: muc_light_encode_request(), OriginalSender :: ejabberd:jid(),
                  RoomUS :: ejabberd:simple_bare_jid(), % may be just service domain
-                 HandleFun :: mod_muc_light_codec:encoded_packet_handler()) -> any().
+                 HandleFun :: encoded_packet_handler()) -> any().
+
+-callback encode_error(ErrMsg :: tuple(), OrigFrom :: ejabberd:jid(), OrigTo :: ejabberd:jid(),
+                       OrigPacket :: jlib:xmlel(), HandleFun :: encoded_packet_handler()) ->
+    any().
 
 %%====================================================================
 %% API
 %%====================================================================
 
--spec encode_error(ErrMsg :: tuple(), OrigFrom :: ejabberd:jid(), OrigTo :: ejabberd:jid(),
-                   OrigPacket :: jlib:xmlel(), HandleFun :: encoded_packet_handler()) ->
-    any().
-encode_error(ErrMsg, OrigFrom, OrigTo, OrigPacket, HandleFun) ->
+-spec encode_error(ErrMsg :: tuple(), ExtraChildren :: [jlib:xmlch()], OrigFrom :: ejabberd:jid(),
+                   OrigTo :: ejabberd:jid(), OrigPacket :: jlib:xmlel(),
+                   HandleFun :: encoded_packet_handler()) -> any().
+encode_error(ErrMsg, ExtraChildren, OrigFrom, OrigTo, OrigPacket, HandleFun) ->
     ErrorElem = make_error_elem(ErrMsg),
-    ErrorPacket = jlib:make_error_reply(OrigPacket#xmlel{ children = [] }, ErrorElem),
+    ErrorPacket = jlib:make_error_reply(OrigPacket#xmlel{ children = ExtraChildren }, ErrorElem),
     HandleFun(OrigTo, OrigFrom, ErrorPacket).
 
 -spec make_error_elem(tuple()) -> jlib:xmlel().
@@ -59,5 +63,9 @@ make_error_elem({error, bad_request, Text}) ->
 make_error_elem({error, feature_not_implemented}) ->
     ?ERR_FEATURE_NOT_IMPLEMENTED;
 make_error_elem({error, internal_server_error}) ->
-    ?ERR_INTERNAL_SERVER_ERROR.
+    ?ERR_INTERNAL_SERVER_ERROR;
+make_error_elem({error, registration_required}) ->
+    ?ERR_REGISTRATION_REQUIRED;
+make_error_elem({error, _}) ->
+    ?ERR_BAD_REQUEST.
 
