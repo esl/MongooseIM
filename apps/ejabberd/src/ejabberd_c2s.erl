@@ -477,91 +477,7 @@ wait_for_auth({xmlstreamelement, El}, StateData) ->
             fsm_next_state(wait_for_auth, StateData);
         {auth, _ID, set, {U, P, D, R}} ->
             JID = jlib:make_jid(U, StateData#state.server, R),
-            case (JID /= error) andalso
-                 (acl:match_rule(StateData#state.server,
-                                 StateData#state.access, JID) == allow) of
-                true ->
-                    DGen = fun(PW) ->
-                                   sha:sha1_hex(StateData#state.streamid
-                                                ++ binary_to_list(PW)) end,
-                    case ejabberd_auth:check_password_with_authmodule(
-                           U, StateData#state.server, P, D, DGen) of
-                        {true, AuthModule} ->
-                            ?INFO_MSG(
-                               "(~w) Accepted legacy authentication for ~s by ~p",
-                               [StateData#state.socket,
-                                jlib:jid_to_binary(JID), AuthModule]),
-                            SID = {now(), self()},
-                            Conn = get_conn_type(StateData),
-                            Info = [{ip, StateData#state.ip}, {conn, Conn},
-                                    {auth_module, AuthModule}],
-                            Res1 = jlib:make_result_iq_reply(El),
-                            Res = setelement(4, Res1, []),
-                            send_element(StateData, Res),
-                            ejabberd_sm:open_session(
-                              SID, U, StateData#state.server, R, Info),
-                            change_shaper(StateData, JID),
-                            {Fs, Ts, Pending} = ejabberd_hooks:run_fold(
-                                                  roster_get_subscription_lists,
-                                                  StateData#state.server,
-                                                  {[], [], []},
-                                                  [U, StateData#state.server]),
-                            LJID = jlib:jid_tolower(
-                                     jlib:jid_remove_resource(JID)),
-                            Fs1 = [LJID | Fs],
-                            Ts1 = [LJID | Ts],
-                            PrivList =
-                            ejabberd_hooks:run_fold(
-                              privacy_get_user_list, StateData#state.server,
-                              #userlist{},
-                              [U, StateData#state.server]),
-                            NewStateData =
-                            StateData#state{
-                              user = U,
-                              resource = R,
-                              jid = JID,
-                              sid = SID,
-                              conn = Conn,
-                              auth_module = AuthModule,
-                              pres_f = ?SETS:from_list(Fs1),
-                              pres_t = ?SETS:from_list(Ts1),
-                              pending_invitations = Pending,
-                              privacy_list = PrivList},
-                            fsm_next_state_pack(session_established,
-                                                NewStateData);
-                        _ ->
-                            IP = peerip(StateData#state.sockmod, StateData#state.socket),
-                            ?INFO_MSG(
-                               "(~w) Failed legacy authentication for ~s from IP ~s (~w)",
-                               [StateData#state.socket,
-                                jlib:jid_to_binary(JID), jlib:ip_to_list(IP), IP]),
-                            Err = jlib:make_error_reply(
-                                    El, ?ERR_NOT_AUTHORIZED),
-                            ejabberd_hooks:run(auth_failed, StateData#state.server,
-                                               [U, StateData#state.server]),
-                            send_element(StateData, Err),
-                            fsm_next_state(wait_for_auth, StateData)
-                    end;
-                _ ->
-                    if
-                        JID == error ->
-                            ?INFO_MSG(
-                               "(~w) Forbidden legacy authentication for "
-                               "username '~s' with resource '~s'",
-                               [StateData#state.socket, U, R]),
-                            Err = jlib:make_error_reply(El, ?ERR_JID_MALFORMED),
-                            send_element(StateData, Err),
-                            fsm_next_state(wait_for_auth, StateData);
-                        true ->
-                            ?INFO_MSG(
-                               "(~w) Forbidden legacy authentication for ~s",
-                               [StateData#state.socket,
-                                jlib:jid_to_binary(JID)]),
-                            Err = jlib:make_error_reply(El, ?ERR_NOT_ALLOWED),
-                            send_element(StateData, Err),
-                            fsm_next_state(wait_for_auth, StateData)
-                    end
-            end;
+            maybe_legacy_auth(JID, El, StateData, U, P, D, R);
         _ ->
             process_unauthenticated_stanza(StateData, El),
             fsm_next_state(wait_for_auth, StateData)
@@ -577,6 +493,74 @@ wait_for_auth({xmlstreamerror, _}, StateData) ->
     {stop, normal, StateData};
 wait_for_auth(closed, StateData) ->
     {stop, normal, StateData}.
+
+maybe_legacy_auth(error, El, StateData, U, _P, _D, R) ->
+    ?INFO_MSG(
+       "(~w) Forbidden legacy authentication for "
+       "username '~s' with resource '~s'",
+       [StateData#state.socket, U, R]),
+    Err = jlib:make_error_reply(El, ?ERR_JID_MALFORMED),
+    send_element(StateData, Err),
+    fsm_next_state(wait_for_auth, StateData);
+maybe_legacy_auth(JID, El, StateData, U, P, D, R) ->
+    case user_allowed(JID, StateData) of
+        true ->
+            do_legacy_auth(JID, El, StateData, U, P, D, R);
+        _ ->
+
+            ?INFO_MSG(
+               "(~w) Forbidden legacy authentication for ~s",
+               [StateData#state.socket,
+                jlib:jid_to_binary(JID)]),
+            Err = jlib:make_error_reply(El, ?ERR_NOT_ALLOWED),
+            send_element(StateData, Err),
+            fsm_next_state(wait_for_auth, StateData)
+    end.
+
+do_legacy_auth(JID, El, StateData, U, P, D, R) ->
+    case check_password_with_auth_module(U, StateData, P, D) of
+        {true, AuthModule} ->
+            do_open_legacy_session(El, StateData, U, R, JID,
+                                   AuthModule);
+        _ ->
+            IP = peerip(StateData#state.sockmod, StateData#state.socket),
+            ?INFO_MSG(
+               "(~w) Failed legacy authentication for ~s from IP ~s (~w)",
+               [StateData#state.socket,
+                jlib:jid_to_binary(JID), jlib:ip_to_list(IP), IP]),
+            Err = jlib:make_error_reply(
+                    El, ?ERR_NOT_AUTHORIZED),
+            ejabberd_hooks:run(auth_failed, StateData#state.server,
+                               [U, StateData#state.server]),
+            send_element(StateData, Err),
+            fsm_next_state(wait_for_auth, StateData)
+    end.
+
+check_password_with_auth_module(User, #state{server = Server}, Password, <<>>) ->
+    ejabberd_auth:check_password_with_authmodule(User, Server, Password);
+check_password_with_auth_module(User, StateData, _, Digest) ->
+    DGen = fun(PW) ->
+                   Sid = StateData#state.streamid,
+                   sha:sha1_hex(<<Sid/binary,
+                                  PW/binary>>)
+           end,
+    ejabberd_auth:check_password_with_authmodule(User, StateData#state.server,
+                                                 <<>>, Digest, DGen).
+
+do_open_legacy_session(El, StateData, U, R, JID, AuthModule) ->
+    ?INFO_MSG(
+       "(~w) Accepted legacy authentication for ~s by ~p",
+       [StateData#state.socket,
+        jlib:jid_to_binary(JID), AuthModule]),
+    Res1 = jlib:make_result_iq_reply(El),
+    Res = Res1#xmlel{children = []},
+    send_element(StateData, Res),
+    NewStateData = StateData#state{
+                     user = U,
+                     resource = R,
+                     jid = JID,
+                     auth_module = AuthModule},
+    do_open_session_common(JID, NewStateData).
 
 -spec wait_for_feature_request(Item :: ejabberd:xml_stream_item(),
                                State :: state()) -> fsm_return().
@@ -786,58 +770,7 @@ wait_for_session_or_sm({xmlstreamelement, El}, StateData0) ->
                                             StateData0),
     case jlib:iq_query_info(El) of
         #iq{type = set, xmlns = ?NS_SESSION} ->
-            U = StateData#state.user,
-            R = StateData#state.resource,
-            JID = StateData#state.jid,
-            case acl:match_rule(StateData#state.server,
-                                StateData#state.access, JID) of
-                allow ->
-                    ?INFO_MSG("(~w) Opened session for ~s",
-                              [StateData#state.socket,
-                               jlib:jid_to_binary(JID)]),
-                    Res = jlib:make_result_iq_reply(El),
-                    Packet = {jlib:jid_remove_resource(StateData#state.jid), StateData#state.jid, Res},
-                    {_, _, NewStateData0, _} = send_and_maybe_buffer_stanza(Packet, StateData, wait_for_session_or_sm),
-                    change_shaper(NewStateData0, JID),
-                    {Fs, Ts, Pending} = ejabberd_hooks:run_fold(
-                                          roster_get_subscription_lists,
-                                          NewStateData0#state.server,
-                                          {[], [], []},
-                                          [U, NewStateData0#state.server]),
-                    LJID = jlib:jid_tolower(jlib:jid_remove_resource(JID)),
-                    Fs1 = [LJID | Fs],
-                    Ts1 = [LJID | Ts],
-                    PrivList =
-                    ejabberd_hooks:run_fold(
-                      privacy_get_user_list, NewStateData0#state.server,
-                      #userlist{},
-                      [U, NewStateData0#state.server]),
-                    SID = {now(), self()},
-                    Conn = get_conn_type(NewStateData0),
-                    Info = [{ip, NewStateData0#state.ip}, {conn, Conn},
-                            {auth_module, NewStateData0#state.auth_module}],
-                    ejabberd_sm:open_session(
-                      SID, U, NewStateData0#state.server, R, Info),
-                    NewStateData =
-                    NewStateData0#state{
-                      sid = SID,
-                      conn = Conn,
-                      pres_f = ?SETS:from_list(Fs1),
-                      pres_t = ?SETS:from_list(Ts1),
-                      pending_invitations = Pending,
-                      privacy_list = PrivList},
-                    fsm_next_state_pack(session_established,
-                                        NewStateData);
-                _ ->
-                    ejabberd_hooks:run(forbidden_session_hook,
-                                       StateData#state.server, [JID]),
-                    ?INFO_MSG("(~w) Forbidden session for ~s",
-                              [StateData#state.socket,
-                               jlib:jid_to_binary(JID)]),
-                    Err = jlib:make_error_reply(El, ?ERR_NOT_ALLOWED),
-                    send_element(StateData, Err),
-                    fsm_next_state(wait_for_session_or_sm, StateData)
-            end;
+            maybe_open_session(El, StateData);
         _ ->
             fsm_next_state(wait_for_session_or_sm, StateData)
     end;
@@ -856,6 +789,62 @@ wait_for_session_or_sm({xmlstreamerror, _}, StateData) ->
 
 wait_for_session_or_sm(closed, StateData) ->
     {stop, normal, StateData}.
+
+maybe_open_session(El, #state{jid = JID} = StateData) ->
+    case user_allowed(JID, StateData) of
+        true ->
+            do_open_session(El, JID, StateData);
+        _ ->
+            ejabberd_hooks:run(forbidden_session_hook,
+                               StateData#state.server, [JID]),
+            ?INFO_MSG("(~w) Forbidden session for ~s",
+                      [StateData#state.socket,
+                       jlib:jid_to_binary(JID)]),
+            Err = jlib:make_error_reply(El, ?ERR_NOT_ALLOWED),
+            send_element(StateData, Err),
+            fsm_next_state(wait_for_session_or_sm, StateData)
+    end.
+
+do_open_session(El, JID, StateData) ->
+    ?INFO_MSG("(~w) Opened session for ~s",
+              [StateData#state.socket,
+               jlib:jid_to_binary(JID)]),
+    Res = jlib:make_result_iq_reply(El),
+    Packet = {jlib:jid_remove_resource(StateData#state.jid), StateData#state.jid, Res},
+    {_, _, NewStateData0, _} = send_and_maybe_buffer_stanza(Packet, StateData, wait_for_session_or_sm),
+    do_open_session_common(JID, NewStateData0).
+
+do_open_session_common(JID, #state{user = U, resource = R} = NewStateData0) ->
+    change_shaper(NewStateData0, JID),
+    {Fs, Ts, Pending} = ejabberd_hooks:run_fold(
+                          roster_get_subscription_lists,
+                          NewStateData0#state.server,
+                          {[], [], []},
+                          [U, NewStateData0#state.server]),
+    LJID = jlib:jid_tolower(jlib:jid_remove_resource(JID)),
+    Fs1 = [LJID | Fs],
+    Ts1 = [LJID | Ts],
+    PrivList =
+    ejabberd_hooks:run_fold(
+      privacy_get_user_list, NewStateData0#state.server,
+      #userlist{},
+      [U, NewStateData0#state.server]),
+    SID = {now(), self()},
+    Conn = get_conn_type(NewStateData0),
+    Info = [{ip, NewStateData0#state.ip}, {conn, Conn},
+            {auth_module, NewStateData0#state.auth_module}],
+    ejabberd_sm:open_session(
+      SID, U, NewStateData0#state.server, R, Info),
+    NewStateData =
+    NewStateData0#state{
+      sid = SID,
+      conn = Conn,
+      pres_f = ?SETS:from_list(Fs1),
+      pres_t = ?SETS:from_list(Ts1),
+      pending_invitations = Pending,
+      privacy_list = PrivList},
+    fsm_next_state_pack(session_established,
+                        NewStateData).
 
 -spec session_established(Item :: ejabberd:xml_stream_item(),
                           State :: state()) -> fsm_return().
@@ -2282,8 +2271,7 @@ is_ip_blacklisted({IP,_Port}) ->
 
 %% @doc Check from attributes.
 -spec check_from(El, FromJID) -> Result when
-      El :: jlib:xmlel(),
-      FromJID :: ejabberd:jid(),
+      El :: jlib:xmlel(), FromJID :: ejabberd:jid(),
       Result :: 'invalid-from'  | jlib:xmlel().
 check_from(El, FromJID) ->
     case xml:get_tag_attr(<<"from">>, El) of
@@ -2887,3 +2875,16 @@ handle_sasl_step(#state{server = Server, socket= Sock} = State, StepRes) ->
             send_element(State, sasl_failure_stanza(Error)),
             {wait_for_feature_request, State}
     end.
+
+user_allowed(JID, #state{server = Server, access = Access}) ->
+    case acl:match_rule(Server, Access, JID)  of
+        allow ->
+            open_session_allowed_hook(Server, JID);
+        deny ->
+            false
+    end.
+
+open_session_allowed_hook(Server, JID) ->
+    allow == ejabberd_hooks:run_fold(session_opening_allowed_for_user,
+                                     Server,
+                                     allow, [JID]).

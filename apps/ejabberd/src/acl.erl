@@ -30,6 +30,7 @@
 -export([start/0,
          to_record/3,
          add/3,
+         delete/3,
          add_list/3,
          match_rule/3,
          % for debugging only
@@ -76,17 +77,31 @@ start() ->
     ok.
 
 -spec to_record(Host :: host(),
-                AclName :: atom(),
+                ACLName :: atom(),
                 ACLSpec :: aclspec()) -> acl().
 to_record(Host, ACLName, ACLSpec) ->
     #acl{aclname = {ACLName, Host}, aclspec = normalize_spec(ACLSpec)}.
 
+-spec add(Host :: host(),
+          ACLName :: atom(),
+          ACLSpec :: aclspec()) -> {atomic, term()} | {aborted, term()}.
 add(Host, ACLName, ACLSpec) ->
     F = fun() ->
-                mnesia:write(#acl{aclname = {ACLName, Host},
-                                  aclspec = normalize_spec(ACLSpec)})
+                ACLRecord = to_record(Host, ACLName, ACLSpec),
+                mnesia:write(ACLRecord)
         end,
     mnesia:transaction(F).
+
+-spec delete(Host :: host(),
+          ACLName :: atom(),
+          ACLSpec :: aclspec()) -> {atomic, term()} | {aborted, term()}.
+delete(Host, ACLName, ACLSpec) ->
+    F = fun() ->
+                ACLRecord = to_record(Host, ACLName, ACLSpec),
+                mnesia:delete_object(ACLRecord)
+        end,
+    mnesia:transaction(F).
+
 
 add_list(Host, ACLs, Clear) ->
     F = fun() ->

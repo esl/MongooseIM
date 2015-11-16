@@ -235,6 +235,7 @@ register_host(Host) ->
 unregister_host(Host) ->
     gen_server:call(?MODULE,{unregister_host,Host}).
 
+
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -247,12 +248,7 @@ unregister_host(Host) ->
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
 init([]) ->
-    lists:foreach(
-      fun(Host) ->
-              ejabberd_router:register_route(Host, {apply, ?MODULE, route}),
-              ejabberd_hooks:add(local_send_to_resource_hook, Host,
-                                 ?MODULE, bounce_resource_packet, 100)
-      end, ?MYHOSTS),
+    lists:foreach(fun do_register_host/1, ?MYHOSTS),
     catch ets:new(?IQTABLE, [named_table, public]),
     update_table(),
     mnesia:create_table(iq_response,
@@ -273,15 +269,11 @@ init([]) ->
 handle_call({unregister_host, Host}, _From, State) ->
     [ejabberd_c2s:stop(Pid)
      || {_, {_, Pid}, _, _} <- ejabberd_sm:get_vh_session_list(Host)],
-    ejabberd_router:unregister_route(Host),
-    ejabberd_hooks:delete(local_send_to_resource_hook, Host,
-                          ?MODULE, bounce_resource_packet, 100),
+    do_unregister_host(Host),
     mongoose_metrics:remove_host_metrics(Host),
     {reply, ok, State};
 handle_call({register_host, Host}, _From, State) ->
-    ejabberd_router:register_route(Host, {apply, ?MODULE, route}),
-    ejabberd_hooks:add(local_send_to_resource_hook, Host,
-                       ?MODULE, bounce_resource_packet, 100),
+    do_register_host(Host),
     mongoose_metrics:init_predefined_host_metrics(Host),
     {reply, ok, State};
 handle_call(_Request, _From, State) ->
@@ -458,3 +450,14 @@ cancel_timer(TRef) ->
         _ ->
             ok
     end.
+
+do_register_host(Host) ->
+    ejabberd_router:register_route(Host, {apply, ?MODULE, route}),
+    ejabberd_hooks:add(local_send_to_resource_hook, Host,
+                       ?MODULE, bounce_resource_packet, 100).
+
+do_unregister_host(Host) ->
+    ejabberd_router:unregister_route(Host),
+    ejabberd_hooks:delete(local_send_to_resource_hook, Host,
+                          ?MODULE, bounce_resource_packet, 100).
+

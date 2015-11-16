@@ -1,4 +1,4 @@
-%%%----------------------------------------------------------------------
+
 %%% File    : ejabberd_auth.erl
 %%% Author  : Alexey Shchepin <alexey@process-one.net>
 %%% Purpose : Authentification
@@ -218,18 +218,10 @@ do_check_password_loop([AuthModule | AuthModules], Args) ->
     end.
 
 -spec check_digest(binary(), fun(), binary(), binary()) -> boolean().
-check_digest(Digest, DigestGen, Password, Passwd) ->
-    DigRes = if
-                 Digest /= <<>> ->
-                     Digest == DigestGen(Passwd);
-                 true ->
-                     false
-             end,
-    if DigRes ->
-           true;
-       true ->
-           (Passwd == Password) and (Password /= <<>>)
-    end.
+check_digest(<<>>, _, <<>>, _) ->
+    false; %%empty digest and password
+check_digest(Digest, DigestGen, _Password, Passwd) ->
+    Digest == DigestGen(Passwd).
 
 -spec set_password(User :: ejabberd:user(),
                    Server :: ejabberd:server(),
