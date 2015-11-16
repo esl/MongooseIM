@@ -38,7 +38,7 @@
          on_presence_update/4,
          store_last_info/4,
          get_last_info/2,
-         count_active_users/3,
+         count_active_users/2,
          remove_user/2]).
 
 -include("ejabberd.hrl").
@@ -63,10 +63,9 @@
     Reason  :: term(),
     Result  :: {ok, non_neg_integer(), binary()} | {error, Reason} | not_found.
 
--callback count_active_users(LServer, Timestamp, Comparator) -> Result when
+-callback count_active_users(LServer, Timestamp) -> Result when
     LServer :: ejabberd:lserver(),
     Timestamp :: non_neg_integer(),
-    Comparator :: '<' | '>',
     Result :: non_neg_integer().
 
 -callback set_last_info(LUser, LServer, Timestamp, Status) -> Result when
@@ -223,10 +222,9 @@ get_last_iq(IQ, SubEl, LUser, LServer) ->
 get_last(LUser, LServer) ->
     ?BACKEND:get_last(LUser, LServer).
 
--spec count_active_users(ejabberd:lserver(), non_neg_integer(), '<' | '>')
-        -> non_neg_integer().
-count_active_users(LServer, Timestamp, Comparator) ->
-    ?BACKEND:count_active_users(LServer, Timestamp, Comparator).
+-spec count_active_users(ejabberd:lserver(), non_neg_integer()) -> non_neg_integer().
+count_active_users(LServer, Timestamp) ->
+    ?BACKEND:count_active_users(LServer, Timestamp).
 
 -spec on_presence_update(ejabberd:user(), ejabberd:server(), ejabberd:resource(),
                          Status :: binary()) -> ok | {error, term()}.

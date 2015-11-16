@@ -140,6 +140,7 @@ Configure the database section as follows:
 * private storage
 * vCard and vCard search
 * MAM (experimental feature for one-to-one archives)
+* last activity
 
 **Setup**
 
@@ -181,12 +182,16 @@ curl -XPUT $RIAK_HOST/search/index/mam \
 riak-admin bucket-type create mam_yz '{"props":{"datatype":"map", "search_index":"mam"}}'
 riak-admin bucket-type activate mam_yz
 
+# Last activity
+riak-admin bucket-type create last '{"props":{"last_write_wins":true}}'
+riak-admin bucket-type activate last
+
 ```
 
 This will create backed types, search schemas and indexes required
 for storing above persitent date and it will activate them.
 
-You should also configure Riak in `ejabberd.cfg` file. 
+You should also configure Riak in `ejabberd.cfg` file.
 Please refer to [Advanced configuration/Database setup](../Advanced-configuration.md) for more information.
 
 # Cassandra

@@ -39,3 +39,6 @@ ${1}riak-admin bucket-type activate vcard
 
 ${1}riak-admin bucket-type create mam_yz '{"props":{"datatype":"map", "search_index":"mam"}}'
 ${1}riak-admin bucket-type activate mam_yz
+
+${1}riak-admin bucket-type create last '{"props":{"last_write_wins":true}}'
+${1}riak-admin bucket-type activate last
