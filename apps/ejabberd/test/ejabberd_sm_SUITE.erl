@@ -1,5 +1,6 @@
 -module(ejabberd_sm_SUITE).
 -include_lib("eunit/include/eunit.hrl").
+-include_lib("common_test/include/ct.hrl").
 -include_lib("ejabberd/src/ejabberd_c2s.hrl").
 -include_lib("ejabberd/include/ejabberd.hrl").
 -compile([export_all]).
@@ -17,17 +18,18 @@ all() -> [{group, mnesia}, {group, redis}].
 
 init_per_suite(C) ->
     application:start(p1_stringprep),
-    application:start(syntax_tools),
-    application:start(compiler),
-    application:start(goldrush),
-    application:start(lager),
-    application:start(exometer),
+    ejabberd_helper:ensure_all_started(exometer),
     F = fun() ->
         ejabberd_sm_backend_sup:start_link(),
         receive stop -> ok end
     end,
     Pid = spawn(F),
     [{pid, Pid} | C].
+
+end_per_suite(C) ->
+    Pid = ?config(pid, C),
+    Pid ! stop,
+    application:stop(exometer).
 
 groups() ->
     [{mnesia, [], tests()},
