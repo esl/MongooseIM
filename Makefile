@@ -1,3 +1,5 @@
+fake change
+
 .PHONY: rel deps test show_test_results
 
 EJABBERD_DIR = apps/ejabberd
