@@ -21,7 +21,7 @@
          purge_multiple_messages/9]).
 
 %% Internal exports
--export([start_link/3]).
+-export([start_link/4]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -89,7 +89,7 @@
 
 start(Host, Opts) ->
     create_worker_pool(Host),
-    mod_mam_muc_ca_sup:start(Host, servers(Host)),
+    mod_mam_muc_ca_sup:start(Host, cassandra_config(Host)),
     start_muc(Host, Opts).
 
 stop(Host) ->
@@ -97,8 +97,10 @@ stop(Host) ->
     delete_worker_pool(Host),
     mod_mam_muc_ca_sup:stop(Host).
 
-servers(Host) ->
-    gen_mod:get_module_opt(Host, ?MODULE, servers, [{"localhost", 9042, 1}]).
+cassandra_config(Host) ->
+    gen_mod:get_module_opt(Host, ?MODULE, cassandra_config, [{servers, [{"localhost", 9042, 1}]},
+                                                             {keyspace, "mam"},
+                                                             {credentials, undefined}]).
 
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam_muc
@@ -156,8 +158,8 @@ select_worker(Host, RoomID) ->
 group_name(Host) ->
     {mam_muc_ca, node(), Host}.
 
-start_link(Host, Addr, Port) ->
-    gen_server:start_link(?MODULE, [Host, Addr, Port], []).
+start_link(Host, Addr, Port, ClientOptions) ->
+    gen_server:start_link(?MODULE, [Host, Addr, Port, ClientOptions], []).
 
 
 %% ----------------------------------------------------------------------
@@ -680,9 +682,8 @@ execute_remove_archive(RoomID, ConnPid, DeleteQueryID, DeleteQueryTypes) ->
 %%                         {stop, Reason}
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
-init([Host, Addr, Port]) ->
+init([Host, Addr, Port, ClientOptions]) ->
     register_worker(Host, self()),
-    ClientOptions = [{keyspace, "mam"}],
     {ok, ConnPid} = seestar_session:start_link(Addr, Port, ClientOptions),
     InsertQuery = "INSERT INTO mam_muc_message "
         "(id, room_id, nick_name, message) "
