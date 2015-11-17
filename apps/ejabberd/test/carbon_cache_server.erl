@@ -1,7 +1,8 @@
--module(carbon_server).
+-module(carbon_cache_server).
 
 -export([start/2]).
 -export([server/2]).
+-export([wait_for_accepting/0]).
 
 start(Num,LPort) ->
     case gen_tcp:listen(LPort,[{active, false},{packet,2}]) of
@@ -45,4 +46,10 @@ loop(S) ->
         {tcp_closed,S} ->
             io:format("Socket ~w closed [~w]~n",[S,self()]),
             ok
+    end.
+
+wait_for_accepting() ->
+    receive
+        {accepting, Pid} ->
+            Pid
     end.

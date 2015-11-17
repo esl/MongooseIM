@@ -8,12 +8,12 @@
 
 -compile([export_all]).
 
-all() -> [subscriptions_initialised].
+all() -> [no_skip_metric, subscriptions_initialised].
 
 init_per_suite(C) ->
     application:load(exometer),
     application:set_env(exometer, mongooseim_report_interval, 1000),
-    {Port, Socket} = carbon_server:start(1, 0),
+    {Port, Socket} = carbon_cache_server:start(1, 0),
     Sup = spawn(fun() ->
                         mim_ct_sup:start_link(ejabberd_sup),
                         Hooks =
@@ -39,10 +39,7 @@ init_per_suite(C) ->
                 end),
     Reporters = get_reporters_cfg(Port),
     application:set_env(exometer, report, Reporters),
-    PortServer = receive
-                     {accepting, Pid} ->
-                         Pid
-                 end,
+    PortServer = carbon_cache_server:wait_for_accepting(),
     {ok, _Apps} = ejabberd_helper:ensure_all_started(exometer),
     setup_meck(),
     exometer:new([carbon, packets], spiral),
@@ -58,6 +55,10 @@ end_per_suite(C) ->
     meck:unload(),
     application:stop(exometer),
     C.
+
+no_skip_metric(_C) ->
+    ok = mongoose_metrics:create_generic_hook_metric(<<"localhost">>, sm_register_connection_hook),
+    undefined = exometer:info([<<"localhost">>, sm_register_connection_hook]).
 
 
 subscriptions_initialised(_C) ->
