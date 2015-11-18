@@ -28,6 +28,7 @@
 -define(SECURE_USER, secure_joe).
 -define(CERT_FILE, "priv/ssl/fake_server.pem").
 -define(TLS_VERSIONS, ["tlsv1", "tlsv1.1", "tlsv1.2"]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -41,7 +42,9 @@ all() ->
             [{group, negative},
              {group, pre_xmpp_1_0},
              {group, starttls},
-             {group, tls}]
+             {group, tls},
+             {group, ciphers_default},
+             {group, 'ciphers_only_DHE-RSA-AES256-SHA'}]
     end.
 
 groups() ->
@@ -50,7 +53,13 @@ groups() ->
                      invalid_stream_namespace]},
      {pre_xmpp_1_0, [], [pre_xmpp_1_0_stream]},
      {starttls, test_cases()},
-     {tls, generate_tls_vsn_tests()}].
+     {tls, generate_tls_vsn_tests()},
+     {ciphers_default, [], [all_possible_ciphers,
+                            'success_with_DHE-RSA-AES256-SHA',
+                            'success_with_DHE-RSA-AES128-SHA']},
+     {'ciphers_only_DHE-RSA-AES256-SHA', [], [all_possible_ciphers,
+                                              'success_with_DHE-RSA-AES256-SHA',
+                                              'failure_with_DHE-RSA-AES128-SHA']}].
 
 test_cases() ->
     generate_tls_vsn_tests() ++
@@ -89,6 +98,12 @@ init_per_group(tls, Config) ->
     JoeSpec2 = {?SECURE_USER, lists:keystore(ssl, 1, JoeSpec, {ssl, true})},
     NewUsers = lists:keystore(?SECURE_USER, 1, Users, JoeSpec2),
     lists:keystore(escalus_users, 1, Config, {escalus_users, NewUsers});
+init_per_group(ciphers_default, Config) ->
+    config_ejabberd_node_tls(Config, fun mk_value_for_tls_config_pattern/0),
+    ejabberd_node_utils:restart_application(ejabberd),
+    [{c2s_port, 5222} | Config];
+init_per_group('ciphers_only_DHE-RSA-AES256-SHA', Config) ->
+    [{c2s_port, 5233} | Config];
 init_per_group(_, Config) ->
     Config.
 
@@ -212,9 +227,49 @@ should_not_send_other_features_with_starttls_required(Config) ->
                          children = [#xmlel{name = <<"required">>}]}],
                  Features).
 
+all_possible_ciphers(Config) ->
+    CiphersStr = os:cmd("openssl ciphers 'ALL:eNULL'"),
+    Ciphers = [string:strip(C, both, $\n) || C <- string:tokens(CiphersStr, ":")],
+    Port = get_c2s_port(Config),
+    {Allowed, Disallowed} = lists:partition(fun(Cipher) ->
+                                                    openssl_s_client_test(Cipher, Port)
+                                            end, Ciphers),
+    ct:print("allowed cipher suites: ~p", [Allowed]),
+    ct:print("disallowed cipher suites: ~p", [Disallowed]).
+
+'success_with_DHE-RSA-AES256-SHA'(Config) ->
+    Result = openssl_s_client_test("DHE-RSA-AES256-SHA", get_c2s_port(Config)),
+    ?assert(Result).
+
+'failure_with_DHE-RSA-AES128-SHA'(Config) ->
+    Result = openssl_s_client_test("DHE-RSA-AES128-SHA", get_c2s_port(Config)),
+    ?assert(Result == false).
+
+'success_with_DHE-RSA-AES128-SHA'(Config) ->
+    Result = openssl_s_client_test("DHE-RSA-AES128-SHA", get_c2s_port(Config)),
+    ?assert(Result).
+
+
 %%--------------------------------------------------------------------
 %% Internal functions
 %%--------------------------------------------------------------------
+
+get_c2s_port(Config) ->
+    case ?config(c2s_port, Config) of
+        undefined ->
+            5223;
+        Value ->
+            Value
+    end.
+
+openssl_s_client_test(Cipher, Port) ->
+    PortStr = integer_to_list(Port),
+    R = os:cmd("openssl s_client -connect localhost:"++PortStr++" -cipher "
+               "\"" ++ Cipher ++ "\" 2>&1"
+               " | grep 'Cipher is "++Cipher++"'"),
+    R =/= [].
+
+
 
 restore_ejabberd_node(Config) ->
     ejabberd_node_utils:restore_config_file(Config),
@@ -233,6 +288,9 @@ mk_value_for_tls_config_pattern() ->
 
 mk_value_for_starttls_required_config_pattern() ->
     {tls_config, "{certfile, \"" ++ ?CERT_FILE ++ "\"}, starttls_required,"}.
+
+mk_value_for_ciphers_list() ->
+    {tls_config, "{certfile, \"" ++ ?CERT_FILE ++ "\"}, starttls, {ciphers, \"DHE-RSA-AES256-SHA\"},"}.
 
 set_secure_connection_protocol(UserSpec, Version) ->
     [{ssl_opts, [{versions, [Version]}]} | UserSpec].
