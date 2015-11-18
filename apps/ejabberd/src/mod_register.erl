@@ -124,7 +124,7 @@ handle_set(IQ, ClientJID, ServerJID, Source) ->
                     Credentials = get_username_and_password_values(Query),
                     register_or_change_password(Credentials, ClientJID, ServerJID, IQ, Source);
                 false ->
-                    ignore
+                    error_response(IQ, ?ERR_BAD_REQUEST)
             end
     end.
 
