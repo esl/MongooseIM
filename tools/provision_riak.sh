@@ -1,7 +1,7 @@
 #!/bin/bash
 
 INSTANCE_NAME="mongooseim-riak"
-IMAGE_NAME="tutum/riak"
+IMAGE_NAME="likemindnetworks/riak"
 
 # SSH alias for target docker host machine
 SSH_DOCKERMACHINE_ALIAS="docker_riak"
