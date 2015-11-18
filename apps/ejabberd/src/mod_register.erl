@@ -144,11 +144,9 @@ has_only_remove_child(#xmlel{children = C} = Q) when length(C) > 1 ->
     end.
 
 has_username_and_password_children(Q) ->
-    {absent, absent} =/= get_username_and_password_elements(Q).
-
-get_username_and_password_elements(Q) ->
-    {exml_query:path(Q, [{element, <<"username">>}], absent),
-     exml_query:path(Q, [{element, <<"password">>}], absent)}.
+    (undefined =/= exml_query:path(Q, [{element, <<"username">>}]))
+     and
+    (undefined =/= exml_query:path(Q, [{element, <<"password">>}])).
 
 get_username_and_password_values(Q) ->
     {exml_query:path(Q, [{element, <<"username">>}, cdata]),
