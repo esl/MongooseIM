@@ -113,12 +113,12 @@ process_iq_set(From, To, #iq{sub_el = Child} = IQ, Source) ->
 
 handle_set(IQ, ClientJID, ServerJID, Source) ->
     #iq{sub_el = Query} = IQ,
-    case has_only_remove_child(Query) of
-        true ->
-            attempt_cancelation(ClientJID, ServerJID, IQ);
-        {false, more} ->
+    case which_child_elements(Query) of
+        bad_request ->
             error_response(IQ, ?ERR_BAD_REQUEST);
-        {false, absent} ->
+        only_remove_child ->
+            attempt_cancelation(ClientJID, ServerJID, IQ);
+        various_elements_present ->
             case has_username_and_password_children(Query) of
                 true ->
                     Credentials = get_username_and_password_values(Query),
@@ -128,20 +128,22 @@ handle_set(IQ, ClientJID, ServerJID, Source) ->
             end
     end.
 
-has_only_remove_child(#xmlel{children = C} = Q) when length(C) =:= 1 ->
-    case exml_query:path(Q, [{element, <<"remove">>}], absent) of
-        absent ->
-            {false, absent};
-        _ ->
-            true
+which_child_elements(#xmlel{children = C} = Q) when length(C) =:= 1 ->
+        case Q#xmlel.children of
+            [#xmlel{name = <<"remove">>}] ->
+                only_remove_child;
+            [_] ->
+                bad_request
+        end;
+which_child_elements(#xmlel{children = C} = Q) when length(C) > 1 ->
+    case exml_query:subelement(Q, <<"remove">>) of
+        #xmlel{name = <<"remove">>} ->
+            bad_request;
+        undefined ->
+            various_elements_present
     end;
-has_only_remove_child(#xmlel{children = C} = Q) when length(C) > 1 ->
-    case exml_query:path(Q, [{element, <<"remove">>}], absent) of
-        absent ->
-            {false, absent};
-        _ ->
-            {false, more}
-    end.
+which_child_elements(#xmlel{children = []}) ->
+    bad_request.
 
 has_username_and_password_children(Q) ->
     (undefined =/= exml_query:path(Q, [{element, <<"username">>}]))
