@@ -44,6 +44,9 @@
          session_cleanup/4
         ]).
 
+%% For testing and debugging
+-export([enable/4, disable/3, resources_to_cc/2]).
+
 -define(NS_CC_2, <<"urn:xmpp:carbons:2">>).
 -define(NS_CC_1, <<"urn:xmpp:carbons:1">>).
 -define(NS_FORWARD, <<"urn:xmpp:forward:0">>).
