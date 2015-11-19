@@ -48,6 +48,10 @@
          bounce_resource_packet/3
         ]).
 
+%% Hooks callbacks
+
+-export([node_cleanup/1]).
+
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
@@ -235,6 +239,22 @@ register_host(Host) ->
 unregister_host(Host) ->
     gen_server:call(?MODULE,{unregister_host,Host}).
 
+%%====================================================================
+%% API
+%%====================================================================
+
+node_cleanup(Node) ->
+    F = fun() ->
+                Keys = mnesia:select(
+                         iq_response,
+                         [{#iq_response{timer = '$1', id = '$2', _ = '_'},
+                           [{'==', {node, '$1'}, Node}],
+                           ['$2']}]),
+                lists:foreach(fun(Key) ->
+                                      mnesia:delete({iq_response, Key})
+                              end, Keys)
+        end,
+    mnesia:async_dirty(F).
 
 %%====================================================================
 %% gen_server callbacks
@@ -255,6 +275,7 @@ init([]) ->
                         [{ram_copies, [node()]},
                          {attributes, record_info(fields, iq_response)}]),
     mnesia:add_table_copy(iq_response, node(), ram_copies),
+    ejabberd_hooks:add(node_cleanup, global, ?MODULE, node_cleanup, 50),
     {ok, #state{}}.
 
 %%--------------------------------------------------------------------
@@ -349,6 +370,7 @@ handle_info(_Info, State) ->
 %% The return value is ignored.
 %%--------------------------------------------------------------------
 terminate(_Reason, _State) ->
+    ejabberd_hooks:delete(node_cleanup, global, ?MODULE, node_cleanup, 50),
     ok.
 
 %%--------------------------------------------------------------------

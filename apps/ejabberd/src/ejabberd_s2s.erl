@@ -45,6 +45,9 @@
          domain_utf8_to_ascii/1
         ]).
 
+%% Hooks callbacks
+-export([node_cleanup/1]).
+
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
@@ -169,6 +172,23 @@ dirty_get_connections() ->
     mnesia:dirty_all_keys(s2s).
 
 %%====================================================================
+%% Hooks callbacks
+%%====================================================================
+
+node_cleanup(Node) ->
+    F = fun() ->
+                Es = mnesia:select(
+                       s2s,
+                       [{#s2s{pid = '$1', _ = '_'},
+                         [{'==', {node, '$1'}, Node}],
+                         ['$_']}]),
+                lists:foreach(fun(E) ->
+                                      mnesia:delete_object(E)
+                              end, Es)
+        end,
+    mnesia:async_dirty(F).
+
+%%====================================================================
 %% gen_server callbacks
 %%====================================================================
 
@@ -184,8 +204,8 @@ init([]) ->
     mnesia:create_table(s2s, [{ram_copies, [node()]}, {type, bag},
                               {attributes, record_info(fields, s2s)}]),
     mnesia:add_table_copy(s2s, node(), ram_copies),
-    mnesia:subscribe(system),
     ejabberd_commands:register_commands(commands()),
+    ejabberd_hooks:add(node_cleanup, global, ?MODULE, node_cleanup, 50),
     {ok, #state{}}.
 
 %%--------------------------------------------------------------------
@@ -216,9 +236,6 @@ handle_cast(_Msg, State) ->
 %%                                       {stop, Reason, State}
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
-handle_info({mnesia_system_event, {mnesia_down, Node}}, State) ->
-    clean_table_from_bad_node(Node),
-    {noreply, State};
 handle_info({route, From, To, Packet}, State) ->
     case catch do_route(From, To, Packet) of
         {'EXIT', Reason} ->
@@ -239,6 +256,7 @@ handle_info(_Info, State) ->
 %% The return value is ignored.
 %%--------------------------------------------------------------------
 terminate(_Reason, _State) ->
+    ejabberd_hooks:delete(node_cleanup, global, ?MODULE, node_cleanup, 50),
     ejabberd_commands:unregister_commands(commands()),
     ok.
 
@@ -252,18 +270,6 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
-clean_table_from_bad_node(Node) ->
-    F = fun() ->
-                Es = mnesia:select(
-                       s2s,
-                       [{#s2s{pid = '$1', _ = '_'},
-                         [{'==', {node, '$1'}, Node}],
-                         ['$_']}]),
-                lists:foreach(fun(E) ->
-                                      mnesia:delete_object(E)
-                              end, Es)
-        end,
-    mnesia:async_dirty(F).
 
 -spec do_route(From :: ejabberd:jid(),
                To :: ejabberd:jid(),
@@ -607,3 +613,4 @@ get_s2s_state(S2sPid)->
                 {badrpc,_} -> [{status, error}]
             end,
     [{s2s_pid, S2sPid} | Infos].
+
