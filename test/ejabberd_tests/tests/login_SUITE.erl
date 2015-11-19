@@ -45,6 +45,7 @@ groups() ->
      {login_scram, [sequence], scram_tests()},
      {login_scram_store_plain, [sequence], scram_tests()},
      {legacy_auth, [sequence], [legacy_successful_plain,
+                                legacy_unsuccessful_plain,
                                 legacy_successful_digest,
                                 legacy_blocked_user]},
      {messages, [sequence], [messages_story, message_zlib_limit]}].
@@ -282,6 +283,19 @@ legacy_successful_digest(Config) ->
 
 legacy_successful_plain(Config) ->
     legacy_auth(Config, legacy_auth_plain).
+legacy_unsuccessful_plain(Config) ->
+    Spec = escalus_users:get_userspec(Config, alice),
+    NewSpec = lists:keyreplace(password, 1, Spec, {password, <<"wrong_pass">>}),
+    Users = ?config(escalus_users, Config),
+    NewUsers = lists:keyreplace(alice, 1, Users, {alice, NewSpec}),
+    NewConfig = lists:keyreplace(escalus_users, 1, Config, {escalus_users, NewUsers}),
+    try
+        legacy_auth(NewConfig, legacy_auth_plain),
+        ct:fail("Authenticated but shouldn't")
+    catch
+        error:{assertion_failed,assert,is_iq_result,_,_,_} ->
+            ok
+    end.
 
 legacy_auth(Config, Function) ->
     %% given
