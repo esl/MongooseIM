@@ -39,7 +39,7 @@ ct: deps quick_compile
 # $ make qct SUITE=amp_resolver_SUITE
 qct:
 	mkdir -p /tmp/ct_log
-	ct_run -pa apps/*/ebin -pa deps/*/ebin -dir apps/*/test\
+	ct_run -pa apps/*/ebin -pa deps/*/ebin -pa ebin -dir apps/*/test\
         -I apps/*/include -logdir /tmp/ct_log -suite $(SUITE)_SUITE -noshell
 
 test: test_deps
@@ -52,7 +52,9 @@ test_preset: test_deps
 run: deps compile quickrun
 
 quickrun: etc/ejabberd.cfg etc/app.config certs_priv
-	erl -sname mongooseim@localhost -setcookie ejabberd -pa ebin deps/*/ebin apps/*/ebin -config etc/app.config -s mongooseim
+	erl -sname mongooseim@localhost -setcookie ejabberd \
+		-pa ebin deps/*/ebin apps/*/ebin -config etc/app.config \
+		-s mongooseim
 
 etc/ejabberd.cfg:
 	@mkdir -p $(@D)
