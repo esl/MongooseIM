@@ -137,6 +137,7 @@ Configure the database section as follows:
 **Can be used for:**
 
 * users (credentials)
+* rosters
 * private storage
 * vCard and vCard search
 * MAM (experimental feature for one-to-one archives)
@@ -151,6 +152,12 @@ To be able to store above persistent date one have to run the following command:
 # user base
 riak-admin bucket-type create users '{"props":{"datatype":"map"}}'
 riak-admin bucket-type activate users
+
+# rosters
+riak-admin bucket-type create rosters '{"props":{"datatype":"map"}}'
+riak-admin bucket-type activate rosters
+riak-admin bucket-type create roster_versions '{"props":{"last_write_wins":true}}'
+riak-admin bucket-type activate roster_versions
 
 # private storage
 riak-admin bucket-type create private '{"props":{"last_write_wins":true}}'

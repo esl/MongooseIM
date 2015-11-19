@@ -69,20 +69,25 @@
 -callback init(Host, Opts) -> ok when
     Host :: ejabberd:server(),
     Opts :: list().
+-callback transaction(LServer, F) -> {aborted, Reason} | {atomic, Result} when
+    LServer :: ejabberd:lserver(),
+    F :: fun(),
+    Reason :: any(),
+    Result :: any().
 -callback read_roster_version(LUser, LServer) -> Result when
     LUser :: ejabberd:luser(),
     LServer :: ejabberd:lserver(),
-    Result :: term().
+    Result :: binary() | error.
 -callback write_roster_version(LUser, LServer, InTransaction, Ver) -> Result when
     LUser :: ejabberd:luser(),
     LServer :: ejabberd:lserver(),
     InTransaction :: boolean(),
     Ver :: binary(),
-    Result :: term().
+    Result :: any().
 -callback get_roster(LUser, LServer) -> Result when
     LUser :: ejabberd:luser(),
     LServer :: ejabberd:lserver(),
-    Result :: term().
+    Result :: [roster()].
 -callback get_roster_by_jid_t(LUser, LServer, LJid) -> Result when
     LUser :: ejabberd:luser(),
     LServer :: ejabberd:lserver(),
@@ -335,13 +340,11 @@ create_sub_el(Items, Version) ->
             children = Items}].
 
 get_user_roster(Acc, {LUser, LServer}) ->
-    Items = get_roster(LUser, LServer),
     lists:filter(fun (#roster{subscription = none, ask = in}) ->
                          false;
                      (_) ->
                          true
-                 end, Items)
-    ++ Acc.
+                 end, get_roster(LUser, LServer)) ++ Acc.
 
 get_roster(LUser, LServer) ->
     ?BACKEND:get_roster(LUser, LServer).
@@ -563,10 +566,7 @@ roster_subscribe_t(LUser, LServer, LJID, Item) ->
     ?BACKEND:roster_subscribe_t(LUser, LServer, LJID, Item).
 
 transaction(LServer, F) ->
-    case gen_mod:get_module_opt(LServer, ?MODULE, backend, mnesia) of
-        mnesia -> mnesia:transaction(F);
-        odbc -> ejabberd_odbc:sql_transaction(LServer, F)
-    end.
+    ?BACKEND:transaction(LServer, F).
 
 in_subscription(_, User, Server, JID, Type, Reason) ->
     process_subscription(in, User, Server, JID, Type,
@@ -758,6 +758,7 @@ in_auto_reply(_, _, _) -> none.
 remove_user(User, Server) ->
     LUser = jlib:nodeprep(User),
     LServer = jlib:nameprep(Server),
+    send_unsubscription_to_rosteritems(LUser, LServer),
     ?BACKEND:remove_user(LUser, LServer).
 
 %% For each contact with Subscription:

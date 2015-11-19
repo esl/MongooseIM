@@ -17,6 +17,7 @@
 
 %% API
 -export([init/2,
+         transaction/2,
          read_roster_version/2,
          write_roster_version/4,
          get_roster/2,
@@ -34,6 +35,11 @@
 -spec init(ejabberd:server(), list()) -> ok.
 init(_Host, _Opts) ->
     ok.
+
+-spec transaction(LServer :: ejabberd:lserver(), F :: fun()) ->
+    {aborted, Reason :: any()} | {atomic, Result :: any()}.
+transaction(LServer, F) ->
+    ejabberd_odbc:sql_transaction(LServer, F).
 
 -spec read_roster_version(ejabberd:luser(), ejabberd:lserver())
 -> binary() | error.
@@ -178,7 +184,6 @@ get_roster_by_jid_with_groups_t(LUser, LServer, LJID) ->
 
 remove_user(LUser, LServer) ->
     Username = ejabberd_odbc:escape(LUser),
-    mod_roster:send_unsubscription_to_rosteritems(LUser, LServer),
     odbc_queries:del_user_roster_t(LServer, Username),
     ok.
 
