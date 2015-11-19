@@ -33,6 +33,9 @@ Implements [XEP-0045 (Multi-User Chat)](http://xmpp.org/extensions/xep-0045.html
 ### [mod_muc_log](../modules/mod_muc_log.md)
 Implements a logging subsystem for [mod_muc].
 
+### [mod_muc_light](../modules/mod_muc_light.md)
+Implements [XEP Multi-User Chat Light](https://github.com/xsf/xeps/pull/118) (still being reviewed by XMPP community).
+
 ### [mod_offline](../modules/mod_offline.md)
 Provides offline storage compliant with [XEP-0160 (Best Practices for Handling Offline Messages)](http://xmpp.org/extensions/xep-0160.html).
 
