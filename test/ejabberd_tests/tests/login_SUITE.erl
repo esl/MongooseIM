@@ -229,7 +229,6 @@ null_password(Config) ->
               {password, <<>>},
               {server,<<"localhost">>}]},
     {error, _, Response} = escalus_users:create_user(Config, Jimmy),
-            ct:pal("STANZA = ~p.~n", [Response]),
     escalus:assert(is_iq_error, Response),
     %% This error response means there was no character data,
     %% i.e. elements `<password\>' or `<password></password>' where
@@ -256,7 +255,6 @@ bad_request_registration_cancelation(Config) ->
 
         %% Alice receives failure response
         Stanza = escalus:wait_for_stanza(Alice),
-        ct:pal("STANZA = ~p.~n", [Stanza]),
         escalus:assert(is_iq_error, Stanza),
         escalus:assert(is_error, [<<"modify">>, <<"bad-request">>], Stanza)
 
@@ -274,7 +272,6 @@ not_allowed_registration_cancelation(Config) ->
 
         %% Alice receives failure response
         Stanza = escalus:wait_for_stanza(Alice),
-        ct:pal("STANZA = ~p.~n", [Stanza]),
         escalus:assert(is_iq_error, Stanza),
         escalus:assert(is_error, [<<"cancel">>, <<"not-allowed">>], Stanza)
 
