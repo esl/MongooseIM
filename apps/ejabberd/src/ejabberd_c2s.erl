@@ -527,7 +527,7 @@ do_legacy_auth(JID, El, StateData, U, P, D, R) ->
             ?INFO_MSG(
                "(~w) Failed legacy authentication for ~s from IP ~s (~w)",
                [StateData#state.socket,
-                jlib:jid_to_binary(JID), jlib:ip_to_list(IP), IP]),
+                jid:to_binary(JID), jlib:ip_to_list(IP), IP]),
             Err = jlib:make_error_reply(
                     El, ?ERR_NOT_AUTHORIZED),
             ejabberd_hooks:run(auth_failed, StateData#state.server,
@@ -551,7 +551,7 @@ do_open_legacy_session(El, StateData, U, R, JID, AuthModule) ->
     ?INFO_MSG(
        "(~w) Accepted legacy authentication for ~s by ~p",
        [StateData#state.socket,
-        jlib:jid_to_binary(JID), AuthModule]),
+        jid:to_binary(JID), AuthModule]),
     Res1 = jlib:make_result_iq_reply(El),
     Res = Res1#xmlel{children = []},
     send_element(StateData, Res),
@@ -799,7 +799,7 @@ maybe_open_session(El, #state{jid = JID} = StateData) ->
                                StateData#state.server, [JID]),
             ?INFO_MSG("(~w) Forbidden session for ~s",
                       [StateData#state.socket,
-                       jlib:jid_to_binary(JID)]),
+                       jid:to_binary(JID)]),
             Err = jlib:make_error_reply(El, ?ERR_NOT_ALLOWED),
             send_element(StateData, Err),
             fsm_next_state(wait_for_session_or_sm, StateData)

@@ -62,7 +62,7 @@ transaction(_LServer, F) ->
 %% --------------------- Inside "transactions" --------------------------------
 
 get_roster_by_jid_t(LUser, LServer, LJID) ->
-    case riakc_map:find({jlib:jid_to_binary(LJID), register}, get_t_roster(LUser, LServer)) of
+    case riakc_map:find({jid:to_binary(LJID), register}, get_t_roster(LUser, LServer)) of
         {ok, ItemReg} ->
             UnpackedItem = unpack_item(ItemReg),
             UnpackedItem#roster{ jid = LJID, name = <<>>, groups = [], xs = [] };
@@ -74,7 +74,7 @@ roster_subscribe_t(LUser, LServer, LJID, Item) ->
     set_t_roster(LUser, LServer, LJID, Item).
 
 get_roster_by_jid_with_groups_t(LUser, LServer, LJID) ->
-    case riakc_map:find({jlib:jid_to_binary(LJID), register}, get_t_roster(LUser, LServer)) of
+    case riakc_map:find({jid:to_binary(LJID), register}, get_t_roster(LUser, LServer)) of
         {ok, ItemReg} -> unpack_item(ItemReg);
         error -> #roster{usj = {LUser, LServer, LJID}, us = {LUser, LServer}, jid = LJID}
     end.
@@ -126,7 +126,7 @@ remove_user(LUser, LServer) ->
 read_subscription_and_groups(LUser, LServer, LJID) ->
     try
         {ok, RosterMap} = mongoose_riak:fetch_type(?ROSTER_BUCKET(LServer), LUser),
-        ItemReg = riakc_map:fetch({jlib:jid_to_binary(LJID), register}, RosterMap),
+        ItemReg = riakc_map:fetch({jid:to_binary(LJID), register}, RosterMap),
         #roster{ subscription = Subscription, groups = Groups } = unpack_item(ItemReg),
         {Subscription, Groups}
     catch
@@ -164,7 +164,7 @@ get_t_roster(LUser, LServer) ->
 set_t_roster(LUser, LServer, LJID, Item) ->
     RosterMap1 = get_t_roster(LUser, LServer),
     put({riak_roster_t, {LUser, LServer}},
-        riakc_map:update({jlib:jid_to_binary(LJID), register},
+        riakc_map:update({jid:to_binary(LJID), register},
                          fun(R) -> riakc_register:set(term_to_binary(Item), R) end, RosterMap1)).
 
 -spec del_t_roster(LUser :: ejabberd:luser(),
@@ -172,7 +172,7 @@ set_t_roster(LUser, LServer, LJID, Item) ->
                    LJID :: ejabberd:simple_jid()) -> any().
 del_t_roster(LUser, LServer, LJID) ->
     RosterMap1 = get_t_roster(LUser, LServer),
-    RosterMap = case catch riakc_map:erase({jlib:jid_to_binary(LJID), register}, RosterMap1) of
+    RosterMap = case catch riakc_map:erase({jid:to_binary(LJID), register}, RosterMap1) of
                     context_required -> RosterMap1;
                     RosterMap2 -> RosterMap2
                 end,
