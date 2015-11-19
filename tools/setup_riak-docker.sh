@@ -5,6 +5,8 @@ RIAK_INSTANCE=mongooseim-riak
 RIAK_HOST="http://${1}:8098"
 SSH_DOCKERMACHINE_ALIAS="docker_riak"
 
+echo "uploading search schemas to:" ${RIAK_HOST}
+
 curl --insecure -X PUT $RIAK_HOST/search/schema/vcard \
     -H 'Content-Type:application/xml' \
     --data-binary @vcard_search_schema.xml
@@ -27,18 +29,21 @@ curl -XPUT $RIAK_HOST/search/index/mam \
 
 sleep 20
 
-ssh ${SSH_DOCKERMACHINE_ALIAS} 'docker exec -ti '${RIAK_INSTANCE}' riak-admin bucket-type create users '{"props":{"datatype":"map"}}''
+echo "creating users..."
+ssh ${SSH_DOCKERMACHINE_ALIAS} 'docker exec '${RIAK_INSTANCE}' riak-admin bucket-type create users ''\{\"props\":\{\"datatype\":\"map\"\}\}'''
+#ssh ${SSH_DOCKERMACHINE_ALIAS} 'docker exec '${RIAK_INSTANCE}' riak-admin bucket-type create users '{"props":{"datatype":"map"}}''
+echo "activating users..."
+ssh ${SSH_DOCKERMACHINE_ALIAS} 'docker exec '${RIAK_INSTANCE}' riak-admin bucket-type activate users'
+echo "creating private bucket..."
+ssh ${SSH_DOCKERMACHINE_ALIAS} 'docker exec '${RIAK_INSTANCE}' riak-admin bucket-type create private ''\{\"props\":\{\"last_write_wins\":true\}\}'''
+echo "activating private bucket..."
+ssh ${SSH_DOCKERMACHINE_ALIAS} 'docker exec '${RIAK_INSTANCE}' riak-admin bucket-type activate private'
+echo "creating vcard bucket..."
+ssh ${SSH_DOCKERMACHINE_ALIAS} 'docker exec '${RIAK_INSTANCE}' riak-admin bucket-type create vcard ''\{\"props\":\{\"last_write_wins\":true, \"search_index\":\"vcard\"\}\}'''
+echo "activating vcard bucket..."
+ssh ${SSH_DOCKERMACHINE_ALIAS} 'docker exec '${RIAK_INSTANCE}' riak-admin bucket-type activate vcard'
+echo "creating mam_yz bucket..."
+ssh ${SSH_DOCKERMACHINE_ALIAS} 'docker exec '${RIAK_INSTANCE}' riak-admin bucket-type create mam_yz ''\{\"props\":\{\"datatype\":\"map\", \"search_index\":\"mam\"\}\}'''
+echo "activating mam_yz bucket..."
+ssh ${SSH_DOCKERMACHINE_ALIAS} 'docker exec '${RIAK_INSTANCE}' riak-admin bucket-type activate mam_yz'
 
-ssh ${SSH_DOCKERMACHINE_ALIAS} 'docker exec -ti '${RIAK_INSTANCE}' riak-admin bucket-type activate users'
-
-ssh ${SSH_DOCKERMACHINE_ALIAS} 'docker exec -ti '${RIAK_INSTANCE}' riak-admin bucket-type create private '{"props":{"last_write_wins":true}}''
-
-ssh ${SSH_DOCKERMACHINE_ALIAS} 'docker exec -ti '${RIAK_INSTANCE}' riak-admin bucket-type activate private'
-
-ssh ${SSH_DOCKERMACHINE_ALIAS} 'docker exec -ti '${RIAK_INSTANCE}' riak-admin bucket-type create vcard '{"props":{"last_write_wins":true, "search_index":"vcard"}}''
-
-ssh ${SSH_DOCKERMACHINE_ALIAS} 'docker exec -ti '${RIAK_INSTANCE}' riak-admin bucket-type activate vcard'
-
-ssh ${SSH_DOCKERMACHINE_ALIAS} 'docker exec -ti '${RIAK_INSTANCE}' riak-admin bucket-type create mam_yz '{"props":{"datatype":"map", "search_index":"mam"}}''
-
-ssh ${SSH_DOCKERMACHINE_ALIAS} 'docker exec -ti '${RIAK_INSTANCE}' riak-admin bucket-type activate mam_yz'
