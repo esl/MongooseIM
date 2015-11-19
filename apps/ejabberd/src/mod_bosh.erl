@@ -55,7 +55,10 @@
              ]).
 
 -type socket() :: #bosh_socket{}.
--type session() :: #bosh_session{}.
+-type session() :: #bosh_session{
+                      sid :: mod_bosh:sid(),
+                      socket :: pid()
+                     }.
 -type sid() :: binary().
 -type event_type() :: streamstart
                     | restart
