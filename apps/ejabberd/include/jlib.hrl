@@ -344,6 +344,6 @@
 
 -type iq() :: #iq{}.
 -type jid() :: #jid{}.
--type ljid() :: {ejabberd:user(), ejabberd:server(), ejabberd:resource()}.
+-type ljid() :: {ejabberd:luser(), ejabberd:lserver(), ejabberd:lresource()}.
 
 -endif.
