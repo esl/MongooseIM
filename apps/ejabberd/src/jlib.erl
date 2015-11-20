@@ -332,7 +332,7 @@ jid_to_lower(JID) ->
                           ejabberd:simple_jid() | ejabberd:jid().
 jid_remove_resource(JID) ->
     ?WARNING_MSG("This function has been deprecated in MongooseIM 1.6.1 and will be removed in 1.7.0", []),
-    jid:remove_resource(JID).
+    jid:to_bare(JID).
 
 
 -spec jid_replace_resource(ejabberd:jid(), ejabberd:resource()) ->

@@ -257,7 +257,7 @@ match_jid(ArcJID, JID, JIDs) ->
     true ->
         ordsets:is_element(rule(ArcJID, JID), JIDs);
     false ->
-        BareJID = jid:remove_resource(JID),
+        BareJID = jid:to_bare(JID),
         ordsets:is_element(rule(ArcJID, BareJID), JIDs)
             orelse
         ordsets:is_element(rule(ArcJID, JID), JIDs)

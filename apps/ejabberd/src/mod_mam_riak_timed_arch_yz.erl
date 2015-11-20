@@ -387,7 +387,7 @@ calculate_msg_id_borders(_RSM, Borders, Start, End) ->
 
 bare_jid(undefined) -> undefined;
 bare_jid(JID) ->
-    jid:to_binary(jid:remove_resource(jid:to_lower(JID))).
+    jid:to_binary(jid:to_bare(jid:to_lower(JID))).
 
 
 maybe_encode_compact_uuid(undefined, _) ->

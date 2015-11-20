@@ -267,7 +267,7 @@ filter_packet({From, To=#jid{luser=LUser, lserver=LServer}, Packet}) ->
             undefined -> Packet;
             MessID ->
                 ?DEBUG("Archived incoming ~p", [MessID]),
-                BareTo = jid:to_binary(jid:remove_resource(To)),
+                BareTo = jid:to_binary(jid:to_bare(To)),
                 replace_archived_elem(BareTo, MessID, Packet)
         end
     end,
@@ -305,8 +305,8 @@ is_action_allowed_by_default(_Action, From, To) ->
 -spec compare_bare_jids(ejabberd:simple_jid() | ejabberd:jid(),
                         ejabberd:simple_jid() | ejabberd:jid()) -> boolean().
 compare_bare_jids(JID1, JID2) ->
-    jid:remove_resource(JID1) =:=
-    jid:remove_resource(JID2).
+    jid:to_bare(JID1) =:=
+    jid:to_bare(JID2).
 
 
 -spec action_to_shaper_name(action()) -> atom().
@@ -571,9 +571,9 @@ remove_archive(Host, ArcID, ArcJID=#jid{}) ->
                       PageSize :: non_neg_integer(), LimitPassed :: boolean(),
                       MaxResultLimit :: non_neg_integer(),
                       IsSimple :: boolean()  | opt_count) ->
-                         {ok, mod_mam:lookup_result()}
-                          | {error, 'policy-violation'}
-                          | {error, Reason :: term()}.
+    {ok, mod_mam:lookup_result()}
+    | {error, 'policy-violation'}
+    | {error, Reason :: term()}.
 lookup_messages(Host, ArcID, ArcJID, RSM, Borders, Start, End, Now,
                 WithJID, PageSize, LimitPassed, MaxResultLimit, IsSimple) ->
     StartT = os:timestamp(),
@@ -602,8 +602,8 @@ archive_message(Host, MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet) ->
                            MessID :: message_id(), ArcID :: archive_id(),
                            ArcJID :: ejabberd:jid(),
                            Now :: unix_timestamp()) ->
-                              ok  | {error, 'not-found'}
-                               | {error, Reason :: term()}.
+    ok  | {error, 'not-found'}
+    | {error, Reason :: term()}.
 purge_single_message(Host, MessID, ArcID, ArcJID, Now) ->
     ejabberd_hooks:run_fold(mam_purge_single_message, Host, ok,
         [Host, MessID, ArcID, ArcJID, Now]).
@@ -709,8 +709,8 @@ return_purge_multiple_message_iq(IQ, {error, Reason}) ->
 
 -spec return_purge_single_message_iq(ejabberd:iq(),
                                      ok  | {error, 'not-found'}
-                                      | {error, Reason :: term()}) ->
-                                        ejabberd:iq().
+                                     | {error, Reason :: term()}) ->
+    ejabberd:iq().
 return_purge_single_message_iq(IQ, ok) ->
     return_purge_success(IQ);
 return_purge_single_message_iq(IQ, {error, 'not-found'}) ->

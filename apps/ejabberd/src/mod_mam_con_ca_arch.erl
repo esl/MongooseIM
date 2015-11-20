@@ -313,20 +313,19 @@ safe_lookup_messages(Result, Host,
 -spec lookup_messages(Result, Host, _UserID, UserJID, RSM, Borders,
                       Start, End, Now, WithJID, PageSize, LimitPassed,
                       MaxResultLimit, IsSimple) ->
-                         Result when
-                     Host :: server_host(), UserJID :: #jid{},
-                     _UserID :: user_id(), RSM :: #rsm_in{}  | undefined,
-                     Borders :: #mam_borders{}  | undefined,
-                     Start :: unix_timestamp()  | undefined,
-                     End :: unix_timestamp()  | undefined,
-                     Now :: unix_timestamp(), PageSize :: non_neg_integer(),
-                     WithJID :: #jid{}  | undefined, LimitPassed :: boolean(),
-                     MaxResultLimit :: non_neg_integer(), IsSimple :: boolean(),
-                     Result :: {ok, {TotalCount, Offset, MessageRows}}
-                                | {error, 'policy-violation'},
-                     TotalCount :: non_neg_integer(),
-                     Offset :: non_neg_integer(), MessageRows :: [tuple()].
-
+    Result when
+      Host :: server_host(), UserJID :: #jid{},
+      _UserID :: user_id(), RSM :: #rsm_in{}  | undefined,
+      Borders :: #mam_borders{}  | undefined,
+      Start :: unix_timestamp()  | undefined,
+      End :: unix_timestamp()  | undefined,
+      Now :: unix_timestamp(), PageSize :: non_neg_integer(),
+      WithJID :: #jid{}  | undefined, LimitPassed :: boolean(),
+      MaxResultLimit :: non_neg_integer(), IsSimple :: boolean(),
+      Result :: {ok, {TotalCount, Offset, MessageRows}}
+      | {error, 'policy-violation'},
+      TotalCount :: non_neg_integer(),
+      Offset :: non_neg_integer(), MessageRows :: [tuple()].
 lookup_messages(_Result, _Host, _UserID, _UserJID,
                 _RSM, Borders,
                 Start, End, _Now, undefined,
@@ -620,23 +619,23 @@ does_conversation_exist(Worker, BUserJID, BWithJID) ->
 
 -spec purge_single_message(_Result, Host, MessID, _UserID, UserJID,
                            Now) ->
-                              ok  | {error, 'not-supported'} when
-                          Host :: server_host(), MessID :: message_id(),
-                          _UserID :: user_id(), UserJID :: #jid{},
-                          Now :: unix_timestamp().
+    ok  | {error, 'not-supported'} when
+      Host :: server_host(), MessID :: message_id(),
+      _UserID :: user_id(), UserJID :: #jid{},
+      Now :: unix_timestamp().
 purge_single_message(_Result, Host, MessID, _UserID, _UserJID, _Now) ->
    {error, 'not-supported'}.
 
 
 -spec purge_multiple_messages(_Result, Host, _UserID, UserJID, Borders,
                               Start, End, Now, WithJID) ->
-                                 {error, 'not-supported'} when
-                             Host :: server_host(), _UserID :: user_id(),
-                             UserJID :: #jid{}, Borders :: #mam_borders{},
-                             Start :: unix_timestamp()  | undefined,
-                             End :: unix_timestamp()  | undefined,
-                             Now :: unix_timestamp(),
-                             WithJID :: #jid{}  | undefined.
+    {error, 'not-supported'} when
+      Host :: server_host(), _UserID :: user_id(),
+      UserJID :: #jid{}, Borders :: #mam_borders{},
+      Start :: unix_timestamp()  | undefined,
+      End :: unix_timestamp()  | undefined,
+      Now :: unix_timestamp(),
+      WithJID :: #jid{}  | undefined.
 purge_multiple_messages(_Result, Host, _UserID, UserJID, Borders,
                         Start, End, _Now, WithJID) ->
    {error, 'not-supported'}.
@@ -753,9 +752,9 @@ select_filter(#mam_ca_filter{
 
 
 -spec select_filter(StartID, EndID) ->
-                       all  | 'end'  | start  | start_end when
-                   StartID :: integer()  | undefined,
-                   EndID :: integer()  | undefined.
+    all  | 'end'  | start  | start_end when
+      StartID :: integer()  | undefined,
+      EndID :: integer()  | undefined.
 select_filter(undefined, undefined) ->
     all;
 select_filter(undefined, _) ->
@@ -814,7 +813,7 @@ maybe_encode_compact_uuid(Microseconds, NodeID) ->
     encode_compact_uuid(Microseconds, NodeID).
 
 serialize_jid(JID) ->
-    jid:to_binary(jid:to_lower(jid:remove_resource(JID))).
+    jid:to_binary(jid:to_lower(jid:to_bare(JID))).
 
 unserialize_jid(BJID) ->
     jid:from_binary(BJID).

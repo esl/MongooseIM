@@ -333,8 +333,7 @@ safe_lookup_messages(Result, Host,
                       PageSize :: non_neg_integer(), LimitPassed :: boolean(),
                       MaxResultLimit :: non_neg_integer(),
                       IsSimple :: boolean()  | opt_count) ->
-                         {ok, mod_mam:lookup_result()}
-                          | {error, 'policy-violation'}.
+    {ok, mod_mam:lookup_result()} | {error, 'policy-violation'}.
 lookup_messages(_Result, Host, UserID, UserJID = #jid{},
                 #rsm_in{direction = aft, id = ID}, Borders,
                 Start, End, _Now, WithJID,
@@ -523,7 +522,7 @@ remove_archive(Host, UserID, _UserJID) ->
                            ArchiveID :: mod_mam:archive_id(),
                            RoomJID :: ejabberd:jid(),
                            Now :: mod_mam:unix_timestamp()) ->
-                              ok  | {error, 'not-allowed'  | 'not-found'}.
+    ok  | {error, 'not-allowed'  | 'not-found'}.
 purge_single_message(_Result, Host, MessID, UserID, _UserJID, _Now) ->
     Result =
     mod_mam_utils:success_sql_query(
@@ -721,7 +720,7 @@ escape_user_id(UserID) when is_integer(UserID) ->
 
 %% @doc Strip resource, minify and escape JID.
 minify_and_escape_bare_jid(LocJID, JID) ->
-    ejabberd_odbc:escape(jid_to_opt_binary(LocJID, jid:remove_resource(JID))).
+    ejabberd_odbc:escape(jid_to_opt_binary(LocJID, jid:to_bare(JID))).
 
 minify_and_escape_jid(LocJID, JID) ->
     ejabberd_odbc:escape(jid_to_opt_binary(LocJID, JID)).

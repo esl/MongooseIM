@@ -785,13 +785,13 @@ send_unsubscribing_presence(From, Item) ->
                  _ -> false
              end,
     if IsTo ->
-           send_presence_type(jid:remove_resource(From),
+           send_presence_type(jid:to_bare(From),
                               jid:make(Item#roster.jid),
                               <<"unsubscribe">>);
        true -> ok
     end,
     if IsFrom ->
-           send_presence_type(jid:remove_resource(From),
+           send_presence_type(jid:to_bare(From),
                               jid:make(Item#roster.jid),
                               <<"unsubscribed">>);
        true -> ok
@@ -881,7 +881,7 @@ get_jid_info(_, User, Server, JID) ->
     case read_subscription_and_groups(User, Server, LJID) of
         {Subscription, Groups} -> {Subscription, Groups};
         error ->
-            LRJID = jid:to_lower(jid:remove_resource(JID)),
+            LRJID = jid:to_lower(jid:to_bare(JID)),
             if LRJID == LJID -> {none, []};
                true ->
                    case read_subscription_and_groups(User, Server, LRJID)

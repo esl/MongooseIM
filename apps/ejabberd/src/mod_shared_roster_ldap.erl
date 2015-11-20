@@ -189,7 +189,7 @@ process_subscription(Direction, User, Server, JID, _Type, Acc) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
     US = {LUser, LServer},
-    {U1, S1, _} = jid:to_lower(jid:remove_resource(JID)),
+    {U1, S1, _} = jid:to_lower(jid:to_bare(JID)),
     US1 = {U1, S1},
     DisplayedGroups = get_user_displayed_groups(US),
     SRUsers = lists:usort(lists:flatmap(

@@ -471,7 +471,7 @@ is_strong_password(Server, Password) ->
 %%%
 
 may_remove_resource({_, _, _} = From) ->
-    jid:remove_resource(From);
+    jid:to_bare(From);
 may_remove_resource(From) ->
     From.
 

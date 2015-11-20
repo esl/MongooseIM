@@ -1046,7 +1046,7 @@ is_user_online_iq(StanzaId, JID, StateData) when JID#jid.lresource == <<>> ->
                       binary(), any(), jlib:xmlel()) ->
                 {ejabberd:simple_jid() | ejabberd:jid(), jlib:xmlel()}.
 handle_iq_vcard(FromFull, ToJID, StanzaId, NewId, Packet) ->
-    ToBareJID = jid:remove_resource(ToJID),
+    ToBareJID = jid:to_bare(ToJID),
     IQ = jlib:iq_query_info(Packet),
     handle_iq_vcard2(FromFull, ToJID, ToBareJID, StanzaId, NewId, IQ, Packet).
 
@@ -1226,7 +1226,7 @@ access_persistent(#state{access=Access}) ->
 -spec set_affiliation(ejabberd:jid(), mod_muc:affiliation(), state()) -> state().
 set_affiliation(JID, Affiliation, StateData)
         when is_atom(Affiliation) ->
-    LJID = jid:remove_resource(jid:to_lower(JID)),
+    LJID = jid:to_bare(jid:to_lower(JID)),
     Affiliations = case Affiliation of
                none ->
                ?DICT:erase(LJID,
@@ -1243,7 +1243,7 @@ set_affiliation(JID, Affiliation, StateData)
                                  state()) -> state().
 set_affiliation_and_reason(JID, Affiliation, Reason, StateData)
         when is_atom(Affiliation) ->
-    LJID = jid:remove_resource(jid:to_lower(JID)),
+    LJID = jid:to_bare(jid:to_lower(JID)),
     Affiliations = case Affiliation of
                none ->
                ?DICT:erase(LJID,
@@ -1269,7 +1269,7 @@ get_affiliation(JID, StateData) ->
             {ok, Affiliation} ->
             Affiliation;
             _ ->
-            LJID1 = jid:remove_resource(LJID),
+            LJID1 = jid:to_bare(LJID),
             case ?DICT:find(LJID1, StateData#state.affiliations) of
                 {ok, Affiliation} ->
                 Affiliation;
@@ -1279,7 +1279,7 @@ get_affiliation(JID, StateData) ->
                     {ok, Affiliation} ->
                     Affiliation;
                     _ ->
-                    LJID3 = jid:remove_resource(LJID2),
+                    LJID3 = jid:to_bare(LJID2),
                     case ?DICT:find(LJID3, StateData#state.affiliations) of
                         {ok, Affiliation} ->
                         Affiliation;
@@ -2785,8 +2785,8 @@ find_changed_items(UJID, UAffiliation, URole,
                         check_owner ->
                         case search_affiliation(owner, StateData) of
                             [{OJID, _}] ->
-                            jid:remove_resource(OJID) /=
-                                jid:to_lower(jid:remove_resource(UJID));
+                            jid:to_bare(OJID) /=
+                                jid:to_lower(jid:to_bare(UJID));
                             _ ->
                             true
                         end;
@@ -2805,7 +2805,7 @@ find_changed_items(UJID, UAffiliation, URole,
                           UJID,
                           UAffiliation, URole,
                           Items, Lang, StateData,
-                          [{jid:remove_resource(JID),
+                          [{jid:to_bare(JID),
                         affiliation, Affiliation, decode_reason(Item)} | Res]);
                     cancel ->
                         {error, ?ERR_NOT_ALLOWED};
@@ -2835,8 +2835,8 @@ find_changed_items(UJID, UAffiliation, URole,
                     check_owner ->
                     case search_affiliation(owner, StateData) of
                         [{OJID, _}] ->
-                        jid:remove_resource(OJID) /=
-                            jid:to_lower(jid:remove_resource(UJID));
+                        jid:to_bare(OJID) /=
+                            jid:to_lower(jid:to_bare(UJID));
                         _ ->
                         true
                     end;

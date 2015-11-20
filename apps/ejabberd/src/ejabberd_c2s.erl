@@ -810,7 +810,7 @@ do_open_session(El, JID, StateData) ->
                               [StateData#state.socket,
                                jid:to_binary(JID)]),
                     Res = jlib:make_result_iq_reply(El),
-                    Packet = {jid:remove_resource(StateData#state.jid), StateData#state.jid, Res},
+                    Packet = {jid:to_bare(StateData#state.jid), StateData#state.jid, Res},
                     {_, _, NewStateData0, _} = send_and_maybe_buffer_stanza(Packet, StateData, wait_for_session_or_sm),
     do_open_session_common(JID, NewStateData0).
 
@@ -821,7 +821,7 @@ do_open_session_common(JID, #state{user = U, resource = R} = NewStateData0) ->
                                           NewStateData0#state.server,
                                           {[], [], []},
                                           [U, NewStateData0#state.server]),
-                    LJID = jid:to_lower(jid:remove_resource(JID)),
+                    LJID = jid:to_lower(jid:to_bare(JID)),
                     Fs1 = [LJID | Fs],
                     Ts1 = [LJID | Ts],
                     PrivList =
@@ -1253,7 +1253,7 @@ handle_routed_broadcast({privacy_list, PrivList, PrivListName}, StateData) ->
             {new_state, StateData};
         NewPL ->
             PrivPushIQ = privacy_list_push_iq(PrivListName),
-            F = jid:remove_resource(StateData#state.jid),
+            F = jid:to_bare(StateData#state.jid),
             T = StateData#state.jid,
             PrivPushEl = jlib:replace_from_to(F, T, jlib:iq_to_xml(PrivPushIQ)),
             {send_new, F, T, PrivPushEl, StateData#state{privacy_list = NewPL}}
@@ -1675,7 +1675,7 @@ am_i_subscribed_to_presence(LJID, LBareJID, S) ->
 
 lowcase_and_bare(JID) ->
     LJID = jid:to_lower(JID),
-    { LJID, jid:remove_resource(LJID)}.
+    { LJID, jid:to_bare(LJID)}.
 
 invisible_to(LFrom, LBareFrom, S) ->
     ?SETS:is_element(LFrom, S#state.pres_i)
@@ -1828,28 +1828,28 @@ presence_track(From, To, Packet, StateData) ->
             ejabberd_hooks:run(roster_out_subscription,
                                Server,
                                [User, Server, To, subscribe]),
-            check_privacy_route(From, StateData, jid:remove_resource(From),
+            check_privacy_route(From, StateData, jid:to_bare(From),
                                 To, Packet),
             StateData;
         <<"subscribed">> ->
             ejabberd_hooks:run(roster_out_subscription,
                                Server,
                                [User, Server, To, subscribed]),
-            check_privacy_route(From, StateData, jid:remove_resource(From),
+            check_privacy_route(From, StateData, jid:to_bare(From),
                                 To, Packet),
             StateData;
         <<"unsubscribe">> ->
             ejabberd_hooks:run(roster_out_subscription,
                                Server,
                                [User, Server, To, unsubscribe]),
-            check_privacy_route(From, StateData, jid:remove_resource(From),
+            check_privacy_route(From, StateData, jid:to_bare(From),
                                 To, Packet),
             StateData;
         <<"unsubscribed">> ->
             ejabberd_hooks:run(roster_out_subscription,
                                Server,
                                [User, Server, To, unsubscribed]),
-            check_privacy_route(From, StateData, jid:remove_resource(From),
+            check_privacy_route(From, StateData, jid:to_bare(From),
                                 To, Packet),
             StateData;
         <<"error">> ->
@@ -2272,7 +2272,7 @@ is_ip_blacklisted({IP,_Port}) ->
 %% @doc Check from attributes.
 -spec check_from(El, FromJID) -> Result when
       El :: jlib:xmlel(), FromJID :: ejabberd:jid(),
-                Result :: 'invalid-from'  | jlib:xmlel().
+      Result :: 'invalid-from'  | jlib:xmlel().
 check_from(El, FromJID) ->
     case xml:get_tag_attr(<<"from">>, El) of
         false ->
@@ -2366,7 +2366,7 @@ route_blocking(What, StateData) ->
     PrivPushIQ = #iq{type = set, xmlns = ?NS_BLOCKING,
                      id = <<"push">>,
                      sub_el = [SubEl]},
-    F = jid:remove_resource(StateData#state.jid),
+    F = jid:to_bare(StateData#state.jid),
     T = StateData#state.jid,
     PrivPushEl = jlib:replace_from_to(F, T, jlib:iq_to_xml(PrivPushIQ)),
     ejabberd_router:route(F, T, PrivPushEl),

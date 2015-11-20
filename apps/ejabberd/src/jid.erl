@@ -25,7 +25,7 @@
 -export([nameprep/1]).
 -export([resourceprep/1]).
 -export([to_lower/1]).
--export([remove_resource/1]).
+-export([to_bare/1]).
 -export([replace_resource/2]).
 
 -include_lib("exml/include/exml.hrl").
@@ -194,11 +194,11 @@ to_lower({U, S, R}) ->
     end.
 
 
--spec remove_resource(ejabberd:simple_jid()  | ejabberd:jid()) ->
-    ejabberd:simple_jid()  | ejabberd:jid().
-remove_resource(#jid{} = JID) ->
+-spec to_bare(ejabberd:simple_jid()  | ejabberd:jid()) -> 
+                 ejabberd:simple_jid()  | ejabberd:jid().
+to_bare(#jid{} = JID) ->
     JID#jid{resource = <<>>, lresource = <<>>};
-remove_resource({U, S, _R}) ->
+to_bare({U, S, _R}) ->
     {U, S, <<>>}.
 
 
