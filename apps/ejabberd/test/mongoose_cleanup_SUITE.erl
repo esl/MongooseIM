@@ -209,7 +209,7 @@ get_fake_session() ->
     U = <<"someuser">>,
     S = ?HOST,
     R = <<"someresource">>,
-    JID = jlib:make_jid(U, S, R),
+    JID = jid:make(U, S, R),
     SID = {os:timestamp(), self()},
     {U, S, R, JID, SID}.
 
