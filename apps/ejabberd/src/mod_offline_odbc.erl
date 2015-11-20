@@ -44,7 +44,7 @@ init(_Host, _Opts) ->
 
 pop_messages(LUser, LServer) ->
     US = {LUser, LServer},
-    To = jlib:make_jid(LUser, LServer, <<>>),
+    To = jid:make(LUser, LServer, <<>>),
     SUser = ejabberd_odbc:escape(LUser),
     SServer = ejabberd_odbc:escape(LServer),
     TimeStamp = now(),
@@ -64,7 +64,7 @@ rows_to_records(US, To, Rows) ->
 row_to_record(US, To, {STimeStamp, SFrom, SPacket}) ->
     {ok, Packet} = exml:parse(SPacket),
     TimeStamp = microseconds_to_now(list_to_integer(binary_to_list(STimeStamp))),
-    From = jlib:binary_to_jid(SFrom),
+    From = jid:from_binary(SFrom),
     #offline_msg{us = US,
              timestamp = TimeStamp,
              expire = undefined,
@@ -115,7 +115,7 @@ write_all_messages_t(LServer, SUser, SServer, Msgs) ->
 
 record_to_row(SUser, SServer, #offline_msg{
         from = From, packet = Packet, timestamp = TimeStamp, expire = Expire}) ->
-    SFrom = ejabberd_odbc:escape(jlib:jid_to_binary(From)),
+    SFrom = ejabberd_odbc:escape(jid:to_binary(From)),
     SPacket = ejabberd_odbc:escape(exml:to_binary(Packet)),
     STimeStamp = encode_timestamp(TimeStamp),
     SExpire = maybe_encode_timestamp(Expire),

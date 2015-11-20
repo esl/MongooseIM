@@ -234,15 +234,19 @@ safe_lookup_messages(Result, Host,
     end.
 
 -spec lookup_messages(Result :: any(), Host :: ejabberd:server(),
-        ArchiveID :: mod_mam:archive_id(), ArchiveJID :: ejabberd:jid(),
-        RSM :: jlib:rsm_in() | undefined, Borders :: mod_mam:borders() | undefined,
-        Start :: mod_mam:unix_timestamp() | undefined,
-        End :: mod_mam:unix_timestamp() | undefined, Now :: mod_mam:unix_timestamp(),
-        WithJID :: ejabberd:jid() | undefined, PageSize :: integer(),
-        LimitPassed :: boolean(), MaxResultLimit :: integer(),
-        IsSimple :: boolean() | opt_count) ->
-            {ok, mod_mam:lookup_result()}
-            | {error, 'policy-violation'}.
+                      ArchiveID :: mod_mam:archive_id(),
+                      ArchiveJID :: ejabberd:jid(),
+                      RSM :: jlib:rsm_in()  | undefined,
+                      Borders :: mod_mam:borders()  | undefined,
+                      Start :: mod_mam:unix_timestamp()  | undefined,
+                      End :: mod_mam:unix_timestamp()  | undefined,
+                      Now :: mod_mam:unix_timestamp(),
+                      WithJID :: ejabberd:jid()  | undefined,
+                      PageSize :: integer(), LimitPassed :: boolean(),
+                      MaxResultLimit :: integer(),
+                      IsSimple :: boolean()  | opt_count) ->
+                         {ok, mod_mam:lookup_result()}
+                          | {error, 'policy-violation'}.
 lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
                 #rsm_in{direction = aft, id = ID}, Borders,
                 Start, End, _Now, WithJID,
@@ -416,7 +420,7 @@ rows_to_uniform_format(MessageRows, Host, RoomJID) ->
 -spec row_to_uniform_format(atom(), atom(), raw_row(), ejabberd:jid()) -> mod_mam_muc:row().
 row_to_uniform_format(DbEngine, EscFormat, {BMessID,BNick,SDataRaw}, RoomJID) ->
     MessID = list_to_integer(binary_to_list(BMessID)),
-    SrcJID = jlib:jid_replace_resource(RoomJID, BNick),
+    SrcJID = jid:replace_resource(RoomJID, BNick),
     SData = ejabberd_odbc:unescape_odbc_binary(DbEngine, SDataRaw),
     Data = ejabberd_odbc:unescape_binary(EscFormat, SData),
     Packet = binary_to_term(Data),
@@ -439,9 +443,11 @@ remove_archive(Host, RoomID, _RoomJID) ->
 
 
 -spec purge_single_message(_Result, Host :: ejabberd:server(),
-        MessID :: mod_mam:message_id(), RoomID :: mod_mam:archive_id(),
-        RoomJID :: ejabberd:jid(), Now :: unix_timestamp())
-            -> ok | {error, 'not-allowed' | 'not-found'}.
+                           MessID :: mod_mam:message_id(),
+                           RoomID :: mod_mam:archive_id(),
+                           RoomJID :: ejabberd:jid(),
+                           Now :: unix_timestamp()) ->
+                              ok  | {error, 'not-allowed'  | 'not-found'}.
 purge_single_message(_Result, Host, MessID, RoomID, _RoomJID, _Now) ->
     Result =
     mod_mam_utils:success_sql_query(
@@ -456,11 +462,14 @@ purge_single_message(_Result, Host, MessID, RoomID, _RoomJID, _Now) ->
 
 
 -spec purge_multiple_messages(_Result, Host :: ejabberd:server(),
-        RoomID :: mod_mam:archive_id(), RoomJID :: ejabberd:jid(),
-        Borders :: mod_mam:borders() | undefined,
-        Start :: unix_timestamp() | undefined,
-        End :: unix_timestamp() | undefined, Now :: unix_timestamp(),
-        WithJID :: ejabberd:jid() | undefined) -> ok | {error, 'not-allowed'}.
+                              RoomID :: mod_mam:archive_id(),
+                              RoomJID :: ejabberd:jid(),
+                              Borders :: mod_mam:borders()  | undefined,
+                              Start :: unix_timestamp()  | undefined,
+                              End :: unix_timestamp()  | undefined,
+                              Now :: unix_timestamp(),
+                              WithJID :: ejabberd:jid()  | undefined) ->
+                                 ok  | {error, 'not-allowed'}.
 purge_multiple_messages(_Result, Host, RoomID, _RoomJID, Borders,
                         Start, End, _Now, WithJID) ->
     Filter = prepare_filter(RoomID, Borders, Start, End, WithJID),

@@ -457,7 +457,7 @@ get_sm_features(Acc, _From, _To, _Node, _Lang) ->
 get_user_resources(User, Server) ->
     Rs = ejabberd_sm:get_user_resources(User, Server),
     lists:map(fun(R) ->
-                JID = jlib:jid_to_binary({User, Server, R}),
+                JID = jid:to_binary({User, Server, R}),
                 #xmlel{name = <<"item">>,
                        attrs = [{<<"jid">>, JID}, {<<"name">>, User}]}
               end, lists:sort(Rs)).

@@ -204,9 +204,9 @@ raw_to_item({BType, BValue, BAction, BOrder, BMatchAll, BMatchIQ,
         <<"n">> ->
         {none, none};
         <<"j">> ->
-        case jlib:binary_to_jid(BValue) of
+        case jid:from_binary(BValue) of
             #jid{} = JID ->
-            {jid, jlib:jid_tolower(JID)}
+            {jid, jid:to_lower(JID)}
         end;
         <<"g">> ->
         {group, BValue};
@@ -259,7 +259,7 @@ item_to_raw(#listitem{type = Type,
         none ->
         {<<"n">>, <<"">>};
         jid ->
-        {<<"j">>, ejabberd_odbc:escape(jlib:jid_to_binary(Value))};
+        {<<"j">>, ejabberd_odbc:escape(jid:to_binary(Value))};
         group ->
         {<<"g">>, ejabberd_odbc:escape(Value)};
         subscription ->

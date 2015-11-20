@@ -238,7 +238,7 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
                     RemoteServer = xml:get_attr_s(<<"from">>, Attrs),
                     ?INFO_MSG("Closing s2s connection: ~s <--> ~s (~s)", [StateData#state.server, RemoteServer, CertError]),
                     send_text(StateData, exml:to_binary(?SERRT_POLICY_VIOLATION(<<"en">>, CertError))),
-                    {atomic, Pid} = ejabberd_s2s:find_connection(jlib:make_jid(<<"">>, Server, <<"">>), jlib:make_jid(<<"">>, RemoteServer, <<"">>)),
+                    {atomic, Pid} = ejabberd_s2s:find_connection(jid:make(<<"">>, Server, <<"">>), jid:make(<<"">>, RemoteServer, <<"">>)),
                     ejabberd_s2s_out:stop_connection(Pid),
 
                     {stop, normal, StateData};
@@ -319,7 +319,7 @@ wait_for_feature_request({xmlstreamelement, El}, StateData) ->
             case Mech of
                 <<"EXTERNAL">> ->
                     Auth = jlib:decode_base64(xml:get_cdata(Els)),
-                    AuthDomain = jlib:nameprep(Auth),
+                    AuthDomain = jid:nameprep(Auth),
                     AuthRes =
                         case (StateData#state.sockmod):get_peer_certificate(
                                StateData#state.socket) of
@@ -396,8 +396,8 @@ stream_established({xmlstreamelement, El}, StateData) ->
     case is_key_packet(El) of
         {key, To, From, Id, Key} ->
             ?DEBUG("GET KEY: ~p", [{To, From, Id, Key}]),
-            LTo = jlib:nameprep(To),
-            LFrom = jlib:nameprep(From),
+            LTo = jid:nameprep(To),
+            LFrom = jid:nameprep(From),
             %% Checks if the from domain is allowed and if the to
             %% domain is handled by this server:
             case {ejabberd_s2s:allow_host(LTo, LFrom),
@@ -409,7 +409,7 @@ stream_established({xmlstreamelement, El}, StateData) ->
                                             Key, StateData#state.streamid}),
                     Conns = ?DICT:store({LFrom, LTo}, wait_for_verification,
                                         StateData#state.connections),
-                    change_shaper(StateData, LTo, jlib:make_jid(<<"">>, LFrom, <<"">>)),
+                    change_shaper(StateData, LTo, jid:make(<<"">>, LFrom, <<"">>)),
                     {next_state,
                      stream_established,
                      StateData#state{connections = Conns,
@@ -423,8 +423,8 @@ stream_established({xmlstreamelement, El}, StateData) ->
             end;
         {verify, To, From, Id, Key} ->
             ?DEBUG("VERIFY KEY: ~p", [{To, From, Id, Key}]),
-            LTo = jlib:nameprep(To),
-            LFrom = jlib:nameprep(From),
+            LTo = jid:nameprep(To),
+            LFrom = jid:nameprep(From),
             Type = case ejabberd_s2s:has_key({LTo, LFrom}, Key) of
                        true -> <<"valid">>;
                        _ -> <<"invalid">>
@@ -443,9 +443,9 @@ stream_established({xmlstreamelement, El}, StateData) ->
             NewEl = jlib:remove_attr(<<"xmlns">>, El),
             #xmlel{name = Name, attrs = Attrs} = NewEl,
             From_s = xml:get_attr_s(<<"from">>, Attrs),
-            From = jlib:binary_to_jid(From_s),
+            From = jid:from_binary(From_s),
             To_s = xml:get_attr_s(<<"to">>, Attrs),
-            To = jlib:binary_to_jid(To_s),
+            To = jid:from_binary(To_s),
             if
                 (To /= error) and (From /= error) ->
                     LFrom = From#jid.lserver,
@@ -505,8 +505,8 @@ stream_established({valid, From, To}, StateData) ->
                         attrs = [{<<"from">>, To},
                                  {<<"to">>, From},
                                  {<<"type">>, <<"valid">>}]}),
-    LFrom = jlib:nameprep(From),
-    LTo = jlib:nameprep(To),
+    LFrom = jid:nameprep(From),
+    LTo = jid:nameprep(To),
     NSD = StateData#state{
             connections = ?DICT:store({LFrom, LTo}, established,
                                       StateData#state.connections)},
@@ -517,8 +517,8 @@ stream_established({invalid, From, To}, StateData) ->
                         attrs = [{<<"from">>, To},
                                  {<<"to">>, From},
                                  {<<"type">>, <<"invalid">>}]}),
-    LFrom = jlib:nameprep(From),
-    LTo = jlib:nameprep(To),
+    LFrom = jid:nameprep(From),
+    LTo = jid:nameprep(To),
     NSD = StateData#state{
             connections = ?DICT:erase({LFrom, LTo},
                                       StateData#state.connections)},
@@ -699,7 +699,7 @@ is_key_packet(_) ->
     false.
 
 
--spec get_cert_domains(#'Certificate'{}) -> [any()].
+-spec get_cert_domains(#'Certificate'{}) ->  [any()].
 get_cert_domains(Cert) ->
     {rdnSequence, Subject} =
         (Cert#'Certificate'.tbsCertificate)#'TBSCertificate'.subject,
@@ -717,7 +717,7 @@ get_cert_domains(Cert) ->
                           end,
                       if
                           D /= error ->
-                              case jlib:binary_to_jid(D) of
+                              case jid:from_binary(D) of
                                   #jid{luser = <<"">>,
                                        lserver = LD,
                                        lresource = <<"">>} ->
@@ -752,7 +752,7 @@ get_cert_domains(Cert) ->
                                     case 'XmppAddr':decode(
                                            'XmppAddr', XmppAddr) of
                                         {ok, D} when is_binary(D) ->
-                                            case jlib:binary_to_jid(D) of
+                                            case jid:from_binary(D) of
                                                 #jid{luser = <<"">>,
                                                      lserver = LD,
                                                      lresource = <<"">>} ->
@@ -769,7 +769,7 @@ get_cert_domains(Cert) ->
                                             []
                                     end;
                                ({dNSName, D}) when is_list(D) ->
-                                    case jlib:binary_to_jid(list_to_binary(D)) of
+                                    case jid:from_binary(list_to_binary(D)) of
                                         #jid{luser = <<"">>,
                                              lserver = LD,
                                              lresource = <<"">>} ->

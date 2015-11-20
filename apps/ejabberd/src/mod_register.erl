@@ -85,12 +85,12 @@ unauthenticated_iq_register(_Acc,
 		 {A, _Port} -> A;
 		  _ -> undefined
 	      end,
-    ResIQ = process_iq(jlib:make_jid(<<>>, <<>>, <<>>),
- 		       jlib:make_jid(<<>>, Server, <<>>),
+    ResIQ = process_iq(jid:make(<<>>, <<>>, <<>>),
+                        jid:make(<<>>, Server, <<>>),
  		       IQ,
 		       Address),
-    Res1 = jlib:replace_from_to(jlib:make_jid(<<>>, Server, <<>>),
- 				jlib:make_jid(<<>>, <<>>, <<>>),
+    Res1 = jlib:replace_from_to(jid:make(<<>>, Server, <<>>),
+                                 jid:make(<<>>, <<>>, <<>>),
  				jlib:iq_to_xml(ResIQ)),
     jlib:remove_attr(<<"to">>, Res1);
 
@@ -98,7 +98,7 @@ unauthenticated_iq_register(Acc, _Server, _IQ, _IP) ->
     Acc.
 
 process_iq(From, To, IQ) ->
-    process_iq(From, To, IQ, jlib:jid_tolower(From)).
+    process_iq(From, To, IQ, jid:to_lower(From)).
 
 process_iq(From, To, #iq{type = Type, lang = Lang, sub_el = SubEl, id = ID} = IQ, Source) ->
     case Type of
@@ -160,8 +160,8 @@ process_iq(From, To, #iq{type = Type, lang = Lang, sub_el = SubEl, id = ID} = IQ
 					id = ID,
 					sub_el = [SubEl]},
 			    ejabberd_router:route(
-			      jlib:make_jid(User, Server, Resource),
-			      jlib:make_jid(User, Server, Resource),
+			      jid:make(User, Server, Resource),
+			      jid:make(User, Server, Resource),
 			      jlib:iq_to_xml(ResIQ)),
 			    ejabberd_auth:remove_user(User, Server),
 			    ignore;
@@ -250,11 +250,11 @@ try_set_password(User, Server, Password, IQ, SubEl, Lang) ->
     end.
 
 try_register(User, Server, Password, SourceRaw, Lang) ->
-    case jlib:is_nodename(User) of
+    case jid:is_nodename(User) of
 	false ->
 	    {error, ?ERR_BAD_REQUEST};
 	_ ->
-	    JID = jlib:make_jid(User, Server, <<>>),
+	    JID = jid:make(User, Server, <<>>),
 	    Access = gen_mod:get_module_opt(Server, ?MODULE, access, all),
 	    IPAccess = get_ip_access(Server),
 	    case {acl:match_rule(Server, Access, JID),
@@ -305,7 +305,7 @@ send_welcome_message(JID) ->
 	    ok;
 	{Subj, Body} ->
 	    ejabberd_router:route(
-	      jlib:make_jid(<<>>, Host, <<>>),
+	      jid:make(<<>>, Host, <<>>),
 	      JID,
 	      #xmlel{name = <<"message">>, attrs = [{<<"type">>, <<"normal">>}],
 	             children = [#xmlel{name = <<"subject">>,
@@ -325,15 +325,15 @@ send_registration_notifications(UJID, Source) ->
 		     io_lib:format(
 		       "[~s] The account ~s was registered from IP address ~s "
 		       "on node ~w using ~p.",
-		       [get_time_string(), jlib:jid_to_binary(UJID),
+		       [get_time_string(), jid:to_binary(UJID),
 			ip_to_string(Source), node(), ?MODULE])),
 	    lists:foreach(
 	      fun(S) ->
-		      case jlib:binary_to_jid(S) of
+		      case jid:from_binary(S) of
 			  error -> ok;
 			  JID ->
 			      ejabberd_router:route(
-				jlib:make_jid(<<>>, Host, <<>>),
+				jid:make(<<>>, Host, <<>>),
 				JID,
 				#xmlel{name = <<"message">>,
 				       attrs = [{<<"type">>, <<"chat">>}],
@@ -452,7 +452,7 @@ write_time({{Y,Mo,D},{H,Mi,S}}) ->
 		  [Y, Mo, D, H, Mi, S]).
 
 is_strong_password(Server, Password) ->
-    LServer = jlib:nameprep(Server),
+    LServer = jid:nameprep(Server),
     case gen_mod:get_module_opt(LServer, ?MODULE, password_strength, 0) of
 	Entropy when is_number(Entropy), Entropy >= 0 ->
 	    if Entropy == 0 ->
@@ -471,7 +471,7 @@ is_strong_password(Server, Password) ->
 %%%
 
 may_remove_resource({_, _, _} = From) ->
-    jlib:jid_remove_resource(From);
+    jid:to_bare(From);
 may_remove_resource(From) ->
     From.
 

@@ -988,8 +988,8 @@ bounce_element(El, Error) ->
         <<"result">> -> ok;
         _ ->
             Err = jlib:make_error_reply(El, Error),
-            From = jlib:binary_to_jid(xml:get_tag_attr_s(<<"from">>, El)),
-            To = jlib:binary_to_jid(xml:get_tag_attr_s(<<"to">>, El)),
+            From = jid:from_binary(xml:get_tag_attr_s(<<"from">>, El)),
+            To = jid:from_binary(xml:get_tag_attr_s(<<"to">>, El)),
             ejabberd_router:route(To, From, Err)
     end.
 

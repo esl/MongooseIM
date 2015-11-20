@@ -70,8 +70,8 @@ commands() ->
 -spec private_get(ejabberd:user(), ejabberd:server(), binary(), binary()) -> binary().
 private_get(Username, Host, Element, Ns) ->
     M = get_private_module(Host),
-    From = jlib:make_jid(Username, Host, <<"">>),
-    To = jlib:make_jid(Username, Host, <<"">>),
+    From = jid:make(Username, Host, <<"">>),
+    To = jid:make(Username, Host, <<"">>),
     IQ = {iq, <<"">>, get, ?NS_PRIVATE, <<"">>,
           #xmlel{ name = <<"query">>,
                  attrs = [{<<"xmlns">>,?NS_PRIVATE}],
@@ -99,8 +99,8 @@ private_set(Username, Host, ElementString) ->
 -spec private_set2(ejabberd:user(), ejabberd:server(), Xml :: jlib:xmlel()) -> ok.
 private_set2(Username, Host, Xml) ->
     M = get_private_module(Host),
-    From = jlib:make_jid(Username, Host, <<"">>),
-    To = jlib:make_jid(Username, Host, <<"">>),
+    From = jid:make(Username, Host, <<"">>),
+    To = jid:make(Username, Host, <<"">>),
     IQ = {iq, <<"">>, set, ?NS_PRIVATE, <<"">>,
           #xmlel{ name = <<"query">>,
                  attrs = [{<<"xmlns">>,?NS_PRIVATE}],

@@ -237,8 +237,8 @@ loaded_module(Domain,Options) ->
 
 -spec get_roster(ejabberd:user(), ejabberd:server()) -> [jids_nick_subs_ask_grp()].
 get_roster(User, Server) ->
-    LUser = jlib:nodeprep(User),
-    LServer = jlib:nameprep(Server),
+    LUser = jid:nodeprep(User),
+    LServer = jid:nameprep(Server),
     Items = ejabberd_hooks:run_fold(roster_get, Server, [], [{LUser, LServer}]),
     make_roster(Items).
 
@@ -249,7 +249,7 @@ get_roster(User, Server) ->
 make_roster(Roster) ->
     lists:foldl(
         fun(Item, Res) ->
-                JIDS = jlib:jid_to_binary(Item#roster.jid),
+                JIDS = jid:to_binary(Item#roster.jid),
                 Nick = Item#roster.name,
                 Subs = atom_to_list(Item#roster.subscription),
                 Ask = atom_to_list(Item#roster.ask),
@@ -344,7 +344,7 @@ push_roster_item(LU, LS, U, S, Action) ->
 -spec push_roster_item(ejabberd:luser(), ejabberd:lserver(), ejabberd:user(),
         ejabberd:user(), ejabberd:server(), Action :: push_action()) -> 'ok'.
 push_roster_item(LU, LS, R, U, S, Action) ->
-    LJID = jlib:make_jid(LU, LS, R),
+    LJID = jid:make(LU, LS, R),
     BroadcastEl = build_broadcast(U, S, Action),
     ejabberd_sm:route(LJID, LJID, BroadcastEl),
     Item = build_roster_item(U, S, Action),
@@ -355,15 +355,15 @@ push_roster_item(LU, LS, R, U, S, Action) ->
                        ) -> jlib:xmlel().
 build_roster_item(U, S, {add, Nick, Subs, Group}) ->
     #xmlel{ name = <<"item">>,
-           attrs = [{<<"jid">>, jlib:jid_to_binary(jlib:make_jid(U, S, <<"">>))},
-                    {<<"name">>, Nick},
-                    {<<"subscription">>, Subs}],
-           children = [#xmlel{ name = <<"group">>, children = [#xmlcdata{content = Group}]}]
-          };
+       attrs = [{<<"jid">>, jid:to_binary(jid:make(U, S, <<"">>))},
+                {<<"name">>, Nick},
+                {<<"subscription">>, Subs}],
+       children = [#xmlel{name = <<"group">>, children = [#xmlcdata{content = Group}]}]
+      };
 build_roster_item(U, S, remove) ->
     #xmlel{ name = <<"item">>,
-           attrs = [{<<"jid">>, jlib:jid_to_binary(jlib:make_jid(U, S, <<"">>))},
-                    {<<"subscription">>, <<"remove">>}]}.
+       attrs = [{<<"jid">>, jid:to_binary(jid:make(U, S, <<"">>))},
+                {<<"subscription">>, <<"remove">>}]}.
 
 
 -spec build_iq_roster_push(jlib:xmlcdata() | jlib:xmlel()) -> jlib:xmlel().
@@ -438,8 +438,9 @@ rosteritem_purge(Options) ->
     {atomic, ok}.
 
 
--spec rip('$end_of_table' | any(), delete_action() | list_action(),
-          {integer(), integer(), non_neg_integer(), non_neg_integer()}) -> 'ok'.
+-spec rip('$end_of_table'  | any(), delete_action()  | list_action(),
+          {integer(), integer(), non_neg_integer(), non_neg_integer()}) ->
+             ok.
 rip('$end_of_table', _Options, Counters) ->
     print_progress_line(Counters),
     ok;
@@ -492,7 +493,7 @@ decide_rip_jid({UName, UServer, _UResource}, MatchList) ->
 decide_rip_jid({UName, UServer}, MatchList) ->
     lists:any(
         fun(MatchString) ->
-                MJID = jlib:binary_to_jid(MatchString),
+                MJID = jid:from_binary(MatchString),
                 MName = MJID#jid.luser,
                 MServer = MJID#jid.lserver,
                 IsServer = is_regexp_match(UServer, MServer),

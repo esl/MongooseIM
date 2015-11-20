@@ -125,7 +125,7 @@ max_result_limit() -> 50.
 delete_archive(Server, User)
     when is_binary(Server), is_binary(User) ->
     ?DEBUG("Remove user ~p from ~p.", [User, Server]),
-    ArcJID = jlib:make_jid(User, Server, <<>>),
+    ArcJID = jid:make(User, Server, <<>>),
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
     remove_archive(Host, ArcID, ArcJID),
@@ -135,7 +135,7 @@ delete_archive(Server, User)
 -spec archive_size(ejabberd:server(), ejabberd:user()) -> integer().
 archive_size(Server, User)
     when is_binary(Server), is_binary(User) ->
-    ArcJID = jlib:make_jid(User, Server, <<>>),
+    ArcJID = jid:make(User, Server, <<>>),
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
     archive_size(Host, ArcID, ArcJID).
@@ -144,7 +144,7 @@ archive_size(Server, User)
 -spec archive_id(ejabberd:server(), ejabberd:user()) -> integer().
 archive_id(Server, User)
     when is_binary(Server), is_binary(User) ->
-    ArcJID = jlib:make_jid(User, Server, <<>>),
+    ArcJID = jid:make(User, Server, <<>>),
     Host = server_host(ArcJID),
     archive_id_int(Host, ArcJID).
 
@@ -235,7 +235,7 @@ archive_room_packet(Packet, FromNick,
     Host = server_host(RoomJID),
     ArcID = archive_id_int(Host, RoomJID),
     %% Occupant JID <room@service/nick>
-    SrcJID = jlib:jid_replace_resource(RoomJID, FromNick),
+    SrcJID = jid:replace_resource(RoomJID, FromNick),
     IsInteresting =
     case get_behaviour(Host, ArcID, RoomJID, SrcJID, always) of
         always -> true;
@@ -249,7 +249,7 @@ archive_room_packet(Packet, FromNick,
                                      RoomJID, SrcJID, SrcJID, incoming, Packet),
             case Result of
                 ok ->
-                    BareRoomJID = jlib:jid_to_binary(RoomJID),
+                    BareRoomJID = jid:to_binary(RoomJID),
                     replace_archived_elem(BareRoomJID,
                                           mess_id_to_external_binary(MessID),
                                           Packet);
@@ -436,7 +436,7 @@ handle_lookup_messages(
                          Start, End, Now, With,
                          PageSize, LimitPassed, max_result_limit(), IsSimple) of
     {error, 'policy-violation'} ->
-        ?DEBUG("Policy violation by ~p.", [jlib:jid_to_binary(From)]),
+        ?DEBUG("Policy violation by ~p.", [jid:to_binary(From)]),
         ErrorEl = jlib:stanza_errort(<<"">>, <<"modify">>, <<"policy-violation">>,
                                  <<"en">>, <<"Too many results">>),
         IQ#iq{type = error, sub_el = [ErrorEl]};
@@ -546,18 +546,21 @@ remove_archive(Host, ArcID, ArcJID=#jid{}) ->
 
 
 %% See description in mod_mam.
--spec lookup_messages(%Result :: any(),
-        Host :: ejabberd:server(),
-        ArchiveID :: mod_mam:archive_id(), ArchiveJID :: ejabberd:jid(),
-        RSM :: jlib:rsm_in() | undefined, Borders :: mod_mam:borders() | undefined,
-        Start :: mod_mam:unix_timestamp() | undefined,
-        End :: mod_mam:unix_timestamp() | undefined, Now :: mod_mam:unix_timestamp(),
-        WithJID :: ejabberd:jid() | undefined, PageSize :: non_neg_integer(),
-        LimitPassed :: boolean(), MaxResultLimit :: non_neg_integer(),
-        IsSimple :: boolean() | opt_count) ->
-            {ok, mod_mam:lookup_result()}
-            | {error, 'policy-violation'}
-            | {error, Reason :: term()}.
+-spec lookup_messages(Host :: ejabberd:server(),
+                      ArchiveID :: mod_mam:archive_id(),
+                      ArchiveJID :: ejabberd:jid(),
+                      RSM :: jlib:rsm_in()  | undefined,
+                      Borders :: mod_mam:borders()  | undefined,
+                      Start :: mod_mam:unix_timestamp()  | undefined,
+                      End :: mod_mam:unix_timestamp()  | undefined,
+                      Now :: mod_mam:unix_timestamp(),
+                      WithJID :: ejabberd:jid()  | undefined,
+                      PageSize :: non_neg_integer(), LimitPassed :: boolean(),
+                      MaxResultLimit :: non_neg_integer(),
+                      IsSimple :: boolean()  | opt_count) ->
+                         {ok, mod_mam:lookup_result()}
+                          | {error, 'policy-violation'}
+                          | {error, Reason :: term()}.%Result :: any(),
 lookup_messages(Host, ArcID, ArcJID, RSM, Borders, Start, End, Now,
                 WithJID, PageSize, LimitPassed, MaxResultLimit, IsSimple) ->
     ejabberd_hooks:run_fold(mam_muc_lookup_messages, Host, {ok, {0, 0, []}},
@@ -576,9 +579,12 @@ archive_message(Host, MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet) ->
 
 
 -spec purge_single_message(Host :: ejabberd:server(),
-        MessID :: mod_mam:message_id(), ArcID :: mod_mam:archive_id(),
-        ArcJID :: ejabberd:jid(), Now :: unix_timestamp())
-            -> ok | {error, 'not-found'} | {error, Reason :: term()}.
+                           MessID :: mod_mam:message_id(),
+                           ArcID :: mod_mam:archive_id(),
+                           ArcJID :: ejabberd:jid(),
+                           Now :: unix_timestamp()) ->
+                              ok  | {error, 'not-found'}
+                               | {error, Reason :: term()}.
 purge_single_message(Host, MessID, ArcID, ArcJID, Now) ->
     ejabberd_hooks:run_fold(mam_muc_purge_single_message, Host, ok,
         [Host, MessID, ArcID, ArcJID, Now]).
@@ -627,7 +633,7 @@ message_row_to_ext_id({MessID,_,_}) ->
 maybe_jid(<<>>) ->
     undefined;
 maybe_jid(JID) when is_binary(JID) ->
-    jlib:binary_to_jid(JID).
+    jid:from_binary(JID).
 
 
 %% @doc Convert id into internal format.
@@ -710,8 +716,10 @@ return_max_delay_reached_error_iq(IQ) ->
 
 
 -spec return_purge_single_message_iq(ejabberd:iq(),
-        'ok' | {'error','not-found'} | {error, Reason :: term()}) ->
-    ejabberd:iq() | {error, any(), ejabberd:iq()}.
+                                     ok  | {error, 'not-found'}
+                                      | {error, Reason :: term()}) ->
+                                        ejabberd:iq()
+                                         | {error, any(), ejabberd:iq()}.
 return_purge_single_message_iq(IQ, ok) ->
     return_purge_success(IQ);
 return_purge_single_message_iq(IQ, {error, 'not-found'}) ->

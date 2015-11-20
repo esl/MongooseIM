@@ -136,7 +136,7 @@ ets_insert_mechanism(MechanismRec) ->
 
 -spec check_credentials(sasl_state(), list()) -> 'ok' | {'error', binary()}.
 check_credentials(_State, Props) ->
-    case jlib:nodeprep(proplists:get_value(username, Props, <<>>)) of
+    case jid:nodeprep(proplists:get_value(username, Props, <<>>)) of
         error ->
             {error, <<"not-authorized">>};
         <<>> ->

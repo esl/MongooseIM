@@ -44,5 +44,5 @@ stop_c2s(C2SPid) when is_pid(C2SPid) ->
     ejabberd_c2s_SUITE_mocks:teardown().
 
 jid(Str) ->
-    jlib:binary_to_jid(Str).
+    jid:from_binary(Str).
 

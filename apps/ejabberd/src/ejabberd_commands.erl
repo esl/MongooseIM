@@ -437,7 +437,7 @@ check_access(_, noauth) ->
 check_access(Access, Auth) ->
     {ok, User, Server} = check_auth(Auth),
     %% Check this user has access permission
-    case acl:match_rule(Server, Access, jlib:make_jid(User, Server, <<"">>)) of
+    case acl:match_rule(Server, Access, jid:make(User, Server, <<"">>)) of
         allow -> true;
         deny -> false
     end.

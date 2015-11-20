@@ -54,7 +54,7 @@ extract_requested_rules(#xmlel{} = Stanza) ->
 -spec make_response(amp_rule(), jid(), #xmlel{}) -> #xmlel{}.
 make_response(Rule, User, Packet) ->
     OriginalId = exml_query:attr(Packet, <<"id">>, <<"original-id-missing">>),
-    OriginalSender = jlib:jid_to_binary(User),
+    OriginalSender = jid:to_binary(User),
     OriginalRecipient = exml_query:attr(Packet, <<"to">>),
 
     Amp = #xmlel{name = <<"amp">>,
@@ -87,7 +87,7 @@ make_error_response(Errors,Rules,User,Packet) ->
     error(invalid_data).
 
 error_amp_attrs('undefined-condition', User, Packet) ->
-    OriginalSender = jlib:jid_to_binary(User),
+    OriginalSender = jid:to_binary(User),
     OriginalRecipient = exml_query:attr(Packet, <<"to">>),
     [{<<"status">>, <<"error">>},
      {<<"to">>, OriginalRecipient},
