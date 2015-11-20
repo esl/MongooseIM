@@ -46,7 +46,7 @@ decode(_, _, _) ->
              RoomUS :: ejabberd:simple_bare_jid(),
              HandleFun :: mod_muc_light_codec:encoded_packet_handler()) -> any().
 encode({#msg{} = Msg, AffUsers}, Sender, {RoomU, RoomS} = RoomUS, HandleFun) ->
-    FromNick = jlib:jid_to_binary(jlib:jid_to_lus(Sender)),
+    FromNick = jid:to_binary(jid:to_lus(Sender)),
     {RoomJID, RoomBin} = jids_from_room_with_resource(RoomUS, FromNick),
     Attrs = [
              {<<"id">>, Msg#msg.id},
@@ -56,7 +56,7 @@ encode({#msg{} = Msg, AffUsers}, Sender, {RoomU, RoomS} = RoomUS, HandleFun) ->
     MsgForArch = #xmlel{ name = <<"message">>, attrs = Attrs, children = Msg#msg.children },
     #xmlel{ children = Children }
     = ejabberd_hooks:run_fold(filter_room_packet, RoomS, MsgForArch,
-                              [FromNick, Sender, jlib:make_jid_noprep({RoomU, RoomS, <<>>})]),
+                              [FromNick, Sender, jid:make_noprep({RoomU, RoomS, <<>>})]),
     lists:foreach(
       fun({{U, S}, _}) ->
               send_to_aff_user(RoomJID, U, S, <<"message">>, Attrs, Children, HandleFun)
@@ -65,10 +65,10 @@ encode(OtherCase, Sender, RoomUS, HandleFun) ->
     {RoomJID, RoomBin} = jids_from_room_with_resource(RoomUS, <<>>),
     case encode_meta(OtherCase, RoomJID, Sender, HandleFun) of
         {iq_reply, ID} ->
-            IQRes = make_iq_result(RoomBin, jlib:jid_to_binary(Sender), ID, <<>>, undefined),
+            IQRes = make_iq_result(RoomBin, jid:to_binary(Sender), ID, <<>>, undefined),
             HandleFun(RoomJID, Sender, IQRes);
         {iq_reply, XMLNS, Els, ID} ->
-            IQRes = make_iq_result(RoomBin, jlib:jid_to_binary(Sender), ID, XMLNS, Els),
+            IQRes = make_iq_result(RoomBin, jid:to_binary(Sender), ID, XMLNS, Els),
             HandleFun(RoomJID, Sender, IQRes);
         noreply ->
             ok
@@ -189,9 +189,9 @@ parse_aff_users([], AffUsersAcc) ->
 parse_aff_users([Item | RItemsEls], AffUsersAcc) ->
     AffBin = exml_query:attr(Item, <<"affiliation">>),
     JIDBin = exml_query:attr(Item, <<"jid">>),
-    #jid{} = JID = jlib:binary_to_jid(JIDBin),
+    #jid{} = JID = jid:from_binary(JIDBin),
     Aff = mod_muc_light_utils:b2aff(AffBin),
-    parse_aff_users(RItemsEls, [{jlib:jid_to_lus(JID), Aff} | AffUsersAcc]).
+    parse_aff_users(RItemsEls, [{jid:to_lus(JID), Aff} | AffUsersAcc]).
 
 -spec parse_blocking_list(Els :: [jlib:xmlch()]) -> {ok, [blocking_item()]}.
 parse_blocking_list(ItemsEls) ->
@@ -204,15 +204,15 @@ parse_blocking_list([], ItemsAcc) ->
 parse_blocking_list([Item | RItemsEls], ItemsAcc) ->
     JIDBin = exml_query:attr(Item, <<"value">>),
     ActionBin = exml_query:attr(Item, <<"action">>),
-    #jid{} = JID = jlib:binary_to_jid(JIDBin),
+    #jid{} = JID = jid:from_binary(JIDBin),
     Action = b2action(ActionBin),
     {What, Who} = case {JID#jid.luser =:= <<>>, JID#jid.lresource =:= <<>>} of
                       {false, true} ->
                           {room, JID};
                       {true, false} ->
-                          {user, jlib:binary_to_jid(JID#jid.lresource)}
+                          {user, jid:from_binary(JID#jid.lresource)}
                   end,
-    parse_blocking_list(RItemsEls, [{What, Action, jlib:jid_to_lus(Who)} | ItemsAcc]).
+    parse_blocking_list(RItemsEls, [{What, Action, jid:to_lus(Who)} | ItemsAcc]).
 
 %%====================================================================
 %% Encoding
@@ -268,7 +268,7 @@ encode_meta({set, #blocking{ id = ID }}, _RoomJID, _SenderJID, _HandleFun) ->
     {iq_reply, ID};
 encode_meta({set, #create{} = Create, _UniqueRequested}, RoomJID, _SenderJID, HandleFun) ->
     [{{ToU, ToS}, CreatorAff}] = Create#create.aff_users,
-    ToBin = jlib:jid_to_binary({ToU, ToS, <<>>}),
+    ToBin = jid:to_binary({ToU, ToS, <<>>}),
     {From, FromBin} = jids_from_room_with_resource({RoomJID#jid.luser, RoomJID#jid.lserver}, ToBin),
     Attrs = [{<<"from">>, FromBin}],
     {AffBin, RoleBin} = case CreatorAff of
@@ -285,8 +285,8 @@ encode_meta({set, #create{} = Create, _UniqueRequested}, RoomJID, _SenderJID, Ha
 encode_meta({set, #destroy{ id = ID }, AffUsers}, RoomJID, _SenderJID, HandleFun) ->
     lists:foreach(
       fun({{U, S}, _}) ->
-              FromJID = jlib:jid_replace_resource(RoomJID, jlib:jid_to_binary({U, S, <<>>})),
-              Attrs = [{<<"from">>, jlib:jid_to_binary(FromJID)},
+              FromJID = jid:replace_resource(RoomJID, jid:to_binary({U, S, <<>>})),
+              Attrs = [{<<"from">>, jid:to_binary(FromJID)},
                        {<<"type">>, <<"unavailable">>}],
               Children = [ #xmlel{ name = <<"item">>,
                                    attrs = [{<<"affiliation">>, <<"none">>},
@@ -302,7 +302,7 @@ encode_meta({set, #config{ raw_config = [{<<"subject">>, Subject}], id = ID }, A
     Attrs = [
              {<<"id">>, ID},
              {<<"type">>, <<"groupchat">>},
-             {<<"from">>, jlib:jid_to_binary(RoomJID)}
+             {<<"from">>, jid:to_binary(RoomJID)}
             ],
     SubjectEl = #xmlel{ name = <<"subject">>, children = [ #xmlcdata{ content = Subject } ] },
     lists:foreach(
@@ -312,7 +312,7 @@ encode_meta({set, #config{ raw_config = [{<<"subject">>, Subject}], id = ID }, A
     noreply;
 encode_meta({set, #config{} = Config, AffUsers}, RoomJID, _SenderJID, HandleFun) ->
     Attrs = [{<<"id">>, Config#config.id},
-             {<<"from">>, jlib:jid_to_binary(RoomJID)},
+             {<<"from">>, jid:to_binary(RoomJID)},
              {<<"type">>, <<"groupchat">>}],
     ConfigNotif = envelope(?NS_MUC_USER, [status(<<"104">>)]),
     lists:foreach(
@@ -326,7 +326,7 @@ encode_meta({set, #config{} = Config, AffUsers}, RoomJID, _SenderJID, HandleFun)
 
 -spec aff_user_to_item(aff_user()) -> jlib:xmlel().
 aff_user_to_item({User, Aff}) ->
-    UserBin = jlib:jid_to_binary(User),
+    UserBin = jid:to_binary(User),
     {RoleBin, NickEl} = case Aff of
                             owner -> {<<"moderator">>, [{<<"nick">>, UserBin}]};
                             member -> {<<"participant">>, [{<<"nick">>, UserBin}]};
@@ -339,7 +339,7 @@ aff_user_to_item({User, Aff}) ->
 
 -spec blocking_to_el(BlockingItem :: blocking_item(), Service :: binary()) -> jlib:xmlel().
 blocking_to_el({What, Action, {WhoU, WhoS}}, Service) ->
-    WhoBin = jlib:jid_to_binary({WhoU, WhoS, <<>>}),
+    WhoBin = jid:to_binary({WhoU, WhoS, <<>>}),
     Value = case What of
                 room -> WhoBin;
                 user -> <<Service/binary, $/, WhoBin/binary>>
@@ -373,7 +373,7 @@ bcast_aff_messages(Room, [{{ToU, ToS} = User, _} | ROldAffUsers], [{User, _} | R
                    SenderJID, ChangedAffUsers, HandleFun) ->
     lists:foreach(
       fun({{ChangedU, ChangedS}, NewAff} = ChangedAffUser) ->
-              ChangedUserBin = jlib:jid_to_binary({ChangedU, ChangedS, <<>>}),
+              ChangedUserBin = jid:to_binary({ChangedU, ChangedS, <<>>}),
               {From, FromBin} = jids_from_room_with_resource({Room#jid.luser, Room#jid.lserver},
                                                              ChangedUserBin),
               Attrs0 = [{<<"from">>, FromBin}],
@@ -393,8 +393,8 @@ bcast_aff_messages(Room, [{User1, _} | ROldAffUsers], [{User2, _} | _] = NewAffU
     bcast_aff_messages(Room, ROldAffUsers, NewAffUsers, SenderJID, ChangedAffUsers, HandleFun);
 bcast_aff_messages(Room, OldAffUsers, [{{ToU, ToS}, _} | RNewAffUsers],
                    SenderJID, ChangedAffUsers, HandleFun) ->
-    InviterBin = jlib:jid_to_binary({SenderJID#jid.luser, SenderJID#jid.lserver, <<>>}),
-    RoomBin = jlib:jid_to_binary(jlib:jid_to_lower(Room)),
+    InviterBin = jid:to_binary({SenderJID#jid.luser, SenderJID#jid.lserver, <<>>}),
+    RoomBin = jid:to_binary(jid:to_lower(Room)),
     InviteEl = #xmlel{ name = <<"invite">>,
                        attrs = [{<<"from">>, InviterBin}] },
     NotifForNewcomer = envelope(?NS_MUC_USER, [InviteEl]),
@@ -405,7 +405,7 @@ bcast_aff_messages(Room, OldAffUsers, [{{ToU, ToS}, _} | RNewAffUsers],
 -spec msg_to_leaving_user(Room :: ejabberd:jid(), User :: ejabberd:simple_bare_jid(),
                           HandleFun :: mod_muc_light_codec:encoded_packet_handler()) -> ok.
 msg_to_leaving_user(Room, {ToU, ToS} = User, HandleFun) ->
-    UserBin = jlib:jid_to_binary({ToU, ToS, <<>>}),
+    UserBin = jid:to_binary({ToU, ToS, <<>>}),
     {From, FromBin} = jids_from_room_with_resource({Room#jid.luser, Room#jid.lserver}, UserBin),
     Attrs = [{<<"from">>, FromBin},
              {<<"type">>, <<"unavailable">>}],
@@ -417,8 +417,8 @@ msg_to_leaving_user(Room, {ToU, ToS} = User, HandleFun) ->
                        Children :: [jlib:xmlch()],
                        HandleFun :: mod_muc_light_codec:encoded_packet_handler()) -> ok.
 send_to_aff_user(From, ToU, ToS, Name, Attrs, Children, HandleFun) ->
-    To = jlib:make_jid_noprep({ToU, ToS, <<>>}),
-    ToBin = jlib:jid_to_binary({ToU, ToS, <<>>}),
+    To = jid:make_noprep({ToU, ToS, <<>>}),
+    ToBin = jid:to_binary({ToU, ToS, <<>>}),
     Packet = #xmlel{ name = Name, attrs = [{<<"to">>, ToBin} | Attrs],
                      children = Children },
     HandleFun(From, To, Packet).
@@ -426,8 +426,8 @@ send_to_aff_user(From, ToU, ToS, Name, Attrs, Children, HandleFun) ->
 -spec jids_from_room_with_resource(RoomUS :: ejabberd:simple_bare_jid(), binary()) ->
     {ejabberd:jid(), binary()}.
 jids_from_room_with_resource({RoomU, RoomS}, Resource) ->
-    FromBin = jlib:jid_to_binary({RoomU, RoomS, Resource}),
-    From = jlib:make_jid_noprep({RoomU, RoomS, Resource}),
+    FromBin = jid:to_binary({RoomU, RoomS, Resource}),
+    From = jid:make_noprep({RoomU, RoomS, Resource}),
     {From, FromBin}.
 
 -spec make_iq_result(FromBin :: binary(), ToBin :: binary(), ID :: binary(),

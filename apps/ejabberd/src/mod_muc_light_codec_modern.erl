@@ -36,7 +36,7 @@ decode(_, _, _) ->
              RoomUS :: ejabberd:simple_bare_jid(),
              HandleFun :: mod_muc_light_codec:encoded_packet_handler()) -> any().
 encode({#msg{} = Msg, AffUsers}, Sender, {RoomU, RoomS} = RoomUS, HandleFun) ->
-    FromNick = jlib:jid_to_binary(jlib:jid_to_lus(Sender)),
+    FromNick = jid:to_binary(jid:to_lus(Sender)),
     {RoomJID, RoomBin} = jids_from_room_with_resource(RoomUS, FromNick),
     Attrs = [
              {<<"id">>, Msg#msg.id},
@@ -46,7 +46,7 @@ encode({#msg{} = Msg, AffUsers}, Sender, {RoomU, RoomS} = RoomUS, HandleFun) ->
     MsgForArch = #xmlel{ name = <<"message">>, attrs = Attrs, children = Msg#msg.children },
     #xmlel{ children = Children }
     = ejabberd_hooks:run_fold(filter_room_packet, RoomS, MsgForArch,
-                              [FromNick, Sender, jlib:make_jid_noprep({RoomU, RoomS, <<>>})]),
+                              [FromNick, Sender, jid:make_noprep({RoomU, RoomS, <<>>})]),
     lists:foreach(
       fun({{U, S}, _}) ->
               msg_to_aff_user(RoomJID, U, S, Attrs, Children, HandleFun)
@@ -55,13 +55,13 @@ encode(OtherCase, Sender, RoomUS, HandleFun) ->
     {RoomJID, RoomBin} = jids_from_room_with_resource(RoomUS, <<>>),
     case encode_iq(OtherCase, RoomJID, RoomBin, HandleFun) of
         {reply, ID} ->
-            IQRes = make_iq_result(RoomBin, jlib:jid_to_binary(Sender), ID, <<>>, undefined),
+            IQRes = make_iq_result(RoomBin, jid:to_binary(Sender), ID, <<>>, undefined),
             HandleFun(RoomJID, Sender, IQRes);
         {reply, XMLNS, Els, ID} ->
-            IQRes = make_iq_result(RoomBin, jlib:jid_to_binary(Sender), ID, XMLNS, Els),
+            IQRes = make_iq_result(RoomBin, jid:to_binary(Sender), ID, XMLNS, Els),
             HandleFun(RoomJID, Sender, IQRes);
         {reply, FromJID, FromBin, XMLNS, Els, ID} ->
-            IQRes = make_iq_result(FromBin, jlib:jid_to_binary(Sender), ID, XMLNS, Els),
+            IQRes = make_iq_result(FromBin, jid:to_binary(Sender), ID, XMLNS, Els),
             HandleFun(FromJID, Sender, IQRes)
     end.
 
@@ -214,9 +214,9 @@ parse_aff_users([#xmlcdata{} | RItemsEls], AffUsersAcc) ->
 parse_aff_users([#xmlel{ name = <<"user">>, attrs = [{<<"affiliation">>, AffBin}],
                                   children = [ #xmlcdata{ content = JIDBin } ] } | RItemsEls],
                           AffUsersAcc) ->
-    #jid{} = JID = jlib:binary_to_jid(JIDBin),
+    #jid{} = JID = jid:from_binary(JIDBin),
     Aff = mod_muc_light_utils:b2aff(AffBin),
-    parse_aff_users(RItemsEls, [{jlib:jid_to_lus(JID), Aff} | AffUsersAcc]);
+    parse_aff_users(RItemsEls, [{jid:to_lus(JID), Aff} | AffUsersAcc]);
 parse_aff_users(_, _) ->
     {error, bad_request}.
 
@@ -231,10 +231,10 @@ parse_blocking_list([], ItemsAcc) ->
 parse_blocking_list([#xmlel{ name = WhatBin, attrs = [{<<"action">>, ActionBin}],
                              children = [ #xmlcdata{ content = JIDBin } ] } | RItemsEls],
                           ItemsAcc) ->
-    #jid{} = JID = jlib:binary_to_jid(JIDBin),
+    #jid{} = JID = jid:from_binary(JIDBin),
     Action = b2action(ActionBin),
     What = b2what(WhatBin),
-    parse_blocking_list(RItemsEls, [{What, Action, jlib:jid_to_lus(JID)} | ItemsAcc]);
+    parse_blocking_list(RItemsEls, [{What, Action, jid:to_lus(JID)} | ItemsAcc]);
 parse_blocking_list(_, _) ->
     {error, bad_request}.
 
@@ -382,13 +382,13 @@ encode_iq({set, #config{} = Config, AffUsers}, RoomJID, RoomBin, HandleFun) ->
 aff_user_to_el({User, Aff}) ->
     #xmlel{ name = <<"user">>,
             attrs = [{<<"affiliation">>, mod_muc_light_utils:aff2b(Aff)}],
-            children = [#xmlcdata{ content = jlib:jid_to_binary(User) }] }.
+            children = [#xmlcdata{ content = jid:to_binary(User) }] }.
 
 -spec blocking_to_el(blocking_item()) -> jlib:xmlel().
 blocking_to_el({What, Action, Who}) ->
     #xmlel{ name = what2b(What),
             attrs = [{<<"action">>, action2b(Action)}],
-            children = [#xmlcdata{ content = jlib:jid_to_binary(Who) }] }.
+            children = [#xmlcdata{ content = jid:to_binary(Who) }] }.
 
 -spec kv_to_el({binary(), binary()}) -> jlib:xmlel().
 kv_to_el({Key, Value}) ->
@@ -445,8 +445,8 @@ msg_to_leaving_user(From, {ToU, ToS} = User, Attrs, HandleFun) ->
                       Attrs :: [{binary(), binary()}], Children :: [jlib:xmlch()],
                       HandleFun :: mod_muc_light_codec:encoded_packet_handler()) -> ok.
 msg_to_aff_user(From, ToU, ToS, Attrs, Children, HandleFun) ->
-    To = jlib:make_jid_noprep({ToU, ToS, <<>>}),
-    ToBin = jlib:jid_to_binary({ToU, ToS, <<>>}),
+    To = jid:make_noprep({ToU, ToS, <<>>}),
+    ToBin = jid:to_binary({ToU, ToS, <<>>}),
     Packet = #xmlel{ name = <<"message">>, attrs = [{<<"to">>, ToBin} | Attrs],
                      children = Children },
     HandleFun(From, To, Packet).
@@ -454,8 +454,8 @@ msg_to_aff_user(From, ToU, ToS, Attrs, Children, HandleFun) ->
 -spec jids_from_room_with_resource(RoomUS :: ejabberd:simple_bare_jid(), binary()) ->
     {ejabberd:jid(), binary()}.
 jids_from_room_with_resource({RoomU, RoomS}, Resource) ->
-    FromBin = jlib:jid_to_binary({RoomU, RoomS, Resource}),
-    From = jlib:make_jid_noprep({RoomU, RoomS, Resource}),
+    FromBin = jid:to_binary({RoomU, RoomS, Resource}),
+    From = jid:make_noprep({RoomU, RoomS, Resource}),
     {From, FromBin}.
 
 -spec make_iq_result(FromBin :: binary(), ToBin :: binary(), ID :: binary(),

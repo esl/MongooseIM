@@ -43,7 +43,7 @@
 -spec handle_request(From :: ejabberd:jid(), RoomJID :: ejabberd:jid(),
                      OrigPacket :: jlib:xmlel(), Request :: muc_light_packet()) -> ok.
 handle_request(From, To, OrigPacket, Request) ->
-    RoomUS = jlib:jid_to_lus(To),
+    RoomUS = jid:to_lus(To),
     AffUsersRes = ?BACKEND:get_aff_users(RoomUS),
     Response = process_request(From, RoomUS, Request, AffUsersRes),
     send_response(From, To, RoomUS, OrigPacket, Response).
@@ -74,7 +74,7 @@ participant_limit_check({_, MUCServer} = _RoomUS, NewAffUsers) ->
 process_request(_From, _RoomUS, _Request, {error, _} = Error) ->
     Error;
 process_request(From, RoomUS, Request, {ok, AffUsers, _Ver}) ->
-    UserUS = jlib:jid_to_lus(From),
+    UserUS = jid:to_lus(From),
     Auth = lists:keyfind(UserUS, 1, AffUsers),
     process_request(Request, From, UserUS, RoomUS, Auth, AffUsers).
 

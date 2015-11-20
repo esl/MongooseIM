@@ -17,6 +17,8 @@
 
 -export([make/3]).
 -export([make/1]).
+-export([make_noprep/3]).
+-export([make_noprep/1]).
 -export([are_equal/2]).
 -export([from_binary/1]).
 -export([to_binary/1]).
@@ -62,6 +64,20 @@ make(User, Server, Resource) ->
 make({User, Server, Resource}) ->
     make(User, Server, Resource).
 
+-spec make_noprep(User     :: ejabberd:luser(),
+                  Server   :: ejabberd:lserver(),
+                  Resource :: ejabberd:lresource()) -> ejabberd:jid().
+make_noprep(LUser, LServer, LResource) ->
+    #jid{user = LUser,
+         server = LServer,
+         resource = LResource,
+         luser = LUser,
+         lserver = LServer,
+         lresource = LResource}.
+
+-spec make_noprep(ejabberd:simple_jid()) -> ejabberd:jid() | error.
+make_noprep({LUser, LServer, LResource}) ->
+    make_noprep(LUser, LServer, LResource).
 
 -spec are_equal(ejabberd:jid(), ejabberd:jid()) ->  boolean().
 are_equal(#jid{luser = LUser, lserver = LServer, lresource = LRes},

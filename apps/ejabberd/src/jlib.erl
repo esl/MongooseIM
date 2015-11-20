@@ -40,8 +40,6 @@
          remove_attr/2,
          make_jid/3,
          make_jid/1,
-         make_jid_noprep/3,
-         make_jid_noprep/1,
          are_equal_jids/2,
          binary_to_jid/1,
          jid_to_binary/1,
@@ -51,7 +49,6 @@
          resourceprep/1,
          jid_to_lower/1,
          jid_tolower/1,
-         jid_to_lus/1,
          jid_remove_resource/1,
          jid_replace_resource/2,
          iq_query_info/1,
@@ -282,21 +279,6 @@ make_jid({User, Server, Resource}) ->
     ?WARNING_MSG("This function has been deprecated in MongooseIM 1.6.1 and will be removed in 1.7.0", []),
     make_jid(User, Server, Resource).
 
--spec make_jid_noprep(User     :: ejabberd:luser(),
-                      Server   :: ejabberd:lserver(),
-                      Resource :: ejabberd:lresource()) -> ejabberd:jid().
-make_jid_noprep(LUser, LServer, LResource) ->
-    #jid{user = LUser,
-         server = LServer,
-         resource = LResource,
-         luser = LUser,
-         lserver = LServer,
-         lresource = LResource}.
-
--spec make_jid_noprep(ejabberd:simple_jid()) -> ejabberd:jid() | error.
-make_jid_noprep({LUser, LServer, LResource}) ->
-    make_jid_noprep(LUser, LServer, LResource).
-
 -spec are_equal_jids(ejabberd:jid(), ejabberd:jid()) -> boolean().
 are_equal_jids(JID1, JID2) ->
     ?WARNING_MSG("This function has been deprecated in MongooseIM 1.6.1 and will be removed in 1.7.0", []),
@@ -348,11 +330,6 @@ jid_tolower(Any) ->
 jid_to_lower(JID) ->
     ?WARNING_MSG("This function has been deprecated in MongooseIM 1.6.1 and will be removed in 1.7.0", []),
     jid:to_lower(JID).
-
--spec jid_to_lus(JID :: ejabberd:jid()) -> error | ejabberd:simple_bare_jid().
-jid_to_lus(JID) ->
-    ?WARNING_MSG("This function has been deprecated in MongooseIM 1.6.1 and will be removed in 1.7.0", []),
-    jid:to_lus(JID).
 
 -spec jid_remove_resource(ejabberd:simple_jid() | ejabberd:jid()) ->
                           ejabberd:simple_jid() | ejabberd:jid().
