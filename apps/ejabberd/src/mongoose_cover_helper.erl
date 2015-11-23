@@ -25,7 +25,8 @@ start(Apps) ->
     lists:flatmap(fun cover_compile_app/1, Apps).
 
 analyze() ->
-    cover:export("/tmp/" ++ atom_to_list(node()) ++ ".coverdata"),
+    NowList = jlib:now_to_utc_string(os:timestamp()),
+    cover:export("/tmp/" ++ atom_to_list(node())++ "." ++ NowList ++".coverdata"),
     cover:stop().
 
 cover_compile_app(App) ->
