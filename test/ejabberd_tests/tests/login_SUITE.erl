@@ -44,6 +44,7 @@ all() ->
 
 groups() ->
     [{register, [sequence], [register,
+                             already_registered,
                              check_unregistered]},
      {bad_registration, [no_sequence], [null_password]},
      {bad_cancelation, [no_sequence], [bad_request_registration_cancelation,
@@ -222,6 +223,22 @@ register(Config) ->
                          ],
             escalus:assert_many(Predicates, escalus:wait_for_stanzas(Admin, 2))
         end).
+
+already_registered(Config) ->
+
+    %% This relies on Alice already being registered in test case
+    %% `register' in the same group as this test (group `register').
+
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+
+        escalus:send(Alice, escalus_stanza:get_registration_fields()),
+
+        Stanza = escalus:wait_for_stanza(Alice),
+
+        escalus:assert(is_iq_result, Stanza),
+        true = has_registered_element(Stanza)
+
+    end).
 
 null_password(Config) ->
     Jimmy = {jimmy,
@@ -467,6 +484,10 @@ do_verify_format(login_scram, _Password, SPassword) ->
     {_, _, _, _} = SPassword;
 do_verify_format(_, Password, SPassword) ->
     Password = SPassword.
+
+has_registered_element(Stanza) ->
+        [#xmlel{name = <<"registered">>}] =:= exml_query:paths(Stanza,
+            [{element, <<"query">>}, {element, <<"registered">>}]).
 
 bad_cancelation_stanza() ->
     escalus_stanza:iq(<<"set">>, [#xmlel{name = <<"query">>,
