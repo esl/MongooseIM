@@ -241,17 +241,17 @@ already_registered(Config) ->
     end).
 
 null_password(Config) ->
-    Jimmy = {jimmy,
-             [{username, <<"jimmy">>},
-              {password, <<>>},
-              {server,<<"localhost">>}]},
-    {error, _, Response} = escalus_users:create_user(Config, Jimmy),
+    [{alice, Details}] = escalus_users:get_users({by_name, [alice]}),
+    Alice = {alice, lists:keyreplace(password, 1, Details, {password, <<>>})},
+    {error, _, Response} = escalus_users:create_user(Config, Alice),
     escalus:assert(is_iq_error, Response),
     %% This error response means there was no character data,
     %% i.e. elements `<password\>' or `<password></password>' where
     %% indeed present.
+    {username, Name} = lists:keyfind(username, 1, Details),
+    {server, Server} = lists:keyfind(server, 1, Details),
     escalus:assert(is_error, [<<"modify">>, <<"not-acceptable">>], Response),
-    false = escalus_ejabberd:rpc(ejabberd_auth, is_user_exists, [<<"jimmy">>, <<"localhost">>]).
+    false = escalus_ejabberd:rpc(ejabberd_auth, is_user_exists, [Name, Server]).
 
 check_unregistered(Config) ->
     escalus:delete_users(Config, {by_name, [admin, alice, bob]}),
