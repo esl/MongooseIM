@@ -583,6 +583,3 @@ error_response(Request, Reasons) when is_list(Reasons) ->
     Request#iq{type = error, sub_el = Reasons};
 error_response(Request, Reason) ->
     Request#iq{type = error, sub_el = Reason}.
-
-print_it(Text, Value) ->
-    lager:error("***** ~s = ~p *****~n", [Text, Value]).
