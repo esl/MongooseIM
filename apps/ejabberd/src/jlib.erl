@@ -58,6 +58,7 @@
          timestamp_to_mam_xml/4,
          timestamp_to_iso/2,
          now_to_utc_binary/1,
+         now_to_utc_string/1,
          datetime_binary_to_timestamp/1,
          decode_base64/1,
          encode_base64/1,
