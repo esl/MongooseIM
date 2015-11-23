@@ -92,6 +92,13 @@ chat_msg(Config) ->
 
         end).
 
+ping_test(Config) ->
+    escalus:story(Config, [{alice, 1}, {?config(user, Config), 1}, {oldie, 1}], fun(Alice, Geralt, Oldie) ->
+
+       timer:sleep(10 * 1000)
+
+    end).
+
 escape_chat_msg(Config) ->
     escalus:story(Config, [{alice, 1}, {?config(user, Config), 1}, {oldie, 1}], fun(Alice, Geralt, Oldie) ->
         special_chars_helper:check_cdata_from_to(Alice, Geralt, <<"Hi! & < >">>),
