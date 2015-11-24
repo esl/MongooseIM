@@ -33,7 +33,9 @@
          monitor/1,
          get_sockmod/1,
          close/1,
-         peername/1]).
+         peername/1,
+         set_ping/2,
+         disable_ping/1]).
 
 %% ejabberd_listener compatibility
 -export([socket_type/0,
@@ -57,7 +59,8 @@
 -record(ws_state, {
           c2s_pid :: pid(),
           open_tag :: stream | open,
-          parser :: exml_stream:parser()
+          parser :: exml_stream:parser(),
+          ping_rate :: integer()
          }).
 
 %%--------------------------------------------------------------------
@@ -177,7 +180,8 @@ websocket_init(Transport, Req, Opts) ->
             PingRate = gen_mod:get_opt(ping_rate, Opts, none),
             ?DEBUG("ping rate is ~p", [PingRate]),
             maybe_send_ping_request(PingRate),
-            {ok, NewReq2, State, Timeout};
+            NewState = State#ws_state{ping_rate = PingRate},
+            {ok, NewReq2, NewState, Timeout};
         {error, Reason} ->
             ?WARNING_MSG("c2s start failed: ~p", [Reason]),
             {shutdown, NewReq2}
@@ -216,9 +220,16 @@ websocket_info(reset_stream, Req, #ws_state{parser = undefined} = State) ->
 websocket_info(reset_stream, Req, #ws_state{parser = Parser} = State) ->
     {ok, NewParser} = exml_stream:reset_parser(Parser),
     {ok, Req, State#ws_state{ parser = NewParser, open_tag = undefined }};
-websocket_info({do_ping, PingRate}, Req, State) ->
+websocket_info({set_ping, Value}, Req, State) when is_integer(Value) and (Value > 0)->
+    {ok, Req, State#ws_state{ping_rate = Value}};
+websocket_info(disable_ping, Req, State)->
+    {ok, Req, State#ws_state{ping_rate = none}};
+websocket_info(do_ping, Req, State#ws_state{ping_rate = none}) ->
+    %% probalby someone disabled pings
+    {reply, Req, State};
+websocket_info(do_ping, Req, State) ->
     %% send ping frame to the client
-    send_ping_request(PingRate),
+    send_ping_request(State#ws_state.ping_rate),
     {reply, ping, Req, State};
 websocket_info(stop, Req, #ws_state{parser = undefined} = State) ->
     {shutdown, Req, State};
@@ -300,6 +311,12 @@ close(#websocket{pid = Pid}) ->
 peername(#websocket{peername = PeerName}) ->
     {ok, PeerName}.
 
+set_ping(#websocket{pid = Pid}, Value) ->
+    Pid ! {set_ping, Value}.
+
+disable_ping(#websocket{pid = Pid}) ->
+    Pid ! disable_ping.
+
 %%--------------------------------------------------------------------
 %% Helpers for handling both
 %% http://datatracker.ietf.org/doc/draft-ietf-xmpp-websocket
@@ -374,7 +391,7 @@ get_dispatch(Opts) ->
 send_ping_request(PingRate) ->
     Dest = self(),
     ?DEBUG("Sending websocket ping request to ~p", [Dest]),
-    erlang:send_after(PingRate, Dest, {do_ping ,PingRate}).
+    erlang:send_after(PingRate, Dest, do_ping).
 
 maybe_send_ping_request(none) ->
     ok;
