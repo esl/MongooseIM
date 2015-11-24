@@ -7,7 +7,8 @@
          create_session/1,
          delete_session/1,
          get_session/1,
-         get_sessions/0]).
+         get_sessions/0,
+         node_cleanup/1]).
 
 -include("mod_bosh.hrl").
 
@@ -53,3 +54,18 @@ get_session(Sid) ->
 -spec get_sessions() -> [mod_bosh:session()].
 get_sessions() ->
     mnesia:dirty_match_object(mnesia:table_info(bosh_session, wild_pattern)).
+
+-spec node_cleanup(atom()) -> any().
+node_cleanup(Node) ->
+    F = fun() ->
+                SIDs = mnesia:select(
+                       bosh_session,
+                       [{#bosh_session{sid = '$1', socket = '$2'},
+                         [{'==', {node, '$2'}, Node}],
+                         ['$1']}]),
+                lists:foreach(fun(SID) ->
+                                      mnesia:delete({bosh_session, SID})
+                              end, SIDs)
+        end,
+    mnesia:async_dirty(F).
+

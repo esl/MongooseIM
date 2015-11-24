@@ -3,7 +3,7 @@
 %%% Author  : Eric Cestari <ecestari@process-one.net>
 %%% Purpose : Message Carbons XEP-0280 0.8
 %%% Created : 5 May 2008 by Mickael Remond <mremond@process-one.net>
-%%% Usage   : Add the following line in modules section of ejabberd.yml:
+%%% Usage   : Add the following line in modules section of ejabberd.cfg:
 %%%              {mod_carboncopy, []}
 %%%
 %%%
@@ -40,7 +40,12 @@
          user_receive_packet/4,
          iq_handler2/3,
          iq_handler1/3,
-         remove_connection/4]).
+         remove_connection/4,
+         session_cleanup/4
+        ]).
+
+%% For testing and debugging
+-export([enable/4, disable/3, resources_to_cc/2]).
 
 -define(NS_CC_2, <<"urn:xmpp:carbons:2">>).
 -define(NS_CC_1, <<"urn:xmpp:carbons:1">>).
@@ -93,6 +98,7 @@ start(Host, Opts) ->
     %% Why priority 89? To define clearly that we must run BEFORE mod_logdb hook (90)
     ejabberd_hooks:add(user_send_packet, Host, ?MODULE, user_send_packet, 89),
     ejabberd_hooks:add(user_receive_packet,Host, ?MODULE, user_receive_packet, 89),
+    ejabberd_hooks:add(session_cleanup, Host, ?MODULE, session_cleanup, 50),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_CC_2, ?MODULE, iq_handler2, IQDisc),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_CC_1, ?MODULE, iq_handler1, IQDisc).
 
@@ -104,7 +110,8 @@ stop(Host) ->
     %% Why priority 89? To define clearly that we must run BEFORE mod_logdb hook (90)
     ejabberd_hooks:delete(user_send_packet, Host, ?MODULE, user_send_packet, 89),
     ejabberd_hooks:delete(user_receive_packet, Host, ?MODULE, user_receive_packet, 89),
-    ejabberd_hooks:delete(unset_presence_hook, Host, ?MODULE, remove_connection, 10).
+    ejabberd_hooks:delete(unset_presence_hook, Host, ?MODULE, remove_connection, 10),
+    ejabberd_hooks:delete(session_cleanup, Host, ?MODULE, session_cleanup, 50).
 
 iq_handler2(From, To, IQ) ->
     iq_handler(From, To, IQ, ?NS_CC_2).
@@ -215,6 +222,11 @@ is_forwarded(SubTag) ->
 remove_connection(User, Server, Resource, _Status) ->
     disable(Server, User, Resource),
     ok.
+
+-spec session_cleanup(LUser :: ejabber:luser(), LServer :: ejabberd:lserver(),
+                   LResource :: ejabberd:lresource(), SID :: ejabberd_sm:sid()) -> any().
+session_cleanup(LUser, LServer, LResource, _SID) ->
+    disable(LServer, LUser, LResource).
 
 %%
 %% Internal

@@ -80,7 +80,6 @@ end_per_testcase(_, Config) ->
     clean_sessions(Config),
     meck:unload(acl),
     meck:unload(ejabberd_hooks),
-    meck:unload(?B(Config)),
     Config.
 
 open_session(C) ->

@@ -16,3 +16,5 @@
 -callback delete_session(mod_bosh:sid()) -> any().
 -callback get_session(mod_bosh:sid()) -> [mod_bosh:session()].
 -callback get_sessions() -> [mod_bosh:session()].
+-callback node_cleanup(Node :: atom()) -> any().
+
