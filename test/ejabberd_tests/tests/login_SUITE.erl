@@ -53,7 +53,8 @@ groups() ->
      {bad_cancelation, [no_sequence], [bad_request_registration_cancelation,
                                        not_allowed_registration_cancelation]},
      {registration_timeout, [sequence], [registration_timeout]},
-     {change_account_details, [no_sequence], [change_password]},
+     {change_account_details, [no_sequence], [change_password,
+                                              change_password_to_null]},
      {login, [sequence], all_tests()},
      {login_scram, [sequence], scram_tests()},
      {login_scram_store_plain, [sequence], scram_tests()},
@@ -155,6 +156,9 @@ init_per_testcase(check_unregistered, Config) ->
 init_per_testcase(change_password, Config0) ->
     Config1 =  escalus:init_per_testcase(change_password, Config0),
     escalus:create_users(Config1, {by_name, [alice]});
+init_per_testcase(change_password_to_null, Config0) ->
+    Config1 =  escalus:init_per_testcase(change_password_to_null, Config0),
+    escalus:create_users(Config1, {by_name, [alice]});
 init_per_testcase(bad_request_registration_cancelation, Config0) ->
     Config1 =  escalus:init_per_testcase(bad_request_registration, Config0),
     escalus:create_users(Config1, {by_name, [alice]});
@@ -195,6 +199,8 @@ end_per_testcase(change_password, Config) ->
     [{alice, Details}] = escalus_users:get_users({by_name, [alice]}),
     Alice = {alice, lists:keyreplace(password, 1, Details, {password, strong_pwd()})},
     {ok, result, Response} = escalus_users:delete_user(Config, Alice);
+end_per_testcase(change_password_to_null, Config) ->
+    escalus:delete_users(Config, {by_name, [alice]});
 end_per_testcase(message_zlib_limit, Config) ->
     escalus:delete_users(Config, {by_name, [hacker]});
 end_per_testcase(check_unregistered, Config) ->
@@ -337,6 +343,35 @@ change_password(Config) ->
         R = escalus:wait_for_stanza(Alice),
 
         escalus:assert(is_iq_result, [Q], R)
+
+    end).
+
+change_password_to_null(Config) ->
+
+    %% Section 3.3, XEP 0077: If the user provides an empty password
+    %% element or a password element that contains no XML character
+    %% data (i.e., either <password/> or <password></password>), the
+    %% server or service MUST NOT change the password to a null value,
+    %% but instead MUST maintain the existing password.
+
+    %% By the above, `end_per_testcase' should succeed.
+
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+
+        escalus:send(Alice,
+            escalus_stanza:iq_set(?NS_INBAND_REGISTER,
+                [#xmlel{name = <<"username">>,
+                        children = [#xmlcdata{content = <<"alice">>}]},
+                 #xmlel{name = <<"password">>,
+                        children = [#xmlcdata{content = <<"">>}]}])),
+
+        try escalus:wait_for_stanza(Alice) of
+            _Val ->
+                ct:fail("Got response when XEP 0077 does not specify one")
+        catch
+            error:timeout_when_waiting_for_stanza ->
+                ok
+        end
 
     end).
 
