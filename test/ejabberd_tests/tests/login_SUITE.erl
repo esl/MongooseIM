@@ -464,7 +464,7 @@ skip_if_mod_register_not_enabled(Config) ->
     end.
 
 strong_pwd() ->
-    <<"Sup3r","c4li","fr4g1","l1571c","xp1","4l1","d0c10u5">>.
+    <<"Sup3r","c4li","fr4g1","l1571c","3xp1","4l1","d0c10u5">>.
 
 set_registration_timeout(Config) ->
     Record = {local_config, registration_timeout, ?REGISTRATION_TIMEOUT},
