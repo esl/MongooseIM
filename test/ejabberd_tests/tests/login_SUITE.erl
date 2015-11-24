@@ -18,6 +18,8 @@
 -compile(export_all).
 
 -include_lib("escalus/include/escalus.hrl").
+-include_lib("escalus/include/escalus_xmlns.hrl").
+
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
@@ -35,6 +37,7 @@ all() ->
      {group, bad_registration},
      {group, bad_cancelation},
      {group, registration_timeout},
+     {group, change_account_details},
      {group, login},
      {group, login_scram},
      {group, login_scram_store_plain},
@@ -50,6 +53,7 @@ groups() ->
      {bad_cancelation, [no_sequence], [bad_request_registration_cancelation,
                                        not_allowed_registration_cancelation]},
      {registration_timeout, [sequence], [registration_timeout]},
+     {change_account_details, [no_sequence], [change_password]},
      {login, [sequence], all_tests()},
      {login_scram, [sequence], scram_tests()},
      {login_scram_store_plain, [sequence], scram_tests()},
@@ -98,6 +102,8 @@ init_per_group(registration_timeout, Config) ->
         _ ->
             {skip, mod_register_disabled}
     end;
+init_per_group(change_account_details, Config) ->
+    skip_if_mod_register_not_enabled(Config);
 init_per_group(GroupName, Config) when
       GroupName == login_scram; GroupName == login_scram_store_plain ->
     case get_auth_method() of
@@ -112,6 +118,8 @@ init_per_group(_GroupName, Config) ->
     escalus:create_users(Config, {by_name, [alice, bob]}).
 
 end_per_group(register, _Config) ->
+    ok;
+end_per_group(change_account_details, Config) ->
     ok;
 end_per_group(bad_registration, _Config) ->
     ok;
@@ -144,6 +152,9 @@ init_per_testcase(DigestOrScram, Config) when
     end;
 init_per_testcase(check_unregistered, Config) ->
     Config;
+init_per_testcase(change_password, Config0) ->
+    Config1 =  escalus:init_per_testcase(change_password, Config0),
+    escalus:create_users(Config1, {by_name, [alice]});
 init_per_testcase(bad_request_registration_cancelation, Config0) ->
     Config1 =  escalus:init_per_testcase(bad_request_registration, Config0),
     escalus:create_users(Config1, {by_name, [alice]});
@@ -180,6 +191,10 @@ end_per_testcase(Name, Config)
     Config;
 end_per_testcase(null_password, Config) ->
     restore_mod_register_options(Config);
+end_per_testcase(change_password, Config) ->
+    [{alice, Details}] = escalus_users:get_users({by_name, [alice]}),
+    Alice = {alice, lists:keyreplace(password, 1, Details, {password, strong_pwd()})},
+    {ok, result, Response} = escalus_users:delete_user(Config, Alice);
 end_per_testcase(message_zlib_limit, Config) ->
     escalus:delete_users(Config, {by_name, [hacker]});
 end_per_testcase(check_unregistered, Config) ->
@@ -308,6 +323,23 @@ registration_timeout(Config) ->
     timer:sleep(erlang:round(?REGISTRATION_TIMEOUT * 1.5 * 1000)),
     escalus_users:verify_creation(escalus_users:create_user(Config, Bob)).
 
+change_password(Config) ->
+
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+
+        escalus:send(Alice,
+            Q = escalus_stanza:iq_set(?NS_INBAND_REGISTER,
+                [#xmlel{name = <<"username">>,
+                        children = [#xmlcdata{content = <<"alice">>}]},
+                 #xmlel{name = <<"password">>,
+                        children = [#xmlcdata{content = strong_pwd()}]}])),
+
+        R = escalus:wait_for_stanza(Alice),
+
+        escalus:assert(is_iq_result, [Q], R)
+
+    end).
+
 log_one(Config) ->
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
 
@@ -430,6 +462,9 @@ skip_if_mod_register_not_enabled(Config) ->
         _ ->
             {skip, mod_register_disabled}
     end.
+
+strong_pwd() ->
+    <<"Sup3r","c4li","fr4g1","l1571c","xp1","4l1","d0c10u5">>.
 
 set_registration_timeout(Config) ->
     Record = {local_config, registration_timeout, ?REGISTRATION_TIMEOUT},
