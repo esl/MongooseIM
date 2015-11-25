@@ -251,7 +251,9 @@ do_set_password(LUser, LServer, Password) ->
 -spec try_register(User :: ejabberd:user(),
                    Server :: ejabberd:server(),
                    Password :: binary()
-                   ) -> ok | {error, exists | not_allowed | invalid_jid}.
+                   ) -> ok | {error, exists | not_allowed | invalid_jid | null_password}.
+try_register(_,_,<<"">>) ->
+    {error, null_password};
 try_register(_User, _Server, "") ->
     %% We do not allow empty password
     {error, not_allowed};

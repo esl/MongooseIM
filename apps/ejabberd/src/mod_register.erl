@@ -293,7 +293,9 @@ try_register(User, Server, Password, SourceRaw, Lang) ->
                                                 {error, invalid_jid} ->
                                                     {error, ?ERR_JID_MALFORMED};
                                                 {error, not_allowed} ->
-                                                    {error, ?ERR_NOT_ALLOWED}
+                                                    {error, ?ERR_NOT_ALLOWED};
+                                                {error, null_password} ->
+                                                    {error, ?ERR_NOT_ACCEPTABLE}
                                             end
                                     end;
                                 false ->
