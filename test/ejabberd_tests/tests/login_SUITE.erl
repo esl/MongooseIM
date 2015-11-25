@@ -52,7 +52,8 @@ groups() ->
      {bad_registration, [no_sequence], [null_password]},
      {bad_cancelation, [no_sequence], [bad_request_registration_cancelation,
                                        not_allowed_registration_cancelation]},
-     {registration_timeout, [sequence], [registration_timeout]},
+     {registration_timeout, [sequence], [registration_timeout,
+                                         registration_failure_timeout]},
      {change_account_details, [no_sequence], [change_password,
                                               change_password_to_null]},
      {login, [sequence], all_tests()},
@@ -127,8 +128,7 @@ end_per_group(bad_registration, _Config) ->
 end_per_group(bad_cancelation, _Config) ->
     ok;
 end_per_group(registration_timeout, Config) ->
-    Config1 = restore_registration_timeout(Config),
-    escalus_users:delete_users(Config1, {by_name, [alice, bob]});
+    Config1 = restore_registration_timeout(Config);
 end_per_group(login_scram, Config) ->
     set_store_password(plain),
     escalus:delete_users(Config, {by_name, [alice, bob]});
@@ -164,6 +164,9 @@ init_per_testcase(not_allowed_registration_cancelation, Config0) ->
     %% Use a configuration that will not allow inband cancelation (and
     %% registration).
     restart_mod_register_with_option(Config2, access, {access, none});
+init_per_testcase(registration_failure_timeout, Config) ->
+    ok = deny_everyone_registration(),
+    escalus:init_per_testcase(registration_timeout, Config);
 init_per_testcase(message_zlib_limit, Config) ->
     Listeners = [Listener
                  || {Listener, _, _} <- escalus_ejabberd:rpc(ejabberd_config, get_local_option, [listen])],
@@ -206,8 +209,15 @@ end_per_testcase(not_allowed_registration_cancelation, Config) ->
     restore_mod_register_options(Config),
     true = user_exists(alice, Config),
     escalus:delete_users(Config, {by_name, [alice]});
+end_per_testcase(registration_timeout, Config) ->
+    escalus_users:delete_users(Config, {by_name, [alice, bob]}),
+    timer:sleep(timer:seconds(?REGISTRATION_TIMEOUT));
+end_per_testcase(registration_failure_timeout, Config) ->
+    ok = allow_everyone_registration(),
+    end_per_testcase(registration_timeout, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
+
 
 %%--------------------------------------------------------------------
 %% Message tests
@@ -329,7 +339,22 @@ registration_timeout(Config) ->
     timer:sleep(erlang:round(?REGISTRATION_TIMEOUT * 1.5 * 1000)),
     escalus_users:verify_creation(escalus_users:create_user(Config, Bob)).
 
-    %% After timeout, the user should be registered successfully
+registration_failure_timeout(Config) ->
+    [Alice, Bob] = escalus_users:get_users({by_name, [alice, bob]}),
+
+    %% Registration of the first user should fail because of access denial
+    {error,_,R} = escalus_users:create_user(Config, Alice),
+    escalus:assert(is_iq_error, R),
+    escalus:assert(is_error, [<<"auth">>, <<"forbidden">>], R),
+
+    %% Registration of a second one should fail because requests were
+    %% made in quick succession
+    {error, failed_to_register, S} = escalus_users:create_user(Config, Bob),
+    escalus:assert(is_iq_error, S),
+    escalus:assert(is_error, [<<"wait">>, <<"resource-constraint">>], S),
+
+    %% The ALLOWED user should register successfully one the time has
+    %% lapsed
     timer:sleep(erlang:round(?REGISTRATION_TIMEOUT * 1.5 * 1000)),
     escalus_users:verify_creation(escalus_users:create_user(Config, Bob)).
 
@@ -518,6 +543,28 @@ restore_registration_timeout(Config) ->
     true = escalus_ejabberd:rpc(ets, insert, [local_config, Record]),
     proplists:delete(old_timeout, Config).
 
+deny_everyone_registration() ->
+    %% Domain = string(ct:get_config(ejabberd_domain)),
+    %% {Name, Domain} = get_client_details(alice),
+    %% {atomic,_} = escalus_ejabberd:rpc(acl, add, [Domain, alice, {user, Name, Domain}]),
+    {atomic,_} = escalus_ejabberd:rpc(ejabberd_config, add_global_option,
+        [{access, register, global}, [{deny, all}]]),
+    ok.
+
+allow_everyone_registration() ->
+    %% Domain = string(ct:get_config(ejabberd_domain)),
+    %% {Name, Domain} = get_client_details(alice),
+    %% {atomic,_} = escalus_ejabberd:rpc(acl, delete, [Domain, alice, {user, Name, Domain}]),
+    {atomic,_} = escalus_ejabberd:rpc(ejabberd_config, add_global_option,
+        [{access, register, global}, [{allow, all}]]),
+    ok.
+
+get_client_details(Identifier) ->
+    [{alice, Details}] = escalus_users:get_users({by_name, [Identifier]}),
+    {username, Name} = lists:keyfind(username, 1, Details),
+    {server, Server} = lists:keyfind(server, 1, Details),
+    {string(Name), string(Server)}.
+
 get_auth_method() ->
     XMPPDomain = escalus_ejabberd:unify_str_arg(
                    ct:get_config(ejabberd_domain)),
@@ -592,3 +639,6 @@ user_exists(Name, Config) ->
     {Name, Client} = escalus_users:get_user_by_name(Name),
     [Username, Server, _Pass] = escalus_users:get_usp(Config, Client),
     escalus_ejabberd:rpc(ejabberd_auth, is_user_exists, [Username, Server]).
+
+string(<<_/binary>> = Subject) ->
+    erlang:binary_to_list(Subject).
