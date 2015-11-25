@@ -38,7 +38,6 @@
 
 %% Hook handlers
 -export([inspect_packet/3,
-         resend_offline_messages/2,
          pop_offline_messages/3,
          get_sm_features/5,
          remove_expired_messages/1,
@@ -51,6 +50,9 @@
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
+
+%% helpers to be used from backend moudules
+-export([is_expired_message/2]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -452,7 +454,7 @@ pop_offline_messages(Ls, User, Server) ->
 pop_offline_messages(User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
-    case ?BACKEND:pop_messages(LUser, LServer) of
+    case pop_messages(LUser, LServer) of
         {ok, Rs} ->
             lists:map(fun(R) ->
                 Packet = resend_offline_message_packet(Server, R),
@@ -463,21 +465,23 @@ pop_offline_messages(User, Server) ->
             []
     end.
 
-resend_offline_messages(User, Server) ->
-    LUser = jid:nodeprep(User),
-    LServer = jid:nameprep(Server),
+pop_messages(LUser, LServer) ->
     case ?BACKEND:pop_messages(LUser, LServer) of
-        {ok, Rs} ->
-            lists:foreach(fun(R) ->
-                  Packet = resend_offline_message_packet(Server, R),
-                  route_offline_message(R, Packet)
-              end, Rs);
-        {error, _Reason} ->
-            ok
+        {ok, RsAll} ->
+            TimeStamp = os:timestamp(),
+            Rs = skip_expired_messages(TimeStamp, lists:keysort(#offline_msg.timestamp, RsAll)),
+            {ok, Rs};
+        Other ->
+            Other
     end.
 
-route_offline_message(#offline_msg{from=From, to=To}, Packet) ->
-    ejabberd_sm:route(From, To, Packet).
+skip_expired_messages(TimeStamp, Rs) ->
+    [R || R <- Rs, not is_expired_message(TimeStamp, R)].
+
+is_expired_message(_TimeStamp, #offline_msg{expire=never}) ->
+    false;
+is_expired_message(TimeStamp, #offline_msg{expire=ExpireTimeStamp}) ->
+   ExpireTimeStamp < TimeStamp.
 
 compose_offline_message(#offline_msg{from=From, to=To}, Packet) ->
     {route, From, To, Packet}.

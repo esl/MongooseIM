@@ -60,8 +60,7 @@ pop_messages(LUser, LServer) ->
 	end,
     case mnesia:transaction(F) of
         {atomic, Rs} ->
-            TimeStamp = now(),
-            {ok, skip_expired_messages(TimeStamp, lists:keysort(#offline_msg.timestamp, Rs))};
+            {ok, Rs};
         {aborted, Reason} ->
             {error, Reason}
     end.
@@ -145,7 +144,7 @@ remove_old_messages(_Host, TimeStamp) ->
     end.
 
 remove_expired_message(TimeStamp, Rec) ->
-    case is_expired_message(TimeStamp, Rec) of
+    case mod_offline:is_expired_message(TimeStamp, Rec) of
         true ->
             case  mnesia:delete_object(Rec) of
                 ok ->
@@ -169,14 +168,6 @@ remove_old_message(TimeStamp, Rec) ->
         false ->
             0
     end.
-
-skip_expired_messages(TimeStamp, Rs) ->
-    [R || R <- Rs, not is_expired_message(TimeStamp, R)].
-
-is_expired_message(_TimeStamp, #offline_msg{expire=never}) ->
-    false;
-is_expired_message(TimeStamp, #offline_msg{expire=ExpireTimeStamp}) ->
-   ExpireTimeStamp < TimeStamp.
 
 is_old_message(MaxAllowedTimeStamp, #offline_msg{timestamp=TimeStamp}) ->
     TimeStamp < MaxAllowedTimeStamp.

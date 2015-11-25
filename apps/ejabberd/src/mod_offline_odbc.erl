@@ -68,7 +68,7 @@ row_to_record(US, To, {STimeStamp, SFrom, SPacket}) ->
     From = jid:from_binary(SFrom),
     #offline_msg{us = US,
              timestamp = TimeStamp,
-             expire = undefined,
+             expire = never,
              from = From,
              to = To,
              packet = Packet}.
