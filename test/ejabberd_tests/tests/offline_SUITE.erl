@@ -18,7 +18,7 @@ all() ->
     [{group, mod_offline_tests}].
 
 all_tests() ->
-    [simple_message].
+    [simple_message, error_message, groupchat_message, headliine_message].
 
 groups() ->
     [{mod_offline_tests, [sequence], all_tests()}].
@@ -69,6 +69,36 @@ simple_message(Config) ->
                                   is_chat(<<"Hi, Offline!">>)],
                                  Stanzas),
     escalus_cleaner:clean(Config).
+
+error_message(Config) ->
+    not_stored_message(<<"error">>, Config).
+
+groupchat_message(Config) ->
+    not_stored_message(<<"groupchat">>, Config).
+
+headliine_message(Config) ->
+    not_stored_message(<<"headline">>, Config).
+
+not_stored_message(Type, Config) ->
+    %% Alice sends a message to Bob, who is offline
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+        AliceJid = escalus_client:full_jid(Alice),
+        escalus:send(Alice, escalus_stanza:message(AliceJid, bob, Type, <<"Hi, Offline!">>))
+    end),
+
+    %% Bob logs in
+    Bob = login_send_presence(Config, bob),
+
+    %% He receives his initial presence and the message
+    Presence = escalus:wait_for_stanza(Bob),
+    escalus:assert(is_presence, Presence),
+
+    ct:sleep(500),
+
+    false = escalus_client:has_stanzas(Bob),
+
+    escalus_cleaner:clean(Config).
+
 
 %%%===================================================================
 %%% Custom predicates
