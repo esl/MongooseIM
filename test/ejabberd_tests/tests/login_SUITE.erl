@@ -316,8 +316,18 @@ registration_timeout(Config) ->
     escalus_users:verify_creation(escalus_users:create_user(Config, Alice)),
 
     %% Creation of the second one should err because of not timing out yet
-    {error, failed_to_register, Reason} = escalus_users:create_user(Config, Bob),
-    escalus:assert(is_iq_error, Reason),
+    {error, failed_to_register, Stanza} = escalus_users:create_user(Config, Bob),
+    escalus:assert(is_iq_error, Stanza),
+    %% Something else may be more acceptable for the assertion
+    %% below... 2nd paragraph, section 3.1.1, XEP 0077: [...] a server
+    %% MAY return a `<not-acceptable/>' stanza error if [...] an
+    %% entity attempts to register a second identity after
+    %% successfully completing the registration use case.
+    escalus:assert(is_error, [<<"wait">>, <<"resource-constraint">>], Stanza),
+
+    %% After timeout, the user should be registered successfully
+    timer:sleep(erlang:round(?REGISTRATION_TIMEOUT * 1.5 * 1000)),
+    escalus_users:verify_creation(escalus_users:create_user(Config, Bob)).
 
     %% After timeout, the user should be registered successfully
     timer:sleep(erlang:round(?REGISTRATION_TIMEOUT * 1.5 * 1000)),
