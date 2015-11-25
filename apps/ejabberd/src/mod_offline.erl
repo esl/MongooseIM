@@ -75,21 +75,23 @@
     LServer :: ejabberd:lserver(),
     Reason :: term(),
     Result :: list(#offline_msg{}).
--callback write_messages(LUser, LServer, Msgs, MaxOfflineMsgs) ->
-    ok | {discarded, DiscardedMsgs} | {error, Reason}  when
+-callback write_messages(LUser, LServer, Msgs) ->
+    ok | {error, Reason}  when
     LUser :: ejabberd:luser(),
     LServer :: ejabberd:lserver(),
     Msgs :: list(),
-    MaxOfflineMsgs :: integer(),
-    DiscardedMsgs :: list(#offline_msg{}),
     Reason :: term().
+-callback count_offline_messages(LUser, LServer, MaxToArchive) -> integer() when
+      LUser :: ejabberd:luser(),
+      LServer :: ejabberd:lserver(),
+      MaxToArchive :: integer().
 -callback remove_expired_messages(Host) -> {error, Reason} | {ok, Count} when
     Host :: ejabberd:lserver(),
     Reason :: term(),
     Count :: integer().
--callback remove_old_messages(Host, Days) -> {error, Reason} | {ok, Count} when
+-callback remove_old_messages(Host, Timestamp) -> {error, Reason} | {ok, Count} when
     Host :: ejabberd:lserver(),
-    Days :: integer(),
+    Timestamp :: erlang:timestamp(),
     Reason :: term(),
     Count :: integer().
 -callback remove_user(LUser, LServer) -> any() when
@@ -140,33 +142,55 @@ stop(Host) ->
 handle_offline_msg(#offline_msg{us=US} = Msg, AccessMaxOfflineMsgs) ->
     {LUser, LServer} = US,
     Msgs = receive_all(US, [Msg]),
-    MaxOfflineMsgs = get_max_user_messages(
-        AccessMaxOfflineMsgs, LUser, LServer),
-    case ?BACKEND:write_messages(LUser, LServer, Msgs, MaxOfflineMsgs) of
+    MaxOfflineMsgs = get_max_user_messages(AccessMaxOfflineMsgs, LUser, LServer),
+    Len = length(Msgs),
+    case is_message_count_threshold_reached(LUser, LServer, MaxOfflineMsgs, Len) of
+        false ->
+            write_messages(LUser, LServer, Msgs);
+        true ->
+            discard_warn_sender(Msgs)
+    end.
+
+write_messages(LUser, LServer, Msgs) ->
+    case ?BACKEND:write_messages(LUser, LServer, Msgs) of
         ok ->
             ok;
-        {discarded, DiscardedMsgs} ->
-            discard_warn_sender(DiscardedMsgs);
         {error, Reason} ->
             ?ERROR_MSG("~ts@~ts: write_messages failed with ~p.",
                 [LUser, LServer, Reason]),
             discard_warn_sender(Msgs)
     end.
 
-%% Function copied from ejabberd_sm.erl:
+-spec is_message_count_threshold_reached(ejabberd:luser(), ejabberd:lserver(),
+                                         integer, integer()) -> boolean().
+is_message_count_threshold_reached(LUser, LServer, MaxOfflineMsgs, Len) ->
+    case MaxOfflineMsgs of
+        infinity ->
+            false;
+        MaxOfflineMsgs when Len > MaxOfflineMsgs ->
+            true;
+        MaxOfflineMsgs ->
+            %% Only count messages if needed.
+            MaxArchivedMsg = MaxOfflineMsgs - Len,
+            %% Maybe do not need to count all messages in archive
+            MaxArchivedMsg < ?BACKEND:count_offline_messages(LUser, LServer, MaxArchivedMsg + 1)
+    end.
+
+
+
 get_max_user_messages(AccessRule, LUser, Host) ->
     case acl:match_rule(Host, AccessRule, jid:make(LUser, Host, <<>>)) of
-	Max when is_integer(Max) -> Max;
-	infinity -> infinity;
-	_ -> ?MAX_USER_MESSAGES
+        Max when is_integer(Max) -> Max;
+        infinity -> infinity;
+        _ -> ?MAX_USER_MESSAGES
     end.
 
 receive_all(US, Msgs) ->
     receive
-	#offline_msg{us=US} = Msg ->
-	    receive_all(US, [Msg | Msgs])
+        #offline_msg{us=US} = Msg ->
+            receive_all(US, [Msg | Msgs])
     after 0 ->
-	    Msgs
+              Msgs
     end.
 
 %% Supervision
@@ -478,7 +502,8 @@ remove_expired_messages(Host) ->
     ?BACKEND:remove_expired_messages(Host).
 
 remove_old_messages(Host, Days) ->
-    ?BACKEND:remove_old_messages(Host, Days).
+    Timestamp = fallback_timestamp(Days, os:timestamp()),
+    ?BACKEND:remove_old_messages(Host, Timestamp).
 
 remove_user(User, Server) ->
     ?BACKEND:remove_user(User, Server).
@@ -487,10 +512,16 @@ remove_user(User, Server) ->
 discard_warn_sender(Msgs) ->
     lists:foreach(
       fun(#offline_msg{from=From, to=To, packet=Packet}) ->
-	      ErrText = <<"Your contact offline message queue is full. The message has been discarded.">>,
-	      Lang = xml:get_tag_attr_s(<<"xml:lang">>, Packet),
-	      Err = jlib:make_error_reply(
-		      Packet, ?ERRT_RESOURCE_CONSTRAINT(Lang, ErrText)),
-	      ejabberd_router:route(To, From, Err)
+              ErrText = <<"Your contact offline message queue is full. The message has been discarded.">>,
+              Lang = xml:get_tag_attr_s(<<"xml:lang">>, Packet),
+              Err = jlib:make_error_reply(
+                      Packet, ?ERRT_RESOURCE_CONSTRAINT(Lang, ErrText)),
+              ejabberd_router:route(To, From, Err)
       end, Msgs).
+
+fallback_timestamp(Days, {MegaSecs, Secs, _MicroSecs}) ->
+    S = MegaSecs * 1000000 + Secs - 60 * 60 * 24 * Days,
+    MegaSecs1 = S div 1000000,
+    Secs1 = S rem 1000000,
+    {MegaSecs1, Secs1, 0}.
 
