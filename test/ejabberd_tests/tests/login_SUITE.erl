@@ -135,10 +135,6 @@ end_per_group(login_scram, Config) ->
 end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config, {by_name, [alice, bob]}).
 
-init_per_testcase(null_password, Config) ->
-    %% A non-zero "password strength" should trigger an error response
-    %% if a user tries to register with an empty password.
-    restart_mod_register_with_option(Config, password_strength, {password_strength, 16});
 init_per_testcase(DigestOrScram, Config) when
       DigestOrScram =:= log_one_digest; DigestOrScram =:= log_non_existent_digest;
       DigestOrScram =:= log_one_scram; DigestOrScram =:= log_non_existent_scram;
@@ -193,8 +189,6 @@ end_per_testcase(Name, Config)
     Domain = ct:get_config(ejabberd_domain),
     escalus_ejabberd:rpc(acl, delete, [Domain, blocked, {user, <<"alice">>}]),
     Config;
-end_per_testcase(null_password, Config) ->
-    restore_mod_register_options(Config);
 end_per_testcase(change_password, Config) ->
     [{alice, Details}] = escalus_users:get_users({by_name, [alice]}),
     Alice = {alice, lists:keyreplace(password, 1, Details, {password, strong_pwd()})},
