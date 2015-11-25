@@ -12,7 +12,7 @@ Its home on GitHub is at http://github.com/esl/MongooseIM.
 Download packages
 -----------------
 For a quick start just
-[download the pre-built package](https://www.erlang-solutions.com/downloads/download-mongooseim)
+[download the pre-built package](https://www.erlang-solutions.com/resources/download.html)
 that suits your platform: Ubuntu, Debian, CentOS, and Mac OS X.
 
 An _experimental_ Docker image exists on: https://registry.hub.docker.com/u/mongooseim/mongooseim-docker/
