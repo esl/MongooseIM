@@ -354,7 +354,10 @@ change_password_to_null(Config) ->
     %% server or service MUST NOT change the password to a null value,
     %% but instead MUST maintain the existing password.
 
-    %% By the above, `end_per_testcase' should succeed.
+    %% By the above, `end_per_testcase' should succeed. XEP 0077
+    %% doesn't say how how an XMPP sever should respond, but since
+    %% this is in IQ, it must: so we choose to require a `not-allowed'
+    %% response.
 
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
 
@@ -365,13 +368,10 @@ change_password_to_null(Config) ->
                  #xmlel{name = <<"password">>,
                         children = [#xmlcdata{content = <<"">>}]}])),
 
-        try escalus:wait_for_stanza(Alice) of
-            _Val ->
-                ct:fail("Got response when XEP 0077 does not specify one")
-        catch
-            error:timeout_when_waiting_for_stanza ->
-                ok
-        end
+        R = escalus:wait_for_stanza(Alice),
+
+        escalus:assert(is_iq_error, R),
+        escalus:assert(is_error, [<<"modify">>, <<"bad-request">>], R)
 
     end).
 
