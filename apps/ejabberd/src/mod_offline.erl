@@ -311,16 +311,14 @@ add_feature({result, Features}, Feature) ->
 add_feature(_, Feature) ->
     {result, [Feature]}.
 
+%% This function should be called only from hook
+%% Calling it directly is dangerous and my store unwanted message
+%% in the offline storage (f.e. messages of type error or groupchat)
 inspect_packet(From, To, Packet) ->
-    case is_interesting_packet(Packet) of
+    case check_event_chatstates(From, To, Packet) of
         true ->
-            case check_event_chatstates(From, To, Packet) of
-                true ->
-                    store_packet(From, To, Packet),
-                    stop;
-                false ->
-                    ok
-            end;
+            store_packet(From, To, Packet),
+            stop;
         false ->
             ok
     end.
@@ -353,15 +351,6 @@ store_packet(
              packet = jlib:remove_delay_tags(Packet)},
     Pid ! Msg,
     ok.
-
-is_interesting_packet(Packet) ->
-    Type = xml:get_tag_attr_s(<<"type">>, Packet),
-    is_interesting_packet_type(Type).
-
-is_interesting_packet_type(<<"error">>)     -> false;
-is_interesting_packet_type(<<"groupchat">>) -> false;
-is_interesting_packet_type(<<"headline">>)  -> false;
-is_interesting_packet_type(_)               -> true.
 
 %% Check if the packet has any content about XEP-0022 or XEP-0085
 check_event_chatstates(From, To, Packet) ->
