@@ -64,7 +64,7 @@ rows_to_records(US, To, Rows) ->
 
 row_to_record(US, To, {STimeStamp, SFrom, SPacket}) ->
     {ok, Packet} = exml:parse(SPacket),
-    TimeStamp = microseconds_to_now(list_to_integer(binary_to_list(STimeStamp))),
+    TimeStamp = usec:to_now(binary_to_integer(STimeStamp)),
     From = jid:from_binary(SFrom),
     #offline_msg{us = US,
              timestamp = TimeStamp,
@@ -141,18 +141,11 @@ count_offline_messages(LServer, SUser, SServer, Limit) ->
             0
     end.
 
-
 encode_timestamp(TimeStamp) ->
-    integer_to_list(now_to_microseconds(TimeStamp)).
+    integer_to_list(usec:from_now(TimeStamp)).
 
 maybe_encode_timestamp(never) ->
     "null";
 maybe_encode_timestamp(TimeStamp) ->
     encode_timestamp(TimeStamp).
 
-now_to_microseconds({Mega, Secs, Micro}) ->
-    (1000000 * Mega + Secs) * 1000000 + Micro.
-
-microseconds_to_now(MicroSeconds) when is_integer(MicroSeconds) ->
-    Seconds = MicroSeconds div 1000000,
-    {Seconds div 1000000, Seconds rem 1000000, MicroSeconds rem 1000000}.
