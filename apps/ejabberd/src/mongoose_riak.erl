@@ -38,6 +38,7 @@
 -export([search/2]).
 -export([search/3]).
 -export([get_index/4]).
+-export([get_index_range/5]).
 
 -export([pool_name/0]).
 
@@ -162,6 +163,12 @@ search(Index, Query, Opts) ->
 get_index(BucketType, Index, Value, Opts) ->
     ?CALL(get_index_eq, [BucketType, Index, Value, Opts]).
 
+-spec get_index_range(riakc_obj:bucket(), binary() | secondary_index_id(), key() | integer() | list(),
+                key() | integer() | list(), [term()]) ->
+                       {ok, index_results()} | {error, term()}.
+get_index_range(Bucket, Index, StartKey, EndKey, Opts) ->
+    ?CALL(get_index_range, [Bucket, Index, StartKey, EndKey, Opts]).
+
 -spec get_worker() -> pid() | undefined.
 get_worker() ->
     case catch cuesport:get_worker(pool_name()) of
@@ -170,6 +177,7 @@ get_worker() ->
         _ ->
             undefined
     end.
+
 
 -spec pool_name() ->  atom().
 pool_name() -> riak_pool.

@@ -1,11 +1,10 @@
 %%%----------------------------------------------------------------------
-%%% File    : mod_last.erl
-%%% Author  : Pawel Pikula <pawel.pikula@erlang-solutions.com>
-%%% Purpose : mod_last riak backend (XEP-0012)
+%%% File    : mod_offline_riak.erl
+%%% Author  : Michal Piotrowski <michal.piotrowski@erlang-solutions.com>
+%%% Purpose : mod_offline backend in Riak
 %%%
 %%%
-%%% ejabberd, Copyright (C) 2002-2014   ProcessOne
-%%% MongooseIM, Copyright (C) 2014      Erlang Solutions Ltd.
+%%% MongooseIM, Copyright (C) 2015      Erlang Solutions Ltd.
 %%%
 %%%----------------------------------------------------------------------
 %%% @doc Riak backend for last activity XEP
@@ -40,6 +39,9 @@
 
 -define(TIMESTAMP_IDX, {integer_index, "timestamp"}).
 -define(USER_IDX,      {binary_index, "user"}).
+-define(EXPIRE_IDX,    {integer_index, "expire"}).
+
+-define(INFINITY, 99999999999). %% Wed, 16 Nov 5138 09:46:39 GMT
 
 -spec init(Host :: ejabberd:lserver(), Opts :: []) -> ok.
 init(_Host, _Opts) ->
@@ -80,15 +82,25 @@ count_offline_messages(LUser, LServer, MaxArchivedMsgs) ->
     Reason :: term(),
     Count :: integer().
 remove_expired_messages(Host) ->
-    {ok, 0}.
+    TimestampInt = usec:from_now(os:timestamp()),
+    {ok, Result} = mongoose_riak:get_index_range(bucket_type(Host), ?EXPIRE_IDX,
+                                                 0, TimestampInt, []),
+    Keys = Result?INDEX_RESULTS.keys,
+    [mongoose_riak:delete(bucket_type(Host), Key) || Key <- Keys],
+    {ok, length(Keys)}.
 
 -spec remove_old_messages(Host, Days) -> {error, Reason} | {ok, Count} when
     Host :: ejabberd:lserver(),
     Days :: erlang:timestamp(),
     Reason :: term(),
     Count :: integer().
-remove_old_messages(Host, Days) ->
-    {ok, 0}.
+remove_old_messages(Host, Timestamp) ->
+    TimestampInt = usec:from_now(Timestamp),
+    {ok, Result} = mongoose_riak:get_index_range(bucket_type(Host), ?TIMESTAMP_IDX,
+                                                 0, TimestampInt, []),
+    Keys = Result?INDEX_RESULTS.keys,
+    [mongoose_riak:delete(bucket_type(Host), Key) || Key <- Keys],
+    {ok, length(Keys)}.
 
 -spec remove_user(LUser, LServer) -> any() when
     LUser :: binary(),
@@ -109,10 +121,11 @@ write_msg(LUser, LServer, #offline_msg{from = FromJID, packet = Packet,
     Obj = riakc_obj:new(bucket_type(LServer), key(LUser, Timestamp), exml:to_binary(Packet)),
     MD = riakc_obj:get_update_metadata(Obj),
     SecondaryIndexes = [{?TIMESTAMP_IDX, [Timestamp]},
-                        {?USER_IDX, [LUser]}],
+                        {?USER_IDX, [LUser]},
+                        {?EXPIRE_IDX, [maybe_encode_timestamp(Expire)]}],
     MDWithIndexes = riakc_obj:set_secondary_index(MD, SecondaryIndexes),
     From = jid:to_binary(FromJID),
-    UserMetaData = [{<<"from">>, From}, {<<"expire">>, maybe_encode_timestamp(Expire)}],
+    UserMetaData = [{<<"from">>, From}],
     MDWithUserData = set_obj_user_metadata(MDWithIndexes, UserMetaData),
     FinalObj = riakc_obj:update_metadata(Obj, MDWithUserData),
     mongoose_riak:put(FinalObj).
@@ -131,6 +144,7 @@ pop_msg(Key, LUser, LServer, To) ->
         {ok, Packet} = exml:parse(PacketRaw),
         MD = riakc_obj:get_update_metadata(Obj),
         [Timestamp] = riakc_obj:get_secondary_index(MD, ?TIMESTAMP_IDX),
+        [Expire] = riakc_obj:get_secondary_index(MD, ?EXPIRE_IDX),
         User = riakc_obj:get_secondary_index(MD, ?USER_IDX),
         From = riakc_obj:get_user_metadata_entry(MD, <<"from">>),
 
@@ -138,7 +152,7 @@ pop_msg(Key, LUser, LServer, To) ->
 
         #offline_msg{us = {LUser, LServer},
                      timestamp = usec:to_now(Timestamp),
-                     expire = never,
+                     expire = maybe_decode_timestamp(Expire),
                      from = jid:from_binary(From),
                      to = To,
                      packet = Packet}
@@ -162,7 +176,12 @@ key(LUser, TimestampInt) ->
     <<LUser/binary, "@", Timestamp/binary, "@", Random/binary>>.
 
 maybe_encode_timestamp(never) ->
-    <<"never">>;
+    ?INFINITY;
 maybe_encode_timestamp(TS) ->
-    integer_to_binary(usec:from_now(TS)).
+    usec:from_now(TS).
+
+maybe_decode_timestamp(?INFINITY) ->
+    never;
+maybe_decode_timestamp(TS) ->
+    usec:to_now(TS).
 
