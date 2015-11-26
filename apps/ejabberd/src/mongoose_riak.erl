@@ -37,6 +37,7 @@
 -export([mapred/2]).
 -export([search/2]).
 -export([search/3]).
+-export([get_index/4]).
 
 -export([pool_name/0]).
 
@@ -146,6 +147,9 @@ search(Index, Query) ->
 
 search(Index, Query, Opts) ->
     ?CALL(search, [Index, Query, Opts]).
+
+get_index(BucketType, Index, Value, Opts) ->
+    ?CALL(get_index_eq, [BucketType, Index, Value, Opts]).
 
 -spec get_worker() -> pid() | undefined.
 get_worker() ->
