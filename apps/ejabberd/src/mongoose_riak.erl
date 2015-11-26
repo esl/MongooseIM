@@ -138,7 +138,13 @@ create_new_map(Ops) ->
 update_map(Map, Ops) ->
     lists:foldl(fun update_map_op/2, Map, Ops).
 
--spec mapred(mapred_inputs(), [mapred_queryterm()]) -> {ok, mapred_result()} | {error, term()}.
+-type mapred_bucket_type_idx_input() :: {index, riakc_obj:bucket(),
+                                         binary()|secondary_index_id(),
+                                         StartKey::key()|integer(),
+                                         EndKey::key()|integer()}.
+
+-spec mapred(mapred_inputs() |  mapred_bucket_type_idx_input(), [mapred_queryterm()]) ->
+    {ok, mapred_result()} | {error, term()}.
 mapred(KeyFileters, MapRed) ->
     ?CALL(mapred, [KeyFileters, MapRed]).
 
@@ -148,6 +154,11 @@ search(Index, Query) ->
 search(Index, Query, Opts) ->
     ?CALL(search, [Index, Query, Opts]).
 
+-spec get_index(Bucket :: riakc_obj:bucket(),
+                Index :: binary() | secondary_index_id(),
+                Key :: key() | integer(),
+                Opts :: [term()]) ->
+    {ok, index_results()} | {error, term()}.
 get_index(BucketType, Index, Value, Opts) ->
     ?CALL(get_index_eq, [BucketType, Index, Value, Opts]).
 

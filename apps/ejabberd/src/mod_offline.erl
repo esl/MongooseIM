@@ -64,6 +64,15 @@
 -define(MAX_USER_MESSAGES, infinity).
 -define(BACKEND, mod_offline_backend).
 
+-type msg() :: #offline_msg{us :: {ejabberd:luser(), ejabberd:lserver()},
+                          timestamp :: erlang:timestamp(),
+                          expire :: erlang:timestamp() | never,
+                          from :: jid(),
+                          to :: jid(),
+                          packet :: exml:element()}.
+
+-export_type([msg/0]).
+
 -record(state, {host, access_max_user_messages}).
 
 %% ------------------------------------------------------------------
@@ -164,7 +173,7 @@ write_messages(LUser, LServer, Msgs) ->
     end.
 
 -spec is_message_count_threshold_reached(ejabberd:luser(), ejabberd:lserver(),
-                                         integer, integer()) -> boolean().
+                                         integer(), integer()) -> boolean().
 is_message_count_threshold_reached(LUser, LServer, MaxOfflineMsgs, Len) ->
     case MaxOfflineMsgs of
         infinity ->

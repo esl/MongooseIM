@@ -84,7 +84,7 @@ remove_expired_messages(Host) ->
 
 -spec remove_old_messages(Host, Days) -> {error, Reason} | {ok, Count} when
     Host :: ejabberd:lserver(),
-    Days :: integer(),
+    Days :: erlang:timestamp(),
     Reason :: term(),
     Count :: integer().
 remove_old_messages(Host, Days) ->

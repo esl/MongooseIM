@@ -120,8 +120,11 @@ remove_expired_messages(LServer) ->
         {updated, Count} ->
             {ok, Count}
     end.
--spec remove_old_messages(ejabberd:lserver(), integer()) -> {error, term()} | {ok, HowManyRemoved} when
-    HowManyRemoved :: erlang:timestamp().
+-spec remove_old_messages(LServer, Timestamp) ->
+    {error, term()} | {ok, HowManyRemoved} when
+    LServer :: ejabberd:lserver(),
+    Timestamp :: erlang:timestamp(),
+    HowManyRemoved :: integer().
 remove_old_messages(LServer, TimeStamp) ->
     STimeStamp = encode_timestamp(TimeStamp),
     Result = odbc_queries:remove_old_offline_messages(LServer, STimeStamp),
