@@ -21,7 +21,7 @@ You can contribute on: https://github.com/ppikula/mongooseim-docker
 
 Main differences from the parent project
 ----------------------------------------
-This project had began its life as a fork of
+This project began its life as a fork of
 [ejabberd v.2.1.8](https://github.com/processone/ejabberd) back in 2011, and later underwent some major cleanup, refactorization and optimization.
 
 Major steps performed at that time:
