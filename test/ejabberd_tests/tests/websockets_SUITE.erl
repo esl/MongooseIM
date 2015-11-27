@@ -91,11 +91,6 @@ chat_msg(Config) ->
         escalus_assert:is_chat_message(<<"Hey!">>, escalus_client:wait_for_stanza(Oldie))
 
         end).
-%% Do not use it in coninuous integration tests because it takes too much time
-ping_test(Config) ->
-    escalus:story(Config, [{alice, 1}, {?config(user, Config), 1}, {oldie, 1}], fun(Alice, Geralt, Oldie) ->
-        timer:sleep(70 * 1000)
-    end).
 
 escape_chat_msg(Config) ->
     escalus:story(Config, [{alice, 1}, {?config(user, Config), 1}, {oldie, 1}], fun(Alice, Geralt, Oldie) ->

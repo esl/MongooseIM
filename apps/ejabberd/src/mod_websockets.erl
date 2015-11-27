@@ -224,7 +224,7 @@ websocket_info({set_ping, Value}, Req, State) when is_integer(Value) and (Value 
     {ok, Req, State#ws_state{ping_rate = Value}};
 websocket_info(disable_ping, Req, State)->
     {ok, Req, State#ws_state{ping_rate = none}};
-websocket_info(do_ping, Req, State#ws_state{ping_rate = none}) ->
+websocket_info(do_ping, Req, State = #ws_state{ping_rate = none}) ->
     %% probalby someone disabled pings
     {reply, Req, State};
 websocket_info(do_ping, Req, State) ->
