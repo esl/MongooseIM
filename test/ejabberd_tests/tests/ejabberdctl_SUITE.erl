@@ -300,7 +300,7 @@ kick_session(Config) ->
         end).
 
 status(Config) ->
-    escalus:story(Config, [1, 1, 1], fun(User1, User2, User3) ->
+    escalus:story(Config, [{alice, 1}, {mike, 1}, {bob, 1}], fun(User1, User2, User3) ->
                 PriDomain = escalus_client:server(User1),
                 SecDomain = escalus_config:get_config(ejabberd_secondary_domain, Config),
                 AwayPresence = escalus_stanza:presence_show(<<"away">>),
@@ -320,7 +320,7 @@ status(Config) ->
         end).
 
 sessions_info(Config) ->
-    escalus:story(Config, [1, 1, 1], fun(User1, User2, User3) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(User1, User2, User3) ->
                 Username1 = escalus_client:username(User1),
                 PriDomain = escalus_client:server(User1),
                 SecDomain = escalus_config:get_config(ejabberd_secondary_domain, Config),

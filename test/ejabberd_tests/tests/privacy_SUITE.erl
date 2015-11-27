@@ -36,7 +36,7 @@ groups() ->
     [{management, [sequence], management_test_cases()},
      {blocking, [sequence], blocking_test_cases()}
     ].
-management_test_cases() -> 
+management_test_cases() ->
     [get_all_lists,
     get_existing_list,
     get_many_lists,
@@ -133,7 +133,7 @@ end_per_testcase(CaseName, Config) ->
 %% - blocking: messages, presence (in/out), iqs, all
 
 get_all_lists(Config) ->
-    escalus:story(Config, [1], fun(Alice) ->
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
 
         escalus:send(Alice, escalus_stanza:privacy_get_all()),
         escalus:assert(is_privacy_result, escalus:wait_for_stanza(Alice))
@@ -141,7 +141,7 @@ get_all_lists(Config) ->
         end).
 
 get_all_lists_with_active(Config) ->
-    escalus:story(Config, [1, 1], fun(Alice, _Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, _Bob) ->
 
         privacy_helper:set_and_activate(Alice, <<"deny_bob">>),
 
@@ -155,7 +155,7 @@ get_all_lists_with_active(Config) ->
 %% i.e. the <default /> element is never returned by ejabberd.
 %% However, I'm not 100% sure, as I didn't look inside the source.
 get_all_lists_with_default(Config) ->
-    escalus:story(Config, [1, 1], fun(Alice, _Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, _Bob) ->
 
         privacy_helper:set_list(Alice, <<"deny_bob">>),
         privacy_helper:set_and_activate(Alice, <<"allow_bob">>),
@@ -167,7 +167,7 @@ get_all_lists_with_default(Config) ->
         end).
 
 get_nonexistent_list(Config) ->
-    escalus:story(Config, [1], fun(Alice) ->
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
 
         escalus_client:send(Alice,
             escalus_stanza:privacy_get_lists([<<"public">>])),
@@ -177,7 +177,7 @@ get_nonexistent_list(Config) ->
         end).
 
 get_many_lists(Config) ->
-    escalus:story(Config, [1], fun(Alice) ->
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
 
         Request = escalus_stanza:privacy_get_lists([<<"public">>, <<"private">>]),
         escalus_client:send(Alice, Request),
@@ -187,7 +187,7 @@ get_many_lists(Config) ->
         end).
 
 get_existing_list(Config) ->
-    escalus:story(Config, [1, 1], fun(Alice, _Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, _Bob) ->
 
         privacy_helper:set_list(Alice, <<"deny_bob">>),
 
@@ -201,7 +201,7 @@ get_existing_list(Config) ->
         end).
 
 activate(Config) ->
-    escalus:story(Config, [1, 1], fun(Alice, _Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, _Bob) ->
 
         privacy_helper:set_list(Alice, <<"deny_bob">>),
 
@@ -214,7 +214,7 @@ activate(Config) ->
         end).
 
 activate_nonexistent(Config) ->
-    escalus:story(Config, [1], fun(Alice) ->
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
 
         Request = escalus_stanza:privacy_activate(<<"some_list">>),
         escalus_client:send(Alice, Request),
@@ -225,7 +225,7 @@ activate_nonexistent(Config) ->
         end).
 
 deactivate(Config) ->
-    escalus:story(Config, [1], fun(Alice) ->
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
 
         Request = escalus_stanza:privacy_deactivate(),
         escalus_client:send(Alice, Request),
@@ -236,7 +236,7 @@ deactivate(Config) ->
         end).
 
 default(Config) ->
-    escalus:story(Config, [1, 1], fun(Alice, _Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, _Bob) ->
 
         privacy_helper:set_list(Alice, <<"deny_bob">>),
 
@@ -277,7 +277,7 @@ default_conflict(Config) ->
         end).
 
 default_nonexistent(Config) ->
-    escalus:story(Config, [1], fun(Alice) ->
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
 
         Request = escalus_stanza:privacy_set_default(<<"some_list">>),
         escalus_client:send(Alice, Request),
@@ -288,7 +288,7 @@ default_nonexistent(Config) ->
         end).
 
 no_default(Config) ->
-    escalus:story(Config, [1], fun(Alice) ->
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
 
         Request = escalus_stanza:privacy_no_default(),
         escalus_client:send(Alice, Request),
@@ -325,7 +325,7 @@ set_list(Config) ->
         end).
 
 remove_list(Config) ->
-    escalus:story(Config, [1, 1], fun(Alice, _Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, _Bob) ->
 
         privacy_helper:send_set_list(Alice, <<"deny_bob">>),
 
@@ -353,7 +353,7 @@ remove_list(Config) ->
         end).
 
 block_jid_message(Config) ->
-    escalus:story(Config, [1, 1], fun(Alice, Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
 
         %% Alice should receive message
         escalus_client:send(Bob,
@@ -372,7 +372,7 @@ block_jid_message(Config) ->
         end).
 
 block_group_message(Config) ->
-    escalus:story(Config, [1, 1], fun(Alice, Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
 
         %% Alice should receive message
         escalus_client:send(Bob, escalus_stanza:chat_to(Alice, <<"Hi!">>)),
@@ -393,7 +393,7 @@ block_group_message(Config) ->
         end).
 
 block_subscription_message(Config) ->
-    escalus:story(Config, [1, 1], fun(Alice, Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
 
         %% Alice should receive message
         escalus_client:send(Bob, escalus_stanza:chat_to(Alice, <<"Hi!">>)),
@@ -415,7 +415,7 @@ block_subscription_message(Config) ->
         end).
 
 block_all_message(Config) ->
-    escalus:story(Config, [1, 1], fun(Alice, Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
 
         %% Alice should receive message
         escalus_client:send(Bob, escalus_stanza:chat_to(Alice, <<"Hi!">>)),
@@ -433,7 +433,7 @@ block_all_message(Config) ->
         end).
 
 block_jid_presence_in(Config) ->
-    escalus:story(Config, [1, 1], fun(Alice, Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
 
         %% Alice should receive presence in
         escalus_client:send(Bob,
@@ -453,7 +453,7 @@ block_jid_presence_in(Config) ->
         end).
 
 block_jid_presence_out(Config) ->
-    escalus:story(Config, [1, 1], fun(Alice, Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
 
         %% Bob should receive presence in
         escalus_client:send(Alice,
@@ -478,7 +478,7 @@ block_jid_presence_out(Config) ->
         end).
 
 block_jid_iq(Config) ->
-    escalus:story(Config, [1, 1], fun(Alice, _Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, _Bob) ->
 
         privacy_helper:set_list(Alice, <<"deny_localhost_iq">>),
         %% activate it
@@ -499,7 +499,7 @@ block_jid_iq(Config) ->
         end).
 
 block_jid_all(Config) ->
-    escalus:story(Config, [1, 1], fun(Alice, Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
 
         privacy_helper:set_list(Alice, <<"deny_jid_all">>),
 
@@ -544,7 +544,7 @@ block_jid_all(Config) ->
         end).
 
 block_jid_message_but_not_presence(Config) ->
-    escalus:story(Config, [1, 1], fun(Alice, Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
 
         %% Alice should receive message
         escalus_client:send(Bob,
