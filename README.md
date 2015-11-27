@@ -213,3 +213,9 @@ please feel free to contact us by the standard GitHub ways or at
 
 Want to discuss MongooseIM, problems with your deployement or anything else?
 Try: <a href='https://erlangcentral.org/forum/mongooseim/'>https://erlangcentral.org/forum/mongooseim/</a>.
+
+Announcements mailing-list
+--------------------------
+
+We have set up a new public mailing-list for all announcements of major events happening on the MongooseIM front. Expect one or two emails per month, the archives are free and open. We highly encourage you to subscribe here: https://groups.google.com/d/forum/mongooseim-announce
+Click on the blue button "Join group", then click in "Email delivery preference" on "Notify me for every new message".
