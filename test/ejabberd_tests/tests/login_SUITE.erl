@@ -210,11 +210,10 @@ end_per_testcase(not_allowed_registration_cancelation, Config) ->
     true = user_exists(alice, Config),
     escalus:delete_users(Config, {by_name, [alice]});
 end_per_testcase(registration_timeout, Config) ->
-    escalus_users:delete_users(Config, {by_name, [alice, bob]}),
-    timer:sleep(timer:seconds(?REGISTRATION_TIMEOUT));
+    escalus_users:delete_users(Config, {by_name, [alice, bob]});
 end_per_testcase(registration_failure_timeout, Config) ->
     ok = allow_everyone_registration(),
-    end_per_testcase(registration_timeout, Config);
+    escalus_users:delete_users(Config, {by_name, [alice]});
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
@@ -320,6 +319,7 @@ not_allowed_registration_cancelation(Config) ->
     end).
 
 registration_timeout(Config) ->
+    timer:sleep(timer:seconds(?REGISTRATION_TIMEOUT)),
     [Alice, Bob] = escalus_users:get_users({by_name, [alice, bob]}),
 
     %% The first user should be created successfully
@@ -340,23 +340,19 @@ registration_timeout(Config) ->
     escalus_users:verify_creation(escalus_users:create_user(Config, Bob)).
 
 registration_failure_timeout(Config) ->
-    [Alice, Bob] = escalus_users:get_users({by_name, [alice, bob]}),
+    timer:sleep(timer:seconds(?REGISTRATION_TIMEOUT)),
+    [Alice] = escalus_users:get_users({by_name, [alice]}),
 
     %% Registration of the first user should fail because of access denial
-    {error,_,R} = escalus_users:create_user(Config, Alice),
+    {error,bad_response,R} = escalus_users:create_user(Config, Alice),
     escalus:assert(is_iq_error, R),
     escalus:assert(is_error, [<<"auth">>, <<"forbidden">>], R),
 
     %% Registration of a second one should fail because requests were
     %% made in quick succession
-    {error, failed_to_register, S} = escalus_users:create_user(Config, Bob),
+    {error, bad_response, S} = escalus_users:create_user(Config, Alice),
     escalus:assert(is_iq_error, S),
-    escalus:assert(is_error, [<<"wait">>, <<"resource-constraint">>], S),
-
-    %% The ALLOWED user should register successfully one the time has
-    %% lapsed
-    timer:sleep(erlang:round(?REGISTRATION_TIMEOUT * 1.5 * 1000)),
-    escalus_users:verify_creation(escalus_users:create_user(Config, Bob)).
+    escalus:assert(is_error, [<<"wait">>, <<"resource-constraint">>], S).
 
 change_password(Config) ->
 
@@ -547,7 +543,7 @@ deny_everyone_registration() ->
     %% Domain = string(ct:get_config(ejabberd_domain)),
     %% {Name, Domain} = get_client_details(alice),
     %% {atomic,_} = escalus_ejabberd:rpc(acl, add, [Domain, alice, {user, Name, Domain}]),
-    {atomic,_} = escalus_ejabberd:rpc(ejabberd_config, add_global_option,
+    {atomic,ok} = escalus_ejabberd:rpc(ejabberd_config, add_global_option,
         [{access, register, global}, [{deny, all}]]),
     ok.
 
@@ -555,12 +551,12 @@ allow_everyone_registration() ->
     %% Domain = string(ct:get_config(ejabberd_domain)),
     %% {Name, Domain} = get_client_details(alice),
     %% {atomic,_} = escalus_ejabberd:rpc(acl, delete, [Domain, alice, {user, Name, Domain}]),
-    {atomic,_} = escalus_ejabberd:rpc(ejabberd_config, add_global_option,
+    {atomic,ok} = escalus_ejabberd:rpc(ejabberd_config, add_global_option,
         [{access, register, global}, [{allow, all}]]),
     ok.
 
 get_client_details(Identifier) ->
-    [{alice, Details}] = escalus_users:get_users({by_name, [Identifier]}),
+    [{Identifier, Details}] = escalus_users:get_users({by_name, [Identifier]}),
     {username, Name} = lists:keyfind(username, 1, Details),
     {server, Server} = lists:keyfind(server, 1, Details),
     {string(Name), string(Server)}.
