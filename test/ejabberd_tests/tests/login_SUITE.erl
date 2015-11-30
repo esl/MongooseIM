@@ -540,19 +540,15 @@ restore_registration_timeout(Config) ->
     proplists:delete(old_timeout, Config).
 
 deny_everyone_registration() ->
-    %% Domain = string(ct:get_config(ejabberd_domain)),
-    %% {Name, Domain} = get_client_details(alice),
-    %% {atomic,_} = escalus_ejabberd:rpc(acl, add, [Domain, alice, {user, Name, Domain}]),
-    {atomic,ok} = escalus_ejabberd:rpc(ejabberd_config, add_global_option,
-        [{access, register, global}, [{deny, all}]]),
-    ok.
+    ok = change_registration_settings_for_everyone(deny).
 
 allow_everyone_registration() ->
-    %% Domain = string(ct:get_config(ejabberd_domain)),
-    %% {Name, Domain} = get_client_details(alice),
-    %% {atomic,_} = escalus_ejabberd:rpc(acl, delete, [Domain, alice, {user, Name, Domain}]),
+    ok = change_registration_settings_for_everyone(allow).
+
+change_registration_settings_for_everyone(Rule)
+  when allow =:= Rule; deny =:= Rule ->
     {atomic,ok} = escalus_ejabberd:rpc(ejabberd_config, add_global_option,
-        [{access, register, global}, [{allow, all}]]),
+        [{access, register, global}, [{Rule, all}]]),
     ok.
 
 get_client_details(Identifier) ->
