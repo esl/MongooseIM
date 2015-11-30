@@ -188,6 +188,8 @@ attempt_cancelation(ClientJID, #jid{lserver = ServerDomain}, #iq{id = ID, sub_el
             error_response(IQ, ?ERR_NOT_ALLOWED)
     end.
 
+inband_registration_and_cancelation_allowed(_, no_JID) ->
+    true;
 inband_registration_and_cancelation_allowed(Server, JID) ->
     Rule = gen_mod:get_module_opt(Server, ?MODULE, access, none),
     allow =:= acl:match_rule(Server, Rule, JID).
@@ -225,8 +227,8 @@ try_register_or_set_password(User, Server, Password, From, IQ,
         #jid{luser = User, lserver = Server} ->
             try_set_password(User, Server, Password, IQ, SubEl, Lang);
         _ ->
-            case check_from(From, Server) of
-                allow ->
+            case check_timeout(Source) of
+                true ->
                     case try_register(User, Server, Password,
                                       Source, Lang) of
                         ok ->
@@ -235,8 +237,9 @@ try_register_or_set_password(User, Server, Password, From, IQ,
                         {error, Error} ->
                             error_response(IQ, [SubEl, Error])
                     end;
-                deny ->
-                    error_response(IQ, [SubEl, ?ERR_FORBIDDEN])
+                false ->
+                    ErrText = <<"Users are not allowed to register accounts so quickly">>,
+                    error_response(IQ, ?ERRT_RESOURCE_CONSTRAINT(Lang, ErrText))
             end
     end.
 
@@ -274,41 +277,32 @@ try_register(User, Server, Password, SourceRaw, Lang) ->
                 {_, deny} ->
                     {error, ?ERR_FORBIDDEN};
                 {allow, allow} ->
-                    Source = may_remove_resource(SourceRaw),
-                    case check_timeout(Source) of
+                    case is_strong_password(Server, Password) of
                         true ->
-                            case is_strong_password(Server, Password) of
-                                true ->
-                                    case ejabberd_auth:try_register(
-                                           User, Server, Password) of
-                                        ok ->
-                                            send_welcome_message(JID),
-                                            send_registration_notifications(JID, Source),
-                                            ok;
-                                        Error ->
-                                            remove_timeout(Source),
-                                            case Error of
-                                                {error, exists} ->
-                                                    {error, ?ERR_CONFLICT};
-                                                {error, invalid_jid} ->
-                                                    {error, ?ERR_JID_MALFORMED};
-                                                {error, not_allowed} ->
-                                                    {error, ?ERR_NOT_ALLOWED};
-                                                {error, null_password} ->
-                                                    {error, ?ERR_NOT_ACCEPTABLE}
-                                            end
-                                    end;
-                                false ->
-                                    ErrText = <<"The password is too weak">>,
-                                    {error, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)}
+                            case ejabberd_auth:try_register(
+                                   User, Server, Password) of
+                                ok ->
+                                    send_welcome_message(JID),
+                                    send_registration_notifications(JID, SourceRaw),
+                                    ok;
+                                Error ->
+                                    case Error of
+                                        {error, exists} ->
+                                            {error, ?ERR_CONFLICT};
+                                        {error, invalid_jid} ->
+                                            {error, ?ERR_JID_MALFORMED};
+                                        {error, not_allowed} ->
+                                            {error, ?ERR_NOT_ALLOWED};
+                                        {error, null_password} ->
+                                            {error, ?ERR_NOT_ACCEPTABLE}
+                                    end
                             end;
                         false ->
-                            ErrText = <<"Users are not allowed to register accounts so quickly">>,
-                            {error, ?ERRT_RESOURCE_CONSTRAINT(Lang, ErrText)}
+                            ErrText = <<"The password is too weak">>,
+                            {error, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)}
                     end
             end
     end.
-
 
 send_welcome_message(JID) ->
     Host = JID#jid.lserver,

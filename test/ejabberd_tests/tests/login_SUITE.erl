@@ -166,7 +166,7 @@ init_per_testcase(not_allowed_registration_cancelation, Config0) ->
     restart_mod_register_with_option(Config2, access, {access, none});
 init_per_testcase(registration_failure_timeout, Config) ->
     ok = deny_everyone_registration(),
-    escalus:init_per_testcase(registration_timeout, Config);
+    escalus:init_per_testcase(registration_failure_timeout, Config);
 init_per_testcase(message_zlib_limit, Config) ->
     Listeners = [Listener
                  || {Listener, _, _} <- escalus_ejabberd:rpc(ejabberd_config, get_local_option, [listen])],
@@ -212,8 +212,7 @@ end_per_testcase(not_allowed_registration_cancelation, Config) ->
 end_per_testcase(registration_timeout, Config) ->
     escalus_users:delete_users(Config, {by_name, [alice, bob]});
 end_per_testcase(registration_failure_timeout, Config) ->
-    ok = allow_everyone_registration(),
-    escalus_users:delete_users(Config, {by_name, [alice]});
+    ok = allow_everyone_registration();
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
