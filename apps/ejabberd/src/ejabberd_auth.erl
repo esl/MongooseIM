@@ -229,9 +229,6 @@ check_digest(Digest, DigestGen, _Password, Passwd) ->
                   ) -> ok | {error, empty_password | not_allowed | invalid_jid}.
 set_password(_,_, <<"">>) ->
     {error, empty_password};
-set_password(_User, _Server, "") ->
-    %% We do not allow empty password
-    {error, empty_password};
 set_password(User, Server, Password) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nodeprep(Server),
@@ -254,9 +251,6 @@ do_set_password(LUser, LServer, Password) ->
                    ) -> ok | {error, exists | not_allowed | invalid_jid | null_password}.
 try_register(_,_,<<"">>) ->
     {error, null_password};
-try_register(_User, _Server, "") ->
-    %% We do not allow empty password
-    {error, not_allowed};
 try_register(User, Server, Password) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nodeprep(Server),
