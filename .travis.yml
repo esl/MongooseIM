@@ -34,19 +34,19 @@ otp_release:
         - 17.5
 env:
         - PRESET=internal_redis DB=mnesia REL_CONFIG=with-redis
-        - PRESET=internal_mnesia DB=mnesia
+        - PRESET=internal_mnesia DB=mnesia REL_CONFIG=minimal
         - PRESET=mysql_mnesia DB=mysql REL_CONFIG=with-mysql
         - PRESET=odbc_pgsql_mnesia DB=pgsql REL_CONFIG=with-odbc
         - PRESET=pgsql_mnesia DB=pgsql REL_CONFIG=with-pgsql
-        - PRESET=ldap_mnesia DB=mnesia
+        - PRESET=ldap_mnesia DB=mnesia REL_CONFIG=minimal
         - PRESET=riak_mnesia DB=riak REL_CONFIG=with-riak
-        - PRESET=external_mnesia DB=mnesia
+        - PRESET=external_mnesia DB=mnesia REL_CONFIG=minimal
 
 matrix:
     include:
         - otp_release: R15B03
-          env: PRESET=internal_mnesia DB=mnesia
+          env: PRESET=internal_mnesia DB=mnesia REL_CONFIG=minimal
         - otp_release: R16B03
-          env: PRESET=internal_mnesia DB=mnesia
+          env: PRESET=internal_mnesia DB=mnesia REL_CONFIG=minimal
         - otp_release: 18.0
-          env: PRESET=internal_mnesia DB=mnesia
+          env: PRESET=internal_mnesia DB=mnesia REL_CONFIG=minimal

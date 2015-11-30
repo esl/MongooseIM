@@ -83,8 +83,11 @@ eunit: rebar deps
 configure:
 	./tools/configure $(filter-out $@,$(MAKECMDGOALS))
 
-rel: certs rebar deps
+rel: certs rebar deps configure.out
 	./rebar compile generate -f
+
+configure.out:
+	./tools/configure full
 
 devrel: certs $(DEVNODES)
 

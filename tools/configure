@@ -45,4 +45,6 @@ usage() ->
     io:format("specifies which 3rd party deps will be included in release~n"),
     io:format("possible options:~n"),
     [io:format("~s\t~s~n", [Opt, Desc]) || {Opt, Desc} <- all_opts_with_desc()],
-    io:format("~s\t\t~s~n", ["full", "include all above deps"]).
+    io:format("~s\t\t~s~n", ["full", "include all above deps"]),
+    io:format("~s\t\t~s~n", ["minimal", "does not include any of above deps"]).
+    
