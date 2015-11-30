@@ -8,6 +8,7 @@ MongooseIM can accept client sessions over vanilla XMPP, Websockets, and HTTP lo
 
 Its home on GitHub is at http://github.com/esl/MongooseIM.
 
+The product page ia available at https://www.erlang-solutions.com/products/mongooseim.html
 
 Download packages
 -----------------
