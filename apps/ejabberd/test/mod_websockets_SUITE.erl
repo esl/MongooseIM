@@ -1,5 +1,5 @@
 -module(mod_websockets_SUITE).
--export([all/0, setup/0, teardown/1, ping_test/1]).
+-export([all/0, setup/0, teardown/0, ping_test/1]).
 -include_lib("eunit/include/eunit.hrl").
 -define(HANDSHAKE_TIMEOUT, 3000).
 -define(eq(E, I), ?assertEqual(E, I)).
@@ -10,14 +10,12 @@
 
 all() -> [ ping_test ].
 
-init_per_suite(C) ->
-    C.
-
 setup() ->
+    meck:unload(),
     application:ensure_all_started(cowboy),
     meck:new(supervisor, [unstick, passthrough]),
-    meck:new(ejabberd_c2s, [unstick, passthrough]),
-    meck:new(gen_mod,[unstick, passthrough]),
+    meck:new(ejabberd_c2s, [passthrough, no_link, non_strict]),
+    meck:new(gen_mod,[passthrough]),
     %% Set ping rate to 1 sec
     meck:expect(gen_mod,get_opt, fun(ping_rate, _, none) -> ?FAST_PING_RATE;
                                     (A, B, C) -> meck:passthrough([A, B, C]) end),
@@ -38,24 +36,22 @@ setup() ->
           end).
 
 
-teardown(Pid) ->
+teardown() ->
+    meck:unload(),
     cowboy:stop_listener(http_listener),
-    meck:unload(supervisor),
-    meck:unload(ejabberd_c2s),
-    meck:unload(gen_mod),
-    exit(Pid, normal),
+    application:stop(cowboy),
     ok.
 
 ping_test(_Config) ->
     %% Given
-    Pid = setup(),
+    setup(),
     timer:sleep(500),
     {ok, Socket1} = ws_handshake("localhost", ?PORT),
     %% When
     Resp = wait_for_ping(Socket1, 0),
     %% then
     ?eq(Resp, ok),
-    teardown(Pid).
+    teardown().
 
 
 %% Client side
