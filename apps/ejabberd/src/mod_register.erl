@@ -103,9 +103,9 @@ process_unauthenticated_iq(From, To, #iq{type = get} = IQ, IPAddr) ->
     process_iq_get(From, To, IQ, IPAddr).
 
 process_iq(From, To, #iq{type = set} = IQ) ->
-    process_iq_set(From, To, IQ, jlib:jid_tolower(From));
+    process_iq_set(From, To, IQ, jid:to_lower(From));
 process_iq(From, To, #iq{type = get} = IQ) ->
-    process_iq_get(From, To, IQ, jlib:jid_tolower(From)).
+    process_iq_get(From, To, IQ, jid:to_lower(From)).
 
 process_iq_set(From, To, #iq{sub_el = Child} = IQ, Source) ->
     true = is_query_element(Child),
@@ -179,8 +179,8 @@ attempt_cancelation(ClientJID, #jid{lserver = ServerDomain}, #iq{id = ID, sub_el
                         id = ID,
                         sub_el = [Child]},
             ejabberd_router:route(
-              jlib:make_jid(<<>>, <<>>, <<>>),
-              jlib:make_jid(Username, UserDomain, Resource),
+              jid:make(<<>>, <<>>, <<>>),
+              jid:make(Username, UserDomain, Resource),
               jlib:iq_to_xml(ResIQ)),
             ejabberd_auth:remove_user(Username, UserDomain),
             ignore;
@@ -263,11 +263,11 @@ try_set_password(User, Server, Password, IQ, SubEl, Lang) ->
     end.
 
 try_register(User, Server, Password, SourceRaw, Lang) ->
-    case jlib:is_nodename(User) of
+    case jid:is_nodename(User) of
         false ->
             {error, ?ERR_BAD_REQUEST};
         _ ->
-            JID = jlib:make_jid(User, Server, <<>>),
+            JID = jid:make(User, Server, <<>>),
             Access = gen_mod:get_module_opt(Server, ?MODULE, access, all),
             IPAccess = get_ip_access(Server),
             case {acl:match_rule(Server, Access, JID),
@@ -311,7 +311,7 @@ send_welcome_message(JID) ->
             ok;
         {Subj, Body} ->
             ejabberd_router:route(
-              jlib:make_jid(<<>>, Host, <<>>),
+              jid:make(<<>>, Host, <<>>),
               JID,
               #xmlel{name = <<"message">>, attrs = [{<<"type">>, <<"normal">>}],
                      children = [#xmlel{name = <<"subject">>,
@@ -331,15 +331,15 @@ send_registration_notifications(UJID, Source) ->
                      io_lib:format(
                        "[~s] The account ~s was registered from IP address ~s "
                        "on node ~w using ~p.",
-                       [get_time_string(), jlib:jid_to_binary(UJID),
+                       [get_time_string(), jid:to_binary(UJID),
                         ip_to_string(Source), node(), ?MODULE])),
             lists:foreach(
               fun(S) ->
-                      case jlib:binary_to_jid(S) of
+                      case jid:from_binary(S) of
                           error -> ok;
                           JID ->
                               ejabberd_router:route(
-                                jlib:make_jid(<<>>, Host, <<>>),
+                                jid:make(<<>>, Host, <<>>),
                                 JID,
                                 #xmlel{name = <<"message">>,
                                        attrs = [{<<"type">>, <<"chat">>}],
@@ -565,10 +565,10 @@ ip_to_integer({IP1, IP2, IP3, IP4, IP5, IP6, IP7, IP8}) ->
                bsl 16) bor IP5) bsl 16) bor IP6) bsl 16) bor IP7) bsl 16) bor IP8.
 
 make_host_only_JID(Name) when is_binary(Name) ->
-    jlib:make_jid(<<>>, Name, <<>>).
+    jid:make(<<>>, Name, <<>>).
 
 set_sender(#xmlel{attrs = A} = Stanza, #jid{} = From) ->
-    Stanza#xmlel{attrs = [{<<"from">>, jlib:jid_to_binary(From)}|A]}.
+    Stanza#xmlel{attrs = [{<<"from">>, jid:to_binary(From)}|A]}.
 
 is_query_element(#xmlel{name = <<"query">>}) ->
     true;
