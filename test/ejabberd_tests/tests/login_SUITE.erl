@@ -344,13 +344,13 @@ registration_failure_timeout(Config) ->
     [Alice] = escalus_users:get_users({by_name, [alice]}),
 
     %% Registration of the first user should fail because of access denial
-    {error,bad_response,R} = escalus_users:create_user(Config, Alice),
+    {error,failed_to_register,R} = escalus_users:create_user(Config, Alice),
     escalus:assert(is_iq_error, R),
     escalus:assert(is_error, [<<"auth">>, <<"forbidden">>], R),
 
     %% Registration of a second one should fail because requests were
     %% made in quick succession
-    {error, bad_response, S} = escalus_users:create_user(Config, Alice),
+    {error,failed_to_register,S} = escalus_users:create_user(Config, Alice),
     escalus:assert(is_iq_error, S),
     escalus:assert(is_error, [<<"wait">>, <<"resource-constraint">>], S).
 
