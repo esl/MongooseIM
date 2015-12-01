@@ -1,5 +1,7 @@
 #!/usr/bin/env escript
 
+-define(NO_ODBC_WARN, "WARNING! There is no odbc module in your Erlang/OTP installation! It will not be included in the release!").
+
 main([]) ->
     usage();
 main(OptsIn) ->
@@ -19,15 +21,24 @@ analyze_opt("with-mysql", {AppsToInclude, AppsToRun}) ->
     {[mysql | AppsToInclude], AppsToRun};
 analyze_opt("with-pgsql", {AppsToInclude, AppsToRun}) ->
     {[pgsql | AppsToInclude], AppsToRun};
-analyze_opt("with-odbc", {AppsToInclude, AppsToRun}) ->
-    {[odbc | AppsToInclude], AppsToRun};
+analyze_opt("with-odbc", {AppsToInclude, AppsToRun} = Acc) ->
+    case is_odbc_available() of
+        true ->
+            {[odbc | AppsToInclude], AppsToRun};
+        _ ->
+            io:format("~s~n", [?NO_ODBC_WARN]),
+            Acc
+    end;
 analyze_opt("with-riak", {AppsToInclude, AppsToRun}) ->
     {[riakc, riak_pb, protobuffs | AppsToInclude], AppsToRun};
 analyze_opt("with-redis", {AppsToInclude, AppsToRun}) ->
     {[redo | AppsToInclude], AppsToRun};
 analyze_opt("with-cassandra", {AppsToInclude, AppsToRun}) ->
     {[seestar | AppsToInclude], AppsToRun};
-analyze_opt(_, Acc) ->
+analyze_opt("minimal", Acc) ->
+    Acc;
+analyze_opt(Opt, Acc) ->
+    io:format("WARNING! Unknown option ~s~n", [Opt]),
     Acc.
 
 all_opts() ->
@@ -36,10 +47,21 @@ all_opts() ->
 all_opts_with_desc() ->
     [{"with-mysql", "include mysql driver"},
      {"with-pgsql", "include pgsql driver"},
-     {"with-odbc", "include standard ODBC driver shipped with Erlang/OTP"},
      {"with-riak", "include riak client"},
      {"with-redis", "include redis driver"},
-     {"with-cassandra", "include cassandra driver"}].
+     {"with-cassandra", "include cassandra driver"},
+     maybe_odbc()].
+
+maybe_odbc() ->
+    case is_odbc_available() of
+        true ->
+            {"with-odbc", "include standard ODBC driver shipped with Erlang/OTP"};
+        _ ->
+            {"with-odbc", "include standard ODBC driver shipped with Erlang/OTP. " ++ ?NO_ODBC_WARN}
+    end.
+
+is_odbc_available() ->
+    {module, odbc} == code:ensure_loaded(odbc).
 
 usage() ->
     io:format("specifies which 3rd party deps will be included in release~n"),
@@ -47,4 +69,4 @@ usage() ->
     [io:format("~s\t~s~n", [Opt, Desc]) || {Opt, Desc} <- all_opts_with_desc()],
     io:format("~s\t\t~s~n", ["full", "include all above deps"]),
     io:format("~s\t\t~s~n", ["minimal", "does not include any of above deps"]).
-    
+
