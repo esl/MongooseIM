@@ -18,7 +18,12 @@
 -compile(export_all).
 
 -include_lib("escalus/include/escalus.hrl").
+-include_lib("escalus/include/escalus_xmlns.hrl").
+
 -include_lib("common_test/include/ct.hrl").
+-include_lib("eunit/include/eunit.hrl").
+
+-include_lib("exml/include/exml.hrl").
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -29,7 +34,10 @@
 all() ->
     [
      {group, register},
+     {group, bad_registration},
+     {group, bad_cancelation},
      {group, registration_timeout},
+     {group, change_account_details},
      {group, login},
      {group, login_scram},
      {group, login_scram_store_plain},
@@ -39,8 +47,15 @@ all() ->
 
 groups() ->
     [{register, [sequence], [register,
+                             already_registered,
                              check_unregistered]},
-     {registration_timeout, [sequence], [registration_timeout]},
+     {bad_registration, [no_sequence], [null_password]},
+     {bad_cancelation, [no_sequence], [bad_request_registration_cancelation,
+                                       not_allowed_registration_cancelation]},
+     {registration_timeout, [sequence], [registration_timeout,
+                                         registration_failure_timeout]},
+     {change_account_details, [no_sequence], [change_password,
+                                              change_password_to_null]},
      {login, [sequence], all_tests()},
      {login_scram, [sequence], scram_tests()},
      {login_scram_store_plain, [sequence], scram_tests()},
@@ -77,12 +92,11 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(register, Config) ->
-    case escalus_users:is_mod_register_enabled(Config) of
-        true ->
-            Config; % will create users inside test case
-        _ ->
-            {skip, mod_register_disabled}
-    end;
+    skip_if_mod_register_not_enabled(Config);
+init_per_group(bad_registration, Config) ->
+    Config;
+init_per_group(bad_cancelation, Config) ->
+    skip_if_mod_register_not_enabled(Config);
 init_per_group(registration_timeout, Config) ->
     case escalus_users:is_mod_register_enabled(Config) of
         true ->
@@ -90,6 +104,8 @@ init_per_group(registration_timeout, Config) ->
         _ ->
             {skip, mod_register_disabled}
     end;
+init_per_group(change_account_details, Config) ->
+    skip_if_mod_register_not_enabled(Config);
 init_per_group(GroupName, Config) when
       GroupName == login_scram; GroupName == login_scram_store_plain ->
     case get_auth_method() of
@@ -105,9 +121,14 @@ init_per_group(_GroupName, Config) ->
 
 end_per_group(register, _Config) ->
     ok;
+end_per_group(change_account_details, Config) ->
+    ok;
+end_per_group(bad_registration, _Config) ->
+    ok;
+end_per_group(bad_cancelation, _Config) ->
+    ok;
 end_per_group(registration_timeout, Config) ->
-    Config1 = restore_registration_timeout(Config),
-    escalus_users:delete_users(Config1, {by_name, [alice, bob]});
+    Config1 = restore_registration_timeout(Config);
 end_per_group(login_scram, Config) ->
     set_store_password(plain),
     escalus:delete_users(Config, {by_name, [alice, bob]});
@@ -128,6 +149,24 @@ init_per_testcase(DigestOrScram, Config) when
     end;
 init_per_testcase(check_unregistered, Config) ->
     Config;
+init_per_testcase(change_password, Config0) ->
+    Config1 =  escalus:init_per_testcase(change_password, Config0),
+    escalus:create_users(Config1, {by_name, [alice]});
+init_per_testcase(change_password_to_null, Config0) ->
+    Config1 =  escalus:init_per_testcase(change_password_to_null, Config0),
+    escalus:create_users(Config1, {by_name, [alice]});
+init_per_testcase(bad_request_registration_cancelation, Config0) ->
+    Config1 =  escalus:init_per_testcase(bad_request_registration, Config0),
+    escalus:create_users(Config1, {by_name, [alice]});
+init_per_testcase(not_allowed_registration_cancelation, Config0) ->
+    Config1 = escalus:init_per_testcase(not_allowed_registration_cancelation, Config0),
+    Config2 = escalus:create_users(Config1, {by_name, [alice]}),
+    %% Use a configuration that will not allow inband cancelation (and
+    %% registration).
+    restart_mod_register_with_option(Config2, access, {access, none});
+init_per_testcase(registration_failure_timeout, Config) ->
+    ok = deny_everyone_registration(),
+    escalus:init_per_testcase(registration_failure_timeout, Config);
 init_per_testcase(message_zlib_limit, Config) ->
     Listeners = [Listener
                  || {Listener, _, _} <- escalus_ejabberd:rpc(ejabberd_config, get_local_option, [listen])],
@@ -153,12 +192,30 @@ end_per_testcase(Name, Config)
     Domain = ct:get_config(ejabberd_domain),
     escalus_ejabberd:rpc(acl, delete, [Domain, blocked, {user, <<"alice">>}]),
     Config;
+end_per_testcase(change_password, Config) ->
+    [{alice, Details}] = escalus_users:get_users({by_name, [alice]}),
+    Alice = {alice, lists:keyreplace(password, 1, Details, {password, strong_pwd()})},
+    {ok, result, Response} = escalus_users:delete_user(Config, Alice);
+end_per_testcase(change_password_to_null, Config) ->
+    escalus:delete_users(Config, {by_name, [alice]});
 end_per_testcase(message_zlib_limit, Config) ->
     escalus:delete_users(Config, {by_name, [hacker]});
 end_per_testcase(check_unregistered, Config) ->
     Config;
+end_per_testcase(bad_request_registration_cancelation, Config0) ->
+    true = user_exists(alice, Config0),
+    escalus:delete_users(Config0, {by_name, [alice]});
+end_per_testcase(not_allowed_registration_cancelation, Config) ->
+    restore_mod_register_options(Config),
+    true = user_exists(alice, Config),
+    escalus:delete_users(Config, {by_name, [alice]});
+end_per_testcase(registration_timeout, Config) ->
+    escalus_users:delete_users(Config, {by_name, [alice, bob]});
+end_per_testcase(registration_failure_timeout, Config) ->
+    ok = allow_everyone_registration();
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
+
 
 %%--------------------------------------------------------------------
 %% Message tests
@@ -190,25 +247,157 @@ register(Config) ->
             escalus:assert_many(Predicates, escalus:wait_for_stanzas(Admin, 2))
         end).
 
+already_registered(Config) ->
+
+    %% This relies on Alice already being registered in test case
+    %% `register' in the same group as this test (group `register').
+
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+
+        escalus:send(Alice, escalus_stanza:get_registration_fields()),
+
+        Stanza = escalus:wait_for_stanza(Alice),
+
+        escalus:assert(is_iq_result, Stanza),
+        true = has_registered_element(Stanza)
+
+    end).
+
+null_password(Config) ->
+    [{alice, Details}] = escalus_users:get_users({by_name, [alice]}),
+    Alice = {alice, lists:keyreplace(password, 1, Details, {password, <<>>})},
+    {error, _, Response} = escalus_users:create_user(Config, Alice),
+    escalus:assert(is_iq_error, Response),
+    %% This error response means there was no character data,
+    %% i.e. elements `<password\>' or `<password></password>' where
+    %% indeed present.
+    {username, Name} = lists:keyfind(username, 1, Details),
+    {server, Server} = lists:keyfind(server, 1, Details),
+    escalus:assert(is_error, [<<"modify">>, <<"not-acceptable">>], Response),
+    false = escalus_ejabberd:rpc(ejabberd_auth, is_user_exists, [Name, Server]).
+
 check_unregistered(Config) ->
     escalus:delete_users(Config, {by_name, [admin, alice, bob]}),
     [{_, UserSpec}| _] = escalus_users:get_users(all),
     [Username, Server, _Pass] = escalus_users:get_usp(Config, UserSpec),
     false = escalus_ejabberd:rpc(ejabberd_auth, is_user_exists, [Username, Server]).
 
+bad_request_registration_cancelation(Config) ->
+
+    %% To quote XEP 0077, section 3.2, table 1 (unregister error
+    %% cases): "The <remove/> element [is] not the only child element
+    %% of the <query/> element."
+
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+
+        %% Alice sends bad cancelation request
+        escalus:send(Alice, bad_cancelation_stanza()),
+
+        %% Alice receives failure response
+        Stanza = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_iq_error, Stanza),
+        escalus:assert(is_error, [<<"modify">>, <<"bad-request">>], Stanza)
+
+    end).
+
+not_allowed_registration_cancelation(Config) ->
+
+    %% To quote XEP 0077, section 3.2, table 1 (unregister error
+    %% cases): "No sender is allowed to cancel registrations in-band."
+
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+
+        %% Alice sends cancelation request
+        escalus:send(Alice, escalus_stanza:remove_account()),
+
+        %% Alice receives failure response
+        Stanza = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_iq_error, Stanza),
+        escalus:assert(is_error, [<<"cancel">>, <<"not-allowed">>], Stanza)
+
+    end).
+
 registration_timeout(Config) ->
+    timer:sleep(timer:seconds(?REGISTRATION_TIMEOUT)),
     [Alice, Bob] = escalus_users:get_users({by_name, [alice, bob]}),
 
     %% The first user should be created successfully
     escalus_users:verify_creation(escalus_users:create_user(Config, Alice)),
 
     %% Creation of the second one should err because of not timing out yet
-    {error, failed_to_register, Reason} = escalus_users:create_user(Config, Bob),
-    escalus:assert(is_iq_error, Reason),
+    {error, failed_to_register, Stanza} = escalus_users:create_user(Config, Bob),
+    escalus:assert(is_iq_error, Stanza),
+    %% Something else may be more acceptable for the assertion
+    %% below... 2nd paragraph, section 3.1.1, XEP 0077: [...] a server
+    %% MAY return a `<not-acceptable/>' stanza error if [...] an
+    %% entity attempts to register a second identity after
+    %% successfully completing the registration use case.
+    escalus:assert(is_error, [<<"wait">>, <<"resource-constraint">>], Stanza),
 
     %% After timeout, the user should be registered successfully
     timer:sleep(erlang:round(?REGISTRATION_TIMEOUT * 1.5 * 1000)),
     escalus_users:verify_creation(escalus_users:create_user(Config, Bob)).
+
+registration_failure_timeout(Config) ->
+    timer:sleep(timer:seconds(?REGISTRATION_TIMEOUT)),
+    [Alice] = escalus_users:get_users({by_name, [alice]}),
+
+    %% Registration of the first user should fail because of access denial
+    {error,failed_to_register,R} = escalus_users:create_user(Config, Alice),
+    escalus:assert(is_iq_error, R),
+    escalus:assert(is_error, [<<"auth">>, <<"forbidden">>], R),
+
+    %% Registration of a second one should fail because requests were
+    %% made in quick succession
+    {error,failed_to_register,S} = escalus_users:create_user(Config, Alice),
+    escalus:assert(is_iq_error, S),
+    escalus:assert(is_error, [<<"wait">>, <<"resource-constraint">>], S).
+
+change_password(Config) ->
+
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+
+        escalus:send(Alice,
+            Q = escalus_stanza:iq_set(?NS_INBAND_REGISTER,
+                [#xmlel{name = <<"username">>,
+                        children = [#xmlcdata{content = <<"alice">>}]},
+                 #xmlel{name = <<"password">>,
+                        children = [#xmlcdata{content = strong_pwd()}]}])),
+
+        R = escalus:wait_for_stanza(Alice),
+
+        escalus:assert(is_iq_result, [Q], R)
+
+    end).
+
+change_password_to_null(Config) ->
+
+    %% Section 3.3, XEP 0077: If the user provides an empty password
+    %% element or a password element that contains no XML character
+    %% data (i.e., either <password/> or <password></password>), the
+    %% server or service MUST NOT change the password to a null value,
+    %% but instead MUST maintain the existing password.
+
+    %% By the above, `end_per_testcase' should succeed. XEP 0077
+    %% doesn't say how how an XMPP sever should respond, but since
+    %% this is in IQ, it must: so we choose to require a `not-allowed'
+    %% response.
+
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+
+        escalus:send(Alice,
+            escalus_stanza:iq_set(?NS_INBAND_REGISTER,
+                [#xmlel{name = <<"username">>,
+                        children = [#xmlcdata{content = <<"alice">>}]},
+                 #xmlel{name = <<"password">>,
+                        children = [#xmlcdata{content = <<"">>}]}])),
+
+        R = escalus:wait_for_stanza(Alice),
+
+        escalus:assert(is_iq_error, R),
+        escalus:assert(is_error, [<<"modify">>, <<"bad-request">>], R)
+
+    end).
 
 log_one(Config) ->
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
@@ -325,6 +514,17 @@ legacy_blocked_user(Config) ->
 %% Helpers
 %%--------------------------------------------------------------------
 
+skip_if_mod_register_not_enabled(Config) ->
+    case escalus_users:is_mod_register_enabled(Config) of
+        true ->
+            Config; % will create users inside test case
+        _ ->
+            {skip, mod_register_disabled}
+    end.
+
+strong_pwd() ->
+    <<"Sup3r","c4li","fr4g1","l1571c","3xp1","4l1","d0c10u5">>.
+
 set_registration_timeout(Config) ->
     Record = {local_config, registration_timeout, ?REGISTRATION_TIMEOUT},
     OldTimeout = escalus_ejabberd:rpc(ejabberd_config, get_local_option,
@@ -337,6 +537,24 @@ restore_registration_timeout(Config) ->
     Record = {local_config, registration_timeout, OldTimeout},
     true = escalus_ejabberd:rpc(ets, insert, [local_config, Record]),
     proplists:delete(old_timeout, Config).
+
+deny_everyone_registration() ->
+    ok = change_registration_settings_for_everyone(deny).
+
+allow_everyone_registration() ->
+    ok = change_registration_settings_for_everyone(allow).
+
+change_registration_settings_for_everyone(Rule)
+  when allow =:= Rule; deny =:= Rule ->
+    {atomic,ok} = escalus_ejabberd:rpc(ejabberd_config, add_global_option,
+        [{access, register, global}, [{Rule, all}]]),
+    ok.
+
+get_client_details(Identifier) ->
+    [{Identifier, Details}] = escalus_users:get_users({by_name, [Identifier]}),
+    {username, Name} = lists:keyfind(username, 1, Details),
+    {server, Server} = lists:keyfind(server, 1, Details),
+    {string(Name), string(Server)}.
 
 get_auth_method() ->
     XMPPDomain = escalus_ejabberd:unify_str_arg(
@@ -378,3 +596,40 @@ do_verify_format(login_scram, _Password, SPassword) ->
     {_, _, _, _} = SPassword;
 do_verify_format(_, Password, SPassword) ->
     Password = SPassword.
+
+has_registered_element(Stanza) ->
+        [#xmlel{name = <<"registered">>}] =:= exml_query:paths(Stanza,
+            [{element, <<"query">>}, {element, <<"registered">>}]).
+
+bad_cancelation_stanza() ->
+    escalus_stanza:iq(<<"set">>, [#xmlel{name = <<"query">>,
+        attrs = [{<<"xmlns">>, <<"jabber:iq:register">>}],
+        children = [#xmlel{name = <<"remove">>},
+                    %% The <remove/> element is not the only child element of the
+                    %% <query/> element.
+                    #xmlel{name = <<"foo">>}]}]).
+
+restart_mod_register_with_option(Config, Name, Value) ->
+    Domain = escalus_config:get_config(ejabberd_domain, Config),
+    ModuleOptions = escalus_ejabberd:rpc(gen_mod, loaded_modules_with_opts, [Domain]),
+    {mod_register, OldRegisterOptions} = lists:keyfind(mod_register, 1, ModuleOptions),
+    {atomic, ok} = dynamic_modules:stop(Domain, mod_register),
+    NewRegisterOptions = lists:keystore(Name, 1, OldRegisterOptions, Value),
+    ok = dynamic_modules:start(Domain, mod_register, NewRegisterOptions),
+    [{old_mod_register_opts, OldRegisterOptions}|Config].
+
+restore_mod_register_options(Config0) ->
+    Domain = escalus_config:get_config(ejabberd_domain, Config0),
+    {value, {old_mod_register_opts, RegisterOpts}, Config1} =
+        lists:keytake(old_mod_register_opts, 1, Config0),
+    {atomic, ok} = dynamic_modules:stop(Domain, mod_register),
+    ok = dynamic_modules:start(Domain, mod_register, RegisterOpts),
+    Config1.
+
+user_exists(Name, Config) ->
+    {Name, Client} = escalus_users:get_user_by_name(Name),
+    [Username, Server, _Pass] = escalus_users:get_usp(Config, Client),
+    escalus_ejabberd:rpc(ejabberd_auth, is_user_exists, [Username, Server]).
+
+string(<<_/binary>> = Subject) ->
+    erlang:binary_to_list(Subject).

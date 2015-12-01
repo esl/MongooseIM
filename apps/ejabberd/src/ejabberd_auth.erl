@@ -227,8 +227,7 @@ check_digest(Digest, DigestGen, _Password, Passwd) ->
                    Server :: ejabberd:server(),
                    Password :: binary()
                   ) -> ok | {error, empty_password | not_allowed | invalid_jid}.
-set_password(_User, _Server, "") ->
-    %% We do not allow empty password
+set_password(_,_, <<"">>) ->
     {error, empty_password};
 set_password(User, Server, Password) ->
     LUser = jid:nodeprep(User),
@@ -249,10 +248,9 @@ do_set_password(LUser, LServer, Password) ->
 -spec try_register(User :: ejabberd:user(),
                    Server :: ejabberd:server(),
                    Password :: binary()
-                   ) -> ok | {error, exists | not_allowed | invalid_jid}.
-try_register(_User, _Server, "") ->
-    %% We do not allow empty password
-    {error, not_allowed};
+                   ) -> ok | {error, exists | not_allowed | invalid_jid | null_password}.
+try_register(_,_,<<"">>) ->
+    {error, null_password};
 try_register(User, Server, Password) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nodeprep(Server),
