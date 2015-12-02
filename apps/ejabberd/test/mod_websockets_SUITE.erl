@@ -12,10 +12,10 @@ all() -> [ ping_test ].
 
 setup() ->
     meck:unload(),
-    application:ensure_all_started(cowboy),
-    meck:new(supervisor, [unstick, passthrough]),
-    meck:new(ejabberd_c2s, [passthrough, no_link, non_strict]),
-    meck:new(gen_mod,[passthrough]),
+    ejabberd_helper:ensure_all_started(cowboy),
+    meck:new(supervisor, [unstick, passthrough, no_link]),
+    meck:new(ejabberd_c2s, [unstick, passthrough, no_link]),
+    meck:new(gen_mod,[unstick, passthrough, no_link]),
     %% Set ping rate to 1 sec
     meck:expect(gen_mod,get_opt, fun(ping_rate, _, none) -> ?FAST_PING_RATE;
                                     (A, B, C) -> meck:passthrough([A, B, C]) end),
