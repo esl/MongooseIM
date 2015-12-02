@@ -1,14 +1,15 @@
 -module(mod_websockets_SUITE).
--export([all/0, setup/0, teardown/0, ping_test/1]).
+-compile([export_all]).
 -include_lib("eunit/include/eunit.hrl").
 -define(HANDSHAKE_TIMEOUT, 3000).
 -define(eq(E, I), ?assertEqual(E, I)).
 -define(PORT, 5280).
 -define(IP, {127, 0, 0, 1}).
--define(FAST_PING_RATE, 1000).
+-define(FAST_PING_RATE, 500).
+-define(NEW_TIMEOUT, 1000).
 
 
-all() -> [ ping_test ].
+all() -> [ ping_test, set_ping_test, disable_ping_test, disable_and_set].
 
 setup() ->
     meck:unload(),
@@ -19,8 +20,9 @@ setup() ->
     %% Set ping rate to 1 sec
     meck:expect(gen_mod,get_opt, fun(ping_rate, _, none) -> ?FAST_PING_RATE;
                                     (A, B, C) -> meck:passthrough([A, B, C]) end),
+    Self = self(),
     %% mock ejabberd_c2s
-    meck:expect(ejabberd_c2s, start, fun(_,_) -> {ok, mocked_pid} end),
+    meck:expect(ejabberd_c2s, start, fun({_, Socket},_) -> Self ! {catch_socket, Socket}, {ok, mocked_pid} end),
     meck:expect(supervisor, start_child,
                 fun(ejabberd_sup, {_, {_, start_link, [_]}, permanent,
                                                             infinity, worker, [_]}) -> ok;
@@ -46,11 +48,55 @@ ping_test(_Config) ->
     %% Given
     setup(),
     timer:sleep(500),
-    {ok, Socket1} = ws_handshake("localhost", ?PORT),
+    {ok, Socket1, _} = ws_handshake("localhost", ?PORT),
     %% When
-    Resp = wait_for_ping(Socket1, 0),
+    Resp = wait_for_ping(Socket1, 0, 5000),
     %% then
     ?eq(Resp, ok),
+    teardown().
+
+set_ping_test(_Config) ->
+    %% Given
+    setup(),
+    {ok, Socket1, InternalSocket} = ws_handshake("localhost", ?PORT),
+    %% When
+    mod_websockets:set_ping(InternalSocket, ?NEW_TIMEOUT),
+    ok = wait_for_ping(Socket1, 0 , ?NEW_TIMEOUT + 1000),
+    %% Im waiting too less time!
+    ErrorTimeout = wait_for_ping(Socket1, 0, 1000),
+    ok = wait_for_ping(Socket1, 0, ?NEW_TIMEOUT + 1000),
+    %% now I wait enough time
+    Resp1 = wait_for_ping(Socket1, 0, ?NEW_TIMEOUT + 200),
+    %% then
+    ?eq(Resp1, ok),
+    ?eq(ErrorTimeout, {error, timeout}),
+    teardown().
+
+disable_ping_test(_Config) ->
+    %% Given
+    setup(),
+    {ok, Socket1, InternalSocket} = ws_handshake("localhost", ?PORT),
+    %% When
+    mod_websockets:disable_ping(InternalSocket),
+    %% Should not receive any packets
+    ErrorTimeout = wait_for_ping(Socket1, 0, ?FAST_PING_RATE),
+    %% then
+    ?eq(ErrorTimeout, {error, timeout}),
+    teardown().
+
+disable_and_set(_Config) ->
+    %% Given
+    setup(),
+    {ok, Socket1, InternalSocket} = ws_handshake("localhost", ?PORT),
+    %% When
+    mod_websockets:disable_ping(InternalSocket),
+    %% Should not receive any packets
+    ErrorTimeout = wait_for_ping(Socket1, 0, ?FAST_PING_RATE),
+    mod_websockets:set_ping(InternalSocket, ?NEW_TIMEOUT),
+    Resp1 = wait_for_ping(Socket1, 0, ?NEW_TIMEOUT + 100),
+    %% then
+    ?eq(ErrorTimeout, {error, timeout}),
+    ?eq(Resp1, ok),
     teardown().
 
 
@@ -70,12 +116,13 @@ ws_handshake(Host, Port) ->
     {ok, Handshake} = gen_tcp:recv(Socket, 0, 5000),
     Packet = erlang:decode_packet(http, Handshake, []),
     {ok, {http_response, {1,1}, 101, "Switching Protocols"}, _Rest} = Packet,
-    {ok, Socket}.
+    InternalSocket = get_socket(),
+    {ok, Socket, InternalSocket}.
 
-wait_for_ping(_, Try) when Try > 10 ->
+wait_for_ping(_, Try, _) when Try > 10 ->
     {error, no_ping_packet};
-wait_for_ping(Socket, Try) ->
-    {Reply, Content} = gen_tcp:recv(Socket, 0, 5000),
+wait_for_ping(Socket, Try, Timeout) ->
+    {Reply, Content} = gen_tcp:recv(Socket, 0, Timeout),
     case Reply of
         error ->
             {error, Content};
@@ -85,7 +132,7 @@ wait_for_ping(Socket, Try) ->
                 Ping ->
                     ok;
                 _ ->
-                    wait_for_ping(Socket, Try + 1)
+                    wait_for_ping(Socket, Try + 1, Timeout)
             end
     end.
 
@@ -93,6 +140,16 @@ wait_for_ping(Socket, Try) ->
 ws_rx_frame(Payload, Opcode) ->
     Length = byte_size(Payload),
     <<1:1, 0:3, Opcode:4, 0:1, Length:7, Payload/binary>>.
+
+get_socket() ->
+    receive
+        {catch_socket, S} ->
+            S;
+        _ ->
+            erlang:error(internal_socket_error_wrong_receive)
+    after 5000 ->
+        erlang:error(internal_socket_error_not_received)
+    end.
 
 
 
