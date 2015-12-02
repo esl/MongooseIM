@@ -28,6 +28,7 @@
 -define(SECURE_USER, secure_joe).
 -define(CERT_FILE, "priv/ssl/fake_server.pem").
 -define(TLS_VERSIONS, ["tlsv1", "tlsv1.1", "tlsv1.2"]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -41,7 +42,9 @@ all() ->
             [{group, negative},
              {group, pre_xmpp_1_0},
              {group, starttls},
-             {group, tls}]
+             {group, tls},
+             {group, ciphers_default},
+             {group, 'node2_supports_DHE-RSA-AES256-SHA_only'}]
     end.
 
 groups() ->
@@ -50,7 +53,13 @@ groups() ->
                      invalid_stream_namespace]},
      {pre_xmpp_1_0, [], [pre_xmpp_1_0_stream]},
      {starttls, test_cases()},
-     {tls, generate_tls_vsn_tests()}].
+     {tls, generate_tls_vsn_tests()},
+     {ciphers_default, [], [clients_can_connect_with_advertised_ciphers,
+                            'clients_can_connect_with_DHE-RSA-AES256-SHA',
+                            'clients_can_connect_with_DHE-RSA-AES128-SHA']},
+     {'node2_supports_DHE-RSA-AES256-SHA_only', [],
+      %% node2 accepts DHE-RSA-AES256-SHA exclusively (see ejabberd.cfg)
+      ['clients_can_connect_with_DHE-RSA-AES256-SHA_only']}].
 
 test_cases() ->
     generate_tls_vsn_tests() ++
@@ -78,7 +87,8 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(starttls, Config) ->
-    config_ejabberd_node_tls(Config, fun mk_value_for_starttls_required_config_pattern/0),
+    config_ejabberd_node_tls(Config,
+                             fun mk_value_for_starttls_required_config_pattern/0),
     ejabberd_node_utils:restart_application(ejabberd),
     Config;
 init_per_group(tls, Config) ->
@@ -89,9 +99,19 @@ init_per_group(tls, Config) ->
     JoeSpec2 = {?SECURE_USER, lists:keystore(ssl, 1, JoeSpec, {ssl, true})},
     NewUsers = lists:keystore(?SECURE_USER, 1, Users, JoeSpec2),
     lists:keystore(escalus_users, 1, Config, {escalus_users, NewUsers});
+init_per_group(ciphers_default, Config) ->
+    config_ejabberd_node_tls(Config, fun mk_value_for_tls_config_pattern/0),
+    ejabberd_node_utils:restart_application(ejabberd),
+    [{c2s_port, 5222} | Config];
+init_per_group('node2_supports_DHE-RSA-AES256-SHA_only', Config) ->
+     node2_rpccall(mongoose_cover_helper, start, [[ejabberd]]),
+    [{c2s_port, 5233} | Config];
 init_per_group(_, Config) ->
     Config.
 
+end_per_group('node2_supports_DHE-RSA-AES256-SHA_only', Config) ->
+    node2_rpccall(mongoose_cover_helper, analyze, []),
+    Config;
 end_per_group(_, Config) ->
     Config.
 
@@ -172,7 +192,6 @@ should_pass_with_tlsv1(Config) ->
 'should_pass_with_tlsv1.2'(Config) ->
     should_pass_with_tls('tlsv1.2', Config).
 
-
 should_pass_with_tls(Version, Config)->
     UserSpec0 = escalus_users:get_userspec(Config, ?SECURE_USER),
     UserSpec1 = set_secure_connection_protocol(UserSpec0, Version),
@@ -212,9 +231,48 @@ should_not_send_other_features_with_starttls_required(Config) ->
                          children = [#xmlel{name = <<"required">>}]}],
                  Features).
 
+clients_can_connect_with_advertised_ciphers(Config) ->
+    ?assert(length(ciphers_working_with_ssl_clients(Config)) > 0).
+
+'clients_can_connect_with_DHE-RSA-AES256-SHA'(Config) ->
+    ?assert(lists:member("DHE-RSA-AES256-SHA",
+                         ciphers_working_with_ssl_clients(Config))).
+
+'clients_can_connect_with_DHE-RSA-AES256-SHA_only'(Config) ->
+    ?assertEqual(["DHE-RSA-AES256-SHA"],
+                 ciphers_working_with_ssl_clients(Config)).
+
+'clients_can_connect_with_DHE-RSA-AES128-SHA'(Config) ->
+    ?assert(lists:member("DHE-RSA-AES128-SHA",
+                         ciphers_working_with_ssl_clients(Config))).
+
+
 %%--------------------------------------------------------------------
 %% Internal functions
 %%--------------------------------------------------------------------
+
+c2s_port(Config) ->
+    case ?config(c2s_port, Config) of
+        undefined -> 5223;
+        Value -> Value
+    end.
+
+ciphers_available_in_os() ->
+    CiphersStr = os:cmd("openssl ciphers 'ALL:eNULL'"),
+    [string:strip(C, both, $\n) || C <- string:tokens(CiphersStr, ":")].
+
+ciphers_working_with_ssl_clients(Config) ->
+    Port = c2s_port(Config),
+    lists:filter(fun(Cipher) ->
+                         openssl_client_can_use_cipher(Cipher, Port)
+                 end, ciphers_available_in_os()).
+
+openssl_client_can_use_cipher(Cipher, Port) ->
+    PortStr = integer_to_list(Port),
+    Cmd = "echo '' | openssl s_client -connect localhost:" ++ PortStr ++
+        " -cipher " "\"" ++ Cipher ++ "\" 2>&1"
+        " | grep 'Cipher is " ++ Cipher ++ "'",
+    [] =/= os:cmd(Cmd).
 
 restore_ejabberd_node(Config) ->
     ejabberd_node_utils:restore_config_file(Config),
@@ -225,8 +283,7 @@ assert_cert_file_exists() ->
         ct:fail("cert file ~s not exists", [?CERT_FILE]).
 
 config_ejabberd_node_tls(Config, Fun) ->
-    ejabberd_node_utils:modify_config_file([Fun()],
-                                           Config).
+    ejabberd_node_utils:modify_config_file([Fun()], Config).
 
 mk_value_for_tls_config_pattern() ->
     {tls_config, "{certfile, \"" ++ ?CERT_FILE ++ "\"}, tls,"}.
@@ -278,3 +335,6 @@ default_context(To) ->
      {to, To},
      {stream_ns, ?NS_XMPP}].
 
+node2_rpccall(Module, Function, Args) ->
+    Node = ct:get_config(ejabberd2_node),
+    rpc:call(Node, Module, Function, Args).
