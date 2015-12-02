@@ -220,13 +220,16 @@ websocket_info(reset_stream, Req, #ws_state{parser = undefined} = State) ->
 websocket_info(reset_stream, Req, #ws_state{parser = Parser} = State) ->
     {ok, NewParser} = exml_stream:reset_parser(Parser),
     {ok, Req, State#ws_state{ parser = NewParser, open_tag = undefined }};
+websocket_info({set_ping, Value}, Req, State = #ws_state{ping_rate = none}) when is_integer(Value) and (Value > 0)->
+    send_ping_request(Value),
+    {ok, Req, State#ws_state{ping_rate = Value}};
 websocket_info({set_ping, Value}, Req, State) when is_integer(Value) and (Value > 0)->
     {ok, Req, State#ws_state{ping_rate = Value}};
 websocket_info(disable_ping, Req, State)->
     {ok, Req, State#ws_state{ping_rate = none}};
 websocket_info(do_ping, Req, State = #ws_state{ping_rate = none}) ->
     %% probalby someone disabled pings
-    {reply, Req, State};
+    {ok, Req, State};
 websocket_info(do_ping, Req, State) ->
     %% send ping frame to the client
     send_ping_request(State#ws_state.ping_rate),
