@@ -36,8 +36,9 @@
     delete_old_users/1,
     delete_old_users_vhost/2,
     ban_account/3,
-    num_active_users/2
-    ]).
+    num_active_users/2,
+    check_account/2,
+    check_password/3]).
 
 -include("ejabberd.hrl").
 -include("ejabberd_commands.hrl").
@@ -53,13 +54,13 @@ commands() ->
                            desc = "Change the password of an account",
                            module = ?MODULE, function = set_password,
                            args = [{user, binary}, {host, binary}, {newpass, binary}],
-                           result = {res, rescode}},
+                           result = {res, restuple}},
         #ejabberd_commands{name = check_password_hash, tags = [accounts],
                            desc = "Check if the password hash is correct",
                            longdesc = "Allowed hash methods: md5, sha.",
                            module = ?MODULE, function = check_password_hash,
                            args = [{user, binary}, {host, binary}, {passwordhash, string}, {hashmethod, string}],
-                           result = {res, rescode}},
+                           result = {res, restuple}},
         #ejabberd_commands{name = delete_old_users, tags = [accounts, purge],
                            desc = "Delete users that didn't log in last days, or that never logged",
                            module = ?MODULE, function = delete_old_users,
@@ -74,7 +75,7 @@ commands() ->
                            desc = "Ban an account: kick sessions and set random password",
                            module = ?MODULE, function = ban_account,
                            args = [{user, binary}, {host, binary}, {reason, binary}],
-                           result = {res, rescode}},
+                           result = {res, restuple}},
         #ejabberd_commands{name = num_active_users, tags = [accounts, stats],
                            desc = "Get number of users active in the last days",
                            module = ?MODULE, function = num_active_users,
@@ -82,30 +83,58 @@ commands() ->
                            result = {users, integer}},
         #ejabberd_commands{name = check_account, tags = [accounts],
                            desc = "Check if an account exists or not",
-                           module = ejabberd_auth, function = is_user_exists,
+                           module = ?MODULE, function = check_account,
                            args = [{user, binary}, {host, binary}],
-                           result = {res, rescode}},
+                           result = {res, restuple}},
         #ejabberd_commands{name = check_password, tags = [accounts],
                            desc = "Check if a password is correct",
-                           module = ejabberd_auth, function = check_password,
+                           module = ?MODULE, function = check_password,
                            args = [{user, binary}, {host, binary}, {password, binary}],
-                           result = {res, rescode}}
+                           result = {res, restuple}}
         ].
 
 %%%
 %%% Accounts
 %%%
 
--spec set_password(ejabberd:user(), ejabberd:server(), binary()) -> 'error' | 'ok'.
+-spec set_password(ejabberd:user(), ejabberd:server(), binary()) -> {'error', string()} | {'ok', string()}.
 set_password(User, Host, Password) ->
     case ejabberd_auth:set_password(User, Host, Password) of
-        ok -> ok;
-        _ ->  error
+        ok ->
+            {ok, io_lib:format("Password for user ~s@~s successfully changed", [User, Host])};
+        {error, Reason} ->
+            {error, Reason}
+    end.
+
+-spec check_password(ejabberd:user(), ejabberd:server(), binary()) ->  {Res, string()} when
+    Res :: ok | incorrect | user_does_not_exist.
+check_password(User, Host, Password) ->
+    case ejabberd_auth:is_user_exists(User, Host) of
+        true ->
+            case ejabberd_auth:check_password(User, Host, Password) of
+                true ->
+                    {ok, io_lib:format("Password '~s' for user ~s@~s is correct", [Password, User, Host])};
+                false ->
+                    {incorrect, io_lib:format("Password '~s' for user ~s@~s is incorrect", [Password, User, Host])}
+            end;
+        false ->
+            {user_does_not_exist, io_lib:format("Password '~s' for user ~s@~s is incorrect because this user does not
+            exist", [Password, User, Host])}
+    end.
+
+-spec check_account(ejabberd:user(), ejabberd:server()) -> {Res, string()} when
+    Res :: ok | user_does_not_exist.
+check_account(User, Host) ->
+    case ejabberd_auth:is_user_exists(User, Host) of
+        true ->
+            {ok, io_lib:format("User ~s@~s exists", [User, Host])};
+        false ->
+            {user_does_not_exist, io_lib:format("User ~s@~s does not exist", [User, Host])}
     end.
 
 
 -spec check_password_hash(ejabberd:user(), ejabberd:server(), Hash :: binary(),
-                         Method :: string()) -> 'error' | 'ok'.
+                         Method :: string()) -> {'error', string()} | {'ok', string()} | {'incorrect', string()}.
 check_password_hash(User, Host, PasswordHash, HashMethod) ->
     AccountPass = ejabberd_auth:get_password_s(User, Host),
     AccountPassHash = case HashMethod of
@@ -114,9 +143,12 @@ check_password_hash(User, Host, PasswordHash, HashMethod) ->
         _ -> undefined
     end,
     case AccountPassHash of
-        undefined -> error;
-        PasswordHash -> ok;
-        _ -> error
+        undefined ->
+            {error, "Hash for password is undefined"};
+        PasswordHash ->
+            {ok, "Password hash is correct"};
+        _->
+            {incorrect, "Password hash is incorrect"}
     end.
 
 
@@ -220,13 +252,16 @@ get_lastactivity_module(Server) ->
     end.
 
 
--spec ban_account(ejabberd:user(), ejabberd:server(), binary() | string()) -> 'ok'.
+-spec ban_account(ejabberd:user(), ejabberd:server(), binary() | string()) -> {'ok', string()} | {'error', string()}.
 ban_account(User, Host, ReasonText) ->
     Reason = mod_admin_extra_sessions:prepare_reason(ReasonText),
     kick_sessions(User, Host, Reason),
-    set_random_password(User, Host, Reason),
-    ok.
-
+    case set_random_password(User, Host, Reason) of
+        ok ->
+            {ok, io_lib:format("User ~s@~s successfully banned with reason: ~s",[User, Host, ReasonText])};
+        {error, ErrorReason} ->
+            {error, ErrorReason}
+    end.
 
 -spec kick_sessions(ejabberd:user(), ejabberd:server(), binary()) -> [ok].
 kick_sessions(User, Server, Reason) ->
@@ -240,7 +275,7 @@ kick_sessions(User, Server, Reason) ->
 -spec set_random_password(ejabberd:user(), ejabberd:server(), binary()) -> 'ok'.
 set_random_password(User, Server, Reason) ->
     NewPass = build_random_password(Reason),
-    set_password_auth(User, Server, NewPass).
+    ejabberd_auth:set_password(User, Server, NewPass).
 
 
 -spec build_random_password(Reason :: binary()) -> binary().
@@ -254,6 +289,3 @@ build_random_password(Reason) ->
     <<"BANNED_ACCOUNT--", Date/binary, "--", RandomString/binary, "--", Reason/binary>>.
 
 
--spec set_password_auth(ejabberd:user(), ejabberd:server(), binary()) -> 'ok'.
-set_password_auth(User, Server, Password) ->
-    ok = ejabberd_auth:set_password(User, Server, Password).
