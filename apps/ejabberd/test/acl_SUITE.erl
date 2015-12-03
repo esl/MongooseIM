@@ -21,11 +21,12 @@ all() ->
 
 init_per_suite(Config) ->
     ok = mnesia:start(),
-    ok = stringprep:start(),
+    stringprep:start(),
     ok = acl:start(),
     Config.
 
 end_per_suite(_Config) ->
+    meck:unload(),
     ok.
 
 init_per_testcase(_TC, Config) ->
@@ -256,9 +257,9 @@ different_specs_matching_the_same_user(_Config) ->
     ok.
 
 given_clean_config() ->
-    (catch meck:unload()),
+    meck:unload(),
     %% skip loading part
-    meck:new(ejabberd_config, [passthrough]),
+    meck:new(ejabberd_config, [no_link, unstick, passthrough]),
     meck:expect(ejabberd_config, load_file, fun(_File) -> ok end),
     ejabberd_config:start(),
     mnesia:clear_table(config),
