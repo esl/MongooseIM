@@ -16,3 +16,5 @@ echo "starting the container with riak..."
 ssh ${SSH_DOCKERMACHINE_ALIAS} 'docker run --name '${INSTANCE_NAME}'\
  -p '${PORT1}:${PORT1}' -p '${PORT2}:${PORT2}' -e RIAK_PASS="test" -d '${IMAGE_NAME}''
 
+sleep 20
+

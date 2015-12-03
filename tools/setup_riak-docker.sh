@@ -7,7 +7,7 @@ SSH_DOCKERMACHINE_ALIAS="docker_riak"
 
 echo "uploading search schemas to:" ${RIAK_HOST}
 
-curl --insecure -X PUT $RIAK_HOST/search/schema/vcard \
+curl --insecure -XPUT $RIAK_HOST/search/schema/vcard \
     -H 'Content-Type:application/xml' \
     --data-binary @vcard_search_schema.xml
 
