@@ -28,6 +28,7 @@
 -author('alexey@process-one.net').
 
 -behaviour(gen_server).
+-behaviour(xmpp_router).
 
 %% API
 -export([start_link/0]).
@@ -55,6 +56,9 @@
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
+
+%% xmpp_router callback
+-export([do_route/3]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -140,14 +144,7 @@ process_iq_reply(From, To, #iq{id = ID} = IQ) ->
             To :: ejabberd:jid(),
             Packet :: jlib:xmlel()) -> 'ok' | {'error','lager_not_running'}.
 route(From, To, Packet) ->
-    case catch do_route(From, To, Packet) of
-        {'EXIT', Reason} ->
-            ?ERROR_MSG("~p~nwhen processing: ~p",
-                       [Reason, {From, To, Packet}]);
-        _ ->
-            ok
-    end.
-
+    xmpp_router:route(?MODULE, From, To, Packet).
 
 -spec route_iq(From :: ejabberd:jid(),
                To :: ejabberd:jid(),
@@ -317,13 +314,7 @@ handle_cast(_Msg, State) ->
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 handle_info({route, From, To, Packet}, State) ->
-    case catch do_route(From, To, Packet) of
-        {'EXIT', Reason} ->
-            ?ERROR_MSG("~p~nwhen processing: ~p",
-                       [Reason, {From, To, Packet}]);
-        _ ->
-            ok
-    end,
+    route(From, To, Packet),
     {noreply, State};
 handle_info({register_iq_handler, Host, XMLNS, Module, Function}, State) ->
     ets:insert(?IQTABLE, {{XMLNS, Host}, Module, Function}),
