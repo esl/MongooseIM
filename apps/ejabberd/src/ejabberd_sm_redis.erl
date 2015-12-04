@@ -123,7 +123,8 @@ cleanup(Node) ->
                           [_, U, S, R | SIDEncoded] = re:split(H, ":"),
                           %% Add possible removed ":" from encoded SID
                           SID = binary_to_term(ejabberd_binary:join(SIDEncoded, <<":">>)),
-                          delete_session(SID, U, S, R)
+                          delete_session(SID, U, S, R),
+                          ejabberd_hooks:run(session_cleanup, S, [U, S, R, SID])
                   end, Hashes).
 
 

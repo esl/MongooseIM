@@ -26,7 +26,8 @@
 
 -module(mod_privacy).
 -author('alexey@process-one.net').
-
+-xep([{xep, 16}, {version, "1.6"}]).
+-xep([{xep, 126}, {version, "1.1"}]).
 -behaviour(gen_mod).
 
 -export([start/2, stop/1,
@@ -299,8 +300,8 @@ is_item_needdb(#listitem{type = group})        -> true;
 is_item_needdb(_)                              -> false.
 
 get_user_list(_, User, Server) ->
-    LUser = jlib:nodeprep(User),
-    LServer = jlib:nameprep(Server),
+    LUser = jid:nodeprep(User),
+    LServer = jid:nameprep(Server),
     case ?BACKEND:get_default_list(LUser, LServer) of
         {ok, {Default, List}} ->
             NeedDb = is_list_needdb(List),
@@ -322,13 +323,13 @@ check_packet(_, User, Server,
         _ ->
             PType = packet_directed_type(Dir, packet_type(Packet)),
             LJID = case Dir of
-                   in -> jlib:jid_tolower(From);
-                   out -> jlib:jid_tolower(To)
-               end,
+                   in -> jid:to_lower(From);
+                   out -> jid:to_lower(To)
+                   end,
             {Subscription, Groups} =
             case NeedDb of
                 true ->
-                    Host = jlib:nameprep(Server),
+                    Host = jid:nameprep(Server),
                     roster_get_jid_info(Host, User, Server, LJID);
                 false ->
                     {[], []}
@@ -406,8 +407,8 @@ is_type_match(Type, Value, JID, Subscription, Groups) ->
 
 
 remove_user(User, Server) ->
-    LUser = jlib:nodeprep(User),
-    LServer = jlib:nameprep(Server),
+    LUser = jid:nodeprep(User),
+    LServer = jid:nameprep(Server),
     ?BACKEND:remove_user(LUser, LServer).
 
 
@@ -501,11 +502,11 @@ set_type_and_value(<<>>, _Value, Item) ->
 set_type_and_value(_Type, <<>>, _Item) ->
     false;
 set_type_and_value(<<"jid">>, Value, Item) ->
-    case jlib:binary_to_jid(Value) of
+    case jid:from_binary(Value) of
         error ->
             false;
         JID ->
-            Item#listitem{type = jid, value = jlib:jid_tolower(JID)}
+            Item#listitem{type = jid, value = jid:to_lower(JID)}
     end;
 set_type_and_value(<<"group">>, Value, Item) ->
     Item#listitem{type = group, value = Value};
@@ -634,7 +635,7 @@ type_to_binary(Type) ->
 
 value_to_binary(Type, Val) ->
     case Type of
-    jid -> jlib:jid_to_binary(Val);
+    jid -> jid:to_binary(Val);
     group -> Val;
     subscription ->
         case Val of
@@ -670,7 +671,7 @@ binary_to_order_s(Order) ->
 %% ------------------------------------------------------------------
 
 broadcast_privacy_list(LUser, LServer, Name, UserList) ->
-    UserJID = jlib:make_jid(LUser, LServer, <<>>),
+    UserJID = jid:make(LUser, LServer, <<>>),
     ejabberd_sm:route(UserJID, UserJID, broadcast_privacy_list_packet(Name, UserList)).
 
 %% TODO this is dirty

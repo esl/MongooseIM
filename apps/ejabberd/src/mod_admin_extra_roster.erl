@@ -26,7 +26,6 @@
 
 -module(mod_admin_extra_roster).
 -author('badlop@process-one.net').
-
 -export([
     commands/0,
 
@@ -80,7 +79,7 @@ commands() ->
                                    {user, binary}, {server, binary},
                                    {nick, binary}, {group, binary},
                                    {subs, binary}],
-                           result = {res, rescode}},
+                           result = {res, restuple}},
         %%{"", "subs= none, from, to or both"},
         %%{"", "example: add-roster peter localhost mike server.com MiKe Employees both"},
         %%{"", "will add mike@server.com to peter@localhost roster"},
@@ -89,7 +88,7 @@ commands() ->
                            module = ?MODULE, function = delete_rosteritem,
                            args = [{localuser, binary}, {localserver, binary},
                                    {user, binary}, {server, binary}],
-                           result = {res, rescode}},
+                           result = {res, restuple}},
         #ejabberd_commands{name = process_rosteritems, tags = [roster],
                            desc = "List or delete rosteritems that match filtering options (Mnesia only!)",
                            longdesc = "Explanation of each argument:\n"
@@ -161,14 +160,30 @@ commands() ->
                      Server :: ejabberd:server(),
                      Nick :: binary(),
                      Group :: binary() | string(),
-                     Subs :: subs()) -> 'error' | 'ok'.
+                     Subs :: subs()) -> {Res, string()} when
+    Res :: user_doest_not_exist | error | bad_subs | ok.
 add_rosteritem(LocalUser, LocalServer, User, Server, Nick, Group, Subs) ->
-    case subscribe(LocalUser, LocalServer, User, Server, Nick, Group, Subs, []) of
-        {atomic, ok} ->
+    case ejabberd_auth:is_user_exists(LocalUser, LocalServer) of
+        true ->
+            case subscribe(LocalUser, LocalServer, User, Server, Nick, Group, Subs, []) of
+                {atomic, ok} ->
+                    do_add_rosteritem(LocalUser, LocalServer, User, Server, Nick, Group, Subs);
+                Other ->
+                    {error, io_lib:format("~p", [Other])}
+            end;
+        false ->
+            {user_does_not_exist, io_lib:format("Cannot add the item because user ~s@~s does not exist",
+                                                [LocalUser, LocalServer])}
+    end.
+
+do_add_rosteritem(LocalUser, LocalServer, User, Server, Nick, Group, Subs) ->
+    case lists:member(Subs, possible_subs_binary()) of
+        true ->
             push_roster_item(LocalUser, LocalServer, User, Server, {add, Nick, Subs, Group}),
-            ok;
-        _ ->
-            error
+            {ok, io_lib:format("Added the item to the roster of ~s@~s", [LocalUser, LocalServer])};
+        false ->
+            {bad_subs, io_lib:format("Sub ~s is incorrect. Choose one of the following:~nnone~nfrom~nto~nboth",
+                                     [binary_to_list(Subs)])}
     end.
 
 
@@ -181,27 +196,41 @@ add_rosteritem(LocalUser, LocalServer, User, Server, Nick, Group, Subs) ->
                 Group :: binary() | string(),
                 Subs :: subs(),
                 _Xattrs :: [jlib:binary_pair()]) -> any().
-subscribe(LU, LS, User, Server, Nick, Group, SubscriptionS, _Xattrs) ->
+ subscribe(LU, LS, User, Server, Nick, Group, SubscriptionS, _Xattrs) ->
     ItemEl = build_roster_item(User, Server, {add, Nick, SubscriptionS, Group}),
-    {ok, M} = loaded_module(LS,[mod_roster_odbc,mod_roster]),
-    M:set_items(
-        LU, LS,
-        #xmlel{ name = <<"query">>,
-               attrs = [{<<"xmlns">>,<<"jabber:iq:roster">>}],
-               children = [ItemEl]}).
+    case loaded_module(LS,[mod_roster_odbc,mod_roster]) of
+        {ok, M} ->
+            M:set_items(
+                LU, LS,
+                #xmlel{ name = <<"query">>,
+                        attrs = [{<<"xmlns">>,<<"jabber:iq:roster">>}],
+                        children = [ItemEl]});
+        {error, not_found} ->
+            unknown_server;
+        Other ->
+            Other
+    end.
+
 
 
 -spec delete_rosteritem(LocalUser :: ejabberd:user(),
                         LocalServer :: ejabberd:server(),
                         User :: ejabberd:user(),
-                        Server :: ejabberd:server()) -> ok | error.
+                        Server :: ejabberd:server()) -> {Res, string()} when
+    Res :: ok | error | user_does_not_exist.
 delete_rosteritem(LocalUser, LocalServer, User, Server) ->
-    case unsubscribe(LocalUser, LocalServer, User, Server) of
-        {atomic, ok} ->
-            push_roster_item(LocalUser, LocalServer, User, Server, remove),
-            ok;
-        _  ->
-            error
+    case ejabberd_auth:is_user_exists(LocalUser, LocalServer) of
+        true ->
+            case unsubscribe(LocalUser, LocalServer, User, Server) of
+                {atomic, ok} ->
+                    push_roster_item(LocalUser, LocalServer, User, Server, remove),
+                    {ok, io_lib:format("The item removed from roster of ~s@~s", [LocalUser, LocalServer])};
+                Other ->
+                    {error, io_lib:format("~p", [Other])}
+            end;
+        false ->
+            {user_does_not_exist, io_lib:format("Cannot delete the item because user ~s@~s doest not exist",
+                                                [LocalUser, LocalServer])}
     end.
 
 
@@ -212,12 +241,19 @@ delete_rosteritem(LocalUser, LocalServer, User, Server) ->
                   Server :: ejabberd:server()) -> any().
 unsubscribe(LU, LS, User, Server) ->
     ItemEl = build_roster_item(User, Server, remove),
-    {ok, M} = loaded_module(LS,[mod_roster_odbc,mod_roster]),
-    M:set_items(
-        LU, LS,
-        #xmlel{ name = <<"query">>,
-               attrs = [{<<"xmlns">>,<<"jabber:iq:roster">>}],
-               children = [ItemEl]}).
+    case loaded_module(LS,[mod_roster_odbc,mod_roster]) of
+        {ok, M} ->
+            M:set_items(
+                LU, LS,
+                #xmlel{ name = <<"query">>,
+                        attrs = [{<<"xmlns">>,<<"jabber:iq:roster">>}],
+                        children = [ItemEl]});
+        {error, not_found} ->
+            unknown_server;
+        Other ->
+            Other
+    end.
+
 
 
 -spec loaded_module(Domain :: binary(),
@@ -238,19 +274,19 @@ loaded_module(Domain,Options) ->
 
 -spec get_roster(ejabberd:user(), ejabberd:server()) -> [jids_nick_subs_ask_grp()].
 get_roster(User, Server) ->
-    LUser = jlib:nodeprep(User),
-    LServer = jlib:nameprep(Server),
+    LUser = jid:nodeprep(User),
+    LServer = jid:nameprep(Server),
     Items = ejabberd_hooks:run_fold(roster_get, Server, [], [{LUser, LServer}]),
-    make_roster_xmlrpc(Items).
+    make_roster(Items).
 
 
 %% @doc Note: if a contact is in several groups, the contact is returned
 %% several times, each one in a different group.
--spec make_roster_xmlrpc([mod_roster:roster()]) -> [jids_nick_subs_ask_grp()].
-make_roster_xmlrpc(Roster) ->
+-spec make_roster([mod_roster:roster()]) -> [jids_nick_subs_ask_grp()].
+make_roster(Roster) ->
     lists:foldl(
         fun(Item, Res) ->
-                JIDS = jlib:jid_to_binary(Item#roster.jid),
+                JIDS = jid:to_binary(Item#roster.jid),
                 Nick = Item#roster.name,
                 Subs = atom_to_list(Item#roster.subscription),
                 Ask = atom_to_list(Item#roster.ask),
@@ -345,7 +381,7 @@ push_roster_item(LU, LS, U, S, Action) ->
 -spec push_roster_item(ejabberd:luser(), ejabberd:lserver(), ejabberd:user(),
         ejabberd:user(), ejabberd:server(), Action :: push_action()) -> 'ok'.
 push_roster_item(LU, LS, R, U, S, Action) ->
-    LJID = jlib:make_jid(LU, LS, R),
+    LJID = jid:make(LU, LS, R),
     BroadcastEl = build_broadcast(U, S, Action),
     ejabberd_sm:route(LJID, LJID, BroadcastEl),
     Item = build_roster_item(U, S, Action),
@@ -356,15 +392,15 @@ push_roster_item(LU, LS, R, U, S, Action) ->
                        ) -> jlib:xmlel().
 build_roster_item(U, S, {add, Nick, Subs, Group}) ->
     #xmlel{ name = <<"item">>,
-           attrs = [{<<"jid">>, jlib:jid_to_binary(jlib:make_jid(U, S, <<"">>))},
-                    {<<"name">>, Nick},
-                    {<<"subscription">>, Subs}],
-           children = [#xmlel{ name = <<"group">>, children = [#xmlcdata{content = Group}]}]
-          };
+       attrs = [{<<"jid">>, jid:to_binary(jid:make(U, S, <<"">>))},
+                {<<"name">>, Nick},
+                {<<"subscription">>, Subs}],
+       children = [#xmlel{name = <<"group">>, children = [#xmlcdata{content = Group}]}]
+      };
 build_roster_item(U, S, remove) ->
     #xmlel{ name = <<"item">>,
-           attrs = [{<<"jid">>, jlib:jid_to_binary(jlib:make_jid(U, S, <<"">>))},
-                    {<<"subscription">>, <<"remove">>}]}.
+       attrs = [{<<"jid">>, jid:to_binary(jid:make(U, S, <<"">>))},
+                {<<"subscription">>, <<"remove">>}]}.
 
 
 -spec build_iq_roster_push(jlib:xmlcdata() | jlib:xmlel()) -> jlib:xmlel().
@@ -433,14 +469,20 @@ process_rosteritems(ActionS, SubsS, AsksS, UsersS, ContactsS) ->
 -spec rosteritem_purge(delete_action() | list_action()) -> {'atomic','ok'}.
 rosteritem_purge(Options) ->
     Num_rosteritems = mnesia:table_info(roster, size),
-    io:format("There are ~p roster items in total.~n", [Num_rosteritems]),
-    Key = mnesia:dirty_first(roster),
-    ok = rip(Key, Options, {0, Num_rosteritems, 0, 0}),
+    case Num_rosteritems of
+        0 ->
+            io:format("Roster table is empty.~n");
+        _ ->
+            io:format("There are ~p roster items in total.~n", [Num_rosteritems]),
+            Key = mnesia:dirty_first(roster),
+            ok = rip(Key, Options, {0, Num_rosteritems, 0, 0})
+    end,
     {atomic, ok}.
 
 
--spec rip('$end_of_table' | any(), delete_action() | list_action(),
-          {integer(), integer(), non_neg_integer(), non_neg_integer()}) -> 'ok'.
+-spec rip('$end_of_table'  | any(), delete_action()  | list_action(),
+          {integer(), integer(), non_neg_integer(), non_neg_integer()}) ->
+             ok.
 rip('$end_of_table', _Options, Counters) ->
     print_progress_line(Counters),
     ok;
@@ -493,7 +535,7 @@ decide_rip_jid({UName, UServer, _UResource}, MatchList) ->
 decide_rip_jid({UName, UServer}, MatchList) ->
     lists:any(
         fun(MatchString) ->
-                MJID = jlib:binary_to_jid(MatchString),
+                MJID = jid:from_binary(MatchString),
                 MName = MJID#jid.luser,
                 MServer = MJID#jid.lserver,
                 IsServer = is_regexp_match(UServer, MServer),
@@ -509,10 +551,18 @@ is_regexp_match(String, RegExp) ->
     case catch re:run(String, RegExp) of
         nomatch ->
             false;
-        {match, _} ->
-            true;
+        {match, List} ->
+            Size = length(binary_to_list(String)),
+            case lists:member({0,Size}, List) of
+                true ->
+                    true;
+                false ->
+                    false
+            end;
         Error ->
             io:format("Wrong regexp ~p: ~p", [RegExp, Error]),
             false
     end.
 
+possible_subs_binary() ->
+    [<<"none">>, <<"from">>, <<"to">>, <<"both">>].

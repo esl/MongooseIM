@@ -28,7 +28,7 @@
 -author('alexey@process-one.net').
 
 -behaviour(gen_server).
-
+-behaviour(xmpp_router).
 %% API
 -export([route/3,
          route_error/4,
@@ -42,6 +42,9 @@
         ]).
 
 -export([start_link/0]).
+
+%% xmpp_router callback
+-export([do_route/3]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -70,19 +73,11 @@
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
-
 -spec route(From   :: ejabberd:jid(),
             To     :: ejabberd:jid(),
             Packet :: jlib:xmlel()) -> ok.
 route(From, To, Packet) ->
-    case catch do_route(From, To, Packet) of
-        {'EXIT', Reason} ->
-            ?ERROR_MSG("~p~nwhen processing: ~p",
-                       [Reason, {From, To, Packet}]),
-            ok;
-        _ ->
-            ok
-    end.
+    xmpp_router:route(?MODULE, From, To, Packet).
 
 %% Route the error packet only if the originating packet is not an error itself.
 %% RFC3920 9.3.1
@@ -106,7 +101,7 @@ register_route(Domain) ->
 -spec register_route(Domain :: domain(),
                      Handler :: handler()) -> any().
 register_route(Domain, Handler) ->
-    register_route_to_ldomain(jlib:nameprep(Domain), Domain, Handler).
+    register_route_to_ldomain(jid:nameprep(Domain), Domain, Handler).
 
 -spec register_routes([domain()]) -> 'ok'.
 register_routes(Domains) ->
@@ -136,7 +131,7 @@ make_handler({apply, Module, Function} = Handler)
     Handler.
 
 unregister_route(Domain) ->
-    case jlib:nameprep(Domain) of
+    case jid:nameprep(Domain) of
         error ->
             erlang:error({invalid_domain, Domain});
         LDomain ->
@@ -208,13 +203,7 @@ handle_cast(_Msg, State) ->
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 handle_info({route, From, To, Packet}, State) ->
-    case catch do_route(From, To, Packet) of
-        {'EXIT', Reason} ->
-            ?ERROR_MSG("~p~nwhen processing: ~p",
-                       [Reason, {From, To, Packet}]);
-        _ ->
-            ok
-    end,
+    route(From, To, Packet),
     {noreply, State};
 handle_info(_Info, State) ->
     {noreply, State}.

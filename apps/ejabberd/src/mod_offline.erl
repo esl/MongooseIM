@@ -27,7 +27,10 @@
 
 -module(mod_offline).
 -author('alexey@process-one.net').
-
+-xep([{xep, 160}, {version, "1.0"}]).
+-xep([{xep, 23}, {version, "1.3"}]).
+-xep([{xep, 22}, {version, "1.4"}]).
+-xep([{xep, 85}, {version, "2.1"}]).
 -behaviour(gen_mod).
 
 %% gen_mod handlers
@@ -67,23 +70,28 @@
 -callback init(Host, Opts) -> ok when
     Host :: binary(),
     Opts :: list().
--callback pop_messages(LUser, LServer) -> Result when
+-callback pop_messages(LUser, LServer) -> {ok, Result} | {error, Reason} when
     LUser :: ejabberd:luser(),
     LServer :: ejabberd:lserver(),
-    Result :: term().
--callback write_messages(LUser, LServer, Msgs, MaxOfflineMsgs) -> Result when
+    Reason :: term(),
+    Result :: list(#offline_msg{}).
+-callback write_messages(LUser, LServer, Msgs, MaxOfflineMsgs) ->
+    ok | {discarded, DiscardedMsgs} | {error, Reason}  when
     LUser :: ejabberd:luser(),
     LServer :: ejabberd:lserver(),
     Msgs :: list(),
     MaxOfflineMsgs :: integer(),
-    Result :: term().
--callback remove_expired_messages(Host) -> Result when
+    DiscardedMsgs :: list(#offline_msg{}),
+    Reason :: term().
+-callback remove_expired_messages(Host) -> {error, Reason} | {ok, Count} when
     Host :: ejabberd:lserver(),
-    Result :: term().
--callback remove_old_messages(Host, Days) -> Result when
+    Reason :: term(),
+    Count :: integer().
+-callback remove_old_messages(Host, Days) -> {error, Reason} | {ok, Count} when
     Host :: ejabberd:lserver(),
     Days :: integer(),
-    Result :: term().
+    Reason :: term(),
+    Count :: integer().
 -callback remove_user(LUser, LServer) -> any() when
     LUser :: binary(),
     LServer :: binary().
@@ -147,7 +155,7 @@ handle_offline_msg(#offline_msg{us=US} = Msg, AccessMaxOfflineMsgs) ->
 
 %% Function copied from ejabberd_sm.erl:
 get_max_user_messages(AccessRule, LUser, Host) ->
-    case acl:match_rule(Host, AccessRule, jlib:make_jid(LUser, Host, <<>>)) of
+    case acl:match_rule(Host, AccessRule, jid:make(LUser, Host, <<>>)) of
 	Max when is_integer(Max) -> Max;
 	infinity -> infinity;
 	_ -> ?MAX_USER_MESSAGES
@@ -418,8 +426,8 @@ pop_offline_messages(Ls, User, Server) ->
     Ls ++ pop_offline_messages(User, Server).
 
 pop_offline_messages(User, Server) ->
-    LUser = jlib:nodeprep(User),
-    LServer = jlib:nameprep(Server),
+    LUser = jid:nodeprep(User),
+    LServer = jid:nameprep(Server),
     case ?BACKEND:pop_messages(LUser, LServer) of
         {ok, Rs} ->
             lists:map(fun(R) ->
@@ -432,8 +440,8 @@ pop_offline_messages(User, Server) ->
     end.
 
 resend_offline_messages(User, Server) ->
-    LUser = jlib:nodeprep(User),
-    LServer = jlib:nameprep(Server),
+    LUser = jid:nodeprep(User),
+    LServer = jid:nameprep(Server),
     case ?BACKEND:pop_messages(LUser, LServer) of
         {ok, Rs} ->
             lists:foreach(fun(R) ->
@@ -463,14 +471,14 @@ add_timestamp({_,_,Micro} = TimeStamp, Server, Packet) ->
     xml:append_subtags(Packet, [TimeStampXML]).
 
 timestamp_xml(Server, Time) ->
-    FromJID = jlib:make_jid(<<>>, Server, <<>>),
+    FromJID = jid:make(<<>>, Server, <<>>),
     jlib:timestamp_to_xml(Time, utc, FromJID, <<"Offline Storage">>).
 
 remove_expired_messages(Host) ->
     ?BACKEND:remove_expired_messages(Host).
 
 remove_old_messages(Host, Days) ->
-    ?BACKEND:remove_expired_messages(Host, Days).
+    ?BACKEND:remove_old_messages(Host, Days).
 
 remove_user(User, Server) ->
     ?BACKEND:remove_user(User, Server).

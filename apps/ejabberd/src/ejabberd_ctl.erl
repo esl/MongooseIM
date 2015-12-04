@@ -502,22 +502,8 @@ get_list_commands() ->
 -spec tuple_command_help(ejabberd_commands:list_cmd()) -> cmd().
 tuple_command_help({Name, Args, Desc}) ->
     Arguments = [atom_to_list(ArgN) || {ArgN, _ArgF} <- Args],
-    Prepend = case is_supported_args(Args) of
-                  true -> "";
-                  false -> "*"
-              end,
     CallString = atom_to_list(Name),
-    {CallString, Arguments, Prepend ++ Desc}.
-
-
--spec is_supported_args([{atom(),_}]) -> boolean().
-is_supported_args(Args) ->
-    lists:all(
-      fun({_Name, Format}) ->
-              (Format == integer)
-                  or (Format == string)
-      end,
-      Args).
+    {CallString, Arguments, Desc}.
 
 
 -spec get_list_ctls() -> [cmd()].
@@ -872,8 +858,6 @@ print_usage_command(Cmd, C, MaxC, ShCode) ->
     ResultFmt = format_usage_ctype(ResultDef, 11),
     ReturnsFmt = ["  ",?B("Returns"),": ", ResultFmt],
 
-    XmlrpcFmt = "", %%+++ ["  ",?B("XML-RPC"),": ", format_usage_xmlrpc(ArgsDef, ResultDef), "\n\n"],
-
     TagsFmt = ["  ",?B("Tags"),": ", prepare_long_line(8, MaxC, [atom_to_list(TagA) || TagA <- TagsAtoms])],
 
     DescFmt = ["  ",?B("Description"),": ", prepare_description(15, MaxC, Desc)],
@@ -883,12 +867,7 @@ print_usage_command(Cmd, C, MaxC, ShCode) ->
                       _ -> ["", prepare_description(0, MaxC, LongDesc), "\n\n"]
                   end,
 
-    NoteEjabberdctl = case is_supported_args(ArgsDef) of
-                          true -> "";
-                          false -> ["  ", ?B("Note:"), " This command cannot be executed using mongooseimctl.\n\n"]
-                      end,
-
-    ?PRINT(["\n", NameFmt, "\n", ArgsFmt, "\n", ReturnsFmt, "\n\n", XmlrpcFmt, TagsFmt, "\n\n", DescFmt, "\n\n", LongDescFmt, NoteEjabberdctl], []).
+    ?PRINT(["\n", NameFmt, "\n", ArgsFmt, "\n", ReturnsFmt, "\n\n", TagsFmt, "\n\n", DescFmt, "\n\n", LongDescFmt], []).
 
 
 format_usage_ctype(Type, _Indentation)

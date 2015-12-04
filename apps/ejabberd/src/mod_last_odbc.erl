@@ -20,7 +20,7 @@
 %% API
 -export([init/2,
          get_last/2,
-         count_active_users/3,
+         count_active_users/2,
          set_last_info/4,
          remove_user/2]).
 
@@ -45,12 +45,10 @@ get_last(LUser, LServer) ->
         Reason -> {error, {invalid_result, Reason}}
     end.
 
--spec count_active_users(ejabberd:lserver(), non_neg_integer(), '<' | '>') ->
-    non_neg_integer().
-count_active_users(LServer, TimeStamp, Comparator) ->
-    ComparatorBin = atom_to_binary(Comparator, utf8),
+-spec count_active_users(ejabberd:lserver(), non_neg_integer()) -> non_neg_integer().
+count_active_users(LServer, TimeStamp) ->
     TimeStampBin = integer_to_binary(TimeStamp),
-    WhereClause = <<"where seconds ", ComparatorBin/binary, " ", TimeStampBin/binary >>,
+    WhereClause = <<"where seconds > ", TimeStampBin/binary >>,
     case odbc_queries:count_records_where(LServer, <<"last">>, WhereClause) of
         {selected, [_], [{Count}]} ->
             ejabberd_odbc:result_to_integer(Count);

@@ -81,3 +81,129 @@ Archive querying is done using Riak 2.0 [search mechanism](http://docs.basho.com
 called Yokozuna. Your instance of Riak must be configured with Yokozuna enabled.
 
 This backend works with Riak 2.0 and above, but the recommend version is 2.1.1
+
+
+
+## Configure MAM with Cassandra backend
+
+There are two Cassandra modules:
+- mod_mam_con_ca_arch - for one-to-one messages
+- mod_mam_muc_ca_arch - for groupchat messages
+
+They can be used together.
+
+### mod_mam_con_ca_arch
+
+Module to store conversations (con in the module's name) in Cassandra.
+
+This module uses keyspace "mam" in Cassadra (keyspace is simular to database in relational databasas).
+Has configuration parameter "servers". It is a list of Cassandra servers.
+If you have 4 Cassandra servers with IP adresses from 10.0.0.1 to 10.0.0.4, then pass:
+
+```erlang
+{cassandra_config, [
+    {servers, [
+      {"10.0.0.1", 9042, 1},
+      {"10.0.0.2", 9042, 1},
+      {"10.0.0.3", 9042, 1},
+      {"10.0.0.4", 9042, 1}
+      ]},
+   {keyspace, "mam"},
+   {credentials, undefined}
+]}
+```
+
+`{"10.0.0.1", 9042, 1}` means:
+
+- Address is "10.0.0.1";
+- Port is 9042 (default for Cassandra);
+- One connection between MongooseIM and Cassandra.
+
+Default value is `[{"localhost", 9042, 1}]` (one connection to localhost).
+
+It is different from mod_mam_odbc_arch:
+
+- This module does not use archive integer ids. It stores JIDs for each message instead
+(it means, that for minimal configuration you do not need mod_mam_odbc_user);
+- It stores not two copies, but one copy of an unique message (between two users);
+- User is not allowed to purge (delete) messages.
+
+Configuration example:
+
+```erlang
+{mod_mam_con_ca_arch, [
+    pm,
+    {cassandra_config, [
+        {servers, [
+          {"10.0.0.1", 9042, 1}
+          ]}
+    ]}
+]},
+{mod_mam, []}
+```
+
+
+### mod_mam_muc_ca_arch
+
+Module to store room chat history in Cassandra.
+
+It has the same configuration parameter `servers` as module `mod_mam_con_ca_arch`.
+
+It is different from mod_mam_muc_odbc_arch:
+
+- User is not allowed to purge. Purging is a feature not described in
+  XEP that allows user to delete messages.
+
+
+Configuration example:
+
+```erlang
+{mod_mam_muc_ca_arch, [
+    {host, "muc.@HOST"},
+    {cassandra_config, [
+        {servers, [
+          {"10.0.0.1", 9042, 1}
+          ]}
+    ]}
+]},
+{mod_mam_odbc_user, [muc]},
+{mod_mam_muc, []}
+```
+
+
+Configuration example with both modules enabled:
+
+```erlang
+{mod_mam_con_ca_arch, [
+    pm,
+    {cassandra_config, [
+        {servers, [ {"10.0.0.1", 9042, 1} ]}
+    ]}
+]},
+{mod_mam_muc_ca_arch, [
+    {host, "muc.@HOST"},
+    {cassandra_config, [
+        {servers, [ {"10.0.0.1", 9042, 1} ]}
+    ]}
+]},
+{mod_mam_odbc_user, [muc]},
+
+{mod_mam, []},
+{mod_mam_muc, []}
+```
+
+### Extra cassandra_config options
+
+Custom connect timeout in milliseconds:
+
+```erlang
+{connect_timeout, 5000} % five seconds
+```
+
+Default is infinity `{connect_timeout, infinity}`.
+
+Custom credentials:
+
+```erlang
+{credentials, [{"username", "cassandra"}, {"password", "secret"}]}
+```

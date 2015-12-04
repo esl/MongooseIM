@@ -330,7 +330,7 @@ scram_passwords(Server, ScramIterationCount) ->
     scram_passwords(Server, ?DEFAULT_SCRAMMIFY_COUNT, ?DEFAULT_SCRAMMIFY_INTERVAL, ScramIterationCount).
 
 scram_passwords(Server, Count, Interval, ScramIterationCount) ->
-    LServer = jlib:nameprep(Server),
+    LServer = jid:nameprep(Server),
     ?INFO_MSG("Converting the stored passwords into SCRAM bits", []),
     ToConvertCount = case catch odbc_queries:get_users_without_scram_count(LServer) of
         {selected, [_], [{Res}]} -> binary_to_integer(Res);

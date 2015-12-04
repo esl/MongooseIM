@@ -27,17 +27,22 @@
 
 -author('alexey@process-one.net').
 
+-xep([{xep, 12}, {version, "2.0"}]).
+
 -behaviour(gen_mod).
 
--export([start/2,
+-export([
+         start/2,
          stop/1,
          process_local_iq/3,
          process_sm_iq/3,
          on_presence_update/4,
          store_last_info/4,
          get_last_info/2,
-         count_active_users/3,
-         remove_user/2]).
+         count_active_users/2,
+         remove_user/2,
+         session_cleanup/4
+        ]).
 
 -include("ejabberd.hrl").
 
@@ -61,10 +66,9 @@
     Reason  :: term(),
     Result  :: {ok, non_neg_integer(), binary()} | {error, Reason} | not_found.
 
--callback count_active_users(LServer, Timestamp, Comparator) -> Result when
+-callback count_active_users(LServer, Timestamp) -> Result when
     LServer :: ejabberd:lserver(),
     Timestamp :: non_neg_integer(),
-    Comparator :: '<' | '>',
     Result :: non_neg_integer().
 
 -callback set_last_info(LUser, LServer, Timestamp, Status) -> Result when
@@ -89,25 +93,19 @@ start(Host, Opts) ->
         ?NS_LAST, ?MODULE, process_local_iq, IQDisc),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host,
         ?NS_LAST, ?MODULE, process_sm_iq, IQDisc),
-    ejabberd_hooks:add(remove_user, Host, ?MODULE,
-        remove_user, 50),
-    ejabberd_hooks:add(anonymous_purge_hook, Host,
-        ?MODULE, remove_user, 50),
-    ejabberd_hooks:add(unset_presence_hook, Host, ?MODULE,
-        on_presence_update, 50).
+    ejabberd_hooks:add(remove_user, Host, ?MODULE, remove_user, 50),
+    ejabberd_hooks:add(anonymous_purge_hook, Host, ?MODULE, remove_user, 50),
+    ejabberd_hooks:add(unset_presence_hook, Host, ?MODULE, on_presence_update, 50),
+    ejabberd_hooks:add(session_cleanup, Host, ?MODULE, session_cleanup, 50).
 
 -spec stop(ejabberd:server()) -> ok.
 stop(Host) ->
-    ejabberd_hooks:delete(remove_user, Host, ?MODULE,
-        remove_user, 50),
-    ejabberd_hooks:delete(anonymous_purge_hook, Host,
-        ?MODULE, remove_user, 50),
-    ejabberd_hooks:delete(unset_presence_hook, Host,
-        ?MODULE, on_presence_update, 50),
-    gen_iq_handler:remove_iq_handler(ejabberd_local, Host,
-        ?NS_LAST),
-    gen_iq_handler:remove_iq_handler(ejabberd_sm, Host,
-        ?NS_LAST).
+    ejabberd_hooks:delete(remove_user, Host, ?MODULE, remove_user, 50),
+    ejabberd_hooks:delete(anonymous_purge_hook, Host, ?MODULE, remove_user, 50),
+    ejabberd_hooks:delete(unset_presence_hook, Host, ?MODULE, on_presence_update, 50),
+    ejabberd_hooks:delete(session_cleanup, Host, ?MODULE, session_cleanup, 50),
+    gen_iq_handler:remove_iq_handler(ejabberd_local, Host, ?NS_LAST),
+    gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_LAST).
 
 %%%
 %%% Uptime of ejabberd node
@@ -221,10 +219,9 @@ get_last_iq(IQ, SubEl, LUser, LServer) ->
 get_last(LUser, LServer) ->
     ?BACKEND:get_last(LUser, LServer).
 
--spec count_active_users(ejabberd:lserver(), non_neg_integer(), '<' | '>')
-        -> non_neg_integer().
-count_active_users(LServer, Timestamp, Comparator) ->
-    ?BACKEND:count_active_users(LServer, Timestamp, Comparator).
+-spec count_active_users(ejabberd:lserver(), non_neg_integer()) -> non_neg_integer().
+count_active_users(LServer, Timestamp) ->
+    ?BACKEND:count_active_users(LServer, Timestamp).
 
 -spec on_presence_update(ejabberd:user(), ejabberd:server(), ejabberd:resource(),
                          Status :: binary()) -> ok | {error, term()}.
@@ -247,7 +244,12 @@ get_last_info(LUser, LServer) ->
 
 -spec remove_user(ejabberd:user(), ejabberd:server()) -> ok | {error, term()}.
 remove_user(User, Server) ->
-    LUser = jlib:nodeprep(User),
-    LServer = jlib:nameprep(Server),
+    LUser = jid:nodeprep(User),
+    LServer = jid:nameprep(Server),
     ?BACKEND:remove_user(LUser, LServer).
+
+-spec session_cleanup(LUser :: ejabber:luser(), LServer :: ejabberd:lserver(),
+                   LResource :: ejabberd:lresource(), SID :: ejabberd_sm:sid()) -> any().
+session_cleanup(LUser, LServer, LResource, _SID) ->
+    on_presence_update(LUser, LServer, LResource, <<>>).
 

@@ -31,6 +31,12 @@ sleep 20
 ${1}riak-admin bucket-type create users '{"props":{"datatype":"map"}}'
 ${1}riak-admin bucket-type activate users
 
+${1}riak-admin bucket-type create rosters '{"props":{"datatype":"map"}}'
+${1}riak-admin bucket-type activate rosters
+
+${1}riak-admin bucket-type create roster_versions '{"props":{"last_write_wins":true}}'
+${1}riak-admin bucket-type activate roster_versions
+
 ${1}riak-admin bucket-type create private '{"props":{"last_write_wins":true}}'
 ${1}riak-admin bucket-type activate private
 
@@ -39,3 +45,6 @@ ${1}riak-admin bucket-type activate vcard
 
 ${1}riak-admin bucket-type create mam_yz '{"props":{"datatype":"map", "search_index":"mam"}}'
 ${1}riak-admin bucket-type activate mam_yz
+
+${1}riak-admin bucket-type create last '{"props":{"last_write_wins":true}}'
+${1}riak-admin bucket-type activate last

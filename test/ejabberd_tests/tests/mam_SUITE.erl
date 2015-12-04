@@ -556,7 +556,17 @@ init_state(_, _, Config) ->
     clean_archives(Config).
 
 
-init_per_testcase(C=archived, Config) ->
+init_per_testcase(C=archived, ConfigIn) ->
+    Config = case ?config(configuration, ConfigIn) of
+                 odbc_async_pool ->
+                     MongooseMetrics = [
+                                        {[data, odbc, mam_async],
+                                         [{recv_oct, '>'}, {send_oct, '>'}]}
+                                       ],
+                     [{mongoose_metrics, MongooseMetrics} | ConfigIn];
+                 _ ->
+                     ConfigIn
+             end,
     escalus:init_per_testcase(C, clean_archives(Config));
 init_per_testcase(C=strip_archived, Config) ->
     escalus:init_per_testcase(C, clean_archives(Config));
@@ -2235,9 +2245,9 @@ muc_bootstrap_archive(Config) ->
               rpc_apply(mod_mam_muc, archive_id, [Domain, Room])},
     Msgs = generate_msgs_for_days(ArcJID,
                                  [{B, make_jid(<<"bob">>, Host, <<"res1">>),
-                                  rpc_apply(jlib, jid_replace_resource, [RoomJid, nick(bob)])},
+                                  rpc_apply(jid, replace_resource, [RoomJid, nick(bob)])},
                                   {A, make_jid(<<"alice">>, Host, <<"res1">>),
-                                   rpc_apply(jlib, jid_replace_resource, [RoomJid, nick(alice)])}], 16),
+                                   rpc_apply(jid, replace_resource, [RoomJid, nick(alice)])}], 16),
 
     put_muc_msgs(Msgs),
 
@@ -2259,7 +2269,7 @@ nick_to_jid(UserName, Config) when is_atom(UserName) ->
     escalus_utils:jid_to_lower(escalus_users:get_jid(Config, UserSpec)).
 
 make_jid(U, S, R) ->
-    rpc_apply(jlib, make_jid, [U, S, R]).
+    rpc_apply(jid, make, [U, S, R]).
 
 
 is_mam_possible(Host) ->

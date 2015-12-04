@@ -20,7 +20,7 @@
 %% API
 -export([init/2,
          get_last/2,
-         count_active_users/3,
+         count_active_users/2,
          set_last_info/4,
          remove_user/2]).
 
@@ -43,11 +43,10 @@ get_last(LUser, LServer) ->
             {ok, TimeStamp, Status}
     end.
 
--spec count_active_users(ejabberd:lserver(), non_neg_integer(), '<' | '>') ->
-    non_neg_integer().
-count_active_users(LServer, TimeStamp, Comparator) ->
+-spec count_active_users(ejabberd:lserver(), non_neg_integer()) -> non_neg_integer().
+count_active_users(LServer, TimeStamp) ->
     MS = [{{last_activity,{'_',LServer},'$1','_'},
-        [{Comparator,'$1',TimeStamp}],
+        [{'>','$1',TimeStamp}],
         [true]}],
     ets:select_count(last_activity, MS).
 

@@ -26,7 +26,7 @@
 %%%----------------------------------------------------------------------
 
 -module(cyrsasl_anonymous).
-
+-xep([{xep, 175}, {version, "1.2"}]).
 -export([start/1, stop/0, mech_new/4, mech_step/2]).
 
 -behaviour(cyrsasl).

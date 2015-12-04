@@ -39,7 +39,6 @@
 {suites, "tests", shared_roster_SUITE}.
 {suites, "tests", sic_SUITE}.
 {suites, "tests", sm_SUITE}.
-{suites, "tests", system_monitor_SUITE}.
 {suites, "tests", users_api_SUITE}.
 {suites, "tests", vcard_simple_SUITE}.
 {suites, "tests", websockets_SUITE}.

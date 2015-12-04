@@ -51,18 +51,18 @@ commands() ->
                            desc = "Send a chat message to a local or remote bare of full JID",
                            module = ?MODULE, function = send_message_chat,
                            args = [{from, binary}, {to, binary}, {body, binary}],
-                           result = {res, rescode}},
+                           result = {res, restuple}},
         #ejabberd_commands{name = send_message_headline, tags = [stanza],
                            desc = "Send a headline message to a local or remote bare of full JID",
                            module = ?MODULE, function = send_message_headline,
                            args = [{from, binary}, {to, binary},
                                    {subject, binary}, {body, binary}],
-                           result = {res, rescode}},
+                           result = {res, restuple}},
         #ejabberd_commands{name = send_stanza_c2s, tags = [stanza],
                            desc = "Send a stanza as if sent from a c2s session",
                            module = ?MODULE, function = send_stanza_c2s,
                            args = [{user, binary}, {host, binary}, {resource, binary}, {stanza, binary}],
-                           result = {res, rescode}}
+                           result = {res, restuple}}
         ].
 
 %%%
@@ -71,7 +71,8 @@ commands() ->
 
 %% @doc Send a chat message to a Jabber account.
 -spec send_message_chat(From :: binary(), To :: binary(),
-                        Body :: binary() | string()) -> 'ok'.
+                        Body :: binary() | string()) -> {Res, string()} when
+    Res :: bad_jid | ok.
 send_message_chat(From, To, Body) ->
     Packet = build_packet(message_chat, [Body]),
     send_packet_all_resources(From, To, Packet).
@@ -80,7 +81,8 @@ send_message_chat(From, To, Body) ->
 %% @doc Send a headline message to a Jabber account.
 -spec send_message_headline(From :: binary(), To :: binary(),
                             Subject:: binary() | string(),
-                            Body :: binary() | string()) -> 'ok'.
+                            Body :: binary() | string()) ->  {Res, string()} when
+    Res :: ok | bad_jid.
 send_message_headline(From, To, Subject, Body) ->
     Packet = build_packet(message_headline, [Subject, Body]),
     send_packet_all_resources(From, To, Packet).
@@ -94,18 +96,26 @@ send_message_headline(From, To, Subject, Body) ->
 %% If the user is local and is online in several resources, the packet is sent
 %%      to all its resources.
 -spec send_packet_all_resources(FromJIDStr :: binary(), ToJIDString :: binary(),
-                                jlib:xmlel()) -> 'ok'.
+                                jlib:xmlel()) -> {Res, string()} when
+    Res :: bad_jid | ok.
 send_packet_all_resources(FromJIDString, ToJIDString, Packet) ->
-    FromJID = jlib:binary_to_jid(FromJIDString),
-    ToJID = jlib:binary_to_jid(ToJIDString),
-    ToUser = ToJID#jid.user,
-    ToServer = ToJID#jid.server,
-    case ToJID#jid.resource of
-        <<"">> ->
-            send_packet_all_resources(FromJID, ToUser, ToServer, Packet);
-        Res ->
-            send_packet_all_resources(FromJID, ToUser, ToServer, Res, Packet)
+    FromJID = jid:from_binary(FromJIDString),
+    case FromJID of
+        error ->
+            {bad_jid, "Sender JID is invalid"};
+        _ ->
+            ToJID = jid:from_binary(ToJIDString),
+            ToUser = ToJID#jid.user,
+            ToServer = ToJID#jid.server,
+            case ToJID#jid.resource of
+                <<"">> ->
+                    send_packet_all_resources(FromJID, ToUser, ToServer, Packet);
+                Res ->
+                    send_packet_all_resources(FromJID, ToUser, ToServer, Res, Packet)
+            end,
+            {ok,""}
     end.
+
 
 
 -spec send_packet_all_resources(FromJID :: 'error' | ejabberd:jid(),
@@ -129,7 +139,7 @@ send_packet_all_resources(FromJID, ToUser, ToServer, Packet) ->
 -spec send_packet_all_resources(ejabberd:jid(), ToU :: binary(), ToS :: binary(),
                                 ToR :: binary(), jlib:xmlel()) -> 'ok'.
 send_packet_all_resources(FromJID, ToU, ToS, ToR, Packet) ->
-    ToJID = jlib:make_jid(ToU, ToS, ToR),
+    ToJID = jid:make(ToU, ToS, ToR),
     ejabberd_router:route(FromJID, ToJID, Packet).
 
 
@@ -150,9 +160,20 @@ build_packet(message_headline, [Subject, Body]) ->
 
 
 -spec send_stanza_c2s(ejabberd:user(), ejabberd:server(), ejabberd:resource(),
-                      Stanza :: binary()) -> any().
+                      Stanza :: binary()) -> {Res, string()} when
+    Res :: user_does_not_exist | bad_stanza | ok.
 send_stanza_c2s(Username, Host, Resource, Stanza) ->
     C2sPid = ejabberd_sm:get_session_pid(Username, Host, Resource),
-    {ok, XmlEl} = exml:parse(Stanza),
-    p1_fsm:send_event(C2sPid, {xmlstreamelement, XmlEl}).
+    case C2sPid of
+        none ->
+            {user_does_not_exist, io_lib:format("User ~s@~s/~s does not exist",[Username, Host, Resource])};
+        _ ->
+            case exml:parse(Stanza) of
+                {ok, XmlEl} ->
+                    p1_fsm_old:send_event(C2sPid, {xmlstreamelement, XmlEl}),
+                    {ok, "Stanza has been sent"};
+                {error, _} ->
+                    {bad_stanza, "Stanza is incorrect"}
+            end
+    end.
 

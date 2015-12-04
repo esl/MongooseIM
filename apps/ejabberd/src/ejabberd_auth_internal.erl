@@ -97,7 +97,7 @@ stop(_Host) ->
 update_reg_users_counter_table(Server) ->
     Set = get_vh_registered_users(Server),
     Size = length(Set),
-    LServer = jlib:nameprep(Server),
+    LServer = jid:nameprep(Server),
     F = fun() ->
             write_counter(#reg_users_counter{vhost = LServer, count = Size})
         end,

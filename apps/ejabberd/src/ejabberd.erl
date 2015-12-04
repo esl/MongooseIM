@@ -26,7 +26,7 @@
 
 -module(ejabberd).
 -author('alexey@process-one.net').
-
+-xep([{xep, 212}, {version, "1.0"}]).
 -export([start/0,
          stop/0,
          ensure_started/1,

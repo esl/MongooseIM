@@ -33,7 +33,8 @@
 
 -module(mod_vcard).
 -author('alexey@process-one.net').
-
+-xep([{xep, 54}, {version, "1.2"}]).
+-xep([{xep, 55}, {version, "1.3"}]).
 -behaviour(gen_mod).
 -behaviour(gen_server).
 
@@ -291,8 +292,8 @@ get_local_features(Acc, _From, _To, Node, _Lang) ->
     end.
 
 remove_user(User, Server) ->
-    LUser = jlib:nodeprep(User),
-    LServer = jlib:nodeprep(Server),
+    LUser = jid:nodeprep(User),
+    LServer = jid:nodeprep(Server),
     ?BACKEND:remove_user(LUser,LServer).
 
 %% react to "global" config change
@@ -432,7 +433,7 @@ find_xdata_el1([_ | Els]) ->
 search_result(Lang, JID, VHost, Data) ->
     [#xmlel{name = <<"title">>,
             children = [#xmlcdata{content = [translate:translate(Lang, <<"Search Results for ">>),
-                                             jlib:jid_to_binary(JID)]}]}
+                                             jid:to_binary(JID)]}]}
                                              | ?BACKEND:search(VHost, Data, Lang, get_default_reported_fields(Lang))].
 b2l(Binary) ->
     binary_to_list(Binary).
@@ -463,7 +464,7 @@ prepare_vcard_search_params(User, VHost, VCARD) ->
                 _ -> EMail1
             end,
 
-    LUser     = jlib:nodeprep(User),
+    LUser     = jid:nodeprep(User),
     LFN       = stringprep:tolower(FN),
     LFamily   = stringprep:tolower(Family),
     LGiven    = stringprep:tolower(Given),

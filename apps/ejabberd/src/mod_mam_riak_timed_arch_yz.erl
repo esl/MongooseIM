@@ -238,7 +238,7 @@ get_message2(MsgId, Bucket, Key) ->
             SourceJID = riakc_map:fetch({<<"source_jid">>, register}, RiakMap),
             PacketBin = riakc_map:fetch({<<"packet">>, register}, RiakMap),
             {ok, Packet} = exml:parse(PacketBin),
-            {MsgId, jlib:binary_to_jid(SourceJID), Packet};
+            {MsgId, jid:from_binary(SourceJID), Packet};
         _ ->
             []
     end.
@@ -387,7 +387,7 @@ calculate_msg_id_borders(_RSM, Borders, Start, End) ->
 
 bare_jid(undefined) -> undefined;
 bare_jid(JID) ->
-    jlib:jid_to_binary(jlib:jid_remove_resource(jlib:jid_to_lower(JID))).
+    jid:to_binary(jid:to_bare(jid:to_lower(JID))).
 
 
 maybe_encode_compact_uuid(undefined, _) ->

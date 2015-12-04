@@ -89,7 +89,7 @@ stop_odbc(Host) ->
 %% @doc Returns true if we have configured odbc_server for the given host
 -spec needs_odbc(_) -> boolean().
 needs_odbc(Host) ->
-    LHost = jlib:nameprep(Host),
+    LHost = jid:nameprep(Host),
     case ejabberd_config:get_local_option({odbc_server, LHost}) of
         undefined ->
             false;

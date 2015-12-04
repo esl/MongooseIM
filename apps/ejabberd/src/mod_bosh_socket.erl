@@ -43,7 +43,6 @@
 -include("jlib.hrl").
 -include_lib("exml/include/exml_stream.hrl").
 -include("mod_bosh.hrl").
-
 -define(ACCUMULATE_PERIOD, 10).
 -define(DEFAULT_HOLD, 1).
 -define(CONCURRENT_REQUESTS, 2).

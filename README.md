@@ -8,11 +8,12 @@ MongooseIM can accept client sessions over vanilla XMPP, Websockets, and HTTP lo
 
 Its home on GitHub is at http://github.com/esl/MongooseIM.
 
+The product page is available at https://www.erlang-solutions.com/products/mongooseim.html
 
 Download packages
 -----------------
 For a quick start just
-[download the pre-built package](https://www.erlang-solutions.com/downloads/download-mongooseim)
+[download the pre-built package](https://www.erlang-solutions.com/resources/download.html)
 that suits your platform: Ubuntu, Debian, CentOS, and Mac OS X.
 
 An _experimental_ Docker image exists on: https://registry.hub.docker.com/u/mongooseim/mongooseim-docker/
@@ -36,6 +37,22 @@ Major steps performed:
     instead of operating on linked lists of characters,
 *   functional test coverage of the system according to corresponding
     RFCs and XEPs.
+
+Documentation
+-------------
+
+Up-to-date documentation for the MongooseIM master branch can be found on ReadTheDocs:
+* http://mongooseim.readthedocs.org/en/latest/
+* Older versions:
+  * [release 1.6.0](http://mongooseim.readthedocs.org/en/1.6.0/)
+  * [release 1.5.1](http://mongooseim.readthedocs.org/en/1.5.1/)
+
+
+When developing new features/modules, please take care to add basic documentation
+to the `doc/` directory, and add a link to your document in `doc/README.md`.
+
+Original documentation for Ejabberd-2.1.8, from which MongooseIM was forked, is preserved
+in `doc/ejabberd-2.1.8-OLD`.
 
 
 Features and supported standards
@@ -64,21 +81,6 @@ Features and supported standards
 |[0280 - Message Carbons](http://xmpp.org/extensions/xep-0280.html)| [0313 - Message Archive Management v0.2 ](http://xmpp.org/extensions/attic/xep-0313-0.2.html)|
 
 
-Documentation
--------------
-
-Up-to-date documentation for the MongooseIM master branch can be
-[found here](http://mongooseim.readthedocs.org/en/latest/).
-[See here for release 1.5.1 documentation](http://mongooseim.readthedocs.org/en/1.5.1/).
-
-When developing new features/modules, please take care to add basic documentation
-to the `doc/` directory, and add a link to your document in `doc/README.md`.
-
-Original documentation for Ejabberd-2.1.8, from which MongooseIM was forked, is preserved
-in `doc/ejabberd-2.1.8-OLD`.
-
-
-
 How to build
 ------------
 1.  Requirements.
@@ -105,7 +107,7 @@ How to build
         $ ./rebar get-deps
         $ ./rebar compile
 
-    To generate minimal MongooseIM release (without mysql, pgsql or other deps):
+    To generate full MongooseIM release (with mysql, pgsql or other deps):
 
         $ make rel
 
@@ -114,7 +116,7 @@ How to build
         $ ./rebar generate
 
 
-    If more advanced relase is required (with mysql or pgsql support) a `make configure` script with appropirate option(s) has to be run before `make rel` or `./rebar generate`. `make configre` without any option will print following help message.
+    If more advanced release is required (with some specifyc db support only, f.e. mysql or pgsql) a `make configure` script with appropirate option(s) can be run before `make rel` or `./rebar generate`. `make configure` without any option will print following help message.
 
     ```
 specifies which 3rd party deps will be included in release
@@ -194,6 +196,15 @@ In order to test and validate your XMPP servers, here are useful tools:
 * [escalus](https://github.com/esl/escalus): Erlang XMPP client
 * [amoc](https://github.com/esl/amoc): a load testing tools
 
+Public testing
+--------------
+
+Continuous integration:
+https://travis-ci.org/esl/MongooseIM
+
+Code coverage:
+https://coveralls.io/github/esl/MongooseIM
+
 
 Want to get in touch with us?
 -----------------------------
@@ -203,3 +214,17 @@ please feel free to contact us by the standard GitHub ways or at
 
 Want to discuss MongooseIM, problems with your deployement or anything else?
 Try: <a href='https://erlangcentral.org/forum/mongooseim/'>https://erlangcentral.org/forum/mongooseim/</a>.
+
+Announcements mailing-list
+--------------------------
+
+We have set up a new public mailing-list for all announcements of major events happening on the MongooseIM front. Expect one or two emails per month, the archives are free and open. We highly encourage you to subscribe here: https://groups.google.com/d/forum/mongooseim-announce
+Click on the blue button "Join group", then click in "Email delivery preference" on "Notify me for every new message".
+
+Client libraries
+----------------
+
+We recommend following client libraries:
+* iOS, Objective-C: [XMPPframework](https://github.com/robbiehanson/XMPPFramework)
+* Android, Java: [Smack](https://github.com/igniterealtime/Smack)
+* Web, JavaScript: [Stanza.io](https://github.com/otalk/stanza.io)

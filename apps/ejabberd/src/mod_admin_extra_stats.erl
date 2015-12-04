@@ -60,21 +60,31 @@ commands() ->
 %%% Stats
 %%%
 
--spec stats(binary()) -> integer().
+-spec stats(binary()) -> integer() | {error, string()}.
 stats(Name) ->
     case Name of
-        <<"uptimeseconds">> -> trunc(element(1, erlang:statistics(wall_clock))/1000);
-        <<"registeredusers">> -> lists:sum([
+        <<"uptimeseconds">> ->
+            trunc(element(1, erlang:statistics(wall_clock))/1000);
+        <<"registeredusers">> ->
+            lists:sum([
                     ejabberd_auth:get_vh_registered_users_number(Server)
                     || Server <- ejabberd_config:get_global_option(hosts) ]);
-        <<"onlineusersnode">> -> ejabberd_sm:get_node_sessions_number();
-        <<"onlineusers">> -> ejabberd_sm:get_total_sessions_number()
+        <<"onlineusersnode">> ->
+            ejabberd_sm:get_node_sessions_number();
+        <<"onlineusers">> ->
+            ejabberd_sm:get_total_sessions_number();
+        _ ->
+            {error, "Wrong command name."}
     end.
 
 
--spec stats(binary(), ejabberd:server()) -> integer().
+-spec stats(binary(), ejabberd:server()) -> integer() | {error, string()}.
 stats(Name, Host) ->
     case Name of
-        <<"registeredusers">> -> ejabberd_auth:get_vh_registered_users_number(Host);
-        <<"onlineusers">> -> ejabberd_sm:get_vh_session_number(Host)
+        <<"registeredusers">> ->
+            ejabberd_auth:get_vh_registered_users_number(Host);
+        <<"onlineusers">> ->
+            ejabberd_sm:get_vh_session_number(Host);
+        _ ->
+            {error, "Wrong command name."}
     end.

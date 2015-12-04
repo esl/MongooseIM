@@ -1,4 +1,4 @@
--module(mongooseim_cleaner).
+-module(mongoose_cleaner).
 
 -behaviour(gen_server).
 

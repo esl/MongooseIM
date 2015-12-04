@@ -6,7 +6,8 @@
 -module(mod_bosh).
 -behaviour(gen_mod).
 -behaviour(cowboy_loop_handler).
-
+-xep([{xep, 206}, {version, "1.4"}]).
+-xep([{xep, 124}, {version, "1.11"}]).
 %% API
 -export([get_inactivity/0,
          set_inactivity/1,
@@ -28,6 +29,12 @@
          info/3,
          terminate/3]).
 
+%% Hooks callbacks
+-export([node_cleanup/1]).
+
+%% For testing and debugging
+-export([get_session_socket/1, store_session/2]).
+
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml_stream.hrl").
@@ -48,7 +55,10 @@
              ]).
 
 -type socket() :: #bosh_socket{}.
--type session() :: #bosh_session{}.
+-type session() :: #bosh_session{
+                      sid :: mod_bosh:sid(),
+                      socket :: pid()
+                     }.
 -type sid() :: binary().
 -type event_type() :: streamstart
                     | restart
@@ -123,7 +133,8 @@ start(_Host, Opts) ->
                 ok = start_cowboy(Port, Opts)
         end,
         ok = start_backend(Opts),
-        {ok, _Pid} = mod_bosh_socket:start_supervisor()
+        {ok, _Pid} = mod_bosh_socket:start_supervisor(),
+        ejabberd_hooks:add(node_cleanup, global, ?MODULE, node_cleanup, 50)
     catch
         error:{badmatch, ErrorReason} ->
             ErrorReason
@@ -148,6 +159,13 @@ socket_type() ->
 start_listener({Port, InetAddr, tcp}, Opts) ->
     OptsWPort = lists:keystore(port, 1, [{ip,InetAddr}|Opts], {port, Port}),
     gen_mod:start_module(?MYNAME, ?MODULE, OptsWPort).
+
+%%--------------------------------------------------------------------
+%% Hooks handlers
+%%--------------------------------------------------------------------
+
+node_cleanup(Node) ->
+    ?BOSH_BACKEND:node_cleanup(Node).
 
 %%--------------------------------------------------------------------
 %% cowboy_loop_handler callbacks
@@ -358,11 +376,13 @@ maybe_start_session(Req, Body) ->
 start_session(Peer, Body) ->
     Sid = make_sid(),
     {ok, Socket} = mod_bosh_socket:start(Sid, Peer),
-    BoshSession = #bosh_session{sid = Sid, socket = Socket},
-    ?BOSH_BACKEND:create_session(BoshSession),
+    store_session(Sid, Socket),
     handle_request(Socket, {streamstart, Body}),
     ?DEBUG("Created new session ~p~n", [Sid]).
 
+-spec store_session(Sid :: sid(), Socket :: pid()) -> any().
+store_session(Sid, Socket) ->
+    ?BOSH_BACKEND:create_session(#bosh_session{sid = Sid, socket = Socket}).
 
 -spec make_sid() -> binary().
 make_sid() ->

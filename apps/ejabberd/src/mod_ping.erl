@@ -29,7 +29,7 @@
 
 -behavior(gen_mod).
 -behavior(gen_server).
-
+-xep([{xep, 199}, {version, "2.0"}]).
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 
@@ -183,7 +183,7 @@ handle_info({timeout, _TRef, {ping, JID}},
     F = fun(Response) ->
                 gen_server:cast(Pid, {iq_pong, JID, Response})
         end,
-    From = jlib:make_jid(<<"">>, State#state.host, <<"">>),
+    From = jid:make(<<"">>, State#state.host, <<"">>),
     ejabberd_local:route_iq(From, JID, IQ, F, PingReqTimeout),
     Timers = add_timer(JID, State#state.ping_interval, State#state.timers),
     {noreply, State#state{timers = Timers}};
@@ -220,7 +220,7 @@ user_keep_alive(JID) ->
 %% Internal functions
 %%====================================================================
 add_timer(JID, Interval, Timers) ->
-    LJID = jlib:jid_tolower(JID),
+    LJID = jid:to_lower(JID),
     NewTimers = case ?DICT:find(LJID, Timers) of
                     {ok, OldTRef} ->
                         cancel_timer(OldTRef),
@@ -232,7 +232,7 @@ add_timer(JID, Interval, Timers) ->
     ?DICT:store(LJID, TRef, NewTimers).
 
 del_timer(JID, Timers) ->
-    LJID = jlib:jid_tolower(JID),
+    LJID = jid:to_lower(JID),
     case ?DICT:find(LJID, Timers) of
         {ok, TRef} ->
             cancel_timer(TRef),

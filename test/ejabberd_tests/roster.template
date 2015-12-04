@@ -1,5 +1,7 @@
 [
     {"alice", "localhost", "Group", "Alice"},
     {"bob", "localhost", "Group", "Bob"},
+    {"kate", "localhost", "Group", "Kate"},
+    {"mike", "localhost", "Group", "Mike"},
     {"unicoder-иии", "localhost", "Group-иии", "Unicoder-иии"}
 ].

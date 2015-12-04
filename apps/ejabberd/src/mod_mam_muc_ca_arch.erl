@@ -21,7 +21,7 @@
          purge_multiple_messages/9]).
 
 %% Internal exports
--export([start_link/3]).
+-export([start_link/4]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -89,7 +89,7 @@
 
 start(Host, Opts) ->
     create_worker_pool(Host),
-    mod_mam_muc_ca_sup:start(Host, servers(Host)),
+    mod_mam_muc_ca_sup:start(Host, cassandra_config(Host)),
     start_muc(Host, Opts).
 
 stop(Host) ->
@@ -97,8 +97,10 @@ stop(Host) ->
     delete_worker_pool(Host),
     mod_mam_muc_ca_sup:stop(Host).
 
-servers(Host) ->
-    gen_mod:get_module_opt(Host, ?MODULE, servers, [{"localhost", 9042, 1}]).
+cassandra_config(Host) ->
+    gen_mod:get_module_opt(Host, ?MODULE, cassandra_config, [{servers, [{"localhost", 9042, 1}]},
+                                                             {keyspace, "mam"},
+                                                             {credentials, undefined}]).
 
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam_muc
@@ -156,8 +158,8 @@ select_worker(Host, RoomID) ->
 group_name(Host) ->
     {mam_muc_ca, node(), Host}.
 
-start_link(Host, Addr, Port) ->
-    gen_server:start_link(?MODULE, [Host, Addr, Port], []).
+start_link(Host, Addr, Port, ClientOptions) ->
+    gen_server:start_link(?MODULE, [Host, Addr, Port, ClientOptions], []).
 
 
 %% ----------------------------------------------------------------------
@@ -179,28 +181,22 @@ archive_message(_Result, Host, MessID, RoomID,
 write_message(Worker, Host, MessID, RoomID, FromNick, Data) ->
     gen_server:cast(Worker, {write_message, MessID, RoomID, FromNick, Data}).
 
--spec lookup_messages(Result, Host,
-                      RoomID, RoomJID, RSM, Borders,
-                      Start, End, Now, WithJID,
-                      PageSize, LimitPassed, MaxResultLimit,
-                      IsSimple) -> Result when
-    Host    :: server_host(),
-    RoomJID :: #jid{},
-    RoomID  :: room_id(),
-    RSM     :: #rsm_in{} | undefined,
-    Borders :: #mam_borders{} | undefined,
-    Start   :: unix_timestamp() | undefined,
-    End     :: unix_timestamp() | undefined,
-    Now     :: unix_timestamp(),
-    PageSize :: non_neg_integer(),
-    WithJID :: #jid{} | undefined,
-    LimitPassed :: boolean(),
-    MaxResultLimit :: non_neg_integer(),
-    IsSimple :: boolean(),
-    Result :: {ok, {TotalCount, Offset, MessageRows}} | {error, 'policy-violation'},
-    TotalCount :: non_neg_integer(),
-    Offset  :: non_neg_integer(),
-    MessageRows :: list(tuple()).
+-spec lookup_messages(Result, Host, RoomID, RoomJID, RSM, Borders,
+                      Start, End, Now, WithJID, PageSize, LimitPassed,
+                      MaxResultLimit, IsSimple) ->
+                         Result when
+                     Host :: server_host(), RoomJID :: #jid{},
+                     RoomID :: room_id(), RSM :: #rsm_in{}  | undefined,
+                     Borders :: #mam_borders{}  | undefined,
+                     Start :: unix_timestamp()  | undefined,
+                     End :: unix_timestamp()  | undefined,
+                     Now :: unix_timestamp(), PageSize :: non_neg_integer(),
+                     WithJID :: #jid{}  | undefined, LimitPassed :: boolean(),
+                     MaxResultLimit :: non_neg_integer(), IsSimple :: boolean(),
+                     Result :: {ok, {TotalCount, Offset, MessageRows}}
+                                | {error, 'policy-violation'},
+                     TotalCount :: non_neg_integer(),
+                     Offset :: non_neg_integer(), MessageRows :: [tuple()].
 
 lookup_messages(_Result, _Host, _RoomID, _RoomJID,
                 _RSM, Borders,
@@ -246,8 +242,8 @@ lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
 
 
 %% Cannot be optimized:
-%% - #rsm_in{direction = aft, id = ID} 
-%% - #rsm_in{direction = before, id = ID} 
+%% - #rsm_in{direction = aft, id = ID}
+%% - #rsm_in{direction = before, id = ID}
 
 lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
                 #rsm_in{direction = before, id = undefined}, Borders,
@@ -320,7 +316,7 @@ lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
     Offset     = calc_offset(Worker, Host, RoomID, Filter, PageSize, TotalCount, RSM),
     %% If a query returns a number of stanzas greater than this limit and the
     %% client did not specify a limit using RSM then the server should return
-    %% a policy-violation error to the client. 
+    %% a policy-violation error to the client.
     case TotalCount - Offset > MaxResultLimit andalso not LimitPassed of
         true ->
             {error, 'policy-violation'};
@@ -340,7 +336,7 @@ lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
     Offset     = calc_offset(Worker, Host, RoomID, Filter, PageSize, TotalCount, RSM),
     %% If a query returns a number of stanzas greater than this limit and the
     %% client did not specify a limit using RSM then the server should return
-    %% a policy-violation error to the client. 
+    %% a policy-violation error to the client.
     case TotalCount - Offset > MaxResultLimit andalso not LimitPassed of
         true ->
             {error, 'policy-violation'};
@@ -360,7 +356,7 @@ lookup_messages(_Result, Host, RoomID, RoomJID = #jid{},
     Offset     = calc_offset(Worker, Host, RoomID, Filter, PageSize, TotalCount, RSM),
     %% If a query returns a number of stanzas greater than this limit and the
     %% client did not specify a limit using RSM then the server should return
-    %% a policy-violation error to the client. 
+    %% a policy-violation error to the client.
     case TotalCount - Offset > MaxResultLimit andalso not LimitPassed of
         true ->
             {error, 'policy-violation'};
@@ -385,7 +381,7 @@ rows_to_uniform_format(Host, RoomJID, MessageRows) ->
     [row_to_uniform_format(RoomJID, Row) || Row <- MessageRows].
 
 row_to_uniform_format(RoomJID, [MessID,BNick,Data]) ->
-    SrcJID = jlib:jid_replace_resource(RoomJID, BNick),
+    SrcJID = jid:replace_resource(RoomJID, BNick),
     Packet = binary_to_term(Data),
     {MessID, SrcJID, Packet}.
 
@@ -396,35 +392,31 @@ remove_archive(Host, RoomID, _RoomJID) ->
     Worker = select_worker(Host, RoomID),
     gen_server:call(Worker, {remove_archive, RoomID}).
 
--spec purge_single_message(_Result, Host, MessID, RoomID, RoomJID, Now) ->
-    {error, 'not-supported'} when
-    Host    :: server_host(),
-    MessID  :: message_id(),
-    RoomID  :: room_id(),
-    RoomJID :: #jid{},
-    Now     :: unix_timestamp().
+-spec purge_single_message(_Result, Host, MessID, RoomID, RoomJID,
+                           Now) ->
+                              {error, 'not-supported'} when
+                          Host :: server_host(), MessID :: message_id(),
+                          RoomID :: room_id(), RoomJID :: #jid{},
+                          Now :: unix_timestamp().
 purge_single_message(_Result, Host, MessID, RoomID, _RoomJID, _Now) ->
    {error, 'not-supported'}.
 
 
--spec purge_multiple_messages(_Result, Host,
-                              RoomID, RoomJID, Borders,
+-spec purge_multiple_messages(_Result, Host, RoomID, RoomJID, Borders,
                               Start, End, Now, WithJID) ->
-    {error, 'not-supported'} when
-    Host    :: server_host(),
-    RoomID  :: room_id(),
-    RoomJID :: #jid{},
-    Borders :: #mam_borders{},
-    Start   :: unix_timestamp() | undefined,
-    End     :: unix_timestamp() | undefined,
-    Now     :: unix_timestamp(),
-    WithJID :: #jid{} | undefined.
+                                 {error, 'not-supported'} when
+                             Host :: server_host(), RoomID :: room_id(),
+                             RoomJID :: #jid{}, Borders :: #mam_borders{},
+                             Start :: unix_timestamp()  | undefined,
+                             End :: unix_timestamp()  | undefined,
+                             Now :: unix_timestamp(),
+                             WithJID :: #jid{}  | undefined.
 purge_multiple_messages(_Result, Host, RoomID, RoomJID, Borders,
                         Start, End, _Now, _WithJID) ->
    {error, 'not-supported'}.
 
 
-%% Each record is a tuple of form 
+%% Each record is a tuple of form
 %% `{<<"13663125233">>,<<"bob@localhost">>,<<"res1">>,<<binary>>}'.
 %% Columns are `["id","from_jid","message"]'.
 -spec extract_messages(Worker, Host, _RoomID, Filter, IOffset, IMax, ReverseLimit) ->
@@ -535,10 +527,10 @@ select_filter(#mam_muc_ca_filter{
     select_filter(StartID, EndID).
 
 
--spec select_filter(StartID, EndID) -> all | 'end' | start | start_end
-    when
-    StartID :: integer() | undefined,
-    EndID   :: integer() | undefined.
+-spec select_filter(StartID, EndID) ->
+                       all  | 'end'  | start  | start_end when
+                   StartID :: integer()  | undefined,
+                   EndID :: integer()  | undefined.
 select_filter(undefined, undefined) ->
     all;
 select_filter(undefined, _) ->
@@ -635,7 +627,7 @@ execute_calc_count(ConnPid, Handler, Filter) ->
     FilterName = select_filter(Filter),
     PreparedQuery = dict:fetch(FilterName, Handler),
     execute_prepared_query(ConnPid, PreparedQuery, Params).
-    
+
 prepare_query(ConnPid, Query) ->
     {ok, Res} = seestar_session:prepare(ConnPid, Query),
     Types = seestar_result:types(Res),
@@ -680,9 +672,8 @@ execute_remove_archive(RoomID, ConnPid, DeleteQueryID, DeleteQueryTypes) ->
 %%                         {stop, Reason}
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
-init([Host, Addr, Port]) ->
+init([Host, Addr, Port, ClientOptions]) ->
     register_worker(Host, self()),
-    ClientOptions = [{keyspace, "mam"}],
     {ok, ConnPid} = seestar_session:start_link(Addr, Port, ClientOptions),
     InsertQuery = "INSERT INTO mam_muc_message "
         "(id, room_id, nick_name, message) "
@@ -742,7 +733,7 @@ handle_call({remove_archive, RoomID}, From,
     {noreply, save_query_ref(From, QueryRef, State)};
 handle_call(_, _From, State=#state{}) ->
     {reply, ok, State}.
- 
+
 
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |

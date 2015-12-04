@@ -66,7 +66,7 @@ get_vcard(LUser, LServer) ->
     end.
 
 set_vcard(User, VHost, VCard, VCardSearch) ->
-    LUser = jlib:nodeprep(User),
+    LUser = jid:nodeprep(User),
     Username = ejabberd_odbc:escape(User),
     LUsername = ejabberd_odbc:escape(LUser),
     LServer = ejabberd_odbc:escape(VHost),
