@@ -107,7 +107,7 @@ How to build
         $ ./rebar get-deps
         $ ./rebar compile
 
-    To generate minimal MongooseIM release (without mysql, pgsql or other deps):
+    To generate full MongooseIM release (with mysql, pgsql or other deps):
 
         $ make rel
 
@@ -116,7 +116,7 @@ How to build
         $ ./rebar generate
 
 
-    If more advanced relase is required (with mysql or pgsql support) a `make configure` script with appropirate option(s) has to be run before `make rel` or `./rebar generate`. `make configure` without any option will print following help message.
+    If more advanced release is required (with some specifyc db support only, f.e. mysql or pgsql) a `make configure` script with appropirate option(s) can be run before `make rel` or `./rebar generate`. `make configure` without any option will print following help message.
 
     ```
 specifies which 3rd party deps will be included in release
