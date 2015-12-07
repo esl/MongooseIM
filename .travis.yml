@@ -49,5 +49,5 @@ matrix:
           env: PRESET=internal_mnesia DB=mnesia REL_CONFIG=minimal
         - otp_release: R16B03
           env: PRESET=internal_mnesia DB=mnesia REL_CONFIG=minimal
-        - otp_release: 18.0
+        - otp_release: 18.1
           env: PRESET=internal_mnesia DB=mnesia REL_CONFIG=minimal
