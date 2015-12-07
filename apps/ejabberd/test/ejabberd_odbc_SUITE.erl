@@ -13,7 +13,7 @@
 -define(KEEPALIVE_INTERVAL, 1).
 -define(KEEPALIVE_QUERY, <<"SELECT 1;">>).
 
-all() -> 
+all() ->
     [{group, odbc},
      {group, mysql},
      {group, pgsql}].
@@ -33,6 +33,13 @@ tests() ->
     [keepalive_interval,
      keepalive_exit].
 
+init_per_group(odbc, Config) ->
+    case code:ensure_loaded(odbc) of
+        {module, odbc} ->
+            [{db_type, odbc} | Config];
+        _ ->
+            {skip, no_odbc_application}
+    end;
 init_per_group(Group, Config) ->
     [{db_type, Group} | Config].
 
