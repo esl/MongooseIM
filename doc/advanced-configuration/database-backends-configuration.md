@@ -156,11 +156,11 @@ riak-admin bucket-type activate users
 # rosters
 riak-admin bucket-type create rosters '{"props":{"datatype":"map"}}'
 riak-admin bucket-type activate rosters
-riak-admin bucket-type create roster_versions '{"props":{"last_write_wins":true}}'
+riak-admin bucket-type create roster_versions '{"props":{"last_write_wins":true, "dvv_enabled":false}}'
 riak-admin bucket-type activate roster_versions
 
 # private storage
-riak-admin bucket-type create private '{"props":{"last_write_wins":true}}'
+riak-admin bucket-type create private '{"props":{"last_write_wins":true, "dvv_enabled":false}}'
 riak-admin bucket-type activate private
 
 # vCard
@@ -174,7 +174,7 @@ curl -XPUT $RIAK_HOST/search/index/vcard \
     -H 'Content-Type: application/json' \
     -d '{"schema":"vcard"}'
 
-riak-admin bucket-type create vcard '{"props":{"last_write_wins":true, "search_index":"vcard"}}'
+riak-admin bucket-type create vcard '{"props":{"last_write_wins":true, "search_index":"vcard", "dvv_enabled":false}}'
 riak-admin bucket-type activate vcard
 
 #MAM
@@ -190,7 +190,7 @@ riak-admin bucket-type create mam_yz '{"props":{"datatype":"map", "search_index"
 riak-admin bucket-type activate mam_yz
 
 # Last activity
-riak-admin bucket-type create last '{"props":{"last_write_wins":true}}'
+riak-admin bucket-type create last '{"props":{"last_write_wins":true, "dvv_enabled":false}}'
 riak-admin bucket-type activate last
 
 ```
