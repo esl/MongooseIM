@@ -4,7 +4,7 @@ INSTANCE_NAME="mongooseim-ldap"
 IMAGE_NAME="nickstenning/slapd"
 
 # SSH alias for target docker host machine
-SSH_DOCKERMACHINE_ALIAS="docker_ldap"
+SSH_DOCKERMACHINE_ALIAS="backendhost"
 PORT1=389
 
 echo "trying to stop docker container...";
