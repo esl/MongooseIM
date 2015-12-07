@@ -3,6 +3,8 @@
 EJABBERD_DIR = apps/ejabberd
 EJD_INCLUDE = $(EJABBERD_DIR)/include
 EJD_PRIV = $(EJABBERD_DIR)/priv
+XEP_TOOL = tools/xep_tool
+EJD_EBIN = $(EJABBERD_DIR)/ebin
 DEVNODES = node1 node2
 
 all: deps compile
@@ -37,8 +39,10 @@ ct: deps quick_compile
 # $ make qct SUITE=amp_resolver_SUITE
 qct:
 	mkdir -p /tmp/ct_log
-	ct_run -pa apps/*/ebin -pa deps/*/ebin -dir apps/*/test\
-        -I apps/*/include -logdir /tmp/ct_log -suite $(SUITE) -noshell
+	@if [ "$(SUITE)" ]; then ct_run -pa apps/*/ebin -pa deps/*/ebin -pa ebin -dir apps/*/test\
+        -I apps/*/include -logdir /tmp/ct_log -suite $(SUITE)_SUITE -noshell;\
+	else ct_run -pa apps/*/ebin -pa deps/*/ebin -pa ebin -dir apps/*/test\
+        -I apps/*/include -logdir /tmp/ct_log -noshell; fi
 
 test: test_deps
 	cd test/ejabberd_tests; make test
@@ -50,7 +54,9 @@ test_preset: test_deps
 run: deps compile quickrun
 
 quickrun: etc/ejabberd.cfg etc/app.config certs_priv
-	erl -sname mongooseim@localhost -setcookie ejabberd -pa ebin deps/*/ebin apps/*/ebin -config etc/app.config -s mongooseim
+	erl -sname mongooseim@localhost -setcookie ejabberd \
+		-pa ebin deps/*/ebin apps/*/ebin -config etc/app.config \
+		-s mongooseim
 
 etc/ejabberd.cfg:
 	@mkdir -p $(@D)
@@ -79,8 +85,11 @@ eunit: rebar deps
 configure:
 	./tools/configure $(filter-out $@,$(MAKECMDGOALS))
 
-rel: certs rebar deps
+rel: certs rebar deps configure.out
 	./rebar compile generate -f
+
+configure.out:
+	./tools/configure full
 
 devrel: certs $(DEVNODES)
 
@@ -138,6 +147,9 @@ dialyzer: check_plt dialyzer_quick
 dialyzer_quick:
 	dialyzer -n -Wno_return -Wno_unused -Wno_undefined_callbacks --fullpath --plt $(COMBO_PLT) $(DIALYZER_APPS_PATHS)
 #	    fgrep -v -f ./dialyzer.ignore-warnings | tee dialyzer.log
+
+xeplist: escript
+	escript $(XEP_TOOL)/xep_tool.escript markdown $(EJD_EBIN)
 
 cleanplt:
 	rm $(COMBO_PLT)

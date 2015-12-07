@@ -17,6 +17,7 @@ pages:
       - 'HTTP Authentication Module': 'advanced-configuration/HTTP-authentication-module.md'
       - 'Listener Modules': 'advanced-configuration/Listener-modules.md'
       - 'Extension Modules': 'advanced-configuration/Modules.md'
+      - 'ACL': 'advanced-configuration/acl.md'
   - 'Modules':
       - 'mod_adhoc': 'modules/mod_adhoc.md'
       - 'mod_admin_extra': 'modules/mod_admin_extra.md'
@@ -52,3 +53,4 @@ pages:
       - 'Hooks description': 'developers-guide/hooks_description.md'
       - 'Stanza routing': 'developers-guide/message_routing.md'
       - 'mod_amp development': 'developers-guide/mod_amp_developers_guide.md'
+      - 'xep-tool usage': 'developers-guide/xep_tool.md'

@@ -165,10 +165,8 @@
 %%%
 %%% == Frontend to ejabberd commands ==
 %%%
-%%% Currently there are two frontends to ejabberd commands: the shell
-%%% script {@link ejabberd_ctl. mongooseimctl}, and the XML-RPC server
-%%% ejabberd_xmlrpc.
-%%%
+%%% Currently there is one frontend to ejabberd commands: the shell
+%%% script - mongooseimctl
 %%%
 %%% === mongooseimctl as a frontend to ejabberd commands ===
 %%%
@@ -184,8 +182,7 @@
 %%% TODO: consider this feature:
 %%% All commands are catched. If an error happens, return the restuple:
 %%%   {error, flattened error string}
-%%% This means that ecomm call APIs (ejabberd_ctl, ejabberd_xmlrpc) need to allows this.
-%%% And ejabberd_xmlrpc must be prepared to handle such an unexpected response.
+%%% This means that ecomm call APIs ejabberd_ctl need to allows this.
 
 
 -module(ejabberd_commands).
@@ -440,7 +437,7 @@ check_access(_, noauth) ->
 check_access(Access, Auth) ->
     {ok, User, Server} = check_auth(Auth),
     %% Check this user has access permission
-    case acl:match_rule(Server, Access, jlib:make_jid(User, Server, <<"">>)) of
+    case acl:match_rule(Server, Access, jid:make(User, Server, <<"">>)) of
         allow -> true;
         deny -> false
     end.

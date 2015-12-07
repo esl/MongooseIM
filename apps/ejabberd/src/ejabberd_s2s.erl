@@ -28,6 +28,7 @@
 -author('alexey@process-one.net').
 
 -behaviour(gen_server).
+-behaviour(xmpp_router).
 
 %% API
 -export([start_link/0,
@@ -45,9 +46,15 @@
          domain_utf8_to_ascii/1
         ]).
 
+%% Hooks callbacks
+-export([node_cleanup/1]).
+
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
+%% xmpp_router callback
+-export([do_route/3]).
+
 %% ejabberd API
 -export([get_info_s2s_connections/1]).
 
@@ -84,13 +91,7 @@ start_link() ->
             To :: ejabberd:jid(),
             Packet :: jlib:xmlel()) -> 'ok' | {'error','lager_not_running'}.
 route(From, To, Packet) ->
-    case catch do_route(From, To, Packet) of
-        {'EXIT', Reason} ->
-            ?ERROR_MSG("~p~nwhen processing: ~p",
-                       [Reason, {From, To, Packet}]);
-        _ ->
-            ok
-    end.
+    xmpp_router:route(?MODULE, From, To, Packet).
 
 -spec remove_connection(_, pid(), _) -> 'ok' | {'aborted',_} | {'atomic',_}.
 remove_connection(FromTo, Pid, Key) ->
@@ -168,6 +169,23 @@ dirty_get_connections() ->
     mnesia:dirty_all_keys(s2s).
 
 %%====================================================================
+%% Hooks callbacks
+%%====================================================================
+
+node_cleanup(Node) ->
+    F = fun() ->
+                Es = mnesia:select(
+                       s2s,
+                       [{#s2s{pid = '$1', _ = '_'},
+                         [{'==', {node, '$1'}, Node}],
+                         ['$_']}]),
+                lists:foreach(fun(E) ->
+                                      mnesia:delete_object(E)
+                              end, Es)
+        end,
+    mnesia:async_dirty(F).
+
+%%====================================================================
 %% gen_server callbacks
 %%====================================================================
 
@@ -183,8 +201,8 @@ init([]) ->
     mnesia:create_table(s2s, [{ram_copies, [node()]}, {type, bag},
                               {attributes, record_info(fields, s2s)}]),
     mnesia:add_table_copy(s2s, node(), ram_copies),
-    mnesia:subscribe(system),
     ejabberd_commands:register_commands(commands()),
+    ejabberd_hooks:add(node_cleanup, global, ?MODULE, node_cleanup, 50),
     {ok, #state{}}.
 
 %%--------------------------------------------------------------------
@@ -215,17 +233,8 @@ handle_cast(_Msg, State) ->
 %%                                       {stop, Reason, State}
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
-handle_info({mnesia_system_event, {mnesia_down, Node}}, State) ->
-    clean_table_from_bad_node(Node),
-    {noreply, State};
 handle_info({route, From, To, Packet}, State) ->
-    case catch do_route(From, To, Packet) of
-        {'EXIT', Reason} ->
-            ?ERROR_MSG("~p~nwhen processing: ~p",
-                       [Reason, {From, To, Packet}]);
-        _ ->
-            ok
-    end,
+    route(From, To, Packet),
     {noreply, State};
 handle_info(_Info, State) ->
     {noreply, State}.
@@ -238,6 +247,7 @@ handle_info(_Info, State) ->
 %% The return value is ignored.
 %%--------------------------------------------------------------------
 terminate(_Reason, _State) ->
+    ejabberd_hooks:delete(node_cleanup, global, ?MODULE, node_cleanup, 50),
     ejabberd_commands:unregister_commands(commands()),
     ok.
 
@@ -251,18 +261,6 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
-clean_table_from_bad_node(Node) ->
-    F = fun() ->
-                Es = mnesia:select(
-                       s2s,
-                       [{#s2s{pid = '$1', _ = '_'},
-                         [{'==', {node, '$1'}, Node}],
-                         ['$_']}]),
-                lists:foreach(fun(E) ->
-                                      mnesia:delete_object(E)
-                              end, Es)
-        end,
-    mnesia:async_dirty(F).
 
 -spec do_route(From :: ejabberd:jid(),
                To :: ejabberd:jid(),
@@ -274,8 +272,8 @@ do_route(From, To, Packet) ->
         {atomic, Pid} when is_pid(Pid) ->
             ?DEBUG("sending to process ~p~n", [Pid]),
             #xmlel{attrs = Attrs} = Packet,
-            NewAttrs = jlib:replace_from_to_attrs(jlib:jid_to_binary(From),
-                                                  jlib:jid_to_binary(To),
+            NewAttrs = jlib:replace_from_to_attrs(jid:to_binary(From),
+                                                  jid:to_binary(To),
                                                   Attrs),
             #jid{lserver = MyServer} = From,
             ejabberd_hooks:run(
@@ -356,7 +354,7 @@ choose_pid(From, Pids) ->
     % Use sticky connections based on the JID of the sender (whithout
     % the resource to ensure that a muc room always uses the same
     % connection)
-    Pid = lists:nth(erlang:phash(jlib:jid_remove_resource(From), length(Pids1)),
+    Pid = lists:nth(erlang:phash(jid:to_bare(From), length(Pids1)),
                     Pids1),
     ?DEBUG("Using ejabberd_s2s_out ~p~n", [Pid]),
     Pid.
@@ -415,7 +413,7 @@ new_connection(MyServer, Server, From, FromTo,
 -spec max_s2s_connections_number(fromto()) -> pos_integer().
 max_s2s_connections_number({From, To}) ->
     case acl:match_rule(
-           From, max_s2s_connections, jlib:make_jid(<<"">>, To, <<"">>)) of
+           From, max_s2s_connections, jid:make(<<"">>, To, <<"">>)) of
         Max when is_integer(Max) -> Max;
         _ -> ?DEFAULT_MAX_S2S_CONNECTIONS_NUMBER
     end.
@@ -423,7 +421,7 @@ max_s2s_connections_number({From, To}) ->
 -spec max_s2s_connections_number_per_node(fromto()) -> pos_integer().
 max_s2s_connections_number_per_node({From, To}) ->
     case acl:match_rule(
-           From, max_s2s_connections_per_node, jlib:make_jid(<<"">>, To, <<"">>)) of
+           From, max_s2s_connections_per_node, jid:make(<<"">>, To, <<"">>)) of
         Max when is_integer(Max) -> Max;
         _ -> ?DEFAULT_MAX_S2S_CONNECTIONS_NUMBER_PER_NODE
     end.
@@ -606,3 +604,4 @@ get_s2s_state(S2sPid)->
                 {badrpc,_} -> [{status, error}]
             end,
     [{s2s_pid, S2sPid} | Infos].
+

@@ -199,8 +199,8 @@ kick_session(User, Server, Resource, ReasonText) ->
         Reason :: binary()) -> ok | {error, lager_not_started}.
 kick_this_session(User, Server, Resource, Reason) ->
     ejabberd_sm:route(
-        jlib:make_jid(<<"">>, <<"">>, <<"">>),
-        jlib:make_jid(User, Server, Resource),
+        jid:make(<<"">>, <<"">>, <<"">>),
+        jid:make(User, Server, Resource),
         {broadcast, {exit, Reason}}).
 
 

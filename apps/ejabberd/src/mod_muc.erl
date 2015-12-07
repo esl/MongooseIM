@@ -26,7 +26,7 @@
 
 -module(mod_muc).
 -author('alexey@process-one.net').
-
+-xep([{xep, 45}, {version, "1.25"}]).
 -behaviour(gen_server).
 -behaviour(gen_mod).
 
@@ -227,7 +227,7 @@ process_iq_disco_items(Host, From, To, #iq{lang = Lang} = IQ) ->
 can_use_nick(_Host, _JID, <<>>) ->
     false;
 can_use_nick(Host, JID, Nick) ->
-    {LUser, LServer, _} = jlib:jid_tolower(JID),
+    {LUser, LServer, _} = jid:to_lower(JID),
     LUS = {LUser, LServer},
     case catch mnesia:dirty_select(
                  muc_registered,
@@ -431,7 +431,7 @@ route_by_privilege({From, To, Packet} = Routed,
                           server_host=ServerHost} = State) ->
     case acl:match_rule(ServerHost, AccessRoute, From) of
         allow ->
-            {Room, _, _} = jlib:jid_tolower(To),
+            {Room, _, _} = jid:to_lower(To),
             route_to_room(Room, Routed, State);
         _ ->
             #xmlel{attrs = Attrs} = Packet,
@@ -445,7 +445,7 @@ route_by_privilege({From, To, Packet} = Routed,
 
 -spec route_to_room(room(), from_to_packet(), state()) -> 'ok' | pid().
 route_to_room(<<>>, {_,To,_} = Routed, State) ->
-    {_, _, Nick} = jlib:jid_tolower(To),
+    {_, _, Nick} = jid:to_lower(To),
     route_by_nick(Nick, Routed, State);
 route_to_room(Room, {From,To,Packet} = Routed, #state{host=Host} = State) ->
     case mnesia:dirty_read(muc_online_room, {Room, Host}) of
@@ -454,7 +454,7 @@ route_to_room(Room, {From,To,Packet} = Routed, #state{host=Host} = State) ->
         [R] ->
             Pid = R#muc_online_room.pid,
             ?DEBUG("MUC: send to process ~p~n", [Pid]),
-            {_, _, Nick} = jlib:jid_tolower(To),
+            {_, _, Nick} = jid:to_lower(To),
             mod_muc_room:route(Pid, From, Nick, Packet),
             ok
     end.
@@ -476,7 +476,7 @@ route_to_nonexistent_room(Room, {From, To, Packet},
                     HistorySize = State#state.history_size,
                     RoomShaper  = State#state.room_shaper,
                     DefRoomOpts = State#state.default_room_opts,
-                    {_, _, Nick} = jlib:jid_tolower(To),
+                    {_, _, Nick} = jid:to_lower(To),
                     {ok, Pid} = start_new_room(Host, ServerHost, Access, Room,
                                                HistorySize, RoomShaper, From,
                                                Nick, DefRoomOpts),
@@ -708,7 +708,7 @@ iq_disco_items(Host, From, Lang, none) ->
                              flush(),
                              {true,
                               #xmlel{name = <<"item">>,
-                                     attrs = [{<<"jid">>, jlib:jid_to_binary({Name, Host, <<>>})},
+                                     attrs = [{<<"jid">>, jid:to_binary({Name, Host, <<>>})},
                                               {<<"name">>, Desc}]}};
                          _ ->
                              false
@@ -724,7 +724,7 @@ iq_disco_items(Host, From, Lang, Rsm) ->
                              flush(),
                              {true,
                               #xmlel{name = <<"item">>,
-                                     attrs = [{<<"jid">>, jlib:jid_to_binary({Name, Host, <<>>})},
+                                     attrs = [{<<"jid">>, jid:to_binary({Name, Host, <<>>})},
                                               {<<"name">>, Desc}]}};
                          _ ->
                              false
@@ -825,7 +825,7 @@ iq_get_unique(From) ->
         ejabberd:simple_jid() | ejabberd:jid(), ejabberd:lang())
             -> [jlib:xmlel(),...].
 iq_get_register_info(Host, From, Lang) ->
-    {LUser, LServer, _} = jlib:jid_tolower(From),
+    {LUser, LServer, _} = jid:to_lower(From),
     LUS = {LUser, LServer},
     {Nick, Registered} =
         case catch mnesia:dirty_read(muc_registered, {LUS, Host}) of
@@ -854,7 +854,7 @@ iq_get_register_info(Host, From, Lang) ->
         ejabberd:simple_jid() | ejabberd:jid(), nick(), ejabberd:lang())
             -> {'error',jlib:xmlel()} | {'result',[]}.
 iq_set_register_info(Host, From, Nick, Lang) ->
-    {LUser, LServer, _} = jlib:jid_tolower(From),
+    {LUser, LServer, _} = jid:to_lower(From),
     LUS = {LUser, LServer},
     F = fun() ->
                 case Nick of

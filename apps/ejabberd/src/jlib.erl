@@ -26,7 +26,9 @@
 
 -module(jlib).
 -author('alexey@process-one.net').
-
+-xep([{xep, 59}, {version, "1.0"}]).
+-xep([{xep, 68}, {version, "1.2"}]).
+-xep([{xep, 86}, {version, "1.0"}]).
 -export([make_result_iq_reply/1,
          make_error_reply/2,
          make_invitation/3,
@@ -56,6 +58,7 @@
          timestamp_to_mam_xml/4,
          timestamp_to_iso/2,
          now_to_utc_binary/1,
+         now_to_utc_string/1,
          datetime_binary_to_timestamp/1,
          decode_base64/1,
          encode_base64/1,
@@ -66,11 +69,12 @@
          stanza_errort/5,
          stream_error/1,
          stream_errort/3,
-	     remove_delay_tags/1]).
+         remove_delay_tags/1]).
 
 -include_lib("exml/include/exml.hrl").
 -include_lib("exml/include/exml_stream.hrl"). % only used to define stream types
 -include("jlib.hrl").
+-include("ejabberd.hrl").
 
 -type xmlel()           :: #xmlel{}.
 %% Stream types defined in exml/include/exml_stream.hrl
@@ -122,19 +126,18 @@ make_result_iq_reply_attrs(Attrs) ->
     Attrs2 = lists:keydelete(<<"from">>, 1, Attrs1),
     Attrs3 = case To of
                  {value, ToVal} ->
-                     [{<<"from">>, binary_to_list(ToVal)} | Attrs2];
+                     [{<<"from">>, ToVal} | Attrs2];
                  _ ->
                      Attrs2
              end,
     Attrs4 = case From of
                  {value, FromVal} ->
-                     [{<<"to">>, binary_to_list(FromVal)} | Attrs3];
+                     [{<<"to">>, FromVal} | Attrs3];
                  _ ->
                      Attrs3
              end,
     Attrs5 = lists:keydelete(<<"type">>, 1, Attrs4),
-    Attrs6 = [{<<"type">>, <<"result">>} | Attrs5],
-    Attrs6.
+    [{<<"type">>, <<"result">>} | Attrs5].
 
 
 -spec make_error_reply(xmlel(), xmlcdata() | xmlel()) -> xmlel().
@@ -180,7 +183,7 @@ make_config_change_message(Status) ->
                       Reason :: binary()) -> xmlel().
 make_invitation(From, Password, Reason) ->
     Elements = [#xmlel{name = <<"invite">>,
-                       attrs = [{<<"from">>, jlib:jid_to_binary(From)}]}],
+                       attrs = [{<<"from">>, jid:to_binary(From)}]}],
     Elements2 = case Password of
         <<>> -> Elements;
         _ -> [#xmlel{name = <<"password">>,
@@ -217,7 +220,7 @@ form_field({Var, Type, Value}) ->
 make_voice_approval_form(From, Nick, Role) ->
   Fields = [{<<"FORM_TYPE">>, <<"hidden">>, ?NS_MUC_REQUEST},
     {<<"muc#role">>, <<"text-single">>, Role, <<"Request role">>},
-    {<<"muc#jid">>, <<"jid-single">>, jid_to_binary(From), <<"User ID">>},
+    {<<"muc#jid">>, <<"jid-single">>, jid:to_binary(From), <<"User ID">>},
     {<<"muc#roomnick">>, <<"text-single">>, Nick, <<"Room Nickname">>},
     {<<"muc#request_allow">>, <<"boolean">>, <<"false">>, <<"Grant voice to this person?">>}
   ],
@@ -249,8 +252,8 @@ replace_from_to_attrs(From, To, Attrs) ->
                       To :: ejabberd:simple_jid() | ejabberd:jid(),
                       XE :: xmlel()) -> xmlel().
 replace_from_to(From, To, XE = #xmlel{attrs = Attrs}) ->
-    NewAttrs = replace_from_to_attrs(jlib:jid_to_binary(From),
-                                     jlib:jid_to_binary(To),
+    NewAttrs = replace_from_to_attrs(jid:to_binary(From),
+                                     jid:to_binary(To),
                                      Attrs),
     XE#xmlel{attrs = NewAttrs}.
 
@@ -265,207 +268,79 @@ remove_attr(Attr, XE = #xmlel{attrs = Attrs}) ->
                Server   :: ejabberd:server(),
                Resource :: ejabberd:resource()) -> ejabberd:jid() | error.
 make_jid(User, Server, Resource) ->
-    case nodeprep(User) of
-        error -> error;
-        LUser ->
-            case nameprep(Server) of
-                error -> error;
-                LServer ->
-                    case resourceprep(Resource) of
-                        error -> error;
-                        LResource ->
-                            #jid{user = User,
-                                 server = Server,
-                                 resource = Resource,
-                                 luser = LUser,
-                                 lserver = LServer,
-                                 lresource = LResource}
-                    end
-            end
-    end.
-
+    ?WARNING_MSG("This function has been deprecated in MongooseIM 1.6.1 and will be removed in 1.7.0", []),
+    jid:make(User, Server, Resource).
 
 -spec make_jid(ejabberd:simple_jid()) -> ejabberd:jid() | error.
 make_jid({User, Server, Resource}) ->
+    ?WARNING_MSG("This function has been deprecated in MongooseIM 1.6.1 and will be removed in 1.7.0", []),
     make_jid(User, Server, Resource).
 
 -spec are_equal_jids(ejabberd:jid(), ejabberd:jid()) -> boolean().
-are_equal_jids(#jid{luser = LUser, lserver = LServer, lresource = LRes},
-               #jid{luser = LUser, lserver = LServer, lresource = LRes}) ->
-    true;
-are_equal_jids(_, _) ->
-    false.
+are_equal_jids(JID1, JID2) ->
+    ?WARNING_MSG("This function has been deprecated in MongooseIM 1.6.1 and will be removed in 1.7.0", []),
+    jid:are_equal(JID1, JID2).
 
 
 -spec binary_to_jid(binary()) -> 'error' | ejabberd:jid().
 binary_to_jid(J) ->
-    binary_to_jid1(J, <<>>).
-
-
--spec binary_to_jid1(binary(), binary()) -> 'error' | ejabberd:jid().
-binary_to_jid1(<<$@, _J/binary>>, <<>>) ->
-    error;
-binary_to_jid1(<<$@, J/binary>>, N) ->
-    binary_to_jid2(J, binary_reverse(N), <<>>);
-binary_to_jid1(<<$/, _J/binary>>, <<>>) ->
-    error;
-binary_to_jid1(<<$/, J/binary>>, N) ->
-    binary_to_jid3(J, <<>>, binary_reverse(N), <<>>);
-binary_to_jid1(<<C, J/binary>>, N) ->
-    binary_to_jid1(J, <<C, N/binary>>);
-binary_to_jid1(<<>>, <<>>) ->
-    error;
-binary_to_jid1(<<>>, N) ->
-    make_jid(<<>>, binary_reverse(N), <<>>).
-
-
-%% @doc Only one "@" is admitted per JID
--spec binary_to_jid2(binary(),binary(),binary()) -> 'error' | ejabberd:jid().
-binary_to_jid2(<<$@, _J/binary>>, _N, _S) ->
-    error;
-binary_to_jid2(<<$/, _J/binary>>, _N, <<>>) ->
-    error;
-binary_to_jid2(<<$/, J/binary>>, N, S) ->
-    binary_to_jid3(J, N, binary_reverse(S), <<>>);
-binary_to_jid2(<<C, J/binary>>, N, S) ->
-    binary_to_jid2(J, N, <<C, S/binary>>);
-binary_to_jid2(<<>>, _N, <<>>) ->
-    error;
-binary_to_jid2(<<>>, N, S) ->
-    make_jid(N, binary_reverse(S), <<>>).
-
-
--spec binary_to_jid3(binary(),binary(),binary(),binary()) -> 'error' | ejabberd:jid().
-binary_to_jid3(<<C, J/binary>>, N, S, R) ->
-    binary_to_jid3(J, N, S, <<C, R/binary>>);
-binary_to_jid3(<<>>, N, S, R) ->
-    make_jid(N, S, binary_reverse(R)).
-
-
--spec binary_reverse(binary()) -> binary().
-binary_reverse(<<>>) ->
-    <<>>;
-binary_reverse(<<H,T/binary>>) ->
-    <<(binary_reverse(T))/binary,H>>.
+    ?WARNING_MSG("This function has been deprecated in MongooseIM 1.6.1 and will be removed in 1.7.0", []),
+    jid:from_binary(J).
 
 
 -spec jid_to_binary(ejabberd:simple_jid() | ejabberd:jid()) -> binary().
-jid_to_binary(#jid{user = User, server = Server, resource = Resource}) ->
-    jid_to_binary({User, Server, Resource});
-jid_to_binary({Node, Server, Resource}) ->
-    S1 = case Node of
-             <<>> ->
-                 <<>>;
-             _ ->
-                 <<Node/binary, "@">>
-         end,
-    S2 = <<S1/binary, Server/binary>>,
-    S3 = case Resource of
-             <<>> ->
-                 S2;
-             _ ->
-                 <<S2/binary, "/", Resource/binary>>
-         end,
-    S3.
+jid_to_binary(JID) ->
+    ?WARNING_MSG("This function has been deprecated in MongooseIM 1.6.1 and will be removed in 1.7.0", []),
+    jid:to_binary(JID).
 
--spec is_nodename([] | binary()) -> boolean().
-is_nodename([]) ->
-    false;
+-spec is_nodename(<<>> | binary()) -> boolean().
 is_nodename(J) ->
-    nodeprep(J) /= error.
+    ?WARNING_MSG("This function has been deprecated in MongooseIM 1.6.1 and will be removed in 1.7.0", []),
+    jid:is_nodename(J).
 
-%% -define(LOWER(Char),
-%%         if
-%%             Char >= $A, Char =< $Z ->
-%%                 Char + 32;
-%%             true ->
-%%                 Char
-%%         end).
-
--define(SANE_LIMIT, 1024).
--spec nodeprep(ejabberd:server()) -> 'error' | ejabberd:lserver().
-nodeprep(S) when is_binary(S), size(S) < ?SANE_LIMIT ->
-    R = stringprep:nodeprep(S),
-    if
-        size(R) < ?SANE_LIMIT -> R;
-        true -> error
-    end;
-nodeprep(_) ->
-    error.
+-spec nodeprep(ejabberd:user()) -> 'error' | ejabberd:lserver().
+nodeprep(S) ->
+    ?WARNING_MSG("This function has been deprecated in MongooseIM 1.6.1 and will be removed in 1.7.0", []),
+    jid:nodeprep(S).
 
 
--spec nameprep(ejabberd:user()) -> 'error' | ejabberd:luser().
-nameprep(S) when is_binary(S), size(S) < ?SANE_LIMIT ->
-    R = stringprep:nameprep(S),
-    if
-        size(R) < ?SANE_LIMIT -> R;
-        true -> error
-    end;
-nameprep(_) ->
-    error.
+-spec nameprep(ejabberd:server()) -> 'error' | ejabberd:luser().
+nameprep(S) ->
+    ?WARNING_MSG("This function has been deprecated in MongooseIM 1.6.1 and will be removed in 1.7.0", []),
+    jid:nameprep(S).
 
-
--spec resourceprep(string() | ejabberd:resource()) ->
-                                        'error' | ejabberd:lresource().
-resourceprep(S) when is_list(S) ->
-    case resourceprep(list_to_binary(S)) of
-        error ->
-            error;
-        Binary ->
-            binary_to_list(Binary)
-    end;
-resourceprep(S) when size(S) < ?SANE_LIMIT ->
-    R = stringprep:resourceprep(S),
-    if
-        size(R) < ?SANE_LIMIT -> R;
-        true -> error
-    end;
-resourceprep(_) ->
-    error.
+-spec resourceprep(ejabberd:resource()) ->
+    'error' | ejabberd:lresource().
+resourceprep(S) ->
+    ?WARNING_MSG("This function has been deprecated in MongooseIM 1.6.1 and will be removed in 1.7.0", []),
+    jid:resourceprep(S).
 
 
 %% @doc You are a bad person if you use this function.
 -spec jid_tolower(JID :: ejabberd:simple_jid() | ejabberd:jid()
                  ) -> error | ejabberd:simple_jid().
-jid_tolower(Any) -> jid_to_lower(Any).
-
+jid_tolower(Any) ->
+    ?WARNING_MSG("This function has been deprecated in MongooseIM 1.6.1 and will be removed in 1.7.0", []),
+    jid:to_lower(Any).
 
 -spec jid_to_lower(JID :: ejabberd:simple_jid() | ejabberd:jid()
                  ) -> error | ejabberd:simple_jid().
-jid_to_lower(#jid{luser = U, lserver = S, lresource = R}) ->
-    {U, S, R};
-jid_to_lower({U, S, R}) ->
-    case nodeprep(U) of
-        error -> error;
-        LUser ->
-            case nameprep(S) of
-                error -> error;
-                LServer ->
-                    case resourceprep(R) of
-                        error -> error;
-                        LResource ->
-                            {LUser, LServer, LResource}
-                    end
-            end
-    end.
-
+jid_to_lower(JID) ->
+    ?WARNING_MSG("This function has been deprecated in MongooseIM 1.6.1 and will be removed in 1.7.0", []),
+    jid:to_lower(JID).
 
 -spec jid_remove_resource(ejabberd:simple_jid() | ejabberd:jid()) ->
                           ejabberd:simple_jid() | ejabberd:jid().
-jid_remove_resource(#jid{} = JID) ->
-    JID#jid{resource = <<>>, lresource = <<>>};
-jid_remove_resource({U, S, _R}) ->
-    {U, S, <<>>}.
+jid_remove_resource(JID) ->
+    ?WARNING_MSG("This function has been deprecated in MongooseIM 1.6.1 and will be removed in 1.7.0", []),
+    jid:to_bare(JID).
 
 
 -spec jid_replace_resource(ejabberd:jid(), ejabberd:resource()) ->
                                                   'error' | ejabberd:jid().
 jid_replace_resource(JID, Resource) ->
-    case resourceprep(Resource) of
-        error -> error;
-        LResource ->
-            JID#jid{resource = Resource, lresource = LResource}
-    end.
+    ?WARNING_MSG("This function has been deprecated in MongooseIM 1.6.1 and will be removed in 1.7.0", []),
+    jid:replace_resource(JID, Resource).
 
 
 -spec iq_query_info(xmlel()) -> 'invalid' | 'not_iq' | 'reply' | ejabberd:iq().
@@ -576,8 +451,6 @@ parse_xdata_submit(El) ->
     #xmlel{attrs = Attrs, children = Els} = El,
     case xml:get_attr_s(<<"type">>, Attrs) of
         <<"submit">> ->
-            lists:reverse(parse_xdata_fields(Els, []));
-        <<"form">> -> %% This is a workaround to accept Psi's wrong forms
             lists:reverse(parse_xdata_fields(Els, []));
         _ ->
             invalid
@@ -749,7 +622,7 @@ timestamp_to_iso({{Year, Month, Day}, {Hour, Minute, Second}}, Timezone) ->
 timestamp_to_xml(DateTime, Timezone, FromJID, Desc) ->
     {T_string, Tz_string} = timestamp_to_iso(DateTime, Timezone),
     Text = [#xmlcdata{content = Desc}],
-    From = jlib:jid_to_binary(FromJID),
+    From = jid:to_binary(FromJID),
     #xmlel{name = <<"delay">>,
            attrs = [{<<"xmlns">>, ?NS_DELAY},
                     {<<"from">>, From},

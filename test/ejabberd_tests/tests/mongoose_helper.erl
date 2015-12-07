@@ -84,25 +84,24 @@ do_clear_last_activity(Config, Users) when is_list(Users) ->
     lists:foreach(fun(User) -> do_clear_last_activity(Config, User) end, Users).
 
 get_backend(Module) ->
-    try
-        ?RPC(Module, backend, [])
-    catch
-        _:_  ->
-            false
-    end.
+  case ?RPC(Module, backend, []) of
+    {badrpc, _Reason} -> false;
+    Backend -> Backend
+  end.
 
 generic_count(Module) ->
     case get_backend(Module) of
-        B when is_atom(B) ->
-            generic_count_backend(B);
         false -> %% module disabled
-            false
+            false;
+        B when is_atom(B) ->
+            generic_count_backend(B)
     end.
 
 generic_count_backend(mod_offline_mnesia) -> count_wildpattern(offline_msg);
 generic_count_backend(mod_offline_odbc) -> count_odbc(<<"offline_message">>);
 generic_count_backend(mod_last_mnesia) -> count_wildpattern(last_activity);
 generic_count_backend(mod_last_odbc) -> count_odbc(<<"last">>);
+generic_count_backend(mod_last_riak) -> count_riak(<<"last">>);
 generic_count_backend(mod_privacy_mnesia) -> count_wildpattern(privacy);
 generic_count_backend(mod_privacy_odbc) -> count_odbc(<<"privacy_list">>);
 generic_count_backend(mod_private_mnesia) -> count_wildpattern(private_storage);
@@ -117,6 +116,9 @@ generic_count_backend(mod_vcard_ldap) ->
     %% number of vcards in ldap is the same as number of users
     ?RPC(ejabberd_auth_ldap, get_vh_registered_users_number, [D]);
 generic_count_backend(mod_roster_mnesia) -> count_wildpattern(roster);
+generic_count_backend(mod_roster_riak) ->
+    count_riak(<<"rosters">>),
+    count_riak(<<"roster_versions">>);
 generic_count_backend(mod_roster_odbc) -> count_odbc(<<"rosterusers">>).
 
 count_wildpattern(Table) ->

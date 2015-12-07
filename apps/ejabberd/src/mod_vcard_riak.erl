@@ -40,7 +40,7 @@ remove_user(LUser, LServer) ->
 set_vcard(User, VHost, VCard, _VCardSearch) ->
     BucketType = bucket_type(VHost),
     VCardEncoded = exml:to_binary(VCard),
-    LUser = jlib:nodeprep(User),
+    LUser = jid:nodeprep(User),
     Obj = riakc_obj:new(BucketType, LUser, VCardEncoded, "application/xml"),
     mongoose_riak:put(Obj).
 

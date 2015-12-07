@@ -1,6 +1,26 @@
+# MongooseIM 1.6.1
+
+2015-12-07
+
+- more Riak backends:
+   - mod_roster [#572](https://github.com/esl/MongooseIM/pull/572)
+   - mod_last [#567](https://github.com/esl/MongooseIM/pull/567)
+- tests improvements: [#557](https://github.com/esl/MongooseIM/pull/557), [#558](https://github.com/esl/MongooseIM/pull/558), [#575](https://github.com/esl/MongooseIM/pull/575), [#583](https://github.com/esl/MongooseIM/pull/583), [#584](https://github.com/esl/MongooseIM/pull/584), [#559](https://github.com/esl/MongooseIM/pull/559), [#590](https://github.com/esl/MongooseIM/pull/590)
+- various fixes: [#570](https://github.com/esl/MongooseIM/pull/570), [#573](https://github.com/esl/MongooseIM/pull/573), [#561](https://github.com/esl/MongooseIM/pull/561)
+- new API for jid manipulation [#579](https://github.com/esl/MongooseIM/pull/579)
+   - this deprecates many jid-related function from `jlib` module
+- further improvements in cleaning after dead node [#581](https://github.com/esl/MongooseIM/pull/581)
+- other improvements and code cleanup
+   - [complete list of merged PRs](https://github.com/esl/MongooseIM/pulls?utf8=%E2%9C%93&q=is%3Apr+base%3Amaster+merged%3A%222015-10-16..2015-12-06%22+sort%3Acreated-asc+)
+   - [complete list of closed issues](https://github.com/esl/MongooseIM/issues?utf8=%E2%9C%93&q=is%3Aissue+is%3Aclosed+closed%3A%222015-10-16..2015-12-06%22+)
+
+Special thanks to our contributors: @ppikula, @dharamgollapudi
+
+This release repo [history](https://github.com/esl/MongooseIM/graphs/contributors?from=2015-10-16&to=2015-12-06&type=c)
+
 # MongooseIM 1.6.0
 
-2016-10-15
+2015-10-15
 
 This release includes:
 

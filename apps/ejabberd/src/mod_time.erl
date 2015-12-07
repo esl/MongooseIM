@@ -10,7 +10,8 @@
 -export([start/2, stop/1, process_local_iq/3]).
 -include("ejabberd.hrl").
 -include("jlib.hrl").
-
+-xep([{xep, 202}, {version,"2.0"}]).
+-xep([{xep, 82}, {version,"1.1"}]).
 start(Host, Opts) ->
     mod_disco:register_feature(Host, ?NS_TIME),
     IQDisc = gen_mod:get_opt(iqdisc, Opts,

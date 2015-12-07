@@ -296,7 +296,7 @@ is_valid_message_children(_,      _,    _    ) -> false.
 wrap_message(Packet, QueryID, MessageUID, DateTime, SrcJID) ->
     Delay = delay(DateTime, SrcJID, QueryID, MessageUID),
     Packet2 = xml:append_subtags(Packet, [Delay]),
-    xml:replace_tag_attr(<<"from">>, jlib:jid_to_binary(SrcJID), Packet2).
+    xml:replace_tag_attr(<<"from">>, jid:to_binary(SrcJID), Packet2).
 
 
 -spec delay(DateTime :: calendar:datetime(), SrcJID :: ejabberd:jid(),
@@ -543,10 +543,10 @@ expand_minified_jid_2({Pos, 1}, #jid{lserver=ThisServer}, Encoded) ->
 
 jid_to_opt_binary_test_() ->
     check_stringprep(),
-    UserJID = jlib:binary_to_jid(<<"alice@room">>),
+    UserJID = jid:from_binary(<<"alice@room">>),
     [?_assertEqual(JID,
-        expand_minified_jid(UserJID,
-            jid_to_opt_binary(UserJID, jlib:binary_to_jid(JID))))
+        (expand_minified_jid(UserJID,
+              jid_to_opt_binary(UserJID, jid:from_binary(JID)))))
      || JID <- test_jids()].
 
 test_jids() ->
@@ -646,7 +646,7 @@ maybe_previous_id(X) ->
 
 send_message(_From, To, Mess) ->
     {value, BFrom} = xml:get_tag_attr(<<"from">>, Mess),
-    From = jlib:binary_to_jid(BFrom),
+    From = jid:from_binary(BFrom),
     ejabberd_sm:route(From, To, Mess).
 
 -else.
@@ -660,7 +660,7 @@ send_message(From, To, Mess) ->
 -spec is_jid_in_user_roster(ejabberd:jid(), ejabberd:jid()) -> boolean().
 is_jid_in_user_roster(#jid{lserver=LServer, luser=LUser},
                       #jid{} = RemJID) ->
-    RemBareJID = jlib:jid_remove_resource(RemJID),
+    RemBareJID = jid:to_bare(RemJID),
     {Subscription, _Groups} =
     ejabberd_hooks:run_fold(
         roster_get_jid_info, LServer,

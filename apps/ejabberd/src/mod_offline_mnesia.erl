@@ -28,7 +28,6 @@
 
 -module(mod_offline_mnesia).
 -behaviour(mod_offline).
-
 -export([init/2,
          pop_messages/2,
          write_messages/4,
@@ -123,35 +122,49 @@ count_offline_messages(LUser, LServer) ->
     end.
 
 remove_user(User, Server) ->
-    LUser = jlib:nodeprep(User),
-    LServer = jlib:nameprep(Server),
+    LUser = jid:nodeprep(User),
+    LServer = jid:nameprep(Server),
     US = {LUser, LServer},
     F = fun() ->
 		mnesia:delete({offline_msg, US})
 	end,
     mnesia:transaction(F).
 
+-spec remove_expired_messages(ejabberd:lserver()) -> {error, term()} | {ok, HowManyRemoved} when
+    HowManyRemoved :: integer().
 remove_expired_messages(_Host) ->
     TimeStamp = now(),
     F = fun() ->
 		mnesia:write_lock_table(offline_msg),
 		mnesia:foldl(
-		  fun(Rec, _Acc) ->
-              remove_expired_message(TimeStamp, Rec)
-		  end, ok, offline_msg)
+		  fun(Rec, Acc) ->
+              Acc + remove_expired_message(TimeStamp, Rec)
+		  end, 0, offline_msg)
 	end,
-    mnesia:transaction(F).
+    case mnesia:transaction(F) of
+        {aborted, Reason} ->
+            {error, Reason};
+        {atomic, Result} ->
+            {ok, Result}
+    end.
 
+-spec remove_old_messages(ejabberd:lserver(), integer()) -> {error, term()} | {ok, HowManyRemoved} when
+    HowManyRemoved :: integer().
 remove_old_messages(_Host, Days) ->
     TimeStamp = fallback_timestamp(Days, now()),
     F = fun() ->
 		mnesia:write_lock_table(offline_msg),
 		mnesia:foldl(
-		  fun(Rec, _Acc) ->
-              remove_old_message(TimeStamp, Rec)
-		  end, ok, offline_msg)
+		  fun(Rec, Acc) ->
+              Acc + remove_old_message(TimeStamp, Rec)
+		  end, 0, offline_msg)
 	end,
-    mnesia:transaction(F).
+    case mnesia:transaction(F) of
+        {aborted, Reason} ->
+            {error, Reason};
+        {atomic, Result} ->
+            {ok, Result}
+    end.
 
 fallback_timestamp(Days, {MegaSecs, Secs, _MicroSecs}) ->
     S = MegaSecs * 1000000 + Secs - 60 * 60 * 24 * Days,
@@ -162,17 +175,27 @@ fallback_timestamp(Days, {MegaSecs, Secs, _MicroSecs}) ->
 remove_expired_message(TimeStamp, Rec) ->
     case is_expired_message(TimeStamp, Rec) of
         true ->
-            mnesia:delete_object(Rec);
+            case  mnesia:delete_object(Rec) of
+                ok ->
+                    1;
+                _ ->
+                    0
+            end;
         false ->
-            ok
+            0
     end.
 
 remove_old_message(TimeStamp, Rec) ->
     case is_old_message(TimeStamp, Rec) of
         true ->
-            mnesia:delete_object(Rec);
+           case  mnesia:delete_object(Rec) of
+                ok ->
+                    1;
+                _ ->
+                    0
+            end;
         false ->
-            ok
+            0
     end.
 
 skip_expired_messages(TimeStamp, Rs) ->

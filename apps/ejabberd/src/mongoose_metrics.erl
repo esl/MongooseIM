@@ -19,6 +19,7 @@
 
 %% API
 -export([init/0,
+         init_subscriptions/0,
          update/2,
          create/2,
          ensure_metric/2,
@@ -43,6 +44,9 @@
          remove_host_metrics/1,
          remove_all_metrics/0]).
 
+-define(DEFAULT_REPORT_INTERVAL, 60000). %%60s
+
+
 -spec init() -> ok.
 init() ->
     create_global_metrics(),
@@ -50,12 +54,23 @@ init() ->
         fun(Host) ->
             mongoose_metrics:init_predefined_host_metrics(Host)
         end, ?MYHOSTS),
+    init_subscriptions().
+
+init_subscriptions() ->
     Reporters = exometer_report:list_reporters(),
     lists:foreach(
         fun({Name, _ReporterPid}) ->
-                Interval = application:get_env(exometer, mongooseim_report_interval, 60000),
+                Interval = get_report_interval(),
                 subscribe_to_all(Name, Interval)
         end, Reporters).
+
+get_report_interval() ->
+    case application:get_env(exometer, mongooseim_report_interval) of
+        undefined ->
+            ?DEFAULT_REPORT_INTERVAL;
+        {ok, Val} ->
+            Val
+    end.
 
 -spec update({term(), term()} | list(), term()) -> any().
 update(Name, Change) when is_tuple(Name)->
@@ -77,7 +92,7 @@ start_global_metrics_subscriptions(Reporter, Interval) ->
     do_start_global_metrics_subscriptions(Reporter, Interval).
 
 start_data_metrics_subscriptions(Reporter, Interval) ->
-    do_start_metrics_subscriptions(Reporter, Interval, [data]).
+    do_start_metrics_subscriptions(Reporter, Interval, [data, xmpp]).
 
 start_backend_metrics_subscriptions(Reporter, Interval) ->
     do_start_metrics_subscriptions(Reporter, Interval, [backends]).
@@ -121,10 +136,14 @@ get_up_time() ->
     {value, erlang:round(element(1, erlang:statistics(wall_clock))/1000)}.
 
 -spec do_create_generic_hook_metric(list()) -> ok | {ok, already_present}.
+do_create_generic_hook_metric([_, skip]) ->
+    ok;
 do_create_generic_hook_metric(MetricName) ->
     ensure_metric(MetricName, spiral).
 
 -spec do_increment_generic_hook_metric(list()) -> ok | {error, any()}.
+do_increment_generic_hook_metric([_, skip]) ->
+    ok;
 do_increment_generic_hook_metric(MetricName) ->
     update(MetricName, 1).
 
@@ -261,8 +280,6 @@ create_metrics(Host) ->
     lists:foreach(fun(Name) -> ensure_metric(Name, counter) end,
                   get_total_counters(Host)).
 
-ensure_metric(Metric, Type) when is_tuple(Metric)->
-    ensure_metric(tuple_to_list(Metric), Type);
 ensure_metric(Metric, Type) when is_list(Metric) ->
     case exometer:info(Metric, type) of
         Type -> {ok, already_present};

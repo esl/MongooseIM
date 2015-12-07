@@ -50,7 +50,7 @@
                         [{xmlcdata,
                           <<(translate:translate(Lang,
                                                  <<"Search users in ">>))/binary,
-                            (jlib:jid_to_binary(JID))/binary>>}]},
+                            (jid:to_binary(JID))/binary>>}]},
                  #xmlel{name = <<"instructions">>, attrs = [],
                         children =
                         [{xmlcdata,

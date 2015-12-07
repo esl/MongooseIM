@@ -27,6 +27,7 @@
 -author('alexey@process-one.net').
 
 -behaviour(gen_server).
+-behaviour(xmpp_router).
 
 %% API
 -export([start_link/0,
@@ -63,6 +64,9 @@
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
+
+%% xmpp_router callback
+-export([do_route/3]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -121,15 +125,7 @@ start_link() ->
       To :: ejabberd:jid(),
       Packet :: jlib:xmlel() | ejabberd_c2s:broadcast().
 route(From, To, Packet) ->
-    case catch do_route(From, To, Packet) of
-        {'EXIT', Reason} ->
-            ?ERROR_MSG("~p~nwhen processing: ~p",
-                       [Reason, {From, To, Packet}]),
-            ok;
-        _ ->
-            ok
-    end.
-
+    xmpp_router:route(?MODULE, From, To, Packet).
 
 -spec open_session(SID, User, Server, Resource, Info) -> ok when
       SID :: 'undefined' | sid(),
@@ -150,7 +146,7 @@ open_session(SID, User, Server, Resource, Info) ->
 open_session(SID, User, Server, Resource, Priority, Info) ->
     set_session(SID, User, Server, Resource, Priority, Info),
     check_for_sessions_to_replace(User, Server, Resource),
-    JID = jlib:make_jid(User, Server, Resource),
+    JID = jid:make(User, Server, Resource),
     ejabberd_hooks:run(sm_register_connection_hook, JID#jid.lserver,
                        [SID, JID, Info]).
 
@@ -161,9 +157,9 @@ open_session(SID, User, Server, Resource, Priority, Info) ->
     Resource :: ejabberd:resource(),
     Reason :: close_reason().
 close_session(SID, User, Server, Resource, Reason) ->
-    LUser = jlib:nodeprep(User),
-    LServer = jlib:nameprep(Server),
-    LResource = jlib:resourceprep(Resource),
+    LUser = jid:nodeprep(User),
+    LServer = jid:nameprep(Server),
+    LResource = jid:resourceprep(Resource),
     Info = case ?SM_BACKEND:get_sessions(LUser, LServer, LResource) of
                [Session] ->
                    Session#session.info;
@@ -171,7 +167,7 @@ close_session(SID, User, Server, Resource, Reason) ->
                    []
            end,
     ?SM_BACKEND:delete_session(SID, LUser, LServer, LResource),
-    JID = jlib:make_jid(User, Server, Resource),
+    JID = jid:make(User, Server, Resource),
     ejabberd_hooks:run(sm_remove_connection_hook, JID#jid.lserver,
                        [SID, JID, Info, Reason]).
 
@@ -208,15 +204,15 @@ bounce_offline_message(#jid{server = Server} = From, To, Packet) ->
 -spec disconnect_removed_user(User :: ejabberd:user(), Server :: ejabberd:server()) ->
     'ok' | {'error','lager_not_running'}.
 disconnect_removed_user(User, Server) ->
-    ejabberd_sm:route(jlib:make_jid(<<>>, <<>>, <<>>),
-                      jlib:make_jid(User, Server, <<>>),
+    ejabberd_sm:route(jid:make(<<>>, <<>>, <<>>),
+                      jid:make(User, Server, <<>>),
                       {broadcast, {exit, <<"User removed">>}}).
 
 
 -spec get_user_resources(User :: ejabberd:user(), Server :: ejabberd:server()) -> [binary()].
 get_user_resources(User, Server) ->
-    LUser = jlib:nodeprep(User),
-    LServer = jlib:nameprep(Server),
+    LUser = jid:nodeprep(User),
+    LServer = jid:nameprep(Server),
     Ss = ?SM_BACKEND:get_sessions(LUser, LServer),
     [element(3, S#session.usr) || S <- clean_session_list(Ss)].
 
@@ -226,9 +222,9 @@ get_user_resources(User, Server) ->
       Server :: ejabberd:server(),
       Resource :: ejabberd:resource().
 get_session_ip(User, Server, Resource) ->
-    LUser = jlib:nodeprep(User),
-    LServer = jlib:nameprep(Server),
-    LResource = jlib:resourceprep(Resource),
+    LUser = jid:nodeprep(User),
+    LServer = jid:nameprep(Server),
+    LResource = jid:resourceprep(Resource),
     case ?SM_BACKEND:get_sessions(LUser, LServer, LResource) of
         [] ->
             undefined;
@@ -243,9 +239,9 @@ get_session_ip(User, Server, Resource) ->
       Server :: ejabberd:server(),
       Resource :: ejabberd:resource().
 get_session(User, Server, Resource) ->
-    LUser = jlib:nodeprep(User),
-    LServer = jlib:nameprep(Server),
-    LResource = jlib:resourceprep(Resource),
+    LUser = jid:nodeprep(User),
+    LServer = jid:nameprep(Server),
+    LResource = jid:resourceprep(Resource),
     case ?SM_BACKEND:get_sessions(LUser, LServer, LResource) of
         [] ->
             offline;
@@ -268,7 +264,7 @@ get_session(User, Server, Resource) ->
       Info :: 'undefined' | [any()].
 set_presence(SID, User, Server, Resource, Priority, Presence, Info) ->
     set_session(SID, User, Server, Resource, Priority, Info),
-    ejabberd_hooks:run(set_presence_hook, jlib:nameprep(Server),
+    ejabberd_hooks:run(set_presence_hook, jid:nameprep(Server),
                        [User, Server, Resource, Presence]).
 
 
@@ -281,10 +277,10 @@ set_presence(SID, User, Server, Resource, Priority, Presence, Info) ->
       Info :: 'undefined' | [any()].
 unset_presence(SID, User, Server, Resource, Status, Info) ->
     set_session(SID, User, Server, Resource, undefined, Info),
-    LServer = jlib:nameprep(Server),
+    LServer = jid:nameprep(Server),
     ejabberd_hooks:run(unset_presence_hook, LServer,
-                       [jlib:nodeprep(User), LServer,
-                        jlib:resourceprep(Resource), Status]).
+                       [jid:nodeprep(User), LServer,
+                        jid:resourceprep(Resource), Status]).
 
 
 -spec close_session_unset_presence(SID, User, Server, Resource, Status, Reason) -> ok when
@@ -296,10 +292,10 @@ unset_presence(SID, User, Server, Resource, Status, Info) ->
       Reason :: close_reason().
 close_session_unset_presence(SID, User, Server, Resource, Status, Reason) ->
     close_session(SID, User, Server, Resource, Reason),
-    LServer = jlib:nameprep(Server),
+    LServer = jid:nameprep(Server),
     ejabberd_hooks:run(unset_presence_hook, LServer,
-                       [jlib:nodeprep(User), LServer,
-                        jlib:resourceprep(Resource), Status]).
+                       [jid:nodeprep(User), LServer,
+                        jid:resourceprep(Resource), Status]).
 
 
 -spec get_session_pid(User, Server, Resource) -> none | pid() when
@@ -307,9 +303,9 @@ close_session_unset_presence(SID, User, Server, Resource, Status, Reason) ->
       Server :: ejabberd:server(),
       Resource :: ejabberd:resource().
 get_session_pid(User, Server, Resource) ->
-    LUser = jlib:nodeprep(User),
-    LServer = jlib:nameprep(Server),
-    LResource = jlib:resourceprep(Resource),
+    LUser = jid:nodeprep(User),
+    LServer = jid:nameprep(Server),
+    LResource = jid:resourceprep(Resource),
     case ?SM_BACKEND:get_sessions(LUser, LServer, LResource) of
         [#session{sid = {_, Pid}}] ->
             Pid;
@@ -444,13 +440,7 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 -spec handle_info(_,_) -> {'noreply',_}.
 handle_info({route, From, To, Packet}, State) ->
-    case catch do_route(From, To, Packet) of
-        {'EXIT', Reason} ->
-            ?ERROR_MSG("~p~nwhen processing: ~p",
-                       [Reason, {From, To, Packet}]);
-        _ ->
-            ok
-    end,
+    xmpp_router:route(?MODULE,From,To,Packet),
     {noreply, State};
 handle_info({register_iq_handler, Host, XMLNS, Module, Function}, State) ->
     ets:insert(sm_iqtable, {{XMLNS, Host}, Module, Function}),
@@ -501,9 +491,9 @@ code_change(_OldVsn, State, _Extra) ->
       Prio :: priority(),
       Info :: undefined | [any()].
 set_session(SID, User, Server, Resource, Priority, Info) ->
-    LUser = jlib:nodeprep(User),
-    LServer = jlib:nameprep(Server),
-    LResource = jlib:resourceprep(Resource),
+    LUser = jid:nodeprep(User),
+    LServer = jid:nameprep(Server),
+    LResource = jid:resourceprep(Resource),
     US = {LUser, LServer},
     USR = {LUser, LServer, LResource},
     Session = #session{sid = SID,
@@ -607,10 +597,10 @@ do_route_no_resource(<<"presence">>, Type, From, To, Packet) ->
             PResources = get_user_present_resources(To#jid.luser, To#jid.lserver),
                     lists:foreach(
                       fun({_, R}) ->
-                      do_route(From, jlib:jid_replace_resource(To, R), Packet)
-                      end, PResources);
-        false ->
-            ok
+      do_route(From, jid:replace_resource(To, R), Packet)
+              end, PResources);
+            false ->
+                ok
         end;
 do_route_no_resource(<<"message">>, _, From, To, Packet) ->
         route_message(From, To, Packet);
@@ -649,7 +639,7 @@ broadcast_packet(From, To, Packet) ->
     lists:foreach(
       fun(R) ->
               do_route(From,
-                       jlib:jid_replace_resource(To, R),
+                       jid:replace_resource(To, R),
                        Packet)
       end, get_user_resources(User, Server)).
 
@@ -786,9 +776,9 @@ get_user_present_resources(LUser, LServer) ->
       Server :: ejabberd:server(),
       Resource :: ejabberd:resource().
 check_for_sessions_to_replace(User, Server, Resource) ->
-    LUser = jlib:nodeprep(User),
-    LServer = jlib:nameprep(Server),
-    LResource = jlib:resourceprep(Resource),
+    LUser = jid:nodeprep(User),
+    LServer = jid:nameprep(Server),
+    LResource = jid:resourceprep(Resource),
 
     %% TODO: Depending on how this is executed, there could be an unneeded
     %% replacement for max_sessions. We need to check this at some point.
@@ -840,7 +830,7 @@ check_max_sessions(LUser, LServer) ->
       Host :: ejabberd:server().
 get_max_user_sessions(LUser, Host) ->
     case acl:match_rule(
-           Host, max_user_sessions, jlib:make_jid(LUser, Host, <<>>)) of
+           Host, max_user_sessions, jid:make(LUser, Host, <<>>)) of
         Max when is_integer(Max) -> Max;
         infinity -> infinity;
         _ -> ?MAX_USER_SESSIONS

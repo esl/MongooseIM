@@ -28,6 +28,7 @@
 -author('alexey@process-one.net').
 
 -behaviour(gen_server).
+-behaviour(xmpp_router).
 
 %% API
 -export([start_link/0]).
@@ -48,9 +49,16 @@
          bounce_resource_packet/3
         ]).
 
+%% Hooks callbacks
+
+-export([node_cleanup/1]).
+
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
+
+%% xmpp_router callback
+-export([do_route/3]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -136,14 +144,7 @@ process_iq_reply(From, To, #iq{id = ID} = IQ) ->
             To :: ejabberd:jid(),
             Packet :: jlib:xmlel()) -> 'ok' | {'error','lager_not_running'}.
 route(From, To, Packet) ->
-    case catch do_route(From, To, Packet) of
-        {'EXIT', Reason} ->
-            ?ERROR_MSG("~p~nwhen processing: ~p",
-                       [Reason, {From, To, Packet}]);
-        _ ->
-            ok
-    end.
-
+    xmpp_router:route(?MODULE, From, To, Packet).
 
 -spec route_iq(From :: ejabberd:jid(),
                To :: ejabberd:jid(),
@@ -236,6 +237,23 @@ unregister_host(Host) ->
     gen_server:call(?MODULE,{unregister_host,Host}).
 
 %%====================================================================
+%% API
+%%====================================================================
+
+node_cleanup(Node) ->
+    F = fun() ->
+                Keys = mnesia:select(
+                         iq_response,
+                         [{#iq_response{timer = '$1', id = '$2', _ = '_'},
+                           [{'==', {node, '$1'}, Node}],
+                           ['$2']}]),
+                lists:foreach(fun(Key) ->
+                                      mnesia:delete({iq_response, Key})
+                              end, Keys)
+        end,
+    mnesia:async_dirty(F).
+
+%%====================================================================
 %% gen_server callbacks
 %%====================================================================
 
@@ -247,18 +265,14 @@ unregister_host(Host) ->
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
 init([]) ->
-    lists:foreach(
-      fun(Host) ->
-              ejabberd_router:register_route(Host, {apply, ?MODULE, route}),
-              ejabberd_hooks:add(local_send_to_resource_hook, Host,
-                                 ?MODULE, bounce_resource_packet, 100)
-      end, ?MYHOSTS),
+    lists:foreach(fun do_register_host/1, ?MYHOSTS),
     catch ets:new(?IQTABLE, [named_table, public]),
     update_table(),
     mnesia:create_table(iq_response,
                         [{ram_copies, [node()]},
                          {attributes, record_info(fields, iq_response)}]),
     mnesia:add_table_copy(iq_response, node(), ram_copies),
+    ejabberd_hooks:add(node_cleanup, global, ?MODULE, node_cleanup, 50),
     {ok, #state{}}.
 
 %%--------------------------------------------------------------------
@@ -273,15 +287,11 @@ init([]) ->
 handle_call({unregister_host, Host}, _From, State) ->
     [ejabberd_c2s:stop(Pid)
      || {_, {_, Pid}, _, _} <- ejabberd_sm:get_vh_session_list(Host)],
-    ejabberd_router:unregister_route(Host),
-    ejabberd_hooks:delete(local_send_to_resource_hook, Host,
-                          ?MODULE, bounce_resource_packet, 100),
+    do_unregister_host(Host),
     mongoose_metrics:remove_host_metrics(Host),
     {reply, ok, State};
 handle_call({register_host, Host}, _From, State) ->
-    ejabberd_router:register_route(Host, {apply, ?MODULE, route}),
-    ejabberd_hooks:add(local_send_to_resource_hook, Host,
-                       ?MODULE, bounce_resource_packet, 100),
+    do_register_host(Host),
     mongoose_metrics:init_predefined_host_metrics(Host),
     {reply, ok, State};
 handle_call(_Request, _From, State) ->
@@ -304,13 +314,7 @@ handle_cast(_Msg, State) ->
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 handle_info({route, From, To, Packet}, State) ->
-    case catch do_route(From, To, Packet) of
-        {'EXIT', Reason} ->
-            ?ERROR_MSG("~p~nwhen processing: ~p",
-                       [Reason, {From, To, Packet}]);
-        _ ->
-            ok
-    end,
+    route(From, To, Packet),
     {noreply, State};
 handle_info({register_iq_handler, Host, XMLNS, Module, Function}, State) ->
     ets:insert(?IQTABLE, {{XMLNS, Host}, Module, Function}),
@@ -357,6 +361,7 @@ handle_info(_Info, State) ->
 %% The return value is ignored.
 %%--------------------------------------------------------------------
 terminate(_Reason, _State) ->
+    ejabberd_hooks:delete(node_cleanup, global, ?MODULE, node_cleanup, 50),
     ok.
 
 %%--------------------------------------------------------------------
@@ -458,3 +463,14 @@ cancel_timer(TRef) ->
         _ ->
             ok
     end.
+
+do_register_host(Host) ->
+    ejabberd_router:register_route(Host, {apply, ?MODULE, route}),
+    ejabberd_hooks:add(local_send_to_resource_hook, Host,
+                       ?MODULE, bounce_resource_packet, 100).
+
+do_unregister_host(Host) ->
+    ejabberd_router:unregister_route(Host),
+    ejabberd_hooks:delete(local_send_to_resource_hook, Host,
+                          ?MODULE, bounce_resource_packet, 100).
+

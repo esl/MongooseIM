@@ -20,7 +20,6 @@ BaseAppsToRun = [compiler,
                  exml,
                  cowboy,
                  fusco,
-                 folsom,
                  exometer],
 
 AppsToRunIn = BaseAppsToRun ++ proplists:get_value(apps_to_run, Conf, []),

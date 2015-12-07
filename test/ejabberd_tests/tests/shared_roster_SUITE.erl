@@ -42,7 +42,7 @@ suite() ->
 %%--------------------------------------------------------------------
 %% Init & teardown
 %%--------------------------------------------------------------------
-init_per_suite(Config) -> 
+init_per_suite(Config) ->
     case get_auth_method() of
         ldap ->
             start_roster_module(ldap),
@@ -78,23 +78,23 @@ end_per_testcase(CaseName,Config) ->
 
 %% Receive presences from roster people
 receive_presences(Config) ->
-    escalus:story(Config,[1],fun(Alice) ->
+    escalus:story(Config,[{alice, 1}],fun(Alice) ->
         % Bob becomes available
         {ok, Bob} = escalus_client:start_for(Config, bob, <<"res1">>),
         escalus:send(Bob, escalus_stanza:presence(<<"available">>)),
-    
+
         % Alice receives presence from Bob
         ReceivedA = escalus:wait_for_stanza(Alice),
         escalus:assert(is_presence,ReceivedA),
         escalus_assert:is_stanza_from(Bob,ReceivedA),
-            
+
         no_stanzas([Alice]),
         escalus_client:stop(Bob)
     end).
 
 get_contacts(Config) ->
-    escalus:story(Config,[1],fun(Alice) -> 
-        % Alice sends get_roster iq 
+    escalus:story(Config,[{alice, 1}],fun(Alice) ->
+        % Alice sends get_roster iq
         escalus_client:send(Alice, escalus_stanza:roster_get()),
         Roster=escalus_client:wait_for_stanza(Alice),
 
@@ -109,10 +109,10 @@ delete_user(Config) ->
     %% wait to invalidate the roster group cache
     timer:sleep(1200),
     escalus_users:delete_users(Config,{by_name, [bob]}),
-    escalus:story(Config,[1],fun(Alice) ->
+    escalus:story(Config,[{alice, 1}],fun(Alice) ->
         escalus_client:send(Alice, escalus_stanza:roster_get()),
         Roster=escalus_client:wait_for_stanza(Alice),
-        
+
         escalus:assert(is_roster_result,Roster),
         escalus:assert(count_roster_items,[NumOfOtherUsers],Roster)
     end).
@@ -120,12 +120,12 @@ delete_user(Config) ->
 add_user(Config) ->
     escalus_users:create_users(Config,{by_name, [bob]}),
     timer:sleep(1200),
-    escalus:story(Config,[1],fun(Alice) -> 
+    escalus:story(Config,[{alice, 1}],fun(Alice) ->
         NumOfOtherUsers = length(escalus_users:get_users(?USERS))-1,
 
         escalus_client:send(Alice, escalus_stanza:roster_get()),
         Roster=escalus_client:wait_for_stanza(Alice),
-        
+
         escalus:assert(is_roster_result,Roster),
         escalus:assert(count_roster_items,[NumOfOtherUsers],Roster)
     end).
@@ -134,7 +134,9 @@ add_user(Config) ->
 %% Helpers
 %%--------------------------------------------------------------------
 start_roster_module(ldap) ->
-    case escalus_ejabberd:rpc(gen_mod, start_module, [ct:get_config(ejabberd_domain), mod_shared_roster_ldap, get_ldap_args()]) of
+    case escalus_ejabberd:rpc(gen_mod, start_module,
+                              [ct:get_config(ejabberd_domain),
+                               mod_shared_roster_ldap, get_ldap_args()]) of
         {badrpc, Reason} ->
             ct:fail("Cannot start module ~p reason ~p", [mod_shared_roster, Reason]);
         _ -> ok
@@ -157,7 +159,7 @@ get_auth_method() ->
 
 get_ldap_args() ->
     [
-     {ldap_base, "ou=Users,dc=ejd,dc=com"},
+     {ldap_base, "ou=Users,dc=esl,dc=com"},
      {ldap_groupattr, "ou"},
      {ldap_memberattr, "cn"},{ldap_userdesc, "cn"},
      {ldap_filter, "(objectClass=inetOrgPerson)"},

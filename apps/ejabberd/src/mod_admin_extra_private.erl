@@ -29,7 +29,6 @@
 
 -export([
     commands/0,
-
     private_get/4,
     private_set/3
     ]).
@@ -50,12 +49,12 @@ commands() ->
                            desc = "Get some information from a user private storage",
                            module = ?MODULE, function = private_get,
                            args = [{user, binary}, {host, binary}, {element, binary}, {ns, binary}],
-                           result = {res, string}},
+                           result = {content, string}},
         #ejabberd_commands{name = private_set, tags = [private],
                            desc = "Set to the user private storage",
                            module = ?MODULE, function = private_set,
                            args = [{user, binary}, {host, binary}, {element, binary}],
-                           result = {res, rescode}}
+                           result = {res, restuple}}
         ].
 
 %%%
@@ -67,51 +66,66 @@ commands() ->
 %% $ mongooseimctl private_get badlop localhost aa bb
 %% <aa xmlns='bb'>Cluth</aa>
 
--spec private_get(ejabberd:user(), ejabberd:server(), binary(), binary()) -> binary().
+-spec private_get(ejabberd:user(), ejabberd:server(), binary(), binary()) ->
+    {error, string()} | string().
 private_get(Username, Host, Element, Ns) ->
-    M = get_private_module(Host),
-    From = jlib:make_jid(Username, Host, <<"">>),
-    To = jlib:make_jid(Username, Host, <<"">>),
+    case ejabberd_auth:is_user_exists(Username, Host) of
+        true ->
+            do_private_get(Username, Host, Element, Ns);
+        false ->
+            {error, io_lib:format("User ~s@~s does not exist", [Username, Host])}
+    end.
+
+do_private_get(Username, Host, Element, Ns) ->
+    From = jid:make(Username, Host, <<"">>),
+    To = jid:make(Username, Host, <<"">>),
     IQ = {iq, <<"">>, get, ?NS_PRIVATE, <<"">>,
           #xmlel{ name = <<"query">>,
-                 attrs = [{<<"xmlns">>,?NS_PRIVATE}],
-                 children = [#xmlel{ name = Element, attrs = [{<<"xmlns">>, Ns}]}] } },
-    ResIq = M:process_sm_iq(From, To, IQ),
+                  attrs = [{<<"xmlns">>,?NS_PRIVATE}],
+                  children = [#xmlel{ name = Element, attrs = [{<<"xmlns">>, Ns}]}] } },
+    ResIq = mod_private:process_sm_iq(From, To, IQ),
     [#xmlel{ name = <<"query">>,
-            attrs = [{<<"xmlns">>,<<"jabber:iq:private">>}],
-            children = [SubEl] }] = ResIq#iq.sub_el,
+             attrs = [{<<"xmlns">>,<<"jabber:iq:private">>}],
+             children = [SubEl] }] = ResIq#iq.sub_el,
     exml:to_binary(SubEl).
 
-
 -spec private_set(ejabberd:user(), ejabberd:server(),
-                  ElementString :: binary()) -> error | ok.
+                  ElementString :: binary()) -> {Res, string()} when
+    Res :: ok | user_does_not_exist | user_does_not_exist | not_loaded.
 private_set(Username, Host, ElementString) ->
     case exml:parse(ElementString) of
         {error, Error} ->
-            io:format("Error found parsing the element:~n  ~p~nError: ~p~n",
+            String = io_lib:format("Error found parsing the element:~n  ~p~nError: ~p~n",
                       [ElementString, Error]),
-            error;
+            {parse_error, String};
         {ok, Xml} ->
             private_set2(Username, Host, Xml)
     end.
 
 
--spec private_set2(ejabberd:user(), ejabberd:server(), Xml :: jlib:xmlel()) -> ok.
 private_set2(Username, Host, Xml) ->
-    M = get_private_module(Host),
-    From = jlib:make_jid(Username, Host, <<"">>),
-    To = jlib:make_jid(Username, Host, <<"">>),
-    IQ = {iq, <<"">>, set, ?NS_PRIVATE, <<"">>,
-          #xmlel{ name = <<"query">>,
-                 attrs = [{<<"xmlns">>,?NS_PRIVATE}],
-                 children = [Xml]}},
-    M:process_sm_iq(From, To, IQ),
-    ok.
-
-
--spec get_private_module(ejabberd:server()) -> 'mod_private' | 'mod_private_odbc'.
-get_private_module(Server) ->
-    case lists:member(mod_private, gen_mod:loaded_modules(Server)) of
-        true -> mod_private;
-        _ -> mod_private_odbc
+    case ejabberd_auth:is_user_exists(Username, Host) of
+        true ->
+            do_private_set2(Username, Host, Xml);
+        false ->
+            {user_does_not_exist, io_lib:format("User ~s@~s does not exist", [Username, Host])}
     end.
+
+do_private_set2(Username, Host, Xml) ->
+    case is_private_module_loaded(Host) of
+        true ->
+            From = jid:make(Username, Host, <<"">>),
+            To = jid:make(Username, Host, <<"">>),
+            IQ = {iq, <<"">>, set, ?NS_PRIVATE, <<"">>,
+                  #xmlel{ name = <<"query">>,
+                          attrs = [{<<"xmlns">>,?NS_PRIVATE}],
+                          children = [Xml]}},
+            mod_private:process_sm_iq(From, To, IQ),
+            {ok, ""};
+        false ->
+            {not_loaded, io_lib:format("Module mod_private is not loaded on host ~s", [Host])}
+    end.
+
+-spec is_private_module_loaded(ejabberd:server()) -> true | false.
+is_private_module_loaded(Server) ->
+    lists:member(mod_private, gen_mod:loaded_modules(Server)).

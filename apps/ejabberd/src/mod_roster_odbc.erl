@@ -1,7 +1,7 @@
 %%%----------------------------------------------------------------------
 %%% File    : mod_roster_odbc.erl
 %%% Author  : Michał Piotrowski <michal.piotrowski@erlang-solutions.com>
-%%% Purpose : mod_roster_odbc odbc backend (XEP-0012)
+%%% Purpose : mod_roster_odbc odbc backend
 %%%
 %%%
 %%% ejabberd, Copyright (C) 2002-2014   ProcessOne
@@ -10,7 +10,6 @@
 %%%----------------------------------------------------------------------
 
 -module(mod_roster_odbc).
-
 -include("mod_roster.hrl").
 -include("jlib.hrl").
 
@@ -18,6 +17,7 @@
 
 %% API
 -export([init/2,
+         transaction/2,
          read_roster_version/2,
          write_roster_version/4,
          get_roster/2,
@@ -35,6 +35,11 @@
 -spec init(ejabberd:server(), list()) -> ok.
 init(_Host, _Opts) ->
     ok.
+
+-spec transaction(LServer :: ejabberd:lserver(), F :: fun()) ->
+    {aborted, Reason :: any()} | {atomic, Result :: any()}.
+transaction(LServer, F) ->
+    ejabberd_odbc:sql_transaction(LServer, F).
 
 -spec read_roster_version(ejabberd:luser(), ejabberd:lserver())
 -> binary() | error.
@@ -87,7 +92,7 @@ get_roster(LUser, LServer) ->
                                                error -> [];
                                                R ->
                                                    SJID =
-                                                   jlib:jid_to_binary(R#roster.jid),
+                                                   jid:to_binary(R#roster.jid),
                                                    Groups = case dict:find(SJID,
                                                                            GroupsDict)
                                                             of
@@ -104,7 +109,7 @@ get_roster(LUser, LServer) ->
 
 get_roster_by_jid_t(LUser, LServer, LJID) ->
     Username = ejabberd_odbc:escape(LUser),
-    SJID = ejabberd_odbc:escape(jlib:jid_to_binary(LJID)),
+    SJID = ejabberd_odbc:escape(jid:to_binary(LJID)),
     {selected,
      [<<"username">>, <<"jid">>, <<"nick">>,
       <<"subscription">>, <<"ask">>, <<"askmessage">>,
@@ -144,13 +149,13 @@ get_subscription_lists(_, LUser, LServer) ->
 roster_subscribe_t(LUser, LServer, LJID, Item) ->
     ItemVals = record_to_string(Item),
     Username = ejabberd_odbc:escape(LUser),
-    SJID = ejabberd_odbc:escape(jlib:jid_to_binary(LJID)),
+    SJID = ejabberd_odbc:escape(jid:to_binary(LJID)),
     odbc_queries:roster_subscribe(LServer, Username, SJID,
                                   ItemVals).
 
 get_roster_by_jid_with_groups_t(LUser, LServer, LJID) ->
     Username = ejabberd_odbc:escape(LUser),
-    SJID = ejabberd_odbc:escape(jlib:jid_to_binary(LJID)),
+    SJID = ejabberd_odbc:escape(jid:to_binary(LJID)),
     case odbc_queries:get_roster_by_jid(LServer, Username,
                                         SJID)
     of
@@ -179,29 +184,28 @@ get_roster_by_jid_with_groups_t(LUser, LServer, LJID) ->
 
 remove_user(LUser, LServer) ->
     Username = ejabberd_odbc:escape(LUser),
-    mod_roster:send_unsubscription_to_rosteritems(LUser, LServer),
     odbc_queries:del_user_roster_t(LServer, Username),
     ok.
 
 update_roster_t(LUser, LServer, LJID, Item) ->
     Username = ejabberd_odbc:escape(LUser),
-    SJID = ejabberd_odbc:escape(jlib:jid_to_binary(LJID)),
+    SJID = ejabberd_odbc:escape(jid:to_binary(LJID)),
     ItemVals = record_to_string(Item),
     ItemGroups = groups_to_string(Item),
     odbc_queries:update_roster(LServer, Username, SJID, ItemVals, ItemGroups).
 
 del_roster_t(LUser, LServer, LJID) ->
     Username = ejabberd_odbc:escape(LUser),
-    SJID = ejabberd_odbc:escape(jlib:jid_to_binary(LJID)),
+    SJID = ejabberd_odbc:escape(jid:to_binary(LJID)),
     odbc_queries:del_roster(LServer, Username, SJID).
 
 raw_to_record(LServer,
               {User, SJID, Nick, SSubscription, SAsk, SAskMessage,
                _SServer, _SSubscribe, _SType}) ->
-    case jlib:binary_to_jid(SJID) of
+    case jid:from_binary(SJID) of
         error -> error;
         JID ->
-            LJID = jlib:jid_tolower(JID),
+            LJID = jid:to_lower(JID),
             Subscription = case SSubscription of
                                <<"B">> -> both;
                                <<"T">> -> to;
@@ -224,7 +228,7 @@ raw_to_record(LServer,
 
 read_subscription_and_groups(LUser, LServer, LJID) ->
     Username = ejabberd_odbc:escape(LUser),
-    SJID = ejabberd_odbc:escape(jlib:jid_to_binary(LJID)),
+    SJID = ejabberd_odbc:escape(jid:to_binary(LJID)),
     case catch odbc_queries:get_subscription(LServer,
                                              Username, SJID)
     of
@@ -256,7 +260,7 @@ record_to_string(#roster{us = {User, _Server},
                          ask = Ask, askmessage = AskMessage}) ->
     Username = ejabberd_odbc:escape(User),
     SJID =
-    ejabberd_odbc:escape(jlib:jid_to_binary(jlib:jid_tolower(JID))),
+    ejabberd_odbc:escape(jid:to_binary(jid:to_lower(JID))),
     Nick = ejabberd_odbc:escape(Name),
     SSubscription = case Subscription of
                         both -> <<"B">>;
@@ -280,7 +284,7 @@ groups_to_string(#roster{us = {User, _Server},
                          jid = JID, groups = Groups}) ->
     Username = ejabberd_odbc:escape(User),
     SJID =
-    ejabberd_odbc:escape(jlib:jid_to_binary(jlib:jid_tolower(JID))),
+    ejabberd_odbc:escape(jid:to_binary(jid:to_lower(JID))),
     lists:foldl(fun (<<"">>, Acc) -> Acc;
                     (Group, Acc) ->
                         G = ejabberd_odbc:escape(Group),

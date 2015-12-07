@@ -94,8 +94,9 @@ cleanup(Node) ->
                        [{#session{sid = {'_', '$1'}, _ = '_'},
                          [{'==', {node, '$1'}, Node}],
                          ['$_']}]),
-                lists:foreach(fun(E) ->
-                                      mnesia:delete({session, E#session.sid})
+                lists:foreach(fun(#session{ usr = {U, S, R}, sid = SID }) ->
+                                      mnesia:delete({session, SID}),
+                                      ejabberd_hooks:run(session_cleanup, S, [U, S, R, SID])
                               end, Es)
 
         end,

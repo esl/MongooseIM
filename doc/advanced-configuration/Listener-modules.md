@@ -38,7 +38,11 @@ Currently it is not possible to use different ports e.g. for BOSH and Websockets
 * `key_pass` (string, optional, default: `undefined`) - Password to a private key, `undefined` for no password.
 * `modules` (list of tuples: `{Host, Path, Modules}`) - List of enabled HTTP-based modules. `"_"` equals any host.
     * `mod_bosh` - BOSH connections handler. Default declaration: `{"_", "/http-bind", mod_bosh}`
-    * `mod_websockets` - Websocket connections, both [old](http://xmpp.org/extensions/xep-0206.html) and [new](http://datatracker.ietf.org/doc/draft-ietf-xmpp-websocket/?include_text=1) type. Default declaration: `{"_", "/ws-xmpp", mod_websockets}`
+    * `mod_websockets` - Websocket connections, both [old](http://xmpp.org/extensions/xep-0206.html) and [new](http://datatracker.ietf.org/doc/draft-ietf-xmpp-websocket/?include_text=1) type. You can pass optional
+    parameters: `{timeout, Val}` and `{ping_rate, Val}`. The first one is the time after which an inactive user is
+    disconnected. The Ping rate points to the time between pings sent by server. By declaring this field you enable
+    server-side pinging. Default declaration:
+     `{"_", "/ws-xmpp", mod_websockets, []}`.
     * `mongoose_api` - REST API for accessing internal MongooseIM metrics. Please refer to [REST interface to metrics](../developers-guide/REST-interface-to-metrics.md) for more information. Default declaration: `{"localhost", "/api", mongoose_api, [{handlers, [mongoose_api_metrics]}]}`.
 
 ## ejabberd_s2s_in

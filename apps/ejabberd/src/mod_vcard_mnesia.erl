@@ -44,7 +44,7 @@ get_vcard(LUser, LServer) ->
     end.
 
 set_vcard(User, VHost, VCard, VCardSearch) ->
-    LUser = jlib:nodeprep(User),
+    LUser = jid:nodeprep(User),
     F = fun() ->
                 mnesia:write(#vcard{us ={LUser,VHost}, vcard = VCard}),
                 mnesia:write(VCardSearch)

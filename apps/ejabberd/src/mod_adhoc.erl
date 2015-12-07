@@ -123,7 +123,7 @@ get_sm_commands(Acc, _From, #jid{lserver = LServer} = To, <<"">>, Lang) ->
                         _ -> []
                     end,
             Nodes = [#xmlel{name = <<"item">>,
-                            attrs = [{<<"jid">>, jlib:jid_to_binary(To)},
+                            attrs = [{<<"jid">>, jid:to_binary(To)},
                                      {<<"node">>, ?NS_COMMANDS},
                                      {<<"name">>, translate:translate(Lang, <<"Commands">>)}]}],
             {result, Items ++ Nodes}
