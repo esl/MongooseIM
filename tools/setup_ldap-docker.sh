@@ -3,7 +3,7 @@
 
 LDAP_INSTANCE=mongooseim-ldap
 LDAP_HOST="http://${1}:389"
-SSH_DOCKERMACHINE_ALIAS="docker_ldap"
+SSH_DOCKERMACHINE_ALIAS="backendhost"
 PROVISIONING_LDAP_FULLFILENAME="setup_ldap-remote.sh"
 
 echo "uploading script to remotely initialize ldap server ${LDAP_HOST} ..."
