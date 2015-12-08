@@ -62,13 +62,6 @@
                   info
                  }).
 
--ifdef(no_binary_to_integer).
-
--import(ejabberd_binary, [binary_to_integer/1,
-                          integer_to_binary/1]).
-
--endif. % ifdef no_binary_to_integer
-
 -record(scram,
         {storedkey = <<"">>,
          serverkey = <<"">>,
