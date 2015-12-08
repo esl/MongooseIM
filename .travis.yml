@@ -1,7 +1,8 @@
 language: erlang
 before_install:
+        - sudo apt-get update
         - sudo apt-get install libpam0g-dev libexpat1-dev odbc-postgresql libmyodbc
-        - if [ $PRESET = 'ldap_mnesia' ]; then sudo apt-get update && sudo apt-get install slapd ldap-utils; fi
+        - if [ $PRESET = 'ldap_mnesia' ]; then sudo apt-get install slapd ldap-utils; fi
         - tools/travis-generate-pass.sh
 install:
         - tools/travis-build.sh
@@ -48,5 +49,5 @@ matrix:
           env: PRESET=internal_mnesia DB=mnesia REL_CONFIG=minimal
         - otp_release: R16B03
           env: PRESET=internal_mnesia DB=mnesia REL_CONFIG=minimal
-        - otp_release: 18.0
+        - otp_release: 18.1
           env: PRESET=internal_mnesia DB=mnesia REL_CONFIG=minimal
