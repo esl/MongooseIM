@@ -45,8 +45,6 @@ env:
 
 matrix:
     include:
-        - otp_release: R15B03
-          env: PRESET=internal_mnesia DB=mnesia REL_CONFIG=minimal
         - otp_release: R16B03
           env: PRESET=internal_mnesia DB=mnesia REL_CONFIG=minimal
         - otp_release: 18.1
