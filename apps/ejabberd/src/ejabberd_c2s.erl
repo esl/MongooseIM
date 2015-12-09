@@ -384,7 +384,7 @@ can_use_tls(SockMod, TLS, TLSEnabled) ->
 
 can_use_zlib_compression(Zlib, SockMod) ->
     Zlib andalso ( (SockMod == gen_tcp) orelse
-                   (SockMod == tls) ).
+                   (SockMod == ejabberd_tls) ).
 
 compression_zlib() ->
     #xmlel{name = <<"compression">>,
@@ -604,7 +604,7 @@ wait_for_feature_request({xmlstreamelement, El}, StateData) ->
                                           });
         {?NS_COMPRESS_BIN, <<"compress">>} when Zlib == true,
                                                 ((SockMod == gen_tcp) or
-                                                 (SockMod == tls)) ->
+                                                 (SockMod == ejabberd_tls)) ->
             case xml:get_subtag(El, <<"method">>) of
                 false ->
                     send_element(StateData, compress_setup_failed()),
