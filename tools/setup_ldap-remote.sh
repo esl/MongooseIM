@@ -6,10 +6,9 @@ LDAP_PORT=389
 LDAP_HOST=localhost  #script to be run where ldap server is
 LDAP_ROOTPASS="mongoose"
 
-cat > ${LDIF_FILE_PATH} <<EOF
- EOL
+cat > ${LDIF_FILE_PATH} <<EOL
 dn: ou=Users,dc=esl,dc=com
-objectClass: organizationalUnit
+objectClass: OrganizationalUnit
 ou: users
 EOL
 
@@ -22,4 +21,9 @@ until [ $STATUS -eq 0 ] || [ $RETRIES -eq 0 ]; do
     STATUS=$?
     (( RETRIES-- ))
 done
-EOF
+
+if [ $RETRIES -eq 0 ] && [ $STATUS -ne 0 ]; then
+    echo "LDAP connection retries exceeded"
+    exit 1
+fi
+
