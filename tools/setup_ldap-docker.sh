@@ -9,5 +9,5 @@ echo "uploading script to remotely initialize ldap server ${LDAP_HOST} ..."
 rsync -avz -e ssh "${PROVISIONING_LDAP_FULLFILENAME}" ${SSH_DOCKERMACHINE_ALIAS}:/home/go
 
 echo "executing remote ldap setup..."
-ssh ${SSH_DOCKERMACHINE_ALIAS} './home/go/setup_ldap-remote.sh'
+ssh ${SSH_DOCKERMACHINE_ALIAS} 'source ~/setup_ldap-remote.sh'
 
