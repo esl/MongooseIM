@@ -279,12 +279,15 @@ stream_start_by_protocol_version(_Pre_1_0, #state{lang = Lang, server = Server} 
 
 stream_start_negotiate_features(#state{} = S) ->
     send_header(S, S#state.server, <<"1.0">>, default_language()),
-    case {S#state.authenticated, S#state.resource} of
-        {false, _} ->
+    SockMod = (S#state.sockmod):get_sockmod(S#state.socket),
+    case {S#state.authenticated, S#state.resource, SockMod} of
+        {false, _, _} ->
             stream_start_features_before_auth(S);
-        {_, <<>>} ->
+        {_, <<>>, ejabberd_zlib} ->
             stream_start_features_before_bind(S);
-        {_, _} ->
+        {_, <<>>, _} ->
+            stream_start_features_before_auth(S);
+        {_, _, _} ->
             send_element(S, #xmlel{name = <<"stream:features">>}),
             fsm_next_state(wait_for_session_or_sm, S)
     end.
