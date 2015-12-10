@@ -279,13 +279,12 @@ stream_start_by_protocol_version(_Pre_1_0, #state{lang = Lang, server = Server} 
 
 stream_start_negotiate_features(#state{} = S) ->
     send_header(S, S#state.server, <<"1.0">>, default_language()),
-    SockMod = (S#state.sockmod):get_sockmod(S#state.socket),
-    case {S#state.authenticated, S#state.resource, SockMod} of
-        {false, _, _} ->
+    case {S#state.authenticated, S#state.resource} of
+        {false, _} ->
             stream_start_features_before_auth(S);
-        {_, <<>>, _} ->
+        {_, <<>>} ->
             stream_start_features_before_bind(S);
-        {_, _, _} ->
+        {_, _} ->
             send_element(S, #xmlel{name = <<"stream:features">>}),
             fsm_next_state(wait_for_session_or_sm, S)
     end.
@@ -313,12 +312,11 @@ stream_start_features_before_auth(#state{server = Server} = S) ->
 
 stream_start_features_before_bind(#state{server = Server} = S) ->
     SockMod = (S#state.sockmod):get_sockmod(S#state.socket),
-    Features = (
-            [#xmlel{name = <<"bind">>,
+    Features = (maybe_compress_feature(SockMod, S)
+            ++ [#xmlel{name = <<"bind">>,
                          attrs = [{<<"xmlns">>, ?NS_BIND}]},
                   #xmlel{name = <<"session">>,
                          attrs = [{<<"xmlns">>, ?NS_SESSION}]}]
-                 ++ maybe_compress_feature(SockMod, S)
                  ++ maybe_roster_versioning_feature(Server)
                  ++ hook_enabled_features(Server) ),
     send_element(S, stream_features(Features)),
@@ -720,19 +718,7 @@ wait_for_bind_or_resume({xmlstreamelement, El}, StateData) ->
                                    StateData#state{resource = R, jid = JID})
             end;
         _ ->
-            SockMod = (StateData#state.sockmod):get_sockmod(StateData#state.socket),
-            {Zlib, _} = StateData#state.zlib,
-            #xmlel{name = Name, attrs = Attrs, children = _} = El,
-            case {xml:get_attr_s(<<"xmlns">>, Attrs), Name} of
-                {?NS_COMPRESS_BIN, <<"compress">>} when Zlib == true,
-                                                        ((SockMod == gen_tcp) or
-                                                         (SockMod == ejabberd_tls)) ->
-                    do_compress_feature(El, wait_for_bind_or_resume, StateData);
-                _ ->
-                    process_unauthenticated_stanza(StateData, El),
-                    fsm_next_state(wait_for_bind_or_resume, StateData)
-
-            end
+            maybe_do_compress(El, wait_for_bind_or_resume, StateData)
     end;
 
 wait_for_bind_or_resume(timeout, StateData) ->
@@ -770,7 +756,7 @@ wait_for_session_or_sm({xmlstreamelement, El}, StateData0) ->
         #iq{type = set, xmlns = ?NS_SESSION} ->
             maybe_open_session(El, StateData);
         _ ->
-            fsm_next_state(wait_for_session_or_sm, StateData)
+            maybe_do_compress(El, wait_for_session_or_sm, StateData)
     end;
 
 wait_for_session_or_sm(timeout, StateData) ->
@@ -788,12 +774,27 @@ wait_for_session_or_sm({xmlstreamerror, _}, StateData) ->
 wait_for_session_or_sm(closed, StateData) ->
     {stop, normal, StateData}.
 
+maybe_do_compress(El, NextState, StateData) ->
+    SockMod = (StateData#state.sockmod):get_sockmod(StateData#state.socket),
+    {Zlib, _} = StateData#state.zlib,
+    #xmlel{name = Name, attrs = Attrs, children = _} = El,
+    case {xml:get_attr_s(<<"xmlns">>, Attrs), Name} of
+        {?NS_COMPRESS_BIN, <<"compress">>} when Zlib == true,
+                                                ((SockMod == gen_tcp) or
+                                                 (SockMod == ejabberd_tls)) ->
+            do_compress_feature(El, NextState, StateData);
+        _ ->
+            process_unauthenticated_stanza(StateData, El),
+            fsm_next_state(NextState, StateData)
+
+    end.
+
 do_compress_feature(El, NextState, StateData) ->
     {_, ZlibLimit} = StateData#state.zlib,
     case xml:get_subtag(El, <<"method">>) of
         false ->
             send_element(StateData, compress_setup_failed()),
-            fsm_next_state(wait_for_feature_request, StateData);
+            fsm_next_state(NextState, StateData);
         Method ->
             case xml:get_tag_cdata(Method) of
                 <<"zlib">> ->
