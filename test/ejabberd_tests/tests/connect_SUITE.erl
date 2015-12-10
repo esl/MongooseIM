@@ -26,8 +26,7 @@
 -include_lib("stdlib/include/ms_transform.hrl").
 -define(assert_equal(E, V), (
     [ct:fail("ASSERT EQUAL~n\tExpected ~p~n\tValue ~p~n", [(E), (V)])
-     || (E) =/= (V)]
-)).
+     || (E) =/= (V)])).
 -define(SECURE_USER, secure_joe).
 -define(CERT_FILE, "priv/ssl/fake_server.pem").
 -define(TLS_VERSIONS, ["tlsv1", "tlsv1.1", "tlsv1.2"]).
@@ -61,11 +60,13 @@ groups() ->
                      invalid_stream_namespace]},
      {pre_xmpp_1_0, [], [pre_xmpp_1_0_stream]},
      {starttls, test_cases()},
-     {feature_order, [tls_authenticate,
+     {feature_order, [stream_features_test,
+                      tls_authenticate,
                       tls_compression,
                       tls_compression_authenticate,
                       tls_authenticate_compression,
-                      stream_features_test]},
+                      auth_compression_bind_session,
+                      auth_bind_compression_session]},
      {tls, generate_tls_vsn_tests()},
      {ciphers_default, [], [clients_can_connect_with_advertised_ciphers,
                             'clients_can_connect_with_DHE-RSA-AES256-SHA',
@@ -425,6 +426,102 @@ tls_compression(Config) ->
     SSL = Conn#client.ssl,
     ?assert(false =/= Compress),
     ?assert(false =/= SSL).
+
+%% tests for different order feature negotiation
+stream_features_test(Config) ->
+    UserSpec = escalus_users:get_userspec(Config, ?SECURE_USER),
+    List = [start_stream, stream_features, {?MODULE, verify_features}],
+    escalus_connection:start(UserSpec, List),
+    ok.
+
+verify_features(Conn, Props, Features) ->
+    %% should not advertise compression before tls
+    ?assert_equal(false, has_feature(compression, Features)),
+    %% start tls. Starttls should be then removed from list and compression should be added
+    {Conn1, Props1} = escalus_session:starttls(Conn, Props),
+    {Conn2, Props2, Features2} = escalus_session:stream_features(Conn1, Props1, []),
+    ?assert_equal(false, has_feature(starttls, Features2)),
+    ?assert(false =/= has_feature(compression, Features2)),
+    %% start compression. Compression should be then removed from list
+    {Conn3, Props3} = escalus_session:compress(Conn2, Props2),
+    {Conn4, Props4, Features4} = escalus_session:stream_features(Conn3, Props3, []),
+    ?assert_equal(false, has_feature(compression, Features4)),
+    ?assert_equal(false, has_feature(starttls, Features4)),
+    %%
+    escalus_session:authenticate(Conn4, Props4, Features4).
+
+has_feature(Feature, FeatureList) ->
+    {_, Value} = lists:keyfind(Feature, 1, FeatureList),
+    Value.
+
+
+tls_compression_authenticate(Config) ->
+    %% Given
+    UserSpec = escalus_users:get_userspec(Config, ?SECURE_USER),
+    ConnetctionSteps = [start_stream, stream_features, maybe_use_ssl, maybe_use_compression, authenticate],
+    %% then
+    {ok, Conn, _, _} = escalus_connection:start(UserSpec, ConnetctionSteps),
+    % when
+    Compress = Conn#client.compress,
+    SSL = Conn#client.ssl,
+    ?assert(false =/= Compress),
+    ?assert(false =/= SSL).
+
+tls_authenticate_compression(Config) ->
+    %% Given
+    UserSpec = escalus_users:get_userspec(Config, ?SECURE_USER),
+    ConnetctionSteps = [start_stream, stream_features, maybe_use_ssl, authenticate, maybe_use_compression],
+    %% then
+    {ok, Conn, _, _} = escalus_connection:start(UserSpec, ConnetctionSteps),
+    % when
+    Compress = Conn#client.compress,
+    SSL = Conn#client.ssl,
+    ?assert(false =/= Compress),
+    ?assert(false =/= SSL).
+
+tls_authenticate(Config) ->
+    %% Given
+    UserSpec = escalus_users:get_userspec(Config, ?SECURE_USER),
+    ConnetctionSteps = [start_stream, stream_features, maybe_use_ssl, authenticate],
+    %% then
+    {ok, Conn, _, _} = escalus_connection:start(UserSpec, ConnetctionSteps),
+    % when,
+    SSL = Conn#client.ssl,
+    ?assert(false =/= SSL).
+
+tls_compression(Config) ->
+    %% Given
+    UserSpec = escalus_users:get_userspec(Config, ?SECURE_USER),
+    ConnetctionSteps = [start_stream, stream_features, maybe_use_ssl, maybe_use_compression],
+    %% then
+    {ok, Conn, _, _} = escalus_connection:start(UserSpec, ConnetctionSteps),
+    % when
+    Compress = Conn#client.compress,
+    SSL = Conn#client.ssl,
+    ?assert(false =/= Compress),
+    ?assert(false =/= SSL).
+
+auth_compression_bind_session(Config) ->
+    %% Given
+    UserSpec = escalus_users:get_userspec(Config, ?SECURE_USER),
+    ConnetctionSteps = [start_stream, stream_features, maybe_use_ssl,
+        authenticate, maybe_use_compression, bind, session],
+    %% then
+    {ok, Conn, _, _} = escalus_connection:start(UserSpec, ConnetctionSteps),
+    % when
+    Compress = Conn#client.compress,
+    ?assert(false =/= Compress).
+
+auth_bind_compression_session(Config) ->
+    %% Given
+    UserSpec = escalus_users:get_userspec(Config, ?SECURE_USER),
+    ConnetctionSteps = [start_stream, stream_features, maybe_use_ssl,
+        authenticate, bind, maybe_use_compression, session],
+    %% then
+    {ok, Conn, _, _} = escalus_connection:start(UserSpec, ConnetctionSteps),
+    % when
+    Compress = Conn#client.compress,
+    ?assert(false =/= Compress).
 
 %%--------------------------------------------------------------------
 %% Internal functions
