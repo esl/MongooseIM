@@ -1159,7 +1159,7 @@ muc_multiple_devices(Config) ->
         ?assert_equal(RoomAddr, By),
         ok
         end,
-    escalus:story(Config, [2, 1], F).
+    escalus:story(Config, [{alice, 2}, {bob, 1}], F).
 
 muc_private_message(Config) ->
     F = fun(Alice, Bob) ->
@@ -2020,7 +2020,7 @@ send_muc_rsm_messages(Config) ->
         ok
         end,
     Config1 = escalus:init_per_testcase(pre_rsm, Config),
-    escalus:story(Config1, [1, 1], F),
+    escalus:story(Config1, [{alice, 1}, {bob, 1}], F),
     ParsedMessages = receive {parsed_messages, PM} -> PM
                      after 5000 -> error(receive_timeout) end,
 
@@ -2047,7 +2047,7 @@ send_rsm_messages(Config) ->
         ok
         end,
     Config1 = escalus:init_per_testcase(pre_rsm, Config),
-    escalus:story(Config1, [1, 1], F),
+    escalus:story(Config1, [{alice, 1}, {bob, 1}], F),
     ParsedMessages = receive {parsed_messages, PM} -> PM
                      after 5000 -> error(receive_timeout) end,
 

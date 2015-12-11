@@ -142,7 +142,7 @@ roster_push(ConfigIn) ->
     Config = mongoose_metrics(ConfigIn, [{['_', modRosterSets], 1},
                                          {['_', modRosterPush], 2}]),
 
-    escalus:story(Config, [2, 1], fun(Alice1, Alice2, Bob) ->
+    escalus:story(Config, [{alice, 2}, {bob, 1}], fun(Alice1, Alice2, Bob) ->
 
         %% add contact
         escalus_client:send(Alice1,

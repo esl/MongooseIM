@@ -249,7 +249,7 @@ default(Config) ->
         end).
 
 default_conflict(Config) ->
-    escalus:story(Config, [2, 1], fun(Alice, Alice2, _Bob) ->
+    escalus:story(Config, [{alice, 2}, {bob, 1}], fun(Alice, Alice2, _Bob) ->
 
         %% testcase setup
         %% setup list on server
@@ -299,7 +299,7 @@ no_default(Config) ->
         end).
 
 set_list(Config) ->
-    escalus:story(Config, [3, 1], fun(Alice, Alice2, Alice3, _Bob) ->
+    escalus:story(Config, [{alice, 3}, {bob, 1}], fun(Alice, Alice2, Alice3, _Bob) ->
 
         privacy_helper:send_set_list(Alice, <<"deny_bob">>),
 

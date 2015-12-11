@@ -144,7 +144,7 @@ additions(Config) ->
         end).
 
 negative_priority_presence(Config) ->
-    escalus:story(Config, [2, 1], fun(Alice1, Alice2, Bob) ->
+    escalus:story(Config, [{alice, 2}, {bob, 1}], fun(Alice1, Alice2, Bob) ->
 
         %% Alice1 updates presense priority
         Tags = escalus_stanza:tags([
