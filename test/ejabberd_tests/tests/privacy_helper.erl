@@ -23,13 +23,51 @@ set_and_activate(Client, ListName) ->
 
 send_set_list(Client, ListName) ->
     Stanza = escalus_stanza:privacy_set_list(privacy_list(ListName)),
-    escalus:send(Client, Stanza).
+    escalus:send(Client, Stanza),
+    Stanza.
 
 %% Sets the list on server.
 set_list(Client, ListName) ->
-    send_set_list(Client, ListName),
+    Stanza = send_set_list(Client, ListName),
     Responses = escalus:wait_for_stanzas(Client, 2),
-    escalus:assert_many([is_iq_result, is_privacy_set], Responses).
+    escalus:assert_many([is_iq_result, is_privacy_set], Responses),
+    GetStanza = escalus_stanza:privacy_get_lists([ListName]),
+    escalus:send(Client, GetStanza),
+    GetResultStanza = escalus:wait_for_stanza(Client),
+    escalus:assert(fun does_result_match_request/3, [Stanza, GetStanza], GetResultStanza).
+
+does_result_match_request(SetRequest, GetRequest, Result) ->
+    escalus_pred:is_iq_result(GetRequest, Result) andalso
+    does_privacy_list_match(SetRequest, Result).
+
+does_privacy_list_match(Request, Result) ->
+    does_privacy_list_name_match(Request, Result) andalso
+    does_privacy_list_children_match(Request, Result).
+
+does_privacy_list_name_match(Request, Result) ->
+    NamePath = [{element, <<"query">>},
+                {element, <<"list">>},
+                {attr, <<"name">>}],
+
+    ListName = exml_query:path(Request, NamePath),
+    ListName == exml_query:path(Result, NamePath).
+
+does_privacy_list_children_match(Request, Result) ->
+    ChildrenPath = [{element, <<"query">>},
+                    {element, <<"list">>}],
+    RequestChildren = exml_query:subelements(exml_query:path(Request, ChildrenPath), <<"item">>),
+    ResultChildren = exml_query:subelements(exml_query:path(Result, ChildrenPath), <<"item">>),
+    lists:all(fun do_items_match/1, lists:zip(RequestChildren, ResultChildren)).
+
+do_items_match({#xmlel{attrs = Props1}, #xmlel{attrs = Props2}}) ->
+    L = [attr_match(Name, Value, Props2) || {Name, Value} <- Props1],
+    lists:all(fun(E) -> true == E end, L).
+
+attr_match(<<"value">>, Value, Props) ->
+    ValueL = escalus_utils:jid_to_lower(Value),
+    ValueL == escalus_utils:jid_to_lower(proplists:get_value(<<"value">>, Props));
+attr_match(Name, Value, Props) ->
+    Value == proplists:get_value(Name, Props).
 
 %% Make the list the active one.
 activate_list(Client, ListName) ->
