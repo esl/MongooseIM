@@ -4,7 +4,7 @@ INSTANCE_NAME="mongooseim-redis"
 IMAGE_NAME="redis:3.0.5"
 
 # SSH alias for target docker host machine
-SSH_DOCKERMACHINE_ALIAS="docker_redis"
+SSH_DOCKERMACHINE_ALIAS="backendhost"
 
 if [ $# -eq 1 ]
 then
