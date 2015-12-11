@@ -46,6 +46,8 @@
 -define(BACKEND, mod_privacy_backend).
 
 -export_type([userlist/0]).
+-export_type([list_name/0]).
+-export_type([list_item/0]).
 
 -type userlist() :: #userlist{}.
 -type list_name() :: binary().
@@ -134,9 +136,7 @@ start(Host, Opts) ->
     ejabberd_hooks:add(remove_user, Host,
                ?MODULE, remove_user, 50),
     ejabberd_hooks:add(anonymous_purge_hook, Host,
-        ?MODULE, remove_user, 50),
-    gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_PRIVACY,
-                  ?MODULE, process_iq, IQDisc).
+        ?MODULE, remove_user, 50).
 
 stop(Host) ->
     ejabberd_hooks:delete(privacy_iq_get, Host,
@@ -152,8 +152,7 @@ stop(Host) ->
     ejabberd_hooks:delete(remove_user, Host,
               ?MODULE, remove_user, 50),
     ejabberd_hooks:delete(anonymous_purge_hook, Host,
-        ?MODULE, remove_user, 50),
-    gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_PRIVACY).
+        ?MODULE, remove_user, 50).
 
 %% Handlers
 %% ------------------------------------------------------------------
@@ -601,7 +600,7 @@ item_to_xml_attrs(Item=#listitem{type=Type, value=Value}) ->
 item_to_xml_attrs1(#listitem{action=Action, order=Order}) ->
     [{<<"action">>, action_to_binary(Action)},
      {<<"order">>, order_to_binary(Order)}].
-    
+
 item_to_xml_children(#listitem{match_all=true}) ->
     [];
 item_to_xml_children(#listitem{match_all=false,
