@@ -3,7 +3,7 @@
 
 RIAK_INSTANCE=mongooseim-riak
 RIAK_HOST="http://${1}:8098"
-SSH_DOCKERMACHINE_ALIAS="docker_riak"
+SSH_DOCKERMACHINE_ALIAS="backendhost"
 
 echo "uploading search schemas to:" ${RIAK_HOST}
 
