@@ -607,7 +607,7 @@ wait_for_feature_request({xmlstreamelement, El}, StateData) ->
         {?NS_COMPRESS_BIN, <<"compress">>} when Zlib == true,
                                                 ((SockMod == gen_tcp) or
                                                  (SockMod == ejabberd_tls)) ->
-            do_compress_feature(El, wait_for_feature_request, StateData);
+            do_compress(El, wait_for_feature_request, StateData);
         _ ->
             if
                 TLSRequired and not TLSEnabled ->
@@ -782,34 +782,42 @@ maybe_do_compress(El, NextState, StateData) ->
         {?NS_COMPRESS_BIN, <<"compress">>} when Zlib == true,
                                                 ((SockMod == gen_tcp) or
                                                  (SockMod == ejabberd_tls)) ->
-            do_compress_feature(El, NextState, StateData);
+            do_compress(El, NextState, StateData);
         _ ->
             process_unauthenticated_stanza(StateData, El),
             fsm_next_state(NextState, StateData)
 
     end.
 
-do_compress_feature(El, NextState, StateData) ->
+do_compress(El, NextState, StateData) ->
     {_, ZlibLimit} = StateData#state.zlib,
-    case xml:get_subtag(El, <<"method">>) of
+    Auth = StateData#state.authenticated,
+    case Auth of
         false ->
             send_element(StateData, compress_setup_failed()),
             fsm_next_state(NextState, StateData);
-        Method ->
-            case xml:get_tag_cdata(Method) of
-                <<"zlib">> ->
-                    Socket = StateData#state.socket,
-                    ZlibSocket = (StateData#state.sockmod):compress(Socket, ZlibLimit,
-                                                                    exml:to_binary(compressed())),
-                    fsm_next_state(wait_for_stream,
-                                   StateData#state{socket = ZlibSocket,
-                                                   streamid = new_id()
-                                   });
-                _ ->
-                    send_element(StateData, compress_unsupported_method()),
-                    fsm_next_state(NextState, StateData)
+        _ ->
+            case xml:get_subtag(El, <<"method">>) of
+                false ->
+                    send_element(StateData, compress_setup_failed()),
+                    fsm_next_state(NextState, StateData);
+                Method ->
+                    case xml:get_tag_cdata(Method) of
+                        <<"zlib">> ->
+                            Socket = StateData#state.socket,
+                            ZlibSocket = (StateData#state.sockmod):compress(Socket, ZlibLimit,
+                                                                            exml:to_binary(compressed())),
+                            fsm_next_state(wait_for_stream,
+                                           StateData#state{socket   = ZlibSocket,
+                                                           streamid = new_id()
+                                           });
+                        _ ->
+                            send_element(StateData, compress_unsupported_method()),
+                            fsm_next_state(NextState, StateData)
+                    end
             end
     end.
+
 
 maybe_open_session(El, #state{jid = JID} = StateData) ->
     case user_allowed(JID, StateData) of
