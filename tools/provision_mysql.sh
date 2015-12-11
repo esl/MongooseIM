@@ -5,7 +5,7 @@ INSTANCE_NAME="mongooseim-mysql"
 IMAGE_NAME="astachurski/docker-mysql"
 
 # SSH alias for target docker host machine
-SSH_DOCKERMACHINE_ALIAS="docker_mysql"
+SSH_DOCKERMACHINE_ALIAS="backendhost"
 
 # First 3 parameters: db role to be created, db role password, db to be created
 if [ $# -ge 3 ]

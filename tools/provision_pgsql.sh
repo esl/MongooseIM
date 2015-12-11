@@ -7,7 +7,7 @@ INSTANCE_NAME="mongooseim-postgre"
 IMAGE_NAME="astachurski/docker-pgsql"
 
 # SSH alias for target docker host machine
-SSH_DOCKERMACHINE_ALIAS="docker_pgsql"
+SSH_DOCKERMACHINE_ALIAS="backendhost"
 
 # First 3 parameters: db role to be created, db role password, db to be created
 if [ $# -ge 3 ]
@@ -32,6 +32,7 @@ then
     PROVISIONING_SQL_PATH=`dirname "${PROVISIONING_SQL_FULLFILENAME}"`
 else
     PROVISIONING_SQL_FILENAME="pg.sql"
+    # start script from pipeline root folder!
     PROVISIONING_SQL_PATH="apps/ejabberd/priv"
 fi
 
@@ -88,6 +89,6 @@ fi
 ssh ${SSH_DOCKERMACHINE_ALIAS} 'rm -f ~/'${PROVISIONING_SQL_FILENAME}''
 
 echo " --- listing created tables --- "
-ssh docker_pgsql psql '-h localhost -U '${ROLE_NAME}' -d '${DATABASE_NAME}' -c "\dt"'
+ssh ${SSH_DOCKERMACHINE_ALIAS} 'psql -h localhost -U '${ROLE_NAME}' -d '${DATABASE_NAME}' -c "\dt"'
 
 # PSQL SPECIFIC PART END - provision database with role, schema and tables
