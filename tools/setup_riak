@@ -48,3 +48,10 @@ ${1}riak-admin bucket-type activate mam_yz
 
 ${1}riak-admin bucket-type create last '{"props":{"last_write_wins":true, "dvv_enabled":false}}'
 ${1}riak-admin bucket-type activate last
+
+${1} riak-admin bucket-type create privacy_defaults '{"props":{"last_write_wins":true, "dvv_enabled":false}}'
+${1} riak-admin bucket-type activate privacy_defaults
+
+${1} riak-admin bucket-type create privacy_lists '{"props":{"last_write_wins":true,"dvv_enabled":false}}'
+${1} riak-admin bucket-type activate privacy_lists
+
