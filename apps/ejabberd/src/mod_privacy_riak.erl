@@ -94,20 +94,29 @@ forget_default_list(LUser, LServer) ->
     mongoose_riak:delete(?BKT_DFTS(LServer), LUser).
 
 set_default_list(LUser, LServer, Name) ->
-    case mongoose_riak:get(?BKT_DFTS(LServer), LUser) of
-        % update entry
-        {ok, Obj} ->
-            Obj2 = riack_obj:update_value(Obj, Name),
-            mongoose_riak:put(Obj2);
+    case mongoose_riak:get(?BKT_LSTS(LServer, LUser), Name) of
+        {ok, _} ->
+            case mongoose_riak:get(?BKT_DFTS(LServer), LUser) of
+                % update entry
+                {ok, Obj} ->
+                    Obj2 = riack_obj:update_value(Obj, Name),
+                    mongoose_riak:put(Obj2);
 
-        % create entry
+                % create entry
+                {error, notfound} ->
+                    Obj = riakc_obj:new(?BKT_DFTS(LServer), LUser, Name),
+                    mongoose_riak:put(Obj);
+
+                Err ->
+                    lager:error("~p", [Err]),
+                    Err
+            end;
+
+        % in case list name is not found
         {error, notfound} ->
-            Obj = riakc_obj:new(?BKT_DFTS(LServer), LUser, Name),
-            mongoose_riak:put(Obj);
+            {error, not_found};
 
-        Err ->
-            lager:error("~p", [Err]),
-            Err
+        Err -> Err
     end.
 
 remove_privacy_list(LUser, LServer, Name) ->
