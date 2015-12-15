@@ -13,7 +13,7 @@ ou: users
 EOL
 
 STATUS=1
-RETRIES=3
+RETRIES=10
 until [ $STATUS -eq 0 ] || [ $RETRIES -eq 0 ]; do
     sleep 1
     ldapadd -h ${LDAP_HOST} -p ${LDAP_PORT} -c -x -D cn=admin,dc=esl,dc=com \
