@@ -36,7 +36,7 @@ groups() ->
     [{management, [sequence], management_test_cases()},
      {blocking, [sequence], blocking_test_cases()}
     ].
-management_test_cases() -> 
+management_test_cases() ->
     [get_all_lists,
     get_existing_list,
     get_many_lists,
@@ -383,7 +383,7 @@ block_group_message(Config) ->
         add_sample_contact(Alice, Bob, [<<"ignored">>], <<"Ugly Bastard">>),
 
         %% set the list on server and make it active
-        privacy_helper:set_and_activate(Alice, <<"deny_bob_message">>),
+        privacy_helper:set_and_activate(Alice, <<"deny_group_message">>),
 
         %% Alice should NOT receive message
         escalus_client:send(Bob, escalus_stanza:chat_to(Alice, <<"Hi!">>)),
