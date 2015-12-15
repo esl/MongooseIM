@@ -30,14 +30,14 @@
 -xep([{xep, 126}, {version, "1.1"}]).
 -behaviour(gen_mod).
 
--export([start/2, stop/1,
-     process_iq/3,
-     process_iq_set/4,
-     process_iq_get/5,
-     get_user_list/3,
-     check_packet/6,
-     remove_user/2,
-     updated_list/3]).
+-export([start/2,
+         stop/1,
+         process_iq_set/4,
+         process_iq_get/5,
+         get_user_list/3,
+         check_packet/6,
+         remove_user/2,
+         updated_list/3]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -156,10 +156,6 @@ stop(Host) ->
 
 %% Handlers
 %% ------------------------------------------------------------------
-
-process_iq(_From, _To, IQ) ->
-    SubEl = IQ#iq.sub_el,
-    IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]}.
 
 process_iq_get(_,
         _From = #jid{luser = LUser, lserver = LServer},
