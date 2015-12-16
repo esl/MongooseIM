@@ -17,8 +17,8 @@
 %
 % NOTES:
 %   user default privacy is stored in bucket {<<"privacy_defaults">>, LServer}, key LUser
-%   user privacy lists are stored in bucket {<<"privacy_lists">>, <<"LServer,$/,LUser">>}, key ListName
-%
+%   user privacy lists names are stored in set {<<"privacy_lists_names">>, <<"LServer">>}, key LUser
+%   user privace lists content are stored in bucket {<<"privacy_lists">>, LServer}, key <<LUser,$/,ListName>>
 
 -module(mod_privacy_riak).
 -author('guillaume@bour.cc').
@@ -40,8 +40,9 @@
 
 -include_lib("riakc/include/riakc.hrl").
 
--define(BKT_DFTS(Server), {<<"privacy_defaults">>, Server}).
--define(BKT_LSTS(Server, User), {<<"privacy_lists">>, <<Server/binary, $/, User/binary>>}).
+-define(BKT_DEFAULT_LIST(Server), {<<"privacy_defaults">>, Server}).
+-define(BKT_LISTS_NAMES(Server), {<<"privacy_lists_names">>, Server}).
+-define(BKT_LISTS(Server), {<<"privacy_lists">>, Server}).
 
 init(_Host, _Opts) ->
     ok.
@@ -65,7 +66,7 @@ get_list_names(LUser, LServer) ->
     {ok, {Default, Names}}.
 
 get_default_list_name(LUser, LServer) ->
-    case mongoose_riak:get(?BKT_DFTS(LServer), LUser) of
+    case mongoose_riak:get(?BKT_DEFAULT_LIST(LServer), LUser) of
         {ok, Obj} ->
             riakc_obj:get_value(Obj);
 
@@ -73,11 +74,20 @@ get_default_list_name(LUser, LServer) ->
     end.
 
 get_list_names_only(LUser, LServer) ->
-    {ok, Keys} = mongoose_riak:list_keys(?BKT_LSTS(LServer, LUser)),
-    Keys.
+    case mongoose_riak:fetch_type(?BKT_LISTS_NAMES(LServer), LUser) of
+        {ok, Set} ->
+            riakc_set:value(Set);
+
+        {error, {notfound, set}} ->
+            [];
+
+        Err -> 
+            lager:error("~p", [Err]),
+            []
+    end.
 
 get_privacy_list(LUser, LServer, Name) ->
-    case mongoose_riak:get(?BKT_LSTS(LServer, LUser), Name) of
+    case mongoose_riak:get(?BKT_LISTS(LServer), <<LUser/binary, $/, Name/binary>>) of
         {ok, Obj} ->
             Val = binary_to_term(riakc_obj:get_value(Obj)),
             {ok, Val};
@@ -91,12 +101,12 @@ get_privacy_list(LUser, LServer, Name) ->
     end.
 
 forget_default_list(LUser, LServer) ->
-    mongoose_riak:delete(?BKT_DFTS(LServer), LUser).
+    mongoose_riak:delete(?BKT_DEFAULT_LIST(LServer), LUser).
 
 set_default_list(LUser, LServer, Name) ->
-    case mongoose_riak:get(?BKT_LSTS(LServer, LUser), Name) of
+    case mongoose_riak:get(?BKT_LISTS(LServer), <<LUser/binary, $/, Name/binary>>) of
         {ok, _} ->
-            case mongoose_riak:get(?BKT_DFTS(LServer), LUser) of
+            case mongoose_riak:get(?BKT_DEFAULT_LIST(LServer), LUser) of
                 % update entry
                 {ok, Obj} ->
                     Obj2 = riack_obj:update_value(Obj, Name),
@@ -104,7 +114,7 @@ set_default_list(LUser, LServer, Name) ->
 
                 % create entry
                 {error, notfound} ->
-                    Obj = riakc_obj:new(?BKT_DFTS(LServer), LUser, Name),
+                    Obj = riakc_obj:new(?BKT_DEFAULT_LIST(LServer), LUser, Name),
                     mongoose_riak:put(Obj);
 
                 Err ->
@@ -120,12 +130,27 @@ set_default_list(LUser, LServer, Name) ->
     end.
 
 remove_privacy_list(LUser, LServer, Name) ->
-    mongoose_riak:delete(?BKT_LSTS(LServer, LUser), Name).
+    mongoose_riak:delete(?BKT_LISTS(LServer), <<LUser/binary, $/, Name/binary>>),
+
+    case mongoose_riak:fetch_type(?BKT_LISTS_NAMES(LServer), LUser) of
+        {ok, S1} ->
+            S2 = riakc_set:del_element(Name, S1),
+            mongoose_riak:update_type(?BKT_LISTS_NAMES(LServer), LUser, riakc_set:to_op(S2));
+
+        Err -> 
+            lager:error("~p", [Err]),
+            Err 
+    end.
 
 replace_privacy_list(LUser, LServer, Name, List) ->
+    % store privacy-list content
     %NOTE: List is automatically serialized
-    Obj = riakc_obj:new(?BKT_LSTS(LServer, LUser), Name, List),
-    mongoose_riak:put(Obj).
+    Obj = riakc_obj:new(?BKT_LISTS(LServer), <<LUser/binary, $/, Name/binary>>, List),
+    mongoose_riak:put(Obj),
+
+    % add new list name to user privacy-lists set
+    S = riakc_set:add_element(Name, riakc_set:new()),
+    mongoose_riak:update_type(?BKT_LISTS_NAMES(LServer), LUser, riakc_set:to_op(S)).
 
 remove_user(LUser, LServer) ->
     forget_default_list(LUser, LServer),
@@ -133,6 +158,9 @@ remove_user(LUser, LServer) ->
     lists:foreach(
         fun(Name) -> remove_privacy_list(LUser, LServer, Name) end,
         get_list_names_only(LUser, LServer)
-    ).
+    ),
+
+    % delete user privacy_lists set
+    mongoose_riak:delete(?BKT_LISTS_NAMES(LServer), LUser).
 
 
