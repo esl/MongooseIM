@@ -112,6 +112,19 @@ list_content(<<"deny_unsubscribed_message">>) -> [
 list_content(<<"deny_all_message">>) -> [
         escalus_stanza:privacy_list_item(<<"1">>, <<"deny">>, [<<"message">>])
     ];
+list_content(<<"deny_all_message_but_subscription_from">>) -> [
+        escalus_stanza:privacy_list_item(<<"1">>, <<"allow">>, <<"subscription">>, <<"from">>, [<<"message">>]),
+        escalus_stanza:privacy_list_item(<<"2">>, <<"deny">>, [<<"message">>])
+    ];
+list_content(<<"deny_all_message_but_subscription_to">>) -> [
+        escalus_stanza:privacy_list_item(<<"1">>, <<"allow">>, <<"subscription">>, <<"to">>, [<<"message">>]),
+        escalus_stanza:privacy_list_item(<<"2">>, <<"deny">>, [<<"message">>])
+    ];
+list_content(<<"deny_all_message_but_subscription_both">>) -> [
+        escalus_stanza:privacy_list_item(<<"1">>, <<"allow">>, <<"subscription">>, <<"both">>, [<<"message">>]),
+        escalus_stanza:privacy_list_item(<<"2">>, <<"deny">>, [<<"message">>])
+    ];
+
 list_content(<<"deny_bob_presence_in">>) -> [
         escalus_stanza:privacy_list_jid_item(<<"1">>, <<"deny">>, bob, [<<"presence-in">>])
     ];
