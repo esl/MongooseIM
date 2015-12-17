@@ -18,7 +18,7 @@ all() -> [{group, mnesia}, {group, redis}].
 
 init_per_suite(C) ->
     application:start(p1_stringprep),
-    ejabberd_helper:ensure_all_started(exometer),
+    application:ensure_all_started(exometer),
     F = fun() ->
         ejabberd_sm_backend_sup:start_link(),
         receive stop -> ok end

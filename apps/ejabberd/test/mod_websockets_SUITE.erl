@@ -13,7 +13,7 @@ all() -> [ ping_test, set_ping_test, disable_ping_test, disable_and_set].
 
 setup() ->
     meck:unload(),
-    ejabberd_helper:ensure_all_started(cowboy),
+    application:ensure_all_started(cowboy),
     meck:new(supervisor, [unstick, passthrough, no_link]),
     meck:new(ejabberd_c2s, [unstick, passthrough, no_link]),
     meck:new(gen_mod,[unstick, passthrough, no_link]),
