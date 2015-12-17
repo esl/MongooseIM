@@ -82,7 +82,7 @@ get_list_names_only(LUser, LServer) ->
             [];
 
         Err -> 
-            lager:error("~p", [Err]),
+            ?ERROR_MSG("~p", [Err]),
             []
     end.
 
@@ -96,7 +96,7 @@ get_privacy_list(LUser, LServer, Name) ->
             {error, not_found};
 
         Err->
-            lager:error("~p", [Err]),
+            ?ERROR_MSG("~p", [Err]),
             Err
     end.
 
@@ -118,7 +118,7 @@ set_default_list(LUser, LServer, Name) ->
                     mongoose_riak:put(Obj);
 
                 Err ->
-                    lager:error("~p", [Err]),
+                    ?ERROR_MSG("~p", [Err]),
                     Err
             end;
 
@@ -138,7 +138,7 @@ remove_privacy_list(LUser, LServer, Name) ->
             mongoose_riak:update_type(?BKT_LISTS_NAMES(LServer), LUser, riakc_set:to_op(S2));
 
         Err -> 
-            lager:error("~p", [Err]),
+            ?ERROR_MSG("~p", [Err]),
             Err 
     end.
 
