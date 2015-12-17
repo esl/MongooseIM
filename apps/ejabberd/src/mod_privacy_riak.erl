@@ -101,20 +101,9 @@ forget_default_list(LUser, LServer) ->
 set_default_list(LUser, LServer, Name) ->
     case mongoose_riak:get(?BKT_LISTS(LServer), <<LUser/binary, $/, Name/binary>>) of
         {ok, _} ->
-            case mongoose_riak:get(?BKT_DEFAULT_LIST(LServer), LUser) of
-                % update entry
-                {ok, Obj} ->
-                    Obj2 = riack_obj:update_value(Obj, Name),
-                    mongoose_riak:put(Obj2);
-                % create entry
-                {error, notfound} ->
-                    Obj = riakc_obj:new(?BKT_DEFAULT_LIST(LServer), LUser, Name),
-                    mongoose_riak:put(Obj);
-                Err ->
-                    ?ERROR_MSG("~p", [Err]),
-                    Err
-            end;
-
+            % create or update
+            Obj = riakc_obj:new(?BKT_DEFAULT_LIST(LServer), LUser, Name),
+            mongoose_riak:put(Obj);
         % in case list name is not found
         {error, notfound} ->
             {error, not_found};
