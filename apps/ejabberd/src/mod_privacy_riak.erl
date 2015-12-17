@@ -69,7 +69,6 @@ get_default_list_name(LUser, LServer) ->
     case mongoose_riak:get(?BKT_DEFAULT_LIST(LServer), LUser) of
         {ok, Obj} ->
             riakc_obj:get_value(Obj);
-
         _ -> none
     end.
 
@@ -77,10 +76,8 @@ get_list_names_only(LUser, LServer) ->
     case mongoose_riak:fetch_type(?BKT_LISTS_NAMES(LServer), LUser) of
         {ok, Set} ->
             riakc_set:value(Set);
-
         {error, {notfound, set}} ->
             [];
-
         Err -> 
             ?ERROR_MSG("~p", [Err]),
             []
@@ -91,10 +88,8 @@ get_privacy_list(LUser, LServer, Name) ->
         {ok, Obj} ->
             Val = binary_to_term(riakc_obj:get_value(Obj)),
             {ok, Val};
-
         {error, notfound} ->
             {error, not_found};
-
         Err->
             ?ERROR_MSG("~p", [Err]),
             Err
@@ -111,12 +106,10 @@ set_default_list(LUser, LServer, Name) ->
                 {ok, Obj} ->
                     Obj2 = riack_obj:update_value(Obj, Name),
                     mongoose_riak:put(Obj2);
-
                 % create entry
                 {error, notfound} ->
                     Obj = riakc_obj:new(?BKT_DEFAULT_LIST(LServer), LUser, Name),
                     mongoose_riak:put(Obj);
-
                 Err ->
                     ?ERROR_MSG("~p", [Err]),
                     Err
@@ -125,7 +118,6 @@ set_default_list(LUser, LServer, Name) ->
         % in case list name is not found
         {error, notfound} ->
             {error, not_found};
-
         Err -> Err
     end.
 
@@ -136,7 +128,6 @@ remove_privacy_list(LUser, LServer, Name) ->
         {ok, S1} ->
             S2 = riakc_set:del_element(Name, S1),
             mongoose_riak:update_type(?BKT_LISTS_NAMES(LServer), LUser, riakc_set:to_op(S2));
-
         Err -> 
             ?ERROR_MSG("~p", [Err]),
             Err 
