@@ -748,7 +748,7 @@ simple_archive_request(ConfigIn) ->
                        {[backends, mod_mam, lookup], changed}
                       ],
     Config = [{mongoose_metrics, MongooseMetrics} | ConfigIn],
-    escalus:story(Config, [1, 1], F).
+    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
 
 querying_for_all_messages_with_jid(Config) ->
     F = fun(Alice) ->
@@ -762,7 +762,7 @@ querying_for_all_messages_with_jid(Config) ->
         assert_respond_size(CountWithBob, wait_archive_respond_iq_first(Alice)),
         ok
         end,
-    escalus:story(Config, [1], F).
+    escalus:story(Config, [{alice, 1}], F).
 
 muc_querying_for_all_messages(Config) ->
     F = fun(Alice) ->
@@ -795,7 +795,7 @@ muc_querying_for_all_messages_with_jid(Config) ->
         assert_respond_size(Len, Result),
         ok
         end,
-    escalus:story(Config, [1, 1], F).
+    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
 
 archived(Config) ->
     F = fun(Alice, Bob) ->
@@ -827,7 +827,7 @@ archived(Config) ->
             erlang:raise(Class, Reason, Stacktrace)
         end
         end,
-    escalus:story(Config, [1, 1], F).
+    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
 
 filter_forwarded(Config) ->
     F = fun(Alice, Bob) ->
@@ -845,7 +845,7 @@ filter_forwarded(Config) ->
         [_ArcIQ2, _ArcMsg2] = assert_respond_size(1, wait_archive_respond_iq_first(Bob)),
         ok
         end,
-    escalus:story(Config, [1, 1], F).
+    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
 
 strip_archived(Config) ->
     F = fun(Alice, Bob) ->
@@ -880,7 +880,7 @@ strip_archived(Config) ->
             erlang:raise(Class, Reason, Stacktrace)
         end
         end,
-    escalus:story(Config, [1, 1], F).
+    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
 
 wait_archive_respond_iq_first(User) ->
     %% rot1
@@ -935,7 +935,7 @@ policy_violation(Config) ->
             erlang:raise(Class, Reason, Stacktrace)
         end
         end,
-    escalus:story(Config, [1, 1], F).
+    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
 
 %% Ensure, that a offline message does not stored twice when delivered.
 offline_message(Config) ->
@@ -947,7 +947,7 @@ offline_message(Config) ->
         maybe_wait_for_yz(Config),
         ok
         end,
-    escalus:story(Config, [1], F),
+    escalus:story(Config, [{alice, 1}], F),
 
     %% Bob logs in
     Bob = login_send_presence(Config, bob),
@@ -980,7 +980,7 @@ purge_single_message(Config) ->
             assert_respond_size(0, wait_archive_respond_iq_first(Alice)),
             ok
         end,
-    escalus:story(Config, [1, 1], F).
+    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
 
 purge_old_single_message(Config) ->
     F = fun(Alice) ->
@@ -1001,7 +1001,7 @@ purge_old_single_message(Config) ->
             assert_respond_size(AliceArchSize - 1, wait_archive_respond_iq_first(Alice)),
             ok
         end,
-    escalus:story(Config, [1], F).
+    escalus:story(Config, [{alice, 1}], F).
 
 purge_multiple_messages(Config) ->
     F = fun(Alice, Bob) ->
@@ -1023,7 +1023,7 @@ purge_multiple_messages(Config) ->
             assert_respond_size(0, wait_archive_respond_iq_first(Bob)),
             ok
         end,
-    escalus:story(Config, [1, 1], F).
+    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
 
 muc_archive_request(Config) ->
     F = fun(Alice, Bob) ->
@@ -1064,7 +1064,7 @@ muc_archive_request(Config) ->
         ?assert_equal(RoomAddr, By),
         ok
         end,
-    escalus:story(Config, [1, 1], F).
+    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
 %% Copied from 'muc_archive_reuest' test in case to show some bug in mod_mam_muc related to issue #512
 muc_archive_purge(Config) ->
     F = fun(Alice, Bob) ->
@@ -1096,7 +1096,7 @@ muc_archive_purge(Config) ->
         escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
         ok
     end,
-    escalus:story(Config, [1, 1], F).
+    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
 
 muc_multiple_devices(Config) ->
     F = fun(Alice1, Alice2, Bob) ->
@@ -1159,7 +1159,7 @@ muc_multiple_devices(Config) ->
         ?assert_equal(RoomAddr, By),
         ok
         end,
-    escalus:story(Config, [2, 1], F).
+    escalus:story(Config, [{alice, 2}, {bob, 1}], F).
 
 muc_private_message(Config) ->
     F = fun(Alice, Bob) ->
@@ -1195,7 +1195,7 @@ muc_private_message(Config) ->
         [_ArcRes] = assert_respond_size(0, wait_archive_respond_iq_first(Bob)),
         ok
         end,
-    escalus:story(Config, [1, 1], F).
+    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
 
 %% @doc Querying the archive for all messages in a certain timespan.
 range_archive_request(Config) ->
@@ -1212,7 +1212,7 @@ range_archive_request(Config) ->
         escalus:assert(is_iq_result, IQ),
         ok
         end,
-    escalus:story(Config, [1], F).
+    escalus:story(Config, [{alice, 1}], F).
 
 range_archive_request_not_empty(Config) ->
     F = fun(Alice) ->
@@ -1243,7 +1243,7 @@ range_archive_request_not_empty(Config) ->
         ?assert_equal(list_to_binary(StopTime), Stamp2),
         ok
         end,
-    escalus:story(Config, [1], F).
+    escalus:story(Config, [{alice, 1}], F).
 
 make_iso_time(Micro) ->
     Now = usec:to_now(Micro),
@@ -1270,7 +1270,7 @@ limit_archive_request(Config) ->
         10 = length(Msgs),
         ok
         end,
-    escalus:story(Config, [1], F).
+    escalus:story(Config, [{alice, 1}], F).
 
 pagination_empty_rset(Config) ->
     F = fun(Alice) ->
@@ -1281,7 +1281,7 @@ pagination_empty_rset(Config) ->
             stanza_page_archive_request(<<"empty_rset">>, RSM)),
         wait_empty_rset(Alice, 15)
         end,
-    escalus:story(Config, [1], F).
+    escalus:story(Config, [{alice, 1}], F).
 
 pagination_first5(Config) ->
     F = fun(Alice) ->
@@ -1292,7 +1292,7 @@ pagination_first5(Config) ->
         wait_message_range(Alice, 1, 5),
         ok
         end,
-    escalus:story(Config, [1], F).
+    escalus:story(Config, [{alice, 1}], F).
 
 pagination_first5_opt_count(Config) ->
     F = fun(Alice) ->
@@ -1303,7 +1303,7 @@ pagination_first5_opt_count(Config) ->
         wait_message_range(Alice, 1, 5),
         ok
         end,
-    escalus:story(Config, [1], F).
+    escalus:story(Config, [{alice, 1}], F).
 
 pagination_first25_opt_count_all(Config) ->
     F = fun(Alice) ->
@@ -1314,7 +1314,7 @@ pagination_first25_opt_count_all(Config) ->
         wait_message_range(Alice, 1, 15),
         ok
         end,
-    escalus:story(Config, [1], F).
+    escalus:story(Config, [{alice, 1}], F).
 
 pagination_last5(Config) ->
     F = fun(Alice) ->
@@ -1325,7 +1325,7 @@ pagination_last5(Config) ->
         wait_message_range(Alice, 11, 15),
         ok
         end,
-    escalus:story(Config, [1], F).
+    escalus:story(Config, [{alice, 1}], F).
 
 pagination_last5_opt_count(Config) ->
     F = fun(Alice) ->
@@ -1336,7 +1336,7 @@ pagination_last5_opt_count(Config) ->
         wait_message_range(Alice, 11, 15),
         ok
         end,
-    escalus:story(Config, [1], F).
+    escalus:story(Config, [{alice, 1}], F).
 
 pagination_last25_opt_count_all(Config) ->
     F = fun(Alice) ->
@@ -1347,7 +1347,7 @@ pagination_last25_opt_count_all(Config) ->
         wait_message_range(Alice, 1, 15),
         ok
         end,
-    escalus:story(Config, [1], F).
+    escalus:story(Config, [{alice, 1}], F).
 
 pagination_offset5_opt_count(Config) ->
     F = fun(Alice) ->
@@ -1358,7 +1358,7 @@ pagination_offset5_opt_count(Config) ->
         wait_message_range(Alice, 6, 10),
         ok
         end,
-    escalus:story(Config, [1], F).
+    escalus:story(Config, [{alice, 1}], F).
 
 pagination_offset5_opt_count_all(Config) ->
     F = fun(Alice) ->
@@ -1369,7 +1369,7 @@ pagination_offset5_opt_count_all(Config) ->
         wait_message_range(Alice, 6, 15),
         ok
         end,
-    escalus:story(Config, [1], F).
+    escalus:story(Config, [{alice, 1}], F).
 
 
 pagination_before10(Config) ->
@@ -1381,7 +1381,7 @@ pagination_before10(Config) ->
         wait_message_range(Alice, 5, 9),
         ok
         end,
-    escalus:story(Config, [1], F).
+    escalus:story(Config, [{alice, 1}], F).
 
 pagination_simple_before10(Config) ->
     F = fun(Alice) ->
@@ -1393,7 +1393,7 @@ pagination_simple_before10(Config) ->
         wait_message_range(Alice,   undefined, undefined,     5,   9),
         ok
         end,
-    escalus:story(Config, [1], F).
+    escalus:story(Config, [{alice, 1}], F).
 
 pagination_after10(Config) ->
     F = fun(Alice) ->
@@ -1404,7 +1404,7 @@ pagination_after10(Config) ->
         wait_message_range(Alice, 11, 15),
         ok
         end,
-    escalus:story(Config, [1], F).
+    escalus:story(Config, [{alice, 1}], F).
 
 %% Select first page of recent messages after last known id.
 %% Paginating from newest messages to oldest ones.
@@ -1419,7 +1419,7 @@ pagination_last_after_id5(Config) ->
         wait_message_range(Alice,          10,      5,    11,  15),
         ok
         end,
-    escalus:story(Config, [1], F).
+    escalus:story(Config, [{alice, 1}], F).
 
 %% Select second page of recent messages after last known id.
 pagination_last_after_id5_before_id11(Config) ->
@@ -1433,7 +1433,7 @@ pagination_last_after_id5_before_id11(Config) ->
         wait_message_range(Alice,           5,      0,     6,  10),
         ok
         end,
-    escalus:story(Config, [1], F).
+    escalus:story(Config, [{alice, 1}], F).
 
 generate_message_text(N) when is_integer(N) ->
     <<"Message #", (list_to_binary(integer_to_list(N)))/binary>>.
@@ -1483,7 +1483,7 @@ prefs_set_request(Config) ->
         ?assert_equal(ResultIQ1, ResultIQ2),
         ok
         end,
-    escalus:story(Config, [1], F).
+    escalus:story(Config, [{alice, 1}], F).
 
 %% Test reproducing https://github.com/esl/MongooseIM/issues/263
 %% The idea is this: in a "perfect" world jid elements are put together
@@ -1515,7 +1515,7 @@ prefs_set_cdata_request(Config) ->
         ?assert_equal(ResultIQ1, ResultIQ2),
         ok
         end,
-    escalus:story(Config, [1], F).
+    escalus:story(Config, [{alice, 1}], F).
 
 mam_service_discovery(Config) ->
     F = fun(Alice) ->
@@ -1532,7 +1532,7 @@ mam_service_discovery(Config) ->
             erlang:raise(Class, Reason, Stacktrace)
         end
         end,
-    escalus:story(Config, [1], F).
+    escalus:story(Config, [{alice, 1}], F).
 
 %% Check, that MUC is supported.
 muc_service_discovery(Config) ->
@@ -1545,7 +1545,7 @@ muc_service_discovery(Config) ->
         escalus:assert(is_stanza_from, [Domain], Stanza),
         ok
         end,
-    escalus:story(Config, [1], F).
+    escalus:story(Config, [{alice, 1}], F).
 
 iq_spoofing(Config) ->
     F = fun(Alice, Bob) ->
@@ -1562,7 +1562,7 @@ iq_spoofing(Config) ->
         escalus_assert:has_no_stanzas(Bob),
         ok
         end,
-    escalus:story(Config, [1,1], F).
+    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
 
 result_iq() ->
     #xmlel{
@@ -2020,7 +2020,7 @@ send_muc_rsm_messages(Config) ->
         ok
         end,
     Config1 = escalus:init_per_testcase(pre_rsm, Config),
-    escalus:story(Config1, [1, 1], F),
+    escalus:story(Config1, [{alice, 1}, {bob, 1}], F),
     ParsedMessages = receive {parsed_messages, PM} -> PM
                      after 5000 -> error(receive_timeout) end,
 
@@ -2047,7 +2047,7 @@ send_rsm_messages(Config) ->
         ok
         end,
     Config1 = escalus:init_per_testcase(pre_rsm, Config),
-    escalus:story(Config1, [1, 1], F),
+    escalus:story(Config1, [{alice, 1}, {bob, 1}], F),
     ParsedMessages = receive {parsed_messages, PM} -> PM
                      after 5000 -> error(receive_timeout) end,
 

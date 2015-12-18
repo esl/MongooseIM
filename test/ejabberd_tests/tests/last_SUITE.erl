@@ -60,7 +60,7 @@ end_per_testcase(CaseName, Config) ->
 %% Last tests
 %%--------------------------------------------------------------------
 last_online_user(Config) ->
-    escalus:story(Config, [1, 1],
+    escalus:story(Config, [{alice, 1}, {bob, 1}],
                   fun(Alice, _Bob) ->
                           %% Alice asks about Bob's last activity
                           escalus_client:send(Alice, escalus_stanza:last_activity(bob)),
@@ -72,7 +72,7 @@ last_online_user(Config) ->
                   end).
 
 last_offline_user(Config) ->
-    escalus:story(Config, [1],
+    escalus:story(Config, [{alice, 1}],
                   fun(Alice) ->
                           %% Bob logs in
                           {ok, Bob} = escalus_client:start_for(Config, bob, <<"bob">>),
@@ -94,7 +94,7 @@ last_offline_user(Config) ->
                           <<"I am a banana!">> = get_last_status(Stanza)
                   end).
 last_server(Config) ->
-    escalus:story(Config, [1],
+    escalus:story(Config, [{alice, 1}],
                   fun(Alice) ->
                           %% Alice asks for server's uptime
                           Server = escalus_users:get_server(Config, alice),
