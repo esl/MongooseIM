@@ -202,8 +202,11 @@ cd_release_smoketest:
 $(DEVNODESCD): rebar
 	@echo "building $@"
 	(cd rel && ../rebar generate -f target_dir=../dev/mongooseim_$@ overlay_vars=./reltool_vars/$@_vars.config)
-	cp -R /usr/OTP_174/lib/tools-* dev/mongooseim_$@/lib/
-#cp -R $(erl_tools) dev/mongooseim_$@/lib/    - ucina sciezke do toolsow w go-cd serwerze. zaraz cos mnie trafi.
+#	cp -R /usr/OTP_174/lib/tools-* dev/mongooseim_$@/lib/
+	cp -R `dirname $(shell ./readlink.sh $(shell which erl))`/../lib/tools-* dev/mongooseim_$@/lib/
+#	cp -R $(erl_tools) dev/mongooseim_$@/lib/    - ucina sciezke do toolsow w go-cd serwerze. zaraz cos mnie trafi.
+
+
 
 # UAT test release, minimalistic 1-node deployment to dev. todo: change cp to relative paths
 cd_release_base: rebar
