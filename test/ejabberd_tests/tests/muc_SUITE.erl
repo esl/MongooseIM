@@ -73,7 +73,8 @@ groups() -> [
                 disco_features,
                 disco_rooms,
                 disco_info,
-                disco_items
+                disco_items,
+                disco_items_nonpublic
                 ]},
         {disco_rsm, [], rsm_cases()},
         {moderator, [], [
@@ -531,6 +532,12 @@ init_per_testcase(CaseName =exit_room, Config) ->
 init_per_testcase(CaseName =exit_room_with_status, Config) ->
     [Alice | _] = ?config(escalus_users, Config),
     Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"alice">>, []),
+    escalus:init_per_testcase(CaseName, Config1);
+
+init_per_testcase(CaseName = disco_items_nonpublic, Config) ->
+    [Alice | _] = ?config(escalus_users, Config),
+    Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"aliceonchat">>,
+        [{persistent, true}, {public_list, false}]),
     escalus:init_per_testcase(CaseName, Config1);
 
 init_per_testcase(CaseName, Config) ->
@@ -2668,9 +2675,21 @@ disco_items(Config) ->
         escalus:send(Alice, stanza_join_room(<<"alicesroom">>, <<"nicenick">>)),
         _Stanza = escalus:wait_for_stanza(Alice),
 
+        %% works because the list is public
         escalus:send(Bob, stanza_to_room(escalus_stanza:iq_get(?NS_DISCO_ITEMS,[]), <<"alicesroom">>)),
         Stanza2 = escalus:wait_for_stanza(Bob),
         escalus:assert(is_iq_result, Stanza2)
+                                 end).
+
+disco_items_nonpublic(Config) ->
+    escalus:story(Config, [1,1], fun(Alice, Bob) ->
+        escalus:send(Alice, stanza_join_room(<<"alicesroom">>, <<"nicenick">>)),
+        _Stanza = escalus:wait_for_stanza(Alice),
+
+        %% does not work because the list is not public and Bob is not an occupant
+        escalus:send(Bob, stanza_to_room(escalus_stanza:iq_get(?NS_DISCO_ITEMS,[]), <<"alicesroom">>)),
+        Error = escalus:wait_for_stanza(Bob),
+        escalus:assert(is_error, [<<"auth">>, <<"forbidden">>], Error)
     end).
 
 create_and_destroy_room(Config) ->
