@@ -4126,6 +4126,14 @@ stanza_form(Payload, Type) ->
         children = [form_field({<<"FORM_TYPE">>, Type, <<"hidden">>}) | Payload]
     }.
 
+form_field_item(Value) ->
+    #xmlel{ name  = <<"value">>,
+        children = [#xmlcdata{content = Value}]}.
+
+form_field({Var, Value, Type}) when is_list(Value) ->
+    #xmlel{ name  = <<"field">>,
+        attrs = [{<<"var">>, Var},{<<"type">>, Type}],
+        children  = [form_field_item(V) || V <- Value]};
 form_field({Var, Value, Type}) ->
     #xmlel{ name  = <<"field">>,
                  attrs = [{<<"type">>, Type},{<<"var">>, Var}],
