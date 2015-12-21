@@ -18,7 +18,8 @@
 %%--------------------------------------------------------------------
 
 all() ->
-    [server_string_type,
+    [
+     server_string_type,
      {group, negotiation},
      {group, server_acking},
      {group, client_acking},
@@ -459,7 +460,7 @@ preserve_order(Config) ->
     escalus_connection:send(NewAlice, escalus_stanza:presence(<<"available">>)),
     escalus_connection:send(Bob, escalus_stanza:chat_to(get_bjid(AliceSpec), <<"6">>)),
 
-    receive_all_ordered(NewAlice,1),
+    receive_all_ordered(NewAlice, 6),
 
     % replace connection
     {ok, NewAlice2, _, _} = escalus_connection:start(AliceSpec, ConnSteps),
@@ -469,7 +470,7 @@ preserve_order(Config) ->
     escalus_connection:send(NewAlice2, escalus_stanza:presence(<<"available">>)),
 
     % receves messages in correct order
-    receive_all_ordered(NewAlice2, 1),
+    receive_all_ordered(NewAlice2, 6),
 
     %revert changes
     escalus_ejabberd:rpc(?MOD_SM, set_resume_timeout, [600]),
@@ -478,19 +479,19 @@ preserve_order(Config) ->
     discard_offline_messages(Config, alice).
 
 receive_all_ordered(Conn, N) ->
+    ProperOrder = lists:seq(1, N),
+    ProperOrder = receive_all_msg_to_int(Conn).
+
+receive_all_msg_to_int(Conn) ->
     case catch escalus_connection:get_stanza(Conn, msg) of
-        #xmlel{} = Stanza ->
-	    NN = case Stanza#xmlel.name of
-        <<"message">> ->
-%% 		    ct:pal("~p~n", [Stanza]),
-            escalus:assert(is_chat_message, [list_to_binary(integer_to_list(N))], Stanza),
-            N+1;
-		_ ->
-		    N
-	    end,
-            receive_all_ordered(Conn, NN);
+        #xmlel{ name = <<"message">> } = Stanza ->
+            escalus:assert(is_chat_message, Stanza),
+            Body = exml_query:path(Stanza, [{element, <<"body">>}, cdata]),
+            [list_to_integer(binary_to_list(Body)) | receive_all_msg_to_int(Conn)];
+        #xmlel{} ->
+            receive_all_msg_to_int(Conn);
         _Error ->
-            ok
+            []
     end.
 
 resend_unacked_after_resume_timeout(Config) ->
@@ -634,10 +635,14 @@ resume_session_state_stop_c2s(Config) ->
     {ok, NewAlice, _, _} = escalus_connection:start(AliceSpec, ConnSteps),
     escalus_connection:send(NewAlice, escalus_stanza:presence(<<"available">>)),
 
-    Stanzas = [escalus_connection:get_stanza(NewAlice, msg),
-               escalus_connection:get_stanza(NewAlice, msg)],
+    % One retransmitted presence (was not acked), one new presence and one retransmitted msg
+    % They can arrive in any order actually
+    Stanzas = [escalus_connection:get_stanza(NewAlice, msg_or_presence),
+               escalus_connection:get_stanza(NewAlice, msg_or_presence),
+               escalus_connection:get_stanza(NewAlice, msg_or_presence)],
 
     escalus_new_assert:mix_match([is_presence,
+                                  is_presence,
                                   is_chat(<<"msg-1">>)],
                                  Stanzas),
 
