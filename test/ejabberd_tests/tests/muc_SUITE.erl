@@ -96,6 +96,7 @@ groups() -> [
                 admin_ban,
                 admin_ban_with_reason,
                 admin_ban_list,
+                admin_get_form,
                 admin_invalid_affiliation,
                 admin_invalid_jid,
                 %% test should fail, temporarily changed
@@ -1295,6 +1296,25 @@ admin_ban_list(Config) ->
             List2),
         true = is_item_list_empty(List2)
     end).
+
+admin_get_form(Config) ->
+    escalus:story(Config, [1,1,1], fun(Alice, _Bob, _Kate) ->
+        timer:sleep(?WAIT_TIME),
+        %%%% Bootstrap:
+        %% Alice is admin
+        %% enter Bob, we make him moderator
+        %% enter Kate, she's just a participant
+        %% Alice joins room
+        escalus:send(Alice, stanza_muc_enter_room(?config(room, Config), <<"alice">>)),
+        escalus:wait_for_stanzas(Alice, 2),
+        F = stanza_form_request(?config(room, Config)),
+        escalus:send(Alice, F),
+        Form = escalus:wait_for_stanza(Alice),
+%%        io:format("Result 1: ~p~n", [Form]),
+        escalus:assert(is_iq_result, Form),
+        ok
+    end),
+    ok.
 
 admin_invalid_affiliation(Config) ->
     escalus:story(Config, [1,1], fun(Alice, Bob) ->
@@ -4021,6 +4041,10 @@ stanza_role_list_request(Room, Role) ->
     Payload = [ #xmlel{name = <<"item">>,
         attrs = [{<<"role">>, Role}]} ],
     stanza_to_room(escalus_stanza:iq_get(?NS_MUC_ADMIN, Payload), Room).
+
+stanza_form_request(Room) ->
+    Payload = [],
+    stanza_to_room(escalus_stanza:iq_get(?NS_MUC_OWNER, Payload), Room).
 
 stanza_affiliation_list_request(Room, Affiliation) ->
     Payload = [ #xmlel{name = <<"item">>,
