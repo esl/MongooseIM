@@ -104,6 +104,7 @@ groups() -> [
                 admin_membership,
                 admin_membership_with_reason,
                 admin_member_list,
+                admin_member_list_allowed,
                 admin_moderator,
                 admin_moderator_with_reason,
                 admin_moderator_revoke_owner,
@@ -1520,8 +1521,154 @@ admin_member_list(Config) ->
         escalus:assert_many(Preds, escalus:wait_for_stanzas(Bob, 2)),
 
         %% Kate receives her and Bob's presence
-        escalus:assert_many(Preds, escalus:wait_for_stanzas(Kate, 2))
+        escalus:assert_many(Preds, escalus:wait_for_stanzas(Kate, 2)),
+
+        %% Now Kate requests member list, and doesn't get it because she is neither owner, admin or moderator
+        %% and the room is configured without the roomconfig_getmemberlist setting
+        escalus:send(Kate, stanza_affiliation_list_request(
+            ?config(room, Config), <<"member">>)),
+        Error = escalus:wait_for_stanza(Kate),
+        escalus:assert(is_error, [<<"auth">>, <<"forbidden">>], Error)
   end).
+
+check_memberlist(Login, yes, Config) ->
+    escalus:send(Login, stanza_affiliation_list_request(
+        ?config(room, Config), <<"member">>)),
+    escalus:assert(is_iq_result, escalus:wait_for_stanza(Login));
+check_memberlist(Login, no, Config) ->
+    escalus:send(Login, stanza_affiliation_list_request(
+        ?config(room, Config), <<"member">>)),
+    escalus:assert(is_error, [<<"auth">>, <<"forbidden">>], escalus:wait_for_stanza(Login)).
+
+check_rolelist(Login, yes, Config) ->
+    escalus:send(Login, stanza_role_list_request(
+        ?config(room, Config), <<"moderator">>)),
+    escalus:assert(is_iq_result, escalus:wait_for_stanza(Login));
+check_rolelist(Login, no, Config) ->
+    escalus:send(Login, stanza_role_list_request(
+        ?config(room, Config), <<"moderator">>)),
+    escalus:assert(is_error, [<<"auth">>, <<"forbidden">>], escalus:wait_for_stanza(Login)).
+
+
+%% This one tests a roomconfig_getmemberlist setting
+admin_member_list_allowed(Config) ->
+    escalus:story(Config, [1,1,1], fun(Alice, Bob, Kate) ->
+        timer:sleep(?WAIT_TIME),
+        %%%% Bootstrap:
+        %% Alice is admin
+        %% enter Bob, we make him moderator
+        %% enter Kate, she's just a participant
+        %% Alice joins room
+        escalus:send(Alice, stanza_muc_enter_room(?config(room, Config), <<"alice">>)),
+        escalus:wait_for_stanzas(Alice, 2),
+        %% Bob joins room
+        escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
+        escalus:wait_for_stanzas(Bob, 3),
+        %% Kate joins room
+        escalus:send(Kate, stanza_muc_enter_room(?config(room, Config), <<"kate">>)),
+        escalus:wait_for_stanzas(Kate, 4),
+        %% Skip Kate's presence
+        escalus:wait_for_stanza(Bob),
+        %% Skip Kate's and Bob's presences
+        escalus:wait_for_stanzas(Alice, 3),
+        %% Grant bob moderator status
+        escalus:send(Alice, stanza_set_roles(
+            ?config(room, Config), [{<<"bob">>,<<"moderator">>}])),
+        escalus:wait_for_stanzas(Alice, 2),
+        %% Bob receives his notice
+        escalus:wait_for_stanza(Bob),
+        %% Kate receives Bob's notice
+        escalus:wait_for_stanza(Kate),
+        %%%% end of bootstrap
+        %% default room setup - config var is empty
+        %% Alice can get member list
+        check_memberlist(Alice, yes, Config),
+        %% Bob can't get member list
+        check_memberlist(Bob, no, Config),
+        %% Kate can't get member list
+        check_memberlist(Kate, no, Config),
+        %% same for role list (it doesn't matter which role we ask, we use moderator)
+        %% Alice can get moderator list
+        check_rolelist(Alice, yes, Config),
+        %% Bob can get moderator list because he is a moderator
+        check_rolelist(Bob, yes, Config),
+        %% Kate can't get member list
+        check_memberlist(Kate, no, Config),
+        %% setup room - allow getmemberlist for moderator
+        Form = stanza_configuration_form(?config(room, Config), [
+            {<<"muc#roomconfig_getmemberlist">>, [<<"moderator">>], <<"list-multi">>}]),
+        escalus:send(Alice, Form),
+        Result = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_iq_result, Result),
+        %% memberlist
+        %% Alice - yes
+        check_memberlist(Alice, yes, Config),
+        %% Bob - yes
+        check_memberlist(Bob, yes, Config),
+        %% Kate - no
+        check_memberlist(Kate, no, Config),
+        %% same for moderator list
+        %% Alice - yes
+        check_rolelist(Alice, yes, Config),
+        %% Bob - yes, as always
+        check_rolelist(Bob, yes, Config),
+        %% Kate - no
+        check_rolelist(Bob, yes, Config),
+        %% setup room - allow getmemberlist for participant
+        Form1 = stanza_configuration_form(?config(room, Config), [
+            {<<"muc#roomconfig_getmemberlist">>, [<<"participant">>], <<"list-multi">>}]),
+        escalus:send(Alice, Form1),
+        Result1 = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_iq_result, Result1),
+        %% memberlist
+        %% Alice - yes
+        check_memberlist(Alice, yes, Config),
+        %% Bob - no (moderator is not a participant)
+        check_memberlist(Bob, no, Config),
+        %% Kate - yes
+        check_memberlist(Kate, yes, Config),
+        %% role list
+        %% Alice - yes
+        check_rolelist(Alice, yes, Config),
+        %% Bob - yes
+        check_rolelist(Bob, yes, Config),
+        %% Kate - yes
+        check_rolelist(Kate, yes, Config),
+        %% exit Kate
+        escalus:send(Kate, stanza_to_room(escalus_stanza:presence(<<"unavailable">>), ?config(room, Config),
+            escalus_utils:get_username(Kate))),
+        assert_is_exit_message_correct(Kate, <<"none">>, ?config(room, Config), escalus:wait_for_stanza(Alice)),
+        assert_is_exit_message_correct(Kate, <<"none">>, ?config(room, Config), escalus:wait_for_stanza(Bob)),
+        assert_is_exit_message_correct(Kate, <<"none">>, ?config(room, Config), escalus:wait_for_stanza(Kate)),
+        %% memberlist
+        %% Kate - no
+        check_memberlist(Kate, no, Config),
+        %% role list
+        %% Kate - no
+        check_rolelist(Kate, no, Config),
+        %% setup room - allow getmemberlist for visitor
+        Form2 = stanza_configuration_form(?config(room, Config), [
+            {<<"muc#roomconfig_getmemberlist">>, [<<"visitor">>], <<"list-multi">>}]),
+        escalus:send(Alice, Form2),
+        Result2 = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_iq_result, Result2),
+        %% member list
+        %% Alice - yes
+        check_memberlist(Alice, yes, Config),
+        %% Bob - no (gahhh...)
+        check_memberlist(Bob, no, Config),
+        %% Kate - yes
+        check_memberlist(Kate, yes, Config),
+        %% role list
+        %% Alice - yes (as admin)
+        check_rolelist(Alice, yes, Config),
+        %% Bob - yes (as moderator)
+        check_rolelist(Bob, yes, Config),
+        %% Kate - yes (as visitor)
+        check_rolelist(Kate, yes, Config),
+        ok
+    end),
+    ok.
 
 %%  Examples 137-145
 admin_moderator(Config) ->
