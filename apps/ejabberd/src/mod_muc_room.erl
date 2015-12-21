@@ -3345,6 +3345,31 @@ get_config(Lang, StateData, From) ->
                 false -> <<>>
             end, Lang),
      #xmlel{name = <<"field">>,
+            attrs = [{<<"type">>, <<"list-multi">>},
+                {<<"label">>, translate:translate(Lang, <<"Roles and affiliations that may retrieve member list">>)},
+                {<<"var">>, <<"muc#roomconfig_getmemberlist">>}],
+            children = [
+                #xmlel{name = <<"value">>, children = [#xmlcdata{content = <<"moderator">>}]},
+                #xmlel{name = <<"value">>, children = [#xmlcdata{content = <<"participant">>}]},
+                #xmlel{name = <<"value">>, children = [#xmlcdata{content = <<"visitor">>}]},
+                #xmlel{name = <<"option">>,
+                    attrs = [{<<"label">>, translate:translate(Lang, <<"moderator">>)}],
+                    children = [
+                        #xmlel{name = <<"value">>, children = [#xmlcdata{content = <<"moderator">>}]}
+                    ]},
+                #xmlel{name = <<"option">>,
+                attrs = [{<<"label">>, translate:translate(Lang, <<"participant">>)}],
+                children = [
+                    #xmlel{name = <<"value">>, children = [#xmlcdata{content = <<"participant">>}]}
+                ]},
+                #xmlel{name = <<"option">>,
+                attrs = [{<<"label">>, translate:translate(Lang, <<"visitor">>)}],
+                children = [
+                    #xmlel{name = <<"value">>, children = [#xmlcdata{content = <<"visitor">>}]}
+                ]}
+            ]
+     },
+     #xmlel{name = <<"field">>,
             attrs = [{<<"type">>, <<"list-single">>},
                      {<<"label">>, translate:translate(Lang, <<"Maximum Number of Occupants">>)},
                      {<<"var">>, <<"muc#roomconfig_maxusers">>}],
