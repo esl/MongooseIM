@@ -2539,13 +2539,12 @@ process_iq_admin(From, get, Lang, SubEl, StateData) ->
                 {'EXIT', _} ->
                     {error, ?ERR_BAD_REQUEST};
                 Affiliation ->
-                    if
-                    (FAffiliation == owner) or
-                    (FAffiliation == admin) ->
+                    case iq_admin_allowed(get, affiliation, FAffiliation, FRole, StateData) of
+                    true ->
                         Items = items_with_affiliation(
                               Affiliation, StateData),
                         {result, Items, StateData};
-                    true ->
+                    _ ->
                         ErrText = <<"Administrator privileges required">>,
                         {error, ?ERRT_FORBIDDEN(Lang, ErrText)}
                     end
@@ -2556,17 +2555,37 @@ process_iq_admin(From, get, Lang, SubEl, StateData) ->
             {'EXIT', _} ->
                 {error, ?ERR_BAD_REQUEST};
             Role ->
-                if
-                FRole == moderator ->
+                case iq_admin_allowed(get, role, FAffiliation, FRole, StateData) of
+                true ->
                     Items = items_with_role(Role, StateData),
                     {result, Items, StateData};
-                true ->
+                _ ->
                     ErrText = <<"Moderator privileges required">>,
                     {error, ?ERRT_FORBIDDEN(Lang, ErrText)}
                 end
             end
         end
     end.
+
+-spec iq_admin_allowed(atom(), atom(), atom(), atom(), state()) -> boolean().
+iq_admin_allowed(get, What, FAff, none, State) ->
+    %% no role is translated to 'visitor'
+    iq_admin_allowed(get, What, FAff, visitor, State);
+iq_admin_allowed(get, role, _, moderator, _) ->
+    %% moderator is allowed by definition, needs it to do his duty
+    true;
+iq_admin_allowed(get, role, _, Role, State) ->
+    Cfg = State#state.config,
+    lists:member(Role, Cfg#config.maygetmemberlist);
+iq_admin_allowed(get, affiliation, owner, _, _) ->
+    true;
+iq_admin_allowed(get, affiliation, admin, _, _) ->
+    true;
+iq_admin_allowed(get, affiliation, _, Role, State) ->
+    Cfg = State#state.config,
+    lists:member(Role, Cfg#config.maygetmemberlist);
+iq_admin_allowed(_, _, _, _, _) ->
+    false.
 
 
 -spec items_with_role(mod_muc:role(), state()) -> [jlib:xmlel()].
@@ -3542,6 +3561,13 @@ set_xoption([{<<"muc#roomconfig_maxusers">>, [Val]} | Opts], Config) ->
     _ ->
         ?SET_NAT_XOPT(max_users, Val)
     end;
+set_xoption([{<<"muc#roomconfig_getmemberlist">>, Val} | Opts], Config) ->
+    case Val of
+        <<"none">> ->
+            ?SET_XOPT(maygetmemberlist, []);
+        _ ->
+            ?SET_XOPT(maygetmemberlist, [binary_to_atom(V, latin1) || V <- Val])
+    end;
 set_xoption([{<<"muc#roomconfig_enablelogging">>, [Val]} | Opts], Config) ->
     ?SET_BOOL_XOPT(logging, Val);
 set_xoption([{<<"FORM_TYPE">>, _} | Opts], Config) ->
@@ -3635,6 +3661,8 @@ set_opts([{Opt, Val} | Opts], SD=#state{config = C = #config{}}) ->
         max_users ->
             MaxUsers = min(Val, get_service_max_users(SD)),
             SD#state{config = C#config{max_users = MaxUsers}};
+        maygetmemberlist ->
+            SD#state{config = C#config{maygetmemberlist = Val}};
         affiliations ->
             SD#state{affiliations = ?DICT:from_list(Val)};
         subject ->
@@ -3673,6 +3701,7 @@ make_opts(StateData) ->
      ?MAKE_CONFIG_OPT(anonymous),
      ?MAKE_CONFIG_OPT(logging),
      ?MAKE_CONFIG_OPT(max_users),
+     ?MAKE_CONFIG_OPT(maygetmemberlist),
      {affiliations, ?DICT:to_list(StateData#state.affiliations)},
      {subject, StateData#state.subject},
      {subject_author, StateData#state.subject_author}
@@ -4610,3 +4639,4 @@ privatexfield(Label, Var, Val, Lang) ->
 %%            children = [#xmlel{name = <<"value">>,
 %%                               children = [#xmlcdata{content = jlib:jid_to_binary(JID)}]}
 %%                        || JID <- JIDList]}.
+
