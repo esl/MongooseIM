@@ -39,7 +39,9 @@
          set_aux_field/3,
          del_aux_field/2,
          get_subscription/2,
-         get_subscribed/1]).
+         get_subscribed/1,
+         send_filtered/5,
+         broadcast/4]).
 
 %% gen_fsm callbacks
 -export([init/1,
@@ -127,6 +129,12 @@ get_subscription(LFrom, StateData) ->
        T -> to;
        true -> none
     end.
+
+send_filtered(FsmRef, Feature, From, To, Packet) ->
+    FsmRef ! {send_filtered, Feature, From, To, Packet}.
+
+broadcast(FsmRef, Type, From, Packet) ->
+    FsmRef ! {broadcast, Type, From, Packet}.
 
 stop(FsmRef) ->
     ?GEN_FSM:send_event(FsmRef, closed).
@@ -1164,6 +1172,44 @@ handle_info({force_update_presence, LUser}, StateName,
             StateData
     end,
     {next_state, StateName, NewStateData};
+handle_info({send_filtered, Feature, From, To, Packet}, StateName, StateData) ->
+    Drop = ejabberd_hooks:run_fold(c2s_filter_packet, StateData#state.server,
+				   true, [StateData#state.server, StateData,
+					  Feature, To, Packet]),
+    NewStateData = if Drop ->
+			  ?DEBUG("Dropping packet from ~p to ~p",
+				 [jid:to_binary(From),
+				  jid:to_binary(To)]),
+			  StateData;
+		      true ->
+			  FinalPacket = jlib:replace_from_to(From, To, Packet),
+			  case StateData#state.jid of
+			    To ->
+				case privacy_check_packet(StateData, From, To,
+							  FinalPacket, in) of
+				  deny ->
+				      StateData;
+				  allow ->
+                                      send_element(StateData, FinalPacket),
+                                      StateData
+				end;
+			    _ ->
+				ejabberd_router:route(From, To, FinalPacket),
+				StateData
+			  end
+		   end,
+    fsm_next_state(StateName, NewStateData);
+handle_info({broadcast, Type, From, Packet}, StateName, StateData) ->
+    Recipients = ejabberd_hooks:run_fold(
+		   c2s_broadcast_recipients, StateData#state.server,
+		   [],
+		   [StateData#state.server, StateData, Type, From, Packet]),
+    lists:foreach(
+      fun(USR) ->
+	      ejabberd_router:route(
+		From, jid:make(USR), Packet)
+      end, lists:usort(Recipients)),
+    fsm_next_state(StateName, StateData);
 handle_info(resume_timeout, resume_session, StateData) ->
     {stop, normal, StateData};
 handle_info(check_buffer_full, StateName, StateData) ->

@@ -52,7 +52,6 @@
 -protocol({xep, 248, '0.2'}).
 
 -include("ejabberd.hrl").
--include("logger.hrl").
 -include("adhoc.hrl").
 -include("jlib.hrl").
 -include("pubsub.hrl").
@@ -64,7 +63,7 @@
 %% exports for hooks
 -export([presence_probe/3, caps_add/3, caps_update/3,
     in_subscription/6, out_subscription/4,
-    on_user_offline/3, remove_user/2,
+    on_user_offline/4, remove_user/2,
     disco_local_identity/5, disco_local_features/5,
     disco_local_items/5, disco_sm_identity/5,
     disco_sm_features/5, disco_sm_items/5]).
@@ -404,8 +403,8 @@ send_loop(State) ->
 	    Host = State#state.host,
 	    ServerHost = State#state.server_host,
 	    DBType = State#state.db_type,
-	    LJID = jid:tolower(JID),
-	    BJID = jid:remove_resource(LJID),
+	    LJID = jid:to_lower(JID),
+	    BJID = jid:to_bare(LJID),
 	    lists:foreach(
 		fun(PType) ->
 			Subs = get_subscriptions_for_send_last(Host, PType, DBType, JID, LJID, BJID),
@@ -448,7 +447,7 @@ send_loop(State) ->
 	{presence, User, Server, Resources, JID} ->
 	    spawn(fun() ->
 			Host = State#state.host,
-			Owner = jid:remove_resource(jid:tolower(JID)),
+			Owner = jid:to_bare(jid:to_lower(JID)),
 			lists:foreach(fun(#pubsub_node{nodeid = {_, Node}, type = Type, id = Nidx, options = Options}) ->
 				    case match_option(Options, send_last_published_item, on_sub_and_presence) of
 					true ->
@@ -544,7 +543,7 @@ disco_local_items(Acc, _From, _To, _Node, _Lang) -> Acc.
 disco_sm_identity(empty, From, To, Node, Lang) ->
     disco_sm_identity([], From, To, Node, Lang);
 disco_sm_identity(Acc, From, To, Node, _Lang) ->
-    disco_identity(jid:tolower(jid:remove_resource(To)), Node, From)
+    disco_identity(jid:to_lower(jid:to_bare(To)), Node, From)
     ++ Acc.
 
 disco_identity(_Host, <<>>, _From) ->
@@ -593,7 +592,7 @@ disco_sm_features(empty, From, To, Node, Lang) ->
 disco_sm_features({result, OtherFeatures} = _Acc, From, To, Node, _Lang) ->
     {result,
 	OtherFeatures ++
-	disco_features(jid:tolower(jid:remove_resource(To)), Node, From)};
+	disco_features(jid:to_lower(jid:to_bare(To)), Node, From)};
 disco_sm_features(Acc, _From, _To, _Node, _Lang) -> Acc.
 
 disco_features(Host, <<>>, _From) ->
@@ -628,7 +627,7 @@ disco_sm_items(empty, From, To, Node, Lang) ->
     disco_sm_items({result, []}, From, To, Node, Lang);
 disco_sm_items({result, OtherItems}, From, To, Node, _Lang) ->
     {result, lists:usort(OtherItems ++
-	    disco_items(jid:tolower(jid:remove_resource(To)), Node, From))};
+	    disco_items(jid:to_lower(jid:to_bare(To)), Node, From))};
 disco_sm_items(Acc, _From, _To, _Node, _Lang) -> Acc.
 
 -spec(disco_items/3 ::
@@ -647,7 +646,7 @@ disco_items(Host, <<>>, From) ->
 		{result, _} ->
 		    [#xmlel{name = <<"item">>,
 			    attrs = [{<<"node">>, (Node)},
-				{<<"jid">>, jid:to_string(Host)}
+				{<<"jid">>, jid:to_binary(Host)}
 				| case get_option(Options, title) of
 				    false -> [];
 				    [Title] -> [{<<"name">>, Title}]
@@ -671,7 +670,7 @@ disco_items(Host, Node, From) ->
 	    case get_allowed_items_call(Host, Nidx, From, Type, Options, Owners) of
 		{result, Items} ->
 		    {result, [#xmlel{name = <<"item">>,
-				attrs = [{<<"jid">>, jid:to_string(Host)},
+				attrs = [{<<"jid">>, jid:to_binary(Host)},
 				    {<<"name">>, ItemId}]}
 			    || #pubsub_item{itemid = {ItemId, _}} <- Items]};
 		_ ->
@@ -732,7 +731,7 @@ presence(ServerHost, Presence) ->
 
 out_subscription(User, Server, JID, subscribed) ->
     Owner = jid:make(User, Server, <<>>),
-    {PUser, PServer, PResource} = jid:tolower(JID),
+    {PUser, PServer, PResource} = jid:to_lower(JID),
     PResources = case PResource of
 	<<>> -> user_resources(PUser, PServer);
 	_ -> [PResource]
@@ -760,7 +759,7 @@ unsubscribe_user(Entity, Owner) ->
 			end, [], [Entity#jid.lserver, Owner#jid.lserver]))]
 	end).
 unsubscribe_user(Host, Entity, Owner) ->
-    BJID = jid:tolower(jid:remove_resource(Owner)),
+    BJID = jid:to_lower(jid:to_bare(Owner)),
     lists:foreach(fun (PType) ->
 		{result, Subs} = node_action(Host, PType,
 			get_entity_subscriptions,
@@ -1207,12 +1206,12 @@ iq_disco_items(Host, Item, From, RSM) ->
     (
 	From :: jid(),
 	To   :: jid(),
-	IQ   :: iq_request())
-    -> iq_result() | iq_error()
+	IQ   :: iq())
+    -> iq()
     ).
 iq_sm(From, To, #iq{type = Type, sub_el = SubEl, xmlns = XMLNS, lang = Lang} = IQ) ->
     ServerHost = To#jid.lserver,
-    LOwner = jid:tolower(jid:remove_resource(To)),
+    LOwner = jid:to_lower(jid:to_bare(To)),
     Res = case XMLNS of
 	?NS_PUBSUB ->
 	    iq_pubsub(LOwner, ServerHost, From, Type, SubEl, Lang);
@@ -1486,7 +1485,7 @@ send_pending_node_form(Host, Owner, _Lang, Plugins) ->
 				{<<"var">>, <<"pubsub#node">>}],
 			    children = lists:usort(XOpts)}]},
 	    #adhoc_response{status = executing,
-		defaultaction = <<"execute">>, elements = [XForm]}
+		default_action = <<"execute">>, elements = [XForm]}
     end.
 
 get_pending_nodes(Host, Owner, Plugins) ->
@@ -1506,7 +1505,7 @@ get_pending_nodes(Host, Owner, Plugins) ->
 %% subscriptions on Host and Node.</p>
 send_pending_auth_events(Host, Node, Owner) ->
     ?DEBUG("Sending pending auth events for ~s on ~s:~s",
-	[jid:to_string(Owner), Host, Node]),
+	[jid:to_binary(Owner), Host, Node]),
     Action = fun (#pubsub_node{id = Nidx, type = Type}) ->
 	    case lists:member(<<"get-pending">>, plugin_features(Host, Type)) of
 		true ->
@@ -1585,7 +1584,7 @@ send_authorization_request(#pubsub_node{nodeid = {Host, Node}, type = Type, id =
 			    [#xmlel{name = <<"value">>,
 				    attrs = [],
 				    children =
-				    [{xmlcdata, jid:to_string(Subscriber)}]}]},
+				    [{xmlcdata, jid:to_binary(Subscriber)}]}]},
 			#xmlel{name = <<"field">>,
 			    attrs =
 			    [{<<"var">>,
@@ -1646,7 +1645,7 @@ send_authorization_approval(Host, JID, SNode, Subscription) ->
 	    [{<<"subscription">>, subscription_to_string(S)}]
     end,
     Stanza = event_stanza(<<"subscription">>, 
-	    [{<<"jid">>, jid:to_string(JID)}
+	    [{<<"jid">>, jid:to_binary(JID)}
 		| nodeAttr(SNode)]
 	    ++ SubAttrs),
     ejabberd_router:route(service_jid(Host), JID, Stanza).
@@ -1659,8 +1658,8 @@ handle_authorization_response(Host, From, To, Packet, XFields) ->
 	{{value, {_, [Node]}},
 		    {value, {_, [SSubscriber]}},
 		    {value, {_, [SAllow]}}} ->
-	    FromLJID = jid:tolower(jid:remove_resource(From)),
-	    Subscriber = jid:from_string(SSubscriber),
+	    FromLJID = jid:to_lower(jid:to_bare(From)),
+	    Subscriber = jid:from_binary(SSubscriber),
 	    Allow = case SAllow of
 		<<"1">> -> true;
 		<<"true">> -> true;
@@ -2075,7 +2074,7 @@ subscribe_node(Host, Node, From, JID, Configuration) ->
 	    [#xmlel{name = <<"pubsub">>,
 		    attrs = [{<<"xmlns">>, ?NS_PUBSUB}],
 		    children = [#xmlel{name = <<"subscription">>,
-			    attrs = [{<<"jid">>, jid:to_string(Subscriber)}
+			    attrs = [{<<"jid">>, jid:to_binary(Subscriber)}
 				| SubAttrs]}]}]
     end,
     case transaction(Host, Node, Action, sync_dirty) of
@@ -2202,6 +2201,7 @@ publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access) ->
 		children = [#xmlel{name = <<"publish">>, attrs = nodeAttr(Node),
 			children = [#xmlel{name = <<"item">>,
 				attrs = itemAttr(ItemId)}]}]}],
+    ErrorItemNotFound = ?ERR_ITEM_NOT_FOUND,
     case transaction(Host, Node, Action, sync_dirty) of
 	{result, {TNode, {Result, Broadcast, Removed}}} ->
 	    Nidx = TNode#pubsub_node.id,
@@ -2243,7 +2243,7 @@ publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access) ->
 	    {result, Reply};
 	{result, {_, Result}} ->
 	    {result, Result};
-	{error, ?ERR_ITEM_NOT_FOUND} ->
+	{error, ErrorItemNotFound} ->
 	    Type = select_type(ServerHost, Host, Node),
 	    case lists:member(<<"auto-create">>, plugin_features(Host, Type)) of
 		true ->
@@ -2255,10 +2255,10 @@ publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access) ->
 						    attrs = [{<<"node">>, NewNode}]}]}]} ->
 			    publish_item(Host, ServerHost, NewNode, Publisher, ItemId, Payload);
 			_ ->
-			    {error, ?ERR_ITEM_NOT_FOUND}
+			    {error, ErrorItemNotFound}
 		    end;
 		false ->
-		    {error, ?ERR_ITEM_NOT_FOUND}
+		    {error, ErrorItemNotFound}
 	    end;
 	Error ->
 	    Error
@@ -2411,7 +2411,7 @@ get_items(Host, Node, From, SubId, SMaxItems, ItemIds, RSM) ->
 		Max -> Max
 	    end;
 	true ->
-	    case catch jlib:binary_to_integer(SMaxItems) of
+	    case catch binary_to_integer(SMaxItems) of
 		{'EXIT', _} -> {error, ?ERR_BAD_REQUEST};
 		Val -> Val
 	    end
@@ -2653,7 +2653,7 @@ get_affiliations(Host, Node, JID) ->
 			    [];
 			({AJID, Aff}) ->
 			    [#xmlel{name = <<"affiliation">>,
-				    attrs = [{<<"jid">>, jid:to_string(AJID)},
+				    attrs = [{<<"jid">>, jid:to_binary(AJID)},
 					{<<"affiliation">>, affiliation_to_string(Aff)}]}]
 		    end,
 		    Affs),
@@ -2677,17 +2677,17 @@ get_affiliations(Host, Node, JID) ->
     | {error, xmlel()}
     ).
 set_affiliations(Host, Node, From, EntitiesEls) ->
-    Owner = jid:tolower(jid:remove_resource(From)),
+    Owner = jid:to_lower(jid:to_bare(From)),
     Entities = lists:foldl(fun
 		(_, error) ->
 		    error;
 		(El, Acc) ->
 		    case El of
 			#xmlel{name = <<"affiliation">>, attrs = Attrs} ->
-			    JID = jid:from_string(xml:get_attr_s(<<"jid">>, Attrs)),
+			    JID = jid:from_binary(xml:get_attr_s(<<"jid">>, Attrs)),
 			    Affiliation = string_to_affiliation(xml:get_attr_s(<<"affiliation">>, Attrs)),
 			    if (JID == error) or (Affiliation == false) -> error;
-				true -> [{jid:tolower(JID), Affiliation} | Acc]
+				true -> [{jid:to_lower(JID), Affiliation} | Acc]
 			    end
 		    end
 	    end,
@@ -2709,13 +2709,13 @@ set_affiliations(Host, Node, From, EntitiesEls) ->
 					node_call(Host, Type, set_affiliation, [Nidx, JID, Affiliation]),
 					case Affiliation of
 					    owner ->
-						NewOwner = jid:tolower(jid:remove_resource(JID)),
+						NewOwner = jid:to_lower(jid:to_bare(JID)),
 						NewOwners = [NewOwner | Owners],
 						tree_call(Host,
 						    set_node,
 						    [N#pubsub_node{owners = NewOwners}]);
 					    none ->
-						OldOwner = jid:tolower(jid:remove_resource(JID)),
+						OldOwner = jid:to_lower(jid:to_bare(JID)),
 						case lists:member(OldOwner, Owners) of
 						    true ->
 							NewOwners = Owners -- [OldOwner],
@@ -2789,7 +2789,7 @@ read_sub(Host, Node, Nidx, Subscriber, SubId, Lang) ->
 	    [XdataEl]
     end,
     OptionsEl = #xmlel{name = <<"options">>,
-	    attrs = [{<<"jid">>, jid:to_string(Subscriber)},
+	    attrs = [{<<"jid">>, jid:to_binary(Subscriber)},
 		{<<"subid">>, SubId}
 		| nodeAttr(Node)],
 	    children = Children},
@@ -2865,7 +2865,7 @@ get_subscriptions(Host, Node, JID, Plugins) when is_list(Plugins) ->
 					unsupported, <<"retrieve-subscriptions">>)},
 				Acc};
 			true ->
-			    Subscriber = jid:remove_resource(JID),
+			    Subscriber = jid:to_bare(JID),
 			    {result, Subs} = node_action(Host, Type,
 				    get_entity_subscriptions,
 				    [Host, Subscriber]),
@@ -2899,14 +2899,14 @@ get_subscriptions(Host, Node, JID, Plugins) when is_list(Plugins) ->
 				<<>> ->
 				    [#xmlel{name = <<"subscription">>,
 					    attrs =
-					    [{<<"jid">>, jid:to_string(SubJID)},
+					    [{<<"jid">>, jid:to_binary(SubJID)},
 						{<<"subid">>, SubId},
 						{<<"subscription">>, subscription_to_string(Sub)}
 						| nodeAttr(SubsNode)]}];
 				SubsNode ->
 				    [#xmlel{name = <<"subscription">>,
 					    attrs =
-					    [{<<"jid">>, jid:to_string(SubJID)},
+					    [{<<"jid">>, jid:to_binary(SubJID)},
 						{<<"subid">>, SubId},
 						{<<"subscription">>, subscription_to_string(Sub)}]}];
 				_ ->
@@ -2917,13 +2917,13 @@ get_subscriptions(Host, Node, JID, Plugins) when is_list(Plugins) ->
 				<<>> ->
 				    [#xmlel{name = <<"subscription">>,
 					    attrs =
-					    [{<<"jid">>, jid:to_string(SubJID)},
+					    [{<<"jid">>, jid:to_binary(SubJID)},
 						{<<"subscription">>, subscription_to_string(Sub)}
 						| nodeAttr(SubsNode)]}];
 				SubsNode ->
 				    [#xmlel{name = <<"subscription">>,
 					    attrs =
-					    [{<<"jid">>, jid:to_string(SubJID)},
+					    [{<<"jid">>, jid:to_binary(SubJID)},
 						{<<"subscription">>, subscription_to_string(Sub)}]}];
 				_ ->
 				    []
@@ -2963,12 +2963,12 @@ get_subscriptions(Host, Node, JID) ->
 			({AJID, Sub}) ->
 			    [#xmlel{name = <<"subscription">>,
 				    attrs =
-				    [{<<"jid">>, jid:to_string(AJID)},
+				    [{<<"jid">>, jid:to_binary(AJID)},
 					{<<"subscription">>, subscription_to_string(Sub)}]}];
 			({AJID, Sub, SubId}) ->
 			    [#xmlel{name = <<"subscription">>,
 				    attrs =
-				    [{<<"jid">>, jid:to_string(AJID)},
+				    [{<<"jid">>, jid:to_binary(AJID)},
 					{<<"subscription">>, subscription_to_string(Sub)},
 					{<<"subid">>, SubId}]}]
 		    end,
@@ -3007,18 +3007,18 @@ get_subscriptions_for_send_last(_Host, _PType, _, _JID, _LJID, _BJID) ->
     [].
 
 set_subscriptions(Host, Node, From, EntitiesEls) ->
-    Owner = jid:tolower(jid:remove_resource(From)),
+    Owner = jid:to_lower(jid:to_bare(From)),
     Entities = lists:foldl(fun
 		(_, error) ->
 		    error;
 		(El, Acc) ->
 		    case El of
 			#xmlel{name = <<"subscription">>, attrs = Attrs} ->
-			    JID = jid:from_string(xml:get_attr_s(<<"jid">>, Attrs)),
+			    JID = jid:from_binary(xml:get_attr_s(<<"jid">>, Attrs)),
 			    Sub = string_to_subscription(xml:get_attr_s(<<"subscription">>, Attrs)),
 			    SubId = xml:get_attr_s(<<"subid">>, Attrs),
 			    if (JID == error) or (Sub == false) -> error;
-				true -> [{jid:tolower(JID), Sub, SubId} | Acc]
+				true -> [{jid:to_lower(JID), Sub, SubId} | Acc]
 			    end
 		    end
 	    end,
@@ -3034,7 +3034,7 @@ set_subscriptions(Host, Node, From, EntitiesEls) ->
 				    attrs = [{<<"xmlns">>, ?NS_PUBSUB}],
 				    children =
 				    [#xmlel{name = <<"subscription">>,
-					    attrs = [{<<"jid">>, jid:to_string(JID)},
+					    attrs = [{<<"jid">>, jid:to_binary(JID)},
 						{<<"subscription">>, subscription_to_string(Sub)}
 						| nodeAttr(Node)]}]}]},
 		    ejabberd_router:route(service_jid(Host), jid:make(JID), Stanza)
@@ -3109,7 +3109,7 @@ get_roster_info(OwnerUser, OwnerServer, {SubscriberUser, SubscriberServer, _}, A
 	    Groups),
     {PresenceSubscription, RosterGroup};
 get_roster_info(OwnerUser, OwnerServer, JID, AllowedGroups) ->
-    get_roster_info(OwnerUser, OwnerServer, jid:tolower(JID), AllowedGroups).
+    get_roster_info(OwnerUser, OwnerServer, jid:to_lower(JID), AllowedGroups).
 
 string_to_affiliation(<<"owner">>) -> owner;
 string_to_affiliation(<<"publisher">>) -> publisher;
@@ -3174,7 +3174,7 @@ sub_option_can_deliver(nodes, _, {subscription_type, items}) -> false;
 sub_option_can_deliver(_, _, {subscription_depth, all}) -> true;
 sub_option_can_deliver(_, Depth, {subscription_depth, D}) -> Depth =< D;
 sub_option_can_deliver(_, _, {deliver, false}) -> false;
-sub_option_can_deliver(_, _, {expire, When}) -> p1_time_compat:timestamp() < When;
+sub_option_can_deliver(_, _, {expire, When}) -> timestamp() < When;
 sub_option_can_deliver(_, _, _) -> true.
 
 -spec(presence_can_deliver/2 ::
@@ -3276,8 +3276,8 @@ items_event_stanza(Node, Items) ->
 	    DateTime = calendar:now_to_datetime(ModifNow),
 	    {T_string, Tz_string} = jlib:timestamp_to_iso(DateTime, utc),
 	    [#xmlel{name = <<"delay">>, attrs = [{<<"xmlns">>, ?NS_DELAY},
-			{<<"from">>, jid:to_string(ModifUSR)},
-			{<<"stamp">>, <<T_string/binary, Tz_string/binary>>}],
+			{<<"from">>, jid:to_binary(ModifUSR)},
+			{<<"stamp">>, iolist_to_binary([T_string, Tz_string])}],
 		    children = [{xmlcdata, <<>>}]}];
 	_ ->
 	    []
@@ -3497,7 +3497,7 @@ broadcast_stanza({LUser, LServer, LResource}, Publisher, Node, Nidx, Type, NodeO
 		{pep_message, <<((Node))/binary, "+notify">>},
 		_Sender = jid:make(LUser, LServer, <<"">>),
 		_StanzaToSend = add_extended_headers(Stanza,
-		    _ReplyTo = extended_headers([jid:to_string(Publisher)])));
+		    _ReplyTo = extended_headers([jid:to_binary(Publisher)])));
 	_ ->
 	    ?DEBUG("~p@~p has no session; can't deliver ~p to contacts", [LUser, LServer, BaseStanza])
     end;
@@ -3723,13 +3723,13 @@ max_items(Host, Options) ->
 -define(INTEGER_CONFIG_FIELD(Label, Var),
     ?STRINGXFIELD(Label,
 	<<"pubsub#", (atom_to_binary(Var, latin1))/binary>>,
-	(jlib:integer_to_binary(get_option(Options, Var))))).
+	(integer_to_binary(get_option(Options, Var))))).
 
 -define(JLIST_CONFIG_FIELD(Label, Var, Opts),
     ?LISTXFIELD(Label,
 	<<"pubsub#", (atom_to_binary(Var, latin1))/binary>>,
-	(jid:to_string(get_option(Options, Var))),
-	[jid:to_string(O) || O <- Opts])).
+	(jid:to_binary(get_option(Options, Var))),
+	[jid:to_binary(O) || O <- Opts])).
 
 -define(ALIST_CONFIG_FIELD(Label, Var, Opts),
     ?LISTXFIELD(Label,
@@ -3866,7 +3866,7 @@ add_opt(Key, Value, Opts) ->
     set_xoption(Host, Opts, add_opt(Opt, Val, NewOpts))).
 
 -define(SET_INTEGER_XOPT(Opt, Val, Min, Max),
-    case catch jlib:binary_to_integer(Val) of
+    case catch binary_to_integer(Val) of
 	IVal when is_integer(IVal), IVal >= Min ->
 	    if (Max =:= undefined) orelse (IVal =< Max) ->
 		set_xoption(Host, Opts, add_opt(Opt, IVal, NewOpts));
@@ -3880,7 +3880,7 @@ add_opt(Key, Value, Opts) ->
 -define(SET_ALIST_XOPT(Opt, Val, Vals),
     case lists:member(Val, [atom_to_binary(V, latin1) || V <- Vals]) of
 	true ->
-	    set_xoption(Host, Opts, add_opt(Opt, jlib:binary_to_atom(Val), NewOpts));
+	    set_xoption(Host, Opts, add_opt(Opt, binary_to_atom(Val, utf8), NewOpts));
 	false ->
 	    {error, ?ERR_NOT_ACCEPTABLE}
     end).
@@ -3963,7 +3963,7 @@ set_cached_item({_, ServerHost, _}, Nidx, ItemId, Publisher, Payload) ->
 set_cached_item(Host, Nidx, ItemId, Publisher, Payload) ->
     case is_last_item_cache_enabled(Host) of
 	true -> mnesia:dirty_write({pubsub_last_item, Nidx, ItemId,
-		    {p1_time_compat:timestamp(), jid:tolower(jid:remove_resource(Publisher))},
+		    {timestamp(), jid:to_lower(jid:to_bare(Publisher))},
 		    Payload});
 	_ -> ok
     end.
@@ -4027,15 +4027,15 @@ tree(_Host, <<"virtual">>) ->
     nodetree_virtual;   % special case, virtual does not use any backend
 tree(Host, Name) ->
     case gen_mod:db_type(serverhost(Host), ?MODULE) of
-	mnesia -> jlib:binary_to_atom(<<"nodetree_", Name/binary>>);
-	odbc -> jlib:binary_to_atom(<<"nodetree_", Name/binary, "_odbc">>);
+	mnesia -> binary_to_atom(<<"nodetree_", Name/binary>>, utf8);
+	odbc -> binary_to_atom(<<"nodetree_", Name/binary, "_odbc">>, utf8);
 	_ -> Name
     end.
 
 plugin(Host, Name) ->
     case gen_mod:db_type(serverhost(Host), ?MODULE) of
-	mnesia -> jlib:binary_to_atom(<<"node_", Name/binary>>);
-	odbc -> jlib:binary_to_atom(<<"node_", Name/binary, "_odbc">>);
+	mnesia -> binary_to_atom(<<"node_", Name/binary>>, utf8);
+	odbc -> binary_to_atom(<<"node_", Name/binary, "_odbc">>, utf8);
 	_ -> Name
     end.
 
@@ -4261,11 +4261,11 @@ extended_error(#xmlel{name = Error, attrs = Attrs, children = SubEls}, Ext, ExtA
 	children = lists:reverse([#xmlel{name = Ext, attrs = ExtAttrs} | SubEls])}.
 
 string_to_ljid(JID) ->
-    case jid:from_string(JID) of
+    case jid:from_binary(JID) of
 	error ->
 	    {<<>>, <<>>, <<>>};
 	J ->
-	    case jid:tolower(J) of
+	    case jid:to_lower(J) of
 		error -> {<<>>, <<>>, <<>>};
 		J1 -> J1
 	    end
@@ -4273,7 +4273,7 @@ string_to_ljid(JID) ->
 
 -spec(uniqid/0 :: () -> mod_pubsub:itemId()).
 uniqid() ->
-    {T1, T2, T3} = p1_time_compat:timestamp(),
+    {T1, T2, T3} = timestamp(),
     iolist_to_binary(io_lib:fwrite("~.16B~.16B~.16B", [T1, T2, T3])).
 
 nodeAttr(Node) -> [{<<"node">>, Node}].
@@ -4295,7 +4295,7 @@ itemsEls(Items) ->
 add_message_type(Message, normal) -> Message;
 add_message_type(#xmlel{name = <<"message">>, attrs = Attrs, children = Els}, Type) ->
     #xmlel{name = <<"message">>,
-	attrs = [{<<"type">>, jlib:atom_to_binary(Type)} | Attrs],
+	attrs = [{<<"type">>, atom_to_binary(Type, utf8)} | Attrs],
 	children = Els};
 add_message_type(XmlEl, _Type) ->
     XmlEl.
@@ -4333,8 +4333,8 @@ extended_headers(Jids) ->
 	    attrs = [{<<"type">>, <<"replyto">>}, {<<"jid">>, Jid}]}
 	|| Jid <- Jids].
 
-on_user_offline(_, JID, _) ->
-    {User, Server, Resource} = jid:tolower(JID),
+on_user_offline(_, JID, _, _) ->
+    {User, Server, Resource} = jid:to_lower(JID),
     case user_resources(User, Server) of
 	[] -> purge_offline({User, Server, Resource});
 	_ -> true
@@ -4442,3 +4442,11 @@ mod_opt_type(_) ->
      ignore_pep_from_offline, iqdisc, last_item_cache,
      max_items_node, nodetree, pep_mapping, plugins,
      max_subscriptions_node, default_node_config].
+
+timestamp() ->
+    try
+	erlang:timestamp()
+    catch
+	error:undef ->
+	    erlang:now()
+    end.

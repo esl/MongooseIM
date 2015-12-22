@@ -115,7 +115,7 @@ features() ->
 %% checked. This parameter depends on the value of the
 %% <tt>access_createnode</tt> ACL value in ejabberd config file.</p>
 create_node_permission(Host, ServerHost, _Node, _ParentNode, Owner, Access) ->
-    LOwner = jid:tolower(Owner),
+    LOwner = jid:to_lower(Owner),
     Allowed = case LOwner of
 	{<<"">>, Host, <<"">>} ->
 	    true; % pubsub service always allowed
@@ -125,7 +125,7 @@ create_node_permission(Host, ServerHost, _Node, _ParentNode, Owner, Access) ->
     {result, Allowed}.
 
 create_node(Nidx, Owner) ->
-    OwnerKey = jid:tolower(jid:remove_resource(Owner)),
+    OwnerKey = jid:to_lower(jid:to_bare(Owner)),
     set_state(#pubsub_state{stateid = {OwnerKey, Nidx},
 	    affiliation = owner}),
     {result, {default, broadcast}}.
@@ -177,9 +177,9 @@ delete_node(Nodes) ->
 %% <p>In the default plugin module, the record is unchanged.</p>
 subscribe_node(Nidx, Sender, Subscriber, AccessModel,
 	    SendLast, PresenceSubscription, RosterGroup, _Options) ->
-    SubKey = jid:tolower(Subscriber),
-    GenKey = jid:remove_resource(SubKey),
-    Authorized = jid:tolower(jid:remove_resource(Sender)) == GenKey,
+    SubKey = jid:to_lower(Subscriber),
+    GenKey = jid:to_bare(SubKey),
+    Authorized = jid:to_lower(jid:to_bare(Sender)) == GenKey,
     GenState = get_state(Nidx, GenKey),
     SubState = case SubKey of
 	GenKey -> GenState;
@@ -244,9 +244,9 @@ subscribe_node(Nidx, Sender, Subscriber, AccessModel,
 
 %% @doc <p>Unsubscribe the <tt>Subscriber</tt> from the <tt>Node</tt>.</p>
 unsubscribe_node(Nidx, Sender, Subscriber, SubId) ->
-    SubKey = jid:tolower(Subscriber),
-    GenKey = jid:remove_resource(SubKey),
-    Authorized = jid:tolower(jid:remove_resource(Sender)) == GenKey,
+    SubKey = jid:to_lower(Subscriber),
+    GenKey = jid:to_bare(SubKey),
+    Authorized = jid:to_lower(jid:to_bare(Sender)) == GenKey,
     GenState = get_state(Nidx, GenKey),
     SubState = case SubKey of
 	GenKey -> GenState;
@@ -346,8 +346,8 @@ delete_subscriptions(SubKey, Nidx, Subscriptions, SubState) ->
 %% </p>
 %% <p>In the default plugin module, the record is unchanged.</p>
 publish_item(Nidx, Publisher, PublishModel, MaxItems, ItemId, Payload) ->
-    SubKey = jid:tolower(Publisher),
-    GenKey = jid:remove_resource(SubKey),
+    SubKey = jid:to_lower(Publisher),
+    GenKey = jid:to_bare(SubKey),
     GenState = get_state(Nidx, GenKey),
     SubState = case SubKey of
 	GenKey -> GenState;
@@ -368,7 +368,7 @@ publish_item(Nidx, Publisher, PublishModel, MaxItems, ItemId, Payload) ->
 	    {error, ?ERR_FORBIDDEN};
 	true ->
 	    if MaxItems > 0 ->
-		    Now = p1_time_compat:timestamp(),
+		    Now = timestamp(),
 		    PubId = {Now, SubKey},
 		    Item = case get_item(Nidx, ItemId) of
 			{result, OldItem} ->
@@ -412,8 +412,8 @@ remove_extra_items(Nidx, MaxItems, ItemIds) ->
 %% <p>Default plugin: The user performing the deletion must be the node owner
 %% or a publisher, or PublishModel being open.</p>
 delete_item(Nidx, Publisher, PublishModel, ItemId) ->
-    SubKey = jid:tolower(Publisher),
-    GenKey = jid:remove_resource(SubKey),
+    SubKey = jid:to_lower(Publisher),
+    GenKey = jid:to_bare(SubKey),
     GenState = get_state(Nidx, GenKey),
     #pubsub_state{affiliation = Affiliation, items = Items} = GenState,
     Allowed = Affiliation == publisher orelse
@@ -457,8 +457,8 @@ delete_item(Nidx, Publisher, PublishModel, ItemId) ->
     end.
 
 purge_node(Nidx, Owner) ->
-    SubKey = jid:tolower(Owner),
-    GenKey = jid:remove_resource(SubKey),
+    SubKey = jid:to_lower(Owner),
+    GenKey = jid:to_bare(SubKey),
     GenState = get_state(Nidx, GenKey),
     case GenState of
 	#pubsub_state{affiliation = owner} ->
@@ -484,8 +484,8 @@ purge_node(Nidx, Owner) ->
 %% that will be added to the affiliation stored in the main
 %% <tt>pubsub_state</tt> table.</p>
 get_entity_affiliations(Host, Owner) ->
-    SubKey = jid:tolower(Owner),
-    GenKey = jid:remove_resource(SubKey),
+    SubKey = jid:to_lower(Owner),
+    GenKey = jid:to_bare(SubKey),
     States = mnesia:match_object(#pubsub_state{stateid = {GenKey, '_'}, _ = '_'}),
     NodeTree = mod_pubsub:tree(Host),
     Reply = lists:foldl(fun (#pubsub_state{stateid = {_, N}, affiliation = A}, Acc) ->
@@ -503,14 +503,14 @@ get_node_affiliations(Nidx) ->
     {result, lists:map(Tr, States)}.
 
 get_affiliation(Nidx, Owner) ->
-    SubKey = jid:tolower(Owner),
-    GenKey = jid:remove_resource(SubKey),
+    SubKey = jid:to_lower(Owner),
+    GenKey = jid:to_bare(SubKey),
     #pubsub_state{affiliation = Affiliation} = get_state(Nidx, GenKey),
     {result, Affiliation}.
 
 set_affiliation(Nidx, Owner, Affiliation) ->
-    SubKey = jid:tolower(Owner),
-    GenKey = jid:remove_resource(SubKey),
+    SubKey = jid:to_lower(Owner),
+    GenKey = jid:to_bare(SubKey),
     GenState = get_state(Nidx, GenKey),
     case {Affiliation, GenState#pubsub_state.subscriptions} of
 	{none, []} -> del_state(Nidx, GenKey);
@@ -525,8 +525,8 @@ set_affiliation(Nidx, Owner, Affiliation) ->
 %% that will be added to the affiliation stored in the main
 %% <tt>pubsub_state</tt> table.</p>
 get_entity_subscriptions(Host, Owner) ->
-    {U, D, _} = SubKey = jid:tolower(Owner),
-    GenKey = jid:remove_resource(SubKey),
+    {U, D, _} = SubKey = jid:to_lower(Owner),
+    GenKey = jid:to_bare(SubKey),
     States = case SubKey of
 	GenKey ->
 	    mnesia:match_object(#pubsub_state{stateid = {{U, D, '_'}, '_'}, _ = '_'});
@@ -568,12 +568,12 @@ get_node_subscriptions(Nidx) ->
     {result, lists:flatmap(Tr, States)}.
 
 get_subscriptions(Nidx, Owner) ->
-    SubKey = jid:tolower(Owner),
+    SubKey = jid:to_lower(Owner),
     SubState = get_state(Nidx, SubKey),
     {result, SubState#pubsub_state.subscriptions}.
 
 set_subscriptions(Nidx, Owner, Subscription, SubId) ->
-    SubKey = jid:tolower(Owner),
+    SubKey = jid:to_lower(Owner),
     SubState = get_state(Nidx, SubKey),
     case {SubId, SubState#pubsub_state.subscriptions} of
 	{_, []} ->
@@ -627,7 +627,7 @@ unsub_with_subid(Nidx, SubId, #pubsub_state{stateid = {Entity, _}} = SubState) -
 %% @doc <p>Returns a list of Owner's nodes on Host with pending
 %% subscriptions.</p>
 get_pending_nodes(Host, Owner) ->
-    GenKey = jid:remove_resource(jid:tolower(Owner)),
+    GenKey = jid:to_bare(jid:to_lower(Owner)),
     States = mnesia:match_object(#pubsub_state{stateid = {GenKey, '_'},
 		affiliation = owner,
 		_ = '_'}),
@@ -709,8 +709,8 @@ get_items(Nidx, _From, _RSM) ->
     {result, {lists:reverse(lists:keysort(#pubsub_item.modification, Items)), none}}.
 
 get_items(Nidx, JID, AccessModel, PresenceSubscription, RosterGroup, _SubId, RSM) ->
-    SubKey = jid:tolower(JID),
-    GenKey = jid:remove_resource(SubKey),
+    SubKey = jid:to_lower(JID),
+    GenKey = jid:to_bare(SubKey),
     GenState = get_state(Nidx, GenKey),
     SubState = get_state(Nidx, SubKey),
     Affiliation = GenState#pubsub_state.affiliation,
@@ -753,8 +753,8 @@ get_item(Nidx, ItemId) ->
     end.
 
 get_item(Nidx, ItemId, JID, AccessModel, PresenceSubscription, RosterGroup, _SubId) ->
-    SubKey = jid:tolower(JID),
-    GenKey = jid:remove_resource(SubKey),
+    SubKey = jid:to_lower(JID),
+    GenKey = jid:to_bare(SubKey),
     GenState = get_state(Nidx, GenKey),
     Affiliation = GenState#pubsub_state.affiliation,
     Subscriptions = GenState#pubsub_state.subscriptions,
@@ -838,4 +838,12 @@ first_in_list(Pred, [H | T]) ->
     case Pred(H) of
 	true -> {value, H};
 	_ -> first_in_list(Pred, T)
+    end.
+
+timestamp() ->
+    try
+	erlang:timestamp()
+    catch
+	error:undef ->
+	    erlang:now()
     end.

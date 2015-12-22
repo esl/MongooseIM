@@ -36,6 +36,7 @@
          reload_module/3,
          get_opt/2,
          get_opt/3,
+         get_opt/4,
          get_opt_host/3,
          set_opt/3,
          get_module_opt/4,
@@ -46,7 +47,9 @@
          get_hosts/2,
          get_module_proc/2,
          backend_code/3,
-         is_loaded/2]).
+         is_loaded/2,
+         db_type/2,
+         v_db/1]).
 
 -include("ejabberd.hrl").
 
@@ -267,6 +270,13 @@ get_opt(Opt, Opts, Default) ->
             Val
     end.
 
+get_opt(Opt, Opts, F, Default) ->
+    case lists:keysearch(Opt, 1, Opts) of
+        false ->
+            Default;
+        {value, {_, Val}} ->
+            F(Val)
+    end.
 
 -spec set_opt(_,[tuple()],_) -> [tuple(),...].
 set_opt(Opt, Opts, Value) ->
@@ -404,3 +414,17 @@ clear_opts(Module, Opts0) ->
         _ ->
             Opts
     end.
+
+-type db_type() :: odbc | mnesia | riak.
+
+-spec v_db(db_type() | internal) -> db_type().
+
+v_db(odbc) -> odbc;
+v_db(internal) -> mnesia;
+v_db(mnesia) -> mnesia;
+v_db(riak) -> riak.
+
+db_type(Host, Module) when is_atom(Module) ->
+    get_module_opt(Host, Module, db_type, mnesia);
+db_type(_Host, Opts) when is_list(Opts) ->
+    get_opt(db_type, Opts, mnesia).

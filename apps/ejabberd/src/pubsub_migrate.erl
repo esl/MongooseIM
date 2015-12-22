@@ -25,8 +25,8 @@
 
 -module(pubsub_migrate).
 
+-include("ejabberd.hrl").
 -include("pubsub.hrl").
--include("logger.hrl").
 
 -export([update_node_database/2, update_state_database/2]).
 -export([update_item_database/2, update_lastitem_database/2]).

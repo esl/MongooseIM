@@ -203,7 +203,7 @@ write_subscription(_JID, _NodeId, SubID, Options) ->
 
 -spec(make_subid/0 :: () -> SubId::mod_pubsub:subId()).
 make_subid() ->
-    {T1, T2, T3} = p1_time_compat:timestamp(),
+    {T1, T2, T3} = timestamp(),
     iolist_to_binary(io_lib:fwrite("~.16B~.16B~.16B", [T1, T2, T3])).
 
 %%
@@ -237,18 +237,18 @@ var_xfield(_) -> {error, badarg}.
 val_xfield(deliver, [Val]) -> xopt_to_bool(Val);
 val_xfield(digest, [Val]) -> xopt_to_bool(Val);
 val_xfield(digest_frequency, [Val]) ->
-    case catch jlib:binary_to_integer(Val) of
+    case catch binary_to_integer(Val) of
 	N when is_integer(N) -> N;
 	_ -> {error, ?ERR_NOT_ACCEPTABLE}
     end;
-val_xfield(expire, [Val]) -> jlib:datetime_string_to_timestamp(Val);
+val_xfield(expire, [Val]) -> jlib:datetime_binary_to_timestamp(Val);
 val_xfield(include_body, [Val]) -> xopt_to_bool(Val);
 val_xfield(show_values, Vals) -> Vals;
 val_xfield(subscription_type, [<<"items">>]) -> items;
 val_xfield(subscription_type, [<<"nodes">>]) -> nodes;
 val_xfield(subscription_depth, [<<"all">>]) -> all;
 val_xfield(subscription_depth, [Depth]) ->
-    case catch jlib:binary_to_integer(Depth) of
+    case catch binary_to_integer(Depth) of
 	N when is_integer(N) -> N;
 	_ -> {error, ?ERR_NOT_ACCEPTABLE}
     end.
@@ -363,3 +363,11 @@ xfield_val(subscription_depth, N) ->
 
 bool_to_xopt(true) -> <<"true">>;
 bool_to_xopt(false) -> <<"false">>.
+
+timestamp() ->
+    try
+	erlang:timestamp()
+    catch
+	error:undef ->
+	    erlang:now()
+    end.

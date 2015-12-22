@@ -132,12 +132,12 @@ get_subnodes_tree(Host, Node) ->
 	{error, _} ->
 	    [];
 	Rec ->
-	    BasePlugin = jlib:binary_to_atom(<<"node_",
-			(Rec#pubsub_node.type)/binary>>),
+	    BasePlugin = binary_to_atom(<<"node_",
+			(Rec#pubsub_node.type)/binary>>, utf8),
 	    BasePath = BasePlugin:node_to_path(Node),
 	    mnesia:foldl(fun (#pubsub_node{nodeid = {H, N}} = R, Acc) ->
-			Plugin = jlib:binary_to_atom(<<"node_",
-				    (R#pubsub_node.type)/binary>>),
+			Plugin = binary_to_atom(<<"node_",
+				    (R#pubsub_node.type)/binary>>, utf8),
 			Path = Plugin:node_to_path(N),
 			case lists:prefix(BasePath, Path) and (H == Host) of
 			    true -> [R | Acc];
@@ -148,7 +148,7 @@ get_subnodes_tree(Host, Node) ->
     end.
 
 create_node(Host, Node, Type, Owner, Options, Parents) ->
-    BJID = jid:tolower(jid:remove_resource(Owner)),
+    BJID = jid:to_lower(jid:to_bare(Owner)),
     case catch mnesia:read({pubsub_node, {Host, Node}}) of
 	[] ->
 	    ParentExists = case Host of
