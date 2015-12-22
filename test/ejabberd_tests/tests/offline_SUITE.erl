@@ -24,7 +24,7 @@ all_tests() ->
     [simple_message,
      error_message,
      groupchat_message,
-     headliine_message,
+     headline_message,
      max_offline_messages_reached,
      message_expiry].
 
@@ -93,7 +93,7 @@ error_message(Config) ->
 groupchat_message(Config) ->
     not_stored_message(<<"groupchat">>, Config).
 
-headliine_message(Config) ->
+headline_message(Config) ->
     not_stored_message(<<"headline">>, Config).
 
 not_stored_message(Type, Config) ->
@@ -196,7 +196,7 @@ send_message(Alice, I) ->
 
 
 make_chat_text(I) ->
-    Number = list_to_binary(integer_to_list(I)),
+    Number = integer_to_binary(I),
     <<"Hi, Offline ", Number/binary>>.
 
 make_message_with_expiry(Expiry) ->
