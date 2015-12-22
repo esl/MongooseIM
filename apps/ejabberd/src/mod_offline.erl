@@ -155,7 +155,7 @@ handle_offline_msg(#offline_msg{us=US} = Msg, AccessMaxOfflineMsgs) ->
     Msgs = receive_all(US, [Msg]),
     MaxOfflineMsgs = get_max_user_messages(AccessMaxOfflineMsgs, LUser, LServer),
     Len = length(Msgs),
-    case is_message_count_threshold_reached(LUser, LServer, MaxOfflineMsgs, Len) of
+    case is_message_count_threshold_reached(MaxOfflineMsgs, LUser, LServer, Len) of
         false ->
             write_messages(LUser, LServer, Msgs);
         true ->
@@ -172,20 +172,18 @@ write_messages(LUser, LServer, Msgs) ->
             discard_warn_sender(Msgs)
     end.
 
--spec is_message_count_threshold_reached(ejabberd:luser(), ejabberd:lserver(),
-                                         integer(), integer()) -> boolean().
-is_message_count_threshold_reached(LUser, LServer, MaxOfflineMsgs, Len) ->
-    case MaxOfflineMsgs of
-        infinity ->
-            false;
-        MaxOfflineMsgs when Len > MaxOfflineMsgs ->
-            true;
-        MaxOfflineMsgs ->
-            %% Only count messages if needed.
-            MaxArchivedMsg = MaxOfflineMsgs - Len,
-            %% Maybe do not need to count all messages in archive
-            MaxArchivedMsg < ?BACKEND:count_offline_messages(LUser, LServer, MaxArchivedMsg + 1)
-    end.
+-spec is_message_count_threshold_reached(integer(), ejabberd:luser(),
+                                         ejabberd:lserver(), integer()) ->
+    boolean().
+is_message_count_threshold_reached(infinity, _LUser, _LServer, _Len) ->
+    false;
+is_message_count_threshold_reached(MaxOfflineMsgs, _LUser, _LServer, Len) when Len > MaxOfflineMsgs ->
+    true;
+is_message_count_threshold_reached(MaxOfflineMsgs, LUser, LServer, Len) ->
+    %% Only count messages if needed.
+    MaxArchivedMsg = MaxOfflineMsgs - Len,
+    %% Maybe do not need to count all messages in archive
+    MaxArchivedMsg < ?BACKEND:count_offline_messages(LUser, LServer, MaxArchivedMsg + 1).
 
 
 
@@ -245,6 +243,7 @@ srv_name(Host) ->
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
 init([Host, AccessMaxOfflineMsgs]) ->
+    random:seed(os:timestamp()),
     {ok, #state{
             host = Host,
             access_max_user_messages = AccessMaxOfflineMsgs}}.

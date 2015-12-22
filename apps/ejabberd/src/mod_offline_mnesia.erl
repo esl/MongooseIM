@@ -88,10 +88,11 @@ write_all_messages_t(Len, Msgs) ->
     [mnesia:write(M) || M <- Msgs],
     ok.
 
-count_offline_messages(LUser, LServer, MaxNeeded) ->
+count_offline_messages(LUser, LServer, _MaxNeeded) ->
     US = {LUser, LServer},
     F = fun () ->
-        count_mnesia_records(US, MaxNeeded)
+        Result = mnesia:read(offline_msg, US, read),
+        length(Result)
     end,
     case catch mnesia:async_dirty(F) of
         I when is_integer(I) -> I;
@@ -171,26 +172,4 @@ remove_old_message(TimeStamp, Rec) ->
 
 is_old_message(MaxAllowedTimeStamp, #offline_msg{timestamp=TimeStamp}) ->
     TimeStamp < MaxAllowedTimeStamp.
-
-count_mnesia_records(US, MaxNeeded) ->
-    MatchExpression = #offline_msg{us = US,  _ = '_'},
-    case mnesia:select(offline_msg, [{MatchExpression, [], [[]]}],
-        ?BATCHSIZE, read) of
-        {Result, Cont} ->
-            Count = length(Result),
-            count_records_cont(Cont, Count, MaxNeeded);
-        '$end_of_table' ->
-            0
-    end.
-
-count_records_cont(_Cont, Count, MaxNeeded) when Count > MaxNeeded ->
-    Count;
-count_records_cont(Cont, Count, MaxNeeded) ->
-    case mnesia:select(Cont) of
-        {Result, Cont} ->
-            NewCount = Count + length(Result),
-            count_records_cont(Cont, NewCount, MaxNeeded);
-        '$end_of_table' ->
-            Count
-    end.
 
