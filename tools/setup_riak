@@ -48,3 +48,7 @@ ${1}riak-admin bucket-type activate mam_yz
 
 ${1}riak-admin bucket-type create last '{"props":{"last_write_wins":true, "dvv_enabled":false}}'
 ${1}riak-admin bucket-type activate last
+
+${1}riak-admin bucket-type create offline '{"props":{"last_write_wins":true, "dvv_enabled":false}}'
+${1}riak-admin bucket-type activate offline
+
