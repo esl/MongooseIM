@@ -1531,23 +1531,23 @@ admin_member_list(Config) ->
         escalus:assert(is_error, [<<"auth">>, <<"forbidden">>], Error)
   end).
 
-check_memberlist(Login, yes, Config) ->
-    escalus:send(Login, stanza_affiliation_list_request(
+check_memberlist(LoginData, yes, Config) ->
+    escalus:send(LoginData, stanza_affiliation_list_request(
         ?config(room, Config), <<"member">>)),
-    escalus:assert(is_iq_result, escalus:wait_for_stanza(Login));
-check_memberlist(Login, no, Config) ->
-    escalus:send(Login, stanza_affiliation_list_request(
+    escalus:assert(is_iq_result, escalus:wait_for_stanza(LoginData));
+check_memberlist(LoginData, no, Config) ->
+    escalus:send(LoginData, stanza_affiliation_list_request(
         ?config(room, Config), <<"member">>)),
-    escalus:assert(is_error, [<<"auth">>, <<"forbidden">>], escalus:wait_for_stanza(Login)).
+    escalus:assert(is_error, [<<"auth">>, <<"forbidden">>], escalus:wait_for_stanza(LoginData)).
 
-check_rolelist(Login, yes, Config) ->
-    escalus:send(Login, stanza_role_list_request(
+check_rolelist(LoginData, yes, Config) ->
+    escalus:send(LoginData, stanza_role_list_request(
         ?config(room, Config), <<"moderator">>)),
-    escalus:assert(is_iq_result, escalus:wait_for_stanza(Login));
-check_rolelist(Login, no, Config) ->
-    escalus:send(Login, stanza_role_list_request(
+    escalus:assert(is_iq_result, escalus:wait_for_stanza(LoginData));
+check_rolelist(LoginData, no, Config) ->
+    escalus:send(LoginData, stanza_role_list_request(
         ?config(room, Config), <<"moderator">>)),
-    escalus:assert(is_error, [<<"auth">>, <<"forbidden">>], escalus:wait_for_stanza(Login)).
+    escalus:assert(is_error, [<<"auth">>, <<"forbidden">>], escalus:wait_for_stanza(LoginData)).
 
 
 %% This one tests a roomconfig_getmemberlist setting

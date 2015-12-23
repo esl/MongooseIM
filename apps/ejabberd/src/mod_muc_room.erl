@@ -3591,7 +3591,7 @@ set_xoption([{<<"muc#roomconfig_getmemberlist">>, Val} | Opts], Config) ->
         <<"none">> ->
             ?SET_XOPT(maygetmemberlist, []);
         _ ->
-            ?SET_XOPT(maygetmemberlist, [binary_to_atom(V, latin1) || V <- Val])
+            ?SET_XOPT(maygetmemberlist, [binary_to_existing_atom(V, latin1) || V <- Val])
     end;
 set_xoption([{<<"muc#roomconfig_enablelogging">>, [Val]} | Opts], Config) ->
     ?SET_BOOL_XOPT(logging, Val);
