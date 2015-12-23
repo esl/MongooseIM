@@ -54,8 +54,11 @@ subscribe(User, {NodeAddr, NodeName}, ExpectedItemId) ->
     log_stanza("REQUEST subscribe", SubscribeIq),
     escalus:send(User, SubscribeIq),
     case ExpectedItemId of
-        none -> ok;
-        _ -> receive_notification(User, ExpectedItemId, {NodeAddr, NodeName})
+        none ->
+            ok;
+        _ ->
+            Stanza = receive_notification(User, ExpectedItemId, {NodeAddr, NodeName}),
+            true = exml_query:subelement(Stanza, <<"delay">>) =/= undefined
     end,
     ResultStanza = receive_response(User, Id),
     check_subscription(ResultStanza, User, NodeName).
@@ -86,7 +89,8 @@ receive_notification(User, ItemId, {NodeAddr, NodeName}) ->
 
     Items = exml_query:path(Stanza, [{element, <<"event">>},
                                      {element, <<"items">>}]),
-    check_items(Items, [ItemId], NodeName).
+    check_items(Items, [ItemId], NodeName),
+    Stanza.
 
 request_all_items(User, ItemIds, {NodeAddr, NodeName}) ->
     Id = <<"items1">>,

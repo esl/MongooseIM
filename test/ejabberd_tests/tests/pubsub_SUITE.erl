@@ -146,7 +146,6 @@ request_all_items_test(Config) ->
               %%       6.1.7 Ex.50 service sends last published item
               %%       This is sent BEFORE the response iq stanza
               pubsub_tools:subscribe(Bob, ?NODE, <<"item2">>),
-              %% TODO look for the delay element
 
               %% Request:  6.5.2 Ex.78 subscriber requests all items
               %% Response: 6.5.3 Ex.79 service returns all items
