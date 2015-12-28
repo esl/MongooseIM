@@ -21,7 +21,8 @@
          unsubscribe/2,
          publish/3,
          receive_notification/3,
-         request_all_items/3
+         request_all_items/3,
+         retrieve_subscriptions/3
         ]).
 
 %%-----------------------------------------------------------------------------
@@ -61,7 +62,9 @@ subscribe(User, {NodeAddr, NodeName}, ExpectedItemId) ->
             true = exml_query:subelement(Stanza, <<"delay">>) =/= undefined
     end,
     ResultStanza = receive_response(User, Id),
-    check_subscription(ResultStanza, User, NodeName).
+    Subscription = exml_query:path(ResultStanza, [{element, <<"pubsub">>},
+                                                  {element, <<"subscription">>}]),
+    check_subscription(Subscription, User, NodeName).
 
 unsubscribe(User, {NodeAddr, NodeName}) ->
     UserName = escalus_utils:get_username(User),
@@ -103,6 +106,22 @@ request_all_items(User, ItemIds, {NodeAddr, NodeName}) ->
                                            {element, <<"items">>}]),
     check_items(Items, ItemIds, NodeName).
 
+retrieve_subscriptions(User, ExpectedSubscriptions, NodeAddr) ->
+    Id = <<"subs1">>,
+    Request = escalus_pubsub_stanza:retrieve_user_subscriptions_stanza(),
+    RequestIq = escalus_pubsub_stanza:iq_with_id(get, Id, NodeAddr, User, [Request]),
+    log_stanza("REQUEST subscriptions", RequestIq),
+    escalus:send(User, RequestIq),
+    ResultStanza = receive_response(User, Id),
+    SubscriptionElems = exml_query:paths(ResultStanza, [{element, <<"pubsub">>},
+                                                        {element, <<"subscriptions">>},
+                                                        {element, <<"subscription">>}]),
+    Jid = escalus_utils:get_jid(User),
+    [Jid = exml_query:attr(Subscr, <<"jid">>) || Subscr <- SubscriptionElems],
+    Subscriptions = [{exml_query:attr(Subscr, <<"node">>),
+                      exml_query:attr(Subscr, <<"subscription">>)} || Subscr <- SubscriptionElems],
+    ExpectedSubscriptions = lists:sort(Subscriptions).
+
 %%-----------------------------------------------------------------------------
 %% Internal functions
 %%-----------------------------------------------------------------------------
@@ -120,9 +139,7 @@ log_stanza(ReportString, Stanza) ->
     ct:print("~s~n~s", [ReportString, PrettyStanza]),
     ct:log("~s~n~s", [ReportString, exml:escape_attr(PrettyStanza)]).
 
-check_subscription(SubscrConfirmation, User, NodeName) ->
-    Subscr = exml_query:path(SubscrConfirmation, [{element, <<"pubsub">>},
-                                                  {element, <<"subscription">>}]),
+check_subscription(Subscr, User, NodeName) ->
     Jid = exml_query:attr(Subscr, <<"jid">>),
     Jid = escalus_utils:get_jid(User),
     NodeName = exml_query:attr(Subscr, <<"node">>),

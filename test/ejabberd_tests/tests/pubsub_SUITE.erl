@@ -28,7 +28,8 @@ groups() -> [{pubsub_cycle_tests, [sequence],
                subscribe_unsubscribe_test,
                publish_test,
                notify_test,
-               request_all_items_test
+               request_all_items_test,
+               retrieve_subscriptions_test
               ]
              }].
 
@@ -38,6 +39,9 @@ suite() ->
 -define(NODE_ADDR, <<"pubsub.localhost">>).
 -define(NODE_NAME, <<"princely_musings">>).
 -define(NODE, {?NODE_ADDR, ?NODE_NAME}).
+
+-define(NODE_NAME_2, <<"subpub">>).
+-define(NODE_2, {?NODE_ADDR, ?NODE_NAME_2}).
 
 %%--------------------------------------------------------------------
 %% Init & teardown
@@ -153,4 +157,33 @@ request_all_items_test(Config) ->
               %% TODO check ordering (although XEP does not specify this)
 
               pubsub_tools:delete_node(Alice, ?NODE)
+      end).
+
+retrieve_subscriptions_test(Config) ->
+    escalus:story(
+      Config,
+      [{alice,1}, {bob,1}],
+      fun(Alice, Bob) ->
+              %% Request:  5.6 Ex.20 Retrieve Subscriptions
+              %% Response:     Ex.22 No Subscriptions
+              pubsub_tools:retrieve_subscriptions(Bob, [], ?NODE_ADDR),
+
+              pubsub_tools:create_node(Alice, ?NODE),
+              pubsub_tools:subscribe(Bob, ?NODE),
+
+              %% Ex. 21 Service returns subscriptions
+              pubsub_tools:retrieve_subscriptions(Bob, [{?NODE_NAME, <<"subscribed">>}], ?NODE_ADDR),
+
+              pubsub_tools:create_node(Alice, ?NODE_2),
+              pubsub_tools:subscribe(Bob, ?NODE_2),
+
+              %% Ex. 21 Service returns subscriptions
+              pubsub_tools:retrieve_subscriptions(Bob, [{?NODE_NAME, <<"subscribed">>},
+                                                        {?NODE_NAME_2, <<"subscribed">>}], ?NODE_ADDR),
+
+              %% Owner not subscribed automatically
+              pubsub_tools:retrieve_subscriptions(Alice, [], ?NODE_ADDR),
+
+              pubsub_tools:delete_node(Alice, ?NODE),
+              pubsub_tools:delete_node(Alice, ?NODE_2)
       end).
