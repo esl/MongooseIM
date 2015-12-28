@@ -15,7 +15,7 @@
 -include_lib("exml/include/exml_stream.hrl").
 
 -export([
-         create_node/2,
+         create_node/2, create_node/3,
          delete_node/2,
          subscribe/2, subscribe/3,
          unsubscribe/2,
@@ -30,9 +30,12 @@
 %%-----------------------------------------------------------------------------
 
 create_node(User, {NodeAddr, NodeName}) ->
+    create_node(User, {NodeAddr, NodeName}, []).
+
+create_node(User, {NodeAddr, NodeName}, Config) ->
     Id = <<"create1">>,
     CreateNodeIq = escalus_pubsub_stanza:create_node_stanza(
-                       User, Id, NodeAddr, NodeName),
+                       User, Id, NodeAddr, NodeName, Config),
     log_stanza("REQUEST create node", CreateNodeIq),
     escalus:send(User, CreateNodeIq),
     receive_response(User, Id).
@@ -134,8 +137,8 @@ receive_response(User, Id) ->
     ResultStanza.
 
 log_stanza(ReportString, Stanza) ->
-    PrettyStanza = binary:list_to_bin(exml:to_pretty_iolist(Stanza)),
     %ct:print("~p~n", [Stanza]),
+    PrettyStanza = binary:list_to_bin(exml:to_pretty_iolist(Stanza)),
     ct:print("~s~n~s", [ReportString, PrettyStanza]),
     ct:log("~s~n~s", [ReportString, exml:escape_attr(PrettyStanza)]).
 

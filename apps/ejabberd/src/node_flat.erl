@@ -73,7 +73,7 @@ options() ->
     [{deliver_payloads, true},
 	{notify_config, false},
 	{notify_delete, false},
-	{notify_retract, true},
+	{notify_retract, false},
 	{purge_offline, false},
 	{persist_items, true},
 	{max_items, ?MAXITEMS},
@@ -83,7 +83,7 @@ options() ->
 	{publish_model, publishers},
 	{notification_type, headline},
 	{max_payload_size, ?MAX_PAYLOAD_SIZE},
-	{send_last_published_item, on_sub_and_presence},
+	{send_last_published_item, never},
 	{deliver_notifications, true},
 	{presence_based_delivery, false}].
 

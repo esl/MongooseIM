@@ -29,6 +29,7 @@ groups() -> [{pubsub_cycle_tests, [sequence],
                publish_test,
                notify_test,
                request_all_items_test,
+               send_last_published_item_test,
                retrieve_subscriptions_test
               ]
              }].
@@ -110,7 +111,7 @@ publish_test(Config) ->
       Config,
       [{alice,1}],
       fun(Alice) ->
-              pubsub_tools:create_node(Alice, ?NODE),
+              %% Auto-create enabled by default
 
               %% Request:  7.1.1 Ex.99  publish an item with an ItemID
               %% Response: 7.1.2 Ex.100 success
@@ -137,6 +138,26 @@ notify_test(Config) ->
               pubsub_tools:delete_node(Alice, ?NODE)
       end).
 
+send_last_published_item_test(Config) ->
+    escalus:story(
+      Config,
+      [{alice,1}, {bob,1}],
+      fun(Alice, Bob) ->
+              %% Request:  8.1.3 Ex.136 Request a new node with non-default configuration
+              %% Response:       Ex.137 Service replies with success
+              NodeConfig = [{<<"pubsub#send_last_published_item">>, <<"on_sub_and_presence">>}],
+              pubsub_tools:create_node(Alice, ?NODE, NodeConfig),
+
+              pubsub_tools:publish(Alice, <<"item1">>, ?NODE),
+
+              %% Note: when Bob subscribes, the last item (item2) is sent to him
+              %%       6.1.7 Ex.50 service sends last published item
+              %%       This is sent BEFORE the response iq stanza
+              pubsub_tools:subscribe(Bob, ?NODE, <<"item1">>),
+
+              pubsub_tools:delete_node(Alice, ?NODE)
+      end).
+
 request_all_items_test(Config) ->
     escalus:story(
       Config,
@@ -145,11 +166,6 @@ request_all_items_test(Config) ->
               pubsub_tools:create_node(Alice, ?NODE),
               pubsub_tools:publish(Alice, <<"item1">>, ?NODE),
               pubsub_tools:publish(Alice, <<"item2">>, ?NODE),
-
-              %% Note: when Bob subscribes, the last item (item2) is sent to him
-              %%       6.1.7 Ex.50 service sends last published item
-              %%       This is sent BEFORE the response iq stanza
-              pubsub_tools:subscribe(Bob, ?NODE, <<"item2">>),
 
               %% Request:  6.5.2 Ex.78 subscriber requests all items
               %% Response: 6.5.3 Ex.79 service returns all items
