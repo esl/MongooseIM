@@ -51,7 +51,7 @@ set_node(#pubsub_node{nodeid = {Key, _}, owners = Owners, options = Options} = N
     end.
 
 create_node(Key, Node, Type, Owner, Options, Parents) ->
-    OwnerJID = jid:tolower(jid:remove_resource(Owner)),
+    OwnerJID = jid:to_lower(jid:to_bare(Owner)),
     case find_node(Key, Node) of
 	false ->
 	    Nidx = pubsub_index:new(node),
@@ -170,7 +170,7 @@ oid(Key, Name) -> {Key, Name}.
 find_node(Key, Node) ->
     case mnesia:read(pubsub_node, oid(Key, Node), read) of
 	[] -> false;
-	[Node] -> Node
+	[NodeRec] -> NodeRec
     end.
 
 %% Key     = jlib:jid() | host()
@@ -200,9 +200,9 @@ traversal_helper(Pred, Tr, Depth, Host, Nodes, Acc) ->
 		|| #pubsub_node{nodeid = {NHost, _}} = N
 		    <- mnesia:table(pubsub_node),
 		    Node <- Nodes, Host == NHost, Pred(Node, N)]),
-    Nodes = qlc:e(Q),
-    IDs = lists:flatmap(Tr, Nodes),
-    traversal_helper(Pred, Tr, Depth + 1, Host, IDs, [{Depth, Nodes} | Acc]).
+    NodeRecs = qlc:e(Q),
+    IDs = lists:flatmap(Tr, NodeRecs),
+    traversal_helper(Pred, Tr, Depth + 1, Host, IDs, [{Depth, NodeRecs} | Acc]).
 
 remove_config_parent(Node, Options) ->
     remove_config_parent(Node, Options, []).

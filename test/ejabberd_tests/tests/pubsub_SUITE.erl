@@ -19,10 +19,11 @@
 %%--------------------------------------------------------------------
 
 all() -> [
-          {group, pubsub_cycle_tests}
+          {group, pubsub_tests},
+          {group, collection_tests}
          ].
 
-groups() -> [{pubsub_cycle_tests, [sequence],
+groups() -> [{pubsub_tests, [sequence],
               [
                create_delete_node_test,
                subscribe_unsubscribe_test,
@@ -32,7 +33,16 @@ groups() -> [{pubsub_cycle_tests, [sequence],
                send_last_published_item_test,
                retrieve_subscriptions_test
               ]
-             }].
+             },
+             {collection_tests, [sequence],
+              [
+               create_delete_collection_test,
+               subscribe_unsubscribe_collection_test,
+               create_delete_leaf_test,
+               notify_collection_test
+              ]
+             }
+            ].
 
 suite() ->
     escalus:suite().
@@ -69,7 +79,7 @@ end_per_testcase(_TestName, Config) ->
     escalus:end_per_testcase(_TestName, Config).
 
 %%--------------------------------------------------------------------
-%% Test cases for XEP 0060
+%% Test cases for XEP-0060
 %% Comments in test cases refer to sections is the XEP
 %%--------------------------------------------------------------------
 
@@ -202,4 +212,89 @@ retrieve_subscriptions_test(Config) ->
 
               pubsub_tools:delete_node(Alice, ?NODE),
               pubsub_tools:delete_node(Alice, ?NODE_2)
+      end).
+
+%%--------------------------------------------------------------------
+%% Test cases for XEP-0248
+%% Comments in test cases refer to sections is the XEP
+%%--------------------------------------------------------------------
+
+-define(LEAF_NAME, <<"leaf">>).
+-define(LEAF, {?NODE_ADDR, ?LEAF_NAME}).
+
+-define(LEAF_NAME_2, <<"leaf2">>).
+-define(LEAF_2, {?NODE_ADDR, ?LEAF_NAME_2}).
+
+create_delete_collection_test(Config) ->
+    escalus:story(
+      Config,
+      [{alice,1}],
+      fun(Alice) ->
+              %% Request:  7.1.1 Ex.18 create collection node
+              %% Response:       Ex.19 success
+              %%                        Note: contains node ID although XEP does not require this
+              CollectionConfig = [{<<"pubsub#node_type">>, <<"collection">>}],
+              pubsub_tools:create_node(Alice, ?NODE, CollectionConfig),
+
+              %% Request:  7.3.1 Ex.30 delete collection node
+              %% Response: 7.3.2 Ex.31 success
+              pubsub_tools:delete_node(Alice, ?NODE)
+      end).
+
+subscribe_unsubscribe_collection_test(Config) ->
+    escalus:story(
+      Config,
+      [{alice,1}, {bob,1}],
+      fun(Alice, Bob) ->
+              CollectionConfig = [{<<"pubsub#node_type">>, <<"collection">>}],
+              pubsub_tools:create_node(Alice, ?NODE, CollectionConfig),
+
+              %% Request:  6.1.1 Ex.10 subscribe (no configuration)
+              %% Response: 6.1.2 Ex.12 success
+              pubsub_tools:subscribe(Bob, ?NODE),
+
+              %% Same as XEP-0060
+              pubsub_tools:unsubscribe(Bob, ?NODE),
+
+              pubsub_tools:delete_node(Alice, ?NODE)
+      end).
+
+create_delete_leaf_test(Config) ->
+    escalus:story(
+      Config,
+      [{alice,1}],
+      fun(Alice) ->
+              CollectionConfig = [{<<"pubsub#node_type">>, <<"collection">>}],
+              pubsub_tools:create_node(Alice, ?NODE, CollectionConfig),
+
+              %% XEP-0060, 8.1.2, see 16.4.4 for config details
+              NodeConfig = [{<<"pubsub#collection">>, ?NODE_NAME}],
+              pubsub_tools:create_node(Alice, ?LEAF, NodeConfig),
+
+              pubsub_tools:delete_node(Alice, ?LEAF),
+              pubsub_tools:delete_node(Alice, ?NODE)
+      end).
+
+notify_collection_test(Config) ->
+    escalus:story(
+      Config,
+      [{alice,1}, {bob,1}],
+      fun(Alice, Bob) ->
+              CollectionConfig = [{<<"pubsub#node_type">>, <<"collection">>}],
+              pubsub_tools:create_node(Alice, ?NODE, CollectionConfig),
+
+              NodeConfig = [{<<"pubsub#collection">>, ?NODE_NAME}],
+              pubsub_tools:create_node(Alice, ?LEAF, NodeConfig),
+              pubsub_tools:create_node(Alice, ?LEAF_2, NodeConfig),
+              pubsub_tools:subscribe(Bob, ?NODE),
+
+              %% Publish to leaf nodes, Bob should get notifications
+              pubsub_tools:publish(Alice, <<"item1">>, ?LEAF),
+              pubsub_tools:receive_notification(Bob, <<"item1">>, ?LEAF),
+              pubsub_tools:publish(Alice, <<"item2">>, ?LEAF_2),
+              pubsub_tools:receive_notification(Bob, <<"item2">>, ?LEAF_2),
+
+              pubsub_tools:delete_node(Alice, ?LEAF),
+              pubsub_tools:delete_node(Alice, ?LEAF_2),
+              pubsub_tools:delete_node(Alice, ?NODE)
       end).
