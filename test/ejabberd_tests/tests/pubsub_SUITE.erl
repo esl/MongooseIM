@@ -39,7 +39,9 @@ groups() -> [{pubsub_tests, [sequence],
                create_delete_collection_test,
                subscribe_unsubscribe_collection_test,
                create_delete_leaf_test,
-               notify_collection_test
+               notify_collection_test,
+               notify_collection_and_leaf_test,
+               discover_child_nodes_test
               ]
              }
             ].
@@ -293,6 +295,47 @@ notify_collection_test(Config) ->
               pubsub_tools:receive_notification(Bob, <<"item1">>, ?LEAF),
               pubsub_tools:publish(Alice, <<"item2">>, ?LEAF_2),
               pubsub_tools:receive_notification(Bob, <<"item2">>, ?LEAF_2),
+
+              pubsub_tools:delete_node(Alice, ?LEAF),
+              pubsub_tools:delete_node(Alice, ?LEAF_2),
+              pubsub_tools:delete_node(Alice, ?NODE)
+      end).
+
+notify_collection_and_leaf_test(Config) ->
+    escalus:story(
+      Config,
+      [{alice,1}, {bob,1}, {geralt,1}],
+      fun(Alice, Bob, Geralt) ->
+              CollectionConfig = [{<<"pubsub#node_type">>, <<"collection">>}],
+              pubsub_tools:create_node(Alice, ?NODE, CollectionConfig),
+
+              NodeConfig = [{<<"pubsub#collection">>, ?NODE_NAME}],
+              pubsub_tools:create_node(Alice, ?LEAF, NodeConfig),
+              pubsub_tools:subscribe(Bob, ?NODE),
+              pubsub_tools:subscribe(Geralt, ?LEAF),
+
+              %% Publish to leaf nodes, Bob and Geralt should get notifications
+              pubsub_tools:publish(Alice, <<"item1">>, ?LEAF),
+              pubsub_tools:receive_notification(Bob, <<"item1">>, ?LEAF),
+              pubsub_tools:receive_notification(Geralt, <<"item1">>, ?LEAF),
+
+              pubsub_tools:delete_node(Alice, ?LEAF),
+              pubsub_tools:delete_node(Alice, ?NODE)
+      end).
+
+discover_child_nodes_test(Config) ->
+    escalus:story(
+      Config,
+      [{alice,1}, {bob,1}],
+      fun(Alice, Bob) ->
+              CollectionConfig = [{<<"pubsub#node_type">>, <<"collection">>}],
+              pubsub_tools:create_node(Alice, ?NODE, CollectionConfig),
+
+              NodeConfig = [{<<"pubsub#collection">>, ?NODE_NAME}],
+              pubsub_tools:create_node(Alice, ?LEAF, NodeConfig),
+              pubsub_tools:create_node(Alice, ?LEAF_2, NodeConfig),
+
+              pubsub_tools:discover_nodes(Bob, ?NODE, [?LEAF_NAME, ?LEAF_NAME_2]),
 
               pubsub_tools:delete_node(Alice, ?LEAF),
               pubsub_tools:delete_node(Alice, ?LEAF_2),

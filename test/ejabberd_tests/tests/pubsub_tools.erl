@@ -22,7 +22,8 @@
          publish/3,
          receive_notification/3,
          request_all_items/3,
-         retrieve_subscriptions/3
+         retrieve_subscriptions/3,
+         discover_nodes/3
         ]).
 
 %%-----------------------------------------------------------------------------
@@ -124,6 +125,18 @@ retrieve_subscriptions(User, ExpectedSubscriptions, NodeAddr) ->
     Subscriptions = [{exml_query:attr(Subscr, <<"node">>),
                       exml_query:attr(Subscr, <<"subscription">>)} || Subscr <- SubscriptionElems],
     ExpectedSubscriptions = lists:sort(Subscriptions).
+
+discover_nodes(User, {NodeAddr, NodeName}, ExpectedChildren) ->
+    Id = <<"disco1">>,
+    RequestIq = escalus_pubsub_stanza:discover_nodes_stanza(User, Id, NodeAddr, NodeName),
+    log_stanza("REQUEST nodes", RequestIq),
+    escalus:send(User, RequestIq),
+    ResultStanza = receive_response(User, Id),
+    Query = exml_query:subelement(ResultStanza, <<"query">>),
+    Items = exml_query:subelements(Query, <<"item">>),
+    [NodeAddr = exml_query:attr(Item, <<"jid">>) || Item <- Items],
+    ReceivedChildren = [exml_query:attr(Item, <<"node">>) || Item <- Items],
+    ExpectedChildren = lists:sort(ReceivedChildren).
 
 %%-----------------------------------------------------------------------------
 %% Internal functions
