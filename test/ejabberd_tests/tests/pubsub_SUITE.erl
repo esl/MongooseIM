@@ -20,6 +20,7 @@
 
 all() -> [
           {group, pubsub_tests},
+          {group, config_tests},
           {group, collection_tests}
          ].
 
@@ -34,6 +35,15 @@ groups() -> [{pubsub_tests, [sequence],
                retrieve_subscriptions_test
               ]
              },
+             {config_tests, [sequence],
+              [
+               disable_notifications_test,
+               disable_payload_test,
+               disable_persist_items_test
+               %% Unsupported by ejabberd
+               %% disable_payload_and_persist_test
+              ]
+             },
              {collection_tests, [sequence],
               [
                create_delete_collection_test,
@@ -43,7 +53,8 @@ groups() -> [{pubsub_tests, [sequence],
                notify_collection_and_leaf_test,
                notify_collection_and_leaf_same_user_test,
                retrieve_subscriptions_collection_test,
-               discover_child_nodes_test
+               discover_child_nodes_test,
+               request_all_items_leaf_test
               ]
              }
             ].
@@ -218,6 +229,93 @@ retrieve_subscriptions_test(Config) ->
               pubsub_tools:delete_node(Alice, ?NODE_2)
       end).
 
+disable_notifications_config_test(Config) ->
+    escalus:story(
+      Config,
+      [{alice,1}, {bob,1}],
+      fun(Alice, Bob) ->
+              NodeConfig = [{<<"pubsub#deliver_notifications">>, <<"false">>}],
+              pubsub_tools:create_node(Alice, ?NODE, NodeConfig),
+
+              pubsub_tools:subscribe(Bob, ?NODE),
+              pubsub_tools:publish(Alice, <<"item1">>, ?NODE),
+
+              %% Notifications disabled
+              escalus_assert:has_no_stanzas(Bob),
+
+              pubsub_tools:delete_node(Alice, ?NODE)
+      end).
+
+disable_payload_config_test(Config) ->
+    escalus:story(
+      Config,
+      [{alice,1}, {bob,1}],
+      fun(Alice, Bob) ->
+              %% Notifiacation-Only Persistent Node, see 4.3, table 4
+              NodeConfig = [{<<"pubsub#deliver_payloads">>, <<"false">>}],
+              pubsub_tools:create_node(Alice, ?NODE, NodeConfig),
+
+              pubsub_tools:subscribe(Bob, ?NODE),
+              pubsub_tools:publish(Alice, <<"item1">>, ?NODE),
+
+              %% Payloads disabled
+              pubsub_tools:receive_notification(Bob, <<"item1">>, ?NODE, false),
+
+              pubsub_tools:delete_node(Alice, ?NODE)
+      end).
+
+disable_persist_items_test(Config) ->
+    escalus:story(
+      Config,
+      [{alice,1}, {bob,1}],
+      fun(Alice, Bob) ->
+              %% Payload-Included Transient Node, see 4.3, table 4
+              NodeConfig = [{<<"pubsub#persist_items">>, <<"false">>}],
+              pubsub_tools:create_node(Alice, ?NODE, NodeConfig),
+
+              pubsub_tools:subscribe(Bob, ?NODE),
+              pubsub_tools:publish(Alice, <<"item1">>, ?NODE),
+
+              %% Notifications should work
+              pubsub_tools:receive_notification(Bob, <<"item1">>, ?NODE),
+
+              %% No items should be stored
+              pubsub_tools:request_all_items(Bob, [], ?NODE),
+
+              pubsub_tools:delete_node(Alice, ?NODE)
+      end).
+
+%% disable_payload_and_persist_test(Config) ->
+%%     escalus:story(
+%%       Config,
+%%       [{alice,1}, {bob,1}],
+%%       fun(Alice, Bob) ->
+%%               %% Notification-Only Transient Node, see 4.3, table 4
+%%               NodeConfig = [{<<"pubsub#deliver_payloads">>, <<"false">>},
+%%                             {<<"pubsub#persist_items">>, <<"false">>}],
+%%               pubsub_tools:create_node(Alice, ?NODE, NodeConfig),
+
+%%               pubsub_tools:subscribe(Bob, ?NODE),
+
+%%               %% Response  7.1.3 Ex.112 attempt to publish payload to transient notification node
+%%               %%                   Expected error of type 'modify'
+%%               pubsub_tools:publish(Alice, <<"item1">>, ?NODE, true, <<"modify">>),
+
+%%               %% Publish without payload should succeed
+%%               pubsub_tools:publish(Alice, <<"item2">>, ?NODE, false),
+
+%%               %% Notifications should work
+%%               pubsub_tools:receive_notification(Bob, <<"item1">>, ?NODE),
+
+%%               %% No items should be stored
+%%               pubsub_tools:request_all_items(Bob, [], ?NODE),
+
+%%               %% No more notifications
+%%               escalus_assert:has_no_stanzas(Bob),
+
+%%               pubsub_tools:delete_node(Alice, ?NODE)
+%%       end).
+
 %%--------------------------------------------------------------------
 %% Test cases for XEP-0248
 %% Comments in test cases refer to sections is the XEP
@@ -388,3 +486,33 @@ discover_child_nodes_test(Config) ->
               pubsub_tools:delete_node(Alice, ?LEAF_2),
               pubsub_tools:delete_node(Alice, ?NODE)
       end).
+
+request_all_items_leaf_test(Config) ->
+    escalus:story(
+      Config,
+      [{alice,1}, {bob,1}],
+      fun(Alice, Bob) ->
+              CollectionConfig = [{<<"pubsub#node_type">>, <<"collection">>}],
+              pubsub_tools:create_node(Alice, ?NODE, CollectionConfig),
+
+              NodeConfig = [{<<"pubsub#collection">>, ?NODE_NAME}],
+              pubsub_tools:create_node(Alice, ?LEAF, NodeConfig),
+              pubsub_tools:create_node(Alice, ?LEAF_2, NodeConfig),
+
+              pubsub_tools:publish(Alice, <<"item1">>, ?LEAF),
+              pubsub_tools:publish(Alice, <<"item2">>, ?LEAF_2),
+
+              %% Request items from leaf nodes - as described in XEP-0060
+              pubsub_tools:request_all_items(Bob, [<<"item1">>], ?LEAF),
+              pubsub_tools:request_all_items(Bob, [<<"item2">>], ?LEAF_2),
+
+              %% NOTE: This is not implemented yet
+              %% Request:  6.2.1 Ex.15 Subscriber requests all items on a collection
+              %% Response: 6.2.2 Ex.16 Service returns items on leaf nodes
+              %%pubsub_tools:request_all_items(Bob, [<<"item2">>, <<"item1">>], ?NODE),
+
+              pubsub_tools:delete_node(Alice, ?LEAF),
+              pubsub_tools:delete_node(Alice, ?LEAF_2),
+              pubsub_tools:delete_node(Alice, ?NODE)
+      end).
+

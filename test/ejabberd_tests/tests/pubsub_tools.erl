@@ -16,11 +16,12 @@
 
 -export([
          create_node/2, create_node/3,
+         configure_node/3,
          delete_node/2,
          subscribe/2, subscribe/3,
          unsubscribe/2,
-         publish/3,
-         receive_notification/3,
+         publish/3, publish/4, publish/5,
+         receive_notification/3, receive_notification/4,
          request_all_items/3,
          retrieve_subscriptions/3,
          discover_nodes/3
@@ -39,6 +40,13 @@ create_node(User, {NodeAddr, NodeName}, Config) ->
                        User, Id, NodeAddr, NodeName, Config),
     log_stanza("REQUEST create node", CreateNodeIq),
     escalus:send(User, CreateNodeIq),
+    receive_response(User, Id).
+
+configure_node(User, {NodeAddr, NodeName}, Config) ->
+    Id = <<"config1">>,
+    RequestIq = escalus_pubsub_stanza:configure_node_stanza(User, Id, NodeAddr, NodeName, Config),
+    log_stanza("REQUEST configure node", RequestIq),
+    escalus:send(User, RequestIq),
     receive_response(User, Id).
 
 delete_node(User, {NodeAddr, NodeName}) ->
@@ -78,16 +86,32 @@ unsubscribe(User, {NodeAddr, NodeName}) ->
     escalus:send(User, UnsubscribeIq),
     receive_response(User, Id).
 
-publish(User, ItemId, {NodeAddr, NodeName}) ->
+publish(User, ItemId, Node) ->
+    publish(User, ItemId, Node, true).
+
+publish(User, ItemId, Node, WithItem) ->
+    publish(User, ItemId, Node, WithItem, none).
+
+publish(User, ItemId, {NodeAddr, NodeName}, WithItem, ExpectedErrorType) ->
     UserName = escalus_utils:get_username(User),
     Id = <<UserName/binary, <<"binsuffix">>/binary>>,
-    Publish = escalus_pubsub_stanza:create_publish_node_content_stanza(NodeName, ItemId),
+    Item = case WithItem of
+               true -> item(ItemId, true);
+               false -> []
+           end,
+    Publish = escalus_pubsub_stanza:publish_item_stanza(NodeName, Item),
     PublishIq = escalus_pubsub_stanza:iq_with_id(set, Id, NodeAddr, User, [Publish]),
     log_stanza("REQUEST publish", PublishIq),
     escalus:send(User, PublishIq),
-    receive_response(User, Id).
+    case ExpectedErrorType of
+        none -> receive_response(User, Id);
+        _ -> receive_error_response(User, Id, ExpectedErrorType)
+    end.
 
-receive_notification(User, ItemId, {NodeAddr, NodeName}) ->
+receive_notification(User, ItemId, Node) ->
+    receive_notification(User, ItemId, Node, true).
+
+receive_notification(User, ItemId, {NodeAddr, NodeName}, WithPayload) ->
     Stanza = escalus:wait_for_stanza(User),
     log_stanza("NOTIFICATION", Stanza),
 
@@ -96,7 +120,7 @@ receive_notification(User, ItemId, {NodeAddr, NodeName}) ->
 
     Items = exml_query:path(Stanza, [{element, <<"event">>},
                                      {element, <<"items">>}]),
-    check_items(Items, [ItemId], NodeName),
+    check_items(Items, [ItemId], NodeName, WithPayload),
     Stanza.
 
 request_all_items(User, ItemIds, {NodeAddr, NodeName}) ->
@@ -108,7 +132,7 @@ request_all_items(User, ItemIds, {NodeAddr, NodeName}) ->
     ResultStanza = receive_response(User, Id),
     Items = exml_query:path(ResultStanza, [{element, <<"pubsub">>},
                                            {element, <<"items">>}]),
-    check_items(Items, ItemIds, NodeName).
+    check_items(Items, ItemIds, NodeName, true).
 
 retrieve_subscriptions(User, ExpectedSubscriptions, NodeAddr) ->
     Id = <<"subs1">>,
@@ -149,6 +173,15 @@ receive_response(User, Id) ->
     Id = exml_query:attr(ResultStanza, <<"id">>),
     ResultStanza.
 
+receive_error_response(User, Id, Type) ->
+    ErrorStanza = escalus:wait_for_stanza(User),
+    log_stanza("RESPONSE (error expected)", ErrorStanza),
+    true = escalus_pred:is_iq_error(ErrorStanza),
+    Id = exml_query:attr(ErrorStanza, <<"id">>),
+    ErrorElem = exml_query:subelement(ErrorStanza, <<"error">>),
+    Type = exml_query:attr(ErrorElem, <<"type">>),
+    ErrorStanza.
+
 log_stanza(ReportString, Stanza) ->
     %ct:print("~p~n", [Stanza]),
     PrettyStanza = binary:list_to_bin(exml:to_pretty_iolist(Stanza)),
@@ -162,12 +195,14 @@ check_subscription(Subscr, User, NodeName) ->
     true = exml_query:attr(Subscr, <<"subid">>) =/= undefined,
     <<"subscribed">> = exml_query:attr(Subscr, <<"subscription">>).
 
-check_items(ReceivedItemsElem, ExpectedItemIds, NodeName) ->
+check_items(ReceivedItemsElem, ExpectedItemIds, NodeName, WithPayload) ->
     NodeName = exml_query:attr(ReceivedItemsElem, <<"node">>),
     ReceivedItems = exml_query:subelements(ReceivedItemsElem, <<"item">>),
-    [check_item(ReceivedItem, ExpectedItemId) ||
+    [ReceivedItem = item(ExpectedItemId, WithPayload) ||
         {ReceivedItem, ExpectedItemId} <- lists:zip(ReceivedItems, ExpectedItemIds)].
 
-check_item(ReceivedItem, ExpectedItemId) ->
-    PublishEntry = escalus_pubsub_stanza:publish_entry([]),
-    ReceivedItem = escalus_pubsub_stanza:publish_item(ExpectedItemId, PublishEntry).
+item(ItemId, WithPayload) ->
+    escalus_pubsub_stanza:publish_item(ItemId, payload(WithPayload)).
+
+payload(false) -> [];
+payload(true) -> escalus_pubsub_stanza:publish_entry([]).
