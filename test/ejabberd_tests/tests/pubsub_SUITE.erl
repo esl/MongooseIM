@@ -41,6 +41,8 @@ groups() -> [{pubsub_tests, [sequence],
                create_delete_leaf_test,
                notify_collection_test,
                notify_collection_and_leaf_test,
+               notify_collection_and_leaf_same_user_test,
+               retrieve_subscriptions_collection_test,
                discover_child_nodes_test
               ]
              }
@@ -320,6 +322,51 @@ notify_collection_and_leaf_test(Config) ->
               pubsub_tools:receive_notification(Geralt, <<"item1">>, ?LEAF),
 
               pubsub_tools:delete_node(Alice, ?LEAF),
+              pubsub_tools:delete_node(Alice, ?NODE)
+      end).
+
+notify_collection_and_leaf_same_user_test(Config) ->
+    escalus:story(
+      Config,
+      [{alice,1}, {bob,1}],
+      fun(Alice, Bob) ->
+              CollectionConfig = [{<<"pubsub#node_type">>, <<"collection">>}],
+              pubsub_tools:create_node(Alice, ?NODE, CollectionConfig),
+
+              NodeConfig = [{<<"pubsub#collection">>, ?NODE_NAME}],
+              pubsub_tools:create_node(Alice, ?LEAF, NodeConfig),
+              pubsub_tools:subscribe(Bob, ?NODE),
+              pubsub_tools:subscribe(Bob, ?LEAF),
+
+              %% Bob should get only one notification
+              pubsub_tools:publish(Alice, <<"item1">>, ?LEAF),
+              pubsub_tools:receive_notification(Bob, <<"item1">>, ?LEAF),
+              escalus_assert:has_no_stanzas(Bob),
+
+              pubsub_tools:delete_node(Alice, ?LEAF),
+              pubsub_tools:delete_node(Alice, ?NODE)
+      end).
+
+retrieve_subscriptions_collection_test(Config) ->
+    escalus:story(
+      Config,
+      [{alice,1}, {bob,1}],
+      fun(Alice, Bob) ->
+              CollectionConfig = [{<<"pubsub#node_type">>, <<"collection">>}],
+              pubsub_tools:create_node(Alice, ?NODE, CollectionConfig),
+
+              NodeConfig = [{<<"pubsub#collection">>, ?NODE_NAME}],
+              pubsub_tools:create_node(Alice, ?LEAF, NodeConfig),
+              pubsub_tools:create_node(Alice, ?LEAF_2, NodeConfig),
+              pubsub_tools:subscribe(Bob, ?NODE),
+              pubsub_tools:subscribe(Bob, ?LEAF),
+
+              % Only the nodes for which subscriptions were made should be returned
+              pubsub_tools:retrieve_subscriptions(Bob, [{?LEAF_NAME, <<"subscribed">>},
+                                                        {?NODE_NAME, <<"subscribed">>}], ?NODE_ADDR),
+
+              pubsub_tools:delete_node(Alice, ?LEAF),
+              pubsub_tools:delete_node(Alice, ?LEAF_2),
               pubsub_tools:delete_node(Alice, ?NODE)
       end).
 
