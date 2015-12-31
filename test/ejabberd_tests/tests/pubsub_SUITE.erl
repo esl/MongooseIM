@@ -46,7 +46,8 @@ groups() -> [{pubsub_tests, [sequence],
              },
              {manage_subscriptions_tests, [sequence],
               [
-               retrieve_node_subscriptions_test
+               retrieve_node_subscriptions_test,
+               modify_node_subscriptions_test
               ]
              },
              {collection_tests, [sequence],
@@ -168,12 +169,12 @@ notify_test(Config) ->
               %%                Note: message has type 'headline' by default
 
               %% Bob subscribed with resource
-              pubsub_tools:receive_notification(Bob1, <<"item1">>, ?NODE),
+              pubsub_tools:receive_item_notification(Bob1, <<"item1">>, ?NODE),
               escalus_assert:has_no_stanzas(Bob2),
 
               %% Geralt subscribed without resource
-              pubsub_tools:receive_notification(Geralt1, <<"item1">>, ?NODE),
-              pubsub_tools:receive_notification(Geralt2, <<"item1">>, ?NODE),
+              pubsub_tools:receive_item_notification(Geralt1, <<"item1">>, ?NODE),
+              pubsub_tools:receive_item_notification(Geralt2, <<"item1">>, ?NODE),
 
               pubsub_tools:delete_node(Alice, ?NODE)
       end).
@@ -274,7 +275,7 @@ disable_payload_test(Config) ->
               pubsub_tools:publish(Alice, <<"item1">>, ?NODE),
 
               %% Payloads disabled
-              pubsub_tools:receive_notification(Bob, <<"item1">>, ?NODE, false),
+              pubsub_tools:receive_item_notification(Bob, <<"item1">>, ?NODE, false),
 
               pubsub_tools:delete_node(Alice, ?NODE)
       end).
@@ -292,7 +293,7 @@ disable_persist_items_test(Config) ->
               pubsub_tools:publish(Alice, <<"item1">>, ?NODE),
 
               %% Notifications should work
-              pubsub_tools:receive_notification(Bob, <<"item1">>, ?NODE),
+              pubsub_tools:receive_item_notification(Bob, <<"item1">>, ?NODE),
 
               %% No items should be stored
               pubsub_tools:request_all_items(Bob, [], ?NODE),
@@ -317,7 +318,7 @@ notify_only_available_users_test(Config) ->
 
               %% Receive item from node 1 (also make sure the presence is processed)
               pubsub_tools:publish(Alice, <<"item1">>, ?NODE),
-              pubsub_tools:receive_notification(Bob, <<"item1">>, ?NODE),
+              pubsub_tools:receive_item_notification(Bob, <<"item1">>, ?NODE),
 
               %% Item from node 2 not received (blocked by resource-based delivery)
               pubsub_tools:publish(Alice, <<"item2">>, ?NODE_2),
@@ -348,7 +349,7 @@ disable_payload_and_persist_test(Config) ->
               pubsub_tools:publish(Alice, <<"item2">>, ?NODE, false),
 
               %% Notifications should work
-              pubsub_tools:receive_notification(Bob, <<"item1">>, ?NODE),
+              pubsub_tools:receive_item_notification(Bob, <<"item1">>, ?NODE),
 
               %% No items should be stored
               pubsub_tools:request_all_items(Bob, [], ?NODE),
@@ -398,6 +399,42 @@ retrieve_node_subscriptions_test(Config) ->
 
               pubsub_tools:retrieve_node_subscriptions(Alice, [{Bob, full, <<"subscribed">>},
                                                                {Geralt, bare, <<"subscribed">>}], ?NODE),
+
+              pubsub_tools:delete_node(Alice, ?NODE)
+      end).
+
+modify_node_subscriptions_test(Config) ->
+    escalus:story(
+      Config,
+      [{alice,1}, {bob,1}, {geralt,1}],
+      fun(Alice, Bob, Geralt) ->
+              pubsub_tools:create_node(Alice, ?NODE),
+
+              %% Request:  8.8.2.1 Ex.187 Owner modifies subscriptions
+              %% Response: 8.8.2.2 Ex.183 Service responds with success
+              pubsub_tools:modify_node_subscriptions(Alice, [{Bob, full, <<"subscribed">>},
+                                                             {Geralt, bare, <<"subscribed">>}], ?NODE),
+
+              %% 8.8.4 Ex.194 Notify subscribers
+              pubsub_tools:receive_subscription_notification(Bob, full, <<"subscribed">>, ?NODE),
+              pubsub_tools:receive_subscription_notification(Geralt, bare, <<"subscribed">>, ?NODE),
+
+              pubsub_tools:retrieve_node_subscriptions(Alice, [{Bob, full, <<"subscribed">>},
+                                                               {Geralt, bare, <<"subscribed">>}], ?NODE),
+
+              %% Response: 8.8.2.3 Ex.190 Entity is not an owner
+              pubsub_tools:fail_to_modify_node_subscriptions(Bob, [{Geralt, full, <<"subscribed">>}],
+                                                             <<"auth">>, ?NODE),
+
+              %% Remove Bob, add Geralt's full JID
+              pubsub_tools:modify_node_subscriptions(Alice, [{Bob, full, <<"none">>},
+                                                             {Geralt, full, <<"subscribed">>}], ?NODE),
+
+              pubsub_tools:receive_subscription_notification(Bob, full, <<"none">>, ?NODE),
+              pubsub_tools:receive_subscription_notification(Geralt, full, <<"subscribed">>, ?NODE),
+
+              pubsub_tools:retrieve_node_subscriptions(Alice, [{Geralt, bare, <<"subscribed">>},
+                                                               {Geralt, full, <<"subscribed">>}], ?NODE),
 
               pubsub_tools:delete_node(Alice, ?NODE)
       end).
@@ -478,9 +515,9 @@ notify_collection_test(Config) ->
 
               %% Publish to leaf nodes, Bob should get notifications
               pubsub_tools:publish(Alice, <<"item1">>, ?LEAF),
-              pubsub_tools:receive_notification(Bob, <<"item1">>, ?LEAF),
+              pubsub_tools:receive_item_notification(Bob, <<"item1">>, ?LEAF),
               pubsub_tools:publish(Alice, <<"item2">>, ?LEAF_2),
-              pubsub_tools:receive_notification(Bob, <<"item2">>, ?LEAF_2),
+              pubsub_tools:receive_item_notification(Bob, <<"item2">>, ?LEAF_2),
 
               pubsub_tools:delete_node(Alice, ?LEAF),
               pubsub_tools:delete_node(Alice, ?LEAF_2),
@@ -502,8 +539,8 @@ notify_collection_and_leaf_test(Config) ->
 
               %% Publish to leaf nodes, Bob and Geralt should get notifications
               pubsub_tools:publish(Alice, <<"item1">>, ?LEAF),
-              pubsub_tools:receive_notification(Bob, <<"item1">>, ?LEAF),
-              pubsub_tools:receive_notification(Geralt, <<"item1">>, ?LEAF),
+              pubsub_tools:receive_item_notification(Bob, <<"item1">>, ?LEAF),
+              pubsub_tools:receive_item_notification(Geralt, <<"item1">>, ?LEAF),
 
               pubsub_tools:delete_node(Alice, ?LEAF),
               pubsub_tools:delete_node(Alice, ?NODE)
@@ -524,7 +561,7 @@ notify_collection_and_leaf_same_user_test(Config) ->
 
               %% Bob should get only one notification
               pubsub_tools:publish(Alice, <<"item1">>, ?LEAF),
-              pubsub_tools:receive_notification(Bob, <<"item1">>, ?LEAF),
+              pubsub_tools:receive_item_notification(Bob, <<"item1">>, ?LEAF),
               escalus_assert:has_no_stanzas(Bob),
 
               pubsub_tools:delete_node(Alice, ?LEAF),

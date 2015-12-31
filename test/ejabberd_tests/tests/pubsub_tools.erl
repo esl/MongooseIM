@@ -21,11 +21,14 @@
          subscribe/2, subscribe/3,
          unsubscribe/2, unsubscribe/3,
          publish/3, publish/4, publish/5,
-         receive_notification/3, receive_notification/4,
+         receive_item_notification/3, receive_item_notification/4,
+         receive_subscription_notification/4,
          request_all_items/3,
          retrieve_user_subscriptions/3,
          retrieve_node_subscriptions/3,
          fail_to_retrieve_node_subscriptions/3,
+         modify_node_subscriptions/3,
+         fail_to_modify_node_subscriptions/4,
          discover_nodes/3
         ]).
 
@@ -74,7 +77,7 @@ subscribe(User, {NodeAddr, NodeName}, Options) ->
         undefined ->
             ok;
         ExpectedItemId ->
-            Stanza = receive_notification(User, ExpectedItemId, {NodeAddr, NodeName}),
+            Stanza = receive_item_notification(User, ExpectedItemId, {NodeAddr, NodeName}),
             true = exml_query:subelement(Stanza, <<"delay">>) =/= undefined
     end,
     ResultStanza = receive_response(User, Id),
@@ -116,20 +119,25 @@ publish(User, ItemId, {NodeAddr, NodeName}, WithItem, ExpectedErrorType) ->
         _ -> receive_error_response(User, Id, ExpectedErrorType)
     end.
 
-receive_notification(User, ItemId, Node) ->
-    receive_notification(User, ItemId, Node, true).
+receive_item_notification(User, ItemId, Node) ->
+    receive_item_notification(User, ItemId, Node, true).
 
-receive_notification(User, ItemId, {NodeAddr, NodeName}, WithPayload) ->
-    Stanza = escalus:wait_for_stanza(User),
-    log_stanza("NOTIFICATION", Stanza),
-
-    true = escalus_pred:is_message(Stanza) andalso escalus_pred:has_type(<<"headline">>, Stanza),
-    true = escalus_pred:is_stanza_from(NodeAddr, Stanza),
-
+receive_item_notification(User, ItemId, {NodeAddr, NodeName}, WithPayload) ->
+    Stanza = receive_notification(User, NodeAddr),
+    true = escalus_pred:has_type(<<"headline">>, Stanza),
     Items = exml_query:path(Stanza, [{element, <<"event">>},
                                      {element, <<"items">>}]),
     check_items(Items, [ItemId], NodeName, WithPayload),
     Stanza.
+
+receive_subscription_notification(User, JidType, Subscription, {NodeAddr, NodeName}) ->
+    Stanza = receive_notification(User, NodeAddr),
+    SubscriptionElem = exml_query:path(Stanza, [{element, <<"pubsub">>},
+                                                {element, <<"subscription">>}]),
+    Jid = jid(User, JidType),
+    Jid = exml_query:attr(SubscriptionElem, <<"jid">>),
+    Subscription = exml_query:attr(SubscriptionElem, <<"subscription">>),
+    NodeName = exml_query:attr(SubscriptionElem, <<"node">>).
 
 request_all_items(User, ItemIds, {NodeAddr, NodeName}) ->
     Id = <<"items1">>,
@@ -160,21 +168,23 @@ retrieve_user_subscriptions(User, ExpectedSubscriptions, NodeAddr) ->
 
 fail_to_retrieve_node_subscriptions(User, ErrorType, {NodeAddr, NodeName}) ->
     Id = <<"node_subs_failed">>,
-    do_request_node_subscriptions(User, Id, {NodeAddr, NodeName}),
+    send_node_subscriptions_request(User, Id, {NodeAddr, NodeName}),
     receive_error_response(User, Id, ErrorType).
 
 retrieve_node_subscriptions(User, ExpectedSubscriptions, {NodeAddr, NodeName}) ->
-    Id = <<"node_subs1">>,
-    do_request_node_subscriptions(User, Id, {NodeAddr, NodeName}),
-    ResultStanza = receive_response(User, Id),
-    SubscriptionsElem = exml_query:path(ResultStanza, [{element, <<"pubsub">>},
-                                                       {element, <<"subscriptions">>}]),
-    NodeName = exml_query:attr(SubscriptionsElem, <<"node">>),
-    SubscriptionElems = exml_query:subelements(SubscriptionsElem, <<"subscription">>),
-    Subscriptions = [{exml_query:attr(Subscr, <<"jid">>),
-                      exml_query:attr(Subscr, <<"subscription">>)} || Subscr <- SubscriptionElems],
-    ExpectedSubscriptionsWithJids = [{jid(U, JT), Sub} || {U, JT, Sub} <- ExpectedSubscriptions],
-    ExpectedSubscriptionsWithJids = lists:sort(Subscriptions).
+    Id = <<"node_subs">>,
+    send_node_subscriptions_request(User, Id, {NodeAddr, NodeName}),
+    receive_node_subscriptions_response(User, Id, ExpectedSubscriptions, NodeName).
+
+modify_node_subscriptions(User, ModifiedSubscriptions, {NodeAddr, NodeName}) ->
+    Id = <<"modify_node_subs">>,
+    send_modify_node_subscriptions_request(User, Id, ModifiedSubscriptions, {NodeAddr, NodeName}),
+    receive_response(User, Id).
+
+fail_to_modify_node_subscriptions(User, ModifiedSubscriptions, ErrorType, {NodeAddr, NodeName}) ->
+    Id = <<"modify_node_subs_failed">>,
+    send_modify_node_subscriptions_request(User, Id, ModifiedSubscriptions, {NodeAddr, NodeName}),
+    receive_error_response(User, Id, ErrorType).
 
 discover_nodes(User, {NodeAddr, NodeName}, ExpectedChildren) ->
     Id = <<"disco1">>,
@@ -189,14 +199,44 @@ discover_nodes(User, {NodeAddr, NodeName}, ExpectedChildren) ->
     ExpectedChildren = lists:sort(ReceivedChildren).
 
 %%-----------------------------------------------------------------------------
-%% Internal functions
+%% Specific request/response helper functions
 %%-----------------------------------------------------------------------------
 
-do_request_node_subscriptions(User, Id, {NodeAddr, NodeName}) ->
+send_node_subscriptions_request(User, Id, {NodeAddr, NodeName}) ->
     Request = escalus_pubsub_stanza:retrieve_subscriptions_stanza(NodeName),
     RequestIq = escalus_pubsub_stanza:iq_with_id(get, Id, NodeAddr, User, [Request]),
     log_stanza("REQUEST node subscriptions", RequestIq),
     escalus:send(User, RequestIq).
+
+receive_node_subscriptions_response(User, Id, ExpectedSubscriptions, NodeName) ->
+    ResultStanza = receive_response(User, Id),
+    SubscriptionsElem = exml_query:path(ResultStanza, [{element, <<"pubsub">>},
+                                                       {element, <<"subscriptions">>}]),
+    NodeName = exml_query:attr(SubscriptionsElem, <<"node">>),
+    SubscriptionElems = exml_query:subelements(SubscriptionsElem, <<"subscription">>),
+    Subscriptions = [{exml_query:attr(Subscr, <<"jid">>),
+                      exml_query:attr(Subscr, <<"subscription">>)} || Subscr <- SubscriptionElems],
+    ExpectedSubscriptionsWithJids = fill_subscriptions_jids(ExpectedSubscriptions),
+    ExpectedSubscriptionsWithJids = lists:sort(Subscriptions).
+
+send_modify_node_subscriptions_request(User, Id, ModifiedSubscriptions, {NodeAddr, NodeName}) ->
+    Changes = fill_subscriptions_jids(ModifiedSubscriptions),
+    ChangeElems = escalus_pubsub_stanza:get_subscription_change_list_stanza(Changes),
+    Request = escalus_pubsub_stanza:set_subscriptions_stanza(NodeName, ChangeElems),
+    RequestIq = escalus_pubsub_stanza:iq_with_id(set, Id, NodeAddr, User, [Request]),
+    log_stanza("REQUEST modify subscriptions", RequestIq),
+    escalus:send(User, RequestIq).
+
+%%-----------------------------------------------------------------------------
+%% Internal functions
+%%-----------------------------------------------------------------------------
+
+receive_notification(User, NodeAddr) ->
+    Stanza = escalus:wait_for_stanza(User),
+    log_stanza("NOTIFICATION", Stanza),
+    true = escalus_pred:is_stanza_from(NodeAddr, Stanza),
+    true = escalus_pred:is_message(Stanza),
+    Stanza.
 
 receive_response(User, Id) ->
     ResultStanza = escalus:wait_for_stanza(User),
@@ -237,6 +277,9 @@ item(ItemId, WithPayload) ->
 
 payload(false) -> [];
 payload(true) -> escalus_pubsub_stanza:publish_entry([]).
+
+fill_subscriptions_jids(Subscriptions) ->
+    [{jid(User, JidType), Subscr} || {User, JidType, Subscr} <- Subscriptions].
 
 jid(User, full) -> escalus_utils:get_jid(User);
 jid(User, bare) -> escalus_utils:get_short_jid(User).
