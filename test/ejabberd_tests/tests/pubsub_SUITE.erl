@@ -39,7 +39,9 @@ groups() -> [{pubsub_tests, [sequence],
               [
                disable_notifications_test,
                disable_payload_test,
-               disable_persist_items_test
+               disable_persist_items_test,
+               notify_only_available_users_test
+
                %% Unsupported by ejabberd
                %% disable_payload_and_persist_test
               ]
@@ -128,6 +130,10 @@ subscribe_unsubscribe_test(Config) ->
               %% Response: 6.2.2 Ex.52 success
               pubsub_tools:unsubscribe(Bob, ?NODE),
 
+              %% Check subscriptions without resources
+              pubsub_tools:subscribe(Bob, ?NODE, none, false),
+              pubsub_tools:unsubscribe(Bob, ?NODE, false),
+
               pubsub_tools:delete_node(Alice, ?NODE)
       end).
 
@@ -148,17 +154,23 @@ publish_test(Config) ->
 notify_test(Config) ->
     escalus:story(
       Config,
-      [{alice,1}, {bob,1}, {geralt,1}],
-      fun(Alice, Bob, Geralt) ->
+      [{alice,1}, {bob,2}, {geralt,2}],
+      fun(Alice, Bob1, Bob2, Geralt1, Geralt2) ->
               pubsub_tools:create_node(Alice, ?NODE),
-              pubsub_tools:subscribe(Bob, ?NODE),
-              pubsub_tools:subscribe(Geralt, ?NODE),
+              pubsub_tools:subscribe(Bob1, ?NODE),
+              pubsub_tools:subscribe(Geralt1, ?NODE, none, false),
               pubsub_tools:publish(Alice, <<"item1">>, ?NODE),
 
               %% 7.1.2.1 Ex.101 notification with payload
               %%                Note: message has type 'headline' by default
-              pubsub_tools:receive_notification(Bob, <<"item1">>, ?NODE),
-              pubsub_tools:receive_notification(Geralt, <<"item1">>, ?NODE),
+
+              %% Bob subscribed with resource
+              pubsub_tools:receive_notification(Bob1, <<"item1">>, ?NODE),
+              escalus_assert:has_no_stanzas(Bob2),
+
+              %% Geralt subscribed without resource
+              pubsub_tools:receive_notification(Geralt1, <<"item1">>, ?NODE),
+              pubsub_tools:receive_notification(Geralt2, <<"item1">>, ?NODE),
 
               pubsub_tools:delete_node(Alice, ?NODE)
       end).
@@ -229,7 +241,7 @@ retrieve_subscriptions_test(Config) ->
               pubsub_tools:delete_node(Alice, ?NODE_2)
       end).
 
-disable_notifications_config_test(Config) ->
+disable_notifications_test(Config) ->
     escalus:story(
       Config,
       [{alice,1}, {bob,1}],
@@ -246,7 +258,7 @@ disable_notifications_config_test(Config) ->
               pubsub_tools:delete_node(Alice, ?NODE)
       end).
 
-disable_payload_config_test(Config) ->
+disable_payload_test(Config) ->
     escalus:story(
       Config,
       [{alice,1}, {bob,1}],
@@ -281,6 +293,32 @@ disable_persist_items_test(Config) ->
 
               %% No items should be stored
               pubsub_tools:request_all_items(Bob, [], ?NODE),
+
+              pubsub_tools:delete_node(Alice, ?NODE)
+      end).
+
+notify_only_available_users_test(Config) ->
+    escalus:story(
+      Config,
+      [{alice,1}, {bob,1}],
+      fun(Alice, Bob) ->
+              %% First node notifies only available users
+              pubsub_tools:create_node(Alice, ?NODE),
+              NodeConfig = [{<<"pubsub#presence_based_delivery">>, <<"true">>}],
+              pubsub_tools:create_node(Alice, ?NODE_2, NodeConfig),
+
+              pubsub_tools:subscribe(Bob, ?NODE, none, false),
+              pubsub_tools:subscribe(Bob, ?NODE_2, none, false),
+
+              escalus:send(Bob, escalus_stanza:presence(<<"unavailable">>)),
+
+              %% Receive item from node 1 (also make sure the presence is processed)
+              pubsub_tools:publish(Alice, <<"item1">>, ?NODE),
+              pubsub_tools:receive_notification(Bob, <<"item1">>, ?NODE),
+
+              %% Item from node 2 not received (blocked by resource-based delivery)
+              pubsub_tools:publish(Alice, <<"item2">>, ?NODE_2),
+              escalus_assert:has_no_stanzas(Bob),
 
               pubsub_tools:delete_node(Alice, ?NODE)
       end).

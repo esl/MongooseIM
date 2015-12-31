@@ -18,8 +18,8 @@
          create_node/2, create_node/3,
          configure_node/3,
          delete_node/2,
-         subscribe/2, subscribe/3,
-         unsubscribe/2,
+         subscribe/2, subscribe/3, subscribe/4,
+         unsubscribe/2, unsubscribe/3,
          publish/3, publish/4, publish/5,
          receive_notification/3, receive_notification/4,
          request_all_items/3,
@@ -61,9 +61,13 @@ subscribe(User, {NodeAddr, NodeName}) ->
     subscribe(User, {NodeAddr, NodeName}, none).
 
 subscribe(User, {NodeAddr, NodeName}, ExpectedItemId) ->
+    subscribe(User, {NodeAddr, NodeName}, ExpectedItemId, true).
+
+subscribe(User, {NodeAddr, NodeName}, ExpectedItemId, WithResource) ->
     UserName = escalus_utils:get_username(User),
+    Jid = jid(User, WithResource),
     Id = <<UserName/binary, <<"binsuffix">>/binary>>,
-    SubscribeIq = escalus_pubsub_stanza:subscribe_by_user_stanza(User, Id, NodeName, NodeAddr),
+    SubscribeIq = escalus_pubsub_stanza:subscribe_by_user_stanza(Jid, Id, NodeName, NodeAddr),
     log_stanza("REQUEST subscribe", SubscribeIq),
     escalus:send(User, SubscribeIq),
     case ExpectedItemId of
@@ -76,12 +80,16 @@ subscribe(User, {NodeAddr, NodeName}, ExpectedItemId) ->
     ResultStanza = receive_response(User, Id),
     Subscription = exml_query:path(ResultStanza, [{element, <<"pubsub">>},
                                                   {element, <<"subscription">>}]),
-    check_subscription(Subscription, User, NodeName).
+    check_subscription(Subscription, Jid, NodeName).
 
 unsubscribe(User, {NodeAddr, NodeName}) ->
+    unsubscribe(User, {NodeAddr, NodeName}, true).
+
+unsubscribe(User, {NodeAddr, NodeName}, WithResource) ->
     UserName = escalus_utils:get_username(User),
+    Jid = jid(User, WithResource),
     Id = <<UserName/binary, <<"binsuffix">>/binary>>,
-    UnsubscribeIq = escalus_pubsub_stanza:unsubscribe_by_user_stanza(User, Id, NodeName, NodeAddr),
+    UnsubscribeIq = escalus_pubsub_stanza:unsubscribe_by_user_stanza(Jid, Id, NodeName, NodeAddr),
     log_stanza("REQUEST unsubscribe", UnsubscribeIq),
     escalus:send(User, UnsubscribeIq),
     receive_response(User, Id).
@@ -188,9 +196,8 @@ log_stanza(ReportString, Stanza) ->
     ct:print("~s~n~s", [ReportString, PrettyStanza]),
     ct:log("~s~n~s", [ReportString, exml:escape_attr(PrettyStanza)]).
 
-check_subscription(Subscr, User, NodeName) ->
+check_subscription(Subscr, Jid, NodeName) ->
     Jid = exml_query:attr(Subscr, <<"jid">>),
-    Jid = escalus_utils:get_jid(User),
     NodeName = exml_query:attr(Subscr, <<"node">>),
     true = exml_query:attr(Subscr, <<"subid">>) =/= undefined,
     <<"subscribed">> = exml_query:attr(Subscr, <<"subscription">>).
@@ -206,3 +213,6 @@ item(ItemId, WithPayload) ->
 
 payload(false) -> [];
 payload(true) -> escalus_pubsub_stanza:publish_entry([]).
+
+jid(User, true) -> escalus_utils:get_jid(User);
+jid(User, false) -> escalus_utils:get_short_jid(User).
