@@ -32,6 +32,7 @@ groups() -> [{pubsub_tests, [sequence],
                publish_test,
                notify_test,
                request_all_items_test,
+               purge_all_items_test,
                retrieve_subscriptions_test
               ]
              },
@@ -192,6 +193,29 @@ request_all_items_test(Config) ->
               %% Response: 6.5.3 Ex.79 service returns all items
               pubsub_tools:request_all_items(Bob, [<<"item2">>, <<"item1">>], ?NODE),
               %% TODO check ordering (although XEP does not specify this)
+
+              pubsub_tools:delete_node(Alice, ?NODE)
+      end).
+
+purge_all_items_test(Config) ->
+    escalus:story(
+      Config,
+      [{alice,1}, {bob,1}],
+      fun(Alice, Bob) ->
+              pubsub_tools:create_node(Alice, ?NODE),
+              pubsub_tools:publish(Alice, <<"item1">>, ?NODE),
+              pubsub_tools:publish(Alice, <<"item2">>, ?NODE),
+
+              %% Response: 8.5.3.2 Ex.165 insufficient privileges
+              pubsub_tools:fail_to_purge_all_items(Bob, <<"auth">>, ?NODE),
+
+              pubsub_tools:request_all_items(Bob, [<<"item2">>, <<"item1">>], ?NODE),
+
+              %% Request:  8.5.1 Ex.161 owner purges all items from node
+              %% Response: 8.5.2 Ex.162 success
+              pubsub_tools:purge_all_items(Alice, ?NODE),
+
+              pubsub_tools:request_all_items(Bob, [], ?NODE),
 
               pubsub_tools:delete_node(Alice, ?NODE)
       end).

@@ -24,6 +24,8 @@
          receive_item_notification/3, receive_item_notification/4,
          receive_subscription_notification/4,
          request_all_items/3,
+         purge_all_items/2,
+         fail_to_purge_all_items/3,
          retrieve_user_subscriptions/3,
          retrieve_node_subscriptions/3,
          fail_to_retrieve_node_subscriptions/3,
@@ -150,6 +152,16 @@ request_all_items(User, ItemIds, {NodeAddr, NodeName}) ->
                                            {element, <<"items">>}]),
     check_items(Items, ItemIds, NodeName, true).
 
+purge_all_items(User, Node) ->
+    Id = <<"purge1">>,
+    send_purge_all_items_request(User, Id, Node),
+    receive_response(User, Id).
+
+fail_to_purge_all_items(User, ErrorType, Node) ->
+    Id = <<"purge1">>,
+    send_purge_all_items_request(User, Id, Node),
+    receive_error_response(User, Id, ErrorType).
+
 retrieve_user_subscriptions(User, ExpectedSubscriptions, NodeAddr) ->
     Id = <<"user_subs1">>,
     Request = escalus_pubsub_stanza:retrieve_user_subscriptions_stanza(),
@@ -201,6 +213,11 @@ discover_nodes(User, {NodeAddr, NodeName}, ExpectedChildren) ->
 %%-----------------------------------------------------------------------------
 %% Specific request/response helper functions
 %%-----------------------------------------------------------------------------
+
+send_purge_all_items_request(User, Id, {NodeAddr, NodeName}) ->
+    RequestIq = escalus_pubsub_stanza:purge_all_items_iq(User, Id, NodeAddr, NodeName),
+    log_stanza("REQUEST purge", RequestIq),
+    escalus:send(User, RequestIq).
 
 send_node_subscriptions_request(User, Id, {NodeAddr, NodeName}) ->
     Request = escalus_pubsub_stanza:retrieve_subscriptions_stanza(NodeName),
