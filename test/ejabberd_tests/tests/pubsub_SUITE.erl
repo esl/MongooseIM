@@ -21,6 +21,7 @@
 all() -> [
           {group, pubsub_tests},
           {group, node_config_tests},
+          {group, manage_subscriptions_tests},
           {group, collection_tests}
          ].
 
@@ -41,6 +42,11 @@ groups() -> [{pubsub_tests, [sequence],
                disable_payload_test,
                disable_persist_items_test,
                notify_only_available_users_test
+              ]
+             },
+             {manage_subscriptions_tests, [sequence],
+              [
+               retrieve_node_subscriptions_test
               ]
              },
              {collection_tests, [sequence],
@@ -216,23 +222,23 @@ retrieve_subscriptions_test(Config) ->
       fun(Alice, Bob) ->
               %% Request:  5.6 Ex.20 Retrieve Subscriptions
               %% Response:     Ex.22 No Subscriptions
-              pubsub_tools:retrieve_subscriptions(Bob, [], ?NODE_ADDR),
+              pubsub_tools:retrieve_user_subscriptions(Bob, [], ?NODE_ADDR),
 
               pubsub_tools:create_node(Alice, ?NODE),
               pubsub_tools:subscribe(Bob, ?NODE),
 
               %% Ex. 21 Service returns subscriptions
-              pubsub_tools:retrieve_subscriptions(Bob, [{?NODE_NAME, <<"subscribed">>}], ?NODE_ADDR),
+              pubsub_tools:retrieve_user_subscriptions(Bob, [{?NODE_NAME, <<"subscribed">>}], ?NODE_ADDR),
 
               pubsub_tools:create_node(Alice, ?NODE_2),
               pubsub_tools:subscribe(Bob, ?NODE_2),
 
               %% Ex. 21 Service returns subscriptions
-              pubsub_tools:retrieve_subscriptions(Bob, [{?NODE_NAME, <<"subscribed">>},
-                                                        {?NODE_NAME_2, <<"subscribed">>}], ?NODE_ADDR),
+              pubsub_tools:retrieve_user_subscriptions(Bob, [{?NODE_NAME, <<"subscribed">>},
+                                                             {?NODE_NAME_2, <<"subscribed">>}], ?NODE_ADDR),
 
               %% Owner not subscribed automatically
-              pubsub_tools:retrieve_subscriptions(Alice, [], ?NODE_ADDR),
+              pubsub_tools:retrieve_user_subscriptions(Alice, [], ?NODE_ADDR),
 
               pubsub_tools:delete_node(Alice, ?NODE),
               pubsub_tools:delete_node(Alice, ?NODE_2)
@@ -369,6 +375,29 @@ disable_delivery_test(Config) ->
 
               %% Notifications disabled
               escalus_assert:has_no_stanzas(Bob),
+
+              pubsub_tools:delete_node(Alice, ?NODE)
+      end).
+
+retrieve_node_subscriptions_test(Config) ->
+    escalus:story(
+      Config,
+      [{alice,1}, {bob,1}, {geralt,1}],
+      fun(Alice, Bob, Geralt) ->
+              pubsub_tools:create_node(Alice, ?NODE),
+
+              %% Request:  8.8.1.1 Ex.182 Owner requests all subscriptions
+              %% Response: 8.8.1.2 Ex.183 Service returns list of subscriptions (empty yet)
+              pubsub_tools:retrieve_node_subscriptions(Alice, [], ?NODE),
+
+              %% Response: 8.8.1.3 Ex.185 Entity is not an owner
+              pubsub_tools:fail_to_retrieve_node_subscriptions(Bob, <<"auth">>, ?NODE),
+
+              pubsub_tools:subscribe(Bob, ?NODE),
+              pubsub_tools:subscribe(Geralt, ?NODE, [{jid_type, bare}]),
+
+              pubsub_tools:retrieve_node_subscriptions(Alice, [{Bob, full, <<"subscribed">>},
+                                                               {Geralt, bare, <<"subscribed">>}], ?NODE),
 
               pubsub_tools:delete_node(Alice, ?NODE)
       end).
@@ -517,8 +546,8 @@ retrieve_subscriptions_collection_test(Config) ->
               pubsub_tools:subscribe(Bob, ?LEAF),
 
               % Only the nodes for which subscriptions were made should be returned
-              pubsub_tools:retrieve_subscriptions(Bob, [{?LEAF_NAME, <<"subscribed">>},
-                                                        {?NODE_NAME, <<"subscribed">>}], ?NODE_ADDR),
+              pubsub_tools:retrieve_user_subscriptions(Bob, [{?LEAF_NAME, <<"subscribed">>},
+                                                             {?NODE_NAME, <<"subscribed">>}], ?NODE_ADDR),
 
               pubsub_tools:delete_node(Alice, ?LEAF),
               pubsub_tools:delete_node(Alice, ?LEAF_2),

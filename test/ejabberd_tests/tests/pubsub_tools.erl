@@ -23,7 +23,9 @@
          publish/3, publish/4, publish/5,
          receive_notification/3, receive_notification/4,
          request_all_items/3,
-         retrieve_subscriptions/3,
+         retrieve_user_subscriptions/3,
+         retrieve_node_subscriptions/3,
+         fail_to_retrieve_node_subscriptions/3,
          discover_nodes/3
         ]).
 
@@ -140,11 +142,11 @@ request_all_items(User, ItemIds, {NodeAddr, NodeName}) ->
                                            {element, <<"items">>}]),
     check_items(Items, ItemIds, NodeName, true).
 
-retrieve_subscriptions(User, ExpectedSubscriptions, NodeAddr) ->
-    Id = <<"subs1">>,
+retrieve_user_subscriptions(User, ExpectedSubscriptions, NodeAddr) ->
+    Id = <<"user_subs1">>,
     Request = escalus_pubsub_stanza:retrieve_user_subscriptions_stanza(),
     RequestIq = escalus_pubsub_stanza:iq_with_id(get, Id, NodeAddr, User, [Request]),
-    log_stanza("REQUEST subscriptions", RequestIq),
+    log_stanza("REQUEST user subscriptions", RequestIq),
     escalus:send(User, RequestIq),
     ResultStanza = receive_response(User, Id),
     SubscriptionElems = exml_query:paths(ResultStanza, [{element, <<"pubsub">>},
@@ -155,6 +157,24 @@ retrieve_subscriptions(User, ExpectedSubscriptions, NodeAddr) ->
     Subscriptions = [{exml_query:attr(Subscr, <<"node">>),
                       exml_query:attr(Subscr, <<"subscription">>)} || Subscr <- SubscriptionElems],
     ExpectedSubscriptions = lists:sort(Subscriptions).
+
+fail_to_retrieve_node_subscriptions(User, ErrorType, {NodeAddr, NodeName}) ->
+    Id = <<"node_subs_failed">>,
+    do_request_node_subscriptions(User, Id, {NodeAddr, NodeName}),
+    receive_error_response(User, Id, ErrorType).
+
+retrieve_node_subscriptions(User, ExpectedSubscriptions, {NodeAddr, NodeName}) ->
+    Id = <<"node_subs1">>,
+    do_request_node_subscriptions(User, Id, {NodeAddr, NodeName}),
+    ResultStanza = receive_response(User, Id),
+    SubscriptionsElem = exml_query:path(ResultStanza, [{element, <<"pubsub">>},
+                                                       {element, <<"subscriptions">>}]),
+    NodeName = exml_query:attr(SubscriptionsElem, <<"node">>),
+    SubscriptionElems = exml_query:subelements(SubscriptionsElem, <<"subscription">>),
+    Subscriptions = [{exml_query:attr(Subscr, <<"jid">>),
+                      exml_query:attr(Subscr, <<"subscription">>)} || Subscr <- SubscriptionElems],
+    ExpectedSubscriptionsWithJids = [{jid(U, JT), Sub} || {U, JT, Sub} <- ExpectedSubscriptions],
+    ExpectedSubscriptionsWithJids = lists:sort(Subscriptions).
 
 discover_nodes(User, {NodeAddr, NodeName}, ExpectedChildren) ->
     Id = <<"disco1">>,
@@ -171,6 +191,12 @@ discover_nodes(User, {NodeAddr, NodeName}, ExpectedChildren) ->
 %%-----------------------------------------------------------------------------
 %% Internal functions
 %%-----------------------------------------------------------------------------
+
+do_request_node_subscriptions(User, Id, {NodeAddr, NodeName}) ->
+    Request = escalus_pubsub_stanza:retrieve_subscriptions_stanza(NodeName),
+    RequestIq = escalus_pubsub_stanza:iq_with_id(get, Id, NodeAddr, User, [Request]),
+    log_stanza("REQUEST node subscriptions", RequestIq),
+    escalus:send(User, RequestIq).
 
 receive_response(User, Id) ->
     ResultStanza = escalus:wait_for_stanza(User),
