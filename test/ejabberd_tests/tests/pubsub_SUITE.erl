@@ -32,7 +32,6 @@ groups() -> [{pubsub_tests, [sequence],
                publish_test,
                notify_test,
                request_all_items_test,
-               send_last_published_item_test,
                retrieve_subscriptions_test
               ]
              },
@@ -41,7 +40,8 @@ groups() -> [{pubsub_tests, [sequence],
                disable_notifications_test,
                disable_payload_test,
                disable_persist_items_test,
-               notify_only_available_users_test
+               notify_only_available_users_test,
+               send_last_published_item_test
               ]
              },
              {manage_subscriptions_tests, [sequence],
@@ -179,26 +179,6 @@ notify_test(Config) ->
               pubsub_tools:delete_node(Alice, ?NODE)
       end).
 
-send_last_published_item_test(Config) ->
-    escalus:story(
-      Config,
-      [{alice,1}, {bob,1}],
-      fun(Alice, Bob) ->
-              %% Request:  8.1.3 Ex.136 Request a new node with non-default configuration
-              %% Response:       Ex.137 Service replies with success
-              NodeConfig = [{<<"pubsub#send_last_published_item">>, <<"on_sub_and_presence">>}],
-              pubsub_tools:create_node(Alice, ?NODE, NodeConfig),
-
-              pubsub_tools:publish(Alice, <<"item1">>, ?NODE),
-
-              %% Note: when Bob subscribes, the last item (item2) is sent to him
-              %%       6.1.7 Ex.50 service sends last published item
-              %%       This is sent BEFORE the response iq stanza
-              pubsub_tools:subscribe(Bob, ?NODE, [{expected_notification,  <<"item1">>}]),
-
-              pubsub_tools:delete_node(Alice, ?NODE)
-      end).
-
 request_all_items_test(Config) ->
     escalus:story(
       Config,
@@ -327,55 +307,23 @@ notify_only_available_users_test(Config) ->
               pubsub_tools:delete_node(Alice, ?NODE)
       end).
 
-%% Tests for features unsupported by ejabberd
-
-disable_payload_and_persist_test(Config) ->
+send_last_published_item_test(Config) ->
     escalus:story(
       Config,
       [{alice,1}, {bob,1}],
       fun(Alice, Bob) ->
-              %% Notification-Only Transient Node, see 4.3, table 4
-              NodeConfig = [{<<"pubsub#deliver_payloads">>, <<"false">>},
-                            {<<"pubsub#persist_items">>, <<"false">>}],
+              %% Request:  8.1.3 Ex.136 Request a new node with non-default configuration
+              %% Response:       Ex.137 Service replies with success
+              NodeConfig = [{<<"pubsub#send_last_published_item">>, <<"on_sub_and_presence">>}],
               pubsub_tools:create_node(Alice, ?NODE, NodeConfig),
 
-              pubsub_tools:subscribe(Bob, ?NODE),
-
-              %% Response  7.1.3 Ex.112 attempt to publish payload to transient notification node
-              %%                   Expected error of type 'modify'
-              pubsub_tools:publish(Alice, <<"item1">>, ?NODE, true, <<"modify">>),
-
-              %% Publish without payload should succeed
-              pubsub_tools:publish(Alice, <<"item2">>, ?NODE, false),
-
-              %% Notifications should work
-              pubsub_tools:receive_item_notification(Bob, <<"item1">>, ?NODE),
-
-              %% No items should be stored
-              pubsub_tools:request_all_items(Bob, [], ?NODE),
-
-              %% No more notifications
-              escalus_assert:has_no_stanzas(Bob),
-
-              pubsub_tools:delete_node(Alice, ?NODE)
-      end).
-
-disable_delivery_test(Config) ->
-    escalus:story(
-      Config,
-      [{alice,1}, {bob,1}],
-      fun(Alice, Bob) ->
-              pubsub_tools:create_node(Alice, ?NODE),
-
-              %% Request: 6.3.7 Ex.71 Subscribe and configure
-              %%                Ex.72 Success
-              SubscrConfig = [{<<"pubsub#deliver">>, <<"false">>}],
-              pubsub_tools:subscribe(Bob, ?NODE, [{config, SubscrConfig}]),
-
               pubsub_tools:publish(Alice, <<"item1">>, ?NODE),
+              pubsub_tools:publish(Alice, <<"item2">>, ?NODE),
 
-              %% Notifications disabled
-              escalus_assert:has_no_stanzas(Bob),
+              %% Note: when Bob subscribes, the last item (item2) is sent to him
+              %%       6.1.7 Ex.50 service sends last published item
+              %%       This is sent BEFORE the response iq stanza
+              pubsub_tools:subscribe(Bob, ?NODE, [{expected_notification,  <<"item2">>}]),
 
               pubsub_tools:delete_node(Alice, ?NODE)
       end).
@@ -639,3 +587,57 @@ request_all_items_leaf_test(Config) ->
               pubsub_tools:delete_node(Alice, ?NODE)
       end).
 
+%%--------------------------------------------------------------------
+%% Tests for features unsupported by ejabberd
+%%--------------------------------------------------------------------
+
+disable_payload_and_persist_test(Config) ->
+    escalus:story(
+      Config,
+      [{alice,1}, {bob,1}],
+      fun(Alice, Bob) ->
+              %% Notification-Only Transient Node, see 4.3, table 4
+              NodeConfig = [{<<"pubsub#deliver_payloads">>, <<"false">>},
+                            {<<"pubsub#persist_items">>, <<"false">>}],
+              pubsub_tools:create_node(Alice, ?NODE, NodeConfig),
+
+              pubsub_tools:subscribe(Bob, ?NODE),
+
+              %% Response  7.1.3 Ex.112 attempt to publish payload to transient notification node
+              %%                   Expected error of type 'modify'
+              pubsub_tools:publish(Alice, <<"item1">>, ?NODE, true, <<"modify">>),
+
+              %% Publish without payload should succeed
+              pubsub_tools:publish(Alice, <<"item2">>, ?NODE, false),
+
+              %% Notifications should work
+              pubsub_tools:receive_item_notification(Bob, <<"item1">>, ?NODE),
+
+              %% No items should be stored
+              pubsub_tools:request_all_items(Bob, [], ?NODE),
+
+              %% No more notifications
+              escalus_assert:has_no_stanzas(Bob),
+
+              pubsub_tools:delete_node(Alice, ?NODE)
+      end).
+
+disable_delivery_test(Config) ->
+    escalus:story(
+      Config,
+      [{alice,1}, {bob,1}],
+      fun(Alice, Bob) ->
+              pubsub_tools:create_node(Alice, ?NODE),
+
+              %% Request: 6.3.7 Ex.71 Subscribe and configure
+              %%                Ex.72 Success
+              SubscrConfig = [{<<"pubsub#deliver">>, <<"false">>}],
+              pubsub_tools:subscribe(Bob, ?NODE, [{config, SubscrConfig}]),
+
+              pubsub_tools:publish(Alice, <<"item1">>, ?NODE),
+
+              %% Notifications disabled
+              escalus_assert:has_no_stanzas(Bob),
+
+              pubsub_tools:delete_node(Alice, ?NODE)
+      end).
