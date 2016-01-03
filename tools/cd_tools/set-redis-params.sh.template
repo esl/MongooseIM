@@ -16,7 +16,7 @@ else
     MAYBE_IN_PLACE=""
 fi
 
-TARGET_SPEC='../test.config'
+TARGET_SPEC='../../test.config'
 
 if [ -e ${TARGET_SPEC} ]
 then
