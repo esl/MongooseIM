@@ -7,7 +7,6 @@ XEP_TOOL = tools/xep_tool
 EJD_EBIN = $(EJABBERD_DIR)/ebin
 DEVNODES = node1 node2
 
-include tools/cd_tools/cd-targets
 
 all: deps compile
 
@@ -126,6 +125,8 @@ fake_cert.pem:
 
 fake_server.pem:
 	cat fake_cert.pem fake_key.pem > fake_server.pem
+
+include tools/cd_tools/cd-targets
 
 COMBO_PLT = .mongooseim_combo_dialyzer.plt
 # We skip some deps, because they're Dialyzer-broken
