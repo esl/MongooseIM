@@ -1,6 +1,6 @@
 # OpenSSL FIPS
 
-Support for OpenSSL FIPS was added to MongooseIM and is available in dedicated branch [fips-support](https://github.com/esl/MongooseIM/tree/fips-support)
+Support for OpenSSL FIPS was added to MongooseIM in version 1.7.0
 
 ## Incompatibilities
 
@@ -12,7 +12,14 @@ Currently known incompatible features are:
 
 ### Custom Erlang/OTP 17.4.1 with FIPS support
 Compile Erlang/OTP from [michalwski/otp 17.4.1-fips](https://github.com/michalwski/otp/tree/fips-17.4.1)
-Make sure option `--enable-fips` is specified for `configure` command. If you want to use different openssl than the default one specify option `--with-openssl=PATH_TO_YOUR_OPENSSL`
+Make sure option `--enable-fips` is specified for `configure` command.
+If you want to use different openssl than the default one, specify option `--with-ssl=PATH_TO_YOUR_OPENSSL` as well.
+Example command for building Erlang/OTP with kerl would look like the
+following:
+```
+KERL_CONFIGURE_OPTIONS="--enable-fips --with-ssl=/home/vagrant/openssl" \
+./kerl build git https://github.com/michalwski/otp.git fips-17.4.1 17.4.1-fips
+```
 
 ### Building MongooseIM with custom openssl
 
