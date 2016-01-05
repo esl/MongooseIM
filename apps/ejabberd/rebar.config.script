@@ -1,3 +1,4 @@
+io:format("qt~n"),
 GetFullVer = fun() ->
     Path = filename:join([code:root_dir(), "releases",
                           erlang:system_info(otp_release),
@@ -22,38 +23,38 @@ DisableCoverage = fun(Config) ->
 end,
 
 MaybeDisableCoverage = fun(Config) ->
-	case erlang:system_info(otp_release) of
-    	"17" ->
-        	case catch GetFullVer() of
-            	<<"17.5">> -> % This is 17.5 where cover was fixed
-        			Config;
-            	_ ->
-                	io:format("disabling coverage for OTP 17.0 to 17.4~n"),
-                	DisableCoverage(Config)
-        	end;
-    	_ ->
-        	Config
-	end
+    case erlang:system_info(otp_release) of
+        "17" ->
+           case catch GetFullVer() of
+                <<"17.5">> -> % This is 17.5 where cover was fixed
+                    Config;
+                _ ->
+                    io:format("disabling coverage for OTP 17.0 to 17.4~n"),
+                    DisableCoverage(Config)
+           end;
+        _ ->
+           Config
+    end
 end,
 
-MaybeChangeOpenSSL(Config) = fun(Config) ->
-	case os:getenv("OPENSSL_LIB") of
-    	false ->
-        	Config;
-    	OpenSSL ->
-        	io:format("using OpenSSL ~p~n", [OpenSSL]),
-        	{port_specs, PortSpecs} = lists:keyfind(port_specs, 1, CONFIG),
-        	TlsDrvKey = "priv/lib/tls_drv.so",
-        	TlsDrvSpec = lists:keyfind(TlsDrvKey, 2, PortSpecs),
-        	Args = element(4, TlsDrvSpec),
-        	CFlags = {"CFLAGS", "$CFLAGS -I$OPENSSL_INC"},
-        	LDFlags = {"LDFLAGS", "$LDFLAGS -Wl,-rpath=$OPENSSL_LIB -L$OPENSSL_LIB -lssl"},
-        	NewEnv = {env, [CFlags, LDFlags]},
-        	NewArgs = lists:keyreplace(env, 1, Args, NewEnv),
-        	NewTlsDrvSpec = setelement(4, TlsDrvSpec, NewArgs),
-        	NewPortSpecs = lists:keyreplace(TlsDrvKey, 2, PortSpecs, NewTlsDrvSpec),
-        	lists:keyreplace(port_specs, 1, Config, {port_specs, NewPortSpecs})
-	end
+MaybeChangeOpenSSL = fun(Config) ->
+    case os:getenv("OPENSSL_LIB") of
+        false ->
+            Config;
+        OpenSSL ->
+            io:format("using OpenSSL ~p~n", [OpenSSL]),
+            {port_specs, PortSpecs} = lists:keyfind(port_specs, 1, Config),
+            TlsDrvKey = "priv/lib/tls_drv.so",
+            TlsDrvSpec = lists:keyfind(TlsDrvKey, 2, PortSpecs),
+            Args = element(4, TlsDrvSpec),
+            CFlags = {"CFLAGS", "$CFLAGS -I$OPENSSL_INC"},
+            LDFlags = {"LDFLAGS", "$LDFLAGS -Wl,-rpath=$OPENSSL_LIB -L$OPENSSL_LIB -lssl"},
+            NewEnv = {env, [CFlags, LDFlags]},
+            NewArgs = lists:keyreplace(env, 1, Args, NewEnv),
+            NewTlsDrvSpec = setelement(4, TlsDrvSpec, NewArgs),
+            NewPortSpecs = lists:keyreplace(TlsDrvKey, 2, PortSpecs, NewTlsDrvSpec),
+            lists:keyreplace(port_specs, 1, Config, {port_specs, NewPortSpecs})
+    end
 end,
 
 MaybeChangeOpenSSL(MaybeDisableCoverage(CONFIG)).
