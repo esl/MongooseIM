@@ -795,7 +795,8 @@
 
   %% Ephemeral / persistent key storage
   {mod_keystore, [{keys, [
-                          {token_secret, ram}
+                          {token_secret, ram},
+                          {provision_pre_shared, ram}
                          ]}]},
 
   %% Token based authentication, require mod_keystore
