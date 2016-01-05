@@ -42,7 +42,6 @@ groups() ->
 init_per_suite(C) ->
     %lager:start(),
     stringprep:start(),
-    xml:start(),
     C.
 
 end_per_suite(C) ->
