@@ -114,7 +114,8 @@ vcard_config(Config) ->
 
 end_per_suite(Config) ->
     start_running_vcard_mod(Config),
-    NewConfig = escalus:delete_users(Config, config),
+    Who = ?config(escalus_users, Config),
+    NewConfig = escalus:delete_users(Config, Who),
     escalus:end_per_suite(NewConfig).
 
 init_per_group(rw, Config) ->
@@ -308,7 +309,7 @@ search_open(Config) ->
               Res = escalus:send_and_wait(Client,
                         escalus_stanza:search_iq(DirJID, Fields)),
               escalus:assert(is_iq_result, Res),
-              
+
               %% Basically test that the right values exist
               %% and map to the right column headings
               ItemTups = search_result_item_tuples(Res),
@@ -442,7 +443,7 @@ search_not_allowed(Config) ->
               DirJID = ?config(directory_jid, Config),
               Fields = [null],
               Res = escalus:send_and_wait(Client,
-                           escalus_stanza:search_iq(DirJID, 
+                           escalus_stanza:search_iq(DirJID,
                                escalus_stanza:search_fields(Fields))),
               escalus:assert(is_error, [<<"cancel">>,
                                         <<"service-unavailable">>], Res)
@@ -854,8 +855,8 @@ maybe_add(Elems) ->
 
 get_server_vcards() ->
     [{<<"localhost">>,
-      [{<<"FN">>, <<"ejabberd">>},
-       {<<"DESC">>, <<"Erlang Jabber Server\nCopyright (c) 2002-2011 ProcessOne">>}]},
+      [{<<"FN">>, <<"MongooseIM">>},
+       {<<"DESC">>, <<"MongooseIM XMPP Server\nCopyright (c) Erlang Solutions Ltd.">>}]},
      {<<"vjud.localhost">>,
       [{<<"FN">>, <<"ejabberd/mod_vcard">>},
        {<<"DESC">>, <<"ejabberd vCard module\nCopyright (c) 2003-2011 ProcessOne">>}]}].
