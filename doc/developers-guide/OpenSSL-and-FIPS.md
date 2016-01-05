@@ -40,7 +40,7 @@ In the release directory there is file `etc/app.config`. Fips mode is an option 
 
 Where `Value` is `true` or `false`
 
-### How to check if fips mode is enabled
+### How to check if FIPS mode is enabled
 
 #### Log message
 When MongooseIM starts it prints following log message if fips mode is enabled
@@ -56,3 +56,45 @@ In MongooseIM's console run function:
 ```erlang
 ejabberd_config:fips_mode().
 ```
+
+### Cipher suites difference
+
+A test using `cipher_suites_test.sh` script (to be found in tools
+directory) was run against MongooseIM with FIPS mode enabled and
+disabled. The OpenSSL version was: `OpenSSL 1.0.1j-fips`
+
+Below there is a list of all possible cipher suites when **FIPS** mode was
+**enabled**:
+
+* ECDHE-RSA-AES256-SHA
+* DHE-RSA-AES256-SHA
+* AES256-SHA
+* ECDHE-RSA-DES-CBC3-SHA
+* EDH-RSA-DES-CBC3-SHA
+* DES-CBC3-SHA
+* ECDHE-RSA-AES128-SHA
+* DHE-RSA-AES128-SHA
+* AES128-SHA
+
+Here goes list of all possible cipher suites when **FIPS** mode was
+**disabled**:
+
+* ECDHE-RSA-AES256-SHA
+* DHE-RSA-AES256-SHA
+* DHE-RSA-CAMELLIA256-SHA
+* AES256-SHA
+* CAMELLIA256-SHA
+* ECDHE-RSA-DES-CBC3-SHA
+* EDH-RSA-DES-CBC3-SHA
+* DES-CBC3-SHA
+* ECDHE-RSA-AES128-SHA
+* DHE-RSA-AES128-SHA
+* DHE-RSA-SEED-SHA
+* DHE-RSA-CAMELLIA128-SHA
+* AES128-SHA
+* SEED-SHA
+* CAMELLIA128-SHA
+* ECDHE-RSA-RC4-SHA
+* RC4-SHA
+* RC4-MD5
+
