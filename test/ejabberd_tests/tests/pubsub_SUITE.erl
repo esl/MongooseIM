@@ -58,6 +58,7 @@ groups() -> [{pubsub_tests, [sequence],
                subscribe_unsubscribe_collection_test,
                create_delete_leaf_test,
                notify_collection_test,
+               notify_collection_leaf_and_item_test,
                notify_collection_bare_jid_test,
                notify_collection_and_leaf_test,
                notify_collection_and_leaf_same_user_test,
@@ -495,6 +496,7 @@ notify_collection_test(Config) ->
               pubsub_tools:subscribe(Bob, ?NODE),
 
               %% Publish to leaf nodes, Bob should get notifications
+              %% 5.3.1.1 Ex.5 Subscriber receives a publish notification from a collection
               pubsub_tools:publish(Alice, <<"item1">>, ?LEAF),
               pubsub_tools:receive_item_notification(Bob, <<"item1">>, ?LEAF),
               pubsub_tools:publish(Alice, <<"item2">>, ?LEAF_2),
@@ -502,6 +504,31 @@ notify_collection_test(Config) ->
 
               pubsub_tools:delete_node(Alice, ?LEAF),
               pubsub_tools:delete_node(Alice, ?LEAF_2),
+              pubsub_tools:delete_node(Alice, ?NODE)
+      end).
+
+notify_collection_leaf_and_item_test(Config) ->
+    escalus:story(
+      Config,
+      [{alice,1}, {bob,1}],
+      fun(Alice, Bob) ->
+              CollectionConfig = [{<<"pubsub#node_type">>, <<"collection">>}],
+              pubsub_tools:create_node(Alice, ?NODE, CollectionConfig),
+
+              %% Subscribe before creating the leaf node
+              pubsub_tools:subscribe(Bob, ?NODE),
+              NodeConfig = [{<<"pubsub#collection">>, ?NODE_NAME}],
+              pubsub_tools:create_node(Alice, ?LEAF, NodeConfig),
+
+              %% Bob should get a notification for the leaf node creation
+              %% 5.3.1.2 Ex.6 Subscriber receives a creation notification from a collection
+              pubsub_tools:receive_node_creation_notification(Bob, ?LEAF),
+
+              %% Publish to leaf node, Bob should get notified
+              pubsub_tools:publish(Alice, <<"item1">>, ?LEAF),
+              pubsub_tools:receive_item_notification(Bob, <<"item1">>, ?LEAF),
+
+              pubsub_tools:delete_node(Alice, ?LEAF),
               pubsub_tools:delete_node(Alice, ?NODE)
       end).
 

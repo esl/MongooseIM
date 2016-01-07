@@ -23,6 +23,7 @@
          publish/3, publish/4, publish/5,
          receive_item_notification/3, receive_item_notification/4,
          receive_subscription_notification/4,
+         receive_node_creation_notification/2,
          request_all_items/3,
          purge_all_items/2,
          fail_to_purge_all_items/3,
@@ -140,6 +141,12 @@ receive_subscription_notification(User, JidType, Subscription, {NodeAddr, NodeNa
     Jid = exml_query:attr(SubscriptionElem, <<"jid">>),
     Subscription = exml_query:attr(SubscriptionElem, <<"subscription">>),
     NodeName = exml_query:attr(SubscriptionElem, <<"node">>).
+
+receive_node_creation_notification(User, {NodeAddr, NodeName}) ->
+    Stanza = receive_notification(User, NodeAddr),
+    NodeName = exml_query:path(Stanza, [{element, <<"event">>},
+                                        {element, <<"create">>},
+                                        {attr, <<"node">>}]).
 
 request_all_items(User, ItemIds, {NodeAddr, NodeName}) ->
     Id = <<"items1">>,
