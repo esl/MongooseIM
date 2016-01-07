@@ -17,7 +17,13 @@
 -behaviour(mod_vcard).
 
 %% API
--export([init/2, remove_user/2, set_vcard/4, get_vcard/2, search/4, search_fields/1]).
+-export([init/2,
+         remove_user/2,
+         set_vcard/4,
+         get_vcard/2,
+         search/2,
+         search_fields/1,
+         search_reported_fields/2]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -64,12 +70,10 @@ get_vcard(LUser, LServer) ->
             Other
     end.
 
--spec search(ejabberd:lserver(), list(), binary(), #xmlel{}) -> list().
-search(VHost, Data, _Lang, DefaultReportedFields) ->
+-spec search(ejabberd:lserver(), list()) -> list().
+search(VHost, Data) ->
     YZQuery = make_yz_query(Data, []),
-
-    Items = do_search(YZQuery, VHost),
-    [DefaultReportedFields | Items].
+    do_search(YZQuery, VHost).
 
 do_search([], _) ->
     [];
@@ -90,6 +94,9 @@ do_search(YZQueryIn, VHost) ->
 -spec search_fields(ejabberd:lserver()) -> list().
 search_fields(_VHost) ->
     mod_vcard:default_search_fields().
+
+search_reported_fields(_VHost, Lang) ->
+    mod_vcard:get_default_reported_fields(Lang).
 
 make_yz_query([], Acc) -> Acc;
 make_yz_query([{Var, [Val]} | Rest], Acc) ->
@@ -124,7 +131,6 @@ doc2item(VHost, Props) ->
            children = Vals}.
 
 extract_field(Props, {_, <<"user">>}) ->
-    lager:warning("props: ~p", [Props]),
     {_, Username} = lists:keyfind(riak_search_mapping(<<"user">>), 1, Props),
     {_, Bucket} = lists:keyfind(<<"_yz_rb">>, 1, Props),
     [_, Host] = binary:split(Bucket, <<"_">>),

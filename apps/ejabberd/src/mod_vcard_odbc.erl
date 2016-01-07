@@ -29,7 +29,13 @@
 -behaviour(mod_vcard).
 
 %% mod_vcards callbacks
--export([init/2,remove_user/2, get_vcard/2, set_vcard/4, search/4, search_fields/1]).
+-export([init/2,
+         remove_user/2,
+         get_vcard/2,
+         set_vcard/4,
+         search/2,
+         search_fields/1,
+         search_reported_fields/2]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -106,11 +112,10 @@ set_vcard(User, VHost, VCard, VCardSearch) ->
     ejabberd_hooks:run(vcard_set, VHost, [LUser, VHost, VCard]),
     ok.
 
-search(LServer, Data, _Lang, DefaultReportedFields) ->
+search(LServer, Data) ->
     RestrictionSQL = make_restriction_sql(LServer, Data),
     R = do_search(LServer, RestrictionSQL),
-    Items = lists:map(fun(I) -> record_to_item(LServer,I) end, R),
-    [DefaultReportedFields | Items].
+    lists:map(fun(I) -> record_to_item(LServer,I) end, R).
 
 do_search(_LServer, "") ->
     [];
@@ -128,6 +133,9 @@ do_search(LServer, RestrictionSQL) ->
 
 search_fields(_VHost) ->
     mod_vcard:default_search_fields().
+
+search_reported_fields(_VHost, Lang) ->
+    mod_vcard:get_default_reported_fields(Lang).
 
 %%--------------------------------------------------------------------
 %% internal
