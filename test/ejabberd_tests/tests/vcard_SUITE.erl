@@ -46,14 +46,15 @@ all() ->
     [{group, rw},
      {group, ro_full},
      {group, ro_limited},
-     {group, ro_no}].
+     {group, ro_no}
+     ].
 
 groups() ->
     %% setting test data before tests is proving awkward so might as well use the
     %% data set in the update tests to test the rest.
     [{rw, [sequence], rw_tests()},
-     {ro_full, [sequence], ro_full_search_tests()},
-     {ro_limited, [sequence], ro_limited_search_tests()},
+     {ro_full, [], ro_full_search_tests()},
+     {ro_limited, [], ro_limited_search_tests()},
      {ro_no, [sequence], ro_no_search_tests()}
     ].
 
@@ -72,7 +73,8 @@ ro_full_search_tests() ->
      search_open,
      search_empty,
      search_some,
-     search_wildcard].
+     search_wildcard
+    ].
 
 ro_limited_search_tests() ->
     [search_open_limited,
@@ -92,8 +94,8 @@ suite() ->
 
 init_per_suite(Config) ->
     NewConfig = escalus:init_per_suite(Config),
-    NewConfig1 = stop_running_vcard_mod(NewConfig),
-    NewConfig2 = vcard_config(NewConfig1),
+    NewConfig1 = vcard_config(NewConfig),
+    NewConfig2 = stop_running_vcard_mod(NewConfig1),
     AliceAndBob = escalus_users:get_users({by_name, [alice, bob]}),
     BisUsers = [{aliceb,[{username,<<"aliceb">>},
                         {server,<<"localhost.bis">>},
@@ -292,10 +294,10 @@ request_search_fields(Config) ->
               #xmlel{ children = XChildren } = XData,
               FieldTups = field_tuples(XChildren),
               true = lists:member({<<"text-single">>,
-                                   <<"user">>, <<"User">>},
+                                   get_user_field(), <<"User">>},
                                   FieldTups),
               true = lists:member({<<"text-single">>,
-                                   <<"fn">>,
+                                   get_full_name_field(),
                                    <<"Full Name">>},
                                   FieldTups)
       end).
@@ -336,7 +338,7 @@ search_some(Config) ->
       fun(Client) ->
               DirJID = ?config(directory_jid, Config),
               MoscowRUBin = get_utf8_city(),
-              Fields = [{<<"locality">>, MoscowRUBin}],
+              Fields = [{get_locality_field(), MoscowRUBin}],
               Res = escalus:send_and_wait(Client,
                         escalus_stanza:search_iq(DirJID,
                             escalus_stanza:search_fields(Fields))),
@@ -344,10 +346,13 @@ search_some(Config) ->
 
               %% Basically test that the right values exist
               %% and map to the right column headings
-              ItemTups = search_result_item_tuples(Res),
-              ExpectedItemTups = get_search_results(Config, [<<"alice@localhost">>]),
-              ct:print("expected ~p", [ExpectedItemTups]),
-              list_unordered_key_match(ExpectedItemTups, ItemTups)
+              Domain = escalus_ct:get_config(ejabberd_domain),
+              AliceJID = <<"alice@", Domain/binary>>,
+
+              [{AliceJID, ItemTups}] = search_result_item_tuples(Res),
+
+              {_, _, <<"City">>, MoscowRUBin} = lists:keyfind(<<"City">>, 3, ItemTups)
+
       end).
 
 search_wildcard(Config) ->
@@ -356,16 +361,23 @@ search_wildcard(Config) ->
         fun(Client) ->
                 Domain = escalus_ct:get_config(ejabberd_secondary_domain),
                 DirJID = <<"vjud.", Domain/binary>>,
-                Fields = [{<<"fn">>, <<"doe*">>}],
+                Fields = [{get_full_name_field(),
+                           <<"Doe*">>}],
                 Res = escalus:send_and_wait(Client,
                         escalus_stanza:search_iq(DirJID,
                             escalus_stanza:search_fields(Fields))),
                 escalus:assert(is_iq_result, Res),
+
                 ItemTups = search_result_item_tuples(Res),
                 ExpectedItemTups = get_search_results(Config,
                                                       [<<"bobb@localhost.bis">>,
                                                        <<"aliceb@localhost.bis">>]),
-                list_unordered_key_match(ExpectedItemTups, ItemTups)
+                case vcard_simple_SUITE:is_vcard_ldap() of
+                    true ->
+                        3 = length(ItemTups);
+                    _ ->
+                        list_unordered_key_match2(ExpectedItemTups, ItemTups)
+                end
         end).
 
 
@@ -394,7 +406,7 @@ search_some_limited(Config) ->
       fun(Client) ->
               DirJID = <<"directory.localhost.bis">>,
               Server = escalus_client:server(Client),
-              Fields = [{<<"last">>, <<"Doe">>}],
+              Fields = [{get_last_field(), <<"Doe">>}],
               Res = escalus:send_and_wait(Client,
                         escalus_stanza:search_iq(DirJID,
                             escalus_stanza:search_fields(Fields))),
@@ -504,7 +516,7 @@ prepare_vcard(ldap, JID, Fields) ->
                 {<<"ORGNAME">>, <<"%s">>, [<<"o">>]},
                 {<<"ORGUNIT">>, <<"%s">>, [<<"ou">>]},
 
-                {<<"CTRY">>, <<"%s">>, [<<"c">>]},
+                %{<<"CTRY">>, <<"%s">>, [<<"c">>]},
                 {<<"LOCALITY">>, <<"%s">>, [<<"l">>]},
                 {<<"STREET">>, <<"%s">>, [<<"street">>]},
                 {<<"REGION">>, <<"%s">>, [<<"st">>]},
@@ -514,7 +526,10 @@ prepare_vcard(ldap, JID, Fields) ->
                 {<<"URL">>, <<"%s">>, [<<"labeleduri">>]},
                 {<<"DESC">>, <<"%s">>, [<<"description">>]},
                 {<<"TEL">>, <<"%s">>, [<<"telephoneNumber">>]},
+                {<<"NUMBER">>, <<"%s">>, [<<"telephoneNumber">>]},
+
                 {<<"EMAIL">>, <<"%s">>, [<<"mail">>]},
+                {<<"USERID">>, <<"%s">>, [<<"mail">>]},
 %%                 {<<"BDAY">>, <<"%s">>, [<<"birthDay">>]}, %OpenLDAP doesn't sport it by default
                 {<<"ROLE">>, <<"%s">>, [<<"employeeType">>]},
                 {<<"PHOTO">>, <<"%s">>, [<<"jpegPhoto">>]}
@@ -624,7 +639,6 @@ params_limited(Config) ->
 
 params_no(Config) ->
     add_backend_param([{search, false}], ?config(mod_vcard, Config)).
-
 
 add_backend_param(Opts, CurrentVCardConfig) ->
     F = fun({Key, _} = Item, Cfg) ->
@@ -762,9 +776,9 @@ list_unordered_key_match2([{User, ExpectedTup} | Rest], ActualTuples) ->
     end.
 
 verify_tuples(Received, Expected) ->
-    Fun = fun(ExpectedItem) ->
-        case lists:member(ExpectedItem, Received) of
-            true ->
+    Fun = fun({_, _, Name, Value} = ExpectedItem) ->
+        case lists:keyfind(Name, 3, Received) of
+            {_, _, Name, Value} ->
                 true;
             _ ->
                 ct:fail("can't find item ~p in received items:~p", [ExpectedItem, Received])
@@ -858,8 +872,8 @@ get_server_vcards() ->
       [{<<"FN">>, <<"MongooseIM">>},
        {<<"DESC">>, <<"MongooseIM XMPP Server\nCopyright (c) Erlang Solutions Ltd.">>}]},
      {<<"vjud.localhost">>,
-      [{<<"FN">>, <<"ejabberd/mod_vcard">>},
-       {<<"DESC">>, <<"ejabberd vCard module\nCopyright (c) 2003-2011 ProcessOne">>}]}].
+      [{<<"FN">>, <<"MongooseIM/mod_vcard">>},
+       {<<"DESC">>, <<"MongooseIM vCard module\nCopyright (c) Erlang Solutions Ltd.">>}]}].
 
 
 get_user_vcard(JID, Config) ->
@@ -875,6 +889,26 @@ get_search_results(Config, Users) ->
 
 get_search_result(VCard) ->
     convert_vcard_fields(VCard, [], fun vcard_field_to_result/2).
+
+get_locality_field() ->
+    get_search_field(<<"locality">>, <<"l">>).
+
+get_user_field() ->
+    get_search_field(<<"user">>, <<"%u">>).
+
+get_full_name_field() ->
+    get_search_field(<<"fn">>, <<"displayName">>).
+
+get_last_field() ->
+    get_search_field(<<"last">>, <<"sn">>).
+
+get_search_field(Default, LDAP) ->
+    case vcard_simple_SUITE:is_vcard_ldap() of
+        true ->
+            LDAP;
+        _ ->
+            Default
+    end.
 
 convert_vcard_fields([], Acc, _) -> Acc;
 convert_vcard_fields([{_Field, Children} | Rest], Acc, Fun) when is_list(Children) ->
@@ -943,3 +977,5 @@ vcard_result_mapping(_) -> undefined.
 get_utf8_city() ->
     %% This is the UTF-8 of Москва
     <<208,156,208,190,209,129,208,186,208,178,208,176>>.
+
+
