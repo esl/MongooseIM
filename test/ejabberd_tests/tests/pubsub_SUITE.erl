@@ -22,7 +22,8 @@ all() -> [
           {group, pubsub_tests},
           {group, node_config_tests},
           {group, manage_subscriptions_tests},
-          {group, collection_tests}
+          {group, collection_tests},
+          {group, collection_config_tests}
          ].
 
 groups() -> [{pubsub_tests, [sequence],
@@ -57,11 +58,19 @@ groups() -> [{pubsub_tests, [sequence],
                subscribe_unsubscribe_collection_test,
                create_delete_leaf_test,
                notify_collection_test,
+               notify_collection_bare_jid_test,
                notify_collection_and_leaf_test,
                notify_collection_and_leaf_same_user_test,
                retrieve_subscriptions_collection_test,
                discover_child_nodes_test,
                request_all_items_leaf_test
+              ]
+             },
+             {collection_config_tests, [sequence],
+              [
+               disable_notifications_leaf_test,
+               disable_payload_leaf_test,
+               disable_persist_items_leaf_test
               ]
              }
             ].
@@ -310,7 +319,7 @@ notify_only_available_users_test(Config) ->
       Config,
       [{alice,1}, {bob,1}],
       fun(Alice, Bob) ->
-              %% First node notifies only available users
+              %% Second node notifies only available users
               pubsub_tools:create_node(Alice, ?NODE),
               NodeConfig = [{<<"pubsub#presence_based_delivery">>, <<"true">>}],
               pubsub_tools:create_node(Alice, ?NODE_2, NodeConfig),
@@ -496,6 +505,32 @@ notify_collection_test(Config) ->
               pubsub_tools:delete_node(Alice, ?NODE)
       end).
 
+notify_collection_bare_jid_test(Config) ->
+    escalus:story(
+      Config,
+      [{alice,1}, {bob,2}, {geralt,2}],
+      fun(Alice, Bob1, Bob2, Geralt1, Geralt2) ->
+              CollectionConfig = [{<<"pubsub#node_type">>, <<"collection">>}],
+              pubsub_tools:create_node(Alice, ?NODE, CollectionConfig),
+
+              NodeConfig = [{<<"pubsub#collection">>, ?NODE_NAME}],
+              pubsub_tools:create_node(Alice, ?LEAF, NodeConfig),
+              pubsub_tools:subscribe(Bob1, ?NODE),
+              pubsub_tools:subscribe(Geralt1, ?NODE, [{jid_type, bare}]),
+              pubsub_tools:publish(Alice, <<"item1">>, ?LEAF),
+
+              %% Bob subscribed with resource
+              pubsub_tools:receive_item_notification(Bob1, <<"item1">>, ?LEAF),
+              escalus_assert:has_no_stanzas(Bob2),
+
+              %% Geralt subscribed without resource
+              pubsub_tools:receive_item_notification(Geralt1, <<"item1">>, ?LEAF),
+              pubsub_tools:receive_item_notification(Geralt2, <<"item1">>, ?LEAF),
+
+              pubsub_tools:delete_node(Alice, ?LEAF),
+              pubsub_tools:delete_node(Alice, ?NODE)
+      end).
+
 notify_collection_and_leaf_test(Config) ->
     escalus:story(
       Config,
@@ -608,6 +643,75 @@ request_all_items_leaf_test(Config) ->
 
               pubsub_tools:delete_node(Alice, ?LEAF),
               pubsub_tools:delete_node(Alice, ?LEAF_2),
+              pubsub_tools:delete_node(Alice, ?NODE)
+      end).
+
+disable_notifications_leaf_test(Config) ->
+    escalus:story(
+      Config,
+      [{alice,1}, {bob,1}],
+      fun(Alice, Bob) ->
+              CollectionConfig = [{<<"pubsub#node_type">>, <<"collection">>}],
+              pubsub_tools:create_node(Alice, ?NODE, CollectionConfig),
+
+              NodeConfig = [{<<"pubsub#deliver_notifications">>, <<"false">>},
+                            {<<"pubsub#collection">>, ?NODE_NAME}],
+              pubsub_tools:create_node(Alice, ?LEAF, NodeConfig),
+
+              pubsub_tools:subscribe(Bob, ?NODE),
+              pubsub_tools:publish(Alice, <<"item1">>, ?LEAF),
+
+              %% Notifications disabled
+              escalus_assert:has_no_stanzas(Bob),
+
+              pubsub_tools:delete_node(Alice, ?LEAF),
+              pubsub_tools:delete_node(Alice, ?NODE)
+      end).
+
+disable_payload_leaf_test(Config) ->
+    escalus:story(
+      Config,
+      [{alice,1}, {bob,1}],
+      fun(Alice, Bob) ->
+              CollectionConfig = [{<<"pubsub#node_type">>, <<"collection">>}],
+              pubsub_tools:create_node(Alice, ?NODE, CollectionConfig),
+
+              NodeConfig = [{<<"pubsub#deliver_payloads">>, <<"false">>},
+                            {<<"pubsub#collection">>, ?NODE_NAME}],
+              pubsub_tools:create_node(Alice, ?LEAF, NodeConfig),
+
+              pubsub_tools:subscribe(Bob, ?NODE),
+              pubsub_tools:publish(Alice, <<"item1">>, ?LEAF),
+
+              %% Payloads disabled
+              pubsub_tools:receive_item_notification(Bob, <<"item1">>, ?LEAF, false),
+
+              pubsub_tools:delete_node(Alice, ?LEAF),
+              pubsub_tools:delete_node(Alice, ?NODE)
+      end).
+
+disable_persist_items_leaf_test(Config) ->
+    escalus:story(
+      Config,
+      [{alice,1}, {bob,1}],
+      fun(Alice, Bob) ->
+              CollectionConfig = [{<<"pubsub#node_type">>, <<"collection">>}],
+              pubsub_tools:create_node(Alice, ?NODE, CollectionConfig),
+
+              NodeConfig = [{<<"pubsub#persist_items">>, <<"false">>},
+                            {<<"pubsub#collection">>, ?NODE_NAME}],
+              pubsub_tools:create_node(Alice, ?LEAF, NodeConfig),
+
+              pubsub_tools:subscribe(Bob, ?NODE),
+              pubsub_tools:publish(Alice, <<"item1">>, ?LEAF),
+
+              %% Notifications should work
+              pubsub_tools:receive_item_notification(Bob, <<"item1">>, ?LEAF),
+
+              %% No items should be stored
+              pubsub_tools:request_all_items(Bob, [], ?LEAF),
+
+              pubsub_tools:delete_node(Alice, ?LEAF),
               pubsub_tools:delete_node(Alice, ?NODE)
       end).
 
