@@ -137,6 +137,13 @@ get_subnodes(Host, Node) ->
 	_ -> get_subnodes_helper(Host, Node)
     end.
 
+get_subnodes_helper(Host, <<>>) ->
+    Q = qlc:q([N
+		|| #pubsub_node{nodeid = {NHost, _},
+                                parents = []} = N
+                       <- mnesia:table(pubsub_node),
+                   Host == NHost]),
+    qlc:e(Q);
 get_subnodes_helper(Host, Node) ->
     Q = qlc:q([N
 		|| #pubsub_node{nodeid = {NHost, _},

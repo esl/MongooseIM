@@ -29,6 +29,7 @@ all() -> [
 groups() -> [{pubsub_tests, [sequence],
               [
                create_delete_node_test,
+               discover_nodes_test,
                subscribe_unsubscribe_test,
                publish_test,
                notify_test,
@@ -63,6 +64,7 @@ groups() -> [{pubsub_tests, [sequence],
                notify_collection_and_leaf_test,
                notify_collection_and_leaf_same_user_test,
                retrieve_subscriptions_collection_test,
+               discover_top_level_nodes_test,
                discover_child_nodes_test,
                request_all_items_leaf_test
               ]
@@ -128,6 +130,25 @@ create_delete_node_test(Config) ->
               %% Request:  8.4.1 Ex.155 owner deletes a node
               %% Response:       Ex.157 success
               pubsub_tools:delete_node(Alice, ?NODE)
+      end).
+
+discover_nodes_test(Config) ->
+    escalus:story(
+      Config,
+      [{alice,1}, {bob,1}],
+      fun(Alice, Bob) ->
+              %% Request:  5.2 Ex.9  Entity asks service for all first-level nodes
+              %% Response:     Ex.10 Service returns all first-level nodes (empty yet)
+              pubsub_tools:discover_nodes(Bob, ?NODE_ADDR, []),
+
+              pubsub_tools:create_node(Alice, ?NODE),
+              pubsub_tools:discover_nodes(Bob, ?NODE_ADDR, [?NODE_NAME]),
+
+              pubsub_tools:create_node(Alice, ?NODE_2),
+              pubsub_tools:discover_nodes(Bob, ?NODE_ADDR, [?NODE_NAME, ?NODE_NAME_2]),
+
+              pubsub_tools:delete_node(Alice, ?NODE),
+              pubsub_tools:delete_node(Alice, ?NODE_2)
       end).
 
 subscribe_unsubscribe_test(Config) ->
@@ -625,6 +646,24 @@ retrieve_subscriptions_collection_test(Config) ->
               pubsub_tools:delete_node(Alice, ?NODE)
       end).
 
+discover_top_level_nodes_test(Config) ->
+    escalus:story(
+      Config,
+      [{alice,1}, {bob,1}],
+      fun(Alice, Bob) ->
+              CollectionConfig = [{<<"pubsub#node_type">>, <<"collection">>}],
+              pubsub_tools:create_node(Alice, ?NODE, CollectionConfig),
+
+              NodeConfig = [{<<"pubsub#collection">>, ?NODE_NAME}],
+              pubsub_tools:create_node(Alice, ?LEAF, NodeConfig),
+
+              %% Discover top-level nodes, only the collection expected
+              pubsub_tools:discover_nodes(Bob, ?NODE_ADDR, [?NODE_NAME]),
+
+              pubsub_tools:delete_node(Alice, ?LEAF),
+              pubsub_tools:delete_node(Alice, ?NODE)
+      end).
+
 discover_child_nodes_test(Config) ->
     escalus:story(
       Config,
@@ -637,6 +676,8 @@ discover_child_nodes_test(Config) ->
               pubsub_tools:create_node(Alice, ?LEAF, NodeConfig),
               pubsub_tools:create_node(Alice, ?LEAF_2, NodeConfig),
 
+              %% Request:  5.2.1 Ex.11 Entity requests child nodes
+              %% Response: 5.2.2 Ex.12 Service returns child nodes
               pubsub_tools:discover_nodes(Bob, ?NODE, [?LEAF_NAME, ?LEAF_NAME_2]),
 
               pubsub_tools:delete_node(Alice, ?LEAF),

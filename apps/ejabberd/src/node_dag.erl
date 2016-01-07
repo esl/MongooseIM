@@ -38,10 +38,10 @@
     path_to_node/1]).
 
 init(Host, ServerHost, Opts) ->
-    node_hometree:init(Host, ServerHost, Opts).
+    node_flat:init(Host, ServerHost, Opts).
 
 terminate(Host, ServerHost) ->
-    node_hometree:terminate(Host, ServerHost).
+    node_flat:terminate(Host, ServerHost).
 
 options() ->
     [{node_type, leaf} | node_hometree:options()].

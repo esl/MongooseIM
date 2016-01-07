@@ -206,16 +206,17 @@ fail_to_modify_node_subscriptions(User, ModifiedSubscriptions, ErrorType, {NodeA
     receive_error_response(User, Id, ErrorType).
 
 discover_nodes(User, {NodeAddr, NodeName}, ExpectedChildren) ->
-    Id = <<"disco1">>,
+    Id = <<"disco_children">>,
     RequestIq = escalus_pubsub_stanza:discover_nodes_stanza(User, Id, NodeAddr, NodeName),
-    log_stanza("REQUEST nodes", RequestIq),
+    log_stanza("REQUEST child nodes", RequestIq),
     escalus:send(User, RequestIq),
-    ResultStanza = receive_response(User, Id),
-    Query = exml_query:subelement(ResultStanza, <<"query">>),
-    Items = exml_query:subelements(Query, <<"item">>),
-    [NodeAddr = exml_query:attr(Item, <<"jid">>) || Item <- Items],
-    ReceivedChildren = [exml_query:attr(Item, <<"node">>) || Item <- Items],
-    ExpectedChildren = lists:sort(ReceivedChildren).
+    receive_node_discovery_response(User, Id, NodeAddr, NodeName, ExpectedChildren);
+discover_nodes(User, NodeAddr, ExpectedNodes) ->
+    Id = <<"disco_nodes">>,
+    RequestIq = escalus_pubsub_stanza:discover_nodes_stanza(User, Id, NodeAddr),
+    log_stanza("REQUEST first-level nodes", RequestIq),
+    escalus:send(User, RequestIq),
+    receive_node_discovery_response(User, Id, NodeAddr, undefined, ExpectedNodes).
 
 %%-----------------------------------------------------------------------------
 %% Specific request/response helper functions
@@ -250,6 +251,15 @@ send_modify_node_subscriptions_request(User, Id, ModifiedSubscriptions, {NodeAdd
     RequestIq = escalus_pubsub_stanza:iq_with_id(set, Id, NodeAddr, User, [Request]),
     log_stanza("REQUEST modify subscriptions", RequestIq),
     escalus:send(User, RequestIq).
+
+receive_node_discovery_response(User, Id, NodeAddr, NodeName, ExpectedNodes) ->
+    ResultStanza = receive_response(User, Id),
+    Query = exml_query:subelement(ResultStanza, <<"query">>),
+    NodeName = exml_query:attr(Query, <<"node">>),
+    Items = exml_query:subelements(Query, <<"item">>),
+    [NodeAddr = exml_query:attr(Item, <<"jid">>) || Item <- Items],
+    ReceivedNodes = [exml_query:attr(Item, <<"node">>) || Item <- Items],
+    ExpectedNodes = lists:sort(ReceivedNodes).
 
 %%-----------------------------------------------------------------------------
 %% Internal functions
