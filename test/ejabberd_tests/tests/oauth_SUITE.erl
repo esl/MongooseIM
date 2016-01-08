@@ -85,7 +85,7 @@ init_per_group(GroupName, Config0) ->
             {skip, "external authentication requires plain password"};
         _ ->
             config_password_format(GroupName),
-            Config2 = escalus:create_users(Config, {by_name, [john, alice]}),
+            Config2 = escalus:create_users(Config, {by_name, [bob, alice]}),
             assert_password_format(GroupName, Config2)
     end.
 
@@ -93,7 +93,7 @@ end_per_group(cleanup, Config) ->
     escalus:delete_users(Config, {by_name, [alice]});
 end_per_group(_GroupName, Config) ->
     set_store_password(plain),
-    escalus:delete_users(Config, {by_name, [john, alice]}).
+    escalus:delete_users(Config, {by_name, [bob, alice]}).
 
 init_per_testcase(CaseName, Config0) ->
     clean_token_db(),
@@ -108,12 +108,12 @@ end_per_testcase(CaseName, Config) ->
 %%
 
 request_tokens_test(Config) ->
-    request_tokens_once_logged_in_impl(Config, john).
+    request_tokens_once_logged_in_impl(Config, bob).
 
 login_with_revoked_token_test(Config) ->
     %% given
-    RevokedToken = get_revoked_token(Config, john),
-    token_login_failure(Config, john, RevokedToken).
+    RevokedToken = get_revoked_token(Config, bob),
+    token_login_failure(Config, bob, RevokedToken).
 
 token_login_failure(Config, User, Token) ->
     %% when
@@ -137,7 +137,7 @@ invalid_sequence_no(SeqNo) ->
     SeqNo - 1.
 
 request_tokens_once_logged_in(Config) ->
-    request_tokens_once_logged_in_impl(Config, john).
+    request_tokens_once_logged_in_impl(Config, bob).
 
 request_tokens_once_logged_in_impl(Config, User) ->
     Self = self(),
@@ -159,18 +159,18 @@ request_tokens_once_logged_in_impl(Config, User) ->
     end.
 
 login_access_token_test(Config) ->
-    Tokens = request_tokens_once_logged_in_impl(Config, john),
+    Tokens = request_tokens_once_logged_in_impl(Config, bob),
     login_access_token_impl(Config, Tokens).
 
 login_refresh_token_test(Config) ->
-    Tokens = request_tokens_once_logged_in_impl(Config, john),
+    Tokens = request_tokens_once_logged_in_impl(Config, bob),
     login_refresh_token_impl(Config, Tokens).
 
 %% Scenario describing JID spoofing with an eavesdropped / stolen token.
 login_with_other_users_token(Config) ->
     %% given user and another user's token
-    {_, JohnsToken} = request_tokens_once_logged_in_impl(Config, john),
-    AliceSpec = user_authenticating_with_token(Config, alice, JohnsToken),
+    {_, BobsToken} = request_tokens_once_logged_in_impl(Config, bob),
+    AliceSpec = user_authenticating_with_token(Config, alice, BobsToken),
     %% when we try to log in
     ConnSteps = [start_stream,
                  stream_features,
@@ -190,10 +190,10 @@ login_with_malformed_token(Config) ->
     %% given
     MalformedToken = <<"malformed ", (crypto:rand_bytes(64))/bytes>>,
     %% when / then
-    token_login_failure(Config, john, MalformedToken).
+    token_login_failure(Config, bob, MalformedToken).
 
 login_refresh_token_impl(Config, {_AccessToken, RefreshToken}) ->
-    JohnSpec = escalus_users:get_userspec(Config, john),
+    BobSpec = escalus_users:get_userspec(Config, bob),
 
     ConnSteps = [start_stream,
                  stream_features,
@@ -201,7 +201,7 @@ login_refresh_token_impl(Config, {_AccessToken, RefreshToken}) ->
                  maybe_use_compression
                 ],
 
-    {ok, ClientConnection, Props, _Features} = escalus_connection:start(JohnSpec, ConnSteps),
+    {ok, ClientConnection, Props, _Features} = escalus_connection:start(BobSpec, ConnSteps),
     Props2 = lists:keystore(oauth_token, 1, Props, {oauth_token, RefreshToken}),
     AuthResultToken = (catch escalus_auth:auth_sasl_oauth(ClientConnection, Props2)),
     ok.
@@ -209,7 +209,7 @@ login_refresh_token_impl(Config, {_AccessToken, RefreshToken}) ->
 %% users logs in using access token he obtained in previous session (stream has been
 %% already reset)
 login_access_token_impl(Config, {AccessToken, _RefreshToken}) ->
-    {{ok, _ }, ClientConnection, Props2} = login_with_token(Config, john, AccessToken),
+    {{ok, _ }, ClientConnection, Props2} = login_with_token(Config, bob, AccessToken),
     escalus_connection:reset_parser(ClientConnection),
     {Props3, []} = escalus_session:start_stream(ClientConnection, Props2),
     NewFeatures = escalus_session:stream_features(ClientConnection, Props3, []),
@@ -234,11 +234,11 @@ login_with_token(Config, User, Token) ->
 
 token_revocation_test(Config) ->
     %% given
-    {Owner, _SeqNoToRevoke, Token} = get_owner_seqno_to_revoke(Config, john),
+    {Owner, _SeqNoToRevoke, Token} = get_owner_seqno_to_revoke(Config, bob),
     %% when
     ok = revoke_token(Owner),
     %% then
-    token_login_failure(Config, john, Token).
+    token_login_failure(Config, bob, Token).
 
 get_owner_seqno_to_revoke(Config, User) ->
     {_, RefreshToken} = request_tokens_once_logged_in_impl(Config, User),
@@ -252,38 +252,38 @@ revoke_token(Owner) ->
 revoke_token_cmd_when_no_token(Config) ->
     %% given existing user with no token
     %% when revoking token
-    R = mimctl(Config, ["revoke_token", escalus_users:get_jid(Config, john)]),
+    R = mimctl(Config, ["revoke_token", escalus_users:get_jid(Config, bob)]),
     %% then no token was found
     "User or token not found.\n" = R.
 
 revoke_token_cmd(Config) ->
     %% given existing user and token present in the database
-    _Tokens = request_tokens_once_logged_in_impl(Config, john),
+    _Tokens = request_tokens_once_logged_in_impl(Config, bob),
     %% when
-    R = mimctl(Config, ["revoke_token", escalus_users:get_jid(Config, john)]),
+    R = mimctl(Config, ["revoke_token", escalus_users:get_jid(Config, bob)]),
     %% then
     "Revoked.\n" = R.
 
 token_removed_on_user_removal(Config) ->
     %% given existing user with token and XMPP (de)registration available
-    _Tokens = request_tokens_once_logged_in_impl(Config, john),
-    true = is_xmpp_registration_available(escalus_users:get_server(Config, john)),
+    _Tokens = request_tokens_once_logged_in_impl(Config, bob),
+    true = is_xmpp_registration_available(escalus_users:get_server(Config, bob)),
     %% when user account is deleted
-    S = fun (John) ->
+    S = fun (Bob) ->
                 IQ = escalus_stanza:remove_account(),
-                escalus:send(John, IQ),
+                escalus:send(Bob, IQ),
                 timer:sleep(500),
-                escalus:assert(is_iq_result, [IQ], escalus:wait_for_stanza(John))
+                escalus:assert(is_iq_result, [IQ], escalus:wait_for_stanza(Bob))
         end,
-    escalus:story(Config, [{john, 1}], S),
+    escalus:story(Config, [{bob, 1}], S),
     %% then token database doesn't contain user's tokens
-    {selected, _, []} = get_users_token(Config, john).
+    {selected, _, []} = get_users_token(Config, bob).
 
 provision_token_login(Config) ->
     %% given
-    VCard = make_vcard(Config, john),
-    ProvisionToken = make_provision_token(Config, john, VCard),
-    UserSpec = user_authenticating_with_token(Config, john, ProvisionToken),
+    VCard = make_vcard(Config, bob),
+    ProvisionToken = make_provision_token(Config, bob, VCard),
+    UserSpec = user_authenticating_with_token(Config, bob, ProvisionToken),
     %% when logging in with provision token
     {ok, Conn, _, _} = escalus_connection:start(UserSpec),
     escalus:send(Conn, escalus_stanza:vcard_request()),
@@ -363,7 +363,7 @@ clean_token_db() ->
 
 get_users_token(C, User) ->
     Q = ["SELECT * FROM auth_token at "
-         "WHERE at.owner = '", escalus_users:get_jid(C, User), "';"],
+         "WHERE at.owner = '", to_lower(escalus_users:get_jid(C, User)), "';"],
     escalus_ejabberd:rpc(ejabberd_odbc, sql_query,
                          [escalus_users:get_server(C, User), Q]).
 
@@ -418,3 +418,6 @@ serialize(ServerSideToken) ->
         is_binary(Serialized) -> Serialized;
         not is_binary(Serialized) -> error(Serialized)
     end.
+
+to_lower(B) when is_binary(B) ->
+    list_to_binary(string:to_lower(binary_to_list(B))).
