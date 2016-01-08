@@ -110,30 +110,6 @@ register_mechanism(Mechanism, Module, PasswordType) ->
 ets_insert_mechanism(MechanismRec) ->
     ets:insert(sasl_mechanism, MechanismRec).
 
-%%% TODO: use callbacks
-%%-include("ejabberd.hrl").
-%%-include("jlib.hrl").
-%%check_authzid(_State, Props) ->
-%%    AuthzId = xml:get_attr_s(authzid, Props),
-%%    case jlib:binary_to_jid(AuthzId) of
-%%      error ->
-%%          {error, "invalid-authzid"};
-%%      JID ->
-%%          LUser = jlib:nodeprep(xml:get_attr_s(username, Props)),
-%%          {U, S, R} = jlib:jid_tolower(JID),
-%%          case R of
-%%              "" ->
-%%                  {error, "invalid-authzid"};
-%%              _ ->
-%%                  case {LUser, ?MYNAME} of
-%%                      {U, S} ->
-%%                          ok;
-%%                      _ ->
-%%                          {error, "invalid-authzid"}
-%%                  end
-%%          end
-%%    end.
-
 -spec check_credentials(sasl_state(), list()) -> 'ok' | {'error', binary()}.
 check_credentials(_State, Props) ->
     case jid:nodeprep(proplists:get_value(username, Props, <<>>)) of
