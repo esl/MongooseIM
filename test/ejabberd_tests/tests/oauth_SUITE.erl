@@ -123,7 +123,7 @@ token_login_failure(Config, User, Token) ->
 
 get_revoked_token(Config, UserName) ->
     BJID = escalus_users:get_jid(Config, UserName),
-    JID = escalus_ejabberd:rpc(jlib, binary_to_jid, [BJID]),
+    JID = escalus_ejabberd:rpc(jid, from_binary, [BJID]),
     Token = escalus_ejabberd:rpc(mod_auth_token, token, [refresh, JID]),
     ValidSeqNo = escalus_ejabberd:rpc(mod_auth_token_odbc, get_valid_sequence_number,
                                       [JID]),
@@ -243,7 +243,7 @@ token_revocation_test(Config) ->
 get_owner_seqno_to_revoke(Config, User) ->
     {_, RefreshToken} = request_tokens_once_logged_in_impl(Config, User),
     [_, BOwner, _, SeqNo, _] = binary:split(RefreshToken, <<0>>, [global]),
-    Owner = escalus_ejabberd:rpc(jlib, binary_to_jid, [BOwner]),
+    Owner = escalus_ejabberd:rpc(jid, from_binary, [BOwner]),
     {Owner, binary_to_integer(SeqNo), RefreshToken}.
 
 revoke_token(Owner) ->
