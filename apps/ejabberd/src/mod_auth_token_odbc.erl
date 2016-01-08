@@ -13,7 +13,7 @@
 -spec get_valid_sequence_number(JID) -> integer() when
       JID :: ejabberd:jid().
 get_valid_sequence_number(#jid{lserver = LServer} = JID) ->
-    BBareJID = jlib:jid_to_binary(jlib:jid_remove_resource(JID)),
+    BBareJID = jid:to_binary(jid:to_bare(JID)),
     EBareJID = ejabberd_odbc:escape(BBareJID),
     Q = valid_sequence_number_query(EBareJID),
     [{updated, undefined},
@@ -38,7 +38,7 @@ valid_sequence_number_query(EOwner) when is_binary(EOwner) ->
 -spec revoke(JID) -> ok | not_found when
       JID :: ejabberd:jid().
 revoke(#jid{lserver = LServer} = JID) ->
-    BBareJID = jlib:jid_to_binary(jlib:jid_remove_resource(JID)),
+    BBareJID = jid:to_binary(jid:to_bare(JID)),
     EBareJID = ejabberd_odbc:escape(BBareJID),
     RevokeQuery = revoke_query(EBareJID),
     QueryResult = ejabberd_odbc:sql_query(LServer, RevokeQuery),
@@ -54,7 +54,7 @@ revoke_query(EOwner) when is_binary(EOwner) ->
 -spec clean_tokens(Owner) -> ok when
       Owner :: ejabberd:jid().
 clean_tokens(#jid{lserver = LServer} = Owner) ->
-    BBareJID = jlib:jid_to_binary(jlib:jid_remove_resource(Owner)),
+    BBareJID = jid:to_binary(jid:to_bare(Owner)),
     EBareJID = ejabberd_odbc:escape(BBareJID),
     Q = clean_tokens_query(EBareJID),
     {updated, _} = ejabberd_odbc:sql_query(LServer, Q),
