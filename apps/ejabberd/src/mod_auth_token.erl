@@ -143,16 +143,16 @@ join_fields(T) ->
     case {Type, SeqNo} of
         {access, undefined} ->
             <<(?a2b(Type))/bytes, Sep,
-              (jlib:jid_to_binary(JID))/bytes, Sep,
+              (jid:to_binary(JID))/bytes, Sep,
               (?i2b(datetime_to_seconds(Expiry)))/bytes>>;
         {refresh, _} ->
             <<(?a2b(Type))/bytes, Sep,
-              (jlib:jid_to_binary(JID))/bytes, Sep,
+              (jid:to_binary(JID))/bytes, Sep,
               (?i2b(datetime_to_seconds(Expiry)))/bytes, Sep,
               (?i2b(SeqNo))/bytes>>;
         {provision, undefined} ->
             <<(?a2b(Type))/bytes, Sep,
-              (jlib:jid_to_binary(JID))/bytes, Sep,
+              (jid:to_binary(JID))/bytes, Sep,
               (?i2b(datetime_to_seconds(Expiry)))/bytes, Sep,
               (exml:to_binary(VCard))/bytes>>
     end.
@@ -353,7 +353,7 @@ get_token_as_record(BToken) ->
     [BType, User, Expiry | Rest] = binary:split(BToken, <<(field_separator())>>, [global]),
     T = #token{type = ?b2a(BType),
                expiry_datetime = seconds_to_datetime(binary_to_integer(Expiry)),
-               user_jid = jlib:binary_to_jid(User)},
+               user_jid = jid:from_binary(User)},
     T1 = case {BType, Rest} of
              {<<"access">>, [BMAC]} ->
                  T#token{mac_signature = base16:decode(BMAC)};
@@ -386,7 +386,7 @@ key_name(provision) -> provision_pre_shared.
       ResCode :: ok | not_found | error,
       ResTuple :: {ResCode, string()}.
 revoke_token_command(Owner) ->
-    try revoke(jlib:binary_to_jid(Owner)) of
+    try revoke(jid:from_binary(Owner)) of
         not_found ->
             {not_found, "User or token not found."};
         ok ->
@@ -400,7 +400,7 @@ revoke_token_command(Owner) ->
 -spec clean_tokens(User :: ejabberd:user(), Server :: ejabberd:server()) -> ok.
 clean_tokens(User, Server) ->
     try
-        Owner = jlib:make_jid(User, Server, <<>>),
+        Owner = jid:make(User, Server, <<>>),
         ?BACKEND:clean_tokens(Owner)
     catch
         E:R -> ?ERROR_MSG("clean_tokens backend error: ~p", [{E, R}]),
