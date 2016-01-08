@@ -37,6 +37,8 @@
 -define(EL(Element, Name), exml_query:path(Element, [{element, Name}])).
 -define(EL_CD(Element, Name), exml_query:path(Element, [{element, Name}, cdata])).
 
+-define(PHOTO_BIN, <<130,192,33,159,204,86,12,63,132,164>>).
+-define(PHOTO_BASE_64, <<"gsAhn8xWDD+EpA==">>). %% jlib:encode_base64(?PHOTO_BIN)
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -89,7 +91,8 @@ ro_no_search_tests() ->
      search_not_in_service_discovery].
 
 ldap_only_tests() ->
-    [search_some_many_fields_with_or_operator].
+    [search_some_many_fields_with_or_operator,
+     return_photo_inserted_as_binary_by_3rd_party_service].
 
 suite() ->
     escalus:suite().
@@ -133,7 +136,9 @@ init_per_group(ldap_only, Config) ->
     VCardConfig = ?config(mod_vcard, Config),
     case proplists:get_value(backend, VCardConfig) of
         ldap ->
-            restart_and_prepare_vcard(ldap_only, Config);
+            Config1 = restart_and_prepare_vcard(ldap_only, Config),
+            insert_alice_photo(Config1);
+            %Config1;
         _ ->
             {skip, "this group is only for ldap vCard backend"}
     end;
@@ -425,6 +430,31 @@ search_some_many_fields_with_or_operator(Config) ->
         3 = length(ItemTups)
     end).
 
+return_photo_inserted_as_binary_by_3rd_party_service(Config) ->
+    %% The PHOTO was inserted by script and not by modifing vCard by the client
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+        Res = escalus:send_and_wait(Alice,
+                                    escalus_stanza:vcard_request()),
+        JID = escalus_utils:jid_to_lower(escalus_client:short_jid(Alice)),
+
+        Photo = exml_query:path(Res, [{element, <<"vCard">>},
+                                      {element, <<"PHOTO">>},
+                                      {element, <<"BINVAL">>},
+                                      cdata]),
+
+        ?PHOTO_BASE_64 = Photo,
+
+        DirJID = ?config(directory_jid, Config),
+        Fields = [{<<"mail">>, <<"alice@mail.example.com">>}],
+        Res2 = escalus:send_and_wait(Alice,
+                                    escalus_stanza:search_iq(DirJID,
+                                                             escalus_stanza:search_fields(Fields))),
+        [{JID, ItemTups}] = search_result_item_tuples(Res2),
+
+        {_, <<"PHOTO">>, _, ?PHOTO_BASE_64} = lists:keyfind(<<"PHOTO">>, 2, ItemTups)
+
+    end).
+
 %%------------------------------------
 %% @limited.search.domain
 
@@ -595,6 +625,17 @@ prepare_vcard(_, JID, Fields) ->
     VCard = escalus_stanza:vcard_update(JID, Fields),
     ok = vcard_rpc(RJID, VCard).
 
+insert_alice_photo(Config) ->
+    User = <<"alice">>,
+    Server = <<"localhost">>,
+    {EPid, Base} = get_ldap_pid_and_base(Server),
+    Photo = ?PHOTO_BIN,
+    Modificators = [escalus_ejabberd:rpc(eldap, mod_replace, [<<"jpegPhoto">>, [Photo]])],
+    Dn = <<"cn=",User/binary,",",Base/binary>>,
+    ok = escalus_ejabberd:rpc(eldap, modify, [EPid, Dn, Modificators]),
+    Config.
+
+
 fields_to_ldap_modificators(_, [], Acc) ->
     Acc;
 fields_to_ldap_modificators(VcardMap, [{Field, Val} | Rest], Acc) when is_binary(Val) ->
@@ -686,7 +727,21 @@ params_no(Config) ->
     add_backend_param([{search, false}], ?config(mod_vcard, Config)).
 
 params_ldap_only(Config) ->
-    add_backend_param([{ldap_search_operator, 'or'}],
+    Reported = [{<<"Full Name">>, <<"FN">>},
+	 {<<"Given Name">>, <<"FIRST">>},
+	 {<<"Middle Name">>, <<"MIDDLE">>},
+	 {<<"Family Name">>, <<"LAST">>},
+	 {<<"Nickname">>, <<"NICK">>},
+	 {<<"Birthday">>, <<"BDAY">>},
+	 {<<"Country">>, <<"CTRY">>},
+	 {<<"City">>, <<"LOCALITY">>},
+	 {<<"Email">>, <<"EMAIL">>},
+	 {<<"Organization Name">>, <<"ORGNAME">>},
+	 {<<"Organization Unit">>, <<"ORGUNIT">>},
+     {<<"Photo">>, <<"PHOTO">>}],
+    add_backend_param([{ldap_search_operator, 'or'},
+                       {ldap_binary_search_fields, [<<"PHOTO">>]},
+                       {ldap_search_reported, Reported}],
                       ?config(mod_vcard, Config)).
 
 add_backend_param(Opts, CurrentVCardConfig) ->
@@ -853,6 +908,7 @@ get_all_vcards() ->
        {<<"ROLE">>, <<"Patron Saint">>},
        {<<"DESC">>, <<"active">>},
        {<<"URL">>, <<"http://john.doe/">>},
+       %{<<"PHOTO">>, crypto:rand_bytes(10)},
        {<<"EMAIL">>,
         [{<<"USERID">>, <<"alice@mail.example.com">>}]},
        {<<"N">>,
