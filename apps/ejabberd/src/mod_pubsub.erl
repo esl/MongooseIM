@@ -986,9 +986,9 @@ do_route(ServerHost, Access, Plugins, Host, From, To, Packet) ->
 					    sub_el =
 					    [#xmlel{name = <<"query">>,
 						    attrs = QAttrs,
-						    children = IQRes}]})
-				    %{error, Error} ->
-				    %     jlib:make_error_reply(Packet, Error)
+						    children = IQRes}]});
+				{error, Error} ->
+				    jlib:make_error_reply(Packet, Error)
 			    end,
 			    ejabberd_router:route(To, From, Res);
 			#iq{type = IQType, xmlns = ?NS_PUBSUB, lang = Lang, sub_el = SubEl} = IQ ->

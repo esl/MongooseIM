@@ -32,7 +32,8 @@
          fail_to_retrieve_node_subscriptions/3,
          modify_node_subscriptions/3,
          fail_to_modify_node_subscriptions/4,
-         discover_nodes/3
+         discover_nodes/3,
+         fail_to_discover_nodes/3
         ]).
 
 %%-----------------------------------------------------------------------------
@@ -207,9 +208,7 @@ fail_to_modify_node_subscriptions(User, ModifiedSubscriptions, ErrorType, {NodeA
 
 discover_nodes(User, {NodeAddr, NodeName}, ExpectedChildren) ->
     Id = <<"disco_children">>,
-    RequestIq = escalus_pubsub_stanza:discover_nodes_stanza(User, Id, NodeAddr, NodeName),
-    log_stanza("REQUEST child nodes", RequestIq),
-    escalus:send(User, RequestIq),
+    send_child_node_discovery_request(User, Id, NodeAddr, NodeName),
     receive_node_discovery_response(User, Id, NodeAddr, NodeName, ExpectedChildren);
 discover_nodes(User, NodeAddr, ExpectedNodes) ->
     Id = <<"disco_nodes">>,
@@ -217,6 +216,11 @@ discover_nodes(User, NodeAddr, ExpectedNodes) ->
     log_stanza("REQUEST first-level nodes", RequestIq),
     escalus:send(User, RequestIq),
     receive_node_discovery_response(User, Id, NodeAddr, undefined, ExpectedNodes).
+
+fail_to_discover_nodes(User, {NodeAddr, NodeName}, ErrorType) ->
+    Id = <<"disco_children_fail">>,
+    send_child_node_discovery_request(User, Id, NodeAddr, NodeName),
+    receive_error_response(User, Id, ErrorType).
 
 %%-----------------------------------------------------------------------------
 %% Specific request/response helper functions
@@ -250,6 +254,11 @@ send_modify_node_subscriptions_request(User, Id, ModifiedSubscriptions, {NodeAdd
     Request = escalus_pubsub_stanza:set_subscriptions_stanza(NodeName, ChangeElems),
     RequestIq = escalus_pubsub_stanza:iq_with_id(set, Id, NodeAddr, User, [Request]),
     log_stanza("REQUEST modify subscriptions", RequestIq),
+    escalus:send(User, RequestIq).
+
+send_child_node_discovery_request(User, Id, NodeAddr, NodeName) ->
+    RequestIq = escalus_pubsub_stanza:discover_nodes_stanza(User, Id, NodeAddr, NodeName),
+    log_stanza("REQUEST child nodes", RequestIq),
     escalus:send(User, RequestIq).
 
 receive_node_discovery_response(User, Id, NodeAddr, NodeName, ExpectedNodes) ->

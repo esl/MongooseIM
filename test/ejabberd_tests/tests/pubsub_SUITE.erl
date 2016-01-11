@@ -669,8 +669,13 @@ discover_child_nodes_test(Config) ->
       Config,
       [{alice,1}, {bob,1}],
       fun(Alice, Bob) ->
+              %% Try to get children of a non-existing node
+              pubsub_tools:fail_to_discover_nodes(Bob, ?NODE, <<"cancel">>),
+
               CollectionConfig = [{<<"pubsub#node_type">>, <<"collection">>}],
               pubsub_tools:create_node(Alice, ?NODE, CollectionConfig),
+
+              pubsub_tools:discover_nodes(Bob, ?NODE, []),
 
               NodeConfig = [{<<"pubsub#collection">>, ?NODE_NAME}],
               pubsub_tools:create_node(Alice, ?LEAF, NodeConfig),
