@@ -13,12 +13,12 @@ before_script:
 script: tools/travis-test.sh
 
 after_script:
-        - cat `ls -1 -d -t apps/ejabberd/logs/ct_run* | head -1`/apps.ejabberd.logs/run.*/suite.log
+        - fgrep '*** FAILED' `ls -1 -d -t apps/ejabberd/logs/ct_run* | head -1`/apps.ejabberd.logs/run.*/suite.log -l | xargs cat
         - tail -100 dev/mongooseim_node1/log/ejabberd.log
         - if [ -s dev/mongooseim_node1/log/crash.log ]; then cat dev/mongooseim_node1/log/crash.log; fi
         - tail -100 dev/mongooseim_node2/log/ejabberd.log
         - if [ -s dev/mongooseim_node2/log/crash.log ]; then cat dev/mongooseim_node2/log/crash.log; fi
-        - cat `ls -1 -d -t test/ejabberd_tests/ct_report/ct_run.* | head -1`/ejabberd_tests.*/run.*/suite.log
+        - fgrep '*** FAILED' `ls -1 -d -t test/ejabberd_tests/ct_report/ct_run.* | head -1`/ejabberd_tests.*/run.*/suite.log -l | xargs cat
         - cat dev/mongooseim_node1/etc/ejabberd.cfg
 
 after_success:
