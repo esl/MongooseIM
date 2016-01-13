@@ -79,16 +79,23 @@ encode_error(ErrMsg, OrigFrom, OrigTo, OrigPacket, HandleFun) ->
 -spec decode_message(Packet :: jlib:xmlel()) ->
     {ok, muc_light_packet()} | {error, bad_request} | ignore.
 decode_message(#xmlel{ attrs = Attrs, children = Children }) ->
-    decode_message_by_type(lists:keyfind(<<"type">>, 1, Attrs), Children).
+    decode_message_by_type(lists:keyfind(<<"type">>, 1, Attrs),
+                           lists:keyfind(<<"id">>, 1, Attrs), Children).
 
--spec decode_message_by_type(Type :: {binary(), binary()} | false, Children :: [jlib:xmlch()]) ->
+-spec decode_message_by_type(Type :: {binary(), binary()} | false,
+                             Id :: {binary(), binary()} | false,
+                             Children :: [jlib:xmlch()]) ->
     {ok, #msg{}} | {error, bad_request} | ignore.
-decode_message_by_type({_, <<"groupchat">>}, Children) ->
-    {ok, #msg{ children = Children }};
-decode_message_by_type({_, <<"error">>}, _) ->
+decode_message_by_type({_, <<"groupchat">>}, Id, Children) ->
+    {ok, #msg{ children = Children, id = ensure_id(Id) }};
+decode_message_by_type({_, <<"error">>}, _, _) ->
     ignore;
-decode_message_by_type(_, _) ->
+decode_message_by_type(_, _, _) ->
     {error, bad_request}.
+
+-spec ensure_id(Id :: {binary(), binary()} | false) -> binary().
+ensure_id(false) -> mod_muc_light_utils:bin_ts();
+ensure_id({_, Id}) -> Id.
 
 %%====================================================================
 %% IQ decoding
