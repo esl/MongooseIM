@@ -21,7 +21,15 @@ init_per_suite(C) ->
     C.
 
 end_per_suite(C) ->
-    ejabberd_c2s_SUITE_mocks:teardown().
+    C.
+
+init_per_testcase(_TC, C) ->
+    ejabberd_c2s_SUITE_mocks:setup(),
+    C.
+
+end_per_testcase(_TC, C) ->
+    ejabberd_c2s_SUITE_mocks:teardown(),
+    C.
 
 c2s_start_stop_test(_) ->
     {ok, C2SPid} = given_c2s_started(),
@@ -40,7 +48,6 @@ stream_error_when_invalid_domain(_) ->
 
     ?am({send,[_P, <<"<?xml version='1.0'?><stream:stream xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams' id='57' from='localhost' xml:lang='en'>">>]},
         StreamStart),
-    ct:print("StreamError: ~p", [StreamError]),
     ?am({send,[_P, <<"<stream:error>",
                       "<host-unknown xmlns='urn:ietf:params:xml:ns:xmpp-streams'/>",
                       "</stream:error>">>]}, StreamError),
@@ -87,7 +94,6 @@ when_c2s_is_stopped(Pid) ->
 
 
 create_c2s() ->
-    ejabberd_c2s_SUITE_mocks:setup(),
     ejabberd_c2s:start_link({ejabberd_socket, self()}, c2s_default_opts()).
 
 c2s_default_opts() ->
