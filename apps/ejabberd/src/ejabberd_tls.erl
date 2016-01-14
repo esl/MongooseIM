@@ -201,8 +201,6 @@ get_peer_certificate(#tlssock{tlsport = Port}) ->
         <<0, BCert/binary>> ->
             {CertMod, CertFun, CertSecondArg} = ?CERT_DECODE,
             case catch apply(CertMod, CertFun, [BCert, CertSecondArg]) of
-                {ok, Cert} -> %% returned by R13 and older
-                    {ok, Cert};
                 {'Certificate', _, _, _} = Cert ->
                     {ok, Cert};
                 _ ->
