@@ -1,6 +1,7 @@
 -module(ejabberd_c2s_SUITE).
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("ejabberd/src/ejabberd_c2s.hrl").
+-include_lib("exml/include/exml_stream.hrl").
 -compile([export_all]).
 
 -define(_eq(E, I), ?_assertEqual(E, I)).
@@ -39,6 +40,7 @@ stream_error_when_invalid_domain(_) ->
 
     ?am({send,[_P, <<"<?xml version='1.0'?><stream:stream xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams' id='57' from='localhost' xml:lang='en'>">>]},
         StreamStart),
+    ct:print("StreamError: ~p", [StreamError]),
     ?am({send,[_P, <<"<stream:error>",
                       "<host-unknown xmlns='urn:ietf:params:xml:ns:xmpp-streams'/>",
                       "</stream:error>">>]}, StreamError),
@@ -69,7 +71,12 @@ stream_valid_header_response() ->
      <<"<?xml version='1.0'?><stream:stream xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams' id='4436' from='localhost' xml:lang='en'>">>.
 
 stream_header(Domain) ->
-    x_stream:start(Domain, <<"en">>, <<"1.0">>).
+    #xmlstreamstart{name = <<"stream:stream">>,
+                    attrs = [{<<"to">>, Domain},
+                             {<<"xml:lang">>, <<"en">>},
+                             {<<"version">>, <<"1.0">>},
+                             {<<"xmlns">>, <<"jabber:client">>},
+                             {<<"xmlns:stream">>, <<"http://etherx.jabber.org/streams">>}]}.
 
 given_c2s_started() ->
     create_c2s().
