@@ -19,7 +19,7 @@
 
 -include_lib("common_test/include/ct.hrl").
 
--include("mod_revproxy.hrl").
+-include_lib("ejabberd/include/mod_revproxy.hrl").
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -571,7 +571,7 @@ does_response_match({ok, {{_, _}, _, Response, _, _}},
     RHost = to_formatted_binary(Host),
     RMethod = to_formatted_binary(list_to_binary(Method)),
     RBody = to_formatted_binary(list_to_binary(Body)),
-    RQS = to_formatted_binary(QS), 
+    RQS = to_formatted_binary(QS),
     true.
 
 to_formatted_binary(Subject) ->
