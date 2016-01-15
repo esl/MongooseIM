@@ -40,7 +40,13 @@
 -export([start_link/2,  transform_module_options/1]).
 
 %% mod_vcards callbacks
--export([init/2,remove_user/2, get_vcard/2, set_vcard/4, search/4, search_fields/1]).
+-export([init/2,
+         remove_user/2,
+         get_vcard/2,
+         set_vcard/4,
+         search/2,
+         search_fields/1,
+         search_reported_fields/2]).
 
 
 -include("ejabberd.hrl").
@@ -69,6 +75,8 @@
          search_fields = []         :: [{binary(), binary()}],
          search_reported = []       :: [{binary(), binary()}],
          search_reported_attrs = [] :: [binary()],
+         search_operator            :: 'or' | 'and',
+         binary_search_fields       :: [binary()],
          deref_aliases = never      :: never | searching | finding | always,
          matches = 0                :: non_neg_integer()}).
 
@@ -156,28 +164,30 @@ get_vcard(LUser, LServer) ->
 set_vcard(_User, _VHost, _VCard, _VCardSearch) ->
     {error, ?ERR_NOT_ALLOWED}.
 
-search(LServer, Data, Lang, _DefaultReportedFields) ->
+search(LServer, Data) ->
     Proc = gen_mod:get_module_proc(LServer, ?PROCNAME),
     {ok,State} = gen_server:call(Proc, get_state),
-    SearchReported = State#state.search_reported,
-    Reported = #xmlel{name = <<"reported">>, attrs = [],
-		     children =
-			 [?TLFIELD(<<"text-single">>, <<"Jabber ID">>,
-				   <<"jid">>)]
-			   ++
-			   lists:map(fun ({Name, Value}) ->
-					     ?TLFIELD(<<"text-single">>, Name,
-						      Value)
-				     end,
-				     SearchReported)},
-    Items = search_internal(State, Data),
-    [Reported | Items].
+    search_internal(State, Data).
 
 search_fields(Host) ->
     Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
     {ok,State} = gen_server:call(Proc, get_state),
     State#state.search_fields.
 
+search_reported_fields(Host, Lang) ->
+    Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
+    {ok,State} = gen_server:call(Proc, get_state),
+    SearchReported = State#state.search_reported,
+    #xmlel{name = <<"reported">>, attrs = [],
+           children =
+           [?TLFIELD(<<"text-single">>, <<"Jabber ID">>,
+                     <<"jid">>)]
+           ++
+           lists:map(fun ({Name, Value}) ->
+                             ?TLFIELD(<<"text-single">>, Name,
+                                      Value)
+                     end,
+                     SearchReported)}.
 
 
 %%--------------------------------------------------------------------
@@ -213,7 +223,6 @@ handle_cast(_Request, State) -> {noreply, State}.
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
 terminate(_Reason, State) ->
-    Host = State#state.serverhost,
     eldap_pool:stop(State#state.eldap_id).
 
 %%--------------------------------------------------------------------
@@ -349,6 +358,8 @@ ldap_attribute_to_vcard(vCardA, {<<"pcode">>, Value}) ->
 	   children = [{xmlcdata, Value}]};
 ldap_attribute_to_vcard(_, _) -> none.
 
+search_internal(_, []) ->
+    [];
 search_internal(State, Data) ->
     Base = State#state.base,
     SearchFilter = State#state.search_filter,
@@ -356,8 +367,9 @@ search_internal(State, Data) ->
     UIDs = State#state.uids,
     Limit = State#state.matches,
     ReportedAttrs = State#state.search_reported_attrs,
+    Op = State#state.search_operator,
     Filter = eldap:'and'([SearchFilter,
-			  eldap_utils:make_filter(Data, UIDs)]),
+                          eldap_utils:make_filter(Data, UIDs, Op)]),
     case eldap_pool:search(Eldap_ID,
 			   [{base, Base}, {filter, Filter}, {limit, Limit},
 			    {deref_aliases, State#state.deref_aliases},
@@ -373,6 +385,7 @@ search_items(Entries, State) ->
     SearchReported = State#state.search_reported,
     VCardMap = State#state.vcard_map,
     UIDs = State#state.uids,
+    BinFields = State#state.binary_search_fields,
     Attributes = lists:map(fun (E) ->
 				   #eldap_entry{attributes = Attrs} = E, Attrs
 			   end,
@@ -403,7 +416,8 @@ search_items(Entries, State) ->
 							       "@",
 							       LServer/binary>>)]
 						       ++
-						       [?FIELD(Name, Value)
+						       [?FIELD(Name,
+                                       search_item_value(Name,Value,BinFields))
 							|| {Name, Value}
 							       <- RFields],
 					    [#xmlel{name = <<"item">>,
@@ -421,6 +435,11 @@ search_items(Entries, State) ->
 %%%-----------------------
 %%% Auxiliary functions.
 %%%-----------------------
+search_item_value(Name, Value, BinaryFields) ->
+    case lists:member(Name, BinaryFields) of
+        true  -> jlib:encode_base64(Value);
+        false -> Value
+    end.
 
 map_vcard_attr(VCardName, Attributes, Pattern, UD) ->
     Res = lists:filter(fun ({Name, _, _}) ->
@@ -515,23 +534,33 @@ parse_options(Host, Opts) ->
 						    end,
 						    SearchReported)
 					++ UIDAttrs),
+    SearchOperatorFun = fun
+        ('or') -> 'or';
+        (_)    -> 'and'
+    end,
+    SearchOperator = eldap_utils:get_mod_opt(ldap_search_operator, Opts,
+                                             SearchOperatorFun, 'and'),
+    BinaryFields = eldap_utils:get_mod_opt(ldap_binary_search_fields, Opts,
+                                           fun(X) -> X end, []),
     #state{serverhost = Host, myhost = MyHost,
-	   eldap_id = Eldap_ID,
-	   servers = Cfg#eldap_config.servers,
-	   backups = Cfg#eldap_config.backups,
+           eldap_id = Eldap_ID,
+           servers = Cfg#eldap_config.servers,
+           backups = Cfg#eldap_config.backups,
            port = Cfg#eldap_config.port,
-	   tls_options = Cfg#eldap_config.tls_options,
-	   dn = Cfg#eldap_config.dn,
+           tls_options = Cfg#eldap_config.tls_options,
+           dn = Cfg#eldap_config.dn,
            password = Cfg#eldap_config.password,
            base = Cfg#eldap_config.base,
            deref_aliases = Cfg#eldap_config.deref_aliases,
-	   uids = UIDs, vcard_map = VCardMap,
-	   vcard_map_attrs = VCardMapAttrs,
-	   user_filter = UserFilter, search_filter = SearchFilter,
-	   search_fields = SearchFields,
-	   search_reported = SearchReported,
-	   search_reported_attrs = SearchReportedAttrs,
-	   matches = Matches}.
+           uids = UIDs, vcard_map = VCardMap,
+           vcard_map_attrs = VCardMapAttrs,
+           user_filter = UserFilter, search_filter = SearchFilter,
+           search_fields = SearchFields,
+           binary_search_fields = BinaryFields,
+           search_reported = SearchReported,
+           search_reported_attrs = SearchReportedAttrs,
+           search_operator = SearchOperator,
+           matches = Matches}.
 
 transform_module_options(Opts) ->
     lists:map(

@@ -54,6 +54,7 @@
 -export([start_link/2]).
 -export([default_search_fields/0]).
 -export([get_results_limit/1]).
+-export([get_default_reported_fields/1]).
 
 -export([config_change/4]).
 
@@ -88,16 +89,19 @@
     LUser :: binary(),
     LServer :: binary().
 
--callback search(VHost, Data, Lang, DefaultReportedFields) ->
+-callback search(VHost, Data) ->
     Res :: term() when
     VHost :: binary(),
-    Data :: term(),
-    Lang :: binary(),
-    DefaultReportedFields :: #xmlel{}.
+    Data :: term().
 
 -callback search_fields(VHost) ->
     Res :: list() when
     VHost :: binary().
+
+-callback search_reported_fields(VHost, Lang) ->
+    Res :: term() when
+    VHost :: ejabberd:lserver(),
+    Lang :: binary().
 
 -spec default_search_fields() -> list().
 default_search_fields() ->
@@ -233,7 +237,7 @@ process_local_iq(_From,_To,#iq{type = get, lang = Lang} = IQ) ->
                                        #xmlel{name = <<"URL">>,
                                               children = [#xmlcdata{content = ?MONGOOSE_URI}]},
                                        #xmlel{name = <<"DESC">>,
-                                              children = [#xmlcdata{content = [translate:translate(Lang,<<"MongooseIM XMPP Server">>),
+                                              children = [#xmlcdata{content = [<<"MongooseIM XMPP Server">>,
                                                                                <<"\nCopyright (c) Erlang Solutions Ltd.">>]}]}
                                       ]}]}.
 process_sm_iq(From, To, #iq{type = set, sub_el = VCARD} = IQ) ->
@@ -406,15 +410,13 @@ do_route(_VHost, From, To, Packet, _IQ) ->
     Err = jlib:make_error_reply(Packet, ?ERR_SERVICE_UNAVAILABLE),
     ejabberd_router:route(To, From, Err).
 
-iq_get_vcard(Lang) ->
+iq_get_vcard(_Lang) ->
     [#xmlel{name = <<"FN">>,
-            children = [#xmlcdata{content = <<"ejabberd/mod_vcard">>}]},
+            children = [#xmlcdata{content = <<"MongooseIM/mod_vcard">>}]},
      #xmlel{name = <<"URL">>, children = [#xmlcdata{content = ?MONGOOSE_URI}]},
      #xmlel{name = <<"DESC">>,
-            children = [#xmlcdata{content = [translate:translate(
-                                               Lang,
-                                               <<"ejabberd vCard module">>),
-                                             <<"\nCopyright (c) 2003-2011 ProcessOne">>]}]}].
+            children = [#xmlcdata{content = [<<"MongooseIM vCard module">>,
+                                             <<"\nCopyright (c) Erlang Solutions Ltd.">>]}]}].
 find_xdata_el(#xmlel{children = SubEls}) ->
     find_xdata_el1(SubEls).
 
@@ -431,10 +433,13 @@ find_xdata_el1([_ | Els]) ->
     find_xdata_el1(Els).
 
 search_result(Lang, JID, VHost, Data) ->
-    [#xmlel{name = <<"title">>,
-            children = [#xmlcdata{content = [translate:translate(Lang, <<"Search Results for ">>),
-                                             jid:to_binary(JID)]}]}
-                                             | ?BACKEND:search(VHost, Data, Lang, get_default_reported_fields(Lang))].
+    TitleEl = #xmlel{name = <<"title">>,
+                     children = [#xmlcdata{content = [translate:translate(Lang, <<"Search Results for ">>),
+                                                      jid:to_binary(JID)]}]},
+    ReportedFields = ?BACKEND:search_reported_fields(VHost, Lang),
+    [TitleEl, ReportedFields
+     | ?BACKEND:search(VHost, Data)].
+
 b2l(Binary) ->
     binary_to_list(Binary).
 
