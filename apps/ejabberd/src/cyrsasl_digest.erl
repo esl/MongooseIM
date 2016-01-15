@@ -47,7 +47,12 @@
               }).
 
 start(_Opts) ->
-    cyrsasl:register_mechanism(<<"DIGEST-MD5">>, ?MODULE, digest).
+    case ejabberd_config:fips_mode() of
+        enabled ->
+            skip;
+        _ ->
+            cyrsasl:register_mechanism(<<"DIGEST-MD5">>, ?MODULE, digest)
+    end.
 
 stop() ->
     ok.

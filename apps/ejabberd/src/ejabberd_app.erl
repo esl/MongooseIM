@@ -41,6 +41,7 @@
 start(normal, _Args) ->
     ejabberd_loglevel:init(),
     ejabberd_loglevel:set(4),
+    notify_fips_mode(),
     write_pid_file(),
     db_init(),
     application:start(p1_cache_tab),
@@ -219,4 +220,26 @@ load_drivers([Driver | Rest]) ->
             ?CRITICAL_MSG("unable to load driver 'expat_erl': ~s",
                           [erl_ddll:format_error(Reason)]),
             exit({driver_loading_failed, Driver, Reason})
+    end.
+
+notify_fips_mode() ->
+    case application:get_env(crypto, fips_mode) of
+        {ok, true} ->
+            do_notify_fips_mode();
+        _ ->
+            ok
+    end.
+
+do_notify_fips_mode() ->
+    code:ensure_loaded(crypto),
+    case erlang:function_exported(crypto, info_fips, 0) of
+        true ->
+            case crypto:info_fips() of
+                enabled ->
+                    ?WARNING_MSG("FIPS mode enabled", []);
+                _ ->
+                    ?ERROR_MSG("FIPS mode disabled although it should be enabled", [])
+            end;
+        _ ->
+            ?INFO_MSG("Used Erlang/OTP does not support FIPS mode", [])
     end.
