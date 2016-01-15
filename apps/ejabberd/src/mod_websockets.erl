@@ -170,8 +170,12 @@ terminate(_Reason, _Req, _State) ->
 websocket_init(Transport, Req, Opts) ->
     ?DEBUG("websocket_init: ~p~n", [{Transport, Req, Opts}]),
     Req1 = cowboy_req:set_resp_header(<<"Sec-WebSocket-Protocol">>, <<"xmpp">>, Req),
-    State = #ws_state{opts = Opts},
-    {ok, Req1, State}.
+    Timeout = gen_mod:get_opt(timeout, Opts, infinity),
+    PingRate = gen_mod:get_opt(ping_rate, Opts, none),
+    ?DEBUG("ping rate is ~p", [PingRate]),
+    maybe_send_ping_request(PingRate),
+    State = #ws_state{opts = Opts, ping_rate = PingRate},
+    {ok, Req1, State, Timeout}.
 
 % Called when a text message arrives.
 websocket_handle({text, Msg}, Req, State) ->
@@ -284,12 +288,8 @@ do_start_fsm(FSMModule, Opts, Req, State) ->
     case FSMModule:start({?MODULE, SocketData}, Opts1) of
         {ok, Pid} ->
             ?DEBUG("started ~p via websockets: ~p", [FSMModule, Pid]),
-            Timeout = gen_mod:get_opt(timeout, Opts, infinity),
-            PingRate = gen_mod:get_opt(ping_rate, Opts, none),
-            ?DEBUG("ping rate is ~p", [PingRate]),
-            maybe_send_ping_request(PingRate),
-            NewState = State#ws_state{fsm_pid = Pid, ping_rate = PingRate},
-            {ok, NewReq, NewState, Timeout};
+            NewState = State#ws_state{fsm_pid = Pid},
+            {ok, NewReq, NewState};
         {error, Reason} ->
             ?WARNING_MSG("~p start failed: ~p", [FSMModule, Reason]),
             {shutdown, NewReq, State}
