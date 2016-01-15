@@ -30,8 +30,7 @@
                         set_ejabberd_node_cwd/1]).
 
 -import(distributed_helper, [add_node_to_cluster/1,
-                             remove_node_from_cluster/1,
-                             cluster_users/0]).
+                             remove_node_from_cluster/1]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -439,3 +438,7 @@ component_handshake(SID, Password) ->
     Handshake = crypto:hash(sha, <<SID/binary, Password/binary>>),
     #xmlel{name = <<"handshake">>,
            children = [#xmlcdata{content = base16:encode(Handshake)}]}.
+
+cluster_users() ->
+    AllUsers = ct:get_config(escalus_users),
+    [proplists:lookup(alice, AllUsers), proplists:lookup(clusterguy, AllUsers)].
