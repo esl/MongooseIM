@@ -51,14 +51,8 @@
 -define(GET_VERIFY_RESULT,    8).
 -define(VERIFY_NONE, 16#10000).
 
--ifdef(SSL40).
 -define(CERT_DECODE, {public_key, pkix_decode_cert, plain}).
 -define(CERT_SELFSIGNED, {public_key, pkix_is_self_signed}).
--else.
--define(CERT_DECODE, {ssl_pkix, decode_cert, [pkix]}).
--define(CERT_SELFSIGNED, {erlang, is_atom}). %% Dummy function for old OTPs
--endif.
-
 
 -record(tlssock, {tcpsock  :: port(),
                   tlsport  :: port()
