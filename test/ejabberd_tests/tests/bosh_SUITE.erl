@@ -35,17 +35,10 @@ all() ->
      {group, chat},
 
      {group, time},
-     {group, acks}
-    ] ++ https().
+     {group, acks},
 
-https() ->
-    case {os:getenv("TRAVIS"), erlang:system_info(otp_release)} of
-        {"true", "R15" ++ _} ->
-            [];
-        _ ->
-            [{group, essential_https},
-             {group, chat_https}]
-    end.
+     {group, essential_https},
+     {group, chat_https}].
 
 groups() ->
     [{essential, [shuffle, {repeat_until_any_fail,10}], essential_test_cases()},
@@ -893,12 +886,4 @@ wait_for_handler(Pid, N) ->
             wait_for_handler(Pid, N-1);
         L ->
             length(L)
-    end.
-
-maybe_skip_on_travis(Config) ->
-    case {os:getenv("TRAVIS"), erlang:system_info(otp_release)} of
-        {"true", "R15" ++ _} ->
-            {skip, "https on travis and R15 is unpredictable"};
-        _ ->
-            Config
     end.
