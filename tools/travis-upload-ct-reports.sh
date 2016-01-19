@@ -33,6 +33,10 @@ ssh-add ~/.ssh/travis_deploy_rsa
 git clone "git@github.com:arcusfelis/mongooseim-ct-reports.git"
 cd mongooseim-ct-reports
 
+# Directory can exist in case of restarted failed build
+test -d "$TRAVIS_JOB_NUMBER" && \
+    { echo "Result directory already exists. Cancel uploading"; exit 0; }
+
 # Create a new directory for HTML files
 cp -rdp ../test/ejabberd_tests/ct_report "$TRAVIS_JOB_NUMBER"
 git add "$TRAVIS_JOB_NUMBER"
