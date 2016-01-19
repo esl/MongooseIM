@@ -49,7 +49,8 @@ groups() ->
      {node1_tls_optional_node2_tls_required, [], essentials()},
      {node1_tls_required_node2_tls_optional, [], essentials()},
 
-     {node1_tls_required_trusted_node2_tls_optional, [], essentials()},
+     %% Node1 closes connection with "self-signed certificate" reason
+     {node1_tls_required_trusted_node2_tls_optional, [], negative()},
 
      {node1_tls_false_node2_tls_optional, [], essentials()},
      {node1_tls_optional_node2_tls_false, [], essentials()},
