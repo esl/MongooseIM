@@ -45,9 +45,26 @@
 -define(YZ_SEARCH_INDEX, <<"mam">>).
 -define(MAM_BUCKET_TYPE, <<"mam_yz">>).
 
+%% @doc Start module
+%%
+%% Options:
+%% - `pm' option starts one-to-one chat archives
+%% - `muc' option starts multichat archives
+%%
+%% Use both options `pm, muc' to archive both MUC and private messages
 start(Host, Opts) ->
-    start_chat_archive(Host, Opts),
-    start_muc_archive(Host, Opts).
+    case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
+        true ->
+            start_chat_archive(Host, Opts);
+        false ->
+            ok
+    end,
+    case gen_mod:get_module_opt(Host, ?MODULE, muc, false) of
+        true ->
+            start_muc_archive(Host, Opts);
+        false ->
+            ok
+    end.
 
 start_chat_archive(Host, _Opts) ->
     ejabberd_hooks:add(mam_archive_message, Host, ?MODULE, safe_archive_message, 50),
@@ -66,8 +83,18 @@ start_muc_archive(Host, _Opts) ->
     ejabberd_hooks:add(mam_muc_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 50).
 
 stop(Host) ->
-    stop_chat_archive(Host),
-    stop_muc_archive(Host).
+    case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
+        true ->
+            stop_chat_archive(Host);
+        false ->
+            ok
+    end,
+    case gen_mod:get_module_opt(Host, ?MODULE, muc, false) of
+        true ->
+            stop_muc_archive(Host);
+        false ->
+            ok
+    end.
 
 stop_chat_archive(Host) ->
     ejabberd_hooks:delete(mam_archive_message, Host, ?MODULE, safe_archive_message_muc, 50),
