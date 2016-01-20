@@ -112,16 +112,16 @@ spawn_log_reader(Node, Cookie) ->
     %% Regular rpc:call/4 spawn a process
     rpc:block_call(Node, file, open, ["log/ejabberd.log", [read, binary]]).
 
-read_new_lines(Reader) ->
-    case file:read_line(Reader) of
+read_new_lines(Node, Reader) ->
+    case rpc:call(Node, file, read_line, [Reader]) of
         {ok, Line} ->
-            [Line|read_new_lines(Reader)];
+            [Line|read_new_lines(Node, Reader)];
         _ -> % ignore errors
             []
     end.
 
-read_and_write_lines(Reader, Writer, CurrentLineNum)  when is_integer(CurrentLineNum) ->
-    Lines = read_new_lines(Reader),
+read_and_write_lines(Node, Reader, Writer, CurrentLineNum)  when is_integer(CurrentLineNum) ->
+    Lines = read_new_lines(Node, Reader),
     write_lines(Lines, CurrentLineNum+1, Writer),
     CurrentLineNum + length(Lines). % new current line
 
@@ -158,7 +158,7 @@ ensure_initialized(Config, State=#state{node=Node, cookie=Cookie, out_file=undef
             %% self() process is temporary
             {ok, Writer} = open_out_file(OutFile),
             file:write(Writer, "<pre>"),
-            CurrentLineNum = read_and_write_lines(Reader, Writer, 0),
+            CurrentLineNum = read_and_write_lines(Node, Reader, Writer, 0),
             ct:pal("ct_mongoose_log_hook created log file ~p", [OutFile]),
             State#state{reader=Reader, writer=Writer, out_file=OutFile,
                         current_line_num=CurrentLineNum, url_file=UrlFile};
@@ -173,7 +173,7 @@ pre_insert_line_numbers_into_report(State=#state{writer=undefined}) ->
     State; % Invalid state
 pre_insert_line_numbers_into_report(State=#state{node=Node, reader=Reader, writer=Writer,
                                              current_line_num=CurrentLineNum, url_file=UrlFile}) ->
-    CurrentLineNum2 = read_and_write_lines(Reader, Writer, CurrentLineNum),
+    CurrentLineNum2 = read_and_write_lines(Node, Reader, Writer, CurrentLineNum),
     Heading = atom_to_list(Node),
     URL = UrlFile ++ "#L" ++ integer_to_list(CurrentLineNum2+1),
     ct_logs:log(Heading, "<a href=\"~ts\">~p#~p</a>\n", [URL, Node, CurrentLineNum2+1]),
@@ -190,7 +190,7 @@ post_insert_line_numbers_into_report(State=#state{writer=undefined}, _TC) ->
     State; % Invalid state
 post_insert_line_numbers_into_report(State=#state{node=Node, reader=Reader, writer=Writer,
                                              current_line_num=CurrentLineNum, url_file=UrlFile}, TC) ->
-    CurrentLineNum2 = read_and_write_lines(Reader, Writer, CurrentLineNum),
+    CurrentLineNum2 = read_and_write_lines(Node, Reader, Writer, CurrentLineNum),
     Heading = atom_to_list(Node),
     URL = UrlFile ++ "#L" ++ integer_to_list(CurrentLineNum2),
     Same = CurrentLineNum =:= CurrentLineNum2,
