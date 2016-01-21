@@ -214,6 +214,7 @@ open_out_file(OutFile) ->
                                    Self ! {Ref, Res},
                                    receive stop -> stop end
                           end),
-    Res1 = receive {Ref, Res} -> Res end,
+    Res1 = receive {Ref, Res} -> Res
+           after 5000 -> erlang:error({open_file_timeout, OutFile}) end,
     unlink(ProxyPid),
     Res1.
