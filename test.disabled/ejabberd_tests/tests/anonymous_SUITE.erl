@@ -34,7 +34,7 @@ all_tests() ->
     [messages_story].
 
 suite() ->
-    escalus:suite().
+    [{timetrap,{seconds,30}}|escalus:suite()].
 
 %%--------------------------------------------------------------------
 %% Init & teardown

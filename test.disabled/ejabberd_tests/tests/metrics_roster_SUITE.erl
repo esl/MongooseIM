@@ -39,7 +39,8 @@ groups() ->
     ].
 
 suite() ->
-    [{required, ejabberd_node} | escalus:suite()].
+    [{timetrap,{seconds,30}},
+     {required, ejabberd_node} | escalus:suite()].
 
 roster_tests() -> [get_roster,
                    add_contact,

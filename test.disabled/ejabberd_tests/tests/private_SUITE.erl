@@ -39,7 +39,7 @@ negative_test_cases() ->
     [get_other_user,
      set_other_user].
 suite() ->
-    escalus:suite().
+    [{timetrap,{seconds,30}}|escalus:suite()].
 
 init_per_suite(Config) ->
     escalus:init_per_suite(Config).

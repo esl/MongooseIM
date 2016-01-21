@@ -56,7 +56,7 @@ all_tests() ->
      search_wildcard].
 
 suite() ->
-    escalus:suite().
+    [{timetrap,{seconds,30}}|escalus:suite()].
 
 
 %%--------------------------------------------------------------------

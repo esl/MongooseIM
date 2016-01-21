@@ -44,7 +44,8 @@ groups() ->
                                    session_unique]}].
 
 suite() ->
-    [{require, ejabberd_node} | escalus:suite()].
+    [{timetrap,{seconds,30}},
+     {require, ejabberd_node} | escalus:suite()].
 
 %%--------------------------------------------------------------------
 %% Init & teardown

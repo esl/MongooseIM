@@ -29,7 +29,7 @@ groups() ->
     [{adhoc, [sequence], [ping]}].
 
 suite() ->
-    escalus:suite().
+    [{timetrap,{seconds,30}}|escalus:suite()].
 
 init_per_suite(Config) ->
     escalus:init_per_suite(Config).

@@ -100,7 +100,7 @@ ldap_only_tests() ->
      return_photo_inserted_as_binary_by_3rd_party_service].
 
 suite() ->
-    escalus:suite().
+    [{timetrap,{seconds,30}}|escalus:suite()].
 
 %%--------------------------------------------------------------------
 %% Init & teardown

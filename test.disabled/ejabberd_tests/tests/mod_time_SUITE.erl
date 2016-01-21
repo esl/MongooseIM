@@ -32,7 +32,7 @@ groups() ->
     [{mod_time, [], [ask_for_time, time_service_discovery]}].
 
 suite() ->
-    escalus:suite().
+    [{timetrap,{seconds,30}}|escalus:suite()].
 
 %%--------------------------------------------------------------------
 %% Init & teardown

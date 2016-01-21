@@ -49,7 +49,7 @@ groups() ->
                                     remove_unsubscribe]}].
 
 suite() ->
-    escalus:suite().
+    [{timetrap,{seconds,30}}|escalus:suite()].
 
 %%--------------------------------------------------------------------
 %% Init & teardown

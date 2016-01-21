@@ -53,7 +53,7 @@ groups() ->
      ].
 
 suite() ->
-    escalus:suite().
+    [{timetrap,{seconds,30}}|escalus:suite()].
 
 essential_test_cases() ->
     [create_and_terminate_session,

@@ -40,7 +40,7 @@ all_tests() ->
      server_ping_pong,
      server_ping_pang].
 suite() ->
-    escalus:suite().
+    [{timetrap,{seconds,30}}|escalus:suite()].
 
 ping_interval() ->
     6.

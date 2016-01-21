@@ -102,7 +102,7 @@ stanza() -> [send_message, send_message_wrong_jid, send_stanza, send_stanzac2s_w
 stats() -> [stats_global, stats_host].
 
 suite() ->
-    escalus:suite().
+    [{timetrap,{seconds,30}}|escalus:suite()].
 
 init_per_suite(Config) ->
     Cwd0 = escalus_config:get_config(data_dir, Config),
