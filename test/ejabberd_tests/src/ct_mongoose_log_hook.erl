@@ -100,28 +100,31 @@ terminate(State) ->
 
 % --------------------------------------------
 
-spawn_log_readers() ->
-    Node1 = ct:get_config(ejabberd_node),
-    Node2 = ct:get_config(ejabberd2_node),
-    Cookie = ct:get_config(ejabberd_cookie),
-    spawn_log_reader(Node1, Cookie) ++ spawn_log_reader(Node2, Cookie).
-
 spawn_log_reader(Node, Cookie) ->
     %% Set cookie permanently
     erlang:set_cookie(Node, Cookie),
+    AbsName = rpc:call(Node, filename, absname, ["log/ejabberd.log"], 5000),
+    ReaderNode = choose_reader_node(Node),
     %% Regular rpc:call/4 spawn a process
-    rpc:block_call(Node, file, open, ["log/ejabberd.log", [read, binary]], 5000).
+    rpc:block_call(ReaderNode, file, open, [AbsName, [read, binary]], 5000).
 
-read_new_lines(Node, Reader) ->
-    case rpc:call(Node, file, read_line, [Reader], 5000) of
+%% Optimize reading if on the same host
+choose_reader_node(Node) ->
+    case are_nodes_from_same_host(Node, node()) of
+        true -> node(); %% Both CT and Mongoose are on the same host
+        false -> Node   %% Different hosts
+    end.
+
+read_new_lines(Reader) ->
+    case rpc:call(node(Reader), file, read_line, [Reader], 5000) of
         {ok, Line} ->
-            [Line|read_new_lines(Node, Reader)];
+            [Line|read_new_lines(Reader)];
         _ -> % ignore errors
             []
     end.
 
 read_and_write_lines(Node, Reader, Writer, CurrentLineNum)  when is_integer(CurrentLineNum) ->
-    Lines = read_new_lines(Node, Reader),
+    Lines = read_new_lines(Reader),
     write_lines(Lines, CurrentLineNum+1, Writer),
     CurrentLineNum + length(Lines). % new current line
 
@@ -218,3 +221,10 @@ open_out_file(OutFile) ->
            after 5000 -> erlang:error({open_file_timeout, OutFile}) end,
     unlink(ProxyPid),
     Res1.
+
+are_nodes_from_same_host(Node1, Node2) ->
+    node_to_host(Node1) =:= node_to_host(Node2).
+
+node_to_host(Node) when is_atom(Node) ->
+    [$@|Host] = lists:dropwhile(fun(X) -> X =/= $@ end, atom_to_list(Node)),
+    list_to_atom(Host).
