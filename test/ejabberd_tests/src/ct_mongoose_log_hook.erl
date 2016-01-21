@@ -110,10 +110,10 @@ spawn_log_reader(Node, Cookie) ->
     %% Set cookie permanently
     erlang:set_cookie(Node, Cookie),
     %% Regular rpc:call/4 spawn a process
-    rpc:block_call(Node, file, open, ["log/ejabberd.log", [read, binary]]).
+    rpc:block_call(Node, file, open, ["log/ejabberd.log", [read, binary]], 5000).
 
 read_new_lines(Node, Reader) ->
-    case rpc:call(Node, file, read_line, [Reader]) of
+    case rpc:call(Node, file, read_line, [Reader], 5000) of
         {ok, Line} ->
             [Line|read_new_lines(Node, Reader)];
         _ -> % ignore errors
