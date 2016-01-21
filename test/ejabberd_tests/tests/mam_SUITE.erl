@@ -2458,7 +2458,7 @@ assert_empty_archive(Server, Username, RetryTimes) when is_integer(RetryTimes) -
        X -> ct:fail({not_empty, Server, Username, {actual_size, X}})
     end.
 
-wait_for_archive_size(Server, Username, _RetryTimes=0, ExpectedSize) ->
+wait_for_archive_size(Server, Username, _RetryTimes=0, _ExpectedSize) ->
     archive_size(Server, Username);
 wait_for_archive_size(Server, Username, RetryTimes, ExpectedSize) when RetryTimes > 0 ->
     case archive_size(Server, Username) of
@@ -2470,6 +2470,14 @@ wait_for_archive_size(Server, Username, RetryTimes, ExpectedSize) when RetryTime
             wait_for_archive_size(Server, Username, RetryTimes-1, ExpectedSize)
     end.
 
+wait_for_archive_size_or_warning(Server, Username, RetryTimes, ExpectedSize) ->
+    case wait_for_archive_size(Server, Username, RetryTimes, ExpectedSize) of
+        ExpectedSize -> ok;
+        ActualSize ->
+            ct:pal("issue=wait_for_archive_size_or_warning, expected_size=~p, actual_size=~p",
+                   [ExpectedSize, ActualSize])
+    end.
+
 %% @doc Check, that the archive is empty.
 assert_empty_room_archive(Server, Username, RetryTimes) ->
     %% Wait for zero messages in archive
@@ -2478,7 +2486,7 @@ assert_empty_room_archive(Server, Username, RetryTimes) ->
        X -> ct:fail({room_not_empty, Server, Username, {actual_size, X}})
     end.
 
-wait_for_room_archive_size(Server, Username, _RetryTimes=0, ExpectedSize) ->
+wait_for_room_archive_size(Server, Username, _RetryTimes=0, _ExpectedSize) ->
     room_archive_size(Server, Username);
 wait_for_room_archive_size(Server, Username, RetryTimes, ExpectedSize) when RetryTimes > 0 ->
     case room_archive_size(Server, Username) of
@@ -2567,8 +2575,24 @@ bootstrap_archive(Config) ->
                    rpc_apply(mod_mam, archive_id, [Domain, <<"carol">>])}],
     Msgs = generate_msgs_for_days(ArcJID, OtherUsers, 16),
     put_msgs(Msgs),
-    timer:sleep(1500),
+    AllUsers = [{Domain, <<"alice">>}, {Domain, <<"bob">>}, {Domain, <<"carol">>}],
+    wait_for_msgs(Msgs, AllUsers),
+
     [{pre_generated_msgs, sort_msgs(Msgs)} | Config].
+
+%% Wait for messages to be written
+wait_for_msgs(Msgs, Users) ->
+    UsersCnt = [{S, U, count_msgs(Msgs, S, U)} || {S, U} <- Users],
+    [wait_for_archive_size_or_warning(S, U, 10, C) || {S, U, C} <- UsersCnt],
+    ok.
+
+count_msgs(Msgs, S, U) ->
+    Bin = <<U/binary, "@", S/binary>>,
+    length([1 ||
+            {_,
+             {FromBin, _FromJID, _FromArcID},
+             {ToBin, _ToJID, _ToArcID}, _, _Packet} <- Msgs,
+           FromBin =:= Bin orelse ToBin =:= Bin]).
 
 sort_msgs(Msgs) ->
     SortFun = fun({{ID1, _}, _, _, _, _}, {{ID2, _}, _, _, _, _}) ->
