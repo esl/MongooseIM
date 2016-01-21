@@ -2065,15 +2065,15 @@ clean_archives(Config) ->
     %% It is not the best place to delete these messages.
     [ok = delete_offline_messages(S, U) || {S, U} <- SUs],
     [ok = delete_archive(S, U) || {S, U} <- SUs],
-    timer:sleep(1500),
-    [assert_empty_archive(S, U) || {S, U} <- SUs],
+    %% Retry 10 times if not empty
+    [assert_empty_archive(S, U, 10) || {S, U} <- SUs],
     Config.
 
 clean_room_archive(Config) ->
     Room = ?config(room, Config),
     delete_room_archive(muc_host(), Room),
-    timer:sleep(500),
-    assert_empty_room_archive(muc_host(), Room),
+    %% Retry 10 times if not empty
+    assert_empty_room_archive(muc_host(), Room, 10),
     Config.
 
 serv_users(Config) ->
@@ -2085,17 +2085,43 @@ serv_user(Config, UserSpec) ->
     {Server, Username}.
 
 %% @doc Check, that the archive is empty.
-assert_empty_archive(Server, Username) ->
-    case archive_size(Server, Username) of
+assert_empty_archive(Server, Username, RetryTimes) when is_integer(RetryTimes) -> 
+    %% Wait for zero messages in archive
+    case wait_for_archive_size(Server, Username, RetryTimes, 0) of
        0 -> ok;
-       X -> ct:fail({not_empty, Server, Username, X})
+       X -> ct:fail({not_empty, Server, Username, {actual_size, X}})
+    end.
+
+wait_for_archive_size(Server, Username, _RetryTimes=0, ExpectedSize) ->
+    archive_size(Server, Username);
+wait_for_archive_size(Server, Username, RetryTimes, ExpectedSize) when RetryTimes > 0 ->
+    case archive_size(Server, Username) of
+        ExpectedSize ->
+            ExpectedSize;
+        _ActualSize ->
+            %% Wait and retry
+            timer:sleep(100),
+            wait_for_archive_size(Server, Username, RetryTimes-1, ExpectedSize)
     end.
 
 %% @doc Check, that the archive is empty.
-assert_empty_room_archive(Server, Username) ->
-    case room_archive_size(Server, Username) of
+assert_empty_room_archive(Server, Username, RetryTimes) ->
+    %% Wait for zero messages in archive
+    case wait_for_room_archive_size(Server, Username, RetryTimes, 0) of
        0 -> ok;
-       X -> ct:fail({not_empty, Server, Username, X})
+       X -> ct:fail({room_not_empty, Server, Username, {actual_size, X}})
+    end.
+
+wait_for_room_archive_size(Server, Username, _RetryTimes=0, ExpectedSize) ->
+    room_archive_size(Server, Username);
+wait_for_room_archive_size(Server, Username, RetryTimes, ExpectedSize) when RetryTimes > 0 ->
+    case room_archive_size(Server, Username) of
+        ExpectedSize ->
+            ExpectedSize;
+        _ActualSize ->
+            %% Wait and retry
+            timer:sleep(100),
+            wait_for_room_archive_size(Server, Username, RetryTimes-1, ExpectedSize)
     end.
 
 
