@@ -7,8 +7,6 @@ XEP_TOOL = tools/xep_tool
 EJD_EBIN = $(EJABBERD_DIR)/ebin
 DEVNODES = node1 node2
 
-include tools/cd_tools/cd-targets
-
 all: deps compile
 
 compile: rebar
@@ -162,3 +160,5 @@ test_deps:
 
 %:
 	@:
+
+include tools/cd_tools/cd-targets
