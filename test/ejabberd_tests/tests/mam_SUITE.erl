@@ -1008,8 +1008,7 @@ purge_multiple_messages(Config) ->
             %% Alice sends messages to Bob.
             [begin
                 escalus:send(Alice,
-                    escalus_stanza:chat_to(Bob, generate_message_text(N))),
-                 timer:sleep(100)
+                    escalus_stanza:chat_to(Bob, generate_message_text(N)))
              end || N <- lists:seq(1, 15)],
             maybe_wait_for_yz(Config),
             %% Bob is waiting for 15 messages for 5 seconds.
