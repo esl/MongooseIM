@@ -162,7 +162,8 @@ ensure_initialized(Config, State=#state{node=Node, cookie=Cookie, out_file=undef
             {ok, Writer} = open_out_file(OutFile),
             file:write(Writer, "<pre>"),
             CurrentLineNum = read_and_write_lines(Node, Reader, Writer, 0),
-            ct:pal("ct_mongoose_log_hook created log file ~p", [OutFile]),
+            ct:pal("issue=\"ct_mongoose_log_hook created log file\", "
+                   "reader=~p, writer=~p, out_file=~p", [Reader, Writer, OutFile]),
             State#state{reader=Reader, writer=Writer, out_file=OutFile,
                         current_line_num=CurrentLineNum, url_file=UrlFile};
         _ ->
