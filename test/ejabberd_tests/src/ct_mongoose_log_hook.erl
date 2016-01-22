@@ -74,13 +74,17 @@ post_end_per_group(_Group,_Config,Return,State) ->
 
 %% @doc Called before each test case.
 pre_init_per_testcase(TC,Config,State=#state{}) ->
+    Dog = test_server:timetrap(test_server:seconds(10)),
     State2 = ensure_initialized(Config, State),
     State3 = pre_insert_line_numbers_into_report(State2),
+    test_server:timetrap_cancel(Dog),
     {Config, State3 }.
 
 %% @doc Called after each test case.
 post_end_per_testcase(TC,_Config,Return,State) ->
+    Dog = test_server:timetrap(test_server:seconds(10)),
     State2 = post_insert_line_numbers_into_report(State, TC),
+    test_server:timetrap_cancel(Dog),
     {Return, State2 }.
 
 %% @doc Called after post_init_per_suite, post_end_per_suite, post_init_per_group,
