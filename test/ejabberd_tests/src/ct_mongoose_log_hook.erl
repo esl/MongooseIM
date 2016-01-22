@@ -111,25 +111,10 @@ spawn_log_reader(Node, Cookie) ->
     case is_list(AbsName) of
         true ->
             ReaderNode = choose_reader_node(Node),
-            case node() of
-                ReaderNode ->
-                    spawn_local_log_reader(AbsName);
-                _ ->
-                    spawn_remote_log_reader(ReaderNode, AbsName)
-            end;
+            open_file_without_linking(ReaderNode, AbsName, [read, binary]);
         _ ->
             {error, {bad_absname, AbsName}}
     end.
-
-spawn_local_log_reader(AbsName) ->
-    %% rpc:block_call/4 works differently for local calls
-    apply_in_new_process(file, open, [AbsName, [read, binary]]).
-
-spawn_remote_log_reader(ReaderNode, AbsName) ->
-    %% Regular rpc:call/4 spawns a process
-    %% Because file:open/2 links to its parent we need to open file
-    %% from a long living process
-    rpc:block_call(ReaderNode, file, open, [AbsName, [read, binary]], 5000).
 
 %% Optimize reading if on the same host
 choose_reader_node(Node) ->
@@ -241,10 +226,19 @@ post_insert_line_numbers_into_report(State=#state{node=Node, reader=Reader, writ
     State#state{current_line_num=CurrentLineNum2}.
 
 open_out_file(OutFile) ->
-    apply_in_new_process(file, open, [OutFile, [write]]).
+    open_file_without_linking(node(), OutFile, [write]).
+
+%% @doc Open file. The caller process will not be monitored by file_server.
+%% So, the file is not closed in case the parent process dies.
+open_file_without_linking(Node, File, Opts) when Node =:= node() ->
+    apply_in_new_process(file, open, [File, Opts]);
+open_file_without_linking(Node, File, Opts) ->
+    %% Regular rpc:call/4 spawns a temporary process which
+    %% cause file process termination.
+    %% `block_call' is executed inside a long-living process.
+    rpc:block_call(Node, file, open, [File, Opts], 5000).
 
 %% Spawns a long living process and executes function
-%% Useful for file:open/2 to avoid file process termination
 apply_in_new_process(M, F, A) ->
     Self = self(),
     Ref = make_ref(),
