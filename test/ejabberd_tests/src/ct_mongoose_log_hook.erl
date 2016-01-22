@@ -119,7 +119,11 @@ read_new_lines(Reader) ->
     case rpc:call(node(Reader), file, read_line, [Reader], 5000) of
         {ok, Line} ->
             [Line|read_new_lines(Reader)];
-        _ -> % ignore errors
+        eof ->
+            [];
+        Other ->
+            ct:pal("issue=\"ct_mongoose_log_hook:read_new_lines/1 failed\", reader=~p, reason=~p",
+                   [Reader, Other]),
             []
     end.
 
