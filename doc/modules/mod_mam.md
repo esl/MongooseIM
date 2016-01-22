@@ -73,7 +73,15 @@ In order to use Riak as the backend for one-to-one archives, the following confi
 
 ```erlang
 {mod_mam, []}.
-{mod_mam_riak_timed_arch_yz, []}.
+{mod_mam_riak_timed_arch_yz, [pm]}.
+```
+
+To archive both one-to-one and multichat messages use this configuration instead:
+
+```erlang
+{mod_mam, []}.
+{mod_mam_muc, []}.
+{mod_mam_riak_timed_arch_yz, [pm, muc]}.
 ```
 
 The Riak backend for MAM stores messages in weekly buckets so it's easier to remove old buckets.

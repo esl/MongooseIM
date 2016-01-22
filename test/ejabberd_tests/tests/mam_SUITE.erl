@@ -192,8 +192,6 @@ groups() ->
      || C <- configurations(), {G, Props, Tests} <- basic_groups(),
         not is_skipped(C, G)].
 
-is_skipped(riak_timed_yz_buckets, G) ->
-    lists:member(G, [muc, muc_with_pm, muc_rsm]);
 is_skipped(_, _) ->
     false.
 
@@ -474,8 +472,9 @@ init_modules(odbc_async, _, Config) ->
     init_module(host(), mod_mam_odbc_user, [pm]),
     Config;
 init_modules(riak_timed_yz_buckets, _, Config) ->
-    init_module(host(), mod_mam_riak_timed_arch_yz, [pm]),
+    init_module(host(), mod_mam_riak_timed_arch_yz, [pm, muc]),
     init_module(host(), mod_mam, []),
+    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
     Config;
 init_modules(odbc_async_pool, _, Config) ->
     init_module(host(), mod_mam, []),
@@ -1053,6 +1052,7 @@ muc_archive_request(Config) ->
         %% Attribute giving the message's UID within the archive.
         Id  = exml_query:attr(Arc, <<"id">>),
 
+        maybe_wait_for_yz(Config),
 
         %% Bob requests the room's archive.
         escalus:send(Bob, stanza_to_room(stanza_archive_request(<<"q1">>), Room)),
@@ -1094,6 +1094,7 @@ muc_archive_purge(Config) ->
         escalus:send(Alice, stanza_to_room(stanza_purge_multiple_messages(
            undefined, undefined, undefined), Room)),
         escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+        maybe_wait_for_yz(Config),
         ok
     end,
     escalus:story(Config, [{alice, 1}, {bob, 1}], F).
@@ -1150,6 +1151,9 @@ muc_multiple_devices(Config) ->
         ?assert_equal(Alice1Arc, Arc),
 
         %% Bob requests the room's archive.
+
+        maybe_wait_for_yz(Config),
+
         escalus:send(Bob, stanza_to_room(stanza_archive_request(<<"q1">>), Room)),
         [_ArcRes, ArcMsg] = assert_respond_size(1, wait_archive_respond_iq_first(Bob)),
         #forwarded_message{result_id=ArcId, message_body=ArcMsgBody} =
@@ -2074,6 +2078,7 @@ clean_room_archive(Config) ->
     Room = ?config(room, Config),
     delete_room_archive(muc_host(), Room),
     timer:sleep(500),
+    maybe_wait_for_yz(Config),
     assert_empty_room_archive(muc_host(), Room),
     Config.
 
@@ -2250,6 +2255,8 @@ muc_bootstrap_archive(Config) ->
                                    rpc_apply(jid, replace_resource, [RoomJid, nick(alice)])}], 16),
 
     put_muc_msgs(Msgs),
+
+    maybe_wait_for_yz(Config),
 
     [{pre_generated_muc_msgs, sort_msgs(Msgs)} | Config].
 
