@@ -108,9 +108,14 @@ spawn_log_reader(Node, Cookie) ->
     %% Set cookie permanently
     erlang:set_cookie(Node, Cookie),
     AbsName = rpc:call(Node, filename, absname, ["log/ejabberd.log"], 5000),
-    ReaderNode = choose_reader_node(Node),
-    %% Regular rpc:call/4 spawn a process
-    rpc:block_call(ReaderNode, file, open, [AbsName, [read, binary]], 5000).
+    case is_list(AbsName) of
+        true ->
+            ReaderNode = choose_reader_node(Node),
+            %% Regular rpc:call/4 spawn a process
+            rpc:block_call(ReaderNode, file, open, [AbsName, [read, binary]], 5000);
+        _ ->
+            {error, {bad_absname, AbsName}}
+    end.
 
 %% Optimize reading if on the same host
 choose_reader_node(Node) ->
@@ -171,11 +176,13 @@ ensure_initialized(Config, State=#state{node=Node, cookie=Cookie, out_file=undef
             file:write(Writer, "<pre>"),
             CurrentLineNum = read_and_write_lines(Node, Reader, Writer, 0),
             ct:pal("issue=\"ct_mongoose_log_hook created log file\", "
-                   "reader=~p, writer=~p, out_file=~p", [Reader, Writer, OutFile]),
+                   "ct_node=~p, reader=~p, reader_node=~p, writer=~p, out_file=~p",
+                   [node(), Reader, node(Reader), Writer, OutFile]),
             State#state{reader=Reader, writer=Writer, out_file=OutFile,
                         current_line_num=CurrentLineNum, url_file=UrlFile};
-        _ ->
-            ct:pal("Failed to init ct_mongoose_log_hook for ~p", [Node]),
+        Reason ->
+            ct:pal("issue=\"Failed to init ct_mongoose_log_hook\", node=~p, reason=~p",
+                   [Node, Reason]),
             State#state{out_file=OutFile}
     end;
 ensure_initialized(_Config, State=#state{}) ->
@@ -232,7 +239,21 @@ open_out_file(OutFile) ->
     Res1.
 
 are_nodes_from_same_host(Node1, Node2) ->
-    node_to_host(Node1) =:= node_to_host(Node2).
+    compare_host_names(Node1, Node2)
+    orelse
+    compare_ifs(Node1, Node2).
+
+compare_ifs(Node1, Node2) ->
+    {ok, Ifs1} = rpc:call(Node1,inet,getif,[]),
+    {ok, Ifs2} = rpc:call(Node2,inet,getif,[]),
+    lists:sort(Ifs1) =:= lists:sort(Ifs2).
+
+
+%% Does not always work. One host can be localhost, another one myhost.
+compare_host_names(Node1, Node2) ->
+    Host1 = node_to_host(Node1),
+    Host2 = node_to_host(Node2),
+    Host1 =:= Host2.
 
 node_to_host(Node) when is_atom(Node) ->
     [$@|Host] = lists:dropwhile(fun(X) -> X =/= $@ end, atom_to_list(Node)),
