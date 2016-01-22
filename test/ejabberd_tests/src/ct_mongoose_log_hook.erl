@@ -111,11 +111,25 @@ spawn_log_reader(Node, Cookie) ->
     case is_list(AbsName) of
         true ->
             ReaderNode = choose_reader_node(Node),
-            %% Regular rpc:call/4 spawn a process
-            rpc:block_call(ReaderNode, file, open, [AbsName, [read, binary]], 5000);
+            case node() of
+                ReaderNode ->
+                    spawn_local_log_reader(AbsName);
+                _ ->
+                    spawn_remote_log_reader(ReaderNode, AbsName)
+            end;
         _ ->
             {error, {bad_absname, AbsName}}
     end.
+
+spawn_local_log_reader(AbsName) ->
+    %% rpc:block_call/4 works differently for local calls
+    apply_in_new_process(file, open, [AbsName, [read, binary]]).
+
+spawn_remote_log_reader(ReaderNode, AbsName) ->
+    %% Regular rpc:call/4 spawns a process
+    %% Because file:open/2 links to its parent we need to open file
+    %% from a long living process
+    rpc:block_call(ReaderNode, file, open, [AbsName, [read, binary]], 5000).
 
 %% Optimize reading if on the same host
 choose_reader_node(Node) ->
@@ -227,14 +241,19 @@ post_insert_line_numbers_into_report(State=#state{node=Node, reader=Reader, writ
     State#state{current_line_num=CurrentLineNum2}.
 
 open_out_file(OutFile) ->
+    apply_in_new_process(file, open, [OutFile, [write]]).
+
+%% Spawns a long living process and executes function
+%% Useful for file:open/2 to avoid file process termination
+apply_in_new_process(M, F, A) ->
     Self = self(),
     Ref = make_ref(),
-    ProxyPid = spawn_link(fun() -> Res = file:open(OutFile, [write]),
+    ProxyPid = spawn_link(fun() -> Res = erlang:apply(M, F, A),
                                    Self ! {Ref, Res},
                                    receive stop -> stop end
                           end),
     Res1 = receive {Ref, Res} -> Res
-           after 5000 -> erlang:error({open_file_timeout, OutFile}) end,
+           after 5000 -> erlang:error({apply_in_new_process, {M,F,A}}) end,
     unlink(ProxyPid),
     Res1.
 
