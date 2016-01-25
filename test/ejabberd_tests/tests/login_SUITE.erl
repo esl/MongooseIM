@@ -113,11 +113,11 @@ init_per_group(GroupName, Config) when
             {skip, "external authentication requires plain password"};
         _ ->
             config_password_format(GroupName),
-            Config2 = escalus:create_users(Config, {by_name, [alice, bob]}),
+            Config2 = escalus:create_users(Config, escalus:get_users([alice, bob])),
             assert_password_format(GroupName, Config2)
     end;
 init_per_group(_GroupName, Config) ->
-    escalus:create_users(Config, {by_name, [alice, bob]}).
+    escalus:create_users(Config, escalus:get_users([alice, bob])).
 
 end_per_group(register, _Config) ->
     ok;
@@ -131,9 +131,9 @@ end_per_group(registration_timeout, Config) ->
     Config1 = restore_registration_timeout(Config);
 end_per_group(login_scram, Config) ->
     set_store_password(plain),
-    escalus:delete_users(Config, {by_name, [alice, bob]});
+    escalus:delete_users(Config, escalus:get_users([alice, bob]));
 end_per_group(_GroupName, Config) ->
-    escalus:delete_users(Config, {by_name, [alice, bob]}).
+    escalus:delete_users(Config, escalus:get_users([alice, bob])).
 
 init_per_testcase(DigestOrScram, Config) when
       DigestOrScram =:= log_one_digest; DigestOrScram =:= log_non_existent_digest;
@@ -151,16 +151,16 @@ init_per_testcase(check_unregistered, Config) ->
     Config;
 init_per_testcase(change_password, Config0) ->
     Config1 =  escalus:init_per_testcase(change_password, Config0),
-    escalus:create_users(Config1, {by_name, [alice]});
+    escalus:create_users(Config1, escalus:get_users([alice]));
 init_per_testcase(change_password_to_null, Config0) ->
     Config1 =  escalus:init_per_testcase(change_password_to_null, Config0),
-    escalus:create_users(Config1, {by_name, [alice]});
+    escalus:create_users(Config1, escalus:get_users([alice]));
 init_per_testcase(bad_request_registration_cancelation, Config0) ->
     Config1 =  escalus:init_per_testcase(bad_request_registration, Config0),
-    escalus:create_users(Config1, {by_name, [alice]});
+    escalus:create_users(Config1, escalus:get_users([alice]));
 init_per_testcase(not_allowed_registration_cancelation, Config0) ->
     Config1 = escalus:init_per_testcase(not_allowed_registration_cancelation, Config0),
-    Config2 = escalus:create_users(Config1, {by_name, [alice]}),
+    Config2 = escalus:create_users(Config1, escalus:get_users([alice])),
     %% Use a configuration that will not allow inband cancelation (and
     %% registration).
     restart_mod_register_with_option(Config2, access, {access, none});
@@ -170,11 +170,11 @@ init_per_testcase(registration_failure_timeout, Config) ->
 init_per_testcase(message_zlib_limit, Config) ->
     Listeners = [Listener
                  || {Listener, _, _} <- escalus_ejabberd:rpc(ejabberd_config, get_local_option, [listen])],
-    [{_U, Props}] = escalus_users:get_users({by_name, [hacker]}),
+    [{_U, Props}] = escalus_users:get_users([hacker]),
     Port = proplists:get_value(port, Props),
     case lists:keymember(Port, 1, Listeners) of
         true ->
-            escalus:create_users(Config, {by_name, [hacker]}),
+            escalus:create_users(Config, escalus:get_users([hacker])),
             escalus:init_per_testcase(message_zlib_limit, Config);
         false ->
             {skip, port_not_configured_on_server}
@@ -193,24 +193,24 @@ end_per_testcase(Name, Config)
     escalus_ejabberd:rpc(acl, delete, [Domain, blocked, {user, <<"alice">>}]),
     Config;
 end_per_testcase(change_password, Config) ->
-    [{alice, Details}] = escalus_users:get_users({by_name, [alice]}),
+    [{alice, Details}] = escalus_users:get_users([alice]),
     Alice = {alice, lists:keyreplace(password, 1, Details, {password, strong_pwd()})},
     {ok, result, Response} = escalus_users:delete_user(Config, Alice);
 end_per_testcase(change_password_to_null, Config) ->
-    escalus:delete_users(Config, {by_name, [alice]});
+    escalus:delete_users(Config, escalus:get_users([alice]));
 end_per_testcase(message_zlib_limit, Config) ->
-    escalus:delete_users(Config, {by_name, [hacker]});
+    escalus:delete_users(Config, escalus:get_users([hacker]));
 end_per_testcase(check_unregistered, Config) ->
     Config;
 end_per_testcase(bad_request_registration_cancelation, Config0) ->
     true = user_exists(alice, Config0),
-    escalus:delete_users(Config0, {by_name, [alice]});
+    escalus:delete_users(Config0, escalus:get_users([alice]));
 end_per_testcase(not_allowed_registration_cancelation, Config) ->
     restore_mod_register_options(Config),
     true = user_exists(alice, Config),
-    escalus:delete_users(Config, {by_name, [alice]});
+    escalus:delete_users(Config, escalus:get_users([alice]));
 end_per_testcase(registration_timeout, Config) ->
-    escalus_users:delete_users(Config, {by_name, [alice, bob]});
+    escalus:delete_users(Config, escalus:get_users([alice, bob]));
 end_per_testcase(registration_failure_timeout, Config) ->
     ok = allow_everyone_registration();
 end_per_testcase(CaseName, Config) ->
@@ -222,8 +222,8 @@ end_per_testcase(CaseName, Config) ->
 %%--------------------------------------------------------------------
 
 register(Config) ->
-    [{Name1, UserSpec1}, {Name2, UserSpec2}] = escalus_users:get_users({by_name, [alice, bob]}),
-    [{_, AdminSpec}] = escalus_users:get_users({by_name, [admin]}),
+    [{Name1, UserSpec1}, {Name2, UserSpec2}] = escalus_users:get_users([alice, bob]),
+    [{_, AdminSpec}] = escalus_users:get_users([admin]),
     [Username1, Server1, _Pass1] = escalus_users:get_usp(Config, UserSpec1),
     [Username2, Server2, _Pass2] = escalus_users:get_usp(Config, UserSpec2),
     [AdminU, AdminS, AdminP] = escalus_users:get_usp(Config, AdminSpec),
@@ -231,7 +231,7 @@ register(Config) ->
     ok = escalus_ejabberd:rpc(ejabberd_auth, try_register, [AdminU, AdminS, AdminP]),
 
     escalus:story(Config, [{admin, 1}], fun(Admin) ->
-            escalus:create_users(Config, {by_name, [Name1, Name2]}),
+            escalus:create_users(Config, escalus:get_users([Name1, Name2])),
 
             Predicates = [
                           fun(Stanza) ->
@@ -264,7 +264,7 @@ already_registered(Config) ->
     end).
 
 null_password(Config) ->
-    [{alice, Details}] = escalus_users:get_users({by_name, [alice]}),
+    [{alice, Details}] = escalus_users:get_users([alice]),
     Alice = {alice, lists:keyreplace(password, 1, Details, {password, <<>>})},
     {error, _, Response} = escalus_users:create_user(Config, Alice),
     escalus:assert(is_iq_error, Response),
@@ -277,7 +277,7 @@ null_password(Config) ->
     false = escalus_ejabberd:rpc(ejabberd_auth, is_user_exists, [Name, Server]).
 
 check_unregistered(Config) ->
-    escalus:delete_users(Config, {by_name, [admin, alice, bob]}),
+    escalus:delete_users(Config, escalus:get_users([admin, alice, bob])),
     [{_, UserSpec}| _] = escalus_users:get_users(all),
     [Username, Server, _Pass] = escalus_users:get_usp(Config, UserSpec),
     false = escalus_ejabberd:rpc(ejabberd_auth, is_user_exists, [Username, Server]).
@@ -319,7 +319,7 @@ not_allowed_registration_cancelation(Config) ->
 
 registration_timeout(Config) ->
     timer:sleep(timer:seconds(?REGISTRATION_TIMEOUT)),
-    [Alice, Bob] = escalus_users:get_users({by_name, [alice, bob]}),
+    [Alice, Bob] = escalus_users:get_users([alice, bob]),
 
     %% The first user should be created successfully
     escalus_users:verify_creation(escalus_users:create_user(Config, Alice)),
@@ -340,7 +340,7 @@ registration_timeout(Config) ->
 
 registration_failure_timeout(Config) ->
     timer:sleep(timer:seconds(?REGISTRATION_TIMEOUT)),
-    [Alice] = escalus_users:get_users({by_name, [alice]}),
+    [Alice] = escalus_users:get_users([alice]),
 
     %% Registration of the first user should fail because of access denial
     {error,failed_to_register,R} = escalus_users:create_user(Config, Alice),
@@ -426,12 +426,12 @@ log_non_existent_scram(Config) ->
     {expected_challenge, _, _} = R.
 
 log_non_existent(Config) ->
-    [{kate, UserSpec}] = escalus_users:get_users({by_name, [kate]}),
+    [{kate, UserSpec}] = escalus_users:get_users([kate]),
     {error, {connection_step_failed, _, R}} = escalus_client:start(Config, UserSpec, <<"res">>),
     R.
 
 blocked_user(_Config) ->
-    [{_, Spec}] = escalus_users:get_users({by_name, [alice]}),
+    [{_, Spec}] = escalus_users:get_users([alice]),
     try
         {ok, _Alice, _Spec2, _Features} = escalus_connection:start(Spec),
         ct:fail("Alice authenticated but shouldn't")
@@ -454,7 +454,7 @@ messages_story(Config) ->
 
 message_zlib_limit(Config) ->
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
-        [{_, Spec}] = escalus_users:get_users({by_name, [hacker]}),
+        [{_, Spec}] = escalus_users:get_users([hacker]),
         {ok, Hacker, _Spec2, _Features} = escalus_connection:start(Spec),
 
         ManySpaces = [ 32 || _N <- lists:seq(1, 10*1024) ],
@@ -551,7 +551,7 @@ change_registration_settings_for_everyone(Rule)
     ok.
 
 get_client_details(Identifier) ->
-    [{Identifier, Details}] = escalus_users:get_users({by_name, [Identifier]}),
+    [{Identifier, Details}] = escalus_users:get_users([Identifier]),
     {username, Name} = lists:keyfind(username, 1, Details),
     {server, Server} = lists:keyfind(server, 1, Details),
     {string(Name), string(Server)}.

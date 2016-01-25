@@ -175,10 +175,10 @@ run_config_file_modification_fun(Config) ->
     Fun(Config).
 
 create_user_in_initial_domain(User, Config) ->
-    escalus:create_users(Config, {by_name, [User]}).
+    escalus:create_users(Config, escalus:get_users([User])).
 
 delete_user_in_initial_domain(User, Config) ->
-    escalus:delete_users(Config, {by_name, [User]}).
+    escalus:delete_users(Config, escalus:get_users([User])).
 
 connect_user(User, Config) ->
     UserSpec = escalus_users:get_userspec(Config, User),

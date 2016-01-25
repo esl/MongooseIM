@@ -71,10 +71,10 @@ init_per_suite(Config) ->
         _ ->
             NewConfig0
     end,
-    escalus:create_users(NewConfig, {by_name, [alice, bob]}).
+    escalus:create_users(NewConfig, escalus:get_users([alice, bob])).
 
 end_per_suite(Config) ->
-    NewConfig = escalus:delete_users(Config, {by_name, [alice, bob]}),
+    NewConfig = escalus:delete_users(Config, escalus:get_users([alice, bob])),
     case is_vcard_ldap() of
         true ->
             restore_ldap_vcards_config(Config);

@@ -22,7 +22,7 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml.hrl").
 
--define(USERS, {by_name, [alice, bob]}).
+-define(USERS, [alice, bob]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -108,7 +108,7 @@ delete_user(Config) ->
     NumOfOtherUsers = length(escalus_users:get_users(?USERS))-2,
     %% wait to invalidate the roster group cache
     timer:sleep(1200),
-    escalus_users:delete_users(Config,{by_name, [bob]}),
+    escalus:delete_users(Config,escalus:get_users([bob])),
     escalus:story(Config,[{alice, 1}],fun(Alice) ->
         escalus_client:send(Alice, escalus_stanza:roster_get()),
         Roster=escalus_client:wait_for_stanza(Alice),
@@ -118,7 +118,7 @@ delete_user(Config) ->
     end).
 
 add_user(Config) ->
-    escalus_users:create_users(Config,{by_name, [bob]}),
+    escalus:create_users(Config,escalus:get_users([bob])),
     timer:sleep(1200),
     escalus:story(Config,[{alice, 1}],fun(Alice) ->
         NumOfOtherUsers = length(escalus_users:get_users(?USERS))-1,

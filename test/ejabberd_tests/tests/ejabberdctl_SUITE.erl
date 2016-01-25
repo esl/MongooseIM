@@ -124,7 +124,7 @@ init_per_suite(Config) ->
     NewConfig = escalus:init_per_suite([{ctl_path, CtlPath},
                                         {ctl_auth_mods, AuthMods},
                                         {roster_template, TemplatePath} | Config]),
-    escalus:create_users(NewConfig, {by_name, [alice, mike, bob, kate]}).
+    escalus:create_users(NewConfig, escalus:get_users([alice, mike, bob, kate])).
 
 end_per_suite(Config) ->
     Config1 = lists:keydelete(ctl_auth_mods, 1, Config),
@@ -195,7 +195,7 @@ init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
 end_per_testcase(delete_old_users, Config) ->
-    Users = escalus_users:get_users({by_name, [alice, bob, kate, mike]}),
+    Users = escalus_users:get_users([alice, bob, kate, mike]),
     lists:foreach(fun({_User, UserSpec}) ->
                 {Username, Domain, Pass} = get_user_data(UserSpec, Config),
                 escalus_ejabberd:rpc(ejabberd_auth, try_register, [Username, Domain, Pass])
@@ -1023,7 +1023,7 @@ set_last(User, Domain, TStamp) ->
     escalus_ejabberd:rpc(Mod, Fun, [escalus_utils:jid_to_lower(User), Domain, TStamp, <<>>]).
 
 delete_users(Config) ->
-    Users = escalus_users:get_users({by_name, [alice, bob, kate, mike]}),
+    Users = escalus_users:get_users([alice, bob, kate, mike]),
     lists:foreach(fun({_User, UserSpec}) ->
                 {Username, Domain, _Pass} = get_user_data(UserSpec, Config),
                 escalus_ejabberd:rpc(ejabberd_auth, remove_user, [Username, Domain])
