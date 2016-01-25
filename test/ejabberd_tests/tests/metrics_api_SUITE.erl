@@ -18,6 +18,18 @@
 
 -include_lib("common_test/include/ct.hrl").
 
+-define(assert_equal(E, V), (
+    [ct:fail("assert_equal(~s, ~s)~n\tExpected ~p~n\tValue ~p~n",
+             [(??E), (??V), (E), (V)])
+     || (E) =/= (V)]
+    )).
+
+-define(assert_equal_extra(E, V, Extra), (
+    [ct:fail("assert_equal_extra(~s, ~s)~n\tExpected ~p~n\tValue ~p~nExtra ~p~n",
+             [(??E), (??V), (E), (V), (Extra)])
+     || (E) =/= (V)]
+    )).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -190,16 +202,17 @@ session_counters(Config) ->
       (Config,
        [{alice, 2}, {bob, 1}],
        fun(_Alice1, _Alice2, _Bob) ->
-               3 = fetch_global_counter_value(totalSessionCount, Config),
-               2 = fetch_global_counter_value(uniqueSessionCount, Config),
-               3 = fetch_global_counter_value(nodeSessionCount, Config)
+               ?assert_equal(3, fetch_global_counter_value(totalSessionCount, Config)),
+               ?assert_equal(2, fetch_global_counter_value(uniqueSessionCount, Config)),
+               ?assert_equal(3, fetch_global_counter_value(nodeSessionCount, Config))
        end).
 
 node_uptime(Config) ->
-      X = fetch_global_counter_value(nodeUpTime, Config),
+      X = fetch_global_incrementing_counter_value(nodeUpTime, Config),
       timer:sleep(timer:seconds(1)),
-      Y = fetch_global_counter_value(nodeUpTime, Config),
-      true = Y > X.
+      Y = fetch_global_incrementing_counter_value(nodeUpTime, Config),
+      ?assert_equal_extra(true, Y > X,
+                          [{counter, nodeUpTime}, {first, X}, {second, Y}]).
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
@@ -240,13 +253,30 @@ fetch_counter_value(Counter, Config) ->
     TotalValueList = proplists:get_value("value_total_list", Vars),
     [HostValue, HostValueList, TotalValue, TotalValueList].
 
+%% @doc Fetch counter that is static
 fetch_global_counter_value(Counter, Config) ->
+    {Value, ValueList} = fetch_global_counter_value2(Counter, Config),
+    ?assert_equal_extra(Value, ValueList, [{counter, Counter}]),
+    Value.
+
+%% @doc Fetch counter that can be incremented by server between two API requests
+%%
+%% Returns last actual value
+fetch_global_incrementing_counter_value(Counter, Config) ->
+    {Value, ValueList} = fetch_global_counter_value2(Counter, Config),
+    ?assert_equal_extra(true, Value =< ValueList, [{counter, Counter},
+                                                   {value, Value},
+                                                   {value_list, ValueList}]),
+    ValueList.
+
+fetch_global_counter_value2(Counter, Config) ->
     Params = [{metric, atom_to_list(Counter)}],
 
     {_, _, _, Vars, _} = katt_helper:run(global, Config, Params),
 
     Value = proplists:get_value("value", Vars),
-    Value = proplists:get_value("value_list", Vars).
+    ValueList = proplists:get_value("value_list", Vars),
+    {Value, ValueList}.
 
 assert_counter_inc(Name, Inc, Counters1, Counters2) ->
     ExpectedCounters = [Counter+Inc || Counter <- Counters1],
