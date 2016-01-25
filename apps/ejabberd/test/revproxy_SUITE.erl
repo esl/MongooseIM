@@ -600,8 +600,8 @@ create_handler() ->
     spawn(F).
 
 remove_handler(Config) ->
-    exit(?config(meck_pid, Config), kill),
-    meck:unload(revproxy_handler).
+    meck:unload(revproxy_handler),
+    exit(?config(meck_pid, Config), kill).
 
 handler_init(_Type, Req, _Opts) ->
     {ok, Req, no_state}.
