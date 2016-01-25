@@ -32,7 +32,9 @@
          purge_multiple_messages/9]).
 
 -export([safe_archive_message/9,
-         lookup_messages/14]).
+         safe_archive_message_muc/9,
+         lookup_messages/14,
+         lookup_messages_muc/14]).
 
 -export([key/3]).
 
@@ -43,37 +45,73 @@
 -define(YZ_SEARCH_INDEX, <<"mam">>).
 -define(MAM_BUCKET_TYPE, <<"mam_yz">>).
 
+%% @doc Start module
+%%
+%% Options:
+%% - `pm' option starts one-to-one chat archives
+%% - `muc' option starts multichat archives
+%%
+%% Use both options `pm, muc' to archive both MUC and private messages
 start(Host, Opts) ->
-    start_chat_archive(Host, Opts).
+    case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
+        true ->
+            start_chat_archive(Host, Opts);
+        false ->
+            ok
+    end,
+    case gen_mod:get_module_opt(Host, ?MODULE, muc, false) of
+        true ->
+            start_muc_archive(Host, Opts);
+        false ->
+            ok
+    end.
 
 start_chat_archive(Host, _Opts) ->
-    case gen_mod:get_module_opt(Host, ?MODULE, no_writer, false) of
-        true ->
-            ok;
-        false ->
-            ejabberd_hooks:add(mam_archive_message, Host, ?MODULE, safe_archive_message, 50)
-    end,
+    ejabberd_hooks:add(mam_archive_message, Host, ?MODULE, safe_archive_message, 50),
     ejabberd_hooks:add(mam_archive_size, Host, ?MODULE, archive_size, 50),
     ejabberd_hooks:add(mam_lookup_messages, Host, ?MODULE, lookup_messages, 50),
     ejabberd_hooks:add(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
     ejabberd_hooks:add(mam_purge_single_message, Host, ?MODULE, purge_single_message, 50),
     ejabberd_hooks:add(mam_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 50).
 
+start_muc_archive(Host, _Opts) ->
+    ejabberd_hooks:add(mam_muc_archive_message, Host, ?MODULE, safe_archive_message_muc, 50),
+    ejabberd_hooks:add(mam_muc_archive_size, Host, ?MODULE, archive_size, 50),
+    ejabberd_hooks:add(mam_muc_lookup_messages, Host, ?MODULE, lookup_messages_muc, 50),
+    ejabberd_hooks:add(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50),
+    ejabberd_hooks:add(mam_muc_purge_single_message, Host, ?MODULE, purge_single_message, 50),
+    ejabberd_hooks:add(mam_muc_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 50).
+
 stop(Host) ->
-    stop_chat_archive(Host).
+    case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
+        true ->
+            stop_chat_archive(Host);
+        false ->
+            ok
+    end,
+    case gen_mod:get_module_opt(Host, ?MODULE, muc, false) of
+        true ->
+            stop_muc_archive(Host);
+        false ->
+            ok
+    end.
 
 stop_chat_archive(Host) ->
-    case gen_mod:get_module_opt(Host, ?MODULE, no_writer, false) of
-        true ->
-            ok;
-        false ->
-            ejabberd_hooks:delete(mam_archive_message, Host, ?MODULE, safe_archive_message, 50)
-    end,
+    ejabberd_hooks:delete(mam_archive_message, Host, ?MODULE, safe_archive_message_muc, 50),
     ejabberd_hooks:delete(mam_archive_size, Host, ?MODULE, archive_size, 50),
-    ejabberd_hooks:delete(mam_lookup_messages, Host, ?MODULE, safe_lookup_messages, 50),
+    ejabberd_hooks:delete(mam_lookup_messages, Host, ?MODULE, lookup_messages_muc, 50),
     ejabberd_hooks:delete(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
     ejabberd_hooks:delete(mam_purge_single_message, Host, ?MODULE, purge_single_message, 50),
     ejabberd_hooks:delete(mam_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 50),
+    ok.
+
+stop_muc_archive(Host) ->
+    ejabberd_hooks:delete(mam_muc_archive_message, Host, ?MODULE, safe_archive_message, 50),
+    ejabberd_hooks:delete(mam_muc_archive_size, Host, ?MODULE, archive_size, 50),
+    ejabberd_hooks:delete(mam_muc_lookup_messages, Host, ?MODULE, lookup_messages, 50),
+    ejabberd_hooks:delete(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50),
+    ejabberd_hooks:delete(mam_muc_purge_single_message, Host, ?MODULE, purge_single_message, 50),
+    ejabberd_hooks:delete(mam_muc_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 50),
     ok.
 
 safe_archive_message(Result, Host, MessID, UserID,
@@ -94,6 +132,16 @@ safe_archive_message(Result, Host, MessID, UserID,
         {error, Reason}
     end.
 
+safe_archive_message_muc(Result, Host, MessId, UserID, LocJID, RemJID, SrcJID, Dir, Packet) ->
+    RemJIDMuc = maybe_muc_jid(RemJID),
+    safe_archive_message(Result, Host, MessId, UserID, LocJID, RemJIDMuc, SrcJID, Dir, Packet).
+
+maybe_muc_jid(#jid{lresource = RemRes}) ->
+    {<<>>, RemRes, <<>>};
+maybe_muc_jid(Other) ->
+    Other.
+
+
 lookup_messages({error, _Reason} = Result, _Host,
                      _UserID, _UserJID, _RSM, _Borders,
                      _Start, _End, _Now, _WithJID,
@@ -113,6 +161,19 @@ lookup_messages(_Result, _Host,
     catch _Type:Reason ->
         {error, Reason}
     end.
+
+lookup_messages_muc(Result, Host,
+                    UserID, UserJID, RSM, Borders,
+                    Start, End, _Now, WithJID,
+                    PageSize, LimitPassed, MaxResultLimit,
+                    IsSimple) ->
+    WithJIDMuc = maybe_muc_jid(WithJID),
+    lookup_messages(Result, Host,
+                    UserID, UserJID, RSM, Borders,
+                    Start, End, _Now, WithJIDMuc,
+                    PageSize, LimitPassed, MaxResultLimit,
+                    IsSimple).
+
 
 archive_size(Size, _Host, _ArchiveID, _ArchiveJID) ->
     Size.
