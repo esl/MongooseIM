@@ -85,15 +85,15 @@ init_per_group(GroupName, Config0) ->
             {skip, "external authentication requires plain password"};
         _ ->
             config_password_format(GroupName),
-            Config2 = escalus:create_users(Config, {by_name, [bob, alice]}),
+            Config2 = escalus:create_users(Config, escalus:get_users([bob, alice])),
             assert_password_format(GroupName, Config2)
     end.
 
 end_per_group(cleanup, Config) ->
-    escalus:delete_users(Config, {by_name, [alice]});
+    escalus:delete_users(Config, escalus:get_users([alice]));
 end_per_group(_GroupName, Config) ->
     set_store_password(plain),
-    escalus:delete_users(Config, {by_name, [bob, alice]}).
+    escalus:delete_users(Config, escalus:get_users([bob, alice])).
 
 init_per_testcase(CaseName, Config0) ->
     clean_token_db(),
