@@ -89,7 +89,7 @@ change_shaper(Pid, Shaper) ->
     gen_server:cast(Pid, {change_shaper, Shaper}).
 
 reset_stream(Pid) ->
-    gen_server:call(Pid, reset_stream).
+    gen_server_call_or_noproc(Pid, reset_stream).
 
 starttls(Pid, TLSSocket) ->
     gen_server:call(Pid, {starttls, TLSSocket}).
@@ -387,3 +387,10 @@ free_parser(undefined) ->
     ok;
 free_parser(Parser) ->
     exml_stream:free_parser(Parser).
+
+gen_server_call_or_noproc(Pid, Message) ->
+    try
+        gen_server:call(Pid, Message)
+    catch exit:{noproc,Extra} ->
+        {error, {noproc,Extra}}
+    end.
