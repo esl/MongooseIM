@@ -92,7 +92,7 @@ reset_stream(Pid) ->
     gen_server_call_or_noproc(Pid, reset_stream).
 
 starttls(Pid, TLSSocket) ->
-    gen_server:call(Pid, {starttls, TLSSocket}).
+    gen_server_call_or_noproc(Pid, {starttls, TLSSocket}).
 
 compress(Pid, ZlibSocket) ->
     gen_server:call(Pid, {compress, ZlibSocket}).
