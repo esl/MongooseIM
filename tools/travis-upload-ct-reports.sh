@@ -39,7 +39,7 @@ test -d "$TRAVIS_JOB_NUMBER" && \
 
 # Create a new directory for HTML files
 cp -rdp ../test/ejabberd_tests/ct_report "$TRAVIS_JOB_NUMBER"
-git add "$TRAVIS_JOB_NUMBER"
+git add "$TRAVIS_JOB_NUMBER" > /dev/null
 git commit -m "Publish reports for $TRAVIS_JOB_NUMBER"
 
 # Try to push several times in case of race conditions
