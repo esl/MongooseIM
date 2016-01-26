@@ -56,10 +56,10 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(_, Config) ->
-    escalus:create_users(Config, ?USERS).
+    escalus:create_users(Config, escalus:get_users(?USERS)).
 
 end_per_group(_, Config) ->
-    escalus:delete_users(Config, ?USERS).
+    escalus:delete_users(Config, escalus:get_users(?USERS)).
 
 init_per_testcase(CaseName,Config) ->
     case proplists:get_value(ldap_auth, Config) of
