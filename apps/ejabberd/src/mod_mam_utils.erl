@@ -438,13 +438,28 @@ parse_jid_list(El, Name) ->
         false -> [];
         #xmlel{children = JIDEls} ->
             %% Ignore cdata between jid elements
-            [xml:get_tag_cdata(JIDEl) || JIDEl <- JIDEls, is_jid_element(JIDEl)]
+            MaybeJids = [binary_jid_to_lower(xml:get_tag_cdata(JIDEl))
+             || JIDEl <- JIDEls, is_jid_element(JIDEl)],
+            skip_bad_jids(MaybeJids)
     end.
 
 is_jid_element(#xmlel{name = <<"jid">>}) ->
     true;
 is_jid_element(_) -> %% ignore cdata
     false.
+
+%% @doc Normalize JID to be used when comparing JIDs in DB
+binary_jid_to_lower(BinJid) when is_binary(BinJid) ->
+    Jid = jid:from_binary(BinJid),
+    case jid:to_lower(Jid) of
+        error ->
+            error;
+        LowerJid ->
+            jid:to_binary(LowerJid)
+    end.
+
+skip_bad_jids(MaybeJids) ->
+    [Jid || Jid <- MaybeJids, is_binary(Jid)].
 
 -spec borders_decode(jlib:xmlel()) -> 'undefined' | mod_mam:borders().
 borders_decode(QueryEl) ->

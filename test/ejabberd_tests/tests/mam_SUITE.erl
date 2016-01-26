@@ -63,7 +63,8 @@
          querying_for_all_messages_with_jid/1,
          muc_querying_for_all_messages/1,
          muc_querying_for_all_messages_with_jid/1,
-         iq_spoofing/1]).
+         iq_spoofing/1,
+         run_prefs_cases/1]).
 
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
@@ -72,6 +73,12 @@
 
 -define(assert_equal(E, V), (
     [ct:fail("ASSERT EQUAL~n\tExpected ~p~n\tValue ~p~n", [(E), (V)])
+     || (E) =/= (V)]
+    )).
+
+-define(assert_equal_extra(E, V, Extra), (
+    [ct:fail("assert_equal_extra(~s, ~s)~n\tExpected ~p~n\tValue ~p~nExtra ~p~n",
+             [(??E), (??V), (E), (V), (Extra)])
      || (E) =/= (V)]
     )).
 
@@ -166,7 +173,8 @@ basic_group_names() ->
     bootstrapped,
     archived,
     policy_violation,
-    offline_message
+    offline_message,
+    prefs_cases
     ].
 
 all() ->
@@ -207,7 +215,8 @@ basic_groups() ->
      {muc_with_pm,      [], muc_cases()},
      {rsm,              [], rsm_cases()},
      {muc_rsm,          [], muc_rsm_cases()},
-     {with_rsm,         [], with_rsm_cases()}].
+     {with_rsm,         [], with_rsm_cases()},
+     {prefs_cases,      [], [run_prefs_cases]}].
 
 bootstrapped_cases() ->
      [purge_old_single_message,
@@ -221,8 +230,7 @@ mam_cases() ->
      limit_archive_request,
      prefs_set_request,
      prefs_set_cdata_request,
-     iq_spoofing
-     ].
+     iq_spoofing].
 
 mam_purge_cases() ->
     [purge_single_message,
@@ -286,7 +294,7 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 user_names() ->
-    [alice, bob].
+    [alice, bob, kate].
 
 create_users(Config) ->
     escalus:create_users(Config, {by_name, user_names()}).
@@ -551,6 +559,8 @@ init_state(_, rsm, Config) ->
 init_state(_, with_rsm, Config) ->
     Config1 = [{with_rsm, true}|Config],
     send_rsm_messages(clean_archives(Config1));
+init_state(_, run_prefs_cases, Config) ->
+    clean_archives(Config);
 init_state(_, _, Config) ->
     clean_archives(Config).
 
@@ -1745,16 +1755,16 @@ is_same_message_text(Stanza, Raw) ->
 %% ----------------------------------------------------------------------
 %% PREFERENCE QUERIES
 
-stanza_prefs_set_request(DefaultMode, AlwaysJIDs, NewerJIDs) ->
+stanza_prefs_set_request(DefaultMode, AlwaysJIDs, NeverJIDs) ->
     AlwaysEl = #xmlel{name = <<"always">>,
                       children = encode_jids(AlwaysJIDs)},
-    NewerEl  = #xmlel{name = <<"never">>,
-                      children = encode_jids(NewerJIDs)},
+    NeverEl  = #xmlel{name = <<"never">>,
+                      children = encode_jids(NeverJIDs)},
     escalus_stanza:iq(<<"set">>, [#xmlel{
        name = <<"prefs">>,
        attrs = [{<<"xmlns">>,mam_ns_binary()}]
                ++ [{<<"default">>, DefaultMode} || is_def(DefaultMode)],
-       children = [AlwaysEl, NewerEl]
+       children = [AlwaysEl, NeverEl]
     }]).
 
 stanza_prefs_get_request() ->
@@ -2314,3 +2324,107 @@ maybe_wait_for_yz(Config) ->
         Value ->
             timer:sleep(Value)
     end.
+
+
+%% Bob and Alice are friends.
+%% Kate and Alice are not friends.
+%%
+%% Messages:
+%% 1. Bob sends a message to Alice
+%% 2. Alice sends a message to Bob
+%% 3. Kate sends a message to Alice
+%% 4. Alice sends a message to Kate
+%%
+%% Each tuple is
+%% {{Default, Always, Never},
+%%  [Message1Archived, Message2Archived, Message3Archied, Message4Archived]}
+prefs_cases() ->
+    [
+     {{roster, [], []},              [true, true, false, false]},
+     {{roster, [bob], []},           [true, true, false, false]},
+     {{roster, [kate], []},          [true, true, true, true]},
+     {{roster, [kate, bob], []},     [true, true, true, true]},
+ 
+     {{roster, [], [bob]},           [false, false, false, false]},
+     {{roster, [], [kate]},          [true, true, false, false]},
+     {{roster, [], [bob, kate]},     [false, false, false, false]},
+ 
+ 
+     {{never, [], []},              [false, false, false, false]},
+     {{never, [bob], []},           [true, true, false, false]},
+     {{never, [kate], []},          [false, false, true, true]},
+     {{never, [kate, bob], []},     [true, true, true, true]},
+ 
+     {{never, [], [bob]},           [false, false, false, false]},
+     {{never, [], [kate]},          [false, false, false, false]},
+     {{never, [], [bob, kate]},     [false, false, false, false]},
+ 
+ 
+     {{always, [], []},              [true, true, true, true]},
+     {{always, [bob], []},           [true, true, true, true]},
+     {{always, [kate], []},          [true, true, true, true]},
+     {{always, [kate, bob], []},     [true, true, true, true]},
+ 
+     {{always, [], [bob]},           [false, false, true, true]},
+     {{always, [], [kate]},          [true, true, false, false]},
+     {{always, [], [bob, kate]},     [false, false, false, false]}
+    ].
+
+
+run_prefs_cases(Config) ->
+    F = fun(Alice, Bob, Kate) ->
+        make_alice_and_bob_friends(Alice, Bob),
+        [run_prefs_case(Case, Alice, Bob, Kate, Config) || Case <- prefs_cases()]
+        end,
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], F).
+
+make_alice_and_bob_friends(Alice, Bob) ->
+        escalus_client:send(Alice, escalus_stanza:presence_direct(escalus_client:short_jid(Bob), <<"subscribe">>)), 
+        escalus_client:send(Bob, escalus_stanza:presence_direct(escalus_client:short_jid(Alice), <<"subscribe">>)), 
+        escalus_client:send(Alice, escalus_stanza:presence_direct(escalus_client:short_jid(Bob), <<"subscribed">>)), 
+        escalus_client:send(Bob, escalus_stanza:presence_direct(escalus_client:short_jid(Alice), <<"subscribed">>)), 
+        escalus:wait_for_stanzas(Alice, 7, 5000),
+        escalus:wait_for_stanzas(Bob, 6, 5000),
+        ok.
+
+run_prefs_case({PrefsState, ExpectedMessageStates}, Alice, Bob, Kate, Config) ->
+    IqSet = stanza_prefs_set_request(PrefsState, Config),
+    escalus:send(Alice, IqSet),
+    ReplySet = escalus:wait_for_stanza(Alice),
+    Messages = [iolist_to_binary(io_lib:format("~p", [now()])) || _ <- [1,2,3,4]],
+    %% Messages:
+    %% 1. Bob sends a message to Alice
+    %% 2. Alice sends a message to Bob
+    %% 3. Kate sends a message to Alice
+    %% 4. Alice sends a message to Kate
+    escalus:send(Bob, escalus_stanza:chat_to(Alice, lists:nth(1, Messages))),
+    escalus:send(Alice, escalus_stanza:chat_to(Bob, lists:nth(2, Messages))),
+    escalus:send(Kate, escalus_stanza:chat_to(Alice, lists:nth(3, Messages))),
+    escalus:send(Alice, escalus_stanza:chat_to(Kate, lists:nth(4, Messages))),
+    escalus:wait_for_stanzas(Bob, 1, 5000),
+    escalus:wait_for_stanzas(Kate, 1, 5000),
+    escalus:wait_for_stanzas(Alice, 2, 5000),
+    maybe_wait_for_yz(Config),
+    %% Get last four archived texts
+    Stanzas = get_last_four_messages(Alice),
+    ParsedMessages = parse_messages(Stanzas),
+    Bodies = [B || #forwarded_message{message_body=B} <- ParsedMessages],
+    ActualMessageStates = [lists:member(M, Bodies) || M <- Messages],
+    ?assert_equal_extra(ExpectedMessageStates, ActualMessageStates,
+                        [{prefs_state, PrefsState}]),
+    ok.
+
+get_last_four_messages(Alice) ->
+    RSM = #rsm_in{max=4, direction='before'},
+    escalus:send(Alice, stanza_page_archive_request(<<"last4_rsm">>, RSM)),
+    [_ArcIQ|AllMessages] = wait_archive_respond_iq_first(Alice),
+    AllMessages.
+
+stanza_prefs_set_request({DefaultMode, AlwaysUsers, NeverUsers}, Config) ->
+    DefaultModeBin = atom_to_binary(DefaultMode, utf8),
+    AlwaysJIDs = users_to_jids(AlwaysUsers, Config),
+    NeverJIDs  = users_to_jids(NeverUsers, Config),
+    stanza_prefs_set_request(DefaultModeBin, AlwaysJIDs, NeverJIDs).
+
+users_to_jids(Users, Config) ->
+    [escalus_users:get_jid(Config, User) || User <- Users].
