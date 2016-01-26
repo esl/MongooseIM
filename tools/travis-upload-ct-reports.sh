@@ -11,6 +11,8 @@ test -d test/ejabberd_tests/ct_report || \
 
 set -e
 
+echo "Uploading CT-reports to http://arcusfelis.github.io/mongooseim-ct-reports/$TRAVIS_JOB_NUMBER/"
+
 # Configure git
 git config --global user.email "$(git --no-pager show -s --format='%ae' HEAD)"
 git config --global user.name  "$(git --no-pager show -s --format='%an' HEAD)"
