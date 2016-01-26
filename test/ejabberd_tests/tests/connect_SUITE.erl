@@ -50,7 +50,8 @@ all() ->
 
 groups() ->
     [{c2s_noproc, [], [reset_stream_noproc,
-                       starttls_noproc]},
+                       starttls_noproc,
+                       compress_noproc]},
      {negative, [], [bad_xml,
                      invalid_host,
                      invalid_stream_namespace]},
@@ -297,6 +298,37 @@ starttls_noproc(Config) ->
     %% Add starttls element into message queue of the c2s process
     %% There is no reply because the process is suspended
     ?assertThrow({timeout, proceed}, escalus_session:starttls(Conn, Props)),
+    %% Sim client disconnection
+    ok = escalus_ejabberd:rpc(ejabberd_receiver, close, [RcvPid]),
+    %% ...c2s process receives close and DOWN messages...
+    %% Resume
+    ok = escalus_ejabberd:rpc(sys, resume, [C2sPid]),
+    receive
+        {'DOWN', MonRef, process, C2sPid, normal} ->
+            ok;
+        {'DOWN', MonRef, process, C2sPid, Reason} ->
+            ct:fail("ejabberd_c2s exited with reason ~p", [Reason])
+        after 5000 ->
+            ct:fail("c2s_monitor_timeout", [])
+    end,
+    ok.
+
+compress_noproc(Config) ->
+    UserSpec = escalus_users:get_userspec(Config, alice),
+    PreAuthF = fun(Conn, Props, Features) ->
+                       {Conn, Props, Features}
+               end,
+    Steps = [start_stream, stream_features],
+    {ok, Conn, Props, Features} = escalus_connection:start(UserSpec, Steps),
+
+    [C2sPid] = children_specs_to_pids(escalus_ejabberd:rpc(supervisor, which_children, [ejabberd_c2s_sup])),
+    [RcvPid] = children_specs_to_pids(escalus_ejabberd:rpc(supervisor, which_children, [ejabberd_receiver_sup])),
+    MonRef = erlang:monitor(process, C2sPid),
+    ok = escalus_ejabberd:rpc(sys, suspend, [C2sPid]),
+    %% Add compress element into message queue of the c2s process
+    %% There is no reply because the process is suspended
+    ?assertThrow({timeout, compressed},
+                 escalus_session:compress(Conn, [{compression, <<"zlib">>}|Props])),
     %% Sim client disconnection
     ok = escalus_ejabberd:rpc(ejabberd_receiver, close, [RcvPid]),
     %% ...c2s process receives close and DOWN messages...
