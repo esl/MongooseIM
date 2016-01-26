@@ -95,7 +95,7 @@ starttls(Pid, TLSSocket) ->
     gen_server_call_or_noproc(Pid, {starttls, TLSSocket}).
 
 compress(Pid, ZlibSocket) ->
-    gen_server:call(Pid, {compress, ZlibSocket}).
+    gen_server_call_or_noproc(Pid, {compress, ZlibSocket}).
 
 become_controller(Pid, C2SPid) ->
     gen_server:call(Pid, {become_controller, C2SPid}).
