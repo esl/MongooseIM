@@ -105,29 +105,29 @@ get_contacts(Config) ->
     end).
 
 delete_user(Config) ->
-    NumOfOtherUsers = length(escalus_users:get_users(?USERS))-2,
+    NumOfOtherUsers = length(escalus_users:get_users(?USERS)) - 2,
     %% wait to invalidate the roster group cache
     timer:sleep(1200),
-    escalus:delete_users(Config,escalus:get_users([bob])),
-    escalus:story(Config,[{alice, 1}],fun(Alice) ->
+    escalus:delete_users(Config, escalus:get_users([bob])),
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
         escalus_client:send(Alice, escalus_stanza:roster_get()),
         Roster=escalus_client:wait_for_stanza(Alice),
 
-        escalus:assert(is_roster_result,Roster),
-        escalus:assert(count_roster_items,[NumOfOtherUsers],Roster)
+        escalus:assert(is_roster_result, Roster),
+        escalus:assert(count_roster_items, [NumOfOtherUsers], Roster)
     end).
 
 add_user(Config) ->
-    escalus:create_users(Config,escalus:get_users([bob])),
+    escalus:create_users(Config, escalus:get_users([bob])),
     timer:sleep(1200),
-    escalus:story(Config,[{alice, 1}],fun(Alice) ->
-        NumOfOtherUsers = length(escalus_users:get_users(?USERS))-1,
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+        NumOfOtherUsers = length(escalus_users:get_users(?USERS)) - 1,
 
         escalus_client:send(Alice, escalus_stanza:roster_get()),
         Roster=escalus_client:wait_for_stanza(Alice),
 
-        escalus:assert(is_roster_result,Roster),
-        escalus:assert(count_roster_items,[NumOfOtherUsers],Roster)
+        escalus:assert(is_roster_result, Roster),
+        escalus:assert(count_roster_items, [NumOfOtherUsers], Roster)
     end).
 
 %%--------------------------------------------------------------------
