@@ -1299,7 +1299,7 @@ admin_ban_list(Config) ->
     end).
 
 admin_get_form(Config) ->
-    escalus:story(Config, [1,1,1], fun(Alice, _Bob, _Kate) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, _Bob, _Kate) ->
         timer:sleep(?WAIT_TIME),
         %%%% Bootstrap:
         %% Alice is admin
@@ -1552,7 +1552,7 @@ check_rolelist(LoginData, no, Config) ->
 
 %% This one tests a roomconfig_getmemberlist setting
 admin_member_list_allowed(Config) ->
-    escalus:story(Config, [1,1,1], fun(Alice, Bob, Kate) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
         timer:sleep(?WAIT_TIME),
         %%%% Bootstrap:
         %% Alice is admin
@@ -2849,7 +2849,7 @@ disco_items(Config) ->
                                  end).
 
 disco_items_nonpublic(Config) ->
-    escalus:story(Config, [1,1], fun(Alice, Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         escalus:send(Alice, stanza_join_room(<<"alicesroom">>, <<"nicenick">>)),
         _Stanza = escalus:wait_for_stanza(Alice),
 
