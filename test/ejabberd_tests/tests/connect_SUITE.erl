@@ -39,7 +39,7 @@ all() ->
         true ->
             {skip, "Conf reload doesn't work correctly with sample external auth"};
         _ ->
-            [{group, reset_stream_noproc}, %% should be first, uses vanilla config
+            [{group, c2s_noproc}, %% should be first, uses vanilla config
              {group, negative},
              {group, pre_xmpp_1_0},
              {group, starttls},
@@ -49,7 +49,8 @@ all() ->
     end.
 
 groups() ->
-    [{reset_stream_noproc, [], [reset_stream_noproc]},
+    [{c2s_noproc, [], [reset_stream_noproc,
+                       starttls_noproc]},
      {negative, [], [bad_xml,
                      invalid_host,
                      invalid_stream_namespace]},
@@ -88,7 +89,7 @@ end_per_suite(Config) ->
     restore_ejabberd_node(Config),
     escalus:end_per_suite(Config).
 
-init_per_group(reset_stream_noproc, Config) ->
+init_per_group(c2s_noproc, Config) ->
     Config;
 init_per_group(starttls, Config) ->
     config_ejabberd_node_tls(Config,
@@ -266,6 +267,36 @@ reset_stream_noproc(Config) ->
     %% Add auth element into message queue of the c2s process
     %% There is no reply because the process is suspended
     ?assertThrow({timeout, auth_reply}, escalus_session:authenticate(Conn, Props)),
+    %% Sim client disconnection
+    ok = escalus_ejabberd:rpc(ejabberd_receiver, close, [RcvPid]),
+    %% ...c2s process receives close and DOWN messages...
+    %% Resume
+    ok = escalus_ejabberd:rpc(sys, resume, [C2sPid]),
+    receive
+        {'DOWN', MonRef, process, C2sPid, normal} ->
+            ok;
+        {'DOWN', MonRef, process, C2sPid, Reason} ->
+            ct:fail("ejabberd_c2s exited with reason ~p", [Reason])
+        after 5000 ->
+            ct:fail("c2s_monitor_timeout", [])
+    end,
+    ok.
+
+starttls_noproc(Config) ->
+    UserSpec = escalus_users:get_userspec(Config, alice),
+    PreAuthF = fun(Conn, Props, Features) ->
+                       {Conn, Props, Features}
+               end,
+    Steps = [start_stream, stream_features],
+    {ok, Conn, Props, Features} = escalus_connection:start(UserSpec, Steps),
+
+    [C2sPid] = children_specs_to_pids(escalus_ejabberd:rpc(supervisor, which_children, [ejabberd_c2s_sup])),
+    [RcvPid] = children_specs_to_pids(escalus_ejabberd:rpc(supervisor, which_children, [ejabberd_receiver_sup])),
+    MonRef = erlang:monitor(process, C2sPid),
+    ok = escalus_ejabberd:rpc(sys, suspend, [C2sPid]),
+    %% Add starttls element into message queue of the c2s process
+    %% There is no reply because the process is suspended
+    ?assertThrow({timeout, proceed}, escalus_session:starttls(Conn, Props)),
     %% Sim client disconnection
     ok = escalus_ejabberd:rpc(ejabberd_receiver, close, [RcvPid]),
     %% ...c2s process receives close and DOWN messages...
