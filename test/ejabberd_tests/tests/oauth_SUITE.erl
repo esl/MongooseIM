@@ -67,9 +67,15 @@ suite() ->
 %%--------------------------------------------------------------------
 %% Init & teardown
 %%--------------------------------------------------------------------
+
 init_per_suite(Config0) ->
-    Config = dynamic_modules:stop_running(mod_last, Config0),
-    escalus:init_per_suite(Config).
+    case is_pgsql_available(Config0) of
+        true ->
+            Config = dynamic_modules:stop_running(mod_last, Config0),
+            escalus:init_per_suite(Config);
+        false ->
+            {skip, "PostgreSQL not available - check env configuration"}
+    end.
 
 end_per_suite(Config) ->
     dynamic_modules:start_running(Config),
@@ -421,3 +427,14 @@ serialize(ServerSideToken) ->
 
 to_lower(B) when is_binary(B) ->
     list_to_binary(string:to_lower(binary_to_list(B))).
+
+is_pgsql_available(_) ->
+    Q = [<<"SELECT version();">>],
+    %% TODO: hardcoded ODBCHost
+    ODBCHost = <<"localhost">>,
+    case escalus_ejabberd:rpc(ejabberd_odbc, sql_query, [ODBCHost, Q]) of
+        {selected, [<<"version">>], [{<<"PostgreSQL", _/binary>>}]} ->
+            true;
+        _ ->
+            false
+    end.
