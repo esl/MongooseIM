@@ -82,7 +82,12 @@ end_per_group(_GroupName, Config) ->
     Config.
 
 init_per_testcase(http_upstream, Config) ->
+    meck:new(inet, [unstick, passthrough]),
+    meck:expect(inet, getaddr, fun mock_getaddr/2),
+    meck:expect(inet, getaddrs_tm, fun mock_getaddrs_tm/3),
+
     start_http_upstream(),
+
     Config;
 init_per_testcase(https_upstream, Config) ->
     start_https_upstream(Config),
@@ -92,6 +97,7 @@ init_per_testcase(_CaseName, Config) ->
 
 end_per_testcase(http_upstream, Config) ->
     stop_upstream(http_upstream),
+    meck:unload(inet),
     Config;
 end_per_testcase(https_upstream, Config) ->
     stop_upstream(https_upstream),
@@ -627,3 +633,18 @@ handler_handle(Req, State) ->
 
 handler_terminate(_Reason, _Req, _State) ->
     ok.
+
+mock_getaddr("qwerty.localhost",inet) ->
+    {ok, {127,0,0,1}};
+mock_getaddr("qwerty.localhost",inet6) ->
+    {ok,{0,0,0,0,0,0,0,1}};
+mock_getaddr(Host, Opt) ->
+    meck:passthrough([Host, Opt]).
+
+
+mock_getaddrs_tm("qwerty.localhost",inet,_) ->
+    {ok, [{127,0,0,1}]};
+mock_getaddrs_tm("qwerty.localhost",inet6,_) ->
+    {ok,[{0,0,0,0,0,0,0,1}]};
+mock_getaddrs_tm(Host, Opt, Timer) ->
+    meck:passthrough([Host, Opt, Timer]).
