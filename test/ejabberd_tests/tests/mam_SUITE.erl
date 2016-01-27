@@ -2463,6 +2463,6 @@ users_to_jids(Users, Config) ->
     [escalus_users:get_jid(Config, User) || User <- Users].
 
 print_configuration_not_supported(C, B) ->
-    I = iolib:format("issue=configuration_not_supported, "
-                      "configuration=~p, basic_group=~p", [C, B]),
+    I = io_lib:format("issue=configuration_not_supported, "
+                       "configuration=~p, basic_group=~p", [C, B]),
      binary_to_list(iolist_to_binary(I)).
