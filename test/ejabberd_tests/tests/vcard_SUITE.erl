@@ -105,7 +105,7 @@ init_per_suite(Config) ->
     NewConfig = escalus:init_per_suite(Config),
     NewConfig1 = vcard_config(NewConfig),
     NewConfig2 = stop_running_vcard_mod(NewConfig1),
-    AliceAndBob = escalus_users:get_users({by_name, [alice, bob]}),
+    AliceAndBob = escalus_users:get_users([alice, bob]),
     BisUsers = [{aliceb,[{username,<<"aliceb">>},
                         {server,<<"localhost.bis">>},
                         {host, <<"localhost">>},

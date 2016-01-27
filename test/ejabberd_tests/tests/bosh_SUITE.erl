@@ -102,17 +102,17 @@ init_per_group(essential, Config) ->
 init_per_group(essential_https, Config) ->
     [{user, carol_s} | Config];
 init_per_group(chat_https, Config) ->
-    Config1 = escalus_users:create_users(Config, {by_name, [carol, carol_s, geralt, alice]}),
+    Config1 = escalus:create_users(Config, escalus:get_users([carol, carol_s, geralt, alice])),
     [{user, carol_s} | Config1];
 init_per_group(_GroupName, Config) ->
-    Config1 = escalus_users:create_users(Config, {by_name, [carol, carol_s, geralt, alice]}),
+    Config1 = escalus:create_users(Config, escalus:get_users([carol, carol_s, geralt, alice])),
     [{user, carol} | Config1].
 
 end_per_group(GroupName, Config)
     when GroupName =:= essential; GroupName =:= essential_https ->
     Config;
 end_per_group(_GroupName, Config) ->
-    R = escalus_users:delete_users(Config, {by_name, [carol, carol_s, geralt, alice]}),
+    R = escalus:delete_users(Config, escalus:get_users([carol, carol_s, geralt, alice])),
     mongoose_helper:clear_last_activity(Config, carol),
     R.
 

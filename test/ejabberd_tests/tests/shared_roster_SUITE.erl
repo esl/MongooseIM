@@ -22,7 +22,7 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml.hrl").
 
--define(USERS, {by_name, [alice, bob]}).
+-define(USERS, [alice, bob]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -56,10 +56,10 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(_, Config) ->
-    escalus:create_users(Config, ?USERS).
+    escalus:create_users(Config, escalus:get_users(?USERS)).
 
 end_per_group(_, Config) ->
-    escalus:delete_users(Config, ?USERS).
+    escalus:delete_users(Config, escalus:get_users(?USERS)).
 
 init_per_testcase(CaseName,Config) ->
     case proplists:get_value(ldap_auth, Config) of
@@ -105,29 +105,29 @@ get_contacts(Config) ->
     end).
 
 delete_user(Config) ->
-    NumOfOtherUsers = length(escalus_users:get_users(?USERS))-2,
+    NumOfOtherUsers = length(escalus_users:get_users(?USERS)) - 2,
     %% wait to invalidate the roster group cache
     timer:sleep(1200),
-    escalus_users:delete_users(Config,{by_name, [bob]}),
-    escalus:story(Config,[{alice, 1}],fun(Alice) ->
+    escalus:delete_users(Config, escalus:get_users([bob])),
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
         escalus_client:send(Alice, escalus_stanza:roster_get()),
         Roster=escalus_client:wait_for_stanza(Alice),
 
-        escalus:assert(is_roster_result,Roster),
-        escalus:assert(count_roster_items,[NumOfOtherUsers],Roster)
+        escalus:assert(is_roster_result, Roster),
+        escalus:assert(count_roster_items, [NumOfOtherUsers], Roster)
     end).
 
 add_user(Config) ->
-    escalus_users:create_users(Config,{by_name, [bob]}),
+    escalus:create_users(Config, escalus:get_users([bob])),
     timer:sleep(1200),
-    escalus:story(Config,[{alice, 1}],fun(Alice) ->
-        NumOfOtherUsers = length(escalus_users:get_users(?USERS))-1,
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+        NumOfOtherUsers = length(escalus_users:get_users(?USERS)) - 1,
 
         escalus_client:send(Alice, escalus_stanza:roster_get()),
         Roster=escalus_client:wait_for_stanza(Alice),
 
-        escalus:assert(is_roster_result,Roster),
-        escalus:assert(count_roster_items,[NumOfOtherUsers],Roster)
+        escalus:assert(is_roster_result, Roster),
+        escalus:assert(count_roster_items, [NumOfOtherUsers], Roster)
     end).
 
 %%--------------------------------------------------------------------

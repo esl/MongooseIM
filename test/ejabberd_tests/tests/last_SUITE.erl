@@ -42,13 +42,13 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(_GroupName, Config0) ->
-    Config1 = escalus:create_users(Config0, {by_name, [alice, bob]}),
+    Config1 = escalus:create_users(Config0, escalus:get_users([alice, bob])),
     Config2 = escalus:make_everyone_friends(Config1),
     escalus_ejabberd:wait_for_session_count(Config2, 0),
     Config2.
 
 end_per_group(_GroupName, Config) ->
-    escalus:delete_users(Config, {by_name, [alice, bob]}).
+    escalus:delete_users(Config, escalus:get_users([alice, bob])).
 
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).

@@ -79,10 +79,10 @@ init_per_suite(Config) ->
     Config1 = ejabberd_node_utils:init(Config0),
     ejabberd_node_utils:backup_config_file(Config1),
     assert_cert_file_exists(),
-    escalus:create_users(Config1, {by_name, [?SECURE_USER, alice]}).
+    escalus:create_users(Config1, escalus:get_users([?SECURE_USER, alice])).
 
 end_per_suite(Config) ->
-    escalus:delete_users(Config, {by_name, [?SECURE_USER, alice]}),
+    escalus:delete_users(Config, escalus:get_users([?SECURE_USER, alice])),
     restore_ejabberd_node(Config),
     escalus:end_per_suite(Config).
 
