@@ -164,5 +164,3 @@ test_deps:
 
 %:
 	@:
-
-include tools/cd_tools/cd-targets
