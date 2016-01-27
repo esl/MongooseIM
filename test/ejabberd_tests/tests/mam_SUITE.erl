@@ -309,7 +309,7 @@ init_per_group(Group, ConfigIn) ->
    B = basic_group(Group),
    case init_modules(C, B, ConfigIn) of
         skip ->
-            {skip, {init_modules, C, B, ConfigIn}};
+            {skip, print_configuration_not_supported(C, B)};
         Config0 ->
             ct:pal("Init per group ~p; configuration ~p; basic group ~p",
                    [Group, C, B]),
@@ -2461,3 +2461,8 @@ stanza_prefs_set_request({DefaultMode, AlwaysUsers, NeverUsers}, Config) ->
 
 users_to_jids(Users, Config) ->
     [escalus_users:get_jid(Config, User) || User <- Users].
+
+print_configuration_not_supported(C, B) ->
+    I = iolib:format("issue=configuration_not_supported, "
+                      "configuration=~p, basic_group=~p", [C, B]),
+     binary_to_list(iolist_to_binary(I)).
