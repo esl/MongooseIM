@@ -13,14 +13,14 @@ compile: rebar
 	./rebar $(OTPS) compile
 
 deps: rebar
-	./rebar get-deps
+	./rebar get-deps > $@.log 2>&1 || (cat $@.log; exit 1)
 
 clean: rebar
 	rm -rf apps/*/logs
 	./rebar clean
 
 quick_compile: rebar
-	./rebar $(OPTS) compile skip_deps=true
+	./rebar $(OPTS) compile skip_deps=true > $@.log 2>&1 || (cat $@.log; exit 1)
 
 reload: quick_compile
 	@E=`ls ./rel/mongooseim/lib/ | grep ejabberd-2 | sort -r | head -n 1` ;\
@@ -31,8 +31,8 @@ reload_dev: quick_compile
 	rsync -uW ./apps/ejabberd/ebin/*beam ./dev/mongooseim_node1/lib/$$E/ebin/ ;\
 
 ct: deps quick_compile
-	@if [ "$(SUITE)" ]; then ./rebar ct suite=$(SUITE) skip_deps=true;\
-	else ./rebar ct skip_deps=true; fi
+	@(if [ "$(SUITE)" ]; then ./rebar ct suite=$(SUITE) skip_deps=true;\
+		else ./rebar ct skip_deps=true; fi) > $@.log 2>&1 || (cat $@.log; exit 1)
 
 # This compiles and runs one test suite. For quick feedback/TDD.
 # Example:
@@ -95,14 +95,15 @@ devrel: certs $(DEVNODES)
 
 $(DEVNODES): rebar deps compile deps_dev
 	@echo "building $@"
-	(cd rel && ../rebar generate -f target_dir=../dev/mongooseim_$@ overlay_vars=./reltool_vars/$@_vars.config)
+	(cd rel && ../rebar generate -f target_dir=../dev/mongooseim_$@ overlay_vars=./reltool_vars/$@_vars.config) \
+		> $@.log 2>&1 || (cat $@.log; exit 1)
 	cp -R `dirname $(shell ./readlink.sh $(shell which erl))`/../lib/tools-* dev/mongooseim_$@/lib/
 
 deps_dev:
 	mkdir -p dev
 
 devclean:
-	rm -rf dev/*
+	-@rm -rf dev/* > /dev/null 2>&1
 
 cover_report: /tmp/mongoose_combined.coverdata
 	erl -noshell -pa apps/*/ebin deps/*/ebin -eval 'ecoveralls:travis_ci("$?"), init:stop()'
