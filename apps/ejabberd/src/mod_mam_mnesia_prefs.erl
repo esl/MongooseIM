@@ -193,12 +193,14 @@ get_prefs({GlobalDefaultMode, _, _}, _Host, _ArcID, ArcJID) ->
                      ArcJID :: ejabberd:jid()) -> 'ok'.
 remove_archive(_Host, _ArcID, ArcJID) ->
     {atomic, ok} = mnesia:transaction(fun() ->
-        case mnesia:read(mam_prefs_user, su_key(ArcJID)) of
+        SU = su_key(ArcJID),
+        case mnesia:read(mam_prefs_user, SU) of
             [] -> ok; %% already deleted
             [#mam_prefs_user{always_rules=ARules, never_rules=NRules}] ->
-                Rules = [key3(ArcJID)] ++ ARules ++ NRules,
-                Keys = [key(ArcJID, Rule) || Rule <- Rules],
+                Rules =  ARules ++ NRules,
+                Keys = [key3(ArcJID)] ++ [key(ArcJID, Rule) || Rule <- Rules],
                 [mnesia:delete(mam_prefs_rule, Key, write) || Key <- Keys],
+                mnesia:delete(mam_prefs_user, SU, write),
                 ok
         end
     end),
