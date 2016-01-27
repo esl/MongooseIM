@@ -10,7 +10,7 @@ DEVNODES = node1 node2
 all: deps compile
 
 compile: rebar
-	./rebar $(OTPS) compile
+	./rebar $(OPTS) compile
 
 deps: rebar
 	./rebar get-deps > $@.log 2>&1 || (cat $@.log; exit 1)
