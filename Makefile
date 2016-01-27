@@ -106,7 +106,8 @@ devclean:
 	-@rm -rf dev/* > /dev/null 2>&1
 
 cover_report: /tmp/mongoose_combined.coverdata
-	erl -noshell -pa apps/*/ebin deps/*/ebin -eval 'ecoveralls:travis_ci("$?"), init:stop()'
+	erl -noshell -pa apps/*/ebin deps/*/ebin -eval 'ecoveralls:travis_ci("$?"), init:stop()' \
+		> $@.log 2>&1 || (cat $@.log; exit 1)
 
 relclean:
 	rm -rf rel/mongooseim
