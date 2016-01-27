@@ -287,8 +287,8 @@ suite() ->
     escalus:suite().
 
 init_per_suite(Config) ->
-    [{escalus_user_db, {module, escalus_ejabberd}}
-     | escalus:init_per_suite(Config)].
+    delete_users([{escalus_user_db, {module, escalus_ejabberd}}
+                  | escalus:init_per_suite(Config)]).
 
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
@@ -300,7 +300,8 @@ create_users(Config) ->
     escalus:create_users(Config, {by_name, user_names()}).
 
 delete_users(Config) ->
-    escalus:delete_users(Config, {by_name, user_names()}).
+    escalus:delete_users(Config, {by_name, user_names()}),
+    Config.
 
 init_per_group(Group, ConfigIn) ->
    C = configuration(Group),
@@ -2380,18 +2381,29 @@ run_prefs_cases(Config) ->
 
 make_alice_and_bob_friends(Alice, Bob) ->
         escalus_client:send(Alice, escalus_stanza:presence_direct(escalus_client:short_jid(Bob), <<"subscribe">>)), 
-        escalus_client:send(Bob, escalus_stanza:presence_direct(escalus_client:short_jid(Alice), <<"subscribe">>)), 
-        escalus_client:send(Alice, escalus_stanza:presence_direct(escalus_client:short_jid(Bob), <<"subscribed">>)), 
+        escalus:wait_for_stanzas(Alice, 1, 5000), % iq set
+        escalus:wait_for_stanzas(Bob, 1, 5000), % presence subscribe
+
         escalus_client:send(Bob, escalus_stanza:presence_direct(escalus_client:short_jid(Alice), <<"subscribed">>)), 
-        escalus:wait_for_stanzas(Alice, 7, 5000),
-        escalus:wait_for_stanzas(Bob, 6, 5000),
+        escalus:wait_for_stanzas(Alice, 3, 5000), % iq set, presence subscribed, presence
+        escalus:wait_for_stanzas(Bob, 1, 5000), % iq set subscription=from
+
+        escalus_client:send(Bob, escalus_stanza:presence_direct(escalus_client:short_jid(Alice), <<"subscribe">>)), 
+        escalus:wait_for_stanzas(Alice, 2, 5000), % iq set subscription=to, presence subscribe
+        escalus:wait_for_stanzas(Bob, 1, 5000), % iq set subscription=from
+
+        escalus_client:send(Alice, escalus_stanza:presence_direct(escalus_client:short_jid(Bob), <<"subscribed">>)), 
+        escalus:wait_for_stanzas(Alice, 1, 5000), % iq set subscription=both
+        escalus:wait_for_stanzas(Bob, 3, 5000), % iq set subscription=both, presence subscribed, presence
         ok.
 
 run_prefs_case({PrefsState, ExpectedMessageStates}, Alice, Bob, Kate, Config) ->
     IqSet = stanza_prefs_set_request(PrefsState, Config),
     escalus:send(Alice, IqSet),
     ReplySet = escalus:wait_for_stanza(Alice),
-    Messages = [iolist_to_binary(io_lib:format("~p", [now()])) || _ <- [1,2,3,4]],
+    Messages = [iolist_to_binary(io_lib:format("n=~p, prefs=~p, now=~p",
+                                               [N, PrefsState, now()]))
+                || N <- [1,2,3,4]],
     %% Messages:
     %% 1. Bob sends a message to Alice
     %% 2. Alice sends a message to Bob
