@@ -124,6 +124,7 @@ stop_muc(Host) ->
 get_behaviour(DefaultBehaviour, _Host, _ArcID,
               LocJID=#jid{},
               RemJID=#jid{}) ->
+    %% Check full JID, bare JID and default for user
     case mnesia:dirty_read(mam_prefs_rule, key1(LocJID, RemJID)) of
         [] ->
             case mnesia:dirty_read(mam_prefs_rule, key2(LocJID, RemJID)) of
@@ -152,13 +153,16 @@ set_prefs(Result, _Host, _ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
                 mnesia:write(#mam_prefs_user{
                              host_user=SU, default_mode=DefaultMode,
                              always_rules=NewARules, never_rules=NewNRules}),
+                set_default_rule(ArcJID, DefaultMode),
                 update_rules(always, ArcJID, [], NewARules),
                 update_rules(never, ArcJID, [], NewNRules),
                 ok;
             [#mam_prefs_user{default_mode=DefaultMode,
                              always_rules=NewARules, never_rules=NewNRules}] ->
                 ok; %% same
-            [#mam_prefs_user{always_rules=OldARules, never_rules=OldNRules}] ->
+            [#mam_prefs_user{default_mode=OldDefaultMode,
+                             always_rules=OldARules, never_rules=OldNRules}] ->
+                update_default_rule(ArcJID, OldDefaultMode, DefaultMode),
                 mnesia:write(#mam_prefs_user{
                              host_user=SU, default_mode=DefaultMode,
                              always_rules=NewARules, never_rules=NewNRules}),
@@ -203,18 +207,21 @@ remove_archive(_Host, _ArcID, ArcJID) ->
 %% ----------------------------------------------------------------------
 %% Helpers
 
+%% @doc Key for full remote jid
 -spec key1(ejabberd:jid(), ejabberd:jid()) -> {ls(), lu(), lu(), ls(), lr()}.
 key1(#jid{lserver=LocLServer, luser=LocLUser},
-     #jid{lserver=RemLUser, server=RemLServer, lresource=RemLResource}) ->
-    {LocLServer, LocLUser, RemLUser, RemLServer, RemLResource}.
+     #jid{lserver=RemLServer, luser=RemLUser, lresource=RemLResource}) ->
+    {LocLServer, LocLUser, RemLServer, RemLUser, RemLResource}.
 
 
+%% @doc Key for bare remote jid
 -spec key2(ejabberd:jid(), ejabberd:jid()) -> {ls(), lu(), lu(), ls()}.
 key2(#jid{lserver=LocLServer, luser=LocLUser},
-     #jid{lserver=RemLUser, server=RemLServer}) ->
-    {LocLServer, LocLUser, RemLUser, RemLServer}.
+     #jid{lserver=RemLServer, luser=RemLUser}) ->
+    {LocLServer, LocLUser, RemLServer, RemLUser}.
 
 
+%% @doc Key for default params
 -spec key3(ejabberd:jid()) -> {ls(), lu()}.
 key3(#jid{lserver=LocLServer, luser=LocLUser}) ->
     {LocLServer, LocLUser}.
@@ -229,9 +236,9 @@ su_key(#jid{lserver=LocLServer, luser=LocLUser}) ->
 -spec key(ejabberd:jid(), {ls(), lu()} | {ls(), lu(), lr()})
             -> {ls(), lu(), ls(), lu()} | {ls(), lu(), ls(), lu(), lr()}.
 key(#jid{lserver=LocLServer, luser=LocLUser}, {RemLServer, RemLUser}) ->
-    {LocLServer, LocLUser, RemLServer, RemLUser}; %% key1
+    {LocLServer, LocLUser, RemLServer, RemLUser}; %% key2
 key(#jid{lserver=LocLServer, luser=LocLUser}, {RemLServer, RemLUser, RemLResource}) ->
-    {LocLServer, LocLUser, RemLServer, RemLUser, RemLResource}. %% key2
+    {LocLServer, LocLUser, RemLServer, RemLUser, RemLResource}. %% key1
 
 
 -spec jids([{ls(),lu()} | {ls(),lu(),lr()}]) -> [ejabberd:literal_jid()].
@@ -269,3 +276,11 @@ update_rules(Mode, ArcJID, OldNRules, NewNRules) ->
     [mnesia:delete(mam_prefs_rule, Key, write) || Key <- DelKeys],
     [mnesia:write(#mam_prefs_rule{key=Key, behaviour=Mode}) || Key <- InsKeys],
     ok.
+
+set_default_rule(ArcJID, DefaultMode) ->
+    mnesia:write(#mam_prefs_rule{key=key3(ArcJID), behaviour=DefaultMode}).
+
+update_default_rule(ArcJID, DefaultMode, DefaultMode) ->
+    ok; % same default mode
+update_default_rule(ArcJID, _OldDefaultMode, DefaultMode) ->
+    set_default_rule(ArcJID, DefaultMode).
