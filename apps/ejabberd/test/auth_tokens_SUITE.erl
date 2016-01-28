@@ -6,8 +6,8 @@
 -include_lib("proper/include/proper.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--include("jlib.hrl").
--include("mod_auth_token.hrl").
+-include_lib("ejabberd/include/jlib.hrl").
+-include_lib("ejabberd/src/mod_auth_token.hrl").
 
 -import(prop_helper, [prop/2]).
 
