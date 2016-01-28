@@ -226,7 +226,7 @@ post_insert_line_numbers_into_report(State=#state{node=Node, reader=Reader, writ
     State#state{current_line_num=CurrentLineNum2}.
 
 open_out_file(OutFile) ->
-    open_file_without_linking(node(), OutFile, [write]).
+    open_file_without_linking(node(), OutFile, [write, delayed_write]).
 
 %% @doc Open file. The caller process will not be monitored by file_server.
 %% So, the file is not closed in case the parent process dies.
