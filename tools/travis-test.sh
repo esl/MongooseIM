@@ -27,7 +27,9 @@ ${EJD1CTL} ping
 echo -n "pinging MongooseIM node 2: "
 ${EJD2CTL} ping
 
+tools/print-dots.sh start
 make cover_test_preset TESTSPEC=default.spec PRESET=$PRESET
+tools/print-dots.sh stop
 
 RAN_TESTS=`cat /tmp/ct_count`
 
