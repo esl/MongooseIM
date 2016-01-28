@@ -64,7 +64,8 @@
          muc_querying_for_all_messages/1,
          muc_querying_for_all_messages_with_jid/1,
          iq_spoofing/1,
-         run_prefs_cases/1]).
+         run_prefs_cases/1,
+         run_set_and_get_prefs_cases/1]).
 
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
@@ -217,7 +218,8 @@ basic_groups() ->
      {rsm,              [], rsm_cases()},
      {muc_rsm,          [], muc_rsm_cases()},
      {with_rsm,         [], with_rsm_cases()},
-     {prefs_cases,      [], [run_prefs_cases]}].
+     {prefs_cases,      [], [run_prefs_cases,
+                             run_set_and_get_prefs_cases]}].
 
 bootstrapped_cases() ->
      [purge_old_single_message,
@@ -1944,7 +1946,8 @@ parse_prefs_result_iq(#xmlel{name = <<"iq">>, children = Children}) ->
 
 
 parse_jids(Els) ->
-    [JID || #xmlel{name = <<"jid">>, children = [{xmlcdata, JID}]} <- Els].
+    [escalus_utils:jid_to_lower(JID) %% MongooseIM normalizes JIDs
+     || #xmlel{name = <<"jid">>, children = [{xmlcdata, JID}]} <- Els].
 
 %% <iq type='error' id='q29302'>
 %%   <error type='modify'>
@@ -2466,3 +2469,24 @@ print_configuration_not_supported(C, B) ->
     I = io_lib:format("issue=configuration_not_supported, "
                        "configuration=~p, basic_group=~p", [C, B]),
      binary_to_list(iolist_to_binary(I)).
+
+%% The same as prefs_set_request case but for different configurations
+run_set_and_get_prefs_cases(Config) ->
+    F = fun(Alice) ->
+        [run_set_and_get_prefs_case(Case, Alice, Config) || Case <- prefs_cases()]
+        end,
+    escalus:story(Config, [{alice, 1}], F).
+
+%% Alice sets and gets her preferences
+run_set_and_get_prefs_case({PrefsState, _ExpectedMessageStates}, Alice, Config) ->
+    IqSet = stanza_prefs_set_request(PrefsState, Config),
+    escalus:send(Alice, IqSet),
+    ReplySet = escalus:wait_for_stanza(Alice),
+
+    escalus:send(Alice, stanza_prefs_get_request()),
+    ReplyGet = escalus:wait_for_stanza(Alice),
+
+    ResultIQ1 = parse_prefs_result_iq(ReplySet),
+    ResultIQ2 = parse_prefs_result_iq(ReplyGet),
+    ?assert_equal(ResultIQ1, ResultIQ2),
+    ok.
