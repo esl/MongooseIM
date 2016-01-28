@@ -203,7 +203,7 @@ create_shaper(Key) ->
     shaper:new(request_shaper_name(Key)).
 
 
--spec request_shaper_name(key()) -> 'allow' | 'none'.
+-spec request_shaper_name(key()) -> atom().
 request_shaper_name({Host, Action, FromJID}) ->
     get_shaper_name(Host, Action, FromJID, default_shaper()).
 

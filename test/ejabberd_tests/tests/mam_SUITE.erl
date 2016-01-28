@@ -290,11 +290,12 @@ suite() ->
     escalus:suite().
 
 init_per_suite(Config) ->
-    delete_users([{escalus_user_db, {module, escalus_ejabberd}}
-                  | escalus:init_per_suite(Config)]).
+    disable_shaping(
+      delete_users([{escalus_user_db, {module, escalus_ejabberd}}
+                  | escalus:init_per_suite(Config)])).
 
 end_per_suite(Config) ->
-    escalus:end_per_suite(Config).
+    escalus:end_per_suite(restore_shaping(Config)).
 
 user_names() ->
     [alice, bob, kate].
@@ -305,6 +306,23 @@ create_users(Config) ->
 delete_users(Config) ->
     escalus:delete_users(Config, {by_name, user_names()}),
     Config.
+
+disable_shaping(Config) ->
+    OldShaper = get_shaper(),
+    set_shaper({maxrate, 100}),
+    [{old_mam_shaper, OldShaper}|Config].
+
+restore_shaping(Config) ->
+    OldShaper = proplists:get_value(old_mam_shaper, Config),
+    set_shaper(OldShaper),
+    Config.
+
+get_shaper() ->
+    rpc_apply(ejabberd_config, get_global_option, [{shaper, mam_shaper, global}]).
+
+set_shaper(NewValue) ->
+    rpc_apply(ejabberd_config, add_global_option, [{shaper, mam_shaper, global}, NewValue]),
+    rpc_apply(shaper_srv, reset_all_shapers, [host()]).
 
 init_per_group(Group, ConfigIn) ->
    C = configuration(Group),
