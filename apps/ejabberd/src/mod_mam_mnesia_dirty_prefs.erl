@@ -186,8 +186,8 @@ set_prefs(Result, _Host, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
 -spec get_prefs(mod_mam:preference(), _Host :: ejabberd:server(),
                 _ArcId :: mod_mam:archive_id(), ArcJID :: ejabberd:jid()
                 ) -> mod_mam:preference().
-get_prefs({GlobalDefaultMode, _, _}, _Host, _ArcID, ArcJID) ->
-    case mnesia:dirty_read(mam_prefs, su_key(ArcJID)) of
+get_prefs({GlobalDefaultMode, _, _}, _Host, ArcID, ArcJID) ->
+    case mnesia:dirty_read(mam_prefs, ArcID) of
         [] ->
             {GlobalDefaultMode, [], []};
         [#mam_prefs{default_mode=DefaultMode,
