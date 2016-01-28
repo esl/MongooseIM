@@ -2481,7 +2481,7 @@ run_set_and_get_prefs_cases(Config) ->
 run_set_and_get_prefs_case({PrefsState, _ExpectedMessageStates}, Alice, Config) ->
     IqSet = stanza_prefs_set_request(PrefsState, Config),
     escalus:send(Alice, IqSet),
-    ReplySet = escalus:wait_for_stanza(Alice),
+    ReplySet = escalus:wait_for_stanza(Alice, 5000),
 
     escalus:send(Alice, stanza_prefs_get_request()),
     ReplyGet = escalus:wait_for_stanza(Alice),
