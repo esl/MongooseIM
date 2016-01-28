@@ -517,6 +517,7 @@ init_modules(odbc_async, _, Config) ->
     Config;
 init_modules(riak_timed_yz_buckets, _, Config) ->
     init_module(host(), mod_mam_riak_timed_arch_yz, [pm, muc]),
+    init_module(host(), mod_mam_mnesia_prefs, [pm, muc]),
     init_module(host(), mod_mam, []),
     init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
     Config;
