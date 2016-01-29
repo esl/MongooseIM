@@ -112,7 +112,10 @@
 %% You can define one or several, for example:
 %% {hosts, ["example.net", "example.com", "example.org"]}.
 %%
-{hosts, {{hosts}} }.
+{hosts, ["localhost",
+          "anonymous.localhost",
+          "localhost.bis"
+         ] }.
 
 %%
 %% route_subdomains: Delegate subdomains to other XMPP servers.
@@ -132,7 +135,7 @@
 {listen,
  [
   %% BOSH and WS endpoints over HTTP
-  { {{cowboy_port}}, ejabberd_cowboy, [
+  { 5280, ejabberd_cowboy, [
       {num_acceptors, 10},
       {max_connections, 1024},
       {modules, [
@@ -149,10 +152,10 @@
   ]},
 
   %% BOSH and WS endpoints over HTTPS
-  { {{cowboy_port_secure}}, ejabberd_cowboy, [
+  { 5285, ejabberd_cowboy, [
         {num_acceptors, 10},
         {max_connections, 1024},
-        {{https_config}}
+        {cert, "priv/ssl/fake_cert.pem"}, {key, "priv/ssl/fake_key.pem"}, {key_pass, ""},
         {modules, [
             {"_", "/http-bind", mod_bosh},
             {"_", "/ws-xmpp", mod_websockets, [
@@ -170,7 +173,7 @@
   %% or some private interface only (not accessible from the outside)
   %% At least start it on different port which will be hidden behind firewall
 
-  { {{http_api_endpoint}} , ejabberd_cowboy, [
+  { {5288, "127.0.0.1"} , ejabberd_cowboy, [
       {num_acceptors, 10},
       {max_connections, 1024},
       {modules, [
@@ -179,15 +182,15 @@
       ]}
   ]},
 
-  { {{ejabberd_c2s_port}}, ejabberd_c2s, [
+  { 5222, ejabberd_c2s, [
 
 			%%
 			%% If TLS is compiled in and you installed a SSL
 			%% certificate, specify the full path to the
 			%% file and uncomment this line:
 			%%
-                        {{tls_config}}
-                        {{zlib}}
+                        {certfile, "priv/ssl/fake_server.pem"}, starttls,
+                        {zlib, 10000},
 			%% https://www.openssl.org/docs/apps/ciphers.html#CIPHER_STRINGS
 			%% {ciphers, "DEFAULT:!EXPORT:!LOW:!SSLv2"},
 			{access, c2s},
@@ -195,7 +198,12 @@
 			{max_stanza_size, 65536}
 		       ]},
 
-  {{secondary_c2s}}
+  { 5223, ejabberd_c2s, [
+    {zlib, 4096},
+    {access, c2s},
+        {shaper, c2s_shaper},
+        {max_stanza_size, 65536}
+    ]},
 
   %%
   %% To enable the old SSL connection method on port 5223:
@@ -207,7 +215,7 @@
   %%			{max_stanza_size, 65536}
   %%		       ]},
 
-  { {{ejabberd_s2s_in_port}}, ejabberd_s2s_in, [
+  { 5269, ejabberd_s2s_in, [
 			   {shaper, s2s_shaper},
 			   {max_stanza_size, 131072}
 			  ]}
@@ -236,11 +244,11 @@
 %% Allowed values are: false optional required required_trusted
 %% You must specify a certificate file.
 %%
-{{s2s_use_starttls}}
+{s2s_use_starttls, optional}.
 %%
 %% s2s_certfile: Specify a certificate file.
 %%
-{{s2s_certfile}}
+{s2s_certfile, "priv/ssl/fake_server.pem"}.
 
 %% https://www.openssl.org/docs/apps/ciphers.html#CIPHER_STRINGS
 %% {s2s_ciphers, "DEFAULT:!EXPORT:!LOW:!SSLv2"}.
@@ -256,7 +264,7 @@
 %%
 %% Default s2s policy for undefined hosts.
 %%
-{s2s_default_policy, {{s2s_default_policy}} }.
+{s2s_default_policy, allow }.
 
 %%
 %% Allow or deny communication with specific servers.
@@ -264,7 +272,7 @@
 %%{ {s2s_host, "goodhost.org"}, allow}.
 %%{ {s2s_host, "badhost.org"}, deny}.
 
-{outgoing_s2s_port, {{outgoing_s2s_port}} }.
+{outgoing_s2s_port, 5279 }.
 
 %%
 %% IP addresses predefined for specific hosts to skip DNS lookups.
@@ -273,7 +281,7 @@
 %%
 %% { {s2s_addr, "example-host.net"}, {127,0,0,1} }.
 %% { {s2s_addr, "example-host.net"}, { {127,0,0,1}, 5269 } }.
-{{s2s_addr}}
+{ {s2s_addr, "localhost2"}, {127,0,0,1} }.
 
 %%
 %% Outgoing S2S options
@@ -289,7 +297,7 @@
 %%{sm_backend, {mnesia, []}}.
 
 %%{sm_backend, {redis, [{pool_size, 3}, {worker_config, [{host, "localhost"}, {port, 6379}]}]}}.
-{sm_backend, {{sm_backend}} }.
+{sm_backend, {mnesia, []} }.
 
 
 %%%.   ==============
@@ -301,14 +309,14 @@
 %% If you want to use a different method,
 %% comment this line and enable the correct ones.
 %%
-{auth_method, {{auth_method}} }.
+{auth_method, internal }.
 {auth_opts, [
              %% Store the plain passwords or hashed for SCRAM:
              %% {password_format, plain} % default
              %% {password_format, scram}
-             {{password_format}}
+             
              %% {scram_iterations, 4096} % default
-             {{scram_iterations}}
+             
              %%
              %% For auth_http:
              %% {host, IP | Hostname}
@@ -318,9 +326,8 @@
              %% {path_prefix, "/"} % default
              %%
              %% For auth_external
-             {{ext_auth_script}}
+             %%{extauth_program, "/path/to/authentication/script"}.
             ]}.
-
 
 %%
 %% Authentication using external script
@@ -339,7 +346,7 @@
 %%
 %%{auth_method, ldap}.
 %%
-{{auth_ldap}}
+
 %% List of LDAP servers:
 %%{ldap_servers, ["localhost"]}.
 %%
@@ -379,7 +386,9 @@
 %% To use both anonymous and internal authentication:
 %%
 %%{host_config, "public.example.org", [{auth_method, [internal, anonymous]}]}.
-{{host_config}}
+{host_config, "anonymous.localhost", [{auth_method, anonymous},
+                                        {allow_multiple_connections, true},
+                                        {anonymous_protocol, both}]}.
 
 %%%.   ==============
 %%%'   DATABASE SETUP
@@ -393,7 +402,7 @@
 %%
 %% MySQL server:
 %%
-{{odbc_server}}
+
 %%
 %% If you want to specify the port:
 %%{odbc_server, {mysql, "server", 1234, "database", "username", "password"}}.
@@ -404,7 +413,7 @@
 %%{odbc_server, {pgsql, "server", "database", "username", "password"}}.
 %%
 %% If you want to specify the port:
-%%{odbc_server, {pgsql, "server", 1234, "database", "username", "password"}}.
+{odbc_server, {pgsql, "localhost", "eslmongooseim", "eslmongooseim", "eslpassword"}}.
 %%
 %% If you use PostgreSQL, have a large database, and need a
 %% faster but inexact replacement for "select count(*) from users"
@@ -419,7 +428,7 @@
 %% Specifies what database is used over the ODBC layer
 %% Can take values odbc, pgsql, mysql
 %% In some cases (for example for MAM with pgsql) it is required to set proper value.
-{{odbc_server_type}}
+%% {odbc_server_type, odbc}.
 %%
 %% Number of connections to open to the database for each virtual host
 %%
@@ -429,7 +438,7 @@
 %%% RIAK SETUP
 %%% ====================
 
-{{riak_server}}
+%%{riak_server, [{pool_size, 20}, {address, "127.0.0.1"}, {port, 8087}, {riak_pb_socket_opts, []}]}.
 
 %%
 %% Interval to make a dummy SQL request to keep the connections to the
@@ -607,9 +616,9 @@
   %{mod_admin_extra, [{submods, [node, accounts, sessions, vcard,
   %                              roster, last, private, stanza, stats]}]},
   {mod_adhoc, []},
-  {{mod_amp}}
+  {mod_amp, []},
   {mod_disco, []},
-  {{mod_last}}
+  {mod_last, []},
   {mod_stream_management, [
                            % default 100
                            % size of a buffer of unacked messages
@@ -631,9 +640,9 @@
         {outdir, "/tmp/muclogs"},
         {access_log, muc}
         ]},
-  {{mod_offline}}
-  {{mod_privacy}}
-  {{mod_private}}
+  {mod_offline, [{access_max_user_messages, max_user_offline_messages}]},
+  {mod_privacy, []},
+  {mod_private, []},
 % {mod_private, [{backend, mnesia}]},
 % {mod_private, [{backend, odbc}]},
   {mod_register, [
@@ -652,7 +661,7 @@
 		  %% When a user registers, send a notification to
 		  %% these XMPP accounts.
 		  %%
-                  {{registration_watchers}}
+                  {registration_watchers, ["admin@localhost"]},
 
 		  %%
 		  %% Only clients in the server machine can register accounts
@@ -667,9 +676,12 @@
 
 		  {access, register}
 		 ]},
-  {{mod_roster}}
+  {mod_roster, []},
   {mod_sic, []},
-  {{mod_vcard}}
+  {mod_vcard, [ %{matches, 1},
+%{search, true},
+%{host, directory.@HOST@}
+]},
   {mod_bosh, []},
   {mod_websockets, []},
   {mod_carboncopy, []},
@@ -784,22 +796,17 @@
   %% Ephemeral / persistent key storage
   {mod_keystore, [{keys, [
                           {token_secret, ram},
-                          %% This is a hack for tests! As the name implies,
-                          %% a pre-shared key should be read from a file stored
-                          %% on disk. This way it can be shared with trusted 3rd
-                          %% parties who can use it to sign tokens for users
-                          %% to authenticate with and MongooseIM to verify.
                           {provision_pre_shared, ram}
                          ]}]},
 
-  %% Token based authentication, requires mod_keystore
+  %% Token based authentication, require mod_keystore
   {mod_auth_token, [{ {validity_period, access}, {60, minutes} },
                     { {validity_period, refresh}, {1, days} }]
   }
 
  ]}.
 
-{{module_host_config}}
+
 %%
 %% Enable modules with custom options in a specific virtual host
 %%

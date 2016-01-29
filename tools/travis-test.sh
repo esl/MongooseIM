@@ -11,7 +11,7 @@ echo "Running embeded common tests"
 echo "############################"
 
 make ct
-EMBEDED_CT_STATUS=$?
+SMALL_STATUS=$?
 
 echo "############################"
 echo "Running ejabberd_tests"
@@ -27,7 +27,9 @@ ${EJD1CTL} ping
 echo -n "pinging MongooseIM node 2: "
 ${EJD2CTL} ping
 
+tools/print-dots.sh start
 make cover_test_preset TESTSPEC=default.spec PRESET=$PRESET
+tools/print-dots.sh stop
 
 RAN_TESTS=`cat /tmp/ct_count`
 
@@ -43,19 +45,20 @@ else
 fi
 
 ${TOOLS}/summarise-ct-results ${SUMMARIES_DIR}
-CT_STATUS=$?
+BIG_STATUS=$?
 
 echo
 echo "All tests done."
-TEST_STATUSES="${EMBEDED_CT_STATUS}${CT_STATUS}"
 
-if [ ${TEST_STATUSES} = "00" ]
+if [ $SMALL_STATUS -eq 0 -a $BIG_STATUS -eq 0 ]
 then
     RESULT=0
     echo "Build succeeded"
 else
     RESULT=1
-    echo "Build failed - ${TEST_STATUSES}"
+    echo "Build failed:"
+    [ $SMALL_STATUS -ne 0 ] && echo "    small tests failed"
+    [ $BIG_STATUS -ne 0 ]   && echo "    big tests failed"
 fi
 
 exit ${RESULT}
