@@ -62,12 +62,14 @@ stop(Host) ->
 -spec start_pm(ejabberd:server(),_) -> 'ok'.
 start_pm(Host, _Opts) ->
     ejabberd_hooks:add(mam_archive_id, Host, ?MODULE, archive_id, 50),
+    ejabberd_hooks:add(mam_remove_archive, Host, ?MODULE, remove_archive, 90),
     ok.
 
 
 -spec stop_pm(ejabberd:server()) -> 'ok'.
 stop_pm(Host) ->
     ejabberd_hooks:delete(mam_archive_id, Host, ?MODULE, archive_id, 50),
+    ejabberd_hooks:delete(mam_remove_archive, Host, ?MODULE, remove_archive, 90),
     ok.
 
 
@@ -77,12 +79,14 @@ stop_pm(Host) ->
 -spec start_muc(ejabberd:server(),_) -> 'ok'.
 start_muc(Host, _Opts) ->
     ejabberd_hooks:add(mam_muc_archive_id, Host, ?MODULE, archive_id, 50),
+    ejabberd_hooks:add(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 90),
     ok.
 
 
 -spec stop_muc(ejabberd:server()) -> 'ok'.
 stop_muc(Host) ->
     ejabberd_hooks:delete(mam_muc_archive_id, Host, ?MODULE, archive_id, 50),
+    ejabberd_hooks:delete(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 90),
     ok.
 
 
