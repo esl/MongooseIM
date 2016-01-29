@@ -88,11 +88,13 @@ stop_server(_Host) ->
 start_muc(Host, _Opts) ->
     ejabberd_hooks:add(mam_muc_archive_id, Host, ?MODULE, cached_archive_id, 30),
     ejabberd_hooks:add(mam_muc_archive_id, Host, ?MODULE, store_archive_id, 70),
+    ejabberd_hooks:add(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 100),
     ok.
 
 stop_muc(Host) ->
     ejabberd_hooks:delete(mam_muc_archive_id, Host, ?MODULE, cached_archive_id, 30),
     ejabberd_hooks:delete(mam_muc_archive_id, Host, ?MODULE, store_archive_id, 70),
+    ejabberd_hooks:delete(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 100),
     ok.
 
 

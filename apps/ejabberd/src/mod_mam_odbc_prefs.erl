@@ -111,12 +111,13 @@ stop_muc(Host) ->
 get_behaviour(DefaultBehaviour, Host, UserID, _LocJID, RemJID) ->
     RemLJID      = jid:to_lower(RemJID),
     SRemLBareJID = esc_jid(jid:to_bare(RemLJID)),
-    SRemLJID     = esc_jid(jid:to_lower(RemJID)),
+    SRemLJID     = esc_jid(RemLJID),
     SUserID      = integer_to_list(UserID),
     case query_behaviour(Host, SUserID, SRemLJID, SRemLBareJID) of
-        {selected, ["behaviour"], [{Behavour}]} ->
+        {selected, [<<"behaviour">>], [{Behavour}]} ->
             decode_behaviour(Behavour);
-        _ -> DefaultBehaviour
+        {selected, [<<"behaviour">>], []} ->
+            DefaultBehaviour
     end.
 
 
