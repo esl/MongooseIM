@@ -150,7 +150,6 @@ odbc_configs(true) ->
     [odbc,
      odbc_async_pool,
      odbc_mnesia,
-     odbc_dirty_mnesia,
      odbc_async_cache,
      odbc_cache,
      odbc_mnesia_cache,
@@ -388,14 +387,6 @@ init_modules(odbc_mnesia, muc_with_pm, Config) ->
     init_module(host(), mod_mam, []),
     init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
     Config;
-init_modules(odbc_dirty_mnesia, muc_with_pm, Config) ->
-    init_module(host(), mod_mam_muc_odbc_arch, []),
-    init_module(host(), mod_mam_odbc_arch, [pm]),
-    init_module(host(), mod_mam_mnesia_dirty_prefs, [muc, pm]),
-    init_module(host(), mod_mam_odbc_user, [muc, pm]),
-    init_module(host(), mod_mam, []),
-    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
-    Config;
 init_modules(odbc_cache, muc_with_pm, Config) ->
     init_module(host(), mod_mam_muc_odbc_arch, []),
     init_module(host(), mod_mam_odbc_arch, [pm]),
@@ -458,12 +449,6 @@ init_modules(odbc_async_pool, muc, Config) ->
 init_modules(odbc_mnesia, muc, Config) ->
     init_module(host(), mod_mam_muc_odbc_arch, []),
     init_module(host(), mod_mam_mnesia_prefs, [muc]),
-    init_module(host(), mod_mam_odbc_user, [muc]),
-    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
-    Config;
-init_modules(odbc_dirty_mnesia, muc, Config) ->
-    init_module(host(), mod_mam_muc_odbc_arch, []),
-    init_module(host(), mod_mam_mnesia_dirty_prefs, [muc]),
     init_module(host(), mod_mam_odbc_user, [muc]),
     init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
     Config;
@@ -534,12 +519,6 @@ init_modules(odbc_mnesia, _, Config) ->
     init_module(host(), mod_mam_mnesia_prefs, [pm]),
     init_module(host(), mod_mam_odbc_user, [pm]),
     Config;
-init_modules(odbc_dirty_mnesia, _, Config) ->
-    init_module(host(), mod_mam, []),
-    init_module(host(), mod_mam_odbc_arch, [pm]),
-    init_module(host(), mod_mam_mnesia_dirty_prefs, [pm]),
-    init_module(host(), mod_mam_odbc_user, [pm]),
-    Config;
 init_modules(odbc_cache, _, Config) ->
     init_module(host(), mod_mam, []),
     init_module(host(), mod_mam_odbc_arch, [pm]),
@@ -582,7 +561,6 @@ mam_modules() ->
      mod_mam_muc_odbc_async_pool_writer,
      mod_mam_odbc_prefs,
      mod_mam_mnesia_prefs,
-     mod_mam_mnesia_dirty_prefs,
      mod_mam_odbc_user,
      mod_mam_cache_user,
      mod_mam_muc_cache_user,
