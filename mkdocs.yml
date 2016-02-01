@@ -36,6 +36,7 @@ pages:
       - 'mod_privacy': 'modules/mod_privacy.md'
       - 'mod_private': 'modules/mod_private.md'
       - 'mod_register': 'modules/mod_register.md'
+      - 'mod_revproxy': 'modules/mod_revproxy.md'
       - 'mod_roster': 'modules/mod_roster.md'
       - 'mod_shared_roster_ldap': 'modules/mod_shared_roster_ldap.md'
       - 'mod_sic': 'modules/mod_sic.md'
