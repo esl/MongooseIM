@@ -24,5 +24,5 @@ use_config_file(Config, ConfigFile) ->
 -spec start_ejabberd_with_config(any(), file:name_all()) -> ok.
 start_ejabberd_with_config(Config, ConfigFile) ->
     use_config_file(Config, ConfigFile),
-    ok = start_ejabberd(Config).
+    {ok, _} = start_ejabberd(Config).
 
