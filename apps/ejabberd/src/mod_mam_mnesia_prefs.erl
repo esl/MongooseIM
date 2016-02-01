@@ -7,7 +7,7 @@
 %%% All operations are dirty.
 %%% @end
 %%%-------------------------------------------------------------------
--module(mod_mam_mnesia_dirty_prefs).
+-module(mod_mam_mnesia_prefs).
 
 %% ----------------------------------------------------------------------
 %% Exports
