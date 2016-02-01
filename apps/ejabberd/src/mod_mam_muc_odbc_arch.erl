@@ -656,25 +656,14 @@ maybe_encode_compact_uuid(Microseconds, NodeID) ->
 %% Optimizations
 
 packet_to_stored_binary(Packet) ->
-    case odbc_message_format() of
-        compressed_term ->
-            term_to_binary(Packet, [compressed]);
-        term ->
-            term_to_binary(Packet, []);
-        xml ->
-            exml:to_binary(Packet)
-    end.
+    %% Module implementing mam_message behaviour
+    Module = odbc_message_format(),
+    Module:encode(Packet).
 
 stored_binary_to_packet(Bin) ->
-    case odbc_message_format() of
-        compressed_term ->
-            binary_to_term(Bin);
-        term ->
-            binary_to_term(Bin);
-        xml ->
-            {ok, Packet} = exml:parse(Bin),
-            Packet
-    end.
+    %% Module implementing mam_message behaviour
+    Module = odbc_message_format(),
+    Module:decode(Bin).
 
 select_table(N) ->
     case hand_made_partitions() of
@@ -690,10 +679,9 @@ partition_count() ->
 %% ----------------------------------------------------------------------
 %% Dynamic params module
 
-%% Default variant comes first (mini|regular - mini is default).
 %% compile([
-%%      {odbc_message_format, compressed_term|term|xml},
-%%      {hand_made_partitions, false|true},
+%%      {odbc_message_format, module()},
+%%      {hand_made_partitions, boolean()},
 %%      ])
 compile_params_module(Params) ->
     CodeStr = params_helper(expand_simple_param(Params)),
@@ -707,7 +695,7 @@ expand_simple_param(Params) ->
                   end, Params).
 
 simple_params() ->
-    [{odbc_message_format, xml}].
+    [{odbc_message_format, mam_message_xml}].
 
 params_helper(Params) ->
     binary_to_list(iolist_to_binary(io_lib:format(
@@ -715,7 +703,7 @@ params_helper(Params) ->
         "-compile(export_all).~n"
         "odbc_message_format() -> ~p.~n"
         "hand_made_partitions() -> ~p.~n",
-        [proplists:get_value(odbc_message_format, Params, compressed_term),
+        [proplists:get_value(odbc_message_format, Params, mam_message_compressed_eterm),
          proplists:get_bool(hand_made_partitions, Params)]))).
 
 -spec odbc_message_format() -> compressed_term|term|xml.
