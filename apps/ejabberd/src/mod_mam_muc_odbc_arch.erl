@@ -657,12 +657,12 @@ maybe_encode_compact_uuid(Microseconds, NodeID) ->
 
 packet_to_stored_binary(Packet) ->
     %% Module implementing mam_message behaviour
-    Module = odbc_message_format(),
+    Module = db_message_format(),
     Module:encode(Packet).
 
 stored_binary_to_packet(Bin) ->
     %% Module implementing mam_message behaviour
-    Module = odbc_message_format(),
+    Module = db_message_format(),
     Module:decode(Bin).
 
 select_table(N) ->
@@ -680,7 +680,7 @@ partition_count() ->
 %% Dynamic params module
 
 %% compile([
-%%      {odbc_message_format, module()},
+%%      {db_message_format, module()},
 %%      {hand_made_partitions, boolean()},
 %%      ])
 compile_params_module(Params) ->
@@ -695,20 +695,20 @@ expand_simple_param(Params) ->
                   end, Params).
 
 simple_params() ->
-    [{odbc_message_format, mam_message_xml}].
+    [{db_message_format, mam_message_xml}].
 
 params_helper(Params) ->
     binary_to_list(iolist_to_binary(io_lib:format(
         "-module(mod_mam_muc_odbc_arch_params).~n"
         "-compile(export_all).~n"
-        "odbc_message_format() -> ~p.~n"
+        "db_message_format() -> ~p.~n"
         "hand_made_partitions() -> ~p.~n",
-        [proplists:get_value(odbc_message_format, Params, mam_message_compressed_eterm),
+        [proplists:get_value(db_message_format, Params, mam_message_compressed_eterm),
          proplists:get_bool(hand_made_partitions, Params)]))).
 
--spec odbc_message_format() -> compressed_term|term|xml.
-odbc_message_format() ->
-    mod_mam_muc_odbc_arch_params:odbc_message_format().
+-spec db_message_format() -> compressed_term|term|xml.
+db_message_format() ->
+    mod_mam_muc_odbc_arch_params:db_message_format().
 
 -spec hand_made_partitions() -> boolean().
 hand_made_partitions() ->

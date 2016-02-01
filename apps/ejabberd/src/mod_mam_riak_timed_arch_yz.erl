@@ -462,19 +462,19 @@ maybe_encode_compact_uuid(Microseconds, NodeID) ->
 
 packet_to_stored_binary(Packet) ->
     %% Module implementing mam_message behaviour
-    Module = odbc_message_format(),
+    Module = db_message_format(),
     Module:encode(Packet).
 
 stored_binary_to_packet(Bin) ->
     %% Module implementing mam_message behaviour
-    Module = odbc_message_format(),
+    Module = db_message_format(),
     Module:decode(Bin).
 
 %% ----------------------------------------------------------------------
 %% Dynamic params module
 
 %% compile_params_module([
-%%      {odbc_message_format, module()}
+%%      {db_message_format, module()}
 %%      ])
 compile_params_module(Params) ->
     CodeStr = params_helper(Params),
@@ -485,9 +485,9 @@ params_helper(Params) ->
     binary_to_list(iolist_to_binary(io_lib:format(
         "-module(mod_mam_riak_timed_arch_yz_params).~n"
         "-compile(export_all).~n"
-        "odbc_message_format() -> ~p.~n",
-        [proplists:get_value(odbc_message_format, Params, mam_message_xml)]))).
+        "db_message_format() -> ~p.~n",
+        [proplists:get_value(db_message_format, Params, mam_message_xml)]))).
 
--spec odbc_message_format() -> module().
-odbc_message_format() ->
-    mod_mam_riak_timed_arch_yz_params:odbc_message_format().
+-spec db_message_format() -> module().
+db_message_format() ->
+    mod_mam_riak_timed_arch_yz_params:db_message_format().
