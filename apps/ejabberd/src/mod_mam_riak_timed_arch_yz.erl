@@ -53,6 +53,7 @@
 %%
 %% Use both options `pm, muc' to archive both MUC and private messages
 start(Host, Opts) ->
+    compile_params_module(Opts),
     case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
         true ->
             start_chat_archive(Host, Opts);
