@@ -822,7 +822,7 @@ querying_for_all_messages_with_jid(Config) ->
         WithBob = [1 || {_, _, {JID, _, _}, _, _} <- Pregenerated, JID == BWithJID],
 
         CountWithBob = lists:sum(WithBob),
-        escalus:send(Alice, stanza_filtered_by_jid_request(BWithJID)),
+        escalus:send(Alice, stanza_filtered_by_jid_request(P, BWithJID)),
         assert_respond_size(P, CountWithBob, wait_archive_respond(P, Alice)),
         ok
         end,
@@ -854,7 +854,7 @@ muc_querying_for_all_messages_with_jid(Config) ->
         WithJID = [1 || {_, _, {JID, _, _}, _, _} <- MucMsgs, JID == BWithJID],
         Len = lists:sum(WithJID),
 
-        IQ = stanza_filtered_by_jid_request(BWithJID),
+        IQ = stanza_filtered_by_jid_request(P, BWithJID),
         escalus:send(Alice, stanza_to_room(IQ, Room)),
         Result = wait_archive_respond(P, Alice),
 
@@ -958,6 +958,8 @@ respond_iq(#mam_archive_respond{respond_iq=IQ}) ->
     IQ.
 
 get_prop(fin, P) ->
+    false;
+get_prop(data_form, P) ->
     false.
 
 wait_archive_respond(P, User) ->
@@ -1346,7 +1348,7 @@ range_archive_request(Config) ->
         %%     <end>2010-07-07T13:23:54Z</end>
         %%   </query>
         %% </iq>
-        escalus:send(Alice, stanza_date_range_archive_request()),
+        escalus:send(Alice, stanza_date_range_archive_request(P)),
         IQ = escalus:wait_for_stanza(Alice, 5000),
         escalus:assert(is_iq_result, IQ),
         ok
@@ -1371,7 +1373,7 @@ range_archive_request_not_empty(Config) ->
         %%     <end>StopTime</end>
         %%   </query>
         %% </iq>
-        escalus:send(Alice, stanza_date_range_archive_request_not_empty(StartTime, StopTime)),
+        escalus:send(Alice, stanza_date_range_archive_request_not_empty(P, StartTime, StopTime)),
         %% Receive two messages and IQ
         M1 = escalus:wait_for_stanza(Alice, 5000),
         M2 = escalus:wait_for_stanza(Alice, 5000),
@@ -1405,7 +1407,7 @@ limit_archive_request(Config) ->
         %%       </set>
         %%   </query>
         %% </iq>
-        escalus:send(Alice, stanza_limit_archive_request()),
+        escalus:send(Alice, stanza_limit_archive_request(P)),
         Result = wait_archive_respond(P, Alice),
         Msgs = respond_messages(Result),
         IQ = respond_iq(Result),
@@ -1422,7 +1424,7 @@ pagination_empty_rset(Config) ->
         RSM = #rsm_in{max=0},
 
         rsm_send(Config, Alice,
-            stanza_page_archive_request(<<"empty_rset">>, RSM)),
+            stanza_page_archive_request(P, <<"empty_rset">>, RSM)),
         wait_empty_rset(P, Alice, 15)
         end,
     escalus:story(Config, [{alice, 1}], F).
@@ -1433,7 +1435,7 @@ pagination_first5(Config) ->
         %% Get the first page of size 5.
         RSM = #rsm_in{max=5},
         rsm_send(Config, Alice,
-            stanza_page_archive_request(<<"first5">>, RSM)),
+            stanza_page_archive_request(P, <<"first5">>, RSM)),
         wait_message_range(P, Alice, 1, 5),
         ok
         end,
@@ -1445,7 +1447,7 @@ pagination_first5_opt_count(Config) ->
         %% Get the first page of size 5.
         RSM = #rsm_in{max=5},
         rsm_send(Config, Alice,
-            stanza_page_archive_request(<<"first5_opt">>, RSM)),
+            stanza_page_archive_request(P, <<"first5_opt">>, RSM)),
         wait_message_range(P, Alice, 1, 5),
         ok
         end,
@@ -1457,7 +1459,7 @@ pagination_first25_opt_count_all(Config) ->
         %% Get the first page of size 25.
         RSM = #rsm_in{max=25},
         rsm_send(Config, Alice,
-            stanza_page_archive_request(<<"first25_opt_all">>, RSM)),
+            stanza_page_archive_request(P, <<"first25_opt_all">>, RSM)),
         wait_message_range(P, Alice, 1, 15),
         ok
         end,
@@ -1469,7 +1471,7 @@ pagination_last5(Config) ->
         %% Get the last page of size 5.
         RSM = #rsm_in{max=5, direction=before},
         rsm_send(Config, Alice,
-            stanza_page_archive_request(<<"last5">>, RSM)),
+            stanza_page_archive_request(P, <<"last5">>, RSM)),
         wait_message_range(P, Alice, 11, 15),
         ok
         end,
@@ -1481,7 +1483,7 @@ pagination_last5_opt_count(Config) ->
         %% Get the last page of size 5.
         RSM = #rsm_in{max=5, direction=before, opt_count=true},
         rsm_send(Config, Alice,
-            stanza_page_archive_request(<<"last5_opt">>, RSM)),
+            stanza_page_archive_request(P, <<"last5_opt">>, RSM)),
         wait_message_range(P, Alice, 11, 15),
         ok
         end,
@@ -1493,7 +1495,7 @@ pagination_last25_opt_count_all(Config) ->
         %% Get the last page of size 25.
         RSM = #rsm_in{max=25, direction=before, opt_count=true},
         rsm_send(Config, Alice,
-            stanza_page_archive_request(<<"last25_opt_all">>, RSM)),
+            stanza_page_archive_request(P, <<"last25_opt_all">>, RSM)),
         wait_message_range(P, Alice, 1, 15),
         ok
         end,
@@ -1505,7 +1507,7 @@ pagination_offset5_opt_count(Config) ->
         %% Skip 5 messages, get 5 messages.
         RSM = #rsm_in{max=5, index=5, opt_count=true},
         rsm_send(Config, Alice,
-            stanza_page_archive_request(<<"last5_opt">>, RSM)),
+            stanza_page_archive_request(P, <<"last5_opt">>, RSM)),
         wait_message_range(P, Alice, 6, 10),
         ok
         end,
@@ -1517,7 +1519,7 @@ pagination_offset5_opt_count_all(Config) ->
         %% Skip 5 messages, get 25 messages (only 10 are available).
         RSM = #rsm_in{max=25, index=5, opt_count=true},
         rsm_send(Config, Alice,
-            stanza_page_archive_request(<<"last5_opt_all">>, RSM)),
+            stanza_page_archive_request(P, <<"last5_opt_all">>, RSM)),
         wait_message_range(P, Alice, 6, 15),
         ok
         end,
@@ -1530,7 +1532,7 @@ pagination_before10(Config) ->
         %% Get the last page of size 5.
         RSM = #rsm_in{max=5, direction=before, id=message_id(10, Config)},
         rsm_send(Config, Alice,
-            stanza_page_archive_request(<<"before10">>, RSM)),
+            stanza_page_archive_request(P, <<"before10">>, RSM)),
         wait_message_range(P, Alice, 5, 9),
         ok
         end,
@@ -1542,7 +1544,7 @@ pagination_simple_before10(Config) ->
         %% Get the last page of size 5.
         RSM = #rsm_in{max=5, direction=before, id=message_id(10, Config), simple=true},
         rsm_send(Config, Alice,
-            stanza_page_archive_request(<<"before10">>, RSM)),
+            stanza_page_archive_request(P, <<"before10">>, RSM)),
      %% wait_message_range(P, Client, TotalCount,    Offset, FromN, ToN),
         wait_message_range(P, Alice,   undefined, undefined,     5,   9),
         ok
@@ -1555,7 +1557,7 @@ pagination_after10(Config) ->
         %% Get the last page of size 5.
         RSM = #rsm_in{max=5, direction='after', id=message_id(10, Config)},
         rsm_send(Config, Alice,
-            stanza_page_archive_request(<<"after10">>, RSM)),
+            stanza_page_archive_request(P, <<"after10">>, RSM)),
         wait_message_range(P, Alice, 11, 15),
         ok
         end,
@@ -1570,7 +1572,7 @@ pagination_last_after_id5(Config) ->
         RSM = #rsm_in{max=5, direction='before',
                 after_id=message_id(5, Config)},
         rsm_send(Config, Alice,
-            stanza_page_archive_request(<<"last_after_id5">>, RSM)),
+            stanza_page_archive_request(P, <<"last_after_id5">>, RSM)),
      %% wait_message_range(P, Client, TotalCount, Offset, FromN, ToN),
         wait_message_range(P, Alice,          10,      5,    11,  15),
         ok
@@ -1585,7 +1587,7 @@ pagination_last_after_id5_before_id11(Config) ->
                 after_id=message_id(5, Config),
                 before_id=message_id(11, Config)},
         rsm_send(Config, Alice,
-            stanza_page_archive_request(<<"last_after_id5_before_id11">>, RSM)),
+            stanza_page_archive_request(P, <<"last_after_id5_before_id11">>, RSM)),
      %% wait_message_range(P, Client, TotalCount, Offset, FromN, ToN),
         wait_message_range(P, Alice,           5,      0,     6,  10),
         ok
@@ -1741,6 +1743,8 @@ nick(User) -> escalus_utils:get_username(User).
 mam_ns_binary() -> <<"urn:xmpp:mam:tmp">>.
 muc_ns_binary() -> <<"http://jabber.org/protocol/muc">>.
 
+mam_ns_binary_v03() -> <<"urn:xmpp:mam:0">>.
+
 stanza_purge_single_message(MessId) ->
     escalus_stanza:iq(<<"set">>, [#xmlel{
        name = <<"purge">>,
@@ -1769,6 +1773,9 @@ maybe_attr(K, V) ->
 mam_ns_attr() ->
     [{<<"xmlns">>,mam_ns_binary()}].
 
+mam_ns_attr_v03() ->
+    [{<<"xmlns">>,mam_ns_binary_v03()}].
+
 maybe_start_elem(undefined) ->
     undefined;
 maybe_start_elem(BStart) ->
@@ -1793,32 +1800,91 @@ maybe_with_elem(BWithJID) ->
 %% An optional 'queryid' attribute allows the client to match results to
 %% a certain query.
 stanza_archive_request(P, QueryId) ->
-    stanza_lookup_messages_iq(QueryId,
+    stanza_lookup_messages_iq(P, QueryId,
                               undefined, undefined,
                               undefined, undefined).
 
-stanza_date_range_archive_request() ->
-    stanza_lookup_messages_iq(undefined,
+stanza_date_range_archive_request(P) ->
+    stanza_lookup_messages_iq(P, undefined,
                               "2010-06-07T00:00:00Z", "2010-07-07T13:23:54Z",
                               undefined, undefined).
 
-stanza_date_range_archive_request_not_empty(Start, Stop) ->
-    stanza_lookup_messages_iq(undefined,
+stanza_date_range_archive_request_not_empty(P, Start, Stop) ->
+    stanza_lookup_messages_iq(P, undefined,
                               Start, Stop,
                               undefined, undefined).
 
-stanza_limit_archive_request() ->
-    stanza_lookup_messages_iq(undefined, "2010-08-07T00:00:00Z",
+stanza_limit_archive_request(P) ->
+    stanza_lookup_messages_iq(P, undefined, "2010-08-07T00:00:00Z",
                               undefined, undefined, #rsm_in{max=10}).
 
-stanza_page_archive_request(QueryId, RSM) ->
-    stanza_lookup_messages_iq(QueryId, undefined, undefined, undefined, RSM).
+stanza_page_archive_request(P, QueryId, RSM) ->
+    stanza_lookup_messages_iq(P, QueryId, undefined, undefined, undefined, RSM).
 
-stanza_filtered_by_jid_request(BWithJID) ->
-    stanza_lookup_messages_iq(undefined, undefined,
+stanza_filtered_by_jid_request(P, BWithJID) ->
+    stanza_lookup_messages_iq(P, undefined, undefined,
                               undefined, BWithJID, undefined).
 
-stanza_lookup_messages_iq(QueryId, BStart, BEnd, BWithJID, RSM) ->
+stanza_lookup_messages_iq(P, QueryId, BStart, BEnd, BWithJID, RSM) ->
+    case get_prop(data_form, P) of
+        false ->
+            stanza_lookup_messages_iq_v02(QueryId, BStart, BEnd, BWithJID, RSM);
+        true ->
+            stanza_lookup_messages_iq_v03(QueryId, BStart, BEnd, BWithJID, RSM)
+    end.
+
+stanza_lookup_messages_iq_v03(QueryId, BStart, BEnd, BWithJID, RSM) ->
+    escalus_stanza:iq(<<"set">>, [#xmlel{
+       name = <<"query">>,
+       attrs = mam_ns_attr_v03()
+            ++ maybe_attr(<<"queryid">>, QueryId),
+       children = skip_undefined([
+           form_x(BStart, BEnd, BWithJID, RSM),
+           maybe_rsm_elem(RSM)])
+    }]).
+
+
+form_x(BStart, BEnd, BWithJID, RSM) ->
+    #xmlel{name = <<"x">>,
+           attrs = [{<<"xmlns">>, <<"jabber:x:data">>}],
+           children = skip_undefined([
+                form_field(<<"start">>, BStart),
+                form_field(<<"end">>, BEnd),
+                form_field(<<"with">>, BWithJID)]
+                ++ form_extra_fields(RSM)
+                ++ form_border_fields(RSM))}.
+
+form_extra_fields(undefined) ->
+    [];
+form_extra_fields(#rsm_in{simple=Simple, opt_count=OptCount}) ->
+    [form_bool_field(<<"simple">>, Simple),
+     form_bool_field(<<"opt_count">>, OptCount)].
+
+form_border_fields(undefined) ->
+    [];
+form_border_fields(#rsm_in{
+        before_id=BeforeId, after_id=AfterId, from_id=FromId, to_id=ToId}) ->
+    [form_field(<<"before_id">>, BeforeId),
+     form_field(<<"after_id">>, AfterId),
+     form_field(<<"from_id">>, FromId),
+     form_field(<<"to_id">>, ToId)].
+
+form_type_field(MamNs) ->
+    form_field(<<"FORM_TYPE">>, MamNs).
+
+form_field(VarName, undefined) ->
+    undefined;
+form_field(VarName, VarValue) ->
+    #xmlel{name = <<"field">>, attrs = [{<<"var">>, VarName}],
+           children = [#xmlcdata{content = VarValue}]}.
+
+form_bool_field(Name, true) ->
+    form_field(Name, <<"true">>);
+form_bool_field(Name, _) ->
+    undefined.
+
+
+stanza_lookup_messages_iq_v02(QueryId, BStart, BEnd, BWithJID, RSM) ->
     escalus_stanza:iq(<<"get">>, [#xmlel{
        name = <<"query">>,
        attrs = mam_ns_attr()
@@ -2007,7 +2073,24 @@ message_id(Num, Config) ->
 %%                  {xmlel,<<"last">>,[],[{xmlcdata,<<"103447">>}]},
 %%                  {xmlel,<<"count">>,[],[{xmlcdata,<<"15">>}]}]}]}]}]
 parse_result_iq(P, Result) ->
-    parse_legacy_iq(respond_iq(Result)).
+    case get_prop(fin, P) of
+        false ->
+            parse_legacy_iq(respond_iq(Result));
+        true ->
+            parse_fin_and_iq(Result)
+    end.
+
+parse_fin_and_iq(#mam_archive_respond{respond_iq=IQ, respond_fin=FinMsg}) ->
+    Fin = exml_query:subelement(<<"fin">>, FinMsg),
+    Set = exml_query:subelement(<<"set">>, Fin),
+    #result_iq{
+        from        = exml_query:attr(IQ, <<"from">>),
+        to          = exml_query:attr(IQ, <<"to">>),
+        id          = exml_query:attr(IQ, <<"id">>),
+        first       = exml_query:path(Set, [{element, <<"first">>}, cdata]),
+        first_index = exml_query:path(Set, [{element, <<"first">>}, {attr, <<"index">>}]),
+        last        = exml_query:path(Set, [{element, <<"last">>}, cdata]),
+        count       = exml_query:path(Set, [{element, <<"count">>}, cdata])}.
 
 parse_legacy_iq(#xmlel{name = <<"iq">>,
                        attrs = Attrs, children = Children}) ->
@@ -2586,7 +2669,7 @@ run_prefs_case({PrefsState, ExpectedMessageStates}, Alice, Bob, Kate, Config) ->
 
 get_last_four_messages(P, Alice) ->
     RSM = #rsm_in{max=4, direction='before'},
-    escalus:send(Alice, stanza_page_archive_request(<<"last4_rsm">>, RSM)),
+    escalus:send(Alice, stanza_page_archive_request(P, <<"last4_rsm">>, RSM)),
     respond_messages(wait_archive_respond(P, Alice)).
 
 stanza_prefs_set_request({DefaultMode, AlwaysUsers, NeverUsers}, Config) ->
