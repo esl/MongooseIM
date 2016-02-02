@@ -132,6 +132,13 @@
     never_jids  = [] :: [binary()]
 }).
 
+
+-record(mam_archive_respond, {
+          respond_messages,
+          respond_iq,
+          respond_fin
+         }).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -797,7 +804,7 @@ simple_archive_request(ConfigIn) ->
         escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
         maybe_wait_for_yz(ConfigIn),
         escalus:send(Alice, stanza_archive_request(P, <<"q1">>)),
-        assert_respond_size(P, 1, wait_archive_respond_iq_first(P, Alice)),
+        assert_respond_size(P, 1, wait_archive_respond(P, Alice)),
         ok
         end,
     MongooseMetrics = [{[backends, mod_mam, archive], changed},
@@ -816,7 +823,7 @@ querying_for_all_messages_with_jid(Config) ->
 
         CountWithBob = lists:sum(WithBob),
         escalus:send(Alice, stanza_filtered_by_jid_request(BWithJID)),
-        assert_respond_size(P, CountWithBob, wait_archive_respond_iq_first(P, Alice)),
+        assert_respond_size(P, CountWithBob, wait_archive_respond(P, Alice)),
         ok
         end,
     escalus:story(Config, [{alice, 1}], F).
@@ -831,7 +838,7 @@ muc_querying_for_all_messages(Config) ->
 
         IQ = stanza_archive_request(P, <<>>),
         escalus:send(Alice, stanza_to_room(IQ, Room)),
-        assert_respond_size(P, MucArchiveLen, wait_archive_respond_iq_first(P, Alice)),
+        assert_respond_size(P, MucArchiveLen, wait_archive_respond(P, Alice)),
 
         ok
         end,
@@ -849,7 +856,7 @@ muc_querying_for_all_messages_with_jid(Config) ->
 
         IQ = stanza_filtered_by_jid_request(BWithJID),
         escalus:send(Alice, stanza_to_room(IQ, Room)),
-        Result = wait_archive_respond_iq_first(P, Alice),
+        Result = wait_archive_respond(P, Alice),
 
         assert_respond_size(P, Len, Result),
         ok
@@ -877,7 +884,7 @@ archived(Config) ->
         %% Bob calls archive.
         maybe_wait_for_yz(Config),
         escalus:send(Bob, stanza_archive_request(P, <<"q1">>)),
-        [ArcMsg] = respond_messages(assert_respond_size(P, 1, wait_archive_respond_iq_first(P, Bob))),
+        [ArcMsg] = respond_messages(assert_respond_size(P, 1, wait_archive_respond(P, Bob))),
         #forwarded_message{result_id=ArcId} = parse_forwarded_message(ArcMsg),
         ?assert_equal(Id, ArcId),
         ok
@@ -899,11 +906,11 @@ filter_forwarded(Config) ->
         escalus:wait_for_stanza(Bob),
         maybe_wait_for_yz(Config),
         escalus:send(Bob, stanza_archive_request(P, <<"q1">>)),
-        assert_respond_size(P, 1, wait_archive_respond_iq_first(P, Bob)),
+        assert_respond_size(P, 1, wait_archive_respond(P, Bob)),
 
         %% Check, that previous forwarded message was not archived.
         escalus:send(Bob, stanza_archive_request(P, <<"q2">>)),
-        assert_respond_size(P, 1, wait_archive_respond_iq_first(P, Bob)),
+        assert_respond_size(P, 1, wait_archive_respond(P, Bob)),
         ok
         end,
     escalus:story(Config, [{alice, 1}, {bob, 1}], F).
@@ -932,7 +939,7 @@ strip_archived(Config) ->
         %% Bob calls archive.
         maybe_wait_for_yz(Config),
         escalus:send(Bob, stanza_archive_request(P, <<"q1">>)),
-        [ArcMsg] = respond_messages(assert_respond_size(P, 1, wait_archive_respond_iq_first(P, Bob))),
+        [ArcMsg] = respond_messages(assert_respond_size(P, 1, wait_archive_respond(P, Bob))),
         #forwarded_message{result_id=ArcId} = parse_forwarded_message(ArcMsg),
         ?assert_equal(ArcId, Id),
         ok
@@ -944,18 +951,41 @@ strip_archived(Config) ->
         end,
     escalus:story(Config, [{alice, 1}, {bob, 1}], F).
 
-respond_messages([_IQ|Messages]) ->
+respond_messages(#mam_archive_respond{respond_messages=Messages}) ->
     Messages.
 
-respond_iq([IQ|_Messages]) ->
+respond_iq(#mam_archive_respond{respond_iq=IQ}) ->
     IQ.
 
-wait_archive_respond_iq_first(P, User) ->
-    %% rot1
-    [IQ|Messages] = lists:reverse(wait_archive_respond(User)),
-    [IQ|lists:reverse(Messages)].
+get_prop(fin, P) ->
+    false.
 
-wait_archive_respond(User) ->
+wait_archive_respond(P, User) ->
+    case get_prop(fin, P) of
+        true ->
+            wait_archive_respond_fin(User);
+        false ->
+            wait_archive_respond_nofin(User)
+    end.
+
+wait_archive_respond_fin(User) ->
+    %% rot1
+    [IQ|MessagesAndFin] = wait_archive_respond_v03(User),
+    [Fin|Messages] = lists:reverse(MessagesAndFin),
+    #mam_archive_respond{
+       respond_iq=IQ,
+       respond_fin=Fin,
+       respond_messages=lists:reverse(Messages)}.
+
+wait_archive_respond_nofin(User) ->
+    %% rot1
+    [IQ|Messages] = lists:reverse(wait_archive_respond_v02(User)),
+    #mam_archive_respond{
+       respond_iq=IQ,
+       respond_messages=lists:reverse(Messages)}.
+
+%% MAM v0.2 respond
+wait_archive_respond_v02(User) ->
     S = escalus:wait_for_stanza(User, 5000),
     case escalus_pred:is_iq_error(S) of
         true ->
@@ -965,10 +995,36 @@ wait_archive_respond(User) ->
     end,
     case escalus_pred:is_iq_result(S) of
         true  -> [S];
-        false -> [S|wait_archive_respond(User)]
+        false -> [S|wait_archive_respond_v02(User)]
     end.
 
-assert_respond_size(P, Size, Respond) when length(Respond) =:= (Size + 1) ->
+%% MAM v0.3 respond
+wait_archive_respond_v03(User) ->
+    IQ = escalus:wait_for_stanza(User, 5000),
+    case escalus_pred:is_iq_error(IQ) of
+        true ->
+            ct:pal("Stanza ~p", [IQ]),
+            ct:fail("Unexpected error IQ.", []);
+        false -> ok
+    end,
+    escalus:assert(is_iq_result, IQ),
+    [IQ|wait_archive_respond_v03_part2(User)].
+
+wait_archive_respond_v03_part2(User) ->
+    M = escalus:wait_for_stanza(User, 5000),
+    escalus:assert(is_message, M),
+    case is_final_message(M) of
+        true ->
+            [M];
+        false ->
+            [M|wait_archive_respond_v03_part2(User)]
+    end.
+
+is_final_message(M) ->
+    undefined =/= exml_query:subelement(M, <<"fin">>).
+
+assert_respond_size(P, Size, Respond=#mam_archive_respond{respond_messages=Messages})
+      when length(Messages) =:= Size ->
     Respond;
 assert_respond_size(P, ExpectedSize, Respond) ->
     RespondSize = length(Respond) - 1,
@@ -1030,7 +1086,7 @@ offline_message(Config) ->
 
     %% Bob checks his archive.
     escalus:send(Bob, stanza_archive_request(P, <<"q1">>)),
-    ArcMsgs = R = respond_messages(wait_archive_respond_iq_first(P, Bob)),
+    ArcMsgs = R = respond_messages(wait_archive_respond(P, Bob)),
     assert_only_one_of_many_is_equal(ArcMsgs, Msg),
 
     escalus_cleaner:clean(Config).
@@ -1041,14 +1097,14 @@ purge_single_message(Config) ->
             escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
             maybe_wait_for_yz(Config),
             escalus:send(Alice, stanza_archive_request(P, <<"q1">>)),
-            [Mess] = respond_messages(assert_respond_size(P, 1, wait_archive_respond_iq_first(P, Alice))),
+            [Mess] = respond_messages(assert_respond_size(P, 1, wait_archive_respond(P, Alice))),
             ParsedMess = parse_forwarded_message(Mess),
             #forwarded_message{result_id=MessId} = ParsedMess,
             escalus:send(Alice, stanza_purge_single_message(MessId)),
             %% Waiting for ack.
             escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice, 5000)),
             escalus:send(Alice, stanza_archive_request(P, <<"q2">>)),
-            assert_respond_size(P, 0, wait_archive_respond_iq_first(P, Alice)),
+            assert_respond_size(P, 0, wait_archive_respond(P, Alice)),
             ok
         end,
     escalus:story(Config, [{alice, 1}, {bob, 1}], F).
@@ -1060,7 +1116,7 @@ purge_old_single_message(Config) ->
             Pregenderated = ?config(pre_generated_msgs, Config),
             AliceArchSize = length(Pregenderated),
             AllMessages = respond_messages(assert_respond_size(P, AliceArchSize,
-                wait_archive_respond_iq_first(P, Alice))),
+                wait_archive_respond(P, Alice))),
             ParsedMessages = [parse_forwarded_message(M) || M <- AllMessages],
             %% Delete fifth message.
             ParsedMess = lists:nth(5, ParsedMessages),
@@ -1070,7 +1126,7 @@ purge_old_single_message(Config) ->
             escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice, 5000)),
             %% Check, that it was deleted.
             escalus:send(Alice, stanza_archive_request(P, <<"q2">>)),
-            assert_respond_size(P, AliceArchSize - 1, wait_archive_respond_iq_first(P, Alice)),
+            assert_respond_size(P, AliceArchSize - 1, wait_archive_respond(P, Alice)),
             ok
         end,
     escalus:story(Config, [{alice, 1}], F).
@@ -1093,7 +1149,7 @@ purge_multiple_messages(Config) ->
             %% Waiting for ack.
             escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob, 15000)),
             escalus:send(Bob, stanza_archive_request(P, <<"q2">>)),
-            assert_respond_size(P, 0, wait_archive_respond_iq_first(P, Bob)),
+            assert_respond_size(P, 0, wait_archive_respond(P, Bob)),
             ok
         end,
     escalus:story(Config, [{alice, 1}, {bob, 1}], F).
@@ -1131,7 +1187,7 @@ muc_archive_request(Config) ->
 
         %% Bob requests the room's archive.
         escalus:send(Bob, stanza_to_room(stanza_archive_request(P, <<"q1">>), Room)),
-        [ArcMsg] = respond_messages(assert_respond_size(P, 1, wait_archive_respond_iq_first(P, Bob))),
+        [ArcMsg] = respond_messages(assert_respond_size(P, 1, wait_archive_respond(P, Bob))),
         #forwarded_message{result_id=ArcId, message_body=ArcMsgBody} =
             parse_forwarded_message(ArcMsg),
         ?assert_equal(Text, ArcMsgBody),
@@ -1232,7 +1288,7 @@ muc_multiple_devices(Config) ->
         maybe_wait_for_yz(Config),
 
         escalus:send(Bob, stanza_to_room(stanza_archive_request(P, <<"q1">>), Room)),
-        [ArcMsg] = respond_messages(assert_respond_size(P, 1, wait_archive_respond_iq_first(P, Bob))),
+        [ArcMsg] = respond_messages(assert_respond_size(P, 1, wait_archive_respond(P, Bob))),
         #forwarded_message{result_id=ArcId, message_body=ArcMsgBody} =
             parse_forwarded_message(ArcMsg),
         ?assert_equal(Text, ArcMsgBody),
@@ -1274,7 +1330,7 @@ muc_private_message(Config) ->
 
         %% Bob requests the room's archive.
         escalus:send(Bob, stanza_to_room(stanza_archive_request(P, <<"q1">>), Room)),
-        assert_respond_size(P, 0, wait_archive_respond_iq_first(P, Bob)),
+        assert_respond_size(P, 0, wait_archive_respond(P, Bob)),
         ok
         end,
     escalus:story(Config, [{alice, 1}, {bob, 1}], F).
@@ -1350,7 +1406,7 @@ limit_archive_request(Config) ->
         %%   </query>
         %% </iq>
         escalus:send(Alice, stanza_limit_archive_request()),
-        Result = wait_archive_respond_iq_first(P, Alice),
+        Result = wait_archive_respond(P, Alice),
         Msgs = respond_messages(Result),
         IQ = respond_iq(Result),
         escalus:assert(is_iq_result, IQ),
@@ -1951,7 +2007,7 @@ message_id(Num, Config) ->
 %%                  {xmlel,<<"last">>,[],[{xmlcdata,<<"103447">>}]},
 %%                  {xmlel,<<"count">>,[],[{xmlcdata,<<"15">>}]}]}]}]}]
 parse_result_iq(P, Result) ->
-    parse_legacy_iq(hd(Result)).
+    parse_legacy_iq(respond_iq(Result)).
 
 parse_legacy_iq(#xmlel{name = <<"iq">>,
                        attrs = Attrs, children = Children}) ->
@@ -2125,7 +2181,7 @@ send_muc_rsm_messages(Config) ->
         escalus:send(Alice,
             stanza_to_room(stanza_archive_request(P, <<"all_room_messages">>), Room)),
         AllMessages =
-            respond_messages(assert_respond_size(P, 15, wait_archive_respond_iq_first(P, Alice))),
+            respond_messages(assert_respond_size(P, 15, wait_archive_respond(P, Alice))),
         ParsedMessages = [parse_forwarded_message(M) || M <- AllMessages],
         Pid ! {parsed_messages, ParsedMessages},
         ok
@@ -2153,7 +2209,7 @@ send_rsm_messages(Config) ->
         %% Get whole history.
         rsm_send(Config, Alice, stanza_archive_request(P, <<"all_messages">>)),
         AllMessages =
-            respond_messages(assert_respond_size(P, 15, wait_archive_respond_iq_first(P, Alice))),
+            respond_messages(assert_respond_size(P, 15, wait_archive_respond(P, Alice))),
         ParsedMessages = [parse_forwarded_message(M) || M <- AllMessages],
         Pid ! {parsed_messages, ParsedMessages},
         ok
@@ -2234,7 +2290,7 @@ wait_message_range(P, Client, FromN, ToN) ->
     wait_message_range(P, Client, 15, FromN-1, FromN, ToN).
 
 wait_message_range(P, Client, TotalCount, Offset, FromN, ToN) ->
-    Result = wait_archive_respond_iq_first(P, Client),
+    Result = wait_archive_respond(P, Client),
     Messages = respond_messages(Result),
     IQ = respond_iq(Result),
     ParsedMessages = parse_messages(Messages),
@@ -2257,7 +2313,7 @@ wait_message_range(P, Client, TotalCount, Offset, FromN, ToN) ->
 
 
 wait_empty_rset(P, Alice, TotalCount) ->
-    Result = wait_archive_respond_iq_first(P, Alice),
+    Result = wait_archive_respond(P, Alice),
     IQ = respond_iq(Result),
     ?assert_equal([], respond_messages(Result)),
     ParsedIQ = parse_result_iq(P, Result),
@@ -2531,7 +2587,7 @@ run_prefs_case({PrefsState, ExpectedMessageStates}, Alice, Bob, Kate, Config) ->
 get_last_four_messages(P, Alice) ->
     RSM = #rsm_in{max=4, direction='before'},
     escalus:send(Alice, stanza_page_archive_request(<<"last4_rsm">>, RSM)),
-    respond_messages(wait_archive_respond_iq_first(P, Alice)).
+    respond_messages(wait_archive_respond(P, Alice)).
 
 stanza_prefs_set_request({DefaultMode, AlwaysUsers, NeverUsers}, Config) ->
     DefaultModeBin = atom_to_binary(DefaultMode, utf8),
