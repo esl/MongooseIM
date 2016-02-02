@@ -36,6 +36,9 @@
 -export([start/2,
          stop/1]).
 
+%% helper for internal use
+-export([handler/1]).
+
 -include("ejabberd.hrl").
 
 %%--------------------------------------------------------------------
@@ -46,7 +49,7 @@ socket_type() ->
     independent.
 
 start_listener({Port, IP, tcp}=Listener, Opts) ->
-    IPPort = [inet_parse:ntoa(IP), <<"_">>, integer_to_list(Port)],
+    IPPort = handler(Listener),
     ChildSpec = {Listener, {?MODULE, start_link, [IPPort]}, transient,
                  infinity, worker, [?MODULE]},
     {ok, Pid} = supervisor:start_child(ejabberd_listeners, ChildSpec),
@@ -70,6 +73,10 @@ code_change(_OldVsn, Ref, _Extra) ->
     {ok, Ref}.
 terminate(_Reason, Ref) ->
     stop_cowboy(Ref).
+
+-spec handler({inet:ip_address(), integer, tcp}) -> iolist().
+handler({Port, IP, tcp}) ->
+    [inet_parse:ntoa(IP), <<"_">>, integer_to_list(Port)].
 
 %%--------------------------------------------------------------------
 %% gen_mod API
@@ -115,6 +122,7 @@ start_cowboy(Ref, Opts) ->
 stop_cowboy(Ref) ->
     cowboy:stop_listener(cowboy_ref(Ref)),
     ok.
+
 
 cowboy_ref(Ref) ->
     ModRef = [?MODULE_STRING, <<"_">>, Ref],
