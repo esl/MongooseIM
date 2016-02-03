@@ -226,7 +226,7 @@ remove_user_req(LUser, LServer, Password, Method) ->
     {ok, BodyOrCreated :: binary() | created} | {error, invalid_jid | http_error_atom() | binary()}.
 make_req(_, _, LUser, LServer, _) when LUser == error orelse LServer == error ->
     {error, invalid_jid};
-make_req(Method, Path, LUser, LServer, Password) -> 
+make_req(Method, Path, LUser, LServer, Password) ->
     AuthOpts = ejabberd_config:get_local_option(auth_opts, LServer),
     BasicAuth = case lists:keyfind(basic_auth, 1, AuthOpts) of
                     {_, BasicAuth0} -> BasicAuth0;
@@ -296,7 +296,10 @@ login(_User, _Server) ->
 get_password(_User, _Server, _DefaultValue) ->
     erlang:error(not_implemented).
 
-stop(_Host) ->
+stop(Host) ->
+    Id = {ejabberd_auth_http_sup, Host},
+    supervisor:terminate_child(ejabberd_sup, Id),
+    supervisor:delete_child(ejabberd_sup, Id),
     ok.
 
 is_external(Host) ->
