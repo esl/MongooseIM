@@ -71,33 +71,33 @@ end_per_suite(Config) ->
 
 init_per_group(xep0114_tcp, Config) ->
     Config1 = get_components([], Config),
-    escalus:create_users(Config1, {by_name, [alice, bob]});
+    escalus:create_users(Config1, escalus:get_users([alice, bob]));
 init_per_group(xep0114_ws, Config) ->
     WSOpts = [{transport, ws},
               {wspath, <<"/ws-xmpp">>},
               {wslegacy, true},
               {port, 5280}],
     Config1 = get_components(WSOpts, Config),
-    escalus:create_users(Config1, {by_name, [alice, bob]});
+    escalus:create_users(Config1, escalus:get_users([alice, bob]));
 init_per_group(subdomain, Config) ->
     Config1 = get_components([], Config),
     Config2 = add_domain(Config1),
-    escalus:create_users(Config2, {by_name, [alice, astrid]});
+    escalus:create_users(Config2, escalus:get_users([alice, astrid]));
 init_per_group(distributed, Config) ->
     Config1 = get_components([], Config),
     Config2 = add_node_to_cluster(Config1),
     escalus:create_users(Config2, cluster_users());
 init_per_group(_GroupName, Config) ->
-    escalus:create_users(Config, {by_name, [alice, bob]}).
+    escalus:create_users(Config, escalus:get_users([alice, bob])).
 
 end_per_group(subdomain, Config) ->
-    escalus:delete_users(Config, {by_name, [alice, astrid]}),
+    escalus:delete_users(Config, escalus:get_users([alice, astrid])),
     restore_domain(Config);
 end_per_group(distributed, Config) ->
     escalus:delete_users(Config, ?config(escalus_users, Config)),
     remove_node_from_cluster(Config);
 end_per_group(_GroupName, Config) ->
-    escalus:delete_users(Config, {by_name, [alice, bob]}).
+    escalus:delete_users(Config, escalus:get_users([alice, bob])).
 
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
