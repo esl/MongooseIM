@@ -162,8 +162,8 @@ CREATE TABLE roster_version (
 -- UPDATE rosterusers SET askmessage = '';
 -- ALTER TABLE rosterusers ALTER COLUMN askmessage SET NOT NULL;
 --
--- NOTE: "minified" JID is specially encoded form of JID storing only
---       between user's JID and the real JID.
+-- NOTE: A "minified" JID is an encoded form of JID storing only
+--       the difference between a user's JID and the real JID.
 --       Consult with mod_mam_utils:jid_to_opt_binary/2
 --
 --       How it works. We produce encoded_jid using information from
