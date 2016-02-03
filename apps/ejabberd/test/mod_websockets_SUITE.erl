@@ -11,6 +11,14 @@
 
 all() -> [ ping_test, set_ping_test, disable_ping_test, disable_and_set].
 
+init_per_testcase(_, C) ->
+    setup(),
+    C.
+
+end_per_testcase(_, C) ->
+    teardown(),
+    C.
+
 setup() ->
     meck:unload(),
     application:ensure_all_started(cowboy),
@@ -24,40 +32,34 @@ setup() ->
     %% mock ejabberd_c2s
     meck:expect(ejabberd_c2s, start, fun({_, Socket},_) -> Self ! {catch_socket, Socket}, {ok, mocked_pid} end),
     meck:expect(supervisor, start_child,
-                fun(ejabberd_sup, {_, {_, start_link, [_]}, permanent,
-                                                            infinity, worker, [_]}) -> ok;
+                fun(ejabberd_listeners, {_, {_, start_link, [_]}, transient,
+                                                            infinity, worker, [_]}) -> {ok, self()};
                    (A,B) ->meck:passthrough([A,B]) end),
     %% Start websocket cowboy listening
-    spawn(fun() ->
+
     Opts = [{num_acceptors, 10},
             {max_connections, 1024},
             {modules, [{"_", "/http-bind", mod_bosh},
                        {"_", "/ws-xmpp", mod_websockets,
                         [{timeout, 600000}, {ping_rate, ?FAST_PING_RATE}]}]}],
-        ejabberd_cowboy:start_listener({?PORT, ?IP, tcp}, Opts)
-          end).
+    ejabberd_cowboy:start_listener({?PORT, ?IP, tcp}, Opts).
 
 
 teardown() ->
     meck:unload(),
-    cowboy:stop_listener(http_listener),
+    ejabberd_cowboy:stop(ejabberd_cowboy:handler({?PORT, ?IP, tcp})),
     application:stop(cowboy),
     ok.
 
 ping_test(_Config) ->
-    %% Given
-    setup(),
     timer:sleep(500),
     {ok, Socket1, _} = ws_handshake("localhost", ?PORT),
     %% When
     Resp = wait_for_ping(Socket1, 0, 5000),
     %% then
-    ?eq(Resp, ok),
-    teardown().
+    ?eq(Resp, ok).
 
 set_ping_test(_Config) ->
-    %% Given
-    setup(),
     {ok, Socket1, InternalSocket} = ws_handshake("localhost", ?PORT),
     %% When
     mod_websockets:set_ping(InternalSocket, ?NEW_TIMEOUT),
@@ -69,24 +71,18 @@ set_ping_test(_Config) ->
     Resp1 = wait_for_ping(Socket1, 0, ?NEW_TIMEOUT + 200),
     %% then
     ?eq(ok, Resp1),
-    ?eq({error, timeout}, ErrorTimeout),
-    teardown().
+    ?eq({error, timeout}, ErrorTimeout).
 
 disable_ping_test(_Config) ->
-    %% Given
-    setup(),
     {ok, Socket1, InternalSocket} = ws_handshake("localhost", ?PORT),
     %% When
     mod_websockets:disable_ping(InternalSocket),
     %% Should not receive any packets
     ErrorTimeout = wait_for_ping(Socket1, 0, ?FAST_PING_RATE),
     %% then
-    ?eq(ErrorTimeout, {error, timeout}),
-    teardown().
+    ?eq(ErrorTimeout, {error, timeout}).
 
 disable_and_set(_Config) ->
-    %% Given
-    setup(),
     {ok, Socket1, InternalSocket} = ws_handshake("localhost", ?PORT),
     %% When
     mod_websockets:disable_ping(InternalSocket),
@@ -96,9 +92,7 @@ disable_and_set(_Config) ->
     Resp1 = wait_for_ping(Socket1, 0, ?NEW_TIMEOUT + 100),
     %% then
     ?eq(ErrorTimeout, {error, timeout}),
-    ?eq(Resp1, ok),
-    teardown().
-
+    ?eq(Resp1, ok).
 
 %% Client side
 ws_handshake(Host, Port) ->

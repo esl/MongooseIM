@@ -24,7 +24,7 @@ Handles pure XMPP connections, relies on `ejabberd_listener` for listening. It p
 
 Manages all HTTP-based services. Unlike `ejabberd_c2s`, it doesn't use `ejabberd_receiver` or `ejabberd_listener`.
 
-Currently it is not possible to use different ports e.g. for BOSH and Websockets.
+
 
 **Default port:** 5280
 
@@ -44,6 +44,32 @@ Currently it is not possible to use different ports e.g. for BOSH and Websockets
     server-side pinging. Default declaration:
      `{"_", "/ws-xmpp", mod_websockets, []}`.
     * `mongoose_api` - REST API for accessing internal MongooseIM metrics. Please refer to [REST interface to metrics](../developers-guide/REST-interface-to-metrics.md) for more information. Default declaration: `{"localhost", "/api", mongoose_api, [{handlers, [mongoose_api_metrics]}]}`.
+
+### mod_cowboy
+
+This modules provides additional routing layer on top of HTTP(s) or
+WS(S) protocols. Example configuration looks like the following (add
+this to ejabberd_cowboy modules list described above):
+
+```Erlang
+{"_", "/[...]", mod_cowboy, [{http, mod_revproxy,
+                               [{timeout, 5000},
+                                % time limit for upstream to respond
+                                {body_length, 8000000},
+                                % maximum body size (may be infinity)
+                                {custom_headers, [{<<"header">>,<<"value">>}]}
+                                % list of extra headers that are send to upstream
+                               ]},
+                               {ws, xmpp, mod_websockets}
+                              ]},
+```
+
+According to this configuration, all http requests will go through the
+`mod_revproxy` module (see [mod_revproxy](../modules/mod_revproxy.md)
+fro more details).
+As for now, all websockets connections with the `Sec-WebSocket-Protocol: xmpp`
+header, will go through the mod_websockets connection.
+This is the MongooseIM's regular websocket connection handler.
 
 ## ejabberd_s2s_in
 
@@ -71,3 +97,5 @@ Interface for external [XMPP components](http://xmpp.org/extensions/xep-0114.htm
 * `host` ( tuple: `{host, Domain, [{password, "password here"}]}`, optional when `hosts` present) - Only allowed domain for components, protected by password. Must be set when `hosts` not present.
 * `shaper_rule` (atom, default: `fast`) - Connection shaper to use for incoming component traffic.
 * `service_check_from` (boolean, default: `true`) - Checks whether the server should verify the "from" field in stanzas from component
+
+

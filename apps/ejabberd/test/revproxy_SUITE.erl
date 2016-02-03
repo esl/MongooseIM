@@ -21,6 +21,11 @@
 
 -include_lib("ejabberd/include/mod_revproxy.hrl").
 
+-import(ejabberd_helper, [start_ejabberd/1,
+                          stop_ejabberd/0,
+                          use_config_file/2,
+                          start_ejabberd_with_config/2]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -29,7 +34,8 @@ all() ->
     [{group, compile_routes},
      {group, match_routes},
      {group, generate_upstream},
-     {group, requests_http}].
+     {group, requests_http},
+     conf_reload].
 
 groups() ->
     [{compile_routes, [sequence], [compile_example_routes,
@@ -62,7 +68,7 @@ suite() ->
 
 init_per_suite(Config) ->
     [application:start(App) || App <- ?APPS],
-    Pid = create_handler(),
+    {ok, Pid} = create_handler(),
     [{meck_pid, Pid}|Config].
 
 end_per_suite(Config) ->
@@ -78,6 +84,9 @@ init_per_group(match_routes, Config) ->
 init_per_group(_GroupName, Config) ->
     Config.
 
+end_per_group(requests_http, Config) ->
+    stop_revproxy(),
+    Config;
 end_per_group(_GroupName, Config) ->
     Config.
 
@@ -92,15 +101,21 @@ init_per_testcase(http_upstream, Config) ->
 init_per_testcase(https_upstream, Config) ->
     start_https_upstream(Config),
     Config;
+init_per_testcase(conf_reload, Config) ->
+    start_http_upstream(),
+    Config;
 init_per_testcase(_CaseName, Config) ->
     Config.
 
 end_per_testcase(http_upstream, Config) ->
-    stop_upstream(http_upstream),
+    stop_upstream(http_listener),
     meck:unload(inet),
     Config;
 end_per_testcase(https_upstream, Config) ->
-    stop_upstream(https_upstream),
+    stop_upstream(https_listener),
+    Config;
+end_per_testcase(conf_reload, Config) ->
+    stop_upstream(http_listener),
     Config;
 end_per_testcase(_CaseName, Config) ->
     Config.
@@ -127,6 +142,38 @@ example_dynamic_compile(_Config) ->
 
     %% Then
     Expected = mod_revproxy_dynamic:rules().
+
+%%--------------------------------------------------------------------
+%% Configuration reload test
+%%--------------------------------------------------------------------
+conf_reload(Config) ->
+    %% Given initial configuration
+    Host = "http://localhost:5280",
+    Path = <<"/">>,
+    Method = "GET",
+    Headers = [],
+    Body = [],
+
+    copy(data("ejabberd.onerule.cfg", Config), data("ejabberd.cfg", Config)),
+    start_ejabberd_with_config(Config, "ejabberd.cfg"),
+
+    %% When making request for http
+    Response1 = execute_request(Host, Path, Method, Headers, Body),
+
+    %% Then it returns 200
+    true = is_status_code(Response1, 200),
+
+    %% Given new configuration
+    copy(data("ejabberd.norules.cfg", Config), data("ejabberd.cfg", Config)),
+    ejabberd_config:reload_local(),
+
+    %% When request is replayed
+    Response2 = execute_request(Host, Path, Method, Headers, Body),
+
+    %% Then it returns 404
+    true = is_status_code(Response2, 404),
+
+    ok = stop_ejabberd().
 
 %%--------------------------------------------------------------------
 %% HTTP requests tests
@@ -480,6 +527,12 @@ upstream_slash_remainder(_Config) ->
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
+copy(Src, Dst) ->
+    {ok, _} = file:copy(Src, Dst).
+
+data(File, Config) ->
+    filename:join([?config(data_dir, Config), File]).
+
 example_routes() ->
     [{"domain.com", "/abc", "_", "http://localhost:8080/"},
      {"domain.com", get, "http://localhost:1234"},
@@ -533,6 +586,9 @@ start_revproxy() ->
     cowboy:start_http(revproxy_listener, 20, [{port, 8080}],
                       [{env, [{dispatch, Dispatch}]}]).
 
+stop_revproxy() ->
+    ok = cowboy:stop_listener(revproxy_listener).
+
 start_http_upstream() ->
     Dispatch = cowboy_router:compile([
                 {'_', [{"/[...]", revproxy_handler, []}]}
@@ -550,11 +606,8 @@ start_https_upstream(Config) ->
     cowboy:start_https(https_listener, 20, Opts,
                        [{env, [{dispatch, Dispatch}]}]).
 
-data(File, Config) ->
-    filename:join([?config(data_dir, Config), File]).
-
 stop_upstream(Upstream) ->
-    cowboy:stop_listener(Upstream).
+    ok = cowboy:stop_listener(Upstream).
 
 execute_request(Host, Path, Method, Headers, Body) ->
     {ok, Pid} = fusco:start_link(Host, []),
@@ -596,14 +649,22 @@ does_contain_header({ok, {{_, _}, _, Response, _, _}}, Header, Value) ->
 %% revproxy handler mock
 %%--------------------------------------------------------------------
 create_handler() ->
+    Owner = self(),
     F = fun() ->
             ok = meck:new(revproxy_handler, [non_strict]),
             ok = meck:expect(revproxy_handler, init, fun handler_init/3),
             ok = meck:expect(revproxy_handler, handle, fun handler_handle/2),
             ok = meck:expect(revproxy_handler, terminate, fun handler_terminate/3),
+            Owner ! ok,
             timer:sleep(infinity)
     end,
-    spawn(F).
+    Pid = spawn(F),
+    receive
+        ok ->
+            {ok, Pid}
+    after 5000 ->
+            {error, timeout}
+    end.
 
 remove_handler(Config) ->
     meck:unload(revproxy_handler),

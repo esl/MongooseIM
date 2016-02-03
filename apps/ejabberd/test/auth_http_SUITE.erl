@@ -142,7 +142,7 @@ get_password(_Config) ->
     end,
     false = ejabberd_auth_http:get_password(<<"anakin">>, ?DOMAIN1),
     <<>> = ejabberd_auth_http:get_password_s(<<"anakin">>, ?DOMAIN1).
-    
+
 is_user_exists(_Config) ->
     true = ejabberd_auth_http:does_user_exist(<<"alice">>, ?DOMAIN1),
     false = ejabberd_auth_http:does_user_exist(<<"madhatter">>, ?DOMAIN1).

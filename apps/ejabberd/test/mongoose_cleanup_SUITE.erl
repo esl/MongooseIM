@@ -66,10 +66,10 @@ cleaner_runs_hook_on_nodedown(_Config) ->
     Self = self(),
     NotifySelf = fun (Node) -> Self ! {got_nodedown, Node} end,
     ejabberd_hooks:add(node_cleanup, global, undefined, NotifySelf, 50),
-    
+
     FakeNode = fakename@fakehost,
     Cleaner ! {nodedown, FakeNode},
-    
+
     receive
         {got_nodedown, FakeNode} -> ok
     after timer:seconds(1) ->
