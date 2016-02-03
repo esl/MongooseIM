@@ -293,7 +293,7 @@ forget_room(LServer, RoomName) ->
 
 -spec is_action_allowed(atom(), ejabberd:jid(), ejabberd:jid()) -> boolean().
 is_action_allowed(Action, From, To=#jid{lserver=Host}) ->
-    case acl:match_rule(Host, Action, From) of
+    case acl:match_rule(Host, Action, From, default) of
         allow   -> true;
         deny    -> false;
         default -> is_action_allowed_by_default(Action, From, To)

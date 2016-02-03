@@ -31,9 +31,16 @@
          result_set/4,
          result_query/1,
          result_prefs/3,
+         make_fin_message/4,
          parse_prefs/1,
          borders_decode/1,
-         decode_optimizations/1]).
+         decode_optimizations/1,
+         form_borders_decode/1,
+         form_decode_optimizations/1]).
+
+%% Forms
+-export([form_field_value_s/2,
+         message_form/1]).
 
 %% JID serialization
 -export([jid_to_opt_binary/2,
@@ -418,6 +425,22 @@ encode_jids(JIDs) ->
      || JID <- JIDs].
 
 
+%% Make fin message introduced in MAM 0.3
+-spec make_fin_message(binary(), boolean(), boolean(), jlib:xmlel()) -> jlib:xmlel().
+make_fin_message(MamNs, IsComplete, IsStable, ResultSetEl) ->
+    #xmlel{
+        name = <<"message">>,
+        children = [make_fin_element(MamNs, IsComplete, IsStable, ResultSetEl)]}.
+
+make_fin_element(MamNs, IsComplete, IsStable, ResultSetEl) ->
+    #xmlel{
+        name = <<"fin">>,
+        attrs = [{<<"xmlns">>, MamNs}]
+                ++ [{<<"complete">>, <<"true">>} || IsComplete]
+                ++ [{<<"stable">>, <<"false">>} || not IsStable],
+        children = [ResultSetEl]}.
+
+
 -spec parse_prefs(PrefsEl :: jlib:xmlel()) -> mod_mam:preference().
 parse_prefs(El=#xmlel{name = <<"prefs">>, attrs = Attrs}) ->
     {value, Default} = xml:get_attr(<<"default">>, Attrs),
@@ -469,6 +492,14 @@ borders_decode(QueryEl) ->
     ToID     = tag_id(QueryEl, <<"to_id">>),
     borders(AfterID, BeforeID, FromID, ToID).
 
+-spec form_borders_decode(jlib:xmlel()) -> 'undefined' | mod_mam:borders().
+form_borders_decode(QueryEl) ->
+    AfterID  = form_field_mess_id(QueryEl, <<"after_id">>),
+    BeforeID = form_field_mess_id(QueryEl, <<"before_id">>),
+    FromID   = form_field_mess_id(QueryEl, <<"from_id">>),
+    ToID     = form_field_mess_id(QueryEl, <<"to_id">>),
+    borders(AfterID, BeforeID, FromID, ToID).
+
 
 -spec borders(AfterID :: 'undefined' | non_neg_integer(),
               BeforeID :: 'undefined' | non_neg_integer(),
@@ -491,6 +522,10 @@ tag_id(QueryEl, Name) ->
     BExtMessID = xml:get_tag_attr_s(Name, QueryEl),
     maybe_external_binary_to_mess_id(BExtMessID).
 
+-spec form_field_mess_id(jlib:xmlel(), binary()) -> 'undefined' | integer().
+form_field_mess_id(QueryEl, Name) ->
+    BExtMessID = form_field_value_s(QueryEl, Name),
+    maybe_external_binary_to_mess_id(BExtMessID).
 
 -spec decode_optimizations(jlib:xmlel()) -> 'false' | 'opt_count' | 'true'.
 decode_optimizations(QueryEl) ->
@@ -501,6 +536,79 @@ decode_optimizations(QueryEl) ->
         _              -> true
     end.
 
+-spec form_decode_optimizations(jlib:xmlel()) -> false | opt_count | true.
+form_decode_optimizations(QueryEl) ->
+    case {form_field_value(QueryEl, <<"simple">>),
+          form_field_value(QueryEl, <<"opt_count">>)} of
+        {_, <<"true">>}     -> opt_count;
+        {<<"true">>, _}     -> true;
+        {_, _}              -> false
+    end.
+
+%% -----------------------------------------------------------------------
+%% Forms
+
+-spec form_field_value(jlib:xmlel(), binary()) -> undefined | binary().
+form_field_value(QueryEl, Name) ->
+    case xml:get_subtag(QueryEl, <<"x">>) of
+        false ->
+            undefined;
+        #xmlel{children=Fields} -> %% <x xmlns='jabber:x:data'/>
+            case find_field(Fields, Name) of
+                undefined ->
+                    undefined;
+                Field ->
+                    field_to_value(Field)
+            end
+    end.
+
+form_field_value_s(QueryEl, Name) ->
+    undefined_to_empty(form_field_value(QueryEl, Name)).
+
+undefined_to_empty(undefined) -> <<>>;
+undefined_to_empty(X)         -> X.
+
+%% @doc Return first matched field
+-spec find_field(list(jlib:xmlel()), binary()) -> undefined | jlib:xmlel().
+find_field([#xmlel{name = <<"field">>, attrs = Attrs}=Field|Fields], Name) ->
+    case xml:get_attr(<<"var">>, Attrs) of
+        {value, Name} ->
+            Field;
+        _ ->
+            find_field(Fields, Name)
+    end;
+find_field([_|Fields], Name) -> %% skip whitespaces
+    find_field(Fields, Name);
+find_field([], Name) ->
+    undefined.
+
+-spec field_to_value(jlib:xmlel()) -> binary().
+field_to_value(FieldEl) ->
+    xml:get_path_s(FieldEl, [{elem, <<"value">>}, cdata]).
+
+-spec message_form(binary()) -> jlib:xmlel().
+message_form(MamNs) ->
+    #xmlel{name = <<"x">>,
+           attrs = [{<<"xmlns">>, <<"jabber:x:data">>},
+                    {<<"type">>, <<"form">>}],
+           children = message_form_fields(MamNs)}.
+
+message_form_fields(MamNs) ->
+    [form_type_field(MamNs),
+     form_field(<<"jid-single">>, <<"with">>),
+     form_field(<<"text-single">>, <<"start">>),
+     form_field(<<"text-single">>, <<"end">>)].
+
+form_type_field(MamNs) when is_binary(MamNs) ->
+    #xmlel{name = <<"field">>,
+           attrs = [{<<"type">>, <<"hidden">>},
+                    {<<"var">>, <<"FORM_TYPE">>}],
+           children = [#xmlcdata{content = MamNs}]}.
+
+form_field(Type, VarName) ->
+    #xmlel{name = <<"field">>,
+           attrs = [{<<"type">>, Type},
+                    {<<"var">>, VarName}]}.
 
 %% -----------------------------------------------------------------------
 %% JID serialization
