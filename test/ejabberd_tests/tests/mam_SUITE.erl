@@ -957,10 +957,12 @@ respond_messages(#mam_archive_respond{respond_messages=Messages}) ->
 respond_iq(#mam_archive_respond{respond_iq=IQ}) ->
     IQ.
 
+get_prop(Key, undefined) ->
+    get_prop(Key, []);
 get_prop(fin, P) ->
-    false;
+    proplists:get_bool(fin, P);
 get_prop(data_form, P) ->
-    false.
+    proplists:get_bool(data_form, P).
 
 wait_archive_respond(P, User) ->
     case get_prop(fin, P) of
@@ -1375,9 +1377,9 @@ range_archive_request_not_empty(Config) ->
         %% </iq>
         escalus:send(Alice, stanza_date_range_archive_request_not_empty(P, StartTime, StopTime)),
         %% Receive two messages and IQ
-        M1 = escalus:wait_for_stanza(Alice, 5000),
-        M2 = escalus:wait_for_stanza(Alice, 5000),
-        IQ = escalus:wait_for_stanza(Alice, 5000),
+        Result = wait_archive_respond(P, Alice),
+        IQ = respond_iq(Result),
+        [M1,M2|_] = respond_messages(Result),
         escalus:assert(is_iq_result, IQ),
         #forwarded_message{delay_stamp=Stamp1} = parse_forwarded_message(M1),
         #forwarded_message{delay_stamp=Stamp2} = parse_forwarded_message(M2),
@@ -1876,7 +1878,8 @@ form_field(VarName, undefined) ->
     undefined;
 form_field(VarName, VarValue) ->
     #xmlel{name = <<"field">>, attrs = [{<<"var">>, VarName}],
-           children = [#xmlcdata{content = VarValue}]}.
+           children = [#xmlel{name = <<"value">>,
+                              children = [#xmlcdata{content = VarValue}]}]}.
 
 form_bool_field(Name, true) ->
     form_field(Name, <<"true">>);
