@@ -114,7 +114,7 @@ register_one_component(Config) ->
     CompOpts = ?config(component1, Config),
     {Component, ComponentAddr, _} = connect_component(CompOpts),
 
-    escalus:story(Config, [1], fun(Alice) ->
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
                 %% When Alice sends a message to the component
                 Msg1 = escalus_stanza:chat_to(ComponentAddr, <<"Hi!">>),
                 escalus:send(Alice, Msg1),
@@ -141,7 +141,7 @@ register_two_components(Config) ->
     {Comp1, CompAddr1, _} = connect_component(CompOpts1),
     {Comp2, CompAddr2, _} = connect_component(CompOpts2),
 
-    escalus:story(Config, [1,1], fun(Alice, Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
                 %% When Alice sends a message to the first component
                 Msg1 = escalus_stanza:chat_to(Alice, <<"abc">>),
                 escalus:send(Comp1, escalus_stanza:from(Msg1, CompAddr1)),
@@ -230,7 +230,7 @@ disco_components(Config) ->
     {Comp1, Addr1, _} = connect_component(CompOpts1),
     {Comp2, Addr2, _} = connect_component(CompOpts2),
 
-    escalus:story(Config, [1], fun(Alice) ->
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
                 %% When server asked for the disco features
                 Server = escalus_client:server(Alice),
                 Disco = escalus_stanza:service_discovery(Server),
@@ -250,7 +250,7 @@ register_subdomain(Config) ->
     CompOpts1 = ?config(component1, Config),
     {Comp, _Addr, Name} = connect_component_subdomain(CompOpts1),
 
-    escalus:story(Config, [1,1], fun(Alice, Astrid) ->
+    escalus:story(Config, [{alice, 1}, {astrid, 1}], fun(Alice, Astrid) ->
                 %% When Alice asks for service discovery on the server
                 Server1 = escalus_client:server(Alice),
                 Disco1 = escalus_stanza:service_discovery(Server1),
@@ -282,7 +282,7 @@ register_in_cluster(Config) ->
     CompOpts1 = ?config(component1, Config),
     {Comp, Addr, Name} = connect_component(CompOpts1),
 
-    escalus:story(Config, [1,1], fun(Alice, Astrid) ->
+    escalus:story(Config, [{alice, 1}, {astrid, 1}], fun(Alice, Astrid) ->
                 %% When Alice sends a message to the component
                 Msg1 = escalus_stanza:chat_to(Addr, <<"Hi!">>),
                 escalus:send(Alice, Msg1),
