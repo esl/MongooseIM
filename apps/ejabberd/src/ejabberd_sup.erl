@@ -35,13 +35,6 @@ start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 init([]) ->
-    Randoms =
-        {randoms,
-         {randoms, start_link, []},
-         permanent,
-         brutal_kill,
-         worker,
-         [randoms]},
     Hooks =
         {ejabberd_hooks,
          {ejabberd_hooks, start_link, []},
@@ -184,8 +177,7 @@ init([]) ->
 
     {ok, {{one_for_one, 10, 1},
           ShaperSpecs ++
-          [Randoms,
-           Hooks,
+          [Hooks,
            Cleaner,
            SMBackendSupervisor,
            Router,
