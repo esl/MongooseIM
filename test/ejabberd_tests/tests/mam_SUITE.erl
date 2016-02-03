@@ -148,6 +148,7 @@ configurations() ->
 
 odbc_configs(true) ->
     [odbc,
+     odbc_simple,
      odbc_async_pool,
      odbc_mnesia,
      odbc_async_cache,
@@ -369,6 +370,13 @@ init_modules(odbc, muc_with_pm, Config) ->
     init_module(host(), mod_mam, []),
     init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
     Config;
+init_modules(odbc_simple, muc_with_pm, Config) ->
+    init_module(host(), mod_mam_odbc_arch, [muc, pm, simple]),
+    init_module(host(), mod_mam_odbc_prefs, [muc, pm]),
+    init_module(host(), mod_mam_odbc_user, [muc, pm]),
+    init_module(host(), mod_mam, []),
+    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
+    Config;
 init_modules(odbc_async_pool, muc_with_pm, Config) ->
     init_module(host(), mod_mam_muc_odbc_arch, [no_writer]),
     init_module(host(), mod_mam_muc_odbc_async_pool_writer, []),
@@ -439,6 +447,12 @@ init_modules(odbc, muc, Config) ->
     init_module(host(), mod_mam_odbc_user, [muc]),
     init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
     Config;
+init_modules(odbc_simple, muc, Config) ->
+    init_module(host(), mod_mam_muc_odbc_arch, [muc, simple]),
+    init_module(host(), mod_mam_odbc_prefs, [muc]),
+    init_module(host(), mod_mam_odbc_user, [muc]),
+    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
+    Config;
 init_modules(odbc_async_pool, muc, Config) ->
     init_module(host(), mod_mam_muc_odbc_arch, [no_writer]),
     init_module(host(), mod_mam_muc_odbc_async_pool_writer, []),
@@ -484,6 +498,12 @@ init_modules(odbc_mnesia_cache, muc, Config) ->
 init_modules(odbc, _, Config) ->
     init_module(host(), mod_mam, []),
     init_module(host(), mod_mam_odbc_arch, [pm]),
+    init_module(host(), mod_mam_odbc_prefs, [pm]),
+    init_module(host(), mod_mam_odbc_user, [pm]),
+    Config;
+init_modules(odbc_simple, _, Config) ->
+    init_module(host(), mod_mam, []),
+    init_module(host(), mod_mam_odbc_arch, [pm, simple]),
     init_module(host(), mod_mam_odbc_prefs, [pm]),
     init_module(host(), mod_mam_odbc_user, [pm]),
     Config;

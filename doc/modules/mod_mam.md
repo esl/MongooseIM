@@ -18,9 +18,14 @@ If you haven't chosen any of the above, skip the next part.
 * **mod_mam_odbc_arch**
     * `pm` (mandatory when `mod_mam` enabled) - Enable archiving user-to-user messages
     * `muc` (optional) - Enable group chat archive, mutually exclusive with `mod_mam_muc_odbc_arch`. **Not recommended**, `mod_mam_muc_odbc_arch` is more efficient.
+    * `simple` - Same as `{simple, true}`
+    * `{simple, true}` - Store messages in XML and full JIDs. Archive MUST be empty to change this option.
+    * `{simple, false} (default)` - Store messages and JIDs in internal format
 
 * **mod_mam_odbc_arch**, **mod_mam_muc_odbc_arch**
     * `no_writer` - Disables default synchronous, slow writer and uses async one (step 5 & 6) instead.
+    * `{simple, true}` - Store messages in XML and full JIDs. Archive MUST be empty to change this option.
+    * `{simple, false} (default)` - Store messages and JIDs in internal format
 
 ##### Step 2 (mandatory)
 * **mod_mam_odbc_user** - Maps archive ID to integer.
