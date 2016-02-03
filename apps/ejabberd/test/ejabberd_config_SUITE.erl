@@ -9,8 +9,7 @@
 
 -import(ejabberd_helper, [start_ejabberd/1,
                           stop_ejabberd/0,
-                          use_config_file/2,
-                          start_ejabberd_with_config/2]).
+                          use_config_file/2]).
 
 all() ->
     [smoke,

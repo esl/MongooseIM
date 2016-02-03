@@ -25,6 +25,13 @@ all() ->
       exit_in_run_fold_is_ignored
     ].
 
+init_per_suite(C) ->
+    application:ensure_all_started(exometer),
+    C.
+
+end_per_suite(_C) ->
+    application:stop(exometer).
+
 a_fun_can_be_added(_) ->
     given_hooks_started(),
 

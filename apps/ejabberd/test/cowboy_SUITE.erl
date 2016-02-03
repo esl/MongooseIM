@@ -81,7 +81,7 @@ end_per_testcase(_CaseName, Config) ->
 %%--------------------------------------------------------------------
 %% Tests
 %%--------------------------------------------------------------------
-http_requests(_Config) -> 
+http_requests(_Config) ->
     %% Given
     Host = ?SERVER,
     Path = <<"/">>,
@@ -200,7 +200,7 @@ mixed_requests(_Config) ->
             end || _ <- lists:seq(1, 50)],
 
     %% Then
-    Responses = lists:duplicate(50, {TextPong, true, TextPong, true}). 
+    Responses = lists:duplicate(50, {TextPong, true, TextPong, true}).
 
 conf_reload(Config) ->
     %% Given initial configuration

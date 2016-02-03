@@ -108,7 +108,7 @@ init_per_testcase(_CaseName, Config) ->
     Config.
 
 end_per_testcase(http_upstream, Config) ->
-    stop_upstream(http_upstream),
+    stop_upstream(http_listener),
     meck:unload(inet),
     Config;
 end_per_testcase(https_upstream, Config) ->

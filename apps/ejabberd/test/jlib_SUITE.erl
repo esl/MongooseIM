@@ -31,7 +31,6 @@ init_per_suite(C) ->
     C.
 
 end_per_suite(C) ->
-    application:stop(p1_stringprep),
     C.
 
 
