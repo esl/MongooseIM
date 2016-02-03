@@ -67,7 +67,7 @@
         [replace_archived_elem/3,
          get_one_of_path/2,
          is_complete_message/3,
-         wrap_message/5,
+         wrap_message/6,
          result_set/4,
          result_query/1,
          result_prefs/3,
@@ -414,7 +414,7 @@ handle_get_prefs_result({error, Reason}, IQ) ->
 handle_lookup_messages(
         From=#jid{},
         ArcJID=#jid{},
-        IQ=#iq{sub_el = QueryEl}) ->
+        IQ=#iq{xmlns = MamNs, sub_el = QueryEl}) ->
     Now = mod_mam_utils:now_to_microseconds(now()),
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
@@ -449,7 +449,7 @@ handle_lookup_messages(
                 [_|_] -> {message_row_to_ext_id(hd(MessageRows)),
                           message_row_to_ext_id(lists:last(MessageRows))}
             end,
-        [send_message(ArcJID, From, message_row_to_xml(M, QueryID))
+        [send_message(ArcJID, From, message_row_to_xml(MamNs, M, QueryID))
          || M <- MessageRows],
         ResultSetEl = result_set(FirstMessID, LastMessID, Offset, TotalCount),
         ResultQueryEl = result_query(ResultSetEl),
@@ -613,12 +613,12 @@ wait_shaper(Host, Action, From) ->
 %% ----------------------------------------------------------------------
 %% Helpers
 
--spec message_row_to_xml(row(), binary() | undefined) -> jlib:xmlel().
-message_row_to_xml({MessID,SrcJID,Packet}, QueryID) ->
+-spec message_row_to_xml(binary(), row(), binary() | undefined) -> jlib:xmlel().
+message_row_to_xml(MamNs, {MessID,SrcJID,Packet}, QueryID) ->
     {Microseconds, _NodeMessID} = decode_compact_uuid(MessID),
     DateTime = calendar:now_to_universal_time(microseconds_to_now(Microseconds)),
     BExtMessID = mess_id_to_external_binary(MessID),
-    wrap_message(Packet, QueryID, BExtMessID, DateTime, SrcJID).
+    wrap_message(MamNs, Packet, QueryID, BExtMessID, DateTime, SrcJID).
 
 
 -spec message_row_to_ext_id(row()) -> binary().

@@ -173,7 +173,8 @@ riak_configs(_) ->
 basic_group_names() ->
     [
     mam,
-    mam_form,
+    mam03,
+    mam04,
     mam_purge,
     muc,
     muc_with_pm,
@@ -217,7 +218,8 @@ is_skipped(_, _) ->
 basic_groups() ->
     [{bootstrapped,     [], bootstrapped_cases()},
      {mam,              [], mam_cases()},
-     {mam_form,         [], mam_cases()},
+     {mam03,            [], mam_cases()},
+     {mam04,            [], mam_cases()},
      {mam_purge,        [], mam_purge_cases()},
      {archived,         [], archived_cases()},
      {policy_violation, [], policy_violation_cases()},
@@ -611,12 +613,25 @@ init_state(_, with_rsm, Config) ->
     send_rsm_messages(clean_archives(Config1));
 init_state(_, run_prefs_cases, Config) ->
     clean_archives(Config);
-init_state(_, mam_form, Config) ->
-    Config1 = [{props, [{data_form, true}, {fin, true}]}|Config],
+init_state(_, mam03, Config) ->
+    Config1 = [{props, mam03_props()}|Config],
+    clean_archives(Config1);
+init_state(_, mam04, Config) ->
+    Config1 = [{props, mam04_props()}|Config],
     clean_archives(Config1);
 init_state(_, _, Config) ->
     clean_archives(Config).
 
+mam03_props() ->
+    [{data_form, true},                 %% send data forms
+     {final_message, true},             %% expect final message with <fin/> inside
+     {result_format, mess_fin},         %% RSM is inside final message
+     {mam_ns, mam_ns_binary_v03()}].    %% v0.3 namespace
+
+mam04_props() ->
+    [{data_form, true},                 %% send data forms
+     {result_format, iq_fin},           %% RSM is inside iq with <fin/> inside
+     {mam_ns, mam_ns_binary_v04()}].
 
 init_per_testcase(C=archived, ConfigIn) ->
     Config = case ?config(configuration, ConfigIn) of
@@ -959,13 +974,17 @@ respond_iq(#mam_archive_respond{respond_iq=IQ}) ->
 
 get_prop(Key, undefined) ->
     get_prop(Key, []);
-get_prop(fin, P) ->
-    proplists:get_bool(fin, P);
+get_prop(final_message, P) ->
+    proplists:get_bool(final_message, P);
+get_prop(result_format, P) ->
+    proplists:get_value(result_format, P, iq_query);
+get_prop(mam_ns, P) ->
+    proplists:get_value(mam_ns, P, mam_ns_binary());
 get_prop(data_form, P) ->
     proplists:get_bool(data_form, P).
 
 wait_archive_respond(P, User) ->
-    case get_prop(fin, P) of
+    case get_prop(final_message, P) of
         true ->
             wait_archive_respond_fin(User);
         false ->
@@ -1030,8 +1049,8 @@ is_final_message(M) ->
 assert_respond_size(P, Size, Respond=#mam_archive_respond{respond_messages=Messages})
       when length(Messages) =:= Size ->
     Respond;
-assert_respond_size(P, ExpectedSize, Respond) ->
-    RespondSize = length(Respond) - 1,
+assert_respond_size(P, ExpectedSize, #mam_archive_respond{respond_messages=Messages}) ->
+    RespondSize = length(Messages) - 1,
     ct:fail("Respond size is ~p, ~p is expected.", [RespondSize, ExpectedSize]).
     %% void()
 
@@ -1743,9 +1762,9 @@ result_iq() ->
 nick(User) -> escalus_utils:get_username(User).
 
 mam_ns_binary() -> <<"urn:xmpp:mam:tmp">>.
-muc_ns_binary() -> <<"http://jabber.org/protocol/muc">>.
-
 mam_ns_binary_v03() -> <<"urn:xmpp:mam:0">>.
+mam_ns_binary_v04() -> <<"urn:xmpp:mam:1">>.
+muc_ns_binary() -> <<"http://jabber.org/protocol/muc">>.
 
 stanza_purge_single_message(MessId) ->
     escalus_stanza:iq(<<"set">>, [#xmlel{
@@ -1772,11 +1791,8 @@ maybe_attr(_, undefined) ->
 maybe_attr(K, V) ->
     [{K, V}].
 
-mam_ns_attr() ->
-    [{<<"xmlns">>,mam_ns_binary()}].
-
-mam_ns_attr_v03() ->
-    [{<<"xmlns">>,mam_ns_binary_v03()}].
+mam_ns_attr(P) ->
+    [{<<"xmlns">>,get_prop(mam_ns, P)}].
 
 maybe_start_elem(undefined) ->
     undefined;
@@ -1830,15 +1846,15 @@ stanza_filtered_by_jid_request(P, BWithJID) ->
 stanza_lookup_messages_iq(P, QueryId, BStart, BEnd, BWithJID, RSM) ->
     case get_prop(data_form, P) of
         false ->
-            stanza_lookup_messages_iq_v02(QueryId, BStart, BEnd, BWithJID, RSM);
+            stanza_lookup_messages_iq_v02(P, QueryId, BStart, BEnd, BWithJID, RSM);
         true ->
-            stanza_lookup_messages_iq_v03(QueryId, BStart, BEnd, BWithJID, RSM)
+            stanza_lookup_messages_iq_v03(P, QueryId, BStart, BEnd, BWithJID, RSM)
     end.
 
-stanza_lookup_messages_iq_v03(QueryId, BStart, BEnd, BWithJID, RSM) ->
+stanza_lookup_messages_iq_v03(P, QueryId, BStart, BEnd, BWithJID, RSM) ->
     escalus_stanza:iq(<<"set">>, [#xmlel{
        name = <<"query">>,
-       attrs = mam_ns_attr_v03()
+       attrs = mam_ns_attr(P)
             ++ maybe_attr(<<"queryid">>, QueryId),
        children = skip_undefined([
            form_x(BStart, BEnd, BWithJID, RSM),
@@ -1887,10 +1903,10 @@ form_bool_field(Name, _) ->
     undefined.
 
 
-stanza_lookup_messages_iq_v02(QueryId, BStart, BEnd, BWithJID, RSM) ->
+stanza_lookup_messages_iq_v02(P, QueryId, BStart, BEnd, BWithJID, RSM) ->
     escalus_stanza:iq(<<"get">>, [#xmlel{
        name = <<"query">>,
-       attrs = mam_ns_attr()
+       attrs = mam_ns_attr(P)
             ++ maybe_attr(<<"queryid">>, QueryId)
             ++ border_attributes(RSM),
        children = skip_undefined([
@@ -2076,16 +2092,28 @@ message_id(Num, Config) ->
 %%                  {xmlel,<<"last">>,[],[{xmlcdata,<<"103447">>}]},
 %%                  {xmlel,<<"count">>,[],[{xmlcdata,<<"15">>}]}]}]}]}]
 parse_result_iq(P, Result) ->
-    case get_prop(fin, P) of
-        false ->
+    case get_prop(result_format, P) of
+        mess_fin ->
+            parse_fin_and_iq(Result);
+        iq_query ->
             parse_legacy_iq(respond_iq(Result));
-        true ->
-            parse_fin_and_iq(Result)
+        iq_fin ->
+            parse_fin_iq(Result)
     end.
 
+%% MAM v0.3
 parse_fin_and_iq(#mam_archive_respond{respond_iq=IQ, respond_fin=FinMsg}) ->
     Fin = exml_query:subelement(<<"fin">>, FinMsg),
     Set = exml_query:subelement(<<"set">>, Fin),
+    parse_set_and_iq(IQ, Set).
+
+%% MAM v0.4
+parse_fin_iq(#mam_archive_respond{respond_iq=IQ, respond_fin=undefined}) ->
+    Fin = exml_query:subelement(<<"fin">>, IQ),
+    Set = exml_query:subelement(<<"set">>, Fin),
+    parse_set_and_iq(IQ, Set).
+
+parse_set_and_iq(IQ, Set) ->
     #result_iq{
         from        = exml_query:attr(IQ, <<"from">>),
         to          = exml_query:attr(IQ, <<"to">>),
@@ -2095,6 +2123,7 @@ parse_fin_and_iq(#mam_archive_respond{respond_iq=IQ, respond_fin=FinMsg}) ->
         last        = exml_query:path(Set, [{element, <<"last">>}, cdata]),
         count       = exml_query:path(Set, [{element, <<"count">>}, cdata])}.
 
+%% MAM v0.2
 parse_legacy_iq(#xmlel{name = <<"iq">>,
                        attrs = Attrs, children = Children}) ->
     IQ = #result_iq{

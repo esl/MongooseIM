@@ -27,11 +27,12 @@
          get_one_of_path/2,
          get_one_of_path/3,
          is_complete_message/3,
-         wrap_message/5,
+         wrap_message/6,
          result_set/4,
          result_query/1,
          result_prefs/3,
          make_fin_message/4,
+         make_fin_element/4,
          parse_prefs/1,
          borders_decode/1,
          decode_optimizations/1,
@@ -78,7 +79,7 @@
         get_one_of_path/3,
         delay/2,
         forwarded/3,
-        result/3,
+        result/4,
         valid_behavior/1]}).
 -endif.
 
@@ -298,10 +299,10 @@ is_valid_message_children(_,      _,    _    ) -> false.
 %%  <delay xmlns="urn:xmpp:delay" id="9RUQN9VBP7G1" query_id="q1" stamp="2014-01-13T14:16:57Z" />
 %% </message>
 %% '''
--spec wrap_message(Packet :: jlib:xmlel(), QueryID :: binary(),
+-spec wrap_message(MamNs :: binary(), Packet :: jlib:xmlel(), QueryID :: binary(),
                    MessageUID :: term(), DateTime :: calendar:datetime(),
                    SrcJID :: ejabberd:jid()) -> Wrapper :: jlib:xmlel().
-wrap_message(Packet, QueryID, MessageUID, DateTime, SrcJID) ->
+wrap_message(MamNs, Packet, QueryID, MessageUID, DateTime, SrcJID) ->
     Delay = delay(DateTime, SrcJID, QueryID, MessageUID),
     Packet2 = xml:append_subtags(Packet, [Delay]),
     xml:replace_tag_attr(<<"from">>, jid:to_binary(SrcJID), Packet2).
@@ -315,14 +316,14 @@ delay(DateTime, _SrcJID, QueryID, MessageUID) ->
 -else.
 
 %% @doc Forms `<forwarded/>' element, according to the XEP.
--spec wrap_message(Packet :: jlib:xmlel(), QueryID :: binary(),
+-spec wrap_message(MamNs :: binary(), Packet :: jlib:xmlel(), QueryID :: binary(),
                    MessageUID :: term(), DateTime :: calendar:datetime(),
                    SrcJID :: ejabberd:jid()) -> Wrapper :: jlib:xmlel().
-wrap_message(Packet, QueryID, MessageUID, DateTime, SrcJID) ->
+wrap_message(MamNs, Packet, QueryID, MessageUID, DateTime, SrcJID) ->
     #xmlel{
         name = <<"message">>,
         attrs = [],
-        children = [result(QueryID, MessageUID,
+        children = [result(MamNs, QueryID, MessageUID,
                            [forwarded(Packet, DateTime, SrcJID)])]}.
 
 -spec forwarded(jlib:xmlel(), calendar:datetime(), ejabberd:jid())
@@ -340,14 +341,14 @@ delay(DateTime, SrcJID) ->
 
 %% @doc Generates tag `<result />'.
 %% This element will be added in each forwarded message.
--spec result(_, MessageUID :: binary(), Children :: [jlib:xmlel(),...])
+-spec result(binary(), _, MessageUID :: binary(), Children :: [jlib:xmlel(),...])
             -> jlib:xmlel().
-result(QueryID, MessageUID, Children) when is_list(Children) ->
+result(MamNs, QueryID, MessageUID, Children) when is_list(Children) ->
     %% <result xmlns='urn:xmpp:mam:tmp' queryid='f27' id='28482-98726-73623' />
     #xmlel{
         name = <<"result">>,
         attrs = [{<<"queryid">>, QueryID} || QueryID =/= undefined, QueryID =/= <<>>] ++
-                [{<<"xmlns">>, mam_ns_binary()},
+                [{<<"xmlns">>, MamNs},
                  {<<"id">>, MessageUID}],
         children = Children}.
 
@@ -433,6 +434,7 @@ make_fin_message(MamNs, IsComplete, IsStable, ResultSetEl) ->
         name = <<"message">>,
         children = [make_fin_element(MamNs, IsComplete, IsStable, ResultSetEl)]}.
 
+-spec make_fin_element(binary(), boolean(), boolean(), jlib:xmlel()) -> jlib:xmlel().
 make_fin_element(MamNs, IsComplete, IsStable, ResultSetEl) ->
     #xmlel{
         name = <<"fin">>,

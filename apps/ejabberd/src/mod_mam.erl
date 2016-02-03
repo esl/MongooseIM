@@ -31,6 +31,7 @@
 -behavior(gen_mod).
 -xep([{xep, 313}, {version, "0.2"}]).
 -xep([{xep, 313}, {version, "0.3"}]).
+-xep([{xep, 313}, {version, "0.5"}]).
 %% ----------------------------------------------------------------------
 %% Exports
 
@@ -68,11 +69,12 @@
         [replace_archived_elem/3,
          get_one_of_path/2,
          is_complete_message/3,
-         wrap_message/5,
+         wrap_message/6,
          result_set/4,
          result_query/1,
          result_prefs/3,
          make_fin_message/4,
+         make_fin_element/4,
          parse_prefs/1,
          borders_decode/1,
          decode_optimizations/1,
@@ -188,9 +190,12 @@ start(Host, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, parallel), %% Type
     mod_disco:register_feature(Host, ?NS_MAM),
     mod_disco:register_feature(Host, ?NS_MAM_03),
+    mod_disco:register_feature(Host, ?NS_MAM_04),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_MAM,
                                   ?MODULE, process_mam_iq, IQDisc),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_MAM_03,
+                                  ?MODULE, process_mam_iq, IQDisc),
+    gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_MAM_04,
                                   ?MODULE, process_mam_iq, IQDisc),
     ejabberd_hooks:add(user_send_packet, Host, ?MODULE, user_send_packet, 90),
     ejabberd_hooks:add(filter_local_packet, Host, ?MODULE, filter_packet, 90),
@@ -355,6 +360,8 @@ handle_mam_iq(Action, From, To, IQ) ->
 iq_action(IQ=#iq{xmlns = ?NS_MAM}) ->
     iq_action_02(IQ);
 iq_action(IQ=#iq{xmlns = ?NS_MAM_03}) ->
+    iq_action_03(IQ);
+iq_action(IQ=#iq{xmlns = ?NS_MAM_04}) ->
     iq_action_03(IQ).
 
 iq_action_02(#iq{type = Action, sub_el = SubEl = #xmlel{name = Category}}) ->
@@ -378,7 +385,6 @@ iq_action_03(#iq{type = Action, sub_el = #xmlel{name = Category}}) ->
         %% Purge is NOT official extention, it is not implemented for XEP-0313 v0.3.
         %% Use v0.2 namespace if you really want it.
     end.
-
 
 -spec handle_set_prefs(ejabberd:jid(), ejabberd:iq()) ->
     ejabberd:iq() | {error, term(), ejabberd:iq()}.
@@ -423,7 +429,7 @@ handle_get_prefs_result({error, Reason}, IQ) ->
 handle_lookup_messages(
         From=#jid{},
         ArcJID=#jid{},
-        IQ=#iq{sub_el = QueryEl}) ->
+        IQ=#iq{xmlns=MamNs, sub_el = QueryEl}) ->
     Now = mod_mam_utils:now_to_microseconds(now()),
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
@@ -458,7 +464,7 @@ handle_lookup_messages(
                 [_|_] -> {message_row_to_ext_id(hd(MessageRows)),
                           message_row_to_ext_id(lists:last(MessageRows))}
             end,
-        [send_message(ArcJID, From, message_row_to_xml(M, QueryID))
+        [send_message(ArcJID, From, message_row_to_xml(MamNs, M, QueryID))
          || M <- MessageRows],
         ResultSetEl = result_set(FirstMessID, LastMessID, Offset, TotalCount),
         ResultQueryEl = result_query(ResultSetEl),
@@ -475,7 +481,7 @@ handle_lookup_messages(
 handle_set_message_form(
         From=#jid{},
         ArcJID=#jid{},
-        IQ=#iq{sub_el = QueryEl}) ->
+        IQ=#iq{xmlns=MamNs, sub_el = QueryEl}) ->
     Now = mod_mam_utils:now_to_microseconds(now()),
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
@@ -502,7 +508,7 @@ handle_set_message_form(
                          PageSize, LimitPassed, max_result_limit(), IsSimple) of
     {error, Reason} ->
         return_error_iq(IQ, Reason);
-    {ok, {TotalCount, Offset, MessageRows}} ->
+    {ok, {TotalCount, Offset, MessageRows}} when IQ#iq.xmlns =:= ?NS_MAM_03 ->
         ResIQ = IQ#iq{type = result, sub_el = []},
         %% Server accepts the query
         ejabberd_router:route(ArcJID, From, jlib:iq_to_xml(ResIQ)),
@@ -514,7 +520,7 @@ handle_set_message_form(
                 [_|_] -> {message_row_to_ext_id(hd(MessageRows)),
                           message_row_to_ext_id(lists:last(MessageRows))}
             end,
-        [send_message(ArcJID, From, message_row_to_xml(set_client_xmlns_for_row(M), QueryID))
+        [send_message(ArcJID, From, message_row_to_xml(MamNs, set_client_xmlns_for_row(M), QueryID))
          || M <- MessageRows],
 
         %% Make fin message
@@ -525,7 +531,24 @@ handle_set_message_form(
         ejabberd_sm:route(ArcJID, From, FinMsg),
 
         %% IQ was sent above
-        ignore
+        ignore;
+    {ok, {TotalCount, Offset, MessageRows}} ->
+        %% Forward messages
+        {FirstMessID, LastMessID} =
+            case MessageRows of
+                []    -> {undefined, undefined};
+                [_|_] -> {message_row_to_ext_id(hd(MessageRows)),
+                          message_row_to_ext_id(lists:last(MessageRows))}
+            end,
+        [send_message(ArcJID, From, message_row_to_xml(MamNs, set_client_xmlns_for_row(M), QueryID))
+         || M <- MessageRows],
+
+        %% Make fin iq
+        IsLastPage = is_last_page(PageSize, TotalCount, Offset, MessageRows),
+        IsStable = true,
+        ResultSetEl = result_set(FirstMessID, LastMessID, Offset, TotalCount),
+        FinElem = make_fin_element(IQ#iq.xmlns, IsLastPage, IsStable, ResultSetEl),
+        IQ#iq{type = result, sub_el = [FinElem]}
     end.
 
 -spec handle_get_message_form(ejabberd:jid(), ejabberd:jid(), ejabberd:iq()) ->
@@ -731,12 +754,12 @@ wait_shaper(Host, Action, From) ->
 -type messid_jid_packet() :: {MessId :: integer(),
                               SrcJID :: ejabberd:jid(),
                               Packet :: jlib:xmlel()}.
--spec message_row_to_xml(messid_jid_packet(), QueryId :: binary()) -> jlib:xmlel().
-message_row_to_xml({MessID,SrcJID,Packet}, QueryID) ->
+-spec message_row_to_xml(binary(), messid_jid_packet(), QueryId :: binary()) -> jlib:xmlel().
+message_row_to_xml(MamNs, {MessID,SrcJID,Packet}, QueryID) ->
     {Microseconds, _NodeMessID} = decode_compact_uuid(MessID),
     DateTime = calendar:now_to_universal_time(microseconds_to_now(Microseconds)),
     BExtMessID = mess_id_to_external_binary(MessID),
-    wrap_message(Packet, QueryID, BExtMessID, DateTime, SrcJID).
+    wrap_message(MamNs, Packet, QueryID, BExtMessID, DateTime, SrcJID).
 
 set_client_xmlns_for_row({MessID,SrcJID,Packet}) ->
     {MessID,SrcJID,set_client_xmlns(Packet)}.
