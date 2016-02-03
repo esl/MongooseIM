@@ -63,7 +63,9 @@
          querying_for_all_messages_with_jid/1,
          muc_querying_for_all_messages/1,
          muc_querying_for_all_messages_with_jid/1,
-         iq_spoofing/1]).
+         iq_spoofing/1,
+         run_prefs_cases/1,
+         run_set_and_get_prefs_cases/1]).
 
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
@@ -72,6 +74,12 @@
 
 -define(assert_equal(E, V), (
     [ct:fail("ASSERT EQUAL~n\tExpected ~p~n\tValue ~p~n", [(E), (V)])
+     || (E) =/= (V)]
+    )).
+
+-define(assert_equal_extra(E, V, Extra), (
+    [ct:fail("assert_equal_extra(~s, ~s)~n\tExpected ~p~n\tValue ~p~nExtra ~p~n",
+             [(??E), (??V), (E), (V), (Extra)])
      || (E) =/= (V)]
     )).
 
@@ -140,6 +148,7 @@ configurations() ->
 
 odbc_configs(true) ->
     [odbc,
+     odbc_simple,
      odbc_async_pool,
      odbc_mnesia,
      odbc_async_cache,
@@ -166,7 +175,8 @@ basic_group_names() ->
     bootstrapped,
     archived,
     policy_violation,
-    offline_message
+    offline_message,
+    prefs_cases
     ].
 
 all() ->
@@ -207,7 +217,9 @@ basic_groups() ->
      {muc_with_pm,      [], muc_cases()},
      {rsm,              [], rsm_cases()},
      {muc_rsm,          [], muc_rsm_cases()},
-     {with_rsm,         [], with_rsm_cases()}].
+     {with_rsm,         [], with_rsm_cases()},
+     {prefs_cases,      [], [run_prefs_cases,
+                             run_set_and_get_prefs_cases]}].
 
 bootstrapped_cases() ->
      [purge_old_single_message,
@@ -221,8 +233,7 @@ mam_cases() ->
      limit_archive_request,
      prefs_set_request,
      prefs_set_cdata_request,
-     iq_spoofing
-     ].
+     iq_spoofing].
 
 mam_purge_cases() ->
     [purge_single_message,
@@ -279,14 +290,15 @@ suite() ->
     escalus:suite().
 
 init_per_suite(Config) ->
-    [{escalus_user_db, {module, escalus_ejabberd}}
-     | escalus:init_per_suite(Config)].
+    disable_shaping(
+      delete_users([{escalus_user_db, {module, escalus_ejabberd}}
+                  | escalus:init_per_suite(Config)])).
 
 end_per_suite(Config) ->
-    escalus:end_per_suite(Config).
+    escalus:end_per_suite(restore_shaping(Config)).
 
 user_names() ->
-    [alice, bob].
+    [alice, bob, kate].
 
 create_users(Config) ->
     escalus:create_users(Config, escalus:get_users(user_names())).
@@ -294,12 +306,29 @@ create_users(Config) ->
 delete_users(Config) ->
     escalus:delete_users(Config, escalus:get_users(user_names())).
 
+disable_shaping(Config) ->
+    OldShaper = get_shaper(),
+    set_shaper({maxrate, 100}),
+    [{old_mam_shaper, OldShaper}|Config].
+
+restore_shaping(Config) ->
+    OldShaper = proplists:get_value(old_mam_shaper, Config),
+    set_shaper(OldShaper),
+    Config.
+
+get_shaper() ->
+    rpc_apply(ejabberd_config, get_global_option, [{shaper, mam_shaper, global}]).
+
+set_shaper(NewValue) ->
+    rpc_apply(ejabberd_config, add_global_option, [{shaper, mam_shaper, global}, NewValue]),
+    rpc_apply(shaper_srv, reset_all_shapers, [host()]).
+
 init_per_group(Group, ConfigIn) ->
    C = configuration(Group),
    B = basic_group(Group),
    case init_modules(C, B, ConfigIn) of
         skip ->
-            {skip, {init_modules, C, B, ConfigIn}};
+            {skip, print_configuration_not_supported(C, B)};
         Config0 ->
             ct:pal("Init per group ~p; configuration ~p; basic group ~p",
                    [Group, C, B]),
@@ -335,6 +364,13 @@ init_modules(ca, muc_with_pm, Config) ->
 init_modules(odbc, muc_with_pm, Config) ->
     %% TODO test both mod_mam_muc_odbc_arch and mod_mam_odbc_arch
     init_module(host(), mod_mam_odbc_arch, [muc, pm]),
+    init_module(host(), mod_mam_odbc_prefs, [muc, pm]),
+    init_module(host(), mod_mam_odbc_user, [muc, pm]),
+    init_module(host(), mod_mam, []),
+    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
+    Config;
+init_modules(odbc_simple, muc_with_pm, Config) ->
+    init_module(host(), mod_mam_odbc_arch, [muc, pm, simple]),
     init_module(host(), mod_mam_odbc_prefs, [muc, pm]),
     init_module(host(), mod_mam_odbc_user, [muc, pm]),
     init_module(host(), mod_mam, []),
@@ -410,6 +446,12 @@ init_modules(odbc, muc, Config) ->
     init_module(host(), mod_mam_odbc_user, [muc]),
     init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
     Config;
+init_modules(odbc_simple, muc, Config) ->
+    init_module(host(), mod_mam_muc_odbc_arch, [muc, simple]),
+    init_module(host(), mod_mam_odbc_prefs, [muc]),
+    init_module(host(), mod_mam_odbc_user, [muc]),
+    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
+    Config;
 init_modules(odbc_async_pool, muc, Config) ->
     init_module(host(), mod_mam_muc_odbc_arch, [no_writer]),
     init_module(host(), mod_mam_muc_odbc_async_pool_writer, []),
@@ -458,6 +500,12 @@ init_modules(odbc, _, Config) ->
     init_module(host(), mod_mam_odbc_prefs, [pm]),
     init_module(host(), mod_mam_odbc_user, [pm]),
     Config;
+init_modules(odbc_simple, _, Config) ->
+    init_module(host(), mod_mam, []),
+    init_module(host(), mod_mam_odbc_arch, [pm, simple]),
+    init_module(host(), mod_mam_odbc_prefs, [pm]),
+    init_module(host(), mod_mam_odbc_user, [pm]),
+    Config;
 init_modules(ca, _, Config) ->
     init_module(host(), mod_mam_con_ca_arch, [pm]),
     init_module(host(), mod_mam_odbc_prefs, [pm]),
@@ -473,6 +521,7 @@ init_modules(odbc_async, _, Config) ->
     Config;
 init_modules(riak_timed_yz_buckets, _, Config) ->
     init_module(host(), mod_mam_riak_timed_arch_yz, [pm, muc]),
+    init_module(host(), mod_mam_mnesia_prefs, [pm, muc]),
     init_module(host(), mod_mam, []),
     init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
     Config;
@@ -531,7 +580,6 @@ mam_modules() ->
      mod_mam_muc_odbc_async_pool_writer,
      mod_mam_odbc_prefs,
      mod_mam_mnesia_prefs,
-     mod_mam_mnesia_dirty_prefs,
      mod_mam_odbc_user,
      mod_mam_cache_user,
      mod_mam_muc_cache_user,
@@ -551,6 +599,8 @@ init_state(_, rsm, Config) ->
 init_state(_, with_rsm, Config) ->
     Config1 = [{with_rsm, true}|Config],
     send_rsm_messages(clean_archives(Config1));
+init_state(_, run_prefs_cases, Config) ->
+    clean_archives(Config);
 init_state(_, _, Config) ->
     clean_archives(Config).
 
@@ -1745,16 +1795,16 @@ is_same_message_text(Stanza, Raw) ->
 %% ----------------------------------------------------------------------
 %% PREFERENCE QUERIES
 
-stanza_prefs_set_request(DefaultMode, AlwaysJIDs, NewerJIDs) ->
+stanza_prefs_set_request(DefaultMode, AlwaysJIDs, NeverJIDs) ->
     AlwaysEl = #xmlel{name = <<"always">>,
                       children = encode_jids(AlwaysJIDs)},
-    NewerEl  = #xmlel{name = <<"never">>,
-                      children = encode_jids(NewerJIDs)},
+    NeverEl  = #xmlel{name = <<"never">>,
+                      children = encode_jids(NeverJIDs)},
     escalus_stanza:iq(<<"set">>, [#xmlel{
        name = <<"prefs">>,
        attrs = [{<<"xmlns">>,mam_ns_binary()}]
                ++ [{<<"default">>, DefaultMode} || is_def(DefaultMode)],
-       children = [AlwaysEl, NewerEl]
+       children = [AlwaysEl, NeverEl]
     }]).
 
 stanza_prefs_get_request() ->
@@ -1912,7 +1962,8 @@ parse_prefs_result_iq(#xmlel{name = <<"iq">>, children = Children}) ->
 
 
 parse_jids(Els) ->
-    [JID || #xmlel{name = <<"jid">>, children = [{xmlcdata, JID}]} <- Els].
+    [escalus_utils:jid_to_lower(JID) %% MongooseIM normalizes JIDs
+     || #xmlel{name = <<"jid">>, children = [{xmlcdata, JID}]} <- Els].
 
 %% <iq type='error' id='q29302'>
 %%   <error type='modify'>
@@ -2314,3 +2365,144 @@ maybe_wait_for_yz(Config) ->
         Value ->
             timer:sleep(Value)
     end.
+
+
+%% Bob and Alice are friends.
+%% Kate and Alice are not friends.
+%%
+%% Messages:
+%% 1. Bob sends a message to Alice
+%% 2. Alice sends a message to Bob
+%% 3. Kate sends a message to Alice
+%% 4. Alice sends a message to Kate
+%%
+%% Each tuple is
+%% {{Default, Always, Never},
+%%  [Message1Archived, Message2Archived, Message3Archied, Message4Archived]}
+prefs_cases() ->
+    [
+     {{roster, [], []},              [true, true, false, false]},
+     {{roster, [bob], []},           [true, true, false, false]},
+     {{roster, [kate], []},          [true, true, true, true]},
+     {{roster, [kate, bob], []},     [true, true, true, true]},
+ 
+     {{roster, [], [bob]},           [false, false, false, false]},
+     {{roster, [], [kate]},          [true, true, false, false]},
+     {{roster, [], [bob, kate]},     [false, false, false, false]},
+ 
+ 
+     {{never, [], []},              [false, false, false, false]},
+     {{never, [bob], []},           [true, true, false, false]},
+     {{never, [kate], []},          [false, false, true, true]},
+     {{never, [kate, bob], []},     [true, true, true, true]},
+ 
+     {{never, [], [bob]},           [false, false, false, false]},
+     {{never, [], [kate]},          [false, false, false, false]},
+     {{never, [], [bob, kate]},     [false, false, false, false]},
+ 
+ 
+     {{always, [], []},              [true, true, true, true]},
+     {{always, [bob], []},           [true, true, true, true]},
+     {{always, [kate], []},          [true, true, true, true]},
+     {{always, [kate, bob], []},     [true, true, true, true]},
+ 
+     {{always, [], [bob]},           [false, false, true, true]},
+     {{always, [], [kate]},          [true, true, false, false]},
+     {{always, [], [bob, kate]},     [false, false, false, false]}
+    ].
+
+
+run_prefs_cases(Config) ->
+    F = fun(Alice, Bob, Kate) ->
+        make_alice_and_bob_friends(Alice, Bob),
+        [run_prefs_case(Case, Alice, Bob, Kate, Config) || Case <- prefs_cases()]
+        end,
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], F).
+
+make_alice_and_bob_friends(Alice, Bob) ->
+        escalus_client:send(Alice, escalus_stanza:presence_direct(escalus_client:short_jid(Bob), <<"subscribe">>)), 
+        escalus:wait_for_stanzas(Alice, 1, 5000), % iq set
+        escalus:wait_for_stanzas(Bob, 1, 5000), % presence subscribe
+
+        escalus_client:send(Bob, escalus_stanza:presence_direct(escalus_client:short_jid(Alice), <<"subscribed">>)), 
+        escalus:wait_for_stanzas(Alice, 3, 5000), % iq set, presence subscribed, presence
+        escalus:wait_for_stanzas(Bob, 1, 5000), % iq set subscription=from
+
+        escalus_client:send(Bob, escalus_stanza:presence_direct(escalus_client:short_jid(Alice), <<"subscribe">>)), 
+        escalus:wait_for_stanzas(Alice, 2, 5000), % iq set subscription=to, presence subscribe
+        escalus:wait_for_stanzas(Bob, 1, 5000), % iq set subscription=from
+
+        escalus_client:send(Alice, escalus_stanza:presence_direct(escalus_client:short_jid(Bob), <<"subscribed">>)), 
+        escalus:wait_for_stanzas(Alice, 1, 5000), % iq set subscription=both
+        escalus:wait_for_stanzas(Bob, 3, 5000), % iq set subscription=both, presence subscribed, presence
+        ok.
+
+run_prefs_case({PrefsState, ExpectedMessageStates}, Alice, Bob, Kate, Config) ->
+    IqSet = stanza_prefs_set_request(PrefsState, Config),
+    escalus:send(Alice, IqSet),
+    ReplySet = escalus:wait_for_stanza(Alice),
+    Messages = [iolist_to_binary(io_lib:format("n=~p, prefs=~p, now=~p",
+                                               [N, PrefsState, now()]))
+                || N <- [1,2,3,4]],
+    %% Messages:
+    %% 1. Bob sends a message to Alice
+    %% 2. Alice sends a message to Bob
+    %% 3. Kate sends a message to Alice
+    %% 4. Alice sends a message to Kate
+    escalus:send(Bob, escalus_stanza:chat_to(Alice, lists:nth(1, Messages))),
+    escalus:send(Alice, escalus_stanza:chat_to(Bob, lists:nth(2, Messages))),
+    escalus:send(Kate, escalus_stanza:chat_to(Alice, lists:nth(3, Messages))),
+    escalus:send(Alice, escalus_stanza:chat_to(Kate, lists:nth(4, Messages))),
+    escalus:wait_for_stanzas(Bob, 1, 5000),
+    escalus:wait_for_stanzas(Kate, 1, 5000),
+    escalus:wait_for_stanzas(Alice, 2, 5000),
+    maybe_wait_for_yz(Config),
+    %% Get last four archived texts
+    Stanzas = get_last_four_messages(Alice),
+    ParsedMessages = parse_messages(Stanzas),
+    Bodies = [B || #forwarded_message{message_body=B} <- ParsedMessages],
+    ActualMessageStates = [lists:member(M, Bodies) || M <- Messages],
+    ?assert_equal_extra(ExpectedMessageStates, ActualMessageStates,
+                        [{prefs_state, PrefsState}]),
+    ok.
+
+get_last_four_messages(Alice) ->
+    RSM = #rsm_in{max=4, direction='before'},
+    escalus:send(Alice, stanza_page_archive_request(<<"last4_rsm">>, RSM)),
+    [_ArcIQ|AllMessages] = wait_archive_respond_iq_first(Alice),
+    AllMessages.
+
+stanza_prefs_set_request({DefaultMode, AlwaysUsers, NeverUsers}, Config) ->
+    DefaultModeBin = atom_to_binary(DefaultMode, utf8),
+    AlwaysJIDs = users_to_jids(AlwaysUsers, Config),
+    NeverJIDs  = users_to_jids(NeverUsers, Config),
+    stanza_prefs_set_request(DefaultModeBin, AlwaysJIDs, NeverJIDs).
+
+users_to_jids(Users, Config) ->
+    [escalus_users:get_jid(Config, User) || User <- Users].
+
+print_configuration_not_supported(C, B) ->
+    I = io_lib:format("issue=configuration_not_supported, "
+                       "configuration=~p, basic_group=~p", [C, B]),
+     binary_to_list(iolist_to_binary(I)).
+
+%% The same as prefs_set_request case but for different configurations
+run_set_and_get_prefs_cases(Config) ->
+    F = fun(Alice) ->
+        [run_set_and_get_prefs_case(Case, Alice, Config) || Case <- prefs_cases()]
+        end,
+    escalus:story(Config, [{alice, 1}], F).
+
+%% Alice sets and gets her preferences
+run_set_and_get_prefs_case({PrefsState, _ExpectedMessageStates}, Alice, Config) ->
+    IqSet = stanza_prefs_set_request(PrefsState, Config),
+    escalus:send(Alice, IqSet),
+    ReplySet = escalus:wait_for_stanza(Alice, 5000),
+
+    escalus:send(Alice, stanza_prefs_get_request()),
+    ReplyGet = escalus:wait_for_stanza(Alice),
+
+    ResultIQ1 = parse_prefs_result_iq(ReplySet),
+    ResultIQ2 = parse_prefs_result_iq(ReplyGet),
+    ?assert_equal(ResultIQ1, ResultIQ2),
+    ok.

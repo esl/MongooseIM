@@ -161,6 +161,30 @@ CREATE TABLE roster_version (
 -- ALTER TABLE rosterusers ADD COLUMN askmessage text AFTER ask;
 -- UPDATE rosterusers SET askmessage = '';
 -- ALTER TABLE rosterusers ALTER COLUMN askmessage SET NOT NULL;
+--
+-- NOTE: A "minified" JID is an encoded form of JID storing only
+--       the difference between a user's JID and the real JID.
+--       Consult with mod_mam_utils:jid_to_opt_binary/2
+--
+--       How it works. We produce encoded_jid using information from
+--       archive_jid and real_jid:
+--       | archive_jid      | real_jid        | encoded_jid
+--       | ---------------- | --------------- | --------------------
+--       | alice@host       | alice@host      |
+--       | alice@host       | alice@host/r1   | /r1
+--       | alice@host       | bob@host        | bob
+--       | alice@host       | bob@host/r1     | bob/r1
+--       | alice@host       | kate@example    | example:kate
+--       | alice@host       | kate@example/r1 | example@kate/r1
+--
+--
+-- SIMPLE FORMAT
+-- =============
+--
+-- Differences between old and simple format:
+-- - message is stored as XML
+-- - remote_bare_jid is not "minified"
+-- To enable simple format pass {simple, true} as an option for mod_mam_odbc_arch
 CREATE TABLE mam_message(
   -- Message UID (64 bits)
   -- A server-assigned UID that MUST be unique within the archive.
@@ -168,9 +192,11 @@ CREATE TABLE mam_message(
   user_id INT UNSIGNED NOT NULL,
   -- FromJID used to form a message without looking into stanza.
   -- This value will be send to the client "as is".
+  -- This JID is "minified".
   from_jid varchar(250) CHARACTER SET binary NOT NULL,
   -- The remote JID that the stanza is to (for an outgoing message) or from (for an incoming message).
   -- This field is for sorting and filtering.
+  -- This JID is "minified".
   remote_bare_jid varchar(250) CHARACTER SET binary NOT NULL,
   remote_resource varchar(250) CHARACTER SET binary NOT NULL,
   -- I - incoming, remote_jid is a value from From.
@@ -178,6 +204,7 @@ CREATE TABLE mam_message(
   -- Has no meaning for MUC-rooms.
   direction ENUM('I','O') NOT NULL,
   -- Term-encoded message packet
+  -- Don't try to decode it using MySQL tools
   message blob NOT NULL,
   PRIMARY KEY (user_id, id),
   INDEX i_mam_message_rem USING BTREE (user_id, remote_bare_jid, id),
@@ -188,6 +215,7 @@ CREATE TABLE mam_message(
 -- Partition is selected based on MOD(user_id, 32)
 -- See for more information
 -- http://dev.mysql.com/doc/refman/5.1/en/partitioning-hash.html
+
 
 CREATE TABLE mam_config(
   user_id INT UNSIGNED NOT NULL,

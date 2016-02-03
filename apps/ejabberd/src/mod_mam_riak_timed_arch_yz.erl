@@ -53,6 +53,7 @@
 %%
 %% Use both options `pm, muc' to archive both MUC and private messages
 start(Host, Opts) ->
+    compile_params_module(Opts),
     case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
         true ->
             start_chat_archive(Host, Opts);
@@ -224,7 +225,7 @@ create_obj(MsgId, SourceJID, Packet) ->
            {{<<"source_jid">>, register},
             fun(R) -> riakc_register:set(SourceJID, R) end},
            {{<<"packet">>, register},
-            fun(R) -> riakc_register:set(exml:to_binary(Packet), R) end}],
+            fun(R) -> riakc_register:set(packet_to_stored_binary(Packet), R) end}],
 
     mongoose_riak:create_new_map(Ops).
 
@@ -298,7 +299,7 @@ get_message2(MsgId, Bucket, Key) ->
         {ok, RiakMap} ->
             SourceJID = riakc_map:fetch({<<"source_jid">>, register}, RiakMap),
             PacketBin = riakc_map:fetch({<<"packet">>, register}, RiakMap),
-            {ok, Packet} = exml:parse(PacketBin),
+            Packet = stored_binary_to_packet(PacketBin),
             {MsgId, jid:from_binary(SourceJID), Packet};
         _ ->
             []
@@ -455,3 +456,39 @@ maybe_encode_compact_uuid(undefined, _) ->
     undefined;
 maybe_encode_compact_uuid(Microseconds, NodeID) ->
     mod_mam_utils:encode_compact_uuid(Microseconds, NodeID).
+
+
+%% ----------------------------------------------------------------------
+%% Optimizations
+
+packet_to_stored_binary(Packet) ->
+    %% Module implementing mam_message behaviour
+    Module = db_message_format(),
+    Module:encode(Packet).
+
+stored_binary_to_packet(Bin) ->
+    %% Module implementing mam_message behaviour
+    Module = db_message_format(),
+    Module:decode(Bin).
+
+%% ----------------------------------------------------------------------
+%% Dynamic params module
+
+%% compile_params_module([
+%%      {db_message_format, module()}
+%%      ])
+compile_params_module(Params) ->
+    CodeStr = params_helper(Params),
+    {Mod, Code} = dynamic_compile:from_string(CodeStr),
+    code:load_binary(Mod, "mod_mam_riak_timed_arch_yz_params.erl", Code).
+
+params_helper(Params) ->
+    binary_to_list(iolist_to_binary(io_lib:format(
+        "-module(mod_mam_riak_timed_arch_yz_params).~n"
+        "-compile(export_all).~n"
+        "db_message_format() -> ~p.~n",
+        [proplists:get_value(db_message_format, Params, mam_message_xml)]))).
+
+-spec db_message_format() -> module().
+db_message_format() ->
+    mod_mam_riak_timed_arch_yz_params:db_message_format().

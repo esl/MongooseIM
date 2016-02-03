@@ -15,7 +15,9 @@
 
 -export([start_link/1,
          child_specs/0,
-         wait/4]).
+         wait/4,
+         reset_shapers/1,
+         reset_all_shapers/1]).
 
 %% ------------------------------------------------------------------
 %% Record definitions
@@ -98,6 +100,14 @@ worker_number(Host, Tag) ->
 wait(Host, Action, FromJID, Size) ->
     gen_server:call(select_worker(Host, FromJID), {wait, Host, Action, FromJID, Size}).
 
+%% @doc Ask all shaper servers to forget current shapers and read settings again
+reset_all_shapers(Host) ->
+    [reset_shapers(ProcName) || ProcName <- worker_names(Host)].
+
+%% @doc Ask server to forget its shapers
+reset_shapers(ProcName) ->
+    gen_server:call(ProcName, reset_shapers).
+
 %% ------------------------------------------------------------------
 %% gen_server Function Definitions
 %% ------------------------------------------------------------------
@@ -124,7 +134,9 @@ handle_call({wait, Host, Action, FromJID, Size},
             {noreply, save_shaper(Key, UpdatedShaper, State1)};
         {_, _} ->
             {reply, {error, max_delay_reached}, State1}
-    end.
+    end;
+handle_call(reset_shapers, _From, State=#state{}) ->
+    {reply, ok, init_dicts(State)}.
 
 handle_cast(_Msg, State) ->
     {noreply, State}.
@@ -191,7 +203,7 @@ create_shaper(Key) ->
     shaper:new(request_shaper_name(Key)).
 
 
--spec request_shaper_name(key()) -> 'allow' | 'none'.
+-spec request_shaper_name(key()) -> atom().
 request_shaper_name({Host, Action, FromJID}) ->
     get_shaper_name(Host, Action, FromJID, default_shaper()).
 
