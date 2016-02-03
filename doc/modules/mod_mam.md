@@ -4,7 +4,7 @@ This module implements revision 0.2 of [XEP-0313 (Message Archive Management)](h
 ## Configuring MAM with ODBC backend
 
 ### Options
-* **mod_mam_odbc_prefs, mod_mam_mnesia_prefs, mod_mam_dirty_prefs**
+* **mod_mam_odbc_prefs, mod_mam_mnesia_prefs**
 Consider the process as a kind of recipe. For each step you can enable none ("optional"), one ("single") or more ("multi") modules, according to instructions. Provided there are any, please use the options described in a specific step. All config parameters are boolean, so you can enable them by adding an atom to the configuration list, e.g. `{mod_mam_odbc_arch, [pm, no_writer]}`
 
 ##### Step 1 (multi)
@@ -42,8 +42,7 @@ If you haven't chosen any of the above, skip the next part.
 Skipping this step will make mod_mam archive all the messages and users will not be able to set their archiving preferences. It will also increase performance.
 
 * **mod_mam_odbc_prefs** - User archiving preferences saved in ODBC. Slow and not recommended, but might be used to simplify things and keep everything in ODBC.
-* **mod_mam_mnesia_prefs** - User archiving preferences saved in Mnesia. Recommended in most deployments, could be overloaded with lots of users updating their preferences at once.
-* **mod_mam_mnesia_dirty_prefs** - User archiving preferences saved in Mnesia and accessed without transactions. There's a small risk of inconsistent (in a rather harmless way) state of preferences table. Provides best performance.
+* **mod_mam_mnesia_prefs** - User archiving preferences saved in Mnesia and accessed without transactions. Recommended in most deployments, could be overloaded with lots of users updating their preferences at once. There's a small risk of inconsistent (in a rather harmless way) state of preferences table. Provides best performance.
 
 **Options:** (common for all three modules)
 
