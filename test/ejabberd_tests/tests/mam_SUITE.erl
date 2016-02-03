@@ -179,7 +179,11 @@ basic_group_names() ->
     muc,
     muc_with_pm,
     rsm,
+    rsm03,
+    rsm04,
     with_rsm,
+    with_rsm03,
+    with_rsm04,
     muc_rsm,
     bootstrapped,
     archived,
@@ -227,8 +231,12 @@ basic_groups() ->
      {muc,              [], muc_cases()},
      {muc_with_pm,      [], muc_cases()},
      {rsm,              [], rsm_cases()},
+     {rsm03,            [], rsm_cases()},
+     {rsm04,            [], rsm_cases()},
      {muc_rsm,          [], muc_rsm_cases()},
      {with_rsm,         [], with_rsm_cases()},
+     {with_rsm03,       [], with_rsm_cases()},
+     {with_rsm04,       [], with_rsm_cases()},
      {prefs_cases,      [], [run_prefs_cases,
                              run_set_and_get_prefs_cases]}].
 
@@ -608,8 +616,20 @@ init_state(_, muc_with_pm, Config) ->
     Config;
 init_state(_, rsm, Config) ->
     send_rsm_messages(clean_archives(Config));
+init_state(_, rsm03, Config) ->
+    Config1 = [{props, mam03_props()}|Config],
+    send_rsm_messages(clean_archives(Config1));
+init_state(_, rsm04, Config) ->
+    Config1 = [{props, mam04_props()}|Config],
+    send_rsm_messages(clean_archives(Config1));
 init_state(_, with_rsm, Config) ->
     Config1 = [{with_rsm, true}|Config],
+    send_rsm_messages(clean_archives(Config1));
+init_state(_, with_rsm03, Config) ->
+    Config1 = [{props, mam03_props()}, {with_rsm, true}|Config],
+    send_rsm_messages(clean_archives(Config1));
+init_state(_, with_rsm04, Config) ->
+    Config1 = [{props, mam04_props()}, {with_rsm, true}|Config],
     send_rsm_messages(clean_archives(Config1));
 init_state(_, run_prefs_cases, Config) ->
     clean_archives(Config);
@@ -2103,14 +2123,20 @@ parse_result_iq(P, Result) ->
 
 %% MAM v0.3
 parse_fin_and_iq(#mam_archive_respond{respond_iq=IQ, respond_fin=FinMsg}) ->
-    Fin = exml_query:subelement(<<"fin">>, FinMsg),
-    Set = exml_query:subelement(<<"set">>, Fin),
+    Fin = exml_query:subelement(FinMsg, <<"fin">>),
+    Set = exml_query:subelement(Fin, <<"set">>),
     parse_set_and_iq(IQ, Set).
 
 %% MAM v0.4
 parse_fin_iq(#mam_archive_respond{respond_iq=IQ, respond_fin=undefined}) ->
-    Fin = exml_query:subelement(<<"fin">>, IQ),
-    Set = exml_query:subelement(<<"set">>, Fin),
+    Fin = exml_query:subelement(IQ, <<"fin">>),
+    Set = exml_query:subelement(Fin, <<"set">>),
+    parse_set_and_iq(IQ, Set).
+
+%% MAM v0.2
+parse_legacy_iq(IQ) ->
+    Fin = exml_query:subelement(IQ, <<"query">>),
+    Set = exml_query:subelement(Fin, <<"set">>),
     parse_set_and_iq(IQ, Set).
 
 parse_set_and_iq(IQ, Set) ->
@@ -2119,47 +2145,10 @@ parse_set_and_iq(IQ, Set) ->
         to          = exml_query:attr(IQ, <<"to">>),
         id          = exml_query:attr(IQ, <<"id">>),
         first       = exml_query:path(Set, [{element, <<"first">>}, cdata]),
-        first_index = exml_query:path(Set, [{element, <<"first">>}, {attr, <<"index">>}]),
+        first_index = maybe_binary_to_integer(exml_query:path(Set, [{element, <<"first">>}, {attr, <<"index">>}])),
         last        = exml_query:path(Set, [{element, <<"last">>}, cdata]),
-        count       = exml_query:path(Set, [{element, <<"count">>}, cdata])}.
+        count       = maybe_binary_to_integer(exml_query:path(Set, [{element, <<"count">>}, cdata]))}.
 
-%% MAM v0.2
-parse_legacy_iq(#xmlel{name = <<"iq">>,
-                       attrs = Attrs, children = Children}) ->
-    IQ = #result_iq{
-        from = proplists:get_value(<<"from">>, Attrs),
-        to   = proplists:get_value(<<"to">>, Attrs),
-        id   = proplists:get_value(<<"id">>, Attrs)},
-    lists:foldl(fun 'parse_children[iq]'/2, IQ, Children).
-
-'parse_children[iq]'(#xmlel{name = <<"query">>, children = Children},
-                     IQ) ->
-    lists:foldl(fun 'parse_children[iq/query]'/2, IQ, Children).
-
-
-'parse_children[iq/query]'(#xmlel{name = <<"set">>,
-                                  children = Children},
-                           IQ) ->
-    lists:foldl(fun 'parse_children[iq/query/set]'/2, IQ, Children).
-
-'parse_children[iq/query/set]'(#xmlel{name = <<"first">>,
-                                      attrs = Attrs,
-                                      children = [{xmlcdata, First}]},
-                               IQ) ->
-    Index = case proplists:get_value(<<"index">>, Attrs) of
-                undefined -> undefined;
-                X -> list_to_integer(binary_to_list(X))
-            end,
-    IQ#result_iq{first_index = Index, first = First};
-'parse_children[iq/query/set]'(#xmlel{name = <<"last">>,
-                                      children = [{xmlcdata, Last}]},
-                               IQ) ->
-    IQ#result_iq{last = Last};
-'parse_children[iq/query/set]'(#xmlel{name = <<"count">>,
-                                      children = [{xmlcdata, Count}]},
-                               IQ) ->
-    IQ#result_iq{count = list_to_integer(binary_to_list(Count))};
-'parse_children[iq/query/set]'(_, IQ) -> IQ.
 
 is_def(X) -> X =/= undefined.
 
@@ -2739,3 +2728,8 @@ run_set_and_get_prefs_case({PrefsState, _ExpectedMessageStates}, Alice, Config) 
     ResultIQ2 = parse_prefs_result_iq(ReplyGet),
     ?assert_equal(ResultIQ1, ResultIQ2),
     ok.
+
+maybe_binary_to_integer(B) when is_binary(B) ->
+    list_to_integer(binary_to_list(B));
+maybe_binary_to_integer(undefined) ->
+    undefined.
