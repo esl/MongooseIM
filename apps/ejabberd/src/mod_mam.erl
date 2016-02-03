@@ -88,7 +88,8 @@
 -import(mod_mam_utils,
         [maybe_integer/2,
          is_function_exist/3,
-         mess_id_to_external_binary/1]).
+         mess_id_to_external_binary/1,
+         is_last_page/4]).
 
 %% ejabberd
 -import(mod_mam_utils,
@@ -517,7 +518,7 @@ handle_set_message_form(
          || M <- MessageRows],
 
         %% Make fin message
-        IsLastPage = false,
+        IsLastPage = is_last_page(PageSize, TotalCount, Offset, MessageRows),
         IsStable = true,
         ResultSetEl = result_set(FirstMessID, LastMessID, Offset, TotalCount),
         FinMsg = make_fin_message(IQ#iq.xmlns, IsLastPage, IsStable, ResultSetEl),
@@ -864,3 +865,4 @@ return_error_iq(IQ, Reason) ->
 
 return_message_form_iq(IQ) ->
     IQ#iq{type = result, sub_el = [message_form(IQ#iq.xmlns)]}.
+

@@ -55,7 +55,8 @@
          maybe_max/2,
          is_function_exist/3,
          apply_start_border/2,
-         apply_end_border/2]).
+         apply_end_border/2,
+         is_last_page/4]).
 
 %% Ejabberd
 -export([send_message/3,
@@ -757,6 +758,32 @@ maybe_previous_id(undefined) ->
     undefined;
 maybe_previous_id(X) ->
     X - 1.
+
+
+-spec is_last_page(PageSize, TotalCount, Offset, MessageRows) -> boolean() when
+    PageSize    :: non_neg_integer(),
+    TotalCount  :: non_neg_integer()|undefined,
+    Offset      :: non_neg_integer()|undefined,
+    MessageRows :: list().
+is_last_page(PageSize, TotalCount, Offset, MessageRows)
+    when length(MessageRows) < PageSize ->
+    true;
+is_last_page(PageSize, TotalCount, Offset, MessageRows)
+    when is_integer(TotalCount), is_integer(Offset),
+         length(MessageRows) =:= PageSize ->
+    %% Number of messages on skipped pages from the beginning plus the current page
+    PagedCount = Offset + PageSize,
+    if
+        TotalCount =:= PagedCount ->
+            true; %%
+        true ->
+            false %% full page but not the last one in the result set
+    end;
+is_last_page(_PageSize, _TotalCount, _Offset, _MessageRows) ->
+    %% When is_integer(TotalCount), is_integer(Offset)
+    %%     it's not possible case: the page is bigger then page size.
+    %% Otherwise either TotalCount or Offset is undefined because of optimizations.
+    false.
 
 
 %% -----------------------------------------------------------------------
