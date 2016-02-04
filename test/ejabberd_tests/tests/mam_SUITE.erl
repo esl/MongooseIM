@@ -63,7 +63,6 @@
          querying_for_all_messages_with_jid/1,
          muc_querying_for_all_messages/1,
          muc_querying_for_all_messages_with_jid/1,
-         iq_spoofing/1,
          run_prefs_cases/1,
          run_set_and_get_prefs_cases/1]).
 
@@ -248,8 +247,7 @@ mam_cases() ->
      simple_archive_request,
      range_archive_request,
      range_archive_request_not_empty,
-     limit_archive_request,
-     iq_spoofing].
+     limit_archive_request].
 
 mam_purge_cases() ->
     [purge_single_message,
@@ -1753,30 +1751,6 @@ muc_service_discovery(Config) ->
         ok
         end,
     escalus:story(Config, [{alice, 1}], F).
-
-iq_spoofing(Config) ->
-    P = ?config(props, Config),
-    F = fun(Alice, Bob) ->
-        %% Sending iqs between clients is allowed.
-        %% Every client MUST check "from" and "id" attributes.
-        %% This test checks, that server assign corrent "from" attribute
-        %% when it is not specified.
-        To = escalus_utils:get_jid(Alice),
-        From = escalus_utils:get_jid(Bob),
-        escalus:send(Bob, escalus_stanza:to(result_iq(), To)),
-        Stanza = escalus:wait_for_stanza(Alice),
-        escalus_assert:is_stanza_from(From, Stanza),
-        escalus_assert:has_no_stanzas(Alice),
-        escalus_assert:has_no_stanzas(Bob),
-        ok
-        end,
-    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
-
-result_iq() ->
-    #xmlel{
-        name = <<"iq">>,
-        attrs = [{<<"id">>,<<"xxx">>}, {<<"type">>,<<"result">>}],
-        children = [#xmlel{name = <<"query">>}]}.
 
 %%--------------------------------------------------------------------
 %% Helpers
