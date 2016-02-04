@@ -1,6 +1,33 @@
+# MongooseIM 1.6.2
+
+2016-02-12
+
+This release includes:
+
+- finished Riak backends for all modules storing persistent data:
+   - mod_offline [#594](https://github.com/esl/MongooseIM/pull/594)
+   - mod_privacy [#618](https://github.com/esl/MongooseIM/pull/618)
+   - MAM for MUCs [#622](https://github.com/esl/MongooseIM/pull/622)
+- XMPP improvements:
+   - support for MAM versions 0.3, 0.4.1 and 0.5 [#668](https://github.com/esl/MongooseIM/pull/668)
+   - support for XEP-0185 [#665](https://github.com/esl/MongooseIM/pull/665)
+- test improvements: [#602](https://github.com/esl/MongooseIM/pull/602), [#621](https://github.com/esl/MongooseIM/pull/621),[#637](https://github.com/esl/MongooseIM/pull/637), [#654](https://github.com/esl/MongooseIM/pull/654)
+- dropped support for Erlang/OTP older than R16B03-1: [#613](https://github.com/esl/MongooseIM/pull/613), [#636](https://github.com/esl/MongooseIM/pull/636)
+- updated cowboy to 1.0.4
+- other improvements and code cleanup
+   - [complete list of merged PRs](https://github.com/esl/MongooseIM/pulls?utf8=✓&q=is%3Apr+base%3Amaster+merged%3A%222015-12-05..2016-02-12%22+sort%3Acreated-asc+)
+   - [complete list of closed issues](https://github.com/esl/MongooseIM/issues?utf8=%E2%9C%93&q=is%3Aissue+is%3Aclosed+closed%3A%222015-12-05..2016-02-12%22+)
+
+Special thanks to our contributors: @gbour, @bartekgorny, @jfjalburquerque
+
+This release repo [history](https://github.com/esl/MongooseIM/graphs/contributors?from=2015-12-06&to=2016-02-12&type=c)
+
+
 # MongooseIM 1.6.1
 
 2015-12-07
+
+This release includes:
 
 - more Riak backends:
    - mod_roster [#572](https://github.com/esl/MongooseIM/pull/572)
