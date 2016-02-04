@@ -656,7 +656,7 @@ get_behaviour(Host, ArcID,
                 DefaultMode :: atom(), AlwaysJIDs :: [ejabberd:literal_jid()],
                 NeverJIDs :: [ejabberd:literal_jid()]) -> any().
 set_prefs(Host, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
-    ejabberd_hooks:run_fold(mam_set_prefs, Host, ok,
+    ejabberd_hooks:run_fold(mam_set_prefs, Host, {error, not_implemented},
         [Host, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs]).
 
 
@@ -889,6 +889,8 @@ return_max_delay_reached_error_iq(IQ) ->
 -spec return_error_iq(ejabberd:iq(), Reason :: term()) -> {error, term(), ejabberd:iq()}.
 return_error_iq(IQ, timeout) ->
     {error, timeout, IQ#iq{type = error, sub_el = [?ERR_SERVICE_UNAVAILABLE]}};
+return_error_iq(IQ, not_implemented) ->
+    {error, not_implemented, IQ#iq{type = error, sub_el = [?ERR_FEATURE_NOT_IMPLEMENTED]}};
 return_error_iq(IQ, Reason) ->
     {error, Reason, IQ#iq{type = error, sub_el = [?ERR_INTERNAL_SERVER_ERROR]}}.
 

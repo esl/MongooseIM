@@ -166,7 +166,14 @@ get_behaviour(#mam_prefs{default_mode = roster,
                 DefaultMode :: mod_mam:archive_behaviour(),
                 AlwaysJIDs :: [ejabberd:literal_jid()],
                 NeverJIDs :: [ejabberd:literal_jid()]) -> any().
-set_prefs(Result, _Host, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
+set_prefs(_Result, _Host, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
+    try
+        set_prefs1(ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs)
+    catch _Type:Error ->
+        {error, Error}
+    end.
+
+set_prefs1(ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     SU = su_key(ArcJID),
     NewARules = lists:usort(rules(ArcJID, AlwaysJIDs)),
     NewNRules = lists:usort(rules(ArcJID, NeverJIDs)),
@@ -180,7 +187,7 @@ set_prefs(Result, _Host, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     mnesia:sync_dirty(fun() ->
             mnesia:write(User)
         end),
-    Result.
+    ok.
 
 
 -spec get_prefs(mod_mam:preference(), _Host :: ejabberd:server(),
