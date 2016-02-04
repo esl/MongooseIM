@@ -237,8 +237,7 @@ basic_groups() ->
      {with_rsm,         [], with_rsm_cases()},
      {with_rsm03,       [], with_rsm_cases()},
      {with_rsm04,       [], with_rsm_cases()},
-     {prefs_cases,      [], [run_prefs_cases,
-                             run_set_and_get_prefs_cases]}].
+     {prefs_cases,      [], prefs_cases()}].
 
 bootstrapped_cases() ->
      [purge_old_single_message,
@@ -250,8 +249,6 @@ mam_cases() ->
      range_archive_request,
      range_archive_request_not_empty,
      limit_archive_request,
-     prefs_set_request,
-     prefs_set_cdata_request,
      iq_spoofing].
 
 mam_purge_cases() ->
@@ -304,6 +301,12 @@ rsm_cases() ->
        pagination_first25_opt_count_all,
        pagination_last25_opt_count_all,
        pagination_offset5_opt_count_all].
+
+prefs_cases() ->
+    [prefs_set_request,
+     prefs_set_cdata_request,
+     run_prefs_cases,
+     run_set_and_get_prefs_cases].
 
 suite() ->
     escalus:suite().
@@ -2600,7 +2603,7 @@ maybe_wait_for_yz(Config) ->
 %% Each tuple is
 %% {{Default, Always, Never},
 %%  [Message1Archived, Message2Archived, Message3Archied, Message4Archived]}
-prefs_cases() ->
+prefs_cases2() ->
     [
      {{roster, [], []},              [true, true, false, false]},
      {{roster, [bob], []},           [true, true, false, false]},
@@ -2636,7 +2639,7 @@ prefs_cases() ->
 run_prefs_cases(Config) ->
     F = fun(Alice, Bob, Kate) ->
         make_alice_and_bob_friends(Alice, Bob),
-        [run_prefs_case(Case, Alice, Bob, Kate, Config) || Case <- prefs_cases()]
+        [run_prefs_case(Case, Alice, Bob, Kate, Config) || Case <- prefs_cases2()]
         end,
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], F).
 
@@ -2711,7 +2714,7 @@ print_configuration_not_supported(C, B) ->
 run_set_and_get_prefs_cases(Config) ->
     P = ?config(props, Config),
     F = fun(Alice) ->
-        [run_set_and_get_prefs_case(Case, Alice, Config) || Case <- prefs_cases()]
+        [run_set_and_get_prefs_case(Case, Alice, Config) || Case <- prefs_cases2()]
         end,
     escalus:story(Config, [{alice, 1}], F).
 
