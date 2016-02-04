@@ -216,7 +216,11 @@ stop(Host) ->
     ejabberd_hooks:delete(remove_user, Host, ?MODULE, remove_user, 50),
     ejabberd_hooks:delete(anonymous_purge_hook, Host, ?MODULE, remove_user, 50),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_MAM),
+    gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_MAM_03),
+    gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_MAM_04),
     mod_disco:unregister_feature(Host, ?NS_MAM),
+    mod_disco:unregister_feature(Host, ?NS_MAM_03),
+    mod_disco:unregister_feature(Host, ?NS_MAM_04),
     ok.
 
 %% ----------------------------------------------------------------------
