@@ -343,7 +343,7 @@ delete_users(Config) ->
 
 disable_shaping(Config) ->
     OldShaper = get_shaper(),
-    set_shaper({maxrate, 100}),
+    set_shaper({{maxrate, 100}, {maxrate, 10000000}, {maxrate, 10000000}}),
     [{old_mam_shaper, OldShaper}|Config].
 
 restore_shaping(Config) ->
@@ -352,10 +352,15 @@ restore_shaping(Config) ->
     Config.
 
 get_shaper() ->
-    rpc_apply(ejabberd_config, get_global_option, [{shaper, mam_shaper, global}]).
+    Mam = rpc_apply(ejabberd_config, get_global_option, [{shaper, mam_shaper, global}]),
+    Norm = rpc_apply(ejabberd_config, get_global_option, [{shaper, normal, global}]),
+    Fast = rpc_apply(ejabberd_config, get_global_option, [{shaper, fast, global}]),
+    {Mam, Norm, Fast}.
 
-set_shaper(NewValue) ->
-    rpc_apply(ejabberd_config, add_global_option, [{shaper, mam_shaper, global}, NewValue]),
+set_shaper({Mam, Norm, Fast}) ->
+    rpc_apply(ejabberd_config, add_global_option, [{shaper, mam_shaper, global}, Mam]),
+    rpc_apply(ejabberd_config, add_global_option, [{shaper, normal, global}, Norm]),
+    rpc_apply(ejabberd_config, add_global_option, [{shaper, fast, global}, Fast]),
     rpc_apply(shaper_srv, reset_all_shapers, [host()]).
 
 init_per_group(Group, ConfigIn) ->
