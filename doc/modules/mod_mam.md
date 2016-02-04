@@ -219,3 +219,22 @@ Custom credentials:
 ```erlang
 {credentials, [{"username", "cassandra"}, {"password", "secret"}]}
 ```
+
+
+mod_mam options
+---------------
+
+- add_archived_element - add `<archived/>` element from MAM v0.2
+
+
+Default configuration for mod_mam:
+
+```erlang
+{mod_mam, []}.
+```
+
+It's expanded to:
+
+```erlang
+{mod_mam, [{add_archived_element, true}]}
+```

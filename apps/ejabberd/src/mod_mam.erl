@@ -185,6 +185,7 @@ archive_id(Server, User)
 -spec start(Host :: ejabberd:server(), Opts :: list()) -> any().
 start(Host, Opts) ->
     ?DEBUG("mod_mam starting", []),
+    compile_params_module(Opts),
     ejabberd_users:start(Host),
     %% `parallel' is the only one recommended here.
     IQDisc = gen_mod:get_opt(iqdisc, Opts, parallel), %% Type
@@ -281,9 +282,11 @@ filter_packet({From, To=#jid{luser=LUser, lserver=LServer}, Packet}) ->
     case ejabberd_users:is_user_exists(LUser, LServer) of
     false -> Packet;
     true ->
-        case handle_package(incoming, true, To, From, From, Packet) of
-            undefined -> Packet;
-            MessID ->
+        case {handle_package(incoming, true, To, From, From, Packet),
+              add_archived_element()} of
+            {undefined, _} -> Packet;
+            {_, false} -> Packet;
+            {MessID, true} ->
                 ?DEBUG("Archived incoming ~p", [MessID]),
                 BareTo = jid:to_binary(jid:to_bare(To)),
                 replace_archived_elem(BareTo, MessID, Packet)
@@ -889,3 +892,26 @@ return_error_iq(IQ, Reason) ->
 return_message_form_iq(IQ) ->
     IQ#iq{type = result, sub_el = [message_form(IQ#iq.xmlns)]}.
 
+
+%% ----------------------------------------------------------------------
+%% Dynamic params module
+
+%% compile_params_module([
+%%      {add_archived_element, boolean()}
+%%      ])
+compile_params_module(Params) ->
+    CodeStr = params_helper(Params),
+    {Mod, Code} = dynamic_compile:from_string(CodeStr),
+    code:load_binary(Mod, "mod_mam_params.erl", Code).
+
+params_helper(Params) ->
+    binary_to_list(iolist_to_binary(io_lib:format(
+        "-module(mod_mam_params).~n"
+        "-compile(export_all).~n"
+        "add_archived_element() -> ~p.~n",
+        [proplists:get_value(add_archived_element, Params, true)]))).
+
+%% @doc Enable support for `<archived/>' element from MAM v0.2
+-spec add_archived_element() -> boolean().
+add_archived_element() ->
+    mod_mam_params:add_archived_element().
