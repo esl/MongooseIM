@@ -29,6 +29,9 @@
 %%%-------------------------------------------------------------------
 -module(mod_mam_muc).
 -xep([{xep, 313}, {version, "0.2"}]).
+-xep([{xep, 313}, {version, "0.3"}]).
+-xep([{xep, 313}, {version, "0.4.1"}]).
+-xep([{xep, 313}, {version, "0.5"}]).
 -xep([{xep, 45}, {version, "1.25"}]).
 %% ----------------------------------------------------------------------
 %% Exports
@@ -66,20 +69,29 @@
 -import(mod_mam_utils,
         [replace_archived_elem/3,
          get_one_of_path/2,
-         is_complete_message/3,
          wrap_message/6,
          result_set/4,
          result_query/1,
          result_prefs/3,
+         make_fin_message/4,
+         make_fin_element/4,
          parse_prefs/1,
          borders_decode/1,
-         decode_optimizations/1]).
+         decode_optimizations/1,
+         form_borders_decode/1,
+         form_decode_optimizations/1]).
+
+%% Forms
+-import(mod_mam_utils,
+        [form_field_value_s/2,
+         message_form/1]).
 
 %% Other
 -import(mod_mam_utils,
         [maybe_integer/2,
          is_function_exist/3,
-         mess_id_to_external_binary/1]).
+         mess_id_to_external_binary/1,
+         is_last_page/4]).
 
 %% ejabberd
 -import(mod_mam_utils,
@@ -154,13 +166,20 @@ archive_id(Server, User)
 
 -spec start(Host :: ejabberd:server(), Opts :: list()) -> any().
 start(ServerHost, Opts) ->
+    ?DEBUG("mod_mam_muc starting", []),
+    compile_params_module(Opts),
     %% MUC host.
     Host = gen_mod:get_opt_host(ServerHost, Opts, <<"conference.@HOST@">>),
     start_host_mapping(Host, ServerHost),
-    ?DEBUG("mod_mam_muc starting", []),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, parallel), %% Type
     mod_disco:register_feature(Host, ?NS_MAM),
+    mod_disco:register_feature(Host, ?NS_MAM_03),
+    mod_disco:register_feature(Host, ?NS_MAM_04),
     gen_iq_handler:add_iq_handler(mod_muc_iq, Host, ?NS_MAM,
+                                  ?MODULE, room_process_mam_iq, IQDisc),
+    gen_iq_handler:add_iq_handler(mod_muc_iq, Host, ?NS_MAM_03,
+                                  ?MODULE, room_process_mam_iq, IQDisc),
+    gen_iq_handler:add_iq_handler(mod_muc_iq, Host, ?NS_MAM_04,
                                   ?MODULE, room_process_mam_iq, IQDisc),
     ejabberd_hooks:add(filter_room_packet, Host, ?MODULE,
                        filter_room_packet, 90),
@@ -176,7 +195,11 @@ stop(ServerHost) ->
     ejabberd_hooks:delete(filter_room_packet, Host, ?MODULE, filter_room_packet, 90),
     ejabberd_hooks:delete(forget_room, Host, ?MODULE, forget_room, 90),
     gen_iq_handler:remove_iq_handler(mod_muc_iq, Host, ?NS_MAM),
+    gen_iq_handler:remove_iq_handler(mod_muc_iq, Host, ?NS_MAM_03),
+    gen_iq_handler:remove_iq_handler(mod_muc_iq, Host, ?NS_MAM_04),
     mod_disco:unregister_feature(Host, ?NS_MAM),
+    mod_disco:unregister_feature(Host, ?NS_MAM_03),
+    mod_disco:unregister_feature(Host, ?NS_MAM_04),
     stop_host_mapping(Host, ServerHost),
     ok.
 
@@ -219,7 +242,7 @@ filter_room_packet(Packet, FromNick,
                    FromJID=#jid{},
                    RoomJID=#jid{}) ->
     ?DEBUG("Incoming room packet.", []),
-    IsComplete = is_complete_message(?MODULE, incoming, Packet),
+    IsComplete = call_is_complete_message(?MODULE, incoming, Packet),
     case IsComplete of
         true -> archive_room_packet(Packet, FromNick, FromJID, RoomJID);
         false -> Packet
@@ -247,13 +270,14 @@ archive_room_packet(Packet, FromNick,
             MessID = generate_message_id(),
             Result = archive_message(Host, MessID, ArcID,
                                      RoomJID, SrcJID, SrcJID, incoming, Packet),
-            case Result of
-                ok ->
+            case {Result, add_archived_element()} of
+                {ok, true} ->
                     BareRoomJID = jid:to_binary(RoomJID),
                     replace_archived_elem(BareRoomJID,
                                           mess_id_to_external_binary(MessID),
                                           Packet);
-                {error, _} -> Packet
+                {ok, false} -> Packet;
+                {{error, _}, _} -> Packet
             end;
         false -> Packet
     end.
@@ -327,6 +351,8 @@ is_room_owner(From, To) ->
 action_type(mam_get_prefs)                  -> get;
 action_type(mam_set_prefs)                  -> set;
 action_type(mam_lookup_messages)            -> get;
+action_type(mam_set_message_form)           -> get;
+action_type(mam_get_message_form)           -> get;
 action_type(mam_purge_single_message)       -> set;
 action_type(mam_purge_multiple_messages)    -> set.
 
@@ -351,6 +377,10 @@ handle_mam_iq(Action, From, To, IQ) ->
             handle_set_prefs(To, IQ);
         mam_lookup_messages ->
             handle_lookup_messages(From, To, IQ);
+        mam_set_message_form ->
+            handle_set_message_form(From, To, IQ);
+        mam_get_message_form ->
+            handle_get_message_form(From, To, IQ);
         mam_purge_single_message ->
             handle_purge_single_message(To, IQ);
         mam_purge_multiple_messages ->
@@ -359,7 +389,14 @@ handle_mam_iq(Action, From, To, IQ) ->
 
 
 -spec iq_action(ejabberd:iq()) -> action().
-iq_action(#iq{type = Action, sub_el = SubEl = #xmlel{name = Category}}) ->
+iq_action(IQ=#iq{xmlns = ?NS_MAM}) ->
+    iq_action_02(IQ);
+iq_action(IQ=#iq{xmlns = ?NS_MAM_03}) ->
+    iq_action_03(IQ);
+iq_action(IQ=#iq{xmlns = ?NS_MAM_04}) ->
+    iq_action_03(IQ).
+
+iq_action_02(#iq{type = Action, sub_el = SubEl = #xmlel{name = Category}}) ->
     case {Action, Category} of
         {set, <<"prefs">>} -> mam_set_prefs;
         {get, <<"prefs">>} -> mam_get_prefs;
@@ -371,6 +408,15 @@ iq_action(#iq{type = Action, sub_el = SubEl = #xmlel{name = Category}}) ->
             end
     end.
 
+iq_action_03(#iq{type = Action, sub_el = #xmlel{name = Category}}) ->
+    case {Action, Category} of
+        {set, <<"prefs">>} -> mam_set_prefs;
+        {get, <<"prefs">>} -> mam_get_prefs;
+        {get, <<"query">>} -> mam_get_message_form;
+        {set, <<"query">>} -> mam_set_message_form
+        %% Purge is NOT official extention, it is not implemented for XEP-0313 v0.3.
+        %% Use v0.2 namespace if you really want it.
+    end.
 
 -spec handle_set_prefs(ejabberd:jid(), ejabberd:iq()) ->
     ejabberd:iq() | {error, any(), ejabberd:iq()}.
@@ -458,6 +504,89 @@ handle_lookup_messages(
         %% and finally returns the <iq/> result.
         IQ#iq{type = result, sub_el = [ResultQueryEl]}
     end.
+
+
+-spec handle_set_message_form(From :: ejabberd:jid(), ArcJID :: ejabberd:jid(),
+                             IQ :: ejabberd:iq()) ->
+    ejabberd:iq() | ignore | {error, term(), ejabberd:iq()}.
+handle_set_message_form(
+        From=#jid{},
+        ArcJID=#jid{},
+        IQ=#iq{xmlns=MamNs, sub_el = QueryEl}) ->
+    Now = mod_mam_utils:now_to_microseconds(now()),
+    Host = server_host(ArcJID),
+    ArcID = archive_id_int(Host, ArcJID),
+    QueryID = xml:get_tag_attr_s(<<"queryid">>, QueryEl),
+    %% Filtering by date.
+    %% Start :: integer() | undefined
+    Start = form_to_start_microseconds(QueryEl),
+    End   = form_to_end_microseconds(QueryEl),
+    %% Filtering by contact.
+    With  = form_to_with_jid(QueryEl),
+    RSM   = fix_rsm(jlib:rsm_decode(QueryEl)),
+    Borders = form_borders_decode(QueryEl),
+    Limit = elem_to_limit(QueryEl),
+    PageSize = min(max_result_limit(),
+                   maybe_integer(Limit, default_result_limit())),
+    %% Whether or not the client query included a <set/> element,
+    %% the server MAY simply return its limited results.
+    %% So, disable 'policy-violation'.
+    LimitPassed = true,
+    IsSimple = form_decode_optimizations(QueryEl),
+
+    case lookup_messages(Host, ArcID, ArcJID, RSM, Borders,
+                         Start, End, Now, With,
+                         PageSize, LimitPassed, max_result_limit(), IsSimple) of
+    {error, Reason} ->
+        return_error_iq(IQ, Reason);
+    {ok, {TotalCount, Offset, MessageRows}} when IQ#iq.xmlns =:= ?NS_MAM_03 ->
+        ResIQ = IQ#iq{type = result, sub_el = []},
+        %% Server accepts the query
+        ejabberd_router:route(ArcJID, From, jlib:iq_to_xml(ResIQ)),
+
+
+        %% Forward messages
+        {FirstMessID, LastMessID} =
+            case MessageRows of
+                []    -> {undefined, undefined};
+                [_|_] -> {message_row_to_ext_id(hd(MessageRows)),
+                          message_row_to_ext_id(lists:last(MessageRows))}
+            end,
+        [send_message(ArcJID, From, message_row_to_xml(MamNs, set_client_xmlns_for_row(M), QueryID))
+         || M <- MessageRows],
+
+        %% Make fin message
+        IsLastPage = is_last_page(PageSize, TotalCount, Offset, MessageRows),
+        IsStable = true,
+        ResultSetEl = result_set(FirstMessID, LastMessID, Offset, TotalCount),
+        FinMsg = make_fin_message(IQ#iq.xmlns, IsLastPage, IsStable, ResultSetEl),
+        ejabberd_sm:route(ArcJID, From, FinMsg),
+
+        %% IQ was sent above
+        ignore;
+    {ok, {TotalCount, Offset, MessageRows}} ->
+        %% Forward messages
+        {FirstMessID, LastMessID} =
+            case MessageRows of
+                []    -> {undefined, undefined};
+                [_|_] -> {message_row_to_ext_id(hd(MessageRows)),
+                          message_row_to_ext_id(lists:last(MessageRows))}
+            end,
+        [send_message(ArcJID, From, message_row_to_xml(MamNs, set_client_xmlns_for_row(M), QueryID))
+         || M <- MessageRows],
+
+        %% Make fin iq
+        IsLastPage = is_last_page(PageSize, TotalCount, Offset, MessageRows),
+        IsStable = true,
+        ResultSetEl = result_set(FirstMessID, LastMessID, Offset, TotalCount),
+        FinElem = make_fin_element(IQ#iq.xmlns, IsLastPage, IsStable, ResultSetEl),
+        IQ#iq{type = result, sub_el = [FinElem]}
+    end.
+
+-spec handle_get_message_form(ejabberd:jid(), ejabberd:jid(), ejabberd:iq()) ->
+        ejabberd:iq().
+handle_get_message_form(_From=#jid{}, _ArcJID=#jid{}, IQ=#iq{}) ->
+    return_message_form_iq(IQ).
 
 
 %% @doc Purging multiple messages.
@@ -620,10 +749,15 @@ message_row_to_xml(MamNs, {MessID,SrcJID,Packet}, QueryID) ->
     BExtMessID = mess_id_to_external_binary(MessID),
     wrap_message(MamNs, Packet, QueryID, BExtMessID, DateTime, SrcJID).
 
+set_client_xmlns_for_row({MessID,SrcJID,Packet}) ->
+    {MessID,SrcJID,set_client_xmlns(Packet)}.
 
 -spec message_row_to_ext_id(row()) -> binary().
 message_row_to_ext_id({MessID,_,_}) ->
     mess_id_to_external_binary(MessID).
+
+set_client_xmlns(M) ->
+    xml:replace_tag_attr(<<"xmlns">>, <<"jabber:client">>, M).
 
 
 -spec maybe_jid(ejabberd:literal_jid()) -> 'error' | 'undefined' | ejabberd:jid().
@@ -668,6 +802,21 @@ elem_to_limit(QueryEl) ->
         [{elem, <<"set">>}, {elem, <<"max">>}, cdata],
         [{elem, <<"set">>}, {elem, <<"limit">>}, cdata]
     ]).
+
+-spec form_to_start_microseconds(_) -> 'undefined' | non_neg_integer().
+form_to_start_microseconds(El) ->
+    maybe_microseconds(form_field_value_s(El, <<"start">>)).
+
+
+-spec form_to_end_microseconds(_) -> 'undefined' | non_neg_integer().
+form_to_end_microseconds(El) ->
+    maybe_microseconds(form_field_value_s(El, <<"end">>)).
+
+
+-spec form_to_with_jid(jlib:xmlel()) -> 'error' | 'undefined' | ejabberd:jid().
+form_to_with_jid(El) ->
+    maybe_jid(form_field_value_s(El, <<"with">>)).
+
 
 handle_error_iq(Host, To, Action, {error, Reason, IQ}) ->
     ejabberd_hooks:run(mam_muc_drop_iq, Host,
@@ -723,4 +872,38 @@ return_purge_single_message_iq(IQ, {error, 'not-found'}) ->
     return_purge_not_found_error_iq(IQ);
 return_purge_single_message_iq(IQ, {error, Reason}) ->
     return_error_iq(IQ, Reason).
+
+
+return_message_form_iq(IQ) ->
+    IQ#iq{type = result, sub_el = [message_form(IQ#iq.xmlns)]}.
+
+
+%% ----------------------------------------------------------------------
+%% Dynamic params module
+
+%% compile_params_module([
+%%      {add_archived_element, boolean()}
+%%      ])
+compile_params_module(Params) ->
+    CodeStr = params_helper(Params),
+    {Mod, Code} = dynamic_compile:from_string(CodeStr),
+    code:load_binary(Mod, "mod_mam_muc_params.erl", Code).
+
+params_helper(Params) ->
+    binary_to_list(iolist_to_binary(io_lib:format(
+        "-module(mod_mam_muc_params).~n"
+        "-compile(export_all).~n"
+        "add_archived_element() -> ~p.~n"
+        "is_complete_message() -> ~p.~n",
+        [proplists:get_value(add_archived_element, Params, true),
+         proplists:get_value(is_complete_message, Params, mod_mam_utils)]))).
+
+%% @doc Enable support for `<archived/>' element from MAM v0.2
+-spec add_archived_element() -> boolean().
+add_archived_element() ->
+    mod_mam_muc_params:add_archived_element().
+
+call_is_complete_message(Module, Dir, Packet) ->
+    M = mod_mam_muc_params:is_complete_message(),
+    M:is_complete_message(Module, Dir, Packet).
 

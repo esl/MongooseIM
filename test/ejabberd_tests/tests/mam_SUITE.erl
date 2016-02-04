@@ -177,6 +177,8 @@ basic_group_names() ->
     mam04,
     mam_purge,
     muc,
+    muc03,
+    muc04,
     muc_with_pm,
     rsm,
     rsm03,
@@ -185,6 +187,8 @@ basic_group_names() ->
     with_rsm03,
     with_rsm04,
     muc_rsm,
+    muc_rsm03,
+    muc_rsm04,
     bootstrapped,
     archived,
     policy_violation,
@@ -229,11 +233,15 @@ basic_groups() ->
      {policy_violation, [], policy_violation_cases()},
      {nostore,          [], nostore_cases()},
      {muc,              [], muc_cases()},
+     {muc03,            [], muc_cases()},
+     {muc04,            [], muc_cases()},
      {muc_with_pm,      [], muc_cases()},
      {rsm,              [], rsm_cases()},
      {rsm03,            [], rsm_cases()},
      {rsm04,            [], rsm_cases()},
      {muc_rsm,          [], muc_rsm_cases()},
+     {muc_rsm03,        [], muc_rsm_cases()},
+     {muc_rsm04,        [], muc_rsm_cases()},
      {with_rsm,         [], with_rsm_cases()},
      {with_rsm03,       [], with_rsm_cases()},
      {with_rsm04,       [], with_rsm_cases()},
@@ -375,6 +383,15 @@ end_per_group(Group, Config) ->
     end_modules(C, B, Config).
 
 init_modules(C, muc_rsm, Config) ->
+    init_modules(C, muc, Config);
+init_modules(C, muc_rsm03, Config) ->
+    init_modules(C, muc, Config);
+init_modules(C, muc_rsm04, Config) ->
+    init_modules(C, muc, Config);
+
+init_modules(C, muc03, Config) ->
+    init_modules(C, muc, Config);
+init_modules(C, muc04, Config) ->
     init_modules(C, muc, Config);
 
 init_modules(ca, muc_with_pm, Config) ->
@@ -608,6 +625,12 @@ mam_modules() ->
      mod_mam_muc_cache_user,
      mod_mam_riak_timed_arch_yz].
 
+init_state(C, muc_rsm03, Config) ->
+    Config1 = init_state(C, muc_rsm, Config),
+    [{props, mam03_props()}, {with_rsm, true}|Config1];
+init_state(C, muc_rsm04, Config) ->
+    Config1 = init_state(C, muc_rsm, Config),
+    [{props, mam04_props()}, {with_rsm, true}|Config1];
 init_state(_, muc_rsm, Config) ->
     Config1 = start_alice_room(Config),
     Config2 = clean_room_archive(Config1),
@@ -615,6 +638,10 @@ init_state(_, muc_rsm, Config) ->
     [{muc_rsm, true} | Config3];
 init_state(_, muc, Config) ->
     Config;
+init_state(_, muc03, Config) ->
+    [{props, mam03_props()}, {with_rsm, true}|Config];
+init_state(_, muc04, Config) ->
+    [{props, mam04_props()}, {with_rsm, true}|Config];
 init_state(_, muc_with_pm, Config) ->
     Config;
 init_state(_, rsm, Config) ->
