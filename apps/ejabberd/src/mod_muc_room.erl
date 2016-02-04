@@ -38,7 +38,8 @@
 
 %% API exports
 -export([get_room_users/1,
-         is_room_owner/2]).
+         is_room_owner/2,
+         can_access_room/2]).
 
 %% gen_fsm callbacks
 -export([init/1,
@@ -200,6 +201,16 @@ is_room_owner(RoomJID, UserJID) ->
     case mod_muc:room_jid_to_pid(RoomJID) of
         {ok, Pid} ->
             gen_fsm:sync_send_all_state_event(Pid, {is_room_owner, UserJID});
+        {error, Reason} ->
+            {error, Reason}
+    end.
+
+-spec can_access_room(RoomJID :: ejabberd:jid(), UserJID :: ejabberd:jid()) ->
+            {ok, boolean()} | {error, not_found}.
+can_access_room(RoomJID, UserJID) ->
+    case mod_muc:room_jid_to_pid(RoomJID) of
+        {ok, Pid} ->
+            gen_fsm:sync_send_all_state_event(Pid, {can_access_room, UserJID});
         {error, Reason} ->
             {error, Reason}
     end.
@@ -563,6 +574,8 @@ handle_sync_event(get_room_users, _From, StateName, StateData) ->
     {reply, {ok, dict_to_values(StateData#state.users)}, StateName, StateData};
 handle_sync_event({is_room_owner, UserJID}, _From, StateName, StateData) ->
     {reply, {ok, get_affiliation(UserJID, StateData) =:= owner}, StateName, StateData};
+handle_sync_event({can_access_room, UserJID}, _From, StateName, StateData) ->
+    {reply, {ok,  can_read_conference(UserJID, StateData)}, StateName, StateData};
 handle_sync_event({change_config, Config}, _From, StateName, StateData) ->
     {result, [], NSD} = change_config(Config, StateData),
     {reply, {ok, NSD#state.config}, StateName, NSD};
@@ -714,6 +727,11 @@ can_send_to_conference(From, StateData) ->
     orelse
     is_allowed_nonparticipant(From, StateData).
 
+can_read_conference(UserJID, StateData) ->
+    is_user_online(UserJID, StateData)
+    orelse
+    is_affiliated(UserJID, StateData).
+
 process_message_from_allowed_user(From, #xmlel{attrs = Attrs} = Packet,
                                   StateData) ->
     Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
@@ -814,6 +832,11 @@ save_persistent_room_state(StateData) ->
 -spec is_allowed_nonparticipant(ejabberd:jid(), state()) -> boolean().
 is_allowed_nonparticipant(JID, StateData) ->
     get_service_affiliation(JID, StateData) =:= owner.
+
+-spec is_affiliated(ejabberd:jid(), state()) -> boolean().
+is_affiliated(UserJID, StateData) ->
+    Affiliation = get_affiliation(UserJID, StateData),
+    lists:member(Affiliation, [owner, admin, member, outcast]).
 
 
 %% @doc Get information of this participant, or default values.

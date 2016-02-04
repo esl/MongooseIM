@@ -335,7 +335,7 @@ is_action_allowed_by_default(Action, From, To) ->
 is_room_action_allowed_by_default(Action, From, To) ->
     case action_type(Action) of
         set -> is_room_owner(From, To);
-        get -> true
+        get -> can_access_room(From, To)
     end.
 
 
@@ -344,6 +344,13 @@ is_room_owner(From, To) ->
     case mod_muc_room:is_room_owner(To, From) of
         {error, _} -> false;
         {ok, IsOwner} -> IsOwner
+    end.
+
+-spec can_access_room(From :: ejabberd:jid(), To :: ejabberd:jid()) -> boolean().
+can_access_room(From, To) ->
+    case mod_muc_room:can_access_room(To, From) of
+        {error, _} -> false;
+        {ok, CanAccess} -> CanAccess
     end.
 
 

@@ -33,6 +33,8 @@
          muc_archive_purge/1,
          muc_multiple_devices/1,
          muc_private_message/1,
+         muc_deny_private_room_access/1,
+         muc_allow_access_to_owner/1,
          range_archive_request/1,
          range_archive_request_not_empty/1,
          limit_archive_request/1,
@@ -280,6 +282,8 @@ muc_cases() ->
      muc_archive_purge,
      muc_multiple_devices,
      muc_private_message,
+     muc_deny_private_room_access,
+     muc_allow_access_to_owner,
      muc_querying_for_all_messages,
      muc_querying_for_all_messages_with_jid
      ].
@@ -728,6 +732,10 @@ init_per_testcase(C=muc_multiple_devices, Config) ->
     escalus:init_per_testcase(C, clean_room_archive(start_alice_room(Config)));
 init_per_testcase(C=muc_private_message, Config) ->
     escalus:init_per_testcase(C, start_alice_room(Config));
+init_per_testcase(C=muc_deny_private_room_access, Config) ->
+    escalus:init_per_testcase(C, start_alice_private_room(Config));
+init_per_testcase(C=muc_allow_access_to_owner, Config) ->
+    escalus:init_per_testcase(C, start_alice_private_room(Config));
 init_per_testcase(C=range_archive_request_not_empty, Config) ->
     escalus:init_per_testcase(C,
         bootstrap_archive(clean_archives(Config)));
@@ -756,6 +764,12 @@ end_per_testcase(C=muc_multiple_devices, Config) ->
     destroy_room(Config),
     escalus:end_per_testcase(C, Config);
 end_per_testcase(C=muc_private_message, Config) ->
+    destroy_room(Config),
+    escalus:end_per_testcase(C, Config);
+end_per_testcase(C=muc_deny_private_room_access, Config) ->
+    destroy_room(Config),
+    escalus:end_per_testcase(C, Config);
+end_per_testcase(C=muc_allow_access_to_owner, Config) ->
     destroy_room(Config),
     escalus:end_per_testcase(C, Config);
 end_per_testcase(C=muc_querying_for_all_messages, Config) ->
@@ -1424,6 +1438,46 @@ muc_private_message(Config) ->
         %% Bob requests the room's archive.
         escalus:send(Bob, stanza_to_room(stanza_archive_request(P, <<"q1">>), Room)),
         assert_respond_size(P, 0, wait_archive_respond(P, Bob)),
+        ok
+        end,
+    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
+
+muc_deny_private_room_access(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice, Bob) ->
+        Room = ?config(room, Config),
+        RoomAddr = room_address(Room),
+        Text = <<"Hi, Bob!">>,
+        escalus:send(Alice, stanza_muc_enter_room(Room, nick(Alice))),
+        escalus:send(Bob, stanza_muc_enter_room(Room, nick(Bob))),
+
+        %% mod_muc returns error presence.
+        Err1 = escalus:wait_for_stanza(Bob),
+        escalus_assert:is_error(Err1, <<"auth">>, <<"not-authorized">>),
+
+        %% Alice sends to the chat room.
+		escalus:send(Alice, escalus_stanza:groupchat_to(RoomAddr, Text)),
+
+        %% Bob requests the room's archive.
+        escalus:send(Bob, stanza_to_room(stanza_archive_request(P, <<"q1">>), Room)),
+        Err2 = escalus:wait_for_stanza(Bob),
+        %% mod_mam_muc returns error iq.
+        escalus:assert(is_error, [<<"cancel">>, <<"not-allowed">>], Err2),
+        ok
+        end,
+    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
+
+%% @doc Allow access to non-in-room users who able to connect
+muc_allow_access_to_owner(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice, Bob) ->
+        Room = ?config(room, Config),
+        RoomAddr = room_address(Room),
+
+        %% Alice (not in room) requests the room's archive.
+        escalus:send(Alice, stanza_to_room(stanza_archive_request(P, <<"q1">>), Room)),
+        %% mod_mam_muc returns result.
+        assert_respond_size(P, 0, wait_archive_respond(P, Alice)),
         ok
         end,
     escalus:story(Config, [{alice, 1}, {bob, 1}], F).
@@ -2259,6 +2313,15 @@ start_alice_room(Config) ->
     RoomNick = <<"alicesnick">>,
     [Alice | _] = ?config(escalus_users, Config),
     start_room(Config, Alice, RoomName, RoomNick, [{persistent, true}]).
+
+start_alice_private_room(Config) ->
+    RoomName = <<"alicesroom">>,
+    RoomNick = <<"alicesnick">>,
+    [Alice | _] = ?config(escalus_users, Config),
+    start_room(Config, Alice, RoomName, RoomNick,
+               [{persistent, true},
+                {password_protected, true},
+                {password, <<"secret">>}]).
 
 start_room(Config, User, Room, Nick, Opts) ->
     From = generate_rpc_jid(User),
