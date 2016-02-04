@@ -253,6 +253,9 @@ get_one_of_path(_Elem, [], Def) ->
 %%
 %% Servers SHOULD NOT archive messages that do not have a `<body/>' child tag.
 %% Servers SHOULD NOT delayed messages.
+%%
+%% From v0.3: it is expected that all messages that hold meaningful content,
+%% rather than state changes such as Chat State Notifications, would be archived.
 %% @end
 -spec is_complete_message(Mod :: module(), Dir :: incoming | outgoing,
                           Packet :: jlib:xmlel()) -> boolean().

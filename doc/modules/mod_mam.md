@@ -225,6 +225,8 @@ mod_mam options
 ---------------
 
 - add_archived_element - add `<archived/>` element from MAM v0.2
+- is_complete_message - module name implementing is_complete_message/3 callback.
+  This callback returns true if message should be archived.
 
 
 Default configuration for mod_mam:
@@ -236,5 +238,6 @@ Default configuration for mod_mam:
 It's expanded to:
 
 ```erlang
-{mod_mam, [{add_archived_element, true}]}
+{mod_mam, [{add_archived_element, true},
+           {is_complete_message, mod_mam_utils}]}
 ```

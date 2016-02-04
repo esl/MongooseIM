@@ -68,7 +68,6 @@
 -import(mod_mam_utils,
         [replace_archived_elem/3,
          get_one_of_path/2,
-         is_complete_message/3,
          wrap_message/6,
          result_set/4,
          result_query/1,
@@ -601,7 +600,7 @@ handle_package(Dir, ReturnMessID,
                LocJID=#jid{},
                RemJID=#jid{},
                SrcJID=#jid{}, Packet) ->
-    IsComplete = is_complete_message(?MODULE, Dir, Packet),
+    IsComplete = call_is_complete_message(?MODULE, Dir, Packet),
     case IsComplete of
         true ->
         Host = server_host(LocJID),
@@ -908,10 +907,16 @@ params_helper(Params) ->
     binary_to_list(iolist_to_binary(io_lib:format(
         "-module(mod_mam_params).~n"
         "-compile(export_all).~n"
-        "add_archived_element() -> ~p.~n",
-        [proplists:get_value(add_archived_element, Params, true)]))).
+        "add_archived_element() -> ~p.~n"
+        "is_complete_message() -> ~p.~n",
+        [proplists:get_value(add_archived_element, Params, true),
+         proplists:get_value(is_complete_message, Params, mod_mam_utils)]))).
 
 %% @doc Enable support for `<archived/>' element from MAM v0.2
 -spec add_archived_element() -> boolean().
 add_archived_element() ->
     mod_mam_params:add_archived_element().
+
+call_is_complete_message(Module, Dir, Packet) ->
+    M = mod_mam_params:is_complete_message(),
+    M:is_complete_message(Module, Dir, Packet).
