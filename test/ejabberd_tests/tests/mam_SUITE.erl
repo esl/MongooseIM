@@ -57,6 +57,7 @@
          filter_forwarded/1,
          policy_violation/1,
          offline_message/1,
+         nostore_hint/1,
          purge_single_message/1,
          purge_multiple_messages/1,
          purge_old_single_message/1,
@@ -187,7 +188,7 @@ basic_group_names() ->
     bootstrapped,
     archived,
     policy_violation,
-    offline_message,
+    nostore,
     prefs_cases
     ].
 
@@ -226,7 +227,7 @@ basic_groups() ->
      {mam_purge,        [], mam_purge_cases()},
      {archived,         [], archived_cases()},
      {policy_violation, [], policy_violation_cases()},
-     {offline_message,  [], offline_message_cases()},
+     {nostore,          [], nostore_cases()},
      {muc,              [], muc_cases()},
      {muc_with_pm,      [], muc_cases()},
      {rsm,              [], rsm_cases()},
@@ -261,8 +262,9 @@ archived_cases() ->
 policy_violation_cases() ->
     [policy_violation].
 
-offline_message_cases() ->
-    [offline_message].
+nostore_cases() ->
+    [offline_message,
+     nostore_hint].
 
 muc_cases() ->
     [muc_service_discovery,
@@ -683,6 +685,8 @@ init_per_testcase(C=querying_for_all_messages_with_jid, Config) ->
 init_per_testcase(C=offline_message, Config) ->
     escalus:init_per_testcase(C,
         bootstrap_archive(clean_archives(Config)));
+init_per_testcase(C=nostore_hint, Config) ->
+    escalus:init_per_testcase(C, Config); %% skip bootstrap & clean to safe time
 init_per_testcase(C=muc_querying_for_all_messages, Config) ->
     escalus:init_per_testcase(C,
         muc_bootstrap_archive(start_alice_room(Config)));
@@ -1134,6 +1138,24 @@ offline_message(Config) ->
     assert_only_one_of_many_is_equal(ArcMsgs, Msg),
 
     escalus_cleaner:clean(Config).
+
+nostore_hint(Config) ->
+    Msg = <<"So secret">>,
+    P = ?config(props, Config),
+    F = fun(Alice, Bob) ->
+        %% Alice sends a message to Bob with a hint.
+        escalus:send(Alice,
+                     add_nostore_hint(escalus_stanza:chat_to(bob, Msg))),
+        maybe_wait_for_yz(Config),
+        escalus:wait_for_stanzas(Bob, 1, 1000),
+
+        %% Bob checks his archive.
+        escalus:send(Bob, stanza_archive_request(P, <<"q1">>)),
+        ArcMsgs = R = respond_messages(wait_archive_respond(P, Bob)),
+        assert_not_stored(ArcMsgs, Msg),
+        ok
+        end,
+    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
 
 purge_single_message(Config) ->
     P = ?config(props, Config),
@@ -1978,6 +2000,11 @@ assert_only_one_of_many_is_equal(Archived, Sent) ->
     Same = lists:filter(fun (Stanza) -> is_same_message_text(Stanza, Sent) end, Scanned),
     ?assert_equal(1, erlang:length(Same)).
 
+assert_not_stored(Archived, Sent) ->
+    Scanned = lists:map(fun parse_forwarded_message/1, Archived),
+    Same = lists:filter(fun (Stanza) -> is_same_message_text(Stanza, Sent) end, Scanned),
+    ?assert_equal(0, erlang:length(Same)).
+
 is_same_message_text(Stanza, Raw) ->
     #forwarded_message{message_body = A} = Stanza,
     A =:= Raw.
@@ -2710,3 +2737,9 @@ maybe_binary_to_integer(B) when is_binary(B) ->
     list_to_integer(binary_to_list(B));
 maybe_binary_to_integer(undefined) ->
     undefined.
+
+add_nostore_hint(#xmlel{children=Children}=Elem) ->
+    Elem#xmlel{children=Children ++ [nostore_hint_elem()]}.
+
+nostore_hint_elem() ->
+    #xmlel{name = <<"no-store">>, attrs = [{<<"xmlns">>, <<"urn:xmpp:hints">>}]}.

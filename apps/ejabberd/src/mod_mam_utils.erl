@@ -279,14 +279,16 @@ is_valid_message(_Mod, _Dir, Packet) ->
     Result   = xml:get_subtag(Packet, <<"result">>),
     %% Used in mod_offline
     Delay    = xml:get_subtag(Packet, <<"delay">>),
-    is_valid_message_children(Body, Result, Delay).
+    %% Message Processing Hints (XEP-0334)
+    NoStore  = xml:get_subtag(Packet, <<"no-store">>),
+    is_valid_message_children(Body, Result, Delay, NoStore).
 
 %% Forwarded by MAM message or just a message without body
-is_valid_message_children(false, _,     _    ) -> false;
-is_valid_message_children(_,     false, false) -> true;
+is_valid_message_children(false, _,     _,     _    ) -> false;
+is_valid_message_children(_,     false, false, false) -> true;
 %% Forwarded by MAM message or delivered by mod_offline
 %% See mam_SUITE:offline_message for a test case
-is_valid_message_children(_,      _,    _    ) -> false.
+is_valid_message_children(_,      _,    _,     _    ) -> false.
 
 
 -ifdef(MAM_COMPACT_FORWARDED).
