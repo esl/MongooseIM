@@ -85,6 +85,12 @@
      || (E) =/= (V)]
     )).
 
+-define(_assert_equal_extra(E, V, Extra), (
+    [ct:pal("assert_equal_extra(~s, ~s)~n\tExpected ~p~n\tValue ~p~nExtra ~p~n",
+            [(??E), (??V), (E), (V), (Extra)])
+     || (E) =/= (V)]
+    )).
+
 -record(rsm_in, {
         max         :: non_neg_integer() | undefined,
         direction   :: before | 'after' | undefined,
@@ -2782,11 +2788,25 @@ prefs_cases2() ->
      {{always, [], [bob, kate]},     [false, false, false, false]}
     ].
 
-
+%% First write all messages, than read and check
 run_prefs_cases(Config) ->
+    P = ?config(props, Config),
     F = fun(Alice, Bob, Kate) ->
         make_alice_and_bob_friends(Alice, Bob),
-        [run_prefs_case(Case, Alice, Bob, Kate, Config) || Case <- prefs_cases2()]
+        %% Just send messages for each prefs configuration
+        Funs = [run_prefs_case(Case, Alice, Bob, Kate, Config) || Case <- prefs_cases2()],
+
+        maybe_wait_for_yz(Config),
+
+        %% Get ALL messages using several queries if required
+        Stanzas = get_all_messages(P, Alice),
+        ParsedMessages = parse_messages(Stanzas),
+        Bodies = [B || #forwarded_message{message_body=B} <- ParsedMessages],
+
+        %% Check messages, print out all failed cases
+        Fails = lists:append([Fun(Bodies) || Fun <- Funs]),
+        %% If fails consult with ct:pal/2 why
+        ?assert_equal([], Fails)
         end,
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], F).
 
@@ -2809,7 +2829,6 @@ make_alice_and_bob_friends(Alice, Bob) ->
         ok.
 
 run_prefs_case({PrefsState, ExpectedMessageStates}, Alice, Bob, Kate, Config) ->
-    P = ?config(props, Config),
     IqSet = stanza_prefs_set_request(PrefsState, Config),
     escalus:send(Alice, IqSet),
     ReplySet = escalus:wait_for_stanza(Alice),
@@ -2828,20 +2847,34 @@ run_prefs_case({PrefsState, ExpectedMessageStates}, Alice, Bob, Kate, Config) ->
     escalus:wait_for_stanzas(Bob, 1, 5000),
     escalus:wait_for_stanzas(Kate, 1, 5000),
     escalus:wait_for_stanzas(Alice, 2, 5000),
-    maybe_wait_for_yz(Config),
-    %% Get last four archived texts
-    Stanzas = get_last_four_messages(P, Alice),
-    ParsedMessages = parse_messages(Stanzas),
-    Bodies = [B || #forwarded_message{message_body=B} <- ParsedMessages],
-    ActualMessageStates = [lists:member(M, Bodies) || M <- Messages],
-    ?assert_equal_extra(ExpectedMessageStates, ActualMessageStates,
-                        [{prefs_state, PrefsState}]),
-    ok.
+    %% Delay check
+    fun(Bodies) ->
+        ActualMessageStates = [lists:member(M, Bodies) || M <- Messages],
+        ?_assert_equal_extra(ExpectedMessageStates, ActualMessageStates,
+                             [{prefs_state, PrefsState}])
+    end.
 
 get_last_four_messages(P, Alice) ->
     RSM = #rsm_in{max=4, direction='before'},
     escalus:send(Alice, stanza_page_archive_request(P, <<"last4_rsm">>, RSM)),
     respond_messages(wait_archive_respond(P, Alice)).
+
+get_all_messages(P, Alice) ->
+    get_all_messages(P, Alice, undefined).
+
+get_all_messages(P, Alice, Id) ->
+    RSM = #rsm_in{max=50, direction='after', id=Id},
+    escalus:send(Alice, stanza_page_archive_request(P, <<"page_rsm">>, RSM)),
+    Result = wait_archive_respond(P, Alice),
+    PageMessages = respond_messages(Result),
+    ParsedIQ = parse_result_iq(P, Result),
+    #result_iq{last=LastId} = ParsedIQ,
+    case PageMessages of
+        [] ->
+            [];
+        [_|_] ->
+            PageMessages ++ get_all_messages(P, Alice, LastId)
+    end.
 
 stanza_prefs_set_request({DefaultMode, AlwaysUsers, NeverUsers}, Config) ->
     DefaultModeBin = atom_to_binary(DefaultMode, utf8),
