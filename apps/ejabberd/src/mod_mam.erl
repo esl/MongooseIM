@@ -463,6 +463,7 @@ handle_lookup_messages(
                                  <<"en">>, <<"Too many results">>),
         IQ#iq{type = error, sub_el = [ErrorEl]};
     {error, Reason} ->
+        report_issue(Reason, mam_lookup_failed, ArcJID, IQ),
         return_error_iq(IQ, Reason);
     {ok, {TotalCount, Offset, MessageRows}} ->
         {FirstMessID, LastMessID} =
@@ -514,6 +515,7 @@ handle_set_message_form(
                          Start, End, Now, With,
                          PageSize, LimitPassed, max_result_limit(), IsSimple) of
     {error, Reason} ->
+        report_issue(Reason, mam_lookup_failed, ArcJID, IQ),
         return_error_iq(IQ, Reason);
     {ok, {TotalCount, Offset, MessageRows}} when IQ#iq.xmlns =:= ?NS_MAM_03 ->
         ResIQ = IQ#iq{type = result, sub_el = []},
@@ -887,6 +889,8 @@ return_max_delay_reached_error_iq(IQ) ->
 
 
 -spec return_error_iq(ejabberd:iq(), Reason :: term()) -> {error, term(), ejabberd:iq()}.
+return_error_iq(IQ, {Reason,{stacktrace,_Stacktrace}}) ->
+    return_error_iq(IQ, Reason);
 return_error_iq(IQ, timeout) ->
     {error, timeout, IQ#iq{type = error, sub_el = [?ERR_SERVICE_UNAVAILABLE]}};
 return_error_iq(IQ, not_implemented) ->
@@ -894,9 +898,21 @@ return_error_iq(IQ, not_implemented) ->
 return_error_iq(IQ, Reason) ->
     {error, Reason, IQ#iq{type = error, sub_el = [?ERR_INTERNAL_SERVER_ERROR]}}.
 
-
 return_message_form_iq(IQ) ->
     IQ#iq{type = result, sub_el = [message_form(IQ#iq.xmlns)]}.
+
+report_issue({Reason,{stacktrace,Stacktrace}}, Issue, ArcJID, IQ) ->
+    report_issue(Reason, Stacktrace, Issue, ArcJID, IQ);
+report_issue(Reason, Issue, ArcJID, IQ) ->
+    report_issue(Reason, [], Issue, ArcJID, IQ).
+
+report_issue(timeout, _Stacktrace, _Issue, _ArcJID, _IQ) ->
+    expected;
+report_issue(not_implemented, _Stacktrace, _Issue, _ArcJID, _IQ) ->
+    expected;
+report_issue(Reason, Stacktrace, Issue, #jid{lserver=LServer, luser=LUser}, IQ) ->
+    ?ERROR_MSG("issue=~p, server=~p, user=~p, reason=~p, iq=~p, stacktrace=~p",
+               [Issue, LServer, LUser, Reason, IQ, Stacktrace]).
 
 
 %% ----------------------------------------------------------------------
