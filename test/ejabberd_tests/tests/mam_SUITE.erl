@@ -938,6 +938,7 @@ muc_querying_for_all_messages(Config) ->
 
         IQ = stanza_archive_request(P, <<>>),
         escalus:send(Alice, stanza_to_room(IQ, Room)),
+        maybe_wait_for_yz(Config),
         assert_respond_size(P, MucArchiveLen, wait_archive_respond(P, Alice)),
 
         ok
@@ -1528,6 +1529,8 @@ muc_delete_x_user_in_anon_rooms(Config) ->
         %% Bob receives the message.
         BobMsg = escalus:wait_for_stanza(Bob),
         escalus:assert(is_message, BobMsg),
+
+        maybe_wait_for_yz(Config),
 
         %% Bob requests the room's archive.
         escalus:send(Bob, stanza_to_room(stanza_archive_request(P, <<"q1">>), Room)),
