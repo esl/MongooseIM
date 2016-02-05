@@ -184,7 +184,7 @@ try_registering_with_wrong_password(Config) ->
 
     try
         %% When trying to connect it
-        {Comp, Addr, _} = connect_component(CompOpts2),
+        {Comp, _Addr, _} = connect_component(CompOpts2),
         ok = escalus_connection:stop(Comp),
         ct:fail("component connected successfully with wrong password")
     catch error:{badmatch, _} ->
@@ -215,7 +215,7 @@ try_registering_existing_host(Config) ->
 
     try
         %% When trying to connect it to the server
-        {Comp, Addr, _} = connect_component(Component),
+        {Comp, _Addr, _} = connect_component(Component),
         ok = escalus_connection:stop(Comp),
         ct:fail("muc component connected successfully")
     catch error:{badmatch, _} ->
