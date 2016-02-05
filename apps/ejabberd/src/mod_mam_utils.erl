@@ -22,6 +22,7 @@
 %% XML
 -export([is_archived_elem_for/2,
          replace_archived_elem/3,
+         replace_x_user_element/4,
          append_archived_elem/3,
          delete_archived_elem/2,
          get_one_of_path/2,
@@ -212,12 +213,24 @@ is_archived_elem_for(#xmlel{name = <<"archived">>, attrs=As}, By) ->
 is_archived_elem_for(_, _) ->
     false.
 
+is_x_user_element(#xmlel{name = <<"x">>, attrs = As}) ->
+    ?NS_MUC_USER =:= lists:keymember(<<"xmlns">>, 1, As);
+is_x_user_element(_) ->
+    false.
 
 -spec replace_archived_elem(By :: binary(), Id :: binary(), jlib:xmlel()
                             ) -> jlib:xmlel().
 replace_archived_elem(By, Id, Packet) ->
     append_archived_elem(By, Id,
     delete_archived_elem(By, Packet)).
+
+
+-spec replace_x_user_element(FromJID :: ejabberd:jid(), Role :: mod_muc:role(),
+                             Affiliation :: mod_muc:affiliation(), jlib:xmlel()
+                             ) -> jlib:xmlel().
+replace_x_user_element(FromJID, Role, Affiliation, Packet) ->
+    append_x_user_element(FromJID, Role, Affiliation,
+    delete_x_user_element(Packet)).
 
 
 -spec append_archived_elem(By :: binary(), Id :: binary(), jlib:xmlel()
@@ -228,10 +241,27 @@ append_archived_elem(By, Id, Packet) ->
         attrs=[{<<"by">>, By}, {<<"id">>, Id}]},
     xml:append_subtags(Packet, [Archived]).
 
+append_x_user_element(FromJID, Role, Affiliation, Packet) ->
+    ItemElem = x_user_item(FromJID, Role, Affiliation),
+    X = #xmlel{
+        name = <<"x">>,
+        attrs = [{<<"xmlns">>,?NS_MUC_USER}],
+        children = [ItemElem]},
+    xml:append_subtags(Packet, [X]).
+
+x_user_item(FromJID, Role, Affiliation) ->
+    #xmlel{
+        name = <<"item">>,
+        attrs = [{<<"affiliation">>, atom_to_binary(Affiliation, latin1)},
+                 {<<"jid">>, jid:to_binary(FromJID)},
+                 {<<"role">>, atom_to_binary(Role, latin1)}]}.
 
 -spec delete_archived_elem(By :: binary(), jlib:xmlel()) -> jlib:xmlel().
 delete_archived_elem(By, Packet=#xmlel{children=Cs}) ->
     Packet#xmlel{children=[C || C <- Cs, not is_archived_elem_for(C, By)]}.
+
+delete_x_user_element(Packet=#xmlel{children=Cs}) ->
+    Packet#xmlel{children=[C || C <- Cs, not is_x_user_element(C)]}.
 
 
 -spec get_one_of_path(_, list(T)) -> T when T :: any().
@@ -552,6 +582,7 @@ form_decode_optimizations(QueryEl) ->
         {<<"true">>, _}     -> true;
         {_, _}              -> false
     end.
+    
 
 %% -----------------------------------------------------------------------
 %% Forms

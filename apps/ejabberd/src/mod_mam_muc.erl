@@ -46,7 +46,6 @@
 
 %% ejabberd room handlers
 -export([filter_room_packet/2,
-         archive_room_packet/4,
          room_process_mam_iq/3,
          forget_room/2]).
 
@@ -68,6 +67,7 @@
 %% XML
 -import(mod_mam_utils,
         [replace_archived_elem/3,
+         replace_x_user_element/4,
          get_one_of_path/2,
          wrap_message/6,
          result_set/4,
@@ -247,17 +247,16 @@ filter_room_packet(Packet, EventData) ->
             {_, RoomJID}     = lists:keyfind(room_jid, 1, EventData),
             {_, Role}        = lists:keyfind(role, 1, EventData),
             {_, Affiliation} = lists:keyfind(affiliation, 1, EventData),
-            archive_room_packet(Packet, FromNick, FromJID, RoomJID);
+            archive_room_packet(Packet, FromNick, FromJID, RoomJID, Role, Affiliation);
         false -> Packet
     end.
 
 
 %% @doc Archive without validation.
 -spec archive_room_packet(Packet :: packet(), FromNick :: ejabberd:user(),
-        FromJID :: ejabberd:jid(), RoomJID :: ejabberd:jid()) -> packet().
-archive_room_packet(Packet, FromNick,
-                    _FromJID=#jid{},
-                    RoomJID=#jid{}) ->
+        FromJID :: ejabberd:jid(), RoomJID :: ejabberd:jid(),
+        Role :: mod_muc:role(), Affiliation :: mod_muc:affiliation()) -> packet().
+archive_room_packet(Packet, FromNick, FromJID=#jid{}, RoomJID=#jid{}, Role, Affiliation) ->
     Host = server_host(RoomJID),
     ArcID = archive_id_int(Host, RoomJID),
     %% Occupant JID <room@service/nick>
@@ -271,8 +270,10 @@ archive_room_packet(Packet, FromNick,
     case IsInteresting of
         true ->
             MessID = generate_message_id(),
+            Packet1 = replace_x_user_element(FromJID, Role, Affiliation, Packet),
             Result = archive_message(Host, MessID, ArcID,
-                                     RoomJID, SrcJID, SrcJID, incoming, Packet),
+                                     RoomJID, SrcJID, SrcJID, incoming, Packet1),
+            %% Packet1 goes to archive, Packet to other users
             case {Result, add_archived_element()} of
                 {ok, true} ->
                     BareRoomJID = jid:to_binary(RoomJID),
