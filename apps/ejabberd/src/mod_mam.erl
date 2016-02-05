@@ -936,7 +936,7 @@ params_helper(Params) ->
         "-compile(export_all).~n"
         "add_archived_element() -> ~p.~n"
         "is_complete_message() -> ~p.~n",
-        [proplists:get_value(add_archived_element, Params, true),
+        [proplists:get_bool(add_archived_element, Params),
          proplists:get_value(is_complete_message, Params, mod_mam_utils)]))).
 
 %% @doc Enable support for `<archived/>' element from MAM v0.2

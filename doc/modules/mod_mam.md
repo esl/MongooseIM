@@ -238,6 +238,6 @@ Default configuration for mod_mam:
 It's expanded to:
 
 ```erlang
-{mod_mam, [{add_archived_element, true},
+{mod_mam, [{add_archived_element, false},
            {is_complete_message, mod_mam_utils}]}
 ```
