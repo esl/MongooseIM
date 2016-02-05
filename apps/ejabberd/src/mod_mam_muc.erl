@@ -780,6 +780,10 @@ maybe_jid(JID) when is_binary(JID) ->
 -spec fix_rsm('none' | jlib:rsm_in()) -> 'undefined' | jlib:rsm_in().
 fix_rsm(none) ->
     undefined;
+fix_rsm(RSM=#rsm_in{direction = aft, id = <<>>}) ->
+    RSM#rsm_in{direction = undefined, id = undefined}; %% First page
+fix_rsm(RSM=#rsm_in{direction = aft, id = undefined}) ->
+    RSM#rsm_in{direction = undefined}; %% First page
 fix_rsm(RSM=#rsm_in{id = undefined}) ->
     RSM;
 fix_rsm(RSM=#rsm_in{id = <<>>}) ->
