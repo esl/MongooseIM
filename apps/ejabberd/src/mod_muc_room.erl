@@ -39,7 +39,8 @@
 %% API exports
 -export([get_room_users/1,
          is_room_owner/2,
-         can_access_room/2]).
+         can_access_room/2,
+         is_anonymous_room/1]).
 
 %% gen_fsm callbacks
 -export([init/1,
@@ -211,6 +212,15 @@ can_access_room(RoomJID, UserJID) ->
     case mod_muc:room_jid_to_pid(RoomJID) of
         {ok, Pid} ->
             gen_fsm:sync_send_all_state_event(Pid, {can_access_room, UserJID});
+        {error, Reason} ->
+            {error, Reason}
+    end.
+
+-spec is_anonymous_room(RoomJID :: ejabberd:jid()) -> {ok, boolean()} | {error, not_found}.
+is_anonymous_room(RoomJID) ->
+    case mod_muc:room_jid_to_pid(RoomJID) of
+        {ok, Pid} ->
+            gen_fsm:sync_send_all_state_event(Pid, is_anonymous_room);
         {error, Reason} ->
             {error, Reason}
     end.
@@ -576,6 +586,9 @@ handle_sync_event({is_room_owner, UserJID}, _From, StateName, StateData) ->
     {reply, {ok, get_affiliation(UserJID, StateData) =:= owner}, StateName, StateData};
 handle_sync_event({can_access_room, UserJID}, _From, StateName, StateData) ->
     {reply, {ok,  can_read_conference(UserJID, StateData)}, StateName, StateData};
+handle_sync_event(is_anonymous_room, _From, StateName, StateData) ->
+    Config = StateData#state.config,
+    {reply, {ok,  Config#config.anonymous =:= true}, StateName, StateData};
 handle_sync_event({change_config, Config}, _From, StateName, StateData) ->
     {result, [], NSD} = change_config(Config, StateData),
     {reply, {ok, NSD#state.config}, StateName, NSD};

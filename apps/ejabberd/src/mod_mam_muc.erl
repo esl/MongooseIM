@@ -68,6 +68,7 @@
 -import(mod_mam_utils,
         [replace_archived_elem/3,
          replace_x_user_element/4,
+         delete_x_user_element/1,
          get_one_of_path/2,
          wrap_message/6,
          result_set/4,
@@ -357,6 +358,13 @@ can_access_room(From, To) ->
         {ok, CanAccess} -> CanAccess
     end.
 
+-spec is_anonymous_room(To :: ejabberd:jid()) -> boolean().
+is_anonymous_room(To) ->
+    case mod_muc_room:is_anonymous_room(To) of
+        {error, _} -> true;
+        {ok, IsAnon} -> IsAnon
+    end.
+
 
 -spec action_type(action()) -> 'get' | 'set'.
 action_type(mam_get_prefs)                  -> get;
@@ -501,14 +509,16 @@ handle_lookup_messages(
         report_issue(Reason, mam_muc_lookup_failed, ArcJID, IQ),
         return_error_iq(IQ, Reason);
     {ok, {TotalCount, Offset, MessageRows}} ->
-        {FirstMessID, LastMessID} =
+        {FirstMessID, LastMessID, IsAnon} =
             case MessageRows of
-                []    -> {undefined, undefined};
+                []    -> {undefined, undefined, undefined};
                 [_|_] -> {message_row_to_ext_id(hd(MessageRows)),
-                          message_row_to_ext_id(lists:last(MessageRows))}
+                          message_row_to_ext_id(lists:last(MessageRows)),
+                          is_anonymous_room(ArcJID)}
             end,
-        [send_message(ArcJID, From, message_row_to_xml(MamNs, M, QueryID))
-         || M <- MessageRows],
+        SetClientNs = false,
+        [send_message(ArcJID, From, message_row_to_xml(MamNs, IsAnon, SetClientNs, Row, QueryID))
+         || Row <- MessageRows],
         ResultSetEl = result_set(FirstMessID, LastMessID, Offset, TotalCount),
         ResultQueryEl = result_query(ResultSetEl),
         %% On receiving the query, the server pushes to the client a series of
@@ -559,14 +569,16 @@ handle_set_message_form(
 
 
         %% Forward messages
-        {FirstMessID, LastMessID} =
+        {FirstMessID, LastMessID, IsAnon} =
             case MessageRows of
-                []    -> {undefined, undefined};
+                []    -> {undefined, undefined, undefined};
                 [_|_] -> {message_row_to_ext_id(hd(MessageRows)),
-                          message_row_to_ext_id(lists:last(MessageRows))}
+                          message_row_to_ext_id(lists:last(MessageRows)),
+                          is_anonymous_room(ArcJID)}
             end,
-        [send_message(ArcJID, From, message_row_to_xml(MamNs, set_client_xmlns_for_row(M), QueryID))
-         || M <- MessageRows],
+        SetClientNs = true,
+        [send_message(ArcJID, From, message_row_to_xml(MamNs, IsAnon, SetClientNs, Row, QueryID))
+         || Row <- MessageRows],
 
         %% Make fin message
         IsLastPage = is_last_page(PageSize, TotalCount, Offset, MessageRows),
@@ -579,14 +591,16 @@ handle_set_message_form(
         ignore;
     {ok, {TotalCount, Offset, MessageRows}} ->
         %% Forward messages
-        {FirstMessID, LastMessID} =
+        {FirstMessID, LastMessID, IsAnon} =
             case MessageRows of
-                []    -> {undefined, undefined};
+                []    -> {undefined, undefined, undefined};
                 [_|_] -> {message_row_to_ext_id(hd(MessageRows)),
-                          message_row_to_ext_id(lists:last(MessageRows))}
+                          message_row_to_ext_id(lists:last(MessageRows)),
+                          is_anonymous_room(ArcJID)}
             end,
-        [send_message(ArcJID, From, message_row_to_xml(MamNs, set_client_xmlns_for_row(M), QueryID))
-         || M <- MessageRows],
+        SetClientNs = true,
+        [send_message(ArcJID, From, message_row_to_xml(MamNs, IsAnon, SetClientNs, Row, QueryID))
+         || Row <- MessageRows],
 
         %% Make fin iq
         IsLastPage = is_last_page(PageSize, TotalCount, Offset, MessageRows),
@@ -755,15 +769,24 @@ wait_shaper(Host, Action, From) ->
 %% ----------------------------------------------------------------------
 %% Helpers
 
--spec message_row_to_xml(binary(), row(), binary() | undefined) -> jlib:xmlel().
-message_row_to_xml(MamNs, {MessID,SrcJID,Packet}, QueryID) ->
+-spec message_row_to_xml(binary(), boolean(), boolean(), row(), binary() | undefined) -> jlib:xmlel().
+message_row_to_xml(MamNs, IsAnon, SetClientNs, {MessID,SrcJID,Packet}, QueryID) ->
     {Microseconds, _NodeMessID} = decode_compact_uuid(MessID),
     DateTime = calendar:now_to_universal_time(microseconds_to_now(Microseconds)),
     BExtMessID = mess_id_to_external_binary(MessID),
-    wrap_message(MamNs, Packet, QueryID, BExtMessID, DateTime, SrcJID).
+    Packet1 = maybe_delete_x_user_element(IsAnon, Packet),
+    Packet2 = maybe_set_client_xmlns(SetClientNs, Packet1),
+    wrap_message(MamNs, Packet2, QueryID, BExtMessID, DateTime, SrcJID).
 
-set_client_xmlns_for_row({MessID,SrcJID,Packet}) ->
-    {MessID,SrcJID,set_client_xmlns(Packet)}.
+maybe_set_client_xmlns(true, Packet) ->
+    set_client_xmlns(Packet);
+maybe_set_client_xmlns(false, Packet) ->
+    Packet.
+
+maybe_delete_x_user_element(true, Packet) ->
+    delete_x_user_element(Packet);
+maybe_delete_x_user_element(false, Packet) ->
+    Packet.
 
 -spec message_row_to_ext_id(row()) -> binary().
 message_row_to_ext_id({MessID,_,_}) ->

@@ -35,6 +35,7 @@
          muc_private_message/1,
          muc_deny_private_room_access/1,
          muc_allow_access_to_owner/1,
+         muc_delete_x_user_in_anon_rooms/1,
          range_archive_request/1,
          range_archive_request_not_empty/1,
          limit_archive_request/1,
@@ -113,7 +114,8 @@
     delay_stamp    :: binary() | undefined,
     message_to     :: binary() | undefined,
     message_type   :: binary() | undefined,
-    message_body   :: binary() | undefined
+    message_body   :: binary() | undefined,
+    has_x_user_element :: boolean()
 }).
 
 -record(result_iq, {
@@ -290,6 +292,7 @@ muc_cases() ->
      muc_private_message,
      muc_deny_private_room_access,
      muc_allow_access_to_owner,
+     muc_delete_x_user_in_anon_rooms,
      muc_querying_for_all_messages,
      muc_querying_for_all_messages_with_jid
      ].
@@ -747,6 +750,8 @@ init_per_testcase(C=muc_deny_private_room_access, Config) ->
     escalus:init_per_testcase(C, start_alice_private_room(Config));
 init_per_testcase(C=muc_allow_access_to_owner, Config) ->
     escalus:init_per_testcase(C, start_alice_private_room(Config));
+init_per_testcase(C=muc_delete_x_user_in_anon_rooms, Config) ->
+    escalus:init_per_testcase(C, start_alice_anonymous_room(Config));
 init_per_testcase(C=range_archive_request_not_empty, Config) ->
     escalus:init_per_testcase(C,
         bootstrap_archive(clean_archives(Config)));
@@ -781,6 +786,9 @@ end_per_testcase(C=muc_deny_private_room_access, Config) ->
     destroy_room(Config),
     escalus:end_per_testcase(C, Config);
 end_per_testcase(C=muc_allow_access_to_owner, Config) ->
+    destroy_room(Config),
+    escalus:end_per_testcase(C, Config);
+end_per_testcase(C=muc_delete_x_user_in_anon_rooms, Config) ->
     destroy_room(Config),
     escalus:end_per_testcase(C, Config);
 end_per_testcase(C=muc_querying_for_all_messages, Config) ->
@@ -1286,6 +1294,11 @@ muc_archive_request(Config) ->
         %% Bob received the room's subject.
         escalus:wait_for_stanzas(Bob, 1),
 
+        %% Alice sends another message to Bob.
+        %% The message is not archived by the room.
+        escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
+        escalus:assert(is_message, escalus:wait_for_stanza(Bob)),
+
         %% Alice sends to the chat room.
 		escalus:send(Alice, escalus_stanza:groupchat_to(RoomAddr, Text)),
 
@@ -1310,6 +1323,8 @@ muc_archive_request(Config) ->
         ?assert_equal(Text, ArcMsgBody),
         ?assert_equal(ArcId, Id),
         ?assert_equal(RoomAddr, By),
+        ?assert_equal_extra(true, has_x_user_element(ArcMsg),
+                            [{forwarded_message, ArcMsg}]),
         ok
         end,
     escalus:story(Config, [{alice, 1}, {bob, 1}], F).
@@ -1488,6 +1503,40 @@ muc_allow_access_to_owner(Config) ->
         escalus:send(Alice, stanza_to_room(stanza_archive_request(P, <<"q1">>), Room)),
         %% mod_mam_muc returns result.
         assert_respond_size(P, 0, wait_archive_respond(P, Alice)),
+        ok
+        end,
+    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
+
+muc_delete_x_user_in_anon_rooms(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice, Bob) ->
+        Room = ?config(room, Config),
+        RoomAddr = room_address(Room),
+        Text = <<"Hi all!">>,
+        escalus:send(Alice, stanza_muc_enter_room(Room, nick(Alice))),
+        escalus:send(Bob, stanza_muc_enter_room(Room, nick(Bob))),
+
+        %% Bob received presences.
+        escalus:wait_for_stanzas(Bob, 2),
+
+        %% Bob received the room's subject.
+        escalus:wait_for_stanzas(Bob, 1),
+
+        %% Alice sends to the chat room.
+		escalus:send(Alice, escalus_stanza:groupchat_to(RoomAddr, Text)),
+
+        %% Bob receives the message.
+        BobMsg = escalus:wait_for_stanza(Bob),
+        escalus:assert(is_message, BobMsg),
+
+        %% Bob requests the room's archive.
+        escalus:send(Bob, stanza_to_room(stanza_archive_request(P, <<"q1">>), Room)),
+
+        %% mod_mam_muc returns result.
+        [ArcMsg] = respond_messages(assert_respond_size(P, 1, wait_archive_respond(P, Bob))),
+
+        ?assert_equal_extra(false, has_x_user_element(ArcMsg),
+                            [{forwarded_message, ArcMsg}]),
         ok
         end,
     escalus:story(Config, [{alice, 1}, {bob, 1}], F).
@@ -2138,7 +2187,8 @@ parse_forwarded_message(#xmlel{name = <<"message">>,
                                attrs = Attrs, children = Children}) ->
     M = #forwarded_message{
         from = proplists:get_value(<<"from">>, Attrs),
-        to   = proplists:get_value(<<"to">>, Attrs)},
+        to   = proplists:get_value(<<"to">>, Attrs),
+        has_x_user_element = false},
     lists:foldl(fun 'parse_children[message]'/2, M, Children).
 
 'parse_children[message]'(#xmlel{name = <<"result">>,
@@ -2171,6 +2221,10 @@ parse_forwarded_message(#xmlel{name = <<"message">>,
 'parse_children[message/result/forwarded/message]'(#xmlel{name = <<"body">>,
         children = [{xmlcdata, Body}]}, M) ->
     M#forwarded_message{message_body = Body};
+'parse_children[message/result/forwarded/message]'(#xmlel{name = <<"x">>,
+        attrs = Attrs}, M) ->
+    IsUser = lists:member({<<"xmlns">>, <<"http://jabber.org/protocol/muc#user">>}, Attrs),
+    M#forwarded_message{has_x_user_element = IsUser};
 %% Parse `<archived />' here.
 'parse_children[message/result/forwarded/message]'(_, M) ->
     M.
@@ -2322,7 +2376,7 @@ start_alice_room(Config) ->
     RoomName = <<"alicesroom">>,
     RoomNick = <<"alicesnick">>,
     [Alice | _] = ?config(escalus_users, Config),
-    start_room(Config, Alice, RoomName, RoomNick, [{persistent, true}]).
+    start_room(Config, Alice, RoomName, RoomNick, [{persistent, true}, {anonymous, false}]).
 
 start_alice_private_room(Config) ->
     RoomName = <<"alicesroom">>,
@@ -2332,6 +2386,12 @@ start_alice_private_room(Config) ->
                [{persistent, true},
                 {password_protected, true},
                 {password, <<"secret">>}]).
+
+start_alice_anonymous_room(Config) ->
+    RoomName = <<"alicesroom">>,
+    RoomNick = <<"alicesnick">>,
+    [Alice | _] = ?config(escalus_users, Config),
+    start_room(Config, Alice, RoomName, RoomNick, [{anonymous, true}]).
 
 start_room(Config, User, Room, Nick, Opts) ->
     From = generate_rpc_jid(User),
@@ -2922,3 +2982,7 @@ add_nostore_hint(#xmlel{children=Children}=Elem) ->
 
 nostore_hint_elem() ->
     #xmlel{name = <<"no-store">>, attrs = [{<<"xmlns">>, <<"urn:xmpp:hints">>}]}.
+
+has_x_user_element(ArcMsg) ->
+    ParsedMess = parse_forwarded_message(ArcMsg),
+    ParsedMess#forwarded_message.has_x_user_element.

@@ -25,6 +25,7 @@
          replace_x_user_element/4,
          append_archived_elem/3,
          delete_archived_elem/2,
+         delete_x_user_element/1,
          get_one_of_path/2,
          get_one_of_path/3,
          is_complete_message/3,
@@ -214,7 +215,7 @@ is_archived_elem_for(_, _) ->
     false.
 
 is_x_user_element(#xmlel{name = <<"x">>, attrs = As}) ->
-    ?NS_MUC_USER =:= lists:keymember(<<"xmlns">>, 1, As);
+     lists:member({<<"xmlns">>, ?NS_MUC_USER}, As);
 is_x_user_element(_) ->
     false.
 
@@ -260,6 +261,7 @@ x_user_item(FromJID, Role, Affiliation) ->
 delete_archived_elem(By, Packet=#xmlel{children=Cs}) ->
     Packet#xmlel{children=[C || C <- Cs, not is_archived_elem_for(C, By)]}.
 
+-spec delete_x_user_element(jlib:xmlel()) -> jlib:xmlel().
 delete_x_user_element(Packet=#xmlel{children=Cs}) ->
     Packet#xmlel{children=[C || C <- Cs, not is_x_user_element(C)]}.
 
