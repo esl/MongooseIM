@@ -2379,6 +2379,9 @@ send_muc_rsm_messages(Config) ->
         %% Bob is waiting for 15 messages for 5 seconds.
         escalus:wait_for_stanzas(Bob, 15, 5000),
         escalus:wait_for_stanzas(Alice, 15, 5000),
+
+        maybe_wait_for_yz(Config),
+
         %% Get whole history.
         escalus:send(Alice,
             stanza_to_room(stanza_archive_request(P, <<"all_room_messages">>), Room)),
