@@ -743,7 +743,7 @@ process_message_from_allowed_user(From, #xmlel{attrs = Attrs} = Packet,
                                                             Packet, StateData),
             if
                 Changed ->
-                    broadcast_changed_subject(From, FromNick, Packet, NewState);
+                    broadcast_room_packet(From, FromNick, Packet, NewState);
                 not Changed ->
                     change_subject_error(From, FromNick, Packet, Lang, NewState),
                     {next_state, normal_state, NewState}
@@ -760,7 +760,7 @@ can_send_broadcasts(Role, StateData) ->
     or (Role == participant)
     or ((StateData#state.config)#config.moderated == false).
 
-broadcast_changed_subject(From, FromNick, Packet, StateData) ->
+broadcast_room_packet(From, FromNick, Packet, StateData) ->
     case ejabberd_hooks:run_fold(filter_room_packet,
                                  StateData#state.host, Packet,
                                  [FromNick, From, StateData#state.jid])
