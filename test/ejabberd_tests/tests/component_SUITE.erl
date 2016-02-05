@@ -86,7 +86,7 @@ init_per_group(subdomain, Config) ->
 init_per_group(distributed, Config) ->
     Config1 = get_components([], Config),
     Config2 = add_node_to_cluster(Config1),
-    escalus:create_users(Config2, cluster_users());
+    escalus:create_users(Config2, escalus:get_users([alice, clusterguy]));
 init_per_group(_GroupName, Config) ->
     escalus:create_users(Config, escalus:get_users([alice, bob])).
 
@@ -94,7 +94,7 @@ end_per_group(subdomain, Config) ->
     escalus:delete_users(Config, escalus:get_users([alice, astrid])),
     restore_domain(Config);
 end_per_group(distributed, Config) ->
-    escalus:delete_users(Config, ?config(escalus_users, Config)),
+    escalus:delete_users(Config, escalus:get_users([alice, clusterguy])),
     remove_node_from_cluster(Config);
 end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config, escalus:get_users([alice, bob])).
@@ -278,11 +278,11 @@ register_subdomain(Config) ->
 
 
 register_in_cluster(Config) ->
-    %% Given one component contected to the cluster
+    %% Given one component connected to the cluster
     CompOpts1 = ?config(component1, Config),
     {Comp, Addr, Name} = connect_component(CompOpts1),
 
-    escalus:story(Config, [{alice, 1}, {astrid, 1}], fun(Alice, Astrid) ->
+    escalus:story(Config, [{alice, 1}, {clusterguy, 1}], fun(Alice, ClusterGuy) ->
                 %% When Alice sends a message to the component
                 Msg1 = escalus_stanza:chat_to(Addr, <<"Hi!">>),
                 escalus:send(Alice, Msg1),
@@ -299,20 +299,20 @@ register_in_cluster(Config) ->
                 escalus:assert(is_chat_message, [<<"Oh hi!">>], Reply2),
                 escalus:assert(is_stanza_from, [Addr], Reply2),
 
-                %% When Astrid (connected to the other node than component)
+                %% When ClusterGuy (connected to the other node than component)
                 %% sends a message
                 Msg3 = escalus_stanza:chat_to(Addr, <<"Hello!">>),
-                escalus:send(Astrid, Msg3),
+                escalus:send(ClusterGuy, Msg3),
                 %% Then component receives it
                 Reply3 = escalus:wait_for_stanza(Comp),
                 escalus:assert(is_chat_message, [<<"Hello!">>], Reply3),
 
                 %% When components sends a reply
-                Msg4 = escalus_stanza:chat_to(Astrid, <<"Hola!">>),
+                Msg4 = escalus_stanza:chat_to(ClusterGuy, <<"Hola!">>),
                 escalus:send(Comp, escalus_stanza:from(Msg4, Addr)),
 
-                %% Then Astrid receives it
-                Reply4 = escalus:wait_for_stanza(Astrid),
+                %% Then ClusterGuy receives it
+                Reply4 = escalus:wait_for_stanza(ClusterGuy),
                 escalus:assert(is_chat_message, [<<"Hola!">>], Reply4),
                 escalus:assert(is_stanza_from, [Addr], Reply4),
 
@@ -325,13 +325,13 @@ register_in_cluster(Config) ->
                 DiscoReply1 = escalus:wait_for_stanza(Alice),
                 escalus:assert(has_service, [Addr], DiscoReply1),
 
-                %% When Astrid asks for the disco features on her server
-                Server2 = escalus_client:server(Astrid),
+                %% When ClusterGuy asks for the disco features on her server
+                Server2 = escalus_client:server(ClusterGuy),
                 Disco2 = escalus_stanza:service_discovery(Server2),
-                escalus:send(Astrid, Disco2),
+                escalus:send(ClusterGuy, Disco2),
 
                 %% Then it also contains the service (with the other address though)
-                DiscoReply2 = escalus:wait_for_stanza(Astrid),
+                DiscoReply2 = escalus:wait_for_stanza(ClusterGuy),
                 DistributedAddr = <<Name/binary, ".", Server2/binary>>,
                 escalus:assert(has_service, [DistributedAddr], DiscoReply2)
 
