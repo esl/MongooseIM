@@ -45,7 +45,7 @@
 -export([start/2, stop/1]).
 
 %% ejabberd room handlers
--export([filter_room_packet/4,
+-export([filter_room_packet/2,
          archive_room_packet/4,
          room_process_mam_iq/3,
          forget_room/2]).
@@ -236,15 +236,18 @@ server_host_1(_Host, [#mam_host{ server_host = ServerHost }]) ->
 %% hooks and handlers for MUC
 
 %% @doc Handle public MUC-message.
--spec filter_room_packet(Packet :: packet(), FromNick :: ejabberd:user(),
-        FromJID :: ejabberd:jid(), RoomJID :: ejabberd:jid()) -> packet().
-filter_room_packet(Packet, FromNick,
-                   FromJID=#jid{},
-                   RoomJID=#jid{}) ->
+-spec filter_room_packet(Packet :: packet(), EventData :: list()) -> packet().
+filter_room_packet(Packet, EventData) ->
     ?DEBUG("Incoming room packet.", []),
     IsComplete = call_is_complete_message(?MODULE, incoming, Packet),
     case IsComplete of
-        true -> archive_room_packet(Packet, FromNick, FromJID, RoomJID);
+        true ->
+            {_, FromNick}    = lists:keyfind(from_nick, 1, EventData),
+            {_, FromJID}     = lists:keyfind(from_jid, 1, EventData),
+            {_, RoomJID}     = lists:keyfind(room_jid, 1, EventData),
+            {_, Role}        = lists:keyfind(role, 1, EventData),
+            {_, Affiliation} = lists:keyfind(affiliation, 1, EventData),
+            archive_room_packet(Packet, FromNick, FromJID, RoomJID);
         false -> Packet
     end.
 
