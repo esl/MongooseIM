@@ -40,7 +40,7 @@
 -export([get_room_users/1,
          is_room_owner/2,
          can_access_room/2,
-         is_anonymous_room/1]).
+         can_access_identity/2]).
 
 %% gen_fsm callbacks
 -export([init/1,
@@ -206,6 +206,7 @@ is_room_owner(RoomJID, UserJID) ->
             {error, Reason}
     end.
 
+%% @doc Return true if UserJID can read room messages
 -spec can_access_room(RoomJID :: ejabberd:jid(), UserJID :: ejabberd:jid()) ->
             {ok, boolean()} | {error, not_found}.
 can_access_room(RoomJID, UserJID) ->
@@ -216,11 +217,13 @@ can_access_room(RoomJID, UserJID) ->
             {error, Reason}
     end.
 
--spec is_anonymous_room(RoomJID :: ejabberd:jid()) -> {ok, boolean()} | {error, not_found}.
-is_anonymous_room(RoomJID) ->
+%% @doc Return true if UserJID can read real user JIDs
+-spec can_access_identity(RoomJID :: ejabberd:jid(), UserJID :: ejabberd:jid()) ->
+    {ok, boolean()} | {error, not_found}.
+can_access_identity(RoomJID, UserJID) ->
     case mod_muc:room_jid_to_pid(RoomJID) of
         {ok, Pid} ->
-            gen_fsm:sync_send_all_state_event(Pid, is_anonymous_room);
+            gen_fsm:sync_send_all_state_event(Pid, {can_access_identity, UserJID});
         {error, Reason} ->
             {error, Reason}
     end.
@@ -586,9 +589,8 @@ handle_sync_event({is_room_owner, UserJID}, _From, StateName, StateData) ->
     {reply, {ok, get_affiliation(UserJID, StateData) =:= owner}, StateName, StateData};
 handle_sync_event({can_access_room, UserJID}, _From, StateName, StateData) ->
     {reply, {ok,  can_read_conference(UserJID, StateData)}, StateName, StateData};
-handle_sync_event(is_anonymous_room, _From, StateName, StateData) ->
-    Config = StateData#state.config,
-    {reply, {ok,  Config#config.anonymous =:= true}, StateName, StateData};
+handle_sync_event({can_access_identity, UserJID}, _From, StateName, StateData) ->
+    {reply, {ok,  can_user_access_identity(UserJID, StateData)}, StateName, StateData};
 handle_sync_event({change_config, Config}, _From, StateName, StateData) ->
     {result, [], NSD} = change_config(Config, StateData),
     {reply, {ok, NSD#state.config}, StateName, NSD};
@@ -744,6 +746,20 @@ can_read_conference(UserJID, StateData) ->
     is_user_online(UserJID, StateData)
     orelse
     is_affiliated(UserJID, StateData).
+
+can_user_access_identity(UserJID, StateData) ->
+    is_room_non_anonymous(StateData)
+    orelse
+    is_user_moderator(UserJID, StateData).
+
+is_room_non_anonymous(StateData) ->
+    not is_room_anonymous(StateData).
+
+is_room_anonymous(#state{config = #config{anonymous = IsAnon}}) ->
+    IsAnon.
+
+is_user_moderator(UserJID, StateData) ->
+    get_role(UserJID, StateData) =:= moderator.
 
 process_message_from_allowed_user(From, #xmlel{attrs = Attrs} = Packet,
                                   StateData) ->

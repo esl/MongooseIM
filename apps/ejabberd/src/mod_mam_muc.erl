@@ -358,11 +358,12 @@ can_access_room(From, To) ->
         {ok, CanAccess} -> CanAccess
     end.
 
--spec is_anonymous_room(To :: ejabberd:jid()) -> boolean().
-is_anonymous_room(To) ->
-    case mod_muc_room:is_anonymous_room(To) of
+%% @doc Return true if user element should be removed from results
+-spec is_user_identity_hidden(From :: ejabberd:jid(), ArcJID :: ejabberd:jid()) -> boolean().
+is_user_identity_hidden(From, ArcJID) ->
+    case mod_muc_room:can_access_identity(ArcJID, From) of
         {error, _} -> true;
-        {ok, IsAnon} -> IsAnon
+        {ok, CanAccess} -> (not CanAccess)
     end.
 
 
@@ -509,15 +510,15 @@ handle_lookup_messages(
         report_issue(Reason, mam_muc_lookup_failed, ArcJID, IQ),
         return_error_iq(IQ, Reason);
     {ok, {TotalCount, Offset, MessageRows}} ->
-        {FirstMessID, LastMessID, IsAnon} =
+        {FirstMessID, LastMessID, HideUser} =
             case MessageRows of
                 []    -> {undefined, undefined, undefined};
                 [_|_] -> {message_row_to_ext_id(hd(MessageRows)),
                           message_row_to_ext_id(lists:last(MessageRows)),
-                          is_anonymous_room(ArcJID)}
+                          is_user_identity_hidden(From, ArcJID)}
             end,
         SetClientNs = false,
-        [send_message(ArcJID, From, message_row_to_xml(MamNs, IsAnon, SetClientNs, Row, QueryID))
+        [send_message(ArcJID, From, message_row_to_xml(MamNs, HideUser, SetClientNs, Row, QueryID))
          || Row <- MessageRows],
         ResultSetEl = result_set(FirstMessID, LastMessID, Offset, TotalCount),
         ResultQueryEl = result_query(ResultSetEl),
@@ -569,15 +570,15 @@ handle_set_message_form(
 
 
         %% Forward messages
-        {FirstMessID, LastMessID, IsAnon} =
+        {FirstMessID, LastMessID, HideUser} =
             case MessageRows of
                 []    -> {undefined, undefined, undefined};
                 [_|_] -> {message_row_to_ext_id(hd(MessageRows)),
                           message_row_to_ext_id(lists:last(MessageRows)),
-                          is_anonymous_room(ArcJID)}
+                          is_user_identity_hidden(From, ArcJID)}
             end,
         SetClientNs = true,
-        [send_message(ArcJID, From, message_row_to_xml(MamNs, IsAnon, SetClientNs, Row, QueryID))
+        [send_message(ArcJID, From, message_row_to_xml(MamNs, HideUser, SetClientNs, Row, QueryID))
          || Row <- MessageRows],
 
         %% Make fin message
@@ -591,15 +592,15 @@ handle_set_message_form(
         ignore;
     {ok, {TotalCount, Offset, MessageRows}} ->
         %% Forward messages
-        {FirstMessID, LastMessID, IsAnon} =
+        {FirstMessID, LastMessID, HideUser} =
             case MessageRows of
                 []    -> {undefined, undefined, undefined};
                 [_|_] -> {message_row_to_ext_id(hd(MessageRows)),
                           message_row_to_ext_id(lists:last(MessageRows)),
-                          is_anonymous_room(ArcJID)}
+                          is_user_identity_hidden(From, ArcJID)}
             end,
         SetClientNs = true,
-        [send_message(ArcJID, From, message_row_to_xml(MamNs, IsAnon, SetClientNs, Row, QueryID))
+        [send_message(ArcJID, From, message_row_to_xml(MamNs, HideUser, SetClientNs, Row, QueryID))
          || Row <- MessageRows],
 
         %% Make fin iq
@@ -770,11 +771,11 @@ wait_shaper(Host, Action, From) ->
 %% Helpers
 
 -spec message_row_to_xml(binary(), boolean(), boolean(), row(), binary() | undefined) -> jlib:xmlel().
-message_row_to_xml(MamNs, IsAnon, SetClientNs, {MessID,SrcJID,Packet}, QueryID) ->
+message_row_to_xml(MamNs, HideUser, SetClientNs, {MessID,SrcJID,Packet}, QueryID) ->
     {Microseconds, _NodeMessID} = decode_compact_uuid(MessID),
     DateTime = calendar:now_to_universal_time(microseconds_to_now(Microseconds)),
     BExtMessID = mess_id_to_external_binary(MessID),
-    Packet1 = maybe_delete_x_user_element(IsAnon, Packet),
+    Packet1 = maybe_delete_x_user_element(HideUser, Packet),
     Packet2 = maybe_set_client_xmlns(SetClientNs, Packet1),
     wrap_message(MamNs, Packet2, QueryID, BExtMessID, DateTime, SrcJID).
 
