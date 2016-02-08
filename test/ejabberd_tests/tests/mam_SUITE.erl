@@ -37,6 +37,7 @@
          muc_allow_access_to_owner/1,
          muc_delete_x_user_in_anon_rooms/1,
          muc_show_x_user_to_moderators_in_anon_rooms/1,
+         muc_show_x_user_for_your_own_messages_in_anon_rooms/1,
          range_archive_request/1,
          range_archive_request_not_empty/1,
          limit_archive_request/1,
@@ -295,6 +296,7 @@ muc_cases() ->
      muc_allow_access_to_owner,
      muc_delete_x_user_in_anon_rooms,
      muc_show_x_user_to_moderators_in_anon_rooms,
+     muc_show_x_user_for_your_own_messages_in_anon_rooms,
      muc_querying_for_all_messages,
      muc_querying_for_all_messages_with_jid
      ].
@@ -756,6 +758,8 @@ init_per_testcase(C=muc_delete_x_user_in_anon_rooms, Config) ->
     escalus:init_per_testcase(C, start_alice_anonymous_room(Config));
 init_per_testcase(C=muc_show_x_user_to_moderators_in_anon_rooms, Config) ->
     escalus:init_per_testcase(C, start_alice_anonymous_room(Config));
+init_per_testcase(C=muc_show_x_user_for_your_own_messages_in_anon_rooms, Config) ->
+    escalus:init_per_testcase(C, start_alice_anonymous_room(Config));
 init_per_testcase(C=range_archive_request_not_empty, Config) ->
     escalus:init_per_testcase(C,
         bootstrap_archive(clean_archives(Config)));
@@ -796,6 +800,9 @@ end_per_testcase(C=muc_delete_x_user_in_anon_rooms, Config) ->
     destroy_room(Config),
     escalus:end_per_testcase(C, Config);
 end_per_testcase(C=muc_show_x_user_to_moderators_in_anon_rooms, Config) ->
+    destroy_room(Config),
+    escalus:end_per_testcase(C, Config);
+end_per_testcase(C=muc_show_x_user_for_your_own_messages_in_anon_rooms, Config) ->
     destroy_room(Config),
     escalus:end_per_testcase(C, Config);
 end_per_testcase(C=muc_querying_for_all_messages, Config) ->
@@ -1534,8 +1541,7 @@ muc_delete_x_user_in_anon_rooms(Config) ->
 		escalus:send(Alice, escalus_stanza:groupchat_to(RoomAddr, Text)),
 
         %% Bob receives the message.
-        BobMsg = escalus:wait_for_stanza(Bob),
-        escalus:assert(is_message, BobMsg),
+        escalus:assert(is_message, escalus:wait_for_stanza(Bob)),
 
         maybe_wait_for_yz(Config),
 
@@ -1553,24 +1559,24 @@ muc_delete_x_user_in_anon_rooms(Config) ->
 
 muc_show_x_user_to_moderators_in_anon_rooms(Config) ->
     P = ?config(props, Config),
-    F = fun(Alice) ->
+    F = fun(Alice, Bob) ->
         Room = ?config(room, Config),
         RoomAddr = room_address(Room),
         Text = <<"Hi all!">>,
         escalus:send(Alice, stanza_muc_enter_room(Room, nick(Alice))),
+        escalus:send(Bob, stanza_muc_enter_room(Room, nick(Bob))),
 
         %% Alice received presences.
-        escalus:wait_for_stanzas(Alice, 1),
+        escalus:wait_for_stanzas(Alice, 2),
 
         %% Alice received the room's subject.
         escalus:wait_for_stanzas(Alice, 1),
 
-        %% Alice sends to the chat room.
-		escalus:send(Alice, escalus_stanza:groupchat_to(RoomAddr, Text)),
+        %% Bob sends to the chat room.
+		escalus:send(Bob, escalus_stanza:groupchat_to(RoomAddr, Text)),
 
         %% Alice receives the message.
-        AliceMsg = escalus:wait_for_stanza(Alice),
-        escalus:assert(is_message, AliceMsg),
+        escalus:assert(is_message, escalus:wait_for_stanza(Alice)),
 
         maybe_wait_for_yz(Config),
 
@@ -1584,7 +1590,42 @@ muc_show_x_user_to_moderators_in_anon_rooms(Config) ->
                             [{forwarded_message, ArcMsg}]),
         ok
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
+
+muc_show_x_user_for_your_own_messages_in_anon_rooms(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice, Bob) ->
+        Room = ?config(room, Config),
+        RoomAddr = room_address(Room),
+        Text = <<"Hi all!">>,
+        escalus:send(Alice, stanza_muc_enter_room(Room, nick(Alice))),
+        escalus:send(Bob, stanza_muc_enter_room(Room, nick(Bob))),
+
+        %% Bob received presences.
+        escalus:wait_for_stanzas(Bob, 2),
+
+        %% Bob received the room's subject.
+        escalus:wait_for_stanzas(Bob, 1),
+
+        %% Bob sends to the chat room.
+		escalus:send(Bob, escalus_stanza:groupchat_to(RoomAddr, Text)),
+
+        %% Bob receives the message.
+        escalus:assert(is_message, escalus:wait_for_stanza(Bob)),
+
+        maybe_wait_for_yz(Config),
+
+        %% Bob requests the room's archive.
+        escalus:send(Bob, stanza_to_room(stanza_archive_request(P, <<"q1">>), Room)),
+
+        %% mod_mam_muc returns result.
+        [ArcMsg] = respond_messages(assert_respond_size(P, 1, wait_archive_respond(P, Bob))),
+
+        ?assert_equal_extra(true, has_x_user_element(ArcMsg),
+                            [{forwarded_message, ArcMsg}]),
+        ok
+        end,
+    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
 
 %% @doc Querying the archive for all messages in a certain timespan.
 range_archive_request(Config) ->

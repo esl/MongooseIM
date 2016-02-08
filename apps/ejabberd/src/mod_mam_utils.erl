@@ -26,6 +26,7 @@
          append_archived_elem/3,
          delete_archived_elem/2,
          delete_x_user_element/1,
+         packet_to_x_user_jid/1,
          get_one_of_path/2,
          get_one_of_path/3,
          is_complete_message/3,
@@ -265,6 +266,16 @@ delete_archived_elem(By, Packet=#xmlel{children=Cs}) ->
 delete_x_user_element(Packet=#xmlel{children=Cs}) ->
     Packet#xmlel{children=[C || C <- Cs, not is_x_user_element(C)]}.
 
+-spec packet_to_x_user_jid(jlib:xmlel()) -> ejabberd:jid() | error | undefined.
+packet_to_x_user_jid(#xmlel{children=Cs}) ->
+    case [C || C <- Cs, is_x_user_element(C)] of
+        [] -> undefined;
+        [X|_] ->
+            case exml_query:path(X, [{element, <<"item">>}, {attr, <<"jid">>}]) of
+                undefined -> undefined;
+                BinaryJid -> jid:from_binary(BinaryJid)
+            end
+    end.
 
 -spec get_one_of_path(_, list(T)) -> T when T :: any().
 get_one_of_path(Elem, List) ->

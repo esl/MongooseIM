@@ -69,6 +69,7 @@
         [replace_archived_elem/3,
          replace_x_user_element/4,
          delete_x_user_element/1,
+         packet_to_x_user_jid/1,
          get_one_of_path/2,
          wrap_message/6,
          result_set/4,
@@ -518,7 +519,7 @@ handle_lookup_messages(
                           is_user_identity_hidden(From, ArcJID)}
             end,
         SetClientNs = false,
-        [send_message(ArcJID, From, message_row_to_xml(MamNs, HideUser, SetClientNs, Row, QueryID))
+        [send_message(ArcJID, From, message_row_to_xml(MamNs, From, HideUser, SetClientNs, Row, QueryID))
          || Row <- MessageRows],
         ResultSetEl = result_set(FirstMessID, LastMessID, Offset, TotalCount),
         ResultQueryEl = result_query(ResultSetEl),
@@ -578,7 +579,7 @@ handle_set_message_form(
                           is_user_identity_hidden(From, ArcJID)}
             end,
         SetClientNs = true,
-        [send_message(ArcJID, From, message_row_to_xml(MamNs, HideUser, SetClientNs, Row, QueryID))
+        [send_message(ArcJID, From, message_row_to_xml(MamNs, From, HideUser, SetClientNs, Row, QueryID))
          || Row <- MessageRows],
 
         %% Make fin message
@@ -600,7 +601,7 @@ handle_set_message_form(
                           is_user_identity_hidden(From, ArcJID)}
             end,
         SetClientNs = true,
-        [send_message(ArcJID, From, message_row_to_xml(MamNs, HideUser, SetClientNs, Row, QueryID))
+        [send_message(ArcJID, From, message_row_to_xml(MamNs, From, HideUser, SetClientNs, Row, QueryID))
          || Row <- MessageRows],
 
         %% Make fin iq
@@ -770,12 +771,12 @@ wait_shaper(Host, Action, From) ->
 %% ----------------------------------------------------------------------
 %% Helpers
 
--spec message_row_to_xml(binary(), boolean(), boolean(), row(), binary() | undefined) -> jlib:xmlel().
-message_row_to_xml(MamNs, HideUser, SetClientNs, {MessID,SrcJID,Packet}, QueryID) ->
+-spec message_row_to_xml(binary(), jid(), boolean(), boolean(), row(), binary() | undefined) -> jlib:xmlel().
+message_row_to_xml(MamNs, ReceiverJID, HideUser, SetClientNs, {MessID,SrcJID,Packet}, QueryID) ->
     {Microseconds, _NodeMessID} = decode_compact_uuid(MessID),
     DateTime = calendar:now_to_universal_time(microseconds_to_now(Microseconds)),
     BExtMessID = mess_id_to_external_binary(MessID),
-    Packet1 = maybe_delete_x_user_element(HideUser, Packet),
+    Packet1 = maybe_delete_x_user_element(HideUser, ReceiverJID, Packet),
     Packet2 = maybe_set_client_xmlns(SetClientNs, Packet1),
     wrap_message(MamNs, Packet2, QueryID, BExtMessID, DateTime, SrcJID).
 
@@ -784,9 +785,15 @@ maybe_set_client_xmlns(true, Packet) ->
 maybe_set_client_xmlns(false, Packet) ->
     Packet.
 
-maybe_delete_x_user_element(true, Packet) ->
-    delete_x_user_element(Packet);
-maybe_delete_x_user_element(false, Packet) ->
+maybe_delete_x_user_element(true, ReceiverJID, Packet) ->
+    PacketJID = packet_to_x_user_jid(Packet),
+    case jid:are_bare_equal(ReceiverJID, PacketJID) of
+        false ->
+            delete_x_user_element(Packet);
+        true -> %% expose identity for user's own messages
+            Packet
+    end;
+maybe_delete_x_user_element(false, _ReceiverJID, Packet) ->
     Packet.
 
 -spec message_row_to_ext_id(row()) -> binary().
