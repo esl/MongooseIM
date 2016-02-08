@@ -273,9 +273,10 @@ archive_room_packet(Packet, FromNick, FromJID=#jid{}, RoomJID=#jid{}, Role, Affi
         true ->
             MessID = generate_message_id(),
             Packet1 = replace_x_user_element(FromJID, Role, Affiliation, Packet),
+            Packet2 = replace_from_to_attributes(FromNick, RoomJID, Packet1),
             Result = archive_message(Host, MessID, ArcID,
-                                     RoomJID, SrcJID, SrcJID, incoming, Packet1),
-            %% Packet1 goes to archive, Packet to other users
+                                     RoomJID, SrcJID, SrcJID, incoming, Packet2),
+            %% Packet2 goes to archive, Packet to other users
             case {Result, add_archived_element()} of
                 {ok, true} ->
                     BareRoomJID = jid:to_binary(RoomJID),
@@ -795,6 +796,15 @@ maybe_delete_x_user_element(true, ReceiverJID, Packet) ->
     end;
 maybe_delete_x_user_element(false, _ReceiverJID, Packet) ->
     Packet.
+
+%% From XEP-0313:
+%% When sending out the archives to a requesting client, the 'to' of the
+%% forwarded stanza MUST be empty, and the 'from' MUST be the occupant JID
+%% of the sender of the archived message.
+replace_from_to_attributes(FromNick, RoomJID, Packet=#xmlel{attrs = Attrs}) ->
+    NickJID = jid:replace_resource(RoomJID, FromNick),
+    NewAttrs = jlib:replace_from_to_attrs(jid:to_binary(NickJID), <<>>, Attrs),
+    Packet#xmlel{attrs = NewAttrs}.
 
 -spec message_row_to_ext_id(row()) -> binary().
 message_row_to_ext_id({MessID,_,_}) ->

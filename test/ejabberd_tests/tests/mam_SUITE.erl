@@ -115,6 +115,7 @@
     delay_from     :: binary() | undefined,
     delay_stamp    :: binary() | undefined,
     message_to     :: binary() | undefined,
+    message_from   :: binary() | undefined,
     message_type   :: binary() | undefined,
     message_body   :: binary() | undefined,
     has_x_user_element :: boolean()
@@ -1333,8 +1334,14 @@ muc_archive_request(Config) ->
         %% Bob requests the room's archive.
         escalus:send(Bob, stanza_to_room(stanza_archive_request(P, <<"q1">>), Room)),
         [ArcMsg] = respond_messages(assert_respond_size(P, 1, wait_archive_respond(P, Bob))),
-        #forwarded_message{result_id=ArcId, message_body=ArcMsgBody} =
+        #forwarded_message{result_id=ArcId, message_body=ArcMsgBody,
+                           message_to=MsgTo, message_from=MsgFrom} =
             parse_forwarded_message(ArcMsg),
+        %% XEP: the 'to' of the forwarded stanza MUST be empty
+        ?assert_equal_extra(<<>>, MsgTo, message_to),
+        %% XEP: the 'from' MUST be the occupant JID of the sender of the archived message
+        ?assert_equal_extra(room_address(Room, nick(Alice)), MsgFrom, message_from),
+
         ?assert_equal(Text, ArcMsgBody),
         ?assert_equal(ArcId, Id),
         ?assert_equal(RoomAddr, By),
@@ -2300,6 +2307,7 @@ parse_forwarded_message(#xmlel{name = <<"message">>,
                                                   children = Children}, M) ->
     M1 = M#forwarded_message{
         message_to   = proplists:get_value(<<"to">>, Attrs),
+        message_from = proplists:get_value(<<"from">>, Attrs),
         message_type = proplists:get_value(<<"type">>, Attrs)},
     lists:foldl(fun 'parse_children[message/result/forwarded/message]'/2,
                 M1, Children).
