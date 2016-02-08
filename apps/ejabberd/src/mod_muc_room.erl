@@ -742,10 +742,24 @@ can_send_to_conference(From, StateData) ->
     orelse
     is_allowed_nonparticipant(From, StateData).
 
-can_read_conference(UserJID, StateData) ->
-    is_user_online(UserJID, StateData)
-    orelse
-    is_affiliated(UserJID, StateData).
+can_read_conference(UserJID,
+                    StateData=#state{config = #config{members_only = MembersOnly,
+                                                      password_protected = Protected}}) ->
+    Affiliation = get_affiliation(UserJID, StateData),
+    %% In a members-only chat room, only owners, admins or members can query a room archive.
+    case {MembersOnly, Protected} of
+        {_, true} ->
+            %% For querying password-protected room user should be a member
+            %% or inside the room
+            is_user_online(UserJID, StateData)
+            orelse
+            lists:member(Affiliation, [owner, admin, member]);
+        {true, false} ->
+            lists:member(Affiliation, [owner, admin, member]);
+        {false, false} ->
+            %% Outcast (banned) cannot read
+            Affiliation =/= outcast
+    end.
 
 can_user_access_identity(UserJID, StateData) ->
     is_room_non_anonymous(StateData)
@@ -866,12 +880,6 @@ save_persistent_room_state(StateData) ->
 -spec is_allowed_nonparticipant(ejabberd:jid(), state()) -> boolean().
 is_allowed_nonparticipant(JID, StateData) ->
     get_service_affiliation(JID, StateData) =:= owner.
-
--spec is_affiliated(ejabberd:jid(), state()) -> boolean().
-is_affiliated(UserJID, StateData) ->
-    Affiliation = get_affiliation(UserJID, StateData),
-    lists:member(Affiliation, [owner, admin, member, outcast]).
-
 
 %% @doc Get information of this participant, or default values.
 %% If the JID is not a participant, return values for a service message.

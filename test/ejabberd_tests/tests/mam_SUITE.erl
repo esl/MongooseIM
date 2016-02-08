@@ -32,8 +32,8 @@
          muc_archive_request/1,
          muc_archive_purge/1,
          muc_multiple_devices/1,
-         muc_private_message/1,
-         muc_deny_private_room_access/1,
+         muc_protected_message/1,
+         muc_deny_protected_room_access/1,
          muc_allow_access_to_owner/1,
          muc_delete_x_user_in_anon_rooms/1,
          muc_show_x_user_to_moderators_in_anon_rooms/1,
@@ -291,8 +291,8 @@ muc_cases() ->
      muc_archive_request,
      muc_archive_purge,
      muc_multiple_devices,
-     muc_private_message,
-     muc_deny_private_room_access,
+     muc_protected_message,
+     muc_deny_protected_room_access,
      muc_allow_access_to_owner,
      muc_delete_x_user_in_anon_rooms,
      muc_show_x_user_to_moderators_in_anon_rooms,
@@ -748,12 +748,12 @@ init_per_testcase(C=muc_archive_purge, Config) ->
     escalus:init_per_testcase(C, clean_room_archive(start_alice_room(Config)));
 init_per_testcase(C=muc_multiple_devices, Config) ->
     escalus:init_per_testcase(C, clean_room_archive(start_alice_room(Config)));
-init_per_testcase(C=muc_private_message, Config) ->
+init_per_testcase(C=muc_protected_message, Config) ->
     escalus:init_per_testcase(C, start_alice_room(Config));
-init_per_testcase(C=muc_deny_private_room_access, Config) ->
-    escalus:init_per_testcase(C, start_alice_private_room(Config));
+init_per_testcase(C=muc_deny_protected_room_access, Config) ->
+    escalus:init_per_testcase(C, start_alice_protected_room(Config));
 init_per_testcase(C=muc_allow_access_to_owner, Config) ->
-    escalus:init_per_testcase(C, start_alice_private_room(Config));
+    escalus:init_per_testcase(C, start_alice_protected_room(Config));
 init_per_testcase(C=muc_delete_x_user_in_anon_rooms, Config) ->
     escalus:init_per_testcase(C, start_alice_anonymous_room(Config));
 init_per_testcase(C=muc_show_x_user_to_moderators_in_anon_rooms, Config) ->
@@ -787,10 +787,10 @@ end_per_testcase(C=muc_archive_purge, Config) ->
 end_per_testcase(C=muc_multiple_devices, Config) ->
     destroy_room(Config),
     escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_private_message, Config) ->
+end_per_testcase(C=muc_protected_message, Config) ->
     destroy_room(Config),
     escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_deny_private_room_access, Config) ->
+end_per_testcase(C=muc_deny_protected_room_access, Config) ->
     destroy_room(Config),
     escalus:end_per_testcase(C, Config);
 end_per_testcase(C=muc_allow_access_to_owner, Config) ->
@@ -1445,7 +1445,7 @@ muc_multiple_devices(Config) ->
         end,
     escalus:story(Config, [{alice, 2}, {bob, 1}], F).
 
-muc_private_message(Config) ->
+muc_protected_message(Config) ->
     P = ?config(props, Config),
     F = fun(Alice, Bob) ->
         Room = ?config(room, Config),
@@ -1482,7 +1482,7 @@ muc_private_message(Config) ->
         end,
     escalus:story(Config, [{alice, 1}, {bob, 1}], F).
 
-muc_deny_private_room_access(Config) ->
+muc_deny_protected_room_access(Config) ->
     P = ?config(props, Config),
     F = fun(Alice, Bob) ->
         Room = ?config(room, Config),
@@ -2464,7 +2464,7 @@ start_alice_room(Config) ->
     [Alice | _] = ?config(escalus_users, Config),
     start_room(Config, Alice, RoomName, RoomNick, [{persistent, true}, {anonymous, false}]).
 
-start_alice_private_room(Config) ->
+start_alice_protected_room(Config) ->
     RoomName = <<"alicesroom">>,
     RoomNick = <<"alicesnick">>,
     [Alice | _] = ?config(escalus_users, Config),
