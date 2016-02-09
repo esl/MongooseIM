@@ -128,6 +128,7 @@
     first           :: binary() | undefined,
     first_index     :: non_neg_integer() | undefined,
     last            :: binary() | undefined,
+    query_id        :: binary() | not_supported,
     count           :: non_neg_integer()
 }).
 
@@ -919,7 +920,9 @@ simple_archive_request(ConfigIn) ->
         escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
         maybe_wait_for_yz(ConfigIn),
         escalus:send(Alice, stanza_archive_request(P, <<"q1">>)),
-        assert_respond_size(P, 1, wait_archive_respond(P, Alice)),
+        Res = wait_archive_respond(P, Alice),
+        assert_respond_size(P, 1, Res),
+        assert_respond_query_id(P, <<"q1">>, parse_result_iq(P, Res)),
         ok
         end,
     MongooseMetrics = [{[backends, mod_mam, archive], changed},
@@ -1154,6 +1157,11 @@ assert_respond_size(P, ExpectedSize, #mam_archive_respond{respond_messages=Messa
     RespondSize = length(Messages) - 1,
     ct:fail("Respond size is ~p, ~p is expected.", [RespondSize, ExpectedSize]).
     %% void()
+
+assert_respond_query_id(_P, _ExpectedQueryId, #result_iq{query_id=not_supported}) ->
+    ok;
+assert_respond_query_id(_P, ExpectedQueryId, #result_iq{query_id=QueryId}) ->
+    ?assert_equal(ExpectedQueryId, QueryId).
 
 %% To conserve resources, a server MAY place a reasonable limit on how many
 %% stanzas may be pushed to a client in one request.
@@ -2368,22 +2376,24 @@ parse_result_iq(P, Result) ->
 parse_fin_and_iq(#mam_archive_respond{respond_iq=IQ, respond_fin=FinMsg}) ->
     Fin = exml_query:subelement(FinMsg, <<"fin">>),
     Set = exml_query:subelement(Fin, <<"set">>),
-    parse_set_and_iq(IQ, Set).
+    QueryId = exml_query:attr(Fin, <<"queryid">>),
+    parse_set_and_iq(IQ, Set, QueryId).
 
 %% MAM v0.4
 parse_fin_iq(#mam_archive_respond{respond_iq=IQ, respond_fin=undefined}) ->
     Fin = exml_query:subelement(IQ, <<"fin">>),
     Set = exml_query:subelement(Fin, <<"set">>),
-    parse_set_and_iq(IQ, Set).
+    parse_set_and_iq(IQ, Set, not_supported).
 
 %% MAM v0.2
 parse_legacy_iq(IQ) ->
     Fin = exml_query:subelement(IQ, <<"query">>),
     Set = exml_query:subelement(Fin, <<"set">>),
-    parse_set_and_iq(IQ, Set).
+    parse_set_and_iq(IQ, Set, not_supported).
 
-parse_set_and_iq(IQ, Set) ->
+parse_set_and_iq(IQ, Set, QueryId) ->
     #result_iq{
+        query_id    = QueryId,
         from        = exml_query:attr(IQ, <<"from">>),
         to          = exml_query:attr(IQ, <<"to">>),
         id          = exml_query:attr(IQ, <<"id">>),

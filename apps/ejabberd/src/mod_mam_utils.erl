@@ -34,7 +34,7 @@
          result_set/4,
          result_query/1,
          result_prefs/3,
-         make_fin_message/4,
+         make_fin_message/5,
          make_fin_element/4,
          parse_prefs/1,
          borders_decode/1,
@@ -452,12 +452,23 @@ encode_jids(JIDs) ->
 
 
 %% Make fin message introduced in MAM 0.3
--spec make_fin_message(binary(), boolean(), boolean(), jlib:xmlel()) -> jlib:xmlel().
-make_fin_message(MamNs, IsComplete, IsStable, ResultSetEl) ->
+-spec make_fin_message(binary(), boolean(), boolean(), jlib:xmlel(), binary()) -> jlib:xmlel().
+make_fin_message(MamNs, IsComplete, IsStable, ResultSetEl, QueryID) ->
     #xmlel{
         name = <<"message">>,
-        children = [make_fin_element(MamNs, IsComplete, IsStable, ResultSetEl)]}.
+        children = [make_fin_element_03(MamNs, IsComplete, IsStable, ResultSetEl, QueryID)]}.
 
+%% MAM v0.3
+make_fin_element_03(MamNs, IsComplete, IsStable, ResultSetEl, QueryID) ->
+    #xmlel{
+        name = <<"fin">>,
+        attrs = [{<<"xmlns">>, MamNs}]
+                ++ [{<<"complete">>, <<"true">>} || IsComplete]
+                ++ [{<<"stable">>, <<"false">>} || not IsStable]
+                ++ [{<<"queryid">>, QueryID} || is_binary(QueryID), QueryID =/= undefined],
+        children = [ResultSetEl]}.
+
+%% MAM v0.4.1 and above
 -spec make_fin_element(binary(), boolean(), boolean(), jlib:xmlel()) -> jlib:xmlel().
 make_fin_element(MamNs, IsComplete, IsStable, ResultSetEl) ->
     #xmlel{

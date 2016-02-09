@@ -75,7 +75,7 @@
          result_set/4,
          result_query/1,
          result_prefs/3,
-         make_fin_message/4,
+         make_fin_message/5,
          make_fin_element/4,
          parse_prefs/1,
          borders_decode/1,
@@ -586,7 +586,7 @@ handle_set_message_form(
         IsLastPage = is_last_page(PageSize, TotalCount, Offset, MessageRows),
         IsStable = true,
         ResultSetEl = result_set(FirstMessID, LastMessID, Offset, TotalCount),
-        FinMsg = make_fin_message(IQ#iq.xmlns, IsLastPage, IsStable, ResultSetEl),
+        FinMsg = make_fin_message(IQ#iq.xmlns, IsLastPage, IsStable, ResultSetEl, QueryID),
         ejabberd_sm:route(ArcJID, From, FinMsg),
 
         %% IQ was sent above
