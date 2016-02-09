@@ -209,7 +209,7 @@ remove_bucket(Bucket) ->
 archive_message(_, _, MessID, _ArchiveID, LocJID, RemJID, SrcJID, _Dir, Packet) ->
     LocalJID = bare_jid(LocJID),
     RemoteJID = bare_jid(RemJID),
-    SourceJID = bare_jid(SrcJID),
+    SourceJID = full_jid(SrcJID),
     MsgId = integer_to_binary(MessID),
     Key = key(LocalJID, RemoteJID, MsgId),
 
@@ -450,6 +450,10 @@ calculate_msg_id_borders(_RSM, Borders, Start, End) ->
 bare_jid(undefined) -> undefined;
 bare_jid(JID) ->
     jid:to_binary(jid:to_bare(jid:to_lower(JID))).
+
+full_jid(undefined) -> undefined;
+full_jid(JID) ->
+    jid:to_binary(jid:to_lower(JID)).
 
 
 maybe_encode_compact_uuid(undefined, _) ->
