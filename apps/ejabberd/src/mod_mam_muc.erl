@@ -273,9 +273,8 @@ archive_room_packet(Packet, FromNick, FromJID=#jid{}, RoomJID=#jid{}, Role, Affi
         true ->
             MessID = generate_message_id(),
             Packet1 = replace_x_user_element(FromJID, Role, Affiliation, Packet),
-            Packet2 = replace_from_to_attributes(FromNick, RoomJID, Packet1),
             Result = archive_message(Host, MessID, ArcID,
-                                     RoomJID, SrcJID, SrcJID, incoming, Packet2),
+                                     RoomJID, SrcJID, SrcJID, incoming, Packet1),
             %% Packet2 goes to archive, Packet to other users
             case {Result, add_archived_element()} of
                 {ok, true} ->
@@ -774,12 +773,14 @@ wait_shaper(Host, Action, From) ->
 
 -spec message_row_to_xml(binary(), jid(), boolean(), boolean(), row(), binary() | undefined) -> jlib:xmlel().
 message_row_to_xml(MamNs, ReceiverJID, HideUser, SetClientNs, {MessID,SrcJID,Packet}, QueryID) ->
+
     {Microseconds, _NodeMessID} = decode_compact_uuid(MessID),
     DateTime = calendar:now_to_universal_time(microseconds_to_now(Microseconds)),
     BExtMessID = mess_id_to_external_binary(MessID),
     Packet1 = maybe_delete_x_user_element(HideUser, ReceiverJID, Packet),
     Packet2 = maybe_set_client_xmlns(SetClientNs, Packet1),
-    wrap_message(MamNs, Packet2, QueryID, BExtMessID, DateTime, SrcJID).
+    Packet3 = replace_from_to_attributes(SrcJID, Packet2),
+    wrap_message(MamNs, Packet3, QueryID, BExtMessID, DateTime, SrcJID).
 
 maybe_set_client_xmlns(true, Packet) ->
     set_client_xmlns(Packet);
@@ -801,9 +802,8 @@ maybe_delete_x_user_element(false, _ReceiverJID, Packet) ->
 %% When sending out the archives to a requesting client, the 'to' of the
 %% forwarded stanza MUST be empty, and the 'from' MUST be the occupant JID
 %% of the sender of the archived message.
-replace_from_to_attributes(FromNick, RoomJID, Packet=#xmlel{attrs = Attrs}) ->
-    NickJID = jid:replace_resource(RoomJID, FromNick),
-    NewAttrs = jlib:replace_from_to_attrs(jid:to_binary(NickJID), <<>>, Attrs),
+replace_from_to_attributes(SrcJID, Packet=#xmlel{attrs = Attrs}) ->
+    NewAttrs = jlib:replace_from_to_attrs(jid:to_binary(SrcJID), <<>>, Attrs),
     Packet#xmlel{attrs = NewAttrs}.
 
 -spec message_row_to_ext_id(row()) -> binary().

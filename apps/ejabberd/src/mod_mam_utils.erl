@@ -350,12 +350,20 @@ forwarded(Packet, DateTime, SrcJID) ->
     #xmlel{
         name = <<"forwarded">>,
         attrs = [{<<"xmlns">>, <<"urn:xmpp:forward:0">>}],
-        children = [delay(DateTime, SrcJID), Packet]}.
+        %% Two places to include SrcJID:
+        %% - delay.from - optional XEP-0297 (TODO: depricate adding it?)
+        %% - message.from - required XEP-0313
+        %% Also, mod_mam_muc will replace it again with SrcJID
+        children = [delay(DateTime, SrcJID), replace_from_attribute(SrcJID, Packet)]}.
 
 -spec delay(calendar:datetime(), ejabberd:jid()) -> jlib:xmlel().
 delay(DateTime, SrcJID) ->
     jlib:timestamp_to_xml(DateTime, utc, SrcJID, <<>>).
 
+replace_from_attribute(From, Packet=#xmlel{attrs = Attrs}) ->
+    Attrs1 = lists:keydelete(<<"from">>, 1, Attrs),
+    Attrs2 = [{<<"from">>, jid:to_binary(From)} | Attrs1],
+    Packet#xmlel{attrs = Attrs2}.
 
 %% @doc Generates tag `<result />'.
 %% This element will be added in each forwarded message.
