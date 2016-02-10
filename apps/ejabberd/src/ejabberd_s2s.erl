@@ -27,6 +27,8 @@
 -module(ejabberd_s2s).
 -author('alexey@process-one.net').
 
+-xep([{xep, 185}, {version, "1.0"}]).
+
 -behaviour(gen_server).
 -behaviour(xmpp_router).
 
@@ -34,10 +36,10 @@
 -export([start_link/0,
          route/3,
          have_connection/1,
-         has_key/2,
+         key/2,
          get_connections_pids/1,
          try_register/1,
-         remove_connection/3,
+         remove_connection/2,
          find_connection/2,
          dirty_get_connections/0,
          allow_host/2,
@@ -68,8 +70,7 @@
 -type fromto() :: {'global' | ejabberd:server(), ejabberd:server()}.
 -record(s2s, {
           fromto,
-          pid,
-          key
+          pid
          }).
 -type s2s() :: #s2s{
                   fromto :: fromto(),
@@ -93,16 +94,14 @@ start_link() ->
 route(From, To, Packet) ->
     xmpp_router:route(?MODULE, From, To, Packet).
 
--spec remove_connection(_, pid(), _) -> 'ok' | {'aborted',_} | {'atomic',_}.
-remove_connection(FromTo, Pid, Key) ->
+-spec remove_connection(_, pid()) -> 'ok' | {'aborted',_} | {'atomic',_}.
+remove_connection(FromTo, Pid) ->
     case catch mnesia:dirty_match_object(s2s, #s2s{fromto = FromTo,
-                                                   pid = Pid,
-                                                   _ = '_'}) of
-        [#s2s{pid = Pid, key = Key}] ->
+                                                   pid = Pid}) of
+        [#s2s{pid = Pid}] ->
             F = fun() ->
                         mnesia:delete_object(#s2s{fromto = FromTo,
-                                                  pid = Pid,
-                                                  key = Key})
+                                                  pid = Pid})
                 end,
             mnesia:transaction(F);
         _ ->
@@ -117,17 +116,6 @@ have_connection(FromTo) ->
             false
     end.
 
-has_key(FromTo, Key) ->
-    case mnesia:dirty_select(s2s,
-                             [{#s2s{fromto = FromTo, key = Key, _ = '_'},
-                               [],
-                               ['$_']}]) of
-        [] ->
-            false;
-        _ ->
-            true
-    end.
-
 -spec get_connections_pids(_) -> ['undefined' | pid()].
 get_connections_pids(FromTo) ->
     case catch mnesia:dirty_read(s2s, FromTo) of
@@ -137,9 +125,8 @@ get_connections_pids(FromTo) ->
             []
     end.
 
--spec try_register(fromto()) -> any().
+-spec try_register(fromto()) -> boolean().
 try_register(FromTo) ->
-    Key = list_to_binary(randoms:get_string()),
     MaxS2SConnectionsNumber = max_s2s_connections_number(FromTo),
     MaxS2SConnectionsNumberPerNode =
         max_s2s_connections_number_per_node(FromTo),
@@ -148,13 +135,12 @@ try_register(FromTo) ->
                 NeededConnections = needed_connections_number(
                                       L, MaxS2SConnectionsNumber,
                                       MaxS2SConnectionsNumberPerNode),
-                if
-                    NeededConnections > 0 ->
-                        mnesia:write(#s2s{fromto = FromTo,
-                                          pid = self(),
-                                          key = Key}),
-                        {key, Key};
+                case NeededConnections > 0 of
                     true ->
+                        mnesia:write(#s2s{fromto = FromTo,
+                                          pid = self()}),
+                        true;
+                    false ->
                         false
                 end
         end,
@@ -184,6 +170,14 @@ node_cleanup(Node) ->
                               end, Es)
         end,
     mnesia:async_dirty(F).
+
+-spec key({ejabberd:lserver(), ejabberd:lserver()}, binary()) ->
+    binary().
+key({From, To}, StreamID) ->
+    Secret = get_or_generate_secret(),
+    SecretHashed = base16:encode(crypto:hash(sha256, Secret)),
+    HMac = crypto:hmac(sha256, SecretHashed, [From, " ", To, " ", StreamID]),
+    base16:encode(HMac).
 
 %%====================================================================
 %% gen_server callbacks
@@ -311,33 +305,50 @@ find_connection(From, To) ->
             %% We try to establish all the connections if the host is not a
             %% service and if the s2s host is not blacklisted or
             %% is in whitelist:
-            case not is_service(From, To) andalso allow_host(MyServer, Server) of
-                true ->
-                    NeededConnections = needed_connections_number(
-                                          [], MaxS2SConnectionsNumber,
-                                          MaxS2SConnectionsNumberPerNode),
-                    open_several_connections(
-                      NeededConnections, MyServer,
-                      Server, From, FromTo,
-                      MaxS2SConnectionsNumber, MaxS2SConnectionsNumberPerNode);
-                false ->
-                    {aborted, error}
-            end;
+            maybe_open_several_connections(From, To, MyServer, Server, FromTo,
+                                           MaxS2SConnectionsNumber,
+                                           MaxS2SConnectionsNumberPerNode);
         L when is_list(L) ->
+            maybe_open_missing_connections(From, MyServer, Server, FromTo,
+                                           MaxS2SConnectionsNumber,
+                                           MaxS2SConnectionsNumberPerNode, L)
+    end.
+
+maybe_open_missing_connections(From, MyServer, Server, FromTo,
+                               MaxS2SConnectionsNumber,
+                               MaxS2SConnectionsNumberPerNode, L) ->
+    NeededConnections = needed_connections_number(
+                          L, MaxS2SConnectionsNumber,
+                          MaxS2SConnectionsNumberPerNode),
+    case NeededConnections > 0 of
+        true ->
+            %% We establish the missing connections for this pair.
+            open_several_connections(
+              NeededConnections, MyServer,
+              Server, From, FromTo,
+              MaxS2SConnectionsNumber, MaxS2SConnectionsNumberPerNode);
+        false ->
+            %% We choose a connexion from the pool of opened ones.
+            {atomic, choose_connection(From, L)}
+    end.
+
+maybe_open_several_connections(From, To, MyServer, Server, FromTo,
+                               MaxS2SConnectionsNumber,
+                               MaxS2SConnectionsNumberPerNode) ->
+    %% We try to establish all the connections if the host is not a
+    %% service and if the s2s host is not blacklisted or
+    %% is in whitelist:
+    case not is_service(From, To) andalso allow_host(MyServer, Server) of
+        true ->
             NeededConnections = needed_connections_number(
-                                  L, MaxS2SConnectionsNumber,
+                                  [], MaxS2SConnectionsNumber,
                                   MaxS2SConnectionsNumberPerNode),
-            if
-                NeededConnections > 0 ->
-                    %% We establish the missing connections for this pair.
-                    open_several_connections(
-                      NeededConnections, MyServer,
-                      Server, From, FromTo,
-                      MaxS2SConnectionsNumber, MaxS2SConnectionsNumberPerNode);
-                true ->
-                    %% We choose a connexion from the pool of opened ones.
-                    {atomic, choose_connection(From, L)}
-            end
+            open_several_connections(
+              NeededConnections, MyServer,
+              Server, From, FromTo,
+              MaxS2SConnectionsNumber, MaxS2SConnectionsNumberPerNode);
+        false ->
+            {aborted, error}
     end.
 
 -spec choose_connection(From :: ejabberd:jid(),
@@ -382,22 +393,20 @@ open_several_connections(N, MyServer, Server, From, FromTo,
     MaxS2SPerNode :: pos_integer()) -> {'aborted',_} | {'atomic',_}.
 new_connection(MyServer, Server, From, FromTo,
                MaxS2SConnectionsNumber, MaxS2SConnectionsNumberPerNode) ->
-    Key = list_to_binary(randoms:get_string()),
     {ok, Pid} = ejabberd_s2s_out:start(
-                  MyServer, Server, {new, Key}),
+                  MyServer, Server, new),
     F = fun() ->
                 L = mnesia:read({s2s, FromTo}),
                 NeededConnections = needed_connections_number(
                                       L, MaxS2SConnectionsNumber,
                                       MaxS2SConnectionsNumberPerNode),
-                if
-                    NeededConnections > 0 ->
+                case NeededConnections > 0 of
+                    true ->
                         mnesia:write(#s2s{fromto = FromTo,
-                                          pid = Pid,
-                                          key = Key}),
+                                          pid = Pid}),
                         ?INFO_MSG("New s2s connection started ~p", [Pid]),
                         Pid;
-                    true ->
+                    false ->
                         choose_connection(From, L)
                 end
         end,
@@ -409,6 +418,7 @@ new_connection(MyServer, Server, From, FromTo,
             ejabberd_s2s_out:stop_connection(Pid)
     end,
     TRes.
+
 
 -spec max_s2s_connections_number(fromto()) -> pos_integer().
 max_s2s_connections_number({From, To}) ->
@@ -518,14 +528,13 @@ update_tables() ->
         {'EXIT', _} ->
             ok;
         _ ->
-            % XXX TODO convert it ?
             mnesia:delete_table(s2s)
     end,
     case catch mnesia:table_info(s2s, attributes) of
-        [fromto, node, key] ->
-            mnesia:transform_table(s2s, ignore, [fromto, pid, key]),
-            mnesia:clear_table(s2s);
         [fromto, pid, key] ->
+            mnesia:transform_table(s2s, ignore, [fromto, pid]),
+            mnesia:clear_table(s2s);
+        [fromto, pid] ->
             ok;
         {'EXIT', _} ->
             ok
@@ -605,3 +614,15 @@ get_s2s_state(S2sPid)->
             end,
     [{s2s_pid, S2sPid} | Infos].
 
+get_or_generate_secret() ->
+    case ejabberd_config:get_global_option(s2s_shared) of
+        undefined ->
+            generate_and_store_secret();
+        Secret ->
+            Secret
+    end.
+
+generate_and_store_secret() ->
+    Secret = base16:encode(crypto:rand_bytes(10)),
+    ejabberd_config:add_global_option(s2s_shared, Secret),
+    Secret.
