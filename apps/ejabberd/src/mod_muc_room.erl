@@ -2648,9 +2648,7 @@ iq_admin_allowed(get, affiliation, admin, _, _) ->
     true;
 iq_admin_allowed(get, affiliation, _, Role, State) ->
     Cfg = State#state.config,
-    lists:member(Role, Cfg#config.maygetmemberlist);
-iq_admin_allowed(_, _, _, _, _) ->
-    false.
+    lists:member(Role, Cfg#config.maygetmemberlist).
 
 
 -spec items_with_role(mod_muc:role(), state()) -> [jlib:xmlel()].
@@ -3596,7 +3594,7 @@ set_config(XEl, StateData) ->
             set_xoption(Opts, Config#config{Opt = Set})
         end).
 
--spec set_xoption([{binary(), binary()}], config()) -> config() | {error, jlib:xmlel()}.
+-spec set_xoption([{binary(), [binary()]}], config()) -> config() | {error, jlib:xmlel()}.
 set_xoption([], Config) ->
     Config;
 set_xoption([{<<"muc#roomconfig_roomname">>, [Val]} | Opts], Config) ->
@@ -3653,7 +3651,7 @@ set_xoption([{<<"muc#roomconfig_maxusers">>, [Val]} | Opts], Config) ->
     end;
 set_xoption([{<<"muc#roomconfig_getmemberlist">>, Val} | Opts], Config) ->
     case Val of
-        <<"none">> ->
+        [<<"none">>] ->
             ?SET_XOPT(maygetmemberlist, []);
         _ ->
             ?SET_XOPT(maygetmemberlist, [binary_to_existing_atom(V, latin1) || V <- Val])
