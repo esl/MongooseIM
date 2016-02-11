@@ -5,6 +5,10 @@
 -define(CT_DIR, filename:join([".", "tests"])).
 -define(CT_REPORT, filename:join([".", "ct_report"])).
 
+%% DEBUG: compile time settings
+-define(PRINT_ERRORS, false).
+-define(PRINT_STATS, false).
+
 %%
 %% Entry
 %%
@@ -30,17 +34,17 @@ main(RawArgs) ->
     Args = [raw_to_arg(Raw) || Raw <- RawArgs],
     Opts = args_to_opts(Args),
     try
-        run(Opts),
+        Results = run(Opts),
         %% Waiting for messages to be flushed
         timer:sleep(50),
-        init:stop(0)
-        catch Type:Reason ->
-            Stacktrace = erlang:get_stacktrace(),
-            error_logger:error_msg("TEST CRASHED~n Error type: ~p~n Reason: ~p~n Stacktrace:~n~p~n",
-                                   [Type, Reason, Stacktrace]),
-            %% Waiting for messages to be flushed
-            timer:sleep(50),
-            init:stop("Test failed")
+        process_results(Results)
+    catch Type:Reason ->
+        Stacktrace = erlang:get_stacktrace(),
+        error_logger:error_msg("TEST CRASHED~n Error type: ~p~n Reason: ~p~n Stacktrace:~n~p~n",
+                               [Type, Reason, Stacktrace]),
+        %% Waiting for messages to be flushed
+        timer:sleep(50),
+        init:stop("Test failed")
     end.
 
 run(#opts{test = quick, cover = Cover, spec = Spec}) ->
@@ -105,28 +109,31 @@ run_test(Test, PresetsToRun, CoverOpts) ->
     case proplists:lookup(ejabberd_presets, Props) of
         {ejabberd_presets, Presets} ->
             Presets1 = case PresetsToRun of
-                all ->
-                    Presets;
-                _ ->
-                    error_logger:info_msg("Skip presets ~p",
-                                          [ preset_names(Presets) -- PresetsToRun ]),
-                    lists:filter(fun({Preset,_}) ->
-                                lists:member(Preset, PresetsToRun)
-                        end, Presets)
-            end,
+                           all ->
+                               Presets;
+                           _ ->
+                               error_logger:info_msg("Skip presets ~p",
+                                                     [ preset_names(Presets) -- PresetsToRun ]),
+                               lists:filter(fun({Preset,_}) ->
+                                                    lists:member(Preset, PresetsToRun)
+                                            end, Presets)
+                       end,
             Length = length(Presets1),
             Names = preset_names(Presets),
             error_logger:info_msg("Starting test of ~p configurations: ~n~p~n",
                                   [Length, Names]),
             Zip = lists:zip(lists:seq(1, Length), Presets1),
-            [run_config_test(Preset, Test, N, Length) || {N, Preset} <- Zip],
-            save_count(Test, Presets1);
+            R = [ run_config_test(Preset, Test, N, Length) || {N, Preset} <- Zip ],
+            save_count(Test, Presets1),
+            analyze_coverage(Test, CoverOpts),
+            R;
         _ ->
             error_logger:info_msg("Presets were not found in the config file ~ts",
                                   [ConfigFile]),
-            do_run_quick_test(Test, CoverOpts)
-    end,
-    analyze_coverage(Test, CoverOpts).
+            R = do_run_quick_test(Test, CoverOpts),
+            analyze_coverage(Test, CoverOpts),
+            R
+    end.
 
 get_ct_config([{spec, Spec}]) ->
     Props = read_file(Spec),
@@ -146,12 +153,11 @@ do_run_quick_test(Test, CoverOpts) ->
     case Result of
         {error, Reason} ->
             throw({ct_error, Reason});
-        _ ->
-            ok
-    end,
-
-    analyze_coverage(Test, CoverOpts),
-    save_count(Test, []).
+        {Ok, Failed, {UserSkipped, AutoSkipped}} ->
+            analyze_coverage(Test, CoverOpts),
+            save_count(Test, []),
+            [{ok, {Ok, Failed, UserSkipped, AutoSkipped}}]
+    end.
 
 run_config_test({Name, Variables}, Test, N, Tests) ->
     Node = get_ejabberd_node(Test),
@@ -176,8 +182,8 @@ run_config_test({Name, Variables}, Test, N, Tests) ->
     case Result of
         {error, Reason} ->
             throw({ct_error, Reason});
-        _ ->
-            ok
+        {Ok, Failed, {UserSkipped, AutoSkipped}} ->
+            {ok, {Ok, Failed, UserSkipped, AutoSkipped}}
     end.
 
 call(Node, M, F, A) ->
@@ -298,3 +304,56 @@ modules_to_analyze(true) ->
     cover:imported_modules();
 modules_to_analyze(ModuleList) when is_list(ModuleList) ->
     ModuleList.
+
+add({X1, X2, X3, X4},
+    {Y1, Y2, Y3, Y4}) ->
+    {X1 + Y1,
+     X2 + Y2,
+     X3 + Y3,
+     X4 + Y4}.
+
+process_results(CTResults) ->
+    Ok = 0,
+    Failed = 0,
+    UserSkipped = 0,
+    AutoSkipped = 0,
+    Errors = [],
+    process_results(CTResults, {{Ok, Failed, UserSkipped, AutoSkipped}, Errors}).
+
+process_results([], {StatsAcc, Errors}) ->
+    print_errors(Errors),
+    print_stats(StatsAcc),
+    init:stop(exit_code(StatsAcc));
+process_results([ {ok, RunStats} | T ], {StatsAcc, Errors}) ->
+    process_results(T, {add(RunStats, StatsAcc), Errors});
+process_results([ Error | T ], {StatsAcc, Errors}) ->
+    process_results(T, {StatsAcc, [Error | Errors]}).
+
+print_errors(Errors) ->
+    ?PRINT_ERRORS andalso [ print(standard_error, "~p~n", [E]) || E <- Errors ].
+
+print_stats(Stats) ->
+    ?PRINT_STATS andalso do_print_stats(Stats).
+
+do_print_stats({Ok, Failed, _UserSkipped, AutoSkipped}) when Ok == 0;
+                                                          Failed > 0;
+                                                          AutoSkipped > 0 ->
+    print(standard_error, "Tests:~n", []),
+    Ok == 0 andalso print(standard_error,         "  ok          : ~b~n", [Ok]),
+    Failed > 0 andalso print(standard_error,      "  failed      : ~b~n", [Failed]),
+    AutoSkipped > 0 andalso print(standard_error, "  auto-skipped: ~b~n", [AutoSkipped]).
+
+%% Fail if there are failed test cases, auto skipped cases,
+%% or the number of passed tests is 0 (which is also strange - a misconfiguration?).
+%% StatsAcc is similar (Skipped are not a tuple) to the success result from ct:run_test/1:
+%%
+%%     {Ok, Failed, UserSkipped, AutoSkipped}
+%%
+exit_code({Ok, Failed, _UserSkipped, AutoSkipped})
+  when Ok == 0; Failed > 0; AutoSkipped > 0 ->
+    1;
+exit_code({_, _, _, _}) ->
+    0.
+
+print(Handle, Fmt, Args) ->
+    io:format(Handle, Fmt, Args).
