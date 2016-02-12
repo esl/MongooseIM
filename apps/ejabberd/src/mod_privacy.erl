@@ -30,14 +30,14 @@
 -xep([{xep, 126}, {version, "1.1"}]).
 -behaviour(gen_mod).
 
--export([start/2, stop/1,
-     process_iq/3,
-     process_iq_set/4,
-     process_iq_get/5,
-     get_user_list/3,
-     check_packet/6,
-     remove_user/2,
-     updated_list/3]).
+-export([start/2,
+         stop/1,
+         process_iq_set/4,
+         process_iq_get/5,
+         get_user_list/3,
+         check_packet/6,
+         remove_user/2,
+         updated_list/3]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -46,6 +46,8 @@
 -define(BACKEND, mod_privacy_backend).
 
 -export_type([userlist/0]).
+-export_type([list_name/0]).
+-export_type([list_item/0]).
 
 -type userlist() :: #userlist{}.
 -type list_name() :: binary().
@@ -134,9 +136,7 @@ start(Host, Opts) ->
     ejabberd_hooks:add(remove_user, Host,
                ?MODULE, remove_user, 50),
     ejabberd_hooks:add(anonymous_purge_hook, Host,
-        ?MODULE, remove_user, 50),
-    gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_PRIVACY,
-                  ?MODULE, process_iq, IQDisc).
+        ?MODULE, remove_user, 50).
 
 stop(Host) ->
     ejabberd_hooks:delete(privacy_iq_get, Host,
@@ -152,15 +152,10 @@ stop(Host) ->
     ejabberd_hooks:delete(remove_user, Host,
               ?MODULE, remove_user, 50),
     ejabberd_hooks:delete(anonymous_purge_hook, Host,
-        ?MODULE, remove_user, 50),
-    gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_PRIVACY).
+        ?MODULE, remove_user, 50).
 
 %% Handlers
 %% ------------------------------------------------------------------
-
-process_iq(_From, _To, IQ) ->
-    SubEl = IQ#iq.sub_el,
-    IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]}.
 
 process_iq_get(_,
         _From = #jid{luser = LUser, lserver = LServer},
@@ -601,7 +596,7 @@ item_to_xml_attrs(Item=#listitem{type=Type, value=Value}) ->
 item_to_xml_attrs1(#listitem{action=Action, order=Order}) ->
     [{<<"action">>, action_to_binary(Action)},
      {<<"order">>, order_to_binary(Order)}].
-    
+
 item_to_xml_children(#listitem{match_all=true}) ->
     [];
 item_to_xml_children(#listitem{match_all=false,

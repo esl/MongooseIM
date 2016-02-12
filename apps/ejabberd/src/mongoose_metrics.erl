@@ -65,12 +65,8 @@ init_subscriptions() ->
         end, Reporters).
 
 get_report_interval() ->
-    case application:get_env(exometer, mongooseim_report_interval) of
-        undefined ->
-            ?DEFAULT_REPORT_INTERVAL;
-        {ok, Val} ->
-            Val
-    end.
+    application:get_env(exometer, mongooseim_report_interval,
+                        ?DEFAULT_REPORT_INTERVAL).
 
 -spec update({term(), term()} | list(), term()) -> any().
 update(Name, Change) when is_tuple(Name)->

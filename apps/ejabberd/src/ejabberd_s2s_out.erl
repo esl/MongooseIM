@@ -61,6 +61,7 @@
 
 -record(state, {socket,
                 streamid,
+                remote_streamid = <<>>,
                 use_v10,
                 tls = false             :: boolean(),
                 tls_required = false    :: boolean(),
@@ -71,7 +72,7 @@
                 try_auth = true         :: boolean(),
                 myname, server, queue,
                 delay_to_retry = undefined_delay,
-                new = false             :: false | binary(),
+                new = false             :: boolean(),
                 verify = false          :: false | {pid(), Key :: binary(), SID :: binary()},
                 bridge,
                 timer                   :: reference()
@@ -198,8 +199,8 @@ init([From, Server, Type]) ->
 			       [{ciphers, Ciphers} | TLSOpts]
 	       end,
     {New, Verify} = case Type of
-                        {new, Key} ->
-                            {Key, false};
+                        new ->
+                            {true, false};
                         {verify, Pid, Key, SID} ->
                             start_connection(self()),
                             {false, {Pid, Key, SID}}
@@ -339,7 +340,9 @@ open_socket2(Type, Addr, Port) ->
 %%----------------------------------------------------------------------
 
 -spec wait_for_stream(ejabberd:xml_stream_item(), state()) -> fsm_return().
-wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
+wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData0) ->
+    RemoteStreamID = xml:get_attr_s(<<"id">>, Attrs),
+    StateData = StateData0#state{remote_streamid = RemoteStreamID},
     case {xml:get_attr_s(<<"xmlns">>, Attrs),
           xml:get_attr_s(<<"xmlns:db">>, Attrs),
           xml:get_attr_s(<<"version">>, Attrs) == <<"1.0">>} of
@@ -931,9 +934,9 @@ terminate(Reason, StateName, StateData) ->
     case StateData#state.new of
         false ->
             ok;
-        Key ->
+        true ->
             ejabberd_s2s:remove_connection(
-              {StateData#state.myname, StateData#state.server}, self(), Key)
+              {StateData#state.myname, StateData#state.server}, self())
     end,
     %% bounce queue manage by process and Erlang message queue
     bounce_queue(StateData#state.queue, ?ERR_REMOTE_SERVER_NOT_FOUND),
@@ -1037,22 +1040,20 @@ send_db_request(StateData) ->
     Server = StateData#state.server,
     New = case StateData#state.new of
               false ->
-                  case ejabberd_s2s:try_register(
-                         {StateData#state.myname, Server}) of
-                      {key, Key} ->
-                          Key;
-                      false ->
-                          false
-                  end;
-              Key ->
-                  Key
+                  ejabberd_s2s:try_register(
+                         {StateData#state.myname, Server});
+              true ->
+                  true
           end,
     NewStateData = StateData#state{new = New},
     try
         case New of
             false ->
                 ok;
-            Key1 ->
+            true ->
+                Key1 = ejabberd_s2s:key(
+                         {StateData#state.myname, Server},
+                         StateData#state.remote_streamid),
                 send_element(StateData,
                              #xmlel{name = <<"db:result">>,
                                     attrs = [{<<"from">>, StateData#state.myname},

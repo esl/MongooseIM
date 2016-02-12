@@ -28,7 +28,8 @@
 -behaviour(mod_offline).
 -export([init/2,
          pop_messages/2,
-         write_messages/4,
+         write_messages/3,
+         count_offline_messages/3,
          remove_expired_messages/1,
          remove_old_messages/2,
          remove_user/2]).
@@ -63,44 +64,25 @@ rows_to_records(US, To, Rows) ->
 
 row_to_record(US, To, {STimeStamp, SFrom, SPacket}) ->
     {ok, Packet} = exml:parse(SPacket),
-    TimeStamp = microseconds_to_now(list_to_integer(binary_to_list(STimeStamp))),
+    TimeStamp = usec:to_now(binary_to_integer(STimeStamp)),
     From = jid:from_binary(SFrom),
     #offline_msg{us = US,
              timestamp = TimeStamp,
-             expire = undefined,
+             expire = never,
              from = From,
              to = To,
              packet = Packet}.
 
 
-write_messages(LUser, LServer, Msgs, MaxOfflineMsgs) ->
+write_messages(LUser, LServer, Msgs) ->
     SUser = ejabberd_odbc:escape(LUser),
     SServer = ejabberd_odbc:escape(LServer),
-    write_messages_t(LServer, SUser, SServer, Msgs, MaxOfflineMsgs).
+    write_all_messages_t(LServer, SUser, SServer, Msgs).
 
-write_messages_t(LServer, SUser, SServer, Msgs, MaxOfflineMsgs) ->
-    case is_message_count_threshold_reached(
-                 LServer, SUser, SServer, Msgs, MaxOfflineMsgs) of
-        false ->
-            write_all_messages_t(LServer, SUser, SServer, Msgs);
-        true ->
-            discard_all_messages_t(Msgs)
-    end.
-
-is_message_count_threshold_reached(LServer, SUser, SServer, Msgs, MaxOfflineMsgs) ->
-    Len = length(Msgs),
-    case MaxOfflineMsgs of
-        infinity ->
-            false;
-        MaxOfflineMsgs when Len > MaxOfflineMsgs ->
-            true;
-        MaxOfflineMsgs ->
-            %% Only count messages if needed.
-            MaxArchivedMsg = MaxOfflineMsgs - Len,
-            %% Do not need to count all messages in archive.
-            MaxOfflineMsgs < count_offline_messages(
-                LServer, SUser, SServer, MaxArchivedMsg + 1)
-    end.
+count_offline_messages(LUser, LServer, MaxArchivedMsgs) ->
+    SUser = ejabberd_odbc:escape(LUser),
+    SServer = ejabberd_odbc:escape(LServer),
+    count_offline_messages(LServer, SUser, SServer, MaxArchivedMsgs + 1).
 
 write_all_messages_t(LServer, SUser, SServer, Msgs) ->
     Rows = [record_to_row(SUser, SServer, Msg) || Msg <- Msgs],
@@ -121,9 +103,6 @@ record_to_row(SUser, SServer, #offline_msg{
     SExpire = maybe_encode_timestamp(Expire),
     odbc_queries:prepare_offline_message(SUser, SServer, STimeStamp, SExpire, SFrom, SPacket).
 
-discard_all_messages_t(Msgs) ->
-    {discarded, Msgs}.
-
 remove_user(LUser, LServer) ->
     SUser   = ejabberd_odbc:escape(LUser),
     SServer = ejabberd_odbc:escape(LServer),
@@ -141,10 +120,12 @@ remove_expired_messages(LServer) ->
         {updated, Count} ->
             {ok, Count}
     end.
--spec remove_old_messages(ejabberd:lserver(), integer()) -> {error, term()} | {ok, HowManyRemoved} when
+-spec remove_old_messages(LServer, Timestamp) ->
+    {error, term()} | {ok, HowManyRemoved} when
+    LServer :: ejabberd:lserver(),
+    Timestamp :: erlang:timestamp(),
     HowManyRemoved :: integer().
-remove_old_messages(LServer, Days) ->
-    TimeStamp = fallback_timestamp(Days, now()),
+remove_old_messages(LServer, TimeStamp) ->
     STimeStamp = encode_timestamp(TimeStamp),
     Result = odbc_queries:remove_old_offline_messages(LServer, STimeStamp),
     case Result of
@@ -163,23 +144,11 @@ count_offline_messages(LServer, SUser, SServer, Limit) ->
             0
     end.
 
-fallback_timestamp(Days, {MegaSecs, Secs, _MicroSecs}) ->
-    S = MegaSecs * 1000000 + Secs - 60 * 60 * 24 * Days,
-    MegaSecs1 = S div 1000000,
-    Secs1 = S rem 1000000,
-    {MegaSecs1, Secs1, 0}.
-
 encode_timestamp(TimeStamp) ->
-    integer_to_list(now_to_microseconds(TimeStamp)).
+    integer_to_list(usec:from_now(TimeStamp)).
 
 maybe_encode_timestamp(never) ->
     "null";
 maybe_encode_timestamp(TimeStamp) ->
     encode_timestamp(TimeStamp).
 
-now_to_microseconds({Mega, Secs, Micro}) ->
-    (1000000 * Mega + Secs) * 1000000 + Micro.
-
-microseconds_to_now(MicroSeconds) when is_integer(MicroSeconds) ->
-    Seconds = MicroSeconds div 1000000,
-    {Seconds div 1000000, Seconds rem 1000000, MicroSeconds rem 1000000}.

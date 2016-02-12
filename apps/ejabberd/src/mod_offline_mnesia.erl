@@ -30,10 +30,11 @@
 -behaviour(mod_offline).
 -export([init/2,
          pop_messages/2,
-         write_messages/4,
-	     remove_expired_messages/1,
-	     remove_old_messages/2,
-	     remove_user/2]).
+         write_messages/3,
+         count_offline_messages/3,
+         remove_expired_messages/1,
+         remove_old_messages/2,
+         remove_user/2]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -59,14 +60,13 @@ pop_messages(LUser, LServer) ->
 	end,
     case mnesia:transaction(F) of
         {atomic, Rs} ->
-            TimeStamp = now(),
-            {ok, skip_expired_messages(TimeStamp, lists:keysort(#offline_msg.timestamp, Rs))};
+            {ok, Rs};
         {aborted, Reason} ->
             {error, Reason}
     end.
 
-write_messages(LUser, LServer, Msgs, MaxOfflineMsgs) ->
-    F = fun() -> write_messages_t(LUser, LServer, Msgs, MaxOfflineMsgs) end,
+write_messages(_LUser, _LServer, Msgs) ->
+    F = fun() -> write_messages_t(Msgs) end,
     case mnesia:transaction(F) of
         {atomic, Result} ->
             Result;
@@ -74,29 +74,9 @@ write_messages(LUser, LServer, Msgs, MaxOfflineMsgs) ->
             {error, {aborted, Reason}}
     end.
 
-write_messages_t(LUser, LServer, Msgs, MaxOfflineMsgs) ->
+write_messages_t(Msgs) ->
     Len = length(Msgs),
-    case is_message_count_threshold_reached(MaxOfflineMsgs, Len, LUser, LServer) of
-        false ->
-            write_all_messages_t(Len, Msgs);
-        true ->
-            discard_all_messages_t(Msgs)
-    end.
-
-is_message_count_threshold_reached(MaxOfflineMsgs, Len, LUser, LServer) ->
-    case MaxOfflineMsgs of
-        infinity ->
-            false;
-        MaxOfflineMsgs when Len > MaxOfflineMsgs ->
-            true;
-        MaxOfflineMsgs ->
-			%% Only count messages if needed.
-            MaxArchivedMsg = MaxOfflineMsgs - Len,
-            MaxArchivedMsg < count_offline_messages(LUser, LServer)
-
-            %% Do not need to count all messages in archive.
-       %    MaxOfflineMsgs < count_offline_messages(LUser, LServer, MaxArchivedMsg + 1)
-    end.
+    write_all_messages_t(Len, Msgs).
 
 write_all_messages_t(Len, Msgs) ->
     if
@@ -108,13 +88,11 @@ write_all_messages_t(Len, Msgs) ->
     [mnesia:write(M) || M <- Msgs],
     ok.
 
-discard_all_messages_t(Msgs) ->
-    {discarded, Msgs}.
-
-count_offline_messages(LUser, LServer) ->
+count_offline_messages(LUser, LServer, _MaxNeeded) ->
     US = {LUser, LServer},
     F = fun () ->
-        count_mnesia_records(US)
+        Result = mnesia:read(offline_msg, US, read),
+        length(Result)
     end,
     case catch mnesia:async_dirty(F) of
         I when is_integer(I) -> I;
@@ -148,17 +126,17 @@ remove_expired_messages(_Host) ->
             {ok, Result}
     end.
 
--spec remove_old_messages(ejabberd:lserver(), integer()) -> {error, term()} | {ok, HowManyRemoved} when
+-spec remove_old_messages(ejabberd:lserver(), erlang:timestamp()) ->
+    {error, term()} | {ok, HowManyRemoved} when
     HowManyRemoved :: integer().
-remove_old_messages(_Host, Days) ->
-    TimeStamp = fallback_timestamp(Days, now()),
+remove_old_messages(_Host, TimeStamp) ->
     F = fun() ->
-		mnesia:write_lock_table(offline_msg),
-		mnesia:foldl(
-		  fun(Rec, Acc) ->
-              Acc + remove_old_message(TimeStamp, Rec)
-		  end, 0, offline_msg)
-	end,
+                mnesia:write_lock_table(offline_msg),
+                mnesia:foldl(
+                  fun(Rec, Acc) ->
+                          Acc + remove_old_message(TimeStamp, Rec)
+                  end, 0, offline_msg)
+        end,
     case mnesia:transaction(F) of
         {aborted, Reason} ->
             {error, Reason};
@@ -166,14 +144,8 @@ remove_old_messages(_Host, Days) ->
             {ok, Result}
     end.
 
-fallback_timestamp(Days, {MegaSecs, Secs, _MicroSecs}) ->
-    S = MegaSecs * 1000000 + Secs - 60 * 60 * 24 * Days,
-    MegaSecs1 = S div 1000000,
-    Secs1 = S rem 1000000,
-    {MegaSecs1, Secs1, 0}.
-
 remove_expired_message(TimeStamp, Rec) ->
-    case is_expired_message(TimeStamp, Rec) of
+    case mod_offline:is_expired_message(TimeStamp, Rec) of
         true ->
             case  mnesia:delete_object(Rec) of
                 ok ->
@@ -198,33 +170,6 @@ remove_old_message(TimeStamp, Rec) ->
             0
     end.
 
-skip_expired_messages(TimeStamp, Rs) ->
-    [R || R <- Rs, not is_expired_message(TimeStamp, R)].
-
-is_expired_message(_TimeStamp, #offline_msg{expire=never}) ->
-    false;
-is_expired_message(TimeStamp, #offline_msg{expire=ExpireTimeStamp}) ->
-   ExpireTimeStamp < TimeStamp.
-
 is_old_message(MaxAllowedTimeStamp, #offline_msg{timestamp=TimeStamp}) ->
     TimeStamp < MaxAllowedTimeStamp.
 
-count_mnesia_records(US) ->
-    MatchExpression = #offline_msg{us = US,  _ = '_'},
-    case mnesia:select(offline_msg, [{MatchExpression, [], [[]]}],
-        ?BATCHSIZE, read) of
-        {Result, Cont} ->
-            Count = length(Result),
-            count_records_cont(Cont, Count);
-        '$end_of_table' ->
-            0
-    end.
-
-count_records_cont(Cont, Count) ->
-    case mnesia:select(Cont) of
-        {Result, Cont} ->
-            NewCount = Count + length(Result),
-            count_records_cont(Cont, NewCount);
-        '$end_of_table' ->
-            Count
-    end.

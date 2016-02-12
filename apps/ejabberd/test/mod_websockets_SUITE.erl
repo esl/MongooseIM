@@ -6,14 +6,14 @@
 -define(PORT, 5280).
 -define(IP, {127, 0, 0, 1}).
 -define(FAST_PING_RATE, 500).
--define(NEW_TIMEOUT, 1000).
+-define(NEW_TIMEOUT, 1200).
 
 
 all() -> [ ping_test, set_ping_test, disable_ping_test, disable_and_set].
 
 setup() ->
     meck:unload(),
-    ejabberd_helper:ensure_all_started(cowboy),
+    application:ensure_all_started(cowboy),
     meck:new(supervisor, [unstick, passthrough, no_link]),
     meck:new(ejabberd_c2s, [unstick, passthrough, no_link]),
     meck:new(gen_mod,[unstick, passthrough, no_link]),
@@ -33,7 +33,7 @@ setup() ->
             {max_connections, 1024},
             {modules, [{"_", "/http-bind", mod_bosh},
                        {"_", "/ws-xmpp", mod_websockets,
-                        [{timeout, 600000}, {ping_rate, 2000}]}]}],
+                        [{timeout, 600000}, {ping_rate, ?FAST_PING_RATE}]}]}],
         ejabberd_cowboy:start_listener({?PORT, ?IP, tcp}, Opts)
           end).
 
@@ -63,13 +63,13 @@ set_ping_test(_Config) ->
     mod_websockets:set_ping(InternalSocket, ?NEW_TIMEOUT),
     ok = wait_for_ping(Socket1, 0 , ?NEW_TIMEOUT + 1000),
     %% Im waiting too less time!
-    ErrorTimeout = wait_for_ping(Socket1, 0, 1000),
+    ErrorTimeout = wait_for_ping(Socket1, 0, 700),
     ok = wait_for_ping(Socket1, 0, ?NEW_TIMEOUT + 1000),
     %% now I wait enough time
     Resp1 = wait_for_ping(Socket1, 0, ?NEW_TIMEOUT + 200),
     %% then
-    ?eq(Resp1, ok),
-    ?eq(ErrorTimeout, {error, timeout}),
+    ?eq(ok, Resp1),
+    ?eq({error, timeout}, ErrorTimeout),
     teardown().
 
 disable_ping_test(_Config) ->

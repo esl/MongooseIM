@@ -169,7 +169,7 @@ get_roster_by_jid_with_groups_t(LUser, LServer, LJID) ->
                                                          Username, SJID)
                      of
                          {selected, [<<"grp">>], JGrps} when is_list(JGrps) ->
-                             [JGrp || [JGrp] <- JGrps];
+                             [JGrp || {JGrp} <- JGrps];
                          _ -> []
                      end,
             R#roster{groups = Groups};
@@ -244,7 +244,7 @@ read_subscription_and_groups(LUser, LServer, LJID) ->
                                                               SJID)
                      of
                          {selected, [<<"grp">>], JGrps} when is_list(JGrps) ->
-                             [JGrp || [JGrp] <- JGrps];
+                             [JGrp || {JGrp} <- JGrps];
                          _ -> []
                      end,
             {Subscription, Groups};

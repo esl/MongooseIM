@@ -111,12 +111,13 @@ stop_muc(Host) ->
 get_behaviour(DefaultBehaviour, Host, UserID, _LocJID, RemJID) ->
     RemLJID      = jid:to_lower(RemJID),
     SRemLBareJID = esc_jid(jid:to_bare(RemLJID)),
-    SRemLJID     = esc_jid(jid:to_lower(RemJID)),
+    SRemLJID     = esc_jid(RemLJID),
     SUserID      = integer_to_list(UserID),
     case query_behaviour(Host, SUserID, SRemLJID, SRemLBareJID) of
-        {selected, ["behaviour"], [{Behavour}]} ->
+        {selected, [<<"behaviour">>], [{Behavour}]} ->
             decode_behaviour(Behavour);
-        _ -> DefaultBehaviour
+        {selected, [<<"behaviour">>], []} ->
+            DefaultBehaviour
     end.
 
 
@@ -125,7 +126,14 @@ get_behaviour(DefaultBehaviour, Host, UserID, _LocJID, RemJID) ->
         DefaultMode :: mod_mam:archive_behaviour(),
         AlwaysJIDs :: [ejabberd:literal_jid()],
         NeverJIDs :: [ejabberd:literal_jid()]) -> any().
-set_prefs(Result, Host, UserID, _ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
+set_prefs(_Result, Host, UserID, _ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
+    try
+        set_prefs1(Host, UserID, DefaultMode, AlwaysJIDs, NeverJIDs)
+    catch _Type:Error ->
+        {error, Error}
+    end.
+
+set_prefs1(Host, UserID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     SUserID = integer_to_list(UserID),
     DelQuery = ["DELETE FROM mam_config WHERE user_id = '", SUserID, "'"],
     InsQuery = ["INSERT INTO mam_config(user_id, behaviour, remote_jid) "
@@ -137,7 +145,7 @@ set_prefs(Result, Host, UserID, _ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     %% Run as a transaction
     {atomic, [{updated, _}, {updated, _}]} =
         sql_transaction_map(Host, [DelQuery, InsQuery]),
-    Result.
+    ok.
 
 
 -spec get_prefs(mod_mam:preference(), _Host :: ejabberd:server(),

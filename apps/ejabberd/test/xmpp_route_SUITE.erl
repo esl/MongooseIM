@@ -12,7 +12,7 @@ all() ->
 
 init_per_suite(C) ->
     application:start(p1_stringprep),
-    ejabberd_helper:ensure_all_started(lager),
+    application:ensure_all_started(lager),
     C.
 
 success_with_module_implementing_behaviour(_C) ->

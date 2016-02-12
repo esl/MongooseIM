@@ -320,7 +320,7 @@ kick_session(Config) ->
         end).
 
 status(Config) ->
-    escalus:story(Config, [1, 1, 1], fun(User1, User2, User3) ->
+    escalus:story(Config, [{alice, 1}, {mike, 1}, {bob, 1}], fun(User1, User2, User3) ->
                 PriDomain = escalus_client:server(User1),
                 SecDomain = escalus_config:get_config(ejabberd_secondary_domain, Config),
                 AwayPresence = escalus_stanza:presence_show(<<"away">>),
@@ -340,7 +340,7 @@ status(Config) ->
         end).
 
 sessions_info(Config) ->
-    escalus:story(Config, [1, 1, 1], fun(User1, User2, User3) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(User1, User2, User3) ->
                 Username1 = escalus_client:username(User1),
                 PriDomain = escalus_client:server(User1),
                 SecDomain = escalus_config:get_config(ejabberd_secondary_domain, Config),
@@ -938,7 +938,7 @@ remove_old_messages_test(Config) ->
         OfflineOld = generate_offline_message(JidRecordAlice, JidRecordBob, Msg1, OldTimestamp),
         OfflineNew = generate_offline_message(JidRecordAlice, JidRecordBob, Msg2, now()),
         {jid, _, _, _, LUser, LServer, _} = JidRecordBob,
-        rpc_call(mod_offline_backend, write_messages, [LUser, LServer, [OfflineOld, OfflineNew], 100]),
+        rpc_call(mod_offline_backend, write_messages, [LUser, LServer, [OfflineOld, OfflineNew]]),
         %% when
         {_, 0} = ejabberdctl("delete_old_messages", ["1"], Config),
         {ok, SecondList} = rpc_call(mod_offline_backend, pop_messages, [LUser, LServer]),
@@ -965,7 +965,7 @@ remove_expired_messages_test(Config) ->
         OfflineFuture = generate_offline_expired_message(JidRecordMike, JidRecordKate, Msg3, now(), ExpirationTimeFuture),
         OfflineFuture2 = generate_offline_expired_message(JidRecordMike, JidRecordKate, Msg4, OldTimestamp, ExpirationTimeFuture),
         {jid, _, _, _, LUser, LServer, _} = JidRecordKate,
-        rpc_call(mod_offline_backend, write_messages, [LUser, LServer, [OfflineOld, OfflineNow, OfflineFuture, OfflineFuture2], 100]),
+        rpc_call(mod_offline_backend, write_messages, [LUser, LServer, [OfflineOld, OfflineNow, OfflineFuture, OfflineFuture2]]),
         %% when
         {_, 0} = ejabberdctl("delete_expired_messages", [], Config),
         {ok, SecondList} = rpc_call(mod_offline_backend, pop_messages, [LUser, LServer]),

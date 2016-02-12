@@ -63,7 +63,7 @@ end_per_testcase(CaseName, Config) ->
 %% Private storage tests
 %%--------------------------------------------------------------------
 store_retrieve(Config) ->
-    escalus:story(Config, [1],
+    escalus:story(Config, [{alice, 1}],
                   fun(Alice) ->
                           NS = <<"alice:private:ns">>,
 
@@ -96,7 +96,7 @@ store_retrieve(Config) ->
                   end).
 
 get_other_user(Config) ->
-    escalus:story(Config, [1, 1],
+    escalus:story(Config, [{alice, 1}, {bob, 1}],
                   fun(Alice, _Bob) ->
                           NS = <<"bob:private:ns">>,
 
@@ -112,7 +112,7 @@ get_other_user(Config) ->
                   end).
 
 set_other_user(Config) ->
-    escalus:story(Config, [1, 1],
+    escalus:story(Config, [{alice, 1}, {bob, 1}],
                   fun(Alice, _Bob) ->
                           NS = <<"bob:private:ns">>,
 
@@ -127,7 +127,7 @@ set_other_user(Config) ->
                   end).
 
 missing_ns(Config) ->
-    escalus:story(Config, [1],
+    escalus:story(Config, [{alice, 1}],
                   fun(Alice) ->
                           %% Alice asks for her own private storage, without
                           %% providing a namespace for a child

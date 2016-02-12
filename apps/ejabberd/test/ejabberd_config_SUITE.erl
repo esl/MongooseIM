@@ -99,7 +99,7 @@ split_config(Config) ->
     % when
     application:load(ejabberd),
     application:set_env(ejabberd, config, suite_priv(Config, "etc/ejabberd.cfg")),
-    ok = start_ejabberd(Config),
+    {ok, _} = start_ejabberd(Config),
     % then
     then_vhost_config_works(Config),
     % cleanup
@@ -143,7 +143,7 @@ is_empty(_) -> false.
 
 start_ejabberd_with_config(Config, ConfigFile) ->
     use_config_file(Config, ConfigFile),
-    ok = start_ejabberd(Config).
+    {ok, _} = start_ejabberd(Config).
 
 multiple_modules_sections() ->
     [{local_config, {modules, <<"localhost">>}, [{mod_offline, []}]},
