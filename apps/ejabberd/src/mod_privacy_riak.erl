@@ -80,7 +80,7 @@ get_list_names_only(LUser, LServer) ->
             riakc_set:value(Set);
         {error, {notfound, set}} ->
             [];
-        Err -> 
+        Err ->
             ?ERROR_MSG("~p", [Err]),
             []
     end.
@@ -119,15 +119,15 @@ remove_privacy_list(LUser, LServer, Name) ->
         {ok, S1} ->
             S2 = riakc_set:del_element(Name, S1),
             mongoose_riak:update_type(?BKT_LISTS_NAMES(LServer), LUser, riakc_set:to_op(S2));
-        Err -> 
+        Err ->
             ?ERROR_MSG("~p", [Err]),
-            Err 
+            Err
     end.
 
 replace_privacy_list(LUser, LServer, Name, List) ->
     % store privacy-list content
-    %NOTE: List is automatically serialized
-    Obj = riakc_obj:new(?BKT_LISTS(LServer), <<LUser/binary, $/, Name/binary>>, List),
+    BinaryList = term_to_binary(List),
+    Obj = riakc_obj:new(?BKT_LISTS(LServer), <<LUser/binary, $/, Name/binary>>, BinaryList),
     mongoose_riak:put(Obj),
 
     % add new list name to user privacy-lists set

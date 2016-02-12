@@ -258,7 +258,7 @@ code_change(_OldVsn, State, _Extra) ->
 
 -spec do_route(From :: ejabberd:jid(),
                To :: ejabberd:jid(),
-               Packet :: jlib:xmlel()) -> 'false' | 'ok'.
+               Packet :: jlib:xmlel()) -> 'ok'.
 do_route(From, To, Packet) ->
     ?DEBUG("s2s manager~n\tfrom ~p~n\tto ~p~n\tpacket ~P~n",
            [From, To, Packet, 8]),
@@ -285,7 +285,7 @@ do_route(From, To, Packet) ->
                             Packet, ?ERR_SERVICE_UNAVAILABLE),
                     ejabberd_router:route(To, From, Err)
             end,
-            false
+            ok
     end.
 
 -spec find_connection(From :: ejabberd:jid(),

@@ -116,7 +116,9 @@
                 | 'mam_lookup_messages'
                 | 'mam_purge_multiple_messages'
                 | 'mam_purge_single_message'
-                | 'mam_set_prefs'.
+                | 'mam_set_prefs'
+                | 'mam_set_message_form'
+                | 'mam_get_message_form'.
 -type packet() :: any().
 -type row_batch() :: {TotalCount :: non_neg_integer(),
                       Offset :: non_neg_integer(),

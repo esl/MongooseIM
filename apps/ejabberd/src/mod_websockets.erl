@@ -60,7 +60,7 @@
           c2s_pid :: pid(),
           open_tag :: stream | open,
           parser :: exml_stream:parser(),
-          ping_rate :: integer()
+          ping_rate :: integer() | none
          }).
 
 %%--------------------------------------------------------------------

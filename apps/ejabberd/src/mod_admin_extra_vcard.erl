@@ -182,16 +182,14 @@ get_vcard_content(User, Server, Data) ->
     %% TODO: This may benefit from better type control
     IQr = Module:Function(JID, JID, IQ),
     case IQr#iq.sub_el of
-        [A1] ->
+        [#xmlel{} = A1] ->
             case get_vcard(Data, A1) of
                 [] ->
                     {error, "Value not found in vcard"};
                 ElemList ->
                     [exml_query:cdata(Elem) || Elem <- ElemList]
             end;
-        [] ->
-            {error, "Vcard not found"};
-        [undefined, _] ->
+        _ ->
             {error, "Vcard not found"}
     end.
 
