@@ -7,10 +7,10 @@ This release includes:
 - finished Riak backends for all modules storing persistent data:
    - mod_offline [#594](https://github.com/esl/MongooseIM/pull/594)
    - mod_privacy [#618](https://github.com/esl/MongooseIM/pull/618)
-   - MAM for MUCs [#622](https://github.com/esl/MongooseIM/pull/622)
+   - MAM ([XEP-0313](https://xmpp.org/extensions/xep-0313.html)) for MUCs ([XEP-0045](https://xmpp.org/extensions/xep-0045.html)) [#622](https://github.com/esl/MongooseIM/pull/622)
 - XMPP improvements:
-   - support for MAM versions 0.3, 0.4.1 and 0.5 [#668](https://github.com/esl/MongooseIM/pull/668)
-   - support for XEP-0185 [#665](https://github.com/esl/MongooseIM/pull/665)
+   - support for MAM ([XEP-0313](https://xmpp.org/extensions/xep-0313.html)) versions 0.3, 0.4.1 and 0.5 [#668](https://github.com/esl/MongooseIM/pull/668)
+   - support for Dialback Key Generation and Validation ([XEP-0185](https://xmpp.org/extensions/xep-0185.html)) [#665](https://github.com/esl/MongooseIM/pull/665)
 - test improvements: [#602](https://github.com/esl/MongooseIM/pull/602), [#621](https://github.com/esl/MongooseIM/pull/621),[#637](https://github.com/esl/MongooseIM/pull/637), [#654](https://github.com/esl/MongooseIM/pull/654)
 - dropped support for Erlang/OTP older than R16B03-1: [#613](https://github.com/esl/MongooseIM/pull/613), [#636](https://github.com/esl/MongooseIM/pull/636)
 - updated cowboy to 1.0.4
