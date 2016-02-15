@@ -15,6 +15,8 @@ If you haven't chosen any of the above, skip the next part.
 
 **Options:**
 
+* **mod_mam_muc**
+    * `host` (optional, default: `"conference.@HOST@"`) - MUC host that will be archived
 * **mod_mam_odbc_arch**
     * `pm` (mandatory when `mod_mam` enabled) - Enable archiving user-to-user messages
     * `muc` (optional) - Enable group chat archive, mutually exclusive with `mod_mam_muc_odbc_arch`. **Not recommended**, `mod_mam_muc_odbc_arch` is more efficient.
