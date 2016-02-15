@@ -116,9 +116,6 @@
 %% -----------------
 %% Common functions
 
-%% Almost a copy of string:join/2.
-%% We use this version because string:join/2 is relatively
-%% new function (introduced in R12B-0).
 join([], _Sep) ->
     [];
 join([H|T], Sep) ->

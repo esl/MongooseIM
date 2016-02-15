@@ -233,7 +233,7 @@ get_loglevel() ->
 %%% Purge DB
 %%%
 
--spec delete_expired_messages() -> 'ok'.
+-spec delete_expired_messages() -> {ok, iolist()} | {error, iolist()}.
 delete_expired_messages() ->
     case mod_offline:remove_expired_messages(?MYNAME) of
         {ok, C} ->
@@ -242,7 +242,7 @@ delete_expired_messages() ->
             {error, io_lib:format("Can't delete expired messages: ~n~p", [Reason])}
     end.
 
--spec delete_old_messages(Days :: integer()) -> 'ok'.
+-spec delete_old_messages(Days :: integer()) -> {ok, iolist()} | {error, iolist()}.
 delete_old_messages(Days) ->
     case mod_offline:remove_old_messages(?MYNAME, Days) of
         {ok, C} ->

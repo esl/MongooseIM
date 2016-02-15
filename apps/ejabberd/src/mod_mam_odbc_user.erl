@@ -62,12 +62,26 @@ stop(Host) ->
 -spec start_pm(ejabberd:server(),_) -> 'ok'.
 start_pm(Host, _Opts) ->
     ejabberd_hooks:add(mam_archive_id, Host, ?MODULE, archive_id, 50),
+    case gen_mod:get_module_opt(Host, ?MODULE, auto_remove, false) of
+        true ->
+            ejabberd_hooks:add(mam_remove_archive, Host, ?MODULE, remove_archive, 90),
+            ok;
+        false ->
+            ok
+    end,
     ok.
 
 
 -spec stop_pm(ejabberd:server()) -> 'ok'.
 stop_pm(Host) ->
     ejabberd_hooks:delete(mam_archive_id, Host, ?MODULE, archive_id, 50),
+    case gen_mod:get_module_opt(Host, ?MODULE, auto_remove, false) of
+        true ->
+            ejabberd_hooks:delete(mam_remove_archive, Host, ?MODULE, remove_archive, 90),
+            ok;
+        false ->
+            ok
+    end,
     ok.
 
 
@@ -77,12 +91,26 @@ stop_pm(Host) ->
 -spec start_muc(ejabberd:server(),_) -> 'ok'.
 start_muc(Host, _Opts) ->
     ejabberd_hooks:add(mam_muc_archive_id, Host, ?MODULE, archive_id, 50),
+    case gen_mod:get_module_opt(Host, ?MODULE, auto_remove, false) of
+        true ->
+            ejabberd_hooks:add(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 90),
+            ok;
+        false ->
+            ok
+    end,
     ok.
 
 
 -spec stop_muc(ejabberd:server()) -> 'ok'.
 stop_muc(Host) ->
     ejabberd_hooks:delete(mam_muc_archive_id, Host, ?MODULE, archive_id, 50),
+    case gen_mod:get_module_opt(Host, ?MODULE, auto_remove, false) of
+        true ->
+            ejabberd_hooks:delete(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 90),
+            ok;
+        false ->
+            ok
+    end,
     ok.
 
 
@@ -134,13 +162,20 @@ query_archive_id(Host, Server, UserName) ->
 create_user_archive(Host, Server, UserName) ->
     SServer   = ejabberd_odbc:escape(Server),
     SUserName = ejabberd_odbc:escape(UserName),
-    {updated, 1} =
+    Res =
     ejabberd_odbc:sql_query(
       Host,
       ["INSERT INTO mam_server_user "
        "(server, user_name) VALUES ('", SServer, "', '", SUserName, "')"]),
-    ok.
-
+    case Res of
+        {updated, 1} ->
+            ok;
+        %% Ignore the race condition
+        %% Duplicate entry ... for key 'uc_mam_server_user_name'
+        {error,"#23000" ++ _} ->
+            ok
+        %% TODO duplicate entry and postgres?
+    end.
 
 do_query_archive_id(mssql, Host, SServer, SUserName) ->
     odbc_queries_mssql:query_archive_id(Host, SServer, SUserName);

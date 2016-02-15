@@ -107,7 +107,7 @@ end_rosters_remove(Config) ->
 %%--------------------------------------------------------------------
 
 available(Config) ->
-    escalus:story(Config, [1, 1], fun(Alice,_Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice,_Bob) ->
 
         escalus:send(Alice, escalus_stanza:presence(<<"available">>)),
         escalus:assert(is_presence, escalus:wait_for_stanza(Alice))
@@ -115,7 +115,7 @@ available(Config) ->
         end).
 
 available_direct(Config) ->
-    escalus:story(Config, [1, 1], fun(Alice,Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice,Bob) ->
 
         escalus:send(Alice, escalus_stanza:presence_direct(bob, <<"available">>)),
         Received = escalus:wait_for_stanza(Bob),
@@ -125,7 +125,7 @@ available_direct(Config) ->
         end).
 
 additions(Config) ->
-    escalus:story(Config, [1, 1], fun(Alice,Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice,Bob) ->
 
         Tags = escalus_stanza:tags([
             {<<"show">>, <<"dnd">>},
@@ -144,7 +144,7 @@ additions(Config) ->
         end).
 
 negative_priority_presence(Config) ->
-    escalus:story(Config, [2, 1], fun(Alice1, Alice2, Bob) ->
+    escalus:story(Config, [{alice, 2}, {bob, 1}], fun(Alice1, Alice2, Bob) ->
 
         %% Alice1 updates presense priority
         Tags = escalus_stanza:tags([
@@ -171,7 +171,7 @@ negative_priority_presence(Config) ->
         end).
 
 invisible_presence(Config) ->
-    escalus:story(Config, [1, 1], fun(Alice,Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice,Bob) ->
 
         %% Alice adds Bob as a contact
         add_sample_contact(Alice, Bob),
@@ -225,14 +225,14 @@ invisible_presence(Config) ->
         end).
 
 get_roster(Config) ->
-    escalus:story(Config, [1, 1], fun(Alice,_Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice,_Bob) ->
         escalus:send(Alice, escalus_stanza:roster_get()),
         escalus_assert:is_roster_result(escalus:wait_for_stanza(Alice))
 
         end).
 
 add_contact(Config) ->
-    escalus:story(Config, [1, 1], fun(Alice, Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
 
         %% add contact
         Stanza = escalus_stanza:roster_add_contact(Bob, [<<"friends">>], <<"Bobby">>),
@@ -254,7 +254,7 @@ add_contact(Config) ->
         end).
 
 remove_contact(Config) ->
-    escalus:story(Config, [1, 1], fun(Alice, Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
 
         %% add contact
         add_sample_contact(Alice, Bob),
@@ -330,7 +330,7 @@ versioning_no_store(Config) ->
     versioning(Config).
 
 subscribe(Config) ->
-    escalus:story(Config, [1, 1], fun(Alice, Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
 
         %% Alice adds Bob as a contact
         add_sample_contact(Alice, Bob),
@@ -379,7 +379,7 @@ subscribe(Config) ->
         end).
 
 subscribe_decline(Config) ->
-    escalus:story(Config, [1, 1], fun(Alice,Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice,Bob) ->
 
         %% add contact
         add_sample_contact(Alice, Bob),
@@ -405,7 +405,7 @@ subscribe_decline(Config) ->
     end).
 
 subscribe_relog(Config) ->
-    escalus:story(Config, [1, 1], fun(Alice, Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
 
         %% Alice adds Bob as a contact
         add_sample_contact(Alice, Bob),
@@ -453,7 +453,7 @@ subscribe_relog(Config) ->
         end).
 
 unsubscribe(Config) ->
-    escalus:story(Config, [1, 1], fun(Alice,Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice,Bob) ->
 
         %% add contact
         add_sample_contact(Alice, Bob),
@@ -506,7 +506,7 @@ unsubscribe(Config) ->
     end).
 
 remove_unsubscribe(Config) ->
-    escalus:story(Config, [1, 1], fun(Alice,Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice,Bob) ->
         %% add contact
         add_sample_contact(Alice, Bob),
 

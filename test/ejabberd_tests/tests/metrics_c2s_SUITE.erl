@@ -86,7 +86,7 @@ end_per_testcase(CaseName, Config) ->
 message_one(Config) ->
     {value, MesgSent} = get_counter_value(xmppMessageSent),
     {value, MesgReceived} = get_counter_value(xmppMessageReceived),
-    escalus:story(Config, [1, 1], fun(Alice, Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
 
         escalus_client:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi!">>)),
         escalus_client:wait_for_stanza(Bob),
@@ -97,7 +97,7 @@ message_one(Config) ->
         end).
 
 stanza_one(Config) ->
-    escalus:story(Config, [1, 1], fun(Alice, Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         {value, StanzaSent} = get_counter_value(xmppStanzaSent),
         {value, StanzaReceived} = get_counter_value(xmppStanzaReceived),
 
@@ -110,7 +110,7 @@ stanza_one(Config) ->
         end).
 
 presence_one(Config) ->
-    escalus:story(Config, [1], fun(Alice) ->
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
         {value, PresenceSent} = get_counter_value(xmppPresenceSent),
         {value, PresenceReceived} = get_counter_value(xmppPresenceReceived),
         {value, StanzaSent} = get_counter_value(xmppStanzaSent),
@@ -127,7 +127,7 @@ presence_one(Config) ->
         end).
 
 presence_direct_one(Config) ->
-    escalus:story(Config, [1, 1], fun(Alice, Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         {value, PresenceSent} = get_counter_value(xmppPresenceSent),
         {value, PresenceReceived} = get_counter_value(xmppPresenceReceived),
         {value, StanzaSent} = get_counter_value(xmppStanzaSent),
@@ -145,7 +145,7 @@ presence_direct_one(Config) ->
         end).
 
 iq_one(Config) ->
-    escalus:story(Config, [1], fun(Alice) ->
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
         {value, IqSent} = get_counter_value(xmppIqSent),
         {value, IqReceived} = get_counter_value(xmppIqReceived),
         {value, StanzaSent} = get_counter_value(xmppStanzaSent),
@@ -165,7 +165,7 @@ iq_one(Config) ->
 messages(Config) ->
     {value, MesgSent} = get_counter_value(xmppMessageSent),
     {value, MesgReceived} = get_counter_value(xmppMessageReceived),
-    escalus:story(Config, [1, 1], fun(Alice, Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
 
         escalus_client:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi!">>)),
         escalus_client:wait_for_stanza(Bob),
@@ -183,7 +183,7 @@ messages(Config) ->
 
 bounced(Config) ->
     {value, MesgBounced} = get_counter_value(xmppMessageBounced),
-    escalus:story(Config, [1, 1], fun(Alice, Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
 
         escalus_client:stop(Bob),
         timer:sleep(?WAIT_TIME),
@@ -196,7 +196,7 @@ bounced(Config) ->
         end).
 
 stanza_count(Config) ->
-    escalus:story(Config, [1, 1], fun(Alice, Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         {value, OldStanzaCount} = get_counter_value(xmppStanzaCount),
 
         escalus_client:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi!">>)),
@@ -220,7 +220,7 @@ stanza_count(Config) ->
 
 error_total(Config) ->
     {value, Errors} = get_counter_value(xmppErrorTotal),
-    escalus:story(Config, [1, 1], fun(Alice, Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
 
         escalus_client:stop(Bob),
         timer:sleep(?WAIT_TIME),
@@ -234,7 +234,7 @@ error_total(Config) ->
 
 error_mesg(Config) ->
     {value, Errors} = get_counter_value(xmppErrorMessage),
-    escalus:story(Config, [1, 1], fun(Alice, Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
 
         escalus_client:stop(Bob),
         timer:sleep(?WAIT_TIME),
@@ -248,7 +248,7 @@ error_mesg(Config) ->
 
 error_presence(Config) ->
     {value, Errors} = get_counter_value(xmppErrorPresence),
-    escalus:story(Config, [1, 1], fun(Alice, Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
 
         escalus:send(Alice, escalus_stanza:presence_direct(bob, <<"available">>)),
         escalus:wait_for_stanza(Bob),

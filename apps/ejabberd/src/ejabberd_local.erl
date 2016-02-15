@@ -376,9 +376,7 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 -spec do_route(From :: ejabberd:jid(),
                To :: ejabberd:jid(),
-               Packet :: jlib:xmlel()) -> 'nothing' | 'ok' | 'todo' | pid()
-                                        | {'error','lager_not_running'}
-                                        | {'process_iq',_,_,_}.
+               Packet :: jlib:xmlel()) -> 'ok'.
 do_route(From, To, Packet) ->
     ?DEBUG("local route~n\tfrom ~p~n\tto ~p~n\tpacket ~P~n",
            [From, To, Packet, 8]),

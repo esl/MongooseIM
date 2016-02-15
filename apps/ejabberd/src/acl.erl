@@ -31,7 +31,8 @@
          to_record/3,
          add/3,
          delete/3,
-         match_rule/3]).
+         match_rule/3,
+         match_rule/4]).
 
 -include("ejabberd.hrl").
 
@@ -120,24 +121,27 @@ normalize_spec(none) ->
 -spec match_rule(Host :: host(),
                  Rule :: rule(),
                  JID :: ejabberd:jid()) -> allow | deny | term().
-match_rule(_, all, _) ->
+match_rule(Host, Rule, JID) ->
+    match_rule(Host, Rule, JID, deny).
+
+match_rule(_, all, _, Default) ->
     allow;
-match_rule(_, none, _) ->
+match_rule(_, none, _, Default) ->
     deny;
-match_rule(global, Rule, JID) ->
+match_rule(global, Rule, JID, Default) ->
     case ejabberd_config:get_global_option({access, Rule, global}) of
         undefined ->
-            deny;
+            Default;
         GACLs ->
             match_acls(GACLs, JID, global)
     end;
-match_rule(Host, Rule, JID) ->
+match_rule(Host, Rule, JID, Default) ->
     GlobalACLs = ejabberd_config:get_global_option({access, Rule, global}),
     HostACLs = ejabberd_config:get_global_option({access, Rule, Host}),
 
     case {GlobalACLs, HostACLs} of
         {undefined, undefined} ->
-            deny;
+            Default;
         {undefined, HostACLs} ->
             match_acls(HostACLs, JID, Host);
         {GlobalACLs, undefined} ->

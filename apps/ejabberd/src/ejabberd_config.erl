@@ -160,17 +160,14 @@ start() ->
 %% If not specified, the default value 'ejabberd.cfg' is assumed.
 -spec get_ejabberd_config_path() -> string().
 get_ejabberd_config_path() ->
-    case application:get_env(ejabberd, config) of
-        {ok, Path} -> Path;
-        undefined ->
-            case os:getenv("EJABBERD_CONFIG_PATH") of
-                false ->
-                    ?CONFIG_PATH;
-                Path ->
-                    Path
-            end
-    end.
+    DefaultPath = case os:getenv("EJABBERD_CONFIG_PATH") of
+                      false ->
+                          ?CONFIG_PATH;
+                      Path ->
+                          Path
+                  end,
 
+    application:get_env(ejabberd, config, DefaultPath).
 
 %% @doc Load the ejabberd configuration file.
 %% It also includes additional configuration files and replaces macros.

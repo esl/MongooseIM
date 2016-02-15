@@ -1,4 +1,5 @@
-MongooseIM  [![Build Status](https://travis-ci.org/esl/MongooseIM.svg?branch=master)](https://travis-ci.org/esl/MongooseIM) [![Documentation Status](https://readthedocs.org/projects/mongooseim/badge/?version=latest)](http://mongooseim.readthedocs.org/en/latest/?badge=latest) [![Coverage Status](https://img.shields.io/coveralls/esl/MongooseIM.svg)](https://coveralls.io/r/esl/MongooseIM?branch=master)
+MongooseIM  [![Build Status](https://travis-ci.org/esl/MongooseIM.svg?branch=master)](https://travis-ci.org/esl/MongooseIM) [![Documentation Status](https://readthedocs.org/projects/mongooseim/badge/?version=latest)](http://mongooseim.readthedocs.org/en/latest/?badge=latest) [![Coverage Status](https://img.shields.io/coveralls/esl/MongooseIM.svg)](https://coveralls.io/r/esl/MongooseIM?branch=master) [![Buildtime trend](https://buildtimetrend.herokuapp.com/badge/esl/MongooseIM/latest)](https://buildtimetrend.herokuapp.com/dashboard/esl/MongooseIM/)
+
 ============
 <img align="left" src="https://www.erlang-solutions.com/sites/all/themes/erlang/img/mongoose/MongooseIM_blue.png"</img>
 
@@ -77,9 +78,9 @@ Features and supported standards
 |[0085 - Chat State Notifications](http://xmpp.org/extensions/xep-0085.html)|[0086 - Error Condition Mappings](http://xmpp.org/extensions/xep-0086.html) | [0093 -  Roster Item Exchange](http://xmpp.org/extensions/xep-0093.html)| [0114 - Jabber Component Protocol](http://xmpp.org/extensions/xep-0114.html)|
 |[0124 - Bidirectional-streams Over Synchronous HTTP (BOSH)](http://xmpp.org/extensions/xep-0124.html)|[0126 - Invisibility](http://xmpp.org/extensions/xep-0126.html)| [0138 - Stream Compression](http://xmpp.org/extensions/xep-0138.html) | [0153 - vCard-Based Avatars](http://xmpp.org/extensions/xep-0153.html)|
 |[0157 - Contact Addresses for XMPP Services](http://xmpp.org/extensions/xep-0157.html)| [0160 - Best Practices for Handling Offline Messages](http://xmpp.org/extensions/xep-0160.html)| [0170 - Recommended Order of Stream Feature Negotiation](http://xmpp.org/extensions/xep-0170.html)| [0175 - Best Practices for Use of SASL ANONYMOUS](http://xmpp.org/extensions/xep-0175.html)|
-|[0184 - Message Delivery Receipts](http://xmpp.org/extensions/xep-0184.html)| [0198 - Stream Management](http://xmpp.org/extensions/xep-0198.html)| [0199 - XMPP Ping](http://xmpp.org/extensions/xep-0199.html)|[0202 - Entity Time](http://www.xmpp.org/extensions/xep-0202.html) | [0203 - Delayed Delivery](http://xmpp.org/extensions/xep-0203.html)|
-|[0206 - XMPP Over BOSH](http://xmpp.org/extensions/xep-0206.html)| [0212 - XMPP Basic Server 2008](http://xmpp.org/extensions/xep-0212.html)| [0237 - Roster Versioning](http://xmpp.org/extensions/xep-0237.html)| [0279 - Server IP Check](http://xmpp.org/extensions/xep-0279.html)| 
-|[0280 - Message Carbons](http://xmpp.org/extensions/xep-0280.html)| [0313 - Message Archive Management v0.2 ](http://xmpp.org/extensions/attic/xep-0313-0.2.html)|
+|[0185: Dialback Key Generation and Validation](http://www.xmpp.org/extensions/xep-0185.html)| [0184 - Message Delivery Receipts](http://xmpp.org/extensions/xep-0184.html)| [0198 - Stream Management](http://xmpp.org/extensions/xep-0198.html)| [0199 - XMPP Ping](http://xmpp.org/extensions/xep-0199.html)|
+|[0202 - Entity Time](http://www.xmpp.org/extensions/xep-0202.html) | [0203 - Delayed Delivery](http://xmpp.org/extensions/xep-0203.html)| [0206 - XMPP Over BOSH](http://xmpp.org/extensions/xep-0206.html)| [0212 - XMPP Basic Server 2008](http://xmpp.org/extensions/xep-0212.html)|
+|[0237 - Roster Versioning](http://xmpp.org/extensions/xep-0237.html)| [0279 - Server IP Check](http://xmpp.org/extensions/xep-0279.html)| [0280 - Message Carbons](http://xmpp.org/extensions/xep-0280.html)| [0313 - Message Archive Management v0.2 ](http://xmpp.org/extensions/attic/xep-0313-0.2.html)|
 
 
 How to build
@@ -90,11 +91,10 @@ How to build
     *   GNU Make,
     *   GCC,
     *   Libexpat 1.95 or higher,
-    *   Erlang/OTP R15B02 or higher,
-    *   Reltool 0.5.4 or higher,
+    *   Erlang/OTP R16B03-1 or higher,
+    *   Reltool 0.6.4.1 or higher,
     *   OpenSSL 0.9.8 or higher, for STARTTLS, SASL and SSL encryption,
-    *   Zlib 1.2.3 or higher for Stream Compression support (XEP-0138). Optional,
-    *   PAM library. Optional. For Pluggable Authentication Modules (PAM).
+    *   Zlib 1.2.3 or higher for Stream Compression support (XEP-0138). Optional.
 
 2.  Compiling on UNIX-like systems.
 
@@ -229,3 +229,7 @@ We recommend following client libraries:
 * iOS, Objective-C: [XMPPframework](https://github.com/robbiehanson/XMPPFramework)
 * Android, Java: [Smack](https://github.com/igniterealtime/Smack)
 * Web, JavaScript: [Stanza.io](https://github.com/otalk/stanza.io)
+
+
+
+

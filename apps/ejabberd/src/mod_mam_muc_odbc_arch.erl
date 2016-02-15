@@ -55,25 +55,13 @@
 -type packet() :: any().
 -type raw_row() :: {binary(), binary(), binary()}.
 
-
--ifdef(HAND_MADE_PARTITIONS).
-select_table(N) ->
-    io_lib:format("mam_muc_message_~2..0B", [N rem partition_count()]).
-
-partition_count() ->
-    16.
--else.
-select_table(_) ->
-    "mam_muc_message".
--endif.
-
-
 %% ----------------------------------------------------------------------
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
 
 -spec start(ejabberd:server(),_) -> 'ok'.
 start(Host, Opts) ->
+    compile_params_module(Opts),
     start_muc(Host, Opts).
 
 
@@ -155,7 +143,7 @@ archive_message(_Result, Host, MessID, RoomID,
 archive_message_1(Host, MessID, RoomID, FromNick, Packet) ->
     SRoomID = integer_to_list(RoomID),
     SFromNick = ejabberd_odbc:escape(FromNick),
-    Data = term_to_binary(Packet, [compressed]),
+    Data = packet_to_stored_binary(Packet),
     EscFormat = ejabberd_odbc:escape_format(Host),
     SData = ejabberd_odbc:escape_binary(EscFormat, Data),
     SMessID = integer_to_list(MessID),
@@ -188,7 +176,7 @@ prepare_message(Host, MessID, RoomID,
 prepare_message_1(Host, MessID, RoomID, FromNick, Packet) ->
     SRoomID = integer_to_list(RoomID),
     SFromNick = ejabberd_odbc:escape(FromNick),
-    Data = term_to_binary(Packet, [compressed]),
+    Data = packet_to_stored_binary(Packet),
     EscFormat = ejabberd_odbc:escape_format(Host),
     SData = ejabberd_odbc:escape_binary(EscFormat, Data),
     SMessID = integer_to_list(MessID),
@@ -423,7 +411,7 @@ row_to_uniform_format(DbEngine, EscFormat, {BMessID,BNick,SDataRaw}, RoomJID) ->
     SrcJID = jid:replace_resource(RoomJID, BNick),
     SData = ejabberd_odbc:unescape_odbc_binary(DbEngine, SDataRaw),
     Data = ejabberd_odbc:unescape_binary(EscFormat, SData),
-    Packet = binary_to_term(Data),
+    Packet = stored_binary_to_packet(Data),
     {MessID, SrcJID, Packet}.
 
 
@@ -662,3 +650,66 @@ maybe_encode_compact_uuid(undefined, _) ->
     undefined;
 maybe_encode_compact_uuid(Microseconds, NodeID) ->
     encode_compact_uuid(Microseconds, NodeID).
+
+
+%% ----------------------------------------------------------------------
+%% Optimizations
+
+packet_to_stored_binary(Packet) ->
+    %% Module implementing mam_message behaviour
+    Module = db_message_format(),
+    Module:encode(Packet).
+
+stored_binary_to_packet(Bin) ->
+    %% Module implementing mam_message behaviour
+    Module = db_message_format(),
+    Module:decode(Bin).
+
+select_table(N) ->
+    case hand_made_partitions() of
+        true ->
+            io_lib:format("mam_muc_message_~2..0B", [N rem partition_count()]);
+        false ->
+            "mam_muc_message"
+    end.
+
+partition_count() ->
+    16.
+
+%% ----------------------------------------------------------------------
+%% Dynamic params module
+
+%% compile([
+%%      {db_message_format, module()},
+%%      {hand_made_partitions, boolean()},
+%%      ])
+compile_params_module(Params) ->
+    CodeStr = params_helper(expand_simple_param(Params)),
+    {Mod, Code} = dynamic_compile:from_string(CodeStr),
+    code:load_binary(Mod, "mod_mam_muc_odbc_arch_params.erl", Code).
+
+expand_simple_param(Params) ->
+    lists:flatmap(fun(simple) -> simple_params();
+                     ({simple,true}) -> simple_params();
+                     (Param) -> [Param]
+                  end, Params).
+
+simple_params() ->
+    [{db_message_format, mam_message_xml}].
+
+params_helper(Params) ->
+    binary_to_list(iolist_to_binary(io_lib:format(
+        "-module(mod_mam_muc_odbc_arch_params).~n"
+        "-compile(export_all).~n"
+        "db_message_format() -> ~p.~n"
+        "hand_made_partitions() -> ~p.~n",
+        [proplists:get_value(db_message_format, Params, mam_message_compressed_eterm),
+         proplists:get_bool(hand_made_partitions, Params)]))).
+
+-spec db_message_format() -> compressed_term|term|xml.
+db_message_format() ->
+    mod_mam_muc_odbc_arch_params:db_message_format().
+
+-spec hand_made_partitions() -> boolean().
+hand_made_partitions() ->
+    mod_mam_muc_odbc_arch_params:hand_made_partitions().

@@ -45,9 +45,15 @@ env:
 
 matrix:
     include:
-        - otp_release: R15B03
-          env: PRESET=internal_mnesia DB=mnesia REL_CONFIG=minimal
         - otp_release: R16B03
           env: PRESET=internal_mnesia DB=mnesia REL_CONFIG=minimal
         - otp_release: 18.1
           env: PRESET=internal_mnesia DB=mnesia REL_CONFIG=minimal
+
+after_failure:
+        - tools/travis-upload-ct-reports.sh
+
+notifications:
+    webhooks:
+        # trigger Buildtime Trend Service to parse Travis CI log
+        - https://buildtimetrend.herokuapp.com/travis

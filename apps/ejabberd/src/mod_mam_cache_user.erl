@@ -109,6 +109,7 @@ stop_server(_Host) ->
 start_pm(Host, _Opts) ->
     ejabberd_hooks:add(mam_archive_id, Host, ?MODULE, cached_archive_id, 30),
     ejabberd_hooks:add(mam_archive_id, Host, ?MODULE, store_archive_id, 70),
+    ejabberd_hooks:add(mam_remove_archive, Host, ?MODULE, remove_archive, 100),
     ok.
 
 
@@ -116,6 +117,7 @@ start_pm(Host, _Opts) ->
 stop_pm(Host) ->
     ejabberd_hooks:delete(mam_archive_id, Host, ?MODULE, cached_archive_id, 30),
     ejabberd_hooks:delete(mam_archive_id, Host, ?MODULE, store_archive_id, 70),
+    ejabberd_hooks:delete(mam_remove_archive, Host, ?MODULE, remove_archive, 100),
     ok.
 
 
@@ -126,6 +128,7 @@ stop_pm(Host) ->
 start_muc(Host, _Opts) ->
     ejabberd_hooks:add(mam_muc_archive_id, Host, ?MODULE, cached_archive_id, 30),
     ejabberd_hooks:add(mam_muc_archive_id, Host, ?MODULE, store_archive_id, 70),
+    ejabberd_hooks:add(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 100),
     ok.
 
 
@@ -133,6 +136,7 @@ start_muc(Host, _Opts) ->
 stop_muc(Host) ->
     ejabberd_hooks:delete(mam_muc_archive_id, Host, ?MODULE, cached_archive_id, 30),
     ejabberd_hooks:delete(mam_muc_archive_id, Host, ?MODULE, store_archive_id, 70),
+    ejabberd_hooks:delete(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 100),
     ok.
 
 
