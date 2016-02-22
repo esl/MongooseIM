@@ -164,7 +164,8 @@ host() ->
     <<"localhost">>.
 
 configurations() ->
-    odbc_configs(is_odbc_enabled(host()))
+    cassandra_configs(is_cassandra_enabled(host()))
+    ++ odbc_configs(is_odbc_enabled(host()))
     ++ riak_configs(is_riak_enabled(host())).
 
 odbc_configs(true) ->
@@ -182,6 +183,11 @@ odbc_configs(_) ->
 riak_configs(true) ->
      [riak_timed_yz_buckets];
 riak_configs(_) ->
+     [].
+
+cassandra_configs(true) ->
+     [ca];
+cassandra_configs(_) ->
      [].
 
 basic_group_names() ->
@@ -2871,7 +2877,9 @@ make_jid(U, S, R) ->
 
 
 is_mam_possible(Host) ->
-    is_odbc_enabled(Host) orelse is_riak_enabled(Host).
+    is_odbc_enabled(Host)
+        orelse is_riak_enabled(Host)
+        orelse is_cassandra_enabled(Host).
 
 is_odbc_enabled(Host) ->
     case sql_transaction(Host, fun erlang:now/0) of
@@ -2880,6 +2888,8 @@ is_odbc_enabled(Host) ->
             %ct:pal("ODBC disabled (check failed ~p)", [Other]),
             false
     end.
+
+is_cassandra_enabled(_) -> true.
 
 is_riak_enabled(_Host) ->
     case escalus_ejabberd:rpc(mongoose_riak, get_worker, []) of

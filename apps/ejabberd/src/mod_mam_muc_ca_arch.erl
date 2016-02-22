@@ -98,9 +98,11 @@ stop(Host) ->
     mod_mam_muc_ca_sup:stop(Host).
 
 cassandra_config(Host) ->
-    gen_mod:get_module_opt(Host, ?MODULE, cassandra_config, [{servers, [{"localhost", 9042, 1}]},
-                                                             {keyspace, "mam"},
-                                                             {credentials, undefined}]).
+    gen_mod:get_module_opt(Host, ?MODULE, cassandra_config, [])
+    ++ [{servers, [{"localhost", 9042, 1}]},
+        {socket_options, [{connect_timeout, 4000}]},
+        {keyspace, "mam"},
+        {credentials, undefined}].
 
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam_muc
@@ -673,8 +675,13 @@ execute_remove_archive(RoomID, ConnPid, DeleteQueryID, DeleteQueryTypes) ->
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
 init([Host, Addr, Port, ClientOptions]) ->
+    async_spawn(Addr, Port, ClientOptions),
+    State = #state{host=Host},
+    {ok, State}.
+
+init_connection(ConnPid, State=#state{host=Host}) ->
+    erlang:monitor(process, ConnPid),
     register_worker(Host, self()),
-    {ok, ConnPid} = seestar_session:start_link(Addr, Port, ClientOptions),
     InsertQuery = "INSERT INTO mam_muc_message "
         "(id, room_id, nick_name, message) "
         "VALUES (?, ?, ?, ?)",
@@ -689,7 +696,7 @@ init([Host, Addr, Port, ClientOptions]) ->
     RevExHandler = extract_messages_r_handler(ConnPid),
     CountHandler = calc_count_handler(ConnPid),
     put(query_refs_count, 0),
-    State = #state{
+    #state{
         host=Host,
         conn=ConnPid,
         query_refs=dict:new(),
@@ -700,8 +707,7 @@ init([Host, Addr, Port, ClientOptions]) ->
         delete_query_types=DeleteQueryTypes,
         extract_messages_handler=ExHandler,
         extract_messages_r_handler=RevExHandler,
-        calc_count_handler=CountHandler},
-    {ok, State}.
+        calc_count_handler=CountHandler}.
 
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
@@ -712,6 +718,8 @@ init([Host, Addr, Port, ClientOptions]) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
+handle_call(_, From, State=#state{conn=undefined}) ->
+    {reply, no_connection, State};
 handle_call({extract_messages, Args}, From,
     State=#state{conn=ConnPid, extract_messages_handler=Handler}) ->
     QueryRef = execute_extract_messages(ConnPid, Handler, Args),
@@ -742,6 +750,8 @@ handle_call(_, _From, State=#state{}) ->
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 
+handle_cast(_, State=#state{conn=undefined}) ->
+    {noreply, State};
 handle_cast({write_message, MessID, RoomID, FromNick, Data},
     State=#state{
         conn=ConnPid,
@@ -761,7 +771,14 @@ handle_cast(Msg, State) ->
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 
-
+handle_info({connection_result, {ok, ConnPid}}, State=#state{conn=undefined}) ->
+    State2 = init_connection(ConnPid, State),
+    {noreply, State2};
+handle_info({connection_result, Reason}, State=#state{conn=undefined}) ->
+    ?ERROR_MSG("issue=\"Fail to connect to Cassandra\", reason=~1000p", [Reason]),
+    {stop, {connection_result, Reason}, State};
+handle_info(_, State=#state{conn=undefined}) ->
+    {noreply, State};
 handle_info({seestar_response, QueryRef, ResultF}, State) ->
     {noreply, forward_query_respond(ResultF, QueryRef, State)};
 handle_info(Msg, State) ->
@@ -785,3 +802,23 @@ terminate(_Reason, _State) ->
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
+%% Helpers
+%%--------------------------------------------------------------------
+
+async_spawn(Addr, Port, ClientOptions) ->
+    ?INFO_MSG("issue=\"Connecting to Cassandra\", address=~p, port=~p", [Addr, Port]),
+    Parent = self(),
+    proc_lib:spawn_link(fun() ->
+          ConnectOptions = proplists:get_value(socket_options, ClientOptions, []),
+          Res = (catch seestar_session:start_link(Addr, Port, ClientOptions, ConnectOptions)),
+          Parent ! {connection_result, Res},
+          case Res of
+              {ok, Pid} ->
+                  Mon = erlang:monitor(process, Pid),
+                  receive
+                      {'DOWN', Mon, process, Pid, _} -> ok
+                  end;
+              _ ->
+                ok
+          end
+      end).

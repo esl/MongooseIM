@@ -21,7 +21,8 @@
          purge_multiple_messages/9]).
 
 %% Helpers
--export([get_conversations_after/3]).
+-export([get_conversations_after/3,
+         test_query/1]).
 
 %% Internal exports
 -export([start_link/4]).
@@ -71,6 +72,8 @@
     get_last_conversations_types,
     remove_conversations_id,
     remove_conversations_types,
+    test_id,
+    test_types,
     calc_count_handler,
     extract_messages_handler,
     extract_messages_r_handler,
@@ -134,10 +137,11 @@ stop(Host) ->
     mod_mam_con_ca_sup:stop(Host).
 
 cassandra_config(Host) ->
-    gen_mod:get_module_opt(Host, ?MODULE, cassandra_config, [{servers, [{"localhost", 9042, 1}]},
-                                                             {keyspace, "mam"},
-                                                             {credentials, undefined}]).
-
+    gen_mod:get_module_opt(Host, ?MODULE, cassandra_config, [])
+    ++ [{servers, [{"localhost", 9042, 1}]},
+        {socket_options, [{connect_timeout, 4000}]},
+        {keyspace, "mam"},
+        {credentials, undefined}].
 
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam
@@ -240,9 +244,12 @@ group_name(Host) ->
 start_link(Host, Addr, Port, ClientOptions) ->
     gen_server:start_link(?MODULE, [Host, Addr, Port, ClientOptions], []).
 
-
 %% ----------------------------------------------------------------------
 %% Internal functions and callbacks
+
+test_query(Host) ->
+    Workers = pg2:get_local_members(group_name(Host)),
+    [{Worker, (catch gen_server:call(Worker, test))} || Worker <- Workers].
 
 archive_size(Size, _Host, _UserID, _UserJID) when is_integer(Size) ->
     %% TODO
@@ -904,9 +911,13 @@ forward_query_respond(ResultF, QueryRef,
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
 init([Host, Addr, Port, ClientOptions]) ->
-    register_worker(Host, self()),
-    {ok, ConnPid} = seestar_session:start_link(Addr, Port, ClientOptions),
+    async_spawn(Addr, Port, ClientOptions),
+    State = #state{host=Host},
+    {ok, State}.
 
+init_connection(ConnPid, State=#state{host=Host}) ->
+    erlang:monitor(process, ConnPid),
+    register_worker(Host, self()),
     InsertQuery = "INSERT INTO mam_con_message "
         "(id, lower_jid, upper_jid, is_from_lower, message) "
         "VALUES (?, ?, ?, ?, ?)",
@@ -951,11 +962,16 @@ init([Host, Addr, Port, ClientOptions]) ->
     ExistConID = seestar_result:query_id(ExistConRes),
     ExistConTypes = seestar_result:types(ExistConRes),
 
+    TestQuery = "SELECT now() FROM system.local;", %% "SELECT 1" for cassandra
+    {ok, TestRes} = seestar_session:prepare(ConnPid, TestQuery),
+    TestID = seestar_result:query_id(TestRes),
+    TestTypes = seestar_result:types(TestRes),
+
     ExHandler = extract_messages_handler(ConnPid),
     RevExHandler = extract_messages_r_handler(ConnPid),
     CountHandler = calc_count_handler(ConnPid),
     put(query_refs_count, 0),
-    State = #state{
+    State#state{
         host=Host,
         conn=ConnPid,
         query_refs=dict:new(),
@@ -974,10 +990,11 @@ init([Host, Addr, Port, ClientOptions]) ->
         get_last_conversations_types=GetLastConTypes,
         remove_conversations_id=RemoveConID,
         remove_conversations_types=RemoveConTypes,
+        test_id=TestID,
+        test_types=TestTypes,
         extract_messages_handler=ExHandler,
         extract_messages_r_handler=RevExHandler,
-        calc_count_handler=CountHandler},
-    {ok, State}.
+        calc_count_handler=CountHandler}.
 
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
@@ -988,6 +1005,8 @@ init([Host, Addr, Port, ClientOptions]) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
+handle_call(_, From, State=#state{conn=undefined}) ->
+    {reply, no_connection, State};
 handle_call({extract_messages, Args}, From,
     State=#state{conn=ConnPid, extract_messages_handler=Handler}) ->
     QueryRef = execute_extract_messages(ConnPid, Handler, Args),
@@ -1040,6 +1059,13 @@ handle_call({remove_conversations, BUserJID}, From,
     Row = [BUserJID],
     QueryRef = seestar_session:execute_async(ConnPid, RemoveConID, RemoveConTypes, Row, one),
     {noreply, save_query_ref(From, QueryRef, State)};
+handle_call(test, From,
+    State=#state{
+        conn=ConnPid,
+        test_id=TestID,
+        test_types=TestTypes}) ->
+    QueryRef = seestar_session:execute_async(ConnPid, TestID, TestTypes, [], one),
+    {noreply, save_query_ref(From, QueryRef, State)};
 handle_call(_, _From, State=#state{}) ->
     {reply, ok, State}.
 
@@ -1051,6 +1077,8 @@ handle_call(_, _From, State=#state{}) ->
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 
+handle_cast(_, State=#state{conn=undefined}) ->
+    {noreply, State};
 handle_cast({write_message, MessID, BLowerJID, BUpperJID, IsFromLower, Data},
     State=#state{
         conn=ConnPid,
@@ -1077,8 +1105,19 @@ handle_cast(Msg, State) ->
 %%--------------------------------------------------------------------
 
 
+handle_info({connection_result, {ok, ConnPid}}, State=#state{conn=undefined}) ->
+    State2 = init_connection(ConnPid, State),
+    {noreply, State2};
+handle_info({connection_result, Reason}, State=#state{conn=undefined}) ->
+    ?ERROR_MSG("issue=\"Fail to connect to Cassandra\", reason=~1000p", [Reason]),
+    {stop, {connection_result, Reason}, State};
+handle_info(_, State=#state{conn=undefined}) ->
+    {noreply, State};
 handle_info({seestar_response, QueryRef, ResultF}, State) ->
     {noreply, forward_query_respond(ResultF, QueryRef, State)};
+handle_info({'DOWN', _, process, Pid, Reason}, State=#state{conn=Pid}) ->
+    ?ERROR_MSG("issue=\"Cassandra connection closed\", reason=~1000p", [Reason]),
+    {stop, {dead_connection, Pid, Reason}, State};
 handle_info(Msg, State) ->
     ?WARNING_MSG("Strange info message ~p.", [Msg]),
     {noreply, State}.
@@ -1100,3 +1139,28 @@ terminate(_Reason, _State) ->
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
+%% Helpers
+%%--------------------------------------------------------------------
+
+async_spawn(Addr, Port, ClientOptions) ->
+    ?INFO_MSG("issue=\"Connecting to Cassandra\", address=~p, port=~p", [Addr, Port]),
+    Parent = self(),
+    proc_lib:spawn_link(fun() ->
+          ConnectOptions = proplists:get_value(socket_options, ClientOptions, []),
+          ?DEBUG("issue=\"seestar_session:start_link\", address=~p, port=~p, "
+                 "client_options=~p, connect_options=~p",
+                 [Addr, Port, ClientOptions, ConnectOptions]),
+          Res = (catch seestar_session:start_link(Addr, Port, ClientOptions, ConnectOptions)),
+          ?DEBUG("issue=\"seestar_session:start_link result\", result=~p",
+                 [Res]),
+          Parent ! {connection_result, Res},
+          case Res of
+              {ok, Pid} ->
+                  Mon = erlang:monitor(process, Pid),
+                  receive
+                      {'DOWN', Mon, process, Pid, _} -> ok
+                  end;
+              _ ->
+                ok
+          end
+      end).
