@@ -320,43 +320,83 @@ safe_lookup_messages(Result, Host,
                       MaxResultLimit :: non_neg_integer(),
                       IsSimple :: boolean()  | opt_count) ->
     {ok, mod_mam:lookup_result()} | {error, 'policy-violation'}.
-lookup_messages(_Result, Host, UserID, UserJID = #jid{},
-                #rsm_in{direction = aft, id = ID}, Borders,
+lookup_messages(Result, Host,
+                        UserID, UserJID, RSM, Borders,
+                        Start, End, Now, WithJID,
+                        PageSize, LimitPassed, MaxResultLimit,
+                        IsSimple) ->
+    lookup_messages2(Result, Host,
+                        UserID, UserJID, RSM, Borders,
+                        Start, End, Now, WithJID,
+                        PageSize, LimitPassed, MaxResultLimit,
+                        IsSimple, is_opt_count_supported_for(RSM)).
+
+%% Not supported:
+%% - #rsm_in{direction = aft, id = ID}
+%% - #rsm_in{direction = before, id = ID}
+is_opt_count_supported_for(#rsm_in{direction = before, id = undefined}) ->
+    true; %% last page is supported
+is_opt_count_supported_for(#rsm_in{direction = undefined}) ->
+    true; %% offset
+is_opt_count_supported_for(undefined) ->
+    true; %% no RSM
+is_opt_count_supported_for(_) ->
+    false.
+
+lookup_messages2(_Result, Host, UserID, UserJID = #jid{},
+                RSM, Borders,
                 Start, End, _Now, WithJID,
-                PageSize, _LimitPassed, _MaxResultLimit, true) ->
+                PageSize, _LimitPassed, _MaxResultLimit, true, _) ->
+    %% Simple query without calculating offset
     Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID),
+    lookup_messages_simple(Host, UserID, UserJID, RSM, PageSize, Filter);
+lookup_messages2(_Result, Host, UserID, UserJID = #jid{},
+                RSM, Borders,
+                Start, End, _Now, WithJID,
+                PageSize, _LimitPassed, _MaxResultLimit, opt_count, true) ->
+    %% Small result set for supported RSM
+    Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID),
+    lookup_messages_opt_count(Host, UserID, UserJID, RSM, PageSize, Filter);
+lookup_messages2(_Result, Host, UserID, UserJID = #jid{},
+                RSM, Borders,
+                Start, End, _Now, WithJID,
+                PageSize, LimitPassed, MaxResultLimit, _, _) ->
+    %% Unsupported opt_count or just a regular query
+    Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID),
+    lookup_messages_regular(Host, UserID, UserJID, RSM, PageSize, Filter,
+                            LimitPassed, MaxResultLimit).
+
+lookup_messages_simple(Host, UserID, UserJID,
+                #rsm_in{direction = aft, id = ID},
+                PageSize, Filter) ->
+    %% Get last rows from result set
     MessageRows = extract_messages(Host, UserID, after_id(ID, Filter), 0, PageSize, false),
     {ok, {undefined, undefined, rows_to_uniform_format(Host, UserJID, MessageRows)}};
-lookup_messages(_Result, Host, UserID, UserJID = #jid{},
+lookup_messages_simple(Host, UserID, UserJID,
                 #rsm_in{direction = before, id = ID},
-                Borders, Start, End, _Now, WithJID,
-                PageSize, _LimitPassed, _MaxResultLimit, true) ->
-    Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID),
+                PageSize, Filter) ->
     MessageRows = extract_messages(Host, UserID, before_id(ID, Filter), 0, PageSize, true),
     {ok, {undefined, undefined, rows_to_uniform_format(Host, UserJID, MessageRows)}};
-lookup_messages(_Result, Host, UserID, UserJID = #jid{},
-                #rsm_in{direction = undefined, index = Offset}, Borders,
-                Start, End, _Now, WithJID,
-                PageSize, _LimitPassed, _MaxResultLimit, true) ->
-    Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID),
+lookup_messages_simple(Host, UserID, UserJID,
+                #rsm_in{direction = undefined, index = Offset},
+                PageSize, Filter) ->
+    %% Apply offset
     MessageRows = extract_messages(Host, UserID, Filter, Offset, PageSize, false),
     {ok, {undefined, undefined, rows_to_uniform_format(Host, UserJID, MessageRows)}};
-lookup_messages(_Result, Host, UserID, UserJID = #jid{},
-                undefined, Borders,
-                Start, End, _Now, WithJID,
-                PageSize, _LimitPassed, _MaxResultLimit, true) ->
-    Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID),
+lookup_messages_simple(Host, UserID, UserJID,
+                undefined,
+                PageSize, Filter) ->
     MessageRows = extract_messages(Host, UserID, Filter, 0, PageSize, false),
-    {ok, {undefined, undefined, rows_to_uniform_format(Host, UserJID, MessageRows)}};
+    {ok, {undefined, undefined, rows_to_uniform_format(Host, UserJID, MessageRows)}}.
+
+
 %% Cannot be optimized:
 %% - #rsm_in{direction = aft, id = ID}
 %% - #rsm_in{direction = before, id = ID}
-lookup_messages(_Result, Host, UserID, UserJID = #jid{},
-                #rsm_in{direction = before, id = undefined}, Borders,
-                Start, End, _Now, WithJID,
-                PageSize, _LimitPassed, _MaxResultLimit, opt_count) ->
+lookup_messages_opt_count(Host, UserID, UserJID,
+                #rsm_in{direction = before, id = undefined},
+                PageSize, Filter) ->
     %% Last page
-    Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID),
     MessageRows = extract_messages(Host, UserID, Filter, 0, PageSize, true),
     MessageRowsCount = length(MessageRows),
     case MessageRowsCount < PageSize of
@@ -370,12 +410,10 @@ lookup_messages(_Result, Host, UserID, UserJID = #jid{},
             {ok, {Offset + MessageRowsCount, Offset,
                   rows_to_uniform_format(Host, UserJID, MessageRows)}}
     end;
-lookup_messages(_Result, Host, UserID, UserJID = #jid{},
-                #rsm_in{direction = undefined, index = Offset}, Borders,
-                Start, End, _Now, WithJID,
-                PageSize, _LimitPassed, _MaxResultLimit, opt_count) ->
+lookup_messages_opt_count(Host, UserID, UserJID,
+                #rsm_in{direction = undefined, index = Offset},
+                PageSize, Filter) ->
     %% By offset
-    Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID),
     MessageRows = extract_messages(Host, UserID, Filter, Offset, PageSize, false),
     MessageRowsCount = length(MessageRows),
     case MessageRowsCount < PageSize of
@@ -389,12 +427,10 @@ lookup_messages(_Result, Host, UserID, UserJID = #jid{},
             {ok, {Offset + MessageRowsCount + CountAfterLastID, Offset,
                   rows_to_uniform_format(Host, UserJID, MessageRows)}}
     end;
-lookup_messages(_Result, Host, UserID, UserJID = #jid{},
-                undefined, Borders,
-                Start, End, _Now, WithJID,
-                PageSize, _LimitPassed, _MaxResultLimit, opt_count) ->
+lookup_messages_opt_count(Host, UserID, UserJID,
+                undefined,
+                PageSize, Filter) ->
     %% First page
-    Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID),
     MessageRows = extract_messages(Host, UserID, Filter, 0, PageSize, false),
     MessageRowsCount = length(MessageRows),
     case MessageRowsCount < PageSize of
@@ -407,12 +443,13 @@ lookup_messages(_Result, Host, UserID, UserJID = #jid{},
             CountAfterLastID = calc_count(Host, UserID, after_id(LastID, Filter), IndexHintSQL),
             {ok, {MessageRowsCount + CountAfterLastID, 0,
                   rows_to_uniform_format(Host, UserJID, MessageRows)}}
-    end;
-lookup_messages(_Result, Host, UserID, UserJID = #jid{},
-                RSM = #rsm_in{direction = aft, id = ID}, Borders,
-                Start, End, _Now, WithJID,
-                PageSize, LimitPassed, MaxResultLimit, _) ->
-    Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID),
+    end.
+
+
+
+lookup_messages_regular(Host, UserID, UserJID = #jid{},
+                RSM = #rsm_in{direction = aft, id = ID},
+                PageSize, Filter, LimitPassed, MaxResultLimit) ->
     IndexHintSQL = index_hint_sql(Host),
     TotalCount = calc_count(Host, UserID, Filter, IndexHintSQL),
     Offset     = calc_offset(Host, UserID, Filter, IndexHintSQL, PageSize, TotalCount, RSM),
@@ -427,11 +464,9 @@ lookup_messages(_Result, Host, UserID, UserJID = #jid{},
             MessageRows = extract_messages(Host, UserID, after_id(ID, Filter), 0, PageSize, false),
             {ok, {TotalCount, Offset, rows_to_uniform_format(Host, UserJID, MessageRows)}}
     end;
-lookup_messages(_Result, Host, UserID, UserJID = #jid{},
-                RSM = #rsm_in{direction = before, id = ID}, Borders,
-                Start, End, _Now, WithJID,
-                PageSize, LimitPassed, MaxResultLimit, _) ->
-    Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID),
+lookup_messages_regular(Host, UserID, UserJID,
+                RSM = #rsm_in{direction = before, id = ID},
+                PageSize, Filter, LimitPassed, MaxResultLimit) ->
     IndexHintSQL = index_hint_sql(Host),
     TotalCount = calc_count(Host, UserID, Filter, IndexHintSQL),
     Offset     = calc_offset(Host, UserID, Filter, IndexHintSQL, PageSize, TotalCount, RSM),
@@ -446,11 +481,9 @@ lookup_messages(_Result, Host, UserID, UserJID = #jid{},
             MessageRows = extract_messages(Host, UserID, before_id(ID, Filter), 0, PageSize, true),
             {ok, {TotalCount, Offset, rows_to_uniform_format(Host, UserJID, MessageRows)}}
     end;
-lookup_messages(_Result, Host, UserID, UserJID = #jid{},
-                RSM, Borders,
-                Start, End, _Now, WithJID,
-                PageSize, LimitPassed, MaxResultLimit, _) ->
-    Filter = prepare_filter(UserID, UserJID, Borders, Start, End, WithJID),
+lookup_messages_regular(Host, UserID, UserJID = #jid{},
+                RSM,
+                PageSize, Filter, LimitPassed, MaxResultLimit) ->
     IndexHintSQL = index_hint_sql(Host),
     TotalCount = calc_count(Host, UserID, Filter, IndexHintSQL),
     Offset     = calc_offset(Host, UserID, Filter, IndexHintSQL, PageSize, TotalCount, RSM),
