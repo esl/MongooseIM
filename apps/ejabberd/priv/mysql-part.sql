@@ -17,8 +17,7 @@ CREATE TABLE mam_message_00(
   -- Term-encoded message packet
   message blob NOT NULL,
   PRIMARY KEY (user_id, id),
-  INDEX i_mam_message_rem USING BTREE (user_id, remote_bare_jid, id),
-  INDEX i_mam_message_uid USING BTREE (user_id, id)
+  INDEX i_mam_message_rem USING BTREE (user_id, remote_bare_jid, id)
 )  ENGINE=InnoDB;
 
 CREATE TABLE mam_message_01 LIKE mam_message_00;
