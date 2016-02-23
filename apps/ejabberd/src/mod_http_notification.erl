@@ -34,7 +34,9 @@ start(Host, _Opts) ->
   ok.
 
 stop(Host) ->
-  %%TODO: delete children of supervisor
+  Ch = {http_notification_sup, Host},
+  supervisor:terminate_child(ejabberd_sup, Ch),
+  supervisor:delete_child(ejabberd_sup, Ch),
   ejabberd_hooks:delete(user_send_packet, Host, ?MODULE, on_user_send_packet, 100),
   ok.
 
