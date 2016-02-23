@@ -218,7 +218,16 @@ analyze_coverage(_, _) ->
 
 prepare(Test) ->
     Apps = get_apps(),
-    Compiled = rpc:call(get_ejabberd_node(Test), mongoose_cover_helper, start, [Apps]),
+    [Node1 | Nodes] = get_ejabberd_nodes(Test),
+    Compiled = rpc:call(Node1, mongoose_cover_helper, start, [Apps]),
+    case Nodes of
+        [Node2] ->
+            io:format("cover: compiling modules for node: ~p~n", [Node2]),
+            R = rpc:call(Node2, mongoose_cover_helper, start, [Apps]),
+            io:format("cover: compilation status: ~p~n", [R]);
+        [] -> ok;
+        __ -> error(unexpected_nodes, [Test])
+    end,
     io:format("Compiled modules ~p~n", [Compiled]).
 
 analyze(Test, CoverOpts) ->
@@ -267,9 +276,15 @@ make_html(Modules) ->
     file:close(File).
 
 get_ejabberd_node(Test) ->
+    %% Failure on empty list is deliberate.
+    hd(get_ejabberd_nodes(Test)).
+
+get_ejabberd_nodes(Test) ->
     {_File, Props} = get_ct_config(Test),
-    {ejabberd_node, Node} = proplists:lookup(ejabberd_node, Props),
-    Node.
+    %% TODO: nodes should be named uniformly! i.e. {nodes, [Node1, Node2]}
+    {_, Node1} = lists:keyfind(ejabberd_node, 1, Props),
+    {_, Node2} = lists:keyfind(ejabberd2_node, 1, Props),
+    [Node1, Node2].
 
 percent(0, _) -> 0;
 percent(C, NC) when C /= 0; NC /= 0 -> round(C / (NC+C) * 100);
