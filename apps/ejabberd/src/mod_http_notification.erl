@@ -66,7 +66,7 @@ get_callback_module() ->
 make_req(Host, Sender, Receiver, Message) ->
   PathPrefix = gen_mod:get_module_opt(Host, ?MODULE, prefix_path, ?DEFAULT_PREFIX_PATH),
   Connection = cuesport:get_worker(existing_pool_name(Host)),
-  Query = <<"author=", Sender/binary, "&server=", Host/binary, "&reciever=", Receiver/binary, "&message=", Message/binary>>,
+  Query = <<"author=", Sender/binary, "&server=", Host/binary, "&receiver=", Receiver/binary, "&message=", Message/binary>>,
   ?INFO_MSG("Making request '~s' for user ~s@~s...", [PathPrefix, Sender, Host]),
   Header = [{<<"Content-Type">>, <<"application/x-www-form-urlencoded">>}],
   {ok, {{Code, _Reason}, _RespHeaders, RespBody, _, _}} = fusco:request(Connection, <<PathPrefix/binary>>,
