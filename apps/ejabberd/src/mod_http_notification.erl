@@ -10,7 +10,7 @@
 -behaviour(gen_mod).
 
 %% API
--export([start/2, stop/1, on_user_send_packet/3]).
+-export([start/2, stop/1, on_user_send_packet/3,should_make_req/4]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -41,16 +41,29 @@ stop(Host) ->
   ok.
 
 on_user_send_packet(From, To, Packet) ->
-  Type = xml:get_tag_attr_s(list_to_binary("type"), Packet),
-  Body = xml:get_path_s(Packet, [{elem, list_to_binary("body")}, cdata]),
-  if (Type == <<"chat">>) and (Body /= <<"">>) ->
-    make_req(post, From#jid.lserver, From#jid.luser, To#jid.luser, Body);
-    ok;
+  Type = exml_query:attr(Packet, <<"type">>, <<>>),
+  Body = exml_query:path(Packet, [{element, <<"body">>}, cdata], <<>>),
+  Mod = get_callback_module(),
+  case Mod:should_make_req(Type, Body, From, To) of
     true ->
+      make_req(From#jid.lserver, From#jid.luser, To#jid.luser, Body);
+    _ ->
       ok
   end.
 
-make_req(Method, Host, Sender, Receiver, Message) ->
+%% @doc This function determines whether to send http notification or not.
+%% Can be reconfigured by creating a custom module implementing should_make_req/4
+%% and adding it to mod_http_notification settings as {callback_module}
+%% Default behaviour is to send all chat messages with non-empty body.
+should_make_req(<<"chat">>, Body, _From, _To) when Body /= <<"">> ->
+  true;
+should_make_req(_, _, _, _) ->
+  false.
+
+get_callback_module() ->
+  gen_mod:get_module_opt(?MYNAME, ?MODULE, callback_module, ?MODULE).
+
+make_req(Host, Sender, Receiver, Message) ->
   PathPrefix = gen_mod:get_module_opt(Host, ?MODULE, prefix_path, ?DEFAULT_PREFIX_PATH),
   Connection = cuesport:get_worker(existing_pool_name(Host)),
   Query = <<"author=", Sender/binary, "&server=", Host/binary, "&reciever=", Receiver/binary, "&message=", Message/binary>>,
