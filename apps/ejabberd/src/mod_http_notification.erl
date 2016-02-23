@@ -56,12 +56,8 @@ make_req(Method, Host, Sender, Receiver, Message) ->
   Query = <<"author=", Sender/binary, "&server=", Host/binary, "&reciever=", Receiver/binary, "&message=", Message/binary>>,
   ?INFO_MSG("Making request '~s' for user ~s@~s...", [PathPrefix, Sender, Host]),
   Header = [{<<"Content-Type">>, <<"application/x-www-form-urlencoded">>}],
-  {ok, {{Code, _Reason}, _RespHeaders, RespBody, _, _}} = case Method of
-    get -> fusco:request(Connection, <<PathPrefix/binary, "?", Query/binary>>,
-      "GET", Header, "", 2, 5000);
-    post -> fusco:request(Connection, <<PathPrefix/binary>>,
-       "POST", Header, Query, 2, 5000)
-  end,
+  {ok, {{Code, _Reason}, _RespHeaders, RespBody, _, _}} = fusco:request(Connection, <<PathPrefix/binary>>,
+       "POST", Header, Query, 2, 5000),
   ?INFO_MSG("Request result: ~s: ~p", [Code, RespBody]),
   ok.
 
