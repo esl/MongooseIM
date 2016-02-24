@@ -3,12 +3,16 @@
 git clone -b demo https://github.com/studzien/mongooseim-docker.git
 cd mongooseim-docker
 
-export PROJECT=master
+echo "branch: ${TRAVIS_BRANCH}"
+echo "tag: ${TRAVIS_TAG}"
+
+
+export PROJECT=${TRAVIS_BRANCH}
 export VOLUMES="`pwd`/projects/${PROJECT}"
 
 mkdir -p "${VOLUMES}/builds"
 
-echo "${PROJECT} master https://github.com/esl/mongooseim" > ${VOLUMES}/builds/specs
+echo "${PROJECT} ${TRAVIS_BRANCH} https://github.com/${TRAVIS_REPO_SLUG}" > ${VOLUMES}/builds/specs
 
 make builder
 
@@ -18,5 +22,9 @@ make member.build
 
 docker images
 
+docker login -e=${DOCKERHUB_EMAIL} -u ${DOCKERHUB_USER} -p ${DOCKERHUB_PASS}
 
+docker tag ${PROJECT}-mongooseim ${DOCKERHUB_USER}/mongooseim
+
+docker push ${DOCKERHUB_USER}/mongooseim
 
