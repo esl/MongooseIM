@@ -139,14 +139,13 @@ user_should_be_disconnected_from_removed_domain(Config) ->
 %%--------------------------------------------------------------------
 
 get_ejabberd_hosts() ->
-    ejabberd_node_utils:call_fun(ejabberd_config, get_global_option, [hosts]).
+    escalus_ejabberd:rpc(ejabberd_config, get_global_option, [hosts]).
 
 register_user_by_ejabberd_admin(User, Host) ->
-    ejabberd_node_utils:call_fun(ejabberd_admin, register,
-                                 [User, Host, <<"doctor">>]).
+    escalus_ejabberd:rpc(ejabberd_admin, register, [User, Host, <<"doctor">>]).
 
 unregister_user_by_ejabberd_admin(User, Host) ->
-    ejabberd_node_utils:call_fun(ejabberd_admin, unregister, [User, Host]).
+    escalus_ejabberd:rpc(ejabberd_admin, unregister, [User, Host]).
 
 change_domain_in_config_file(Config) ->
     ejabberd_node_utils:modify_config_file(
