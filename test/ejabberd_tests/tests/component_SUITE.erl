@@ -22,12 +22,11 @@
 -include_lib("exml/include/exml.hrl").
 -include_lib("exml/include/exml_stream.hrl").
 
--import(reload_helper, [modify_config_file/2,
-                        bacup_ejabberd_config_file/1,
-                        restore_ejabberd_config_file/1,
-                        reload_through_ctl/1,
-                        restart_ejabberd_node/0,
-                        set_ejabberd_node_cwd/1]).
+-import(reload_helper, [modify_config_file/3,
+                        backup_ejabberd_config_file/2,
+                        restore_ejabberd_config_file/2,
+                        reload_through_ctl/2,
+                        restart_ejabberd_node/1]).
 
 -import(distributed_helper, [add_node_to_cluster/1,
                              remove_node_from_cluster/1]).
@@ -64,7 +63,8 @@ xep0114_tests() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    escalus:init_per_suite(Config).
+    Config1 = escalus:init_per_suite(Config),
+    ejabberd_node_utils:init(Config1).
 
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
@@ -81,8 +81,8 @@ init_per_group(xep0114_ws, Config) ->
     escalus:create_users(Config1, escalus:get_users([alice, bob]));
 init_per_group(subdomain, Config) ->
     Config1 = get_components([], Config),
-    Config2 = add_domain(Config1),
-    escalus:create_users(Config2, escalus:get_users([alice, astrid]));
+    add_domain(Config1),
+    escalus:create_users(Config1, escalus:get_users([alice, astrid]));
 init_per_group(distributed, Config) ->
     Config1 = get_components([], Config),
     Config2 = add_node_to_cluster(Config1),
@@ -365,16 +365,17 @@ connect_component(ComponentOpts, StartStep) ->
     {Component, ComponentAddr, ComponentName}.
 
 add_domain(Config) ->
+    Node = default_node(Config),
     Hosts = {hosts, "[\"localhost\", \"sogndal\"]"},
-    Config1 = set_ejabberd_node_cwd(Config),
-    bacup_ejabberd_config_file(Config1),
-    modify_config_file([Hosts], Config1),
-    reload_through_ctl(Config1),
-    Config1.
+    backup_ejabberd_config_file(Node, Config),
+    modify_config_file(Node, [Hosts], Config),
+    reload_through_ctl(Node, Config),
+    ok.
 
 restore_domain(Config) ->
-    restore_ejabberd_config_file(Config),
-    restart_ejabberd_node(),
+    Node = default_node(Config),
+    restore_ejabberd_config_file(Node, Config),
+    restart_ejabberd_node(Node),
     Config.
 
 %%--------------------------------------------------------------------
@@ -442,3 +443,8 @@ component_handshake(SID, Password) ->
 cluster_users() ->
     AllUsers = ct:get_config(escalus_users),
     [proplists:lookup(alice, AllUsers), proplists:lookup(clusterguy, AllUsers)].
+
+default_node(Config) ->
+    Node = escalus_config:get_config(ejabberd_node, Config),
+    Node == undefined andalso error(node_undefined, [Config]),
+    Node.
