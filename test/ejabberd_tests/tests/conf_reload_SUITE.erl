@@ -21,12 +21,7 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--import(reload_helper, [modify_config_file/2,
-                        bacup_ejabberd_config_file/1,
-                        restore_ejabberd_config_file/1,
-                        reload_through_ctl/1,
-                        restart_ejabberd_node/0,
-                        set_ejabberd_node_cwd/1]).
+-import(reload_helper, [reload_through_ctl/2]).
 
 -define(RELOADED_DOMAIN, ct:get_config(ejabberd_reloaded_domain)).
 
@@ -95,7 +90,7 @@ domain_should_change(Config) ->
     ?assertNot(NewHosts == get_ejabberd_hosts()),
 
     %% WHEN
-    reload_through_ctl(Config),
+    reload_through_ctl(default_node(Config), Config),
 
     %% THEN
     ?assertMatch(NewHosts, get_ejabberd_hosts()).
@@ -107,7 +102,7 @@ user_should_be_registered_and_unregistered_via_ctl(Config) ->
                                          ?SAMPLE_USERNAME, NewHost)),
 
     %% WHEN
-    reload_through_ctl(Config),
+    reload_through_ctl(default_node(Config), Config),
 
     %% THEN
     ?assertMatch({ok, _}, register_user_by_ejabberd_admin(
@@ -121,7 +116,7 @@ user_should_be_registered_and_unregistered_via_xmpp(Config) ->
     ?assert(lists:member(UserDomain, ?config(new_hosts_value, Config))),
 
     %% WHEN
-    reload_through_ctl(Config),
+    reload_through_ctl(default_node(Config), Config),
 
     %% THEN
     ?assertMatch(ok, create_user(?RELOADED_DOMAIN_USER, Config)),
@@ -133,7 +128,7 @@ user_should_be_disconnected_from_removed_domain(Config) ->
     Conn = connect_user(?INITIAL_DOMAIN_USER, Config),
 
     %% WHEN
-    reload_through_ctl(Config),
+    reload_through_ctl(default_node(Config), Config),
 
     %% THEN
     ?assertNot(escalus_connection:is_connected(Conn)).
@@ -187,3 +182,8 @@ create_user(User, Config) ->
 delete_user(User, Config) ->
     {User, UserSpec} = escalus_users:get_user_by_name(User),
     escalus_users:delete_user(Config, {User, UserSpec}).
+
+default_node(Config) ->
+    Node = escalus_config:get_config(ejabberd_node, Config),
+    Node == undefined andalso error(node_undefined, [Config]),
+    Node.
