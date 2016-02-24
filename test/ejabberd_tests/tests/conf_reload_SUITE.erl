@@ -146,20 +146,6 @@ user_should_be_disconnected_from_removed_domain(Config) ->
 get_ejabberd_hosts() ->
     ejabberd_node_utils:call_fun(ejabberd_config, get_global_option, [hosts]).
 
-reload_through_ctl(Config) ->
-    OutputStr = ejabberd_node_utils:call_ctl(reload_local, Config),
-    ok = verify_reload_output(OutputStr).
-
-verify_reload_output(OutputStr) ->
-    ExpectedOutput = ?CTL_RELOAD_OUTPUT_PREFIX,
-    case lists:sublist(OutputStr, length(ExpectedOutput)) of
-        ExpectedOutput ->
-            ok;
-        _ ->
-            ct:pal("~ts", [OutputStr]),
-            error(config_reload_failed, [OutputStr])
-    end.
-
 register_user_by_ejabberd_admin(User, Host) ->
     ejabberd_node_utils:call_fun(ejabberd_admin, register,
                                  [User, Host, <<"doctor">>]).
