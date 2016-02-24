@@ -41,7 +41,6 @@ stop(Host) ->
   ok.
 
 on_user_send_packet(From, To, Packet) ->
-  Type = exml_query:attr(Packet, <<"type">>, <<>>),
   Body = exml_query:path(Packet, [{element, <<"body">>}, cdata], <<>>),
   Mod = get_callback_module(),
   case Mod:should_make_req(Packet, From, To) of
