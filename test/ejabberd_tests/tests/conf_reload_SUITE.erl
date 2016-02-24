@@ -98,17 +98,17 @@ domain_should_change(Config) ->
 user_should_be_registered_and_unregistered_via_ctl(Config) ->
     %% GIVEN
     [NewHost] = ?config(new_hosts_value, Config),
-    ?assertMatch({cannot_register, _}, register_user_by_ejabberd_admin(
-                                         ?SAMPLE_USERNAME, NewHost)),
+    ?assertMatch({cannot_register, _},
+                 register_user_by_ejabberd_admin(?SAMPLE_USERNAME, NewHost)),
 
     %% WHEN
     reload_through_ctl(default_node(Config), Config),
 
     %% THEN
-    ?assertMatch({ok, _}, register_user_by_ejabberd_admin(
-                            ?SAMPLE_USERNAME, NewHost)),
-    ?assertMatch({ok, _}, unregister_user_by_ejabberd_admin(
-                            ?SAMPLE_USERNAME, NewHost)).
+    ?assertMatch({ok, _},
+                 register_user_by_ejabberd_admin(?SAMPLE_USERNAME, NewHost)),
+    ?assertMatch({ok, _},
+                 unregister_user_by_ejabberd_admin(?SAMPLE_USERNAME, NewHost)).
 
 user_should_be_registered_and_unregistered_via_xmpp(Config) ->
     %% GIVEN
