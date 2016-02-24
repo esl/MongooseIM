@@ -18,12 +18,13 @@
 
 -include_lib("common_test/include/ct.hrl").
 
--export([modify_config_file/2,
-         bacup_ejabberd_config_file/1,
-         restore_ejabberd_config_file/1,
-         reload_through_ctl/1,
-         restart_ejabberd_node/0,
-         set_ejabberd_node_cwd/1]).
+-export([modify_config_file/3,
+         backup_ejabberd_config_file/2,
+         restore_ejabberd_config_file/2,
+         reload_through_ctl/2,
+         restart_ejabberd_node/1]).
+
+-import(distributed_helper, [rpc/4]).
 
 -define(CWD(Config), ?config(ejabberd_node_cwd, Config)).
 -define(CURRENT_CFG_PATH(Config),
@@ -42,30 +43,21 @@
 -define(CTL_RELOAD_OUTPUT_PREFIX,
         "# Reloaded: " ++ atom_to_list(ct:get_config(ejabberd_node))).
 
+backup_ejabberd_config_file(Node, Config) ->
+    {ok, _} = rpc(Node, file, copy, [?CURRENT_CFG_PATH(Config),
+                                     ?BACKUP_CFG_PATH(Config)]).
 
-call_ejabberd(M, F, A) ->
-    Node = ct:get_config(ejabberd_node),
-    rpc:call(Node, M, F, A).
+restore_ejabberd_config_file(Node, Config) ->
+    ok = rpc(Node, file, rename, [?BACKUP_CFG_PATH(Config),
+                                  ?CURRENT_CFG_PATH(Config)]).
 
-set_ejabberd_node_cwd(Config) ->
-    {ok, Cwd} = call_ejabberd(file, get_cwd, []),
-    [{ejabberd_node_cwd, Cwd} | Config].
+restart_ejabberd_node(Node) ->
+    ok = rpc(Node, application, stop, [ejabberd]),
+    ok = rpc(Node, application, start, [ejabberd]).
 
-bacup_ejabberd_config_file(Config) ->
-    {ok, _} = call_ejabberd(file, copy, [?CURRENT_CFG_PATH(Config),
-                                         ?BACKUP_CFG_PATH(Config)]).
-
-restore_ejabberd_config_file(Config) ->
-    ok = call_ejabberd(file, rename, [?BACKUP_CFG_PATH(Config),
-                                      ?CURRENT_CFG_PATH(Config)]).
-
-restart_ejabberd_node() ->
-    ok = call_ejabberd(application, stop, [ejabberd]),
-    ok = call_ejabberd(application, start, [ejabberd]).
-
-reload_through_ctl(Config) ->
+reload_through_ctl(Node, Config) ->
     ReloadCmd = ?CTL_PATH(Config) ++ " reload_local",
-    OutputStr = call_ejabberd(os, cmd, [ReloadCmd]),
+    OutputStr = rpc(Node, os, cmd, [ReloadCmd]),
     ok = verify_reload_output(OutputStr).
 
 verify_reload_output(OutputStr) ->
@@ -79,18 +71,15 @@ verify_reload_output(OutputStr) ->
     end.
     
 
-modify_config_file(CfgVarsToChange, Config) ->
+modify_config_file(Node, CfgVarsToChange, Config) ->
     CurrentCfgPath = ?CURRENT_CFG_PATH(Config),
-    {ok, CfgTemplate} = call_ejabberd(file, read_file,
-                                      [?CFG_TEMPLATE_PATH(Config)]),
-    {ok, CfgVars} = call_ejabberd(file, consult,
-                                  [?CFG_VARS_PATH(Config)]),
+    {ok, CfgTemplate} = rpc(Node, file, read_file, [?CFG_TEMPLATE_PATH(Config)]),
+    {ok, CfgVars} = rpc(Node, file, consult, [?CFG_VARS_PATH(Config)]),
     UpdatedCfgVars = update_config_variables(CfgVarsToChange, CfgVars),
     CfgTemplateList = binary_to_list(CfgTemplate),
     UpdatedCfgFile = mustache:render(CfgTemplateList,
                                      dict:from_list(UpdatedCfgVars)),
-    ok = call_ejabberd(file, write_file, [CurrentCfgPath,
-                                          UpdatedCfgFile]).
+    ok = rpc(Node, file, write_file, [CurrentCfgPath, UpdatedCfgFile]).
 
 update_config_variables(CfgVarsToChange, CfgVars) ->
     lists:foldl(fun({Var, Val}, Acc) ->
