@@ -33,7 +33,7 @@ after_failure:
 
 after_success:
         - make cover_report
-        - if [ $PRESET = 'internal_mnesia' ]; then tools/travis-build-and-push-docker.sh; fi
+        - if [ $PRESET = 'internal_mnesia' ] && [ $TRAVIS_OTP_RELEASE = "17.5" ] && [ $TRAVIS_PULL_REQUEST = 'false' ]; then tools/travis-build-and-push-docker.sh; fi
 
 services:
         - redis-server
@@ -43,13 +43,13 @@ branches:
                 - docker-image-building
                 - master
                 - stable
-                - rel-1.7
+                - /\d+\.\d+\.\d+(\-[a-z,0-9])*/
 
 otp_release:
         - 17.5
 env:
         - PRESET=internal_redis DB=mnesia REL_CONFIG=with-redis
-        - PRESET=internal_mnesia DB=mnesia REL_CONFIG=with-none
+        - PRESET=internal_mnesia DB=mnesia REL_CONFIG=with-all
         - PRESET=mysql_mnesia DB=mysql REL_CONFIG=with-mysql
         - PRESET=odbc_pgsql_mnesia DB=pgsql REL_CONFIG=with-odbc
         - PRESET=pgsql_mnesia DB=pgsql REL_CONFIG=with-pgsql
@@ -80,3 +80,12 @@ cache:
 before_cache:
         - rm -f dialyzer/apps.*
 
+deploy:
+  provider: releases
+  api-key: $GITHUB_TOKEN
+  skip_cleanup: true
+  file: mongooseim-$TRAVIS_BRANCH.$TRAVIS_OTP_RELEASE.$(lsb_release -is | tr "A-Z" "a-z").$(lsb_release -rs).$(uname -m).tar.bz2
+  on:
+    otp_release: 17.5
+    tags: true
+    condition: "$PRESET = internal_mnesia"
