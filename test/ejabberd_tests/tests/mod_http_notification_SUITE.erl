@@ -22,7 +22,7 @@ all() ->
   [{group, mod_http_notification_tests}].
 
 all_tests() ->
-  [simple_message].
+  [simple_message, simple_message_no_listener, simple_message_failing_listener].
 
 groups() ->
   [{mod_http_notification_tests, [sequence], all_tests()}].
@@ -67,45 +67,30 @@ start_mod_http_notification(Opts)->
 %%% offline tests
 %%%===================================================================
 
-assert_true(_, true) ->
-  ok;
-assert_true(Name, _) ->
-  ct:fail("~p is not true, while should be", [Name]).
-
-
-listen_once(PPid) ->
-  spawn(fun() -> onetime_http_server(PPid) end).
-
-onetime_http_server(PPid) ->
-  %% a crappy hand-crafted listener with everything hardcoded
-  {ok, LSock} = gen_tcp:listen(8000, [binary, {packet, 0},
-    {active, false}, {reuseaddr, true}]),
-  {ok, Sock} = gen_tcp:accept(LSock),
-  do_recv(Sock, [], PPid),
-  gen_tcp:close(Sock).
-
-do_recv(Sock, Bs, PPid) ->
-  case gen_tcp:recv(Sock, 0) of
-    {ok, B} ->
-      case erlang:decode_packet(http, B, []) of
-        {ok, {http_request, 'POST', _, _}, _} ->
-          Resp = "HTTP/1.1 200 OK\r\nDate: Tue, 23 Feb 2016 14:59:37 GMT\r\nContent-Length: 2\r\nContent-Type: text/html\r\nServer: TwistedWeb/12.2.0\r\n\r\nOK",
-          gen_tcp:send(Sock, Resp),
-          PPid ! {ok, got_it},
-          ok;
-        _ ->
-          do_recv(Sock, [Bs, B], PPid)
-      end;
-    {error, closed} ->
-      ok
-  end.
-
 simple_message(Config) ->
   %% we expect one notification message
-  listen_once(self()),
+  http_helper:listen_once(self(), 8000, [<<"alice">>, <<"Simple">>]),
+  do_simple_message(Config, <<"Hi, Simple!">>),
+  %% fail if we didn't receive http notification
+  Notified = receive
+    {ok, got_http_request, _} ->
+      true
+    after 2000 ->
+      false
+  end,
+  assert_true("notified", Notified).
+
+simple_message_no_listener(Config) ->
+  do_simple_message(Config, <<"Hi, NoListener!">>).
+
+simple_message_failing_listener(Config) ->
+  http_helper:listen_once(self(), 8000, none, none),
+  do_simple_message(Config, <<"Hi, Failing!">>).
+
+do_simple_message(Config, Msg) ->
   %% Alice sends a message to Bob, who is offline
   escalus:story(Config, [{alice, 1}], fun(Alice) ->
-    escalus:send(Alice, escalus_stanza:chat_to(bob, <<"Hi, Offline!">>))
+    escalus:send(Alice, escalus_stanza:chat_to(bob, Msg))
                                       end),
 
   %% Bob logs in
@@ -113,17 +98,10 @@ simple_message(Config) ->
 
   %% He receives his initial presence and the message
   Stanzas = escalus:wait_for_stanzas(Bob, 2),
+  ct:pal("Stanzas:~p", [Stanzas]),
   escalus_new_assert:mix_match([is_presence,
-    is_chat(<<"Hi, Offline!">>)],
+    is_chat(Msg)],
     Stanzas),
-  %% fail if we didn't receive http notification
-  Notified = receive
-    {ok, got_it} ->
-      true
-  after 2000 ->
-    false
-  end,
-  assert_true("notified", Notified),
   escalus_cleaner:clean(Config).
 
 
@@ -143,3 +121,9 @@ login_send_presence(Config, User) ->
   {ok, Client} = escalus_client:start(Config, Spec, <<"dummy">>),
   escalus:send(Client, escalus_stanza:presence(<<"available">>)),
   Client.
+
+
+assert_true(_, true) ->
+  ok;
+assert_true(Name, _) ->
+  ct:fail("~p is not true, while should be", [Name]).
