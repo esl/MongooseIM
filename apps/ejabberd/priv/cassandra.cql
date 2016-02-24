@@ -7,12 +7,13 @@ CREATE TABLE mam_message(
   user_jid varchar,
   from_jid varchar,
   remote_bare_jid varchar,
-  remote_resource varchar,
+  remote_full_jid varchar,
   is_incoming boolean,
   message blob,
   PRIMARY KEY ((user_jid), id));
 
-CREATE INDEX i_mam_message_rem (user_jid, remote_bare_jid, id) ON mam_message;
+CREATE INDEX i_mam_message_rem_bare ON mam_message (remote_bare_jid);
+CREATE INDEX i_mam_message_rem_full ON mam_message (remote_full_jid);
 
 CREATE TABLE mam_muc_message (
   id bigint,

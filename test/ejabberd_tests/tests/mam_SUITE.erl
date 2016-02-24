@@ -576,7 +576,7 @@ init_modules(odbc_simple, _, Config) ->
     init_module(host(), mod_mam_odbc_user, [pm]),
     Config;
 init_modules(ca, _, Config) ->
-    init_module(host(), mod_mam_con_ca_arch, [pm]),
+    init_module(host(), mod_mam_ca_arch, [pm]),
     init_module(host(), mod_mam_odbc_prefs, [pm]),
     init_module(host(), mod_mam_odbc_user, [pm]),
     init_module(host(), mod_mam, [add_archived_element]),
@@ -639,12 +639,10 @@ end_modules(_, _, Config) ->
 mam_modules() ->
     [mod_mam,
      mod_mam_muc,
-     mod_mam_con_ca_arch,
      mod_mam_ca_arch,
      mod_mam_muc_ca_arch,
      mod_mam_odbc_arch,
      mod_mam_muc_odbc_arch,
-     mod_mam_con_ca,
      mod_mam_odbc_async_pool_writer,
      mod_mam_muc_odbc_async_pool_writer,
      mod_mam_odbc_prefs,
