@@ -2,19 +2,18 @@
 
 make rel
 
-export MIM_TAR=mongooseim-$TRAVIS_BRANCH.$TRAVIS_OTP_RELEASE.$(lsb_release -is | tr "A-Z" "a-z").$(lsb_release -rs).$(uname -m).tar.bz2
+MIM_TAR_FULL_NAME=mongooseim-$TRAVIS_BRANCH.$TRAVIS_OTP_RELEASE.$(lsb_release -is | tr "A-Z" "a-z").$(lsb_release -rs).$(uname -m).tar.bz2
 
-tar -cjh --transform='s,mongooseim,mongooseim-${$TRAVIS_BRANCH},S' -f ${MIM_TAR} rel/mongooseim
+MONGOOSE_TGZ=mongooseim.tar.gz
 
-git clone -b demo https://github.com/studzien/mongooseim-docker.git
+tar -cjh --transform='s,rel/mongooseim,mongooseim-${$TRAVIS_BRANCH},S' -f ${MIM_TAR_FULL_NAME} rel/mongooseim
+tar czh --transform='s,rel/mongooseim,mongooseim,S' -f $MONGOOSE_TGZ rel/mongooseim
+
+export BUILDS=`pwd`
+export MEMBER_TGZ=mongooseim.tar.gz
+
+git clone https://github.com/michalwski/mongooseim-docker.git
 cd mongooseim-docker
-
-echo "branch: ${TRAVIS_BRANCH}"
-echo "tag: ${TRAVIS_TAG}"
-
-
-export PROJECT=${TRAVIS_BRANCH}
-export VOLUMES="`pwd`/projects/${PROJECT}"
 
 DOCKERHUB_TAG=${TRAVIS_BRANCH}
 
@@ -22,21 +21,13 @@ if [ ${TRAVIS_BRANCH} = 'master' ]; then
 	$DOCKERHUB_TAG="latest";
 fi
 
-mkdir -p "${VOLUMES}/builds"
+cp ../${MONGOOSE_TGZ} member
 
-echo "${PROJECT} ${TRAVIS_BRANCH} https://github.com/${TRAVIS_REPO_SLUG}" > ${VOLUMES}/builds/specs
-
-make builder
-
-docker exec -it ${PROJECT}-builder /build.sh
-
-make member.build
-
-docker images
+docker build -f Dockerfile.member -t mongooseim .
 
 docker login -e=${DOCKERHUB_EMAIL} -u ${DOCKERHUB_USER} -p ${DOCKERHUB_PASS}
 
-docker tag ${PROJECT}-mongooseim ${DOCKERHUB_USER}/mongooseim:${DOCKERHUB_TAG}
+docker tag mongooseim ${DOCKERHUB_USER}/mongooseim:${DOCKERHUB_TAG}
 
 docker push ${DOCKERHUB_USER}/mongooseim:${DOCKERHUB_TAG}
 
