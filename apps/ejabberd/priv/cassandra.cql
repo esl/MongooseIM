@@ -29,6 +29,11 @@ CREATE TABLE mam_message_id_to_index(
   remote_jid varchar,
   PRIMARY KEY ((user_jid), remote_jid, id));
 
+CREATE TABLE mam_message_purged(
+  from_id bigint,
+  to_id bigint,
+  user_jid varchar,
+  PRIMARY KEY ((user_jid), from_id));
 
 CREATE TABLE mam_muc_message (
   id bigint,
