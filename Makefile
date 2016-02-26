@@ -5,7 +5,7 @@ EJD_INCLUDE = $(EJABBERD_DIR)/include
 EJD_PRIV = $(EJABBERD_DIR)/priv
 XEP_TOOL = tools/xep_tool
 EJD_EBIN = $(EJABBERD_DIR)/ebin
-DEVNODES = node1 node2
+DEVNODES = node1 node2 fed1
 
 all: deps compile
 
