@@ -69,8 +69,8 @@
 
 -record(mam_ca_filter, {
     user_jid,
-    remote_bare_jid,
-    remote_full_jid,
+    with_jid,
+    remote_jid,
     start_id,
     end_id
 }).
@@ -82,10 +82,9 @@
 -record(mam_message, {
   id :: non_neg_integer(),
   user_jid :: binary(),
+  remote_jid :: binary(),
   from_jid :: binary(),
-  remote_bare_jid :: binary(),
-  remote_full_jid :: binary(),
-  is_incoming :: boolean(),
+  with_jid :: binary(),
   message :: binary()
 }).
 
@@ -110,32 +109,10 @@ start(Host, Opts) ->
     compile_params_module(Opts),
     create_worker_pool(Host),
     mod_mam_ca_sup:start(Host, cassandra_config(Host)),
-    case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
-        true ->
-            start_pm(Host, Opts);
-        false ->
-            ok
-    end,
-    case gen_mod:get_module_opt(Host, ?MODULE, muc, false) of
-        true ->
-            start_muc(Host, Opts);
-        false ->
-            ok
-    end.
+    start_pm(Host, Opts).
 
 stop(Host) ->
-    case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
-        true ->
-            stop_pm(Host);
-        false ->
-            ok
-    end,
-    case gen_mod:get_module_opt(Host, ?MODULE, muc, false) of
-        true ->
-            stop_muc(Host);
-        false ->
-            ok
-    end,
+    stop_pm(Host),
     delete_worker_pool(Host),
     mod_mam_ca_sup:stop(Host).
 
@@ -176,39 +153,6 @@ stop_pm(Host) ->
     ejabberd_hooks:delete(mam_purge_single_message, Host, ?MODULE, purge_single_message, 50),
     ejabberd_hooks:delete(mam_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 50),
     ok.
-
-
-%% ----------------------------------------------------------------------
-%% Add hooks for mod_mam_muc
-
-start_muc(Host, _Opts) ->
-    case gen_mod:get_module_opt(Host, ?MODULE, no_writer, false) of
-        true ->
-            ok;
-        false ->
-            ejabberd_hooks:add(mam_archive_message, Host, ?MODULE, archive_message, 50)
-    end,
-    ejabberd_hooks:add(mam_archive_size, Host, ?MODULE, archive_size, 50),
-    ejabberd_hooks:add(mam_lookup_messages, Host, ?MODULE, lookup_messages, 50),
-    ejabberd_hooks:add(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
-    ejabberd_hooks:add(mam_purge_single_message, Host, ?MODULE, purge_single_message, 50),
-    ejabberd_hooks:add(mam_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 50),
-    ok.
-
-stop_muc(Host) ->
-    case gen_mod:get_module_opt(Host, ?MODULE, no_writer, false) of
-        true ->
-            ok;
-        false ->
-            ejabberd_hooks:delete(mam_archive_message, Host, ?MODULE, archive_message, 50)
-    end,
-    ejabberd_hooks:delete(mam_archive_size, Host, ?MODULE, archive_size, 50),
-    ejabberd_hooks:delete(mam_lookup_messages, Host, ?MODULE, lookup_messages, 50),
-    ejabberd_hooks:delete(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
-    ejabberd_hooks:delete(mam_purge_single_message, Host, ?MODULE, purge_single_message, 50),
-    ejabberd_hooks:delete(mam_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 50),
-    ok.
-
 
 %%====================================================================
 %% Internal functions
@@ -252,8 +196,8 @@ archive_size(Size, _Host, _UserID, _UserJID) when is_integer(Size) ->
 
 insert_query_sql() ->
     "INSERT INTO mam_message "
-        "(id, user_jid, from_jid, remote_bare_jid, remote_full_jid, is_incoming, message) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?)".
+        "(id, user_jid, from_jid, remote_jid, with_jid, message) "
+        "VALUES (?,?,?,?,?,?)".
 
 archive_message(Result, Host, MessID, _UserID,
                      LocJID, RemJID, SrcJID, Dir, Packet) ->
@@ -267,38 +211,36 @@ archive_message(Result, Host, MessID, _UserID,
 archive_message_2(_Result, Host, MessID,
                   LocJID=#jid{},
                   RemJID=#jid{},
-                 SrcJID=#jid{}, Dir, Packet) ->
+                 SrcJID=#jid{}, _Dir, Packet) ->
     BLocJID = bare_jid(LocJID),
     BRemBareJID = bare_jid(RemJID),
     BRemFullJID = full_jid(RemJID),
     BSrcJID = full_jid(SrcJID),
-    IsIncoming = Dir =:= incoming,
     BPacket = packet_to_stored_binary(Packet),
     Message = #mam_message{
       id = MessID,
       user_jid = BLocJID,
       from_jid = BSrcJID,
-      remote_bare_jid = BRemBareJID,
-      remote_full_jid = BRemFullJID,
-      is_incoming = IsIncoming,
+      remote_jid = BRemFullJID,
       message = BPacket
     },
+    WithJIDs = lists:usort([<<>>, BRemFullJID, BRemBareJID]),
+    Messages = [Message#mam_message{with_jid = BWithJID} || BWithJID <- WithJIDs],
     Worker = select_worker(Host, LocJID),
-    write_message(Worker, Message).
+    write_messages(Worker, Messages).
 
-write_message(Worker, Message) ->
-    gen_server:cast(Worker, {write_message, Message}).
+write_messages(Worker, Messages) ->
+    gen_server:cast(Worker, {write_messages, Messages}).
 
 message_to_params(#mam_message{
       id = MessID,
       user_jid = BLocJID,
       from_jid = BSrcJID,
-      remote_bare_jid = BRemBareJID,
-      remote_full_jid = BRemFullJID,
-      is_incoming = IsIncoming,
+      remote_jid = BRemJID,
+      with_jid = BWithJID,
       message = BPacket
     }) ->
-    [MessID, BLocJID, BSrcJID, BRemBareJID, BRemFullJID, IsIncoming, BPacket].
+    [MessID, BLocJID, BSrcJID, BRemJID, BWithJID, BPacket].
 
 
 %% ----------------------------------------------------------------------
@@ -402,12 +344,14 @@ rsm_to_strategy(#rsm_in{direction = before, id = undefined}) ->
     last_page;
 rsm_to_strategy(#rsm_in{direction = undefined, index = Offset}) when is_integer(Offset) ->
     by_offset;
-rsm_to_strategy(undefined) ->
-    first_page;
 rsm_to_strategy(#rsm_in{direction = before, id = Id}) when is_integer(Id) ->
     before_id;
 rsm_to_strategy(#rsm_in{direction = aft, id = Id}) when is_integer(Id) ->
-    after_id.
+    after_id;
+rsm_to_strategy(#rsm_in{}) ->
+    first_page;
+rsm_to_strategy(undefined) ->
+    first_page.
 
 lookup_messages_simple(Host, UserJID,
                        #rsm_in{direction = aft, id = ID},
@@ -431,7 +375,7 @@ lookup_messages_simple(Host, UserJID,
     MessageRows = extract_messages(Worker, Host, from_id(StartId, Filter), PageSize, false),
     {ok, {undefined, undefined, rows_to_uniform_format(MessageRows)}};
 lookup_messages_simple(Host, UserJID,
-                undefined,
+                _,
                 PageSize, Filter) ->
     Worker = select_worker(Host, UserJID),
     MessageRows = extract_messages(Worker, Host, Filter, PageSize, false),
@@ -475,7 +419,7 @@ lookup_messages_by_offset(Host, UserJID,
     end.
 
 lookup_messages_first_page(Host, UserJID,
-                           undefined,
+                           _,
                            PageSize, Filter) ->
     %% First page
     Worker = select_worker(Host, UserJID),
@@ -550,7 +494,7 @@ from_id(ID, Filter=#mam_ca_filter{start_id = AfterID}) ->
 rows_to_uniform_format(MessageRows) ->
     [row_to_uniform_format(Row) || Row <- MessageRows].
 
-row_to_uniform_format({MessID,BSrcJID,Data}) ->
+row_to_uniform_format([MessID,BSrcJID,Data]) ->
     SrcJID = unserialize_jid(BSrcJID),
     Packet = stored_binary_to_packet(Data),
     {MessID, SrcJID, Packet}.
@@ -675,105 +619,47 @@ prepare_filter(UserJID, Borders, Start, End, WithJID) ->
     EndID   = maybe_encode_compact_uuid(End, 255),
     StartID2 = apply_start_border(Borders, StartID),
     EndID2   = apply_end_border(Borders, EndID),
-    prepare_filter_2(BUserJID, StartID2, EndID2, WithJID).
+    BWithJID = maybe_full_jid(WithJID), %% it's NOT optional field
+    prepare_filter_params(BUserJID, BWithJID, StartID2, EndID2).
 
-prepare_filter_2(BUserJID, StartID, EndID, undefined) ->
-    prepare_filter_params(BUserJID, undefined, undefined, StartID, EndID);
-prepare_filter_2(BUserJID, StartID, EndID, WithJID=#jid{lresource = <<>>}) ->
-    BRemBareJID = bare_jid(WithJID),
-    prepare_filter_params(BUserJID, BRemBareJID, undefined, StartID, EndID);
-prepare_filter_2(BUserJID, StartID, EndID, WithJID=#jid{}) ->
-    BRemFullJID = full_jid(WithJID),
-    prepare_filter_params(BUserJID, undefined, BRemFullJID, StartID, EndID).
-
-prepare_filter_params(BUserJID, BRemBareJID, BRemFullJID, StartID, EndID) ->
+prepare_filter_params(BUserJID, BWithJID, StartID, EndID) ->
     #mam_ca_filter{
         user_jid = BUserJID,
-        remote_bare_jid = BRemBareJID,
-        remote_full_jid = BRemFullJID,
+        with_jid = BWithJID,
         start_id = StartID,
         end_id = EndID
     }.
 
 eval_filter_params(#mam_ca_filter{
         user_jid = BUserJID,
-        remote_bare_jid = BRemBareJID,
-        remote_full_jid = BRemFullJID,
+        with_jid = BWithJID,
         start_id = StartID,
         end_id = EndID
     }) ->
-    assert_not_both_set(BRemBareJID, BRemFullJID),
-    Optional = [Value || Value <- [BRemBareJID, BRemFullJID, StartID, EndID], Value =/= undefined],
-    [BUserJID|Optional].
-
-
-assert_not_both_set(BRemBareJID, BRemFullJID) when is_binary(BRemBareJID), is_binary(BRemFullJID) ->
-    erlang:error({assert_not_both_set, BRemBareJID, BRemFullJID}); %% impossible error
-assert_not_both_set(_BRemBareJID, _BRemFullJID)  ->
-    ok.
+    Optional = [Value || Value <- [StartID, EndID], Value =/= undefined],
+    [BUserJID, BWithJID|Optional].
 
 select_filter(#mam_ca_filter{
-        remote_bare_jid = BRemBareJID,
-        remote_full_jid = BRemFullJID,
         start_id = StartID,
         end_id = EndID
     }) ->
-    assert_not_both_set(BRemBareJID, BRemFullJID),
-    select_filter(BRemBareJID, BRemFullJID, StartID, EndID).
+    select_filter(StartID, EndID).
 
 
--spec select_filter(BRemBareJID, BRemFullJID, StartID, EndID) ->
+-spec select_filter(StartID, EndID) ->
     all  | 'end'  | start  | start_end when
-      BRemBareJID :: binary() | undefined,
-      BRemFullJID :: binary() | undefined,
       StartID :: integer()  | undefined,
       EndID :: integer()  | undefined.
-select_filter(undefined, undefined, StartID, EndID) ->
-    select_filter_none(StartID, EndID);
-select_filter(BRemBareJID, undefined, StartID, EndID)
-    when is_binary(BRemBareJID) ->
-    select_filter_bare(StartID, EndID);
-select_filter(undefined, BRemFullJID, StartID, EndID)
-    when is_binary(BRemFullJID) ->
-    select_filter_full(StartID, EndID).
-
-select_filter_none(undefined, undefined) ->
+select_filter(undefined, undefined) ->
     all;
-select_filter_none(undefined, _) ->
+select_filter(undefined, _) ->
     'end';
-select_filter_none(_, undefined) ->
+select_filter(_, undefined) ->
     start;
-select_filter_none(_, _) ->
+select_filter(_, _) ->
     start_end.
 
-select_filter_bare(undefined, undefined) ->
-    bare_all;
-select_filter_bare(undefined, _) ->
-    bare_end;
-select_filter_bare(_, undefined) ->
-    bare_start;
-select_filter_bare(_, _) ->
-    bare_start_end.
-
-select_filter_full(undefined, undefined) ->
-    full_all;
-select_filter_full(undefined, _) ->
-    full_end;
-select_filter_full(_, undefined) ->
-    full_start;
-select_filter_full(_, _) ->
-    full_start_end.
-
-
-prepare_filter_sql(BRemBareJID, BRemFullJID, StartID, EndID) ->
-    case BRemBareJID of
-       undefined -> "";
-       _         -> " AND remote_bare_jid = ?"
-    end ++
-    case BRemFullJID of
-       undefined -> "";
-       _         -> " AND remote_full_jid = ?"
-    end ++
+prepare_filter_sql(StartID, EndID) ->
     case StartID of
        undefined -> "";
        _         -> " AND id >= ?"
@@ -784,13 +670,10 @@ prepare_filter_sql(BRemBareJID, BRemFullJID, StartID, EndID) ->
     end.
 
 filter_to_sql() ->
-    [{select_filter(BRemBareJID, BRemFullJID, StartID, EndID),
-      prepare_filter_sql(BRemBareJID, BRemFullJID, StartID, EndID)}
+    [{select_filter(StartID, EndID),
+      prepare_filter_sql(StartID, EndID)}
      || StartID        <- [undefined, 0],
-          EndID        <- [undefined, 0],
-          {BRemBareJID, BRemFullJID} <- [{undefined, <<>>}, %% full
-                                         {<<>>, undefined}, %% bare
-                                        {undefined, undefined}]]. %% none
+          EndID        <- [undefined, 0]].
 
 -spec calc_offset(Worker, Host, Filter, PageSize, TotalCount, RSM) -> Offset
     when
@@ -829,6 +712,10 @@ full_jid(undefined) -> undefined;
 full_jid(JID) ->
     jid:to_binary(jid:to_lower(JID)).
 
+maybe_full_jid(undefined) -> <<>>;
+maybe_full_jid(JID) ->
+    jid:to_binary(jid:to_lower(JID)).
+
 unserialize_jid(BJID) ->
     jid:from_binary(BJID).
 
@@ -854,21 +741,22 @@ list_message_ids_handler(ConnPid) ->
 
 extract_messages_sql(Filter) ->
     "SELECT id, from_jid, message FROM mam_message "
-        "WHERE user_jid = ? " ++
-        Filter ++ " ORDER BY id LIMIT ?".
+        "WHERE user_jid = ? AND with_jid = ? " ++
+        Filter ++ " ORDER BY with_jid, id LIMIT ?".
 
 extract_messages_r_sql(Filter) ->
     "SELECT id, from_jid, message FROM mam_message "
-        "WHERE user_jid = ? " ++
-        Filter ++ " ORDER BY id DESC LIMIT ?".
+        "WHERE user_jid = ? AND with_jid = ? " ++
+        Filter ++ " ORDER BY with_jid DESC, id DESC LIMIT ?".
 
 calc_count_sql(Filter) ->
     "SELECT COUNT(*) FROM mam_message "
-        "WHERE user_jid = ? " ++ Filter.
+        "WHERE user_jid = ? AND with_jid = ? " ++ Filter.
 
 list_message_ids_sql(Filter) ->
     "SELECT id FROM mam_message "
-        "WHERE user_jid = ? " ++ Filter ++ " ORDER BY id LIMIT ?".
+        "WHERE user_jid = ? AND with_jid = ? " ++ Filter ++
+        " ORDER BY with_jid, id LIMIT ?".
 
 execute_extract_messages(ConnPid, Handler, {Filter, IMax}) when is_integer(IMax) ->
     Params = eval_filter_params(Filter) ++ [IMax],
@@ -1003,10 +891,9 @@ handle_call(_, _From, State=#state{}) ->
 
 handle_cast(_, State=#state{conn=undefined}) ->
     {noreply, State};
-handle_cast({write_message, Message},
+handle_cast({write_messages, Messages},
     State=#state{conn=ConnPid, insert_query=InsertQuery}) ->
-    Params = message_to_params(Message),
-    execute_prepared_query(ConnPid, InsertQuery, Params),
+    [execute_prepared_query(ConnPid, InsertQuery, message_to_params(M)) || M <- Messages],
     {noreply, State};
 handle_cast({remove_archive, BUserJID},
     State=#state{conn=ConnPid, remove_archive_query=RemoveArchiveQuery}) ->
