@@ -34,7 +34,7 @@ cover_compile_app(App) ->
 
 do_cover_compile_app(App, {error, Error}) ->
     [{error, App, Error}];
-do_cover_compile_app(_App, AppPath) ->
+do_cover_compile_app(App, AppPath) ->
     EbinDir = filename:join(AppPath, "ebin"),
     BeamFilter = fun
         %% modules not compatible with cover
@@ -50,7 +50,7 @@ do_cover_compile_app(_App, AppPath) ->
         {ok, Files} ->
             BeamFileNames = lists:filter(BeamFilter, Files),
             BeamFiles = [filename:join(EbinDir, File) || File <- BeamFileNames],
-            compile_beams(BeamFiles, []);
+            [{App, compile_beams(BeamFiles, [])}];
         Error ->
             [{error, EbinDir, Error}]
     end.

@@ -218,21 +218,16 @@ analyze_coverage(_, _) ->
 
 prepare(Test) ->
     Apps = get_apps(),
-    [Node1 | Nodes] = get_ejabberd_nodes(Test),
-    Compiled = rpc:call(Node1, mongoose_cover_helper, start, [Apps]),
-    case Nodes of
-        [Node2] ->
-            io:format("cover: compiling modules for node: ~p~n", [Node2]),
-            R = rpc:call(Node2, mongoose_cover_helper, start, [Apps]),
-            io:format("cover: compilation status: ~p~n", [R]);
-        [] -> ok;
-        __ -> error(unexpected_nodes, [Test])
-    end,
-    io:format("Compiled modules ~p~n", [Compiled]).
+    Nodes = get_ejabberd_nodes(Test),
+    io:format("cover: compiling modules for nodes ~p~n", [Nodes]),
+    Compiled = multicall(Nodes, mongoose_cover_helper, start, [Apps],
+                         cover_timeout()),
+    io:format("cover: compiled ~p~n", [Compiled]).
 
 analyze(Test, CoverOpts) ->
     io:format("Coverage analyzing~n"),
-    rpc:call(get_ejabberd_node(Test), mongoose_cover_helper, analyze, []),
+    Nodes = get_ejabberd_nodes(Test),
+    multicall(Nodes, mongoose_cover_helper, analyze, [], cover_timeout()),
     Files = filelib:wildcard("/tmp/*.coverdata"),
     [cover:import(File) || File <- Files],
     cover:export("/tmp/mongoose_combined.coverdata"),
@@ -372,3 +367,10 @@ exit_code({_, _, _, _}) ->
 
 print(Handle, Fmt, Args) ->
     io:format(Handle, Fmt, Args).
+
+multicall(Nodes, M, F, A, Timeout) ->
+    {Rs, [] = _BadNodes} = rpc:multicall(Nodes, M, F, A, Timeout),
+    Rs.
+
+cover_timeout() ->
+    timer:seconds(60).
