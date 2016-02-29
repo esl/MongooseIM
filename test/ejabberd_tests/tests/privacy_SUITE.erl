@@ -465,7 +465,7 @@ allow_subscription_to_from_message(Config) ->
 allow_subscription_both_message(Config) ->
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
 
-        [{_, Spec}] = escalus_users:get_users({by_name, [bob]}),
+        [{_, Spec}] = escalus_users:get_users([bob]),
         {ok, Bob, _Spec2, _Features} = escalus_connection:start(Spec),
         %escalus_story:send_initial_presence(Alice),
         escalus_story:send_initial_presence(Bob),
