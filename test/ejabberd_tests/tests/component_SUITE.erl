@@ -342,12 +342,10 @@ register_in_cluster(Config) ->
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
+
 get_components(Opts, Config) ->
     Components = [component1, component2, muc_component],
-    lists:foldl(fun(Name, Acc) ->
-                {_, ComponentOpts} = escalus_users:get_user_by_name(Name),
-                [{Name, Opts ++ ComponentOpts}|Acc]
-        end, [], Components) ++ Config.
+    [ {C, Opts ++ spec(C, Config)} || C <- Components ] ++ Config.
 
 connect_component(Component) ->
     connect_component(Component, component_start_stream).
@@ -457,7 +455,7 @@ spec(muc_component, Config) ->
     [{component, <<"muc">>}] ++ common(Config).
 
 common(Config) ->
-    [{server, ?config(ejabberd_domain, Config)},
-     {host, ?config(ejabberd_addr, Config)},
+    [{server, ct:get_config(ejabberd_domain, Config)},
+     {host, ct:get_config(ejabberd_domain, Config)},
      {password, <<"secret">>},
      {port, 8888}].
