@@ -111,7 +111,7 @@ end_per_testcase(CaseName, Config) ->
 %%--------------------------------------------------------------------
 register_one_component(Config) ->
     %% Given one connected component
-    CompOpts = ?config(component1, Config),
+    CompOpts = spec(component1, Config),
     {Component, ComponentAddr, _} = connect_component(CompOpts),
 
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
@@ -136,8 +136,8 @@ register_one_component(Config) ->
 
 register_two_components(Config) ->
     %% Given two connected components
-    CompOpts1 = ?config(component1, Config),
-    CompOpts2 = ?config(component2, Config),
+    CompOpts1 = spec(component1, Config),
+    CompOpts2 = spec(component2, Config),
     {Comp1, CompAddr1, _} = connect_component(CompOpts1),
     {Comp2, CompAddr2, _} = connect_component(CompOpts2),
 
@@ -178,7 +178,7 @@ register_two_components(Config) ->
 
 try_registering_with_wrong_password(Config) ->
     %% Given a component with a wrong password
-    CompOpts1 = ?config(component1, Config),
+    CompOpts1 = spec(component1, Config),
     CompOpts2 = lists:keyreplace(password, 1, CompOpts1,
                                  {password, <<"wrong_one">>}),
 
@@ -194,7 +194,7 @@ try_registering_with_wrong_password(Config) ->
 
 try_registering_component_twice(Config) ->
     %% Given two components with the same name
-    CompOpts1 = ?config(component1, Config),
+    CompOpts1 = spec(component1, Config),
     {Comp1, Addr, _} = connect_component(CompOpts1),
 
     try
@@ -211,7 +211,7 @@ try_registering_component_twice(Config) ->
 
 try_registering_existing_host(Config) ->
     %% Given a external muc component
-    Component = ?config(muc_component, Config),
+    Component = spec(muc_component, Config),
 
     try
         %% When trying to connect it to the server
@@ -225,8 +225,8 @@ try_registering_existing_host(Config) ->
 
 disco_components(Config) ->
     %% Given two connected components
-    CompOpts1 = ?config(component1, Config),
-    CompOpts2 = ?config(component2, Config),
+    CompOpts1 = spec(component1, Config),
+    CompOpts2 = spec(component2, Config),
     {Comp1, Addr1, _} = connect_component(CompOpts1),
     {Comp2, Addr2, _} = connect_component(CompOpts2),
 
@@ -247,7 +247,7 @@ disco_components(Config) ->
 
 register_subdomain(Config) ->
     %% Given one connected component
-    CompOpts1 = ?config(component1, Config),
+    CompOpts1 = spec(component1, Config),
     {Comp, _Addr, Name} = connect_component_subdomain(CompOpts1),
 
     escalus:story(Config, [{alice, 1}, {astrid, 1}], fun(Alice, Astrid) ->
@@ -279,7 +279,7 @@ register_subdomain(Config) ->
 
 register_in_cluster(Config) ->
     %% Given one component connected to the cluster
-    CompOpts1 = ?config(component1, Config),
+    CompOpts1 = spec(component1, Config),
     {Comp, Addr, Name} = connect_component(CompOpts1),
 
     escalus:story(Config, [{alice, 1}, {clusterguy, 1}], fun(Alice, ClusterGuy) ->
@@ -448,3 +448,16 @@ default_node(Config) ->
     Node = escalus_config:get_config(ejabberd_node, Config),
     Node == undefined andalso error(node_undefined, [Config]),
     Node.
+
+spec(component1, Config) ->
+    [{component, <<"test_service">>}] ++ common(Config);
+spec(component2, Config) ->
+    [{component, <<"another_service">>}] ++ common(Config);
+spec(muc_component, Config) ->
+    [{component, <<"muc">>}] ++ common(Config).
+
+common(Config) ->
+    [{server, ?config(ejabberd_domain, Config)},
+     {host, ?config(ejabberd_addr, Config)},
+     {password, <<"secret">>},
+     {port, 8888}].
