@@ -160,24 +160,7 @@ do_run_quick_test(Test, CoverOpts) ->
     end.
 
 run_config_test({Name, Variables}, Test, N, Tests) ->
-    Node = get_ejabberd_node(Test),
-    {ok, Cwd} = call(Node, file, get_cwd, []),
-    Cfg = filename:join([Cwd, "..", "..", "rel", "files", "ejabberd.cfg"]),
-    Vars = filename:join([Cwd, "..", "..", "rel", "reltool_vars", "node1_vars.config"]),
-    CfgFile = filename:join([Cwd, "etc", "ejabberd.cfg"]),
-    {ok, Template} = call(Node, file, read_file, [Cfg]),
-    {ok, Default} = call(Node, file, consult, [Vars]),
-    NewVars = lists:foldl(fun({Var,Val}, Acc) ->
-                    lists:keystore(Var, 1, Acc, {Var,Val})
-            end, Default, Variables),
-    LTemplate = binary_to_list(Template),
-    NewCfgFile = mustache:render(LTemplate, dict:from_list(NewVars)),
-    ok = call(Node, file, write_file, [CfgFile, NewCfgFile]),
-    call(Node, application, stop, [ejabberd]),
-    call(Node, application, start, [ejabberd]),
-    error_logger:info_msg("Configuration ~p of ~p: ~p started.~n",
-                          [N, Tests, Name]),
-
+    enable_preset(Name, Variables, Test, N, Tests),
     Result = ct:run_test([{label, Name} | Test]),
     case Result of
         {error, Reason} ->
@@ -185,6 +168,35 @@ run_config_test({Name, Variables}, Test, N, Tests) ->
         {Ok, Failed, {UserSkipped, AutoSkipped}} ->
             {ok, {Ok, Failed, UserSkipped, AutoSkipped}}
     end.
+
+enable_preset(Name, PresetVars, Test, N, Tests) ->
+    %% TODO: Do this with a multicall, otherwise it's not as fast as possible (not parallelized).
+    %%       A multicall requires the function to be defined on the other side, though.
+    Rs = [ enable_preset_on_node(host_node(H), PresetVars, host_vars(H))
+           || H <- get_hosts(Test) ],
+    [ok] = lists:usort(Rs),
+    error_logger:info_msg("Configuration ~p of ~p: ~p started.~n",
+                          [N, Tests, Name]).
+
+backend(Node) ->
+    rpc:call(Node, ejabberd_config, get_global_option, [sm_backend]).
+
+enable_preset_on_node(Node, PresetVars, HostVars) ->
+    {ok, Cwd} = call(Node, file, get_cwd, []),
+    Cfg = filename:join([Cwd, "..", "..", "rel", "files", "ejabberd.cfg"]),
+    Vars = filename:join([Cwd, "..", "..", "rel", "reltool_vars", HostVars]),
+    CfgFile = filename:join([Cwd, "etc", "ejabberd.cfg"]),
+    {ok, Template} = call(Node, file, read_file, [Cfg]),
+    {ok, Default} = call(Node, file, consult, [Vars]),
+    NewVars = lists:foldl(fun ({Var, Val}, Acc) ->
+                              lists:keystore(Var, 1, Acc, {Var, Val})
+                          end, Default, PresetVars),
+    LTemplate = binary_to_list(Template),
+    NewCfgFile = mustache:render(LTemplate, dict:from_list(NewVars)),
+    ok = call(Node, file, write_file, [CfgFile, NewCfgFile]),
+    call(Node, application, stop, [ejabberd]),
+    call(Node, application, start, [ejabberd]),
+    ok.
 
 call(Node, M, F, A) ->
     case rpc:call(Node, M, F, A) of
@@ -270,16 +282,14 @@ make_html(Modules) ->
     file:write(File, row("Summary", CSum, NCSum, percent(CSum, NCSum), "#")),
     file:close(File).
 
-get_ejabberd_node(Test) ->
-    %% Failure on empty list is deliberate.
-    hd(get_ejabberd_nodes(Test)).
+get_hosts(Test) ->
+    {_File, Props} = get_ct_config(Test),
+    {hosts, Hosts} = lists:keyfind(hosts, 1, Props),
+    %% `mim` is our assumed cluster name - it has to be defined in test.config
+    dict:fetch(mim, group_by(fun host_cluster/1, Hosts)).
 
 get_ejabberd_nodes(Test) ->
-    {_File, Props} = get_ct_config(Test),
-    %% TODO: nodes should be named uniformly! i.e. {nodes, [Node1, Node2]}
-    {_, Node1} = lists:keyfind(ejabberd_node, 1, Props),
-    {_, Node2} = lists:keyfind(ejabberd2_node, 1, Props),
-    [Node1, Node2].
+    [ host_node(H) || H <- get_hosts(Test) ].
 
 percent(0, _) -> 0;
 percent(C, NC) when C /= 0; NC /= 0 -> round(C / (NC+C) * 100);
@@ -374,3 +384,17 @@ multicall(Nodes, M, F, A, Timeout) ->
 
 cover_timeout() ->
     timer:seconds(60).
+
+%% Source: https://gist.github.com/jbpotonnier/1310406
+group_by(F, L) ->
+    lists:foldr(fun ({K, V}, D) -> dict:append(K, V, D) end,
+                dict:new(),
+                [ {F(X), X} || X <- L ]).
+
+host_cluster(Host) -> host_param(cluster, Host).
+host_node(Host)    -> host_param(node, Host).
+host_vars(Host)    -> host_param(vars, Host).
+
+host_param(Name, {_, Params}) ->
+    {Name, Param} = lists:keyfind(Name, 1, Params),
+    Param.
