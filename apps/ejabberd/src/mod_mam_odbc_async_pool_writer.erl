@@ -39,9 +39,9 @@
 -include("jlib.hrl").
 
 -record(state, {
-    flush_interval=500,
-    max_packet_size=30,
-    max_subscribers=100,
+    flush_interval, %% milliseconds
+    max_packet_size,
+    max_subscribers,
     host,
     conn,
     number,
@@ -359,7 +359,13 @@ cancel_and_flush_timer(TRef) ->
 init([Host, N]) ->
     %% Use a private ODBC-connection.
     {ok, Conn} = ejabberd_odbc:get_dedicated_connection(Host),
-    {ok, #state{host=Host, conn=Conn, number=N}}.
+    Int = gen_mod:get_module_opt(Host, ?MODULE, flush_interval, 500),
+    MaxSize = gen_mod:get_module_opt(Host, ?MODULE, max_packet_size, 30),
+    MaxSubs = gen_mod:get_module_opt(Host, ?MODULE, max_subscribers, 100),
+    {ok, #state{host=Host, conn=Conn, number=N,
+                flush_interval = Int,
+                max_packet_size = MaxSize,
+                max_subscribers = MaxSubs}}.
 
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |

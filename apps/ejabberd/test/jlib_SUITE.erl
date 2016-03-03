@@ -24,7 +24,8 @@ all() -> [make_iq_reply_changes_type_to_result,
           nodeprep_fails_with_incorrect_username,
           resourceprep_fails_with_incorrect_resource,
           nameprep_fails_with_incorrect_domain,
-          is_nodename_fails_for_empty_binary].
+          is_nodename_fails_for_empty_binary,
+          compare_bare_jids].
 
 init_per_suite(C) ->
     application:start(p1_stringprep),
@@ -179,3 +180,12 @@ nameprep_fails_with_incorrect_domain(_) ->
 is_nodename_fails_for_empty_binary(_) ->
     false = jlib:is_nodename(<<>>).
 
+compare_bare_jids(_) ->
+    prop(compare_bare_jids,
+         ?FORALL({A, B}, {jid_gen:jid(), jid_gen:jid()},
+                 begin
+                    AA = jid:from_binary(A),
+                    BB = jid:from_binary(B),
+                    equals(jid:are_equal(jid:to_bare(AA), jid:to_bare(BB)),
+                           jid:are_bare_equal(AA, BB))
+                 end)).

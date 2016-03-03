@@ -15,6 +15,8 @@ If you haven't chosen any of the above, skip the next part.
 
 **Options:**
 
+* **mod_mam_muc**
+    * `host` (optional, default: `"conference.@HOST@"`) - MUC host that will be archived
 * **mod_mam_odbc_arch**
     * `pm` (mandatory when `mod_mam` enabled) - Enable archiving user-to-user messages
     * `muc` (optional) - Enable group chat archive, mutually exclusive with `mod_mam_muc_odbc_arch`. **Not recommended**, `mod_mam_muc_odbc_arch` is more efficient.
@@ -218,4 +220,26 @@ Custom credentials:
 
 ```erlang
 {credentials, [{"username", "cassandra"}, {"password", "secret"}]}
+```
+
+
+mod_mam options
+---------------
+
+- add_archived_element - add `<archived/>` element from MAM v0.2
+- is_complete_message - module name implementing is_complete_message/3 callback.
+  This callback returns true if message should be archived.
+
+
+Default configuration for mod_mam:
+
+```erlang
+{mod_mam, []}.
+```
+
+It's expanded to:
+
+```erlang
+{mod_mam, [{add_archived_element, false},
+           {is_complete_message, mod_mam_utils}]}
 ```

@@ -747,8 +747,8 @@ send_message_wrong_jid(Config) ->
                                                        "Subj", "\"Are
                                                        you there?\""],
                              Config),
-        Err1 =/=0,
-        Err2 =/=0,
+        true = Err1 =/= 0,
+        true = Err2 =/= 0,
         escalus_assert:has_no_stanzas(Alice),
         escalus_assert:has_no_stanzas(Bob)
     end).
@@ -784,8 +784,8 @@ send_stanzac2s_wrong(Config) ->
         {_, Err2} = ejabberdctl("send_stanza_c2s", [BobName, Domain, Resource, <<$\", StanzaWrong/binary, $\">>],
                                Config),
 
-        Err =/= 0,
-        Err2 =/= 0,
+        true = Err =/= 0,
+        true = Err2 =/= 0,
         escalus_assert:has_no_stanzas(Alice)
     end).
 

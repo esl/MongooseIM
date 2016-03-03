@@ -303,7 +303,8 @@ safe_lookup_messages(Result, Host,
                         PageSize, LimitPassed, MaxResultLimit,
                         IsSimple)
     catch _Type:Reason ->
-        {error, Reason}
+        S = erlang:get_stacktrace(),
+        {error, {Reason, S}}
     end.
 
 -spec lookup_messages(Result :: any(), Host :: ejabberd:server(),

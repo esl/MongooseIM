@@ -15,18 +15,23 @@ FED1CTL=${FED1}/bin/mongooseim
 
 NODES=(${EJD1CTL} ${EJD2CTL} ${FED1CTL})
 
-SUMMARIES_DIRS=${BASE}'/test/ejabberd_tests/ct_report/ct_run*'
+if [ $PRESET = "dialyzer_only" ]; then
+	make dialyzer
 
-echo "############################"
-echo "Running embeded common tests"
-echo "############################"
+else
 
-make ct
+	SUMMARIES_DIRS=${BASE}'/test/ejabberd_tests/ct_report/ct_run*'
+
+	echo "############################"
+	echo "Running embeded common tests"
+	echo "############################"
+
+	make ct
 SMALL_STATUS=$?
 
-echo "############################"
-echo "Running ejabberd_tests"
-echo "############################"
+	echo "############################"
+	echo "Running ejabberd_tests"
+	echo "############################"
 
 start_node() {
 	echo -n "${1} start: "
@@ -51,36 +56,38 @@ for node in ${NODES[@]}; do
 done
 
 tools/print-dots.sh start
-make cover_test_preset TESTSPEC=default.spec PRESET=$PRESET
+	make cover_test_preset TESTSPEC=default.spec PRESET=$PRESET
 tools/print-dots.sh stop
 
-RAN_TESTS=`cat /tmp/ct_count`
+	RAN_TESTS=`cat /tmp/ct_count`
 
 for node in ${NODES[@]}; do
 	stop_node $node;
 done
 
-if [ `uname` = "Darwin" ]; then
-    SUMMARIES_DIR=`ls -dt ${SUMMARIES_DIRS} | head -n ${RAN_TESTS}`
-else
-    SUMMARIES_DIR=`eval ls -d ${SUMMARIES_DIRS} --sort time | head -n ${RAN_TESTS}`
-fi
+	if [ `uname` = "Darwin" ]; then
+		SUMMARIES_DIR=`ls -dt ${SUMMARIES_DIRS} | head -n ${RAN_TESTS}`
+	else
+		SUMMARIES_DIR=`eval ls -d ${SUMMARIES_DIRS} --sort time | head -n ${RAN_TESTS}`
+	fi
 
-${TOOLS}/summarise-ct-results ${SUMMARIES_DIR}
+	${TOOLS}/summarise-ct-results ${SUMMARIES_DIR}
 BIG_STATUS=$?
 
-echo
-echo "All tests done."
+	echo
+	echo "All tests done."
 
 if [ $SMALL_STATUS -eq 0 -a $BIG_STATUS -eq 0 ]
-then
-    RESULT=0
-    echo "Build succeeded"
-else
-    RESULT=1
+	then
+		RESULT=0
+		echo "Build succeeded"
+	else
+		RESULT=1
     echo "Build failed:"
     [ $SMALL_STATUS -ne 0 ] && echo "    small tests failed"
     [ $BIG_STATUS -ne 0 ]   && echo "    big tests failed"
-fi
+	fi
 
-exit ${RESULT}
+	exit ${RESULT}
+
+fi

@@ -22,18 +22,29 @@
 %% XML
 -export([is_archived_elem_for/2,
          replace_archived_elem/3,
+         replace_x_user_element/4,
          append_archived_elem/3,
          delete_archived_elem/2,
+         delete_x_user_element/1,
+         packet_to_x_user_jid/1,
          get_one_of_path/2,
          get_one_of_path/3,
          is_complete_message/3,
-         wrap_message/5,
+         wrap_message/6,
          result_set/4,
          result_query/1,
          result_prefs/3,
+         make_fin_message/5,
+         make_fin_element/4,
          parse_prefs/1,
          borders_decode/1,
-         decode_optimizations/1]).
+         decode_optimizations/1,
+         form_borders_decode/1,
+         form_decode_optimizations/1]).
+
+%% Forms
+-export([form_field_value_s/2,
+         message_form/1]).
 
 %% JID serialization
 -export([jid_to_opt_binary/2,
@@ -48,7 +59,8 @@
          maybe_max/2,
          is_function_exist/3,
          apply_start_border/2,
-         apply_end_border/2]).
+         apply_end_border/2,
+         is_last_page/4]).
 
 %% Ejabberd
 -export([send_message/3,
@@ -70,7 +82,7 @@
         get_one_of_path/3,
         delay/2,
         forwarded/3,
-        result/3,
+        result/4,
         valid_behavior/1]}).
 -endif.
 
@@ -203,12 +215,24 @@ is_archived_elem_for(#xmlel{name = <<"archived">>, attrs=As}, By) ->
 is_archived_elem_for(_, _) ->
     false.
 
+is_x_user_element(#xmlel{name = <<"x">>, attrs = As}) ->
+     lists:member({<<"xmlns">>, ?NS_MUC_USER}, As);
+is_x_user_element(_) ->
+    false.
 
 -spec replace_archived_elem(By :: binary(), Id :: binary(), jlib:xmlel()
                             ) -> jlib:xmlel().
 replace_archived_elem(By, Id, Packet) ->
     append_archived_elem(By, Id,
     delete_archived_elem(By, Packet)).
+
+
+-spec replace_x_user_element(FromJID :: ejabberd:jid(), Role :: mod_muc:role(),
+                             Affiliation :: mod_muc:affiliation(), jlib:xmlel()
+                             ) -> jlib:xmlel().
+replace_x_user_element(FromJID, Role, Affiliation, Packet) ->
+    append_x_user_element(FromJID, Role, Affiliation,
+    delete_x_user_element(Packet)).
 
 
 -spec append_archived_elem(By :: binary(), Id :: binary(), jlib:xmlel()
@@ -219,11 +243,39 @@ append_archived_elem(By, Id, Packet) ->
         attrs=[{<<"by">>, By}, {<<"id">>, Id}]},
     xml:append_subtags(Packet, [Archived]).
 
+append_x_user_element(FromJID, Role, Affiliation, Packet) ->
+    ItemElem = x_user_item(FromJID, Role, Affiliation),
+    X = #xmlel{
+        name = <<"x">>,
+        attrs = [{<<"xmlns">>,?NS_MUC_USER}],
+        children = [ItemElem]},
+    xml:append_subtags(Packet, [X]).
+
+x_user_item(FromJID, Role, Affiliation) ->
+    #xmlel{
+        name = <<"item">>,
+        attrs = [{<<"affiliation">>, atom_to_binary(Affiliation, latin1)},
+                 {<<"jid">>, jid:to_binary(FromJID)},
+                 {<<"role">>, atom_to_binary(Role, latin1)}]}.
 
 -spec delete_archived_elem(By :: binary(), jlib:xmlel()) -> jlib:xmlel().
 delete_archived_elem(By, Packet=#xmlel{children=Cs}) ->
     Packet#xmlel{children=[C || C <- Cs, not is_archived_elem_for(C, By)]}.
 
+-spec delete_x_user_element(jlib:xmlel()) -> jlib:xmlel().
+delete_x_user_element(Packet=#xmlel{children=Cs}) ->
+    Packet#xmlel{children=[C || C <- Cs, not is_x_user_element(C)]}.
+
+-spec packet_to_x_user_jid(jlib:xmlel()) -> ejabberd:jid() | error | undefined.
+packet_to_x_user_jid(#xmlel{children=Cs}) ->
+    case [C || C <- Cs, is_x_user_element(C)] of
+        [] -> undefined;
+        [X|_] ->
+            case exml_query:path(X, [{element, <<"item">>}, {attr, <<"jid">>}]) of
+                undefined -> undefined;
+                BinaryJid -> jid:from_binary(BinaryJid)
+            end
+    end.
 
 -spec get_one_of_path(_, list(T)) -> T when T :: any().
 get_one_of_path(Elem, List) ->
@@ -244,6 +296,9 @@ get_one_of_path(_Elem, [], Def) ->
 %%
 %% Servers SHOULD NOT archive messages that do not have a `<body/>' child tag.
 %% Servers SHOULD NOT delayed messages.
+%%
+%% From v0.3: it is expected that all messages that hold meaningful content,
+%% rather than state changes such as Chat State Notifications, would be archived.
 %% @end
 -spec is_complete_message(Mod :: module(), Dir :: incoming | outgoing,
                           Packet :: jlib:xmlel()) -> boolean().
@@ -267,54 +322,26 @@ is_valid_message(_Mod, _Dir, Packet) ->
     Result   = xml:get_subtag(Packet, <<"result">>),
     %% Used in mod_offline
     Delay    = xml:get_subtag(Packet, <<"delay">>),
-    is_valid_message_children(Body, Result, Delay).
+    %% Message Processing Hints (XEP-0334)
+    NoStore  = xml:get_subtag(Packet, <<"no-store">>),
+    is_valid_message_children(Body, Result, Delay, NoStore).
 
 %% Forwarded by MAM message or just a message without body
-is_valid_message_children(false, _,     _    ) -> false;
-is_valid_message_children(_,     false, false) -> true;
+is_valid_message_children(false, _,     _,     _    ) -> false;
+is_valid_message_children(_,     false, false, false) -> true;
 %% Forwarded by MAM message or delivered by mod_offline
 %% See mam_SUITE:offline_message for a test case
-is_valid_message_children(_,      _,    _    ) -> false.
-
-
--ifdef(MAM_COMPACT_FORWARDED).
-
-%% @doc Forms a simple forwarded message (not according XEP).
-%%
-%% ```
-%% <message xmlns="jabber:client"
-%%    from="room@muc.server/alice"
-%%    to="bob@server/res1"
-%%    type="groupchat">
-%%  <body>1</body>
-%%  <delay xmlns="urn:xmpp:delay" id="9RUQN9VBP7G1" query_id="q1" stamp="2014-01-13T14:16:57Z" />
-%% </message>
-%% '''
--spec wrap_message(Packet :: jlib:xmlel(), QueryID :: binary(),
-                   MessageUID :: term(), DateTime :: calendar:datetime(),
-                   SrcJID :: ejabberd:jid()) -> Wrapper :: jlib:xmlel().
-wrap_message(Packet, QueryID, MessageUID, DateTime, SrcJID) ->
-    Delay = delay(DateTime, SrcJID, QueryID, MessageUID),
-    Packet2 = xml:append_subtags(Packet, [Delay]),
-    xml:replace_tag_attr(<<"from">>, jid:to_binary(SrcJID), Packet2).
-
-
--spec delay(DateTime :: calendar:datetime(), SrcJID :: ejabberd:jid(),
-            QueryId :: binary(), MessageUID :: binary()) -> jlib:xmlel().
-delay(DateTime, _SrcJID, QueryID, MessageUID) ->
-    jlib:timestamp_to_mam_xml(DateTime, utc, QueryID, MessageUID).
-
--else.
+is_valid_message_children(_,      _,    _,     _    ) -> false.
 
 %% @doc Forms `<forwarded/>' element, according to the XEP.
--spec wrap_message(Packet :: jlib:xmlel(), QueryID :: binary(),
+-spec wrap_message(MamNs :: binary(), Packet :: jlib:xmlel(), QueryID :: binary(),
                    MessageUID :: term(), DateTime :: calendar:datetime(),
                    SrcJID :: ejabberd:jid()) -> Wrapper :: jlib:xmlel().
-wrap_message(Packet, QueryID, MessageUID, DateTime, SrcJID) ->
+wrap_message(MamNs, Packet, QueryID, MessageUID, DateTime, SrcJID) ->
     #xmlel{
         name = <<"message">>,
         attrs = [],
-        children = [result(QueryID, MessageUID,
+        children = [result(MamNs, QueryID, MessageUID,
                            [forwarded(Packet, DateTime, SrcJID)])]}.
 
 -spec forwarded(jlib:xmlel(), calendar:datetime(), ejabberd:jid())
@@ -323,27 +350,33 @@ forwarded(Packet, DateTime, SrcJID) ->
     #xmlel{
         name = <<"forwarded">>,
         attrs = [{<<"xmlns">>, <<"urn:xmpp:forward:0">>}],
-        children = [delay(DateTime, SrcJID), Packet]}.
+        %% Two places to include SrcJID:
+        %% - delay.from - optional XEP-0297 (TODO: depricate adding it?)
+        %% - message.from - required XEP-0313
+        %% Also, mod_mam_muc will replace it again with SrcJID
+        children = [delay(DateTime, SrcJID), replace_from_attribute(SrcJID, Packet)]}.
 
 -spec delay(calendar:datetime(), ejabberd:jid()) -> jlib:xmlel().
 delay(DateTime, SrcJID) ->
     jlib:timestamp_to_xml(DateTime, utc, SrcJID, <<>>).
 
+replace_from_attribute(From, Packet=#xmlel{attrs = Attrs}) ->
+    Attrs1 = lists:keydelete(<<"from">>, 1, Attrs),
+    Attrs2 = [{<<"from">>, jid:to_binary(From)} | Attrs1],
+    Packet#xmlel{attrs = Attrs2}.
 
 %% @doc Generates tag `<result />'.
 %% This element will be added in each forwarded message.
--spec result(_, MessageUID :: binary(), Children :: [jlib:xmlel(),...])
+-spec result(binary(), _, MessageUID :: binary(), Children :: [jlib:xmlel(),...])
             -> jlib:xmlel().
-result(QueryID, MessageUID, Children) when is_list(Children) ->
+result(MamNs, QueryID, MessageUID, Children) when is_list(Children) ->
     %% <result xmlns='urn:xmpp:mam:tmp' queryid='f27' id='28482-98726-73623' />
     #xmlel{
         name = <<"result">>,
         attrs = [{<<"queryid">>, QueryID} || QueryID =/= undefined, QueryID =/= <<>>] ++
-                [{<<"xmlns">>, mam_ns_binary()},
+                [{<<"xmlns">>, MamNs},
                  {<<"id">>, MessageUID}],
         children = Children}.
-
--endif.
 
 
 %% @doc Generates `<set />' tag.
@@ -418,6 +451,34 @@ encode_jids(JIDs) ->
      || JID <- JIDs].
 
 
+%% Make fin message introduced in MAM 0.3
+-spec make_fin_message(binary(), boolean(), boolean(), jlib:xmlel(), binary()) -> jlib:xmlel().
+make_fin_message(MamNs, IsComplete, IsStable, ResultSetEl, QueryID) ->
+    #xmlel{
+        name = <<"message">>,
+        children = [make_fin_element_03(MamNs, IsComplete, IsStable, ResultSetEl, QueryID)]}.
+
+%% MAM v0.3
+make_fin_element_03(MamNs, IsComplete, IsStable, ResultSetEl, QueryID) ->
+    #xmlel{
+        name = <<"fin">>,
+        attrs = [{<<"xmlns">>, MamNs}]
+                ++ [{<<"complete">>, <<"true">>} || IsComplete]
+                ++ [{<<"stable">>, <<"false">>} || not IsStable]
+                ++ [{<<"queryid">>, QueryID} || is_binary(QueryID), QueryID =/= undefined],
+        children = [ResultSetEl]}.
+
+%% MAM v0.4.1 and above
+-spec make_fin_element(binary(), boolean(), boolean(), jlib:xmlel()) -> jlib:xmlel().
+make_fin_element(MamNs, IsComplete, IsStable, ResultSetEl) ->
+    #xmlel{
+        name = <<"fin">>,
+        attrs = [{<<"xmlns">>, MamNs}]
+                ++ [{<<"complete">>, <<"true">>} || IsComplete]
+                ++ [{<<"stable">>, <<"false">>} || not IsStable],
+        children = [ResultSetEl]}.
+
+
 -spec parse_prefs(PrefsEl :: jlib:xmlel()) -> mod_mam:preference().
 parse_prefs(El=#xmlel{name = <<"prefs">>, attrs = Attrs}) ->
     {value, Default} = xml:get_attr(<<"default">>, Attrs),
@@ -469,6 +530,14 @@ borders_decode(QueryEl) ->
     ToID     = tag_id(QueryEl, <<"to_id">>),
     borders(AfterID, BeforeID, FromID, ToID).
 
+-spec form_borders_decode(jlib:xmlel()) -> 'undefined' | mod_mam:borders().
+form_borders_decode(QueryEl) ->
+    AfterID  = form_field_mess_id(QueryEl, <<"after_id">>),
+    BeforeID = form_field_mess_id(QueryEl, <<"before_id">>),
+    FromID   = form_field_mess_id(QueryEl, <<"from_id">>),
+    ToID     = form_field_mess_id(QueryEl, <<"to_id">>),
+    borders(AfterID, BeforeID, FromID, ToID).
+
 
 -spec borders(AfterID :: 'undefined' | non_neg_integer(),
               BeforeID :: 'undefined' | non_neg_integer(),
@@ -491,6 +560,10 @@ tag_id(QueryEl, Name) ->
     BExtMessID = xml:get_tag_attr_s(Name, QueryEl),
     maybe_external_binary_to_mess_id(BExtMessID).
 
+-spec form_field_mess_id(jlib:xmlel(), binary()) -> 'undefined' | integer().
+form_field_mess_id(QueryEl, Name) ->
+    BExtMessID = form_field_value_s(QueryEl, Name),
+    maybe_external_binary_to_mess_id(BExtMessID).
 
 -spec decode_optimizations(jlib:xmlel()) -> 'false' | 'opt_count' | 'true'.
 decode_optimizations(QueryEl) ->
@@ -501,6 +574,80 @@ decode_optimizations(QueryEl) ->
         _              -> true
     end.
 
+-spec form_decode_optimizations(jlib:xmlel()) -> false | opt_count | true.
+form_decode_optimizations(QueryEl) ->
+    case {form_field_value(QueryEl, <<"simple">>),
+          form_field_value(QueryEl, <<"opt_count">>)} of
+        {_, <<"true">>}     -> opt_count;
+        {<<"true">>, _}     -> true;
+        {_, _}              -> false
+    end.
+    
+
+%% -----------------------------------------------------------------------
+%% Forms
+
+-spec form_field_value(jlib:xmlel(), binary()) -> undefined | binary().
+form_field_value(QueryEl, Name) ->
+    case xml:get_subtag(QueryEl, <<"x">>) of
+        false ->
+            undefined;
+        #xmlel{children=Fields} -> %% <x xmlns='jabber:x:data'/>
+            case find_field(Fields, Name) of
+                undefined ->
+                    undefined;
+                Field ->
+                    field_to_value(Field)
+            end
+    end.
+
+form_field_value_s(QueryEl, Name) ->
+    undefined_to_empty(form_field_value(QueryEl, Name)).
+
+undefined_to_empty(undefined) -> <<>>;
+undefined_to_empty(X)         -> X.
+
+%% @doc Return first matched field
+-spec find_field(list(jlib:xmlel()), binary()) -> undefined | jlib:xmlel().
+find_field([#xmlel{name = <<"field">>, attrs = Attrs}=Field|Fields], Name) ->
+    case xml:get_attr(<<"var">>, Attrs) of
+        {value, Name} ->
+            Field;
+        _ ->
+            find_field(Fields, Name)
+    end;
+find_field([_|Fields], Name) -> %% skip whitespaces
+    find_field(Fields, Name);
+find_field([], Name) ->
+    undefined.
+
+-spec field_to_value(jlib:xmlel()) -> binary().
+field_to_value(FieldEl) ->
+    xml:get_path_s(FieldEl, [{elem, <<"value">>}, cdata]).
+
+-spec message_form(binary()) -> jlib:xmlel().
+message_form(MamNs) ->
+    #xmlel{name = <<"x">>,
+           attrs = [{<<"xmlns">>, <<"jabber:x:data">>},
+                    {<<"type">>, <<"form">>}],
+           children = message_form_fields(MamNs)}.
+
+message_form_fields(MamNs) ->
+    [form_type_field(MamNs),
+     form_field(<<"jid-single">>, <<"with">>),
+     form_field(<<"text-single">>, <<"start">>),
+     form_field(<<"text-single">>, <<"end">>)].
+
+form_type_field(MamNs) when is_binary(MamNs) ->
+    #xmlel{name = <<"field">>,
+           attrs = [{<<"type">>, <<"hidden">>},
+                    {<<"var">>, <<"FORM_TYPE">>}],
+           children = [#xmlcdata{content = MamNs}]}.
+
+form_field(Type, VarName) ->
+    #xmlel{name = <<"field">>,
+           attrs = [{<<"type">>, Type},
+                    {<<"var">>, VarName}]}.
 
 %% -----------------------------------------------------------------------
 %% JID serialization
@@ -649,6 +796,32 @@ maybe_previous_id(undefined) ->
     undefined;
 maybe_previous_id(X) ->
     X - 1.
+
+
+-spec is_last_page(PageSize, TotalCount, Offset, MessageRows) -> boolean() when
+    PageSize    :: non_neg_integer(),
+    TotalCount  :: non_neg_integer()|undefined,
+    Offset      :: non_neg_integer()|undefined,
+    MessageRows :: list().
+is_last_page(PageSize, TotalCount, Offset, MessageRows)
+    when length(MessageRows) < PageSize ->
+    true;
+is_last_page(PageSize, TotalCount, Offset, MessageRows)
+    when is_integer(TotalCount), is_integer(Offset),
+         length(MessageRows) =:= PageSize ->
+    %% Number of messages on skipped pages from the beginning plus the current page
+    PagedCount = Offset + PageSize,
+    if
+        TotalCount =:= PagedCount ->
+            true; %%
+        true ->
+            false %% full page but not the last one in the result set
+    end;
+is_last_page(_PageSize, _TotalCount, _Offset, _MessageRows) ->
+    %% When is_integer(TotalCount), is_integer(Offset)
+    %%     it's not possible case: the page is bigger then page size.
+    %% Otherwise either TotalCount or Offset is undefined because of optimizations.
+    false.
 
 
 %% -----------------------------------------------------------------------
