@@ -86,8 +86,10 @@ node2.log
 quick_compile.log
 dialyzer
 configure.out
+ejd-redis.conf
 *.d
 .rebar3
+redis.pid
 test/ejabberd_tests/get-deps.log
 test/ejabberd_tests/quicktest.log
 site

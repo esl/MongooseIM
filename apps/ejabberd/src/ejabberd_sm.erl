@@ -34,6 +34,7 @@
          route/3,
          open_session/5, open_session/6,
          close_session/5,
+         store_info/4,
          check_in_subscription/6,
          bounce_offline_message/3,
          disconnect_removed_user/2,
@@ -55,7 +56,8 @@
          get_session_pid/3,
          get_session/3,
          get_session_ip/3,
-         get_user_present_resources/2
+         get_user_present_resources/2,
+         get_raw_sessions/2
         ]).
 
 %% Hook handlers
@@ -171,6 +173,16 @@ close_session(SID, User, Server, Resource, Reason) ->
     ejabberd_hooks:run(sm_remove_connection_hook, JID#jid.lserver,
                        [SID, JID, Info, Reason]).
 
+-spec store_info(ejabberd:user(), ejabberd:server(), ejabberd:resource(),
+                 {any(), any()}) -> {ok, {any(), any()}}.
+store_info(User, Server, Resource, {Key, _Value} = KV) ->
+    case get_session(User, Server, Resource) of
+        offline -> {error, offline};
+        {_SUser,SID,SPriority,SInfo} ->
+            set_session(SID, User, Server, Resource, SPriority,
+                        lists:keystore(Key, 1, SInfo, KV)),
+            {ok, KV}
+    end.
 
 -spec check_in_subscription(Acc, User, Server, JID, Type, Reason) -> any() | {stop, false} when
       Acc :: any(),
@@ -252,6 +264,11 @@ get_session(User, Server, Resource) ->
              Session#session.priority,
              Session#session.info}
     end.
+-spec get_raw_sessions(ejabberd:user(), ejabberd:server()) -> [#session{}].
+get_raw_sessions(User, Server) ->
+    LUser = jlib:nodeprep(User),
+    LServer = jlib:nameprep(Server),
+    clean_session_list(?SM_BACKEND:get_sessions(LUser, LServer)).
 
 
 -spec set_presence(SID, User, Server, Resource, Prio, Presence, Info) -> ok when

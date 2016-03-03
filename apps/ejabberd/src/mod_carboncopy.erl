@@ -40,28 +40,23 @@
          user_receive_packet/4,
          iq_handler2/3,
          iq_handler1/3,
-         remove_connection/4,
-         session_cleanup/4
+         remove_connection/4
         ]).
 
 %% For testing and debugging
--export([enable/4, disable/3, resources_to_cc/2]).
+-export([enable/4, disable/3]).
 
 -define(NS_CC_2, <<"urn:xmpp:carbons:2">>).
 -define(NS_CC_1, <<"urn:xmpp:carbons:1">>).
 -define(NS_FORWARD, <<"urn:xmpp:forward:0">>).
+-define(CC_KEY, 'cc').
+-define(CC_DISABLED, undefined).
 
--include("ejabberd.hrl").
--include("jlib.hrl").
--define(PROCNAME, ?MODULE).
--define(TABLE, carboncopy).
+-include_lib("ejabberd/include/ejabberd.hrl").
+-include_lib("ejabberd/include/jlib.hrl").
 
 -type classification() :: 'ignore' | 'forward'.
-
 -type matchspec_atom() :: '_' | '$1' | '$2' | '$3'.
--record(carboncopy, {us :: {binary(), binary()} | matchspec_atom(),
-                     resource :: binary() | matchspec_atom(),
-                     version :: binary() | matchspec_atom()}).
 
 is_carbon_copy(Packet) ->
     case xml:get_subtag(Packet, <<"sent">>) of
@@ -78,27 +73,9 @@ start(Host, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
     mod_disco:register_feature(Host, ?NS_CC_1),
     mod_disco:register_feature(Host, ?NS_CC_2),
-    Fields = record_info(fields, ?TABLE),
-    try mnesia:table_info(?TABLE, attributes) of
-        Fields -> ok;
-        _ ->
-            %% Recreate
-            mnesia:delete_table(?TABLE)
-    catch
-        _:_Error ->
-            %% Table probably doesn't exist
-            ok
-    end,
-    mnesia:create_table(?TABLE,
-                        [{ram_copies, [node()]}, 
-                         {attributes, record_info(fields, ?TABLE)}, 
-                         {type, bag}]),
-    mnesia:add_table_copy(?TABLE, node(), ram_copies),
     ejabberd_hooks:add(unset_presence_hook, Host, ?MODULE, remove_connection, 10),
-    %% Why priority 89? To define clearly that we must run BEFORE mod_logdb hook (90)
     ejabberd_hooks:add(user_send_packet, Host, ?MODULE, user_send_packet, 89),
     ejabberd_hooks:add(user_receive_packet,Host, ?MODULE, user_receive_packet, 89),
-    ejabberd_hooks:add(session_cleanup, Host, ?MODULE, session_cleanup, 50),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_CC_2, ?MODULE, iq_handler2, IQDisc),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_CC_1, ?MODULE, iq_handler1, IQDisc).
 
@@ -107,11 +84,9 @@ stop(Host) ->
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_CC_2),
     mod_disco:unregister_feature(Host, ?NS_CC_2),
     mod_disco:unregister_feature(Host, ?NS_CC_1),
-    %% Why priority 89? To define clearly that we must run BEFORE mod_logdb hook (90)
     ejabberd_hooks:delete(user_send_packet, Host, ?MODULE, user_send_packet, 89),
     ejabberd_hooks:delete(user_receive_packet, Host, ?MODULE, user_receive_packet, 89),
-    ejabberd_hooks:delete(unset_presence_hook, Host, ?MODULE, remove_connection, 10),
-    ejabberd_hooks:delete(session_cleanup, Host, ?MODULE, session_cleanup, 50).
+    ejabberd_hooks:delete(unset_presence_hook, Host, ?MODULE, remove_connection, 10).
 
 iq_handler2(From, To, IQ) ->
     iq_handler(From, To, IQ, ?NS_CC_2).
@@ -129,7 +104,7 @@ iq_handler(From, _To,  #iq{type = set, sub_el = #xmlel{name = Operation, childre
                      ?INFO_MSG("carbons disabled for user ~s@~s/~s", [U,S,R]),
                      disable(S, U, R)
              end,
-    case Result of 
+    case Result of
         ok ->
             ?DEBUG("carbons IQ result: ok", []),
             IQ#iq{type=result, sub_el=[]};
@@ -148,7 +123,7 @@ user_receive_packet(JID, _From, To, Packet) ->
     check_and_forward(JID, To, Packet, received).
 
 % Check if the traffic is local.
-% Modified from original version: 
+% Modified from original version:
 % - registered to the user_send_packet hook, to be called only once even for multicast
 % - do not support "private" message mode, and do not modify the original packet in any way
 % - we also replicate "read" notifications
@@ -167,110 +142,111 @@ classify_packet(Packet) ->
 -spec is_chat(_) -> classification().
 is_chat(#xmlel{name = <<"message">>, attrs = Attrs} = Packet) ->
     case xml:get_attr_s(<<"type">>, Attrs) of
-        <<"chat">> ->
-            is_private(Packet);
-        _ ->
-            ignore
+        <<"chat">> -> is_private(Packet);
+        _ -> ignore
     end.
 
 -spec is_private(_) -> classification().
 is_private(Packet) ->
     case xml:get_subtag(Packet, <<"private">>) of
-        false ->
-            is_no_copy(Packet);
-        _ ->
-            ignore
+        false -> is_no_copy(Packet);
+        _ -> ignore
     end.
 
 -spec is_no_copy(_) -> classification().
 is_no_copy(Packet) ->
     case xml:get_subtag(Packet, <<"no-copy">>) of
-        false ->
-            is_received(Packet);
-        _ ->
-            ignore
+        false -> is_received(Packet);
+        _ -> ignore
     end.
 
 -spec is_received(_) -> classification().
 is_received(Packet) ->
     case xml:get_subtag(Packet, <<"received">>) of
-        false ->
-            is_sent(Packet);
-        _ ->
-            ignore
+        false -> is_sent(Packet);
+        _ -> ignore
     end.
 
 -spec is_sent(_) -> classification().
 is_sent(Packet) ->
     SubTag = xml:get_subtag(Packet,<<"sent">>),
-    if
-        SubTag == false ->
-            forward;
-        true ->
-            is_forwarded(SubTag)
+    if SubTag == false -> forward;
+        true -> is_forwarded(SubTag)
     end.
 
 -spec is_forwarded(_) -> classification().
 is_forwarded(SubTag) ->
     case xml:get_subtag(SubTag, <<"forwarded">>) of
-        false ->
-            forward;
-        _ ->
-            ignore
+        false -> forward;
+        _ -> ignore
     end.
 
 remove_connection(User, Server, Resource, _Status) ->
     disable(Server, User, Resource),
     ok.
 
--spec session_cleanup(LUser :: ejabber:luser(), LServer :: ejabberd:lserver(),
-                   LResource :: ejabberd:lresource(), SID :: ejabberd_sm:sid()) -> any().
-session_cleanup(LUser, LServer, LResource, _SID) ->
-    disable(LServer, LUser, LResource).
 
 %%
 %% Internal
 %%
+is_bare_to(Direction, To, PrioRes) ->
+    case {Direction, To} of
+        {received, #jid{lresource = <<>>}} -> true;
+        _ -> false
+    end.
+
+is_unavailable(LRes, PrioRes) ->
+    case lists:keyfind(LRes, 2, PrioRes) of
+        false -> true;
+        _ -> false
+    end.
+
+max_prio(PrioRes) ->
+    case catch lists:max(PrioRes) of
+        {Prio, _Res} -> Prio;
+        _ -> 0
+    end.
+
+is_max_prio(Res, PrioRes) ->
+    lists:member({max_prio(PrioRes), Res}, PrioRes).
+
+jids_minus_max_priority_resource(U, S, _R, CCResList, PrioRes) ->
+    [ {jlib:make_jid({U, S, CCRes}), CC_Version}
+      || {CC_Version, CCRes} <- CCResList, not is_max_prio(CCRes, PrioRes) ].
+
+jids_minus_specific_resource(U, S, R, CCResList, _PrioRes) ->
+    [ {jlib:make_jid({U, S, CCRes}), CC_Version}
+      || {CC_Version, CCRes} <- CCResList, CCRes =/= R ].
+
+%% If the original user is the only resource in the list of targets
+%% that means that he/she must have already received the message via
+%% normal routing:
+drop_singleton_jid(JID, [{JID, _CCVER}]) -> [];
+drop_singleton_jid(_JID, Targets)        -> Targets.
 
 %% Direction = received | sent <received xmlns='urn:xmpp:carbons:1'/>
 send_copies(JID, To, Packet, Direction) ->
     {U, S, R} = jid:to_lower(JID),
-    PrioRes = ejabberd_sm:get_user_present_resources(U, S),
-    IsBareTo = case {Direction, To} of
-                   {received, #jid{lresource = <<>>}} -> true;
-                   {received, #jid{lresource = LRes}} ->
-                       %% unavailable resources are handled like bare JIDs
-                       case lists:keyfind(LRes, 2, PrioRes) of
-                           false -> true;
-                           _ -> false
-                       end;
-                   _ -> false
-               end,
-    %% list of JIDs that should receive a carbon copy of this message (excluding the
-    %% receiver(s) of the original message
-    TargetJIDs = if
-                     IsBareTo ->
-                         MaxPrio = case catch lists:max(PrioRes) of
-                                       {Prio, _Res} -> Prio;
-                                       _ -> 0
-                                   end,
-                         OrigTo = fun(Res) -> lists:member({MaxPrio, Res}, PrioRes) end,
-                         [{jid:make({U, S, CCRes}), CC_Version}
-                          || {CCRes, CC_Version} <- resources_to_cc(U, S), not OrigTo(CCRes)];
-                     true ->
-                         [{jid:make({U, S, CCRes}), CC_Version}
-                          || {CCRes, CC_Version} <- resources_to_cc(U, S), CCRes /= R]
-                 end,
-    lists:foreach(fun({Dest, Version}) ->
-                          {_, _, Resource} = jid:to_lower(Dest),
-                          ?DEBUG("Sending:  ~p =/= ~p", [R, Resource]),
-                          Sender = jid:make({U, S, <<>>}),
-                          New = build_forward_packet(JID, Packet, Sender, Dest, Direction, Version),
-                          ejabberd_router:route(Sender, Dest, New)
-                  end, TargetJIDs).
+    {PrioRes, CCResList} = get_cc_enabled_resources(U,S),
+    Targets = case is_bare_to(Direction, To, PrioRes) of
+                  true -> jids_minus_max_priority_resource
+                            (U, S, R, CCResList, PrioRes);
+                  _    -> jids_minus_specific_resource(U, S, R, CCResList, PrioRes)
+              end,
+    ?DEBUG("targets ~p from resources ~p and ccenabled ~p",
+           [Targets, PrioRes, CCResList]),
+    lists:map(fun({Dest,Version}) ->
+                      {_, _, Resource} = jlib:jid_tolower(Dest),
+                      ?DEBUG("forwarding to ~ts", [Resource]),
+                      Sender = jlib:make_jid({U, S, <<>>}),
+                      New = build_forward_packet
+                              (JID, Packet, Sender, Dest, Direction, Version),
+                      ejabberd_router:route(Sender, Dest, New)
+              end, drop_singleton_jid(JID, Targets)),
+    ok.
 
 build_forward_packet(JID, Packet, Sender, Dest, Direction, Version) ->
-    #xmlel{name = <<"message">>, 
+    #xmlel{name = <<"message">>,
            attrs = [{<<"xmlns">>, <<"jabber:client">>},
                     {<<"type">>, <<"chat">>},
                     {<<"from">>, jid:to_binary(Sender)},
@@ -292,20 +268,19 @@ carbon_copy_children(?NS_CC_2, JID, Packet, Direction) ->
 
 enable(Host, U, R, CC) ->
     ?DEBUG("enabling for ~p/~p", [U, R]),
-    try mnesia:dirty_write(#carboncopy{us = {U, Host}, resource = R, version = CC}) of
-        ok -> ok
-    catch
-        _:Error -> {error, Error}
-    end.
+    KV = {?CC_KEY, cc_ver_to_int(CC)},
+    {ok, KV} = ejabberd_sm:store_info(U, Host, R, KV),
+    ok.
 
 disable(Host, U, R) ->
-    ?DEBUG("disabling for ~p/~p", [U, R]),
-    ToDelete = mnesia:dirty_match_object(?TABLE, #carboncopy{us = {U, Host},
-                                                             resource = R, version = '_'}),
-    try lists:foreach(fun mnesia:dirty_delete_object/1, ToDelete) of
-        ok -> ok
-    catch
-        _:Error -> {error, Error}
+    ?DEBUG("disabling for ~ts@~ts/~ts", [U,Host,R]),
+    KV = {?CC_KEY, ?CC_DISABLED},
+    case ejabberd_sm:store_info(U, Host, R, KV) of
+        {error, offline} -> ok;
+        {ok, KV} -> ok;
+        Err -> ?INFO_MSG("Could not disable carbon copies for ~p:~p", 
+                         [{U,Host,R}, Err]),
+               ok
     end.
 
 complete_packet(From, #xmlel{name = <<"message">>, attrs = OrigAttrs} = Packet, sent) ->
@@ -318,17 +293,34 @@ complete_packet(From, #xmlel{name = <<"message">>, attrs = OrigAttrs} = Packet, 
         _ ->
             Packet#xmlel{attrs = Attrs}
     end;
+
 complete_packet(_From, #xmlel{name = <<"message">>, attrs=OrigAttrs} = Packet, received) ->
     Attrs = lists:keystore(<<"xmlns">>, 1, OrigAttrs, {<<"xmlns">>, <<"jabber:client">>}),
     Packet#xmlel{attrs = Attrs}.
 
-%% resources_to_cc: {resource, cc_version} with carbons enabled for given user and host
-resources_to_cc(User, Server) ->
-    mnesia:dirty_select(?TABLE, resource_version_match_spec(User, Server)).
+get_cc_enabled_resources(User, Server)->
+    AllSessions = ejabberd_sm:get_raw_sessions(User, Server),
+    CCs = cat_maybes([maybe_cc_resource(S) || S <- AllSessions]),
+    Prios = cat_maybes([maybe_prio_resource(S) || S <- AllSessions]),
+    {Prios, CCs}.
 
-resource_version_match_spec(User, Server) ->
-    [{#carboncopy{us = {User, Server},
-                  resource = '$2',
-                  version = '$3'},
-      [],
-      [{{'$2','$3'}}]}].
+maybe_cc_resource(#session{usr = {_,_,R}, info = I}) ->
+    case lists:keyfind(?CC_KEY, 1, I) of
+        {?CC_KEY, V} when is_integer(V) andalso V =/= ?CC_DISABLED ->
+            {{cc_ver_from_int(V), R}};
+        _ ->
+            {}
+    end.
+
+maybe_prio_resource(#session{usr = {_,_,R}, priority = P})
+  when is_integer(P) -> {{P,R}};
+maybe_prio_resource(_) -> {}.
+
+cc_ver_to_int(?NS_CC_1) -> 1;
+cc_ver_to_int(?NS_CC_2) -> 2.
+
+cc_ver_from_int(1) -> ?NS_CC_1;
+cc_ver_from_int(2) -> ?NS_CC_2.
+
+-spec cat_maybes([({A}|{})]) -> [A].
+cat_maybes(L) -> [ Elem || {Elem} <- L ].

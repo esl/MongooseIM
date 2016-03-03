@@ -13,12 +13,13 @@ all() -> [{group, all}].
 groups() ->
     [{all, [parallel,shuffle],
       [discovering_support,
-       enabling_carbons,
-       disabling_carbons,
-       avoiding_carbons,
-       non_enabled_clients_dont_get_sent_carbons,
-       non_enabled_clients_dont_get_received_carbons,
-       enabled_single_resource_doesnt_get_carbons,
+                  enabling_carbons,
+                  disabling_carbons,
+                  avoiding_carbons,
+                  non_enabled_clients_dont_get_sent_carbons,
+                  non_enabled_clients_dont_get_received_carbons,
+                  enabled_single_resource_doesnt_get_carbons,
+       % unavailable_resources_dont_get_carbons
        dropped_client_doesnt_create_duplicate_carbons,
        prop_forward_received_chat_messages,
        prop_forward_sent_chat_messages,
@@ -111,6 +112,38 @@ enabled_single_resource_doesnt_get_carbons(Config) ->
                 || M <- BobsMessages ]
       end).
 
+unavailable_resources_dont_get_carbons(Config) ->
+    escalus:fresh_story(
+      Config, [{alice, 2}, {bob, 1}],
+      fun(Alice1, Alice2, Bob) ->
+        %% carbons_get_enabled(Alice1),
+        %% carbons_get_enabled(Alice2),
+        client_unsets_presence(Alice1),
+        R = escalus_client:wait_for_stanza(Alice2),
+        escalus_client:send(Bob, escalus_stanza:chat_to(Alice1, <<"one">>)),
+        %% escalus:assert(is_forwarded_received_message,
+        %%                [escalus_client:full_jid(Bob),
+        %%                 escalus_client:full_jid(Alice1),
+        %%                 <<"one">>],
+        %%                escalus_client:wait_for_stanza(Alice2)),
+         ct:pal("~p", [escalus_ejabberd:rpc(ets, tab2list, [session])]),
+        timer:sleep(1000),
+
+        client_sets_presence(Alice1),
+        _ = escalus_client:wait_for_stanza(Alice2),
+        ?assertEqual([], escalus:peek_stanzas(Alice1))
+
+      end).
+
+client_unsets_presence(Client) ->
+    escalus_client:send(Client, escalus_stanza:presence(<<"unavailable">>)),
+    timer:sleep(1000).
+
+client_sets_presence(Client) ->
+    escalus_client:send(Client, escalus_stanza:presence(<<"available">>)),
+    timer:sleep(1000).
+
+
 dropped_client_doesnt_create_duplicate_carbons(Config) ->
     escalus:fresh_story(
       Config, [{alice, 2}, {bob, 1}],
@@ -129,31 +162,31 @@ dropped_client_doesnt_create_duplicate_carbons(Config) ->
 prop_forward_received_chat_messages(Config) ->
     run_prop
       (forward_received,
-       ?FORALL({N,Msg}, {no_of_resources(), utterance()},
+    ?FORALL({N,Msg}, {no_of_resources(), utterance()},
                true_story
                  (Config, [{alice, 1}, {bob, N}],
-                  fun(Users) ->
-                          all_bobs_other_resources_get_received_carbons(Users,Msg)
+                       fun(Users) ->
+                               all_bobs_other_resources_get_received_carbons(Users,Msg)
                   end))).
 
 prop_forward_sent_chat_messages(Config) ->
     run_prop
         (forward_sent,
-         ?FORALL({N,Msg}, {no_of_resources(),utterance()},
+    ?FORALL({N,Msg}, {no_of_resources(),utterance()},
                  true_story
                    (Config, [{alice, 1}, {bob, N}],
-                    fun(Users) ->
-                            all_bobs_other_resources_get_sent_carbons(Users,Msg)
+                       fun(Users) ->
+                               all_bobs_other_resources_get_sent_carbons(Users,Msg)
                     end))).
 
 prop_normal_routing_to_bare_jid(Config) ->
     run_prop
         (normal_routing,
-         ?FORALL({N,Msg}, {no_of_resources(),utterance()},
+    ?FORALL({N,Msg}, {no_of_resources(),utterance()},
                  true_story
                    (Config, [{alice, 1}, {bob, N}],
-                    fun(Users) ->
-                            all_bobs_resources_get_message_to_bare_jid(Users,Msg)
+                       fun(Users) ->
+                               all_bobs_resources_get_message_to_bare_jid(Users,Msg)
                     end))).
 
 
