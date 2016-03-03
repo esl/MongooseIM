@@ -54,7 +54,7 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(GroupName, Config) ->
-    Config1 = escalus:create_users(Config, {by_name, [alice, geralt, geralt_s, oldie]}),
+    Config1 = escalus:create_users(Config, escalus:get_users([alice, geralt, geralt_s, oldie])),
     case GroupName of
         wss_chat ->
             [{user, geralt_s} | Config1];
@@ -64,7 +64,7 @@ init_per_group(GroupName, Config) ->
 
 
 end_per_group(_GroupName, Config) ->
-    escalus:delete_users(Config, {by_name, [alice, geralt, geralt_s, oldie]}).
+    escalus:delete_users(Config, escalus:get_users([alice, geralt, geralt_s, oldie])).
 
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).

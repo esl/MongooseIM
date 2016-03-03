@@ -55,6 +55,8 @@
          get_local_config/0,
          get_host_local_config/0]).
 
+-export([fips_mode/0]).
+
 -include("ejabberd.hrl").
 -include("ejabberd_config.hrl").
 -include_lib("kernel/include/file.hrl").
@@ -1336,3 +1338,11 @@ sort_config(Config) when is_list(Config) ->
                           ConfigItem
                   end, Config),
     lists:sort(L).
+
+fips_mode() ->
+    case erlang:function_exported(crypto, info_fips, 0) of
+        true ->
+            crypto:info_fips();
+        _ ->
+            disabled
+    end.

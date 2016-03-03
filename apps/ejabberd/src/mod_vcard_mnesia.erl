@@ -3,7 +3,13 @@
 -behaviour(mod_vcard).
 
 %% mod_vcards callbacks
--export([init/2,remove_user/2, get_vcard/2, set_vcard/4, search/4, search_fields/1]).
+-export([init/2,
+         remove_user/2,
+         get_vcard/2,
+         set_vcard/4,
+         search/2,
+         search_fields/1,
+         search_reported_fields/2]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -31,6 +37,12 @@ get_vcard(LUser, LServer) ->
                  mnesia:read({vcard, US})
          end,
     case mnesia:transaction(F) of
+        %% TODO: the first clause to be out of place here - see
+        %% http://xmpp.org/extensions/xep-0054.html examples 2, 3, 4:
+        %%
+        %%   If no vCard exists, the server MUST return a stanza error
+        %%   (which SHOULD be <item-not-found/>) or an IQ-result containing
+        %%   an empty <vCard/> element.
         {atomic, []} ->
             {error, ?ERR_SERVICE_UNAVAILABLE};
         {atomic, Rs} ->
@@ -53,11 +65,10 @@ set_vcard(User, VHost, VCard, VCardSearch) ->
     ejabberd_hooks:run(vcard_set, VHost,[LUser,VHost, VCard]),
     ok.
 
-search(VHost, Data, _Lang, DefaultReportedFields) ->
+search(VHost, Data) ->
     MatchHead = make_matchhead(VHost, Data),
     R = do_search(VHost, MatchHead),
-    Items = lists:map(fun record_to_item/1,R),
-    [DefaultReportedFields | Items].
+    lists:map(fun record_to_item/1,R).
 
 do_search(_, #vcard_search{_ = '_'}) ->
     [];
@@ -79,9 +90,14 @@ do_search(VHost, MatchHeadIn) ->
 
 search_fields(_VHost) ->
     mod_vcard:default_search_fields().
+
+search_reported_fields(_VHost, Lang) ->
+    mod_vcard:get_default_reported_fields(Lang).
+
 %%--------------------------------------------------------------------
 %% internal
 %%--------------------------------------------------------------------
+
 prepare_db() ->
     create_tables(),
     update_tables(),

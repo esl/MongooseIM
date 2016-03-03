@@ -350,11 +350,10 @@ user_names() ->
     [alice, bob, kate].
 
 create_users(Config) ->
-    escalus:create_users(Config, {by_name, user_names()}).
+    escalus:create_users(Config, escalus:get_users(user_names())).
 
 delete_users(Config) ->
-    escalus:delete_users(Config, {by_name, user_names()}),
-    Config.
+    escalus:delete_users(Config, escalus:get_users(user_names())).
 
 disable_shaping(Config) ->
     OldShaper = get_shaper(),

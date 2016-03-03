@@ -50,23 +50,23 @@ end_per_suite(Config) ->
 
 init_per_group(client_ping, Config) ->
     start_mod_ping([]),
-    escalus:create_users(Config, {by_name, [alice]});
+    escalus:create_users(Config, escalus:get_users([alice]));
 init_per_group(server_ping, Config) ->
     start_mod_ping([{send_pings, true},
                     {ping_interval, 8},
                     {ping_req_timeout, 4}]),
-    escalus:create_users(Config, {by_name, [alice]});
+    escalus:create_users(Config, escalus:get_users([alice]));
 init_per_group(server_ping_kill, Config) ->
     start_mod_ping([{send_pings, true},
                     {ping_interval, 8},
                     {ping_req_timeout, 4},
                     {timeout_action, kill}]),
-    [{timeout_action, kill} | escalus:create_users(Config, {by_name, [alice]})].
+    [{timeout_action, kill} | escalus:create_users(Config, escalus:get_users([alice]))].
 
 end_per_group(_GroupName, Config) ->
     Domain = ct:get_config(ejabberd_domain),
     dynamic_modules:stop(Domain, mod_ping),
-    escalus:delete_users(Config, {by_name, [alice]}).
+    escalus:delete_users(Config, escalus:get_users([alice])).
 
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).

@@ -48,10 +48,10 @@ groups() ->
 
 init_per_suite(Config) ->
     escalus:init_per_suite(Config),
-    escalus:create_users(Config, {by_name, [alice, bob]}).
+    escalus:create_users(Config, escalus:get_users([alice, bob])).
 
 end_per_suite(Config) ->
-    escalus:delete_users(Config, {by_name, [alice, bob]}),
+    escalus:delete_users(Config, escalus:get_users([alice, bob])),
     escalus:end_per_suite(Config).
 
 init_per_testcase(CaseName,Config) ->

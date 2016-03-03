@@ -83,10 +83,10 @@ init_per_suite(Config) ->
     Config1 = ejabberd_node_utils:init(Config0),
     ejabberd_node_utils:backup_config_file(Config1),
     assert_cert_file_exists(),
-    escalus:create_users(Config1, {by_name, [?SECURE_USER, alice]}).
+    escalus:create_users(Config1, escalus:get_users([?SECURE_USER, alice])).
 
 end_per_suite(Config) ->
-    escalus:delete_users(Config, {by_name, [?SECURE_USER, alice]}),
+    escalus:delete_users(Config, escalus:get_users([?SECURE_USER, alice])),
     restore_ejabberd_node(Config),
     escalus:end_per_suite(Config).
 
@@ -110,14 +110,10 @@ init_per_group(ciphers_default, Config) ->
     ejabberd_node_utils:restart_application(ejabberd),
     [{c2s_port, 5222} | Config];
 init_per_group('node2_supports_DHE-RSA-AES256-SHA_only', Config) ->
-     node2_rpccall(mongoose_cover_helper, start, [[ejabberd]]),
     [{c2s_port, 5233} | Config];
 init_per_group(_, Config) ->
     Config.
 
-end_per_group('node2_supports_DHE-RSA-AES256-SHA_only', Config) ->
-    node2_rpccall(mongoose_cover_helper, analyze, []),
-    Config;
 end_per_group(_, Config) ->
     Config.
 
@@ -431,11 +427,6 @@ default_context(To) ->
     [{version, <<"version='1.0'">>},
      {to, To},
      {stream_ns, ?NS_XMPP}].
-
-node2_rpccall(Module, Function, Args) ->
-    Node = ct:get_config(ejabberd2_node),
-    rpc:call(Node, Module, Function, Args).
-
 
 children_specs_to_pids(Children) ->
     [Pid || {_, Pid, _, _} <- Children].

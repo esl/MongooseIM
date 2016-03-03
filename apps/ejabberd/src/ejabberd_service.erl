@@ -53,10 +53,11 @@
 -include("jlib.hrl").
 
 -record(state, {socket,
-                sockmod     :: ejabberd:sockmod(),
+                sockmod      :: ejabberd:sockmod(),
                 streamid,
-                hosts       :: list(),
-                password    :: binary(),
+                password     :: binary(),
+                host         :: binary(),
+                is_subdomain :: boolean(),
                 access,
                 check_from
               }).
@@ -107,6 +108,8 @@
         exml:to_binary(?SERR_XML_NOT_WELL_FORMED)).
 -define(INVALID_NS_ERR,
         exml:to_binary(?SERR_INVALID_NAMESPACE)).
+-define(CONFLICT_ERR,
+        exml:to_binary(?SERR_CONFLICT)).
 
 %%%----------------------------------------------------------------------
 %%% API
@@ -143,31 +146,7 @@ init([{SockMod, Socket}, Opts]) ->
                  {value, {_, A}} -> A;
                  _ -> all
              end,
-    {Hosts, Password} =
-        case lists:keysearch(hosts, 1, Opts) of
-            {value, {_, Hs, HOpts}} ->
-                case lists:keysearch(password, 1, HOpts) of
-                    {value, {_, P}} ->
-                        {Hs, P};
-                    _ ->
-                        % TODO: generate error
-                        false
-                end;
-            _ ->
-                case lists:keysearch(host, 1, Opts) of
-                    {value, {_, H, HOpts}} ->
-                        case lists:keysearch(password, 1, HOpts) of
-                            {value, {_, P}} ->
-                                {[H], P};
-                            _ ->
-                                % TODO: generate error
-                                false
-                        end;
-                    _ ->
-                        % TODO: generate error
-                        false
-                end
-        end,
+    {password, Password} = lists:keyfind(password, 1, Opts),
     Shaper = case lists:keysearch(shaper_rule, 1, Opts) of
                  {value, {_, S}} -> S;
                  _ -> none
@@ -180,7 +159,6 @@ init([{SockMod, Socket}, Opts]) ->
     {ok, wait_for_stream, #state{socket = Socket,
                                  sockmod = SockMod,
                                  streamid = new_id(),
-                                 hosts = [iolist_to_binary(H) || H <- Hosts],
                                  password = Password,
                                  access = Access,
                                  check_from = CheckFrom
@@ -203,8 +181,14 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
             %% so ejabberd doesn't check 'to' attribute (EJAB-717)
             To = xml:get_attr_s(<<"to">>, Attrs),
             Header = io_lib:format(?STREAM_HEADER, [StateData#state.streamid, To]),
+            IsSubdomain = case xml:get_attr_s(<<"is_subdomain">>, Attrs) of
+                <<"true">> -> true;
+                _          -> false
+            end,
             send_text(StateData, list_to_binary(Header)),
-            {next_state, wait_for_handshake, StateData};
+            StateData1 = StateData#state{host = To,
+                                         is_subdomain = IsSubdomain},
+            {next_state, wait_for_handshake, StateData1};
         _ ->
             send_text(StateData, ?INVALID_HEADER_ERR),
             {stop, normal, StateData}
@@ -227,13 +211,14 @@ wait_for_handshake({xmlstreamelement, El}, StateData) ->
             case sha:sha1_hex(StateData#state.streamid ++
                          StateData#state.password) of
                 Digest ->
-                    send_text(StateData, <<"<handshake/>">>),
-                    lists:foreach(
-                      fun(H) ->
-                              ejabberd_router:register_route(H),
-                              ?INFO_MSG("Route registered for service ~p~n", [H])
-                      end, StateData#state.hosts),
-                    {next_state, stream_established, StateData};
+                    case register_routes(StateData) of
+                        ok ->
+                            send_text(StateData, <<"<handshake/>">>),
+                            {next_state, stream_established, StateData};
+                        {error, _Reason} ->
+                            send_text(StateData, ?CONFLICT_ERR),
+                            {stop, normal, StateData}
+                    end;
                 _ ->
                     send_text(StateData, ?INVALID_HANDSHAKE_ERR),
                     {stop, normal, StateData}
@@ -248,7 +233,6 @@ wait_for_handshake({xmlstreamerror, _}, StateData) ->
     {stop, normal, StateData};
 wait_for_handshake(closed, StateData) ->
     {stop, normal, StateData}.
-
 
 -spec stream_established(ejabberd:xml_stream_item(), state()) -> fsm_return().
 stream_established({xmlstreamelement, El}, StateData) ->
@@ -266,7 +250,7 @@ stream_established({xmlstreamelement, El}, StateData) ->
                       FromJID1 = jid:from_binary(From),
                       case FromJID1 of
                           #jid{lserver = Server} ->
-                              case lists:member(Server, StateData#state.hosts) of
+                              case Server =:= StateData#state.host of
                                   true -> FromJID1;
                                   false -> error
                               end;
@@ -380,10 +364,7 @@ terminate(Reason, StateName, StateData) ->
     ?INFO_MSG("terminated: ~p", [Reason]),
     case StateName of
         stream_established ->
-            lists:foreach(
-              fun(H) ->
-                      ejabberd_router:unregister_route(H)
-              end, StateData#state.hosts);
+            unregister_routes(StateData);
         _ ->
             ok
     end,
@@ -431,3 +412,22 @@ fsm_limit_opts(Opts) ->
             end
     end.
 
+-spec register_routes(state()) -> any().
+register_routes(#state{host=Subdomain, is_subdomain=true}) ->
+    Hosts = ejabberd_config:get_global_option(hosts),
+    Routes = component_routes(Subdomain, Hosts),
+    ejabberd_router:register_components(Routes);
+register_routes(#state{host=Host}) ->
+    ejabberd_router:register_component(Host).
+
+-spec unregister_routes(state()) -> any().
+unregister_routes(#state{host=Subdomain, is_subdomain=true}) ->
+    Hosts = ejabberd_config:get_global_option(hosts),
+    Routes = component_routes(Subdomain, Hosts),
+    ejabberd_router:unregister_components(Routes);
+unregister_routes(#state{host=Host}) ->
+    ejabberd_router:unregister_component(Host).
+
+-spec component_routes(binary(), [binary()]) -> [binary()].
+component_routes(Subdomain, Hosts) ->
+    [<<Subdomain/binary, ".", Host/binary>> || Host <- Hosts].

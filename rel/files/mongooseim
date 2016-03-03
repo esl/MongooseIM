@@ -118,7 +118,7 @@ case "$1" in
         if [ "$RES2" = "pong" ]; then
             RES3=`$ADD_TO_CLUSTER_CMD`
             if [ "$RES3" = "ok" ]; then
-                echo "Node added to cluster. Run mongooseimctl live or mongooseimclt start."
+                echo "Node added to cluster. Run mongooseimctl live or mongooseimctl start."
             else
                 echo "Adding Node to cluster failed:  $RES3"
                 exit 1

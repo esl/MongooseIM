@@ -217,7 +217,7 @@ end_per_suite(Config) ->
 init_per_group(moderator, Config) ->
     RoomName = <<"alicesroom">>,
     RoomNick = <<"alicesnick">>,
-    Config1 = escalus:create_users(Config, {by_name, [alice, bob, kate]}),
+    Config1 = escalus:create_users(Config, escalus:get_users([alice, bob, kate])),
     [Alice | _] = ?config(escalus_users, Config1),
     start_room(Config1, Alice, RoomName, RoomNick,
         [{persistent, true}, {allow_change_subj, false}, {moderated, true},
@@ -226,54 +226,54 @@ init_per_group(moderator, Config) ->
 init_per_group(admin, Config) ->
     RoomName = <<"alicesroom">>,
     RoomNick = <<"alicesnick">>,
-    Config1 = escalus:create_users(Config, {by_name, [alice, bob, kate]}),
+    Config1 = escalus:create_users(Config, escalus:get_users([alice, bob, kate])),
     [Alice | _] = ?config(escalus_users, Config1),
     start_room(Config1, Alice, RoomName, RoomNick, [{persistent, true}]);
 
 init_per_group(admin_membersonly, Config) ->
     RoomName = <<"alicesroom">>,
     RoomNick = <<"alicesnick">>,
-    Config1 = escalus:create_users(Config, {by_name, [alice, bob, kate]}),
+    Config1 = escalus:create_users(Config, escalus:get_users([alice, bob, kate])),
     [Alice | _] = ?config(escalus_users, Config1),
     start_room(Config1, Alice, RoomName, RoomNick, [{persistent, true},
         {members_only, true}]);
 
 init_per_group(disco, Config) ->
-    Config1 = escalus:create_users(Config, {by_name, [alice, bob]}),
+    Config1 = escalus:create_users(Config, escalus:get_users([alice, bob])),
     [Alice | _] = ?config(escalus_users, Config1),
     start_room(Config1, Alice, <<"alicesroom">>, <<"aliceonchat">>,
         [{persistent, true}]);
 
 init_per_group(disco_rsm, Config) ->
-    Config1 = escalus:create_users(Config, {by_name, [alice, bob]}),
+    Config1 = escalus:create_users(Config, escalus:get_users([alice, bob])),
     [Alice | _] = ?config(escalus_users, Config1),
     start_rsm_rooms(Config1, Alice, <<"aliceonchat">>);
 
 init_per_group(_GroupName, Config) ->
-    escalus:create_users(Config, {by_name, [alice, bob, kate]}).
+    escalus:create_users(Config, escalus:get_users([alice, bob, kate])).
 
 end_per_group(moderator, Config) ->
     destroy_room(Config),
-    escalus:delete_users(Config, {by_name, [alice, bob, kate]});
+    escalus:delete_users(Config, escalus:get_users([alice, bob, kate]));
 
 end_per_group(admin, Config) ->
     destroy_room(Config),
-    escalus:delete_users(Config, {by_name, [alice, bob, kate]});
+    escalus:delete_users(Config, escalus:get_users([alice, bob, kate]));
 
 end_per_group(admin_membersonly, Config) ->
     destroy_room(Config),
-    escalus:delete_users(Config, {by_name, [alice, bob, kate]});
+    escalus:delete_users(Config, escalus:get_users([alice, bob, kate]));
 
 end_per_group(disco, Config) ->
     destroy_room(Config),
-    escalus:delete_users(Config, {by_name, [alice, bob]});
+    escalus:delete_users(Config, escalus:get_users([alice, bob]));
 
 end_per_group(disco_rsm, Config) ->
     destroy_rsm_rooms(Config),
-    escalus:delete_users(Config, {by_name, [alice, bob]});
+    escalus:delete_users(Config, escalus:get_users([alice, bob]));
 
 end_per_group(_GroupName, Config) ->
-    escalus:delete_users(Config, {by_name, [alice, bob, kate]}).
+    escalus:delete_users(Config, escalus:get_users([alice, bob, kate])).
 
 init_per_testcase(CaseName = configure_anonymous, Config) ->
     [Alice | _] = ?config(escalus_users, Config),
@@ -1299,7 +1299,7 @@ admin_ban_list(Config) ->
     end).
 
 admin_get_form(Config) ->
-    escalus:story(Config, [1,1,1], fun(Alice, _Bob, _Kate) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, _Bob, _Kate) ->
         timer:sleep(?WAIT_TIME),
         %%%% Bootstrap:
         %% Alice is admin
@@ -1552,7 +1552,7 @@ check_rolelist(LoginData, no, Config) ->
 
 %% This one tests a roomconfig_getmemberlist setting
 admin_member_list_allowed(Config) ->
-    escalus:story(Config, [1,1,1], fun(Alice, Bob, Kate) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
         timer:sleep(?WAIT_TIME),
         %%%% Bootstrap:
         %% Alice is admin
@@ -2849,7 +2849,7 @@ disco_items(Config) ->
                                  end).
 
 disco_items_nonpublic(Config) ->
-    escalus:story(Config, [1,1], fun(Alice, Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         escalus:send(Alice, stanza_join_room(<<"alicesroom">>, <<"nicenick">>)),
         _Stanza = escalus:wait_for_stanza(Alice),
 
