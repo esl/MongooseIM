@@ -46,7 +46,12 @@ tests() ->
      clean_up,
      too_much_sessions,
      unique_count,
-     unique_count_while_removing_entries].
+     unique_count_while_removing_entries,
+     session_info_is_stored,
+     session_info_is_updated_if_keys_match,
+     session_info_is_extended_if_new_keys_present,
+     session_info_keys_not_truncated_if_session_opened_with_empty_infolist
+    ].
 
 init_per_group(mnesia, Config) ->
     application:start(mnesia),
@@ -141,6 +146,41 @@ update_session(C) ->
     [{USR, Sid, 20, _}] = ?B(C):get_sessions(),
     [{USR, Sid, 20, _}] = ?B(C):get_sessions(S),
     [#session{priority = 20}] = ?B(C):get_sessions(U, S).
+
+session_info_is_stored(C) ->
+    {Sid, {U, S, _} = USR} = generate_random_user(<<"localhost">>),
+    given_session_opened(Sid, USR, 1, [{key1, val1}]),
+
+    [#session{sid = Sid, info = [{key1, val1}]}]
+     = ?B(C):get_sessions(U,S).
+
+session_info_is_updated_if_keys_match(C) ->
+    {Sid, {U, S, _} = USR} = generate_random_user(<<"localhost">>),
+    given_session_opened(Sid, USR, 1, [{key1, val1}]),
+
+    when_session_opened(Sid, USR, 1, [{key1, val2}]),
+
+    [#session{sid = Sid, info = [{key1, val2}]}]
+     = ?B(C):get_sessions(U,S).
+
+session_info_is_extended_if_new_keys_present(C) ->
+    {Sid, {U, S, _} = USR} = generate_random_user(<<"localhost">>),
+    given_session_opened(Sid, USR, 1, [{key1, val1}]),
+
+    when_session_opened(Sid, USR, 1, [{key1, val1}, {key2, val2}]),
+
+    [#session{sid = Sid, info = [{key1, val1}, {key2, val2}]}]
+     = ?B(C):get_sessions(U,S).
+
+session_info_keys_not_truncated_if_session_opened_with_empty_infolist(C) ->
+    {Sid, {U, S, _} = USR} = generate_random_user(<<"localhost">>),
+    given_session_opened(Sid, USR, 1, [{key1, val1}]),
+
+    when_session_opened(Sid, USR, 1, []),
+
+    [#session{sid = Sid, info = [{key1, val1}]}]
+     = ?B(C):get_sessions(U,S).
+
 
 delete_session(C) ->
     {Sid, {U, S, R} = USR} = generate_random_user(<<"localhost">>),
@@ -258,7 +298,13 @@ given_session_opened(Sid, USR) ->
     given_session_opened(Sid, USR, 1).
 
 given_session_opened(Sid, {U, S, R}, Priority) ->
-    ejabberd_sm:open_session(Sid, U, S, R, Priority, []).
+    given_session_opened(Sid, {U,S,R}, Priority, []).
+
+given_session_opened(Sid, {U,S,R}, Priority, Info) ->
+    ejabberd_sm:open_session(Sid, U, S, R, Priority, Info).
+
+when_session_opened(Sid, {U,S,R}, Priority, Info) ->
+    given_session_opened(Sid, {U,S,R}, Priority, Info).
 
 verify_session_opened(C, Sid, USR) ->
     do_verify_session_opened(?B(C), Sid, USR).
