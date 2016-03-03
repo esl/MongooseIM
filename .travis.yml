@@ -10,7 +10,7 @@ install:
 before_script:
         - tools/travis-setup-db.sh
         - if [ $PRESET = 'ldap_mnesia' ]; then sudo tools/travis-setup-ldap.sh; fi
-script: tools/travis-test.sh
+script: tools/travis-test.sh $PRESET
 
 after_success:
         - make cover_report

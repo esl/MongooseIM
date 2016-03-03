@@ -3,8 +3,7 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--import(ejabberd_node_utils, [get_cwd/2,
-                              call_fun/4]).
+-import(ejabberd_node_utils, [get_cwd/2]).
 
 -compile(export_all).
 

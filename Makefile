@@ -5,7 +5,7 @@ EJD_INCLUDE = $(EJABBERD_DIR)/include
 EJD_PRIV = $(EJABBERD_DIR)/priv
 XEP_TOOL = tools/xep_tool
 EJD_EBIN = $(EJABBERD_DIR)/ebin
-DEVNODES = node1 node2
+DEVNODES = node1 node2 fed1
 
 all: deps compile
 
@@ -27,8 +27,10 @@ reload: quick_compile
 	rsync -uW ./apps/ejabberd/ebin/*beam ./rel/mongooseim/lib/$$E/ebin/ ;\
 
 reload_dev: quick_compile
-	@E=`ls ./dev/mongooseim_node1/lib/ | grep ejabberd-2 | sort -r | head -n 1` ;\
-	rsync -uW ./apps/ejabberd/ebin/*beam ./dev/mongooseim_node1/lib/$$E/ebin/ ;\
+	@for NODE in $(DEVNODES); do \
+		E=`ls ./dev/mongooseim_$$NODE/lib/ | grep ejabberd-2 | sort -r | head -n 1` ;\
+		rsync -uW ./apps/ejabberd/ebin/*beam ./dev/mongooseim_$$NODE/lib/$$E/ebin/ ;\
+	done
 
 ct: deps quick_compile
 	@(if [ "$(SUITE)" ]; then ./rebar ct suite=$(SUITE) skip_deps=true;\
