@@ -37,13 +37,28 @@ Manages all HTTP-based services. Unlike `ejabberd_c2s`, it doesn't use `ejabberd
 * `key` (string, optional, no default value) - Path to the SSL private key in X509 format.
 * `key_pass` (string, optional, default: `undefined`) - Password to a private key, `undefined` for no password.
 * `modules` (list of tuples: `{Host, Path, Modules}`) - List of enabled HTTP-based modules. `"_"` equals any host.
-    * `mod_bosh` - BOSH connections handler. Default declaration: `{"_", "/http-bind", mod_bosh}`
+    * `mod_bosh` - BOSH connections handler. Default declaration:
+
+            `{"_", "/http-bind", mod_bosh}`
+
     * `mod_websockets` - Websocket connections, both [old](http://xmpp.org/extensions/xep-0206.html) and [new](http://datatracker.ietf.org/doc/draft-ietf-xmpp-websocket/?include_text=1) type. You can pass optional
-    parameters: `{timeout, Val}` and `{ping_rate, Val}`. The first one is the time after which an inactive user is
-    disconnected. The Ping rate points to the time between pings sent by server. By declaring this field you enable
-    server-side pinging. Default declaration:
-     `{"_", "/ws-xmpp", mod_websockets, []}`.
-    * `mongoose_api` - REST API for accessing internal MongooseIM metrics. Please refer to [REST interface to metrics](../developers-guide/REST-interface-to-metrics.md) for more information. Default declaration: `{"localhost", "/api", mongoose_api, [{handlers, [mongoose_api_metrics]}]}`.
+    parameters:
+        * `{timeout, Val}` - the time after which an inactive user is disconnected.
+        * `{ping_rate, Val}` - the Ping rate points to the time between pings sent by server. By declaring this field you enable server-side pinging.
+        * `{ejabberd_service, Params}` - this enables external component
+            connections over WebSockets. See [ejabberd_service](#ejabberd_service)
+            section for more details how to configure it.
+
+        Default declaration:
+
+            `{"_", "/ws-xmpp", mod_websockets, []}`
+
+    * `mongoose_api` - REST API for accessing internal MongooseIM metrics.
+        Please refer to [REST interface to metrics](../developers-guide/REST-interface-to-metrics.md)
+        for more information. Default declaration:
+
+            `{"localhost", "/api", mongoose_api, [{handlers, [mongoose_api_metrics]}]}`
+
 
 ### mod_cowboy
 
@@ -98,4 +113,11 @@ Interface for external [XMPP components](http://xmpp.org/extensions/xep-0114.htm
 * `shaper_rule` (atom, default: `fast`) - Connection shaper to use for incoming component traffic.
 * `service_check_from` (boolean, default: `true`) - Checks whether the server should verify the "from" field in stanzas from component
 
+### Custom extension to the protocol
+
+In order to register a component for all virtual hosts served by the
+server, the component must add attribute `is_subdomain="true"`to the opening stream element.
+This maybe helpful if someone wants to have a single instance of a
+component serving multiple virtual hosts. The `is_subdomain` attribute
+is optional and the default behaviour is as described in the XEP.
 
