@@ -1,5 +1,6 @@
 -module(carboncopy_SUITE).
 
+
 -compile([export_all]).
 -include_lib("common_test/include/ct.hrl").
 -include_lib("proper/include/proper.hrl").
@@ -19,7 +20,7 @@ groups() ->
                   non_enabled_clients_dont_get_sent_carbons,
                   non_enabled_clients_dont_get_received_carbons,
                   enabled_single_resource_doesnt_get_carbons,
-       % unavailable_resources_dont_get_carbons
+       unavailable_resources_dont_get_carbons,
        dropped_client_doesnt_create_duplicate_carbons,
        prop_forward_received_chat_messages,
        prop_forward_sent_chat_messages,
@@ -116,32 +117,26 @@ unavailable_resources_dont_get_carbons(Config) ->
     escalus:fresh_story(
       Config, [{alice, 2}, {bob, 1}],
       fun(Alice1, Alice2, Bob) ->
-        %% carbons_get_enabled(Alice1),
-        %% carbons_get_enabled(Alice2),
+        carbons_get_enabled(Alice1),
+        carbons_get_enabled(Alice2),
         client_unsets_presence(Alice1),
-        R = escalus_client:wait_for_stanza(Alice2),
-        escalus_client:send(Bob, escalus_stanza:chat_to(Alice1, <<"one">>)),
-        %% escalus:assert(is_forwarded_received_message,
-        %%                [escalus_client:full_jid(Bob),
-        %%                 escalus_client:full_jid(Alice1),
-        %%                 <<"one">>],
-        %%                escalus_client:wait_for_stanza(Alice2)),
-         ct:pal("~p", [escalus_ejabberd:rpc(ets, tab2list, [session])]),
-        timer:sleep(1000),
+        _unavailable = escalus_client:wait_for_stanza(Alice2),
+
+        escalus_client:send(Bob, escalus_stanza:chat_to(Alice2, <<"one">>)),
 
         client_sets_presence(Alice1),
-        _ = escalus_client:wait_for_stanza(Alice2),
-        ?assertEqual([], escalus:peek_stanzas(Alice1))
-
+        %% no carbons for Alice1, only presences
+        escalus_new_assert:mix_match([is_presence, is_presence],
+                                     escalus:peek_stanzas(Alice1))
       end).
 
 client_unsets_presence(Client) ->
     escalus_client:send(Client, escalus_stanza:presence(<<"unavailable">>)),
-    timer:sleep(1000).
+    timer:sleep(100).
 
 client_sets_presence(Client) ->
     escalus_client:send(Client, escalus_stanza:presence(<<"available">>)),
-    timer:sleep(1000).
+    timer:sleep(100).
 
 
 dropped_client_doesnt_create_duplicate_carbons(Config) ->
