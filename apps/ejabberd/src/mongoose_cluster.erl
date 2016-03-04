@@ -84,7 +84,6 @@ table_type(ClusterMember, T) ->
 %% You've been warned.
 delete_mnesia() ->
     catch mnesia:stop(),
-    catch mnesia:delete_schema(),
     Dir = mnesia:system_info(directory),
     case application:get_env(mnesia, dir, undefined) of
         undefined -> ok;
