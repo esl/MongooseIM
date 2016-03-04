@@ -211,11 +211,11 @@ is_max_prio(Res, PrioRes) ->
     lists:member({max_prio(PrioRes), Res}, PrioRes).
 
 jids_minus_max_priority_resource(U, S, _R, CCResList, PrioRes) ->
-    [ {jlib:make_jid({U, S, CCRes}), CC_Version}
+    [ {jid:make({U, S, CCRes}), CC_Version}
       || {CC_Version, CCRes} <- CCResList, not is_max_prio(CCRes, PrioRes) ].
 
 jids_minus_specific_resource(U, S, R, CCResList, _PrioRes) ->
-    [ {jlib:make_jid({U, S, CCRes}), CC_Version}
+    [ {jid:make({U, S, CCRes}), CC_Version}
       || {CC_Version, CCRes} <- CCResList, CCRes =/= R ].
 
 %% If the original user is the only resource in the list of targets
@@ -236,9 +236,9 @@ send_copies(JID, To, Packet, Direction) ->
     ?DEBUG("targets ~p from resources ~p and ccenabled ~p",
            [Targets, PrioRes, CCResList]),
     lists:map(fun({Dest,Version}) ->
-                      {_, _, Resource} = jlib:jid_tolower(Dest),
+                      {_, _, Resource} = jid:to_lower(Dest),
                       ?DEBUG("forwarding to ~ts", [Resource]),
-                      Sender = jlib:make_jid({U, S, <<>>}),
+                      Sender = jid:make({U, S, <<>>}),
                       New = build_forward_packet
                               (JID, Packet, Sender, Dest, Direction, Version),
                       ejabberd_router:route(Sender, Dest, New)

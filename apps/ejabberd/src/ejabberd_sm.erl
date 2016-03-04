@@ -266,10 +266,8 @@ get_session(User, Server, Resource) ->
     end.
 -spec get_raw_sessions(ejabberd:user(), ejabberd:server()) -> [#session{}].
 get_raw_sessions(User, Server) ->
-    LUser = jlib:nodeprep(User),
-    LServer = jlib:nameprep(Server),
-    clean_session_list(?SM_BACKEND:get_sessions(LUser, LServer)).
-
+    clean_session_list(
+      ?SM_BACKEND:get_sessions(jid:nodeprep(User), jid:nameprep(Server))).
 
 -spec set_presence(SID, User, Server, Resource, Prio, Presence, Info) -> ok when
       SID :: 'undefined' | sid(),
@@ -952,4 +950,3 @@ get_cached_unique_count() ->
         _ ->
             0
     end.
-
