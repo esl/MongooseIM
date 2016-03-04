@@ -47,12 +47,7 @@
               }).
 
 start(_Opts) ->
-    case ejabberd_config:fips_mode() of
-        enabled ->
-            skip;
-        _ ->
-            cyrsasl:register_mechanism(<<"DIGEST-MD5">>, ?MODULE, digest)
-    end.
+    mongoose_fips:maybe_register_mech(<<"DIGEST-MD5">>, ?MODULE, digest).
 
 stop() ->
     ok.

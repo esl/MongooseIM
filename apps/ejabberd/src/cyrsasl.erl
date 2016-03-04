@@ -45,9 +45,10 @@
 -type sasl_mechanism() :: #sasl_mechanism{
                              mechanism :: mechanism(),
                              module :: sasl_module(),
-                             password_type :: plain | digest | scram
+                             password_type :: password_type()
                             }.
 -type mechanism() :: binary().
+-type password_type() :: plain | digest | scram.
 
 -record(sasl_state, {service :: binary(),
                      myname :: ejabberd:server(),
@@ -75,7 +76,9 @@
                                   ).
 -export_type([get_password_fun/0,
               check_password_fun/0,
-              check_pass_digest_fun/0]).
+              check_pass_digest_fun/0,
+              mechanism/0,
+              password_type/0]).
 
 -callback mech_new(Host :: ejabberd:server(),
                    GetPassword :: get_password_fun(),
@@ -100,7 +103,7 @@ start() ->
 
 -spec register_mechanism(Mechanism :: mechanism(),
                          Module :: sasl_module(),
-                         PasswordType :: plain | digest | scram) -> true.
+                         PasswordType :: password_type()) -> true.
 register_mechanism(Mechanism, Module, PasswordType) ->
     ets_insert_mechanism(#sasl_mechanism{mechanism = Mechanism,
                                          module = Module,
