@@ -1,30 +1,25 @@
 {ok, Path} = file:get_cwd(),
 ConfigureOut = Path ++ "/../configure.out",
-Conf = case file:consult(ConfigureOut) of
-            {ok, Terms} -> Terms;
-            E -> io:format("WARN: error ~p reading file: ~p - using default rel config~n", [E, ConfigureOut]), []
-       end,
-
-BaseAppsToRun = [compiler,
-                 lager,
-                 kernel,
-                 mnesia,
-                 sasl,
-                 ssl,
-                 stdlib,
-                 ejabberd,
-                 inets,
-                 syntax_tools,
-                 p1_stringprep,
-                 xmerl,
-                 exml,
-                 cowboy,
-                 fusco,
-                 exometer],
-
-AppsToRunIn = BaseAppsToRun ++ proplists:get_value(apps_to_run, Conf, []),
-
-AppsToRun = ordsets:to_list(ordsets:from_list(AppsToRunIn)),
+EnvApps = os:getenv("APPS"),
+EnvApps =/= false orelse error("APPS not defined"),
+EnvAppsToInclude = [ list_to_atom(App)
+                     || App <- string:tokens(EnvApps, " \n\r") ],
+AppsToRun = [compiler,
+             lager,
+             kernel,
+             mnesia,
+             sasl,
+             ssl,
+             stdlib,
+             ejabberd,
+             inets,
+             syntax_tools,
+             p1_stringprep,
+             xmerl,
+             exml,
+             cowboy,
+             fusco,
+             exometer],
 
 BaseAppsToInclude = AppsToRun ++
                     [asn1,
@@ -51,7 +46,7 @@ BaseAppsToInclude = AppsToRun ++
 
 RemovedApps = [mysql,pgsql,redo,seestar,odbc],
 
-AppsToIncludeIn = BaseAppsToInclude ++ proplists:get_value(apps_to_include, Conf, []),
+AppsToIncludeIn = BaseAppsToInclude ++ EnvAppsToInclude,
 
 AppsToInclude = ordsets:to_list(ordsets:from_list(AppsToIncludeIn)),
 

@@ -42,21 +42,21 @@ otp_release:
         - 17.5
 env:
         - PRESET=internal_redis DB=mnesia REL_CONFIG=with-redis
-        - PRESET=internal_mnesia DB=mnesia REL_CONFIG=minimal
+        - PRESET=internal_mnesia DB=mnesia REL_CONFIG=with-none
         - PRESET=mysql_mnesia DB=mysql REL_CONFIG=with-mysql
         - PRESET=odbc_pgsql_mnesia DB=pgsql REL_CONFIG=with-odbc
         - PRESET=pgsql_mnesia DB=pgsql REL_CONFIG=with-pgsql
-        - PRESET=ldap_mnesia DB=mnesia REL_CONFIG=minimal
+        - PRESET=ldap_mnesia DB=mnesia REL_CONFIG=with-none
         - PRESET=riak_mnesia DB=riak REL_CONFIG=with-riak
-        - PRESET=external_mnesia DB=mnesia REL_CONFIG=minimal
+        - PRESET=external_mnesia DB=mnesia REL_CONFIG=with-none
         - PRESET=dialyzer_only
 
 matrix:
     include:
         - otp_release: R16B03
-          env: PRESET=internal_mnesia DB=mnesia REL_CONFIG=minimal
+          env: PRESET=internal_mnesia DB=mnesia REL_CONFIG=with-none
         - otp_release: 18.1
-          env: PRESET=internal_mnesia DB=mnesia REL_CONFIG=minimal
+          env: PRESET=internal_mnesia DB=mnesia REL_CONFIG=with-none
 
 after_failure:
         - tools/travis-upload-ct-reports.sh

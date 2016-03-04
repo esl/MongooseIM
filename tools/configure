@@ -1,72 +1,98 @@
 #!/usr/bin/env escript
 
--define(NO_ODBC_WARN, "WARNING! There is no odbc module in your Erlang/OTP installation! It will not be included in the release!").
+-define(NO_ODBC_WARN, "WARNING! There is no odbc module in your Erlang/OTP installation! "
+                      "It will not be included in the release!").
+
+-record(opts, {apps     = [],
+               log_dir  = "log",
+               prefix   = "/usr/local"}).
 
 main([]) ->
     usage();
-main(OptsIn) ->
-    Opts = case lists:member("full", OptsIn) of
-        false ->
+main(Args) ->
+    Opts = process_args(Args, #opts{}),
+    Data = [var("APPS", validate_apps(Opts#opts.apps)),
+            var("LOG_DIR", [Opts#opts.log_dir]),
+            var("PREFIX", [Opts#opts.prefix])],
+    ok = file:write_file("configure.out", Data).
 
-            OptsIn;
-        _ ->
-            all_opts()
-    end,
-    {AppsToRun, AppsToInclude} = lists:foldl(fun(O, Acc) -> analyze_opt(O, Acc) end,
-                                             {[], []}, Opts),
-    Data = io_lib:fwrite("~p.~n~p.", [{apps_to_run, AppsToRun}, {apps_to_include, AppsToInclude}]),
-    file:write_file("configure.out", Data).
+app_opts() ->
+    %% Opt         Apps                 Desc
+    [{"none",      [],                  "include no 3rd party drivers"},
+     {"all",       [],                  "include all drivers"},
+     {"cassandra", ["seestar"],         include_driver("cassandra")},
+     {"mysql",     ["mysql"],           include_driver("mysql")},
+     {"odbc",      ["odbc"],            "include standard ODBC driver shipped with Erlang/OTP"},
+     {"pgsql",     ["pgsql"],           include_driver("pgsql")},
+     {"redis",     ["redo"],            include_driver("redis")},
+     {"riak",      ["riakc", "riak_pb", "protobuffs"],
+                                        include_driver("riak")}].
 
-analyze_opt("with-mysql", {AppsToInclude, AppsToRun}) ->
-    {[mysql | AppsToInclude], AppsToRun};
-analyze_opt("with-pgsql", {AppsToInclude, AppsToRun}) ->
-    {[pgsql | AppsToInclude], AppsToRun};
-analyze_opt("with-odbc", {AppsToInclude, AppsToRun} = Acc) ->
+opts() ->
+    [{"log-dir", (#opts{})#opts.log_dir, "Log directory. If relative, will be relative to $PREFIX/mongooseim"},
+     {"prefix",  (#opts{})#opts.prefix,  "Installation PREFIX directory"}].
+
+include_driver(DB) ->
+    ["include ", DB, " driver"].
+
+all_apps() ->
+    lists:flatmap(fun ({_, Apps, _}) -> Apps end, app_opts()).
+
+process_args(["with-" ++ App | Args], #opts{apps = Apps} = Opts) ->
+    process_args(Args, Opts#opts{apps = process_app(App, Apps)});
+
+process_args(["log-dir=" ++ LogDir | Args], #opts{} = Opts) ->
+    process_args(Args, Opts#opts{log_dir = LogDir});
+process_args(["log-dir", LogDir | Args], #opts{} = Opts) ->
+    process_args(Args, Opts#opts{log_dir = LogDir});
+
+process_args(["prefix=" ++ Prefix | Args], #opts{} = Opts) ->
+    process_args(Args, Opts#opts{prefix = Prefix});
+process_args(["prefix", Prefix | Args], #opts{} = Opts) ->
+    process_args(Args, Opts#opts{prefix = Prefix});
+
+process_args([], Opts) -> Opts.
+
+process_app("none", _Apps) -> [];
+process_app("all", _Apps)  -> all_apps();
+process_app(App, Apps)     -> [App | Apps].
+
+validate_apps(Apps) -> validate_apps(Apps, []).
+
+validate_apps(["odbc" = App | Apps], Acc) ->
     case is_odbc_available() of
-        true ->
-            {[odbc | AppsToInclude], AppsToRun};
-        _ ->
-            io:format("~s~n", [?NO_ODBC_WARN]),
-            Acc
+        false -> io:format(standard_error, "~s~n", [?NO_ODBC_WARN]),
+                 validate_apps(Apps, Acc);
+        true  -> validate_apps(Apps, [App | Acc])
     end;
-analyze_opt("with-riak", {AppsToInclude, AppsToRun}) ->
-    {[riakc, riak_pb, protobuffs | AppsToInclude], AppsToRun};
-analyze_opt("with-redis", {AppsToInclude, AppsToRun}) ->
-    {[redo | AppsToInclude], AppsToRun};
-analyze_opt("with-cassandra", {AppsToInclude, AppsToRun}) ->
-    {[seestar | AppsToInclude], AppsToRun};
-analyze_opt("minimal", Acc) ->
-    Acc;
-analyze_opt(Opt, Acc) ->
-    io:format("WARNING! Unknown option ~s~n", [Opt]),
-    Acc.
-
-all_opts() ->
-    [Opt || {Opt, _} <- all_opts_with_desc()].
-
-all_opts_with_desc() ->
-    [{"with-mysql", "include mysql driver"},
-     {"with-pgsql", "include pgsql driver"},
-     {"with-riak", "include riak client"},
-     {"with-redis", "include redis driver"},
-     {"with-cassandra", "include cassandra driver"},
-     maybe_odbc()].
-
-maybe_odbc() ->
-    case is_odbc_available() of
-        true ->
-            {"with-odbc", "include standard ODBC driver shipped with Erlang/OTP"};
-        _ ->
-            {"with-odbc", "include standard ODBC driver shipped with Erlang/OTP. " ++ ?NO_ODBC_WARN}
-    end.
+validate_apps([App | Apps], Acc) -> validate_apps(Apps, [App | Acc]);
+validate_apps([], Acc) -> lists:reverse(Acc).
 
 is_odbc_available() ->
     {module, odbc} == code:ensure_loaded(odbc).
 
 usage() ->
-    io:format("specifies which 3rd party deps will be included in release~n"),
-    io:format("possible options:~n"),
-    [io:format("~s\t~s~n", [Opt, Desc]) || {Opt, Desc} <- all_opts_with_desc()],
-    io:format("~s\t\t~s~n", ["full", "include all above deps"]),
-    io:format("~s\t\t~s~n", ["minimal", "does not include any of above deps"]).
+    io:format("~s: OPTIONS\n"
+              "\n"
+              "Specifies which 3rd party deps will be included in the release.\n"
+              "Allows to configure LOG_DIR or installation PREFIX.\n"
+              "Writes configure.out file as output. This file can be sourced with:\n"
+              "\n"
+              "    . configure.out\n"
+              "\n"
+              "3rd party apps:\n\n~s\n"
+              "Options:\n\n~s\n",
+              [progname(),
+               [ io_lib:format("    with-~.15s~s\n", [Opt, Desc])
+                 || {Opt, _, Desc} <- app_opts() ],
+               [ io_lib:format("    ~.10s~s. Default: ~s\n", [Opt, Desc, Default])
+                 || {Opt, Default, Desc} <- opts() ]]).
 
+progname() ->
+    filename:basename(hd(init:get_plain_arguments())).
+
+var(Name, Value) -> ["export ", Name, "=\"", value(Value), "\"\n"].
+
+value([]) -> [];
+value([V]) -> [V];
+value([H | T]) -> [H, " "] ++ value(T).
