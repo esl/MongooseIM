@@ -1,5 +1,5 @@
 .PHONY: rel deps test show_test_results
-
+LOG=$(subst TARGET,$@,TARGET.log 2>&1 || (cat TARGET.log; exit 1))
 EJABBERD_DIR = apps/ejabberd
 EJD_INCLUDE = $(EJABBERD_DIR)/include
 EJD_PRIV = $(EJABBERD_DIR)/priv
@@ -10,17 +10,17 @@ DEVNODES = node1 node2 fed1
 all: deps compile
 
 compile: rebar
-	./rebar $(OPTS) compile > $@.log 2>&1 || (cat $@.log; exit 1)
+	./rebar $(OPTS) compile > $(LOG)
 
 deps: rebar
-	./rebar get-deps > $@.log 2>&1 || (cat $@.log; exit 1)
+	./rebar get-deps > $(LOG)
 
 clean: rebar configure.out
 	rm -rf apps/*/logs
 	. ./configure.out && ./rebar clean
 
 quick_compile: rebar
-	./rebar $(OPTS) compile skip_deps=true > $@.log 2>&1 || (cat $@.log; exit 1)
+	./rebar $(OPTS) compile skip_deps=true > $(LOG)
 
 reload: quick_compile
 	@E=`ls ./rel/mongooseim/lib/ | grep ejabberd-2 | sort -r | head -n 1` ;\
@@ -34,7 +34,7 @@ reload_dev: quick_compile
 
 ct: deps quick_compile
 	@(if [ "$(SUITE)" ]; then ./rebar ct suite=$(SUITE) skip_deps=true;\
-		else ./rebar ct skip_deps=true; fi) > $@.log 2>&1 || (cat $@.log; exit 1)
+		else ./rebar ct skip_deps=true; fi) > $(LOG)
 
 # This compiles and runs one test suite. For quick feedback/TDD.
 # Example:
@@ -104,7 +104,7 @@ $(DEVNODES): rebar deps compile deps_dev configure.out rel/vars.config
 	(. ./configure.out && \
 	 cd rel && \
 	 ../rebar generate -f target_dir=../dev/mongooseim_$@ overlay_vars=./reltool_vars/$@_vars.config) \
-		> $@.log 2>&1 || (cat $@.log; exit 1)
+		> $(LOG)
 	cp -R `dirname $(shell ./readlink.sh $(shell which erl))`/../lib/tools-* dev/mongooseim_$@/lib/
 
 deps_dev:
@@ -114,8 +114,7 @@ devclean:
 	-@rm -rf dev/* > /dev/null 2>&1
 
 cover_report: /tmp/mongoose_combined.coverdata
-	erl -noshell -pa apps/*/ebin deps/*/ebin -eval 'ecoveralls:travis_ci("$?"), init:stop()' \
-		> $@.log 2>&1 || (cat $@.log; exit 1)
+	erl -noshell -pa apps/*/ebin deps/*/ebin -eval 'ecoveralls:travis_ci("$?"), init:stop()' > $(LOG)
 
 relclean:
 	rm -rf rel/mongooseim
