@@ -40,11 +40,7 @@ BaseAppsToInclude = AppsToRun ++
                      alarms,
                      idna,
                      recon,
-                     setup
-                     ],
-
-
-RemovedApps = [mysql,pgsql,redo,seestar,odbc],
+                     setup],
 
 AppsToIncludeIn = BaseAppsToInclude ++ EnvAppsToInclude,
 
