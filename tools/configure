@@ -3,17 +3,20 @@
 -define(NO_ODBC_WARN, "WARNING! There is no odbc module in your Erlang/OTP installation! "
                       "It will not be included in the release!").
 
--record(opts, {apps     = [],
-               log_dir  = "log",
-               prefix   = "/usr/local"}).
+-record(opts, {apps    = [],
+               log_dir = "log",
+               prefix  = "/usr/local",
+               system  = "no"}).
 
 main([]) ->
     usage();
 main(Args) ->
     Opts = process_args(Args, #opts{}),
-    Data = [var("APPS", validate_apps(Opts#opts.apps)),
+    Data = [var("MONGOOSEIM_CONFIGURED", ["yes"]),
+            var("APPS", validate_apps(Opts#opts.apps)),
             var("LOG_DIR", [Opts#opts.log_dir]),
-            var("PREFIX", [Opts#opts.prefix])],
+            var("PREFIX", [Opts#opts.prefix]),
+            var("INSTALL_SBIN", [Opts#opts.system])],
     ok = file:write_file("configure.out", Data).
 
 app_opts() ->
@@ -30,7 +33,8 @@ app_opts() ->
 
 opts() ->
     [{"log-dir", (#opts{})#opts.log_dir, "Log directory. If relative, will be relative to $PREFIX/mongooseim"},
-     {"prefix",  (#opts{})#opts.prefix,  "Installation PREFIX directory"}].
+     {"prefix",  (#opts{})#opts.prefix,  "Installation PREFIX directory"},
+     {"system",  (#opts{})#opts.system,  "Install mongooseimctl into $PREFIX/sbin"}].
 
 include_driver(DB) ->
     ["include ", DB, " driver"].
@@ -50,6 +54,11 @@ process_args(["prefix=" ++ Prefix | Args], #opts{} = Opts) ->
     process_args(Args, Opts#opts{prefix = Prefix});
 process_args(["prefix", Prefix | Args], #opts{} = Opts) ->
     process_args(Args, Opts#opts{prefix = Prefix});
+
+process_args(["system=" ++ System | Args], #opts{} = Opts) ->
+    process_args(Args, Opts#opts{system = System});
+process_args(["system" | Args], #opts{} = Opts) ->
+    process_args(Args, Opts#opts{system = "yes"});
 
 process_args([Unknown | Args], #opts{} = Opts) ->
     print(standard_error, "~s: unknown option: ~s~n", [progname(), Unknown]),

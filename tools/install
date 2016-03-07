@@ -1,0 +1,48 @@
+#!/bin/sh
+
+## Debug?
+set -x
+
+## Fail if any of the steps fails.
+set -e
+
+## We assume configure.out is sourced already.
+if [ -z "${MONGOOSEIM_CONFIGURED}" ]; then
+    echo "Is configure.out sourced?" > /dev/fd/2
+    exit 1
+fi
+
+INSTALL_DIR=${PREFIX}/mongooseim
+if [ "${INSTALL_SBIN}" == "yes" ]; then
+    SBIN_DIR=${PREFIX}/sbin
+else
+    SBIN_DIR=
+fi
+if [ -z "${RUNNER_USER}" ]; then
+    RUNNER_USER=mongooseim
+fi
+# A separate RUNNER_GROUP is handy for testing on a Mac,
+# where users don't have a group of the same name by default.
+if [ -z "${RUNNER_GROUP}" ]; then
+    RUNNER_GROUP=${RUNNER_USER}
+fi
+
+INSTALL_OPTS="-o ${RUNNER_USER} -g ${RUNNER_GROUP}"
+install $INSTALL_OPTS -d ${INSTALL_DIR}
+cp -R rel/mongooseim/* ${INSTALL_DIR}
+chown -R ${RUNNER_USER}:${RUNNER_GROUP} ${INSTALL_DIR}
+if [ -n ${SBIN_DIR} ]; then
+    install $INSTALL_OPTS -d ${SBIN_DIR}
+    install $INSTALL_OPTS rel/mongooseim/bin/mongooseimctl ${SBIN_DIR}/mongooseimctl
+    sed -e 's*\(RUNNER_SCRIPT_DIR=\).\**\1'"${INSTALL_DIR}"'/bin*' \
+        rel/mongooseim/bin/mongooseimctl > ${SBIN_DIR}/mongooseimctl
+    sed -e 's*\(RUNNER_USER=\).\**\1'"${RUNNER_USER}"'*' \
+        rel/mongooseim/bin/mongooseim > ${INSTALL_DIR}/bin/mongooseim
+    chmod 550 ${SBIN_DIR}/mongooseimctl
+fi
+find ${INSTALL_DIR} > install.log
+if [ "${INSTALL_SBIN}" == "yes" ]; then
+    echo ${SBIN_DIR} >> install.log
+    echo ${SBIN_DIR}/mongooseimctl >> install.log
+fi
+echo \# MongooseIM successfully installed to ${INSTALL_DIR} | tee -a install.log > /dev/fd/2

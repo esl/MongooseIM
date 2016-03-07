@@ -139,4 +139,7 @@ test_deps:
 %:
 	@:
 
+install: configure.out
+	@source configure.out && tools/install
+
 include tools/cd_tools/cd-targets
