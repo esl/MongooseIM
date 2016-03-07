@@ -15,36 +15,41 @@
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 
--define(DEFAULT_HTTP_POOL_SIZE, 5).
+-define(DEFAULT_HTTP_POOL_SIZE, 100).
 -define(DEFAULT_HTTP_HOST, "http://localhost").
 -define(DEFAULT_PREFIX_PATH, <<"/">>).
+-define(DEFAULT_HTTP_WORKER_TIMEOUT, 5000).
+-define(DEFAULT_HTTP_POOL_TIMEOUT, 200).
 
 start(Host, _Opts) ->
   HttpHost = gen_mod:get_module_opt(Host, ?MODULE, host, ?DEFAULT_HTTP_HOST),
   PoolSize = gen_mod:get_module_opt(Host, ?MODULE, pool_size, ?DEFAULT_HTTP_POOL_SIZE),
-  ChildMods = [fusco],
-  ChildMF = {fusco, start_link},
-  ChildArgs = {for_all, [HttpHost, []]},
+  Timeout = gen_mod:get_module_opt(Host, ?MODULE, worker_timeout, ?DEFAULT_HTTP_WORKER_TIMEOUT),
+  PathPrefix = gen_mod:get_module_opt(Host, ?MODULE, prefix_path, ?DEFAULT_PREFIX_PATH),
+  PoolName = pool_name(Host),
+  PoolOpts = [
+    {name, {local, PoolName}},
+    {size, PoolSize},
+    {max_overflow, 5},
+    {worker_module, mod_http_notification_requestor}
+  ],
+  WorkerOpts = [
+    {http_host, HttpHost},
+    {timeout, Timeout},
+    {path_prefix, PathPrefix}
+  ],
   {ok, _} = supervisor:start_child(ejabberd_sup,
-    {{http_notification_sup, Host},
-      {cuesport, start_link,
-        [pool_name(Host), PoolSize, ChildMods, ChildMF, ChildArgs]},
-      transient, 2000, supervisor, [cuesport | ChildMods]}),
-  {ok, _} = supervisor:start_child(ejabberd_sup,
-    {{http_notification_requestor, Host},
-      {mod_http_notification_requestor, start_link,
-        [requestor_name(Host), pool_name(Host)]},
-      transient, 2000, worker, [http_notification_requestor]}),
+    {PoolName,
+      {poolboy, start_link,
+        [PoolOpts, WorkerOpts]},
+      transient, 2000, supervisor, [poolboy, fusco]}), %% which modules here?
   ejabberd_hooks:add(user_send_packet, Host, ?MODULE, on_user_send_packet, 100),
   ok.
 
 stop(Host) ->
-  Ch = {http_notification_sup, Host},
+  Ch = existing_pool_name(Host),
   supervisor:terminate_child(ejabberd_sup, Ch),
   supervisor:delete_child(ejabberd_sup, Ch),
-  Ch1 = {http_notification_requestor, Host},
-  supervisor:terminate_child(ejabberd_sup, Ch1),
-  supervisor:delete_child(ejabberd_sup, Ch1),
   ejabberd_hooks:delete(user_send_packet, Host, ?MODULE, on_user_send_packet, 100),
   ok.
 
@@ -76,16 +81,25 @@ get_callback_module() ->
   gen_mod:get_module_opt(?MYNAME, ?MODULE, callback_module, ?MODULE).
 
 make_req(Host, Sender, Receiver, Message) ->
-  PathPrefix = gen_mod:get_module_opt(Host, ?MODULE, prefix_path, ?DEFAULT_PREFIX_PATH),
-  Req = {Host, PathPrefix, Sender, Receiver, Message},
-  http_notification_requestor:send_request(existing_requestor_name(Host), Req),
+  Req = {Host, Sender, Receiver, Message},
+  PoolName = existing_pool_name(Host),
+  PoolTimeout = gen_mod:get_module_opt(Host, ?MODULE, pool_timeout, ?DEFAULT_HTTP_POOL_TIMEOUT),
+  Res = case catch poolboy:transaction(PoolName, fun(W) -> gen_server:call(W, Req) end, PoolTimeout) of
+          {'EXIT', {timeout, _}} ->
+            {error, poolbusy};
+          {error, HttpError} ->
+            {error, HttpError};
+          ok ->
+            ok
+        end,
+  %% this is the place to do some logging, metrics etc.
+  ?CRITICAL_MSG("RESULT: ~p", [Res]),
   ok.
 
 pool_name(Host) ->
   list_to_atom("http_notification_" ++ binary_to_list(Host)).
 
-requestor_name(Host) ->
-  list_to_atom("http_notification_requestor" ++ binary_to_list(Host)).
+existing_pool_name(Host) ->
+  list_to_existing_atom("http_notification_" ++ binary_to_list(Host)).
 
-existing_requestor_name(Host) ->
-  list_to_existing_atom("http_notification_requestor" ++ binary_to_list(Host)).
+

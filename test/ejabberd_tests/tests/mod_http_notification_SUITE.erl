@@ -31,25 +31,25 @@ groups() ->
 suite() ->
   escalus:suite().
 
+set_worker_timeout() ->
+  dynamic_modules:restart(host(), mod_http_notification, [{worker_timeout, 500}, {host, "http://localhost:8000"}]),
+  ok.
+
+host() -> <<"localhost">>.
+
 init_per_suite(Config0) ->
   Config1 = escalus:init_per_suite(Config0),
+  set_worker_timeout(),
   escalus:create_users(Config1, {by_name, [alice, bob]}).
-
 
 end_per_suite(Config) ->
   escalus:delete_users(Config, {by_name, [alice, bob]}),
   escalus:end_per_suite(Config).
 
 init_per_group(_GroupName, Config) ->
-%%  start_mod_http_notification ([
-%%    {host, "http://localhost:8000"},
-%%    {prefix_path, "/test"},
-%%    {pool_size, 5}]),
   Config.
 
 end_per_group(_GroupName, _Config) ->
-%%  Domain = ct:get_config(ejabberd_domain),
-%%  dynamic_modules:stop(Domain, mod_http_notification),
   ok.
 
 init_per_testcase(CaseName, Config) ->
@@ -98,7 +98,7 @@ do_simple_message(Config, Msg) ->
 
   %% He receives his initial presence and the message
   Stanzas = escalus:wait_for_stanzas(Bob, 2),
-  ct:pal("Stanzas:~p", [Stanzas]),
+%%  ct:pal("Stanzas:~p", [Stanzas]),
   escalus_new_assert:mix_match([is_presence,
     is_chat(Msg)],
     Stanzas),

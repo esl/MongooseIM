@@ -19,7 +19,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/2, send_request/2]).
+-export([start_link/1]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -34,31 +34,33 @@
 
 -define(SERVER, ?MODULE).
 
--record(state, {pool_name}).
+-record(state, {connection, httphost, timeout, pathprefix}).
 
 %%%===================================================================
 %%% API
 %%%===================================================================
 
-start_link(RequestorName, PoolName) ->
-  gen_server:start_link({local, RequestorName}, ?MODULE, [PoolName], []).
+start_link(Opts) ->
+  gen_server:start_link(?MODULE, Opts, []).
 
-send_request(RequestorName, Request) ->
-  gen_server:cast(RequestorName, {request, Request}).
 
 %%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================
 
-init([PoolName]) ->
-  {ok, #state{pool_name = PoolName}}.
+init(Opts) ->
+  {_, HttpHost} = proplists:lookup(http_host, Opts),
+  {_, Timeout} = proplists:lookup(timeout, Opts),
+  {_, PathPrefix} = proplists:lookup(path_prefix, Opts),
+  {ok, Conn} = fusco:start_link(HttpHost, []),
+  {ok, #state{httphost = HttpHost, timeout = Timeout, pathprefix = PathPrefix, connection = Conn}}.
 
-handle_call(_Request, _From, State) ->
-  {reply, ok, State}.
+handle_call(Request, _From, #state{connection = Connection, pathprefix = Path, timeout = Timeout} = State) ->
+  {Host, Sender, Receiver, Message} = Request,
+  Req = {Connection, Host, Path, Sender, Receiver, Message, Timeout},
+  Res = make_req(Req),
+  {reply, Res, State}.
 
-handle_cast({request, Request}, #state{pool_name = PoolName} = State) ->
-  make_req(PoolName, Request),
-  {noreply, State};
 handle_cast(_Request, State) ->
   {noreply, State}.
 
@@ -75,16 +77,16 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%%===================================================================
 
-make_req(PoolName, {Host, Path, Sender, Receiver, Message}) ->
-  Connection = cuesport:get_worker(PoolName),
-  Query = <<"author=", Sender/binary, "&server=", Host/binary, "&receiver=", Receiver/binary, "&message=", Message/binary>>,
+make_req({Connection, Host, Path, Sender, Receiver, Message, Timeout}) ->
+  Query = <<"author=", Sender/binary, "&server=", Host/binary, "&receiver=", Receiver/binary, "&message=",
+    Message/binary>>,
   ?INFO_MSG("Making request '~s' for user ~s@~s...", [Path, Sender, Host]),
   Header = [{<<"Content-Type">>, <<"application/x-www-form-urlencoded">>}],
-  case fusco:request(Connection, <<Path/binary>>, "POST", Header, Query, 2, 5000) of
+  case fusco:request(Connection, <<Path/binary>>, "POST", Header, Query, 2, Timeout) of
     {ok, {{Code, _Reason}, _RespHeaders, RespBody, _, _}} ->
-      ?INFO_MSG("Request result: ~s: ~p", [Code, RespBody]);
+      ?INFO_MSG("Request result: ~s: ~p", [Code, RespBody]),
+      ok;
     Else ->
-      ?CRITICAL_MSG("Request failed: ~p", [[Else]])
-  end,
-  ok.
+      Else
+  end.
 
