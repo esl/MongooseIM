@@ -51,6 +51,10 @@ process_args(["prefix=" ++ Prefix | Args], #opts{} = Opts) ->
 process_args(["prefix", Prefix | Args], #opts{} = Opts) ->
     process_args(Args, Opts#opts{prefix = Prefix});
 
+process_args([Unknown | Args], #opts{} = Opts) ->
+    print(standard_error, "~s: unknown option: ~s~n", [progname(), Unknown]),
+    process_args(Args, Opts);
+
 process_args([], Opts) -> Opts.
 
 process_app("none", _Apps) -> [];
@@ -72,21 +76,25 @@ is_odbc_available() ->
     {module, odbc} == code:ensure_loaded(odbc).
 
 usage() ->
-    io:format("~s: OPTIONS\n"
-              "\n"
-              "Specifies which 3rd party deps will be included in the release.\n"
-              "Allows to configure LOG_DIR or installation PREFIX.\n"
-              "Writes configure.out file as output. This file can be sourced with:\n"
-              "\n"
-              "    . configure.out\n"
-              "\n"
-              "3rd party apps:\n\n~s\n"
-              "Options:\n\n~s\n",
-              [progname(),
-               [ io_lib:format("    with-~.15s~s\n", [Opt, Desc])
-                 || {Opt, _, Desc} <- app_opts() ],
-               [ io_lib:format("    ~.10s~s. Default: ~s\n", [Opt, Desc, Default])
-                 || {Opt, Default, Desc} <- opts() ]]).
+    print(standard_error,
+          "~s: OPTIONS\n"
+          "\n"
+          "Specifies which 3rd party deps will be included in the release.\n"
+          "Allows to configure LOG_DIR or installation PREFIX.\n"
+          "Writes configure.out file as output. This file can be sourced with:\n"
+          "\n"
+          "    . configure.out\n"
+          "\n"
+          "3rd party apps:\n\n~s\n"
+          "Options:\n\n~s\n",
+          [progname(),
+           [ io_lib:format("    with-~.15s~s\n", [Opt, Desc])
+             || {Opt, _, Desc} <- app_opts() ],
+           [ io_lib:format("    ~.10s~s. Default: ~s\n", [Opt, Desc, Default])
+             || {Opt, Default, Desc} <- opts() ]]).
+
+print(Handle, Fmt, Args) ->
+    io:format(Handle, Fmt, Args).
 
 progname() ->
     filename:basename(hd(init:get_plain_arguments())).
