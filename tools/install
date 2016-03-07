@@ -34,6 +34,7 @@ chown -R ${RUNNER_USER}:${RUNNER_GROUP} ${INSTALL_DIR}
 if [ -n ${SBIN_DIR} ]; then
     install $INSTALL_OPTS -d ${SBIN_DIR}
     install $INSTALL_OPTS rel/mongooseim/bin/mongooseimctl ${SBIN_DIR}/mongooseimctl
+    ## TODO: these sed lines will become redundant once reltool is capable of putting correct values in
     sed -e 's*\(RUNNER_SCRIPT_DIR=\).\**\1'"${INSTALL_DIR}"'/bin*' \
         rel/mongooseim/bin/mongooseimctl > ${SBIN_DIR}/mongooseimctl
     sed -e 's*\(RUNNER_USER=\).\**\1'"${RUNNER_USER}"'*' \
