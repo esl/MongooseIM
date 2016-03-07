@@ -272,7 +272,11 @@ kick_sessions(User, Server, Reason) ->
         ejabberd_sm:get_user_resources(User, Server)).
 
 
--spec set_random_password(ejabberd:user(), ejabberd:server(), binary()) -> 'ok'.
+-spec set_random_password(User, Server, Reason) -> Result when
+      User :: ejabberd:user(),
+      Server :: ejabberd:server(),
+      Reason :: binary(),
+      Result :: 'ok' | {error, any()}.
 set_random_password(User, Server, Reason) ->
     NewPass = build_random_password(Reason),
     ejabberd_auth:set_password(User, Server, NewPass).

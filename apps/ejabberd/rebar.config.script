@@ -25,7 +25,7 @@ MaybeDisableCoverage = fun(Config) ->
     case erlang:system_info(otp_release) of
         "17" ->
            case catch GetFullVer() of
-                <<"17.5">> -> % This is 17.5 where cover was fixed
+                <<"17.5",_/binary>> -> % This is 17.5 where cover was fixed
                     Config;
                 _ ->
                     io:format("disabling coverage for OTP 17.0 to 17.4~n"),
@@ -36,24 +36,17 @@ MaybeDisableCoverage = fun(Config) ->
     end
 end,
 
-MaybeChangeOpenSSL = fun(Config) ->
-    case os:getenv("OPENSSL_LIB") of
+MaybeFIPSSupport = fun(Config) ->
+    code:ensure_loaded(crypto),
+    case erlang:function_exported(crypto, info_fips, 0) of
         false ->
             Config;
-        OpenSSL ->
-            io:format("using OpenSSL ~p~n", [OpenSSL]),
-            {port_specs, PortSpecs} = lists:keyfind(port_specs, 1, Config),
-            TlsDrvKey = "priv/lib/tls_drv.so",
-            TlsDrvSpec = lists:keyfind(TlsDrvKey, 2, PortSpecs),
-            Args = element(4, TlsDrvSpec),
-            CFlags = {"CFLAGS", "$CFLAGS -I$OPENSSL_INC"},
-            LDFlags = {"LDFLAGS", "$LDFLAGS -Wl,-rpath=$OPENSSL_LIB -L$OPENSSL_LIB -lssl"},
-            NewEnv = {env, [CFlags, LDFlags]},
-            NewArgs = lists:keyreplace(env, 1, Args, NewEnv),
-            NewTlsDrvSpec = setelement(4, TlsDrvSpec, NewArgs),
-            NewPortSpecs = lists:keyreplace(TlsDrvKey, 2, PortSpecs, NewTlsDrvSpec),
-            lists:keyreplace(port_specs, 1, Config, {port_specs, NewPortSpecs})
+        _ ->
+            io:format("compiling with FIPS mode enabled"),
+            {erl_opts, ErlOpts} = lists:keyfind(erl_opts, 1, Config),
+            NewErlOpts = [{d, fips_mode} | ErlOpts],
+            lists:keyreplace(erl_opts, 1, Config, {erl_opts, NewErlOpts})
     end
 end,
 
-MaybeChangeOpenSSL(MaybeDisableCoverage(CONFIG)).
+MaybeFIPSSupport(MaybeDisableCoverage(CONFIG)).

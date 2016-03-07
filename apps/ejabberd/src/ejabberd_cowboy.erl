@@ -74,7 +74,7 @@ code_change(_OldVsn, Ref, _Extra) ->
 terminate(_Reason, Ref) ->
     stop_cowboy(Ref).
 
--spec handler({inet:ip_address(), integer, tcp}) -> iolist().
+-spec handler({integer(), inet:ip_address(), tcp}) -> list().
 handler({Port, IP, tcp}) ->
     [inet_parse:ntoa(IP), <<"_">>, integer_to_list(Port)].
 

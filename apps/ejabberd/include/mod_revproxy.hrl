@@ -7,7 +7,7 @@
 
 -record(match, {upstream       :: upstream(),
                 remainder = [] :: [binary() | atom()],
-                path      = [] :: [binary() | atom()],
+                path      = [] :: '_' | [binary() | atom()],
                 bindings  = [] :: [{atom(), binary()}]}).
 
 -type match() :: #match{}.

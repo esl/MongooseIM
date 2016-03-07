@@ -38,7 +38,9 @@
 
 %% API exports
 -export([get_room_users/1,
-         is_room_owner/2]).
+         is_room_owner/2,
+         can_access_room/2,
+         can_access_identity/2]).
 
 %% gen_fsm callbacks
 -export([init/1,
@@ -200,6 +202,28 @@ is_room_owner(RoomJID, UserJID) ->
     case mod_muc:room_jid_to_pid(RoomJID) of
         {ok, Pid} ->
             gen_fsm:sync_send_all_state_event(Pid, {is_room_owner, UserJID});
+        {error, Reason} ->
+            {error, Reason}
+    end.
+
+%% @doc Return true if UserJID can read room messages
+-spec can_access_room(RoomJID :: ejabberd:jid(), UserJID :: ejabberd:jid()) ->
+            {ok, boolean()} | {error, not_found}.
+can_access_room(RoomJID, UserJID) ->
+    case mod_muc:room_jid_to_pid(RoomJID) of
+        {ok, Pid} ->
+            gen_fsm:sync_send_all_state_event(Pid, {can_access_room, UserJID});
+        {error, Reason} ->
+            {error, Reason}
+    end.
+
+%% @doc Return true if UserJID can read real user JIDs
+-spec can_access_identity(RoomJID :: ejabberd:jid(), UserJID :: ejabberd:jid()) ->
+    {ok, boolean()} | {error, not_found}.
+can_access_identity(RoomJID, UserJID) ->
+    case mod_muc:room_jid_to_pid(RoomJID) of
+        {ok, Pid} ->
+            gen_fsm:sync_send_all_state_event(Pid, {can_access_identity, UserJID});
         {error, Reason} ->
             {error, Reason}
     end.
@@ -563,6 +587,10 @@ handle_sync_event(get_room_users, _From, StateName, StateData) ->
     {reply, {ok, dict_to_values(StateData#state.users)}, StateName, StateData};
 handle_sync_event({is_room_owner, UserJID}, _From, StateName, StateData) ->
     {reply, {ok, get_affiliation(UserJID, StateData) =:= owner}, StateName, StateData};
+handle_sync_event({can_access_room, UserJID}, _From, StateName, StateData) ->
+    {reply, {ok,  can_read_conference(UserJID, StateData)}, StateName, StateData};
+handle_sync_event({can_access_identity, UserJID}, _From, StateName, StateData) ->
+    {reply, {ok,  can_user_access_identity(UserJID, StateData)}, StateName, StateData};
 handle_sync_event({change_config, Config}, _From, StateName, StateData) ->
     {result, [], NSD} = change_config(Config, StateData),
     {reply, {ok, NSD#state.config}, StateName, NSD};
@@ -714,6 +742,39 @@ can_send_to_conference(From, StateData) ->
     orelse
     is_allowed_nonparticipant(From, StateData).
 
+can_read_conference(UserJID,
+                    StateData=#state{config = #config{members_only = MembersOnly,
+                                                      password_protected = Protected}}) ->
+    Affiliation = get_affiliation(UserJID, StateData),
+    %% In a members-only chat room, only owners, admins or members can query a room archive.
+    case {MembersOnly, Protected} of
+        {_, true} ->
+            %% For querying password-protected room user should be a member
+            %% or inside the room
+            is_user_online(UserJID, StateData)
+            orelse
+            lists:member(Affiliation, [owner, admin, member]);
+        {true, false} ->
+            lists:member(Affiliation, [owner, admin, member]);
+        {false, false} ->
+            %% Outcast (banned) cannot read
+            Affiliation =/= outcast
+    end.
+
+can_user_access_identity(UserJID, StateData) ->
+    is_room_non_anonymous(StateData)
+    orelse
+    is_user_moderator(UserJID, StateData).
+
+is_room_non_anonymous(StateData) ->
+    not is_room_anonymous(StateData).
+
+is_room_anonymous(#state{config = #config{anonymous = IsAnon}}) ->
+    IsAnon.
+
+is_user_moderator(UserJID, StateData) ->
+    get_role(UserJID, StateData) =:= moderator.
+
 process_message_from_allowed_user(From, #xmlel{attrs = Attrs} = Packet,
                                   StateData) ->
     Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
@@ -725,7 +786,7 @@ process_message_from_allowed_user(From, #xmlel{attrs = Attrs} = Packet,
                                                             Packet, StateData),
             if
                 Changed ->
-                    broadcast_changed_subject(From, FromNick, Packet, NewState);
+                    broadcast_room_packet(From, FromNick, Role, Packet, NewState);
                 not Changed ->
                     change_subject_error(From, FromNick, Packet, Lang, NewState),
                     {next_state, normal_state, NewState}
@@ -742,10 +803,15 @@ can_send_broadcasts(Role, StateData) ->
     or (Role == participant)
     or ((StateData#state.config)#config.moderated == false).
 
-broadcast_changed_subject(From, FromNick, Packet, StateData) ->
+broadcast_room_packet(From, FromNick, Role, Packet, StateData) ->
+    Affiliation = get_affiliation(From, StateData),
+    EventData = [{from_nick, FromNick},
+                 {from_jid, From},
+                 {room_jid, StateData#state.jid},
+                 {role, Role},
+                 {affiliation, Affiliation}],
     case ejabberd_hooks:run_fold(filter_room_packet,
-                                 StateData#state.host, Packet,
-                                 [FromNick, From, StateData#state.jid])
+                                 StateData#state.host, Packet, [EventData])
     of
         drop ->
             {next_state, normal_state, StateData};
@@ -814,7 +880,6 @@ save_persistent_room_state(StateData) ->
 -spec is_allowed_nonparticipant(ejabberd:jid(), state()) -> boolean().
 is_allowed_nonparticipant(JID, StateData) ->
     get_service_affiliation(JID, StateData) =:= owner.
-
 
 %% @doc Get information of this participant, or default values.
 %% If the JID is not a participant, return values for a service message.
@@ -2583,9 +2648,7 @@ iq_admin_allowed(get, affiliation, admin, _, _) ->
     true;
 iq_admin_allowed(get, affiliation, _, Role, State) ->
     Cfg = State#state.config,
-    lists:member(Role, Cfg#config.maygetmemberlist);
-iq_admin_allowed(_, _, _, _, _) ->
-    false.
+    lists:member(Role, Cfg#config.maygetmemberlist).
 
 
 -spec items_with_role(mod_muc:role(), state()) -> [jlib:xmlel()].
@@ -3531,7 +3594,7 @@ set_config(XEl, StateData) ->
             set_xoption(Opts, Config#config{Opt = Set})
         end).
 
--spec set_xoption([{binary(), binary()}], config()) -> config() | {error, jlib:xmlel()}.
+-spec set_xoption([{binary(), [binary()]}], config()) -> config() | {error, jlib:xmlel()}.
 set_xoption([], Config) ->
     Config;
 set_xoption([{<<"muc#roomconfig_roomname">>, [Val]} | Opts], Config) ->
@@ -3588,7 +3651,7 @@ set_xoption([{<<"muc#roomconfig_maxusers">>, [Val]} | Opts], Config) ->
     end;
 set_xoption([{<<"muc#roomconfig_getmemberlist">>, Val} | Opts], Config) ->
     case Val of
-        <<"none">> ->
+        [<<"none">>] ->
             ?SET_XOPT(maygetmemberlist, []);
         _ ->
             ?SET_XOPT(maygetmemberlist, [binary_to_existing_atom(V, latin1) || V <- Val])

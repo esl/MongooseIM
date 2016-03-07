@@ -62,7 +62,7 @@
           open_tag :: stream | open,
           parser :: exml_stream:parser(),
           opts :: proplists:proplist(),
-          ping_rate :: integer()
+          ping_rate :: integer() | none
          }).
 
 %%--------------------------------------------------------------------
@@ -157,10 +157,10 @@ init(Transport, Req, Opts) ->
     {upgrade, protocol, cowboy_websocket}.
 
 handle(Req, State) ->
-    {ok, Req, State}.
+        {ok, Req, State}.
 
 terminate(_Reason, _Req, _State) ->
-    ok.
+        ok.
 
 %%--------------------------------------------------------------------
 %% cowboy_http_websocket_handler callbacks
@@ -170,10 +170,10 @@ terminate(_Reason, _Req, _State) ->
 websocket_init(Transport, Req, Opts) ->
     ?DEBUG("websocket_init: ~p~n", [{Transport, Req, Opts}]),
     Req1 = cowboy_req:set_resp_header(<<"Sec-WebSocket-Protocol">>, <<"xmpp">>, Req),
-    Timeout = gen_mod:get_opt(timeout, Opts, infinity),
-    PingRate = gen_mod:get_opt(ping_rate, Opts, none),
-    ?DEBUG("ping rate is ~p", [PingRate]),
-    maybe_send_ping_request(PingRate),
+            Timeout = gen_mod:get_opt(timeout, Opts, infinity),
+            PingRate = gen_mod:get_opt(ping_rate, Opts, none),
+            ?DEBUG("ping rate is ~p", [PingRate]),
+            maybe_send_ping_request(PingRate),
     State = #ws_state{opts = Opts, ping_rate = PingRate},
     {ok, Req1, State, Timeout}.
 

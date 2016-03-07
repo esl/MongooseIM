@@ -5,5 +5,5 @@
 %%% - mam_jid_rfc
 -module(mam_jid).
 
--callback encode(jlib:xmlel()) -> binary().
--callback decode(binary()) -> jlib:xmlel().
+-callback encode(ejabberd:jid(), ejabberd:jid()) -> binary().
+-callback decode(ejabberd:jid(), binary()) -> ejabberd:jid().

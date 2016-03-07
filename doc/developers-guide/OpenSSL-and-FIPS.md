@@ -23,11 +23,12 @@ KERL_CONFIGURE_OPTIONS="--enable-fips --with-ssl=/home/vagrant/openssl" \
 
 ### Building MongooseIM with custom openssl
 
-Before running any `make compile` or `make rel` please export OPENSSL_LIB and OPENSSL_INC env vars, f.e.
+Before running any `make compile` or `make rel` please export CFLAGS and LDFLAGS env vars
+pointing to FIPS compliant OpenSSL, f.e.
 
 ```
-export OPENSSL_LIB=/home/vagrant/openssl/lib
-export OPENSSL_INC=/home/vagrant/openssl/include
+export LDFLAGS=-Wl,-rpath=$OPENSSL_LIB -L/home/vagrant/openssl/lib
+export CFLAGS=-I/home/vagrant/openssl/include
 ```
 
 ### How to enable/disable fips mode
@@ -46,7 +47,7 @@ Where `Value` is `true` or `false`
 When MongooseIM starts it prints following log message if fips mode is enabled
 
 ```
-2015-02-25 14:30:54.501 [warning] <0.242.0>@ejabberd_app:do_notify_fips_mode:265 FIPS mode enabled
+2015-02-25 14:30:54.501 [warning] <0.242.0>@mongoose_fips:do_notify:37 FIPS mode enabled
 ```
 
 #### Run-time check
@@ -54,7 +55,7 @@ When MongooseIM starts it prints following log message if fips mode is enabled
 In MongooseIM's console run function:
 
 ```erlang
-ejabberd_config:fips_mode().
+mongoose_fips:status().
 ```
 
 ### Cipher suites difference

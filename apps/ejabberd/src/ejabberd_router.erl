@@ -115,7 +115,7 @@ register_components(Domains) ->
         {aborted, Reason} -> {error, Reason}
     end.
 
--spec register_component(Domain :: domain()) -> {atomic, ok}.
+-spec register_component(Domain :: domain()) -> ok | {error, any()}.
 register_component(Domain) ->
     register_components([Domain]).
 
@@ -317,7 +317,7 @@ do_route(OrigFrom, OrigTo, OrigPacket) ->
                                    LDstDomain, Handler)
             end;
         drop ->
-            ejabberd_hooks:run(xmpp_stanza_dropped, 
+            ejabberd_hooks:run(xmpp_stanza_dropped,
                                OrigFrom#jid.lserver,
                                [OrigFrom, OrigTo, OrigPacket]),
             ok
