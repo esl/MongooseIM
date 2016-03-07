@@ -1,4 +1,4 @@
--module(ejabberd_session).
+-module(mongoose_session).
 -export([merge_info/2]).
 
 -include("ejabberd.hrl").

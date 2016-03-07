@@ -278,9 +278,7 @@ disable(Host, U, R) ->
     case ejabberd_sm:store_info(U, Host, R, KV) of
         {error, offline} -> ok;
         {ok, KV} -> ok;
-        Err -> ?INFO_MSG("Could not disable carbon copies for ~p:~p", 
-                         [{U,Host,R}, Err]),
-               ok
+        Err -> {error, Err}
     end.
 
 complete_packet(From, #xmlel{name = <<"message">>, attrs = OrigAttrs} = Packet, sent) ->

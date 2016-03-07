@@ -77,7 +77,7 @@ create_session(User, Server, Resource, Session) ->
             %% Fix potential race condition during XMPP bind, where
             %% multiple calls (> 2) to ejabberd_sm:open_session
             %% have been made, resulting in >1 sessions for this resource
-            MergedSession = ejabberd_session:merge_info
+            MergedSession = mongoose_session:merge_info
                               (Session, hd(lists:sort(Sessions))),
             mnesia:sync_dirty(fun() -> mnesia:write(MergedSession) end)
     end.
