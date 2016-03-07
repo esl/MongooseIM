@@ -174,7 +174,7 @@ close_session(SID, User, Server, Resource, Reason) ->
                        [SID, JID, Info, Reason]).
 
 -spec store_info(ejabberd:user(), ejabberd:server(), ejabberd:resource(),
-                 {any(), any()}) -> {ok, {any(), any()}}.
+                 {any(), any()}) -> {ok, {any(), any()}} | {error, offline}.
 store_info(User, Server, Resource, {Key, _Value} = KV) ->
     case get_session(User, Server, Resource) of
         offline -> {error, offline};
