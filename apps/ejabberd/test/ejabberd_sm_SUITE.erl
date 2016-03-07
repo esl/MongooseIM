@@ -50,7 +50,9 @@ tests() ->
      session_info_is_stored,
      session_info_is_updated_if_keys_match,
      session_info_is_extended_if_new_keys_present,
-     session_info_keys_not_truncated_if_session_opened_with_empty_infolist
+     session_info_keys_not_truncated_if_session_opened_with_empty_infolist,
+     kv_can_be_stored_for_session,
+     kv_can_be_updated_for_session
     ].
 
 init_per_group(mnesia, Config) ->
@@ -182,6 +184,26 @@ session_info_keys_not_truncated_if_session_opened_with_empty_infolist(C) ->
      = ?B(C):get_sessions(U,S).
 
 
+kv_can_be_stored_for_session(C) ->
+    {Sid, {U, S, R} = USR} = generate_random_user(<<"localhost">>),
+    given_session_opened(Sid, USR, 1, [{key1, val1}]),
+
+    when_session_info_stored(U, S, R, {key2, newval}),
+
+    [#session{sid = Sid, info = [{key1, val1}, {key2, newval}]}]
+     = ?B(C):get_sessions(U,S).
+
+kv_can_be_updated_for_session(C) ->
+    {Sid, {U, S, R} = USR} = generate_random_user(<<"localhost">>),
+    given_session_opened(Sid, USR, 1, [{key1, val1}]),
+
+    when_session_info_stored(U, S, R, {key2, newval}),
+    when_session_info_stored(U, S, R, {key2, override}),
+
+    [#session{sid = Sid, info = [{key1, val1}, {key2, override}]}]
+     = ?B(C):get_sessions(U,S).
+
+
 delete_session(C) ->
     {Sid, {U, S, R} = USR} = generate_random_user(<<"localhost">>),
     given_session_opened(Sid, USR),
@@ -305,6 +327,9 @@ given_session_opened(Sid, {U,S,R}, Priority, Info) ->
 
 when_session_opened(Sid, {U,S,R}, Priority, Info) ->
     given_session_opened(Sid, {U,S,R}, Priority, Info).
+
+when_session_info_stored(U, S, R, {_,_}=KV) ->
+    ejabberd_sm:store_info(U, S, R, KV).
 
 verify_session_opened(C, Sid, USR) ->
     do_verify_session_opened(?B(C), Sid, USR).
