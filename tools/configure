@@ -16,7 +16,7 @@ main(Args) ->
             var("APPS", validate_apps(Opts#opts.apps)),
             var("LOG_DIR", [Opts#opts.log_dir]),
             var("PREFIX", [Opts#opts.prefix]),
-            var("INSTALL_SBIN", [Opts#opts.system])],
+            var("SYSTEM", [Opts#opts.system])],
     ok = file:write_file("configure.out", Data).
 
 app_opts() ->
@@ -34,7 +34,8 @@ app_opts() ->
 opts() ->
     [{"log-dir", (#opts{})#opts.log_dir, "Log directory. If relative, will be relative to $PREFIX/mongooseim"},
      {"prefix",  (#opts{})#opts.prefix,  "Installation PREFIX directory"},
-     {"system",  (#opts{})#opts.system,  "Install mongooseimctl into $PREFIX/sbin"}].
+     {"system",  (#opts{})#opts.system,  "Install files into $PREFIX/{bin, etc, ...} instead of "
+                                         "a completely self contained release"}].
 
 include_driver(DB) ->
     ["include ", DB, " driver"].

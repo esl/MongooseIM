@@ -13,10 +13,10 @@ if [ -z "${MONGOOSEIM_CONFIGURED}" ]; then
 fi
 
 INSTALL_DIR=${PREFIX}/mongooseim
-if [ "${INSTALL_SBIN}" == "yes" ]; then
-    SBIN_DIR=${PREFIX}/sbin
+if [ "${SYSTEM}" == "yes" ]; then
+    BIN_DIR=${PREFIX}/bin
 else
-    SBIN_DIR=
+    BIN_DIR=
 fi
 if [ -z "${RUNNER_USER}" ]; then
     RUNNER_USER=mongooseim
@@ -27,23 +27,27 @@ if [ -z "${RUNNER_GROUP}" ]; then
     RUNNER_GROUP=${RUNNER_USER}
 fi
 
+## Install!
 INSTALL_OPTS="-o ${RUNNER_USER} -g ${RUNNER_GROUP}"
 install $INSTALL_OPTS -d ${INSTALL_DIR}
 cp -R rel/mongooseim/* ${INSTALL_DIR}
 chown -R ${RUNNER_USER}:${RUNNER_GROUP} ${INSTALL_DIR}
-if [ -n ${SBIN_DIR} ]; then
-    install $INSTALL_OPTS -d ${SBIN_DIR}
-    install $INSTALL_OPTS rel/mongooseim/bin/mongooseimctl ${SBIN_DIR}/mongooseimctl
+if [ -n ${BIN_DIR} ]; then
+    install $INSTALL_OPTS -d ${BIN_DIR}
+    install $INSTALL_OPTS rel/mongooseim/bin/mongooseimctl ${BIN_DIR}/mongooseimctl
     ## TODO: these sed lines will become redundant once reltool is capable of putting correct values in
     sed -e 's*\(RUNNER_SCRIPT_DIR=\).\**\1'"${INSTALL_DIR}"'/bin*' \
-        rel/mongooseim/bin/mongooseimctl > ${SBIN_DIR}/mongooseimctl
+        rel/mongooseim/bin/mongooseimctl > ${BIN_DIR}/mongooseimctl
     sed -e 's*\(RUNNER_USER=\).\**\1'"${RUNNER_USER}"'*' \
         rel/mongooseim/bin/mongooseim > ${INSTALL_DIR}/bin/mongooseim
-    chmod 550 ${SBIN_DIR}/mongooseimctl
+    chmod 550 ${BIN_DIR}/mongooseimctl
 fi
+
+## Do the bookkeeping.
+## TODO: How to automate this? If done manually, there's always space for a cock-up.
 find ${INSTALL_DIR} > install.log
-if [ "${INSTALL_SBIN}" == "yes" ]; then
-    echo ${SBIN_DIR} >> install.log
-    echo ${SBIN_DIR}/mongooseimctl >> install.log
+if [ "${SYSTEM}" == "yes" ]; then
+    echo ${BIN_DIR} >> install.log
+    echo ${BIN_DIR}/mongooseimctl >> install.log
 fi
 echo \# MongooseIM successfully installed to ${INSTALL_DIR} | tee -a install.log > /dev/fd/2
