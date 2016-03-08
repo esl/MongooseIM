@@ -3,22 +3,20 @@
 -define(NO_ODBC_WARN, "WARNING! There is no odbc module in your Erlang/OTP installation! "
                       "It will not be included in the release!").
 
--record(opts, {apps    = [],
-               log_dir = "log",
-               prefix  = "/usr/local",
-               system  = "no"}).
+-record(opts, {apps         = [],
+               log_dir      = "log",
+               prefix       = "/usr/local",
+               reltool_vars = "rel/configure.vars.config",
+               user         = "mongooseim",
+               system       = "no"}).
 
 main([]) ->
     usage();
 main(Args) ->
     case catch process_args(Args, #opts{}) of
         {ok, Opts} ->
-            Data = [var("MONGOOSEIM_CONFIGURED", ["yes"]),
-                    var("APPS", validate_apps(Opts#opts.apps)),
-                    var("LOG_DIR", [Opts#opts.log_dir]),
-                    var("PREFIX", [Opts#opts.prefix]),
-                    var("SYSTEM", [Opts#opts.system])],
-            ok = file:write_file("configure.out", Data);
+            ok = write(shell, "configure.out", Opts),
+            ok = write(reltool, Opts#opts.reltool_vars, Opts);
         error ->
             ok
     end.
@@ -38,6 +36,7 @@ app_opts() ->
 opts() ->
     [{"log-dir", (#opts{})#opts.log_dir, "Log directory. If relative, will be relative to $PREFIX/mongooseim"},
      {"prefix",  (#opts{})#opts.prefix,  "Installation PREFIX directory"},
+     {"user",    (#opts{})#opts.user,    "System user to run the server as"},
      {"system",  (#opts{})#opts.system,  "Install files into $PREFIX/{bin, etc, ...} instead of "
                                          "a completely self contained release"}].
 
@@ -64,6 +63,11 @@ process_args(["system=" ++ System | Args], #opts{} = Opts) ->
     process_args(Args, Opts#opts{system = System});
 process_args(["system" | Args], #opts{} = Opts) ->
     process_args(Args, Opts#opts{system = "yes"});
+
+process_args(["user=" ++ User | Args], #opts{} = Opts) ->
+    process_args(Args, Opts#opts{user = User});
+process_args(["user", User | Args], #opts{} = Opts) ->
+    process_args(Args, Opts#opts{user = User});
 
 process_args([Unknown | _Args], #opts{} = _Opts) ->
     print(standard_error, "~s: unknown option: ~s~n", [progname(), Unknown]),
@@ -113,8 +117,24 @@ print(Handle, Fmt, Args) ->
 progname() ->
     filename:basename(hd(init:get_plain_arguments())).
 
-var(Name, Value) -> ["export ", Name, "=\"", value(Value), "\"\n"].
+sh_var(Name, Value) -> ["export ", Name, "=\"", value(Value), "\"\n"].
 
 value([]) -> [];
 value([V]) -> [V];
 value([H | T]) -> [H, " "] ++ value(T).
+
+rt_var(Name, Value) -> io_lib:format("{~s, ~p}.\n", [Name, Value]).
+
+write(shell, FileName, Opts) ->
+    Data = [sh_var("MONGOOSEIM_CONFIGURED", ["yes"]),
+            sh_var("APPS", validate_apps(Opts#opts.apps)),
+            sh_var("PREFIX", [Opts#opts.prefix]),
+            sh_var("RELTOOL_VARS", [Opts#opts.reltool_vars]),
+            sh_var("RUNNER_USER", [Opts#opts.user]),
+            sh_var("SYSTEM", [Opts#opts.system])],
+    file:write_file(FileName, Data);
+
+write(reltool, FileName, Opts) ->
+    Data = [rt_var(mongooseim_log_dir, Opts#opts.log_dir),
+            rt_var(mongooseim_runner_user, Opts#opts.user)],
+    file:write_file(FileName, Data).

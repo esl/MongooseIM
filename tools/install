@@ -18,9 +18,6 @@ if [ "${SYSTEM}" == "yes" ]; then
 else
     BIN_DIR=
 fi
-if [ -z "${RUNNER_USER}" ]; then
-    RUNNER_USER=mongooseim
-fi
 # A separate RUNNER_GROUP is handy for testing on a Mac,
 # where users don't have a group of the same name by default.
 if [ -z "${RUNNER_GROUP}" ]; then
