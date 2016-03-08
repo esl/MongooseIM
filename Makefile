@@ -86,7 +86,7 @@ configure:
 	./tools/configure $(filter-out $@,$(MAKECMDGOALS))
 
 rel: certs rebar deps configure.out
-	source configure.out && \
+	source ./configure.out && \
 	./rebar compile generate -f
 
 configure.out:
@@ -140,6 +140,6 @@ test_deps:
 	@:
 
 install: configure.out
-	@source configure.out && tools/install
+	@source ./configure.out && tools/install
 
 include tools/cd_tools/cd-targets
