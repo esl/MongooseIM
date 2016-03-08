@@ -37,6 +37,6 @@
 
 %% Defined in Makefile by appending configure.vars.config
 %% Uncomment for manual release generation.
-%{mongooseim_etc_dir, "$RUNNER_BASE_DIR/etc"}.
+{mongooseim_etc_dir, "$RUNNER_BASE_DIR/etc"}.
 %{mongooseim_log_dir, "log"}.
 %{mongooseim_runner_user, ""}.
