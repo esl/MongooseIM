@@ -42,8 +42,9 @@ start(Host, _Opts) ->
     {PoolName,
       {poolboy, start_link,
         [PoolOpts, WorkerOpts]},
-      transient, 2000, supervisor, [poolboy, fusco]}), %% which modules here?
+      transient, 2000, supervisor, [mod_http_notification_requestor]}),
   ejabberd_hooks:add(user_send_packet, Host, ?MODULE, on_user_send_packet, 100),
+  ensure_metrics(Host),
   ok.
 
 stop(Host) ->
@@ -92,8 +93,7 @@ make_req(Host, Sender, Receiver, Message) ->
           ok ->
             ok
         end,
-  %% this is the place to do some logging, metrics etc.
-  ?CRITICAL_MSG("RESULT: ~p", [Res]),
+  record_result(Host, Res),
   ok.
 
 pool_name(Host) ->
@@ -102,4 +102,15 @@ pool_name(Host) ->
 existing_pool_name(Host) ->
   list_to_existing_atom("http_notification_" ++ binary_to_list(Host)).
 
+ensure_metrics(Host) ->
+  mongoose_metrics:ensure_metric([Host, http_notifications_sent], spiral),
+  mongoose_metrics:ensure_metric([Host, http_notifications_failed], spiral),
+  ok.
 
+record_result(Host, ok) ->
+  mongoose_metrics:update([Host, http_notifications_sent], 1),
+  ok;
+record_result(Host, {error, Reason}) ->
+  mongoose_metrics:update([Host, http_notifications_failed], 1),
+  ?WARNING_MSG("Sending http notification failed: ~p", [Reason]),
+  ok.
