@@ -32,14 +32,15 @@ INSTALL_OPTS="-o ${RUNNER_USER} -g ${RUNNER_GROUP}"
 install $INSTALL_OPTS -d ${INSTALL_DIR}
 cp -R rel/mongooseim/* ${INSTALL_DIR}
 chown -R ${RUNNER_USER}:${RUNNER_GROUP} ${INSTALL_DIR}
+## TODO: this sed line will become redundant once reltool is capable of putting correct values in
+sed -e 's*\(RUNNER_USER=\).\**\1'"${RUNNER_USER}"'*' \
+    rel/mongooseim/bin/mongooseim > ${INSTALL_DIR}/bin/mongooseim
 if [ -n "${BIN_DIR}" ]; then
     install $INSTALL_OPTS -d ${BIN_DIR}
     install $INSTALL_OPTS rel/mongooseim/bin/mongooseimctl ${BIN_DIR}/mongooseimctl
-    ## TODO: these sed lines will become redundant once reltool is capable of putting correct values in
+    ## TODO: this sed line will become redundant once reltool is capable of putting correct values in
     sed -e 's*\(RUNNER_SCRIPT_DIR=\).\**\1'"${INSTALL_DIR}"'/bin*' \
         rel/mongooseim/bin/mongooseimctl > ${BIN_DIR}/mongooseimctl
-    sed -e 's*\(RUNNER_USER=\).\**\1'"${RUNNER_USER}"'*' \
-        rel/mongooseim/bin/mongooseim > ${INSTALL_DIR}/bin/mongooseim
     chmod 550 ${BIN_DIR}/mongooseimctl
 fi
 
