@@ -10,7 +10,15 @@ SQLDIR=${BASE}/apps/ejabberd/priv
 
 TRAVIS_DB_PASSWORD=$(cat /tmp/travis_db_password)
 
+maybe_install_mysql() {
+    service mysql status
+    if [ $? -ne 0 ]; then
+        sudo apt-get -y install mysql-server mysql-client
+    fi
+}
+
 if [ $DB = 'mysql' ]; then
+    maybe_install_mysql
     echo "Configuring mysql"
     mysql -u root -e 'create database IF NOT EXISTS ejabberd'
     mysql -u root -e 'create user ejabberd'
