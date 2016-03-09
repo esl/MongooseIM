@@ -243,7 +243,6 @@ basic_groups() ->
      %% {mam04,            [], mam_cases()},
      %% {archived,         [], archived_cases()},
      %% {policy_violation, [], policy_violation_cases()},
-     %% {nostore,          [], nostore_cases()},
      %% {muc,              [], muc_cases()},
      %% {muc03,            [], muc_cases()},
      %% {muc04,            [], muc_cases()},
@@ -265,23 +264,21 @@ bootstrapped_cases() ->
       querying_for_all_messages_with_jid].
 
 mam_cases() ->
-    [ %mam_service_discovery,
-      %simple_archive_request,
-      %range_archive_request,
-      %range_archive_request_not_empty,
-      %limit_archive_request,
-      %purge_single_message,
-      %purge_multiple_messages,
-      %archived,
-      %strip_archived,
-      %filter_forwarded,
-      %policy_violation,
-     offline_message
+    [ mam_service_discovery,
+      simple_archive_request,
+      range_archive_request,
+      range_archive_request_not_empty,
+      limit_archive_request,
+      purge_single_message,
+      purge_multiple_messages,
+      archived,
+      strip_archived,
+      filter_forwarded,
+      policy_violation,
+      offline_message,
+      nostore_hint,
+      pagination_first5
     ].
-
-nostore_cases() ->
-    [
-     nostore_hint].
 
 muc_cases() ->
     [muc_service_discovery,
@@ -719,11 +716,6 @@ init_per_testcase(C=purge_old_single_message, Config) ->
 init_per_testcase(C=querying_for_all_messages_with_jid, Config) ->
     escalus:init_per_testcase(C,
         bootstrap_archive(clean_archives(Config)));
-init_per_testcase(C=offline_message, Config) ->
-    escalus:init_per_testcase(C,
-        bootstrap_archive(clean_archives(Config)));
-init_per_testcase(C=nostore_hint, Config) ->
-    escalus:init_per_testcase(C, Config); %% skip bootstrap & clean to safe time
 init_per_testcase(C=muc_querying_for_all_messages, Config) ->
     escalus:init_per_testcase(C,
         muc_bootstrap_archive(start_alice_room(Config)));
@@ -1181,39 +1173,37 @@ policy_violation(Config) ->
 offline_message(Config) ->
     Msg = <<"Is there anybody here?">>,
     P = ?config(props, Config),
-    F = fun(Alice,Bob1) ->
+    F = fun(FreshConfig, Alice, Bob1) ->
+        BobJid = escalus_client:short_jid(Bob1),
         go_offline(Bob1),
         %% Alice sends a message to Bob while bob is offline.
-        escalus:send(Alice, escalus_stanza:chat_to(bob, Msg)),
+        escalus:send(Alice, escalus_stanza:chat_to(BobJid, Msg)),
         maybe_wait_for_yz(Config),
 
         %% Bob logs in
-        Bob2 = relogin_send_presence(Bob1),
+        Bob2 = relogin_send_presence(FreshConfig, bob),
 
         %% If mod_offline is enabled, then an offline message
         %% will be delivered automatically.
-
         %% He receives his initial presence and the message.
         Got = escalus:wait_for_stanzas(Bob2, 2, 1000),
-        ct:pal("Bob2 got: ~p", [Got]),
 
         %% Bob checks his archive.
         escalus:send(Bob2, stanza_archive_request(P, <<"q1">>)),
         ArcMsgs = R = respond_messages(wait_archive_respond(P, Bob2)),
         assert_only_one_of_many_is_equal(ArcMsgs, Msg)
     end,
-    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], F).
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}], F).
 
 go_offline(Client) ->
     escalus_client:send(Client, escalus_stanza:presence(<<"unavailable">>)),
     escalus_client:stop(Client),
     Client.
 
-relogin_send_presence(Client) ->
-    Spec = escalus_client:spec(Client),
-    {ok, Conn, _, _} = R = escalus_connection:start(Spec),
-    ct:pal("~p", [R]),
-    Conn.
+relogin_send_presence(Config, SymbolicName) ->
+    {ok, NewClient} = escalus_client:start(Config, SymbolicName, <<"newresource">>),
+    ct:pal("~p", [NewClient]),
+    NewClient.
 
 nostore_hint(Config) ->
     Msg = <<"So secret">>,
@@ -1231,7 +1221,7 @@ nostore_hint(Config) ->
         assert_not_stored(ArcMsgs, Msg),
         ok
         end,
-    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], F).
 
 purge_single_message(Config) ->
     P = ?config(props, Config),
@@ -1729,11 +1719,12 @@ pagination_empty_rset(Config) ->
 
 pagination_first5(Config) ->
     P = ?config(props, Config),
-    F = fun(Alice) ->
+    F = fun(Alice,Bob) ->
+        {_, Msgs} = bootstrap_fresh_archive([Alice, Bob]),
         %% Get the first page of size 5.
+
         RSM = #rsm_in{max=5},
-        rsm_send(Config, Alice,
-            stanza_page_archive_request(P, <<"first5">>, RSM)),
+        rsm_send(Config, Alice, stanza_page_archive_request(P, <<"first5">>, RSM)),
         wait_message_range(P, Alice, 1, 5),
         ok
         end,
@@ -1898,6 +1889,7 @@ generate_message_text(N) when is_integer(N) ->
 rsm_send(Config, User, Packet) ->
     case ?config(with_rsm, Config) of
         true ->
+            %% TODO: make a real jid
             BWithJID = nick_to_jid(bob, Config),
             rsm_send_1(Config, User, add_with_jid(BWithJID, Packet));
         _ ->
