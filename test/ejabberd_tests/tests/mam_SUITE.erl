@@ -186,28 +186,27 @@ riak_configs(_) ->
 
 basic_group_names() ->
     [
-    mam,
-    mam03,
-    mam04,
-    mam_purge,
-    muc,
-    muc03,
-    muc04,
-    muc_with_pm,
-    rsm,
-    rsm03,
-    rsm04,
-    with_rsm,
-    with_rsm03,
-    with_rsm04,
-    muc_rsm,
-    muc_rsm03,
-    muc_rsm04,
-    bootstrapped,
-    archived,
-    policy_violation,
-    nostore,
-    prefs_cases
+    mam
+    %% mam03,
+    %% mam04,
+    %% muc,
+    %% muc03,
+    %% muc04,
+    %% muc_with_pm,
+    %% rsm,
+    %% rsm03,
+    %% rsm04,
+    %% with_rsm,
+    %% with_rsm03,
+    %% with_rsm04,
+    %% muc_rsm,
+    %% muc_rsm03,
+    %% muc_rsm04,
+    %% bootstrapped,
+    %% archived,
+    %% policy_violation,
+    %% nostore,
+    %% prefs_cases
     ].
 
 all() ->
@@ -238,54 +237,50 @@ is_skipped(_, _) ->
 
 
 basic_groups() ->
-    [{bootstrapped,     [], bootstrapped_cases()},
-     {mam,              [], mam_cases()},
-     {mam03,            [], mam_cases()},
-     {mam04,            [], mam_cases()},
-     {mam_purge,        [], mam_purge_cases()},
-     {archived,         [], archived_cases()},
-     {policy_violation, [], policy_violation_cases()},
-     {nostore,          [], nostore_cases()},
-     {muc,              [], muc_cases()},
-     {muc03,            [], muc_cases()},
-     {muc04,            [], muc_cases()},
-     {muc_with_pm,      [], muc_cases()},
-     {rsm,              [], rsm_cases()},
-     {rsm03,            [], rsm_cases()},
-     {rsm04,            [], rsm_cases()},
-     {muc_rsm,          [], muc_rsm_cases()},
-     {muc_rsm03,        [], muc_rsm_cases()},
-     {muc_rsm04,        [], muc_rsm_cases()},
-     {with_rsm,         [], with_rsm_cases()},
-     {with_rsm03,       [], with_rsm_cases()},
-     {with_rsm04,       [], with_rsm_cases()},
-     {prefs_cases,      [], prefs_cases()}].
+    [%% {bootstrapped,     [], bootstrapped_cases()},
+     {mam,              [parallel], mam_cases()}
+     %% {mam03,            [], mam_cases()},
+     %% {mam04,            [], mam_cases()},
+     %% {archived,         [], archived_cases()},
+     %% {policy_violation, [], policy_violation_cases()},
+     %% {nostore,          [], nostore_cases()},
+     %% {muc,              [], muc_cases()},
+     %% {muc03,            [], muc_cases()},
+     %% {muc04,            [], muc_cases()},
+     %% {muc_with_pm,      [], muc_cases()},
+     %% {rsm,              [], rsm_cases()},
+     %% {rsm03,            [], rsm_cases()},
+     %% {rsm04,            [], rsm_cases()},
+     %% {muc_rsm,          [], muc_rsm_cases()},
+     %% {muc_rsm03,        [], muc_rsm_cases()},
+     %% {muc_rsm04,        [], muc_rsm_cases()},
+     %% {with_rsm,         [], with_rsm_cases()},
+     %% {with_rsm03,       [], with_rsm_cases()},
+     %% {with_rsm04,       [], with_rsm_cases()},
+     %% {prefs_cases,      [], prefs_cases()}].
+     ].
 
 bootstrapped_cases() ->
      [purge_old_single_message,
       querying_for_all_messages_with_jid].
 
 mam_cases() ->
-    [mam_service_discovery,
-     simple_archive_request,
-     range_archive_request,
-     range_archive_request_not_empty,
-     limit_archive_request].
-
-mam_purge_cases() ->
-    [purge_single_message,
-     purge_multiple_messages].
-
-archived_cases() ->
-    [archived,
-     strip_archived,
-     filter_forwarded].
-
-policy_violation_cases() ->
-    [policy_violation].
+    [ %mam_service_discovery,
+      %simple_archive_request,
+      %range_archive_request,
+      %range_archive_request_not_empty,
+      %limit_archive_request,
+      %purge_single_message,
+      %purge_multiple_messages,
+      %archived,
+      %strip_archived,
+      %filter_forwarded,
+      %policy_violation,
+     offline_message
+    ].
 
 nostore_cases() ->
-    [offline_message,
+    [
      nostore_hint].
 
 muc_cases() ->
@@ -347,7 +342,7 @@ end_per_suite(Config) ->
     escalus:end_per_suite(restore_shaping(Config)).
 
 user_names() ->
-    [alice, bob, kate].
+    [alice, bob, carol, kate].
 
 create_users(Config) ->
     escalus:create_users(Config, escalus:get_users(user_names())).
@@ -717,15 +712,7 @@ init_per_testcase(C=archived, ConfigIn) ->
                  _ ->
                      ConfigIn
              end,
-    escalus:init_per_testcase(C, clean_archives(Config));
-init_per_testcase(C=strip_archived, Config) ->
-    escalus:init_per_testcase(C, clean_archives(Config));
-init_per_testcase(C=filter_forwarded, Config) ->
-    escalus:init_per_testcase(C, clean_archives(Config));
-init_per_testcase(C=purge_single_message, Config) ->
-    escalus:init_per_testcase(C, clean_archives(Config));
-init_per_testcase(C=purge_multiple_messages, Config) ->
-    escalus:init_per_testcase(C, clean_archives(Config));
+    escalus:init_per_testcase(C, Config);
 init_per_testcase(C=purge_old_single_message, Config) ->
     escalus:init_per_testcase(C,
         bootstrap_archive(clean_archives(Config)));
@@ -761,9 +748,6 @@ init_per_testcase(C=muc_show_x_user_to_moderators_in_anon_rooms, Config) ->
     escalus:init_per_testcase(C, start_alice_anonymous_room(Config));
 init_per_testcase(C=muc_show_x_user_for_your_own_messages_in_anon_rooms, Config) ->
     escalus:init_per_testcase(C, start_alice_anonymous_room(Config));
-init_per_testcase(C=range_archive_request_not_empty, Config) ->
-    escalus:init_per_testcase(C,
-        bootstrap_archive(clean_archives(Config)));
 init_per_testcase(C=prefs_set_request, Config) ->
     skip_if_riak(C, Config);
 init_per_testcase(C=prefs_set_cdata_request, Config) ->
@@ -928,7 +912,7 @@ simple_archive_request(ConfigIn) ->
                        {[backends, mod_mam, lookup], changed}
                       ],
     Config = [{mongoose_metrics, MongooseMetrics} | ConfigIn],
-    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], F).
 
 querying_for_all_messages_with_jid(Config) ->
     P = ?config(props, Config),
@@ -1012,7 +996,7 @@ archived(Config) ->
             erlang:raise(Class, Reason, Stacktrace)
         end
         end,
-    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], F).
 
 filter_forwarded(Config) ->
     P = ?config(props, Config),
@@ -1031,7 +1015,7 @@ filter_forwarded(Config) ->
         assert_respond_size(P, 1, wait_archive_respond(P, Bob)),
         ok
         end,
-    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], F).
 
 strip_archived(Config) ->
     P = ?config(props, Config),
@@ -1067,7 +1051,7 @@ strip_archived(Config) ->
             erlang:raise(Class, Reason, Stacktrace)
         end
         end,
-    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], F).
 
 respond_messages(#mam_archive_respond{respond_messages=Messages}) ->
     Messages.
@@ -1191,36 +1175,45 @@ policy_violation(Config) ->
             erlang:raise(Class, Reason, Stacktrace)
         end
         end,
-    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], F).
 
 %% Ensure, that a offline message does not stored twice when delivered.
 offline_message(Config) ->
     Msg = <<"Is there anybody here?">>,
     P = ?config(props, Config),
-    F = fun(Alice) ->
+    F = fun(Alice,Bob1) ->
+        go_offline(Bob1),
         %% Alice sends a message to Bob while bob is offline.
-        escalus:send(Alice,
-                     escalus_stanza:chat_to(bob, Msg)),
+        escalus:send(Alice, escalus_stanza:chat_to(bob, Msg)),
         maybe_wait_for_yz(Config),
-        ok
-        end,
-    escalus:story(Config, [{alice, 1}], F),
 
-    %% Bob logs in
-    Bob = login_send_presence(Config, bob),
+        %% Bob logs in
+        Bob2 = relogin_send_presence(Bob1),
 
-    %% If mod_offline is enabled, then an offline message
-    %% will be delivered automatically.
+        %% If mod_offline is enabled, then an offline message
+        %% will be delivered automatically.
 
-    %% He receives his initial presence and the message.
-    escalus:wait_for_stanzas(Bob, 2, 1000),
+        %% He receives his initial presence and the message.
+        Got = escalus:wait_for_stanzas(Bob2, 2, 1000),
+        ct:pal("Bob2 got: ~p", [Got]),
 
-    %% Bob checks his archive.
-    escalus:send(Bob, stanza_archive_request(P, <<"q1">>)),
-    ArcMsgs = R = respond_messages(wait_archive_respond(P, Bob)),
-    assert_only_one_of_many_is_equal(ArcMsgs, Msg),
+        %% Bob checks his archive.
+        escalus:send(Bob2, stanza_archive_request(P, <<"q1">>)),
+        ArcMsgs = R = respond_messages(wait_archive_respond(P, Bob2)),
+        assert_only_one_of_many_is_equal(ArcMsgs, Msg)
+    end,
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], F).
 
-    escalus_cleaner:clean(Config).
+go_offline(Client) ->
+    escalus_client:send(Client, escalus_stanza:presence(<<"unavailable">>)),
+    escalus_client:stop(Client),
+    Client.
+
+relogin_send_presence(Client) ->
+    Spec = escalus_client:spec(Client),
+    {ok, Conn, _, _} = R = escalus_connection:start(Spec),
+    ct:pal("~p", [R]),
+    Conn.
 
 nostore_hint(Config) ->
     Msg = <<"So secret">>,
@@ -1256,7 +1249,7 @@ purge_single_message(Config) ->
             assert_respond_size(P, 0, wait_archive_respond(P, Alice)),
             ok
         end,
-    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], F).
 
 purge_old_single_message(Config) ->
     P = ?config(props, Config),
@@ -1300,7 +1293,7 @@ purge_multiple_messages(Config) ->
             assert_respond_size(P, 0, wait_archive_respond(P, Bob)),
             ok
         end,
-    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], F).
 
 muc_archive_request(Config) ->
     P = ?config(props, Config),
@@ -1657,12 +1650,12 @@ range_archive_request(Config) ->
         escalus:assert(is_iq_result, IQ),
         ok
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    escalus:fresh_story(Config, [{alice, 1}], F).
 
 range_archive_request_not_empty(Config) ->
     P = ?config(props, Config),
-    F = fun(Alice) ->
-        Msgs = ?config(pre_generated_msgs, Config),
+    F = fun(Alice, Bob, Carol) ->
+        {pre_generated_msgs, Msgs} = bootstrap_fresh_archive([Alice, Bob, Carol]),
         [_, _, StartMsg, StopMsg | _] = Msgs,
         {{StartMsgId, _}, _, _, _, _StartMsgPacket} = StartMsg,
         {{StopMsgId, _}, _, _, _, _StopMsgPacket} = StopMsg,
@@ -1689,7 +1682,7 @@ range_archive_request_not_empty(Config) ->
         ?assert_equal(list_to_binary(StopTime), Stamp2),
         ok
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {carol, 1}], F).
 
 make_iso_time(Micro) ->
     Now = usec:to_now(Micro),
@@ -1701,7 +1694,8 @@ make_iso_time(Micro) ->
 %% See also `#rsm_in.max'.
 limit_archive_request(Config) ->
     P = ?config(props, Config),
-    F = fun(Alice) ->
+    F = fun(Alice, Bob) ->
+        bootstrap_fresh_archive([Alice, Bob]),
         %% Send
         %% <iq type='get' id='q29302'>
         %%   <query xmlns='urn:xmpp:mam:tmp'>
@@ -1719,7 +1713,7 @@ limit_archive_request(Config) ->
         10 = length(Msgs),
         ok
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], F).
 
 pagination_empty_rset(Config) ->
     P = ?config(props, Config),
@@ -1998,7 +1992,7 @@ mam_service_discovery(Config) ->
             erlang:raise(Class, Reason, Stacktrace)
         end
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    escalus:fresh_story(Config, [{alice, 1}], F).
 
 %% Check, that MUC is supported.
 muc_service_discovery(Config) ->
@@ -2628,7 +2622,7 @@ serv_user(Config, UserSpec) ->
     {Server, Username}.
 
 %% @doc Check, that the archive is empty.
-assert_empty_archive(Server, Username, RetryTimes) when is_integer(RetryTimes) -> 
+assert_empty_archive(Server, Username, RetryTimes) when is_integer(RetryTimes) ->
     %% Wait for zero messages in archive
     case wait_for_archive_size(Server, Username, RetryTimes, 0) of
        0 -> ok;
@@ -2740,6 +2734,25 @@ parse_messages(Messages) ->
         ct:pal("Messages: ~p~n", [Messages]),
         erlang:raise(Class, Reason, Stacktrace)
     end.
+
+bootstrap_fresh_archive([Owner|Others] = AllUsers) ->
+    random:seed(now()),
+    Domain = escalus_ct:get_config(ejabberd_domain),
+    %% {jid :: binary(), #jid{}, archive_id :: int()}
+    F = fun(User) ->
+                Domain = escalus_client:server(User),
+                UserName = escalus_client:username(User),
+                {escalus_client:short_jid(Owner),
+                 make_jid(UserName, Domain, <<>>),
+                 rpc_apply(mod_mam, archive_id, [Domain, UserName])}
+    end,
+    ArcJID = F(Owner),
+    OtherUsers = [ F(User) || User <- Others ],
+    Msgs = generate_msgs_for_days(ArcJID, OtherUsers, _Days = 16),
+    put_msgs(Msgs),
+    wait_for_msgs(Msgs,
+                  [ {escalus_client:server(U), escalus_client:username(U)} || U <- AllUsers]),
+    {pre_generated_msgs, sort_msgs(Msgs)}.
 
 bootstrap_archive(Config) ->
     random:seed(now()),
@@ -2925,27 +2938,27 @@ prefs_cases2() ->
      {{roster, [bob], []},           [true, true, false, false]},
      {{roster, [kate], []},          [true, true, true, true]},
      {{roster, [kate, bob], []},     [true, true, true, true]},
- 
+
      {{roster, [], [bob]},           [false, false, false, false]},
      {{roster, [], [kate]},          [true, true, false, false]},
      {{roster, [], [bob, kate]},     [false, false, false, false]},
- 
- 
+
+
      {{never, [], []},              [false, false, false, false]},
      {{never, [bob], []},           [true, true, false, false]},
      {{never, [kate], []},          [false, false, true, true]},
      {{never, [kate, bob], []},     [true, true, true, true]},
- 
+
      {{never, [], [bob]},           [false, false, false, false]},
      {{never, [], [kate]},          [false, false, false, false]},
      {{never, [], [bob, kate]},     [false, false, false, false]},
- 
- 
+
+
      {{always, [], []},              [true, true, true, true]},
      {{always, [bob], []},           [true, true, true, true]},
      {{always, [kate], []},          [true, true, true, true]},
      {{always, [kate, bob], []},     [true, true, true, true]},
- 
+
      {{always, [], [bob]},           [false, false, true, true]},
      {{always, [], [kate]},          [true, true, false, false]},
      {{always, [], [bob, kate]},     [false, false, false, false]}
@@ -2974,19 +2987,19 @@ run_prefs_cases(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], F).
 
 make_alice_and_bob_friends(Alice, Bob) ->
-        escalus_client:send(Alice, escalus_stanza:presence_direct(escalus_client:short_jid(Bob), <<"subscribe">>)), 
+        escalus_client:send(Alice, escalus_stanza:presence_direct(escalus_client:short_jid(Bob), <<"subscribe">>)),
         escalus:wait_for_stanzas(Alice, 1, 5000), % iq set
         escalus:wait_for_stanzas(Bob, 1, 5000), % presence subscribe
 
-        escalus_client:send(Bob, escalus_stanza:presence_direct(escalus_client:short_jid(Alice), <<"subscribed">>)), 
+        escalus_client:send(Bob, escalus_stanza:presence_direct(escalus_client:short_jid(Alice), <<"subscribed">>)),
         escalus:wait_for_stanzas(Alice, 3, 5000), % iq set, presence subscribed, presence
         escalus:wait_for_stanzas(Bob, 1, 5000), % iq set subscription=from
 
-        escalus_client:send(Bob, escalus_stanza:presence_direct(escalus_client:short_jid(Alice), <<"subscribe">>)), 
+        escalus_client:send(Bob, escalus_stanza:presence_direct(escalus_client:short_jid(Alice), <<"subscribe">>)),
         escalus:wait_for_stanzas(Alice, 2, 5000), % iq set subscription=to, presence subscribe
         escalus:wait_for_stanzas(Bob, 1, 5000), % iq set subscription=from
 
-        escalus_client:send(Alice, escalus_stanza:presence_direct(escalus_client:short_jid(Bob), <<"subscribed">>)), 
+        escalus_client:send(Alice, escalus_stanza:presence_direct(escalus_client:short_jid(Bob), <<"subscribed">>)),
         escalus:wait_for_stanzas(Alice, 1, 5000), % iq set subscription=both
         escalus:wait_for_stanzas(Bob, 3, 5000), % iq set subscription=both, presence subscribed, presence
         ok.
