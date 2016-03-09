@@ -35,7 +35,7 @@ if [ -z "$NAME_ARG" ]; then
 fi
 NAME=$(echo $NAME_ARG | awk '{print $1}')
 NODE=$(echo $NAME_ARG | awk '{print $2}')
-MNESIA_DIR="$RUNNER_BASE_DIR/Mnesia.$NODE"
+MNESIA_DIR={{mongooseim_mdb_dir}}
 
 # Extract the target cookie
 COOKIE_ARG=`grep -e '^-setcookie' $RUNNER_ETC_DIR/vm.args`

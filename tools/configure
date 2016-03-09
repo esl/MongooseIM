@@ -1,14 +1,25 @@
 #!/usr/bin/env escript
+-module(configure).
+-compile([export_all]).
+-mode(compile).
+
+-define(b2l(B), binary_to_list(B)).
+-define(l2b(L), list_to_binary(L)).
 
 -define(NO_ODBC_WARN, "WARNING! There is no odbc module in your Erlang/OTP installation! "
                       "It will not be included in the release!").
 
--record(opts, {apps         = [],
-               log_dir      = "log",
-               prefix       = "/usr/local",
-               reltool_vars = "rel/configure.vars.config",
-               user         = "mongooseim",
-               system       = "no"}).
+-record(opts, {apps             = [],
+               prefix           = "/usr/local",
+               reltool_vars     = "rel/configure.vars.config",
+               system           = "no",
+               user             = "mongooseim",
+               bin_dir          = undefined,
+               etc_dir          = "$RUNNER_BASE_DIR/etc",
+               lib_dir          = undefined,
+               log_dir          = "log",
+               mdb_dir          = "$RUNNER_BASE_DIR/Mnesia.$NODE",
+               mdb_dir_toggle   = "%"}).
 
 main([]) ->
     usage();
@@ -16,7 +27,7 @@ main(Args) ->
     case catch process_args(Args, #opts{}) of
         {ok, Opts} ->
             ok = write(shell, "configure.out", Opts),
-            ok = write(reltool, Opts#opts.reltool_vars, Opts);
+            ok = write(reltool, Opts#opts.reltool_vars, expand_prefix(Opts));
         error ->
             ok
     end.
@@ -34,11 +45,10 @@ app_opts() ->
                                         include_driver("riak")}].
 
 opts() ->
-    [{"log-dir", (#opts{})#opts.log_dir, "Log directory. If relative, will be relative to $PREFIX/mongooseim"},
-     {"prefix",  (#opts{})#opts.prefix,  "Installation PREFIX directory"},
-     {"user",    (#opts{})#opts.user,    "System user to run the server as"},
+    [{"prefix",  (#opts{})#opts.prefix,  "Installation PREFIX directory"},
      {"system",  (#opts{})#opts.system,  "Install files into $PREFIX/{bin, etc, ...} instead of "
-                                         "a completely self contained release"}].
+                                         "a completely self contained release"},
+     {"user",    (#opts{})#opts.user,    "System user to run the server as"}].
 
 include_driver(DB) ->
     ["include ", DB, " driver"].
@@ -49,20 +59,18 @@ all_apps() ->
 process_args(["with-" ++ App | Args], #opts{apps = Apps} = Opts) ->
     process_args(Args, Opts#opts{apps = process_app(App, Apps)});
 
-process_args(["log-dir=" ++ LogDir | Args], #opts{} = Opts) ->
-    process_args(Args, Opts#opts{log_dir = LogDir});
-process_args(["log-dir", LogDir | Args], #opts{} = Opts) ->
-    process_args(Args, Opts#opts{log_dir = LogDir});
-
 process_args(["prefix=" ++ Prefix | Args], #opts{} = Opts) ->
     process_args(Args, Opts#opts{prefix = Prefix});
 process_args(["prefix", Prefix | Args], #opts{} = Opts) ->
     process_args(Args, Opts#opts{prefix = Prefix});
 
 process_args(["system=" ++ System | Args], #opts{} = Opts) ->
-    process_args(Args, Opts#opts{system = System});
+    case is_true(System) of
+        true  -> process_args(Args, system_install(Opts));
+        false -> process_args(Args, Opts)
+    end;
 process_args(["system" | Args], #opts{} = Opts) ->
-    process_args(Args, Opts#opts{system = "yes"});
+    process_args(Args, system_install(Opts));
 
 process_args(["user=" ++ User | Args], #opts{} = Opts) ->
     process_args(Args, Opts#opts{user = User});
@@ -74,6 +82,15 @@ process_args([Unknown | _Args], #opts{} = _Opts) ->
     throw(error);
 
 process_args([], Opts) -> {ok, Opts}.
+
+system_install(Opts) ->
+    Opts#opts{system  = "yes",
+              bin_dir = "$PREFIX/usr/bin",
+              etc_dir = "$PREFIX/etc/mongooseim",
+              lib_dir = "$PREFIX/usr/lib/mongooseim",
+              log_dir = "$PREFIX/var/log/mongooseim",
+              mdb_dir = "$PREFIX/var/lib/mongooseim",
+              mdb_dir_toggle = ""}.
 
 process_app("none", _Apps) -> [];
 process_app("all", _Apps)  -> all_apps();
@@ -98,10 +115,11 @@ usage() ->
           "~s: OPTIONS\n"
           "\n"
           "Specifies which 3rd party deps will be included in the release.\n"
-          "Allows to configure LOG_DIR or installation PREFIX.\n"
-          "Writes configure.out file as output. This file can be sourced with:\n"
+          "Writes configure.out file as output - this file can be sourced with:\n"
           "\n"
           "    . configure.out\n"
+          "\n"
+          "Writes rel/configure.vars.config which can be used as Reltool input.\n"
           "\n"
           "3rd party apps:\n\n~s\n"
           "Options:\n\n~s\n",
@@ -117,6 +135,8 @@ print(Handle, Fmt, Args) ->
 progname() ->
     filename:basename(hd(init:get_plain_arguments())).
 
+is_true(Opt) -> lists:member(Opt, ["yes", "true", "1"]).
+
 sh_var(Name, Value) -> ["export ", Name, "=\"", value(Value), "\"\n"].
 
 value([]) -> [];
@@ -126,15 +146,40 @@ value([H | T]) -> [H, " "] ++ value(T).
 rt_var(Name, Value) -> io_lib:format("{~s, ~p}.\n", [Name, Value]).
 
 write(shell, FileName, Opts) ->
-    Data = [sh_var("MONGOOSEIM_CONFIGURED", ["yes"]),
-            sh_var("APPS", validate_apps(Opts#opts.apps)),
-            sh_var("PREFIX", [Opts#opts.prefix]),
-            sh_var("RELTOOL_VARS", [Opts#opts.reltool_vars]),
-            sh_var("RUNNER_USER", [Opts#opts.user]),
-            sh_var("SYSTEM", [Opts#opts.system])],
+    Data = ( [sh_var("MONGOOSEIM_CONFIGURED", ["yes"]),
+              sh_var("APPS", validate_apps(Opts#opts.apps)),
+              sh_var("PREFIX", [Opts#opts.prefix]),
+              sh_var("RELTOOL_VARS", [Opts#opts.reltool_vars]),
+              sh_var("RUNNER_USER", [Opts#opts.user]),
+              sh_var("SYSTEM", [Opts#opts.system])] ++
+             [sh_var("BIN_DIR", [Opts#opts.bin_dir]) || Opts#opts.system == "yes"] ++
+             [sh_var("ETC_DIR", [Opts#opts.etc_dir]) || Opts#opts.system == "yes"] ++
+             [sh_var("LIB_DIR", [Opts#opts.lib_dir]) || Opts#opts.system == "yes"] ++
+             [sh_var("LOG_DIR", [Opts#opts.log_dir]) || Opts#opts.system == "yes"] ++
+             [sh_var("MDB_DIR", [Opts#opts.mdb_dir]) || Opts#opts.system == "yes"] ),
     file:write_file(FileName, Data);
 
 write(reltool, FileName, Opts) ->
-    Data = [rt_var(mongooseim_log_dir, Opts#opts.log_dir),
-            rt_var(mongooseim_runner_user, Opts#opts.user)],
+    Data = ( [rt_var(mongooseim_runner_user, Opts#opts.user)] ++
+             [rt_var(mongooseim_etc_dir, Opts#opts.etc_dir)] ++
+             [rt_var(mongooseim_log_dir, Opts#opts.log_dir)] ++
+             [rt_var(mongooseim_mdb_dir, Opts#opts.mdb_dir)] ++
+             [rt_var(mongooseim_mdb_dir_toggle, Opts#opts.mdb_dir_toggle)] ),
     file:write_file(FileName, Data).
+
+expand_prefix(Opts) when Opts#opts.system /= "yes" -> Opts;
+expand_prefix(Opts) ->
+    {NOpts, _} = lists:foldl(fun ?MODULE:expand_prefix/2, {Opts, Opts#opts.prefix},
+                             [#opts.bin_dir,
+                              #opts.etc_dir,
+                              #opts.lib_dir,
+                              #opts.log_dir,
+                              #opts.mdb_dir]),
+    NOpts.
+
+expand_prefix(Index, {Opts, Prefix}) ->
+    {setelement(Index, Opts, expand_env("$PREFIX", Prefix, element(Index, Opts))),
+     Prefix}.
+
+expand_env(Name, Value, String) ->
+    ?b2l(binary:replace(?l2b(String), ?l2b(Name), ?l2b(Value))).
