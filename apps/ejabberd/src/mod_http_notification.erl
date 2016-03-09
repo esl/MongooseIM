@@ -85,15 +85,16 @@ make_req(Host, Sender, Receiver, Message) ->
   Req = {Host, Sender, Receiver, Message},
   PoolName = existing_pool_name(Host),
   PoolTimeout = gen_mod:get_module_opt(Host, ?MODULE, pool_timeout, ?DEFAULT_HTTP_POOL_TIMEOUT),
-  Res = case catch poolboy:transaction(PoolName, fun(W) -> gen_server:call(W, Req) end, PoolTimeout) of
+  T0 = os:timestamp(),
+  {Res, Elapsed} = case catch poolboy:transaction(PoolName, fun(W) -> gen_server:call(W, Req) end, PoolTimeout) of
           {'EXIT', {timeout, _}} ->
-            {error, poolbusy};
+            {{error, poolbusy}, 0};
           {error, HttpError} ->
-            {error, HttpError};
+            {{error, HttpError}, 0};
           ok ->
-            ok
+            {ok, timer:now_diff(os:timestamp(), T0)}
         end,
-  record_result(Host, Res),
+  record_result(Host, Res, Elapsed),
   ok.
 
 pool_name(Host) ->
@@ -103,14 +104,17 @@ existing_pool_name(Host) ->
   list_to_existing_atom("http_notification_" ++ binary_to_list(Host)).
 
 ensure_metrics(Host) ->
-  mongoose_metrics:ensure_metric([Host, http_notifications_sent], spiral),
-  mongoose_metrics:ensure_metric([Host, http_notifications_failed], spiral),
+  mongoose_metrics:ensure_metric([Host, mod_http_notifications, sent], spiral),
+  mongoose_metrics:ensure_metric([Host, mod_http_notifications, failed], spiral),
+  mongoose_metrics:ensure_metric([Host, mod_http_notifications, response_time], histogram),
   ok.
 
-record_result(Host, ok) ->
-  mongoose_metrics:update([Host, http_notifications_sent], 1),
+
+record_result(Host, ok, Elapsed) ->
+  mongoose_metrics:update([Host, mod_http_notifications, sent], 1),
+  mongoose_metrics:update([Host, mod_http_notifications, response_time], Elapsed / 1000),
   ok;
-record_result(Host, {error, Reason}) ->
-  mongoose_metrics:update([Host, http_notifications_failed], 1),
+record_result(Host, {error, Reason}, _) ->
+  mongoose_metrics:update([Host, mod_http_notifications, failed], 1),
   ?WARNING_MSG("Sending http notification failed: ~p", [Reason]),
   ok.
