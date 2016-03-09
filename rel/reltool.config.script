@@ -68,11 +68,14 @@ IncludeApps = lists:map(fun(App) -> {app, App, [{incl_cond, include}]} end, Apps
 
 {overlay_vars, "vars.config"},
 
-{overlay, [{mkdir, "log/sasl"},
-           {mkdir, "var"},
-           {mkdir, "var/log"},
+{overlay, [
            {mkdir, "priv"},
+           {copy, "files/sample_external_auth.py", "priv/sample_external_auth.py"},
+
            {mkdir, "priv/ssl"},
+           {copy, "../fake_cert.pem", "priv/ssl/fake_cert.pem"},
+           {copy, "../fake_key.pem", "priv/ssl/fake_key.pem"},
+           {copy, "../fake_server.pem", "priv/ssl/fake_server.pem"},
 
            {copy, "files/erl", "\{\{erts_vsn\}\}/bin/erl"},
            {copy, "files/nodetool", "\{\{erts_vsn\}\}/bin/nodetool"},
@@ -81,11 +84,6 @@ IncludeApps = lists:map(fun(App) -> {app, App, [{incl_cond, include}]} end, Apps
            {template, "files/mongooseim", "bin/mongooseim"},
            {template, "files/app.config", "etc/app.config"},
            {template, "files/vm.args", "etc/vm.args"},
-           {template, "files/ejabberd.cfg", "etc/ejabberd.cfg"},
-
-           {copy, "../fake_cert.pem", "priv/ssl/fake_cert.pem"},
-           {copy, "../fake_key.pem", "priv/ssl/fake_key.pem"},
-           {copy, "../fake_server.pem", "priv/ssl/fake_server.pem"},
-           {copy, "files/sample_external_auth.py", "priv/sample_external_auth.py"}
+           {template, "files/ejabberd.cfg", "etc/ejabberd.cfg"}
           ]}
 ].
