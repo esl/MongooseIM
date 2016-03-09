@@ -31,8 +31,10 @@ cd mongooseim-docker
 
 DOCKERHUB_TAG=${TRAVIS_BRANCH}
 
-if [ ${TRAVIS_BRANCH} = 'master' ]; then
-	$DOCKERHUB_TAG="latest";
+if [ ${TRAVIS_PULL_REQUEST} != 'false' ]; then
+    DOCKERHUB_TAG="PR-${TRAVIS_PULL_REQUEST}"
+elif [ ${TRAVIS_BRANCH} == 'master' ]; then
+    DOCKERHUB_TAG="latest";
 fi
 
 cp ../${MONGOOSE_TGZ} member
