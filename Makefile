@@ -91,6 +91,7 @@ rel: certs rebar deps rel/vars.config
 rel/vars.config: rel/vars.config.in rel/configure.vars.config
 	cat $^ > $@
 
+## Don't allow these files to go out of sync!
 configure.out rel/configure.vars.config:
 	./tools/configure with-all
 
