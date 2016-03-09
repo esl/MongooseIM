@@ -29,10 +29,6 @@ fi
 INSTALL_OPTS="-o ${RUNNER_USER} -g ${RUNNER_GROUP}"
 [ x"$SYSTEM" == x"yes" ] && install $INSTALL_OPTS -d ${BIN_DIR}
 [ x"$SYSTEM" == x"yes" ] && install $INSTALL_OPTS -m 555 rel/mongooseim/bin/mongooseimctl ${BIN_DIR}
-## TODO: this sed line will become redundant once reltool is capable of putting correct values in
-[ x"$SYSTEM" == x"yes" ] && chmod u+w ${BIN_DIR}/mongooseimctl
-[ x"$SYSTEM" == x"yes" ] && sed -e 's*\(RUNNER_SCRIPT_DIR=\).\**\1'"${LIB_DIR}"'/bin*' \
-    rel/mongooseim/bin/mongooseimctl > ${BIN_DIR}/mongooseimctl
 [ x"$SYSTEM" == x"yes" ] && install $INSTALL_OPTS -d ${ETC_DIR}
 [ x"$SYSTEM" == x"yes" ] && install $INSTALL_OPTS -m 664 rel/mongooseim/etc/app.config ${ETC_DIR}
 [ x"$SYSTEM" == x"yes" ] && install $INSTALL_OPTS -m 664 rel/mongooseim/etc/ejabberd.cfg ${ETC_DIR}
@@ -40,9 +36,11 @@ INSTALL_OPTS="-o ${RUNNER_USER} -g ${RUNNER_GROUP}"
 install $INSTALL_OPTS -d ${LIB_DIR}
 cp -R rel/mongooseim/* ${LIB_DIR}
 chown -R ${RUNNER_USER}:${RUNNER_GROUP} ${LIB_DIR}
-## TODO: this sed line will become redundant once reltool is capable of putting correct values in
-sed -e 's*\(RUNNER_USER=\).\**\1'"${RUNNER_USER}"'*' \
-    rel/mongooseim/bin/mongooseim > ${LIB_DIR}/bin/mongooseim
+[ x"$SYSTEM" == x"yes" ] && {
+    mv ${LIB_DIR}/etc/app.config   ${LIB_DIR}/etc/app.config.example
+    mv ${LIB_DIR}/etc/ejabberd.cfg ${LIB_DIR}/etc/ejabberd.cfg.example
+    mv ${LIB_DIR}/etc/vm.args      ${LIB_DIR}/etc/vm.args.example
+}
 [ x"$SYSTEM" == x"yes" ] && install $INSTALL_OPTS -d ${LOG_DIR}
 [ x"$SYSTEM" == x"yes" ] && install $INSTALL_OPTS -d ${MDB_DIR}
 

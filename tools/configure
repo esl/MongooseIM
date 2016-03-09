@@ -9,17 +9,18 @@
 -define(NO_ODBC_WARN, "WARNING! There is no odbc module in your Erlang/OTP installation! "
                       "It will not be included in the release!").
 
--record(opts, {apps             = [],
-               prefix           = "/usr/local",
-               reltool_vars     = "rel/configure.vars.config",
-               system           = "no",
-               user             = "mongooseim",
-               bin_dir          = undefined,
-               etc_dir          = "$RUNNER_BASE_DIR/etc",
-               lib_dir          = undefined,
-               log_dir          = "log",
-               mdb_dir          = "$RUNNER_BASE_DIR/Mnesia.$NODE",
-               mdb_dir_toggle   = "%"}).
+-record(opts, {apps           = [],
+               prefix         = "/usr/local",
+               reltool_vars   = "rel/configure.vars.config",
+               system         = "no",
+               user           = "mongooseim",
+               script_dir     = "$(cd ${0%/*} && pwd)",
+               bin_dir        = undefined,
+               etc_dir        = "$RUNNER_BASE_DIR/etc",
+               lib_dir        = undefined,
+               log_dir        = "log",
+               mdb_dir        = "$RUNNER_BASE_DIR/Mnesia.$NODE",
+               mdb_dir_toggle = "%"}).
 
 main([]) ->
     usage();
@@ -84,12 +85,13 @@ process_args([Unknown | _Args], #opts{} = _Opts) ->
 process_args([], Opts) -> {ok, Opts}.
 
 system_install(Opts) ->
-    Opts#opts{system  = "yes",
-              bin_dir = "$PREFIX/usr/bin",
-              etc_dir = "$PREFIX/etc/mongooseim",
-              lib_dir = "$PREFIX/usr/lib/mongooseim",
-              log_dir = "$PREFIX/var/log/mongooseim",
-              mdb_dir = "$PREFIX/var/lib/mongooseim",
+    Opts#opts{system         = "yes",
+              script_dir     = "$PREFIX/usr/lib/mongooseim/bin",
+              bin_dir        = "$PREFIX/usr/bin",
+              etc_dir        = "$PREFIX/etc/mongooseim",
+              lib_dir        = "$PREFIX/usr/lib/mongooseim",
+              log_dir        = "$PREFIX/var/log/mongooseim",
+              mdb_dir        = "$PREFIX/var/lib/mongooseim",
               mdb_dir_toggle = ""}.
 
 process_app("none", _Apps) -> [];
@@ -161,6 +163,7 @@ write(shell, FileName, Opts) ->
 
 write(reltool, FileName, Opts) ->
     Data = ( [rt_var(mongooseim_runner_user, Opts#opts.user)] ++
+             [rt_var(mongooseim_script_dir, Opts#opts.script_dir)] ++
              [rt_var(mongooseim_etc_dir, Opts#opts.etc_dir)] ++
              [rt_var(mongooseim_log_dir, Opts#opts.log_dir)] ++
              [rt_var(mongooseim_mdb_dir, Opts#opts.mdb_dir)] ++
@@ -170,7 +173,8 @@ write(reltool, FileName, Opts) ->
 expand_prefix(Opts) when Opts#opts.system /= "yes" -> Opts;
 expand_prefix(Opts) ->
     {NOpts, _} = lists:foldl(fun ?MODULE:expand_prefix/2, {Opts, Opts#opts.prefix},
-                             [#opts.bin_dir,
+                             [#opts.script_dir,
+                              #opts.bin_dir,
                               #opts.etc_dir,
                               #opts.lib_dir,
                               #opts.log_dir,

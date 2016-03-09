@@ -37,6 +37,7 @@
 
 %% Defined in Makefile by appending configure.vars.config
 %% Uncomment for manual release generation.
+%{mongooseim_script_dir, "$(cd ${0%/*} && pwd)"}.
 %{mongooseim_etc_dir, "$RUNNER_BASE_DIR/etc"}.
 %{mongooseim_log_dir, "log"}.
 %{mongooseim_mdb_dir, "$RUNNER_BASE_DIR/Mnesia.$NODE"}.

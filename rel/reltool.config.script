@@ -82,6 +82,7 @@ IncludeApps = lists:map(fun(App) -> {app, App, [{incl_cond, include}]} end, Apps
            {copy, "files/mongooseimctl", "bin/mongooseimctl"},
 
            {template, "files/mongooseim", "bin/mongooseim"},
+           {template, "files/mongooseimctl", "bin/mongooseimctl"},
            {template, "files/app.config", "etc/app.config"},
            {template, "files/vm.args", "etc/vm.args"},
            {template, "files/ejabberd.cfg", "etc/ejabberd.cfg"}
