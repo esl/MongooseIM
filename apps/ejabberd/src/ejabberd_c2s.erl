@@ -870,6 +870,7 @@ do_open_session_common(JID, #state{user = U, resource = R} = NewStateData0) ->
                       privacy_list = PrivList},
                     fsm_next_state_pack(session_established,
                         NewStateData).
+-define(xmlel(Name), #xmlel{name = Name}).
 
 -spec session_established(Item :: ejabberd:xml_stream_item(),
                           State :: state()) -> fsm_return().
@@ -887,7 +888,16 @@ session_established({xmlstreamelement,
                       StateData#state.stream_mgmt,
                       StateData#state.stream_mgmt_in,
                       session_established, StateData);
-
+session_established({xmlstreamelement, ?xmlel(<<"inactive">>)}, StateData) ->
+    ?WARNING_MSG("go into inactive state", []),
+    %%TODO check xmlns
+    %%TODO add metrics here
+    fsm_next_state(session_established, StateData#state{csi_state = inactive});
+session_established({xmlstreamelement, ?xmlel(<<"active">>)}, StateData) ->
+    ?WARNING_MSG("go into active state", []),
+    %%TODO add metrics here
+    %%TODO check xmlns
+    resend_csi_buffer_out(StateData);
 session_established({xmlstreamelement, El}, StateData) ->
     FromJID = StateData#state.jid,
     % Check 'from' attribute in stanza RFC 3920 Section 9.1.2
@@ -1148,8 +1158,8 @@ handle_info({route, From, To, Packet}, StateName, StateData) ->
                     ejabberd_hooks:run(user_receive_packet,
                                        StateData#state.server,
                                        [StateData#state.jid, From, To, FixedPacket]),
+                    maybe_csi_inactive_optimisation({From, To, FixedPacket}, NewState, StateName);
 
-                    send_and_maybe_buffer_stanza({From, To, FixedPacket}, NewState, StateName);
                 {false, _NewAttrs, NewState} ->
                     fsm_next_state(StateName, NewState)
             end
@@ -1296,7 +1306,7 @@ handle_broadcast_result({exit, ErrorMessage}, _StateName, StateData) ->
     send_trailer(StateData),
     {stop, normal, StateData};
 handle_broadcast_result({send_new, From, To, Stanza, NewState}, StateName, _StateData) ->
-    send_and_maybe_buffer_stanza({From, To, Stanza}, NewState, StateName);
+    maybe_csi_inactive_optimisation({From, To, Stanza}, NewState, StateName);
 handle_broadcast_result({new_state, NewState}, StateName, _StateData) ->
     fsm_next_state(StateName, NewState).
 
@@ -1563,9 +1573,27 @@ send_trailer(StateData) ->
     send_text(StateData, ?STREAM_TRAILER).
 
 
-send_and_maybe_buffer_stanza({_, _, Stanza} = Packet, State, StateName)->
-    SendResult = maybe_send_element_safe(State, Stanza),
-    BufferedStateData = buffer_out_stanza(Packet, State),
+resend_csi_buffer_out(#state{csi_buffer_out = BufferOut} = State) ->
+    %%lists:foldr to preserve order
+    F = fun(Packet, {_, OldState}) ->
+                send_and_maybe_buffer_stanza(Packet, OldState)
+        end,
+    {_, NewState} = lists:foldr(F, {ok, State}, BufferOut),
+    fsm_next_state(session_established, NewState#state{csi_state=active,
+                                                       csi_buffer_out = []}).
+
+maybe_csi_inactive_optimisation(Packet, #state{csi_state = active} = State,
+                                StateName) ->
+    send_and_maybe_buffer_stanza(Packet, State, StateName);
+maybe_csi_inactive_optimisation(Packet, #state{csi_buffer_out = BufferOut} = State,
+                                StateName) ->
+    %%TODO secure the buffer
+    NewBufferOut = [Packet | BufferOut],
+    fsm_next_state(StateName, State#state{csi_buffer_out = NewBufferOut}).
+
+
+send_and_maybe_buffer_stanza(Packet, State, StateName)->
+    {SendResult, BufferedStateData} = send_and_maybe_buffer_stanza(Packet, State),
     case SendResult of
         ok ->
             case catch maybe_send_ack_request(BufferedStateData) of
@@ -1579,6 +1607,11 @@ send_and_maybe_buffer_stanza({_, _, Stanza} = Packet, State, StateName)->
             ?DEBUG("Send element error: ~p, try enter resume session", [SendResult]),
             maybe_enter_resume_session(BufferedStateData#state.stream_mgmt_id, BufferedStateData)
     end.
+
+send_and_maybe_buffer_stanza({_, _, Stanza} = Packet, State) ->
+    SendResult = maybe_send_element_safe(State, Stanza),
+    BufferedStateData = buffer_out_stanza(Packet, State),
+    {SendResult, BufferedStateData}.
 
 -spec new_id() -> binary().
 new_id() ->
@@ -2297,7 +2330,7 @@ is_ip_blacklisted({IP,_Port}) ->
 %% @doc Check from attributes.
 -spec check_from(El, FromJID) -> Result when
       El :: jlib:xmlel(), FromJID :: ejabberd:jid(),
-      Result :: 'invalid-from'  | jlib:xmlel().
+                Result :: 'invalid-from'  | jlib:xmlel().
 check_from(El, FromJID) ->
     case xml:get_tag_attr(<<"from">>, El) of
         false ->
