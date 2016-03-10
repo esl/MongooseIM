@@ -20,7 +20,8 @@
                lib_dir        = undefined,
                log_dir        = "log",
                mdb_dir        = "$RUNNER_BASE_DIR/Mnesia.$NODE",
-               mdb_dir_toggle = "%"}).
+               mdb_dir_toggle = "%",
+               lock_dir       = "$EJABBERD_DIR/var/lock"}).
 
 main([]) ->
     usage();
@@ -92,7 +93,8 @@ system_install(Opts) ->
               lib_dir        = "$PREFIX/usr/lib/mongooseim",
               log_dir        = "$PREFIX/var/log/mongooseim",
               mdb_dir        = "$PREFIX/var/lib/mongooseim",
-              mdb_dir_toggle = ""}.
+              mdb_dir_toggle = "",
+              lock_dir       = "$PREFIX/var/lock/mongooseim"}.
 
 process_app("none", _Apps) -> [];
 process_app("all", _Apps)  -> all_apps();
@@ -158,7 +160,8 @@ write(shell, FileName, Opts) ->
              [sh_var("ETC_DIR", [Opts#opts.etc_dir]) || Opts#opts.system == "yes"] ++
              [sh_var("LIB_DIR", [Opts#opts.lib_dir]) || Opts#opts.system == "yes"] ++
              [sh_var("LOG_DIR", [Opts#opts.log_dir]) || Opts#opts.system == "yes"] ++
-             [sh_var("MDB_DIR", [Opts#opts.mdb_dir]) || Opts#opts.system == "yes"] ),
+             [sh_var("MDB_DIR", [Opts#opts.mdb_dir]) || Opts#opts.system == "yes"] ++
+             [sh_var("LOCK_DIR", [Opts#opts.lock_dir]) || Opts#opts.system == "yes"] ),
     file:write_file(FileName, Data);
 
 write(reltool, FileName, Opts) ->
@@ -167,7 +170,8 @@ write(reltool, FileName, Opts) ->
             rt_var(mongooseim_etc_dir, Opts#opts.etc_dir),
             rt_var(mongooseim_log_dir, Opts#opts.log_dir),
             rt_var(mongooseim_mdb_dir, Opts#opts.mdb_dir),
-            rt_var(mongooseim_mdb_dir_toggle, Opts#opts.mdb_dir_toggle)],
+            rt_var(mongooseim_mdb_dir_toggle, Opts#opts.mdb_dir_toggle),
+            rt_var(mongooseim_lock_dir, Opts#opts.lock_dir)],
     file:write_file(FileName, Data).
 
 expand_prefix(Opts) when Opts#opts.system /= "yes" -> Opts;
@@ -178,7 +182,8 @@ expand_prefix(Opts) ->
                               #opts.etc_dir,
                               #opts.lib_dir,
                               #opts.log_dir,
-                              #opts.mdb_dir]),
+                              #opts.mdb_dir,
+                              #opts.lock_dir]),
     NOpts.
 
 expand_prefix(Index, {Opts, Prefix}) ->

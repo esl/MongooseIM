@@ -77,7 +77,7 @@ ctl ()
     # using flock if available. Expects a linux-style
     # flock that can lock a file descriptor.
     MAXCONNID=100
-    CONNLOCKDIR=/var/lock/mongooseimctl
+    CONNLOCKDIR={{mongooseim_lock_dir}}/ctl
     mkdir -p $CONNLOCKDIR
     FLOCK='/usr/bin/flock'
     if [ ! -x "$FLOCK" ] || [ ! -d "$CONNLOCKDIR" ] ; then
