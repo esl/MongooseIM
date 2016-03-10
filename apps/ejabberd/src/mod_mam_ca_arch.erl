@@ -58,7 +58,9 @@
     host,
     conn,
     insert_query,
+    delete_query,
     remove_archive_query,
+    message_id_to_remote_jid_query,
     test_query,
     calc_count_handler,
     list_message_ids_handler,
@@ -244,6 +246,24 @@ message_to_params(#mam_message{
 
 
 %% ----------------------------------------------------------------------
+%% DELETE MESSAGE
+
+delete_query_sql() ->
+    "DELETE FROM mam_message "
+        "WHERE user_jid = ? AND with_jid = ? AND id = ?".
+
+delete_messages(Worker, Messages) ->
+    gen_server:cast(Worker, {delete_messages, Messages}).
+
+delete_message_to_params(#mam_message{
+      id = MessID,
+      user_jid = BLocJID,
+      with_jid = BWithJID
+    }) ->
+    [BLocJID, BWithJID, MessID].
+
+
+%% ----------------------------------------------------------------------
 %% TEST CONNECTION
 
 test_query_sql() ->
@@ -265,6 +285,25 @@ remove_archive(Host, _UserID, UserJID) ->
     BUserJID = bare_jid(UserJID),
     gen_server:cast(Worker, {remove_archive, BUserJID}),
     ok.
+
+
+%% ----------------------------------------------------------------------
+%% GET FULL REMOTE JID
+
+message_id_to_remote_jid_sql() ->
+    "SELECT remote_jid FROM mam_message "
+        "WHERE user_jid = ? AND with_jid = '' AND id = ?".
+
+message_id_to_remote_jid(Worker, BUserJID, MessID) ->
+    ResultF = gen_server:call(Worker,
+        {message_id_to_remote_jid, BUserJID, MessID}),
+    {ok, Result} = ResultF(),
+    case seestar_result:rows(Result) of
+        [] ->
+            {error, not_found};
+        [[BRemFullJID]] ->
+            {ok, BRemFullJID}
+    end.
 
 
 %% ----------------------------------------------------------------------
@@ -508,9 +547,30 @@ row_to_message_id([MessID,_,_]) ->
       Host :: server_host(), MessID :: message_id(),
       _UserID :: user_id(), UserJID :: #jid{},
       Now :: unix_timestamp().
-purge_single_message(_Result, _Host, _MessID, _UserID, _UserJID, _Now) ->
-   {error, 'not-supported'}.
-
+purge_single_message(_Result, Host, MessID, _UserID, UserJID, _Now) ->
+    Worker = select_worker(Host, UserJID),
+    BUserJID = bare_jid(UserJID),
+    Result = message_id_to_remote_jid(Worker, BUserJID, MessID),
+    case Result of
+        {ok, BRemFullJID} ->
+            RemFullJID = unserialize_jid(BRemFullJID),
+            RemBareJID = jid:to_bare(RemFullJID),
+            BRemBareJID = jid:to_binary(RemBareJID),
+            %% Remove duplicates if RemFullJID =:= RemBareJID
+            BWithJIDs = lists:usort([BRemFullJID, BRemBareJID, <<>>]), %% 2 or 3
+            %% Set some fields
+            %% To remove record we need to know user_jid, with_jid and id.
+            Messages = [#mam_message{
+              id = MessID,
+              user_jid = BUserJID,
+              remote_jid = RemFullJID, %% set the field for debugging
+              with_jid = BWithJID
+              } || BWithJID <- BWithJIDs],
+            delete_messages(Worker, Messages),
+            ok;
+        {error, _} ->
+            ok
+    end.
 
 -spec purge_multiple_messages(_Result, Host, _UserID, UserJID, Borders,
                               Start, End, Now, WithJID) ->
@@ -723,20 +783,20 @@ unserialize_jid(BJID) ->
 %% Internal SQL part
 %%====================================================================
 
-extract_messages_handler(ConnPid) ->
-    dict:from_list([{FilterName, prepare_query(ConnPid, extract_messages_sql(Filter))}
+extract_messages_handler(Conn) ->
+    dict:from_list([{FilterName, prepare_query(Conn, extract_messages_sql(Filter))}
                     || {FilterName, Filter} <- filter_to_sql()]).
 
-extract_messages_r_handler(ConnPid) ->
-    dict:from_list([{FilterName, prepare_query(ConnPid, extract_messages_r_sql(Filter))}
+extract_messages_r_handler(Conn) ->
+    dict:from_list([{FilterName, prepare_query(Conn, extract_messages_r_sql(Filter))}
                     || {FilterName, Filter} <- filter_to_sql()]).
 
-calc_count_handler(ConnPid) ->
-    dict:from_list([{FilterName, prepare_query(ConnPid, calc_count_sql(Filter))}
+calc_count_handler(Conn) ->
+    dict:from_list([{FilterName, prepare_query(Conn, calc_count_sql(Filter))}
                     || {FilterName, Filter} <- filter_to_sql()]).
 
-list_message_ids_handler(ConnPid) ->
-    dict:from_list([{FilterName, prepare_query(ConnPid, list_message_ids_sql(Filter))}
+list_message_ids_handler(Conn) ->
+    dict:from_list([{FilterName, prepare_query(Conn, list_message_ids_sql(Filter))}
                     || {FilterName, Filter} <- filter_to_sql()]).
 
 extract_messages_sql(Filter) ->
@@ -758,32 +818,32 @@ list_message_ids_sql(Filter) ->
         "WHERE user_jid = ? AND with_jid = ? " ++ Filter ++
         " ORDER BY with_jid, id LIMIT ?".
 
-execute_extract_messages(ConnPid, Handler, {Filter, IMax}) when is_integer(IMax) ->
+execute_extract_messages(Conn, Handler, {Filter, IMax}) when is_integer(IMax) ->
     Params = eval_filter_params(Filter) ++ [IMax],
     FilterName = select_filter(Filter),
     PreparedQuery = dict:fetch(FilterName, Handler),
-    execute_prepared_query(ConnPid, PreparedQuery, Params).
+    execute_prepared_query(Conn, PreparedQuery, Params).
 
-execute_calc_count(ConnPid, Handler, Filter) ->
+execute_calc_count(Conn, Handler, Filter) ->
     Params = eval_filter_params(Filter),
     FilterName = select_filter(Filter),
     PreparedQuery = dict:fetch(FilterName, Handler),
-    execute_prepared_query(ConnPid, PreparedQuery, Params).
+    execute_prepared_query(Conn, PreparedQuery, Params).
 
-execute_list_message_ids(ConnPid, Handler, {Filter, IMax})  when is_integer(IMax) ->
+execute_list_message_ids(Conn, Handler, {Filter, IMax})  when is_integer(IMax) ->
     Params = eval_filter_params(Filter) ++ [IMax],
     FilterName = select_filter(Filter),
     PreparedQuery = dict:fetch(FilterName, Handler),
-    execute_prepared_query(ConnPid, PreparedQuery, Params).
+    execute_prepared_query(Conn, PreparedQuery, Params).
 
-prepare_query(ConnPid, Query) ->
-    {ok, Res} = seestar_session:prepare(ConnPid, Query),
+prepare_query(Conn, Query) ->
+    {ok, Res} = seestar_session:prepare(Conn, Query),
     Types = seestar_result:types(Res),
     QueryID = seestar_result:query_id(Res),
     #prepared_query{query_id=QueryID, query_types=Types}.
 
-execute_prepared_query(ConnPid, #prepared_query{query_id=QueryID, query_types=Types}, Params) ->
-    seestar_session:execute_async(ConnPid, QueryID, Types, Params, one).
+execute_prepared_query(Conn, #prepared_query{query_id=QueryID, query_types=Types}, Params) ->
+    seestar_session:execute_async(Conn, QueryID, Types, Params, one).
 
 
 save_query_ref(From, QueryRef, State=#state{query_refs=Refs, query_refs_count=RefsCount}) ->
@@ -821,27 +881,31 @@ init([Host, Addr, Port, ClientOptions]) ->
     State = #state{host=Host},
     {ok, State}.
 
-init_connection(ConnPid, State=#state{host=Host}) ->
+init_connection(ConnPid, Conn, State=#state{host=Host}) ->
     erlang:monitor(process, ConnPid),
     register_worker(Host, self()),
 
-    InsertQuery = prepare_query(ConnPid, insert_query_sql()),
-    TestQuery = prepare_query(ConnPid, test_query_sql()),
-    RemoveArchiveQuery = prepare_query(ConnPid, remove_archive_query_sql()),
+    InsertQuery = prepare_query(Conn, insert_query_sql()),
+    DeleteQuery = prepare_query(Conn, delete_query_sql()),
+    TestQuery = prepare_query(Conn, test_query_sql()),
+    RemoveArchiveQuery = prepare_query(Conn, remove_archive_query_sql()),
+    MessIdToRemJidQuery = prepare_query(Conn, message_id_to_remote_jid_sql()),
 
-    ExHandler = extract_messages_handler(ConnPid),
-    RevExHandler = extract_messages_r_handler(ConnPid),
-    CountHandler = calc_count_handler(ConnPid),
-    ListIdsHandler = list_message_ids_handler(ConnPid),
+    ExHandler = extract_messages_handler(Conn),
+    RevExHandler = extract_messages_r_handler(Conn),
+    CountHandler = calc_count_handler(Conn),
+    ListIdsHandler = list_message_ids_handler(Conn),
     put(query_refs_count, 0),
     State#state{
         host=Host,
-        conn=ConnPid,
+        conn=Conn,
         query_refs=dict:new(),
         query_refs_count=0,
         insert_query=InsertQuery,
+        delete_query=DeleteQuery,
         test_query=TestQuery,
         remove_archive_query=RemoveArchiveQuery,
+        message_id_to_remote_jid_query=MessIdToRemJidQuery,
         extract_messages_handler=ExHandler,
         extract_messages_r_handler=RevExHandler,
         calc_count_handler=CountHandler,
@@ -859,24 +923,29 @@ init_connection(ConnPid, State=#state{host=Host}) ->
 handle_call(_, _From, State=#state{conn=undefined}) ->
     {reply, no_connection, State};
 handle_call({extract_messages, Args}, From,
-    State=#state{conn=ConnPid, extract_messages_handler=Handler}) ->
-    QueryRef = execute_extract_messages(ConnPid, Handler, Args),
+    State=#state{conn=Conn, extract_messages_handler=Handler}) ->
+    QueryRef = execute_extract_messages(Conn, Handler, Args),
     {noreply, save_query_ref(From, QueryRef, State)};
 handle_call({extract_messages_r, Args}, From,
-    State=#state{conn=ConnPid, extract_messages_r_handler=Handler}) ->
-    QueryRef = execute_extract_messages(ConnPid, Handler, Args),
+    State=#state{conn=Conn, extract_messages_r_handler=Handler}) ->
+    QueryRef = execute_extract_messages(Conn, Handler, Args),
     {noreply, save_query_ref(From, QueryRef, State)};
 handle_call({calc_count, Filter}, From,
-    State=#state{conn=ConnPid, calc_count_handler=Handler}) ->
-    QueryRef = execute_calc_count(ConnPid, Handler, Filter),
+    State=#state{conn=Conn, calc_count_handler=Handler}) ->
+    QueryRef = execute_calc_count(Conn, Handler, Filter),
     {noreply, save_query_ref(From, QueryRef, State)};
 handle_call({list_message_ids, Args}, From,
-    State=#state{conn=ConnPid, list_message_ids_handler=Handler}) ->
-    QueryRef = execute_list_message_ids(ConnPid, Handler, Args),
+    State=#state{conn=Conn, list_message_ids_handler=Handler}) ->
+    QueryRef = execute_list_message_ids(Conn, Handler, Args),
+    {noreply, save_query_ref(From, QueryRef, State)};
+handle_call({message_id_to_remote_jid, BUserJID, MessID}, From,
+    State=#state{conn=Conn, message_id_to_remote_jid_query=MessIdToRemJidQuery}) ->
+    Params = [BUserJID, MessID],
+    QueryRef = execute_prepared_query(Conn, MessIdToRemJidQuery, Params),
     {noreply, save_query_ref(From, QueryRef, State)};
 handle_call(test_query, From,
-    State=#state{conn=ConnPid, test_query=TestQuery}) ->
-    QueryRef = execute_prepared_query(ConnPid, TestQuery, []),
+    State=#state{conn=Conn, test_query=TestQuery}) ->
+    QueryRef = execute_prepared_query(Conn, TestQuery, []),
     {noreply, save_query_ref(From, QueryRef, State)};
 handle_call(_, _From, State=#state{}) ->
     {reply, ok, State}.
@@ -892,13 +961,17 @@ handle_call(_, _From, State=#state{}) ->
 handle_cast(_, State=#state{conn=undefined}) ->
     {noreply, State};
 handle_cast({write_messages, Messages},
-    State=#state{conn=ConnPid, insert_query=InsertQuery}) ->
-    [execute_prepared_query(ConnPid, InsertQuery, message_to_params(M)) || M <- Messages],
+    State=#state{conn=Conn, insert_query=InsertQuery}) ->
+    [execute_prepared_query(Conn, InsertQuery, message_to_params(M)) || M <- Messages],
+    {noreply, State};
+handle_cast({delete_messages, Messages},
+    State=#state{conn=Conn, delete_query=DeleteQuery}) ->
+    [execute_prepared_query(Conn, DeleteQuery, delete_message_to_params(M)) || M <- Messages],
     {noreply, State};
 handle_cast({remove_archive, BUserJID},
-    State=#state{conn=ConnPid, remove_archive_query=RemoveArchiveQuery}) ->
+    State=#state{conn=Conn, remove_archive_query=RemoveArchiveQuery}) ->
     Params = [BUserJID],
-    execute_prepared_query(ConnPid, RemoveArchiveQuery, Params),
+    execute_prepared_query(Conn, RemoveArchiveQuery, Params),
     {noreply, State};
 handle_cast(Msg, State) ->
     ?WARNING_MSG("Strange cast message ~p.", [Msg]),
@@ -912,8 +985,8 @@ handle_cast(Msg, State) ->
 %%--------------------------------------------------------------------
 
 
-handle_info({connection_result, {ok, ConnPid}}, State=#state{conn=undefined}) ->
-    State2 = init_connection(ConnPid, State),
+handle_info({connection_result, {ok, ConnPid, Conn}}, State=#state{conn=undefined}) ->
+    State2 = init_connection(ConnPid, Conn, State),
     {noreply, State2};
 handle_info({connection_result, Reason}, State=#state{conn=undefined}) ->
     ?ERROR_MSG("issue=\"Fail to connect to Cassandra\", reason=~1000p", [Reason]),
