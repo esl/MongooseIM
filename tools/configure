@@ -162,12 +162,12 @@ write(shell, FileName, Opts) ->
     file:write_file(FileName, Data);
 
 write(reltool, FileName, Opts) ->
-    Data = ( [rt_var(mongooseim_runner_user, Opts#opts.user)] ++
-             [rt_var(mongooseim_script_dir, Opts#opts.script_dir)] ++
-             [rt_var(mongooseim_etc_dir, Opts#opts.etc_dir)] ++
-             [rt_var(mongooseim_log_dir, Opts#opts.log_dir)] ++
-             [rt_var(mongooseim_mdb_dir, Opts#opts.mdb_dir)] ++
-             [rt_var(mongooseim_mdb_dir_toggle, Opts#opts.mdb_dir_toggle)] ),
+    Data = [rt_var(mongooseim_runner_user, Opts#opts.user),
+            rt_var(mongooseim_script_dir, Opts#opts.script_dir),
+            rt_var(mongooseim_etc_dir, Opts#opts.etc_dir),
+            rt_var(mongooseim_log_dir, Opts#opts.log_dir),
+            rt_var(mongooseim_mdb_dir, Opts#opts.mdb_dir),
+            rt_var(mongooseim_mdb_dir_toggle, Opts#opts.mdb_dir_toggle)],
     file:write_file(FileName, Data).
 
 expand_prefix(Opts) when Opts#opts.system /= "yes" -> Opts;
