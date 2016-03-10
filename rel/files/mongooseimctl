@@ -4,6 +4,12 @@ RUNNER_SCRIPT_DIR={{mongooseim_script_dir}}
 RUNNER_BASE_DIR=${RUNNER_SCRIPT_DIR%/*}
 ## Depending on build time config RUNNER_ETC_DIR may depend on RUNNER_BASE_DIR.
 RUNNER_ETC_DIR={{mongooseim_etc_dir}}
+RUNNER_USER={{mongooseim_runner_user}}
+
+# Make sure this script is running as the appropriate user
+if [ ! -z "$RUNNER_USER" ] && [ `whoami` != "$RUNNER_USER" ]; then
+    exec sudo -u $RUNNER_USER -i $0 $@
+fi
 
 EJABBERD_DIR=${RUNNER_SCRIPT_DIR%/*}
 EJABBERD_VMARGS_PATH=${RUNNER_ETC_DIR}/vm.args
