@@ -11,7 +11,7 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml.hrl").
 
--define(MAX_OFFLINE_MSGS, 5).
+-define(MAX_OFFLINE_MSGS, 100). % known server-side config
 
 %%%===================================================================
 %%% Suite configuration
@@ -21,15 +21,16 @@ all() ->
     [{group, mod_offline_tests}].
 
 all_tests() ->
-    [simple_message,
-     error_message,
-     groupchat_message,
-     headline_message,
-     max_offline_messages_reached,
-     message_expiry].
+    [offline_message_is_stored_and_delivered_at_login,
+     error_message_is_not_stored,
+     groupchat_message_is_not_stored,
+     headline_message_is_not_stored,
+     expired_messages_are_not_delivered,
+     max_offline_messages_reached
+    ].
 
 groups() ->
-    [{mod_offline_tests, [sequence], all_tests()}].
+    [{mod_offline_tests, [parallel, shuffle], all_tests()}].
 
 suite() ->
     escalus:suite().
@@ -38,133 +39,112 @@ suite() ->
 %%% Init & teardown
 %%%===================================================================
 
-init_per_suite(Config0) ->
-    Config1 = escalus:init_per_suite(Config0),
-    escalus:create_users(Config1, escalus:get_users([alice, bob])).
-
-end_per_suite(Config) ->
-    escalus:delete_users(Config, escalus:get_users([alice, bob])),
-    escalus:end_per_suite(Config).
-
-init_per_group(_GroupName, Config) ->
-    Config.
-
-end_per_group(_GroupName, _Config) ->
-    ok.
-
-init_per_testcase(max_offline_messages_reached, Config) ->
-    OldSettings = set_max_offline_messages([{5000,admin},
-                                            {?MAX_OFFLINE_MSGS,all}]),
-    escalus:init_per_testcase(max_offline_messages_reached,
-                             [{max_offline, OldSettings} | Config]);
-init_per_testcase(CaseName, Config) ->
-    escalus:init_per_testcase(CaseName, Config).
-
-end_per_testcase(max_offline_messages_reached, Config) ->
-    OldSettings = ?config(max_offline, Config),
-    set_max_offline_messages(OldSettings),
-    escalus:end_per_testcase(max_offline_messages_reached, Config);
-end_per_testcase(CaseName, Config) ->
-    escalus:end_per_testcase(CaseName, Config).
+init_per_suite(C) -> escalus:init_per_suite(C).
+end_per_suite(C) -> escalus:end_per_suite(C).
+init_per_testcase(Name, C) -> escalus:init_per_testcase(Name, C).
+end_per_testcase(Name, C) -> escalus:end_per_testcase(Name, C).
 
 %%%===================================================================
 %%% offline tests
 %%%===================================================================
 
-simple_message(Config) ->
-    %% Alice sends a message to Bob, who is offline
-    escalus:story(Config, [{alice, 1}], fun(Alice) ->
-        escalus:send(Alice, escalus_stanza:chat_to(bob, <<"Hi, Offline!">>))
-    end),
+offline_message_is_stored_and_delivered_at_login(Config) ->
+    Story =
+        fun(FreshConfig, Alice, Bob) ->
+                logout(Bob),
+                escalus:send(Alice, escalus_stanza:chat_to
+                                      (Bob, <<"msgtxt">>)),
+                NewBob = login_send_presence(FreshConfig, bob),
+                Stanzas = escalus:wait_for_stanzas(NewBob, 2),
+                escalus_new_assert:mix_match
+                  ([is_presence, is_chat(<<"msgtxt">>)],
+                   Stanzas)
+        end,
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}], Story).
 
-    %% Bob logs in
-    Bob = login_send_presence(Config, bob),
 
-    %% He receives his initial presence and the message
-    Stanzas = escalus:wait_for_stanzas(Bob, 2),
-    escalus_new_assert:mix_match([is_presence,
-                                  is_chat(<<"Hi, Offline!">>)],
-                                 Stanzas),
-    escalus_cleaner:clean(Config).
+error_message_is_not_stored(Config) ->
+    Story = fun(FreshConfig, Alice, Bob) ->
+                    logout(Bob),
+                    AliceJid = escalus_client:full_jid(Alice),
+                    escalus:send(Alice, escalus_stanza:message
+                              (AliceJid, Bob, <<"error">>, <<"msgtxt">>)),
+                    NewBob = login_send_and_receive_presence(FreshConfig, bob),
+                    ct:sleep(500),
+                    false = escalus_client:has_stanzas(NewBob)
+            end,
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}], Story).
 
-error_message(Config) ->
-    not_stored_message(<<"error">>, Config).
+groupchat_message_is_not_stored(Config) ->
+    Story = fun(FreshConfig, Alice, Bob) ->
+                    logout(Bob),
+                    AliceJid = escalus_client:full_jid(Alice),
+                    escalus:send(Alice, escalus_stanza:message
+                              (AliceJid, Bob, <<"groupchat">>, <<"msgtxt">>)),
+                    NewBob = login_send_and_receive_presence(FreshConfig, bob),
+                    ct:sleep(500),
+                    false = escalus_client:has_stanzas(NewBob)
+            end,
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}], Story).
 
-groupchat_message(Config) ->
-    not_stored_message(<<"groupchat">>, Config).
-
-headline_message(Config) ->
-    not_stored_message(<<"headline">>, Config).
-
-not_stored_message(Type, Config) ->
-    %% Alice sends a message to Bob, who is offline
-    escalus:story(Config, [{alice, 1}], fun(Alice) ->
-        AliceJid = escalus_client:full_jid(Alice),
-        escalus:send(Alice, escalus_stanza:message(AliceJid, bob, Type, <<"Hi, Offline!">>))
-    end),
-
-    %% Bob logs in
-    Bob = login_send_presence(Config, bob),
-
-    %% He receives his initial presence and no message
-    Presence = escalus:wait_for_stanza(Bob),
-    escalus:assert(is_presence, Presence),
-
-    ct:sleep(500),
-
-    false = escalus_client:has_stanzas(Bob),
-
-    escalus_cleaner:clean(Config).
+headline_message_is_not_stored(Config) ->
+    Story = fun(FreshConfig, Alice, Bob) ->
+                    logout(Bob),
+                    AliceJid = escalus_client:full_jid(Alice),
+                    escalus:send(Alice, escalus_stanza:message
+                              (AliceJid, Bob, <<"headline">>, <<"msgtxt">>)),
+                    NewBob = login_send_and_receive_presence(FreshConfig, bob),
+                    ct:sleep(500),
+                    false = escalus_client:has_stanzas(NewBob)
+            end,
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}], Story).
 
 max_offline_messages_reached(Config) ->
-    escalus:story(Config, [{alice, 1}], fun(Alice) ->
-        [send_message(Alice, I) || I <- lists:seq(1,?MAX_OFFLINE_MSGS+1)],
-        Packet = escalus:wait_for_stanza(Alice),
-        escalus:assert(is_error, [<<"wait">>, <<"resource-constraint">>], Packet),
-        ct:sleep(100),
-        false = escalus_client:has_stanzas(Alice)
+    Story =
+        fun(FreshConfig, Alice, B1, B2, B3, B4) ->
+                BobsResources = [B1,B2,B3,B4],
+                MessagesPerResource = ?MAX_OFFLINE_MSGS div length(BobsResources),
 
-    end),
+                logout(Alice),
+                each_client_sends_messages_to(BobsResources, Alice,
+                                              {count, MessagesPerResource}),
 
-    Bob = login_send_presence(Config, bob),
+                send_message(B1, Alice, ?MAX_OFFLINE_MSGS+1),
+                Packet = escalus:wait_for_stanza(B1),
+                escalus:assert(is_error, [<<"wait">>, <<"resource-constraint">>], Packet),
 
-    %% He receives his initial presence and only 5 message
-    Stanzas = escalus:wait_for_stanzas(Bob, ?MAX_OFFLINE_MSGS+1),
+                NewAlice = login_send_presence(FreshConfig, alice),
+                Preds = [is_chat(make_chat_text(I))
+                         || I <- repeat(lists:seq(1, MessagesPerResource),
+                                           length(BobsResources))],
+                escalus_new_assert:mix_match
+                  ([is_presence | Preds],
+                   escalus:wait_for_stanzas(NewAlice, ?MAX_OFFLINE_MSGS+1)),
+                ct:sleep(500),
+                false = escalus_client:has_stanzas(Alice)
+            end,
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 4}], Story).
 
-    Preds = [is_chat(make_chat_text(I)) || I <- lists:seq(1, ?MAX_OFFLINE_MSGS)],
+expired_messages_are_not_delivered(Config) ->
+    Story =
+        fun(FreshConfig, Alice, Bob) ->
+                BobJid = escalus_client:short_jid(Bob),
+                logout(Bob),
+                escalus:send(Alice,
+                             make_message_with_expiry(BobJid, 600000, <<"long">>)),
+                escalus:send(Alice,
+                             make_message_with_expiry(BobJid, 1, <<"short">>)),
 
-    escalus_new_assert:mix_match([is_presence | Preds], Stanzas),
+                ct:sleep(timer:seconds(2)),
+                NewBob = login_send_presence(FreshConfig, bob),
 
-    ct:sleep(500),
-
-    false = escalus_client:has_stanzas(Bob),
-
-    escalus_cleaner:clean(Config).
-
-message_expiry(Config) ->
-    %% Alice sends a message to Bob, who is offline
-    escalus:story(Config, [{alice, 1}], fun(Alice) ->
-        LongExpiry = make_message_with_expiry(600),
-        ShortExpiry = make_message_with_expiry(1),
-        escalus:send(Alice, LongExpiry),
-        escalus:send(Alice, ShortExpiry)
-    end),
-
-    ct:sleep(timer:seconds(2)),
-    %% Bob logs in
-    Bob = login_send_presence(Config, bob),
-
-    %% He receives his initial presence and the message
-    Stanzas = escalus:wait_for_stanzas(Bob, 2),
-    escalus_new_assert:mix_match([is_presence,
-                                  is_chat(<<"Hi, Offline!">>)],
-                                 Stanzas),
-
-    ct:sleep(500),
-    false = escalus_client:has_stanzas(Bob),
-
-    escalus_cleaner:clean(Config).
-
+                escalus_new_assert:mix_match
+                  ([is_presence, is_chat(<<"long">>)],
+                   escalus:wait_for_stanzas(NewBob, 2)),
+                ct:sleep(500),
+                false = escalus_client:has_stanzas(NewBob)
+        end,
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}], Story).
 
 
 %%%===================================================================
@@ -178,33 +158,44 @@ is_chat(Content) ->
 %%% Helpers
 %%%===================================================================
 
+logout(User) ->
+    escalus_client:stop(User),
+    timer:sleep(100).
+
 login_send_presence(Config, User) ->
-    Spec = escalus_users:get_userspec(Config, User),
-    {ok, Client} = escalus_client:start(Config, Spec, <<"dummy">>),
+    {ok, Client} = escalus_client:start(Config, User, <<"new-session">>),
     escalus:send(Client, escalus_stanza:presence(<<"available">>)),
     Client.
 
-set_max_offline_messages(Settings) ->
-    OptionName = {access,max_user_offline_messages, global},
-    Old = escalus_ejabberd:rpc(ejabberd_config, get_global_option, [OptionName]),
-    {atomic, ok} = escalus_ejabberd:rpc(ejabberd_config, add_global_option, [OptionName, Settings]),
-    Old.
+login_send_and_receive_presence(Config, User) ->
+    Client = login_send_presence(Config, User),
+    P = escalus_client:wait_for_stanza(Client),
+    escalus:assert(is_presence, P),
+    Client.
 
-send_message(Alice, I) ->
-    escalus:send(Alice, escalus_stanza:chat_to(bob, make_chat_text(I))),
+each_client_sends_messages_to(Sources, Target, {count, N}) when is_list(Sources) ->
+    par:map
+        (fun(Source) ->
+                 [ send_message(Source, Target, I) || I <- lists:seq(1,N) ]
+         end,
+         Sources).
+
+send_message(From, To, I) ->
+    escalus:send(From, escalus_stanza:chat_to(To, make_chat_text(I))),
     timer:sleep(100).
-
 
 make_chat_text(I) ->
     Number = integer_to_binary(I),
     <<"Hi, Offline ", Number/binary>>.
 
-make_message_with_expiry(Expiry) ->
+make_message_with_expiry(Target, Expiry, Text) ->
     ExpiryBin = list_to_binary(integer_to_list(Expiry)),
-    Stanza = escalus_stanza:chat_to(bob, <<"Hi, Offline!">>),
+    Stanza = escalus_stanza:chat_to(Target, Text),
     #xmlel{children = Children} = Stanza,
     ExpiryElem = #xmlel{name = <<"x">>,
                         attrs = [{<<"xmlns">>, <<"jabber:x:expire">>},
                                  {<<"seconds">>, ExpiryBin}]},
     Stanza#xmlel{children = [ExpiryElem | Children]}.
 
+repeat(L,0) -> [];
+repeat(L,N) -> L ++ repeat(L, N-1).
