@@ -888,16 +888,16 @@ session_established({xmlstreamelement,
                       StateData#state.stream_mgmt,
                       StateData#state.stream_mgmt_in,
                       session_established, StateData);
-session_established({xmlstreamelement, ?xmlel(<<"inactive">>)}, StateData) ->
+session_established({xmlstreamelement,
+                     #xmlel{name = <<"inactive">>} = El}, StateData) ->
     ?WARNING_MSG("go into inactive state", []),
-    %%TODO check xmlns
     %%TODO add metrics here
-    fsm_next_state(session_established, StateData#state{csi_state = inactive});
-session_established({xmlstreamelement, ?xmlel(<<"active">>)}, StateData) ->
+    maybe_inactivate_session(xml:get_tag_attr_s(<<"xmlns">>, El), StateData);
+session_established({xmlstreamelement,
+                     #xmlel{name = <<"active">>} = El}, StateData) ->
     ?WARNING_MSG("go into active state", []),
     %%TODO add metrics here
-    %%TODO check xmlns
-    resend_csi_buffer_out(StateData);
+    maybe_activate_session(xml:get_tag_attr_s(<<"xmlns">>, El), StateData);
 session_established({xmlstreamelement, El}, StateData) ->
     FromJID = StateData#state.jid,
     % Check 'from' attribute in stanza RFC 3920 Section 9.1.2
@@ -1571,25 +1571,6 @@ send_trailer(StateData) when StateData#state.xml_socket ->
                                        {xmlstreamend, <<"stream:stream">>});
 send_trailer(StateData) ->
     send_text(StateData, ?STREAM_TRAILER).
-
-
-resend_csi_buffer_out(#state{csi_buffer_out = BufferOut} = State) ->
-    %%lists:foldr to preserve order
-    F = fun(Packet, {_, OldState}) ->
-                send_and_maybe_buffer_stanza(Packet, OldState)
-        end,
-    {_, NewState} = lists:foldr(F, {ok, State}, BufferOut),
-    fsm_next_state(session_established, NewState#state{csi_state=active,
-                                                       csi_buffer_out = []}).
-
-maybe_csi_inactive_optimisation(Packet, #state{csi_state = active} = State,
-                                StateName) ->
-    send_and_maybe_buffer_stanza(Packet, State, StateName);
-maybe_csi_inactive_optimisation(Packet, #state{csi_buffer_out = BufferOut} = State,
-                                StateName) ->
-    %%TODO secure the buffer
-    NewBufferOut = [Packet | BufferOut],
-    fsm_next_state(StateName, State#state{csi_buffer_out = NewBufferOut}).
 
 
 send_and_maybe_buffer_stanza(Packet, State, StateName)->
@@ -2490,6 +2471,37 @@ pack_string(String, Pack) ->
         none ->
             {String, gb_trees:insert(String, String, Pack)}
     end.
+
+%%%----------------------------------------------------------------------
+%%% XEP-0352: Client State Indication
+%%%----------------------------------------------------------------------
+maybe_inactivate_session(?NS_CSI, State) ->
+    fsm_next_state(session_established, State#state{csi_state = inactive});
+maybe_inactivate_session(_, State) ->
+    fsm_next_state(session_established, State).
+
+maybe_activate_session(?NS_CSI, State) ->
+    resend_csi_buffer_out(State);
+maybe_activate_session(_, State) ->
+    fsm_next_state(session_established, State).
+
+resend_csi_buffer_out(#state{csi_buffer_out = BufferOut} = State) ->
+    %%lists:foldr to preserve order
+    F = fun(Packet, {_, OldState}) ->
+                send_and_maybe_buffer_stanza(Packet, OldState)
+        end,
+    {_, NewState} = lists:foldr(F, {ok, State}, BufferOut),
+    fsm_next_state(session_established, NewState#state{csi_state=active,
+                                                       csi_buffer_out = []}).
+
+maybe_csi_inactive_optimisation(Packet, #state{csi_state = active} = State,
+                                StateName) ->
+    send_and_maybe_buffer_stanza(Packet, State, StateName);
+maybe_csi_inactive_optimisation(Packet, #state{csi_buffer_out = BufferOut} = State,
+                                StateName) ->
+    %%TODO secure the buffer
+    NewBufferOut = [Packet | BufferOut],
+    fsm_next_state(StateName, State#state{csi_buffer_out = NewBufferOut}).
 
 %%%----------------------------------------------------------------------
 %%% XEP-0198: Stream Management
