@@ -20,6 +20,11 @@ $TARGET/usr/bin/mongooseimctl status
 $TARGET/usr/bin/mongooseimctl stop
 $TARGET/usr/bin/mongooseimctl stopped && echo node: stopped
 $TARGET/usr/bin/mongooseimctl status || echo status failed: this might be ok
+retries=10
+while ps aux | grep 'bea[m]' && [ $retries -gt 0 ]; do
+    retries=$(expr $retries - 1)
+    sleep 0.5s
+done
 ps aux | grep 'bea[m]' && { echo "node still running, but should not"; exit 1; }
 git add .
 git commit -m "2nd non-empty"
