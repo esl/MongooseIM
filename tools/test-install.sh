@@ -21,6 +21,8 @@ $TARGET/usr/bin/mongooseimctl stop
 $TARGET/usr/bin/mongooseimctl stopped && echo node: stopped
 $TARGET/usr/bin/mongooseimctl status || echo status failed: this might be ok
 ps aux | grep 'bea[m]' && { echo "node still running, but should not"; exit 1; }
-git status
+git add .
+git commit -m "2nd non-empty"
+git --no-pager show --format= --name-only
 tree $TARGET -L 3
 echo $0: all ok
