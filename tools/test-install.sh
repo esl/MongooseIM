@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 
+## Propagate failures
 set -e
 
 TARGET=/tmp/mim-sandbox-system
@@ -28,6 +29,6 @@ done
 ps aux | grep 'bea[m]' && { echo "node still running, but should not"; exit 1; }
 git add .
 git commit -m "2nd non-empty"
-git --no-pager show --format= --name-only
-tree $TARGET -L 3
+echo changed files: && git --no-pager show --format= --name-only
+echo -n "tree: " && tree $TARGET -L 3
 echo $0: all ok
