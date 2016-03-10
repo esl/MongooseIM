@@ -65,4 +65,4 @@ find ${LIB_DIR} >> $LOG
 [ x"$SYSTEM" == x"yes" ] && log ${LOCK_DIR}
 
 ## Voila!
-echo MongooseIM successfully installed to ${LIB_DIR} > /dev/stderr
+echo MongooseIM successfully installed to ${LIB_DIR} >&2
