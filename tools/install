@@ -43,6 +43,7 @@ chown -R ${RUNNER_USER}:${RUNNER_GROUP} ${LIB_DIR}
 }
 [ x"$SYSTEM" == x"yes" ] && install $INSTALL_OPTS -d ${LOG_DIR}
 [ x"$SYSTEM" == x"yes" ] && install $INSTALL_OPTS -d ${MDB_DIR}
+[ x"$SYSTEM" == x"yes" ] && install $INSTALL_OPTS -d ${LOCK_DIR}
 
 ## Do the bookkeeping.
 ## TODO: How to automate this? If done manually, there's always space for a cock-up.
@@ -61,6 +62,7 @@ log () {
 find ${LIB_DIR} >> $LOG
 [ x"$SYSTEM" == x"yes" ] && log ${LOG_DIR}
 [ x"$SYSTEM" == x"yes" ] && log ${MDB_DIR}
+[ x"$SYSTEM" == x"yes" ] && log ${LOCK_DIR}
 
 ## Voila!
 echo MongooseIM successfully installed to ${LIB_DIR} > /dev/stderr
