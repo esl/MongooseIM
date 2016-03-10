@@ -99,7 +99,7 @@ devrel: certs $(DEVNODES)
 
 $(DEVNODES): rebar deps compile deps_dev configure.out
 	@echo "building $@"
-	(source configure.out && \
+	(source ./configure.out && \
 	 cd rel && \
 	 ../rebar generate -f target_dir=../dev/mongooseim_$@ overlay_vars=./reltool_vars/$@_vars.config)
 	cp -R `dirname $(shell ./readlink.sh $(shell which erl))`/../lib/tools-* dev/mongooseim_$@/lib/
