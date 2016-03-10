@@ -85,8 +85,8 @@ eunit: rebar deps
 configure:
 	./tools/configure $(filter-out $@,$(MAKECMDGOALS))
 
-rel: certs rebar deps rel/vars.config
-	./rebar compile generate -f
+rel: certs rebar deps configure.out rel/vars.config
+	source ./configure.out && ./rebar compile generate -f
 
 rel/vars.config: rel/vars.config.in rel/configure.vars.config
 	cat $^ > $@
