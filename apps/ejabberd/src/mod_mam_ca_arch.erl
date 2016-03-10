@@ -574,16 +574,26 @@ purge_single_message(_Result, Host, MessID, _UserID, UserJID, _Now) ->
 
 -spec purge_multiple_messages(_Result, Host, _UserID, UserJID, Borders,
                               Start, End, Now, WithJID) ->
-    {error, 'not-supported'} when
+    ok when
       Host :: server_host(), _UserID :: user_id(),
       UserJID :: #jid{}, Borders :: #mam_borders{},
       Start :: unix_timestamp()  | undefined,
       End :: unix_timestamp()  | undefined,
       Now :: unix_timestamp(),
       WithJID :: #jid{}  | undefined.
-purge_multiple_messages(_Result, _Host, _UserID, _UserJID, _Borders,
-                        _Start, _End, _Now, _WithJID) ->
-   {error, 'not-supported'}.
+purge_multiple_messages(_Result, Host, UserID, UserJID, Borders,
+                        Start, End, Now, WithJID) ->
+   %% Simple query without calculating offset and total count
+   Filter = prepare_filter(UserJID, Borders, Start, End, WithJID),
+   Worker = select_worker(Host, UserJID),
+   Limit = 500, %% TODO something smarter
+   ResultF = gen_server:call(Worker, {list_message_ids, {Filter, Limit}}),
+   {ok, Result} = ResultF(),
+   MessIds = seestar_result:rows(Result),
+   %% TODO can be faster
+   %% TODO rate limiting
+   [purge_single_message(ok, Host, MessID, UserID, UserJID, Now) || [MessID] <- MessIds],
+   ok.
 
 
 %% Offset is not supported
@@ -670,7 +680,7 @@ offset_to_start_id(Worker, Filter, Offset) when is_integer(Offset), Offset >= 0 
     Ids = seestar_result:rows(Result),
     case Ids of
         [] -> unfefined;
-        [_|_] -> lists:last(Ids)
+        [_|_] -> [StartId] = lists:last(Ids), StartId
     end.
 
 prepare_filter(UserJID, Borders, Start, End, WithJID) ->
