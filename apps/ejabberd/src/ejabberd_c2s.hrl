@@ -16,8 +16,6 @@
 
 -type debug_presences() :: {atom(), non_neg_integer()}.
 
--type csi_state() :: active | inactive.
-
 %% pres_a contains all the presence available send (either through roster mechanism or directed).
 %% Directed presence unavailable remove user from pres_a.
 -record(state, {socket,
@@ -77,7 +75,7 @@
                 stream_mgmt_resume_timeout = ?STREAM_MGMT_RESUME_TIMEOUT,
                 stream_mgmt_resume_tref,
                 stream_mgmt_constraint_check_tref,
-                csi_state = active :: csi_state(),
+                csi_state = active :: mod_csi:state(),
                 csi_buffer_in = [],
                 csi_buffer_out = []
                 }).
