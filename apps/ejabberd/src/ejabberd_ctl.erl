@@ -64,6 +64,8 @@
 
 -define(ASCII_SPACE_CHARACTER, $\s).
 -define(PRINT(Format, Args), io:format(lists:flatten(Format), Args)).
+-define(TIME_HMS_FORMAT, "~B:~2.10.0B:~2.10.0B").
+-define(a2l(A), atom_to_list(A)).
 
 %%-----------------------------
 %% Module
@@ -144,25 +146,15 @@ unregister_commands(CmdDescs, Module, Function) ->
 -spec process(_) -> integer().
 process(["status"]) ->
     {InternalStatus, ProvidedStatus} = init:get_status(),
-    ?PRINT("Node ~p is ~p with status: ~p~n",
-           [node(), InternalStatus, ProvidedStatus]),
-    Applications = application:which_applications(),
-    case lists:keyfind(mongooseim, 1, Applications) of
-        false ->
-            ?PRINT("MongooseIM is not running on this node.~n", []),
-            case get_log_files() of
-                [] ->
-                    ?PRINT("No log files in use. "
-                           "Maybe you should enable logging to a file in app.config?~n", []);
-                LogFiles ->
-                    ?PRINT("Refer to the following log file(s):~n~s~n",
-                           [string:join(LogFiles, "\n")])
-            end,
-            ?STATUS_ERROR;
-        {_, _, Version} ->
-            ?PRINT("MongooseIM version ~s is running on this node with pid ~s~n",
-                   [Version, os:getpid()]),
-            ?STATUS_SUCCESS
+    MongooseStatus = get_mongoose_status(),
+    ?PRINT("~s", [format_status([{node, node()}, {internal_status, InternalStatus},
+                                 {provided_status, ProvidedStatus},
+                                 {mongoose_status, MongooseStatus},
+                                 {os_pid, os:getpid()}, get_uptime(),
+                                 {logs, get_log_files()}])]),
+    case MongooseStatus of
+        not_running -> ?STATUS_ERROR;
+        {running, _Version} -> ?STATUS_SUCCESS
     end;
 process(["stop"]) ->
     %%ejabberd_cover:stop(),
@@ -513,6 +505,21 @@ get_list_ctls() ->
         Cs -> [{NameArgs, [], Desc} || {NameArgs, Desc} <- Cs]
     end.
 
+format_status([{node, Node}, {internal_status, IS}, {provided_status, PS},
+               {mongoose_status, MS}, {os_pid, OSPid}, {uptime, UptimeHMS},
+               {logs, LogFiles}]) ->
+    ( ["MongooseIM node ", ?a2l(Node), ":\n",
+       "    operating system pid: ", OSPid, "\n",
+       "    Erlang VM status: ", ?a2l(IS), " (of: starting | started | stopping)\n",
+       "    boot script status: ", io_lib:format("~p", [PS]), "\n",
+       "    version: ", case MS of
+                          {running, Version} -> Version;
+                          not_running -> "unavailable - mongooseim app not running"
+                        end, "\n",
+       "    uptime: ", io_lib:format(?TIME_HMS_FORMAT, UptimeHMS) ,"\n"] ++
+      ["    logs: none - maybe enable logging to a file in app.config?\n" || LogFiles == [] ] ++
+      ["    logs:\n" || LogFiles /= [] ] ++ [
+      ["        ", LogFile, "\n"] || LogFile <- LogFiles ] ).
 
 %%-----------------------------
 %% Print help
@@ -894,12 +901,26 @@ format_usage_tuple([ElementDef | ElementsDef], Indentation) ->
     MarginString = lists:duplicate(Indentation, ?ASCII_SPACE_CHARACTER), % Put spaces
     [ElementFmt, ",\n", MarginString, format_usage_tuple(ElementsDef, Indentation)].
 
+get_mongoose_status() ->
+    case lists:keyfind(mongooseim, 1, application:which_applications()) of
+        false -> not_running;
+        {_, _, Version} -> {running, Version}
+    end.
+
+get_uptime() ->
+    {MilliSeconds, _} = erlang:statistics(wall_clock),
+    {H, M, S} = calendar:seconds_to_time(MilliSeconds div 1000),
+    {uptime, [H, M, S]}.
+
 %%-----------------------------
 %% Lager specific helpers
 %%-----------------------------
 
 get_log_files() ->
-    Handlers = sys:get_state(lager_event),
+    Handlers = case catch sys:get_state(lager_event) of
+                   {'EXIT', _} -> [];
+                   Hs when is_list(Hs) -> Hs
+               end,
     [ file_backend_path(State)
       || {lager_file_backend, _File, State} <- Handlers ].
 
