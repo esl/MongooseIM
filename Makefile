@@ -97,7 +97,7 @@ configure.out rel/configure.vars.config:
 
 devrel: certs $(DEVNODES)
 
-$(DEVNODES): rebar deps compile deps_dev configure.out
+$(DEVNODES): rebar deps compile deps_dev configure.out rel/vars.config
 	@echo "building $@"
 	(source ./configure.out && \
 	 cd rel && \
