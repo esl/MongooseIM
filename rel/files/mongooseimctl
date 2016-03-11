@@ -17,6 +17,7 @@ START_ERL=`cat $EJABBERD_DIR/releases/start_erl.data`
 ERTS_VSN=${START_ERL% *}
 ERTS_PATH=$EJABBERD_DIR/erts-$ERTS_VSN/bin
 ERL=$ERTS_PATH/erl
+EPMD=$ERTS_PATH/epmd
 EJABBERD_EBIN_PATH=$EJABBERD_DIR/lib/ejabberd-*/ebin/
 
 COOKIE_ARG=`grep -e '^-setcookie' $EJABBERD_VMARGS_PATH`
@@ -174,7 +175,7 @@ usage ()
 # stop epmd if there is no other running node
 stop_epmd()
 {
-    epmd -names | grep -q name || epmd -kill
+    $EPMD -names | grep -q name || $EPMD -kill
 }
 
 # allow sync calls
