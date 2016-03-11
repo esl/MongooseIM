@@ -335,7 +335,8 @@ lookup_messages(_Result, Host,
                 PageSize, LimitPassed, MaxResultLimit,
                 IsSimple) ->
     try
-        lookup_messages_2(Host,
+        Worker = select_worker(Host, UserJID),
+        lookup_messages_2(Worker, Host,
                           UserJID, RSM, Borders,
                           Start, End, WithJID,
                           PageSize, LimitPassed, MaxResultLimit,
@@ -346,15 +347,15 @@ lookup_messages(_Result, Host,
     end.
 
 
-lookup_messages_2(Host,
+lookup_messages_2(Worker, Host,
                   UserJID = #jid{}, RSM, Borders,
                   Start, End, WithJID,
                   PageSize, _LimitPassed, _MaxResultLimit,
                   _IsSimple=true) ->
     %% Simple query without calculating offset and total count
     Filter = prepare_filter(UserJID, Borders, Start, End, WithJID),
-    lookup_messages_simple(Host, UserJID, RSM, PageSize, Filter);
-lookup_messages_2(Host,
+    lookup_messages_simple(Worker, Host, UserJID, RSM, PageSize, Filter);
+lookup_messages_2(Worker, Host,
                   UserJID = #jid{}, RSM, Borders,
                   Start, End, WithJID,
                   PageSize, LimitPassed, MaxResultLimit,
@@ -368,15 +369,15 @@ lookup_messages_2(Host,
     Result =
     case Strategy of
         last_page ->
-            lookup_messages_last_page(Host, UserJID, RSM, PageSize, Filter);
+            lookup_messages_last_page(Worker, Host, UserJID, RSM, PageSize, Filter);
         by_offset ->
-            lookup_messages_by_offset(Host, UserJID, RSM, PageSize, Filter);
+            lookup_messages_by_offset(Worker, Host, UserJID, RSM, PageSize, Filter);
         first_page ->
-            lookup_messages_first_page(Host, UserJID, RSM, PageSize, Filter);
+            lookup_messages_first_page(Worker, Host, UserJID, RSM, PageSize, Filter);
         before_id ->
-            lookup_messages_before_id(Host, UserJID, RSM, PageSize, Filter);
+            lookup_messages_before_id(Worker, Host, UserJID, RSM, PageSize, Filter);
         after_id ->
-            lookup_messages_after_id(Host, UserJID, RSM, PageSize, Filter)
+            lookup_messages_after_id(Worker, Host, UserJID, RSM, PageSize, Filter)
     end,
     check_result_for_policy_violation(Result, MaxResultLimit, LimitPassed).
 
@@ -395,40 +396,35 @@ rsm_to_strategy(#rsm_in{}) ->
 rsm_to_strategy(undefined) ->
     first_page.
 
-lookup_messages_simple(Host, UserJID,
+lookup_messages_simple(Worker, Host, UserJID,
                        #rsm_in{direction = aft, id = ID},
                        PageSize, Filter) ->
     %% Get last rows from result set
-    Worker = select_worker(Host, UserJID),
     MessageRows = extract_messages(Worker, Host, after_id(ID, Filter), PageSize, false),
     {ok, {undefined, undefined, rows_to_uniform_format(MessageRows)}};
-lookup_messages_simple(Host, UserJID,
+lookup_messages_simple(Worker, Host, UserJID,
                        #rsm_in{direction = before, id = ID},
                        PageSize, Filter) ->
-    Worker = select_worker(Host, UserJID),
     MessageRows = extract_messages(Worker, Host, before_id(ID, Filter), PageSize, true),
     {ok, {undefined, undefined, rows_to_uniform_format(MessageRows)}};
-lookup_messages_simple(Host, UserJID,
+lookup_messages_simple(Worker, Host, UserJID,
                        #rsm_in{direction = undefined, index = Offset},
                        PageSize, Filter) ->
     %% Apply offset
-    Worker = select_worker(Host, UserJID),
     StartId = offset_to_start_id(Worker, Filter, Offset), %% POTENTIALLY SLOW AND NOT SIMPLE :)
     MessageRows = extract_messages(Worker, Host, from_id(StartId, Filter), PageSize, false),
     {ok, {undefined, undefined, rows_to_uniform_format(MessageRows)}};
-lookup_messages_simple(Host, UserJID,
+lookup_messages_simple(Worker, Host, UserJID,
                 _,
                 PageSize, Filter) ->
-    Worker = select_worker(Host, UserJID),
     MessageRows = extract_messages(Worker, Host, Filter, PageSize, false),
     {ok, {undefined, undefined, rows_to_uniform_format(MessageRows)}}.
 
 %% TODO 0
-lookup_messages_last_page(Host, UserJID,
+lookup_messages_last_page(Worker, Host, UserJID,
                           #rsm_in{direction = before, id = undefined},
                           PageSize, Filter) ->
     %% Last page
-    Worker = select_worker(Host, UserJID),
     MessageRows = extract_messages(Worker, Host, Filter, PageSize, true),
     MessageRowsCount = length(MessageRows),
     case MessageRowsCount < PageSize of
@@ -443,11 +439,10 @@ lookup_messages_last_page(Host, UserJID,
     end.
 
 %% TODO 0
-lookup_messages_by_offset(Host, UserJID,
+lookup_messages_by_offset(Worker, Host, UserJID,
                           #rsm_in{direction = undefined, index = Offset},
                           PageSize, Filter) when is_integer(Offset) ->
     %% By offset
-    Worker = select_worker(Host, UserJID),
     StartId = offset_to_start_id(Worker, Filter, Offset), %% POTENTIALLY SLOW
     MessageRows = extract_messages(Worker, Host, from_id(StartId, Filter), PageSize, false),
     MessageRowsCount = length(MessageRows),
@@ -462,18 +457,16 @@ lookup_messages_by_offset(Host, UserJID,
                   rows_to_uniform_format(MessageRows)}}
     end.
 
-lookup_messages_first_page(Host, UserJID,
+lookup_messages_first_page(Worker, Host, UserJID,
                            _,
                            0, Filter) ->
     %% First page, just count
-    Worker = select_worker(Host, UserJID),
     TotalCount = calc_count(Worker, Host, Filter),
     {ok, {TotalCount, 0, []}};
-lookup_messages_first_page(Host, UserJID,
+lookup_messages_first_page(Worker, Host, UserJID,
                            _,
                            PageSize, Filter) ->
     %% First page
-    Worker = select_worker(Host, UserJID),
     MessageRows = extract_messages(Worker, Host, Filter, PageSize, false),
     MessageRowsCount = length(MessageRows),
     case MessageRowsCount < PageSize of
@@ -487,16 +480,15 @@ lookup_messages_first_page(Host, UserJID,
                   rows_to_uniform_format(MessageRows)}}
     end.
 
-lookup_messages_before_id(Host, UserJID,
+lookup_messages_before_id(Worker, Host, UserJID,
                           RSM = #rsm_in{direction = before, id = ID},
                           PageSize, Filter) ->
-    Worker = select_worker(Host, UserJID),
     TotalCount = calc_count(Worker, Host, Filter),
     Offset     = calc_offset(Worker, Host, Filter, PageSize, TotalCount, RSM),
     MessageRows = extract_messages(Worker, Host, before_id(ID, Filter), PageSize, true),
     {ok, {TotalCount, Offset, rows_to_uniform_format(MessageRows)}}.
 
-lookup_messages_after_id(Host, UserJID,
+lookup_messages_after_id(Worker, Host, UserJID,
                          RSM = #rsm_in{direction = aft, id = ID},
                          PageSize, Filter) ->
     Worker = select_worker(Host, UserJID),
