@@ -18,15 +18,12 @@ CREATE TABLE mam_message(
 
 CREATE TABLE mam_muc_message(
   id bigint,
-  user_jid varchar,
-  from_jid varchar,
-  // full remote bare jid
-  remote_jid varchar,
+  room_jid varchar,
+  nick_name varchar,
   // One of:
-  // - remote full jid
-  // - remote bare jid
+  // - nick_name
   // - empty
-  with_jid varchar,
+  with_nick varchar,
   message blob,
-  PRIMARY KEY ((user_jid), with_jid, id));
+  PRIMARY KEY ((room_jid), with_nick, id));
 

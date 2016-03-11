@@ -60,7 +60,7 @@
     insert_query,
     delete_query,
     remove_archive_query,
-    message_id_to_remote_jid_query,
+    message_id_to_nick_name_query,
     test_query,
     calc_count_handler,
     list_message_ids_handler,
@@ -70,9 +70,9 @@
     query_refs_count}).
 
 -record(mam_muc_ca_filter, {
-    user_jid,
-    with_jid,
-    remote_jid,
+    room_jid,
+    with_nick,
+    nick_name,
     start_id,
     end_id
 }).
@@ -83,10 +83,9 @@
 
 -record(mam_muc_message, {
   id :: non_neg_integer(),
-  user_jid :: binary(),
-  remote_jid :: binary(),
-  from_jid :: binary(),
-  with_jid :: binary(),
+  room_jid :: binary(),
+  nick_name :: binary(),
+  with_nick :: binary(),
   message :: binary()
 }).
 
@@ -169,12 +168,12 @@ delete_worker_pool(Host) ->
 register_worker(Host, WorkerPid) ->
     pg2:join(group_name(Host), WorkerPid).
 
-select_worker(Host, UserJID) ->
+select_worker(Host, RoomJID) ->
     case pg2:get_local_members(group_name(Host)) of
         [] ->
             error({no_worker, Host});
         Workers ->
-            N = erlang:phash2(UserJID, length(Workers)) + 1,
+            N = erlang:phash2(RoomJID, length(Workers)) + 1,
             lists:nth(N, Workers)
     end.
 
@@ -187,10 +186,10 @@ start_link(Host, Addr, Port, ClientOptions) ->
 %% ----------------------------------------------------------------------
 %% Internal functions and callbacks
 
-archive_size(Size, Host, _UserID, UserJID) when is_integer(Size) ->
-    Worker = select_worker(Host, UserJID),
-    Borders = Start = End = WithJID = undefined,
-    Filter = prepare_filter(UserJID, Borders, Start, End, WithJID),
+archive_size(Size, Host, _RoomID, RoomJID) when is_integer(Size) ->
+    Worker = select_worker(Host, RoomJID),
+    Borders = Start = End = WithNick = undefined,
+    Filter = prepare_filter(RoomJID, Borders, Start, End, WithNick),
     calc_count(Worker, Host, Filter).
 
 
@@ -199,36 +198,32 @@ archive_size(Size, Host, _UserID, UserJID) when is_integer(Size) ->
 
 insert_query_sql() ->
     "INSERT INTO mam_muc_message "
-        "(id, user_jid, from_jid, remote_jid, with_jid, message) "
-        "VALUES (?,?,?,?,?,?)".
+        "(id, room_jid, nick_name, with_nick, message) "
+        "VALUES (?,?,?,?,?)".
 
-archive_message(Result, Host, MessID, _UserID,
-                     LocJID, RemJID, SrcJID, Dir, Packet) ->
+archive_message(Result, Host, MessID, _RoomID,
+                     LocJID, NickName, NickName, Dir, Packet) ->
     try
         archive_message_2(Result, Host, MessID,
-                        LocJID, RemJID, SrcJID, Dir, Packet)
+                        LocJID, NickName, NickName, Dir, Packet)
     catch _Type:Reason ->
         {error, Reason}
     end.
 
 archive_message_2(_Result, Host, MessID,
                   LocJID=#jid{},
-                  RemJID=#jid{},
-                 SrcJID=#jid{}, _Dir, Packet) ->
+                  _RemJID=#jid{},
+                  _SrcJID=#jid{lresource=BNick}, _Dir, Packet) ->
     BLocJID = bare_jid(LocJID),
-    BRemBareJID = bare_jid(RemJID),
-    BRemFullJID = full_jid(RemJID),
-    BSrcJID = full_jid(SrcJID),
     BPacket = packet_to_stored_binary(Packet),
     Message = #mam_muc_message{
       id = MessID,
-      user_jid = BLocJID,
-      from_jid = BSrcJID,
-      remote_jid = BRemFullJID,
+      room_jid = BLocJID,
+      nick_name = BNick,
       message = BPacket
     },
-    WithJIDs = lists:usort([<<>>, BRemFullJID, BRemBareJID]),
-    Messages = [Message#mam_muc_message{with_jid = BWithJID} || BWithJID <- WithJIDs],
+    WithNicks = [<<>>, BNick],
+    Messages = [Message#mam_muc_message{with_nick = BWithNick} || BWithNick <- WithNicks],
     Worker = select_worker(Host, LocJID),
     write_messages(Worker, Messages).
 
@@ -237,13 +232,12 @@ write_messages(Worker, Messages) ->
 
 message_to_params(#mam_muc_message{
       id = MessID,
-      user_jid = BLocJID,
-      from_jid = BSrcJID,
-      remote_jid = BRemJID,
-      with_jid = BWithJID,
+      room_jid = BLocJID,
+      nick_name = BNick,
+      with_nick = BWithNick,
       message = BPacket
     }) ->
-    [MessID, BLocJID, BSrcJID, BRemJID, BWithJID, BPacket].
+    [MessID, BLocJID, BNick, BWithNick, BPacket].
 
 
 %% ----------------------------------------------------------------------
@@ -251,17 +245,17 @@ message_to_params(#mam_muc_message{
 
 delete_query_sql() ->
     "DELETE FROM mam_muc_message "
-        "WHERE user_jid = ? AND with_jid = ? AND id = ?".
+        "WHERE room_jid = ? AND with_nick = ? AND id = ?".
 
 delete_messages(Worker, Messages) ->
     gen_server:cast(Worker, {delete_messages, Messages}).
 
 delete_message_to_params(#mam_muc_message{
       id = MessID,
-      user_jid = BLocJID,
-      with_jid = BWithJID
+      room_jid = BLocJID,
+      with_nick = BWithNick
     }) ->
-    [BLocJID, BWithJID, MessID].
+    [BLocJID, BWithNick, MessID].
 
 
 %% ----------------------------------------------------------------------
@@ -279,25 +273,25 @@ test_query(Host) ->
 %% REMOVE ARCHIVE
 
 remove_archive_query_sql() ->
-    "DELETE FROM mam_muc_message WHERE user_jid = ?".
+    "DELETE FROM mam_muc_message WHERE room_jid = ?".
 
-remove_archive(Host, _UserID, UserJID) ->
-    Worker = select_worker(Host, UserJID),
-    BUserJID = bare_jid(UserJID),
-    gen_server:cast(Worker, {remove_archive, BUserJID}),
+remove_archive(Host, _RoomID, RoomJID) ->
+    Worker = select_worker(Host, RoomJID),
+    BRoomJID = bare_jid(RoomJID),
+    gen_server:cast(Worker, {remove_archive, BRoomJID}),
     ok.
 
 
 %% ----------------------------------------------------------------------
-%% GET FULL REMOTE JID
+%% GET NICK NAME
 
-message_id_to_remote_jid_sql() ->
-    "SELECT remote_jid FROM mam_muc_message "
-        "WHERE user_jid = ? AND with_jid = '' AND id = ?".
+message_id_to_nick_name_sql() ->
+    "SELECT nick_name FROM mam_muc_message "
+        "WHERE room_jid = ? AND with_nick = '' AND id = ?".
 
-message_id_to_remote_jid(Worker, BUserJID, MessID) ->
+message_id_to_nick_name(Worker, BRoomJID, MessID) ->
     ResultF = gen_server:call(Worker,
-        {message_id_to_remote_jid, BUserJID, MessID}),
+        {message_id_to_nick_name, BRoomJID, MessID}),
     {ok, Result} = ResultF(),
     case seestar_result:rows(Result) of
         [] ->
@@ -324,21 +318,22 @@ message_id_to_remote_jid(Worker, BUserJID, MessID) ->
                       IsSimple :: boolean()  | opt_count) ->
     {ok, mod_mam_muc:lookup_result()} | {error, 'policy-violation'}.
 lookup_messages({error, _Reason}=Result, _Host,
-                     _UserID, _UserJID, _RSM, _Borders,
+                     _RoomID, _RoomJID, _RSM, _Borders,
                      _Start, _End, _Now, _WithJID,
                      _PageSize, _LimitPassed, _MaxResultLimit,
                      _IsSimple) ->
     Result;
 lookup_messages(_Result, Host,
-                _UserID, UserJID, RSM, Borders,
+                _RoomID, RoomJID, RSM, Borders,
                 Start, End, _Now, WithJID,
                 PageSize, LimitPassed, MaxResultLimit,
                 IsSimple) ->
     try
-        Worker = select_worker(Host, UserJID),
+        WithNick = maybe_jid_to_nick(WithJID),
+        Worker = select_worker(Host, RoomJID),
         lookup_messages_2(Worker, Host,
-                          UserJID, RSM, Borders,
-                          Start, End, WithJID,
+                          RoomJID, RSM, Borders,
+                          Start, End, WithNick,
                           PageSize, LimitPassed, MaxResultLimit,
                           IsSimple)
     catch _Type:Reason ->
@@ -346,18 +341,21 @@ lookup_messages(_Result, Host,
         {error, {Reason, S}}
     end.
 
+maybe_jid_to_nick(#jid{lresource=BNick}) -> BNick;
+maybe_jid_to_nick(undefined)             -> undefined.
+
 
 lookup_messages_2(Worker, Host,
-                  UserJID = #jid{}, RSM, Borders,
-                  Start, End, WithJID,
+                  RoomJID = #jid{}, RSM, Borders,
+                  Start, End, WithNick,
                   PageSize, _LimitPassed, _MaxResultLimit,
                   _IsSimple=true) ->
     %% Simple query without calculating offset and total count
-    Filter = prepare_filter(UserJID, Borders, Start, End, WithJID),
-    lookup_messages_simple(Worker, Host, UserJID, RSM, PageSize, Filter);
+    Filter = prepare_filter(RoomJID, Borders, Start, End, WithNick),
+    lookup_messages_simple(Worker, Host, RoomJID, RSM, PageSize, Filter);
 lookup_messages_2(Worker, Host,
-                  UserJID = #jid{}, RSM, Borders,
-                  Start, End, WithJID,
+                  RoomJID = #jid{}, RSM, Borders,
+                  Start, End, WithNick,
                   PageSize, LimitPassed, MaxResultLimit,
                   _IsSimple) ->
     %% Query with offset calculation
@@ -365,19 +363,19 @@ lookup_messages_2(Worker, Host,
     %% Not all queries are optimal. You would like to disable something for production
     %% once you know how you will call bd
     Strategy = rsm_to_strategy(RSM),
-    Filter = prepare_filter(UserJID, Borders, Start, End, WithJID),
+    Filter = prepare_filter(RoomJID, Borders, Start, End, WithNick),
     Result =
     case Strategy of
         last_page ->
-            lookup_messages_last_page(Worker, Host, UserJID, RSM, PageSize, Filter);
+            lookup_messages_last_page(Worker, Host, RoomJID, RSM, PageSize, Filter);
         by_offset ->
-            lookup_messages_by_offset(Worker, Host, UserJID, RSM, PageSize, Filter);
+            lookup_messages_by_offset(Worker, Host, RoomJID, RSM, PageSize, Filter);
         first_page ->
-            lookup_messages_first_page(Worker, Host, UserJID, RSM, PageSize, Filter);
+            lookup_messages_first_page(Worker, Host, RoomJID, RSM, PageSize, Filter);
         before_id ->
-            lookup_messages_before_id(Worker, Host, UserJID, RSM, PageSize, Filter);
+            lookup_messages_before_id(Worker, Host, RoomJID, RSM, PageSize, Filter);
         after_id ->
-            lookup_messages_after_id(Worker, Host, UserJID, RSM, PageSize, Filter)
+            lookup_messages_after_id(Worker, Host, RoomJID, RSM, PageSize, Filter)
     end,
     check_result_for_policy_violation(Result, MaxResultLimit, LimitPassed).
 
@@ -396,32 +394,32 @@ rsm_to_strategy(#rsm_in{}) ->
 rsm_to_strategy(undefined) ->
     first_page.
 
-lookup_messages_simple(Worker, Host, UserJID,
+lookup_messages_simple(Worker, Host, RoomJID,
                        #rsm_in{direction = aft, id = ID},
                        PageSize, Filter) ->
     %% Get last rows from result set
     MessageRows = extract_messages(Worker, Host, after_id(ID, Filter), PageSize, false),
-    {ok, {undefined, undefined, rows_to_uniform_format(MessageRows)}};
-lookup_messages_simple(Worker, Host, UserJID,
+    {ok, {undefined, undefined, rows_to_uniform_format(MessageRows, RoomJID)}};
+lookup_messages_simple(Worker, Host, RoomJID,
                        #rsm_in{direction = before, id = ID},
                        PageSize, Filter) ->
     MessageRows = extract_messages(Worker, Host, before_id(ID, Filter), PageSize, true),
-    {ok, {undefined, undefined, rows_to_uniform_format(MessageRows)}};
-lookup_messages_simple(Worker, Host, UserJID,
+    {ok, {undefined, undefined, rows_to_uniform_format(MessageRows, RoomJID)}};
+lookup_messages_simple(Worker, Host, RoomJID,
                        #rsm_in{direction = undefined, index = Offset},
                        PageSize, Filter) ->
     %% Apply offset
     StartId = offset_to_start_id(Worker, Filter, Offset), %% POTENTIALLY SLOW AND NOT SIMPLE :)
     MessageRows = extract_messages(Worker, Host, from_id(StartId, Filter), PageSize, false),
-    {ok, {undefined, undefined, rows_to_uniform_format(MessageRows)}};
-lookup_messages_simple(Worker, Host, UserJID,
+    {ok, {undefined, undefined, rows_to_uniform_format(MessageRows, RoomJID)}};
+lookup_messages_simple(Worker, Host, RoomJID,
                 _,
                 PageSize, Filter) ->
     MessageRows = extract_messages(Worker, Host, Filter, PageSize, false),
-    {ok, {undefined, undefined, rows_to_uniform_format(MessageRows)}}.
+    {ok, {undefined, undefined, rows_to_uniform_format(MessageRows, RoomJID)}}.
 
 %% TODO 0
-lookup_messages_last_page(Worker, Host, UserJID,
+lookup_messages_last_page(Worker, Host, RoomJID,
                           #rsm_in{direction = before, id = undefined},
                           PageSize, Filter) ->
     %% Last page
@@ -430,16 +428,16 @@ lookup_messages_last_page(Worker, Host, UserJID,
     case MessageRowsCount < PageSize of
         true ->
             {ok, {MessageRowsCount, 0,
-                  rows_to_uniform_format(MessageRows)}};
+                  rows_to_uniform_format(MessageRows, RoomJID)}};
         false ->
             FirstID = row_to_message_id(hd(MessageRows)),
             Offset = calc_count(Worker, Host, before_id(FirstID, Filter)),
             {ok, {Offset + MessageRowsCount, Offset,
-                  rows_to_uniform_format(MessageRows)}}
+                  rows_to_uniform_format(MessageRows, RoomJID)}}
     end.
 
 %% TODO 0
-lookup_messages_by_offset(Worker, Host, UserJID,
+lookup_messages_by_offset(Worker, Host, RoomJID,
                           #rsm_in{direction = undefined, index = Offset},
                           PageSize, Filter) when is_integer(Offset) ->
     %% By offset
@@ -449,21 +447,21 @@ lookup_messages_by_offset(Worker, Host, UserJID,
     case MessageRowsCount < PageSize of
         true ->
             {ok, {Offset + MessageRowsCount, Offset,
-                  rows_to_uniform_format(MessageRows)}};
+                  rows_to_uniform_format(MessageRows, RoomJID)}};
         false ->
             LastID = row_to_message_id(lists:last(MessageRows)),
             CountAfterLastID = calc_count(Worker, Host, after_id(LastID, Filter)),
             {ok, {Offset + MessageRowsCount + CountAfterLastID, Offset,
-                  rows_to_uniform_format(MessageRows)}}
+                  rows_to_uniform_format(MessageRows, RoomJID)}}
     end.
 
-lookup_messages_first_page(Worker, Host, UserJID,
+lookup_messages_first_page(Worker, Host, RoomJID,
                            _,
                            0, Filter) ->
     %% First page, just count
     TotalCount = calc_count(Worker, Host, Filter),
     {ok, {TotalCount, 0, []}};
-lookup_messages_first_page(Worker, Host, UserJID,
+lookup_messages_first_page(Worker, Host, RoomJID,
                            _,
                            PageSize, Filter) ->
     %% First page
@@ -472,30 +470,30 @@ lookup_messages_first_page(Worker, Host, UserJID,
     case MessageRowsCount < PageSize of
         true ->
             {ok, {MessageRowsCount, 0,
-                  rows_to_uniform_format(MessageRows)}};
+                  rows_to_uniform_format(MessageRows, RoomJID)}};
         false ->
             LastID = row_to_message_id(lists:last(MessageRows)),
             CountAfterLastID = calc_count(Worker, Host, after_id(LastID, Filter)),
             {ok, {MessageRowsCount + CountAfterLastID, 0,
-                  rows_to_uniform_format(MessageRows)}}
+                  rows_to_uniform_format(MessageRows, RoomJID)}}
     end.
 
-lookup_messages_before_id(Worker, Host, UserJID,
+lookup_messages_before_id(Worker, Host, RoomJID,
                           RSM = #rsm_in{direction = before, id = ID},
                           PageSize, Filter) ->
     TotalCount = calc_count(Worker, Host, Filter),
     Offset     = calc_offset(Worker, Host, Filter, PageSize, TotalCount, RSM),
     MessageRows = extract_messages(Worker, Host, before_id(ID, Filter), PageSize, true),
-    {ok, {TotalCount, Offset, rows_to_uniform_format(MessageRows)}}.
+    {ok, {TotalCount, Offset, rows_to_uniform_format(MessageRows, RoomJID)}}.
 
-lookup_messages_after_id(Worker, Host, UserJID,
+lookup_messages_after_id(Worker, Host, RoomJID,
                          RSM = #rsm_in{direction = aft, id = ID},
                          PageSize, Filter) ->
-    Worker = select_worker(Host, UserJID),
+    Worker = select_worker(Host, RoomJID),
     TotalCount = calc_count(Worker, Host, Filter),
     Offset     = calc_offset(Worker, Host, Filter, PageSize, TotalCount, RSM),
     MessageRows = extract_messages(Worker, Host, after_id(ID, Filter), PageSize, false),
-    {ok, {TotalCount, Offset, rows_to_uniform_format(MessageRows)}}.
+    {ok, {TotalCount, Offset, rows_to_uniform_format(MessageRows, RoomJID)}}.
 
 check_result_for_policy_violation(Result={ok, {TotalCount, Offset, _}},
                                   MaxResultLimit, LimitPassed)
@@ -531,76 +529,72 @@ from_id(ID, Filter=#mam_muc_ca_filter{start_id = AfterID}) ->
     Filter#mam_muc_ca_filter{start_id = maybe_max(ID, AfterID)}.
 
 
-rows_to_uniform_format(MessageRows) ->
-    [row_to_uniform_format(Row) || Row <- MessageRows].
+rows_to_uniform_format(MessageRows, RoomJID) ->
+    [row_to_uniform_format(Row, RoomJID) || Row <- MessageRows].
 
-row_to_uniform_format([MessID,BSrcJID,Data]) ->
-    SrcJID = unserialize_jid(BSrcJID),
+row_to_uniform_format([MessID,BNick,Data], RoomJID) ->
+    SrcJID = jid:replace_resource(RoomJID, BNick),
     Packet = stored_binary_to_packet(Data),
     {MessID, SrcJID, Packet}.
 
 row_to_message_id([MessID,_,_]) ->
     MessID.
 
--spec purge_single_message(_Result, Host, MessID, _UserID, UserJID,
+-spec purge_single_message(_Result, Host, MessID, _RoomID, RoomJID,
                            Now) ->
     ok  | {error, 'not-supported'} when
       Host :: server_host(), MessID :: message_id(),
-      _UserID :: user_id(), UserJID :: #jid{},
+      _RoomID :: user_id(), RoomJID :: #jid{},
       Now :: unix_timestamp().
-purge_single_message(_Result, Host, MessID, _UserID, UserJID, _Now) ->
-    Worker = select_worker(Host, UserJID),
-    BUserJID = bare_jid(UserJID),
-    Result = message_id_to_remote_jid(Worker, BUserJID, MessID),
+purge_single_message(_Result, Host, MessID, _RoomID, RoomJID, _Now) ->
+    Worker = select_worker(Host, RoomJID),
+    BRoomJID = bare_jid(RoomJID),
+    Result = message_id_to_nick_name(Worker, BRoomJID, MessID),
     case Result of
-        {ok, BRemFullJID} ->
-            RemFullJID = unserialize_jid(BRemFullJID),
-            RemBareJID = jid:to_bare(RemFullJID),
-            BRemBareJID = jid:to_binary(RemBareJID),
-            %% Remove duplicates if RemFullJID =:= RemBareJID
-            BWithJIDs = lists:usort([BRemFullJID, BRemBareJID, <<>>]), %% 2 or 3
+        {ok, BNick} ->
+            BWithNicks = lists:usort([BNick, <<>>]),
             %% Set some fields
-            %% To remove record we need to know user_jid, with_jid and id.
+            %% To remove record we need to know room_jid, with_nick and id.
             Messages = [#mam_muc_message{
               id = MessID,
-              user_jid = BUserJID,
-              remote_jid = RemFullJID, %% set the field for debugging
-              with_jid = BWithJID
-              } || BWithJID <- BWithJIDs],
+              room_jid = BRoomJID,
+              nick_name = BNick, %% set the field for debugging
+              with_nick = BWithNick
+              } || BWithNick <- BWithNicks],
             delete_messages(Worker, Messages),
             ok;
         {error, _} ->
             ok
     end.
 
--spec purge_multiple_messages(_Result, Host, _UserID, UserJID, Borders,
-                              Start, End, Now, WithJID) ->
+-spec purge_multiple_messages(_Result, Host, _RoomID, RoomJID, Borders,
+                              Start, End, Now, WithNick) ->
     ok when
-      Host :: server_host(), _UserID :: user_id(),
-      UserJID :: #jid{}, Borders :: #mam_borders{},
+      Host :: server_host(), _RoomID :: user_id(),
+      RoomJID :: #jid{}, Borders :: #mam_borders{},
       Start :: unix_timestamp()  | undefined,
       End :: unix_timestamp()  | undefined,
       Now :: unix_timestamp(),
-      WithJID :: #jid{}  | undefined.
-purge_multiple_messages(_Result, Host, UserID, UserJID, Borders,
-                        Start, End, Now, WithJID) ->
+      WithNick :: #jid{}  | undefined.
+purge_multiple_messages(_Result, Host, RoomID, RoomJID, Borders,
+                        Start, End, Now, WithNick) ->
    %% Simple query without calculating offset and total count
-   Filter = prepare_filter(UserJID, Borders, Start, End, WithJID),
-   Worker = select_worker(Host, UserJID),
+   Filter = prepare_filter(RoomJID, Borders, Start, End, WithNick),
+   Worker = select_worker(Host, RoomJID),
    Limit = 500, %% TODO something smarter
    ResultF = gen_server:call(Worker, {list_message_ids, {Filter, Limit}}),
    {ok, Result} = ResultF(),
    MessIds = seestar_result:rows(Result),
    %% TODO can be faster
    %% TODO rate limiting
-   [purge_single_message(ok, Host, MessID, UserID, UserJID, Now) || [MessID] <- MessIds],
+   [purge_single_message(ok, Host, MessID, RoomID, RoomJID, Now) || [MessID] <- MessIds],
    ok.
 
 
 %% Offset is not supported
 %% Each record is a tuple of form
 %% `{<<"13663125233">>,<<"bob@localhost">>,<<"res1">>,<<binary>>}'.
-%% Columns are `["id","from_jid","message"]'.
+%% Columns are `["id","nick_name","message"]'.
 -spec extract_messages(Worker, Host, Filter, IMax, ReverseLimit) ->
     [Row] when
     Worker  :: worker(),
@@ -684,31 +678,31 @@ offset_to_start_id(Worker, Filter, Offset) when is_integer(Offset), Offset >= 0 
         [_|_] -> [StartId] = lists:last(Ids), StartId
     end.
 
-prepare_filter(UserJID, Borders, Start, End, WithJID) ->
-    BUserJID = bare_jid(UserJID),
+prepare_filter(RoomJID, Borders, Start, End, WithNick) ->
+    BRoomJID = bare_jid(RoomJID),
     StartID = maybe_encode_compact_uuid(Start, 0),
     EndID   = maybe_encode_compact_uuid(End, 255),
     StartID2 = apply_start_border(Borders, StartID),
     EndID2   = apply_end_border(Borders, EndID),
-    BWithJID = maybe_full_jid(WithJID), %% it's NOT optional field
-    prepare_filter_params(BUserJID, BWithJID, StartID2, EndID2).
+    BWithNick = maybe_nick(WithNick),
+    prepare_filter_params(BRoomJID, BWithNick, StartID2, EndID2).
 
-prepare_filter_params(BUserJID, BWithJID, StartID, EndID) ->
+prepare_filter_params(BRoomJID, BWithNick, StartID, EndID) ->
     #mam_muc_ca_filter{
-        user_jid = BUserJID,
-        with_jid = BWithJID,
+        room_jid = BRoomJID,
+        with_nick = BWithNick,
         start_id = StartID,
         end_id = EndID
     }.
 
 eval_filter_params(#mam_muc_ca_filter{
-        user_jid = BUserJID,
-        with_jid = BWithJID,
+        room_jid = BRoomJID,
+        with_nick = BWithNick,
         start_id = StartID,
         end_id = EndID
     }) ->
     Optional = [Value || Value <- [StartID, EndID], Value =/= undefined],
-    [BUserJID, BWithJID|Optional].
+    [BRoomJID, BWithNick|Optional].
 
 select_filter(#mam_muc_ca_filter{
         start_id = StartID,
@@ -775,6 +769,11 @@ maybe_encode_compact_uuid(undefined, _) ->
 maybe_encode_compact_uuid(Microseconds, NodeID) ->
     encode_compact_uuid(Microseconds, NodeID).
 
+maybe_nick(undefined) ->
+    <<>>;
+maybe_nick(WithNick) when is_binary(WithNick) ->
+    WithNick.
+
 bare_jid(undefined) -> undefined;
 bare_jid(JID) ->
     jid:to_binary(jid:to_bare(jid:to_lower(JID))).
@@ -811,23 +810,23 @@ list_message_ids_handler(Conn) ->
                     || {FilterName, Filter} <- filter_to_sql()]).
 
 extract_messages_sql(Filter) ->
-    "SELECT id, from_jid, message FROM mam_muc_message "
-        "WHERE user_jid = ? AND with_jid = ? " ++
-        Filter ++ " ORDER BY with_jid, id LIMIT ?".
+    "SELECT id, nick_name, message FROM mam_muc_message "
+        "WHERE room_jid = ? AND with_nick = ? " ++
+        Filter ++ " ORDER BY with_nick, id LIMIT ?".
 
 extract_messages_r_sql(Filter) ->
-    "SELECT id, from_jid, message FROM mam_muc_message "
-        "WHERE user_jid = ? AND with_jid = ? " ++
-        Filter ++ " ORDER BY with_jid DESC, id DESC LIMIT ?".
+    "SELECT id, nick_name, message FROM mam_muc_message "
+        "WHERE room_jid = ? AND with_nick = ? " ++
+        Filter ++ " ORDER BY with_nick DESC, id DESC LIMIT ?".
 
 calc_count_sql(Filter) ->
     "SELECT COUNT(*) FROM mam_muc_message "
-        "WHERE user_jid = ? AND with_jid = ? " ++ Filter.
+        "WHERE room_jid = ? AND with_nick = ? " ++ Filter.
 
 list_message_ids_sql(Filter) ->
     "SELECT id FROM mam_muc_message "
-        "WHERE user_jid = ? AND with_jid = ? " ++ Filter ++
-        " ORDER BY with_jid, id LIMIT ?".
+        "WHERE room_jid = ? AND with_nick = ? " ++ Filter ++
+        " ORDER BY with_nick, id LIMIT ?".
 
 execute_extract_messages(Conn, Handler, {Filter, IMax}) when is_integer(IMax) ->
     Params = eval_filter_params(Filter) ++ [IMax],
@@ -900,7 +899,7 @@ init_connection(ConnPid, Conn, State=#state{host=Host}) ->
     DeleteQuery = prepare_query(Conn, delete_query_sql()),
     TestQuery = prepare_query(Conn, test_query_sql()),
     RemoveArchiveQuery = prepare_query(Conn, remove_archive_query_sql()),
-    MessIdToRemJidQuery = prepare_query(Conn, message_id_to_remote_jid_sql()),
+    MessIdToRemJidQuery = prepare_query(Conn, message_id_to_nick_name_sql()),
 
     ExHandler = extract_messages_handler(Conn),
     RevExHandler = extract_messages_r_handler(Conn),
@@ -916,7 +915,7 @@ init_connection(ConnPid, Conn, State=#state{host=Host}) ->
         delete_query=DeleteQuery,
         test_query=TestQuery,
         remove_archive_query=RemoveArchiveQuery,
-        message_id_to_remote_jid_query=MessIdToRemJidQuery,
+        message_id_to_nick_name_query=MessIdToRemJidQuery,
         extract_messages_handler=ExHandler,
         extract_messages_r_handler=RevExHandler,
         calc_count_handler=CountHandler,
@@ -949,9 +948,9 @@ handle_call({list_message_ids, Args}, From,
     State=#state{conn=Conn, list_message_ids_handler=Handler}) ->
     QueryRef = execute_list_message_ids(Conn, Handler, Args),
     {noreply, save_query_ref(From, QueryRef, State)};
-handle_call({message_id_to_remote_jid, BUserJID, MessID}, From,
-    State=#state{conn=Conn, message_id_to_remote_jid_query=MessIdToRemJidQuery}) ->
-    Params = [BUserJID, MessID],
+handle_call({message_id_to_nick_name, BRoomJID, MessID}, From,
+    State=#state{conn=Conn, message_id_to_nick_name_query=MessIdToRemJidQuery}) ->
+    Params = [BRoomJID, MessID],
     QueryRef = execute_prepared_query(Conn, MessIdToRemJidQuery, Params),
     {noreply, save_query_ref(From, QueryRef, State)};
 handle_call(test_query, From,
@@ -979,9 +978,9 @@ handle_cast({delete_messages, Messages},
     State=#state{conn=Conn, delete_query=DeleteQuery}) ->
     [execute_prepared_query(Conn, DeleteQuery, delete_message_to_params(M)) || M <- Messages],
     {noreply, State};
-handle_cast({remove_archive, BUserJID},
+handle_cast({remove_archive, BRoomJID},
     State=#state{conn=Conn, remove_archive_query=RemoveArchiveQuery}) ->
-    Params = [BUserJID],
+    Params = [BRoomJID],
     execute_prepared_query(Conn, RemoveArchiveQuery, Params),
     {noreply, State};
 handle_cast(Msg, State) ->
