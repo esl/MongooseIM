@@ -40,7 +40,7 @@ suite() ->
 %%%===================================================================
 
 init_per_suite(C) -> escalus:init_per_suite(C).
-end_per_suite(C) -> escalus:end_per_suite(C).
+end_per_suite(C) -> escalus_fresh:clean(), escalus:end_per_suite(C).
 init_per_testcase(Name, C) -> escalus:init_per_testcase(Name, C).
 end_per_testcase(Name, C) -> escalus:end_per_testcase(Name, C).
 
@@ -61,7 +61,6 @@ offline_message_is_stored_and_delivered_at_login(Config) ->
                    Stanzas)
         end,
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}], Story).
-
 
 error_message_is_not_stored(Config) ->
     Story = fun(FreshConfig, Alice, Bob) ->

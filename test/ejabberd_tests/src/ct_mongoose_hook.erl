@@ -63,7 +63,7 @@ pre_end_per_suite(_Suite,Config,State) ->
 %% @doc Called after end_per_suite.
 post_end_per_suite(Suite, Config, Return, State) ->
     maybe_print_on_server(true, "SUITE", Suite, "finished"),
-    %%check_server_purity(Suite, Config),
+    check_server_purity(Suite, Config),
     {Return, State}.
 
 %% @doc Called before each init_per_group.
