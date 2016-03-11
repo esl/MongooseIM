@@ -97,8 +97,10 @@ system_install(Opts) ->
               lock_dir       = "$PREFIX/var/lock/mongooseim"}.
 
 process_app("none", _Apps) -> [];
-process_app("all", _Apps)  -> all_apps();
-process_app(App, Apps)     -> [App | Apps].
+process_app("all", _Apps) -> all_apps();
+process_app(App, Apps) ->
+    {App, AppDeps, _} = lists:keyfind(App, 1, app_opts()),
+    AppDeps ++ Apps.
 
 validate_apps(Apps) -> validate_apps(Apps, []).
 
