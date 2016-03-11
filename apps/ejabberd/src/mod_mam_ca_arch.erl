@@ -187,10 +187,11 @@ start_link(Host, Addr, Port, ClientOptions) ->
 %% ----------------------------------------------------------------------
 %% Internal functions and callbacks
 
-archive_size(Size, _Host, _UserID, _UserJID) when is_integer(Size) ->
-    %% TODO
-    Size.
-
+archive_size(Size, Host, _UserID, UserJID) when is_integer(Size) ->
+    Worker = select_worker(Host, UserJID),
+    Borders = Start = End = WithJID = undefined,
+    Filter = prepare_filter(UserJID, Borders, Start, End, WithJID),
+    calc_count(Worker, Host, Filter).
 
 
 %% ----------------------------------------------------------------------
@@ -364,6 +365,7 @@ lookup_messages_2(Host,
     %% once you know how you will call bd
     Strategy = rsm_to_strategy(RSM),
     Filter = prepare_filter(UserJID, Borders, Start, End, WithJID),
+    Result =
     case Strategy of
         last_page ->
             lookup_messages_last_page(Host, UserJID, RSM, PageSize, Filter);
@@ -372,15 +374,16 @@ lookup_messages_2(Host,
         first_page ->
             lookup_messages_first_page(Host, UserJID, RSM, PageSize, Filter);
         before_id ->
-            lookup_messages_before_id(Host, UserJID, RSM, PageSize, Filter,
-                                      LimitPassed, MaxResultLimit);
+            lookup_messages_before_id(Host, UserJID, RSM, PageSize, Filter);
         after_id ->
-            lookup_messages_after_id(Host, UserJID, RSM, PageSize, Filter,
-                                     LimitPassed, MaxResultLimit)
-    end.
+            lookup_messages_after_id(Host, UserJID, RSM, PageSize, Filter)
+    end,
+    check_result_for_policy_violation(Result, MaxResultLimit, LimitPassed).
 
 rsm_to_strategy(#rsm_in{direction = before, id = undefined}) ->
     last_page;
+rsm_to_strategy(#rsm_in{direction = undefined, index = 0}) ->
+    first_page;
 rsm_to_strategy(#rsm_in{direction = undefined, index = Offset}) when is_integer(Offset) ->
     by_offset;
 rsm_to_strategy(#rsm_in{direction = before, id = Id}) when is_integer(Id) ->
@@ -420,6 +423,7 @@ lookup_messages_simple(Host, UserJID,
     MessageRows = extract_messages(Worker, Host, Filter, PageSize, false),
     {ok, {undefined, undefined, rows_to_uniform_format(MessageRows)}}.
 
+%% TODO 0
 lookup_messages_last_page(Host, UserJID,
                           #rsm_in{direction = before, id = undefined},
                           PageSize, Filter) ->
@@ -438,6 +442,7 @@ lookup_messages_last_page(Host, UserJID,
                   rows_to_uniform_format(MessageRows)}}
     end.
 
+%% TODO 0
 lookup_messages_by_offset(Host, UserJID,
                           #rsm_in{direction = undefined, index = Offset},
                           PageSize, Filter) when is_integer(Offset) ->
@@ -459,6 +464,13 @@ lookup_messages_by_offset(Host, UserJID,
 
 lookup_messages_first_page(Host, UserJID,
                            _,
+                           0, Filter) ->
+    %% First page, just count
+    Worker = select_worker(Host, UserJID),
+    TotalCount = calc_count(Worker, Host, Filter),
+    {ok, {TotalCount, 0, []}};
+lookup_messages_first_page(Host, UserJID,
+                           _,
                            PageSize, Filter) ->
     %% First page
     Worker = select_worker(Host, UserJID),
@@ -466,6 +478,7 @@ lookup_messages_first_page(Host, UserJID,
     MessageRowsCount = length(MessageRows),
     case MessageRowsCount < PageSize of
         true ->
+            %% Total number of messages is less than one page
             {ok, {MessageRowsCount, 0,
                   rows_to_uniform_format(MessageRows)}};
         false ->
@@ -477,39 +490,37 @@ lookup_messages_first_page(Host, UserJID,
 
 lookup_messages_before_id(Host, UserJID,
                           RSM = #rsm_in{direction = before, id = ID},
-                          PageSize, Filter, LimitPassed, MaxResultLimit) ->
+                          PageSize, Filter) ->
     Worker = select_worker(Host, UserJID),
     TotalCount = calc_count(Worker, Host, Filter),
     Offset     = calc_offset(Worker, Host, Filter, PageSize, TotalCount, RSM),
-    %% If a query returns a number of stanzas greater than this limit and the
-    %% client did not specify a limit using RSM then the server should return
-    %% a policy-violation error to the client.
-    case is_policy_violation(TotalCount, Offset, MaxResultLimit, LimitPassed) of
-        true ->
-            {error, 'policy-violation'};
-
-        false ->
-            MessageRows = extract_messages(Worker, Host, before_id(ID, Filter), PageSize, true),
-            {ok, {TotalCount, Offset, rows_to_uniform_format(MessageRows)}}
-    end.
+    MessageRows = extract_messages(Worker, Host, before_id(ID, Filter), PageSize, true),
+    {ok, {TotalCount, Offset, rows_to_uniform_format(MessageRows)}}.
 
 lookup_messages_after_id(Host, UserJID,
                          RSM = #rsm_in{direction = aft, id = ID},
-                         PageSize, Filter, LimitPassed, MaxResultLimit) ->
+                         PageSize, Filter) ->
     Worker = select_worker(Host, UserJID),
     TotalCount = calc_count(Worker, Host, Filter),
     Offset     = calc_offset(Worker, Host, Filter, PageSize, TotalCount, RSM),
+    MessageRows = extract_messages(Worker, Host, after_id(ID, Filter), PageSize, false),
+    {ok, {TotalCount, Offset, rows_to_uniform_format(MessageRows)}}.
+
+
+check_result_for_policy_violation(Result={ok, {TotalCount, Offset, _}},
+                                  MaxResultLimit, LimitPassed)
+    when is_integer(TotalCount), is_integer(Offset) ->
     %% If a query returns a number of stanzas greater than this limit and the
     %% client did not specify a limit using RSM then the server should return
     %% a policy-violation error to the client.
     case is_policy_violation(TotalCount, Offset, MaxResultLimit, LimitPassed) of
         true ->
             {error, 'policy-violation'};
-
         false ->
-            MessageRows = extract_messages(Worker, Host, after_id(ID, Filter), PageSize, false),
-            {ok, {TotalCount, Offset, rows_to_uniform_format(MessageRows)}}
-    end.
+            Result
+    end;
+check_result_for_policy_violation(Result, _MaxResultLimit, _LimitPassed) ->
+    Result.
 
 is_policy_violation(TotalCount, Offset, MaxResultLimit, LimitPassed) ->
     TotalCount - Offset > MaxResultLimit andalso not LimitPassed.
@@ -675,7 +686,7 @@ calc_count(Worker, _Host, Filter) ->
     Filter       :: filter(),
     Id           :: non_neg_integer() | undefined.
 offset_to_start_id(Worker, Filter, Offset) when is_integer(Offset), Offset >= 0 ->
-    ResultF = gen_server:call(Worker, {list_message_ids, {Filter, Offset}}),
+    ResultF = gen_server:call(Worker, {list_message_ids, {Filter, Offset+1}}),
     {ok, Result} = ResultF(),
     Ids = seestar_result:rows(Result),
     case Ids of
