@@ -90,7 +90,6 @@ configure.out
 .rebar3
 test/ejabberd_tests/get-deps.log
 test/ejabberd_tests/quicktest.log
-tags
 site
 
 # Dialyzer
@@ -102,6 +101,7 @@ dev/*
 fake_*.pem
 ebin/
 *.coverdata
+*.conf
 #idea
 .idea/
 *.iml
@@ -110,4 +110,6 @@ site/
 etc/
 log/
 Mnesia.*
+*.pid
 tags
+TAGS
