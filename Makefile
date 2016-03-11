@@ -86,7 +86,7 @@ configure:
 	./tools/configure $(filter-out $@,$(MAKECMDGOALS))
 
 rel: certs rebar deps configure.out rel/vars.config
-	source ./configure.out && ./rebar compile generate -f
+	. ./configure.out && ./rebar compile generate -f
 
 rel/vars.config: rel/vars.config.in rel/configure.vars.config
 	cat $^ > $@
@@ -99,7 +99,7 @@ devrel: certs $(DEVNODES)
 
 $(DEVNODES): rebar deps compile deps_dev configure.out rel/vars.config
 	@echo "building $@"
-	(source ./configure.out && \
+	(. ./configure.out && \
 	 cd rel && \
 	 ../rebar generate -f target_dir=../dev/mongooseim_$@ overlay_vars=./reltool_vars/$@_vars.config)
 	cp -R `dirname $(shell ./readlink.sh $(shell which erl))`/../lib/tools-* dev/mongooseim_$@/lib/
@@ -143,6 +143,6 @@ test_deps:
 	@:
 
 install: configure.out rel
-	@source ./configure.out && tools/install
+	@. ./configure.out && tools/install
 
 include tools/cd_tools/cd-targets
