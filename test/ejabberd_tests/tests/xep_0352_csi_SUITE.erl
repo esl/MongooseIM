@@ -8,14 +8,18 @@ all() ->
     [{group, basic}].
 
 groups() ->
-    [{basic, [], [alice_is_inactive_and_no_stanza_arrived,
-                  alice_gets_msgs_after_activate]}].
+    [{basic,
+      [shuffle],
+      [server_announces_csi,
+       alice_is_inactive_and_no_stanza_arrived,
+       alice_gets_msgs_after_activate
+      ]}].
 
 suite() ->
     escalus:suite().
 
 init_per_suite(Config) ->
-    escalus:init_per_suite(Config).
+    [{escalus_user_db, {module, escalus_ejabberd}} | escalus:init_per_suite(Config)].
 
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
@@ -32,6 +36,18 @@ init_per_testcase(CaseName, Config) ->
 
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
+
+server_announces_csi(_Config) ->
+    [{alice, Spec}] = escalus_users:get_users([alice]),
+    Steps = [start_stream,
+             stream_features,
+             maybe_use_ssl,
+             maybe_use_compression,
+             authenticate,
+             bind,
+             session],
+    {ok, _Client, _Props, Features} = escalus_connection:start(Spec, Steps),
+    true = proplists:get_value(client_state_indication, Features).
 
 alice_is_inactive_and_no_stanza_arrived(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
