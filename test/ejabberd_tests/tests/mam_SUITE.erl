@@ -401,6 +401,8 @@ do_init_per_group(C, ConfigIn) ->
     case C of
         riak_timed_yz_buckets ->
             [{yz_wait, 2500} | Config0];
+        ca ->
+            [{ca_wait, 500} | Config0];
         _ ->
             Config0
     end.
@@ -425,8 +427,8 @@ init_modules(C, muc04, Config) ->
 
 init_modules(ca, muc_with_pm, Config) ->
     %% TODO add mod_mam with Cassandra
+    init_module(host(), mod_mam_ca_arch, []),
     init_module(host(), mod_mam_muc_ca_arch, []),
-    init_module(host(), mod_mam_odbc_user, [muc, pm]),
     init_module(host(), mod_mam, [add_archived_element]),
     init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
     Config;
@@ -505,7 +507,6 @@ init_modules(odbc_mnesia_cache, muc_with_pm, Config) ->
 
 init_modules(ca, muc, Config) ->
     init_module(host(), mod_mam_muc_ca_arch, []),
-    init_module(host(), mod_mam_odbc_user, [muc]),
     init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
     Config;
 init_modules(odbc, muc, Config) ->
@@ -926,6 +927,8 @@ simple_archive_request(ConfigIn) ->
         Res = wait_archive_respond(P, Alice),
         assert_respond_size(P, 1, Res),
         assert_respond_query_id(P, <<"q1">>, parse_result_iq(P, Res)),
+
+
         ok
         end,
     MongooseMetrics = [{[backends, mod_mam, archive], changed},
@@ -952,6 +955,8 @@ querying_for_all_messages_with_jid(Config) ->
 muc_querying_for_all_messages(Config) ->
     P = ?config(props, Config),
     F = fun(Alice) ->
+        maybe_wait_for_yz(Config),
+
         Room = ?config(room, Config),
         MucMsgs = ?config(pre_generated_muc_msgs, Config),
 
@@ -959,7 +964,6 @@ muc_querying_for_all_messages(Config) ->
 
         IQ = stanza_archive_request(P, <<>>),
         escalus:send(Alice, stanza_to_room(IQ, Room)),
-        maybe_wait_for_yz(Config),
         assert_respond_size(P, MucArchiveLen, wait_archive_respond(P, Alice)),
 
         ok
@@ -2554,6 +2558,7 @@ send_muc_rsm_messages(Config) ->
         escalus:wait_for_stanzas(Alice, 15, 5000),
 
         maybe_wait_for_yz(Config),
+        maybe_wait_for_cassandra(Config),
 
         %% Get whole history.
         escalus:send(Alice,
@@ -2908,6 +2913,14 @@ login_send_presence(Config, User) ->
 
 maybe_wait_for_yz(Config) ->
     case ?config(yz_wait, Config) of
+        undefined ->
+            ok;
+        Value ->
+            timer:sleep(Value)
+    end.
+
+maybe_wait_for_cassandra(Config) ->
+    case ?config(ca_wait, Config) of
         undefined ->
             ok;
         Value ->
