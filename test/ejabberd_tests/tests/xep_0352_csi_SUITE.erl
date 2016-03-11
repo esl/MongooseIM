@@ -7,10 +7,12 @@
 all() ->
     [{group, basic}].
 
+
 groups() ->
     [{basic,
-      [shuffle],
-      [server_announces_csi,
+      [parallel, shuffle],
+      [
+       server_announces_csi,
        alice_is_inactive_and_no_stanza_arrived,
        alice_gets_msgs_after_activate
       ]}].
@@ -25,11 +27,10 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(_Group, Config) ->
-    escalus:create_users(Config, escalus:get_users([alice, bob])).
+    Config.
 
 end_per_group(_Group, Config) ->
-    escalus:delete_users(Config, escalus:get_users([alice, bob])).
-
+    Config.
 
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
@@ -37,8 +38,10 @@ init_per_testcase(CaseName, Config) ->
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
-server_announces_csi(_Config) ->
-    [{alice, Spec}] = escalus_users:get_users([alice]),
+server_announces_csi(Config) ->
+    {_, Users} = escalus_fresh:create_fresh_users(Config, [{alice, 1}]),
+    Spec = proplists:get_value(alice, Users),
+    ct:print("~p", [Users]),
     Steps = [start_stream,
              stream_features,
              maybe_use_ssl,
@@ -50,14 +53,14 @@ server_announces_csi(_Config) ->
     true = proplists:get_value(client_state_indication, Features).
 
 alice_is_inactive_and_no_stanza_arrived(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         given_client_is_inactive_and_message_sent(Alice, Bob),
 
         escalus_assert:has_no_stanzas(Alice)
     end).
 
 alice_gets_msgs_after_activate(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         %%Given
         given_client_is_inactive_and_message_sent(Alice, Bob),
 
