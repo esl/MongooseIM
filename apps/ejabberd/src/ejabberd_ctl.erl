@@ -160,8 +160,8 @@ process(["status"]) ->
             end,
             ?STATUS_ERROR;
         {_, _, Version} ->
-            ?PRINT("MongooseIM version ~s is running on this node~n",
-                   [Version]),
+            ?PRINT("MongooseIM version ~s is running on this node with pid ~s~n",
+                   [Version, os:getpid()]),
             ?STATUS_SUCCESS
     end;
 process(["stop"]) ->
