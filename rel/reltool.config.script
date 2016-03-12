@@ -31,7 +31,7 @@ BaseAppsToInclude = AppsToRun ++
                      cowlib,
                      bear,
                      mochijson2,
-                     p1_cache_tab,
+                     cache_tab,
                      pa,
                      usec,
                      base16,
