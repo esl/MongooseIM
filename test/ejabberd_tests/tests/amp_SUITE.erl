@@ -41,7 +41,7 @@ groups() ->
 
 
 init_per_suite(C) -> escalus:init_per_suite(C).
-end_per_suite(C) -> escalus_fresh:clean(), escalus:end_per_suite(C).
+end_per_suite(C) -> ok = escalus_fresh:clean(), escalus:end_per_suite(C).
 init_per_testcase(Name,C) -> escalus:init_per_testcase(Name,C).
 end_per_testcase(Name,C) -> escalus:end_per_testcase(Name,C).
 

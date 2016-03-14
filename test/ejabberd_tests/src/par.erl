@@ -9,7 +9,7 @@ map(F, L) when is_function(F, 1), is_list(L) ->
 tag(L) -> lists:zip(lists:seq(1, length(L)), L).
 untag(L) -> [ Val || {_Ord,Val} <- lists:sort(L) ].
 
-reply(Ord, {Ref,Pid}, Val = _TaskId) -> Pid ! {Ref, {Ord, Val}}.
+reply(Ord, {Ref,Pid}, Val) -> Pid ! {Ref, {Ord, Val}}.
 
 worker(TaskId, Fun, {Ord, Item}) -> fun() -> reply(Ord, TaskId, Fun(Item)) end.
 
