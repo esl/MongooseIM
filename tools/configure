@@ -13,7 +13,7 @@
                prefix         = "/usr/local",
                reltool_vars   = "rel/configure.vars.config",
                system         = "no",
-               user           = "mongooseim",
+               user           = "",
                script_dir     = "$(cd ${0%/*} && pwd)",
                bin_dir        = undefined,
                etc_dir        = "$RUNNER_BASE_DIR/etc",
@@ -156,8 +156,8 @@ write(shell, FileName, Opts) ->
               sh_var("APPS", validate_apps(Opts#opts.apps)),
               sh_var("PREFIX", [Opts#opts.prefix]),
               sh_var("RELTOOL_VARS", [Opts#opts.reltool_vars]),
-              sh_var("RUNNER_USER", [Opts#opts.user]),
               sh_var("SYSTEM", [Opts#opts.system])] ++
+             [sh_var("RUNNER_USER", [Opts#opts.user])|| Opts#opts.user /= ""] ++
              [sh_var("BIN_DIR", [Opts#opts.bin_dir]) || Opts#opts.system == "yes"] ++
              [sh_var("ETC_DIR", [Opts#opts.etc_dir]) || Opts#opts.system == "yes"] ++
              [sh_var("LIB_DIR", [Opts#opts.lib_dir]) || Opts#opts.system == "yes"] ++

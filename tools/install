@@ -12,6 +12,11 @@ if [ -z "${MONGOOSEIM_CONFIGURED}" ]; then
     exit 1
 fi
 
+## We assume that current user will be the owner if not specified
+if [ -z "${RUNNER_USER}" ]; then
+    RUNNER_USER=`whoami`
+fi
+
 # A separate RUNNER_GROUP is handy for testing on a Mac,
 # where users don't have a group of the same name by default.
 if [ -z "${RUNNER_GROUP}" ]; then
