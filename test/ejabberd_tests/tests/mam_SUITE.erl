@@ -2952,7 +2952,13 @@ is_odbc_enabled(Host) ->
             false
     end.
 
-is_cassandra_enabled(_) -> true.
+is_cassandra_enabled(_) ->
+    case escalus_ejabberd:rpc(application, loaded_applications, []) of
+        [_|_]=Apps ->
+            lists:keymember(seestar, 1, Apps);
+        _ ->
+            false
+    end.
 
 is_riak_enabled(_Host) ->
     case escalus_ejabberd:rpc(mongoose_riak, get_worker, []) of
