@@ -20,8 +20,10 @@
          purge_single_message/6,
          purge_multiple_messages/9]).
 
-%% Helpers
--export([test_query/1]).
+%% Helpers for debugging
+-export([test_query/1,
+         queue_length/1,
+         queue_lengths/1]).
 
 %% Internal exports
 -export([start_link/4]).
@@ -267,6 +269,32 @@ test_query_sql() ->
 test_query(Host) ->
     Workers = pg2:get_local_members(group_name(Host)),
     [{Worker, (catch gen_server:call(Worker, test_query))} || Worker <- Workers].
+
+
+%% ----------------------------------------------------------------------
+%% QUEUE LENGTH
+
+%% For metrics.
+queue_length(Host) ->
+    Len = lists:sum(queue_lengths(Host)),
+    {ok, Len}.
+
+queue_lengths(Host) ->
+    Workers = pg2:get_local_members(group_name(Host)),
+    [worker_queue_length(Worker) || Worker <- Workers].
+
+worker_queue_length(Worker) ->
+    %% We really don't want to call process, because it can does not respond
+    Info = erlang:process_info(Worker, [message_queue_len, dictionary]),
+    case Info of
+    undefined -> %% dead
+        0;
+    [{message_queue_len, ExtLen}, {dictionary, Dict}] ->
+        %% External queue contains not only queued queries but also waiting responds.
+        %% But it's usually 0.
+        IntLen = proplists:get_value(query_refs_count, Dict, 0),
+        ExtLen + IntLen
+    end.
 
 
 %% ----------------------------------------------------------------------
