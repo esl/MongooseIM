@@ -586,8 +586,7 @@ init_modules(odbc_simple, _, Config) ->
     Config;
 init_modules(ca, _, Config) ->
     init_module(host(), mod_mam_ca_arch, [pm]),
-    init_module(host(), mod_mam_odbc_prefs, [pm]),
-    init_module(host(), mod_mam_odbc_user, [pm]),
+    init_module(host(), mod_mam_mnesia_prefs, [pm, {archive_key, mam_archive_key_server_user}]),
     init_module(host(), mod_mam, [add_archived_element]),
     Config;
 init_modules(odbc_async, _, Config) ->
@@ -599,7 +598,7 @@ init_modules(odbc_async, _, Config) ->
     Config;
 init_modules(riak_timed_yz_buckets, _, Config) ->
     init_module(host(), mod_mam_riak_timed_arch_yz, [pm, muc]),
-    init_module(host(), mod_mam_mnesia_prefs, [pm, muc]),
+    init_module(host(), mod_mam_mnesia_prefs, [pm, muc, {archive_key, mam_archive_key_server_user}]),
     init_module(host(), mod_mam, [add_archived_element]),
     init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
     Config;

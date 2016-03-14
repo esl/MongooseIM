@@ -114,6 +114,7 @@
 -type message_id()          :: non_neg_integer().
 
 -type archive_id()          :: non_neg_integer().
+-type archive_key()         :: term(). % archive_id(), {Server, User} or something different
 
 -type action()              :: atom().
 -type borders()             :: #mam_borders{}.
@@ -138,6 +139,7 @@
               iterator_fun/0,
               unix_timestamp/0,
               archive_id/0,
+              archive_key/0,
               lookup_result/0,
               message_id/0
             ]).
