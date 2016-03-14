@@ -1,6 +1,5 @@
 language: erlang
 sudo: required
-<<<<<<< HEAD
 addons:
     apt:
         packages:
@@ -10,8 +9,6 @@ addons:
         - libmyodbc
         - slapd
         - ldap-utils
-=======
->>>>>>> Test Cassandra with travis
 before_install:
         - tools/travis-generate-pass.sh
 install:
