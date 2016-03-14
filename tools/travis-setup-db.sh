@@ -44,4 +44,9 @@ elif [ $DB = 'cassandra' ]; then
     docker run -d -p 9042:9042 -e MAX_HEAP_SIZE=128M -e HEAP_NEWSIZE=64M --name=cassandra cassandra:${CASSANDRA_VERSION}
     tools/wait_for_cassandra.sh || docker logs cassandra
 
+    # Deleted --rm on travis for speedup
+    docker run -it -v "$(pwd)/apps/ejabberd/priv/cassandra.cql:/cassandra.cql:ro" \
+        --link cassandra:cassandra \
+        cassandra:${CASSANDRA_VERSION} \
+        sh -c 'exec cqlsh "$CASSANDRA_PORT_9042_TCP_ADDR" -f /cassandra.cql'
 fi
