@@ -284,7 +284,8 @@ remove_archive_query_sql() ->
 remove_archive(Host, _UserID, UserJID) ->
     Worker = select_worker(Host, UserJID),
     BUserJID = bare_jid(UserJID),
-    gen_server:cast(Worker, {remove_archive, BUserJID}),
+    %% Wait until deleted
+    gen_server:call(Worker, {remove_archive, BUserJID}),
     ok.
 
 
@@ -419,7 +420,12 @@ lookup_messages_simple(Worker, Host, UserJID,
     MessageRows = extract_messages(Worker, Host, Filter, PageSize, false),
     {ok, {undefined, undefined, rows_to_uniform_format(MessageRows)}}.
 
-%% TODO 0
+lookup_messages_last_page(Worker, Host, UserJID,
+                          #rsm_in{direction = before, id = undefined},
+                          0, Filter) ->
+    %% Last page
+    TotalCount = calc_count(Worker, Host, Filter),
+    {ok, {TotalCount, TotalCount, []}};
 lookup_messages_last_page(Worker, Host, UserJID,
                           #rsm_in{direction = before, id = undefined},
                           PageSize, Filter) ->
@@ -437,7 +443,12 @@ lookup_messages_last_page(Worker, Host, UserJID,
                   rows_to_uniform_format(MessageRows)}}
     end.
 
-%% TODO 0
+lookup_messages_by_offset(Worker, Host, UserJID,
+                          #rsm_in{direction = undefined, index = Offset},
+                          0, Filter) when is_integer(Offset) ->
+    %% By offset
+    TotalCount = calc_count(Worker, Host, Filter),
+    {ok, {TotalCount, Offset, []}};
 lookup_messages_by_offset(Worker, Host, UserJID,
                           #rsm_in{direction = undefined, index = Offset},
                           PageSize, Filter) when is_integer(Offset) ->
@@ -958,6 +969,11 @@ handle_call(test_query, From,
     State=#state{conn=Conn, test_query=TestQuery}) ->
     QueryRef = execute_prepared_query(Conn, TestQuery, []),
     {noreply, save_query_ref(From, QueryRef, State)};
+handle_call({remove_archive, BUserJID}, From,
+    State=#state{conn=Conn, remove_archive_query=RemoveArchiveQuery}) ->
+    Params = [BUserJID],
+    QueryRef = execute_prepared_query(Conn, RemoveArchiveQuery, Params),
+    {noreply, save_query_ref(From, QueryRef, State)};
 handle_call(_, _From, State=#state{}) ->
     {reply, ok, State}.
 
@@ -978,11 +994,6 @@ handle_cast({write_messages, Messages},
 handle_cast({delete_messages, Messages},
     State=#state{conn=Conn, delete_query=DeleteQuery}) ->
     [execute_prepared_query(Conn, DeleteQuery, delete_message_to_params(M)) || M <- Messages],
-    {noreply, State};
-handle_cast({remove_archive, BUserJID},
-    State=#state{conn=Conn, remove_archive_query=RemoveArchiveQuery}) ->
-    Params = [BUserJID],
-    execute_prepared_query(Conn, RemoveArchiveQuery, Params),
     {noreply, State};
 handle_cast(Msg, State) ->
     ?WARNING_MSG("Strange cast message ~p.", [Msg]),

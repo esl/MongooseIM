@@ -45,6 +45,10 @@
          prefs_set_cdata_request/1,
          pagination_first5/1,
          pagination_last5/1,
+         pagination_offset5/1,
+         pagination_first0/1,
+         pagination_last0/1,
+         pagination_offset5_max0/1,
          pagination_before10/1,
          pagination_after10/1,
          pagination_simple_before10/1,
@@ -192,14 +196,14 @@ cassandra_configs(_) ->
 
 basic_group_names() ->
     [
-    mam,
-    mam03,
-    mam04,
-    mam_purge,
-    muc,
-    muc03,
-    muc04,
-    muc_with_pm,
+%   mam,
+%   mam03,
+%   mam04,
+%   mam_purge,
+%   muc,
+%   muc03,
+%   muc04,
+%   muc_with_pm,
     rsm,
     rsm03,
     rsm04,
@@ -318,6 +322,10 @@ with_rsm_cases() ->
 rsm_cases() ->
       [pagination_first5,
        pagination_last5,
+       pagination_offset5,
+       pagination_first0,
+       pagination_last0,
+       pagination_offset5_max0,
        pagination_before10,
        pagination_after10,
        pagination_empty_rset,
@@ -1083,6 +1091,9 @@ respond_messages(#mam_archive_respond{respond_messages=Messages}) ->
 respond_iq(#mam_archive_respond{respond_iq=IQ}) ->
     IQ.
 
+respond_fin(#mam_archive_respond{respond_fin=Fin}) ->
+    Fin.
+
 get_prop(Key, undefined) ->
     get_prop(Key, []);
 get_prop(final_message, P) ->
@@ -1753,6 +1764,18 @@ pagination_first5(Config) ->
         end,
     escalus:story(Config, [{alice, 1}], F).
 
+pagination_first0(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        %% Get the first page of size 0.
+        RSM = #rsm_in{max=0},
+        rsm_send(Config, Alice,
+            stanza_page_archive_request(P, <<"first5">>, RSM)),
+        wait_empty_rset(P, Alice, 15),
+        ok
+        end,
+    escalus:story(Config, [{alice, 1}], F).
+
 pagination_first5_opt_count(Config) ->
     P = ?config(props, Config),
     F = fun(Alice) ->
@@ -1785,6 +1808,42 @@ pagination_last5(Config) ->
         rsm_send(Config, Alice,
             stanza_page_archive_request(P, <<"last5">>, RSM)),
         wait_message_range(P, Alice, 11, 15),
+        ok
+        end,
+    escalus:story(Config, [{alice, 1}], F).
+
+pagination_last0(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        %% Get the last page of size 0.
+        RSM = #rsm_in{max=0, direction=before},
+        rsm_send(Config, Alice,
+            stanza_page_archive_request(P, <<"last0">>, RSM)),
+        wait_empty_rset(P, Alice, 15),
+        ok
+        end,
+    escalus:story(Config, [{alice, 1}], F).
+
+pagination_offset5(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        %% Skip 5 messages, get 5 messages.
+        RSM = #rsm_in{max=5, index=5},
+        rsm_send(Config, Alice,
+            stanza_page_archive_request(P, <<"offset5">>, RSM)),
+        wait_message_range(P, Alice, 6, 10),
+        ok
+        end,
+    escalus:story(Config, [{alice, 1}], F).
+
+pagination_offset5_max0(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        %% Skip 5 messages, get 0 messages.
+        RSM = #rsm_in{max=0, index=5},
+        rsm_send(Config, Alice,
+            stanza_page_archive_request(P, <<"offset0_max5">>, RSM)),
+        wait_empty_rset(P, Alice, 15),
         ok
         end,
     escalus:story(Config, [{alice, 1}], F).
@@ -2558,7 +2617,6 @@ send_muc_rsm_messages(Config) ->
         escalus:wait_for_stanzas(Alice, 15, 5000),
 
         maybe_wait_for_yz(Config),
-        maybe_wait_for_cassandra(Config),
 
         %% Get whole history.
         escalus:send(Alice,
@@ -2709,6 +2767,7 @@ wait_message_range(P, Client, TotalCount, Offset, FromN, ToN) ->
     Result = wait_archive_respond(P, Client),
     Messages = respond_messages(Result),
     IQ = respond_iq(Result),
+    Fin = respond_fin(Result),
     ParsedMessages = parse_messages(Messages),
     ParsedIQ = parse_result_iq(P, Result),
     try
@@ -2721,9 +2780,10 @@ wait_message_range(P, Client, TotalCount, Offset, FromN, ToN) ->
     catch Class:Reason ->
         Stacktrace = erlang:get_stacktrace(),
         ct:pal("IQ: ~p~n"
+               "Fin: ~p~n"
                "Messages: ~p~n"
                "Parsed messages: ~p~n",
-               [IQ, Messages, ParsedMessages]),
+               [IQ, Fin, Messages, ParsedMessages]),
         erlang:raise(Class, Reason, Stacktrace)
     end.
 
@@ -2912,6 +2972,7 @@ login_send_presence(Config, User) ->
     Client.
 
 maybe_wait_for_yz(Config) ->
+    maybe_wait_for_cassandra(Config),
     case ?config(yz_wait, Config) of
         undefined ->
             ok;
