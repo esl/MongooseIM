@@ -5,8 +5,8 @@ set -e
 
 TARGET=/tmp/mim-sandbox-system
 
-rm -rf $TARGET
-rm configure.out rel/configure.vars.config rel/vars.config
+rm -rf $TARGET || :
+rm configure.out rel/configure.vars.config rel/vars.config || :
 ./tools/configure with-all user=erszcz prefix=$TARGET \
     system=yes && cat configure.out rel/configure.vars.config
 rm -rf rel/mongooseim; RUNNER_GROUP=staff make install
