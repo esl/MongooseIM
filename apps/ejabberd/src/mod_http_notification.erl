@@ -10,7 +10,7 @@
 -behaviour(gen_mod).
 
 %% API
--export([start/2, stop/1, on_user_send_packet/3,should_make_req/3]).
+-export([start/2, stop/1, on_user_send_packet/3, should_make_req/3]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -22,99 +22,99 @@
 -define(DEFAULT_HTTP_POOL_TIMEOUT, 200).
 
 start(Host, _Opts) ->
-  HttpHost = gen_mod:get_module_opt(Host, ?MODULE, host, ?DEFAULT_HTTP_HOST),
-  PoolSize = gen_mod:get_module_opt(Host, ?MODULE, pool_size, ?DEFAULT_HTTP_POOL_SIZE),
-  Timeout = gen_mod:get_module_opt(Host, ?MODULE, worker_timeout, ?DEFAULT_HTTP_WORKER_TIMEOUT),
-  PathPrefix = gen_mod:get_module_opt(Host, ?MODULE, prefix_path, ?DEFAULT_PREFIX_PATH),
-  PoolName = pool_name(Host),
-  PoolOpts = [
-    {name, {local, PoolName}},
-    {size, PoolSize},
-    {max_overflow, 5},
-    {worker_module, mod_http_notification_requestor}
-  ],
-  WorkerOpts = [
-    {http_host, HttpHost},
-    {timeout, Timeout},
-    {path_prefix, PathPrefix}
-  ],
-  {ok, _} = supervisor:start_child(ejabberd_sup,
-    {PoolName,
-      {poolboy, start_link,
-        [PoolOpts, WorkerOpts]},
-      transient, 2000, supervisor, [mod_http_notification_requestor]}),
-  ejabberd_hooks:add(user_send_packet, Host, ?MODULE, on_user_send_packet, 100),
-  ensure_metrics(Host),
-  ok.
+    HttpHost = gen_mod:get_module_opt(Host, ?MODULE, host, ?DEFAULT_HTTP_HOST),
+    PoolSize = gen_mod:get_module_opt(Host, ?MODULE, pool_size, ?DEFAULT_HTTP_POOL_SIZE),
+    Timeout = gen_mod:get_module_opt(Host, ?MODULE, worker_timeout, ?DEFAULT_HTTP_WORKER_TIMEOUT),
+    PathPrefix = gen_mod:get_module_opt(Host, ?MODULE, prefix_path, ?DEFAULT_PREFIX_PATH),
+    PoolName = pool_name(Host),
+    PoolOpts = [
+        {name, {local, PoolName}},
+        {size, PoolSize},
+        {max_overflow, 5},
+        {worker_module, mod_http_notification_requestor}
+    ],
+    WorkerOpts = [
+        {http_host, HttpHost},
+        {timeout, Timeout},
+        {path_prefix, PathPrefix}
+    ],
+    {ok, _} = supervisor:start_child(ejabberd_sup,
+        {PoolName,
+            {poolboy, start_link,
+                [PoolOpts, WorkerOpts]},
+            transient, 2000, supervisor, [mod_http_notification_requestor]}),
+    ejabberd_hooks:add(user_send_packet, Host, ?MODULE, on_user_send_packet, 100),
+    ensure_metrics(Host),
+    ok.
 
 stop(Host) ->
-  Ch = existing_pool_name(Host),
-  supervisor:terminate_child(ejabberd_sup, Ch),
-  supervisor:delete_child(ejabberd_sup, Ch),
-  ejabberd_hooks:delete(user_send_packet, Host, ?MODULE, on_user_send_packet, 100),
-  ok.
+    Ch = existing_pool_name(Host),
+    supervisor:terminate_child(ejabberd_sup, Ch),
+    supervisor:delete_child(ejabberd_sup, Ch),
+    ejabberd_hooks:delete(user_send_packet, Host, ?MODULE, on_user_send_packet, 100),
+    ok.
 
 on_user_send_packet(From, To, Packet) ->
-  Body = exml_query:path(Packet, [{element, <<"body">>}, cdata], <<>>),
-  Mod = get_callback_module(),
-  case Mod:should_make_req(Packet, From, To) of
-    true ->
-      make_req(From#jid.lserver, From#jid.luser, To#jid.luser, Body);
-    _ ->
-      ok
-  end.
+    Body = exml_query:path(Packet, [{element, <<"body">>}, cdata], <<>>),
+    Mod = get_callback_module(),
+    case Mod:should_make_req(Packet, From, To) of
+        true ->
+            make_req(From#jid.lserver, From#jid.luser, To#jid.luser, Body);
+        _ ->
+            ok
+    end.
 
 %% @doc This function determines whether to send http notification or not.
 %% Can be reconfigured by creating a custom module implementing should_make_req/3
 %% and adding it to mod_http_notification settings as {callback_module}
 %% Default behaviour is to send all chat messages with non-empty body.
 should_make_req(Packet, From, To) ->
-  Type = exml_query:attr(Packet, <<"type">>, <<>>),
-  Body = exml_query:path(Packet, [{element, <<"body">>}, cdata], <<>>),
-  should_make_req(Type, Body, From, To).
+    Type = exml_query:attr(Packet, <<"type">>, <<>>),
+    Body = exml_query:path(Packet, [{element, <<"body">>}, cdata], <<>>),
+    should_make_req(Type, Body, From, To).
 
 should_make_req(<<"chat">>, Body, _From, _To) when Body /= <<"">> ->
-  true;
+    true;
 should_make_req(_, _, _, _) ->
-  false.
+    false.
 
 get_callback_module() ->
-  gen_mod:get_module_opt(?MYNAME, ?MODULE, callback_module, ?MODULE).
+    gen_mod:get_module_opt(?MYNAME, ?MODULE, callback_module, ?MODULE).
 
 make_req(Host, Sender, Receiver, Message) ->
-  Req = {Host, Sender, Receiver, Message},
-  PoolName = existing_pool_name(Host),
-  PoolTimeout = gen_mod:get_module_opt(Host, ?MODULE, pool_timeout, ?DEFAULT_HTTP_POOL_TIMEOUT),
-  T0 = os:timestamp(),
-  {Res, Elapsed} = case catch poolboy:transaction(PoolName, fun(W) -> gen_server:call(W, Req) end, PoolTimeout) of
-          {'EXIT', {timeout, _}} ->
-            {{error, poolbusy}, 0};
-          {error, HttpError} ->
-            {{error, HttpError}, 0};
-          ok ->
-            {ok, timer:now_diff(os:timestamp(), T0)}
-        end,
-  record_result(Host, Res, Elapsed),
-  ok.
+    Req = {Host, Sender, Receiver, Message},
+    PoolName = existing_pool_name(Host),
+    PoolTimeout = gen_mod:get_module_opt(Host, ?MODULE, pool_timeout, ?DEFAULT_HTTP_POOL_TIMEOUT),
+    T0 = os:timestamp(),
+    {Res, Elapsed} = case catch poolboy:transaction(PoolName, fun(W) -> gen_server:call(W, Req) end, PoolTimeout) of
+                         {'EXIT', {timeout, _}} ->
+                             {{error, poolbusy}, 0};
+                         {error, HttpError} ->
+                             {{error, HttpError}, 0};
+                         ok ->
+                             {ok, timer:now_diff(os:timestamp(), T0)}
+                     end,
+    record_result(Host, Res, Elapsed),
+    ok.
 
 pool_name(Host) ->
-  list_to_atom("http_notification_" ++ binary_to_list(Host)).
+    list_to_atom("http_notification_" ++ binary_to_list(Host)).
 
 existing_pool_name(Host) ->
-  list_to_existing_atom("http_notification_" ++ binary_to_list(Host)).
+    list_to_existing_atom("http_notification_" ++ binary_to_list(Host)).
 
 ensure_metrics(Host) ->
-  mongoose_metrics:ensure_metric([Host, mod_http_notifications, sent], spiral),
-  mongoose_metrics:ensure_metric([Host, mod_http_notifications, failed], spiral),
-  mongoose_metrics:ensure_metric([Host, mod_http_notifications, response_time], histogram),
-  ok.
+    mongoose_metrics:ensure_metric([Host, mod_http_notifications, sent], spiral),
+    mongoose_metrics:ensure_metric([Host, mod_http_notifications, failed], spiral),
+    mongoose_metrics:ensure_metric([Host, mod_http_notifications, response_time], histogram),
+    ok.
 
 
 record_result(Host, ok, Elapsed) ->
-  mongoose_metrics:update([Host, mod_http_notifications, sent], 1),
-  mongoose_metrics:update([Host, mod_http_notifications, response_time], Elapsed / 1000),
-  ok;
+    mongoose_metrics:update([Host, mod_http_notifications, sent], 1),
+    mongoose_metrics:update([Host, mod_http_notifications, response_time], Elapsed / 1000),
+    ok;
 record_result(Host, {error, Reason}, _) ->
-  mongoose_metrics:update([Host, mod_http_notifications, failed], 1),
-  ?WARNING_MSG("Sending http notification failed: ~p", [Reason]),
-  ok.
+    mongoose_metrics:update([Host, mod_http_notifications, failed], 1),
+    ?WARNING_MSG("Sending http notification failed: ~p", [Reason]),
+    ok.

@@ -23,11 +23,11 @@
 
 %% gen_server callbacks
 -export([init/1,
-  handle_call/3,
-  handle_cast/2,
-  handle_info/2,
-  terminate/2,
-  code_change/3]).
+    handle_call/3,
+    handle_cast/2,
+    handle_info/2,
+    terminate/2,
+    code_change/3]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -41,7 +41,7 @@
 %%%===================================================================
 
 start_link(Opts) ->
-  gen_server:start_link(?MODULE, Opts, []).
+    gen_server:start_link(?MODULE, Opts, []).
 
 
 %%%===================================================================
@@ -49,44 +49,44 @@ start_link(Opts) ->
 %%%===================================================================
 
 init(Opts) ->
-  {_, HttpHost} = proplists:lookup(http_host, Opts),
-  {_, Timeout} = proplists:lookup(timeout, Opts),
-  {_, PathPrefix} = proplists:lookup(path_prefix, Opts),
-  {ok, Conn} = fusco:start_link(HttpHost, []),
-  {ok, #state{httphost = HttpHost, timeout = Timeout, pathprefix = PathPrefix, connection = Conn}}.
+    {_, HttpHost} = proplists:lookup(http_host, Opts),
+    {_, Timeout} = proplists:lookup(timeout, Opts),
+    {_, PathPrefix} = proplists:lookup(path_prefix, Opts),
+    {ok, Conn} = fusco:start_link(HttpHost, []),
+    {ok, #state{httphost = HttpHost, timeout = Timeout, pathprefix = PathPrefix, connection = Conn}}.
 
 handle_call(Request, _From, #state{connection = Connection, pathprefix = Path, timeout = Timeout} = State) ->
-  {Host, Sender, Receiver, Message} = Request,
-  Req = {Connection, Host, Path, Sender, Receiver, Message, Timeout},
-  Res = make_req(Req),
-  {reply, Res, State}.
+    {Host, Sender, Receiver, Message} = Request,
+    Req = {Connection, Host, Path, Sender, Receiver, Message, Timeout},
+    Res = make_req(Req),
+    {reply, Res, State}.
 
 handle_cast(_Request, State) ->
-  {noreply, State}.
+    {noreply, State}.
 
 handle_info(_Info, State) ->
-  {noreply, State}.
+    {noreply, State}.
 
 terminate(_Reason, _State) ->
-  ok.
+    ok.
 
 code_change(_OldVsn, State, _Extra) ->
-  {ok, State}.
+    {ok, State}.
 
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
 
 make_req({Connection, Host, Path, Sender, Receiver, Message, Timeout}) ->
-  Query = <<"author=", Sender/binary, "&server=", Host/binary, "&receiver=", Receiver/binary, "&message=",
-    Message/binary>>,
-  ?INFO_MSG("Making request '~s' for user ~s@~s...", [Path, Sender, Host]),
-  Header = [{<<"Content-Type">>, <<"application/x-www-form-urlencoded">>}],
-  case fusco:request(Connection, <<Path/binary>>, "POST", Header, Query, 2, Timeout) of
-    {ok, {{Code, _Reason}, _RespHeaders, RespBody, _, _}} ->
-      ?INFO_MSG("Request result: ~s: ~p", [Code, RespBody]),
-      ok;
-    Else ->
-      Else
-  end.
+    Query = <<"author=", Sender/binary, "&server=", Host/binary, "&receiver=", Receiver/binary, "&message=",
+        Message/binary>>,
+    ?INFO_MSG("Making request '~s' for user ~s@~s...", [Path, Sender, Host]),
+    Header = [{<<"Content-Type">>, <<"application/x-www-form-urlencoded">>}],
+    case fusco:request(Connection, <<Path/binary>>, "POST", Header, Query, 2, Timeout) of
+        {ok, {{Code, _Reason}, _RespHeaders, RespBody, _, _}} ->
+            ?INFO_MSG("Request result: ~s: ~p", [Code, RespBody]),
+            ok;
+        Else ->
+            Else
+    end.
 
