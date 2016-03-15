@@ -76,7 +76,7 @@ simple_message(Config) ->
                    {ok, got_http_request, _} ->
                        true
                after 2000 ->
-            false
+                       false
                end,
     assert_true("notified", Notified).
 
@@ -89,9 +89,8 @@ simple_message_failing_listener(Config) ->
 
 do_simple_message(Config, Msg) ->
     %% Alice sends a message to Bob, who is offline
-    escalus:story(Config, [{alice, 1}], fun(Alice) ->
-        escalus:send(Alice, escalus_stanza:chat_to(bob, Msg))
-                                        end),
+    escalus:story(Config, [{alice, 1}],
+        fun(Alice) -> escalus:send(Alice, escalus_stanza:chat_to(bob, Msg)) end),
 
     %% Bob logs in
     Bob = login_send_presence(Config, bob),
@@ -99,9 +98,7 @@ do_simple_message(Config, Msg) ->
     %% He receives his initial presence and the message
     Stanzas = escalus:wait_for_stanzas(Bob, 2),
 %%  ct:pal("Stanzas:~p", [Stanzas]),
-    escalus_new_assert:mix_match([is_presence,
-        is_chat(Msg)],
-        Stanzas),
+    escalus_new_assert:mix_match([is_presence, is_chat(Msg)], Stanzas),
     escalus_cleaner:clean(Config).
 
 

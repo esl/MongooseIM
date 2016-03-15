@@ -19,15 +19,15 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/1]).
+-export([start_link/1, request/2]).
 
 %% gen_server callbacks
 -export([init/1,
-    handle_call/3,
-    handle_cast/2,
-    handle_info/2,
-    terminate/2,
-    code_change/3]).
+         handle_call/3,
+         handle_cast/2,
+         handle_info/2,
+         terminate/2,
+         code_change/3]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -43,6 +43,9 @@
 start_link(Opts) ->
     gen_server:start_link(?MODULE, Opts, []).
 
+request(Pid, Req) ->
+    gen_server:call(Pid, Req).
+
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -57,8 +60,7 @@ init(Opts) ->
 
 handle_call(Request, _From, #state{connection = Connection, pathprefix = Path, timeout = Timeout} = State) ->
     {Host, Sender, Receiver, Message} = Request,
-    Req = {Connection, Host, Path, Sender, Receiver, Message, Timeout},
-    Res = make_req(Req),
+    Res = make_req(Connection, Host, Path, Sender, Receiver, Message, Timeout),
     {reply, Res, State}.
 
 handle_cast(_Request, State) ->
@@ -77,9 +79,9 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%%===================================================================
 
-make_req({Connection, Host, Path, Sender, Receiver, Message, Timeout}) ->
+make_req(Connection, Host, Path, Sender, Receiver, Message, Timeout) ->
     Query = <<"author=", Sender/binary, "&server=", Host/binary, "&receiver=", Receiver/binary, "&message=",
-        Message/binary>>,
+              Message/binary>>,
     ?INFO_MSG("Making request '~s' for user ~s@~s...", [Path, Sender, Host]),
     Header = [{<<"Content-Type">>, <<"application/x-www-form-urlencoded">>}],
     case fusco:request(Connection, <<Path/binary>>, "POST", Header, Query, 2, Timeout) of

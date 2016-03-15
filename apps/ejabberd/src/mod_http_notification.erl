@@ -27,17 +27,13 @@ start(Host, _Opts) ->
     Timeout = gen_mod:get_module_opt(Host, ?MODULE, worker_timeout, ?DEFAULT_HTTP_WORKER_TIMEOUT),
     PathPrefix = gen_mod:get_module_opt(Host, ?MODULE, prefix_path, ?DEFAULT_PREFIX_PATH),
     PoolName = pool_name(Host),
-    PoolOpts = [
-        {name, {local, PoolName}},
-        {size, PoolSize},
-        {max_overflow, 5},
-        {worker_module, mod_http_notification_requestor}
-    ],
-    WorkerOpts = [
-        {http_host, HttpHost},
-        {timeout, Timeout},
-        {path_prefix, PathPrefix}
-    ],
+    PoolOpts = [{name, {local, PoolName}},
+                {size, PoolSize},
+                {max_overflow, 5},
+                {worker_module, mod_http_notification_requestor}],
+    WorkerOpts = [{http_host, HttpHost},
+                  {timeout, Timeout},
+                  {path_prefix, PathPrefix}],
     {ok, _} = supervisor:start_child(ejabberd_sup,
         {PoolName,
             {poolboy, start_link,
@@ -86,7 +82,8 @@ make_req(Host, Sender, Receiver, Message) ->
     PoolName = existing_pool_name(Host),
     PoolTimeout = gen_mod:get_module_opt(Host, ?MODULE, pool_timeout, ?DEFAULT_HTTP_POOL_TIMEOUT),
     T0 = os:timestamp(),
-    {Res, Elapsed} = case catch poolboy:transaction(PoolName, fun(W) -> gen_server:call(W, Req) end, PoolTimeout) of
+    {Res, Elapsed} = case catch poolboy:transaction(PoolName,
+        fun(W) -> mod_http_notification_requestor:request(W, Req) end, PoolTimeout) of
                          {'EXIT', {timeout, _}} ->
                              {{error, poolbusy}, 0};
                          {error, HttpError} ->
