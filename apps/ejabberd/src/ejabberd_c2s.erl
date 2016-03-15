@@ -890,12 +890,12 @@ session_established({xmlstreamelement,
                       session_established, StateData);
 session_established({xmlstreamelement,
                      #xmlel{name = <<"inactive">>} = El}, StateData) ->
-    ?WARNING_MSG("go into inactive state", []),
+    ?DEBUG("go into inactive state", []),
     %%TODO add metrics here
     maybe_inactivate_session(xml:get_tag_attr_s(<<"xmlns">>, El), StateData);
 session_established({xmlstreamelement,
                      #xmlel{name = <<"active">>} = El}, StateData) ->
-    ?WARNING_MSG("go into active state", []),
+    ?DEBUG("go into active state", []),
     %%TODO add metrics here
     maybe_activate_session(xml:get_tag_attr_s(<<"xmlns">>, El), StateData);
 session_established({xmlstreamelement, El}, StateData) ->
