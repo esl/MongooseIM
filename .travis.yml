@@ -34,6 +34,7 @@ after_failure:
 services:
         - redis-server
         - docker
+        - riak
 branches:
         only:
                 - master
