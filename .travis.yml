@@ -38,6 +38,7 @@ after_success:
 services:
         - redis-server
         - docker
+        - riak
 branches:
         only:
                 - docker-image-building
