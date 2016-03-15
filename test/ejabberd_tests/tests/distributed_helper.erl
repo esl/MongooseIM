@@ -36,11 +36,13 @@ add_node_to_cluster(ConfigIn) ->
     Res1 = call_fun(Node, os, cmd, [StopCmd]),
     ?assertEqual("", Res1),
     wait_until_stopped(StatusCmd, 120),
+
     Res2 = call_fun(Node, os, cmd, [MnesiaCmd]),
     ?assertEqual("", Res2),
 
     Res3 = call_fun(Node, os, cmd, [AddToClusterCmd]),
     ?assertMatch("Node added to cluster" ++ _, Res3),
+
     Res4 = call_fun(Node, os, cmd, [StartCmd]),
     ?assertEqual("", Res4),
     wait_until_started(StatusCmd, 120),
@@ -62,16 +64,17 @@ remove_node_from_cluster(Config) ->
     MnesiaCmd = "rm -rf " ++ MnesiaDir,
 
     Res1 = call_fun(Node, os, cmd, [StopCmd]),
+    ?assertEqual(Res1, ""),
     wait_until_stopped(StatusCmd, 120),
 
     Res2 = call_fun(Node, os, cmd, [RemoveCmd]),
+    ?assertEqual(Res2, "{atomic,ok}\n"),
+
     Res3 = call_fun(Node, os, cmd, [MnesiaCmd]),
+    ?assertEqual(Res3, ""),
+
     Res4 = call_fun(Node, os, cmd, [StartCmd]),
     wait_until_started(StatusCmd, 120),
-
-    ?assertEqual(Res1, ""),
-    ?assertEqual(Res2, "{atomic,ok}\n"),
-    ?assertEqual(Res3, ""),
     ?assertEqual(Res4, ""),
 
     verify_result(remove),
@@ -86,7 +89,7 @@ wait_until_started(_, 0) ->
     erlang:error({timeout, starting_node});
 wait_until_started(Cmd, Retries) ->
     Result = os:cmd(Cmd),
-    case re:run(Result, "Node .* is started") of
+    case re:run(Result, "Erlang VM status: started") of
         {match, _} ->
             ok;
         nomatch ->
@@ -100,7 +103,7 @@ wait_until_stopped(Cmd, Retries) ->
     case os:cmd(Cmd) of
         "Failed RPC connection" ++ _ ->
             ok;
-        "Node" ++ _ ->
+        _ ->
             timer:sleep(1000),
             wait_until_stopped(Cmd, Retries-1)
     end.
