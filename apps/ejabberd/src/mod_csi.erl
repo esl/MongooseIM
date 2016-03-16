@@ -3,6 +3,7 @@
 %% Includes support for XEP-0352: Client State Indication.
 %%
 -module(mod_csi).
+-xep([{xep, 352}, {version, "0.2"}]).
 -behaviour(gen_mod).
 
 -export([start/2]).

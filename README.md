@@ -78,7 +78,7 @@ Features and supported standards
 
 |||||
 | ------------- | ------------- | ------------- |------------- |
-| [0004 - Data Forms](http://xmpp.org/extensions/xep-0004.html) | [0012 - Last Activity](http://xmpp.org/extensions/xep-0012.html) | [0016 - Privacy Lists](http://xmpp.org/extensions/xep-0016.html)|[0018 - Invisible Presence](http://xmpp.org/extensions/xep-0018.html)|
+|[0004 - Data Forms](http://xmpp.org/extensions/xep-0004.html) | [0012 - Last Activity](http://xmpp.org/extensions/xep-0012.html) | [0016 - Privacy Lists](http://xmpp.org/extensions/xep-0016.html)|[0018 - Invisible Presence](http://xmpp.org/extensions/xep-0018.html)|
 |[0022 - Message Events](http://xmpp.org/extensions/xep-0022.html)| [0023 - Message Expiration](http://xmpp.org/extensions/xep-0023.html)|[0030 - Service Discovery](http://xmpp.org/extensions/xep-0030.html)| [0045 - Multi-User Chat](http://xmpp.org/extensions/xep-0045.html)|
 |[0049 - Private XML Storage](http://xmpp.org/extensions/xep-0049.html)| [0050 - Ad-Hoc Commands](http://xmpp.org/extensions/xep-0050.html)| [0054 - vcard-temp](http://xmpp.org/extensions/xep-0054.html)| [0055 - Jabber Search](http://xmpp.org/extensions/xep-0055.html)
 |[0059 - Result Set Management](http://xmpp.org/extensions/xep-0059.html)|[0068 - Field Standardization for Data Forms](http://xmpp.org/extensions/xep-0068.html)| [0073 - Basic IM Protocol Suite](http://xmpp.org/extensions/xep-0073.html)| [0077 - In-Band Registration](http://xmpp.org/extensions/xep-0077.html)|
@@ -89,6 +89,7 @@ Features and supported standards
 |[0185: Dialback Key Generation and Validation](http://www.xmpp.org/extensions/xep-0185.html)| [0184 - Message Delivery Receipts](http://xmpp.org/extensions/xep-0184.html)| [0198 - Stream Management](http://xmpp.org/extensions/xep-0198.html)| [0199 - XMPP Ping](http://xmpp.org/extensions/xep-0199.html)|
 |[0202 - Entity Time](http://www.xmpp.org/extensions/xep-0202.html) | [0203 - Delayed Delivery](http://xmpp.org/extensions/xep-0203.html)| [0206 - XMPP Over BOSH](http://xmpp.org/extensions/xep-0206.html)| [0212 - XMPP Basic Server 2008](http://xmpp.org/extensions/xep-0212.html)|
 |[0237 - Roster Versioning](http://xmpp.org/extensions/xep-0237.html)| [0279 - Server IP Check](http://xmpp.org/extensions/xep-0279.html)| [0280 - Message Carbons](http://xmpp.org/extensions/xep-0280.html)| [0313 - Message Archive Management v0.2 ](http://xmpp.org/extensions/attic/xep-0313-0.2.html)|
+|[XEP-0352: Client State Indication](http://www.xmpp.org/extensions/xep-0352.html)| | |
 
 
 How to build
