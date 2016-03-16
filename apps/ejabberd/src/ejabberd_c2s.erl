@@ -889,15 +889,17 @@ session_established({xmlstreamelement,
                       StateData#state.stream_mgmt_in,
                       session_established, StateData);
 session_established({xmlstreamelement,
-                     #xmlel{name = <<"inactive">>} = El}, StateData) ->
-    ?DEBUG("go into inactive state", []),
-    %%TODO add metrics here
-    maybe_inactivate_session(xml:get_tag_attr_s(<<"xmlns">>, El), StateData);
+                     #xmlel{name = <<"inactive">>} = El}, State) ->
+    mongoose_metrics:update([State#state.server, modCSIInactive], 1),
+
+    maybe_inactivate_session(xml:get_tag_attr_s(<<"xmlns">>, El), State);
+
 session_established({xmlstreamelement,
-                     #xmlel{name = <<"active">>} = El}, StateData) ->
-    ?DEBUG("go into active state", []),
-    %%TODO add metrics here
-    maybe_activate_session(xml:get_tag_attr_s(<<"xmlns">>, El), StateData);
+                     #xmlel{name = <<"active">>} = El}, State) ->
+    mongoose_metrics:update([State#state.server, modCSIActive], 1),
+
+    maybe_activate_session(xml:get_tag_attr_s(<<"xmlns">>, El), State);
+
 session_established({xmlstreamelement, El}, StateData) ->
     FromJID = StateData#state.jid,
     % Check 'from' attribute in stanza RFC 3920 Section 9.1.2
