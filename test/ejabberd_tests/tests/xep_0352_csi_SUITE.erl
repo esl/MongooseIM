@@ -11,16 +11,20 @@ all() ->
 groups() ->
     [{basic,
       [parallel, shuffle],
-      [
-       server_announces_csi,
-       alice_is_inactive_and_no_stanza_arrived,
-       alice_gets_msgs_after_activate,
-       alice_gets_msgs_after_activate_in_order,
-       bob_does_not_get_msgs_from_inactive_alice,
-       bob_gets_msgs_from_aclie_after_she_is_active_back,
-       bob_and_alice_get_msgs_from_each_other_after_alice_is_active,
-       alice_is_inactive_but_sends_sm_req_and_recives_ack_after_active
-      ]}].
+      all_tests()
+     }].
+
+all_tests() ->
+    [
+     server_announces_csi,
+     alice_is_inactive_and_no_stanza_arrived,
+     alice_gets_msgs_after_activate,
+     alice_gets_msgs_after_activate_in_order,
+     bob_does_not_get_msgs_from_inactive_alice,
+     bob_gets_msgs_from_aclie_after_she_is_active_back,
+     bob_and_alice_get_msgs_from_each_other_after_alice_is_active,
+     alice_is_inactive_but_sends_sm_req_and_recives_ack_after_active
+    ].
 
 suite() ->
     escalus:suite().
@@ -29,6 +33,7 @@ init_per_suite(Config) ->
     [{escalus_user_db, {module, escalus_ejabberd}} | escalus:init_per_suite(Config)].
 
 end_per_suite(Config) ->
+    escalus_fresh:clean(),
     escalus:end_per_suite(Config).
 
 init_per_group(_, Config) ->
