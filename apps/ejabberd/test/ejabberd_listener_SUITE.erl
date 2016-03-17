@@ -3,25 +3,37 @@
 -compile([export_all]).
 
 all() ->
-    [tcp_socket_is_started_with_options].
+    [tcp_socket_is_started_with_default_backlog,
+     tcp_socket_is_started_with_options].
 
-
-tcp_socket_is_started_with_options(_C) ->
-
+init_per_testcase(_T, C) ->
     meck:new(gen_tcp, [unstick, passthrough]),
     meck:expect(gen_tcp, listen, fun(Port, Opts) ->
                                          meck:passthrough([Port, Opts])
                                  end),
+    C.
+
+end_per_testcase(_T, C) ->
+    meck:unload(gen_tcp),
+    C.
+
+tcp_socket_is_started_with_default_backlog(_C) ->
+   {ok, _Pid} = listener_started([]),
+
+   [{_Pid, {gen_tcp, listen, [_, Opts]}, _Result}] =  meck:history(gen_tcp),
+
+    100 = proplists:get_value(backlog, Opts).
+
+
+tcp_socket_is_started_with_options(_C) ->
 
     OverrideBacklog = {backlog, 50},
     {ok, _Pid} = listener_started([OverrideBacklog]),
 
     [{_Pid, {gen_tcp, listen, [_, Opts]}, _Result}] =  meck:history(gen_tcp),
 
-    DefaultBacklog = {backlog, 100},
-    [DefaultBacklog, OverrideBacklog] = proplists:lookup_all(backlog, Opts),
+    50 = proplists:get_value(backlog, Opts).
 
-    meck:unload(gen_tcp).
 
 listener_started(Opts) ->
     ets:new(listen_sockets, [named_table, public]),
