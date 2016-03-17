@@ -81,8 +81,7 @@ start(Host, Opts) ->
     start_muc(Host, Opts).
 
 stop(Host) ->
-    stop_muc(Host),
-    mod_mam_muc_ca_sup:stop(Host).
+    stop_muc(Host).
 
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam_muc
