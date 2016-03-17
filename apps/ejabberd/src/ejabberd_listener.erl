@@ -116,6 +116,7 @@ start_dependent(Port, Module, Opts) ->
 init(PortIP, Module, RawOpts) ->
     {Port, IPT, IPS, IPV, Proto, OptsClean} = parse_listener_portip(PortIP, RawOpts),
     {Opts, SockOpts} = prepare_opts(IPT, IPV, OptsClean),
+
     if Proto == udp ->
             init_udp(PortIP, Module, Opts, SockOpts, Port, IPS);
        true ->
@@ -173,13 +174,14 @@ listen_tcp(PortIPProto, Module, SockOpts, Port, IPS) ->
             ListenSocket;
         _ ->
             Res = gen_tcp:listen(Port, [binary,
+                                        {backlog, 100},
                                         {packet, 0},
                                         {active, false},
                                         {reuseaddr, true},
                                         {nodelay, true},
                                         {send_timeout, ?TCP_SEND_TIMEOUT},
                                         {keepalive, true},
-                                        {send_timeout_close, true}]),
+                                        {send_timeout_close, true} | SockOpts]),
             case Res of
                 {ok, ListenSocket} ->
                     ListenSocket;
@@ -187,6 +189,7 @@ listen_tcp(PortIPProto, Module, SockOpts, Port, IPS) ->
                     socket_error(Reason, PortIPProto, Module, SockOpts, Port, IPS)
             end
     end.
+
 
 %% @spec (PortIP, Opts) -> {Port, IPT, IPS, IPV, OptsClean}
 %% where
