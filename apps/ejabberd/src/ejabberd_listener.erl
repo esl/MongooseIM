@@ -173,15 +173,18 @@ listen_tcp(PortIPProto, Module, SockOpts, Port, IPS) ->
             ets:delete(listen_sockets, PortIP),
             ListenSocket;
         _ ->
-            Res = gen_tcp:listen(Port, [binary,
-                                        {backlog, 100},
-                                        {packet, 0},
-                                        {active, false},
-                                        {reuseaddr, true},
-                                        {nodelay, true},
-                                        {send_timeout, ?TCP_SEND_TIMEOUT},
-                                        {keepalive, true},
-                                        {send_timeout_close, true} | SockOpts]),
+            DefaultSockOpts = [binary,
+                               {backlog, 100},
+                               {packet, 0},
+                               {active, false},
+                               {reuseaddr, true},
+                               {nodelay, true},
+                               {send_timeout, 120},
+                               {keepalive, true},
+                               {send_timeout_close, true}],
+
+            FinalSockOpts = override_sock_opts(SockOpts, DefaultSockOpts),
+            Res = gen_tcp:listen(Port, FinalSockOpts),
             case Res of
                 {ok, ListenSocket} ->
                     ListenSocket;
@@ -190,16 +193,24 @@ listen_tcp(PortIPProto, Module, SockOpts, Port, IPS) ->
             end
     end.
 
+override_sock_opts([], Opts) ->
+    Opts;
+override_sock_opts([Override | OverrideOpts], Opts) ->
+    NewOpts = do_override(Override, Opts),
+    override_sock_opts(OverrideOpts, NewOpts).
 
-%% @spec (PortIP, Opts) -> {Port, IPT, IPS, IPV, OptsClean}
-%% where
-%%      PortIP = Port | {Port, IPT | IPS}
-%%      Port = integer()
-%%      IPT = tuple()
-%%      IPS = string()
-%%      IPV = inet | inet6
-%%      Opts = [IPV | {ip, IPT} | atom() | tuple()]
-%%      OptsClean = [atom() | tuple()]
+do_override({ip, _} = IP, Opts) ->
+    lists:keystore(ip, 1, Opts, IP);
+do_override({backlog, _} = Backlog, Opts) ->
+    lists:keystore(backlog, 1, Opts, Backlog);
+do_override(inet6, Opts) ->
+    [inet6 | lists:delete(inet6, Opts)];
+do_override(inet, Opts) ->
+    [inet | lists:delete(inet, Opts)];
+do_override(_, Opts) ->
+    Opts.
+
+
 %% @doc Parse any kind of ejabberd listener specification.
 %% The parsed options are returned in several formats.
 %% OptsClean does not include inet/inet6 or ip options.
@@ -255,6 +266,7 @@ prepare_opts(IPT, IPV, OptsClean) ->
                                (_) -> false
                             end, Opts),
     {Opts, SockOpts}.
+
 
 -spec add_proto(PortIPProto :: port_ip_proto(),
                 Opts :: [any()]
