@@ -24,7 +24,9 @@ add_node_to_cluster(ConfigIn) ->
     Node2Ctl = ctl_path(Node2, Config),
 
     StartCmd = Node2Ctl ++ " start",
+    StartedCmd = Node2Ctl ++ " started",
     StopCmd = Node2Ctl  ++ " stop",
+    StoppedCmd = Node2Ctl ++ " stopped",
     StatusCmd = Node2Ctl ++ " status",
 
 
@@ -35,6 +37,7 @@ add_node_to_cluster(ConfigIn) ->
 
     Res1 = call_fun(Node, os, cmd, [StopCmd]),
     ?assertEqual("", Res1),
+    call_fun(Node, os, cmd, [StoppedCmd]),
     wait_until_stopped(StatusCmd, 120),
 
     Res2 = call_fun(Node, os, cmd, [MnesiaCmd]),
@@ -45,6 +48,7 @@ add_node_to_cluster(ConfigIn) ->
 
     Res4 = call_fun(Node, os, cmd, [StartCmd]),
     ?assertEqual("", Res4),
+    call_fun(Node, os, cmd, [StartedCmd]),
     wait_until_started(StatusCmd, 120),
 
     verify_result(add),
@@ -56,7 +60,9 @@ remove_node_from_cluster(Config) ->
     Node2 = ct:get_config(ejabberd2_node),
     Node2Ctl = ctl_path(Node2, Config),
     StartCmd = Node2Ctl ++ " start",
+    StartedCmd = Node2Ctl ++ " started",
     StopCmd = Node2Ctl ++ " stop",
+    StoppedCmd = Node2Ctl ++ " stopped",
     StatusCmd = Node2Ctl ++ " status",
     RemoveCmd = ctl_path(Node, Config) ++ " remove_from_cluster " ++ atom_to_list(Node2),
 
@@ -64,6 +70,7 @@ remove_node_from_cluster(Config) ->
     MnesiaCmd = "rm -rf " ++ MnesiaDir,
 
     Res1 = call_fun(Node, os, cmd, [StopCmd]),
+    call_fun(Node, os, cmd, [StoppedCmd]),
     ?assertEqual(Res1, ""),
     wait_until_stopped(StatusCmd, 120),
 
@@ -74,8 +81,9 @@ remove_node_from_cluster(Config) ->
     ?assertEqual(Res3, ""),
 
     Res4 = call_fun(Node, os, cmd, [StartCmd]),
-    wait_until_started(StatusCmd, 120),
     ?assertEqual(Res4, ""),
+    call_fun(Node, os, cmd, [StartedCmd]),
+    wait_until_started(StatusCmd, 120),
 
     verify_result(remove),
 
