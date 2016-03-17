@@ -86,7 +86,7 @@ run_tests() {
 	exit ${RESULT}
 }
 
-if [ $PRESET = "dialyzer_only" ]; then
+if [ $PRESET == "dialyzer_only" ]; then
 	make dialyzer
 
 else

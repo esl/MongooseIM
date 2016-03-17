@@ -19,6 +19,7 @@ Handles pure XMPP connections, relies on `ejabberd_listener` for listening. It p
 * `access` (atom, default: `c2s`) - Access Rule to use for C2S connections.
 * `c2s_shaper` (atom, default: `c2s_shaper`) - Connection shaper to use for incoming C2S stanzas.
 * `max_stanza_size` (positive integer, default: 65536) - Maximum allowed incoming stanza size. **Warning:** this limit is checked **after** input data parsing, so it does not limit the input data size itself.
+* `backlog` (positive integer, default 100) - overrides default tcp backlog value
 
 ## ejabberd_cowboy
 
