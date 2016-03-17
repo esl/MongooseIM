@@ -6,9 +6,6 @@
 %%%-------------------------------------------------------------------
 -module(mod_mam_muc_ca_arch).
 
-%% ----------------------------------------------------------------------
-%% Exports
-
 %% gen_mod handlers
 -export([start/2, stop/1]).
 
@@ -20,18 +17,8 @@
          purge_single_message/6,
          purge_multiple_messages/9]).
 
-%% Helpers for debugging
--export([test_query/1,
-         queue_length/1,
-         queue_lengths/1]).
-
-%% Internal exports
--export([start_link/4]).
-
-%% gen_server callbacks
--export([init/1, handle_call/3, handle_cast/2, handle_info/2,
-         terminate/2, code_change/3]).
-
+%% cassandra_worker callbacks
+-export([prepared_queries/0]).
 
 %% ----------------------------------------------------------------------
 %% Imports
@@ -56,21 +43,6 @@
 -include_lib("ejabberd/include/jlib.hrl").
 -include_lib("exml/include/exml.hrl").
 
--record(state, {
-    host,
-    conn,
-    insert_query,
-    delete_query,
-    remove_archive_query,
-    message_id_to_nick_name_query,
-    test_query,
-    calc_count_handler,
-    list_message_ids_handler,
-    extract_messages_handler,
-    extract_messages_r_handler,
-    query_refs,
-    query_refs_count}).
-
 -record(mam_muc_ca_filter, {
     room_jid,
     with_nick,
@@ -78,10 +50,6 @@
     start_id,
     end_id
 }).
-
--record(prepared_query, {
-          query_id,
-          query_types}).
 
 -record(mam_muc_message, {
   id :: non_neg_integer(),
@@ -110,21 +78,11 @@
 
 start(Host, Opts) ->
     compile_params_module(Opts),
-    create_worker_pool(Host),
-    mod_mam_muc_ca_sup:start(Host, cassandra_config(Host)),
     start_muc(Host, Opts).
 
 stop(Host) ->
     stop_muc(Host),
-    delete_worker_pool(Host),
     mod_mam_muc_ca_sup:stop(Host).
-
-cassandra_config(Host) ->
-    gen_mod:get_module_opt(Host, ?MODULE, cassandra_config, [])
-    ++ [{servers, [{"localhost", 9042, 1}]},
-        {socket_options, [{connect_timeout, 4000}]},
-        {keyspace, "mam"},
-        {credentials, undefined}].
 
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam_muc
@@ -157,48 +115,44 @@ stop_muc(Host) ->
     ejabberd_hooks:delete(mam_muc_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 50),
     ok.
 
+%% ----------------------------------------------------------------------
+%% cassandra_worker callbacks
+
+prepared_queries() ->
+    [{insert_query, insert_query_cql()},
+     {delete_query, delete_query_cql()},
+     {remove_archive_query, remove_archive_query_cql()},
+     {message_id_to_nick_name_query, message_id_to_nick_name_cql()}]
+    ++ extract_messages_queries()
+    ++ extract_messages_r_queries()
+    ++ calc_count_queries()
+    ++ list_message_ids_queries().
+
+%% ----------------------------------------------------------------------
+%% Helpers
+
+select_worker(UserJID) ->
+    PoolName = pool_name(UserJID),
+    cassandra_sup:select_worker(PoolName, UserJID).
+
 %%====================================================================
 %% Internal functions
 %%====================================================================
-
-create_worker_pool(Host) ->
-    pg2:create(group_name(Host)).
-
-delete_worker_pool(Host) ->
-    pg2:delete(group_name(Host)).
-
-register_worker(Host, WorkerPid) ->
-    pg2:join(group_name(Host), WorkerPid).
-
-select_worker(Host, RoomJID) ->
-    case pg2:get_local_members(group_name(Host)) of
-        [] ->
-            error({no_worker, Host});
-        Workers ->
-            N = erlang:phash2(RoomJID, length(Workers)) + 1,
-            lists:nth(N, Workers)
-    end.
-
-group_name(Host) ->
-    {mam_muc_ca, node(), Host}.
-
-start_link(Host, Addr, Port, ClientOptions) ->
-    gen_server:start_link(?MODULE, [Host, Addr, Port, ClientOptions], []).
 
 %% ----------------------------------------------------------------------
 %% Internal functions and callbacks
 
 archive_size(Size, Host, _RoomID, RoomJID) when is_integer(Size) ->
-    Worker = select_worker(Host, RoomJID),
+    Worker = select_worker(RoomJID),
     Borders = Start = End = WithNick = undefined,
     Filter = prepare_filter(RoomJID, Borders, Start, End, WithNick),
-    calc_count(Worker, Host, Filter).
+    calc_count(Worker, RoomJID, Host, Filter).
 
 
 %% ----------------------------------------------------------------------
 %% INSERT MESSAGE
 
-insert_query_sql() ->
+insert_query_cql() ->
     "INSERT INTO mam_muc_message "
         "(id, room_jid, nick_name, with_nick, message) "
         "VALUES (?,?,?,?,?)".
@@ -212,7 +166,7 @@ archive_message(Result, Host, MessID, _RoomID,
         {error, Reason}
     end.
 
-archive_message_2(_Result, Host, MessID,
+archive_message_2(_Result, _Host, MessID,
                   LocJID=#jid{},
                   _RemJID=#jid{},
                   _SrcJID=#jid{lresource=BNick}, _Dir, Packet) ->
@@ -226,11 +180,13 @@ archive_message_2(_Result, Host, MessID,
     },
     WithNicks = [<<>>, BNick],
     Messages = [Message#mam_muc_message{with_nick = BWithNick} || BWithNick <- WithNicks],
-    Worker = select_worker(Host, LocJID),
+    Worker = select_worker(LocJID),
     write_messages(Worker, Messages).
 
-write_messages(Worker, Messages) ->
-    gen_server:cast(Worker, {write_messages, Messages}).
+write_messages(RoomJID, Messages) ->
+    PoolName = pool_name(RoomJID),
+    MultiParams = [message_to_params(M) || M <- Messages],
+    cassandra_worker:cql_query_pool_multi_async(PoolName, RoomJID, ?MODULE, insert_query, MultiParams).
 
 message_to_params(#mam_muc_message{
       id = MessID,
@@ -245,12 +201,13 @@ message_to_params(#mam_muc_message{
 %% ----------------------------------------------------------------------
 %% DELETE MESSAGE
 
-delete_query_sql() ->
+delete_query_cql() ->
     "DELETE FROM mam_muc_message "
         "WHERE room_jid = ? AND with_nick = ? AND id = ?".
 
-delete_messages(Worker, Messages) ->
-    gen_server:cast(Worker, {delete_messages, Messages}).
+delete_messages(Worker, RoomJID, Messages) ->
+    MultiParams = [delete_message_to_params(M) || M <- Messages],
+    cassandra_worker:cql_query_multi_async(Worker, RoomJID, ?MODULE, delete_query, MultiParams).
 
 delete_message_to_params(#mam_muc_message{
       id = MessID,
@@ -261,72 +218,35 @@ delete_message_to_params(#mam_muc_message{
 
 
 %% ----------------------------------------------------------------------
-%% TEST CONNECTION
-
-test_query_sql() ->
-    "SELECT now() FROM system.local". %% "SELECT 1" for cassandra
-
-test_query(Host) ->
-    Workers = pg2:get_local_members(group_name(Host)),
-    [{Worker, (catch gen_server:call(Worker, test_query))} || Worker <- Workers].
-
-
-%% ----------------------------------------------------------------------
-%% QUEUE LENGTH
-
-%% For metrics.
-queue_length(Host) ->
-    Len = lists:sum(queue_lengths(Host)),
-    {ok, Len}.
-
-queue_lengths(Host) ->
-    Workers = pg2:get_local_members(group_name(Host)),
-    [worker_queue_length(Worker) || Worker <- Workers].
-
-worker_queue_length(Worker) ->
-    %% We really don't want to call process, because it can does not respond
-    Info = erlang:process_info(Worker, [message_queue_len, dictionary]),
-    case Info of
-    undefined -> %% dead
-        0;
-    [{message_queue_len, ExtLen}, {dictionary, Dict}] ->
-        %% External queue contains not only queued queries but also waiting responds.
-        %% But it's usually 0.
-        IntLen = proplists:get_value(query_refs_count, Dict, 0),
-        ExtLen + IntLen
-    end.
-
-
-%% ----------------------------------------------------------------------
 %% REMOVE ARCHIVE
 
-remove_archive_query_sql() ->
+remove_archive_query_cql() ->
     "DELETE FROM mam_muc_message WHERE room_jid = ?".
 
-remove_archive(Host, _RoomID, RoomJID) ->
-    Worker = select_worker(Host, RoomJID),
+remove_archive(_Host, _RoomID, RoomJID) ->
     BRoomJID = bare_jid(RoomJID),
+    PoolName = pool_name(RoomJID),
+    Params = [BRoomJID],
     %% Wait until deleted
-    gen_server:call(Worker, {remove_archive, BRoomJID}),
+    cassandra_worker:cql_query_pool(PoolName, RoomJID, ?MODULE, remove_archive_query, Params),
     ok.
 
 
 %% ----------------------------------------------------------------------
 %% GET NICK NAME
 
-message_id_to_nick_name_sql() ->
+message_id_to_nick_name_cql() ->
     "SELECT nick_name FROM mam_muc_message "
         "WHERE room_jid = ? AND with_nick = '' AND id = ?".
 
-message_id_to_nick_name(Worker, BRoomJID, MessID) ->
-    ResultF = gen_server:call(Worker,
-        {message_id_to_nick_name, BRoomJID, MessID}),
-    {ok, Result} = ResultF(),
-    case seestar_result:rows(Result) of
+message_id_to_nick_name(Worker, RoomJID, BRoomJID, MessID) ->
+    Params = [BRoomJID, MessID],
+    Rows = cassandra_worker:cql_query(Worker, RoomJID, ?MODULE, message_id_to_nick_name_query, Params),
+    case Rows of
         [] ->
             {error, not_found};
-        [[BRemFullJID]] ->
-            {ok, BRemFullJID}
+        [[BNickName]] ->
+            {ok, BNickName}
     end.
 
 
@@ -359,7 +279,7 @@ lookup_messages(_Result, Host,
                 IsSimple) ->
     try
         WithNick = maybe_jid_to_nick(WithJID),
-        Worker = select_worker(Host, RoomJID),
+        Worker = select_worker(RoomJID),
         lookup_messages_2(Worker, Host,
                           RoomJID, RSM, Borders,
                           Start, End, WithNick,
@@ -427,37 +347,37 @@ lookup_messages_simple(Worker, Host, RoomJID,
                        #rsm_in{direction = aft, id = ID},
                        PageSize, Filter) ->
     %% Get last rows from result set
-    MessageRows = extract_messages(Worker, Host, after_id(ID, Filter), PageSize, false),
+    MessageRows = extract_messages(Worker, RoomJID, Host, after_id(ID, Filter), PageSize, false),
     {ok, {undefined, undefined, rows_to_uniform_format(MessageRows, RoomJID)}};
 lookup_messages_simple(Worker, Host, RoomJID,
                        #rsm_in{direction = before, id = ID},
                        PageSize, Filter) ->
-    MessageRows = extract_messages(Worker, Host, before_id(ID, Filter), PageSize, true),
+    MessageRows = extract_messages(Worker, RoomJID, Host, before_id(ID, Filter), PageSize, true),
     {ok, {undefined, undefined, rows_to_uniform_format(MessageRows, RoomJID)}};
 lookup_messages_simple(Worker, Host, RoomJID,
                        #rsm_in{direction = undefined, index = Offset},
                        PageSize, Filter) ->
     %% Apply offset
-    StartId = offset_to_start_id(Worker, Filter, Offset), %% POTENTIALLY SLOW AND NOT SIMPLE :)
-    MessageRows = extract_messages(Worker, Host, from_id(StartId, Filter), PageSize, false),
+    StartId = offset_to_start_id(Worker, RoomJID, Filter, Offset), %% POTENTIALLY SLOW AND NOT SIMPLE :)
+    MessageRows = extract_messages(Worker, RoomJID, Host, from_id(StartId, Filter), PageSize, false),
     {ok, {undefined, undefined, rows_to_uniform_format(MessageRows, RoomJID)}};
 lookup_messages_simple(Worker, Host, RoomJID,
                 _,
                 PageSize, Filter) ->
-    MessageRows = extract_messages(Worker, Host, Filter, PageSize, false),
+    MessageRows = extract_messages(Worker, RoomJID, Host, Filter, PageSize, false),
     {ok, {undefined, undefined, rows_to_uniform_format(MessageRows, RoomJID)}}.
 
 lookup_messages_last_page(Worker, Host, RoomJID,
                           #rsm_in{direction = before, id = undefined},
                           0, Filter) ->
     %% Last page
-    TotalCount = calc_count(Worker, Host, Filter),
+    TotalCount = calc_count(Worker, RoomJID, Host, Filter),
     {ok, {TotalCount, TotalCount, []}};
 lookup_messages_last_page(Worker, Host, RoomJID,
                           #rsm_in{direction = before, id = undefined},
                           PageSize, Filter) ->
     %% Last page
-    MessageRows = extract_messages(Worker, Host, Filter, PageSize, true),
+    MessageRows = extract_messages(Worker, RoomJID, Host, Filter, PageSize, true),
     MessageRowsCount = length(MessageRows),
     case MessageRowsCount < PageSize of
         true ->
@@ -465,23 +385,23 @@ lookup_messages_last_page(Worker, Host, RoomJID,
                   rows_to_uniform_format(MessageRows, RoomJID)}};
         false ->
             FirstID = row_to_message_id(hd(MessageRows)),
-            Offset = calc_count(Worker, Host, before_id(FirstID, Filter)),
+            Offset = calc_count(Worker, RoomJID, Host, before_id(FirstID, Filter)),
             {ok, {Offset + MessageRowsCount, Offset,
                   rows_to_uniform_format(MessageRows, RoomJID)}}
     end.
 
-lookup_messages_by_offset(Worker, Host, UserJID,
+lookup_messages_by_offset(Worker, Host, RoomJID,
                           #rsm_in{direction = undefined, index = Offset},
                           0, Filter) when is_integer(Offset) ->
     %% By offset
-    TotalCount = calc_count(Worker, Host, Filter),
+    TotalCount = calc_count(Worker, RoomJID, Host, Filter),
     {ok, {TotalCount, Offset, []}};
 lookup_messages_by_offset(Worker, Host, RoomJID,
                           #rsm_in{direction = undefined, index = Offset},
                           PageSize, Filter) when is_integer(Offset) ->
     %% By offset
-    StartId = offset_to_start_id(Worker, Filter, Offset), %% POTENTIALLY SLOW
-    MessageRows = extract_messages(Worker, Host, from_id(StartId, Filter), PageSize, false),
+    StartId = offset_to_start_id(Worker, RoomJID, Filter, Offset), %% POTENTIALLY SLOW
+    MessageRows = extract_messages(Worker, RoomJID, Host, from_id(StartId, Filter), PageSize, false),
     MessageRowsCount = length(MessageRows),
     case MessageRowsCount < PageSize of
         true ->
@@ -489,7 +409,7 @@ lookup_messages_by_offset(Worker, Host, RoomJID,
                   rows_to_uniform_format(MessageRows, RoomJID)}};
         false ->
             LastID = row_to_message_id(lists:last(MessageRows)),
-            CountAfterLastID = calc_count(Worker, Host, after_id(LastID, Filter)),
+            CountAfterLastID = calc_count(Worker, RoomJID, Host, after_id(LastID, Filter)),
             {ok, {Offset + MessageRowsCount + CountAfterLastID, Offset,
                   rows_to_uniform_format(MessageRows, RoomJID)}}
     end.
@@ -498,13 +418,13 @@ lookup_messages_first_page(Worker, Host, RoomJID,
                            _,
                            0, Filter) ->
     %% First page, just count
-    TotalCount = calc_count(Worker, Host, Filter),
+    TotalCount = calc_count(Worker, RoomJID, Host, Filter),
     {ok, {TotalCount, 0, []}};
 lookup_messages_first_page(Worker, Host, RoomJID,
                            _,
                            PageSize, Filter) ->
     %% First page
-    MessageRows = extract_messages(Worker, Host, Filter, PageSize, false),
+    MessageRows = extract_messages(Worker, RoomJID, Host, Filter, PageSize, false),
     MessageRowsCount = length(MessageRows),
     case MessageRowsCount < PageSize of
         true ->
@@ -512,7 +432,7 @@ lookup_messages_first_page(Worker, Host, RoomJID,
                   rows_to_uniform_format(MessageRows, RoomJID)}};
         false ->
             LastID = row_to_message_id(lists:last(MessageRows)),
-            CountAfterLastID = calc_count(Worker, Host, after_id(LastID, Filter)),
+            CountAfterLastID = calc_count(Worker, RoomJID, Host, after_id(LastID, Filter)),
             {ok, {MessageRowsCount + CountAfterLastID, 0,
                   rows_to_uniform_format(MessageRows, RoomJID)}}
     end.
@@ -520,18 +440,18 @@ lookup_messages_first_page(Worker, Host, RoomJID,
 lookup_messages_before_id(Worker, Host, RoomJID,
                           RSM = #rsm_in{direction = before, id = ID},
                           PageSize, Filter) ->
-    TotalCount = calc_count(Worker, Host, Filter),
-    Offset     = calc_offset(Worker, Host, Filter, PageSize, TotalCount, RSM),
-    MessageRows = extract_messages(Worker, Host, before_id(ID, Filter), PageSize, true),
+    TotalCount = calc_count(Worker, RoomJID, Host, Filter),
+    Offset     = calc_offset(Worker, RoomJID, Host, Filter, PageSize, TotalCount, RSM),
+    MessageRows = extract_messages(Worker, RoomJID, Host, before_id(ID, Filter), PageSize, true),
     {ok, {TotalCount, Offset, rows_to_uniform_format(MessageRows, RoomJID)}}.
 
 lookup_messages_after_id(Worker, Host, RoomJID,
                          RSM = #rsm_in{direction = aft, id = ID},
                          PageSize, Filter) ->
-    Worker = select_worker(Host, RoomJID),
-    TotalCount = calc_count(Worker, Host, Filter),
-    Offset     = calc_offset(Worker, Host, Filter, PageSize, TotalCount, RSM),
-    MessageRows = extract_messages(Worker, Host, after_id(ID, Filter), PageSize, false),
+    Worker = select_worker(RoomJID),
+    TotalCount = calc_count(Worker, RoomJID, Host, Filter),
+    Offset     = calc_offset(Worker, RoomJID, Host, Filter, PageSize, TotalCount, RSM),
+    MessageRows = extract_messages(Worker, RoomJID, Host, after_id(ID, Filter), PageSize, false),
     {ok, {TotalCount, Offset, rows_to_uniform_format(MessageRows, RoomJID)}}.
 
 check_result_for_policy_violation(Result={ok, {TotalCount, Offset, _}},
@@ -585,10 +505,10 @@ row_to_message_id([MessID,_,_]) ->
       Host :: server_host(), MessID :: message_id(),
       _RoomID :: user_id(), RoomJID :: #jid{},
       Now :: unix_timestamp().
-purge_single_message(_Result, Host, MessID, _RoomID, RoomJID, _Now) ->
-    Worker = select_worker(Host, RoomJID),
+purge_single_message(_Result, _Host, MessID, _RoomID, RoomJID, _Now) ->
+    Worker = select_worker(RoomJID),
     BRoomJID = bare_jid(RoomJID),
-    Result = message_id_to_nick_name(Worker, BRoomJID, MessID),
+    Result = message_id_to_nick_name(Worker, RoomJID, BRoomJID, MessID),
     case Result of
         {ok, BNick} ->
             BWithNicks = lists:usort([BNick, <<>>]),
@@ -600,7 +520,7 @@ purge_single_message(_Result, Host, MessID, _RoomID, RoomJID, _Now) ->
               nick_name = BNick, %% set the field for debugging
               with_nick = BWithNick
               } || BWithNick <- BWithNicks],
-            delete_messages(Worker, Messages),
+            delete_messages(Worker, RoomJID, Messages),
             ok;
         {error, _} ->
             ok
@@ -617,43 +537,43 @@ purge_single_message(_Result, Host, MessID, _RoomID, RoomJID, _Now) ->
       WithNick :: #jid{}  | undefined.
 purge_multiple_messages(_Result, Host, RoomID, RoomJID, Borders,
                         Start, End, Now, WithNick) ->
-   %% Simple query without calculating offset and total count
-   Filter = prepare_filter(RoomJID, Borders, Start, End, WithNick),
-   Worker = select_worker(Host, RoomJID),
-   Limit = 500, %% TODO something smarter
-   ResultF = gen_server:call(Worker, {list_message_ids, {Filter, Limit}}),
-   {ok, Result} = ResultF(),
-   MessIds = seestar_result:rows(Result),
-   %% TODO can be faster
-   %% TODO rate limiting
-   [purge_single_message(ok, Host, MessID, RoomID, RoomJID, Now) || [MessID] <- MessIds],
-   ok.
+    %% Simple query without calculating offset and total count
+    Filter = prepare_filter(RoomJID, Borders, Start, End, WithNick),
+    PoolName = pool_name(RoomJID),
+    Limit = 500, %% TODO something smarter
+    QueryName = {list_message_ids, select_filter(Filter)},
+    Params = eval_filter_params(Filter) ++ [Limit],
+    Rows = cassandra_worker:cql_query_pool(PoolName, RoomJID, ?MODULE, QueryName, Params),
+    %% TODO can be faster
+    %% TODO rate limiting
+    [purge_single_message(ok, Host, MessID, RoomID, RoomJID, Now) || [MessID] <- Rows],
+    ok.
 
 
 %% Offset is not supported
 %% Each record is a tuple of form
 %% `{<<"13663125233">>,<<"bob@localhost">>,<<"res1">>,<<binary>>}'.
 %% Columns are `["id","nick_name","message"]'.
--spec extract_messages(Worker, Host, Filter, IMax, ReverseLimit) ->
+-spec extract_messages(Worker, RoomJID, Host, Filter, IMax, ReverseLimit) ->
     [Row] when
     Worker  :: worker(),
+    RoomJID :: jlib:jid(),
     Host    :: server_hostname(),
     Filter  :: filter(),
     IMax    :: pos_integer(),
     ReverseLimit :: boolean(),
     Row :: list().
-extract_messages(_Worker, _Host, _Filter, 0, _) ->
+extract_messages(_Worker, _RoomJID, _Host, _Filter, 0, _) ->
     [];
-extract_messages(Worker, _Host, Filter, IMax, false) ->
-    ResultF = gen_server:call(Worker,
-        {extract_messages, {Filter, IMax}}),
-    {ok, Result} = ResultF(),
-    seestar_result:rows(Result);
-extract_messages(Worker, _Host, Filter, IMax, true) ->
-    ResultF = gen_server:call(Worker,
-        {extract_messages_r, {Filter, IMax}}),
-    {ok, Result} = ResultF(),
-    lists:reverse(seestar_result:rows(Result)).
+extract_messages(Worker, RoomJID, _Host, Filter, IMax, false) ->
+    QueryName = {extract_messages_query, select_filter(Filter)},
+    Params = eval_filter_params(Filter) ++ [IMax],
+    cassandra_worker:cql_query(Worker, RoomJID, ?MODULE, QueryName, Params);
+extract_messages(Worker, RoomJID, _Host, Filter, IMax, true) ->
+    QueryName = {extract_messages_r_query, select_filter(Filter)},
+    Params = eval_filter_params(Filter) ++ [IMax],
+    Rows = cassandra_worker:cql_query(Worker, RoomJID, ?MODULE, QueryName, Params),
+    lists:reverse(Rows).
 
 
 %% @doc Calculate a zero-based index of the row with UID in the result test.
@@ -661,60 +581,64 @@ extract_messages(Worker, _Host, Filter, IMax, true) ->
 %% If the element does not exists, the ID of the next element will
 %% be returned instead.
 %% @end
--spec calc_index(Worker, Host, Filter, MessID) -> Count
+-spec calc_index(Worker, RoomJID, Host, Filter, MessID) -> Count
     when
     Worker       :: worker(),
+    RoomJID      :: jlib:jid(),
     Host         :: server_hostname(),
     Filter       :: filter(),
     MessID       :: message_id(),
     Count        :: non_neg_integer().
-calc_index(Worker, Host, Filter, MessID) ->
-    calc_count(Worker, Host, to_id(MessID, Filter)).
+calc_index(Worker, RoomJID, Host, Filter, MessID) ->
+    calc_count(Worker, RoomJID, Host, to_id(MessID, Filter)).
 
 %% @doc Count of elements in RSet before the passed element.
 %%
 %% The element with the passed UID can be already deleted.
 %% @end
--spec calc_before(Worker, Host, Filter, MessID) -> Count
+-spec calc_before(Worker, RoomJID, Host, Filter, MessID) -> Count
     when
     Worker       :: worker(),
+    RoomJID      :: jlib:jid(),
     Host         :: server_hostname(),
     Filter       :: filter(),
     MessID       :: message_id(),
     Count        :: non_neg_integer().
-calc_before(Worker, Host, Filter, MessID) ->
-    calc_count(Worker, Host, before_id(MessID, Filter)).
+calc_before(Worker, RoomJID, Host, Filter, MessID) ->
+    calc_count(Worker, RoomJID, Host, before_id(MessID, Filter)).
 
 
 %% @doc Get the total result set size.
 %% "SELECT COUNT(*) as "count" FROM mam_muc_message WHERE "
--spec calc_count(Worker, Host, Filter) -> Count
+-spec calc_count(Worker, RoomJID, Host, Filter) -> Count
     when
     Worker       :: worker(),
+    RoomJID      :: jlib:jid(),
     Host         :: server_hostname(),
     Filter       :: filter(),
     Count        :: non_neg_integer().
-calc_count(Worker, _Host, Filter) ->
-    ResultF = gen_server:call(Worker, {calc_count, Filter}),
-    {ok, Result} = ResultF(),
-    [[Count]] = seestar_result:rows(Result),
+calc_count(Worker, RoomJID, _Host, Filter) ->
+    QueryName = {calc_count_query, select_filter(Filter)},
+    Params = eval_filter_params(Filter),
+    [[Count]] = cassandra_worker:cql_query(Worker, RoomJID, ?MODULE, QueryName, Params),
     Count.
 
 %% @doc Convert offset to index of the first entry
 %% Returns undefined if not there are not enough rows
--spec offset_to_start_id(Worker, Filter, Offset) -> Id
+-spec offset_to_start_id(Worker, RoomJID, Filter, Offset) -> Id
     when
     Worker       :: worker(),
+    RoomJID      :: jlib:jid(),
     Offset       :: non_neg_integer(),
     Filter       :: filter(),
     Id           :: non_neg_integer() | undefined.
-offset_to_start_id(Worker, Filter, Offset) when is_integer(Offset), Offset >= 0 ->
-    ResultF = gen_server:call(Worker, {list_message_ids, {Filter, Offset+1}}),
-    {ok, Result} = ResultF(),
-    Ids = seestar_result:rows(Result),
-    case Ids of
+offset_to_start_id(Worker, RoomJID, Filter, Offset) when is_integer(Offset), Offset >= 0 ->
+    QueryName = {list_message_ids_query, select_filter(Filter)},
+    Params = eval_filter_params(Filter) ++ [Offset+1],
+    RowsIds = cassandra_worker:cql_query(Worker, RoomJID, ?MODULE, QueryName, Params),
+    case RowsIds of
         [] -> unfefined;
-        [_|_] -> [StartId] = lists:last(Ids), StartId
+        [_|_] -> [StartId] = lists:last(RowsIds), StartId
     end.
 
 prepare_filter(RoomJID, Borders, Start, End, WithNick) ->
@@ -763,7 +687,7 @@ select_filter(_, undefined) ->
 select_filter(_, _) ->
     start_end.
 
-prepare_filter_sql(StartID, EndID) ->
+prepare_filter_cql(StartID, EndID) ->
     case StartID of
        undefined -> "";
        _         -> " AND id >= ?"
@@ -773,34 +697,35 @@ prepare_filter_sql(StartID, EndID) ->
        _         -> " AND id <= ?"
     end.
 
-filter_to_sql() ->
+filter_to_cql() ->
     [{select_filter(StartID, EndID),
-      prepare_filter_sql(StartID, EndID)}
+      prepare_filter_cql(StartID, EndID)}
      || StartID        <- [undefined, 0],
           EndID        <- [undefined, 0]].
 
--spec calc_offset(Worker, Host, Filter, PageSize, TotalCount, RSM) -> Offset
+-spec calc_offset(Worker, RoomJID, Host, Filter, PageSize, TotalCount, RSM) -> Offset
     when
     Worker       :: worker(),
+    RoomJID      :: jlib:jid(),
     Host         :: server_hostname(),
     Filter       :: filter(),
     PageSize     :: non_neg_integer(),
     TotalCount   :: non_neg_integer(),
     RSM          :: #rsm_in{} | undefined,
     Offset       :: non_neg_integer().
-calc_offset(_W, _LS, _F, _PS, _TC, #rsm_in{direction = undefined, index = Index})
+calc_offset(_W, _RoomJID, _LS, _F, _PS, _TC, #rsm_in{direction = undefined, index = Index})
     when is_integer(Index) ->
     Index;
 %% Requesting the Last Page in a Result Set
-calc_offset(_W, _LS, _F, PS, TC, #rsm_in{direction = before, id = undefined}) ->
+calc_offset(_W, _RoomJID, _LS, _F, PS, TC, #rsm_in{direction = before, id = undefined}) ->
     max(0, TC - PS);
-calc_offset(Worker, Host, F, PS, _TC, #rsm_in{direction = before, id = ID})
+calc_offset(Worker, RoomJID, Host, F, PS, _TC, #rsm_in{direction = before, id = ID})
     when is_integer(ID) ->
-    max(0, calc_before(Worker, Host, F, ID) - PS);
-calc_offset(Worker, Host, F, _PS, _TC, #rsm_in{direction = aft, id = ID})
+    max(0, calc_before(Worker, RoomJID, Host, F, ID) - PS);
+calc_offset(Worker, RoomJID, Host, F, _PS, _TC, #rsm_in{direction = aft, id = ID})
     when is_integer(ID) ->
-    calc_index(Worker, Host, F, ID);
-calc_offset(_W, _LS, _F, _PS, _TC, _RSM) ->
+    calc_index(Worker, RoomJID, Host, F, ID);
+calc_offset(_W, _RoomJID, _LS, _F, _PS, _TC, _RSM) ->
     0.
 
 maybe_encode_compact_uuid(undefined, _) ->
@@ -832,267 +757,40 @@ unserialize_jid(BJID) ->
 %% Internal SQL part
 %%====================================================================
 
-extract_messages_handler(Conn) ->
-    dict:from_list([{FilterName, prepare_query(Conn, extract_messages_sql(Filter))}
-                    || {FilterName, Filter} <- filter_to_sql()]).
+extract_messages_queries() ->
+    [{{extract_messages_query, FilterName}, extract_messages_cql(Filter)}
+     || {FilterName, Filter} <- filter_to_cql()].
 
-extract_messages_r_handler(Conn) ->
-    dict:from_list([{FilterName, prepare_query(Conn, extract_messages_r_sql(Filter))}
-                    || {FilterName, Filter} <- filter_to_sql()]).
+extract_messages_r_queries() ->
+    [{{extract_messages_r_query, FilterName}, extract_messages_r_cql(Filter)}
+     || {FilterName, Filter} <- filter_to_cql()].
 
-calc_count_handler(Conn) ->
-    dict:from_list([{FilterName, prepare_query(Conn, calc_count_sql(Filter))}
-                    || {FilterName, Filter} <- filter_to_sql()]).
+calc_count_queries() ->
+    [{{calc_count_query, FilterName}, calc_count_cql(Filter)}
+     || {FilterName, Filter} <- filter_to_cql()].
 
-list_message_ids_handler(Conn) ->
-    dict:from_list([{FilterName, prepare_query(Conn, list_message_ids_sql(Filter))}
-                    || {FilterName, Filter} <- filter_to_sql()]).
+list_message_ids_queries() ->
+    [{{list_message_ids_query, FilterName}, list_message_ids_cql(Filter)}
+     || {FilterName, Filter} <- filter_to_cql()].
 
-extract_messages_sql(Filter) ->
+extract_messages_cql(Filter) ->
     "SELECT id, nick_name, message FROM mam_muc_message "
         "WHERE room_jid = ? AND with_nick = ? " ++
         Filter ++ " ORDER BY with_nick, id LIMIT ?".
 
-extract_messages_r_sql(Filter) ->
+extract_messages_r_cql(Filter) ->
     "SELECT id, nick_name, message FROM mam_muc_message "
         "WHERE room_jid = ? AND with_nick = ? " ++
         Filter ++ " ORDER BY with_nick DESC, id DESC LIMIT ?".
 
-calc_count_sql(Filter) ->
+calc_count_cql(Filter) ->
     "SELECT COUNT(*) FROM mam_muc_message "
         "WHERE room_jid = ? AND with_nick = ? " ++ Filter.
 
-list_message_ids_sql(Filter) ->
+list_message_ids_cql(Filter) ->
     "SELECT id FROM mam_muc_message "
         "WHERE room_jid = ? AND with_nick = ? " ++ Filter ++
         " ORDER BY with_nick, id LIMIT ?".
-
-execute_extract_messages(Conn, Handler, {Filter, IMax}) when is_integer(IMax) ->
-    Params = eval_filter_params(Filter) ++ [IMax],
-    FilterName = select_filter(Filter),
-    PreparedQuery = dict:fetch(FilterName, Handler),
-    execute_prepared_query(Conn, PreparedQuery, Params).
-
-execute_calc_count(Conn, Handler, Filter) ->
-    Params = eval_filter_params(Filter),
-    FilterName = select_filter(Filter),
-    PreparedQuery = dict:fetch(FilterName, Handler),
-    execute_prepared_query(Conn, PreparedQuery, Params).
-
-execute_list_message_ids(Conn, Handler, {Filter, IMax})  when is_integer(IMax) ->
-    Params = eval_filter_params(Filter) ++ [IMax],
-    FilterName = select_filter(Filter),
-    PreparedQuery = dict:fetch(FilterName, Handler),
-    execute_prepared_query(Conn, PreparedQuery, Params).
-
-prepare_query(Conn, Query) ->
-    {ok, Res} = seestar_session:prepare(Conn, Query),
-    Types = seestar_result:types(Res),
-    QueryID = seestar_result:query_id(Res),
-    #prepared_query{query_id=QueryID, query_types=Types}.
-
-execute_prepared_query(Conn, #prepared_query{query_id=QueryID, query_types=Types}, Params) ->
-    seestar_session:execute_async(Conn, QueryID, Types, Params, one).
-
-
-save_query_ref(From, QueryRef, State=#state{query_refs=Refs, query_refs_count=RefsCount}) ->
-    Refs2 = dict:store(QueryRef, From, Refs),
-    put(query_refs_count, RefsCount+1),
-    State#state{query_refs=Refs2, query_refs_count=RefsCount+1}.
-
-forward_query_respond(ResultF, QueryRef,
-    State=#state{query_refs=Refs, query_refs_count=RefsCount}) ->
-    case dict:find(QueryRef, Refs) of
-        {ok, From} ->
-            Refs2 = dict:erase(QueryRef, Refs),
-            gen_server:reply(From, ResultF),
-            put(query_refs_count, RefsCount-1),
-            State#state{query_refs=Refs2, query_refs_count=RefsCount-1};
-        error ->
-%           lager:warning("Ignore response ~p ~p", [QueryRef, ResultF()]),
-            State
-    end.
-
-
-%%====================================================================
-%% gen_server callbacks
-%%====================================================================
-
-%%--------------------------------------------------------------------
-%% Function: init(Args) -> {ok, State} |
-%%                         {ok, State, Timeout} |
-%%                         ignore               |
-%%                         {stop, Reason}
-%% Description: Initiates the server
-%%--------------------------------------------------------------------
-init([Host, Addr, Port, ClientOptions]) ->
-    async_spawn(Addr, Port, ClientOptions),
-    State = #state{host=Host},
-    {ok, State}.
-
-init_connection(ConnPid, Conn, State=#state{host=Host}) ->
-    erlang:monitor(process, ConnPid),
-    register_worker(Host, self()),
-
-    InsertQuery = prepare_query(Conn, insert_query_sql()),
-    DeleteQuery = prepare_query(Conn, delete_query_sql()),
-    TestQuery = prepare_query(Conn, test_query_sql()),
-    RemoveArchiveQuery = prepare_query(Conn, remove_archive_query_sql()),
-    MessIdToRemJidQuery = prepare_query(Conn, message_id_to_nick_name_sql()),
-
-    ExHandler = extract_messages_handler(Conn),
-    RevExHandler = extract_messages_r_handler(Conn),
-    CountHandler = calc_count_handler(Conn),
-    ListIdsHandler = list_message_ids_handler(Conn),
-    put(query_refs_count, 0),
-    State#state{
-        host=Host,
-        conn=Conn,
-        query_refs=dict:new(),
-        query_refs_count=0,
-        insert_query=InsertQuery,
-        delete_query=DeleteQuery,
-        test_query=TestQuery,
-        remove_archive_query=RemoveArchiveQuery,
-        message_id_to_nick_name_query=MessIdToRemJidQuery,
-        extract_messages_handler=ExHandler,
-        extract_messages_r_handler=RevExHandler,
-        calc_count_handler=CountHandler,
-        list_message_ids_handler=ListIdsHandler}.
-
-%%--------------------------------------------------------------------
-%% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
-%%                                      {reply, Reply, State, Timeout} |
-%%                                      {noreply, State} |
-%%                                      {noreply, State, Timeout} |
-%%                                      {stop, Reason, Reply, State} |
-%%                                      {stop, Reason, State}
-%% Description: Handling call messages
-%%--------------------------------------------------------------------
-handle_call(_, _From, State=#state{conn=undefined}) ->
-    {reply, no_connection, State};
-handle_call({extract_messages, Args}, From,
-    State=#state{conn=Conn, extract_messages_handler=Handler}) ->
-    QueryRef = execute_extract_messages(Conn, Handler, Args),
-    {noreply, save_query_ref(From, QueryRef, State)};
-handle_call({extract_messages_r, Args}, From,
-    State=#state{conn=Conn, extract_messages_r_handler=Handler}) ->
-    QueryRef = execute_extract_messages(Conn, Handler, Args),
-    {noreply, save_query_ref(From, QueryRef, State)};
-handle_call({calc_count, Filter}, From,
-    State=#state{conn=Conn, calc_count_handler=Handler}) ->
-    QueryRef = execute_calc_count(Conn, Handler, Filter),
-    {noreply, save_query_ref(From, QueryRef, State)};
-handle_call({list_message_ids, Args}, From,
-    State=#state{conn=Conn, list_message_ids_handler=Handler}) ->
-    QueryRef = execute_list_message_ids(Conn, Handler, Args),
-    {noreply, save_query_ref(From, QueryRef, State)};
-handle_call({message_id_to_nick_name, BRoomJID, MessID}, From,
-    State=#state{conn=Conn, message_id_to_nick_name_query=MessIdToRemJidQuery}) ->
-    Params = [BRoomJID, MessID],
-    QueryRef = execute_prepared_query(Conn, MessIdToRemJidQuery, Params),
-    {noreply, save_query_ref(From, QueryRef, State)};
-handle_call(test_query, From,
-    State=#state{conn=Conn, test_query=TestQuery}) ->
-    QueryRef = execute_prepared_query(Conn, TestQuery, []),
-    {noreply, save_query_ref(From, QueryRef, State)};
-handle_call({remove_archive, BRoomJID}, From,
-    State=#state{conn=Conn, remove_archive_query=RemoveArchiveQuery}) ->
-    Params = [BRoomJID],
-    QueryRef = execute_prepared_query(Conn, RemoveArchiveQuery, Params),
-    {noreply, save_query_ref(From, QueryRef, State)};
-handle_call(_, _From, State=#state{}) ->
-    {reply, ok, State}.
-
-
-%%--------------------------------------------------------------------
-%% Function: handle_cast(Msg, State) -> {noreply, State} |
-%%                                      {noreply, State, Timeout} |
-%%                                      {stop, Reason, State}
-%% Description: Handling cast messages
-%%--------------------------------------------------------------------
-
-handle_cast(_, State=#state{conn=undefined}) ->
-    {noreply, State};
-handle_cast({write_messages, Messages},
-    State=#state{conn=Conn, insert_query=InsertQuery}) ->
-    [execute_prepared_query(Conn, InsertQuery, message_to_params(M)) || M <- Messages],
-    {noreply, State};
-handle_cast({delete_messages, Messages},
-    State=#state{conn=Conn, delete_query=DeleteQuery}) ->
-    [execute_prepared_query(Conn, DeleteQuery, delete_message_to_params(M)) || M <- Messages],
-    {noreply, State};
-handle_cast(Msg, State) ->
-    ?WARNING_MSG("Strange cast message ~p.", [Msg]),
-    {noreply, State}.
-
-%%--------------------------------------------------------------------
-%% Function: handle_info(Info, State) -> {noreply, State} |
-%%                                       {noreply, State, Timeout} |
-%%                                       {stop, Reason, State}
-%% Description: Handling all non call/cast messages
-%%--------------------------------------------------------------------
-
-
-handle_info({connection_result, {ok, ConnPid, Conn}}, State=#state{conn=undefined}) ->
-    State2 = init_connection(ConnPid, Conn, State),
-    {noreply, State2};
-handle_info({connection_result, Reason}, State=#state{conn=undefined}) ->
-    ?ERROR_MSG("issue=\"Fail to connect to Cassandra\", reason=~1000p", [Reason]),
-    {stop, {connection_result, Reason}, State};
-handle_info(_, State=#state{conn=undefined}) ->
-    {noreply, State};
-handle_info({seestar_response, QueryRef, ResultF}, State) ->
-    {noreply, forward_query_respond(ResultF, QueryRef, State)};
-handle_info({'DOWN', _, process, Pid, Reason}, State=#state{conn=Pid}) ->
-    ?ERROR_MSG("issue=\"Cassandra connection closed\", reason=~1000p", [Reason]),
-    {stop, {dead_connection, Pid, Reason}, State};
-handle_info(Msg, State) ->
-    ?WARNING_MSG("Strange info message ~p.", [Msg]),
-    {noreply, State}.
-
-%%--------------------------------------------------------------------
-%% Function: terminate(Reason, State) -> void()
-%% Description: This function is called by a gen_server when it is about to
-%% terminate. It should be the opposite of Module:init/1 and do any necessary
-%% cleaning up. When it returns, the gen_server terminates with Reason.
-%% The return value is ignored.
-%%--------------------------------------------------------------------
-terminate(_Reason, _State) ->
-    ok.
-
-%%--------------------------------------------------------------------
-%% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
-%% Description: Convert process state when code is changed
-%%--------------------------------------------------------------------
-code_change(_OldVsn, State, _Extra) ->
-    {ok, State}.
-
-%% Helpers
-%%--------------------------------------------------------------------
-
-async_spawn(Addr, Port, ClientOptions) ->
-    ?INFO_MSG("issue=\"Connecting to Cassandra\", address=~p, port=~p", [Addr, Port]),
-    Parent = self(),
-    proc_lib:spawn_link(fun() ->
-          ConnectOptions = proplists:get_value(socket_options, ClientOptions, []),
-          ?DEBUG("issue=\"seestar_session:start_link\", address=~p, port=~p, "
-                 "client_options=~p, connect_options=~p",
-                 [Addr, Port, ClientOptions, ConnectOptions]),
-          Res = (catch seestar_session:start_link(Addr, Port, ClientOptions, ConnectOptions)),
-          ?DEBUG("issue=\"seestar_session:start_link result\", result=~p",
-                 [Res]),
-          Parent ! {connection_result, Res},
-          case Res of
-              {ok, Pid} ->
-                  Mon = erlang:monitor(process, Pid),
-                  receive
-                      {'DOWN', Mon, process, Pid, _} -> ok
-                  end;
-              _ ->
-                ok
-          end
-      end).
 
 %% ----------------------------------------------------------------------
 %% Optimizations
@@ -1131,9 +829,16 @@ params_helper(Params) ->
     binary_to_list(iolist_to_binary(io_lib:format(
         "-module(mod_mam_muc_ca_arch_params).~n"
         "-compile(export_all).~n"
-        "db_message_format() -> ~p.~n",
-        [proplists:get_value(db_message_format, Params, mam_message_compressed_eterm)]))).
+        "db_message_format() -> ~p.~n"
+        "pool_name() -> ~p.~n",
+        [proplists:get_value(db_message_format, Params, mam_message_compressed_eterm),
+         proplists:get_value(pool_name, Params, default)
+        ]))).
 
 -spec db_message_format() -> module().
 db_message_format() ->
     mod_mam_muc_ca_arch_params:db_message_format().
+
+-spec pool_name(jlib:jid()) -> term().
+pool_name(_UserJid) ->
+    mod_mam_muc_ca_arch_params:pool_name().

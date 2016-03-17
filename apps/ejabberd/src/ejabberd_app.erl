@@ -60,6 +60,7 @@ start(normal, _Args) ->
     {ok, _} = Sup = ejabberd_sup:start_link(),
     ejabberd_rdbms:start(),
     mongoose_riak:start(),
+    mongoose_cassandra:start(),
     ejabberd_auth:start(),
     cyrsasl:start(),
     %% Profiling

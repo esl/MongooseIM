@@ -1,6 +1,6 @@
-CREATE KEYSPACE mam
+CREATE KEYSPACE mongooseim
          WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor': 3};
-USE mam;
+USE mongooseim;
 
 CREATE TABLE mam_message(
   id bigint,
