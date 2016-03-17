@@ -12,6 +12,13 @@ tar czh --transform='s,rel/mongooseim,mongooseim,S' -f $MONGOOSE_TGZ rel/mongoos
 export BUILDS=`pwd`
 export MEMBER_TGZ=mongooseim.tar.gz
 
+DOCKERHUB_TAG=${TRAVIS_BRANCH}
+
+if [ ${TRAVIS_PULL_REQUEST} != 'false' ]; then
+    DOCKERHUB_TAG="PR-${TRAVIS_PULL_REQUEST}"
+elif [ ${TRAVIS_BRANCH} == 'master' ]; then
+    DOCKERHUB_TAG="latest";
+fi
 
 MIN_DOCKER_REPO=github.com/michalwski/mongooseim-docker-minimal.git
 git clone https://${MIN_DOCKER_REPO}
@@ -22,20 +29,13 @@ git add member/${MEMBER_TGZ}
 git config user.name "MongooseIM"
 git config user.email "mongoose-im@erlang-solutions.com"
 git commit -m "mongooseim.tar.gz for esl/MongooseIM@${TRAVIS_COMMIT}"
-git push https://${GITHUB_TOKEN}@${MIN_DOCKER_REPO} master:${TRAVIS_BRANCH}
+git push https://${GITHUB_TOKEN}@${MIN_DOCKER_REPO} master:${DOCKERHUB_TAG}
 
 cd ../
 
 git clone https://github.com/michalwski/mongooseim-docker.git
 cd mongooseim-docker
 
-DOCKERHUB_TAG=${TRAVIS_BRANCH}
-
-if [ ${TRAVIS_PULL_REQUEST} != 'false' ]; then
-    DOCKERHUB_TAG="PR-${TRAVIS_PULL_REQUEST}"
-elif [ ${TRAVIS_BRANCH} == 'master' ]; then
-    DOCKERHUB_TAG="latest";
-fi
 
 cp ../${MONGOOSE_TGZ} member
 
