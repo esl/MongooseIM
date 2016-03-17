@@ -27,3 +27,8 @@ CREATE TABLE mam_muc_message(
   message blob,
   PRIMARY KEY ((room_jid), with_nick, id));
 
+CREATE TABLE private_storage (
+  username varchar,
+  namespace varchar,
+  data text,
+  PRIMARY KEY ((username), namespace));
