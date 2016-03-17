@@ -2952,9 +2952,9 @@ is_odbc_enabled(Host) ->
     end.
 
 is_cassandra_enabled(_) ->
-    case escalus_ejabberd:rpc(application, loaded_applications, []) of
-        [_|_]=Apps ->
-            lists:keymember(seestar, 1, Apps);
+    case escalus_ejabberd:rpc(cassandra_sup, get_all_workers, []) of
+        [_|_]=_Pools ->
+            true;
         _ ->
             false
     end.
