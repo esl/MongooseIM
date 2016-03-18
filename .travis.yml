@@ -87,6 +87,5 @@ deploy:
   skip_cleanup: true
   file: mongooseim-$TRAVIS_BRANCH.$TRAVIS_OTP_RELEASE.$(lsb_release -is | tr "A-Z" "a-z").$(lsb_release -rs).$(uname -m).tar.bz2
   on:
-    otp_release: 17.5
     tags: true
-    condition: "$PRESET = internal_mnesia"
+    condition: "$PRESET.$TRAVIS_OTP_RELEASE = internal_mnesia.17.5"
