@@ -22,12 +22,13 @@ add_node_to_cluster(ConfigIn) ->
                                       ejabberd_node_utils:init(Node, ConfigIn)),
 
     Node2Ctl = ctl_path(Node2, Config),
+    Node2Script = script_path(Node2, Config, "mongooseim"),
 
     StartCmd = Node2Ctl ++ " start",
     StartedCmd = Node2Ctl ++ " started",
     StopCmd = Node2Ctl  ++ " stop",
     StoppedCmd = Node2Ctl ++ " stopped",
-    StatusCmd = Node2Ctl ++ " status",
+    StatusCmd = Node2Script ++ " ping",
 
 
     AddToClusterCmd = ctl_path(Node2, Config) ++ " add_to_cluster " ++ atom_to_list(Node),
@@ -59,11 +60,12 @@ remove_node_from_cluster(Config) ->
     Node = ct:get_config(ejabberd_node),
     Node2 = ct:get_config(ejabberd2_node),
     Node2Ctl = ctl_path(Node2, Config),
+    Node2Script = script_path(Node2, Config, "mongooseim"),
     StartCmd = Node2Ctl ++ " start",
     StartedCmd = Node2Ctl ++ " started",
     StopCmd = Node2Ctl ++ " stop",
     StoppedCmd = Node2Ctl ++ " stopped",
-    StatusCmd = Node2Ctl ++ " status",
+    StatusCmd = Node2Script ++ " ping",
     RemoveCmd = ctl_path(Node, Config) ++ " remove_from_cluster " ++ atom_to_list(Node2),
 
     MnesiaDir = filename:join([get_cwd(Node2, Config), "Mnesia*"]),
@@ -91,16 +93,19 @@ remove_node_from_cluster(Config) ->
 
 
 ctl_path(Node, Config) ->
-    filename:join([get_cwd(Node, Config), "bin", "mongooseimctl"]).
+    script_path(Node, Config, "mongooseimctl").
+
+script_path(Node, Config, Script) ->
+    filename:join([get_cwd(Node, Config), "bin", Script]).
 
 wait_until_started(_, 0) ->
     erlang:error({timeout, starting_node});
 wait_until_started(Cmd, Retries) ->
     Result = os:cmd(Cmd),
-    case re:run(Result, "Erlang VM status: started") of
-        {match, _} ->
+    case Result of
+        "pong" ++ _ ->
             ok;
-        nomatch ->
+        _ ->
             timer:sleep(1000),
             wait_until_started(Cmd, Retries-1)
     end.
@@ -109,11 +114,11 @@ wait_until_stopped(_, 0) ->
     erlang:error({timeout, stopping_node});
 wait_until_stopped(Cmd, Retries) ->
     case os:cmd(Cmd) of
-        "Failed RPC connection" ++ _ ->
-            ok;
-        _ ->
+        "pong" ++ _->
             timer:sleep(1000),
-            wait_until_stopped(Cmd, Retries-1)
+            wait_until_stopped(Cmd, Retries-1);
+        _ ->
+            ok
     end.
 
 verify_result(Op) ->
