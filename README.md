@@ -5,7 +5,7 @@ MongooseIM  [![Build Status](https://travis-ci.org/esl/MongooseIM.svg?branch=mas
 ============
 <img align="left" src="doc/MongooseIM_logo.png"</img>
 
-MongooseIM is Erlang Solutions' robust and efficient XMPP server aimed at large installations. Specifically designed for enterprise purposes, it is fault-tolerant, can utilize resources of multiple clustered machines and easily scale in need of more capacity (by just adding a box/VM). 
+MongooseIM is Erlang Solutions' robust and efficient XMPP server aimed at large installations. Specifically designed for enterprise purposes, it is fault-tolerant, can utilize resources of multiple clustered machines and easily scale in need of more capacity (by just adding a box/VM).
 
 MongooseIM can accept client sessions over vanilla XMPP, Websockets, and HTTP long-polling (a.k.a. BOSH).
 
@@ -68,14 +68,14 @@ Features and supported standards
     and HTTP(S) (BOSH).
 *   Configurable database backends: MySQL, Postgres, generic ODBC. Mnesia
     and Redis for transient data.
-*   Supports XEPs: 
+*   Supports XEPs:
 
 |||||
 | ------------- | ------------- | ------------- |------------- |
 | [0004 - Data Forms](http://xmpp.org/extensions/xep-0004.html) | [0012 - Last Activity](http://xmpp.org/extensions/xep-0012.html) | [0016 - Privacy Lists](http://xmpp.org/extensions/xep-0016.html)|[0018 - Invisible Presence](http://xmpp.org/extensions/xep-0018.html)|
 |[0022 - Message Events](http://xmpp.org/extensions/xep-0022.html)| [0023 - Message Expiration](http://xmpp.org/extensions/xep-0023.html)|[0030 - Service Discovery](http://xmpp.org/extensions/xep-0030.html)| [0045 - Multi-User Chat](http://xmpp.org/extensions/xep-0045.html)|
 |[0049 - Private XML Storage](http://xmpp.org/extensions/xep-0049.html)| [0050 - Ad-Hoc Commands](http://xmpp.org/extensions/xep-0050.html)| [0054 - vcard-temp](http://xmpp.org/extensions/xep-0054.html)| [0055 - Jabber Search](http://xmpp.org/extensions/xep-0055.html)
-|[0059 - Result Set Management](http://xmpp.org/extensions/xep-0059.html)|[0068 - Field Standardization for Data Forms](http://xmpp.org/extensions/xep-0068.html)| [0073 - Basic IM Protocol Suite](http://xmpp.org/extensions/xep-0073.html)| [0077 - In-Band Registration](http://xmpp.org/extensions/xep-0077.html)| 
+|[0059 - Result Set Management](http://xmpp.org/extensions/xep-0059.html)|[0068 - Field Standardization for Data Forms](http://xmpp.org/extensions/xep-0068.html)| [0073 - Basic IM Protocol Suite](http://xmpp.org/extensions/xep-0073.html)| [0077 - In-Band Registration](http://xmpp.org/extensions/xep-0077.html)|
 |[0078 - Non-SASL Authentication](http://xmpp.org/extensions/xep-0078.html)|[0079 partial - Advanced Message Processin](http://xmpp.org/extensions/xep-0079.html)| [0082 - XMPP Date and Time Profiles](http://xmpp.org/extensions/xep-0082.html)| [0083 - Nested Roster Groups](http://xmpp.org/extensions/xep-0083.html)|
 |[0085 - Chat State Notifications](http://xmpp.org/extensions/xep-0085.html)|[0086 - Error Condition Mappings](http://xmpp.org/extensions/xep-0086.html) | [0093 -  Roster Item Exchange](http://xmpp.org/extensions/xep-0093.html)| [0114 - Jabber Component Protocol](http://xmpp.org/extensions/xep-0114.html)|
 |[0124 - Bidirectional-streams Over Synchronous HTTP (BOSH)](http://xmpp.org/extensions/xep-0124.html)|[0126 - Invisibility](http://xmpp.org/extensions/xep-0126.html)| [0138 - Stream Compression](http://xmpp.org/extensions/xep-0138.html) | [0153 - vCard-Based Avatars](http://xmpp.org/extensions/xep-0153.html)|
@@ -114,35 +114,13 @@ How to build
 
         $ make rel
 
-    or
+    If more advanced release is required (with some specific db support only,
+    f.e. mysql or pgsql) or you want to set `prefix` or `user` for the
+    installation script please refer to the
+    [release configuration](doc/user-guide/release_config.md)
+    page in our documentation
 
-        $ ./rebar generate
-
-
-    If more advanced release is required (with some specifyc db support only, f.e. mysql or pgsql) a `make configure` script with appropirate option(s) can be run before `make rel` or `./rebar generate`. `make configure` without any option will print following help message.
-
-    ```
-specifies which 3rd party deps will be included in release
-possible options:
-with-mysql	include mysql driver
-with-pgsql	include pgsql driver
-with-odbc	include standard ODBC driver shipped with Erlang/OTP
-with-redis	include redis driver
-with-riak      include riak driver
-with-cassandra	include cassandra driver
-full		include all above deps
-    ```
-
-    For example if mysql and redis support has to be added to the release, following command has to be run before `make rel`:
-
-        $ make configure with-mysql with-redis
-
-    The `make configure` command has to be run only once (unless one need to change the relase config and include some other dependecies).
-
-    Take a look [here](http://mongooseim.readthedocs.org/en/latest/advanced-configuration/database-backends-configuration/)
-    for instructions how to setup the external databases.
-
-    `make rel` or `./rebar generate` commands will generate a self-contained OTP system image in the
+    `make rel` commands will generate a self-contained OTP system image in the
     project's `rel/mongooseim` subdirectory. The contents of that directory are as
     follows:
     *   `rel/mongooseim/bin` - startup/administration scripts,
@@ -172,8 +150,14 @@ full		include all above deps
     operations on a running instance, e.g.:
 
         $ bin/mongooseimctl status
-        The node mongooseim@localhost is started with status: started
-        MongooseIM version 1.3.1 is running on that node
+        MongooseIM node mongooseim@localhost:
+          operating system pid: 86026
+          Erlang VM status: started (of: starting | started | stopping)
+          boot script status: started
+          version: 1.6.2-61-g48b8332
+          uptime: 1:12:46
+          logs:
+            log/ejabberd.log
 
 4.  Building the testing target and running tests.
 
@@ -186,7 +170,8 @@ full		include all above deps
 
     To run the tests (from project's root directory, i.e. `$REPO`):
 
-        $ cd test
+        $ dev/mongooseim_node1/bin/mongooseim start
+        $ dev/mongooseim_node2/bin/mongooseim start
         $ make quicktest
 
     The test results will show up in the console`.
@@ -231,7 +216,3 @@ We recommend following client libraries:
 * iOS, Objective-C: [XMPPframework](https://github.com/robbiehanson/XMPPFramework)
 * Android, Java: [Smack](https://github.com/igniterealtime/Smack)
 * Web, JavaScript: [Stanza.io](https://github.com/otalk/stanza.io)
-
-
-
-

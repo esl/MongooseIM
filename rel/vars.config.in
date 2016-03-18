@@ -31,10 +31,16 @@
 {registration_watchers, "%{registration_watchers, [\"admin@localhost\"]},"}.
 {riak_server, "%%{riak_server, [{pool_size, 20}, {address, \"127.0.0.1\"}, {port, 8087}, {riak_pb_socket_opts, []}]}."}.
 
-% These have to be the same to gather all
-% (bin/mongooseim - the script - and lager) log files in one place.
-{app_config_lager_log_dir, "\"log\""}.
-{mongooseim_runner_log_dir, "log"}.
 {http_api_endpoint, "{5288, \"127.0.0.1\"}"}.
 {s2s_use_starttls, "{s2s_use_starttls, optional}."}.
 {s2s_certfile, "{s2s_certfile, \"priv/ssl/fake_server.pem\"}."}.
+
+%% Defined in Makefile by appending configure.vars.config
+%% Uncomment for manual release generation.
+%{mongooseim_script_dir, "$(cd ${0%/*} && pwd)"}.
+%{mongooseim_etc_dir, "$RUNNER_BASE_DIR/etc"}.
+%{mongooseim_log_dir, "log"}.
+%{mongooseim_mdb_dir, "$RUNNER_BASE_DIR/Mnesia.$NODE"}.
+%{mongooseim_mdb_dir_toggle, "%"}.
+%{mongooseim_lock_dir, "$EJABBERD_DIR/var/lock"}.
+%{mongooseim_runner_user, ""}.

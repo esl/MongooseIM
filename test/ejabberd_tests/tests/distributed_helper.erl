@@ -22,10 +22,13 @@ add_node_to_cluster(ConfigIn) ->
                                       ejabberd_node_utils:init(Node, ConfigIn)),
 
     Node2Ctl = ctl_path(Node2, Config),
+    Node2Script = script_path(Node2, Config, "mongooseim"),
 
     StartCmd = Node2Ctl ++ " start",
+    StartedCmd = Node2Ctl ++ " started",
     StopCmd = Node2Ctl  ++ " stop",
-    StatusCmd = Node2Ctl ++ " status",
+    StoppedCmd = Node2Ctl ++ " stopped",
+    StatusCmd = Node2Script ++ " ping",
 
 
     AddToClusterCmd = ctl_path(Node2, Config) ++ " add_to_cluster " ++ atom_to_list(Node),
@@ -35,14 +38,18 @@ add_node_to_cluster(ConfigIn) ->
 
     Res1 = call_fun(Node, os, cmd, [StopCmd]),
     ?assertEqual("", Res1),
+    call_fun(Node, os, cmd, [StoppedCmd]),
     wait_until_stopped(StatusCmd, 120),
+
     Res2 = call_fun(Node, os, cmd, [MnesiaCmd]),
     ?assertEqual("", Res2),
 
     Res3 = call_fun(Node, os, cmd, [AddToClusterCmd]),
     ?assertMatch("Node added to cluster" ++ _, Res3),
+
     Res4 = call_fun(Node, os, cmd, [StartCmd]),
     ?assertEqual("", Res4),
+    call_fun(Node, os, cmd, [StartedCmd]),
     wait_until_started(StatusCmd, 120),
 
     verify_result(add),
@@ -53,26 +60,32 @@ remove_node_from_cluster(Config) ->
     Node = ct:get_config(ejabberd_node),
     Node2 = ct:get_config(ejabberd2_node),
     Node2Ctl = ctl_path(Node2, Config),
+    Node2Script = script_path(Node2, Config, "mongooseim"),
     StartCmd = Node2Ctl ++ " start",
+    StartedCmd = Node2Ctl ++ " started",
     StopCmd = Node2Ctl ++ " stop",
-    StatusCmd = Node2Ctl ++ " status",
+    StoppedCmd = Node2Ctl ++ " stopped",
+    StatusCmd = Node2Script ++ " ping",
     RemoveCmd = ctl_path(Node, Config) ++ " remove_from_cluster " ++ atom_to_list(Node2),
 
     MnesiaDir = filename:join([get_cwd(Node2, Config), "Mnesia*"]),
     MnesiaCmd = "rm -rf " ++ MnesiaDir,
 
     Res1 = call_fun(Node, os, cmd, [StopCmd]),
+    call_fun(Node, os, cmd, [StoppedCmd]),
+    ?assertEqual(Res1, ""),
     wait_until_stopped(StatusCmd, 120),
 
     Res2 = call_fun(Node, os, cmd, [RemoveCmd]),
-    Res3 = call_fun(Node, os, cmd, [MnesiaCmd]),
-    Res4 = call_fun(Node, os, cmd, [StartCmd]),
-    wait_until_started(StatusCmd, 120),
-
-    ?assertEqual(Res1, ""),
     ?assertEqual(Res2, "{atomic,ok}\n"),
+
+    Res3 = call_fun(Node, os, cmd, [MnesiaCmd]),
     ?assertEqual(Res3, ""),
+
+    Res4 = call_fun(Node, os, cmd, [StartCmd]),
     ?assertEqual(Res4, ""),
+    call_fun(Node, os, cmd, [StartedCmd]),
+    wait_until_started(StatusCmd, 120),
 
     verify_result(remove),
 
@@ -80,16 +93,19 @@ remove_node_from_cluster(Config) ->
 
 
 ctl_path(Node, Config) ->
-    filename:join([get_cwd(Node, Config), "bin", "mongooseimctl"]).
+    script_path(Node, Config, "mongooseimctl").
+
+script_path(Node, Config, Script) ->
+    filename:join([get_cwd(Node, Config), "bin", Script]).
 
 wait_until_started(_, 0) ->
     erlang:error({timeout, starting_node});
 wait_until_started(Cmd, Retries) ->
     Result = os:cmd(Cmd),
-    case re:run(Result, "Node .* is started") of
-        {match, _} ->
+    case Result of
+        "pong" ++ _ ->
             ok;
-        nomatch ->
+        _ ->
             timer:sleep(1000),
             wait_until_started(Cmd, Retries-1)
     end.
@@ -98,11 +114,11 @@ wait_until_stopped(_, 0) ->
     erlang:error({timeout, stopping_node});
 wait_until_stopped(Cmd, Retries) ->
     case os:cmd(Cmd) of
-        "Failed RPC connection" ++ _ ->
-            ok;
-        "Node" ++ _ ->
+        "pong" ++ _->
             timer:sleep(1000),
-            wait_until_stopped(Cmd, Retries-1)
+            wait_until_stopped(Cmd, Retries-1);
+        _ ->
+            ok
     end.
 
 verify_result(Op) ->
