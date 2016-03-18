@@ -20,22 +20,8 @@ elif [ ${TRAVIS_BRANCH} == 'master' ]; then
     DOCKERHUB_TAG="latest";
 fi
 
-MIN_DOCKER_REPO=github.com/michalwski/mongooseim-docker-minimal.git
-git clone https://${MIN_DOCKER_REPO}
-cd mongooseim-docker-minimal
-cp ../${MONGOOSE_TGZ} member
-
-git add member/${MEMBER_TGZ}
-git config user.name "MongooseIM"
-git config user.email "mongoose-im@erlang-solutions.com"
-git commit -m "mongooseim.tar.gz for esl/MongooseIM@${TRAVIS_COMMIT}"
-git push https://${GITHUB_TOKEN}@${MIN_DOCKER_REPO} master:${DOCKERHUB_TAG}
-
-cd ../
-
 git clone https://github.com/michalwski/mongooseim-docker.git
 cd mongooseim-docker
-
 
 cp ../${MONGOOSE_TGZ} member
 
