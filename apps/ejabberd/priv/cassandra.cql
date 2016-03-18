@@ -27,6 +27,16 @@ CREATE TABLE mam_muc_message(
   message blob,
   PRIMARY KEY ((room_jid), with_nick, id));
 
+CREATE TABLE mam_config(
+  user_jid varchar,
+  remote_jid varchar,
+  -- A - always archive;
+  -- N - never archive;
+  -- R - roster (only for remote_jid == "")
+  behaviour varchar,
+  PRIMARY KEY ((user_jid), remote_jid)
+);
+
 CREATE TABLE private_storage (
   username varchar,
   namespace varchar,

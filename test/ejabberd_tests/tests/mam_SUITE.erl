@@ -586,7 +586,7 @@ init_modules(odbc_simple, _, Config) ->
     Config;
 init_modules(ca, _, Config) ->
     init_module(host(), mod_mam_ca_arch, [pm]),
-    init_module(host(), mod_mam_mnesia_prefs, [pm, {archive_key, mam_archive_key_server_user}]),
+    init_module(host(), mod_mam_ca_prefs, [pm]),
     init_module(host(), mod_mam, [add_archived_element]),
     Config;
 init_modules(odbc_async, _, Config) ->
@@ -649,6 +649,7 @@ mam_modules() ->
      mod_mam_muc,
      mod_mam_ca_arch,
      mod_mam_muc_ca_arch,
+     mod_mam_ca_prefs,
      mod_mam_odbc_arch,
      mod_mam_muc_odbc_arch,
      mod_mam_odbc_async_pool_writer,
@@ -2952,7 +2953,7 @@ is_odbc_enabled(Host) ->
     end.
 
 is_cassandra_enabled(_) ->
-    case escalus_ejabberd:rpc(cassandra_sup, get_all_workers, []) of
+    case escalus_ejabberd:rpc(mongoose_cassandra_sup, get_all_workers, []) of
         [_|_]=_Pools ->
             true;
         _ ->
