@@ -15,9 +15,9 @@ compile: rebar
 deps: rebar
 	./rebar get-deps > $@.log 2>&1 || (cat $@.log; exit 1)
 
-clean: rebar
+clean: rebar configure.out
 	rm -rf apps/*/logs
-	./rebar clean
+	. ./configure.out && ./rebar clean
 
 quick_compile: rebar
 	./rebar $(OPTS) compile skip_deps=true > $@.log 2>&1 || (cat $@.log; exit 1)
