@@ -8,6 +8,7 @@ This release includes:
 - support for FIPS mode [#628](https://github.com/esl/MongooseIM/pull/628)
 - reverse Proxy [#628](https://github.com/esl/MongooseIM/pull/638)
 - extra routing layer [#639](https://github.com/esl/MongooseIM/pull/639)
+- fix for TCP backlog setting [#708](https://github.com/esl/MongooseIM/pull/708)
 - external components improvements:
    - [#640](https://github.com/esl/MongooseIM/pull/640)
 
