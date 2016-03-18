@@ -2,14 +2,14 @@
 # -*- tab-width:4;indent-tabs-mode:nil -*-
 # ex: ts=4 sw=4 et
 
-RUNNER_SCRIPT_DIR=$(cd ${0%/*} && pwd)
+RUNNER_SCRIPT_DIR={{mongooseim_script_dir}}
 
 RUNNER_BASE_DIR=${RUNNER_SCRIPT_DIR%/*}
-RUNNER_ETC_DIR=$RUNNER_BASE_DIR/etc
-RUNNER_LOG_DIR={{mongooseim_runner_log_dir}}
+RUNNER_ETC_DIR={{mongooseim_etc_dir}}
+RUNNER_LOG_DIR={{mongooseim_log_dir}}
 # Note the trailing slash on $PIPE_DIR/
 PIPE_DIR=/tmp/mongooseim_pipe_`whoami`/
-RUNNER_USER=
+RUNNER_USER={{mongooseim_runner_user}}
 
 EJABBERD_SO_PATH=`ls -dt $RUNNER_BASE_DIR/lib/ejabberd-2.1.8*/priv/lib | head -1`
 EJABBERD_CONFIG_PATH=$RUNNER_ETC_DIR/ejabberd.cfg
@@ -33,6 +33,9 @@ if [ -z "$NAME_ARG" ]; then
     echo "vm.args needs to have either -name or -sname parameter."
     exit 1
 fi
+NAME=$(echo $NAME_ARG | awk '{print $1}')
+NODE=$(echo $NAME_ARG | awk '{print $2}')
+MNESIA_DIR={{mongooseim_mdb_dir}}
 
 # Extract the target cookie
 COOKIE_ARG=`grep -e '^-setcookie' $RUNNER_ETC_DIR/vm.args`
@@ -96,8 +99,6 @@ case "$1" in
         done
         ;;
     add_to_cluster)
-        NAME=$(echo $NAME_ARG | awk '{print $1}')
-        NODE=$(echo $NAME_ARG | awk '{print $2}')
         NAME_TYPE=$(echo $NAME | sed 's/^\-//')
 
         TARGETNODETOOL="$ERTS_PATH/escript $ERTS_PATH/nodetool $NAME $2 $COOKIE_ARG"
@@ -109,7 +110,6 @@ case "$1" in
             exit 1
         fi
 
-        MNESIA_DIR="$RUNNER_BASE_DIR/Mnesia.$NODE"
         if [ -d "$MNESIA_DIR" ]; then
             echo "Error: $MNESIA_DIR already exists. Please remove whole directory before continuing."
             exit 1

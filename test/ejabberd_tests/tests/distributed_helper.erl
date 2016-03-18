@@ -29,16 +29,19 @@ remove_node_from_cluster(Config) ->
     ok.
 
 ctl_path(Node, Config) ->
-    filename:join([get_cwd(Node, Config), "bin", "mongooseimctl"]).
+    script_path(Node, Config, "mongooseimctl").
+
+script_path(Node, Config, Script) ->
+    filename:join([get_cwd(Node, Config), "bin", Script]).
 
 wait_until_started(_, 0) ->
     erlang:error({timeout, starting_node});
 wait_until_started(Cmd, Retries) ->
     Result = os:cmd(Cmd),
-    case re:run(Result, "Node .* is started") of
-        {match, _} ->
+    case Result of
+        "pong" ++ _ ->
             ok;
-        nomatch ->
+        _ ->
             timer:sleep(1000),
             wait_until_started(Cmd, Retries-1)
     end.
@@ -47,11 +50,11 @@ wait_until_stopped(_, 0) ->
     erlang:error({timeout, stopping_node});
 wait_until_stopped(Cmd, Retries) ->
     case os:cmd(Cmd) of
-        "Failed RPC connection" ++ _ ->
-            ok;
-        "Node" ++ _ ->
+        "pong" ++ _->
             timer:sleep(1000),
-            wait_until_stopped(Cmd, Retries-1)
+            wait_until_stopped(Cmd, Retries-1);
+        _ ->
+            ok
     end.
 
 verify_result(Op) ->
