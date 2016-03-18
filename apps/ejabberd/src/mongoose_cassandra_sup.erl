@@ -1,4 +1,4 @@
--module(cassandra_sup).
+-module(mongoose_cassandra_sup).
 -author('arcusfelis@gmail.com').
 
 -behaviour(supervisor).
@@ -13,7 +13,7 @@
 
 list_pools() ->
     Children = supervisor:which_children(ejabberd_sup),
-    [PoolName || {_Name={cassandra_sup, PoolName}, _Pid, supervisor, _} <- Children].
+    [PoolName || {_Name={mongoose_cassandra_sup, PoolName}, _Pid, supervisor, _} <- Children].
 
 stop() ->
     [stop(PoolName) || PoolName <- list_pools()].
@@ -23,7 +23,7 @@ start(PoolName, Config) ->
     supervisor:start_child(ejabberd_sup, supervisor_spec(PoolName, Config)).
 
 stop(PoolName) ->
-    Tag = {cassandra_sup, PoolName},
+    Tag = {mongoose_cassandra_sup, PoolName},
     supervisor:terminate_child(ejabberd_sup, Tag),
     supervisor:delete_child(ejabberd_sup, Tag),
     delete_worker_pool(PoolName).
@@ -32,7 +32,7 @@ start_link(PoolName, Config) ->
     supervisor2:start_link({local, ?MODULE}, ?MODULE, [PoolName, Config]).
 
 supervisor_spec(PoolName, Config) ->
-    {{cassandra_sup, PoolName},
+    {{mongoose_cassandra_sup, PoolName},
      {?MODULE, start_link, [PoolName, Config]},
      permanent,
      infinity,
@@ -41,11 +41,11 @@ supervisor_spec(PoolName, Config) ->
 
 worker_spec(PoolName, Addr, Port, WorkerNumber, ClientOptions) ->
     {{PoolName, Addr, Port, WorkerNumber},
-     {cassandra_worker, start_link, [PoolName, Addr, Port, ClientOptions]},
+     {mongoose_cassandra_worker, start_link, [PoolName, Addr, Port, ClientOptions]},
      {permanent, 10}, %% Delay is 10 seconds
      infinity,
      worker,
-     [cassandra_worker]}.
+     [mongoose_cassandra_worker]}.
 
 worker_specs(PoolName, Servers, ClientOptions) ->
     [worker_spec(PoolName, Addr, Port, WorkerNumber, ClientOptions)

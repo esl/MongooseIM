@@ -4,7 +4,7 @@
 %%% @doc Generic cassandra worker
 %%% @end
 %%%-------------------------------------------------------------------
--module(cassandra_worker).
+-module(mongoose_cassandra_worker).
 
 %% ----------------------------------------------------------------------
 %% Exports
@@ -26,14 +26,14 @@
 %% Internal exports
 -export([start_link/4]).
 
-%% cassandra_worker callbacks
+%% mongoose_cassandra_worker callbacks
 -export([prepared_queries/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
--behaviour(cassandra_worker).
+-behaviour(mongoose_cassandra_worker).
 -callback prepared_queries() -> list({term(), string()}).
 
 %% ----------------------------------------------------------------------
@@ -83,19 +83,19 @@ cql_query_multi_async(Worker, _UserJID, Module, QueryName, MultiParams) when is_
 
 %% @doc Select worker and do cql query
 cql_query_pool(PoolName, UserJID, Module, QueryName, Params) ->
-    Worker = cassandra_sup:select_worker(PoolName, UserJID),
+    Worker = mongoose_cassandra_sup:select_worker(PoolName, UserJID),
     cql_query(Worker, UserJID, Module, QueryName, Params).
 
 cql_query_pool_async(PoolName, UserJID, Module, QueryName, Params) ->
-    Worker = cassandra_sup:select_worker(PoolName, UserJID),
+    Worker = mongoose_cassandra_sup:select_worker(PoolName, UserJID),
     cql_query_async(Worker, UserJID, Module, QueryName, Params).
 
 cql_query_pool_multi_async(PoolName, UserJID, Module, QueryName, MultiParams) ->
-    Worker = cassandra_sup:select_worker(PoolName, UserJID),
+    Worker = mongoose_cassandra_sup:select_worker(PoolName, UserJID),
     cql_query_multi_async(Worker, UserJID, Module, QueryName, MultiParams).
 
 %% ----------------------------------------------------------------------
-%% cassandra_worker behaviour callbacks
+%% mongoose_cassandra_worker behaviour callbacks
 
 prepared_queries() ->
     [{test_query, test_query_sql()}].
@@ -110,7 +110,7 @@ test_query(PoolName) ->
     test_query(PoolName, undefined).
 
 test_query(PoolName, UserJID) ->
-    Workers = cassandra_sup:get_all_workers(PoolName),
+    Workers = mongoose_cassandra_sup:get_all_workers(PoolName),
     [{Worker, try cql_query(Worker, UserJID, ?MODULE, test_query, []) of
                   [[_Now]] -> ok;
                   Other -> {error, Other}
@@ -127,7 +127,7 @@ queue_length(PoolName) ->
     {ok, Len}.
 
 queue_lengths(PoolName) ->
-    Workers = cassandra_sup:get_all_workers(PoolName),
+    Workers = mongoose_cassandra_sup:get_all_workers(PoolName),
     [worker_queue_length(Worker) || Worker <- Workers].
 
 worker_queue_length(Worker) ->
@@ -229,7 +229,7 @@ init([PoolName, Addr, Port, ClientOptions]) ->
 
 init_connection(ConnPid, Conn, State=#state{pool_name=PoolName}) ->
     erlang:monitor(process, ConnPid),
-    cassandra_sup:register_worker(PoolName, self()),
+    mongoose_cassandra_sup:register_worker(PoolName, self()),
     put(query_refs_count, 0),
     State#state{
         conn=Conn,

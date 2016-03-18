@@ -43,7 +43,7 @@ multi_set_data(LUser, LServer, NS2XML) ->
     PoolName = pool_name(LServer, LUser),
     UserJID = jid:make(LUser, LServer, <<>>),
     MultiParams = [ [LUser, NS, exml:to_binary(XML)] || {NS, XML} <- NS2XML ],
-    cassandra_worker:cql_query_pool_multi_async(PoolName, UserJID, ?MODULE, set_data, MultiParams),
+    mongoose_cassandra_worker:cql_query_pool_multi_async(PoolName, UserJID, ?MODULE, set_data, MultiParams),
     %% TODO handling errors can be really complex
     %% TODO wait for completion
     ok.
@@ -56,7 +56,7 @@ get_data(LUser, LServer, NS, Default) ->
     UserJID = jid:make(LUser, LServer, <<>>),
     PoolName = pool_name(LServer, LUser),
     Params = [LUser, NS],
-    Rows = cassandra_worker:cql_query_pool(PoolName, UserJID, ?MODULE, get_data, Params),
+    Rows = mongoose_cassandra_worker:cql_query_pool(PoolName, UserJID, ?MODULE, get_data, Params),
     case Rows of
         [[SData]] ->
             {ok, Elem} = exml:parse(SData),
@@ -69,7 +69,7 @@ remove_user(LUser, LServer) ->
     UserJID = jid:make(LUser, LServer, <<>>),
     PoolName = pool_name(LServer, LUser),
     Params = [LUser],
-    cassandra_worker:cql_query_pool(PoolName, UserJID, ?MODULE, remove_user, Params),
+    mongoose_cassandra_worker:cql_query_pool(PoolName, UserJID, ?MODULE, remove_user, Params),
     ok.
 
 %% ----------------------------------------------------------------------

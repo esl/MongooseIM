@@ -20,7 +20,7 @@
          purge_single_message/6,
          purge_multiple_messages/9]).
 
-%% cassandra_worker callbacks
+%% mongoose_cassandra_worker callbacks
 -export([prepared_queries/0]).
 
 %% ----------------------------------------------------------------------
@@ -119,7 +119,7 @@ stop_pm(Host) ->
     ok.
 
 %% ----------------------------------------------------------------------
-%% cassandra_worker callbacks
+%% mongoose_cassandra_worker callbacks
 
 prepared_queries() ->
     [{insert_query, insert_query_cql()},
@@ -136,7 +136,7 @@ prepared_queries() ->
 
 select_worker(UserJID) ->
     PoolName = pool_name(UserJID),
-    cassandra_sup:select_worker(PoolName, UserJID).
+    mongoose_cassandra_sup:select_worker(PoolName, UserJID).
 
 %% ----------------------------------------------------------------------
 %% Internal functions and callbacks
@@ -188,7 +188,7 @@ archive_message_2(_Result, _Host, MessID,
 write_messages(UserJID, Messages) ->
     PoolName = pool_name(UserJID),
     MultiParams = [message_to_params(M) || M <- Messages],
-    cassandra_worker:cql_query_pool_multi_async(PoolName, UserJID, ?MODULE, insert_query, MultiParams).
+    mongoose_cassandra_worker:cql_query_pool_multi_async(PoolName, UserJID, ?MODULE, insert_query, MultiParams).
 
 message_to_params(#mam_message{
       id = MessID,
@@ -210,7 +210,7 @@ delete_query_cql() ->
 
 delete_messages(Worker, UserJID, Messages) ->
     MultiParams = [delete_message_to_params(M) || M <- Messages],
-    cassandra_worker:cql_query_multi_async(Worker, UserJID, ?MODULE, delete_query, MultiParams).
+    mongoose_cassandra_worker:cql_query_multi_async(Worker, UserJID, ?MODULE, delete_query, MultiParams).
 
 delete_message_to_params(#mam_message{
       id = MessID,
@@ -231,7 +231,7 @@ remove_archive(_Host, _UserID, UserJID) ->
     PoolName = pool_name(UserJID),
     Params = [BUserJID],
     %% Wait until deleted
-    cassandra_worker:cql_query_pool(PoolName, UserJID, ?MODULE, remove_archive_query, Params),
+    mongoose_cassandra_worker:cql_query_pool(PoolName, UserJID, ?MODULE, remove_archive_query, Params),
     ok.
 
 
@@ -244,7 +244,7 @@ message_id_to_remote_jid_cql() ->
 
 message_id_to_remote_jid(Worker, UserJID, BUserJID, MessID) ->
     Params = [BUserJID, MessID],
-    Rows = cassandra_worker:cql_query(Worker, UserJID, ?MODULE, message_id_to_remote_jid_query, Params),
+    Rows = mongoose_cassandra_worker:cql_query(Worker, UserJID, ?MODULE, message_id_to_remote_jid_query, Params),
     case Rows of
         [] ->
             {error, not_found};
@@ -546,7 +546,7 @@ purge_multiple_messages(_Result, Host, UserID, UserJID, Borders,
     Limit = 500, %% TODO something smarter
     QueryName = {list_message_ids, select_filter(Filter)},
     Params = eval_filter_params(Filter) ++ [Limit],
-    Rows = cassandra_worker:cql_query_pool(PoolName, UserJID, ?MODULE, QueryName, Params),
+    Rows = mongoose_cassandra_worker:cql_query_pool(PoolName, UserJID, ?MODULE, QueryName, Params),
     %% TODO can be faster
     %% TODO rate limiting
     [purge_single_message(ok, Host, MessID, UserID, UserJID, Now) || [MessID] <- Rows],
@@ -571,11 +571,11 @@ extract_messages(_Worker, _UserJID, _Host, _Filter, 0, _) ->
 extract_messages(Worker, UserJID, _Host, Filter, IMax, false) ->
     QueryName = {extract_messages_query, select_filter(Filter)},
     Params = eval_filter_params(Filter) ++ [IMax],
-    cassandra_worker:cql_query(Worker, UserJID, ?MODULE, QueryName, Params);
+    mongoose_cassandra_worker:cql_query(Worker, UserJID, ?MODULE, QueryName, Params);
 extract_messages(Worker, UserJID, _Host, Filter, IMax, true) ->
     QueryName = {extract_messages_r_query, select_filter(Filter)},
     Params = eval_filter_params(Filter) ++ [IMax],
-    Rows = cassandra_worker:cql_query(Worker, UserJID, ?MODULE, QueryName, Params),
+    Rows = mongoose_cassandra_worker:cql_query(Worker, UserJID, ?MODULE, QueryName, Params),
     lists:reverse(Rows).
 
 
@@ -623,7 +623,7 @@ calc_before(Worker, UserJID, Host, Filter, MessID) ->
 calc_count(Worker, UserJID, _Host, Filter) ->
     QueryName = {calc_count_query, select_filter(Filter)},
     Params = eval_filter_params(Filter),
-    [[Count]] = cassandra_worker:cql_query(Worker, UserJID, ?MODULE, QueryName, Params),
+    [[Count]] = mongoose_cassandra_worker:cql_query(Worker, UserJID, ?MODULE, QueryName, Params),
     Count.
 
 %% @doc Convert offset to index of the first entry
@@ -638,7 +638,7 @@ calc_count(Worker, UserJID, _Host, Filter) ->
 offset_to_start_id(Worker, UserJID, Filter, Offset) when is_integer(Offset), Offset >= 0 ->
     QueryName = {list_message_ids_query, select_filter(Filter)},
     Params = eval_filter_params(Filter) ++ [Offset+1],
-    RowsIds = cassandra_worker:cql_query(Worker, UserJID, ?MODULE, QueryName, Params),
+    RowsIds = mongoose_cassandra_worker:cql_query(Worker, UserJID, ?MODULE, QueryName, Params),
     case RowsIds of
         [] -> unfefined;
         [_|_] -> [StartId] = lists:last(RowsIds), StartId

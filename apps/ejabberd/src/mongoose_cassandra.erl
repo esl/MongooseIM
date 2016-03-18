@@ -10,7 +10,7 @@ start() ->
     end.
 
 start_pool({PoolName, PoolConfig}) ->
-    cassandra_sup:start(PoolName, extend_config(PoolConfig)).
+    mongoose_cassandra_sup:start(PoolName, extend_config(PoolConfig)).
 
 extend_config(PoolConfig) ->
     PoolConfig
@@ -21,4 +21,4 @@ extend_config(PoolConfig) ->
 
 -spec stop() -> _.
 stop() ->
-    cassandra_sup:stop().
+    mongoose_cassandra_sup:stop().
