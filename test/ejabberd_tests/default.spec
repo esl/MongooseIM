@@ -19,6 +19,7 @@
 {suites, "tests", cluster_commands_SUITE}.
 {suites, "tests", conf_reload_SUITE}.
 {suites, "tests", connect_SUITE}.
+{suites, "tests", component_SUITE}.
 {suites, "tests", ejabberdctl_SUITE}.
 {suites, "tests", last_SUITE}.
 {suites, "tests", login_SUITE}.
@@ -31,6 +32,7 @@
 {suites, "tests", mod_ping_SUITE}.
 {suites, "tests", mod_time_SUITE}.
 {suites, "tests", muc_SUITE}.
+{suites, "tests", oauth_SUITE}.
 {suites, "tests", offline_SUITE}.
 {suites, "tests", presence_SUITE}.
 {suites, "tests", privacy_SUITE}.
@@ -41,7 +43,9 @@
 {suites, "tests", sm_SUITE}.
 {suites, "tests", users_api_SUITE}.
 {suites, "tests", vcard_simple_SUITE}.
+{suites, "tests", vcard_SUITE}.
 {suites, "tests", websockets_SUITE}.
+
 {config, ["test.config"]}.
 {logdir, "ct_report"}.
 {ct_hooks, [ct_tty_hook, ct_mongoose_hook]}.

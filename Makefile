@@ -5,34 +5,36 @@ EJD_INCLUDE = $(EJABBERD_DIR)/include
 EJD_PRIV = $(EJABBERD_DIR)/priv
 XEP_TOOL = tools/xep_tool
 EJD_EBIN = $(EJABBERD_DIR)/ebin
-DEVNODES = node1 node2
+DEVNODES = node1 node2 fed1
 
 all: deps compile
 
 compile: rebar
-	./rebar $(OTPS) compile
+	./rebar $(OPTS) compile > $@.log 2>&1 || (cat $@.log; exit 1)
 
 deps: rebar
-	./rebar get-deps
+	./rebar get-deps > $@.log 2>&1 || (cat $@.log; exit 1)
 
-clean: rebar
+clean: rebar configure.out
 	rm -rf apps/*/logs
-	./rebar clean
+	. ./configure.out && ./rebar clean
 
 quick_compile: rebar
-	./rebar $(OPTS) compile skip_deps=true
+	./rebar $(OPTS) compile skip_deps=true > $@.log 2>&1 || (cat $@.log; exit 1)
 
 reload: quick_compile
 	@E=`ls ./rel/mongooseim/lib/ | grep ejabberd-2 | sort -r | head -n 1` ;\
 	rsync -uW ./apps/ejabberd/ebin/*beam ./rel/mongooseim/lib/$$E/ebin/ ;\
 
 reload_dev: quick_compile
-	@E=`ls ./dev/mongooseim_node1/lib/ | grep ejabberd-2 | sort -r | head -n 1` ;\
-	rsync -uW ./apps/ejabberd/ebin/*beam ./dev/mongooseim_node1/lib/$$E/ebin/ ;\
+	@for NODE in $(DEVNODES); do \
+		E=`ls ./dev/mongooseim_$$NODE/lib/ | grep ejabberd-2 | sort -r | head -n 1` ;\
+		rsync -uW ./apps/ejabberd/ebin/*beam ./dev/mongooseim_$$NODE/lib/$$E/ebin/ ;\
+	done
 
 ct: deps quick_compile
-	@if [ "$(SUITE)" ]; then ./rebar ct suite=$(SUITE) skip_deps=true;\
-	else ./rebar ct skip_deps=true; fi
+	@(if [ "$(SUITE)" ]; then ./rebar ct suite=$(SUITE) skip_deps=true;\
+		else ./rebar ct skip_deps=true; fi) > $@.log 2>&1 || (cat $@.log; exit 1)
 
 # This compiles and runs one test suite. For quick feedback/TDD.
 # Example:
@@ -40,9 +42,9 @@ ct: deps quick_compile
 qct:
 	mkdir -p /tmp/ct_log
 	@if [ "$(SUITE)" ]; then ct_run -pa apps/*/ebin -pa deps/*/ebin -pa ebin -dir apps/*/test\
-        -I apps/*/include -logdir /tmp/ct_log -suite $(SUITE)_SUITE -noshell;\
+        -I apps/*/include -I apps/*/src -logdir /tmp/ct_log -suite $(SUITE)_SUITE -noshell;\
 	else ct_run -pa apps/*/ebin -pa deps/*/ebin -pa ebin -dir apps/*/test\
-        -I apps/*/include -logdir /tmp/ct_log -noshell; fi
+        -I apps/*/include -I apps/*/src -logdir /tmp/ct_log -noshell; fi
 
 test: test_deps
 	cd test/ejabberd_tests; make test
@@ -101,17 +103,19 @@ $(DEVNODES): rebar deps compile deps_dev configure.out rel/vars.config
 	@echo "building $@"
 	(. ./configure.out && \
 	 cd rel && \
-	 ../rebar generate -f target_dir=../dev/mongooseim_$@ overlay_vars=./reltool_vars/$@_vars.config)
+	 ../rebar generate -f target_dir=../dev/mongooseim_$@ overlay_vars=./reltool_vars/$@_vars.config) \
+		> $@.log 2>&1 || (cat $@.log; exit 1)
 	cp -R `dirname $(shell ./readlink.sh $(shell which erl))`/../lib/tools-* dev/mongooseim_$@/lib/
 
 deps_dev:
 	mkdir -p dev
 
 devclean:
-	rm -rf dev/*
+	-@rm -rf dev/* > /dev/null 2>&1
 
 cover_report: /tmp/mongoose_combined.coverdata
-	erl -noshell -pa apps/*/ebin deps/*/ebin -eval 'ecoveralls:travis_ci("$?"), init:stop()'
+	erl -noshell -pa apps/*/ebin deps/*/ebin -eval 'ecoveralls:travis_ci("$?"), init:stop()' \
+		> $@.log 2>&1 || (cat $@.log; exit 1)
 
 relclean:
 	rm -rf rel/mongooseim

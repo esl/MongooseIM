@@ -1,5 +1,4 @@
 {ok, Path} = file:get_cwd(),
-ConfigureOut = Path ++ "/../configure.out",
 EnvApps = os:getenv("APPS"),
 EnvApps =/= false orelse error("APPS not defined"),
 EnvAppsToInclude = [ list_to_atom(App)

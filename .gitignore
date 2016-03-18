@@ -80,6 +80,9 @@ Mnesia.mongooseim@*
 compile.log
 ct.log
 deps.log
+fed1.log
+node1.log
+node2.log
 quick_compile.log
 dialyzer
 configure.out

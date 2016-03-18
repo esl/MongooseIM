@@ -20,6 +20,7 @@
          restart_application/1, restart_application/2,
          call_fun/3, call_fun/4,
          call_ctl/2, call_ctl/3,
+         call_ctl_with_args/3,
          file_exists/1, file_exists/2,
          backup_config_file/1, backup_config_file/2,
          restore_config_file/1, restore_config_file/2,
@@ -111,7 +112,11 @@ call_ctl(Cmd, Config) ->
 
 -spec call_ctl(node(), atom(), ct_config()) -> term() | term().
 call_ctl(Node, Cmd, Config) ->
-    OsCmd = io_lib:format("~p ~p", [?CTL_PATH(Node, Config), atom_to_list(Cmd)]),
+    call_ctl_with_args(Node, [atom_to_list(Cmd)], Config).
+
+-spec call_ctl_with_args(node(), [string()], ct_config()) -> term() | term().
+call_ctl_with_args(Node, CmdAndArgs, Config) ->
+    OsCmd = string:join([?CTL_PATH(Node, Config) | CmdAndArgs], " "),
     os:cmd(OsCmd).
 
 -spec file_exists(file:name_all()) -> term() | {badrpc, term()}.
@@ -191,7 +196,3 @@ update_config_variables(CfgVarsToChange, CfgVars) ->
     lists:foldl(fun({Var, Val}, Acc) ->
                         lists:keystore(Var, 1, Acc,{Var, Val})
                 end, CfgVars, CfgVarsToChange).
-
-
-
-

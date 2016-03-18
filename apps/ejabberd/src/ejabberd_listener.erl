@@ -49,7 +49,7 @@
 -type portnum() :: inet:port_number().
 -type port_ip_proto() :: portnum() | {portnum(), addr() | proto()} | {portnum(), addr(), proto()}.
 
--spec start_link() -> 'ignore' | {'error', _} | {'ok', pid()}.
+-spec start_link() -> 'ignore' | {'error',_} | {'ok',pid()}.
 start_link() ->
     supervisor:start_link({local, ejabberd_listeners}, ?MODULE, []).
 
@@ -94,11 +94,8 @@ report_duplicated_portips(L) ->
             Module :: atom() | tuple(),
             Opts :: [any()]) -> any().
 start(Port, Module, Opts) ->
-    %% Check if the module is an ejabberd listener or an independent listener
-    case Module:socket_type() of
-        independent -> Module:start_listener(Port, Opts);
-        _ -> start_dependent(Port, Module, Opts)
-    end.
+    %% at this point, Module:socket_type() must not be 'independent'
+    start_dependent(Port, Module, Opts).
 
 -spec start_dependent(Port :: _,
                       Module :: atom() | tuple(),
@@ -119,6 +116,7 @@ start_dependent(Port, Module, Opts) ->
 init(PortIP, Module, RawOpts) ->
     {Port, IPT, IPS, IPV, Proto, OptsClean} = parse_listener_portip(PortIP, RawOpts),
     {Opts, SockOpts} = prepare_opts(IPT, IPV, OptsClean),
+
     if Proto == udp ->
             init_udp(PortIP, Module, Opts, SockOpts, Port, IPS);
        true ->
@@ -175,14 +173,18 @@ listen_tcp(PortIPProto, Module, SockOpts, Port, IPS) ->
             ets:delete(listen_sockets, PortIP),
             ListenSocket;
         _ ->
-            Res = gen_tcp:listen(Port, [binary,
-                                        {packet, 0},
-                                        {active, false},
-                                        {reuseaddr, true},
-                                        {nodelay, true},
-                                        {send_timeout, ?TCP_SEND_TIMEOUT},
-                                        {keepalive, true},
-                                        {send_timeout_close, true}]),
+            DefaultSockOpts = [binary,
+                               {backlog, 100},
+                               {packet, 0},
+                               {active, false},
+                               {reuseaddr, true},
+                               {nodelay, true},
+                               {send_timeout, 120},
+                               {keepalive, true},
+                               {send_timeout_close, true}],
+
+            FinalSockOpts = override_sock_opts(SockOpts, DefaultSockOpts),
+            Res = gen_tcp:listen(Port, FinalSockOpts),
             case Res of
                 {ok, ListenSocket} ->
                     ListenSocket;
@@ -191,15 +193,24 @@ listen_tcp(PortIPProto, Module, SockOpts, Port, IPS) ->
             end
     end.
 
-%% @spec (PortIP, Opts) -> {Port, IPT, IPS, IPV, OptsClean}
-%% where
-%%      PortIP = Port | {Port, IPT | IPS}
-%%      Port = integer()
-%%      IPT = tuple()
-%%      IPS = string()
-%%      IPV = inet | inet6
-%%      Opts = [IPV | {ip, IPT} | atom() | tuple()]
-%%      OptsClean = [atom() | tuple()]
+override_sock_opts([], Opts) ->
+    Opts;
+override_sock_opts([Override | OverrideOpts], Opts) ->
+    NewOpts = do_override(Override, Opts),
+    override_sock_opts(OverrideOpts, NewOpts).
+
+do_override({ip, _} = IP, Opts) ->
+    lists:keystore(ip, 1, Opts, IP);
+do_override({backlog, _} = Backlog, Opts) ->
+    lists:keystore(backlog, 1, Opts, Backlog);
+do_override(inet6, Opts) ->
+    [inet6 | lists:delete(inet6, Opts)];
+do_override(inet, Opts) ->
+    [inet | lists:delete(inet, Opts)];
+do_override(_, Opts) ->
+    Opts.
+
+
 %% @doc Parse any kind of ejabberd listener specification.
 %% The parsed options are returned in several formats.
 %% OptsClean does not include inet/inet6 or ip options.
@@ -255,6 +266,7 @@ prepare_opts(IPT, IPV, OptsClean) ->
                                (_) -> false
                             end, Opts),
     {Opts, SockOpts}.
+
 
 -spec add_proto(PortIPProto :: port_ip_proto(),
                 Opts :: [any()]
@@ -375,13 +387,19 @@ start_module_sup(_PortIPProto, Module) ->
 -spec start_listener_sup(port_ip_proto(), Module :: atom(), Opts :: [any()])
       -> {'error',_} | {'ok','undefined' | pid()} | {'ok','undefined' | pid(),_}.
 start_listener_sup(PortIPProto, Module, Opts) ->
-    ChildSpec = {PortIPProto,
-                 {?MODULE, start, [PortIPProto, Module, Opts]},
-                 transient,
-                 brutal_kill,
-                 worker,
-                 [?MODULE]},
-    supervisor:start_child(ejabberd_listeners, ChildSpec).
+    case Module:socket_type() of
+        independent ->
+            Module:start_listener(PortIPProto, Opts);
+        _ ->
+
+            ChildSpec = {PortIPProto,
+                         {?MODULE, start, [PortIPProto, Module, Opts]},
+                         transient,
+                         brutal_kill,
+                         worker,
+                         [?MODULE]},
+            supervisor:start_child(ejabberd_listeners, ChildSpec)
+    end.
 
 -spec stop_listeners() -> 'ok'.
 stop_listeners() ->

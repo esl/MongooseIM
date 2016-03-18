@@ -4715,16 +4715,3 @@ stringxfield(Label, Var, Val, Lang) ->
 
 privatexfield(Label, Var, Val, Lang) ->
     xfield(<<"text-private">>, Label, Var, Val, Lang).
-
-%% jidxfield(Label, Var, Val, Lang) ->
-%%     xfield(<<"jid-single">>, Label, Var, Val, Lang).
-%%
-%% jidmultixfield(Label, Var, JIDList, Lang) ->
-%%     #xmlel{name = <<"field">>,
-%%            attrs = [{<<"type">>, <<"jid-multi">>},
-%%                     {<<"label">>, translate:translate(Lang, Label)},
-%%                     {<<"var">>, Var}],
-%%            children = [#xmlel{name = <<"value">>,
-%%                               children = [#xmlcdata{content = jlib:jid_to_binary(JID)}]}
-%%                        || JID <- JIDList]}.
-

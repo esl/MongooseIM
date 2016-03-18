@@ -47,10 +47,10 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(mod_time, Config) ->
-    escalus:create_users(Config, {by_name, [alice]}).
+    escalus:create_users(Config, escalus:get_users([alice])).
 
 end_per_group(mod_time, Config) ->
-    escalus:delete_users(Config, {by_name, [alice]}).
+    escalus:delete_users(Config, escalus:get_users([alice])).
 
 
 init_per_testcase(CaseName, Config) ->

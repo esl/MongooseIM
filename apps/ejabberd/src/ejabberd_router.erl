@@ -38,7 +38,11 @@
          unregister_route/1,
          unregister_routes/1,
          dirty_get_all_routes/0,
-         dirty_get_all_domains/0
+         dirty_get_all_domains/0,
+         register_components/1,
+         register_component/1,
+         unregister_component/1,
+         unregister_components/1
         ]).
 
 -export([start_link/0]).
@@ -61,6 +65,10 @@
 -record(route, {domain :: domain(),
                 handler :: handler()
                }).
+
+-record(external_component, {domain  :: domain(),
+                             handler :: handler()}).
+
 -record(state, {}).
 
 %%====================================================================
@@ -93,6 +101,53 @@ route_error(From, To, ErrPacket, OrigPacket) ->
         true ->
             ok
     end.
+
+-spec register_components([Domain :: domain()]) -> ok | {error, any()}.
+register_components(Domains) ->
+    LDomains = [{jlib:nameprep(Domain), Domain} || Domain <- Domains],
+    Handler = make_handler(undefined),
+    F = fun() ->
+            [do_register_component(LDomain, Handler) || LDomain <- LDomains],
+            ok
+    end,
+    case mnesia:transaction(F) of
+        {atomic, ok}      -> ok;
+        {aborted, Reason} -> {error, Reason}
+    end.
+
+-spec register_component(Domain :: domain()) -> ok | {error, any()}.
+register_component(Domain) ->
+    register_components([Domain]).
+
+do_register_component({error, Domain}, _Handler) ->
+    error({invalid_domain, Domain});
+do_register_component({LDomain, _}, Handler) ->
+    Component = #external_component{domain = LDomain, handler = Handler},
+    case {mnesia:read(route, LDomain),
+          mnesia:read(external_component, LDomain)} of
+        {[], []} ->
+            ok = mnesia:write(Component);
+        _ ->
+            mnesia:abort(route_already_exists)
+    end.
+
+-spec unregister_components([Domains :: domain()]) -> {atomic, ok}.
+unregister_components(Domains) ->
+    LDomains = [{jlib:nameprep(Domain), Domain} || Domain <- Domains],
+    F = fun() ->
+            [do_unregister_component(LDomain) || LDomain <- LDomains],
+            ok
+    end,
+    {atomic, ok} = mnesia:transaction(F).
+
+do_unregister_component({error, Domain}) ->
+    error({invalid_domain, Domain});
+do_unregister_component({LDomain, _}) ->
+    ok = mnesia:delete({external_component, LDomain}).
+
+-spec unregister_component(Domain :: domain()) -> {atomic, ok}.
+unregister_component(Domain) ->
+    unregister_components([Domain]).
 
 -spec register_route(Domain :: domain()) -> any().
 register_route(Domain) ->
@@ -146,10 +201,13 @@ unregister_routes(Domains) ->
 
 
 dirty_get_all_routes() ->
-    lists:usort(mnesia:dirty_all_keys(route)) -- ?MYHOSTS.
+    lists:usort(all_routes()) -- ?MYHOSTS.
 
 dirty_get_all_domains() ->
-    lists:usort(mnesia:dirty_all_keys(route)).
+    lists:usort(all_routes()).
+
+all_routes() ->
+    mnesia:dirty_all_keys(route) ++ mnesia:dirty_all_keys(external_component).
 
 
 %%====================================================================
@@ -171,6 +229,14 @@ init([]) ->
                          {attributes, record_info(fields, route)},
                          {local_content, true}]),
     mnesia:add_table_copy(route, node(), ram_copies),
+
+    %% add distributed service_component routes
+    mnesia:create_table(external_component,
+                        [{ram_copies, [node()]},
+                         {attributes, record_info(fields, external_component)},
+                         {type, set}]),
+    mnesia:add_table_copy(external_component, node(), ram_copies),
+
     {ok, #state{}}.
 
 %%--------------------------------------------------------------------
@@ -237,14 +303,21 @@ do_route(OrigFrom, OrigTo, OrigPacket) ->
                                  {OrigFrom, OrigTo, OrigPacket}, []) of
         {From, To, Packet} ->
             LDstDomain = To#jid.lserver,
-            case mnesia:dirty_read(route, LDstDomain) of
+            case mnesia:dirty_read(external_component, LDstDomain) of
                 [] ->
-                    ejabberd_s2s:route(From, To, Packet);
-                [#route{handler=Handler}] ->
-                    do_local_route(OrigFrom, OrigTo, OrigPacket, LDstDomain, Handler)
+                    case mnesia:dirty_read(route, LDstDomain) of
+                        [] ->
+                            ejabberd_s2s:route(From, To, Packet);
+                        [#route{handler=Handler}] ->
+                            do_local_route(OrigFrom, OrigTo, OrigPacket,
+                                           LDstDomain, Handler)
+                    end;
+                [#external_component{handler = Handler}] ->
+                    do_local_route(OrigFrom, OrigTo, OrigPacket,
+                                   LDstDomain, Handler)
             end;
         drop ->
-            ejabberd_hooks:run(xmpp_stanza_dropped, 
+            ejabberd_hooks:run(xmpp_stanza_dropped,
                                OrigFrom#jid.lserver,
                                [OrigFrom, OrigTo, OrigPacket]),
             ok
