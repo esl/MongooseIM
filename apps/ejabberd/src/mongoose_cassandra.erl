@@ -1,5 +1,6 @@
 -module(mongoose_cassandra).
 -export([start/0, stop/0]).
+-export([now_timestamp/0]).
 
 start() ->
     case ejabberd_config:get_local_option(cassandra_servers) of
@@ -22,3 +23,11 @@ extend_config(PoolConfig) ->
 -spec stop() -> _.
 stop() ->
     mongoose_cassandra_sup:stop().
+
+%% @doc Return timestamp in nanoseconds
+now_timestamp() ->
+    now_to_usec(os:timestamp()).
+
+-spec now_to_usec(erlang:timestamp()) -> non_neg_integer().
+now_to_usec({MSec, Sec, USec}) ->
+    (MSec*1000000 + Sec)*1000000 + USec.
