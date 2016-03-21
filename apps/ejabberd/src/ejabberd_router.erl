@@ -78,6 +78,29 @@
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
+%% @doc The main routing function. It puts the message through a chain
+%% of filtering/routing modules, as defined in config 'routing_modules'
+%% setting (default is hardcoded in make_routing_module_source function
+%% of this module). Each of those modules should use xmpp_router behaviour
+%% and implement two functions:
+%% filter/3 - should return either 'drop' atom or its args
+%% route/3, which should either:
+%%   - deliver the message locally by calling ejabberd_local_delivery:do_local_route/3
+%%     and return 'done'
+%%   - deliver the message it its own way and return 'done'
+%%   - return its args
+%%   - return a tuple of {From, To, Packet} which might be modified
+%% For both functions, returning a 'drop' or 'done' atom terminates the procedure,
+%% while returning a tuple means 'proceed' and the tuple is passed to
+%% the next module in sequence.
+-spec route(From   :: ejabberd:jid(),
+    To     :: ejabberd:jid(),
+    Packet :: jlib:xmlel()) -> ok.
+route(From, To, Packet) ->
+    ?DEBUG("route~n\tfrom ~p~n\tto ~p~n\tpacket ~p~n",
+        [From, To, Packet]),
+    route(From, To, Packet, routing_modules_list()).
+
 %% Route the error packet only if the originating packet is not an error itself.
 %% RFC3920 9.3.1
 -spec route_error(From   :: ejabberd:jid(),
@@ -310,13 +333,9 @@ make_routing_module_source(Mods) ->
         "get_routing_module_list() -> ~p.~n",
         [Mods]))).
 
-route(OrigFrom, OrigTo, OrigPacket) ->
-    ?DEBUG("route~n\tfrom ~p~n\tto ~p~n\tpacket ~p~n",
-           [OrigFrom, OrigTo, OrigPacket]),
-    route(OrigFrom, OrigTo, OrigPacket, routing_modules_list()).
-
 route(_, _, _, []) ->
-    ok; %% shouldn't we raise error here?
+    ok; %% shouldn't we raise error here? If we get here means we don't know
+    %% how to route this message...
 route(OrigFrom, OrigTo, OrigPacket, [M|Tail]) ->
     ?DEBUG({using, M}),
     case (catch M:filter(OrigFrom, OrigTo, OrigPacket)) of

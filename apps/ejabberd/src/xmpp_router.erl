@@ -3,6 +3,12 @@
 
 -include("ejabberd.hrl").
 
+%%A behaviour which should be used by all modules being used in a
+%%routing pipeline. The pipeline, manage by ejabberd_router:route
+%%func, calls filter and route for each successful module.
+%%
+%%Module has to implement both functions, can be a no-op just returning
+%%a tuple of its args.
 
 -callback route(From :: ejabberd:jid(), To :: ejabberd:jid(),
                    Packet :: jlib:xmlel()) ->
@@ -14,6 +20,8 @@
 
 
 
+%% @doc This does what previously was done by xmpp_router:route function,
+%% i.e. wraps the callers do_route function in an exception handler.
 -spec route_wrap(Module :: module(),
             From :: ejabberd:jid(),
             To :: ejabberd:jid(),
