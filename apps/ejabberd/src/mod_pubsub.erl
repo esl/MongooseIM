@@ -61,7 +61,7 @@
 -define(PEPNODE, <<"pep">>).
 
 %% exports for hooks
--export([presence_probe/3, caps_add/3, caps_update/3,
+-export([presence_probe/3, caps_change/4,
     in_subscription/6, out_subscription/4,
     on_user_offline/4, remove_user/2,
     disco_local_identity/5, disco_local_features/5,
@@ -305,9 +305,9 @@ init([ServerHost, Opts]) ->
     case lists:member(?PEPNODE, Plugins) of
 	true ->
 	    ejabberd_hooks:add(caps_add, ServerHost,
-		?MODULE, caps_add, 80),
+		?MODULE, caps_change, 80),
 	    ejabberd_hooks:add(caps_update, ServerHost,
-		?MODULE, caps_update, 80),
+		?MODULE, caps_change, 80),
 	    ejabberd_hooks:add(disco_sm_identity, ServerHost,
 		?MODULE, disco_sm_identity, 75),
 	    ejabberd_hooks:add(disco_sm_features, ServerHost,
@@ -400,84 +400,89 @@ terminate_plugins(Host, ServerHost, Plugins, TreePlugin) ->
 
 send_loop(State) ->
     receive
-	{presence, JID, Pid} ->
-	    Host = State#state.host,
-	    ServerHost = State#state.server_host,
-	    DBType = State#state.db_type,
-	    LJID = jid:to_lower(JID),
-	    BJID = jid:to_bare(LJID),
-	    lists:foreach(
-		fun(PType) ->
-			Subs = get_subscriptions_for_send_last(Host, PType, DBType, JID, LJID, BJID),
-			lists:foreach(
-			    fun({NodeRec, _, _, SubJID}) ->
-				    {_, Node} = NodeRec#pubsub_node.nodeid,
-				    Nidx = NodeRec#pubsub_node.id,
-				    Options = NodeRec#pubsub_node.options,
-				    send_items(Host, Node, Nidx, PType, Options, SubJID, last)
-			    end,
-			    lists:usort(Subs))
-		end,
-		State#state.plugins),
-	    if not State#state.ignore_pep_from_offline ->
-		    {User, Server, Resource} = LJID,
-		    case catch ejabberd_c2s:get_subscribed(Pid) of
-			Contacts when is_list(Contacts) ->
-			    lists:foreach(
-				fun({U, S, R}) when S == ServerHost ->
-					case user_resources(U, S) of
-					    [] -> %% offline
-						PeerJID = jid:make(U, S, R),
-						self() !  {presence, User, Server, [Resource], PeerJID};
-					    _ -> %% online
-						% this is already handled by presence probe
-						ok
-					end;
-				    (_) ->
-					% we can not do anything in any cases
-					ok
-				end,
-				Contacts);
-			_ ->
-			    ok
-		    end;
-		true ->
-		    ok
-	    end,
+        {send_last_pubsub_items, Recipient} ->
+	    send_last_pubsub_items(Recipient, State),
+            send_loop(State);
+        {send_last_pep_items, Recipient, Pid} ->
+            send_last_pep_items(Recipient, Pid, State),
 	    send_loop(State);
-	{presence, User, Server, Resources, JID} ->
-	    spawn(fun() ->
-			Host = State#state.host,
-			Owner = jid:to_bare(jid:to_lower(JID)),
-			lists:foreach(fun(#pubsub_node{nodeid = {_, Node}, type = Type, id = Nidx, options = Options}) ->
-				    case match_option(Options, send_last_published_item, on_sub_and_presence) of
-					true ->
-					    lists:foreach(fun(Resource) ->
-							LJID = {User, Server, Resource},
-							Subscribed = case get_option(Options, access_model) of
-							    open -> true;
-							    presence -> true;
-							    whitelist -> false; % subscribers are added manually
-							    authorize -> false; % likewise
-							    roster ->
-								Grps = get_option(Options, roster_groups_allowed, []),
-								{OU, OS, _} = Owner,
-								element(2, get_roster_info(OU, OS, LJID, Grps))
-							end,
-							if Subscribed -> send_items(Owner, Node, Nidx, Type, Options, LJID, last);
-							    true -> ok
-							end
-						end,
-						Resources);
-					_ ->
-					    ok
-				    end
-			    end,
-			    tree_action(Host, get_nodes, [Owner, JID]))
-		end),
+        {send_last_items_from_owner, NodeOwner, Recipient} ->
+            send_last_items_from_owner(State#state.host, NodeOwner, Recipient),
 	    send_loop(State);
 	stop ->
 	    ok
+    end.
+
+send_last_pubsub_items(Recipient, #state{host = Host, db_type = DBType, plugins = Plugins})
+  when is_list(Plugins) ->
+    lists:foreach(
+      fun(PluginType) ->
+              send_last_pubsub_items_for_plugin(Host, DBType, PluginType, Recipient)
+      end,
+      Plugins).
+
+send_last_pubsub_items_for_plugin(Host, DBType, PluginType, Recipient) ->
+    JIDs = [Recipient, jid:to_lower(Recipient), jid:to_bare(Recipient)],
+    Subs = get_subscriptions_for_send_last(Host, PluginType, DBType, JIDs),
+    lists:foreach(
+      fun({#pubsub_node{nodeid={_, Node}, id=Nidx, options=Options}, _, _, SubJID}) ->
+              send_items(Host, Node, Nidx, PluginType, Options, SubJID, last)
+      end,
+      lists:usort(Subs)).
+
+send_last_pep_items(RecipientJID, RecipientPid,
+                    #state{host = Host, ignore_pep_from_offline = IgnorePepFromOffline}) ->
+    RecipientLJID = jid:to_lower(RecipientJID),
+    [send_last_item_to_jid(NodeOwnerJID, Node, RecipientLJID) ||
+        NodeOwnerJID <- get_contacts_for_sending_last_item(RecipientPid, IgnorePepFromOffline),
+        Node <- get_nodes_for_sending_last_item(Host, NodeOwnerJID)],
+    ok.
+
+get_contacts_for_sending_last_item(RecipientPid, IgnorePepFromOffline) ->
+    case catch ejabberd_c2s:get_subscribed(RecipientPid) of
+        Contacts when is_list(Contacts) ->
+            [jid:make(Contact) ||
+                Contact = {U, S, _R} <- Contacts,
+                user_resources(U, S) /= [] orelse not IgnorePepFromOffline];
+        _ ->
+            []
+    end.
+
+send_last_items_from_owner(Host, NodeOwner, _Recipient = {U, S, Resources}) ->
+    [send_last_item_to_jid(NodeOwner, Node, {U, S, R}) ||
+        Node <- get_nodes_for_sending_last_item(Host, NodeOwner),
+        R <- Resources],
+    ok.
+
+get_nodes_for_sending_last_item(Host, NodeOwnerJID) ->
+    lists:filter(fun(#pubsub_node{options = Options}) ->
+                         match_option(Options, send_last_published_item, on_sub_and_presence)
+                 end,
+                 get_nodes_owned_by(Host, NodeOwnerJID)).
+
+get_nodes_owned_by(Host, OwnerJID) ->
+    OwnerBLJID = jid:to_bare(jid:to_lower(OwnerJID)),
+    tree_action(Host, get_nodes, [OwnerBLJID, OwnerJID]).
+
+send_last_item_to_jid(NodeOwner,
+                      #pubsub_node{nodeid = {_, Node}, type = NodeType, id = Nidx, options = NodeOptions},
+                      RecipientJID) ->
+    NodeOwnerBLJID = jid:to_bare(jid:to_lower(NodeOwner)),
+    case is_subscribed(RecipientJID, NodeOwnerBLJID, NodeOptions) of
+        true -> send_items(NodeOwnerBLJID, Node, Nidx, NodeType, NodeOptions, RecipientJID, last);
+        false -> ok
+    end.
+
+is_subscribed(Recipient, NodeOwner, NodeOptions) ->
+    case get_option(NodeOptions, access_model) of
+        open -> true;
+        presence -> true;
+        whitelist -> false; % subscribers are added manually
+        authorize -> false; % likewise
+        roster ->
+            Grps = get_option(NodeOptions, roster_groups_allowed, []),
+            {OU, OS, _} = NodeOwner,
+            element(2, get_roster_info(OU, OS, Recipient, Grps))
     end.
 
 %% -------
@@ -687,44 +692,22 @@ disco_items(Host, Node, From) ->
 %% presence hooks handling functions
 %%
 
-caps_add(#jid{luser = U, lserver = S, lresource = R}, #jid{lserver = Host} = JID, _Features)
-	when Host =/= S ->
-    %% When a remote contact goes online while the local user is offline, the
-    %% remote contact won't receive last items from the local user even if
-    %% ignore_pep_from_offline is set to false. To work around this issue a bit,
-    %% we'll also send the last items to remote contacts when the local user
-    %% connects. That's the reason to use the caps_add hook instead of the
-    %% presence_probe_hook for remote contacts: The latter is only called when a
-    %% contact becomes available; the former is also executed when the local
-    %% user goes online (because that triggers the contact to send a presence
-    %% packet with CAPS).
-    presence(Host, {presence, U, S, [R], JID});
-caps_add(_From, _To, _Feature) ->
+caps_change(#jid{luser = _U, lserver = S, lresource = _R} = JID, JID, Pid, _Features) ->
+    notify_send_loop(S, {send_last_pep_items, JID, Pid});
+caps_change(_From, _To, _Pid, _Feature) ->
     ok.
 
-caps_update(#jid{luser = U, lserver = S, lresource = R}, #jid{lserver = Host} = JID, _Features) ->
-    presence(Host, {presence, U, S, [R], JID}).
-
-presence_probe(#jid{luser = U, lserver = S, lresource = R} = JID, JID, Pid) ->
-    presence(S, {presence, JID, Pid}),
-    presence(S, {presence, U, S, [R], JID});
-presence_probe(#jid{luser = U, lserver = S}, #jid{luser = U, lserver = S}, _Pid) ->
-    %% ignore presence_probe from my other ressources
-    %% to not get duplicated last items
-    ok;
-presence_probe(#jid{luser = U, lserver = S, lresource = R}, #jid{lserver = S} = JID, _Pid) ->
-    presence(S, {presence, U, S, [R], JID});
+presence_probe(#jid{luser = _U, lserver = S, lresource = _R} = JID, JID, _Pid) ->
+    notify_send_loop(S, {send_last_pubsub_items, _Recipient = JID});
 presence_probe(_Host, _JID, _Pid) ->
-    %% ignore presence_probe from remote contacts,
-    %% those are handled via caps_add
     ok.
 
-presence(ServerHost, Presence) ->
+notify_send_loop(ServerHost, Action) ->
     {SendLoop, _} = case whereis(gen_mod:get_module_proc(ServerHost, ?LOOPNAME)) of
 	undefined -> init_send_loop(ServerHost);
 	Pid -> {Pid, undefined}
     end,
-    SendLoop ! Presence.
+    SendLoop ! Action.
 
 %% -------
 %% subscription hooks handling functions
@@ -737,7 +720,7 @@ out_subscription(User, Server, JID, subscribed) ->
 	<<>> -> user_resources(PUser, PServer);
 	_ -> [PResource]
     end,
-    presence(Server, {presence, PUser, PServer, PResources, Owner}),
+    notify_send_loop(Server, {send_last_items_from_owner, Owner, {PUser, PServer, PResources}}),
     true;
 out_subscription(_, _, _, _) ->
     true.
@@ -889,9 +872,9 @@ terminate(_Reason,
     case lists:member(?PEPNODE, Plugins) of
 	true ->
 	    ejabberd_hooks:delete(caps_add, ServerHost,
-		?MODULE, caps_add, 80),
+		?MODULE, caps_change, 80),
 	    ejabberd_hooks:delete(caps_update, ServerHost,
-		?MODULE, caps_update, 80),
+		?MODULE, caps_change, 80),
 	    ejabberd_hooks:delete(disco_sm_identity, ServerHost,
 		?MODULE, disco_sm_identity, 75),
 	    ejabberd_hooks:delete(disco_sm_features, ServerHost,
@@ -2984,7 +2967,7 @@ get_subscriptions(Host, Node, JID) ->
 	    Error
     end.
 
-get_subscriptions_for_send_last(Host, PType, mnesia, JID, LJID, BJID) ->
+get_subscriptions_for_send_last(Host, PType, mnesia, [JID, LJID, BJID]) ->
     {result, Subs} = node_action(Host, PType,
 	    get_entity_subscriptions,
 	    [Host, JID]),
@@ -2992,7 +2975,7 @@ get_subscriptions_for_send_last(Host, PType, mnesia, JID, LJID, BJID) ->
 	|| {Node, Sub, SubId, SubJID} <- Subs,
 	    Sub =:= subscribed, (SubJID == LJID) or (SubJID == BJID),
 	    match_option(Node, send_last_published_item, on_sub_and_presence)];
-get_subscriptions_for_send_last(Host, PType, odbc, JID, LJID, BJID) ->
+get_subscriptions_for_send_last(Host, PType, odbc, [JID, LJID, BJID]) ->
     case catch node_action(Host, PType,
 	    get_entity_subscriptions_for_send_last,
 	    [Host, JID])
@@ -3004,7 +2987,7 @@ get_subscriptions_for_send_last(Host, PType, odbc, JID, LJID, BJID) ->
 	_ ->
 	    []
     end;
-get_subscriptions_for_send_last(_Host, _PType, _, _JID, _LJID, _BJID) ->
+get_subscriptions_for_send_last(_Host, _PType, _, _JIDs) ->
     [].
 
 set_subscriptions(Host, Node, From, EntitiesEls) ->

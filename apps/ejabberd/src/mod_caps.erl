@@ -47,7 +47,7 @@
 -export([init/1, handle_info/2, handle_call/3,
 	 handle_cast/2, terminate/2, code_change/3]).
 
--export([user_send_packet/4, user_receive_packet/5,
+-export([user_send_packet/3, user_receive_packet/4,
 	 c2s_presence_in/2, c2s_filter_packet/6,
 	 c2s_broadcast_recipients/6, mod_opt_type/1]).
 
@@ -244,16 +244,17 @@ c2s_presence_in(C2SState,
 	   NewRs = case Caps of
 		     nothing when Insert == true -> Rs;
 		     _ when Insert == true ->
+                         ?DEBUG("Set CAPS to ~p for ~p in ~p", [Caps, LFrom, To]),
 			 case gb_trees:lookup(LFrom, Rs) of
 			   {value, Caps} -> Rs;
 			   none ->
 				ejabberd_hooks:run(caps_add, To#jid.lserver,
-						   [From, To,
+						   [From, To, self(),
 						    get_features(To#jid.lserver, Caps)]),
 				gb_trees:insert(LFrom, Caps, Rs);
 			   _ ->
 				ejabberd_hooks:run(caps_update, To#jid.lserver,
-						   [From, To,
+						   [From, To, self(),
 						    get_features(To#jid.lserver, Caps)]),
 				gb_trees:update(LFrom, Caps, Rs)
 			 end;
