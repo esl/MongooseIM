@@ -190,7 +190,7 @@ riak_configs(_) ->
      [].
 
 cassandra_configs(true) ->
-     [ca];
+     [cassandra];
 cassandra_configs(_) ->
      [].
 
@@ -409,7 +409,7 @@ do_init_per_group(C, ConfigIn) ->
     case C of
         riak_timed_yz_buckets ->
             [{yz_wait, 2500} | Config0];
-        ca ->
+        cassandra ->
             [{ca_wait, 500} | Config0];
         _ ->
             Config0
@@ -433,7 +433,7 @@ init_modules(C, muc03, Config) ->
 init_modules(C, muc04, Config) ->
     init_modules(C, muc, Config);
 
-init_modules(ca, muc_with_pm, Config) ->
+init_modules(cassandra, muc_with_pm, Config) ->
     %% TODO add mod_mam with Cassandra
     init_module(host(), mod_mam_cassandra_arch, []),
     init_module(host(), mod_mam_muc_cassandra_arch, []),
@@ -513,7 +513,7 @@ init_modules(odbc_mnesia_cache, muc_with_pm, Config) ->
     init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
     Config;
 
-init_modules(ca, muc, Config) ->
+init_modules(cassandra, muc, Config) ->
     init_module(host(), mod_mam_muc_cassandra_arch, []),
     init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
     Config;
@@ -584,7 +584,7 @@ init_modules(odbc_simple, _, Config) ->
     init_module(host(), mod_mam_odbc_prefs, [pm]),
     init_module(host(), mod_mam_odbc_user, [pm]),
     Config;
-init_modules(ca, _, Config) ->
+init_modules(cassandra, _, Config) ->
     init_module(host(), mod_mam_cassandra_arch, [pm]),
     init_module(host(), mod_mam_cassandra_prefs, [pm]),
     init_module(host(), mod_mam, [add_archived_element]),
