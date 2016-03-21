@@ -70,14 +70,6 @@
 
 -type scram() :: #scram{}.
 
--type handler() :: 'undefined'
-| {'apply_fun',fun((_,_,_) -> any())}
-| {'apply', M::atom(), F::atom()}.
--type domain() :: binary().
+-record(route, {domain, handler}).
 
--record(route, {domain :: domain(),
-    handler :: handler()
-}).
-
--record(external_component, {domain  :: domain(),
-    handler :: handler()}).
+-record(external_component, {domain, handler}).

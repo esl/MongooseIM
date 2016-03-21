@@ -55,8 +55,6 @@
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
-%% xmpp_router callback
--export([do_route/3, do_filter/3]).
 
 %% ejabberd API
 -export([get_info_s2s_connections/1]).
@@ -90,13 +88,13 @@ start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 filter(From, To, Packet) ->
-    xmpp_router:filter(?MODULE, From, To, Packet).
+    {From, To, Packet}.
 
 -spec route(From :: ejabberd:jid(),
             To :: ejabberd:jid(),
             Packet :: jlib:xmlel()) -> 'ok' | {'error','lager_not_running'}.
 route(From, To, Packet) ->
-    xmpp_router:route(?MODULE, From, To, Packet).
+    do_route(From, To, Packet).
 
 -spec remove_connection(_, pid()) -> 'ok' | {'aborted',_} | {'atomic',_}.
 remove_connection(FromTo, Pid) ->
@@ -292,13 +290,6 @@ do_route(From, To, Packet) ->
             end,
             done
     end.
-
--spec do_filter(From :: ejabberd:jid(),
-    To :: ejabberd:jid(),
-    Packet :: jlib:xmlel()) ->
-    drop | done | {ejabberd:jid(), ejabberd:jid(), jlib:xmlel()}.
-do_filter(From, To, Packet) ->
-    {From, To, Packet}.
 
 -spec find_connection(From :: ejabberd:jid(),
                       To :: ejabberd:jid()) -> {'aborted',_} | {'atomic',_}.

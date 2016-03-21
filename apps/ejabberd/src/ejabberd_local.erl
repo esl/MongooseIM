@@ -34,6 +34,7 @@
 -export([start_link/0]).
 
 -export([route/3,
+         filter/3,
          route_iq/4,
          route_iq/5,
          process_iq_reply/3,
@@ -144,7 +145,10 @@ process_iq_reply(From, To, #iq{id = ID} = IQ) ->
             To :: ejabberd:jid(),
             Packet :: jlib:xmlel()) -> 'ok' | {'error','lager_not_running'}.
 route(From, To, Packet) ->
-    xmpp_router:route(?MODULE, From, To, Packet).
+    xmpp_router:route_wrap(?MODULE, From, To, Packet).
+
+filter(From, To, Packet) ->
+    {From, To, Packet}.
 
 -spec route_iq(From :: ejabberd:jid(),
                To :: ejabberd:jid(),

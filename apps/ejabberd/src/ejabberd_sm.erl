@@ -32,6 +32,7 @@
 %% API
 -export([start_link/0,
          route/3,
+         filter/3,
          open_session/5, open_session/6,
          close_session/5,
          store_info/4,
@@ -128,7 +129,10 @@ start_link() ->
       To :: ejabberd:jid(),
       Packet :: jlib:xmlel() | ejabberd_c2s:broadcast().
 route(From, To, Packet) ->
-    xmpp_router:route(?MODULE, From, To, Packet).
+    xmpp_router:route_wrap(?MODULE, From, To, Packet).
+
+filter(From, To, Packet) ->
+    {From, To, Packet}.
 
 -spec open_session(SID, User, Server, Resource, Info) -> ok when
       SID :: 'undefined' | sid(),

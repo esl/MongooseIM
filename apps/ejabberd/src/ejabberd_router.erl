@@ -55,8 +55,16 @@
 
 -record(state, {}).
 
-%%-define(PRT(A), io:format("~p~n", [A])).
--define(PRT(_), ok).
+-type handler() :: 'undefined'
+| {'apply_fun',fun((_,_,_) -> any())}
+| {'apply', M::atom(), F::atom()}.
+-type domain() :: binary().
+
+-type route() :: #route{domain :: domain(),
+                         handler :: handler()}.
+-type external_component() :: #external_component{domain :: domain(),
+                         handler :: handler()}.
+
 
 %%====================================================================
 %% API
@@ -310,22 +318,33 @@ route(OrigFrom, OrigTo, OrigPacket) ->
 route(_, _, _, []) ->
     ok; %% shouldn't we raise error here?
 route(OrigFrom, OrigTo, OrigPacket, [M|Tail]) ->
-    ?PRT({using, M}),
-    case M:filter(OrigFrom, OrigTo, OrigPacket) of
+    ?DEBUG({using, M}),
+    case (catch M:filter(OrigFrom, OrigTo, OrigPacket)) of
+        {'EXIT', Reason} ->
+            ?DEBUG({filtering, error}),
+            ?ERROR_MSG("error when filtering from=~ts to=~ts in module=~p, reason=~p, packet=~ts, stack_trace=~p",
+                [jid:to_binary(OrigFrom), jid:to_binary(OrigTo),
+                    M, Reason, exml:to_binary(OrigPacket),
+                    erlang:get_stacktrace()]),
+            ok;
         drop ->
-            ?PRT({filter, dropped}),
-            drop;
+            ?DEBUG({filter, dropped}),
+            ok;
         {OrigFrom, OrigTo, OrigPacket} ->
-            ?PRT({filter, passed}),
-            case M:route(OrigFrom, OrigTo, OrigPacket) of
+            ?DEBUG({filter, passed}),
+            case catch(M:route(OrigFrom, OrigTo, OrigPacket)) of
+                {'EXIT', Reason} ->
+                    ?ERROR_MSG("error when routing from=~ts to=~ts in module=~p, reason=~p, packet=~ts, stack_trace=~p",
+                        [jid:to_binary(OrigFrom), jid:to_binary(OrigTo),
+                            M, Reason, exml:to_binary(OrigPacket),
+                            erlang:get_stacktrace()]),
+                    ?DEBUG({routing, error}),
+                    ok;
                 done ->
-                    ?PRT({routing, done}),
-                    done;
-                ok ->
-                    ?PRT({routing, ok_maybe_error}),
-                    done;
+                    ?DEBUG({routing, done}),
+                    ok;
                 {From, To, Packet} ->
-                    ?PRT({routing, skipped}),
+                    ?DEBUG({routing, skipped}),
                     route(From, To, Packet, Tail)
             end
     end.
