@@ -39,13 +39,17 @@ init(_Host, Opts) ->
     compile_params_module(Opts),
     ok.
 
+multi_set_data(LUser, LServer, [{NS, XML}]) ->
+    PoolName = pool_name(LServer, LUser),
+    UserJID = jid:make(LUser, LServer, <<>>),
+    Params = [LUser, NS, exml:to_binary(XML)],
+    mongoose_cassandra_worker:cql_query_pool(PoolName, UserJID, ?MODULE, set_data, Params),
+    ok;
 multi_set_data(LUser, LServer, NS2XML) ->
     PoolName = pool_name(LServer, LUser),
     UserJID = jid:make(LUser, LServer, <<>>),
-    MultiParams = [ [LUser, NS, exml:to_binary(XML)] || {NS, XML} <- NS2XML ],
-    mongoose_cassandra_worker:cql_query_pool_multi_async(PoolName, UserJID, ?MODULE, set_data, MultiParams),
-    %% TODO handling errors can be really complex
-    %% TODO wait for completion
+    Queries = [ {set_data, [LUser, NS, exml:to_binary(XML)]} || {NS, XML} <- NS2XML ],
+    mongoose_cassandra_worker:cql_batch_pool(PoolName, UserJID, ?MODULE, Queries),
     ok.
 
 multi_get_data(LUser, LServer, NS2Def) ->
