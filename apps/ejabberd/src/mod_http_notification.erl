@@ -109,7 +109,7 @@ ensure_metrics(Host) ->
 
 record_result(Host, ok, Elapsed) ->
     mongoose_metrics:update([Host, mod_http_notifications, sent], 1),
-    mongoose_metrics:update([Host, mod_http_notifications, response_time], Elapsed / 1000),
+    mongoose_metrics:update([Host, mod_http_notifications, response_time], Elapsed),
     ok;
 record_result(Host, {error, Reason}, _) ->
     mongoose_metrics:update([Host, mod_http_notifications, failed], 1),
