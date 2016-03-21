@@ -196,14 +196,14 @@ cassandra_configs(_) ->
 
 basic_group_names() ->
     [
-%   mam,
-%   mam03,
-%   mam04,
-%   mam_purge,
-%   muc,
-%   muc03,
-%   muc04,
-%   muc_with_pm,
+    mam,
+    mam03,
+    mam04,
+    mam_purge,
+    muc,
+    muc03,
+    muc04,
+    muc_with_pm,
     rsm,
     rsm03,
     rsm04,
