@@ -88,22 +88,26 @@ suite() ->
 -define(NODE_NAME_2, <<"subpub">>).
 -define(NODE_2, {?NODE_ADDR, ?NODE_NAME_2}).
 
+-define(DOMAIN, <<"localhost">>).
+
 %%--------------------------------------------------------------------
 %% Init & teardown
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    escalus:init_per_suite(Config).
+    escalus:init_per_suite(dynamic_modules:save_modules(?DOMAIN, Config)).
 
 end_per_suite(Config) ->
+    dynamic_modules:restore_modules(?DOMAIN, Config),
     escalus:end_per_suite(Config).
 
 init_per_group(_GroupName, Config) ->
-    escalus:create_users(Config,{by_name, [alice, bob, geralt, carol]}),
+    dynamic_modules:ensure_modules(?DOMAIN, required_modules()),
+    escalus:create_users(Config,{by_name, [alice, bob, geralt]}),
     ok.
 
 end_per_group(_GroupName, Config) ->
-    escalus:delete_users(Config,{by_name, [alice, bob, geralt, carol]}),
+    escalus:delete_users(Config,{by_name, [alice, bob, geralt]}),
     ok.
 
 init_per_testcase(_TestName, Config) ->
@@ -842,3 +846,13 @@ disable_delivery_test(Config) ->
 
               pubsub_tools:delete_node(Alice, ?NODE)
       end).
+
+%%-----------------------------------------------------------------
+%% Helpers
+%%-----------------------------------------------------------------
+
+required_modules() ->
+    [{mod_pubsub, [
+                   {plugins,[<<"dag">>]},
+                   {nodetree,<<"dag">>}
+                  ]}].
