@@ -64,6 +64,8 @@
 %%--------------------------------------------------------------------
 %% Description: Starts the server
 %%--------------------------------------------------------------------
+
+
 -spec start_link() -> 'ignore' | {'error',_} | {'ok',pid()}.
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
@@ -217,6 +219,7 @@ init([]) ->
                          {attributes, record_info(fields, external_component)},
                          {type, set}]),
     mnesia:add_table_copy(external_component, node(), ram_copies),
+    compile_routing_module(),
 
     {ok, #state{}}.
 
@@ -278,11 +281,26 @@ code_change(_OldVsn, State, _Extra) ->
 
 routing_modules_list() ->
     %% this is going to be compiled on startup from settings
-    [
-        ejabberd_router_global,
-        ejabberd_router_external,
-        ejabberd_router_localdomain,
-        ejabberd_s2s].
+    mod_routing_machine:get_routing_module_list().
+
+compile_routing_module() ->
+    Mods = ejabberd_config:get_local_option(routing_modules),
+    CodeStr = make_routing_module_source(Mods),
+    {Mod, Code} = dynamic_compile:from_string(CodeStr),
+    code:load_binary(Mod, "mod_routing_machine.erl", Code).
+
+make_routing_module_source(undefined) ->
+    ModList = [ejabberd_router_global,
+               ejabberd_router_external,
+               ejabberd_router_localdomain,
+               ejabberd_s2s],
+    make_routing_module_source(ModList);
+make_routing_module_source(Mods) ->
+    binary_to_list(iolist_to_binary(io_lib:format(
+        "-module(mod_routing_machine).~n"
+        "-compile(export_all).~n"
+        "get_routing_module_list() -> ~p.~n",
+        [Mods]))).
 
 route(OrigFrom, OrigTo, OrigPacket) ->
     ?DEBUG("route~n\tfrom ~p~n\tto ~p~n\tpacket ~p~n",
