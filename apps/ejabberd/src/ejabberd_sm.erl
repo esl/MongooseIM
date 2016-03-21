@@ -68,6 +68,7 @@
          terminate/2, code_change/3]).
 
 %% xmpp_router callback
+-export([do_filter/3]).
 -export([do_route/3]).
 
 -include("ejabberd.hrl").
@@ -519,6 +520,9 @@ set_session(SID, User, Server, Resource, Priority, Info) ->
     ?SM_BACKEND:create_session(LUser, LServer, LResource, Session).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+do_filter(From, To, Packet) ->
+    {From, To, Packet}.
 
 -spec do_route(From, To, Packet) -> ok when
       From :: ejabberd:jid(),

@@ -28,7 +28,6 @@
 -author('alexey@process-one.net').
 
 -behaviour(gen_server).
--behaviour(xmpp_router).
 %% API
 -export([route/3,
          route_error/4,
@@ -47,9 +46,6 @@
 
 -export([start_link/0]).
 
-%% xmpp_router callback
--export([do_route/3]).
-
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
@@ -57,19 +53,10 @@
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 
--type handler() :: 'undefined'
-                | {'apply_fun',fun((_,_,_) -> any())}
-                | {'apply', M::atom(), F::atom()}.
--type domain() :: binary().
-
--record(route, {domain :: domain(),
-                handler :: handler()
-               }).
-
--record(external_component, {domain  :: domain(),
-                             handler :: handler()}).
-
 -record(state, {}).
+
+%%-define(PRT(A), io:format("~p~n", [A])).
+-define(PRT(_), ok).
 
 %%====================================================================
 %% API
@@ -80,12 +67,6 @@
 -spec start_link() -> 'ignore' | {'error',_} | {'ok',pid()}.
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
-
--spec route(From   :: ejabberd:jid(),
-            To     :: ejabberd:jid(),
-            Packet :: jlib:xmlel()) -> ok.
-route(From, To, Packet) ->
-    xmpp_router:route(?MODULE, From, To, Packet).
 
 %% Route the error packet only if the originating packet is not an error itself.
 %% RFC3920 9.3.1
@@ -295,50 +276,40 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
-do_route(OrigFrom, OrigTo, OrigPacket) ->
+routing_modules_list() ->
+    %% this is going to be compiled on startup from settings
+    [
+        ejabberd_router_global,
+        ejabberd_router_external,
+        ejabberd_router_localdomain,
+        ejabberd_s2s].
+
+route(OrigFrom, OrigTo, OrigPacket) ->
     ?DEBUG("route~n\tfrom ~p~n\tto ~p~n\tpacket ~p~n",
            [OrigFrom, OrigTo, OrigPacket]),
-    %% Filter globally
-    case ejabberd_hooks:run_fold(filter_packet,
-                                 {OrigFrom, OrigTo, OrigPacket}, []) of
-        {From, To, Packet} ->
-            LDstDomain = To#jid.lserver,
-            case mnesia:dirty_read(external_component, LDstDomain) of
-                [] ->
-                    case mnesia:dirty_read(route, LDstDomain) of
-                        [] ->
-                            ejabberd_s2s:route(From, To, Packet);
-                        [#route{handler=Handler}] ->
-                            do_local_route(OrigFrom, OrigTo, OrigPacket,
-                                           LDstDomain, Handler)
-                    end;
-                [#external_component{handler = Handler}] ->
-                    do_local_route(OrigFrom, OrigTo, OrigPacket,
-                                   LDstDomain, Handler)
-            end;
-        drop ->
-            ejabberd_hooks:run(xmpp_stanza_dropped,
-                               OrigFrom#jid.lserver,
-                               [OrigFrom, OrigTo, OrigPacket]),
-            ok
-    end.
+    route(OrigFrom, OrigTo, OrigPacket, routing_modules_list()).
 
-do_local_route(OrigFrom, OrigTo, OrigPacket, LDstDomain, Handler) ->
-    %% Filter locally
-    case ejabberd_hooks:run_fold(filter_local_packet, LDstDomain,
-                                 {OrigFrom, OrigTo, OrigPacket}, []) of
-        {From, To, Packet} ->
-            case Handler of
-                {apply_fun, Fun} ->
-                    Fun(From, To, Packet);
-                {apply, Module, Function} ->
-                    Module:Function(From, To, Packet)
-            end;
+route(_, _, _, []) ->
+    ok; %% shouldn't we raise error here?
+route(OrigFrom, OrigTo, OrigPacket, [M|Tail]) ->
+    ?PRT({using, M}),
+    case M:filter(OrigFrom, OrigTo, OrigPacket) of
         drop ->
-            ejabberd_hooks:run(xmpp_stanza_dropped,
-                               OrigFrom#jid.lserver,
-                               [OrigFrom, OrigTo, OrigPacket]),
-            ok
+            ?PRT({filter, dropped}),
+            drop;
+        {OrigFrom, OrigTo, OrigPacket} ->
+            ?PRT({filter, passed}),
+            case M:route(OrigFrom, OrigTo, OrigPacket) of
+                done ->
+                    ?PRT({routing, done}),
+                    done;
+                ok ->
+                    ?PRT({routing, ok_maybe_error}),
+                    done;
+                {From, To, Packet} ->
+                    ?PRT({routing, skipped}),
+                    route(From, To, Packet, Tail)
+            end
     end.
 
 update_tables() ->

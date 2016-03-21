@@ -34,6 +34,7 @@
 
 %% API
 -export([start_link/0,
+         filter/3,
          route/3,
          have_connection/1,
          key/2,
@@ -55,7 +56,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 %% xmpp_router callback
--export([do_route/3]).
+-export([do_route/3, do_filter/3]).
 
 %% ejabberd API
 -export([get_info_s2s_connections/1]).
@@ -87,6 +88,9 @@
 -spec start_link() -> 'ignore' | {'error',_} | {'ok',pid()}.
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+
+filter(From, To, Packet) ->
+    xmpp_router:filter(?MODULE, From, To, Packet).
 
 -spec route(From :: ejabberd:jid(),
             To :: ejabberd:jid(),
@@ -258,7 +262,8 @@ code_change(_OldVsn, State, _Extra) ->
 
 -spec do_route(From :: ejabberd:jid(),
                To :: ejabberd:jid(),
-               Packet :: jlib:xmlel()) -> 'ok'.
+               Packet :: jlib:xmlel()) ->
+        drop | done | {ejabberd:jid(), ejabberd:jid(), jlib:xmlel()}.
 do_route(From, To, Packet) ->
     ?DEBUG("s2s manager~n\tfrom ~p~n\tto ~p~n\tpacket ~P~n",
            [From, To, Packet, 8]),
@@ -275,18 +280,25 @@ do_route(From, To, Packet) ->
               MyServer,
               [From, To, Packet]),
             send_element(Pid, Packet#xmlel{attrs = NewAttrs}),
-            ok;
+            done;
         {aborted, _Reason} ->
             case xml:get_tag_attr_s(<<"type">>, Packet) of
-                <<"error">> -> ok;
-                <<"result">> -> ok;
+                <<"error">> -> done;
+                <<"result">> -> done;
                 _ ->
                     Err = jlib:make_error_reply(
                             Packet, ?ERR_SERVICE_UNAVAILABLE),
                     ejabberd_router:route(To, From, Err)
             end,
-            ok
+            done
     end.
+
+-spec do_filter(From :: ejabberd:jid(),
+    To :: ejabberd:jid(),
+    Packet :: jlib:xmlel()) ->
+    drop | done | {ejabberd:jid(), ejabberd:jid(), jlib:xmlel()}.
+do_filter(From, To, Packet) ->
+    {From, To, Packet}.
 
 -spec find_connection(From :: ejabberd:jid(),
                       To :: ejabberd:jid()) -> {'aborted',_} | {'atomic',_}.
