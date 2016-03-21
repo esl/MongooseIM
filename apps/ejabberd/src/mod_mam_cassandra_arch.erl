@@ -544,7 +544,7 @@ purge_multiple_messages(_Result, Host, UserID, UserJID, Borders,
     Filter = prepare_filter(UserJID, Borders, Start, End, WithJID),
     PoolName = pool_name(UserJID),
     Limit = 500, %% TODO something smarter
-    QueryName = {list_message_ids, select_filter(Filter)},
+    QueryName = {list_message_ids_query, select_filter(Filter)},
     Params = eval_filter_params(Filter) ++ [Limit],
     Rows = mongoose_cassandra_worker:cql_query_pool(PoolName, UserJID, ?MODULE, QueryName, Params),
     %% TODO can be faster
