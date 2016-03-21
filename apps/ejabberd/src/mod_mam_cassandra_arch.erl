@@ -4,7 +4,7 @@
 %%% @doc ODBC backend for Message Archive Management.
 %%% @end
 %%%-------------------------------------------------------------------
--module(mod_mam_ca_arch).
+-module(mod_mam_cassandra_arch).
 
 %% ----------------------------------------------------------------------
 %% Exports
@@ -813,7 +813,7 @@ stored_binary_to_packet(Bin) ->
 compile_params_module(Params) ->
     CodeStr = params_helper(expand_simple_param(Params)),
     {Mod, Code} = dynamic_compile:from_string(CodeStr),
-    code:load_binary(Mod, "mod_mam_ca_arch_params.erl", Code).
+    code:load_binary(Mod, "mod_mam_cassandra_arch_params.erl", Code).
 
 expand_simple_param(Params) ->
     lists:flatmap(fun(simple) -> simple_params();
@@ -826,7 +826,7 @@ simple_params() ->
 
 params_helper(Params) ->
     binary_to_list(iolist_to_binary(io_lib:format(
-        "-module(mod_mam_ca_arch_params).~n"
+        "-module(mod_mam_cassandra_arch_params).~n"
         "-compile(export_all).~n"
         "db_message_format() -> ~p.~n"
         "pool_name() -> ~p.~n",
@@ -836,8 +836,8 @@ params_helper(Params) ->
 
 -spec db_message_format() -> module().
 db_message_format() ->
-    mod_mam_ca_arch_params:db_message_format().
+    mod_mam_cassandra_arch_params:db_message_format().
 
 -spec pool_name(jlib:jid()) -> term().
 pool_name(_UserJid) ->
-    mod_mam_ca_arch_params:pool_name().
+    mod_mam_cassandra_arch_params:pool_name().

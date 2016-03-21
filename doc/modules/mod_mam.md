@@ -141,18 +141,18 @@ You can change default settings using extra parameters:
 ### Configure cassandra modules
 
 There are two Cassandra modules:
-- mod_mam_ca_arch - for one-to-one messages
-- mod_mam_muc_ca_arch - for groupchat messages
+- mod_mam_cassandra_arch - for one-to-one messages
+- mod_mam_muc_cassandra_arch - for groupchat messages
 
 They can be used together.
 
 ```erlang
-{mod_mam_ca_arch, []},
+{mod_mam_cassandra_arch, []},
 {mod_mam, []}
 ```
 
 ```erlang
-{mod_mam_muc_ca_arch, []},
+{mod_mam_muc_cassandra_arch, []},
 {mod_mam_muc, []}
 ```
 

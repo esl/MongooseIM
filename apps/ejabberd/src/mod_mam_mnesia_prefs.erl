@@ -288,7 +288,7 @@ archive_key(ArcID, ArcJID) ->
 compile_params_module(Params) ->
     CodeStr = params_helper(Params),
     {Mod, Code} = dynamic_compile:from_string(CodeStr),
-    code:load_binary(Mod, "mod_mam_ca_arch_params.erl", Code).
+    code:load_binary(Mod, "mod_mam_cassandra_arch_params.erl", Code).
 
 params_helper(Params) ->
     binary_to_list(iolist_to_binary(io_lib:format(

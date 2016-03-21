@@ -16,7 +16,7 @@
 
 %%% NS is namespace or key.
 %%% XML is #xmlel{} or value.
--module(mod_private_ca).
+-module(mod_private_cassandra).
 -author('arcusfelis@gmail.com').
 -behaviour(mod_private).
 
@@ -78,11 +78,11 @@ remove_user(LUser, LServer) ->
 compile_params_module(Params) ->
     CodeStr = params_helper(Params),
     {Mod, Code} = dynamic_compile:from_string(CodeStr),
-    code:load_binary(Mod, "mod_private_ca_params.erl", Code).
+    code:load_binary(Mod, "mod_private_cassandra_params.erl", Code).
 
 params_helper(Params) ->
     binary_to_list(iolist_to_binary(io_lib:format(
-        "-module(mod_private_ca_params).~n"
+        "-module(mod_private_cassandra_params).~n"
         "-compile(export_all).~n"
         "pool_name() -> ~p.~n",
         [proplists:get_value(pool_name, Params, default)
@@ -90,4 +90,4 @@ params_helper(Params) ->
 
 -spec pool_name(binary(), binary()) -> term().
 pool_name(_LServer, _LUser) ->
-    mod_private_ca_params:pool_name().
+    mod_private_cassandra_params:pool_name().

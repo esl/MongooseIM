@@ -4,7 +4,7 @@
 %%% @doc A backend for storing MAM preferencies using Cassandra.
 %%% @end
 %%%-------------------------------------------------------------------
--module(mod_mam_ca_prefs).
+-module(mod_mam_cassandra_prefs).
 
 %% ----------------------------------------------------------------------
 %% Exports
@@ -241,11 +241,11 @@ decode_prefs_rows([], DefaultMode, AlwaysJIDs, NeverJIDs) ->
 compile_params_module(Params) ->
     CodeStr = params_helper(Params),
     {Mod, Code} = dynamic_compile:from_string(CodeStr),
-    code:load_binary(Mod, "mod_mam_ca_prefs_params.erl", Code).
+    code:load_binary(Mod, "mod_mam_cassandra_prefs_params.erl", Code).
 
 params_helper(Params) ->
     binary_to_list(iolist_to_binary(io_lib:format(
-        "-module(mod_mam_ca_prefs_params).~n"
+        "-module(mod_mam_cassandra_prefs_params).~n"
         "-compile(export_all).~n"
         "pool_name() -> ~p.~n",
         [proplists:get_value(pool_name, Params, default)
@@ -253,4 +253,4 @@ params_helper(Params) ->
 
 -spec pool_name(ejabberd:jid()) -> term().
 pool_name(_UserJID) ->
-    mod_mam_ca_prefs_params:pool_name().
+    mod_mam_cassandra_prefs_params:pool_name().
