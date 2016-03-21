@@ -17,7 +17,9 @@
          cql_query_multi/5,
          cql_query_multi_async/5,
          cql_query_pool_multi/5,
-         cql_query_pool_multi_async/5]).
+         cql_query_pool_multi_async/5,
+         cql_batch/4,
+         cql_batch_pool/4]).
 
 %% Helpers for debugging
 -export([test_query/1,
@@ -85,6 +87,20 @@ cql_query_multi_async(Worker, _UserJID, Module, QueryName, MultiParams) when is_
 cql_query_multi(Worker, UserJID, Module, QueryName, MultiParams) when is_pid(Worker) ->
     %% TODO parrallel
     [cql_query(Worker, UserJID, Module, QueryName, Params) || Params <- MultiParams].
+
+cql_batch(Worker, _UserJID, Module, Queries) ->
+    ResultF = gen_server:call(Worker, {cql_batch, Module, unlogged, Queries}),
+    {ok, Result} = ResultF(),
+    case Result of
+        void ->
+            [];
+        _ ->
+            seestar_result:rows(Result)
+    end.
+
+cql_batch_pool(PoolName, UserJID, Module, Queries) ->
+    Worker = mongoose_cassandra_sup:select_worker(PoolName, UserJID),
+    cql_batch(Worker, UserJID, Module, Queries).
 
 %% @doc Select worker and do cql query
 cql_query_pool(PoolName, UserJID, Module, QueryName, Params) ->
@@ -200,6 +216,25 @@ prepare_query(Conn, Query) ->
 execute_prepared_query(Conn, #prepared_query{query_id=QueryID, query_types=Types}, Params) ->
     seestar_session:execute_async(Conn, QueryID, Types, Params, one).
 
+new_prepared_query(#prepared_query{query_id=QueryID, query_types=Types}, Params) ->
+    seestar_session:new_batch_execute(QueryID, Types, Params).
+
+new_batch_queries(Conn, Module, Queries, State) ->
+    new_batch_queries(Conn, Module, Queries, [], State).
+
+new_batch_queries(Conn, Module, [{QueryName, Params}|Queries], BatchQueries, State) ->
+    case get_prepared_query(Conn, Module, QueryName, State) of
+        {ok, PreparedQuery, State2} ->
+            BatchQuery = new_prepared_query(PreparedQuery, Params),
+            new_batch_queries(Conn, Module, Queries, [BatchQuery|BatchQueries], State2);
+        {error, _Reason} ->
+            {noreply, State}
+    end;
+new_batch_queries(_Conn, _Module, [], BatchQueries, State) ->
+    {ok, lists:reverse(BatchQueries), State}.
+
+run_batch(Conn, BatchType, BatchQueries) ->
+    seestar_session:batch_async(Conn, BatchType, BatchQueries, one).
 
 save_query_ref(From, QueryRef, State=#state{query_refs=Refs, query_refs_count=RefsCount}) ->
     Refs2 = dict:store(QueryRef, From, Refs),
@@ -262,6 +297,15 @@ handle_call({cql_query, Module, QueryName, Params}, From,
     case get_prepared_query(Conn, Module, QueryName, State) of
         {ok, PreparedQuery, State2} ->
             QueryRef = execute_prepared_query(Conn, PreparedQuery, Params),
+            {noreply, save_query_ref(From, QueryRef, State2)};
+        {error, Reason} ->
+            {reply, {error, Reason}, State}
+    end;
+handle_call({cql_batch, Module, BatchType, Queries}, From,
+    State=#state{conn=Conn}) ->
+    case new_batch_queries(Conn, Module, Queries, State) of
+        {ok, BatchQueries, State2} ->
+            QueryRef = run_batch(Conn, BatchType, BatchQueries),
             {noreply, save_query_ref(From, QueryRef, State2)};
         {error, Reason} ->
             {reply, {error, Reason}, State}
