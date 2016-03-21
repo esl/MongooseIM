@@ -52,7 +52,6 @@
 	 c2s_broadcast_recipients/6, mod_opt_type/1]).
 
 -include("ejabberd.hrl").
--include("logger.hrl").
 
 -include("jlib.hrl").
 
@@ -143,12 +142,11 @@ read_caps([_ | Tail], Result) ->
     read_caps(Tail, Result);
 read_caps([], Result) -> Result.
 
-user_send_packet(#xmlel{name = <<"presence">>, attrs = Attrs,
-			children = Els} = Pkt,
-		 _C2SState,
-		 #jid{luser = User, lserver = Server} = From,
+user_send_packet(#jid{luser = User, lserver = Server} = From,
 		 #jid{luser = User, lserver = Server,
-		      lresource = <<"">>}) ->
+		      lresource = <<"">>},
+                 #xmlel{name = <<"presence">>, attrs = Attrs,
+			children = Els} = Pkt) ->
     Type = xml:get_attr_s(<<"type">>, Attrs),
     if Type == <<"">>; Type == <<"available">> ->
 	   case read_caps(Els) of
@@ -159,14 +157,12 @@ user_send_packet(#xmlel{name = <<"presence">>, attrs = Attrs,
        true -> ok
     end,
     Pkt;
-user_send_packet(Pkt, _C2SState, _From, _To) ->
+user_send_packet(_From, _To, Pkt) ->
     Pkt.
 
-user_receive_packet(#xmlel{name = <<"presence">>, attrs = Attrs,
-			   children = Els} = Pkt,
-		    _C2SState,
-		    #jid{lserver = Server},
-		    From, _To) ->
+user_receive_packet(#jid{lserver = Server}, From, _To,
+                    #xmlel{name = <<"presence">>, attrs = Attrs,
+			   children = Els} = Pkt) ->
     Type = xml:get_attr_s(<<"type">>, Attrs),
     IsRemote = not lists:member(From#jid.lserver, ?MYHOSTS),
     if IsRemote and
@@ -179,7 +175,7 @@ user_receive_packet(#xmlel{name = <<"presence">>, attrs = Attrs,
        true -> ok
     end,
     Pkt;
-user_receive_packet(Pkt, _C2SState, _JID, _From, _To) ->
+user_receive_packet(_JID, _From, _To, Pkt) ->
     Pkt.
 
 -spec caps_stream_features([xmlel()], binary()) -> [xmlel()].
@@ -191,7 +187,7 @@ caps_stream_features(Acc, MyHost) ->
 	  [#xmlel{name = <<"c">>,
 		  attrs =
 		      [{<<"xmlns">>, ?NS_CAPS}, {<<"hash">>, <<"sha-1">>},
-		       {<<"node">>, ?EJABBERD_URI}, {<<"ver">>, Hash}],
+		       {<<"node">>, ?MONGOOSE_URI}, {<<"ver">>, Hash}],
 		  children = []}
 	   | Acc]
     end.
@@ -227,15 +223,17 @@ disco_info(Acc, Host, Module, Node, Lang) ->
 
 c2s_presence_in(C2SState,
 		{From, To, {_, _, Attrs, Els}}) ->
+    ?DEBUG("Presence to ~p from ~p with Els ~p", [To, From, Els]),
     Type = xml:get_attr_s(<<"type">>, Attrs),
     Subscription = ejabberd_c2s:get_subscription(From,
 						 C2SState),
+    ?DEBUG("Subscription ~p, type ~p", [Subscription, Type]),
     Insert = ((Type == <<"">>) or (Type == <<"available">>))
 	       and ((Subscription == both) or (Subscription == to)),
     Delete = (Type == <<"unavailable">>) or
 	       (Type == <<"error">>),
     if Insert or Delete ->
-	   LFrom = jid:tolower(From),
+	   LFrom = jid:to_lower(From),
 	   Rs = case ejabberd_c2s:get_aux_field(caps_resources,
 						C2SState)
 		    of
@@ -269,7 +267,8 @@ c2s_presence_in(C2SState,
 c2s_filter_packet(InAcc, Host, C2SState, {pep_message, Feature}, To, _Packet) ->
     case ejabberd_c2s:get_aux_field(caps_resources, C2SState) of
       {ok, Rs} ->
-	  LTo = jid:tolower(To),
+          ?DEBUG("Look for CAPS for ~p in ~p (res: ~p)", [To, C2SState, Rs]),
+	  LTo = jid:to_lower(To),
 	  case gb_trees:lookup(LTo, Rs) of
 	    {value, Caps} ->
 		Drop = not lists:member(Feature, get_features(Host, Caps)),
@@ -460,13 +459,13 @@ caps_read_fun(_LServer, Node, mnesia) ->
 	      _ -> error
 	    end
     end;
-caps_read_fun(_LServer, Node, riak) ->
-    fun() ->
-            case ejabberd_riak:get(caps_features, caps_features_schema(), Node) of
-                {ok, #caps_features{features = Features}} -> {ok, Features};
-                _ -> error
-            end
-    end;
+%% caps_read_fun(_LServer, Node, riak) ->
+%%     fun() ->
+%%             case ejabberd_riak:get(caps_features, caps_features_schema(), Node) of
+%%                 {ok, #caps_features{features = Features}} -> {ok, Features};
+%%                 _ -> error
+%%             end
+%%     end;
 caps_read_fun(LServer, {Node, SubNode}, odbc) ->
     fun() ->
             SNode = ejabberd_odbc:escape(Node),
@@ -476,7 +475,7 @@ caps_read_fun(LServer, {Node, SubNode}, odbc) ->
                              <<"node='">>, SNode, <<"' and subnode='">>,
                              SSubNode, <<"';">>]) of
                 {selected, [<<"feature">>], [[H]|_] = Fs} ->
-                    case catch jlib:binary_to_integer(H) of
+                    case catch binary_to_integer(H) of
                         Int when is_integer(Int), Int>=0 ->
                             {ok, Int};
                         _ ->
@@ -497,12 +496,12 @@ caps_write_fun(_LServer, Node, Features, mnesia) ->
 	    mnesia:dirty_write(#caps_features{node_pair = Node,
 					      features = Features})
     end;
-caps_write_fun(_LServer, Node, Features, riak) ->
-    fun () ->
-            ejabberd_riak:put(#caps_features{node_pair = Node,
-                                             features = Features},
-			      caps_features_schema())
-    end;
+%% caps_write_fun(_LServer, Node, Features, riak) ->
+%%     fun () ->
+%%             ejabberd_riak:put(#caps_features{node_pair = Node,
+%%                                              features = Features},
+%% 			      caps_features_schema())
+%%     end;
 caps_write_fun(LServer, NodePair, Features, odbc) ->
     fun () ->
             ejabberd_odbc:sql_transaction(
@@ -539,11 +538,11 @@ make_disco_hash(DiscoEls, Algo) ->
                              concat_features(DiscoEls), concat_info(DiscoEls)]),
     jlib:encode_base64(case Algo of
                            md5 -> erlang:md5(Concat);
-                           sha1 -> p1_sha:sha1(Concat);
-                           sha224 -> p1_sha:sha224(Concat);
-                           sha256 -> p1_sha:sha256(Concat);
-                           sha384 -> p1_sha:sha384(Concat);
-                           sha512 -> p1_sha:sha512(Concat)
+                           sha1 -> crypto:hash(sha,Concat);
+                           sha224 -> crypto:hash(sha224, Concat);
+                           sha256 -> crypto:hash(sha256, Concat);
+                           sha384 -> crypto:hash(sha384, Concat);
+                           sha512 -> crypto:hash(sha512, Concat)
                        end).
 
 check_hash(Caps, Els) ->
@@ -609,8 +608,7 @@ concat_xdata_fields(Fields) ->
 				      case xml:get_attr_s(<<"var">>, Attrs) of
 					<<"">> -> Acc;
 					<<"FORM_TYPE">> ->
-					    [xml:get_subtag_cdata(El,
-								  <<"value">>),
+					    [xml:get_cdata(xml:get_subtag(VarFields, <<"value">>)),
 					     VarFields];
 					Var ->
 					    [FormType,
@@ -648,11 +646,11 @@ gb_trees_fold_iter(F, Acc, Iter) ->
     end.
 
 now_ts() ->
-    p1_time_compat:system_time(seconds).
+    erlang:system_time(seconds).
 
 is_valid_node(Node) ->
     case str:tokens(Node, <<"#">>) of
-        [?EJABBERD_URI|_] ->
+        [?MONGOOSE_URI|_] ->
             true;
         _ ->
             false
@@ -662,20 +660,7 @@ update_table() ->
     Fields = record_info(fields, caps_features),
     case mnesia:table_info(caps_features, attributes) of
         Fields ->
-            ejabberd_config:convert_table_to_binary(
-              caps_features, Fields, set,
-              fun(#caps_features{node_pair = {N, _}}) -> N end,
-              fun(#caps_features{node_pair = {N, P},
-                                 features = Fs} = R) ->
-                      NewFs = if is_integer(Fs) ->
-                                      Fs;
-                                 true ->
-                                      [iolist_to_binary(F) || F <- Fs]
-                              end,
-                      R#caps_features{node_pair = {iolist_to_binary(N),
-                                                   iolist_to_binary(P)},
-                                      features = NewFs}
-              end);
+            ok;
         _ ->
             ?INFO_MSG("Recreating caps_features table", []),
             mnesia:transform_table(caps_features, ignore, Fields)
@@ -685,7 +670,7 @@ sql_write_features_t({Node, SubNode}, Features) ->
     SNode = ejabberd_odbc:escape(Node),
     SSubNode = ejabberd_odbc:escape(SubNode),
     NewFeatures = if is_integer(Features) ->
-                          [jlib:integer_to_binary(Features)];
+                          [integer_to_binary(Features)];
                      true ->
                           Features
                   end,
@@ -695,8 +680,8 @@ sql_write_features_t({Node, SubNode}, Features) ->
        <<"values ('">>, SNode, <<"', '">>, SSubNode, <<"', '">>,
        ejabberd_odbc:escape(F), <<"');">>] || F <- NewFeatures]].
 
-caps_features_schema() ->
-    {record_info(fields, caps_features), #caps_features{}}.
+%% caps_features_schema() ->
+%%     {record_info(fields, caps_features), #caps_features{}}.
 
 export(_Server) ->
     [{caps_features,
@@ -717,7 +702,7 @@ import_start(LServer, DBType) ->
 
 import(_LServer, {odbc, _}, _DBType, <<"caps_features">>,
        [Node, SubNode, Feature, _TimeStamp]) ->
-    Feature1 = case catch jlib:binary_to_integer(Feature) of
+    Feature1 = case catch binary_to_integer(Feature) of
                    I when is_integer(I), I>0 -> I;
                    _ -> Feature
                end,
@@ -737,17 +722,17 @@ import_next(LServer, DBType, NodePair) ->
         [I] when is_integer(I), DBType == mnesia ->
             mnesia:dirty_write(
               #caps_features{node_pair = NodePair, features = I});
-        [I] when is_integer(I), DBType == riak ->
-            ejabberd_riak:put(
-              #caps_features{node_pair = NodePair, features = I},
-	      caps_features_schema());
+        %% [I] when is_integer(I), DBType == riak ->
+        %%     ejabberd_riak:put(
+        %%       #caps_features{node_pair = NodePair, features = I},
+	%%       caps_features_schema());
         _ when DBType == mnesia ->
             mnesia:dirty_write(
               #caps_features{node_pair = NodePair, features = Features});
-        _ when DBType == riak ->
-            ejabberd_riak:put(
-              #caps_features{node_pair = NodePair, features = Features},
-	      caps_features_schema());
+        %% _ when DBType == riak ->
+        %%     ejabberd_riak:put(
+        %%       #caps_features{node_pair = NodePair, features = Features},
+	%%       caps_features_schema());
         _ when DBType == odbc ->
             ok
     end,

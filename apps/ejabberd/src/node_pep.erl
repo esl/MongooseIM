@@ -28,9 +28,9 @@
 -behaviour(gen_pubsub_node).
 -author('christophe.romain@process-one.net').
 
+-include("ejabberd.hrl").
 -include("pubsub.hrl").
 -include("jlib.hrl").
--include("logger.hrl").
 
 %%% @doc The module <strong>{@module}</strong> is the pep PubSub plugin.
 %%% <p>PubSub plugin nodes are using the {@link gen_pubsub_node} behaviour.</p>
@@ -94,7 +94,7 @@ features() ->
 	<<"subscribe">>].
 
 create_node_permission(Host, ServerHost, _Node, _ParentNode, Owner, Access) ->
-    LOwner = jid:tolower(Owner),
+    LOwner = jid:to_lower(Owner),
     {User, Server, _Resource} = LOwner,
     Allowed = case LOwner of
 	{<<"">>, Host, <<"">>} ->
@@ -143,9 +143,9 @@ purge_node(Nidx, Owner) ->
     node_flat:purge_node(Nidx, Owner).
 
 get_entity_affiliations(Host, Owner) ->
-    {_, D, _} = SubKey = jid:tolower(Owner),
-    SubKey = jid:tolower(Owner),
-    GenKey = jid:remove_resource(SubKey),
+    {_, D, _} = SubKey = jid:to_lower(Owner),
+    SubKey = jid:to_lower(Owner),
+    GenKey = jid:to_bare(SubKey),
     States = mnesia:match_object(#pubsub_state{stateid = {GenKey, '_'}, _ = '_'}),
     NodeTree = mod_pubsub:tree(Host),
     Reply = lists:foldl(fun (#pubsub_state{stateid = {_, N}, affiliation = A}, Acc) ->
@@ -168,8 +168,8 @@ set_affiliation(Nidx, Owner, Affiliation) ->
     node_flat:set_affiliation(Nidx, Owner, Affiliation).
 
 get_entity_subscriptions(Host, Owner) ->
-    {U, D, _} = SubKey = jid:tolower(Owner),
-    GenKey = jid:remove_resource(SubKey),
+    {U, D, _} = SubKey = jid:to_lower(Owner),
+    GenKey = jid:to_bare(SubKey),
     States = case SubKey of
 	GenKey ->
 	    mnesia:match_object(#pubsub_state{stateid = {{U, D, '_'}, '_'}, _ = '_'});
