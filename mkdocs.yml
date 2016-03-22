@@ -10,6 +10,7 @@ pages:
       - 'Features and supported standards': 'user-guide/Features-and-supported-standards.md'
       - 'Get to know MongooseIM': 'user-guide/Get-to-know-MongooseIM.md'
       - 'Getting started': 'user-guide/Getting-started.md'
+      - 'Release/Installation configuration': 'user-guide/release_config.md'
   - 'Basic Configuration Overview': 'Basic-configuration.md'
   - 'Advanced Configuration Overview': 'Advanced-configuration.md'
   - 'Advanced Configuration':

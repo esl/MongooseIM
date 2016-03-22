@@ -15,9 +15,9 @@ compile: rebar
 deps: rebar
 	./rebar get-deps > $@.log 2>&1 || (cat $@.log; exit 1)
 
-clean: rebar
+clean: rebar configure.out
 	rm -rf apps/*/logs
-	./rebar clean
+	. ./configure.out && ./rebar clean
 
 quick_compile: rebar
 	./rebar $(OPTS) compile skip_deps=true > $@.log 2>&1 || (cat $@.log; exit 1)
@@ -87,17 +87,23 @@ eunit: rebar deps
 configure:
 	./tools/configure $(filter-out $@,$(MAKECMDGOALS))
 
-rel: certs rebar deps configure.out
-	./rebar compile generate -f
+rel: certs rebar deps configure.out rel/vars.config
+	. ./configure.out && ./rebar compile generate -f
 
-configure.out:
-	./tools/configure full
+rel/vars.config: rel/vars.config.in rel/configure.vars.config
+	cat $^ > $@
+
+## Don't allow these files to go out of sync!
+configure.out rel/configure.vars.config:
+	./tools/configure with-all
 
 devrel: certs $(DEVNODES)
 
-$(DEVNODES): rebar deps compile deps_dev
+$(DEVNODES): rebar deps compile deps_dev configure.out rel/vars.config
 	@echo "building $@"
-	(cd rel && ../rebar generate -f target_dir=../dev/mongooseim_$@ overlay_vars=./reltool_vars/$@_vars.config) \
+	(. ./configure.out && \
+	 cd rel && \
+	 ../rebar generate -f target_dir=../dev/mongooseim_$@ overlay_vars=./reltool_vars/$@_vars.config) \
 		> $@.log 2>&1 || (cat $@.log; exit 1)
 	cp -R `dirname $(shell ./readlink.sh $(shell which erl))`/../lib/tools-* dev/mongooseim_$@/lib/
 
@@ -139,5 +145,8 @@ test_deps:
 
 %:
 	@:
+
+install: configure.out rel
+	@. ./configure.out && tools/install
 
 include tools/cd_tools/cd-targets

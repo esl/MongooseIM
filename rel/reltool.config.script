@@ -1,30 +1,24 @@
 {ok, Path} = file:get_cwd(),
-ConfigureOut = Path ++ "/../configure.out",
-Conf = case file:consult(ConfigureOut) of
-            {ok, Terms} -> Terms;
-            E -> io:format("WARN: error ~p reading file: ~p - using default rel config~n", [E, ConfigureOut]), []
-       end,
-
-BaseAppsToRun = [compiler,
-                 lager,
-                 kernel,
-                 mnesia,
-                 sasl,
-                 ssl,
-                 stdlib,
-                 ejabberd,
-                 inets,
-                 syntax_tools,
-                 p1_stringprep,
-                 xmerl,
-                 exml,
-                 cowboy,
-                 fusco,
-                 exometer],
-
-AppsToRunIn = BaseAppsToRun ++ proplists:get_value(apps_to_run, Conf, []),
-
-AppsToRun = ordsets:to_list(ordsets:from_list(AppsToRunIn)),
+EnvApps = os:getenv("APPS"),
+EnvApps =/= false orelse error("APPS not defined"),
+EnvAppsToInclude = [ list_to_atom(App)
+                     || App <- string:tokens(EnvApps, " \n\r") ],
+AppsToRun = [compiler,
+             lager,
+             kernel,
+             mnesia,
+             sasl,
+             ssl,
+             stdlib,
+             ejabberd,
+             inets,
+             syntax_tools,
+             p1_stringprep,
+             xmerl,
+             exml,
+             cowboy,
+             fusco,
+             exometer],
 
 BaseAppsToInclude = AppsToRun ++
                     [asn1,
@@ -45,13 +39,9 @@ BaseAppsToInclude = AppsToRun ++
                      alarms,
                      idna,
                      recon,
-                     setup
-                     ],
+                     setup],
 
-
-RemovedApps = [mysql,pgsql,redo,seestar,odbc],
-
-AppsToIncludeIn = BaseAppsToInclude ++ proplists:get_value(apps_to_include, Conf, []),
+AppsToIncludeIn = BaseAppsToInclude ++ EnvAppsToInclude,
 
 AppsToInclude = ordsets:to_list(ordsets:from_list(AppsToIncludeIn)),
 
@@ -77,24 +67,23 @@ IncludeApps = lists:map(fun(App) -> {app, App, [{incl_cond, include}]} end, Apps
 
 {overlay_vars, "vars.config"},
 
-{overlay, [{mkdir, "log/sasl"},
-           {mkdir, "var"},
-           {mkdir, "var/log"},
+{overlay, [
            {mkdir, "priv"},
+           {copy, "files/sample_external_auth.py", "priv/sample_external_auth.py"},
+
            {mkdir, "priv/ssl"},
+           {copy, "../fake_cert.pem", "priv/ssl/fake_cert.pem"},
+           {copy, "../fake_key.pem", "priv/ssl/fake_key.pem"},
+           {copy, "../fake_server.pem", "priv/ssl/fake_server.pem"},
 
            {copy, "files/erl", "\{\{erts_vsn\}\}/bin/erl"},
            {copy, "files/nodetool", "\{\{erts_vsn\}\}/bin/nodetool"},
            {copy, "files/mongooseimctl", "bin/mongooseimctl"},
 
            {template, "files/mongooseim", "bin/mongooseim"},
+           {template, "files/mongooseimctl", "bin/mongooseimctl"},
            {template, "files/app.config", "etc/app.config"},
            {template, "files/vm.args", "etc/vm.args"},
-           {template, "files/ejabberd.cfg", "etc/ejabberd.cfg"},
-
-           {copy, "../fake_cert.pem", "priv/ssl/fake_cert.pem"},
-           {copy, "../fake_key.pem", "priv/ssl/fake_key.pem"},
-           {copy, "../fake_server.pem", "priv/ssl/fake_server.pem"},
-           {copy, "files/sample_external_auth.py", "priv/sample_external_auth.py"}
+           {template, "files/ejabberd.cfg", "etc/ejabberd.cfg"}
           ]}
 ].
