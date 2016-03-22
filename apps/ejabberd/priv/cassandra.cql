@@ -42,3 +42,21 @@ CREATE TABLE private_storage (
   namespace varchar,
   data text,
   PRIMARY KEY ((username), namespace));
+
+
+CREATE TABLE privacy_default_list (
+  username varchar,
+  listname varchar,
+  PRIMARY KEY ((username)));
+
+CREATE TABLE privacy_list (
+  username varchar,
+  listname varchar,
+  PRIMARY KEY ((username), listname));
+
+CREATE TABLE privacy_item (
+  username varchar,
+  listname varchar,
+  itemname varchar,
+  value varchar,
+  PRIMARY KEY ((username, listname), itemname));
