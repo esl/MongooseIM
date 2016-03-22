@@ -2798,6 +2798,7 @@ merge_state(OldSD, SD) ->
                 #state.stream_mgmt_buffer,
                 #state.stream_mgmt_buffer_size,
                 #state.stream_mgmt_buffer_max,
+                #state.stream_mgmt_resume_timeout,
                 #state.stream_mgmt_ack_freq],
     Copy = fun(Index, {Stale, Acc}) ->
                    {Stale, setelement(Index, Acc, element(Index, Stale))}

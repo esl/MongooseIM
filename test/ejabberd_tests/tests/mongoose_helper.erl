@@ -103,6 +103,7 @@ generic_count(Module) ->
 
 generic_count_backend(mod_offline_mnesia) -> count_wildpattern(offline_msg);
 generic_count_backend(mod_offline_odbc) -> count_odbc(<<"offline_message">>);
+generic_count_backend(mod_offline_riak) -> count_riak(<<"offline">>);
 generic_count_backend(mod_last_mnesia) -> count_wildpattern(last_activity);
 generic_count_backend(mod_last_odbc) -> count_odbc(<<"last">>);
 generic_count_backend(mod_last_riak) -> count_riak(<<"last">>);

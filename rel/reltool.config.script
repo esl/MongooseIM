@@ -39,6 +39,7 @@ BaseAppsToInclude = AppsToRun ++
                      mochijson2,
                      p1_cache_tab,
                      pa,
+                     usec,
                      base16,
                      cuesport,
                      alarms,

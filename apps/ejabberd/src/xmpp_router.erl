@@ -7,8 +7,10 @@
 -callback do_route(From :: ejabberd:jid(), To :: ejabberd:jid(),
                    Packet :: jlib:xmlel()) -> ok.
 
--spec route(Module :: module(), From :: ejabberd:jid(), To :: ejabberd:jid(),
-            Packet :: jlib:xmlel()) -> ok.
+-spec route(Module :: module(),
+            From :: ejabberd:jid(),
+            To :: ejabberd:jid(),
+            Packet :: jlib:xmlel() | ejabberd_c2s:broadcast()) -> ok.
 route(Module,From,To,Packet) ->
     case (catch Module:do_route(From,To,Packet)) of
         {'EXIT', Reason} ->

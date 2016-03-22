@@ -206,9 +206,7 @@ do_add_rosteritem(LocalUser, LocalServer, User, Server, Nick, Group, Subs) ->
                         attrs = [{<<"xmlns">>,<<"jabber:iq:roster">>}],
                         children = [ItemEl]});
         {error, not_found} ->
-            unknown_server;
-        Other ->
-            Other
+            unknown_server
     end.
 
 
@@ -249,9 +247,7 @@ unsubscribe(LU, LS, User, Server) ->
                         attrs = [{<<"xmlns">>,<<"jabber:iq:roster">>}],
                         children = [ItemEl]});
         {error, not_found} ->
-            unknown_server;
-        Other ->
-            Other
+            unknown_server
     end.
 
 

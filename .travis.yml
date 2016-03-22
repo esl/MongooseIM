@@ -1,8 +1,15 @@
 language: erlang
+sudo: required
+addons:
+    apt:
+        packages:
+        - libpam0g-dev
+        - libexpat1-dev
+        - odbc-postgresql
+        - libmyodbc
+        - slapd
+        - ldap-utils
 before_install:
-        - sudo apt-get update
-        - sudo apt-get install libpam0g-dev libexpat1-dev odbc-postgresql libmyodbc
-        - if [ $PRESET = 'ldap_mnesia' ]; then sudo apt-get install slapd ldap-utils; fi
         - tools/travis-generate-pass.sh
 install:
         - tools/travis-build.sh
@@ -42,6 +49,7 @@ env:
         - PRESET=ldap_mnesia DB=mnesia REL_CONFIG=minimal
         - PRESET=riak_mnesia DB=riak REL_CONFIG=with-riak
         - PRESET=external_mnesia DB=mnesia REL_CONFIG=minimal
+        - PRESET=dialyzer_only
 
 matrix:
     include:
@@ -49,3 +57,19 @@ matrix:
           env: PRESET=internal_mnesia DB=mnesia REL_CONFIG=minimal
         - otp_release: 18.1
           env: PRESET=internal_mnesia DB=mnesia REL_CONFIG=minimal
+
+after_failure:
+        - tools/travis-upload-ct-reports.sh
+
+notifications:
+    webhooks:
+        # trigger Buildtime Trend Service to parse Travis CI log
+        - https://buildtimetrend.herokuapp.com/travis
+
+cache:
+        directories:
+                - dialyzer
+
+before_cache:
+        - rm -f dialyzer/apps.*
+

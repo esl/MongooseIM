@@ -51,15 +51,6 @@
 -define(GET_VERIFY_RESULT,    8).
 -define(VERIFY_NONE, 16#10000).
 
--ifdef(SSL40).
--define(CERT_DECODE, {public_key, pkix_decode_cert, plain}).
--define(CERT_SELFSIGNED, {public_key, pkix_is_self_signed}).
--else.
--define(CERT_DECODE, {ssl_pkix, decode_cert, [pkix]}).
--define(CERT_SELFSIGNED, {erlang, is_atom}). %% Dummy function for old OTPs
--endif.
-
-
 -record(tlssock, {tcpsock  :: port(),
                   tlsport  :: port()
                  }).
@@ -199,10 +190,7 @@ close(#tlssock{tcpsock = TCPSocket, tlsport = Port}) ->
 get_peer_certificate(#tlssock{tlsport = Port}) ->
     case port_control(Port, ?GET_PEER_CERTIFICATE, []) of
         <<0, BCert/binary>> ->
-            {CertMod, CertFun, CertSecondArg} = ?CERT_DECODE,
-            case catch apply(CertMod, CertFun, [BCert, CertSecondArg]) of
-                {ok, Cert} -> %% returned by R13 and older
-                    {ok, Cert};
+            case catch public_key:pkix_decode_cert(BCert, plain) of
                 {'Certificate', _, _, _} = Cert ->
                     {ok, Cert};
                 _ ->
@@ -221,8 +209,7 @@ get_verify_result(#tlssock{tlsport = Port}) ->
 -spec get_cert_verify_string(_,_) -> binary().
 get_cert_verify_string(CertVerifyRes, Cert) ->
     BCert = public_key:pkix_encode('Certificate', Cert, plain),
-    {CertMod, CertFun} = ?CERT_SELFSIGNED,
-    IsSelfsigned = apply(CertMod, CertFun, [BCert]),
+    IsSelfsigned = public_key:pkix_is_self_signed(BCert),
     case {CertVerifyRes, IsSelfsigned} of
         {21, true} -> <<"self-signed certificate">>;
         _ -> cert_verify_code(CertVerifyRes)

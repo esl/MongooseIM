@@ -37,6 +37,8 @@
 -export([mapred/2]).
 -export([search/2]).
 -export([search/3]).
+-export([get_index/4]).
+-export([get_index_range/5]).
 
 -export([pool_name/0]).
 
@@ -137,7 +139,13 @@ create_new_map(Ops) ->
 update_map(Map, Ops) ->
     lists:foldl(fun update_map_op/2, Map, Ops).
 
--spec mapred(mapred_inputs(), [mapred_queryterm()]) -> {ok, mapred_result()} | {error, term()}.
+-type mapred_bucket_type_idx_input() :: {index, riakc_obj:bucket(),
+                                         binary()|secondary_index_id(),
+                                         StartKey::key()|integer(),
+                                         EndKey::key()|integer()}.
+
+-spec mapred(mapred_inputs() |  mapred_bucket_type_idx_input(), [mapred_queryterm()]) ->
+    {ok, mapred_result()} | {error, term()}.
 mapred(KeyFileters, MapRed) ->
     ?CALL(mapred, [KeyFileters, MapRed]).
 
@@ -147,6 +155,20 @@ search(Index, Query) ->
 search(Index, Query, Opts) ->
     ?CALL(search, [Index, Query, Opts]).
 
+-spec get_index(Bucket :: riakc_obj:bucket(),
+                Index :: binary() | secondary_index_id(),
+                Key :: key() | integer(),
+                Opts :: [term()]) ->
+    {ok, index_results()} | {error, term()}.
+get_index(BucketType, Index, Value, Opts) ->
+    ?CALL(get_index_eq, [BucketType, Index, Value, Opts]).
+
+-spec get_index_range(riakc_obj:bucket(), binary() | secondary_index_id(), key() | integer() | list(),
+                key() | integer() | list(), [term()]) ->
+                       {ok, index_results()} | {error, term()}.
+get_index_range(Bucket, Index, StartKey, EndKey, Opts) ->
+    ?CALL(get_index_range, [Bucket, Index, StartKey, EndKey, Opts]).
+
 -spec get_worker() -> pid() | undefined.
 get_worker() ->
     case catch cuesport:get_worker(pool_name()) of
@@ -155,6 +177,7 @@ get_worker() ->
         _ ->
             undefined
     end.
+
 
 -spec pool_name() ->  atom().
 pool_name() -> riak_pool.

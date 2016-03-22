@@ -76,6 +76,20 @@ apps/ejabberd/include/EJABBERD-MIB.hrl
 apps/ejabberd/priv/mibs/EJABBERD-MIB.bin
 apps/ejabberd/ebin/ejabberd.app
 
+Mnesia.mongooseim@*
+compile.log
+ct.log
+deps.log
+quick_compile.log
+dialyzer
+configure.out
+*.d
+.rebar3
+test/ejabberd_tests/get-deps.log
+test/ejabberd_tests/quicktest.log
+tags
+site
+
 # Dialyzer
 .mongooseim_combo_dialyzer.plt
 
@@ -88,3 +102,9 @@ ebin/
 #idea
 .idea/
 *.iml
+dialyzer/
+site/
+etc/
+log/
+Mnesia.*
+tags

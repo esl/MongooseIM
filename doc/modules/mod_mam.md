@@ -4,7 +4,7 @@ This module implements revision 0.2 of [XEP-0313 (Message Archive Management)](h
 ## Configuring MAM with ODBC backend
 
 ### Options
-* **mod_mam_odbc_prefs, mod_mam_mnesia_prefs, mod_mam_dirty_prefs**
+* **mod_mam_odbc_prefs, mod_mam_mnesia_prefs**
 Consider the process as a kind of recipe. For each step you can enable none ("optional"), one ("single") or more ("multi") modules, according to instructions. Provided there are any, please use the options described in a specific step. All config parameters are boolean, so you can enable them by adding an atom to the configuration list, e.g. `{mod_mam_odbc_arch, [pm, no_writer]}`
 
 ##### Step 1 (multi)
@@ -15,12 +15,19 @@ If you haven't chosen any of the above, skip the next part.
 
 **Options:**
 
+* **mod_mam_muc**
+    * `host` (optional, default: `"conference.@HOST@"`) - MUC host that will be archived
 * **mod_mam_odbc_arch**
     * `pm` (mandatory when `mod_mam` enabled) - Enable archiving user-to-user messages
     * `muc` (optional) - Enable group chat archive, mutually exclusive with `mod_mam_muc_odbc_arch`. **Not recommended**, `mod_mam_muc_odbc_arch` is more efficient.
+    * `simple` - Same as `{simple, true}`
+    * `{simple, true}` - Store messages in XML and full JIDs. Archive MUST be empty to change this option.
+    * `{simple, false} (default)` - Store messages and JIDs in internal format
 
 * **mod_mam_odbc_arch**, **mod_mam_muc_odbc_arch**
     * `no_writer` - Disables default synchronous, slow writer and uses async one (step 5 & 6) instead.
+    * `{simple, true}` - Store messages in XML and full JIDs. Archive MUST be empty to change this option.
+    * `{simple, false} (default)` - Store messages and JIDs in internal format
 
 ##### Step 2 (mandatory)
 * **mod_mam_odbc_user** - Maps archive ID to integer.
@@ -42,8 +49,7 @@ If you haven't chosen any of the above, skip the next part.
 Skipping this step will make mod_mam archive all the messages and users will not be able to set their archiving preferences. It will also increase performance.
 
 * **mod_mam_odbc_prefs** - User archiving preferences saved in ODBC. Slow and not recommended, but might be used to simplify things and keep everything in ODBC.
-* **mod_mam_mnesia_prefs** - User archiving preferences saved in Mnesia. Recommended in most deployments, could be overloaded with lots of users updating their preferences at once.
-* **mod_mam_mnesia_dirty_prefs** - User archiving preferences saved in Mnesia and accessed without transactions. There's a small risk of inconsistent (in a rather harmless way) state of preferences table. Provides best performance.
+* **mod_mam_mnesia_prefs** - User archiving preferences saved in Mnesia and accessed without transactions. Recommended in most deployments, could be overloaded with lots of users updating their preferences at once. There's a small risk of inconsistent (in a rather harmless way) state of preferences table. Provides best performance.
 
 **Options:** (common for all three modules)
 
@@ -73,7 +79,15 @@ In order to use Riak as the backend for one-to-one archives, the following confi
 
 ```erlang
 {mod_mam, []}.
-{mod_mam_riak_timed_arch_yz, []}.
+{mod_mam_riak_timed_arch_yz, [pm]}.
+```
+
+To archive both one-to-one and multichat messages use this configuration instead:
+
+```erlang
+{mod_mam, []}.
+{mod_mam_muc, []}.
+{mod_mam_riak_timed_arch_yz, [pm, muc]}.
 ```
 
 The Riak backend for MAM stores messages in weekly buckets so it's easier to remove old buckets.
@@ -206,4 +220,26 @@ Custom credentials:
 
 ```erlang
 {credentials, [{"username", "cassandra"}, {"password", "secret"}]}
+```
+
+
+mod_mam options
+---------------
+
+- add_archived_element - add `<archived/>` element from MAM v0.2
+- is_complete_message - module name implementing is_complete_message/3 callback.
+  This callback returns true if message should be archived.
+
+
+Default configuration for mod_mam:
+
+```erlang
+{mod_mam, []}.
+```
+
+It's expanded to:
+
+```erlang
+{mod_mam, [{add_archived_element, false},
+           {is_complete_message, mod_mam_utils}]}
 ```

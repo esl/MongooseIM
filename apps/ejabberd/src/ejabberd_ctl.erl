@@ -600,12 +600,9 @@ print_usage_commands(HelpMode, MaxC, ShCode, Commands) ->
 %% it supports text formatting codes.
 -spec get_shell_info() -> {integer(),boolean()}.
 get_shell_info() ->
-    %% This function was introduced in OTP R12B-0
-    try io:columns() of
+    case io:columns() of
         {ok, C} -> {C-2, true};
         {error, enotsup} -> {78, false}
-    catch
-        _:_ -> {78, false}
     end.
 
 

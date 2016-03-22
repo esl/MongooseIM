@@ -10,7 +10,7 @@
 %%
 %% Hand made partitions do not work with `mod_mam_odbc_async_writer',
 %% but work with `mod_mam_odbc_async_pool_writer'.
-%%-define(HAND_MADE_PARTITIONS, true).
+%% Use `{hand_made_partitions, true}' option.
 
 %% ----------------------------------------------------------------------
 %% Exports
@@ -40,11 +40,6 @@
 -import(mod_mam_utils,
         [encode_compact_uuid/2]).
 
-%% JID serialization
--import(mod_mam_utils,
-        [jid_to_opt_binary/2,
-         expand_minified_jid/2]).
-
 %% Other
 -import(mod_mam_utils,
         [apply_start_border/2,
@@ -69,6 +64,7 @@
 
 -spec start(ejabberd:server(), _) -> 'ok'.
 start(Host, Opts) ->
+    compile_params_module(Opts),
     case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
         true ->
             start_pm(Host, Opts);
@@ -172,17 +168,6 @@ stop_muc(Host) ->
 %% ----------------------------------------------------------------------
 %% Internal functions and callbacks
 
--ifdef(HAND_MADE_PARTITIONS).
-select_table(N) ->
-    io_lib:format("mam_message_~2..0B", [N rem partition_count()]).
-
-partition_count() ->
-    16.
--else.
-select_table(_) ->
-    "mam_message".
--endif.
-
 encode_direction(incoming) -> "I";
 encode_direction(outgoing) -> "O".
 
@@ -242,7 +227,7 @@ archive_message(_Result, Host, MessID, UserID,
     SSrcJID = minify_and_escape_jid(LocJID, SrcJID),
     SDir = encode_direction(Dir),
     SRemLResource = ejabberd_odbc:escape(RemLResource),
-    Data = term_to_binary(Packet),
+    Data = packet_to_stored_binary(Packet),
     EscFormat = ejabberd_odbc:escape_format(Host),
     SData = ejabberd_odbc:escape_binary(EscFormat, Data),
     SMessID = integer_to_list(MessID),
@@ -276,7 +261,7 @@ prepare_message(Host, MessID, UserID,
     SSrcJID = minify_and_escape_jid(LocJID, SrcJID),
     SDir = encode_direction(Dir),
     SRemLResource = ejabberd_odbc:escape(RemLResource),
-    Data = term_to_binary(Packet, [compressed]),
+    Data = packet_to_stored_binary(Packet),
     EscFormat = ejabberd_odbc:escape_format(Host),
     SData = ejabberd_odbc:escape_binary(EscFormat, Data),
     SMessID = integer_to_list(MessID),
@@ -318,7 +303,8 @@ safe_lookup_messages(Result, Host,
                         PageSize, LimitPassed, MaxResultLimit,
                         IsSimple)
     catch _Type:Reason ->
-        {error, Reason}
+        S = erlang:get_stacktrace(),
+        {error, {Reason, S}}
     end.
 
 -spec lookup_messages(Result :: any(), Host :: ejabberd:server(),
@@ -497,10 +483,10 @@ rows_to_uniform_format(Host, UserJID, MessageRows) ->
 
 row_to_uniform_format(DbEngine, UserJID, EscFormat, {BMessID,BSrcJID,SDataRaw}) ->
     MessID = list_to_integer(binary_to_list(BMessID)),
-    SrcJID = jid:from_binary(expand_minified_jid(UserJID, BSrcJID)),
+    SrcJID = stored_binary_to_jid(UserJID, BSrcJID),
     SData = ejabberd_odbc:unescape_odbc_binary(DbEngine, SDataRaw),
     Data = ejabberd_odbc:unescape_binary(EscFormat, SData),
-    Packet = binary_to_term(Data),
+    Packet = stored_binary_to_packet(Data),
     {MessID, SrcJID, Packet}.
 
 row_to_message_id({BMessID,_,_}) ->
@@ -720,10 +706,10 @@ escape_user_id(UserID) when is_integer(UserID) ->
 
 %% @doc Strip resource, minify and escape JID.
 minify_and_escape_bare_jid(LocJID, JID) ->
-    ejabberd_odbc:escape(jid_to_opt_binary(LocJID, jid:to_bare(JID))).
+    ejabberd_odbc:escape(jid_to_stored_binary(LocJID, jid:to_bare(JID))).
 
 minify_and_escape_jid(LocJID, JID) ->
-    ejabberd_odbc:escape(jid_to_opt_binary(LocJID, JID)).
+    ejabberd_odbc:escape(jid_to_stored_binary(LocJID, JID)).
 
 join([H|T]) ->
     [H, [", " ++ X || X <- T]].
@@ -738,3 +724,84 @@ maybe_encode_compact_uuid(undefined, _) ->
     undefined;
 maybe_encode_compact_uuid(Microseconds, NodeID) ->
     encode_compact_uuid(Microseconds, NodeID).
+
+
+%% ----------------------------------------------------------------------
+%% Optimizations
+
+%% @doc Returns encoded JID
+jid_to_stored_binary(UserJID, JID) ->
+    %% Module implementing mam_jid behaviour
+    Module = db_jid_format(),
+    Module:encode(UserJID, JID).
+
+stored_binary_to_jid(UserJID, BSrcJID) ->
+    %% Module implementing mam_jid behaviour
+    Module = db_jid_format(),
+    Module:decode(UserJID, BSrcJID).
+
+packet_to_stored_binary(Packet) ->
+    %% Module implementing mam_message behaviour
+    Module = db_message_format(),
+    Module:encode(Packet).
+
+stored_binary_to_packet(Bin) ->
+    %% Module implementing mam_message behaviour
+    Module = db_message_format(),
+    Module:decode(Bin).
+
+select_table(N) ->
+    case hand_made_partitions() of
+        true ->
+            io_lib:format("mam_message_~2..0B", [N rem partition_count()]);
+        false ->
+            "mam_message"
+    end.
+
+partition_count() ->
+    16.
+
+%% ----------------------------------------------------------------------
+%% Dynamic params module
+
+%% compile_params_module([
+%%      {db_jid_format, module()},
+%%      {db_message_format, module()},
+%%      {hand_made_partitions, boolean()},
+%%      ])
+compile_params_module(Params) ->
+    CodeStr = params_helper(expand_simple_param(Params)),
+    {Mod, Code} = dynamic_compile:from_string(CodeStr),
+    code:load_binary(Mod, "mod_mam_odbc_arch_params.erl", Code).
+
+expand_simple_param(Params) ->
+    lists:flatmap(fun(simple) -> simple_params();
+                     ({simple,true}) -> simple_params();
+                     (Param) -> [Param]
+                  end, Params).
+
+simple_params() ->
+    [{db_jid_format, mam_jid_rfc}, {db_message_format, mam_message_xml}].
+
+params_helper(Params) ->
+    binary_to_list(iolist_to_binary(io_lib:format(
+        "-module(mod_mam_odbc_arch_params).~n"
+        "-compile(export_all).~n"
+        "db_jid_format() -> ~p.~n"
+        "db_message_format() -> ~p.~n"
+        "hand_made_partitions() -> ~p.~n",
+        [proplists:get_value(db_jid_format, Params, mam_jid_mini),
+         proplists:get_value(db_message_format, Params, mam_message_compressed_eterm),
+         proplists:get_bool(hand_made_partitions, Params)]))).
+
+-spec db_jid_format() -> module().
+db_jid_format() ->
+    mod_mam_odbc_arch_params:db_jid_format().
+
+-spec db_message_format() -> module().
+db_message_format() ->
+    mod_mam_odbc_arch_params:db_message_format().
+
+-spec hand_made_partitions() -> boolean().
+hand_made_partitions() ->
+    mod_mam_odbc_arch_params:hand_made_partitions().
