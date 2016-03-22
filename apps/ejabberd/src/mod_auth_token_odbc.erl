@@ -16,10 +16,10 @@ get_valid_sequence_number(#jid{lserver = LServer} = JID) ->
     BBareJID = jid:to_binary(jid:to_bare(JID)),
     EBareJID = ejabberd_odbc:escape(BBareJID),
     Q = valid_sequence_number_query(EBareJID),
-    [{updated, undefined},
+    [{updated, _},
      {updated, _},
      {selected, _, [{BSeqNo}]},
-     {updated, undefined}] = ejabberd_odbc:sql_query(LServer, Q),
+     {updated, _}] = ejabberd_odbc:sql_query(LServer, Q),
     binary_to_integer(BSeqNo).
 
 valid_sequence_number_query(EOwner) when is_binary(EOwner) ->
