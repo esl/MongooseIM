@@ -98,7 +98,7 @@ start_link() ->
     Packet :: jlib:xmlel()) -> ok.
 route(From, To, Packet) ->
     ?DEBUG("route~n\tfrom ~p~n\tto ~p~n\tpacket ~p~n",
-        [From, To, Packet]),
+           [From, To, Packet]),
     route(From, To, Packet, routing_modules_list()).
 
 %% Route the error packet only if the originating packet is not an error itself.

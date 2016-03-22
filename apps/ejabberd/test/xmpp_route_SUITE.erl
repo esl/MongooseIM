@@ -26,53 +26,11 @@ end_per_suite(_C) ->
 
 basic_routing(_C) ->
     %% module 'a' drops message 1, routes message 2, passes on everything else
-    Self = self(),
-    meck:new(xmpp_router_a, [non_strict]),
-    meck:expect(xmpp_router_a, filter,
-                fun(From, To, Packet) ->
-                    case Packet of
-                        1 -> drop;
-                        _ -> {From, To, Packet}
-                    end
-                end),
-    meck:expect(xmpp_router_a, route,
-        fun(From, To, Packet) ->
-            case Packet of
-                2 ->
-                    Self ! {a, Packet},
-                    done;
-                _ -> {From, To, Packet}
-            end
-        end),
+    setup_routing_module(xmpp_router_a, 1, 2),
     %% module 'b' drops message 3, routes message 4, passes on everything else
-    meck:new(xmpp_router_b, [non_strict]),
-    meck:expect(xmpp_router_b, filter,
-        fun(From, To, Packet) ->
-            case Packet of
-                3 -> drop;
-                _ -> {From, To, Packet}
-            end
-        end),
-    meck:expect(xmpp_router_b, route,
-        fun(From, To, Packet) ->
-            case Packet of
-                4 ->
-                    Self ! {b, Packet},
-                    done;
-                _ -> {From, To, Packet}
-            end
-        end),
+    setup_routing_module(xmpp_router_b, 3, 4),
     %% module 'c' routes everything
-    meck:new(xmpp_router_c, [non_strict]),
-    meck:expect(xmpp_router_c, filter,
-        fun(From, To, Packet) ->
-            {From, To, Packet}
-        end),
-    meck:expect(xmpp_router_c, route,
-        fun(_From, _To, Packet) ->
-            Self ! {c, Packet},
-            done
-        end),
+    setup_routing_module(xmpp_router_c, none, all),
     %% send messages from 1 to 5
     lists:map(fun(I) -> route(I) end, [1,2,3,4,5]),
     meck:validate(xmpp_router_a),
@@ -85,10 +43,42 @@ basic_routing(_C) ->
     verify([{a, 2}, {b, 4}, {c, 5}]),
     ok.
 
+setup_routing_module(Name, PacketToDrop, PacketToRoute) ->
+    meck:new(Name, [non_strict]),
+    meck:expect(Name, filter,
+        fun(From, To, Packet) ->
+            case Packet of
+                PacketToDrop -> drop;
+                _ -> {From, To, Packet}
+            end
+        end),
+    meck:expect(Name, route,
+        make_routing_fun(Name, PacketToRoute)),
+    ok.
+
+make_routing_fun(Name, all) ->
+    Self = self(),
+    Marker = list_to_atom([lists:last(atom_to_list(Name))]),
+    fun(_From, _To, Packet) ->
+        Self ! {Marker, Packet},
+        done
+    end;
+make_routing_fun(Name, PacketToRoute) ->
+    Self = self(),
+    Marker = list_to_atom([lists:last(atom_to_list(Name))]),
+    fun(From, To, Packet) ->
+        case Packet of
+            PacketToRoute ->
+                Self ! {Marker, Packet},
+                done;
+            _ -> {From, To, Packet}
+        end
+    end.
+
 route(I) ->
     ok = ejabberd_router:route(jid:from_binary(<<"ala@localhost">>),
-        jid:from_binary(<<"bob@localhost">>),
-        I).
+                               jid:from_binary(<<"bob@localhost">>),
+                               I).
 
 verify(L) ->
     receive
