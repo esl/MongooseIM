@@ -60,7 +60,7 @@ get_data(LUser, LServer, NS, Default) ->
     UserJID = jid:make(LUser, LServer, <<>>),
     PoolName = pool_name(LServer, LUser),
     Params = [LUser, NS],
-    Rows = mongoose_cassandra_worker:cql_query_pool(PoolName, UserJID, ?MODULE, get_data, Params),
+    {ok, Rows} = mongoose_cassandra_worker:cql_query_pool(PoolName, UserJID, ?MODULE, get_data, Params),
     case Rows of
         [[SData]] ->
             {ok, Elem} = exml:parse(SData),

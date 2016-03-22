@@ -124,9 +124,9 @@ get_behaviour(DefaultBehaviour, Host, _UserID, LocJID, RemJID) ->
     BRemBareJID = bare_jid(RemJID),
     BRemJID     = full_jid(RemJID),
     case query_behaviour(Host, LocJID, BUserJID, BRemJID, BRemBareJID) of
-        [] ->
+        {ok, []} ->
             DefaultBehaviour;
-        [_|_]=Rows ->
+        {ok, [_|_]=Rows} ->
             %% After sort <<>>, <<"a">>, <<"a/b">>
             [_,Behavour] = lists:last(lists:sort(Rows)),
             decode_behaviour(Behavour)
@@ -174,7 +174,7 @@ get_prefs({GlobalDefaultMode, _, _}, _Host, _UserID, UserJID) ->
     BUserJID = bare_jid(UserJID),
     PoolName = pool_name(UserJID),
     Params = [BUserJID],
-    Rows = mongoose_cassandra_worker:cql_query_pool(PoolName, UserJID, ?MODULE, get_prefs_query, Params),
+    {ok, Rows} = mongoose_cassandra_worker:cql_query_pool(PoolName, UserJID, ?MODULE, get_prefs_query, Params),
     decode_prefs_rows(Rows, GlobalDefaultMode, [], []).
 
 

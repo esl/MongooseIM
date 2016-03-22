@@ -14,9 +14,7 @@
          cql_query_pool/5,
          cql_query_async/5,
          cql_query_pool_async/5,
-         cql_query_multi/5,
          cql_query_multi_async/5,
-         cql_query_pool_multi/5,
          cql_query_pool_multi_async/5,
          cql_batch/4,
          cql_batch_pool/4]).
@@ -73,9 +71,9 @@ cql_query(Worker, _UserJID, Module, QueryName, Params) when is_pid(Worker) ->
     {ok, Result} = ResultF(),
     case Result of
         void ->
-            [];
+            {ok, []};
         _ ->
-            seestar_result:rows(Result)
+            {ok, seestar_result:rows(Result)}
     end.
 
 cql_query_async(Worker, _UserJID, Module, QueryName, Params) when is_pid(Worker) ->
@@ -84,18 +82,14 @@ cql_query_async(Worker, _UserJID, Module, QueryName, Params) when is_pid(Worker)
 cql_query_multi_async(Worker, _UserJID, Module, QueryName, MultiParams) when is_pid(Worker) ->
     gen_server:cast(Worker, {multi_async_cql_query, Module, QueryName, MultiParams}).
 
-cql_query_multi(Worker, UserJID, Module, QueryName, MultiParams) when is_pid(Worker) ->
-    %% TODO parrallel
-    [cql_query(Worker, UserJID, Module, QueryName, Params) || Params <- MultiParams].
-
 cql_batch(Worker, _UserJID, Module, Queries) ->
     ResultF = gen_server:call(Worker, {cql_batch, Module, unlogged, Queries}),
     {ok, Result} = ResultF(),
     case Result of
         void ->
-            [];
+            {ok, []};
         _ ->
-            seestar_result:rows(Result)
+            {ok, seestar_result:rows(Result)}
     end.
 
 cql_batch_pool(PoolName, UserJID, Module, Queries) ->
@@ -110,10 +104,6 @@ cql_query_pool(PoolName, UserJID, Module, QueryName, Params) ->
 cql_query_pool_async(PoolName, UserJID, Module, QueryName, Params) ->
     Worker = mongoose_cassandra_sup:select_worker(PoolName, UserJID),
     cql_query_async(Worker, UserJID, Module, QueryName, Params).
-
-cql_query_pool_multi(PoolName, UserJID, Module, QueryName, MultiParams) ->
-    Worker = mongoose_cassandra_sup:select_worker(PoolName, UserJID),
-    cql_query_multi(Worker, UserJID, Module, QueryName, MultiParams).
 
 cql_query_pool_multi_async(PoolName, UserJID, Module, QueryName, MultiParams) ->
     Worker = mongoose_cassandra_sup:select_worker(PoolName, UserJID),
