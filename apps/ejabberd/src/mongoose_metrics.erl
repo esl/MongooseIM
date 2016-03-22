@@ -276,6 +276,8 @@ create_metrics(Host) ->
     lists:foreach(fun(Name) -> ensure_metric(Name, counter) end,
                   get_total_counters(Host)).
 
+ensure_metric(Metric, Type) when is_tuple(Type) ->
+    ensure_metric(Metric, element(1, Type));
 ensure_metric(Metric, Type) when is_list(Metric) ->
     case exometer:info(Metric, type) of
         Type -> {ok, already_present};
