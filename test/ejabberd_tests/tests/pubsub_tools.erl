@@ -47,14 +47,12 @@ create_node(User, {NodeAddr, NodeName}, Config) ->
     Id = <<"create1">>,
     CreateNodeIq = escalus_pubsub_stanza:create_node_stanza(
                        User, Id, NodeAddr, NodeName, Config),
-    log_stanza("REQUEST create node", CreateNodeIq),
     escalus:send(User, CreateNodeIq),
     receive_response(User, Id).
 
 configure_node(User, {NodeAddr, NodeName}, Config) ->
     Id = <<"config1">>,
     RequestIq = escalus_pubsub_stanza:configure_node_stanza(User, Id, NodeAddr, NodeName, Config),
-    log_stanza("REQUEST configure node", RequestIq),
     escalus:send(User, RequestIq),
     receive_response(User, Id).
 
@@ -62,7 +60,6 @@ delete_node(User, {NodeAddr, NodeName}) ->
     Id = <<"delete1">>,
     DeleteNode = escalus_pubsub_stanza:delete_node_stanza(NodeName),
     DeleteNodeIq = escalus_pubsub_stanza:iq_with_id(set, Id, NodeAddr, User, [DeleteNode]),
-    log_stanza("REQUEST delete node", DeleteNodeIq),
     escalus:send(User, DeleteNodeIq),
     receive_response(User, Id).
 
@@ -75,7 +72,6 @@ subscribe(User, {NodeAddr, NodeName}, Options) ->
     Id = <<UserName/binary, <<"binsuffix">>/binary>>,
     Config = proplists:get_value(config, Options, []),
     SubscribeIq = escalus_pubsub_stanza:subscribe_by_user_stanza(Jid, Id, NodeName, NodeAddr, Config),
-    log_stanza("REQUEST subscribe", SubscribeIq),
     escalus:send(User, SubscribeIq),
     case proplists:get_value(expected_notification, Options) of
         undefined ->
@@ -97,7 +93,6 @@ unsubscribe(User, {NodeAddr, NodeName}, JidType) ->
     Jid = jid(User, JidType),
     Id = <<UserName/binary, <<"binsuffix">>/binary>>,
     UnsubscribeIq = escalus_pubsub_stanza:unsubscribe_by_user_stanza(Jid, Id, NodeName, NodeAddr),
-    log_stanza("REQUEST unsubscribe", UnsubscribeIq),
     escalus:send(User, UnsubscribeIq),
     receive_response(User, Id).
 
@@ -115,8 +110,10 @@ publish(User, ItemId, {NodeAddr, NodeName}, WithItem, ExpectedErrorType) ->
                false -> []
            end,
     Publish = escalus_pubsub_stanza:publish_item_stanza(NodeName, Item),
-    PublishIq = escalus_pubsub_stanza:iq_with_id(set, Id, NodeAddr, User, [Publish]),
-    log_stanza("REQUEST publish", PublishIq),
+    PublishIq = case NodeAddr of
+                    pep -> escalus_pubsub_stanza:iq_with_id(set, Id, User, [Publish]);
+                    _ -> escalus_pubsub_stanza:iq_with_id(set, Id, NodeAddr, User, [Publish])
+                end,
     escalus:send(User, PublishIq),
     case ExpectedErrorType of
         none -> receive_response(User, Id);
@@ -153,7 +150,6 @@ request_all_items(User, ItemIds, {NodeAddr, NodeName}) ->
     Id = <<"items1">>,
     Request = escalus_pubsub_stanza:create_request_allitems_stanza(NodeName),
     RequestIq = escalus_pubsub_stanza:iq_with_id(get, Id, NodeAddr, User, [Request]),
-    log_stanza("REQUEST all items", RequestIq),
     escalus:send(User, RequestIq),
     ResultStanza = receive_response(User, Id),
     Items = exml_query:path(ResultStanza, [{element, <<"pubsub">>},
@@ -174,7 +170,6 @@ retrieve_user_subscriptions(User, ExpectedSubscriptions, NodeAddr) ->
     Id = <<"user_subs1">>,
     Request = escalus_pubsub_stanza:retrieve_user_subscriptions_stanza(),
     RequestIq = escalus_pubsub_stanza:iq_with_id(get, Id, NodeAddr, User, [Request]),
-    log_stanza("REQUEST user subscriptions", RequestIq),
     escalus:send(User, RequestIq),
     ResultStanza = receive_response(User, Id),
     SubscriptionElems = exml_query:paths(ResultStanza, [{element, <<"pubsub">>},
@@ -213,7 +208,6 @@ discover_nodes(User, {NodeAddr, NodeName}, ExpectedChildren) ->
 discover_nodes(User, NodeAddr, ExpectedNodes) ->
     Id = <<"disco_nodes">>,
     RequestIq = escalus_pubsub_stanza:discover_nodes_stanza(User, Id, NodeAddr),
-    log_stanza("REQUEST first-level nodes", RequestIq),
     escalus:send(User, RequestIq),
     receive_node_discovery_response(User, Id, NodeAddr, undefined, ExpectedNodes).
 
@@ -228,13 +222,11 @@ fail_to_discover_nodes(User, {NodeAddr, NodeName}, ErrorType) ->
 
 send_purge_all_items_request(User, Id, {NodeAddr, NodeName}) ->
     RequestIq = escalus_pubsub_stanza:purge_all_items_iq(User, Id, NodeAddr, NodeName),
-    log_stanza("REQUEST purge", RequestIq),
     escalus:send(User, RequestIq).
 
 send_node_subscriptions_request(User, Id, {NodeAddr, NodeName}) ->
     Request = escalus_pubsub_stanza:retrieve_subscriptions_stanza(NodeName),
     RequestIq = escalus_pubsub_stanza:iq_with_id(get, Id, NodeAddr, User, [Request]),
-    log_stanza("REQUEST node subscriptions", RequestIq),
     escalus:send(User, RequestIq).
 
 receive_node_subscriptions_response(User, Id, ExpectedSubscriptions, NodeName) ->
@@ -253,12 +245,10 @@ send_modify_node_subscriptions_request(User, Id, ModifiedSubscriptions, {NodeAdd
     ChangeElems = escalus_pubsub_stanza:get_subscription_change_list_stanza(Changes),
     Request = escalus_pubsub_stanza:set_subscriptions_stanza(NodeName, ChangeElems),
     RequestIq = escalus_pubsub_stanza:iq_with_id(set, Id, NodeAddr, User, [Request]),
-    log_stanza("REQUEST modify subscriptions", RequestIq),
     escalus:send(User, RequestIq).
 
 send_child_node_discovery_request(User, Id, NodeAddr, NodeName) ->
     RequestIq = escalus_pubsub_stanza:discover_nodes_stanza(User, Id, NodeAddr, NodeName),
-    log_stanza("REQUEST child nodes", RequestIq),
     escalus:send(User, RequestIq).
 
 receive_node_discovery_response(User, Id, NodeAddr, NodeName, ExpectedNodes) ->
@@ -276,32 +266,23 @@ receive_node_discovery_response(User, Id, NodeAddr, NodeName, ExpectedNodes) ->
 
 receive_notification(User, NodeAddr) ->
     Stanza = escalus:wait_for_stanza(User),
-    log_stanza("NOTIFICATION", Stanza),
     true = escalus_pred:is_stanza_from(NodeAddr, Stanza),
     true = escalus_pred:is_message(Stanza),
     Stanza.
 
 receive_response(User, Id) ->
     ResultStanza = escalus:wait_for_stanza(User),
-    log_stanza("RESPONSE", ResultStanza),
     true = escalus_pred:is_iq_result(ResultStanza),
     Id = exml_query:attr(ResultStanza, <<"id">>),
     ResultStanza.
 
 receive_error_response(User, Id, Type) ->
     ErrorStanza = escalus:wait_for_stanza(User),
-    log_stanza("RESPONSE (error expected)", ErrorStanza),
     true = escalus_pred:is_iq_error(ErrorStanza),
     Id = exml_query:attr(ErrorStanza, <<"id">>),
     ErrorElem = exml_query:subelement(ErrorStanza, <<"error">>),
     Type = exml_query:attr(ErrorElem, <<"type">>),
     ErrorStanza.
-
-log_stanza(ReportString, Stanza) ->
-    %ct:print("~p~n", [Stanza]),
-    PrettyStanza = binary:list_to_bin(exml:to_pretty_iolist(Stanza)),
-    ct:print("~s~n~s", [ReportString, PrettyStanza]),
-    ct:log("~s~n~s", [ReportString, exml:escape_attr(PrettyStanza)]).
 
 check_subscription(Subscr, Jid, NodeName) ->
     Jid = exml_query:attr(Subscr, <<"jid">>),

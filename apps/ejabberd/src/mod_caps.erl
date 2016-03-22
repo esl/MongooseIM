@@ -51,6 +51,9 @@
 	 c2s_presence_in/2, c2s_filter_packet/6,
 	 c2s_broadcast_recipients/6, mod_opt_type/1]).
 
+%% cleanup for test cases
+-export([delete_caps/1]).
+
 -include("ejabberd.hrl").
 
 -include("jlib.hrl").
@@ -508,6 +511,14 @@ caps_write_fun(LServer, NodePair, Features, odbc) ->
             ejabberd_odbc:sql_transaction(
               LServer,
               sql_write_features_t(NodePair, Features))
+    end.
+
+delete_caps(Node) ->
+    cache_tab:delete(caps_features, Node, caps_delete_fun(Node)).
+
+caps_delete_fun(Node) ->
+    fun () ->
+	    mnesia:dirty_delete(caps_features, Node)
     end.
 
 make_my_disco_hash(Host) ->

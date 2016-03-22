@@ -11,6 +11,8 @@
 %% do not remove below SUITE if testing mongoose
 
 {suites, "tests", pubsub_SUITE}.
+{suites, "tests", pep_SUITE}.
+
 {config, ["test.config"]}.
 {logdir, "ct_report"}.
 {ct_hooks, [ct_tty_hook, ct_mongoose_hook]}.
