@@ -337,33 +337,33 @@ route(_, _, _, []) ->
     ok; %% shouldn't we raise error here? If we get here means we don't know
     %% how to route this message...
 route(OrigFrom, OrigTo, OrigPacket, [M|Tail]) ->
-    ?DEBUG({using, M}),
+    ?DEBUG("Using module ~p", [M]),
     case (catch M:filter(OrigFrom, OrigTo, OrigPacket)) of
         {'EXIT', Reason} ->
-            ?DEBUG({filtering, error}),
+            ?DEBUG("Filtering error", []),
             ?ERROR_MSG("error when filtering from=~ts to=~ts in module=~p, reason=~p, packet=~ts, stack_trace=~p",
                 [jid:to_binary(OrigFrom), jid:to_binary(OrigTo),
                     M, Reason, exml:to_binary(OrigPacket),
                     erlang:get_stacktrace()]),
             ok;
         drop ->
-            ?DEBUG({filter, dropped}),
+            ?DEBUG("filter dropped packet", []),
             ok;
         {OrigFrom, OrigTo, OrigPacket} ->
-            ?DEBUG({filter, passed}),
+            ?DEBUG("filter passed", []),
             case catch(M:route(OrigFrom, OrigTo, OrigPacket)) of
                 {'EXIT', Reason} ->
                     ?ERROR_MSG("error when routing from=~ts to=~ts in module=~p, reason=~p, packet=~ts, stack_trace=~p",
                         [jid:to_binary(OrigFrom), jid:to_binary(OrigTo),
                             M, Reason, exml:to_binary(OrigPacket),
                             erlang:get_stacktrace()]),
-                    ?DEBUG({routing, error}),
+                    ?DEBUG("routing error", []),
                     ok;
                 done ->
-                    ?DEBUG({routing, done}),
+                    ?DEBUG("routing done", []),
                     ok;
                 {From, To, Packet} ->
-                    ?DEBUG({routing, skipped}),
+                    ?DEBUG("routing skipped", []),
                     route(From, To, Packet, Tail)
             end
     end.
