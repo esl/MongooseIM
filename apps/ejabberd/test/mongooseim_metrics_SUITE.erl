@@ -54,6 +54,7 @@ end_per_suite(C) ->
     gen_tcp:close(CarbonSocket),
     meck:unload(),
     application:stop(exometer),
+    application:stop(exometer_core),
     C.
 
 no_skip_metric(_C) ->
