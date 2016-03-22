@@ -82,7 +82,7 @@ get_reporters_cfg(Port) ->
     [{reporters, [
                  {exometer_report_graphite, [
                                              {prefix, "mongooseim"},
-                                             {connect_timeout, 5000},
+                                             {connect_timeout, 10000},
                                              {host, "127.0.0.1"},
                                              {port, Port},
                                              {api_key, ""}
