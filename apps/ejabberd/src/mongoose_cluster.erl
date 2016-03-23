@@ -61,15 +61,34 @@ unsafe_join(Node, ClusterMember) ->
     ok = mnesia:start(),
     {ok, [ClusterMember]} = mnesia:change_config(extra_db_nodes, [ClusterMember]),
     true = lists:member(ClusterMember, mnesia:system_info(running_db_nodes)),
-    {atomic, ok} = mnesia:change_table_copy_type(schema, Node, disc_copies),
+    ok = change_schema_type(Node),
     Tables = [ {T, table_type(ClusterMember, T)}
                || T <- mnesia:system_info(tables),
                   T /= schema ],
     Copied = [ {Table, mnesia:add_table_copy(T, Node, Type)}
                || {T, Type} = Table <- Tables ],
-    Expected = lists:zip(Tables, repeat(length(Tables), {atomic, ok})),
-    Expected = Copied,
+    lists:foreach(fun check_if_successful_copied/1, Copied),
     ok.
+
+check_if_successful_copied(TableEl) ->
+    case TableEl of
+        {_, {atomic, ok}} ->
+            ok;
+        {_, {aborted, {already_exists, _, _}}} ->
+            ok;
+        Other ->
+            error({add_table_copy_error, TableEl, Other})
+    end.
+
+change_schema_type(Node) ->
+    case mnesia:change_table_copy_type(schema, Node, disc_copies) of
+        {atomic, ok} ->
+            ok;
+        {aborted, {already_exists, _, _, _}} ->
+            ok;
+        {aborted, R} ->
+            {error, R}
+    end.
 
 table_type(ClusterMember, T) ->
     try rpc:call(ClusterMember, mnesia, table_info, [T, storage_type]) of
@@ -77,7 +96,7 @@ table_type(ClusterMember, T) ->
                   Type =:= ram_copies;
                   Type =:= disc_only_copies -> Type
     catch
-        E:R -> error({cant_get_storage_type, {E,R}}, [T])
+        E:R -> error({cant_get_storage_type, {T,E,R}}, [T])
     end.
 
 %% This will remove all your Mnesia data!

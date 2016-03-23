@@ -31,10 +31,12 @@
 
 all() ->
     [{group, clustered},
-     {group, ejabberdctl}].
+     {group, ejabberdctl},
+      {group, clustering}].
 
 groups() ->
     [{clustered, [], [one_to_one_message]},
+      {clustering, [], [join_successful, leave_successful]},
      {ejabberdctl, [], [set_master_test]}].
 
 suite() ->
@@ -46,7 +48,6 @@ suite() ->
 
 init_per_suite(Config) ->
     Config1 = escalus:init_per_suite(Config),
-
     Node = ct:get_config(ejabberd2_node),
     Config2 = ejabberd_node_utils:init(Node, Config1),
     ejabberd_node_utils:backup_config_file(Node, Config2),
@@ -68,10 +69,8 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(Group, Config) when Group == clustered orelse Group == ejabberdctl ->
-
-    Config1 = add_node_to_cluster(Config),
-
-    case is_sm_distributed() of
+  Config1 = add_node_to_cluster(Config),
+  case is_sm_distributed() of
         true ->
             escalus:create_users(Config1, escalus:get_users([alice, clusterguy]));
         {false, Backend} ->
@@ -133,4 +132,15 @@ set_master_test(ConfigIn) ->
     [OtherNode] = rpc_call(mnesia, table_info, [TableName, master_nodes]),
     ejabberdctl("set_master", ["self"], ConfigIn),
     [MasterNode] = rpc_call(mnesia, table_info, [TableName, master_nodes]).
+
+join_successful(Config) ->
+  Node2 = ct:get_config(ejabberd2_node),
+  ejabberdctl("join_cluster", [atom_to_list(Node2)], Config),
+  verify_result(add).
+
+
+leave_successful(Config) ->
+  ejabberdctl("leave_cluster", [], Config),
+  verify_result(remove).
+
 
