@@ -56,12 +56,12 @@ end_per_suite(Config) ->
 
 init_per_group(_GroupName, Config) ->
     dynamic_modules:ensure_modules(?DOMAIN, required_modules()),
-    escalus:create_users(Config, {by_name, [alice, bob]}),
-    Users = escalus_users:get_users({by_name, [alice, bob]}),
+    Users = escalus_users:get_users([alice, bob]),
+    escalus:create_users(Config, Users),
     escalus_story:make_everyone_friends(Config, Users).
 
 end_per_group(_GroupName, Config) ->
-    escalus:delete_users(Config, {by_name, [alice, bob]}),
+    escalus:delete_users(Config, escalus_users:get_users([alice, bob])),
     ok.
 
 init_per_testcase(pep_caps_test, Config) ->

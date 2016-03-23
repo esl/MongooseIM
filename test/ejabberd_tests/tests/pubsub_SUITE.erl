@@ -103,11 +103,11 @@ end_per_suite(Config) ->
 
 init_per_group(_GroupName, Config) ->
     dynamic_modules:ensure_modules(?DOMAIN, required_modules()),
-    escalus:create_users(Config,{by_name, [alice, bob, geralt]}),
+    escalus:create_users(Config, escalus:get_users([alice, bob, geralt])),
     ok.
 
 end_per_group(_GroupName, Config) ->
-    escalus:delete_users(Config,{by_name, [alice, bob, geralt]}),
+    escalus:delete_users(Config, escalus:get_users([alice, bob, geralt])),
     ok.
 
 init_per_testcase(_TestName, Config) ->
