@@ -20,7 +20,7 @@
 -import(distributed_helper, [add_node_to_cluster/1,
                              remove_node_from_cluster/1,
                              is_sm_distributed/0]).
--import(ejabberdctl_helper, [ejabberdctl/3, rpc_call/3]).
+-import(ejabberdctl_helper, [ejabberdctl/3, rpc_call/3, verify_result/1]).
 
 
 -include_lib("common_test/include/ct.hrl").
