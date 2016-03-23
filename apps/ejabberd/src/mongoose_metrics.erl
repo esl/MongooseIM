@@ -277,10 +277,15 @@ create_metrics(Host) ->
                   get_total_counters(Host)).
 
 ensure_metric(Metric, Type) when is_tuple(Type) ->
-    ensure_metric(Metric, element(1, Type));
-ensure_metric(Metric, Type) when is_list(Metric) ->
+    ensure_metric(Metric, Type, element(1, Type));
+ensure_metric(Metric, Type) ->
+    ensure_metric(Metric, Type, Type).
+
+ensure_metric(Metric, ShortType, Type) when is_list(Metric) ->
+    %% the split into ShortType and Type is needed because function metrics are
+    %% defined as tuples (that is Type), while exometer:info returns only 'function'
     case exometer:info(Metric, type) of
-        Type -> {ok, already_present};
+        ShortType -> {ok, already_present};
         undefined -> exometer:new(Metric, Type)
     end.
 
