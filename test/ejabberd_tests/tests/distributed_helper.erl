@@ -74,7 +74,7 @@ should_belong(remove) -> false.
 
 cluster_op_timeout() ->
     %% This timeout is deliberately a long one.
-    timer:seconds(15).
+    timer:seconds(25).
 
 rpc(Node, M, F, A) ->
     rpc(Node, M, F, A, timer:seconds(5)).
