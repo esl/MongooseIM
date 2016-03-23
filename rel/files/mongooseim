@@ -233,7 +233,7 @@ case "$1" in
         fi
         ;;
     *)
-        echo "Usage: $SCRIPT {start|stop|restart|reboot|ping|live|console|console_clean|attach|debug|version|add_to_cluster|remove_from_cluster}"
+        echo "Usage: $SCRIPT {start|stop|restart|reboot|ping|live|console|console_clean|attach|debug|version|join_cluster|leave_cluster}"
         exit 1
         ;;
 esac
