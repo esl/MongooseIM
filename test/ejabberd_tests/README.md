@@ -6,13 +6,14 @@ It's used mainly for [ESL's branch of ejabberd](https://github.com/esl/MongooseI
 but one that may be reused in other projects.
 
 ## How to run tests
+
 There are 2 ways of running the tests:
 * quick (`make quicktest`) - this command tests the current configuration of the server
 * full (`make test`) - this command tests all server configurations defined in test.config file - [see the section on various server configurations](#testing-various-server-configurations)
 
-By default both commands are using the `default.spec` file where options like suites to run, config file(s) and log dir are specified. To use custom .spec file (for example to add other suites or remove the existing ones) one must add it to one of the mentioned commands:
+By default both commands are using the `default.spec` file where options like suites to run, config file(s) and log dir are specified. To use a custom .spec file (for example to add other suites or remove the existing ones) one must add it to one of the mentioned commands:
 
-`make quicktest TESTSPEC=full.spec`
+`make quicktest TESTSPEC=custom.spec`
 
 Additional erlang binaries required by custom suites can be added to the path by providing ADD_OPTS parameter to the make command. For example:
 

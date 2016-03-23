@@ -47,7 +47,7 @@
               }).
 
 start(_Opts) ->
-    cyrsasl:register_mechanism(<<"DIGEST-MD5">>, ?MODULE, digest).
+    mongoose_fips:maybe_register_mech(<<"DIGEST-MD5">>, ?MODULE, digest).
 
 stop() ->
     ok.

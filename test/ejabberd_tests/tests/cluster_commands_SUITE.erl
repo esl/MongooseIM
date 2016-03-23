@@ -73,7 +73,7 @@ init_per_group(Group, Config) when Group == clustered orelse Group == ejabberdct
 
     case is_sm_distributed() of
         true ->
-            escalus:create_users(Config1, {by_name, [alice, clusterguy]});
+            escalus:create_users(Config1, escalus:get_users([alice, clusterguy]));
         {false, Backend} ->
             ct:pal("Backend ~p doesn't support distributed tests", [Backend]),
             remove_node_from_cluster(Config1),
@@ -83,7 +83,7 @@ init_per_group(_GroupName, Config) ->
     escalus:create_users(Config).
 
 end_per_group(Group, Config) when Group == clustered orelse Group == ejabberdctl ->
-    escalus:delete_users(Config, {by_name, [alice, clusterguy]}),
+    escalus:delete_users(Config, escalus:get_users([alice, clusterguy])),
     remove_node_from_cluster(Config);
 end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config).

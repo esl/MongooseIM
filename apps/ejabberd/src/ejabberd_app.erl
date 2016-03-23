@@ -41,6 +41,7 @@
 start(normal, _Args) ->
     ejabberd_loglevel:init(),
     ejabberd_loglevel:set(4),
+    mongoose_fips:notify(),
     write_pid_file(),
     db_init(),
     application:start(p1_cache_tab),

@@ -67,10 +67,10 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(_GroupName, Config) ->
-    escalus:create_users(Config, {by_name, [alice, bob]}).
+    escalus:create_users(Config, escalus:get_users([alice, bob])).
 
 end_per_group(_GroupName, Config) ->
-    escalus:delete_users(Config, {by_name, [alice, bob]}).
+    escalus:delete_users(Config, escalus:get_users([alice, bob])).
 
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
@@ -254,7 +254,7 @@ error_presence(Config) ->
         escalus:wait_for_stanza(Bob),
 
         ErrorElt = escalus_stanza:error_element(<<"cancel">>, <<"gone">>),
-        Presence = escalus_stanza:presence_direct(alice, <<"error">>, ErrorElt),
+        Presence = escalus_stanza:presence_direct(alice, <<"error">>, [ErrorElt]),
         escalus:send(Bob, Presence),
         escalus:wait_for_stanza(Alice),
 

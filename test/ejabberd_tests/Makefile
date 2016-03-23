@@ -24,7 +24,8 @@ quicktest: $(PREPARE)
 		    `pwd`/ebin \
 			`pwd`/deps/*/ebin \
 		$(ADD_OPTS) \
-		-s run_common_test main test=quick spec=$(TESTSPEC)
+		-s run_common_test main test=quick spec=$(TESTSPEC) \
+		> $@.log 2>&1 || (cat $@.log; exit 1)
 
 cover_quicktest: $(PREPARE)
 	erl -noinput -sname test -setcookie ejabberd \
@@ -32,7 +33,8 @@ cover_quicktest: $(PREPARE)
 		    `pwd`/ebin \
 			`pwd`/deps/*/ebin \
 		$(ADD_OPTS) \
-		-s run_common_test main test=quick spec=$(TESTSPEC) cover=true
+		-s run_common_test main test=quick spec=$(TESTSPEC) cover=true \
+		> $@.log 2>&1 || (cat $@.log; exit 1)
 
 test_preset: $(PREPARE)
 	erl -noinput -sname test -setcookie ejabberd \
@@ -40,7 +42,8 @@ test_preset: $(PREPARE)
 		    `pwd`/ebin \
 			`pwd`/deps/*/ebin \
 		$(ADD_OPTS) \
-		-s run_common_test main test=full spec=$(TESTSPEC) preset=$(PRESET)
+		-s run_common_test main test=full spec=$(TESTSPEC) preset=$(PRESET) \
+		> $@.log 2>&1 || (cat $@.log; exit 1)
 
 cover_test_preset: $(PREPARE)
 	erl -noinput -sname test -setcookie ejabberd \
@@ -48,7 +51,8 @@ cover_test_preset: $(PREPARE)
 		    `pwd`/ebin \
 			`pwd`/deps/*/ebin \
 		$(ADD_OPTS) \
-		-s run_common_test main test=full spec=$(TESTSPEC) preset=$(PRESET) cover=true
+		-s run_common_test main test=full spec=$(TESTSPEC) preset=$(PRESET) cover=true \
+		> $@.log 2>&1 || (cat $@.log; exit 1)
 
 test: $(PREPARE)
 	erl -noinput -sname test -setcookie ejabberd \
@@ -56,7 +60,8 @@ test: $(PREPARE)
 		    `pwd`/ebin \
 			`pwd`/deps/*/ebin \
 		$(ADD_OPTS) \
-		-s run_common_test main test=full spec=$(TESTSPEC)
+		-s run_common_test main test=full spec=$(TESTSPEC) \
+		> $@.log 2>&1 || (cat $@.log; exit 1)
 
 cover_test: $(PREPARE)
 	erl -noinput -sname test -setcookie ejabberd \
@@ -64,7 +69,8 @@ cover_test: $(PREPARE)
 		    `pwd`/ebin \
 			`pwd`/deps/*/ebin \
 		$(ADD_OPTS) \
-		-s run_common_test main test=full spec=$(TESTSPEC) cover=true
+		-s run_common_test main test=full spec=$(TESTSPEC) cover=true \
+		> $@.log 2>&1 || (cat $@.log; exit 1)
 
 prepare: compile
 	erlc -Ideps/exml/include \
@@ -78,14 +84,14 @@ console: compile
 			`pwd`/deps/*/ebin \
 
 compile: get-deps
-	./rebar compile
+	./rebar compile > $@.log 2>&1 || (cat $@.log; exit 1)
 
 get-deps: rebar
-	./rebar get-deps
+	./rebar get-deps > $@.log 2>&1 || (cat $@.log; exit 1)
 
 clean: rebar
-	rm -rf tests/*.beam
-	./rebar clean
+	-@rm -rf tests/*.beam > /dev/null 2>&1
+	-@./rebar clean > /dev/null 2>&1
 
 rebar:
 	wget http://cloud.github.com/downloads/basho/rebar/rebar

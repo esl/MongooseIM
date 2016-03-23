@@ -217,7 +217,7 @@ end_per_suite(Config) ->
 init_per_group(moderator, Config) ->
     RoomName = <<"alicesroom">>,
     RoomNick = <<"alicesnick">>,
-    Config1 = escalus:create_users(Config, {by_name, [alice, bob, kate]}),
+    Config1 = escalus:create_users(Config, escalus:get_users([alice, bob, kate])),
     [Alice | _] = ?config(escalus_users, Config1),
     start_room(Config1, Alice, RoomName, RoomNick,
         [{persistent, true}, {allow_change_subj, false}, {moderated, true},
@@ -226,54 +226,54 @@ init_per_group(moderator, Config) ->
 init_per_group(admin, Config) ->
     RoomName = <<"alicesroom">>,
     RoomNick = <<"alicesnick">>,
-    Config1 = escalus:create_users(Config, {by_name, [alice, bob, kate]}),
+    Config1 = escalus:create_users(Config, escalus:get_users([alice, bob, kate])),
     [Alice | _] = ?config(escalus_users, Config1),
     start_room(Config1, Alice, RoomName, RoomNick, [{persistent, true}]);
 
 init_per_group(admin_membersonly, Config) ->
     RoomName = <<"alicesroom">>,
     RoomNick = <<"alicesnick">>,
-    Config1 = escalus:create_users(Config, {by_name, [alice, bob, kate]}),
+    Config1 = escalus:create_users(Config, escalus:get_users([alice, bob, kate])),
     [Alice | _] = ?config(escalus_users, Config1),
     start_room(Config1, Alice, RoomName, RoomNick, [{persistent, true},
         {members_only, true}]);
 
 init_per_group(disco, Config) ->
-    Config1 = escalus:create_users(Config, {by_name, [alice, bob]}),
+    Config1 = escalus:create_users(Config, escalus:get_users([alice, bob])),
     [Alice | _] = ?config(escalus_users, Config1),
     start_room(Config1, Alice, <<"alicesroom">>, <<"aliceonchat">>,
         [{persistent, true}]);
 
 init_per_group(disco_rsm, Config) ->
-    Config1 = escalus:create_users(Config, {by_name, [alice, bob]}),
+    Config1 = escalus:create_users(Config, escalus:get_users([alice, bob])),
     [Alice | _] = ?config(escalus_users, Config1),
     start_rsm_rooms(Config1, Alice, <<"aliceonchat">>);
 
 init_per_group(_GroupName, Config) ->
-    escalus:create_users(Config, {by_name, [alice, bob, kate]}).
+    escalus:create_users(Config, escalus:get_users([alice, bob, kate])).
 
 end_per_group(moderator, Config) ->
     destroy_room(Config),
-    escalus:delete_users(Config, {by_name, [alice, bob, kate]});
+    escalus:delete_users(Config, escalus:get_users([alice, bob, kate]));
 
 end_per_group(admin, Config) ->
     destroy_room(Config),
-    escalus:delete_users(Config, {by_name, [alice, bob, kate]});
+    escalus:delete_users(Config, escalus:get_users([alice, bob, kate]));
 
 end_per_group(admin_membersonly, Config) ->
     destroy_room(Config),
-    escalus:delete_users(Config, {by_name, [alice, bob, kate]});
+    escalus:delete_users(Config, escalus:get_users([alice, bob, kate]));
 
 end_per_group(disco, Config) ->
     destroy_room(Config),
-    escalus:delete_users(Config, {by_name, [alice, bob]});
+    escalus:delete_users(Config, escalus:get_users([alice, bob]));
 
 end_per_group(disco_rsm, Config) ->
     destroy_rsm_rooms(Config),
-    escalus:delete_users(Config, {by_name, [alice, bob]});
+    escalus:delete_users(Config, escalus:get_users([alice, bob]));
 
 end_per_group(_GroupName, Config) ->
-    escalus:delete_users(Config, {by_name, [alice, bob, kate]}).
+    escalus:delete_users(Config, escalus:get_users([alice, bob, kate])).
 
 init_per_testcase(CaseName = configure_anonymous, Config) ->
     [Alice | _] = ?config(escalus_users, Config),
@@ -1299,7 +1299,7 @@ admin_ban_list(Config) ->
     end).
 
 admin_get_form(Config) ->
-    escalus:story(Config, [1,1,1], fun(Alice, _Bob, _Kate) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, _Bob, _Kate) ->
         timer:sleep(?WAIT_TIME),
         %%%% Bootstrap:
         %% Alice is admin
@@ -1552,7 +1552,7 @@ check_rolelist(LoginData, no, Config) ->
 
 %% This one tests a roomconfig_getmemberlist setting
 admin_member_list_allowed(Config) ->
-    escalus:story(Config, [1,1,1], fun(Alice, Bob, Kate) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
         timer:sleep(?WAIT_TIME),
         %%%% Bootstrap:
         %% Alice is admin
@@ -2849,7 +2849,7 @@ disco_items(Config) ->
                                  end).
 
 disco_items_nonpublic(Config) ->
-    escalus:story(Config, [1,1], fun(Alice, Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         escalus:send(Alice, stanza_join_room(<<"alicesroom">>, <<"nicenick">>)),
         _Stanza = escalus:wait_for_stanza(Alice),
 
@@ -3813,29 +3813,29 @@ maybe_rsm_elem(#rsm_in{max=Max, direction=Direction, id=Id, index=Index}) ->
                 maybe_rsm_index(Index),
                 maybe_rsm_direction(Direction, Id)])}.
 
-maybe_rsm_id(undefined) -> [];
-maybe_rsm_id(Id) -> #xmlcdata{content = Id}.
+rsm_id_children(undefined) -> [];
+rsm_id_children(Id) -> [#xmlcdata{content = Id}].
 
 maybe_rsm_direction(undefined, undefined) ->
     undefined;
 maybe_rsm_direction(Direction, Id) ->
     #xmlel{
         name = atom_to_binary(Direction, latin1),
-        children = maybe_rsm_id(Id)}.
+        children = rsm_id_children(Id)}.
 
 maybe_rsm_index(undefined) ->
     undefined;
 maybe_rsm_index(Index) when is_integer(Index) ->
     #xmlel{
         name = <<"index">>,
-        children = #xmlcdata{content = integer_to_list(Index)}}.
+        children = [#xmlcdata{content = integer_to_list(Index)}]}.
 
 maybe_rsm_max(undefined) ->
     undefined;
 maybe_rsm_max(Max) when is_integer(Max) ->
     #xmlel{
         name = <<"max">>,
-        children = #xmlcdata{content = integer_to_list(Max)}}.
+        children = [#xmlcdata{content = integer_to_list(Max)}]}.
 
 skip_undefined(Xs) ->
     [X || X <- Xs, X =/= undefined].
@@ -4165,7 +4165,7 @@ stanza_set_roles(Room, List) ->
         attrs = [{<<"nick">>, Nick}, {<<"role">>, Role}],
         children = [#xmlel{
             name = <<"reason">>,
-            children = #xmlcdata{content = Reason}}
+            children = [#xmlcdata{content = Reason}]}
         ]}
     end, List),
     stanza_to_room(escalus_stanza:iq_set(?NS_MUC_ADMIN, Payload), Room).
@@ -4179,7 +4179,7 @@ stanza_set_affiliations(Room, List) ->
         attrs = [{<<"jid">>, JID}, {<<"affiliation">>, Affiliation}],
         children = [#xmlel{
             name = <<"reason">>,
-            children = #xmlcdata{content = Reason}}
+            children = [#xmlcdata{content = Reason}]}
         ]}
     end, List),
     stanza_to_room(escalus_stanza:iq_set(?NS_MUC_ADMIN, Payload), Room).
@@ -4209,10 +4209,10 @@ stanza_ban_user(User, Room, Reason) ->
 
 stanza_join_room(Room, Nick) ->
     stanza_to_room(#xmlel{name = <<"presence">>, children =
-        #xmlel{
+        [#xmlel{
             name = <<"x">>,
             attrs = [{<<"xmlns">>,<<"http://jabber.org/protocol/muc">>}]
-        }
+        }]
     },Room, Nick).
 
 %% stanza with multiple x subelements - empathy send additional x's
@@ -4230,7 +4230,7 @@ stanza_join_room_many_x_elements(Room, Nick) ->
 
 stanza_voice_request_form(Room) ->
     Payload = [ form_field({<<"muc#role">>, <<"participant">>, <<"text-single">>}) ],
-    stanza_message_to_room(Room, stanza_form(Payload, ?NS_MUC_REQUEST)).
+    stanza_message_to_room(Room, [stanza_form(Payload, ?NS_MUC_REQUEST)]).
 
 stanza_voice_request_approval(Room, JID, Nick) ->
     Items = [{<<"muc#role">>, <<"participant">>, <<"text-single">>},
@@ -4238,14 +4238,14 @@ stanza_voice_request_approval(Room, JID, Nick) ->
         {<<"muc#roomnick">>, Nick, <<"text-single">>},
         {<<"muc#request_allow">>, <<"true">>, <<"boolean">>}],
     Payload = [ form_field(El) || El <- Items],
-    stanza_message_to_room(Room, stanza_form(Payload, ?NS_MUC_REQUEST)).
+    stanza_message_to_room(Room, [stanza_form(Payload, ?NS_MUC_REQUEST)]).
 
 stanza_voice_request_approval_nonick(Room, JID) ->
     Items = [{<<"muc#role">>, <<"participant">>, <<"text-single">>},
         {<<"muc#jid">>, JID, <<"jid-single">>},
         {<<"muc#request_allow">>, <<"true">>, <<"boolean">>}],
     Payload = [ form_field(El) || El <- Items],
-    stanza_message_to_room(Room, stanza_form(Payload, ?NS_MUC_REQUEST)).
+    stanza_message_to_room(Room, [stanza_form(Payload, ?NS_MUC_REQUEST)]).
 
 stanza_configuration_form(Room, Params) ->
     DefaultParams = [],
@@ -4256,13 +4256,13 @@ stanza_configuration_form(Room, Params) ->
         DefaultParams, Params) ++ Params,
     Payload = [ form_field(FieldData) || FieldData <- FinalParams ],
     stanza_to_room(escalus_stanza:iq_set(
-          ?NS_MUC_OWNER, stanza_form(Payload, ?NS_MUC_ROOMCONFIG)), Room).
+          ?NS_MUC_OWNER, [stanza_form(Payload, ?NS_MUC_ROOMCONFIG)]), Room).
 
 stanza_cancel(Room) ->
-    Payload = #xmlel{
+    Payload = [#xmlel{
         name = <<"x">>,
         attrs = [{<<"xmlns">>,<<"jabber:x:data">>}, {<<"type">>,<<"cancel">>}]
-    },
+    }],
     stanza_to_room(escalus_stanza:iq_set(
           ?NS_MUC_OWNER, Payload), Room).
 

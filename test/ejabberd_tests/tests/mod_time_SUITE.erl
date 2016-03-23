@@ -47,10 +47,10 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(mod_time, Config) ->
-    escalus:create_users(Config, {by_name, [alice]}).
+    escalus:create_users(Config, escalus:get_users([alice])).
 
 end_per_group(mod_time, Config) ->
-    escalus:delete_users(Config, {by_name, [alice]}).
+    escalus:delete_users(Config, escalus:get_users([alice])).
 
 
 init_per_testcase(CaseName, Config) ->
@@ -99,8 +99,8 @@ time_request_stanza(Server, ID) ->
     #xmlel{name = <<"iq">>,
            attrs = [{<<"type">>, <<"get">>},
                     {<<"id">>, ID}, {<<"to">>, Server}],
-           children = #xmlel{name = <<"time">>,
-                             attrs = [{<<"xmlns">>, ?NS_TIME}]}}.
+           children = [#xmlel{name = <<"time">>,
+                              attrs = [{<<"xmlns">>, ?NS_TIME}]}]}.
 
 check_ns(#xmlel{name = <<"iq">>, attrs = _, children = [Child]}) ->
     case Child of

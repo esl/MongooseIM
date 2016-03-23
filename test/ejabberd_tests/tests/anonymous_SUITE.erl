@@ -46,10 +46,10 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(_GroupName, Config) ->
-    escalus:create_users(Config, {by_name, [alice]}).
+    escalus:create_users(Config, escalus:get_users([alice])).
 
 end_per_group(_GroupName, Config) ->
-    escalus:delete_users(Config, {by_name, [alice]}).
+    escalus:delete_users(Config, escalus:get_users([alice])).
 
 init_per_testcase(CaseName, Config0) ->
     NewUsers = proplists:get_value(escalus_users, Config0) ++ escalus_ct:get_config(escalus_anon_users),

@@ -15,6 +15,9 @@ init_per_suite(C) ->
     application:ensure_all_started(lager),
     C.
 
+end_per_suite(_C) ->
+    ok.
+
 success_with_module_implementing_behaviour(_C) ->
     meck:new(xmpp_router_correct, [non_strict]),
     meck:expect(xmpp_router_correct, do_route,

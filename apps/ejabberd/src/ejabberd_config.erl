@@ -1336,3 +1336,4 @@ sort_config(Config) when is_list(Config) ->
                           ConfigItem
                   end, Config),
     lists:sort(L).
+
