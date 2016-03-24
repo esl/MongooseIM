@@ -227,8 +227,8 @@ new_batch_queries(Conn, Module, [{QueryName, Params}|Queries], BatchQueries, Sta
         {ok, PreparedQuery, State2} ->
             BatchQuery = new_prepared_query(PreparedQuery, Params),
             new_batch_queries(Conn, Module, Queries, [BatchQuery|BatchQueries], State2);
-        {error, _Reason} ->
-            {noreply, State}
+        {error, Reason} ->
+            {error, Reason, State}
     end;
 new_batch_queries(_Conn, _Module, [], BatchQueries, State) ->
     {ok, lists:reverse(BatchQueries), State}.
@@ -307,8 +307,8 @@ handle_call({cql_batch, Module, BatchType, Queries}, From,
         {ok, BatchQueries, State2} ->
             QueryRef = run_batch(Conn, BatchType, BatchQueries),
             {noreply, save_query_ref(From, QueryRef, State2)};
-        {error, Reason} ->
-            {reply, {error, Reason}, State}
+        {error, Reason, State2} ->
+            {reply, {error, Reason}, State2}
     end;
 handle_call(_, _From, State=#state{}) ->
     {reply, ok, State}.
