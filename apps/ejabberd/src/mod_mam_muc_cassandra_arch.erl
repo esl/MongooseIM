@@ -5,6 +5,7 @@
 %%% @end
 %%%-------------------------------------------------------------------
 -module(mod_mam_muc_cassandra_arch).
+-behaviour(mongoose_cassandra).
 
 %% gen_mod handlers
 -export([start/2, stop/1]).

@@ -14,6 +14,7 @@
 -include("ejabberd.hrl").
 
 -behaviour(mod_roster).
+-behaviour(mongoose_cassandra).
 
 %% API
 -export([init/2,

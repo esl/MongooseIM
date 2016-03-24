@@ -17,6 +17,7 @@
 -module(mod_privacy_cassandra).
 -author('arcusfelis@gmail.com').
 -behaviour(mod_privacy).
+-behaviour(mongoose_cassandra).
 
 -export([init/2,
          get_default_list/2,

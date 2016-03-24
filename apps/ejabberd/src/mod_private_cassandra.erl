@@ -19,6 +19,7 @@
 -module(mod_private_cassandra).
 -author('arcusfelis@gmail.com').
 -behaviour(mod_private).
+-behaviour(mongoose_cassandra).
 
 -export([init/2,
          multi_set_data/3,

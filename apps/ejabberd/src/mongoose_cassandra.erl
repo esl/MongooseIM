@@ -2,6 +2,8 @@
 -export([start/0, stop/0]).
 -export([now_timestamp/0]).
 
+-callback prepared_queries() -> list({term(), string()}).
+
 start() ->
     case ejabberd_config:get_local_option(cassandra_servers) of
         undefined ->
