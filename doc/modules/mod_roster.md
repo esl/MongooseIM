@@ -5,7 +5,7 @@ These modules implement roster support, specified in [RFC 6121](http://xmpp.org/
 * **iqdisc**
 * **versioning** (boolean, default: `false`) - Turn on/off support for Roster Versioning.
 * **store_current_id** (boolean, default: `false`) - Stores last roster hash in DB (used in Roster Versioning). Improves performance but should be disabled, when shared rosters are used.
-* **backend** (atom, default: `mnesia`) - Storage backend. Currently `mnesia`, `odbc` and `riak` are supported.
+* **backend** (atom, default: `mnesia`) - Storage backend. Currently `mnesia`, `odbc`, `cassandra` and `riak` are supported.
 
 ### Example Configuration
 ```

@@ -50,6 +50,7 @@ Skipping this step will make mod_mam archive all the messages and users will not
 
 * **mod_mam_odbc_prefs** - User archiving preferences saved in ODBC. Slow and not recommended, but might be used to simplify things and keep everything in ODBC.
 * **mod_mam_mnesia_prefs** - User archiving preferences saved in Mnesia and accessed without transactions. Recommended in most deployments, could be overloaded with lots of users updating their preferences at once. There's a small risk of inconsistent (in a rather harmless way) state of preferences table. Provides best performance.
+* **mod_mam_cassandra_prefs** - User archiving preferences saved in Cassandra. Slow and not recommended, but might be used to simplify things and keep everything in Cassandra.
 
 **Options:** (common for all three modules)
 
