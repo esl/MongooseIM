@@ -153,7 +153,7 @@ remove_privacy_list(LUser, LServer, Name) ->
     Params = [LUser, Name],
     Queries = [{remove_list_items_query, Params},
                {remove_list_query, Params}],
-    Res = mongoose_cassandra_worker:cql_batch_pool(PoolName, UserJID, ?MODULE, Queries),
+    Res = mongoose_cassandra_worker:cql_batch_pool(PoolName, UserJID, ?MODULE, Queries, not_batch),
     handle_empty_result(Res, remove_privacy_list).
 
 replace_privacy_list(LUser, LServer, Name, List) ->
@@ -162,15 +162,17 @@ replace_privacy_list(LUser, LServer, Name, List) ->
     Now = mongoose_cassandra:now_timestamp(),
     Next = Now + 1,
     EncodedList = [mongoose_privacy_serializer:encode(Item) || Item <- List],
-    Queries =
+    %% Call two different tables below
+    %% Save list name
+    Res1 = mongoose_cassandra_worker:cql_query_pool(PoolName, UserJID, ?MODULE, add_list_query, [LUser, Name]),
+    ItemQueries =
         %% Remove old items
         [{remove_list_items_ts_query, [Now, LUser, Name]}]
-        %% Save list name
-        ++ [{add_list_query, [LUser, Name]}]
         %% Add new items
         ++ [{add_list_item_ts_query, [LUser, Name, ItemName, Value, Next]} || {ItemName, Value} <- EncodedList],
-    Res = mongoose_cassandra_worker:cql_batch_pool(PoolName, UserJID, ?MODULE, Queries),
-    handle_empty_result(Res, replace_privacy_list).
+    Res2 = mongoose_cassandra_worker:cql_batch_pool(PoolName, UserJID, ?MODULE, ItemQueries),
+    handle_empty_result(Res1, replace_privacy_list1),
+    handle_empty_result(Res2, replace_privacy_list2).
 
 remove_user(LUser, LServer) ->
     UserJID = jid:make(LUser, LServer, <<>>),
@@ -179,10 +181,11 @@ remove_user(LUser, LServer) ->
     Queries = [{forget_default_list_query, Params},
                {remove_all_items_query, Params},
                {remove_lists_query, Params}],
-    Res = mongoose_cassandra_worker:cql_batch_pool(PoolName, UserJID, ?MODULE, Queries),
+    %% Call three different tables
+    Res = mongoose_cassandra_worker:cql_batch_pool(PoolName, UserJID, ?MODULE, Queries, not_batch),
     handle_empty_result(Res, remove_user).
 
-handle_empty_result({ok, []}, _Pos) -> ok;
+handle_empty_result({ok, _}, _Pos) -> ok;
 handle_empty_result({error, Other}, Pos) ->
     ?ERROR_MSG("issue=\"handle_empty_result failed\", position=~p, reason=~1000p",
                [Pos, Other]),

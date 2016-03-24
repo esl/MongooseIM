@@ -151,7 +151,10 @@ remove_user(LUser, LServer) ->
     Params = [LUser],
     Queries = [{remove_roster_query, Params},
                {remove_roster_version_query, Params}],
-    Res = mongoose_cassandra_worker:cql_batch_pool(PoolName, UserJID, ?MODULE, Queries),
+    %% don't use unlogged batches here because Cassandra does not allow to do them
+    %% to different partitions (one case is operations on several different tables).
+    %% not_batch or logged
+    Res = mongoose_cassandra_worker:cql_batch_pool(PoolName, UserJID, ?MODULE, Queries, not_batch),
     handle_empty_result(Res, remove_user).
 
 update_roster_t(LUser, LServer, _LJID, Item) ->
@@ -255,7 +258,7 @@ roster_row_to_item(#jid{luser=User, lserver=LServer},
                     groups = Groups}
     end.
 
-handle_empty_result({ok, []}, _Pos) -> ok;
+handle_empty_result({ok, _}, _Pos) -> ok;
 handle_empty_result({error, Other}, Pos) ->
     ?ERROR_MSG("issue=\"handle_empty_result failed\", position=~p, reason=~1000p",
                [Pos, Other]),

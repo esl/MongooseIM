@@ -17,7 +17,9 @@
          cql_query_multi_async/5,
          cql_query_pool_multi_async/5,
          cql_batch/4,
-         cql_batch_pool/4]).
+         cql_batch_pool/4,
+         cql_batch/5,
+         cql_batch_pool/5]).
 
 %% Helpers for debugging
 -export([test_query/1,
@@ -82,8 +84,10 @@ cql_query_async(Worker, _UserJID, Module, QueryName, Params) when is_pid(Worker)
 cql_query_multi_async(Worker, _UserJID, Module, QueryName, MultiParams) when is_pid(Worker) ->
     gen_server:cast(Worker, {multi_async_cql_query, Module, QueryName, MultiParams}).
 
-cql_batch(Worker, _UserJID, Module, Queries) ->
-    ResultF = gen_server:call(Worker, {cql_batch, Module, unlogged, Queries}),
+cql_batch(Worker, UserJID, Module, Queries, not_batch) ->
+    cql_query_multi(Worker, UserJID, Module, Queries);
+cql_batch(Worker, _UserJID, Module, Queries, BatchType) ->
+    ResultF = gen_server:call(Worker, {cql_batch, Module, BatchType, Queries}),
     {ok, Result} = ResultF(),
     case Result of
         void ->
@@ -92,9 +96,29 @@ cql_batch(Worker, _UserJID, Module, Queries) ->
             {ok, seestar_result:rows(Result)}
     end.
 
-cql_batch_pool(PoolName, UserJID, Module, Queries) ->
+%% @doc Run queries, abort if an error. No rollback
+cql_query_multi(Worker, UserJID, Module, Queries) ->
+    cql_query_multi(Worker, UserJID, Module, Queries, []).
+
+cql_query_multi(Worker, UserJID, Module, [{QueryName, Params}|Queries], Results) ->
+    case cql_query(Worker, UserJID, Module, QueryName, Params) of
+        {ok, Result} ->
+            cql_query_multi(Worker, UserJID, Module, Queries, [Result|Results]);
+        {error, Reason} ->
+            {error, [{reason, Reason}, {results, Results}]}
+    end;
+cql_query_multi(_Worker, _UserJID, _Module, [], Results) ->
+    {ok, lists:reverse(Results)}.
+
+cql_batch_pool(PoolName, UserJID, Module, Queries, BatchType) ->
     Worker = mongoose_cassandra_sup:select_worker(PoolName, UserJID),
-    cql_batch(Worker, UserJID, Module, Queries).
+    cql_batch(Worker, UserJID, Module, Queries, BatchType).
+
+cql_batch(Worker, UserJID, Module, Queries) ->
+    cql_batch(Worker, UserJID, Module, Queries, unlogged).
+
+cql_batch_pool(PoolName, UserJID, Module, Queries) ->
+    cql_batch_pool(PoolName, UserJID, Module, Queries, unlogged).
 
 %% @doc Select worker and do cql query
 cql_query_pool(PoolName, UserJID, Module, QueryName, Params) ->
