@@ -59,7 +59,7 @@ CREATE TABLE privacy_item (
   listname varchar,
   itemname varchar,
   value varchar,
-  PRIMARY KEY ((username, listname), itemname));
+  PRIMARY KEY ((username), listname, itemname));
 
 CREATE TABLE rosterusers (
   username varchar,
