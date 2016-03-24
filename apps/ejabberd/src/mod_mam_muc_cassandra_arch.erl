@@ -742,16 +742,6 @@ bare_jid(undefined) -> undefined;
 bare_jid(JID) ->
     jid:to_binary(jid:to_bare(jid:to_lower(JID))).
 
-full_jid(undefined) -> undefined;
-full_jid(JID) ->
-    jid:to_binary(jid:to_lower(JID)).
-
-maybe_full_jid(undefined) -> <<>>;
-maybe_full_jid(JID) ->
-    jid:to_binary(jid:to_lower(JID)).
-
-unserialize_jid(BJID) ->
-    jid:from_binary(BJID).
 
 %%====================================================================
 %% Internal SQL part
