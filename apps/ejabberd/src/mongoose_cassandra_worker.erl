@@ -175,10 +175,14 @@ get_prepared_query_first_time(Conn, Module, QueryName, State=#state{prepared_que
     Key = {Module, QueryName},
     case get_query_cql(Module, QueryName) of
         {ok, Cql} ->
-            PreparedQuery = prepare_query(Conn, Cql),
-            PreparedQueries2 = dict:store(Key, PreparedQuery, PreparedQueries),
-            State2 = State#state{prepared_queries=PreparedQueries2},
-            {ok, PreparedQuery, State2};
+            case prepare_query(Conn, Cql, Module, QueryName) of
+                {ok, PreparedQuery} ->
+                    PreparedQueries2 = dict:store(Key, PreparedQuery, PreparedQueries),
+                    State2 = State#state{prepared_queries=PreparedQueries2},
+                    {ok, PreparedQuery, State2};
+                {error, Reason} ->
+                    {error, Reason}
+            end;
         {error, Reason} ->
             {error, Reason}
     end.
@@ -197,11 +201,17 @@ get_query_cql_unsafe(Module, QueryName) ->
     {QueryName, Cql} = lists:keyfind(QueryName, 1, List),
     {ok, Cql}.
 
-prepare_query(Conn, Query) ->
-    {ok, Res} = seestar_session:prepare(Conn, Query),
-    Types = seestar_result:types(Res),
-    QueryID = seestar_result:query_id(Res),
-    #prepared_query{query_id=QueryID, query_types=Types}.
+prepare_query(Conn, Query, Module, QueryName) ->
+    case seestar_session:prepare(Conn, Query) of
+        {ok, Res} ->
+            Types = seestar_result:types(Res),
+            QueryID = seestar_result:query_id(Res),
+            {ok, #prepared_query{query_id=QueryID, query_types=Types}};
+        {error, Reason} ->
+            ?ERROR_MSG("issue=preparing_query_failed, query_module=~p, query_name=~p, reason=~p",
+                       [Module, QueryName, Reason]),
+            {error, Reason}
+    end.
 
 execute_prepared_query(Conn, #prepared_query{query_id=QueryID, query_types=Types}, Params) ->
     seestar_session:execute_async(Conn, QueryID, Types, Params, one).
