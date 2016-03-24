@@ -60,3 +60,18 @@ CREATE TABLE privacy_item (
   itemname varchar,
   value varchar,
   PRIMARY KEY ((username, listname), itemname));
+
+CREATE TABLE rosterusers (
+  username varchar,
+  jid varchar,
+  nick varchar,
+  subscription varchar,
+  ask varchar,
+  askmessage varchar,
+  groups set<varchar>,
+  PRIMARY KEY ((username), jid));
+
+CREATE TABLE roster_version (
+  username varchar,
+  version varchar,
+  PRIMARY KEY ((username)));
