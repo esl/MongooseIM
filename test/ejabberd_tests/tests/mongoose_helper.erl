@@ -105,10 +105,12 @@ generic_count_backend(mod_last_odbc) -> count_odbc(<<"last">>);
 generic_count_backend(mod_last_riak) -> count_riak(<<"last">>);
 generic_count_backend(mod_privacy_mnesia) -> count_wildpattern(privacy);
 generic_count_backend(mod_privacy_odbc) -> count_odbc(<<"privacy_list">>);
+generic_count_backend(mod_privacy_cassandra) -> count_cassandra(privacy_list);
 generic_count_backend(mod_private_mnesia) -> count_wildpattern(private_storage);
 generic_count_backend(mod_private_odbc) -> count_odbc(<<"private_storage">>);
 generic_count_backend(mod_private_mysql) -> count_odbc(<<"private_storage">>);
 generic_count_backend(mod_private_riak) -> count_riak(<<"private">>);
+generic_count_backend(mod_private_cassandra) -> count_cassandra(private_storage);
 generic_count_backend(mod_vcard_mnesia) -> count_wildpattern(vcard);
 generic_count_backend(mod_vcard_odbc) -> count_odbc(<<"vcard">>);
 generic_count_backend(mod_vcard_riak) -> count_riak(<<"vcard">>);
@@ -120,6 +122,7 @@ generic_count_backend(mod_roster_mnesia) -> count_wildpattern(roster);
 generic_count_backend(mod_roster_riak) ->
     count_riak(<<"rosters">>),
     count_riak(<<"roster_versions">>);
+generic_count_backend(mod_roster_cassandra) -> count_cassandra(rosterusers);
 generic_count_backend(mod_roster_odbc) -> count_odbc(<<"rosterusers">>).
 
 count_wildpattern(Table) ->
@@ -140,3 +143,7 @@ count_riak(BucketType) ->
     {ok, Buckets} = ?RPC(mongoose_riak, list_buckets, [BucketType]),
     BucketKeys = [?RPC(mongoose_riak, list_keys, [{BucketType, Bucket}]) || Bucket <- Buckets],
     length(lists:flatten(BucketKeys)).
+
+count_cassandra(Table) ->
+    %% Only default pool is supported
+    ?RPC(mongoose_cassandra_worker, total_count_query, [default, Table]).

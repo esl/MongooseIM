@@ -25,7 +25,8 @@
 -export([test_query/1,
          test_query/2,
          queue_length/1,
-         queue_lengths/1]).
+         queue_lengths/1,
+         total_count_query/2]).
 
 %% Internal exports
 -export([start_link/4]).
@@ -137,7 +138,19 @@ cql_query_pool_multi_async(PoolName, UserJID, Module, QueryName, MultiParams) ->
 %% mongoose_cassandra_worker behaviour callbacks
 
 prepared_queries() ->
-    [{test_query, test_query_sql()}].
+    [{test_query, test_query_sql()}] ++
+    total_count_queries().
+
+tables() ->
+    [mam_message,
+     mam_muc_message,
+     mam_config,
+     private_storage,
+     privacy_default_list,
+     privacy_list,
+     privacy_item,
+     rosterusers,
+     roster_version].
 
 %% ----------------------------------------------------------------------
 %% TEST CONNECTION
@@ -155,6 +168,22 @@ test_query(PoolName, UserJID) ->
                   Other -> {error, Other}
               catch Class:Reason -> {error, {Class, Reason}}
               end} || Worker <- Workers].
+
+%% ----------------------------------------------------------------------
+%% COUNT OBJECTS
+%% Don't use these queries in production. Just for testing.
+
+total_count_query(PoolName, Table) ->
+    UserJID = undefined,
+    Res = cql_query_pool(PoolName, UserJID, ?MODULE, {total_count_query, Table}, []),
+    {ok, [[Count]]} = Res,
+    Count.
+
+total_count_queries() ->
+    [{{total_count_query, T}, total_count_query_cql(T)} || T <- tables()].
+
+total_count_query_cql(T) when is_atom(T) ->
+    "SELECT COUNT(*) FROM " ++ atom_to_list(T).
 
 
 %% ----------------------------------------------------------------------
