@@ -50,6 +50,7 @@ Skipping this step will make mod_mam archive all the messages and users will not
 
 * **mod_mam_odbc_prefs** - User archiving preferences saved in ODBC. Slow and not recommended, but might be used to simplify things and keep everything in ODBC.
 * **mod_mam_mnesia_prefs** - User archiving preferences saved in Mnesia and accessed without transactions. Recommended in most deployments, could be overloaded with lots of users updating their preferences at once. There's a small risk of inconsistent (in a rather harmless way) state of preferences table. Provides best performance.
+* **mod_mam_cassandra_prefs** - User archiving preferences saved in Cassandra. Slow and not recommended, but might be used to simplify things and keep everything in Cassandra.
 
 **Options:** (common for all three modules)
 
@@ -100,127 +101,66 @@ This backend works with Riak 2.0 and above, but the recommend version is 2.1.1
 
 ## Configure MAM with Cassandra backend
 
+### Configure cassandra pool
+
+Edit main config section adding:
+
+```erlang
+{cassandra_servers, [{default, []}]}.
+```
+
+MongooseIM will create one pool with one worker to connect to localhost:9042.
+
+You can change default settings using extra parameters:
+- 5 connections to each server with addresses from 10.0.0.1 to 10.0.0.4;
+- Keyspace "mam";
+- Custom connect timeout in milliseconds;
+- Custom credentials.
+
+```erlang
+{cassandra_servers,
+ [
+  {default,
+   [
+    {servers,
+     [
+      {"10.0.0.1", 9042, 5},
+      {"10.0.0.2", 9042, 5},
+      {"10.0.0.3", 9042, 5},
+      {"10.0.0.4", 9042, 5}
+     ]
+    },
+    {keyspace, "mam"},
+    {connect_timeout, 5000}, % five seconds
+    {credentials, [{"username", "cassandra"}, {"password", "secret"}]}
+   ]
+  }
+ ]
+}.
+```
+
+### Configure cassandra modules
+
 There are two Cassandra modules:
-- mod_mam_con_ca_arch - for one-to-one messages
-- mod_mam_muc_ca_arch - for groupchat messages
+- mod_mam_cassandra_arch - for one-to-one messages
+- mod_mam_muc_cassandra_arch - for groupchat messages
 
 They can be used together.
 
-### mod_mam_con_ca_arch
-
-Module to store conversations (con in the module's name) in Cassandra.
-
-This module uses keyspace "mam" in Cassadra (keyspace is simular to database in relational databasas).
-Has configuration parameter "servers". It is a list of Cassandra servers.
-If you have 4 Cassandra servers with IP adresses from 10.0.0.1 to 10.0.0.4, then pass:
-
 ```erlang
-{cassandra_config, [
-    {servers, [
-      {"10.0.0.1", 9042, 1},
-      {"10.0.0.2", 9042, 1},
-      {"10.0.0.3", 9042, 1},
-      {"10.0.0.4", 9042, 1}
-      ]},
-   {keyspace, "mam"},
-   {credentials, undefined}
-]}
-```
-
-`{"10.0.0.1", 9042, 1}` means:
-
-- Address is "10.0.0.1";
-- Port is 9042 (default for Cassandra);
-- One connection between MongooseIM and Cassandra.
-
-Default value is `[{"localhost", 9042, 1}]` (one connection to localhost).
-
-It is different from mod_mam_odbc_arch:
-
-- This module does not use archive integer ids. It stores JIDs for each message instead
-(it means, that for minimal configuration you do not need mod_mam_odbc_user);
-- It stores not two copies, but one copy of an unique message (between two users);
-- User is not allowed to purge (delete) messages.
-
-Configuration example:
-
-```erlang
-{mod_mam_con_ca_arch, [
-    pm,
-    {cassandra_config, [
-        {servers, [
-          {"10.0.0.1", 9042, 1}
-          ]}
-    ]}
-]},
+{mod_mam_cassandra_arch, []},
 {mod_mam, []}
 ```
 
-
-### mod_mam_muc_ca_arch
-
-Module to store room chat history in Cassandra.
-
-It has the same configuration parameter `servers` as module `mod_mam_con_ca_arch`.
-
-It is different from mod_mam_muc_odbc_arch:
-
-- User is not allowed to purge. Purging is a feature not described in
-  XEP that allows user to delete messages.
-
-
-Configuration example:
-
 ```erlang
-{mod_mam_muc_ca_arch, [
-    {host, "muc.@HOST"},
-    {cassandra_config, [
-        {servers, [
-          {"10.0.0.1", 9042, 1}
-          ]}
-    ]}
-]},
-{mod_mam_odbc_user, [muc]},
+{mod_mam_muc_cassandra_arch, []},
 {mod_mam_muc, []}
 ```
 
+Options:
 
-Configuration example with both modules enabled:
-
-```erlang
-{mod_mam_con_ca_arch, [
-    pm,
-    {cassandra_config, [
-        {servers, [ {"10.0.0.1", 9042, 1} ]}
-    ]}
-]},
-{mod_mam_muc_ca_arch, [
-    {host, "muc.@HOST"},
-    {cassandra_config, [
-        {servers, [ {"10.0.0.1", 9042, 1} ]}
-    ]}
-]},
-{mod_mam_odbc_user, [muc]},
-
-{mod_mam, []},
-{mod_mam_muc, []}
-```
-
-### Extra cassandra_config options
-
-Custom connect timeout in milliseconds:
-
-```erlang
-{connect_timeout, 5000} % five seconds
-```
-
-Default is infinity `{connect_timeout, infinity}`.
-
-Custom credentials:
-
-```erlang
-{credentials, [{"username", "cassandra"}, {"password", "secret"}]}
-```
+`pool_name` - Poolname from `cassandra_servers` to use. Default name is `default`.
+It can be different for different cassandra modules.
 
 
 mod_mam options

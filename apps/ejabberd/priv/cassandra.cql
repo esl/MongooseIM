@@ -1,25 +1,77 @@
-CREATE KEYSPACE mam
+CREATE KEYSPACE mongooseim
          WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor': 3};
-USE mam;
+USE mongooseim;
 
-CREATE TABLE mam_muc_message (
+CREATE TABLE mam_message(
   id bigint,
-  room_id int,
-  nick_name varchar,
-  message blob,
-  PRIMARY KEY (room_id, id));
-
-CREATE TABLE mam_con_message(
-  id bigint,
-  lower_jid varchar,
-  upper_jid varchar,
-  is_from_lower boolean,
-  message blob,
-  PRIMARY KEY ((lower_jid, upper_jid), id));
-
-CREATE TABLE mam_con_user(
-  local_jid varchar,
+  user_jid varchar,
+  from_jid varchar,
+  // full remote bare jid
   remote_jid varchar,
-  last_message_id bigint,
-  PRIMARY KEY (local_jid, remote_jid));
+  // One of:
+  // - remote full jid
+  // - remote bare jid
+  // - empty
+  with_jid varchar,
+  message blob,
+  PRIMARY KEY ((user_jid), with_jid, id));
 
+CREATE TABLE mam_muc_message(
+  id bigint,
+  room_jid varchar,
+  nick_name varchar,
+  // One of:
+  // - nick_name
+  // - empty
+  with_nick varchar,
+  message blob,
+  PRIMARY KEY ((room_jid), with_nick, id));
+
+CREATE TABLE mam_config(
+  user_jid varchar,
+  remote_jid varchar,
+  -- A - always archive;
+  -- N - never archive;
+  -- R - roster (only for remote_jid == "")
+  behaviour varchar,
+  PRIMARY KEY ((user_jid), remote_jid)
+);
+
+CREATE TABLE private_storage (
+  username varchar,
+  namespace varchar,
+  data text,
+  PRIMARY KEY ((username), namespace));
+
+
+CREATE TABLE privacy_default_list (
+  username varchar,
+  listname varchar,
+  PRIMARY KEY ((username)));
+
+CREATE TABLE privacy_list (
+  username varchar,
+  listname varchar,
+  PRIMARY KEY ((username), listname));
+
+CREATE TABLE privacy_item (
+  username varchar,
+  listname varchar,
+  itemname varchar,
+  value varchar,
+  PRIMARY KEY ((username), listname, itemname));
+
+CREATE TABLE rosterusers (
+  username varchar,
+  jid varchar,
+  nick varchar,
+  subscription varchar,
+  ask varchar,
+  askmessage varchar,
+  groups set<varchar>,
+  PRIMARY KEY ((username), jid));
+
+CREATE TABLE roster_version (
+  username varchar,
+  version varchar,
+  PRIMARY KEY ((username)));

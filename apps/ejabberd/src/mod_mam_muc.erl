@@ -891,6 +891,9 @@ return_error_iq(IQ, timeout) ->
     {error, timeout, IQ#iq{type = error, sub_el = [?ERR_SERVICE_UNAVAILABLE]}};
 return_error_iq(IQ, not_implemented) ->
     {error, not_implemented, IQ#iq{type = error, sub_el = [?ERR_FEATURE_NOT_IMPLEMENTED]}};
+return_error_iq(IQ, missing_with_jid) ->
+    {error, bad_request, IQ#iq{type = error, sub_el = [?ERRT_BAD_REQUEST(<<"en">>,
+      <<"Limited set of queries allowed in the conversation mode. Missing with_jid filter">>)]}};
 return_error_iq(IQ, Reason) ->
     {error, Reason, IQ#iq{type = error, sub_el = [?ERR_INTERNAL_SERVER_ERROR]}}.
 
@@ -950,6 +953,8 @@ report_issue(Reason, Issue, ArcJID, IQ) ->
 report_issue(timeout, _Stacktrace, _Issue, _ArcJID, _IQ) ->
     expected;
 report_issue(not_implemented, _Stacktrace, _Issue, _ArcJID, _IQ) ->
+    expected;
+report_issue(missing_with_jid, _Stacktrace, _Issue, _ArcJID, _IQ) ->
     expected;
 report_issue(Reason, Stacktrace, Issue, #jid{lserver=LServer, luser=LUser}, IQ) ->
     ?ERROR_MSG("issue=~p, server=~p, user=~p, reason=~p, iq=~p, stacktrace=~p",
