@@ -33,6 +33,7 @@ after_failure:
 
 services:
         - redis-server
+        - docker
 branches:
         only:
                 - master
@@ -42,6 +43,7 @@ branches:
 otp_release:
         - 17.5
 env:
+        - PRESET=cassandra_mnesia DB=cassandra REL_CONFIG=with-cassandra CASSANDRA_VERSION=3.1
         - PRESET=internal_redis DB=mnesia REL_CONFIG=with-redis
         - PRESET=internal_mnesia DB=mnesia REL_CONFIG=with-none
         - PRESET=mysql_mnesia DB=mysql REL_CONFIG=with-mysql
