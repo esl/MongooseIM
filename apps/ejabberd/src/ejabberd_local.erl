@@ -145,7 +145,14 @@ process_iq_reply(From, To, #iq{id = ID} = IQ) ->
             To :: ejabberd:jid(),
             Packet :: jlib:xmlel()) -> 'ok' | {'error','lager_not_running'}.
 route(From, To, Packet) ->
-    xmpp_router:route_wrap(?MODULE, From, To, Packet).
+    case (catch do_route(From, To, Packet)) of
+        {'EXIT', Reason} ->
+            ?ERROR_MSG("error when routing from=~ts to=~ts in module=~p, reason=~p, packet=~ts, stack_trace=~p",
+                [jid:to_binary(From), jid:to_binary(To),
+                    ?MODULE, Reason, exml:to_binary(Packet),
+                    erlang:get_stacktrace()]);
+        Res -> Res
+    end.
 
 filter(From, To, Packet) ->
     {From, To, Packet}.

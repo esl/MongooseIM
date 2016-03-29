@@ -129,7 +129,14 @@ start_link() ->
       To :: ejabberd:jid(),
       Packet :: jlib:xmlel() | ejabberd_c2s:broadcast().
 route(From, To, Packet) ->
-    xmpp_router:route_wrap(?MODULE, From, To, Packet).
+    case (catch do_route(From, To, Packet)) of
+        {'EXIT', Reason} ->
+            ?ERROR_MSG("error when routing from=~ts to=~ts in module=~p, reason=~p, packet=~ts, stack_trace=~p",
+                [jid:to_binary(From), jid:to_binary(To),
+                    ?MODULE, Reason, exml:to_binary(Packet),
+                    erlang:get_stacktrace()]);
+        Res -> Res
+    end.
 
 filter(From, To, Packet) ->
     {From, To, Packet}.
