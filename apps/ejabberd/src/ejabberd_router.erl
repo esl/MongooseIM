@@ -118,7 +118,7 @@ route_error(From, To, ErrPacket, OrigPacket) ->
 
 -spec register_components([Domain :: domain()]) -> ok | {error, any()}.
 register_components(Domains) ->
-    LDomains = [{jlib:nameprep(Domain), Domain} || Domain <- Domains],
+    LDomains = [{jid:nameprep(Domain), Domain} || Domain <- Domains],
     Handler = make_handler(undefined),
     F = fun() ->
             [do_register_component(LDomain, Handler) || LDomain <- LDomains],
@@ -147,7 +147,7 @@ do_register_component({LDomain, _}, Handler) ->
 
 -spec unregister_components([Domains :: domain()]) -> {atomic, ok}.
 unregister_components(Domains) ->
-    LDomains = [{jlib:nameprep(Domain), Domain} || Domain <- Domains],
+    LDomains = [{jid:nameprep(Domain), Domain} || Domain <- Domains],
     F = fun() ->
             [do_unregister_component(LDomain) || LDomain <- LDomains],
             ok
