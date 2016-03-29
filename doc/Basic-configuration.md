@@ -37,6 +37,11 @@ There are 2 types of options: params and features. Unlike params, features can b
     To enable, remove '%%' prefix from value.
     * **Syntax:** `"{riak_server, [{pool_size, Size}, {address, Host}, {port, Port}]}."`
 
+* **cassandra_servers** - feature
+    * **Description:** Cassandra connection pools configuration. Several endpoints can be specified:
+    * **Syntax**: `{cassandra_servers, [{default, []}]}.`
+    * [Advanced Cassandra configuration](advanced-configuration/Cassandra.md)
+
 * **auth_ldap** - feature
     * **Description:** Put [[LDAP configuration]] here.
 
