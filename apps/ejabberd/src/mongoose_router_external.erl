@@ -21,7 +21,7 @@ filter(OrigFrom, OrigTo, OrigPacket) ->
 
 route(From, To, Packet) ->
     LDstDomain = To#jid.lserver,
-    case mnesia:dirty_read(external_component, LDstDomain) of
+    case ejabberd_router:lookup_component(LDstDomain) of
         [] ->
             {From, To, Packet};
         [#external_component{handler = Handler}] ->
