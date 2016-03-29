@@ -60,7 +60,7 @@ groups() ->
                      invalid_stream_namespace]},
      {pre_xmpp_1_0, [], [pre_xmpp_1_0_stream]},
      {starttls, test_cases()},
-     {feature_order, [stream_features_test,
+     {feature_order, [parallel], [stream_features_test,
                       tls_authenticate,
                       tls_compression_fail,
                       tls_compression_authenticate_fail,
@@ -127,9 +127,17 @@ init_per_group('node2_supports_DHE-RSA-AES256-SHA_only', Config) ->
     [{c2s_port, 5233} | Config];
 init_per_group(_, Config) ->
     Config.
-
+end_per_group(feature_order, Config) ->
+    escalus_fresh:clean(),
+    Config;
 end_per_group(_, Config) ->
     Config.
+
+init_per_testcase(CaseName, Config) ->
+    escalus:init_per_testcase(CaseName, Config).
+
+end_per_testcase(CaseName, Config) ->
+    escalus:end_per_testcase(CaseName, Config).
 
 generate_tls_vsn_tests() ->
     [list_to_existing_atom("should_pass_with_" ++ VSN)
@@ -356,7 +364,8 @@ compress_noproc(Config) ->
 
 %% Tests featuress advertisement
 stream_features_test(Config) ->
-    UserSpec = escalus_users:get_userspec(Config, ?SECURE_USER),
+    Config1 = escalus_fresh:create_users(Config, [{?SECURE_USER, 1}]),
+    UserSpec = escalus_users:get_userspec(Config1, ?SECURE_USER),
     List = [start_stream, stream_features, {?MODULE, verify_features}],
     escalus_connection:start(UserSpec, List),
     ok.
@@ -384,7 +393,8 @@ has_feature(Feature, FeatureList) ->
 %% should fail
 tls_compression_authenticate_fail(Config) ->
     %% Given
-    UserSpec = escalus_users:get_userspec(Config, ?SECURE_USER),
+    Config1 = escalus_fresh:create_users(Config, [{?SECURE_USER, 1}]),
+    UserSpec = escalus_users:get_userspec(Config1, ?SECURE_USER),
     ConnetctionSteps = [start_stream, stream_features, maybe_use_ssl, maybe_use_compression, authenticate],
     %% when and then
     try escalus_connection:start(UserSpec, ConnetctionSteps) of
@@ -402,7 +412,8 @@ tls_compression_authenticate_fail(Config) ->
 
 tls_authenticate_compression(Config) ->
     %% Given
-    UserSpec = escalus_users:get_userspec(Config, ?SECURE_USER),
+    Config1 = escalus_fresh:create_users(Config, [{?SECURE_USER, 1}]),
+    UserSpec = escalus_users:get_userspec(Config1, ?SECURE_USER),
     ConnetctionSteps = [start_stream, stream_features, maybe_use_ssl, authenticate, maybe_use_compression],
     %% then
     {ok, Conn, _, _} = escalus_connection:start(UserSpec, ConnetctionSteps),
@@ -414,7 +425,8 @@ tls_authenticate_compression(Config) ->
 
 tls_authenticate(Config) ->
     %% Given
-    UserSpec = escalus_users:get_userspec(Config, ?SECURE_USER),
+    Config1 = escalus_fresh:create_users(Config, [{?SECURE_USER, 1}]),
+    UserSpec = escalus_users:get_userspec(Config1, ?SECURE_USER),
     ConnetctionSteps = [start_stream, stream_features, maybe_use_ssl, authenticate],
     %% then
     {ok, Conn, _, _} = escalus_connection:start(UserSpec, ConnetctionSteps),
@@ -425,7 +437,8 @@ tls_authenticate(Config) ->
 %% should fail
 tls_compression_fail(Config) ->
     %% Given
-    UserSpec = escalus_users:get_userspec(Config, ?SECURE_USER),
+    Config1 = escalus_fresh:create_users(Config, [{?SECURE_USER, 1}]),
+    UserSpec = escalus_users:get_userspec(Config1, ?SECURE_USER),
     ConnetctionSteps = [start_stream, stream_features, maybe_use_ssl, maybe_use_compression],
     %% then and when
     try escalus_connection:start(UserSpec, ConnetctionSteps) of
@@ -443,7 +456,8 @@ tls_compression_fail(Config) ->
 
 auth_compression_bind_session(Config) ->
     %% Given
-    UserSpec = escalus_users:get_userspec(Config, ?SECURE_USER),
+    Config1 = escalus_fresh:create_users(Config, [{?SECURE_USER, 1}]),
+    UserSpec = escalus_users:get_userspec(Config1, ?SECURE_USER),
     ConnetctionSteps = [start_stream, stream_features, maybe_use_ssl,
         authenticate, maybe_use_compression, bind, session],
     %% then
@@ -454,7 +468,8 @@ auth_compression_bind_session(Config) ->
 
 auth_bind_compression_session(Config) ->
     %% Given
-    UserSpec = escalus_users:get_userspec(Config, ?SECURE_USER),
+    Config1 = escalus_fresh:create_users(Config, [{?SECURE_USER, 1}]),
+    UserSpec = escalus_users:get_userspec(Config1, ?SECURE_USER),
     ConnetctionSteps = [start_stream, stream_features, maybe_use_ssl,
         authenticate, bind, maybe_use_compression, session],
     %% then
@@ -553,10 +568,6 @@ default_context(To) ->
     [{version, <<"version='1.0'">>},
      {to, To},
      {stream_ns, ?NS_XMPP}].
-
-node2_rpccall(Module, Function, Args) ->
-    Node = ct:get_config(ejabberd2_node),
-    rpc:call(Node, Module, Function, Args).
 
 children_specs_to_pids(Children) ->
     [Pid || {_, Pid, _, _} <- Children].
