@@ -7,6 +7,7 @@
 -module(mongoose_cassandra).
 -export([start/0, stop/0]).
 -export([now_timestamp/0]).
+-export([status/0]).
 
 -callback prepared_queries() -> list({term(), string()}).
 
@@ -35,3 +36,33 @@ stop() ->
 %% @doc Return timestamp in microseconds
 now_timestamp() ->
     usec:from_now(os:timestamp()).
+
+
+%% Check that Cassandra connections are fine.
+%%
+%% disabled - cassandra is not configured
+%% ok - each pool has alive connections
+%% failure - one or more pools have dead connections
+-spec status() -> disabled | ok | failure.
+status() ->
+    case ejabberd_config:get_local_option(cassandra_servers) of
+        undefined ->
+            disabled;
+        Pools ->
+            all_ok([pool_status(PoolName) || {PoolName, _} <- Pools])
+    end.
+
+pool_status(PoolName) ->
+    case mongoose_cassandra_worker:test_query(PoolName) of
+        [] ->
+            %% empty pool
+            failure;
+        [_|_] = Results ->
+            all_ok([Status || {Worker, Status} <- Results])
+    end.
+
+all_ok(List) ->
+    case lists:all(fun(X) -> X =:= ok end, List) of
+        true -> ok;
+        false -> failure
+    end.
