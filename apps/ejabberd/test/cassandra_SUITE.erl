@@ -16,7 +16,6 @@
 -module(cassandra_SUITE).
 -compile(export_all).
 
--include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
 
 %%--------------------------------------------------------------------
@@ -32,13 +31,13 @@ groups() ->
 test_cases() -> [check_connection].
 
 suite() ->
-    escalus:suite().
+    [].
 
 init_per_suite(Config) ->
-    escalus:init_per_suite(Config).
+    Config.
 
 end_per_suite(Config) ->
-    escalus:end_per_suite(Config).
+    Config.
 
 init_per_group(_GroupName, Config) ->
     Config.
@@ -46,21 +45,42 @@ init_per_group(_GroupName, Config) ->
 end_per_group(_GroupName, Config) ->
     Config.
 
-init_per_testcase(CaseName, Config) ->
-    escalus:init_per_testcase(CaseName, Config).
+init_per_testcase(_CaseName, Config) ->
+    Config.
 
-end_per_testcase(CaseName, Config) ->
-    escalus:end_per_testcase(CaseName, Config).
+end_per_testcase(_CaseName, Config) ->
+    Config.
 
 %%--------------------------------------------------------------------
 %% Last tests
 %%--------------------------------------------------------------------
 check_connection(Config) ->
-    case escalus_ejabberd:rpc(mongoose_cassandra, status, []) of
+    case gen_tcp:connect("127.0.0.1", 9042, []) of
+        {ok, _} ->
+            ct:pal("Cassandra is listening on port 9042", []),
+            check_connection2(Config);
+        _ ->
+            ct:pal("Cassandra is not listening on port 9042, skip the test", []),
+            ok
+    end.
+
+check_connection2(Config) ->
+    ejabberd_helper:start_ejabberd_with_config(Config, "ejabberd.cfg"),
+    %% Wait for cassandra workers to connect
+    wait_for_cassandra(20),
+    case mongoose_cassandra:status() of
         disabled ->
+            %% Mongoose thinks that Cassandra is not configured but it is
             ct:pal("Cassandra is not configured", []);
         ok ->
             ct:pal("Cassandra is connected", []);
         failure ->
             ct:fail("Cassandra is configured but not connected", [])
+    end.
+
+wait_for_cassandra(0) -> ok;
+wait_for_cassandra(N) when N > 0 ->
+    case mongoose_cassandra:status() of
+        failure -> timer:sleep(100), wait_for_cassandra(N-1);
+        Other -> Other
     end.
