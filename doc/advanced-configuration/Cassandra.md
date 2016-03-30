@@ -11,21 +11,22 @@ MongooseIM will create one pool with one worker to connect to localhost:9042.
 
 ### Options
 
-- servers - a list of servers to connect. Each server is `{Address, Port, NumberOfWorkers}` where
--- `Address` is DNS-name or IP address;
--- `Port` is an integer TCP port;
--- `NumberOfWorkers` is number of connections to this server.
-- keyspace - keyspace to use;
-- connect_timeout - connection timeout, 5 seconds is good enough;
-- credentials - name and password. Format `[{"username", "mongooseim"}, {"password", "secret"}]`.
+* servers - a list of servers to connect. Each server is `{Address, Port, NumberOfWorkers}` where
+    * `Address` is DNS-name or IP address;
+    * `Port` is an integer TCP port;
+    * `NumberOfWorkers` is number of connections to this server.
+* keyspace - keyspace to use;
+* connect_timeout - connection timeout, 5 seconds is good enough;
+* credentials - name and password. Format `[{"username", "mongooseim"}, {"password", "secret"}]`.
 
 ### Alternative configuration example 1
 
 Configuration example below includes:
-- 5 connections to each server with addresses from 10.0.0.1 to 10.0.0.4;
-- Keyspace "big_mongoose";
-- Custom connect timeout in milliseconds;
-- Custom credentials.
+
+* 5 connections to each server with addresses from 10.0.0.1 to 10.0.0.4;
+* Keyspace "big_mongoose";
+* Custom connect timeout in milliseconds;
+* Custom credentials.
 
 ```erlang
 {cassandra_servers,
@@ -52,9 +53,10 @@ Configuration example below includes:
 ### Alternative configuration example 2
 
 Two pools: for mam and for mam_muc
-- Each pool uses different keyspace
-- Module mod_mam_cassandra_arch uses pool "mam" and keyspace "mam_space"
-- Module mod_mam_muc_cassandra_arch uses pool "mam_muc" and keyspace "mam_muc_space"
+
+* Each pool uses different keyspace
+* Module mod_mam_cassandra_arch uses pool "mam" and keyspace "mam_space"
+* Module mod_mam_muc_cassandra_arch uses pool "mam_muc" and keyspace "mam_muc_space"
 
 ```erlang
 {cassandra_servers, [{mam, [{keyspace, "mam_space"}]}, {mam_muc, [{keyspace, "mam_muc_space"}]}]}.
