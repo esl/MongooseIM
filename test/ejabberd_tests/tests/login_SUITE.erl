@@ -108,14 +108,9 @@ init_per_group(change_account_details, Config) ->
     skip_if_mod_register_not_enabled(Config);
 init_per_group(GroupName, Config) when
       GroupName == login_scram; GroupName == login_scram_store_plain ->
-    case get_auth_method() of
-        external ->
-            {skip, "external authentication requires plain password"};
-        _ ->
-            config_password_format(GroupName),
-            Config2 = escalus:create_users(Config, escalus:get_users([alice, bob])),
-            assert_password_format(GroupName, Config2)
-    end;
+    config_password_format(GroupName),
+    Config2 = escalus:create_users(Config, escalus:get_users([alice, bob])),
+    assert_password_format(GroupName, Config2);
 init_per_group(_GroupName, Config) ->
     escalus:create_users(Config, escalus:get_users([alice, bob])).
 
@@ -140,8 +135,6 @@ init_per_testcase(DigestOrScram, Config) when
       DigestOrScram =:= log_one_scram; DigestOrScram =:= log_non_existent_scram;
       DigestOrScram =:= legacy_successful_digest ->
     case get_auth_method() of
-        external ->
-            {skip, "external authentication requires plain password"};
         ldap ->
             {skip, "ldap authentication requires plain password"};
         _ ->
