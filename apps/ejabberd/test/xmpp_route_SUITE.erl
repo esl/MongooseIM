@@ -18,6 +18,7 @@ init_per_suite(C) ->
         fun(routing_modules) ->
             [xmpp_router_a, xmpp_router_b, xmpp_router_c]
         end),
+    application:start(exometer),
     ejabberd_router:start_link(),
     C.
 

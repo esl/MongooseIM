@@ -251,6 +251,7 @@ init([]) ->
                          {type, set}]),
     mnesia:add_table_copy(external_component, node(), ram_copies),
     compile_routing_module(),
+    mongoose_metrics:ensure_metric([global, routingErrors], spiral),
 
     {ok, #state{}}.
 
@@ -333,18 +334,21 @@ make_routing_module_source(Mods) ->
         "get_routing_module_list() -> ~p.~n",
         [Mods]))).
 
-route(_, _, _, []) ->
-    ok; %% shouldn't we raise error here? If we get here means we don't know
-    %% how to route this message...
+route(From, To, Packet, []) ->
+    ?ERROR_MSG("error routing from=~ts to=~ts, packet=~ts, reason: no more routing modules",
+               [jid:to_binary(From), jid:to_binary(To),
+                exml:to_binary(Packet)]),
+    mongoose_metrics:update([global, routingErrors], 1),
+    ok;
 route(OrigFrom, OrigTo, OrigPacket, [M|Tail]) ->
     ?DEBUG("Using module ~p", [M]),
     case (catch M:filter(OrigFrom, OrigTo, OrigPacket)) of
         {'EXIT', Reason} ->
             ?DEBUG("Filtering error", []),
             ?ERROR_MSG("error when filtering from=~ts to=~ts in module=~p, reason=~p, packet=~ts, stack_trace=~p",
-                [jid:to_binary(OrigFrom), jid:to_binary(OrigTo),
-                    M, Reason, exml:to_binary(OrigPacket),
-                    erlang:get_stacktrace()]),
+                       [jid:to_binary(OrigFrom), jid:to_binary(OrigTo),
+                        M, Reason, exml:to_binary(OrigPacket),
+                        erlang:get_stacktrace()]),
             ok;
         drop ->
             ?DEBUG("filter dropped packet", []),
@@ -354,9 +358,9 @@ route(OrigFrom, OrigTo, OrigPacket, [M|Tail]) ->
             case catch(M:route(OrigFrom, OrigTo, OrigPacket)) of
                 {'EXIT', Reason} ->
                     ?ERROR_MSG("error when routing from=~ts to=~ts in module=~p, reason=~p, packet=~ts, stack_trace=~p",
-                        [jid:to_binary(OrigFrom), jid:to_binary(OrigTo),
-                            M, Reason, exml:to_binary(OrigPacket),
-                            erlang:get_stacktrace()]),
+                               [jid:to_binary(OrigFrom), jid:to_binary(OrigTo),
+                                M, Reason, exml:to_binary(OrigPacket),
+                                erlang:get_stacktrace()]),
                     ?DEBUG("routing error", []),
                     ok;
                 done ->
