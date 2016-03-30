@@ -12,10 +12,10 @@
 -include("jlib.hrl").
 
 %% API
--export([do_local_route/5]).
+-export([do_route/5]).
 
 
-do_local_route(OrigFrom, OrigTo, OrigPacket, LDstDomain, Handler) ->
+do_route(OrigFrom, OrigTo, OrigPacket, LDstDomain, Handler) ->
     %% Filter locally
     case ejabberd_hooks:run_fold(filter_local_packet, LDstDomain,
         {OrigFrom, OrigTo, OrigPacket}, []) of

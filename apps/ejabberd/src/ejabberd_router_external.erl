@@ -26,7 +26,7 @@ route(From, To, Packet) ->
         [] ->
             {From, To, Packet};
         [#external_component{handler = Handler}] ->
-            ejabberd_local_delivery:do_local_route(From, To, Packet,
+            ejabberd_local_delivery:do_route(From, To, Packet,
                 LDstDomain, Handler),
             done
     end.
