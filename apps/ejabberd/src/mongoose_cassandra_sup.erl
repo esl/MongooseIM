@@ -37,7 +37,7 @@ stop(PoolName) ->
     delete_worker_pool(PoolName).
 
 start_link(PoolName, Config) ->
-    supervisor2:start_link({local, ?MODULE}, ?MODULE, [PoolName, Config]).
+    supervisor:start_link({local, ?MODULE}, ?MODULE, [PoolName, Config]).
 
 supervisor_spec(PoolName, Config) ->
     {{mongoose_cassandra_sup, PoolName},
