@@ -124,8 +124,6 @@ init_per_suite(Config) ->
     NewConfig = escalus:init_per_suite([{ctl_path, CtlPath},
                                         {ctl_auth_mods, AuthMods},
                                         {roster_template, TemplatePath} | Config]),
-    [ escalus_ejabberd:rpc(ets, delete_all_objects,[T])
-      || T <- [passwd,roster,last_activity,reg_users_counter] ],
     escalus:create_users(NewConfig, escalus:get_users([alice, mike, bob, kate])).
 
 end_per_suite(Config) ->
