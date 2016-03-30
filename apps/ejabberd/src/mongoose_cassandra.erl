@@ -58,7 +58,7 @@ pool_status(PoolName) ->
             %% empty pool
             failure;
         [_|_] = Results ->
-            all_ok([Status || {Worker, Status} <- Results])
+            all_ok([Status || {_Worker, Status} <- Results])
     end.
 
 all_ok(List) ->

@@ -88,7 +88,8 @@ cql_query(Worker, _UserJID, Module, QueryName, Params) when is_pid(Worker) ->
 cql_query_async(Worker, _UserJID, Module, QueryName, Params) when is_pid(Worker) ->
     gen_server:cast(Worker, {async_cql_query, Module, QueryName, Params}).
 
-cql_query_multi_async(Worker, _UserJID, Module, QueryName, MultiParams) when is_pid(Worker) ->
+cql_query_multi_async(Worker, _UserJID, Module, QueryName, MultiParams)
+  when is_pid(Worker) ->
     gen_server:cast(Worker, {multi_async_cql_query, Module, QueryName, MultiParams}).
 
 cql_batch(Worker, UserJID, Module, Queries, not_batch) ->
@@ -227,7 +228,8 @@ worker_queue_length(Worker) ->
 %% Internal SQL part
 %%====================================================================
 
-get_prepared_query(Conn, Module, QueryName, State=#state{prepared_queries=PreparedQueries}) ->
+get_prepared_query(Conn, Module, QueryName,
+                   State=#state{prepared_queries=PreparedQueries}) ->
     Key = {Module, QueryName},
     case dict:find(Key, PreparedQueries) of
         {ok, Query} ->
@@ -236,13 +238,15 @@ get_prepared_query(Conn, Module, QueryName, State=#state{prepared_queries=Prepar
             get_prepared_query_first_time(Conn, Module, QueryName, State)
     end.
 
-get_prepared_query_first_time(Conn, Module, QueryName, State=#state{prepared_queries=PreparedQueries}) ->
+get_prepared_query_first_time(Conn, Module, QueryName,
+                              State=#state{prepared_queries=PreparedQueries}) ->
     Key = {Module, QueryName},
     case get_query_cql(Module, QueryName) of
         {ok, Cql} ->
             case prepare_query(Conn, Cql, Module, QueryName) of
                 {ok, PreparedQuery} ->
-                    PreparedQueries2 = dict:store(Key, PreparedQuery, PreparedQueries),
+                    PreparedQueries2 = dict:store(Key, PreparedQuery,
+                                                  PreparedQueries),
                     State2 = State#state{prepared_queries=PreparedQueries2},
                     {ok, PreparedQuery, State2};
                 {error, Reason} ->
@@ -256,7 +260,8 @@ get_query_cql(Module, QueryName) ->
     try get_query_cql_unsafe(Module, QueryName)
     catch Class:Error ->
         Stacktrace = erlang:get_stacktrace(),
-        ?ERROR_MSG("issue=get_query_cql_failed, query_module=~p, query_name=~p, reason=~p:~p, stacktrace=~1000p",
+        ?ERROR_MSG("issue=get_query_cql_failed, query_module=~p, query_name=~p,"
+                    "reason=~p:~p, stacktrace=~1000p",
                    [Module, QueryName, Class, Error, Stacktrace]),
         {error, get_query_cql_failed}
     end.
@@ -273,12 +278,14 @@ prepare_query(Conn, Query, Module, QueryName) ->
             QueryID = seestar_result:query_id(Res),
             {ok, #prepared_query{query_id=QueryID, query_types=Types}};
         {error, Reason} ->
-            ?ERROR_MSG("issue=preparing_query_failed, query_module=~p, query_name=~p, reason=~p",
+            ?ERROR_MSG("issue=preparing_query_failed, "
+                        "query_module=~p, query_name=~p, reason=~p",
                        [Module, QueryName, Reason]),
             {error, Reason}
     end.
 
-execute_prepared_query(Conn, #prepared_query{query_id=QueryID, query_types=Types}, Params) ->
+execute_prepared_query(Conn, #prepared_query{query_id=QueryID,
+                                             query_types=Types}, Params) ->
     seestar_session:execute_async(Conn, QueryID, Types, Params, one).
 
 new_prepared_query(#prepared_query{query_id=QueryID, query_types=Types}, Params) ->
@@ -287,11 +294,13 @@ new_prepared_query(#prepared_query{query_id=QueryID, query_types=Types}, Params)
 new_batch_queries(Conn, Module, Queries, State) ->
     new_batch_queries(Conn, Module, Queries, [], State).
 
-new_batch_queries(Conn, Module, [{QueryName, Params}|Queries], BatchQueries, State) ->
+new_batch_queries(Conn, Module, [{QueryName, Params}|Queries],
+                  BatchQueries, State) ->
     case get_prepared_query(Conn, Module, QueryName, State) of
         {ok, PreparedQuery, State2} ->
             BatchQuery = new_prepared_query(PreparedQuery, Params),
-            new_batch_queries(Conn, Module, Queries, [BatchQuery|BatchQueries], State2);
+            new_batch_queries(Conn, Module, Queries,
+                              [BatchQuery|BatchQueries], State2);
         {error, Reason} ->
             {error, Reason, State}
     end;
@@ -301,7 +310,8 @@ new_batch_queries(_Conn, _Module, [], BatchQueries, State) ->
 run_batch(Conn, BatchType, BatchQueries) ->
     seestar_session:batch_async(Conn, BatchType, BatchQueries, one).
 
-save_query_ref(From, QueryRef, State=#state{query_refs=Refs, query_refs_count=RefsCount}) ->
+save_query_ref(From, QueryRef,
+               State=#state{query_refs=Refs, query_refs_count=RefsCount}) ->
     Refs2 = dict:store(QueryRef, From, Refs),
     put(query_refs_count, RefsCount+1),
     State#state{query_refs=Refs2, query_refs_count=RefsCount+1}.
@@ -401,7 +411,8 @@ handle_cast({multi_async_cql_query, Module, QueryName, MultiParams},
     State=#state{conn=Conn}) ->
     case get_prepared_query(Conn, Module, QueryName, State) of
         {ok, PreparedQuery, State2} ->
-            [execute_prepared_query(Conn, PreparedQuery, Params) || Params <- MultiParams],
+            [execute_prepared_query(Conn, PreparedQuery, Params)
+             || Params <- MultiParams],
             {noreply, State2};
         {error, _Reason} ->
             {noreply, State}
@@ -418,7 +429,8 @@ handle_cast(Msg, State) ->
 %%--------------------------------------------------------------------
 
 
-handle_info({connection_result, {ok, ConnPid, Conn}}, State=#state{conn=undefined}) ->
+handle_info({connection_result, {ok, ConnPid, Conn}},
+            State=#state{conn=undefined}) ->
     State2 = init_connection(ConnPid, Conn, State),
     {noreply, State2};
 handle_info({connection_result, Reason}, State=#state{conn=undefined}) ->
@@ -456,14 +468,16 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 
 async_spawn(Addr, Port, ClientOptions) ->
-    ?INFO_MSG("issue=\"Connecting to Cassandra\", address=~p, port=~p", [Addr, Port]),
+    ?INFO_MSG("issue=\"Connecting to Cassandra\", address=~p, port=~p",
+              [Addr, Port]),
     Parent = self(),
     proc_lib:spawn_link(fun() ->
           ConnectOptions = proplists:get_value(socket_options, ClientOptions, []),
           ?DEBUG("issue=\"seestar_session:start_link\", address=~p, port=~p, "
                  "client_options=~p, connect_options=~p",
                  [Addr, Port, ClientOptions, ConnectOptions]),
-          Res = (catch seestar_session:start_link(Addr, Port, ClientOptions, ConnectOptions)),
+          Res = (catch seestar_session:start_link(
+                         Addr, Port, ClientOptions, ConnectOptions)),
           ?DEBUG("issue=\"seestar_session:start_link result\", result=~p",
                  [Res]),
           Parent ! {connection_result, Res},
