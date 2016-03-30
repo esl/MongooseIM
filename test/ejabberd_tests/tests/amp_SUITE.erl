@@ -11,62 +11,42 @@
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("exml/include/exml.hrl").
 
-all() ->
-    [{group, discovery}
-    ,{group, rule_errors}
-    ,{group, notify_action}
-    ,{group, error_action}
-    ,{group, rules_dont_apply}
-    ,{group, multiple_rules}
-    ].
+all() -> [{group, all}].
 
 groups() ->
-    [{discovery, [stream_feature_test
-                 ,initial_service_discovery_test
-                 ,actions_and_conditions_discovery_test]}
+    [{all, [parallel, shuffle],
+      [initial_service_discovery_test,
+       actions_and_conditions_discovery_test,
 
-    ,{rule_errors, [unsupported_actions_test
-                   ,unsupported_conditions_test
-                   ,unacceptable_rules_test]}
+       unsupported_actions_test,
+       unsupported_conditions_test,
+       unacceptable_rules_test,
 
-    ,{notify_action, [notify_deliver_direct_test
-                     ,notify_deliver_forward_test
-                     ,notify_deliver_none_test
+       notify_deliver_direct_test,
+       notify_deliver_forward_test,
+       notify_deliver_none_test,
 
-                     ,notify_match_resource_any_test
-                     ,notify_match_resource_exact_test
-                     ,notify_match_resource_other_test
-                     ]}
-    ,{error_action, [error_deliver_direct_test
-                    ,error_deliver_forward_test
-                    ,error_deliver_none_test
-                    ]}
-    ,{rules_dont_apply, [error_deliver_doesnt_apply_test]}
-    ,{multiple_rules, [last_rule_applies_test]}
+       notify_match_resource_any_test,
+       notify_match_resource_exact_test,
+       notify_match_resource_other_test,
 
+       error_deliver_direct_test,
+       error_deliver_forward_test,
+       error_deliver_none_test,
+
+       error_deliver_doesnt_apply_test,
+       last_rule_applies_test
+      ]}
     ].
 
-init_per_suite(Config) ->
-    escalus:init_per_suite(Config),
-    escalus:create_users(Config, escalus:get_users([alice, bob])).
 
-end_per_suite(Config) ->
-    escalus:delete_users(Config, escalus:get_users([alice, bob])),
-    escalus:end_per_suite(Config).
-
-init_per_testcase(CaseName,Config) ->
-    escalus:init_per_testcase(CaseName,Config).
-
-end_per_testcase(CaseName,Config) ->
-    escalus:end_per_testcase(CaseName,Config).
-
-stream_feature_test(Config) ->
-    Alice = escalus_users:get_options(Config, alice),
-    {ok, _, Props, Features} = escalus_connection:start(Alice),
-    true = escalus_session:can_use_amp(Props, Features).
+init_per_suite(C) -> escalus:init_per_suite(C).
+end_per_suite(C) -> ok = escalus_fresh:clean(), escalus:end_per_suite(C).
+init_per_testcase(Name,C) -> escalus:init_per_testcase(Name,C).
+end_per_testcase(Name,C) -> escalus:end_per_testcase(Name,C).
 
 initial_service_discovery_test(Config) ->
-    escalus:story(
+    escalus:fresh_story(
       Config, [{alice, 1}],
       fun(Alice) ->
               escalus_client:send(Alice, disco_info(Config)),
@@ -75,7 +55,7 @@ initial_service_discovery_test(Config) ->
       end).
 
 actions_and_conditions_discovery_test(Config) ->
-    escalus:story(
+    escalus:fresh_story(
       Config, [{alice, 1}],
       fun(Alice) ->
               escalus_client:send(Alice, disco_info_amp_node(Config)),
@@ -91,7 +71,7 @@ actions_and_conditions_discovery_test(Config) ->
 
 
 unsupported_actions_test(Config) ->
-    escalus:story(
+    escalus:fresh_story(
       Config, [{alice, 1}, {bob, 1}],
       fun(Alice, Bob) ->
               %% given
@@ -105,7 +85,7 @@ unsupported_actions_test(Config) ->
       end).
 
 unsupported_conditions_test(Config) ->
-    escalus:story(
+    escalus:fresh_story(
       Config, [{alice, 1}, {bob, 1}],
       fun(Alice, Bob) ->
               %% given
@@ -121,7 +101,7 @@ unsupported_conditions_test(Config) ->
       end).
 
 unacceptable_rules_test(Config) ->
-    escalus:story(
+    escalus:fresh_story(
       Config, [{alice, 1}, {bob, 1}],
       fun(Alice, Bob) ->
               %% given
@@ -140,7 +120,7 @@ unacceptable_rules_test(Config) ->
 
 
 notify_deliver_direct_test(Config) ->
-    escalus:story(
+    escalus:fresh_story(
       Config, [{alice, 1}, {bob, 1}],
       fun(Alice,Bob) ->
               %% given
@@ -155,7 +135,7 @@ notify_deliver_direct_test(Config) ->
       end).
 
 notify_deliver_forward_test(Config) ->
-    escalus:story(
+    escalus:fresh_story(
       Config, [{alice, 1}, {bob, 1}],
       fun(Alice,Bob) ->
               %% given
@@ -171,7 +151,7 @@ notify_deliver_forward_test(Config) ->
       end).
 
 notify_deliver_none_test(Config) ->
-    escalus:story(
+    escalus:fresh_story(
       Config, [{alice, 1}],
       fun(Alice) ->
               %% given
@@ -186,7 +166,7 @@ notify_deliver_none_test(Config) ->
       end).
 
 notify_match_resource_any_test(Config) ->
-    escalus:story(
+    escalus:fresh_story(
       Config, [{alice, 1}, {bob, 4}],
       fun(Alice,Bob,_,_,_) ->
               %% given
@@ -201,7 +181,7 @@ notify_match_resource_any_test(Config) ->
       end).
 
 notify_match_resource_exact_test(Config) ->
-    escalus:story(
+    escalus:fresh_story(
       Config, [{alice, 1}, {bob, 4}],
       fun(Alice,_,_,Bob3,_) ->
               %% given
@@ -216,11 +196,12 @@ notify_match_resource_exact_test(Config) ->
       end).
 
 notify_match_resource_other_test(Config) ->
-    escalus:story(
+    escalus:fresh_story(
       Config, [{alice, 1}, {bob, 1}],
       fun(Alice,Bob) ->
               %% given
-              NonmatchingJid = <<"bob@localhost/unknownresource">>,
+              NonmatchingJid = << (escalus_client:short_jid(Bob))/binary,
+                                  "/blahblahblah_resource" >>,
               Msg = amp_message_to(NonmatchingJid,
                                    [{'match-resource', other, notify}],
                                     <<"A Bob by any other name!">>),
@@ -234,7 +215,7 @@ notify_match_resource_other_test(Config) ->
       end).
 
 error_deliver_direct_test(Config) ->
-    escalus:story(
+    escalus:fresh_story(
       Config, [{alice, 1}, {bob, 1}],
       fun(Alice,Bob) ->
               %% given
@@ -249,7 +230,7 @@ error_deliver_direct_test(Config) ->
       end).
 
 error_deliver_forward_test(Config) ->
-    escalus:story(
+    escalus:fresh_story(
       Config, [{alice, 1}, {bob, 1}],
       fun(Alice,Bob) ->
               %% given
@@ -265,7 +246,7 @@ error_deliver_forward_test(Config) ->
       end).
 
 error_deliver_none_test(Config) ->
-    escalus:story(
+    escalus:fresh_story(
       Config, [{alice, 1}],
       fun(Alice) ->
               %% given
@@ -280,7 +261,7 @@ error_deliver_none_test(Config) ->
       end).
 
 error_deliver_doesnt_apply_test(Config) ->
-    escalus:story(
+    escalus:fresh_story(
       Config, [{alice, 1}, {bob, 1}],
       fun(Alice,Bob) ->
               %% given
@@ -296,7 +277,7 @@ error_deliver_doesnt_apply_test(Config) ->
 
 
 last_rule_applies_test(Config) ->
-    escalus:story(
+    escalus:fresh_story(
       Config, [{alice, 1}, {bob, 1}],
       fun(Alice,Bob) ->
               %% given

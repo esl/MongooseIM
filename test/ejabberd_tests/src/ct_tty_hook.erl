@@ -84,7 +84,10 @@ pre_init_per_testcase(TC,Config,State) ->
 
 %% @doc Called after each test case.
 post_end_per_testcase(TC,_Config,Return,State) ->
-    TCInfo = {testcase, TC, Return, timer:now_diff(now(), State#state.ts)},
+    ParallelTestDiffOverride = 1,
+    %%% this fails when running in parallel:
+    %%% timer:now_diff(now(), State#state.ts),
+    TCInfo = {testcase, TC, Return, ParallelTestDiffOverride},
     print_case_enter(TC, State, "Finished"),
     {Return, State#state{ ts = undefined, tcs = [TCInfo | State#state.tcs] } }.
 

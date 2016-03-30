@@ -684,17 +684,15 @@ set_last(Config) ->
 
                 escalus:wait_for_stanza(Alice), % ignore push
 
-                {Mega, Secs, _} = erlang:now(),
-                TS = integer_to_list(Mega*1000000+Secs-7200),
-
+                Now = usec:to_sec(usec:from_now(erlang:now())),
+                TS = integer_to_list(Now - 7200),
                 {_, 0} = ejabberdctl("set_last", [BobName, Domain, TS, "Status"], Config),
-
                 escalus:send(Alice, escalus_stanza:last_activity(bob)),
                 LastAct = escalus:wait_for_stanza(Alice),
                 escalus:assert(is_last_result, LastAct),
                 Seconds = list_to_integer(binary_to_list(
                             exml_query:path(LastAct, [{element, <<"query">>}, {attr, <<"seconds">>}]))),
-                true = ( (Seconds > 7100) andalso (Seconds < 7300) ),
+                true = (( (Seconds > 7100) andalso (Seconds < 7300) ) orelse Seconds),
 
                 {_, 0} = ejabberdctl("delete_rosteritem", [AliceName, Domain, BobName, Domain], Config), % cleanup
                 {_, 0} = ejabberdctl("delete_rosteritem", [BobName, Domain, AliceName, Domain], Config)
