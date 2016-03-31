@@ -2313,7 +2313,7 @@ is_ip_blacklisted({IP,_Port}) ->
 %% @doc Check from attributes.
 -spec check_from(El, FromJID) -> Result when
       El :: jlib:xmlel(), FromJID :: ejabberd:jid(),
-                Result :: 'invalid-from'  | jlib:xmlel().
+      Result :: 'invalid-from'  | jlib:xmlel().
 check_from(El, FromJID) ->
     case xml:get_tag_attr(<<"from">>, El) of
         false ->
