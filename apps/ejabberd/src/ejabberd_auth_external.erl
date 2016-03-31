@@ -121,10 +121,16 @@ check_password(LUser, LServer, Password, _Digest, _DigestGen) ->
                    Password :: binary()) -> ok | {error, not_allowed}.
 set_password(LUser, LServer, Password) ->
     case extauth:set_password(LUser, LServer, Password) of
-        true -> set_password_internal(LUser, LServer, Password),
-                ok;
+        true ->
+            UseCache = get_cache_option(LServer),
+            maybe_set_password_internal(UseCache, LUser, LServer, Password);
         _ -> {error, unknown_problem}
     end.
+
+maybe_set_password_internal(false, _, _, _) ->
+    ok;
+maybe_set_password_internal({true, _}, LUser, LServer, Password) ->
+    set_password_internal(LUser, LServer, Password).
 
 
 -spec try_register(LUser :: ejabberd:luser(),
