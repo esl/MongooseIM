@@ -4,6 +4,8 @@
 
 -include_lib("common_test/include/ct.hrl").
 
+-define(AUTH_MOD, ejabberd_auth_external).
+
 all() ->
     [{group, no_cache}].
 
@@ -11,14 +13,18 @@ groups() ->
     [{no_cache, [], all_tests()}].
 
 all_tests() ->
-    [try_register].
+    [try_register_ok,
+     remove_user_ok,
+     remove_user_with_pass_ok,
+     set_password_ok,
+     store_type_external
+    ].
 
 init_per_suite(C) ->
     application:start(p1_stringprep),
     C.
 
 end_per_suite(C) ->
-    application:stop(p1_stringprep),
     C.
 
 init_per_group(G, Config) ->
@@ -31,8 +37,37 @@ end_per_group(G, Config) ->
     unload_meck(G),
     Config.
 
-try_register(_C) ->
+try_register_ok(_C) ->
+    {U, P} = given_user_registered(),
+    true = ?AUTH_MOD:check_password(U, domain(), P).
+
+try_register_fails(_C) ->
     ok.
+
+remove_user_ok(_C) ->
+    {U, P} = given_user_registered(),
+    ok = ?AUTH_MOD:remove_user(U, domain()),
+    false = ?AUTH_MOD:check_password(U, domain(), P).
+
+remove_user_with_pass_ok(_C) ->
+    {U, P} = given_user_registered(),
+    ok = ?AUTH_MOD:remove_user(U, domain(), P),
+    false = ?AUTH_MOD:check_password(U, domain(), P).
+
+set_password_ok(_C) ->
+    {U, P} = given_user_registered(),
+    NewP = random_binary(7),
+    ok = ?AUTH_MOD:set_password(U, domain(), NewP),
+    false = ?AUTH_MOD:check_password(U, domain(), P),
+    true = ?AUTH_MOD:check_password(U, domain(), NewP).
+
+store_type_external(_C) ->
+    external = ?AUTH_MOD:store_type(domain()).
+
+given_user_registered() ->
+    {U, P} = UP = gen_user(),
+    ok = ?AUTH_MOD:try_register(U, domain(), P),
+    UP.
 
 
 domain() ->
@@ -41,7 +76,6 @@ domain() ->
 
 setup_meck(_G, Config) ->
     DataDir = ?config(data_dir, Config),
-    ct:print("~p", [DataDir]),
     meck:new(ejabberd_config, [no_link]),
     meck:expect(ejabberd_config, get_local_option,
                 fun(auth_opts, _Host) ->
@@ -56,3 +90,13 @@ setup_meck(_G, Config) ->
 
 unload_meck(_G) ->
     meck:unload(ejabberd_config).
+
+gen_user() ->
+    U = random_binary(5),
+    P= random_binary(6),
+    {U, P}.
+
+random_binary(S) ->
+    base16:encode(crypto:rand_bytes(S)).
+
+
