@@ -20,7 +20,6 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml.hrl").
 -include_lib("exml/include/exml.hrl").
--include_lib("eunit/include/eunit.hrl").
 
 -import(ejabberdctl_helper, [ejabberdctl/3, rpc_call/3]).
 -import(mongoose_helper, [auth_modules/0]).
@@ -36,30 +35,28 @@
 %%--------------------------------------------------------------------
 
 all() ->
-    [{group, stats},
-     {group, basic},
-     {group, accounts},
+    [{group, accounts},
      {group, sessions},
      {group, vcard},
      {group, roster},
      {group, roster_advanced},
      {group, last},
      {group, private},
-     {group, stanza}
-    ].
+     {group, stanza},
+     {group, stats},
+     {group, basic}].
 
 groups() ->
-     [{basic, [sequence], basic()},
-      {stats, [sequence], stats()},
-      {accounts, [sequence], accounts()},
+     [{accounts, [sequence], accounts()},
       {sessions, [sequence], sessions()},
       {vcard, [sequence], vcard()},
       {roster, [sequence], roster()},
       {last, [sequence], last()},
       {private, [sequence], private()},
       {stanza, [sequence], stanza()},
-      {roster_advanced, [sequence], roster_advanced()}
-     ].
+      {roster_advanced, [sequence], roster_advanced()},
+      {basic, [sequence], basic()},
+      {stats, [sequence], stats()}].
 
 basic() ->
     [simple_register, simple_unregister, register_twice,
@@ -251,8 +248,7 @@ num_active_users(Config) ->
     Now = Mega*1000000+Secs,
     set_last(AliceName, Domain, Now),
     set_last(MikeName, Domain, Now - 864000), %% Now - 10 days
-    Result = ejabberdctl("num_active_users", [Domain, "5"], Config),
-    ?assertMatch({"2\n", _}, Result).
+    {"1\n", _} = ejabberdctl("num_active_users", [Domain, "5"], Config).
 
 delete_old_users(Config) ->
     {AliceName, Domain, _} = get_user_data(alice, Config),
@@ -791,8 +787,7 @@ stats_global(Config) ->
 
                 {UpTime, 0} = ejabberdctl("stats", ["uptimeseconds"], Config),
                 _ = list_to_integer(string:strip(UpTime, both, $\n)),
-                Result = ejabberdctl("stats", ["registeredusers"], Config),
-                ?assertEqual({Registered, 0}, Result),
+                {Registered, 0} = ejabberdctl("stats", ["registeredusers"], Config),
 
                 {"2\n", 0} = ejabberdctl("stats", ["onlineusersnode"], Config),
 
