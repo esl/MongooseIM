@@ -26,10 +26,7 @@
          does_user_exist/2,
          remove_user/2,
          remove_user/3,
-         plain_password_required/0,
          store_type/1,
-         login/2,
-         get_password/3,
          stop/1]).
 
 -include("ejabberd.hrl").
@@ -57,9 +54,6 @@ start(Host) ->
                                       transient, 2000, supervisor, [cuesport | ChildMods]}),
     ok.
 
--spec plain_password_required() -> false.
-plain_password_required() ->
-    false.
 
 -spec store_type(binary()) -> plain | scram.
 store_type(Server) ->
@@ -289,12 +283,6 @@ verify_scram_password(LUser, LServer, Password) ->
         _ ->
             {error, not_exists}
     end.
-
-login(_User, _Server) ->
-    erlang:error(not_implemented).
-
-get_password(_User, _Server, _DefaultValue) ->
-    erlang:error(not_implemented).
 
 stop(Host) ->
     Id = {ejabberd_auth_http_sup, Host},

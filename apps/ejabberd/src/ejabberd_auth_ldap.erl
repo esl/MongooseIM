@@ -35,27 +35,24 @@
 %% External exports
 -behaviour(ejabberd_gen_auth).
 -export([start/1,
-    stop/1,
-    start_link/1,
-    set_password/3,
-    check_password/3,
-    check_password/5,
-    try_register/3,
-    dirty_get_registered_users/0,
-    get_vh_registered_users/1,
-    get_vh_registered_users/2,
-    get_vh_registered_users_number/1,
-    get_vh_registered_users_number/2,
-    get_password/2,
-    get_password_s/2,
-    does_user_exist/2,
-    remove_user/2,
-    remove_user/3,
-    store_type/1,
-    plain_password_required/0]).
-
-%% Exported for behaviour but not implemented
--export([login/2, get_password/3]).
+         stop/1,
+         start_link/1,
+         set_password/3,
+         check_password/3,
+         check_password/5,
+         try_register/3,
+         dirty_get_registered_users/0,
+         get_vh_registered_users/1,
+         get_vh_registered_users/2,
+         get_vh_registered_users_number/1,
+         get_vh_registered_users_number/2,
+         get_password/2,
+         get_password_s/2,
+         does_user_exist/2,
+         remove_user/2,
+         remove_user/3,
+         store_type/1
+        ]).
 
 -export([config_change/4]).
 
@@ -133,9 +130,6 @@ init(Host) ->
     {ok, State}.
 
 store_type(_) -> external.
-
-plain_password_required() -> true.
-
 
 config_change(Acc, Host, ldap, _NewConfig) ->
     stop(Host),
@@ -550,7 +544,3 @@ check_filter(F) ->
     {ok, _} = eldap_filter:parse(NewF),
     NewF.
 
-
-%% @doc gen_auth unimplemented callbacks
-login(_LUser, _LServer) -> erlang:error(not_implemented).
-get_password(_LUser, _LServer, _DefaultValue) -> erlang:error(not_implemented).

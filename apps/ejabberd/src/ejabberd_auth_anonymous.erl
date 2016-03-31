@@ -55,7 +55,6 @@
 	 remove_user/2,
 	 remove_user/3,
 	 store_type/1,
-	 plain_password_required/0,
 	 get_vh_registered_users/2,
 	 get_vh_registered_users_number/1,
 	 get_vh_registered_users_number/2,
@@ -328,10 +327,6 @@ remove_user(_LUser, _LServer) ->
 remove_user(_LUser, _LServer, _Password) ->
     {error, not_allowed}.
 
-
--spec plain_password_required() -> 'false'.
-plain_password_required() ->
-    false.
 
 store_type(_) ->
     plain.

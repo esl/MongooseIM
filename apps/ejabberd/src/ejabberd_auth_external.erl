@@ -45,12 +45,8 @@
          does_user_exist/2,
          remove_user/2,
          remove_user/3,
-         store_type/1,
-         plain_password_required/0
+         store_type/1
         ]).
-
-%% Exported for behaviour but not implemented
--export([login/2, get_password/3]).
 
 -include("ejabberd.hrl").
 
@@ -90,12 +86,8 @@ check_cache_last_options(Server) ->
             end
     end.
 
-
-plain_password_required() ->
-    true.
-
 store_type(_) ->
-	external.
+    external.
 
 -spec check_password(LUser :: ejabberd:luser(),
                      LServer :: ejabberd:lserver(),
@@ -411,6 +403,3 @@ is_configured(Host, Module) ->
     lists:keymember(Module, 1, ejabberd_config:get_local_option({modules, Host})).
 
 
-%% @doc gen_auth unimplemented callbacks
-login(_User, _Server) -> erlang:error(not_implemented).
-get_password(_User, _Server, _DefaultValue) -> erlang:error(not_implemented).
