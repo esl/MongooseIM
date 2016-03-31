@@ -134,9 +134,9 @@ init_per_testcase(DigestOrScram, Config) when
       DigestOrScram =:= log_one_digest; DigestOrScram =:= log_non_existent_digest;
       DigestOrScram =:= log_one_scram; DigestOrScram =:= log_non_existent_scram;
       DigestOrScram =:= legacy_successful_digest ->
-    case get_auth_method() of
-        ldap ->
-            {skip, "ldap authentication requires plain password"};
+    case get_store_type() of
+        external ->
+            {skip, "external store type requires plain password"};
         _ ->
             escalus:init_per_testcase(DigestOrScram, Config)
     end;
@@ -549,7 +549,7 @@ get_client_details(Identifier) ->
     {server, Server} = lists:keyfind(server, 1, Details),
     {string(Name), string(Server)}.
 
-get_auth_method() ->
+get_store_type() ->
     XMPPDomain = escalus_ejabberd:unify_str_arg(
                    ct:get_config(ejabberd_domain)),
     escalus_ejabberd:rpc(ejabberd_auth, store_type,
