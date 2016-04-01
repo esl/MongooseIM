@@ -18,13 +18,13 @@
 -compile(export_all).
 
 -import(distributed_helper, [add_node_to_cluster/1,
-                             remove_node_from_cluster/1,
-                             is_sm_distributed/0, verify_result/1]).
+remove_node_from_cluster/1, is_sm_distributed/0, verify_result/1]).
 -import(ejabberdctl_helper, [ejabberdctl/3, rpc_call/3]).
 
-
+-include_lib("eunit/include/eunit.hrl").
 -include_lib("common_test/include/ct.hrl").
-
+-define(eq(Expected, Actual), ?assertEqual(Expected, Actual)).
+-define(ne(A, B), ?assertNot(A == B)).
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -36,7 +36,7 @@ all() ->
 groups() ->
     [{clustered, [], [one_to_one_message]},
         {clustering, [], [join_successful, leave_successful,
-            join_unsuccessful, leave_unsuccessful]},
+            join_unsuccessful, leave_unsuccessful, leave_but_no_cluster, join_twice, leave_twice]},
         {ejabberdctl, [], [set_master_test]}].
 suite() ->
     escalus:suite().
@@ -104,9 +104,10 @@ end_per_group(_GroupName, Config) ->
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
-end_per_testcase(leave_unsuccessful, Config) ->
+end_per_testcase(CaseName, Config) when CaseName == leave_unsuccessful orelse CaseName == join_twice ->
     remove_node_from_cluster(Config),
     escalus:end_per_testcase(leave_unsuccessful, Config);
+
 
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
@@ -153,21 +154,46 @@ set_master_test(ConfigIn) ->
 
 join_successful(Config) ->
     Node2 = ct:get_config(ejabberd2_node),
-    ejabberdctl_interactive("join_cluster", [atom_to_list(Node2)], "yes\n", Config),
-    verify_result(add).
+    {_, OpCode} = ejabberdctl_interactive("join_cluster", [atom_to_list(Node2)], "yes\n", Config),
+    verify_result(add),
+    ?eq(0, OpCode).
 
 leave_successful(Config) ->
-    ejabberdctl_interactive("leave_cluster", [], "yes\n", Config),
-    verify_result(remove).
+    {_, OpCode} = ejabberdctl_interactive("leave_cluster", [], "yes\n", Config),
+    verify_result(remove),
+    ?eq(0, OpCode).
 
 join_unsuccessful(Config) ->
-    ejabberdctl_interactive("join_cluster", [], "no\n", Config),
-    verify_result(remove).
+    {_, OpCode} = ejabberdctl_interactive("join_cluster", [], "no\n", Config),
+    verify_result(remove),
+    ?ne(0, OpCode).
 
 leave_unsuccessful(Config) ->
     add_node_to_cluster(Config),
-    ejabberdctl_interactive("leave_cluster", [], "no\n", Config),
-    verify_result(add).
+    {_, OpCode} = ejabberdctl_interactive("leave_cluster", [], "no\n", Config),
+    verify_result(add),
+    ?ne(0, OpCode).
+
+leave_but_no_cluster(Config) ->
+    {_, OpCode} = ejabberdctl_interactive("leave_cluster", [], "no\n", Config),
+    verify_result(remove),
+    ?ne(0, OpCode).
+
+join_twice(Config) ->
+    Node2 = ct:get_config(ejabberd2_node),
+    {_, OpCode1} = ejabberdctl_interactive("join_cluster", [atom_to_list(Node2)], "yes\n", Config),
+    {_, OpCode2} = ejabberdctl_interactive("join_cluster", [atom_to_list(Node2)], "yes\n", Config),
+    verify_result(add),
+    ?eq(0, OpCode1),
+    ?ne(0, OpCode2).
+
+leave_twice(Config) ->
+    add_node_to_cluster(Config),
+    {_, OpCode1} = ejabberdctl_interactive("leave_cluster", [], "yes\n", Config),
+    {_, OpCode2} = ejabberdctl_interactive("leave_cluster", [], "yes\n", Config),
+    verify_result(remove),
+    ?eq(0, OpCode1),
+    ?ne(0, OpCode2).
 
 
 %% Helpers
