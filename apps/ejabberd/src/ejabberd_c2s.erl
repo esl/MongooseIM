@@ -2475,12 +2475,12 @@ pack_string(String, Pack) ->
 %%%----------------------------------------------------------------------
 %%% XEP-0352: Client State Indication
 %%%----------------------------------------------------------------------
-maybe_inactivate_session(?NS_CSI, State) ->
+maybe_inactivate_session(?NS_CSI, #state{csi_state = active} = State) ->
     fsm_next_state(session_established, State#state{csi_state = inactive});
 maybe_inactivate_session(_, State) ->
     fsm_next_state(session_established, State).
 
-maybe_activate_session(?NS_CSI, State) ->
+maybe_activate_session(?NS_CSI, #state{csi_state = inactive} = State) ->
     resend_csi_buffer_out(State);
 maybe_activate_session(_, State) ->
     fsm_next_state(session_established, State).
