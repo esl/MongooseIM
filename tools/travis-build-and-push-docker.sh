@@ -2,7 +2,7 @@
 
 make rel
 
-MIM_TAR_FULL_NAME=mongooseim-$TRAVIS_BRANCH.$TRAVIS_OTP_RELEASE.$(lsb_release -is | tr "A-Z" "a-z").$(lsb_release -rs).$(uname -m).tar.bz2
+MIM_TAR_FULL_NAME=mongooseim-$TRAVIS_BRANCH.OTP-$TRAVIS_OTP_RELEASE.$(lsb_release -is | tr "A-Z" "a-z").$(lsb_release -rs).$(uname -m).tar.bz2
 
 MONGOOSE_TGZ=mongooseim.tar.gz
 
