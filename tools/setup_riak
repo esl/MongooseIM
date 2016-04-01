@@ -1,8 +1,6 @@
 #!/bin/bash
 
-sudo cp tools/advanced.config /etc/riak/
 
-service riak start
 
 RIAK_HOST="http://localhost:8098"
 
@@ -28,35 +26,37 @@ curl -XPUT $RIAK_HOST/search/index/mam \
 
 sleep 20
 
-${1}riak-admin bucket-type create users '{"props":{"datatype":"map"}}'
-${1}riak-admin bucket-type activate users
+RIAK_ADMIN="docker exec -i mongooseim-riak riak-admin"
 
-${1}riak-admin bucket-type create rosters '{"props":{"datatype":"map"}}'
-${1}riak-admin bucket-type activate rosters
+$RIAK_ADMIN bucket-type create users '{"props":{"datatype":"map"}}'
+$RIAK_ADMIN bucket-type activate users
 
-${1}riak-admin bucket-type create roster_versions '{"props":{"last_write_wins":true, "dvv_enabled":false}}'
-${1}riak-admin bucket-type activate roster_versions
+$RIAK_ADMIN bucket-type create rosters '{"props":{"datatype":"map"}}'
+$RIAK_ADMIN bucket-type activate rosters
 
-${1}riak-admin bucket-type create private '{"props":{"last_write_wins":true, "dvv_enabled":false}}'
-${1}riak-admin bucket-type activate private
+$RIAK_ADMIN bucket-type create roster_versions '{"props":{"last_write_wins":true, "dvv_enabled":false}}'
+$RIAK_ADMIN bucket-type activate roster_versions
 
-${1}riak-admin bucket-type create vcard '{"props":{"last_write_wins":true, "search_index":"vcard", "dvv_enabled":false}}'
-${1}riak-admin bucket-type activate vcard
+$RIAK_ADMIN bucket-type create private '{"props":{"last_write_wins":true, "dvv_enabled":false}}'
+$RIAK_ADMIN bucket-type activate private
 
-${1}riak-admin bucket-type create mam_yz '{"props":{"datatype":"map", "search_index":"mam"}}'
-${1}riak-admin bucket-type activate mam_yz
+$RIAK_ADMIN bucket-type create vcard '{"props":{"last_write_wins":true, "search_index":"vcard", "dvv_enabled":false}}'
+$RIAK_ADMIN bucket-type activate vcard
 
-${1}riak-admin bucket-type create last '{"props":{"last_write_wins":true, "dvv_enabled":false}}'
-${1}riak-admin bucket-type activate last
+$RIAK_ADMIN bucket-type create mam_yz '{"props":{"datatype":"map", "search_index":"mam"}}'
+$RIAK_ADMIN bucket-type activate mam_yz
 
-${1}riak-admin bucket-type create offline '{"props":{"last_write_wins":true, "dvv_enabled":false}}'
-${1}riak-admin bucket-type activate offline
+$RIAK_ADMIN bucket-type create last '{"props":{"last_write_wins":true, "dvv_enabled":false}}'
+$RIAK_ADMIN bucket-type activate last
 
-${1}riak-admin bucket-type create privacy_defaults '{"props":{"last_write_wins":true, "dvv_enabled":false}}'
-${1}riak-admin bucket-type activate privacy_defaults
+$RIAK_ADMIN bucket-type create offline '{"props":{"last_write_wins":true, "dvv_enabled":false}}'
+$RIAK_ADMIN bucket-type activate offline
 
-${1}riak-admin bucket-type create privacy_lists_names '{"props":{"datatype":"set"}}'
-${1}riak-admin bucket-type activate privacy_lists_names
+$RIAK_ADMIN bucket-type create privacy_defaults '{"props":{"last_write_wins":true, "dvv_enabled":false}}'
+$RIAK_ADMIN bucket-type activate privacy_defaults
 
-${1}riak-admin bucket-type create privacy_lists '{"props":{"last_write_wins":true,"dvv_enabled":false}}'
-${1}riak-admin bucket-type activate privacy_lists
+$RIAK_ADMIN bucket-type create privacy_lists_names '{"props":{"datatype":"set"}}'
+$RIAK_ADMIN bucket-type activate privacy_lists_names
+
+$RIAK_ADMIN bucket-type create privacy_lists '{"props":{"last_write_wins":true,"dvv_enabled":false}}'
+$RIAK_ADMIN bucket-type activate privacy_lists

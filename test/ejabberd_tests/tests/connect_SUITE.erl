@@ -24,7 +24,9 @@
 -include_lib("exml/include/exml.hrl").
 -include_lib("exml/include/exml_stream.hrl").
 -include_lib("stdlib/include/ms_transform.hrl").
-
+-define(assert_equal(E, V), (
+    [ct:fail("ASSERT EQUAL~n\tExpected ~p~n\tValue ~p~n", [(E), (V)])
+     || (E) =/= (V)])).
 -define(SECURE_USER, secure_joe).
 -define(CERT_FILE, "priv/ssl/fake_server.pem").
 -define(TLS_VERSIONS, ["tlsv1", "tlsv1.1", "tlsv1.2"]).
@@ -43,6 +45,7 @@ all() ->
              {group, negative},
              {group, pre_xmpp_1_0},
              {group, starttls},
+             {group, feature_order},
              {group, tls},
              {group, ciphers_default},
              {group, 'node2_supports_DHE-RSA-AES256-SHA_only'}]
@@ -57,6 +60,13 @@ groups() ->
                      invalid_stream_namespace]},
      {pre_xmpp_1_0, [], [pre_xmpp_1_0_stream]},
      {starttls, test_cases()},
+     {feature_order, [parallel], [stream_features_test,
+                      tls_authenticate,
+                      tls_compression_fail,
+                      tls_compression_authenticate_fail,
+                      tls_authenticate_compression,
+                      auth_compression_bind_session,
+                      auth_bind_compression_session]},
      {tls, generate_tls_vsn_tests()},
      {ciphers_default, [], [clients_can_connect_with_advertised_ciphers,
                             'clients_can_connect_with_DHE-RSA-AES256-SHA',
@@ -105,6 +115,10 @@ init_per_group(tls, Config) ->
     JoeSpec2 = {?SECURE_USER, lists:keystore(ssl, 1, JoeSpec, {ssl, true})},
     NewUsers = lists:keystore(?SECURE_USER, 1, Users, JoeSpec2),
     lists:keystore(escalus_users, 1, Config, {escalus_users, NewUsers});
+init_per_group(feature_order, Config) ->
+    config_ejabberd_node_tls(Config, fun mk_value_for_compression_config_pattern/0),
+    ejabberd_node_utils:restart_application(ejabberd),
+    Config;
 init_per_group(ciphers_default, Config) ->
     config_ejabberd_node_tls(Config, fun mk_value_for_tls_config_pattern/0),
     ejabberd_node_utils:restart_application(ejabberd),
@@ -113,9 +127,17 @@ init_per_group('node2_supports_DHE-RSA-AES256-SHA_only', Config) ->
     [{c2s_port, 5233} | Config];
 init_per_group(_, Config) ->
     Config.
-
+end_per_group(feature_order, Config) ->
+    escalus_fresh:clean(),
+    Config;
 end_per_group(_, Config) ->
     Config.
+
+init_per_testcase(CaseName, Config) ->
+    escalus:init_per_testcase(CaseName, Config).
+
+end_per_testcase(CaseName, Config) ->
+    escalus:end_per_testcase(CaseName, Config).
 
 generate_tls_vsn_tests() ->
     [list_to_existing_atom("should_pass_with_" ++ VSN)
@@ -340,6 +362,122 @@ compress_noproc(Config) ->
     end,
     ok.
 
+%% Tests featuress advertisement
+stream_features_test(Config) ->
+    Config1 = escalus_fresh:create_users(Config, [{?SECURE_USER, 1}]),
+    UserSpec = escalus_users:get_userspec(Config1, ?SECURE_USER),
+    List = [start_stream, stream_features, {?MODULE, verify_features}],
+    escalus_connection:start(UserSpec, List),
+    ok.
+
+verify_features(Conn, Props, Features) ->
+    %% should not advertise compression before tls
+    ?assert_equal(false, has_feature(compression, Features)),
+    %% start tls. Starttls should be then removed from list and compression should be added
+    {Conn1, Props1} = escalus_session:starttls(Conn, Props),
+    {Conn2, Props2, Features2} = escalus_session:stream_features(Conn1, Props1, []),
+    ?assert_equal(false, has_feature(starttls, Features2)),
+    ?assert(false =/= has_feature(compression, Features2)),
+    %% start compression. Compression should be then removed from list
+    {Conn3, Props3, Features3} = escalus_session:authenticate(Conn2, Props2, Features2),
+    {Conn4, Props4} = escalus_session:compress(Conn3, Props3),
+    {Conn5, Props5, Features4} = escalus_session:stream_features(Conn4, Props4, []),
+    ?assert_equal(false, has_feature(compression, Features4)),
+    ?assert_equal(false, has_feature(starttls, Features4)),
+    {Conn5, Props5, Features4}.
+
+has_feature(Feature, FeatureList) ->
+    {_, Value} = lists:keyfind(Feature, 1, FeatureList),
+    Value.
+
+%% should fail
+tls_compression_authenticate_fail(Config) ->
+    %% Given
+    Config1 = escalus_fresh:create_users(Config, [{?SECURE_USER, 1}]),
+    UserSpec = escalus_users:get_userspec(Config1, ?SECURE_USER),
+    ConnetctionSteps = [start_stream, stream_features, maybe_use_ssl, maybe_use_compression, authenticate],
+    %% when and then
+    try escalus_connection:start(UserSpec, ConnetctionSteps) of
+        _ ->
+            error(compression_without_auth_suceeded)
+    catch
+        error:{assertion_failed, assert, is_compressed, Stanza, _} ->
+            case Stanza of
+                #xmlel{name = <<"failure">>} ->
+                    ok;
+                _ ->
+                    error(unknown_compression_response)
+            end
+    end.
+
+tls_authenticate_compression(Config) ->
+    %% Given
+    Config1 = escalus_fresh:create_users(Config, [{?SECURE_USER, 1}]),
+    UserSpec = escalus_users:get_userspec(Config1, ?SECURE_USER),
+    ConnetctionSteps = [start_stream, stream_features, maybe_use_ssl, authenticate, maybe_use_compression],
+    %% then
+    {ok, Conn, _, _} = escalus_connection:start(UserSpec, ConnetctionSteps),
+    % when and then
+    Compress = Conn#client.compress,
+    SSL = Conn#client.ssl,
+    ?assert(false =/= Compress),
+    ?assert(false =/= SSL).
+
+tls_authenticate(Config) ->
+    %% Given
+    Config1 = escalus_fresh:create_users(Config, [{?SECURE_USER, 1}]),
+    UserSpec = escalus_users:get_userspec(Config1, ?SECURE_USER),
+    ConnetctionSteps = [start_stream, stream_features, maybe_use_ssl, authenticate],
+    %% then
+    {ok, Conn, _, _} = escalus_connection:start(UserSpec, ConnetctionSteps),
+    % when,
+    SSL = Conn#client.ssl,
+    ?assert(false =/= SSL).
+
+%% should fail
+tls_compression_fail(Config) ->
+    %% Given
+    Config1 = escalus_fresh:create_users(Config, [{?SECURE_USER, 1}]),
+    UserSpec = escalus_users:get_userspec(Config1, ?SECURE_USER),
+    ConnetctionSteps = [start_stream, stream_features, maybe_use_ssl, maybe_use_compression],
+    %% then and when
+    try escalus_connection:start(UserSpec, ConnetctionSteps) of
+        _ ->
+            error(compression_without_auth_suceeded)
+    catch
+        error:{assertion_failed, assert, is_compressed, Stanza, _} ->
+            case Stanza of
+                #xmlel{name = <<"failure">>} ->
+                    ok;
+                _ ->
+                    error(unknown_compression_response)
+            end
+    end.
+
+auth_compression_bind_session(Config) ->
+    %% Given
+    Config1 = escalus_fresh:create_users(Config, [{?SECURE_USER, 1}]),
+    UserSpec = escalus_users:get_userspec(Config1, ?SECURE_USER),
+    ConnetctionSteps = [start_stream, stream_features, maybe_use_ssl,
+        authenticate, maybe_use_compression, bind, session],
+    %% then
+    {ok, Conn, _, _} = escalus_connection:start(UserSpec, ConnetctionSteps),
+    % when
+    Compress = Conn#client.compress,
+    ?assert(false =/= Compress).
+
+auth_bind_compression_session(Config) ->
+    %% Given
+    Config1 = escalus_fresh:create_users(Config, [{?SECURE_USER, 1}]),
+    UserSpec = escalus_users:get_userspec(Config1, ?SECURE_USER),
+    ConnetctionSteps = [start_stream, stream_features, maybe_use_ssl,
+        authenticate, bind, maybe_use_compression, session],
+    %% then
+    {ok, Conn, _, _} = escalus_connection:start(UserSpec, ConnetctionSteps),
+    % when
+    Compress = Conn#client.compress,
+    ?assert(false =/= Compress).
+
 %%--------------------------------------------------------------------
 %% Internal functions
 %%--------------------------------------------------------------------
@@ -380,6 +518,9 @@ config_ejabberd_node_tls(Config, Fun) ->
 
 mk_value_for_tls_config_pattern() ->
     {tls_config, "{certfile, \"" ++ ?CERT_FILE ++ "\"}, tls,"}.
+
+mk_value_for_compression_config_pattern() ->
+    {tls_config, "{certfile, \"" ++ ?CERT_FILE ++ "\"}, starttls_required,  {zlib, 10000},"}.
 
 mk_value_for_starttls_required_config_pattern() ->
     {tls_config, "{certfile, \"" ++ ?CERT_FILE ++ "\"}, starttls_required,"}.

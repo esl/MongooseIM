@@ -11,7 +11,8 @@ all() ->
      module_startup_create_ram_key,
      module_startup_create_ram_key_of_given_size,
      module_startup_for_multiple_domains,
-     module_startup_non_unique_key_ids
+     module_startup_non_unique_key_ids,
+     multiple_domains_one_stopped
     ].
 
 init_per_suite(C) ->
@@ -25,12 +26,21 @@ init_per_testcase(_, Config) ->
     mock_mongoose_metrics(),
     async_helper:start(Config, ejabberd_hooks, start_link, []).
 
-end_per_testcase(CaseName, C) ->
+end_per_testcase(module_startup_non_unique_key_ids, C) ->
+    clean_after_testcase(C);
+end_per_testcase(module_startup_for_multiple_domains, C) ->
+    mod_keystore:stop(<<"first.com">>),
+    mod_keystore:stop(<<"second.com">>),
+    clean_after_testcase(C);
+end_per_testcase(multiple_domains_one_stopped, C) ->
+    mod_keystore:stop(<<"second.com">>),
+    clean_after_testcase(C);
+end_per_testcase(_CaseName, C) ->
+    mod_keystore:stop(<<"localhost">>),
+    clean_after_testcase(C).
+
+clean_after_testcase(C) ->
     meck:unload(mongoose_metrics),
-    case CaseName =/= module_startup_non_unique_key_ids of
-        true -> ok = mod_keystore:stop(<<"localhost">>);
-        _    -> ok
-    end,
     async_helper:stop_all(C),
     mnesia:delete_table(key),
     C.
@@ -100,6 +110,22 @@ module_startup_non_unique_key_ids(_) ->
     catch
         error:non_unique_key_ids -> ok
     end.
+
+multiple_domains_one_stopped(_Config) ->
+    % given
+    [] = get_key(<<"first.com">>, key_from_file),
+    [] = get_key(<<"second.com">>, key_from_file),
+    FirstKey = <<"random-first.com-key-content">>,
+    SecondKey = <<"random-second.com-key-content">>,
+    {ok, FirstKeyFile} = key_at("/tmp/first.com", FirstKey),
+    {ok, SecondKeyFile} = key_at("/tmp/second.com", SecondKey),
+    % when
+    ok = mod_keystore:start(<<"first.com">>, key_from_file(FirstKeyFile)),
+    ok = mod_keystore:start(<<"second.com">>, key_from_file(SecondKeyFile)),
+    ok = mod_keystore:stop(<<"first.com">>),
+    % then
+    ?ae([{{key_from_file, <<"second.com">>}, SecondKey}],
+        get_key(<<"second.com">>, key_from_file)).
 
 %%
 %% Helpers
