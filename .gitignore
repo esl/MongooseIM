@@ -76,18 +76,20 @@ apps/ejabberd/include/EJABBERD-MIB.hrl
 apps/ejabberd/priv/mibs/EJABBERD-MIB.bin
 apps/ejabberd/ebin/ejabberd.app
 
+# Compilation/test ephemera
+*.d
 Mnesia.mongooseim@*
 compile.log
 ct.log
 deps.log
-fed1.log
-node1.log
-node2.log
-quick_compile.log
 dialyzer
 configure.out
-*.d
+ejd-redis.conf
+fed*.log
+node*.log
+quick_compile.log
 .rebar3
+redis.pid
 test/ejabberd_tests/get-deps.log
 test/ejabberd_tests/quicktest.log
 site
