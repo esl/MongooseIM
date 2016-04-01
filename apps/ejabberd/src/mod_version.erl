@@ -20,7 +20,6 @@ process_local_iq(_From, _To, #iq{type = set, sub_el = SubEl} = IQ) ->
     IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]};
 
 process_local_iq(_From, _To, #iq{type = get} = IQ) ->
-    {_, AppName} = application:get_application(),
     IQ#iq{type = result,
         sub_el =
         [#xmlel{name = <<"query">>,
@@ -28,10 +27,11 @@ process_local_iq(_From, _To, #iq{type = get} = IQ) ->
             children =
             [#xmlel{name = <<"name">>, attrs = [],
                 children =
-                #xmlcdata{content = iolist_to_binary(atom_to_list(AppName))}},
+                #xmlcdata{content = <<"mongooseim">>}},
                 #xmlel{name = <<"version">>, attrs = [],
                     children =
-                    #xmlcdata{content = iolist_to_binary(application:get_env(AppName, vsn))}},
+                    #xmlcdata{content = iolist_to_binary(
+                        [Version || {mongooseim, _, Version} <- application:loaded_applications()])}},
                 #xmlel{name = <<"os">>, attrs = [],
                     children =
                     #xmlcdata{content = get_os()}}]}]}.

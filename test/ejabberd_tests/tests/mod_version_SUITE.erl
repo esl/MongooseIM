@@ -97,7 +97,7 @@ data_from_stanza(#xmlel{name = <<"iq">>, attrs = _, children = [Child]}) ->
 name_regex(Name) ->
     String = binary_to_list(Name),
     case String of
-        mongooseim -> true;
+        "mongooseim" -> true;
         _ -> false
     end .
 
