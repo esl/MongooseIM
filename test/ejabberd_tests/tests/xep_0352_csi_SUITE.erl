@@ -20,10 +20,8 @@ all_tests() ->
      alice_is_inactive_and_no_stanza_arrived,
      alice_gets_msgs_after_activate,
      alice_gets_msgs_after_activate_in_order,
-     bob_does_not_get_msgs_from_inactive_alice,
-     bob_gets_msgs_from_aclie_after_she_is_active_back,
-     bob_and_alice_get_msgs_from_each_other_after_alice_is_active,
-     alice_is_inactive_but_sends_sm_req_and_recives_ack_after_active
+     bob_gets_msgs_from_inactive_alice,
+     alice_is_inactive_but_sends_sm_req_and_recives_ack
     ].
 
 suite() ->
@@ -89,46 +87,19 @@ alice_gets_msgs_after_activate(Config, N) ->
     end).
 
 
-bob_does_not_get_msgs_from_inactive_alice(Config) ->
+bob_gets_msgs_from_inactive_alice(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         given_client_is_inactive_but_sends_messages(Alice, Bob, 1),
 
-        escalus_assert:has_no_stanzas(Bob)
+        escalus:assert(is_chat_message, escalus:wait_for_stanza(Bob))
     end).
 
-bob_gets_msgs_from_aclie_after_she_is_active_back(Config) ->
-    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        Msgs = given_client_is_inactive_and_messages_sent(Alice, Bob, 1),
-
-        escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi, Bob">>)),
-
-        %%When client becomes active again
-        escalus:send(Alice, csi_stanza(<<"active">>)),
-
-        then_client_receives_message(Alice, Msgs),
-        then_client_receives_message(Bob, [<<"Hi, Bob">>])
-    end).
-
-bob_and_alice_get_msgs_from_each_other_after_alice_is_active(Config) ->
-    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        Msgs = given_client_is_inactive_but_sends_messages(Alice, Bob, 1),
-        {_MsgsToAlice, MsgsToBob} = Msgs,
-        %%When client becomes active again
-        escalus:send(Alice, csi_stanza(<<"active">>)),
-
-        then_client_receives_message(Bob, MsgsToBob)
-    end).
-
-alice_is_inactive_but_sends_sm_req_and_recives_ack_after_active(Config) ->
+alice_is_inactive_but_sends_sm_req_and_recives_ack(Config) ->
     escalus:fresh_story(Config, [{alice,1}], fun(Alice) ->
         given_client_is_inactive(Alice),
 
         escalus:send(Alice, escalus_stanza:sm_request()),
 
-        timer:sleep(1000),
-        escalus_assert:has_no_stanzas(Alice),
-
-        escalus:send(Alice, csi_stanza(<<"active">>)),
         escalus:assert(is_sm_ack, escalus:wait_for_stanza(Alice))
 
     end).
@@ -175,3 +146,4 @@ given_client_is_inactive(Alice) ->
 csi_stanza(Name) ->
     #xmlel{name = Name,
            attrs = [{<<"xmlns">>, <<"urn:xmpp:csi:0">>}]}.
+
