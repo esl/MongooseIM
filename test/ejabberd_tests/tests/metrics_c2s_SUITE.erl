@@ -254,7 +254,7 @@ error_presence(Config) ->
         escalus:wait_for_stanza(Bob),
 
         ErrorElt = escalus_stanza:error_element(<<"cancel">>, <<"gone">>),
-        Presence = escalus_stanza:presence_direct(alice, <<"error">>, ErrorElt),
+        Presence = escalus_stanza:presence_direct(alice, <<"error">>, [ErrorElt]),
         escalus:send(Bob, Presence),
         escalus:wait_for_stanza(Alice),
 
