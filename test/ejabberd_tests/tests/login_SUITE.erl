@@ -108,9 +108,14 @@ init_per_group(change_account_details, Config) ->
     skip_if_mod_register_not_enabled(Config);
 init_per_group(GroupName, Config) when
       GroupName == login_scram; GroupName == login_scram_store_plain ->
-    config_password_format(GroupName),
-    Config2 = escalus:create_users(Config, escalus:get_users([alice, bob])),
-    assert_password_format(GroupName, Config2);
+    case get_store_type() of
+        external ->
+            {skip, "external store type requires plain password"};
+        _ ->
+            config_password_format(GroupName),
+            Config2 = escalus:create_users(Config, escalus:get_users([alice, bob])),
+            assert_password_format(GroupName, Config2)
+    end;
 init_per_group(_GroupName, Config) ->
     escalus:create_users(Config, escalus:get_users([alice, bob])).
 
