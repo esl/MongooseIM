@@ -27,14 +27,14 @@ process_local_iq(_From, _To, #iq{type = get} = IQ) ->
             children =
             [#xmlel{name = <<"name">>, attrs = [],
                 children =
-                #xmlcdata{content = <<"mongooseim">>}},
+                [#xmlcdata{content = <<"mongooseim">>}]},
                 #xmlel{name = <<"version">>, attrs = [],
                     children =
-                    #xmlcdata{content = iolist_to_binary(
-                        [Version || {mongooseim, _, Version} <- application:loaded_applications()])}},
+                    [#xmlcdata{content = iolist_to_binary(
+                        [Version || {mongooseim, _, Version} <- application:loaded_applications()])}]},
                 #xmlel{name = <<"os">>, attrs = [],
                     children =
-                    #xmlcdata{content = get_os()}}]}]}.
+                    [#xmlcdata{content = get_os()}]}]}]}.
 
 get_os() ->
     {OSfamily, OSname} = os:type(),
