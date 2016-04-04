@@ -74,7 +74,7 @@ start(Domain, Opts) ->
 stop(Domain) ->
     [ ejabberd_hooks:delete(Hook, Domain, ?MODULE, Handler, Priority)
       || {Hook, Handler, Priority} <- hook_handlers() ],
-    delete_keystore_ets(),
+    clear_keystore_ets(Domain),
     ok.
 
 %%
@@ -119,9 +119,9 @@ create_keystore_ets() ->
             ok
     end.
 
-delete_keystore_ets() ->
-    ets:delete(keystore).
-
+clear_keystore_ets(Domain) ->
+    Pattern = {{'_', Domain}, '$1'},
+    ets:match_delete(keystore, Pattern).
 does_table_exist(NameOrTID) ->
     ets:info(NameOrTID, name) /= undefined.
 
