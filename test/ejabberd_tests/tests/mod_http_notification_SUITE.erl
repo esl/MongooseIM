@@ -40,7 +40,7 @@ host() -> <<"localhost">>.
 init_per_suite(Config0) ->
     Config1 = escalus:init_per_suite(Config0),
     set_worker_timeout(),
-    escalus:create_users(Config1, {by_name, [alice, bob]}).
+    escalus:create_users(Config1, escalus:get_users({by_name, [alice, bob]})).
 
 end_per_suite(Config) ->
     escalus:delete_users(Config, {by_name, [alice, bob]}),
