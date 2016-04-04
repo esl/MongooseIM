@@ -108,23 +108,17 @@ suite() ->
     escalus:suite().
 
 init_per_suite(Config) ->
-    {ok, EjdWD} = escalus_ejabberd:rpc(file, get_cwd, []),
     Cwd0 = escalus_config:get_config(data_dir, Config),
     CwdTokens = string:tokens(Cwd0, "/"),
     Cwd =  [$/ | string:join(lists:sublist(CwdTokens, 1, length(CwdTokens)-2), "/")],
     TemplatePath = Cwd ++ "/roster.template",
     start_mod_admin_extra(),
-    CtlPath = case filelib:is_file(EjdWD ++ "/bin/ejabberdctl") of
-                  true -> EjdWD ++ "/bin/ejabberdctl";
-                  false -> EjdWD ++ "/bin/mongooseimctl"
-              end,
-
     AuthMods = auth_modules(),
-
-    NewConfig = escalus:init_per_suite([{ctl_path, CtlPath},
-                                        {ctl_auth_mods, AuthMods},
-                                        {roster_template, TemplatePath} | Config]),
-    escalus:create_users(NewConfig, escalus:get_users([alice, mike, bob, kate])).
+    Node = distributed_helper:mim(),
+    Config1 = ejabberd_node_utils:init(Node, Config),
+    Config2 = escalus:init_per_suite([{ctl_auth_mods, AuthMods},
+                                        {roster_template, TemplatePath} | Config1]),
+    escalus:create_users(Config2, escalus:get_users([alice, mike, bob, kate])).
 
 end_per_suite(Config) ->
     Config1 = lists:keydelete(ctl_auth_mods, 1, Config),

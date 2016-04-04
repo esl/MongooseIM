@@ -13,7 +13,8 @@
 -export([ejabberdctl/3, rpc_call/3]).
 
 ejabberdctl(Cmd, Args, Config) ->
-    CtlCmd = escalus_config:get_config(ctl_path, Config),
+    Node = distributed_helper:mim(),
+    CtlCmd = distributed_helper:ctl_path(Node, Config),
     run(string:join([CtlCmd, Cmd | normalize_args(Args)], " ")).
 
 rpc_call(M, F, Args) ->

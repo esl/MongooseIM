@@ -56,7 +56,7 @@
 
 -spec init(ct_config()) -> ct_config().
 init(Config) ->
-    Node = ct:get_config(ejabberd_node),
+    Node = ct:get_config({hosts, mim, node}),
     init(Node, Config).
 
 init(Node, Config) ->
@@ -64,7 +64,7 @@ init(Node, Config) ->
 
 -spec restart_application(atom()) -> ok.
 restart_application(ApplicationName) ->
-    Node = ct:get_config(ejabberd_node),
+    Node = ct:get_config({hosts, mim, node}),
     restart_application(Node, ApplicationName).
 
 -spec restart_application(node(), atom()) -> ok.
@@ -75,7 +75,7 @@ restart_application(Node, ApplicationName) ->
 
 -spec backup_config_file(ct_config()) -> ct_config().
 backup_config_file(Config) ->
-    Node = ct:get_config(ejabberd_node),
+    Node = ct:get_config({hosts, mim, node}),
     backup_config_file(Node, Config).
 
 -spec backup_config_file(node(), ct_config()) -> ct_config().
@@ -85,7 +85,7 @@ backup_config_file(Node, Config) ->
 
 -spec restore_config_file(ct_config()) -> ct_config().
 restore_config_file(Config) ->
-    Node = ct:get_config(ejabberd_node),
+    Node = ct:get_config({hosts, mim, node}),
     restore_config_file(Node, Config).
 
 -spec restore_config_file(node(), ct_config()) -> ct_config().
@@ -95,7 +95,7 @@ restore_config_file(Node, Config) ->
 
 -spec call_fun(module(), atom(), []) -> term() | {badrpc, term()}.
 call_fun(M, F, A) ->
-    Node = ct:get_config(ejabberd_node),
+    Node = ct:get_config({hosts, mim, node}),
     call_fun(Node, M, F, A).
 
 -spec call_fun(node(), module(), atom(), []) -> term() | {badrpc, term()}.
@@ -107,7 +107,7 @@ call_fun(Node, M, F, A) ->
 %% For example to restart mongooseim call `call_ctl(restart, Config).'.
 -spec call_ctl(atom(), ct_config()) -> term() | term().
 call_ctl(Cmd, Config) ->
-    Node = ct:get_config(ejabberd_node),
+    Node = ct:get_config({hosts, mim, node}),
     call_ctl(Node, Cmd, Config).
 
 -spec call_ctl(node(), atom(), ct_config()) -> term() | term().
@@ -142,7 +142,7 @@ file_exists(Node, Filename) ->
       ConfigVariable :: atom(),
       Value :: string().
 modify_config_file(CfgVarsToChange, Config) ->
-    Node = ct:get_config(ejabberd_node),
+    Node = ct:get_config({hosts, mim, node}),
     modify_config_file(Node, "vars.config", CfgVarsToChange, Config).
 
 -spec modify_config_file(node(), string(), [{ConfigVariable, Value}], ct_config()) -> ok when

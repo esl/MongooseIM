@@ -12,18 +12,17 @@ is_sm_distributed() ->
     is_sm_backend_distributed(Backend).
 
 is_sm_backend_distributed(ejabberd_sm_mnesia) -> true;
-is_sm_backend_distributed(Other)              -> {false, Other}.
+is_sm_backend_distributed(Other) -> {false, Other}.
 
 add_node_to_cluster(Config) ->
-    %% TODO: nodes should be described in a uniform fashion, not with adhoc names
-    Node = ct:get_config(ejabberd_node),
-    Node2 = ct:get_config(ejabberd2_node),
+    Node = mim(),
+    Node2 = mim2(),
     ok = rpc(Node2, mongoose_cluster, join, [Node], cluster_op_timeout()),
     verify_result(add),
     Config.
 
-remove_node_from_cluster(Config) ->
-    Node2 = ct:get_config(ejabberd2_node),
+remove_node_from_cluster(_Config) ->
+    Node2 = mim2(),
     ok = rpc(Node2, mongoose_cluster, leave, [], cluster_op_timeout()),
     verify_result(remove),
     ok.
@@ -43,33 +42,33 @@ wait_until_started(Cmd, Retries) ->
             ok;
         _ ->
             timer:sleep(1000),
-            wait_until_started(Cmd, Retries-1)
+            wait_until_started(Cmd, Retries - 1)
     end.
 
 wait_until_stopped(_, 0) ->
     erlang:error({timeout, stopping_node});
 wait_until_stopped(Cmd, Retries) ->
     case os:cmd(Cmd) of
-        "pong" ++ _->
+        "pong" ++ _ ->
             timer:sleep(1000),
-            wait_until_stopped(Cmd, Retries-1);
+            wait_until_stopped(Cmd, Retries - 1);
         _ ->
             ok
     end.
 
 verify_result(Op) ->
-    Node1 = ct:get_config(ejabberd_node),
-    Node2 = ct:get_config(ejabberd2_node),
+    Node1 = mim(),
+    Node2 = mim2(),
     DbNodes1 = rpc(Node1, mnesia, system_info, [running_db_nodes]),
     DbNodes2 = rpc(Node2, mnesia, system_info, [running_db_nodes]),
     Pairs = [{Node1, DbNodes2, should_belong(Op)},
-             {Node2, DbNodes1, should_belong(Op)},
-             {Node1, DbNodes1, true},
-             {Node2, DbNodes2, true}],
+        {Node2, DbNodes1, should_belong(Op)},
+        {Node1, DbNodes1, true},
+        {Node2, DbNodes2, true}],
     [?assertEqual(ShouldBelong, lists:member(Element, List))
-     || {Element, List, ShouldBelong} <- Pairs].
+        || {Element, List, ShouldBelong} <- Pairs].
 
-should_belong(add)    -> true;
+should_belong(add) -> true;
 should_belong(remove) -> false.
 
 cluster_op_timeout() ->
@@ -82,3 +81,19 @@ rpc(Node, M, F, A) ->
 rpc(Node, M, F, A, TimeOut) ->
     Cookie = ct:get_config(ejabberd_cookie),
     escalus_ct:rpc_call(Node, M, F, A, TimeOut, Cookie).
+
+get_or_fail(Key) ->
+    Val = ct:get_config(Key),
+    Val == undefined andalso error({undefined, Key}),
+    Val.
+
+
+%% MongooseIM node names
+mim() ->
+    get_or_fail({hosts, mim, node}).
+
+mim2() ->
+    get_or_fail({hosts, mim2, node}).
+
+fed() ->
+    get_or_fail({hosts, fed, node}).
