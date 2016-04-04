@@ -281,7 +281,7 @@ ensure_metric(Metric, Type) when is_tuple(Type) ->
 ensure_metric(Metric, Type) ->
     ensure_metric(Metric, Type, Type).
 
-ensure_metric(Metric, ShortType, Type) when is_list(Metric) ->
+ensure_metric(Metric, Type, ShortType) when is_list(Metric) ->
     %% the split into ShortType and Type is needed because function metrics are
     %% defined as tuples (that is Type), while exometer:info returns only 'function'
     case exometer:info(Metric, type) of
