@@ -7,3 +7,13 @@ The Client State Indication functionality will be possible to use even
 without enabling this module, but the feature will not be present in the
 stream features list.
 
+### Options
+
+* **buffer_max** (default: 20) - Buffer size for messages queued when session was `inactive`
+
+### Example Configuration
+
+```Erlang
+  {mod_csi, [{buffer_max, 40}]},
+```
+

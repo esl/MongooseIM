@@ -2483,27 +2483,42 @@ maybe_inactivate_session(_, State) ->
     fsm_next_state(session_established, State).
 
 maybe_activate_session(?NS_CSI, #state{csi_state = inactive} = State) ->
-    resend_csi_buffer_out(State);
+    resend_csi_buffer(State);
 maybe_activate_session(_, State) ->
     fsm_next_state(session_established, State).
 
-resend_csi_buffer_out(#state{csi_buffer_out = BufferOut} = State) ->
+resend_csi_buffer(State) ->
+    NewState = flush_csi_buffer(State),
+    fsm_next_state(session_established, NewState#state{csi_state=active}).
+
+maybe_csi_inactive_optimisation(Packet, #state{csi_state = active} = State,
+                                StateName) ->
+    send_and_maybe_buffer_stanza(Packet, State, StateName);
+maybe_csi_inactive_optimisation(Packet, #state{csi_buffer = Buffer} = State,
+                                StateName) ->
+    NewBuffer = [Packet | Buffer],
+    NewState = flush_or_buffer_packets(State#state{csi_buffer = NewBuffer}),
+    fsm_next_state(StateName, NewState).
+
+flush_or_buffer_packets(State) ->
+    MaxBuffSize = gen_mod:get_module_opt(State#state.server, mod_csi,
+                                         buffer_max, 20),
+    case length(State#state.csi_buffer) > MaxBuffSize of
+        true ->
+            flush_csi_buffer(State);
+        _ ->
+            State
+    end.
+
+-spec flush_csi_buffer(state()) -> state().
+flush_csi_buffer(#state{csi_buffer = BufferOut} = State) ->
     %%lists:foldr to preserve order
     F = fun(Packet, {_, OldState}) ->
                 send_and_maybe_buffer_stanza(Packet, OldState)
         end,
     {_, NewState} = lists:foldr(F, {ok, State}, BufferOut),
-    fsm_next_state(session_established, NewState#state{csi_state=active,
-                                                       csi_buffer_out = []}).
+    NewState#state{csi_buffer = []}.
 
-maybe_csi_inactive_optimisation(Packet, #state{csi_state = active} = State,
-                                StateName) ->
-    send_and_maybe_buffer_stanza(Packet, State, StateName);
-maybe_csi_inactive_optimisation(Packet, #state{csi_buffer_out = BufferOut} = State,
-                                StateName) ->
-    %%TODO secure the buffer
-    NewBufferOut = [Packet | BufferOut],
-    fsm_next_state(StateName, State#state{csi_buffer_out = NewBufferOut}).
 
 %%%----------------------------------------------------------------------
 %%% XEP-0198: Stream Management
