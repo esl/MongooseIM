@@ -11,7 +11,7 @@ all() ->
     ].
 
 init_per_suite(C) ->
-    application:start(p1_stringprep),
+    application:start(stringprep),
     application:ensure_all_started(lager),
     C.
 

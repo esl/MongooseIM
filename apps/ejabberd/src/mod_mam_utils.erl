@@ -582,7 +582,7 @@ form_decode_optimizations(QueryEl) ->
         {<<"true">>, _}     -> true;
         {_, _}              -> false
     end.
-    
+
 
 %% -----------------------------------------------------------------------
 %% Forms
@@ -721,12 +721,12 @@ test_jids() ->
      <<"bob@street/mobile">>].
 
 check_stringprep() ->
-    is_loaded_application(p1_stringprep) orelse start_stringprep().
+    is_loaded_application(stringprep) orelse start_stringprep().
 
 start_stringprep() ->
     EJ = code:lib_dir(ejabberd),
-    code:add_path(filename:join([EJ, "..", "..", "deps", "p1_stringprep", "ebin"])),
-    ok = application:start(p1_stringprep).
+    code:add_path(filename:join([EJ, "..", "..", "deps", "stringprep", "ebin"])),
+    ok = application:start(stringprep).
 
 is_loaded_application(AppName) when is_atom(AppName) ->
     lists:keymember(AppName, 1, application:loaded_applications()).

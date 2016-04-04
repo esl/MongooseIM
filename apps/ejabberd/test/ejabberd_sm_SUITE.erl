@@ -17,7 +17,7 @@
 all() -> [{group, mnesia}, {group, redis}].
 
 init_per_suite(C) ->
-    application:start(p1_stringprep),
+    application:start(stringprep),
     application:ensure_all_started(exometer),
     F = fun() ->
         ejabberd_sm_backend_sup:start_link(),
