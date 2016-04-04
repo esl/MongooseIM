@@ -4,6 +4,8 @@
 
 -compile([export_all]).
 
+-define(CSI_BUFFER_MAX, 10).
+
 all() ->
     [{group, basic}].
 
@@ -20,6 +22,7 @@ all_tests() ->
      alice_is_inactive_and_no_stanza_arrived,
      alice_gets_msgs_after_activate,
      alice_gets_msgs_after_activate_in_order,
+     alice_gets_message_after_buffer_overflow,
      bob_gets_msgs_from_inactive_alice,
      alice_is_inactive_but_sends_sm_req_and_recives_ack
     ].
@@ -28,9 +31,13 @@ suite() ->
     escalus:suite().
 
 init_per_suite(Config) ->
+    Domain = escalus_ct:get_config(ejabberd_domain),
+    dynamic_modules:start(Domain, mod_csi, [{buffer_max, ?CSI_BUFFER_MAX}]),
     [{escalus_user_db, {module, escalus_ejabberd}} | escalus:init_per_suite(Config)].
 
 end_per_suite(Config) ->
+    Domain = escalus_ct:get_config(ejabberd_domain),
+    dynamic_modules:stop(Domain, mod_csi),
     escalus_fresh:clean(),
     escalus:end_per_suite(Config).
 
@@ -41,7 +48,6 @@ end_per_group(_Group, Config) ->
     Config.
 
 init_per_testcase(CaseName, Config) ->
-    timer:sleep(random:uniform(2000)),
     escalus:init_per_testcase(CaseName, Config).
 
 end_per_testcase(CaseName, Config) ->
@@ -73,8 +79,6 @@ alice_gets_msgs_after_activate(Config) ->
 alice_gets_msgs_after_activate_in_order(Config) ->
     alice_gets_msgs_after_activate(Config, 3).
 
-
-
 alice_gets_msgs_after_activate(Config, N) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         %%Given
@@ -85,6 +89,22 @@ alice_gets_msgs_after_activate(Config, N) ->
 
         then_client_receives_message(Alice, Msgs)
     end).
+
+alice_gets_message_after_buffer_overflow(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        Msgs = given_client_is_inactive_and_messages_sent(Alice, Bob, ?CSI_BUFFER_MAX+5),
+
+        {Flushed, Awaiting} = lists:split(?CSI_BUFFER_MAX+1, Msgs),
+
+        then_client_receives_message(Alice, Flushed),
+        %% and no other stanza
+        escalus_assert:has_no_stanzas(Alice),
+        %% Alice activates
+        escalus:send(Alice, csi_stanza(<<"active">>)),
+        %% ands gets remaining stanzas
+        then_client_receives_message(Alice, Awaiting)
+    end).
+
 
 
 bob_gets_msgs_from_inactive_alice(Config) ->
