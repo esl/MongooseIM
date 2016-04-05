@@ -47,6 +47,7 @@ Documentation
 Up-to-date documentation for the MongooseIM master branch can be found on ReadTheDocs:
 * http://mongooseim.readthedocs.org/en/latest/
 * Older versions:
+  * [release 1.6.2](http://mongooseim.readthedocs.org/en/1.6.2/)
   * [release 1.6.1](http://mongooseim.readthedocs.org/en/1.6.1/)
   * [release 1.6.0](http://mongooseim.readthedocs.org/en/1.6.0/)
   * [release 1.5.1](http://mongooseim.readthedocs.org/en/1.5.1/)

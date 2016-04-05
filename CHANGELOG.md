@@ -11,9 +11,13 @@ This release includes:
 - fix for TCP backlog setting [#708](https://github.com/esl/MongooseIM/pull/708)
 - external components improvements:
    - [#640](https://github.com/esl/MongooseIM/pull/640)
-
+- parallelized tests:
+   - [#706](https://github.com/esl/MongooseIM/pull/706)
 - other improvements:
+   - carbon copies data optimisation [#700](https://github.com/esl/MongooseIM/pull/700)
+   - update deps [#705](https://github.com/esl/MongooseIM/pull/705) and exometer 1.2
    - dialyzer checks on travis [#677](https://github.com/esl/MongooseIM/pull/677)
+   - docker image building on travis [#710](https://github.com/esl/MongooseIM/pull/710)
 
 
 # MongooseIM 1.6.2
