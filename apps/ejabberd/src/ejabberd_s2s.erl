@@ -90,9 +90,6 @@ start_link() ->
 filter(From, To, Packet) ->
     {From, To, Packet}.
 
--spec route(From :: ejabberd:jid(),
-            To :: ejabberd:jid(),
-            Packet :: jlib:xmlel()) -> 'ok' | {'error','lager_not_running'}.
 route(From, To, Packet) ->
     do_route(From, To, Packet).
 
