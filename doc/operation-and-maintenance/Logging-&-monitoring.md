@@ -62,7 +62,7 @@ It is possible to enable them in Moongoose via  the `app.config` file. The file 
 to the `ejabberd.cfg` file and both files are located in the `rel/files` and `_REL_DIR_/etc` directories.
 For more details, please visit the Exometer's project page: [ExometerProject](https://github.com/Feuerlabs/exometer).
 
-**Note that we are using the 1.1 version.**
+**Note that we are using the 1.2.1 version.**
 
 Below you can find sample configuration, it setups graphite reporter which connects
 to graphite running on localhost.
@@ -89,3 +89,47 @@ through reporters. By default that is 60 seconds.
   ]}
 ...
 ```
+
+### Run graphite in docker - quick start
+
+Start docker machine:
+
+    docker-machine start
+
+Make sure it is running:
+
+    $ docker-machine status
+    Running
+
+Run the following command:
+
+    $ docker run -d --name graphite --restart=always hopsoft/graphite-statsd
+
+And now, the most important thing:
+
+- get the "local" ip of the container:
+
+    $ docker inspect graphite | grep IPAdd | grep -v Secon | cut -d '"' -f 4 | head -n 1
+    172.17.0.2
+
+- get ip of the machine
+
+    $ docker-machine ip
+    192.168.99.100
+
+- route subnet
+
+    $ sudo route add -net 172.17.0.0 192.168.99.100
+
+and now http://172.17.0.2 should show a graphite page.
+
+Check if data collection works - run:
+
+    $ while true; do echo -n "example:$((RANDOM % 100))|c" | nc -w 1 -u 172.17.0.2 8125; done
+
+wait a while, then open:
+
+    http://172.17.0.2/render?from=-10mins&until=now&target=stats.example
+
+Then, if you configure your mongoose to send exometer reports to that IP and run it for a while,
+you should be able to see some interesting charts.
