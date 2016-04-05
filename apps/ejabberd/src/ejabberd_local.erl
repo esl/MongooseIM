@@ -151,7 +151,7 @@ route(From, To, Packet) ->
                 [jid:to_binary(From), jid:to_binary(To),
                     ?MODULE, Reason, exml:to_binary(Packet),
                     erlang:get_stacktrace()]);
-        Res -> Res
+        _ -> ok
     end.
 
 filter(From, To, Packet) ->
