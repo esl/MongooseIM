@@ -467,7 +467,7 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 -spec handle_info(_,_) -> {'noreply',_}.
 handle_info({route, From, To, Packet}, State) ->
-    xmpp_router:route(?MODULE,From,To,Packet),
+    route(From, To, Packet),
     {noreply, State};
 handle_info({register_iq_handler, Host, XMLNS, Module, Function}, State) ->
     ets:insert(sm_iqtable, {{XMLNS, Host}, Module, Function}),
