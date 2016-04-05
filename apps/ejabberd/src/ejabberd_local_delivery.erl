@@ -1,10 +1,8 @@
 %%%-------------------------------------------------------------------
-%%% @author bartek
-%%% @copyright (C) 2016, <COMPANY>
 %%% @doc
-%%%
+%%% Completes delivery to local recipient or a component; called by
+%%% main routing chain if it finds a handler to direct the message to.
 %%% @end
-%%% Created : 21. Mar 2016 12:24
 %%%-------------------------------------------------------------------
 -module(ejabberd_local_delivery).
 -author("bartek").

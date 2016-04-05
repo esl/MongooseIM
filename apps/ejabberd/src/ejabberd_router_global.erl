@@ -1,10 +1,9 @@
 %%%-------------------------------------------------------------------
-%%% @author bartek
-%%% @copyright (C) 2016, <COMPANY>
 %%% @doc
-%%%
+%%% Part of a routing chain; does only filtering - uses hooks to check
+%%% if the message should be routed at all. This one should be the first
+%%% module in chain.
 %%% @end
-%%% Created : 21. Mar 2016 12:30
 %%%-------------------------------------------------------------------
 -module(ejabberd_router_global).
 -author("bartek").

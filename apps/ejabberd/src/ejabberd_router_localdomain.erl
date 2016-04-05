@@ -1,10 +1,8 @@
 %%%-------------------------------------------------------------------
-%%% @author bartek
-%%% @copyright (C) 2016, <COMPANY>
 %%% @doc
-%%%
+%%% Part of a routing chain: searches for a route registered for the domain,
+%%% forwards the messge there, or passes on.
 %%% @end
-%%% Created : 21. Mar 2016 12:30
 %%%-------------------------------------------------------------------
 -module(ejabberd_router_localdomain).
 -author("bartek").

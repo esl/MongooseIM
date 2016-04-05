@@ -1,10 +1,9 @@
 %%%-------------------------------------------------------------------
-%%% @author bartek
-%%% @copyright (C) 2016, <COMPANY>
 %%% @doc
-%%%
+%%% Part of a routing chain; checks if there is an external component
+%%% registered for the domain and directs the message there if there is,
+%%% otherwise just passes it on.
 %%% @end
-%%% Created : 21. Mar 2016 12:30
 %%%-------------------------------------------------------------------
 -module(ejabberd_router_external).
 -author("bartek").
