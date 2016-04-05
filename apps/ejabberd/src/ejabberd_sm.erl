@@ -27,12 +27,10 @@
 -author('alexey@process-one.net').
 
 -behaviour(gen_server).
--behaviour(xmpp_router).
 
 %% API
 -export([start_link/0,
          route/3,
-         filter/3,
          open_session/5, open_session/6,
          close_session/5,
          store_info/4,
@@ -137,9 +135,6 @@ route(From, To, Packet) ->
                     erlang:get_stacktrace()]);
         _ -> ok
     end.
-
-filter(From, To, Packet) ->
-    {From, To, Packet}.
 
 -spec open_session(SID, User, Server, Resource, Info) -> ok when
       SID :: 'undefined' | sid(),

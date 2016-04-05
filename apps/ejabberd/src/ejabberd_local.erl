@@ -28,13 +28,11 @@
 -author('alexey@process-one.net').
 
 -behaviour(gen_server).
--behaviour(xmpp_router).
 
 %% API
 -export([start_link/0]).
 
 -export([route/3,
-         filter/3,
          route_iq/4,
          route_iq/5,
          process_iq_reply/3,
@@ -153,9 +151,6 @@ route(From, To, Packet) ->
                     erlang:get_stacktrace()]);
         _ -> ok
     end.
-
-filter(From, To, Packet) ->
-    {From, To, Packet}.
 
 -spec route_iq(From :: ejabberd:jid(),
                To :: ejabberd:jid(),
