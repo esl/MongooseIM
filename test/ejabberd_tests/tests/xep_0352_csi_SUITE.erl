@@ -18,13 +18,14 @@ groups() ->
 
 all_tests() ->
     [
-     server_announces_csi,
-     alice_is_inactive_and_no_stanza_arrived,
-     alice_gets_msgs_after_activate,
-     alice_gets_msgs_after_activate_in_order,
-     alice_gets_message_after_buffer_overflow,
-     bob_gets_msgs_from_inactive_alice,
-     alice_is_inactive_but_sends_sm_req_and_recives_ack
+     %server_announces_csi,
+     %alice_is_inactive_and_no_stanza_arrived,
+     %alice_gets_msgs_after_activate,
+     %alice_gets_msgs_after_activate_in_order,
+     %alice_gets_message_after_buffer_overflow,
+     alice_gets_buffered_messages_after_reconnection_with_sm
+     %bob_gets_msgs_from_inactive_alice,
+     %alice_is_inactive_but_sends_sm_req_and_recives_ack
     ].
 
 suite() ->
@@ -47,9 +48,13 @@ init_per_group(_, Config) ->
 end_per_group(_Group, Config) ->
     Config.
 
+init_per_testcase(alice_gets_buffered_messages_after_reconnection_with_sm, C) ->
+    C;
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
+end_per_testcase(alice_gets_buffered_messages_after_reconnection_with_sm, C) ->
+    C;
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
@@ -59,7 +64,6 @@ server_announces_csi(Config) ->
     Steps = [start_stream,
              stream_features,
              maybe_use_ssl,
-             maybe_use_compression,
              authenticate,
              bind,
              session],
@@ -89,6 +93,29 @@ alice_gets_msgs_after_activate(Config, N) ->
 
         then_client_receives_message(Alice, Msgs)
     end).
+
+alice_gets_buffered_messages_after_reconnection_with_sm(Config) ->
+    NewConfig = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+    AliceSpec = escalus_users:get_userspec(NewConfig, alice),
+    BobSpec = escalus_users:get_userspec(NewConfig, bob),
+    {ok, Alice, _AliceProps, _} = escalus_connection:start(AliceSpec),
+    {ok, Bob, _BobProps, _} = escalus_connection:start(BobSpec),
+
+    given_client_is_inactive(Alice),
+
+    MsgsToAlice = given_client_is_inactive_and_messages_sent(Alice, Bob, 5),
+
+    %% then Alice disconnects
+
+    escalus_connection:kill(Alice),
+
+    {ok, Alice2, _AliceProps2, _} = escalus_connection:start(AliceSpec),
+
+    escalus_connection:send(Alice, escalus_stanza:presence(<<"available">>)),
+
+    then_client_receives_message(Alice2, MsgsToAlice),
+
+    ok.
 
 alice_gets_message_after_buffer_overflow(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
