@@ -18,9 +18,6 @@ before_script:
         - if [ $PRESET = 'ldap_mnesia' ]; then sudo tools/travis-setup-ldap.sh; fi
 script: tools/travis-test.sh $PRESET
 
-after_success:
-        - make cover_report
-
 after_failure:
         - tools/travis-upload-ct-reports.sh
         - cat `ls -1 -d -t apps/ejabberd/logs/ct_run* | head -1`/apps.ejabberd.logs/run.*/suite.log
@@ -55,6 +52,7 @@ env:
         - PRESET=pgsql_mnesia DB=pgsql REL_CONFIG=with-pgsql
         - PRESET=ldap_mnesia DB=mnesia REL_CONFIG=with-none
         - PRESET=riak_mnesia DB=riak REL_CONFIG=with-riak
+        - PRESET=cassandra_mnesia DB=cassandra REL_CONFIG=with-cassandra CASSANDRA_VERSION=3.1
         - PRESET=external_mnesia DB=mnesia REL_CONFIG=with-none
         - PRESET=dialyzer_only
 

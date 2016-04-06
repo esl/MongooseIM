@@ -10,21 +10,16 @@ SQLDIR=${BASE}/apps/ejabberd/priv
 
 TRAVIS_DB_PASSWORD=$(cat /tmp/travis_db_password)
 
-maybe_install_mysql() {
-    service mysql status
-    if [ $? -ne 0 ]; then
-        sudo apt-get -y install mysql-server mysql-client
-    fi
-}
-
 if [ $DB = 'mysql' ]; then
-    maybe_install_mysql
     echo "Configuring mysql"
-    mysql -u root -e 'create database IF NOT EXISTS ejabberd'
-    mysql -u root -e 'create user ejabberd'
-    mysql -u root -e "grant all on ejabberd.* to 'ejabberd'@'localhost' identified by '${TRAVIS_DB_PASSWORD}'"
-    echo "Creating schema"
-    mysql -u ejabberd --password=${TRAVIS_DB_PASSWORD} ejabberd < ${SQLDIR}/mysql.sql
+    sudo service mysql stop || echo "Failed to stop mysql"
+    docker run -d \
+        -e MYSQL_ROOT_PASSWORD=secret \
+        -e MYSQL_DATABASE=ejabberd \
+        -e MYSQL_USER=ejabberd \
+        -e MYSQL_PASSWORD=$TRAVIS_DB_PASSWORD \
+        -v ${SQLDIR}/mysql.sql:/docker-entrypoint-initdb.d/mysql.sql:ro \
+        -p 3306:3306 --name=mongooseim-mysql mysql
 
 elif [ $DB = 'pgsql' ]; then
     echo "Configuring postgres"
@@ -51,8 +46,17 @@ elif [ $DB = 'riak' ]; then
     docker run -d -p 8087:8087 -p 8098:8098 \
         -e DOCKER_RIAK_BACKEND=leveldb \
         -e DOCKER_RIAK_CLUSTER_SIZE=1 \
-        --name=riak riak
-    tools/wait_for_riak.sh || docker logs riak
+        --name=mongooseim-riak riak
+    tools/wait_for_service.sh mongooseim-riak 8098 || docker logs riak
     tools/setup_riak
 
+elif [ $DB = 'cassandra' ]; then
+    docker run -d -p 9042:9042 -e MAX_HEAP_SIZE=128M -e HEAP_NEWSIZE=64M --name=mongooseim-cassandra cassandra:${CASSANDRA_VERSION}
+    tools/wait_for_service.sh mongooseim-cassandra 9042 || docker logs cassandra
+
+    # Deleted --rm on travis for speedup
+    docker run -it -v "$(pwd)/apps/ejabberd/priv/cassandra.cql:/cassandra.cql:ro" \
+        --link mongooseim-cassandra:cassandra \
+        cassandra:${CASSANDRA_VERSION} \
+        sh -c 'exec cqlsh "$CASSANDRA_PORT_9042_TCP_ADDR" -f /cassandra.cql'
 fi

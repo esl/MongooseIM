@@ -39,7 +39,11 @@ BaseAppsToInclude = AppsToRun ++
                      alarms,
                      idna,
                      recon,
-                     setup],
+                     poolboy,
+                     setup,
+                     exometer_core
+                     ],
+
 
 AppsToIncludeIn = BaseAppsToInclude ++ EnvAppsToInclude,
 

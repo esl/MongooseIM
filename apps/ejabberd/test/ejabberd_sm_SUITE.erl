@@ -29,7 +29,8 @@ init_per_suite(C) ->
 end_per_suite(C) ->
     Pid = ?config(pid, C),
     Pid ! stop,
-    application:stop(exometer).
+    application:stop(exometer),
+    application:stop(exometer_core).
 
 groups() ->
     [{mnesia, [], tests()},
