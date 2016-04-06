@@ -28,7 +28,6 @@
 -author('alexey@process-one.net').
 
 -behaviour(gen_server).
--behaviour(xmpp_router).
 %% API
 -export([route/3,
          route_error/4,
@@ -47,9 +46,6 @@
 
 -export([start_link/0]).
 
-%% xmpp_router callback
--export([do_route/3]).
-
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
@@ -57,19 +53,18 @@
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 
+-record(state, {}).
+
 -type handler() :: 'undefined'
-                | {'apply_fun',fun((_,_,_) -> any())}
-                | {'apply', M::atom(), F::atom()}.
+| {'apply_fun',fun((_,_,_) -> any())}
+| {'apply', M::atom(), F::atom()}.
 -type domain() :: binary().
 
--record(route, {domain :: domain(),
-                handler :: handler()
-               }).
+-type route() :: #route{domain :: domain(),
+                         handler :: handler()}.
+-type external_component() :: #external_component{domain :: domain(),
+                         handler :: handler()}.
 
--record(external_component, {domain  :: domain(),
-                             handler :: handler()}).
-
--record(state, {}).
 
 %%====================================================================
 %% API
@@ -77,15 +72,34 @@
 %%--------------------------------------------------------------------
 %% Description: Starts the server
 %%--------------------------------------------------------------------
+
+
 -spec start_link() -> 'ignore' | {'error',_} | {'ok',pid()}.
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
+%% @doc The main routing function. It puts the message through a chain
+%% of filtering/routing modules, as defined in config 'routing_modules'
+%% setting (default is hardcoded in make_routing_module_source function
+%% of this module). Each of those modules should use xmpp_router behaviour
+%% and implement two functions:
+%% filter/3 - should return either 'drop' atom or its args
+%% route/3, which should either:
+%%   - deliver the message locally by calling ejabberd_local_delivery:do_local_route/3
+%%     and return 'done'
+%%   - deliver the message it its own way and return 'done'
+%%   - return its args
+%%   - return a tuple of {From, To, Packet} which might be modified
+%% For both functions, returning a 'drop' or 'done' atom terminates the procedure,
+%% while returning a tuple means 'proceed' and the tuple is passed to
+%% the next module in sequence.
 -spec route(From   :: ejabberd:jid(),
-            To     :: ejabberd:jid(),
-            Packet :: jlib:xmlel()) -> ok.
+    To     :: ejabberd:jid(),
+    Packet :: jlib:xmlel()) -> ok.
 route(From, To, Packet) ->
-    xmpp_router:route(?MODULE, From, To, Packet).
+    ?DEBUG("route~n\tfrom ~p~n\tto ~p~n\tpacket ~p~n",
+           [From, To, Packet]),
+    route(From, To, Packet, routing_modules_list()).
 
 %% Route the error packet only if the originating packet is not an error itself.
 %% RFC3920 9.3.1
@@ -104,7 +118,7 @@ route_error(From, To, ErrPacket, OrigPacket) ->
 
 -spec register_components([Domain :: domain()]) -> ok | {error, any()}.
 register_components(Domains) ->
-    LDomains = [{jlib:nameprep(Domain), Domain} || Domain <- Domains],
+    LDomains = [{jid:nameprep(Domain), Domain} || Domain <- Domains],
     Handler = make_handler(undefined),
     F = fun() ->
             [do_register_component(LDomain, Handler) || LDomain <- LDomains],
@@ -133,7 +147,7 @@ do_register_component({LDomain, _}, Handler) ->
 
 -spec unregister_components([Domains :: domain()]) -> {atomic, ok}.
 unregister_components(Domains) ->
-    LDomains = [{jlib:nameprep(Domain), Domain} || Domain <- Domains],
+    LDomains = [{jid:nameprep(Domain), Domain} || Domain <- Domains],
     F = fun() ->
             [do_unregister_component(LDomain) || LDomain <- LDomains],
             ok
@@ -236,6 +250,8 @@ init([]) ->
                          {attributes, record_info(fields, external_component)},
                          {type, set}]),
     mnesia:add_table_copy(external_component, node(), ram_copies),
+    compile_routing_module(),
+    mongoose_metrics:ensure_metric([global, routingErrors], spiral),
 
     {ok, #state{}}.
 
@@ -295,50 +311,65 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
-do_route(OrigFrom, OrigTo, OrigPacket) ->
-    ?DEBUG("route~n\tfrom ~p~n\tto ~p~n\tpacket ~p~n",
-           [OrigFrom, OrigTo, OrigPacket]),
-    %% Filter globally
-    case ejabberd_hooks:run_fold(filter_packet,
-                                 {OrigFrom, OrigTo, OrigPacket}, []) of
-        {From, To, Packet} ->
-            LDstDomain = To#jid.lserver,
-            case mnesia:dirty_read(external_component, LDstDomain) of
-                [] ->
-                    case mnesia:dirty_read(route, LDstDomain) of
-                        [] ->
-                            ejabberd_s2s:route(From, To, Packet);
-                        [#route{handler=Handler}] ->
-                            do_local_route(OrigFrom, OrigTo, OrigPacket,
-                                           LDstDomain, Handler)
-                    end;
-                [#external_component{handler = Handler}] ->
-                    do_local_route(OrigFrom, OrigTo, OrigPacket,
-                                   LDstDomain, Handler)
-            end;
-        drop ->
-            ejabberd_hooks:run(xmpp_stanza_dropped,
-                               OrigFrom#jid.lserver,
-                               [OrigFrom, OrigTo, OrigPacket]),
-            ok
-    end.
+routing_modules_list() ->
+    %% this is going to be compiled on startup from settings
+    mod_routing_machine:get_routing_module_list().
 
-do_local_route(OrigFrom, OrigTo, OrigPacket, LDstDomain, Handler) ->
-    %% Filter locally
-    case ejabberd_hooks:run_fold(filter_local_packet, LDstDomain,
-                                 {OrigFrom, OrigTo, OrigPacket}, []) of
-        {From, To, Packet} ->
-            case Handler of
-                {apply_fun, Fun} ->
-                    Fun(From, To, Packet);
-                {apply, Module, Function} ->
-                    Module:Function(From, To, Packet)
-            end;
+compile_routing_module() ->
+    Mods = ejabberd_config:get_local_option(routing_modules),
+    CodeStr = make_routing_module_source(Mods),
+    {Mod, Code} = dynamic_compile:from_string(CodeStr),
+    code:load_binary(Mod, "mod_routing_machine.erl", Code).
+
+make_routing_module_source(undefined) ->
+    ModList = [ejabberd_router_global,
+               ejabberd_router_external,
+               ejabberd_router_localdomain,
+               ejabberd_s2s],
+    make_routing_module_source(ModList);
+make_routing_module_source(Mods) ->
+    binary_to_list(iolist_to_binary(io_lib:format(
+        "-module(mod_routing_machine).~n"
+        "-compile(export_all).~n"
+        "get_routing_module_list() -> ~p.~n",
+        [Mods]))).
+
+route(From, To, Packet, []) ->
+    ?ERROR_MSG("error routing from=~ts to=~ts, packet=~ts, reason: no more routing modules",
+               [jid:to_binary(From), jid:to_binary(To),
+                exml:to_binary(Packet)]),
+    mongoose_metrics:update([global, routingErrors], 1),
+    ok;
+route(OrigFrom, OrigTo, OrigPacket, [M|Tail]) ->
+    ?DEBUG("Using module ~p", [M]),
+    case (catch M:filter(OrigFrom, OrigTo, OrigPacket)) of
+        {'EXIT', Reason} ->
+            ?DEBUG("Filtering error", []),
+            ?ERROR_MSG("error when filtering from=~ts to=~ts in module=~p, reason=~p, packet=~ts, stack_trace=~p",
+                       [jid:to_binary(OrigFrom), jid:to_binary(OrigTo),
+                        M, Reason, exml:to_binary(OrigPacket),
+                        erlang:get_stacktrace()]),
+            ok;
         drop ->
-            ejabberd_hooks:run(xmpp_stanza_dropped,
-                               OrigFrom#jid.lserver,
-                               [OrigFrom, OrigTo, OrigPacket]),
-            ok
+            ?DEBUG("filter dropped packet", []),
+            ok;
+        {OrigFrom, OrigTo, OrigPacket} ->
+            ?DEBUG("filter passed", []),
+            case catch(M:route(OrigFrom, OrigTo, OrigPacket)) of
+                {'EXIT', Reason} ->
+                    ?ERROR_MSG("error when routing from=~ts to=~ts in module=~p, reason=~p, packet=~ts, stack_trace=~p",
+                               [jid:to_binary(OrigFrom), jid:to_binary(OrigTo),
+                                M, Reason, exml:to_binary(OrigPacket),
+                                erlang:get_stacktrace()]),
+                    ?DEBUG("routing error", []),
+                    ok;
+                done ->
+                    ?DEBUG("routing done", []),
+                    ok;
+                {From, To, Packet} ->
+                    ?DEBUG("routing skipped", []),
+                    route(From, To, Packet, Tail)
+            end
     end.
 
 update_tables() ->
