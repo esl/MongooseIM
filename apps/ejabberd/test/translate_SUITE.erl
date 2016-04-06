@@ -11,6 +11,10 @@ all() ->
     ].
 
 
+end_per_testcase(_, C) ->
+    catch meck:unload(ejabberd_config),
+    C.
+
 test_undefined_translation(_Config) ->
     %% given - if undefined it should be english(pass through)
     given_default_language(undefined),
