@@ -2804,7 +2804,10 @@ do_resume_session(SMID, El, [{_, Pid}], StateData) ->
                     send_element(NSD, Resumed),
                     [send_element(NSD, Packet)
                      || {_, _,Packet} <- lists:reverse(NSD#state.stream_mgmt_buffer)],
-                    fsm_next_state(session_established, NSD)
+
+                    NSD2 = flush_csi_buffer(NSD),
+
+                    fsm_next_state(session_established, NSD2)
                 catch
                     %% errors from send_element
                     _:_ ->
@@ -2840,6 +2843,7 @@ merge_state(OldSD, SD) ->
                 #state.pres_invis,
                 #state.privacy_list,
                 #state.aux_fields,
+                #state.csi_buffer,
                 #state.stream_mgmt,
                 #state.stream_mgmt_in,
                 #state.stream_mgmt_id,
