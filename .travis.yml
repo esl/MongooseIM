@@ -6,7 +6,6 @@ addons:
         - libpam0g-dev
         - libexpat1-dev
         - odbc-postgresql
-        - libmyodbc
         - slapd
         - ldap-utils
 before_install:
