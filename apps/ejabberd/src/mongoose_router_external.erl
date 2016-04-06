@@ -24,7 +24,7 @@ route(From, To, Packet) ->
     case ejabberd_router:lookup_component(LDstDomain) of
         [] ->
             {From, To, Packet};
-        [#external_component{handler = Handler}] ->
+        [#external_component{handler = Handler}|_] -> %% may be multiple on various nodes
             mongoose_local_delivery:do_route(From, To, Packet,
                 LDstDomain, Handler),
             done
