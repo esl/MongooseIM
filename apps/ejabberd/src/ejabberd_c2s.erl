@@ -1471,6 +1471,7 @@ terminate(_Reason, StateName, StateData) ->
                 StateData#state.authenticated =/= resumed ->
                     ?DEBUG("rerouting unacked messages", []),
                     flush_stream_mgmt_buffer(StateData),
+                    bounce_csi_buffer(StateData),
                     bounce_messages();
                 true ->
                     ok
@@ -2519,7 +2520,10 @@ flush_csi_buffer(#state{csi_buffer = BufferOut} = State) ->
     {_, NewState} = lists:foldr(F, {ok, State}, BufferOut),
     NewState#state{csi_buffer = []}.
 
-
+bounce_csi_buffer(#state{csi_buffer = []}) ->
+    ok;
+bounce_csi_buffer(#state{csi_buffer = Buffer}) ->
+    re_route_packets(Buffer).
 %%%----------------------------------------------------------------------
 %%% XEP-0198: Stream Management
 %%%----------------------------------------------------------------------
@@ -2740,9 +2744,13 @@ stream_mgmt_request() ->
 flush_stream_mgmt_buffer(#state{stream_mgmt = false}) ->
     false;
 flush_stream_mgmt_buffer(#state{stream_mgmt_buffer = Buffer}) ->
+    re_route_packets(Buffer).
+
+re_route_packets(Buffer) ->
     %% TODO add delayed on it?
     [ejabberd_router:route(From, To, Packet)
-     || {From, To, Packet} <- lists:reverse(Buffer)].
+     || {From, To, Packet} <- lists:reverse(Buffer)],
+    ok.
 
 maybe_enter_resume_session(undefined, StateData) ->
     {stop, normal, StateData};
