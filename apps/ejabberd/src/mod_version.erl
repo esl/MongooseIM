@@ -22,9 +22,8 @@ process_local_iq(_From, _To, #iq{type = get} = IQ) ->
     System = os_info().
 
 mongoose_info() ->
-    [{Name, Version}] =
-      [{N, V} || {mongooseim, N, V} <- application:which_applications()],
-    {Name, Version}.
+    {:ok, Version} = application:get_key(mongooseim, vsn),
+    {"MongooseIM", Version}.
 
 os_info() ->
     {Family, Name} = os:type(),
@@ -36,3 +35,9 @@ os_info() ->
         integer_to_list(Minor) ++ "." ++
         integer_to_list(Release)
     ).
+
+
+% TODO
+% Actually return a response
+% Get more specific system name (lsb_realease, /etc/issue etc.)
+% Include system name in reponse only if specified in options
