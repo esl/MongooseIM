@@ -1,6 +1,7 @@
 -module(xep_0352_csi_SUITE).
 
 -include_lib("exml/include/exml.hrl").
+-include_lib("escalus/include/escalus.hrl").
 
 -compile([export_all]).
 
@@ -49,13 +50,9 @@ init_per_group(_, Config) ->
 end_per_group(_Group, Config) ->
     Config.
 
-init_per_testcase(alice_gets_buffered_messages_after_reconnection_with_sm, C) ->
-    C;
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
-end_per_testcase(alice_gets_buffered_messages_after_reconnection_with_sm, C) ->
-    C;
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
@@ -99,7 +96,9 @@ alice_gets_buffered_messages_after_reconnection_with_sm(Config) ->
     NewConfig = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     AliceSpec = escalus_users:get_userspec(NewConfig, alice),
     BobSpec = escalus_users:get_userspec(NewConfig, bob),
-    {ok, Alice, _AliceProps, _} = escalus_connection:start(AliceSpec),
+    {ok, Alice0, AliceProps, _} = escalus_connection:start(AliceSpec),
+    JID = make_jid_from_spec(AliceProps),
+    Alice = Alice0#client{jid = JID},
     {ok, Bob, _BobProps, _} = escalus_connection:start(BobSpec),
 
     given_client_is_inactive(Alice),
@@ -118,6 +117,7 @@ alice_gets_buffered_messages_after_reconnection_with_sm(Config) ->
 
     ok.
 
+
 alice_gets_buffered_messages_after_stream_resumption(Config) ->
     ConnSteps = [start_stream,
                  stream_features,
@@ -128,8 +128,11 @@ alice_gets_buffered_messages_after_stream_resumption(Config) ->
     NewConfig = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     AliceSpec = escalus_users:get_userspec(NewConfig, alice),
     BobSpec = escalus_users:get_userspec(NewConfig, bob),
-    {ok, Alice, AliceProps, _} = escalus_connection:start(AliceSpec,
-                                                          ConnSteps),
+    {ok, Alice0, AliceProps, _} = escalus_connection:start(AliceSpec,
+                                                           ConnSteps),
+    JID = make_jid_from_spec(AliceProps),
+    Alice = Alice0#client{jid = JID},
+
     escalus_connection:send(Alice, escalus_stanza:presence(<<"available">>)),
     escalus:wait_for_stanza(Alice),
     {ok, Bob, _BobProps, _} = escalus_connection:start(BobSpec),
@@ -148,9 +151,7 @@ alice_gets_buffered_messages_after_stream_resumption(Config) ->
                      authenticate,
                      mk_resume_stream(SMID, 1)],
 
-    PrevResource = proplists:get_value(resource, AliceProps),
-    PrevSpec = [{resource, PrevResource} | AliceSpec],
-    {ok, Alice2, _AliceProps2, _} = escalus_connection:start(PrevSpec,
+    {ok, Alice2, _AliceProps2, _} = escalus_connection:start(AliceSpec,
                                                              ResumeSession),
 
     escalus_connection:send(Alice2, escalus_stanza:presence(<<"available">>)),
@@ -158,6 +159,11 @@ alice_gets_buffered_messages_after_stream_resumption(Config) ->
     then_client_receives_message(Alice2, MsgsToAlice),
 
     ok.
+
+make_jid_from_spec(AliceProps) ->
+    AliceUsername = proplists:get_value(username, AliceProps),
+    AliceServer = proplists:get_value(server, AliceProps),
+    <<AliceUsername/binary, "@", AliceServer/binary>>.
 
 mk_resume_stream(SMID, PrevH) ->
     fun (Conn, Props, Features) ->
