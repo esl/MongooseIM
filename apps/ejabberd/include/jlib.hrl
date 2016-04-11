@@ -109,6 +109,8 @@
 
 -define(NS_STREAM_MGNT_3, <<"urn:xmpp:sm:3">>).
 
+-define(NS_CSI, <<"urn:xmpp:csi:0">>).
+
 %% Erlang Solutions custom extension - token based authentication
 -define(NS_ESL_TOKEN_AUTH, <<"erlang-solutions.com:xmpp:token-auth:0">>).
 

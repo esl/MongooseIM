@@ -46,6 +46,7 @@
 {suites, "tests", vcard_simple_SUITE}.
 {suites, "tests", vcard_SUITE}.
 {suites, "tests", websockets_SUITE}.
+{suites, "tests", xep_0352_csi_SUITE}.
 
 {config, ["test.config"]}.
 {logdir, "ct_report"}.
