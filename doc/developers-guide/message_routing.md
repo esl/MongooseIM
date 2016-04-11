@@ -29,7 +29,7 @@ the same domain, the flow of the message through the system is as follows:
     domain (i.e. there is an entry in mnesia `route` table), possibly routes the stanza to it
     * `ejabberd_s2s` - tries to find or establish a connection to another server and send the stanza there
 
-    ![You should see an image here; if you don't, use plantuml to generate it from routing.uml](/doc/developers-guide/routing.png)
+    ![You should see an image here; if you don't, use plantuml to generate it from routing.uml](routing.png)
 
 5.  An external component or local route is obtaine by looking up `external_component` and `route`
     mnesia tables, respectively. Whats in there is either a fun to call or an MF to apply:
