@@ -85,7 +85,7 @@ start_link() ->
 %% and implement two functions:
 %% filter/3 - should return either 'drop' atom or its args
 %% route/3, which should either:
-%%   - deliver the message locally by calling ejabberd_local_delivery:do_local_route/3
+%%   - deliver the message locally by calling mongoose_local_delivery:do_local_route/3
 %%     and return 'done'
 %%   - deliver the message it its own way and return 'done'
 %%   - return its args
@@ -322,9 +322,9 @@ compile_routing_module() ->
     code:load_binary(Mod, "mod_routing_machine.erl", Code).
 
 make_routing_module_source(undefined) ->
-    ModList = [ejabberd_router_global,
-               ejabberd_router_external,
-               ejabberd_router_localdomain,
+    ModList = [mongoose_router_global,
+               mongoose_router_external,
+               mongoose_router_localdomain,
                ejabberd_s2s],
     make_routing_module_source(ModList);
 make_routing_module_source(Mods) ->

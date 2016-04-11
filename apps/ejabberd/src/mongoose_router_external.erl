@@ -5,7 +5,7 @@
 %%% otherwise just passes it on.
 %%% @end
 %%%-------------------------------------------------------------------
--module(ejabberd_router_external).
+-module(mongoose_router_external).
 -author("bartek").
 
 -behaviour(xmpp_router).
@@ -25,7 +25,7 @@ route(From, To, Packet) ->
         [] ->
             {From, To, Packet};
         [#external_component{handler = Handler}] ->
-            ejabberd_local_delivery:do_route(From, To, Packet,
+            mongoose_local_delivery:do_route(From, To, Packet,
                 LDstDomain, Handler),
             done
     end.

@@ -5,7 +5,7 @@
 %%% module in chain.
 %%% @end
 %%%-------------------------------------------------------------------
--module(ejabberd_router_global).
+-module(mongoose_router_global).
 -author("bartek").
 
 -behaviour(xmpp_router).

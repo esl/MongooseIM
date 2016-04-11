@@ -4,7 +4,7 @@
 %%% main routing chain if it finds a handler to direct the message to.
 %%% @end
 %%%-------------------------------------------------------------------
--module(ejabberd_local_delivery).
+-module(mongoose_local_delivery).
 -author("bartek").
 
 -include("jlib.hrl").
