@@ -1,8 +1,9 @@
 -module(mod_version).
 -behaviour(gen_mod).
--export([start/2, stop/1]).
+-export([start/2, stop/1, process_local_iq/3]).
 -include("jlib.hrl").
 -include("ejabberd.hrl").
+-xep([{xep, 92}, {version, "1.1"}]).
 
 start(Host, Opts) ->
     mod_disco:register_feature(Host, ?NS_VERSION),
@@ -19,11 +20,20 @@ process_local_iq(_From, _To, #iq{type = set, sub_el = SubEl} = IQ) ->
 
 process_local_iq(_From, _To, #iq{type = get} = IQ) ->
     {Name, Version} = mongoose_info(),
-    System = os_info().
+    IQ#iq{type = result,
+          sub_el =
+              [#xmlel{name = <<"query">>,
+                      attrs = [{<<"xmlns">>, ?NS_VERSION}],
+                      children =
+                          [#xmlel{name = <<"name">>, attrs = [],
+                                  children =[#xmlcdata{content = Name}]},
+                           #xmlel{name = <<"version">>, attrs = [],
+                                  children =[#xmlcdata{content = Version}]}]}]}.
 
 mongoose_info() ->
-    {:ok, Version} = application:get_key(mongooseim, vsn),
-    {"MongooseIM", Version}.
+    {ok, Version} = application:get_key(mongooseim, vsn),
+    {ok, Name} = application:get_key(mongooseim, description),
+    {list_to_binary(Name), list_to_binary(Version)}.
 
 os_info() ->
     {Family, Name} = os:type(),
@@ -35,9 +45,3 @@ os_info() ->
         integer_to_list(Minor) ++ "." ++
         integer_to_list(Release)
     ).
-
-
-% TODO
-% Actually return a response
-% Get more specific system name (lsb_realease, /etc/issue etc.)
-% Include system name in reponse only if specified in options
