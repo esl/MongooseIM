@@ -117,7 +117,6 @@ alice_gets_buffered_messages_after_reconnection_with_sm(Config) ->
 
     ok.
 
-
 alice_gets_buffered_messages_after_stream_resumption(Config) ->
     ConnSteps = [start_stream,
                  stream_features,
@@ -172,6 +171,7 @@ mk_resume_stream(SMID, PrevH) ->
             true = escalus_pred:is_sm_resumed(SMID, Resumed),
             {Conn, [{smid, SMID} | Props], Features}
     end.
+
 alice_gets_message_after_buffer_overflow(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         Msgs = given_client_is_inactive_and_messages_sent(Alice, Bob, ?CSI_BUFFER_MAX+5),
@@ -186,8 +186,6 @@ alice_gets_message_after_buffer_overflow(Config) ->
         %% ands gets remaining stanzas
         then_client_receives_message(Alice, Awaiting)
     end).
-
-
 
 bob_gets_msgs_from_inactive_alice(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
@@ -243,7 +241,6 @@ gen_msgs(Prefix, N) ->
 
 given_client_is_inactive(Alice) ->
     escalus:send(Alice, csi_stanza(<<"inactive">>)).
-
 
 csi_stanza(Name) ->
     #xmlel{name = Name,

@@ -870,7 +870,6 @@ do_open_session_common(JID, #state{user = U, resource = R} = NewStateData0) ->
                       privacy_list = PrivList},
                     fsm_next_state_pack(session_established,
                         NewStateData).
--define(xmlel(Name), #xmlel{name = Name}).
 
 -spec session_established(Item :: ejabberd:xml_stream_item(),
                           State :: state()) -> fsm_return().
