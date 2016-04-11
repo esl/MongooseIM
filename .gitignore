@@ -3,7 +3,6 @@
 deps
 tools/*.tar.gz
 tools/*.pyc
-tools/*.png
 apps/*/src/#*
 apps/*/src/.#*
 test/.#*
@@ -115,3 +114,8 @@ Mnesia.*
 *.pid
 tags
 TAGS
+
+*.patch
+
+*.diff
+

@@ -2,64 +2,92 @@
 -compile([export_all]).
 
 -include_lib("exml/include/exml.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 
 all() ->
-    [ success_with_module_implementing_behaviour,
-      fail_with_module_not_implementing_behaviour,
-      fail_when_do_route_crashes
-    ].
+    [ basic_routing ].
 
 init_per_suite(C) ->
-    application:start(stringprep),
+    application:ensure_all_started(stringprep),
     application:ensure_all_started(lager),
+    mnesia:start(),
+    mnesia:create_schema([node()]),
+    meck:new(ejabberd_config),
+    meck:expect(ejabberd_config, get_local_option,
+        fun(routing_modules) ->
+            [xmpp_router_a, xmpp_router_b, xmpp_router_c]
+        end),
+    application:start(exometer),
+    ejabberd_router:start_link(),
     C.
 
 end_per_suite(_C) ->
     ok.
 
-success_with_module_implementing_behaviour(_C) ->
-    meck:new(xmpp_router_correct, [non_strict]),
-    meck:expect(xmpp_router_correct, do_route,
-                fun(_From, _To, _Packet) -> ok end),
-    ok = xmpp_router:route(xmpp_router_correct,
-                           jid:from_binary(<<"ala@localhost">>),
-                           jid:from_binary(<<"bob@localhost">>),
-                           message()),
-    meck:validate(xmpp_router_correct),
-    meck:unload(xmpp_router_correct),
+basic_routing(_C) ->
+    %% module 'a' drops message 1, routes message 2, passes on everything else
+    setup_routing_module(xmpp_router_a, 1, 2),
+    %% module 'b' drops message 3, routes message 4, passes on everything else
+    setup_routing_module(xmpp_router_b, 3, 4),
+    %% module 'c' routes everything
+    setup_routing_module(xmpp_router_c, none, all),
+    %% send messages from 1 to 5
+    lists:map(fun(I) -> route(I) end, [1,2,3,4,5]),
+    meck:validate(xmpp_router_a),
+    meck:unload(xmpp_router_a),
+    meck:validate(xmpp_router_b),
+    meck:unload(xmpp_router_b),
+    meck:validate(xmpp_router_c),
+    meck:unload(xmpp_router_c),
+    %% we know that 1 and 3 should be dropped, and 2, 4 and 5 handled by a, b and c respectively
+    verify([{a, 2}, {b, 4}, {c, 5}]),
     ok.
 
-fail_with_module_not_implementing_behaviour(_C) ->
-    meck:new(xmpp_router_incorrect, [non_strict]),
-    meck:expect(xmpp_router_incorrect, no_do_route,
-                fun(_From, _To, _Packet) -> ok end),
-    meck:new(lager, [unstick, passthrough]),
-    ok = xmpp_router:route(xmpp_router_incorrect,
-                           jid:from_binary(<<"ala@localhost">>),
-                           jid:from_binary(<<"bob@localhost">>),
-                           message()),
-    meck:validate(lager),
-    meck:unload(xmpp_router_incorrect),
-    meck:unload(lager),
+setup_routing_module(Name, PacketToDrop, PacketToRoute) ->
+    meck:new(Name, [non_strict]),
+    meck:expect(Name, filter,
+        fun(From, To, Packet) ->
+            case Packet of
+                PacketToDrop -> drop;
+                _ -> {From, To, Packet}
+            end
+        end),
+    meck:expect(Name, route,
+        make_routing_fun(Name, PacketToRoute)),
     ok.
 
+make_routing_fun(Name, all) ->
+    Self = self(),
+    Marker = list_to_atom([lists:last(atom_to_list(Name))]),
+    fun(_From, _To, Packet) ->
+        Self ! {Marker, Packet},
+        done
+    end;
+make_routing_fun(Name, PacketToRoute) ->
+    Self = self(),
+    Marker = list_to_atom([lists:last(atom_to_list(Name))]),
+    fun(From, To, Packet) ->
+        case Packet of
+            PacketToRoute ->
+                Self ! {Marker, Packet},
+                done;
+            _ -> {From, To, Packet}
+        end
+    end.
 
-fail_when_do_route_crashes(_C) ->
-    meck:new(xmpp_router_crashing, [non_strict]),
-    meck:expect(xmpp_router_crashing, do_route,
-                fun(_From, _To, _Packet) -> meck:exception(error, sth_wrong) end),
-    meck:new(lager, [unstick, passthrough]),
-    ok = xmpp_router:route(xmpp_router_crashing,
-                           jid:from_binary(<<"ala@localhost">>),
-                           jid:from_binary(<<"bob@localhost">>),
-                           message()),
-    meck:validate(xmpp_router_crashing),
-    meck:validate(lager),
-    meck:unload(xmpp_router_crashing),
-    meck:unload(lager),
-    ok.
+route(I) ->
+    ok = ejabberd_router:route(jid:from_binary(<<"ala@localhost">>),
+                               jid:from_binary(<<"bob@localhost">>),
+                               I).
 
-message() ->
-    #xmlel{name = <<"message">>}.
+verify(L) ->
+    receive
+        X ->
+            ?assert(lists:member(X, L)),
+            verify(lists:delete(X, L))
+    after 1000 ->
+        ?assertEqual(L, []),
+        ct:pal("all messages routed correctly")
+    end.
 
