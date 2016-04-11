@@ -47,8 +47,7 @@ groups() ->
             join_twice,
             leave_twice]},
         {clustering_theree, [shuffle],
-            [cluster_of_theree,
-             leave_the_theree]},
+            [cluster_of_theree, leave_the_theree]},
         {ejabberdctl, [], [set_master_test]}].
 suite() ->
     require_all_nodes() ++
@@ -56,8 +55,8 @@ suite() ->
 
 require_all_nodes() ->
     [{require, mim_node, {hosts, mim, node}},
-        {require, mim_node2, {hosts, mim2, node}},
-        {require, fed_node, {hosts, fed, node}}].
+     {require, mim_node2, {hosts, mim2, node}},
+     {require, fed_node, {hosts, fed, node}}].
 
 %%--------------------------------------------------------------------
 %% Init & teardown
@@ -171,7 +170,7 @@ one_to_one_message(ConfigIn) ->
         %% Then Alice also receives it
         Stanza2 = escalus:wait_for_stanza(Alice, 5000),
         escalus:assert(is_chat_message, [<<"Oh hi!">>], Stanza2)
-                                                         end).
+    end).
 %%--------------------------------------------------------------------
 %% Ejabberdctl tests
 %%--------------------------------------------------------------------
