@@ -80,19 +80,28 @@ check_namespace(#xmlel{name = <<"iq">>, attrs = _, children = [Child]}) ->
     case Child of
         #xmlel{name = <<"query">>,
                attrs = [{<<"xmlns">>, ?NS_SOFT_VERSION}],
-               children = _}
-            -> true;
-        _   -> false
+               children = _} ->
+            true;
+        _ ->
+            false
     end;
 
 check_namespace(_) -> false.
 
-check_name_and_version_presence(#xmlel{name = <<"iq">>, attrs = _, children = Children}) ->
-    case Children of
-        [#xmlel{name = <<"name">>, attrs = [], children = [#xmlcdata{content = _}]},
-         #xmlel{name = <<"version">>, attrs = [], children = [#xmlcdata{content = _}]}]
-            -> true;
-        _   -> false
+check_name_and_version_presence(#xmlel{name = <<"iq">>, attrs = _, children = [Child]}) ->
+    case Child of
+        #xmlel{name = <<"query">>,
+               attrs = [{<<"xmlns">>, ?NS_SOFT_VERSION}],
+               children = Children} ->
+                   case Children of
+                       [#xmlel{name = <<"name">>, attrs = [], children = [#xmlcdata{content = _}]},
+                        #xmlel{name = <<"version">>, attrs = [], children = [#xmlcdata{content = _}]}] ->
+                            true;
+                        _ ->
+                            false
+                   end;
+        _ ->
+            false
     end;
 
 check_name_and_version_presence(_) -> false.
