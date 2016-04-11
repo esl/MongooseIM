@@ -5,8 +5,9 @@
 %%% otherwise just passes it on.
 %%% @end
 %%%-------------------------------------------------------------------
--module(ejabberd_router_external_localnode).
--author("bartek").
+-module(mongoose_router_external_localnode).
+-author('bartlomiej.gorny@erlang-solutions.com').
+
 
 -behaviour(xmpp_router).
 
@@ -25,7 +26,7 @@ route(From, To, Packet) ->
         [] ->
             {From, To, Packet};
         [#external_component{handler = Handler}] ->
-            ejabberd_local_delivery:do_route(From, To, Packet,
+            mongoose_local_delivery:do_route(From, To, Packet,
                 LDstDomain, Handler),
             done
     end.
