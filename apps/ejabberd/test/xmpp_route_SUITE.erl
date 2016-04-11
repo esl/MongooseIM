@@ -9,7 +9,7 @@ all() ->
     [ basic_routing ].
 
 init_per_suite(C) ->
-    application:ensure_started(stringprep),
+    application:ensure_all_started(stringprep),
     application:ensure_all_started(lager),
     mnesia:start(),
     mnesia:create_schema([node()]),
