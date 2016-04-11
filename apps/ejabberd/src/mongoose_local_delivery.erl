@@ -5,7 +5,7 @@
 %%% @end
 %%%-------------------------------------------------------------------
 -module(mongoose_local_delivery).
--author("bartek").
+-author('bartlomiej.gorny@erlang-solutions.com').
 
 -include("jlib.hrl").
 

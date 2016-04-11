@@ -5,7 +5,7 @@
 %%% @end
 %%%-------------------------------------------------------------------
 -module(mongoose_router_localdomain).
--author("bartek").
+-author('bartlomiej.gorny@erlang-solutions.com').
 
 -behaviour(xmpp_router).
 

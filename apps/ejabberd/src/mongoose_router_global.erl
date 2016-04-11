@@ -6,7 +6,7 @@
 %%% @end
 %%%-------------------------------------------------------------------
 -module(mongoose_router_global).
--author("bartek").
+-author('bartlomiej.gorny@erlang-solutions.com').
 
 -behaviour(xmpp_router).
 
