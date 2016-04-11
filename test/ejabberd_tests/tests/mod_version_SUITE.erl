@@ -58,7 +58,7 @@ version_service_discovery(Config) ->
 
 ask_for_version(Config) ->
     escalus:story(Config, [{bob, 1}], fun(Bob) ->
-        Server = escalus_users:get_server(Config, alice),
+        Server = escalus_users:get_server(Config, bob),
         ID = escalus_stanza:id(),
         SoftStanza = soft_version_stanza(Server, ID),
         escalus_client:send(Bob, SoftStanza),
