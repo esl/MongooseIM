@@ -95,7 +95,8 @@ init_per_suite(Config0) ->
                     node2_s2s_use_starttls = Node2S2SUseStartTLS},
 
     Config1 = [{s2s_opts, S2S} | escalus:init_per_suite(Config0)],
-    escalus:create_users(Config1, escalus:get_users([alice2, bob2, alice, bob])).
+    Config2 = [{escalus_user_db, xmpp} | Config1],
+    escalus:create_users(Config2, escalus:get_users([alice2, bob2, alice, bob])).
 
 end_per_suite(Config) ->
     S2SOrig = ?config(s2s_opts, Config),

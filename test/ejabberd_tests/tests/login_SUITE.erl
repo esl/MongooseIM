@@ -86,7 +86,7 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    escalus:init_per_suite(Config).
+    [{escalus_user_db, xmpp} | escalus:init_per_suite(Config)].
 
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
