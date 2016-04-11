@@ -6,22 +6,33 @@ the same domain, the flow of the message through the system is as follows:
 1.  User A's `ejabberd_receiver` receives the stanza and passes
     it to `ejabberd_c2s`.
 
-2.  Upon some minimal validation of the stanza `user_send_packet` is
+2.  Upon some minimal validation of the stanza a hook `user_send_packet` is
     called.
 
 3.  The stanza is checked against any privacy lists in use and,
     in case of being allowed, routed by `ejabberd_router:route/3`.
 
-4.  `ejabberd_router:route/3` runs the `filter_packet` hook.
-    The stanza may be dropped or modified at this point.
+4.  Further on, behaviour is configurable: `ejabberd_router:route/3` passes the stanza through
+    a chain of routing modules and applying `Mod:filter/3` and `Mod:route/3` from each of them.
+    Each of those modules has to implement `xmpp_router` behaviour. A module can choose to either:
+    * drop the stanza
+    * route the stanza
+    * pass the stanza on unchanged
+    * modify the stanza and pass the result on
 
-5.  In case of a local route, that we assumed, the stanza is passed
-    to `ejabberd_local` responsible for routing inside the local node.
+    The set of routing modules can be set in configuration as `routing_modules`. The default
+    behaviour is the following:
+    * `mongoose_router_global` - runs a global `filter_packet` hook
+    * `mongoose_router_external` - checks if there is an external component registered for the
+    destination domain, possibly routes the stanza to it
+    * `mongoose_router_localdomain` - checks if there is a local route registered for the destination
+    domain (i.e. there is an entry in mnesia `route` table), possibly routes the stanza to it
+    * `ejabberd_s2s` - tries to find or establish a connection to another server and send the stanza there
 
-    This step is hard to guess just from analyzing the code.
-    What is helpful is peeking into the `route` Mnesia table used
-    by `ejabberd_router` to determine the route:
+    ![You should see an image here; if you don't, use plantuml to generate it from routing.uml](/doc/developers-guide/routing.png)
 
+5.  An external component or local route is obtaine by looking up `external_component` and `route`
+    mnesia tables, respectively. Whats in there is either a fun to call or an MF to apply:
     ```erlang
     (ejabberd@localhost)2> ets:tab2list(route).
     [{route,<<"vjud.localhost">>,
@@ -30,9 +41,11 @@ the same domain, the flow of the message through the system is as follows:
             {apply_fun,#Fun<mod_muc.2.63726579>}},
      {route,<<"localhost">>,{apply,ejabberd_local,route}}]
     ```
-
     Here we see that for domain "localhost" the action to take
     is to call `ejabberd_local:route()`.
+    Routing the stanza there means calling `mongoose_local_delivery:do_route/5`,
+    which calls `filter_local_packet` hook and, if passed, runs the fun or applies the handler.
+    In most cases, the handler is `ejabberd_local:route/3`.
 
 6.  `ejabberd_local` routes the stanza to `ejabberd_sm` given it's
     got at least a bare JID as the recipient.
