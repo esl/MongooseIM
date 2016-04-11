@@ -3,7 +3,7 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--import(ejabberd_node_utils, [get_cwd/2]).
+-import(ejabberd_node_utils, [get_cwd/2, mim/0, mim2/0, fed/0]).
 
 -compile(export_all).
 
@@ -81,19 +81,3 @@ rpc(Node, M, F, A) ->
 rpc(Node, M, F, A, TimeOut) ->
     Cookie = ct:get_config(ejabberd_cookie),
     escalus_ct:rpc_call(Node, M, F, A, TimeOut, Cookie).
-
-get_or_fail(Key) ->
-    Val = ct:get_config(Key),
-    Val == undefined andalso error({undefined, Key}),
-    Val.
-
-
-%% MongooseIM node names
-mim() ->
-    get_or_fail({hosts, mim, node}).
-
-mim2() ->
-    get_or_fail({hosts, mim2, node}).
-
-fed() ->
-    get_or_fail({hosts, fed, node}).

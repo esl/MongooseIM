@@ -17,15 +17,15 @@
 -module(ejabberd_node_utils).
 
 -export([init/1, init/2,
-         restart_application/1, restart_application/2,
-         call_fun/3, call_fun/4,
-         call_ctl/2, call_ctl/3,
-         call_ctl_with_args/3,
-         file_exists/1, file_exists/2,
-         backup_config_file/1, backup_config_file/2,
-         restore_config_file/1, restore_config_file/2,
-         modify_config_file/2, modify_config_file/4,
-         get_cwd/2]).
+    restart_application/1, restart_application/2,
+    call_fun/3, call_fun/4,
+    call_ctl/2, call_ctl/3,
+    call_ctl_with_args/3,
+    file_exists/1, file_exists/2,
+    backup_config_file/1, backup_config_file/2,
+    restore_config_file/1, restore_config_file/2,
+    modify_config_file/2, modify_config_file/4,
+    get_cwd/2, mim/0, mim2/0, fed/0]).
 
 -include_lib("common_test/include/ct.hrl").
 
@@ -184,6 +184,19 @@ modify_config_file(Node, VarsFile, CfgVarsToChange, Config) ->
 get_cwd(Node, Config) ->
     ?CWD(Node, Config).
 
+%% MongooseIM node names
+-spec mim() -> node() | no_return().
+mim() ->
+    get_or_fail({hosts, mim, node}).
+
+-spec mim2() -> node() | no_return().
+mim2() ->
+    get_or_fail({hosts, mim2, node}).
+
+-spec fed() -> node() | no_return().
+fed() ->
+    get_or_fail({hosts, fed, node}).
+
 %%--------------------------------------------------------------------
 %% Internal functions
 %%--------------------------------------------------------------------
@@ -196,3 +209,8 @@ update_config_variables(CfgVarsToChange, CfgVars) ->
     lists:foldl(fun({Var, Val}, Acc) ->
                         lists:keystore(Var, 1, Acc,{Var, Val})
                 end, CfgVars, CfgVarsToChange).
+
+get_or_fail(Key) ->
+    Val = ct:get_config(Key),
+    Val == undefined andalso error({undefined, Key}),
+    Val.

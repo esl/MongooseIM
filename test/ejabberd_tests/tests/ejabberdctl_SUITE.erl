@@ -23,6 +23,7 @@
 
 -import(ejabberdctl_helper, [ejabberdctl/3, rpc_call/3]).
 -import(mongoose_helper, [auth_modules/0]).
+-import(ejabberd_node_utils, [mim/0]).
 
 -define(SINGLE_QUOTE_CHAR, $\').
 -define(DOUBLE_QUOTE_CHAR, $\").
@@ -114,7 +115,7 @@ init_per_suite(Config) ->
     TemplatePath = Cwd ++ "/roster.template",
     start_mod_admin_extra(),
     AuthMods = auth_modules(),
-    Node = distributed_helper:mim(),
+    Node = mim(),
     Config1 = ejabberd_node_utils:init(Node, Config),
     Config2 = escalus:init_per_suite([{ctl_auth_mods, AuthMods},
                                         {roster_template, TemplatePath} | Config1]),

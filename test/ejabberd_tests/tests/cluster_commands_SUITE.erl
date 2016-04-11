@@ -17,9 +17,10 @@
 -module(cluster_commands_SUITE).
 -compile(export_all).
 
--import(distributed_helper, [add_node_to_cluster/1, mim/0, mim2/0, fed/0, rpc/5,
+-import(distributed_helper, [add_node_to_cluster/1, rpc/5,
         remove_node_from_cluster/1, is_sm_distributed/0]).
 -import(ejabberdctl_helper, [ejabberdctl/3, rpc_call/3]).
+-import(ejabberd_node_utils, [mim/0, mim2/0, fed/0]).
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("common_test/include/ct.hrl").

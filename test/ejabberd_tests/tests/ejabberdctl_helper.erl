@@ -9,11 +9,12 @@
 -module(ejabberdctl_helper).
 -author("ludwikbukowski").
 -include_lib("escalus/include/escalus.hrl").
+-import(ejabberd_node_utils, [mim/0]).
 %% API
 -export([ejabberdctl/3, rpc_call/3]).
 
 ejabberdctl(Cmd, Args, Config) ->
-    Node = distributed_helper:mim(),
+    Node = mim(),
     CtlCmd = distributed_helper:ctl_path(Node, Config),
     run(string:join([CtlCmd, Cmd | normalize_args(Args)], " ")).
 
