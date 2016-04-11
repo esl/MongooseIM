@@ -4117,7 +4117,7 @@ tree_call({_User, Server, _Resource}, Function, Args) ->
     tree_call(Server, Function, Args);
 tree_call(Host, Function, Args) ->
     ?DEBUG("tree_call ~p ~p ~p", [Host, Function, Args]),
-    catch apply(tree(Host), Function, Args).
+    apply(tree(Host), Function, Args).
 
 tree_action(Host, Function, Args) ->
     ?DEBUG("tree_action ~p ~p ~p", [Host, Function, Args]),
