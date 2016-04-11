@@ -15,13 +15,16 @@
 -include_lib("exml/include/exml_stream.hrl").
 
 -export([
-         create_node/2, create_node/3,
-         configure_node/3,
-         delete_node/2,
-         subscribe/2, subscribe/3,
-         unsubscribe/2, unsubscribe/3,
-         publish/3, publish/4, publish/5,
-         receive_item_notification/3, receive_item_notification/4,
+         create_node/3,
+         configure_node/4,
+         delete_node/3,
+         subscribe_with_notification/4,
+         subscribe/3,
+         check_subscription_response/4,
+         unsubscribe/3,
+         check_item_notification/4,
+         publish/4,
+         receive_item_notification/4,
          receive_subscription_notification/4,
          receive_node_creation_notification/2,
          request_all_items/3,
@@ -33,118 +36,69 @@
          modify_node_subscriptions/3,
          fail_to_modify_node_subscriptions/4,
          discover_nodes/3,
-         fail_to_discover_nodes/3
+         fail_to_discover_nodes/3,
+         check_response/2
         ]).
 
 %%-----------------------------------------------------------------------------
 %% API: pubsub tools
 %%-----------------------------------------------------------------------------
 
-create_node(User, {NodeAddr, NodeName}) ->
-    create_node(User, {NodeAddr, NodeName}, []).
+%% API: Complex interactions (more than request + response)
 
-create_node(User, {NodeAddr, NodeName}, Config) ->
-    Id = <<"create1">>,
-    CreateNodeIq = escalus_pubsub_stanza:create_node_stanza(
-                       User, Id, NodeAddr, NodeName, Config),
-    escalus:send(User, CreateNodeIq),
-    receive_response(User, Id).
+subscribe_with_notification(User, {NodeAddr, NodeName}, ExpectedItemId, Options) ->
+    subscribe(User, {NodeAddr, NodeName}, [{receive_response, false}|Options]),
+    Stanza = receive_item_notification(User, ExpectedItemId, {NodeAddr, NodeName}, Options),
+    true = exml_query:subelement(Stanza, <<"delay">>) =/= undefined,
+    ResultStanza = receive_response(User, id(User, Options, <<"subscribe">>)),
+    check_subscription_response(ResultStanza, User, NodeName, Options).
 
-configure_node(User, {NodeAddr, NodeName}, Config) ->
-    Id = <<"config1">>,
-    RequestIq = escalus_pubsub_stanza:configure_node_stanza(User, Id, NodeAddr, NodeName, Config),
-    escalus:send(User, RequestIq),
-    receive_response(User, Id).
+%% API: Send request, receive (optional) response
 
-delete_node(User, {NodeAddr, NodeName}) ->
-    Id = <<"delete1">>,
-    DeleteNode = escalus_pubsub_stanza:delete_node_stanza(NodeName),
-    DeleteNodeIq = escalus_pubsub_stanza:iq_with_id(set, Id, NodeAddr, User, [DeleteNode]),
-    escalus:send(User, DeleteNodeIq),
-    receive_response(User, Id).
+create_node(User, {NodeAddr, NodeName}, Options) ->
+    Id = id(User, Options, <<"create_node">>),
+    Stanza = escalus_pubsub_stanza:create_node_stanza(
+               User, Id, NodeAddr, NodeName, proplists:get_value(config, Options, [])),
+    send_and_receive_response(User, Stanza, Id, Options).
 
-subscribe(User, {NodeAddr, NodeName}) ->
-    subscribe(User, {NodeAddr, NodeName}, []).
+configure_node(User, {NodeAddr, NodeName}, Config, Options) ->
+    Id = id(User, Options, <<"configure_node">>),
+    Stanza = escalus_pubsub_stanza:configure_node_stanza(
+               User, Id, NodeAddr, NodeName, Config),
+    send_and_receive_response(User, Stanza, Id, Options).
+
+delete_node(User, {NodeAddr, NodeName}, Options) ->
+    DeleteNodeElement = escalus_pubsub_stanza:delete_node_stanza(NodeName),
+    Id = id(User, Options, <<"delete_node">>),
+    Stanza = escalus_pubsub_stanza:iq_with_id(set, Id, NodeAddr, User, [DeleteNodeElement]),
+    send_and_receive_response(User, Stanza, Id, Options).
 
 subscribe(User, {NodeAddr, NodeName}, Options) ->
-    UserName = escalus_utils:get_username(User),
     Jid = jid(User, proplists:get_value(jid_type, Options, full)),
-    Id = <<UserName/binary, <<"binsuffix">>/binary>>,
-    Config = proplists:get_value(config, Options, []),
-    SubscribeIq = escalus_pubsub_stanza:subscribe_by_user_stanza(Jid, Id, NodeName, NodeAddr, Config),
-    escalus:send(User, SubscribeIq),
-    case proplists:get_value(expected_notification, Options) of
-        undefined ->
-            ok;
-        ExpectedItemId ->
-            Stanza = receive_item_notification(User, ExpectedItemId, {NodeAddr, NodeName}),
-            true = exml_query:subelement(Stanza, <<"delay">>) =/= undefined
-    end,
-    ResultStanza = receive_response(User, Id),
-    Subscription = exml_query:path(ResultStanza, [{element, <<"pubsub">>},
-                                                  {element, <<"subscription">>}]),
-    check_subscription(Subscription, Jid, NodeName).
+    Id = id(User, Options, <<"subscribe">>),
+    Stanza = escalus_pubsub_stanza:subscribe_by_user_stanza(
+               Jid, Id, NodeName, NodeAddr, proplists:get_value(config, Options, [])),
+    send_and_receive_response(User, Stanza, Id, Options).
 
-unsubscribe(User, {NodeAddr, NodeName}) ->
-    unsubscribe(User, {NodeAddr, NodeName}, full).
+unsubscribe(User, {NodeAddr, NodeName}, Options) ->
+    Jid = jid(User, proplists:get_value(jid_type, Options, full)),
+    Id = id(User, Options, <<"unsubscribe">>),
+    Stanza = escalus_pubsub_stanza:unsubscribe_by_user_stanza(
+               Jid, Id, NodeName, NodeAddr),
+    send_and_receive_response(User, Stanza, Id, Options).
 
-unsubscribe(User, {NodeAddr, NodeName}, JidType) ->
-    UserName = escalus_utils:get_username(User),
-    Jid = jid(User, JidType),
-    Id = <<UserName/binary, <<"binsuffix">>/binary>>,
-    UnsubscribeIq = escalus_pubsub_stanza:unsubscribe_by_user_stanza(Jid, Id, NodeName, NodeAddr),
-    escalus:send(User, UnsubscribeIq),
-    receive_response(User, Id).
-
-publish(User, ItemId, Node) ->
-    publish(User, ItemId, Node, true).
-
-publish(User, ItemId, Node, WithItem) ->
-    publish(User, ItemId, Node, WithItem, none).
-
-publish(User, ItemId, {NodeAddr, NodeName}, WithItem, ExpectedErrorType) ->
-    UserName = escalus_utils:get_username(User),
-    Id = <<UserName/binary, <<"binsuffix">>/binary>>,
-    Item = case WithItem of
+publish(User, ItemId, {NodeAddr, NodeName}, Options) ->
+    Item = case proplists:get_value(with_item, Options, true) of
                true -> item(ItemId, true);
                false -> []
            end,
-    Publish = escalus_pubsub_stanza:publish_item_stanza(NodeName, Item),
-    PublishIq = case NodeAddr of
-                    pep -> escalus_pubsub_stanza:iq_with_id(set, Id, User, [Publish]);
-                    _ -> escalus_pubsub_stanza:iq_with_id(set, Id, NodeAddr, User, [Publish])
+    PublishElem = escalus_pubsub_stanza:publish_item_stanza(NodeName, Item),
+    Id = id(User, Options, <<"publish">>),
+    Stanza = case NodeAddr of
+                    pep -> escalus_pubsub_stanza:iq_with_id(set, Id, User, [PublishElem]);
+                    _ -> escalus_pubsub_stanza:iq_with_id(set, Id, NodeAddr, User, [PublishElem])
                 end,
-    escalus:send(User, PublishIq),
-    case ExpectedErrorType of
-        none -> receive_response(User, Id);
-        _ -> receive_error_response(User, Id, ExpectedErrorType)
-    end.
-
-receive_item_notification(User, ItemId, Node) ->
-    receive_item_notification(User, ItemId, Node, true).
-
-receive_item_notification(User, ItemId, {NodeAddr, NodeName}, WithPayload) ->
-    Stanza = receive_notification(User, NodeAddr),
-    true = escalus_pred:has_type(<<"headline">>, Stanza),
-    Items = exml_query:path(Stanza, [{element, <<"event">>},
-                                     {element, <<"items">>}]),
-    check_items(Items, [ItemId], NodeName, WithPayload),
-    Stanza.
-
-receive_subscription_notification(User, JidType, Subscription, {NodeAddr, NodeName}) ->
-    Stanza = receive_notification(User, NodeAddr),
-    SubscriptionElem = exml_query:path(Stanza, [{element, <<"pubsub">>},
-                                                {element, <<"subscription">>}]),
-    Jid = jid(User, JidType),
-    Jid = exml_query:attr(SubscriptionElem, <<"jid">>),
-    Subscription = exml_query:attr(SubscriptionElem, <<"subscription">>),
-    NodeName = exml_query:attr(SubscriptionElem, <<"node">>).
-
-receive_node_creation_notification(User, {NodeAddr, NodeName}) ->
-    Stanza = receive_notification(User, NodeAddr),
-    NodeName = exml_query:path(Stanza, [{element, <<"event">>},
-                                        {element, <<"create">>},
-                                        {attr, <<"node">>}]).
+    send_and_receive_response(User, Stanza, Id, Options).
 
 request_all_items(User, ItemIds, {NodeAddr, NodeName}) ->
     Id = <<"items1">>,
@@ -216,6 +170,50 @@ fail_to_discover_nodes(User, {NodeAddr, NodeName}, ErrorType) ->
     send_child_node_discovery_request(User, Id, NodeAddr, NodeName),
     receive_error_response(User, Id, ErrorType).
 
+%% API: Receiving notifications
+
+receive_item_notification(User, ItemId, Node, Options) ->
+    Stanza = escalus:wait_for_stanza(User),
+    check_item_notification(Stanza, ItemId, Node, Options).
+
+receive_subscription_notification(User, JidType, Subscription, {NodeAddr, NodeName}) ->
+    Stanza = escalus:wait_for_stanza(User),
+    check_notification(Stanza, NodeAddr),
+    SubscriptionElem = exml_query:path(Stanza, [{element, <<"pubsub">>},
+                                                {element, <<"subscription">>}]),
+    Jid = jid(User, JidType),
+    Jid = exml_query:attr(SubscriptionElem, <<"jid">>),
+    Subscription = exml_query:attr(SubscriptionElem, <<"subscription">>),
+    NodeName = exml_query:attr(SubscriptionElem, <<"node">>).
+
+receive_node_creation_notification(User, {NodeAddr, NodeName}) ->
+    Stanza = escalus:wait_for_stanza(User),
+    check_notification(Stanza, NodeAddr),
+    NodeName = exml_query:path(Stanza, [{element, <<"event">>},
+                                        {element, <<"create">>},
+                                        {attr, <<"node">>}]).
+
+%% API: Checking incoming stanzas (notifications and responses)
+
+check_subscription_response(Stanza, User, NodeName, Options) ->
+    Jid = jid(User, proplists:get_value(jid_type, Options, full)),
+    Subscription = exml_query:path(Stanza, [{element, <<"pubsub">>},
+                                            {element, <<"subscription">>}]),
+    check_subscription(Subscription, Jid, NodeName).
+
+check_item_notification(Stanza, ItemId, {NodeAddr, NodeName}, Options) ->
+    check_notification(Stanza, NodeAddr),
+    true = escalus_pred:has_type(<<"headline">>, Stanza),
+    Items = exml_query:path(Stanza, [{element, <<"event">>},
+                                     {element, <<"items">>}]),
+    check_items(Items, [ItemId], NodeName, proplists:get_value(with_payload, Options, true)),
+    Stanza.
+
+check_response(ResultStanza, Id) ->
+    true = escalus_pred:is_iq_result(ResultStanza),
+    Id = exml_query:attr(ResultStanza, <<"id">>),
+    ResultStanza.
+
 %%-----------------------------------------------------------------------------
 %% Specific request/response helper functions
 %%-----------------------------------------------------------------------------
@@ -264,16 +262,19 @@ receive_node_discovery_response(User, Id, NodeAddr, NodeName, ExpectedNodes) ->
 %% Internal functions
 %%-----------------------------------------------------------------------------
 
-receive_notification(User, NodeAddr) ->
-    Stanza = escalus:wait_for_stanza(User),
+check_notification(Stanza, NodeAddr) ->
     true = escalus_pred:is_stanza_from(NodeAddr, Stanza),
     true = escalus_pred:is_message(Stanza),
     Stanza.
 
 receive_response(User, Id) ->
     ResultStanza = escalus:wait_for_stanza(User),
-    true = escalus_pred:is_iq_result(ResultStanza),
-    Id = exml_query:attr(ResultStanza, <<"id">>),
+    check_response(ResultStanza, Id),
+    ResultStanza.
+
+receive_response(User, Id, Timeout) ->
+    ResultStanza = escalus:wait_for_stanza(User, Timeout),
+    check_response(ResultStanza, Id),
     ResultStanza.
 
 receive_error_response(User, Id, Type) ->
@@ -307,3 +308,16 @@ fill_subscriptions_jids(Subscriptions) ->
 
 jid(User, full) -> escalus_utils:get_jid(User);
 jid(User, bare) -> escalus_utils:get_short_jid(User).
+
+id(User, Options, DefaultSuffix) ->
+    UserName = escalus_utils:get_username(User),
+    proplists:get_value(id, Options, <<UserName/binary, "-", DefaultSuffix/binary>>).
+
+send_and_receive_response(User, Stanza, Id, Options) ->
+    escalus:send(User, Stanza),
+    case {proplists:get_value(receive_response, Options, true),
+          proplists:get_value(expected_error_type, Options, none)} of
+        {false, _} -> ok;
+        {true, none} -> receive_response(User, Id, proplists:get_value(response_timeout, Options, 1000));
+        {true, ExpectedErrorType} -> receive_error_response(User, Id, ExpectedErrorType)
+    end.

@@ -99,7 +99,7 @@ publish_test(Config) ->
       [{alice,1}],
       fun(Alice) ->
               %% Account owner publishes item (chap. 3, ex. 6)
-              pubsub_tools:publish(Alice, <<"item1">>, {pep, ?NS_USER_TUNE})
+              pubsub_tools:publish(Alice, <<"item1">>, {pep, ?NS_USER_TUNE}, [])
       end).
 
 notify_test(Config) ->
@@ -108,11 +108,11 @@ notify_test(Config) ->
       [{alice,1}, {bob,1}],
       fun(Alice, Bob) ->
               pubsub_tools:receive_item_notification(
-                Bob, <<"item1">>, {escalus_utils:get_short_jid(Alice), ?NS_USER_TUNE}),
+                Bob, <<"item1">>, {escalus_utils:get_short_jid(Alice), ?NS_USER_TUNE}, []),
 
-              pubsub_tools:publish(Alice, <<"item2">>, {pep, ?NS_USER_TUNE}),
+              pubsub_tools:publish(Alice, <<"item2">>, {pep, ?NS_USER_TUNE}, []),
               pubsub_tools:receive_item_notification(
-                Bob, <<"item2">>, {escalus_utils:get_short_jid(Alice), ?NS_USER_TUNE})
+                Bob, <<"item2">>, {escalus_utils:get_short_jid(Alice), ?NS_USER_TUNE}, [])
       end).
 
 send_caps_after_login_test(Config) ->
@@ -125,7 +125,7 @@ send_caps_after_login_test(Config) ->
               receive_presence_with_caps(Alice, Bob, Caps),
 
               pubsub_tools:receive_item_notification(
-                Bob, <<"item2">>, {escalus_utils:get_short_jid(Alice), ?NS_USER_TUNE})
+                Bob, <<"item2">>, {escalus_utils:get_short_jid(Alice), ?NS_USER_TUNE}, [])
       end).
 
 %%-----------------------------------------------------------------
