@@ -55,15 +55,15 @@
 
 -record(state, {}).
 
--type handler() :: 'undefined'
-| {'apply_fun',fun((_,_,_) -> any())}
-| {'apply', M::atom(), F::atom()}.
+-type handler() :: undefined
+                 | {apply_fun,fun((_,_,_) -> any())}
+                 | {apply, M::atom(), F::atom()}.
 -type domain() :: binary().
 
 -type route() :: #route{domain :: domain(),
-                         handler :: handler()}.
+                        handler :: handler()}.
 -type external_component() :: #external_component{domain :: domain(),
-                         handler :: handler()}.
+                                                  handler :: handler()}.
 
 
 %%====================================================================
