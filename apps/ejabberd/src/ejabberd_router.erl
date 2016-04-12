@@ -39,9 +39,15 @@
          dirty_get_all_routes/0,
          dirty_get_all_domains/0,
          register_components/1,
+         register_components/2,
          register_component/1,
+         register_component/2,
+         lookup_component/1,
+         lookup_component/2,
          unregister_component/1,
-         unregister_components/1
+         unregister_component/2,
+         unregister_components/1,
+         unregister_components/2
         ]).
 
 -export([start_link/0]).
@@ -118,10 +124,14 @@ route_error(From, To, ErrPacket, OrigPacket) ->
 
 -spec register_components([Domain :: domain()]) -> ok | {error, any()}.
 register_components(Domains) ->
+    register_components(Domains, node()).
+
+-spec register_components([Domain :: domain()], Node :: node()) -> ok | {error, any()}.
+register_components(Domains, Node) ->
     LDomains = [{jid:nameprep(Domain), Domain} || Domain <- Domains],
     Handler = make_handler(undefined),
     F = fun() ->
-            [do_register_component(LDomain, Handler) || LDomain <- LDomains],
+            [do_register_component(LDomain, Handler, Node) || LDomain <- LDomains],
             ok
     end,
     case mnesia:transaction(F) of
@@ -129,39 +139,117 @@ register_components(Domains) ->
         {aborted, Reason} -> {error, Reason}
     end.
 
+%% @doc
+%% components are registered in two places: external_components table as local components
+%% and external_components_global as globals. Registration should be done by register_component/1
+%% or register_components/1, which registers them for current node; the arity 2 funcs are
+%% here for testing.
 -spec register_component(Domain :: domain()) -> ok | {error, any()}.
 register_component(Domain) ->
-    register_components([Domain]).
+    register_components([Domain], node()).
 
-do_register_component({error, Domain}, _Handler) ->
+-spec register_component(Domain :: domain(), Node :: node()) -> ok | {error, any()}.
+register_component(Domain, Node) ->
+    register_components([Domain], Node).
+
+do_register_component({error, Domain}, _Handler, _Node) ->
     error({invalid_domain, Domain});
-do_register_component({LDomain, _}, Handler) ->
-    Component = #external_component{domain = LDomain, handler = Handler},
-    case {mnesia:read(route, LDomain),
-          mnesia:read(external_component, LDomain)} of
-        {[], []} ->
-            ok = mnesia:write(Component);
-        _ ->
-            mnesia:abort(route_already_exists)
+do_register_component({LDomain, _}, Handler, Node) ->
+    case check_component(LDomain, Node) of
+        ok ->
+            ComponentGlobal = #external_component{domain = LDomain, handler = Handler, node = Node},
+            mnesia:write(external_component_global, ComponentGlobal, write),
+            NDomain = {LDomain, Node},
+            Component = #external_component{domain = NDomain, handler = Handler, node = Node},
+            mnesia:write(Component);
+        _ -> mnesia:abort(route_already_exists)
     end.
+
+check_component(LDomain, Node) ->
+    check_component(route, LDomain, Node).
+
+check_component(route, LDomain, Node) ->
+    %% check that route for this domain is not already registered
+    case mnesia:read(route, LDomain) of
+        [] ->
+            check_component(external_comp_local, LDomain, Node);
+        _ ->
+            false
+    end;
+check_component(external_comp_local, LDomain, Node) ->
+    %% check that there is no local component for domain:node pair
+    NDomain = {LDomain, Node},
+    case mnesia:read(external_component, NDomain) of
+        [] ->
+            check_component(external_comp_global, LDomain, Node);
+        _ ->
+            false
+    end;
+check_component(external_comp_global, LDomain, Node) ->
+    %% check that there is no component registered globally for this node
+    case get_global_component(LDomain, Node) of
+        undefined ->
+            ok;
+        _ ->
+            false
+    end.
+
+get_global_component([], _) ->
+    %% Find a component registered globally for this node (internal use)
+    undefined;
+get_global_component([Comp|Tail], Node) ->
+    case Comp of
+        #external_component{node = Node} ->
+            Comp;
+        _ ->
+            get_global_component(Tail, Node)
+    end;
+get_global_component(LDomain, Node) ->
+    get_global_component(mnesia:read(external_component_global, LDomain), Node).
+
 
 -spec unregister_components([Domains :: domain()]) -> {atomic, ok}.
 unregister_components(Domains) ->
+    unregister_components(Domains, node()).
+-spec unregister_components([Domains :: domain()], Node :: node()) -> {atomic, ok}.
+unregister_components(Domains, Node) ->
     LDomains = [{jid:nameprep(Domain), Domain} || Domain <- Domains],
     F = fun() ->
-            [do_unregister_component(LDomain) || LDomain <- LDomains],
+            [do_unregister_component(LDomain, Node) || LDomain <- LDomains],
             ok
     end,
     {atomic, ok} = mnesia:transaction(F).
 
-do_unregister_component({error, Domain}) ->
+do_unregister_component({error, Domain}, _Node) ->
     error({invalid_domain, Domain});
-do_unregister_component({LDomain, _}) ->
-    ok = mnesia:delete({external_component, LDomain}).
+do_unregister_component({LDomain, _}, Node) ->
+    case get_global_component(LDomain, Node) of
+        undefined ->
+            ok;
+        Comp ->
+            ok = mnesia:delete_object(external_component_global, Comp, write)
+    end,
+    ok = mnesia:delete({external_component, {LDomain, Node}}).
 
 -spec unregister_component(Domain :: domain()) -> {atomic, ok}.
 unregister_component(Domain) ->
     unregister_components([Domain]).
+
+-spec unregister_component(Domain :: domain(), Node :: node()) -> {atomic, ok}.
+unregister_component(Domain, Node) ->
+    unregister_components([Domain], Node).
+
+%% @doc Returns a list of components registered for this domain by any node,
+%% the choice is yours.
+-spec lookup_component(Domain :: domain()) -> [handler()].
+lookup_component(Domain) ->
+    mnesia:dirty_read(external_component_global, Domain).
+
+%% @doc Returns a list of components registered for this domain at the given node.
+%% (must be only one, or nothing)
+-spec lookup_component(Domain :: domain(), Node :: node()) -> [handler()].
+lookup_component(Domain, Node) ->
+    mnesia:dirty_read(external_component, {Domain, Node}).
 
 -spec register_route(Domain :: domain()) -> any().
 register_route(Domain) ->
@@ -221,7 +309,7 @@ dirty_get_all_domains() ->
     lists:usort(all_routes()).
 
 all_routes() ->
-    mnesia:dirty_all_keys(route) ++ mnesia:dirty_all_keys(external_component).
+    mnesia:dirty_all_keys(route) ++ mnesia:dirty_all_keys(external_component_global).
 
 
 %%====================================================================
@@ -238,18 +326,19 @@ all_routes() ->
 init([]) ->
     update_tables(),
     mnesia:create_table(route,
-                        [{ram_copies, [node()]},
-                         {type, set},
-                         {attributes, record_info(fields, route)},
+                        [{attributes, record_info(fields, route)},
                          {local_content, true}]),
     mnesia:add_table_copy(route, node(), ram_copies),
 
     %% add distributed service_component routes
     mnesia:create_table(external_component,
-                        [{ram_copies, [node()]},
-                         {attributes, record_info(fields, external_component)},
-                         {type, set}]),
-    mnesia:add_table_copy(external_component, node(), ram_copies),
+                        [{attributes, record_info(fields, external_component)},
+                         {local_content, true}]),
+    mnesia:create_table(external_component_global,
+                        [{attributes, record_info(fields, external_component)},
+                         {type, bag},
+                         {record_name, external_component}]),
+    mnesia:add_table_copy(external_component_global, node(), ram_copies),
     compile_routing_module(),
     mongoose_metrics:ensure_metric([global, routingErrors], spiral),
 
@@ -326,9 +415,10 @@ compile_routing_module() ->
 
 default_routing_modules() ->
     [mongoose_router_global,
-    mongoose_router_external,
-    mongoose_router_localdomain,
-    ejabberd_s2s].
+     mongoose_router_external_localnode,
+     mongoose_router_external,
+     mongoose_router_localdomain,
+     ejabberd_s2s].
 
 make_routing_module_source(Mods) ->
     binary_to_list(iolist_to_binary(io_lib:format(
