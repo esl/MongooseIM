@@ -10,7 +10,7 @@ all() ->
     [ registering, registering_with_local ].
 
 init_per_suite(C) ->
-    application:start(p1_stringprep),
+    application:ensure_all_started(stringprep),
     application:ensure_all_started(lager),
     mnesia:start(),
     mnesia:create_schema([node()]),
@@ -19,7 +19,7 @@ init_per_suite(C) ->
         fun(routing_modules) ->
             [xmpp_router_a, xmpp_router_b, xmpp_router_c]
         end),
-    application:start(exometer),
+    application:ensure_all_started(exometer),
     ejabberd_router:start_link(),
     C.
 
