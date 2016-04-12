@@ -7,15 +7,17 @@ This release includes:
 - token based authentication [#640](https://github.com/esl/MongooseIM/pull/640)
 - support for FIPS mode [#628](https://github.com/esl/MongooseIM/pull/628)
 - reverse Proxy [#628](https://github.com/esl/MongooseIM/pull/638)
-- extra routing layer [#639](https://github.com/esl/MongooseIM/pull/639)
+- improved routing layer [#639](https://github.com/esl/MongooseIM/pull/639), [#729](https://github.com/esl/MongooseIM/pull/729)
 - fix for TCP backlog setting [#708](https://github.com/esl/MongooseIM/pull/708)
+- new XMPP extenstions:
+   - [XEP-0352: Client State IndicationXEP-0352](https://xmpp.org/extensions/xep-0352.html) [#703](https://github.com/esl/MongooseIM/pull/703)
 - external components improvements:
    - [#640](https://github.com/esl/MongooseIM/pull/640)
 - parallelized tests:
    - [#706](https://github.com/esl/MongooseIM/pull/706)
 - other improvements:
    - carbon copies data optimisation [#700](https://github.com/esl/MongooseIM/pull/700)
-   - update deps [#705](https://github.com/esl/MongooseIM/pull/705) and exometer 1.2
+   - update deps [#705](https://github.com/esl/MongooseIM/pull/705) and exometer 1.2 TODO add PR after mergin rel-1.7 to master
    - dialyzer checks on travis [#677](https://github.com/esl/MongooseIM/pull/677)
    - docker image building on travis [#710](https://github.com/esl/MongooseIM/pull/710)
 
