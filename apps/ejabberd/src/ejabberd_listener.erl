@@ -397,7 +397,7 @@ stop_listeners() ->
     Ports = ejabberd_config:get_local_option(listen),
     lists:foreach(
       fun({PortIpNetp, Module, _Opts}) ->
-              delete_listener(PortIpNetp, Module)
+              stop_listener(PortIpNetp, Module)
       end,
       Ports).
 
@@ -444,6 +444,7 @@ delete_listener(PortIPProto, Module) ->
                       Opts :: [listener_option()])
       -> 'ok' | {'error','not_found' | 'restarting' | 'running' | 'simple_one_for_one'}.
 delete_listener(PortIPProto, Module, Opts) ->
+%%    this one stops a listener and deletes it from configuration, used while reloading config
     {Port, IPT, _, _, Proto, _} = parse_listener_portip(PortIPProto, Opts),
     PortIP1 = {Port, IPT, Proto},
     Ports = case ejabberd_config:get_local_option(listen) of
