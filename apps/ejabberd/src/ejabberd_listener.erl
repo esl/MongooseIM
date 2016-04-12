@@ -55,7 +55,6 @@ start_link() ->
 
 
 init(_) ->
-    ets:new(listen_sockets, [named_table, public]),
     %bind_tcp_ports(),
     {ok, {{one_for_one, 10, 1}, []}}.
 
@@ -167,30 +166,22 @@ init_tcp(PortIPProto, Module, Opts, SockOpts, Port, IPS) ->
                  Port :: inet:port_number(),
                  IPS :: [any()]) -> port().
 listen_tcp(PortIPProto, Module, SockOpts, Port, IPS) ->
-    case ets:lookup(listen_sockets, PortIPProto) of
-        [{PortIP, ListenSocket}] ->
-            ?INFO_MSG("Reusing listening port for ~p", [Port]),
-            ets:delete(listen_sockets, PortIP),
+    DefaultSockOpts = [binary,
+                       {backlog, 100},
+                       {packet, 0},
+                       {active, false},
+                       {reuseaddr, true},
+                       {nodelay, true},
+                       {send_timeout, 120},
+                       {keepalive, true},
+                       {send_timeout_close, true}],
+    FinalSockOpts = override_sock_opts(SockOpts, DefaultSockOpts),
+    Res = gen_tcp:listen(Port, FinalSockOpts),
+    case Res of
+        {ok, ListenSocket} ->
             ListenSocket;
-        _ ->
-            DefaultSockOpts = [binary,
-                               {backlog, 100},
-                               {packet, 0},
-                               {active, false},
-                               {reuseaddr, true},
-                               {nodelay, true},
-                               {send_timeout, 120},
-                               {keepalive, true},
-                               {send_timeout_close, true}],
-
-            FinalSockOpts = override_sock_opts(SockOpts, DefaultSockOpts),
-            Res = gen_tcp:listen(Port, FinalSockOpts),
-            case Res of
-                {ok, ListenSocket} ->
-                    ListenSocket;
-                {error, Reason} ->
-                    socket_error(Reason, PortIPProto, Module, SockOpts, Port, IPS)
-            end
+        {error, Reason} ->
+            socket_error(Reason, PortIPProto, Module, SockOpts, Port, IPS)
     end.
 
 override_sock_opts([], Opts) ->
@@ -413,14 +404,7 @@ stop_listeners() ->
 -spec stop_listener(PortIPProto :: port_ip_proto(),
                     Module :: atom())
       -> 'ok' | {'error','not_found' | 'restarting' | 'running' | 'simple_one_for_one'}.
-stop_listener(PortIPProto, _Module) ->
-    case ets:match(listen_sockets, {PortIPProto,'$1'}) of
-        [[Socket]] ->
-            true = ets:delete_object(listen_sockets, {PortIPProto, Socket}),
-            ok = gen_tcp:close(Socket);
-        _ ->
-            ok
-    end,
+stop_listener(PortIPProto, Module) ->
     supervisor:terminate_child(ejabberd_listeners, PortIPProto),
     supervisor:delete_child(ejabberd_listeners, PortIPProto).
 
