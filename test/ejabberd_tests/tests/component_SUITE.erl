@@ -187,7 +187,7 @@ try_registering_with_wrong_password(Config) ->
         {Comp, _Addr, _} = connect_component(CompOpts2),
         ok = escalus_connection:stop(Comp),
         ct:fail("component connected successfully with wrong password")
-    catch error:{badmatch, _} ->
+    catch {stream_error, E} ->
         %% Then it should fail to do so
         ok
     end.
@@ -202,7 +202,7 @@ try_registering_component_twice(Config) ->
         {Comp2, Addr, _} = connect_component(CompOpts1),
         ok = escalus_connection:stop(Comp2),
         ct:fail("second component connected successfully")
-    catch error:{badmatch, _} ->
+    catch {stream_error, _} ->
         %% Then it should fail to do so
         ok
     end,
@@ -218,7 +218,7 @@ try_registering_existing_host(Config) ->
         {Comp, _Addr, _} = connect_component(Component),
         ok = escalus_connection:stop(Comp),
         ct:fail("muc component connected successfully")
-    catch error:{badmatch, _} ->
+    catch {stream_error, _} ->
         %% Then it should fail since muc service already exists on the server
         ok
     end.
@@ -354,13 +354,24 @@ connect_component_subdomain(Component) ->
     connect_component(Component, component_start_stream_subdomain).
 
 connect_component(ComponentOpts, StartStep) ->
-    {ok, Component, _, _} = escalus_connection:start(ComponentOpts,
+    Res = escalus_connection:start(ComponentOpts,
                                                      [{?MODULE, StartStep},
                                                       {?MODULE, component_handshake}]),
-    {component, ComponentName} = lists:keyfind(component, 1, ComponentOpts),
-    {host, ComponentHost} = lists:keyfind(host, 1, ComponentOpts),
-    ComponentAddr = <<ComponentName/binary, ".", ComponentHost/binary>>,
-    {Component, ComponentAddr, ComponentName}.
+    case Res of
+    {ok, Component, _, _} ->
+        {component, ComponentName} = lists:keyfind(component, 1, ComponentOpts),
+        {host, ComponentHost} = lists:keyfind(host, 1, ComponentOpts),
+        ComponentAddr = <<ComponentName/binary, ".", ComponentHost/binary>>,
+        {Component, ComponentAddr, ComponentName};
+    {error, E} ->
+        throw(cook_connection_step_error(E))
+    end.
+
+cook_connection_step_error(E) ->
+    {connection_step_failed, Step, Reason} = E,
+    {StepDef, _, _, _} = Step,
+    {EDef, _} = Reason,
+    {EDef, StepDef}.
 
 add_domain(Config) ->
     Node = default_node(Config),
@@ -413,9 +424,13 @@ component_handshake(Conn, Props, []) ->
     ok = escalus_connection:send(Conn, Handshake),
 
     HandshakeRep = escalus_connection:get_stanza(Conn, handshake),
-    #xmlel{name = <<"handshake">>, children = []} = HandshakeRep,
+    case HandshakeRep of
+        #xmlel{name = <<"handshake">>, children = []} ->
+            {Conn, Props, []};
+        #xmlel{name = <<"stream:error">>} ->
+            throw({stream_error, HandshakeRep})
+    end.
 
-    {Conn, Props, []}.
 
 %%--------------------------------------------------------------------
 %% Stanzas

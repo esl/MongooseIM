@@ -44,7 +44,7 @@ start(normal, _Args) ->
     mongoose_fips:notify(),
     write_pid_file(),
     db_init(),
-    application:start(p1_cache_tab),
+    application:start(cache_tab),
 
     load_drivers([tls_drv]),
     translate:start(),

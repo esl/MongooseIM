@@ -27,13 +27,13 @@
 -author('alexey@process-one.net').
 
 -behaviour(gen_server).
--behaviour(xmpp_router).
 
 %% API
 -export([start_link/0,
          route/3,
          open_session/5, open_session/6,
          close_session/5,
+         store_info/4,
          check_in_subscription/6,
          bounce_offline_message/3,
          disconnect_removed_user/2,
@@ -55,7 +55,8 @@
          get_session_pid/3,
          get_session/3,
          get_session_ip/3,
-         get_user_present_resources/2
+         get_user_present_resources/2,
+         get_raw_sessions/2
         ]).
 
 %% Hook handlers
@@ -66,6 +67,7 @@
          terminate/2, code_change/3]).
 
 %% xmpp_router callback
+-export([do_filter/3]).
 -export([do_route/3]).
 
 -include("ejabberd.hrl").
@@ -125,7 +127,14 @@ start_link() ->
       To :: ejabberd:jid(),
       Packet :: jlib:xmlel() | ejabberd_c2s:broadcast().
 route(From, To, Packet) ->
-    xmpp_router:route(?MODULE, From, To, Packet).
+    case (catch do_route(From, To, Packet)) of
+        {'EXIT', Reason} ->
+            ?ERROR_MSG("error when routing from=~ts to=~ts in module=~p, reason=~p, packet=~ts, stack_trace=~p",
+                [jid:to_binary(From), jid:to_binary(To),
+                    ?MODULE, Reason, exml:to_binary(Packet),
+                    erlang:get_stacktrace()]);
+        _ -> ok
+    end.
 
 -spec open_session(SID, User, Server, Resource, Info) -> ok when
       SID :: 'undefined' | sid(),
@@ -171,6 +180,16 @@ close_session(SID, User, Server, Resource, Reason) ->
     ejabberd_hooks:run(sm_remove_connection_hook, JID#jid.lserver,
                        [SID, JID, Info, Reason]).
 
+-spec store_info(ejabberd:user(), ejabberd:server(), ejabberd:resource(),
+                 {any(), any()}) -> {ok, {any(), any()}} | {error, offline}.
+store_info(User, Server, Resource, {Key, _Value} = KV) ->
+    case get_session(User, Server, Resource) of
+        offline -> {error, offline};
+        {_SUser,SID,SPriority,SInfo} ->
+            set_session(SID, User, Server, Resource, SPriority,
+                        lists:keystore(Key, 1, SInfo, KV)),
+            {ok, KV}
+    end.
 
 -spec check_in_subscription(Acc, User, Server, JID, Type, Reason) -> any() | {stop, false} when
       Acc :: any(),
@@ -252,7 +271,10 @@ get_session(User, Server, Resource) ->
              Session#session.priority,
              Session#session.info}
     end.
-
+-spec get_raw_sessions(ejabberd:user(), ejabberd:server()) -> [#session{}].
+get_raw_sessions(User, Server) ->
+    clean_session_list(
+      ?SM_BACKEND:get_sessions(jid:nodeprep(User), jid:nameprep(Server))).
 
 -spec set_presence(SID, User, Server, Resource, Prio, Presence, Info) -> ok when
       SID :: 'undefined' | sid(),
@@ -440,7 +462,7 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 -spec handle_info(_,_) -> {'noreply',_}.
 handle_info({route, From, To, Packet}, State) ->
-    xmpp_router:route(?MODULE,From,To,Packet),
+    route(From, To, Packet),
     {noreply, State};
 handle_info({register_iq_handler, Host, XMLNS, Module, Function}, State) ->
     ets:insert(sm_iqtable, {{XMLNS, Host}, Module, Function}),
@@ -504,6 +526,9 @@ set_session(SID, User, Server, Resource, Priority, Info) ->
     ?SM_BACKEND:create_session(LUser, LServer, LResource, Session).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+do_filter(From, To, Packet) ->
+    {From, To, Packet}.
 
 -spec do_route(From, To, Packet) -> ok when
       From :: ejabberd:jid(),
@@ -935,4 +960,3 @@ get_cached_unique_count() ->
         _ ->
             0
     end.
-

@@ -34,6 +34,8 @@ All metrics are divided into following groups:
 | mam_lookup_messages | spiral | host, hook | |
 | mam_muc_purge_multiple_message | spiral | host, hook | |
 | mam_purge_multiple_message | spiral | host, hook | |
+| modCSIInactive | spiral | host, XMPP | Number of transitions into inactive state |
+| modCSIActive | spiral | host, XMPP | Number of transitions into active state |
 | modMamArchiveRemoved | spiral | host, XMPP | |
 | modMamArchived | spiral | host, XMPP | |
 | modMamDropped | spiral | host, XMPP | |

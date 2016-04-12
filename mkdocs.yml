@@ -26,6 +26,7 @@ pages:
       - 'mod_auth_token': 'modules/mod_auth_token.md'
       - 'mod_bosh': 'modules/mod_bosh.md'
       - 'mod_carboncopy': 'modules/mod_carboncopy.md'
+      - 'mod_csi': 'modules/mod_csi.md'
       - 'mod_disco': 'modules/mod_disco.md'
       - 'mod_keystore': 'modules/mod_keystore.md'
       - 'mod_last': 'modules/mod_last.md'

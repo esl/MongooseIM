@@ -1,23 +1,25 @@
+%%%-------------------------------------------------------------------
+%%% @doc
+%%% A behaviour which should be used by all modules being used in a
+%%% routing pipeline. The pipeline, manage by ejabberd_router:route
+%%% func, calls filter and route for each successful module.
+%%%
+%%% Module has to implement both functions, can be a no-op just returning
+%%% a tuple of its args.
+%%% @end
+%%%-------------------------------------------------------------------
 -module(xmpp_router).
--export([route/4]).
 
 -include("ejabberd.hrl").
 
 
--callback do_route(From :: ejabberd:jid(), To :: ejabberd:jid(),
-                   Packet :: jlib:xmlel()) -> ok.
+-callback route(From :: ejabberd:jid(), To :: ejabberd:jid(),
+                   Packet :: jlib:xmlel()) ->
+    done | {ejabberd:jid(), ejabberd:jid(), jlib:xmlel()}.
 
--spec route(Module :: module(),
-            From :: ejabberd:jid(),
-            To :: ejabberd:jid(),
-            Packet :: jlib:xmlel() | ejabberd_c2s:broadcast()) -> ok.
-route(Module,From,To,Packet) ->
-    case (catch Module:do_route(From,To,Packet)) of
-        {'EXIT', Reason} ->
-            ?ERROR_MSG("error when routing from=~ts to=~ts in module=~p, reason=~p, packet=~ts, stack_trace=~p",
-                       [jid:to_binary(From), jid:to_binary(To),
-                        Module, Reason, exml:to_binary(Packet),
-                        erlang:get_stacktrace()]);
-        _ -> ok
-    end.
+-callback filter(From :: ejabberd:jid(), To :: ejabberd:jid(),
+    Packet :: jlib:xmlel()) ->
+    drop | {ejabberd:jid(), ejabberd:jid(), jlib:xmlel()}.
+
+
 

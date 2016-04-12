@@ -215,7 +215,8 @@ wait_for_handshake({xmlstreamelement, El}, StateData) ->
                         ok ->
                             send_text(StateData, <<"<handshake/>">>),
                             {next_state, stream_established, StateData};
-                        {error, _Reason} ->
+                        {error, Reason} ->
+                            ?ERROR_MSG("Error in component handshake: ~p", [Reason]),
                             send_text(StateData, ?CONFLICT_ERR),
                             {stop, normal, StateData}
                     end;
