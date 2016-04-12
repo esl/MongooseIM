@@ -9,7 +9,10 @@
 
 -import(ejabberd_helper, [start_ejabberd/1,
                           stop_ejabberd/0,
-                          use_config_file/2]).
+                          use_config_file/2,
+                          copy/2,
+                          data/2,
+                          suite_priv/2]).
 
 all() ->
     [smoke,
@@ -153,9 +156,6 @@ coalesced_modules_section() ->
     [{{modules,<<"localhost">>}, [{mod_adhoc,[]},
                                   {mod_offline,[]}]}].
 
-copy(Src, Dst) ->
-    {ok, _} = file:copy(Src, Dst).
-
 get_module_pid(ModuleProcName) ->
     %% We can't generate the proc name here using gen_mod:get_module_proc/2
     %% from an XMPP domain and a module name,
@@ -167,31 +167,7 @@ get_module_pid(ModuleProcName) ->
      ModulePid, _, _} = lists:keyfind(ModuleProcName, 1, EjabberdProcesses),
     {ModuleProcName, ModulePid}.
 
-data(Config, Path) ->
-    rel(Config, data_dir, Path).
 
-%% This is the private config of a particular testcase and run, i.e.
-%% .../mongooseim/apps/ejabberd/logs/ct_run.test@x4.local.2014-10-08_16.33.48/apps.ejabberd.ejabberd_config_SUITE.split_config.logs/run.2014-10-08_16.33.48/log_private/
-priv(Config, Path) ->
-    rel(Config, priv_dir, Path).
-
-rel(Config, To, Path) ->
-    Dir = proplists:get_value(To, Config),
-    filename:join([Dir, Path]).
-
-%% This is the suite-level private config for a test run.
-%% .../mongooseim/apps/ejabberd/logs/ct_run.test@x4.local.2014-10-08_16.33.48/log_private/
-suite_priv(Config, PathSuffix) ->
-    Dir = proplists:get_value(priv_dir, Config),
-    FourDirsUp = lists:foldl(fun (_, Path) -> filename:dirname(Path) end,
-                             Dir, lists:seq(1,4)),
-    %% filename:join/1 strips trailing slashes... cool, ain't it?
-    preserve_trailing_slash(lists:last(PathSuffix),
-                            filename:join([FourDirsUp, "log_private",
-                                           PathSuffix])).
-
-preserve_trailing_slash($/, Path) -> Path ++ [$/];
-preserve_trailing_slash(__, Path) -> Path.
 
 times(N, E) -> times(N, E, []).
 
