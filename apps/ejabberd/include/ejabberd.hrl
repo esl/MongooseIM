@@ -72,4 +72,4 @@
 
 -record(route, {domain, handler}).
 
--record(external_component, {domain, handler}).
+-record(external_component, {domain, handler, node}).
