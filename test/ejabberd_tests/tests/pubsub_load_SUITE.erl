@@ -36,7 +36,12 @@ suite() ->
 %% Init & teardown
 %%--------------------------------------------------------------------
 
--define(NUM_USERS, 2).
+-define(NUM_USERS, 100).
+-define(MAX_SUBSCRIBER_ID, 50).
+-define(DELAY_BETWEEN_MESSAGES, 1000).
+-define(INTERARRIVAL, 30).
+-define(SUBSCRIBER_LOGIN_TIME, (?INTERARRIVAL * ?MAX_SUBSCRIBER_ID)).
+-define(WAIT_FOR_STANZA_TIME, 10000).
 
 init_per_suite(Config) ->
     Config1 = dynamic_modules:save_modules(?HOST, Config),
@@ -61,7 +66,7 @@ end_per_testcase(TC, Config) ->
     unregister(tc_master).
 
 pubsub_load_test(_Config) ->
-    Ids = [1, 2],
+    Ids = lists:seq(1, ?NUM_USERS),
     amoc_local:do(?MODULE, hd(Ids), lists:last(Ids)),
     Monitors = [monitor_user(Id) || Id <- Ids],
     wait_until_finished(Monitors),
@@ -92,6 +97,7 @@ monitor_user(Id) ->
 -spec init() -> ok.
 init() ->
     application:set_env(amoc, repeat_count, 1),
+    application:set_env(amoc, interarrival, ?INTERARRIVAL),
     ok.
 
 -spec start(amoc_scenario:user_id()) -> any().
@@ -140,37 +146,99 @@ start_client(MyId) ->
     Jid = make_jid(MyId),
     Client#client{jid = Jid}.
 
--define(PUBLISHER_ID, 1).
--define(SUBSCRIBER_ID, 2).
--define(DELAY_BETWEEN_MESSAGES, 1000).
-
-work(MyId = ?PUBLISHER_ID, Client) ->
-    pubsub_tools:create_node(Client, node_id(MyId)),
-    notify(MyId, ?SUBSCRIBER_ID, node_created),
-    subscribed = wait_for_notification(?SUBSCRIBER_ID),
+work(MyId, Client) when MyId > ?MAX_SUBSCRIBER_ID ->
+    pubsub_tools:create_node(Client, node_id(MyId), [{response_timeout, ?WAIT_FOR_STANZA_TIME}]),
+    for_each_subscriber(fun(SubId) -> notify(MyId, SubId, node_created) end),
+    for_each_subscriber(fun(SubId) -> subscribed = wait_for_notification(SubId) end),
     [publish_and_wait(Client, MyId, ItemId, ?DELAY_BETWEEN_MESSAGES) || ItemId <- item_ids()],
-    unsubscribed = wait_for_notification(?SUBSCRIBER_ID),
-    pubsub_tools:delete_node(Client, node_id(MyId));
-work(MyId = ?SUBSCRIBER_ID, Client) ->
-    node_created = wait_for_notification(?PUBLISHER_ID),
-    pubsub_tools:subscribe(Client, node_id(?PUBLISHER_ID)),
-    notify(MyId, ?PUBLISHER_ID, subscribed),
-    [receive_item_notification_and_wait(Client, ?PUBLISHER_ID, ItemId,
-                                        ?DELAY_BETWEEN_MESSAGES)
-     || ItemId <- item_ids()],
-    pubsub_tools:unsubscribe(Client, node_id(?PUBLISHER_ID)),
-    notify(MyId, ?PUBLISHER_ID, unsubscribed).
+    for_each_subscriber(fun(SubId) -> unsubscribed = wait_for_notification(SubId) end),
+    pubsub_tools:delete_node(Client, node_id(MyId), [{response_timeout, ?WAIT_FOR_STANZA_TIME}]);
+work(MyId, Client) ->
+    NodeId = node_id(MyId),
+    for_each_publisher(fun(PubId) ->
+                               node_created = wait_for_notification(
+                                                PubId, ?SUBSCRIBER_LOGIN_TIME + 60000),
+                               pubsub_tools:subscribe(Client, NodeId, [{receive_response, false}])
+                       end),
+    Actions = subscriber_actions(MyId),
+    perform_subscriber_actions(Client, Actions).
+
+perform_subscriber_actions(_Client, []) -> ok;
+perform_subscriber_actions(Client, Actions) ->
+    Stanza = escalus:wait_for_stanza(Client, ?WAIT_FOR_STANZA_TIME),
+    NodeName = find_node_name(Stanza),
+    [F|Rest] = orddict:fetch(NodeName, Actions),
+    F(Client, Stanza),
+    RemainingActions = case Rest of
+                           [] -> orddict:erase(NodeName, Actions);
+                           _ -> orddict:store(NodeName, Rest, Actions)
+                       end,
+    perform_subscriber_actions(Client, RemainingActions).
+
+find_node_name(Stanza) ->
+    lists:foldl(fun(F, undefined) -> F(Stanza);
+                   (_F, NodeName) -> NodeName
+                end, undefined,
+                [fun(St) ->
+                         exml_query:path(St, [{element, <<"event">>},
+                                              {element, <<"items">>},
+                                              {attr, <<"node">>}])
+                 end,
+                 fun(St) ->
+                         exml_query:path(St, [{element,  <<"pubsub">>},
+                                              {element, <<"subscription">>},
+                                              {attr, <<"node">>}])
+                 end,
+                 fun(St) ->
+                         StanzaId = exml_query:attr(St, <<"id">>),
+                         [NodeName, _Rest] = binary:split(StanzaId, <<"-">>),
+                         NodeName
+                 end]).
+
+subscriber_actions(SubId) ->
+    orddict:from_list([{node_name(node_id(PubId)), subscriber_node_actions(SubId, PubId)}
+                       || PubId <- lists:seq(?MAX_SUBSCRIBER_ID + 1, ?NUM_USERS)]).
+
+subscriber_node_actions(SubId, PubId) ->
+    ItemIds = item_ids(),
+    LastItemId = lists:last(ItemIds),
+    NodeId = node_id(PubId),
+    lists:flatten([fun(Client, Stanza) ->
+                           pubsub_tools:receive_subscribe_response(
+                             Client, NodeId, [{stanza, Stanza}]),
+                           notify(SubId, PubId, subscribed)
+                   end,
+                   [fun(Client, Stanza) ->
+                            pubsub_tools:receive_item_notification(
+                              Client, ItemId, NodeId, [{stanza, Stanza}]),
+                            case ItemId of
+                                LastItemId -> pubsub_tools:unsubscribe(
+                                                Client, NodeId, [{receive_response, false}]);
+                                _ -> ok
+                            end
+                    end || ItemId <- ItemIds],
+                   fun(Client, Stanza) ->
+                           pubsub_tools:receive_unsubscribe_response(
+                             Client, NodeId, [{stanza, Stanza}]),
+                           notify(SubId, PubId, unsubscribed)
+                   end]).
+
+for_each_subscriber(F) ->
+    [F(SubId) || SubId <- lists:seq(1, ?MAX_SUBSCRIBER_ID)].
+
+for_each_publisher(F) ->
+    [F(PubId) || PubId <- lists:seq(?MAX_SUBSCRIBER_ID + 1, ?NUM_USERS)].
 
 node_id(PublisherId) ->
-    NodeId = integer_to_binary(PublisherId),
-    {<<"pubsub.localhost">>, <<"node", NodeId/binary>>}.
+    NodeNo = integer_to_binary(PublisherId),
+    {<<"pubsub.localhost">>, <<"node", NodeNo/binary>>}.
+
+node_name({_NodeAddr, NodeName}) ->
+    NodeName.
 
 publish_and_wait(Client, PublisherId, ItemId, Delay) ->
-    pubsub_tools:publish(Client, ItemId, node_id(PublisherId)),
-    timer:sleep(Delay).
-
-receive_item_notification_and_wait(Client, PublisherId, ItemId, Delay) ->
-    pubsub_tools:receive_item_notification(Client, ItemId, node_id(PublisherId)),
+    pubsub_tools:publish(Client, ItemId, node_id(PublisherId),
+                         [{response_timeout, ?WAIT_FOR_STANZA_TIME}]),
     timer:sleep(Delay).
 
 item_ids() ->
@@ -206,7 +274,7 @@ send_presence_available(Client) ->
     escalus_connection:send(Client, Pres).
 
 receive_presence(Client1, Client2) ->
-    PresenceNotification = escalus:wait_for_stanza(Client1),
+    PresenceNotification = escalus:wait_for_stanza(Client1, ?WAIT_FOR_STANZA_TIME),
     escalus:assert(is_presence, PresenceNotification),
     escalus:assert(is_stanza_from, [Client2], PresenceNotification).
 
