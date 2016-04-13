@@ -813,7 +813,7 @@ disable_persist_items_leaf_test(Config) ->
       end).
 
 %%--------------------------------------------------------------------
-%% Tests for features unsupported by ejabberd
+%% Tests for unsupported features  - excluded from suite
 %%--------------------------------------------------------------------
 
 disable_payload_and_persist_test(Config) ->

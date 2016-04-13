@@ -42,6 +42,7 @@ suite() ->
 -define(INTERARRIVAL, 30).
 -define(SUBSCRIBER_LOGIN_TIME, (?INTERARRIVAL * ?MAX_SUBSCRIBER_ID)).
 -define(WAIT_FOR_STANZA_TIME, 10000).
+-define(MESSAGES_PER_PUBLISHER, 5).
 
 init_per_suite(Config) ->
     Config1 = dynamic_modules:save_modules(?HOST, Config),
@@ -154,11 +155,11 @@ work(MyId, Client) when MyId > ?MAX_SUBSCRIBER_ID ->
     for_each_subscriber(fun(SubId) -> unsubscribed = wait_for_notification(SubId) end),
     pubsub_tools:delete_node(Client, node_id(MyId), [{response_timeout, ?WAIT_FOR_STANZA_TIME}]);
 work(MyId, Client) ->
-    NodeId = node_id(MyId),
     for_each_publisher(fun(PubId) ->
                                node_created = wait_for_notification(
                                                 PubId, ?SUBSCRIBER_LOGIN_TIME + 60000),
-                               pubsub_tools:subscribe(Client, NodeId, [{receive_response, false}])
+                               pubsub_tools:subscribe(Client, node_id(PubId),
+                                                      [{receive_response, false}])
                        end),
     Actions = subscriber_actions(MyId),
     perform_subscriber_actions(Client, Actions).
@@ -191,7 +192,8 @@ find_node_name(Stanza) ->
                  end,
                  fun(St) ->
                          StanzaId = exml_query:attr(St, <<"id">>),
-                         [NodeName, _Rest] = binary:split(StanzaId, <<"-">>),
+                         %% auto-generated stanza ID contains node name
+                         [_, _, NodeName, _] = binary:split(StanzaId, <<"-">>, [global]),
                          NodeName
                  end]).
 
@@ -242,7 +244,7 @@ publish_and_wait(Client, PublisherId, ItemId, Delay) ->
     timer:sleep(Delay).
 
 item_ids() ->
-    [integer_to_binary(I) || I <- lists:seq(1, 5)].
+    [integer_to_binary(I) || I <- lists:seq(1, ?MESSAGES_PER_PUBLISHER)].
 
 user_pid(Id) ->
     %% Todo extend amoc (also with distributed mode)
