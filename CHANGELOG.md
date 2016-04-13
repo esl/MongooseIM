@@ -4,13 +4,13 @@
 
 This release includes:
 
-- token based authentication [#640](https://github.com/esl/MongooseIM/pull/640)
+- token based authentication [#633](https://github.com/esl/MongooseIM/pull/633)
 - support for FIPS mode [#628](https://github.com/esl/MongooseIM/pull/628)
 - reverse Proxy [#628](https://github.com/esl/MongooseIM/pull/638)
 - improved routing layer [#639](https://github.com/esl/MongooseIM/pull/639), [#729](https://github.com/esl/MongooseIM/pull/729)
 - fix for TCP backlog setting [#708](https://github.com/esl/MongooseIM/pull/708)
-- new XMPP extenstions:
-   - [XEP-0352: Client State IndicationXEP-0352](https://xmpp.org/extensions/xep-0352.html) [#703](https://github.com/esl/MongooseIM/pull/703)
+- new XMPP extentions:
+   - [XEP-0352: Client State Indication](https://xmpp.org/extensions/xep-0352.html) [#703](https://github.com/esl/MongooseIM/pull/703)
 - external components improvements:
    - [#640](https://github.com/esl/MongooseIM/pull/640)
 - parallelized tests:
