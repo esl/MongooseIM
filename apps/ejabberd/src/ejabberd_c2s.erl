@@ -895,6 +895,17 @@ session_established({xmlstreamelement,
                       StateData#state.stream_mgmt,
                       StateData#state.stream_mgmt_in,
                       session_established, StateData);
+session_established({xmlstreamelement,
+                     #xmlel{name = <<"inactive">>} = El}, State) ->
+    mongoose_metrics:update([State#state.server, modCSIInactive], 1),
+
+    maybe_inactivate_session(xml:get_tag_attr_s(<<"xmlns">>, El), State);
+
+session_established({xmlstreamelement,
+                     #xmlel{name = <<"active">>} = El}, State) ->
+    mongoose_metrics:update([State#state.server, modCSIActive], 1),
+
+    maybe_activate_session(xml:get_tag_attr_s(<<"xmlns">>, El), State);
 
 session_established({xmlstreamelement, El}, StateData) ->
     FromJID = StateData#state.jid,
@@ -1156,8 +1167,8 @@ handle_info({route, From, To, Packet}, StateName, StateData) ->
                     ejabberd_hooks:run(user_receive_packet,
                                        StateData#state.server,
                                        [StateData#state.jid, From, To, FixedPacket]),
+                    maybe_csi_inactive_optimisation({From, To, FixedPacket}, NewState, StateName);
 
-                    send_and_maybe_buffer_stanza({From, To, FixedPacket}, NewState, StateName);
                 {false, _NewAttrs, NewState} ->
                     fsm_next_state(StateName, NewState)
             end
@@ -1342,7 +1353,7 @@ handle_broadcast_result({exit, ErrorMessage}, _StateName, StateData) ->
     send_trailer(StateData),
     {stop, normal, StateData};
 handle_broadcast_result({send_new, From, To, Stanza, NewState}, StateName, _StateData) ->
-    send_and_maybe_buffer_stanza({From, To, Stanza}, NewState, StateName);
+    maybe_csi_inactive_optimisation({From, To, Stanza}, NewState, StateName);
 handle_broadcast_result({new_state, NewState}, StateName, _StateData) ->
     fsm_next_state(StateName, NewState).
 
@@ -1505,6 +1516,7 @@ terminate(_Reason, StateName, StateData) ->
                 StateData#state.authenticated =/= resumed ->
                     ?DEBUG("rerouting unacked messages", []),
                     flush_stream_mgmt_buffer(StateData),
+                    bounce_csi_buffer(StateData),
                     bounce_messages();
                 true ->
                     ok
@@ -1609,9 +1621,8 @@ send_trailer(StateData) ->
     send_text(StateData, ?STREAM_TRAILER).
 
 
-send_and_maybe_buffer_stanza({_, _, Stanza} = Packet, State, StateName)->
-    SendResult = maybe_send_element_safe(State, Stanza),
-    BufferedStateData = buffer_out_stanza(Packet, State),
+send_and_maybe_buffer_stanza(Packet, State, StateName)->
+    {SendResult, BufferedStateData} = send_and_maybe_buffer_stanza(Packet, State),
     case SendResult of
         ok ->
             case catch maybe_send_ack_request(BufferedStateData) of
@@ -1625,6 +1636,11 @@ send_and_maybe_buffer_stanza({_, _, Stanza} = Packet, State, StateName)->
             ?DEBUG("Send element error: ~p, try enter resume session", [SendResult]),
             maybe_enter_resume_session(BufferedStateData#state.stream_mgmt_id, BufferedStateData)
     end.
+
+send_and_maybe_buffer_stanza({_, _, Stanza} = Packet, State) ->
+    SendResult = maybe_send_element_safe(State, Stanza),
+    BufferedStateData = buffer_out_stanza(Packet, State),
+    {SendResult, BufferedStateData}.
 
 -spec new_id() -> binary().
 new_id() ->
@@ -2505,6 +2521,55 @@ pack_string(String, Pack) ->
     end.
 
 %%%----------------------------------------------------------------------
+%%% XEP-0352: Client State Indication
+%%%----------------------------------------------------------------------
+maybe_inactivate_session(?NS_CSI, #state{csi_state = active} = State) ->
+    fsm_next_state(session_established, State#state{csi_state = inactive});
+maybe_inactivate_session(_, State) ->
+    fsm_next_state(session_established, State).
+
+maybe_activate_session(?NS_CSI, #state{csi_state = inactive} = State) ->
+    resend_csi_buffer(State);
+maybe_activate_session(_, State) ->
+    fsm_next_state(session_established, State).
+
+resend_csi_buffer(State) ->
+    NewState = flush_csi_buffer(State),
+    fsm_next_state(session_established, NewState#state{csi_state=active}).
+
+maybe_csi_inactive_optimisation(Packet, #state{csi_state = active} = State,
+                                StateName) ->
+    send_and_maybe_buffer_stanza(Packet, State, StateName);
+maybe_csi_inactive_optimisation(Packet, #state{csi_buffer = Buffer} = State,
+                                StateName) ->
+    NewBuffer = [Packet | Buffer],
+    NewState = flush_or_buffer_packets(State#state{csi_buffer = NewBuffer}),
+    fsm_next_state(StateName, NewState).
+
+flush_or_buffer_packets(State) ->
+    MaxBuffSize = gen_mod:get_module_opt(State#state.server, mod_csi,
+                                         buffer_max, 20),
+    case length(State#state.csi_buffer) > MaxBuffSize of
+        true ->
+            flush_csi_buffer(State);
+        _ ->
+            State
+    end.
+
+-spec flush_csi_buffer(state()) -> state().
+flush_csi_buffer(#state{csi_buffer = BufferOut} = State) ->
+    %%lists:foldr to preserve order
+    F = fun(Packet, {_, OldState}) ->
+                send_and_maybe_buffer_stanza(Packet, OldState)
+        end,
+    {_, NewState} = lists:foldr(F, {ok, State}, BufferOut),
+    NewState#state{csi_buffer = []}.
+
+bounce_csi_buffer(#state{csi_buffer = []}) ->
+    ok;
+bounce_csi_buffer(#state{csi_buffer = Buffer}) ->
+    re_route_packets(Buffer).
+%%%----------------------------------------------------------------------
 %%% XEP-0198: Stream Management
 %%%----------------------------------------------------------------------
 
@@ -2724,9 +2789,13 @@ stream_mgmt_request() ->
 flush_stream_mgmt_buffer(#state{stream_mgmt = false}) ->
     false;
 flush_stream_mgmt_buffer(#state{stream_mgmt_buffer = Buffer}) ->
+    re_route_packets(Buffer).
+
+re_route_packets(Buffer) ->
     %% TODO add delayed on it?
     [ejabberd_router:route(From, To, Packet)
-     || {From, To, Packet} <- lists:reverse(Buffer)].
+     || {From, To, Packet} <- lists:reverse(Buffer)],
+    ok.
 
 maybe_enter_resume_session(undefined, StateData) ->
     {stop, normal, StateData};
@@ -2780,7 +2849,10 @@ do_resume_session(SMID, El, [{_, Pid}], StateData) ->
                     send_element(NSD, Resumed),
                     [send_element(NSD, Packet)
                      || {_, _,Packet} <- lists:reverse(NSD#state.stream_mgmt_buffer)],
-                    fsm_next_state(session_established, NSD)
+
+                    NSD2 = flush_csi_buffer(NSD),
+
+                    fsm_next_state(session_established, NSD2)
                 catch
                     %% errors from send_element
                     _:_ ->
@@ -2816,6 +2888,7 @@ merge_state(OldSD, SD) ->
                 #state.pres_invis,
                 #state.privacy_list,
                 #state.aux_fields,
+                #state.csi_buffer,
                 #state.stream_mgmt,
                 #state.stream_mgmt_in,
                 #state.stream_mgmt_id,

@@ -28,7 +28,6 @@
 -author('alexey@process-one.net').
 
 -behaviour(gen_server).
--behaviour(xmpp_router).
 
 %% API
 -export([start_link/0]).
@@ -144,7 +143,14 @@ process_iq_reply(From, To, #iq{id = ID} = IQ) ->
             To :: ejabberd:jid(),
             Packet :: jlib:xmlel()) -> 'ok' | {'error','lager_not_running'}.
 route(From, To, Packet) ->
-    xmpp_router:route(?MODULE, From, To, Packet).
+    case (catch do_route(From, To, Packet)) of
+        {'EXIT', Reason} ->
+            ?ERROR_MSG("error when routing from=~ts to=~ts in module=~p, reason=~p, packet=~ts, stack_trace=~p",
+                [jid:to_binary(From), jid:to_binary(To),
+                    ?MODULE, Reason, exml:to_binary(Packet),
+                    erlang:get_stacktrace()]);
+        _ -> ok
+    end.
 
 -spec route_iq(From :: ejabberd:jid(),
                To :: ejabberd:jid(),

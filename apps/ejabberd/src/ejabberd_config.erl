@@ -567,6 +567,8 @@ process_term(Term, State) ->
             add_option(registration_timeout, Timeout, State);
         {mongooseimctl_access_commands, ACs} ->
             add_option(mongooseimctl_access_commands, ACs, State);
+        {routing_modules, Mods} ->
+            add_option(routing_modules, Mods, State);
         {loglevel, Loglevel} ->
             ejabberd_loglevel:set(Loglevel),
             State;

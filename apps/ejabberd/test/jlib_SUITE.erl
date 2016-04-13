@@ -28,7 +28,7 @@ all() -> [make_iq_reply_changes_type_to_result,
           compare_bare_jids].
 
 init_per_suite(C) ->
-    application:start(p1_stringprep),
+    application:start(stringprep),
     C.
 
 end_per_suite(C) ->
