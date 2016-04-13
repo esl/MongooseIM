@@ -5,6 +5,7 @@
 -export([auth_modules/0]).
 
 -export([total_offline_messages/0,
+         total_offline_messages/1,
          total_active_users/0,
          total_privacy_items/0,
          total_private_items/0,
@@ -26,6 +27,10 @@ auth_modules() ->
 -spec total_offline_messages() -> integer() | false.
 total_offline_messages() ->
     generic_count(mod_offline_backend).
+
+-spec total_offline_messages({binary(), binary()}) -> integer() | false.
+total_offline_messages(User) ->
+    generic_count(mod_offline_backend, User).
 
 -spec total_active_users() -> integer() | false.
 total_active_users() ->
@@ -89,6 +94,10 @@ get_backend(Module) ->
     Backend -> Backend
   end.
 
+generic_count(mod_offline_backend, {User, Server}) ->
+    ?RPC(mod_offline_backend, count_offline_messages, [User, Server, 100]).
+
+
 generic_count(Module) ->
     case get_backend(Module) of
         false -> %% module disabled
@@ -125,6 +134,7 @@ generic_count_backend(mod_roster_odbc) -> count_odbc(<<"rosterusers">>).
 count_wildpattern(Table) ->
     Pattern = ?RPC(mnesia, table_info, [Table, wild_pattern]),
     length(?RPC(mnesia, dirty_match_object, [Pattern])).
+
 
 count_odbc(Table) ->
     {selected, _, [{N}]} =
