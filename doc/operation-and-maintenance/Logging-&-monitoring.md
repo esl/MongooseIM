@@ -8,19 +8,26 @@ Some of the recommended backends are:
 - https://github.com/basho/lager_syslog to use syslog and
 - https://github.com/mhald/lager_logstash_backend for logstash (http://logstash.net/).
 
-To change the backend you have to edit `rel/files/app.config`. Before that you need
-to add the backend to deps in `rebar.config` file:
+To activate the syslog backend you have to edit `rel/files/app.config` and uncomment the line:
 
-    {lager_syslog, ".*", {git, "git://github.com/basho/lager_syslog.git"}},
+    %% use below line to add syslog backend for Lager
+    %        {lager_syslog_backend, [ "mongooseim", local0, info]},
 
-and execute:
+We ought to provide parameter list to make our lager syslog backend running:
 
-    ./rebar get-deps
+* The first parameter is the string to tag all messages with in syslog. The default is `mongooseim`
+* The second one is the facility to log to (see the syslog documentation)
+* The last parameter is the lager level at which the backend accepts messages. In our case it's `info`
 
-The following entry to rel/reltool.config has to be added
+Depending on the system platform you use, remember also to add the appropriate line in the syslog config file:
 
-    {app, lager_syslog, [{incl_cond, include}]},
+    local0.info                     /var/log/mongooseim.log
 
+Now all the logs of level `info` will be passed to `/var/log/mongooseim.log` file
+
+Example log (e.g `tail -f /var/log/mongooseim.log`):
+
+    Apr  1 12:36:49 User.local mongooseim[6068]: [info] <0.7.0> Application mnesia started on node mongooseim@localhost
 
 Monitoring
 ---
