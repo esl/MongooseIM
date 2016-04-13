@@ -614,13 +614,12 @@ concat_info(Els) ->
 concat_xdata_fields(Fields) ->
     [Form, Res] = lists:foldl(fun (#xmlel{name =
 					      <<"field">>,
-					  attrs = Attrs, children = Els} =
-				       El,
+					  attrs = Attrs, children = Els},
 				   [FormType, VarFields] = Acc) ->
 				      case xml:get_attr_s(<<"var">>, Attrs) of
 					<<"">> -> Acc;
 					<<"FORM_TYPE">> ->
-					    [xml:get_cdata(xml:get_subtag(VarFields, <<"value">>)),
+					    [xml:get_cdata([xml:get_subtag(VarFields, <<"value">>)]),
 					     VarFields];
 					Var ->
 					    [FormType,

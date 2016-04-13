@@ -1122,7 +1122,7 @@ iq_disco_info(Host, SNode, From, Lang) ->
 	Node   :: <<>> | mod_pubsub:nodeId(),
 	From   :: jid(),
 	Rsm    :: none | rsm_in())
-    -> {result, [xmlel()]}
+    -> {result, [xmlel()]} | {error, term()}
     ).
 iq_disco_items(Host, <<>>, From, _RSM) ->
     {result,
@@ -1788,7 +1788,7 @@ create_node(Host, ServerHost, Node, Owner, Type) ->
 create_node(Host, ServerHost, <<>>, Owner, Type, Access, Configuration) ->
     case lists:member(<<"instant-nodes">>, plugin_features(Host, Type)) of
 	true ->
-	    Node = randoms:get_string(),
+	    Node = list_to_binary(randoms:get_string()),
 	    case create_node(Host, ServerHost, Node, Owner, Type, Access, Configuration) of
 		{result, _} ->
 		    {result, [#xmlel{name = <<"pubsub">>,

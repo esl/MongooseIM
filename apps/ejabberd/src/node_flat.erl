@@ -115,12 +115,11 @@ features() ->
 %% checked. This parameter depends on the value of the
 %% <tt>access_createnode</tt> ACL value in ejabberd config file.</p>
 create_node_permission(Host, ServerHost, _Node, _ParentNode, Owner, Access) ->
-    LOwner = jid:to_lower(Owner),
-    Allowed = case LOwner of
+    Allowed = case jid:to_lower(Owner) of
 	{<<"">>, Host, <<"">>} ->
 	    true; % pubsub service always allowed
 	_ ->
-	    acl:match_rule(ServerHost, Access, LOwner) =:= allow
+	    acl:match_rule(ServerHost, Access, Owner) =:= allow
     end,
     {result, Allowed}.
 

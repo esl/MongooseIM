@@ -100,7 +100,7 @@ create_node_permission(Host, ServerHost, _Node, _ParentNode, Owner, Access) ->
 	{<<"">>, Host, <<"">>} ->
 	    true; % pubsub service always allowed
 	_ ->
-	    case acl:match_rule(ServerHost, Access, LOwner) of
+	    case acl:match_rule(ServerHost, Access, Owner) of
 		allow ->
 		    case Host of
 			{User, Server, _} -> true;
