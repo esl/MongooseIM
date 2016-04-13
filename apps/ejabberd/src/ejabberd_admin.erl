@@ -44,7 +44,8 @@
          dump_to_textfile/1, dump_to_textfile/2,
          mnesia_change_nodename/4,
          restore/1, % Still used by some modules%%
-         get_loglevel/0]).
+         get_loglevel/0,
+         join_cluster/1, leave_cluster/0]).
 
 -include("ejabberd.hrl").
 -include("ejabberd_commands.hrl").
@@ -147,13 +148,75 @@ commands() ->
      #ejabberd_commands{name = reload_cluster, tags = [server],
                         desc = "Reload configuration file in the cluster",
                         module = ejabberd_config, function = reload_cluster,
-                        args = [], result = {res, restuple}}
+                        args = [], result = {res, restuple}},
+     #ejabberd_commands{name = join_cluster, tags = [server],
+                        desc = "Join the node to the cluster",
+                        module = ?MODULE, function = join_cluster,
+                        args = [{node, string}],
+                        result = {res, restuple}},
+     #ejabberd_commands{name = leave_cluster, tags = [server],
+                        desc = "Leave a node from the cluster",
+                        module = ?MODULE, function = leave_cluster,
+                        args = [],
+                        result = {res, restuple}}
     ].
 
 
 %%%
 %%% Server management
 %%%
+
+-spec join_cluster(string()) -> {ok, string()} | {pang, string()} | {alread_joined, string()} |
+                                {mnesia_error, string()} | {error, string()}.
+join_cluster(NodeString) ->
+    NodeAtom = list_to_atom(NodeString),
+    NodeList = mnesia:system_info(running_db_nodes),
+    case lists:member(NodeAtom, NodeList) of
+        true ->
+            String = io_lib:format("The node ~s has already joined the cluster~n", [NodeString]),
+            {alread_joined, String};
+        _ ->
+            do_join_cluster(NodeAtom)
+    end.
+
+do_join_cluster(Node) ->
+    try mongoose_cluster:join(Node) of
+        ok ->
+            String = io_lib:format("You have successfully joined the node ~p to the cluster with node member ~p~n", [node(), Node]),
+            {ok, String}
+    catch
+        error:pang ->
+            String = io_lib:format("Timeout while attempting to connect to node ~s~n", [Node]),
+            {pang, String};
+        error:{cant_get_storage_type, {T, E, R}} ->
+            String = io_lib:format("Cannot get storage type for table ~p~n. Reason: ~p:~p", [T, E, R]),
+            {mnesia_error, String};
+        E:R ->
+            {error, {E, R}}
+    end.
+
+-spec leave_cluster() -> {ok, string()} | {error, term()} | {not_in_cluster, string()}.
+leave_cluster() ->
+    NodeList = mnesia:system_info(running_db_nodes),
+    ThisNode = node(),
+    case NodeList of
+        [ThisNode] ->
+            String = io_lib:format("The node ~p is not in the cluster~n", [node()]),
+            {not_in_cluster, String};
+        _ ->
+            do_leave_cluster()
+    end.
+
+do_leave_cluster() ->
+    try mongoose_cluster:leave() of
+        ok ->
+            String = io_lib:format("You have successfully left the node ~p from the cluster~n", [node()]),
+            {ok, String}
+    catch
+        E:R ->
+            {error, {E, R}}
+    end.
+
 
 -spec status() -> {'ejabberd_not_running', io_lib:chars()} | {'ok', io_lib:chars()}.
 status() ->
