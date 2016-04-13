@@ -4,7 +4,7 @@
 
 This release includes:
 
-- token based authentication [#640](https://github.com/esl/MongooseIM/pull/640)
+- token based authentication [#633](https://github.com/esl/MongooseIM/pull/633)
 - support for FIPS mode [#628](https://github.com/esl/MongooseIM/pull/628)
 - reverse Proxy [#628](https://github.com/esl/MongooseIM/pull/638)
 - improved routing layer [#639](https://github.com/esl/MongooseIM/pull/639), [#729](https://github.com/esl/MongooseIM/pull/729)
