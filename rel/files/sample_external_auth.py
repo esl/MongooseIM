@@ -51,6 +51,12 @@ def removeuser(username, server):
     serialize()
     return True
 
+def removeuser3(username, server, password):
+    if auth(username, server, password):
+        return removeuser(username, server)
+    else:
+        return False
+
 def serialize():
     f = open(outfile, 'a')
     pickle.dump(users, f)
@@ -70,6 +76,6 @@ while True:
     elif data[0] == "removeuser":
         success = removeuser(data[1], data[2])
     elif data[0] == "removeuser3":
-        success = removeuser(data[1], data[2], data[3])
+        success = removeuser3(data[1], data[2], data[3])
     to_ejabberd(success)
 

@@ -108,9 +108,9 @@ init_per_group(change_account_details, Config) ->
     skip_if_mod_register_not_enabled(Config);
 init_per_group(GroupName, Config) when
       GroupName == login_scram; GroupName == login_scram_store_plain ->
-    case get_auth_method() of
+    case get_store_type() of
         external ->
-            {skip, "external authentication requires plain password"};
+            {skip, "external store type requires plain password"};
         _ ->
             config_password_format(GroupName),
             Config2 = escalus:create_users(Config, escalus:get_users([alice, bob])),
@@ -139,11 +139,9 @@ init_per_testcase(DigestOrScram, Config) when
       DigestOrScram =:= log_one_digest; DigestOrScram =:= log_non_existent_digest;
       DigestOrScram =:= log_one_scram; DigestOrScram =:= log_non_existent_scram;
       DigestOrScram =:= legacy_successful_digest ->
-    case get_auth_method() of
+    case get_store_type() of
         external ->
-            {skip, "external authentication requires plain password"};
-        ldap ->
-            {skip, "ldap authentication requires plain password"};
+            {skip, "external store type requires plain password"};
         _ ->
             escalus:init_per_testcase(DigestOrScram, Config)
     end;
@@ -556,7 +554,7 @@ get_client_details(Identifier) ->
     {server, Server} = lists:keyfind(server, 1, Details),
     {string(Name), string(Server)}.
 
-get_auth_method() ->
+get_store_type() ->
     XMPPDomain = escalus_ejabberd:unify_str_arg(
                    ct:get_config(ejabberd_domain)),
     escalus_ejabberd:rpc(ejabberd_auth, store_type,

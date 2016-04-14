@@ -13,9 +13,6 @@
 
 -callback store_type(Host :: ejabberd:lserver()) -> scram | plain | external.
 
--callback login(User :: ejabberd:luser(),
-                Server :: ejabberd:lserver()) -> boolean().
-
 -callback set_password(User :: ejabberd:luser(),
                        Server :: ejabberd:lserver(),
                        Password :: binary()
@@ -53,10 +50,6 @@
 -callback get_password_s(User :: ejabberd:luser(),
                          Server :: ejabberd:lserver()) -> binary().
 
--callback get_password(User :: ejabberd:luser(),
-                       Server :: ejabberd:lserver(),
-                       DefaultValue :: binary()) -> scram:scram_tuple() | binary() | false.
-
 -callback does_user_exist(User :: ejabberd:luser(),
                           Server :: ejabberd:lserver()
                          ) -> boolean() | {error, atom()}.
@@ -69,6 +62,4 @@
                       Server :: ejabberd:lserver(),
                       Password :: binary()
                       ) -> ok | {error, not_exists | not_allowed | bad_request}.
-
--callback plain_password_required() -> boolean().
 

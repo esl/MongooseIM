@@ -35,22 +35,16 @@
 %%--------------------------------------------------------------------
 
 all() ->
-    AuthMods = auth_modules(),
-    case lists:member(ejabberd_auth_external, AuthMods) of
-        true ->
-            {skip, external_auth_not_supported};
-        false ->
-            [{group, accounts},
-             {group, sessions},
-             {group, vcard},
-             {group, roster},
-             {group, roster_advanced},
-             {group, last},
-             {group, private},
-             {group, stanza},
-             {group, stats},
-             {group, basic}]
-    end.
+    [{group, accounts},
+     {group, sessions},
+     {group, vcard},
+     {group, roster},
+     {group, roster_advanced},
+     {group, last},
+     {group, private},
+     {group, stanza},
+     {group, stats},
+     {group, basic}].
 
 groups() ->
      [{accounts, [sequence], accounts()},

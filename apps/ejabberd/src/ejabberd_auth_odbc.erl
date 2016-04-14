@@ -45,11 +45,8 @@
          does_user_exist/2,
          remove_user/2,
          remove_user/3,
-         store_type/1,
-         plain_password_required/0
+         store_type/1
         ]).
-
--export([login/2, get_password/3]).
 
 -export([scram_passwords/2, scram_passwords/4]).
 
@@ -67,9 +64,6 @@ start(_Host) ->
 
 stop(_Host) ->
     ok.
-
-plain_password_required() ->
-    false.
 
 store_type(Server) ->
     case scram:enabled(Server) of
@@ -361,6 +355,3 @@ scram_passwords1(LServer, Count, Interval, ScramIterationCount) ->
             ?ERROR_MSG("Interrupted scramming because: ~p", [Other])
     end.
 
-%% @doc Unimplemented gen_auth callbacks
-login(_User, _Server) -> erlang:error(not_implemented).
-get_password(_User, _Server, _DefaultValue) -> erlang:error(not_implemented).

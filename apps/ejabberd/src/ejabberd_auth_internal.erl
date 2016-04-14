@@ -45,12 +45,8 @@
          does_user_exist/2,
          remove_user/2,
          remove_user/3,
-         store_type/1,
-         plain_password_required/0
+         store_type/1
         ]).
-
-%% Exported for behaviour but not implemented
--export([login/2, get_password/3]).
 
 -export([scram_passwords/0]).
 
@@ -102,10 +98,6 @@ update_reg_users_counter_table(Server) ->
             write_counter(#reg_users_counter{vhost = LServer, count = Size})
         end,
     mnesia:sync_dirty(F).
-
-
-plain_password_required() ->
-    false.
 
 store_type(Server) ->
     case scram:enabled(Server) of
@@ -412,8 +404,4 @@ write_passwd(#passwd{} = Passwd) ->
 -spec write_counter(users_counter()) -> ok.
 write_counter(#reg_users_counter{} = Counter) ->
     mnesia:write(Counter).
-
-%% @doc gen_auth unimplemented callbacks
-login(_User, _Server) -> erlang:error(not_implemented).
-get_password(_User, _Server, _DefaultValue) -> erlang:error(not_implemented).
 
