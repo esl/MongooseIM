@@ -41,12 +41,12 @@ all() ->
      {group, chat_https}].
 
 groups() ->
-    [{essential, [shuffle, {repeat_until_any_fail,10}], essential_test_cases()},
-     {essential_https, [shuffle, {repeat_until_any_fail,10}], essential_test_cases()},
-     {chat, [shuffle, {repeat_until_any_fail,10}], chat_test_cases()},
-     {chat_https, [shuffle, {repeat_until_any_fail,10}], chat_test_cases()},
-     {time, [shuffle, {repeat_until_any_fail,10}], time_test_cases()},
-     {acks, [shuffle, {repeat_until_any_fail,5}], acks_test_cases()}].
+    [{essential, [shuffle], essential_test_cases()},
+     {essential_https, [shuffle], essential_test_cases()},
+     {chat, [shuffle], chat_test_cases()},
+     {chat_https, [shuffle], chat_test_cases()},
+     {time, [parallel], time_test_cases()},
+     {acks, [shuffle], acks_test_cases()}].
 
 suite() ->
     escalus:suite().
