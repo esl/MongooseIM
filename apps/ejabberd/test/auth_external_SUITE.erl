@@ -24,7 +24,7 @@ all_tests() ->
     ].
 
 init_per_suite(C) ->
-    application:start(p1_stringprep),
+    ok = application:ensure_started(stringprep),
     C.
 
 end_per_suite(C) ->
@@ -43,9 +43,6 @@ end_per_group(G, Config) ->
 try_register_ok(_C) ->
     {U, P} = given_user_registered(),
     true = ?AUTH_MOD:check_password(U, domain(), P).
-
-try_register_fails(_C) ->
-    ok.
 
 remove_user_ok(_C) ->
     {U, P} = given_user_registered(),
@@ -106,10 +103,9 @@ unload_meck(_G) ->
 
 gen_user() ->
     U = random_binary(5),
-    P= random_binary(6),
+    P = random_binary(6),
     {U, P}.
 
 random_binary(S) ->
     base16:encode(crypto:rand_bytes(S)).
-
 
