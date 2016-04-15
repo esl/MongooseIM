@@ -36,7 +36,6 @@
 -include_lib("exml/include/exml_stream.hrl").
 -include("mod_bosh.hrl").
 
--define(LISTENER, ?MODULE).
 -define(DEFAULT_BACKEND, mnesia).
 -define(DEFAULT_MAX_AGE, 1728000).  %% 20 days in seconds
 -define(DEFAULT_INACTIVITY, 30).  %% seconds
@@ -131,9 +130,7 @@ start(_Host, Opts) ->
     end.
 
 stop(_Host) ->
-    %% TODO: stop backend and supervisor
-    cowboy:stop_listener(?LISTENER).
-
+    ok.
 %%--------------------------------------------------------------------
 %% Hooks handlers
 %%--------------------------------------------------------------------
