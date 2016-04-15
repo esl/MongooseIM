@@ -75,12 +75,11 @@ unsubscribe(User, Node, Options) ->
     send_request_and_receive_response(User, Request, Id, Options).
 
 publish(User, ItemId, Node, Options) ->
-    Item = case proplists:get_value(with_item, Options, true) of
-               true -> item(ItemId, true);
-               false -> undefined
-           end,
     Id = id(User, Node, <<"publish">>),
-    Request = escalus_pubsub_stanza:publish(User, Item, Id, Node),
+    Request = case proplists:get_value(with_item, Options, true) of
+                  true -> escalus_pubsub_stanza:publish(User, ItemId, item_content(), Id, Node);
+                  false -> escalus_pubsub_stanza:publish(User, Id, Node)
+              end,
     send_request_and_receive_response(User, Request, Id, Options).
 
 request_all_items(User, {_, NodeName} = Node, Options) ->
@@ -302,14 +301,16 @@ check_subscription(Subscr, Jid, NodeName) ->
 check_items(ReceivedItemsElem, ExpectedItemIds, NodeName, WithPayload) ->
     NodeName = exml_query:attr(ReceivedItemsElem, <<"node">>),
     ReceivedItems = exml_query:subelements(ReceivedItemsElem, <<"item">>),
-    [ReceivedItem = item(ExpectedItemId, WithPayload) ||
+    [check_item(ExpectedItemId, WithPayload, ReceivedItem) ||
         {ReceivedItem, ExpectedItemId} <- lists:zip(ReceivedItems, ExpectedItemIds)].
 
-item(ItemId, WithPayload) ->
-    escalus_pubsub_stanza:item_element(ItemId, payload(WithPayload)).
+check_item(ExpectedItemId, WithPayload, ReceivedItem) ->
+    ExpectedItemId = exml_query:attr(ReceivedItem, <<"id">>),
+    Content = item_content(WithPayload),
+    Content = exml_query:subelement(ReceivedItem, <<"entry">>).
 
-payload(false) -> undefined;
-payload(true) -> item_content().
+item_content(false) -> undefined;
+item_content(true) -> item_content().
 
 convert_subscriptions_to_ljids(Subscriptions) ->
     [{escalus_utils:jid_to_lower(Jid), Sub} || {Jid, Sub} <- Subscriptions].
