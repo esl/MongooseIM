@@ -122,12 +122,6 @@ set_server_acks(EnableServerAcks) ->
 -spec start(ejabberd:server(), [option()]) -> any().
 start(_Host, Opts) ->
     try
-        case gen_mod:get_opt(port, Opts, undefined) of
-            undefined ->
-                ok;
-            Port ->
-                ok = start_cowboy(Port, Opts)
-        end,
         ok = start_backend(Opts),
         {ok, _Pid} = mod_bosh_socket:start_supervisor(),
         ejabberd_hooks:add(node_cleanup, global, ?MODULE, node_cleanup, 50)
@@ -232,22 +226,6 @@ terminate(_Reason, _Req, _State) ->
 %%--------------------------------------------------------------------
 %% Callbacks implementation
 %%--------------------------------------------------------------------
-
--spec start_cowboy(inet:port_number(), [option()]) -> 'ok' | {'error','badarg'}.
-start_cowboy(Port, Opts) ->
-    Host = proplists:get_value(host, Opts, '_'),
-    Prefix = proplists:get_value(prefix, Opts, "/http-bind"),
-    NumAcceptors = proplists:get_value(num_acceptors, Opts, 100),
-    Dispatch = cowboy_router:compile([{Host, [{Prefix, ?MODULE, Opts}] }]),
-    TransOpts = [{port, Port}|get_option_pair(ip, Opts)],
-    ProtoOpts = [{env, [{dispatch, Dispatch}]}],
-    case cowboy:start_http(?LISTENER, NumAcceptors, TransOpts, ProtoOpts) of
-        {ok, _Pid} ->
-            ok;
-        {error, Reason} ->
-            {error, Reason}
-    end.
-
 
 -spec start_backend([option()]) -> 'ok'.
 start_backend(Opts) ->
