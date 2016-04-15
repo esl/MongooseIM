@@ -20,10 +20,6 @@
 -export([start/2,
          stop/1]).
 
-%% ejabberd independent listener callbacks
--export([socket_type/0,
-         start_listener/2]).
-
 %% cowboy_loop_handler callbacks
 -export([init/3,
          info/3,
@@ -143,22 +139,6 @@ start(_Host, Opts) ->
 stop(_Host) ->
     %% TODO: stop backend and supervisor
     cowboy:stop_listener(?LISTENER).
-
-%%--------------------------------------------------------------------
-%% ejabberd independent listener callbacks
-%%--------------------------------------------------------------------
-
-socket_type() ->
-    independent.
-
-%% @doc Start the module. Called from `ejabberd_listener'.
-%% If the option `ip' is undefined, then `InetAddr' is `{0,0,0,0}'.
--spec start_listener({Port :: inet:port_number(),
-                      InetAddr :: inet:ip_address(),
-                      tcp}, Opts :: proplists:proplist()) -> any().
-start_listener({Port, InetAddr, tcp}, Opts) ->
-    OptsWPort = lists:keystore(port, 1, [{ip,InetAddr}|Opts], {port, Port}),
-    gen_mod:start_module(?MYNAME, ?MODULE, OptsWPort).
 
 %%--------------------------------------------------------------------
 %% Hooks handlers
