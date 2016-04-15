@@ -5,19 +5,19 @@
 -include("ejabberd.hrl").
 -xep([{xep, 92}, {version, "1.1"}]).
 
--spec start(ejabberd:server(), list()) -> any()
+-spec start(ejabberd:server(), list()) -> any().
 start(Host, Opts) ->
     mod_disco:register_feature(Host, ?NS_VERSION),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
     gen_iq_handler:add_iq_handler(ejabberd_local, Host,
                                   ?NS_VERSION, ?MODULE, process_iq, IQDisc).
 
--spec stop(ejabberd:server()) -> any()
+-spec stop(ejabberd:server()) -> any().
 stop(Host) ->
     mod_disco:unregister_feature(Host, ?NS_VERSION),
     gen_iq_handler:remove_iq_handler(ejabberd_local, Host, ?NS_VERSION).
 
--spec process_iq(#jid{}, #jid{}, #iq{}) -> #iq{}
+-spec process_iq(#jid{}, #jid{}, #iq{}) -> #iq{}.
 process_iq(_From, _To, #iq{type = set, sub_el = SubEl} = IQ) ->
     IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]};
 
@@ -35,7 +35,7 @@ process_iq(From, _To, #iq{type = get} = IQ) ->
                                   children =[#xmlcdata{content = Version}]}
 			  ] ++ add_os_info(Host)}]}.
 
--spec add_os_info(binary()) -> [#xmlel{}] | []
+-spec add_os_info(binary()) -> [#xmlel{}] | [].
 add_os_info(Host) ->
     case gen_mod:get_module_opt(Host, ?MODULE, os_info, false) of
 	true ->
@@ -45,13 +45,13 @@ add_os_info(Host) ->
 	    []
     end.   
 
--spec mongoose_info() -> {binary(), binary()}
+-spec mongoose_info() -> {binary(), binary()}.
 mongoose_info() ->
     {ok, Version} = application:get_key(mongooseim, vsn),
     {ok, Name} = application:get_key(mongooseim, description),
     {list_to_binary(Name), list_to_binary(Version)}.
 
--spec os_info() -> binary()
+-spec os_info() -> binary().
 os_info() ->
     {Family, Name} = os:type(),
     {Major, Minor, Release} = os:version(),
@@ -62,3 +62,4 @@ os_info() ->
         integer_to_list(Minor) ++ "." ++
         integer_to_list(Release)
     ).
+
