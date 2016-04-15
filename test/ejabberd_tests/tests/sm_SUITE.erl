@@ -22,7 +22,8 @@
 
 all() ->
     [{group, parallel},
-     {group, parallel_manual_ack_freq_1}
+     {group, parallel_manual_ack_freq_1},
+     server_requests_ack_freq_2
      ].
 
 groups() ->
@@ -95,9 +96,15 @@ end_per_group(parallel_manual_ack, Config) ->
 end_per_group(_GroupName, Config) ->
     Config.
 
+init_per_testcase(server_requests_ack_freq_2, Config) ->
+    true = escalus_ejabberd:rpc(?MOD_SM, set_ack_freq, [2]),
+    Config;
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
+end_per_testcase(server_requests_ack_freq_2, Config) ->
+    true = escalus_ejabberd:rpc(?MOD_SM, set_ack_freq, [never]),
+    Config;
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
@@ -271,27 +278,48 @@ too_many_unacked_stanzas(Config) ->
     escalus:wait_for_stanza(Alice), %% wait for ack request
     Msg = escalus_stanza:chat_to(Alice, <<"Hi, Alice!">>),
     [escalus:send(Bob, Msg) || _ <- lists:seq(1,?SMALL_SM_BUFFER)],
-    S = escalus:wait_for_stanzas(Alice, ?SMALL_SM_BUFFER * 2), % messages and ack requests
+    escalus:wait_for_stanzas(Alice, ?SMALL_SM_BUFFER * 2), % messages and ack requests
     escalus:assert(is_stream_error, [<<"resource-constraint">>,
                                      <<"too many unacked stanzas">>],
                    %% wait for deffered buffer check
                    escalus:wait_for_stanza(Alice, ?CONSTRAINT_CHECK_TIMEOUT + 1000)).
 
 server_requests_ack(Config) ->
+    server_requests_ack(Config, 1).
+
+server_requests_ack(Config, N) ->
     {Bob, _} = given_fresh_user(Config, bob),
     {Alice, _} = given_fresh_user(Config, alice),
     %% ack request after initial presence
-    escalus:assert(is_sm_ack_request, escalus:wait_for_stanza(Alice)),
-    case discard_vcard_update(Alice) of
-        0 ->
-            ok;
-        1 ->
-            escalus:assert(is_sm_ack_request, escalus:wait_for_stanza(Alice))
-    end,
+    maybe_assert_ack_request(1, N, Alice),
+    StanzasRec = maybe_discard_vcard_update(1, N, Alice),
+    ct:print("discarded"),
     escalus:send(Bob, escalus_stanza:chat_to(Alice, <<"Hi, Alice!">>)),
     escalus:assert(is_chat_message, [<<"Hi, Alice!">>],
                    escalus:wait_for_stanza(Alice)),
-    escalus:assert(is_sm_ack_request, escalus:wait_for_stanza(Alice)).
+    maybe_assert_ack_request(StanzasRec + 1, N, Alice).
+
+maybe_assert_ack_request(StanzasRec, AckRequests, Alice) ->
+    ct:print("StanzasRec: ~p, AckRequests: ~p", [StanzasRec, AckRequests]),
+    case StanzasRec rem AckRequests of
+        0 ->
+            escalus:assert(is_sm_ack_request, escalus:wait_for_stanza(Alice));
+        _ ->
+            ok
+    end,
+    StanzasRec.
+
+maybe_discard_vcard_update(StanzasRec, AckFreq, Alice) ->
+    case discard_vcard_update(Alice) of
+        0 ->
+            StanzasRec;
+        1 ->
+            maybe_assert_ack_request(StanzasRec + 1, AckFreq, Alice)
+    end.
+
+server_requests_ack_freq_2(Config) ->
+    Config1 = escalus_users:update_userspec(Config, alice, manual_ack, true),
+    server_requests_ack(Config1, 2).
 
 server_requests_ack_after_session(Config) ->
     AliceSpec = given_fresh_spec(Config, alice),
