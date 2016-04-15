@@ -183,7 +183,7 @@ check_user_subscriptions_response(User, Response, ExpectedSubscriptions) ->
                                                     {element, <<"subscriptions">>},
                                                     {element, <<"subscription">>}]),
     Jid = escalus_utils:get_jid(User),
-    [Jid = exml_query:attr(Subscr, <<"jid">>) || Subscr <- SubscriptionElems],
+    [assert_ljid_equal(Jid, exml_query:attr(Subscr, <<"jid">>)) || Subscr <- SubscriptionElems],
     Subscriptions = [{exml_query:attr(Subscr, <<"node">>),
                       exml_query:attr(Subscr, <<"subscription">>)} || Subscr <- SubscriptionElems],
     ExpectedSubscriptions = lists:sort(Subscriptions),
@@ -196,9 +196,8 @@ check_node_subscriptions_response(Response, ExpectedSubscriptions, {_, NodeName}
     SubscriptionElems = exml_query:subelements(SubscriptionsElem, <<"subscription">>),
     Subscriptions = [{exml_query:attr(Subscr, <<"jid">>),
                       exml_query:attr(Subscr, <<"subscription">>)} || Subscr <- SubscriptionElems],
-    ExpectedSubscriptionsWithJids = fill_subscriptions_jids(ExpectedSubscriptions),
-    ExpectedSubscriptionsWithJids = lists:sort(Subscriptions),
-    Response.
+    SubsWithLJids = convert_subscriptions_to_ljids(fill_subscriptions_jids(ExpectedSubscriptions)),
+    SubsWithLJids = convert_subscriptions_to_ljids(lists:sort(Subscriptions)).
 
 check_node_discovery_response(Response, {NodeAddr, NodeName}, ExpectedNodes) ->
     Query = exml_query:subelement(Response, <<"query">>),
@@ -213,7 +212,7 @@ check_subscription_notification(User, Response, Subscription, NodeName, Options)
     SubscriptionElem = exml_query:path(Response, [{element, <<"pubsub">>},
                                                 {element, <<"subscription">>}]),
     Jid = jid(User, proplists:get_value(jid_type, Options, full)),
-    Jid = exml_query:attr(SubscriptionElem, <<"jid">>),
+    assert_ljid_equal(Jid, exml_query:attr(SubscriptionElem, <<"jid">>)),
     Subscription = exml_query:attr(SubscriptionElem, <<"subscription">>),
     NodeName = exml_query:attr(SubscriptionElem, <<"node">>),
     Response.
@@ -295,7 +294,7 @@ receive_stanza(User, Options) ->
     end.
 
 check_subscription(Subscr, Jid, NodeName) ->
-    Jid = exml_query:attr(Subscr, <<"jid">>),
+    assert_ljid_equal(Jid, exml_query:attr(Subscr, <<"jid">>)),
     NodeName = exml_query:attr(Subscr, <<"node">>),
     true = exml_query:attr(Subscr, <<"subid">>) =/= undefined,
     <<"subscribed">> = exml_query:attr(Subscr, <<"subscription">>).
@@ -312,11 +311,18 @@ item(ItemId, WithPayload) ->
 payload(false) -> undefined;
 payload(true) -> item_content().
 
+convert_subscriptions_to_ljids(Subscriptions) ->
+    [{escalus_utils:jid_to_lower(Jid), Sub} || {Jid, Sub} <- Subscriptions].
+
 fill_subscriptions_jids(Subscriptions) ->
     [{jid(User, JidType), Subscr} || {User, JidType, Subscr} <- Subscriptions].
 
 jid(User, full) -> escalus_utils:get_jid(User);
 jid(User, bare) -> escalus_utils:get_short_jid(User).
+
+assert_ljid_equal(ActualJid, ExpectedJid) ->
+    LJid = escalus_utils:jid_to_lower(ExpectedJid),
+    LJid = escalus_utils:jid_to_lower(ActualJid).
 
 id(User, {NodeAddr, NodeName}, Suffix) ->
     UserName = escalus_utils:get_username(User),

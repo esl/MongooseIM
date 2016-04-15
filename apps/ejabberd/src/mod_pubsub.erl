@@ -692,10 +692,11 @@ disco_items(Host, Node, From) ->
 %% presence hooks handling functions
 %%
 
-caps_change(#jid{luser = _U, lserver = S, lresource = _R} = JID, JID, Pid, _Features) ->
-    notify_send_loop(S, {send_last_pep_items, JID, Pid});
-caps_change(_From, _To, _Pid, _Feature) ->
-    ok.
+caps_change(#jid{luser = _U, lserver = S, lresource = _R} = FromJID, ToJID, Pid, _Features) ->
+    case jid:to_lower(FromJID) == jid:to_lower(ToJID) of
+        true -> notify_send_loop(S, {send_last_pep_items, ToJID, Pid});
+        false -> ok
+    end.
 
 presence_probe(#jid{luser = _U, lserver = S, lresource = _R} = JID, JID, _Pid) ->
     notify_send_loop(S, {send_last_pubsub_items, _Recipient = JID});

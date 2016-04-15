@@ -97,7 +97,7 @@ monitor_user(Id) ->
 
 -spec init() -> ok.
 init() ->
-    application:set_env(amoc, repeat_count, 1),
+    application:set_env(amoc, repeat_num, 1),
     application:set_env(amoc, interarrival, ?INTERARRIVAL),
     ok.
 

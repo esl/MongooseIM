@@ -13,11 +13,6 @@ cover_test_clean: get-deps
 	rm -rf tests/*.beam
 	make cover_test
 
-quicktest_pubsub: $(PREPARE) set_pubsub_spec quicktest
-
-set_pubsub_spec:
-	$(eval TESTSPEC = pubsub.spec)
-
 quicktest: $(PREPARE)
 	erl -noinput -sname test -setcookie ejabberd \
 		-pa `pwd`/tests \

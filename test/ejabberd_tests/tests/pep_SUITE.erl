@@ -141,9 +141,9 @@ required_modules() ->
                   ]}].
 
 send_initial_presence_with_caps(User) ->
-    case escalus_client:username(User) of
-        <<"alice">> -> escalus_story:send_initial_presence(User);
-        <<"bob">> -> do_send_presence_with_caps(User, caps())
+    case string:to_lower(binary_to_list(escalus_client:username(User))) of
+        "alice" -> escalus_story:send_initial_presence(User);
+        "bob" -> do_send_presence_with_caps(User, caps())
     end.
 
 send_presence_with_caps(User, Caps, ExpectDiscoRequest) ->
