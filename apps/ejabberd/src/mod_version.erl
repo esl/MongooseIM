@@ -35,7 +35,7 @@ process_iq(From, _To, #iq{type = get} = IQ) ->
 add_os_info(Host) ->
     case gen_mod:get_module_opt(Host, ?MODULE, os_info, false) of
 	true ->
-	    [#xmlel{name="os", attrs = [],
+	    [#xmlel{name = <<"os">>, attrs = [],
 		    children = [#xmlcdata{content = os_info()}]}];
 	_ ->
 	    []
