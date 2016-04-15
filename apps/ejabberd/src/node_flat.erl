@@ -840,9 +840,4 @@ first_in_list(Pred, [H | T]) ->
     end.
 
 timestamp() ->
-    try
-	erlang:timestamp()
-    catch
-	error:undef ->
-	    erlang:now()
-    end.
+    os:timestamp().

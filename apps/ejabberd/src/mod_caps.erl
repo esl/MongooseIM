@@ -657,13 +657,8 @@ gb_trees_fold_iter(F, Acc, Iter) ->
     end.
 
 now_ts() ->
-    try
-        erlang:system_time(seconds)
-    catch
-        error:undef ->
-            {MS, S, _US} = erlang:now(),
-            MS * 1000000 + S
-    end.
+    {MS, S, _US} = os:timestamp(),
+    MS * 1000000 + S.
 
 is_valid_node(Node) ->
     case str:tokens(Node, <<"#">>) of

@@ -365,9 +365,4 @@ bool_to_xopt(true) -> <<"true">>;
 bool_to_xopt(false) -> <<"false">>.
 
 timestamp() ->
-    try
-	erlang:timestamp()
-    catch
-	error:undef ->
-	    erlang:now()
-    end.
+    os:timestamp().

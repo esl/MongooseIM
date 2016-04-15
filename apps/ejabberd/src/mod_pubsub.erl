@@ -4429,9 +4429,4 @@ mod_opt_type(_) ->
      max_subscriptions_node, default_node_config].
 
 timestamp() ->
-    try
-	erlang:timestamp()
-    catch
-	error:undef ->
-	    erlang:now()
-    end.
+    os:timestamp().
