@@ -31,5 +31,5 @@ EOL
 echo "Uploading test results to s3"
 echo "http://mongooseim-ct-results.s3-website-eu-west-1.amazonaws.com/${CT_REPORTS}/index.html"
 
-aws s3 cp --recursive --quiet ${CT_REPORTS} s3://mongooseim-ct-results/${CT_REPORTS}
+aws s3 sync --quiet ${CT_REPORTS} s3://mongooseim-ct-results/${CT_REPORTS}
 
