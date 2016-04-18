@@ -21,6 +21,9 @@ Implements [XEP-0280 (Message Carbons)](http://xmpp.org/extensions/xep-0280.html
 ### [mod_disco](../modules/mod_disco.md)
 Implements [XEP-0030 (Service Discovery)](http://xmpp.org/extensions/xep-0030.html).
 
+### [mod_http_notification](../modules/mod_http_notification.md)
+Enables forwarding events to an external http service.
+
 ### [mod_last](../modules/mod_last.md)
 Implements [XEP-0012 (Last Activity)](http://xmpp.org/extensions/xep-0012.html). 
 
