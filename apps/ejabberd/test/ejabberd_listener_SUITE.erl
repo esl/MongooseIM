@@ -12,9 +12,9 @@
 
 
 all() ->
-    [tcp_start_stop_reload].
-%%    [tcp_socket_is_started_with_default_backlog,
-%%     tcp_socket_is_started_with_options].
+    [tcp_socket_is_started_with_default_backlog,
+     tcp_socket_is_started_with_options,
+     tcp_start_stop_reload].
 
 init_per_testcase(_T, C) ->
     meck:new(gen_tcp, [unstick, passthrough]),
