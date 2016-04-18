@@ -165,27 +165,36 @@ do_register_component({LDomain, _}, Handler, Node) ->
         _ -> mnesia:abort(route_already_exists)
     end.
 
+%% @doc Check if the component/route is already registered somewhere; ok means it is not, so we are
+%% ok to proceed, anything else means the domain/node pair is already serviced.
+%% true and false are there because that's how orelse works.
+-spec check_component(binary(), Node :: node()) -> ok | true | false.
 check_component(LDomain, Node) ->
-    check_component(route, LDomain, Node).
+    check_component_route(LDomain, Node)
+        orelse check_component_local(LDomain, Node)
+        orelse check_component_global(LDomain, Node).
 
-check_component(route, LDomain, Node) ->
+
+check_component_route(LDomain, Node) ->
     %% check that route for this domain is not already registered
     case mnesia:read(route, LDomain) of
         [] ->
-            check_component(external_comp_local, LDomain, Node);
+            false;
         _ ->
-            false
-    end;
-check_component(external_comp_local, LDomain, Node) ->
+            true
+    end.
+
+check_component_local(LDomain, Node) ->
     %% check that there is no local component for domain:node pair
     NDomain = {LDomain, Node},
     case mnesia:read(external_component, NDomain) of
         [] ->
-            check_component(external_comp_global, LDomain, Node);
+            false;
         _ ->
-            false
-    end;
-check_component(external_comp_global, LDomain, Node) ->
+            true
+    end.
+
+check_component_global(LDomain, Node) ->
     %% check that there is no component registered globally for this node
     case get_global_component(LDomain, Node) of
         undefined ->
@@ -241,13 +250,13 @@ unregister_component(Domain, Node) ->
 
 %% @doc Returns a list of components registered for this domain by any node,
 %% the choice is yours.
--spec lookup_component(Domain :: domain()) -> [handler()].
+-spec lookup_component(Domain :: domain()) -> [external_component()].
 lookup_component(Domain) ->
     mnesia:dirty_read(external_component_global, Domain).
 
 %% @doc Returns a list of components registered for this domain at the given node.
 %% (must be only one, or nothing)
--spec lookup_component(Domain :: domain(), Node :: node()) -> [handler()].
+-spec lookup_component(Domain :: domain(), Node :: node()) -> [external_component()].
 lookup_component(Domain, Node) ->
     mnesia:dirty_read(external_component, {Domain, Node}).
 
