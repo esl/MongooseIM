@@ -59,12 +59,12 @@ end_per_suite(Config) ->
     dynamic_modules:restore_modules(?HOST, Config).
 
 init_per_testcase(TC, Config) ->
-    register(tc_master, self()),
+    yes = global:register_name(tc_master, self()),
     escalus:init_per_testcase(TC, Config).
 
 end_per_testcase(TC, Config) ->
     escalus:end_per_testcase(TC, Config),
-    unregister(tc_master).
+    global:unregister_name(tc_master).
 
 pubsub_load_test(_Config) ->
     Ids = lists:seq(1, ?NUM_USERS),
@@ -103,6 +103,7 @@ init() ->
 
 -spec start(amoc_scenario:user_id()) -> any().
 start(MyId) ->
+    yes = global:register_name({user, MyId}, self()),
     notify(MyId, tc_master, self()),
     Client = start_client(MyId),
     send_presence_available(Client),
@@ -110,7 +111,8 @@ start(MyId) ->
     work(MyId, Client),
     send_presence_unavailable(Client),
     escalus_connection:stop(Client),
-    notify(MyId, tc_master, done).
+    notify(MyId, tc_master, done),
+    global:unregister_name({user, MyId}).
 
 %% Helpers
 
@@ -247,9 +249,7 @@ item_ids() ->
     [integer_to_binary(I) || I <- lists:seq(1, ?MESSAGES_PER_PUBLISHER)].
 
 user_pid(Id) ->
-    %% Todo extend amoc (also with distributed mode)
-    [{Id, Pid}] = ets:lookup(amoc_users, Id),
-    Pid.
+    global:whereis_name({user, Id}).
 
 get_notification(Id) ->
     wait_for_notification(Id, 0).
@@ -266,7 +266,7 @@ wait_for_notification(Id, Timeout) ->
     end.
 
 notify(MyId, tc_master, Payload) ->
-    tc_master ! {notification, MyId, Payload};
+    global:whereis_name(tc_master) ! {notification, MyId, Payload};
 notify(MyId, Id, Payload) ->
     user_pid(Id) ! {notification, MyId, Payload}.
 
