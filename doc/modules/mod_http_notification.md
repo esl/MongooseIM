@@ -5,7 +5,7 @@ external service via http.
 
 # How it works
 
-The module registers a `user_send_packe` hook - every time a user sends anything
+The module registers a `user_send_packet` hook - every time a user sends anything
 the hook is triggered, the module does the following:
 
 * checks whether http_notification is enabled (the `host` param is set)
