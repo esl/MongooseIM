@@ -32,7 +32,7 @@ after_success:
 
 after_script:
         - sudo pip install awscli --ignore-installed six
-        - tools/travis-upload-to-s3.sh
+        - if [ $TRAVIS_SECURE_ENV_VARS == 'true' ]; then tools/travis-upload-to-s3.sh; fi
 
 services:
         - redis-server
