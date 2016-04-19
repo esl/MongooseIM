@@ -6,6 +6,15 @@ IFS=$'\n\t'
 # Upload ct_report directory on Github pages for trusted builds
 
 CT_REPORTS=${TRAVIS_JOB_NUMBER:-ct_reports}
+BRANCH=${TRAVIS_BRANCH:-master}
+PR=${TRAVIS_PULL_REQUEST:-false}
+
+if [ ${PR} == false ]; then
+	CT_REPORTS=branch/${BRANCH}/${CT_REPORTS}
+else
+	CT_REPORTS=PR/${PR}/${CT_REPORTS}
+fi
+
 
 mkdir -p ${CT_REPORTS}/small
 mkdir -p ${CT_REPORTS}/big
