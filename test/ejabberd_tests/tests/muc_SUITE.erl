@@ -68,7 +68,7 @@ all() -> [
         ].
 
 groups() -> [
-        {disco, [], [
+        {disco, [parallel], [
                 disco_service,
                 disco_features,
                 disco_rooms,
@@ -212,6 +212,7 @@ init_per_suite(Config) ->
     escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
+    escalus_fresh:clean(),
     escalus:end_per_suite(Config).
 
 init_per_group(moderator, Config) ->
@@ -534,12 +535,6 @@ init_per_testcase(CaseName =exit_room, Config) ->
 init_per_testcase(CaseName =exit_room_with_status, Config) ->
     [Alice | _] = ?config(escalus_users, Config),
     Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"alice">>, []),
-    escalus:init_per_testcase(CaseName, Config1);
-
-init_per_testcase(CaseName = disco_items_nonpublic, Config) ->
-    [Alice | _] = ?config(escalus_users, Config),
-    Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"aliceonchat">>,
-        [{persistent, true}, {public_list, false}]),
     escalus:init_per_testcase(CaseName, Config1);
 
 init_per_testcase(CaseName, Config) ->
@@ -2803,7 +2798,7 @@ exit_room_with_status(Config) ->
 %%--------------------------------------------------------------------
 
 disco_service(Config) ->
-    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         Server = escalus_client:server(Alice),
         escalus:send(Alice, escalus_stanza:service_discovery(Server)),
         Stanza = escalus:wait_for_stanza(Alice),
@@ -2812,7 +2807,7 @@ disco_service(Config) ->
     end).
 
 disco_features(Config) ->
-    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         escalus:send(Alice, stanza_get_features()),
         Stanza = escalus:wait_for_stanza(Alice),
         has_features(Stanza),
@@ -2820,17 +2815,16 @@ disco_features(Config) ->
     end).
 
 disco_rooms(Config) ->
-    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         escalus:send(Alice, stanza_get_rooms()),
-        %% we should have 1 room, created in init
+        %% we should have room room_address(<<"aliceroom">>), created in init
         Stanza = escalus:wait_for_stanza(Alice),
-        count_rooms(Stanza, 1),
         has_room(room_address(<<"alicesroom">>), Stanza),
         escalus:assert(is_stanza_from, [?MUC_HOST], Stanza)
     end).
 
 disco_info(Config) ->
-    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         escalus:send(Alice, stanza_to_room(escalus_stanza:iq_get(?NS_DISCO_INFO,[]), <<"alicesroom">>)),
         Stanza = escalus:wait_for_stanza(Alice),
         escalus:assert(is_iq_result, Stanza),
@@ -2838,7 +2832,7 @@ disco_info(Config) ->
     end).
 
 disco_items(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         escalus:send(Alice, stanza_join_room(<<"alicesroom">>, <<"nicenick">>)),
         _Stanza = escalus:wait_for_stanza(Alice),
 
@@ -2848,16 +2842,22 @@ disco_items(Config) ->
         escalus:assert(is_iq_result, Stanza2)
                                  end).
 
-disco_items_nonpublic(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        escalus:send(Alice, stanza_join_room(<<"alicesroom">>, <<"nicenick">>)),
+disco_items_nonpublic(Config0) ->
+    [Alice | _] = ?config(escalus_users, Config0),
+    Config = start_room(Config0, Alice, <<"alicesroom2">>, <<"aliceonchat">>,
+        [{persistent, true}, {public_list, false}]),
+
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        escalus:send(Alice, stanza_join_room(<<"alicesroom2">>, <<"nicenick">>)),
         _Stanza = escalus:wait_for_stanza(Alice),
 
         %% does not work because the list is not public and Bob is not an occupant
-        escalus:send(Bob, stanza_to_room(escalus_stanza:iq_get(?NS_DISCO_ITEMS,[]), <<"alicesroom">>)),
+        escalus:send(Bob, stanza_to_room(escalus_stanza:iq_get(?NS_DISCO_ITEMS,[]), <<"alicesroom2">>)),
         Error = escalus:wait_for_stanza(Bob),
         escalus:assert(is_error, [<<"auth">>, <<"forbidden">>], Error)
-    end).
+    end),
+    destroy_room(?MUC_HOST, <<"alicesroom2">>).
+
 
 create_and_destroy_room(Config) ->
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
