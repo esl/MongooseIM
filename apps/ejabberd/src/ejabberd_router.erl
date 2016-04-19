@@ -424,9 +424,9 @@ compile_routing_module() ->
 
 default_routing_modules() ->
     [mongoose_router_global,
+     mongoose_router_localdomain,
      mongoose_router_external_localnode,
      mongoose_router_external,
-     mongoose_router_localdomain,
      ejabberd_s2s].
 
 make_routing_module_source(Mods) ->
