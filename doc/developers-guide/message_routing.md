@@ -23,8 +23,10 @@ the same domain, the flow of the message through the system is as follows:
     The set of routing modules can be set in configuration as `routing_modules`. The default
     behaviour is the following:
     * `mongoose_router_global` - runs a global `filter_packet` hook
+    * `mongoose_router_external_local` - checks if there is an external component registered for the
+    destination domain on the node we are on now, possibly routes the stanza to it
     * `mongoose_router_external` - checks if there is an external component registered for the
-    destination domain, possibly routes the stanza to it
+    destination domain on any node in the cluster, possibly routes the stanza to it
     * `mongoose_router_localdomain` - checks if there is a local route registered for the destination
     domain (i.e. there is an entry in mnesia `route` table), possibly routes the stanza to it
     * `ejabberd_s2s` - tries to find or establish a connection to another server and send the stanza there

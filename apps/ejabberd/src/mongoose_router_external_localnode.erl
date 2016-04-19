@@ -1,12 +1,13 @@
 %%%-------------------------------------------------------------------
 %%% @doc
 %%% Part of a routing chain; checks if there is an external component
-%%% registered for the domain and directs the message there if there is,
+%%% registered for the domain on this node and directs the message there if there is,
 %%% otherwise just passes it on.
 %%% @end
 %%%-------------------------------------------------------------------
--module(mongoose_router_external).
+-module(mongoose_router_external_localnode).
 -author('bartlomiej.gorny@erlang-solutions.com').
+
 
 -behaviour(xmpp_router).
 
@@ -21,10 +22,10 @@ filter(OrigFrom, OrigTo, OrigPacket) ->
 
 route(From, To, Packet) ->
     LDstDomain = To#jid.lserver,
-    case ejabberd_router:lookup_component(LDstDomain) of
+    case ejabberd_router:lookup_component(LDstDomain, node()) of
         [] ->
             {From, To, Packet};
-        [#external_component{handler = Handler}|_] -> %% may be multiple on various nodes
+        [#external_component{handler = Handler}] ->
             mongoose_local_delivery:do_route(From, To, Packet,
                 LDstDomain, Handler),
             done

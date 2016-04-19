@@ -45,7 +45,7 @@ groups() ->
     [{xep0114_tcp, [], xep0114_tests()},
      {xep0114_ws, [], xep0114_tests()},
      {subdomain, [], [register_subdomain]},
-     {distributed, [], [register_in_cluster]}].
+     {distributed, [], [register_in_cluster, register_same_on_both]}].
 
 suite() ->
     escalus:suite().
@@ -280,64 +280,153 @@ register_subdomain(Config) ->
 register_in_cluster(Config) ->
     %% Given one component connected to the cluster
     CompOpts1 = spec(component1, Config),
-    {Comp, Addr, Name} = connect_component(CompOpts1),
+    Component1 = connect_component(CompOpts1),
+    {Comp1, _, _} = Component1,
+    CompOpts2 = spec(component2, Config),
+    Component2 = connect_component(CompOpts2),
+    {Comp2, _, _} = Component2,
+    CompOpts_on_2 = spec(component_on_2, Config),
+    Component_on_2 = connect_component(CompOpts_on_2),
+    {Comp_on_2, _, _} = Component_on_2,
 
     escalus:story(Config, [{alice, 1}, {clusterguy, 1}], fun(Alice, ClusterGuy) ->
-                %% When Alice sends a message to the component
-                Msg1 = escalus_stanza:chat_to(Addr, <<"Hi!">>),
-                escalus:send(Alice, Msg1),
-                %% Then component receives it
-                Reply1 = escalus:wait_for_stanza(Comp),
-                escalus:assert(is_chat_message, [<<"Hi!">>], Reply1),
-
-                %% When components sends a reply
-                Msg2 = escalus_stanza:chat_to(Alice, <<"Oh hi!">>),
-                escalus:send(Comp, escalus_stanza:from(Msg2, Addr)),
-
-                %% Then Alice receives it
-                Reply2 = escalus:wait_for_stanza(Alice),
-                escalus:assert(is_chat_message, [<<"Oh hi!">>], Reply2),
-                escalus:assert(is_stanza_from, [Addr], Reply2),
-
-                %% When ClusterGuy (connected to the other node than component)
-                %% sends a message
-                Msg3 = escalus_stanza:chat_to(Addr, <<"Hello!">>),
-                escalus:send(ClusterGuy, Msg3),
-                %% Then component receives it
-                Reply3 = escalus:wait_for_stanza(Comp),
-                escalus:assert(is_chat_message, [<<"Hello!">>], Reply3),
-
-                %% When components sends a reply
-                Msg4 = escalus_stanza:chat_to(ClusterGuy, <<"Hola!">>),
-                escalus:send(Comp, escalus_stanza:from(Msg4, Addr)),
-
-                %% Then ClusterGuy receives it
-                Reply4 = escalus:wait_for_stanza(ClusterGuy),
-                escalus:assert(is_chat_message, [<<"Hola!">>], Reply4),
-                escalus:assert(is_stanza_from, [Addr], Reply4),
-
-                %% When Alice asks for the disco features
-                Server1 = escalus_client:server(Alice),
-                Disco1 = escalus_stanza:service_discovery(Server1),
-                escalus:send(Alice, Disco1),
-
-                %% Then it contains host of the service
-                DiscoReply1 = escalus:wait_for_stanza(Alice),
-                escalus:assert(has_service, [Addr], DiscoReply1),
-
-                %% When ClusterGuy asks for the disco features on her server
-                Server2 = escalus_client:server(ClusterGuy),
-                Disco2 = escalus_stanza:service_discovery(Server2),
-                escalus:send(ClusterGuy, Disco2),
-
-                %% Then it also contains the service (with the other address though)
-                DiscoReply2 = escalus:wait_for_stanza(ClusterGuy),
-                DistributedAddr = <<Name/binary, ".", Server2/binary>>,
-                escalus:assert(has_service, [DistributedAddr], DiscoReply2)
-
+                do_chat_with_component(Alice, ClusterGuy, Component1),
+                do_chat_with_component(Alice, ClusterGuy, Component2),
+                do_chat_with_component(Alice, ClusterGuy, Component_on_2)
         end),
 
-    ok = escalus_connection:stop(Comp).
+    ok = escalus_connection:stop(Comp1),
+    ok = escalus_connection:stop(Comp2),
+    ok = escalus_connection:stop(Comp_on_2),
+    ok.
+
+do_chat_with_component(Alice, ClusterGuy, Component1) ->
+    {Comp, Addr, Name} = Component1,
+
+    %% When Alice sends a message to the component
+    Msg1 = escalus_stanza:chat_to(Addr, <<"Hi!">>),
+    escalus:send(Alice, Msg1),
+    %% Then component receives it
+    Reply1 = escalus:wait_for_stanza(Comp),
+    escalus:assert(is_chat_message, [<<"Hi!">>], Reply1),
+
+    %% When components sends a reply
+    Msg2 = escalus_stanza:chat_to(Alice, <<"Oh hi!">>),
+    escalus:send(Comp, escalus_stanza:from(Msg2, Addr)),
+
+    %% Then Alice receives it
+    Reply2 = escalus:wait_for_stanza(Alice),
+    escalus:assert(is_chat_message, [<<"Oh hi!">>], Reply2),
+    escalus:assert(is_stanza_from, [Addr], Reply2),
+
+    %% When ClusterGuy (connected to the other node than component)
+    %% sends a message
+    Msg3 = escalus_stanza:chat_to(Addr, <<"Hello!">>),
+    escalus:send(ClusterGuy, Msg3),
+    %% Then component receives it
+    Reply3 = escalus:wait_for_stanza(Comp),
+    escalus:assert(is_chat_message, [<<"Hello!">>], Reply3),
+
+    %% When components sends a reply
+    Msg4 = escalus_stanza:chat_to(ClusterGuy, <<"Hola!">>),
+    escalus:send(Comp, escalus_stanza:from(Msg4, Addr)),
+
+    %% Then ClusterGuy receives it
+    Reply4 = escalus:wait_for_stanza(ClusterGuy),
+    escalus:assert(is_chat_message, [<<"Hola!">>], Reply4),
+    escalus:assert(is_stanza_from, [Addr], Reply4),
+
+    %% When Alice asks for the disco features
+    Server1 = escalus_client:server(Alice),
+    Disco1 = escalus_stanza:service_discovery(Server1),
+    escalus:send(Alice, Disco1),
+
+    %% Then it contains host of the service
+    DiscoReply1 = escalus:wait_for_stanza(Alice),
+    escalus:assert(has_service, [Addr], DiscoReply1),
+
+    %% When ClusterGuy asks for the disco features on her server
+    Server2 = escalus_client:server(ClusterGuy),
+    Disco2 = escalus_stanza:service_discovery(Server2),
+    escalus:send(ClusterGuy, Disco2),
+
+    %% Then it also contains the service (with the other address though)
+    DiscoReply2 = escalus:wait_for_stanza(ClusterGuy),
+    DistributedAddr = <<Name/binary, ".", Server2/binary>>,
+    escalus:assert(has_service, [DistributedAddr], DiscoReply2).
+
+
+register_same_on_both(Config) ->
+    %% Given two components with the same name
+    %% but not on the same host
+    %% we should be able to register
+    %% and we get two components having the same name and address
+    CompOpts2 = spec(component2, Config),
+    Component2 = connect_component(CompOpts2),
+    ct:pal("~p", [Component2]),
+    {Comp2, Addr, Name} = Component2,
+    CompOpts_d = spec(component_duplicate, Config),
+    Component_d = connect_component(CompOpts_d),
+    ct:pal("~p", [Component_d]),
+    {Comp_d, Addr, Name} = Component_d,
+
+    escalus:story(Config, [{alice, 1}, {clusterguy, 1}], fun(Alice, ClusterGuy) ->
+        %% When Alice sends a message to the component
+        Msg1 = escalus_stanza:chat_to(Addr, <<"Hi!">>),
+        ct:pal("~p", [Msg1]),
+        escalus:send(Alice, Msg1),
+        %% Then component receives it (on the same node)
+        Reply1 = escalus:wait_for_stanza(Comp2),
+        escalus:assert(is_chat_message, [<<"Hi!">>], Reply1),
+
+        %% When components sends a reply
+        Msg2 = escalus_stanza:chat_to(Alice, <<"Oh hi!">>),
+        escalus:send(Comp2, escalus_stanza:from(Msg2, Addr)),
+
+        %% Then Alice receives it
+        Reply2 = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_chat_message, [<<"Oh hi!">>], Reply2),
+        escalus:assert(is_stanza_from, [Addr], Reply2),
+
+        %% When ClusterGuy (connected to the other node than component)
+        %% sends a message
+        Msg3 = escalus_stanza:chat_to(Addr, <<"Hello!">>),
+        escalus:send(ClusterGuy, Msg3),
+        %% Then component on his node receives it
+        Reply3 = escalus:wait_for_stanza(Comp_d),
+        escalus:assert(is_chat_message, [<<"Hello!">>], Reply3),
+
+        %% When components sends a reply
+        Msg4 = escalus_stanza:chat_to(ClusterGuy, <<"Hola!">>),
+        escalus:send(Comp_d, escalus_stanza:from(Msg4, Addr)),
+
+        %% Then ClusterGuy receives it
+        Reply4 = escalus:wait_for_stanza(ClusterGuy),
+        escalus:assert(is_chat_message, [<<"Hola!">>], Reply4),
+        escalus:assert(is_stanza_from, [Addr], Reply4),
+
+        %% When Alice asks for the disco features
+        Server1 = escalus_client:server(Alice),
+        Disco1 = escalus_stanza:service_discovery(Server1),
+        escalus:send(Alice, Disco1),
+
+        %% Then it contains host of the service
+        DiscoReply1 = escalus:wait_for_stanza(Alice),
+        escalus:assert(has_service, [Addr], DiscoReply1),
+
+        %% When ClusterGuy asks for the disco features on her server
+        Server2 = escalus_client:server(ClusterGuy),
+        Disco2 = escalus_stanza:service_discovery(Server2),
+        escalus:send(ClusterGuy, Disco2),
+
+        %% Then it also contains the same service
+        DiscoReply2 = escalus:wait_for_stanza(ClusterGuy),
+        escalus:assert(has_service, [Addr], DiscoReply2)
+
+    end),
+    ok = escalus_connection:stop(Comp2),
+    ok = escalus_connection:stop(Comp_d),
+    ok.
 
 %%--------------------------------------------------------------------
 %% Helpers
@@ -466,11 +555,18 @@ spec(component1, Config) ->
     [{component, <<"test_service">>}] ++ common(Config);
 spec(component2, Config) ->
     [{component, <<"another_service">>}] ++ common(Config);
+spec(component_on_2, Config) ->
+    [{component, <<"yet_another_service">>}] ++ common(Config, 8899);
+spec(component_duplicate, Config) ->
+    [{component, <<"another_service">>}] ++ common(Config, 8899);
 spec(muc_component, Config) ->
     [{component, <<"muc">>}] ++ common(Config).
 
 common(Config) ->
+    common(Config, 8888).
+
+common(Config, Port) ->
     [{server, ct:get_config(ejabberd_domain, Config)},
      {host, ct:get_config(ejabberd_domain, Config)},
      {password, <<"secret">>},
-     {port, 8888}].
+     {port, Port}].
