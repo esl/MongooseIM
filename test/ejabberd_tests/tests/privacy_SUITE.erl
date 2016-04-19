@@ -52,9 +52,8 @@ management_test_cases() ->
      default_nonexistent,
      no_default,
      remove_list,
-     get_all_lists_with_active
-     %get_all_lists_with_default
-     % not implemented (see testcase)
+     get_all_lists_with_active,
+     get_all_lists_with_default
     ].
 
 blocking_test_cases() ->
@@ -165,7 +164,8 @@ get_all_lists_with_default(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, _Bob) ->
 
         privacy_helper:set_list(Alice, <<"deny_bob">>),
-        privacy_helper:set_and_activate(Alice, <<"allow_bob">>),
+        privacy_helper:set_list(Alice, <<"allow_bob">>),
+        privacy_helper:set_default_list(Alice, <<"allow_bob">>),
 
         escalus:send(Alice, escalus_stanza:privacy_get_all()),
         escalus:assert(is_privacy_result_with_default,
