@@ -76,7 +76,7 @@ groups() -> [
                 disco_items,
                 disco_items_nonpublic
                 ]},
-        {disco_rsm, [], rsm_cases()},
+        {disco_rsm, [parallel], rsm_cases()},
         {moderator, [], [
                 moderator_subject,
                 moderator_subject_unauthorized,
@@ -3749,7 +3749,7 @@ pagination_first5(Config) ->
         wait_room_range(Alice, 1, 5),
         ok
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    escalus:fresh_story(Config, [{alice, 1}], F).
 
 pagination_last5(Config) ->
     F = fun(Alice) ->
@@ -3759,7 +3759,7 @@ pagination_last5(Config) ->
         wait_room_range(Alice, 11, 15),
         ok
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    escalus:fresh_story(Config, [{alice, 1}], F).
 
 pagination_before10(Config) ->
     %% The last item in the page returned by the responding entity
@@ -3772,7 +3772,7 @@ pagination_before10(Config) ->
         wait_room_range(Alice, 5, 9),
         ok
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    escalus:fresh_story(Config, [{alice, 1}], F).
 
 pagination_after10(Config) ->
     F = fun(Alice) ->
@@ -3783,7 +3783,7 @@ pagination_after10(Config) ->
         wait_room_range(Alice, 11, 15),
         ok
         end,
-    escalus:story(Config, [{alice, 1}], F).
+    escalus:fresh_story(Config, [{alice, 1}], F).
 
 %% @doc Based on examples from http://xmpp.org/extensions/xep-0059.html
 %% @end
