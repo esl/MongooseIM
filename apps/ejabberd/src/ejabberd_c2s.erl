@@ -1224,13 +1224,15 @@ process_incoming_stanza(Name, From, To, Packet, StateName, StateData) ->
     end.
 
 response_negative(<<"iq">>, forbidden, From, To, Packet) ->
-    Err = jlib:make_error_reply(Packet, ?ERR_FORBIDDEN),
-    ejabberd_router:route(To, From, Err);
+    send_back_error(?ERR_FORBIDDEN, From, To, Packet);
 response_negative(<<"iq">>, deny, From, To, Packet) ->
-    Err = jlib:make_error_reply(Packet, ?ERR_SERVICE_UNAVAILABLE),
-    ejabberd_router:route(To, From, Err);
+    send_back_error(?ERR_SERVICE_UNAVAILABLE, From, To, Packet);
 response_negative(_, _, _, _, _) ->
     ok.
+
+send_back_error(Etype, From, To, Packet) ->
+    Err = jlib:make_error_reply(Packet, Etype),
+    ejabberd_router:route(To, From, Err).
 
 -spec legacy_packet_to_broadcast({xmlel, any(), any(), list()}) -> {broadcast, broadcast_type()}.
 legacy_packet_to_broadcast({xmlel, _, _, [Child]}) ->
