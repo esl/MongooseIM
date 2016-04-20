@@ -1146,26 +1146,10 @@ handle_info({broadcast, Broadcast}, StateName, StateData) ->
     handle_broadcast_result(handle_routed_broadcast(Broadcast, StateData), StateName, StateData);
 handle_info({route, From, To, Packet}, StateName, StateData) ->
     ejabberd_hooks:run(c2s_loop_debug, [{route, From, To, Packet}]),
-    case Packet#xmlel.name of
-        <<"broadcast">> ->
-            self() ! legacy_packet_to_broadcast(Packet),
-            fsm_next_state(StateName, StateData);
-        PacketName ->
-            case handle_routed(PacketName, From, To, Packet, StateData) of
-                {true, NewAttrs, NewState} ->
-                    Attrs2 = jlib:replace_from_to_attrs(jid:to_binary(From),
-                                                        jid:to_binary(To),
-                                                        NewAttrs),
-                    FixedPacket = Packet#xmlel{attrs = Attrs2},
-                    ejabberd_hooks:run(user_receive_packet,
-                                       StateData#state.server,
-                                       [StateData#state.jid, From, To, FixedPacket]),
-                    maybe_csi_inactive_optimisation({From, To, FixedPacket}, NewState, StateName);
-
-                {false, _NewAttrs, NewState} ->
-                    fsm_next_state(StateName, NewState)
-            end
-    end;
+    Name = Packet#xmlel.name,
+    Resp = process_incoming_stanza(Name, From, To, Packet, StateName, StateData),
+    Resp;
+%%    fsm_next_state(StateName, NewState);
 handle_info({'DOWN', Monitor, _Type, _Object, _Info}, _StateName, StateData)
   when Monitor == StateData#state.socket_monitor ->
     maybe_enter_resume_session(StateData#state.stream_mgmt_id, StateData);
@@ -1220,6 +1204,34 @@ handle_info(Info, StateName, StateData) ->
     ?ERROR_MSG("Unexpected info: ~p", [Info]),
     fsm_next_state(StateName, StateData).
 
+process_incoming_stanza(<<"broadcast">>, _From, _To, Packet, StateName, StateData) ->
+    self() ! legacy_packet_to_broadcast(Packet),
+    fsm_next_state(StateName, StateData);
+process_incoming_stanza(Name, From, To, Packet, StateName, StateData) ->
+    case handle_routed(Name, From, To, Packet, StateData) of
+        {true, NewAttrs, NewState} ->
+            Attrs2 = jlib:replace_from_to_attrs(jid:to_binary(From),
+                jid:to_binary(To),
+                NewAttrs),
+            FixedPacket = Packet#xmlel{attrs = Attrs2},
+            ejabberd_hooks:run(user_receive_packet,
+                StateData#state.server,
+                [StateData#state.jid, From, To, FixedPacket]),
+            ship_to_local_user({From, To, FixedPacket}, NewState, StateName);
+        {Reason, _NewAttrs, NewState} ->
+            response_negative(Name, Reason, From, To, Packet),
+            fsm_next_state(StateName, NewState)
+    end.
+
+response_negative(<<"iq">>, forbidden, From, To, Packet) ->
+    Err = jlib:make_error_reply(Packet, ?ERR_FORBIDDEN),
+    ejabberd_router:route(To, From, Err);
+response_negative(<<"iq">>, deny, From, To, Packet) ->
+    Err = jlib:make_error_reply(Packet, ?ERR_SERVICE_UNAVAILABLE),
+    ejabberd_router:route(To, From, Err);
+response_negative(_, _, _, _, _) ->
+    ok.
+
 -spec legacy_packet_to_broadcast({xmlel, any(), any(), list()}) -> {broadcast, broadcast_type()}.
 legacy_packet_to_broadcast({xmlel, _, _, [Child]}) ->
     {broadcast, Child};
@@ -1236,7 +1248,7 @@ handle_routed(<<"message">>, From, To, Packet, StateData) ->
         allow ->
             {true, Packet#xmlel.attrs, StateData};
         deny ->
-            {false, Packet#xmlel.attrs, StateData}
+            {deny, Packet#xmlel.attrs, StateData}
     end;
 handle_routed(_, _From, _To, Packet, StateData) ->
     {true, Packet#xmlel.attrs, StateData}.
@@ -1255,26 +1267,23 @@ handle_routed_iq(From, To, Packet = #xmlel{attrs = Attrs}, StateData) ->
                         allow ->
                             {true, Attrs, StateData};
                         deny ->
-                            {false, Attrs, StateData}
+                            {deny, Attrs, StateData}
                     end;
                 _ ->
-                    Err = jlib:make_error_reply(Packet, ?ERR_FORBIDDEN),
-                    ejabberd_router:route(To, From, Err),
-                    {false, Attrs, StateData}
+                    {forbidden, Attrs, StateData}
             end;
         IQ when (is_record(IQ, iq)) or (IQ == reply) ->
             case privacy_check_packet(StateData, From, To, Packet, in) of
                 allow ->
                     {true, Attrs, StateData};
                 deny when is_record(IQ, iq) ->
-                    Err = jlib:make_error_reply(Packet, ?ERR_SERVICE_UNAVAILABLE),
-                    ejabberd_router:route(To, From, Err),
-                    {false, Attrs, StateData};
+                    {deny, Attrs, StateData};
                 deny when IQ == reply ->
-                    {false, Attrs, StateData}
+                    %% ???
+                    {deny, Attrs, StateData}
             end;
         IQ when (IQ == invalid) or (IQ == not_iq) ->
-            {false, Attrs, StateData}
+            {invalid, Attrs, StateData}
     end.
 
 -spec handle_routed_broadcast(Broadcast :: broadcast_type(), StateData :: state()) ->
@@ -1308,7 +1317,7 @@ handle_broadcast_result({exit, ErrorMessage}, _StateName, StateData) ->
     send_trailer(StateData),
     {stop, normal, StateData};
 handle_broadcast_result({send_new, From, To, Stanza, NewState}, StateName, _StateData) ->
-    maybe_csi_inactive_optimisation({From, To, Stanza}, NewState, StateName);
+    ship_to_local_user({From, To, Stanza}, NewState, StateName);
 handle_broadcast_result({new_state, NewState}, StateName, _StateData) ->
     fsm_next_state(StateName, NewState).
 
@@ -1333,7 +1342,7 @@ handle_routed_presence(From, To, Packet = #xmlel{attrs = Attrs}, StateData) ->
                            false -> make_available_to(LFrom, LBFrom, State)
                        end,
             process_presence_probe(From, To, NewState),
-            {false, Attrs, NewState};
+            {probe, Attrs, NewState};
         <<"error">> ->
             NewA = ?SETS:del_element(jid:to_lower(From), State#state.pres_a),
             {true, Attrs, State#state{pres_a = NewA}};
@@ -1361,7 +1370,7 @@ handle_routed_presence(From, To, Packet = #xmlel{attrs = Attrs}, StateData) ->
                         false -> {true, Attrs, make_available_to(LFrom, LBFrom, State)}
                     end;
                 deny ->
-                    {false, Attrs, State}
+                    {deny, Attrs, State}
             end
     end.
 
@@ -1950,7 +1959,10 @@ privacy_check_packet(StateData, From, To, Packet, Dir) ->
                        Packet :: jlib:xmlel(),
                        Dir :: 'in' | 'out') -> boolean().
 is_privacy_allow(StateData, From, To, Packet, Dir) ->
-    allow == privacy_check_packet(StateData, From, To, Packet, Dir).
+    case privacy_check_packet(StateData, From, To, Packet, Dir) of
+        allow -> true;
+        _ -> deny
+    end.
 
 
 -spec presence_broadcast(State :: state(),
@@ -2491,6 +2503,9 @@ maybe_activate_session(_, State) ->
 resend_csi_buffer(State) ->
     NewState = flush_csi_buffer(State),
     fsm_next_state(session_established, NewState#state{csi_state=active}).
+
+ship_to_local_user(Packet, State, StateName) ->
+    maybe_csi_inactive_optimisation(Packet, State, StateName).
 
 maybe_csi_inactive_optimisation(Packet, #state{csi_state = active} = State,
                                 StateName) ->
