@@ -45,7 +45,8 @@
          mnesia_change_nodename/4,
          restore/1, % Still used by some modules%%
          get_loglevel/0,
-         join_cluster/1, leave_cluster/0]).
+         join_cluster/1, leave_cluster/0,
+         remove_from_cluster/1]).
 
 -include("ejabberd.hrl").
 -include("ejabberd_commands.hrl").
@@ -150,14 +151,19 @@ commands() ->
                         module = ejabberd_config, function = reload_cluster,
                         args = [], result = {res, restuple}},
      #ejabberd_commands{name = join_cluster, tags = [server],
-                        desc = "Join the node to the cluster",
+                        desc = "Join the node to a cluster. Call it from the joining node",
                         module = ?MODULE, function = join_cluster,
                         args = [{node, string}],
                         result = {res, restuple}},
      #ejabberd_commands{name = leave_cluster, tags = [server],
-                        desc = "Leave a node from the cluster",
+                        desc = "Leave a node from the cluster. Call it from the node that is going to leave",
                         module = ?MODULE, function = leave_cluster,
                         args = [],
+                        result = {res, restuple}},
+     #ejabberd_commands{name = remove_from_cluster, tags = [server],
+                        desc = "Remove dead node from the cluster. Call it from the member of the cluster",
+                        module = ?MODULE, function = remove_from_cluster,
+                        args = [{node, string}],
                         result = {res, restuple}}
     ].
 
@@ -165,12 +171,27 @@ commands() ->
 %%%
 %%% Server management
 %%%
+-spec remove_from_cluster(string()) -> {ok, string()} | {node_is_alive, string()} | {mnesia_error, string()}.
+remove_from_cluster(DeadNodeString) ->
+    DeadNode = list_to_atom(DeadNodeString),
+    try mongoose_cluster:remove_from_cluster(DeadNode) of
+        ok ->
+            String = io_lib:format("The node ~s has been removed from the cluster~n", [DeadNodeString]),
+            {ok, String}
+    catch
+        error:{node_is_alive, DeadNode} ->
+            String = io_lib:format("The node ~s must be down~n", [DeadNode]),
+            {node_is_alive, String};
+        error:{del_table_copy_schema, R} ->
+            String = io_lib:format("Cannot delete table schema~n. Reason: ~p", [R]),
+            {mnesia_error, String}
+    end.
 
 -spec join_cluster(string()) -> {ok, string()} | {pang, string()} | {alread_joined, string()} |
                                 {mnesia_error, string()} | {error, string()}.
 join_cluster(NodeString) ->
     NodeAtom = list_to_atom(NodeString),
-    NodeList = mnesia:system_info(running_db_nodes),
+    NodeList = mnesia:system_info(db_nodes),
     case lists:member(NodeAtom, NodeList) of
         true ->
             String = io_lib:format("The node ~s has already joined the cluster~n", [NodeString]),
