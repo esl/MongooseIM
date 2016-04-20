@@ -910,7 +910,10 @@ session_established({xmlstreamelement, El}, StateData) ->
         _NewEl ->
             NewState = maybe_increment_sm_incoming(StateData#state.stream_mgmt,
                                                    StateData),
-            check_amp_maybe_send(FromJID#jid.lserver, NewState, {FromJID, El})
+            case check_amp(FromJID#jid.lserver, {FromJID, El}) of
+                drop      -> fsm_next_state(session_established, NewState);
+                {_, NewEl} -> process_outgoing_stanza(NewEl, NewState)
+            end
     end;
 
 %% We hibernate the process to reduce memory consumption after a
@@ -937,18 +940,14 @@ session_established(closed, StateData) ->
     ?DEBUG("Session established closed - trying to enter resume_session",[]),
     maybe_enter_resume_session(StateData#state.stream_mgmt_id, StateData).
 
-
 %%% XEP-0079 (AMP) related
-check_amp_maybe_send(Host, State, {_FromJID, _El} = HookData) ->
-    case ejabberd_hooks:run_fold(amp_check_packet, Host, HookData, []) of
-        drop      -> fsm_next_state(session_established, State);
-        {_,NewEl} -> session_established2(NewEl, State)
-    end.
+check_amp(Host, {_FromJID, _El} = HookData) ->
+    ejabberd_hooks:run_fold(amp_check_packet, Host, HookData, []).
 
 %% @doc Process packets sent by user (coming from user on c2s XMPP
 %% connection)
--spec session_established2(El :: jlib:xmlel(), state()) -> fsm_return().
-session_established2(El, StateData) ->
+-spec process_outgoing_stanza(El :: jlib:xmlel(), state()) -> fsm_return().
+process_outgoing_stanza(El, StateData) ->
     #xmlel{name = Name, attrs = Attrs} = El,
     User = StateData#state.user,
     Server = StateData#state.server,
@@ -971,69 +970,71 @@ session_established2(El, StateData) ->
                 _ ->
                     NewEl1
             end,
-    NewState =
-    case ToJID of
-        error ->
-            case xml:get_attr_s(<<"type">>, Attrs) of
-                <<"error">> -> StateData;
-                <<"result">> -> StateData;
-                _ ->
-                    Err = jlib:make_error_reply(NewEl, ?ERR_JID_MALFORMED),
-                    send_element(StateData, Err),
-                    StateData
-            end;
-        _ ->
-            case Name of
-                <<"presence">> ->
-                    PresenceEl = ejabberd_hooks:run_fold(
-                                   c2s_update_presence,
-                                   Server,
-                                   NewEl,
-                                   [User, Server]),
-                    ejabberd_hooks:run(
-                      user_send_packet,
-                      Server,
-                      [FromJID, ToJID, PresenceEl]),
-                    case ToJID of
-                        #jid{user = User,
-                             server = Server,
-                             resource = <<>>} ->
-                            ?DEBUG("presence_update(~p,~n\t~p,~n\t~p)",
-                                   [FromJID, PresenceEl, StateData]),
-                            presence_update(FromJID, PresenceEl,
-                                            StateData);
-                        _ ->
-                            presence_track(FromJID, ToJID, PresenceEl,
-                                           StateData)
-                    end;
-                <<"iq">> ->
-                    case jlib:iq_query_info(NewEl) of
-                        #iq{xmlns = Xmlns} = IQ
-                          when Xmlns == ?NS_PRIVACY;
-                               Xmlns == ?NS_BLOCKING ->
-                            process_privacy_iq(
-                              FromJID, ToJID, IQ, StateData);
-                        _ ->
-                            ejabberd_hooks:run(
-                              user_send_packet,
-                              Server,
-                              [FromJID, ToJID, NewEl]),
-                            check_privacy_route(FromJID, StateData, FromJID, ToJID, NewEl),
-                            StateData
-                    end;
-                <<"message">> ->
-                    ejabberd_hooks:run(user_send_packet,
-                                       Server,
-                                       [FromJID, ToJID, NewEl]),
-                    check_privacy_route(FromJID, StateData, FromJID,
-                                        ToJID, NewEl),
-                    StateData;
-                _ ->
-                    StateData
-            end
-    end,
+    NewState = process_outgoing_stanza(ToJID, Name, {Attrs, NewEl, FromJID, StateData, Server, User}),
     ejabberd_hooks:run(c2s_loop_debug, [{xmlstreamelement, El}]),
     fsm_next_state(session_established, NewState).
+
+
+process_outgoing_stanza(error, _Name, Args) ->
+    {Attrs, NewEl, _FromJID, StateData, _Server, _User} = Args,
+    case xml:get_attr_s(<<"type">>, Attrs) of
+        <<"error">> -> StateData;
+        <<"result">> -> StateData;
+        _ ->
+            Err = jlib:make_error_reply(NewEl, ?ERR_JID_MALFORMED),
+            send_element(StateData, Err),
+            StateData
+    end;
+process_outgoing_stanza(ToJID, <<"presence">>, Args) ->
+    {_Attrs, NewEl, FromJID, StateData, Server, User} = Args,
+    PresenceEl = ejabberd_hooks:run_fold(
+        c2s_update_presence,
+        Server,
+        NewEl,
+        [User, Server]),
+    ejabberd_hooks:run(
+        user_send_packet,
+        Server,
+        [FromJID, ToJID, PresenceEl]),
+    case ToJID of
+        #jid{user = User,
+            server = Server,
+            resource = <<>>} ->
+            ?DEBUG("presence_update(~p,~n\t~p,~n\t~p)",
+                [FromJID, PresenceEl, StateData]),
+            presence_update(FromJID, PresenceEl,
+                StateData);
+        _ ->
+            presence_track(FromJID, ToJID, PresenceEl,
+                StateData)
+    end;
+process_outgoing_stanza(ToJID, <<"iq">>, Args) ->
+    {_Attrs, NewEl, FromJID, StateData, Server, User} = Args,
+    case jlib:iq_query_info(NewEl) of
+        #iq{xmlns = Xmlns} = IQ
+            when Xmlns == ?NS_PRIVACY;
+            Xmlns == ?NS_BLOCKING ->
+            process_privacy_iq(
+                FromJID, ToJID, IQ, StateData);
+        _ ->
+            ejabberd_hooks:run(
+                user_send_packet,
+                Server,
+                [FromJID, ToJID, NewEl]),
+            check_privacy_and_route(FromJID, StateData, FromJID, ToJID, NewEl),
+            StateData
+    end;
+process_outgoing_stanza(ToJID, <<"message">>, Args) ->
+    {_Attrs, NewEl, FromJID, StateData, Server, _User} = Args,
+    ejabberd_hooks:run(user_send_packet,
+        Server,
+        [FromJID, ToJID, NewEl]),
+    check_privacy_and_route(FromJID, StateData, FromJID,
+        ToJID, NewEl),
+    StateData;
+process_outgoing_stanza(_ToJID, _Name, Args) ->
+    {_Attrs, _NewEl, _FromJID, StateData, _Server, _User} = Args,
+    StateData.
 
 %%-------------------------------------------------------------------------
 %% session may be terminated for exmaple by mod_ping there is still valid
@@ -1854,13 +1855,13 @@ presence_track(From, To, Packet, StateData) ->
     Server = StateData#state.server,
     case xml:get_attr_s(<<"type">>, Attrs) of
         <<"unavailable">> ->
-            check_privacy_route(From, StateData, From, To, Packet),
+            check_privacy_and_route(From, StateData, From, To, Packet),
             I = ?SETS:del_element(LTo, StateData#state.pres_i),
             A = ?SETS:del_element(LTo, StateData#state.pres_a),
             StateData#state{pres_i = I,
                             pres_a = A};
         <<"invisible">> ->
-            check_privacy_route(From, StateData, From, To, Packet),
+            check_privacy_and_route(From, StateData, From, To, Packet),
             I = ?SETS:add_element(LTo, StateData#state.pres_i),
             A = ?SETS:del_element(LTo, StateData#state.pres_a),
             StateData#state{pres_i = I,
@@ -1869,38 +1870,38 @@ presence_track(From, To, Packet, StateData) ->
             ejabberd_hooks:run(roster_out_subscription,
                                Server,
                                [User, Server, To, subscribe]),
-            check_privacy_route(From, StateData, jid:to_bare(From),
+            check_privacy_and_route(From, StateData, jid:to_bare(From),
                                 To, Packet),
             StateData;
         <<"subscribed">> ->
             ejabberd_hooks:run(roster_out_subscription,
                                Server,
                                [User, Server, To, subscribed]),
-            check_privacy_route(From, StateData, jid:to_bare(From),
+            check_privacy_and_route(From, StateData, jid:to_bare(From),
                                 To, Packet),
             StateData;
         <<"unsubscribe">> ->
             ejabberd_hooks:run(roster_out_subscription,
                                Server,
                                [User, Server, To, unsubscribe]),
-            check_privacy_route(From, StateData, jid:to_bare(From),
+            check_privacy_and_route(From, StateData, jid:to_bare(From),
                                 To, Packet),
             StateData;
         <<"unsubscribed">> ->
             ejabberd_hooks:run(roster_out_subscription,
                                Server,
                                [User, Server, To, unsubscribed]),
-            check_privacy_route(From, StateData, jid:to_bare(From),
+            check_privacy_and_route(From, StateData, jid:to_bare(From),
                                 To, Packet),
             StateData;
         <<"error">> ->
-            check_privacy_route(From, StateData, From, To, Packet),
+            check_privacy_and_route(From, StateData, From, To, Packet),
             StateData;
         <<"probe">> ->
-            check_privacy_route(From, StateData, From, To, Packet),
+            check_privacy_and_route(From, StateData, From, To, Packet),
             StateData;
         _ ->
-            check_privacy_route(From, StateData, From, To, Packet),
+            check_privacy_and_route(From, StateData, From, To, Packet),
             I = ?SETS:del_element(LTo, StateData#state.pres_i),
             A = ?SETS:add_element(LTo, StateData#state.pres_a),
             StateData#state{pres_i = I,
@@ -1908,12 +1909,12 @@ presence_track(From, To, Packet, StateData) ->
     end.
 
 
--spec check_privacy_route(From :: 'undefined' | ejabberd:jid(),
+-spec check_privacy_and_route(From :: 'undefined' | ejabberd:jid(),
                           StateData :: state(),
                           FromRoute :: ejabberd:jid(),
                           To :: ejabberd:jid(),
                           Packet :: jlib:xmlel()) -> 'ok'.
-check_privacy_route(From, StateData, FromRoute, To, Packet) ->
+check_privacy_and_route(From, StateData, FromRoute, To, Packet) ->
     case privacy_check_packet(StateData, From, To, Packet, out) of
         deny ->
             Lang = StateData#state.lang,
