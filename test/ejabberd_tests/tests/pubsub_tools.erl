@@ -226,7 +226,7 @@ check_item_notification(Response, ItemId, {NodeAddr, NodeName}, Options) ->
     check_notification(Response, NodeAddr),
     true = escalus_pred:has_type(<<"headline">>, Response),
     Items = exml_query:path(Response, [{element, <<"event">>},
-                                     {element, <<"items">>}]),
+                                       {element, <<"items">>}]),
     check_items(Items, [ItemId], NodeName, proplists:get_value(with_payload, Options, true)),
     Response.
 

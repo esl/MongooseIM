@@ -415,9 +415,9 @@ clear_opts(Module, Opts0) ->
             Opts
     end.
 
--type db_type() :: odbc | mnesia | riak.
+-type backend() :: odbc | mnesia | riak.
 
--spec v_db(db_type() | internal) -> db_type().
+-spec v_db(backend() | internal) -> backend().
 
 v_db(odbc) -> odbc;
 v_db(internal) -> mnesia;

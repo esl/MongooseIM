@@ -29,7 +29,7 @@
 
 -author('henoch@dtek.chalmers.se').
 
--protocol({xep, 115, '1.5'}).
+-xep([{xep, 115}, {version, "1.5"}]).
 
 -behaviour(gen_server).
 

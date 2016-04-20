@@ -47,9 +47,10 @@
 -behaviour(gen_mod).
 -behaviour(gen_server).
 -author('christophe.romain@process-one.net').
--protocol({xep, 60, '1.13-1'}).
--protocol({xep, 163, '1.2'}).
--protocol({xep, 248, '0.2'}).
+
+-xep([{xep, 60}, {version, "1.13-1"}]).
+-xep([{xep, 163}, {version, "1.2"}]).
+-xep([{xep, 248}, {version, "0.2"}]).
 
 -include("ejabberd.hrl").
 -include("adhoc.hrl").
@@ -322,9 +323,6 @@ init([ServerHost, Opts]) ->
 	    ok
     end,
     ejabberd_router:register_route(Host),
-    pubsub_migrate:update_node_database(Host, ServerHost),
-    pubsub_migrate:update_state_database(Host, ServerHost),
-    pubsub_migrate:update_lastitem_database(Host, ServerHost),
     {_, State} = init_send_loop(ServerHost),
     {ok, State}.
 
