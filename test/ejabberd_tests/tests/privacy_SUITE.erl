@@ -376,7 +376,16 @@ block_jid_message(Config) ->
         Response = escalus_client:wait_for_stanza(Bob),
         escalus_assert:is_error(Response, <<"cancel">>, <<"service-unavailable">>),
         timer:sleep(?SLEEP_TIME),
-        escalus_assert:has_no_stanzas(Alice)
+        escalus_assert:has_no_stanzas(Alice),
+
+        %% now Alice try to send a msg to Bob, whom she had blocked, and gets error
+        %% and Bob gets nothing
+        escalus_client:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi, Bobbb!">>)),
+        Response1 = escalus_client:wait_for_stanza(Alice),
+        ct:pal("~p", [Response1]),
+        escalus_assert:is_error(Response1, <<"cancel">>, <<"not-acceptable">>),
+        timer:sleep(?SLEEP_TIME),
+        escalus_assert:has_no_stanzas(Bob)
 
         end).
 

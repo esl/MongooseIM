@@ -1940,7 +1940,7 @@ check_privacy_and_route(From, StateData, FromRoute, To, Packet) ->
         deny ->
             Lang = StateData#state.lang,
             ErrText = <<"Your active privacy list has denied the routing of this stanza.">>,
-            Err = jlib:make_error_reply(Packet, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)),
+            Err = jlib:make_error_reply(Packet, ?ERR_NOT_ACCEPTABLE_CANCEL),
             ejabberd_router:route(To, From, Err),
             ok;
         allow ->
