@@ -15,16 +15,22 @@ is_sm_backend_distributed(ejabberd_sm_mnesia) -> true;
 is_sm_backend_distributed(Other) -> {false, Other}.
 
 add_node_to_cluster(Config) ->
-    Node = mim(),
     Node2 = mim2(),
-    ok = rpc(Node2, mongoose_cluster, join, [Node], cluster_op_timeout()),
-    verify_result(add),
+    add_node_to_cluster(Node2, Config).
+
+add_node_to_cluster(Node, Config) ->
+    ClusterMember = mim(),
+    ok = rpc(Node, mongoose_cluster, join, [ClusterMember], cluster_op_timeout()),
+    verify_result(Node, add),
     Config.
 
 remove_node_from_cluster(_Config) ->
-    Node2 = mim2(),
-    ok = rpc(Node2, mongoose_cluster, leave, [], cluster_op_timeout()),
-    verify_result(remove),
+    Node = mim2(),
+    remove_node_from_cluster(Node, _Config).
+
+remove_node_from_cluster(Node, _Config) ->
+    ok = rpc(Node, mongoose_cluster, leave, [], cluster_op_timeout()),
+    verify_result(Node, remove),
     ok.
 
 ctl_path(Node, Config) ->
@@ -56,15 +62,14 @@ wait_until_stopped(Cmd, Retries) ->
             ok
     end.
 
-verify_result(Op) ->
-    Node1 = mim(),
-    Node2 = mim2(),
-    DbNodes1 = rpc(Node1, mnesia, system_info, [running_db_nodes]),
-    DbNodes2 = rpc(Node2, mnesia, system_info, [running_db_nodes]),
-    Pairs = [{Node1, DbNodes2, should_belong(Op)},
-        {Node2, DbNodes1, should_belong(Op)},
-        {Node1, DbNodes1, true},
-        {Node2, DbNodes2, true}],
+verify_result(Node, Op) ->
+    VerifyNode = mim(),
+    DbNodes1 = rpc(Node, mnesia, system_info, [running_db_nodes]),
+    DbNodes2 = rpc(VerifyNode, mnesia, system_info, [running_db_nodes]),
+    Pairs = [{Node, DbNodes2, should_belong(Op)},
+        {VerifyNode, DbNodes1, should_belong(Op)},
+        {Node, DbNodes1, true},
+        {VerifyNode, DbNodes2, true}],
     [?assertEqual(ShouldBelong, lists:member(Element, List))
         || {Element, List, ShouldBelong} <- Pairs].
 

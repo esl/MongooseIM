@@ -8,12 +8,14 @@ echo ${BASE}
 
 EJD1=${BASE}/dev/mongooseim_node1
 EJD2=${BASE}/dev/mongooseim_node2
+EJD3=${BASE}/dev/mongooseim_node3
 FED1=${BASE}/dev/mongooseim_fed1
 EJD1CTL=${EJD1}/bin/mongooseimctl
 EJD2CTL=${EJD2}/bin/mongooseimctl
+EJD3CTL=${EJD3}/bin/mongooseimctl
 FED1CTL=${FED1}/bin/mongooseimctl
 
-NODES=(${EJD1CTL} ${EJD2CTL} ${FED1CTL})
+NODES=(${EJD1CTL} ${EJD2CTL} ${EJD3CTL} ${FED1CTL})
 
 start_node() {
 	echo -n "${1} start: "
