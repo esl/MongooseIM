@@ -92,7 +92,7 @@ groups() -> [
                 moderator_voice_not_occupant,
                 moderator_voice_nonick
                 ]},
-        {admin, [], [
+        {admin, [parallel], [
                 admin_ban,
                 admin_ban_with_reason,
                 admin_ban_list,
@@ -220,12 +220,7 @@ init_per_group(moderator, Config) ->
                 {moderated, true}, {members_by_default, false}],
     [{room_opts, RoomOpts} | Config];
 init_per_group(admin, Config) ->
-    RoomName = <<"alicesroom">>,
-    RoomNick = <<"alicesnick">>,
-    Config1 = escalus:create_users(Config, escalus:get_users([alice, bob, kate])),
-    [Alice | _] = ?config(escalus_users, Config1),
-    start_room(Config1, Alice, RoomName, RoomNick, [{persistent, true}]);
-
+    [{room_opts, [{persistent, true}]} | Config];
 init_per_group(admin_membersonly, Config) ->
     RoomName = <<"alicesroom">>,
     RoomNick = <<"alicesnick">>,
@@ -247,10 +242,6 @@ init_per_group(disco_rsm, Config) ->
 
 init_per_group(_GroupName, Config) ->
     escalus:create_users(Config, escalus:get_users([alice, bob, kate])).
-
-end_per_group(admin, Config) ->
-    destroy_room(Config),
-    escalus:delete_users(Config, escalus:get_users([alice, bob, kate]));
 
 end_per_group(admin_membersonly, Config) ->
     destroy_room(Config),
@@ -543,7 +534,7 @@ maybe_create_unique_room(Config) ->
     end.
 
 is_group_for_unique_room_per_testcase(GroupName) ->
-    lists:member(GroupName, [moderator]).
+    lists:member(GroupName, [moderator, admin]).
 
 get_group_name(Config) ->
     GroupProps = ?config(tc_group_properties, Config),
@@ -1214,7 +1205,8 @@ moderator_voice_nonick(Config) ->
 
 %%    Examples 110-114
 admin_ban(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+    Alice = connect_fresh_alice(Config),
+    escalus:fresh_story(Config, [{bob, 1}, {kate, 1}], fun(Bob, Kate) ->
         %% Bob joins room
         escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
         escalus:wait_for_stanzas(Bob, 2),
@@ -1250,7 +1242,8 @@ admin_ban(Config) ->
     end).
 
 admin_ban_with_reason(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, _Bob, Kate) ->
+    Alice = connect_fresh_alice(Config),
+    escalus:fresh_story(Config, [{kate, 1}], fun(Kate) ->
         %% Kate joins room
         escalus:send(Kate, stanza_muc_enter_room(?config(room, Config), <<"kate">>)),
         escalus:wait_for_stanzas(Kate, 2),
@@ -1278,10 +1271,12 @@ admin_ban_with_reason(Config) ->
 %%    However it's a bit strange as other cancel/not-allowed errors must be from the room JID
 %%    Temporarily left room address check
 admin_ban_higher_user(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+    Alice = connect_fresh_alice(Config),
+    escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
+        escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
+        escalus:wait_for_stanzas(Bob, 2),
         %% Bob tries to ban Alice
         escalus:send(Bob, stanza_ban_user(Alice, ?config(room, Config))),
-
         %% Bob receives an error
         Error = escalus:wait_for_stanza(Bob),
         escalus:assert(is_error, [<<"cancel">>, <<"not-allowed">>], Error),
@@ -1293,8 +1288,35 @@ admin_ban_higher_user(Config) ->
 
 %%    Examples 116-119
 admin_ban_list(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+    Alice = connect_fresh_alice(Config),
+    escalus:fresh_story(Config, [{bob, 1}, {kate, 1}], fun(Bob, Kate) ->
+        %% Bob joins room
+        escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
+        escalus:wait_for_stanzas(Bob, 2),
+        %% Kate joins room
+        escalus:send(Kate, stanza_muc_enter_room(?config(room, Config), <<"kate">>)),
+        escalus:wait_for_stanzas(Kate, 3),
+        %% Skip Kate's presence
+        escalus:wait_for_stanza(Bob),
         %% Alice requests ban list
+        %% Alice bans Bob
+        escalus:send(Alice, stanza_ban_user(Bob, ?config(room, Config))),
+
+        %% Alice receives confirmation
+        escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+
+        %% Bob receives outcast presence
+        escalus:wait_for_stanza(Bob),
+        %% Kate receives presence
+        escalus:wait_for_stanza(Kate),
+        %% Alice bans Kate
+        escalus:send(Alice, stanza_ban_user(Kate, ?config(room, Config), <<"Be rational!">>)),
+
+        %% Alice receives confirmation
+        escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+
+        %% Kate receives Bob's outcast presence
+        escalus:wait_for_stanza(Kate),
 
         escalus:send(Alice, stanza_ban_list_request(?config(room, Config))),
         List = escalus:wait_for_stanza(Alice),
@@ -1323,7 +1345,8 @@ admin_ban_list(Config) ->
     end).
 
 admin_get_form(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, _Bob, _Kate) ->
+    Alice = connect_fresh_alice(Config),
+    escalus:fresh_story(Config, [{bob, 1}, {kate, 1}], fun(_Bob, _Kate) ->
         timer:sleep(?WAIT_TIME),
         %%%% Bootstrap:
         %% Alice is admin
@@ -1342,7 +1365,8 @@ admin_get_form(Config) ->
     ok.
 
 admin_invalid_affiliation(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+    Alice = connect_fresh_alice(Config),
+    escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
         %% Bob joins room
         escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
         escalus:wait_for_stanzas(Bob, 2),
@@ -1359,7 +1383,8 @@ admin_invalid_affiliation(Config) ->
     end).
 
 admin_invalid_jid(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+    Alice = connect_fresh_alice(Config),
+    escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
         %% Bob joins room
         escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
         escalus:wait_for_stanzas(Bob, 2),
@@ -1377,7 +1402,8 @@ admin_invalid_jid(Config) ->
 
 %%  Examples 120-127
 admin_membership(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+    Alice = connect_fresh_alice(Config),
+    escalus:fresh_story(Config, [{bob, 1}, {kate, 1}], fun(Bob, Kate) ->
         %% Bob joins room
         escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
         escalus:wait_for_stanzas(Bob, 2),
@@ -1423,7 +1449,8 @@ admin_membership(Config) ->
     end).
 
 admin_membership_with_reason(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+    Alice = connect_fresh_alice(Config),
+    escalus:fresh_story(Config, [{bob, 1}, {kate, 1}], fun(Bob, Kate) ->
         %% Bob joins room
         escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
         escalus:wait_for_stanzas(Bob, 2),
@@ -1476,7 +1503,8 @@ admin_membership_with_reason(Config) ->
 
 %%  Examples 129-136
 admin_member_list(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+    Alice = connect_fresh_alice(Config),
+    escalus:fresh_story(Config, [{bob, 1}, {kate, 1}], fun(Bob, Kate) ->
         %% Bob joins room
         escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
         escalus:wait_for_stanzas(Bob, 2),
@@ -1576,7 +1604,8 @@ check_rolelist(LoginData, no, Config) ->
 
 %% This one tests a roomconfig_getmemberlist setting
 admin_member_list_allowed(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+    Alice = connect_fresh_alice(Config),
+    escalus:fresh_story(Config, [{bob, 1}, {kate, 1}], fun(Bob, Kate) ->
         timer:sleep(?WAIT_TIME),
         %%%% Bootstrap:
         %% Alice is admin
@@ -1589,7 +1618,8 @@ admin_member_list_allowed(Config) ->
         escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
         escalus:wait_for_stanzas(Bob, 3),
         %% Kate joins room
-        escalus:send(Kate, stanza_muc_enter_room(?config(room, Config), <<"kate">>)),
+        KateNick = escalus_utils:get_username(Kate),
+        escalus:send(Kate, stanza_muc_enter_room(?config(room, Config), KateNick)),
         escalus:wait_for_stanzas(Kate, 4),
         %% Skip Kate's presence
         escalus:wait_for_stanza(Bob),
@@ -1696,7 +1726,8 @@ admin_member_list_allowed(Config) ->
 
 %%  Examples 137-145
 admin_moderator(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+    Alice = connect_fresh_alice(Config),
+    escalus:fresh_story(Config, [{bob, 1}, {kate, 1}], fun(Bob, Kate) ->
         timer:sleep(?WAIT_TIME),
         %% Alice joins room
         escalus:send(Alice, stanza_muc_enter_room(?config(room, Config), <<"alice">>)),
@@ -1755,7 +1786,8 @@ admin_moderator(Config) ->
     end).
 
 admin_moderator_with_reason(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+    Alice = connect_fresh_alice(Config),
+    escalus:fresh_story(Config, [{bob, 1}, {kate, 1}], fun(Bob, Kate) ->
         %% Alice joins room
         escalus:send(Alice, stanza_muc_enter_room(?config(room, Config), <<"alice">>)),
         escalus:wait_for_stanzas(Alice, 2),
@@ -1817,7 +1849,7 @@ admin_moderator_with_reason(Config) ->
     end).
 %%  Examples 145, 150
 admin_moderator_revoke_owner(Config) ->
-    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+    Alice = connect_fresh_alice(Config),
         %% Alice joins room
         escalus:send(Alice, stanza_muc_enter_room(?config(room, Config), <<"alice">>)),
         escalus:wait_for_stanzas(Alice, 2),
@@ -1829,12 +1861,12 @@ admin_moderator_revoke_owner(Config) ->
         %% Should be an error
         Error = escalus:wait_for_stanza(Alice),
         escalus:assert(is_error, [<<"cancel">>, <<"not-allowed">>], Error),
-        escalus:assert(is_stanza_from, [room_address(?config(room, Config))], Error)
-    end).
+        escalus:assert(is_stanza_from, [room_address(?config(room, Config))], Error).
 
 %%  Examples 146-150
 admin_moderator_list(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+    Alice = connect_fresh_alice(Config),
+    escalus:fresh_story(Config, [{bob, 1}, {kate, 1}], fun(Bob, Kate) ->
         %% Alice joins room
         escalus:send(Alice, stanza_muc_enter_room(?config(room, Config), <<"alice">>)),
         escalus:wait_for_stanzas(Alice, 2),
@@ -1917,7 +1949,8 @@ admin_moderator_list(Config) ->
     end).
 
 admin_invalid_role(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+    Alice = connect_fresh_alice(Config),
+    escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
         %% Alice joins room
         escalus:send(Alice, stanza_muc_enter_room(?config(room, Config), <<"alice">>)),
         escalus:wait_for_stanzas(Alice, 2),
@@ -1937,7 +1970,8 @@ admin_invalid_role(Config) ->
     end).
 
 admin_invalid_nick(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+    Alice = connect_fresh_alice(Config),
+    escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
         %% Alice joins room
         escalus:send(Alice, stanza_muc_enter_room(?config(room, Config), <<"alice">>)),
         escalus:wait_for_stanzas(Alice, 2),
@@ -4020,7 +4054,8 @@ assert_is_exit_message_correct(LeavingUser,Affiliation,Room, Message) ->
 	escalus_pred:is_presence_with_type(<<"unavailable">>,Message),
 	is_presence_with_affiliation(Message,Affiliation),
     From = room_address(Room, escalus_utils:get_username(LeavingUser)),
-    From  = exml_query:attr(Message, <<"from">>).
+    ct:print("From ~p", [From]),
+    From = exml_query:attr(Message, <<"from">>).
 
 is_exit_message_with_status_correct(LeavingUser,Affiliation,Room,Status,  Message) ->
 	escalus_pred:is_presence_with_type(<<"unavailable">>,Message),
@@ -4611,7 +4646,10 @@ is_room_locked(Stanza) ->
 connect_fresh_alice(Config) ->
     AliceSpec = ?config(alice_spec, Config),
     {ok, Alice, _, _} = escalus_connection:start(AliceSpec),
-    Alice.
+    Username = proplists:get_value(username, AliceSpec),
+    Server = proplists:get_value(server, AliceSpec),
+    JID = <<Username/binary,"@",Server/binary,"/escalus-default-resource">>,
+    Alice#client{jid = JID}.
 
 given_fresh_spec(Config, User) ->
     NewConfig = escalus_fresh:create_users(Config, [{User, 1}]),
