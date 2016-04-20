@@ -371,8 +371,10 @@ block_jid_message(Config) ->
         %% set the list on server and make it active
         privacy_helper:set_and_activate(Alice, <<"deny_bob_message">>),
 
-        %% Alice should NOT receive message
+        %% Alice should NOT receive message, while Bob gets error message
         escalus_client:send(Bob, escalus_stanza:chat_to(Alice, <<"Hi, Alice!">>)),
+        Response = escalus_client:wait_for_stanza(Bob),
+        escalus_assert:is_error(Response, <<"cancel">>, <<"service-unavailable">>),
         timer:sleep(?SLEEP_TIME),
         escalus_assert:has_no_stanzas(Alice)
 
@@ -542,7 +544,10 @@ block_jid_presence_in(Config) ->
         escalus_client:send(Bob,
             escalus_stanza:presence_direct(alice, <<"available">>)),
         timer:sleep(?SLEEP_TIME),
-        escalus_assert:has_no_stanzas(Alice)
+        escalus_assert:has_no_stanzas(Alice),
+        %% and Bob should NOT receive any response
+        escalus_assert:has_no_stanzas(Bob)
+
 
         end).
 
@@ -571,24 +576,37 @@ block_jid_presence_out(Config) ->
 
         end).
 
+version_iq(Type, From, To) ->
+    Req = escalus_stanza:iq(Type, [escalus_stanza:query_el(<<"jabber:iq:version">>, [])]),
+    Req1 = escalus_stanza:to(Req, To),
+    Req2= escalus_stanza:from(Req1, From),
+    Req2.
+
 block_jid_iq(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, _Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
 
         privacy_helper:set_list(Alice, <<"deny_localhost_iq">>),
         %% activate it
         escalus_client:send(Alice,
             escalus_stanza:privacy_activate(<<"deny_localhost_iq">>)),
-        %% From now on no iq replies should reach Alice.
-        %% That's also the reason why we couldn't use
-        %% the privacy_helper:set_and_activate helper - it waits for all replies.
-
-        %% Just set the toy list and ensure that only
-        %% the notification push comes back.
-        privacy_helper:send_set_list(Alice, <<"deny_bob">>),
-        Response = escalus_client:wait_for_stanza(Alice),
-        escalus:assert(fun privacy_helper:is_privacy_list_push/1, Response),
+        timer:sleep(500), %% we must let it sink in
+        %% bob queries for version and gets an error, Alice doesn't receive the query
+        escalus_client:send(Bob, version_iq(<<"get">>, Bob, Alice)),
         timer:sleep(?SLEEP_TIME),
-        escalus_assert:has_no_stanzas(Alice)
+        escalus_assert:has_no_stanzas(Alice),
+        Response = escalus_client:wait_for_stanza(Bob),
+        escalus_assert:is_error(Response, <<"cancel">>, <<"service-unavailable">>),
+        %% this stanza does not make much sense, but is routed and rejected correctly
+        escalus_client:send(Bob, version_iq(<<"set">>, Bob, Alice)),
+        timer:sleep(?SLEEP_TIME),
+        escalus_assert:has_no_stanzas(Alice),
+        Response1 = escalus_client:wait_for_stanza(Bob),
+        escalus_assert:is_error(Response1, <<"cancel">>, <<"service-unavailable">>),
+        %% but another type, like result, is silently dropped
+        escalus_client:send(Bob, version_iq(<<"result">>, Bob, Alice)),
+        timer:sleep(?SLEEP_TIME),
+        escalus_assert:has_no_stanzas(Alice),
+        escalus_assert:has_no_stanzas(Bob)
 
         end).
 

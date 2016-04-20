@@ -1009,7 +1009,7 @@ process_outgoing_stanza(ToJID, <<"presence">>, Args) ->
                 StateData)
     end;
 process_outgoing_stanza(ToJID, <<"iq">>, Args) ->
-    {_Attrs, NewEl, FromJID, StateData, Server, User} = Args,
+    {_Attrs, NewEl, FromJID, StateData, Server, _User} = Args,
     case jlib:iq_query_info(NewEl) of
         #iq{xmlns = Xmlns} = IQ
             when Xmlns == ?NS_PRIVACY;
@@ -1226,8 +1226,18 @@ process_incoming_stanza(Name, From, To, Packet, StateName, StateData) ->
 response_negative(<<"iq">>, forbidden, From, To, Packet) ->
     send_back_error(?ERR_FORBIDDEN, From, To, Packet);
 response_negative(<<"iq">>, deny, From, To, Packet) ->
+    IqType = xml:get_attr_s(<<"type">>, Packet#xmlel.attrs),
+    response_iq_deny(IqType, From, To, Packet);
+response_negative(<<"message">>, deny, From, To, Packet) ->
     send_back_error(?ERR_SERVICE_UNAVAILABLE, From, To, Packet);
 response_negative(_, _, _, _, _) ->
+    ok.
+
+response_iq_deny(<<"get">>, From, To, Packet) ->
+    send_back_error(?ERR_SERVICE_UNAVAILABLE, From, To, Packet);
+response_iq_deny(<<"set">>, From, To, Packet) ->
+    send_back_error(?ERR_SERVICE_UNAVAILABLE, From, To, Packet);
+response_iq_deny(_, _, _, _) ->
     ok.
 
 send_back_error(Etype, From, To, Packet) ->
