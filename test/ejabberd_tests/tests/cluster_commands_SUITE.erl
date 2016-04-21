@@ -20,7 +20,7 @@
 -import(distributed_helper, [add_node_to_cluster/2, rpc/5,
         remove_node_from_cluster/2, is_sm_distributed/0]).
 -import(ejabberdctl_helper, [ejabberdctl/3, rpc_call/3]).
--import(ejabberd_node_utils, [mim/0, mim2/0, fed/0]).
+-import(ejabberd_node_utils, [mim/0, mim2/0, mim3/0]).
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("common_test/include/ct.hrl").
@@ -61,7 +61,7 @@ suite() ->
 require_all_nodes() ->
     [{require, mim_node, {hosts, mim, node}},
      {require, mim_node2, {hosts, mim2, node}},
-     {require, fed_node, {hosts, fed, node}}].
+     {require, mim_node3, {hosts, mim3, node}}].
 
 %%--------------------------------------------------------------------
 %% Init & teardown
@@ -70,7 +70,7 @@ require_all_nodes() ->
 init_per_suite(Config) ->
     Node1 = mim(),
     Node2 = mim2(),
-    Node3 = fed(),
+    Node3 = mim3(),
     Config1 = ejabberd_node_utils:init(Node1, Config),
     Config2 = ejabberd_node_utils:init(Node2, Config1),
     Config3 = ejabberd_node_utils:init(Node3, Config2),
@@ -80,7 +80,7 @@ init_per_suite(Config) ->
     Ch = [{hosts, "[\"" ++ binary_to_list(MainDomain) ++ "\"]"}],
     ejabberd_node_utils:modify_config_file(Node2, "reltool_vars/node2_vars.config", Ch, Config3),
     ejabberd_node_utils:call_ctl(Node2, reload_local, Config2),
-    ejabberd_node_utils:modify_config_file(Node3, "reltool_vars/fed1_vars.config", Ch, Config3),
+    ejabberd_node_utils:modify_config_file(Node3, "reltool_vars/node3_vars.config", Ch, Config3),
     ejabberd_node_utils:call_ctl(Node3, reload_local, Config2),
     NodeCtlPath = distributed_helper:ctl_path(Node1, Config3),
     Node2CtlPath = distributed_helper:ctl_path(Node2, Config3),
@@ -92,7 +92,7 @@ init_per_suite(Config) ->
 
 end_per_suite(Config) ->
     Node2 = mim2(),
-    Node3 = fed(),
+    Node3 = mim3(),
     ejabberd_node_utils:restore_config_file(Node2, Config),
     ejabberd_node_utils:restore_config_file(Node3, Config),
     ejabberd_node_utils:restart_application(Node2, ejabberd),
@@ -278,7 +278,7 @@ cluster_of_three(Config) ->
     %% given
     ClusterMember = mim(),
     Node2 = mim2(),
-    Node3 = fed(),
+    Node3 = mim3(),
     %% when
     {_, OpCode1} = ejabberdctl_interactive(Node2, "join_cluster", [atom_to_list(ClusterMember)], "yes\n", Config),
     {_, OpCode2} = ejabberdctl_interactive(Node3, "join_cluster", [atom_to_list(ClusterMember)], "yes\n", Config),
@@ -294,7 +294,7 @@ leave_the_three(Config) ->
     Timeout = timer:seconds(60),
     ClusterMember = mim(),
     Node2 = mim2(),
-    Node3 = fed(),
+    Node3 = mim3(),
     ok = rpc(Node2, mongoose_cluster, join, [ClusterMember], Timeout),
     ok = rpc(Node3, mongoose_cluster, join, [ClusterMember], Timeout),
     %% when
@@ -313,7 +313,7 @@ remove_dead_from_cluster(Config) ->
     Timeout = timer:seconds(60),
     Node1 = mim(),
     Node2 = mim2(),
-    Node3 = fed(),
+    Node3 = mim3(),
     ok = rpc(Node2, mongoose_cluster, join, [Node1], Timeout),
     ok = rpc(Node3, mongoose_cluster, join, [Node1], Timeout),
     %% when
