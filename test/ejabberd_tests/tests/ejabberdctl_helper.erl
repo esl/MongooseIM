@@ -36,7 +36,7 @@ normalize_args(Args) ->
               end, Args).
 
 run(Cmd) ->
-    run(Cmd, 5000).
+    run(Cmd, 20000).
 
 run(Cmd, Timeout) ->
     Port = erlang:open_port({spawn, Cmd},[exit_status]),

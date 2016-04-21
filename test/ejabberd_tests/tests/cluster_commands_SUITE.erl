@@ -17,8 +17,8 @@
 -module(cluster_commands_SUITE).
 -compile(export_all).
 
--import(distributed_helper, [add_node_to_cluster/1, rpc/5,
-        remove_node_from_cluster/1, is_sm_distributed/0]).
+-import(distributed_helper, [add_node_to_cluster/2, rpc/5,
+        remove_node_from_cluster/2, is_sm_distributed/0]).
 -import(ejabberdctl_helper, [ejabberdctl/3, rpc_call/3]).
 -import(ejabberd_node_utils, [mim/0, mim2/0, fed/0]).
 
@@ -36,7 +36,7 @@ all() ->
     [{group, clustered},
         {group, ejabberdctl},
         {group, clustering_two},
-        {group, clustering_theree}].
+        {group, clustering_three}].
 groups() ->
     [{clustered, [], [one_to_one_message]},
         {clustering_two, [],
@@ -47,8 +47,12 @@ groups() ->
             leave_but_no_cluster,
             join_twice,
             leave_twice]},
-        {clustering_theree, [shuffle],
-            [cluster_of_theree, leave_the_theree]},
+        {clustering_three, [],
+            [cluster_of_three,
+             leave_the_three,
+             remove_dead_from_cluster,
+             remove_alive_from_cluster
+            ]},
         {ejabberdctl, [], [set_master_test]}].
 suite() ->
     require_all_nodes() ++
@@ -96,17 +100,19 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(Group, Config) when Group == clustered orelse Group == ejabberdctl ->
-    Config1 = add_node_to_cluster(Config),
+    Node2 = mim2(),
+    Config1 = add_node_to_cluster(Node2, Config),
     case is_sm_distributed() of
         true ->
             escalus:create_users(Config1, escalus:get_users([alice, clusterguy]));
         {false, Backend} ->
             ct:pal("Backend ~p doesn't support distributed tests", [Backend]),
-            remove_node_from_cluster(Config1),
+            Node2 = mim2(),
+            remove_node_from_cluster(Node2, Config1),
             {skip, nondistributed_sm}
     end;
 
-init_per_group(Group, _Config) when Group == clustering_two orelse Group == clustering_theree ->
+init_per_group(Group, _Config) when Group == clustering_two orelse Group == clustering_three ->
     case is_sm_distributed() of
         true ->
             ok;
@@ -120,11 +126,12 @@ init_per_group(_GroupName, Config) ->
 
 end_per_group(Group, Config) when Group == clustered orelse Group == ejabberdctl ->
     escalus:delete_users(Config, escalus:get_users([alice, clusterguy])),
-    remove_node_from_cluster(Config);
+    Node2 = mim2(),
+    remove_node_from_cluster(Node2, Config);
 
 %% Users are gone after mnesia cleaning
 %% hence there is no need to delete them manually
-end_per_group(Group, _Config) when Group == clustering_two orelse Group == clustering_theree ->
+end_per_group(Group, _Config) when Group == clustering_two orelse Group == clustering_three ->
     ok;
 end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config).
@@ -132,18 +139,26 @@ end_per_group(_GroupName, Config) ->
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
-end_per_testcase(cluster_of_theree, Config) ->
-    Timeout = timer:seconds(60),
+end_per_testcase(cluster_of_three, Config) ->
     Node2 = mim2(),
-    Node3 = fed(),
-    ok = rpc(Node2, mongoose_cluster, leave, [], Timeout),
-    ok = rpc(Node3, mongoose_cluster, leave, [], Timeout),
-    escalus:end_per_testcase(cluster_of_theree, Config);
+    Node3 = mim3(),
+    remove_node_from_cluster(Node2, Config),
+    remove_node_from_cluster(Node3, Config),
+    escalus:end_per_testcase(cluster_of_three, Config);
+
+end_per_testcase(CaseName, Config) when CaseName == remove_alive_from_cluster
+                                   orelse CaseName == remove_dead_from_cluster->
+    Node3 = mim3(),
+    Node2 = mim2(),
+    remove_node_from_cluster(Node3, Config),
+    remove_node_from_cluster(Node2, Config),
+    escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName, Config) when CaseName == join_successful
                                    orelse CaseName == leave_unsuccessful
                                    orelse CaseName == join_twice ->
-    remove_node_from_cluster(Config),
+    Node2 = mim2(),
+    remove_node_from_cluster(Node2, Config),
     escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName, Config) ->
@@ -195,39 +210,45 @@ join_successful(Config) ->
     %% when
     {_, OpCode} = ejabberdctl_interactive("join_cluster", [atom_to_list(Node2)], "yes\n", Config),
     %% then
-    distributed_helper:verify_result(add),
+    distributed_helper:verify_result(Node2, add),
     ?eq(0, OpCode).
 
 leave_successful(Config) ->
     %% given
-    add_node_to_cluster(Config),
+    Node2 = mim2(),
+    add_node_to_cluster(Node2, Config),
     %% when
     {_, OpCode} = ejabberdctl_interactive("leave_cluster", [], "yes\n", Config),
     %% then
-    distributed_helper:verify_result(remove),
+    distributed_helper:verify_result(Node2, remove),
     ?eq(0, OpCode).
 
 join_unsuccessful(Config) ->
+    %% given
+    Node2 = mim2(),
     %% when
     {_, OpCode} = ejabberdctl_interactive("join_cluster", [], "no\n", Config),
     %% then
-    distributed_helper:verify_result(remove),
+    distributed_helper:verify_result(Node2, remove),
     ?ne(0, OpCode).
 
 leave_unsuccessful(Config) ->
     %% given
-    add_node_to_cluster(Config),
+    Node2 = mim(),
+    add_node_to_cluster(Node2, Config),
     %% when
     {_, OpCode} = ejabberdctl_interactive("leave_cluster", [], "no\n", Config),
     %% then
-    distributed_helper:verify_result(add),
+    distributed_helper:verify_result(Node2, add),
     ?ne(0, OpCode).
 
 leave_but_no_cluster(Config) ->
+    %% given
+    Node2 = mim2(),
     %% when
     {_, OpCode} = ejabberdctl_interactive("leave_cluster", [], "yes\n", Config),
     %% then
-    distributed_helper:verify_result(remove),
+    distributed_helper:verify_result(Node2, remove),
     ?ne(0, OpCode).
 
 join_twice(Config) ->
@@ -237,22 +258,23 @@ join_twice(Config) ->
     {_, OpCode1} = ejabberdctl_interactive("join_cluster", [atom_to_list(Node2)], "yes\n", Config),
     {_, OpCode2} = ejabberdctl_interactive("join_cluster", [atom_to_list(Node2)], "yes\n", Config),
     %% then
-    distributed_helper:verify_result(add),
+    distributed_helper:verify_result(Node2, add),
     ?eq(0, OpCode1),
     ?ne(0, OpCode2).
 
 leave_twice(Config) ->
     %% given
-    add_node_to_cluster(Config),
+    Node2 = mim2(),
+    add_node_to_cluster(Node2, Config),
     %% when
     {_, OpCode1} = ejabberdctl_interactive("leave_cluster", [], "yes\n", Config),
     {_, OpCode2} = ejabberdctl_interactive("leave_cluster", [], "yes\n", Config),
     %% then
-    distributed_helper:verify_result(remove),
+    distributed_helper:verify_result(Node2, remove),
     ?eq(0, OpCode1),
     ?ne(0, OpCode2).
 
-cluster_of_theree(Config) ->
+cluster_of_three(Config) ->
     %% given
     ClusterMember = mim(),
     Node2 = mim2(),
@@ -267,7 +289,7 @@ cluster_of_theree(Config) ->
     nodes_clustered(Node3, ClusterMember, true),
     nodes_clustered(Node2, Node3, true).
 
-leave_the_theree(Config) ->
+leave_the_three(Config) ->
     %% given
     Timeout = timer:seconds(60),
     ClusterMember = mim(),
@@ -285,6 +307,46 @@ leave_the_theree(Config) ->
     nodes_clustered(Node2, Node3, false),
     ?eq(0, OpCode1),
     ?eq(0, OpCode2).
+
+remove_dead_from_cluster(Config) ->
+    % given
+    Timeout = timer:seconds(60),
+    Node1 = mim(),
+    Node2 = mim2(),
+    Node3 = fed(),
+    ok = rpc(Node2, mongoose_cluster, join, [Node1], Timeout),
+    ok = rpc(Node3, mongoose_cluster, join, [Node1], Timeout),
+    %% when
+    stop_node(Node2, Config),
+    {_, OpCode1} = ejabberdctl_helper:ejabberdctl("remove_from_cluster", [atom_to_list(Node2)], Config),
+    %% then
+    ?eq(0, OpCode1),
+    % node is down hence its not in mnesia cluster
+    have_node_in_mnesia(Node1, Node3, true),
+    have_node_in_mnesia(Node1, Node2, false),
+    have_node_in_mnesia(Node3, Node2, false),
+    % after node awakening nodes are clustered again
+    start_node(Node2, Config),
+    have_node_in_mnesia(Node1, Node2, true),
+    have_node_in_mnesia(Node3, Node2, true).
+
+remove_alive_from_cluster(Config) ->
+    % given
+    Timeout = timer:seconds(60),
+    Node1 = mim(),
+    Node2 = mim2(),
+    Node3 = mim3(),
+    ok = rpc(Node2, mongoose_cluster, join, [Node1], Timeout),
+    ok = rpc(Node3, mongoose_cluster, join, [Node1], Timeout),
+    %% when
+    %% Node2 is still running
+    {_, OpCode1} = ejabberdctl_helper:ejabberdctl("remove_from_cluster", [atom_to_list(Node2)], Config),
+    %% then
+    ?ne(0, OpCode1),
+    have_node_in_mnesia(Node1, Node3, true),
+    have_node_in_mnesia(Node1, Node2, true),
+    have_node_in_mnesia(Node3, Node2, true).
+
 
 
 %% Helpers
@@ -308,7 +370,7 @@ normalize_args(Args) ->
 
 %% Long timeout for mnesia and ejabberd app restart
 run_interactive(Cmd, Response) ->
-    run_interactive(Cmd, Response, timer:seconds(30)).
+    run_interactive(Cmd, Response, timer:seconds(60)).
 
 run_interactive(Cmd, Response, Timeout) ->
     Port = erlang:open_port({spawn, Cmd}, [exit_status]),
@@ -325,8 +387,8 @@ loop(Port, Data, Timeout) ->
     end.
 
 nodes_clustered(Node1, Node2, ShouldBe) ->
-    DbNodes1 = distributed_helper:rpc(Node1, mnesia, system_info, [running_db_nodes]),
-    DbNodes2 = distributed_helper:rpc(Node2, mnesia, system_info, [running_db_nodes]),
+    DbNodes1 = distributed_helper:rpc(Node1, mnesia, system_info, [db_nodes]),
+    DbNodes2 = distributed_helper:rpc(Node2, mnesia, system_info, [db_nodes]),
     Pairs = [{Node1, DbNodes2, ShouldBe},
         {Node2, DbNodes1, ShouldBe},
         {Node1, DbNodes1, true},
@@ -334,3 +396,19 @@ nodes_clustered(Node1, Node2, ShouldBe) ->
     [?assertEqual(ShouldBelong, lists:member(Element, List))
         || {Element, List, ShouldBelong} <- Pairs].
 
+have_node_in_mnesia(Node1, Node2, ShouldBe) ->
+    DbNodes1 = distributed_helper:rpc(Node1, mnesia, system_info, [db_nodes]),
+    ?assertEqual(ShouldBe, lists:member(Node2, DbNodes1)).
+
+start_node(Node, Config) ->
+    {_, 0} = ejabberdctl_helper:ejabberdctl(Node, "start", [], Config),
+    {_, 0} = ejabberdctl_helper:ejabberdctl(Node, "started", [], Config),
+    %% TODO Looks like "started" run by ejabberdctl fun is not really synchronous
+    timer:sleep(3000).
+
+stop_node(Node, Config) ->
+    %% TODO maybe implement sync stopping command at erlang level
+    {_, 0} = ejabberdctl_helper:ejabberdctl(Node, "stop", [], Config),
+    {_, 0} = ejabberdctl_helper:ejabberdctl(Node, "stopped", [], Config),
+    %% TODO Looks like "stopped" run by ejabberdctl fun is not really synchronous
+    timer:sleep(3000).
