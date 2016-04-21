@@ -129,7 +129,8 @@ Exit shell and start MongooseIM using `mongooseim start/live`
 
 #### MongooseIM 1.7.0 and newer
 
-In case to remove a node from the cluster call:
+Depending on whether a node is dead or alive there are two commands for removing a node from the cluster.
+In case to leave a running node from the cluster call:
 
 ```bash
 mongooseimctl leave_cluster
@@ -137,6 +138,14 @@ mongooseimctl leave_cluster
 
 It makes sense only if the node is the part of any cluster, e.g called `join_cluster` from that node before.
 The successful output from above command starts with `You have successfully left the node`.
+
+In order to remove a dead node:
+
+```bash
+mongooseimctl remove_from_cluster DeadNodeName
+```
+Where `DeadNodeName` is a name of the node that is not responding and we'd like to remove.
+The successful output from above command starts with `The node has been removed from the cluster`
 
 #### MongooseIM 1.5.0 - 1.7.0
 
