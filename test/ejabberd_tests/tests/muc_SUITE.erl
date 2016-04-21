@@ -2620,20 +2620,21 @@ disco_items(Config) ->
                                  end).
 
 disco_items_nonpublic(Config0) ->
-    [Alice | _] = ?config(escalus_users, Config0),
-    Config = start_room(Config0, Alice, <<"alicesroom2">>, <<"aliceonchat">>,
-        [{persistent, true}, {public_list, false}]),
-
-    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        escalus:send(Alice, stanza_join_room(<<"alicesroom2">>, <<"nicenick">>)),
+    AliceSpec = given_fresh_spec(Config0, alice),
+    Config = given_fresh_room(Config0, AliceSpec,
+                              [{persistent, true}, {public_list, false}]),
+    Alice = connect_fresh_user(AliceSpec),
+    RoomName = ?config(room, Config),
+    escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
+        escalus:send(Alice, stanza_join_room(RoomName, <<"nicenick">>)),
         _Stanza = escalus:wait_for_stanza(Alice),
 
         %% does not work because the list is not public and Bob is not an occupant
-        escalus:send(Bob, stanza_to_room(escalus_stanza:iq_get(?NS_DISCO_ITEMS,[]), <<"alicesroom2">>)),
+        escalus:send(Bob, stanza_to_room(escalus_stanza:iq_get(?NS_DISCO_ITEMS,[]), RoomName)),
         Error = escalus:wait_for_stanza(Bob),
         escalus:assert(is_error, [<<"auth">>, <<"forbidden">>], Error)
     end),
-    destroy_room(?MUC_HOST, <<"alicesroom2">>).
+    destroy_room(Config).
 
 
 create_and_destroy_room(Config) ->
