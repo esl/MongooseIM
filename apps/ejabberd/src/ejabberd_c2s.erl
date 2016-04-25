@@ -1938,8 +1938,6 @@ presence_track(From, To, Packet, StateData) ->
 check_privacy_and_route(From, StateData, FromRoute, To, Packet) ->
     case privacy_check_packet(StateData, From, To, Packet, out) of
         deny ->
-            Lang = StateData#state.lang,
-            ErrText = <<"Your active privacy list has denied the routing of this stanza.">>,
             Err = jlib:make_error_reply(Packet, ?ERR_NOT_ACCEPTABLE_CANCEL),
             ejabberd_router:route(To, From, Err),
             ok;

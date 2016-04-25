@@ -13,8 +13,17 @@
          activate_list/2,
          set_default_list/2,
          privacy_list/1,
+         gets_error/2,
          is_privacy_list_push/1,
          is_presence_error/1]).
+
+gets_error(Who, su) ->
+    gets_error(Who, <<"service-unavailable">>);
+gets_error(Who, na) ->
+    gets_error(Who, <<"not-acceptable">>);
+gets_error(Who, Type) ->
+    Response = escalus_client:wait_for_stanza(Who),
+    escalus_assert:is_error(Response, <<"cancel">>, Type).
 
 %% Sets the list on server and makes it the active one.
 set_and_activate(Client, ListName) ->
