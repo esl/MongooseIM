@@ -3,9 +3,9 @@
 set -euo pipefail
 IFS=$'\n\t'
 
-# Upload ct_report directory on Github pages for trusted builds
-
 CT_REPORTS=${TRAVIS_JOB_NUMBER:-ct_reports}
+# Replace . with / to create better dir structure
+CT_REPORTS=${CT_REPORTS/\./\/}
 BRANCH=${TRAVIS_BRANCH:-master}
 PR=${TRAVIS_PULL_REQUEST:-false}
 
