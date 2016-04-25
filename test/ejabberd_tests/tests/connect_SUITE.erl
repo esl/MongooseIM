@@ -257,6 +257,9 @@ clients_can_connect_with_advertised_ciphers(Config) ->
                          ciphers_working_with_ssl_clients(Config))).
 
 'clients_can_connect_with_DHE-RSA-AES256-SHA_only'(Config) ->
+    CiphersStr = os:cmd("openssl ciphers 'DHE-RSA-AES256-SHA'"),
+    ct:pal("Available cipher suites for : ~s", [CiphersStr]),
+    ct:pal("Openssl version: ~s", [os:cmd("openssl version")]),
     ?assertEqual(["DHE-RSA-AES256-SHA"],
                  ciphers_working_with_ssl_clients(Config)).
 
