@@ -37,8 +37,15 @@ cat > ${CT_REPORTS}/index.html << EOL
 </html>
 EOL
 
+for dev_node_path in dev/mongooseim_*; do
+	dev_node=$(basename ${dev_node_path})
+	LOG_DIR=${CT_REPORTS}/big/${dev_node}/log
+	mkdir -p ${LOG_DIR}
+	cp ${dev_node_path}/log/* ${LOG_DIR}
+done
+
 echo "Uploading test results to s3"
 echo "http://mongooseim-ct-results.s3-website-eu-west-1.amazonaws.com/${CT_REPORTS}/index.html"
 
-aws s3 sync --quiet ${CT_REPORTS} s3://mongooseim-ct-results/${CT_REPORTS}
+#aws s3 sync --quiet ${CT_REPORTS} s3://mongooseim-ct-results/${CT_REPORTS}
 
