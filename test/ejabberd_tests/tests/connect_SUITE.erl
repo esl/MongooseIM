@@ -37,43 +37,44 @@
 
 all() ->
     [{group, c2s_noproc}, %% should be first, uses vanilla config
-     {group, negative},
-     {group, pre_xmpp_1_0},
      {group, starttls},
-             {group, feature_order},
-     {group, tls},
-     {group, ciphers_default},
-     {group, 'node2_supports_DHE-RSA-AES256-SHA_only'}].
+     {group, feature_order},
+     {group, tls}
+    ].
 
 groups() ->
     [{c2s_noproc, [], [reset_stream_noproc,
                        starttls_noproc,
-                       compress_noproc]},
-     {negative, [], [bad_xml,
-                     invalid_host,
-                     invalid_stream_namespace]},
-     {pre_xmpp_1_0, [], [pre_xmpp_1_0_stream]},
+                       compress_noproc,
+                       bad_xml,
+                       invalid_host,
+                       invalid_stream_namespace,
+                       pre_xmpp_1_0_stream]},
      {starttls, test_cases()},
+     {tls, [parallel], generate_tls_vsn_tests() ++
+                       cipher_test_cases()},
      {feature_order, [parallel], [stream_features_test,
-                      tls_authenticate,
-                      tls_compression_fail,
-                      tls_compression_authenticate_fail,
-                      tls_authenticate_compression,
-                      auth_compression_bind_session,
-                      auth_bind_compression_session]},
-     {tls, generate_tls_vsn_tests()},
-     {ciphers_default, [], [clients_can_connect_with_advertised_ciphers,
-                            'clients_can_connect_with_DHE-RSA-AES256-SHA',
-                            'clients_can_connect_with_DHE-RSA-AES128-SHA']},
-     {'node2_supports_DHE-RSA-AES256-SHA_only', [],
-      %% node2 accepts DHE-RSA-AES256-SHA exclusively (see ejabberd.cfg)
-      ['clients_can_connect_with_DHE-RSA-AES256-SHA_only']}].
+                                  tls_authenticate,
+                                  tls_compression_fail,
+                                  tls_compression_authenticate_fail,
+                                  tls_authenticate_compression,
+                                  auth_compression_bind_session,
+                                  auth_bind_compression_session]}
+    ].
 
 test_cases() ->
     generate_tls_vsn_tests() ++
     [should_fail_with_sslv3,
      should_fail_to_authenticate_without_starttls,
      should_not_send_other_features_with_starttls_required].
+
+cipher_test_cases() ->
+    [clients_can_connect_with_advertised_ciphers,
+     'clients_can_connect_with_DHE-RSA-AES256-SHA',
+     'clients_can_connect_with_DHE-RSA-AES128-SHA',
+     %% node2 accepts DHE-RSA-AES256-SHA exclusively (see ejabberd.cfg)
+     'clients_can_connect_with_DHE-RSA-AES256-SHA_only'].
+
 
 suite() ->
     escalus:suite().
@@ -90,6 +91,7 @@ init_per_suite(Config) ->
     escalus:create_users(Config1, escalus:get_users([?SECURE_USER, alice])).
 
 end_per_suite(Config) ->
+    escalus_fresh:clean(),
     escalus:delete_users(Config, escalus:get_users([?SECURE_USER, alice])),
     restore_ejabberd_node(Config),
     escalus:end_per_suite(Config).
@@ -108,21 +110,15 @@ init_per_group(tls, Config) ->
     JoeSpec = lists:keydelete(starttls, 1, proplists:get_value(?SECURE_USER, Users)),
     JoeSpec2 = {?SECURE_USER, lists:keystore(ssl, 1, JoeSpec, {ssl, true})},
     NewUsers = lists:keystore(?SECURE_USER, 1, Users, JoeSpec2),
-    lists:keystore(escalus_users, 1, Config, {escalus_users, NewUsers});
+    Config2 = lists:keystore(escalus_users, 1, Config, {escalus_users, NewUsers}),
+    [{c2s_port, 5222} | Config2];
 init_per_group(feature_order, Config) ->
     config_ejabberd_node_tls(Config, fun mk_value_for_compression_config_pattern/0),
     ejabberd_node_utils:restart_application(ejabberd),
     Config;
-init_per_group(ciphers_default, Config) ->
-    config_ejabberd_node_tls(Config, fun mk_value_for_tls_config_pattern/0),
-    ejabberd_node_utils:restart_application(ejabberd),
-    [{c2s_port, 5222} | Config];
-init_per_group('node2_supports_DHE-RSA-AES256-SHA_only', Config) ->
-    [{c2s_port, 5233} | Config];
 init_per_group(_, Config) ->
     Config.
 end_per_group(feature_order, Config) ->
-    escalus_fresh:clean(),
     Config;
 end_per_group(_, Config) ->
     Config.
@@ -177,7 +173,7 @@ invalid_stream_namespace(Config) ->
 
 pre_xmpp_1_0_stream(Config) ->
     %% given
-    Spec = escalus_users:get_userspec(Config, alice),
+    Spec = given_fresh_spec(Config, alice),
     Steps = [
              %% when
              {legacy_stream_helper, start_stream_pre_xmpp_1_0},
@@ -211,7 +207,7 @@ should_pass_with_tlsv1(Config) ->
     should_pass_with_tls('tlsv1.2', Config).
 
 should_pass_with_tls(Version, Config)->
-    UserSpec0 = escalus_users:get_userspec(Config, ?SECURE_USER),
+    UserSpec0 = given_fresh_spec(Config, ?SECURE_USER),
     UserSpec1 = set_secure_connection_protocol(UserSpec0, Version),
 
     %% WHEN
@@ -257,11 +253,12 @@ clients_can_connect_with_advertised_ciphers(Config) ->
                          ciphers_working_with_ssl_clients(Config))).
 
 'clients_can_connect_with_DHE-RSA-AES256-SHA_only'(Config) ->
+    Config1 = [{c2s_port, 5233} | Config],
     CiphersStr = os:cmd("openssl ciphers 'DHE-RSA-AES256-SHA'"),
     ct:pal("Available cipher suites for : ~s", [CiphersStr]),
     ct:pal("Openssl version: ~s", [os:cmd("openssl version")]),
     ?assertEqual(["DHE-RSA-AES256-SHA"],
-                 ciphers_working_with_ssl_clients(Config)).
+                 ciphers_working_with_ssl_clients(Config1)).
 
 'clients_can_connect_with_DHE-RSA-AES128-SHA'(Config) ->
     ?assert(lists:member("DHE-RSA-AES128-SHA",
@@ -361,11 +358,14 @@ compress_noproc(Config) ->
 
 %% Tests featuress advertisement
 stream_features_test(Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{?SECURE_USER, 1}]),
-    UserSpec = escalus_users:get_userspec(Config1, ?SECURE_USER),
+    UserSpec = given_fresh_spec(Config, ?SECURE_USER),
     List = [start_stream, stream_features, {?MODULE, verify_features}],
     escalus_connection:start(UserSpec, List),
     ok.
+
+given_fresh_spec(Config, User) ->
+    Config1 = escalus_fresh:create_users(Config, [{User, 1}]),
+    escalus_users:get_userspec(Config1, User).
 
 verify_features(Conn, Props, Features) ->
     %% should not advertise compression before tls
@@ -390,8 +390,7 @@ has_feature(Feature, FeatureList) ->
 %% should fail
 tls_compression_authenticate_fail(Config) ->
     %% Given
-    Config1 = escalus_fresh:create_users(Config, [{?SECURE_USER, 1}]),
-    UserSpec = escalus_users:get_userspec(Config1, ?SECURE_USER),
+    UserSpec = given_fresh_spec(Config, ?SECURE_USER),
     ConnetctionSteps = [start_stream, stream_features, maybe_use_ssl, maybe_use_compression, authenticate],
     %% when and then
     try escalus_connection:start(UserSpec, ConnetctionSteps) of
@@ -409,8 +408,7 @@ tls_compression_authenticate_fail(Config) ->
 
 tls_authenticate_compression(Config) ->
     %% Given
-    Config1 = escalus_fresh:create_users(Config, [{?SECURE_USER, 1}]),
-    UserSpec = escalus_users:get_userspec(Config1, ?SECURE_USER),
+    UserSpec = given_fresh_spec(Config, ?SECURE_USER),
     ConnetctionSteps = [start_stream, stream_features, maybe_use_ssl, authenticate, maybe_use_compression],
     %% then
     {ok, Conn, _, _} = escalus_connection:start(UserSpec, ConnetctionSteps),
@@ -422,8 +420,7 @@ tls_authenticate_compression(Config) ->
 
 tls_authenticate(Config) ->
     %% Given
-    Config1 = escalus_fresh:create_users(Config, [{?SECURE_USER, 1}]),
-    UserSpec = escalus_users:get_userspec(Config1, ?SECURE_USER),
+    UserSpec = given_fresh_spec(Config, ?SECURE_USER),
     ConnetctionSteps = [start_stream, stream_features, maybe_use_ssl, authenticate],
     %% then
     {ok, Conn, _, _} = escalus_connection:start(UserSpec, ConnetctionSteps),
@@ -434,8 +431,7 @@ tls_authenticate(Config) ->
 %% should fail
 tls_compression_fail(Config) ->
     %% Given
-    Config1 = escalus_fresh:create_users(Config, [{?SECURE_USER, 1}]),
-    UserSpec = escalus_users:get_userspec(Config1, ?SECURE_USER),
+    UserSpec = given_fresh_spec(Config, ?SECURE_USER),
     ConnetctionSteps = [start_stream, stream_features, maybe_use_ssl, maybe_use_compression],
     %% then and when
     try escalus_connection:start(UserSpec, ConnetctionSteps) of
@@ -453,8 +449,7 @@ tls_compression_fail(Config) ->
 
 auth_compression_bind_session(Config) ->
     %% Given
-    Config1 = escalus_fresh:create_users(Config, [{?SECURE_USER, 1}]),
-    UserSpec = escalus_users:get_userspec(Config1, ?SECURE_USER),
+    UserSpec = given_fresh_spec(Config, ?SECURE_USER),
     ConnetctionSteps = [start_stream, stream_features, maybe_use_ssl,
         authenticate, maybe_use_compression, bind, session],
     %% then
@@ -465,8 +460,7 @@ auth_compression_bind_session(Config) ->
 
 auth_bind_compression_session(Config) ->
     %% Given
-    Config1 = escalus_fresh:create_users(Config, [{?SECURE_USER, 1}]),
-    UserSpec = escalus_users:get_userspec(Config1, ?SECURE_USER),
+    UserSpec = given_fresh_spec(Config, ?SECURE_USER),
     ConnetctionSteps = [start_stream, stream_features, maybe_use_ssl,
         authenticate, bind, maybe_use_compression, session],
     %% then
