@@ -193,7 +193,7 @@ one_to_one_message(ConfigIn) ->
 
 set_master_test(ConfigIn) ->
     TableName = passwd,
-    NodeList = nodes(),
+    NodeList =  rpc_call(mnesia, system_info, [running_db_nodes]),
     ejabberdctl("set_master", ["self"], ConfigIn),
     [MasterNode] = rpc_call(mnesia, table_info, [TableName, master_nodes]),
     true = lists:member(MasterNode, NodeList),
