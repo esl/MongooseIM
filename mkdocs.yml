@@ -46,6 +46,7 @@ pages:
       - 'mod_stream_management': 'modules/mod_stream_management.md'
       - 'mod_time': 'modules/mod_time.md'
       - 'mod_vcard': 'modules/mod_vcard.md'
+      - 'mod_version': 'modules/mod_version.md'
       - 'mod_websockets': 'modules/mod_websockets.md'
   - 'Operation and maintenance':
       - 'Cluster configuration and node management': 'operation-and-maintenance/Cluster-configuration-and-node-management.md'
