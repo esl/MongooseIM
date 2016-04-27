@@ -1,7 +1,8 @@
 # Module description
 
 This module enables forwarding certain events (messages, presence, etc.) to an
-external service via HTTP, for example push, surveillance, big data, or analytics services.
+external service via HTTP, for example push (by mobile, email or SMS), big data,
+or analytics services.
 
 # How it works
 
