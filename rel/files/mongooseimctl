@@ -69,6 +69,10 @@ start ()
 {
     $RUNNER_SCRIPT_DIR/mongooseim start
 }
+stop ()
+{
+    $RUNNER_SCRIPT_DIR/mongooseim stop
+}
 
 # attach to server
 debug ()
@@ -240,6 +244,7 @@ done
 
 case $1 in
     'start') start;;
+    'stop') stop;;
     'join_cluster') join_cluster;;
     'leave_cluster') leave_cluster;;
     'debug') debug;;
