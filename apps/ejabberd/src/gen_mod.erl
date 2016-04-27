@@ -47,9 +47,7 @@
          get_hosts/2,
          get_module_proc/2,
          backend_code/3,
-         is_loaded/2,
-         db_type/2,
-         v_db/1]).
+         is_loaded/2]).
 
 -include("ejabberd.hrl").
 
@@ -415,16 +413,4 @@ clear_opts(Module, Opts0) ->
             Opts
     end.
 
--type backend() :: odbc | mnesia | riak.
 
--spec v_db(backend() | internal) -> backend().
-
-v_db(odbc) -> odbc;
-v_db(internal) -> mnesia;
-v_db(mnesia) -> mnesia;
-v_db(riak) -> riak.
-
-db_type(Host, Module) when is_atom(Module) ->
-    get_module_opt(Host, Module, db_type, mnesia);
-db_type(_Host, Opts) when is_list(Opts) ->
-    get_opt(db_type, Opts, mnesia).

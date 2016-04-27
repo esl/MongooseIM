@@ -49,7 +49,7 @@
 
 -export([user_send_packet/3, user_receive_packet/4,
 	 c2s_presence_in/2, c2s_filter_packet/6,
-	 c2s_broadcast_recipients/6, mod_opt_type/1]).
+	 c2s_broadcast_recipients/6]).
 
 %% cleanup for test cases
 -export([delete_caps/1]).
@@ -324,7 +324,7 @@ init_db(_, _) ->
     ok.
 
 init([Host, Opts]) ->
-    init_db(gen_mod:db_type(Host, Opts), Host),
+    init_db(mnesia, Host),
     MaxSize = gen_mod:get_opt(cache_size, Opts,
                               fun(I) when is_integer(I), I>0 -> I end,
                               1000),
@@ -453,7 +453,7 @@ feature_response(_IQResult, Host, From, Caps,
 
 caps_read_fun(Host, Node) ->
     LServer = jid:nameprep(Host),
-    DBType = gen_mod:db_type(LServer, ?MODULE),
+    DBType = db_type(LServer),
     caps_read_fun(LServer, Node, DBType).
 
 caps_read_fun(_LServer, Node, mnesia) ->
@@ -492,7 +492,7 @@ caps_read_fun(LServer, {Node, SubNode}, odbc) ->
 
 caps_write_fun(Host, Node, Features) ->
     LServer = jid:nameprep(Host),
-    DBType = gen_mod:db_type(LServer, ?MODULE),
+    DBType = db_type(LServer),
     caps_write_fun(LServer, Node, Features, DBType).
 
 caps_write_fun(_LServer, Node, Features, mnesia) ->
@@ -750,10 +750,5 @@ import_next(LServer, DBType, NodePair) ->
     end,
     import_next(LServer, DBType, ets:next(caps_features_tmp, NodePair)).
 
-mod_opt_type(cache_life_time) ->
-    fun (I) when is_integer(I), I > 0 -> I end;
-mod_opt_type(cache_size) ->
-    fun (I) when is_integer(I), I > 0 -> I end;
-mod_opt_type(db_type) -> fun gen_mod:v_db/1;
-mod_opt_type(_) ->
-    [cache_life_time, cache_size, db_type].
+db_type(_Host) ->
+    mnesia.
