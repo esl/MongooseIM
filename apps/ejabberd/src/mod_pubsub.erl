@@ -4,13 +4,13 @@
 %%% compliance with the License. You should have received a copy of the
 %%% Erlang Public License along with this software. If not, it can be
 %%% retrieved via the world wide web at http://www.erlang.org/.
-%%% 
+%%%
 %%%
 %%% Software distributed under the License is distributed on an "AS IS"
 %%% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %%% the License for the specific language governing rights and limitations
 %%% under the License.
-%%% 
+%%%
 %%%
 %%% The Initial Developer of the Original Code is ProcessOne.
 %%% Portions created by ProcessOne are Copyright 2006-2015, ProcessOne
@@ -1617,10 +1617,10 @@ send_authorization_approval(Host, JID, SNode, Subscription) ->
                                                 %{S, SID} ->
                                                 %    [{<<"subscription">>, subscription_to_string(S)},
                                                 %     {<<"subid">>, SID}];
-                   S -> 
+                   S ->
                        [{<<"subscription">>, subscription_to_string(S)}]
                end,
-    Stanza = event_stanza(<<"subscription">>, 
+    Stanza = event_stanza(<<"subscription">>,
                           [{<<"jid">>, jid:to_binary(JID)}
                            | nodeAttr(SNode)]
                           ++ SubAttrs),
@@ -2441,7 +2441,7 @@ get_items(Host, Node, From, SubId, SMaxItems, ItemIds, RSM) ->
 
 get_items(Host, Node) ->
     Action = fun (#pubsub_node{type = Type, id = Nidx}) ->
-                     node_call(Host, Type, get_items, [Nidx, service_jid(Host), none]) 
+                     node_call(Host, Type, get_items, [Nidx, service_jid(Host), none])
              end,
     case transaction(Host, Node, Action, sync_dirty) of
         {result, {_, {Items, _}}} -> Items;
@@ -2478,13 +2478,6 @@ get_last_item(Host, Type, Nidx, LJID, mnesia) ->
         {result, {[LastItem|_], _}} -> LastItem;
         _ -> undefined
     end.
-%% get_last_item(Host, Type, Nidx, LJID, odbc) ->
-%%     case node_action(Host, Type, get_last_items, [Nidx, LJID, 1]) of
-%%         {result, [LastItem]} -> LastItem;
-%%         _ -> undefined
-%%     end;
-%% get_last_item(_Host, _Type, _Nidx, _LJID, _) ->
-%%     undefined.
 
 get_last_items(Host, Type, Nidx, LJID, Number) ->
     get_last_items(Host, Type, Nidx, LJID, Number, db_type(serverhost(Host))).
@@ -2493,13 +2486,6 @@ get_last_items(Host, Type, Nidx, LJID, Number, mnesia) ->
         {result, {Items, _}} -> lists:sublist(Items, Number);
         _ -> []
     end.
-%% get_last_items(Host, Type, Nidx, LJID, Number, odbc) ->
-%%     case node_action(Host, Type, get_last_items, [Nidx, LJID, Number]) of
-%%         {result, Items} -> Items;
-%%         _ -> []
-%%     end;
-%% get_last_items(_Host, _Type, _Nidx, _LJID, _Number, _) ->
-%%     [].
 
 %% @doc <p>Resend the items of a node to the user.</p>
 %% @todo use cache-last-item feature
@@ -2967,18 +2953,6 @@ get_subscriptions_for_send_last(Host, PType, mnesia, [JID, LJID, BJID]) ->
      || {Node, Sub, SubId, SubJID} <- Subs,
         Sub =:= subscribed, (SubJID == LJID) or (SubJID == BJID),
         match_option(Node, send_last_published_item, on_sub_and_presence)];
-get_subscriptions_for_send_last(Host, PType, odbc, [JID, LJID, BJID]) ->
-    case catch node_action(Host, PType,
-                           get_entity_subscriptions_for_send_last,
-                           [Host, JID])
-    of
-        {result, Subs} ->
-            [{Node, Sub, SubId, SubJID}
-             || {Node, Sub, SubId, SubJID} <- Subs,
-                Sub =:= subscribed, (SubJID == LJID) or (SubJID == BJID)];
-        _ ->
-            []
-    end;
 get_subscriptions_for_send_last(_Host, _PType, _, _JIDs) ->
     [].
 
@@ -3633,29 +3607,9 @@ filter_node_options(Options) ->
                         [{Key, DefaultValue}|Acc]
                 end, [], node_flat:options()).
 
-%% node_owners_action(Host, Type, Nidx, []) ->
-%%     case db_type(serverhost(Host)) of
-%%         odbc ->
-%%             case node_action(Host, Type, get_node_affiliations, [Nidx]) of
-%%                 {result, Affs} -> [LJID || {LJID, Aff} <- Affs, Aff =:= owner];
-%%                 _ -> []
-%%             end;
-%%         _ ->
-%%             []
-%%     end;
 node_owners_action(_Host, _Type, _Nidx, Owners) ->
     Owners.
 
-%% node_owners_call(Host, Type, Nidx, []) ->
-%%     case db_type(serverhost(Host)) of
-%%         odbc ->
-%%             case node_call(Host, Type, get_node_affiliations, [Nidx]) of
-%%                 {result, Affs} -> [LJID || {LJID, Aff} <- Affs, Aff =:= owner];
-%%                 _ -> []
-%%             end;
-%%         _ ->
-%%             []
-%%     end;
 node_owners_call(_Host, _Type, _Nidx, Owners) ->
     Owners.
 
@@ -4002,18 +3956,10 @@ tree(Host) ->
 tree(_Host, <<"virtual">>) ->
     nodetree_virtual;   % special case, virtual does not use any backend
 tree(Host, Name) ->
-    case db_type(serverhost(Host)) of
-        mnesia -> binary_to_atom(<<"nodetree_", Name/binary>>, utf8)
-%%        odbc -> binary_to_atom(<<"nodetree_", Name/binary, "_odbc">>, utf8);
-%%        _ -> Name
-    end.
+    binary_to_atom(<<"nodetree_", Name/binary>>, utf8).
 
 plugin(Host, Name) ->
-    case db_type(serverhost(Host)) of
-        mnesia -> binary_to_atom(<<"node_", Name/binary>>, utf8)
-%%        odbc -> binary_to_atom(<<"node_", Name/binary, "_odbc">>, utf8);
-%%        _ -> Name
-    end.
+    binary_to_atom(<<"node_", Name/binary>>, utf8).
 
 plugins(Host) ->
     case config(serverhost(Host), plugins) of
@@ -4023,11 +3969,7 @@ plugins(Host) ->
     end.
 
 subscription_plugin(Host) ->
-    case db_type(serverhost(Host)) of
-        mnesia -> pubsub_subscription
-%%        odbc -> pubsub_subscription_odbc;
-%%        _ -> none
-    end.
+    pubsub_subscription.
 
 config(ServerHost, Key) ->
     config(ServerHost, Key, undefined).
@@ -4112,23 +4054,8 @@ tree_call(Host, Function, Args) ->
 
 tree_action(Host, Function, Args) ->
     ?DEBUG("tree_action ~p ~p ~p", [Host, Function, Args]),
-    ServerHost = serverhost(Host),
     Fun = fun () -> tree_call(Host, Function, Args) end,
-    case db_type(ServerHost) of
-        mnesia ->
-            catch mnesia:sync_dirty(Fun)
-        %% odbc ->
-        %%     case catch ejabberd_odbc:sql_bloc(ServerHost, Fun) of
-        %%         {atomic, Result} ->
-        %%             Result;
-        %%         {aborted, Reason} ->
-        %%             ?ERROR_MSG("transaction return internal error: ~p~n", [{aborted, Reason}]),
-        %%             {error, ?ERR_INTERNAL_SERVER_ERROR}
-        %%     end;
-        %% Other ->
-        %%     ?ERROR_MSG("unsupported backend: ~p~n", [Other]),
-        %%     {error, ?ERR_INTERNAL_SERVER_ERROR}
-    end.
+    catch mnesia:sync_dirty(Fun).
 
 %% @doc <p>node plugin call.</p>
 node_call(Host, Type, Function, Args) ->
@@ -4176,28 +4103,13 @@ transaction(Host, Node, Action, Trans) ->
 transaction(Host, Fun, Trans) ->
     ServerHost = serverhost(Host),
     DBType = db_type(ServerHost),
-    Retry = case DBType of
-%%                odbc -> 2;
-                _ -> 1
-            end,
+    Retry = 1,
     transaction_retry(Host, ServerHost, Fun, Trans, DBType, Retry).
 
 transaction_retry(_Host, _ServerHost, _Fun, _Trans, _DBType, 0) ->
     {error, ?ERR_INTERNAL_SERVER_ERROR};
 transaction_retry(Host, ServerHost, Fun, Trans, DBType, Count) ->
-    Res = case DBType of
-              mnesia ->
-                  catch mnesia:Trans(Fun)
-              %% odbc ->
-              %%     SqlFun = case Trans of
-              %%                  transaction -> sql_transaction;
-              %%                  _ -> sql_bloc
-              %%              end,
-              %%     catch ejabberd_odbc:SqlFun(ServerHost, Fun);
-              %% _ ->
-              %%     {unsupported, DBType}
-          end,
-    case Res of
+    case catch mnesia:Trans(Fun) of
         {result, Result} ->
             {result, Result};
         {error, Error} ->
