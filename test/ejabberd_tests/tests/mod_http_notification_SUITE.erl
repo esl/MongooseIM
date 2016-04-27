@@ -32,7 +32,7 @@ suite() ->
     escalus:suite().
 
 set_worker_timeout() ->
-    dynamic_modules:restart(host(), mod_http_notification, [{worker_timeout, 500}, {host, "http://localhost:8000"}]),
+    dynamic_modules:start(host(), mod_http_notification, [{worker_timeout, 500}, {host, "http://localhost:8000"}]),
     ok.
 
 host() -> <<"localhost">>.
@@ -43,6 +43,7 @@ init_per_suite(Config0) ->
     escalus:create_users(Config1, escalus:get_users({by_name, [alice, bob]})).
 
 end_per_suite(Config) ->
+    dynamic_modules:stop(host(), mod_http_notification),
     escalus:delete_users(Config, {by_name, [alice, bob]}),
     escalus:end_per_suite(Config).
 
