@@ -39,8 +39,8 @@
 -type(nodeOptions() :: mod_pubsub:nodeOptions()).
 
 -callback init(Host :: host(),
-	ServerHost :: binary(),
-	Opts :: [any()]) -> atom().
+        ServerHost :: binary(),
+        Opts :: [any()]) -> atom().
 
 -callback terminate(Host :: host(), ServerHost :: binary()) -> atom().
 
@@ -50,13 +50,13 @@
     ok | {result, NodeIdx::nodeIdx()} | {error, xmlel()}.
 
 -callback get_node(Host   :: host(),
-	NodeId :: nodeId(),
-	From   :: jid()) ->
+        NodeId :: nodeId(),
+        From   :: jid()) ->
     pubsubNode() |
     {error, xmlel()}.
 
 -callback get_node(Host :: host(),
-	NodeId :: nodeId()) ->
+        NodeId :: nodeId()) ->
     pubsubNode() |
     {error, xmlel()}.
 
@@ -65,43 +65,43 @@
     {error, xmlel()}.
 
 -callback get_nodes(Host :: host(),
-	From :: jid())->
+        From :: jid())->
     [pubsubNode()].
 
 -callback get_nodes(Host :: host())->
     [pubsubNode()].
 
 -callback get_parentnodes(Host :: host(),
-	NodeId :: nodeId(),
-	From :: jid()) ->
+        NodeId :: nodeId(),
+        From :: jid()) ->
     [pubsubNode()] |
     {error, xmlel()}.
 
 -callback get_parentnodes_tree(Host :: host(),
-	NodeId :: nodeId(),
-	From :: jid()) ->
+        NodeId :: nodeId(),
+        From :: jid()) ->
     [{0, [pubsubNode(),...]}].
 
 -callback get_subnodes(Host :: host(),
-	NodeId :: nodeId(),
-	From :: jid()) ->
+        NodeId :: nodeId(),
+        From :: jid()) ->
     [pubsubNode()].
 
 -callback get_subnodes_tree(Host :: host(),
-	NodeId :: nodeId(),
-	From :: jid()) ->
+        NodeId :: nodeId(),
+        From :: jid()) ->
     [pubsubNode()].
 
 -callback create_node(Host :: host(),
-	NodeId :: nodeId(),
-	Type :: binary(),
-	Owner :: jid(),
-	Options :: nodeOptions(),
-	Parents :: [nodeId()]) ->
+        NodeId :: nodeId(),
+        Type :: binary(),
+        Owner :: jid(),
+        Options :: nodeOptions(),
+        Parents :: [nodeId()]) ->
     {ok, NodeIdx::nodeIdx()} |
     {error, xmlel()} |
     {error, {virtual, {host(), nodeId()}}}.
 
 -callback delete_node(Host :: host(),
-	NodeId :: nodeId()) ->
+        NodeId :: nodeId()) ->
     [pubsubNode()].

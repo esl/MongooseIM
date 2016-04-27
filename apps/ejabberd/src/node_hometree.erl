@@ -33,17 +33,17 @@
 -include("jlib.hrl").
 
 -export([init/3, terminate/2, options/0, features/0,
-    create_node_permission/6, create_node/2, delete_node/1,
-    purge_node/2, subscribe_node/8, unsubscribe_node/4,
-    publish_item/6, delete_item/4, remove_extra_items/3,
-    get_entity_affiliations/2, get_node_affiliations/1,
-    get_affiliation/2, set_affiliation/3,
-    get_entity_subscriptions/2, get_node_subscriptions/1,
-    get_subscriptions/2, set_subscriptions/4,
-    get_pending_nodes/2, get_states/1, get_state/2,
-    set_state/1, get_items/7, get_items/3, get_item/7,
-    get_item/2, set_item/1, get_item_name/3, node_to_path/1,
-    path_to_node/1]).
+         create_node_permission/6, create_node/2, delete_node/1,
+         purge_node/2, subscribe_node/8, unsubscribe_node/4,
+         publish_item/6, delete_item/4, remove_extra_items/3,
+         get_entity_affiliations/2, get_node_affiliations/1,
+         get_affiliation/2, set_affiliation/3,
+         get_entity_subscriptions/2, get_node_subscriptions/1,
+         get_subscriptions/2, set_subscriptions/4,
+         get_pending_nodes/2, get_states/1, get_state/2,
+         set_state/1, get_items/7, get_items/3, get_item/7,
+         get_item/2, set_item/1, get_item_name/3, node_to_path/1,
+         path_to_node/1]).
 
 init(Host, ServerHost, Opts) ->
     node_flat:init(Host, ServerHost, Opts),
@@ -72,17 +72,17 @@ create_node_permission(Host, ServerHost, Node, _ParentNode, Owner, Access) ->
     LOwner = jid:to_lower(Owner),
     {User, Server, _Resource} = LOwner,
     Allowed = case LOwner of
-	{<<"">>, Host, <<"">>} ->
-	    true; % pubsub service always allowed
-	_ ->
-	    case acl:match_rule(ServerHost, Access, Owner) of
-		allow ->
-		    case node_to_path(Node) of
-			[<<"home">>, Server, User | _] -> true;
-			_ -> false
-		    end;
-		_ -> false
-	    end
+        {<<"">>, Host, <<"">>} ->
+            true; % pubsub service always allowed
+        _ ->
+            case acl:match_rule(ServerHost, Access, Owner) of
+                allow ->
+                    case node_to_path(Node) of
+                        [<<"home">>, Server, User | _] -> true;
+                        _ -> false
+                    end;
+                _ -> false
+            end
     end,
     {result, Allowed}.
 
@@ -93,10 +93,10 @@ delete_node(Nodes) ->
     node_flat:delete_node(Nodes).
 
 subscribe_node(Nidx, Sender, Subscriber, AccessModel,
-	    SendLast, PresenceSubscription, RosterGroup, Options) ->
+            SendLast, PresenceSubscription, RosterGroup, Options) ->
     node_flat:subscribe_node(Nidx, Sender, Subscriber,
-	AccessModel, SendLast, PresenceSubscription,
-	RosterGroup, Options).
+        AccessModel, SendLast, PresenceSubscription,
+        RosterGroup, Options).
 
 unsubscribe_node(Nidx, Sender, Subscriber, SubId) ->
     node_flat:unsubscribe_node(Nidx, Sender, Subscriber, SubId).
@@ -154,14 +154,14 @@ get_items(Nidx, From, RSM) ->
 
 get_items(Nidx, JID, AccessModel, PresenceSubscription, RosterGroup, SubId, RSM) ->
     node_flat:get_items(Nidx, JID, AccessModel,
-	PresenceSubscription, RosterGroup, SubId, RSM).
+        PresenceSubscription, RosterGroup, SubId, RSM).
 
 get_item(Nidx, ItemId) ->
     node_flat:get_item(Nidx, ItemId).
 
 get_item(Nidx, ItemId, JID, AccessModel, PresenceSubscription, RosterGroup, SubId) ->
     node_flat:get_item(Nidx, ItemId, JID, AccessModel,
-	PresenceSubscription, RosterGroup, SubId).
+        PresenceSubscription, RosterGroup, SubId).
 
 set_item(Item) ->
     node_flat:set_item(Item).
