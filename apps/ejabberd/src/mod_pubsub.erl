@@ -2477,14 +2477,14 @@ get_last_item(Host, Type, Nidx, LJID, mnesia) ->
     case node_action(Host, Type, get_items, [Nidx, LJID, none]) of
         {result, {[LastItem|_], _}} -> LastItem;
         _ -> undefined
-    end;
-get_last_item(Host, Type, Nidx, LJID, odbc) ->
-    case node_action(Host, Type, get_last_items, [Nidx, LJID, 1]) of
-        {result, [LastItem]} -> LastItem;
-        _ -> undefined
-    end;
-get_last_item(_Host, _Type, _Nidx, _LJID, _) ->
-    undefined.
+    end.
+%% get_last_item(Host, Type, Nidx, LJID, odbc) ->
+%%     case node_action(Host, Type, get_last_items, [Nidx, LJID, 1]) of
+%%         {result, [LastItem]} -> LastItem;
+%%         _ -> undefined
+%%     end;
+%% get_last_item(_Host, _Type, _Nidx, _LJID, _) ->
+%%     undefined.
 
 get_last_items(Host, Type, Nidx, LJID, Number) ->
     get_last_items(Host, Type, Nidx, LJID, Number, db_type(serverhost(Host))).
@@ -2492,14 +2492,14 @@ get_last_items(Host, Type, Nidx, LJID, Number, mnesia) ->
     case node_action(Host, Type, get_items, [Nidx, LJID, none]) of
         {result, {Items, _}} -> lists:sublist(Items, Number);
         _ -> []
-    end;
-get_last_items(Host, Type, Nidx, LJID, Number, odbc) ->
-    case node_action(Host, Type, get_last_items, [Nidx, LJID, Number]) of
-        {result, Items} -> Items;
-        _ -> []
-    end;
-get_last_items(_Host, _Type, _Nidx, _LJID, _Number, _) ->
-    [].
+    end.
+%% get_last_items(Host, Type, Nidx, LJID, Number, odbc) ->
+%%     case node_action(Host, Type, get_last_items, [Nidx, LJID, Number]) of
+%%         {result, Items} -> Items;
+%%         _ -> []
+%%     end;
+%% get_last_items(_Host, _Type, _Nidx, _LJID, _Number, _) ->
+%%     [].
 
 %% @doc <p>Resend the items of a node to the user.</p>
 %% @todo use cache-last-item feature
@@ -3633,29 +3633,29 @@ filter_node_options(Options) ->
                         [{Key, DefaultValue}|Acc]
                 end, [], node_flat:options()).
 
-node_owners_action(Host, Type, Nidx, []) ->
-    case db_type(serverhost(Host)) of
-        odbc ->
-            case node_action(Host, Type, get_node_affiliations, [Nidx]) of
-                {result, Affs} -> [LJID || {LJID, Aff} <- Affs, Aff =:= owner];
-                _ -> []
-            end;
-        _ ->
-            []
-    end;
+%% node_owners_action(Host, Type, Nidx, []) ->
+%%     case db_type(serverhost(Host)) of
+%%         odbc ->
+%%             case node_action(Host, Type, get_node_affiliations, [Nidx]) of
+%%                 {result, Affs} -> [LJID || {LJID, Aff} <- Affs, Aff =:= owner];
+%%                 _ -> []
+%%             end;
+%%         _ ->
+%%             []
+%%     end;
 node_owners_action(_Host, _Type, _Nidx, Owners) ->
     Owners.
 
-node_owners_call(Host, Type, Nidx, []) ->
-    case db_type(serverhost(Host)) of
-        odbc ->
-            case node_call(Host, Type, get_node_affiliations, [Nidx]) of
-                {result, Affs} -> [LJID || {LJID, Aff} <- Affs, Aff =:= owner];
-                _ -> []
-            end;
-        _ ->
-            []
-    end;
+%% node_owners_call(Host, Type, Nidx, []) ->
+%%     case db_type(serverhost(Host)) of
+%%         odbc ->
+%%             case node_call(Host, Type, get_node_affiliations, [Nidx]) of
+%%                 {result, Affs} -> [LJID || {LJID, Aff} <- Affs, Aff =:= owner];
+%%                 _ -> []
+%%             end;
+%%         _ ->
+%%             []
+%%     end;
 node_owners_call(_Host, _Type, _Nidx, Owners) ->
     Owners.
 
@@ -4003,16 +4003,16 @@ tree(_Host, <<"virtual">>) ->
     nodetree_virtual;   % special case, virtual does not use any backend
 tree(Host, Name) ->
     case db_type(serverhost(Host)) of
-        mnesia -> binary_to_atom(<<"nodetree_", Name/binary>>, utf8);
-        odbc -> binary_to_atom(<<"nodetree_", Name/binary, "_odbc">>, utf8);
-        _ -> Name
+        mnesia -> binary_to_atom(<<"nodetree_", Name/binary>>, utf8)
+%%        odbc -> binary_to_atom(<<"nodetree_", Name/binary, "_odbc">>, utf8);
+%%        _ -> Name
     end.
 
 plugin(Host, Name) ->
     case db_type(serverhost(Host)) of
-        mnesia -> binary_to_atom(<<"node_", Name/binary>>, utf8);
-        odbc -> binary_to_atom(<<"node_", Name/binary, "_odbc">>, utf8);
-        _ -> Name
+        mnesia -> binary_to_atom(<<"node_", Name/binary>>, utf8)
+%%        odbc -> binary_to_atom(<<"node_", Name/binary, "_odbc">>, utf8);
+%%        _ -> Name
     end.
 
 plugins(Host) ->
@@ -4024,9 +4024,9 @@ plugins(Host) ->
 
 subscription_plugin(Host) ->
     case db_type(serverhost(Host)) of
-        mnesia -> pubsub_subscription;
-        odbc -> pubsub_subscription_odbc;
-        _ -> none
+        mnesia -> pubsub_subscription
+%%        odbc -> pubsub_subscription_odbc;
+%%        _ -> none
     end.
 
 config(ServerHost, Key) ->
@@ -4116,18 +4116,18 @@ tree_action(Host, Function, Args) ->
     Fun = fun () -> tree_call(Host, Function, Args) end,
     case db_type(ServerHost) of
         mnesia ->
-            catch mnesia:sync_dirty(Fun);
-        odbc ->
-            case catch ejabberd_odbc:sql_bloc(ServerHost, Fun) of
-                {atomic, Result} ->
-                    Result;
-                {aborted, Reason} ->
-                    ?ERROR_MSG("transaction return internal error: ~p~n", [{aborted, Reason}]),
-                    {error, ?ERR_INTERNAL_SERVER_ERROR}
-            end;
-        Other ->
-            ?ERROR_MSG("unsupported backend: ~p~n", [Other]),
-            {error, ?ERR_INTERNAL_SERVER_ERROR}
+            catch mnesia:sync_dirty(Fun)
+        %% odbc ->
+        %%     case catch ejabberd_odbc:sql_bloc(ServerHost, Fun) of
+        %%         {atomic, Result} ->
+        %%             Result;
+        %%         {aborted, Reason} ->
+        %%             ?ERROR_MSG("transaction return internal error: ~p~n", [{aborted, Reason}]),
+        %%             {error, ?ERR_INTERNAL_SERVER_ERROR}
+        %%     end;
+        %% Other ->
+        %%     ?ERROR_MSG("unsupported backend: ~p~n", [Other]),
+        %%     {error, ?ERR_INTERNAL_SERVER_ERROR}
     end.
 
 %% @doc <p>node plugin call.</p>
@@ -4177,7 +4177,7 @@ transaction(Host, Fun, Trans) ->
     ServerHost = serverhost(Host),
     DBType = db_type(ServerHost),
     Retry = case DBType of
-                odbc -> 2;
+%%                odbc -> 2;
                 _ -> 1
             end,
     transaction_retry(Host, ServerHost, Fun, Trans, DBType, Retry).
@@ -4187,15 +4187,15 @@ transaction_retry(_Host, _ServerHost, _Fun, _Trans, _DBType, 0) ->
 transaction_retry(Host, ServerHost, Fun, Trans, DBType, Count) ->
     Res = case DBType of
               mnesia ->
-                  catch mnesia:Trans(Fun);
-              odbc ->
-                  SqlFun = case Trans of
-                               transaction -> sql_transaction;
-                               _ -> sql_bloc
-                           end,
-                  catch ejabberd_odbc:SqlFun(ServerHost, Fun);
-              _ ->
-                  {unsupported, DBType}
+                  catch mnesia:Trans(Fun)
+              %% odbc ->
+              %%     SqlFun = case Trans of
+              %%                  transaction -> sql_transaction;
+              %%                  _ -> sql_bloc
+              %%              end,
+              %%     catch ejabberd_odbc:SqlFun(ServerHost, Fun);
+              %% _ ->
+              %%     {unsupported, DBType}
           end,
     case Res of
         {result, Result} ->
