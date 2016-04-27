@@ -37,8 +37,7 @@
 
 -export([read_caps/1, caps_stream_features/2,
          disco_features/5, disco_identity/5, disco_info/5,
-         get_features/2, export/1, import_info/0, import/5,
-         import_start/2, import_stop/2]).
+         get_features/2]).
 
 %% gen_mod callbacks
 -export([start/2, start_link/2, stop/1]).
@@ -319,9 +318,7 @@ init_db(mnesia, _Host) ->
                           record_info(fields, caps_features)}]),
     update_table(),
     mnesia:add_table_copy(caps_features, node(),
-                          disc_only_copies);
-init_db(_, _) ->
-    ok.
+                          disc_only_copies).
 
 init([Host, Opts]) ->
     init_db(mnesia, Host),
@@ -463,32 +460,6 @@ caps_read_fun(_LServer, Node, mnesia) ->
                 _ -> error
             end
     end.
-%% caps_read_fun(_LServer, Node, riak) ->
-%%     fun() ->
-%%             case ejabberd_riak:get(caps_features, caps_features_schema(), Node) of
-%%                 {ok, #caps_features{features = Features}} -> {ok, Features};
-%%                 _ -> error
-%%             end
-%%     end;
-%% caps_read_fun(LServer, {Node, SubNode}, odbc) ->
-%%     fun() ->
-%%             SNode = ejabberd_odbc:escape(Node),
-%%             SSubNode = ejabberd_odbc:escape(SubNode),
-%%             case ejabberd_odbc:sql_query(
-%%                    LServer, [<<"select feature from caps_features where ">>,
-%%                              <<"node='">>, SNode, <<"' and subnode='">>,
-%%                              SSubNode, <<"';">>]) of
-%%                 {selected, [<<"feature">>], [[H]|_] = Fs} ->
-%%                     case catch binary_to_integer(H) of
-%%                         Int when is_integer(Int), Int>=0 ->
-%%                             {ok, Int};
-%%                         _ ->
-%%                             {ok, lists:flatten(Fs)}
-%%                     end;
-%%                 _ ->
-%%                     error
-%%             end
-%%     end.
 
 caps_write_fun(Host, Node, Features) ->
     LServer = jid:nameprep(Host),
@@ -500,18 +471,6 @@ caps_write_fun(_LServer, Node, Features, mnesia) ->
             mnesia:dirty_write(#caps_features{node_pair = Node,
                                               features = Features})
     end.
-%% caps_write_fun(_LServer, Node, Features, riak) ->
-%%     fun () ->
-%%             ejabberd_riak:put(#caps_features{node_pair = Node,
-%%                                              features = Features},
-%%                            caps_features_schema())
-%%     end;
-%% caps_write_fun(LServer, NodePair, Features, odbc) ->
-%%     fun () ->
-%%             ejabberd_odbc:sql_transaction(
-%%               LServer,
-%%               sql_write_features_t(NodePair, Features))
-%%     end.
 
 delete_caps(Node) ->
     cache_tab:delete(caps_features, Node, caps_delete_fun(Node)).
@@ -677,78 +636,6 @@ update_table() ->
             ?INFO_MSG("Recreating caps_features table", []),
             mnesia:transform_table(caps_features, ignore, Fields)
     end.
-
-sql_write_features_t({Node, SubNode}, Features) ->
-    SNode = ejabberd_odbc:escape(Node),
-    SSubNode = ejabberd_odbc:escape(SubNode),
-    NewFeatures = if is_integer(Features) ->
-                          [integer_to_binary(Features)];
-                     true ->
-                          Features
-                  end,
-    [[<<"delete from caps_features where node='">>,
-      SNode, <<"' and subnode='">>, SSubNode, <<"';">>]|
-     [[<<"insert into caps_features(node, subnode, feature) ">>,
-       <<"values ('">>, SNode, <<"', '">>, SSubNode, <<"', '">>,
-       ejabberd_odbc:escape(F), <<"');">>] || F <- NewFeatures]].
-
-%% caps_features_schema() ->
-%%     {record_info(fields, caps_features), #caps_features{}}.
-
-export(_Server) ->
-    [{caps_features,
-      fun(_Host, #caps_features{node_pair = NodePair,
-                                features = Features}) ->
-              sql_write_features_t(NodePair, Features);
-         (_Host, _R) ->
-              []
-      end}].
-
-import_info() ->
-    [{<<"caps_features">>, 4}].
-
-import_start(LServer, DBType) ->
-    ets:new(caps_features_tmp, [private, named_table, bag]),
-    init_db(DBType, LServer),
-    ok.
-
-import(_LServer, {odbc, _}, _DBType, <<"caps_features">>,
-       [Node, SubNode, Feature, _TimeStamp]) ->
-    Feature1 = case catch binary_to_integer(Feature) of
-                   I when is_integer(I), I>0 -> I;
-                   _ -> Feature
-               end,
-    ets:insert(caps_features_tmp, {{Node, SubNode}, Feature1}),
-    ok.
-
-import_stop(LServer, DBType) ->
-    import_next(LServer, DBType, ets:first(caps_features_tmp)),
-    ets:delete(caps_features_tmp),
-    ok.
-
-import_next(_LServer, _DBType, '$end_of_table') ->
-    ok;
-import_next(LServer, DBType, NodePair) ->
-    Features = [F || {_, F} <- ets:lookup(caps_features_tmp, NodePair)],
-    case Features of
-        [I] when is_integer(I), DBType == mnesia ->
-            mnesia:dirty_write(
-              #caps_features{node_pair = NodePair, features = I});
-        %% [I] when is_integer(I), DBType == riak ->
-        %%     ejabberd_riak:put(
-        %%       #caps_features{node_pair = NodePair, features = I},
-        %%       caps_features_schema());
-        _ when DBType == mnesia ->
-            mnesia:dirty_write(
-              #caps_features{node_pair = NodePair, features = Features});
-        %% _ when DBType == riak ->
-        %%     ejabberd_riak:put(
-        %%       #caps_features{node_pair = NodePair, features = Features},
-        %%       caps_features_schema());
-        _ when DBType == odbc ->
-            ok
-    end,
-    import_next(LServer, DBType, ets:next(caps_features_tmp, NodePair)).
 
 db_type(_Host) ->
     mnesia.
