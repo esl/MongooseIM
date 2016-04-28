@@ -36,6 +36,7 @@
          reload_module/3,
          get_opt/2,
          get_opt/3,
+         get_opt/4,
          get_opt_host/3,
          set_opt/3,
          get_module_opt/4,
@@ -267,6 +268,13 @@ get_opt(Opt, Opts, Default) ->
             Val
     end.
 
+get_opt(Opt, Opts, F, Default) ->
+    case lists:keysearch(Opt, 1, Opts) of
+        false ->
+            Default;
+        {value, {_, Val}} ->
+            F(Val)
+    end.
 
 -spec set_opt(_,[tuple()],_) -> [tuple(),...].
 set_opt(Opt, Opts, Value) ->
@@ -404,3 +412,5 @@ clear_opts(Module, Opts0) ->
         _ ->
             Opts
     end.
+
+

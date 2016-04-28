@@ -2,11 +2,42 @@
 
 -include_lib("common_test/include/ct.hrl").
 
+-export([save_modules/2, ensure_modules/2, restore_modules/2]).
 -export([stop/2, start/3, restart/3, stop_running/2, start_running/1]).
 
+save_modules(Domain, Config) ->
+    [{saved_modules, get_current_modules(Domain)} | Config].
+
+ensure_modules(Domain, RequiredModules) ->
+    CurrentModules = get_current_modules(Domain),
+    [ensure_module(Domain, Mod, Opts, proplists:get_value(Mod, CurrentModules, stopped))
+        || {Mod, Opts} <- RequiredModules].
+
+restore_modules(Domain, Config) ->
+    SavedModules = ?config(saved_modules, Config),
+    CurrentModules = get_current_modules(Domain),
+    [ensure_module(Domain, Mod, stopped, Opts) || {Mod, Opts} <- CurrentModules,
+            not lists:keymember(Mod, 1, SavedModules)],
+    [ensure_module(Domain, Mod, Opts, proplists:get_value(Mod, CurrentModules, stopped))
+        || {Mod, Opts} <- SavedModules].
+
+ensure_module(_Domain, _Mod, _Opts, _Opts) ->
+    ok;
+ensure_module(Domain, Mod, stopped, Opts) ->
+    ct:pal("Stop module ~p started with opts ~p", [Mod, Opts]),
+    stop(Domain, Mod);
+ensure_module(Domain, Mod, Opts, stopped) ->
+    ct:pal("Start module ~p with opts ~p", [Mod, Opts]),
+    start(Domain, Mod, Opts);
+ensure_module(Domain, Mod, RequiredOpts, CurrentOpts) ->
+    ct:pal("Restart module ~p (opts changed from ~p to ~p)",
+           [Mod, CurrentOpts, RequiredOpts]),
+    restart(Domain, Mod, RequiredOpts).
+
+get_current_modules(Domain) ->
+    escalus_ejabberd:rpc(gen_mod, loaded_modules_with_opts, [Domain]).
 
 stop(Domain, Mod) ->
-    io:format("stopping ~p", [Mod]),
     IsLoaded = escalus_ejabberd:rpc(gen_mod, is_loaded, [Domain, Mod]),
     case IsLoaded of
         true -> unsafe_stop(Domain, Mod);
@@ -21,7 +52,6 @@ unsafe_stop(Domain, Mod) ->
     end.
 
 start(Domain, Mod, Args) ->
-    io:format("starting ~p", [Mod]),
     case escalus_ejabberd:rpc(gen_mod, start_module, [Domain, Mod, Args]) of
         {badrpc, Reason} ->
             ct:fail("Cannot start module ~p reason ~p", [Mod, Reason]);

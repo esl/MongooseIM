@@ -36,9 +36,11 @@
 {suites, "tests", muc_SUITE}.
 {suites, "tests", oauth_SUITE}.
 {suites, "tests", offline_SUITE}.
+{suites, "tests", pep_SUITE}.
 {suites, "tests", presence_SUITE}.
 {suites, "tests", privacy_SUITE}.
 {suites, "tests", private_SUITE}.
+{suites, "tests", pubsub_SUITE}.
 {suites, "tests", s2s_SUITE}.
 {suites, "tests", shared_roster_SUITE}.
 {suites, "tests", sic_SUITE}.

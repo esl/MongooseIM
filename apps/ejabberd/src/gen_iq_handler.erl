@@ -35,7 +35,8 @@
          remove_iq_handler/3,
          stop_iq_handler/3,
          handle/7,
-         process_iq/6]).
+         process_iq/6,
+         check_type/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -149,6 +150,13 @@ process_iq(_Host, Module, Function, From, To, IQ) ->
                     ok
             end
     end.
+
+-spec check_type(type()) -> type().
+
+check_type(no_queue) -> no_queue;
+check_type(one_queue) -> one_queue;
+check_type(N) when is_integer(N), N>0 -> N;
+check_type(parallel) -> parallel.
 
 %%====================================================================
 %% gen_server callbacks

@@ -76,14 +76,11 @@
 -include("jlib.hrl").
 -include("ejabberd.hrl").
 
--type xmlel()           :: #xmlel{}.
 %% Stream types defined in exml/include/exml_stream.hrl
 -type xmlstreamstart()  :: #xmlstreamstart{}.
 -type xmlstreamend()    :: #xmlstreamend{}.
 -type xmlstreamel() :: xmlel() | xmlstreamstart() | xmlstreamend().
 
--type rsm_in()    :: #rsm_in{}.
--type rsm_out()   :: #rsm_out{}.
 -type xmlcdata()  :: #xmlcdata{}.
 
 -type binary_pair() :: {binary(), binary()}.
