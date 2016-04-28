@@ -40,8 +40,13 @@ MongooseIM allows connecting different clusters as parts of larger systems. This
 
 MongooseIM gathers over 40 different XMPP-related metrics, allowing close monitoring of what happens inside the nodes. To manage the users, rosters, messages and general settings, we provide a command-line tool, `mongooseimctl`.
 
-Erlang Solutions also provides WombatOAM, an erlang VM monitoring solution, that enbales ops and devs to better understand what going on in a MongooseIM cluster.
+Erlang Solutions also provides [WombatOAM](https://www.erlang-solutions.com/products/wombat-oam.html), an erlang VM monitoring solution, that enbales ops and devs to better understand what going on in a MongooseIM cluster.
 
-Erlang Solutions also provides megaLOAD, a load testing tool that enables devs and ops to validate their scalability, given the clients scenarios.
+Erlang Solutions also provides [megaLOAD](https://www.erlang-solutions.com/products/megaload.html), a load testing tool that enables devs and ops to validate their scalability, given the clients scenarios.
+
+In order to build client applications, the MoongooseIM team recommends the following libraries:
+* iOS: [XMPPframework](https://github.com/robbiehanson/XMPPFramework), Objective-C
+* Android: [Smack](https://github.com/igniterealtime/Smack), Java
+* Web: [Stanza.io](https://github.com/otalk/stanza.io), JavaScript
 
 General knowledge of Erlang and XMPP allows complete control over the system and its components.
