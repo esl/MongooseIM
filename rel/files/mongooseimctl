@@ -37,31 +37,39 @@ NODENAME="${NODENAME_ARG#* }"
 
 join_cluster()
 {
-    echo "Warning. This will drop all current connections and will discard all persistent data from Mnesia.
-            Do you want to continue? (yes/no)"
+    GUARD = "unknown"
+    until [ $GUARD = "yes" ] || [ $GUARD = "no" ] ; do
+    echo "Warning. Joining the cluster will drop all current connections and will discard all persistent data from Mnesia.
+          Do you want to continue? (yes/no)"
             read GUARD
 
             if [ $GUARD =  "yes" ]; then
                 echo "Joining the cluster..."
                 ctl $QUOTED_ARGS
+            else if [ $GUARD = "no" ] ; then
+                 echo "Operation discarded by user"
+                 exit 1
             else
-                echo "Operation discarded by user"
-                exit 1
+                 echo "Command unknown. Do you want to continue? (yes/no)"
             fi
 }
 
 leave_cluster()
 {
-        echo "Warning. This will drop all current connections and will discard all persistent data from Mnesia.
-                Do you want to continue? (yes/no)"
+        GUARD = "unknown"
+        until [ $GUARD = "yes" ] || [ $GUARD = "no" ] ; do
+        echo "Warning. Leaving the cluster will drop all current connections and will discard all persistent data from Mnesia.
+              Do you want to continue? (yes/no)"
                 read GUARD
 
                 if [ $GUARD =  "yes" ]; then
                     echo "Leaving the cluster..."
                     ctl $QUOTED_ARGS
-                else
+                else if [ $GUARD = "no" ] ; then
                     echo "Operation discarded by user"
                     exit 1
+                else
+                    echo "Command unknown. Do you want to continue? (yes/no)"
                 fi
 }
 
