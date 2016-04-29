@@ -69,6 +69,16 @@ Some requests consider multiple return codes a "success". It is up to the server
 
 **IMPORTANT:** The authentication server MUST include a `Content-Length` HTTP header in the response. A body can be missing in the first data chunk read from a socket, leading to strange authentication errors.
 
+### Method `register`
+
+* **Description:** Creates a user account.
+* **HTTP method:** POST
+* **Type:** mandatory when `mod_register` is enabled
+* **Return values:**
+    * 201 - success
+    * 409 - user already exists
+    * anything else - will be treated as failure
+
 ### Method `check_password`
 
 * **Description:** Must respond if the password is valid for user.
