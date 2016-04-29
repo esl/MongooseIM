@@ -138,11 +138,11 @@ Some requests consider multiple return codes a "success". It is up to the server
     * 403 - invalid user password or not allowed for other reason
     * 40X - will be treated as `bad request`
 
-## Authentication service API recipes
+### Authentication service API recipes
 
 Below are some examples of the auth service APIs and MongooseIM-side configuration along with use cases.
 
-### System using common, custom auth token
+#### System using common, custom auth token
 
 An Auth token is provided as a password.
 
@@ -150,19 +150,19 @@ An Auth token is provided as a password.
 * **MongooseIM config:** `password format`: `plain`, `mod_register` disabled
 * **Client side:** MUST NOT use `DIGEST-MD5` mechanism; use `PLAIN`
 
-### Central database of plaintext passwords
+#### Central database of plaintext passwords
 
 * **Service implements:** `check_password`, `get_password`, `user_exists`
 * **MongooseIM config:** `password format`: `plain`, `mod_register` disabled
 * **Client side:** May use any available auth method
 
-### Central database able to process SCRAM
+#### Central database able to process SCRAM
 
 * **Service implements:** `get_password`, `user_exists`
 * **MongooseIM config:** `password format`: `scram`, `mod_register` disabled
 * **Client side:** May use any available auth method
 
-### Godlike MongooseIM
+#### Godlike MongooseIM
 
 * **Service implements:** all methods
 * **MongooseIM config:** `password format`: `scram` (recommended) or `plain`, `mod_register` enabled
