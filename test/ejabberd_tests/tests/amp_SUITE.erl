@@ -11,10 +11,13 @@
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("exml/include/exml.hrl").
 
-all() -> [{group, all}].
+-define(DOMAIN, <<"localhost">>).
+
+all() -> [{group, basic},
+          {group, mam}].
 
 groups() ->
-    [{all, [parallel, shuffle],
+    [{basic, [parallel, shuffle],
       [initial_service_discovery_test,
        actions_and_conditions_discovery_test,
 
@@ -36,12 +39,26 @@ groups() ->
 
        error_deliver_doesnt_apply_test,
        last_rule_applies_test
+      ]},
+     {mam, [],
+      [notify_deliver_stored_for_stranger_mam_test,
+       notify_deliver_stored_for_bob_mam_test
       ]}
     ].
 
 
 init_per_suite(C) -> escalus:init_per_suite(C).
 end_per_suite(C) -> ok = escalus_fresh:clean(), escalus:end_per_suite(C).
+
+init_per_group(GroupName, Config) ->
+    Config1 = dynamic_modules:save_modules(?DOMAIN, Config),
+    dynamic_modules:ensure_modules(?DOMAIN, required_modules(GroupName)),
+    Config1;
+init_per_group(_GroupName, Config) -> Config.
+
+end_per_group(_GroupName, Config) ->
+    dynamic_modules:restore_modules(?DOMAIN, Config).
+
 init_per_testcase(Name,C) -> escalus:init_per_testcase(Name,C).
 end_per_testcase(Name,C) -> escalus:end_per_testcase(Name,C).
 
@@ -294,7 +311,37 @@ last_rule_applies_test(Config) ->
               client_receives_message(Bob, <<"One of your resources needs to get this!">>)
       end).
 
+notify_deliver_stored_for_stranger_mam_test(Config) ->
+    escalus:fresh_story(
+      Config, [{alice, 1}],
+      fun(Alice) ->
+              %% given
+              StrangerJid = <<"stranger@localhost">>,
+              Msg = amp_message_to(StrangerJid, [{deliver, stored, notify}],
+                                   <<"A message in a bottle...">>),
+              %% when
+              client_sends_message(Alice, Msg),
 
+              % then
+              client_receives_notification(Alice, StrangerJid, {deliver, stored, notify})
+      end).
+
+notify_deliver_stored_for_bob_mam_test(Config) ->
+    FreshConfig = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+    %%ct:pal("Config: ~p", [FreshConfig]),
+    escalus:story(
+      FreshConfig, [{alice, 1}],
+      fun(Alice) ->
+              %% given
+              StrangerJid = escalus_users:get_jid(FreshConfig, bob),
+              Msg = amp_message_to(StrangerJid, [{deliver, stored, notify}],
+                                   <<"A message in a bottle...">>),
+              %% when
+              client_sends_message(Alice, Msg),
+
+              % then
+              client_receives_notification(Alice, StrangerJid, {deliver, stored, notify})
+      end).
 
 %% Internal
 ns_amp() ->
@@ -448,6 +495,7 @@ ns_stanzas() ->
 check_rules(deliver, none, notify) -> ok;
 check_rules(deliver, forward, notify) -> ok;
 check_rules(deliver, direct, notify) -> ok;
+check_rules(deliver, stored, notify) -> ok;
 
 check_rules(deliver, direct, error) -> ok;
 check_rules(deliver, forward, error) -> ok;
@@ -486,3 +534,11 @@ amp_error_container(<<"not-acceptable">>) -> <<"invalid-rules">>;
 amp_error_container(<<"unsupported-actions">>) -> <<"unsupported-actions">>;
 amp_error_container(<<"unsupported-conditions">>) -> <<"unsupported-conditions">>;
 amp_error_container(<<"undefined-condition">>) -> <<"failed-rules">>.
+
+required_modules(mam) ->
+    [{mod_mam_odbc_user, [pm]},
+     {mod_mam_odbc_prefs, [pm]},
+     {mod_mam_odbc_arch, [pm]},
+     {mod_mam, []}];
+required_modules(_) ->
+    [].

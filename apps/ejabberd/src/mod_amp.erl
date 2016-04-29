@@ -92,10 +92,10 @@ verify_support(Host, Rules) ->
     ejabberd_hooks:run_fold(amp_verify_support, Host, [], [Rules]).
 
 -spec determine_strategy(hook_data()) -> amp_strategy().
-determine_strategy(HookData) ->
-    TargetJid = message_target(HookData),
+determine_strategy({From, Packet} = HookData) ->
+    To = message_target(HookData),
     ejabberd_hooks:run_fold(amp_determine_strategy, hd_host(HookData),
-                            amp_strategy:null_strategy(), [TargetJid]).
+                            amp_strategy:null_strategy(), [From, To, Packet]).
 
 -spec resolve_condition(hook_data(), amp_strategy(),
                         amp_condition(), amp_value())
