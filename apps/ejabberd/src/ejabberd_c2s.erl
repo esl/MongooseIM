@@ -947,10 +947,12 @@ session_established(closed, StateData) ->
 
 
 %%% XEP-0079 (AMP) related
-check_amp_maybe_send(Host, State, {_FromJID, _El} = HookData) ->
+check_amp_maybe_send(Host, State, {FromJID, _El} = HookData) ->
     case ejabberd_hooks:run_fold(amp_check_packet, Host, HookData, []) of
         drop      -> fsm_next_state(session_established, State);
-        {_,NewEl} -> session_established2(NewEl, State)
+        {_,NewEl} ->
+            NewestEl = mod_amp:amp_take_deferred_actions(FromJID, NewEl),
+            session_established2(NewestEl, State)
     end.
 
 %% @doc Process packets sent by user (coming from user on c2s XMPP

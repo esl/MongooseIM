@@ -10,7 +10,8 @@
 -export([start/2, stop/1]).
 -export([add_local_features/5,
          add_stream_feature/2,
-         amp_check_packet/1
+         amp_check_packet/1,
+         amp_take_deferred_actions/2
         ]).
 
 -include_lib("ejabberd/include/amp.hrl").
@@ -64,6 +65,12 @@ amp_check_packet({From, #xmlel{name = <<"message">>} = Packet} = HookData) ->
     end;
 amp_check_packet(HookData) -> HookData.
 
+amp_take_deferred_actions(From, Packet) ->
+    case amp:extract_requested_rules(Packet) of
+        none -> Packet;
+        {rules, [Rule]} -> take_deferred_action({From, Packet}, Rule)
+    end.
+
 %% @doc This may eventually be configurable, but for now we return a constant list.
 amp_features() ->
     [<<"http://jabber.org/protocol/amp">>
@@ -106,14 +113,14 @@ resolve_condition(HookData, Strategy, Condition, Value) ->
        [Strategy, Condition, Value]).
 
 -spec process_one_by_one(hook_data(), amp_strategy(), amp_rules()) -> hook_data().
-process_one_by_one(HookData, Strategy, ValidRules) ->
+process_one_by_one({From, Packet} = HookData, Strategy, ValidRules) ->
     case fold_apply_rules(HookData, Strategy, ValidRules) of
         'no_match' ->
-            HookData;
+            {From, amp:strip_amp_el(Packet)};
         {match, #amp_rule{action='error'} = Rule} ->
             send_error_and_drop(HookData, 'undefined-condition', Rule);
         {match, Rule} ->
-            take_action(HookData, Rule)
+            defer_action(HookData, Rule)
     end.
 
 -spec fold_apply_rules(hook_data(), amp_strategy(), amp_rules())
@@ -143,15 +150,16 @@ send_errors_and_drop({From, Packet} = HookData, ErrorRules) ->
     ejabberd_hooks:run(amp_error_action_triggered, Host, [Host]),
     update_metric_and_drop(HookData).
 
--spec take_action(hook_data(), amp_rule()) -> hook_data().
-take_action({From, Packet} = HookData, #amp_rule{action=Action} = Rule) ->
+defer_action({From, Packet}, #amp_rule{action = notify} = Rule) ->
+    {From, amp:replace_rules(Packet, [Rule])};
+defer_action(HookData, _) ->
+    update_metric_and_drop(HookData).
+
+take_deferred_action({From, Packet} = HookData, #amp_rule{action = notify} = Rule) ->
     Host = hd_host(HookData),
-    case Action of
-        'notify' -> reply_to_sender(Rule, server_jid(From), From, Packet),
-                    ejabberd_hooks:run(amp_notify_action_triggered, Host, [Host]),
-                    {From, amp:strip_amp_el(Packet)};
-        _        -> update_metric_and_drop(HookData)
-    end.
+    reply_to_sender(Rule, server_jid(From), From, Packet),
+    ejabberd_hooks:run(amp_notify_action_triggered, Host, [Host]),
+    amp:strip_amp_el(Packet).
 
 -spec reply_to_sender(amp_rule(), jid(), jid(), #xmlel{}) -> ok.
 reply_to_sender(MatchedRule, ServerJid, OriginalSender, OriginalPacket) ->
