@@ -1,4 +1,3 @@
-# HTTP authentication module
 
 ## Overview
 
