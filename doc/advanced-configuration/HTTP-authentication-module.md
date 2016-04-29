@@ -27,7 +27,8 @@ Enabling the module **is not enough!** Please follow instructions below.
 * `path_prefix` (optional, default: `"/"`) - a path prefix to be inserted between `host` and method name; must be terminated with `/`
 
 Example:
-```TODO```
+`TODO`
+
 
 ## SCRAM support
 
