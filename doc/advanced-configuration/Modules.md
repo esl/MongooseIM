@@ -55,7 +55,7 @@ This module implements [XEP-0016: Privacy Lists)](http://xmpp.org/extensions/xep
 Implements [XEP-0049 (Private XML Storage)](http://xmpp.org/extensions/xep-0049.html) to store and query private user data in XML format.
 
 ### [mod_register](../modules/mod_register.md)
-Implements [XEP-0077: In-Band Registration)](http://xmpp.org/extensions/xep-0077.html), that enables to create an accoutn and change password once connected. This does not provide a solution to the forgotten password use case, via SMS or email.
+Implements [XEP-0077: In-Band Registration)](http://xmpp.org/extensions/xep-0077.html), that enables to create an account and change password once connected. This does not provide a solution to the forgotten password use case, via SMS or email.
 
 ### [mod_roster](../modules/mod_roster.md)
 Roster support, specified in [RFC 6121](http://xmpp.org/rfcs/rfc6121.html). Includes support for [XEP-0237: Roster Versioning](http://xmpp.org/extensions/xep-0237.html).
