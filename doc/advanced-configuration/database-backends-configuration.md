@@ -57,7 +57,9 @@ psql -h localhost -U user -q -d mongooseim -f pg.sql
 You should also configure Postgres database in `ejabberd.cfg` file. 
 Please refer to [Advanced configuration/Database setup](../Advanced-configuration.md) for more information.
 
-# MSSQL / Azure SQL
+# Microsoft SQL Server
+
+Microsoft SQL Server, sometimes called MSSQL, or Azure SQL Database.
 
 **Can be used for:**
 
@@ -132,7 +134,9 @@ Configure the database section as follows:
 ```
 
 
-# Riak (versions >=2.0)
+# Riak KV
+
+Riak KV, for Key-Value, is supported for versions upper than 2.0.
 
 **Can be used for:**
 
@@ -205,7 +209,7 @@ Please refer to [Advanced configuration/Database setup](../Advanced-configuratio
 
 **Can be used for:**
 
-* mam (Message archive)
+* MAM (Message archive)
 
 **Setup**
 
