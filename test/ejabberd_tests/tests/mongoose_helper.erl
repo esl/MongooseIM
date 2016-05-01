@@ -12,7 +12,8 @@
          total_vcard_items/0,
          total_roster_items/0]).
 
--export([clear_last_activity/2]).
+-export([clear_last_activity/2,
+         clear_caps_cache/1]).
 
 -define(RPC(M,F,A), escalus_ejabberd:rpc(M, F, A)).
 
@@ -87,6 +88,9 @@ do_clear_last_activity(_Config, User) when is_binary(User) ->
     escalus_ejabberd:rpc(mod_last, remove_user, [U, S]);
 do_clear_last_activity(Config, Users) when is_list(Users) ->
     lists:foreach(fun(User) -> do_clear_last_activity(Config, User) end, Users).
+
+clear_caps_cache(CapsNode) ->
+    ok = ?RPC(mod_caps, delete_caps, [CapsNode]).
 
 get_backend(Module) ->
   case ?RPC(Module, backend, []) of
