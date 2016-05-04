@@ -1,12 +1,10 @@
 ### Reverse Proxy
 
-MongooseIM can be used as a reverse proxy thanks to `mod_reveproxy`
-module. In order to enable this functionality a new entry to listeners
-and modules sections in the ejabberd.cfg file has to be added.
+MongooseIM can be used as a reverse proxy thanks to `mod_revproxy` module. In order to enable this functionality a new entry to listeners and modules sections in the ejabberd.cfg file has to be added.
 
 #### Setting up listener
 
-In the listeners section following entry has to be added.
+In the listeners section following entry has to be added:
 
 ```Erlang
  { {8090, ejabberd_cowboy, [
@@ -52,6 +50,7 @@ Routes are defined in the options of mod_revproxy module using either
 The latter one is the equivalent of `{Host, Path, "_", Upstream}`.
 "_" can be used as wildcard for `Host`, `Path` and `Method` and it
 matches on everything.
+
 Upstream can be defined by either host (just `http(s)://host:port`) or URI.
 The difference between them is that host upstreams are concatenated by 
 the whole request path while URI upstreams are concatenated only by the 
@@ -61,17 +60,10 @@ This behaviour is similar to the nginx's proxy_pass rules.
 Moreover, bindings may be used to match certain parts of host and/or path.
 They will be overlaid with appropriate parts of the upstream URI.
 
+### Example configuration
+
 For example, for the shown example configuration, requests for:
 
-* `Host: www.erlang-solutions.com /admin/resources/case-studies`
-
-    will be rewritten to `https://www.erlang-solutions.com/resources/case-studies` (rule 1)
-
-* `Host: domain.com /domain/index.html`
-
-    will be rewritten to `http://localhost:8080/index.html` (rule 2, since binding `:var` matches in both host and path)
-
-* `Host: abc.com /def`
-
-    will be rewritten to `http://localhost:8080/abc/def` (rule 3)
-
+* `Host: www.erlang-solutions.com /admin/resources/case-studies` will be rewritten to `https://www.erlang-solutions.com/resources/case-studies` (rule 1)
+* `Host: domain.com /domain/index.html` will be rewritten to `http://localhost:8080/index.html` (rule 2, since binding `:var` matches in both host and path)
+* `Host: abc.com /def` will be rewritten to `http://localhost:8080/abc/def` (rule 3)
