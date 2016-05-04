@@ -4,7 +4,7 @@
 
 %% TODO: it might make sense to expose this stuff as mod_admin_extra_cluster
 
--export([join/1, leave/0, remove_from_cluster/1]).
+-export([join/1, leave/0, remove_from_cluster/1, is_node_alive/1]).
 
 -include("ejabberd.hrl").
 
