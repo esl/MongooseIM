@@ -31,46 +31,60 @@ if [ -z "$NODENAME_ARG" ]; then
     echo "vm.args needs to have either -name or -sname parameter."
     exit 1
 fi
+FORCE_FLAG1='"--force"'
+FORCE_FLAG2='"-f"'
 
 NAME_TYPE="${NODENAME_ARG% *}"
 NODENAME="${NODENAME_ARG#* }"
 
 join_cluster()
 {
-    GUARD = "unknown"
-    until [ $GUARD = "yes" ] || [ $GUARD = "no" ] ; do
-    echo "Warning. Joining the cluster will drop all current connections and will discard all persistent data from Mnesia.
-          Do you want to continue? (yes/no)"
-            read GUARD
-
-            if [ $GUARD =  "yes" ]; then
-                echo "Joining the cluster..."
-                ctl $QUOTED_ARGS
-            else if [ $GUARD = "no" ] ; then
-                 echo "Operation discarded by user"
-                 exit 1
-            else
-                 echo "Command unknown. Do you want to continue? (yes/no)"
-            fi
+        WARNING="Warning. This will drop all current connections and will discard all persistent data from Mnesia.
+        Do you want to continue? (yes/no)"
+        DISPLAY="Joining the cluster..."
+        manage_cluster "$WARNING" "$DISPLAY"
 }
 
 leave_cluster()
 {
-        GUARD = "unknown"
-        until [ $GUARD = "yes" ] || [ $GUARD = "no" ] ; do
-        echo "Warning. Leaving the cluster will drop all current connections and will discard all persistent data from Mnesia.
-              Do you want to continue? (yes/no)"
-                read GUARD
+        WARNING="Warning. This will drop all current connections and will discard all persistent data from Mnesia.
+        Do you want to continue? (yes/no)"
+        DISPLAY="Leaving the cluster..."
 
-                if [ $GUARD =  "yes" ]; then
-                    echo "Leaving the cluster..."
-                    ctl $QUOTED_ARGS
-                else if [ $GUARD = "no" ] ; then
-                    echo "Operation discarded by user"
-                    exit 1
-                else
-                    echo "Command unknown. Do you want to continue? (yes/no)"
-                fi
+        manage_cluster "$WARNING" "$DISPLAY"
+}
+
+remove_from_cluster()
+{
+        WARNING="Warning. If the node is alive this will drop all current connections on the remote node and will discard all persistent data from Mnesia.
+        Do you want to continue? (yes/no)"
+        DISPLAY="Removing node from the cluster..."
+        manage_cluster "$WARNING" "$DISPLAY"
+}
+
+manage_cluster()
+{
+        case $QUOTED_ARGS in
+            *$FORCE_FLAG1*|*$FORCE_FLAG2*)
+                QUOTED_ARGS=$(echo $QUOTED_ARGS|sed "s/$FORCE_FLAG1//")
+                QUOTED_ARGS=$(echo $QUOTED_ARGS|sed "s/$FORCE_FLAG2//")
+                ctl $QUOTED_ARGS;;
+             *)
+                GUARD="unknown"
+                until [ $GUARD = "yes" ] || [ $GUARD = "no" ] ; do
+                    echo $1
+                    read GUARD
+                    if [ $GUARD =  "yes" ]; then
+                        echo $2
+                        ctl $QUOTED_ARGS
+                    elif [ $GUARD = "no" ] ; then
+                        echo "Operation discarded by user"
+                        exit 1
+                    else
+                        echo "Command unknown. Do you want to continue? (yes/no)"
+                    fi
+                done;;
+        esac
 }
 
 start ()
@@ -255,6 +269,7 @@ case $1 in
     'stop') stop;;
     'join_cluster') join_cluster;;
     'leave_cluster') leave_cluster;;
+    'remove_from_cluster') remove_from_cluster;;
     'debug') debug;;
     'live') live;;
     'started') wait_for_status 0 30 2;; # wait 30x2s before timeout
