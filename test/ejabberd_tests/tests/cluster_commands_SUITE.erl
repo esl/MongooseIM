@@ -39,24 +39,29 @@ all() ->
         {group, clustering_three}].
 groups() ->
     [{clustered, [], [one_to_one_message]},
-        {clustering_two, [],
-            [join_successful,
-            leave_successful,
-            join_unsuccessful,
-            leave_unsuccessful,
-            leave_but_no_cluster,
-            join_twice,
-            leave_twice]},
-        {clustering_three, [],
-            [cluster_of_three,
-             leave_the_three,
-             remove_dead_from_cluster,
-             remove_alive_from_cluster
-            ]},
+        {clustering_two, [], clustering_two_tests()},
+        {clustering_three, [], clustering_three_tests()},
         {ejabberdctl, [], [set_master_test]}].
 suite() ->
     require_all_nodes() ++
     escalus:suite().
+
+clustering_two_tests() ->
+    [join_successful_prompt,
+        join_successful_force,
+        leave_successful_prompt,
+        leave_successful_force,
+        join_unsuccessful,
+        leave_unsuccessful,
+        leave_but_no_cluster,
+        join_twice,
+        leave_twice].
+
+clustering_three_tests() ->
+    [cluster_of_three,
+        leave_the_three,
+        remove_dead_from_cluster,
+        remove_alive_from_cluster].
 
 require_all_nodes() ->
     [{require, mim_node, {hosts, mim, node}},
@@ -154,8 +159,10 @@ end_per_testcase(CaseName, Config) when CaseName == remove_alive_from_cluster
     remove_node_from_cluster(Node2, Config),
     escalus:end_per_testcase(CaseName, Config);
 
-end_per_testcase(CaseName, Config) when CaseName == join_successful
-                                   orelse CaseName == leave_unsuccessful
+end_per_testcase(CaseName, Config) when CaseName == join_successful_prompt
+                                   orelse CaseName == join_successful_force
+                                   orelse CaseName == leave_unsuccessful_prompt
+                                   orelse CaseName == leave_unsuccessful_force
                                    orelse CaseName == join_twice ->
     Node2 = mim2(),
     remove_node_from_cluster(Node2, Config),
@@ -204,7 +211,13 @@ set_master_test(ConfigIn) ->
     ejabberdctl("set_master", ["self"], ConfigIn),
     [MasterNode] = rpc_call(mnesia, table_info, [TableName, master_nodes]).
 
-join_successful(Config) ->
+
+%%--------------------------------------------------------------------
+%% Manage cluster commands tests
+%%--------------------------------------------------------------------
+
+
+join_successful_prompt(Config) ->
     %% given
     Node2 = mim2(),
     %% when
@@ -213,12 +226,31 @@ join_successful(Config) ->
     distributed_helper:verify_result(Node2, add),
     ?eq(0, OpCode).
 
-leave_successful(Config) ->
+join_successful_force(Config) ->
+    %% given
+    Node2 = mim2(),
+    %% when
+    {_, OpCode} = ejabberdctl_force("join_cluster", [atom_to_list(Node2)], "--force", Config),
+    %% then
+    distributed_helper:verify_result(Node2, add),
+    ?eq(0, OpCode).
+
+leave_successful_prompt(Config) ->
     %% given
     Node2 = mim2(),
     add_node_to_cluster(Node2, Config),
     %% when
     {_, OpCode} = ejabberdctl_interactive("leave_cluster", [], "yes\n", Config),
+    %% then
+    distributed_helper:verify_result(Node2, remove),
+    ?eq(0, OpCode).
+
+leave_successful_force(Config) ->
+    %% given
+    Node2 = mim2(),
+    add_node_to_cluster(Node2, Config),
+    %% when
+    {_, OpCode} = ejabberdctl_force("leave_cluster", [], "-f", Config),
     %% then
     distributed_helper:verify_result(Node2, remove),
     ?eq(0, OpCode).
@@ -267,8 +299,8 @@ leave_twice(Config) ->
     Node2 = mim2(),
     add_node_to_cluster(Node2, Config),
     %% when
-    {_, OpCode1} = ejabberdctl_interactive("leave_cluster", [], "yes\n", Config),
-    {_, OpCode2} = ejabberdctl_interactive("leave_cluster", [], "yes\n", Config),
+    {_, OpCode1} = ejabberdctl_force("leave_cluster", [], "--force", Config),
+    {_, OpCode2} = ejabberdctl_force("leave_cluster", [], "-f", Config),
     %% then
     distributed_helper:verify_result(Node2, remove),
     ?eq(0, OpCode1),
@@ -280,8 +312,8 @@ cluster_of_three(Config) ->
     Node2 = mim2(),
     Node3 = mim3(),
     %% when
-    {_, OpCode1} = ejabberdctl_interactive(Node2, "join_cluster", [atom_to_list(ClusterMember)], "yes\n", Config),
-    {_, OpCode2} = ejabberdctl_interactive(Node3, "join_cluster", [atom_to_list(ClusterMember)], "yes\n", Config),
+    {_, OpCode1} = ejabberdctl_force(Node2, "join_cluster", [atom_to_list(ClusterMember)], "-f", Config),
+    {_, OpCode2} = ejabberdctl_force(Node3, "join_cluster", [atom_to_list(ClusterMember)], "-f", Config),
     %% then
     ?eq(0, OpCode1),
     ?eq(0, OpCode2),
@@ -318,7 +350,7 @@ remove_dead_from_cluster(Config) ->
     ok = rpc(Node3, mongoose_cluster, join, [Node1], Timeout),
     %% when
     stop_node(Node2, Config),
-    {_, OpCode1} = ejabberdctl_helper:ejabberdctl("remove_from_cluster", [atom_to_list(Node2)], Config),
+    {_, OpCode1} = ejabberdctl_interactive(Node1, "remove_from_cluster", [atom_to_list(Node2)], "yes\n", Config),
     %% then
     ?eq(0, OpCode1),
     % node is down hence its not in mnesia cluster
@@ -340,12 +372,13 @@ remove_alive_from_cluster(Config) ->
     ok = rpc(Node3, mongoose_cluster, join, [Node1], Timeout),
     %% when
     %% Node2 is still running
-    {_, OpCode1} = ejabberdctl_helper:ejabberdctl("remove_from_cluster", [atom_to_list(Node2)], Config),
+    {_, OpCode1} = ejabberdctl_force(Node1, "remove_from_cluster", [atom_to_list(Node2)], "-f", Config),
     %% then
-    ?ne(0, OpCode1),
+    ?eq(0, OpCode1),
+    % node is down hence its not in mnesia cluster
     have_node_in_mnesia(Node1, Node3, true),
-    have_node_in_mnesia(Node1, Node2, true),
-    have_node_in_mnesia(Node3, Node2, true).
+    have_node_in_mnesia(Node1, Node2, false),
+    have_node_in_mnesia(Node3, Node2, false).
 
 
 
@@ -356,6 +389,12 @@ ejabberdctl_interactive(C, A, R, Config) ->
 ejabberdctl_interactive(Node, Cmd, Args, Response, Config) ->
     CtlCmd = escalus_config:get_config(ctl_path_atom(Node), Config),
     run_interactive(string:join([CtlCmd, Cmd | normalize_args(Args)], " "), Response).
+
+ejabberdctl_force(Command, Args, ForceFlag, Config) ->
+    DefaultNode = mim(),
+    ejabberdctl_force(DefaultNode, Command, Args, ForceFlag, Config).
+ejabberdctl_force(Node, Cmd, Args, ForceFlag, Config) ->
+    ejabberdctl_helper:ejabberdctl(Node, Cmd, [ForceFlag | Args], Config).
 
 ctl_path_atom(NodeName) ->
     CtlString = atom_to_list(NodeName) ++ "_ctl",
