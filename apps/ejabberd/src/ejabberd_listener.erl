@@ -29,6 +29,8 @@
 
 -export([start_link/0, init/1, start/3,
          init/3,
+         accept/3,
+         udp_recv/3,
          start_listeners/0,
          start_listener/3,
          stop_listeners/0,
@@ -142,7 +144,7 @@ init_udp(PortIPProto, Module, Opts, SockOpts, Port, IPS) ->
         {ok, Socket} ->
             %% Inform my parent that this port was opened succesfully
             proc_lib:init_ack({ok, self()}),
-            udp_recv(Socket, Module, Opts);
+            ?MODULE:udp_recv(Socket, Module, Opts);
         {error, Reason} ->
             socket_error(Reason, PortIPProto, Module, SockOpts, Port, IPS)
     end.
@@ -158,7 +160,7 @@ init_tcp(PortIPProto, Module, Opts, SockOpts, Port, IPS) ->
     %% Inform my parent that this port was opened succesfully
     proc_lib:init_ack({ok, self()}),
     %% And now start accepting connection attempts
-    accept(ListenSocket, Module, Opts).
+    ?MODULE:accept(ListenSocket, Module, Opts).
 
 -spec listen_tcp(PortIPPRoto :: port_ip_proto(),
                  Module :: atom(),
@@ -310,11 +312,11 @@ accept(ListenSocket, Module, Opts) ->
                     ok
             end,
             ejabberd_socket:start(Module, gen_tcp, Socket, Opts),
-            accept(ListenSocket, Module, Opts);
+            ?MODULE:accept(ListenSocket, Module, Opts);
         {error, Reason} ->
             ?INFO_MSG("(~w) Failed TCP accept: ~w",
                       [ListenSocket, Reason]),
-            accept(ListenSocket, Module, Opts)
+            ?MODULE:accept(ListenSocket, Module, Opts)
     end.
 
 -spec udp_recv(Socket :: port(),
@@ -332,7 +334,7 @@ udp_recv(Socket, Module, Opts) ->
                 _ ->
                     ok
             end,
-            udp_recv(Socket, Module, Opts);
+            ?MODULE:udp_recv(Socket, Module, Opts);
         {error, Reason} ->
             ?ERROR_MSG("unexpected UDP error: ~s", [format_error(Reason)]),
             throw({error, Reason})
