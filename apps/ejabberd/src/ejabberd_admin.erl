@@ -167,20 +167,45 @@ commands() ->
 %%%
 %%% Server management
 %%%
--spec remove_from_cluster(string()) -> {ok, string()} | {node_is_alive, string()} | {mnesia_error, string()}.
-remove_from_cluster(DeadNodeString) ->
-    DeadNode = list_to_atom(DeadNodeString),
+-spec remove_from_cluster(string()) -> {ok, string()} |
+                                       {node_is_alive, string()} |
+                                       {mnesia_error, string()} |
+                                       {rpc_error, string()}.
+remove_from_cluster(NodeString) ->
+    Node = list_to_atom(NodeString),
+    IsNodeAlive = mongoose_cluster:is_node_alive(Node),
+    case IsNodeAlive of
+        true ->
+            remove_rpc_alive_node(Node);
+        false ->
+            remove_dead_node(Node)
+    end.
+
+remove_dead_node(DeadNode) ->
     try mongoose_cluster:remove_from_cluster(DeadNode) of
         ok ->
-            String = io_lib:format("The node ~s has been removed from the cluster~n", [DeadNodeString]),
+            String = io_lib:format("The dead node ~p has been removed from the cluster~n", [DeadNode]),
             {ok, String}
     catch
         error:{node_is_alive, DeadNode} ->
-            String = io_lib:format("The node ~s must be down~n", [DeadNode]),
+            String = io_lib:format("The node ~p is alive but shoud not be.~n", [DeadNode]),
             {node_is_alive, String};
         error:{del_table_copy_schema, R} ->
             String = io_lib:format("Cannot delete table schema~n. Reason: ~p", [R]),
             {mnesia_error, String}
+    end.
+
+remove_rpc_alive_node(AliveNode) ->
+    case rpc:call(AliveNode, mongoose_cluster, leave, []) of
+        {badrpc, Reason} ->
+            String = io_lib:format("Cannot remove the node ~p~n. RPC Reason: ~p", [AliveNode, Reason]),
+            {rpc_error, String};
+        ok ->
+            String = io_lib:format("The node ~p has been removed from the cluster~n", [AliveNode]),
+            {ok, String};
+        Unknown ->
+            String = io_lib:format("Unknown error: ~p~n", [Unknown]),
+            {rpc_error, String}
     end.
 
 -spec join_cluster(string()) -> {ok, string()} | {pang, string()} | {alread_joined, string()} |
