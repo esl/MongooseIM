@@ -160,7 +160,8 @@ See [Database backends configuration](./advanced-configuration/database-backends
     * **Syntax:** `{shaper, AtomName, {maxrate, BytesPerSecond}}`
 
 * **max_fsm_queue** (local)
-    * **Description:** When enabled, will terminate certain processes (e.g. client handlers) that exceed message limit, to prevent resource exhaustion. **Use with caution!**
+    * **Description:** When enabled, will terminate certain processes (e.g. client handlers) that exceed message limit, to prevent resource exhaustion. This option is set for all the listeners but can be overridden for particular `ejabberd_s2s` or `ejabberd_service` listeners in their configurations. **Use with caution!**
+    * **Syntax:** `{max_fsm_queue, MaxFsmQueueLength}`
 
 ### Access control lists
 
