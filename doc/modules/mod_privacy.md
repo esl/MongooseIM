@@ -3,7 +3,7 @@ This module implements [XEP-0016: Privacy Lists](http://xmpp.org/extensions/xep-
 
 ### Options
 * `iqdisc`
-* `backend` (atom, default: `mnesia`): Storage backend. Currently supported are `mnesia` and `odbc`.
+* `backend` (atom, default: `mnesia`): Storage backend. Currently supported are `mnesia`, `odbc` and `riak`.
 
 ### Example Configuration
 ```
