@@ -74,11 +74,16 @@
                                     DigestGen :: fun()) ->
                                       'false' | {'true', ejabberd_auth:authmodule()}
                                   ).
+
+% Either a simple error tag or an error tag + <text> field
+-type sasl_error_data() :: binary() | {binary(), binary()}.
+
 -export_type([get_password_fun/0,
               check_password_fun/0,
               check_pass_digest_fun/0,
               mechanism/0,
-              password_type/0]).
+              password_type/0,
+              sasl_error_data/0]).
 
 -callback mech_new(Host :: ejabberd:server(),
                    GetPassword :: get_password_fun(),
@@ -87,7 +92,9 @@
                    ) -> {ok, tuple()}.
 -callback mech_step(State :: tuple(),
                     ClientIn :: binary()
-                    ) -> {ok, proplists:proplist()} | {error, binary()}.
+                    ) -> {ok, proplists:proplist()}
+                         | {error, sasl_error_data()}
+                         | {error, sasl_error_data(), ejabberd:user()}.
 
 -spec start() -> 'ok'.
 start() ->
@@ -196,7 +203,8 @@ lookup_mech(Mech) ->
                                           | {'ok', [any()]}
                                           | {'ok', [any()], term()}
                                           | {'continue', _, sasl_state()}
-                                          | {'error', binary(), ejabberd:user()}.
+                                          | {'error', sasl_error_data()}
+                                          | {'error', sasl_error_data(), ejabberd:user()}.
 server_step(State, ClientIn) ->
     Module = State#sasl_state.mech_mod,
     MechState = State#sasl_state.mech_state,
