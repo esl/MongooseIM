@@ -79,14 +79,6 @@ init_per_suite(Config) ->
     Config1 = ejabberd_node_utils:init(Node1, Config),
     Config2 = ejabberd_node_utils:init(Node2, Config1),
     Config3 = ejabberd_node_utils:init(Node3, Config2),
-    ejabberd_node_utils:backup_config_file(Node2, Config3),
-    ejabberd_node_utils:backup_config_file(Node3, Config3),
-    MainDomain = ct:get_config({hosts, mim, domain}),
-    Ch = [{hosts, "[\"" ++ binary_to_list(MainDomain) ++ "\"]"}],
-    ejabberd_node_utils:modify_config_file(Node2, "reltool_vars/node2_vars.config", Ch, Config3),
-    ejabberd_node_utils:call_ctl(Node2, reload_local, Config2),
-    ejabberd_node_utils:modify_config_file(Node3, "reltool_vars/node3_vars.config", Ch, Config3),
-    ejabberd_node_utils:call_ctl(Node3, reload_local, Config2),
     NodeCtlPath = distributed_helper:ctl_path(Node1, Config3),
     Node2CtlPath = distributed_helper:ctl_path(Node2, Config3),
     Node3CtlPath = distributed_helper:ctl_path(Node3, Config3),
@@ -96,12 +88,6 @@ init_per_suite(Config) ->
     ++ Config3).
 
 end_per_suite(Config) ->
-    Node2 = mim2(),
-    Node3 = mim3(),
-    ejabberd_node_utils:restore_config_file(Node2, Config),
-    ejabberd_node_utils:restore_config_file(Node3, Config),
-    ejabberd_node_utils:restart_application(Node2, ejabberd),
-    ejabberd_node_utils:restart_application(Node3, ejabberd),
     escalus:end_per_suite(Config).
 
 init_per_group(Group, Config) when Group == clustered orelse Group == ejabberdctl ->
@@ -455,7 +441,10 @@ have_node_in_mnesia(Node1, Node2, ShouldBe) ->
     ?assertEqual(ShouldBe, lists:member(Node2, DbNodes1)).
 
 start_node(Node, Config) ->
-    {_, 0} = mongooseim_script(Node, "start", [], Config).
+    {_, 0} = ejabberdctl_helper:ejabberdctl(Node, "start", [], Config),
+    {_, 0} = ejabberdctl_helper:ejabberdctl(Node, "started", [], Config),
+    %% TODO Looks like "started" run by ejabberdctl fun is not really synchronous
+    timer:sleep(3000).
 
 stop_node(Node, Config) ->
     {_, 0} = mongooseim_script(Node, "stop", [], Config).
