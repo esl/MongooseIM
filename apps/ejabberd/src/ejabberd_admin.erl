@@ -147,17 +147,20 @@ commands() ->
                         module = ejabberd_config, function = reload_cluster,
                         args = [], result = {res, restuple}},
      #ejabberd_commands{name = join_cluster, tags = [server],
-                        desc = "Join the node to a cluster. Call it from the joining node",
+                        desc = "Join the node to a cluster. Call it from the joining node.
+                                Use `-f` or `--force` flag to avoid question prompt and force join the node",
                         module = ?MODULE, function = join_cluster,
                         args = [{node, string}],
                         result = {res, restuple}},
      #ejabberd_commands{name = leave_cluster, tags = [server],
-                        desc = "Leave a node from the cluster. Call it from the node that is going to leave",
+                        desc = "Leave a node from the cluster. Call it from the node that is going to leave.
+                                Use `-f` or `--force` flag to avoid question prompt and force leave the node from cluster",
                         module = ?MODULE, function = leave_cluster,
                         args = [],
                         result = {res, restuple}},
      #ejabberd_commands{name = remove_from_cluster, tags = [server],
-                        desc = "Remove dead node from the cluster. Call it from the member of the cluster",
+                        desc = "Remove dead node from the cluster. Call it from the member of the cluster.
+                                Use `-f` or `--force` flag to avoid question prompt and force remove the node",
                         module = ?MODULE, function = remove_from_cluster,
                         args = [{node, string}],
                         result = {res, restuple}}
