@@ -60,7 +60,7 @@ clustering_two_tests() ->
 clustering_three_tests() ->
     [cluster_of_three,
         leave_the_three,
-%%        remove_dead_from_cluster,
+        remove_dead_from_cluster,
         remove_alive_from_cluster].
 
 require_all_nodes() ->
@@ -326,27 +326,18 @@ leave_the_three(Config) ->
     ?eq(0, OpCode1),
     ?eq(0, OpCode2).
 
-%%remove_dead_from_cluster(Config) ->
-%%    % given
-%%    Timeout = timer:seconds(60),
-%%    Node1 = mim(),
-%%    Node2 = mim2(),
-%%    Node3 = mim3(),
-%%    ok = rpc(Node2, mongoose_cluster, join, [Node1], Timeout),
-%%    ok = rpc(Node3, mongoose_cluster, join, [Node1], Timeout),
-%%    %% when
-%%    stop_node(Node2, Config),
+remove_dead_from_cluster(Config) ->
+    % given
+    Timeout = timer:seconds(60),
+    Node1 = mim(),
+    Node2 = mim2(),
+    Node3 = mim3(),
+    ok = rpc(Node2, mongoose_cluster, join, [Node1], Timeout),
+    ok = rpc(Node3, mongoose_cluster, join, [Node1], Timeout),
+    %% when
+    stop_node(Node2, Config),
 %%    {_, OpCode1} = ejabberdctl_interactive(Node1, "remove_from_cluster", [atom_to_list(Node2)], "yes\n", Config),
-%%    %% then
-%%    ?eq(0, OpCode1),
-%%    % node is down hence its not in mnesia cluster
-%%    have_node_in_mnesia(Node1, Node3, true),
-%%    have_node_in_mnesia(Node1, Node2, false),
-%%    have_node_in_mnesia(Node3, Node2, false),
-%%    % after node awakening nodes are clustered again
-%%    start_node(Node2, Config),
-%%    have_node_in_mnesia(Node1, Node2, true),
-%%    have_node_in_mnesia(Node3, Node2, true).
+    start_node(Node2, Config).
 
 remove_alive_from_cluster(Config) ->
     % given
