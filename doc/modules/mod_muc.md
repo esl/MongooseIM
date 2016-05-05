@@ -31,7 +31,7 @@ This module implements [XEP-0045: Multi-User Chat)](http://xmpp.org/extensions/x
     * `public_list` (boolean, default: `true`): Member list can be fetched by non-members.
     * `persistent` (boolean, default: `false`): Room will be stored in DB and survive even when last occupant leaves or node is restarted.
     * `moderated` (boolean, default: `true`): Only occupants with "voice" can send group chat messages.
-    * `members_by_default` (boolean, default: `true): All new occupants are members by default, unless they have different affiliation assigned.
+    * `members_by_default` (boolean, default: `true`): All new occupants are members by default, unless they have different affiliation assigned.
     * `members_only` (boolean, default: `false`): Only users with member affiliation can join the room.
     * `allow_user_invites` (boolean, default: `false`): Allow ordinary members to send mediated invitations.
     * `password_protected` (boolean, default: `false`): Room is protected with password.
