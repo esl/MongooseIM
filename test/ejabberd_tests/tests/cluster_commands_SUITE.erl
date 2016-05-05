@@ -59,11 +59,9 @@ clustering_two_tests() ->
 
 clustering_three_tests() ->
     [cluster_of_three,
-        leave_the_three
-%%        ,
-%%        remove_dead_from_cluster,
-%%        remove_alive_from_cluster
-    ].
+        leave_the_three,
+        remove_dead_from_cluster,
+        remove_alive_from_cluster].
 
 require_all_nodes() ->
     [{require, mim_node, {hosts, mim, node}},
@@ -398,9 +396,17 @@ ejabberdctl_force(Command, Args, ForceFlag, Config) ->
 ejabberdctl_force(Node, Cmd, Args, ForceFlag, Config) ->
     ejabberdctl_helper:ejabberdctl(Node, Cmd, [ForceFlag | Args], Config).
 
+mongooseim_script_path(Node, Config) ->
+    distributed_helper:script_path(Node, Config, "mongooseim").
+
+mongooseim_script(Node, Cmd, Args, Config) ->
+    CtlCmd = mongooseim_script_path(Node, Config),
+    run(string:join([CtlCmd, Cmd | normalize_args(Args)], " ")).
+
 ctl_path_atom(NodeName) ->
     CtlString = atom_to_list(NodeName) ++ "_ctl",
     list_to_atom(CtlString).
+
 normalize_args(Args) ->
     lists:map(fun
                   (Arg) when is_binary(Arg) ->
@@ -418,6 +424,13 @@ run_interactive(Cmd, Response, Timeout) ->
     %% respond to interactive question (yes/no)
     Port ! {self(), {command, Response}},
     loop(Port, [], Timeout).
+
+run(Cmd) ->
+    run(Cmd, 60000).
+
+run(Cmd, Timeout) ->
+    Port = erlang:open_port({spawn, Cmd},[exit_status]),
+    loop(Port,[], Timeout).
 
 loop(Port, Data, Timeout) ->
     receive
@@ -442,14 +455,7 @@ have_node_in_mnesia(Node1, Node2, ShouldBe) ->
     ?assertEqual(ShouldBe, lists:member(Node2, DbNodes1)).
 
 start_node(Node, Config) ->
-    {_, 0} = ejabberdctl_helper:ejabberdctl(Node, "start", [], Config),
-    {_, 0} = ejabberdctl_helper:ejabberdctl(Node, "started", [], Config),
-    %% TODO Looks like "started" run by ejabberdctl fun is not really synchronous
-    timer:sleep(3000).
+    {_, 0} = mongooseim_script(Node, "start", [], Config).
 
 stop_node(Node, Config) ->
-    %% TODO maybe implement sync stopping command at erlang level
-    {_, 0} = ejabberdctl_helper:ejabberdctl(Node, "stop", [], Config),
-    {_, 0} = ejabberdctl_helper:ejabberdctl(Node, "stopped", [], Config),
-    %% TODO Looks like "stopped" run by ejabberdctl fun is not really synchronous
-    timer:sleep(3000).
+    {_, 0} = mongooseim_script(Node, "stop", [], Config).
