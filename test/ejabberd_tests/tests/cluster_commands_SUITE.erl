@@ -335,9 +335,18 @@ remove_dead_from_cluster(Config) ->
     ok = rpc(Node2, mongoose_cluster, join, [Node1], Timeout),
     ok = rpc(Node3, mongoose_cluster, join, [Node1], Timeout),
     %% when
-    stop_node(Node2, Config),
-%%    {_, OpCode1} = ejabberdctl_interactive(Node1, "remove_from_cluster", [atom_to_list(Node2)], "yes\n", Config),
-    start_node(Node2, Config).
+    stop_node(Node3, Config),
+    {_, OpCode1} = ejabberdctl_interactive(Node1, "remove_from_cluster", [atom_to_list(Node3)], "yes\n", Config),
+    %% then
+    ?eq(0, OpCode1),
+    % node is down hence its not in mnesia cluster
+    have_node_in_mnesia(Node1, Node2, true),
+    have_node_in_mnesia(Node1, Node3, false),
+    have_node_in_mnesia(Node2, Node3, false),
+    % after node awakening nodes are clustered again
+    start_node(Node3, Config),
+    have_node_in_mnesia(Node1, Node3, true),
+    have_node_in_mnesia(Node2, Node3, true).
 
 remove_alive_from_cluster(Config) ->
     % given
