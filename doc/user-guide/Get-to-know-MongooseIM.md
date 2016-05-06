@@ -45,6 +45,7 @@ Erlang Solutions also provides [WombatOAM](https://www.erlang-solutions.com/prod
 Erlang Solutions also provides [megaLOAD](https://www.erlang-solutions.com/products/megaload.html), a load testing tool that enables devs and ops to validate their scalability, given the clients scenarios.
 
 In order to build client applications, the MoongooseIM team recommends the following libraries:
+
 * iOS: [XMPPframework](https://github.com/robbiehanson/XMPPFramework), Objective-C
 * Android: [Smack](https://github.com/igniterealtime/Smack), Java
 * Web: [Stanza.io](https://github.com/otalk/stanza.io), JavaScript
