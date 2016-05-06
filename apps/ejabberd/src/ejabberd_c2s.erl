@@ -2962,10 +2962,17 @@ sasl_success_stanza(ServerOut) ->
            attrs = [{<<"xmlns">>, ?NS_SASL}],
            children = C}.
 
-sasl_failure_stanza(Error) ->
+sasl_failure_stanza(Error) when is_binary(Error) ->
+    sasl_failure_stanza({Error, undefined});
+sasl_failure_stanza({Error, Text}) ->
     #xmlel{name = <<"failure">>,
            attrs = [{<<"xmlns">>, ?NS_SASL}],
-           children = [#xmlel{name = Error}]}.
+           children = [#xmlel{name = Error} | maybe_text_tag(Text)]}.
+
+maybe_text_tag(undefined) -> [];
+maybe_text_tag(Text) ->
+    [#xmlel{name = <<"text">>,
+            children = [#xmlcdata{content = Text}]}].
 
 sasl_challenge_stanza(Challenge) ->
     #xmlel{name = <<"challenge">>,
