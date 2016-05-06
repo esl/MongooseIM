@@ -34,14 +34,14 @@
 
 all() ->
     [{group, clustered},
-        {group, ejabberdctl},
+        {group, mnesia},
         {group, clustering_two},
         {group, clustering_three}].
 groups() ->
     [{clustered, [], [one_to_one_message]},
         {clustering_two, [], clustering_two_tests()},
         {clustering_three, [], clustering_three_tests()},
-        {ejabberdctl, [], [set_master_test]}].
+        {mnesia, [], [set_master_test]}].
 suite() ->
     require_all_nodes() ++
     escalus:suite().
@@ -90,7 +90,7 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
-init_per_group(Group, Config) when Group == clustered orelse Group == ejabberdctl ->
+init_per_group(Group, Config) when Group == clustered orelse Group == mnesia ->
     Node2 = mim2(),
     Config1 = add_node_to_cluster(Node2, Config),
     case is_sm_distributed() of
@@ -115,7 +115,7 @@ init_per_group(Group, _Config) when Group == clustering_two orelse Group == clus
 init_per_group(_GroupName, Config) ->
     escalus:create_users(Config).
 
-end_per_group(Group, Config) when Group == clustered orelse Group == ejabberdctl ->
+end_per_group(Group, Config) when Group == clustered orelse Group == mnesia ->
     escalus:delete_users(Config, escalus:get_users([alice, clusterguy])),
     Node2 = mim2(),
     remove_node_from_cluster(Node2, Config);
@@ -181,7 +181,7 @@ one_to_one_message(ConfigIn) ->
         escalus:assert(is_chat_message, [<<"Oh hi!">>], Stanza2)
     end).
 %%--------------------------------------------------------------------
-%% Ejabberdctl tests
+%% mnesia tests
 %%--------------------------------------------------------------------
 
 set_master_test(ConfigIn) ->
