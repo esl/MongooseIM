@@ -11,7 +11,7 @@
 -include_lib("escalus/include/escalus.hrl").
 -import(ejabberd_node_utils, [mim/0]).
 %% API
--export([ejabberdctl/3, ejabberdctl/4, rpc_call/3]).
+-compile(export_all).
 
 ejabberdctl(Cmd, Args, Config) ->
     Node = mim(),

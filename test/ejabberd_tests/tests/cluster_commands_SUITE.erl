@@ -374,7 +374,7 @@ ejabberdctl_interactive(C, A, R, Config) ->
     ejabberdctl_interactive(DefaultNode, C, A, R, Config).
 ejabberdctl_interactive(Node, Cmd, Args, Response, Config) ->
     CtlCmd = escalus_config:get_config(ctl_path_atom(Node), Config),
-    run_interactive(string:join([CtlCmd, Cmd | normalize_args(Args)], " "), Response).
+    run_interactive(string:join([CtlCmd, Cmd | ejabberdctl_helper:normalize_args(Args)], " "), Response).
 
 ejabberdctl_force(Command, Args, ForceFlag, Config) ->
     DefaultNode = mim(),
@@ -387,19 +387,11 @@ mongooseim_script_path(Node, Config) ->
 
 mongooseim_script(Node, Cmd, Args, Config) ->
     CtlCmd = mongooseim_script_path(Node, Config),
-    run(string:join([CtlCmd, Cmd | normalize_args(Args)], " ")).
+    ejabberdctl_helper:run(string:join([CtlCmd, Cmd | ejabberdctl_helper:normalize_args(Args)], " ")).
 
 ctl_path_atom(NodeName) ->
     CtlString = atom_to_list(NodeName) ++ "_ctl",
     list_to_atom(CtlString).
-
-normalize_args(Args) ->
-    lists:map(fun
-                  (Arg) when is_binary(Arg) ->
-                      binary_to_list(Arg);
-                  (Arg) when is_list(Arg) ->
-                      Arg
-              end, Args).
 
 %% Long timeout for mnesia and ejabberd app restart
 run_interactive(Cmd, Response) ->
@@ -409,22 +401,7 @@ run_interactive(Cmd, Response, Timeout) ->
     Port = erlang:open_port({spawn, Cmd}, [exit_status]),
     %% respond to interactive question (yes/no)
     Port ! {self(), {command, Response}},
-    loop(Port, [], Timeout).
-
-run(Cmd) ->
-    run(Cmd, 60000).
-
-run(Cmd, Timeout) ->
-    Port = erlang:open_port({spawn, Cmd},[exit_status]),
-    loop(Port,[], Timeout).
-
-loop(Port, Data, Timeout) ->
-    receive
-        {Port, {data, NewData}} -> loop(Port, Data ++ NewData, Timeout);
-        {Port, {exit_status, ExitStatus}} -> {Data, ExitStatus}
-    after Timeout ->
-        throw(timeout)
-    end.
+    ejabberdctl_helper:loop(Port, [], Timeout).
 
 nodes_clustered(Node1, Node2, ShouldBe) ->
     DbNodes1 = distributed_helper:rpc(Node1, mnesia, system_info, [db_nodes]),
