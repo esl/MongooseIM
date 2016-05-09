@@ -349,8 +349,7 @@ check_packet_aux([Item | List], PType, MType, JID, Subscription, Groups) ->
                         true ->
                             Action;
                         false ->
-                            check_packet_aux(
-                                List, PType, MType, JID, Subscription, Groups)
+                            check_packet_aux(List, PType, MType, JID, Subscription, Groups)
                     end
             end;
         false ->

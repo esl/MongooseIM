@@ -987,26 +987,24 @@ process_outgoing_stanza(error, _Name, Args) ->
     end;
 process_outgoing_stanza(ToJID, <<"presence">>, Args) ->
     {_Attrs, NewEl, FromJID, StateData, Server, User} = Args,
-    PresenceEl = ejabberd_hooks:run_fold(
-        c2s_update_presence,
-        Server,
-        NewEl,
-        [User, Server]),
-    ejabberd_hooks:run(
-        user_send_packet,
-        Server,
-        [FromJID, ToJID, PresenceEl]),
+    PresenceEl = ejabberd_hooks:run_fold(c2s_update_presence,
+                                         Server,
+                                         NewEl,
+                                         [User, Server]),
+    ejabberd_hooks:run(user_send_packet,
+                       Server,
+                       [FromJID, ToJID, PresenceEl]),
     case ToJID of
         #jid{user = User,
-            server = Server,
-            resource = <<>>} ->
-            ?DEBUG("presence_update(~p,~n\t~p,~n\t~p)",
-                [FromJID, PresenceEl, StateData]),
-            presence_update(FromJID, PresenceEl,
-                StateData);
+             server = Server,
+             resource = <<>>} ->
+             ?DEBUG("presence_update(~p,~n\t~p,~n\t~p)",
+                 [FromJID, PresenceEl, StateData]),
+             presence_update(FromJID, PresenceEl,
+                             StateData);
         _ ->
-            presence_track(FromJID, ToJID, PresenceEl,
-                StateData)
+             presence_track(FromJID, ToJID, PresenceEl,
+                            StateData)
     end;
 process_outgoing_stanza(ToJID, <<"iq">>, Args) ->
     {_Attrs, NewEl, FromJID, StateData, Server, _User} = Args,
@@ -1014,23 +1012,21 @@ process_outgoing_stanza(ToJID, <<"iq">>, Args) ->
         #iq{xmlns = Xmlns} = IQ
             when Xmlns == ?NS_PRIVACY;
             Xmlns == ?NS_BLOCKING ->
-            process_privacy_iq(
-                FromJID, ToJID, IQ, StateData);
+            process_privacy_iq(FromJID, ToJID, IQ, StateData);
         _ ->
-            ejabberd_hooks:run(
-                user_send_packet,
-                Server,
-                [FromJID, ToJID, NewEl]),
+            ejabberd_hooks:run(user_send_packet,
+                               Server,
+                               [FromJID, ToJID, NewEl]),
             check_privacy_and_route(FromJID, StateData, FromJID, ToJID, NewEl),
             StateData
     end;
 process_outgoing_stanza(ToJID, <<"message">>, Args) ->
     {_Attrs, NewEl, FromJID, StateData, Server, _User} = Args,
     ejabberd_hooks:run(user_send_packet,
-        Server,
-        [FromJID, ToJID, NewEl]),
+                       Server,
+                       [FromJID, ToJID, NewEl]),
     check_privacy_and_route(FromJID, StateData, FromJID,
-        ToJID, NewEl),
+                            ToJID, NewEl),
     StateData;
 process_outgoing_stanza(_ToJID, _Name, Args) ->
     {_Attrs, _NewEl, _FromJID, StateData, _Server, _User} = Args,
@@ -1892,28 +1888,28 @@ presence_track(From, To, Packet, StateData) ->
                                Server,
                                [User, Server, To, subscribe]),
             check_privacy_and_route(From, StateData, jid:to_bare(From),
-                                To, Packet),
+                                    To, Packet),
             StateData;
         <<"subscribed">> ->
             ejabberd_hooks:run(roster_out_subscription,
                                Server,
                                [User, Server, To, subscribed]),
             check_privacy_and_route(From, StateData, jid:to_bare(From),
-                                To, Packet),
+                                    To, Packet),
             StateData;
         <<"unsubscribe">> ->
             ejabberd_hooks:run(roster_out_subscription,
                                Server,
                                [User, Server, To, unsubscribe]),
             check_privacy_and_route(From, StateData, jid:to_bare(From),
-                                To, Packet),
+                                    To, Packet),
             StateData;
         <<"unsubscribed">> ->
             ejabberd_hooks:run(roster_out_subscription,
                                Server,
                                [User, Server, To, unsubscribed]),
             check_privacy_and_route(From, StateData, jid:to_bare(From),
-                                To, Packet),
+                                    To, Packet),
             StateData;
         <<"error">> ->
             check_privacy_and_route(From, StateData, From, To, Packet),
@@ -1931,10 +1927,10 @@ presence_track(From, To, Packet, StateData) ->
 
 
 -spec check_privacy_and_route(From :: 'undefined' | ejabberd:jid(),
-                          StateData :: state(),
-                          FromRoute :: ejabberd:jid(),
-                          To :: ejabberd:jid(),
-                          Packet :: jlib:xmlel()) -> 'ok'.
+                              StateData :: state(),
+                              FromRoute :: ejabberd:jid(),
+                              To :: ejabberd:jid(),
+                              Packet :: jlib:xmlel()) -> 'ok'.
 check_privacy_and_route(From, StateData, FromRoute, To, Packet) ->
     case privacy_check_packet(StateData, From, To, Packet, out) of
         deny ->
