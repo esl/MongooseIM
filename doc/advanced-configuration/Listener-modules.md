@@ -20,6 +20,7 @@ Handles pure XMPP client-to-server (C2S) connections, relies on `ejabberd_listen
 * `c2s_shaper` (atom, default: `c2s_shaper`) - Connection shaper to use for incoming C2S stanzas.
 * `max_stanza_size` (positive integer, default: 65536) - Maximum allowed incoming stanza size. **Warning:** this limit is checked **after** input data parsing, so it does not limit the input data size itself.
 * `backlog` (positive integer, default 100) - overrides default TCP backlog value
+* `max_fsm_queue` (positive integer, the value of this option set global) - message queue limit to prevent resource exhaustion; overrides the global value of this option
 
 ## HTTP-based services (BOSH, WebSocket, REST): `ejabberd_cowboy`
 
@@ -111,6 +112,7 @@ Interface for external XMPP components ([XEP-0114: Jabber Component Protocol](ht
 * `host` ( tuple: `{host, Domain, [{password, "password here"}]}`, optional when `hosts` present) - Only allowed domain for components, protected by password. Must be set when `hosts` not present.
 * `shaper_rule` (atom, default: `fast`) - Connection shaper to use for incoming component traffic.
 * `service_check_from` (boolean, default: `true`) - Checks whether the server should verify the "from" field in stanzas from component
+* `max_fsm_queue` (positive integer, the value of this option set global) - message queue limit to prevent resource exhaustion; overrides the global value of this option
 
 ### Custom extension to the protocol
 
