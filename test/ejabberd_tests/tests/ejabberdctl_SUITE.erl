@@ -23,6 +23,7 @@
 
 -import(ejabberdctl_helper, [ejabberdctl/3, rpc_call/3]).
 -import(mongoose_helper, [auth_modules/0]).
+-import(ejabberd_node_utils, [mim/0]).
 
 -define(SINGLE_QUOTE_CHAR, $\').
 -define(DOUBLE_QUOTE_CHAR, $\").
@@ -34,33 +35,28 @@
 %%--------------------------------------------------------------------
 
 all() ->
-    AuthMods = auth_modules(),
-    case lists:member(ejabberd_auth_external, AuthMods) of
-        true ->
-            {skip, external_auth_not_supported};
-        false ->
-            [{group, accounts},
-             {group, sessions},
-             {group, vcard},
-             {group, roster},
-             {group, last},
-             {group, private},
-             {group, stanza},
-             {group, stats},
-             {group, basic}]
-    end.
+    [{group, accounts},
+     {group, sessions},
+     {group, vcard},
+     {group, roster},
+     {group, roster_advanced},
+     {group, last},
+     {group, private},
+     {group, stanza},
+     {group, stats},
+     {group, basic}].
 
 groups() ->
-     [{basic, [sequence], basic()},
-        {accounts, [sequence], accounts()},
-        {sessions, [sequence], sessions()},
-        {vcard, [sequence], vcard()},
-        {roster, [sequence], roster()},
-        {last, [sequence], last()},
-        {private, [sequence], private()},
-        {stanza, [sequence], stanza()},
-        {stats, [sequence], stats()}
-     ].
+     [{accounts, [sequence], accounts()},
+      {sessions, [sequence], sessions()},
+      {vcard, [sequence], vcard()},
+      {roster, [sequence], roster()},
+      {last, [sequence], last()},
+      {private, [sequence], private()},
+      {stanza, [sequence], stanza()},
+      {roster_advanced, [sequence], roster_advanced()},
+      {basic, [sequence], basic()},
+      {stats, [sequence], stats()}].
 
 basic() ->
     [simple_register, simple_unregister, register_twice,
@@ -84,13 +80,22 @@ sessions() -> [num_resources_num, kick_session, status,
 vcard() -> [vcard_rw, vcard2_rw, vcard2_multi_rw].
 
 roster() -> [rosteritem_rw, presence_after_add_rosteritem,
-	     push_roster, push_roster_all, push_roster_alltoall].
+             push_roster,
+             push_roster_all,
+             push_roster_alltoall].
+
+roster_advanced() ->[process_rosteritems_list_simple,
+                          process_rosteritems_list_nomatch,
+                          process_rosteritems_list_advanced1,
+                          process_rosteritems_list_advanced2,
+                          process_rosteritems_delete_advanced,
+                          process_rosteritems_delete_advanced2].
 
 last() -> [set_last].
 
 private() -> [private_rw].
 
-stanza() -> [send_message, send_stanza].
+stanza() -> [send_message, send_message_wrong_jid, send_stanza, send_stanzac2s_wrong].
 
 stats() -> [stats_global, stats_host].
 
@@ -98,23 +103,17 @@ suite() ->
     escalus:suite().
 
 init_per_suite(Config) ->
-    {ok, EjdWD} = escalus_ejabberd:rpc(file, get_cwd, []),
     Cwd0 = escalus_config:get_config(data_dir, Config),
     CwdTokens = string:tokens(Cwd0, "/"),
     Cwd =  [$/ | string:join(lists:sublist(CwdTokens, 1, length(CwdTokens)-2), "/")],
     TemplatePath = Cwd ++ "/roster.template",
     start_mod_admin_extra(),
-    CtlPath = case filelib:is_file(EjdWD ++ "/bin/ejabberdctl") of
-                  true -> EjdWD ++ "/bin/ejabberdctl";
-                  false -> EjdWD ++ "/bin/mongooseimctl"
-              end,
-
     AuthMods = auth_modules(),
-
-    NewConfig = escalus:init_per_suite([{ctl_path, CtlPath},
-                                        {ctl_auth_mods, AuthMods},
-                                        {roster_template, TemplatePath} | Config]),
-    escalus:create_users(NewConfig, {by_name, [alice, mike, bob, kate]}).
+    Node = mim(),
+    Config1 = ejabberd_node_utils:init(Node, Config),
+    Config2 = escalus:init_per_suite([{ctl_auth_mods, AuthMods},
+                                        {roster_template, TemplatePath} | Config1]),
+    escalus:create_users(Config2, escalus:get_users([alice, mike, bob, kate])).
 
 end_per_suite(Config) ->
     Config1 = lists:keydelete(ctl_auth_mods, 1, Config),
@@ -130,21 +129,31 @@ init_per_group(vcard, Config) ->
         _ ->
             Config
     end;
+
+init_per_group(roster_advanced, Config) ->
+    case escalus_ejabberd:rpc(gen_mod,get_module_opt,[ct:get_config(ejabberd_domain), mod_roster, backend, mnesia]) of
+        mnesia ->
+            Config;
+        _ ->
+            {skip, command_process_rosteritems_supports_only_mnesia}
+    end;
+
 init_per_group(_GroupName, Config) ->
     Config.
 
-end_per_group(roster, Config) ->
+end_per_group(Rosters, Config) when (Rosters == roster) or (Rosters == roster_advanced) ->
     TemplatePath = escalus_config:get_config(roster_template, Config),
     RegUsers = [atom_to_list(U) || {U, _} <- escalus_config:get_config(escalus_users, Config)],
     {ok, [Roster]} = file:consult(TemplatePath),
+    io:format("Roster is ~p~n and registred is ~p",[Roster, RegUsers]),
     C = fun({U, S, _, _}) ->
         case lists:member(U, RegUsers) of
             true ->
-                ok;
-            _ ->
                 SB = string_to_binary(S),
                 UB = string_to_binary(U),
-                escalus_ejabberd:rpc(ejabberd_hooks, run, [remove_user, SB, [UB, SB]])
+                escalus_ejabberd:rpc(ejabberd_hooks, run, [remove_user, SB, [UB, SB]]);
+            _ ->
+               ok
         end
     end,
     lists:foreach(C, Roster),
@@ -175,7 +184,7 @@ init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
 end_per_testcase(delete_old_users, Config) ->
-    Users = escalus_users:get_users({by_name, [alice, bob, kate, mike]}),
+    Users = escalus_users:get_users([alice, bob, kate, mike]),
     lists:foreach(fun({_User, UserSpec}) ->
                 {Username, Domain, Pass} = get_user_data(UserSpec, Config),
                 escalus_ejabberd:rpc(ejabberd_auth, try_register, [Username, Domain, Pass])
@@ -300,7 +309,7 @@ kick_session(Config) ->
         end).
 
 status(Config) ->
-    escalus:story(Config, [1, 1, 1], fun(User1, User2, User3) ->
+    escalus:story(Config, [{alice, 1}, {mike, 1}, {bob, 1}], fun(User1, User2, User3) ->
                 PriDomain = escalus_client:server(User1),
                 SecDomain = escalus_config:get_config(ejabberd_secondary_domain, Config),
                 AwayPresence = escalus_stanza:presence_show(<<"away">>),
@@ -320,7 +329,7 @@ status(Config) ->
         end).
 
 sessions_info(Config) ->
-    escalus:story(Config, [1, 1, 1], fun(User1, User2, User3) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(User1, User2, User3) ->
                 Username1 = escalus_client:username(User1),
                 PriDomain = escalus_client:server(User1),
                 SecDomain = escalus_config:get_config(ejabberd_secondary_domain, Config),
@@ -457,6 +466,162 @@ push_roster(Config) ->
                 escalus:send(Alice, escalus_stanza:roster_remove_contact(bob)) % cleanup
         end).
 
+process_rosteritems_list_simple(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        %% given
+        Action = "list",
+        Subs = "any",
+        Asks = "any",
+        User = escalus_client:short_jid(Alice),
+        Contact =string:to_lower(binary_to_list(escalus_client:short_jid(Bob))),
+        {AliceName, Domain, _} = get_user_data(alice, Config),
+        {BobName, Domain, _} = get_user_data(bob, Config),
+        %% when
+        {_, 0} = ejabberdctl("add_rosteritem", [AliceName, Domain, BobName, Domain, "MyBob", "MyGroup", "both"], Config),
+        S = escalus:wait_for_stanzas(Alice, 2),
+        {R, 0} = ejabberdctl("process_rosteritems", [Action, Subs, Asks, User, Contact], Config),
+        %% then
+        {match, _} = re:run(R, ".*Matches:.*"++Contact++".*"),
+        {_, 0} = ejabberdctl("delete_rosteritem", [AliceName, Domain, BobName, Domain], Config)
+    end).
+
+process_rosteritems_list_nomatch(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        %% given
+        Action = "list",
+        Subs = "from:both",
+        Asks = "any",
+        User = escalus_client:short_jid(Alice),
+        Contact =string:to_lower(binary_to_list(escalus_client:short_jid(Bob))),
+        {AliceName, Domain, _} = get_user_data(alice, Config),
+        {BobName, Domain, _} = get_user_data(bob, Config),
+        {_, 0} = ejabberdctl("add_rosteritem", [AliceName, Domain, BobName,
+                                                Domain, "MyBob", "MyGroup", "to"], Config),
+        escalus:wait_for_stanzas(Alice, 2),
+        %% when
+        {R, 0} = ejabberdctl("process_rosteritems", [Action, Subs, Asks, User, Contact], Config),
+        %% then
+        nomatch = re:run(R, ".*Matches:.*"++Contact++".*"),
+        {_, 0} = ejabberdctl("delete_rosteritem", [AliceName, Domain, BobName, Domain], Config)
+    end).
+
+process_rosteritems_list_advanced1(Config) ->
+    escalus:story(Config, [{alice, 1}, {mike, 1}, {kate, 1}], fun(Alice, Mike, Kate) ->
+        %% given
+        Action = "list",
+        Subs = "from:both",
+        Asks = "any",
+        User = escalus_client:short_jid(Alice),
+        {AliceName, Domain, _} = get_user_data(alice, Config),
+        {MikeName, Domain, _} = get_user_data(mike, Config),
+        {KateName, Domain, _} = get_user_data(kate, Config),
+        ContactMike = string:to_lower(binary_to_list(escalus_client:short_jid(Mike))),
+        ContactKate= string:to_lower(binary_to_list(escalus_client:short_jid(Kate))),
+        ContactsRegexp = ContactMike ++ ":" ++ string:substr(binary_to_list(KateName), 1, 2) ++ ".*@.*",
+
+        {_, 0} = ejabberdctl("add_rosteritem", [AliceName, Domain, MikeName,
+                                                Domain, "DearMike", "MyGroup", "both"], Config),
+        {_, 0} = ejabberdctl("add_rosteritem", [AliceName, Domain, KateName,
+                                                Domain, "BestFriend", "MyGroup", "both"], Config),
+        escalus:wait_for_stanzas(Alice,4),
+        %% when
+        {R, 0} = ejabberdctl("process_rosteritems", [Action, Subs, Asks, User, ContactsRegexp], Config),
+        %% then
+        {match, _} = re:run(R, ".*Matches:.*"++ContactMike++".*"),
+        {match, _} = re:run(R, ".*Matches:.*"++ContactKate++".*"),
+        {_, 0} = ejabberdctl("delete_rosteritem", [AliceName, Domain, MikeName, Domain], Config),
+        {_, 0} = ejabberdctl("delete_rosteritem", [AliceName, Domain, KateName, Domain], Config)
+    end).
+
+process_rosteritems_delete_advanced(Config) ->
+    escalus:story(Config, [{alice, 1}, {mike, 1}, {kate, 1}], fun(Alice, Mike, Kate) ->
+        %% given
+        Action = "delete",
+        Subs = "from",
+        Asks = "any",
+        User = escalus_client:short_jid(Alice),
+        {AliceName, Domain, _} = get_user_data(alice, Config),
+        {MikeName, Domain, _} = get_user_data(mike, Config),
+        {KateName, Domain, _} = get_user_data(kate, Config),
+        ContactMike = string:to_lower(binary_to_list(escalus_client:short_jid(Mike))),
+        ContactKate= string:to_lower(binary_to_list(escalus_client:short_jid(Kate))),
+        ContactsRegexp = ".*" ++ string:substr(ContactMike, 3) ++
+                           ":" ++ string:substr(ContactKate, 1,2) ++"@" ++ binary_to_list(Domain),
+        {_, 0} = ejabberdctl("add_rosteritem", [AliceName, Domain, MikeName,
+                                                Domain, "DearMike", "MyGroup", "from"], Config),
+        {_, 0} = ejabberdctl("add_rosteritem", [AliceName, Domain, KateName,
+                                                Domain, "Friend", "MyGroup", "from"], Config),
+        escalus:wait_for_stanzas(Alice,4),
+        %% when
+        {R, 0} = ejabberdctl("process_rosteritems", [Action, Subs, Asks, User, ContactsRegexp], Config),
+        %% then
+        {match, _} = re:run(R, ".*Matches:.*"++ContactMike++".*"),
+        nomatch = re:run(R, ".*Matches:.*"++ContactKate++".*"),
+        {_, 0} = ejabberdctl("delete_rosteritem", [AliceName, Domain, MikeName, Domain], Config),
+        {_, 0} = ejabberdctl("delete_rosteritem", [AliceName, Domain, KateName, Domain], Config)
+    end).
+
+process_rosteritems_list_advanced2(Config) ->
+    escalus:story(Config, [{alice, 1}, {mike, 1}, {kate, 1}], fun(Alice, Mike, Kate) ->
+        %% given
+        Action = "list",
+        Subs = "any",
+        Asks = "any",
+        User = escalus_client:short_jid(Alice),
+        {AliceName, Domain, _} = get_user_data(alice, Config),
+        {MikeName, Domain, _} = get_user_data(mike, Config),
+        {KateName, Domain, _} = get_user_data(kate, Config),
+        ContactMike = string:to_lower(binary_to_list(escalus_client:short_jid(Mike))),
+        ContactKate= string:to_lower(binary_to_list(escalus_client:short_jid(Kate))),
+        ContactsRegexp = ".*e@lo.*",
+        {_, 0} = ejabberdctl("add_rosteritem", [AliceName, Domain, MikeName,
+                                                Domain, "DearMike", "MyGroup", "both"], Config),
+        {_, 0} = ejabberdctl("add_rosteritem", [AliceName, Domain, KateName,
+                                                Domain, "KateFromSchool", "MyGroup", "from"], Config),
+        escalus:wait_for_stanzas(Alice,4),
+        %% when
+        {R, 0} = ejabberdctl("process_rosteritems", [Action, Subs, Asks, User, ContactsRegexp], Config),
+        %% then
+        {match, _} = re:run(R, ".*Matches:.*"++ContactMike++".*"),
+        {match, _} = re:run(R, ".*Matches:.*"++ContactKate++".*"),
+        {_, 0} = ejabberdctl("delete_rosteritem", [AliceName, Domain, MikeName, Domain], Config),
+        {_, 0} = ejabberdctl("delete_rosteritem", [AliceName, Domain, KateName, Domain], Config)
+    end).
+
+process_rosteritems_delete_advanced2(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {mike, 1}, {kate, 1}], fun(Alice, Bob, Mike, Kate) ->
+        %% given
+        Action = "delete",
+        Subs = "to:from",
+        Asks = "any",
+        User = "'al.c[e]@.*host:((b[o]b)|(mike))@loc.*t2'",
+        {AliceName, Domain, _} = get_user_data(alice, Config),
+        {BobName, Domain, _} = get_user_data(bob, Config),
+        {MikeName, Domain, _} = get_user_data(mike, Config),
+        {KateName, Domain, _} = get_user_data(kate, Config),
+        ContactMike = string:to_lower(binary_to_list(escalus_client:short_jid(Mike))),
+        ContactKate= string:to_lower(binary_to_list(escalus_client:short_jid(Kate))),
+        ContactBob= string:to_lower(binary_to_list(escalus_client:short_jid(Bob))),
+        ContactsReg = "'.ik[ea]@localho+.*:k@loc.*st:(alice)+@.*:no'",
+        {_, 0} = ejabberdctl("add_rosteritem", [AliceName, Domain, MikeName,
+                                                Domain, "DearMike", "MyGroup", "to"], Config),
+        {_, 0} = ejabberdctl("add_rosteritem", [AliceName, Domain, KateName,
+                                                Domain, "HateHerSheHasSoNiceLegs", "MyGroup", "to"], Config),
+        {_, 0} = ejabberdctl("add_rosteritem", [BobName, Domain, AliceName,
+                                                Domain, "Girlfriend", "MyGroup", "from"], Config),
+        escalus:wait_for_stanzas(Alice,4),
+        escalus:wait_for_stanzas(Bob, 2),
+        %% when
+        {R, 0} = ejabberdctl("process_rosteritems", [Action, Subs, Asks, User, ContactsReg], Config),
+        %% then
+        {match, _} = re:run(R, ".*Matches:.*" ++ ContactMike ++ ".*"),
+        nomatch = re:run(R, ".*Matches:.*" ++ ContactKate ++ ".*"),
+        nomatch = re:run(R, ".*Matches:.*" ++ ContactBob ++ ".*"),
+        {_, 0} = ejabberdctl("delete_rosteritem", [AliceName, Domain, MikeName, Domain], Config),
+        {_, 0} = ejabberdctl("delete_rosteritem", [AliceName, Domain, KateName, Domain], Config),
+        {_, 0} = ejabberdctl("delete_rosteritem", [BobName, Domain, AliceName, Domain], Config)
+    end).
+
 push_roster_all(Config) ->
     escalus:story(Config, [{alice, 1}, {bob,1}], fun(Alice, Bob) ->
                 TemplatePath = escalus_config:get_config(roster_template, Config),
@@ -508,17 +673,15 @@ set_last(Config) ->
 
                 escalus:wait_for_stanza(Alice), % ignore push
 
-                {Mega, Secs, _} = erlang:now(),
-                TS = integer_to_list(Mega*1000000+Secs-7200),
-
+                Now = usec:to_sec(usec:from_now(erlang:now())),
+                TS = integer_to_list(Now - 7200),
                 {_, 0} = ejabberdctl("set_last", [BobName, Domain, TS, "Status"], Config),
-
                 escalus:send(Alice, escalus_stanza:last_activity(bob)),
                 LastAct = escalus:wait_for_stanza(Alice),
                 escalus:assert(is_last_result, LastAct),
                 Seconds = list_to_integer(binary_to_list(
                             exml_query:path(LastAct, [{element, <<"query">>}, {attr, <<"seconds">>}]))),
-                true = ( (Seconds > 7100) andalso (Seconds < 7300) ),
+                true = (( (Seconds > 7100) andalso (Seconds < 7300) ) orelse Seconds),
 
                 {_, 0} = ejabberdctl("delete_rosteritem", [AliceName, Domain, BobName, Domain], Config), % cleanup
                 {_, 0} = ejabberdctl("delete_rosteritem", [BobName, Domain, AliceName, Domain], Config)
@@ -561,6 +724,22 @@ send_message(Config) ->
                 escalus:assert(is_headline_message, [<<"Subj">>, <<"Hi Bob!!">>], Stanza3)
         end).
 
+send_message_wrong_jid(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        {_, Err1} = ejabberdctl("send_message_chat", ["'@@#$%!!.§§£'",
+                                                   escalus_client:full_jid(Bob),
+                                                   "\"Hello bobby!\""], Config),
+        {_, Err2} = ejabberdctl("send_message_headline", ["'%%@&@&@==//\///'",
+                                                       escalus_client:short_jid(Bob),
+                                                       "Subj", "\"Are
+                                                       you there?\""],
+                             Config),
+        true = Err1 =/= 0,
+        true = Err2 =/= 0,
+        escalus_assert:has_no_stanzas(Alice),
+        escalus_assert:has_no_stanzas(Bob)
+    end).
+
 send_stanza(Config) ->
     escalus:story(Config, [{alice, 1}, {bob,1}], fun(Alice, Bob) ->
                 Domain = escalus_client:server(Alice),
@@ -576,6 +755,26 @@ send_stanza(Config) ->
                 escalus:assert(is_chat_message, [<<"Hi">>], Message),
                 escalus:assert(is_stanza_from, [Bob], Message)
         end).
+
+send_stanzac2s_wrong(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob,1}], fun(Alice, Bob) ->
+        Domain = escalus_client:server(Alice),
+        Resource = escalus_client:resource(Alice),
+        WrongBobName = "bobby_the_great",
+        {BobName, _, _} = get_user_data(bob, Config),
+        BobJID = <<BobName/binary, $@, Domain/binary, $/, (escalus_client:resource(Bob))/binary>>,
+        Stanza = re:replace(exml:to_binary(escalus_stanza:from(escalus_stanza:chat_to(Alice, "Hi"), BobJID)),
+                            <<?DOUBLE_QUOTE_CHAR>>, <<?SINGLE_QUOTE_CHAR>>, [global, {return, binary}]),
+        StanzaWrong = <<"<iq type='get' id='234234'><xmlns='wrongwrong'>">>,
+        {_, Err} = ejabberdctl("send_stanza_c2s", [WrongBobName, Domain, Resource, <<$\", Stanza/binary, $\">>],
+                               Config),
+        {_, Err2} = ejabberdctl("send_stanza_c2s", [BobName, Domain, Resource, <<$\", StanzaWrong/binary, $\">>],
+                               Config),
+
+        true = Err =/= 0,
+        true = Err2 =/= 0,
+        escalus_assert:has_no_stanzas(Alice)
+    end).
 
 %%--------------------------------------------------------------------
 %% mod_admin_extra_stats tests
@@ -726,7 +925,7 @@ remove_old_messages_test(Config) ->
         OfflineOld = generate_offline_message(JidRecordAlice, JidRecordBob, Msg1, OldTimestamp),
         OfflineNew = generate_offline_message(JidRecordAlice, JidRecordBob, Msg2, now()),
         {jid, _, _, _, LUser, LServer, _} = JidRecordBob,
-        rpc_call(mod_offline_backend, write_messages, [LUser, LServer, [OfflineOld, OfflineNew], 100]),
+        rpc_call(mod_offline_backend, write_messages, [LUser, LServer, [OfflineOld, OfflineNew]]),
         %% when
         {_, 0} = ejabberdctl("delete_old_messages", ["1"], Config),
         {ok, SecondList} = rpc_call(mod_offline_backend, pop_messages, [LUser, LServer]),
@@ -753,7 +952,7 @@ remove_expired_messages_test(Config) ->
         OfflineFuture = generate_offline_expired_message(JidRecordMike, JidRecordKate, Msg3, now(), ExpirationTimeFuture),
         OfflineFuture2 = generate_offline_expired_message(JidRecordMike, JidRecordKate, Msg4, OldTimestamp, ExpirationTimeFuture),
         {jid, _, _, _, LUser, LServer, _} = JidRecordKate,
-        rpc_call(mod_offline_backend, write_messages, [LUser, LServer, [OfflineOld, OfflineNow, OfflineFuture, OfflineFuture2], 100]),
+        rpc_call(mod_offline_backend, write_messages, [LUser, LServer, [OfflineOld, OfflineNow, OfflineFuture, OfflineFuture2]]),
         %% when
         {_, 0} = ejabberdctl("delete_expired_messages", [], Config),
         {ok, SecondList} = rpc_call(mod_offline_backend, pop_messages, [LUser, LServer]),
@@ -807,10 +1006,11 @@ get_sha(AccountPass) ->
 
 set_last(User, Domain, TStamp) ->
     Mod = escalus_ejabberd:rpc(mod_admin_extra_last, get_lastactivity_module, [Domain]),
-    escalus_ejabberd:rpc(Mod, store_last_info, [escalus_utils:jid_to_lower(User), Domain, TStamp, <<>>]).
+    Fun = escalus_ejabberd:rpc(mod_admin_extra_last, get_lastactivity_fun, [Domain]),
+    escalus_ejabberd:rpc(Mod, Fun, [escalus_utils:jid_to_lower(User), Domain, TStamp, <<>>]).
 
 delete_users(Config) ->
-    Users = escalus_users:get_users({by_name, [alice, bob, kate, mike]}),
+    Users = escalus_users:get_users([alice, bob, kate, mike]),
     lists:foreach(fun({_User, UserSpec}) ->
                 {Username, Domain, _Pass} = get_user_data(UserSpec, Config),
                 escalus_ejabberd:rpc(ejabberd_auth, remove_user, [Username, Domain])

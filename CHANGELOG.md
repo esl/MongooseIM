@@ -1,6 +1,77 @@
+# MongooseIM 1.7.0
+
+2016-MM-DD
+
+This release includes:
+
+- token based authentication [#633](https://github.com/esl/MongooseIM/pull/633)
+- support for FIPS mode [#628](https://github.com/esl/MongooseIM/pull/628)
+- reverse Proxy [#628](https://github.com/esl/MongooseIM/pull/638)
+- improved routing layer [#639](https://github.com/esl/MongooseIM/pull/639), [#729](https://github.com/esl/MongooseIM/pull/729)
+- fix for TCP backlog setting [#708](https://github.com/esl/MongooseIM/pull/708)
+- new XMPP extentions:
+   - [XEP-0352: Client State Indication](https://xmpp.org/extensions/xep-0352.html) [#703](https://github.com/esl/MongooseIM/pull/703)
+- external components improvements:
+   - [#640](https://github.com/esl/MongooseIM/pull/640)
+- parallelized tests:
+   - [#706](https://github.com/esl/MongooseIM/pull/706)
+- other improvements:
+   - carbon copies data optimisation [#700](https://github.com/esl/MongooseIM/pull/700)
+   - update deps [#705](https://github.com/esl/MongooseIM/pull/705) and exometer 1.2 TODO add PR after mergin rel-1.7 to master
+   - dialyzer checks on travis [#677](https://github.com/esl/MongooseIM/pull/677)
+   - docker image building on travis [#710](https://github.com/esl/MongooseIM/pull/710)
+
+
+# MongooseIM 1.6.2
+
+2016-02-12
+
+This release includes:
+
+- finished Riak backends for all modules storing persistent data:
+   - mod_offline [#594](https://github.com/esl/MongooseIM/pull/594)
+   - mod_privacy [#618](https://github.com/esl/MongooseIM/pull/618)
+   - MAM ([XEP-0313](https://xmpp.org/extensions/xep-0313.html)) for MUCs ([XEP-0045](https://xmpp.org/extensions/xep-0045.html)) [#622](https://github.com/esl/MongooseIM/pull/622)
+- XMPP improvements:
+   - support for MAM ([XEP-0313](https://xmpp.org/extensions/xep-0313.html)) versions 0.3, 0.4.1 and 0.5 [#668](https://github.com/esl/MongooseIM/pull/668)
+   - support for Dialback Key Generation and Validation ([XEP-0185](https://xmpp.org/extensions/xep-0185.html)) [#665](https://github.com/esl/MongooseIM/pull/665)
+- test improvements: [#602](https://github.com/esl/MongooseIM/pull/602), [#621](https://github.com/esl/MongooseIM/pull/621),[#637](https://github.com/esl/MongooseIM/pull/637), [#654](https://github.com/esl/MongooseIM/pull/654)
+- dropped support for Erlang/OTP older than R16B03-1: [#613](https://github.com/esl/MongooseIM/pull/613), [#636](https://github.com/esl/MongooseIM/pull/636)
+- updated cowboy to 1.0.4
+- other improvements and code cleanup
+   - [complete list of merged PRs](https://github.com/esl/MongooseIM/pulls?utf8=✓&q=is%3Apr+base%3Amaster+merged%3A%222015-12-05..2016-02-12%22+sort%3Acreated-asc+)
+   - [complete list of closed issues](https://github.com/esl/MongooseIM/issues?utf8=%E2%9C%93&q=is%3Aissue+is%3Aclosed+closed%3A%222015-12-05..2016-02-12%22+)
+
+Special thanks to our contributors: @gbour, @bartekgorny, @jfjalburquerque
+
+This release repo [history](https://github.com/esl/MongooseIM/graphs/contributors?from=2015-12-06&to=2016-02-12&type=c)
+
+
+# MongooseIM 1.6.1
+
+2015-12-07
+
+This release includes:
+
+- more Riak backends:
+   - mod_roster [#572](https://github.com/esl/MongooseIM/pull/572)
+   - mod_last [#567](https://github.com/esl/MongooseIM/pull/567)
+- tests improvements: [#557](https://github.com/esl/MongooseIM/pull/557), [#558](https://github.com/esl/MongooseIM/pull/558), [#575](https://github.com/esl/MongooseIM/pull/575), [#583](https://github.com/esl/MongooseIM/pull/583), [#584](https://github.com/esl/MongooseIM/pull/584), [#559](https://github.com/esl/MongooseIM/pull/559), [#590](https://github.com/esl/MongooseIM/pull/590)
+- various fixes: [#570](https://github.com/esl/MongooseIM/pull/570), [#573](https://github.com/esl/MongooseIM/pull/573), [#561](https://github.com/esl/MongooseIM/pull/561)
+- new API for jid manipulation [#579](https://github.com/esl/MongooseIM/pull/579)
+   - this deprecates many jid-related function from `jlib` module
+- further improvements in cleaning after dead node [#581](https://github.com/esl/MongooseIM/pull/581)
+- other improvements and code cleanup
+   - [complete list of merged PRs](https://github.com/esl/MongooseIM/pulls?utf8=%E2%9C%93&q=is%3Apr+base%3Amaster+merged%3A%222015-10-16..2015-12-06%22+sort%3Acreated-asc+)
+   - [complete list of closed issues](https://github.com/esl/MongooseIM/issues?utf8=%E2%9C%93&q=is%3Aissue+is%3Aclosed+closed%3A%222015-10-16..2015-12-06%22+)
+
+Special thanks to our contributors: @ppikula, @dharamgollapudi
+
+This release repo [history](https://github.com/esl/MongooseIM/graphs/contributors?from=2015-10-16&to=2015-12-06&type=c)
+
 # MongooseIM 1.6.0
 
-2016-10-15
+2015-10-15
 
 This release includes:
 

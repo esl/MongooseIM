@@ -7,6 +7,8 @@
 -module(s2s_SUITE).
 -compile(export_all).
 
+-import(distributed_helper, [rpc/4, rpc/5]).
+
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
 
@@ -16,7 +18,6 @@
           node2_s2s_certfile = undefined,
           node2_s2s_use_starttls = undefined
          }).
-
 
 %%%===================================================================
 %%% Suite configuration
@@ -49,7 +50,8 @@ groups() ->
      {node1_tls_optional_node2_tls_required, [], essentials()},
      {node1_tls_required_node2_tls_optional, [], essentials()},
 
-     {node1_tls_required_trusted_node2_tls_optional, [], essentials()},
+     %% Node1 closes connection with "self-signed certificate" reason
+     {node1_tls_required_trusted_node2_tls_optional, [], negative()},
 
      {node1_tls_false_node2_tls_optional, [], essentials()},
      {node1_tls_optional_node2_tls_false, [], essentials()},
@@ -68,33 +70,39 @@ negative() ->
     [timeout_waiting_for_message].
 
 suite() ->
+    require_s2s_nodes() ++
     escalus:suite().
+
+require_s2s_nodes() ->
+    [{require, mim_node, {hosts, mim, node}},
+     {require, fed_node, {hosts, fed, node}}].
 
 %%%===================================================================
 %%% Init & teardown
 %%%===================================================================
 
 init_per_suite(Config0) ->
-    Node1S2SCertfile = escalus_ejabberd:rpc(ejabberd_config, get_local_option, [s2s_certfile]),
-    Node1S2SUseStartTLS = escalus_ejabberd:rpc(ejabberd_config, get_local_option, [s2s_use_starttls]),
+    Node1S2SCertfile = rpc(mim(), ejabberd_config, get_local_option, [s2s_certfile]),
+    Node1S2SUseStartTLS = rpc(mim(), ejabberd_config, get_local_option, [s2s_use_starttls]),
 
-    node2_rpccall(mongoose_cover_helper, start, [[ejabberd]]),
+    rpc(fed(), mongoose_cover_helper, start, [[ejabberd]]),
 
-    Node2S2SCertfile = node2_rpccall(ejabberd_config, get_local_option, [s2s_certfile]),
-    Node2S2SUseStartTLS = node2_rpccall(ejabberd_config, get_local_option, [s2s_use_starttls]),
+    Node2S2SCertfile = rpc(fed(), ejabberd_config, get_local_option, [s2s_certfile]),
+    Node2S2SUseStartTLS = rpc(fed(), ejabberd_config, get_local_option, [s2s_use_starttls]),
     S2S = #s2s_opts{node1_s2s_certfile = Node1S2SCertfile,
                     node1_s2s_use_starttls = Node1S2SUseStartTLS,
                     node2_s2s_certfile = Node2S2SCertfile,
                     node2_s2s_use_starttls = Node2S2SUseStartTLS},
 
     Config1 = [{s2s_opts, S2S} | escalus:init_per_suite(Config0)],
-    escalus_users:create_users(Config1, {by_name, [alice2, bob2, alice, bob]}).
+    Config2 = [{escalus_user_db, xmpp} | Config1],
+    escalus:create_users(Config2, escalus:get_users([alice2, bob2, alice, bob])).
 
 end_per_suite(Config) ->
     S2SOrig = ?config(s2s_opts, Config),
     configure_s2s(S2SOrig),
-    node2_rpccall(mongoose_cover_helper, analyze, []),
-    escalus:delete_users(Config, {by_name, [alice, bob]}),
+    rpc(fed(), mongoose_cover_helper, analyze, []),
+    escalus:delete_users(Config, escalus:get_users([alice, bob])),
     escalus:end_per_suite(Config).
 
 init_per_group(both_plain, Config) ->
@@ -158,17 +166,17 @@ end_per_testcase(CaseName, Config) ->
 simple_message(Config) ->
     escalus:story(Config, [{alice2, 1}, {alice, 1}], fun(Alice2, Alice1) ->
 
-        %% Alice@localhost1 sends message to Alice@localhost2
+        %% User on the main server sends a message to a user on a federated server
         escalus:send(Alice1, escalus_stanza:chat_to(Alice2, <<"Hi, foreign Alice!">>)),
 
-        %% Alice@localhost2 receives message from Alice@localhost1
+        %% User on the federated server receives the message
         Stanza = escalus:wait_for_stanza(Alice2, 10000),
         escalus:assert(is_chat_message, [<<"Hi, foreign Alice!">>], Stanza),
 
-        %% Alice@localhost2 sends message to Alice@localhost1
+        %% User on the federated server sends a message to the main server
         escalus:send(Alice2, escalus_stanza:chat_to(Alice1, <<"Nice to meet you!">>)),
 
-        %% Alice@localhost1 receives message from Alice@localhost2
+        %% User on the main server receives the message
         Stanza2 = escalus:wait_for_stanza(Alice1, 10000),
         escalus:assert(is_chat_message, [<<"Nice to meet you!">>], Stanza2)
 
@@ -231,33 +239,38 @@ nonascii_addr(Config) ->
 
     end).
 
-node2_rpccall(Module, Function, Args) ->
-    Node = ct:get_config(ejabberd2_node),
-    rpc:call(Node, Module, Function, Args).
-
 configure_s2s(#s2s_opts{node1_s2s_certfile = Certfile1,
                         node1_s2s_use_starttls = StartTLS1,
                         node2_s2s_certfile = Certfile2,
                         node2_s2s_use_starttls = StartTLS2}) ->
-    configure_s2s(ct:get_config(ejabberd_node), Certfile1, StartTLS1),
-    configure_s2s(ct:get_config(ejabberd2_node), Certfile2, StartTLS2),
+    configure_s2s(mim(), Certfile1, StartTLS1),
+    configure_s2s(fed(), Certfile2, StartTLS2),
     restart_s2s().
 
 configure_s2s(Node, Certfile, StartTLS) ->
-    rpc:call(Node, ejabberd_config, add_local_option, [s2s_certfile, Certfile]),
-    rpc:call(Node, ejabberd_config, add_local_option, [s2s_use_starttls, StartTLS]).
+    rpc(Node, ejabberd_config, add_local_option, [s2s_certfile, Certfile]),
+    rpc(Node, ejabberd_config, add_local_option, [s2s_use_starttls, StartTLS]).
 
 restart_s2s() ->
-    restart_s2s(ct:get_config(ejabberd_node)),
-    restart_s2s(ct:get_config(ejabberd2_node)).
-
+    restart_s2s(mim()),
+    restart_s2s(fed()).
 
 restart_s2s(Node) ->
-    Children = rpc:call(Node, supervisor, which_children, [ejabberd_s2s_out_sup]),
-    [rpc:call(Node, ejabberd_s2s_out, stop_connection, [Pid]) ||
+    Children = rpc(Node, supervisor, which_children, [ejabberd_s2s_out_sup]),
+    [rpc(Node, ejabberd_s2s_out, stop_connection, [Pid]) ||
      {_, Pid, _, _} <- Children],
 
-    ChildrenIn = rpc:call(Node, supervisor, which_children, [ejabberd_s2s_in_sup]),
-    [rpc:call(Node, erlang, exit, [Pid, kill]) ||
+    ChildrenIn = rpc(Node, supervisor, which_children, [ejabberd_s2s_in_sup]),
+    [rpc(Node, erlang, exit, [Pid, kill]) ||
      {_, Pid, _, _} <- ChildrenIn].
 
+mim() ->
+    get_or_fail(mim_node).
+
+fed() ->
+    get_or_fail(fed_node).
+
+get_or_fail(Key) ->
+    Val = ct:get_config(Key),
+    Val == undefined andalso error({undefined, Key}),
+    Val.

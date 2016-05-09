@@ -1,10 +1,12 @@
 
-MongooseIM can work with several databases, both SQL and NoSQL ones. Some of
+MongooseIM can work with several databases, both RDBMS (SQL) and NOSQL ones. Some of
 them require extra work before they can be used. For example the SQL databases require
 defining schema. MongooseIM is tested with TravisCI, so the travis scripts can be used
 as a reference.
 
-# MySQL
+# RDBMS/SQL
+
+## MySQL
 
 **Can be used for**:
 
@@ -31,7 +33,7 @@ mysql -h localhost -u user -p mongooseim < mysql.sql
 You should also configure MySQL database in `ejabberd.cfg` file. 
 Please refer to [Advanced configuration/Database setup](../Advanced-configuration.md) for more information.
 
-# Postgres
+## PostgreSQL
 
 **Can be used for:**
 
@@ -57,7 +59,9 @@ psql -h localhost -U user -q -d mongooseim -f pg.sql
 You should also configure Postgres database in `ejabberd.cfg` file. 
 Please refer to [Advanced configuration/Database setup](../Advanced-configuration.md) for more information.
 
-# MSSQL / Azure SQL
+## Microsoft SQL Server
+
+Microsoft SQL Server, sometimes called MSSQL, or Azure SQL Database.
 
 **Can be used for:**
 
@@ -71,7 +75,7 @@ Please refer to [Advanced configuration/Database setup](../Advanced-configuratio
 
 **Setup**
 
-MSSQL can be used from Mongoose through the ODBC layer, so you need to
+MSSQL can be used from MongooseIM through the ODBC layer, so you need to
 have it installed in your system. Moreover, an Erlang/OTP release must be
 built with the support for ODBC as well as MongooseIM itself.
 
@@ -131,8 +135,11 @@ Configure the database section as follows:
 {odbc_server_type, mssql}.
 ```
 
+# NOSQL
 
-# Riak (versions >=2.0)
+## Riak KV
+
+Riak KV, for Key-Value, is supported for versions upper than 2.0.
 
 **Can be used for:**
 
@@ -145,7 +152,7 @@ Configure the database section as follows:
 
 **Setup**
 
-We are using the riak data types, so the minimal supported version is 2.0.
+We are using the Riak data types, so the minimal supported version is 2.0.
 To be able to store above persistent date one have to run the following command:
 
 ```bash
@@ -156,11 +163,11 @@ riak-admin bucket-type activate users
 # rosters
 riak-admin bucket-type create rosters '{"props":{"datatype":"map"}}'
 riak-admin bucket-type activate rosters
-riak-admin bucket-type create roster_versions '{"props":{"last_write_wins":true}}'
+riak-admin bucket-type create roster_versions '{"props":{"last_write_wins":true, "dvv_enabled":false}}'
 riak-admin bucket-type activate roster_versions
 
 # private storage
-riak-admin bucket-type create private '{"props":{"last_write_wins":true}}'
+riak-admin bucket-type create private '{"props":{"last_write_wins":true, "dvv_enabled":false}}'
 riak-admin bucket-type activate private
 
 # vCard
@@ -174,7 +181,7 @@ curl -XPUT $RIAK_HOST/search/index/vcard \
     -H 'Content-Type: application/json' \
     -d '{"schema":"vcard"}'
 
-riak-admin bucket-type create vcard '{"props":{"last_write_wins":true, "search_index":"vcard"}}'
+riak-admin bucket-type create vcard '{"props":{"last_write_wins":true, "search_index":"vcard", "dvv_enabled":false}}'
 riak-admin bucket-type activate vcard
 
 #MAM
@@ -190,7 +197,7 @@ riak-admin bucket-type create mam_yz '{"props":{"datatype":"map", "search_index"
 riak-admin bucket-type activate mam_yz
 
 # Last activity
-riak-admin bucket-type create last '{"props":{"last_write_wins":true}}'
+riak-admin bucket-type create last '{"props":{"last_write_wins":true, "dvv_enabled":false}}'
 riak-admin bucket-type activate last
 
 ```
@@ -201,11 +208,11 @@ for storing above persitent date and it will activate them.
 You should also configure Riak in `ejabberd.cfg` file.
 Please refer to [Advanced configuration/Database setup](../Advanced-configuration.md) for more information.
 
-# Cassandra
+## Cassandra
 
 **Can be used for:**
 
-* mam (Message archive)
+* MAM (Message archive)
 
 **Setup**
 
@@ -218,7 +225,7 @@ For example, you can use the following command to apply schema on localhost:
 cqlsh localhost 9160 -f cassandra.cql
 ```
 
-# Redis
+## Redis
 
 **Can be used for:**
 

@@ -29,7 +29,6 @@
 -xep([{xep, 212}, {version, "1.0"}]).
 -export([start/0,
          stop/0,
-         ensure_started/1,
          get_pid_file/0,
          get_so_path/0,
          get_bin_path/0]).
@@ -90,18 +89,7 @@
 -export_type([dict_t/0, queue_t/0, set_t/0]).
 
 start() ->
-    ensure_started(ejabberd).
-
-ensure_started(AppName) ->
-    case application:start(AppName) of
-        ok ->
-            ok;
-        {error, {already_started, AppName}} ->
-            ok;
-        {error, {not_started, AppName2}} ->
-            ok = ensure_started(AppName2),
-            ensure_started(AppName)
-    end.
+    application:ensure_all_started(ejabberd).
 
 stop() ->
     application:stop(ejabberd).

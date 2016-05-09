@@ -17,14 +17,15 @@
 -module(ejabberd_node_utils).
 
 -export([init/1, init/2,
-         restart_application/1, restart_application/2,
-         call_fun/3, call_fun/4,
-         call_ctl/2, call_ctl/3,
-         file_exists/1, file_exists/2,
-         backup_config_file/1, backup_config_file/2,
-         restore_config_file/1, restore_config_file/2,
-         modify_config_file/2, modify_config_file/4,
-         get_cwd/2]).
+    restart_application/1, restart_application/2,
+    call_fun/3, call_fun/4,
+    call_ctl/2, call_ctl/3,
+    call_ctl_with_args/3,
+    file_exists/1, file_exists/2,
+    backup_config_file/1, backup_config_file/2,
+    restore_config_file/1, restore_config_file/2,
+    modify_config_file/2, modify_config_file/4,
+    get_cwd/2, mim/0, mim2/0, fed/0]).
 
 -include_lib("common_test/include/ct.hrl").
 
@@ -55,7 +56,7 @@
 
 -spec init(ct_config()) -> ct_config().
 init(Config) ->
-    Node = ct:get_config(ejabberd_node),
+    Node = ct:get_config({hosts, mim, node}),
     init(Node, Config).
 
 init(Node, Config) ->
@@ -63,7 +64,7 @@ init(Node, Config) ->
 
 -spec restart_application(atom()) -> ok.
 restart_application(ApplicationName) ->
-    Node = ct:get_config(ejabberd_node),
+    Node = ct:get_config({hosts, mim, node}),
     restart_application(Node, ApplicationName).
 
 -spec restart_application(node(), atom()) -> ok.
@@ -74,7 +75,7 @@ restart_application(Node, ApplicationName) ->
 
 -spec backup_config_file(ct_config()) -> ct_config().
 backup_config_file(Config) ->
-    Node = ct:get_config(ejabberd_node),
+    Node = ct:get_config({hosts, mim, node}),
     backup_config_file(Node, Config).
 
 -spec backup_config_file(node(), ct_config()) -> ct_config().
@@ -84,7 +85,7 @@ backup_config_file(Node, Config) ->
 
 -spec restore_config_file(ct_config()) -> ct_config().
 restore_config_file(Config) ->
-    Node = ct:get_config(ejabberd_node),
+    Node = ct:get_config({hosts, mim, node}),
     restore_config_file(Node, Config).
 
 -spec restore_config_file(node(), ct_config()) -> ct_config().
@@ -94,7 +95,7 @@ restore_config_file(Node, Config) ->
 
 -spec call_fun(module(), atom(), []) -> term() | {badrpc, term()}.
 call_fun(M, F, A) ->
-    Node = ct:get_config(ejabberd_node),
+    Node = ct:get_config({hosts, mim, node}),
     call_fun(Node, M, F, A).
 
 -spec call_fun(node(), module(), atom(), []) -> term() | {badrpc, term()}.
@@ -106,12 +107,16 @@ call_fun(Node, M, F, A) ->
 %% For example to restart mongooseim call `call_ctl(restart, Config).'.
 -spec call_ctl(atom(), ct_config()) -> term() | term().
 call_ctl(Cmd, Config) ->
-    Node = ct:get_config(ejabberd_node),
+    Node = ct:get_config({hosts, mim, node}),
     call_ctl(Node, Cmd, Config).
 
 -spec call_ctl(node(), atom(), ct_config()) -> term() | term().
 call_ctl(Node, Cmd, Config) ->
-    OsCmd = io_lib:format("~p ~p", [?CTL_PATH(Node, Config), atom_to_list(Cmd)]),
+    call_ctl_with_args(Node, [atom_to_list(Cmd)], Config).
+
+-spec call_ctl_with_args(node(), [string()], ct_config()) -> term() | term().
+call_ctl_with_args(Node, CmdAndArgs, Config) ->
+    OsCmd = string:join([?CTL_PATH(Node, Config) | CmdAndArgs], " "),
     os:cmd(OsCmd).
 
 -spec file_exists(file:name_all()) -> term() | {badrpc, term()}.
@@ -137,7 +142,7 @@ file_exists(Node, Filename) ->
       ConfigVariable :: atom(),
       Value :: string().
 modify_config_file(CfgVarsToChange, Config) ->
-    Node = ct:get_config(ejabberd_node),
+    Node = ct:get_config({hosts, mim, node}),
     modify_config_file(Node, "vars.config", CfgVarsToChange, Config).
 
 -spec modify_config_file(node(), string(), [{ConfigVariable, Value}], ct_config()) -> ok when
@@ -179,6 +184,19 @@ modify_config_file(Node, VarsFile, CfgVarsToChange, Config) ->
 get_cwd(Node, Config) ->
     ?CWD(Node, Config).
 
+%% MongooseIM node names
+-spec mim() -> node() | no_return().
+mim() ->
+    get_or_fail({hosts, mim, node}).
+
+-spec mim2() -> node() | no_return().
+mim2() ->
+    get_or_fail({hosts, mim2, node}).
+
+-spec fed() -> node() | no_return().
+fed() ->
+    get_or_fail({hosts, fed, node}).
+
 %%--------------------------------------------------------------------
 %% Internal functions
 %%--------------------------------------------------------------------
@@ -192,6 +210,7 @@ update_config_variables(CfgVarsToChange, CfgVars) ->
                         lists:keystore(Var, 1, Acc,{Var, Val})
                 end, CfgVars, CfgVarsToChange).
 
-
-
-
+get_or_fail(Key) ->
+    Val = ct:get_config(Key),
+    Val == undefined andalso error({undefined, Key}),
+    Val.

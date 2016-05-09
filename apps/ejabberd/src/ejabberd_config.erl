@@ -148,7 +148,7 @@ start() ->
                          {attributes, record_info(fields, local_config)}]),
     mnesia:add_table_copy(local_config, node(), ram_copies),
     Config = get_ejabberd_config_path(),
-    load_file(Config),
+    ejabberd_config:load_file(Config),
     %% This start time is used by mod_last:
     add_local_option(node_start, now()),
     ok.
@@ -160,17 +160,14 @@ start() ->
 %% If not specified, the default value 'ejabberd.cfg' is assumed.
 -spec get_ejabberd_config_path() -> string().
 get_ejabberd_config_path() ->
-    case application:get_env(ejabberd, config) of
-        {ok, Path} -> Path;
-        undefined ->
-            case os:getenv("EJABBERD_CONFIG_PATH") of
-                false ->
-                    ?CONFIG_PATH;
-                Path ->
-                    Path
-            end
-    end.
+    DefaultPath = case os:getenv("EJABBERD_CONFIG_PATH") of
+                      false ->
+                          ?CONFIG_PATH;
+                      Path ->
+                          Path
+                  end,
 
+    application:get_env(ejabberd, config, DefaultPath).
 
 %% @doc Load the ejabberd configuration file.
 %% It also includes additional configuration files and replaces macros.
@@ -570,6 +567,8 @@ process_term(Term, State) ->
             add_option(registration_timeout, Timeout, State);
         {mongooseimctl_access_commands, ACs} ->
             add_option(mongooseimctl_access_commands, ACs, State);
+        {routing_modules, Mods} ->
+            add_option(routing_modules, Mods, State);
         {loglevel, Loglevel} ->
             ejabberd_loglevel:set(Loglevel),
             State;
@@ -915,7 +914,7 @@ apply_changes_remote(NewConfigFilePath, ConfigDiff,
            [DesiredConfigVersion, DesiredFileVersion]),
     Node = node(),
     {CC, LC, LHC} = ConfigDiff,
-    State0 = parse_file(NewConfigFilePath),    
+    State0 = parse_file(NewConfigFilePath),
     case compute_config_file_version(State0) of
         DesiredFileVersion ->
             State1 = State0#state{override_global = false,
@@ -1339,3 +1338,4 @@ sort_config(Config) when is_list(Config) ->
                           ConfigItem
                   end, Config),
     lists:sort(L).
+

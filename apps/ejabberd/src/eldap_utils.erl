@@ -32,6 +32,7 @@
          get_ldap_attr/2,
          get_user_part/2,
          make_filter/2,
+         make_filter/3,
          get_state/2,
          case_insensitive_match/2,
          get_opt/3,
@@ -139,6 +140,11 @@ generate_substring_list([H|T],Acc)->
 
 -spec make_filter([{binary(), [binary()]}], [{binary(), binary()}]) -> any().
 make_filter(Data, UIDs) ->
+    make_filter(Data, UIDs, 'and').
+
+-spec make_filter([{binary(), [binary()]}], [{binary(), binary()}],
+                  'or' | 'and') -> any().
+make_filter(Data, UIDs, Op) ->
     NewUIDs = [{U, eldap_filter:do_sub(
                      UF, [{<<"%u">>, <<"*%u*">>, 1}])} || {U, UF} <- UIDs],
     Filter = lists:flatmap(
@@ -164,7 +170,7 @@ make_filter(Data, UIDs) ->
         [F] ->
             F;
         _ ->
-            eldap:'and'(Filter)
+            eldap:Op(Filter)
     end.
 
 

@@ -31,6 +31,9 @@
 -define(NS_VCARD_UPDATE, <<"vcard-temp:x:update">>).
 -define(NS_AUTH,         <<"jabber:iq:auth">>).
 -define(NS_AUTH_ERROR,   <<"jabber:iq:auth:error">>).
+-define(NS_OAUTH_0, <<"urn:xmpp:oauth:0">>).% Defined by XEP-0235: Authorization Tokens.
+-define(NS_OAUTH_ERRORS_0, <<"urn:xmpp:oauth:0:errors">>).%% Deferred : XEP-0235: Authorization Tokens.
+-define(NS_AUTH_TOKEN,   <<"urn:xmpp:tmp:auth-token">>).
 -define(NS_REGISTER,     <<"jabber:iq:register">>).
 -define(NS_SEARCH,       <<"jabber:iq:search">>).
 -define(NS_ROSTER,       <<"jabber:iq:roster">>).
@@ -67,12 +70,14 @@
 -define(NS_PUBSUB_NODE_CONFIG,<<"http://jabber.org/protocol/pubsub#node_config">>).
 -define(NS_PUBSUB_SUB_OPTIONS,<<"http://jabber.org/protocol/pubsub#subscribe_options">>).
 -define(NS_PUBSUB_SUB_AUTH,<<"http://jabber.org/protocol/pubsub#subscribe_authorization">>).
--define(NS_PUBSUB_GET_PENDING, "http://jabber.org/protocol/pubsub#get-pending").
+-define(NS_PUBSUB_GET_PENDING, <<"http://jabber.org/protocol/pubsub#get-pending">>).
 -define(NS_COMMANDS,    <<"http://jabber.org/protocol/commands">>).
 -define(NS_BYTESTREAMS, <<"http://jabber.org/protocol/bytestreams">>).
 -define(NS_ADMIN,       <<"http://jabber.org/protocol/admin">>).
 -define(NS_SERVERINFO,  <<"http://jabber.org/network/serverinfo">>).
 -define(NS_MAM,         <<"urn:xmpp:mam:tmp">>).
+-define(NS_MAM_03,      <<"urn:xmpp:mam:0">>). % MAM 0.3
+-define(NS_MAM_04,      <<"urn:xmpp:mam:1">>). % MAM 0.4.1 or 0.5
 
 -define(NS_RSM,         <<"http://jabber.org/protocol/rsm">>).
 -define(NS_EJABBERD_CONFIG,<<"ejabberd:config">>).
@@ -104,6 +109,11 @@
 -define(NS_HTTPBIND,     <<"http://jabber.org/protocol/httpbind">>).
 
 -define(NS_STREAM_MGNT_3, <<"urn:xmpp:sm:3">>).
+
+-define(NS_CSI, <<"urn:xmpp:csi:0">>).
+
+%% Erlang Solutions custom extension - token based authentication
+-define(NS_ESL_TOKEN_AUTH, <<"erlang-solutions.com:xmpp:token-auth:0">>).
 
 -define(ERR_BAD_REQUEST,
         jlib:stanza_error(<<"400">>,<<"modify">>,<<"bad-request">>)).
@@ -345,5 +355,12 @@
 -type iq() :: #iq{}.
 -type jid() :: #jid{}.
 -type ljid() :: {ejabberd:luser(), ejabberd:lserver(), ejabberd:lresource()}.
+
+-type xmlel() :: #xmlel{}.
+
+-type rsm_in() :: #rsm_in{}.
+-type rsm_out() :: #rsm_out{}.
+
+-type ljid() :: {binary(), binary(), binary()}.
 
 -endif.

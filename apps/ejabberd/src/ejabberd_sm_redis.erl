@@ -78,11 +78,11 @@ get_sessions(User, Server, Resource) ->
                      Session :: ejabberd_sm:session()) -> ok | {error, term()}.
 create_session(User, Server, Resource, Session) ->
     OldSessions = get_sessions(User, Server, Resource),
-    BSession = term_to_binary(Session),
     case lists:keysearch(Session#session.sid, #session.sid, OldSessions) of
         {value, OldSession} ->
+            MergedInfoSession = mongoose_session:merge_info(Session,OldSession),
             BOldSession = term_to_binary(OldSession),
-
+            BSession = term_to_binary(MergedInfoSession),
             error_or_ok(
               ejabberd_redis:cmd([["SADD", n(node()), hash(User, Server, Resource, Session#session.sid)],
                                   ["SREM", hash(User, Server), BOldSession],
@@ -90,6 +90,7 @@ create_session(User, Server, Resource, Session) ->
                                   ["SADD", hash(User, Server), BSession],
                                   ["SADD", hash(User, Server, Resource), BSession]]));
         false ->
+            BSession = term_to_binary(Session),
             error_or_ok(
               ejabberd_redis:cmd([["SADD", n(node()), hash(User, Server, Resource, Session#session.sid)],
                                   ["SADD", hash(User, Server), BSession],
@@ -123,7 +124,8 @@ cleanup(Node) ->
                           [_, U, S, R | SIDEncoded] = re:split(H, ":"),
                           %% Add possible removed ":" from encoded SID
                           SID = binary_to_term(ejabberd_binary:join(SIDEncoded, <<":">>)),
-                          delete_session(SID, U, S, R)
+                          delete_session(SID, U, S, R),
+                          ejabberd_hooks:run(session_cleanup, S, [U, S, R, SID])
                   end, Hashes).
 
 

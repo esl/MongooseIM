@@ -21,14 +21,13 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
+-import(reload_helper, [reload_through_ctl/2]).
+
 -define(RELOADED_DOMAIN, ct:get_config(ejabberd_reloaded_domain)).
 
 -define(SAMPLE_USERNAME, <<"astrid">>).
 -define(RELOADED_DOMAIN_USER, astrid).
 -define(INITIAL_DOMAIN_USER, alice).
-
--define(CTL_RELOAD_OUTPUT_PREFIX,
-        "# Reloaded: " ++ atom_to_list(ct:get_config(ejabberd_node))).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -91,7 +90,7 @@ domain_should_change(Config) ->
     ?assertNot(NewHosts == get_ejabberd_hosts()),
 
     %% WHEN
-    reload_through_ctl(Config),
+    reload_through_ctl(default_node(Config), Config),
 
     %% THEN
     ?assertMatch(NewHosts, get_ejabberd_hosts()).
@@ -99,17 +98,17 @@ domain_should_change(Config) ->
 user_should_be_registered_and_unregistered_via_ctl(Config) ->
     %% GIVEN
     [NewHost] = ?config(new_hosts_value, Config),
-    ?assertMatch({cannot_register, _}, register_user_by_ejabberd_admin(
-                                         ?SAMPLE_USERNAME, NewHost)),
+    ?assertMatch({cannot_register, _},
+                 register_user_by_ejabberd_admin(?SAMPLE_USERNAME, NewHost)),
 
     %% WHEN
-    reload_through_ctl(Config),
+    reload_through_ctl(default_node(Config), Config),
 
     %% THEN
-    ?assertMatch({ok, _}, register_user_by_ejabberd_admin(
-                            ?SAMPLE_USERNAME, NewHost)),
-    ?assertMatch({ok, _}, unregister_user_by_ejabberd_admin(
-                            ?SAMPLE_USERNAME, NewHost)).
+    ?assertMatch({ok, _},
+                 register_user_by_ejabberd_admin(?SAMPLE_USERNAME, NewHost)),
+    ?assertMatch({ok, _},
+                 unregister_user_by_ejabberd_admin(?SAMPLE_USERNAME, NewHost)).
 
 user_should_be_registered_and_unregistered_via_xmpp(Config) ->
     %% GIVEN
@@ -117,7 +116,7 @@ user_should_be_registered_and_unregistered_via_xmpp(Config) ->
     ?assert(lists:member(UserDomain, ?config(new_hosts_value, Config))),
 
     %% WHEN
-    reload_through_ctl(Config),
+    reload_through_ctl(default_node(Config), Config),
 
     %% THEN
     ?assertMatch(ok, create_user(?RELOADED_DOMAIN_USER, Config)),
@@ -129,7 +128,7 @@ user_should_be_disconnected_from_removed_domain(Config) ->
     Conn = connect_user(?INITIAL_DOMAIN_USER, Config),
 
     %% WHEN
-    reload_through_ctl(Config),
+    reload_through_ctl(default_node(Config), Config),
 
     %% THEN
     ?assertNot(escalus_connection:is_connected(Conn)).
@@ -140,28 +139,13 @@ user_should_be_disconnected_from_removed_domain(Config) ->
 %%--------------------------------------------------------------------
 
 get_ejabberd_hosts() ->
-    ejabberd_node_utils:call_fun(ejabberd_config, get_global_option, [hosts]).
-
-reload_through_ctl(Config) ->
-    OutputStr = ejabberd_node_utils:call_ctl(reload_local, Config),
-    ok = verify_reload_output(OutputStr).
-
-verify_reload_output(OutputStr) ->
-    ExpectedOutput = ?CTL_RELOAD_OUTPUT_PREFIX,
-    case lists:sublist(OutputStr, length(ExpectedOutput)) of
-        ExpectedOutput ->
-            ok;
-        _ ->
-            ct:pal("~ts", [OutputStr]),
-            error(config_reload_failed, [OutputStr])
-    end.
+    escalus_ejabberd:rpc(ejabberd_config, get_global_option, [hosts]).
 
 register_user_by_ejabberd_admin(User, Host) ->
-    ejabberd_node_utils:call_fun(ejabberd_admin, register,
-                                 [User, Host, <<"doctor">>]).
+    escalus_ejabberd:rpc(ejabberd_admin, register, [User, Host, <<"doctor">>]).
 
 unregister_user_by_ejabberd_admin(User, Host) ->
-    ejabberd_node_utils:call_fun(ejabberd_admin, unregister, [User, Host]).
+    escalus_ejabberd:rpc(ejabberd_admin, unregister, [User, Host]).
 
 change_domain_in_config_file(Config) ->
     ejabberd_node_utils:modify_config_file(
@@ -175,10 +159,10 @@ run_config_file_modification_fun(Config) ->
     Fun(Config).
 
 create_user_in_initial_domain(User, Config) ->
-    escalus:create_users(Config, {by_name, [User]}).
+    escalus:create_users(Config, escalus:get_users([User])).
 
 delete_user_in_initial_domain(User, Config) ->
-    escalus:delete_users(Config, {by_name, [User]}).
+    escalus:delete_users(Config, escalus:get_users([User])).
 
 connect_user(User, Config) ->
     UserSpec = escalus_users:get_userspec(Config, User),
@@ -197,3 +181,8 @@ create_user(User, Config) ->
 delete_user(User, Config) ->
     {User, UserSpec} = escalus_users:get_user_by_name(User),
     escalus_users:delete_user(Config, {User, UserSpec}).
+
+default_node(Config) ->
+    Node = escalus_config:get_config(ejabberd_node, Config),
+    Node == undefined andalso error(node_undefined, [Config]),
+    Node.

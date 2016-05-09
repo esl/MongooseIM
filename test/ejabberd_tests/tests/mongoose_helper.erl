@@ -5,13 +5,15 @@
 -export([auth_modules/0]).
 
 -export([total_offline_messages/0,
+         total_offline_messages/1,
          total_active_users/0,
          total_privacy_items/0,
          total_private_items/0,
          total_vcard_items/0,
          total_roster_items/0]).
 
--export([clear_last_activity/2]).
+-export([clear_last_activity/2,
+         clear_caps_cache/1]).
 
 -define(RPC(M,F,A), escalus_ejabberd:rpc(M, F, A)).
 
@@ -26,6 +28,10 @@ auth_modules() ->
 -spec total_offline_messages() -> integer() | false.
 total_offline_messages() ->
     generic_count(mod_offline_backend).
+
+-spec total_offline_messages({binary(), binary()}) -> integer() | false.
+total_offline_messages(User) ->
+    generic_count(mod_offline_backend, User).
 
 -spec total_active_users() -> integer() | false.
 total_active_users() ->
@@ -83,11 +89,18 @@ do_clear_last_activity(_Config, User) when is_binary(User) ->
 do_clear_last_activity(Config, Users) when is_list(Users) ->
     lists:foreach(fun(User) -> do_clear_last_activity(Config, User) end, Users).
 
+clear_caps_cache(CapsNode) ->
+    ok = ?RPC(mod_caps, delete_caps, [CapsNode]).
+
 get_backend(Module) ->
   case ?RPC(Module, backend, []) of
     {badrpc, _Reason} -> false;
     Backend -> Backend
   end.
+
+generic_count(mod_offline_backend, {User, Server}) ->
+    ?RPC(mod_offline_backend, count_offline_messages, [User, Server, 100]).
+
 
 generic_count(Module) ->
     case get_backend(Module) of
@@ -99,6 +112,7 @@ generic_count(Module) ->
 
 generic_count_backend(mod_offline_mnesia) -> count_wildpattern(offline_msg);
 generic_count_backend(mod_offline_odbc) -> count_odbc(<<"offline_message">>);
+generic_count_backend(mod_offline_riak) -> count_riak(<<"offline">>);
 generic_count_backend(mod_last_mnesia) -> count_wildpattern(last_activity);
 generic_count_backend(mod_last_odbc) -> count_odbc(<<"last">>);
 generic_count_backend(mod_last_riak) -> count_riak(<<"last">>);
@@ -124,6 +138,7 @@ generic_count_backend(mod_roster_odbc) -> count_odbc(<<"rosterusers">>).
 count_wildpattern(Table) ->
     Pattern = ?RPC(mnesia, table_info, [Table, wild_pattern]),
     length(?RPC(mnesia, dirty_match_object, [Pattern])).
+
 
 count_odbc(Table) ->
     {selected, _, [{N}]} =

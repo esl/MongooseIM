@@ -3,7 +3,6 @@
 deps
 tools/*.tar.gz
 tools/*.pyc
-tools/*.png
 apps/*/src/#*
 apps/*/src/.#*
 test/.#*
@@ -76,6 +75,24 @@ apps/ejabberd/include/EJABBERD-MIB.hrl
 apps/ejabberd/priv/mibs/EJABBERD-MIB.bin
 apps/ejabberd/ebin/ejabberd.app
 
+# Compilation/test ephemera
+*.d
+Mnesia.mongooseim@*
+compile.log
+ct.log
+deps.log
+dialyzer
+configure.out
+ejd-redis.conf
+fed*.log
+node*.log
+quick_compile.log
+.rebar3
+redis.pid
+test/ejabberd_tests/get-deps.log
+test/ejabberd_tests/quicktest.log
+site
+
 # Dialyzer
 .mongooseim_combo_dialyzer.plt
 
@@ -85,6 +102,20 @@ dev/*
 fake_*.pem
 ebin/
 *.coverdata
+*.conf
 #idea
 .idea/
 *.iml
+dialyzer/
+site/
+etc/
+log/
+Mnesia.*
+*.pid
+tags
+TAGS
+
+*.patch
+
+*.diff
+

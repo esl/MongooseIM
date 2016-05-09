@@ -84,7 +84,19 @@ Just start MongooseIM using `mongooseim start` or `mongooseim live`
 
 ### New node
 
-#### MongooseIM 1.5.0 and newer
+#### MongooseIM 1.7.0 and newer
+Cluster management commands since MongooseIM 1.7.0 have been a bit changed. We call them now from a running node that is going
+to leave or join the cluster.
+
+```bash
+mongooseimctl join_cluster ClusterMember
+```
+
+`ClusterMember` is the name of running node set in `vm.args` file, for example `mongooseim@localhost`. This node
+has to be part of the cluster we'd like to join.
+The successful output from above command starts with `You have successfully joined the node to the cluster`.
+
+#### MongooseIM 1.5.0 - 1.7.0
 Since MongooseIM 1.5.0 adding new node to a cluster is as simple as executing following command:
 
 ```bash
@@ -115,7 +127,18 @@ Exit shell and start MongooseIM using `mongooseim start/live`
 
 ### Remove node
 
-#### MongooseIM 1.5.0 and newer
+#### MongooseIM 1.7.0 and newer
+
+In case to remove a node from the cluster call:
+
+```bash
+mongooseimctl leave_cluster
+```
+
+It makes sense only if the node is the part of any cluster, e.g called `join_cluster` from that node before.
+The successful output from above command starts with `You have successfully left the node`.
+
+#### MongooseIM 1.5.0 - 1.7.0
 
 To remove a node, connect to a different one and execute enter:
 

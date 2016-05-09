@@ -38,10 +38,10 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(_GroupName, Config) ->
-    escalus:create_users(Config, {by_name, [alice, bob]}).
+    escalus:create_users(Config, escalus:get_users([alice, bob])).
 
 end_per_group(_GroupName, Config) ->
-    escalus:delete_users(Config, {by_name, [alice, bob]}).
+    escalus:delete_users(Config, escalus:get_users([alice, bob])).
 
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
@@ -53,7 +53,7 @@ end_per_testcase(CaseName, Config) ->
 %% Adhoc tests
 %%--------------------------------------------------------------------
 ping(Config) ->
-    escalus:story(Config, [1],
+    escalus:story(Config, [{alice, 1}],
                   fun(Alice) ->
                           %% Alice pings the server using adhoc command
                           escalus_client:send(Alice, escalus_stanza:to(escalus_stanza:adhoc_request(<<"ping">>),

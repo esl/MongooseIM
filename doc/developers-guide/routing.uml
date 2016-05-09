@@ -1,0 +1,34 @@
+@startuml
+partition Stage0 {
+(*) --> "filter packet"
+"filter packet" -right-> [no] "<b><color:red>DROP</color></b>"
+"filter packet" -down-> [YES] ===S1===
+}
+
+partition Stage1 {
+===S1=== -down-> "external component lookup\non local node" as ext1
+ext1 -right-> [YES] "filter local packet" as floc1
+floc1 -right-> [no] "<b><color:red>DROP </color></b>"
+floc1 --> [YES] "<b><color:green>apply handler</color></b>"
+ext1 -down-> [no] ===S2===
+}
+
+partition Stage2 {
+===S2=== -down-> "external component lookup" as ext2
+ext2 -right-> [YES] "filter local packet" as floc2
+floc2 -right-> [no] "<b><color:red>DROP  </color></b>"
+floc2 --> [YES] "<b><color:green>apply handler </color></b>"
+ext2 -down-> [no] ===S3===
+}
+
+partition Stage3 {
+===S3=== -down-> "look in mnesia for local domain" as mnesia
+mnesia -right-> [YES] "filter local packet" as floc3
+floc3 -right-> [no] "<b><color:red>DROP   </color></b>"
+floc3 --> [YES] "<b><color:green>apply handler  </color></b>"
+mnesia -down-> [no] ===S4===
+}
+partition Stage4 {
+===S4=== -down-> "<b><color:green>s2s</color></b>"
+}
+@enduml

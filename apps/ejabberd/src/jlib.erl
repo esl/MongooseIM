@@ -59,6 +59,7 @@
          timestamp_to_mam_xml/4,
          timestamp_to_iso/2,
          now_to_utc_binary/1,
+         now_to_utc_string/1,
          datetime_binary_to_timestamp/1,
          decode_base64/1,
          encode_base64/1,
@@ -76,14 +77,11 @@
 -include("jlib.hrl").
 -include("ejabberd.hrl").
 
--type xmlel()           :: #xmlel{}.
 %% Stream types defined in exml/include/exml_stream.hrl
 -type xmlstreamstart()  :: #xmlstreamstart{}.
 -type xmlstreamend()    :: #xmlstreamend{}.
 -type xmlstreamel() :: xmlel() | xmlstreamstart() | xmlstreamend().
 
--type rsm_in()    :: #rsm_in{}.
--type rsm_out()   :: #rsm_out{}.
 -type xmlcdata()  :: #xmlcdata{}.
 
 -type xmlch() :: xmlel() | xmlcdata(). % (XML ch)ild

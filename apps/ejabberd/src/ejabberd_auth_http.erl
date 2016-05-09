@@ -26,10 +26,7 @@
          does_user_exist/2,
          remove_user/2,
          remove_user/3,
-         plain_password_required/0,
          store_type/1,
-         login/2,
-         get_password/3,
          stop/1]).
 
 -include("ejabberd.hrl").
@@ -57,9 +54,6 @@ start(Host) ->
                                       transient, 2000, supervisor, [cuesport | ChildMods]}),
     ok.
 
--spec plain_password_required() -> false.
-plain_password_required() ->
-    false.
 
 -spec store_type(binary()) -> plain | scram.
 store_type(Server) ->
@@ -226,7 +220,7 @@ remove_user_req(LUser, LServer, Password, Method) ->
     {ok, BodyOrCreated :: binary() | created} | {error, invalid_jid | http_error_atom() | binary()}.
 make_req(_, _, LUser, LServer, _) when LUser == error orelse LServer == error ->
     {error, invalid_jid};
-make_req(Method, Path, LUser, LServer, Password) -> 
+make_req(Method, Path, LUser, LServer, Password) ->
     AuthOpts = ejabberd_config:get_local_option(auth_opts, LServer),
     BasicAuth = case lists:keyfind(basic_auth, 1, AuthOpts) of
                     {_, BasicAuth0} -> BasicAuth0;
@@ -290,13 +284,10 @@ verify_scram_password(LUser, LServer, Password) ->
             {error, not_exists}
     end.
 
-login(_User, _Server) ->
-    erlang:error(not_implemented).
-
-get_password(_User, _Server, _DefaultValue) ->
-    erlang:error(not_implemented).
-
-stop(_Host) ->
+stop(Host) ->
+    Id = {ejabberd_auth_http_sup, Host},
+    supervisor:terminate_child(ejabberd_sup, Id),
+    supervisor:delete_child(ejabberd_sup, Id),
     ok.
 
 is_external(Host) ->

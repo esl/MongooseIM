@@ -25,7 +25,7 @@
                         node :: ejabberd:server(),
                         session_id :: binary(),
                         action :: binary(),
-                        xdata :: jlib:xmlel(),
+                        xdata :: jlib:xmlel() | false,
                         others
                        }).
 

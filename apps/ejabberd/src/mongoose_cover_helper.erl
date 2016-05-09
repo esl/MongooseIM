@@ -25,7 +25,8 @@ start(Apps) ->
     lists:flatmap(fun cover_compile_app/1, Apps).
 
 analyze() ->
-    cover:export("/tmp/" ++ atom_to_list(node()) ++ ".coverdata"),
+    NowList = jlib:now_to_utc_string(os:timestamp()),
+    cover:export("/tmp/" ++ atom_to_list(node())++ "." ++ NowList ++".coverdata"),
     cover:stop().
 
 cover_compile_app(App) ->
@@ -33,7 +34,7 @@ cover_compile_app(App) ->
 
 do_cover_compile_app(App, {error, Error}) ->
     [{error, App, Error}];
-do_cover_compile_app(_App, AppPath) ->
+do_cover_compile_app(App, AppPath) ->
     EbinDir = filename:join(AppPath, "ebin"),
     BeamFilter = fun
         %% modules not compatible with cover
@@ -49,7 +50,7 @@ do_cover_compile_app(_App, AppPath) ->
         {ok, Files} ->
             BeamFileNames = lists:filter(BeamFilter, Files),
             BeamFiles = [filename:join(EbinDir, File) || File <- BeamFileNames],
-            compile_beams(BeamFiles, []);
+            [{App, compile_beams(BeamFiles, [])}];
         Error ->
             [{error, EbinDir, Error}]
     end.

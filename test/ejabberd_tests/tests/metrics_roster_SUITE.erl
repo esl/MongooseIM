@@ -73,10 +73,10 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(_GroupName, Config) ->
-    escalus:create_users(Config, {by_name, [alice, bob]}).
+    escalus:create_users(Config, escalus:get_users([alice, bob])).
 
 end_per_group(_GroupName, Config) ->
-    escalus:delete_users(Config, {by_name, [alice, bob]}).
+    escalus:delete_users(Config, escalus:get_users([alice, bob])).
 
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
@@ -116,7 +116,7 @@ get_roster(ConfigIn) ->
         ],
     Config = mongoose_metrics(ConfigIn, Metrics),
 
-    escalus:story(Config, [1, 1], fun(Alice,_Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice,_Bob) ->
         escalus_client:send(Alice, escalus_stanza:roster_get()),
         escalus_client:wait_for_stanza(Alice)
 
@@ -125,7 +125,7 @@ get_roster(ConfigIn) ->
 add_contact(ConfigIn) ->
     Config = mongoose_metrics(ConfigIn, [{['_', modRosterSets], 1}]),
 
-    escalus:story(Config, [1, 1], fun(Alice, Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
 
         %% add contact
         escalus_client:send(Alice,
@@ -142,7 +142,7 @@ roster_push(ConfigIn) ->
     Config = mongoose_metrics(ConfigIn, [{['_', modRosterSets], 1},
                                          {['_', modRosterPush], 2}]),
 
-    escalus:story(Config, [2, 1], fun(Alice1, Alice2, Bob) ->
+    escalus:story(Config, [{alice, 2}, {bob, 1}], fun(Alice1, Alice2, Bob) ->
 
         %% add contact
         escalus_client:send(Alice1,
@@ -162,7 +162,7 @@ roster_push(ConfigIn) ->
 subscribe(ConfigIn) ->
     Config = mongoose_metrics(ConfigIn, [{['_', modPresenceSubscriptions], 1}]),
 
-    escalus:story(Config, [1, 1], fun(Alice,Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice,Bob) ->
 
         %% add contact
         add_sample_contact(Alice, Bob),
@@ -199,7 +199,7 @@ subscribe(ConfigIn) ->
 decline_subscription(ConfigIn) ->
     Config = mongoose_metrics(ConfigIn, [{['_', modPresenceUnsubscriptions], 1}]),
 
-    escalus:story(Config, [1, 1], fun(Alice,Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice,Bob) ->
 
         %% add contact
         add_sample_contact(Alice, Bob),
@@ -224,7 +224,7 @@ decline_subscription(ConfigIn) ->
 unsubscribe(ConfigIn) ->
     Config = mongoose_metrics(ConfigIn, [{['_', modPresenceUnsubscriptions], 1}]),
 
-    escalus:story(Config, [1, 1], fun(Alice,Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice,Bob) ->
         %% add contact
         add_sample_contact(Alice, Bob),
         %% subscribe

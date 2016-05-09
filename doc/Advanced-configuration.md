@@ -160,7 +160,8 @@ See [Database backends configuration](./advanced-configuration/database-backends
     * **Syntax:** `{shaper, AtomName, {maxrate, BytesPerSecond}}`
 
 * **max_fsm_queue** (local)
-    * **Description:** When enabled, will terminate certain processes (e.g. client handlers) that exceed message limit, to prevent resource exhaustion. **Use with caution!**
+    * **Description:** When enabled, will terminate certain processes (e.g. client handlers) that exceed message limit, to prevent resource exhaustion. This option is set for all the listeners but can be overridden for particular `ejabberd_s2s` or `ejabberd_service` listeners in their configurations. **Use with caution!**
+    * **Syntax:** `{max_fsm_queue, MaxFsmQueueLength}`
 
 ### Access control lists
 
@@ -234,9 +235,19 @@ Section below describes the default options.
 
 # app.config
 
-A file with Erlang application configuration. It can be found in `[MongooseIM root]/rel/files/`. By default only Lager config can be found there. Check [Lager's documentation](https://github.com/basho/lager) for more information.
+A file with Erlang application configuration. It can be found in `[MongooseIM root]/rel/files/`.
+By default only following applications can be found there:
 
-Here you can change logs location and file names (`file`), rotation strategy (`size` and `count`) and date formatting (`date`). Ignore log level parameters - they are overridden with the value in `ejabberd.cfg`.
+* `lager` - check [Lager's documentation](https://github.com/basho/lager) for more information.
+   
+    Here you can change logs location and file names (`file`), rotation strategy (`size` and `count`) 
+   and date formatting (`date`). Ignore log level parameters - they are overridden with the value in `ejabberd.cfg`.
+
+* `ssl` only `session_lifetime` parameter is specified in
+    this file. Its default value is **600s**. This parameter says for how
+    long ssl session should remain in the cache for further re-use,
+    should `ssl session resumption` happen.
+
 
 # Configuring TLS: Certificates & Keys
 

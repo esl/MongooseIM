@@ -1,12 +1,23 @@
 #!/bin/sh
 
-RUNNER_SCRIPT_DIR=$(cd ${0%/*} && pwd)
+RUNNER_SCRIPT_DIR={{mongooseim_script_dir}}
+RUNNER_BASE_DIR=${RUNNER_SCRIPT_DIR%/*}
+## Depending on build time config RUNNER_ETC_DIR may depend on RUNNER_BASE_DIR.
+RUNNER_ETC_DIR={{mongooseim_etc_dir}}
+RUNNER_USER={{mongooseim_runner_user}}
+
+# Make sure this script is running as the appropriate user
+if [ ! -z "$RUNNER_USER" ] && [ `whoami` != "$RUNNER_USER" ]; then
+    exec sudo -u $RUNNER_USER -i $0 $@
+fi
+
 EJABBERD_DIR=${RUNNER_SCRIPT_DIR%/*}
-EJABBERD_VMARGS_PATH=$EJABBERD_DIR/etc/vm.args
+EJABBERD_VMARGS_PATH=${RUNNER_ETC_DIR}/vm.args
 START_ERL=`cat $EJABBERD_DIR/releases/start_erl.data`
 ERTS_VSN=${START_ERL% *}
 ERTS_PATH=$EJABBERD_DIR/erts-$ERTS_VSN/bin
 ERL=$ERTS_PATH/erl
+EPMD=$ERTS_PATH/epmd
 EJABBERD_EBIN_PATH=$EJABBERD_DIR/lib/ejabberd-*/ebin/
 
 COOKIE_ARG=`grep -e '^-setcookie' $EJABBERD_VMARGS_PATH`
@@ -24,14 +35,34 @@ fi
 NAME_TYPE="${NODENAME_ARG% *}"
 NODENAME="${NODENAME_ARG#* }"
 
-add_to_cluster()
+join_cluster()
 {
-    $RUNNER_SCRIPT_DIR/mongooseim $ARGS
+    echo "Warning. This will drop all current connections and will discard all persistent data from Mnesia.
+            Do you want to continue? (yes/no)"
+            read GUARD
+
+            if [ $GUARD =  "yes" ]; then
+                echo "Joining the cluster..."
+                ctl $QUOTED_ARGS
+            else
+                echo "Operation discarded by user"
+                exit 1
+            fi
 }
 
-remove_from_cluster()
+leave_cluster()
 {
-    $RUNNER_SCRIPT_DIR/mongooseim $ARGS
+        echo "Warning. This will drop all current connections and will discard all persistent data from Mnesia.
+                Do you want to continue? (yes/no)"
+                read GUARD
+
+                if [ $GUARD =  "yes" ]; then
+                    echo "Leaving the cluster..."
+                    ctl $QUOTED_ARGS
+                else
+                    echo "Operation discarded by user"
+                    exit 1
+                fi
 }
 
 start ()
@@ -59,8 +90,8 @@ help ()
     echo "  debug  Attach an interactive Erlang shell to a running MongooseIM node"
     echo "  live   Start MongooseIM node in live (interactive) mode"
     echo "MongooseIM cluster management commads:"
-    echo "  add_to_cluster other_node_name       Add current node to cluster"
-    echo "  remove_from_cluster dead_node_name   Remove other node from cluster"
+    echo "  join_cluster other_node_name       Add current node to cluster"
+    echo "  leave_cluster                      Leave current node from the cluster"
     echo ""
 }
 
@@ -73,7 +104,7 @@ ctl ()
     # using flock if available. Expects a linux-style
     # flock that can lock a file descriptor.
     MAXCONNID=100
-    CONNLOCKDIR=$EJABBERD_DIR/var/lock/mongooseimctl
+    CONNLOCKDIR={{mongooseim_lock_dir}}/ctl
     mkdir -p $CONNLOCKDIR
     FLOCK='/usr/bin/flock'
     if [ ! -x "$FLOCK" ] || [ ! -d "$CONNLOCKDIR" ] ; then
@@ -164,7 +195,7 @@ usage ()
 # stop epmd if there is no other running node
 stop_epmd()
 {
-    epmd -names | grep -q name || epmd -kill
+    $EPMD -names | grep -q name || $EPMD -kill
 }
 
 # allow sync calls
@@ -208,8 +239,8 @@ done
 
 case $1 in
     'start') start;;
-    'add_to_cluster') add_to_cluster;;
-    'remove_from_cluster') remove_from_cluster;;
+    'join_cluster') join_cluster;;
+    'leave_cluster') leave_cluster;;
     'debug') debug;;
     'live') live;;
     'started') wait_for_status 0 30 2;; # wait 30x2s before timeout

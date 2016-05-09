@@ -28,39 +28,7 @@
 
 -export([get_string/0]).
 
--export([start_link/0, init/1]).
-
--define(PROC_NAME, random_generator).
-
--spec start_link() -> {ok, pid()}.
-start_link() ->
-    proc_lib:start_link(?MODULE, init, [self()]).
-
 -spec get_string() -> string().
 get_string() ->
-    ?PROC_NAME ! {self(), get_random, 65536*65536},
-    receive
-        {random, R} ->
-            integer_to_list(R)
-    end.
-
--spec init(pid()) -> no_return().
-init(Parent) ->
-    true = register(?PROC_NAME, self()),
-
-    {A1, A2, A3} = now(),
-    random:seed(A1,A2,A3),
-
-    proc_lib:init_ack(Parent, {ok, self()}),
-
-    loop().
-
--spec loop() -> no_return().
-loop() ->
-    receive
-        {From, get_random, N} ->
-            From ! {random, random:uniform(N)},
-            loop();
-        _ ->
-            loop()
-    end.
+    R = crypto:rand_uniform(0, 16#10000000000000000),
+    integer_to_list(R, 16).

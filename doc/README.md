@@ -1,4 +1,4 @@
-![MongooseIM](https://www.erlang-solutions.com/sites/all/themes/erlang/img/mongoose/MongooseIM_blue.png "MongooseIM's logo")
+![MongooseIM](MongooseIM_logo.png "MongooseIM's logo")
 
 * User Guide
     * [Features and supported standards](user-guide/Features-and-supported-standards.md) contains the list of supported XEPs, RFCs and database backends.

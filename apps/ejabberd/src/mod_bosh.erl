@@ -20,21 +20,22 @@
 -export([start/2,
          stop/1]).
 
-%% ejabberd independent listener callbacks
--export([socket_type/0,
-         start_listener/2]).
-
 %% cowboy_loop_handler callbacks
 -export([init/3,
          info/3,
          terminate/3]).
+
+%% Hooks callbacks
+-export([node_cleanup/1]).
+
+%% For testing and debugging
+-export([get_session_socket/1, store_session/2]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml_stream.hrl").
 -include("mod_bosh.hrl").
 
--define(LISTENER, ?MODULE).
 -define(DEFAULT_BACKEND, mnesia).
 -define(DEFAULT_MAX_AGE, 1728000).  %% 20 days in seconds
 -define(DEFAULT_INACTIVITY, 30).  %% seconds
@@ -49,7 +50,10 @@
              ]).
 
 -type socket() :: #bosh_socket{}.
--type session() :: #bosh_session{}.
+-type session() :: #bosh_session{
+                      sid :: mod_bosh:sid(),
+                      socket :: pid()
+                     }.
 -type sid() :: binary().
 -type event_type() :: streamstart
                     | restart
@@ -117,38 +121,22 @@ set_server_acks(EnableServerAcks) ->
 -spec start(ejabberd:server(), [option()]) -> any().
 start(_Host, Opts) ->
     try
-        case gen_mod:get_opt(port, Opts, undefined) of
-            undefined ->
-                ok;
-            Port ->
-                ok = start_cowboy(Port, Opts)
-        end,
         ok = start_backend(Opts),
-        {ok, _Pid} = mod_bosh_socket:start_supervisor()
+        {ok, _Pid} = mod_bosh_socket:start_supervisor(),
+        ejabberd_hooks:add(node_cleanup, global, ?MODULE, node_cleanup, 50)
     catch
         error:{badmatch, ErrorReason} ->
             ErrorReason
     end.
 
 stop(_Host) ->
-    %% TODO: stop backend and supervisor
-    cowboy:stop_listener(?LISTENER).
-
+    ok.
 %%--------------------------------------------------------------------
-%% ejabberd independent listener callbacks
+%% Hooks handlers
 %%--------------------------------------------------------------------
 
-socket_type() ->
-    independent.
-
-%% @doc Start the module. Called from `ejabberd_listener'.
-%% If the option `ip' is undefined, then `InetAddr' is `{0,0,0,0}'.
--spec start_listener({Port :: inet:port_number(),
-                      InetAddr :: inet:ip_address(),
-                      tcp}, Opts :: proplists:proplist()) -> any().
-start_listener({Port, InetAddr, tcp}, Opts) ->
-    OptsWPort = lists:keystore(port, 1, [{ip,InetAddr}|Opts], {port, Port}),
-    gen_mod:start_module(?MYNAME, ?MODULE, OptsWPort).
+node_cleanup(Node) ->
+    ?BOSH_BACKEND:node_cleanup(Node).
 
 %%--------------------------------------------------------------------
 %% cowboy_loop_handler callbacks
@@ -235,22 +223,6 @@ terminate(_Reason, _Req, _State) ->
 %%--------------------------------------------------------------------
 %% Callbacks implementation
 %%--------------------------------------------------------------------
-
--spec start_cowboy(inet:port_number(), [option()]) -> 'ok' | {'error','badarg'}.
-start_cowboy(Port, Opts) ->
-    Host = proplists:get_value(host, Opts, '_'),
-    Prefix = proplists:get_value(prefix, Opts, "/http-bind"),
-    NumAcceptors = proplists:get_value(num_acceptors, Opts, 100),
-    Dispatch = cowboy_router:compile([{Host, [{Prefix, ?MODULE, Opts}] }]),
-    TransOpts = [{port, Port}|get_option_pair(ip, Opts)],
-    ProtoOpts = [{env, [{dispatch, Dispatch}]}],
-    case cowboy:start_http(?LISTENER, NumAcceptors, TransOpts, ProtoOpts) of
-        {ok, _Pid} ->
-            ok;
-        {error, Reason} ->
-            {error, Reason}
-    end.
-
 
 -spec start_backend([option()]) -> 'ok'.
 start_backend(Opts) ->
@@ -359,11 +331,13 @@ maybe_start_session(Req, Body) ->
 start_session(Peer, Body) ->
     Sid = make_sid(),
     {ok, Socket} = mod_bosh_socket:start(Sid, Peer),
-    BoshSession = #bosh_session{sid = Sid, socket = Socket},
-    ?BOSH_BACKEND:create_session(BoshSession),
+    store_session(Sid, Socket),
     handle_request(Socket, {streamstart, Body}),
     ?DEBUG("Created new session ~p~n", [Sid]).
 
+-spec store_session(Sid :: sid(), Socket :: pid()) -> any().
+store_session(Sid, Socket) ->
+    ?BOSH_BACKEND:create_session(#bosh_session{sid = Sid, socket = Socket}).
 
 -spec make_sid() -> binary().
 make_sid() ->

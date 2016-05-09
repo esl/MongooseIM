@@ -56,7 +56,7 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    application:start(p1_stringprep),
+    application:start(stringprep),
     meck_config(Config),
     mim_ct_rest:start(?BASIC_AUTH, Config),
     % Separate process needs to do this, because this one will terminate
@@ -71,6 +71,8 @@ init_per_suite(Config) ->
     Config.
 
 end_per_suite(Config) ->
+    ejabberd_auth_http:stop(?DOMAIN1),
+    ejabberd_auth_http:stop(?DOMAIN2),
     exit(whereis(ejabberd_sup), kill),
     Config.
 
@@ -142,7 +144,7 @@ get_password(_Config) ->
     end,
     false = ejabberd_auth_http:get_password(<<"anakin">>, ?DOMAIN1),
     <<>> = ejabberd_auth_http:get_password_s(<<"anakin">>, ?DOMAIN1).
-    
+
 is_user_exists(_Config) ->
     true = ejabberd_auth_http:does_user_exist(<<"alice">>, ?DOMAIN1),
     false = ejabberd_auth_http:does_user_exist(<<"madhatter">>, ?DOMAIN1).

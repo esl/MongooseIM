@@ -40,7 +40,7 @@ init_per_suite(C) ->
     Reporters = get_reporters_cfg(Port),
     application:set_env(exometer, report, Reporters),
     PortServer = carbon_cache_server:wait_for_accepting(),
-    {ok, _Apps} = ejabberd_helper:ensure_all_started(exometer),
+    {ok, _Apps} = application:ensure_all_started(exometer),
     setup_meck(),
     exometer:new([carbon, packets], spiral),
     [{carbon_port, Port}, {test_sup, Sup}, {carbon_server, PortServer}, {carbon_socket, Socket} | C].
@@ -54,6 +54,7 @@ end_per_suite(C) ->
     gen_tcp:close(CarbonSocket),
     meck:unload(),
     application:stop(exometer),
+    application:stop(exometer_core),
     C.
 
 no_skip_metric(_C) ->
@@ -82,7 +83,7 @@ get_reporters_cfg(Port) ->
     [{reporters, [
                  {exometer_report_graphite, [
                                              {prefix, "mongooseim"},
-                                             {connect_timeout, 5000},
+                                             {connect_timeout, 10000},
                                              {host, "127.0.0.1"},
                                              {port, Port},
                                              {api_key, ""}

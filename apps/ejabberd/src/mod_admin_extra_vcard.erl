@@ -35,7 +35,7 @@
     get_vcard_multi/4,
     set_vcard/4,
     set_vcard/5
-    ]).
+]).
 
 -include("ejabberd.hrl").
 -include("ejabberd_commands.hrl").
@@ -93,41 +93,73 @@ commands() ->
                            longdesc = Vcard1FieldsString ++ "\n" ++ Vcard2FieldsString ++ "\n\n" ++ VcardXEP,
                            module = ?MODULE, function = set_vcard,
                            args = [{user, binary}, {host, binary}, {name, binary}, {content, binary}],
-                           result = {res, rescode}},
+                           result = {res, restuple}},
         #ejabberd_commands{name = set_vcard2, tags = [vcard],
                            desc = "Set content in a vCard subfield",
                            longdesc = Vcard2FieldsString ++ "\n\n" ++ Vcard1FieldsString ++ "\n" ++ VcardXEP,
                            module = ?MODULE, function = set_vcard,
                            args = [{user, binary}, {host, binary}, {name, binary}, {subname, binary}, {content, binary}],
-                           result = {res, rescode}},
+                           result = {res, restuple}},
         #ejabberd_commands{name = set_vcard2_multi, tags = [vcard],
                            desc = "Set multiple contents in a vCard subfield",
                            longdesc = Vcard2FieldsString ++ "\n\n" ++ Vcard1FieldsString ++ "\n" ++ VcardXEP,
                            module = ?MODULE, function = set_vcard,
                            args = [{user, binary}, {host, binary}, {name, binary}, {subname, binary}, {contents, {list, binary}}],
-                           result = {res, rescode}}
-        ].
+                           result = {res, restuple}}
+    ].
 
 %%%
 %%% Vcard
 %%%
-
+-spec get_vcard(ejabberd:user(), ejabberd:server(), any())
+               -> {error, string()} | [binary()].
 get_vcard(User, Host, Name) ->
-    [Res | _] = get_vcard_content(User, Host, [Name]),
-    Res.
+    case ejabberd_auth:is_user_exists(User, Host) of
+        true ->
+            get_vcard_content(User, Host, [Name]);
+        false ->
+            {error, io_lib:format("User ~s@~s does not exist", [User, Host])}
+    end.
 
+-spec get_vcard(ejabberd:user(), ejabberd:server(), any(), any())
+               -> {error, string()} | [binary()].
 get_vcard(User, Host, Name, Subname) ->
-    [Res | _] = get_vcard_content(User, Host, [Name, Subname]),
-    Res.
+    case ejabberd_auth:is_user_exists(User, Host) of
+        true ->
+            get_vcard_content(User, Host, [Name, Subname]);
+        false ->
+            {error, io_lib:format("User ~s@~s does not exist", [User, Host])}
+    end.
 
+-spec get_vcard_multi(ejabberd:user(), ejabberd:server(), any(), any())
+                     -> {error, string()} | list(binary()).
 get_vcard_multi(User, Host, Name, Subname) ->
-    get_vcard_content(User, Host, [Name, Subname]).
+    case ejabberd_auth:is_user_exists(User, Host) of
+        true ->
+            get_vcard_content(User, Host, [Name, Subname]);
+        false ->
+            {error, io_lib:format("User ~s@~s does not exist", [User, Host])}
+    end.
 
+-spec set_vcard(ejabberd:user(), ejabberd:server(), [binary()],
+                binary() | [binary()]) -> {ok, string()} | {user_does_not_exist, string()}.
 set_vcard(User, Host, Name, SomeContent) ->
-    set_vcard_content(User, Host, [Name], SomeContent).
+    case ejabberd_auth:is_user_exists(User, Host) of
+        true ->
+            set_vcard_content(User, Host, [Name], SomeContent);
+        false ->
+            {user_does_not_exist, io_lib:format("User ~s@~s does not exist", [User, Host])}
+    end.
 
+-spec set_vcard(ejabberd:user(), ejabberd:server(), [binary()], [binary()],
+                binary() | [binary()]) -> {ok, string()} | {user_does_not_exist, string()}.
 set_vcard(User, Host, Name, Subname, SomeContent) ->
-    set_vcard_content(User, Host, [Name, Subname], SomeContent).
+    case ejabberd_auth:is_user_exists(User, Host) of
+        true ->
+            set_vcard_content(User, Host, [Name, Subname], SomeContent);
+        false ->
+            {user_does_not_exist, io_lib:format("User ~s@~s does not exist", [User, Host])}
+    end.
 
 
 %%
@@ -142,7 +174,7 @@ get_module_resource(Server) ->
 
 
 -spec get_vcard_content(ejabberd:user(), ejabberd:server(), any())
-            -> [Cdata :: binary()] | none().
+                       -> {error, string()} | list(binary()).
 get_vcard_content(User, Server, Data) ->
     [{_, Module, Function, _Opts}] = ets:lookup(sm_iqtable, {?NS_VCARD, Server}),
     JID = jid:make(User, Server, list_to_binary(get_module_resource(Server))),
@@ -150,13 +182,15 @@ get_vcard_content(User, Server, Data) ->
     %% TODO: This may benefit from better type control
     IQr = Module:Function(JID, JID, IQ),
     case IQr#iq.sub_el of
-        [A1] ->
+        [#xmlel{} = A1] ->
             case get_vcard(Data, A1) of
-                [] -> throw(error_no_value_found_in_vcard);
-                ElemList -> [exml_query:cdata(Elem) || Elem <- ElemList]
+                [] ->
+                    {error, "Value not found in vcard"};
+                ElemList ->
+                    [exml_query:cdata(Elem) || Elem <- ElemList]
             end;
-        [] ->
-            throw(error_no_vcard_found)
+        _ ->
+            {error, "Vcard not found"}
     end.
 
 
@@ -168,7 +202,7 @@ get_vcard([Data], A1) ->
     exml_query:subelements(A1, Data).
 
 -spec set_vcard_content(ejabberd:user(), ejabberd:server(), Data :: [binary()],
-        ContentList :: binary() | [binary()]) -> ok.
+                        ContentList :: binary() | [binary()]) -> {ok, string()}.
 set_vcard_content(U, S, D, SomeContent) when is_binary(SomeContent) ->
     set_vcard_content(U, S, D, [SomeContent]);
 set_vcard_content(User, Server, Data, ContentList) ->
@@ -179,43 +213,40 @@ set_vcard_content(User, Server, Data, ContentList) ->
 
     %% Get old vcard
     A4 = case IQr#iq.sub_el of
-        [A1] ->
-            {_, _, _, A2} = A1,
-            update_vcard_els(Data, ContentList, A2);
-        _ ->
-            update_vcard_els(Data, ContentList, [])
-    end,
+             [A1] ->
+                 {_, _, _, A2} = A1,
+                 update_vcard_els(Data, ContentList, A2);
+             _ ->
+                 update_vcard_els(Data, ContentList, [])
+         end,
 
     %% Build new vcard
-    SubEl = #xmlel{ name = <<"vCard">>, attrs = [{<<"xmlns">>,<<"vcard-temp">>}], children = A4},
-    IQ2 = #iq{type=set, sub_el = SubEl},
-
+    SubEl = #xmlel{name = <<"vCard">>, attrs = [{<<"xmlns">>, <<"vcard-temp">>}], children = A4},
+    IQ2 = #iq{type = set, sub_el = SubEl},
     Module:Function(JID, JID, IQ2),
-    ok.
-
+    {ok, ""}.
 
 -spec update_vcard_els(Data :: [binary(),...],
                        ContentList :: [binary() | string()],
                        Els :: [jlib:xmlcdata() | jlib:xmlel()]
-                       ) -> [jlib:xmlcdata() | jlib:xmlel()].
+                      ) -> [jlib:xmlcdata() | jlib:xmlel()].
 update_vcard_els(Data, ContentList, Els1) ->
     Els2 = lists:keysort(2, Els1),
     [Data1 | Data2] = Data,
     NewEls = case Data2 of
-        [] ->
-            [#xmlel{ name = Data1, children = [#xmlcdata{content = Content}] } || Content <- ContentList];
-        [D2] ->
-            OldEl = case lists:keysearch(Data1, 2, Els2) of
-                {value, A} -> A;
-                false -> #xmlel{ name = Data1 }
-            end,
-            ContentOld1 = OldEl#xmlel.children,
-            Content2 = [#xmlel{ name = D2, children = [#xmlcdata{content=Content}]} || Content <- ContentList],
-            ContentOld2 = [A || {_, X, _, _} = A <- ContentOld1, X/=D2],
-            ContentOld3 = lists:keysort(2, ContentOld2),
-            ContentNew = lists:keymerge(2, Content2, ContentOld3),
-            [#xmlel{ name = Data1, children = ContentNew}]
-    end,
+                 [] ->
+                     [#xmlel{ name = Data1, children = [#xmlcdata{content = Content}] } || Content <- ContentList];
+                 [D2] ->
+                     OldEl = case lists:keysearch(Data1, 2, Els2) of
+                                 {value, A} -> A;
+                                 false -> #xmlel{ name = Data1 }
+                             end,
+                     ContentOld1 = OldEl#xmlel.children,
+                     Content2 = [#xmlel{ name = D2, children = [#xmlcdata{content=Content}]} || Content <- ContentList],
+                     ContentOld2 = [A || {_, X, _, _} = A <- ContentOld1, X/=D2],
+                     ContentOld3 = lists:keysort(2, ContentOld2),
+                     ContentNew = lists:keymerge(2, Content2, ContentOld3),
+                     [#xmlel{ name = Data1, children = ContentNew}]
+             end,
     Els3 = lists:keydelete(Data1, 2, Els2),
     lists:keymerge(2, NewEls, Els3).
-

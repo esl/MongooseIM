@@ -2,14 +2,14 @@
 # -*- tab-width:4;indent-tabs-mode:nil -*-
 # ex: ts=4 sw=4 et
 
-RUNNER_SCRIPT_DIR=$(cd ${0%/*} && pwd)
+RUNNER_SCRIPT_DIR={{mongooseim_script_dir}}
 
 RUNNER_BASE_DIR=${RUNNER_SCRIPT_DIR%/*}
-RUNNER_ETC_DIR=$RUNNER_BASE_DIR/etc
-RUNNER_LOG_DIR={{mongooseim_runner_log_dir}}
+RUNNER_ETC_DIR={{mongooseim_etc_dir}}
+RUNNER_LOG_DIR={{mongooseim_log_dir}}
 # Note the trailing slash on $PIPE_DIR/
 PIPE_DIR=/tmp/mongooseim_pipe_`whoami`/
-RUNNER_USER=
+RUNNER_USER={{mongooseim_runner_user}}
 
 EJABBERD_SO_PATH=`ls -dt $RUNNER_BASE_DIR/lib/ejabberd-2.1.8*/priv/lib | head -1`
 EJABBERD_CONFIG_PATH=$RUNNER_ETC_DIR/ejabberd.cfg
@@ -33,6 +33,9 @@ if [ -z "$NAME_ARG" ]; then
     echo "vm.args needs to have either -name or -sname parameter."
     exit 1
 fi
+NAME=$(echo $NAME_ARG | awk '{print $1}')
+NODE=$(echo $NAME_ARG | awk '{print $2}')
+MNESIA_DIR={{mongooseim_mdb_dir}}
 
 # Extract the target cookie
 COOKIE_ARG=`grep -e '^-setcookie' $RUNNER_ETC_DIR/vm.args`
@@ -94,43 +97,6 @@ case "$1" in
         do
             sleep 1
         done
-        ;;
-    add_to_cluster)
-        NAME=$(echo $NAME_ARG | awk '{print $1}')
-        NODE=$(echo $NAME_ARG | awk '{print $2}')
-        NAME_TYPE=$(echo $NAME | sed 's/^\-//')
-
-        TARGETNODETOOL="$ERTS_PATH/escript $ERTS_PATH/nodetool $NAME $2 $COOKIE_ARG"
-        ADD_TO_CLUSTER_CMD="$ERTS_PATH/escript $ERTS_PATH/nodetool -exact_$NAME_TYPE $NODE $COOKIE_ARG add_to_cluster $2"
-
-        RES=`$NODETOOL ping`
-        if [ "$RES" = "pong" ]; then
-            echo "Error: Node is already running! Stop the node and delete Mnesia database directory ($MNESIA_DIR)."
-            exit 1
-        fi
-
-        MNESIA_DIR="$RUNNER_BASE_DIR/Mnesia.$NODE"
-        if [ -d "$MNESIA_DIR" ]; then
-            echo "Error: $MNESIA_DIR already exists. Please remove whole directory before continuing."
-            exit 1
-        fi
-        RES2=`$TARGETNODETOOL ping`
-        if [ "$RES2" = "pong" ]; then
-            RES3=`$ADD_TO_CLUSTER_CMD`
-            if [ "$RES3" = "ok" ]; then
-                echo "Node added to cluster. Run mongooseimctl live or mongooseimclt start."
-            else
-                echo "Adding Node to cluster failed:  $RES3"
-                exit 1
-            fi
-        else
-            echo "Error: Node $2 is not reachable."
-            exit 1
-        fi
-        ;;
-    remove_from_cluster)
-        ## See if the VM is alive
-        $NODETOOL remove_from_cluster $2
         ;;
     restart)
         ## Restart the VM without exiting the process
@@ -233,7 +199,7 @@ case "$1" in
         fi
         ;;
     *)
-        echo "Usage: $SCRIPT {start|stop|restart|reboot|ping|live|console|console_clean|attach|debug|version|add_to_cluster|remove_from_cluster}"
+        echo "Usage: $SCRIPT {start|stop|restart|reboot|ping|live|console|console_clean|attach|debug|version|join_cluster|leave_cluster}"
         exit 1
         ;;
 esac

@@ -35,10 +35,10 @@ suite() ->
 
 init_per_suite(Config0) ->
     Config1 = escalus:init_per_suite(Config0),
-    escalus:create_users(Config1, {by_name, [alice, bob]}).
+    escalus:create_users(Config1, escalus:get_users([alice, bob])).
 
 end_per_suite(Config) ->
-    escalus:delete_users(Config, {by_name, [alice, bob]}),
+    escalus:delete_users(Config, escalus:get_users([alice, bob])),
     escalus:end_per_suite(Config).
 
 init_per_group(mod_offline_tests, Config) ->
@@ -64,7 +64,7 @@ end_per_testcase(CaseName, Config) ->
 
 %% Retrieve my IP
 user_sic(Config) ->
-    escalus:story(Config, [1], fun(Alice) ->
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
         %% Alice sends a SIC IQ stanza
         escalus:send(Alice, sic_iq_get()),
         %% Alice expects IQ result with client IP address
@@ -74,7 +74,7 @@ user_sic(Config) ->
 
 %% Try to retrieve other user's IP
 forbidden_user_sic(Config) ->
-    escalus:story(Config, [1, 1], fun(Alice, _Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, _Bob) ->
         %% Alice sends a SIC IQ stanza to get Bob's IP
         escalus:send(Alice, sic_iq_get(bob)),
         %% Alice should get <forbidden/> error

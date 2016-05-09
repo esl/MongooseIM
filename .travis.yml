@@ -1,7 +1,14 @@
 language: erlang
+sudo: required
+addons:
+    apt:
+        packages:
+        - libpam0g-dev
+        - libexpat1-dev
+        - odbc-postgresql
+        - slapd
+        - ldap-utils
 before_install:
-        - sudo apt-get install libpam0g-dev libexpat1-dev odbc-postgresql libmyodbc
-        - if [ $PRESET = 'ldap_mnesia' ]; then sudo apt-get update && sudo apt-get install slapd ldap-utils; fi
         - tools/travis-generate-pass.sh
 install:
         - tools/travis-build.sh
@@ -9,44 +16,76 @@ install:
 before_script:
         - tools/travis-setup-db.sh
         - if [ $PRESET = 'ldap_mnesia' ]; then sudo tools/travis-setup-ldap.sh; fi
-script: tools/travis-test.sh
+script: tools/travis-test.sh $PRESET
 
-after_script:
+after_failure:
         - cat `ls -1 -d -t apps/ejabberd/logs/ct_run* | head -1`/apps.ejabberd.logs/run.*/suite.log
-        - tail -100 dev/mongooseim_node1/log/ejabberd.log
-        - if [ -s dev/mongooseim_node1/log/crash.log ]; then cat dev/mongooseim_node1/log/crash.log; fi
-        - tail -100 dev/mongooseim_node2/log/ejabberd.log
-        - if [ -s dev/mongooseim_node2/log/crash.log ]; then cat dev/mongooseim_node2/log/crash.log; fi
-        - cat `ls -1 -d -t test/ejabberd_tests/ct_report/ct_run.* | head -1`/ejabberd_tests.*/run.*/suite.log
         - cat dev/mongooseim_node1/etc/ejabberd.cfg
+        - if [ -s dev/mongooseim_node1/log/crash.log ]; then cat dev/mongooseim_node1/log/crash.log; fi
+        - if [ -s dev/mongooseim_node2/log/crash.log ]; then cat dev/mongooseim_node2/log/crash.log; fi
+        - tail -100 dev/mongooseim_node1/log/ejabberd.log
+        - tail -100 dev/mongooseim_node2/log/ejabberd.log
 
 after_success:
         - make cover_report
+        - if [ $PRESET = 'internal_mnesia' ] && [ $TRAVIS_OTP_RELEASE = "17.5" ]; then tools/travis-build-and-push-docker.sh; fi
+
+after_script:
+        - sudo pip install awscli --ignore-installed six
+        - if [ $TRAVIS_SECURE_ENV_VARS == 'true' ]; then tools/travis-upload-to-s3.sh; fi
 
 services:
         - redis-server
+        - docker
+
 branches:
         only:
                 - master
                 - stable
+                - /^rel\-\d+\.\d+$/
+                - /\d+\.\d+\.\d+(\-[a-z,0-9])*/
 
 otp_release:
         - 17.5
 env:
         - PRESET=internal_redis DB=mnesia REL_CONFIG=with-redis
-        - PRESET=internal_mnesia DB=mnesia
+        - PRESET=internal_mnesia DB=mnesia REL_CONFIG=with-all
         - PRESET=mysql_mnesia DB=mysql REL_CONFIG=with-mysql
         - PRESET=odbc_pgsql_mnesia DB=pgsql REL_CONFIG=with-odbc
         - PRESET=pgsql_mnesia DB=pgsql REL_CONFIG=with-pgsql
-        - PRESET=ldap_mnesia DB=mnesia
+        - PRESET=ldap_mnesia DB=mnesia REL_CONFIG=with-none
         - PRESET=riak_mnesia DB=riak REL_CONFIG=with-riak
-        - PRESET=external_mnesia DB=mnesia
+        - PRESET=cassandra_mnesia DB=cassandra REL_CONFIG=with-cassandra CASSANDRA_VERSION=3.1
+        - PRESET=dialyzer_only
 
 matrix:
+    allow_failures:
+        - env: PRESET=riak_mnesia DB=riak REL_CONFIG=with-riak
+    fast_finish: true
     include:
-        - otp_release: R15B03
-          env: PRESET=internal_mnesia DB=mnesia
         - otp_release: R16B03
-          env: PRESET=internal_mnesia DB=mnesia
-        - otp_release: 18.0
-          env: PRESET=internal_mnesia DB=mnesia
+          env: PRESET=internal_mnesia DB=mnesia REL_CONFIG=with-none
+        - otp_release: 18.1
+          env: PRESET=internal_mnesia DB=mnesia REL_CONFIG=with-none
+
+notifications:
+    webhooks:
+        # trigger Buildtime Trend Service to parse Travis CI log
+        - https://buildtimetrend.herokuapp.com/travis
+
+cache:
+        directories:
+                - dialyzer
+
+before_cache:
+        - rm -f dialyzer/apps.*
+
+deploy:
+  provider: releases
+  api-key: $GITHUB_TOKEN
+  skip_cleanup: true
+  file: mongooseim-$TRAVIS_BRANCH.OTP-$TRAVIS_OTP_RELEASE.$(lsb_release -is | tr "A-Z" "a-z").$(lsb_release -rs).$(uname -m).tar.bz2
+  on:
+    tags: true
+    condition: "$PRESET.$TRAVIS_OTP_RELEASE = internal_mnesia.17.5"
+

@@ -20,6 +20,7 @@
 -export([make_noprep/3]).
 -export([make_noprep/1]).
 -export([are_equal/2]).
+-export([are_bare_equal/2]).
 -export([from_binary/1]).
 -export([to_binary/1]).
 -export([is_nodename/1]).
@@ -85,6 +86,15 @@ are_equal(#jid{luser = LUser, lserver = LServer, lresource = LRes},
     true;
 are_equal(_, _) ->
     false.
+
+%% @doc Returns true if `are_equal(to_bare(A), to_bare(B))'
+are_bare_equal(#jid{luser = LUser, lserver = LServer},
+               #jid{luser = LUser, lserver = LServer}) ->
+    true;
+are_bare_equal(_, _) ->
+    false.
+
+
 
 
 -spec from_binary(binary()) ->  error  | ejabberd:jid().

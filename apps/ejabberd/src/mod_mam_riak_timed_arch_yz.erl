@@ -32,7 +32,9 @@
          purge_multiple_messages/9]).
 
 -export([safe_archive_message/9,
-         lookup_messages/14]).
+         safe_archive_message_muc/9,
+         lookup_messages/14,
+         lookup_messages_muc/14]).
 
 -export([key/3]).
 
@@ -43,37 +45,74 @@
 -define(YZ_SEARCH_INDEX, <<"mam">>).
 -define(MAM_BUCKET_TYPE, <<"mam_yz">>).
 
+%% @doc Start module
+%%
+%% Options:
+%% - `pm' option starts one-to-one chat archives
+%% - `muc' option starts multichat archives
+%%
+%% Use both options `pm, muc' to archive both MUC and private messages
 start(Host, Opts) ->
-    start_chat_archive(Host, Opts).
+    compile_params_module(Opts),
+    case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
+        true ->
+            start_chat_archive(Host, Opts);
+        false ->
+            ok
+    end,
+    case gen_mod:get_module_opt(Host, ?MODULE, muc, false) of
+        true ->
+            start_muc_archive(Host, Opts);
+        false ->
+            ok
+    end.
 
 start_chat_archive(Host, _Opts) ->
-    case gen_mod:get_module_opt(Host, ?MODULE, no_writer, false) of
-        true ->
-            ok;
-        false ->
-            ejabberd_hooks:add(mam_archive_message, Host, ?MODULE, safe_archive_message, 50)
-    end,
+    ejabberd_hooks:add(mam_archive_message, Host, ?MODULE, safe_archive_message, 50),
     ejabberd_hooks:add(mam_archive_size, Host, ?MODULE, archive_size, 50),
     ejabberd_hooks:add(mam_lookup_messages, Host, ?MODULE, lookup_messages, 50),
     ejabberd_hooks:add(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
     ejabberd_hooks:add(mam_purge_single_message, Host, ?MODULE, purge_single_message, 50),
     ejabberd_hooks:add(mam_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 50).
 
+start_muc_archive(Host, _Opts) ->
+    ejabberd_hooks:add(mam_muc_archive_message, Host, ?MODULE, safe_archive_message_muc, 50),
+    ejabberd_hooks:add(mam_muc_archive_size, Host, ?MODULE, archive_size, 50),
+    ejabberd_hooks:add(mam_muc_lookup_messages, Host, ?MODULE, lookup_messages_muc, 50),
+    ejabberd_hooks:add(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50),
+    ejabberd_hooks:add(mam_muc_purge_single_message, Host, ?MODULE, purge_single_message, 50),
+    ejabberd_hooks:add(mam_muc_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 50).
+
 stop(Host) ->
-    stop_chat_archive(Host).
+    case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
+        true ->
+            stop_chat_archive(Host);
+        false ->
+            ok
+    end,
+    case gen_mod:get_module_opt(Host, ?MODULE, muc, false) of
+        true ->
+            stop_muc_archive(Host);
+        false ->
+            ok
+    end.
 
 stop_chat_archive(Host) ->
-    case gen_mod:get_module_opt(Host, ?MODULE, no_writer, false) of
-        true ->
-            ok;
-        false ->
-            ejabberd_hooks:delete(mam_archive_message, Host, ?MODULE, safe_archive_message, 50)
-    end,
+    ejabberd_hooks:delete(mam_archive_message, Host, ?MODULE, safe_archive_message_muc, 50),
     ejabberd_hooks:delete(mam_archive_size, Host, ?MODULE, archive_size, 50),
-    ejabberd_hooks:delete(mam_lookup_messages, Host, ?MODULE, safe_lookup_messages, 50),
+    ejabberd_hooks:delete(mam_lookup_messages, Host, ?MODULE, lookup_messages_muc, 50),
     ejabberd_hooks:delete(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
     ejabberd_hooks:delete(mam_purge_single_message, Host, ?MODULE, purge_single_message, 50),
     ejabberd_hooks:delete(mam_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 50),
+    ok.
+
+stop_muc_archive(Host) ->
+    ejabberd_hooks:delete(mam_muc_archive_message, Host, ?MODULE, safe_archive_message, 50),
+    ejabberd_hooks:delete(mam_muc_archive_size, Host, ?MODULE, archive_size, 50),
+    ejabberd_hooks:delete(mam_muc_lookup_messages, Host, ?MODULE, lookup_messages, 50),
+    ejabberd_hooks:delete(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50),
+    ejabberd_hooks:delete(mam_muc_purge_single_message, Host, ?MODULE, purge_single_message, 50),
+    ejabberd_hooks:delete(mam_muc_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 50),
     ok.
 
 safe_archive_message(Result, Host, MessID, UserID,
@@ -94,6 +133,16 @@ safe_archive_message(Result, Host, MessID, UserID,
         {error, Reason}
     end.
 
+safe_archive_message_muc(Result, Host, MessId, UserID, LocJID, RemJID, SrcJID, Dir, Packet) ->
+    RemJIDMuc = maybe_muc_jid(RemJID),
+    safe_archive_message(Result, Host, MessId, UserID, LocJID, RemJIDMuc, SrcJID, Dir, Packet).
+
+maybe_muc_jid(#jid{lresource = RemRes}) ->
+    {<<>>, RemRes, <<>>};
+maybe_muc_jid(Other) ->
+    Other.
+
+
 lookup_messages({error, _Reason} = Result, _Host,
                      _UserID, _UserJID, _RSM, _Borders,
                      _Start, _End, _Now, _WithJID,
@@ -113,6 +162,19 @@ lookup_messages(_Result, _Host,
     catch _Type:Reason ->
         {error, Reason}
     end.
+
+lookup_messages_muc(Result, Host,
+                    UserID, UserJID, RSM, Borders,
+                    Start, End, _Now, WithJID,
+                    PageSize, LimitPassed, MaxResultLimit,
+                    IsSimple) ->
+    WithJIDMuc = maybe_muc_jid(WithJID),
+    lookup_messages(Result, Host,
+                    UserID, UserJID, RSM, Borders,
+                    Start, End, _Now, WithJIDMuc,
+                    PageSize, LimitPassed, MaxResultLimit,
+                    IsSimple).
+
 
 archive_size(Size, _Host, _ArchiveID, _ArchiveJID) ->
     Size.
@@ -147,7 +209,7 @@ remove_bucket(Bucket) ->
 archive_message(_, _, MessID, _ArchiveID, LocJID, RemJID, SrcJID, _Dir, Packet) ->
     LocalJID = bare_jid(LocJID),
     RemoteJID = bare_jid(RemJID),
-    SourceJID = bare_jid(SrcJID),
+    SourceJID = full_jid(SrcJID),
     MsgId = integer_to_binary(MessID),
     Key = key(LocalJID, RemoteJID, MsgId),
 
@@ -163,7 +225,7 @@ create_obj(MsgId, SourceJID, Packet) ->
            {{<<"source_jid">>, register},
             fun(R) -> riakc_register:set(SourceJID, R) end},
            {{<<"packet">>, register},
-            fun(R) -> riakc_register:set(exml:to_binary(Packet), R) end}],
+            fun(R) -> riakc_register:set(packet_to_stored_binary(Packet), R) end}],
 
     mongoose_riak:create_new_map(Ops).
 
@@ -237,7 +299,7 @@ get_message2(MsgId, Bucket, Key) ->
         {ok, RiakMap} ->
             SourceJID = riakc_map:fetch({<<"source_jid">>, register}, RiakMap),
             PacketBin = riakc_map:fetch({<<"packet">>, register}, RiakMap),
-            {ok, Packet} = exml:parse(PacketBin),
+            Packet = stored_binary_to_packet(PacketBin),
             {MsgId, jid:from_binary(SourceJID), Packet};
         _ ->
             []
@@ -389,8 +451,48 @@ bare_jid(undefined) -> undefined;
 bare_jid(JID) ->
     jid:to_binary(jid:to_bare(jid:to_lower(JID))).
 
+full_jid(undefined) -> undefined;
+full_jid(JID) ->
+    jid:to_binary(jid:to_lower(JID)).
+
 
 maybe_encode_compact_uuid(undefined, _) ->
     undefined;
 maybe_encode_compact_uuid(Microseconds, NodeID) ->
     mod_mam_utils:encode_compact_uuid(Microseconds, NodeID).
+
+
+%% ----------------------------------------------------------------------
+%% Optimizations
+
+packet_to_stored_binary(Packet) ->
+    %% Module implementing mam_message behaviour
+    Module = db_message_format(),
+    Module:encode(Packet).
+
+stored_binary_to_packet(Bin) ->
+    %% Module implementing mam_message behaviour
+    Module = db_message_format(),
+    Module:decode(Bin).
+
+%% ----------------------------------------------------------------------
+%% Dynamic params module
+
+%% compile_params_module([
+%%      {db_message_format, module()}
+%%      ])
+compile_params_module(Params) ->
+    CodeStr = params_helper(Params),
+    {Mod, Code} = dynamic_compile:from_string(CodeStr),
+    code:load_binary(Mod, "mod_mam_riak_timed_arch_yz_params.erl", Code).
+
+params_helper(Params) ->
+    binary_to_list(iolist_to_binary(io_lib:format(
+        "-module(mod_mam_riak_timed_arch_yz_params).~n"
+        "-compile(export_all).~n"
+        "db_message_format() -> ~p.~n",
+        [proplists:get_value(db_message_format, Params, mam_message_xml)]))).
+
+-spec db_message_format() -> module().
+db_message_format() ->
+    mod_mam_riak_timed_arch_yz_params:db_message_format().

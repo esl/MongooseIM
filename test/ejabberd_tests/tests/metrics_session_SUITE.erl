@@ -56,10 +56,10 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(_GroupName, Config) ->
-    escalus:create_users(Config, {by_name, [alice, bob]}).
+    escalus:create_users(Config, escalus:get_users([alice, bob])).
 
 end_per_group(_GroupName, Config) ->
-    escalus:delete_users(Config, {by_name, [alice, bob]}).
+    escalus:delete_users(Config, escalus:get_users([alice, bob])).
 
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
@@ -74,7 +74,7 @@ end_per_testcase(CaseName, Config) ->
 
 login_one(Config) ->
     {value, Logins} = get_counter_value(sessionSuccessfulLogins),
-    escalus:story(Config, [1], fun(Alice) ->
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
 
         assert_counter(1, sessionCount),
         assert_counter(Logins + 1, sessionSuccessfulLogins),
@@ -89,7 +89,7 @@ login_one(Config) ->
 
 login_many(Config) ->
     {value, Logins} = get_counter_value(sessionSuccessfulLogins),
-    escalus:story(Config, [1, 1], fun(_Alice, _Bob) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(_Alice, _Bob) ->
 
         assert_counter(2, sessionCount),
         assert_counter(Logins + 2, sessionSuccessfulLogins)
@@ -109,7 +109,7 @@ auth_failed(Config) ->
 %% Global
 
 session_global(Config) ->
-    escalus:story(Config, [1], fun(_Alice) ->
+    escalus:story(Config, [{alice, 1}], fun(_Alice) ->
 
         timer:sleep(?GLOBAL_WAIT_TIME),
         assert_counter(1, [global, totalSessionCount])
@@ -117,7 +117,7 @@ session_global(Config) ->
         end).
 
 session_unique(Config) ->
-    escalus:story(Config, [2], fun(_Alice1, _Alice2) ->
+    escalus:story(Config, [{alice, 2}], fun(_Alice1, _Alice2) ->
 
         timer:sleep(?GLOBAL_WAIT_TIME),
         assert_counter(1, [global, uniqueSessionCount]),
