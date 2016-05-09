@@ -69,7 +69,8 @@ chat_test_cases() ->
      cant_send_invalid_rid,
      multiple_stanzas,
      namespace,
-     stream_error].
+     stream_error
+    ].
 
 time_test_cases() ->
     [disconnect_inactive,
@@ -268,22 +269,71 @@ interleave_requests(Config) ->
         Rid = get_bosh_rid(Carol),
         Sid = get_bosh_sid(Carol),
 
-        Empty2 = escalus_bosh:empty_body(Rid + 1, Sid),
-        Chat2 = Empty2#xmlel{
-                children = [escalus_stanza:chat_to(Geralt, <<"2nd!">>)]},
-        escalus_bosh:send_raw(Carol, Chat2),
+        Msg1 = <<"1st!">>,
+        Msg2 = <<"2nd!">>,
+        Msg3 = <<"3rd!">>,
+        Msg4 = <<"4th!">>,
 
-        Empty1 = escalus_bosh:empty_body(Rid, Sid),
-        Chat1 = Empty1#xmlel{
-                children = [escalus_stanza:chat_to(Geralt, <<"1st!">>)]},
-        escalus_bosh:send_raw(Carol, Chat1),
+        send_message_with_rid(Carol, Geralt, Rid + 1, Sid, Msg2),
+        send_message_with_rid(Carol, Geralt, Rid, Sid, Msg1),
 
-        escalus:assert(is_chat_message, [<<"1st!">>],
+        send_message_with_rid(Carol, Geralt, Rid + 2,   Sid, Msg3),
+        send_message_with_rid(Carol, Geralt, Rid + 3,   Sid, Msg4),
+
+        escalus:assert(is_chat_message, [Msg1],
                        escalus_client:wait_for_stanza(Geralt)),
-        escalus:assert(is_chat_message, [<<"2nd!">>],
-                       escalus_client:wait_for_stanza(Geralt))
+        escalus:assert(is_chat_message, [Msg2],
+                       escalus_client:wait_for_stanza(Geralt)),
+        escalus:assert(is_chat_message, [Msg3],
+                       escalus_client:wait_for_stanza(Geralt)),
+        escalus:assert(is_chat_message, [Msg4],
+                       escalus_client:wait_for_stanza(Geralt)),
 
+        true = escalus_bosh:is_connected(Carol)
     end).
+
+interleave_requests_raw(Config) ->
+    escalus:story(Config, [{geralt, 1}], fun(Geralt) ->
+        User = ?config(user, Config),
+        Carol = start_client(Config, User, <<"bosh">>),
+        Rid = get_bosh_rid(Carol),
+        Sid = get_bosh_sid(Carol),
+
+        NamedSpecs = escalus_config:get_config(escalus_users, Config),
+        UserSpec = [{keepalive, false} | proplists:get_value(User, NamedSpecs)],
+
+        {ok, Carol2} = escalus_bosh:connect(UserSpec),
+
+        Msg1 = <<"1st!">>,
+        Msg2 = <<"2nd!">>,
+        Msg3 = <<"3rd!">>,
+        Msg4 = <<"4th!">>,
+
+        send_message_with_rid(Carol, Geralt, Rid + 1, Sid, Msg2),
+        send_message_with_rid(Carol2, Geralt, Rid, Sid, Msg1),
+
+        send_message_with_rid(Carol2, Geralt, Rid + 2,   Sid, Msg3),
+        send_message_with_rid(Carol, Geralt, Rid + 3,   Sid, Msg4),
+
+        escalus:assert(is_chat_message, [Msg1],
+                       escalus_client:wait_for_stanza(Geralt)),
+        escalus:assert(is_chat_message, [Msg2],
+                       escalus_client:wait_for_stanza(Geralt)),
+        escalus:assert(is_chat_message, [Msg3],
+                       escalus_client:wait_for_stanza(Geralt)),
+        escalus:assert(is_chat_message, [Msg4],
+                       escalus_client:wait_for_stanza(Geralt)),
+
+        true = escalus_bosh:is_connected(Carol),
+        escalus_bosh:kill(Carol),
+        escalus_bosh:kill(Carol2)
+    end).
+
+send_message_with_rid(From, To, Rid, Sid, Msg) ->
+    Empty = escalus_bosh:empty_body(Rid, Sid),
+    Chat = Empty#xmlel{
+             children = [escalus_stanza:chat_to(To, Msg)]},
+    escalus_bosh:send_raw(From, Chat).
 
 
 simple_chat(Config) ->
