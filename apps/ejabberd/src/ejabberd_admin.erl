@@ -45,7 +45,8 @@
          mnesia_change_nodename/4,
          restore/1, % Still used by some modules%%
          get_loglevel/0,
-         join_cluster/1, leave_cluster/0]).
+         join_cluster/1, leave_cluster/0,
+         remove_from_cluster/1]).
 
 -include("ejabberd.hrl").
 -include("ejabberd_commands.hrl").
@@ -69,10 +70,6 @@ commands() ->
                         desc = "Get status of the ejabberd server",
                         module = ?MODULE, function = status,
                         args = [], result = {res, restuple}},
-     #ejabberd_commands{name = stop, tags = [server],
-                        desc = "Stop ejabberd gracefully",
-                        module = init, function = stop,
-                        args = [], result = {res, rescode}},
      #ejabberd_commands{name = restart, tags = [server],
                         desc = "Restart ejabberd gracefully",
                         module = init, function = restart,
@@ -150,14 +147,22 @@ commands() ->
                         module = ejabberd_config, function = reload_cluster,
                         args = [], result = {res, restuple}},
      #ejabberd_commands{name = join_cluster, tags = [server],
-                        desc = "Join the node to the cluster",
+                        desc = "Join the node to a cluster. Call it from the joining node.
+                                Use `-f` or `--force` flag to avoid question prompt and force join the node",
                         module = ?MODULE, function = join_cluster,
                         args = [{node, string}],
                         result = {res, restuple}},
      #ejabberd_commands{name = leave_cluster, tags = [server],
-                        desc = "Leave a node from the cluster",
+                        desc = "Leave a node from the cluster. Call it from the node that is going to leave.
+                                Use `-f` or `--force` flag to avoid question prompt and force leave the node from cluster",
                         module = ?MODULE, function = leave_cluster,
                         args = [],
+                        result = {res, restuple}},
+     #ejabberd_commands{name = remove_from_cluster, tags = [server],
+                        desc = "Remove dead node from the cluster. Call it from the member of the cluster.
+                                Use `-f` or `--force` flag to avoid question prompt and force remove the node",
+                        module = ?MODULE, function = remove_from_cluster,
+                        args = [{node, string}],
                         result = {res, restuple}}
     ].
 
@@ -165,12 +170,52 @@ commands() ->
 %%%
 %%% Server management
 %%%
+-spec remove_from_cluster(string()) -> {ok, string()} |
+                                       {node_is_alive, string()} |
+                                       {mnesia_error, string()} |
+                                       {rpc_error, string()}.
+remove_from_cluster(NodeString) ->
+    Node = list_to_atom(NodeString),
+    IsNodeAlive = mongoose_cluster:is_node_alive(Node),
+    case IsNodeAlive of
+        true ->
+            remove_rpc_alive_node(Node);
+        false ->
+            remove_dead_node(Node)
+    end.
+
+remove_dead_node(DeadNode) ->
+    try mongoose_cluster:remove_from_cluster(DeadNode) of
+        ok ->
+            String = io_lib:format("The dead node ~p has been removed from the cluster~n", [DeadNode]),
+            {ok, String}
+    catch
+        error:{node_is_alive, DeadNode} ->
+            String = io_lib:format("The node ~p is alive but shoud not be.~n", [DeadNode]),
+            {node_is_alive, String};
+        error:{del_table_copy_schema, R} ->
+            String = io_lib:format("Cannot delete table schema~n. Reason: ~p", [R]),
+            {mnesia_error, String}
+    end.
+
+remove_rpc_alive_node(AliveNode) ->
+    case rpc:call(AliveNode, mongoose_cluster, leave, []) of
+        {badrpc, Reason} ->
+            String = io_lib:format("Cannot remove the node ~p~n. RPC Reason: ~p", [AliveNode, Reason]),
+            {rpc_error, String};
+        ok ->
+            String = io_lib:format("The node ~p has been removed from the cluster~n", [AliveNode]),
+            {ok, String};
+        Unknown ->
+            String = io_lib:format("Unknown error: ~p~n", [Unknown]),
+            {rpc_error, String}
+    end.
 
 -spec join_cluster(string()) -> {ok, string()} | {pang, string()} | {alread_joined, string()} |
                                 {mnesia_error, string()} | {error, string()}.
 join_cluster(NodeString) ->
     NodeAtom = list_to_atom(NodeString),
-    NodeList = mnesia:system_info(running_db_nodes),
+    NodeList = mnesia:system_info(db_nodes),
     case lists:member(NodeAtom, NodeList) of
         true ->
             String = io_lib:format("The node ~s has already joined the cluster~n", [NodeString]),
