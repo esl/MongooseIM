@@ -14,7 +14,8 @@
 -define(DOMAIN, <<"localhost">>).
 
 all() -> [{group, basic},
-          {group, mam}].
+          {group, mam}
+         ].
 
 groups() ->
     [{basic, [parallel, shuffle],
@@ -41,8 +42,8 @@ groups() ->
        last_rule_applies_test
       ]},
      {mam, [],
-      [notify_deliver_stored_for_stranger_mam_test,
-       notify_deliver_stored_for_bob_mam_test
+      [notify_deliver_none_mam_test,
+       notify_deliver_stored_mam_test
       ]}
     ].
 
@@ -311,22 +312,22 @@ last_rule_applies_test(Config) ->
               client_receives_message(Bob, <<"One of your resources needs to get this!">>)
       end).
 
-notify_deliver_stored_for_stranger_mam_test(Config) ->
+notify_deliver_none_mam_test(Config) ->
     escalus:fresh_story(
       Config, [{alice, 1}],
       fun(Alice) ->
               %% given
               StrangerJid = <<"stranger@localhost">>,
-              Msg = amp_message_to(StrangerJid, [{deliver, stored, notify}],
+              Msg = amp_message_to(StrangerJid, [{deliver, none, error}],
                                    <<"A message in a bottle...">>),
               %% when
               client_sends_message(Alice, Msg),
 
               % then
-              client_receives_notification(Alice, StrangerJid, {deliver, stored, notify})
+              client_receives_error(Alice, StrangerJid, {deliver, none, error}, <<"undefined-condition">>)
       end).
 
-notify_deliver_stored_for_bob_mam_test(Config) ->
+notify_deliver_stored_mam_test(Config) ->
     FreshConfig = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     %%ct:pal("Config: ~p", [FreshConfig]),
     escalus:story(

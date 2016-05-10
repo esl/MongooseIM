@@ -26,12 +26,14 @@
 -record(amp_strategy, {
           deliver          :: amp_value() | undefined,
           'match-resource' :: amp_value() | undefined,
-          'expire-at'      :: amp_value() | undefined
+          'expire-at'      :: amp_value() | undefined,
+          status           :: amp_value() | undefined
          }).
 
 -type amp_condition() :: 'deliver' | 'expire-at' | 'match-resource'.
 -type amp_value() :: 'direct' | 'forward' | 'gateway' | 'none' | 'stored' %% deliver
                    | 'any' | 'exact' | 'other'                            %% match-resource
+                   | 'pending' | 'done'                                   %% status
                    | binary().                                            %% expire-at
 -type amp_action() :: 'notify' | 'drop' | 'alert' | 'error'.
 

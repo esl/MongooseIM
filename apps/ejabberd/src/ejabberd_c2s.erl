@@ -947,12 +947,11 @@ session_established(closed, StateData) ->
 
 
 %%% XEP-0079 (AMP) related
-check_amp_maybe_send(Host, State, {FromJID, _El} = HookData) ->
-    case ejabberd_hooks:run_fold(amp_check_packet, Host, HookData, []) of
+check_amp_maybe_send(Host, State, {FromJID, El}) ->
+    case mod_amp:check_packet(El, initial_check, FromJID) of
         drop      -> fsm_next_state(session_established, State);
-        {_,NewEl} ->
-            NewestEl = mod_amp:amp_take_deferred_actions(FromJID, NewEl),
-            session_established2(NewestEl, State)
+        {_, NewEl} ->
+            session_established2(NewEl, State)
     end.
 
 %% @doc Process packets sent by user (coming from user on c2s XMPP
@@ -1616,8 +1615,10 @@ send_trailer(StateData) ->
     send_text(StateData, ?STREAM_TRAILER).
 
 
-send_and_maybe_buffer_stanza(Packet, State, StateName)->
-    {SendResult, BufferedStateData} = send_and_maybe_buffer_stanza(Packet, State),
+send_and_maybe_buffer_stanza({J1, J2, El}, State, StateName)->
+    {SendResult, BufferedStateData} =
+        send_and_maybe_buffer_stanza({J1, J2, mod_amp:strip_amp_el_from_request(El)}, State),
+    mod_amp:check_packet(El, send_result_to_amp_event(SendResult)),
     case SendResult of
         ok ->
             case catch maybe_send_ack_request(BufferedStateData) of
@@ -1631,6 +1632,9 @@ send_and_maybe_buffer_stanza(Packet, State, StateName)->
             ?DEBUG("Send element error: ~p, try enter resume session", [SendResult]),
             maybe_enter_resume_session(BufferedStateData#state.stream_mgmt_id, BufferedStateData)
     end.
+
+send_result_to_amp_event(ok) -> delivered;
+send_result_to_amp_event(_) -> failed.
 
 send_and_maybe_buffer_stanza({_, _, Stanza} = Packet, State) ->
     SendResult = maybe_send_element_safe(State, Stanza),

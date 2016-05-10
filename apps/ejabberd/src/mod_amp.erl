@@ -8,10 +8,12 @@
 -behavior(gen_mod).
 -xep([{xep, 79}, {version, "1.2"}, {comment, "partially implemented."}]).
 -export([start/2, stop/1]).
--export([add_local_features/5,
+-export([check_packet/2,
+         check_packet/3,
+         add_local_features/5,
          add_stream_feature/2,
-         amp_check_packet/1,
-         amp_take_deferred_actions/2
+         amp_check_packet/2,
+         strip_amp_el_from_request/1
         ]).
 
 -include_lib("ejabberd/include/amp.hrl").
@@ -44,6 +46,18 @@ stop(Host) ->
     mod_disco:unregister_feature(Host, ?NS_AMP).
 
 %% Business API
+check_packet(Packet = #xmlel{attrs = Attrs}, Event) ->
+    case xml:get_attr(<<"from">>, Attrs) of
+        {value, From} ->
+            check_packet(Packet, Event, jid:from_binary(From));
+        _ ->
+            ok
+    end.
+
+check_packet(Packet, Event, #jid{lserver = Host} = From) ->
+    HookData = {From, Packet},
+    ejabberd_hooks:run_fold(amp_check_packet, Host, HookData, [Event]).
+
 add_local_features(Acc, _From, _To, ?NS_AMP, _Lang) ->
     Features = result_or(Acc, []) ++ amp_features(),
     {result, Features};
@@ -53,22 +67,21 @@ add_local_features(Acc, _From, _To, _NS, _Lang) ->
 add_stream_feature(Acc, _Host) ->
     lists:keystore(<<"amp">>, #xmlel.name, Acc, ?AMP_FEATURE).
 
-
--spec amp_check_packet(hook_data()) -> hook_data().
-amp_check_packet(drop) -> drop;
-amp_check_packet({From, #xmlel{name = <<"message">>} = Packet} = HookData) ->
-    ?DEBUG("checking packet ~p from ~p", [Packet, From]),
+-spec amp_check_packet(hook_data(), atom()) -> hook_data().
+amp_check_packet(drop, _) -> drop;
+amp_check_packet({From, #xmlel{name = <<"message">>} = Packet} = HookData, Event) ->
+    ?DEBUG("handle event ~p for packet ~p from ~p", [Packet, From]),
     case amp:extract_requested_rules(Packet) of
         none                    -> HookData;
-        {rules, Rules}          -> process_amp_rules(HookData, Rules);
+        {rules, Rules}          -> process_amp_rules(HookData, Rules, Event);
         {errors, Errors}        -> send_errors_and_drop(HookData, Errors)
     end;
-amp_check_packet(HookData) -> HookData.
+amp_check_packet(HookData, _Event) -> HookData.
 
-amp_take_deferred_actions(From, Packet) ->
-    case amp:extract_requested_rules(Packet) of
-        none -> Packet;
-        {rules, [Rule]} -> take_deferred_action({From, Packet}, Rule)
+strip_amp_el_from_request(Packet) ->
+    case amp:is_amp_request(Packet) of
+        true -> amp:strip_amp_el(Packet);
+        false -> Packet
     end.
 
 %% @doc This may eventually be configurable, but for now we return a constant list.
@@ -80,8 +93,8 @@ amp_features() ->
     ,<<"http://jabber.org/protocol/amp?condition=match-resource">>
     ].
 
--spec process_amp_rules(hook_data(), amp_rules()) -> hook_data().
-process_amp_rules(HookData, Rules) ->
+-spec process_amp_rules(hook_data(), amp_rules(), atom()) -> hook_data().
+process_amp_rules(HookData, Rules, Event) ->
     VerifiedRules = verify_support(hd_host(HookData), Rules),
     {Good,Bad} = lists:partition(fun is_supported_rule/1, VerifiedRules),
     ValidRules = [ Rule || {supported, Rule} <- Good ],
@@ -89,7 +102,7 @@ process_amp_rules(HookData, Rules) ->
         [{error, ValidationError, InvalidRule} | _] ->
             send_error_and_drop(HookData, ValidationError, InvalidRule);
         [] ->
-            Strategy = determine_strategy(HookData),
+            Strategy = determine_strategy(HookData, Event),
             process_one_by_one(HookData, Strategy, ValidRules)
     end.
 
@@ -98,11 +111,11 @@ process_amp_rules(HookData, Rules) ->
 verify_support(Host, Rules) ->
     ejabberd_hooks:run_fold(amp_verify_support, Host, [], [Rules]).
 
--spec determine_strategy(hook_data()) -> amp_strategy().
-determine_strategy({From, Packet} = HookData) ->
+%-spec determine_strategy(hook_data()) -> amp_strategy().
+determine_strategy({From, Packet} = HookData, Event) ->
     To = message_target(HookData),
     ejabberd_hooks:run_fold(amp_determine_strategy, hd_host(HookData),
-                            amp_strategy:null_strategy(), [From, To, Packet]).
+                            amp_strategy:null_strategy(), [From, To, Packet, Event]).
 
 -spec resolve_condition(hook_data(), amp_strategy(),
                         amp_condition(), amp_value())
@@ -114,13 +127,20 @@ resolve_condition(HookData, Strategy, Condition, Value) ->
 
 -spec process_one_by_one(hook_data(), amp_strategy(), amp_rules()) -> hook_data().
 process_one_by_one({From, Packet} = HookData, Strategy, ValidRules) ->
-    case fold_apply_rules(HookData, Strategy, ValidRules) of
-        'no_match' ->
+    case {Strategy#amp_strategy.status,
+          fold_apply_rules(HookData, Strategy, ValidRules)} of
+        {_, 'no_match'} ->
             {From, amp:strip_amp_el(Packet)};
-        {match, #amp_rule{action='error'} = Rule} ->
+        {_, {match, #amp_rule{action = error} = Rule}} ->
             send_error_and_drop(HookData, 'undefined-condition', Rule);
-        {match, Rule} ->
-            defer_action(HookData, Rule)
+        {_, {match, #amp_rule{condition = deliver, value = none} = Rule}} ->
+            take_action(From, Packet, Rule);
+        {pending, {match, #amp_rule{action = notify}}} ->
+            {From, Packet}; %% wait until done
+        {done, {match, #amp_rule{action = notify} = Rule}} ->
+            take_action(From, Packet, Rule);
+        _ ->
+            update_metric_and_drop(HookData)
     end.
 
 -spec fold_apply_rules(hook_data(), amp_strategy(), amp_rules())
@@ -150,16 +170,11 @@ send_errors_and_drop({From, Packet} = HookData, ErrorRules) ->
     ejabberd_hooks:run(amp_error_action_triggered, Host, [Host]),
     update_metric_and_drop(HookData).
 
-defer_action({From, Packet}, #amp_rule{action = notify} = Rule) ->
-    {From, amp:replace_rules(Packet, [Rule])};
-defer_action(HookData, _) ->
-    update_metric_and_drop(HookData).
-
-take_deferred_action({From, Packet} = HookData, #amp_rule{action = notify} = Rule) ->
-    Host = hd_host(HookData),
+take_action(From, Packet, #amp_rule{action = notify} = Rule) ->
+    Host = hd_host({From, Packet}),
     reply_to_sender(Rule, server_jid(From), From, Packet),
     ejabberd_hooks:run(amp_notify_action_triggered, Host, [Host]),
-    amp:strip_amp_el(Packet).
+    {From, amp:strip_amp_el(Packet)}.
 
 -spec reply_to_sender(amp_rule(), jid(), jid(), #xmlel{}) -> ok.
 reply_to_sender(MatchedRule, ServerJid, OriginalSender, OriginalPacket) ->

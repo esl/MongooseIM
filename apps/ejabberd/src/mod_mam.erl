@@ -49,7 +49,7 @@
          user_send_packet/3,
          remove_user/2,
          filter_packet/1,
-         determine_amp_strategy/4]).
+         determine_amp_strategy/5]).
 
 %%private
 -export([archive_message/8]).
@@ -285,23 +285,29 @@ filter_packet(drop) ->
     drop;
 filter_packet({From, To=#jid{luser=LUser, lserver=LServer}, Packet}) ->
     ?DEBUG("Receive packet~n    from ~p ~n    to ~p~n    packet ~p.",
-              [From, To, Packet]),
-    Packet2 =
-    case ejabberd_users:is_user_exists(LUser, LServer) of
-    false -> Packet;
-    true ->
-        case {handle_package(incoming, true, To, From, From, Packet),
-              add_archived_element()} of
-            {undefined, _} -> Packet;
-            {_, false} -> Packet;
-            {MessID, true} ->
-                ?DEBUG("Archived incoming ~p", [MessID]),
-                BareTo = jid:to_binary(jid:to_bare(To)),
-                replace_archived_elem(BareTo, MessID, Packet)
-        end
-    end,
+           [From, To, Packet]),
+    {AmpEvent, Packet2} =
+        case ejabberd_users:is_user_exists(LUser, LServer) of
+            false ->
+                {failed, Packet};
+            true ->
+                case {process_incoming_packet(From, To, Packet),
+                      add_archived_element()} of
+                    {undefined, _} -> {failed, Packet};
+                    {_, false} -> {archived, Packet};
+                    {MessID, true} ->
+                        ?DEBUG("Archived incoming ~p", [MessID]),
+                        BareTo = jid:to_binary(jid:to_bare(To)),
+                        {archived, replace_archived_elem(BareTo, MessID, Packet)}
+                end
+        end,
+    mod_amp:check_packet(Packet, AmpEvent, From),
     {From, To, Packet2}.
 
+process_incoming_packet(From, To, Packet) ->
+    PacketWithoutAmp = mod_amp:strip_amp_el_from_request(Packet),
+    Result = handle_package(incoming, true, To, From, From, PacketWithoutAmp),
+    Result.
 
 %% @doc A ejabberd's callback with diferent order of arguments.
 -spec remove_user(ejabberd:user(), ejabberd:server()) -> 'ok'.
@@ -603,14 +609,19 @@ handle_purge_single_message(ArcJID=#jid{},
     PurgingResult = purge_single_message(Host, MessID, ArcID, ArcJID, Now),
     return_purge_single_message_iq(IQ, PurgingResult).
 
-determine_amp_strategy(Strategy = #amp_strategy{deliver = none}, FromJID, ToJID, Packet) ->
+determine_amp_strategy(Strategy = #amp_strategy{deliver = none,
+                                                status = pending},
+                       FromJID, ToJID, Packet, _Event) ->
+    LUser = ToJID#jid.luser,
+    LServer = ToJID#jid.lserver,
     ShouldBeStored = is_complete_message(?MODULE, incoming, Packet)
-        andalso is_interesting(ToJID, FromJID, Packet),
+        andalso is_interesting(ToJID, FromJID, Packet)
+        andalso ejabberd_auth:is_user_exists(LUser, LServer),
     case ShouldBeStored of
-        true -> Strategy#amp_strategy{deliver = stored};
+        true -> Strategy#amp_strategy{deliver = stored, status = pending};
         false -> Strategy
     end;
-determine_amp_strategy(Strategy, _, _, _) ->
+determine_amp_strategy(Strategy, _, _, _, _) ->
     Strategy.
 
 -spec handle_package(Dir :: incoming | outgoing, ReturnMessID :: boolean(),

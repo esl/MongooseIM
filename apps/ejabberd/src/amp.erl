@@ -16,7 +16,8 @@
          strip_amp_el/1,
          replace_rules/2,
 
-         binaries_to_rule/3
+         binaries_to_rule/3,
+         is_amp_request/1
         ]).
 
 -export_type([amp_rule/0,
