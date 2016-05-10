@@ -1205,7 +1205,7 @@ process_incoming_stanza(<<"broadcast">>, _From, _To, Packet, StateName, StateDat
     fsm_next_state(StateName, StateData);
 process_incoming_stanza(Name, From, To, Packet, StateName, StateData) ->
     case handle_routed(Name, From, To, Packet, StateData) of
-        {true, NewAttrs, NewState} ->
+        {allow, NewAttrs, NewState} ->
             Attrs2 = jlib:replace_from_to_attrs(jid:to_binary(From),
                 jid:to_binary(To),
                 NewAttrs),
@@ -1254,7 +1254,7 @@ handle_routed(<<"iq">>, From, To, Packet, StateData) ->
 handle_routed(<<"message">>, From, To, Packet, StateData) ->
     case privacy_check_packet(StateData, From, To, Packet, in) of
         allow ->
-            {true, Packet#xmlel.attrs, StateData};
+            {allow, Packet#xmlel.attrs, StateData};
         deny ->
             {deny, Packet#xmlel.attrs, StateData}
     end;
@@ -1273,7 +1273,7 @@ handle_routed_iq(From, To, Packet = #xmlel{attrs = Attrs}, StateData) ->
                 true ->
                     case privacy_check_packet(StateData, From, To, Packet, in) of
                         allow ->
-                            {true, Attrs, StateData};
+                            {allow, Attrs, StateData};
                         deny ->
                             {deny, Attrs, StateData}
                     end;
@@ -1283,7 +1283,7 @@ handle_routed_iq(From, To, Packet = #xmlel{attrs = Attrs}, StateData) ->
         IQ when (is_record(IQ, iq)) or (IQ == reply) ->
             case privacy_check_packet(StateData, From, To, Packet, in) of
                 allow ->
-                    {true, Attrs, StateData};
+                    {allow, Attrs, StateData};
                 deny when is_record(IQ, iq) ->
                     {deny, Attrs, StateData};
                 deny when IQ == reply ->
@@ -1353,29 +1353,29 @@ handle_routed_presence(From, To, Packet = #xmlel{attrs = Attrs}, StateData) ->
             {probe, Attrs, NewState};
         <<"error">> ->
             NewA = ?SETS:del_element(jid:to_lower(From), State#state.pres_a),
-            {true, Attrs, State#state{pres_a = NewA}};
+            {allow, Attrs, State#state{pres_a = NewA}};
         <<"invisible">> ->
             Attrs1 = lists:keydelete(<<"type">>, 1, Attrs),
-            {true, [{<<"type">>, <<"unavailable">>} | Attrs1], State};
+            {allow, [{<<"type">>, <<"unavailable">>} | Attrs1], State};
         <<"subscribe">> ->
-            SRes = is_privacy_allow(State, From, To, Packet, in),
+            SRes = privacy_check_packet(State, From, To, Packet, in),
             {SRes, Attrs, State};
         <<"subscribed">> ->
-            SRes = is_privacy_allow(State, From, To, Packet, in),
+            SRes = privacy_check_packet(State, From, To, Packet, in),
             {SRes, Attrs, State};
         <<"unsubscribe">> ->
-            SRes = is_privacy_allow(State, From, To, Packet, in),
+            SRes = privacy_check_packet(State, From, To, Packet, in),
             {SRes, Attrs, State};
         <<"unsubscribed">> ->
-            SRes = is_privacy_allow(State, From, To, Packet, in),
+            SRes = privacy_check_packet(State, From, To, Packet, in),
             {SRes, Attrs, State};
         _ ->
             case privacy_check_packet(State, From, To, Packet, in) of
                 allow ->
                     {LFrom, LBFrom} = lowcase_and_bare(From),
                     case am_i_available_to(LFrom, LBFrom, State) of
-                        true -> {true, Attrs, State};
-                        false -> {true, Attrs, make_available_to(LFrom, LBFrom, State)}
+                        true -> {allow, Attrs, State};
+                        false -> {allow, Attrs, make_available_to(LFrom, LBFrom, State)}
                     end;
                 deny ->
                     {deny, Attrs, State}
@@ -1967,7 +1967,7 @@ privacy_check_packet(StateData, From, To, Packet, Dir) ->
 is_privacy_allow(StateData, From, To, Packet, Dir) ->
     case privacy_check_packet(StateData, From, To, Packet, Dir) of
         allow -> true;
-        _ -> deny
+        _ -> false
     end.
 
 
