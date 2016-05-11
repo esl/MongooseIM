@@ -542,7 +542,7 @@ do_route(From, To, {broadcast, _} = Broadcast) ->
             CurrentPids = get_user_present_pids(LUser, LServer),
             ejabberd_hooks:run(sm_broadcast, To#jid.lserver,
                                [From, To, Broadcast, length(CurrentPids)]),
-            ?DEBUG("bc_to=~p~n", CurrentPids),
+            ?DEBUG("bc_to=~p~n", [CurrentPids]),
             lists:foreach(fun({_, Pid}) -> Pid ! Broadcast end, CurrentPids);
         _ ->
             case ?SM_BACKEND:get_sessions(LUser, LServer, LResource) of
