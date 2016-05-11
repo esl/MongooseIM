@@ -2,9 +2,9 @@
 
 `mongooseimctl` subcommands `reload_cluster` and `reload_local` are now available. The syntax is:
 
->  mongooseimctl reload_local
+`mongooseimctl reload_local`
 
->  mongooseimctl reload_cluster
+`mongooseimctl reload_cluster`
 
 `reload_local` is unsafe as it reloads the configuration only on the local node.
 This might introduce inconsistencies between different nodes of the cluster.
