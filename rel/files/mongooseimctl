@@ -71,13 +71,13 @@ manage_cluster()
                 ctl $QUOTED_ARGS;;
              *)
                 GUARD="unknown"
-                until [[ $GUARD = "yes" ]] || [[ $GUARD = "no" ]] ; do
+                until [ "$GUARD" = "yes" ] || [ "$GUARD" = "no" ] ; do
                     echo $1
                     read GUARD
-                    if [[ $GUARD =  "yes" ]]; then
+                    if [ "$GUARD" =  "yes" ]; then
                         echo $2
                         ctl $QUOTED_ARGS
-                    elif [[ $GUARD = "no" ]]; then
+                    elif [ "$GUARD" = "no" ]; then
                         echo "Operation discarded by user"
                         exit 1
                     else
