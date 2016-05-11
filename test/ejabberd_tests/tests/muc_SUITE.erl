@@ -1462,21 +1462,20 @@ admin_moderator_with_reason(Config) ->
             [room_address(?config(room,Config), <<"bob">>)], Kates2)
 
     end).
+
 %%  Examples 145, 150
 admin_moderator_revoke_owner(Config) ->
     Alice = connect_fresh_alice(Config),
-        %% Alice joins room
-        escalus:send(Alice, stanza_muc_enter_room(?config(room, Config), <<"alice">>)),
-        escalus:wait_for_stanzas(Alice, 2),
-
-        %% Alice tries to revoke moderator status from herself
-        escalus:send(Alice, stanza_set_roles(
-             ?config(room, Config), [{<<"alice">>, <<"participant">>}])),
-
-        %% Should be an error
-        Error = escalus:wait_for_stanza(Alice),
-        escalus:assert(is_error, [<<"cancel">>, <<"not-allowed">>], Error),
-        escalus:assert(is_stanza_from, [room_address(?config(room, Config))], Error).
+    %% Alice joins room
+    escalus:send(Alice, stanza_muc_enter_room(?config(room, Config), <<"alice">>)),
+    escalus:wait_for_stanzas(Alice, 2),
+    %% Alice tries to revoke moderator status from herself
+    escalus:send(Alice, stanza_set_roles(?config(room, Config),
+                                         [{<<"alice">>, <<"participant">>}])),
+    %% Should be an error
+    Error = escalus:wait_for_stanza(Alice),
+    escalus:assert(is_error, [<<"cancel">>, <<"not-allowed">>], Error),
+    escalus:assert(is_stanza_from, [room_address(?config(room, Config))], Error).
 
 %%  Examples 146-150
 admin_moderator_list(Config) ->
