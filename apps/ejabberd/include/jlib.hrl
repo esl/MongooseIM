@@ -132,6 +132,8 @@
         jlib:stanza_error(<<"400">>,<<"modify">>,<<"jid-malformed">>)).
 -define(ERR_NOT_ACCEPTABLE,
         jlib:stanza_error(<<"406">>,<<"modify">>,<<"not-acceptable">>)).
+-define(ERR_NOT_ACCEPTABLE_CANCEL,
+        jlib:stanza_error(<<"406">>,<<"cancel">>,<<"not-acceptable">>)).
 -define(ERR_NOT_ALLOWED,
         jlib:stanza_error(<<"405">>,<<"cancel">>,<<"not-allowed">>)).
 -define(ERR_NOT_AUTHORIZED,
