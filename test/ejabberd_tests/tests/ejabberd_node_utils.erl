@@ -25,7 +25,7 @@
     backup_config_file/1, backup_config_file/2,
     restore_config_file/1, restore_config_file/2,
     modify_config_file/2, modify_config_file/4,
-    get_cwd/2, mim/0, mim2/0, fed/0]).
+    get_cwd/2, mim/0, mim2/0, mim3/0, fed/0]).
 
 -include_lib("common_test/include/ct.hrl").
 
@@ -192,6 +192,10 @@ mim() ->
 -spec mim2() -> node() | no_return().
 mim2() ->
     get_or_fail({hosts, mim2, node}).
+
+-spec mim3() -> node() | no_return().
+mim3() ->
+    get_or_fail({hosts, mim3, node}).
 
 -spec fed() -> node() | no_return().
 fed() ->
