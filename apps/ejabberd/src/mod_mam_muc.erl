@@ -91,8 +91,6 @@
 %% Other
 -import(mod_mam_utils,
         [maybe_integer/2,
-         mess_id_to_external_binary/1
-         is_function_exist/3,
          mess_id_to_external_binary/1,
          is_last_page/4]).
 

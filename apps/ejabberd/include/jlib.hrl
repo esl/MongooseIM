@@ -361,6 +361,4 @@
 -type rsm_in() :: #rsm_in{}.
 -type rsm_out() :: #rsm_out{}.
 
--type ljid() :: {binary(), binary(), binary()}.
-
 -endif.
