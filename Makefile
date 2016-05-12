@@ -84,9 +84,6 @@ eunit: rebar deps
 	./rebar compile
 	./rebar skip_deps=true eunit
 
-configure:
-	./tools/configure $(filter-out $@,$(MAKECMDGOALS))
-
 rel: certs rebar deps configure.out rel/vars.config
 	. ./configure.out && ./rebar compile generate -f
 
@@ -141,9 +138,6 @@ xeplist: escript
 
 test_deps:
 	cd test/ejabberd_tests; make get-deps
-
-%:
-	@:
 
 install: configure.out rel
 	@. ./configure.out && tools/install
