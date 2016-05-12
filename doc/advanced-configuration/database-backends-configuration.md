@@ -75,9 +75,10 @@ Microsoft SQL Server, sometimes called MSSQL, or Azure SQL Database.
 
 **Setup**
 
-MSSQL can be used from MongooseIM through the ODBC layer, so you need to
-have it installed in your system. Moreover, an Erlang/OTP release must be
-built with the support for ODBC as well as MongooseIM itself.
+MSSQL can be used from MongooseIM through the ODBC layer,
+so you need to have it installed in your system.
+Moreover, your Erlang/OTP as well as MongooseIM
+must be built with support for ODBC.
 
 You can configure MongooseIM appropriately by using the following command
 (assuming you're in the top-level directory of the checked out repository):
