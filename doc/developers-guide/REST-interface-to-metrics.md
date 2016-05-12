@@ -1,7 +1,6 @@
 ## Introduction
 
-
-To expose MongooseIM metrics, an adequate endpoint must be included in the cowboy HTTP listener section.
+To expose MongooseIM metrics, an adequate endpoint must be included in the Cowboy HTTP listener section.
 
 It may look as follows:
 ```
@@ -132,6 +131,7 @@ Returns ```404 Not Found``` when metric :metric couldn't been found.
 
 
 ## collectd integration
+
 The interface is compatible with collectd curl_json plugin.
 Data fetched by collectd may be later visualized by tools like Graphite.
 
