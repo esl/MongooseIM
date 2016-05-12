@@ -79,7 +79,12 @@ MSSQL can be used from MongooseIM through the ODBC layer, so you need to
 have it installed in your system. Moreover, an Erlang/OTP release must be
 built with the support for ODBC as well as MongooseIM itself.
 
-You can configure MongooseIM appropriately by using the following command: ``make configure with-odbc``.
+You can configure MongooseIM appropriately by using the following command
+(assuming you're in the top-level directory of the checked out repository):
+
+```sh
+./tools/configure with-odbc
+```
 
 You also need FreeTDS (an ODBC driver for MSSQL) installed in your
 system.
