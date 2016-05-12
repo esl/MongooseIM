@@ -350,12 +350,6 @@ is_room_action_allowed_by_default(Action, From, To) ->
 is_room_owner(From, To) ->
     ejabberd_hooks:run_fold(is_muc_room_owner, To#jid.lserver, false, [To, From]).
 
--spec can_access_room(From :: ejabberd:jid(), To :: ejabberd:jid()) -> boolean().
-can_access_room(From, To) ->
-    case mod_muc_room:can_access_room(To, From) of
-        {error, _} -> false;
-        {ok, CanAccess} -> CanAccess
-    end.
 
 %% @doc Return true if user element should be removed from results
 -spec is_user_identity_hidden(From :: ejabberd:jid(), ArcJID :: ejabberd:jid()) -> boolean().
@@ -364,6 +358,10 @@ is_user_identity_hidden(From, ArcJID) ->
         {error, _} -> true;
         {ok, CanAccess} -> (not CanAccess)
     end.
+
+-spec can_access_room(From :: ejabberd:jid(), To :: ejabberd:jid()) -> boolean().
+can_access_room(From, To) ->
+    ejabberd_hooks:run_fold(can_access_room, To#jid.lserver, false, [From, To]).
 
 
 -spec action_type(action()) -> 'get' | 'set'.

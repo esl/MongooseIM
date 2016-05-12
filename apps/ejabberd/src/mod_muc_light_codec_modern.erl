@@ -36,8 +36,6 @@ decode(_, _, _) ->
              RoomUS :: ejabberd:simple_bare_jid(),
              HandleFun :: mod_muc_light_codec:encoded_packet_handler()) -> any().
 encode({#msg{} = Msg, AffUsers}, Sender, {RoomU, RoomS} = RoomUS, HandleFun) ->
-    lager:warning("AffUsers: ~p", [AffUsers]),
-    lager:warning("Sender: ~p", [Sender]),
     US = jid:to_lus(Sender),
     FromNick = jid:to_binary(US),
     Aff = get_sender_aff(AffUsers, US),

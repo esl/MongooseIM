@@ -43,6 +43,7 @@
          process_iq_get/5,
          process_iq_set/4,
          is_room_owner/3,
+         can_access_room/3,
          muc_room_pid/2]).
 
 %% For propEr
@@ -108,13 +109,14 @@ start(Host, Opts) ->
                     legacy
             end,
     gen_mod:start_backend_module(mod_muc_light_codec, [{backend, Codec}], []),
-    
+
     MyDomain = gen_mod:get_opt_host(Host, Opts, ?DEFAULT_HOST),
     ?BACKEND:start(Host, MyDomain),
     ejabberd_router:register_route(MyDomain, {apply, ?MODULE, route}),
-    
+
     ejabberd_hooks:add(is_muc_room_owner, MyDomain, ?MODULE, is_room_owner, 50),
     ejabberd_hooks:add(muc_room_pid, MyDomain, ?MODULE, muc_room_pid, 50),
+    ejabberd_hooks:add(can_access_room, MyDomain, ?MODULE, can_access_room, 50),
 
     EjdSupPid = whereis(ejabberd_sup),
     HeirOpt = case self() =:= EjdSupPid of
@@ -134,9 +136,10 @@ stop(Host) ->
     ets:delete(?CONFIG_TAB, MyDomain),
 
     ?BACKEND:stop(Host, MyDomain),
-    
+
     ejabberd_hooks:delete(is_muc_room_owner, MyDomain, ?MODULE, is_room_owner, 50),
     ejabberd_hooks:delete(muc_room_pid, MyDomain, ?MODULE, muc_room_pid, 50),
+    ejabberd_hooks:delete(can_access_room, MyDomain, ?MODULE, can_access_room, 50),
 
     ejabberd_hooks:delete(roster_get, Host, ?MODULE, add_rooms_to_roster, 50),
     ejabberd_hooks:delete(privacy_iq_get, Host, ?MODULE, process_iq_get, 1),
@@ -164,7 +167,7 @@ process_packet(From, To, {ok, {set, #create{} = Create}}, OrigPacket) ->
     case RoomsPerUser == infinity orelse length(?BACKEND:get_user_rooms(FromUS)) < RoomsPerUser of
         true ->
             create_room(From, FromUS, To, Create, OrigPacket);
-        false -> 
+        false ->
             ?CODEC:encode_error(
               {error, bad_request}, From, To, OrigPacket, fun ejabberd_router:route/3)
     end;
@@ -303,23 +306,32 @@ process_iq_set(_Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ) ->
 
 -spec is_room_owner(Acc :: boolean(), Room :: ejabberd:jid(), User :: ejabberd:jid()) -> boolean().
 is_room_owner(_, Room, User) ->
-    case ?BACKEND:get_aff_users(jid:to_lus(Room)) of
-        {ok, AffUsers, _} ->
-            case lists:keyfind(jid:to_lus(User), 1, AffUsers) of
-                {_, owner} -> true;
-                _ -> false
-            end;
-        _ ->
-            false
-    end.
+    owner == get_affiliation(Room, User).
 
 -spec muc_room_pid(Acc :: any(), Room :: ejabberd:jid()) -> {ok, processless}.
 muc_room_pid(_, _) ->
     {ok, processless}.
 
+-spec can_access_room(Acc :: boolean(), Room :: ejabberd:jid(), User :: ejabberd:jid()) ->
+    boolean().
+can_access_room(_, User, Room) ->
+    none =/= get_affiliation(Room, User).
+
 %%====================================================================
 %% Internal functions
 %%====================================================================
+
+get_affiliation(Room, User) ->
+    case ?BACKEND:get_aff_users(jid:to_lus(Room)) of
+        {ok, AffUsers, _} ->
+            case lists:keyfind(jid:to_lus(User), 1, AffUsers) of
+                {_, Aff} -> Aff;
+                _ -> none
+            end;
+        _ ->
+            none
+    end.
+
 
 -spec create_room(From :: ejabberd:jid(), FromUS :: ejabberd:simple_bare_jid(),
                   To :: ejabberd:jid(), Create :: #create{}, OrigPacket :: jlib:xmlel()) -> ok.
