@@ -36,7 +36,11 @@ decode(_, _, _) ->
              RoomUS :: ejabberd:simple_bare_jid(),
              HandleFun :: mod_muc_light_codec:encoded_packet_handler()) -> any().
 encode({#msg{} = Msg, AffUsers}, Sender, {RoomU, RoomS} = RoomUS, HandleFun) ->
-    FromNick = jid:to_binary(jid:to_lus(Sender)),
+    lager:warning("AffUsers: ~p", [AffUsers]),
+    lager:warning("Sender: ~p", [Sender]),
+    US = jid:to_lus(Sender),
+    FromNick = jid:to_binary(US),
+    Aff = get_sender_aff(AffUsers, US),
     {RoomJID, RoomBin} = jids_from_room_with_resource(RoomUS, FromNick),
     Attrs = [
              {<<"id">>, Msg#msg.id},
@@ -44,9 +48,15 @@ encode({#msg{} = Msg, AffUsers}, Sender, {RoomU, RoomS} = RoomUS, HandleFun) ->
              {<<"from">>, RoomBin}
             ],
     MsgForArch = #xmlel{ name = <<"message">>, attrs = Attrs, children = Msg#msg.children },
+    EventData = [{from_nick, FromNick},
+                 {from_jid, Sender},
+                 {room_jid, jid:make_noprep({RoomU, RoomS, <<>>})},
+                 {affiliation, Aff},
+                 {role, Aff}
+                ],
     #xmlel{ children = Children }
     = ejabberd_hooks:run_fold(filter_room_packet, RoomS, MsgForArch,
-                              [FromNick, Sender, jid:make_noprep({RoomU, RoomS, <<>>})]),
+                              [EventData]),
     lists:foreach(
       fun({{U, S}, _}) ->
               msg_to_aff_user(RoomJID, U, S, Attrs, Children, HandleFun)
@@ -63,6 +73,12 @@ encode(OtherCase, Sender, RoomUS, HandleFun) ->
         {reply, FromJID, FromBin, XMLNS, Els, ID} ->
             IQRes = make_iq_result(FromBin, jid:to_binary(Sender), ID, XMLNS, Els),
             HandleFun(FromJID, Sender, IQRes)
+    end.
+
+get_sender_aff(Users, US) ->
+    case lists:keyfind(US, 1, Users) of
+        {US, Aff} -> Aff;
+        _ -> undefined
     end.
 
 -spec encode_error(
@@ -303,9 +319,14 @@ encode_iq({set, #affiliations{} = Affs, OldAffUsers, NewAffUsers}, RoomJID, Room
     MsgForArch = #xmlel{ name = <<"message">>, attrs = Attrs,
                          children = msg_envelope(?NS_MUC_LIGHT_AFFILIATIONS,
                                                  NotifForCurrentNoPrevVersion) },
+    EventData = [{from_nick, <<>>},
+                 {from_jid, RoomJID},
+                 {room_jid, RoomJID},
+                 {role, owner},
+                 {affiliation, owner}],
     #xmlel{ children = FinalChildrenForCurrentNoPrevVersion }
     = ejabberd_hooks:run_fold(filter_room_packet, RoomJID#jid.lserver, MsgForArch,
-                              [<<>>, RoomJID, RoomJID]),
+                              [EventData]),
     FinalChildrenForCurrent = inject_prev_version(FinalChildrenForCurrentNoPrevVersion,
                                                   Affs#affiliations.prev_version),
     bcast_aff_messages(RoomJID, OldAffUsers, NewAffUsers, Attrs, VersionEl,
@@ -330,8 +351,13 @@ encode_iq({set, #create{} = Create, UniqueRequested}, RoomJID, RoomBin, HandleFu
     AllAffsEls = [ aff_user_to_el(AffUser) || AffUser <- Create#create.aff_users ],
     MsgForArch = #xmlel{ name = <<"message">>, attrs = Attrs,
                          children = msg_envelope(?NS_MUC_LIGHT_AFFILIATIONS, AllAffsEls) },
+    EventData = [{from_nick, <<>>},
+                 {from_jid, RoomJID},
+                 {room_jid, RoomJID},
+                 {role, owner},
+                 {affiliation, owner}],
     ejabberd_hooks:run_fold(filter_room_packet, RoomJID#jid.lserver, MsgForArch,
-                              [<<>>, RoomJID, RoomJID]),
+                              [EventData]),
 
     %% IQ reply "from"
     %% Sent from service JID when unique room was requested
