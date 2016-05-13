@@ -286,12 +286,13 @@ filter_packet(drop) ->
 filter_packet({From, To=#jid{luser=LUser, lserver=LServer}, Packet}) ->
     ?DEBUG("Receive packet~n    from ~p ~n    to ~p~n    packet ~p.",
            [From, To, Packet]),
-    {AmpEvent, Packet2} =
+    {AmpEvent, PacketAfterArchive} =
         case ejabberd_users:is_user_exists(LUser, LServer) of
             false ->
                 {failed, Packet};
             true ->
-                case {process_incoming_packet(From, To, Packet),
+                PacketWithoutAmp = mod_amp:strip_amp_el_from_request(Packet),
+                case {process_incoming_packet(From, To, PacketWithoutAmp),
                       add_archived_element()} of
                     {undefined, _} -> {failed, Packet};
                     {_, false} -> {archived, Packet};
@@ -301,13 +302,11 @@ filter_packet({From, To=#jid{luser=LUser, lserver=LServer}, Packet}) ->
                         {archived, replace_archived_elem(BareTo, MessID, Packet)}
                 end
         end,
-    mod_amp:check_packet(Packet, AmpEvent, From),
-    {From, To, Packet2}.
+    {From, PacketAfterAmp} = mod_amp:check_packet(PacketAfterArchive, AmpEvent, From),
+    {From, To, PacketAfterAmp}.
 
 process_incoming_packet(From, To, Packet) ->
-    PacketWithoutAmp = mod_amp:strip_amp_el_from_request(Packet),
-    Result = handle_package(incoming, true, To, From, From, PacketWithoutAmp),
-    Result.
+    handle_package(incoming, true, To, From, From, Packet).
 
 %% @doc A ejabberd's callback with diferent order of arguments.
 -spec remove_user(ejabberd:user(), ejabberd:server()) -> 'ok'.
@@ -611,11 +610,10 @@ handle_purge_single_message(ArcJID=#jid{},
 
 determine_amp_strategy(Strategy = #amp_strategy{deliver = none,
                                                 status = pending},
-                       FromJID, ToJID, Packet, _Event) ->
-    LUser = ToJID#jid.luser,
-    LServer = ToJID#jid.lserver,
+                       FromJID, ToJID, Packet, initial_check) ->
+    #jid{luser = LUser, lserver = LServer} = ToJID,
     ShouldBeStored = is_complete_message(?MODULE, incoming, Packet)
-        andalso is_interesting(ToJID, FromJID, Packet)
+        andalso is_interesting(ToJID, FromJID)
         andalso ejabberd_auth:is_user_exists(LUser, LServer),
     case ShouldBeStored of
         true -> Strategy#amp_strategy{deliver = stored, status = pending};
@@ -635,7 +633,7 @@ handle_package(Dir, ReturnMessID,
         true ->
             Host = server_host(LocJID),
             ArcID = archive_id_int(Host, LocJID),
-            case is_interesting(Host, LocJID, RemJID, Packet, ArcID) of
+            case is_interesting(Host, LocJID, RemJID, ArcID) of
                 true ->
                     MessID = generate_message_id(),
                     Result = archive_message(Host, MessID, ArcID,
@@ -651,12 +649,12 @@ handle_package(Dir, ReturnMessID,
             undefined
     end.
 
-is_interesting(LocJID, RemJID, Packet) ->
+is_interesting(LocJID, RemJID) ->
     Host = server_host(LocJID),
     ArcID = archive_id_int(Host, LocJID),
-    is_interesting(Host, LocJID, RemJID, Packet, ArcID).
+    is_interesting(Host, LocJID, RemJID, ArcID).
 
-is_interesting(Host, LocJID, RemJID, Packet, ArcID) ->
+is_interesting(Host, LocJID, RemJID, ArcID) ->
     case get_behaviour(Host, ArcID, LocJID, RemJID, always) of
         always -> true;
         never  -> false;

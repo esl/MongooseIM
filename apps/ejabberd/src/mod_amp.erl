@@ -103,7 +103,7 @@ process_amp_rules(HookData, Rules, Event) ->
             send_error_and_drop(HookData, ValidationError, InvalidRule);
         [] ->
             Strategy = determine_strategy(HookData, Event),
-            process_one_by_one(HookData, Strategy, ValidRules)
+            process_one_by_one(HookData, Event, Strategy, ValidRules)
     end.
 
 %% @doc ejabberd_hooks helpers
@@ -125,19 +125,21 @@ resolve_condition(HookData, Strategy, Condition, Value) ->
       (amp_check_condition, hd_host(HookData), false,
        [Strategy, Condition, Value]).
 
--spec process_one_by_one(hook_data(), amp_strategy(), amp_rules()) -> hook_data().
-process_one_by_one({From, Packet} = HookData, Strategy, ValidRules) ->
-    case {Strategy#amp_strategy.status,
+-spec process_one_by_one(hook_data(), amp_value(), amp_strategy(), amp_rules()) -> hook_data().
+process_one_by_one({From, Packet} = HookData, Event, Strategy, ValidRules) ->
+    case {Event, Strategy#amp_strategy.status,
           fold_apply_rules(HookData, Strategy, ValidRules)} of
-        {_, 'no_match'} ->
+        {initial_check, _, 'no_match'} ->
             {From, amp:strip_amp_el(Packet)};
-        {_, {match, #amp_rule{action = error} = Rule}} ->
+        {_, _, 'no_match'} ->
+            {From, Packet};
+        {_, _, {match, #amp_rule{action = error} = Rule}} ->
             send_error_and_drop(HookData, 'undefined-condition', Rule);
-        {_, {match, #amp_rule{condition = deliver, value = none} = Rule}} ->
+        {_, _, {match, #amp_rule{condition = deliver, value = none} = Rule}} ->
             take_action(From, Packet, Rule);
-        {pending, {match, #amp_rule{action = notify}}} ->
+        {_, pending, {match, #amp_rule{action = notify}}} ->
             {From, Packet}; %% wait until done
-        {done, {match, #amp_rule{action = notify} = Rule}} ->
+        {_, done, {match, #amp_rule{action = notify} = Rule}} ->
             take_action(From, Packet, Rule);
         _ ->
             update_metric_and_drop(HookData)

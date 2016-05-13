@@ -42,7 +42,8 @@
          get_sm_features/5,
          remove_expired_messages/1,
          remove_old_messages/2,
-         remove_user/2]).
+         remove_user/2,
+         determine_amp_strategy/5]).
 
 %% Internal exports
 -export([start_link/3]).
@@ -56,6 +57,7 @@
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
+-include("amp.hrl").
 -include("mod_offline.hrl").
 
 -define(PROCNAME, ejabberd_offline).
@@ -130,6 +132,8 @@ start(Host, Opts) ->
 		       ?MODULE, get_sm_features, 50),
     ejabberd_hooks:add(disco_local_features, Host,
 		       ?MODULE, get_sm_features, 50),
+    ejabberd_hooks:add(amp_determine_strategy, Host,
+                       ?MODULE, determine_amp_strategy, 30),
     ok.
 
 stop(Host) ->
@@ -143,6 +147,8 @@ stop(Host) ->
 			  ?MODULE, remove_user, 50),
     ejabberd_hooks:delete(disco_sm_features, Host, ?MODULE, get_sm_features, 50),
     ejabberd_hooks:delete(disco_local_features, Host, ?MODULE, get_sm_features, 50),
+    ejabberd_hooks:delete(amp_determine_strategy, Host,
+                          ?MODULE, determine_amp_strategy, 30),
     stop_worker(Host),
     ok.
 
@@ -165,6 +171,8 @@ handle_offline_msg(#offline_msg{us=US} = Msg, AccessMaxOfflineMsgs) ->
 write_messages(LUser, LServer, Msgs) ->
     case ?BACKEND:write_messages(LUser, LServer, Msgs) of
         ok ->
+            [mod_amp:check_packet(Packet, archived, From)
+             || #offline_msg{from = From, packet = Packet} <- Msgs],
             ok;
         {error, Reason} ->
             ?ERROR_MSG("~ts@~ts: write_messages failed with ~p.",
@@ -230,6 +238,18 @@ srv_name() ->
 
 srv_name(Host) ->
     gen_mod:get_module_proc(Host, srv_name()).
+
+determine_amp_strategy(Strategy = #amp_strategy{deliver = none,
+                                                status = pending},
+                       _FromJID, ToJID, _Packet, initial_check) ->
+    #jid{luser = LUser, lserver = LServer} = ToJID,
+    ShouldBeStored = ejabberd_auth:is_user_exists(LUser, LServer),
+    case ShouldBeStored of
+        true -> Strategy#amp_strategy{deliver = stored, status = pending};
+        false -> Strategy
+    end;
+determine_amp_strategy(Strategy, _, _, _, _) ->
+    Strategy.
 
 %%====================================================================
 %% gen_server callbacks

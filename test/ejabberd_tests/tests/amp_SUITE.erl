@@ -14,39 +14,47 @@
 -define(DOMAIN, <<"localhost">>).
 
 all() -> [{group, basic},
-          {group, mam}
+          {group, mam},
+          {group, offline},
+          {group, mam_and_offline}
          ].
 
 groups() ->
-    [{basic, [parallel, shuffle],
-      [initial_service_discovery_test,
-       actions_and_conditions_discovery_test,
-
-       unsupported_actions_test,
-       unsupported_conditions_test,
-       unacceptable_rules_test,
-
-       notify_deliver_direct_test,
-       notify_deliver_forward_test,
-       notify_deliver_none_test,
-
-       notify_match_resource_any_test,
-       notify_match_resource_exact_test,
-       notify_match_resource_other_test,
-
-       error_deliver_direct_test,
-       error_deliver_forward_test,
-       error_deliver_none_test,
-
-       error_deliver_doesnt_apply_test,
-       last_rule_applies_test
-      ]},
-     {mam, [],
-      [notify_deliver_none_mam_test,
-       notify_deliver_stored_mam_test
-      ]}
+    [{basic, [parallel, shuffle], basic_test_cases()},
+     {mam, [parallel, shuffle], archive_test_cases()},
+     {offline, [parallel, shuffle], archive_test_cases()},
+     {mam_and_offline, [parallel, shuffle], archive_test_cases()}
     ].
 
+basic_test_cases() ->
+    [initial_service_discovery_test,
+     actions_and_conditions_discovery_test,
+
+     unsupported_actions_test,
+     unsupported_conditions_test,
+     unacceptable_rules_test,
+
+     notify_deliver_direct_test,
+     notify_deliver_forward_test,
+     notify_deliver_none_test,
+
+     notify_match_resource_any_test,
+     notify_match_resource_exact_test,
+     notify_match_resource_other_test,
+
+     error_deliver_direct_test,
+     error_deliver_forward_test,
+     error_deliver_none_test,
+
+     error_deliver_doesnt_apply_test,
+     last_rule_applies_test
+    ].
+
+archive_test_cases() ->
+    [notify_deliver_direct_test,
+     notify_deliver_none_test,
+     notify_deliver_stored_test
+    ].
 
 init_per_suite(C) -> escalus:init_per_suite(C).
 end_per_suite(C) -> ok = escalus_fresh:clean(), escalus:end_per_suite(C).
@@ -312,36 +320,21 @@ last_rule_applies_test(Config) ->
               client_receives_message(Bob, <<"One of your resources needs to get this!">>)
       end).
 
-notify_deliver_none_mam_test(Config) ->
-    escalus:fresh_story(
-      Config, [{alice, 1}],
-      fun(Alice) ->
-              %% given
-              StrangerJid = <<"stranger@localhost">>,
-              Msg = amp_message_to(StrangerJid, [{deliver, none, error}],
-                                   <<"A message in a bottle...">>),
-              %% when
-              client_sends_message(Alice, Msg),
-
-              % then
-              client_receives_error(Alice, StrangerJid, {deliver, none, error}, <<"undefined-condition">>)
-      end).
-
-notify_deliver_stored_mam_test(Config) ->
+notify_deliver_stored_test(Config) ->
     FreshConfig = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    %%ct:pal("Config: ~p", [FreshConfig]),
     escalus:story(
       FreshConfig, [{alice, 1}],
       fun(Alice) ->
               %% given
-              StrangerJid = escalus_users:get_jid(FreshConfig, bob),
-              Msg = amp_message_to(StrangerJid, [{deliver, stored, notify}],
+              BobJid = escalus_users:get_jid(FreshConfig, bob),
+              Msg = amp_message_to(BobJid, [{deliver, stored, notify}],
                                    <<"A message in a bottle...">>),
               %% when
               client_sends_message(Alice, Msg),
 
               % then
-              client_receives_notification(Alice, StrangerJid, {deliver, stored, notify})
+              client_receives_notification(Alice, BobJid, {deliver, stored, notify}),
+              client_receives_nothing(Alice)
       end).
 
 %% Internal
@@ -537,9 +530,19 @@ amp_error_container(<<"unsupported-conditions">>) -> <<"unsupported-conditions">
 amp_error_container(<<"undefined-condition">>) -> <<"failed-rules">>.
 
 required_modules(mam) ->
+    [{mod_offline_stub, []} | mam_modules()];
+required_modules(offline) ->
+    [offline_module()];
+required_modules(mam_and_offline) ->
+    [offline_module() | mam_modules()];
+required_modules(_) ->
+    [].
+
+offline_module() ->
+    {mod_offline, [{access_max_user_messages, max_user_offline_messages}]}.
+
+mam_modules() ->
     [{mod_mam_odbc_user, [pm]},
      {mod_mam_odbc_prefs, [pm]},
      {mod_mam_odbc_arch, [pm]},
-     {mod_mam, []}];
-required_modules(_) ->
-    [].
+     {mod_mam, []}].
