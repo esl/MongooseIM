@@ -547,20 +547,21 @@ amp_error_container(<<"unsupported-actions">>) -> <<"unsupported-actions">>;
 amp_error_container(<<"unsupported-conditions">>) -> <<"unsupported-conditions">>;
 amp_error_container(<<"undefined-condition">>) -> <<"failed-rules">>.
 
-required_modules(mam) ->
-    [{mod_offline_stub, []} | mam_modules()];
-required_modules(offline) ->
-    [offline_module()];
-required_modules(mam_and_offline) ->
-    [offline_module() | mam_modules()];
-required_modules(_) ->
-    [].
+required_modules(basic) -> mam_modules(off) ++ offline_modules(off);
+required_modules(mam) -> mam_modules(on) ++ offline_modules(off);
+required_modules(offline) -> mam_modules(off) ++ offline_modules(on);
+required_modules(mam_and_offline) -> mam_modules(on) ++ offline_modules(on).
 
-offline_module() ->
-    {mod_offline, [{access_max_user_messages, max_user_offline_messages}]}.
+offline_modules(on) ->
+    [{mod_offline, [{access_max_user_messages, max_user_offline_messages}]}];
+offline_modules(off) ->
+    [{mod_offline, stopped},
+     {mod_offline_stub, []}].
 
-mam_modules() ->
+mam_modules(on) ->
     [{mod_mam_odbc_user, [pm]},
      {mod_mam_odbc_prefs, [pm]},
      {mod_mam_odbc_arch, [pm]},
-     {mod_mam, []}].
+     {mod_mam, []}];
+mam_modules(off) ->
+    [{mod_mam, stopped}].
