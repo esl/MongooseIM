@@ -90,6 +90,7 @@
                    CheckPassword :: check_password_fun(),
                    CheckPasswordDigest :: check_pass_digest_fun()
                    ) -> {ok, tuple()}.
+
 -callback mech_step(State :: tuple(),
                     ClientIn :: binary()
                     ) -> {ok, proplists:proplist()}
@@ -209,27 +210,27 @@ server_step(State, ClientIn) ->
     Module = State#sasl_state.mech_mod,
     MechState = State#sasl_state.mech_state,
     case Module:mech_step(MechState, ClientIn) of
-	{ok, Props} ->
-	    case check_credentials(State, Props) of
-		ok ->
-		    {ok, Props};
-		{error, Error} ->
-		    {error, Error}
-	    end;
-	{ok, Props, ServerOut} ->
-	    case check_credentials(State, Props) of
-		ok ->
-		    {ok, Props, ServerOut};
-		{error, Error} ->
-		    {error, Error}
-	    end;
-	{continue, ServerOut, NewMechState} ->
-	    {continue, ServerOut,
-	     State#sasl_state{mech_state = NewMechState}};
-	{error, Error, Username} ->
-	    {error, Error, Username};
-	{error, Error} ->
-	    {error, Error}
+        {ok, Props} ->
+            case check_credentials(State, Props) of
+                ok ->
+                    {ok, Props};
+                {error, Error} ->
+                    {error, Error}
+            end;
+        {ok, Props, ServerOut} ->
+            case check_credentials(State, Props) of
+                ok ->
+                    {ok, Props, ServerOut};
+                {error, Error} ->
+                    {error, Error}
+            end;
+        {continue, ServerOut, NewMechState} ->
+            {continue, ServerOut,
+             State#sasl_state{mech_state = NewMechState}};
+        {error, Error, Username} ->
+            {error, Error, Username};
+        {error, Error} ->
+            {error, Error}
     end.
 
 %% @doc Remove the anonymous mechanism from the list if not enabled for the
