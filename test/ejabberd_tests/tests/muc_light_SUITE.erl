@@ -160,12 +160,12 @@ init_per_suite(Config) ->
                           [{host, binary_to_list(?MUCHOST)},
                            {rooms_in_rosters, true}]),
     Config1 = escalus:init_per_suite(Config),
-    escalus:create_users(Config1, {by_name, [alice, bob, kate, mike]}).
+    escalus:create_users(Config1, escalus:get_users([alice, bob, kate, mike])).
 
 end_per_suite(Config) ->
     clear_db(),
     dynamic_modules:stop(<<"localhost">>, mod_muc_light),
-    Config1 = escalus:delete_users(Config, {by_name, [alice, bob, kate, mike]}),
+    Config1 = escalus:delete_users(Config, escalus:get_users([alice, bob, kate, mike])),
     escalus:end_per_suite(Config1).
 
 init_per_group(_GroupName, Config) ->
@@ -359,7 +359,7 @@ get_room_config(Config) ->
             escalus:assert(is_iq_result, IQRes),
             undefined = exml_query:subelement(IQRes, <<"query">>)
         end).
-            
+
 get_room_occupants(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
             AffUsers = [{Alice, owner}, {Bob, member}, {Kate, member}],
@@ -555,7 +555,7 @@ manage_blocklist(Config) ->
             escalus:assert(is_iq_result, GetResult1),
             QueryEl1 = exml_query:subelement(GetResult1, <<"query">>),
             verify_blocklist(QueryEl1, []),
-            
+
             BlocklistChange1 = [{user, deny, <<"user@localhost">>},
                                 {room, deny, room_bin_jid(?ROOM)}],
             escalus:send(Alice, stanza_blocking_set(BlocklistChange1)),
@@ -565,7 +565,7 @@ manage_blocklist(Config) ->
             escalus:assert(is_iq_result, GetResult2),
             QueryEl2 = exml_query:subelement(GetResult2, <<"query">>),
             verify_blocklist(QueryEl2, BlocklistChange1),
-            
+
             BlocklistChange2 = [{user, allow, <<"user@localhost">>},
                                 {room, allow, room_bin_jid(?ROOM)}],
             escalus:send(Alice, stanza_blocking_set(BlocklistChange2)),
@@ -606,7 +606,7 @@ block_user(Config) ->
             escalus:send(Bob, stanza_blocking_set(BlocklistChange)),
             escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
             user_leave(Bob, [{Alice, owner}, {Kate, member}]),
-            
+
             % Alice tries to create new room with Bob but Bob is not added
             escalus:send(Alice, stanza_create_room(<<"new">>, [], [{Bob, member}])),
             verify_aff_bcast([{Alice, owner}], [{Alice, owner}]),
@@ -630,7 +630,7 @@ blocking_disabled(Config) ->
             escalus:send(Alice, stanza_blocking_get()),
             escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
                            escalus:wait_for_stanza(Alice)),
-            
+
             BlocklistChange1 = [{user, deny, <<"user@localhost">>},
                                 {room, deny, room_bin_jid(?ROOM)}],
             escalus:send(Alice, stanza_blocking_set(BlocklistChange1)),
