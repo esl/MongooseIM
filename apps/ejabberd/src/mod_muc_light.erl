@@ -87,7 +87,7 @@ set_opt(MUCServer, OptName, Value) ->
 -spec start(Host :: ejabberd:server(), Opts :: list()) -> ok.
 start(Host, Opts) ->
     %% Prevent sending service-unavailable on groupchat messages
-    ejabberd_hooks:add(offline_message_hook, Host,
+    ejabberd_hooks:add(offline_groupchat_message_hook, Host,
                        ?MODULE, prevent_service_unavailable, 90),
     ejabberd_hooks:add(remove_user, Host, ?MODULE, remove_user, 50),
     ejabberd_hooks:add(disco_local_items, Host, ?MODULE, get_muc_service, 50),
@@ -144,7 +144,7 @@ stop(Host) ->
     ejabberd_hooks:delete(roster_get, Host, ?MODULE, add_rooms_to_roster, 50),
     ejabberd_hooks:delete(privacy_iq_get, Host, ?MODULE, process_iq_get, 1),
     ejabberd_hooks:delete(privacy_iq_set, Host, ?MODULE, process_iq_set, 1),
-    ejabberd_hooks:delete(offline_message_hook, Host,
+    ejabberd_hooks:delete(offline_groupchat_message_hook, Host,
                           ?MODULE, prevent_service_unavailable, 90),
     ejabberd_hooks:delete(remove_user, Host, ?MODULE, remove_user, 50),
     ejabberd_hooks:delete(disco_local_items, Host, ?MODULE, get_muc_service, 50),
