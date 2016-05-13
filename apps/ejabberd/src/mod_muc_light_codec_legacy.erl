@@ -255,7 +255,7 @@ encode_meta({get, #config{} = Config}, _RoomJID, _SenderJID, _HandleFun) ->
                               jlib:form_field({<<"FORM_TYPE">>, <<"hidden">>,
                                                <<"http://jabber.org/protocol/muc#roomconfig">>})
                               | ConfigEls] },
-    {iq_reply, ?NS_MUC_OWNER, XEl, Config#config.id};
+    {iq_reply, ?NS_MUC_OWNER, [XEl], Config#config.id};
 encode_meta({get, #affiliations{} = Affs}, _RoomJID, _SenderJID, _HandleFun) ->
     AffEls = [ aff_user_to_item(AffUser) || AffUser <- Affs#affiliations.aff_users ],
     {iq_reply, ?NS_MUC_ADMIN, AffEls, Affs#affiliations.id};
@@ -270,7 +270,7 @@ encode_meta({get, #blocking{} = Blocking}, SenderBareJID, _SenderJID, _HandleFun
                     || BlockingItem <- Blocking#blocking.items ],
     Blocklist = #xmlel{ name = <<"list">>, attrs = [{<<"name">>, ?NS_MUC_LIGHT}],
                         children = BlockingEls },
-    {iq_reply, ?NS_PRIVACY, Blocklist, Blocking#blocking.id};
+    {iq_reply, ?NS_PRIVACY, [Blocklist], Blocking#blocking.id};
 encode_meta({set, #blocking{ id = ID }}, _RoomJID, _SenderJID, _HandleFun) ->
     {iq_reply, ID};
 encode_meta({set, #create{} = Create, _UniqueRequested}, RoomJID, _SenderJID, HandleFun) ->
