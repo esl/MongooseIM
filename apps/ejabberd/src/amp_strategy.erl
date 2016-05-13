@@ -17,13 +17,12 @@
 determine_strategy(_, _, undefined, _, _) -> null_strategy();
 determine_strategy(_, _, To, _, Event) ->
     TargetResources = get_target_resources(To),
-    {Status, Deliver} = deliver_strategy(TargetResources, Event),
+    Deliver = deliver_strategy(TargetResources, Event),
     MatchResource = match_resource_strategy(TargetResources),
 
     #amp_strategy{deliver = Deliver,
                   'match-resource' = MatchResource,
-                  'expire-at' = undefined,
-                  status = Status}.
+                  'expire-at' = undefined}.
 
 %% @doc This strategy will never be matched by any amp_rules.
 %% Use it as a seed parameter to ejaberd_hooks:run_fold
@@ -31,8 +30,7 @@ determine_strategy(_, _, To, _, Event) ->
 null_strategy() ->
     #amp_strategy{deliver = undefined,
                   'match-resource' = undefined,
-                  'expire-at' = undefined,
-                  status = undefined}.
+                  'expire-at' = undefined}.
 
 %% Internals
 get_target_resources(MessageTarget) ->
@@ -41,12 +39,11 @@ get_target_resources(MessageTarget) ->
     UserResources = ejabberd_sm:get_user_resources(User, Server),
     {ResourceSession, UserResources}.
 
-deliver_strategy(_, archived) -> {done, stored};
-deliver_strategy(_, failed) -> {done, none};
-deliver_strategy(_, delivered) -> {done, direct};
-deliver_strategy({offline, []}, initial_check) -> {pending, none};
-deliver_strategy({offline, _ }, initial_check) -> {done, forward}; %% TODO it's still pending
-deliver_strategy({_Session, _ }, initial_check) -> {pending, direct}.
+deliver_strategy({offline, []}, initial_check) -> none;
+deliver_strategy({_Session, _ }, initial_check) -> direct;
+deliver_strategy(_, archived) -> stored;
+deliver_strategy(_, failed) -> none;
+deliver_strategy(_, delivered) -> direct.
 
 %% @doc Notes on matching
 %%

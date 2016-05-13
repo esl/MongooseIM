@@ -127,23 +127,25 @@ resolve_condition(HookData, Strategy, Condition, Value) ->
 
 -spec process_one_by_one(hook_data(), amp_value(), amp_strategy(), amp_rules()) -> hook_data().
 process_one_by_one({From, Packet} = HookData, Event, Strategy, ValidRules) ->
-    case {Event, Strategy#amp_strategy.status,
-          fold_apply_rules(HookData, Strategy, ValidRules)} of
-        {initial_check, _, 'no_match'} ->
+    case {Event, fold_apply_rules(HookData, Strategy, ValidRules)} of
+        {initial_check, no_match} ->
             {From, amp:strip_amp_el(Packet)};
-        {_, _, 'no_match'} ->
+        {_, no_match} ->
             {From, Packet};
-        {_, _, {match, #amp_rule{action = error} = Rule}} ->
-            send_error_and_drop(HookData, 'undefined-condition', Rule);
-        {_, _, {match, #amp_rule{condition = deliver, value = none} = Rule}} ->
-            take_action(From, Packet, Rule);
-        {_, pending, {match, #amp_rule{action = notify}}} ->
-            {From, Packet}; %% wait until done
-        {_, done, {match, #amp_rule{action = notify} = Rule}} ->
-            take_action(From, Packet, Rule);
-        _ ->
-            update_metric_and_drop(HookData)
+        {_, {match, Rule}} ->
+            process_matched_rule(HookData, Event, Rule)
     end.
+
+process_matched_rule(HookData, _, #amp_rule{action = error} = Rule) ->
+    send_error_and_drop(HookData, 'undefined-condition', Rule);
+process_matched_rule({From, Packet}, _, #amp_rule{condition = deliver, value = none} = Rule) ->
+    take_action(From, Packet, Rule);
+process_matched_rule({From, Packet}, initial_check, #amp_rule{action = notify}) ->
+    {From, Packet}; %% wait with notification until the delivery/storage attempt is made
+process_matched_rule({From, Packet}, _, #amp_rule{action = notify} = Rule) ->
+    take_action(From, Packet, Rule);
+process_matched_rule(HookData, _, _) ->
+    update_metric_and_drop(HookData).
 
 -spec fold_apply_rules(hook_data(), amp_strategy(), amp_rules())
                       -> amp_rule_match().

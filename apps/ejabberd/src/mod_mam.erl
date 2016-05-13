@@ -608,15 +608,14 @@ handle_purge_single_message(ArcJID=#jid{},
     PurgingResult = purge_single_message(Host, MessID, ArcID, ArcJID, Now),
     return_purge_single_message_iq(IQ, PurgingResult).
 
-determine_amp_strategy(Strategy = #amp_strategy{deliver = none,
-                                                status = pending},
+determine_amp_strategy(Strategy = #amp_strategy{deliver = none},
                        FromJID, ToJID, Packet, initial_check) ->
     #jid{luser = LUser, lserver = LServer} = ToJID,
     ShouldBeStored = is_complete_message(?MODULE, incoming, Packet)
         andalso is_interesting(ToJID, FromJID)
         andalso ejabberd_auth:is_user_exists(LUser, LServer),
     case ShouldBeStored of
-        true -> Strategy#amp_strategy{deliver = stored, status = pending};
+        true -> Strategy#amp_strategy{deliver = stored};
         false -> Strategy
     end;
 determine_amp_strategy(Strategy, _, _, _, _) ->

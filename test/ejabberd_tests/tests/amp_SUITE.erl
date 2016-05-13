@@ -35,15 +35,16 @@ basic_test_cases() ->
      unacceptable_rules_test,
 
      notify_deliver_direct_test,
-     notify_deliver_forward_test,
+     notify_deliver_direct_bare_jid_test,
      notify_deliver_none_test,
+     notify_deliver_none_existing_user_test,
 
      notify_match_resource_any_test,
      notify_match_resource_exact_test,
      notify_match_resource_other_test,
+     notify_match_resource_other_bare_test,
 
      error_deliver_direct_test,
-     error_deliver_forward_test,
      error_deliver_none_test,
 
      error_deliver_doesnt_apply_test,
@@ -160,19 +161,19 @@ notify_deliver_direct_test(Config) ->
               client_receives_message(Bob, <<"I want to be sure you get this!">>)
       end).
 
-notify_deliver_forward_test(Config) ->
+notify_deliver_direct_bare_jid_test(Config) ->
     escalus:fresh_story(
       Config, [{alice, 1}, {bob, 1}],
       fun(Alice,Bob) ->
               %% given
               BobsBareJid = escalus_client:short_jid(Bob),
-              Msg = amp_message_to(BobsBareJid, [{deliver, forward, notify}],
+              Msg = amp_message_to(BobsBareJid, [{deliver, direct, notify}],
                                    <<"One of your resources needs to get this!">>),
               %% when
               client_sends_message(Alice, Msg),
 
               % then
-              client_receives_notification(Alice, BobsBareJid, {deliver, forward, notify}),
+              client_receives_notification(Alice, BobsBareJid, {deliver, direct, notify}),
               client_receives_message(Bob, <<"One of your resources needs to get this!">>)
       end).
 
@@ -189,6 +190,22 @@ notify_deliver_none_test(Config) ->
 
               % then
               client_receives_notification(Alice, StrangerJid, {deliver, none, notify})
+      end).
+
+notify_deliver_none_existing_user_test(Config) ->
+    FreshConfig = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+    escalus:story(
+      FreshConfig, [{alice, 1}],
+      fun(Alice) ->
+              %% given
+              BobJid = escalus_users:get_jid(FreshConfig, bob),
+              Msg = amp_message_to(BobJid, [{deliver, none, notify}],
+                                   <<"A message in a bottle...">>),
+              %% when
+              client_sends_message(Alice, Msg),
+
+              % then
+              client_receives_notification(Alice, BobJid, {deliver, none, notify})
       end).
 
 notify_match_resource_any_test(Config) ->
@@ -240,6 +257,24 @@ notify_match_resource_other_test(Config) ->
               client_receives_message(Bob, <<"A Bob by any other name!">>)
       end).
 
+notify_match_resource_other_bare_test(Config) ->
+    escalus:fresh_story(
+      Config, [{alice, 1}, {bob, 1}],
+      fun(Alice,Bob) ->
+              %% given
+              BareJid = escalus_client:short_jid(Bob),
+              Msg = amp_message_to(BareJid,
+                                   [{'match-resource', other, notify}],
+                                    <<"A Bob by any other name!">>),
+
+              %% when
+              client_sends_message(Alice, Msg),
+
+              % then
+              client_receives_notification(Alice, BareJid, {'match-resource', other, notify}),
+              client_receives_message(Bob, <<"A Bob by any other name!">>)
+      end).
+
 error_deliver_direct_test(Config) ->
     escalus:fresh_story(
       Config, [{alice, 1}, {bob, 1}],
@@ -252,22 +287,6 @@ error_deliver_direct_test(Config) ->
 
               % then
               client_receives_error(Alice, Bob, {deliver, direct, error}, <<"undefined-condition">>),
-              client_receives_nothing(Bob)
-      end).
-
-error_deliver_forward_test(Config) ->
-    escalus:fresh_story(
-      Config, [{alice, 1}, {bob, 1}],
-      fun(Alice,Bob) ->
-              %% given
-              BobsBareJid = escalus_client:short_jid(Bob),
-              Msg = amp_message_to(BobsBareJid, [{deliver, forward, error}],
-                                   <<"This cannot be forwarded!">>),
-              %% when
-              client_sends_message(Alice, Msg),
-
-              % then
-              client_receives_error(Alice, BobsBareJid, {deliver, forward, error}, <<"undefined-condition">>),
               client_receives_nothing(Bob)
       end).
 
@@ -308,15 +327,15 @@ last_rule_applies_test(Config) ->
       fun(Alice,Bob) ->
               %% given
               BobsBareJid = escalus_client:short_jid(Bob),
-              Msg = amp_message_to(BobsBareJid, [{deliver, direct, error},
-                                                 {deliver, none, error},
-                                                 {deliver, forward, notify}],
+              Msg = amp_message_to(BobsBareJid, [{deliver, none, error},
+                                                 {deliver, stored, error},
+                                                 {deliver, direct, notify}],
                                    <<"One of your resources needs to get this!">>),
               %% when
               client_sends_message(Alice, Msg),
 
               % then
-              client_receives_notification(Alice, BobsBareJid, {deliver, forward, notify}),
+              client_receives_notification(Alice, BobsBareJid, {deliver, direct, notify}),
               client_receives_message(Bob, <<"One of your resources needs to get this!">>)
       end).
 
@@ -486,13 +505,12 @@ ns_stanzas() ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-check_rules(deliver, none, notify) -> ok;
-check_rules(deliver, forward, notify) -> ok;
 check_rules(deliver, direct, notify) -> ok;
 check_rules(deliver, stored, notify) -> ok;
+check_rules(deliver, none, notify) -> ok;
 
 check_rules(deliver, direct, error) -> ok;
-check_rules(deliver, forward, error) -> ok;
+check_rules(deliver, stored, error) -> ok;
 check_rules(deliver, none, error) -> ok;
 
 check_rules('match-resource', any, notify) -> ok;
