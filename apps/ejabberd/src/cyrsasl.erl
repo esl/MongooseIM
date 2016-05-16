@@ -102,11 +102,8 @@ start() ->
     ets:new(sasl_mechanism, [named_table,
                              public,
                              {keypos, #sasl_mechanism.mechanism}]),
-    cyrsasl_plain:start([]),
-    cyrsasl_digest:start([]),
-    cyrsasl_scram:start([]),
-    cyrsasl_anonymous:start([]),
-    cyrsasl_oauth:start([]), %%todo: consider moving it somewhere else....
+    MechOpts = [],
+    [ Mech:start(MechOpts) || Mech <- get_mechanisms() ],
     ok.
 
 -spec register_mechanism(Mechanism :: mechanism(),
@@ -238,3 +235,11 @@ filter_anonymous(Host, Mechs) ->
         true  -> Mechs;
         false -> Mechs -- [<<"ANONYMOUS">>]
     end.
+
+get_mechanisms() ->
+    Default = [cyrsasl_plain,
+               cyrsasl_digest,
+               cyrsasl_scram,
+               cyrsasl_anonymous,
+               cyrsasl_oauth],
+    ejabberd_config:get_local_option_or_default(sasl_mechanisms, Default).
