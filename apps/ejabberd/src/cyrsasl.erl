@@ -211,19 +211,9 @@ server_step(State, ClientIn) ->
     MechState = State#sasl_state.mech_state,
     case Module:mech_step(MechState, ClientIn) of
         {ok, Props} ->
-            case check_credentials(State, Props) of
-                ok ->
-                    {ok, Props};
-                {error, Error} ->
-                    {error, Error}
-            end;
+            check_credentials(State, Props, undefined);
         {ok, Props, ServerOut} ->
-            case check_credentials(State, Props) of
-                ok ->
-                    {ok, Props, ServerOut};
-                {error, Error} ->
-                    {error, Error}
-            end;
+            check_credentials(State, Props, ServerOut);
         {continue, ServerOut, NewMechState} ->
             {continue, ServerOut,
              State#sasl_state{mech_state = NewMechState}};
@@ -231,6 +221,13 @@ server_step(State, ClientIn) ->
             {error, Error, Username};
         {error, Error} ->
             {error, Error}
+    end.
+
+check_credentials(State, Props, ServerOut) ->
+    case {check_credentials(State, Props), ServerOut} of
+        {ok, undefined}     -> {ok, Props};
+        {ok, _}             -> {ok, Props, ServerOut};
+        {{error, Error}, _} -> {error, Error}
     end.
 
 %% @doc Remove the anonymous mechanism from the list if not enabled for the
