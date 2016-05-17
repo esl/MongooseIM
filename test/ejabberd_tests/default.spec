@@ -34,6 +34,8 @@
 {suites, "tests", mod_time_SUITE}.
 {suites, "tests", mod_version_SUITE}.
 {suites, "tests", muc_SUITE}.
+{suites, "tests", muc_light_SUITE}.
+{suites, "tests", muc_light_legacy_SUITE}.
 {suites, "tests", oauth_SUITE}.
 {suites, "tests", offline_SUITE}.
 {suites, "tests", pep_SUITE}.

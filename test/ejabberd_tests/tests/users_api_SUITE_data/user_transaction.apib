@@ -8,7 +8,7 @@ GET /api/users/host/{{<host}}
 < Content-Type: application/json
 {
     "count": "{{>user_count_1}}",
-    "users": {},
+    "users": "{{_}}",
     "{{_}}": "{{unexpected}}"
 }
 
@@ -35,7 +35,7 @@ GET /api/users/host/{{<host}}
 < Content-Type: application/json
 {
     "count": "{{>user_count_2}}",
-    "users": {},
+    "users": "{{_}}",
     "{{_}}": "{{unexpected}}"
 }
 
@@ -62,7 +62,7 @@ GET /api/users/host/{{<host}}
 < Content-Type: application/json
 {
     "count": "{{<user_count_2}}",
-    "users": {},
+    "users": "{{_}}",
     "{{_}}": "{{unexpected}}"
 }
 
@@ -89,7 +89,7 @@ GET /api/users/host/{{<host}}
 < Content-Type: application/json
 {
     "count": "{{>user_count_3}}",
-    "users": [],
+    "users": "{{_}}",
     "{{_}}": "{{unexpected}}"
 }
 
@@ -118,6 +118,6 @@ GET /api/users/host/{{<host}}
 < Content-Type: application/json
 {
     "count": "{{<user_count_1}}",
-    "users": {},
+    "users": "{{_}}",
     "{{_}}": "{{unexpected}}"
 }

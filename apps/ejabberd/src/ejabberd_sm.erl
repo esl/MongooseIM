@@ -219,9 +219,7 @@ bounce_offline_message(#jid{server = Server} = From, To, Packet) ->
     ejabberd_router:route(To, From, Err),
     stop.
 
-
--spec disconnect_removed_user(User :: ejabberd:user(), Server :: ejabberd:server()) ->
-    'ok'.
+-spec disconnect_removed_user(User :: ejabberd:user(), Server :: ejabberd:server()) -> ok.
 disconnect_removed_user(User, Server) ->
     ejabberd_sm:route(jid:make(<<>>, <<>>, <<>>),
                       jid:make(User, Server, <<>>),
@@ -416,6 +414,8 @@ init([]) ->
               ejabberd_hooks:add(roster_in_subscription, Host,
                                  ejabberd_sm, check_in_subscription, 20),
               ejabberd_hooks:add(offline_message_hook, Host,
+                                 ejabberd_sm, bounce_offline_message, 100),
+              ejabberd_hooks:add(offline_groupchat_message_hook, Host,
                                  ejabberd_sm, bounce_offline_message, 100),
               ejabberd_hooks:add(remove_user, Host,
                                  ejabberd_sm, disconnect_removed_user, 100)
@@ -727,10 +727,12 @@ route_message(From, To, Packet) ->
                 <<"error">> ->
                     ok;
                 <<"groupchat">> ->
-                    bounce_offline_message(From, To, Packet);
+                    ejabberd_hooks:run(offline_groupchat_message_hook,
+                                       LServer,
+                                       [From, To, Packet]);
                 <<"headline">> ->
                     bounce_offline_message(From, To, Packet);
-                _ ->
+                _Type ->
                     case ejabberd_auth:is_user_exists(LUser, LServer) of
                         true ->
                             case is_privacy_allow(From, To, Packet) of
@@ -748,7 +750,6 @@ route_message(From, To, Packet) ->
                     end
             end
     end.
-
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 

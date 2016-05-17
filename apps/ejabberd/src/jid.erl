@@ -17,6 +17,8 @@
 
 -export([make/3]).
 -export([make/1]).
+-export([make_noprep/3]).
+-export([make_noprep/1]).
 -export([are_equal/2]).
 -export([are_bare_equal/2]).
 -export([from_binary/1]).
@@ -26,6 +28,7 @@
 -export([nameprep/1]).
 -export([resourceprep/1]).
 -export([to_lower/1]).
+-export([to_lus/1]).
 -export([to_bare/1]).
 -export([replace_resource/2]).
 
@@ -62,6 +65,20 @@ make(User, Server, Resource) ->
 make({User, Server, Resource}) ->
     make(User, Server, Resource).
 
+-spec make_noprep(User     :: ejabberd:luser(),
+                  Server   :: ejabberd:lserver(),
+                  Resource :: ejabberd:lresource()) -> ejabberd:jid().
+make_noprep(LUser, LServer, LResource) ->
+    #jid{user = LUser,
+         server = LServer,
+         resource = LResource,
+         luser = LUser,
+         lserver = LServer,
+         lresource = LResource}.
+
+-spec make_noprep(ejabberd:simple_jid()) -> ejabberd:jid() | error.
+make_noprep({LUser, LServer, LResource}) ->
+    make_noprep(LUser, LServer, LResource).
 
 -spec are_equal(ejabberd:jid(), ejabberd:jid()) ->  boolean().
 are_equal(#jid{luser = LUser, lserver = LServer, lresource = LRes},
@@ -125,9 +142,11 @@ binary_to_jid3(<<>>, N, S, R) ->
     make(list_to_binary(N), list_to_binary(S), list_to_binary(lists:reverse(R))).
 
 
--spec to_binary(ejabberd:simple_jid()  | ejabberd:jid()) ->  binary().
+-spec to_binary(ejabberd:simple_jid() | ejabberd:simple_bare_jid() | ejabberd:jid()) ->  binary().
 to_binary(#jid{user = User, server = Server, resource = Resource}) ->
     to_binary({User, Server, Resource});
+to_binary({User, Server}) ->
+    to_binary({User, Server, <<>>});
 to_binary({Node, Server, Resource}) ->
     S1 = case Node of
              <<>> ->
@@ -203,6 +222,9 @@ to_lower({U, S, R}) ->
             end
     end.
 
+-spec to_lus(JID :: ejabberd:jid()) -> error | ejabberd:simple_bare_jid().
+to_lus(#jid{luser = U, lserver = S}) ->
+    {U, S}.
 
 -spec to_bare(ejabberd:simple_jid()  | ejabberd:jid()) -> 
                  ejabberd:simple_jid()  | ejabberd:jid().

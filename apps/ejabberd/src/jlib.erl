@@ -34,6 +34,7 @@
          make_invitation/3,
          make_config_change_message/1,
          make_voice_approval_form/3,
+         form_field/1,
          replace_from_to_attrs/3,
          replace_from_to/3,
          remove_attr/2,
@@ -83,12 +84,15 @@
 
 -type xmlcdata()  :: #xmlcdata{}.
 
+-type xmlch() :: xmlel() | xmlcdata(). % (XML ch)ild
+
 -type binary_pair() :: {binary(), binary()}.
 
 -export_type([xmlel/0, xmlstreamstart/0, xmlstreamend/0, xmlstreamel/0,
               binary_pair/0,
               rsm_in/0, rsm_out/0,
-              xmlcdata/0
+              xmlcdata/0,
+              xmlch/0
              ]).
 
 %% Datetime format where all or some elements may be 'false' or integer()
@@ -314,8 +318,7 @@ resourceprep(S) ->
 
 
 %% @doc You are a bad person if you use this function.
--spec jid_tolower(JID :: ejabberd:simple_jid() | ejabberd:jid()
-                 ) -> error | ejabberd:simple_jid().
+-spec jid_tolower(JID :: ejabberd:simple_jid() | ejabberd:jid()) -> error | ejabberd:simple_jid().
 jid_tolower(Any) ->
     ?WARNING_MSG("This function has been deprecated in MongooseIM 1.6.1 and will be removed in 1.7.0", []),
     jid:to_lower(Any).
