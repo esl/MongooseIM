@@ -308,10 +308,8 @@ wait_for_legacy_auth(#state{} = S) ->
     fsm_next_state(wait_for_auth, S).
 
 stream_start_features_before_auth(#state{server = Server} = S) ->
-    SASLState = cyrsasl:server_new(<<"jabber">>, Server, <<>>, [],
-                                   mk_get_password_with_authmodule(Server),
-                                   mk_check_password3_with_authmodule(Server),
-                                   mk_check_password5_with_authmodule(Server)),
+    Creds = mongoose_credentials:new(Server),
+    SASLState = cyrsasl:server_new(<<"jabber">>, Server, <<>>, [], Creds),
     SockMod = (S#state.sockmod):get_sockmod(S#state.socket),
     send_element(S, stream_features(determine_features(SockMod, S))),
     fsm_next_state(wait_for_feature_before_auth,
@@ -404,21 +402,6 @@ compression_zlib() ->
 mechanism(S) ->
     #xmlel{name = <<"mechanism">>,
            children = [#xmlcdata{content = S}]}.
-
-mk_get_password_with_authmodule(Server) ->
-    fun(U) ->
-            ejabberd_auth:get_password_with_authmodule(U, Server)
-    end.
-
-mk_check_password3_with_authmodule(Server) ->
-    fun(U, P) ->
-            ejabberd_auth:check_password_with_authmodule(U, Server, P)
-    end.
-
-mk_check_password5_with_authmodule(Server) ->
-    fun(U, P, D, DG) ->
-            ejabberd_auth:check_password_with_authmodule(U, Server, P, D, DG)
-    end.
 
 get_xml_lang(Attrs) ->
     case xml:get_attr_s(<<"xml:lang">>, Attrs) of
@@ -656,7 +639,7 @@ wait_for_sasl_response({xmlstreamelement, El}, StateData) ->
     case {xml:get_attr_s(<<"xmlns">>, Attrs), Name} of
         {?NS_SASL, <<"response">>} ->
             ClientIn = jlib:decode_base64(xml:get_cdata(Els)),
-            StepResult = cyrsasl:server_step(StateData#state.sasl_state,ClientIn),
+            StepResult = cyrsasl:server_step(StateData#state.sasl_state, ClientIn),
             {NewFSMState, NewStateData} = handle_sasl_step(StateData, StepResult),
             fsm_next_state(NewFSMState, NewStateData);
         _ ->
@@ -2988,27 +2971,24 @@ sasl_challenge_stanza(Challenge) ->
            attrs = [{<<"xmlns">>, ?NS_SASL}],
            children = Challenge}.
 
-handle_sasl_success(State, Props) ->
-    handle_sasl_success(State, Props, undefined).
-handle_sasl_success(State, Props, ServerOut) ->
+handle_sasl_success(State, Creds) ->
     (State#state.sockmod):reset_stream(State#state.socket),
+    ServerOut = mongoose_credentials:get(Creds, sasl_success_response, undefined),
     send_element(State, sasl_success_stanza(ServerOut)),
-    U = proplists:get_value(username, Props, <<>>),
-    AuthModule = proplists:get_value(auth_module, Props, <<>>),
+    User = mongoose_credentials:get(Creds, username),
+    AuthModule = mongoose_credentials:get(Creds, auth_module),
     ?INFO_MSG("(~w) Accepted authentication for ~s by ~p",
-              [State#state.socket, U, AuthModule]),
+              [State#state.socket, User, AuthModule]),
     NewState = State#state{ streamid = new_id(),
                             authenticated = true,
                             auth_module = AuthModule,
-                            user = U },
+                            user = User },
     {wait_for_stream, NewState}.
 
 handle_sasl_step(#state{server = Server, socket = Sock} = State, StepRes) ->
     case StepRes of
-        {ok, Props} ->
-            handle_sasl_success(State, Props);
-        {ok, Props, ServerOut} ->
-            handle_sasl_success(State, Props, ServerOut);
+        {ok, Creds} ->
+            handle_sasl_success(State, Creds);
         {continue, ServerOut, NewSASLState} ->
             Challenge  = [#xmlcdata{content = jlib:encode_base64(ServerOut)}],
             send_element(State, sasl_challenge_stanza(Challenge)),

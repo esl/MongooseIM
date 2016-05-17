@@ -1,4 +1,3 @@
-
 %%% File    : ejabberd_auth.erl
 %%% Author  : Alexey Shchepin <alexey@process-one.net>
 %%% Purpose : Authentification
@@ -31,6 +30,7 @@
 -export([start/0,
          start/1,
          stop/1,
+         authorize/1,
          set_password/3,
          check_password/3,
          check_password/5,
@@ -109,6 +109,28 @@ store_type(Server) ->
          (M, plain) ->
               M:store_type(Server)
       end, plain, auth_modules(Server)).
+
+-spec authorize(mongoose_credentials:t()) -> {ok, mongoose_credentials:t()}
+                                           | {error, any()}.
+authorize(Creds) ->
+    LServer = mongoose_credentials:lserver(Creds),
+    timed_call(LServer, authorize, fun authorize_loop/2,
+               [auth_modules(LServer), Creds]).
+
+-spec authorize_loop([AuthM], Creds) -> {ok, R}
+                                      | {error, any()} when
+      AuthM :: ejabberd_gen_auth:t(),
+      Creds :: mongoose_credentials:t(),
+      R     :: mongoose_credentials:t().
+authorize_loop([], Creds) -> {error, {no_auth_modules, Creds}};
+authorize_loop([M | Modules], Creds) ->
+    try
+        {ok, NewCreds} = M:authorize(Creds),
+        {ok, mongoose_credentials:register(NewCreds, M, success)}
+    catch
+        _:R -> authorize_loop(Modules,
+                              mongoose_credentials:register(Creds, M, {failure, R}))
+    end.
 
 %% @doc Check if the user and password can login in server.
 -spec check_password(User :: ejabberd:user(),
