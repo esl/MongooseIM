@@ -51,7 +51,7 @@ There are 2 test suites and one helper module in `test/ejabberd_tests/tests`.
 Hooks used by this extension
 -----------------------
 
-* `offline_message_hook` used by `mod_muc_light:prevent_service_unavailable/3` - Like the name suggests, prevents the default behaviour of sending `service-unavailable` error to the room when groupchat message is sent to an offline occupant.
+* `offline_groupchat_message_hook` used by `mod_muc_light:prevent_service_unavailable/3` - Like the name suggests, prevents the default behaviour of sending `service-unavailable` error to the room when groupchat message is sent to an offline occupant.
 
 * `remove_user` used by `mod_muc_light:remove_user/2` - Triggers DB cleanup of all data related to the removed user. Includes a broadcast of a notification about user removal from occupied rooms.
 
