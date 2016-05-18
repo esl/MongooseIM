@@ -30,8 +30,8 @@
          roster_in_subscription/6,
          register_user/2,
          remove_user/2,
-         privacy_iq_get/5,
-         privacy_iq_set/4,
+         privacy_iq_get/6,
+         privacy_iq_set/5,
          privacy_check_packet/6,
          user_ping_timeout/1,
          privacy_list_push/4,
@@ -223,16 +223,17 @@ remove_user(_,Server) ->
 
 %% Privacy
 
--spec privacy_iq_get(term(), ejabberd:jid(), ejabberd:jid(), term(), term()) -> term().
-privacy_iq_get(Acc, #jid{server  = Server}, _, _, _) ->
+-spec privacy_iq_get(term(), term(), ejabberd:jid(), ejabberd:jid(), term(), term()) -> term().
+privacy_iq_get(Acc, _, #jid{server  = Server}, _, _, _) ->
     mongoose_metrics:update({Server, modPrivacyGets}, 1),
     Acc.
 
 -spec privacy_iq_set(Acc :: term(),
+                     _NS :: term(),
                      From :: ejabberd:jid(),
                      _To :: ejabberd:jid(),
                      _IQ :: ejabberd:iq()) -> ok | metrics_notify_return() | term().
-privacy_iq_set(Acc, #jid{server = Server}, _To, #iq{sub_el = SubEl}) ->
+privacy_iq_set(Acc, _NS, #jid{server = Server}, _To, #iq{sub_el = SubEl}) ->
     #xmlel{children = Els} = SubEl,
     case xml:remove_cdata(Els) of
         [#xmlel{name = <<"active">>}] ->
@@ -255,14 +256,16 @@ privacy_list_push(_From, #jid{server = Server} = _To, _Broadcast, SessionCount) 
 user_ping_timeout(_JID) ->
     ok.
 
--spec privacy_check_packet(Acc :: allow | deny,
+-spec privacy_check_packet(Acc :: allow | deny | block,
                           binary(),
                           Server :: ejabberd:server(),
-                          term(), term(), term()) -> allow | deny.
+                          term(), term(), term()) -> allow | deny | block.
 privacy_check_packet(Acc, _, Server, _, _, _) ->
     mongoose_metrics:update({Server, modPrivacyStanzaAll}, 1),
     case Acc of
         deny ->
+            mongoose_metrics:update({Server, modPrivacyStanzaDenied}, 1);
+        block ->
             mongoose_metrics:update({Server, modPrivacyStanzaBlocked}, 1);
         allow ->
             ok

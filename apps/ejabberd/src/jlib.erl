@@ -67,6 +67,7 @@
          rsm_encode/1,
          rsm_decode/1,
          stanza_error/3,
+         stanza_error/5,
          stanza_errort/5,
          stream_error/1,
          stream_errort/3,
@@ -864,6 +865,18 @@ ip_to_list({A,B,C,D}) ->
     lists:flatten(io_lib:format("~w.~w.~w.~w",[A,B,C,D]));
 ip_to_list(IP) ->
     lists:flatten(io_lib:format("~w", [IP])).
+
+
+-spec stanza_error( Code :: binary()
+    , Type :: binary()
+    , Condition :: binary()
+    , SpecTag :: binary()
+    , SpecNs :: binary() | undefined) -> #xmlel{}.
+stanza_error(Code, Type, Condition, SpecTag, SpecNs) ->
+    Er = stanza_error(Code, Type, Condition),
+    Spec = #xmlel{ name = SpecTag, attrs = [{<<"xmlns">>, SpecNs}]},
+    NCh = [Spec | Er#xmlel.children],
+    Er#xmlel{children = NCh}.
 
 %% TODO: remove<<"code" attribute (currently it used for backward-compatibility)
 -spec stanza_error( Code :: binary()

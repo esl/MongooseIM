@@ -1143,7 +1143,7 @@ handle_info(replaced, _StateName, StateData) ->
                             ?SERRT_CONFLICT(Lang, <<"Replaced by new connection">>)),
     maybe_send_trailer_safe(StateData),
     {stop, normal, StateData#state{authenticated = replaced}};
-%% Process Packets that are to be send to the user
+%% Process Packets that are to be sent to the user
 handle_info({broadcast, Broadcast}, StateName, StateData) ->
     ejabberd_hooks:run(c2s_loop_debug, [{broadcast, Broadcast}]),
     ?DEBUG("broadcast=~p", [Broadcast]),
@@ -1295,6 +1295,8 @@ handle_routed(<<"message">>, From, To, Packet, StateData) ->
         allow ->
             {allow, Packet#xmlel.attrs, StateData};
         deny ->
+            {deny, Packet#xmlel.attrs, StateData};
+        block ->
             {deny, Packet#xmlel.attrs, StateData}
     end;
 handle_routed(_, _From, _To, Packet, StateData) ->
@@ -1351,8 +1353,9 @@ handle_routed_broadcast({privacy_list, PrivList, PrivListName}, StateData) ->
             PrivPushEl = jlib:replace_from_to(F, T, jlib:iq_to_xml(PrivPushIQ)),
             {send_new, F, T, PrivPushEl, StateData#state{privacy_list = NewPL}}
     end;
-handle_routed_broadcast({blocking, What}, StateData) ->
-    route_blocking(What, StateData),
+handle_routed_broadcast({blocking, Action, JIDs}, StateData) ->
+    blocking_push_to_resources(Action, JIDs, StateData),
+    blocking_presence_to_contacts(Action, JIDs, StateData),
     {new_state, StateData};
 handle_routed_broadcast(_, StateData) ->
     {new_state, StateData}.
@@ -1976,6 +1979,10 @@ check_privacy_and_route(From, StateData, FromRoute, To, Packet) ->
             Err = jlib:make_error_reply(Packet, ?ERR_NOT_ACCEPTABLE_CANCEL),
             ejabberd_router:route(To, From, Err),
             ok;
+        block ->
+            Err = jlib:make_error_reply(Packet, ?ERR_NOT_ACCEPTABLE_BLOCKED),
+            ejabberd_router:route(To, From, Err),
+            ok;
         allow ->
             ejabberd_router:route(FromRoute, To, Packet)
     end.
@@ -2018,10 +2025,10 @@ presence_broadcast(StateData, From, JIDSet, Packet) ->
     lists:foreach(fun(JID) ->
                           FJID = jid:make(JID),
                           case privacy_check_packet(StateData, From, FJID, Packet, out) of
-                              deny ->
-                                  ok;
                               allow ->
-                                  ejabberd_router:route(From, FJID, Packet)
+                                  ejabberd_router:route(From, FJID, Packet);
+                              _ ->
+                                  ok
                           end
                   end, ?SETS:to_list(JIDSet)).
 
@@ -2038,10 +2045,10 @@ presence_broadcast_to_trusted(StateData, From, T, A, Packet) ->
                   true ->
                       FJID = jid:make(JID),
                       case privacy_check_packet(StateData, From, FJID, Packet, out) of
-                          deny ->
-                              ok;
                           allow ->
-                              ejabberd_router:route(From, FJID, Packet)
+                              ejabberd_router:route(From, FJID, Packet);
+                          _ ->
+                              ok
                       end;
                   _ ->
                       ok
@@ -2071,10 +2078,10 @@ presence_broadcast_first(From, StateData, Packet) ->
                     fun(JID, A) ->
                             FJID = jid:make(JID),
                             case privacy_check_packet(StateData, From, FJID, Packet, out) of
-                                deny ->
-                                    ok;
                                 allow ->
-                                    ejabberd_router:route(From, FJID, Packet)
+                                    ejabberd_router:route(From, FJID, Packet);
+                                _ ->
+                                    ok
                             end,
                             ?SETS:add_element(JID, A)
                     end,
@@ -2134,10 +2141,10 @@ roster_change(IJID, ISubscription, StateData) ->
                     PU = #xmlel{name = <<"presence">>,
                                 attrs = [{<<"type">>, <<"unavailable">>}]},
                     case privacy_check_packet(StateData, From, To, PU, out) of
-                        deny ->
-                            ok;
                         allow ->
-                            ejabberd_router:route(From, To, PU)
+                            ejabberd_router:route(From, To, PU);
+                        _ ->
+                            ok
                     end,
                     I = ?SETS:del_element(LIJID,
                                        StateData#state.pres_i),
@@ -2190,7 +2197,7 @@ get_priority_from_presence(PresencePacket) ->
                          IQ :: ejabberd:iq(),
                          State :: state()) -> state().
 process_privacy_iq(From, To,
-                   #iq{type = Type, sub_el = SubEl} = IQ,
+                   #iq{xmlns = XmlNs, type = Type, sub_el = SubEl} = IQ,
                    StateData) ->
     {Res, NewStateData} =
     case Type of
@@ -2198,13 +2205,13 @@ process_privacy_iq(From, To,
             R = ejabberd_hooks:run_fold(
                   privacy_iq_get, StateData#state.server,
                   {error, ?ERR_FEATURE_NOT_IMPLEMENTED},
-                  [From, To, IQ, StateData#state.privacy_list]),
+                  [XmlNs, From, To, IQ, StateData#state.privacy_list]),
             {R, StateData};
         set ->
             case ejabberd_hooks:run_fold(
                    privacy_iq_set, StateData#state.server,
                    {error, ?ERR_FEATURE_NOT_IMPLEMENTED},
-                   [From, To, IQ]) of
+                   [XmlNs, From, To, IQ]) of
                 {result, R, NewPrivList} ->
                     {{result, R},
                      StateData#state{privacy_list = NewPrivList}};
@@ -2235,7 +2242,7 @@ resend_offline_messages(StateData) ->
                       Pass = case privacy_check_packet(StateData, From, To, Packet, in) of
                                  allow ->
                                      true;
-                                 deny ->
+                                 _ ->
                                      false
                              end,
                       if
@@ -2438,29 +2445,26 @@ flush_messages(N, Acc) ->
 %%% XEP-0191
 %%%----------------------------------------------------------------------
 
--spec route_blocking(What :: blocking_type(), State :: state()) -> 'ok'.
-route_blocking(What, StateData) ->
+-spec blocking_push_to_resources(Action :: blocking_type(), JIDS :: [binary()], State :: state()) -> 'ok'.
+blocking_push_to_resources(Action, JIDs, StateData) ->
     SubEl =
-    case What of
-        {block, JIDs} ->
+    case Action of
+        block ->
             #xmlel{name = <<"block">>,
                    attrs = [{<<"xmlns">>, ?NS_BLOCKING}],
                    children = lists:map(
                                 fun(JID) ->
                                         #xmlel{name = <<"item">>,
-                                               attrs = [{<<"jid">>, jid:to_binary(JID)}]}
+                                               attrs = [{<<"jid">>, JID}]}
                                 end, JIDs)};
-        {unblock, JIDs} ->
+        unblock ->
             #xmlel{name = <<"unblock">>,
                    attrs = [{<<"xmlns">>, ?NS_BLOCKING}],
                    children = lists:map(
                                 fun(JID) ->
                                         #xmlel{name = <<"item">>,
-                                               attrs = [{<<"jid">>, jid:to_binary(JID)}]}
-                                end, JIDs)};
-        unblock_all ->
-            #xmlel{name = <<"unblock">>,
-                   attrs = [{<<"xmlns">>, ?NS_BLOCKING}]}
+                                               attrs = [{<<"jid">>, JID}]}
+                                end, JIDs)}
     end,
     PrivPushIQ = #iq{type = set, xmlns = ?NS_BLOCKING,
                      id = <<"push">>,
@@ -2469,11 +2473,29 @@ route_blocking(What, StateData) ->
     T = StateData#state.jid,
     PrivPushEl = jlib:replace_from_to(F, T, jlib:iq_to_xml(PrivPushIQ)),
     ejabberd_router:route(F, T, PrivPushEl),
-    %% No need to replace active privacy list here,
-    %% blocking pushes are always accompanied by
-    %% Privacy List pushes
     ok.
 
+-spec blocking_presence_to_contacts(Action :: blocking_type(), JIDs :: [binary()], State :: state()) -> 'ok'.
+blocking_presence_to_contacts(_Action, [], _StateData) ->
+    ok;
+blocking_presence_to_contacts(Action, [Jid|JIDs], StateData) ->
+    Pres = case Action of
+               block ->
+                   #xmlel{name = <<"presence">>,
+                       attrs = [{<<"xml:lang">>,<<"en">>},{<<"type">>,<<"unavailable">>}]
+                   };
+               unblock ->
+                   StateData#state.pres_last
+           end,
+    T = jid:from_binary(Jid),
+    case is_subscribed_to_my_presence(T, StateData) of
+        true ->
+            F = jid:to_bare(StateData#state.jid),
+            ejabberd_router:route(F, T, Pres);
+        false ->
+            ok
+    end,
+    blocking_presence_to_contacts(Action, JIDs, StateData).
 
 -type pack_tree() :: gb_trees:tree(binary() | ejabberd:simple_jid(),
                                    binary() | ejabberd:simple_jid()).
