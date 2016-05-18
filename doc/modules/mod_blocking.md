@@ -1,8 +1,8 @@
 ### Module Description
 This module implements [XEP-0191: Blocking command](http://xmpp.org/extensions/xep-0191.html).
-This extension is allows for blocking the whole communication with a user
-(or a group of users) with a single commands. The protocol is much simpler
-then in privacy lists.
+This extension allows for blocking the whole communication with a user
+(or a group of users) with a single command. The protocol is much simpler
+then privacy lists.
 
 ### Options
 
