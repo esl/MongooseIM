@@ -110,8 +110,8 @@ assert_has_text([_ | Tail]) ->
 %% cyrsasl test callback functions
 %%--------------------------------------------------------------------
 
-mech_new(_Host, _GetPassword, _CheckPassword, _CheckPasswordDigest) ->
-    {ok, {}}.
+mech_new(_Host, _Creds) ->
+    {ok, state}.
 
 mech_step(_State, _ClientIn) ->
     {error, {<<"not-authorized">>, ?TEXT_CONTENT}, <<>>}.
