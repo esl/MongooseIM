@@ -1,26 +1,26 @@
 #!/bin/bash
 
-
+sleep 20
 
 RIAK_HOST="http://localhost:8098"
 
-curl -XPUT $RIAK_HOST/search/schema/vcard \
+curl -v -XPUT $RIAK_HOST/search/schema/vcard \
     -H 'Content-Type:application/xml' \
     --data-binary @tools/vcard_search_schema.xml
 
-curl $RIAK_HOST/search/schema/vcard
+curl -v $RIAK_HOST/search/schema/vcard
 
-curl -XPUT $RIAK_HOST/search/index/vcard \
+curl -v -XPUT $RIAK_HOST/search/index/vcard \
     -H 'Content-Type: application/json' \
     -d '{"schema":"vcard"}'
 
-curl -XPUT $RIAK_HOST/search/schema/mam \
+curl -v -XPUT $RIAK_HOST/search/schema/mam \
     -H 'Content-Type:application/xml' \
     --data-binary @tools/mam_search_schema.xml
 
-curl $RIAK_HOST/search/schema/mam
+curl -v $RIAK_HOST/search/schema/mam
 
-curl -XPUT $RIAK_HOST/search/index/mam \
+curl -v -XPUT $RIAK_HOST/search/index/mam \
     -H 'Content-Type: application/json' \
     -d '{"schema":"mam"}'
 
