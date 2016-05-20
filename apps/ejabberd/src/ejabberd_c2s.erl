@@ -918,7 +918,7 @@ session_established({xmlstreamelement, El}, StateData) ->
         _NewEl ->
             NewState = maybe_increment_sm_incoming(StateData#state.stream_mgmt,
                                                    StateData),
-            check_amp_maybe_send(FromJID#jid.lserver, NewState, {FromJID, El})
+            check_amp_maybe_send(FromJID#jid.lserver, NewState, FromJID, El)
     end;
 
 %% We hibernate the process to reduce memory consumption after a
@@ -947,11 +947,10 @@ session_established(closed, StateData) ->
 
 
 %%% XEP-0079 (AMP) related
-check_amp_maybe_send(Host, State, {FromJID, El}) ->
-    case mod_amp:check_packet(El, initial_check, FromJID) of
-        drop      -> fsm_next_state(session_established, State);
-        {_, NewEl} ->
-            session_established2(NewEl, State)
+check_amp_maybe_send(Host, State, FromJID, El) ->
+    case mod_amp:check_packet(El, FromJID, initial_check) of
+        drop -> fsm_next_state(session_established, State);
+        NewEl -> session_established2(NewEl, State)
     end.
 
 %% @doc Process packets sent by user (coming from user on c2s XMPP
@@ -1171,6 +1170,7 @@ handle_info({route, From, To, Packet}, StateName, StateData) ->
                     maybe_csi_inactive_optimisation({From, To, FixedPacket}, NewState, StateName);
 
                 {false, _NewAttrs, NewState} ->
+                    mod_amp:check_packet(Packet, From, failed),
                     fsm_next_state(StateName, NewState)
             end
     end;

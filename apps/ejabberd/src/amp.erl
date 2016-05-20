@@ -21,7 +21,7 @@
         ]).
 
 -export_type([amp_rule/0,
-             amp_rules/0]).
+              amp_rules/0]).
 
 
 -spec binaries_to_rule(binary(), binary(), binary()) -> amp_rule() | amp_invalid_rule().

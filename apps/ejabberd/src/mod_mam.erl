@@ -302,7 +302,7 @@ filter_packet({From, To=#jid{luser=LUser, lserver=LServer}, Packet}) ->
                         {archived, replace_archived_elem(BareTo, MessID, Packet)}
                 end
         end,
-    {From, PacketAfterAmp} = mod_amp:check_packet(PacketAfterArchive, AmpEvent, From),
+    PacketAfterAmp = mod_amp:check_packet(PacketAfterArchive, From, AmpEvent),
     {From, To, PacketAfterAmp}.
 
 process_incoming_packet(From, To, Packet) ->
@@ -608,14 +608,14 @@ handle_purge_single_message(ArcJID=#jid{},
     PurgingResult = purge_single_message(Host, MessID, ArcID, ArcJID, Now),
     return_purge_single_message_iq(IQ, PurgingResult).
 
-determine_amp_strategy(Strategy = #amp_strategy{deliver = none},
+determine_amp_strategy(Strategy = #amp_strategy{deliver = [none]},
                        FromJID, ToJID, Packet, initial_check) ->
     #jid{luser = LUser, lserver = LServer} = ToJID,
     ShouldBeStored = is_complete_message(?MODULE, incoming, Packet)
         andalso is_interesting(ToJID, FromJID)
         andalso ejabberd_auth:is_user_exists(LUser, LServer),
     case ShouldBeStored of
-        true -> Strategy#amp_strategy{deliver = stored};
+        true -> Strategy#amp_strategy{deliver = [stored, none]};
         false -> Strategy
     end;
 determine_amp_strategy(Strategy, _, _, _, _) ->

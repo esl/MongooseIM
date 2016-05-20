@@ -24,22 +24,23 @@ verify_rule_support(#amp_rule{condition = 'expire-at'} = Rule) ->
 verify_rule_support(Rule) ->
     {supported, Rule}.
 
--spec check_condition(any(), amp_strategy(), amp_condition(), amp_value())
-                          -> boolean().
+-spec check_condition(amp_match_result(), amp_strategy(), amp_condition(), amp_value()) ->
+                             amp_match_result().
 check_condition(HookAcc, Strategy, Condition, Value) ->
     case HookAcc of
-        true -> true;
-        _    -> resolve(Strategy, Condition, Value)
+        no_match -> resolve(Strategy, Condition, Value);
+        match -> match
     end.
 
--spec resolve(amp_strategy(), amp_condition(), amp_value()) -> boolean().
-resolve(#amp_strategy{} = S , 'deliver', Value) ->
-    S#amp_strategy.deliver =:= Value;
-resolve(#amp_strategy{} = S , 'match-resource', Value) when Value =:= 'any' ->
-    S#amp_strategy.'match-resource' =/= undefined;
-resolve(#amp_strategy{} = S , 'match-resource', Value)  ->
-    S#amp_strategy.'match-resource' =:= Value;
-resolve(#amp_strategy{} = S , 'expire-at', Value) ->
-    %% WARNING: This rule is not supported by mod_amp
-    S#amp_strategy.'expire-at' =:= Value;
-resolve(#amp_strategy{}, _, _) -> false.
+-spec resolve(amp_strategy(), amp_condition(), amp_value()) -> amp_match_result().
+resolve(#amp_strategy{deliver = [Value]}, deliver, Value) -> match;
+resolve(#amp_strategy{deliver = Values}, deliver, Value) ->
+    case lists:member(Value, Values) of
+        true -> undecided;
+        false -> no_match
+    end;
+resolve(#amp_strategy{'match-resource' = undefined}, 'match-resource', any) -> no_match;
+resolve(#amp_strategy{}, 'match-resource', any) -> match;
+resolve(#amp_strategy{'match-resource' = Value}, 'match-resource', Value) -> match;
+resolve(#amp_strategy{}, 'match-resource', _Value) -> no_match;
+resolve(#amp_strategy{}, _, _) -> no_match.

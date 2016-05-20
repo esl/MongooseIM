@@ -12,7 +12,7 @@
 -include_lib("ejabberd/include/ejabberd.hrl").
 -include_lib("ejabberd/include/jlib.hrl").
 
--spec determine_strategy(amp_strategy(), jid() | undefined, jid() | undefined, #xmlel{}, atom()) ->
+-spec determine_strategy(amp_strategy(), jid() | undefined, jid() | undefined, #xmlel{}, amp_event()) ->
                                 amp_strategy().
 determine_strategy(_, _, undefined, _, _) -> null_strategy();
 determine_strategy(_, _, To, _, Event) ->
@@ -39,11 +39,12 @@ get_target_resources(MessageTarget) ->
     UserResources = ejabberd_sm:get_user_resources(User, Server),
     {ResourceSession, UserResources}.
 
-deliver_strategy({offline, []}, initial_check) -> none;
-deliver_strategy({_Session, _ }, initial_check) -> direct;
-deliver_strategy(_, archived) -> stored;
-deliver_strategy(_, failed) -> none;
-deliver_strategy(_, delivered) -> direct.
+deliver_strategy({offline, []}, initial_check) -> [none];
+deliver_strategy({_Session, _ }, initial_check) -> [direct, none];
+deliver_strategy({offline, []}, archived) -> [stored];
+deliver_strategy({_Session, _}, archived) -> [direct, stored];
+deliver_strategy(_, failed) -> [none];
+deliver_strategy(_, delivered) -> [direct].
 
 %% @doc Notes on matching
 %%

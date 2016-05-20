@@ -43,7 +43,8 @@
          remove_expired_messages/1,
          remove_old_messages/2,
          remove_user/2,
-         determine_amp_strategy/5]).
+         determine_amp_strategy/5,
+         amp_failed_event/2]).
 
 %% Internal exports
 -export([start_link/3]).
@@ -134,6 +135,8 @@ start(Host, Opts) ->
 		       ?MODULE, get_sm_features, 50),
     ejabberd_hooks:add(amp_determine_strategy, Host,
                        ?MODULE, determine_amp_strategy, 30),
+    ejabberd_hooks:add(failed_to_store_message, Host,
+                       ?MODULE, amp_failed_event, 30),
     ok.
 
 stop(Host) ->
@@ -149,12 +152,17 @@ stop(Host) ->
     ejabberd_hooks:delete(disco_local_features, Host, ?MODULE, get_sm_features, 50),
     ejabberd_hooks:delete(amp_determine_strategy, Host,
                           ?MODULE, determine_amp_strategy, 30),
+    ejabberd_hooks:delete(failed_to_store_message, Host,
+                          ?MODULE, amp_failed_event, 30),
     stop_worker(Host),
     ok.
 
 
 %% Server side functions
 %% ------------------------------------------------------------------
+
+amp_failed_event(Packet, From) ->
+    mod_amp:check_packet(Packet, From, failed).
 
 handle_offline_msg(#offline_msg{us=US} = Msg, AccessMaxOfflineMsgs) ->
     {LUser, LServer} = US,
@@ -171,7 +179,7 @@ handle_offline_msg(#offline_msg{us=US} = Msg, AccessMaxOfflineMsgs) ->
 write_messages(LUser, LServer, Msgs) ->
     case ?BACKEND:write_messages(LUser, LServer, Msgs) of
         ok ->
-            [mod_amp:check_packet(Packet, archived, From)
+            [mod_amp:check_packet(Packet, From, archived)
              || #offline_msg{from = From, packet = Packet} <- Msgs],
             ok;
         {error, Reason} ->
@@ -239,12 +247,12 @@ srv_name() ->
 srv_name(Host) ->
     gen_mod:get_module_proc(Host, srv_name()).
 
-determine_amp_strategy(Strategy = #amp_strategy{deliver = none},
+determine_amp_strategy(Strategy = #amp_strategy{deliver = [none]},
                        _FromJID, ToJID, _Packet, initial_check) ->
     #jid{luser = LUser, lserver = LServer} = ToJID,
     ShouldBeStored = ejabberd_auth:is_user_exists(LUser, LServer),
     case ShouldBeStored of
-        true -> Strategy#amp_strategy{deliver = stored};
+        true -> Strategy#amp_strategy{deliver = [stored, none]};
         false -> Strategy
     end;
 determine_amp_strategy(Strategy, _, _, _, _) ->

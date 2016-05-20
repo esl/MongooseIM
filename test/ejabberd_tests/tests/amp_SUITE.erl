@@ -21,8 +21,8 @@ all() -> [{group, basic},
 
 groups() ->
     [{basic, [parallel, shuffle], basic_test_cases()},
-     {mam, [parallel, shuffle], archive_test_cases()},
-     {offline, [parallel, shuffle], archive_test_cases()},
+     {mam, [parallel, shuffle], archive_test_cases() ++ mam_test_cases()},
+     {offline, [parallel, shuffle], archive_test_cases() ++ offline_test_cases()},
      {mam_and_offline, [parallel, shuffle], archive_test_cases()}
     ].
 
@@ -38,6 +38,7 @@ basic_test_cases() ->
      notify_deliver_direct_bare_jid_test,
      notify_deliver_none_test,
      notify_deliver_none_existing_user_test,
+     notify_deliver_none_privacy_test,
 
      notify_match_resource_any_test,
      notify_match_resource_exact_test,
@@ -57,14 +58,19 @@ archive_test_cases() ->
      notify_deliver_stored_test
     ].
 
+offline_test_cases() ->
+    [notify_deliver_none_instead_of_stored_filtered_by_privacy_test].
+
+mam_test_cases() ->
+    [notify_deliver_direct_instead_of_stored_test].
+
 init_per_suite(C) -> escalus:init_per_suite(C).
 end_per_suite(C) -> ok = escalus_fresh:clean(), escalus:end_per_suite(C).
 
 init_per_group(GroupName, Config) ->
     Config1 = dynamic_modules:save_modules(?DOMAIN, Config),
     dynamic_modules:ensure_modules(?DOMAIN, required_modules(GroupName)),
-    Config1;
-init_per_group(_GroupName, Config) -> Config.
+    Config1.
 
 end_per_group(_GroupName, Config) ->
     dynamic_modules:restore_modules(?DOMAIN, Config).
@@ -145,7 +151,6 @@ unacceptable_rules_test(Config) ->
                                     <<"not-acceptable">>)
       end).
 
-
 notify_deliver_direct_test(Config) ->
     escalus:fresh_story(
       Config, [{alice, 1}, {bob, 1}],
@@ -206,6 +211,23 @@ notify_deliver_none_existing_user_test(Config) ->
 
               % then
               client_receives_notification(Alice, BobJid, {deliver, none, notify})
+      end).
+
+notify_deliver_none_privacy_test(Config) ->
+    escalus:fresh_story(
+      Config, [{alice, 1}, {bob, 1}],
+      fun(Alice, Bob) ->
+              %% given
+              Msg = amp_message_to(Bob, [{deliver, none, notify}],
+                                   <<"Should be filtered by Bob's privacy list">>),
+              privacy_helper:set_and_activate(Bob, <<"deny_all_message">>),
+
+              %% when
+              client_sends_message(Alice, Msg),
+
+              % then
+              client_receives_notification(Alice, Bob, {deliver, none, notify}),
+              client_receives_nothing(Bob)
       end).
 
 notify_match_resource_any_test(Config) ->
@@ -353,6 +375,48 @@ notify_deliver_stored_test(Config) ->
 
               % then
               client_receives_notification(Alice, BobJid, {deliver, stored, notify}),
+              client_receives_nothing(Alice)
+      end).
+
+notify_deliver_none_instead_of_stored_filtered_by_privacy_test(Config) ->
+    FreshConfig = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+    escalus:story(
+      FreshConfig, [{bob, 1}],
+      fun(Bob) ->
+              %% given
+              privacy_helper:set_and_activate(Bob, <<"deny_all_message">>),
+              privacy_helper:set_default_list(Bob, <<"deny_all_message">>)
+      end),
+    escalus:story(
+      FreshConfig, [{alice, 1}],
+      fun(Alice) ->
+              %% given
+              BobJid = escalus_users:get_jid(FreshConfig, bob),
+              Msg = amp_message_to(BobJid, [{deliver, none, notify}, {deliver, stored, notify}],
+                                   <<"A message in a bottle...">>),
+              %% when
+              client_sends_message(Alice, Msg),
+
+              % then
+              client_receives_notification(Alice, BobJid, {deliver, none, notify})
+      end).
+
+notify_deliver_direct_instead_of_stored_test(Config) ->
+    %% The 'stored' condition works only if the message is not meant to be delivered.
+    %% It is not triggered if MAM stores the message and the recipient is online.
+    escalus:fresh_story(
+      Config, [{alice, 1}, {bob, 1}],
+      fun(Alice, Bob) ->
+              %% given
+              Msg = amp_message_to(Bob, [{deliver, stored, notify},
+                                         {deliver, direct, notify}],
+                                   <<"I want to be sure you get this!">>),
+              %% when
+              client_sends_message(Alice, Msg),
+
+              % then
+              client_receives_notification(Alice, Bob, {deliver, direct, notify}),
+              client_receives_message(Bob, <<"I want to be sure you get this!">>),
               client_receives_nothing(Alice)
       end).
 
