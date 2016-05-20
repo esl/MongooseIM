@@ -114,7 +114,7 @@ unsupported_actions_test(Config) ->
               client_sends_message(Alice, Msg),
 
               % then
-              client_receives_error(Alice, {deliver, direct, drop}, <<"unsupported-actions">>)
+              client_receives_amp_error(Alice, {deliver, direct, drop}, <<"unsupported-actions">>)
       end).
 
 unsupported_conditions_test(Config) ->
@@ -129,7 +129,7 @@ unsupported_conditions_test(Config) ->
               client_sends_message(Alice, Msg),
 
               % then
-              client_receives_error(Alice, {'expire-at', <<"2020-06-06T12:20:20Z">>, notify},
+              client_receives_amp_error(Alice, {'expire-at', <<"2020-06-06T12:20:20Z">>, notify},
                                    <<"unsupported-conditions">>)
       end).
 
@@ -146,7 +146,7 @@ unacceptable_rules_test(Config) ->
               client_sends_message(Alice, Msg),
 
               % then
-              client_receives_error(Alice, [{broken, rule, spec}
+              client_receives_amp_error(Alice, [{broken, rule, spec}
                                            ,{also_broken, rule, spec}],
                                     <<"not-acceptable">>)
       end).
@@ -226,7 +226,9 @@ notify_deliver_none_privacy_test(Config) ->
               client_sends_message(Alice, Msg),
 
               % then
-              client_receives_notification(Alice, Bob, {deliver, none, notify}),
+              % no notification from AMP, just a regular error message
+              client_receives_generic_error(Alice, <<"503">>, <<"cancel">>),
+              client_receives_nothing(Alice),
               client_receives_nothing(Bob)
       end).
 
@@ -308,7 +310,7 @@ error_deliver_direct_test(Config) ->
               client_sends_message(Alice, Msg),
 
               % then
-              client_receives_error(Alice, Bob, {deliver, direct, error}, <<"undefined-condition">>),
+              client_receives_amp_error(Alice, Bob, {deliver, direct, error}, <<"undefined-condition">>),
               client_receives_nothing(Bob)
       end).
 
@@ -324,7 +326,7 @@ error_deliver_none_test(Config) ->
               client_sends_message(Alice, Msg),
 
               % then
-              client_receives_error(Alice, StrangerJid, {deliver, none, error}, <<"undefined-condition">>)
+              client_receives_amp_error(Alice, StrangerJid, {deliver, none, error}, <<"undefined-condition">>)
       end).
 
 error_deliver_doesnt_apply_test(Config) ->
@@ -430,16 +432,21 @@ client_goes_offline(Client) ->
 client_sends_message(Client, Msg) ->
     escalus_client:send(Client, Msg).
 
-client_receives_error(Client, Rules, AmpErrorKind) when is_list(Rules) ->
+client_receives_amp_error(Client, Rules, AmpErrorKind) when is_list(Rules) ->
     Received = escalus_client:wait_for_stanza(Client),
     assert_amp_error(Client, Received, Rules, AmpErrorKind);
-client_receives_error(Client, Rule, AmpErrorKind) ->
-    client_receives_error(Client, [Rule], AmpErrorKind).
+client_receives_amp_error(Client, Rule, AmpErrorKind) ->
+    client_receives_amp_error(Client, [Rule], AmpErrorKind).
 
-client_receives_error(Client, IntendedRecipient, Rule, AmpErrorKind) ->
+client_receives_amp_error(Client, IntendedRecipient, Rule, AmpErrorKind) ->
     Received = escalus_client:wait_for_stanza(Client),
     assert_amp_error_with_full_amp(Client, IntendedRecipient,
                                    Received, Rule, AmpErrorKind).
+
+client_receives_generic_error(Client, Code, Type) ->
+    Received = escalus_client:wait_for_stanza(Client),
+    escalus:assert(fun contains_error/3, [Code, Type], Received).
+
 client_receives_nothing(Client) ->
     timer:sleep(300),
     escalus_assert:has_no_stanzas(Client).
@@ -555,6 +562,11 @@ contains_amp_error(AmpErrorKind, Rules, Response) ->
         undefined =/= (Container = exml_query:subelement(ErrorEl, amp_error_container(AmpErrorKind)))
         andalso
         all_present([ rule_el(R) || R <- Rules ], exml_query:subelements(Container, <<"rule">>)).
+
+contains_error(Code, Type, Response) ->
+    ErrorEl = exml_query:subelement(Response, <<"error">>),
+    Type == exml_query:attr(ErrorEl, <<"type">>)
+        andalso Code == exml_query:attr(ErrorEl, <<"code">>).
 
 all_present(Needles, Haystack) ->
     list_and([ lists:member(Needle, Haystack)
