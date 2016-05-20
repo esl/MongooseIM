@@ -39,8 +39,7 @@
 %%%
 
 start(normal, _Args) ->
-    ejabberd_loglevel:init(),
-    ejabberd_loglevel:set(4),
+    init_log(),
     mongoose_fips:notify(),
     write_pid_file(),
     db_init(),
@@ -221,3 +220,8 @@ load_drivers([Driver | Rest]) ->
                           [erl_ddll:format_error(Reason)]),
             exit({driver_loading_failed, Driver, Reason})
     end.
+
+init_log() ->
+    ejabberd_loglevel:init(),
+    ejabberd_loglevel:set(4).
+
