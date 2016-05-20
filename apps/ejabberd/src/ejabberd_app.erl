@@ -223,5 +223,10 @@ load_drivers([Driver | Rest]) ->
 
 init_log() ->
     ejabberd_loglevel:init(),
-    ejabberd_loglevel:set(4).
+    case application:get_env(ejabberd, keep_lager_intact, false) of
+        true ->
+            skip;
+        false ->
+            ejabberd_loglevel:set(4)
+    end.
 
