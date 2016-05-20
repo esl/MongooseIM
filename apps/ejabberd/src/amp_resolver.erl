@@ -29,7 +29,7 @@ verify_rule_support(Rule) ->
 check_condition(HookAcc, Strategy, Condition, Value) ->
     case HookAcc of
         no_match -> resolve(Strategy, Condition, Value);
-        match -> match
+        MatchResult -> MatchResult
     end.
 
 -spec resolve(amp_strategy(), amp_condition(), amp_value()) -> amp_match_result().
@@ -42,5 +42,4 @@ resolve(#amp_strategy{deliver = Values}, deliver, Value) ->
 resolve(#amp_strategy{'match-resource' = undefined}, 'match-resource', any) -> no_match;
 resolve(#amp_strategy{}, 'match-resource', any) -> match;
 resolve(#amp_strategy{'match-resource' = Value}, 'match-resource', Value) -> match;
-resolve(#amp_strategy{}, 'match-resource', _Value) -> no_match;
 resolve(#amp_strategy{}, _, _) -> no_match.

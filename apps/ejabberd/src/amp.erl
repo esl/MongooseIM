@@ -14,7 +14,6 @@
          make_error_response/4,
          rule_to_xmlel/1,
          strip_amp_el/1,
-         replace_rules/2,
 
          binaries_to_rule/3,
          is_amp_request/1
@@ -128,12 +127,6 @@ strip_amp_el(#xmlel{children = Children} = Elem) ->
     NewChildren = [ C || C <- Children, not is_amp_el(C) ],
     Elem#xmlel{children = NewChildren}.
 
-replace_rules(#xmlel{children = Children} = Elem, Rules) ->
-    Amp = #xmlel{name = <<"amp">>,
-                 attrs = [{<<"xmlns">>, ?NS_AMP}],
-                 children = [rule_to_xmlel(Rule) || Rule <- Rules]},
-    NewChildren = [C || C <- Children, not is_amp_el(C)] ++ [Amp],
-    Elem#xmlel{children = NewChildren}.
 
 %% Internal
 %% @doc We want to keep client->server AMPed messages,

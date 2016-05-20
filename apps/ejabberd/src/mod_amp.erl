@@ -113,6 +113,7 @@ process_amp_rules(Packet, From, Event, Rules) ->
 verify_support(Host, Rules) ->
     ejabberd_hooks:run_fold(amp_verify_support, Host, [], [Rules]).
 
+-spec determine_strategy(#xmlel{}, jid(), amp_event()) -> amp_strategy().
 determine_strategy(Packet, From, Event) ->
     To = message_target(Packet),
     ejabberd_hooks:run_fold(amp_determine_strategy, host(From),
@@ -195,6 +196,7 @@ result_or(_, Or)         -> Or.
 is_supported_rule({supported, _}) -> true;
 is_supported_rule(_)              -> false.
 
+-spec host(jid()) -> binary().
 host(#jid{lserver=Host}) -> Host.
 
 server_jid(#jid{lserver = Host}) ->
