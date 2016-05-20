@@ -39,7 +39,7 @@
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 
--type xmlel_or_cdata() :: jlib:xmlel() | jlib:xmlcdata().
+-type xmlel_or_cdata() :: jlib:xmlch().
 
 -spec remove_cdata_p(xmlel_or_cdata()) -> boolean().
 remove_cdata_p(#xmlel{}) -> true;

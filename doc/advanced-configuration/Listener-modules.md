@@ -1,11 +1,11 @@
 Some of MongooseIM modules are specialised in handling user connections. They can be used in the `listen` clause in `ejabberd.cfg` file. See this section for their description and configuration options.
 
 Options described with a value type (e.g. string, integer) are key-value tuples. 
-Other options are enabled by being added as atoms. E.g. a tuple option might be: `{access, c2s}` while other options are added as: `starttls`
+Other options are enabled by being added as atoms. E.g. a tuple option might be: `{access, c2s}` while other options are added as: `starttls`.
 
-## ejabberd_c2s
+## Client-to-server (C2S): `ejabberd_c2s`
 
-Handles pure XMPP connections, relies on `ejabberd_listener` for listening. It processes the incoming data from the user client, while the data reception and parsing is executed with `ejabberd_recevier`'s help. You only need to declare running `ejabberd_c2s’, to have the other 2 modules started and used.
+Handles pure XMPP client-to-server (C2S) connections, relies on `ejabberd_listener` for listening. It processes the incoming data from the user client, while the data reception and parsing is executed with `ejabberd_receiver`'s help. You only need to declare running `ejabberd_c2s’, to have the other 2 modules started and used.
 
 **Default port:** 5222
 
@@ -19,13 +19,12 @@ Handles pure XMPP connections, relies on `ejabberd_listener` for listening. It p
 * `access` (atom, default: `c2s`) - Access Rule to use for C2S connections.
 * `c2s_shaper` (atom, default: `c2s_shaper`) - Connection shaper to use for incoming C2S stanzas.
 * `max_stanza_size` (positive integer, default: 65536) - Maximum allowed incoming stanza size. **Warning:** this limit is checked **after** input data parsing, so it does not limit the input data size itself.
-* `backlog` (positive integer, default 100) - overrides default tcp backlog value
+* `backlog` (positive integer, default 100) - overrides default TCP backlog value
+* `max_fsm_queue` (positive integer, the value of this option set global) - message queue limit to prevent resource exhaustion; overrides the global value of this option
 
-## ejabberd_cowboy
+## HTTP-based services (BOSH, WebSocket, REST): `ejabberd_cowboy`
 
-Manages all HTTP-based services. Unlike `ejabberd_c2s`, it doesn't use `ejabberd_receiver` or `ejabberd_listener`.
-
-
+Manages all HTTP-based services, such as BOSH (HTTP long-polling) and WebSocket. Unlike `ejabberd_c2s`, it doesn't use `ejabberd_receiver` or `ejabberd_listener`.
 
 **Default port:** 5280
 
@@ -61,9 +60,9 @@ Manages all HTTP-based services. Unlike `ejabberd_c2s`, it doesn't use `ejabberd
             `{"localhost", "/api", mongoose_api, [{handlers, [mongoose_api_metrics]}]}`
 
 
-### mod_cowboy
+### HTTP module: `mod_cowboy`
 
-This modules provides additional routing layer on top of HTTP(s) or
+This module provides additional routing layer on top of HTTP(s) or
 WS(S) protocols. Example configuration looks like the following (add
 this to ejabberd_cowboy modules list described above):
 
@@ -80,16 +79,16 @@ this to ejabberd_cowboy modules list described above):
                               ]},
 ```
 
-According to this configuration, all http requests will go through the
+According to this configuration, all HTTP requests will go through the
 `mod_revproxy` module (see [mod_revproxy](../modules/mod_revproxy.md)
-fro more details).
-As for now, all websockets connections with the `Sec-WebSocket-Protocol: xmpp`
+for more details).
+As for now, all WebSockets connections with the `Sec-WebSocket-Protocol: xmpp`
 header, will go through the mod_websockets connection.
 This is the MongooseIM's regular websocket connection handler.
 
-## ejabberd_s2s_in
+## Server-to-server (S2S): `ejabberd_s2s_in
 
-Handles incoming S2S connections. Relies on `ejabberd_listener` and `ejabberd_receiver` just like `ejabberd_c2s`.
+Handles incoming server-to-server (S2S) connections (federation). Relies on `ejabberd_listener` and `ejabberd_receiver` just like `ejabberd_c2s`.
 
 **Note:** Many S2S options are configured as top-level config options and they apply to both incoming and outgoing connections. Please refer to [Advanced configuration](../Advanced-configuration.md) for more information.
 
@@ -100,9 +99,9 @@ Handles incoming S2S connections. Relies on `ejabberd_listener` and `ejabberd_re
 * `shaper` (atom, default: `s2s_shaper`) - Connection shaper to use for incoming S2S data.
 * `max_stanza_size` (positive integer, default: 131072) - Maximum allowed incoming stanza size. **Warning:** this limit is checked **after** input data parsing, so it does not limit the input data size itself.
 
-## ejabberd_service
+## XMPP components: `ejabberd_service`
 
-Interface for external [XMPP components](http://xmpp.org/extensions/xep-0114.html).
+Interface for external XMPP components ([XEP-0114: Jabber Component Protocol](http://xmpp.org/extensions/xep-0114.html)), enabling communication between servers and "external" components over the XMPP network.
 
 **Default port:** 8888
 
@@ -113,6 +112,7 @@ Interface for external [XMPP components](http://xmpp.org/extensions/xep-0114.htm
 * `host` ( tuple: `{host, Domain, [{password, "password here"}]}`, optional when `hosts` present) - Only allowed domain for components, protected by password. Must be set when `hosts` not present.
 * `shaper_rule` (atom, default: `fast`) - Connection shaper to use for incoming component traffic.
 * `service_check_from` (boolean, default: `true`) - Checks whether the server should verify the "from" field in stanzas from component
+* `max_fsm_queue` (positive integer, the value of this option set global) - message queue limit to prevent resource exhaustion; overrides the global value of this option
 
 ### Custom extension to the protocol
 

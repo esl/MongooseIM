@@ -329,12 +329,15 @@ check_packet(_, User, Server,
                 false ->
                     {[], []}
             end,
-            check_packet_aux(List, PType, LJID, Subscription, Groups)
+            Type = xml:get_attr_s(<<"type">>, Packet#xmlel.attrs),
+            check_packet_aux(List, PType, Type, LJID, Subscription, Groups)
     end.
 
-check_packet_aux([], _PType, _JID, _Subscription, _Groups) ->
+check_packet_aux(_, message, <<"error">>, _JID, _Subscription, _Groups) ->
     allow;
-check_packet_aux([Item | List], PType, JID, Subscription, Groups) ->
+check_packet_aux([], _PType, _Type, _JID, _Subscription, _Groups) ->
+    allow;
+check_packet_aux([Item | List], PType, MType, JID, Subscription, Groups) ->
     #listitem{type = Type, value = Value, action = Action} = Item,
     case is_ptype_match(Item, PType) of
         true ->
@@ -346,12 +349,11 @@ check_packet_aux([Item | List], PType, JID, Subscription, Groups) ->
                         true ->
                             Action;
                         false ->
-                            check_packet_aux(
-                                List, PType, JID, Subscription, Groups)
+                            check_packet_aux(List, PType, MType, JID, Subscription, Groups)
                     end
             end;
         false ->
-            check_packet_aux(List, PType, JID, Subscription, Groups)
+            check_packet_aux(List, PType, MType, JID, Subscription, Groups)
     end.
 
 is_ptype_match(Item, PType) ->
@@ -423,7 +425,7 @@ updated_list(_,
 
 packet_directed_type(Dir, Type) ->
     case {Type, Dir} of
-         {message, in} -> message;
+         {message, _} -> message;
          {iq, in} -> iq;
          {presence, in} -> presence_in;
          {presence, out} -> presence_out;

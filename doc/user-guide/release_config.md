@@ -53,9 +53,9 @@ This script is also accessible via make `configure` target.
 For example if only `mysql` and `redis` drivers should be included in the
 release, following command has to be run before `make rel`:
 
-        $ make configure with-mysql with-redis
+    $ ./tools/configure with-mysql with-redis
 
-The `make configure` command has to be run only once (unless one needs to 
+The `./tools/configure` command has to be run only once (unless one needs to
 change the release's config and include some other dependencies).
 
 ### System install

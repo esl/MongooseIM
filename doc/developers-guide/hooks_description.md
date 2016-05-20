@@ -1,5 +1,8 @@
 # Selected hooks description
 
+This is a short documentation of a few selected hooks. As the pattern repeats, it may not be necessary to describe them all.
+
+
 ## `user_send_packet`
 
 ```erlang
@@ -15,7 +18,6 @@ from the socket:
   the identity of the user whose session the process in question serves;
   in case of the identity not matching the contents of the attribute an error
   is returned,
-
 - the recipient JID (`to` attribute) format is verified.
 
 The hook is not run for stanzas which do not pass these basic validity
@@ -127,7 +129,7 @@ ejabberd_hooks:run_fold(session_opening_allowed_for_user,
                         allow, [JID]).
 ```
 
-This hook is run after authentication when user sends the iq opening a session.
+This hook is run after authentication when user sends the IQ opening a session.
 Handler function are expected to return:
 
 * `allow` if given JID is allowed to open a new sessions

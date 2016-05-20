@@ -60,6 +60,7 @@
 -define(NS_MUC_OWNER,   <<"http://jabber.org/protocol/muc#owner">>).
 -define(NS_MUC_UNIQUE,  <<"http://jabber.org/protocol/muc#unique">>).
 -define(NS_MUC_REQUEST,  <<"http://jabber.org/protocol/muc#request">>).
+-define(NS_MUC_CONFIG,  <<"http://jabber.org/protocol/muc#roomconfig">>).
 -define(NS_PING,        <<"urn:xmpp:ping">>).
 -define(NS_PUBSUB,      <<"http://jabber.org/protocol/pubsub">>).
 -define(NS_PUBSUB_EVENT,<<"http://jabber.org/protocol/pubsub#event">>).
@@ -132,6 +133,8 @@
         jlib:stanza_error(<<"400">>,<<"modify">>,<<"jid-malformed">>)).
 -define(ERR_NOT_ACCEPTABLE,
         jlib:stanza_error(<<"406">>,<<"modify">>,<<"not-acceptable">>)).
+-define(ERR_NOT_ACCEPTABLE_CANCEL,
+        jlib:stanza_error(<<"406">>,<<"cancel">>,<<"not-acceptable">>)).
 -define(ERR_NOT_ALLOWED,
         jlib:stanza_error(<<"405">>,<<"cancel">>,<<"not-allowed">>)).
 -define(ERR_NOT_AUTHORIZED,
@@ -353,12 +356,11 @@
 
 -type iq() :: #iq{}.
 -type jid() :: #jid{}.
+-type ljid() :: {ejabberd:luser(), ejabberd:lserver(), ejabberd:lresource()}.
 
 -type xmlel() :: #xmlel{}.
 
 -type rsm_in() :: #rsm_in{}.
 -type rsm_out() :: #rsm_out{}.
-
--type ljid() :: {binary(), binary(), binary()}.
 
 -endif.

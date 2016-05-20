@@ -52,8 +52,6 @@ main(Args) ->
             io:format("~p\n", [rpc:call(TargetNode, init, restart, [], 60000)]);
         ["reboot"] ->
             io:format("~p\n", [rpc:call(TargetNode, init, reboot, [], 60000)]);
-        ["remove_from_cluster", DeadNode] ->
-            io:format("~p\n", [rpc:call(TargetNode, mnesia, del_table_copy, [schema, list_to_atom(DeadNode)] )]);
         ["rpc", Module, Function | RpcArgs] ->
             case rpc:call(TargetNode, list_to_atom(Module), list_to_atom(Function),
                           [RpcArgs], 60000) of

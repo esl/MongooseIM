@@ -5,7 +5,7 @@ EJD_INCLUDE = $(EJABBERD_DIR)/include
 EJD_PRIV = $(EJABBERD_DIR)/priv
 XEP_TOOL = tools/xep_tool
 EJD_EBIN = $(EJABBERD_DIR)/ebin
-DEVNODES = node1 node2 fed1
+DEVNODES = node1 node2 node3 fed1
 
 all: deps compile
 
@@ -84,9 +84,6 @@ eunit: rebar deps
 	./rebar compile
 	./rebar skip_deps=true eunit
 
-configure:
-	./tools/configure $(filter-out $@,$(MAKECMDGOALS))
-
 rel: certs rebar deps configure.out rel/vars.config
 	. ./configure.out && ./rebar compile generate -f
 
@@ -141,9 +138,6 @@ xeplist: escript
 
 test_deps:
 	cd test/ejabberd_tests; make get-deps
-
-%:
-	@:
 
 install: configure.out rel
 	@. ./configure.out && tools/install

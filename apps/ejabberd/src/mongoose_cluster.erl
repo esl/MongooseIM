@@ -4,8 +4,7 @@
 
 %% TODO: it might make sense to expose this stuff as mod_admin_extra_cluster
 
--export([join/1,
-         leave/0]).
+-export([join/1, leave/0, remove_from_cluster/1, is_node_alive/1]).
 
 -include("ejabberd.hrl").
 
@@ -17,8 +16,6 @@
 %% This drops all current connections and discards all persistent
 %% data from Mnesia. Use with caution!
 %% Next time the node starts, it will connect to other members automatically.
-%% TODO: when/if exposing through ejabberd_admin make sure it's guarded
-%%       by an interactive yes/no question or some flag
 -spec join(node()) -> ok.
 join(ClusterMember) ->
     ?INFO_MSG("join ~p", [ClusterMember]),
@@ -33,8 +30,6 @@ join(ClusterMember) ->
 %% data from Mnesia. Use with caution!
 %% Next time the node starts, it will NOT connect to previous members.
 %% Remaining members will remove this node from the cluster Mnesia schema.
-%% TODO: when/if exposing through ejabberd_admin make sure it's guarded
-%%       by an interactive yes/no question or some flag
 -spec leave() -> ok.
 leave() ->
     ?INFO_MSG("leave", []),
@@ -46,9 +41,35 @@ leave() ->
                              ok = mnesia:start()
                      end).
 
+%% @doc Remove dead node from the cluster.
+%% The removing node must be down
+-spec remove_from_cluster(node()) -> ok.
+remove_from_cluster(Node) ->
+    NodeAlive = is_node_alive(Node),
+    NodeAlive andalso error({node_is_alive, Node}),
+    remove_dead_from_cluster(Node).
+
 %%
 %% Helpers
 %%
+
+remove_dead_from_cluster(DeadNode) ->
+    ?INFO_MSG("removing dead node ~p from the cluster", [DeadNode]),
+    case mnesia:del_table_copy(schema, DeadNode) of
+        {atomic, ok} ->
+            ok;
+        {aborted, R} ->
+            error({del_table_copy_schema, R})
+    end.
+
+is_node_alive(Node) ->
+    try check_networking(Node) of
+        true ->
+            true
+    catch
+        error:_ ->
+            false
+    end.
 
 is_app_running(App) ->
     lists:keymember(App, 1, application:which_applications()).

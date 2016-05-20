@@ -1,10 +1,10 @@
-_Radek Szymczyszyn <radoslaw.szymczyszyn@erlang-solutions.com>_
+# Hooks and handlers
 
 The hooks and handlers mechanism is one of the core architectural
-features of ejabberd.
-It allows for loose coupling between components of the system
+features of MongooseIM. It allows for loose coupling between components of the system
 by calling only those which are available and configured
 to be used at runtime.
+
 It can be thought of as a simple eventing mechanism notifying about
 certain things happening in the server.
 That results in an extensible system with pluggable extra functionality.
@@ -18,7 +18,7 @@ of sending.
 
 ## Running a hook
 
-`ejabberd_sm` (ejabberd session manager) is the module which discovers
+`ejabberd_sm` (ejabberd/MongooseIM session manager) is the module which discovers
 whether the recipient of a message is available or not.
 That's where storage of the message for later delivery takes place.
 The simplest way of calling into `mod_offline` to store a message
@@ -29,8 +29,8 @@ mod_offline:store_packet(From, To, Packet)
 ```
 
 However, that would couple `ejabberd_sm` with `mod_offline`.
-(I.e. if `mod_offline` was not available the code would simply crash;
-if it was misconfigured or turned off the behaviour would be undefined.)
+I.e. if `mod_offline` was not available the code would simply crash;
+if it was misconfigured or turned off the behaviour would be undefined.
 To avoid that coupling and also to enable other
 ([possibly yet to be written](#sidenote-yet-to-be-written))
 code to carry out some action at this particular
@@ -51,7 +51,7 @@ function being called directly; `LServer` is
 
 So how does this runtime configuration actually look like?
 
-### Sidenote: Yet to be written
+### Sidenote: Code yet to be written
 
 Let's imagine, that when building a [minimum viable product][mvp]
 we settle on using `mod_offline`
@@ -63,6 +63,7 @@ which would require a different action to be taken at the same point.
 Thanks to loose coupling and `ejabberd_hooks` it's possible
 to turn off `mod_offline` and turn on `mod_mam` without changing
 a single line of code in `ejabberd_sm`.
+
 The only required change is to the configuration (apart from deploying
 the new module) which can even be performed at runtime - without
 restarting the server.
@@ -72,7 +73,7 @@ restarting the server.
 
 ### Sidenote: Multiple Domains
 
-An ejabberd cluster may serve more than one domain at the same time.
+A MongooseIM cluster may serve more than one domain at the same time.
 E.g. it's quite common that services such as Multi User Chat or
 Publish-Subscribe are available as subdomains of the main XMPP domain
 served by an installation.
@@ -133,6 +134,7 @@ to [fold](#sidenote-folds) over a sequence
 of handlers with `ejabberd_hooks:run_fold/4`.
 Like an ordinary `lists:foldl/3`, `ejabberd_hooks:run_fold/4` also requires
 an initial value to be passed to the function.
+
 An example with regard to `mod_offline` is the
 `resend_offline_messages_hook` run in `ejabberd_c2s`:
 
@@ -156,7 +158,7 @@ or only carry out an action when designing it.
 
 ### Sidenote: Metrics
 
-Every time a hook is run via `ejabberd_hooks:run/3` or `ejabberd_hooks:run_fold/4` corresponding metric of the same name in the same host is updated by one.
+Every time a hook is run via `ejabberd_hooks:run/3` or `ejabberd_hooks:run_fold/4`, corresponding metric of the same name in the same host is updated by one.
 There are some exceptions though as some metrics where implemented before the generic hook metrics.
 List of hooks not updating generic metrics can be found in `mongoose_metrics:hook_to_name/1` function.
 Such skipped hooks updates metrics defined in `mongoose_metrics_hooks` module.
@@ -251,8 +253,7 @@ friend) and that you understand their interdependencies.
 ## Hooks list and how to extract it
 
 The following command should give you a list of all the hooks available in
-ejabberd
-(and some garbage filtering out automatically isn't worth the effort):
+MongooseIM (and some garbage filtering out automatically isn't worth the effort):
 
 ```bash
 $ find ejabberd/src/ -name '*.erl' -print | xargs ./find-hooks.awk \
@@ -480,5 +481,3 @@ I(<0.47.0>:mod_hook_example:31) : Final hook result: 5
 {atomic,ok}
 (ejabberd@localhost)8>
 ```
-
-

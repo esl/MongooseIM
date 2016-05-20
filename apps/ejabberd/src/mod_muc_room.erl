@@ -195,9 +195,8 @@ get_room_users(RoomJID) ->
             {error, Reason}
     end.
 
--spec is_room_owner( RoomJID :: ejabberd:jid()
-                   , UserJID :: ejabberd:jid()
-                   ) -> {ok, boolean()} | {error, not_found}.
+-spec is_room_owner(RoomJID :: ejabberd:jid(), UserJID :: ejabberd:jid()) ->
+    {ok, boolean()} | {error, not_found}.
 is_room_owner(RoomJID, UserJID) ->
     case mod_muc:room_jid_to_pid(RoomJID) of
         {ok, Pid} ->
@@ -3376,7 +3375,7 @@ get_config(Lang, StateData, From) ->
             attrs = [{<<"type">>, <<"hidden">>},
           {<<"var">>, <<"FORM_TYPE">>}],
             children = [#xmlel{name = <<"value">>,
-                               children = [#xmlcdata{content = <<"http://jabber.org/protocol/muc#roomconfig">>}]}]},
+                               children = [#xmlcdata{content = ?NS_MUC_CONFIG}]}]},
      stringxfield(<<"Room title">>,
                <<"muc#roomconfig_roomname">>,
                 Config#config.title, Lang),
