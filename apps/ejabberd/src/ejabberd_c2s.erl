@@ -2197,7 +2197,7 @@ get_priority_from_presence(PresencePacket) ->
                          IQ :: ejabberd:iq(),
                          State :: state()) -> state().
 process_privacy_iq(From, To,
-                   #iq{xmlns = XmlNs, type = Type, sub_el = SubEl} = IQ,
+                   #iq{type = Type, sub_el = SubEl} = IQ,
                    StateData) ->
     {Res, NewStateData} =
     case Type of
@@ -2205,13 +2205,13 @@ process_privacy_iq(From, To,
             R = ejabberd_hooks:run_fold(
                   privacy_iq_get, StateData#state.server,
                   {error, ?ERR_FEATURE_NOT_IMPLEMENTED},
-                  [XmlNs, From, To, IQ, StateData#state.privacy_list]),
+                  [From, To, IQ, StateData#state.privacy_list]),
             {R, StateData};
         set ->
             case ejabberd_hooks:run_fold(
                    privacy_iq_set, StateData#state.server,
                    {error, ?ERR_FEATURE_NOT_IMPLEMENTED},
-                   [XmlNs, From, To, IQ]) of
+                   [From, To, IQ]) of
                 {result, R, NewPrivList} ->
                     {{result, R},
                      StateData#state{privacy_list = NewPrivList}};

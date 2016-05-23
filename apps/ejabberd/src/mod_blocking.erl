@@ -11,8 +11,8 @@
 -xep([{xep, 191}, {version, "1.2"}]).
 -behaviour(gen_mod).
 -export([start/2,
-         process_iq_get/6,
-         process_iq_set/5,
+         process_iq_get/5,
+         process_iq_set/4,
          stop/1
         ]).
 
@@ -40,7 +40,7 @@ stop(Host) ->
         ?MODULE, process_iq_set, 50),
     ok.
 
-process_iq_get(_, ?NS_BLOCKING, _From = #jid{luser = LUser, lserver = LServer}, _, _, _) ->
+process_iq_get(_, _From = #jid{luser = LUser, lserver = LServer}, _, #iq{xmlns = ?NS_BLOCKING}, _) ->
     Res = case ?BACKEND:get_privacy_list(LUser, LServer, <<"blocking">>) of
               {error, not_found} ->
                   {ok, []};
@@ -55,10 +55,10 @@ process_iq_get(_, ?NS_BLOCKING, _From = #jid{luser = LUser, lserver = LServer}, 
         {error, _} ->
             {error, ?ERR_INTERNAL_SERVER_ERROR}
     end;
-process_iq_get(Val, _, _, _, _, _) ->
+process_iq_get(Val, _, _, _, _) ->
     Val.
 
-process_iq_set(_, ?NS_BLOCKING, From, _To, #iq{sub_el = SubEl}) ->
+process_iq_set(_, From, _To, #iq{xmlns = ?NS_BLOCKING, sub_el = SubEl}) ->
     %% collect needed data
     #jid{luser = LUser, lserver = LServer} = From,
     #xmlel{children = Els, name = BType} = SubEl,
@@ -76,7 +76,7 @@ process_iq_set(_, ?NS_BLOCKING, From, _To, #iq{sub_el = SubEl}) ->
     Res = process_blocking_iq_set(Type, LUser, LServer, CurrList, Usrs),
     %% respond / notify
     complete_iq_set(blocking_command, LUser, LServer, Res);
-process_iq_set(Val, _, _, _, _) ->
+process_iq_set(Val, _, _, _) ->
     Val.
 
 %% @doc Set IQ must do the following:
