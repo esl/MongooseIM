@@ -215,14 +215,12 @@ suite() ->
 
 init_per_suite(Config) ->
     dynamic_modules:start(<<"localhost">>, mod_muc,
-        [{host, binary_to_list(?MUCHOST)},
-            {access, muc},
-            {access_create, muc_create}]),
+            [{host, binary_to_list(?MUCHOST)},
+             {access, muc},
+             {access_create, muc_create}]),
     dynamic_modules:start(<<"localhost">>, mod_muc_log,
-        [
-            {outdir, "/tmp/muclogs"},
-            {access_log, muc}
-            ]),
+            [{outdir, "/tmp/muclogs"},
+             {access_log, muc}]),
     escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
