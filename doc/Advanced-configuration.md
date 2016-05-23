@@ -243,6 +243,11 @@ By default only following applications can be found there:
     Here you can change logs location and file names (`file`), rotation strategy (`size` and `count`) 
    and date formatting (`date`). Ignore log level parameters - they are overridden with the value in `ejabberd.cfg`.
 
+* `ejabberd` - set `keep_lager_intact` parameter to `true` when you want
+    use `lager` log level parameters from `app.config`. Missing value or
+    `false` for this parameter means override log levels with the value
+    in `ejabberd.cfg`.
+
 * `ssl` only `session_lifetime` parameter is specified in
     this file. Its default value is **600s**. This parameter says for how
     long ssl session should remain in the cache for further re-use,
