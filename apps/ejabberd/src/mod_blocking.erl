@@ -46,8 +46,8 @@ process_iq_get(_, _From = #jid{luser = LUser, lserver = LServer}, _, #iq{xmlns =
                   {ok, []};
               {ok, L} ->
                   {ok, L};
-              _ ->
-                  {error, e}
+              E ->
+                  {error, E}
           end,
     case Res of
         {ok, Lst} ->
@@ -182,10 +182,10 @@ make_blocking_list_entry(J) ->
             false;
         JID ->
             #listitem{type = jid,
-                match_all = true,
-                %% we have to use another action because c2s has to respond differently based on why we deny
-                action = block,
-                value = jid:to_lower(JID)}
+                      match_all = true,
+                      %% we have to use another action because c2s has to respond differently based on why we deny
+                      action = block,
+                      value = jid:to_lower(JID)}
     end.
 
 %% @doc send iq confirmation to all of the user's resources

@@ -1201,8 +1201,8 @@ handle_info({send_filtered, Feature, From, To, Packet}, StateName, StateData) ->
             case StateData#state.jid of
                 To ->
                     case privacy_check_packet(StateData, From, To, FinalPacket, in) of
-                        deny -> ok;
-                        allow -> send_element(StateData, FinalPacket)
+                        allow -> send_element(StateData, FinalPacket);
+                        _ -> ok
                     end;
                 _ ->
                     ejabberd_router:route(From, To, FinalPacket)
@@ -1315,7 +1315,7 @@ handle_routed_iq(From, To, Packet = #xmlel{attrs = Attrs}, StateData) ->
                     case privacy_check_packet(StateData, From, To, Packet, in) of
                         allow ->
                             {allow, Attrs, StateData};
-                        deny ->
+                        _ ->
                             {deny, Attrs, StateData}
                     end;
                 _ ->
@@ -1419,7 +1419,7 @@ handle_routed_presence(From, To, Packet = #xmlel{attrs = Attrs}, StateData) ->
                         true -> {allow, Attrs, State};
                         false -> {allow, Attrs, make_available_to(LFrom, LBFrom, State)}
                     end;
-                deny ->
+                _ ->
                     {deny, Attrs, State}
             end
     end.
@@ -1732,8 +1732,6 @@ process_presence_probe(From, To, StateData) ->
                                %% To is the one sending the presence (the target of the probe)
                                [jlib:timestamp_to_xml(Timestamp, utc, To, <<>>)]),
                     case privacy_check_packet(StateData, To, From, Packet, out) of
-                        deny ->
-                            ok;
                         allow ->
                             Pid = element(2, StateData#state.sid),
                             ejabberd_hooks:run(presence_probe_hook,
@@ -1745,7 +1743,9 @@ process_presence_probe(From, To, StateData) ->
                                     ejabberd_router:route(To, From, Packet);
                                 true ->
                                     ok
-                            end
+                            end;
+                        _ ->
+                            ok
                     end;
                 {false, true} ->
                     ejabberd_router:route(To, From, #xmlel{name = <<"presence">>});
@@ -2126,10 +2126,10 @@ roster_change(IJID, ISubscription, StateData) ->
                 Cond1 ->
                     ?DEBUG("C1: ~p~n", [LIJID]),
                     case privacy_check_packet(StateData, From, To, P, out) of
-                        deny ->
-                            ok;
                         allow ->
-                            ejabberd_router:route(From, To, P)
+                            ejabberd_router:route(From, To, P);
+                        _ ->
+                            ok
                     end,
                     A = ?SETS:add_element(LIJID,
                                           StateData#state.pres_a),
