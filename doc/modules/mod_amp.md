@@ -45,7 +45,7 @@ mod_amp supports.
 
 * 3.3 Defined Conditions
 
-  * 3.3.1 deliver: **supported** for values: `direct`, `forward`, and `none`.
+  * 3.3.1 deliver: **supported** for values: `direct`, `stored`, and `none`. The `stored` condition works with `mod_mam` and `mod_offline`.
   * 3.3.2 expire-at: **not supported**
   * 3.3.3 match-resource: **supported**
 
@@ -54,7 +54,7 @@ mod_amp supports.
   * 3.4.1 alert: **not supported**
   * 3.4.2 drop: **not supported**
   * 3.4.3 error: **supported**
-  * 3.4.4 notify: **supported**
+  * 3.4.4 notify: **supported**. Notifications for the `stored` and `direct` conditions are sent as soon as the message has been stored or sent to the recipient.
 
 * 6. Error Handling
 
