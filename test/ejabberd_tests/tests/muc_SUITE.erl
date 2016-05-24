@@ -211,22 +211,14 @@ suite() ->
 %% Init & teardown
 %%--------------------------------------------------------------------
 
--define(MUCHOST, <<"muc.localhost">>).
 
 init_per_suite(Config) ->
-    dynamic_modules:start(<<"localhost">>, mod_muc,
-            [{host, binary_to_list(?MUCHOST)},
-             {access, muc},
-             {access_create, muc_create}]),
-    dynamic_modules:start(<<"localhost">>, mod_muc_log,
-            [{outdir, "/tmp/muclogs"},
-             {access_log, muc}]),
+    muc_helper:load_muc(?MUC_HOST),
     escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
-    dynamic_modules:stop(<<"localhost">>, mod_muc),
-    dynamic_modules:stop(<<"localhost">>, mod_muc_log),
+    muc_helper:unload_muc(),
     escalus:end_per_suite(Config).
 
 init_per_group(moderator, Config) ->
