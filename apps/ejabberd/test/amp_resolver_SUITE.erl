@@ -32,7 +32,8 @@ groups() ->
        deliver_direct_matches,
        deliver_direct_non_matches,
        deliver_forward_matches,
-       deliver_forward_non_matches]},
+       deliver_forward_non_matches,
+       deliver_undecided]},
      {match_resource_strategy, [parallel],
       [match_res_any_matches,
        match_res_any_matches_everything_except_undefined,
@@ -57,6 +58,7 @@ deliver_direct_non_matches(_)  -> strategy_nomatch_prop(deliver, direct).
 deliver_forward_matches(_)     -> strategy_match_prop(deliver, forward).
 deliver_forward_non_matches(_) -> strategy_nomatch_prop(deliver, forward).
 
+deliver_undecided(_)           -> strategy_undecided_delivery_prop().
 
 match_res_any_matches(_)       -> strategy_match_prop('match-resource', any).
 match_res_exact_matches(_)     -> strategy_match_prop('match-resource', exact).
@@ -70,21 +72,28 @@ match_res_any_matches_everything_except_undefined(_) ->
     %% They should only fail to match on an undefined strategy
     MatchExactStrat = #amp_strategy{ 'match-resource' = exact },
     MatchOtherStrat = #amp_strategy{ 'match-resource' = other },
-    ?ae(true, check_cond(MatchExactStrat, 'match-resource', 'any')),
-    ?ae(true, check_cond(MatchOtherStrat, 'match-resource', 'any')).
+    ?ae(match, check_cond(MatchExactStrat, 'match-resource', 'any')),
+    ?ae(match, check_cond(MatchOtherStrat, 'match-resource', 'any')).
 
 no_valid_rules_match_null_strategy(_) ->
     prop(no_valid_rules_match_null_strategy,
          ?FORALL(#amp_rule{condition=C, value=V}, amp_gen:valid_rule(),
-                 false == check_cond(amp_strategy:null_strategy(), C, V))).
+                 no_match == check_cond(amp_strategy:null_strategy(), C, V))).
 
 %% @doc Aspect is deliver, expire-at, or match-resource
 strategy_match_prop(Aspect, Value) ->
     prop(list_to_atom(a2l(Aspect) ++ "_" ++ a2l(Value) ++ "_matches"),
          ?FORALL({S, #amp_rule{condition=C, value=V}},
                  {amp_gen:strategy({Aspect, Value}), amp_gen:valid_rule()},
-                 ?IMPLIES({C,V} == {Aspect, Value},
-                         true == check_cond(S, C, Value)))).
+                 ?IMPLIES({C, V} == {Aspect, Value},
+                          match == check_cond(S, C, Value)))).
+
+strategy_undecided_delivery_prop() ->
+    prop(delivery_prop_undecided,
+         ?FORALL({S = #amp_strategy{deliver = D}, #amp_rule{condition=C, value=V}},
+                 {amp_gen:strategy(), amp_gen:valid_rule()},
+                 ?IMPLIES(C == deliver andalso lists:member(V, D) andalso length(D) > 1,
+                          undecided == check_cond(S, C, V)))).
 
 strategy_nomatch_prop(Aspect, Value) ->
     prop(list_to_atom(a2l(Aspect) ++ "_" ++ a2l(Value) ++ "_doesnt_match"),
@@ -94,8 +103,8 @@ strategy_nomatch_prop(Aspect, Value) ->
                  %% If we allowed any (which is like a Kleene star), then
                  %% the property that it doesn't match wouldn't hold.
                  ?IMPLIES(C == Aspect andalso V =/= Value andalso V =/= 'any',
-                         false == check_cond(S, C, V)))).
+                          no_match == check_cond(S, C, V)))).
 
 %% Short-cuts
-check_cond(S,C,V) -> amp_resolver:check_condition(false,S,C,V).
+check_cond(S, C, V) -> amp_resolver:check_condition(no_match, S, C, V).
 a2l(A) -> atom_to_list(A).

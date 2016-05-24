@@ -34,12 +34,12 @@ check_condition(HookAcc, Strategy, Condition, Value) ->
 
 -spec resolve(amp_strategy(), amp_condition(), amp_value()) -> amp_match_result().
 resolve(#amp_strategy{deliver = [Value]}, deliver, Value) -> match;
-resolve(#amp_strategy{deliver = Values}, deliver, Value) ->
+resolve(#amp_strategy{deliver = Values}, deliver, Value) when is_list(Values) ->
     case lists:member(Value, Values) of
         true -> undecided;
         false -> no_match
     end;
-resolve(#amp_strategy{'match-resource' = undefined}, 'match-resource', any) -> no_match;
-resolve(#amp_strategy{}, 'match-resource', any) -> match;
+resolve(#amp_strategy{'match-resource' = Value}, 'match-resource', any)
+  when Value =/= undefined -> match;
 resolve(#amp_strategy{'match-resource' = Value}, 'match-resource', Value) -> match;
 resolve(#amp_strategy{}, _, _) -> no_match.

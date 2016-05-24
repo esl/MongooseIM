@@ -7,16 +7,16 @@
 
 strategy() ->
     ?LET({DeliverVal, MatchResourceVal, ExpireAtVal},
-         {valid_value_binary(<<"deliver">>),
+         {list(valid_value_binary(<<"deliver">>)),
           valid_value_binary(<<"match-resource">>, server_side),
           valid_value_binary(<<"expire-at">>)},
-         #amp_strategy{deliver = b2a(DeliverVal),
+         #amp_strategy{deliver = remove_duplicates([b2a(D) || D <- DeliverVal]),
                        'match-resource' = b2a(MatchResourceVal),
                        'expire-at' = ExpireAtVal}).
 
 strategy({deliver, Value}) ->
     ?LET(S, strategy(),
-         S#amp_strategy{deliver=Value});
+         S#amp_strategy{deliver=[Value]});
 strategy({'match-resource', Value}) ->
     ?LET(S, strategy(),
          S#amp_strategy{'match-resource'=Value}).
@@ -48,5 +48,14 @@ invalid_cva_binaries() ->
      prop_helper:readable_bitstring(),
      prop_helper:readable_bitstring()}.
 
+%% Helpers
+
+remove_duplicates(L) ->
+    lists:foldl(fun(Elem, Res) ->
+                        case lists:member(Elem, Res) of
+                            true -> Res;
+                            false -> [Elem | Res]
+                        end
+                end, [], L).
 
 b2a(V) -> erlang:binary_to_atom(V, utf8).
