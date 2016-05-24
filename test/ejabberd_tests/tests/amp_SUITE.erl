@@ -21,10 +21,15 @@ all() -> [{group, basic},
 
 groups() ->
     [{basic, [parallel, shuffle], basic_test_cases()},
-     {mam, [parallel, shuffle], archive_test_cases() ++ mam_test_cases()},
-     {offline, [parallel, shuffle], archive_test_cases() ++ offline_test_cases()},
-     {mam_and_offline, [parallel, shuffle], archive_test_cases()}
-    ].
+     {offline, [parallel, shuffle], archive_test_cases() ++ offline_test_cases()}] ++
+        case is_odbc_enabled() of
+            true -> mam_groups();
+            false -> []
+        end.
+
+mam_groups() ->
+    [{mam, [parallel, shuffle], archive_test_cases() ++ mam_test_cases()},
+     {mam_and_offline, [parallel, shuffle], archive_test_cases()}].
 
 basic_test_cases() ->
     [initial_service_discovery_test,
@@ -622,6 +627,12 @@ amp_error_container(<<"not-acceptable">>) -> <<"invalid-rules">>;
 amp_error_container(<<"unsupported-actions">>) -> <<"unsupported-actions">>;
 amp_error_container(<<"unsupported-conditions">>) -> <<"unsupported-conditions">>;
 amp_error_container(<<"undefined-condition">>) -> <<"failed-rules">>.
+
+is_odbc_enabled() ->
+    case escalus_ejabberd:rpc(ejabberd_odbc, sql_transaction, [?DOMAIN, fun erlang:yield/0]) of
+        {atomic, _} -> true;
+        _ -> false
+    end.
 
 required_modules(basic) -> mam_modules(off) ++ offline_modules(off);
 required_modules(mam) -> mam_modules(on) ++ offline_modules(off);
