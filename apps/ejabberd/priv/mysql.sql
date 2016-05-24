@@ -122,11 +122,9 @@ CREATE TABLE privacy_list (
     username varchar(250) NOT NULL,
     name varchar(250) NOT NULL,
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT UNIQUE,
-    created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (username(75), name(75))
 ) CHARACTER SET utf8;
-
-CREATE INDEX i_privacy_list_username  USING BTREE ON privacy_list(username);
-CREATE UNIQUE INDEX i_privacy_list_username_name USING BTREE ON privacy_list (username(75), name(75));
 
 CREATE TABLE privacy_list_data (
     id bigint,
@@ -138,7 +136,8 @@ CREATE TABLE privacy_list_data (
     match_iq boolean NOT NULL,
     match_message boolean NOT NULL,
     match_presence_in boolean NOT NULL,
-    match_presence_out boolean NOT NULL
+    match_presence_out boolean NOT NULL,
+    PRIMARY KEY (id, ord)
 ) CHARACTER SET utf8;
 
 CREATE TABLE private_storage (
