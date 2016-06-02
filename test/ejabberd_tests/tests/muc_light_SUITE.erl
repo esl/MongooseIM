@@ -20,6 +20,7 @@
 -export([ % occupant
          send_message/1,
          change_subject/1,
+         change_roomname/1,
          all_can_configure/1,
          set_config_deny/1,
          get_room_config/1,
@@ -127,6 +128,7 @@ groups() ->
      {occupant, [sequence], [
                              send_message,
                              change_subject,
+                             change_roomname,
                              all_can_configure,
                              set_config_deny,
                              get_room_config,
@@ -299,6 +301,8 @@ disco_rooms_created_page_infinity(Config) ->
         ProperJID = exml_query:attr(Item, <<"jid">>)
                                         end).
 
+
+
 disco_rooms(Config) ->
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
             {ok, {?ROOM2, ?MUCHOST}} = create_room(?ROOM2, ?MUCHOST, kate, [], Config, ver(0)),
@@ -395,6 +399,21 @@ change_subject(Config) ->
             Stanza = stanza_config_set(?ROOM, ConfigChange),
             foreach_occupant([Alice, Bob, Kate], Stanza, config_msg_verify_fun(ConfigChange))
         end).
+
+change_roomname(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+        %% change room name
+        ConfigChange = [{<<"roomname">>, <<"new_test_room">>}],
+        Stanza = stanza_config_set(?ROOM, ConfigChange),
+        escalus:send(Alice, Stanza),
+        escalus:wait_for_stanzas(Alice, 2),
+        StanzaCheck = stanza_config_get(?ROOM, ver(1)),
+        escalus:send(Alice, StanzaCheck),
+        Res = escalus:wait_for_stanza(Alice),
+        Elements = exml_query:paths(Res, [{element, <<"query">>}, {element, <<"roomname">>}]),
+        1 = length(Elements)
+        end).
+
 
 all_can_configure(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
