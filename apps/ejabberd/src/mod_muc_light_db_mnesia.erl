@@ -331,7 +331,7 @@ set_config_transaction(RoomUS, ConfigChanges, Version) ->
         [] ->
             {error, not_exists};
         [#?ROOM_TAB{ config = Config } = Rec] ->
-            NewConfig = lists:umerge(ConfigChanges, Config),
+            NewConfig = lists:ukeymerge(1, ConfigChanges, Config),
             mnesia:write(Rec#?ROOM_TAB{ config = NewConfig, version = Version }),
             {ok, Rec#?ROOM_TAB.version}
     end.

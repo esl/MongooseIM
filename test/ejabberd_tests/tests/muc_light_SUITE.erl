@@ -401,7 +401,7 @@ change_subject(Config) ->
         end).
 
 change_roomname(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
         %% change room name
         ConfigChange = [{<<"roomname">>, <<"new_test_room">>}],
         Stanza = stanza_config_set(?ROOM, ConfigChange),
