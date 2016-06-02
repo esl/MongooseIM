@@ -327,6 +327,8 @@ disco_rooms_created_page_infinity(Config) ->
     set_mod_config(rooms_per_page, infinity),
     escalus:story(Config, [{alice, 1}], verify_user_has_one_room()).
 
+
+
 disco_rooms(Config) ->
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
             {ok, {?ROOM2, ?MUCHOST}} = create_room(?ROOM2, ?MUCHOST, kate, [], Config, ver(0)),
