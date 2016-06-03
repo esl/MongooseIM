@@ -2,25 +2,34 @@
 
 ### Getting started with MongooseIM on Mac OS X
 
-This short guide will show you how to compile MongooseIM from source code on Mac OS X, and get users chatting right away.
+This short guide will show you how to compile MongooseIM from source code or install binaries from a DMG image on Mac OS X, and get users chatting right away.
 
-#### Before you start
+#### Install from source code
+
+##### Prerequisites for source code installation
 
 MongooseIM is supported on Mac OS X 10.6.8 and later. Before you can compile and run MongooseIM, you also need the following to be installed on your system: 
 
-* Gnu Make and GCC (the GNU Compiler Collection). To ensure that these are installed, you can install the Command Line Tools for Xcode, available via Xcode or from the Apple Developer website.
+* GNU Make and GCC (the GNU Compiler Collection). To ensure that these are installed, you can install the Command Line Tools for Xcode, available via Xcode or from the Apple Developer website.
 * Git – `brew install git`
 * Erlang/OTP R16B03-1 or higher – `brew install erlang`
 
 An easy way to install some of the packages is by using a package manager, such as [Homebrew](http://brew.sh) – the Homebrew commands are provided here.
 
-#### Installation
+
+##### Build and install from source code
 
 To build and install MongooseIM from source code, do the following:
 
 1. Clone the Git repository:  `git clone https://github.com/esl/MongooseIM.git`
 2. Go to your MongooseIM directory.
 3. Run the following commands: `make` and then `make rel`.
+
+
+#### Install from DMG
+
+Go to the [donwloads](https://www.erlang-solutions.com/downloads/) page of Erlang Solution website, and download the version of MongooseIM you want. Once the DMG is downloaded, double click on it, it will open the content. Double click on the .pkg file, it will fire an installation wizard. Just follow the instructions.
+
 
 #### Running MongooseIM
 
@@ -30,9 +39,17 @@ To build and install MongooseIM from source code, do the following:
 * To connect to the MongooseIM console after starting the server:  `bin/mongooseim debug`
 * Alternatively, you can also run the server in interactive mode:  `bin/mongooseim live`
 
+
 #### Registering a user
 
 The default XMPP domain served by MongooseIM right after installation is `localhost`. Users on a different computer can register using the server’s IP address.
+
+You can register a user with the `mongooseimctl` utility:  
+`mongooseimctl register user domain password`
+
+For example:  
+`mongooseimctl register user1 localhost GJ9TuHq8`
+
 
 ##### Adium
 
@@ -49,13 +66,6 @@ After registration, the user will connect automatically.
 
 Registered users wishing to add an existing account to Adium should enter the MongooseIM server’s IP address in the **Connect Server** field on the **Options** tab.
 
-##### Command line
-
-You can register a user with the `mongooseimctl` utility:  
-`mongooseimctl register user domain password`
-
-For example:  
-`mongooseimctl register user1 localhost GJ9TuHq8`
 
 #### Domains
 
@@ -63,6 +73,7 @@ To use your system’s domain name instead of localhost, edit the following Mong
 
 You can also configure multiple domains for one server:  
 `{hosts, ["example1.org", "example2.org"] }.`
+
 
 #### Get chatting!
 
