@@ -210,16 +210,16 @@ try_registering_component_twice(Config) ->
     ok = escalus_connection:stop(Comp1).
 
 try_registering_existing_host(Config) ->
-    %% Given a external muc component
-    Component = spec(muc_component, Config),
+    %% Given a external vjud component
+    Component = spec(vjud_component, Config),
 
     try
         %% When trying to connect it to the server
         {Comp, _Addr, _} = connect_component(Component),
         ok = escalus_connection:stop(Comp),
-        ct:fail("muc component connected successfully")
+        ct:fail("vjud component connected successfully")
     catch {stream_error, _} ->
-        %% Then it should fail since muc service already exists on the server
+        %% Then it should fail since vjud service already exists on the server
         ok
     end.
 
@@ -433,7 +433,7 @@ register_same_on_both(Config) ->
 %%--------------------------------------------------------------------
 
 get_components(Opts, Config) ->
-    Components = [component1, component2, muc_component],
+    Components = [component1, component2, vjud_component],
     [ {C, Opts ++ spec(C, Config)} || C <- Components ] ++ Config.
 
 connect_component(Component) ->
@@ -559,8 +559,8 @@ spec(component_on_2, Config) ->
     [{component, <<"yet_another_service">>}] ++ common(Config, 8899);
 spec(component_duplicate, Config) ->
     [{component, <<"another_service">>}] ++ common(Config, 8899);
-spec(muc_component, Config) ->
-    [{component, <<"muc">>}] ++ common(Config).
+spec(vjud_component, Config) ->
+    [{component, <<"vjud">>}] ++ common(Config).
 
 common(Config) ->
     common(Config, 8888).

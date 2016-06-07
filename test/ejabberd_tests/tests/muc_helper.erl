@@ -3,7 +3,9 @@
 -include_lib("exml/include/exml.hrl").
 
 -export([foreach_occupant/3,
-        foreach_recipient/2]).
+        foreach_recipient/2,
+        load_muc/1,
+        unload_muc/0]).
 
 -type verify_fun() :: fun((Incoming :: #xmlel{}) -> any()).
 
@@ -37,3 +39,16 @@ foreach_recipient(Users, VerifyFun) ->
       fun(Recipient) ->
               VerifyFun(escalus:wait_for_stanza(Recipient))
       end, Users).
+
+load_muc(Host) ->
+    dynamic_modules:start(<<"localhost">>, mod_muc,
+        [{host, binary_to_list(Host)},
+            {access, muc},
+            {access_create, muc_create}]),
+    dynamic_modules:start(<<"localhost">>, mod_muc_log,
+        [{outdir, "/tmp/muclogs"},
+            {access_log, muc}]).
+
+unload_muc() ->
+    dynamic_modules:stop(<<"localhost">>, mod_muc),
+    dynamic_modules:stop(<<"localhost">>, mod_muc_log).

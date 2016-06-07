@@ -211,11 +211,14 @@ suite() ->
 %% Init & teardown
 %%--------------------------------------------------------------------
 
+
 init_per_suite(Config) ->
+    muc_helper:load_muc(?MUC_HOST),
     escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
+    muc_helper:unload_muc(),
     escalus:end_per_suite(Config).
 
 init_per_group(moderator, Config) ->
