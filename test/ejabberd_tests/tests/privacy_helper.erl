@@ -14,12 +14,16 @@
          set_default_list/2,
          privacy_list/1,
          gets_error/2,
+         gets_error/3,
          is_privacy_list_push/1,
          is_presence_error/1]).
 
 gets_error(Who, Type) ->
+    gets_error(Who, <<"cancel">>, Type).
+
+gets_error(Who, Type, Subtype) ->
     Response = escalus_client:wait_for_stanza(Who),
-    escalus_assert:is_error(Response, <<"cancel">>, Type).
+    escalus_assert:is_error(Response, Type, Subtype).
 
 %% Sets the list on server and makes it the active one.
 set_and_activate(Client, ListName) ->

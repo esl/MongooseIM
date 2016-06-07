@@ -160,7 +160,7 @@ stop(Host) ->
 process_iq_get(_,
         _From = #jid{luser = LUser, lserver = LServer},
         _To,
-        #iq{sub_el = #xmlel{children = Els}},
+        #iq{xmlns = ?NS_PRIVACY, sub_el = #xmlel{children = Els}},
         #userlist{name = Active}) ->
     case xml:remove_cdata(Els) of
         [] ->
@@ -175,7 +175,9 @@ process_iq_get(_,
             end;
         _ ->
             {error, ?ERR_BAD_REQUEST}
-    end.
+    end;
+process_iq_get(Val, _, _, _, _) ->
+    Val.
 
 process_lists_get(LUser, LServer, Active) ->
     case ?BACKEND:get_list_names(LUser, LServer) of
@@ -200,7 +202,7 @@ process_list_get(LUser, LServer, {value, Name}) ->
 process_list_get(_LUser, _LServer, false) ->
     {error, ?ERR_BAD_REQUEST}.
 
-process_iq_set(_, From, _To, #iq{sub_el = SubEl}) ->
+process_iq_set(_, From, _To, #iq{xmlns = ?NS_PRIVACY, sub_el = SubEl}) ->
     #jid{luser = LUser, lserver = LServer} = From,
     #xmlel{children = Els} = SubEl,
     case xml:remove_cdata(Els) of
@@ -219,7 +221,9 @@ process_iq_set(_, From, _To, #iq{sub_el = SubEl}) ->
             end;
         _ ->
             {error, ?ERR_BAD_REQUEST}
-    end.
+    end;
+process_iq_set(Val, _, _, _) ->
+    Val.
 
 process_default_set(LUser, LServer, {value, Name}) ->
     case ?BACKEND:set_default_list(LUser, LServer, Name) of

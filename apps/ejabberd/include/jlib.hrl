@@ -40,6 +40,7 @@
 -define(NS_ROSTER_VER,   <<"urn:xmpp:features:rosterver">>).
 -define(NS_PRIVACY,      <<"jabber:iq:privacy">>).
 -define(NS_BLOCKING,     <<"urn:xmpp:blocking">>).
+-define(NS_BLOCKING_ERRORS,<<"urn:xmpp:blocking:errors">>).
 -define(NS_PRIVATE,      <<"jabber:iq:private">>).
 -define(NS_VERSION,      <<"jabber:iq:version">>).
 -define(NS_TIME90,       <<"jabber:iq:time">>). % TODO: Remove once XEP-0090 is Obsolete
@@ -135,6 +136,8 @@
         jlib:stanza_error(<<"406">>,<<"modify">>,<<"not-acceptable">>)).
 -define(ERR_NOT_ACCEPTABLE_CANCEL,
         jlib:stanza_error(<<"406">>,<<"cancel">>,<<"not-acceptable">>)).
+-define(ERR_NOT_ACCEPTABLE_BLOCKED,
+        jlib:stanza_error(<<"406">>,<<"cancel">>,<<"not-acceptable">>, <<"blocked">>, ?NS_BLOCKING_ERRORS)).
 -define(ERR_NOT_ALLOWED,
         jlib:stanza_error(<<"405">>,<<"cancel">>,<<"not-allowed">>)).
 -define(ERR_NOT_AUTHORIZED,

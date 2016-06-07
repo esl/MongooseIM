@@ -24,6 +24,7 @@ pages:
       - 'mod_admin_extra': 'modules/mod_admin_extra.md'
       - 'mod_amp': 'modules/mod_amp.md'
       - 'mod_auth_token': 'modules/mod_auth_token.md'
+      - 'mod_blocking': 'modules/mod_blocking.md'
       - 'mod_bosh': 'modules/mod_bosh.md'
       - 'mod_carboncopy': 'modules/mod_carboncopy.md'
       - 'mod_csi': 'modules/mod_csi.md'

@@ -255,14 +255,16 @@ privacy_list_push(_From, #jid{server = Server} = _To, _Broadcast, SessionCount) 
 user_ping_timeout(_JID) ->
     ok.
 
--spec privacy_check_packet(Acc :: allow | deny,
+-spec privacy_check_packet(Acc :: allow | deny | block,
                           binary(),
                           Server :: ejabberd:server(),
-                          term(), term(), term()) -> allow | deny.
+                          term(), term(), term()) -> allow | deny | block.
 privacy_check_packet(Acc, _, Server, _, _, _) ->
     mongoose_metrics:update({Server, modPrivacyStanzaAll}, 1),
     case Acc of
         deny ->
+            mongoose_metrics:update({Server, modPrivacyStanzaDenied}, 1);
+        block ->
             mongoose_metrics:update({Server, modPrivacyStanzaBlocked}, 1);
         allow ->
             ok

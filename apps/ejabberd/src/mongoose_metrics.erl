@@ -327,6 +327,7 @@ metrics_hooks(Op, Host) ->
     modPrivacySetsDefault,
     modPrivacyPush,
     modPrivacyGets,
+    modPrivacyStanzaDenied,
     modPrivacyStanzaBlocked,
     modPrivacyStanzaAll,
     modMamPrefsSets,
