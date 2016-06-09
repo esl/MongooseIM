@@ -2006,10 +2006,10 @@ prefs_set_request(Config) ->
         %% </iq>
         escalus:send(Alice, stanza_prefs_set_request(<<"roster">>,
                                                      [<<"romeo@montague.net">>],
-                                                     [<<"montague@montague.net">>])),
+                                                     [<<"montague@montague.net">>], mam_ns_binary())),
         ReplySet = escalus:wait_for_stanza(Alice),
 
-        escalus:send(Alice, stanza_prefs_get_request()),
+        escalus:send(Alice, stanza_prefs_get_request(mam_ns_binary())),
         ReplyGet = escalus:wait_for_stanza(Alice),
 
         ResultIQ1 = parse_prefs_result_iq(ReplySet),
@@ -2039,10 +2039,10 @@ prefs_set_cdata_request(Config) ->
         escalus:send(Alice, stanza_prefs_set_request(<<"roster">>,
                                                      [<<"romeo@montague.net">>,
                                                       {xmlcdata, <<"\n">>}, %% Put as it is
-                                                      <<"montague@montague.net">>], [])),
+                                                      <<"montague@montague.net">>], [], mam_ns_binary_v03())),
         ReplySet = escalus:wait_for_stanza(Alice),
 
-        escalus:send(Alice, stanza_prefs_get_request()),
+        escalus:send(Alice, stanza_prefs_get_request(mam_ns_binary_v03())),
         ReplyGet = escalus:wait_for_stanza(Alice),
 
         ResultIQ1 = parse_prefs_result_iq(ReplySet),
@@ -2093,6 +2093,7 @@ nick(User) -> escalus_utils:get_username(User).
 mam_ns_binary() -> <<"urn:xmpp:mam:tmp">>.
 mam_ns_binary_v03() -> <<"urn:xmpp:mam:0">>.
 mam_ns_binary_v04() -> <<"urn:xmpp:mam:1">>.
+namespaces() -> [mam_ns_binary(), mam_ns_binary_v03(), mam_ns_binary_v04()].
 muc_ns_binary() -> <<"http://jabber.org/protocol/muc">>.
 
 stanza_purge_single_message(MessId) ->
@@ -2336,22 +2337,22 @@ verify_archived_muc_light_aff_msg(Msg, AffUsersChanges, IsCreate) ->
 %% ----------------------------------------------------------------------
 %% PREFERENCE QUERIES
 
-stanza_prefs_set_request(DefaultMode, AlwaysJIDs, NeverJIDs) ->
+stanza_prefs_set_request(DefaultMode, AlwaysJIDs, NeverJIDs, Namespace) ->
     AlwaysEl = #xmlel{name = <<"always">>,
                       children = encode_jids(AlwaysJIDs)},
     NeverEl  = #xmlel{name = <<"never">>,
                       children = encode_jids(NeverJIDs)},
     escalus_stanza:iq(<<"set">>, [#xmlel{
        name = <<"prefs">>,
-       attrs = [{<<"xmlns">>,mam_ns_binary()}]
+       attrs = [{<<"xmlns">>, Namespace}]
                ++ [{<<"default">>, DefaultMode} || is_def(DefaultMode)],
        children = [AlwaysEl, NeverEl]
     }]).
 
-stanza_prefs_get_request() ->
+stanza_prefs_get_request(Namespace) ->
     escalus_stanza:iq(<<"get">>, [#xmlel{
        name = <<"prefs">>,
-       attrs = [{<<"xmlns">>,mam_ns_binary()}]
+       attrs = [{<<"xmlns">>, Namespace}]
     }]).
 
 %% Allows to cdata to be put as it is
@@ -3040,7 +3041,8 @@ run_prefs_cases(Config) ->
     F = fun(Alice, Bob, Kate) ->
         make_alice_and_bob_friends(Alice, Bob),
         %% Just send messages for each prefs configuration
-        Funs = [run_prefs_case(Case, Alice, Bob, Kate, Config) || Case <- prefs_cases2()],
+        Funs = [run_prefs_case(Case, Namespace, Alice, Bob, Kate, Config) || Case <- prefs_cases2(),
+                                                                             Namespace <- namespaces()],
 
         maybe_wait_for_yz(Config),
 
@@ -3074,8 +3076,9 @@ make_alice_and_bob_friends(Alice, Bob) ->
         escalus:wait_for_stanzas(Bob, 3, 5000), % iq set subscription=both, presence subscribed, presence
         ok.
 
-run_prefs_case({PrefsState, ExpectedMessageStates}, Alice, Bob, Kate, Config) ->
-    IqSet = stanza_prefs_set_request(PrefsState, Config),
+run_prefs_case({PrefsState, ExpectedMessageStates}, Namespace, Alice, Bob, Kate, Config) ->
+    {DefaultMode, AlwaysUsers, NeverUsers} = PrefsState,
+    IqSet = stanza_prefs_set_request({DefaultMode, AlwaysUsers, NeverUsers, Namespace}, Config),
     escalus:send(Alice, IqSet),
     ReplySet = escalus:wait_for_stanza(Alice),
     Messages = [iolist_to_binary(io_lib:format("n=~p, prefs=~p, now=~p",
@@ -3122,11 +3125,11 @@ get_all_messages(P, Alice, Id) ->
             PageMessages ++ get_all_messages(P, Alice, LastId)
     end.
 
-stanza_prefs_set_request({DefaultMode, AlwaysUsers, NeverUsers}, Config) ->
+stanza_prefs_set_request({DefaultMode, AlwaysUsers, NeverUsers, Namespace}, Config) ->
     DefaultModeBin = atom_to_binary(DefaultMode, utf8),
     AlwaysJIDs = users_to_jids(AlwaysUsers, Config),
     NeverJIDs  = users_to_jids(NeverUsers, Config),
-    stanza_prefs_set_request(DefaultModeBin, AlwaysJIDs, NeverJIDs).
+    stanza_prefs_set_request(DefaultModeBin, AlwaysJIDs, NeverJIDs, Namespace).
 
 users_to_jids(Users, Config) ->
     [escalus_users:get_jid(Config, User) || User <- Users].
@@ -3140,19 +3143,23 @@ print_configuration_not_supported(C, B) ->
 run_set_and_get_prefs_cases(Config) ->
     P = ?config(props, Config),
     F = fun(Alice) ->
-        [run_set_and_get_prefs_case(Case, Alice, Config) || Case <- prefs_cases2()]
+        [run_set_and_get_prefs_case(Case, Namespace, Alice, Config) || Case <- prefs_cases2(),
+                                                                       Namespace <- namespaces()]
         end,
     escalus:story(Config, [{alice, 1}], F).
 
 %% Alice sets and gets her preferences
-run_set_and_get_prefs_case({PrefsState, _ExpectedMessageStates}, Alice, Config) ->
-    IqSet = stanza_prefs_set_request(PrefsState, Config),
+run_set_and_get_prefs_case({PrefsState, _ExpectedMessageStates}, Namespace, Alice, Config) ->
+    {DefaultMode, AlwaysUsers, NeverUsers} = PrefsState,
+    IqSet = stanza_prefs_set_request({DefaultMode, AlwaysUsers, NeverUsers, Namespace}, Config),
     escalus:send(Alice, IqSet),
     ReplySet = escalus:wait_for_stanza(Alice, 5000),
-
-    escalus:send(Alice, stanza_prefs_get_request()),
+    ReplySetNS = exml_query:path(ReplySet, [{element, <<"prefs">>}, {attr, <<"xmlns">>}]),
+    ?assert_equal(ReplySetNS, Namespace),
+    escalus:send(Alice, stanza_prefs_get_request(Namespace)),
     ReplyGet = escalus:wait_for_stanza(Alice),
-
+    ReplyGetNS = exml_query:path(ReplyGet, [{element, <<"prefs">>}, {attr, <<"xmlns">>}]),
+    ?assert_equal(ReplyGetNS, Namespace),
     ResultIQ1 = parse_prefs_result_iq(ReplySet),
     ResultIQ2 = parse_prefs_result_iq(ReplyGet),
     ?assert_equal(ResultIQ1, ResultIQ2),
