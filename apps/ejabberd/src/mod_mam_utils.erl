@@ -32,8 +32,8 @@
          is_complete_message/3,
          wrap_message/6,
          result_set/4,
-         result_query/1,
-         result_prefs/3,
+         result_query/2,
+         result_prefs/4,
          make_fin_message/5,
          make_fin_element/4,
          parse_prefs/1,
@@ -98,7 +98,6 @@
 
 %% Constants
 rsm_ns_binary() -> <<"http://jabber.org/protocol/rsm">>.
-mam_ns_binary() -> <<"urn:xmpp:mam:tmp">>.
 
 %% ----------------------------------------------------------------------
 %% Datetime types
@@ -423,23 +422,24 @@ result_set(FirstId, LastId, FirstIndexI, CountI)
 
 
 -spec result_query(jlib:xmlcdata() | jlib:xmlel()) -> jlib:xmlel().
-result_query(SetEl) ->
+result_query(SetEl, Namespace) ->
      #xmlel{
         name = <<"query">>,
-        attrs = [{<<"xmlns">>, mam_ns_binary()}],
+        attrs = [{<<"xmlns">>, Namespace}],
         children = [SetEl]}.
 
 -spec result_prefs(DefaultMode :: archive_behaviour(),
                    AlwaysJIDs :: [ejabberd:literal_jid()],
-                   NeverJIDs :: [ejabberd:literal_jid()]) -> jlib:xmlel().
-result_prefs(DefaultMode, AlwaysJIDs, NeverJIDs) ->
+                   NeverJIDs :: [ejabberd:literal_jid()],
+                   Namespace :: binary()) -> jlib:xmlel().
+result_prefs(DefaultMode, AlwaysJIDs, NeverJIDs, Namespace) ->
     AlwaysEl = #xmlel{name = <<"always">>,
                       children = encode_jids(AlwaysJIDs)},
     NeverEl  = #xmlel{name = <<"never">>,
                       children = encode_jids(NeverJIDs)},
     #xmlel{
        name = <<"prefs">>,
-       attrs = [{<<"xmlns">>,mam_ns_binary()},
+       attrs = [{<<"xmlns">>, Namespace},
                 {<<"default">>, atom_to_binary(DefaultMode, utf8)}],
        children = [AlwaysEl, NeverEl]
     }.
