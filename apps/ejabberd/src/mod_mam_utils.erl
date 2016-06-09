@@ -421,7 +421,7 @@ result_set(FirstId, LastId, FirstIndexI, CountI)
         children = FirstEl ++ LastEl ++ [CountEl]}.
 
 
--spec result_query(jlib:xmlcdata() | jlib:xmlel()) -> jlib:xmlel().
+-spec result_query(jlib:xmlcdata() | jlib:xmlel(), binary()) -> jlib:xmlel().
 result_query(SetEl, Namespace) ->
      #xmlel{
         name = <<"query">>,
@@ -627,10 +627,11 @@ field_to_value(FieldEl) ->
 
 -spec message_form(binary()) -> jlib:xmlel().
 message_form(MamNs) ->
-    #xmlel{name = <<"x">>,
+    SubEl = #xmlel{name = <<"x">>,
            attrs = [{<<"xmlns">>, <<"jabber:x:data">>},
                     {<<"type">>, <<"form">>}],
-           children = message_form_fields(MamNs)}.
+           children = message_form_fields(MamNs)},
+    result_query(SubEl, MamNs).
 
 message_form_fields(MamNs) ->
     [form_type_field(MamNs),
