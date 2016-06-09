@@ -42,6 +42,7 @@
          range_archive_request_not_empty/1,
          limit_archive_request/1,
          prefs_set_request/1,
+         retrive_form_fields/1,
          prefs_set_cdata_request/1,
          pagination_first5/1,
          pagination_last5/1,
@@ -247,8 +248,8 @@ is_skipped(_, _) ->
 basic_groups() ->
     [{bootstrapped,     [], bootstrapped_cases()},
      {mam,              [], mam_cases()},
-     {mam03,            [], mam_cases()},
-     {mam04,            [], mam_cases()},
+     {mam03,            [], mam03_cases()},
+     {mam04,            [], mam04_cases()},
      {mam_purge,        [], mam_purge_cases()},
      {archived,         [], archived_cases()},
      {policy_violation, [], policy_violation_cases()},
@@ -279,6 +280,12 @@ mam_cases() ->
      range_archive_request,
      range_archive_request_not_empty,
      limit_archive_request].
+
+mam03_cases() ->
+    mam_cases() ++ [retrive_form_fields].
+
+mam04_cases() ->
+    mam03_cases().
 
 mam_purge_cases() ->
     [purge_single_message,
@@ -1050,6 +1057,15 @@ muc_light_simple(Config) ->
             verify_archived_muc_light_aff_msg(parse_forwarded_message(BobAdd),
                                               [{Bob, member}], false)
         end).
+
+retrive_form_fields(ConfigIn) ->
+    escalus:story(ConfigIn, [{alice, 1}], fun(Alice) ->
+        P = ?config(props, ConfigIn),
+        Namespace = get_prop(mam_ns, P),
+        escalus:send(Alice, stanza_retrive_form_fields(<<"q">>, Namespace)),
+        Res = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_iq_with_ns, [Namespace], Res)
+                                          end).
 
 archived(Config) ->
     P = ?config(props, Config),
@@ -2246,6 +2262,14 @@ stanza_lookup_messages_iq_v02(P, QueryId, BStart, BEnd, BWithJID, RSM) ->
            maybe_end_elem(BEnd),
            maybe_with_elem(BWithJID),
            maybe_rsm_elem(RSM)])
+    }]).
+
+stanza_retrive_form_fields(QueryId, NS) ->
+    escalus_stanza:iq(<<"get">>, [#xmlel{
+        name = <<"query">>,
+        attrs =     [{<<"xmlns">>, NS}]
+        ++ maybe_attr(<<"queryid">>, QueryId),
+        children = []
     }]).
 
 maybe_simple_elem(#rsm_in{simple=true}) ->
