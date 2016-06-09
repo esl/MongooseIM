@@ -1,14 +1,10 @@
 ## Logs
 
 It is a best practice to store logs in one centralized place when working in a clustered environment.
-MongooseIM uses Lager - the logging framework. Its backend can be easily replaced.
+MongooseIM uses Lager - the logging framework. Its backend can be easily replaced; syslog
+backend is by default included in MongooseIM.
 
-Some of the recommended backends are:
-
-- https://github.com/basho/lager_syslog to use syslog.
-- https://github.com/mhald/lager_logstash_backend for [logstash](http://logstash.net/).
-
-### syslog
+### Using syslog
 
 To activate the syslog backend you have to edit `rel/files/app.config` and uncomment the line:
 
@@ -31,9 +27,11 @@ Example log (e.g `tail -f /var/log/mongooseim.log`):
 
     Apr  1 12:36:49 User.local mongooseim[6068]: [info] <0.7.0> Application mnesia started on node mongooseim@localhost
 
-### logstash
+### Further / multiserver integration
 
-TODO
+For more advanced processing and analysis of logs, including gathering logs from multiple machines,
+you can use one of the many available mechanisms (e.g. logstash/elasticsearch/kibana, graylog, splunk),
+which collect data from syslog and are beyond the scope of this documentation. 
 
 ## Monitoring
 
