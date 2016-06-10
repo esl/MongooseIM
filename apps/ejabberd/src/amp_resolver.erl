@@ -15,8 +15,6 @@ verify_support(HookAcc, Rules) ->
     HookAcc ++ [ verify_rule_support(Rule) || Rule <- Rules ].
 
 -spec verify_rule_support(amp_rule()) -> amp_rule_support().
-verify_rule_support(#amp_rule{action = drop} = Rule) ->
-    {error, 'unsupported-actions', Rule};
 verify_rule_support(#amp_rule{action = alert} = Rule) ->
     {error, 'unsupported-actions', Rule};
 verify_rule_support(#amp_rule{condition = 'expire-at'} = Rule) ->

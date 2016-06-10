@@ -144,9 +144,10 @@ take_action(Packet, From, _, {match, Rule}) ->
     take_action_for_matched_rule(Packet, From, Rule);
 take_action(Packet, From, _, {undecided, #amp_rule{condition = deliver,
                                                    value = Value,
-                                                   action = error} = Rule})
-  when Value /= none ->
-    %% Special case: 'error' action should be taken before delivery/storage attempt is made
+                                                   action = Action} = Rule})
+  when Value /= none,
+       Action == error orelse Action == drop ->
+    %% Special case: take 'error' and 'drop' actions before delivery/storage attempt
     take_action_for_matched_rule(Packet, From, Rule);
 take_action(Packet, _From, _, _) ->
     Packet.
@@ -158,7 +159,9 @@ take_action_for_matched_rule(Packet, From, #amp_rule{action = notify} = Rule) ->
     ejabberd_hooks:run(amp_notify_action_triggered, Host, [Host]),
     amp:strip_amp_el(Packet);
 take_action_for_matched_rule(Packet, From, #amp_rule{action = error} = Rule) ->
-    send_error_and_drop(Packet, From, 'undefined-condition', Rule).
+    send_error_and_drop(Packet, From, 'undefined-condition', Rule);
+take_action_for_matched_rule(Packet, From, #amp_rule{action = drop} = Rule) ->
+    update_metric_and_drop(Packet, From).
 
 -spec reply_to_sender(amp_rule(), jid(), jid(), #xmlel{}) -> ok.
 reply_to_sender(MatchedRule, ServerJid, OriginalSender, OriginalPacket) ->

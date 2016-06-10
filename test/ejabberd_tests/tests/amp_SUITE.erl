@@ -13,23 +13,24 @@
 
 -define(DOMAIN, <<"localhost">>).
 
-all() -> [{group, basic},
-          {group, mam},
-          {group, offline},
-          {group, mam_and_offline}
-         ].
+all() -> [{group, Group} || Group <- enabled_group_names()].
 
-groups() ->
-    [{basic, [parallel, shuffle], basic_test_cases()},
-     {offline, [parallel, shuffle], archive_test_cases() ++ offline_test_cases()}] ++
+enabled_group_names() ->
+    [basic, offline, offline_with_multiple_rules] ++
         case is_odbc_enabled() of
-            true -> mam_groups();
+            true -> [mam, mam_with_multiple_rules,
+                     mam_and_offline, mam_and_offline_with_multiple_rules];
             false -> []
         end.
 
-mam_groups() ->
-    [{mam, [parallel, shuffle], archive_test_cases() ++ mam_test_cases()},
-     {mam_and_offline, [parallel, shuffle], archive_test_cases()}].
+groups() ->
+    [{basic, [parallel, shuffle], basic_test_cases()},
+     {offline, [parallel, shuffle], archive_test_cases() ++ offline_test_cases()},
+     {offline_with_multiple_rules, [parallel, shuffle], archive_notify_test_cases()},
+     {mam, [parallel, shuffle], archive_test_cases()},
+     {mam_with_multiple_rules, [parallel, shuffle], archive_notify_test_cases()},
+     {mam_and_offline, [parallel, shuffle], archive_test_cases()},
+     {mam_and_offline_with_multiple_rules, [parallel, shuffle], archive_notify_test_cases()}].
 
 basic_test_cases() ->
     [initial_service_discovery_test,
@@ -58,6 +59,14 @@ basic_test_cases() ->
     ].
 
 archive_test_cases() ->
+    archive_drop_and_error_test_cases() ++ archive_notify_test_cases().
+
+archive_drop_and_error_test_cases() ->
+    [drop_deliver_stored_test,
+     error_deliver_stored_test
+    ].
+
+archive_notify_test_cases() ->
     [notify_deliver_direct_test,
      notify_deliver_none_test,
      notify_deliver_stored_test
@@ -66,16 +75,14 @@ archive_test_cases() ->
 offline_test_cases() ->
     [notify_deliver_none_instead_of_stored_filtered_by_privacy_test].
 
-mam_test_cases() ->
-    [notify_deliver_direct_instead_of_stored_test].
-
 init_per_suite(C) -> escalus:init_per_suite(C).
 end_per_suite(C) -> ok = escalus_fresh:clean(), escalus:end_per_suite(C).
 
 init_per_group(GroupName, Config) ->
-    Config1 = dynamic_modules:save_modules(?DOMAIN, Config),
+    ConfigWithModules = dynamic_modules:save_modules(?DOMAIN, Config),
+    ConfigWithRules = setup_rules(GroupName, ConfigWithModules),
     dynamic_modules:ensure_modules(?DOMAIN, required_modules(GroupName)),
-    Config1.
+    ConfigWithRules.
 
 end_per_group(_GroupName, Config) ->
     dynamic_modules:restore_modules(?DOMAIN, Config).
@@ -113,13 +120,13 @@ unsupported_actions_test(Config) ->
       Config, [{alice, 1}, {bob, 1}],
       fun(Alice, Bob) ->
               %% given
-              Msg = amp_message_to(Bob, [{deliver, direct, drop}],  % drop is unsupported
+              Msg = amp_message_to(Bob, [{deliver, direct, alert}],  % alert is unsupported
                                    <<"A paradoxical payload!">>),
               %% when
               client_sends_message(Alice, Msg),
 
               % then
-              client_receives_amp_error(Alice, {deliver, direct, drop}, <<"unsupported-actions">>)
+              client_receives_amp_error(Alice, {deliver, direct, alert}, <<"unsupported-actions">>)
       end).
 
 unsupported_conditions_test(Config) ->
@@ -161,7 +168,7 @@ notify_deliver_direct_test(Config) ->
       Config, [{alice, 1}, {bob, 1}],
       fun(Alice,Bob) ->
               %% given
-              Msg = amp_message_to(Bob, [{deliver, direct, notify}],
+              Msg = amp_message_to(Bob, rules(Config, [{deliver, direct, notify}]),
                                 <<"I want to be sure you get this!">>),
               %% when
               client_sends_message(Alice, Msg),
@@ -193,7 +200,7 @@ notify_deliver_none_test(Config) ->
       fun(Alice) ->
               %% given
               StrangerJid = <<"stranger@localhost">>,
-              Msg = amp_message_to(StrangerJid, [{deliver, none, notify}],
+              Msg = amp_message_to(StrangerJid, rules(Config, [{deliver, none, notify}]),
                                    <<"A message in a bottle...">>),
               %% when
               client_sends_message(Alice, Msg),
@@ -375,7 +382,7 @@ notify_deliver_stored_test(Config) ->
       fun(Alice) ->
               %% given
               BobJid = escalus_users:get_jid(FreshConfig, bob),
-              Msg = amp_message_to(BobJid, [{deliver, stored, notify}],
+              Msg = amp_message_to(BobJid, rules(Config, [{deliver, stored, notify}]),
                                    <<"A message in a bottle...">>),
               %% when
               client_sends_message(Alice, Msg),
@@ -383,7 +390,43 @@ notify_deliver_stored_test(Config) ->
               % then
               client_receives_notification(Alice, BobJid, {deliver, stored, notify}),
               client_receives_nothing(Alice)
-      end).
+      end),
+    user_has_incoming_offline_message(FreshConfig, bob, <<"A message in a bottle...">>).
+
+error_deliver_stored_test(Config) ->
+    FreshConfig = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+    escalus:story(
+      FreshConfig, [{alice, 1}],
+      fun(Alice) ->
+              %% given
+              BobJid = escalus_users:get_jid(FreshConfig, bob),
+              Msg = amp_message_to(BobJid, [{deliver, stored, error}],
+                                   <<"A message in a bottle...">>),
+              %% when
+              client_sends_message(Alice, Msg),
+
+              % then
+              client_receives_amp_error(Alice, BobJid, {deliver, stored, error}, <<"undefined-condition">>),
+              client_receives_nothing(Alice)
+      end),
+    user_has_no_incoming_offline_messages(FreshConfig, bob).
+
+drop_deliver_stored_test(Config) ->
+    FreshConfig = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+    escalus:story(
+      FreshConfig, [{alice, 1}],
+      fun(Alice) ->
+              %% given
+              BobJid = escalus_users:get_jid(FreshConfig, bob),
+              Msg = amp_message_to(BobJid, [{deliver, stored, drop}],
+                                   <<"A message in a bottle...">>),
+              %% when
+              client_sends_message(Alice, Msg),
+
+              % then
+              client_receives_nothing(Alice)
+      end),
+    user_has_no_incoming_offline_messages(FreshConfig, bob).
 
 notify_deliver_none_instead_of_stored_filtered_by_privacy_test(Config) ->
     FreshConfig = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
@@ -408,26 +451,61 @@ notify_deliver_none_instead_of_stored_filtered_by_privacy_test(Config) ->
               client_receives_notification(Alice, BobJid, {deliver, none, notify})
       end).
 
-notify_deliver_direct_instead_of_stored_test(Config) ->
-    %% The 'stored' condition works only if the message is not meant to be delivered.
-    %% It is not triggered if MAM stores the message and the recipient is online.
-    escalus:fresh_story(
-      Config, [{alice, 1}, {bob, 1}],
-      fun(Alice, Bob) ->
-              %% given
-              Msg = amp_message_to(Bob, [{deliver, stored, notify},
-                                         {deliver, direct, notify}],
-                                   <<"I want to be sure you get this!">>),
-              %% when
-              client_sends_message(Alice, Msg),
+%% Internal
 
-              % then
-              client_receives_notification(Alice, Bob, {deliver, direct, notify}),
-              client_receives_message(Bob, <<"I want to be sure you get this!">>),
-              client_receives_nothing(Alice)
+user_has_no_incoming_offline_messages(FreshConfig, UserName) ->
+    escalus:story(
+      FreshConfig, [{UserName, 1}],
+      fun(User) ->
+              client_receives_nothing(User),
+              case is_module_loaded(mod_mam) of
+                  true -> client_has_no_mam_messages(User);
+                  false -> ok
+              end
       end).
 
-%% Internal
+user_has_incoming_offline_message(FreshConfig, UserName, MsgText) ->
+    true = is_module_loaded(mod_mam) orelse is_module_loaded(mod_offline),
+    {ok, Client} = escalus_client:start(FreshConfig, UserName, <<"new-session">>),
+    escalus:send(Client, escalus_stanza:presence(<<"available">>)),
+    case is_module_loaded(mod_offline) of
+        true -> client_receives_message(Client, MsgText);
+        false -> ok
+    end,
+    Presence = escalus:wait_for_stanza(Client),
+    escalus:assert(is_presence, Presence),
+    case is_module_loaded(mod_mam) of
+        true -> client_has_mam_message(Client);
+        false -> ok
+    end,
+    escalus_cleaner:clean(FreshConfig).
+
+client_has_no_mam_messages(User) ->
+    P = mam_helper:mam03_props(),
+    escalus:send(User, mam_helper:stanza_archive_request(P, <<"q1">>)),
+    Res = mam_helper:wait_archive_respond(P, User),
+    mam_helper:assert_respond_size(0, Res).
+
+client_has_mam_message(User) ->
+    P = mam_helper:mam03_props(),
+    escalus:send(User, mam_helper:stanza_archive_request(P, <<"q1">>)),
+    Res = mam_helper:wait_archive_respond(P, User),
+    mam_helper:assert_respond_size(1, Res).
+
+setup_rules(Group, Config) when Group == offline_with_multiple_rules;
+                                Group == mam_with_multiple_rules ->
+    [{rules, [{deliver, none, notify},
+              {deliver, direct, notify},
+              {deliver, stored, notify}]} | Config];
+setup_rules(_, Config) ->
+    Config.
+
+rules(Config, Default) ->
+    case lists:keysearch(rules, 1, Config) of
+	{value, {rules, Val}} -> Val;
+	_ -> Default
+    end.
+
 ns_amp() ->
     <<"http://jabber.org/protocol/amp">>.
 
@@ -594,11 +672,13 @@ check_rules(deliver, direct, error) -> ok;
 check_rules(deliver, stored, error) -> ok;
 check_rules(deliver, none, error) -> ok;
 
+check_rules(deliver, stored, drop) -> ok;
+
 check_rules('match-resource', any, notify) -> ok;
 check_rules('match-resource', exact, notify) -> ok;
 check_rules('match-resource', other, notify) -> ok;
 
-check_rules(deliver, direct, drop) -> ok;        %% for testing unsupported rules
+check_rules(deliver, direct, alert) -> ok;       %% for testing unsupported rules
 check_rules('expire-at', _binary, notify) -> ok; %% for testing unsupported conditions
 check_rules(broken, rule, spec) -> ok;           %% for testing unacceptable rules
 check_rules(also_broken, rule, spec) -> ok;      %% for testing unacceptable rules
@@ -634,10 +714,20 @@ is_odbc_enabled() ->
         _ -> false
     end.
 
-required_modules(basic) -> mam_modules(off) ++ offline_modules(off);
-required_modules(mam) -> mam_modules(on) ++ offline_modules(off);
-required_modules(offline) -> mam_modules(off) ++ offline_modules(on);
-required_modules(mam_and_offline) -> mam_modules(on) ++ offline_modules(on).
+is_module_loaded(Mod) ->
+    escalus_ejabberd:rpc(gen_mod, is_loaded, [?DOMAIN, Mod]).
+
+required_modules(basic) ->
+    mam_modules(off) ++ offline_modules(off);
+required_modules(G) when G == mam;
+                         G == mam_with_multiple_rules ->
+    mam_modules(on) ++ offline_modules(off);
+required_modules(G) when G == offline;
+                         G == offline_with_multiple_rules ->
+    mam_modules(off) ++ offline_modules(on);
+required_modules(G) when G == mam_and_offline;
+                         G == mam_and_offline_with_multiple_rules ->
+    mam_modules(on) ++ offline_modules(on).
 
 offline_modules(on) ->
     [{mod_offline, [{access_max_user_messages, max_user_offline_messages}]}];
