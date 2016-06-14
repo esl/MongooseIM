@@ -1065,7 +1065,7 @@ retrive_form_fields(ConfigIn) ->
         escalus:send(Alice, stanza_retrive_form_fields(<<"q">>, Namespace)),
         Res = escalus:wait_for_stanza(Alice),
         escalus:assert(is_iq_with_ns, [Namespace], Res)
-                                          end).
+    end).
 
 archived(Config) ->
     P = ?config(props, Config),
