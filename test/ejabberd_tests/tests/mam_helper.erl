@@ -23,6 +23,13 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml_stream.hrl").
 
+-import(muc_helper,
+        [muc_host/0,
+         room_address/1, room_address/2,
+         stanza_muc_enter_room/2,
+         stanza_to_room/2,
+         start_room/5]).
+
 rpc_apply(M, F, Args) ->
     case rpc_call(M, F, Args) of
     {badrpc, Reason} ->
@@ -646,7 +653,9 @@ start_alice_room(Config) ->
     RoomName = <<"alicesroom">>,
     RoomNick = <<"alicesnick">>,
     [Alice | _] = ?config(escalus_users, Config),
-    start_room(Config, Alice, RoomName, RoomNick, [{persistent, true}, {anonymous, false}]).
+    start_room(Config, Alice, RoomName, RoomNick,
+               [{persistent, true},
+                {anonymous, false}]).
 
 start_alice_protected_room(Config) ->
     RoomName = <<"alicesroom">>,
@@ -662,38 +671,6 @@ start_alice_anonymous_room(Config) ->
     RoomNick = <<"alicesnick">>,
     [Alice | _] = ?config(escalus_users, Config),
     start_room(Config, Alice, RoomName, RoomNick, [{anonymous, true}]).
-
-start_room(Config, User, Room, Nick, Opts) ->
-    From = generate_rpc_jid(User),
-    rpc_apply(mod_muc, create_instant_room,
-        [<<"localhost">>, Room, From, Nick, Opts]),
-    [{nick, Nick}, {room, Room} | Config].
-
-destroy_room(Config) ->
-    RoomName = ?config(room, Config),
-    delete_room_archive(muc_host(), RoomName),
-    case rpc_apply(ets, lookup, [muc_online_room, {RoomName, muc_host()}]) of
-        [{_,_,Pid}|_] -> gen_fsm:send_all_state_event(Pid, destroy);
-        _ -> ok
-    end.
-
-stanza_muc_enter_room(Room, Nick) ->
-    Elem = #xmlel{ name = <<"x">>,
-                   attrs=[{<<"xmlns">>, muc_ns_binary()}]},
-    stanza_to_room(escalus_stanza:presence(<<"available">>, [Elem]),
-                   Room, Nick).
-
-stanza_to_room(Stanza, Room) ->
-    escalus_stanza:to(Stanza, room_address(Room)).
-
-stanza_to_room(Stanza, Room, Nick) ->
-    escalus_stanza:to(Stanza, room_address(Room, Nick)).
-
-room_address(Room) when is_binary(Room) ->
-    <<Room/binary, "@", (muc_host())/binary>>.
-
-room_address(Room, Nick) when is_binary(Room), is_binary(Nick) ->
-    <<Room/binary, "@", (muc_host())/binary, "/", Nick/binary>>.
 
 send_muc_rsm_messages(Config) ->
     Pid = self(),
@@ -1222,9 +1199,6 @@ nostore_hint_elem() ->
 has_x_user_element(ArcMsg) ->
     ParsedMess = parse_forwarded_message(ArcMsg),
     ParsedMess#forwarded_message.has_x_user_element.
-
-muc_host() ->
-    <<"muc.localhost">>.
 
 muc_light_host() ->
     <<"muclight.localhost">>.

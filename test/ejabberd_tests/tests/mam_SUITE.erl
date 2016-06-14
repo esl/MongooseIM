@@ -73,6 +73,13 @@
          run_prefs_cases/1,
          run_set_and_get_prefs_cases/1]).
 
+-import(muc_helper,
+        [destroy_room/1,
+         muc_host/0,
+         room_address/1, room_address/2,
+         stanza_muc_enter_room/2,
+         stanza_to_room/2]).
+
 -import(mam_helper,
         [rpc_apply/3,
          rpc_call/3,
@@ -93,7 +100,6 @@
          start_alice_room/1,
          start_alice_protected_room/1,
          start_alice_anonymous_room/1,
-         destroy_room/1,
          maybe_wait_for_yz/1,
          stanza_archive_request/2,
          wait_archive_respond/2,
@@ -102,8 +108,6 @@
          parse_result_iq/2,
          nick_to_jid/2,
          stanza_filtered_by_jid_request/2,
-         stanza_to_room/2,
-         room_address/2,
          nick/1,
          respond_messages/1,
          parse_forwarded_message/1,
@@ -118,8 +122,6 @@
          assert_not_stored/2,
          stanza_purge_single_message/1,
          stanza_purge_multiple_messages/3,
-         room_address/1,
-         stanza_muc_enter_room/2,
          has_x_user_element/1,
          stanza_date_range_archive_request/1,
          make_iso_time/1,
@@ -142,7 +144,6 @@
          get_all_messages/2,
          parse_messages/1,
          run_set_and_get_prefs_case/3,
-         muc_host/0,
          muc_light_host/0,
          host/0
         ]).
