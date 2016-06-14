@@ -564,8 +564,7 @@ destroy_room_get_disco_items_empty(Config) ->
         % Send disco#items request
         DiscoStanza = escalus_stanza:to(escalus_stanza:iq_get(?NS_DISCO_ITEMS, []), ?MUCHOST),
         foreach_occupant([Alice, Bob, Kate], DiscoStanza, disco_items_verify_fun([]))
-
-                                                             end).
+     end).
 
 destroy_room_get_disco_items_one_left(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
@@ -579,7 +578,7 @@ destroy_room_get_disco_items_one_left(Config) ->
         % Send disco#items request. Shoul be one room created by kate
         DiscoStanza = escalus_stanza:to(escalus_stanza:iq_get(?NS_DISCO_ITEMS, []), ?MUCHOST),
         foreach_occupant([Alice, Bob, Kate], DiscoStanza, disco_items_verify_fun([ProperJID]))
-                                                             end).
+     end).
 
 set_config(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
