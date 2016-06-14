@@ -341,11 +341,13 @@ suite() ->
     escalus:suite().
 
 init_per_suite(Config) ->
+    muc_helper:load_muc(muc_host()),
     disable_shaping(
       delete_users([{escalus_user_db, {module, escalus_ejabberd}}
                   | escalus:init_per_suite(Config)])).
 
 end_per_suite(Config) ->
+    muc_helper:unload_muc(),
     escalus:end_per_suite(restore_shaping(Config)).
 
 user_names() ->

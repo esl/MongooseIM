@@ -119,11 +119,9 @@ CREATE TABLE privacy_list (
     username varchar(250) NOT NULL,
     name text NOT NULL,
     id SERIAL UNIQUE,
-    created_at TIMESTAMP NOT NULL DEFAULT now()
+    created_at TIMESTAMP NOT NULL DEFAULT now(),
+    PRIMARY KEY (username,name)
 );
-
-CREATE INDEX i_privacy_list_username ON privacy_list USING btree (username);
-CREATE UNIQUE INDEX i_privacy_list_username_name ON privacy_list USING btree (username, name);
 
 CREATE TABLE privacy_list_data (
     id bigint REFERENCES privacy_list(id) ON DELETE CASCADE,
@@ -135,7 +133,8 @@ CREATE TABLE privacy_list_data (
     match_iq boolean NOT NULL,
     match_message boolean NOT NULL,
     match_presence_in boolean NOT NULL,
-    match_presence_out boolean NOT NULL
+    match_presence_out boolean NOT NULL,
+    PRIMARY KEY (id, ord)
 );
 
 CREATE TABLE private_storage (

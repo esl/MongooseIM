@@ -96,14 +96,14 @@
                     | {'next_state', statename(), state()}
                     | {'next_state', statename(), state(), Timeout :: integer()}.
 
--type blocking_type() :: 'unblock_all' | {'block',[any()]} | {'unblock',[any()]}.
+-type blocking_type() :: 'block' | 'unblock'.
 
 -type broadcast_type() :: {exit, Reason :: binary()}
                         | {item, IJID :: ejabberd:simple_jid() | ejabberd:jid(),
                            ISubscription :: from | to | both | none | remove}
                         | {privacy_list, PrivList :: mod_privacy:userlist(),
                            PrivListName :: binary()}
-                        | {blocking, What :: blocking_type()}
+                        | {blocking, What :: blocking_type(), [binary()]}
                         | unknown.
 
 -type broadcast() :: {broadcast, broadcast_type()}.

@@ -433,6 +433,8 @@ apply_rsm(_RoomsInfo, _RoomsInfoLen, #rsm_in{ max = Max }) when Max < 0 ->
     {error, item_not_found};
 apply_rsm(_RoomsInfo, RoomsInfoLen, #rsm_in{ max = 0 }) ->
     {ok, [], #rsm_out{ count = RoomsInfoLen }};
+apply_rsm([], 0, #rsm_in{ direction = undefined, id = undefined, index = undefined } = _RSMIn) ->
+    {ok, [], none};
 apply_rsm(RoomsInfo, RoomsInfoLen, #rsm_in{ direction = undefined, id = undefined,
                                             index = undefined } = RSMIn) ->
     apply_rsm(RoomsInfo, RoomsInfoLen, RSMIn#rsm_in{ index = 0 });
