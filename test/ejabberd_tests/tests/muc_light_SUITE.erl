@@ -248,60 +248,6 @@ disco_features(Config) ->
                                                      {attr, <<"var">>}]),
             escalus:assert(is_stanza_from, [?MUCHOST], Stanza)
         end).
-%% The room list is empty
-disco_rooms_empty_page_infinity(Config) ->
-    escalus:story(Config, [{alice, 1}], fun(Alice) ->
-        set_mod_config(rooms_per_page, infinity),
-        DiscoStanza = escalus_stanza:to(escalus_stanza:iq_get(?NS_DISCO_ITEMS, []), ?MUCHOST),
-        escalus:send(Alice, DiscoStanza),
-        Stanza =  escalus:wait_for_stanza(Alice),
-        %% we should get no room, Alice is not in the second one
-        XNamespaces = exml_query:paths(Stanza, [{element, <<"query">>}, {attr, <<"xmlns">>}]),
-        true = lists:member(?NS_DISCO_ITEMS, XNamespaces),
-        undefined =  exml_query:path(Stanza, [{element, <<"query">>}, {element, <<"item">>}])
-                                        end).
-%% The room list is empty
-disco_rooms_empty_page_1(Config) ->
-    escalus:story(Config, [{alice, 1}], fun(Alice) ->
-        set_mod_config(rooms_per_page, 1),
-        DiscoStanza = escalus_stanza:to(escalus_stanza:iq_get(?NS_DISCO_ITEMS, []), ?MUCHOST),
-        escalus:send(Alice, DiscoStanza),
-        Stanza =  escalus:wait_for_stanza(Alice),
-        %% we should get no room, Alice is not in the second one
-        XNamespaces = exml_query:paths(Stanza, [{element, <<"query">>}, {attr, <<"xmlns">>}]),
-        true = lists:member(?NS_DISCO_ITEMS, XNamespaces),
-        undefined =  exml_query:path(Stanza, [{element, <<"query">>}, {element, <<"item">>}])
-                                        end).
-%% there is one room created
-disco_rooms_created_page_1(Config) ->
-    escalus:story(Config, [{alice, 1}], fun(Alice) ->
-        set_mod_config(rooms_per_page, 1),
-        DiscoStanza = escalus_stanza:to(escalus_stanza:iq_get(?NS_DISCO_ITEMS, []), ?MUCHOST),
-        escalus:send(Alice, DiscoStanza),
-        Stanza =  escalus:wait_for_stanza(Alice),
-        %% we should get no room, Alice is not in the second one
-        XNamespaces = exml_query:paths(Stanza, [{element, <<"query">>}, {attr, <<"xmlns">>}]),
-        true = lists:member(?NS_DISCO_ITEMS, XNamespaces),
-        [Item] =  exml_query:paths(Stanza, [{element, <<"query">>}, {element, <<"item">>}]),
-        ProperJID = room_bin_jid(?ROOM),
-        ProperJID = exml_query:attr(Item, <<"jid">>)
-                                        end).
-%% there is one room created
-disco_rooms_created_page_infinity(Config) ->
-    escalus:story(Config, [{alice, 1}], fun(Alice) ->
-        set_mod_config(rooms_per_page, infinity),
-        DiscoStanza = escalus_stanza:to(escalus_stanza:iq_get(?NS_DISCO_ITEMS, []), ?MUCHOST),
-        escalus:send(Alice, DiscoStanza),
-        Stanza =  escalus:wait_for_stanza(Alice),
-        %% we should get no room, Alice is not in the second one
-        XNamespaces = exml_query:paths(Stanza, [{element, <<"query">>}, {attr, <<"xmlns">>}]),
-        true = lists:member(?NS_DISCO_ITEMS, XNamespaces),
-        [Item] =  exml_query:paths(Stanza, [{element, <<"query">>}, {element, <<"item">>}]),
-        ProperJID = room_bin_jid(?ROOM),
-        ProperJID = exml_query:attr(Item, <<"jid">>)
-                                        end).
-
-
 
 %% The room list is empty. Rooms_per_page set to `infinity`
 disco_rooms_empty_page_infinity(Config) ->
