@@ -35,6 +35,8 @@
          create_room_with_equal_occupants/1,
          create_existing_room_deny/1,
          destroy_room/1,
+         destroy_room_get_disco_items_empty/1,
+         destroy_room_get_disco_items_one_left/1,
          set_config/1,
          remove_and_add_users/1,
          explicit_owner_change/1,
@@ -143,6 +145,8 @@ groups() ->
                           create_room_with_equal_occupants,
                           create_existing_room_deny,
                           destroy_room,
+                          destroy_room_get_disco_items_empty,
+                          destroy_room_get_disco_items_one_left,
                           set_config,
                           remove_and_add_users,
                           explicit_owner_change,
@@ -551,6 +555,31 @@ destroy_room(Config) ->
             escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice))
         end).
 
+destroy_room_get_disco_items_empty(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+        escalus:send(Alice, stanza_destroy_room(?ROOM)),
+        AffUsersChanges = [{Bob, none}, {Alice, none}, {Kate, none}],
+        verify_aff_bcast([], AffUsersChanges, [?NS_MUC_LIGHT_DESTROY]),
+        escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+        % Send disco#items request
+        DiscoStanza = escalus_stanza:to(escalus_stanza:iq_get(?NS_DISCO_ITEMS, []), ?MUCHOST),
+        foreach_occupant([Alice, Bob, Kate], DiscoStanza, disco_items_verify_fun([]))
+     end).
+
+destroy_room_get_disco_items_one_left(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+        {ok, {?ROOM2, ?MUCHOST}} = create_room(?ROOM2, ?MUCHOST, kate, [bob, alice], Config, ver(0)),
+        ProperJID = room_bin_jid(?ROOM2),
+        %% alie destroy her room
+        escalus:send(Alice, stanza_destroy_room(?ROOM)),
+        AffUsersChanges = [{Bob, none}, {Alice, none}, {Kate, none}],
+        verify_aff_bcast([], AffUsersChanges, [?NS_MUC_LIGHT_DESTROY]),
+        escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+        % Send disco#items request. Shoul be one room created by kate
+        DiscoStanza = escalus_stanza:to(escalus_stanza:iq_get(?NS_DISCO_ITEMS, []), ?MUCHOST),
+        foreach_occupant([Alice, Bob, Kate], DiscoStanza, disco_items_verify_fun([ProperJID]))
+     end).
+
 set_config(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
             ConfigChange = [{<<"roomname">>, <<"The Coven">>}],
@@ -822,6 +851,15 @@ verify_blocklist(Query, ProperBlocklist) ->
     ProperBlocklistLen = length(ProperBlocklist),
     ProperBlocklistLen = length(BlockedItems),
     [] = lists:foldl(fun lists:delete/2, BlockedItems, ProperBlocklist).
+
+-spec disco_items_verify_fun(list(Jid :: binary())) -> verify_fun().
+disco_items_verify_fun(JidList) ->
+    fun(Incomming) ->
+        ResultItemList = exml_query:paths(Incomming, [{element, <<"query">>}, {element, <<"item">>}]),
+        ResultJids = [exml_query:attr(ResultItem, <<"jid">>) || ResultItem <- ResultItemList],
+        {SortedResult, SortedExptected} = {lists:sort(JidList), lists:sort(ResultJids)},
+        SortedResult = SortedExptected
+    end.
 
 verify_aff_bcast(CurrentOccupants, AffUsersChanges) ->
     verify_aff_bcast(CurrentOccupants, AffUsersChanges, []).
