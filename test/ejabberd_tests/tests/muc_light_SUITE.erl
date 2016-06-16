@@ -266,12 +266,12 @@ disco_rooms_empty_page_1(Config) ->
 %% There is one room created. Rooms_per_page set to 1
 disco_rooms_created_page_1(Config) ->
     set_mod_config(rooms_per_page, 1),
-    escalus:story(Config, [{alice, 1}], verify_user_has_one_room()).
+    escalus:story(Config, [{alice, 1}], fun verify_user_has_one_room/1).
 
 %% There is one room created. Rooms_per_page set to `infinity`
 disco_rooms_created_page_infinity(Config) ->
     set_mod_config(rooms_per_page, infinity),
-    escalus:story(Config, [{alice, 1}], verify_user_has_one_room()).
+    escalus:story(Config, [{alice, 1}], fun verify_user_has_one_room/1).
 
 
 
@@ -943,13 +943,11 @@ info_iq_verify_fun(AffUsers, Version, ConfigKVBin) ->
             verify_config(ConfigurationEl, ConfigKVBin)
     end.
 
--spec verify_user_has_one_room() -> fun((User ::escalus:client()) -> any()).
-verify_user_has_one_room() ->
-    fun(User) ->
+-spec verify_user_has_one_room(User :: escalus:client()) -> any().
+verify_user_has_one_room(User) ->
         [Item] =  get_disco_rooms(User),
         ProperJID = room_bin_jid(?ROOM),
-        ProperJID = exml_query:attr(Item, <<"jid">>)
-    end.
+        ProperJID = exml_query:attr(Item, <<"jid">>).
 
 %%--------------------------------------------------------------------
 %% Other helpers
