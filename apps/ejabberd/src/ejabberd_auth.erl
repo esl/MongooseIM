@@ -422,6 +422,8 @@ do_get_password_with_authmodule(LUser, LServer) ->
 %% logged under the given name
 -spec is_user_exists(User :: ejabberd:user(),
                      Server :: ejabberd:server()) -> boolean().
+is_user_exists(<<"">>, _) ->
+    false;
 is_user_exists(User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
