@@ -1,9 +1,10 @@
 # Selected hooks description
 
-This is a short documentation of a few selected hooks. As the pattern repeats, 
-it may not be necessary to describe them all. The following is meant to give 
-you the idea of how hooks work, what they are used for and how various purposes 
-they may serve.
+This is brief documentation for a few select hooks. Though hooks &
+handlers differ in what they are there to do, it is not necessary to
+describe them all, because the mechanism is general. The following is
+meant to give you the idea of how hooks work, what they are used for
+and the various purposes they can serve.
 
 
 ## `user_send_packet`
@@ -33,19 +34,20 @@ ejabberd instance.
 
 It is handled by the following modules:
 
-* `mod_caps` - detects and caches capabilities info sent with certain messages
-and caches for later use
+* `mod_caps` - detects and caches capability information sent with certain messages
+for later use
 
-* `mod_carboncopy` - if the packet being sent is a message, forwards it to all the
-user's resources which enabled carbon
+* `mod_carboncopy` - if the packet being sent is a message, it forwards it to all the
+user's resources which have carbon copying enabled
 
 * `mod_http_notification` - if configured, sends selected messages to an external
 http service
 
-* `mod_mam` - stores outgoing message in an archive
+* `mod_mam` - stores outgoing messages in an archive
 
-* `mod_ping` - upon reception of every message from the client, this module (re)starts a timer; if nothing more is received from the client
-within 60 seconds, sends an iq ping, to which the client should reply - which starts another timer.
+* `mod_ping` - upon reception of every message from the client, this module (re)starts a timer;
+if nothing more is received from the client within 60 seconds it sends an IQ ping, to which the
+client should reply - which starts another timer.
 
 ## `user_receive_packet`
 
@@ -70,11 +72,11 @@ by `ejabberd_s2s`.
 
 It is handled by the following modules:
 
-* `mod_caps` - detects and caches capabilities info sent with certain messages
-and caches for later use
+* `mod_caps` - detects and caches capability information sent with certain messages
+for later use
 
-* `mod_carboncopy` - if the received packet is a message, forwards it to all the
-user's resources which enabled carbon
+* `mod_carboncopy` - if the received packet is a message, it forwards it to all the
+user's resources which have carbon copying enabled
 
 ## `filter_packet`
 
@@ -85,8 +87,8 @@ ejabberd_hooks:run_fold(filter_packet,
 
 This hook is run by `mongoose_router_global` when the packet is being routed by
 `ejaberd_router:route/3`. It is in fact the first call made within the routing procedure.
-If a function hooked in to `filter_packet` returns drop,
-the packet is not processed anymore.
+If a function hooked in to `filter_packet` returns `drop`,
+the packet is not processed.
 
 The `ejaberd_router:route/3` fun is the most general function used to route stanzas across the
 entire cluster and its calls are scattered all over ejabberd code.
@@ -114,18 +116,18 @@ ejabberd_hooks:run(offline_message_hook,
 ```
 
 `ejabberd_sm` runs this hook once it determines that a routed stanza
-is a message, can be shipped and that no resource (i.e. device or desktop client
+is a message, ordinarily could be delivered but that no resource (i.e. device or desktop client
 application) of its recipient is available online for delivery.
 
 The hook is first handled by `mod_offline`, which should store that message in
-a persistent way until the recipient becomes online and the message can be
+a persistent way until the recipient comes online and the message can be
 successfully delivered. The handler in `mod_offline` stores the message and returns `stop`,
 which terminates the call and no more hook handlers are called.
 
-If `mod_offline` handler fails to store the message, we should notify the user that message
+If the `mod_offline` handler fails to store the message, we should notify the user that the message
 could not be stored. To this end, there is another handler registered, but with a greater sequence
-number, so that it is called after `mod_offline`. If `mod_offline` fails, the
-`ejabberd_sm:bounce_offline_message` is called and the user gets his notification.
+number, so that it is called after `mod_offline`. If `mod_offline` fails,
+`ejabberd_sm:bounce_offline_message` is called and the user gets their notification.
 
 ## `remove_user`
 
@@ -155,12 +157,12 @@ ejabberd_hooks:run(node_cleanup, [Node])
 `nodedown` messages. Currently the hook is run inside global transaction
 (via `global:trans/4`).
 
-The job of this hook is remove from Mnesia all processes registered there. MongooseIM
+The job of this hook is to remove all processes registered in Mnesia. MongooseIM
 uses Mnesia to store processes through which messages are then routed - like
 user sessions or server-to-server communication channels - or various handlers,
-e.g. iq request handlers. Those must obviously be removed when node goes down,
-and to do this modules `ejabberd_local`, `ejabberd_s2s`, `ejabberd_sm`
-and `mod_bosh` register their handlers to this hook.
+e.g. IQ request handlers. Those must obviously be removed when a node goes down,
+and to do this the modules `ejabberd_local`, `ejabberd_s2s`, `ejabberd_sm`
+and `mod_bosh` register their handlers with this hook.
 
 Number of retries for this transaction is set to 1 which means that in some
 situations the hook may be run on more than one node in the cluster, especially 
@@ -182,7 +184,7 @@ Handler function are expected to return:
 * `deny` if the JID is not allowed but other handlers should be run
 * `{stop, deny}` if the JID is not allowed but other handlers should **not** be run
 
-In default implementation the hook is not used, built-in user control method
+In default implementation the hook is not used, built-in user control methods
 are supported elsewhere. This is the perfect place to plug in custom security
 control.
 

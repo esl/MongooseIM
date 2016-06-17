@@ -1,8 +1,8 @@
 ## Logs
 
 It is a best practice to store logs in one centralized place when working in a clustered environment.
-MongooseIM uses Lager - the logging framework. Its backend can be easily replaced; syslog
-backend is by default included in MongooseIM.
+MongooseIM uses Lager - the logging framework. Its backend can be easily replaced; the `syslog`
+backend is included by default in MongooseIM.
 
 ### Using syslog
 
@@ -30,7 +30,7 @@ Example log (e.g `tail -f /var/log/mongooseim.log`):
 ### Further / multiserver integration
 
 For more advanced processing and analysis of logs, including gathering logs from multiple machines,
-you can use one of the many available mechanisms (e.g. logstash/elasticsearch/kibana, graylog, splunk),
+you can use one of the many available systems (e.g. logstash/elasticsearch/kibana, graylog, splunk),
 which collect data from syslog and are beyond the scope of this documentation. 
 
 ## Monitoring

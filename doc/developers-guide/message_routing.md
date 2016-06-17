@@ -1,12 +1,12 @@
 # Route of a message through the system
 
-In case of a message sent from User A to User B, both of whom are served by
+In the case of a message sent from user A to user B, both of whom are served by
 the same domain, the flow of the message through the system is as described below.
 
-Note hooks that are called on various stages of routing - them perform many
-tasks, most of functionality is implemented as hooks. For general introduction
+Note that hooks are called at various stages of routing - they perform many
+tasks, in fact, a lot of functionality in MongooseIM is implemented through hooks & handlers. For a general introduction
 to hooks, see [Hooks and Handlers](./developers-guide/Hooks-and-handlers.md);
-for details of some most important hooks, see [hooks description](./developers-guide/hooks_description.md).
+for details of the some most important hooks, see [hooks description](./developers-guide/hooks_description.md).
 
 ## 1. Receiving the stanza
 
@@ -16,14 +16,14 @@ User A's `ejabberd_receiver` receives the stanza and passes it to `ejabberd_c2s`
 
 Upon some minimal validation of the stanza a hook `user_send_packet` is called. 
 This is handled by a couple of modules which subscribe to this hook. Those modules
-do various complementary tasks, like storing message in archive, sending carbon 
-copies etc. 
+do various complementary tasks, like storing the message in an archive, sending carbon 
+copies, etc. 
 
 ## 3. Privacy lists and `ejabberd_router:route/3`
 
-The stanza is checked against any privacy lists in use and, in case of being allowed, 
-routed by `ejabberd_router:route/3`. This also takes into account
-"blocking commands", which are part of privacy system.
+The stanza is checked against any privacy lists in use and, in the case of being allowed, 
+it will be routed by `ejabberd_router:route/3`. This also takes into account
+"blocking commands", which are part of the privacy system.
 
 ## 4. Chain of routing
 
