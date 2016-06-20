@@ -309,7 +309,10 @@ interleave_requests_raw(Config) ->
         Msg3 = <<"3rd!">>,
         Msg4 = <<"4th!">>,
 
+        escalus:send(Geralt, escalus_stanza:chat_to(Carol, <<"Hi, Carol">>)),
         send_message_with_rid(Carol, Geralt, Rid + 1, Sid, Msg2),
+        escalus:assert(is_chat_message, [<<"Hi, Carol">>],
+                       escalus_client:wait_for_stanza(Carol)),
         send_message_with_rid(Carol2, Geralt, Rid, Sid, Msg1),
 
         send_message_with_rid(Carol2, Geralt, Rid + 2,   Sid, Msg3),
