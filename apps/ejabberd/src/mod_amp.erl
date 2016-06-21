@@ -123,31 +123,22 @@ determine_strategy(Packet, From, Event) ->
                               no_match | {matched | undecided, amp_rule()}.
 fold_apply_rules(_, _, _, []) -> 'no_match';
 fold_apply_rules(Packet, From, Strategy, [Rule|Rest]) ->
-    #amp_rule{condition = C, value = V} = Rule,
-    case resolve_condition(From, Strategy, C, V) of
+    case resolve_condition(From, Strategy, Rule) of
         no_match -> fold_apply_rules(Packet, From, Strategy, Rest);
         Status -> {Status, Rule}
     end.
 
--spec resolve_condition(jid(), amp_strategy(), amp_condition(), amp_value()) ->
-                               amp_match_result().
-resolve_condition(From, Strategy, Condition, Value) ->
+-spec resolve_condition(jid(), amp_strategy(), amp_rule()) -> amp_match_result().
+resolve_condition(From, Strategy, Rule) ->
     ejabberd_hooks:run_fold
       (amp_check_condition, host(From), no_match,
-       [Strategy, Condition, Value]).
+       [Strategy, Rule]).
 
 -spec take_action(#xmlel{}, jid(), amp_event(), no_match | {matched | undecided, amp_rule()}) ->
                          #xmlel{} | drop.
 take_action(Packet, _From, initial_check, no_match) ->
     amp:strip_amp_el(Packet);
 take_action(Packet, From, _, {match, Rule}) ->
-    take_action_for_matched_rule(Packet, From, Rule);
-take_action(Packet, From, _, {undecided, #amp_rule{condition = deliver,
-                                                   value = Value,
-                                                   action = Action} = Rule})
-  when Value /= none,
-       Action == error orelse Action == drop ->
-    %% Special case: take 'error' and 'drop' actions before delivery/storage attempt
     take_action_for_matched_rule(Packet, From, Rule);
 take_action(Packet, _From, _, _) ->
     Packet.
@@ -160,7 +151,7 @@ take_action_for_matched_rule(Packet, From, #amp_rule{action = notify} = Rule) ->
     amp:strip_amp_el(Packet);
 take_action_for_matched_rule(Packet, From, #amp_rule{action = error} = Rule) ->
     send_error_and_drop(Packet, From, 'undefined-condition', Rule);
-take_action_for_matched_rule(Packet, From, #amp_rule{action = drop} = Rule) ->
+take_action_for_matched_rule(Packet, From, #amp_rule{action = drop}) ->
     update_metric_and_drop(Packet, From).
 
 -spec reply_to_sender(amp_rule(), jid(), jid(), #xmlel{}) -> ok.

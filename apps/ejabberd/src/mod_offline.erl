@@ -162,7 +162,7 @@ stop(Host) ->
 %% ------------------------------------------------------------------
 
 amp_failed_event(Packet, From) ->
-    mod_amp:check_packet(Packet, From, failed).
+    mod_amp:check_packet(Packet, From, offline_failed).
 
 handle_offline_msg(#offline_msg{us=US} = Msg, AccessMaxOfflineMsgs) ->
     {LUser, LServer} = US,
@@ -542,6 +542,7 @@ discard_warn_sender(Msgs) ->
       fun(#offline_msg{from=From, to=To, packet=Packet}) ->
               ErrText = <<"Your contact offline message queue is full. The message has been discarded.">>,
               Lang = xml:get_tag_attr_s(<<"xml:lang">>, Packet),
+              amp_failed_event(Packet, From),
               Err = jlib:make_error_reply(
                       Packet, ?ERRT_RESOURCE_CONSTRAINT(Lang, ErrText)),
               ejabberd_router:route(To, From, Err)

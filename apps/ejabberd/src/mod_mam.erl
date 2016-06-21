@@ -289,12 +289,12 @@ filter_packet({From, To=#jid{luser=LUser, lserver=LServer}, Packet}) ->
     {AmpEvent, PacketAfterArchive} =
         case ejabberd_users:is_user_exists(LUser, LServer) of
             false ->
-                {failed, Packet};
+                {mam_failed, Packet};
             true ->
                 PacketWithoutAmp = mod_amp:strip_amp_el_from_request(Packet),
                 case {process_incoming_packet(From, To, PacketWithoutAmp),
                       add_archived_element()} of
-                    {undefined, _} -> {failed, Packet};
+                    {undefined, _} -> {mam_failed, Packet};
                     {_, false} -> {archived, Packet};
                     {MessID, true} ->
                         ?DEBUG("Archived incoming ~p", [MessID]),

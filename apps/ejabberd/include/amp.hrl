@@ -51,7 +51,7 @@
 -type amp_any_rule() :: amp_rule() | amp_invalid_rule().
 -type amp_strategy() :: #amp_strategy{}.
 
--type amp_event() :: initial_check | archived | delivered | failed.
+-type amp_event() :: initial_check | archived | delivered | mam_failed | offline_failed | delivery_failed.
 -type amp_match_result() :: match | no_match | undecided.
 
 -define(AMP_LEGAL_CONDITIONS,

@@ -1148,6 +1148,7 @@ handle_info({route, From, To, Packet}, StateName, StateData) ->
     ejabberd_hooks:run(c2s_loop_debug, [{route, From, To, Packet}]),
     Name = Packet#xmlel.name,
     process_incoming_stanza(Name, From, To, Packet, StateName, StateData);
+
 handle_info({'DOWN', Monitor, _Type, _Object, _Info}, _StateName, StateData)
   when Monitor == StateData#state.socket_monitor ->
     maybe_enter_resume_session(StateData#state.stream_mgmt_id, StateData);
@@ -1258,6 +1259,7 @@ response_negative(<<"iq">>, deny, From, To, Packet) ->
     IqType = xml:get_attr_s(<<"type">>, Packet#xmlel.attrs),
     response_iq_deny(IqType, From, To, Packet);
 response_negative(<<"message">>, deny, From, To, Packet) ->
+    mod_amp:check_packet(Packet, From, delivery_failed),
     send_back_error(?ERR_SERVICE_UNAVAILABLE, From, To, Packet);
 response_negative(_, _, _, _, _) ->
     ok.
@@ -1648,7 +1650,7 @@ send_and_maybe_buffer_stanza({J1, J2, El}, State, StateName)->
     end.
 
 send_result_to_amp_event(ok) -> delivered;
-send_result_to_amp_event(_) -> failed.
+send_result_to_amp_event(_) -> delivery_failed.
 
 send_and_maybe_buffer_stanza({_, _, Stanza} = Packet, State) ->
     SendResult = maybe_send_element_safe(State, Stanza),

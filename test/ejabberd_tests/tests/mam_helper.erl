@@ -755,6 +755,10 @@ clean_archives(Config) ->
     [assert_empty_archive(S, U, 10) || {S, U} <- SUs],
     Config.
 
+destroy_room(Config) ->
+    clean_room_archive(Config),
+    muc_helper:destroy_room(Config).
+
 clean_room_archive(Config) ->
     Room = ?config(room, Config),
     delete_room_archive(muc_host(), Room),

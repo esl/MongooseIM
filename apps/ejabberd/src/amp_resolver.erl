@@ -2,7 +2,7 @@
 %% @doc This module is responsible for checking whether particular AMP semantics
 %%      apply for a given message.
 
--export([check_condition/4,
+-export([check_condition/3,
          verify_support/2
         ]).
 
@@ -22,22 +22,29 @@ verify_rule_support(#amp_rule{condition = 'expire-at'} = Rule) ->
 verify_rule_support(Rule) ->
     {supported, Rule}.
 
--spec check_condition(amp_match_result(), amp_strategy(), amp_condition(), amp_value()) ->
-                             amp_match_result().
-check_condition(HookAcc, Strategy, Condition, Value) ->
+-spec check_condition(amp_match_result(), amp_strategy(), amp_rule()) -> amp_match_result().
+check_condition(HookAcc, Strategy, Rule) ->
     case HookAcc of
-        no_match -> resolve(Strategy, Condition, Value);
+        no_match -> resolve(Strategy, Rule);
         MatchResult -> MatchResult
     end.
 
--spec resolve(amp_strategy(), amp_condition(), amp_value()) -> amp_match_result().
-resolve(#amp_strategy{deliver = [Value]}, deliver, Value) -> match;
-resolve(#amp_strategy{deliver = Values}, deliver, Value) when is_list(Values) ->
+-spec resolve(amp_strategy(), amp_rule()) -> amp_match_result().
+resolve(#amp_strategy{deliver = [Value]}, #amp_rule{condition = deliver, value = Value}) -> match;
+resolve(#amp_strategy{deliver = Values}, #amp_rule{condition = deliver, value = Value, action = notify})
+  when is_list(Values) ->
     case lists:member(Value, Values) of
         true -> undecided;
         false -> no_match
     end;
-resolve(#amp_strategy{'match-resource' = Value}, 'match-resource', any)
-  when Value =/= undefined -> match;
-resolve(#amp_strategy{'match-resource' = Value}, 'match-resource', Value) -> match;
-resolve(#amp_strategy{}, _, _) -> no_match.
+resolve(#amp_strategy{deliver = Values}, #amp_rule{condition = deliver, value = Value, action = Action})
+  when is_list(Values), Action == drop orelse Action == error, Value /= none ->
+    case lists:member(Value, Values) of
+        true -> match;
+        false -> no_match
+    end;
+resolve(#amp_strategy{'match-resource' = Value}, #amp_rule{condition = 'match-resource', value = any})
+  when Value /= undefined -> match;
+resolve(#amp_strategy{'match-resource' = Value}, #amp_rule{condition = 'match-resource', value = Value}) ->
+    match;
+resolve(#amp_strategy{}, #amp_rule{}) -> no_match.
