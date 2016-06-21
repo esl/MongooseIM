@@ -254,3 +254,27 @@ No additional steps required.
 No additional steps required, the modules that are using LDAP are very customizable,
 so they can be configured to support existsing schemas.
 
+# Best practices for using databases with MongooseIM
+
+Here are some general advice on the use of databases.
+
+* Redis - it is a fantastic choice for storing a live data. It's highly scalable and it could be
+easily shared by multiple MongooseIM nodes. Additionally, a great performance of Redis make it be excelent choice for
+storing `users sessions`. Speed up.
+
+* Mnesia - as a highly available and distributed database it's also recommended to use Mnesia for storing `users sessions`.
+Due to the fact that it's erlang-based database, it's default persistance option for most modules in MongooseIM. Join the cluster.
+
+* RDBMS/ODBC - MongooseIM has a strong backend support for relational databases. Due to the [CAP theorem](https://en.wikipedia.org/wiki/CAP_theorem)
+they guarantees both availability and consistency which is a great choice for regular MongooseIM use cases like `privacy lists`, `vcards`,
+`roster`, `private storage`, `last activity` and `message archive`. Never loose your data.
+
+* Riak KV - If you're planning to have your cluster really huge look at Riak KV as a potential backend solution.
+It offers high availability and fault tolerancy which is excatly what you need for your distributed MongooseIM architecture.
+Use Riak KV with `rosters`, `private storage`, `vcards` or `last activity`. Make it big.
+
+* Cassandra - since it allows to store more data than ODBC, it's good alternative for `message archive` which is usually
+ the biggest persistence component in MongooseIM. Archive everything.
+
+
+
