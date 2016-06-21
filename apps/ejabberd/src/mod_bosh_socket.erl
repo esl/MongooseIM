@@ -894,7 +894,8 @@ bosh_wrap(Elements, Rid, #state{} = S) ->
     end,
     MaybeAck = maybe_ack(Rid, NS),
     {MaybeReport, NNS} = maybe_report(NS),
-    MaybeStreamPrefix = maybe_stream_prefix(Children),
+    HasStreamPrefix = (exml_query:attr(Body, <<"xmlns:stream">>) /= undefined),
+    MaybeStreamPrefix = maybe_stream_prefix(HasStreamPrefix, Children),
     ExtraAttrs = MaybeAck ++ MaybeReport ++ MaybeStreamPrefix,
     {Body#xmlel{attrs = Body#xmlel.attrs ++ ExtraAttrs,
                 children = maybe_add_default_ns_to_children(Children)}, NNS}.
@@ -965,16 +966,19 @@ bosh_stream_end_body() ->
                     {<<"xmlns">>, ?NS_HTTPBIND}],
            children = []}.
 
-maybe_stream_prefix(Stanzas) ->
-    case lists:any(fun is_stream_error/1, Stanzas) of
+maybe_stream_prefix(true, _) ->
+    [];
+maybe_stream_prefix(_, Stanzas) ->
+    case lists:any(fun is_stream_prefix/1, Stanzas) of
         false ->
             [];
         true ->
             [{<<"xmlns:stream">>, ?NS_STREAM}]
     end.
 
-is_stream_error(#xmlel{name = Name}) ->
-    Name =:= <<"stream:error">>.
+is_stream_prefix(#xmlel{name = <<"stream:error">>}) -> true;
+is_stream_prefix(#xmlel{name = <<"stream:features">>}) -> true;
+is_stream_prefix(_) -> false.
 
 %%--------------------------------------------------------------------
 %% ejabberd_socket compatibility
