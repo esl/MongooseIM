@@ -472,7 +472,7 @@ do_does_user_exist_in_other_modules(Module, LUser, LServer) ->
 does_user_exist_in_other_modules_loop([], _User, _Server) ->
     false;
 does_user_exist_in_other_modules_loop([AuthModule|AuthModules], User, Server) ->
-    case AuthModule:is_user_exists(User, Server) of
+    case AuthModule:does_user_exist(User, Server) of
         true ->
             true;
         false ->
