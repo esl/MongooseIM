@@ -63,6 +63,7 @@ essential_test_cases() ->
 
 chat_test_cases() ->
     [interleave_requests,
+     interleave_requests_statem,
      simple_chat,
      cdata_escape_chat,
      escape_attr_chat,
@@ -292,7 +293,10 @@ interleave_requests(Config) ->
         true = escalus_bosh:is_connected(Carol)
     end).
 
-interleave_requests_raw(Config) ->
+interleave_requests_statem(Config) ->
+    true = bosh_interleave_reqs:test(Config).
+
+interleave_requests_escalus(Config) ->
     escalus:story(Config, [{geralt, 1}], fun(Geralt) ->
         User = ?config(user, Config),
         Carol = start_client(Config, User, <<"bosh">>),
