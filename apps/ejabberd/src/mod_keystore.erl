@@ -114,10 +114,23 @@ create_keystore_ets() ->
     case does_table_exist(keystore) of
         true -> ok;
         false ->
-            keystore = ets:new(keystore, [named_table, public,
-                                          {read_concurrency, true}]),
+            BaseOpts = [named_table, public,
+                        {read_concurrency, true}],
+            Opts = maybe_add_heir(whereis(ejabberd_sup), self(), BaseOpts),
+            keystore = ets:new(keystore, Opts),
             ok
     end.
+
+%% In tests or when module is started in run-time, we need to set heir to the
+%% ETS table, otherwise it will be destroy when the creator's process finishes.
+%% When started normally during node start up, self() =:= EjdSupPid and there
+%% is no need for setting heir
+maybe_add_heir(EjdSupPid, EjdSupPid, BaseOpts) when is_pid(EjdSupPid) ->
+     BaseOpts;
+maybe_add_heir(EjdSupPid, _Self, BaseOpts) when is_pid(EjdSupPid) ->
+      [{heir, EjdSupPid, testing} | BaseOpts];
+maybe_add_heir(_, _, BaseOpts) ->
+      BaseOpts.
 
 clear_keystore_ets(Domain) ->
     Pattern = {{'_', Domain}, '$1'},

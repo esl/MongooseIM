@@ -1044,6 +1044,8 @@ muc_light_simple(Config) ->
             muc_light_SUITE:verify_aff_bcast([{Alice, owner}, {Bob, member}], [{Bob, member}]),
 
             P = ?config(props, Config),
+            maybe_wait_for_yz(Config),
+
             ArchiveReqStanza = escalus_stanza:to(stanza_archive_request(P, <<"mlight">>), Room2BinJID),
             escalus:send(Bob, ArchiveReqStanza),
             [CreateEvent, Msg1, Msg2, BobAdd] = respond_messages(assert_respond_size(

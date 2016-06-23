@@ -58,9 +58,6 @@ env:
         - PRESET=dialyzer_only
 
 matrix:
-    allow_failures:
-        - env: PRESET=riak_mnesia DB=riak REL_CONFIG=with-riak
-    fast_finish: true
     include:
         - otp_release: R16B03
           env: PRESET=internal_mnesia DB=mnesia REL_CONFIG=with-none
