@@ -121,10 +121,16 @@ create_keystore_ets() ->
             ok
     end.
 
+%% In tests or when module is started in run-time, we need to set heir to the
+%% ETS table, otherwise it will be destroy when the creator's process finishes.
+%% When started normally during node start up, self() =:= EjdSupPid and there
+%% is no need for setting heir
+maybe_add_heir(EjdSupPid, EjdSupPid, BaseOpts) when is_pid(EjdSupPid) ->
+     BaseOpts;
 maybe_add_heir(EjdSupPid, _Self, BaseOpts) when is_pid(EjdSupPid) ->
-    [{heir, EjdSupPid, testing} | BaseOpts];
+      [{heir, EjdSupPid, testing} | BaseOpts];
 maybe_add_heir(_, _, BaseOpts) ->
-    BaseOpts.
+      BaseOpts.
 
 clear_keystore_ets(Domain) ->
     Pattern = {{'_', Domain}, '$1'},
