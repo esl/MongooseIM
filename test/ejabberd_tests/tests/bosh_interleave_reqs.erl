@@ -154,16 +154,6 @@ send_from_carol(Carol, Geralt) ->
      Msg
     }.
 
-send_from_carol_bigger_rid(Carol, Geralt) ->
-    Msg = gen_msg(),
-    Rid = escalus_bosh:get_rid(Carol),
-    Sid = escalus_bosh:get_sid(Carol),
-    EmptyBody = escalus_bosh:empty_body(Rid + 1, Sid),
-    Stanza = EmptyBody#xmlel{
-               children = [escalus_stanza:chat_to(Geralt, Msg)]},
-    escalus_bosh:send_raw(Carol, Stanza),
-    Msg.
-
 send_from_geralt(Geralt, Carol) ->
     Msg = gen_msg(),
     escalus:send(Geralt, escalus_stanza:chat_to(Carol, Msg)),
@@ -176,7 +166,14 @@ gen_msg() ->
     Msg.
 
 wait_for_msgs_carol(Carol, Msgs) ->
-    wait_for_msgs(Carol, lists:reverse(Msgs)).
+    L = length(Msgs),
+    Stanzas = escalus:wait_for_stanzas(Carol, L),
+    RMsgs = [exml_query:path(E, [{element, <<"body">>}, cdata])
+             || E <- Stanzas],
+    SortedMsgs = lists:sort([Msg || {_, Msg} <- Msgs]),
+    ct:pal("waiting for: ~p~nreceived: ~p", [SortedMsgs, RMsgs]),
+    SortedMsgs = lists:sort(RMsgs),
+    ok.
 
 wait_for_msgs_geralt(Geralt, Msgs) ->
     wait_for_msgs(Geralt, lists:reverse(Msgs)).
@@ -187,13 +184,4 @@ wait_for_msgs(Client, [{_, Msg} | Rest]) ->
     escalus:assert(is_chat_message, [Msg],
                    escalus:wait_for_stanza(Client)),
     wait_for_msgs(Client, Rest).
-
-wait_for_stanza(#client{module = escalus_bosh} = Client) ->
-    Rid = escalus_bosh:get_rid(Client),
-    Sid = escalus_bosh:get_sid(Client),
-    EmptyBody = escalus_bosh:empty_body(Rid, Sid),
-    escalus_bosh:send(Client, EmptyBody),
-    esclus:wait_for_stanza(Client);
-wait_for_stanza(Client) ->
-    escalus:wait_for_stanza(Client).
 
