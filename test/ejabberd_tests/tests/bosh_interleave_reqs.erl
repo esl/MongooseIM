@@ -3,7 +3,10 @@
 -behaviour(proper_statem).
 
 -include_lib("proper/include/proper.hrl").
+% -include_lib("eqc/include/eqc_statem.hrl").
+% -include_lib("eqc/include/eqc.hrl").
 -include_lib("escalus/include/escalus.hrl").
+-include_lib("exml/include/exml.hrl").
 
 -export([test/1, sample/0, prop/1]).
 
@@ -33,7 +36,7 @@ sample() ->
 
 prop(Config) ->
     spawn_link(?MODULE, ct_config_giver, [Config]),
-	?FORALL(Cmds, commands(?MODULE),
+	?FORALL(Cmds, more_commands(2, commands(?MODULE)),
 			?TRAPEXIT(
 			   begin
                    ct:pal("commands: ~p", [Cmds]),
@@ -147,12 +150,26 @@ make_jid(Proplist) ->
 send_from_carol(Carol, Geralt) ->
     Msg = gen_msg(),
     escalus:send(Carol, escalus_stanza:chat_to(Geralt, Msg)),
+    {escalus_client:short_jid(Carol),
+     Msg
+    }.
+
+send_from_carol_bigger_rid(Carol, Geralt) ->
+    Msg = gen_msg(),
+    Rid = escalus_bosh:get_rid(Carol),
+    Sid = escalus_bosh:get_sid(Carol),
+    EmptyBody = escalus_bosh:empty_body(Rid + 1, Sid),
+    Stanza = EmptyBody#xmlel{
+               children = [escalus_stanza:chat_to(Geralt, Msg)]},
+    escalus_bosh:send_raw(Carol, Stanza),
     Msg.
 
 send_from_geralt(Geralt, Carol) ->
     Msg = gen_msg(),
     escalus:send(Geralt, escalus_stanza:chat_to(Carol, Msg)),
-    Msg.
+    {escalus_client:short_jid(Geralt),
+     Msg
+    }.
 
 gen_msg() ->
     Msg = base64:encode(crypto:rand_bytes(15)),
@@ -166,8 +183,17 @@ wait_for_msgs_geralt(Geralt, Msgs) ->
 
 wait_for_msgs(_Client, []) ->
     ok;
-wait_for_msgs(Client, [Msg | Rest]) ->
+wait_for_msgs(Client, [{_, Msg} | Rest]) ->
     escalus:assert(is_chat_message, [Msg],
-                   escalus_client:wait_for_stanza(Client)),
+                   escalus:wait_for_stanza(Client)),
     wait_for_msgs(Client, Rest).
+
+wait_for_stanza(#client{module = escalus_bosh} = Client) ->
+    Rid = escalus_bosh:get_rid(Client),
+    Sid = escalus_bosh:get_sid(Client),
+    EmptyBody = escalus_bosh:empty_body(Rid, Sid),
+    escalus_bosh:send(Client, EmptyBody),
+    esclus:wait_for_stanza(Client);
+wait_for_stanza(Client) ->
+    escalus:wait_for_stanza(Client).
 
