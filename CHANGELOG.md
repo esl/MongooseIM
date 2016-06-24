@@ -1,26 +1,43 @@
-# MongooseIM 1.7.0
+# MongooseIM 2.0.0beta1
 
-2016-MM-DD
+2016-06-28
 
 This release includes:
 
-- token based authentication [#633](https://github.com/esl/MongooseIM/pull/633)
+- new XMPP extensions:
+   - [XEP-0060: Publish Subscribe](http://www.xmpp.org/extensions/xep-0060.html) [#732](https://github.com/esl/MongooseIM/pull/732)
+   - [XEP-0092: Software Version](http://www.xmpp.org/extensions/xep-0092.html) [#731](https://github.com/esl/MongooseIM/pull/731)
+   - [XEP-0191: Blocking Command](https://xmpp.org/extensions/xep-0191.html), [#829](https://github.com/esl/MongooseIM/pull/829)
+   - [XEP-0352: Client State Indication](https://xmpp.org/extensions/xep-0352.html) [#703](https://github.com/esl/MongooseIM/pull/703)
+   - MUC light: [#577](https://github.com/esl/MongooseIM/pull/577)
+   - token based authentication [#633](https://github.com/esl/MongooseIM/pull/633)
+- HTTP notifications [#684](https://github.com/esl/MongooseIM/pull/684)
 - support for FIPS mode [#628](https://github.com/esl/MongooseIM/pull/628)
 - reverse Proxy [#628](https://github.com/esl/MongooseIM/pull/638)
-- improved routing layer [#639](https://github.com/esl/MongooseIM/pull/639), [#729](https://github.com/esl/MongooseIM/pull/729)
-- fix for TCP backlog setting [#708](https://github.com/esl/MongooseIM/pull/708)
-- new XMPP extentions:
-   - [XEP-0352: Client State Indication](https://xmpp.org/extensions/xep-0352.html) [#703](https://github.com/esl/MongooseIM/pull/703)
+- improved routing layer [#639](https://github.com/esl/MongooseIM/pull/639), [#729](https://github.com/esl/MongooseIM/pull/729), [#746](https://github.com/esl/MongooseIM/pull/746)
 - external components improvements:
    - [#640](https://github.com/esl/MongooseIM/pull/640)
 - parallelized tests:
    - [#706](https://github.com/esl/MongooseIM/pull/706)
+   - [#740](https://github.com/esl/MongooseIM/pull/740)
+   - [#741](https://github.com/esl/MongooseIM/pull/741)
+   - [#751](https://github.com/esl/MongooseIM/pull/751)
 - other improvements:
+   - stream compression possible only after auth [#616](https://github.com/esl/MongooseIM/pull/616)
+   - fix for TCP backlog setting [#708](https://github.com/esl/MongooseIM/pull/708)
    - carbon copies data optimisation [#700](https://github.com/esl/MongooseIM/pull/700)
-   - update deps [#705](https://github.com/esl/MongooseIM/pull/705) and exometer 1.2 TODO add PR after mergin rel-1.7 to master
+   - update deps [#705](https://github.com/esl/MongooseIM/pull/705) and [#707](https://github.com/esl/MongooseIM/pull/707)
    - dialyzer checks on travis [#677](https://github.com/esl/MongooseIM/pull/677)
    - docker image building on travis [#710](https://github.com/esl/MongooseIM/pull/710)
+   - improved build and installation process [#704](https://github.com/esl/MongooseIM/pull/704)
+   - improved clustering [#683](https://github.com/esl/MongooseIM/683), [#717](https://github.com/esl/MongooseIM/pull/717), [#825](https://github.com/esl/MongooseIM/pull/825)
+   - improved documentation
+   - [complete list of merged PRs](https://github.com/esl/MongooseIM/pulls?utf8=%E2%9C%93&q=is%3Apr%20base%3Amaster%20merged%3A%222016-02-13..2016-06-28%22%20sort%3Acreated-asc%20)
+   - [complete list of closed issues](https://github.com/esl/MongooseIM/issues?utf8=%E2%9C%93&q=is%3Aissue%20is%3Aclosed%20closed%3A%222016-02-13..2016-06-28%22%20)
 
+Special thanks to our contributors: @zsuidakra, @arkdro, @bernardd, @kshamko
+
+This release repo [history](https://github.com/esl/MongooseIM/graphs/contributors?from=2016-02-13&to=2016-06-28&type=c)
 
 # MongooseIM 1.6.2
 
@@ -111,7 +128,7 @@ This release includes:
   - unified xml parsing and memory footprint optimisations [#183](https://github.com/esl/MongooseIM/pull/183)
   - supported XEPs are now documented
   - Dialyzer fixes & additions [#508](https://github.com/esl/MongooseIM/pull/508)
-  - experimental [Docker image](https://hub.docker.com/r/mongooseim/mongooseim-docker/) 
+  - experimental [Docker image](https://hub.docker.com/r/mongooseim/mongooseim-docker/)
   - [complete list of merged PRs](https://github.com/esl/MongooseIM/pulls?utf8=%E2%9C%93&q=is%3Apr+base%3Amaster+merged%3A%222015-02-04..2015-10-15%22+sort%3Acreated-asc+)
   - [complete list of closed issues](https://github.com/esl/MongooseIM/issues?utf8=%E2%9C%93&q=closed%3A%222015-02-04..2015-10-15%22+is%3Aissue+sort%3Acreated-desc+)
 
@@ -238,11 +255,11 @@ zlib driver configuration (in c2s or s2s section) takes new parameter which is m
 
 2013-05-12
 
-- BOSH support (XMPP over HTTP) 
-- WSS (WebSocekt Secure) 
+- BOSH support (XMPP over HTTP)
+- WSS (WebSocekt Secure)
 - various XMPP related metrics exposed via REST API
-  (https://github.com/esl/ejabberd/wiki/REST-interface-to-folsom-metrics) 
-- alarm handler for better monitoring and bottleneck finding 
+  (https://github.com/esl/ejabberd/wiki/REST-interface-to-folsom-metrics)
+- alarm handler for better monitoring and bottleneck finding
 
 We've also assured compatibility with the latest ejabberd Community Edition by
 ProcessOne, so that backporting ejabberd modules to MongooseIM requires
