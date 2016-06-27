@@ -70,25 +70,9 @@ store_type(Server) ->
     end.
 
 -spec authorize(mongoose_credentials:t()) -> {ok, mongoose_credentials:t()}
-                                           | {error, binary()}.
+                                           | {error, any()}.
 authorize(Creds) ->
-    User      = mongoose_credentials:get(Creds, username),
-    LUser     = jid:nodeprep(User),
-    LUser == error andalso error({nodeprep_error, User}),
-    LServer   = mongoose_credentials:lserver(Creds),
-    Password  = mongoose_credentials:get(Creds, password),
-    Digest    = mongoose_credentials:get(Creds, digest, undefined),
-    DigestGen = mongoose_credentials:get(Creds, digest_gen, undefined),
-    Args = if
-               Digest /= undefined andalso DigestGen /= undefined ->
-                   [LUser, LServer, Password, Digest, DigestGen];
-               Digest == undefined orelse DigestGen == undefined ->
-                   [LUser, LServer, Password]
-           end,
-    case erlang:apply(?MODULE, check_password, Args) of
-        true -> {ok, mongoose_credentials:set(Creds, auth_module, ?MODULE)};
-        false -> {error, not_authorized}
-    end.
+    ejabberd_auth:authorize_with_check_password(?MODULE, Creds).
 
 -spec check_password(ejabberd:luser(), ejabberd:lserver(), binary()) -> boolean().
 check_password(LUser, LServer, Password) ->
