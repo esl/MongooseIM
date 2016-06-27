@@ -76,18 +76,6 @@
               literal_jid/0
              ]).
 
--ifdef(only_builtin_types).
--type dict_t() :: dict().
--type queue_t() :: queue().
--type set_t() :: set().
--else.
--type dict_t() :: dict:dict().
--type queue_t() :: queue:queue().
--type set_t() :: sets:set().
--endif.
-
--export_type([dict_t/0, queue_t/0, set_t/0]).
-
 start() ->
     application:ensure_all_started(ejabberd).
 

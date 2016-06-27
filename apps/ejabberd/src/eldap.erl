@@ -153,8 +153,8 @@
          passwd = <<"">>         :: binary(),
          id = 0                  :: non_neg_integer(),
          bind_timer = make_ref() :: reference(),
-	     dict = dict:new()       :: ejabberd:dict_t(),
-         req_q = queue:new()     :: ejabberd:queue_t()}).
+	     dict = dict:new()       :: dict:dict(),
+         req_q = queue:new()     :: queue:queue()}).
 
 -type eldap() :: #eldap{}.
 -type eldap_config() :: #eldap_config{}.
