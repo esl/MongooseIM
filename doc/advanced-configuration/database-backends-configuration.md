@@ -5,6 +5,13 @@ them require extra work before they can be used. For example the SQL databases r
 defining schema. MongooseIM is tested with TravisCI, so the travis scripts can be used
 as a reference.
 
+# A Brief Overview
+
+Data in Mongoose is either transient or persistent:
+
+* **transient**: session data, stream management data, and other in-memory data.
+* **persistent**: roster items, credentials, and chat archives.
+
 # Choosing a database for MongooseIM
 
 Here is some general advice on the use of databases.
