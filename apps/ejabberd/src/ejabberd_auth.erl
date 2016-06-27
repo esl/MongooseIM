@@ -58,6 +58,9 @@
 
 -export([auth_modules/1]).
 
+%% Library functions for reuse in ejabberd_auth_* modules
+-export([authorize_with_check_password/2]).
+
 -include("ejabberd.hrl").
 
 -export_type([authmodule/0]).
@@ -609,3 +612,26 @@ timed_call(LServer, Metric, Fun, Args) ->
     mongoose_metrics:update(?METRIC(LServer, Metric), Time),
     Result.
 
+%% Library functions for reuse in ejabberd_auth_* modules
+-spec authorize_with_check_password(Module, Creds) -> {ok, Creds}
+                                                    | {error, any()} when
+      Module :: authmodule(),
+      Creds :: mongoose_credentials:t().
+authorize_with_check_password(Module, Creds) ->
+    User      = mongoose_credentials:get(Creds, username),
+    LUser     = jid:nodeprep(User),
+    LUser == error andalso error({nodeprep_error, User}),
+    LServer   = mongoose_credentials:lserver(Creds),
+    Password  = mongoose_credentials:get(Creds, password),
+    Digest    = mongoose_credentials:get(Creds, digest, undefined),
+    DigestGen = mongoose_credentials:get(Creds, digest_gen, undefined),
+    Args = if
+               Digest /= undefined andalso DigestGen /= undefined ->
+                   [LUser, LServer, Password, Digest, DigestGen];
+               Digest == undefined orelse DigestGen == undefined ->
+                   [LUser, LServer, Password]
+           end,
+    case erlang:apply(Module, check_password, Args) of
+        true -> {ok, mongoose_credentials:set(Creds, auth_module, Module)};
+        false -> {error, not_authorized}
+    end.
