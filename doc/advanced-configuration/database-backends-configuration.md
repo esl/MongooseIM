@@ -16,7 +16,10 @@ storing `users session` data. Let's speed up.
 
 * Mnesia - as a highly available and distributed database we also recommend Mnesia for storing `users session` data.
 Due to the fact that it's an Erlang-based database, it's the default persistance option for most modules in MongooseIM.
-Join the cluster.
+So join the cluster.
+But beware: we **strongly recommend** keeping persistent data in an external DB (RDBMS or Riak) for production.
+Mnesia is not suitable for the volumes of persistent data which some modules may require.
+Sooner or later a migration will be needed which may be painful.
 
 * RDBMS/ODBC - MongooseIM has a strong backend support for relational databases. Considering the [CAP theorem](https://en.wikipedia.org/wiki/CAP_theorem)
 they usually guarantees both availability and consistency which is a great choice for regular MongooseIM use cases and features
