@@ -89,7 +89,7 @@ Features and supported standards
 |[0185 - Dialback Key Generation and Validation](http://www.xmpp.org/extensions/xep-0185.html)| [0184 - Message Delivery Receipts](http://xmpp.org/extensions/xep-0184.html)| [0191 - Blocking Command](http://xmpp.org/extensions/xep-0191.html)|[0198 - Stream Management](http://xmpp.org/extensions/xep-0198.html)|
 |[0199 - XMPP Ping](http://xmpp.org/extensions/xep-0199.html)|[0202 - Entity Time](http://www.xmpp.org/extensions/xep-0202.html) | [0203 - Delayed Delivery](http://xmpp.org/extensions/xep-0203.html)| [0206 - XMPP Over BOSH](http://xmpp.org/extensions/xep-0206.html)|
 |[0212 - XMPP Basic Server 2008](http://xmpp.org/extensions/xep-0212.html)|[0237 - Roster Versioning](http://xmpp.org/extensions/xep-0237.html)| [0279 - Server IP Check](http://xmpp.org/extensions/xep-0279.html)| [0280 - Message Carbons](http://xmpp.org/extensions/xep-0280.html)|
-|[0313 - Message Archive Management v0.2 ](http://xmpp.org/extensions/attic/xep-0313-0.2.html)|[0352 - Client State Indication](http://www.xmpp.org/extensions/xep-0352.html)| | |
+|[0313 - Message Archive Management](http://xmpp.org/extensions/attic/xep-0313.html)|[0352 - Client State Indication](http://www.xmpp.org/extensions/xep-0352.html)| | |
 
 
 How to build

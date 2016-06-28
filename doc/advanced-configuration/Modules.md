@@ -13,7 +13,7 @@ A module configuration generally looks like:
 Some of the modules feature an `iqdisc` parameter. It defines the method of handling incoming IQ stanzas. Please refer to [[IQ handlers]] for more information. Valid values: `no_queue`, `one_queue`, `{queues, N}`, `parallel`. Default: `one_queue`.
 
 ### [mod_admin_extra](../modules/mod_admin_extra.md)
-Significantly extends the `mongooseimctl` script capabilities. 
+Significantly extends the `mongooseimctl` script capabilities.
 
 ### [mod_adhoc](../modules/mod_adhoc.md)
 Implements [XEP-0050: Ad-Hoc Commands](http://xmpp.org/extensions/xep-0050.html) for advertising and executing application-specific commands, such as those related to a configuration workflow, using [XEP-0004: Data Forms](http://xmpp.org/extensions/xep-0004.html) in order to structure the information exchange. This is extremely useful for use cases such as remote administration, user engagement via polls, and ChatBots.
@@ -40,7 +40,7 @@ Enables forwarding events to an external HTTP service, such as messages or prese
 Implements [XEP-0012: Last Activity)](http://xmpp.org/extensions/xep-0012.html) for communicating information about the last activity associated with an XMPP entity (most recent presence information from an offline contact).
 
 ### [mod_mam](../modules/mod_mam.md)
-Implements revision 0.2 of [XEP-0313: Message Archive Management](http://xmpp.org/extensions/attic/xep-0313-0.2.html) ([current version](http://xmpp.org/extensions/xep-0313.html)), that defines a protocol to query and control an archive of messages stored on a server.
+Implements [XEP-0313: Message Archive Management](http://xmpp.org/extensions/attic/xep-0313.html) ([current version](http://xmpp.org/extensions/xep-0313.html)), that defines a protocol to query and control an archive of messages stored on a server.
 
 ### [mod_muc](../modules/mod_muc.md)
 Implements [XEP-0045: Multi-User Chat)](http://xmpp.org/extensions/xep-0045.html), for a featureful multi-user text chat (group chat), whereby multiple XMPP users can exchange messages in the context of a chat room. It is tightly coupled to users' presences in chat rooms.
@@ -67,7 +67,7 @@ Implements [XEP-0077: In-Band Registration)](http://xmpp.org/extensions/xep-0077
 Roster support, specified in [RFC 6121](http://xmpp.org/rfcs/rfc6121.html). Includes support for [XEP-0237: Roster Versioning](http://xmpp.org/extensions/xep-0237.html).
 
 ### [mod_shared_roster_ldap](../modules/mod_shared_roster_ldap.md)
-This module, when enabled, will inject roster entries fetched from LDAP. 
+This module, when enabled, will inject roster entries fetched from LDAP.
 
 ### [mod_sic](../modules/mod_sic.md)
 Implements [XEP-0279: Server IP Check)](http://xmpp.org/extensions/xep-0279.html) that enables a client to discover its external IP address.
