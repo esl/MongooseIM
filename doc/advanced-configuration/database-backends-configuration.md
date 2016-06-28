@@ -39,14 +39,14 @@ they usually guarantees both availability and consistency which is a great choic
 
 * Riak KV - If you're planning to deploy a massive cluster then consider Riak KV as a potential storage backend solution.
 It offers high availability and fault tolerance which is excatly what you need for your distributed MongooseIM architecture.
-Use Riak KV with `rosters`, `private storage`, `vcards` or `last activity`.
+Use Riak KV with `privacy lists`, `vcards`, `roster`, `private storage`, `last activity` and `message archive`.
 Erlang Solutions commercially supports Riak KV.
 
 * Cassandra - since it aims to store large amounts of data, in comparison to some ODBC databases, it's good alternative for
  the`message archive` which is usually the biggest persistent component in MongooseIM.
 
 
-# RDBMS/SQL
+# RDBMS/ODBC
 
 ## MySQL
 
@@ -56,9 +56,9 @@ Erlang Solutions commercially supports Riak KV.
 * vcards
 * roster
 * private storage
-* privacy lists
+* privacy/block lists
 * last activity
-* mam (message archive)
+* mam (message archive management)
 
 **Setup**
 
@@ -72,7 +72,7 @@ mysql -h localhost -u user -p -e 'create database mongooseim'
 mysql -h localhost -u user -p mongooseim < mysql.sql
 ```
 
-You should also configure MySQL database in `ejabberd.cfg` file. 
+You should also configure MySQL database in `ejabberd.cfg` file.
 Please refer to [Advanced configuration/Database setup](../Advanced-configuration.md) for more information.
 
 ## PostgreSQL
@@ -83,9 +83,9 @@ Please refer to [Advanced configuration/Database setup](../Advanced-configuratio
 * vcards
 * roster
 * private storage
-* privacy lists
+* privacy/block lists
 * last activity
-* mam (message archive)
+* mam (message archive management)
 
 **Setup**
 
@@ -98,7 +98,7 @@ For example, you can use the following command to apply it on localhost:
 psql -h localhost -U user -c "CREATE DATABASE mongooseim;"
 psql -h localhost -U user -q -d mongooseim -f pg.sql
 ```
-You should also configure Postgres database in `ejabberd.cfg` file. 
+You should also configure Postgres database in `ejabberd.cfg` file.
 Please refer to [Advanced configuration/Database setup](../Advanced-configuration.md) for more information.
 
 ## Microsoft SQL Server
@@ -111,9 +111,9 @@ Microsoft SQL Server, sometimes called MSSQL, or Azure SQL Database.
 * vcards
 * roster
 * private storage
-* privacy lists
+* privacy/block lists
 * last activity
-* mam (message archive)
+* mam (message archive management)
 
 **Setup**
 
@@ -192,11 +192,12 @@ Riak KV, for Key-Value, is technically supported by MongooseIM for versions uppe
 **Can be used for:**
 
 * users (credentials)
-* rosters
+* vcards
+* roster
 * private storage
-* vCard and vCard search
-* MAM (experimental feature for one-to-one archives)
+* privacy/block lists
 * last activity
+* mam (message archive management)
 
 **Setup**
 
@@ -248,9 +249,25 @@ riak-admin bucket-type activate mam_yz
 riak-admin bucket-type create last '{"props":{"last_write_wins":true, "dvv_enabled":false}}'
 riak-admin bucket-type activate last
 
+# Offline messages
+
+riak-admin bucket-type create offline '{"props":{"last_write_wins":true, "dvv_enabled":false}}'
+riak-admin bucket-type activate offline
+
+# Privacy/blocking lists
+
+riak-admin bucket-type create privacy_defaults '{"props":{"last_write_wins":true, "dvv_enabled":false}}'
+riak-admin bucket-type activate privacy_defaults
+
+riak-admin bucket-type create privacy_lists_names '{"props":{"datatype":"set"}}'
+riak-admin bucket-type activate privacy_lists_names
+
+riak-admin bucket-type create privacy_lists '{"props":{"last_write_wins":true,"dvv_enabled":false}}'
+riak-admin bucket-type activate privacy_lists
+
 ```
 
-This will create backed types, search schemas and indexes required
+This will create buckt types, search schemas and indexes required
 for storing above persitent date and it will activate them.
 
 You should also configure Riak in `ejabberd.cfg` file.
