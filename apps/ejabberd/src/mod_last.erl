@@ -248,8 +248,8 @@ remove_user(User, Server) ->
     LServer = jid:nameprep(Server),
     ?BACKEND:remove_user(LUser, LServer).
 
--spec session_cleanup(LUser :: ejabber:luser(), LServer :: ejabberd:lserver(),
-                   LResource :: ejabberd:lresource(), SID :: ejabberd_sm:sid()) -> any().
+-spec session_cleanup(LUser :: ejabberd:luser(), LServer :: ejabberd:lserver(),
+                      LResource :: ejabberd:lresource(), SID :: ejabberd_sm:sid()) -> any().
 session_cleanup(LUser, LServer, LResource, _SID) ->
     on_presence_update(LUser, LServer, LResource, <<>>).
 
