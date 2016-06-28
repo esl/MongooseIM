@@ -60,19 +60,19 @@
 -type sasl_state() :: #sasl_state{}.
 
 % Either a simple error tag or an error tag + <text> field
--type sasl_error_data() :: binary() | {binary(), binary()}.
+-type error() :: {error, binary() | {binary(), binary()}}
+               | {error, binary() | {binary(), binary()}, ejabberd:user()}.
 
 -export_type([mechanism/0,
               password_type/0,
-              sasl_error_data/0]).
+              error/0]).
 
 -callback mech_new(Host :: ejabberd:server(),
                    Creds :: mongoose_credentials:t()) -> {ok, tuple()}.
 
 -callback mech_step(State :: tuple(),
                     ClientIn :: binary()) -> {ok, mongoose_credentials:t()}
-                                           | {error, sasl_error_data()}
-                                           | {error, sasl_error_data(), ejabberd:user()}.
+                                           | cyrsasl:error().
 
 -spec start() -> 'ok'.
 start() ->
@@ -172,8 +172,7 @@ lookup_mech(Mech) ->
                                           | {'ok', [any()]}
                                           | {'ok', [any()], term()}
                                           | {'continue', _, sasl_state()}
-                                          | {'error', sasl_error_data()}
-                                          | {'error', sasl_error_data(), ejabberd:user()}.
+                                          | error().
 server_step(State, ClientIn) ->
     Module = State#sasl_state.mech_mod,
     MechState = State#sasl_state.mech_state,

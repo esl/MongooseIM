@@ -59,9 +59,9 @@ mech_new(Host, Creds) ->
                 host = Host,
                 creds = Creds}}.
 
--spec mech_step(State :: tuple(),
-                ClientIn :: any()
-                ) -> {ok, proplists:proplist()} | {error, binary()}.
+-spec mech_step(State :: tuple(), ClientIn :: any()) -> R when
+      R :: {ok, mongoose_credentials:t()}
+         | cyrsasl:error().
 mech_step(#state{step = 1, nonce = Nonce} = State, _) ->
     {continue,
      list_to_binary("nonce=\"" ++ Nonce ++
