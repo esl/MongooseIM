@@ -7,10 +7,10 @@ as a reference.
 
 # A Brief Overview
 
-Data in Mongoose is either transient or persistent:
+Data in MongooseIM is either transient or persistent:
 
-* **transient**: session data, stream management data, and other in-memory data.
-* **persistent**: roster items, credentials, and chat archives.
+* **transient**: volatile data changing often, such as session data, stream management data, and other in-memory data. These don't need any backup, since after a potential failure, they will naturally rebuild as clients reconnect.
+* **persistent**: long-lived data, such as roster items, credentials, and chat archives. These absolutely need regular and tested backups.
 
 # Choosing a database for MongooseIM
 
@@ -19,16 +19,17 @@ Subsequent sections go into more depth on each database: what they are suitable 
 
 Transient data:
 
-* Redis - A fantastic choice for storing live data. It's highly scalable and it can be
-easily shared by multiple MongooseIM nodes. Additionally, Redis' great performance make it an excellent choice for
-storing `users session` data. Let's speed up.
-
-* Mnesia - as a highly available and distributed database we also recommend Mnesia (over Redis) for storing **transient** data.
-Being an Erlang-based database it's the default persistance option for most modules in MongooseIM.
-So join the cluster.
-But beware: we **strongly recommend** keeping **persistent** data in an external DB (RDBMS or Riak) for production.
+* Mnesia - as a highly available and distributed database we highly recommend Mnesia (over Redis) for storing **transient** data.
+Being an Erlang-based database, it's the default persistance option for most modules in MongooseIM.
+**Warning**: we **strongly recommend** keeping **persistent** data in an external DB (RDBMS or Riak) for production.
 Mnesia is not suitable for the volumes of **persistent** data which some modules may require.
 Sooner or later a migration will be needed which may be painful.
+It is possible to store all data in Mnesia, but only for playing purposes, not for any serious use.
+
+* Redis - A fantastic choice for storing live data. It's highly scalable and it can be
+easily shared by multiple MongooseIM nodes. Additionally, Redis' great performance make it an excellent choice for
+storing `users session` data. Let's speed up. We recommend caution, since it has not yet been widely tested in production.
+
 
 Persistent Data:
 
@@ -36,12 +37,14 @@ Persistent Data:
 they usually guarantees both availability and consistency which is a great choice for regular MongooseIM use cases and features
  like `privacy lists`, `vcards`, `roster`, `private storage`, `last activity` and `message archive`. Never loose your data.
 
-* Cassandra -  since it aims to store large amounts of data, in comparison to some ODBC databases, it's good alternative for
- the`message archive` which is usually the biggest persistent component in MongooseIM. Archive everything.
-
-* Riak KV - If you're planning to deploy a really big cluster then consider Riak KV as a potential backend solution.
+* Riak KV - If you're planning to deploy a massive cluster then consider Riak KV as a potential storage backend solution.
 It offers high availability and fault tolerance which is excatly what you need for your distributed MongooseIM architecture.
-Use Riak KV with `rosters`, `private storage`, `vcards` or `last activity`. Make it big.
+Use Riak KV with `rosters`, `private storage`, `vcards` or `last activity`.
+Erlang Solutions commercially supports Riak KV.
+
+* Cassandra - since it aims to store large amounts of data, in comparison to some ODBC databases, it's good alternative for
+ the`message archive` which is usually the biggest persistent component in MongooseIM.
+
 
 # RDBMS/SQL
 
@@ -184,7 +187,7 @@ Configure the database section as follows:
 
 ## Riak KV
 
-Riak KV, for Key-Value, is supported for versions upper than 2.0.
+Riak KV, for Key-Value, is technically supported by MongooseIM for versions upper than Riak KV 2.0. Erlang Solutions commercially supports Riak KV.
 
 **Can be used for:**
 
@@ -257,7 +260,7 @@ Please refer to [Advanced configuration/Database setup](../Advanced-configuratio
 
 **Can be used for:**
 
-* MAM (Message archive)
+* MAM (Message Archive Management)
 
 **Setup**
 
