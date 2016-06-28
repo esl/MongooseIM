@@ -54,14 +54,14 @@ get(#mongoose_credentials{extra = Extra}, Key, Default) ->
         {Key, Value} -> Value
     end.
 
--spec set(t(), Key, Value) -> ok when
+-spec set(t(), Key, Value) -> t() when
       Key :: any(),
       Value :: any().
 set(#mongoose_credentials{extra = Extra} = C, Key, Value) ->
     NewExtra = lists:keystore(Key, 1, Extra, {Key, Value}),
     C#mongoose_credentials{extra = NewExtra}.
 
--spec extend(t(), [{Key, Value}]) -> ok when
+-spec extend(t(), [{Key, Value}]) -> t() when
       Key :: any(),
       Value :: any().
 extend(#mongoose_credentials{} = C, KVPairs) ->
