@@ -223,8 +223,7 @@ get_vh_registered_users_number(LServer, Opts) ->
     end.
 
 
--spec get_password(User :: ejabberd:luser(),
-                   Server :: ejabberd:lserver()) -> binary() | false.
+-spec get_password(ejabberd:luser(), ejabberd:lserver()) -> ejabberd_auth:passwordlike() | false.
 get_password(LUser, LServer) ->
     Username = ejabberd_odbc:escape(LUser),
     case catch odbc_queries:get_password(LServer, Username) of

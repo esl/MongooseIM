@@ -152,7 +152,7 @@ get_vh_registered_users_number(_Server) ->
 get_vh_registered_users_number(_Server, _Opts) ->
     0.
 
--spec get_password(ejabberd:luser(), ejabberd:lserver()) -> false | binary() | scram:scram_tuple().
+-spec get_password(ejabberd:luser(), ejabberd:lserver()) -> ejabberd_auth:passwordlike() | false.
 get_password(LUser, LServer) ->
     case make_req(get, <<"get_password">>, LUser, LServer, <<"">>) of
         {error, _} ->

@@ -63,9 +63,12 @@
 
 -include("ejabberd.hrl").
 
--export_type([authmodule/0]).
+-export_type([authmodule/0,
+              passwordlike/0]).
 
 -type authmodule() :: module().
+%% TODO: TBH this names smells.
+-type passwordlike() :: binary() | scram:scram_tuple().
 
 -define(METRIC(Host, Name), [backends, auth, Host, Name]).
 %%%----------------------------------------------------------------------
@@ -423,10 +426,10 @@ do_get_password_s(LUser, LServer) ->
                 Password
         end, <<"">>, auth_modules(LServer)).
 
-%% @doc Get the password of the user and the auth module.
--spec get_password_with_authmodule(User :: ejabberd:user(),
-                                   Server :: ejabberd:server())
-      -> {Password::binary(), AuthModule :: authmodule()} | {'false', 'none'}.
+%% @doc Get the password(like thing) of the user and the auth module.
+-spec get_password_with_authmodule(ejabberd:user(), ejabberd:server()) -> R when
+      R :: {passwordlike(), authmodule()}
+         | {'false', 'none'}.
 get_password_with_authmodule(User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),

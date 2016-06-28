@@ -38,7 +38,7 @@
 -callback get_vh_registered_users_number(Server :: ejabberd:lserver(), Opts :: list()) -> integer().
 
 -callback get_password(User :: ejabberd:luser(),
-                       Server :: ejabberd:lserver()) -> scram:scram_tuple() | binary() | false.
+                       Server :: ejabberd:lserver()) -> ejabberd_auth:passwordlike() | false.
 
 -callback get_password_s(User :: ejabberd:luser(),
                          Server :: ejabberd:lserver()) -> binary().

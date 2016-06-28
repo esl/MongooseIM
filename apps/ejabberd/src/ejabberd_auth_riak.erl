@@ -141,7 +141,7 @@ get_vh_registered_users_number(LServer) ->
 get_vh_registered_users_number(LServer, _Opts) ->
     get_vh_registered_users_number(LServer).
 
--spec get_password(ejabberd:luser(), ejabberd:lserver()) -> binary() | false | scram:scram_tuple().
+-spec get_password(ejabberd:luser(), ejabberd:lserver()) -> ejabberd_auth:passwordlike() | false.
 get_password(LUser, LServer) ->
     case do_get_password(LUser, LServer) of
         false ->
