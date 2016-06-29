@@ -67,7 +67,7 @@
               passwordlike/0]).
 
 -type authmodule() :: module().
-%% TODO: TBH this names smells.
+%% TODO: TBH this name smells.
 -type passwordlike() :: binary() | scram:scram_tuple().
 
 -define(METRIC(Host, Name), [backends, auth, Host, Name]).
