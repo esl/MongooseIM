@@ -35,6 +35,8 @@
          create_room_with_equal_occupants/1,
          create_existing_room_deny/1,
          destroy_room/1,
+         destroy_room_get_disco_items_empty/1,
+         destroy_room_get_disco_items_one_left/1,
          set_config/1,
          remove_and_add_users/1,
          explicit_owner_change/1,
@@ -143,6 +145,8 @@ groups() ->
                           create_room_with_equal_occupants,
                           create_existing_room_deny,
                           destroy_room,
+                          destroy_room_get_disco_items_empty,
+                          destroy_room_get_disco_items_one_left,
                           set_config,
                           remove_and_add_users,
                           explicit_owner_change,
@@ -248,74 +252,42 @@ disco_features(Config) ->
                                                      {attr, <<"var">>}]),
             escalus:assert(is_stanza_from, [?MUCHOST], Stanza)
         end).
-%% The room list is empty
+
+%% The room list is empty. Rooms_per_page set to `infinity`
 disco_rooms_empty_page_infinity(Config) ->
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
         set_mod_config(rooms_per_page, infinity),
-        DiscoStanza = escalus_stanza:to(escalus_stanza:iq_get(?NS_DISCO_ITEMS, []), ?MUCHOST),
-        escalus:send(Alice, DiscoStanza),
-        Stanza =  escalus:wait_for_stanza(Alice),
-        %% we should get no room, Alice is not in the second one
-        XNamespaces = exml_query:paths(Stanza, [{element, <<"query">>}, {attr, <<"xmlns">>}]),
-        true = lists:member(?NS_DISCO_ITEMS, XNamespaces),
-        undefined =  exml_query:path(Stanza, [{element, <<"query">>}, {element, <<"item">>}])
-                                        end).
-%% The room list is empty
+        [] = get_disco_rooms(Alice)
+        end).
+
+%% The room list is empty. Rooms_per_page set to 1
 disco_rooms_empty_page_1(Config) ->
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
         set_mod_config(rooms_per_page, 1),
-        DiscoStanza = escalus_stanza:to(escalus_stanza:iq_get(?NS_DISCO_ITEMS, []), ?MUCHOST),
-        escalus:send(Alice, DiscoStanza),
-        Stanza =  escalus:wait_for_stanza(Alice),
-        %% we should get no room, Alice is not in the second one
-        XNamespaces = exml_query:paths(Stanza, [{element, <<"query">>}, {attr, <<"xmlns">>}]),
-        true = lists:member(?NS_DISCO_ITEMS, XNamespaces),
-        undefined =  exml_query:path(Stanza, [{element, <<"query">>}, {element, <<"item">>}])
-                                        end).
-%% there is one room created
+        [] = get_disco_rooms(Alice)
+        end).
+
+%% There is one room created. Rooms_per_page set to 1
 disco_rooms_created_page_1(Config) ->
-    escalus:story(Config, [{alice, 1}], fun(Alice) ->
-        set_mod_config(rooms_per_page, 1),
-        DiscoStanza = escalus_stanza:to(escalus_stanza:iq_get(?NS_DISCO_ITEMS, []), ?MUCHOST),
-        escalus:send(Alice, DiscoStanza),
-        Stanza =  escalus:wait_for_stanza(Alice),
-        %% we should get no room, Alice is not in the second one
-        XNamespaces = exml_query:paths(Stanza, [{element, <<"query">>}, {attr, <<"xmlns">>}]),
-        true = lists:member(?NS_DISCO_ITEMS, XNamespaces),
-        [Item] =  exml_query:paths(Stanza, [{element, <<"query">>}, {element, <<"item">>}]),
-        ProperJID = room_bin_jid(?ROOM),
-        ProperJID = exml_query:attr(Item, <<"jid">>)
-                                        end).
-%% there is one room created
+    set_mod_config(rooms_per_page, 1),
+    escalus:story(Config, [{alice, 1}], fun verify_user_has_one_room/1).
+
+%% There is one room created. Rooms_per_page set to `infinity`
 disco_rooms_created_page_infinity(Config) ->
-    escalus:story(Config, [{alice, 1}], fun(Alice) ->
-        set_mod_config(rooms_per_page, infinity),
-        DiscoStanza = escalus_stanza:to(escalus_stanza:iq_get(?NS_DISCO_ITEMS, []), ?MUCHOST),
-        escalus:send(Alice, DiscoStanza),
-        Stanza =  escalus:wait_for_stanza(Alice),
-        %% we should get no room, Alice is not in the second one
-        XNamespaces = exml_query:paths(Stanza, [{element, <<"query">>}, {attr, <<"xmlns">>}]),
-        true = lists:member(?NS_DISCO_ITEMS, XNamespaces),
-        [Item] =  exml_query:paths(Stanza, [{element, <<"query">>}, {element, <<"item">>}]),
-        ProperJID = room_bin_jid(?ROOM),
-        ProperJID = exml_query:attr(Item, <<"jid">>)
-                                        end).
+    set_mod_config(rooms_per_page, infinity),
+    escalus:story(Config, [{alice, 1}], fun verify_user_has_one_room/1).
 
 
 
 disco_rooms(Config) ->
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
             {ok, {?ROOM2, ?MUCHOST}} = create_room(?ROOM2, ?MUCHOST, kate, [], Config, ver(0)),
-            DiscoStanza = escalus_stanza:to(escalus_stanza:iq_get(?NS_DISCO_ITEMS, []), ?MUCHOST),
-            escalus:send(Alice, DiscoStanza),
             %% we should get 1 room, Alice is not in the second one
-            Stanza = escalus:wait_for_stanza(Alice),
-            [Item] = exml_query:paths(Stanza, [{element, <<"query">>}, {element, <<"item">>}]),
+            [Item] = get_disco_rooms(Alice),
             ProperJID = room_bin_jid(?ROOM),
             ProperJID = exml_query:attr(Item, <<"jid">>),
             ProperVer = ver(1),
-            ProperVer = exml_query:attr(Item, <<"version">>),
-            escalus:assert(is_stanza_from, [?MUCHOST], Stanza)
+            ProperVer = exml_query:attr(Item, <<"version">>)
         end).
 
 disco_rooms_rsm(Config) ->
@@ -551,6 +523,31 @@ destroy_room(Config) ->
             escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice))
         end).
 
+destroy_room_get_disco_items_empty(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+        escalus:send(Alice, stanza_destroy_room(?ROOM)),
+        AffUsersChanges = [{Bob, none}, {Alice, none}, {Kate, none}],
+        verify_aff_bcast([], AffUsersChanges, [?NS_MUC_LIGHT_DESTROY]),
+        escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+        % Send disco#items request
+        DiscoStanza = escalus_stanza:to(escalus_stanza:iq_get(?NS_DISCO_ITEMS, []), ?MUCHOST),
+        foreach_occupant([Alice, Bob, Kate], DiscoStanza, disco_items_verify_fun([]))
+     end).
+
+destroy_room_get_disco_items_one_left(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+        {ok, {?ROOM2, ?MUCHOST}} = create_room(?ROOM2, ?MUCHOST, kate, [bob, alice], Config, ver(0)),
+        ProperJID = room_bin_jid(?ROOM2),
+        %% alie destroy her room
+        escalus:send(Alice, stanza_destroy_room(?ROOM)),
+        AffUsersChanges = [{Bob, none}, {Alice, none}, {Kate, none}],
+        verify_aff_bcast([], AffUsersChanges, [?NS_MUC_LIGHT_DESTROY]),
+        escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+        % Send disco#items request. Shoul be one room created by kate
+        DiscoStanza = escalus_stanza:to(escalus_stanza:iq_get(?NS_DISCO_ITEMS, []), ?MUCHOST),
+        foreach_occupant([Alice, Bob, Kate], DiscoStanza, disco_items_verify_fun([ProperJID]))
+     end).
+
 set_config(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
             ConfigChange = [{<<"roomname">>, <<"The Coven">>}],
@@ -737,6 +734,16 @@ user_leave(User, RemainingOccupants) ->
     verify_aff_bcast(RemainingOccupants, AffUsersChanges),
     escalus:assert(is_iq_result, escalus:wait_for_stanza(User)).
 
+-spec get_disco_rooms(User :: escalus:client()) -> list(#xmlel{}).
+get_disco_rooms(User) ->
+    DiscoStanza = escalus_stanza:to(escalus_stanza:iq_get(?NS_DISCO_ITEMS, []), ?MUCHOST),
+    escalus:send(User, DiscoStanza),
+    Stanza =  escalus:wait_for_stanza(User),
+    XNamespaces = exml_query:paths(Stanza, [{element, <<"query">>}, {attr, <<"xmlns">>}]),
+    true = lists:member(?NS_DISCO_ITEMS, XNamespaces),
+    escalus:assert(is_stanza_from, [?MUCHOST], Stanza),
+    exml_query:paths(Stanza, [{element, <<"query">>}, {element, <<"item">>}]).
+
 %%--------------------------------------------------------------------
 %% IQ getters
 %%--------------------------------------------------------------------
@@ -822,6 +829,15 @@ verify_blocklist(Query, ProperBlocklist) ->
     ProperBlocklistLen = length(ProperBlocklist),
     ProperBlocklistLen = length(BlockedItems),
     [] = lists:foldl(fun lists:delete/2, BlockedItems, ProperBlocklist).
+
+-spec disco_items_verify_fun(list(Jid :: binary())) -> verify_fun().
+disco_items_verify_fun(JidList) ->
+    fun(Incomming) ->
+        ResultItemList = exml_query:paths(Incomming, [{element, <<"query">>}, {element, <<"item">>}]),
+        ResultJids = [exml_query:attr(ResultItem, <<"jid">>) || ResultItem <- ResultItemList],
+        {SortedResult, SortedExptected} = {lists:sort(JidList), lists:sort(ResultJids)},
+        SortedResult = SortedExptected
+    end.
 
 verify_aff_bcast(CurrentOccupants, AffUsersChanges) ->
     verify_aff_bcast(CurrentOccupants, AffUsersChanges, []).
@@ -964,6 +980,12 @@ info_iq_verify_fun(AffUsers, Version, ConfigKVBin) ->
             ConfigurationEl = exml_query:subelement(Query, <<"configuration">>),
             verify_config(ConfigurationEl, ConfigKVBin)
     end.
+
+-spec verify_user_has_one_room(User :: escalus:client()) -> any().
+verify_user_has_one_room(User) ->
+        [Item] =  get_disco_rooms(User),
+        ProperJID = room_bin_jid(?ROOM),
+        ProperJID = exml_query:attr(Item, <<"jid">>).
 
 %%--------------------------------------------------------------------
 %% Other helpers

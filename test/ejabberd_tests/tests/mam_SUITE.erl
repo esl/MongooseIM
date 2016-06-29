@@ -42,6 +42,7 @@
          range_archive_request_not_empty/1,
          limit_archive_request/1,
          prefs_set_request/1,
+         retrieve_form_fields/1,
          prefs_set_cdata_request/1,
          pagination_first5/1,
          pagination_last5/1,
@@ -239,8 +240,8 @@ is_skipped(_, _) ->
 basic_groups() ->
     [{bootstrapped,     [], bootstrapped_cases()},
      {mam,              [], mam_cases()},
-     {mam03,            [], mam_cases()},
-     {mam04,            [], mam_cases()},
+     {mam03,            [], mam03_cases()},
+     {mam04,            [], mam04_cases()},
      {mam_purge,        [], mam_purge_cases()},
      {archived,         [], archived_cases()},
      {policy_violation, [], policy_violation_cases()},
@@ -271,6 +272,12 @@ mam_cases() ->
      range_archive_request,
      range_archive_request_not_empty,
      limit_archive_request].
+
+mam03_cases() ->
+    mam_cases() ++ [retrieve_form_fields].
+
+mam04_cases() ->
+    mam03_cases().
 
 mam_purge_cases() ->
     [purge_single_message,
@@ -1004,6 +1011,8 @@ muc_light_simple(Config) ->
             muc_light_SUITE:verify_aff_bcast([{Alice, owner}, {Bob, member}], [{Bob, member}]),
 
             P = ?config(props, Config),
+            maybe_wait_for_yz(Config),
+
             ArchiveReqStanza = escalus_stanza:to(stanza_archive_request(P, <<"mlight">>), Room2BinJID),
             escalus:send(Bob, ArchiveReqStanza),
             [CreateEvent, Msg1, Msg2, BobAdd] = respond_messages(assert_respond_size(
@@ -1017,6 +1026,15 @@ muc_light_simple(Config) ->
             verify_archived_muc_light_aff_msg(parse_forwarded_message(BobAdd),
                                               [{Bob, member}], false)
         end).
+
+retrieve_form_fields(ConfigIn) ->
+    escalus:story(ConfigIn, [{alice, 1}], fun(Alice) ->
+        P = ?config(props, ConfigIn),
+        Namespace = get_prop(mam_ns, P),
+        escalus:send(Alice, stanza_retrieve_form_fields(<<"q">>, Namespace)),
+        Res = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_iq_with_ns, [Namespace], Res)
+    end).
 
 archived(Config) ->
     P = ?config(props, Config),
@@ -1853,10 +1871,10 @@ prefs_set_request(Config) ->
         %% </iq>
         escalus:send(Alice, stanza_prefs_set_request(<<"roster">>,
                                                      [<<"romeo@montague.net">>],
-                                                     [<<"montague@montague.net">>])),
+                                                     [<<"montague@montague.net">>], mam_ns_binary())),
         ReplySet = escalus:wait_for_stanza(Alice),
 
-        escalus:send(Alice, stanza_prefs_get_request()),
+        escalus:send(Alice, stanza_prefs_get_request(mam_ns_binary())),
         ReplyGet = escalus:wait_for_stanza(Alice),
 
         ResultIQ1 = parse_prefs_result_iq(ReplySet),
@@ -1886,10 +1904,10 @@ prefs_set_cdata_request(Config) ->
         escalus:send(Alice, stanza_prefs_set_request(<<"roster">>,
                                                      [<<"romeo@montague.net">>,
                                                       {xmlcdata, <<"\n">>}, %% Put as it is
-                                                      <<"montague@montague.net">>], [])),
+                                                      <<"montague@montague.net">>], [], mam_ns_binary_v03())),
         ReplySet = escalus:wait_for_stanza(Alice),
 
-        escalus:send(Alice, stanza_prefs_get_request()),
+        escalus:send(Alice, stanza_prefs_get_request(mam_ns_binary_v03())),
         ReplyGet = escalus:wait_for_stanza(Alice),
 
         ResultIQ1 = parse_prefs_result_iq(ReplySet),
@@ -1937,7 +1955,8 @@ run_prefs_cases(Config) ->
     F = fun(Alice, Bob, Kate) ->
         make_alice_and_bob_friends(Alice, Bob),
         %% Just send messages for each prefs configuration
-        Funs = [run_prefs_case(Case, Alice, Bob, Kate, Config) || Case <- prefs_cases2()],
+        Funs = [run_prefs_case(Case, Namespace, Alice, Bob, Kate, Config) || Case <- prefs_cases2(),
+                                                                             Namespace <- namespaces()],
 
         maybe_wait_for_yz(Config),
 
@@ -1957,6 +1976,7 @@ run_prefs_cases(Config) ->
 run_set_and_get_prefs_cases(Config) ->
     P = ?config(props, Config),
     F = fun(Alice) ->
-        [run_set_and_get_prefs_case(Case, Alice, Config) || Case <- prefs_cases2()]
+        [run_set_and_get_prefs_case(Case, Namespace, Alice, Config) || Case <- prefs_cases2(),
+                                                                       Namespace <- namespaces()]
         end,
     escalus:story(Config, [{alice, 1}], F).

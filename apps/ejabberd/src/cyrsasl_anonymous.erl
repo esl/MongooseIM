@@ -27,11 +27,11 @@
 
 -module(cyrsasl_anonymous).
 -xep([{xep, 175}, {version, "1.2"}]).
--export([start/1, stop/0, mech_new/4, mech_step/2]).
+-export([start/1, stop/0, mech_new/2, mech_step/2]).
 
 -behaviour(cyrsasl).
 
--record(state, {server}).
+-record(state, {creds}).
 
 start(_Opts) ->
     cyrsasl:register_mechanism(<<"ANONYMOUS">>, ?MODULE, plain),
@@ -41,24 +41,18 @@ stop() ->
     ok.
 
 -spec mech_new(Host :: ejabberd:server(),
-               GetPassword :: cyrsasl:get_password_fun(),
-               CheckPassword :: cyrsasl:check_password_fun(),
-               CheckPasswordDigest :: cyrsasl:check_pass_digest_fun()
-               ) -> {ok, tuple()}.
-mech_new(Host, _GetPassword, _CheckPassword, _CheckPasswordDigest) ->
-    {ok, #state{server = Host}}.
+               Creds :: mongoose_credentials:t()) -> {ok, tuple()}.
+mech_new(Host, Creds) ->
+    {ok, #state{creds = Creds}}.
 
--spec mech_step(State :: tuple(),
-                ClientIn :: binary()
-                ) -> {ok, proplists:proplist()} | {error, binary()}.
-mech_step(State, _ClientIn) ->
+-spec mech_step(State :: tuple(), ClientIn :: binary()) -> R when
+      R :: {ok, mongoose_credentials:t()} | {error, binary()}.
+mech_step(#state{creds = Creds}, _ClientIn) ->
     %% We generate a random username:
     User = list_to_binary(lists:concat([randoms:get_string() | tuple_to_list(now())])),
-    Server = State#state.server,
-
     %% Checks that the username is available
-    case ejabberd_auth:is_user_exists(User, Server) of
+    case ejabberd_auth:is_user_exists(User, mongoose_credentials:lserver(Creds)) of
         true  -> {error, <<"not-authorized">>};
-        false -> {ok, [{username, User},
-                       {auth_module, ejabberd_auth_anonymous}]}
+        false -> {ok, mongoose_credentials:extend(Creds, [{username, User},
+                                                          {auth_module, ?MODULE}])}
     end.

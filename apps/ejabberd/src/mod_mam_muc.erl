@@ -73,8 +73,8 @@
          get_one_of_path/2,
          wrap_message/6,
          result_set/4,
-         result_query/1,
-         result_prefs/3,
+         result_query/2,
+         result_prefs/4,
          make_fin_message/5,
          make_fin_element/4,
          parse_prefs/1,
@@ -448,7 +448,7 @@ handle_set_prefs(ArcJID=#jid{},
     handle_set_prefs_result(Res, DefaultMode, AlwaysJIDs, NeverJIDs, IQ).
 
 handle_set_prefs_result(ok, DefaultMode, AlwaysJIDs, NeverJIDs, IQ) ->
-    ResultPrefsEl = result_prefs(DefaultMode, AlwaysJIDs, NeverJIDs),
+    ResultPrefsEl = result_prefs(DefaultMode, AlwaysJIDs, NeverJIDs, IQ#iq.xmlns),
     IQ#iq{type = result, sub_el = [ResultPrefsEl]};
 handle_set_prefs_result({error, Reason},
                         _DefaultMode, _AlwaysJIDs, _NeverJIDs, IQ) ->
@@ -466,7 +466,7 @@ handle_get_prefs(ArcJID=#jid{}, IQ=#iq{}) ->
 handle_get_prefs_result({DefaultMode, AlwaysJIDs, NeverJIDs}, IQ) ->
     ?DEBUG("Extracted data~n\tDefaultMode ~p~n\tAlwaysJIDs ~p~n\tNeverJIDS ~p~n",
               [DefaultMode, AlwaysJIDs, NeverJIDs]),
-    ResultPrefsEl = result_prefs(DefaultMode, AlwaysJIDs, NeverJIDs),
+    ResultPrefsEl = result_prefs(DefaultMode, AlwaysJIDs, NeverJIDs, IQ#iq.xmlns),
     IQ#iq{type = result, sub_el = [ResultPrefsEl]};
 handle_get_prefs_result({error, Reason}, IQ) ->
     return_error_iq(IQ, Reason).
@@ -518,7 +518,7 @@ handle_lookup_messages(
         [send_message(ArcJID, From, message_row_to_xml(MamNs, From, HideUser, SetClientNs, Row, QueryID))
          || Row <- MessageRows],
         ResultSetEl = result_set(FirstMessID, LastMessID, Offset, TotalCount),
-        ResultQueryEl = result_query(ResultSetEl),
+        ResultQueryEl = result_query(ResultSetEl, MamNs),
         %% On receiving the query, the server pushes to the client a series of
         %% messages from the archive that match the client's given criteria,
         %% and finally returns the <iq/> result.

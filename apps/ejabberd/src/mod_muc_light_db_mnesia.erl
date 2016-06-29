@@ -307,8 +307,15 @@ create_room_transaction(RoomUS, Config, AffUsers, Version) ->
 -spec destroy_room_transaction(RoomUS :: ejabberd:simple_bare_jid()) -> ok | {error, not_exists}.
 destroy_room_transaction(RoomUS) ->
     case mnesia:wread({?ROOM_TAB, RoomUS}) of
-        [] -> {error, not_exists};
-        [_] -> mnesia:delete({?ROOM_TAB, RoomUS})
+        [] ->
+            {error, not_exists};
+        [Rec] ->
+            AffUsers = Rec#?ROOM_TAB.aff_users,
+            lists:foreach(
+                fun({User, _}) ->
+                    ok = mnesia:delete_object(#?USER_ROOM_TAB{user = User, room = RoomUS}),
+                    mnesia:delete({?ROOM_TAB, RoomUS})
+                end, AffUsers)
     end.
 
 -spec remove_user_transaction(UserUS :: ejabberd:simple_bare_jid(), Version :: binary()) ->

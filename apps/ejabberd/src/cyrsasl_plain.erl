@@ -27,11 +27,11 @@
 -module(cyrsasl_plain).
 -author('alexey@process-one.net').
 
--export([start/1, stop/0, mech_new/4, mech_step/2, parse/1]).
+-export([start/1, stop/0, mech_new/2, mech_step/2, parse/1]).
 -xep([{xep, 78}, {version, "2.5"}]).
 -behaviour(cyrsasl).
 
--record(state, {check_password}).
+-include("ejabberd.hrl").
 
 start(_Opts) ->
     cyrsasl:register_mechanism(<<"PLAIN">>, ?MODULE, plain),
@@ -41,25 +41,28 @@ stop() ->
     ok.
 
 -spec mech_new(Host :: ejabberd:server(),
-               GetPassword :: cyrsasl:get_password_fun(),
-               CheckPassword :: cyrsasl:check_password_fun(),
-               CheckPasswordDigest :: cyrsasl:check_pass_digest_fun()
-               ) -> {ok, tuple()}.
-mech_new(_Host, _GetPassword, CheckPassword, _CheckPasswordDigest) ->
-    {ok, #state{check_password = CheckPassword}}.
+               Creds :: mongoose_credentials:t()) -> {ok, tuple()}.
+mech_new(_Host, Creds) ->
+    {ok, Creds}.
 
--spec mech_step(State :: tuple(),
-                ClientIn :: binary()
-                ) -> {ok, proplists:proplist()} | {error, binary()}.
-mech_step(State, ClientIn) ->
+-spec mech_step(Creds :: mongoose_credentials:t(),
+                ClientIn :: binary()) -> {ok, mongoose_credentials:t()}
+                                       | {error, binary()}.
+mech_step(Creds, ClientIn) ->
     case prepare(ClientIn) of
         [AuthzId, User, Password] ->
-            case (State#state.check_password)(User, Password) of
-                {true, AuthModule} ->
-                    {ok, [{username, User}, {authzid, AuthzId},
-                          {auth_module, AuthModule}]};
-                _ ->
-                    {error, <<"not-authorized">>, User}
+            Request = mongoose_credentials:extend(Creds,
+                                                  [{username, User},
+                                                   {password, Password},
+                                                   {authzid, AuthzId}]),
+            case ejabberd_auth:authorize(Request) of
+                {ok, Result} ->
+                    {ok, Result};
+                {error, not_authorized} ->
+                    {error, <<"not-authorized">>, User};
+                {error, R} ->
+                    ?DEBUG("authorize error: ~p", [R]),
+                    {error, <<"internal-error">>}
             end;
         _ ->
             {error, <<"bad-protocol">>}

@@ -1,6 +1,10 @@
 # Selected hooks description
 
-This is a short documentation of a few selected hooks. As the pattern repeats, it may not be necessary to describe them all.
+This is brief documentation for a few select hooks. Though hooks &
+handlers differ in what they are there to do, it is not necessary to
+describe them all, because the mechanism is general. The following is
+meant to give you the idea of how hooks work, what they are used for
+and the various purposes they can serve.
 
 
 ## `user_send_packet`
@@ -28,6 +32,23 @@ by a federated server (i.e. on a server-to-server connection handled
 by `ejabberd_s2s`) and are intended for a user served by the relevant
 ejabberd instance.
 
+It is handled by the following modules:
+
+* `mod_caps` - detects and caches capability information sent with certain messages
+for later use
+
+* `mod_carboncopy` - if the packet being sent is a message, it forwards it to all the
+user's resources which have carbon copying enabled
+
+* `mod_http_notification` - if configured, sends selected messages to an external
+http service
+
+* `mod_mam` - stores outgoing messages in an archive
+
+* `mod_ping` - upon reception of every message from the client, this module (re)starts a timer;
+if nothing more is received from the client within 60 seconds it sends an IQ ping, to which the
+client should reply - which starts another timer.
+
 ## `user_receive_packet`
 
 ```erlang
@@ -35,7 +56,7 @@ ejabberd_hooks:run(user_receive_packet, Server,
                    [Jid, From, To, FixedPacket])
 ```
 
-The hook is run just after a packet has been sent to the user.
+The hook is run just before a packet received by server is sent to the user.
 
 Prior to sending, the packet is verified against any relevant
 privacy lists (the mechanism is described in [XEP-0016][privacy-lists]).
@@ -49,6 +70,14 @@ This hook won't run for stanzas which are destined to users of a different
 XMPP domain served by a federated server, connection to which is handled
 by `ejabberd_s2s`.
 
+It is handled by the following modules:
+
+* `mod_caps` - detects and caches capability information sent with certain messages
+for later use
+
+* `mod_carboncopy` - if the received packet is a message, it forwards it to all the
+user's resources which have carbon copying enabled
+
 ## `filter_packet`
 
 ```erlang
@@ -56,9 +85,12 @@ ejabberd_hooks:run_fold(filter_packet,
                         {OrigFrom, OrigTo, OrigPacket}, [])
 ```
 
-This hook is run by `ejabberd_router` as soon as the packet is routed
-via `ejaberd_router:route/3`.
-This is the most general function used to route stanzas across the
+This hook is run by `mongoose_router_global` when the packet is being routed by
+`ejaberd_router:route/3`. It is in fact the first call made within the routing procedure.
+If a function hooked in to `filter_packet` returns `drop`,
+the packet is not processed.
+
+The `ejaberd_router:route/3` fun is the most general function used to route stanzas across the
 entire cluster and its calls are scattered all over ejabberd code.
 `ejabberd_c2s` calls it after it receives a packet from
 `ejabberd_receiver` (i.e. the socket) and multiple modules use it for
@@ -84,15 +116,18 @@ ejabberd_hooks:run(offline_message_hook,
 ```
 
 `ejabberd_sm` runs this hook once it determines that a routed stanza
-is a message and that no resource (i.e. device or desktop client
+is a message, ordinarily could be delivered but that no resource (i.e. device or desktop client
 application) of its recipient is available online for delivery.
 
-The conservative approach is to use `mod_offline` to store that message in
-a persistent way until the recipient becomes online and the message can be
-successfully delivered.
-The handler in `mod_offline` stores the message and returns `stop`.
-In case some handler is registered with a sequence number greater than 50
-it will not be called if `mod_offline` successfully stores the message.
+The hook is first handled by `mod_offline`, which should store that message in
+a persistent way until the recipient comes online and the message can be
+successfully delivered. The handler in `mod_offline` stores the message and returns `stop`,
+which terminates the call and no more hook handlers are called.
+
+If the `mod_offline` handler fails to store the message, we should notify the user that the message
+could not be stored. To this end, there is another handler registered, but with a greater sequence
+number, so that it is called after `mod_offline`. If `mod_offline` fails,
+`ejabberd_sm:bounce_offline_message` is called and the user gets their notification.
 
 ## `remove_user`
 
@@ -101,10 +136,16 @@ ejabberd_hooks:run(remove_user, Server, [User, Server])
 ```
 
 `remove_user` is run by `ejabberd_auth` - the authentication module - when
-a request is made to remove the user from the database of the server.
-The hook is used to allow modules clean up the user data in any relevant
-way - in a process state, persistent storage or by notifying some external
-service.
+a request is made to remove the user from the database of the server. This one
+is rather complex, since removing a user requires many cleanup operations:
+`mod_last` removes last activity information (xep 0012);
+`mod_mam` removes the user's message archive;
+`mod_muc_light` quits multi-user chat rooms;
+`mod_offline` deletes the user's offline messages;
+`mod_privacy` removes the user's privacy lists;
+`mod_private` removes the user's private xml data storage;
+`mod_pubsub` unsubscribes from publish/subsribe channels;
+and `mod_roster` removes the user's roster from database.
 
 ## `node_cleanup`
 
@@ -115,6 +156,13 @@ ejabberd_hooks:run(node_cleanup, [Node])
 `node_cleanup` is run by mongooseim_cleaner process which subscribes to 
 `nodedown` messages. Currently the hook is run inside global transaction
 (via `global:trans/4`).
+
+The job of this hook is to remove all processes registered in Mnesia. MongooseIM
+uses Mnesia to store processes through which messages are then routed - like
+user sessions or server-to-server communication channels - or various handlers,
+e.g. IQ request handlers. Those must obviously be removed when a node goes down,
+and to do this the modules `ejabberd_local`, `ejabberd_s2s`, `ejabberd_sm`
+and `mod_bosh` register their handlers with this hook.
 
 Number of retries for this transaction is set to 1 which means that in some
 situations the hook may be run on more than one node in the cluster, especially 
@@ -132,7 +180,89 @@ ejabberd_hooks:run_fold(session_opening_allowed_for_user,
 This hook is run after authentication when user sends the IQ opening a session.
 Handler function are expected to return:
 
-* `allow` if given JID is allowed to open a new sessions
+* `allow` if given JID is allowed to open a new sessions (the default)
 * `deny` if the JID is not allowed but other handlers should be run
 * `{stop, deny}` if the JID is not allowed but other handlers should **not** be run
 
+In default implementation the hook is not used, built-in user control methods
+are supported elsewhere. This is the perfect place to plug in custom security
+control.
+
+## other hooks
+
+* adhoc_local_commands
+* adhoc_local_items
+* amp_check_condition
+* amp_check_packet
+* amp_determine_strategy
+* amp_verify_support
+* anonymous_purge_hook
+* c2s_broadcast_recipients
+* c2s_filter_packet
+* c2s_presence_in
+* c2s_stream_features
+* c2s_unauthenticated_iq
+* can_access_room
+* caps_add
+* caps_update
+* disco_info
+* disco_local_features
+* disco_local_identity
+* disco_local_items
+* disco_sm_features
+* disco_sm_identity
+* disco_sm_items
+* ejabberd_ctl_process
+* filter_local_packet
+* filter_room_packet
+* forget_room
+* host_config_update
+* is_muc_room_owner
+* local_send_to_resource_hook
+* mam_archive_id
+* mam_archive_message
+* mam_archive_size
+* mam_get_behaviour
+* mam_get_prefs
+* mam_lookup_messages
+* mam_muc_archive_id
+* mam_muc_archive_message
+* mam_muc_archive_size
+* mam_muc_get_behaviour
+* mam_muc_get_prefs
+* mam_muc_lookup_messages
+* mam_muc_purge_multiple_messages
+* mam_muc_purge_single_message
+* mam_muc_remove_archive
+* mam_muc_set_prefs
+* mam_purge_multiple_messages
+* mam_purge_single_message
+* mam_remove_archive
+* mam_set_prefs
+* muc_room_pid
+* node_cleanup
+* offline_groupchat_message_hook
+* offline_message_hook
+* presence_probe_hook
+* privacy_check_packet
+* privacy_get_user_list
+* privacy_iq_get
+* privacy_iq_set
+* privacy_updated_list
+* remove_user
+* resend_offline_messages_hook
+* roster_get
+* roster_get_jid_info
+* roster_get_subscription_lists
+* roster_get_versioning_feature
+* roster_in_subscription
+* roster_out_subscription
+* roster_process_item
+* s2s_stream_features
+* session_cleanup
+* sm_register_connection_hook
+* sm_remove_connection_hook
+* unset_presence_hook
+* user_receive_packet
+* user_send_packet
+* user_sent_keep_alive

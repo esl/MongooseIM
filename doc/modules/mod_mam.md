@@ -1,7 +1,8 @@
 ### Module Description
-This module implements [XEP-0313 (Message Archive Management)](http://xmpp.org/extensions/attic/xep-0313-0.2.html). It enables a service to store all users messages for one-to-one chats as well as group chats (MUC, MultiUser Chat). It uses [XEP-0059: Result Set Management](http://xmpp.org/extensions/xep-0059.html) for paging. It is a highly customizable module, that requires some skill and knowledge to operate properly and efficiently.
+This module implements [XEP-0313 (Message Archive Management)](http://xmpp.org/extensions/attic/xep-0313.html). It enables a service to store all users messages for one-to-one chats as well as group chats (MUC, MultiUser Chat). It uses [XEP-0059: Result Set Management](http://xmpp.org/extensions/xep-0059.html) for paging. It is a highly customizable module, that requires some skill and knowledge to operate properly and efficiently.
 
 Configure MAM with different storage backends:
+
 * ODBC (RDBMS, like MySQL, PostgreSQL, MS SQL Server)
 * Riak KV (NOSQL)
 * Cassandra (NOSQL)

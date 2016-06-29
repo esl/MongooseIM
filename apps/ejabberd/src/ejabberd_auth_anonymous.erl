@@ -43,23 +43,26 @@
 -behaviour(ejabberd_gen_auth).
 %% Function used by ejabberd_auth:
 -export([login/2,
-	 set_password/3,
-	 check_password/3,
-	 check_password/5,
-	 try_register/3,
-	 dirty_get_registered_users/0,
-	 get_vh_registered_users/1,
-	 get_password/2,
-	 get_password/3,
-	 does_user_exist/2,
-	 remove_user/2,
-	 remove_user/3,
-	 store_type/1,
-	 get_vh_registered_users/2,
-	 get_vh_registered_users_number/1,
-	 get_vh_registered_users_number/2,
-	 get_password_s/2                  % not impl
-]).
+         set_password/3,
+         authorize/1,
+         try_register/3,
+         dirty_get_registered_users/0,
+         get_vh_registered_users/1,
+         get_password/2,
+         get_password/3,
+         does_user_exist/2,
+         remove_user/2,
+         remove_user/3,
+         store_type/1,
+         get_vh_registered_users/2,
+         get_vh_registered_users_number/1,
+         get_vh_registered_users_number/2,
+         get_password_s/2                  % not impl
+        ]).
+
+%% Internal
+-export([check_password/3,
+         check_password/5]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -205,14 +208,19 @@ purge_hook(false, _LUser, _LServer) ->
 purge_hook(true, LUser, LServer) ->
     ejabberd_hooks:run(anonymous_purge_hook, LServer, [LUser, LServer]).
 
--spec session_cleanup(LUser :: ejabber:luser(), LServer :: ejabberd:lserver(),
-                   LResource :: ejabberd:lresource(), SID :: ejabberd_sm:sid()) -> any().
+-spec session_cleanup(LUser :: ejabberd:luser(), LServer :: ejabberd:lserver(),
+                      LResource :: ejabberd:lresource(), SID :: ejabberd_sm:sid()) -> any().
 session_cleanup(LUser, LServer, _LResource, SID) ->
     remove_connection(SID, LUser, LServer).
 
 %% ---------------------------------
 %% Specific anonymous auth functions
 %% ---------------------------------
+
+-spec authorize(mongoose_credentials:t()) -> {ok, mongoose_credentials:t()}
+                                           | {error, any()}.
+authorize(Creds) ->
+    ejabberd_auth:authorize_with_check_password(?MODULE, Creds).
 
 %% @doc When anonymous login is enabled, check the password for permenant users
 %% before allowing access

@@ -30,7 +30,8 @@
 %%--------------------------------------------------------------------
 
 all() ->
-    [{group, manage},
+    [
+        {group, manage},
         {group, effect},
         {group, offline},
         {group, errors},
@@ -39,12 +40,12 @@ all() ->
 
 groups() ->
     [
-        {manage, [sequence], manage_test_cases()},
-        {effect, [sequence], effect_test_cases()},
+        {manage, [parallel], manage_test_cases()},
+        {effect, [parallel], effect_test_cases()},
         {offline, [sequence], offline_test_cases()},
-        {errors, [sequence], error_test_cases()},
-        {pushes, [sequence], push_test_cases()},
-        {notify, [sequence], notify_test_cases()}
+        {errors, [parallel], error_test_cases()},
+        {pushes, [parallel], push_test_cases()},
+        {notify, [parallel], notify_test_cases()}
     ].
 
 manage_test_cases() ->
@@ -117,7 +118,7 @@ end_per_testcase(CaseName, Config) ->
 %%--------------------------------------------------------------------
 
 discovering_support(Config) ->
-    escalus:story(
+    escalus:fresh_story(
         Config, [{alice, 1}],
         fun(User1) ->
             Server = escalus_client:server(User1),
@@ -130,7 +131,7 @@ discovering_support(Config) ->
 
 
 get_block_list(Config) ->
-    escalus:story(
+    escalus:fresh_story(
         Config, [{alice, 1}],
         fun(User1) ->
             Result = get_blocklist(User1),
@@ -142,7 +143,7 @@ get_block_list(Config) ->
 
 
 add_user_to_blocklist(Config) ->
-    escalus:story(
+    escalus:fresh_story(
         Config, [{alice, 1}, {bob, 1}],
         fun(User1, User2) ->
             user_blocks(User1, [User2]),
@@ -151,7 +152,7 @@ add_user_to_blocklist(Config) ->
         end).
 
 add_another_user_to_blocklist(Config) ->
-    escalus:story(
+    escalus:fresh_story(
         Config, [{alice, 1}, {mike, 1}],
         fun(User1, User2) ->
             user_blocks(User1, [User2]),
@@ -160,7 +161,7 @@ add_another_user_to_blocklist(Config) ->
         end).
 
 add_many_users_to_blocklist(Config) ->
-    escalus:story(
+    escalus:fresh_story(
         Config, [{alice, 1}, {bob, 1}, {carol, 1}, {mike,1}],
         fun(User1, User2, User3, User4) ->
             user_blocks(User1, [User2, User3, User4]),
@@ -171,7 +172,7 @@ add_many_users_to_blocklist(Config) ->
         end).
 
 remove_user_from_blocklist(Config) ->
-    escalus:story(
+    escalus:fresh_story(
         Config, [{alice, 1}, {bob, 1}],
         fun(User1, User2) ->
             user_blocks(User1, [User2]),
@@ -181,7 +182,7 @@ remove_user_from_blocklist(Config) ->
         end).
 
 remove_many_user_from_blocklist(Config) ->
-    escalus:story(
+    escalus:fresh_story(
         Config, [{alice, 1}, {bob, 1}, {geralt, 1}],
         fun(User1, User2, User3) ->
             user_blocks(User1, [User2, User3]),
@@ -192,7 +193,7 @@ remove_many_user_from_blocklist(Config) ->
         end).
 
 clear_blocklist(Config) ->
-    escalus:story(
+    escalus:fresh_story(
         Config, [{alice, 1}, {bob, 1}, {geralt, 1}],
         fun(User1, User2, User3) ->
             user_blocks(User1, [User2, User3]),
@@ -202,7 +203,7 @@ clear_blocklist(Config) ->
         end).
 
 invalid_block_request(Config) ->
-    escalus:story(
+    escalus:fresh_story(
         Config, [{alice, 1}],
         fun(User1) ->
             St = block_users_stanza([]),
@@ -211,7 +212,7 @@ invalid_block_request(Config) ->
         end).
 
 messages_from_blocked_user_dont_arrive(Config) ->
-    escalus:story(
+    escalus:fresh_story(
         Config, [{alice, 1}, {bob, 1}],
         fun(User1, User2) ->
             user_blocks(User1, [User2]),
@@ -221,7 +222,7 @@ messages_from_blocked_user_dont_arrive(Config) ->
         end).
 
 messages_from_unblocked_user_arrive_again(Config) ->
-    escalus:story(
+    escalus:fresh_story(
         Config, [{alice, 1}, {bob, 1}],
         fun(User1, User2) ->
             %% given
@@ -233,7 +234,7 @@ messages_from_unblocked_user_arrive_again(Config) ->
         end).
 
 messages_from_any_blocked_resource_dont_arrive(Config) ->
-    escalus:story(
+    escalus:fresh_story(
         Config, [{alice, 3}, {bob, 1}],
         fun(User1a, User1b, User1c, User2) ->
             %% given
@@ -245,7 +246,7 @@ messages_from_any_blocked_resource_dont_arrive(Config) ->
         end).
 
 blocking_doesnt_interfere(Config) ->
-    escalus:story(
+    escalus:fresh_story(
         Config, [{alice, 1}, {bob, 1}, {geralt, 1}],
         fun(User1, User2, User3) ->
             %% given
@@ -330,7 +331,7 @@ clear_list_relogin(Config) ->
         end).
 
 blocker_cant_send_to_blockee(Config) ->
-    escalus:story(
+    escalus:fresh_story(
         Config, [{alice, 1}, {bob, 1}],
         fun(User1, User2) ->
             user_blocks(User1, [User2]),
@@ -340,7 +341,7 @@ blocker_cant_send_to_blockee(Config) ->
 
 block_push_sent(Config) ->
     %% make sure privacy list push arrives to all the user's resources
-    escalus:story(
+    escalus:fresh_story(
         Config, [{alice, 2}, {bob, 2}],
         fun(User1a, User1b, User2a, User2b) ->
             user_blocks(User1a, [User2a]),
@@ -349,7 +350,7 @@ block_push_sent(Config) ->
 
 notify_blockee(Config) ->
     %% as XEP-0191 says, when we block a user he should receive 'unavailable', and a contrario.
-    escalus:story(
+    escalus:fresh_story(
         Config, [{alice, 1}, {bob, 1}],
         fun(Alice, Bob) ->
             %% make sure they're friends and Bob receives Alice's presences

@@ -337,6 +337,14 @@ stanza_lookup_messages_iq_v02(P, QueryId, BStart, BEnd, BWithJID, RSM) ->
            maybe_rsm_elem(RSM)])
     }]).
 
+stanza_retrieve_form_fields(QueryId, NS) ->
+    escalus_stanza:iq(<<"get">>, [#xmlel{
+        name = <<"query">>,
+        attrs =     [{<<"xmlns">>, NS}]
+        ++ maybe_attr(<<"queryid">>, QueryId),
+        children = []
+    }]).
+
 maybe_simple_elem(#rsm_in{simple=true}) ->
     #xmlel{name = <<"simple">>};
 maybe_simple_elem(_) ->
@@ -426,22 +434,22 @@ verify_archived_muc_light_aff_msg(Msg, AffUsersChanges, IsCreate) ->
 %% ----------------------------------------------------------------------
 %% PREFERENCE QUERIES
 
-stanza_prefs_set_request(DefaultMode, AlwaysJIDs, NeverJIDs) ->
+stanza_prefs_set_request(DefaultMode, AlwaysJIDs, NeverJIDs, Namespace) ->
     AlwaysEl = #xmlel{name = <<"always">>,
                       children = encode_jids(AlwaysJIDs)},
     NeverEl  = #xmlel{name = <<"never">>,
                       children = encode_jids(NeverJIDs)},
     escalus_stanza:iq(<<"set">>, [#xmlel{
        name = <<"prefs">>,
-       attrs = [{<<"xmlns">>,mam_ns_binary()}]
+       attrs = [{<<"xmlns">>, Namespace}]
                ++ [{<<"default">>, DefaultMode} || is_def(DefaultMode)],
        children = [AlwaysEl, NeverEl]
     }]).
 
-stanza_prefs_get_request() ->
+stanza_prefs_get_request(Namespace) ->
     escalus_stanza:iq(<<"get">>, [#xmlel{
        name = <<"prefs">>,
-       attrs = [{<<"xmlns">>,mam_ns_binary()}]
+       attrs = [{<<"xmlns">>, Namespace}]
     }]).
 
 %% Allows to cdata to be put as it is
@@ -1113,8 +1121,9 @@ make_alice_and_bob_friends(Alice, Bob) ->
         escalus:wait_for_stanzas(Bob, 3, 5000), % iq set subscription=both, presence subscribed, presence
         ok.
 
-run_prefs_case({PrefsState, ExpectedMessageStates}, Alice, Bob, Kate, Config) ->
-    IqSet = stanza_prefs_set_request(PrefsState, Config),
+run_prefs_case({PrefsState, ExpectedMessageStates}, Namespace, Alice, Bob, Kate, Config) ->
+    {DefaultMode, AlwaysUsers, NeverUsers} = PrefsState,
+    IqSet = stanza_prefs_set_request({DefaultMode, AlwaysUsers, NeverUsers, Namespace}, Config),
     escalus:send(Alice, IqSet),
     ReplySet = escalus:wait_for_stanza(Alice),
     Messages = [iolist_to_binary(io_lib:format("n=~p, prefs=~p, now=~p",
@@ -1161,11 +1170,11 @@ get_all_messages(P, Alice, Id) ->
             PageMessages ++ get_all_messages(P, Alice, LastId)
     end.
 
-stanza_prefs_set_request({DefaultMode, AlwaysUsers, NeverUsers}, Config) ->
+stanza_prefs_set_request({DefaultMode, AlwaysUsers, NeverUsers, Namespace}, Config) ->
     DefaultModeBin = atom_to_binary(DefaultMode, utf8),
     AlwaysJIDs = users_to_jids(AlwaysUsers, Config),
     NeverJIDs  = users_to_jids(NeverUsers, Config),
-    stanza_prefs_set_request(DefaultModeBin, AlwaysJIDs, NeverJIDs).
+    stanza_prefs_set_request(DefaultModeBin, AlwaysJIDs, NeverJIDs, Namespace).
 
 users_to_jids(Users, Config) ->
     [escalus_users:get_jid(Config, User) || User <- Users].
@@ -1176,14 +1185,17 @@ print_configuration_not_supported(C, B) ->
      binary_to_list(iolist_to_binary(I)).
 
 %% Alice sets and gets her preferences
-run_set_and_get_prefs_case({PrefsState, _ExpectedMessageStates}, Alice, Config) ->
-    IqSet = stanza_prefs_set_request(PrefsState, Config),
+run_set_and_get_prefs_case({PrefsState, _ExpectedMessageStates}, Namespace, Alice, Config) ->
+    {DefaultMode, AlwaysUsers, NeverUsers} = PrefsState,
+    IqSet = stanza_prefs_set_request({DefaultMode, AlwaysUsers, NeverUsers, Namespace}, Config),
     escalus:send(Alice, IqSet),
     ReplySet = escalus:wait_for_stanza(Alice, 5000),
-
-    escalus:send(Alice, stanza_prefs_get_request()),
+    ReplySetNS = exml_query:path(ReplySet, [{element, <<"prefs">>}, {attr, <<"xmlns">>}]),
+    ?assert_equal(ReplySetNS, Namespace),
+    escalus:send(Alice, stanza_prefs_get_request(Namespace)),
     ReplyGet = escalus:wait_for_stanza(Alice),
-
+    ReplyGetNS = exml_query:path(ReplyGet, [{element, <<"prefs">>}, {attr, <<"xmlns">>}]),
+    ?assert_equal(ReplyGetNS, Namespace),
     ResultIQ1 = parse_prefs_result_iq(ReplySet),
     ResultIQ2 = parse_prefs_result_iq(ReplyGet),
     ?assert_equal(ResultIQ1, ResultIQ2),
