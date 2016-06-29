@@ -38,8 +38,7 @@
          stop/1,
          start_link/1,
          set_password/3,
-         check_password/3,
-         check_password/5,
+         authorize/1,
          try_register/3,
          dirty_get_registered_users/0,
          get_vh_registered_users/1,
@@ -53,6 +52,10 @@
          remove_user/3,
          store_type/1
         ]).
+
+%% Internal
+-export([check_password/3,
+         check_password/5]).
 
 -export([config_change/4]).
 
@@ -137,6 +140,11 @@ config_change(Acc, Host, ldap, _NewConfig) ->
     Acc;
 config_change(Acc, _, _, _) ->
     Acc.
+
+-spec authorize(mongoose_credentials:t()) -> {ok, mongoose_credentials:t()}
+                                           | {error, any()}.
+authorize(Creds) ->
+    ejabberd_auth:authorize_with_check_password(?MODULE, Creds).
 
 -spec check_password(LUser :: ejabberd:luser(),
                      LServer :: ejabberd:lserver(),

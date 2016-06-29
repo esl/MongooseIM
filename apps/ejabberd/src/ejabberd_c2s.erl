@@ -308,12 +308,9 @@ wait_for_legacy_auth(#state{} = S) ->
     fsm_next_state(wait_for_auth, S).
 
 stream_start_features_before_auth(#state{server = Server} = S) ->
-    SASLState = cyrsasl:server_new(<<"jabber">>, Server, <<>>, [],
-                                   mk_get_password_with_authmodule(Server),
-                                   mk_check_password3_with_authmodule(Server),
-                                   mk_check_password5_with_authmodule(Server)),
+    Creds = mongoose_credentials:new(Server),
+    SASLState = cyrsasl:server_new(<<"jabber">>, Server, <<>>, [], Creds),
     SockMod = (S#state.sockmod):get_sockmod(S#state.socket),
-
     send_element(S, stream_features(determine_features(SockMod, S))),
     fsm_next_state(wait_for_feature_before_auth,
                    S#state{sasl_state = SASLState}).
@@ -321,12 +318,12 @@ stream_start_features_before_auth(#state{server = Server} = S) ->
 stream_start_features_after_auth(#state{server = Server} = S) ->
     SockMod = (S#state.sockmod):get_sockmod(S#state.socket),
     Features = (maybe_compress_feature(SockMod, S)
-            ++ [#xmlel{name = <<"bind">>,
-                         attrs = [{<<"xmlns">>, ?NS_BIND}]},
-                  #xmlel{name = <<"session">>,
-                         attrs = [{<<"xmlns">>, ?NS_SESSION}]}]
-                 ++ maybe_roster_versioning_feature(Server)
-                 ++ hook_enabled_features(Server) ),
+                ++ [#xmlel{name = <<"bind">>,
+                           attrs = [{<<"xmlns">>, ?NS_BIND}]},
+                    #xmlel{name = <<"session">>,
+                           attrs = [{<<"xmlns">>, ?NS_SESSION}]}]
+                ++ maybe_roster_versioning_feature(Server)
+                ++ hook_enabled_features(Server) ),
     send_element(S, stream_features(Features)),
     fsm_next_state(wait_for_feature_after_auth, S).
 
@@ -406,21 +403,6 @@ mechanism(S) ->
     #xmlel{name = <<"mechanism">>,
            children = [#xmlcdata{content = S}]}.
 
-mk_get_password_with_authmodule(Server) ->
-    fun(U) ->
-            ejabberd_auth:get_password_with_authmodule(U, Server)
-    end.
-
-mk_check_password3_with_authmodule(Server) ->
-    fun(U, P) ->
-            ejabberd_auth:check_password_with_authmodule(U, Server, P)
-    end.
-
-mk_check_password5_with_authmodule(Server) ->
-    fun(U, P, D, DG) ->
-            ejabberd_auth:check_password_with_authmodule(U, Server, P, D, DG)
-    end.
-
 get_xml_lang(Attrs) ->
     case xml:get_attr_s(<<"xml:lang">>, Attrs) of
         Lang when size(Lang) =< 35 ->
@@ -457,8 +439,7 @@ wait_for_auth({xmlstreamelement, El}, StateData) ->
                          _ ->
                              [#xmlcdata{content = U}]
                      end,
-            Res = case ejabberd_auth:plain_password_required(
-                         StateData#state.server) of
+            Res = case ejabberd_auth:plain_password_required(StateData#state.server) of
                       false ->
                           XE#xmlel{children = [#xmlel{name = <<"query">>,
                                                       attrs = [{<<"xmlns">>,
@@ -480,18 +461,16 @@ wait_for_auth({xmlstreamelement, El}, StateData) ->
             send_element(StateData, Res),
             fsm_next_state(wait_for_auth, StateData);
         {auth, _ID, set, {_U, _P, _D, <<>>}} ->
-            Err = jlib:make_error_reply(
-                    El,
-                    ?ERR_AUTH_NO_RESOURCE_PROVIDED(StateData#state.lang)),
+            Err = jlib:make_error_reply(El, ?ERR_AUTH_NO_RESOURCE_PROVIDED(StateData#state.lang)),
             send_element(StateData, Err),
             fsm_next_state(wait_for_auth, StateData);
         {auth, _ID, set, {U, P, D, R}} ->
             JID = jid:make(U, StateData#state.server, R),
             maybe_legacy_auth(JID, El, StateData, U, P, D, R);
-                        _ ->
+        _ ->
             process_unauthenticated_stanza(StateData, El),
-                            fsm_next_state(wait_for_auth, StateData)
-                    end;
+            fsm_next_state(wait_for_auth, StateData)
+    end;
 wait_for_auth(timeout, StateData) ->
     {stop, normal, StateData};
 wait_for_auth({xmlstreamend, _Name}, StateData) ->
@@ -505,26 +484,22 @@ wait_for_auth(closed, StateData) ->
     {stop, normal, StateData}.
 
 maybe_legacy_auth(error, El, StateData, U, _P, _D, R) ->
-                            ?INFO_MSG(
-                               "(~w) Forbidden legacy authentication for "
-                               "username '~s' with resource '~s'",
-                               [StateData#state.socket, U, R]),
-                            Err = jlib:make_error_reply(El, ?ERR_JID_MALFORMED),
-                            send_element(StateData, Err),
-                            fsm_next_state(wait_for_auth, StateData);
+    ?INFO_MSG("(~w) Forbidden legacy authentication for "
+              "username '~s' with resource '~s'",
+              [StateData#state.socket, U, R]),
+    Err = jlib:make_error_reply(El, ?ERR_JID_MALFORMED),
+    send_element(StateData, Err),
+    fsm_next_state(wait_for_auth, StateData);
 maybe_legacy_auth(JID, El, StateData, U, P, D, R) ->
     case user_allowed(JID, StateData) of
-                        true ->
+        true ->
             do_legacy_auth(JID, El, StateData, U, P, D, R);
         _ ->
-
-                            ?INFO_MSG(
-                               "(~w) Forbidden legacy authentication for ~s",
-                               [StateData#state.socket,
-                                jid:to_binary(JID)]),
-                            Err = jlib:make_error_reply(El, ?ERR_NOT_ALLOWED),
-                            send_element(StateData, Err),
-                            fsm_next_state(wait_for_auth, StateData)
+            ?INFO_MSG("(~w) Forbidden legacy authentication for ~s",
+                      [StateData#state.socket, jid:to_binary(JID)]),
+            Err = jlib:make_error_reply(El, ?ERR_NOT_ALLOWED),
+            send_element(StateData, Err),
+            fsm_next_state(wait_for_auth, StateData)
     end.
 
 do_legacy_auth(JID, El, StateData, U, P, D, R) ->
@@ -534,12 +509,10 @@ do_legacy_auth(JID, El, StateData, U, P, D, R) ->
                                    AuthModule);
         _ ->
             IP = peerip(StateData#state.sockmod, StateData#state.socket),
-            ?INFO_MSG(
-               "(~w) Failed legacy authentication for ~s from IP ~s (~w)",
-               [StateData#state.socket,
-                jid:to_binary(JID), jlib:ip_to_list(IP), IP]),
-            Err = jlib:make_error_reply(
-                    El, ?ERR_NOT_AUTHORIZED),
+            ?INFO_MSG("(~w) Failed legacy authentication for ~s from IP ~s (~w)",
+                      [StateData#state.socket,
+                       jid:to_binary(JID), jlib:ip_to_list(IP), IP]),
+            Err = jlib:make_error_reply(El, ?ERR_NOT_AUTHORIZED),
             ejabberd_hooks:run(auth_failed, StateData#state.server,
                                [U, StateData#state.server]),
             send_element(StateData, Err),
@@ -558,18 +531,15 @@ check_password_with_auth_module(User, StateData, _, Digest) ->
                                                  <<>>, Digest, DGen).
 
 do_open_legacy_session(El, StateData, U, R, JID, AuthModule) ->
-    ?INFO_MSG(
-       "(~w) Accepted legacy authentication for ~s by ~p",
-       [StateData#state.socket,
-        jid:to_binary(JID), AuthModule]),
+    ?INFO_MSG("(~w) Accepted legacy authentication for ~s by ~p",
+              [StateData#state.socket, jid:to_binary(JID), AuthModule]),
     Res1 = jlib:make_result_iq_reply(El),
     Res = Res1#xmlel{children = []},
     send_element(StateData, Res),
-    NewStateData = StateData#state{
-                     user = U,
-                     resource = R,
-                     jid = JID,
-                     auth_module = AuthModule},
+    NewStateData = StateData#state{ user = U,
+                                    resource = R,
+                                    jid = JID,
+                                    auth_module = AuthModule },
     do_open_session_common(JID, NewStateData).
 
 -spec wait_for_feature_before_auth(Item :: ejabberd:xml_stream_item(),
@@ -669,7 +639,7 @@ wait_for_sasl_response({xmlstreamelement, El}, StateData) ->
     case {xml:get_attr_s(<<"xmlns">>, Attrs), Name} of
         {?NS_SASL, <<"response">>} ->
             ClientIn = jlib:decode_base64(xml:get_cdata(Els)),
-            StepResult = cyrsasl:server_step(StateData#state.sasl_state,ClientIn),
+            StepResult = cyrsasl:server_step(StateData#state.sasl_state, ClientIn),
             {NewFSMState, NewStateData} = handle_sasl_step(StateData, StepResult),
             fsm_next_state(NewFSMState, NewStateData);
         _ ->
@@ -3023,28 +2993,24 @@ sasl_challenge_stanza(Challenge) ->
            attrs = [{<<"xmlns">>, ?NS_SASL}],
            children = Challenge}.
 
-handle_sasl_success(State, Props) ->
-    handle_sasl_success(State, Props, undefined).
-handle_sasl_success(State, Props, ServerOut) ->
+handle_sasl_success(State, Creds) ->
     (State#state.sockmod):reset_stream(State#state.socket),
+    ServerOut = mongoose_credentials:get(Creds, sasl_success_response, undefined),
     send_element(State, sasl_success_stanza(ServerOut)),
-    U = proplists:get_value(username, Props, <<>>),
-    AuthModule = proplists:get_value(auth_module, Props, <<>>),
+    User = mongoose_credentials:get(Creds, username),
+    AuthModule = mongoose_credentials:get(Creds, auth_module),
     ?INFO_MSG("(~w) Accepted authentication for ~s by ~p",
-              [State#state.socket, U, AuthModule]),
-    NewState = State#state{
-                 streamid = new_id(),
-                 authenticated = true,
-                 auth_module = AuthModule,
-                 user = U},
+              [State#state.socket, User, AuthModule]),
+    NewState = State#state{ streamid = new_id(),
+                            authenticated = true,
+                            auth_module = AuthModule,
+                            user = User },
     {wait_for_stream, NewState}.
 
-handle_sasl_step(#state{server = Server, socket= Sock} = State, StepRes) ->
+handle_sasl_step(#state{server = Server, socket = Sock} = State, StepRes) ->
     case StepRes of
-        {ok, Props} ->
-            handle_sasl_success(State, Props);
-        {ok, Props, ServerOut} ->
-            handle_sasl_success(State, Props, ServerOut);
+        {ok, Creds} ->
+            handle_sasl_success(State, Creds);
         {continue, ServerOut, NewSASLState} ->
             Challenge  = [#xmlcdata{content = jlib:encode_base64(ServerOut)}],
             send_element(State, sasl_challenge_stanza(Challenge)),
