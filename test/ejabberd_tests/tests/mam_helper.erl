@@ -184,6 +184,7 @@ nick(User) -> escalus_utils:get_username(User).
 mam_ns_binary() -> <<"urn:xmpp:mam:tmp">>.
 mam_ns_binary_v03() -> <<"urn:xmpp:mam:0">>.
 mam_ns_binary_v04() -> <<"urn:xmpp:mam:1">>.
+namespaces() -> [mam_ns_binary(), mam_ns_binary_v03(), mam_ns_binary_v04()].
 muc_ns_binary() -> <<"http://jabber.org/protocol/muc">>.
 
 stanza_purge_single_message(MessId) ->
@@ -1220,4 +1221,4 @@ muc_light_host() ->
     <<"muclight.localhost">>.
 
 host() ->
-    <<"localhost">>.
+    ct:get_config({hosts, mim, domain}).

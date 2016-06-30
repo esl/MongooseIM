@@ -1,13 +1,12 @@
 -module(muc_helper).
+-compile(export_all).
 
+-include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml.hrl").
 
--export([foreach_occupant/3,
-        foreach_recipient/2,
-        load_muc/1,
-        unload_muc/0]).
-
 -type verify_fun() :: fun((Incoming :: #xmlel{}) -> any()).
+
+-define(MUC_HOST, <<"muc.localhost">>).
 
 -export_type([verify_fun/0]).
 
@@ -52,3 +51,50 @@ load_muc(Host) ->
 unload_muc() ->
     dynamic_modules:stop(<<"localhost">>, mod_muc),
     dynamic_modules:stop(<<"localhost">>, mod_muc_log).
+
+muc_host() ->
+    ?MUC_HOST.
+
+start_room(Config, User, Room, Nick, Opts) ->
+    From = generate_rpc_jid(User),
+    create_instant_room(<<"localhost">>, Room, From, Nick, Opts),
+    [{nick, Nick}, {room, Room} | Config].
+
+generate_rpc_jid({_,User}) ->
+    {username, Username} = lists:keyfind(username, 1, User),
+    {server, Server} = lists:keyfind(server, 1, User),
+    LUsername = escalus_utils:jid_to_lower(Username),
+    LServer = escalus_utils:jid_to_lower(Server),
+    {jid, Username, Server, <<"rpc">>, LUsername, LServer, <<"rpc">>}.
+
+create_instant_room(Host, Room, From, Nick, Opts) ->
+    escalus_ejabberd:rpc(mod_muc, create_instant_room,
+        [Host, Room, From, Nick, Opts]).
+
+destroy_room(Config) ->
+    destroy_room(?MUC_HOST, ?config(room, Config)).
+
+destroy_room(Host, Room) when is_binary(Host), is_binary(Room) ->
+    case escalus_ejabberd:rpc(
+            ets, lookup, [muc_online_room, {Room, Host}]) of
+        [{_,_,Pid}|_] -> gen_fsm:send_all_state_event(Pid, destroy);
+        _ -> ok
+    end.
+
+stanza_muc_enter_room(Room, Nick) ->
+    stanza_to_room(
+        escalus_stanza:presence(  <<"available">>,
+                                [#xmlel{ name = <<"x">>, attrs=[{<<"xmlns">>, <<"http://jabber.org/protocol/muc">>}]}]),
+        Room, Nick).
+
+stanza_to_room(Stanza, Room) ->
+    escalus_stanza:to(Stanza, room_address(Room)).
+
+stanza_to_room(Stanza, Room, Nick) ->
+    escalus_stanza:to(Stanza, room_address(Room, Nick)).
+
+room_address(Room) ->
+    <<Room/binary, "@", ?MUC_HOST/binary>>.
+
+room_address(Room, Nick) ->
+    <<Room/binary, "@", ?MUC_HOST/binary, "/", Nick/binary>>.

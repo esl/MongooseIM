@@ -75,8 +75,7 @@
          run_set_and_get_prefs_cases/1]).
 
 -import(muc_helper,
-        [destroy_room/1,
-         muc_host/0,
+        [muc_host/0,
          room_address/1, room_address/2,
          stanza_muc_enter_room/2,
          stanza_to_room/2]).
@@ -128,6 +127,8 @@
          make_iso_time/1,
          stanza_date_range_archive_request_not_empty/3,
          respond_iq/1,
+         get_prop/2,
+         stanza_retrieve_form_fields/2,
          stanza_limit_archive_request/1,
          rsm_send/3,
          stanza_page_archive_request/3,
@@ -135,16 +136,18 @@
          wait_message_range/4,
          message_id/2,
          wait_message_range/6,
-         stanza_prefs_set_request/3,
-         stanza_prefs_get_request/0,
+         stanza_prefs_set_request/4,
+         stanza_prefs_get_request/1,
          parse_prefs_result_iq/1,
          mam_ns_binary/0,
+         mam_ns_binary_v03/0,
          make_alice_and_bob_friends/2,
-         run_prefs_case/5,
+         run_prefs_case/6,
          prefs_cases2/0,
+         namespaces/0,
          get_all_messages/2,
          parse_messages/1,
-         run_set_and_get_prefs_case/3,
+         run_set_and_get_prefs_case/4,
          muc_light_host/0,
          host/0
         ]).

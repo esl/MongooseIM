@@ -22,6 +22,21 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml.hrl").
 
+-import(muc_helper,
+        [load_muc/1,
+         unload_muc/0,
+         muc_host/0,
+         start_room/5,
+         create_instant_room/5,
+         generate_rpc_jid/1,
+         destroy_room/1,
+         destroy_room/2,
+         stanza_muc_enter_room/2,
+         stanza_to_room/2,
+         stanza_to_room/3,
+         room_address/1,
+         room_address/2]).
+
 -define(MUC_HOST, <<"muc.localhost">>).
 -define(MUC_CLIENT_HOST, <<"localhost/res1">>).
 -define(PASSWORD, <<"password">>).
@@ -213,12 +228,12 @@ suite() ->
 
 
 init_per_suite(Config) ->
-    muc_helper:load_muc(?MUC_HOST),
+    load_muc(muc_host()),
     escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
-    muc_helper:unload_muc(),
+    unload_muc(),
     escalus:end_per_suite(Config).
 
 init_per_group(moderator, Config) ->
@@ -2581,7 +2596,7 @@ disco_service(Config) ->
         Server = escalus_client:server(Alice),
         escalus:send(Alice, escalus_stanza:service_discovery(Server)),
         Stanza = escalus:wait_for_stanza(Alice),
-        escalus:assert(has_service, [?MUC_HOST], Stanza),
+        escalus:assert(has_service, [muc_host()], Stanza),
         escalus:assert(is_stanza_from, [escalus_config:get_config(ejabberd_domain, Config)], Stanza)
     end).
 
@@ -2590,7 +2605,7 @@ disco_features(Config) ->
         escalus:send(Alice, stanza_get_features()),
         Stanza = escalus:wait_for_stanza(Alice),
         has_features(Stanza),
-        escalus:assert(is_stanza_from, [?MUC_HOST], Stanza)
+        escalus:assert(is_stanza_from, [muc_host()], Stanza)
     end).
 
 disco_rooms(Config) ->
@@ -2599,7 +2614,7 @@ disco_rooms(Config) ->
         %% we should have room room_address(<<"aliceroom">>), created in init
         Stanza = escalus:wait_for_stanza(Alice),
         has_room(room_address(<<"alicesroom">>), Stanza),
-        escalus:assert(is_stanza_from, [?MUC_HOST], Stanza)
+        escalus:assert(is_stanza_from, [muc_host()], Stanza)
     end).
 
 disco_info(Config) ->
@@ -3614,7 +3629,7 @@ pagination_after10(Config) ->
 %%   </query>
 %% </iq>
 stanza_room_list_request(_QueryId, RSM) ->
-    escalus_stanza:iq(?MUC_HOST, <<"get">>, [#xmlel{
+    escalus_stanza:iq(muc_host(), <<"get">>, [#xmlel{
         name = <<"query">>,
         attrs = [{<<"xmlns">>,
                   <<"http://jabber.org/protocol/disco#items">>}],
@@ -3838,13 +3853,6 @@ print_next_message(User) ->
 print(Element) ->
     error_logger:info_msg("~n~p~n", [Element]).
 
-generate_rpc_jid({_,User}) ->
-    {username, Username} = lists:keyfind(username, 1, User),
-    {server, Server} = lists:keyfind(server, 1, User),
-    LUsername = escalus_utils:jid_to_lower(Username),
-    LServer = escalus_utils:jid_to_lower(Server),
-    {jid, Username, Server, <<"rpc">>, LUsername, LServer, <<"rpc">>}.
-
 %Groupchat 1.0 protocol
 stanza_groupchat_enter_room(Room, Nick) ->
     stanza_to_room(escalus_stanza:presence(<<"available">>), Room, Nick).
@@ -3855,12 +3863,6 @@ stanza_groupchat_enter_room_no_nick(Room) ->
 
 
 %Basic MUC protocol
-stanza_muc_enter_room(Room, Nick) ->
-    stanza_to_room(
-        escalus_stanza:presence(  <<"available">>,
-                                [#xmlel{ name = <<"x">>, attrs=[{<<"xmlns">>, <<"http://jabber.org/protocol/muc">>}]}]),
-        Room, Nick).
-
 stanza_muc_enter_password_protected_room(Room, Nick, Password) ->
     stanza_to_room(
         escalus_stanza:presence(  <<"available">>,
@@ -3871,15 +3873,6 @@ stanza_muc_enter_password_protected_room(Room, Nick, Password) ->
 stanza_change_nick(Room, NewNick) ->
     stanza_to_room(escalus_stanza:presence(<<"available">>), Room, NewNick).
 
-start_room(Config, User, Room, Nick, Opts) ->
-    From = generate_rpc_jid(User),
-    create_instant_room(<<"localhost">>, Room, From, Nick, Opts),
-    [{nick, Nick}, {room, Room} | Config].
-
-create_instant_room(Host, Room, From, Nick, Opts) ->
-    escalus_ejabberd:rpc(mod_muc, create_instant_room,
-        [Host, Room, From, Nick, Opts]).
-
 start_rsm_rooms(Config, User, Nick) ->
     From = generate_rpc_jid(User),
     [create_instant_room(
@@ -3888,7 +3881,7 @@ start_rsm_rooms(Config, User, Nick) ->
     Config.
 
 destroy_rsm_rooms(Config) ->
-    [destroy_room(?MUC_HOST, generate_room_name(N))
+    [destroy_room(muc_host(), generate_room_name(N))
      || N <- lists:seq(1, 15)],
     Config.
 
@@ -3900,22 +3893,6 @@ generate_room_addr(N) ->
 
 generate_room_addrs(FromN, ToN) ->
     [generate_room_addr(N) || N <- lists:seq(FromN, ToN)].
-
-destroy_room(Config) ->
-    destroy_room(?MUC_HOST, ?config(room, Config)).
-
-destroy_room(Host, Room) when is_binary(Host), is_binary(Room) ->
-    case escalus_ejabberd:rpc(
-            ets, lookup, [muc_online_room, {Room, Host}]) of
-        [{_,_,Pid}|_] -> gen_fsm:send_all_state_event(Pid, destroy);
-        _ -> ok
-    end.
-
-room_address(Room) ->
-    <<Room/binary, "@", ?MUC_HOST/binary>>.
-
-room_address(Room, Nick) ->
-    <<Room/binary, "@", ?MUC_HOST/binary, "/", Nick/binary>>.
 
 %%--------------------------------------------------------------------
 %% Helpers (stanzas)
@@ -4120,12 +4097,6 @@ stanza_destroy_room(Room) ->
 stanza_enter_room(Room, Nick) ->
     stanza_to_room(#xmlel{name = <<"presence">>}, Room, Nick).
 
-stanza_to_room(Stanza, Room, Nick) ->
-    escalus_stanza:to(Stanza, room_address(Room, Nick)).
-
-stanza_to_room(Stanza, Room) ->
-    escalus_stanza:to(Stanza, room_address(Room)).
-
 stanza_get_rooms() ->
     %% <iq from='hag66@shakespeare.lit/pda'
     %%   id='zb8q41f4'
@@ -4134,7 +4105,7 @@ stanza_get_rooms() ->
     %% <query xmlns='http://jabber.org/protocol/disco#items'/>
     %% </iq>
     escalus_stanza:setattr(escalus_stanza:iq_get(?NS_DISCO_ITEMS, []), <<"to">>,
-        ?MUC_HOST).
+        muc_host()).
 
 stanza_get_features() ->
     %% <iq from='hag66@shakespeare.lit/pda'
@@ -4144,7 +4115,7 @@ stanza_get_features() ->
     %%  <query xmlns='http://jabber.org/protocol/disco#info'/>
     %% </iq>
     escalus_stanza:setattr(escalus_stanza:iq_get(?NS_DISCO_INFO, []), <<"to">>,
-        ?MUC_HOST).
+        muc_host()).
 
 stanza_get_services(Config) ->
     %% <iq from='hag66@shakespeare.lit/pda'
@@ -4389,7 +4360,7 @@ has_muc(#xmlel{children = [ #xmlel{children = Services} ]}) ->
     %% S = escalus:wait_for_stanza(Alice),
     %% error_logger:info_msg("~p~n", [S]),
     IsMUC = fun(Item) ->
-        exml_query:attr(Item, <<"jid">>) == ?MUC_HOST
+        exml_query:attr(Item, <<"jid">>) == muc_host()
     end,
     lists:any(IsMUC, Services).
 

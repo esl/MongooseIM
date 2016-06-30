@@ -11,8 +11,6 @@
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("exml/include/exml.hrl").
 
--define(DOMAIN, <<"localhost">>).
-
 all() -> [{group, Group} || Group <- enabled_group_names()].
 
 enabled_group_names() ->
@@ -100,9 +98,9 @@ init_per_suite(C) -> escalus:init_per_suite(C).
 end_per_suite(C) -> ok = escalus_fresh:clean(), escalus:end_per_suite(C).
 
 init_per_group(GroupName, Config) ->
-    ConfigWithModules = dynamic_modules:save_modules(?DOMAIN, Config),
+    ConfigWithModules = dynamic_modules:save_modules(domain(), Config),
     ConfigWithRules = setup_rules(GroupName, ConfigWithModules),
-    dynamic_modules:ensure_modules(?DOMAIN, required_modules(GroupName)),
+    dynamic_modules:ensure_modules(domain(), required_modules(GroupName)),
     setup_meck(GroupName),
     save_offline_status(GroupName, ConfigWithRules).
 
@@ -123,7 +121,7 @@ save_offline_status(_GN, Config) -> Config.
 
 end_per_group(GroupName, Config) ->
     teardown_meck(GroupName),
-    dynamic_modules:restore_modules(?DOMAIN, Config).
+    dynamic_modules:restore_modules(domain(), Config).
 
 teardown_meck(G) when G == mam_failure;
                       G == offline_failure ->
@@ -895,13 +893,13 @@ amp_error_container(<<"unsupported-conditions">>) -> <<"unsupported-conditions">
 amp_error_container(<<"undefined-condition">>) -> <<"failed-rules">>.
 
 is_odbc_enabled() ->
-    case escalus_ejabberd:rpc(ejabberd_odbc, sql_transaction, [?DOMAIN, fun erlang:yield/0]) of
+    case escalus_ejabberd:rpc(ejabberd_odbc, sql_transaction, [domain(), fun erlang:yield/0]) of
         {atomic, _} -> true;
         _ -> false
     end.
 
 is_module_loaded(Mod) ->
-    escalus_ejabberd:rpc(gen_mod, is_loaded, [?DOMAIN, Mod]).
+    escalus_ejabberd:rpc(gen_mod, is_loaded, [domain(), Mod]).
 
 required_modules(basic) ->
     mam_modules(off) ++ offline_modules(off);
@@ -927,3 +925,6 @@ offline_modules(on) ->
 offline_modules(off) ->
     [{mod_offline, stopped},
      {mod_offline_stub, []}].
+
+domain() ->
+    ct:get_config({hosts, mim, domain}).
