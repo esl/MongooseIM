@@ -82,7 +82,7 @@
         },
         "/{XMPPHost}/roster": {
             "get": {
-                "description": "Rosters under the give XMPP host (**this might need pagining if we list all rosters under the given XMPP host**)",
+                "description": "A list of all rosters under the given XMPP host. This response is **paged** because there may be many users.",
                 "parameters": [
                     {
                         "name": "XMPPHost",
@@ -284,7 +284,7 @@
                 }
             ],
             "get": {
-                "description": "Get information about all registered users.",
+                "description": "Get information about all registered users. This response is **paged** because there may be many users.",
                 "responses": {
                     "200": {
                         "description": "Success response listing all registered users",
