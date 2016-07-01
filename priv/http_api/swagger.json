@@ -1,0 +1,352 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "version": "0.0.0",
+        "title": "MIM HTTP Control API",
+        "description": "This HTTP API provides similar control functionaly to the `mongooseimctl` command. The response objects are modeled on the `ejabberd_commands` entries and print-outs from `mongooseimctl` though the final API will need to be consistent with the MongooseIM's **command registry**."
+    },
+    "schemes": [
+        "http"
+    ],
+    "basePath": "/api",
+    "produces": [
+        "application/json"
+    ],
+    "paths": {
+        "/status": {
+            "get": {
+                "description": "The status of MongooseIM on the given host.",
+                "responses": {
+                    "200": {
+                        "description": "Success response with the status of the MongooseIM node",
+                        "schema": {
+                            "title": "MIMStatus",
+                            "type": "object",
+                            "properties": {
+                                "hostname": {
+                                    "type": "string"
+                                },
+                                "osPID": {
+                                    "type": "integer"
+                                },
+                                "version": {
+                                    "type": "string"
+                                },
+                                "uptime": {
+                                    "type": "string"
+                                },
+                                "logLocation": {
+                                    "type": "string",
+                                    "format": "directory"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/{XMPPHost}": {
+            "get": {
+                "description": "Information about the given XMPP host (**what information should we return?**).",
+                "parameters": [
+                    {
+                        "name": "XMPPHost",
+                        "in": "path",
+                        "description": "The XMPP hostname",
+                        "required": true,
+                        "type": "string",
+                        "format": "hostname"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful response with information about the given XMPP host",
+                        "schema": {
+                            "title": "XMPPHost",
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string"
+                                },
+                                "information": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Failure response because the given XMPP host does not exist"
+                    }
+                }
+            }
+        },
+        "/{XMPPHost}/roster": {
+            "get": {
+                "description": "Rosters under the give XMPP host (**this might need pagining if we list all rosters under the given XMPP host**)",
+                "parameters": [
+                    {
+                        "name": "XMPPHost",
+                        "in": "path",
+                        "description": "The XMPP hostname",
+                        "required": true,
+                        "type": "string",
+                        "format": "text"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success response with a list of links to all the rosters under the given XMPP host",
+                        "schema": {
+                            "title": "RosterTable",
+                            "type": "array",
+                            "items": {
+                                "title": "RosterLink",
+                                "type": "object",
+                                "properties": {
+                                    "username": {
+                                        "type": "string"
+                                    },
+                                    "link": {
+                                        "type": "string",
+                                        "format": "link"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/{XMPPHost}/roster/{username}": {
+            "parameters": [
+                {
+                    "name": "XMPPHost",
+                    "in": "path",
+                    "description": "The XMPP hostname",
+                    "required": true,
+                    "type": "string"
+                },
+                {
+                    "name": "username",
+                    "in": "path",
+                    "description": "The username part of a JID",
+                    "required": true,
+                    "type": "string"
+                }
+            ],
+            "get": {
+                "description": "Roster information for the given user under the given XMPP host.",
+                "responses": {
+                    "200": {
+                        "description": "Success response with the roster for a given user",
+                        "schema": {
+                            "title": "Roster",
+                            "type": "array",
+                            "items": {
+                                "title": "Contact",
+                                "type": "object",
+                                "properties": {
+                                    "jid": {
+                                        "type": "string"
+                                    },
+                                    "nick": {
+                                        "type": "string"
+                                    },
+                                    "subscription": {
+                                        "type": "string",
+                                        "format": "binary"
+                                    },
+                                    "ask": {
+                                        "type": "string",
+                                        "format": "bianry"
+                                    },
+                                    "group": {
+                                        "type": "array",
+                                        "items": {
+                                            "title": "Group",
+                                            "type": "string",
+                                            "format": "binary"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Failure response because the given user does not exist under this XMPP host"
+                    }
+                }
+            },
+            "post": {
+                "description": "Add an item to the given user's roster.",
+                "consumes": [
+                    "application/json"
+                ],
+                "parameters": [
+                    {
+                        "name": "Item",
+                        "in": "body",
+                        "description": "The item to be placed into the user's roster (XMPP hostname passed through the path)",
+                        "required": true,
+                        "schema": {
+                            "title": "Item",
+                            "type": "object",
+                            "properties": {
+                                "username": {
+                                    "type": "string"
+                                },
+                                "XMPPHostname": {
+                                    "type": "string"
+                                },
+                                "nick": {
+                                    "type": "string"
+                                },
+                                "groups": {
+                                    "type": "array",
+                                    "items": {
+                                        "title": "Group",
+                                        "type": "object",
+                                        "properties": {
+                                            "name": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    }
+                                },
+                                "subs": {
+                                    "type": "array",
+                                    "items": {
+                                        "title": "Group",
+                                        "type": "object",
+                                        "properties": {
+                                            "name": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The item was successfully posted for the give user"
+                    }
+                }
+            },
+            "delete": {
+                "description": "Remove an item from a user's roster.",
+                "parameters": [
+                    {
+                        "name": "ItemID",
+                        "in": "body",
+                        "description": "The item to be placed into the user's roster (XMPP hostname passed through the path)",
+                        "required": true,
+                        "schema": {
+                            "title": "Item",
+                            "type": "object",
+                            "properties": {
+                                "username": {
+                                    "type": "string"
+                                },
+                                "XMPPHostname": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The item was successfully removed"
+                    }
+                }
+            }
+        },
+        "/{XMPPHost}/register": {
+            "parameters": [
+                {
+                    "name": "XMPPHost",
+                    "in": "path",
+                    "description": "The XMPP hostname",
+                    "required": true,
+                    "type": "string"
+                }
+            ],
+            "get": {
+                "description": "Get information about all registered users otherwise we could need paging.",
+                "responses": {
+                    "200": {
+                        "description": "Success response listing all registered users",
+                        "schema": {
+                            "title": "Resgister",
+                            "type": "array",
+                            "items": {
+                                "title": "Username",
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Register a user.",
+                "consumes": [
+                    "application/json"
+                ],
+                "parameters": [
+                    {
+                        "name": "Credentials",
+                        "in": "body",
+                        "description": "Credentials for the user to be registered (XMPP hostname passed through the path)",
+                        "required": true,
+                        "schema": {
+                            "title": "Credentials",
+                            "type": "object",
+                            "properties": {
+                                "username": {
+                                    "type": "string"
+                                },
+                                "password": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Register the given entitiy"
+                    },
+                    "500": {
+                        "description": "Catch-all failure response for the time being"
+                    }
+                }
+            },
+            "delete": {
+                "description": "Cancel a user's registration",
+                "parameters": [
+                    {
+                        "name": "Username",
+                        "in": "body",
+                        "description": "The username part of a JID (XMPP hostname passed through the path)",
+                        "required": true,
+                        "schema": {
+                            "title": "username",
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Cancelation successful"
+                    },
+                    "404": {
+                        "description": "Could not find the given user on the the XMPP host"
+                    }
+                }
+            }
+        }
+    }
+}
