@@ -15,7 +15,7 @@ The list below contains the high-level features required from a new variant of M
 1. The full occupant list is always available to all occupants.
 1. Occupant is always visible on the list, even if it does not have any resources online.
 1. Occupants can only have two affiliations: owner and member.
-1. There must be at most one owner in the room (the service can choose to treat all users equally).
+1. There MUST be at most one owner in the room (the service can choose to treat all users equally).
 1. If the room becomes empty, it is destroyed.
 1. Occupants cannot hide behind nicks. Their real bare JID is always visible to everyone
 1. No exchange of any <presence/> stanza inside the room.
@@ -1032,7 +1032,7 @@ The <message/> element inside <forwarded> MUST include "from" attribute and MUST
 
 In case of regular groupchat messages, "from" attribute MUST consist of a room full JID with sender bare JID in the resource part. As for room notification, e.g. create event, "from" MUST be equal to room bare JID.
 
-** protocol. Archive can be fetched only from a specific room, the client MUST NOT query MUC Light service directly.**
+Examples below use MAM v0.4  protocol. Archive can be fetched only from a specific room, the client MUST NOT query MUC Light service directly.
 
 ### 6.2.1 Groupchat message from occupant
 
