@@ -11,8 +11,6 @@ pages:
       - 'Get to know MongooseIM': 'user-guide/Get-to-know-MongooseIM.md'
       - 'Getting started': 'user-guide/Getting-started.md'
       - 'Release/Installation configuration': 'user-guide/release_config.md'
-      - 'MUC light': 'user-guide/muc_light.md'
-      - 'Token-based reconnection': 'user-guide/token-reconnection.md'
   - 'Basic Configuration Overview': 'Basic-configuration.md'
   - 'Advanced Configuration Overview': 'Advanced-configuration.md'
   - 'Advanced Configuration':
@@ -21,6 +19,9 @@ pages:
       - 'Listener Modules': 'advanced-configuration/Listener-modules.md'
       - 'Extension Modules': 'advanced-configuration/Modules.md'
       - 'ACL': 'advanced-configuration/acl.md'
+  - 'MongooseIM open XMPP extensions':
+      - 'MUC light': 'open-extensions/muc_light.md'
+      - 'Token-based reconnection': 'open-extensions/token-reconnection.md'
   - 'Modules':
       - 'mod_adhoc': 'modules/mod_adhoc.md'
       - 'mod_admin_extra': 'modules/mod_admin_extra.md'
