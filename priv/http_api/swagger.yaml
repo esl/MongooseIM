@@ -83,6 +83,8 @@ paths:
                 link:
                   type: string
                   format: link
+        404:
+          description: Failure response because the given XMPP host does not exist
   /{XMPPHost}/roster/{username}:
     parameters:
       -
@@ -126,7 +128,7 @@ paths:
                     type: string
                     format: binary
         404:
-          description: Failure response because the given user does not exist under this XMPP host
+          description: Failure response because the given user does not exist under this XMPP host or the XMPP host itself does not exist
     post:
       description: Add an item to the given user's roster.
       consumes:
@@ -166,6 +168,8 @@ paths:
       responses: 
         200:
           description: The item was successfully posted for the give user
+        404:
+          description: Failure response because the given user does not exist under this XMPP host or the XMPP host itself does not exist
     delete:
       description: Remove an item from a user's roster.
       parameters:
@@ -185,7 +189,8 @@ paths:
       responses:
         200:
           description: The item was successfully removed 
-    
+        404:
+          description: Failure response because the given user does not exist under this XMPP host or the XMPP host itself does not exist    
   /{XMPPHost}/register:
     parameters:
         -
@@ -195,7 +200,7 @@ paths:
           required: true
           type: string
     get:
-      description: Get information about all registered users otherwise we could need paging.
+      description: Get information about all registered users.
       responses:
         200:
           description: Success response listing all registered users
@@ -205,6 +210,8 @@ paths:
             items:
               title: Username
               type: string
+        404:
+          description: Failure response because the given XMPP host does not exist
     post:
       description: Register a user.
       consumes:
@@ -226,6 +233,10 @@ paths:
       responses:
         200:
           description: Register the given entitiy
+        404:
+          description: Failure response because the given XMPP host does not exist
+        409:
+          description: This username is already registered with another entity under this XMPP host
         500:
           description: Catch-all failure response for the time being
     delete:
@@ -243,4 +254,4 @@ paths:
         200:
           description: Cancelation successful
         404:
-          description: Could not find the given user on the the XMPP host
+          description: Could not find the given user under the XMPP host
