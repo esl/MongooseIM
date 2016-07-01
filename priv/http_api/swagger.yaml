@@ -255,3 +255,54 @@ paths:
           description: Cancelation successful
         404:
           description: Could not find the given user under the XMPP host
+  /cluster:
+    get:
+      description: Retrieve a list of clustered MongooseIM nodes.
+      responses:
+        200:
+          description: Success response with a list of clustered MongooseIM nodes.
+          schema:
+            title: Cluster
+            type: array
+            items:
+              title: Node
+              type: string
+    post:
+      parameters:
+        -
+          name: Node
+          in: body
+          description: The name of a node to cluster with
+          required: true
+          schema:
+            title: None
+            type: string
+      description: Ask this node to join a cluster.
+      responses:
+        200:
+          description: Successfully joined the given cluster.
+        409:
+          description: The client's request conflicts with the server's current state, because in the current state of the world, MongooseIM can not contact the specified node.
+    delete:
+      description: Ask this node to leave a cluster. This request is only valid when sending the name of the current node to a clustered MongooseIM node.
+      parameters:
+        -
+          name: Node
+          in: body
+          description: The name of **this** node.
+          required: true
+          schema:
+            title: Node
+            type: string
+      responses:
+        200:
+          description: Successfully left the cluster.
+          schema:
+            description: "NOTE: this should be an empty array as this node will not be clustered with any other nodes."
+            title: Cluster
+            type: array
+            items:
+              title: Node
+              type: string
+        500:
+          description: MongooseIM does not know how to service this request because one or both of the assumptions given above (in the request's description section) is violated
