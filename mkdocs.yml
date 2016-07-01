@@ -11,6 +11,7 @@ pages:
       - 'Get to know MongooseIM': 'user-guide/Get-to-know-MongooseIM.md'
       - 'Getting started': 'user-guide/Getting-started.md'
       - 'Release/Installation configuration': 'user-guide/release_config.md'
+      - 'MUC light': 'user-guide/muc_light.md'
       - 'Token-based reconnection': 'user-guide/token-reconnection.md'
   - 'Basic Configuration Overview': 'Basic-configuration.md'
   - 'Advanced Configuration Overview': 'Advanced-configuration.md'
