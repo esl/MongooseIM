@@ -190,7 +190,7 @@ paths:
         200:
           description: The item was successfully removed 
         404:
-          description: Failure response because the given user does not exist under this XMPP host or the XMPP host itself does not exist    
+          description: Failure response because the given user does not exist under this XMPP host or the XMPP host itself does not exist
   /{XMPPHost}/register:
     parameters:
         -
@@ -255,12 +255,110 @@ paths:
           description: Cancelation successful
         404:
           description: Could not find the given user under the XMPP host
+  /{XMPPHost}/session:
+    get:
+      parameters:
+        -
+          name: XMPPHost
+          in: path
+          description: The XMPP hostname
+          required: true
+          type: string
+      description: Retrieve **pagianted** session information for the given XMMP host.
+      responses:
+        200:
+          description: Retrieve session information for the given XMPP host.
+          schema:
+            title: Sessions
+            type: array
+            items:
+              title: Session
+              type: object
+              properties:
+                sid:
+                  type: string
+                jid:
+                  type: string
+                connection:
+                  type: string
+                ipAddr:
+                  type: string
+                port:
+                  type: integer
+                priority:
+                  type: integer
+                node:
+                  type: string
+                uptime:
+                  type: string
+        404:
+          description: Failure response because the given XMPP host does not exist
+  /{XMPPHost}/session/{username}:
+    parameters:
+      -
+        name: XMPPHost
+        in: path
+        description: The XMPP hostname
+        required: true
+        type: string
+      -
+        name: username
+        in: path
+        description: The username part of a JID
+        required: true
+        type: string
+    delete:
+      description: Kick a user session
+      parameters:
+        -
+          name: resource
+          in: body
+          description: The user's resource with the corresponding session to  kick
+          required: true
+          schema:
+            title: resource
+            type: string
+      responses:
+        200:
+          description: User kicked
+        404:
+          description: Failure response because the given user does not exist under this XMPP host or the XMPP host itself does not exist
+    get:
+      description: The session information for the given user.
+      responses:
+        200:
+          description: Retrieve the session information for the given user
+          schema:
+            title: Sessions
+            type: array
+            items:
+              title: Session
+              type: object
+              properties:
+                sid:
+                  type: string
+                jid:
+                  type: string
+                connection:
+                  type: string
+                ipAddr:
+                  type: string
+                port:
+                  type: integer
+                priority:
+                  type: integer
+                node:
+                  type: string
+                uptime:
+                  type: string
+        404:
+          description: Failure response because the given user does not exist under this XMPP host or the XMPP host itself does not exist
   /cluster:
     get:
       description: Retrieve a list of clustered MongooseIM nodes.
       responses:
         200:
-          description: Success response with a list of clustered MongooseIM nodes.
+          description: Success response with a list of clustered MongooseIM nodes
           schema:
             title: Cluster
             type: array
@@ -280,16 +378,16 @@ paths:
       description: Ask this node to join a cluster.
       responses:
         200:
-          description: Successfully joined the given cluster.
+          description: Successfully joined the given cluster
         409:
-          description: The client's request conflicts with the server's current state, because in the current state of the world, MongooseIM can not contact the specified node.
+          description: The client's request conflicts with the server's current state, because in the current state of the world, MongooseIM can not contact the specified node
     delete:
       description: Ask this node to leave a cluster. This request is only valid when sending the name of the current node to a clustered MongooseIM node.
       parameters:
         -
           name: Node
           in: body
-          description: The name of **this** node.
+          description: The name of **this** node
           required: true
           schema:
             title: Node
