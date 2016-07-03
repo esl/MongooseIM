@@ -580,6 +580,44 @@
                     }
                 }
             }
+        },
+        "/message": {
+            "post": {
+                "description": "Send a chat message.",
+                "parameters": [
+                    {
+                        "name": "Stanza",
+                        "in": "body",
+                        "description": "The XMPP message.",
+                        "required": true,
+                        "schema": {
+                            "title": "Stanza",
+                            "type": "object",
+                            "properties": {
+                                "from": {
+                                    "description": "A JID",
+                                    "type": "string"
+                                },
+                                "to": {
+                                    "description": "A JID",
+                                    "type": "string"
+                                },
+                                "stanza": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Stanza is sent."
+                    },
+                    "500": {
+                        "description": "Either or both of the sender or recipient do not exists. The JIDs or the stanza are badly formatted"
+                    }
+                }
+            }
         }
     }
 }
