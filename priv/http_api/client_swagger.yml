@@ -1,0 +1,177 @@
+# Example YAML to get you started quickly.
+# Be aware that YAML has indentation based scoping.
+# Code completion support is available so start typing for available options.
+swagger: '2.0'
+
+# This is your document metadata
+info:
+  version: "0.0.1"
+  title: "MongooseIM client API"
+  description: |
+    This API described alternate, to XMPP way of using MongooseIM.
+    All the requests requires authantication. Thanks to that the server always knows
+    who sent the request and can decide wheter given user is authorized or not
+
+# Describe your paths here
+paths:
+  # This is a path endpoint. Change it.
+  /messages:
+    # This is a HTTP operation
+    get:
+      # Describe this verb here. Note: you can use markdown
+      description: |
+        Gets recent messages from the archive. For the authenticated user.
+        Optional query param of **size** determines
+        size of returned array
+      # This is array of GET operation parameters:
+      parameters:
+        # An example parameter that is in query and is required
+        - name: size
+          in: query
+          description: Number of recent messages to return. Default is 50
+          required: false
+          type: number
+          format: integer
+      # Expected responses for this operation:
+      responses:
+        # Response code
+        200:
+          description: Successful response
+          # A schema describing your response object.
+          # Use JSON Schema format
+          schema:
+            title: Messages
+            type: array
+            items:
+              $ref: '#/definitions/Message'
+    post:
+      description: |
+        Sends message to given recipient
+      parameters:
+        - name: message
+          in: body
+          description: |
+            The message to be sent. Parameter `id` is not required here, will be added by
+            the server. Also the server verifies is the `from` attribute is the same as
+            the authenticated user. If the `from` parameter is ommited, servwer will fill
+            it based on the authenticated user.
+          required: true
+          schema:
+            $ref: '#/definitions/Message'
+      responses:
+        200:
+          description: The message was sent.
+          schema:
+            title: MessageID
+            type: string
+  /groups:
+    get:
+      description: Returns all groups to which the user is subscribed
+      responses:
+        200:
+          description: List of groups
+          schema:
+            title: Groups
+            type: array
+            items:
+              $ref: '#/definitions/Group'
+    post:
+      description: Creates  new group
+      parameters:
+       - name: group
+         in: body
+         description: Creates new group of given name and sends invitation to specified users.
+         schema:
+           title: Group
+           properties:
+             id:
+               $ref: '#/definitions/JID'
+             name:
+               type: string
+             occupants:
+               type: array
+               items:
+                 $ref: '#/definitions/JID'
+      responses:
+        200:
+          description: OK
+  /groups/{id}:
+    get:
+      description: Retruns detailed information about given group.
+      parameters:
+        - name: id
+          in: path
+          description: Group's unique id as described in the JID definition.
+          type: string
+          required: true
+      responses:
+        200:
+          description: OK
+          schema:
+            title: Group
+            properties:
+              name:
+                type: string
+              occupant:
+                type: array
+                items:
+                  $ref: '#/definitions/JID'
+  /groups/{id}/messages:
+    get:
+      description: Returns messages exchanged in given group. TODO pagination
+      parameters:
+        - name: id
+          in: path
+          description: Group's unique id as described in the JID definition.
+          type: string
+          required: true
+      responses:
+        200:
+          description: List messages
+          schema:
+            title: ListOfMessages
+            type: array
+            items:
+              $ref: '#/definitions/Message'
+    post:
+      description: Sends a message to given group
+      parameters:
+        - in: path
+          name: id
+          description: Group's unique id as described in the JID definition.
+          required: true
+          type: string
+        - in: body
+          name: message
+          description: The message to be sent
+          required: true
+          type: string
+      responses:
+        200:
+          description: Sent message id
+          schema:
+            title: MessageID
+            type: string
+definitions:
+  Message:
+    properties:
+      from:
+        $ref: '#/definitions/JID'
+      to:
+        $ref: '#/definitions/JID'
+      id:
+        type: string
+      body:
+        type: string
+  JID:
+    type: string
+    description: |
+      This is user's JID (Jabber ID) which consist of username and serwer.
+      Example: alice@wonderland.com
+  Group:
+    properties:
+      id:
+        $ref: '#/definitions/JID'
+      name:
+        type: string
+
