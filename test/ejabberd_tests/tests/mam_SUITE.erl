@@ -44,6 +44,7 @@
          prefs_set_request/1,
          retrive_form_fields/1,
          prefs_set_cdata_request/1,
+         query_get_request/1,
          pagination_first5/1,
          pagination_last5/1,
          pagination_before10/1,
@@ -350,6 +351,7 @@ rsm_cases() ->
 prefs_cases() ->
     [prefs_set_request,
      prefs_set_cdata_request,
+     query_get_request,
      run_prefs_cases,
      run_set_and_get_prefs_cases].
 
@@ -2037,6 +2039,21 @@ prefs_set_request(Config) ->
         end,
     escalus:story(Config, [{alice, 1}], F).
 
+query_get_request(Config) ->
+    F = fun(Alice) ->
+        QueryXmlns = mam_ns_binary_v04(),
+        escalus:send(Alice, stanza_query_get_request(QueryXmlns)),
+        ReplyFields = escalus:wait_for_stanza(Alice),
+        ResponseXmlns = exml_query:path(ReplyFields,
+            [{element, <<"query">>},
+             {element, <<"x">>},
+             {element, <<"field">>},
+             {element, <<"value">>},
+              cdata]),
+        ?assert_equal(QueryXmlns, ResponseXmlns)
+        end,
+    escalus:story(Config, [{alice, 1}], F).
+
 %% Test reproducing https://github.com/esl/MongooseIM/issues/263
 %% The idea is this: in a "perfect" world jid elements are put together
 %% without whitespaces. In the real world it is not true.
@@ -2379,6 +2396,12 @@ stanza_prefs_get_request(Namespace) ->
     escalus_stanza:iq(<<"get">>, [#xmlel{
        name = <<"prefs">>,
        attrs = [{<<"xmlns">>, Namespace}]
+    }]).
+
+stanza_query_get_request(Namespace) ->
+    escalus_stanza:iq(<<"get">>, [#xmlel{
+        name = <<"query">>,
+        attrs = [{<<"xmlns">>, Namespace}]
     }]).
 
 %% Allows to cdata to be put as it is
