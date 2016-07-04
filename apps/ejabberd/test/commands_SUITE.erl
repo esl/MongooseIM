@@ -4,6 +4,7 @@
 -include_lib("exml/include/exml.hrl").
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("ejabberd/include/ejabberd_commands.hrl").
+-include_lib("ejabberd/include/mongoose_commands.hrl").
 
 -define(PRT(X, Y), ct:pal("~p: ~p", [X, Y])).
 
@@ -12,15 +13,28 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 all() ->
-    [ {group, old_commands} ].
+    [
+%%        {group, old_commands},
+        {group, new_commands}
+    ].
 
 groups() ->
-    [{old_commands, [sequence],
-        [old_list,
-         old_exec,
-         old_access_ctl
-        ]
-    }].
+    [
+        {old_commands, [sequence],
+            [
+                old_list,
+                old_exec,
+                old_access_ctl
+            ]
+        },
+        {new_commands, [sequence],
+            [
+                new_type_checker,
+                new_list,
+                new_execute
+            ]
+        }
+    ].
 
 glo({auth_method, _}) ->
     dummy;
@@ -45,6 +59,9 @@ init_per_suite(C) ->
 
 init_per_group(old_commands, C) ->
     spawn(fun ec_holder/0),
+    C;
+init_per_group(new_commands, C) ->
+    spawn(fun mc_holder/0),
     C.
 
 end_per_group(_, C) ->
@@ -67,6 +84,32 @@ end_per_testcase(_, C) ->
 %%%% test methods
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+
+new_type_checker(_C) ->
+    true = t_check_type({msg, binary}, <<"zzz">>),
+    true = t_check_type({msg, integer}, 127),
+    {false, _} = t_check_type({{a, binary}, {b, integer}}, 127),
+    true = t_check_type({{a, binary}, {b, integer}}, {<<"z">>, 127}),
+    true = t_check_type({ok, {msg, integer}}, {ok, 127}),
+    true = t_check_type({ok, {msg, integer}, {val, binary}}, {ok, 127, <<"z">>}),
+    {false, _} = t_check_type({k, {msg, integer}, {val, binary}}, {ok, 127, <<"z">>}),
+    {false, _} = t_check_type({ok, {msg, integer}, {val, binary}}, {ok, 127, "z"}),
+    {false, _} = t_check_type({ok, {msg, integer}, {val, binary}}, {ok, 127, <<"z">>, 333}),
+    true = t_check_type([integer], []),
+    true = t_check_type([integer], [1, 2, 3]),
+    {false, _} = t_check_type([integer], [1, <<"z">>, 3]),
+    ok.
+
+t_check_type(Spec, Value) ->
+    R = try mongoose_commands:check_type(Spec, Value) of
+            true -> true
+        catch
+            E ->
+                {false, E}
+        end,
+    R.
+
+
 old_list(_C) ->
     %% list
     Rlist = ejabberd_commands:list_commands(),
@@ -74,7 +117,7 @@ old_list(_C) ->
     %% get definition
     Rget = ejabberd_commands:get_command_definition(command_one),
     % we should get back exactly the definition we provided
-    [Cone|_] = commands_old(),
+    [Cone | _] = commands_old(),
     Cone = Rget,
     %% get interface
     {Argspec, Retspec} = ejabberd_commands:get_command_format(command_one),
@@ -120,9 +163,43 @@ old_access_ctl(_C) ->
     ok.
 
 
+new_list(_C) ->
+    %% list
+    Rlist = mongoose_commands:list_commands(admin),
+    {command_one, _, "do nothing and return"} = proplists:lookup(command_one, Rlist),
+    %% list for a user
+    [] = mongoose_commands:list_commands(a_user),
+    %% get definition
+    Rget = mongoose_commands:get_command_definition(admin, command_one),
+    % we should get back exactly the definition we provided
+    [Cone | _] = commands_new(),
+    Cone = Rget,
+    {error, denied, _} = mongoose_commands:get_command_definition(a_user, command_one),
+    ok.
+
+new_execute(_C) ->
+    {ok, <<"bzzzz">>} = mongoose_commands:execute(admin, command_one, [<<"bzzzz">>]),
+    {error, denied, _} = mongoose_commands:execute(a_user, command_one, [<<"bzzzz">>]),
+    {error, not_implemented, _} = mongoose_commands:execute(admin, command_seven, [<<"bzzzz">>]),
+    {error, type_error, _} = mongoose_commands:execute(admin, command_one, [123]),
+    {error, type_error, _} = mongoose_commands:execute(admin, command_one, []),
+    {error, internal, _} = mongoose_commands:execute(admin, command_one, [<<"throw">>]),
+    ok.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%% definitions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+commands_new() ->
+    [
+        #mongoose_command{name = command_one, tags = [roster],
+            desc = "do nothing and return",
+            module = ?MODULE, function = cmd_one,
+            action = get,
+            args = [{msg, binary}],
+            result = {ok, {msg, binary}}
+        }
+    ].
 
 commands_old() ->
     [
@@ -143,8 +220,11 @@ commands_old() ->
             result = {res, restuple}}
     ].
 
+cmd_one(<<"throw">>) ->
+    C = 12,
+    <<"A", C/binary>>;
 cmd_one(M) ->
-    {ok, M}.
+    M.
 
 cmd_two(M) ->
     M.
@@ -157,6 +237,13 @@ cmd_two(M) ->
 ec_holder() ->
     ejabberd_commands:init(),
     ejabberd_commands:register_commands(commands_old()),
+    receive
+        _ -> ok
+    end.
+
+mc_holder() ->
+    mongoose_commands:init(),
+    mongoose_commands:register_commands(commands_new()),
     receive
         _ -> ok
     end.
