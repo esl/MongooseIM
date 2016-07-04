@@ -1,3 +1,73 @@
+%% @headerfile "mongoose_commands.hrl"
+%%
+%% @doc Mongoose version of command management
+%% The following is based on old ejabberd_commands implementation,
+%% with some modification related to type check, permission control
+%% and the likes.
+%%
+%% This is a central registry of commands which can be exposed via
+%% REST, XMPP as ad-hoc commands or in any other way. Any module can
+%% define its commands and register them here.
+%%
+%% ==== Usage ====
+%%
+%% A module defines a list of #mongoose_command records. The record is
+%% defined and described in the header file.
+%%
+%% Commands are then registered here upon the module's initialisation
+%% (the module has to explicitly call mongoose_commands:register_commands/1
+%% func, it doesn't happen automagically), also should be unregistered when module
+%% terminates.
+%%
+%% Commands are executed by calling mongoose_commands:execute/3 method. This
+%% can return:
+%% {ok, Result}
+%% {error, denied, Msg} if user has no permission
+%% {error, not_implemented, Msg}
+%% {error, type_error, Msg} if either arguments or return value does not match
+%% {error, internal, Msg} if an exception was caught
+%%
+%% ==== Type check ====
+%%
+%% A command's definition includes specification of it arguments; when
+%% it is called, arguments are check for compatibility. Examples of specs
+%% and compliant arguments:
+%%
+%% a single type spec
+%% integer                          2
+%% binary                           <<"zzz">>
+%% atom                             brrr
+%% a list of arbitrary length, of a given type
+%% [integer]                        []
+%% [integer]                        [1]
+%% [integer]                        [1,2,3,4]
+%% a named argument (name is only for clarity)
+%% {msg, binary}                    <<"zzz">>
+%% a tuple of args
+%% {integer, binary, float}         {1, <<"2">>, 3.0}
+%% a tuple of named args
+%% {{x, integer}, {y, binary}}      {1, <<"bbb">>}
+%%
+%% Arg specification is used at call-time for control, and also for introspection
+%% (mongoose_commands:get_command_definition/2)
+%%
+%% Return value is also specified, and this is a bit tricky: command definition
+%% contains spec of return value, which MUST be a tuple {ok, term()}, where
+%% the "term()" is what the called function is expected to return. The
+%% execute/3 method will return {ok, term()}. Return value is checked
+%% and the registry returns an error if it does not match.
+%%
+%% ==== Permission control ====
+%%
+%% First argument to every function exported from this module is always
+%% a user. If you call it from trusted place, you can pass 'admin' here and
+%% the whole permission check is skipped. Otherwise, pass #jid record.
+%%
+%% A command must define a security policy to be applied
+%% (and this is not yet designed)
+%%
+
+
 -module(mongoose_commands).
 -author("bartlomiej.gorny@erlang-solutions.com").
 -include("mongoose_commands.hrl").
