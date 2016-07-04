@@ -643,7 +643,8 @@ form_type_field(MamNs) when is_binary(MamNs) ->
     #xmlel{name = <<"field">>,
            attrs = [{<<"type">>, <<"hidden">>},
                     {<<"var">>, <<"FORM_TYPE">>}],
-           children = [#xmlcdata{content = MamNs}]}.
+           children = [#xmlel{name = <<"value">>,
+                              children = [#xmlcdata{content = MamNs}]}]}.
 
 form_field(Type, VarName) ->
     #xmlel{name = <<"field">>,
