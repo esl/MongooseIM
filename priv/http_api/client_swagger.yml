@@ -5,7 +5,7 @@ info:
   description: |
     This API described alternate, to XMPP way of using MongooseIM.
     All the requests requires authantication. Thanks to that the server always knows
-    who sent the request and can decide wheter given user is authorized or not
+    who sent the request and can decide whether given user is authorized or not
 basePath: /v1
 schemes:
   - https
@@ -73,7 +73,7 @@ paths:
             items:
               $ref: '#/definitions/Group'
     post:
-      description: Creates  new group
+      description: Creates new group
       parameters:
        - name: group
          in: body
@@ -94,11 +94,11 @@ paths:
           description: OK
   /groups/{id}:
     get:
-      description: Retruns detailed information about given group.
+      description: Returns detailed information about given group.
       parameters:
         - name: id
           in: path
-          description: Group's unique id as described in the JID definition.
+          description: Group's unique ID as described in the JID definition.
           type: string
           required: true
       responses:
@@ -135,7 +135,7 @@ paths:
       parameters:
         - in: path
           name: id
-          description: Group's unique id as described in the JID definition.
+          description: Group's unique ID as described in the JID definition.
           required: true
           type: string
         - in: body
@@ -147,7 +147,7 @@ paths:
             type: string
       responses:
         200:
-          description: Sent message id
+          description: Sent message ID
           schema:
             title: MessageID
             type: string
