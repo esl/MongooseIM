@@ -57,6 +57,9 @@
 %% execute/3 method will return {ok, term()}. Return value is checked
 %% and the registry returns an error if it does not match.
 %%
+%% Called function may also return a tuple {error, term()}, this is returned by the registry
+%% as {error, internal, Msg::binary()}
+%%
 %% ==== Permission control ====
 %%
 %% First argument to every function exported from this module is always
@@ -172,9 +175,14 @@ check_and_execute(Command, Args) ->
     end,
     [check_type(S, A) || S <- Command#mongoose_command.args, A <- Args],
     Res = apply(Command#mongoose_command.module, Command#mongoose_command.function, Args),
-    {ok, ResSpec} = Command#mongoose_command.result,
-    check_type(ResSpec, Res),
-    Res.
+    case Res of
+        {error, E} ->
+            throw({func_returned_error, E});
+        _ ->
+            {ok, ResSpec} = Command#mongoose_command.result,
+            check_type(ResSpec, Res),
+            Res
+    end.
 
 
 check_type(A, A) ->
