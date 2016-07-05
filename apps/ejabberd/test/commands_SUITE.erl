@@ -14,8 +14,9 @@
 
 all() ->
     [
-%%        {group, old_commands},
-        {group, new_commands}
+        {group, old_commands},
+        {group, new_commands},
+        {group, new_commands_enc} % "enc" stands for encapsulated
     ].
 
 groups() ->
@@ -31,6 +32,13 @@ groups() ->
             [
                 new_type_checker,
                 new_list,
+                new_execute
+            ]
+        },
+        {new_commands_enc, [sequence],
+            [
+                new_failedreg_enc,
+                new_list_enc,
                 new_execute
             ]
         }
@@ -62,6 +70,9 @@ init_per_group(old_commands, C) ->
     C;
 init_per_group(new_commands, C) ->
     spawn(fun mc_holder/0),
+    C;
+init_per_group(new_commands_enc, C) ->
+    spawn(fun mc_enc_holder/0),
     C.
 
 end_per_group(_, C) ->
@@ -132,7 +143,7 @@ old_list(_C) ->
 
 old_exec(_C) ->
     %% execute
-    {ok, <<"bzzzz">>} = ejabberd_commands:execute_command(command_one, [<<"bzzzz">>]),
+    <<"bzzzz">> = ejabberd_commands:execute_command(command_one, [<<"bzzzz">>]),
     Res = ejabberd_commands:execute_command(command_one, [123]),
     ?PRT("invalid type ignored", Res), %% there is no arg type check
     Res2 = ejabberd_commands:execute_command(command_two, [123]),
@@ -188,6 +199,26 @@ new_execute(_C) ->
     {error, internal, ExpError} = mongoose_commands:execute(admin, command_one, [<<"error">>]),
     ok.
 
+failedreg([]) -> ok;
+failedreg([Cmd|Tail]) ->
+    ?assertThrow({invalid_command_definition, _}, mongoose_commands:register([Cmd])),
+    failedreg(Tail).
+
+new_failedreg_enc(_C) ->
+    failedreg(commands_new_lame_enc()).
+
+new_list_enc(_C) ->
+    Rlist = mongoose_commands:list(admin),
+    #{name := command_one, desc := "do nothing and return"} = proplists:get_value(command_one, Rlist),
+    %% list for a user
+    [] = mongoose_commands:list_commands(a_user),
+    %% get definition
+    Rget = mongoose_commands:get_command(admin, command_one),
+    command_one = maps:get(name, Rget),
+    get = maps:get(action, Rget),
+    {error, denied, _} = mongoose_commands:get_command_definition(a_user, command_one),
+    ok.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%% definitions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -201,6 +232,39 @@ commands_new() ->
             args = [{msg, binary}],
             result = {ok, {msg, binary}}
         }
+    ].
+
+commands_new_enc() ->
+    [
+        [
+            {name, command_one},
+            {tags, [roster]},
+            {desc, "do nothing and return"},
+            {module, ?MODULE},
+            {function, cmd_one},
+            {action, get},
+            {args, [{msg, binary}]},
+            {result, {msg, binary}}
+        ]
+    ].
+
+commands_new_lame_enc() ->
+    [
+        [
+            {name, command_one} % missing values
+        ],
+        [
+            {name, command_one},
+            {tags, roster} %% should be a list
+        ],
+        [
+            {name, command_one},
+            {tags, [roster]},
+            {desc, "do nothing and return"},
+            {module, ?MODULE},
+            {function, cmd_one},
+            {action, andnowforsomethingcompletelydifferent} %% not one of allowed values
+        ]
     ].
 
 commands_old() ->
@@ -252,9 +316,16 @@ mc_holder() ->
         _ -> ok
     end.
 
+mc_enc_holder() ->
+    mongoose_commands:init(),
+    mongoose_commands:register(commands_new_enc()),
+    receive
+        _ -> ok
+    end.
+
 checkauth(true, AccessCommands, Auth) ->
     B = <<"bzzzz">>,
-    {ok, B} = ejabberd_commands:execute_command(AccessCommands, Auth, command_one, [B]);
+    B = ejabberd_commands:execute_command(AccessCommands, Auth, command_one, [B]);
 checkauth(ErrMess, AccessCommands, Auth) ->
     B = <<"bzzzz">>,
     {error, ErrMess} = ejabberd_commands:execute_command(AccessCommands, Auth, command_one, [B]).
