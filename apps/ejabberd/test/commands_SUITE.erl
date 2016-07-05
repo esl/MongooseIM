@@ -184,6 +184,8 @@ new_execute(_C) ->
     {error, type_error, _} = mongoose_commands:execute(admin, command_one, [123]),
     {error, type_error, _} = mongoose_commands:execute(admin, command_one, []),
     {error, internal, _} = mongoose_commands:execute(admin, command_one, [<<"throw">>]),
+    ExpError = term_to_binary({func_returned_error, byleco}),
+    {error, internal, ExpError} = mongoose_commands:execute(admin, command_one, [<<"error">>]),
     ok.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -223,6 +225,8 @@ commands_old() ->
 cmd_one(<<"throw">>) ->
     C = 12,
     <<"A", C/binary>>;
+cmd_one(<<"error">>) ->
+    {error, byleco};
 cmd_one(M) ->
     M.
 
