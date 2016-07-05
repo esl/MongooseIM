@@ -53,6 +53,7 @@ manage_test_cases() ->
         discovering_support,
         get_block_list,
         add_user_to_blocklist,
+        add_user_to_blocklist_with_white_spaces,
         add_another_user_to_blocklist,
         add_many_users_to_blocklist,
         remove_user_from_blocklist,
@@ -149,6 +150,17 @@ add_user_to_blocklist(Config) ->
             user_blocks(User1, [User2]),
             BlockList = get_blocklist(User1),
             blocklist_contains_jid(BlockList, User2)
+        end).
+
+add_user_to_blocklist_with_white_spaces(Config) ->
+    escalus:fresh_story(
+        Config, [{alice, 1}, {bob, 1}],
+        fun(User1, User2) ->
+            BlockeeJIDs = [escalus_utils:jid_to_lower(escalus_client:short_jid(B)) || B <- [User2]],
+            AddStanza = block_users_stanza_with_white_spaces(BlockeeJIDs),
+            escalus_client:send(User1, AddStanza),
+            Res = escalus:wait_for_stanza(User1),
+            escalus:assert(is_iq_result, Res)
         end).
 
 add_another_user_to_blocklist(Config) ->
@@ -389,6 +401,18 @@ block_users_stanza(UsersToBlock) ->
     Payload = #xmlel{name = <<"block">>,
         attrs=[{<<"xmlns">>, ?NS_BLOCKING}],
         children = Childs
+    },
+    #xmlel{name = <<"iq">>,
+        attrs = [{<<"type">>, <<"set">>}],
+        children = [Payload]}.
+
+block_users_stanza_with_white_spaces(UsersToBlock) ->
+    Childs = [item_el(U) || U <- UsersToBlock],
+    % when client adds some white characters in blocking list
+    WhiteSpacedChilds = Childs ++ [{xmlcdata, "\n"}],
+    Payload = #xmlel{name = <<"block">>,
+        attrs=[{<<"xmlns">>, ?NS_BLOCKING}],
+        children = WhiteSpacedChilds
     },
     #xmlel{name = <<"iq">>,
         attrs = [{<<"type">>, <<"set">>}],
