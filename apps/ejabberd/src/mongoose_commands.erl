@@ -80,6 +80,7 @@
 -type mongoose_command() :: #mongoose_command{}.
 -type caller() :: admin|jid().
 
+-define(PRT(X, Y), ct:pal("~p: ~p", [X, Y])).
 
 %% API
 -export([check_type/2]).
@@ -91,9 +92,38 @@
     execute/3
 ]).
 
+%% Encapsulated API
+-export([register/1, list/1, get_command/2]).
+
+register(Cmds) ->
+    Commands = [check_command(C) || C <- Cmds],
+    register_commands(Commands).
+
+list(U) ->
+    [{Name, #{name => Name, args => Args, desc => Desc}} || {Name, Args, Desc} <- list_commands(U)].
+
+get_command(admin, Name) ->
+    case ets:lookup(mongoose_commands, Name) of
+        [C] ->
+            #{name => Name, desc => C#mongoose_command.desc, args => C#mongoose_command.args,
+                action => C#mongoose_command.action, result => {ok, C#mongoose_command.result}};
+        [] -> {error, not_implemented, <<"Command not implemented">>}
+    end;
+get_command(_Caller, _Name) ->
+    {error, denied, <<"Command not available">>}.
+
+%% execute stays the same
+
+%% end of encapsulated API
+
 init() ->
-    ets:new(mongoose_commands, [named_table, set, public,
-        {keypos, #mongoose_command.name}]).
+    case ets:info(mongoose_commands) of
+        undefined ->
+            ets:new(mongoose_commands, [named_table, set, public,
+                {keypos, #mongoose_command.name}]);
+        _ ->
+            ok
+    end.
 
 
 %% @doc Get a list of all the available commands, arguments and description.
@@ -179,7 +209,11 @@ check_and_execute(Command, Args) ->
         {error, E} ->
             throw({func_returned_error, E});
         _ ->
-            {ok, ResSpec} = Command#mongoose_command.result,
+            % transitional
+            ResSpec = case Command#mongoose_command.result of
+                            {ok, R} -> R;
+                            R -> R
+                      end,
             check_type(ResSpec, Res),
             Res
     end.
@@ -226,4 +260,56 @@ th(Fmt, V) ->
     throw({type_mismatch, io_lib:format(Fmt, V)}).
 
 
+check_command(PL) ->
+%%    Fields = [name, tags, desc, mf, action, args, security_policy, result],
+    Fields = record_info(fields, mongoose_command),
+    Lst = check_command([], PL, Fields),
+    RLst = lists:reverse(Lst),
+    list_to_tuple([mongoose_command|RLst]).
+
+check_command(Cmd, _PL, []) ->
+    Cmd;
+check_command(Cmd, PL, [N|Tail]) ->
+    V = proplists:get_value(N, PL),
+    Val = check_value(N, V),
+    check_command([Val|Cmd], PL, Tail).
+
+
+check_value(name, V) when is_atom(V) ->
+    V;
+check_value(tags, V) when is_list(V) ->
+    V;
+check_value(tags, undefined) ->
+    [];
+check_value(desc, V) when is_list(V) ->
+    V;
+check_value(module, V) when is_atom(V) ->
+    V;
+check_value(function, V) when is_atom(V) ->
+    V;
+check_value(action, get) ->
+    get;
+check_value(action, send) ->
+    send;
+check_value(action, set) ->
+    set;
+check_value(action, delete) ->
+    delete;
+check_value(args, V) when is_list(V) ->
+    V;
+check_value(security_policy, undefined) ->
+    [admin];
+check_value(security_policy, []) ->
+    baddef(security_policy, []);
+check_value(security_policy, V) when is_list(V) ->
+    V;
+check_value(result, undefined) ->
+    baddef(result, undefined);
+check_value(result, V) ->
+    V;
+check_value(K, V) ->
+    baddef(K, V).
+
+baddef(K, V) ->
+    throw({invalid_command_definition, io_lib:format("~p=~p", [K, V])}).
 
