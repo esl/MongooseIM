@@ -1,9 +1,4 @@
-# Example YAML to get you started quickly.
-# Be aware that YAML has indentation based scoping.
-# Code completion support is available so start typing for available options.
 swagger: '2.0'
-
-# This is your document metadata
 info:
   version: "0.0.1"
   title: "MongooseIM client API"
@@ -11,8 +6,9 @@ info:
     This API described alternate, to XMPP way of using MongooseIM.
     All the requests requires authantication. Thanks to that the server always knows
     who sent the request and can decide wheter given user is authorized or not
-
-# Describe your paths here
+basePath: /v1
+schemes:
+  - https
 paths:
   # This is a path endpoint. Change it.
   /messages:
@@ -45,19 +41,20 @@ paths:
             items:
               $ref: '#/definitions/Message'
     post:
-      description: |
-        Sends message to given recipient
+      description: Sends message to given recipient
       parameters:
         - name: message
           in: body
-          description: |
-            The message to be sent. Parameter `id` is not required here, will be added by
-            the server. Also the server verifies is the `from` attribute is the same as
-            the authenticated user. If the `from` parameter is ommited, servwer will fill
-            it based on the authenticated user.
+          description: The message to be sent.
           required: true
           schema:
-            $ref: '#/definitions/Message'
+            title: Message
+            properties:
+              to:
+                type: string
+                description: recipient's JID
+              body:
+                type: string
       responses:
         200:
           description: The message was sent.
@@ -143,15 +140,22 @@ paths:
           type: string
         - in: body
           name: message
-          description: The message to be sent
+          description: The message to be sent to the group
           required: true
-          type: string
+          schema:
+            title: Message
+            type: string
       responses:
         200:
           description: Sent message id
           schema:
             title: MessageID
             type: string
+security:
+  - mongoose_basic_auth: []
+securityDefinitions:
+  mongoose_basic_auth:
+    type: basic
 definitions:
   Message:
     properties:
