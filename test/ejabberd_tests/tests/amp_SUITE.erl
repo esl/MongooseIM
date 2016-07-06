@@ -381,7 +381,8 @@ notify_deliver_to_malformed_jid_test(Config) ->
                   true -> client_receives_notification(Alice, StrangerJid, Rule);
                   false -> ok
               end,
-              client_receives_generic_error(Alice, <<"503">>, <<"cancel">>),
+              % Error codes may vary because of s2s config - accept any code
+              client_receives_generic_error(Alice, any, <<"cancel">>),
               client_receives_nothing(Alice)
       end).
 
@@ -831,7 +832,7 @@ contains_amp_error(AmpErrorKind, Rules, Response) ->
 contains_error(Code, Type, Response) ->
     ErrorEl = exml_query:subelement(Response, <<"error">>),
     Type == exml_query:attr(ErrorEl, <<"type">>)
-        andalso Code == exml_query:attr(ErrorEl, <<"code">>).
+        andalso (Code == any orelse Code == exml_query:attr(ErrorEl, <<"code">>)).
 
 all_present(Needles, Haystack) ->
     list_and([ lists:member(Needle, Haystack)
