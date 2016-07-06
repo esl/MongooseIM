@@ -1,10 +1,10 @@
 swagger: '2.0'
 info:
   version: "0.0.1"
-  title: "MongooseIM client API"
+  title: "MongooseIM client REST API"
   description: |
     This API described alternate, to XMPP way of using MongooseIM.
-    All the requests requires authantication. Thanks to that the server always knows
+    All the requests require authantication. Thanks to that the server always knows
     who sent the request and can decide whether given user is authorized or not
 basePath: /v1
 schemes:
@@ -16,7 +16,7 @@ paths:
     get:
       # Describe this verb here. Note: you can use markdown
       description: |
-        Gets recent messages from the archive. For the authenticated user.
+        Gets recent messages from the archive. For the authenticated users.
         Optional query param of **size** determines
         size of returned array
       # This is array of GET operation parameters:
@@ -41,7 +41,7 @@ paths:
             items:
               $ref: '#/definitions/Message'
     post:
-      description: Sends message to given recipient
+      description: Sends a one-to-one message to given recipient
       parameters:
         - name: message
           in: body
@@ -73,11 +73,11 @@ paths:
             items:
               $ref: '#/definitions/Group'
     post:
-      description: Creates new group
+      description: Creates a new group
       parameters:
        - name: group
          in: body
-         description: Creates new group of given name and sends invitation to specified users.
+         description: Creates a new group of given name and sends invitation to specified users.
          schema:
            title: Group
            properties:
@@ -170,7 +170,7 @@ definitions:
   JID:
     type: string
     description: |
-      This is user's JID (Jabber ID) which consist of username and serwer.
+      This is user's JID (Jabber ID) which consist of username and server.
       Example: alice@wonderland.com
   Group:
     properties:
