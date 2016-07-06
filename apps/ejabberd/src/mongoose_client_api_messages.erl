@@ -36,6 +36,8 @@ to_json(Req, User) ->
 
 send_message(Req, User) ->
     {ok, Body, Req2} = cowboy_req:body(Req),
-    ?WARNING_MSG("User ~p will send message ~p", [User, Body]),
+    #{<<"to">> := To, <<"body">> := MsgBody} = jiffy:decode(Body, [return_maps]),
+
+    ?WARNING_MSG("User ~p will send message ~p to ~p", [User, MsgBody, To]),
     Req3 = cowboy_req:set_resp_body(<<"{'id':'hjklkjh'}">>, Req2),
     {true, Req3, User}.
