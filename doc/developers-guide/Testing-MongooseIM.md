@@ -21,6 +21,20 @@ $ cd $MONGOOSEIM/dev/mongooseim_node2
 $ ./bin/mongooseimctl live
 ```
 
+In shell #4:
+
+```sh
+$ cd $MONGOOSEIM/dev/mongooseim_node3
+$ ./bin/mongooseimctl live
+```
+
+In shell #5:
+
+```sh
+$ cd $MONGOOSEIM/dev/mongooseim_fed1
+$ ./bin/mongooseimctl live
+```
+
 Back to shell #1:
 
 ```sh
@@ -35,8 +49,11 @@ Wait for the tests to finish and celebrate in joy (or despair in grief)!
 `$MONGOOSEIM/dev/mongooseim_node1` and `$MONGOOSEIM/dev/mongooseim_node2`.
 These are preconfigured for breadth of features and compatible
 with as many test suites as possible.
-There are two of them in order to test XMPP federation (server to server
-communication, S2S).
+There are other two of them:
+- `$MONGOOSEIM/dev/mongooseim_node3`, in order to test cluster-related
+  commands;;
+- `$MONGOOSEIM/dev/mongooseim_fed1`, in order to test XMPP federation
+  (server to server communication, S2S).
 
 In general, running a server in interactive mode (i.e. `mongooseimctl
 live`) is not required to test it, but it's convenient as any warnings and
@@ -74,11 +91,8 @@ test/ejabberd_tests/
 ├── Makefile
 ├── README.md
 ├── default.spec
-├── full.spec
-├── t.spec
 ├── test.config
 ├── tests/
-├── vcard.config
 └── ...
 ```
 
@@ -107,8 +121,8 @@ It's customary to create a per-feature (or per-project, if you're cloning
 away) `.spec` file and only enable
 the suites / test groups you want to test - this speeds up the iteration
 cycle by not testing parts of the system that you know have not changed.
-It's worth running `default.spec` or even `full.spec` once in a while to
-check for regressions, though.
+It's worth running `default.spec` once in a while to check for
+regressions, though.
 
 Have a look into `default.spec` file to see how to pick only the
 interesting tests to run.

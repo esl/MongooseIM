@@ -46,7 +46,7 @@ branches:
                 - /\d+\.\d+\.\d+(\-[a-z,0-9])*/
 
 otp_release:
-        - 17.5
+        - 18.3
 env:
         - PRESET=internal_redis DB=mnesia REL_CONFIG=with-redis
         - PRESET=internal_mnesia DB=mnesia REL_CONFIG=with-all
@@ -59,9 +59,7 @@ env:
 
 matrix:
     include:
-        - otp_release: R16B03
-          env: PRESET=internal_mnesia DB=mnesia REL_CONFIG=with-none
-        - otp_release: 18.1
+        - otp_release: 17.5
           env: PRESET=internal_mnesia DB=mnesia REL_CONFIG=with-none
 
 notifications:

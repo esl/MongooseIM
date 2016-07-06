@@ -44,6 +44,7 @@
          prefs_set_request/1,
          retrieve_form_fields/1,
          prefs_set_cdata_request/1,
+         query_get_request/1,
          pagination_first5/1,
          pagination_last5/1,
          pagination_before10/1,
@@ -138,9 +139,11 @@
          wait_message_range/6,
          stanza_prefs_set_request/4,
          stanza_prefs_get_request/1,
+         stanza_query_get_request/1,
          parse_prefs_result_iq/1,
          mam_ns_binary/0,
          mam_ns_binary_v03/0,
+         mam_ns_binary_v04/0,
          make_alice_and_bob_friends/2,
          run_prefs_case/6,
          prefs_cases2/0,
@@ -345,6 +348,7 @@ rsm_cases() ->
 prefs_cases() ->
     [prefs_set_request,
      prefs_set_cdata_request,
+     query_get_request,
      run_prefs_cases,
      run_set_and_get_prefs_cases].
 
@@ -1884,6 +1888,21 @@ prefs_set_request(Config) ->
         ResultIQ2 = parse_prefs_result_iq(ReplyGet),
         ?assert_equal(ResultIQ1, ResultIQ2),
         ok
+        end,
+    escalus:story(Config, [{alice, 1}], F).
+
+query_get_request(Config) ->
+    F = fun(Alice) ->
+        QueryXmlns = mam_ns_binary_v04(),
+        escalus:send(Alice, stanza_query_get_request(QueryXmlns)),
+        ReplyFields = escalus:wait_for_stanza(Alice),
+        ResponseXmlns = exml_query:path(ReplyFields,
+            [{element, <<"query">>},
+             {element, <<"x">>},
+             {element, <<"field">>},
+             {element, <<"value">>},
+              cdata]),
+        ?assert_equal(QueryXmlns, ResponseXmlns)
         end,
     escalus:story(Config, [{alice, 1}], F).
 

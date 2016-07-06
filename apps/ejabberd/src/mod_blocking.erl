@@ -61,9 +61,9 @@ process_iq_get(Val, _, _, _, _) ->
 process_iq_set(_, From, _To, #iq{xmlns = ?NS_BLOCKING, sub_el = SubEl}) ->
     %% collect needed data
     #jid{luser = LUser, lserver = LServer} = From,
-    #xmlel{children = Els, name = BType} = SubEl,
+    #xmlel{name = BType} = SubEl,
     Type = binary_to_existing_atom(BType, latin1),
-    Usrs = [xml:get_tag_attr_s(<<"jid">>, I) || I <- Els],
+    Usrs = exml_query:paths(SubEl, [{element, <<"item">>}, {attr, <<"jid">>}]),
     CurrList = case ?BACKEND:get_privacy_list(LUser, LServer, <<"blocking">>) of
                   {ok, List} ->
                       List;

@@ -453,6 +453,12 @@ stanza_prefs_get_request(Namespace) ->
        attrs = [{<<"xmlns">>, Namespace}]
     }]).
 
+stanza_query_get_request(Namespace) ->
+    escalus_stanza:iq(<<"get">>, [#xmlel{
+        name = <<"query">>,
+        attrs = [{<<"xmlns">>, Namespace}]
+    }]).
+
 %% Allows to cdata to be put as it is
 encode_jids(JIDs) ->
     [encode_jid_or_cdata(JID) || JID <- JIDs].

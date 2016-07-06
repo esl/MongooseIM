@@ -268,13 +268,8 @@ normalize_hosts([Host|Hosts], PrepHosts) ->
             normalize_hosts(Hosts, [PrepHost|PrepHosts])
     end.
 
--ifdef(latin1_characters).
-host_to_binary(Host) ->
-    list_to_binary(Host).
--else.
 host_to_binary(Host) ->
     unicode:characters_to_binary(Host).
--endif.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Errors reading the config file
