@@ -15,8 +15,7 @@
 all() ->
     [
         {group, old_commands},
-        {group, new_commands},
-        {group, new_commands_enc} % "enc" stands for encapsulated
+        {group, new_commands}
     ].
 
 groups() ->
@@ -31,14 +30,9 @@ groups() ->
         {new_commands, [sequence],
             [
                 new_type_checker,
+                new_reg_unreg,
+                new_failedreg,
                 new_list,
-                new_execute
-            ]
-        },
-        {new_commands_enc, [sequence],
-            [
-                new_failedreg_enc,
-                new_list_enc,
                 new_execute
             ]
         }
@@ -70,12 +64,13 @@ init_per_group(old_commands, C) ->
     C;
 init_per_group(new_commands, C) ->
     spawn(fun mc_holder/0),
-    C;
-init_per_group(new_commands_enc, C) ->
-    spawn(fun mc_enc_holder/0),
     C.
 
-end_per_group(_, C) ->
+end_per_group(old_commands, C) ->
+    ejabberd_commands:unregister_commands(commands_old()),
+    C;
+end_per_group(new_commands, C) ->
+    mongoose_commands:unregister(commands_new()),
     C.
 
 init_per_testcase(_, C) ->
@@ -94,31 +89,6 @@ end_per_testcase(_, C) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%% test methods
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-
-new_type_checker(_C) ->
-    true = t_check_type({msg, binary}, <<"zzz">>),
-    true = t_check_type({msg, integer}, 127),
-    {false, _} = t_check_type({{a, binary}, {b, integer}}, 127),
-    true = t_check_type({{a, binary}, {b, integer}}, {<<"z">>, 127}),
-    true = t_check_type({ok, {msg, integer}}, {ok, 127}),
-    true = t_check_type({ok, {msg, integer}, {val, binary}}, {ok, 127, <<"z">>}),
-    {false, _} = t_check_type({k, {msg, integer}, {val, binary}}, {ok, 127, <<"z">>}),
-    {false, _} = t_check_type({ok, {msg, integer}, {val, binary}}, {ok, 127, "z"}),
-    {false, _} = t_check_type({ok, {msg, integer}, {val, binary}}, {ok, 127, <<"z">>, 333}),
-    true = t_check_type([integer], []),
-    true = t_check_type([integer], [1, 2, 3]),
-    {false, _} = t_check_type([integer], [1, <<"z">>, 3]),
-    ok.
-
-t_check_type(Spec, Value) ->
-    R = try mongoose_commands:check_type(Spec, Value) of
-            true -> true
-        catch
-            E ->
-                {false, E}
-        end,
-    R.
 
 
 old_list(_C) ->
@@ -174,22 +144,66 @@ old_access_ctl(_C) ->
     ok.
 
 
-new_list(_C) ->
-    %% list
-    Rlist = mongoose_commands:list_commands(admin),
-    {command_one, _, "do nothing and return"} = proplists:lookup(command_one, Rlist),
-    %% list for a user
-    [] = mongoose_commands:list_commands(a_user),
-    %% get definition
-    Rget = mongoose_commands:get_command_definition(admin, command_one),
-    % we should get back exactly the definition we provided
-    [Cone | _] = commands_new(),
-    Cone = Rget,
-    {error, denied, _} = mongoose_commands:get_command_definition(a_user, command_one),
+new_type_checker(_C) ->
+    true = t_check_type({msg, binary}, <<"zzz">>),
+    true = t_check_type({msg, integer}, 127),
+    {false, _} = t_check_type({{a, binary}, {b, integer}}, 127),
+    true = t_check_type({{a, binary}, {b, integer}}, {<<"z">>, 127}),
+    true = t_check_type({ok, {msg, integer}}, {ok, 127}),
+    true = t_check_type({ok, {msg, integer}, {val, binary}}, {ok, 127, <<"z">>}),
+    {false, _} = t_check_type({k, {msg, integer}, {val, binary}}, {ok, 127, <<"z">>}),
+    {false, _} = t_check_type({ok, {msg, integer}, {val, binary}}, {ok, 127, "z"}),
+    {false, _} = t_check_type({ok, {msg, integer}, {val, binary}}, {ok, 127, <<"z">>, 333}),
+    true = t_check_type([integer], []),
+    true = t_check_type([integer], [1, 2, 3]),
+    {false, _} = t_check_type([integer], [1, <<"z">>, 3]),
     ok.
+
+t_check_type(Spec, Value) ->
+    R = try mongoose_commands:check_type(Spec, Value) of
+            true -> true
+        catch
+            E ->
+                {false, E}
+        end,
+    R.
+
+new_reg_unreg(_C) ->
+    ?assertEqual(length(mongoose_commands:list(admin)), 1),
+    mongoose_commands:register(commands_new_temp()),
+    ?assertEqual(length(mongoose_commands:list(admin)), 2),
+    mongoose_commands:unregister(commands_new_temp()),
+    ?assertEqual(length(mongoose_commands:list(admin)), 1),
+    ok.
+
+failedreg([]) -> ok;
+failedreg([Cmd|Tail]) ->
+    ?assertThrow({invalid_command_definition, _}, mongoose_commands:register([Cmd])),
+    failedreg(Tail).
+
+new_failedreg(_C) ->
+    failedreg(commands_new_lame()).
+
+
+new_list(_C) ->
+    Rlist = mongoose_commands:list(admin),
+    Cmd = proplists:get_value(command_one, Rlist),
+    command_one = mongoose_commands:name(Cmd),
+    "do nothing and return" = mongoose_commands:desc(Cmd),
+    %% list for a user
+    [] = mongoose_commands:list(a_user),
+    %% get definition
+    Rget = mongoose_commands:get_command(admin, command_one),
+    command_one = mongoose_commands:name(Rget),
+    get = mongoose_commands:action(Rget),
+    {error, denied, _} = mongoose_commands:get_command(a_user, command_one),
+    ok.
+
 
 new_execute(_C) ->
     {ok, <<"bzzzz">>} = mongoose_commands:execute(admin, command_one, [<<"bzzzz">>]),
+    Cmd = mongoose_commands:get_command(admin, command_one),
+    {ok, <<"bzzzz">>} = mongoose_commands:execute(admin, Cmd, [<<"bzzzz">>]),
     {error, denied, _} = mongoose_commands:execute(a_user, command_one, [<<"bzzzz">>]),
     {error, not_implemented, _} = mongoose_commands:execute(admin, command_seven, [<<"bzzzz">>]),
     {error, type_error, _} = mongoose_commands:execute(admin, command_one, [123]),
@@ -199,42 +213,11 @@ new_execute(_C) ->
     {error, internal, ExpError} = mongoose_commands:execute(admin, command_one, [<<"error">>]),
     ok.
 
-failedreg([]) -> ok;
-failedreg([Cmd|Tail]) ->
-    ?assertThrow({invalid_command_definition, _}, mongoose_commands:register([Cmd])),
-    failedreg(Tail).
-
-new_failedreg_enc(_C) ->
-    failedreg(commands_new_lame_enc()).
-
-new_list_enc(_C) ->
-    Rlist = mongoose_commands:list(admin),
-    #{name := command_one, desc := "do nothing and return"} = proplists:get_value(command_one, Rlist),
-    %% list for a user
-    [] = mongoose_commands:list_commands(a_user),
-    %% get definition
-    Rget = mongoose_commands:get_command(admin, command_one),
-    command_one = maps:get(name, Rget),
-    get = maps:get(action, Rget),
-    {error, denied, _} = mongoose_commands:get_command_definition(a_user, command_one),
-    ok.
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%% definitions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 commands_new() ->
-    [
-        #mongoose_command{name = command_one, tags = [roster],
-            desc = "do nothing and return",
-            module = ?MODULE, function = cmd_one,
-            action = get,
-            args = [{msg, binary}],
-            result = {ok, {msg, binary}}
-        }
-    ].
-
-commands_new_enc() ->
     [
         [
             {name, command_one},
@@ -248,7 +231,21 @@ commands_new_enc() ->
         ]
     ].
 
-commands_new_lame_enc() ->
+commands_new_temp() ->
+    [
+        [
+            {name, command_temp},
+            {tags, []},
+            {desc, "do nothing and return"},
+            {module, ?MODULE},
+            {function, cmd_one},
+            {action, get},
+            {args, [{msg, binary}]},
+            {result, {msg, binary}}
+        ]
+    ].
+
+commands_new_lame() ->
     [
         [
             {name, command_one} % missing values
@@ -311,14 +308,7 @@ ec_holder() ->
 
 mc_holder() ->
     mongoose_commands:init(),
-    mongoose_commands:register_commands(commands_new()),
-    receive
-        _ -> ok
-    end.
-
-mc_enc_holder() ->
-    mongoose_commands:init(),
-    mongoose_commands:register(commands_new_enc()),
+    mongoose_commands:register(commands_new()),
     receive
         _ -> ok
     end.
