@@ -6,8 +6,8 @@ swagger: '2.0'
 # This is your document metadata
 info:
   version: "0.0.0"
-  title: MIM HTTP Control API
-  description: This HTTP API provides similar control functionaly to the `mongooseimctl` command. The response objects are modeled on the `ejabberd_commands` entries and print-outs from `mongooseimctl` though the final API will need to be consistent with the MongooseIM's **command registry**.
+  title: MongooseIM control backend REST API
+  description: This REST API provides similar control functionaly to the `mongooseimctl` command. The response objects are modeled on the `ejabberd_commands` entries and print-outs from `mongooseimctl` though the final API will need to be consistent with the MongooseIM's **command registry**.
 schemes:
   - http
 basePath: /api
@@ -262,7 +262,7 @@ paths:
           description: The XMPP hostname
           required: true
           type: string
-      description: Retrieve **pagianted** session information for the given XMMP host.
+      description: Retrieve **paginated** session information for the given XMPP host.
       responses:
         200:
           description: Retrieve session information for the given XMPP host.
