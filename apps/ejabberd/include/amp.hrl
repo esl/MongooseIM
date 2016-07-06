@@ -24,7 +24,7 @@
          }).
 
 -record(amp_strategy, {
-          deliver          :: amp_value() | undefined,
+          deliver          :: [amp_value()] | undefined,
           'match-resource' :: amp_value() | undefined,
           'expire-at'      :: amp_value() | undefined
          }).
@@ -51,6 +51,9 @@
 -type amp_any_rule() :: amp_rule() | amp_invalid_rule().
 -type amp_strategy() :: #amp_strategy{}.
 
+-type amp_event() :: initial_check | archived | delivered | mam_failed | offline_failed | delivery_failed.
+-type amp_match_result() :: match | no_match | undecided.
+
 -define(AMP_LEGAL_CONDITIONS,
         [<<"deliver">>, <<"match-resource">>, <<"expire-at">>]).
 
@@ -58,7 +61,7 @@
         [<<"direct">>, <<"forward">>, <<"gateway">>, <<"none">>, <<"stored">>]).
 
 -define(AMP_LEGAL_MATCH_RESOURCE_VALUES,
-       [<<"any">>, <<"exact">>, <<"other">>]).
+        [<<"any">>, <<"exact">>, <<"other">>]).
 
 -define(AMP_LEGAL_ACTIONS,
         [<<"alert">>, <<"drop">>, <<"error">>, <<"notify">>]).

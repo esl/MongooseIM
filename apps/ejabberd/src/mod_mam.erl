@@ -48,7 +48,8 @@
 -export([process_mam_iq/3,
          user_send_packet/3,
          remove_user/2,
-         filter_packet/1]).
+         filter_packet/1,
+         determine_amp_strategy/5]).
 
 %%private
 -export([archive_message/8]).
@@ -101,6 +102,7 @@
 
 -include_lib("ejabberd/include/ejabberd.hrl").
 -include_lib("ejabberd/include/jlib.hrl").
+-include_lib("ejabberd/include/amp.hrl").
 -include_lib("exml/include/exml.hrl").
 
 %% ----------------------------------------------------------------------
@@ -202,6 +204,7 @@ start(Host, Opts) ->
     ejabberd_hooks:add(filter_local_packet, Host, ?MODULE, filter_packet, 90),
     ejabberd_hooks:add(remove_user, Host, ?MODULE, remove_user, 50),
     ejabberd_hooks:add(anonymous_purge_hook, Host, ?MODULE, remove_user, 50),
+    ejabberd_hooks:add(amp_determine_strategy, Host, ?MODULE, determine_amp_strategy, 20),
     mongoose_metrics:create([backends, ?MODULE, lookup], histogram),
     mongoose_metrics:create([Host, modMamLookups, simple], spiral),
     mongoose_metrics:create([backends, ?MODULE, archive], histogram),
@@ -215,6 +218,7 @@ stop(Host) ->
     ejabberd_hooks:delete(filter_local_packet, Host, ?MODULE, filter_packet, 90),
     ejabberd_hooks:delete(remove_user, Host, ?MODULE, remove_user, 50),
     ejabberd_hooks:delete(anonymous_purge_hook, Host, ?MODULE, remove_user, 50),
+    ejabberd_hooks:delete(amp_determine_strategy, Host, ?MODULE, determine_amp_strategy, 20),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_MAM),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_MAM_03),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_MAM_04),
@@ -281,23 +285,28 @@ filter_packet(drop) ->
     drop;
 filter_packet({From, To=#jid{luser=LUser, lserver=LServer}, Packet}) ->
     ?DEBUG("Receive packet~n    from ~p ~n    to ~p~n    packet ~p.",
-              [From, To, Packet]),
-    Packet2 =
-    case ejabberd_users:is_user_exists(LUser, LServer) of
-    false -> Packet;
-    true ->
-        case {handle_package(incoming, true, To, From, From, Packet),
-              add_archived_element()} of
-            {undefined, _} -> Packet;
-            {_, false} -> Packet;
-            {MessID, true} ->
-                ?DEBUG("Archived incoming ~p", [MessID]),
-                BareTo = jid:to_binary(jid:to_bare(To)),
-                replace_archived_elem(BareTo, MessID, Packet)
-        end
-    end,
-    {From, To, Packet2}.
+           [From, To, Packet]),
+    {AmpEvent, PacketAfterArchive} =
+        case ejabberd_users:is_user_exists(LUser, LServer) of
+            false ->
+                {mam_failed, Packet};
+            true ->
+                PacketWithoutAmp = mod_amp:strip_amp_el_from_request(Packet),
+                case {process_incoming_packet(From, To, PacketWithoutAmp),
+                      add_archived_element()} of
+                    {undefined, _} -> {mam_failed, Packet};
+                    {_, false} -> {archived, Packet};
+                    {MessID, true} ->
+                        ?DEBUG("Archived incoming ~p", [MessID]),
+                        BareTo = jid:to_binary(jid:to_bare(To)),
+                        {archived, replace_archived_elem(BareTo, MessID, Packet)}
+                end
+        end,
+    PacketAfterAmp = mod_amp:check_packet(PacketAfterArchive, From, AmpEvent),
+    {From, To, PacketAfterAmp}.
 
+process_incoming_packet(From, To, Packet) ->
+    handle_package(incoming, true, To, From, From, Packet).
 
 %% @doc A ejabberd's callback with diferent order of arguments.
 -spec remove_user(ejabberd:user(), ejabberd:server()) -> 'ok'.
@@ -602,6 +611,18 @@ handle_purge_single_message(ArcJID=#jid{},
     PurgingResult = purge_single_message(Host, MessID, ArcID, ArcJID, Now),
     return_purge_single_message_iq(IQ, PurgingResult).
 
+determine_amp_strategy(Strategy = #amp_strategy{deliver = [none]},
+                       FromJID, ToJID, Packet, initial_check) ->
+    #jid{luser = LUser, lserver = LServer} = ToJID,
+    ShouldBeStored = is_complete_message(?MODULE, incoming, Packet)
+        andalso is_interesting(ToJID, FromJID)
+        andalso ejabberd_auth:is_user_exists(LUser, LServer),
+    case ShouldBeStored of
+        true -> Strategy#amp_strategy{deliver = [stored, none]};
+        false -> Strategy
+    end;
+determine_amp_strategy(Strategy, _, _, _, _) ->
+    Strategy.
 
 -spec handle_package(Dir :: incoming | outgoing, ReturnMessID :: boolean(),
     LocJID :: ejabberd:jid(), RemJID :: ejabberd:jid(), SrcJID :: ejabberd:jid(),
@@ -610,29 +631,36 @@ handle_package(Dir, ReturnMessID,
                LocJID=#jid{},
                RemJID=#jid{},
                SrcJID=#jid{}, Packet) ->
-    IsComplete = call_is_complete_message(?MODULE, Dir, Packet),
-    case IsComplete of
+    case is_complete_message(?MODULE, Dir, Packet) of
         true ->
-        Host = server_host(LocJID),
-        ArcID = archive_id_int(Host, LocJID),
-        IsInteresting =
-        case get_behaviour(Host, ArcID, LocJID, RemJID, always) of
-            always -> true;
-            never  -> false;
-            roster -> is_jid_in_user_roster(LocJID, RemJID)
-        end,
-        case IsInteresting of
-            true ->
-            MessID = generate_message_id(),
-            Result = archive_message(Host, MessID, ArcID,
-                                     LocJID, RemJID, SrcJID, Dir, Packet),
-            case {ReturnMessID, Result} of
-                {true, ok} -> mess_id_to_external_binary(MessID);
-                _ -> undefined
+            Host = server_host(LocJID),
+            ArcID = archive_id_int(Host, LocJID),
+            case is_interesting(Host, LocJID, RemJID, ArcID) of
+                true ->
+                    MessID = generate_message_id(),
+                    Result = archive_message(Host, MessID, ArcID,
+                                             LocJID, RemJID, SrcJID, Dir, Packet),
+                    case {ReturnMessID, Result} of
+                        {true, ok} -> mess_id_to_external_binary(MessID);
+                        _ -> undefined
+                    end;
+                false ->
+                    undefined
             end;
-            false -> undefined
-        end;
-        false -> undefined
+        false ->
+            undefined
+    end.
+
+is_interesting(LocJID, RemJID) ->
+    Host = server_host(LocJID),
+    ArcID = archive_id_int(Host, LocJID),
+    is_interesting(Host, LocJID, RemJID, ArcID).
+
+is_interesting(Host, LocJID, RemJID, ArcID) ->
+    case get_behaviour(Host, ArcID, LocJID, RemJID, always) of
+        always -> true;
+        never  -> false;
+        roster -> is_jid_in_user_roster(LocJID, RemJID)
     end.
 
 %% ----------------------------------------------------------------------
@@ -947,6 +975,6 @@ params_helper(Params) ->
 add_archived_element() ->
     mod_mam_params:add_archived_element().
 
-call_is_complete_message(Module, Dir, Packet) ->
+is_complete_message(Module, Dir, Packet) ->
     M = mod_mam_params:is_complete_message(),
     M:is_complete_message(Module, Dir, Packet).

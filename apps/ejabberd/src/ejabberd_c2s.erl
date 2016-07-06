@@ -888,9 +888,9 @@ session_established({xmlstreamelement, El}, StateData) ->
         _NewEl ->
             NewState = maybe_increment_sm_incoming(StateData#state.stream_mgmt,
                                                    StateData),
-            case check_amp(FromJID#jid.lserver, {FromJID, El}) of
-                drop      -> fsm_next_state(session_established, NewState);
-                {_, NewEl} -> process_outgoing_stanza(NewEl, NewState)
+            case mod_amp:check_packet(El, FromJID, initial_check) of
+                drop -> fsm_next_state(session_established, NewState);
+                NewEl -> process_outgoing_stanza(NewEl, NewState)
             end
     end;
 
@@ -917,10 +917,6 @@ session_established({xmlstreamerror, _}, StateData) ->
 session_established(closed, StateData) ->
     ?DEBUG("Session established closed - trying to enter resume_session",[]),
     maybe_enter_resume_session(StateData#state.stream_mgmt_id, StateData).
-
-%%% XEP-0079 (AMP) related
-check_amp(Host, {_FromJID, _El} = HookData) ->
-    ejabberd_hooks:run_fold(amp_check_packet, Host, HookData, []).
 
 %% @doc Process packets sent by user (coming from user on c2s XMPP
 %% connection)
@@ -1121,9 +1117,8 @@ handle_info({broadcast, Broadcast}, StateName, StateData) ->
 handle_info({route, From, To, Packet}, StateName, StateData) ->
     ejabberd_hooks:run(c2s_loop_debug, [{route, From, To, Packet}]),
     Name = Packet#xmlel.name,
-    Resp = process_incoming_stanza(Name, From, To, Packet, StateName, StateData),
-    Resp;
-%%    fsm_next_state(StateName, NewState);
+    process_incoming_stanza(Name, From, To, Packet, StateName, StateData);
+
 handle_info({'DOWN', Monitor, _Type, _Object, _Info}, _StateName, StateData)
   when Monitor == StateData#state.socket_monitor ->
     maybe_enter_resume_session(StateData#state.stream_mgmt_id, StateData);
@@ -1234,6 +1229,7 @@ response_negative(<<"iq">>, deny, From, To, Packet) ->
     IqType = xml:get_attr_s(<<"type">>, Packet#xmlel.attrs),
     response_iq_deny(IqType, From, To, Packet);
 response_negative(<<"message">>, deny, From, To, Packet) ->
+    mod_amp:check_packet(Packet, From, delivery_failed),
     send_back_error(?ERR_SERVICE_UNAVAILABLE, From, To, Packet);
 response_negative(_, _, _, _, _) ->
     ok.
@@ -1605,8 +1601,10 @@ send_trailer(StateData) ->
     send_text(StateData, ?STREAM_TRAILER).
 
 
-send_and_maybe_buffer_stanza(Packet, State, StateName)->
-    {SendResult, BufferedStateData} = send_and_maybe_buffer_stanza(Packet, State),
+send_and_maybe_buffer_stanza({J1, J2, El}, State, StateName)->
+    {SendResult, BufferedStateData} =
+        send_and_maybe_buffer_stanza({J1, J2, mod_amp:strip_amp_el_from_request(El)}, State),
+    mod_amp:check_packet(El, send_result_to_amp_event(SendResult)),
     case SendResult of
         ok ->
             case catch maybe_send_ack_request(BufferedStateData) of
@@ -1620,6 +1618,9 @@ send_and_maybe_buffer_stanza(Packet, State, StateName)->
             ?DEBUG("Send element error: ~p, try enter resume session", [SendResult]),
             maybe_enter_resume_session(BufferedStateData#state.stream_mgmt_id, BufferedStateData)
     end.
+
+send_result_to_amp_event(ok) -> delivered;
+send_result_to_amp_event(_) -> delivery_failed.
 
 send_and_maybe_buffer_stanza({_, _, Stanza} = Packet, State) ->
     SendResult = maybe_send_element_safe(State, Stanza),

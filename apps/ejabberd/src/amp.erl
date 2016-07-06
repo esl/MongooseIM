@@ -15,11 +15,12 @@
          rule_to_xmlel/1,
          strip_amp_el/1,
 
-         binaries_to_rule/3
+         binaries_to_rule/3,
+         is_amp_request/1
         ]).
 
 -export_type([amp_rule/0,
-             amp_rules/0]).
+              amp_rules/0]).
 
 
 -spec binaries_to_rule(binary(), binary(), binary()) -> amp_rule() | amp_invalid_rule().
