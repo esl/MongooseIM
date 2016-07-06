@@ -3,6 +3,7 @@
 -export([init/3]).
 -export([content_types_provided/2]).
 -export([is_authorized/2]).
+-export([allowed_methods/2]).
 -export([to_json/2]).
 
 -include("ejabberd.hrl").
@@ -13,13 +14,15 @@ init({ssl, http}, _Req, _Opts) ->
 
 is_authorized(Req, State) ->
     Auth = cowboy_req:parse_header(<<"authorization">>, Req),
-    ?WARNING_MSG("Auth: ~p", [Auth]),
     case Auth of
         {ok, undefined, _} ->
             make_unauthorized_response(Req, State);
         {ok, AuthDetails, Req2} ->
            do_authorize(AuthDetails, Req2, State)
     end.
+
+allowed_methods(Req, State) ->
+    {[<<"GET">>], Req, State}.
 
 content_types_provided(Req, State) ->
 	{[
