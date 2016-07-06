@@ -11,10 +11,28 @@
 %%
 %% ==== Usage ====
 %%
-%% A module defines a list of #mongoose_command records. The record is
-%% defined and described in the header file.
+%% A module defines a list of commands; a command definition is a proplist
+%% with the following keys:
+%%      name :: atom()
+%% name of the command by which we refer to it
+%%      tags = [] :: [atom()] (optional)
+%% an arbitrary number of arbitrary tags, can be used then to selectively list commands
+%%      desc :: string()
+%% long description
+%%      module :: module()
+%% module to call
+%%      function :: atom()
+%% function to call
+%%      action :: command_action()
+%% so that the HTTP side can decide which verb to require
+%%      args = [] :: [argspec()]
+%% Type spec - see below; this is both for introspection and type check on call
+%%      security_policy = [atom()] (optional)
+%% permissions required to run this command, defaults to [admin]
+%%      result :: argspec()
+%% Type spec of return value of the function to call; execute/3 eventually returns {ok, result}
 %%
-%% Commands are then registered here upon the module's initialisation
+%% Commands are registered here upon the module's initialisation
 %% (the module has to explicitly call mongoose_commands:register_commands/1
 %% func, it doesn't happen automagically), also should be unregistered when module
 %% terminates.
@@ -52,10 +70,8 @@
 %% (mongoose_commands:get_command_definition/2)
 %%
 %% Return value is also specified, and this is a bit tricky: command definition
-%% contains spec of return value, which MUST be a tuple {ok, term()}, where
-%% the "term()" is what the called function is expected to return. The
-%% execute/3 method will return {ok, term()}. Return value is checked
-%% and the registry returns an error if it does not match.
+%% contains spec of return value - what the target func returns should comply to it.
+%% The registry, namely execute/3, returns a tuple {ok, ValueReturnedByTheFunction}
 %%
 %% Called function may also return a tuple {error, term()}, this is returned by the registry
 %% as {error, internal, Msg::binary()}
@@ -66,10 +82,10 @@
 %% a user. If you call it from trusted place, you can pass 'admin' here and
 %% the whole permission check is skipped. Otherwise, pass #jid record.
 %%
-%% A command must define a security policy to be applied
+%% A command MAY define a security policy to be applied
 %% (and this is not yet designed)
+%% If it doesn't, then the command is accessible to 'admin' calls only.
 %%
-
 
 -module(mongoose_commands).
 -author("bartlomiej.gorny@erlang-solutions.com").
@@ -80,104 +96,83 @@
 -type mongoose_command() :: #mongoose_command{}.
 -type caller() :: admin|jid().
 
--define(PRT(X, Y), ct:pal("~p: ~p", [X, Y])).
-
 %% API
 -export([check_type/2]).
--export([init/0,
-    list_commands/1,
-    get_command_definition/2,
+-export([init/0]).
+
+-export([register/1,
+    unregister/1,
+    list/1,
+    list/2,
     register_commands/1,
     unregister_commands/1,
-    execute/3
-]).
+    get_command/2,
+    execute/3,
+    name/1,
+    tags/1,
+    desc/1,
+    args/1,
+    action/1,
+    result/1
+    ]).
 
-%% Encapsulated API
--export([register/1, list/1, get_command/2]).
-
+%% @doc Register mongoose commands. This can be run by any module that wants its commands exposed.
+-spec register([{atom(), term()}]) -> ok.
 register(Cmds) ->
     Commands = [check_command(C) || C <- Cmds],
     register_commands(Commands).
 
-list(U) ->
-    [{Name, #{name => Name, args => Args, desc => Desc}} || {Name, Args, Desc} <- list_commands(U)].
+unregister(Cmds) ->
+    Commands = [check_command(C) || C <- Cmds],
+    unregister_commands(Commands).
 
+-spec list(atom()|jid()) -> ok.
+list(U) ->
+    list(U, []).
+
+-spec list(atom()|jid(), [atom()]) -> [{atom(), mongoose_command()}].
+list(admin, _Tags) ->
+    [{C#mongoose_command.name, C} || [C] <- ets:match(mongoose_commands, '$1')];
+list(_Caller, _Tags) ->
+    [].
+
+-spec get_command(atom()|jid(), atom()) -> mongoose_command().
 get_command(admin, Name) ->
     case ets:lookup(mongoose_commands, Name) of
-        [C] ->
-            #{name => Name, desc => C#mongoose_command.desc, args => C#mongoose_command.args,
-                action => C#mongoose_command.action, result => {ok, C#mongoose_command.result}};
+        [C] -> C;
         [] -> {error, not_implemented, <<"Command not implemented">>}
     end;
 get_command(_Caller, _Name) ->
     {error, denied, <<"Command not available">>}.
 
-%% execute stays the same
+%% accessors
+-spec name(mongoose_command()) -> atom().
+name(Cmd) ->
+    Cmd#mongoose_command.name.
 
-%% end of encapsulated API
+-spec tags(mongoose_command()) -> [atom()].
+tags(Cmd) ->
+    Cmd#mongoose_command.tags.
 
-init() ->
-    case ets:info(mongoose_commands) of
-        undefined ->
-            ets:new(mongoose_commands, [named_table, set, public,
-                {keypos, #mongoose_command.name}]);
-        _ ->
-            ok
-    end.
+-spec desc(mongoose_command()) -> list().
+desc(Cmd) ->
+    Cmd#mongoose_command.desc.
 
+-spec args(mongoose_command()) -> term().
+args(Cmd) ->
+    Cmd#mongoose_command.args.
 
-%% @doc Get a list of all the available commands, arguments and description.
--spec list_commands(caller()) -> [{atom(), [argspec()], binary()}].
-list_commands(admin) ->
-    Commands = ets:match(mongoose_commands,
-        #mongoose_command{name = '$1',
-            args = '$2',
-            desc = '$3',
-            _ = '_'}),
-    [{A, B, C} || [A, B, C] <- Commands];
-list_commands(_Caller) ->
-    [].
+-spec action(mongoose_command()) -> command_action().
+action(Cmd) ->
+    Cmd#mongoose_command.action.
 
-
-%% @doc Get the definition record of a command.
--spec get_command_definition(caller(), atom()) -> mongoose_command() | failure().
-get_command_definition(admin, Name) ->
-    case ets:lookup(mongoose_commands, Name) of
-        [E] -> E;
-        [] -> {error, not_implemented, <<"Command not implemented">>}
-    end;
-get_command_definition(_Caller, _Name) ->
-    {error, denied, <<"Command not available">>}.
-
-
-%% @doc Register mongoose commands. This can be run by any module that wants its commands exposed.
--spec register_commands([mongoose_command()]) -> ok.
-register_commands(Commands) ->
-    lists:foreach(
-        fun(Command) ->
-            case ets:insert_new(mongoose_commands, Command) of
-                true ->
-                    ok;
-                false ->
-                    ?DEBUG("This command is already defined:~n~p", [Command])
-            end
-        end,
-        Commands).
-
-
-%% @doc Unregister mongoose commands. A twin brother of register_commands/1.
--spec unregister_commands([mongoose_command()]) -> ok.
-unregister_commands(Commands) ->
-    lists:foreach(
-        fun(Command) ->
-            ets:delete_object(mongoose_commands, Command)
-        end,
-        Commands).
-
+-spec result(mongoose_command()) -> term().
+result(Cmd) ->
+    Cmd#mongoose_command.result.
 
 %% @doc Command execution.
--spec execute(caller(), atom(), [term()]) -> {ok, term()} | failure().
-execute(admin, Name, Args) ->
+-spec execute(caller(), atom()|mongoose_command(), [term()]) -> {ok, term()} | failure().
+execute(admin, Name, Args) when is_atom(Name) ->
     case ets:lookup(mongoose_commands, Name) of
         [Command] ->
             try check_and_execute(Command, Args) of
@@ -192,8 +187,44 @@ execute(admin, Name, Args) ->
             end;
         [] -> {error, not_implemented, <<"This command is not supported">>}
     end;
+execute(Caller, #mongoose_command{name = Name} = Command, Args) ->
+    execute(Caller, Name, Args);
 execute(_Caller, _Command, _Args) ->
     {error, denied, <<"currently only admin is supported">>}.
+
+%% end of encapsulated API
+
+init() ->
+    case ets:info(mongoose_commands) of
+        undefined ->
+            ets:new(mongoose_commands, [named_table, set, public,
+                {keypos, #mongoose_command.name}]);
+        _ ->
+            ok
+    end.
+
+
+register_commands(Commands) ->
+    lists:foreach(
+        fun(Command) ->
+            case ets:insert_new(mongoose_commands, Command) of
+                true ->
+                    ok;
+                false ->
+                    ?DEBUG("This command is already defined:~n~p", [Command])
+            end
+        end,
+        Commands).
+
+
+-spec unregister_commands([mongoose_command()]) -> ok.
+unregister_commands(Commands) ->
+    lists:foreach(
+        fun(Command) ->
+            ets:delete_object(mongoose_commands, Command)
+        end,
+        Commands).
+
 
 
 check_and_execute(Command, Args) ->
@@ -291,8 +322,10 @@ check_value(action, get) ->
     get;
 check_value(action, send) ->
     send;
-check_value(action, set) ->
-    set;
+check_value(action, create) ->
+    create;
+check_value(action, update) ->
+    update;
 check_value(action, delete) ->
     delete;
 check_value(args, V) when is_list(V) ->
