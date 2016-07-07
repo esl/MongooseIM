@@ -7,6 +7,7 @@
 -export([to_json/2]).
 
 -include("ejabberd.hrl").
+-include("jlib.hrl").
 
 %% yes, there is no other option, this API has to run over encrypted connection
 init({ssl, http}, _Req, _Opts) ->
@@ -37,15 +38,16 @@ do_authorize({<<"basic">>, {User, Password}}, Req, State) ->
         error ->
             make_unauthorized_response(Req, State);
         JID ->
-            do_check_password(jid:to_lus(JID), Password, Req, State)
+            do_check_password(User, JID, Password, Req, State)
     end;
 do_authorize(_, Req, State) ->
     make_unauthorized_response(Req, State).
 
-do_check_password({User, Server}, Password, Req, State) ->
+do_check_password(RawUser, #jid{luser = User, lserver = Server} = JID,
+                  Password, Req, State) ->
     case ejabberd_auth:check_password(User, Server, Password) of
         true ->
-            {true, Req, User};
+            {true, Req, {RawUser, JID}};
         _ ->
             make_unauthorized_response(Req, State)
     end.
