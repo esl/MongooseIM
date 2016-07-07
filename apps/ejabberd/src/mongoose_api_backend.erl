@@ -28,7 +28,7 @@
 %%--------------------------------------------------------------------
 
 cowboy_router_paths(Base, Opts) ->
-    Commands = ?COMMANDS_ENGINE:list_commands(admin),
+    Commands = ?COMMANDS_ENGINE:list(admin),
     [pa:bind(fun register_handler/2, Base), Commands].
 
 %%--------------------------------------------------------------------
@@ -57,7 +57,6 @@ rest_terminate(_Req, _State) ->
 %% internal callbacks
 %%--------------------------------------------------------------------
 
-
 to_json(Req, State) ->
     {Method, Req2} = cowboy_req:method(Req),
     handle_request(Method, mongoose_api_json, Req2, State).
@@ -66,8 +65,10 @@ to_json(Req, State) ->
 %% internal funs
 %%--------------------------------------------------------------------
 
-handle_request(<<"GET">>, Serializer, Req, #backend_state{bindings=Bindings, command = Command}=State) ->
-    Result = execute_command(Bindings, Command),
+%% All parameters sent in bindings
+handle_request(<<"GET">>, Serializer, Req, #backend_state{bindings=Bindings, command = Name}=State) ->
+    CommandRecord = ?COMMANDS_ENGINE:get_command(admin, Name),
+    Result = execute_command(extract_bindings(Bindings), CommandRecord),
     handle_result(Result, Serializer, Req, State).
 
 handle_result({ok, Result}, Serializer, Req, State) ->
@@ -85,14 +86,12 @@ handle_result(no_call, Req, State) ->
 serialize(Data, Serializer, Req, State) ->
     {Serializer:serialize(Data), Req, State}.
 
-
-%% TODO create some internal record instead of keeping the whole command record
 register_handler(Base, Command) ->
     {[Base, create_url_path(Base, Command#mongoose_command.category)],
-      ?MODULE, [Command]}.
+      ?MODULE, [Command#mongoose_command.name]}.
 
 get_allowed_methods() ->
-    Commands = ?COMMANDS_ENGINE:list_commands(admin),
+    Commands = ?COMMANDS_ENGINE:list(admin),
     [translate_action(Command#mongoose_command.action) || Command <- Commands].
 
 -spec execute_command(list(), #mongoose_command{}) -> any().
@@ -119,6 +118,9 @@ maybe_add_bindings(Base, #mongoose_command{action = Action, args = Args} = Comma
 add_bindings(Base, Args) ->
     Suffix = ["/:" ++ atom_to_list(ArgName)  || {ArgName, _} <- Args],
     Base ++ Suffix.
+
+extract_bindings(Bindings) ->
+    [Bind || {_BindingName, Bind} <- Bindings].
 
 category_to_resource(Category) when is_atom(Category) ->
     atom_to_list(Category) ++ "/";
