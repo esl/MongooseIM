@@ -43,6 +43,7 @@ BaseAppsToInclude = AppsToRun ++
                      idna,
                      recon,
                      poolboy,
+		     uuid,
                      setup,
                      exometer_core
                      ],
