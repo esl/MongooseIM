@@ -28,7 +28,7 @@ after_failure:
 
 after_success:
         - make cover_report
-        - if [ $PRESET = 'internal_mnesia' ] && [ $TRAVIS_OTP_RELEASE = "17.5" ]; then tools/travis-build-and-push-docker.sh; fi
+        - if [ $PRESET = 'internal_mnesia' ] && [ $TRAVIS_OTP_RELEASE = "18.3" ]; then tools/travis-build-and-push-docker.sh; fi
 
 after_script:
         - sudo pip install awscli --ignore-installed six
@@ -46,7 +46,7 @@ branches:
                 - /\d+\.\d+\.\d+(\-[a-z,0-9])*/
 
 otp_release:
-        - 17.5
+        - 18.3
 env:
         - PRESET=internal_redis DB=mnesia REL_CONFIG=with-redis
         - PRESET=internal_mnesia DB=mnesia REL_CONFIG=with-all
@@ -59,9 +59,7 @@ env:
 
 matrix:
     include:
-        - otp_release: R16B03
-          env: PRESET=internal_mnesia DB=mnesia REL_CONFIG=with-none
-        - otp_release: 18.1
+        - otp_release: 17.5
           env: PRESET=internal_mnesia DB=mnesia REL_CONFIG=with-none
 
 notifications:
@@ -83,5 +81,5 @@ deploy:
   file: mongooseim-$TRAVIS_BRANCH.OTP-$TRAVIS_OTP_RELEASE.$(lsb_release -is | tr "A-Z" "a-z").$(lsb_release -rs).$(uname -m).tar.bz2
   on:
     tags: true
-    condition: "$PRESET.$TRAVIS_OTP_RELEASE = internal_mnesia.17.5"
+    condition: "$PRESET.$TRAVIS_OTP_RELEASE = internal_mnesia.18.3"
 

@@ -2,7 +2,7 @@
 %% @doc This module is responsible for checking whether particular AMP semantics
 %%      apply for a given message.
 
--export([check_condition/4,
+-export([check_condition/3,
          verify_support/2
         ]).
 
@@ -15,8 +15,6 @@ verify_support(HookAcc, Rules) ->
     HookAcc ++ [ verify_rule_support(Rule) || Rule <- Rules ].
 
 -spec verify_rule_support(amp_rule()) -> amp_rule_support().
-verify_rule_support(#amp_rule{action = drop} = Rule) ->
-    {error, 'unsupported-actions', Rule};
 verify_rule_support(#amp_rule{action = alert} = Rule) ->
     {error, 'unsupported-actions', Rule};
 verify_rule_support(#amp_rule{condition = 'expire-at'} = Rule) ->
@@ -24,22 +22,29 @@ verify_rule_support(#amp_rule{condition = 'expire-at'} = Rule) ->
 verify_rule_support(Rule) ->
     {supported, Rule}.
 
--spec check_condition(any(), amp_strategy(), amp_condition(), amp_value())
-                          -> boolean().
-check_condition(HookAcc, Strategy, Condition, Value) ->
+-spec check_condition(amp_match_result(), amp_strategy(), amp_rule()) -> amp_match_result().
+check_condition(HookAcc, Strategy, Rule) ->
     case HookAcc of
-        true -> true;
-        _    -> resolve(Strategy, Condition, Value)
+        no_match -> resolve(Strategy, Rule);
+        MatchResult -> MatchResult
     end.
 
--spec resolve(amp_strategy(), amp_condition(), amp_value()) -> boolean().
-resolve(#amp_strategy{} = S , 'deliver', Value) ->
-    S#amp_strategy.deliver =:= Value;
-resolve(#amp_strategy{} = S , 'match-resource', Value) when Value =:= 'any' ->
-    S#amp_strategy.'match-resource' =/= undefined;
-resolve(#amp_strategy{} = S , 'match-resource', Value)  ->
-    S#amp_strategy.'match-resource' =:= Value;
-resolve(#amp_strategy{} = S , 'expire-at', Value) ->
-    %% WARNING: This rule is not supported by mod_amp
-    S#amp_strategy.'expire-at' =:= Value;
-resolve(#amp_strategy{}, _, _) -> false.
+-spec resolve(amp_strategy(), amp_rule()) -> amp_match_result().
+resolve(#amp_strategy{deliver = [Value]}, #amp_rule{condition = deliver, value = Value}) -> match;
+resolve(#amp_strategy{deliver = Values}, #amp_rule{condition = deliver, value = Value, action = notify})
+  when is_list(Values) ->
+    case lists:member(Value, Values) of
+        true -> undecided;
+        false -> no_match
+    end;
+resolve(#amp_strategy{deliver = Values}, #amp_rule{condition = deliver, value = Value, action = Action})
+  when is_list(Values), Action == drop orelse Action == error, Value /= none ->
+    case lists:member(Value, Values) of
+        true -> match;
+        false -> no_match
+    end;
+resolve(#amp_strategy{'match-resource' = Value}, #amp_rule{condition = 'match-resource', value = any})
+  when Value /= undefined -> match;
+resolve(#amp_strategy{'match-resource' = Value}, #amp_rule{condition = 'match-resource', value = Value}) ->
+    match;
+resolve(#amp_strategy{}, #amp_rule{}) -> no_match.

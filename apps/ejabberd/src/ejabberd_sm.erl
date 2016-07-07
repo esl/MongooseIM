@@ -741,6 +741,8 @@ route_message(From, To, Packet) ->
                                                        LServer,
                                                        [From, To, Packet]);
                                 false ->
+                                    ejabberd_hooks:run_fold(failed_to_store_message,
+                                                            LServer, Packet, [From]),
                                     ok
                             end;
                         _ ->

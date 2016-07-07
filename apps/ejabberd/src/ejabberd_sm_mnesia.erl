@@ -119,7 +119,7 @@ unique_count() ->
     compute_unique(mnesia:dirty_first(session),
                    sets:new()).
 
--spec compute_unique(term(), ejabberd:set_t()) -> integer().
+-spec compute_unique(term(), set:set()) -> integer().
 compute_unique('$end_of_table', Set) ->
     sets:size(Set);
 compute_unique(Key, Set) ->

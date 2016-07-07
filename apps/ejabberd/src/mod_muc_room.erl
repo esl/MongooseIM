@@ -2478,7 +2478,7 @@ lqueue_in(Item, #lqueue{queue = Q1, len = Len, max = Max}) ->
     end.
 
 
--spec lqueue_cut(ejabberd:queue_t(), non_neg_integer()) -> ejabberd:queue_t().
+-spec lqueue_cut(queue:queue(), non_neg_integer()) -> ejabberd:queue_t().
 lqueue_cut(Q, 0) ->
     Q;
 lqueue_cut(Q, N) ->
