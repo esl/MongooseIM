@@ -187,7 +187,7 @@ new_failedreg(_C) ->
 
 new_list(_C) ->
     Rlist = mongoose_commands:list(admin),
-    Cmd = proplists:get_value(command_one, Rlist),
+    [Cmd] = [C || C <- Rlist, C#mongoose_command.name == command_one],%%proplists:get_value(command_one, Rlist),
     command_one = mongoose_commands:name(Cmd),
     "do nothing and return" = mongoose_commands:desc(Cmd),
     %% list for a user

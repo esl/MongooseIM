@@ -130,14 +130,14 @@ unregister(Cmds) ->
     unregister_commands(Commands).
 
 %% @doc List commands, available for this user.
--spec list(atom()|jid()) -> ok.
+-spec list(atom()|jid()) -> [mongoose_command()].
 list(U) ->
     list(U, any).
 
 %% @doc List commands, available for this user, filtered by category.
--spec list(atom()|jid(), atom()) -> [{atom(), mongoose_command()}].
+-spec list(atom()|jid(), atom()) -> [mongoose_command()].
 list(admin, Category) ->
-    [{C#mongoose_command.name, C} || C <- command_list(Category)];
+    command_list(Category);
 list(_Caller, _Category) ->
     [].
 
@@ -368,7 +368,7 @@ check_registration(Command) ->
             baddef("This command is already defined:~n~p", [Name])
     end,
     CatLst = list(admin, Cat),
-    FCatLst = [C || {_, C} <- CatLst, C#mongoose_command.action == Act],
+    FCatLst = [C || C <- CatLst, C#mongoose_command.action == Act],
     case FCatLst of
         [] -> ok;
         [C] ->
