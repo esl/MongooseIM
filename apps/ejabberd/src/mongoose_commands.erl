@@ -1,7 +1,7 @@
 %% @headerfile "mongoose_commands.hrl"
 %%
 %% @doc Mongoose version of command management
-%% The following is based on old ejabberd_commands implementation,
+%% The following is loosely based on old ejabberd_commands implementation,
 %% with some modification related to type check, permission control
 %% and the likes.
 %%
@@ -15,8 +15,8 @@
 %% with the following keys:
 %%      name :: atom()
 %% name of the command by which we refer to it
-%%      tags = [] :: [atom()] (optional)
-%% an arbitrary number of arbitrary tags, can be used then to selectively list commands
+%%      category :: [atom()]
+%% this defines what group the command belongs to, like user, chatroom etc
 %%      desc :: string()
 %% long description
 %%      module :: module()
@@ -67,7 +67,7 @@
 %% {{x, integer}, {y, binary}}      {1, <<"bbb">>}
 %%
 %% Arg specification is used at call-time for control, and also for introspection
-%% (mongoose_commands:get_command_definition/2)
+%% (see list/1, list/2, mongoose_commands:get_command/2 and args/1)
 %%
 %% Return value is also specified, and this is a bit tricky: command definition
 %% contains spec of return value - what the target func returns should comply to it.
@@ -96,24 +96,25 @@
 -type mongoose_command() :: #mongoose_command{}.
 -type caller() :: admin|jid().
 
-%% API
+%%%% API
+
 -export([check_type/2]).
 -export([init/0]).
 
 -export([register/1,
-    unregister/1,
-    list/1,
-    list/2,
-    register_commands/1,
-    unregister_commands/1,
-    get_command/2,
-    execute/3,
-    name/1,
-    tags/1,
-    desc/1,
-    args/1,
-    action/1,
-    result/1
+         unregister/1,
+         list/1,
+         list/2,
+         register_commands/1,
+         unregister_commands/1,
+         get_command/2,
+         execute/3,
+         name/1,
+         category/1,
+         desc/1,
+         args/1,
+         action/1,
+         result/1
     ]).
 
 %% @doc Register mongoose commands. This can be run by any module that wants its commands exposed.
@@ -122,20 +123,25 @@ register(Cmds) ->
     Commands = [check_command(C) || C <- Cmds],
     register_commands(Commands).
 
+%% @doc Unregister mongoose commands. Should be run when module is unloaded.
+-spec unregister([{atom(), term()}]) -> ok.
 unregister(Cmds) ->
     Commands = [check_command(C) || C <- Cmds],
     unregister_commands(Commands).
 
+%% @doc List commands, available for this user.
 -spec list(atom()|jid()) -> ok.
 list(U) ->
-    list(U, []).
+    list(U, any).
 
--spec list(atom()|jid(), [atom()]) -> [{atom(), mongoose_command()}].
-list(admin, _Tags) ->
-    [{C#mongoose_command.name, C} || [C] <- ets:match(mongoose_commands, '$1')];
-list(_Caller, _Tags) ->
+%% @doc List commands, available for this user, filtered by category.
+-spec list(atom()|jid(), atom()) -> [{atom(), mongoose_command()}].
+list(admin, Category) ->
+    [{C#mongoose_command.name, C} || C <- command_list(Category)];
+list(_Caller, _Category) ->
     [].
 
+%% @doc Get command definition, if allowed for this user.
 -spec get_command(atom()|jid(), atom()) -> mongoose_command().
 get_command(admin, Name) ->
     case ets:lookup(mongoose_commands, Name) of
@@ -150,9 +156,9 @@ get_command(_Caller, _Name) ->
 name(Cmd) ->
     Cmd#mongoose_command.name.
 
--spec tags(mongoose_command()) -> [atom()].
-tags(Cmd) ->
-    Cmd#mongoose_command.tags.
+-spec category(mongoose_command()) -> atom().
+category(Cmd) ->
+    Cmd#mongoose_command.category.
 
 -spec desc(mongoose_command()) -> list().
 desc(Cmd) ->
@@ -192,8 +198,6 @@ execute(Caller, #mongoose_command{name = Name} = Command, Args) ->
 execute(_Caller, _Command, _Args) ->
     {error, denied, <<"currently only admin is supported">>}.
 
-%% end of encapsulated API
-
 init() ->
     case ets:info(mongoose_commands) of
         undefined ->
@@ -203,16 +207,15 @@ init() ->
             ok
     end.
 
+%%%% end of API
 
+-spec register_commands([mongoose_command()]) -> ok.
 register_commands(Commands) ->
     lists:foreach(
         fun(Command) ->
-            case ets:insert_new(mongoose_commands, Command) of
-                true ->
-                    ok;
-                false ->
-                    ?DEBUG("This command is already defined:~n~p", [Command])
-            end
+            check_registration(Command), %% may throw
+            ets:insert_new(mongoose_commands, Command),
+            ok
         end,
         Commands).
 
@@ -226,7 +229,7 @@ unregister_commands(Commands) ->
         Commands).
 
 
-
+-spec check_and_execute(mongoose_command(), [term()]) -> term().
 check_and_execute(Command, Args) ->
     SpecLen = length(Command#mongoose_command.args),
     ALen = length(Args),
@@ -292,7 +295,6 @@ th(Fmt, V) ->
 
 
 check_command(PL) ->
-%%    Fields = [name, tags, desc, mf, action, args, security_policy, result],
     Fields = record_info(fields, mongoose_command),
     Lst = check_command([], PL, Fields),
     RLst = lists:reverse(Lst),
@@ -308,18 +310,16 @@ check_command(Cmd, PL, [N|Tail]) ->
 
 check_value(name, V) when is_atom(V) ->
     V;
-check_value(tags, V) when is_list(V) ->
+check_value(category, V) when is_atom(V) ->
     V;
-check_value(tags, undefined) ->
-    [];
 check_value(desc, V) when is_list(V) ->
     V;
 check_value(module, V) when is_atom(V) ->
     V;
 check_value(function, V) when is_atom(V) ->
     V;
-check_value(action, get) ->
-    get;
+check_value(action, read) ->
+    read;
 check_value(action, send) ->
     send;
 check_value(action, create) ->
@@ -346,3 +346,31 @@ check_value(K, V) ->
 baddef(K, V) ->
     throw({invalid_command_definition, io_lib:format("~p=~p", [K, V])}).
 
+command_list(Category) ->
+    Cmds = [C || [C] <- ets:match(mongoose_commands, '$1')],
+    filter_commands(Category, Cmds).
+
+filter_commands(any, Cmds) ->
+    Cmds;
+filter_commands(Cat, Cmds) ->
+    [C || C <- Cmds, C#mongoose_command.category == Cat].
+
+%% @doc make sure the command may be registered
+%% it may not if either (a) command of that name is already registered,
+%% (b) there is a command in the same category with the same action
+check_registration(Command) ->
+    Name = name(Command),
+    Cat = category(Command),
+    Act = action(Command),
+    case ets:lookup(mongoose_commands, Name) of
+        [] -> ok;
+        _ ->
+            baddef("This command is already defined:~n~p", [Name])
+    end,
+    CatLst = list(admin, Cat),
+    FCatLst = [C || {_, C} <- CatLst, C#mongoose_command.action == Act],
+    case FCatLst of
+        [] -> ok;
+        [C] ->
+            baddef("There is command ~p in category ~p, action ~p", [name(C), Cat, Act])
+    end.

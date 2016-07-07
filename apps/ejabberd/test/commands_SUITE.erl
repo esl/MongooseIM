@@ -1,3 +1,5 @@
+%% @doc This suite tests both old ejabberd_commands module, which is slowly getting deprecated,
+%% and the new mongoose_commands implementation.
 -module(commands_SUITE).
 -compile([export_all]).
 
@@ -21,19 +23,17 @@ all() ->
 groups() ->
     [
         {old_commands, [sequence],
-            [
-                old_list,
-                old_exec,
-                old_access_ctl
+            [old_list,
+             old_exec,
+             old_access_ctl
             ]
         },
         {new_commands, [sequence],
-            [
-                new_type_checker,
-                new_reg_unreg,
-                new_failedreg,
-                new_list,
-                new_execute
+            [new_type_checker,
+             new_reg_unreg,
+             new_failedreg,
+             new_list,
+             new_execute
             ]
         }
     ].
@@ -192,10 +192,13 @@ new_list(_C) ->
     "do nothing and return" = mongoose_commands:desc(Cmd),
     %% list for a user
     [] = mongoose_commands:list(a_user),
+    %% list by category
+    [_] = mongoose_commands:list(admin, user),
+    [] = mongoose_commands:list(admin, nocategory),
     %% get definition
     Rget = mongoose_commands:get_command(admin, command_one),
     command_one = mongoose_commands:name(Rget),
-    get = mongoose_commands:action(Rget),
+    read = mongoose_commands:action(Rget),
     {error, denied, _} = mongoose_commands:get_command(a_user, command_one),
     ok.
 
@@ -204,11 +207,16 @@ new_execute(_C) ->
     {ok, <<"bzzzz">>} = mongoose_commands:execute(admin, command_one, [<<"bzzzz">>]),
     Cmd = mongoose_commands:get_command(admin, command_one),
     {ok, <<"bzzzz">>} = mongoose_commands:execute(admin, Cmd, [<<"bzzzz">>]),
+    %% this user has no permissions
     {error, denied, _} = mongoose_commands:execute(a_user, command_one, [<<"bzzzz">>]),
+    %% command is not registered
     {error, not_implemented, _} = mongoose_commands:execute(admin, command_seven, [<<"bzzzz">>]),
+    %% invalid arguments
     {error, type_error, _} = mongoose_commands:execute(admin, command_one, [123]),
     {error, type_error, _} = mongoose_commands:execute(admin, command_one, []),
+    %% backend func throws exception
     {error, internal, _} = mongoose_commands:execute(admin, command_one, [<<"throw">>]),
+    %% backend func returns error
     ExpError = term_to_binary({func_returned_error, byleco}),
     {error, internal, ExpError} = mongoose_commands:execute(admin, command_one, [<<"error">>]),
     ok.
@@ -221,25 +229,26 @@ commands_new() ->
     [
         [
             {name, command_one},
-            {tags, [roster]},
+            {category, user},
             {desc, "do nothing and return"},
             {module, ?MODULE},
             {function, cmd_one},
-            {action, get},
+            {action, read},
             {args, [{msg, binary}]},
             {result, {msg, binary}}
         ]
     ].
 
 commands_new_temp() ->
+    %% this is to check registering/unregistering commands
     [
         [
             {name, command_temp},
-            {tags, []},
+            {category, user},
             {desc, "do nothing and return"},
             {module, ?MODULE},
             {function, cmd_one},
-            {action, get},
+            {action, create},
             {args, [{msg, binary}]},
             {result, {msg, binary}}
         ]
@@ -252,35 +261,55 @@ commands_new_lame() ->
         ],
         [
             {name, command_one},
-            {tags, roster} %% should be a list
+            {category, []} %% should be an atom
         ],
         [
             {name, command_one},
-            {tags, [roster]},
+            {category, user},
             {desc, "do nothing and return"},
             {module, ?MODULE},
             {function, cmd_one},
             {action, andnowforsomethingcompletelydifferent} %% not one of allowed values
+        ],
+        [
+            {name, command_one}, %% everything is fine, but it is already registered
+            {category, another},
+            {desc, "do nothing and return"},
+            {module, ?MODULE},
+            {function, cmd_one},
+            {action, read},
+            {args, [{msg, binary}]},
+            {result, {msg, binary}}
+        ],
+        [
+            {name, command_seven}, %% name is different...
+            {category, user},
+            {desc, "do nothing and return"},
+            {module, ?MODULE},
+            {function, cmd_one},
+            {action, read}, %% ...but another command with the same category and action is already registered
+            {args, [{msg, binary}]},
+            {result, {msg, binary}}
         ]
     ].
 
 commands_old() ->
     [
         #ejabberd_commands{name = command_one, tags = [one],
-            desc = "do nothing and return",
-            module = ?MODULE, function = cmd_one,
-            args = [{msg, binary}],
-            result = {res, restuple}},
+                           desc = "do nothing and return",
+                           module = ?MODULE, function = cmd_one,
+                           args = [{msg, binary}],
+                           result = {res, restuple}},
         #ejabberd_commands{name = command_two, tags = [two],
-            desc = "this returns wrong type",
-            module = ?MODULE, function = cmd_two,
-            args = [{msg, binary}],
-            result = {res, restuple}},
+                           desc = "this returns wrong type",
+                           module = ?MODULE, function = cmd_two,
+                           args = [{msg, binary}],
+                           result = {res, restuple}},
         #ejabberd_commands{name = command_three, tags = [two, three],
-            desc = "do nothing and return",
-            module = ?MODULE, function = cmd_three,
-            args = [{msg, binary}],
-            result = {res, restuple}}
+                           desc = "do nothing and return",
+                           module = ?MODULE, function = cmd_three,
+                           args = [{msg, binary}],
+                           result = {res, restuple}}
     ].
 
 cmd_one(<<"throw">>) ->

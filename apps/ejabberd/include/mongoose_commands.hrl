@@ -16,7 +16,7 @@
 
 -record(mongoose_command, {
     name :: atom(),                             %% name of the command by which we refer to it
-    tags = [] :: [atom()],                      %% an arbitrary number of arbitrary tags
+    category :: atom(),                         %% very important
     desc :: string(),                           %% long description
     module :: module(),                         %% module to call
     function :: atom(),                         %% function to call
