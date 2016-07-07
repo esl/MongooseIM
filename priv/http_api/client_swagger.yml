@@ -10,31 +10,22 @@ basePath: /v1
 schemes:
   - https
 paths:
-  # This is a path endpoint. Change it.
   /messages:
-    # This is a HTTP operation
     get:
-      # Describe this verb here. Note: you can use markdown
       description: |
         Gets recent messages from the archive. For the authenticated users.
         Optional query param of **size** determines
         size of returned array
-      # This is array of GET operation parameters:
       parameters:
-        # An example parameter that is in query and is required
         - name: size
           in: query
           description: Number of recent messages to return. Default is 50
           required: false
           type: number
           format: integer
-      # Expected responses for this operation:
       responses:
-        # Response code
         200:
           description: Successful response
-          # A schema describing your response object.
-          # Use JSON Schema format
           schema:
             title: Messages
             type: array
@@ -64,6 +55,13 @@ paths:
   /groups:
     get:
       description: Returns all groups to which the user is subscribed
+      parameters:
+        - name: size
+          in: query
+          description: Number of recent messages to return. Default is 50
+          required: false
+          type: number
+          format: integer
       responses:
         200:
           description: List of groups
@@ -122,6 +120,12 @@ paths:
           description: Group's unique id as described in the JID definition.
           type: string
           required: true
+        - name: size
+          in: query
+          description: Number of recent messages to return. Default is 50
+          required: false
+          type: number
+          format: integer
       responses:
         200:
           description: List messages
