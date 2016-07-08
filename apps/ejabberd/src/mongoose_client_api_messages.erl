@@ -10,6 +10,7 @@
 -export([send_message/2]).
 
 -include("ejabberd.hrl").
+-include("jlib.hrl").
 -include_lib("exml/include/exml.hrl").
 
 %% yes, there is no other option, this API has to run over encrypted connection
@@ -32,8 +33,22 @@ content_types_accepted(Req, State) ->
 allowed_methods(Req, State) ->
     {[<<"GET">>, <<"POST">>], Req, State}.
 
-to_json(Req, User) ->
-    {<<"{messages}">>, Req, User}.
+to_json(Req, {_User, #jid{lserver = Server} = JID} = State) ->
+    R = mod_mam:lookup_messages(Server,
+                            _ArchiveID = mod_mam:archive_id_int(Server, JID),
+                            _ArchiveJID = JID,
+                            _Borders = undefined,
+                            _RSM = undefined,
+                            _Start = undefined,
+                            _End = undefined,
+                            _Now = undefined,
+                            _WithJID = undefined,
+                            _PageSize = 10,
+                            _LimitPassed = true,
+                            _MaxResultLimit = 50,
+                            _IsSimple = true),
+    ?WARNING_MSG("~p", [R]),
+    {<<"{messages}">>, Req, State}.
 
 send_message(Req, {RawUser, FromJID} = State) ->
     {ok, Body, Req2} = cowboy_req:body(Req),
@@ -41,6 +56,8 @@ send_message(Req, {RawUser, FromJID} = State) ->
     ToJID = jid:from_binary(To),
     UUID = uuid:uuid_to_string(uuid:get_v4(), binary_standard),
     XMLMsg = build_message(RawUser, To, UUID, MsgBody),
+    ejabberd_hooks:run(rest_user_send_packet, FromJID#jid.lserver,
+                       [FromJID, ToJID, XMLMsg]),
     ejabberd_router:route(FromJID, ToJID, XMLMsg),
     Resp = #{<<"id">> => UUID},
     Req3 = cowboy_req:set_resp_body(jiffy:encode(Resp), Req2),

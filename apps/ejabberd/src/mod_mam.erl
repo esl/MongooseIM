@@ -53,6 +53,8 @@
 
 %%private
 -export([archive_message/8]).
+-export([lookup_messages/13]).
+-export([archive_id_int/2]).
 
 %% ----------------------------------------------------------------------
 %% Imports
@@ -201,6 +203,7 @@ start(Host, Opts) ->
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_MAM_04,
                                   ?MODULE, process_mam_iq, IQDisc),
     ejabberd_hooks:add(user_send_packet, Host, ?MODULE, user_send_packet, 90),
+    ejabberd_hooks:add(rest_user_send_packet, Host, ?MODULE, user_send_packet, 90),
     ejabberd_hooks:add(filter_local_packet, Host, ?MODULE, filter_packet, 90),
     ejabberd_hooks:add(remove_user, Host, ?MODULE, remove_user, 50),
     ejabberd_hooks:add(anonymous_purge_hook, Host, ?MODULE, remove_user, 50),
@@ -215,6 +218,7 @@ start(Host, Opts) ->
 stop(Host) ->
     ?DEBUG("mod_mam stopping", []),
     ejabberd_hooks:delete(user_send_packet, Host, ?MODULE, user_send_packet, 90),
+    ejabberd_hooks:delete(rest_user_send_packet, Host, ?MODULE, user_send_packet, 90),
     ejabberd_hooks:delete(filter_local_packet, Host, ?MODULE, filter_packet, 90),
     ejabberd_hooks:delete(remove_user, Host, ?MODULE, remove_user, 50),
     ejabberd_hooks:delete(anonymous_purge_hook, Host, ?MODULE, remove_user, 50),
