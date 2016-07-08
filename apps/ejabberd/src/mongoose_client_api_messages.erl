@@ -35,20 +35,21 @@ allowed_methods(Req, State) ->
 
 to_json(Req, {_User, #jid{lserver = Server} = JID} = State) ->
     R = mod_mam:lookup_messages(Server,
-                            _ArchiveID = mod_mam:archive_id_int(Server, JID),
-                            _ArchiveJID = JID,
-                            _Borders = undefined,
-                            _RSM = undefined,
-                            _Start = undefined,
-                            _End = undefined,
-                            _Now = undefined,
-                            _WithJID = undefined,
-                            _PageSize = 10,
-                            _LimitPassed = true,
-                            _MaxResultLimit = 50,
-                            _IsSimple = true),
-    ?WARNING_MSG("~p", [R]),
-    {<<"{messages}">>, Req, State}.
+                                _ArchiveID = mod_mam:archive_id_int(Server, JID),
+                                _ArchiveJID = JID,
+                                _Borders = undefined,
+                                _RSM = undefined,
+                                _Start = undefined,
+                                _End = undefined,
+                                _Now = undefined,
+                                _WithJID = undefined,
+                                _PageSize = 10,
+                                _LimitPassed = true,
+                                _MaxResultLimit = 50,
+                                _IsSimple = true),
+    {ok, {_, _, Msgs}} = R,
+    Resp = [make_json_msg(Msg) || {_ID, _, Msg} <- Msgs],
+    {jiffy:encode(Resp), Req, State}.
 
 send_message(Req, {RawUser, FromJID} = State) ->
     {ok, Body, Req2} = cowboy_req:body(Req),
@@ -72,3 +73,11 @@ build_message(From, To, Id, Body) ->
            attrs = Attrs,
            children = [#xmlel{name = <<"body">>,
                               children = [#xmlcdata{content = Body}]}]}.
+
+make_json_msg(Msg) ->
+    BodyTag = exml_query:path(Msg, [{element, <<"body">>}]),
+    #{from => exml_query:attr(Msg, <<"from">>),
+      to => exml_query:attr(Msg, <<"to">>),
+      id => exml_query:attr(Msg, <<"id">>),
+      body => exml_query:cdata(BodyTag)}.
+
