@@ -43,7 +43,7 @@ cowboy_router_paths(Base, _Opts) ->
 %%--------------------------------------------------------------------
 %% cowboy_rest callbacks
 %%--------------------------------------------------------------------
-init({ssl, _}, Req, Opts) ->
+init({_Transport, _}, Req, Opts) ->
     {upgrade, protocol, cowboy_rest, Req, Opts}.
 
 rest_init(Req, Opts) ->
@@ -130,7 +130,8 @@ handle_result(Other, _Serializer, Req, State) ->
 handle_result({ok, _Res}, Req, State) ->
     %% TODO When POST add resource created to headers
     %% TODO return appropriate status code
-    {ok, Req2} = cowboy_req:reply(201, [{<<"location">>, <<"http://localhost:5288/api/user">>}], Req),
+%%    {ok, Req2} = cowboy_req:reply(201, [{<<"location">>, <<"http://localhost:5288/api/user">>}], Req),
+    {ok, Req2} = cowboy_req:reply(201, Req),
     {halt, Req2, State};
 handle_result({error, Error}, Req, State) ->
     error_response(Error, Req, State);
