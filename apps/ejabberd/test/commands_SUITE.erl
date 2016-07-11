@@ -157,6 +157,8 @@ new_type_checker(_C) ->
     true = t_check_type([integer], []),
     true = t_check_type([integer], [1, 2, 3]),
     {false, _} = t_check_type([integer], [1, <<"z">>, 3]),
+    true = t_check_type([], [1, 2, 3]),
+    true = t_check_type([], []),
     ok.
 
 t_check_type(Spec, Value) ->

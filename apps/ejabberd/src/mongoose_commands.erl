@@ -59,6 +59,8 @@
 %% [integer]                        []
 %% [integer]                        [1]
 %% [integer]                        [1,2,3,4]
+%% a list of anything
+%% []
 %% a named argument (name is only for clarity)
 %% {msg, binary}                    <<"zzz">>
 %% a tuple of args
@@ -270,6 +272,10 @@ check_type(Spec, Value) when is_tuple(Spec) and not is_tuple(Value) ->
 check_type(Spec, Value) when is_tuple(Spec) ->
     compare_tuples(Spec, Value);
 check_type([_Spec], []) ->
+    true;
+check_type([], [_|_]) ->
+    true;
+check_type([], []) ->
     true;
 check_type([Spec], [H|T]) ->
     check_type({none, Spec}, H),
