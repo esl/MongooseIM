@@ -38,7 +38,7 @@ cowboy_router_paths(Base, _Opts) ->
             ?ERROR_MSG("Error occured when getting the commands list: ~p~n", [Err]),
             undefined
     end,
-    [register_handler(Base, Command) || Command <- Commands].
+    [handler_path(Base, Command) || Command <- Commands].
 
 %%--------------------------------------------------------------------
 %% cowboy_rest callbacks
@@ -141,7 +141,7 @@ handle_result(no_call, Req, State) ->
 serialize(Data, Serializer, Req, State) ->
     {Serializer:serialize(Data), Req, State}.
 
-register_handler(Base, Command) ->
+handler_path(Base, Command) ->
     {[Base, create_url_path(Command)],
       ?MODULE, [{command_category, ?COMMANDS_ENGINE:category(Command)}]}.
 
@@ -153,27 +153,35 @@ execute_command(Args, Command) ->
     ?COMMANDS_ENGINE:execute(admin, ?COMMANDS_ENGINE:name(Command), Args).
 
 create_url_path(Command) ->
-    "/" ++ maybe_add_bindings(category_to_resource(?COMMANDS_ENGINE:category(Command)), Command).
+    "/" ++ category_to_resource(?COMMANDS_ENGINE:category(Command))
+        ++ maybe_add_bindings(Command).
 
 %% for now, might be GET of form http://api/users/:domain/:username
 %% instead of                    http://api/users/domain/:domain/username/:username
-maybe_add_bindings(Base, Command) ->
+-spec maybe_add_bindings(list({atom(), any()})) -> string().
+maybe_add_bindings(Command) ->
     Action = ?COMMANDS_ENGINE:action(Command),
     Args = ?COMMANDS_ENGINE:args(Command),
     case Action of
         read ->
-            add_bindings(Base, Args);
+            add_bindings(Args);
         update ->
-            add_bindings(Base, Args);
+            add_bindings(Args);
         delete ->
-            add_bindings(Base, Args);
+            add_bindings(Args);
         _ ->
-            Base
+            ""
     end.
 
-add_bindings(Base, Args) ->
-    Suffix = ["/:" ++ atom_to_list(ArgName)  || {ArgName, _} <- Args],
-    lists:flatten(Base ++ Suffix).
+-spec add_bindings(list({atom(), any()})) -> string().
+add_bindings(Args) ->
+    lists:flatten([add_bind(A) || A <- Args]).
+
+-spec add_bind({atom(), any()}) -> string().
+add_bind({ArgName, _}) ->
+    "/:" ++ atom_to_list(ArgName);
+add_bind(Other) ->
+    throw({error, bad_arg_spec, Other}).
 
 extract_bindings(Bindings) ->
     [Bind || {_BindingName, Bind} <- Bindings].
