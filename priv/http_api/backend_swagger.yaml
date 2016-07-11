@@ -58,33 +58,6 @@ paths:
                 type: string
         404:
           description: Failure response because the given XMPP host does not exist
-  /{XMPPHost}/roster:
-    get:
-      description: A list of all rosters under the given XMPP host. This response is **paged** because there may be many users.
-      parameters:
-        - name: XMPPHost
-          in: path
-          description: The XMPP hostname
-          required: true
-          type: string
-          format: text
-      responses:
-        200:
-          description: Success response with a list of links to all the rosters under the given XMPP host
-          schema:
-            title: RosterTable
-            type: array
-            items:
-              title: RosterLink
-              type: object
-              properties:
-                username:
-                  type: string
-                link:
-                  type: string
-                  format: link
-        404:
-          description: Failure response because the given XMPP host does not exist
   /{XMPPHost}/roster/{username}:
     parameters:
       -
