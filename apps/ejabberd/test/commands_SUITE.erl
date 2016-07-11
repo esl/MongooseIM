@@ -195,6 +195,9 @@ new_list(_C) ->
     %% list by category
     [_] = mongoose_commands:list(admin, user),
     [] = mongoose_commands:list(admin, nocategory),
+    %% list by category and action
+    [_] = mongoose_commands:list(admin, user, read),
+    [] = mongoose_commands:list(admin, user, update),
     %% get definition
     Rget = mongoose_commands:get_command(admin, command_one),
     command_one = mongoose_commands:name(Rget),
