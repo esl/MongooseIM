@@ -164,7 +164,7 @@ paths:
           description: The item was successfully removed 
         404:
           description: Failure response because the given user does not exist under this XMPP host or the XMPP host itself does not exist
-  /{XMPPHost}/register:
+  /{XMPPHost}/users:
     parameters:
         -
           name: XMPPHost
@@ -178,7 +178,7 @@ paths:
         200:
           description: Success response listing all registered users
           schema:
-            title: Resgister
+            title: Register
             type: array
             items:
               title: Username
