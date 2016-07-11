@@ -18,7 +18,7 @@
     allow_missing_post/2]).
 
 %% local callbacks
--export([to_json/2, from_json/2]).
+-export([to_json/2, from_json/2, delete_resource/2]).
 
 
 -define(COMMANDS_ENGINE, mongoose_commands).
@@ -78,64 +78,74 @@ rest_terminate(_Req, _State) ->
 allow_missing_post(Req, State)->
     {true, Req, State}.
 
+delete_resource(Req, State) ->
+    handle_delete(Req, State).
+
 %%--------------------------------------------------------------------
 %% internal callbacks
 %%--------------------------------------------------------------------
 
 to_json(Req, State) ->
-    handle_request(mongoose_api_json, Req, State).
+    handle_get(mongoose_api_json, Req, State).
 
 %%--------------------------------------------------------------------
 from_json(Req, State) ->
-    handle_body(mongoose_api_json, Req, State).
+    handle_post(mongoose_api_json, Req, State).
 
 %%--------------------------------------------------------------------
 %% internal funs
 %%--------------------------------------------------------------------
 
-handle_request(Serializer, Req, #backend_state{bindings=Bindings, command_category = Name}=State) ->
+handle_get(Serializer, Req, #backend_state{bindings=Bindings, command_category = Name}=State) ->
     %% should we introduce filtering not only by category?
     Commands = ?COMMANDS_ENGINE:list(admin, Name),
-    [Command] = [C || C <- Commands, ?COMMANDS_ENGINE:action(C) =:= read],
+    [Command] = [C || C <- Commands, (?COMMANDS_ENGINE:action(C) =:= read) ],
     Result = execute_command(extract_bindings(Bindings), Command),
-    handle_result(Result, Serializer, Req, State).
+    handle_result({get, Serializer}, Result, Req, State).
 
-handle_body(Deserializer, Req, State) ->
+handle_delete(Req, #backend_state{bindings=Bindings, command_category = Name}=State) ->
+    Commands = ?COMMANDS_ENGINE:list(admin, Name),
+    [Command] = [C || C <- Commands, (?COMMANDS_ENGINE:action(C) =:= delete)],
+    Result = execute_command(extract_bindings(Bindings), Command),
+    handle_result(delete, Result, Req, State).
+
+handle_post(Deserializer, Req, State) ->
     {Method, Req1} = cowboy_req:method(Req),
     {ok, Body, Req2} = cowboy_req:body(Req1),
     case Deserializer:deserialize(Body) of
         {ok, Data} ->
-            handle_body(Method, Data, Req2, State);
+            handle_post(Method, Data, Req2, State);
         {error, _Reason} ->
             error_response(bad_request, Req2, State)
     end.
 
-handle_body(Method, Data, Req, #backend_state{command_category = Category}=State) ->
+handle_post(Method, Data, Req, #backend_state{command_category = Category}=State) ->
     Action = method_to_action(Method),
     Commands = ?COMMANDS_ENGINE:list(admin, Category),
     [Command] = [C || C <- Commands, ?COMMANDS_ENGINE:action(C) =:= Action],
     case check_and_extract_args(?COMMANDS_ENGINE:args(Command), Data) of
         {ok, Args} ->
             Result = execute_command(Args, Command),
-            handle_result(Result, Req, State);
+            handle_result(post, Result, Req, State);
         {error, Type} ->
             error_response(Type, Req, State)
     end.
 
-handle_result({ok, Result}, Serializer, Req, State) ->
+handle_result({get, Serializer}, {ok, Result}, Req, State) ->
     serialize(Result, Serializer, Req, State);
-handle_result(Other, _Serializer, Req, State) ->
-    handle_result(Other, Req, State).
-
-handle_result({ok, _Res}, Req, State) ->
+handle_result({get, _Serializer}, {error, Error}, Req, State) ->
+    error_response(Error, Req, State);
+handle_result(post, {ok, _Res}, Req, State) ->
     %% TODO When POST add resource created to headers
-    %% TODO return appropriate status code
 %%    {ok, Req2} = cowboy_req:reply(201, [{<<"location">>, <<"http://localhost:5288/api/user">>}], Req),
     {ok, Req2} = cowboy_req:reply(201, Req),
     {halt, Req2, State};
-handle_result({error, Error}, Req, State) ->
+handle_result(delete, {ok, _Res}, Req, State) ->
+    {ok, Req2} = cowboy_req:reply(200, Req),
+    {halt, Req2, State};
+handle_result({error, Error}, _, Req, State) ->
     error_response(Error, Req, State);
-handle_result(no_call, Req, State) ->
+handle_result(no_call, _, Req, State) ->
     error_response(not_implemented, Req, State).
 
 serialize(Data, Serializer, Req, State) ->
