@@ -58,7 +58,7 @@ paths:
                 type: string
         404:
           description: Failure response because the given XMPP host does not exist
-  /{XMPPHost}/roster/{username}:
+  /{XMPPHost}/rosters/{username}:
     parameters:
       -
         name: XMPPHost
@@ -226,7 +226,7 @@ paths:
           description: Cancelation successful
         404:
           description: Could not find the given user under the XMPP host
-  /{XMPPHost}/session:
+  /{XMPPHost}/sessions:
     get:
       parameters:
         -
@@ -264,7 +264,7 @@ paths:
                   type: string
         404:
           description: Failure response because the given XMPP host does not exist
-  /{XMPPHost}/session/{username}:
+  /{XMPPHost}/sessions/{username}:
     parameters:
       -
         name: XMPPHost
