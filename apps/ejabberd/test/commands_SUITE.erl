@@ -222,6 +222,7 @@ new_execute(_C) ->
     %% backend func returns error
     ExpError = term_to_binary({func_returned_error, byleco}),
     {error, internal, ExpError} = mongoose_commands:execute(admin, command_one, [<<"error">>]),
+    {ok, <<"response">>} = mongoose_commands:execute(admin, command_two, [10, <<"binary">>]),
     ok.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -239,7 +240,17 @@ commands_new() ->
             {action, read},
             {args, [{msg, binary}]},
             {result, {msg, binary}}
-        ]
+        ],
+        [
+            {name, command_two},
+            {category, user},
+            {desc, "do nothing and return"},
+            {module, ?MODULE},
+            {function, two_args_fun},
+            {action, read},
+            {args, [{one, integer}, {two, binary}]},
+            {result, {msg, binary}}
+    ]
     ].
 
 commands_new_temp() ->
@@ -325,6 +336,11 @@ cmd_one(M) ->
 
 cmd_two(M) ->
     M.
+
+two_args_fun(10, <<"binary">>) ->
+    <<"response">>;
+two_args_fun(_, _) ->
+    <<"wrong contetn">>.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%% utilities
