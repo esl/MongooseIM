@@ -274,6 +274,10 @@ check_type([_Spec], []) ->
 check_type([Spec], [H|T]) ->
     check_type({none, Spec}, H),
     check_type([Spec], T);
+check_type([], [_|_]) ->
+    true;
+check_type([], []) ->
+    true;
 check_type(Spec, Value) ->
     th("Catch-all: ~p vs ~p", [Spec, Value]).
 
@@ -373,14 +377,14 @@ check_registration(Command) ->
     Cat = category(Command),
     Act = action(Command),
     case ets:lookup(mongoose_commands, Name) of
-        [] -> ok;
+        [] ->
+            CatLst = list(admin, Cat),
+            FCatLst = [C || C <- CatLst, C#mongoose_command.action == Act],
+            case FCatLst of
+                [] -> ok;
+                [C] ->
+                    baddef("There is command ~p in category ~p, action ~p", [name(C), Cat, Act])
+            end;
         _ ->
-            baddef("This command is already defined:~n~p", [Name])
-    end,
-    CatLst = list(admin, Cat),
-    FCatLst = [C || C <- CatLst, C#mongoose_command.action == Act],
-    case FCatLst of
-        [] -> ok;
-        [C] ->
-            baddef("There is command ~p in category ~p, action ~p", [name(C), Cat, Act])
+            ?DEBUG("This command is already defined:~n~p", [Name])
     end.

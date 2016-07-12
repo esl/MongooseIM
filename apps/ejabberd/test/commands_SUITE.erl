@@ -157,6 +157,8 @@ new_type_checker(_C) ->
     true = t_check_type([integer], []),
     true = t_check_type([integer], [1, 2, 3]),
     {false, _} = t_check_type([integer], [1, <<"z">>, 3]),
+    true = t_check_type([], [1, 2, 3]),
+    true = t_check_type([], []),
     ok.
 
 t_check_type(Spec, Value) ->
@@ -274,16 +276,17 @@ commands_new_lame() ->
             {function, cmd_one},
             {action, andnowforsomethingcompletelydifferent} %% not one of allowed values
         ],
-        [
-            {name, command_one}, %% everything is fine, but it is already registered
-            {category, another},
-            {desc, "do nothing and return"},
-            {module, ?MODULE},
-            {function, cmd_one},
-            {action, read},
-            {args, [{msg, binary}]},
-            {result, {msg, binary}}
-        ],
+%%        We do not crash if command is already registered because some modules are loaded more then once
+%%        [
+%%            {name, command_one}, %% everything is fine, but it is already registered
+%%            {category, another},
+%%            {desc, "do nothing and return"},
+%%            {module, ?MODULE},
+%%            {function, cmd_one},
+%%            {action, read},
+%%            {args, [{msg, binary}]},
+%%            {result, {msg, binary}}
+%%        ],
         [
             {name, command_seven}, %% name is different...
             {category, user},
