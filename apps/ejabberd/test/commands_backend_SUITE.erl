@@ -28,7 +28,15 @@ groups() ->
             [
                 get_simple,
                 get_advanced,
-                post_simple
+                get_wrong_arg_number,
+                get_no_command,
+                get_wrong_arg_type,
+                post_simple,
+                post_wrong_arg_number,
+                post_wrong_arg_name,
+                post_wrong_arg_type,
+                post_no_command,
+                delete_simple
             ]
         }
     ].
@@ -107,12 +115,58 @@ get_advanced(_Config) ->
     check_status_code(Response, 200),
     check_response_body(Response, ExpectedBody).
 
+get_wrong_arg_number(_Config) ->
+    Path = list_to_binary("/api/animals/1/2/3") ,
+    {ok, Response} = get_request(Path),
+    check_status_code(Response, 404).
+
+get_no_command(_Config) ->
+    Path = list_to_binary("/api/unregistered_command/123123") ,
+    {ok, Response} = get_request(Path),
+    check_status_code(Response, 404).
+
+get_wrong_arg_type(_Config) ->
+    Path = list_to_binary("/api/animals/1/wrong") ,
+    {ok, Response} = get_request(Path),
+    check_status_code(Response, 400).
+
+
 post_simple(_Config) ->
     Args = [{arg1, 10}, {arg2,2}],
     Path = <<"/api/weather">>,
     {ok, Response} = post_request(Path, Args),
     check_status_code(Response, 201).
 
+post_wrong_arg_number(_Config) ->
+    Args = [{arg1, 10}, {arg2,2}, {arg3, 100}],
+    Path = <<"/api/weather">>,
+    {ok, Response} = post_request(Path, Args),
+    check_status_code(Response, 400).
+
+post_wrong_arg_name(_Config) ->
+    Args = [{arg11, 10}, {arg2,2}],
+    Path = <<"/api/weather">>,
+    {ok, Response} = post_request(Path, Args),
+    check_status_code(Response, 400).
+
+post_wrong_arg_type(_Config) ->
+    Args = [{arg1, 10}, {arg2,<<"weird binary">>}],
+    Path = <<"/api/weather">>,
+    {ok, Response} = post_request(Path, Args),
+    check_status_code(Response, 400).
+
+post_no_command(_Config) ->
+    Args = [{arg1, 10}, {arg2,2}],
+    Path = <<"/api/weather/10">>,
+    {ok, Response} = post_request(Path, Args),
+    check_status_code(Response, 404).
+
+delete_simple(_Config) ->
+    Arg1 = "ala_ma_kota",
+    Arg2 = 10,
+    Path = list_to_binary("/api/music/" ++ Arg1 ++ "/" ++ integer_to_list(Arg2)),
+    {ok, Response} = delete_request(Path),
+    check_status_code(Response, 200).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%% definitions
@@ -149,6 +203,16 @@ commands_new() ->
             {action, create},
             {args, [{arg1, integer}, {arg2, integer}]},
             {result, {res, integer}}
+        ],
+        [
+            {name, delete_simple},
+            {category, music},
+            {desc, "do nothing and return"},
+            {module, ?MODULE},
+            {function, delete_simple_command},
+            {action, delete},
+            {args, [{arg1, binary}, {arg2, integer}]},
+            {result, {res, integer}}
         ]
     ].
 
@@ -161,12 +225,17 @@ get_advanced_command(1, 2) ->
 post_simple_command(X, 2) ->
     X.
 
+delete_simple_command(Binary, 2) when is_binary(Binary) ->
+    10.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%% utilities
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 post_headers() ->
     [{<<"Content-Type">>, <<"application/json">>}, {<<"Accept">>, <<"application/json">>}].
 
+-spec get_request(binary()) -> any().
 get_request(Path) ->
     setup(),
     {ok, Pid} = fusco:start_link("http://localhost:5288", []),
@@ -181,6 +250,15 @@ post_request(Path, Args) ->
     Body = jiffy:encode(maps:from_list(Args)),
     {ok, Pid} = fusco:start_link("http://localhost:5288", []),
     R = fusco:request(Pid, Path, "POST", post_headers(), Body, 5000),
+    fusco:disconnect(Pid),
+    teardown(),
+    R.
+
+-spec delete_request(binary()) -> any().
+delete_request(Path) ->
+    setup(),
+    {ok, Pid} = fusco:start_link("http://localhost:5288", []),
+    R = fusco:request(Pid, Path, "DELETE", [], [], 5000),
     fusco:disconnect(Pid),
     teardown(),
     R.

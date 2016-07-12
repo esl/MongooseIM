@@ -123,14 +123,12 @@ handle_post(Method, Data, Req, #backend_state{command_category = Category}=State
         {ok, Args} ->
             Result = execute_command(Args, Command),
             handle_result(post, Result, Req, State);
-        {error, Type} ->
+        {error, Type, _Res} ->
             error_response(Type, Req, State)
     end.
 
 handle_result({get, Serializer}, {ok, Result}, Req, State) ->
     serialize(Result, Serializer, Req, State);
-handle_result({get, _Serializer}, {error, Error, _Reason}, Req, State) ->
-    error_response(Error, Req, State);
 handle_result(post, {ok, _Res}, Req, State) ->
     %% TODO When POST add resource created to header "location"
 %%    {ok, Req2} = cowboy_req:reply(201, [{<<"location">>, ResourcePath}], Req),
@@ -139,7 +137,7 @@ handle_result(post, {ok, _Res}, Req, State) ->
 handle_result(delete, {ok, _Res}, Req, State) ->
     {ok, Req2} = cowboy_req:reply(200, Req),
     {halt, Req2, State};
-handle_result({error, Error, _Reason}, _, Req, State) ->
+handle_result(_, {error, Error, _Reason}, Req, State) ->
     error_response(Error, Req, State);
 handle_result(no_call, _, Req, State) ->
     error_response(not_implemented, Req, State).
