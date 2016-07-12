@@ -204,8 +204,8 @@ paths:
               password:
                 type: string
       responses:
-        200:
-          description: Register the given entitiy
+        201:
+          description: Register an entity with the given credentials. This creates a new resource under `/{XMPPHost}/rosters/{username}`
         404:
           description: Failure response because the given XMPP host does not exist
         409:
