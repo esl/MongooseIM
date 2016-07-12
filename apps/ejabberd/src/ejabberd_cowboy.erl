@@ -40,7 +40,13 @@
 -export([handler/1]).
 
 -include("ejabberd.hrl").
-
+-type options()  :: [any()].
+-type path() :: string().
+-type paths() :: list(path()).
+-type handler_module()  :: module().
+-type default_result() :: list({{path(), module(), options()}}).
+-type implemented_result() :: list({paths(), handler_module(), options()}).
+-callback cowboy_router_paths(path(), options()) -> implemented_result() | default_result().
 %%--------------------------------------------------------------------
 %% ejabberd_listener API
 %%--------------------------------------------------------------------
