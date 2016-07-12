@@ -14,6 +14,18 @@ basePath: /api
 produces:
   - application/json
 paths:
+  /:
+    get:
+      description: List the resources on this MongooseIM node.
+      responses:
+        200:
+          description: A list of the resources under this MongooseIM **node**
+          schema:
+            title: MIMNodeResources
+            type: array
+            items:
+              title: nodeResource
+              type: string
   /status:
     get:
       description: The status of MongooseIM on the given host.
@@ -37,7 +49,7 @@ paths:
                 format: directory
   /{XMPPHost}:
     get:
-      description: Information about the given XMPP host (**what information should we return?**).
+      description: List the resources under this XMPP **host**.
       parameters:
         - name: XMPPHost
           in: path
@@ -47,14 +59,12 @@ paths:
           format: hostname
       responses:
         200:
-          description: Successful response with information about the given XMPP host
+          description: Successful response listing the resources on the given XMPP host
           schema:
-            title: XMPPHost
-            type: object
-            properties:
-              name:
-                type: string
-              information:
+            title: XMPPHostResources
+            type: array
+            items:
+                title: XMPPHostResource
                 type: string
         404:
           description: Failure response because the given XMPP host does not exist
