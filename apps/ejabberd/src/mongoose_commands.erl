@@ -236,6 +236,8 @@ unregister_commands(Commands) ->
 
 
 -spec check_and_execute(mongoose_command(), [term()]) -> term().
+check_and_execute(Command, Args) when is_map(Args) ->
+    check_and_execute(Command, map_to_list(Args, Command#mongoose_command.args));
 check_and_execute(Command, Args) ->
     SpecLen = length(Command#mongoose_command.args),
     ALen = length(Args),
@@ -388,3 +390,20 @@ check_registration(Command) ->
         _ ->
             ?DEBUG("This command is already defined:~n~p", [Name])
     end.
+
+mapget(K, Map) ->
+    try maps:get(K, Map) of
+        V -> V
+    catch error:bad_key ->
+        th("Missing argument: ~p", [K])
+    end.
+
+map_to_list(Map, Args) ->
+    SpecLen = length(Args),
+    ALen = maps:size(Map),
+    if SpecLen =/= ALen ->
+        th("Invalid number of arguments: should be ~p, got ~p", [SpecLen, ALen]);
+        true -> ok
+    end,
+    [mapget(K, Map) || {K, _} <- Args].
+

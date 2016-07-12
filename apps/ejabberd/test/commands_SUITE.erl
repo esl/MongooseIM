@@ -212,6 +212,8 @@ new_execute(_C) ->
     {ok, <<"bzzzz">>} = mongoose_commands:execute(admin, command_one, [<<"bzzzz">>]),
     Cmd = mongoose_commands:get_command(admin, command_one),
     {ok, <<"bzzzz">>} = mongoose_commands:execute(admin, Cmd, [<<"bzzzz">>]),
+    %% call with a map
+    {ok, <<"bzzzz">>} = mongoose_commands:execute(admin, command_one, #{msg => <<"bzzzz">>}),
     %% this user has no permissions
     {error, denied, _} = mongoose_commands:execute(a_user, command_one, [<<"bzzzz">>]),
     %% command is not registered
@@ -219,6 +221,10 @@ new_execute(_C) ->
     %% invalid arguments
     {error, type_error, _} = mongoose_commands:execute(admin, command_one, [123]),
     {error, type_error, _} = mongoose_commands:execute(admin, command_one, []),
+    {error, type_error, _} = mongoose_commands:execute(admin, command_one, #{}),
+    {error, type_error, _} = mongoose_commands:execute(admin, command_one, #{msg => 123}),
+    {error, type_error, _} = mongoose_commands:execute(admin, command_one, #{notthis => <<"bzzzz">>}),
+    {error, type_error, _} = mongoose_commands:execute(admin, command_one, #{msg => <<"bzzzz">>, redundant => 123}),
     %% backend func throws exception
     {error, internal, _} = mongoose_commands:execute(admin, command_one, [<<"throw">>]),
     %% backend func returns error
