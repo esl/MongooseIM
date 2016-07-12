@@ -105,6 +105,7 @@
          unregister/1,
          list/1,
          list/2,
+         list/3,
          register_commands/1,
          unregister_commands/1,
          get_command/2,
@@ -132,13 +133,18 @@ unregister(Cmds) ->
 %% @doc List commands, available for this user.
 -spec list(atom()|jid()) -> [mongoose_command()].
 list(U) ->
-    list(U, any).
+    list(U, any, any).
 
 %% @doc List commands, available for this user, filtered by category.
 -spec list(atom()|jid(), atom()) -> [mongoose_command()].
-list(admin, Category) ->
-    command_list(Category);
-list(_Caller, _Category) ->
+list(U, C) ->
+    list(U, C, any).
+
+%% @doc List commands, available for this user, filtered by category and action.
+-spec list(atom()|jid(), atom(), atom()) -> [mongoose_command()].
+list(admin, Category, Action) ->
+    command_list(Category, Action);
+list(_Caller, _Category, _Action) ->
     [].
 
 %% @doc Get command definition, if allowed for this user.
@@ -346,14 +352,18 @@ check_value(K, V) ->
 baddef(K, V) ->
     throw({invalid_command_definition, io_lib:format("~p=~p", [K, V])}).
 
-command_list(Category) ->
+command_list(Category, Action) ->
     Cmds = [C || [C] <- ets:match(mongoose_commands, '$1')],
-    filter_commands(Category, Cmds).
+    filter_commands(Category, Action, Cmds).
 
-filter_commands(any, Cmds) ->
+filter_commands(any, any, Cmds) ->
     Cmds;
-filter_commands(Cat, Cmds) ->
-    [C || C <- Cmds, C#mongoose_command.category == Cat].
+filter_commands(Cat, any, Cmds) ->
+    [C || C <- Cmds, C#mongoose_command.category == Cat];
+filter_commands(any, _, _) ->
+    throw({invalid_filter, ""});
+filter_commands(Cat, Action, Cmds) ->
+    [C || C <- Cmds, C#mongoose_command.category == Cat, C#mongoose_command.action == Action].
 
 %% @doc make sure the command may be registered
 %% it may not if either (a) command of that name is already registered,
