@@ -1,5 +1,5 @@
 
--type command_action() :: [create|read|update|delete]. %% just basic CRUD; sending a mesage is 'create'
+-type command_action() :: [create|read|update|delete]. %% just basic CRUD; sending a message is 'create'
 
 -type typedef() :: integer|binary|float. %% most basic primitives, string is a binary
 
