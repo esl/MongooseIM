@@ -14,8 +14,7 @@
 -export([cowboy_router_paths/2]).
 
 %% cowboy_rest exports
--export([allowed_methods/2, content_types_provided/2, rest_terminate/2, init/3, rest_init/2, content_types_accepted/2,
-    allow_missing_post/2]).
+-export([allowed_methods/2, content_types_provided/2, rest_terminate/2, init/3, rest_init/2, content_types_accepted/2]).
 
 %% local callbacks
 -export([to_json/2, from_json/2, delete_resource/2]).
@@ -75,9 +74,6 @@ content_types_accepted(Req, State) ->
 rest_terminate(_Req, _State) ->
     ok.
 
-allow_missing_post(Req, State)->
-    {true, Req, State}.
-
 delete_resource(Req, State) ->
     handle_delete(Req, State).
 
@@ -133,17 +129,17 @@ handle_post(Method, Data, Req, #backend_state{command_category = Category}=State
 
 handle_result({get, Serializer}, {ok, Result}, Req, State) ->
     serialize(Result, Serializer, Req, State);
-handle_result({get, _Serializer}, {error, Error}, Req, State) ->
+handle_result({get, _Serializer}, {error, Error, _Reason}, Req, State) ->
     error_response(Error, Req, State);
 handle_result(post, {ok, _Res}, Req, State) ->
-    %% TODO When POST add resource created to headers
-%%    {ok, Req2} = cowboy_req:reply(201, [{<<"location">>, <<"http://localhost:5288/api/user">>}], Req),
+    %% TODO When POST add resource created to header "location"
+%%    {ok, Req2} = cowboy_req:reply(201, [{<<"location">>, ResourcePath}], Req),
     {ok, Req2} = cowboy_req:reply(201, Req),
     {halt, Req2, State};
 handle_result(delete, {ok, _Res}, Req, State) ->
     {ok, Req2} = cowboy_req:reply(200, Req),
     {halt, Req2, State};
-handle_result({error, Error}, _, Req, State) ->
+handle_result({error, Error, _Reason}, _, Req, State) ->
     error_response(Error, Req, State);
 handle_result(no_call, _, Req, State) ->
     error_response(not_implemented, Req, State).
@@ -160,7 +156,18 @@ get_allowed_methods() ->
     [action_to_method(?COMMANDS_ENGINE:action(Command)) || {_Name, Command} <- Commands].
 
 execute_command(Args, Command) ->
-    ?COMMANDS_ENGINE:execute(admin, ?COMMANDS_ENGINE:name(Command), Args).
+    try
+        do_execute_command(Args, Command)
+    catch
+        _:R ->
+            {error, bad_request, R}
+    end.
+
+do_execute_command(Args, Command) ->
+    Types = [Type || {_Name, Type} <- ?COMMANDS_ENGINE:args(Command)],
+    AppliedArgs = lists:zip(Types, Args),
+    ConvertedArgs = [convert_arg(Type, Arg) || {Type, Arg} <- AppliedArgs],
+    ?COMMANDS_ENGINE:execute(admin, ?COMMANDS_ENGINE:name(Command), ConvertedArgs).
 
 create_url_path(Command) ->
     "/" ++ category_to_resource(?COMMANDS_ENGINE:category(Command))
@@ -193,8 +200,9 @@ add_bind({ArgName, _}) ->
 add_bind(Other) ->
     throw({error, bad_arg_spec, Other}).
 
+%% Bindings are in reverse order by default
 extract_bindings(Bindings) ->
-    [Bind || {_BindingName, Bind} <- Bindings].
+    lists:reverse([Bind || {_BindingName, Bind} <- Bindings]).
 
 category_to_resource(Category) when is_atom(Category) ->
     atom_to_list(Category);
@@ -204,7 +212,7 @@ category_to_resource(Category) when is_list(Category) ->
 check_and_extract_args(CommandsArgList, RequestArgList) ->
     if
         length(CommandsArgList) =/= length(RequestArgList) ->
-            {error, bad_request};
+            {error, bad_request, bad_args_len};
         true ->
             RequestArgAtomized = [{list_to_atom(binary_to_list(Arg)), Value} || {Arg, Value} <- RequestArgList],
             GivenKeyList = [K || {K, _V} <- RequestArgAtomized ],
@@ -212,7 +220,7 @@ check_and_extract_args(CommandsArgList, RequestArgList) ->
             Zipped = lists:zip(lists:sort(GivenKeyList), lists:sort(ExptectedKeyList)),
             case lists:member(false, [ReqKey =:= ExpKey || {ReqKey, ExpKey} <- Zipped]) of
                 true ->
-                    {error, bad_request};
+                    {error, bad_request, bad_arg_spec};
                 _ ->
                     {ok, do_extract_args(CommandsArgList, RequestArgAtomized)}
             end
@@ -222,6 +230,24 @@ check_and_extract_args(CommandsArgList, RequestArgList) ->
 %% because order in request could differ
 do_extract_args(CommandsArgList, GivenArgList) ->
     [element(2, lists:keyfind(Key, 1, GivenArgList)) || {Key, _Type} <- CommandsArgList].
+
+-spec convert_arg(atom(), any()) -> integer() | float() | binary() | string() | {error, bad_type}.
+convert_arg(binary, Binary) when is_binary(Binary) ->
+    Binary;
+convert_arg(string, Binary) when is_binary(Binary) ->
+    binary_to_list(Binary);
+convert_arg(string, String) when is_list(String) ->
+    String;
+convert_arg(integer, Binary) when is_binary(Binary) ->
+    binary_to_integer(Binary);
+convert_arg(integer, Integer) when is_integer(Integer) ->
+    Integer;
+convert_arg(float, Binary) when is_binary(Binary) ->
+    binary_to_float(Binary);
+convert_arg(float, Float) when is_float(Float) ->
+    Float;
+convert_arg(_, _Binary) ->
+    throw({error, bad_type}).
 
 %%--------------------------------------------------------------------
 %% HTTP utils
