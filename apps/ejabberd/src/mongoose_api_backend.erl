@@ -92,16 +92,14 @@ from_json(Req, State) ->
 %% internal funs
 %%--------------------------------------------------------------------
 
-handle_get(Serializer, Req, #backend_state{bindings=Bindings, command_category = Name}=State) ->
+handle_get(Serializer, Req, #backend_state{bindings=Bindings, command_category = Category}=State) ->
     %% should we introduce filtering not only by category?
-    Commands = ?COMMANDS_ENGINE:list(admin, Name),
-    [Command] = [C || C <- Commands, (?COMMANDS_ENGINE:action(C) =:= read) ],
+    [Command] = ?COMMANDS_ENGINE:list(admin, Category, read),
     Result = execute_command(extract_bindings(Bindings), Command),
     handle_result({get, Serializer}, Result, Req, State).
 
-handle_delete(Req, #backend_state{bindings=Bindings, command_category = Name}=State) ->
-    Commands = ?COMMANDS_ENGINE:list(admin, Name),
-    [Command] = [C || C <- Commands, (?COMMANDS_ENGINE:action(C) =:= delete)],
+handle_delete(Req, #backend_state{bindings=Bindings, command_category = Category}=State) ->
+    [Command] = ?COMMANDS_ENGINE:list(admin, Category, delete),
     Result = execute_command(extract_bindings(Bindings), Command),
     handle_result(delete, Result, Req, State).
 
@@ -117,8 +115,7 @@ handle_post(Deserializer, Req, State) ->
 
 handle_post(Method, Data, Req, #backend_state{command_category = Category}=State) ->
     Action = method_to_action(Method),
-    Commands = ?COMMANDS_ENGINE:list(admin, Category),
-    [Command] = [C || C <- Commands, ?COMMANDS_ENGINE:action(C) =:= Action],
+    [Command] = ?COMMANDS_ENGINE:list(admin, Category, Action),
     case check_and_extract_args(?COMMANDS_ENGINE:args(Command), Data) of
         {ok, Args} ->
             Result = execute_command(Args, Command),
