@@ -347,7 +347,11 @@ check_value(action, update) ->
 check_value(action, delete) ->
     delete;
 check_value(args, V) when is_list(V) ->
-    V;
+    Filtered = [C || {C, _} <- V],
+    if
+        length(V) =/= length(Filtered) -> baddef(args, V);
+        true -> V
+    end;
 check_value(security_policy, undefined) ->
     [admin];
 check_value(security_policy, []) ->
@@ -400,7 +404,7 @@ check_registration(Command) ->
 mapget(K, Map) ->
     try maps:get(K, Map) of
         V -> V
-    catch error:bad_key ->
+    catch error:{badkey, K} ->
         th("Missing argument: ~p", [K])
     end.
 

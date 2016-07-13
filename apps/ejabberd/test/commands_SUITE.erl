@@ -282,6 +282,16 @@ commands_new_lame() ->
             {function, cmd_one},
             {action, andnowforsomethingcompletelydifferent} %% not one of allowed values
         ],
+        [
+            {name, command_one},
+            {category, user},
+            {desc, "do nothing and return"},
+            {module, ?MODULE},
+            {function, cmd_one},
+            {action, delete},
+            {args, [{msg, binary}, integer]}, %% args have to be a flat list of named arguments
+            {result, {msg, binary}}
+        ],
 %%        We do not crash if command is already registered because some modules are loaded more then once
 %%        [
 %%            {name, command_one}, %% everything is fine, but it is already registered
