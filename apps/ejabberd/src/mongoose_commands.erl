@@ -238,6 +238,8 @@ unregister_commands(Commands) ->
 
 
 -spec check_and_execute(mongoose_command(), [term()]) -> term().
+check_and_execute(Command, Args) when is_map(Args) ->
+    check_and_execute(Command, map_to_list(Args, Command#mongoose_command.args));
 check_and_execute(Command, Args) ->
     SpecLen = length(Command#mongoose_command.args),
     ALen = length(Args),
@@ -280,6 +282,10 @@ check_type([], []) ->
 check_type([Spec], [H|T]) ->
     check_type({none, Spec}, H),
     check_type([Spec], T);
+check_type([], [_|_]) ->
+    true;
+check_type([], []) ->
+    true;
 check_type(Spec, Value) ->
     th("Catch-all: ~p vs ~p", [Spec, Value]).
 
@@ -379,14 +385,31 @@ check_registration(Command) ->
     Cat = category(Command),
     Act = action(Command),
     case ets:lookup(mongoose_commands, Name) of
-        [] -> ok;
+        [] ->
+            CatLst = list(admin, Cat),
+            FCatLst = [C || C <- CatLst, C#mongoose_command.action == Act],
+            case FCatLst of
+                [] -> ok;
+                [C] ->
+                    baddef("There is command ~p in category ~p, action ~p", [name(C), Cat, Act])
+            end;
         _ ->
-            baddef("This command is already defined:~n~p", [Name])
-    end,
-    CatLst = list(admin, Cat),
-    FCatLst = [C || C <- CatLst, C#mongoose_command.action == Act],
-    case FCatLst of
-        [] -> ok;
-        [C] ->
-            baddef("There is command ~p in category ~p, action ~p", [name(C), Cat, Act])
+            ?DEBUG("This command is already defined:~n~p", [Name])
     end.
+
+mapget(K, Map) ->
+    try maps:get(K, Map) of
+        V -> V
+    catch error:bad_key ->
+        th("Missing argument: ~p", [K])
+    end.
+
+map_to_list(Map, Args) ->
+    SpecLen = length(Args),
+    ALen = maps:size(Map),
+    if SpecLen =/= ALen ->
+        th("Invalid number of arguments: should be ~p, got ~p", [SpecLen, ALen]);
+        true -> ok
+    end,
+    [mapget(K, Map) || {K, _} <- Args].
+

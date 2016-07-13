@@ -212,6 +212,8 @@ new_execute(_C) ->
     {ok, <<"bzzzz">>} = mongoose_commands:execute(admin, command_one, [<<"bzzzz">>]),
     Cmd = mongoose_commands:get_command(admin, command_one),
     {ok, <<"bzzzz">>} = mongoose_commands:execute(admin, Cmd, [<<"bzzzz">>]),
+    %% call with a map
+    {ok, <<"bzzzz">>} = mongoose_commands:execute(admin, command_one, #{msg => <<"bzzzz">>}),
     %% this user has no permissions
     {error, denied, _} = mongoose_commands:execute(a_user, command_one, [<<"bzzzz">>]),
     %% command is not registered
@@ -219,6 +221,10 @@ new_execute(_C) ->
     %% invalid arguments
     {error, type_error, _} = mongoose_commands:execute(admin, command_one, [123]),
     {error, type_error, _} = mongoose_commands:execute(admin, command_one, []),
+    {error, type_error, _} = mongoose_commands:execute(admin, command_one, #{}),
+    {error, type_error, _} = mongoose_commands:execute(admin, command_one, #{msg => 123}),
+    {error, type_error, _} = mongoose_commands:execute(admin, command_one, #{notthis => <<"bzzzz">>}),
+    {error, type_error, _} = mongoose_commands:execute(admin, command_one, #{msg => <<"bzzzz">>, redundant => 123}),
     %% backend func throws exception
     {error, internal, _} = mongoose_commands:execute(admin, command_one, [<<"throw">>]),
     %% backend func returns error
@@ -276,16 +282,17 @@ commands_new_lame() ->
             {function, cmd_one},
             {action, andnowforsomethingcompletelydifferent} %% not one of allowed values
         ],
-        [
-            {name, command_one}, %% everything is fine, but it is already registered
-            {category, another},
-            {desc, "do nothing and return"},
-            {module, ?MODULE},
-            {function, cmd_one},
-            {action, read},
-            {args, [{msg, binary}]},
-            {result, {msg, binary}}
-        ],
+%%        We do not crash if command is already registered because some modules are loaded more then once
+%%        [
+%%            {name, command_one}, %% everything is fine, but it is already registered
+%%            {category, another},
+%%            {desc, "do nothing and return"},
+%%            {module, ?MODULE},
+%%            {function, cmd_one},
+%%            {action, read},
+%%            {args, [{msg, binary}]},
+%%            {result, {msg, binary}}
+%%        ],
         [
             {name, command_seven}, %% name is different...
             {category, user},
