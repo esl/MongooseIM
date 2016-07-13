@@ -33,7 +33,8 @@ groups() ->
              new_reg_unreg,
              new_failedreg,
              new_list,
-             new_execute
+             new_execute,
+             different_types
             ]
         }
     ].
@@ -232,6 +233,13 @@ new_execute(_C) ->
     {error, internal, ExpError} = mongoose_commands:execute(admin, command_one, [<<"error">>]),
     ok.
 
+different_types(_C) ->
+    mongoose_commands:register(commands_new_temp2()),
+    {ok, <<"response1">>} = mongoose_commands:execute(admin, command_two, [10, 15]),
+    {ok, <<"response2">>} = mongoose_commands:execute(admin, command_three, [10, <<"binary">>]),
+    mongoose_commands:unregister(commands_new_temp2()),
+    ok.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%% definitions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -261,6 +269,31 @@ commands_new_temp() ->
             {function, cmd_one},
             {action, create},
             {args, [{msg, binary}]},
+            {result, {msg, binary}}
+        ]
+    ].
+
+commands_new_temp2() ->
+    %% This is for extra test with different arg types
+    [
+        [
+            {name, command_two},
+            {category, animals},
+            {desc, "some"},
+            {module, ?MODULE},
+            {function, the_same_types},
+            {action, read},
+            {args, [{one, integer}, {two, integer}]},
+            {result, {msg, binary}}
+    ],
+        [
+            {name, command_three},
+            {category, music},
+            {desc, "some"},
+            {module, ?MODULE},
+            {function, different_types},
+            {action, read},
+            {args, [{one, integer}, {two, binary}]},
             {result, {msg, binary}}
         ]
     ].
@@ -345,6 +378,15 @@ cmd_one(M) ->
 cmd_two(M) ->
     M.
 
+the_same_types(10, 15) ->
+    <<"response1">>;
+the_same_types(_, _) ->
+    <<"wrong response">>.
+
+different_types(10, <<"binary">>) ->
+	<<"response2">>;
+different_types(_, _) ->
+	<<"wrong content">>.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%% utilities
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
