@@ -14,34 +14,45 @@
 -export([cowboy_router_paths/2]).
 
 %% cowboy_rest exports
--export([allowed_methods/2, content_types_provided/2, rest_terminate/2, init/3, rest_init/2, content_types_accepted/2]).
+-export([allowed_methods/2,
+         content_types_provided/2,
+         rest_terminate/2,
+         init/3,
+         rest_init/2,
+         content_types_accepted/2,
+         delete_resource/2]).
 
 %% local callbacks
--export([to_json/2, from_json/2, delete_resource/2]).
+-export([to_json/2,
+         from_json/2]).
 
 
 -define(COMMANDS_ENGINE, mongoose_commands).
 -include("mongoose_commands.hrl").
 -include("ejabberd.hrl").
+-type method() ::binary().
 
 %%--------------------------------------------------------------------
 %% ejabberd_cowboy callbacks
 %%--------------------------------------------------------------------
 
+-spec cowboy_router_paths(ejabberd_cowboy:path(), ejabberd_cowboy:options()) ->
+    ejabberd_cowboy:implemented_result() | ejabberd_cowboy:default_result().
 cowboy_router_paths(Base, _Opts) ->
     Commands =
         try
-    ?COMMANDS_ENGINE:list(admin)
-    catch
-        _:Err ->
-            ?ERROR_MSG("Error occured when getting the commands list: ~p~n", [Err]),
-            undefined
-    end,
+            ?COMMANDS_ENGINE:list(admin)
+        catch
+            _:Err ->
+                ?ERROR_MSG("Error occured when getting the commands list: ~p~n", [Err]),
+                undefined
+        end,
     [handler_path(Base, Command) || Command <- Commands].
 
 %%--------------------------------------------------------------------
 %% cowboy_rest callbacks
 %%--------------------------------------------------------------------
+
 init({_Transport, _}, Req, Opts) ->
     {upgrade, protocol, cowboy_rest, Req, Opts}.
 
@@ -92,11 +103,13 @@ from_json(Req, State) ->
 %% internal funs
 %%--------------------------------------------------------------------
 
+-spec handle_request(method(), term(), #backend_state{}) -> {any(), any(), #backend_state{}}.
 handle_request(Method, Req, #backend_state{bindings=Bindings, command_category = Category}=State) ->
     [Command] = ?COMMANDS_ENGINE:list(admin, Category, method_to_action(Method)),
     Result = execute_command(extract_bindings(Bindings), Command),
     handle_result(Method, Result, Req, State).
 
+-spec handle_result(method(), {ok, any()} | failure(), any(), #backend_state{}) -> {any(), any(), #backend_state{}}.
 handle_result(<<"GET">>, {ok, Result}, Req, State) ->
     {jiffy:encode(Result), Req, State};
 handle_result(<<"POST">>, {ok, _Res}, Req, State) ->
@@ -112,14 +125,17 @@ handle_result(_, {error, Error, _Reason}, Req, State) ->
 handle_result(no_call, _, Req, State) ->
     error_response(not_implemented, Req, State).
 
+-spec handler_path(ejabberd_cowboy:path(), #mongoose_command{}) -> ejabberd_cowboy:path().
 handler_path(Base, Command) ->
     {[Base, create_url_path(Command)],
         ?MODULE, [{command_category, ?COMMANDS_ENGINE:category(Command)}]}.
 
+-spec get_allowed_methods() -> list(method()).
 get_allowed_methods() ->
     Commands = ?COMMANDS_ENGINE:list(admin),
     [action_to_method(?COMMANDS_ENGINE:action(Command)) || {_Name, Command} <- Commands].
 
+-spec execute_command(map(), #mongoose_command{}) -> {ok, term()} | failure().
 execute_command(Args, Command) ->
     try
         ?COMMANDS_ENGINE:execute(admin, ?COMMANDS_ENGINE:name(Command), Args)
@@ -128,6 +144,7 @@ execute_command(Args, Command) ->
             {error, bad_request, R}
     end.
 
+-spec create_url_path(#mongoose_command{}) -> ejabberd_cowboy:path().
 create_url_path(Command) ->
     "/" ++ category_to_resource(?COMMANDS_ENGINE:category(Command))
         ++ maybe_add_bindings(Command).
