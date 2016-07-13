@@ -10,7 +10,8 @@
 
 -type security() :: [admin|whatnot]. %% to be determined
 
--type errortype() :: denied|not_implemented|type_error|internal. %% we should agree on a set of atoms so that the frontend can map it to http codes
+-type errortype() :: denied|not_implemented|type_error|internal. %% we should agree on a set of atoms so that the
+                                                                 %% frontend can map it to http codes
 
 -type failure() :: {error, errortype(), binary()}.
 
@@ -24,6 +25,7 @@
     args = [] :: [argspec()],                   %% this is both for introspection and type check on call
     identifiers = [] :: [atom()],               %% if action is 'update' then it must be a subset of args
     security_policy = [admin] :: security(),    %% permissions required to run this command
-    result :: argspec()                         %% what the called func should return
+    result :: argspec()|ok                      %% what the called func should return; if ok then return of called
+                                                %% function is ignored
 }).
 

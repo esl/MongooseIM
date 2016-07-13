@@ -34,6 +34,9 @@
 %% Type spec of return value of the function to call; execute/3 eventually returns {ok, result}
 %%      identifiers :: [atom()] (optional, required in 'update' commands)
 %%
+%% You can ignore return value of the target func by specifying return value as {result, ok}. The
+%% execute/3 will then always return just 'ok' (or error).
+%%
 %% If action is 'update' then it MUST specify which args are to be used as identifiers of object to update.
 %% It has no effect on how the engine does its job, but may be used by client code to enforce proper
 %% structure of request. (this is bad programming practice but we didn't have a better idea, we had to
@@ -81,6 +84,10 @@
 %% Return value is also specified, and this is a bit tricky: command definition
 %% contains spec of return value - what the target func returns should comply to it.
 %% The registry, namely execute/3, returns a tuple {ok, ValueReturnedByTheFunction}
+%% If return value is defined as 'ok' then whatever target func returns is ignored.
+%% This is mostly to make a distinction between 'create' actions which actually create something
+%% and return its identifier and those 'lame creators' which cause some action to be done and
+%% something written to dbase (exemplum: sending a message), but there is no accessible resource.
 %%
 %% Called function may also return a tuple {error, term()}, this is returned by the registry
 %% as {error, internal, Msg::binary()}
@@ -198,11 +205,13 @@ result(Cmd) ->
     Cmd#mongoose_command.result.
 
 %% @doc Command execution.
--spec execute(caller(), atom()|mongoose_command(), [term()]|map()) -> {ok, term()} | failure().
+-spec execute(caller(), atom()|mongoose_command(), [term()]|map()) -> {ok, term()} | ok | failure().
 execute(admin, Name, Args) when is_atom(Name) ->
     case ets:lookup(mongoose_commands, Name) of
         [Command] ->
             try check_and_execute(Command, Args) of
+                ignore ->
+                    ok;
                 Res ->
                     {ok, Res}
             catch
@@ -272,10 +281,16 @@ check_and_execute(Command, Args) ->
                             R -> R
                       end,
             check_type(ResSpec, Res),
-            Res
+            maybe_ignore_result(ResSpec, Res)
     end.
 
+maybe_ignore_result(ok, _) ->
+    ignore;
+maybe_ignore_result(_, Res) ->
+    Res.
 
+check_type(ok, _) ->
+    ok;
 check_type(A, A) ->
     true;
 check_type({_Name, binary}, Value) when is_binary(Value) ->

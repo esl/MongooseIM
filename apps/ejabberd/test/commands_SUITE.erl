@@ -172,11 +172,13 @@ t_check_type(Spec, Value) ->
     R.
 
 new_reg_unreg(_C) ->
-    ?assertEqual(length(mongoose_commands:list(admin)), 1),
+    L1 = length(commands_new()),
+    L2 = L1 + length(commands_new_temp()),
+    ?assertEqual(length(mongoose_commands:list(admin)), L1),
     mongoose_commands:register(commands_new_temp()),
-    ?assertEqual(length(mongoose_commands:list(admin)), 3),
+    ?assertEqual(length(mongoose_commands:list(admin)), L2),
     mongoose_commands:unregister(commands_new_temp()),
-    ?assertEqual(length(mongoose_commands:list(admin)), 1),
+    ?assertEqual(length(mongoose_commands:list(admin)), L1),
     ok.
 
 failedreg([]) -> ok;
@@ -216,6 +218,8 @@ new_execute(_C) ->
     {ok, <<"bzzzz">>} = mongoose_commands:execute(admin, Cmd, [<<"bzzzz">>]),
     %% call with a map
     {ok, <<"bzzzz">>} = mongoose_commands:execute(admin, command_one, #{msg => <<"bzzzz">>}),
+    %% command which returns just ok
+    ok = mongoose_commands:execute(admin, command_noreturn, [<<"bzzzz">>]),
     %% this user has no permissions
     {error, denied, _} = mongoose_commands:execute(a_user, command_one, [<<"bzzzz">>]),
     %% command is not registered
@@ -256,6 +260,16 @@ commands_new() ->
             {action, read},
             {args, [{msg, binary}]},
             {result, {msg, binary}}
+        ],
+        [
+            {name, command_noreturn},
+            {category, message},
+            {desc, "do nothing and return nothing"},
+            {module, ?MODULE},
+            {function, cmd_one},
+            {action, create},
+            {args, [{msg, binary}]},
+            {result, ok}
         ]
     ].
 
