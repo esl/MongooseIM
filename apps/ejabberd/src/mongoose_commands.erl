@@ -248,7 +248,7 @@ check_and_execute(Command, Args) ->
         th("Invalid number of arguments: should be ~p, got ~p", [SpecLen, ALen]);
         true -> ok
     end,
-    [check_type(S, A) || S <- Command#mongoose_command.args, A <- Args],
+    [check_type(S, A) || {S, A} <- lists:zip(Command#mongoose_command.args, Args)],
     Res = apply(Command#mongoose_command.module, Command#mongoose_command.function, Args),
     case Res of
         {error, E} ->
