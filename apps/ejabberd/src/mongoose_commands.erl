@@ -26,11 +26,18 @@
 %%      action :: command_action()
 %% so that the HTTP side can decide which verb to require
 %%      args = [] :: [argspec()]
-%% Type spec - see below; this is both for introspection and type check on call
+%% Type spec - see below; this is both for introspection and type check on call. Args spec is more limited
+%% then return, it has to be a list of named arguments, like [{id, integer}, {msg, binary}]
 %%      security_policy = [atom()] (optional)
 %% permissions required to run this command, defaults to [admin]
 %%      result :: argspec()
 %% Type spec of return value of the function to call; execute/3 eventually returns {ok, result}
+%%      identifiers :: [atom()] (optional, required in 'update' commands)
+%%
+%% If action is 'update' then it MUST specify which args are to be used as identifiers of object to update.
+%% It has no effect on how the engine does its job, but may be used by client code to enforce proper
+%% structure of request. (this is bad programming practice but we didn't have a better idea, we had to
+%% solve it for REST API)
 %%
 %% Commands are registered here upon the module's initialisation
 %% (the module has to explicitly call mongoose_commands:register_commands/1
@@ -116,6 +123,7 @@
          category/1,
          desc/1,
          args/1,
+         identifiers/1,
          action/1,
          result/1
     ]).
@@ -177,6 +185,10 @@ desc(Cmd) ->
 args(Cmd) ->
     Cmd#mongoose_command.args.
 
+-spec identifiers(mongoose_command()) -> [atom()].
+identifiers(Cmd) ->
+    Cmd#mongoose_command.identifiers.
+
 -spec action(mongoose_command()) -> command_action().
 action(Cmd) ->
     Cmd#mongoose_command.action.
@@ -186,7 +198,7 @@ result(Cmd) ->
     Cmd#mongoose_command.result.
 
 %% @doc Command execution.
--spec execute(caller(), atom()|mongoose_command(), [term()]) -> {ok, term()} | failure().
+-spec execute(caller(), atom()|mongoose_command(), [term()]|map()) -> {ok, term()} | failure().
 execute(admin, Name, Args) when is_atom(Name) ->
     case ets:lookup(mongoose_commands, Name) of
         [Command] ->
@@ -202,7 +214,7 @@ execute(admin, Name, Args) when is_atom(Name) ->
             end;
         [] -> {error, not_implemented, <<"This command is not supported">>}
     end;
-execute(Caller, #mongoose_command{name = Name} = Command, Args) ->
+execute(Caller, #mongoose_command{name = Name}, Args) ->
     execute(Caller, Name, Args);
 execute(_Caller, _Command, _Args) ->
     {error, denied, <<"currently only admin is supported">>}.
@@ -317,7 +329,24 @@ check_command(PL) ->
     Fields = record_info(fields, mongoose_command),
     Lst = check_command([], PL, Fields),
     RLst = lists:reverse(Lst),
-    list_to_tuple([mongoose_command|RLst]).
+    Cmd = list_to_tuple([mongoose_command|RLst]),
+    check_identifiers(Cmd#mongoose_command.action, Cmd#mongoose_command.identifiers, Cmd#mongoose_command.args),
+    Cmd.
+
+check_identifiers(update, [], _) ->
+    baddef(identifiers, empty);
+check_identifiers(update, Ids, Args) ->
+    check_identifiers(Ids, Args);
+check_identifiers(_, _, _) ->
+    ok.
+
+check_identifiers([], _) ->
+    ok;
+check_identifiers([H|T], Args) ->
+    case proplists:get_value(H, Args) of
+        undefined -> baddef(H, missing);
+        _ -> check_identifiers(T, Args)
+    end.
 
 check_command(Cmd, _PL, []) ->
     Cmd;
@@ -362,6 +391,10 @@ check_value(security_policy, V) when is_list(V) ->
 check_value(result, undefined) ->
     baddef(result, undefined);
 check_value(result, V) ->
+    V;
+check_value(identifiers, undefined) ->
+    [];
+check_value(identifiers, V) ->
     V;
 check_value(K, V) ->
     baddef(K, V).

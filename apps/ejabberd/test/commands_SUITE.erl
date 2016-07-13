@@ -174,7 +174,7 @@ t_check_type(Spec, Value) ->
 new_reg_unreg(_C) ->
     ?assertEqual(length(mongoose_commands:list(admin)), 1),
     mongoose_commands:register(commands_new_temp()),
-    ?assertEqual(length(mongoose_commands:list(admin)), 2),
+    ?assertEqual(length(mongoose_commands:list(admin)), 3),
     mongoose_commands:unregister(commands_new_temp()),
     ?assertEqual(length(mongoose_commands:list(admin)), 1),
     ok.
@@ -205,6 +205,7 @@ new_list(_C) ->
     Rget = mongoose_commands:get_command(admin, command_one),
     command_one = mongoose_commands:name(Rget),
     read = mongoose_commands:action(Rget),
+    [] = mongoose_commands:identifiers(Rget),
     {error, denied, _} = mongoose_commands:get_command(a_user, command_one),
     ok.
 
@@ -269,6 +270,17 @@ commands_new_temp() ->
             {function, cmd_one},
             {action, create},
             {args, [{msg, binary}]},
+            {result, {msg, binary}}
+        ],
+        [
+            {name, command_temp2},
+            {category, user},
+            {desc, "do nothing and return"},
+            {module, ?MODULE},
+            {function, cmd_one},
+            {action, update},
+            {identifiers, [ident]},
+            {args, [{ident, integer}, {msg, binary}]},
             {result, {msg, binary}}
         ]
     ].
@@ -336,6 +348,38 @@ commands_new_lame() ->
 %%            {args, [{msg, binary}]},
 %%            {result, {msg, binary}}
 %%        ],
+        [
+            {name, command_one},
+            {category, another},
+            {desc, "do nothing and return"},
+            {module, ?MODULE},
+            {function, cmd_one},
+            {action, update}, %% an 'update' command has to specify identifiers
+            {args, [{msg, binary}]},
+            {result, {msg, binary}}
+        ],
+        [
+            {name, command_one},
+            {category, another},
+            {desc, "do nothing and return"},
+            {module, ?MODULE},
+            {function, cmd_one},
+            {action, update},
+            {identifiers, [1]}, %% ...and they must be atoms...
+            {args, [{msg, binary}]},
+            {result, {msg, binary}}
+        ],
+        [
+            {name, command_one},
+            {category, another},
+            {desc, "do nothing and return"},
+            {module, ?MODULE},
+            {function, cmd_one},
+            {action, update},
+            {identifiers, [ident]}, %% ...which are present in args
+            {args, [{msg, binary}]},
+            {result, {msg, binary}}
+        ],
         [
             {name, command_seven}, %% name is different...
             {category, user},
