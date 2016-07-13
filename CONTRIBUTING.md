@@ -1,4 +1,4 @@
-# Merging guidelines
+# Contribution Guidelines
 
 This document aims to provide guidelines for merging changesets into the MongooseIM master branch.
 
@@ -10,6 +10,29 @@ For the purpose of this document, we classify changesets/pull requests as:
 Especially if they change MongooseIM's core modules.
 
 * big - e.g. implementation of new XEPs or major changes to core code
+
+## Writing & Testing Code:
+
+We strive for Inaka's superb [guidelines](https://github.com/inaka/erlang_guidelines).
+
+MongooseIM has an extensive test suite.
+Find **unit** tests under `/apps/ejabberdt/test` and **functional** tests under `/test/ejabberd_tests/tests`.
+It's important that tests are comprehendable: consider any preconditions, the test itself, and any postconditions that must hold.
+Inspect the existing test suites to see how _we_ make these clear.
+
+Write type specifications and function signatures because they're remarkably helpful when it comes to reading the source.
+
+## Documentation
+
+What makes a good comment?
+Write about why something is done a certain way.
+E.g. explain a why a decision was made or describe a subtle but tricky case.
+We can read a test case or the source, respectively, to see **what** the code does or **how** it does it.
+Comments should give us more insight into **why** something was done (the reasoning).
+
+Place technical documentaion in the directory `doc`.
+Find or create a suitable place for your material it in terms of which page and section you write it in.
+Where documentation is placed is paramount, otherwise regardless of it's quality, it will be harder to find it if at all.
 
 ## 1. Preparation
 
