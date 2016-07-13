@@ -55,7 +55,7 @@ rest_init(Req, Opts) ->
                 undefined
         end,
     State = #backend_state{allowed_methods = get_allowed_methods(),
-                           bindings = Bindings, command_category = CommandCategory},
+        bindings = Bindings, command_category = CommandCategory},
     {ok, Req1, State}.
 
 allowed_methods(Req, #backend_state{command_category = Name} = State) ->
@@ -75,63 +75,36 @@ rest_terminate(_Req, _State) ->
     ok.
 
 delete_resource(Req, State) ->
-    handle_delete(Req, State).
+    handle_request(<<"DELETE">>, Req, State).
 
 %%--------------------------------------------------------------------
 %% internal callbacks
 %%--------------------------------------------------------------------
 
 to_json(Req, State) ->
-    handle_get(mongoose_api_json, Req, State).
+    handle_request(<<"GET">>, Req, State).
 
 %%--------------------------------------------------------------------
 from_json(Req, State) ->
-    handle_post(mongoose_api_json, Req, State).
+    handle_request(<<"POST">>, Req, State).
 
 %%--------------------------------------------------------------------
 %% internal funs
 %%--------------------------------------------------------------------
 
-handle_get(Serializer, Req, #backend_state{bindings=Bindings, command_category = Category}=State) ->
-    %% should we introduce filtering not only by category?
-    [Command] = ?COMMANDS_ENGINE:list(admin, Category, read),
+handle_request(Method, Req, #backend_state{bindings=Bindings, command_category = Category}=State) ->
+    [Command] = ?COMMANDS_ENGINE:list(admin, Category, method_to_action(Method)),
     Result = execute_command(extract_bindings(Bindings), Command),
-    handle_result({get, Serializer}, Result, Req, State).
+    handle_result(Method, Result, Req, State).
 
-handle_delete(Req, #backend_state{bindings=Bindings, command_category = Category}=State) ->
-    [Command] = ?COMMANDS_ENGINE:list(admin, Category, delete),
-    Result = execute_command(extract_bindings(Bindings), Command),
-    handle_result(delete, Result, Req, State).
-
-handle_post(Deserializer, Req, State) ->
-    {Method, Req1} = cowboy_req:method(Req),
-    {ok, Body, Req2} = cowboy_req:body(Req1),
-    case Deserializer:deserialize(Body) of
-        {ok, Data} ->
-            handle_post(Method, Data, Req2, State);
-        {error, _Reason} ->
-            error_response(bad_request, Req2, State)
-    end.
-
-handle_post(Method, Data, Req, #backend_state{command_category = Category}=State) ->
-    Action = method_to_action(Method),
-    [Command] = ?COMMANDS_ENGINE:list(admin, Category, Action),
-    case check_and_extract_args(?COMMANDS_ENGINE:args(Command), Data) of
-        {ok, Args} ->
-            Result = execute_command(Args, Command),
-            handle_result(post, Result, Req, State);
-        {error, Type, _Res} ->
-            error_response(Type, Req, State)
-    end.
-
-handle_result({get, Serializer}, {ok, Result}, Req, State) ->
-    serialize(Result, Serializer, Req, State);
-handle_result(post, {ok, _Res}, Req, State) ->
+handle_result(<<"GET">>, {ok, Result}, Req, State) ->
+    {jiffy:encode(Result), Req, State};
+handle_result(<<"POST">>, {ok, _Res}, Req, State) ->
     %% TODO When POST add resource created to header "location"
 %%    {ok, Req2} = cowboy_req:reply(201, [{<<"location">>, ResourcePath}], Req),
     {ok, Req2} = cowboy_req:reply(201, Req),
     {halt, Req2, State};
-handle_result(delete, {ok, _Res}, Req, State) ->
+handle_result(<<"DELETE">>, {ok, _Res}, Req, State) ->
     {ok, Req2} = cowboy_req:reply(200, Req),
     {halt, Req2, State};
 handle_result(_, {error, Error, _Reason}, Req, State) ->
@@ -139,12 +112,9 @@ handle_result(_, {error, Error, _Reason}, Req, State) ->
 handle_result(no_call, _, Req, State) ->
     error_response(not_implemented, Req, State).
 
-serialize(Data, Serializer, Req, State) ->
-    {Serializer:serialize(Data), Req, State}.
-
 handler_path(Base, Command) ->
     {[Base, create_url_path(Command)],
-      ?MODULE, [{command_category, ?COMMANDS_ENGINE:category(Command)}]}.
+        ?MODULE, [{command_category, ?COMMANDS_ENGINE:category(Command)}]}.
 
 get_allowed_methods() ->
     Commands = ?COMMANDS_ENGINE:list(admin),
@@ -152,17 +122,11 @@ get_allowed_methods() ->
 
 execute_command(Args, Command) ->
     try
-        do_execute_command(Args, Command)
+        ?COMMANDS_ENGINE:execute(admin, ?COMMANDS_ENGINE:name(Command), Args)
     catch
         _:R ->
             {error, bad_request, R}
     end.
-
-do_execute_command(Args, Command) ->
-    Types = [Type || {_Name, Type} <- ?COMMANDS_ENGINE:args(Command)],
-    AppliedArgs = lists:zip(Types, Args),
-    ConvertedArgs = [convert_arg(Type, Arg) || {Type, Arg} <- AppliedArgs],
-    ?COMMANDS_ENGINE:execute(admin, ?COMMANDS_ENGINE:name(Command), ConvertedArgs).
 
 create_url_path(Command) ->
     "/" ++ category_to_resource(?COMMANDS_ENGINE:category(Command))
@@ -203,46 +167,6 @@ category_to_resource(Category) when is_atom(Category) ->
     atom_to_list(Category);
 category_to_resource(Category) when is_list(Category) ->
     Category.
-
-check_and_extract_args(CommandsArgList, RequestArgList) ->
-    if
-        length(CommandsArgList) =/= length(RequestArgList) ->
-            {error, bad_request, bad_args_len};
-        true ->
-            RequestArgAtomized = [{list_to_atom(binary_to_list(Arg)), Value} || {Arg, Value} <- RequestArgList],
-            GivenKeyList = [K || {K, _V} <- RequestArgAtomized ],
-            ExptectedKeyList = [Key || {Key, _Type} <- CommandsArgList],
-            Zipped = lists:zip(lists:sort(GivenKeyList), lists:sort(ExptectedKeyList)),
-            case lists:member(false, [ReqKey =:= ExpKey || {ReqKey, ExpKey} <- Zipped]) of
-                true ->
-                    {error, bad_request, bad_arg_spec};
-                _ ->
-                    {ok, do_extract_args(CommandsArgList, RequestArgAtomized)}
-            end
-    end.
-
-%% Arguments must be sorted due to args order in mongoose_commands module
-%% because order in request could differ
-do_extract_args(CommandsArgList, GivenArgList) ->
-    [element(2, lists:keyfind(Key, 1, GivenArgList)) || {Key, _Type} <- CommandsArgList].
-
--spec convert_arg(atom(), any()) -> integer() | float() | binary() | string() | {error, bad_type}.
-convert_arg(binary, Binary) when is_binary(Binary) ->
-    Binary;
-convert_arg(string, Binary) when is_binary(Binary) ->
-    binary_to_list(Binary);
-convert_arg(string, String) when is_list(String) ->
-    String;
-convert_arg(integer, Binary) when is_binary(Binary) ->
-    binary_to_integer(Binary);
-convert_arg(integer, Integer) when is_integer(Integer) ->
-    Integer;
-convert_arg(float, Binary) when is_binary(Binary) ->
-    binary_to_float(Binary);
-convert_arg(float, Float) when is_float(Float) ->
-    Float;
-convert_arg(_, _Binary) ->
-    throw({error, bad_type}).
 
 %%--------------------------------------------------------------------
 %% HTTP utils
