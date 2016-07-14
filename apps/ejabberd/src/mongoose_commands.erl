@@ -303,10 +303,6 @@ check_type(Spec, Value) when is_tuple(Spec) ->
     compare_tuples(Spec, Value);
 check_type([_Spec], []) ->
     true;
-check_type([], [_|_]) ->
-    true;
-check_type([], []) ->
-    true;
 check_type([Spec], [H|T]) ->
     check_type({none, Spec}, H),
     check_type([Spec], T);
@@ -453,8 +449,11 @@ check_registration(Command) ->
 mapget(K, Map) ->
     try maps:get(K, Map) of
         V -> V
-    catch error:{badkey, K} ->
-        th("Missing argument: ~p", [K])
+    catch
+        error:{badkey, K} ->
+            th("Missing argument: ~p", [K]);
+        error:bad_key ->
+            th("Missing argument: ~p", [K])
     end.
 
 map_to_list(Map, Args) ->
