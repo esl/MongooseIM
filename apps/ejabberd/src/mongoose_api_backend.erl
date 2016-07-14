@@ -86,27 +86,41 @@ rest_terminate(_Req, _State) ->
     ok.
 
 delete_resource(Req, State) ->
-    handle_request(<<"DELETE">>, Req, State).
+    extract_and_handle(<<"DELETE">>, Req, State).
 
 %%--------------------------------------------------------------------
 %% internal callbacks
 %%--------------------------------------------------------------------
 
 to_json(Req, State) ->
-    handle_request(<<"GET">>, Req, State).
+    extract_and_handle(<<"GET">>, Req, State).
 
 %%--------------------------------------------------------------------
 from_json(Req, State) ->
-    handle_request(<<"POST">>, Req, State).
+    extract_and_handle(<<"POST">>, Req, State).
 
 %%--------------------------------------------------------------------
 %% internal funs
 %%--------------------------------------------------------------------
 
--spec handle_request(method(), term(), #backend_state{}) -> {any(), any(), #backend_state{}}.
-handle_request(Method, Req, #backend_state{bindings=Bindings, command_category = Category}=State) ->
+-spec extract_and_handle(method(), any(), #backend_state{}) -> {any(), any(), #backend_state{}}.
+extract_and_handle(<<"POST">> = Method, Req, #backend_state{command_category = Category} = State) ->
+    {ok, Body, Req2} = cowboy_req:body(Req),
+    {Args} = jiffy:decode(Body),
     [Command] = ?COMMANDS_ENGINE:list(admin, Category, method_to_action(Method)),
-    Result = execute_command(extract_bindings(Bindings), Command),
+    handle_request(Command, Args, Req2, State);
+extract_and_handle(Method, Req, #backend_state{bindings = Bindings, command_category = Category}=State) ->
+    Args = extract_bindings(Bindings),
+    [Command] = ?COMMANDS_ENGINE:list(admin, Category, method_to_action(Method)),
+    PairedArgs = [{ArgName, Value} || {Value, {ArgName, _Type}} <- lists:zip(Args, ?COMMANDS_ENGINE:args(Command))],
+    handle_request(Command, PairedArgs, Req, State).
+
+-spec handle_request(#mongoose_command{}, list({atom(), binary()}), term(), #backend_state{}) ->
+    {any(), any(), #backend_state{}}.
+handle_request(Command, Args, Req, State) ->
+    Method = action_to_method(?COMMANDS_ENGINE:action(Command)),
+    ConvertedArgs = check_and_extract_args(?COMMANDS_ENGINE:args(Command), Args),
+    Result = execute_command(ConvertedArgs, Command),
     handle_result(Method, Result, Req, State).
 
 -spec handle_result(method(), {ok, any()} | failure(), any(), #backend_state{}) -> {any(), any(), #backend_state{}}.
@@ -135,14 +149,41 @@ get_allowed_methods() ->
     Commands = ?COMMANDS_ENGINE:list(admin),
     [action_to_method(?COMMANDS_ENGINE:action(Command)) || {_Name, Command} <- Commands].
 
--spec execute_command(map(), #mongoose_command{}) -> {ok, term()} | failure().
+check_and_extract_args(CommandsArgList, RequestArgList) ->
+    if
+        length(CommandsArgList) =/= length(RequestArgList) ->
+            {error, bad_request, bad_args_len};
+        true ->
+            RequestArgAtomized = lists:sort([{to_atom(Arg), Value} || {Arg, Value} <- RequestArgList]),
+            GivenKeyList = [K || {K, _V} <- RequestArgAtomized],
+            ExptectedKeyList = lists:sort([Key || {Key, _Type} <- CommandsArgList]),
+            Zipped = lists:zip(GivenKeyList, ExptectedKeyList),
+            case lists:member(false, [ReqKey =:= ExpKey || {ReqKey, ExpKey} <- Zipped]) of
+                true ->
+                    {error, bad_request, bad_arg_spec};
+                _ ->
+                    do_extract_args(CommandsArgList, RequestArgAtomized)
+            end
+    end.
+
+do_extract_args(CommandsArgList, GivenArgList) ->
+    [element(2, lists:keyfind(Key, 1, GivenArgList)) || {Key, _Type} <- CommandsArgList].
+
+-spec execute_command(map() | {error, atom(), any()}, #mongoose_command{}) -> {ok, term()} | failure().
+execute_command({error, _Type, _Reason} = Err, _) ->
+    Err;
 execute_command(Args, Command) ->
     try
-        ?COMMANDS_ENGINE:execute(admin, ?COMMANDS_ENGINE:name(Command), Args)
+        do_execute_command(Args, Command)
     catch
         _:R ->
             {error, bad_request, R}
     end.
+
+do_execute_command(Args, Command) ->
+    Types = [Type || {_Name, Type} <- ?COMMANDS_ENGINE:args(Command)],
+    ConvertedArgs = [convert_arg(Type, Arg) || {Type, Arg} <- lists:zip(Types, Args)],
+    ?COMMANDS_ENGINE:execute(admin, ?COMMANDS_ENGINE:name(Command), ConvertedArgs).
 
 -spec create_url_path(#mongoose_command{}) -> ejabberd_cowboy:path().
 create_url_path(Command) ->
@@ -213,3 +254,28 @@ method_to_action(<<"GET">>) -> read;
 method_to_action(<<"POST">>) -> create;
 method_to_action(<<"PUT">>) -> update;
 method_to_action(<<"DELETE">>) -> delete.
+
+-spec convert_arg(atom(), any()) -> integer() | float() | binary() | string() | {error, bad_type}.
+convert_arg(binary, Binary) when is_binary(Binary) ->
+    Binary;
+convert_arg(string, Binary) when is_binary(Binary) ->
+    binary_to_list(Binary);
+convert_arg(string, String) when is_list(String) ->
+    String;
+convert_arg(integer, Binary) when is_binary(Binary) ->
+    binary_to_integer(Binary);
+convert_arg(integer, Integer) when is_integer(Integer) ->
+    Integer;
+convert_arg(float, Binary) when is_binary(Binary) ->
+    binary_to_float(Binary);
+convert_arg(float, Float) when is_float(Float) ->
+    Float;
+convert_arg(_, _Binary) ->
+    throw({error, bad_type}).
+
+to_atom(Bin) when is_binary(Bin) ->
+    list_to_atom(binary_to_list(Bin));
+to_atom(List) when is_list(List) ->
+    list_to_atom(List);
+to_atom(Atom) when is_atom(Atom) ->
+    Atom.
