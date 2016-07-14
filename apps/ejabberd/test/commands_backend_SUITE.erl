@@ -37,6 +37,7 @@ groups() ->
         {get_advanced, [sequence],
             [
                 get_two_args,
+                get_wrong_path,
                 get_wrong_arg_number,
                 get_no_command,
                 get_wrong_arg_type
@@ -116,16 +117,16 @@ end_per_testcase(_, C) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 get_simple(_Config) ->
-    Arg = <<"bob@localhost">>,
+    Arg = {arg1, <<"bob@localhost">>},
     Base = "/api/users",
-    ExpectedBody = get_simple_command(Arg),
+    ExpectedBody = get_simple_command(element(2, Arg)),
     {ok, Response} = get_request(create_path_with_args(Base, [Arg])),
     check_status_code(Response, 200),
     check_response_body(Response, ExpectedBody).
 
 delete_simple(_Config) ->
-    Arg1 = "ala_ma_kota",
-    Arg2 = 2,
+    Arg1 = {arg1, "ala_ma_kota"},
+    Arg2 = {arg2, 2},
     Base = "/api/music",
     {ok, Response} = delete_request(create_path_with_args(Base, [Arg1, Arg2])),
     check_status_code(Response, 200).
@@ -137,16 +138,21 @@ post_simple(_Config) ->
     check_status_code(Response, 201).
 
 get_two_args(_Config) ->
-    Arg1 = 1,
-    Arg2 = 2,
+    Arg1 = {arg1, 1},
+    Arg2 = {arg2, 2},
     Base = "/api/animals",
-    ExpectedBody = get_two_args_command(Arg1, Arg2),
+    ExpectedBody = get_two_args_command(element(2, Arg1), element(2, Arg2)),
     {ok, Response} = get_request(create_path_with_args(Base, [Arg1, Arg2])),
     check_status_code(Response, 200),
     check_response_body(Response, ExpectedBody).
 
+get_wrong_path(_Config) ->
+    Path = <<"/api/animals/1/2">>,
+    {ok, Response} = get_request(Path),
+    check_status_code(Response, 404).
+
 get_wrong_arg_number(_Config) ->
-    Path = <<"/api/animals/1/2/3">>,
+    Path = <<"/api/animals/arg1/1/arg2/2/arg3/3">>,
     {ok, Response} = get_request(Path),
     check_status_code(Response, 404).
 
@@ -156,7 +162,7 @@ get_no_command(_Config) ->
     check_status_code(Response, 404).
 
 get_wrong_arg_type(_Config) ->
-    Path = <<"/api/animals/1/wrong">>,
+    Path = <<"/api/animals/arg1/1/arg2/wrong">>,
     {ok, Response} = get_request(Path),
     check_status_code(Response, 400).
 
@@ -211,8 +217,9 @@ commands_new() ->
             {module, ?MODULE},
             {function, get_simple_command},
             {action, read},
-            {args, [{msg, binary}]},
-            {result, {msg, binary}}
+            {identifiers, []},
+            {args, [{arg1, binary}]},
+            {result, {result, binary}}
         ],
         [
             {name, get_advanced},
@@ -221,8 +228,9 @@ commands_new() ->
             {module, ?MODULE},
             {function, get_two_args_command},
             {action, read},
-            {args, [{one, integer}, {two, integer}]},
-            {result, {msg, binary}}
+            {identifiers, []},
+            {args, [{arg1, integer}, {arg2, integer}]},
+            {result, {result, binary}}
         ],
         [
             {name, post_simple},
@@ -231,8 +239,9 @@ commands_new() ->
             {module, ?MODULE},
             {function, post_simple_command},
             {action, create},
+            {identifiers, []},
             {args, [{arg1, integer}, {arg2, integer}]},
-            {result, {res, integer}}
+            {result, {result, integer}}
         ],
         [
             {name, delete_simple},
@@ -241,8 +250,9 @@ commands_new() ->
             {module, ?MODULE},
             {function, delete_simple_command},
             {action, delete},
+            {identifiers, []},
             {args, [{arg1, binary}, {arg2, integer}]},
-            {result, {res, integer}}
+            {result, {result, ok}}
         ]
     ].
 
@@ -265,7 +275,8 @@ delete_simple_command(Binary, 2) when is_binary(Binary) ->
 post_headers() ->
     [{<<"Content-Type">>, <<"application/json">>}, {<<"Accept">>, <<"application/json">>}].
 create_path_with_args(Base, ArgList) when is_list(ArgList) ->
-    list_to_binary(lists:flatten(Base ++ ["/" ++ to_list(Arg) || Arg <- ArgList])).
+    list_to_binary(lists:flatten(Base ++
+    ["/" ++ to_list(ArgName) ++ "/" ++ to_list(ArgValue) || {ArgName, ArgValue} <- ArgList])).
 
 to_list(Int) when is_integer(Int) ->
     integer_to_list(Int);
@@ -273,6 +284,8 @@ to_list(Float) when is_float(Float) ->
     float_to_list(Float);
 to_list(Bin) when is_binary(Bin) ->
     binary_to_list(Bin);
+to_list(Atom) when is_atom(Atom) ->
+    atom_to_list(Atom);
 to_list(Other) ->
     Other.
 

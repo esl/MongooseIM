@@ -134,6 +134,9 @@ handle_result(<<"POST">>, {ok, _Res}, Req, State) ->
 handle_result(<<"DELETE">>, {ok, _Res}, Req, State) ->
     {ok, Req2} = cowboy_req:reply(200, Req),
     {halt, Req2, State};
+handle_result(_, ok, Req, State) ->
+    {ok, Req2} = cowboy_req:reply(200, Req),
+    {halt, Req2, State};
 handle_result(_, {error, Error, _Reason}, Req, State) ->
     error_response(Error, Req, State);
 handle_result(no_call, _, Req, State) ->
@@ -213,7 +216,7 @@ add_bindings(Args) ->
 
 -spec add_bind({atom(), any()}) -> string().
 add_bind({ArgName, _}) ->
-    "/:" ++ atom_to_list(ArgName);
+    "/" ++ atom_to_list(ArgName) ++ "/:" ++ atom_to_list(ArgName);
 add_bind(Other) ->
     throw({error, bad_arg_spec, Other}).
 
