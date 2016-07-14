@@ -19,24 +19,41 @@
 
 all() ->
     [
-        {group, http_api_simple}
+        {group, simple},
+        {group, get_advanced},
+        {group, post_advanced},
+        {group, delete_advanced}
     ].
 
 groups() ->
     [
-        {http_api_simple, [sequence],
+        {simple, [sequence],
             [
                 get_simple,
-                get_advanced,
+                post_simple,
+                delete_simple
+            ]
+        },
+        {get_advanced, [sequence],
+            [
+                get_two_args,
                 get_wrong_arg_number,
                 get_no_command,
-                get_wrong_arg_type,
-                post_simple,
+                get_wrong_arg_type
+            ]
+        },
+        {post_advanced, [sequence],
+            [
                 post_wrong_arg_number,
                 post_wrong_arg_name,
                 post_wrong_arg_type,
-                post_no_command,
-                delete_simple
+                post_wrong_arg_order,
+                post_no_command
+            ]
+        },
+        {delete_advanced, [sequence],
+            [
+                delete_wrong_arg_order
             ]
         }
     ].
@@ -99,43 +116,49 @@ end_per_testcase(_, C) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 get_simple(_Config) ->
-    Arg = "bob@localhost",
-    Path = list_to_binary("/api/users/" ++ Arg),
-    ExpectedBody = get_simple_command(list_to_binary(Arg)),
-    {ok, Response} = get_request(Path),
+    Arg = <<"bob@localhost">>,
+    Base = "/api/users",
+    ExpectedBody = get_simple_command(Arg),
+    {ok, Response} = get_request(create_path_with_args(Base, [Arg])),
     check_status_code(Response, 200),
     check_response_body(Response, ExpectedBody).
 
-get_advanced(_Config) ->
-    Arg1 = 1,
+delete_simple(_Config) ->
+    Arg1 = "ala_ma_kota",
     Arg2 = 2,
-    Path = list_to_binary("/api/animals/" ++ integer_to_list(Arg1) ++ "/" ++ integer_to_list(Arg2)) ,
-    ExpectedBody = get_advanced_command(Arg1, Arg2),
-    {ok, Response} = get_request(Path),
-    check_status_code(Response, 200),
-    check_response_body(Response, ExpectedBody).
-
-get_wrong_arg_number(_Config) ->
-    Path = list_to_binary("/api/animals/1/2/3") ,
-    {ok, Response} = get_request(Path),
-    check_status_code(Response, 404).
-
-get_no_command(_Config) ->
-    Path = list_to_binary("/api/unregistered_command/123123") ,
-    {ok, Response} = get_request(Path),
-    check_status_code(Response, 404).
-
-get_wrong_arg_type(_Config) ->
-    Path = list_to_binary("/api/animals/1/wrong") ,
-    {ok, Response} = get_request(Path),
-    check_status_code(Response, 400).
-
+    Base = "/api/music",
+    {ok, Response} = delete_request(create_path_with_args(Base, [Arg1, Arg2])),
+    check_status_code(Response, 200).
 
 post_simple(_Config) ->
     Args = [{arg1, 10}, {arg2,2}],
     Path = <<"/api/weather">>,
     {ok, Response} = post_request(Path, Args),
     check_status_code(Response, 201).
+
+get_two_args(_Config) ->
+    Arg1 = 1,
+    Arg2 = 2,
+    Base = "/api/animals",
+    ExpectedBody = get_two_args_command(Arg1, Arg2),
+    {ok, Response} = get_request(create_path_with_args(Base, [Arg1, Arg2])),
+    check_status_code(Response, 200),
+    check_response_body(Response, ExpectedBody).
+
+get_wrong_arg_number(_Config) ->
+    Path = <<"/api/animals/1/2/3">>,
+    {ok, Response} = get_request(Path),
+    check_status_code(Response, 404).
+
+get_no_command(_Config) ->
+    Path = <<"/api/unregistered_command/123123">>,
+    {ok, Response} = get_request(Path),
+    check_status_code(Response, 404).
+
+get_wrong_arg_type(_Config) ->
+    Path = <<"/api/animals/1/wrong">>,
+    {ok, Response} = get_request(Path),
+    check_status_code(Response, 400).
 
 post_wrong_arg_number(_Config) ->
     Args = [{arg1, 10}, {arg2,2}, {arg3, 100}],
@@ -155,18 +178,25 @@ post_wrong_arg_type(_Config) ->
     {ok, Response} = post_request(Path, Args),
     check_status_code(Response, 400).
 
+post_wrong_arg_order(_Config) ->
+    Args = [{arg2, 2}, {arg1, 10}],
+    Path = <<"/api/weather">>,
+    {ok, Response} = post_request(Path, Args),
+    check_status_code(Response, 201).
+
 post_no_command(_Config) ->
     Args = [{arg1, 10}, {arg2,2}],
     Path = <<"/api/weather/10">>,
     {ok, Response} = post_request(Path, Args),
     check_status_code(Response, 404).
 
-delete_simple(_Config) ->
+
+delete_wrong_arg_order(_Config) ->
     Arg1 = "ala_ma_kota",
-    Arg2 = 10,
-    Path = list_to_binary("/api/music/" ++ Arg1 ++ "/" ++ integer_to_list(Arg2)),
-    {ok, Response} = delete_request(Path),
-    check_status_code(Response, 200).
+    Arg2 = 2,
+    Base = "/api/music",
+    {ok, Response} = delete_request(create_path_with_args(Base, [Arg2, Arg1])),
+    check_status_code(Response, 400).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%% definitions
@@ -189,7 +219,7 @@ commands_new() ->
             {category, animals},
             {desc, "do nothing and return"},
             {module, ?MODULE},
-            {function, get_advanced_command},
+            {function, get_two_args_command},
             {action, read},
             {args, [{one, integer}, {two, integer}]},
             {result, {msg, binary}}
@@ -219,7 +249,7 @@ commands_new() ->
 get_simple_command(<<"bob@localhost">>) ->
     <<"bob is OK">>.
 
-get_advanced_command(1, 2) ->
+get_two_args_command(1, 2) ->
     <<"all is working">>.
 
 post_simple_command(X, 2) ->
@@ -234,6 +264,18 @@ delete_simple_command(Binary, 2) when is_binary(Binary) ->
 
 post_headers() ->
     [{<<"Content-Type">>, <<"application/json">>}, {<<"Accept">>, <<"application/json">>}].
+create_path_with_args(Base, ArgList) when is_list(ArgList) ->
+    list_to_binary(lists:flatten(Base ++ ["/" ++ to_list(Arg) || Arg <- ArgList])).
+
+to_list(Int) when is_integer(Int) ->
+    integer_to_list(Int);
+to_list(Float) when is_float(Float) ->
+    float_to_list(Float);
+to_list(Bin) when is_binary(Bin) ->
+    binary_to_list(Bin);
+to_list(Other) ->
+    Other.
+
 
 -spec get_request(binary()) -> any().
 get_request(Path) ->
@@ -270,13 +312,6 @@ mc_holder() ->
     receive
         _ -> ok
     end.
-
-checkauth(true, AccessCommands, Auth) ->
-    B = <<"bzzzz">>,
-    B = ejabberd_commands:execute_command(AccessCommands, Auth, command_one, [B]);
-checkauth(ErrMess, AccessCommands, Auth) ->
-    B = <<"bzzzz">>,
-    {error, ErrMess} = ejabberd_commands:execute_command(AccessCommands, Auth, command_one, [B]).
 
 check_status_code(Response, Code) when is_integer(Code) ->
     {{ResCode, _}, _, _, _, _} = Response,
