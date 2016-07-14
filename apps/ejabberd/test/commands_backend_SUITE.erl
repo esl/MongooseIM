@@ -54,7 +54,8 @@ groups() ->
         },
         {delete_advanced, [sequence],
             [
-                delete_wrong_arg_order
+                delete_wrong_arg_order,
+                delete_wrong_arg_types
             ]
         }
     ].
@@ -125,7 +126,7 @@ get_simple(_Config) ->
     check_response_body(Response, ExpectedBody).
 
 delete_simple(_Config) ->
-    Arg1 = {arg1, "ala_ma_kota"},
+    Arg1 = {arg1, <<"ala_ma_kota">>},
     Arg2 = {arg2, 2},
     Base = "/api/music",
     {ok, Response} = delete_request(create_path_with_args(Base, [Arg1, Arg2])),
@@ -198,10 +199,17 @@ post_no_command(_Config) ->
 
 
 delete_wrong_arg_order(_Config) ->
-    Arg1 = "ala_ma_kota",
-    Arg2 = 2,
+    Arg1 = {arg1, <<"ala_ma_kota">>},
+    Arg2 = {arg2, 2},
     Base = "/api/music",
     {ok, Response} = delete_request(create_path_with_args(Base, [Arg2, Arg1])),
+    check_status_code(Response, 404).
+
+delete_wrong_arg_types(_Config) ->
+    Arg1 = {arg1, 2},
+    Arg2 = {arg2, <<"ala_ma_kota">>},
+    Base = "/api/music",
+    {ok, Response} = delete_request(create_path_with_args(Base, [Arg1, Arg2])),
     check_status_code(Response, 400).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -252,7 +260,7 @@ commands_new() ->
             {action, delete},
             {identifiers, []},
             {args, [{arg1, binary}, {arg2, integer}]},
-            {result, {result, ok}}
+            {result, ok}
         ]
     ].
 
