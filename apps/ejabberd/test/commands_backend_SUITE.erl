@@ -31,7 +31,8 @@ groups() ->
             [
                 get_simple,
                 post_simple,
-                delete_simple
+                delete_simple,
+                put_simple
             ]
         },
         {get_advanced, [sequence],
@@ -45,10 +46,10 @@ groups() ->
         },
         {post_advanced, [sequence],
             [
+                post_different_arg_order,
                 post_wrong_arg_number,
                 post_wrong_arg_name,
                 post_wrong_arg_type,
-                post_wrong_arg_order,
                 post_no_command
             ]
         },
@@ -56,6 +57,19 @@ groups() ->
             [
                 delete_wrong_arg_order,
                 delete_wrong_arg_types
+            ]
+        },
+        {put_advanced, [sequence],
+            [
+                put_wrong_type,
+                put_wrong_param_type,
+                put_wrong_bind_type,
+                put_different_params_order,
+                put_wrong_binds_order,
+                put_too_less_params,
+                put_too_less_binds,
+                put_wrong_bind_name,
+                put_wrong_param_name
             ]
         }
     ].
@@ -121,7 +135,7 @@ get_simple(_Config) ->
     Arg = {arg1, <<"bob@localhost">>},
     Base = "/api/users",
     ExpectedBody = get_simple_command(element(2, Arg)),
-    {ok, Response} = get_request(create_path_with_args(Base, [Arg])),
+    {ok, Response} = get_request(create_path_with_binds(Base, [Arg])),
     check_status_code(Response, 200),
     check_response_body(Response, ExpectedBody).
 
@@ -129,7 +143,7 @@ delete_simple(_Config) ->
     Arg1 = {arg1, <<"ala_ma_kota">>},
     Arg2 = {arg2, 2},
     Base = "/api/music",
-    {ok, Response} = delete_request(create_path_with_args(Base, [Arg1, Arg2])),
+    {ok, Response} = delete_request(create_path_with_binds(Base, [Arg1, Arg2])),
     check_status_code(Response, 200).
 
 post_simple(_Config) ->
@@ -138,12 +152,28 @@ post_simple(_Config) ->
     {ok, Response} = post_request(Path, Args),
     check_status_code(Response, 201).
 
+put_simple(_Config) ->
+    Binds = [{arg1, <<"username">>}, {arg2,<<"localhost">>}],
+    Args = [{arg3, <<"newusername">>}],
+    Base = "/api/users",
+    {ok, Response} = put_request(create_path_with_binds(Base, Binds), Args),
+    check_status_code(Response, 200).
+
 get_two_args(_Config) ->
     Arg1 = {arg1, 1},
     Arg2 = {arg2, 2},
     Base = "/api/animals",
     ExpectedBody = get_two_args_command(element(2, Arg1), element(2, Arg2)),
-    {ok, Response} = get_request(create_path_with_args(Base, [Arg1, Arg2])),
+    {ok, Response} = get_request(create_path_with_binds(Base, [Arg1, Arg2])),
+    check_status_code(Response, 200),
+    check_response_body(Response, ExpectedBody).
+
+get_two_args_different_types(_Config) ->
+    Arg1 = {one, 1},
+    Arg2 = {two, <<"mybin">>},
+    Base = "/api/books",
+    ExpectedBody = get_two_args2_command(element(2, Arg1), element(2, Arg2)),
+    {ok, Response} = get_request(create_path_with_binds(Base, [Arg1, Arg2])),
     check_status_code(Response, 200),
     check_response_body(Response, ExpectedBody).
 
@@ -185,7 +215,7 @@ post_wrong_arg_type(_Config) ->
     {ok, Response} = post_request(Path, Args),
     check_status_code(Response, 400).
 
-post_wrong_arg_order(_Config) ->
+post_different_arg_order(_Config) ->
     Args = [{arg2, 2}, {arg1, 10}],
     Path = <<"/api/weather">>,
     {ok, Response} = post_request(Path, Args),
@@ -202,15 +232,71 @@ delete_wrong_arg_order(_Config) ->
     Arg1 = {arg1, <<"ala_ma_kota">>},
     Arg2 = {arg2, 2},
     Base = "/api/music",
-    {ok, Response} = delete_request(create_path_with_args(Base, [Arg2, Arg1])),
+    {ok, Response} = delete_request(create_path_with_binds(Base, [Arg2, Arg1])),
     check_status_code(Response, 404).
 
 delete_wrong_arg_types(_Config) ->
     Arg1 = {arg1, 2},
     Arg2 = {arg2, <<"ala_ma_kota">>},
     Base = "/api/music",
-    {ok, Response} = delete_request(create_path_with_args(Base, [Arg1, Arg2])),
+    {ok, Response} = delete_request(create_path_with_binds(Base, [Arg1, Arg2])),
     check_status_code(Response, 400).
+
+put_wrong_param_type(_Config) ->
+    Binds = [{username, <<"username">>}, {domain, <<"domain">>}],
+    Parameters = [{age, <<"23">>}, {kids, 10}],
+    Base = "/api/dragons",
+    {ok, Response} = put_request(create_path_with_binds(Base, Binds), Parameters),
+    check_status_code(Response, 400).
+
+put_wrong_bind_type(_Config) ->
+    Binds = [{username, <<"username">>}, {domain, 123}],
+    Parameters = [{age, 23}, {kids, 10}],
+    Base = "/api/dragons",
+    {ok, Response} = put_request(create_path_with_binds(Base, Binds), Parameters),
+    check_status_code(Response, 400).
+
+put_different_params_order(_Config) ->
+    Binds = [{username, <<"username">>}, {domain, <<"domain">>}],
+    Parameters = [{kids, 2}, {age, 45}],
+    Base = "/api/dragons",
+    {ok, Response} = put_request(create_path_with_binds(Base, Binds), Parameters),
+    check_status_code(Response, 200).
+
+put_wrong_binds_order(_Config) ->
+    Binds = [{domain, <<"domain">>}, {username, <<"username">>}],
+    Parameters = [{kids, 2}, {age, 30}],
+    Base = "/api/dragons",
+    {ok, Response} = put_request(create_path_with_binds(Base, Binds), Parameters),
+    check_status_code(Response, 400).
+
+put_too_less_params(_Config) ->
+    Binds = [{username, <<"username">>}, {domain, <<"domain">>}],
+    Parameters = [{kids, 3}],
+    Base = "/api/dragons",
+    {ok, Response} = put_request(create_path_with_binds(Base, Binds), Parameters),
+    check_status_code(Response, 400).
+
+put_too_less_binds(_Config) ->
+    Binds = [{username, <<"username">>}],
+    Parameters = [{age, 20}, {kids, 3}],
+    Base = "/api/dragons",
+    {ok, Response} = put_request(create_path_with_binds(Base, Binds), Parameters),
+    check_status_code(Response, 404).
+
+put_wrong_bind_name(_Config) ->
+    Binds = [{usersrejm, <<"username">>}, {domain, <<"localhost">>}],
+    Parameters = [{age, 20}, {kids, 3}],
+    Base = "/api/dragons",
+    {ok, Response} = put_request(create_path_with_binds(Base, Binds), Parameters),
+    check_status_code(Response, 404).
+
+put_wrong_param_name(_Config) ->
+    Binds = [{username, <<"username">>}, {domain, <<"localhost">>}],
+    Parameters = [{age, 20}, {srids, 3}],
+    Base = "/api/dragons",
+    {ok, Response} = put_request(create_path_with_binds(Base, Binds), Parameters),
+    check_status_code(Response, 404).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%% definitions
@@ -241,6 +327,17 @@ commands_new() ->
             {result, {result, binary}}
         ],
         [
+            {name, get_advanced2},
+            {category, books},
+            {desc, "do nothing and return"},
+            {module, ?MODULE},
+            {function, get_two_args2_command},
+            {action, read},
+            {identifiers, []},
+            {args, [{one, integer}, {two, binary}]},
+            {result, {result, integer}}
+        ],
+        [
             {name, post_simple},
             {category, weather},
             {desc, "do nothing and return"},
@@ -261,8 +358,33 @@ commands_new() ->
             {identifiers, []},
             {args, [{arg1, binary}, {arg2, integer}]},
             {result, ok}
+        ],
+        [
+            {name, put_simple},
+            {category, users},
+            {desc, "do nothing and return"},
+            {module, ?MODULE},
+            {function, put_simple_command},
+            {action, update},
+            {args, [{arg1, binary}, {arg2, binary}, {arg3, binary}]},
+            {identifiers, [arg1, arg2]},
+            {result, ok}
+        ],
+        [
+            {name, put_advanced},
+            {category, dragons},
+            {desc, "do nothing and return"},
+            {module, ?MODULE},
+            {function, put_advanced_command},
+            {action, update},
+            {args, [{username, binary},
+                    {domain, binary},
+                    {age, integer},
+                    {kids, integer}]},
+            {identifiers, [username, domain]},
+            {result, ok}
         ]
-    ].
+        ].
 
 get_simple_command(<<"bob@localhost">>) ->
     <<"bob is OK">>.
@@ -270,19 +392,29 @@ get_simple_command(<<"bob@localhost">>) ->
 get_two_args_command(1, 2) ->
     <<"all is working">>.
 
+get_two_args2_command(X, B) when is_integer(X) and is_binary(B) ->
+    100.
+
 post_simple_command(X, 2) ->
     X.
 
 delete_simple_command(Binary, 2) when is_binary(Binary) ->
     10.
 
+put_simple_command(_Arg1, _Arg2, _Arg3) ->
+    ok.
+
+put_advanced_command(Arg1, Arg2, Arg3, Arg4) when is_binary(Arg1) and is_binary(Arg2)
+                                             and is_integer(Arg3) and is_integer(Arg4) ->
+    ok.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%% utilities
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-post_headers() ->
+accepted_headers() ->
     [{<<"Content-Type">>, <<"application/json">>}, {<<"Accept">>, <<"application/json">>}].
-create_path_with_args(Base, ArgList) when is_list(ArgList) ->
+create_path_with_binds(Base, ArgList) when is_list(ArgList) ->
     list_to_binary(lists:flatten(Base ++
     ["/" ++ to_list(ArgName) ++ "/" ++ to_list(ArgValue) || {ArgName, ArgValue} <- ArgList])).
 
@@ -312,7 +444,16 @@ post_request(Path, Args) ->
     setup(),
     Body = jiffy:encode(maps:from_list(Args)),
     {ok, Pid} = fusco:start_link("http://localhost:5288", []),
-    R = fusco:request(Pid, Path, "POST", post_headers(), Body, 5000),
+    R = fusco:request(Pid, Path, "POST", accepted_headers(), Body, 5000),
+    fusco:disconnect(Pid),
+    teardown(),
+    R.
+
+put_request(Path, Args) ->
+    setup(),
+    Body = jiffy:encode(maps:from_list(Args)),
+    {ok, Pid} = fusco:start_link("http://localhost:5288", []),
+    R = fusco:request(Pid, Path, "PUT", accepted_headers(), Body, 5000),
     fusco:disconnect(Pid),
     teardown(),
     R.

@@ -97,7 +97,8 @@ to_json(Req, State) ->
 
 %%--------------------------------------------------------------------
 from_json(Req, State) ->
-    extract_and_handle(<<"POST">>, Req, State).
+    {Method, Req2} = cowboy_req:method(Req),
+    extract_and_handle(Method, Req2, State).
 
 %%--------------------------------------------------------------------
 %% internal funs
@@ -106,14 +107,18 @@ from_json(Req, State) ->
 -spec extract_and_handle(method(), any(), #backend_state{}) -> {any(), any(), #backend_state{}}.
 extract_and_handle(<<"POST">> = Method, Req, #backend_state{command_category = Category} = State) ->
     {ok, Body, Req2} = cowboy_req:body(Req),
-    {Args} = jiffy:decode(Body),
+    {Parameters} = jiffy:decode(Body),
+    [Command] = ?COMMANDS_ENGINE:list(admin, Category, method_to_action(Method)),
+    handle_request(Command, Parameters, Req2, State);
+extract_and_handle(<<"PUT">> = Method, Req, #backend_state{bindings = Binds, command_category = Category} = State) ->
+    {ok, Body, Req2} = cowboy_req:body(Req),
+    {Parameters} = jiffy:decode(Body),
+    Args = Binds ++ Parameters,
     [Command] = ?COMMANDS_ENGINE:list(admin, Category, method_to_action(Method)),
     handle_request(Command, Args, Req2, State);
 extract_and_handle(Method, Req, #backend_state{bindings = Bindings, command_category = Category}=State) ->
-    Args = extract_bindings(Bindings),
     [Command] = ?COMMANDS_ENGINE:list(admin, Category, method_to_action(Method)),
-    PairedArgs = [{ArgName, Value} || {Value, {ArgName, _Type}} <- lists:zip(Args, ?COMMANDS_ENGINE:args(Command))],
-    handle_request(Command, PairedArgs, Req, State).
+    handle_request(Command, Bindings, Req, State).
 
 -spec handle_request(#mongoose_command{}, list({atom(), binary()}), term(), #backend_state{}) ->
     {any(), any(), #backend_state{}}.
@@ -126,8 +131,7 @@ handle_request(Command, Args, Req, State) ->
 -spec handle_result(method(), {ok, any()} | failure(), any(), #backend_state{}) -> {any(), any(), #backend_state{}}.
 handle_result(<<"GET">>, {ok, Result}, Req, State) ->
     {jiffy:encode(Result), Req, State};
-handle_result(<<"POST">>, {ok, _Res}, Req, State) ->
-    %% TODO When POST add resource created to header "location"
+handle_result(<<"POST">>, {ok, Res}, Req, State) ->
 %%    {ok, Req2} = cowboy_req:reply(201, [{<<"location">>, ResourcePath}], Req),
     {ok, Req2} = cowboy_req:reply(201, Req),
     {halt, Req2, State};
@@ -172,7 +176,8 @@ check_and_extract_args(CommandsArgList, RequestArgList) ->
 do_extract_args(CommandsArgList, GivenArgList) ->
     [element(2, lists:keyfind(Key, 1, GivenArgList)) || {Key, _Type} <- CommandsArgList].
 
--spec execute_command(map() | {error, atom(), any()}, #mongoose_command{}) -> {ok, term()} | failure().
+-spec execute_command(list({atom(), any()}) | map() | {error, atom(), any()}, #mongoose_command{}) ->
+    {ok, term()} | failure().
 execute_command({error, _Type, _Reason} = Err, _) ->
     Err;
 execute_command(Args, Command) ->
@@ -193,8 +198,6 @@ create_url_path(Command) ->
     "/" ++ category_to_resource(?COMMANDS_ENGINE:category(Command))
         ++ maybe_add_bindings(Command).
 
-%% for now, might be GET of form http://api/users/:domain/:username
-%% instead of                    http://api/users/domain/:domain/username/:username
 -spec maybe_add_bindings(list({atom(), any()})) -> string().
 maybe_add_bindings(Command) ->
     Action = ?COMMANDS_ENGINE:action(Command),
@@ -203,7 +206,9 @@ maybe_add_bindings(Command) ->
         read ->
             add_bindings(Args);
         update ->
-            add_bindings(Args);
+            Ids = ?COMMANDS_ENGINE:identifiers(Command),
+            Bindings = [{Key, proplists:get_value(Key, Args)} || Key <- Ids],
+            add_bindings(Bindings);
         delete ->
             add_bindings(Args);
         _ ->
@@ -219,10 +224,6 @@ add_bind({ArgName, _}) ->
     "/" ++ atom_to_list(ArgName) ++ "/:" ++ atom_to_list(ArgName);
 add_bind(Other) ->
     throw({error, bad_arg_spec, Other}).
-
-%% Bindings are in reverse order by default
-extract_bindings(Bindings) ->
-    lists:reverse([Bind || {_BindingName, Bind} <- Bindings]).
 
 category_to_resource(Category) when is_atom(Category) ->
     atom_to_list(Category);
