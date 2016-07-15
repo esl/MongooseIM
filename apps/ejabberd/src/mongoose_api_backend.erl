@@ -160,9 +160,9 @@ handle_request(Command, Args, Req, State) ->
 handle_result(<<"GET">>, {ok, Result}, Req, State) ->
     {jiffy:encode(Result), Req, State};
 handle_result(<<"POST">>, {ok, Res}, Req, State) ->
-%%    {ok, Req2} = cowboy_req:reply(201, [{<<"location">>, ResourcePath}], Req),
-    {ok, Req2} = cowboy_req:reply(201, Req),
-    {halt, Req2, State};
+    {Path, Req2} = cowboy_req:url(Req),
+    Req3 = maybe_add_location_header(Res, binary_to_list(Path), Req2),
+    {halt, Req3, State};
 handle_result(<<"DELETE">>, {ok, _Res}, Req, State) ->
     {ok, Req2} = cowboy_req:reply(200, Req),
     {halt, Req2, State};
@@ -266,6 +266,20 @@ create_url_path(Command) ->
     "/" ++ category_to_resource(?COMMANDS_ENGINE:category(Command))
         ++ maybe_add_bindings(Command).
 
+maybe_add_location_header(Result, ResourcePath, Req) when is_binary(Result) ->
+    add_location_header(binary_to_list(Result), ResourcePath, Req);
+maybe_add_location_header(Result, ResourcePath, Req) when is_list(Result) ->
+    add_location_header(Result, ResourcePath, Req);
+maybe_add_location_header(_R, _R, Req) ->
+    {ok, Req2} = cowboy_req:reply(200, [], Req),
+    Req2.
+
+add_location_header(Result, ResourcePath, Req) ->
+    Path = ResourcePath ++ "/" ++ Result,
+    Header = {<<"location">>, Path},
+    {ok, Req2} = cowboy_req:reply(201, [Header], Req),
+    Req2.
+
 -spec maybe_add_bindings(mongoose_command()) -> string().
 maybe_add_bindings(Command) ->
     Action = ?COMMANDS_ENGINE:action(Command),
@@ -275,6 +289,7 @@ maybe_add_bindings(Command) ->
             add_bindings(Args);
         update ->
             Ids = ?COMMANDS_ENGINE:identifiers(Command),
+            %% TODO make sure the order doesn;t change
             Bindings = [{Key, proplists:get_value(Key, Args)} || Key <- Ids],
             add_bindings(Bindings);
         delete ->

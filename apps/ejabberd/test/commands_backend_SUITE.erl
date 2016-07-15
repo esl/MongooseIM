@@ -151,10 +151,14 @@ delete_simple(_Config) ->
     check_status_code(Response, 200).
 
 post_simple(_Config) ->
-    Args = [{arg1, 10}, {arg2,2}],
+    Arg1 = {arg1, 10},
+    Arg2 = {arg2, 2},
+    Args = [Arg1, Arg2],
     Path = <<"/api/weather">>,
+    Result = binary_to_list(post_simple_command(element(2, Arg1), element(2, Arg2))),
     {ok, Response} = post_request(Path, Args),
-    check_status_code(Response, 201).
+    check_status_code(Response, 201),
+    check_location_header(Response, list_to_binary("http://localhost:5288/api/weather/" ++ Result)).
 
 put_simple(_Config) ->
     Binds = [{arg1, <<"username">>}, {arg2,<<"localhost">>}],
@@ -220,10 +224,14 @@ post_wrong_arg_type(_Config) ->
     check_status_code(Response, 400).
 
 post_different_arg_order(_Config) ->
-    Args = [{arg2, 2}, {arg1, 10}],
+    Arg1 = {arg1, 10},
+    Arg2 = {arg2, 2},
+    Args = [Arg2, Arg1],
     Path = <<"/api/weather">>,
+    Result = binary_to_list(post_simple_command(element(2, Arg1), element(2, Arg2))),
     {ok, Response} = post_request(Path, Args),
-    check_status_code(Response, 201).
+    check_status_code(Response, 201),
+    check_location_header(Response, list_to_binary("http://localhost:5288/api/weather/" ++ Result)).
 
 post_no_command(_Config) ->
     Args = [{arg1, 10}, {arg2,2}],
@@ -350,7 +358,7 @@ commands_new() ->
             {action, create},
             {identifiers, []},
             {args, [{arg1, integer}, {arg2, integer}]},
-            {result, {result, integer}}
+            {result, {result, binary}}
         ],
         [
             {name, delete_simple},
@@ -399,8 +407,8 @@ get_two_args_command(1, 2) ->
 get_two_args2_command(X, B) when is_integer(X) and is_binary(B) ->
     100.
 
-post_simple_command(X, 2) ->
-    X.
+post_simple_command(_X, 2) ->
+    <<"new_resource">>.
 
 delete_simple_command(Binary, 2) when is_binary(Binary) ->
     10.
@@ -489,4 +497,7 @@ check_response_body(Response, ExpectedBody) ->
     {_, _, Body, _ , _} = Response,
     ?assertEqual(binary_to_list(Body), "\"" ++ binary_to_list(ExpectedBody) ++ "\"").
 
-
+check_location_header(Response, Path) ->
+    {_, Headers, _, _ , _} = Response,
+    Location = proplists:get_value(<<"location">>, Headers),
+    ?assertEqual(Path, Location).
