@@ -13,6 +13,10 @@
 -define(HOST, "localhost").
 -define(IP,  {127,0,0,1}).
 
+%% Error messages
+-define(ARGS_LEN_ERROR, <<"Bad parameters length.">>).
+-define(ARGS_SPEC_ERROR, <<"Bad name of the parameter.">>).
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%% suite configuration
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

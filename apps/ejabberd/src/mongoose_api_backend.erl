@@ -6,6 +6,11 @@
 %%% @end
 %%% Created : 05. Jul 2016 12:59
 %%%-------------------------------------------------------------------
+%%
+%% @doc MongooseIM REST API backend
+%%
+%%
+%%
 -module(mongoose_api_backend).
 -author("ludwikbukowski").
 -record(backend_state, {allowed_methods, bindings, parameters, command_category}).
@@ -31,11 +36,22 @@
 -include("mongoose_commands.hrl").
 -include("ejabberd.hrl").
 -type method() ::binary().
+-type arg_name() :: atom().
+-type arg_value() :: any().
+-type arg_spec_list() :: list(argspec()).
+-type args_applied() :: list({arg_name(), arg_value()}).
+-type arg_values() :: list(arg_value()).
+-type mongoose_command() :: #mongoose_command{}.
+
+%% Error messages
+-define(ARGS_LEN_ERROR, "Bad parameters length.").
+-define(ARGS_SPEC_ERROR, "Bad name of the parameter.").
+-define(BODY_MALFORMED, "The request body is malformed.").
 
 %%--------------------------------------------------------------------
 %% ejabberd_cowboy callbacks
 %%--------------------------------------------------------------------
-
+%% @doc This is implementation of ejabberd_cowboy callback. Returns list of all available http paths.
 -spec cowboy_router_paths(ejabberd_cowboy:path(), ejabberd_cowboy:options()) ->
     ejabberd_cowboy:implemented_result() | ejabberd_cowboy:default_result().
 cowboy_router_paths(Base, _Opts) ->
@@ -85,42 +101,52 @@ content_types_accepted(Req, State) ->
 rest_terminate(_Req, _State) ->
     ok.
 
+%% @doc Called for a method of type "DELETE"
 delete_resource(Req, State) ->
     extract_and_handle(<<"DELETE">>, Req, State).
 
 %%--------------------------------------------------------------------
 %% internal callbacks
 %%--------------------------------------------------------------------
-
+%% @doc Called for a method of type "GET"
 to_json(Req, State) ->
     extract_and_handle(<<"GET">>, Req, State).
 
 %%--------------------------------------------------------------------
+%% @doc Called for a method of type "POST" and "PUT"
 from_json(Req, State) ->
     {Method, Req2} = cowboy_req:method(Req),
     extract_and_handle(Method, Req2, State).
 
 %%--------------------------------------------------------------------
-%% internal funs
+%% Method handlers
 %%--------------------------------------------------------------------
 
 -spec extract_and_handle(method(), any(), #backend_state{}) -> {any(), any(), #backend_state{}}.
 extract_and_handle(<<"POST">> = Method, Req, #backend_state{command_category = Category} = State) ->
-    {ok, Body, Req2} = cowboy_req:body(Req),
-    {Parameters} = jiffy:decode(Body),
     [Command] = ?COMMANDS_ENGINE:list(admin, Category, method_to_action(Method)),
-    handle_request(Command, Parameters, Req2, State);
+    case parse_request_body(Req) of
+    {error, _R}->
+            error_response(bad_request, ?BODY_MALFORMED , Req, State);
+    {Params, Req2} ->
+        handle_request(Command, Params, Req2, State)
+    end;
 extract_and_handle(<<"PUT">> = Method, Req, #backend_state{bindings = Binds, command_category = Category} = State) ->
-    {ok, Body, Req2} = cowboy_req:body(Req),
-    {Parameters} = jiffy:decode(Body),
-    Args = Binds ++ Parameters,
     [Command] = ?COMMANDS_ENGINE:list(admin, Category, method_to_action(Method)),
-    handle_request(Command, Args, Req2, State);
-extract_and_handle(Method, Req, #backend_state{bindings = Bindings, command_category = Category}=State) ->
+    BindsReversed = lists:reverse(Binds),
+    case parse_request_body(Req) of
+        {error, _R}->
+            error_response(bad_request, ?BODY_MALFORMED , Req, State);
+        {Params, Req2} ->
+            Args = BindsReversed ++ Params,
+            handle_request(Command, Args, Req2, State)
+    end;
+extract_and_handle(Method, Req, #backend_state{bindings = Binds, command_category = Category}=State) ->
+    BindsReversed = lists:reverse(Binds),
     [Command] = ?COMMANDS_ENGINE:list(admin, Category, method_to_action(Method)),
-    handle_request(Command, Bindings, Req, State).
+    handle_request(Command, BindsReversed, Req, State).
 
--spec handle_request(#mongoose_command{}, list({atom(), binary()}), term(), #backend_state{}) ->
+-spec handle_request(mongoose_command(), args_applied(), term(), #backend_state{}) ->
     {any(), any(), #backend_state{}}.
 handle_request(Command, Args, Req, State) ->
     Method = action_to_method(?COMMANDS_ENGINE:action(Command)),
@@ -128,7 +154,9 @@ handle_request(Command, Args, Req, State) ->
     Result = execute_command(ConvertedArgs, Command),
     handle_result(Method, Result, Req, State).
 
--spec handle_result(method(), {ok, any()} | failure(), any(), #backend_state{}) -> {any(), any(), #backend_state{}}.
+-spec handle_result(method(),
+                   {ok, any()} | failure() | {error, errortype()},
+                   any(), #backend_state{}) -> {any(), any(), #backend_state{}}.
 handle_result(<<"GET">>, {ok, Result}, Req, State) ->
     {jiffy:encode(Result), Req, State};
 handle_result(<<"POST">>, {ok, Res}, Req, State) ->
@@ -141,42 +169,79 @@ handle_result(<<"DELETE">>, {ok, _Res}, Req, State) ->
 handle_result(_, ok, Req, State) ->
     {ok, Req2} = cowboy_req:reply(200, Req),
     {halt, Req2, State};
-handle_result(_, {error, Error, _Reason}, Req, State) ->
+handle_result(_, {error, Error, Reason}, Req, State) when is_list(Reason) ->
+    error_response(Error, Reason, Req, State);
+handle_result(_, {error, Error, _R}, Req, State) ->
+    error_response(Error, Req, State);
+handle_result(_, {error, Error}, Req, State) ->
     error_response(Error, Req, State);
 handle_result(no_call, _, Req, State) ->
     error_response(not_implemented, Req, State).
 
--spec handler_path(ejabberd_cowboy:path(), #mongoose_command{}) -> ejabberd_cowboy:path().
+%%--------------------------------------------------------------------
+%% internals
+%%--------------------------------------------------------------------
+
+-spec parse_request_body(any()) -> {args_applied(), any()} | {error, atom(), any()}.
+parse_request_body(Req) ->
+    {ok, Body, Req2} = cowboy_req:body(Req),
+    {Data} = jiffy:decode(Body),
+    Params = try
+        create_params_proplist(Data)
+    catch
+        error:Err ->
+            {error,Err}
+    end,
+    {Params, Req2}.
+
+-spec handler_path(ejabberd_cowboy:path(), mongoose_command()) -> ejabberd_cowboy:path().
 handler_path(Base, Command) ->
     {[Base, create_url_path(Command)],
         ?MODULE, [{command_category, ?COMMANDS_ENGINE:category(Command)}]}.
 
+%% @doc Returns list of allowed methods.
 -spec get_allowed_methods() -> list(method()).
 get_allowed_methods() ->
     Commands = ?COMMANDS_ENGINE:list(admin),
     [action_to_method(?COMMANDS_ENGINE:action(Command)) || {_Name, Command} <- Commands].
 
+%% @doc Checks if the arguments are correct. Return the arguments that can be applied to the execution of command.
+-spec check_and_extract_args(arg_spec_list(), args_applied()) ->
+    arg_values() | {error, atom(), any()}.
 check_and_extract_args(CommandsArgList, RequestArgList) ->
-    if
-        length(CommandsArgList) =/= length(RequestArgList) ->
-            {error, bad_request, bad_args_len};
-        true ->
-            RequestArgAtomized = lists:sort([{to_atom(Arg), Value} || {Arg, Value} <- RequestArgList]),
-            GivenKeyList = [K || {K, _V} <- RequestArgAtomized],
-            ExptectedKeyList = lists:sort([Key || {Key, _Type} <- CommandsArgList]),
-            Zipped = lists:zip(GivenKeyList, ExptectedKeyList),
-            case lists:member(false, [ReqKey =:= ExpKey || {ReqKey, ExpKey} <- Zipped]) of
-                true ->
-                    {error, bad_request, bad_arg_spec};
-                _ ->
-                    do_extract_args(CommandsArgList, RequestArgAtomized)
-            end
+    try
+    Res1 = check_args_length({CommandsArgList, RequestArgList}),
+    compare_names_extract_args(Res1)
+    catch
+        throw:Err ->
+            Err
     end.
 
-do_extract_args(CommandsArgList, GivenArgList) ->
-    [element(2, lists:keyfind(Key, 1, GivenArgList)) || {Key, _Type} <- CommandsArgList].
+check_args_length({CommandsArgList, RequestArgList} = Acc) ->
+    if
+        length(CommandsArgList) =/= length(RequestArgList) ->
+            throw({error, bad_request, ?ARGS_LEN_ERROR});
+        true ->
+            Acc
+    end.
 
--spec execute_command(list({atom(), any()}) | map() | {error, atom(), any()}, #mongoose_command{}) ->
+-spec compare_names_extract_args({arg_spec_list(), args_applied()}) -> arg_values().
+compare_names_extract_args({CommandsArgList, RequestArgProplist}) ->
+    Keys = [K || {K, _V} <- RequestArgProplist],
+    ExpectedKeys = lists:sort([Key || {Key, _Type} <- CommandsArgList]),
+    ZippedKeys = lists:zip(Keys, ExpectedKeys),
+    case lists:member(false, [ReqKey =:= ExpKey || {ReqKey, ExpKey} <- ZippedKeys]) of
+        true ->
+            throw({error, bad_request, ?ARGS_SPEC_ERROR});
+        _ ->
+            do_extract_args(CommandsArgList, RequestArgProplist)
+    end.
+
+-spec do_extract_args(arg_spec_list(), args_applied()) -> arg_values().
+do_extract_args(CommandsArgList, RequestArgList) ->
+    [element(2, lists:keyfind(Key, 1, RequestArgList)) || {Key, _Type} <- CommandsArgList].
+
+-spec execute_command(list({atom(), any()}) | map() | {error, atom(), any()}, mongoose_command()) ->
     {ok, term()} | failure().
 execute_command({error, _Type, _Reason} = Err, _) ->
     Err;
@@ -187,18 +252,21 @@ execute_command(Args, Command) ->
         _:R ->
             {error, bad_request, R}
     end.
-
+-spec do_execute_command(arg_values(), mongoose_command()) -> ok | {ok, any()}.
 do_execute_command(Args, Command) ->
     Types = [Type || {_Name, Type} <- ?COMMANDS_ENGINE:args(Command)],
     ConvertedArgs = [convert_arg(Type, Arg) || {Type, Arg} <- lists:zip(Types, Args)],
     ?COMMANDS_ENGINE:execute(admin, ?COMMANDS_ENGINE:name(Command), ConvertedArgs).
 
--spec create_url_path(#mongoose_command{}) -> ejabberd_cowboy:path().
+create_params_proplist(ArgList) ->
+    lists:sort([{to_atom(Arg), Value} || {Arg, Value} <- ArgList]).
+
+-spec create_url_path(mongoose_command()) -> ejabberd_cowboy:path().
 create_url_path(Command) ->
     "/" ++ category_to_resource(?COMMANDS_ENGINE:category(Command))
         ++ maybe_add_bindings(Command).
 
--spec maybe_add_bindings(list({atom(), any()})) -> string().
+-spec maybe_add_bindings(mongoose_command()) -> string().
 maybe_add_bindings(Command) ->
     Action = ?COMMANDS_ENGINE:action(Command),
     Args = ?COMMANDS_ENGINE:args(Command),
@@ -215,11 +283,11 @@ maybe_add_bindings(Command) ->
             ""
     end.
 
--spec add_bindings(list({atom(), any()})) -> string().
+-spec add_bindings(arg_spec_list()) -> string().
 add_bindings(Args) ->
     lists:flatten([add_bind(A) || A <- Args]).
 
--spec add_bind({atom(), any()}) -> string().
+-spec add_bind(argspec()) -> string().
 add_bind({ArgName, _}) ->
     "/" ++ atom_to_list(ArgName) ++ "/:" ++ atom_to_list(ArgName);
 add_bind(Other) ->
@@ -237,9 +305,14 @@ category_to_resource(Category) when is_list(Category) ->
 error_response(Code, Req, State) when is_integer(Code) ->
     {ok, Req1} = cowboy_req:reply(Code, Req),
     {halt, Req1, State};
-error_response(Reason, Req, State) ->
-    error_response(error_code(Reason), Req, State).
+error_response(ErrorType, Req, State) ->
+    error_response(error_code(ErrorType), Req, State).
 
+error_response(Code, Reason, Req, State) when is_integer(Code) ->
+    {ok, Req1} = cowboy_req:reply(Code, [], Reason, Req),
+    {halt, Req1, State};
+error_response(ErrorType, Reason, Req, State) ->
+    error_response(error_code(ErrorType), Reason, Req, State).
 
 %% HTTP status codes
 error_code(denied) -> 403;
