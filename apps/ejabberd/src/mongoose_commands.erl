@@ -112,7 +112,6 @@
 -type mongoose_command() :: #mongoose_command{}.
 -type caller() :: admin|binary().
 
--compile(export_all).
 %%%% API
 
 -export([check_type/2]).
@@ -259,6 +258,8 @@ execute_command(Caller, Command, Args) ->
             {error, type_error, E};
         permission_denied ->
             {error, denied, <<"Command not available for this user">>};
+        caller_jid_mismatch ->
+            {error, denied, <<"Caller ids do not match">>};
         X:E ->
             ?ERROR_MSG("Caught ~p:~p while executing ~p", [X, E, Command#mongoose_command.name]),
             {error, internal, term_to_binary(E)}
@@ -277,6 +278,8 @@ check_and_execute(Caller, Command, Args) ->
         false ->
             throw(permission_denied)
     end,
+    % check caller (if it is given in args, and the engine is called by a 'real' user, then it must match
+    check_caller(Caller, Command, Args),
     % check args
     SpecLen = length(Command#mongoose_command.args),
     ALen = length(Args),
@@ -358,7 +361,8 @@ check_command(PL) ->
     RLst = lists:reverse(Lst),
     Cmd = list_to_tuple([mongoose_command|RLst]),
     check_identifiers(Cmd#mongoose_command.action, Cmd#mongoose_command.identifiers, Cmd#mongoose_command.args),
-    Cmd.
+    % store position of caller in args (if present)
+    Cmd#mongoose_command{caller_pos = locate_caller(Cmd#mongoose_command.args)}.
 
 check_identifiers(update, [], _) ->
     baddef(identifiers, empty);
@@ -424,9 +428,13 @@ check_value(identifiers, undefined) ->
     [];
 check_value(identifiers, V) ->
     V;
+check_value(caller_pos, _) ->
+    0;
 check_value(K, V) ->
     baddef(K, V).
 
+
+%% @doc Known security policies
 check_security_policy(user) ->
     ok;
 check_security_policy(admin) ->
@@ -514,4 +522,44 @@ apply_policy(user, _) ->
     true;
 apply_policy(_, _) ->
     false.
+
+
+locate_caller(L) ->
+    locate_caller(1, L).
+
+locate_caller(I, []) ->
+    0;
+locate_caller(I, [{caller, _}|_]) ->
+    I;
+locate_caller(I, [_|T]) ->
+    locate_caller(I + 1, T).
+
+
+check_caller(admin, _Command, _Args) ->
+    ok;
+check_caller(_Caller, #mongoose_command{caller_pos = 0}, _Args) ->
+    % no caller in args
+    ok;
+check_caller(Caller, #mongoose_command{caller_pos = CallerPos, name = Name}, Args) ->
+    % check that server and user match (we don't care about resource)
+    ACaller = lists:nth(CallerPos, Args),
+    CallerJid = jid:from_binary(Caller),
+    ACallerJid = jid:from_binary(ACaller),
+    ACal = {ACallerJid#jid.user, ACallerJid#jid.server},
+    case {CallerJid#jid.user, CallerJid#jid.server} of
+        ACal ->
+            ok;
+        _ ->
+            throw(caller_jid_mismatch)
+    end.
+
+
+
+
+
+
+
+
+
+
 

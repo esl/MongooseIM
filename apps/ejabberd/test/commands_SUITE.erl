@@ -244,6 +244,22 @@ new_execute(_C) ->
     {error, internal, ExpError} = mongoose_commands:execute(admin, command_one, [<<"error">>]),
     % user executes his command
     {ok, <<"bzzzz">>} = mongoose_commands:execute(ujid(), command_foruser, #{msg => <<"bzzzz">>}),
+    % a caller arg
+    % called by admin
+    {ok, <<"admin@localhost/zbzzzz">>} = mongoose_commands:execute(admin,
+                                                                   command_withcaller,
+                                                                   #{caller => <<"admin@localhost/z">>,
+                                                                     msg => <<"bzzzz">>}),
+    % called by user
+    {ok, <<"zenek@localhost/zbzzzz">>} = mongoose_commands:execute(<<"zenek@localhost">>,
+                                                                   command_withcaller,
+                                                                   #{caller => <<"zenek@localhost/z">>,
+                                                                     msg => <<"bzzzz">>}),
+    % call by user but jids do not match
+    {error, denied, _} = mongoose_commands:execute(<<"wacek@localhost">>,
+                                                   command_withcaller,
+                                                   #{caller => <<"zenek@localhost/z">>,
+                                                     msg => <<"bzzzz">>}),
     ok.
 
 different_types(_C) ->
@@ -289,6 +305,17 @@ commands_new() ->
             {security_policy, [user]},
             {args, [{msg, binary}]},
             {result, {msg, binary}}
+        ],
+        [
+            {name, command_withcaller},
+            {category, another},
+            {desc, "this has a 'caller' argument, returns caller ++ msg"},
+            {module, ?MODULE},
+            {function, cmd_concat},
+            {action, create},
+            {security_policy, [user]},
+            {args, [{caller, binary}, {msg, binary}]},
+            {result, {msg, binary}}
         ]
     ].
 
@@ -308,7 +335,7 @@ commands_new_temp() ->
         [
             {name, command_temp2},
             {category, user},
-            {desc, "do nothing and return"},
+            {desc, "this one specifies identifiers"},
             {module, ?MODULE},
             {function, cmd_one},
             {action, update},
@@ -334,7 +361,7 @@ commands_new_temp2() ->
         [
             {name, command_three},
             {category, music},
-            {desc, "some"},
+            {desc, "two args, different types"},
             {module, ?MODULE},
             {function, different_types},
             {action, read},
@@ -486,6 +513,10 @@ different_types(10, <<"binary">>) ->
 	<<"response2">>;
 different_types(_, _) ->
 	<<"wrong content">>.
+
+cmd_concat(A, B) ->
+    <<A/binary, B/binary>>.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%% utilities
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

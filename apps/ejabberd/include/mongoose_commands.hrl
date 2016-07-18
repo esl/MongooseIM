@@ -23,6 +23,7 @@
     function :: atom(),                         %% function to call
     action :: command_action(),                 %% so that the HTTP side can decide which verb to require
     args = [] :: [argspec()],                   %% this is both for introspection and type check on call
+    caller_pos :: integer(),                    %% internal use
     identifiers = [] :: [atom()],               %% if action is 'update' then it must be a subset of args
     security_policy = [admin] :: security(),    %% permissions required to run this command
     result :: argspec()|ok                      %% what the called func should return; if ok then return of called
