@@ -67,12 +67,16 @@ Manages all HTTP-based services, such as BOSH (HTTP long-polling) and WebSocket.
 
             `{"_", "/ws-xmpp", mod_websockets, []}`
 
-    * `mongoose_api` - REST API for accessing internal MongooseIM metrics.
+    * <i>(OBSOLETE)</i> `mongoose_api` - REST API for accessing internal MongooseIM metrics.
         Please refer to [REST interface to metrics](../developers-guide/REST-interface-to-metrics.md)
         for more information. Default declaration:
 
             `{"localhost", "/api", mongoose_api, [{handlers, [mongoose_api_metrics]}]}`
 
+  * `mongoose_api_backend` -  admin commands backend for REST API.
+        Default declaration:
+
+            `{"localhost", "/api", mongoose_api_backend, []}`
 
 ### HTTP module: `mod_cowboy`
 

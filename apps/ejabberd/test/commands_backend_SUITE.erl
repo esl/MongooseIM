@@ -8,7 +8,6 @@
 -include_lib("ejabberd/include/ejabberd_commands.hrl").
 -include_lib("ejabberd/include/mongoose_commands.hrl").
 
--define(PRT(X, Y), ct:pal("~p: ~p", [X, Y])).
 -define(PORT, 5288).
 -define(HOST, "localhost").
 -define(IP,  {127,0,0,1}).
@@ -103,19 +102,16 @@ teardown() ->
     ok.
 
 init_per_suite(C) ->
-    application:ensure_all_started(stringprep),
     application:ensure_all_started(cowboy),
     application:ensure_all_started(fusco),
     application:ensure_all_started(lager),
     ok = mnesia:start(),
-    ok = acl:start(),
-    acl:add(global, coder, {user, <<"zenek">>}),
     C.
 
 end_per_suite(C) ->
+    stopped = mnesia:stop(),
     application:stop(lager),
     application:stop(fusco),
-    application:stop(stringprep),
     application:stop(cowboy),
     C.
 
@@ -158,7 +154,7 @@ post_simple(_Config) ->
     Result = binary_to_list(post_simple_command(element(2, Arg1), element(2, Arg2))),
     {ok, Response} = post_request(Path, Args),
     check_status_code(Response, 201),
-    check_location_header(Response, list_to_binary("http://localhost:5288/api/weather/" ++ Result)).
+    check_location_header(Response, list_to_binary("http://" ++ ?HOST ++ ":" ++ integer_to_list(?PORT) ++"/api/weather/" ++ Result)).
 
 put_simple(_Config) ->
     Binds = [{arg1, <<"username">>}, {arg2,<<"localhost">>}],
@@ -231,7 +227,8 @@ post_different_arg_order(_Config) ->
     Result = binary_to_list(post_simple_command(element(2, Arg1), element(2, Arg2))),
     {ok, Response} = post_request(Path, Args),
     check_status_code(Response, 201),
-    check_location_header(Response, list_to_binary("http://localhost:5288/api/weather/" ++ Result)).
+    check_location_header(Response,
+        list_to_binary("http://" ++ ?HOST ++ ":" ++ integer_to_list(?PORT) ++"/api/weather/" ++ Result)).
 
 post_no_command(_Config) ->
     Args = [{arg1, 10}, {arg2,2}],
@@ -426,6 +423,7 @@ put_advanced_command(Arg1, Arg2, Arg3, Arg4) when is_binary(Arg1) and is_binary(
 
 accepted_headers() ->
     [{<<"Content-Type">>, <<"application/json">>}, {<<"Accept">>, <<"application/json">>}].
+
 create_path_with_binds(Base, ArgList) when is_list(ArgList) ->
     list_to_binary(lists:flatten(Base ++
     ["/" ++ to_list(ArgName) ++ "/" ++ to_list(ArgValue) || {ArgName, ArgValue} <- ArgList])).
@@ -445,7 +443,7 @@ to_list(Other) ->
 -spec get_request(binary()) -> any().
 get_request(Path) ->
     setup(),
-    {ok, Pid} = fusco:start_link("http://localhost:5288", []),
+    {ok, Pid} = fusco:start_link("http://"++ ?HOST ++ ":" ++ integer_to_list(?PORT), []),
     R = fusco:request(Pid, Path, "GET", [], [], 5000),
     fusco:disconnect(Pid),
     teardown(),
@@ -455,16 +453,17 @@ get_request(Path) ->
 post_request(Path, Args) ->
     setup(),
     Body = jiffy:encode(maps:from_list(Args)),
-    {ok, Pid} = fusco:start_link("http://localhost:5288", []),
+    {ok, Pid} = fusco:start_link("http://"++ ?HOST ++ ":" ++ integer_to_list(?PORT), []),
     R = fusco:request(Pid, Path, "POST", accepted_headers(), Body, 5000),
     fusco:disconnect(Pid),
     teardown(),
     R.
 
+-spec put_request(binary(), [{atom(), any()}]) -> any().
 put_request(Path, Args) ->
     setup(),
     Body = jiffy:encode(maps:from_list(Args)),
-    {ok, Pid} = fusco:start_link("http://localhost:5288", []),
+    {ok, Pid} = fusco:start_link("http://"++ ?HOST ++ ":" ++ integer_to_list(?PORT), []),
     R = fusco:request(Pid, Path, "PUT", accepted_headers(), Body, 5000),
     fusco:disconnect(Pid),
     teardown(),
@@ -473,7 +472,7 @@ put_request(Path, Args) ->
 -spec delete_request(binary()) -> any().
 delete_request(Path) ->
     setup(),
-    {ok, Pid} = fusco:start_link("http://localhost:5288", []),
+    {ok, Pid} = fusco:start_link("http://"++ ?HOST ++ ":" ++ integer_to_list(?PORT), []),
     R = fusco:request(Pid, Path, "DELETE", [], [], 5000),
     fusco:disconnect(Pid),
     teardown(),

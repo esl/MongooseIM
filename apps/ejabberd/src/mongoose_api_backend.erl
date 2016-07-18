@@ -289,8 +289,7 @@ maybe_add_bindings(Command) ->
             add_bindings(Args);
         update ->
             Ids = ?COMMANDS_ENGINE:identifiers(Command),
-            %% TODO make sure the order doesn;t change
-            Bindings = [{Key, proplists:get_value(Key, Args)} || Key <- Ids],
+            Bindings = [El || {Key, _Value} = El <- Args, true =:= proplists:is_defined(Key, Ids)],
             add_bindings(Bindings);
         delete ->
             add_bindings(Args);
