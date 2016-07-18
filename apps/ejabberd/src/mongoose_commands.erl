@@ -110,8 +110,9 @@
 -include("jlib.hrl").
 
 -type mongoose_command() :: #mongoose_command{}.
--type caller() :: admin|jid().
+-type caller() :: admin|binary().
 
+-compile(export_all).
 %%%% API
 
 -export([check_type/2]).
@@ -149,31 +150,34 @@ unregister(Cmds) ->
     unregister_commands(Commands).
 
 %% @doc List commands, available for this user.
--spec list(atom()|jid()) -> [mongoose_command()].
+-spec list(caller()) -> [mongoose_command()].
 list(U) ->
     list(U, any, any).
 
 %% @doc List commands, available for this user, filtered by category.
--spec list(atom()|jid(), atom()) -> [mongoose_command()].
+-spec list(caller(), atom()) -> [mongoose_command()].
 list(U, C) ->
     list(U, C, any).
 
 %% @doc List commands, available for this user, filtered by category and action.
--spec list(atom()|jid(), atom(), atom()) -> [mongoose_command()].
-list(admin, Category, Action) ->
-    command_list(Category, Action);
-list(_Caller, _Category, _Action) ->
-    [].
+-spec list(caller(), atom(), atom()) -> [mongoose_command()].
+list(U, Category, Action) ->
+    CL = command_list(Category, Action),
+    lists:filter(fun(C) -> is_available_for(U, C) end, CL).
 
 %% @doc Get command definition, if allowed for this user.
--spec get_command(atom()|jid(), atom()) -> mongoose_command().
-get_command(admin, Name) ->
+-spec get_command(caller(), atom()) -> mongoose_command().
+get_command(Caller, Name) ->
     case ets:lookup(mongoose_commands, Name) of
-        [C] -> C;
+        [C] ->
+            case is_available_for(Caller, C) of
+                true ->
+                    C;
+                false ->
+                    {error, denied, <<"Command not available">>}
+            end;
         [] -> {error, not_implemented, <<"Command not implemented">>}
-    end;
-get_command(_Caller, _Name) ->
-    {error, denied, <<"Command not available">>}.
+    end.
 
 %% accessors
 -spec name(mongoose_command()) -> atom().
@@ -206,27 +210,13 @@ result(Cmd) ->
 
 %% @doc Command execution.
 -spec execute(caller(), atom()|mongoose_command(), [term()]|map()) -> {ok, term()} | ok | failure().
-execute(admin, Name, Args) when is_atom(Name) ->
+execute(Caller, Name, Args) when is_atom(Name) ->
     case ets:lookup(mongoose_commands, Name) of
-        [Command] ->
-            try check_and_execute(Command, Args) of
-                ignore ->
-                    ok;
-                Res ->
-                    {ok, Res}
-            catch
-                {type_mismatch, E} ->
-                    {error, type_error, E};
-                X:E ->
-                    ?ERROR_MSG("Caught ~p:~p while executing ~p", [X, E, Name]),
-                    {error, internal, term_to_binary(E)}
-            end;
+        [Command] -> execute_command(Caller, Command, Args);
         [] -> {error, not_implemented, <<"This command is not supported">>}
     end;
 execute(Caller, #mongoose_command{name = Name}, Args) ->
-    execute(Caller, Name, Args);
-execute(_Caller, _Command, _Args) ->
-    {error, denied, <<"currently only admin is supported">>}.
+    execute(Caller, Name, Args).
 
 init() ->
     case ets:info(mongoose_commands) of
@@ -258,11 +248,36 @@ unregister_commands(Commands) ->
         end,
         Commands).
 
+execute_command(Caller, Command, Args) ->
+    try check_and_execute(Caller, Command, Args) of
+        ignore_result ->
+            ok;
+        Res ->
+            {ok, Res}
+    catch
+        {type_mismatch, E} ->
+            {error, type_error, E};
+        permission_denied ->
+            {error, denied, <<"Command not available for this user">>};
+        X:E ->
+            ?ERROR_MSG("Caught ~p:~p while executing ~p", [X, E, Command#mongoose_command.name]),
+            {error, internal, term_to_binary(E)}
+    end.
 
--spec check_and_execute(mongoose_command(), [term()]) -> term().
-check_and_execute(Command, Args) when is_map(Args) ->
-    check_and_execute(Command, map_to_list(Args, Command#mongoose_command.args));
-check_and_execute(Command, Args) ->
+%% @doc This performs many checks - types, permissions etc, may throw one of many exceptions
+%% returns what the func returned or just ok if command spec tells so
+-spec check_and_execute(caller(), mongoose_command(), [term()]) -> term().
+check_and_execute(Caller, Command, Args) when is_map(Args) ->
+    check_and_execute(Caller, Command, map_to_list(Args, Command#mongoose_command.args));
+check_and_execute(Caller, Command, Args) ->
+    % check permissions
+    case is_available_for(Caller, Command) of
+        true ->
+            ok;
+        false ->
+            throw(permission_denied)
+    end,
+    % check args
     SpecLen = length(Command#mongoose_command.args),
     ALen = length(Args),
     if SpecLen =/= ALen ->
@@ -270,6 +285,7 @@ check_and_execute(Command, Args) ->
         true -> ok
     end,
     [check_type(S, A) || {S, A} <- lists:zip(Command#mongoose_command.args, Args)],
+    % run command
     Res = apply(Command#mongoose_command.module, Command#mongoose_command.function, Args),
     case Res of
         {error, E} ->
@@ -285,7 +301,7 @@ check_and_execute(Command, Args) ->
     end.
 
 maybe_ignore_result(ok, _) ->
-    ignore;
+    ignore_result;
 maybe_ignore_result(_, Res) ->
     Res.
 
@@ -396,8 +412,9 @@ check_value(args, V) when is_list(V) ->
 check_value(security_policy, undefined) ->
     [admin];
 check_value(security_policy, []) ->
-    baddef(security_policy, []);
+    baddef(security_policy, empty);
 check_value(security_policy, V) when is_list(V) ->
+    lists:map(fun check_security_policy/1, V),
     V;
 check_value(result, undefined) ->
     baddef(result, undefined);
@@ -409,6 +426,13 @@ check_value(identifiers, V) ->
     V;
 check_value(K, V) ->
     baddef(K, V).
+
+check_security_policy(user) ->
+    ok;
+check_security_policy(admin) ->
+    ok;
+check_security_policy(Other) ->
+    baddef(security_policy, Other).
 
 baddef(K, V) ->
     throw({invalid_command_definition, io_lib:format("~p=~p", [K, V])}).
@@ -464,4 +488,30 @@ map_to_list(Map, Args) ->
         true -> ok
     end,
     [mapget(K, Map) || {K, _} <- Args].
+
+
+%% @doc Main entry point for permission control - is this command available for this user
+is_available_for(User, C) when is_binary(User) ->
+    is_available_for(jid:from_binary(User), C);
+is_available_for(admin, _C) ->
+    true;
+is_available_for(Jid, #mongoose_command{security_policy = Policies}) ->
+    apply_policies(Policies, Jid).
+
+%% @doc Check all security policies defined in the command - passes if any of them returns true
+apply_policies([], _) ->
+    false;
+apply_policies([P|Policies], Jid) ->
+    case apply_policy(P, Jid) of
+        true ->
+            true;
+        false ->
+            apply_policies(Policies, Jid)
+    end.
+
+%% @doc This is the only policy we know so far, but there will be others (like roles/acl control)
+apply_policy(user, _) ->
+    true;
+apply_policy(_, _) ->
+    false.
 

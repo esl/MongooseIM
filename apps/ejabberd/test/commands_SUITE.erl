@@ -7,6 +7,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("ejabberd/include/ejabberd_commands.hrl").
 -include_lib("ejabberd/include/mongoose_commands.hrl").
+-include_lib("ejabberd/include/jlib.hrl").
 
 -define(PRT(X, Y), ct:pal("~p: ~p", [X, Y])).
 
@@ -191,12 +192,11 @@ new_failedreg(_C) ->
 
 
 new_list(_C) ->
+    %% for admin
     Rlist = mongoose_commands:list(admin),
-    [Cmd] = [C || C <- Rlist, C#mongoose_command.name == command_one],%%proplists:get_value(command_one, Rlist),
+    [Cmd] = [C || C <- Rlist, C#mongoose_command.name == command_one],
     command_one = mongoose_commands:name(Cmd),
     "do nothing and return" = mongoose_commands:desc(Cmd),
-    %% list for a user
-    [] = mongoose_commands:list(a_user),
     %% list by category
     [_] = mongoose_commands:list(admin, user),
     [] = mongoose_commands:list(admin, nocategory),
@@ -208,7 +208,13 @@ new_list(_C) ->
     command_one = mongoose_commands:name(Rget),
     read = mongoose_commands:action(Rget),
     [] = mongoose_commands:identifiers(Rget),
-    {error, denied, _} = mongoose_commands:get_command(a_user, command_one),
+    {error, denied, _} = mongoose_commands:get_command(ujid(), command_one),
+    %% list for a user
+    Ulist = mongoose_commands:list(ujid()),
+    [UCmd] = [UC || UC <- Ulist, UC#mongoose_command.name == command_foruser],
+    command_foruser = mongoose_commands:name(UCmd),
+    URget = mongoose_commands:get_command(ujid(), command_foruser),
+    command_foruser = mongoose_commands:name(URget),
     ok.
 
 
@@ -221,7 +227,7 @@ new_execute(_C) ->
     %% command which returns just ok
     ok = mongoose_commands:execute(admin, command_noreturn, [<<"bzzzz">>]),
     %% this user has no permissions
-    {error, denied, _} = mongoose_commands:execute(a_user, command_one, [<<"bzzzz">>]),
+    {error, denied, _} = mongoose_commands:execute(ujid(), command_one, [<<"bzzzz">>]),
     %% command is not registered
     {error, not_implemented, _} = mongoose_commands:execute(admin, command_seven, [<<"bzzzz">>]),
     %% invalid arguments
@@ -236,6 +242,8 @@ new_execute(_C) ->
     %% backend func returns error
     ExpError = term_to_binary({func_returned_error, byleco}),
     {error, internal, ExpError} = mongoose_commands:execute(admin, command_one, [<<"error">>]),
+    % user executes his command
+    {ok, <<"bzzzz">>} = mongoose_commands:execute(ujid(), command_foruser, #{msg => <<"bzzzz">>}),
     ok.
 
 different_types(_C) ->
@@ -270,6 +278,17 @@ commands_new() ->
             {action, create},
             {args, [{msg, binary}]},
             {result, ok}
+        ],
+        [
+            {name, command_foruser},
+            {category, another},
+            {desc, "this is available for a user"},
+            {module, ?MODULE},
+            {function, cmd_one},
+            {action, read},
+            {security_policy, [user]},
+            {args, [{msg, binary}]},
+            {result, {msg, binary}}
         ]
     ].
 
@@ -403,6 +422,28 @@ commands_new_lame() ->
             {action, read}, %% ...but another command with the same category and action is already registered
             {args, [{msg, binary}]},
             {result, {msg, binary}}
+        ],
+        [
+            {name, command_seven},
+            {category, user},
+            {desc, "do nothing and return"},
+            {module, ?MODULE},
+            {function, cmd_one},
+            {action, delete},
+            {security_policy, [wrong]}, % invalid security definition
+            {args, [{msg, binary}]},
+            {result, {msg, binary}}
+%%        ],
+%%        [
+%%            {name, command_seven},
+%%            {category, user},
+%%            {desc, "do nothing and return"},
+%%            {module, ?MODULE},
+%%            {function, cmd_one},
+%%            {action, delete},
+%%            {security_policy, []}, % invalid security definition
+%%            {args, [{msg, binary}]},
+%%            {result, {msg, binary}}
         ]
     ].
 
@@ -470,3 +511,8 @@ checkauth(true, AccessCommands, Auth) ->
 checkauth(ErrMess, AccessCommands, Auth) ->
     B = <<"bzzzz">>,
     {error, ErrMess} = ejabberd_commands:execute_command(AccessCommands, Auth, command_one, [B]).
+
+ujid() ->
+    <<"zenek@localhost/k">>.
+%%    #jid{user = <<"zenek">>, server = <<"localhost">>, resource = "k",
+%%         luser = <<"zenek">>, lserver = <<"localhost">>, lresource = "k"}.

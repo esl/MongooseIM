@@ -8,7 +8,7 @@
                   |{argspec()} % a tuple of a few args (can be of any size)
                   |[typedef()]. % a list, but one element
 
--type security() :: [admin|whatnot]. %% to be determined
+-type security() :: [admin|user]. %% later acl option will be added
 
 -type errortype() :: denied|not_implemented|type_error|internal. %% we should agree on a set of atoms so that the
                                                                  %% frontend can map it to http codes
