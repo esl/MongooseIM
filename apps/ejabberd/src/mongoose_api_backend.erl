@@ -29,7 +29,7 @@
 
 %% local callbacks
 -export([to_json/2,
-    from_json/2, restart_listeners/1]).
+    from_json/2, reload_dispatches/1]).
 
 
 -define(COMMANDS_ENGINE, mongoose_commands).
@@ -55,8 +55,8 @@
 -spec cowboy_router_paths(ejabberd_cowboy:path(), ejabberd_cowboy:options()) ->
     ejabberd_cowboy:implemented_result() | ejabberd_cowboy:default_result().
 cowboy_router_paths(Base, _Opts) ->
-    ejabberd_hooks:add(register_command, global, ?MODULE, restart_listeners, 50),
-    ejabberd_hooks:add(unregister_command, global, ?MODULE, restart_listeners, 50),
+    ejabberd_hooks:add(register_command, global, ?MODULE, reload_dispatches, 50),
+    ejabberd_hooks:add(unregister_command, global, ?MODULE, reload_dispatches, 50),
         try
             Commands = ?COMMANDS_ENGINE:list(admin),
             [handler_path(Base, Command) || Command <- Commands]
@@ -120,13 +120,11 @@ from_json(Req, State) ->
     {Method, Req2} = cowboy_req:method(Req),
     extract_and_handle(Method, Req2, State).
 
-%% It's terrible but for now, it's only way to dynamically reload cowboy URLs.
-%% TODO Introduce "reload_dispatch" function which uses "cowboy:set_env/3" in case to
-%% dynamically add a new path because now "cowboy_router_paths" callback is called only once,
-%% when starting the listener
-restart_listeners(_Command) ->
-    ejabberd_listener:stop_listeners(),
-    ejabberd_listener:start_listeners().
+%% Reload all ejabberd_cowboy listeners
+reload_dispatches(_Command) ->
+    Listeners = supervisor:which_children(ejabberd_listeners),
+    CowboyListeners = [Child || {_Id, Child, _Type, [ejabberd_cowboy]}  <- Listeners],
+    [ejabberd_cowboy:reload_dispatch(Child) || Child <- CowboyListeners].
 
 
 %%--------------------------------------------------------------------
