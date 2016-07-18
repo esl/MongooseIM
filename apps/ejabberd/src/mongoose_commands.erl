@@ -245,6 +245,7 @@ register_commands(Commands) ->
         fun(Command) ->
             check_registration(Command), %% may throw
             ets:insert_new(mongoose_commands, Command),
+            ejabberd_hooks:run(register_command, [Command]),
             ok
         end,
         Commands).
@@ -254,7 +255,8 @@ register_commands(Commands) ->
 unregister_commands(Commands) ->
     lists:foreach(
         fun(Command) ->
-            ets:delete_object(mongoose_commands, Command)
+            ets:delete_object(mongoose_commands, Command),
+            ejabberd_hooks:run(unregister_command, [Command])
         end,
         Commands).
 
