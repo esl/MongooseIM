@@ -55,15 +55,15 @@
 -spec cowboy_router_paths(ejabberd_cowboy:path(), ejabberd_cowboy:options()) ->
     ejabberd_cowboy:implemented_result() | ejabberd_cowboy:default_result().
 cowboy_router_paths(Base, _Opts) ->
-    Commands =
         try
-            ?COMMANDS_ENGINE:list(admin)
+            Commands = ?COMMANDS_ENGINE:list(admin),
+            [handler_path(Base, Command) || Command <- Commands]
         catch
             _:Err ->
                 ?ERROR_MSG("Error occured when getting the commands list: ~p~n", [Err]),
-                undefined
-        end,
-    [handler_path(Base, Command) || Command <- Commands].
+                []
+        end.
+
 
 %%--------------------------------------------------------------------
 %% cowboy_rest callbacks
