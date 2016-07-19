@@ -8,9 +8,67 @@
 %%%-------------------------------------------------------------------
 %%
 %% @doc MongooseIM REST API backend
+%% This module handles the client HTTP REST requests, then respectively convert them to Commands from mongoose_commands
+%% and execute with `admin` privileges.
+%% It supports responses with appropriate HTTP Status codes returned to the client.
+%% This module implements behaviour introduced in ejabberd_cowboy which is built on top of the cowboy library.
+%% The method supported: GET, POST, PUT, DELETE. Only JSON format.
+%% The library "jiffy" used to serialize and deserialized JSON data.
 %%
+%% %% Handling the requests:
 %%
+%% - GET method:
 %%
+%% all bindings from path are mapped to the "args" field in mongoose_commands` record.
+%% Example:
+%% reqired headers: [Content-Type: application/json]
+%% path: http://localhost:5288/api/users/username/joe/domain/example.com
+%% body: []
+%% will execute the command with record specified as:
+%% {action, read},
+%% {category, users},
+%% {args, [{username, binary}, {domain, binary}]},
+%% {identifiers, []}
+%%
+%% - DELETE method:
+%%
+%% reqired headers: [Content-Type: application/json]
+%% path: http://localhost:5288/api/animals/name/elephant/region/india
+%% body: {}
+%% will execute the command with record specified as:
+%% {action, delete},
+%% {category, animals},
+%% {args, [{name, binary}, {region, binary}]},
+%% {identifiers, []}
+%%
+%% - POST method:
+%%
+%% all the parameters from body's JSON are mapped to the "args" field in mongoose_commands' record.
+%% Example:
+%% reqired headers: [Content-Type: application/json, Accept: application/json]
+%% path: http://localhost:5288/api/users
+%% body: {"username" : "andres", "domain" : "example.com", "age" : "22"}
+%% will execute the command with record specified as:
+%% {action, create}
+%% {category, users},
+%% {args, [{username, binary}, {domain, binary}, {age, integer}]},
+%% {identifiers, []}
+%%
+%% - PUT method:
+%%
+%% the arguments marked as "identifiers" in mongoose_commands's record are the bindings (part of the path) and the
+%% rest belongs to the body JSON.
+%% Example:
+%% reqired headers: [Content-Type: application/json, Accept: application/json]
+%% path: http://localhost:5228/movies/title/the_shining/director/kubrick
+%% body: {"new_title", : "My little pony"}
+%% will execute the command with record specified as:
+%% {action, update}
+%% {category, movies},
+%% {args, [{title, binary}, {director, binary}, {new_title, binary}]},
+%% {identifiers, [title, director]}
+%%
+
 -module(mongoose_api_backend).
 -author("ludwikbukowski").
 -record(backend_state, {allowed_methods, bindings, parameters, command_category}).
@@ -28,8 +86,7 @@
          delete_resource/2]).
 
 %% local callbacks
--export([to_json/2,
-    from_json/2, reload_dispatches/1]).
+-export([to_json/2, from_json/2, reload_dispatches/1]).
 
 
 -define(COMMANDS_ENGINE, mongoose_commands).
@@ -110,17 +167,21 @@ delete_resource(Req, State) ->
 %%--------------------------------------------------------------------
 %% internal callbacks
 %%--------------------------------------------------------------------
+
 %% @doc Called for a method of type "GET"
 to_json(Req, State) ->
     extract_and_handle(<<"GET">>, Req, State).
 
-%%--------------------------------------------------------------------
+
 %% @doc Called for a method of type "POST" and "PUT"
 from_json(Req, State) ->
     {Method, Req2} = cowboy_req:method(Req),
     extract_and_handle(Method, Req2, State).
 
-%% Reload all ejabberd_cowboy listeners
+%% @doc Reload all ejabberd_cowboy listeners.
+%% When a command is registered or unregistered, the routing paths that
+%% cowboy stores as a "dispatch" must be refreshed.
+%% Read more http://ninenines.eu/docs/en/cowboy/1.0/guide/routing/
 reload_dispatches(_Command) ->
     Listeners = supervisor:which_children(ejabberd_listeners),
     CowboyListeners = [Child || {_Id, Child, _Type, [ejabberd_cowboy]}  <- Listeners],
