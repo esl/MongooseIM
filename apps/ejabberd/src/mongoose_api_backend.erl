@@ -71,7 +71,7 @@
 
 -module(mongoose_api_backend).
 -author("ludwikbukowski").
--record(backend_state, {allowed_methods, bindings, parameters, command_category}).
+
 
 %% ejabberd_cowboy exports
 -export([cowboy_router_paths/2]).
@@ -83,7 +83,8 @@
          init/3,
          rest_init/2,
          content_types_accepted/2,
-         delete_resource/2]).
+         delete_resource/2,
+         is_authorized/2]).
 
 %% local callbacks
 -export([to_json/2, from_json/2, reload_dispatches/1]).
@@ -91,6 +92,7 @@
 
 -define(COMMANDS_ENGINE, mongoose_commands).
 -include("mongoose_commands.hrl").
+-include("mongoose_api.hrl").
 -include("ejabberd.hrl").
 -type method() ::binary().
 -type arg_name() :: atom().
@@ -100,23 +102,19 @@
 -type arg_values() :: list(arg_value()).
 -type mongoose_command() :: #mongoose_command{}.
 
-%% Error messages
--define(ARGS_LEN_ERROR, "Bad parameters length.").
--define(ARGS_SPEC_ERROR, "Bad name of the parameter.").
--define(BODY_MALFORMED, "The request body is malformed.").
-
 %%--------------------------------------------------------------------
 %% ejabberd_cowboy callbacks
 %%--------------------------------------------------------------------
 %% @doc This is implementation of ejabberd_cowboy callback. Returns list of all available http paths.
 -spec cowboy_router_paths(ejabberd_cowboy:path(), ejabberd_cowboy:options()) ->
     ejabberd_cowboy:implemented_result() | ejabberd_cowboy:default_result().
-cowboy_router_paths(Base, _Opts) ->
+cowboy_router_paths(Base, Opts) ->
+    Entity = gen_mod:get_opt(mode, Opts, admin),
     ejabberd_hooks:add(register_command, global, ?MODULE, reload_dispatches, 50),
     ejabberd_hooks:add(unregister_command, global, ?MODULE, reload_dispatches, 50),
         try
             Commands = ?COMMANDS_ENGINE:list(admin),
-            [handler_path(Base, Command) || Command <- Commands]
+            [handler_path(Base, Command, Entity) || Command <- Commands]
         catch
             _:Err ->
                 ?ERROR_MSG("Error occured when getting the commands list: ~p~n", [Err]),
@@ -133,6 +131,7 @@ init({_Transport, _}, Req, Opts) ->
 
 rest_init(Req, Opts) ->
     {Bindings, Req1} = cowboy_req:bindings(Req),
+    Entity = ists:keytake(mode, 1, Opts),
     CommandCategory =
         case lists:keytake(command_category, 1, Opts) of
             {value, {command_category, Name},  _Opts1} ->
@@ -141,7 +140,7 @@ rest_init(Req, Opts) ->
                 undefined
         end,
     State = #backend_state{allowed_methods = get_allowed_methods(),
-        bindings = Bindings, command_category = CommandCategory},
+        bindings = Bindings, command_category = CommandCategory, entity = Entity},
     {ok, Req1, State}.
 
 allowed_methods(Req, #backend_state{command_category = Name} = State) ->
@@ -156,6 +155,11 @@ content_types_provided(Req, State) ->
 content_types_accepted(Req, State) ->
     CTA = [{{<<"application">>, <<"json">>, '*'}, from_json}],
     {CTA, Req, State}.
+
+is_authorized(Req, #backend_state{entity = user} = State) ->
+    mongoose_api_auth:is_authorized(Req, State);
+is_authorized(Req, State) ->
+    {true, Req, State}.
 
 rest_terminate(_Req, _State) ->
     ok.
@@ -264,10 +268,10 @@ parse_request_body(Req) ->
     end,
     {Params, Req2}.
 
--spec handler_path(ejabberd_cowboy:path(), mongoose_command()) -> ejabberd_cowboy:path().
-handler_path(Base, Command) ->
+-spec handler_path(ejabberd_cowboy:path(), mongoose_command(), user | admin) -> ejabberd_cowboy:path().
+handler_path(Base, Command, Entity) ->
     {[Base, create_url_path(Command)],
-        ?MODULE, [{command_category, ?COMMANDS_ENGINE:category(Command)}]}.
+        ?MODULE, [{command_category, ?COMMANDS_ENGINE:category(Command)}, {mode, Entity}]}.
 
 %% @doc Returns list of allowed methods.
 -spec get_allowed_methods() -> list(method()).
