@@ -217,6 +217,7 @@ handle_info(_Info, State) ->
 %% Returns: any (ignored by gen_server)
 %%----------------------------------------------------------------------
 terminate(_Reason, _State) ->
+    ets:delete(hooks),
     ok.
 
 
