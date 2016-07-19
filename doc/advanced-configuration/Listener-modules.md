@@ -73,10 +73,12 @@ Manages all HTTP-based services, such as BOSH (HTTP long-polling) and WebSocket.
 
             `{"localhost", "/api", mongoose_api, [{handlers, [mongoose_api_metrics]}]}`
 
-  * `mongoose_api_backend` -  admin commands backend for REST API.
+  * `mongoose_api_backend` -  admin commands backend for REST API. The `mode` option set to "admin" specifies that
+   the API is only for administrations purposes. When `mode` set to "user" all requests require authorization due to
+   basic access authentication method.
         Default declaration:
 
-            `{"localhost", "/api", mongoose_api_backend, []}`
+            `{"localhost", "/api", mongoose_api_backend, [{mode, admin}]}`
 
 ### HTTP module: `mod_cowboy`
 
