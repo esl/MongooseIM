@@ -61,6 +61,10 @@ init_per_suite(C) ->
     acl:add(global, coder, {user, <<"zenek">>}),
     C.
 
+end_per_suite(_) ->
+    % so that other suites do not fail trying to start it
+    gen_server:stop(ejabberd_hooks).
+
 init_per_group(old_commands, C) ->
     spawn(fun ec_holder/0),
     C;
@@ -530,6 +534,8 @@ ec_holder() ->
     end.
 
 mc_holder() ->
+    % we have to do it here to avoid race condition and random failures
+    ejabberd_hooks:start_link(),
     mongoose_commands:init(),
     mongoose_commands:register(commands_new()),
     receive
