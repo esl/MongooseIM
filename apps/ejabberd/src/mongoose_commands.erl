@@ -167,6 +167,7 @@
          result/1
     ]).
 
+
 %% @doc Register mongoose commands. This can be run by any module that wants its commands exposed.
 -spec register([{atom(), term()}]) -> ok.
 register(Cmds) ->
