@@ -9,6 +9,7 @@
          registered_users/1,
          listsessions/1,
          kick_this_session/1,
+         get_recent_messages/3,
          send_message/3
         ]).
 
@@ -109,13 +110,24 @@ commands() ->
             {action, create},
             {security_policy, [user]},
             {args, [{caller, binary}, {to, binary}, {msg, binary}]},
-            {result, {msg, binary}}
+            {result, ok}
+        ],
+        [
+            {name, getmessages},
+            {category, message},
+            {desc, "Get recent messages"},
+            {module, ?MODULE},
+            {function, get_recent_messages},
+            {action, read},
+            {security_policy, [user]},
+            {args, [{caller, binary}, {other, binary}, {limit, integer}]},
+            {result, []}
         ]
     ].
 
-get_user_resources(Jid) ->
-    J = jid:from_binary(Jid),
-    ejabberd_sm:get_user_resources(J#jid.user, J#jid.server).
+%%get_user_resources(Jid) ->
+%%    J = jid:from_binary(Jid),
+%%    ejabberd_sm:get_user_resources(J#jid.user, J#jid.server).
 
 
 kick_this_session(Jid) ->
@@ -179,6 +191,16 @@ registered_commands() ->
     } || C <- mongoose_commands:list(admin)].
 
 
+get_recent_messages(Caller, Other, Limit) ->
+    Res = lookup_recent_messages(Caller, Other, Limit),
+    lists:map(fun record_to_map/1, Res).
+
+record_to_map({Id, From, Msg}) ->
+    Jbin = jid:to_binary(From),
+    {Msec, _} = mod_mam_utils:decode_compact_uuid(Id),
+    {value, MsgId} = xml:get_tag_attr(<<"id">>, Msg),
+    Body = xml:get_tag_cdata(xml:get_path_s(Msg, [{elem, <<"body">>}])),
+    #{sender => Jbin, timestamp => round(Msec / 1000000), message_id => MsgId, body => Body}.
 
 
 build_packet(message_chat, Body) ->
@@ -186,3 +208,30 @@ build_packet(message_chat, Body) ->
         attrs = [{<<"type">>, <<"chat">>}, {<<"id">>, list_to_binary(randoms:get_string())}],
         children = [#xmlel{ name = <<"body">>, children = [#xmlcdata{content = Body}]}]
     }.
+
+
+lookup_recent_messages(_, _, Limit) when Limit > 500 ->
+    throw({error, message_limit_too_high});
+lookup_recent_messages(ArcJID, OtherJID, Limit) when is_binary(ArcJID) ->
+    lookup_recent_messages(jid:from_binary(ArcJID), OtherJID, Limit);
+lookup_recent_messages(ArcJID, OtherJID, Limit) when is_binary(OtherJID) ->
+    lookup_recent_messages(ArcJID, jid:from_binary(OtherJID), Limit);
+lookup_recent_messages(ArcJID, OtherJID, Limit) ->
+    Host = ArcJID#jid.server,
+    ArcID = mod_mam:archive_id(Host, ArcJID#jid.user),
+    Borders = undefined,
+    RSM = #rsm_in{direction = before, id = undefined}, % last msgs
+    Start = undefined,
+    End = undefined,
+    Now = mod_mam_utils:now_to_microseconds(now()),
+    WithJID = undefined,
+    PageSize = Limit,
+    LimitPassed = false,
+    MaxResultLimit = 1,
+    IsSimple = true,
+    R = ejabberd_hooks:run_fold(mam_lookup_messages, Host, {ok, {0, 0, []}},
+        [Host, ArcID, OtherJID, RSM, Borders,
+            Start, End, Now, WithJID,
+            PageSize, LimitPassed, MaxResultLimit, IsSimple]),
+    {ok, {_, _, L}} = R,
+    L.

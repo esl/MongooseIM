@@ -55,7 +55,8 @@ groups() ->
 test_cases() ->
     [assertions,
      basic,
-     sessions].
+     sessions,
+     messages].
 
 suite() ->
     escalus:suite().
@@ -71,11 +72,11 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(_GroupName, Config) ->
-    escalus:create_users(Config, escalus:get_users([alice])).
+    escalus:create_users(Config, escalus:get_users([alice, bob])).
 
 
 end_per_group(_GroupName, Config) ->
-    escalus:delete_users(Config, escalus:get_users([alice])).
+    escalus:delete_users(Config, escalus:get_users([alice, bob])).
 
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
@@ -140,6 +141,14 @@ sessions(Config) ->
     ok.
 
 
+messages(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        M = #{caller => <<"bob@localhost">>, to => <<"alice@localhost">>, msg => <<"hey">>},
+        {?OK, _} = post(<<"/message">>, M),
+        Res = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_chat_message, [<<"hey">>], Res),
+                                        end),
+    ok.
 
 
 
