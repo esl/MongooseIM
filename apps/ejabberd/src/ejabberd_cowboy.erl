@@ -143,7 +143,7 @@ reload_dispatch(Ref, Opts) ->
     Dispatch = cowboy_router:compile(get_routes(gen_mod:get_opt(modules, Opts))),
     cowboy:set_env(Ref, dispatch, Dispatch).
 
-stop_cowboy(#cowboy_state{ref = Ref}) ->
+stop_cowboy(Ref) ->
     cowboy:stop_listener(cowboy_ref(Ref)),
     ok.
 

@@ -20,12 +20,19 @@
 %%%% suite configuration
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+client_module() ->
+    mongoose_api_auth.
+
+backend_module() ->
+    mongoose_api_backend.
+
 all() ->
     [
         {group, simple},
         {group, get_advanced},
         {group, post_advanced},
-        {group, delete_advanced}
+        {group, delete_advanced},
+        {group, client_simple}
     ].
 
 groups() ->
@@ -74,14 +81,22 @@ groups() ->
                 put_wrong_bind_name,
                 put_wrong_param_name
             ]
+        },
+        {client_simple, [sequence],
+            [get_simple_client]
         }
     ].
 
-setup() ->
+setup(Module) ->
     meck:unload(),
-    spawn(fun mc_holder/0),
     meck:new(supervisor, [unstick, passthrough, no_link]),
+    meck:new(ejabberd_hooks, []),
+    meck:new(ejabberd_auth, []),
     %% you have to meck some stuff to get it working....
+    meck:expect(ejabberd_auth, check_password, fun(_, _, _) -> true end),
+    meck:expect(ejabberd_hooks, add, fun(_, _, _, _, _) -> ok end),
+    meck:expect(ejabberd_hooks, run, fun(_, _) -> ok end),
+    spawn(fun mc_holder/0),
     meck:expect(supervisor, start_child,
         fun(ejabberd_listeners, {_, {_, start_link, [_]}, transient,
             infinity, worker, [_]}) -> {ok, self()};
@@ -90,7 +105,7 @@ setup() ->
     %% HTTP API config
     Opts = [{num_acceptors, 10},
         {max_connections, 1024},
-        {modules, [{"localhost", "/api", mongoose_api_backend, []}]}],
+        {modules, [{"localhost", "/api", Module, []}]}],
     ejabberd_cowboy:start_listener({?PORT, ?IP, tcp}, Opts).
 
 
@@ -98,11 +113,14 @@ setup() ->
 teardown() ->
     ejabberd_cowboy:stop(ejabberd_cowboy:handler({?PORT, ?IP, tcp})),
     mongoose_commands:unregister(commands_new()),
-    meck:unload(),
+    meck:unload(ejabberd_auth),
+    meck:unload(ejabberd_hooks),
+    meck:unload(supervisor),
     ok.
 
 init_per_suite(C) ->
     application:ensure_all_started(cowboy),
+    application:ensure_all_started(stringprep),
     application:ensure_all_started(fusco),
     application:ensure_all_started(lager),
     ok = mnesia:start(),
@@ -112,6 +130,7 @@ end_per_suite(C) ->
     stopped = mnesia:stop(),
     application:stop(lager),
     application:stop(fusco),
+    application:stop(stringprep),
     application:stop(cowboy),
     C.
 
@@ -135,7 +154,17 @@ get_simple(_Config) ->
     Arg = {arg1, <<"bob@localhost">>},
     Base = "/api/users",
     ExpectedBody = get_simple_command(element(2, Arg)),
-    {ok, Response} = get_request(create_path_with_binds(Base, [Arg])),
+    {ok, Response} = get_request_admin(create_path_with_binds(Base, [Arg])),
+    check_status_code(Response, 200),
+    check_response_body(Response, ExpectedBody).
+
+get_simple_client(_Config) ->
+    Arg = {arg1, <<"bob@localhost">>},
+    Base = "/api/clients",
+    Username = <<"username@localhost">>,
+    Auth = {binary_to_list(Username), "secret"},
+    ExpectedBody = get_simple_client_command(Username, element(2, Arg)),
+    {ok, Response} = get_request_auth(create_path_with_binds(Base, [Arg]), Auth),
     check_status_code(Response, 200),
     check_response_body(Response, ExpectedBody).
 
@@ -168,7 +197,7 @@ get_two_args(_Config) ->
     Arg2 = {arg2, 2},
     Base = "/api/animals",
     ExpectedBody = get_two_args_command(element(2, Arg1), element(2, Arg2)),
-    {ok, Response} = get_request(create_path_with_binds(Base, [Arg1, Arg2])),
+    {ok, Response} = get_request_admin(create_path_with_binds(Base, [Arg1, Arg2])),
     check_status_code(Response, 200),
     check_response_body(Response, ExpectedBody).
 
@@ -177,28 +206,28 @@ get_two_args_different_types(_Config) ->
     Arg2 = {two, <<"mybin">>},
     Base = "/api/books",
     ExpectedBody = get_two_args2_command(element(2, Arg1), element(2, Arg2)),
-    {ok, Response} = get_request(create_path_with_binds(Base, [Arg1, Arg2])),
+    {ok, Response} = get_request_admin(create_path_with_binds(Base, [Arg1, Arg2])),
     check_status_code(Response, 200),
     check_response_body(Response, ExpectedBody).
 
 get_wrong_path(_Config) ->
     Path = <<"/api/animals/1/2">>,
-    {ok, Response} = get_request(Path),
+    {ok, Response} = get_request_admin(Path),
     check_status_code(Response, 404).
 
 get_wrong_arg_number(_Config) ->
     Path = <<"/api/animals/arg1/1/arg2/2/arg3/3">>,
-    {ok, Response} = get_request(Path),
+    {ok, Response} = get_request_admin(Path),
     check_status_code(Response, 404).
 
 get_no_command(_Config) ->
     Path = <<"/api/unregistered_command/123123">>,
-    {ok, Response} = get_request(Path),
+    {ok, Response} = get_request_admin(Path),
     check_status_code(Response, 404).
 
 get_wrong_arg_type(_Config) ->
     Path = <<"/api/animals/arg1/1/arg2/wrong">>,
-    {ok, Response} = get_request(Path),
+    {ok, Response} = get_request_admin(Path),
     check_status_code(Response, 400).
 
 post_wrong_arg_number(_Config) ->
@@ -310,8 +339,23 @@ put_wrong_param_name(_Config) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%% definitions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+commands_client() ->
+    [
+        [
+            {name, get_simple_client},
+            {category, clients},
+            {desc, "do nothing and return"},
+            {module, ?MODULE},
+            {function, get_simple_client_command},
+            {action, read},
+            {identifiers, []},
+            {security_policy, [user]},
+            {args, [{caller, binary}, {arg1, binary}]},
+            {result, {result, binary}}
+        ]
+    ].
 
-commands_new() ->
+commands_admin() ->
     [
         [
             {name, get_simple},
@@ -395,8 +439,14 @@ commands_new() ->
         ]
         ].
 
+commands_new() ->
+    commands_admin() ++ commands_client().
+
 get_simple_command(<<"bob@localhost">>) ->
     <<"bob is OK">>.
+
+get_simple_client_command(_Caller, _SomeBinary) ->
+    <<"client bob is OK">>.
 
 get_two_args_command(1, 2) ->
     <<"all is working">>.
@@ -424,6 +474,12 @@ put_advanced_command(Arg1, Arg2, Arg3, Arg4) when is_binary(Arg1) and is_binary(
 accepted_headers() ->
     [{<<"Content-Type">>, <<"application/json">>}, {<<"Accept">>, <<"application/json">>}].
 
+maybe_add_auth_header({User, Password}) ->
+    Basic = list_to_binary("basic " ++ base64:encode_to_string(User ++ ":"++ Password)),
+    [{<<"authorization">>, Basic}];
+maybe_add_auth_header(admin) ->
+    [].
+
 create_path_with_binds(Base, ArgList) when is_list(ArgList) ->
     list_to_binary(lists:flatten(Base ++
     ["/" ++ to_list(ArgName) ++ "/" ++ to_list(ArgValue) || {ArgName, ArgValue} <- ArgList])).
@@ -440,18 +496,28 @@ to_list(Other) ->
     Other.
 
 
--spec get_request(binary()) -> any().
-get_request(Path) ->
-    setup(),
+-spec get_request_admin(binary()) -> any().
+get_request_admin(Path) ->
+    setup(backend_module()),
     {ok, Pid} = fusco:start_link("http://"++ ?HOST ++ ":" ++ integer_to_list(?PORT), []),
     R = fusco:request(Pid, Path, "GET", [], [], 5000),
     fusco:disconnect(Pid),
     teardown(),
     R.
 
+-spec get_request_auth(binary(), {binary(), binary()}) -> any().
+get_request_auth(Path, Auth) ->
+    setup(client_module()),
+    AuthHeader = maybe_add_auth_header(Auth),
+    {ok, Pid} = fusco:start_link("http://"++ ?HOST ++ ":" ++ integer_to_list(?PORT), []),
+    R = fusco:request(Pid, Path, "GET", AuthHeader, [], 5000),
+    fusco:disconnect(Pid),
+    teardown(),
+    R.
+
 -spec post_request(binary(), [{atom(), any()}]) -> any().
 post_request(Path, Args) ->
-    setup(),
+    setup(backend_module()),
     Body = jiffy:encode(maps:from_list(Args)),
     {ok, Pid} = fusco:start_link("http://"++ ?HOST ++ ":" ++ integer_to_list(?PORT), []),
     R = fusco:request(Pid, Path, "POST", accepted_headers(), Body, 5000),
@@ -461,7 +527,7 @@ post_request(Path, Args) ->
 
 -spec put_request(binary(), [{atom(), any()}]) -> any().
 put_request(Path, Args) ->
-    setup(),
+    setup(backend_module()),
     Body = jiffy:encode(maps:from_list(Args)),
     {ok, Pid} = fusco:start_link("http://"++ ?HOST ++ ":" ++ integer_to_list(?PORT), []),
     R = fusco:request(Pid, Path, "PUT", accepted_headers(), Body, 5000),
@@ -471,13 +537,12 @@ put_request(Path, Args) ->
 
 -spec delete_request(binary()) -> any().
 delete_request(Path) ->
-    setup(),
+    setup(backend_module()),
     {ok, Pid} = fusco:start_link("http://"++ ?HOST ++ ":" ++ integer_to_list(?PORT), []),
     R = fusco:request(Pid, Path, "DELETE", [], [], 5000),
     fusco:disconnect(Pid),
     teardown(),
     R.
-
 
 mc_holder() ->
     mongoose_commands:init(),
