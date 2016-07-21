@@ -17,7 +17,11 @@
     gett/1,
     post/2,
     putt/2,
-    delete/1
+    delete/1,
+    gett/2,
+    post/3,
+    putt/3,
+    delete/2
 ]).
 
 -define(PATHPREFIX, <<"/api">>).
@@ -89,6 +93,20 @@ putt(Path, Body) ->
 delete(Path) ->
     make_request(<<"DELETE">>, Path).
 
+-spec gett(Path :: string()|binary(), Cred :: {Username :: binary(), Password :: binary()}) -> term().
+gett(Path, Cred) ->
+    make_request({<<"GET">>, Cred}, Path).
+
+post(Path, Body, Cred) ->
+    make_request({<<"POST">>, Cred}, Path, Body).
+
+putt(Path, Body, Cred) ->
+    make_request({<<"PUT">>, Cred}, Path, Body).
+
+delete(Path, Cred) ->
+    make_request({<<"DELETE">>, Cred}, Path).
+
+
 make_request(Method, Path) ->
     make_request(Method, Path, <<"">>).
 
@@ -111,11 +129,17 @@ decode(<<>>) ->
 decode(RespBody) ->
     jiffy:decode(RespBody).
 
+%% a request specyfying credentials is directed to client http listener
+fusco_request({Method, {User, Password}}, Path, Body) ->
+    Basic = list_to_binary("basic " ++ base64:encode_to_string(to_list(User) ++ ":"++ to_list(Password))),
+    Headers = [{<<"authorization">>, Basic}],
+    fusco_request(Method, Path, Body, Headers, 5287);
+%% without them it is for admin (secure) interface
 fusco_request(Method, Path, Body) ->
-    fusco_request(Method, Path, Body, []).
+    fusco_request(Method, Path, Body, [], 5288).
 
-fusco_request(Method, Path, Body, HeadersIn) ->
-    {ok, Client} = fusco_cp:start_link({"localhost", 5288, false}, [], 1),
+fusco_request(Method, Path, Body, HeadersIn, Port) ->
+    {ok, Client} = fusco_cp:start_link({"localhost", Port, false}, [], 1),
     Headers = [{<<"Content-Type">>, <<"application/json">>} | HeadersIn],
     {ok, Result} = fusco_cp:request(Client, Path, Method, Headers, Body, 2, 5000),
     Result.
@@ -127,3 +151,9 @@ mapfromlist(L) ->
 decode_maplist(Ml) ->
     Pl = [C || {C} <- Ml],
     [mapfromlist(L) || L <- Pl].
+
+
+to_list(V) when is_binary(V) ->
+    binary_to_list(V);
+to_list(V) when is_list(V) ->
+    V.
