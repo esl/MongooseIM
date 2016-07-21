@@ -28,7 +28,11 @@
             gett/1,
             post/2,
             putt/2,
-            delete/1
+            delete/1,
+            gett/2,
+            post/3,
+            putt/3,
+            delete/2
         ]
     ).
 
@@ -46,10 +50,14 @@
 -define(ATOMS, [name, desc, category, action, security_policy, args, result, sender]).
 
 all() ->
-    [{group, restapi}].
+    [
+        {group, adminside},
+        {group, userside}
+    ].
 
 groups() ->
-    [{restapi, [sequence], test_cases()}
+    [{adminside, [sequence], test_cases()},
+     {userside, [sequence], user_test_cases()}
     ].
 
 test_cases() ->
@@ -58,6 +66,10 @@ test_cases() ->
      sessions,
      messages,
      changepassword].
+
+user_test_cases() ->
+    [user_messages].
+
 
 suite() ->
     escalus:suite().
@@ -192,3 +204,22 @@ changepassword(Config) ->
         end),
     ok.
 
+
+user_messages(_Config) ->
+    % send message using http authorisation
+    Cred = {<<"alice@localhost">>, <<"matygrysa">>},
+    M1 = #{to => <<"bob@localhost">>, msg => <<"hello from Alice">>},
+    {?OK, _} = post(<<"/message">>, M1, Cred),
+    % list messages the same way - this one should be at the end
+    {?OK, Msgs} = gett("/message/other/bob@localhost/limit/10", Cred),
+    ?PRT("Msgs", Msgs),
+    [Last|_] = lists:reverse(decode_maplist(Msgs)),
+    <<"hello from Alice">> = maps:get(body, Last),
+    <<"alice@localhost">> = maps:get(sender, Last),
+    ok.
+
+
+to_list(V) when is_binary(V) ->
+    binary_to_list(V);
+to_list(V) when is_list(V) ->
+    V.
