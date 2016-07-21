@@ -4,12 +4,9 @@ This document aims to provide guidelines for merging changesets into the Mongoos
 
 For the purpose of this document, we classify changesets/pull requests as:
 
-* trivial - minor bugfixes, small changes to auxiliary modules, changes to documentation, and patches which change only test code.
-
-* non-trivial - more significant changes, fixes and improvements.
-Especially if they change MongooseIM's core modules.
-
-* big - e.g. implementation of new XEPs or major changes to core code
+* big: implementation of new XEPs or major changes to core code
+* non-trivial: significant changes, fixes and improvements. Especially if they change MongooseIM's core modules.
+* trivial: minor bugfixes, small changes to auxiliary modules, changes to documentation, and patches which change only test code.
 
 ## Writing & Testing Code:
 
@@ -26,7 +23,7 @@ Write type specifications and function signatures because they're remarkably hel
 
 Place technical documentaion in the directory `doc`.
 Find or create a suitable place for your material in terms of which page and section you write it in.
-Where documentation is placed is paramount, otherwise regardless of it's quality, it will be harder to find it if at all.
+Where documentation is placed is paramount, otherwise regardless of its quality, it will be harder to find it if at all.
 
 What makes a good comment?
 Write about why something is done a certain way.
@@ -68,3 +65,19 @@ II. After rebase, push your branch with -f, make sure all tests pass.
 
 III. Tell your reviewer he can proceed.
 He hits the green button, and you can both celebrate.
+
+
+# Contributing to mobile libraries
+
+We are contributing to:
+
+* XMPPframework for iOS: https://github.com/esl/XMPPFramework/
+* Smack for Android: https://github.com/esl/Smack/
+
+The reference respositories are here:
+
+* https://github.com/robbiehanson/XMPPFramework
+* https://github.com/igniterealtime/Smack
+
+We highly encourage to go directly to upstream repositories, and follow the relevant guidelines.
+
