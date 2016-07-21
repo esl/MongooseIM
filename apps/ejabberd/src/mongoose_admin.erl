@@ -7,6 +7,7 @@
          unregister/1,
          registered_commands/0,
          registered_users/1,
+         change_user_password/2,
          listsessions/1,
          kick_this_session/1,
          get_recent_messages/3,
@@ -122,6 +123,18 @@ commands() ->
             {security_policy, [user]},
             {args, [{caller, binary}, {other, binary}, {limit, integer}]},
             {result, []}
+        ],
+        [
+            {name, changepassword},
+            {category, user},
+            {desc, "Change user password"},
+            {module, ?MODULE},
+            {function, change_user_password},
+            {action, update},
+            {security_policy, [user]},
+            {identifiers, [caller]},
+            {args, [{caller, binary}, {newpass, binary}]},
+            {result, ok}
         ]
     ].
 
@@ -198,6 +211,12 @@ registered_commands() ->
 get_recent_messages(Caller, Other, Limit) ->
     Res = lookup_recent_messages(Caller, Other, Limit),
     lists:map(fun record_to_map/1, Res).
+
+
+change_user_password(User, Password) ->
+    Jid = jid:from_binary(User),
+    ejabberd_auth:set_password(Jid#jid.luser, Jid#jid.lserver, Password).
+
 
 record_to_map({Id, From, Msg}) ->
     Jbin = jid:to_binary(From),
