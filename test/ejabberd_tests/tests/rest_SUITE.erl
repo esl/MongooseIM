@@ -56,7 +56,8 @@ test_cases() ->
     [assertions,
      basic,
      sessions,
-     messages].
+     messages,
+     changepassword].
 
 suite() ->
     escalus:suite().
@@ -166,4 +167,28 @@ messages(Config) ->
     ok.
 
 
+changepassword(Config) ->
+    % bob logs in with his regular password
+    escalus:story(Config, [{bob, 1}], fun(_Bob) ->
+            skip
+        end),
+    % we change password
+    {?OK, _} = putt("/user/caller/bob@localhost", #{newpass => <<"niemakrolika">>}),
+    % he logs with his alternative password
+    escalus:story(Config, [{bob_altpass, 1}], fun(_Bob) ->
+            ignore
+        end),
+    % we can't log with regular passwd anymore
+    try escalus:story(Config, [{bob, 1}], fun(Bob) -> ?PRT("Bob", Bob) end) of
+        _ -> ct:fail("this shouldn't have worked")
+    catch error:{badmatch, _} ->
+        ok
+    end,
+    % we change it back
+    {?OK, _} = putt("/user/caller/bob@localhost", #{newpass => <<"makrolika">>}),
+    % now he logs again with the regular one
+    escalus:story(Config, [{bob, 1}], fun(_Bob) ->
+            just_dont_do_anything
+        end),
+    ok.
 
