@@ -9,7 +9,7 @@
          registered_users/1,
          listsessions/1,
          kick_this_session/1,
-         get_recent_messages/2,
+         get_recent_messages/3,
          send_message/3
         ]).
 
@@ -120,7 +120,7 @@ commands() ->
             {function, get_recent_messages},
             {action, read},
             {security_policy, [user]},
-            {args, [{caller, binary}, {limit, integer}]},
+            {args, [{caller, binary}, {other, binary}, {limit, integer}]},
             {result, []}
         ]
     ].
@@ -178,6 +178,10 @@ send_message(From, To, Body) ->
     Packet = build_packet(message_chat, Body),
     F = jid:from_binary(From),
     T = jid:from_binary(To),
+    ejabberd_hooks:run(user_send_packet,
+        F#jid.lserver,
+        [F, T, Packet]),
+    % privacy check is missing, but is it needed?
     ejabberd_router:route(F, T, Packet),
     <<"">>.
 
@@ -191,8 +195,8 @@ registered_commands() ->
     } || C <- mongoose_commands:list(admin)].
 
 
-get_recent_messages(Caller, Limit) ->
-    Res = lookup_recent_messages(Caller, Limit),
+get_recent_messages(Caller, Other, Limit) ->
+    Res = lookup_recent_messages(Caller, Other, Limit),
     lists:map(fun record_to_map/1, Res).
 
 record_to_map({Id, From, Msg}) ->
@@ -213,11 +217,13 @@ build_packet(message_chat, Body) ->
     }.
 
 
-lookup_recent_messages(_, Limit) when Limit > 500 ->
+lookup_recent_messages(_, _, Limit) when Limit > 500 ->
     throw({error, message_limit_too_high});
-lookup_recent_messages(ArcJID, Limit) when is_binary(ArcJID) ->
-    lookup_recent_messages(jid:from_binary(ArcJID), Limit);
-lookup_recent_messages(ArcJID, Limit) ->
+lookup_recent_messages(ArcJID, Other, Limit) when is_binary(ArcJID) ->
+    lookup_recent_messages(jid:from_binary(ArcJID), Other, Limit);
+lookup_recent_messages(ArcJID, Other, Limit) when is_binary(Other) ->
+    lookup_recent_messages(ArcJID, jid:from_binary(Other), Limit);
+lookup_recent_messages(ArcJID, OtherJID, Limit) ->
     Host = ArcJID#jid.server,
     ArcID = mod_mam:archive_id(Host, ArcJID#jid.user),
     Borders = undefined,
@@ -225,7 +231,7 @@ lookup_recent_messages(ArcJID, Limit) ->
     Start = undefined,
     End = undefined,
     Now = mod_mam_utils:now_to_microseconds(now()),
-    WithJID = undefined,
+    WithJID = OtherJID,
     PageSize = Limit,
     LimitPassed = false,
     MaxResultLimit = 1,

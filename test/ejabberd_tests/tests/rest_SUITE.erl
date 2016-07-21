@@ -145,13 +145,23 @@ sessions(Config) ->
 
 messages(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        M = #{caller => <<"bob@localhost">>, to => <<"alice@localhost">>, msg => <<"hey">>},
+        M = #{caller => <<"bob@localhost">>, to => <<"alice@localhost">>, msg => <<"hello from Bob">>},
         {?OK, _} = post(<<"/message">>, M),
         Res = escalus:wait_for_stanza(Alice),
-        escalus:assert(is_chat_message, [<<"hey">>], Res),
-        {?OK, Msgs} = gett("/message/caller/alice@localhost/limit/10"),
-        [Last|_] = lists:reverse(decode_maplist(Msgs)),
-        <<"hey">> = maps:get(body, Last)
+        escalus:assert(is_chat_message, [<<"hello from Bob">>], Res),
+        M1 = #{caller => <<"alice@localhost">>, to => <<"bob@localhost">>, msg => <<"hello from Alice">>},
+        {?OK, _} = post(<<"/message">>, M1),
+        Res1 = escalus:wait_for_stanza(Bob),
+        escalus:assert(is_chat_message, [<<"hello from Alice">>], Res1),
+        {?OK, Msgs} = gett("/message/caller/alice@localhost/other/bob@localhost/limit/10"),
+        ?PRT("Msgs", Msgs),
+        [Last, Previous|_] = lists:reverse(decode_maplist(Msgs)),
+        ?PRT("Last", Last),
+        ?PRT("Previous", Previous),
+        <<"hello from Alice">> = maps:get(body, Last),
+        <<"alice@localhost">> = maps:get(sender, Last),
+        <<"hello from Bob">> = maps:get(body, Previous),
+        <<"bob@localhost">> = maps:get(sender, Previous)
                                         end),
     ok.
 
