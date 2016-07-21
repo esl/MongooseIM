@@ -120,7 +120,7 @@ parse_request_body(Req) ->
     {ok, Body, Req2} = cowboy_req:body(Req),
     {Data} = jiffy:decode(Body),
     Params = try
-                 mongoose_api_common:create_params_proplist(Data)
+                 create_params_proplist(Data)
              catch
                  error:Err ->
                      {error, Err}
@@ -139,8 +139,8 @@ check_and_extract_args(CommandsArgList, RequestArgList) ->
             Err
     end.
 
--spec check_args_length({arg_spec_list(), args_applied()}) -> {arg_spec_list(), args_applied()} |
-                                                              throw({error, any(), any()}).
+-spec check_args_length({arg_spec_list(), args_applied()}) -> {arg_spec_list(), args_applied()}.
+
 check_args_length({CommandsArgList, RequestArgList} = Acc) ->
     if
         length(CommandsArgList) =/= length(RequestArgList) ->
@@ -149,7 +149,7 @@ check_args_length({CommandsArgList, RequestArgList} = Acc) ->
             Acc
     end.
 
--spec compare_names_extract_args({arg_spec_list(), args_applied()}) -> arg_values() | throw({error, any(), any()}).
+-spec compare_names_extract_args({arg_spec_list(), args_applied()}) -> arg_values().
 compare_names_extract_args({CommandsArgList, RequestArgProplist}) ->
     Keys = lists:sort([K || {K, _V} <- RequestArgProplist]),
     ExpectedKeys = lists:sort([Key || {Key, _Type} <- CommandsArgList]),

@@ -21,10 +21,10 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 client_module() ->
-    mongoose_api_auth.
+    mongoose_api_client.
 
 backend_module() ->
-    mongoose_api_backend.
+    mongoose_api_admin.
 
 all() ->
     [
