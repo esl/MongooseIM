@@ -43,7 +43,7 @@
 %%--------------------------------------------------------------------
 
 -define(REGISTRATION_TIMEOUT, 2).  %% seconds
--define(ATOMS, [name, desc, category, action, security_policy, args, result]).
+-define(ATOMS, [name, desc, category, action, security_policy, args, result, sender]).
 
 all() ->
     [{group, restapi}].
@@ -72,11 +72,12 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(_GroupName, Config) ->
-    escalus:create_users(Config, escalus:get_users([alice, bob])).
+    escalus:create_users(Config, escalus:get_users([alice, bob])),
+    escalus:delete_users(Config, escalus:get_users([mike])).
 
 
 end_per_group(_GroupName, Config) ->
-    escalus:delete_users(Config, escalus:get_users([alice, bob])).
+    escalus:delete_users(Config, escalus:get_users([bob, mike])).
 
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
@@ -113,20 +114,21 @@ basic(_Config) ->
     {?OK, Lusers} = gett(<<"/user/host/localhost">>),
     assert_inlist(<<"alice@localhost">>, Lusers),
     % create user
-    CrUser = #{user => <<"bbb">>, password => <<"bbb">>, host => <<"localhost">>},
+    CrUser = #{user => <<"mike">>, password => <<"nicniema">>, host => <<"localhost">>},
     {?CREATED, _} = post(<<"/user/host/localhost">>, CrUser),
     {?OK, Lusers1} = gett(<<"/user/host/localhost">>),
-    assert_inlist(<<"bbb@localhost">>, Lusers1),
+    assert_inlist(<<"mike@localhost">>, Lusers1),
     % try to create the same user
     {?ERROR, _} = post(<<"/user/host/localhost">>, CrUser),
     % delete user
-    {?OK, _} = delete(<<"/user/jid/bbb@localhost">>),
+    {?OK, _} = delete(<<"/user/jid/mike@localhost">>),
     {?OK, Lusers2} = gett(<<"/user/host/localhost">>),
-    assert_notinlist(<<"bbb@localhost">>, Lusers2),
+    assert_notinlist(<<"mike@localhost">>, Lusers2),
     ok.
 
 
 sessions(Config) ->
+    % no session
     {?OK, Sessions} = gett("/session/host/localhost"),
     [] = Sessions,
     escalus:story(Config, [{alice, 1}], fun(_Alice) ->
@@ -147,6 +149,9 @@ messages(Config) ->
         {?OK, _} = post(<<"/message">>, M),
         Res = escalus:wait_for_stanza(Alice),
         escalus:assert(is_chat_message, [<<"hey">>], Res),
+        {?OK, Msgs} = gett("/message/caller/alice@localhost/limit/10"),
+        [Last|_] = lists:reverse(decode_maplist(Msgs)),
+        <<"hey">> = maps:get(body, Last)
                                         end),
     ok.
 
