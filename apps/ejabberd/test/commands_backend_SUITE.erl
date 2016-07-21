@@ -83,7 +83,9 @@ groups() ->
             ]
         },
         {client_simple, [sequence],
-            [get_simple_client]
+            [
+                get_simple_client,
+                get_simple_client2]
         }
     ].
 
@@ -165,6 +167,17 @@ get_simple_client(_Config) ->
     Auth = {binary_to_list(Username), "secret"},
     ExpectedBody = get_simple_client_command(Username, element(2, Arg)),
     {ok, Response} = get_request_auth(create_path_with_binds(Base, [Arg]), Auth),
+    check_status_code(Response, 200),
+    check_response_body(Response, ExpectedBody).
+
+get_simple_client2(_Config) ->
+    Arg1 = {other, <<"bob@localhost">>},
+    Arg2 = {limit, 10},
+    Base = "/api/message",
+    Username = <<"alice@localhost">>,
+    Auth = {binary_to_list(Username), "secret"},
+    ExpectedBody = get_simple_client2_command(Username, element(2, Arg1), element(2, Arg2)),
+    {ok, Response} = get_request_auth(create_path_with_binds(Base, [Arg1, Arg2]), Auth),
     check_status_code(Response, 200),
     check_response_body(Response, ExpectedBody).
 
@@ -352,6 +365,18 @@ commands_client() ->
             {security_policy, [user]},
             {args, [{caller, binary}, {arg1, binary}]},
             {result, {result, binary}}
+        ],
+        [
+            {name, get_simple_client2},
+            {category, message},
+            {desc, "do nothing and return"},
+            {module, ?MODULE},
+            {function, get_simple_client2_command},
+            {action, read},
+            {identifiers, []},
+            {security_policy, [user]},
+            {args, [{caller, binary}, {other, binary}, {limit, integer}]},
+            {result, {result, binary}}
         ]
     ].
 
@@ -447,6 +472,9 @@ get_simple_command(<<"bob@localhost">>) ->
 
 get_simple_client_command(_Caller, _SomeBinary) ->
     <<"client bob is OK">>.
+
+get_simple_client2_command(_Caller, _SomeBinary, _SomeInteger) ->
+    <<"client2 bob is OK">>.
 
 get_two_args_command(1, 2) ->
     <<"all is working">>.

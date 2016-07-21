@@ -191,7 +191,7 @@ check_args_length({CommandsArgList, RequestArgList} = Acc) ->
 
 -spec compare_names_extract_args({arg_spec_list(), args_applied()}) -> arg_values().
 compare_names_extract_args({CommandsArgList, RequestArgProplist}) ->
-    Keys = [K || {K, _V} <- RequestArgProplist],
+    Keys = lists:sort([K || {K, _V} <- RequestArgProplist]),
     ExpectedKeys = lists:sort([Key || {Key, _Type} <- CommandsArgList]),
     ZippedKeys = lists:zip(Keys, ExpectedKeys),
     case lists:member(false, [ReqKey =:= ExpKey || {ReqKey, ExpKey} <- ZippedKeys]) of
