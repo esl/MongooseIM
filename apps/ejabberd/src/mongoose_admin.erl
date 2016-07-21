@@ -204,7 +204,7 @@ registered_commands() ->
         name => mongoose_commands:name(C),
         category => mongoose_commands:category(C),
         action => mongoose_commands:action(C),
-        desc => mongoose_commands:desc(C)
+        desc => to_binary(mongoose_commands:desc(C))
     } || C <- mongoose_commands:list(admin)].
 
 
@@ -261,3 +261,8 @@ lookup_recent_messages(ArcJID, OtherJID, Limit) ->
             PageSize, LimitPassed, MaxResultLimit, IsSimple]),
     {ok, {_, _, L}} = R,
     L.
+
+to_binary(V) when is_list(V) ->
+    list_to_binary(V);
+to_binary(V) when is_binary(V) ->
+    V.
