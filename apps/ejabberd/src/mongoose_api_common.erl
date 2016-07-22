@@ -248,18 +248,25 @@ get_allowed_methods(Entity) ->
 maybe_add_bindings(Command, Entity) ->
     Action = ?COMMANDS_ENGINE:action(Command),
     Args = ?COMMANDS_ENGINE:args(Command),
-    case Action of
-        read ->
-            add_bindings(Args, Entity);
-        update ->
+    BindAndBody = both_bind_and_body(Action),
+    case BindAndBody of
+        true ->
             Ids = ?COMMANDS_ENGINE:identifiers(Command),
             Bindings = [El || {Key, _Value} = El <- Args, true =:= proplists:is_defined(Key, Ids)],
             add_bindings(Bindings, Entity);
-        delete ->
-            add_bindings(Args, Entity);
-        _ ->
-            ""
+        false ->
+            add_bindings(Args, Entity)
     end.
+
+-spec both_bind_and_body(command_action()) -> boolean().
+both_bind_and_body(update) ->
+    true;
+both_bind_and_body(create) ->
+    true;
+both_bind_and_body(read) ->
+    false;
+both_bind_and_body(delete) ->
+    false.
 
 add_bindings(Args, Entity) ->
     lists:flatten([add_bind(A, Entity) || A <- Args]).
