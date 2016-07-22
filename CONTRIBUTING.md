@@ -81,3 +81,6 @@ The reference respositories are here:
 
 We highly encourage to go directly to upstream repositories, and follow the relevant guidelines.
 
+# Influencing the MongooseIM roadmap
+
+We do not have a specific process for community roadmap building. You are encouraged and welcome to influence the roadmap with GitHub issues, code contributions, or you can simply contact us to invent the future.
