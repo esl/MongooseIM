@@ -38,7 +38,10 @@ groups() ->
     [{positive, [shuffle], success_response()}].
 
 success_response() ->
-    [create_room].
+    [
+     create_room,
+     invite_to_room
+    ].
 
 
 %%--------------------------------------------------------------------
@@ -72,21 +75,38 @@ end_per_testcase(CaseName, Config) ->
 
 create_room(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-        Path = <<"/muc">>,
-        Body = #{domain => <<"localhost">>,
-                 name => <<"wonderland">>,
+        Domain = <<"localhost">>,
+        Path = <<"/muc/domain", $/, Domain/binary>>,
+        Name = <<"wonderland">>,
+        Body = #{name => Name,
                  owner => escalus_utils:get_jid(Alice),
                  nick => <<"ali">>},
         {{<<"201">>, _}, <<"">>} = rest_helper:post(Path, Body),
         escalus:send(Alice, stanza_get_rooms()),
         Stanza = escalus:wait_for_stanza(Alice),
-        has_room(muc_helper:room_address(<<"wonderland">>), Stanza),
+        has_room(muc_helper:room_address(Name), Stanza),
         escalus:assert(is_stanza_from, [muc_helper:muc_host()], Stanza)
+    end).
+
+invite_to_room(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+
+        Path = <<"/muc/domain/localhost/name/wonderland">>,
+        Reason = <<"I think you'll like this room!">>,
+        Body = #{sender => escalus_utils:get_jid(Alice),
+                 recipient => escalus_utils:get_jid(Bob),
+                 reason => Reason},
+
+        {{<<"200">>, _}, <<"">>} = rest_helper:putt(Path, Body),
+
+        Stanza = escalus:wait_for_stanza(Bob),
+        is_direct_invitation(Stanza),
+        direct_invite_has_reason(Stanza, Reason)
     end).
 
 
 %%--------------------------------------------------------------------
-%% Ancillary
+%% Ancillary (these are borrowed from the MUC suite)
 %%--------------------------------------------------------------------
 
 stanza_get_rooms() ->
@@ -98,3 +118,10 @@ has_room(JID, #xmlel{children = [ #xmlel{children = Rooms} ]}) ->
         exml_query:attr(Item, <<"jid">>) == JID
     end,
     true = lists:any(RoomPred, Rooms).
+
+is_direct_invitation(Stanza) ->
+    escalus:assert(is_message, Stanza),
+    ?NS_JABBER_X_CONF = exml_query:path(Stanza, [{element, <<"x">>}, {attr, <<"xmlns">>}]).
+
+direct_invite_has_reason(Stanza, Reason) ->
+    Reason = exml_query:path(Stanza, [{element, <<"x">>}, {attr, <<"reason">>}]).
