@@ -56,12 +56,13 @@ create_user_url_path(Command) ->
            ++ maybe_add_bindings(Command, user).
 
 -spec process_request(method(), mongoose_command(), any(), #http_api_state{}) -> {any(), any(), #http_api_state{}}.
-process_request(<<"POST">>, Command, Req, #http_api_state{entity = Entity} = State) ->
+process_request(<<"POST">>, Command, Req, #http_api_state{bindings = Binds, entity = Entity} = State) ->
+    BindsReversed = lists:reverse(Binds),
     case parse_request_body(Req) of
         {error, _R}->
             error_response(bad_request, ?BODY_MALFORMED , Req, State);
         {Params, Req2} ->
-            Params2 = Params ++ maybe_add_caller(Entity),
+            Params2 = BindsReversed ++ Params ++ maybe_add_caller(Entity),
             handle_request(Command, Params2, Req2, State)
     end;
 process_request(<<"PUT">>, Command, Req, #http_api_state{bindings = Binds, entity = Entity} = State) ->
