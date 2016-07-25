@@ -26,4 +26,3 @@
     * [mod_amp developer's guide](developers-guide/mod_amp_developers_guide.md)
     * [mod_muc_light developer's guide](developers-guide/mod_muc_light_developers_guide.md)
     * [xep-tool usage](developers-guide/xep_tool.md)
-
