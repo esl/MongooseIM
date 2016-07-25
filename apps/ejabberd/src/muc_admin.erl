@@ -23,6 +23,7 @@
 -export([start/2, stop/1]).
 
 -export([create_room/4]).
+-export([invite_to_room/5]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -41,6 +42,7 @@ commands() ->
       {module, ?MODULE},
       {function, create_room},
       {action, create},
+      {identifiers, [domain]},
       {args,
        %% The argument `domain' is what we normally term the XMPP
        %% host, `name' is the room name, `owner' is the XMPP entity
@@ -49,12 +51,50 @@ commands() ->
         {name, binary},
         {owner, binary},
         {nick, binary}]},
-      {result, {name, binary}}]
+      {result, {name, binary}}],
+
+     [{name, invite_to_muc_room},
+      {category, muc},
+      {desc, "Send a MUC room invite from one user to another."},
+      {module, ?MODULE},
+      {function, invite_to_room},
+      {action, update},
+      {identifiers, [domain, name]},
+      {args,
+       [{domain, binary},
+        {name, binary},
+        {sender, binary},
+        {recipient, binary},
+        {reason, binary}
+       ]},
+      {result, ok}]
+
     ].
 
 create_room(Domain, Name, Owner, Nick) ->
-    try mod_muc:create_instant_room(Domain, Name, jid:from_binary(Owner), Nick, default) of
+    O = jid:from_binary(Owner),
+    try mod_muc:create_instant_room(Domain, Name, O, Nick, default) of
         ok -> Name
     catch
-        Kind:Reason -> {error, {Kind, Reason}}
+        Class:Reason -> {error, {Class, Reason}}
     end.
+
+invite_to_room(Domain, Name, Sender, Recipient, Reason) ->
+    S = jid:from_binary(Sender),
+    R = jid:from_binary(Recipient),
+    %% Direct invitation: i.e. not mediated by MUC room. See XEP 0249.
+    X = #xmlel{
+           name = <<"x">>,
+           attrs =
+               [ {<<"xmlns">>, ?NS_CONFERENCE},
+                 {<<"jid">> , room_jid(Name, Domain)},
+                 {<<"reason">>, Reason}
+               ]
+          },
+    Invite = #xmlel{name = <<"message">>, children = [ X ]},
+    ejabberd_router:route(S, R, Invite).
+
+room_jid(Name, Domain) ->
+    MUCDomain = gen_mod:get_module_opt_host(Domain, mod_muc,
+                                            <<"muc.@HOST@">>),
+    <<Name/binary, $@, MUCDomain/binary>>.
