@@ -20,7 +20,6 @@
     * [Cluster configuration and node management](operation-and-maintenance/Cluster-configuration-and-node-management.md)
     * [Reloading configuration on a running system](operation-and-maintenance/Reloading-configuration-on-a-running-system.md)
 * For developers
-    * [Contributing](contributing/merge-procedure.md)
     * [Testing MongooseIM](developers-guide/Testing-MongooseIM.md)
     * [Hooks and handlers](developers-guide/Hooks-and-handlers.md)
     * [REST Interface to Metrics](developers-guide/REST-interface-to-metrics.md)
