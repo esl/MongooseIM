@@ -12,6 +12,7 @@
 -include("ejabberd.hrl").
 %%
 %% @doc MongooseIM REST API backend
+%%
 %% This module handles the client HTTP REST requests, then respectively convert them to Commands from mongoose_commands
 %% and execute with `admin` privileges.
 %% It supports responses with appropriate HTTP Status codes returned to the client.
@@ -19,8 +20,44 @@
 %% The method supported: GET, POST, PUT, DELETE. Only JSON format.
 %% The library "jiffy" used to serialize and deserialized JSON data.
 %%
-%% %% Handling the requests:
-%% TODO
+%% REQUESTS
+%%
+%% The module is based on mongoose_commands registry.
+%% The root http path for a command is build based on the "category" field. It's always used as path a prefix.
+%% The commands are translated to HTTP API in the following manner:
+%%
+%% command of action "read" will be called by GET request
+%% command of action "create" will be called by POST request
+%% command of action "update" will be called by PUT request
+%% command of action "delete" will be called by DELETE request
+%%
+%% The args of the command will be filled with the values provided in path bindings or body parameters,
+%% depending of the method type:
+%% - for command of action "read" or "delete" all the args are pulled from the path bindings. The path should be
+%% constructed of pairs "/arg_name/arg_value" so that it could match the {arg_name, type}
+%% pattern in the command registry. E.g having the record of category "users" and args:
+%% [{username, binary}, {domain, binary}] we will have to make following GET request
+%% path: http://domain:port/api/users/username/Joe/domain/localhost
+%% and the command will be called with arguments "Joe" and "localhost"
+%%
+%% - for command of action "create" or "update" args are pulled from the body JSON, except those that are on the
+%% "identifiers" list of the command. Those go to the path bindings.
+%% E.g having the record of category "animals", action "update" and args:
+%% [{species, binary}, {name, binary}, {age, integer}]
+%% and identifiers:
+%% [species, name]
+%% we can set the age for our elephant Ed in the PUT request:
+%% path: http://domain:port/api/species/elephant/name/Ed
+%% body: {"age" : "10"}
+%% and then the command will be called with arguments ["elephant", "Ed" and 10].
+%%
+%% RESPONSES
+%%
+%% The API supports some of the http status code like 200, 201, 400, 404 etc depending on the return value of
+%% the command execution and arguments checks. Additionally, when the command's action is "create"
+%% and it returns a value, it is concatenated to the path and return to the client
+%% in header "location" with response code 201 so that it could represent now a new created resource.
+%% If error occured while executing the command, the appropriate reason is returned in response body.
 
 
 %% API
