@@ -6,7 +6,6 @@
 -include_lib("exml/include/exml.hrl").
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("ejabberd/include/ejabberd_commands.hrl").
--include_lib("ejabberd/include/mongoose_commands.hrl").
 -include_lib("ejabberd/include/jlib.hrl").
 
 -define(PRT(X, Y), ct:pal("~p: ~p", [X, Y])).
@@ -17,27 +16,27 @@
 
 all() ->
     [
-        {group, old_commands},
-        {group, new_commands}
+     {group, old_commands},
+     {group, new_commands}
     ].
 
 groups() ->
     [
-        {old_commands, [sequence],
-            [old_list,
-             old_exec,
-             old_access_ctl
-            ]
-        },
-        {new_commands, [sequence],
-            [new_type_checker,
-             new_reg_unreg,
-             new_failedreg,
-             new_list,
-             new_execute,
-             different_types
-            ]
-        }
+     {old_commands, [sequence],
+      [old_list,
+       old_exec,
+       old_access_ctl
+      ]
+     },
+     {new_commands, [sequence],
+      [new_type_checker,
+       new_reg_unreg,
+       new_failedreg,
+       new_list,
+       new_execute,
+       different_types
+      ]
+     }
     ].
 
 glo({auth_method, _}) ->
@@ -198,7 +197,7 @@ new_failedreg(_C) ->
 new_list(_C) ->
     %% for admin
     Rlist = mongoose_commands:list(admin),
-    [Cmd] = [C || C <- Rlist, C#mongoose_command.name == command_one],
+    [Cmd] = [C || C <- Rlist, mongoose_commands:name(C) == command_one],
     command_one = mongoose_commands:name(Cmd),
     "do nothing and return" = mongoose_commands:desc(Cmd),
     %% list by category
@@ -215,7 +214,8 @@ new_list(_C) ->
     {error, denied, _} = mongoose_commands:get_command(ujid(), command_one),
     %% list for a user
     Ulist = mongoose_commands:list(ujid()),
-    [UCmd] = [UC || UC <- Ulist, UC#mongoose_command.name == command_foruser],
+    [UCmd] = [UC || UC <- Ulist, mongoose_commands:name(UC) == command_foruser],
+
     command_foruser = mongoose_commands:name(UCmd),
     URget = mongoose_commands:get_command(ujid(), command_foruser),
     command_foruser = mongoose_commands:name(URget),
