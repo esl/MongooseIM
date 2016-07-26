@@ -411,3 +411,27 @@ paths:
           description: Stanza is sent.
         400:
           description: "Either or both of the sender or recipient do not exists. The JIDs or the stanza are badly formatted"
+  /user/caller/{JID}:
+    put:
+      description: Change password for the user corresponding to `JID`.
+      parameters:
+        -
+          name: JID
+          in: path
+          description: The JID identifying the user
+          required: true
+          type: string
+        -
+          name: Password
+          in: body
+          description: The new password to set.
+          required: true
+          schema:
+            title: Password
+            type: object
+            properties:
+              newpass:
+                type: string
+      responses:
+        200:
+          description: Password is changed
