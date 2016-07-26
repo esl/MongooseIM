@@ -123,18 +123,18 @@
 
 -type mongoose_command() :: #mongoose_command{}.
 -type caller() :: admin|binary().
--type command_action() :: [create|read|update|delete]. %% just basic CRUD; sending a mesage is 'create'
+-type command_action() :: create | read | update | delete. %% just basic CRUD; sending a mesage is 'create'
 
--type typedef() :: integer|binary|float. %% most basic primitives, string is a binary
+-type typedef() :: integer | binary | float. %% most basic primitives, string is a binary
 
 -type argspec() :: typedef()
-                  |{atom(), typedef()} %% a named argument
-                  |{argspec()} % a tuple of a few args (can be of any size)
-                  |[typedef()]. % a list, but one element
+                  | {atom(), typedef()} %% a named argument
+                  | {argspec()} % a tuple of a few args (can be of any size)
+                  | [typedef()]. % a list, but one element
 
--type security() :: [admin|user]. %% later acl option will be added
+-type security() :: [admin | user]. %% later acl option will be added
 
--type errortype() :: denied|not_implemented|type_error|internal. %% we should agree on a set of atoms so that the
+-type errortype() :: denied | not_implemented | type_error | internal. %% we should agree on a set of atoms so that the
                                                                  %% frontend can map it to http codes
 
 -type failure() :: {error, errortype(), binary()}.
@@ -254,7 +254,6 @@ init() ->
     end.
 
 %%%% end of API
-
 -spec register_commands([mongoose_command()]) -> ok.
 register_commands(Commands) ->
     lists:foreach(
@@ -265,7 +264,6 @@ register_commands(Commands) ->
             ok
         end,
         Commands).
-
 
 -spec unregister_commands([mongoose_command()]) -> ok.
 unregister_commands(Commands) ->
@@ -361,7 +359,6 @@ check_type([], []) ->
 check_type(Spec, Value) ->
     th("Catch-all: ~p vs ~p", [Spec, Value]).
 
-
 compare_tuples(Spec, Val) ->
     Ssize = tuple_size(Spec),
     Vsize = tuple_size(Val),
@@ -372,18 +369,14 @@ compare_tuples(Spec, Val) ->
             th("Tuples of different size: ~p and ~p", [Spec, Val])
     end.
 
-
 compare_lists([], []) ->
     true;
 compare_lists([S|Sp], [V|Val]) ->
     check_type(S, V),
     compare_lists(Sp, Val).
 
-
 th(Fmt, V) ->
     throw({type_mismatch, io_lib:format(Fmt, V)}).
-
-
 check_command(PL) ->
     Fields = record_info(fields, mongoose_command),
     Lst = check_command([], PL, Fields),
@@ -414,7 +407,6 @@ check_command(Cmd, PL, [N|Tail]) ->
     V = proplists:get_value(N, PL),
     Val = check_value(N, V),
     check_command([Val|Cmd], PL, Tail).
-
 
 check_value(name, V) when is_atom(V) ->
     V;
@@ -461,7 +453,6 @@ check_value(caller_pos, _) ->
     0;
 check_value(K, V) ->
     baddef(K, V).
-
 
 %% @doc Known security policies
 check_security_policy(user) ->
@@ -526,7 +517,6 @@ map_to_list(Map, Args) ->
     end,
     [mapget(K, Map) || {K, _} <- Args].
 
-
 %% @doc Main entry point for permission control - is this command available for this user
 is_available_for(User, C) when is_binary(User) ->
     is_available_for(jid:from_binary(User), C);
@@ -552,24 +542,22 @@ apply_policy(user, _) ->
 apply_policy(_, _) ->
     false.
 
-
 locate_caller(L) ->
     locate_caller(1, L).
 
-locate_caller(I, []) ->
+locate_caller(_I, []) ->
     0;
 locate_caller(I, [{caller, _}|_]) ->
     I;
 locate_caller(I, [_|T]) ->
     locate_caller(I + 1, T).
 
-
 check_caller(admin, _Command, _Args) ->
     ok;
 check_caller(_Caller, #mongoose_command{caller_pos = 0}, _Args) ->
     % no caller in args
     ok;
-check_caller(Caller, #mongoose_command{caller_pos = CallerPos, name = Name}, Args) ->
+check_caller(Caller, #mongoose_command{caller_pos = CallerPos}, Args) ->
     % check that server and user match (we don't care about resource)
     ACaller = lists:nth(CallerPos, Args),
     CallerJid = jid:from_binary(Caller),
