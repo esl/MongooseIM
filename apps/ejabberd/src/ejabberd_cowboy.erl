@@ -112,10 +112,16 @@ start_cowboy(Ref, Opts) ->
                               [{port, Port}, {ip, IP}, {max_connections, MaxConns}],
                               [{env, [{dispatch, Dispatch}]} | Middlewares]);
         _ ->
+            SSLCACert = gen_mod:get_opt(cacertfile, Opts, undefined),
+            SSLCiphers = gen_mod:get_opt(ciphers, Opts, []),
+            SSLVersions = gen_mod:get_opt(versions, Opts, []),
             cowboy:start_https(cowboy_ref(Ref), NumAcceptors,
                                [{port, Port}, {ip, IP}, {max_connections, MaxConns},
                                 {certfile, SSLCert}, {keyfile, SSLKey},
-                                {password, SSLKeyPass}],
+                                {password, SSLKeyPass},
+                                {cacertfile, SSLCACert},
+                                {ciphers, SSLCiphers},
+                                {versions, SSLVersions}],
                                [{env, [{dispatch, Dispatch}]} | Middlewares])
     end.
 

@@ -36,6 +36,20 @@ Manages all HTTP-based services, such as BOSH (HTTP long-polling) and WebSocket.
 * `cert` (string, optional, no default value) - Path to the SSL certificate in X509 format.
 * `key` (string, optional, no default value) - Path to the SSL private key in X509 format.
 * `key_pass` (string, optional, default: `undefined`) - Password to a private key, `undefined` for no password.
+* `cacertfile` (string, optional, `undefined`) - Path to a file containing PEM-encoded CA certificates. The CA certificates are used to build the server certificate chain. Can be omitted if there are no intermediate CAs for the server certificate.
+* `ciphers` (list of tuples or strings) - Supported cipher suites. The function ssl:cipher_suites/0 can be used to find all ciphers that are supported by default. For example,
+
+        {ciphers, [{ecdhe_ecdsa,aes_256_gcm,null,sha384},
+                   {ecdhe_rsa,aes_256_gcm,null,sha384}]}
+
+    One can also use textual format, e.g.,
+
+        {ciphers, ["ECDHE-RSA-AES256-GCM-SHA384", "ECDHE-RSA-AES256-SHA384"]}
+
+* `versions` (string, optional) - Supported TLS protocol versions. Defaults to all versions, except SSL-3.0, supported by the SSL application. For example, the following config option limits supported versions to TLS 1.1 and 1.2 only:
+
+        {versions, ['tlsv1.1', 'tlsv1.2']}
+
 * `modules` (list of tuples: `{Host, Path, Modules}`) - List of enabled HTTP-based modules. `"_"` equals any host.
     * `mod_bosh` - BOSH connections handler. Default declaration:
 
