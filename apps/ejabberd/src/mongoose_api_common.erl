@@ -54,33 +54,26 @@ create_user_url_path(Command) ->
     ["/", category_to_resource(mongoose_commands:category(Command)), maybe_add_bindings(Command, user)].
 
 -spec process_request(method(), mongoose_command(), any(), #http_api_state{}) -> {any(), any(), #http_api_state{}}.
-process_request(<<"POST">>, Command, Req, #http_api_state{bindings = Binds, entity = Entity} = State) ->
+process_request(Method, Command, Req, #http_api_state{bindings = Binds, entity = Entity} = State)
+    when ((Method == <<"POST">>) or (Method == <<"PUT">>)) ->
     BindsReversed = lists:reverse(Binds),
     case parse_request_body(Req) of
         {error, _R}->
             error_response(bad_request, ?BODY_MALFORMED , Req, State);
         {Params, Req2} ->
             Params2 = BindsReversed ++ Params ++ maybe_add_caller(Entity),
-            handle_request(Command, Params2, Req2, State)
+            handle_request(Method, Command, Params2, Req2, State)
     end;
-process_request(<<"PUT">>, Command, Req, #http_api_state{bindings = Binds, entity = Entity} = State) ->
-    BindsReversed = lists:reverse(Binds),
-    case parse_request_body(Req) of
-        {error, _R}->
-            error_response(bad_request, ?BODY_MALFORMED , Req, State);
-        {Params, Req2} ->
-            Args = BindsReversed ++ maybe_add_caller(Entity) ++ Params,
-            handle_request(Command, Args, Req2, State)
-    end;
-process_request(_Method, Command, Req, #http_api_state{bindings = Binds, entity = Entity}=State) ->
+process_request(Method, Command, Req, #http_api_state{bindings = Binds, entity = Entity}=State)
+    when ((Method == <<"GET">>) or (Method == <<"DELETE">>)) ->
     BindsReversed = lists:reverse(Binds) ++ maybe_add_caller(Entity),
-    handle_request(Command, BindsReversed, Req, State).
+    handle_request(Method, Command, BindsReversed, Req, State);
+process_request(M, _C, Req, State) ->
+    handle_result(M, {error, bad_request}, Req, State).
 
-
--spec handle_request(mongoose_command(), args_applied(), term(), #http_api_state{}) ->
+-spec handle_request(method(), mongoose_command(), args_applied(), term(), #http_api_state{}) ->
     {any(), any(), #http_api_state{}}.
-handle_request(Command, Args, Req, #http_api_state{entity = Entity} = State) ->
-    Method = action_to_method(mongoose_commands:action(Command)),
+handle_request(Method, Command, Args, Req, #http_api_state{entity = Entity} = State) ->
     ConvertedArgs = check_and_extract_args(mongoose_commands:args(Command), Args),
     Result = execute_command(ConvertedArgs, Command, Entity),
     handle_result(Method, Result, Req, State).
@@ -212,10 +205,6 @@ add_location_header(Result, ResourcePath, Req) ->
 -spec convert_arg(atom(), any()) -> integer() | float() | binary() | string() | {error, bad_type}.
 convert_arg(binary, Binary) when is_binary(Binary) ->
     Binary;
-convert_arg(string, Binary) when is_binary(Binary) ->
-    binary_to_list(Binary);
-convert_arg(string, String) when is_list(String) ->
-    String;
 convert_arg(integer, Binary) when is_binary(Binary) ->
     binary_to_integer(Binary);
 convert_arg(integer, Integer) when is_integer(Integer) ->
