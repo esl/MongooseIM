@@ -1,6 +1,6 @@
 %%%-------------------------------------------------------------------
 %%% @author ludwikbukowski
-%%% @copyright (C) 2016, <COMPANY>
+%%% @copyright (C) 2016, Erlang Solutions Ltd.
 %%% @doc
 %%%
 %%% @end
@@ -43,7 +43,7 @@ cowboy_router_paths(Base, _Opts) ->
     ejabberd_hooks:add(register_command, global, mongoose_api_utils, reload_dispatches, 50),
     ejabberd_hooks:add(unregister_command, global, mongoose_api_utils, reload_dispatches, 50),
         try
-            Commands = ?COMMANDS_ENGINE:list(admin),
+            Commands = mongoose_commands:list(admin),
             [handler_path(Base, Command) || Command <- Commands]
         catch
             _:Err ->
@@ -72,8 +72,8 @@ rest_init(Req, Opts) ->
     {ok, Req1, State}.
 
 allowed_methods(Req, #http_api_state{command_category = Name} = State) ->
-    CommandList = ?COMMANDS_ENGINE:list(admin, Name),
-    AllowedMethods = [action_to_method(?COMMANDS_ENGINE:action(Command)) || Command <- CommandList],
+    CommandList = mongoose_commands:list(admin, Name),
+    AllowedMethods = [action_to_method(mongoose_commands:action(Command)) || Command <- CommandList],
     {AllowedMethods, Req, State}.
 
 content_types_provided(Req, State) ->
@@ -89,7 +89,7 @@ rest_terminate(_Req, _State) ->
 
 %% @doc Called for a method of type "DELETE"
 delete_resource(Req, #http_api_state{command_category = Category} = State) ->
-    [Command] = ?COMMANDS_ENGINE:list(admin, Category, method_to_action(<<"DELETE">>)),
+    [Command] = mongoose_commands:list(admin, Category, method_to_action(<<"DELETE">>)),
     mongoose_api_common:process_request(<<"DELETE">>, Command, Req, State).
 
 %%--------------------------------------------------------------------
@@ -98,20 +98,20 @@ delete_resource(Req, #http_api_state{command_category = Category} = State) ->
 
 %% @doc Called for a method of type "GET"
 to_json(Req, #http_api_state{command_category = Category} = State) ->
-    [Command] = ?COMMANDS_ENGINE:list(admin, Category, method_to_action(<<"GET">>)),
+    [Command] = mongoose_commands:list(admin, Category, method_to_action(<<"GET">>)),
     mongoose_api_common:process_request(<<"GET">>, Command, Req, State).
 
 
 %% @doc Called for a method of type "POST" and "PUT"
 from_json(Req, #http_api_state{command_category = Category} = State) ->
     {Method, Req2} = cowboy_req:method(Req),
-    [Command] = ?COMMANDS_ENGINE:list(admin, Category, method_to_action(Method)),
+    [Command] = mongoose_commands:list(admin, Category, method_to_action(Method)),
     mongoose_api_common:process_request(Method, Command, Req2, State).
 
 
 -spec handler_path(ejabberd_cowboy:path(), mongoose_command()) -> ejabberd_cowboy:path().
 handler_path(Base, Command) ->
     {[Base, mongoose_api_common:create_admin_url_path(Command)],
-        ?MODULE, [{command_category, ?COMMANDS_ENGINE:category(Command)}]}.
+        ?MODULE, [{command_category, mongoose_commands:category(Command)}]}.
 
 

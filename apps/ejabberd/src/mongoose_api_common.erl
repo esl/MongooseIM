@@ -1,6 +1,6 @@
 %%%-------------------------------------------------------------------
 %%% @author ludwikbukowski
-%%% @copyright (C) 2016, <COMPANY>
+%%% @copyright (C) 2016, Erlang Solutions Ltd.
 %%% @doc
 %%%
 %%% @end
@@ -47,13 +47,11 @@ reload_dispatches(_Command) ->
 
 -spec create_admin_url_path(mongoose_command()) -> ejabberd_cowboy:path().
 create_admin_url_path(Command) ->
-    "/" ++ category_to_resource(?COMMANDS_ENGINE:category(Command))
-           ++ maybe_add_bindings(Command, admin).
+    ["/", category_to_resource(mongoose_commands:category(Command)), maybe_add_bindings(Command, admin)].
 
 -spec create_user_url_path(mongoose_command()) -> ejabberd_cowboy:path().
 create_user_url_path(Command) ->
-    "/" ++ category_to_resource(?COMMANDS_ENGINE:category(Command))
-           ++ maybe_add_bindings(Command, user).
+    ["/", category_to_resource(mongoose_commands:category(Command)), maybe_add_bindings(Command, user)].
 
 -spec process_request(method(), mongoose_command(), any(), #http_api_state{}) -> {any(), any(), #http_api_state{}}.
 process_request(<<"POST">>, Command, Req, #http_api_state{bindings = Binds, entity = Entity} = State) ->
@@ -82,8 +80,8 @@ process_request(_Method, Command, Req, #http_api_state{bindings = Binds, entity 
 -spec handle_request(mongoose_command(), args_applied(), term(), #http_api_state{}) ->
     {any(), any(), #http_api_state{}}.
 handle_request(Command, Args, Req, #http_api_state{entity = Entity} = State) ->
-    Method = action_to_method(?COMMANDS_ENGINE:action(Command)),
-    ConvertedArgs = check_and_extract_args(?COMMANDS_ENGINE:args(Command), Args),
+    Method = action_to_method(mongoose_commands:action(Command)),
+    ConvertedArgs = check_and_extract_args(mongoose_commands:args(Command), Args),
     Result = execute_command(ConvertedArgs, Command, Entity),
     handle_result(Method, Result, Req, State).
 
@@ -180,9 +178,9 @@ execute_command(Args, Command, Entity) ->
 
 -spec do_execute_command(arg_values(), mongoose_command(), admin|binary()) -> ok | {ok, any()}.
 do_execute_command(Args, Command, Entity) ->
-    Types = [Type || {_Name, Type} <- ?COMMANDS_ENGINE:args(Command)],
+    Types = [Type || {_Name, Type} <- mongoose_commands:args(Command)],
     ConvertedArgs = [convert_arg(Type, Arg) || {Type, Arg} <- lists:zip(Types, Args)],
-    ?COMMANDS_ENGINE:execute(Entity, ?COMMANDS_ENGINE:name(Command), ConvertedArgs).
+    mongoose_commands:execute(Entity, mongoose_commands:name(Command), ConvertedArgs).
 
 -spec maybe_add_caller(admin | binary) -> list() | list({caller, binary()}).
 maybe_add_caller(admin) ->
@@ -204,7 +202,7 @@ maybe_add_location_header(_R, _R, Req) ->
     Req2.
 
 add_location_header(Result, ResourcePath, Req) ->
-    Path = ResourcePath ++ "/" ++ Result,
+    Path = [ResourcePath, "/", Result],
     Header = {<<"location">>, Path},
     {ok, Req2} = cowboy_req:reply(201, [Header], Req),
     Req2.
@@ -242,17 +240,17 @@ category_to_resource(Category) when is_list(Category) ->
 %% @doc Returns list of allowed methods.
 -spec get_allowed_methods(admin | user) -> list(method()).
 get_allowed_methods(Entity) ->
-    Commands = ?COMMANDS_ENGINE:list(Entity),
-    [action_to_method(?COMMANDS_ENGINE:action(Command)) || {_Name, Command} <- Commands].
+    Commands = mongoose_commands:list(Entity),
+    [action_to_method(mongoose_commands:action(Command)) || {_Name, Command} <- Commands].
 
 -spec maybe_add_bindings(mongoose_command(), admin|user) -> string().
 maybe_add_bindings(Command, Entity) ->
-    Action = ?COMMANDS_ENGINE:action(Command),
-    Args = ?COMMANDS_ENGINE:args(Command),
+    Action = mongoose_commands:action(Command),
+    Args = mongoose_commands:args(Command),
     BindAndBody = both_bind_and_body(Action),
     case BindAndBody of
         true ->
-            Ids = ?COMMANDS_ENGINE:identifiers(Command),
+            Ids = mongoose_commands:identifiers(Command),
             Bindings = [El || {Key, _Value} = El <- Args, true =:= proplists:is_defined(Key, Ids)],
             add_bindings(Bindings, Entity);
         false ->
@@ -276,7 +274,7 @@ add_bindings(Args, Entity) ->
 add_bind({caller, _}, user) ->
     "";
 add_bind({ArgName, _}, _Entity) ->
-    "/" ++ atom_to_list(ArgName) ++ "/:" ++ atom_to_list(ArgName);
+    ["/", atom_to_list(ArgName), "/:", atom_to_list(ArgName)];
 add_bind(Other, _) ->
     throw({error, bad_arg_spec, Other}).
 

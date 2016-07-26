@@ -136,7 +136,6 @@ end_per_suite(C) ->
     stopped = mnesia:stop(),
     application:stop(lager),
     application:stop(fusco),
-    application:stop(stringprep),
     application:stop(cowboy),
     C.
 
