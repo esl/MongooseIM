@@ -112,7 +112,8 @@
                 access,
                 history_size        :: integer(),
                 default_room_opts   :: list(),
-                room_shaper         :: shaper:shaper()
+                room_shaper         :: shaper:shaper(),
+                http_auth_pool      :: mod_http_client:pool()
               }).
 
 -type state() :: #state{}.
@@ -284,16 +285,21 @@ init([Host, Opts]) ->
     AccessCreate = gen_mod:get_opt(access_create, Opts, all),
     AccessAdmin = gen_mod:get_opt(access_admin, Opts, none),
     AccessPersistent = gen_mod:get_opt(access_persistent, Opts, all),
+    HttpAuthPool = case gen_mod:get_opt(http_auth_pool, Opts, none) of
+                       none -> none;
+                       PoolName -> mod_http_client:get_pool(Host, PoolName)
+                   end,
     HistorySize = gen_mod:get_opt(history_size, Opts, 20),
     DefRoomOpts = gen_mod:get_opt(default_room_options, Opts, []),
     RoomShaper = gen_mod:get_opt(room_shaper, Opts, none),
 
     State = #state{host = MyHost,
-            server_host = Host,
-            access = {Access, AccessCreate, AccessAdmin, AccessPersistent},
-            default_room_opts = DefRoomOpts,
-            history_size = HistorySize,
-            room_shaper = RoomShaper},
+                   server_host = Host,
+                   access = {Access, AccessCreate, AccessAdmin, AccessPersistent},
+                   default_room_opts = DefRoomOpts,
+                   history_size = HistorySize,
+                   room_shaper = RoomShaper,
+                   http_auth_pool = HttpAuthPool},
 
     ejabberd_hooks:add(is_muc_room_owner, MyHost, ?MODULE, is_room_owner, 50),
     ejabberd_hooks:add(muc_room_pid, MyHost, ?MODULE, muc_room_pid, 50),
@@ -306,8 +312,7 @@ init([Host, Opts]) ->
 
     load_permanent_rooms(MyHost, Host,
                          {Access, AccessCreate, AccessAdmin, AccessPersistent},
-                         HistorySize,
-                         RoomShaper),
+                         HistorySize, RoomShaper, HttpAuthPool),
     {ok, State}.
 
 %%--------------------------------------------------------------------
@@ -333,7 +338,8 @@ handle_call({create_instant, Room, From, Nick, Opts},
                    access = Access,
                    default_room_opts = DefOpts,
                    history_size = HistorySize,
-                   room_shaper = RoomShaper} = State) ->
+                   room_shaper = RoomShaper,
+                   http_auth_pool = HttpAuthPool} = State) ->
     ?DEBUG("MUC: create new room '~s'~n", [Room]),
     NewOpts = case Opts of
                   default -> DefOpts;
@@ -342,7 +348,7 @@ handle_call({create_instant, Room, From, Nick, Opts},
     {ok, Pid} = mod_muc_room:start(
                   Host, ServerHost, Access,
                   Room, HistorySize,
-                  RoomShaper, From,
+                  RoomShaper, HttpAuthPool, From,
           Nick, [{instant, true}|NewOpts]),
     register_room(Host, Room, Pid),
     {reply, ok, State}.
@@ -486,13 +492,14 @@ route_to_nonexistent_room(Room, {From, To, Packet},
             case check_user_can_create_room(ServerHost, AccessCreate,
                                             From, Room) of
                 true ->
-                    HistorySize = State#state.history_size,
-                    RoomShaper  = State#state.room_shaper,
-                    DefRoomOpts = State#state.default_room_opts,
+                    #state{history_size = HistorySize,
+                           room_shaper = RoomShaper,
+                           http_auth_pool = HttpAuthPool,
+                           default_room_opts = DefRoomOpts} = State,
                     {_, _, Nick} = jid:to_lower(To),
                     {ok, Pid} = start_new_room(Host, ServerHost, Access, Room,
-                                               HistorySize, RoomShaper, From,
-                                               Nick, DefRoomOpts),
+                                               HistorySize, RoomShaper, HttpAuthPool,
+                                               From, Nick, DefRoomOpts),
                     register_room(Host, Room, Pid),
                     mod_muc_room:route(Pid, From, Nick, Packet),
                     ok;
@@ -620,8 +627,8 @@ check_user_can_create_room(ServerHost, AccessCreate, From, RoomID) ->
 
 -spec load_permanent_rooms(Host :: ejabberd:server(), Srv :: ejabberd:server(),
         Access :: access(), HistorySize :: 'undefined' | integer(),
-        RoomShaper :: shaper:shaper()) -> 'ok'.
-load_permanent_rooms(Host, ServerHost, Access, HistorySize, RoomShaper) ->
+        RoomShaper :: shaper:shaper(), HttpAuthPool :: none | mod_http_client:pool()) -> 'ok'.
+load_permanent_rooms(Host, ServerHost, Access, HistorySize, RoomShaper, HttpAuthPool) ->
     case catch mnesia:dirty_select(
                  muc_room, [{#muc_room{name_host = {'_', Host}, _ = '_'},
                              [],
@@ -642,6 +649,7 @@ load_permanent_rooms(Host, ServerHost, Access, HistorySize, RoomShaper) ->
                                             Room,
                                             HistorySize,
                                             RoomShaper,
+                                            HttpAuthPool,
                                             R#muc_room.opts),
                               register_room(Host, Room, Pid);
                           _ ->
@@ -654,25 +662,26 @@ load_permanent_rooms(Host, ServerHost, Access, HistorySize, RoomShaper) ->
 -spec start_new_room(Host :: 'undefined' | ejabberd:server(),
         Srv :: ejabberd:server(), Access :: access(), room(),
         HistorySize :: 'undefined' | integer(), RoomShaper :: shaper:shaper(),
-        From :: ejabberd:jid(), nick(), DefRoomOpts :: 'undefined' | [any()])
+        HttpAuthPool :: none | mod_http_client:pool(), From :: ejabberd:jid(), nick(),
+        DefRoomOpts :: 'undefined' | [any()])
             -> {'error',_}
              | {'ok','undefined' | pid()}
              | {'ok','undefined' | pid(),_}.
 start_new_room(Host, ServerHost, Access, Room,
-               HistorySize, RoomShaper, From,
+               HistorySize, RoomShaper, HttpAuthPool, From,
                Nick, DefRoomOpts) ->
     case mnesia:dirty_read(muc_room, {Room, Host}) of
         [] ->
             ?DEBUG("MUC: open new room '~s'~n", [Room]),
             mod_muc_room:start(Host, ServerHost, Access,
                                Room, HistorySize,
-                               RoomShaper, From,
+                               RoomShaper, HttpAuthPool, From,
                                Nick, DefRoomOpts);
         [#muc_room{opts = Opts}|_] ->
             ?DEBUG("MUC: restore room '~s'~n", [Room]),
             mod_muc_room:start(Host, ServerHost, Access,
                                Room, HistorySize,
-                               RoomShaper, Opts)
+                               RoomShaper, HttpAuthPool, Opts)
     end.
 
 

@@ -66,9 +66,10 @@ do_recv(Sock, Bs, PPid, ReqPattern, Response) ->
                     ok;
                 false ->
                     %% not the one, send a response to keep server happy and keep working
-                    Resp = make_response(Response),
+                    Resp = make_error_response(),
                     gen_tcp:send(Sock, Resp),
-                    do_recv(Sock, <<>>, PPid, ReqPattern, Response);
+                    PPid ! {error, bad_http_request, Packet},
+                    ok;
                 invalid ->
                     %% not a complete packet, keep collecting data
                     do_recv(Sock, Packet, PPid, ReqPattern, Response)
@@ -77,19 +78,27 @@ do_recv(Sock, Bs, PPid, ReqPattern, Response) ->
             ok
     end.
 
+make_error_response() ->
+    make_response("500", "Internal server error").
+
 make_response(Response) when is_binary(Response) ->
     make_response(binary_to_list(Response));
 make_response(Response) ->
+    make_response("200", Response).
+
+make_response(Code, Response) ->
     Len = length(Response),
     Dt = httpd_util:rfc1123_date(erlang:universaltime()),
-    ["HTTP/1.1 200 OK\r\nDate: ",
+    ["HTTP/1.1 ", Code, " OK\r\nDate: ",
      Dt,
      "\r\nContent-Length: ", integer_to_list(Len), "\r\nContent-Type: text/html\r\nServer: MongooseTest\r\n\r\n",
      Response].
 
 check_packet(Packet, ReqPattern) ->
     case erlang:decode_packet(http, Packet, []) of
-        {ok, {http_request, 'POST', _, _}, Body} ->
+        {ok, {http_request, Method, _, _}, Body}
+          when Method =:= 'GET';
+               Method =:= 'POST' ->
             check_body(Body, ReqPattern);
         _ ->
             invalid
