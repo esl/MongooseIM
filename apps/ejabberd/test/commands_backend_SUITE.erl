@@ -113,10 +113,8 @@ setup(Module) ->
         {modules, [{"localhost", "/api", Module, []}]}],
     ejabberd_cowboy:start_listener({?PORT, ?IP, tcp}, Opts).
 
-
-
 teardown() ->
-    ejabberd_cowboy:stop(ejabberd_cowboy:handler({?PORT, ?IP, tcp})),
+    cowboy:stop_listener(ejabberd_cowboy:ref({?PORT, ?IP, tcp})),
     mongoose_commands:unregister(commands_new()),
     meck:unload(ejabberd_auth),
     meck:unload(ejabberd_hooks),
@@ -639,24 +637,25 @@ request(Path, "DELETE", Entity) ->
 
 -spec request(binary(), method(), list({atom(), any()}),
               {headers, list()} | admin | {{binary(), binary()}, boolean()}) -> any.
-request(Path, Method, Body, {headers, Headers}) ->
+do_request(Path, Method, Body, {headers, Headers}) ->
     {ok, Pid} = fusco:start_link("http://"++ ?HOST ++ ":" ++ integer_to_list(?PORT), []),
     R = fusco:request(Pid, Path, Method, Headers, Body, 5000),
     fusco:disconnect(Pid),
     teardown(),
-    R;
+    R.
+
 request(Path, Method, BodyData, {{_User, _Pass} = Auth, Authorized}) ->
     setup(client_module()),
     meck:expect(ejabberd_auth, check_password, fun(_, _, _) -> Authorized end),
     Body = maybe_add_body(BodyData),
     AuthHeader = maybe_add_auth_header(Auth),
     AcceptHeader = maybe_add_accepted_headers(Method),
-    request(Path, Method, Body, {headers, AuthHeader ++ AcceptHeader});
+    do_request(Path, Method, Body, {headers, AuthHeader ++ AcceptHeader});
 request(Path, Method, BodyData, admin) ->
     setup(backend_module()),
     Body = maybe_add_body(BodyData),
     AcceptHeader = maybe_add_accepted_headers(Method),
-    request(Path, Method, Body, {headers, AcceptHeader}).
+    do_request(Path, Method, Body, {headers, AcceptHeader}).
 
 mc_holder() ->
     mongoose_commands:init(),
