@@ -100,7 +100,7 @@ As for now, all WebSockets connections with the `Sec-WebSocket-Protocol: xmpp`
 header, will go through the mod_websockets connection.
 This is the MongooseIM's regular websocket connection handler.
 
-## Server-to-server (S2S): `ejabberd_s2s_in
+## Server-to-server (S2S): `ejabberd_s2s_in`
 
 Handles incoming server-to-server (S2S) connections (federation). Relies on `ejabberd_listener` and `ejabberd_receiver` just like `ejabberd_c2s`.
 
