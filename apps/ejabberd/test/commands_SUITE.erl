@@ -61,22 +61,28 @@ init_per_suite(C) ->
     C.
 
 end_per_suite(_) ->
-    % so that other suites do not fail trying to start it
-    gen_server:stop(ejabberd_hooks).
+    mnesia:stop(),
+    ok.
 
 init_per_group(old_commands, C) ->
-    spawn(fun ec_holder/0),
-    C;
+    Pid = spawn(fun ec_holder/0),
+    [{helper_proc, Pid} | C];
 init_per_group(new_commands, C) ->
-    spawn(fun mc_holder/0),
-    C.
+    Pid = spawn(fun mc_holder/0),
+    [{helper_proc, Pid} | C].
 
 end_per_group(old_commands, C) ->
     ejabberd_commands:unregister_commands(commands_old()),
+    stop_helper_proc(C),
     C;
 end_per_group(new_commands, C) ->
     mongoose_commands:unregister(commands_new()),
+    stop_helper_proc(C),
     C.
+
+stop_helper_proc(C) ->
+    Pid = proplists:get_value(helper_proc, C),
+    Pid ! stop.
 
 init_per_testcase(_, C) ->
     meck:new(ejabberd_config),
@@ -535,12 +541,13 @@ ec_holder() ->
 
 mc_holder() ->
     % we have to do it here to avoid race condition and random failures
-    ejabberd_hooks:start_link(),
+    {ok, Pid} = ejabberd_hooks:start_link(),
     mongoose_commands:init(),
     mongoose_commands:register(commands_new()),
     receive
         _ -> ok
-    end.
+    end,
+    erlang:exit(Pid, kill).
 
 checkauth(true, AccessCommands, Auth) ->
     B = <<"bzzzz">>,
