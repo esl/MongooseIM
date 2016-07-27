@@ -316,9 +316,10 @@ check_and_execute(Caller, Command, Args) ->
     % check args
     SpecLen = length(Command#mongoose_command.args),
     ALen = length(Args),
-    if SpecLen =/= ALen ->
-        th("Invalid number of arguments: should be ~p, got ~p", [SpecLen, ALen]);
-        true -> ok
+    case SpecLen =/= ALen of
+        true ->
+            th("Invalid number of arguments: should be ~p, got ~p", [SpecLen, ALen]);
+        _ -> ok
     end,
     [check_type(S, A) || {S, A} <- lists:zip(Command#mongoose_command.args, Args)],
     % run command
