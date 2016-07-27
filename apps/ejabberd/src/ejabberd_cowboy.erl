@@ -70,22 +70,28 @@ reload_dispatch(Ref) ->
 -spec start_link(_) -> 'ignore' | {'error',_} | {'ok',pid()}.
 start_link(State) ->
     gen_server:start_link(?MODULE, State, []).
+
 init(State) ->
     process_flag(trap_exit, true),
     {ok, State}.
+
 handle_call(_Request, _From, State) ->
     {noreply, State}.
+
 handle_cast(reload_dispatch, #cowboy_state{ref = Ref, opts = Opts} = State) ->
     reload_dispatch(Ref, Opts),
     {noreply, State};
 handle_cast(_Request, State) ->
     {noreply, State}.
+
 handle_info(_Info, State) ->
     {noreply, State}.
+
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
+
 terminate(_Reason, State) ->
-    stop_cowboy(State).
+    stop_cowboy(State#cowboy_state.ref).
 
 -spec handler({integer(), inet:ip_address(), tcp}) -> list().
 handler({Port, IP, tcp}) ->
@@ -144,8 +150,7 @@ reload_dispatch(Ref, Opts) ->
     cowboy:set_env(Ref, dispatch, Dispatch).
 
 stop_cowboy(Ref) ->
-    cowboy:stop_listener(cowboy_ref(Ref)),
-    ok.
+    cowboy:stop_listener(Ref).
 
 
 cowboy_ref(Ref) ->
