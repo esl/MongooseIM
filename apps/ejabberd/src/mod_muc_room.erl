@@ -531,7 +531,7 @@ handle_http_auth_result(AuthPid, Result, From, Nick, Packet, Role, StateData) ->
     case Result of
         allowed -> do_add_new_user(From, Nick, Packet, Role, StateWithoutPid);
         {invalid_password, ErrorMsg} -> reply_not_authorized(From, Nick, Packet, StateData, ErrorMsg);
-        {error, ErrorMsg} -> reply_service_unavailable(From, Nick, Packet, StateData, ErrorMsg)
+        error -> reply_service_unavailable(From, Nick, Packet, StateData, <<"Internal server error">>)
     end.
 
 %%----------------------------------------------------------------------
@@ -1891,13 +1891,26 @@ make_http_auth_request(From, Nick, Packet, Role, RoomJid, RoomPid, Password, Poo
     RoomJidBin = jid:to_binary(RoomJid),
     Path = <<"/check_password">>,
     Query = <<"from=", FromBin/binary, "&to=", RoomJidBin/binary, "&pass=", Password/binary>>,
-    Result =
-        case mod_http_client:make_request(Pool, Path, <<"GET">>, [], Query) of
-            {ok, {<<"200">>, <<"true">>}} -> allowed;
-            {ok, {<<"200">>, Body}} -> {invalid_password, Body};
-            _ -> {error, <<"Internal server error">>}
-        end,
+    Result = case mod_http_client:make_request(Pool, Path, <<"GET">>, [], Query) of
+                 {ok, {<<"200">>, Body}} -> decode_http_auth_response(Body);
+                 _ -> error
+             end,
     gen_fsm:send_event(RoomPid, {http_auth, self(), Result, From, Nick, Packet, Role}).
+
+decode_http_auth_response(Body) ->
+    try decode_json_auth_response(Body) of
+        {0, _} -> allowed;
+        {AuthCode, Msg} -> {invalid_password, iolist_to_binary([AuthCode, $ , Msg])};
+        _ -> error
+    catch
+        error:_ -> error
+    end.
+
+decode_json_auth_response(Body) ->
+    {struct, Elements} = mochijson2:decode(Body),
+    Code = proplists:get_value(<<"code">>, Elements),
+    Msg = proplists:get_value(<<"msg">>, Elements),
+    {Code, Msg}.
 
 reply_not_authorized(From, Nick, Packet, StateData, ErrText) ->
     Lang = xml:get_attr_s(<<"xml:lang">>, Packet#xmlel.attrs),

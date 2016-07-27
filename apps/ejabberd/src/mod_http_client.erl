@@ -34,6 +34,7 @@
                host :: ejabberd:server(),
                http_host :: string(),
                size :: pos_integer(),
+               max_overflow :: pos_integer(),
                path_prefix :: binary(),
                pool_timeout :: pos_integer(),
                request_timeout :: pos_integer()}).
@@ -78,9 +79,11 @@ make_request(Pool, Path, Method, Header, Query) ->
                  end,
                  PoolTimeout) of
         {'EXIT', {timeout, _}} ->
-            {error, poolbusy};
+            {error, pool_timeout};
         {ok, {{Code, _Reason}, _RespHeaders, RespBody, _, _}} ->
             {ok, {Code, RespBody}};
+        {error, timeout} ->
+            {error, request_timeout};
         {error, Reason} ->
             {error, Reason}
     end.
@@ -123,8 +126,8 @@ handle_call({get_pool, Name}, _From, State = #state{pools = Pools}) ->
     {reply, dict:fetch(Name, Pools), State};
 handle_call({stop_pool, Host, Name}, _From, State = #state{pools = Pools}) ->
     SupProc = gen_mod:get_module_proc(Host, ejabberd_mod_http_client_sup),
-    ok = supervisor:terminate_child(SupProc, Name),
-    ok = supervisor:delete_child(SupProc, Name),
+    ok = supervisor:terminate_child(SupProc, pool_proc_name(Host, Name)),
+    ok = supervisor:delete_child(SupProc, pool_proc_name(Host, Name)),
     {reply, ok, State#state{pools = dict:erase(Name, Pools)}}.
 
 -spec handle_cast(any(), #state{}) -> no_return().
@@ -157,19 +160,21 @@ make_pool(Host, Name, Opts) ->
     #pool{name = Name,
           host = Host,
           http_host = gen_mod:get_opt(host, Opts, "http://localhost"),
-          size = gen_mod:get_opt(pool_size, Opts, 5),
+          size = gen_mod:get_opt(pool_size, Opts, 20),
+          max_overflow = gen_mod:get_opt(max_overflow, Opts, 5),
           path_prefix = list_to_binary(gen_mod:get_opt(path_prefix, Opts, "")),
           pool_timeout = gen_mod:get_opt(pool_timeout, Opts, 200),
-          request_timeout = gen_mod:get_opt(request_timeout, Opts, 5000)}.
+          request_timeout = gen_mod:get_opt(request_timeout, Opts, 2000)}.
 
 do_start_pool(#pool{name = Name,
                     host = Host,
                     http_host = HttpHost,
-                    size = PoolSize}) ->
+                    size = PoolSize,
+                    max_overflow = MaxOverflow}) ->
     ProcName = pool_proc_name(Host, Name),
     PoolOpts = [{name, {local, ProcName}},
                 {size, PoolSize},
-                {max_overflow, 5},
+                {max_overflow, MaxOverflow},
                 {worker_module, mod_http_client_worker}],
     SupProc = gen_mod:get_module_proc(Host, ejabberd_mod_http_client_sup),
     {ok, _} = supervisor:start_child(

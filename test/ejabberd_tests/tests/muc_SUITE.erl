@@ -3663,7 +3663,7 @@ pagination_after10(Config) ->
 %%--------------------------------------------------------------------
 
 deny_access_to_http_password_protected_room_wrong_password(Config1) ->
-    http_helper:listen_once(self(), 8080, <<"badpass">>, <<"121: Access token expired">>),
+    http_helper:listen_once(self(), 8080, <<"badpass">>, <<"{\"code\":121, \"msg\":\"Password expired\"}">>),
     AliceSpec = given_fresh_spec(Config1, alice),
     Config = given_fresh_room(Config1, AliceSpec, [{password_protected, true}]),
     escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
@@ -3682,7 +3682,7 @@ deny_access_to_http_password_protected_room_service_unavailable(Config1) ->
     destroy_room(Config).
 
 enter_http_password_protected_room(Config1) ->
-    http_helper:listen_once(self(), 8080, ?PASSWORD, <<"true">>),
+    http_helper:listen_once(self(), 8080, ?PASSWORD, <<"{\"code\":0, \"msg\":\"OK\"}">>),
     AliceSpec = given_fresh_spec(Config1, alice),
     Config = given_fresh_room(Config1, AliceSpec, [{password_protected, true}]),
     escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
@@ -3696,7 +3696,7 @@ create_instant_http_password_protected_room(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
 
         %% Create the room (should be locked on creation)
-        http_helper:listen_once(self(), 8080, ?PASSWORD, <<"true">>),
+        http_helper:listen_once(self(), 8080, ?PASSWORD, <<"{\"code\":0, \"msg\":\"OK\"}">>),
         RoomName = fresh_room_name(),
         Presence = stanza_muc_enter_password_protected_room(RoomName, <<"alice-the-owner">>, ?PASSWORD),
         escalus:send(Alice, Presence),
@@ -3711,7 +3711,7 @@ create_instant_http_password_protected_room(Config) ->
         escalus:assert(is_iq_result, IQ),
 
         %% Bob should be able to join the room
-        http_helper:listen_once(self(), 8080, ?PASSWORD, <<"true">>),
+        http_helper:listen_once(self(), 8080, ?PASSWORD, <<"{\"code\":0, \"msg\":\"OK\"}">>),
         escalus:send(Bob, stanza_muc_enter_password_protected_room(RoomName, <<"bob">>, ?PASSWORD)),
         escalus:wait_for_stanza(Alice), %Bobs presence
         %% Bob should receive (in that order): Alices presence, his presence and the topic
@@ -3741,7 +3741,7 @@ deny_access_to_instant_http_password_protected_room(Config) ->
 deny_access_to_instant_http_password_protected_room_wrong_password(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         %% Fail to create the room
-        http_helper:listen_once(self(), 8080, <<"badpass">>, <<"123 Bad password">>),
+        http_helper:listen_once(self(), 8080, <<"badpass">>, <<"{\"code\":123, \"msg\":\"Bad password\"}">>),
         RoomName = fresh_room_name(),
         Presence = stanza_muc_enter_password_protected_room(RoomName, <<"alice-the-owner">>, <<"badpass">>),
         escalus:send(Alice, Presence),
