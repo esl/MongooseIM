@@ -85,15 +85,15 @@ reload_dispatches(_Command) ->
     drop.
 
 
--spec create_admin_url_path(mongoose_command()) -> ejabberd_cowboy:path().
+-spec create_admin_url_path(mongoose_commands:t()) -> ejabberd_cowboy:path().
 create_admin_url_path(Command) ->
     ["/", category_to_resource(mongoose_commands:category(Command)), maybe_add_bindings(Command, admin)].
 
--spec create_user_url_path(mongoose_command()) -> ejabberd_cowboy:path().
+-spec create_user_url_path(mongoose_commands:t()) -> ejabberd_cowboy:path().
 create_user_url_path(Command) ->
     ["/", category_to_resource(mongoose_commands:category(Command)), maybe_add_bindings(Command, user)].
 
--spec process_request(method(), mongoose_command(), any(), #http_api_state{}) -> {any(), any(), #http_api_state{}}.
+-spec process_request(method(), mongoose_commands:ct(), any(), #http_api_state{}) -> {any(), any(), #http_api_state{}}.
 process_request(Method, Command, Req, #http_api_state{bindings = Binds, entity = Entity} = State)
     when ((Method == <<"POST">>) or (Method == <<"PUT">>)) ->
     BindsReversed = lists:reverse(Binds),
@@ -111,7 +111,7 @@ process_request(Method, Command, Req, #http_api_state{bindings = Binds, entity =
 process_request(M, _C, Req, State) ->
     handle_result(M, {error, bad_request}, Req, State).
 
--spec handle_request(method(), mongoose_command(), args_applied(), term(), #http_api_state{}) ->
+-spec handle_request(method(), mongoose_commands:t(), args_applied(), term(), #http_api_state{}) ->
     {any(), any(), #http_api_state{}}.
 handle_request(Method, Command, Args, Req, #http_api_state{entity = Entity} = State) ->
     ConvertedArgs = check_and_extract_args(mongoose_commands:args(Command), Args),
@@ -119,7 +119,7 @@ handle_request(Method, Command, Args, Req, #http_api_state{entity = Entity} = St
     handle_result(Method, Result, Req, State).
 
 -spec handle_result(method(),
-                   {ok, any()} | failure() | {error, errortype()},
+                   {ok, any()} | mongoose_commands:failure() | {error, mongoose_commands:errortype()},
                    any(), #http_api_state{}) -> {any(), any(), #http_api_state{}}.
 handle_result(<<"GET">>, {ok, Result}, Req, State) ->
     {jiffy:encode(Result), Req, State};
@@ -197,8 +197,8 @@ compare_names_extract_args({CommandsArgList, RequestArgProplist}) ->
 do_extract_args(CommandsArgList, RequestArgList) ->
     [element(2, lists:keyfind(Key, 1, RequestArgList)) || {Key, _Type} <- CommandsArgList].
 
--spec execute_command(list({atom(), any()}) | map() | {error, atom(), any()}, mongoose_command(), admin|binary()) ->
-                     {ok, term()} | failure().
+-spec execute_command(list({atom(), any()}) | map() | {error, atom(), any()}, mongoose_commands:t(), admin|binary()) ->
+                     {ok, term()} | mongoose_commands:failure().
 execute_command({error, _Type, _Reason} = Err, _, _) ->
     Err;
 execute_command(Args, Command, Entity) ->
@@ -209,7 +209,7 @@ execute_command(Args, Command, Entity) ->
             {error, bad_request, R}
     end.
 
--spec do_execute_command(arg_values(), mongoose_command(), admin|binary()) -> ok | {ok, any()}.
+-spec do_execute_command(arg_values(), mongoose_commands:t(), admin|binary()) -> ok | {ok, any()}.
 do_execute_command(Args, Command, Entity) ->
     Types = [Type || {_Name, Type} <- mongoose_commands:args(Command)],
     ConvertedArgs = [convert_arg(Type, Arg) || {Type, Arg} <- lists:zip(Types, Args)],
@@ -272,7 +272,7 @@ get_allowed_methods(Entity) ->
     Commands = mongoose_commands:list(Entity),
     [action_to_method(mongoose_commands:action(Command)) || {_Name, Command} <- Commands].
 
--spec maybe_add_bindings(mongoose_command(), admin|user) -> string().
+-spec maybe_add_bindings(mongoose_commands:t(), admin|user) -> string().
 maybe_add_bindings(Command, Entity) ->
     Action = mongoose_commands:action(Command),
     Args = mongoose_commands:args(Command),
@@ -286,7 +286,7 @@ maybe_add_bindings(Command, Entity) ->
             add_bindings(Args, Entity)
     end.
 
--spec both_bind_and_body(command_action()) -> boolean().
+-spec both_bind_and_body(mongoose_commands:command_action()) -> boolean().
 both_bind_and_body(update) ->
     true;
 both_bind_and_body(create) ->

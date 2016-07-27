@@ -1,4 +1,3 @@
--include("mongoose_commands.hrl").
 %% backend state for HTTP API
 -record(http_api_state, {allowed_methods, bindings, parameters, command_category, entity = admin, opts = []}).
 %% Error messages
@@ -11,7 +10,6 @@
 -type method() ::binary().
 -type arg_name() :: atom().
 -type arg_value() :: binary() | string() | integer() | float().
--type arg_spec_list() :: list(argspec()).
+-type arg_spec_list() :: list(mongoose_commands:argspec()).
 -type args_applied() :: list({arg_name(), arg_value()}).
 -type arg_values() :: list(arg_value()).
--type mongoose_command() :: #mongoose_command{}.

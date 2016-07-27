@@ -109,7 +109,7 @@ from_json(Req, #http_api_state{command_category = Category} = State) ->
     mongoose_api_common:process_request(Method, Command, Req2, State).
 
 
--spec handler_path(ejabberd_cowboy:path(), mongoose_command()) -> ejabberd_cowboy:path().
+-spec handler_path(ejabberd_cowboy:path(), mongoose_commands:t()) -> ejabberd_cowboy:path().
 handler_path(Base, Command) ->
     {[Base, mongoose_api_common:create_admin_url_path(Command)],
         ?MODULE, [{command_category, mongoose_commands:category(Command)}]}.

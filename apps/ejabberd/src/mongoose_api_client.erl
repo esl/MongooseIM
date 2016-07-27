@@ -139,7 +139,8 @@ do_check_password(#jid{luser = User, lserver = Server} = JID,
 make_unauthorized_response(Req, State) ->
     {{false, <<"Basic realm=\"mongooseim\"">>}, Req, State}.
 
--spec handler_path(ejabberd_cowboy:path(), mongoose_command()) -> ejabberd_cowboy:path().
+-spec handler_path(ejabberd_cowboy:path(), mongoose_commands:t()) -> ejabberd_cowboy:path().
 handler_path(Base, Command) ->
     {[Base, mongoose_api_common:create_user_url_path(Command)],
         ?MODULE, [{command_category, mongoose_commands:category(Command)}]}.
+
