@@ -101,9 +101,7 @@ start_cowboy(Ref, Opts) ->
     %% Port and Dispatch are required
     Port = gen_mod:get_opt(port, Opts),
     IP = gen_mod:get_opt(ip, Opts, {0,0,0,0}),
-    SSLCert = gen_mod:get_opt(cert, Opts, undefined),
-    SSLKey = gen_mod:get_opt(key, Opts, undefined),
-    SSLKeyPass = gen_mod:get_opt(key_pass, Opts, ""),
+    SSLOpts = gen_mod:get_opt(ssl, Opts, undefined),
     NumAcceptors = gen_mod:get_opt(num_acceptors, Opts, 100),
     MaxConns = gen_mod:get_opt(max_connections, Opts, 1024),
     Middlewares = case gen_mod:get_opt(middlewares, Opts, undefined) of
@@ -111,22 +109,15 @@ start_cowboy(Ref, Opts) ->
         M -> [{middlewares, M}]
     end,
     Dispatch = cowboy_router:compile(get_routes(gen_mod:get_opt(modules, Opts))),
-    case {SSLCert, SSLKey} of
-        {undefined, undefined} ->
+    case SSLOpts of
+        undefined ->
             cowboy:start_http(Ref, NumAcceptors,
                               [{port, Port}, {ip, IP}, {max_connections, MaxConns}],
                               [{env, [{dispatch, Dispatch}]} | Middlewares]);
         _ ->
-            SSLCACert = gen_mod:get_opt(cacertfile, Opts, undefined),
-            SSLCiphers = gen_mod:get_opt(ciphers, Opts, []),
-            SSLVersions = gen_mod:get_opt(versions, Opts, []),
-            cowboy:start_https(Ref, NumAcceptors,
-                               [{port, Port}, {ip, IP}, {max_connections, MaxConns},
-                                {certfile, SSLCert}, {keyfile, SSLKey},
-                                {password, SSLKeyPass},
-                                {cacertfile, SSLCACert},
-                                {ciphers, SSLCiphers},
-                                {versions, SSLVersions}],
+            SSLOptions = [{port, Port}, {ip, IP}, {max_connections, MaxConns} |
+                          filter_options(ignored_ssl_options(), SSLOpts)],
+            cowboy:start_https(Ref, NumAcceptors, SSLOptions,
                                [{env, [{dispatch, Dispatch}]} | Middlewares])
     end.
 
@@ -176,3 +167,21 @@ get_routes([{Host, BasePath, Module, Opts} | Tail], Routes) ->
         _ -> [{BasePath, Module, Opts}]
     end,
     get_routes(Tail, lists:keystore(CowboyHost, 1, Routes, {CowboyHost, Paths})).
+
+ignored_ssl_options() ->
+    %% these options are specified in the listener section
+    %% and should be ignored if they creep into ssl section
+    [port, ip, max_connections].
+
+filter_options(IgnoreOpts, [Opt | Opts]) when is_atom(Opt) ->
+    case lists:member(Opt, IgnoreOpts) of
+        true  -> filter_options(IgnoreOpts, Opts);
+        false -> [Opt | filter_options(IgnoreOpts, Opts)]
+    end;
+filter_options(IgnoreOpts, [Opt | Opts]) when tuple_size(Opt) >= 1 ->
+    case lists:member(element(1, Opt), IgnoreOpts) of
+        true  -> filter_options(IgnoreOpts, Opts);
+        false -> [Opt | filter_options(IgnoreOpts, Opts)]
+    end;
+filter_options(_, []) ->
+    [].

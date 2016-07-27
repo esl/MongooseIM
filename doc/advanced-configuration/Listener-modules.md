@@ -33,22 +33,16 @@ Manages all HTTP-based services, such as BOSH (HTTP long-polling) and WebSocket.
 * `ip` (IP tuple, optional, default: `{0,0,0,0}`) - IP address to bind to.
 * `num_acceptors` (positive integer, optional, default: 100) - Number of acceptors.
 * `max_connections` (positive integer, optional, default: 1024) - Maximum total number of HTTP(S) connections.
-* `cert` (string, optional, no default value) - Path to the SSL certificate in X509 format.
-* `key` (string, optional, no default value) - Path to the SSL private key in X509 format.
-* `key_pass` (string, optional, default: `undefined`) - Password to a private key, `undefined` for no password.
-* `cacertfile` (string, optional, `undefined`) - Path to a file containing PEM-encoded CA certificates. The CA certificates are used to build the server certificate chain. Can be omitted if there are no intermediate CAs for the server certificate.
-* `ciphers` (list of tuples or strings) - Supported cipher suites. The function ssl:cipher_suites/0 can be used to find all ciphers that are supported by default. For example,
+* `ssl` (list of ssl options, required for https, no default value) - If specified, https will be used. Accepts all ranch_ssl options that don't take fun() parameters. Only `certfile` and `keyfile` are mandatory. See [ranch_ssl documentation](https://github.com/ninenines/ranch/blob/master/doc/src/manual/ranch_ssl.asciidoc) for details. A minimal usage would be as follows:
 
-        {ciphers, [{ecdhe_ecdsa,aes_256_gcm,null,sha384},
-                   {ecdhe_rsa,aes_256_gcm,null,sha384}]}
+        {ssl, [
+            {certfile, "priv/ssl/fake_cert.pem"},
+            {keyfile, "priv/ssl/fake_key.pem"},
+        ]},
 
-    One can also use textual format, e.g.,
+    Here, `certfile` and `keyfile` specify the certificate and private key files respectively. If the keyfile is password-protected, one will need to specify the password with `{password, "secret"}`. If the certificate is signed by an intermediate CA, one will probably want to specify the CA chain with `cacertfile` option.
 
-        {ciphers, ["ECDHE-RSA-AES256-GCM-SHA384", "ECDHE-RSA-AES256-SHA384"]}
-
-* `versions` (string, optional) - Supported TLS protocol versions. Defaults to all versions, except SSL-3.0, supported by the SSL application. For example, the following config option limits supported versions to TLS 1.1 and 1.2 only:
-
-        {versions, ['tlsv1.1', 'tlsv1.2']}
+    Note that `port`, `ip` and `max_connections` are taken from the listener config above and will be ignored if specified under `ssl`.
 
 * `modules` (list of tuples: `{Host, Path, Modules}`) - List of enabled HTTP-based modules. `"_"` equals any host.
     * `mod_bosh` - BOSH connections handler. Default declaration:
