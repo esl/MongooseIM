@@ -16,7 +16,6 @@
 %%% @end
 %%%===================================================================
 -module(ejabberd_cowboy).
--behaviour(gen_mod).
 -behavior(gen_server).
 
 %% ejabberd_listener API
@@ -32,12 +31,8 @@
          code_change/3,
          terminate/2]).
 
-%% gen_mod API
--export([start/2,
-         stop/1]).
-
 %% helper for internal use
--export([handler/1, reload_dispatch/1]).
+-export([ref/1, reload_dispatch/1]).
 
 -include("ejabberd.hrl").
 -type options()  :: [any()].
@@ -56,11 +51,12 @@ socket_type() ->
     independent.
 
 start_listener({Port, IP, tcp}=Listener, Opts) ->
-    IPPort = handler(Listener),
-    ChildSpec = {Listener, {?MODULE, start_link, [#cowboy_state{ref = cowboy_ref(IPPort), opts = Opts}]}, transient,
-                 infinity, worker, [?MODULE]},
+    Ref = ref(Listener),
+    ChildSpec = {Listener, {?MODULE, start_link,
+                            [#cowboy_state{ref = Ref, opts = Opts}]},
+                 transient, infinity, worker, [?MODULE]},
     {ok, Pid} = supervisor:start_child(ejabberd_listeners, ChildSpec),
-    {ok, _} = start_cowboy(IPPort, [{port, Port}, {ip, IP} | Opts]),
+    {ok, _} = start_cowboy(Ref, [{port, Port}, {ip, IP} | Opts]),
     {ok, Pid}.
 
 reload_dispatch(Ref) ->
@@ -98,16 +94,6 @@ handler({Port, IP, tcp}) ->
     [inet_parse:ntoa(IP), <<"_">>, integer_to_list(Port)].
 
 %%--------------------------------------------------------------------
-%% gen_mod API
-%%--------------------------------------------------------------------
-
-start(Host, Opts) ->
-    start_cowboy(Host, Opts).
-
-stop(Host) ->
-    stop_cowboy(Host).
-
-%%--------------------------------------------------------------------
 %% Internal Functions
 %%--------------------------------------------------------------------
 
@@ -127,14 +113,14 @@ start_cowboy(Ref, Opts) ->
     Dispatch = cowboy_router:compile(get_routes(gen_mod:get_opt(modules, Opts))),
     case {SSLCert, SSLKey} of
         {undefined, undefined} ->
-            cowboy:start_http(cowboy_ref(Ref), NumAcceptors,
+            cowboy:start_http(Ref, NumAcceptors,
                               [{port, Port}, {ip, IP}, {max_connections, MaxConns}],
                               [{env, [{dispatch, Dispatch}]} | Middlewares]);
         _ ->
             SSLCACert = gen_mod:get_opt(cacertfile, Opts, undefined),
             SSLCiphers = gen_mod:get_opt(ciphers, Opts, []),
             SSLVersions = gen_mod:get_opt(versions, Opts, []),
-            cowboy:start_https(cowboy_ref(Ref), NumAcceptors,
+            cowboy:start_https(Ref, NumAcceptors,
                                [{port, Port}, {ip, IP}, {max_connections, MaxConns},
                                 {certfile, SSLCert}, {keyfile, SSLKey},
                                 {password, SSLKeyPass},
@@ -153,7 +139,8 @@ stop_cowboy(Ref) ->
     cowboy:stop_listener(Ref).
 
 
-cowboy_ref(Ref) ->
+ref(Listener) ->
+    Ref = handler(Listener),
     ModRef = [?MODULE_STRING, <<"_">>, Ref],
     list_to_atom(binary_to_list(iolist_to_binary(ModRef))).
 
