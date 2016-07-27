@@ -112,7 +112,7 @@
           desc :: string(),                           %% long description
           module :: module(),                         %% module to call
           function :: atom(),                         %% function to call
-          action :: command_action(),                 %% so that the HTTP side can decide which verb to require
+          action :: action(),                 %% so that the HTTP side can decide which verb to require
           args = [] :: [argspec()],                   %% this is both for introspection and type check on call
           caller_pos :: integer(),                    %% internal use
           identifiers = [] :: [atom()],               %% if action is 'update' then it must be a subset of args
@@ -121,9 +121,9 @@
           %% function is ignored
          }).
 
--type mongoose_command() :: #mongoose_command{}.
--type caller() :: admin|binary().
--type command_action() :: create | read | update | delete. %% just basic CRUD; sending a mesage is 'create'
+-opaque t() :: #mongoose_command{}.
+-type caller() :: admin | binary().
+-type action() :: create | read | update | delete. %% just basic CRUD; sending a mesage is 'create'
 
 -type typedef() :: integer | binary | float. %% most basic primitives, string is a binary
 
@@ -138,6 +138,11 @@
                                                                  %% frontend can map it to http codes
 
 -type failure() :: {error, errortype(), binary()}.
+
+-export_type([t/0]).
+-export_type([argspec/0]).
+-export_type([errortype/0]).
+-export_type([failure/0]).
 
 %%%% API
 
@@ -176,23 +181,23 @@ unregister(Cmds) ->
     unregister_commands(Commands).
 
 %% @doc List commands, available for this user.
--spec list(caller()) -> [mongoose_command()].
+-spec list(caller()) -> [t()].
 list(U) ->
     list(U, any, any).
 
 %% @doc List commands, available for this user, filtered by category.
--spec list(caller(), atom()) -> [mongoose_command()].
+-spec list(caller(), atom()) -> [t()].
 list(U, C) ->
     list(U, C, any).
 
 %% @doc List commands, available for this user, filtered by category and action.
--spec list(caller(), atom(), atom()) -> [mongoose_command()].
+-spec list(caller(), atom(), atom()) -> [t()].
 list(U, Category, Action) ->
     CL = command_list(Category, Action),
     lists:filter(fun(C) -> is_available_for(U, C) end, CL).
 
 %% @doc Get command definition, if allowed for this user.
--spec get_command(caller(), atom()) -> mongoose_command().
+-spec get_command(caller(), atom()) -> t().
 get_command(Caller, Name) ->
     case ets:lookup(mongoose_commands, Name) of
         [C] ->
@@ -206,36 +211,37 @@ get_command(Caller, Name) ->
     end.
 
 %% accessors
--spec name(mongoose_command()) -> atom().
+-spec name(t()) -> atom().
 name(Cmd) ->
     Cmd#mongoose_command.name.
 
--spec category(mongoose_command()) -> atom().
+-spec category(t()) -> atom().
 category(Cmd) ->
     Cmd#mongoose_command.category.
 
--spec desc(mongoose_command()) -> list().
+-spec desc(t()) -> list().
 desc(Cmd) ->
     Cmd#mongoose_command.desc.
 
--spec args(mongoose_command()) -> term().
+-spec args(t()) -> term().
 args(Cmd) ->
     Cmd#mongoose_command.args.
 
--spec identifiers(mongoose_command()) -> [atom()].
+-spec identifiers(t()) -> [atom()].
 identifiers(Cmd) ->
     Cmd#mongoose_command.identifiers.
 
--spec action(mongoose_command()) -> command_action().
+-spec action(t()) -> action().
 action(Cmd) ->
     Cmd#mongoose_command.action.
 
--spec result(mongoose_command()) -> term().
+-spec result(t()) -> term().
 result(Cmd) ->
     Cmd#mongoose_command.result.
 
 %% @doc Command execution.
--spec execute(caller(), atom()|mongoose_command(), [term()]|map()) -> {ok, term()} | ok | failure().
+-spec execute(caller(), atom() | t(), [term()] | map()) ->
+        {ok, term()} | ok | failure().
 execute(Caller, Name, Args) when is_atom(Name) ->
     case ets:lookup(mongoose_commands, Name) of
         [Command] -> execute_command(Caller, Command, Args);
@@ -254,7 +260,7 @@ init() ->
     end.
 
 %%%% end of API
--spec register_commands([mongoose_command()]) -> ok.
+-spec register_commands([t()]) -> ok.
 register_commands(Commands) ->
     lists:foreach(
         fun(Command) ->
@@ -265,7 +271,7 @@ register_commands(Commands) ->
         end,
         Commands).
 
--spec unregister_commands([mongoose_command()]) -> ok.
+-spec unregister_commands([t()]) -> ok.
 unregister_commands(Commands) ->
     lists:foreach(
         fun(Command) ->
@@ -294,7 +300,7 @@ execute_command(Caller, Command, Args) ->
 
 %% @doc This performs many checks - types, permissions etc, may throw one of many exceptions
 %% returns what the func returned or just ok if command spec tells so
--spec check_and_execute(caller(), mongoose_command(), [term()]) -> term().
+-spec check_and_execute(caller(), t(), [term()]) -> term().
 check_and_execute(Caller, Command, Args) when is_map(Args) ->
     check_and_execute(Caller, Command, map_to_list(Args, Command#mongoose_command.args));
 check_and_execute(Caller, Command, Args) ->
