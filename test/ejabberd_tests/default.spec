@@ -44,6 +44,7 @@
 {suites, "tests", privacy_SUITE}.
 {suites, "tests", private_SUITE}.
 {suites, "tests", pubsub_SUITE}.
+{suites, "tests", rest_SUITE}.
 {suites, "tests", s2s_SUITE}.
 {suites, "tests", sasl_SUITE}.
 {suites, "tests", shared_roster_SUITE}.
