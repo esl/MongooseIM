@@ -107,9 +107,7 @@ process_request(Method, Command, Req, #http_api_state{bindings = Binds, entity =
 process_request(Method, Command, Req, #http_api_state{bindings = Binds, entity = Entity}=State)
     when ((Method == <<"GET">>) or (Method == <<"DELETE">>)) ->
     BindsReversed = lists:reverse(Binds) ++ maybe_add_caller(Entity),
-    handle_request(Method, Command, BindsReversed, Req, State);
-process_request(M, _C, Req, State) ->
-    handle_result(M, {error, bad_request}, Req, State).
+    handle_request(Method, Command, BindsReversed, Req, State).
 
 -spec handle_request(method(), mongoose_commands:t(), args_applied(), term(), #http_api_state{}) ->
     {any(), any(), #http_api_state{}}.
@@ -120,7 +118,7 @@ handle_request(Method, Command, Args, Req, #http_api_state{entity = Entity} = St
 
 -type correct_result() :: ok | {ok, any()}.
 -type error_result() ::  mongoose_commands:failure() |
-                         {error, bad_request |  mongoose_commands:errortype()}.
+                         {error, bad_request}.
 -type expected_result() :: correct_result() | error_result().
 
 -spec handle_result(Method, Result, Req, State) -> Return when
@@ -207,7 +205,7 @@ do_extract_args(CommandsArgList, RequestArgList) ->
 
 -spec execute_command(list({atom(), any()}) | map() | {error, atom(), any()},
                       mongoose_commands:t(), admin | binary()) ->
-                     {ok, term()} | mongoose_commands:failure().
+                      correct_result() | error_result().
 execute_command({error, _Type, _Reason} = Err, _, _) ->
     Err;
 execute_command(Args, Command, Entity) ->
@@ -267,11 +265,9 @@ convert_arg(_, _Binary) ->
 create_params_proplist(ArgList) ->
     lists:sort([{to_atom(Arg), Value} || {Arg, Value} <- ArgList]).
 
--spec category_to_resource(atom() | list()) -> string().
+-spec category_to_resource(atom()) -> string().
 category_to_resource(Category) when is_atom(Category) ->
-    atom_to_list(Category);
-category_to_resource(Category) when is_list(Category) ->
-    Category.
+    atom_to_list(Category).
 
 %% @doc Returns list of allowed methods.
 -spec get_allowed_methods(admin | user) -> list(method()).
@@ -314,11 +310,9 @@ add_bind({ArgName, _}, _Entity) ->
 add_bind(Other, _) ->
     throw({error, bad_arg_spec, Other}).
 
--spec to_atom(binary() | list() | atom()) -> atom().
+-spec to_atom(binary() | atom()) -> atom().
 to_atom(Bin) when is_binary(Bin) ->
     list_to_atom(binary_to_list(Bin));
-to_atom(List) when is_list(List) ->
-    list_to_atom(List);
 to_atom(Atom) when is_atom(Atom) ->
     Atom.
 
