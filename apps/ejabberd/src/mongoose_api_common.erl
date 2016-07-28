@@ -118,9 +118,20 @@ handle_request(Method, Command, Args, Req, #http_api_state{entity = Entity} = St
     Result = execute_command(ConvertedArgs, Command, Entity),
     handle_result(Method, Result, Req, State).
 
--spec handle_result(method(),
-                   {ok, any()} | mongoose_commands:failure() | {error, mongoose_commands:errortype()},
-                   any(), #http_api_state{}) -> {any(), any(), #http_api_state{}}.
+-type correct_result() :: ok | {ok, any()}.
+-type error_result() ::  mongoose_commands:failure() |
+                         {error, bad_request |  mongoose_commands:errortype()}.
+-type expected_result() :: correct_result() | error_result().
+
+-spec handle_result(Method, Result, Req, State) -> Return when
+      Method :: method(),
+      Result :: expected_result(),
+      Req :: cowboy_req:req(),
+      State :: #http_api_state{},
+      Return :: {any(), cowboy_req:req(), #http_api_state{}}.
+handle_result(_, ok, Req, State) ->
+    {ok, Req2} = cowboy_req:reply(200, Req),
+    {halt, Req2, State};
 handle_result(<<"GET">>, {ok, Result}, Req, State) ->
     {jiffy:encode(Result), Req, State};
 handle_result(<<"POST">>, {ok, Res}, Req, State) ->
@@ -134,30 +145,27 @@ handle_result(<<"DELETE">>, {ok, _Res}, Req, State) ->
 handle_result(<<"PUT">>, {ok, _Res}, Req, State) ->
     {ok, Req2} = cowboy_req:reply(200, Req),
     {halt, Req2, State};
-handle_result(_, ok, Req, State) ->
-    {ok, Req2} = cowboy_req:reply(200, Req),
-    {halt, Req2, State};
-handle_result(_, {error, Error, Reason}, Req, State) when is_list(Reason) ->
+handle_result(_, {error, Error, Reason}, Req, State) when is_binary(Reason) ->
     error_response(Error, Reason, Req, State);
 handle_result(_, {error, Error, _R}, Req, State) ->
     error_response(Error, Req, State);
-handle_result(_, {error, Error}, Req, State) ->
-    error_response(Error, Req, State);
+% handle_result(_, {error, Error}, Req, State) ->
+%     error_response(Error, Req, State);
 handle_result(no_call, _, Req, State) ->
     error_response(not_implemented, Req, State).
 
 
--spec parse_request_body(any()) -> {args_applied(), any()} | {error, atom(), any()}.
+-spec parse_request_body(any()) -> {args_applied(), cowboy_req:req()} | {error, any()}.
 parse_request_body(Req) ->
     {ok, Body, Req2} = cowboy_req:body(Req),
     {Data} = jiffy:decode(Body),
-    Params = try
-                 create_params_proplist(Data)
-             catch
-                 error:Err ->
-                     {error, Err}
-             end,
-    {Params, Req2}.
+    try
+        Params = create_params_proplist(Data),
+        {Params, Req2}
+    catch
+        error:Err ->
+            {error, Err}
+    end.
 
 
 %% @doc Checks if the arguments are correct. Return the arguments that can be applied to the execution of command.
@@ -197,7 +205,8 @@ compare_names_extract_args({CommandsArgList, RequestArgProplist}) ->
 do_extract_args(CommandsArgList, RequestArgList) ->
     [element(2, lists:keyfind(Key, 1, RequestArgList)) || {Key, _Type} <- CommandsArgList].
 
--spec execute_command(list({atom(), any()}) | map() | {error, atom(), any()}, mongoose_commands:t(), admin|binary()) ->
+-spec execute_command(list({atom(), any()}) | map() | {error, atom(), any()},
+                      mongoose_commands:t(), admin | binary()) ->
                      {ok, term()} | mongoose_commands:failure().
 execute_command({error, _Type, _Reason} = Err, _, _) ->
     Err;
@@ -240,8 +249,6 @@ add_location_header(Result, ResourcePath, Req) ->
     {ok, Req2} = cowboy_req:reply(201, [Header], Req),
     Req2.
 
-
-
 -spec convert_arg(atom(), any()) -> integer() | float() | binary() | string() | {error, bad_type}.
 convert_arg(binary, Binary) when is_binary(Binary) ->
     Binary;
@@ -270,7 +277,7 @@ category_to_resource(Category) when is_list(Category) ->
 -spec get_allowed_methods(admin | user) -> list(method()).
 get_allowed_methods(Entity) ->
     Commands = mongoose_commands:list(Entity),
-    [action_to_method(mongoose_commands:action(Command)) || {_Name, Command} <- Commands].
+    [action_to_method(mongoose_commands:action(Command)) || Command <- Commands].
 
 -spec maybe_add_bindings(mongoose_commands:t(), admin|user) -> string().
 maybe_add_bindings(Command, Entity) ->

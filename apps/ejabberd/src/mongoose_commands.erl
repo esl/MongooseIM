@@ -122,7 +122,7 @@
          }).
 
 -opaque t() :: #mongoose_command{}.
--type caller() :: admin | binary().
+-type caller() :: admin | binary() | user.
 -type action() :: create | read | update | delete. %% just basic CRUD; sending a mesage is 'create'
 
 -type typedef() :: integer | binary | float. %% most basic primitives, string is a binary
