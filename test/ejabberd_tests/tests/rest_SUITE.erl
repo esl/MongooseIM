@@ -82,23 +82,36 @@ host() ->
     ct:get_config({hosts, mim, domain}).
 
 init_per_suite(Config) ->
+    Config1 = maybe_enable_mam(mam_helper:is_mam_possible(host()), Config),
+    escalus:init_per_suite(Config1).
+
+maybe_enable_mam(true, Config) ->
     init_module(host(), mod_mam_odbc_arch, [muc, pm, simple]),
     init_module(host(), mod_mam_odbc_prefs, [muc, pm]),
     init_module(host(), mod_mam_odbc_user, [muc, pm]),
     init_module(host(), mod_mam, []),
     init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
-    escalus:init_per_suite(Config).
+    [{mam_enabled, true} | Config];
+maybe_enable_mam(_, C) ->
+    C.
+
 
 init_module(Host, Mod, Opts) ->
     dynamic_modules:start(Host, Mod, Opts).
 
 end_per_suite(Config) ->
+    maybe_disable_mam(proplists:get_value(mam_enabled, Config)),
+    escalus:end_per_suite(Config).
+
+maybe_disable_mam(true) ->
     stop_module(host(), mod_mam_odbc_arch),
     stop_module(host(), mod_mam_odbc_prefs),
     stop_module(host(), mod_mam_odbc_user),
     stop_module(host(), mod_mam),
-    stop_module(host(), mod_mam_muc),
-    escalus:end_per_suite(Config).
+    stop_module(host(), mod_mam_muc);
+maybe_disable_mam(_) ->
+    ok.
+
 
 stop_module(Host, Mod) ->
     dynamic_modules:stop(Host, Mod).
@@ -112,7 +125,18 @@ end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config, escalus:get_users([bob, mike])).
 
 init_per_testcase(CaseName, Config) ->
-    escalus:init_per_testcase(CaseName, Config).
+    MAMTestCases = [messages, user_messages],
+    maybe_skip_mam_test_cases(lists:member(CaseName, MAMTestCases), CaseName, Config).
+
+maybe_skip_mam_test_cases(false, CaseName, Config) ->
+    escalus:init_per_testcase(CaseName, Config);
+maybe_skip_mam_test_cases(true, CaseName, Config) ->
+    case proplists:get_value(mam_enabled, Config) of
+        true ->
+            escalus:init_per_testcase(CaseName, Config);
+        _ ->
+            {skip, mam_not_available}
+    end.
 
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
