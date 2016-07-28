@@ -47,7 +47,7 @@ setup() ->
 
 teardown() ->
     meck:unload(),
-    ejabberd_cowboy:stop(ejabberd_cowboy:handler({?PORT, ?IP, tcp})),
+    cowboy:stop_listener(ejabberd_cowboy:ref({?PORT, ?IP, tcp})),
     application:stop(cowboy),
     ok.
 
