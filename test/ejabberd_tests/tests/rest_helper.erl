@@ -127,7 +127,12 @@ make_request(Method, Path, ReqBody) ->
 decode(<<>>) ->
     <<"">>;
 decode(RespBody) ->
-    jiffy:decode(RespBody).
+    try
+        jiffy:decode(RespBody)
+    catch
+        throw:_ ->
+            RespBody
+    end.
 
 %% a request specyfying credentials is directed to client http listener
 fusco_request({Method, {User, Password}}, Path, Body) ->

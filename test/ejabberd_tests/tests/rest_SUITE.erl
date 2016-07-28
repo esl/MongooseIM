@@ -56,8 +56,8 @@ all() ->
     ].
 
 groups() ->
-    [{adminside, [sequence], test_cases()},
-     {userside, [sequence], user_test_cases()}
+    [{adminside, [], test_cases()},
+     {userside, [], user_test_cases()}
     ].
 
 test_cases() ->
@@ -78,11 +78,30 @@ suite() ->
 %% Init & teardown
 %%--------------------------------------------------------------------
 
+host() ->
+    ct:get_config({hosts, mim, domain}).
+
 init_per_suite(Config) ->
+    init_module(host(), mod_mam_odbc_arch, [muc, pm, simple]),
+    init_module(host(), mod_mam_odbc_prefs, [muc, pm]),
+    init_module(host(), mod_mam_odbc_user, [muc, pm]),
+    init_module(host(), mod_mam, []),
+    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
     escalus:init_per_suite(Config).
 
+init_module(Host, Mod, Opts) ->
+    dynamic_modules:start(Host, Mod, Opts).
+
 end_per_suite(Config) ->
+    stop_module(host(), mod_mam_odbc_arch),
+    stop_module(host(), mod_mam_odbc_prefs),
+    stop_module(host(), mod_mam_odbc_user),
+    stop_module(host(), mod_mam),
+    stop_module(host(), mod_mam_muc),
     escalus:end_per_suite(Config).
+
+stop_module(Host, Mod) ->
+    dynamic_modules:stop(Host, Mod).
 
 init_per_group(_GroupName, Config) ->
     escalus:create_users(Config, escalus:get_users([alice, bob])),
@@ -127,7 +146,7 @@ basic(_Config) ->
     {?OK, Lusers} = gett(<<"/user/host/localhost">>),
     assert_inlist(<<"alice@localhost">>, Lusers),
     % create user
-    CrUser = #{user => <<"mike">>, password => <<"nicniema">>, host => <<"localhost">>},
+    CrUser = #{user => <<"mike">>, password => <<"nicniema">>},
     {?CREATED, _} = post(<<"/user/host/localhost">>, CrUser),
     {?OK, Lusers1} = gett(<<"/user/host/localhost">>),
     assert_inlist(<<"mike@localhost">>, Lusers1),
