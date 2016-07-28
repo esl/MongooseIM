@@ -1887,15 +1887,19 @@ add_new_user(From, Nick, #xmlel{attrs = Attrs, children = Els} = Packet, StateDa
     end.
 
 make_http_auth_request(From, Nick, Packet, Role, RoomJid, RoomPid, Password, Pool) ->
-    FromBin = jid:to_binary(From),
-    RoomJidBin = jid:to_binary(RoomJid),
+    FromVal = uri_encode(jid:to_binary(From)),
+    RoomJidVal = uri_encode(jid:to_binary(RoomJid)),
+    PassVal = uri_encode(Password),
     Path = <<"/check_password">>,
-    Query = <<"from=", FromBin/binary, "&to=", RoomJidBin/binary, "&pass=", Password/binary>>,
+    Query = <<"from=", FromVal/binary, "&to=", RoomJidVal/binary, "&pass=", PassVal/binary>>,
     Result = case mod_http_client:make_request(Pool, Path, <<"GET">>, [], Query) of
                  {ok, {<<"200">>, Body}} -> decode_http_auth_response(Body);
                  _ -> error
              end,
     gen_fsm:send_event(RoomPid, {http_auth, self(), Result, From, Nick, Packet, Role}).
+
+uri_encode(Bin) ->
+    list_to_binary(http_uri:encode(binary_to_list(Bin))).
 
 decode_http_auth_response(Body) ->
     try decode_json_auth_response(Body) of
