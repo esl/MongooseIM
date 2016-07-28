@@ -312,7 +312,7 @@ add_bind(Other, _) ->
 
 -spec to_atom(binary() | atom()) -> atom().
 to_atom(Bin) when is_binary(Bin) ->
-    list_to_atom(binary_to_list(Bin));
+    erlang:binary_to_existing_atom(Bin, utf8);
 to_atom(Atom) when is_atom(Atom) ->
     Atom.
 
