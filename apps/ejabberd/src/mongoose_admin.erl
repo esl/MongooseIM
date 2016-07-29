@@ -225,16 +225,14 @@ record_to_map({Id, From, Msg}) ->
                 {value, MId} -> MId;
                 false -> <<"">>
             end,
-    Body = xml:get_tag_cdata(xml:get_path_s(Msg, [{elem, <<"body">>}])),
+    Body = exml_query:path(Msg, [{element, <<"body">>}, cdata]),
     #{sender => Jbin, timestamp => round(Msec / 1000000), message_id => MsgId, body => Body}.
-
 
 build_packet(message_chat, Body) ->
     #xmlel{ name = <<"message">>,
         attrs = [{<<"type">>, <<"chat">>}, {<<"id">>, list_to_binary(randoms:get_string())}],
         children = [#xmlel{ name = <<"body">>, children = [#xmlcdata{content = Body}]}]
     }.
-
 
 lookup_recent_messages(_, _, Limit) when Limit > 500 ->
     throw({error, message_limit_too_high});
@@ -249,7 +247,7 @@ lookup_recent_messages(ArcJID, OtherJID, Limit) ->
     RSM = #rsm_in{direction = before, id = undefined}, % last msgs
     Start = undefined,
     End = undefined,
-    Now = mod_mam_utils:now_to_microseconds(now()),
+    Now = mod_mam_utils:now_to_microseconds(os:timestamp()),
     WithJID = OtherJID,
     PageSize = Limit,
     LimitPassed = false,
@@ -262,7 +260,5 @@ lookup_recent_messages(ArcJID, OtherJID, Limit) ->
     {ok, {_, _, L}} = R,
     L.
 
-to_binary(V) when is_list(V) ->
-    list_to_binary(V);
-to_binary(V) when is_binary(V) ->
-    V.
+to_binary(V) ->
+    list_to_binary(V).
