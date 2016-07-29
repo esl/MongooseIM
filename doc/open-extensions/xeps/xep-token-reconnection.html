@@ -1,0 +1,146 @@
+<?xml version="1.0"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>XEP-xxxx: Token-based reconnection</title><link rel="stylesheet" type="text/css" href="../xmpp.css" /><link href="../prettify.css" type="text/css" rel="stylesheet" /><link rel="shortcut icon" type="image/x-icon" href="/favicon.ico" /><script type="text/javascript" src="../prettify.js"></script><meta name="viewport" content="width=device-width; initial-scale=1.0; maximum-scale=2.0" /><meta name="DC.Title" content="Token-based reconnection" /><meta name="DC.Creator" content="Micha&#x142; Piotrowski" /><meta name="DC.Creator" content="Rados&#x142;aw Szymczyszyn" /><meta name="DC.Description" content="This specification defines a token-based session authentication mechanism." /><meta name="DC.Publisher" content="XMPP Standards Foundation" /><meta name="DC.Contributor" content="XMPP Extensions Editor" /><meta name="DC.Date" content="2016-02-04" /><meta name="DC.Type" content="XMPP Extension Protocol" /><meta name="DC.Format" content="XHTML" /><meta name="DC.Identifier" content="XEP-xxxx" /><meta name="DC.Language" content="en" /><meta name="DC.Rights" content="This XMPP Extension Protocol is copyright (c) 1999 - 2016 by the XMPP Standards Foundation (XSF)." /></head><body onload="prettyPrint()"><h1>XEP-xxxx: Token-based reconnection</h1><table><tr valign="top"><td><strong>Abstract:</strong></td><td>This specification defines a token-based session authentication mechanism.</td></tr><tr valign="top"><td><strong>Authors:</strong></td><td>Michał Piotrowski, Radosław Szymczyszyn</td></tr><tr valign="top"><td><strong>Copyright:</strong></td><td>© 1999 - 2015 XMPP Standards Foundation. <a href="#appendix-legal">SEE LEGAL NOTICES</a>.</td></tr><tr valign="top"><td><strong>Status:</strong></td><td>ProtoXEP</td></tr><tr valign="top"><td><strong>Type:</strong></td><td>Standards Track</td></tr><tr valign="top"><td><strong>Version:</strong></td><td>0.0.1</td></tr><tr valign="top"><td><strong>Last Updated:</strong></td><td>2016-02-04</td></tr></table><hr /><p style="color:red">WARNING: This document has not yet been accepted for consideration or approved in any official manner by the XMPP Standards Foundation, and this document is not yet an XMPP Extension Protocol (XEP). If this document is accepted as a XEP by the XMPP Council, it will be published at &lt;<a href="http://xmpp.org/extensions/">http://xmpp.org/extensions/</a>&gt; and announced on the &lt;standards@xmpp.org&gt; mailing list.</p><hr /><h2>Table of Contents</h2><div class="indent"><p><br />1.  <a href="#intro">Introduction</a><br />2.  <a href="#reqs">Requirements</a><br />3.  <a href="#glossary">Glossary</a><br />   
+      3.1.  <a href="#token_types">Token types</a><br />   
+      3.2.  <a href="#token_formats">Token format</a><br />      
+      3.2.1.  <a href="#sect-idm546202055568">Access token format</a><br />      
+      3.2.2.  <a href="#sect-idm546202052352">Refresh token format</a><br />4.  <a href="#usecases">Use Cases</a><br />   
+      4.1.  <a href="#obtaining_token">Obtaining a token</a><br />   
+      4.2.  <a href="#access_token_auth">Authentication with an access token</a><br />   
+      4.3.  <a href="#refresh_token_auth">Authentication with a refresh token</a><br />5.  <a href="#rules">Business Rules</a><br />6.  <a href="#impl">Implementation Notes</a><br />7.  <a href="#security">Security Considerations</a><br />8.  <a href="#iana">IANA Considerations</a><br />9.  <a href="#registrar">XMPP Registrar Considerations</a><br />10.  <a href="#schema">XML Schema</a></p><p><a href="#appendices">Appendices</a><br />    <a href="#appendix-docinfo">A: Document Information</a><br />    <a href="#appendix-authorinfo">B: Author Information</a><br />    <a href="#appendix-legal">C: Legal Notices</a><br />    <a href="#appendix-xmpp">D: Relation to XMPP</a><br />    <a href="#appendix-discuss">E: Discussion Venue</a><br />    <a href="#appendix-conformance">F: Requirements Conformance</a><br />    <a href="#appendix-notes">G: Notes</a><br />    <a href="#appendix-revs">H: Revision History</a></p></div><hr /><h2>1.
+       <a name="intro" id="intro">Introduction</a></h2>
+  <p class="" style="">Automatic reconnection after spurious disconnection is a must-have feature in modern IM applications. One way of providing this feature is storing user login information on disk for reuse. However, plaintext storage of passwords is inherently insecure, while protecting the XMPP password with a master-password is inconvenient for the end-user. With a token-based authentication mechanism, the user only has to provide login information once, for the initial connection to the XMPP server, and can later rely on the application's automatic use of tokens for subsequent reconnections.</p>
+  <p class="" style="">Moreover, while reconnecting to the XMPP server, the client usually has to go through the same long process of SASL challenge-response exchange which may lead to a noticably long reconnection time, especially while using SCRAM-based mechanisms. Providing a token to the XMPP server is both secure and doesn't require multiple challenge-response roundtrips, therefore might significantly speed up reconnection times.</p>
+<h2>2.
+       <a name="reqs" id="reqs">Requirements</a></h2>
+  <p class="" style="">This extension requires the client application to authenticate to the XMPP server using a regular XMPP authentication mechanism like SCRAM-SHA-1 at least once. After that, the following authentications may be done using X-OAUTH SASL mechanism with a token obtained from the server.</p>
+<h2>3.
+       <a name="glossary" id="glossary">Glossary</a></h2>
+  <div class="indent"><h3>3.1 <a name="token_types" id="token_types">Token types</a></h3>
+    <div class="indent"><p class="caption"><a name="table-1" id="table-1"></a>Table 1: Token types</p><table border="1" cellpadding="3" cellspacing="0">
+      <tr class="body"><th colspan="" rowspan="">Token Type</th><th colspan="" rowspan="">Description</th></tr>
+      <tr class="body"><td colspan="" rowspan="">Access token</td><td colspan="" rowspan="">These are short lived tokens whose grants aren't
+  tracked by the server (i.e. there's no need to store anything in a database).
+  Access tokens can be used as a payload for the X-OAUTH authentication mechanism
+  and grant access to the system.
+  Access tokens can't be revoked.
+  An access token is valid only until its expiry date is reached.</td></tr>
+      <tr class="body"><td colspan="" rowspan="">Refresh token</td><td colspan="" rowspan="">These are longer lived tokens which are tracked by the server,
+  therefore require persistent storage.
+  Refresh tokens can be used as a payload for the X-OAUTH authentication mechanism
+  and grant access to the system, as well as result in a new set of tokens being
+  returned upon successful authentication.
+  Refresh tokens can be revoked.
+  A refresh token is valid until it has expired, unless it has been revoked.
+  On revocation, it immediately becomes invalid.
+  As the server stores information about granted tokens, it can also
+  persistently mark them as revoked.</td></tr>
+    </table></div>
+    <p class="" style="">While only two token types have been described above, implementations might use other token types for specific purposes. For example, a particular token type could limit the access privileges of a user logged into the system or denote an affiliation with a Multi User Chat room. None of such capability grants are subject of this specification, though.</p>
+  </div>
+  <div class="indent"><h3>3.2 <a name="token_formats" id="token_formats">Token format</a></h3>
+    <p class="" style=""><span class="strong">This section is informal.</span> The token formats described below are used in one of the experimental implementations, but are not proposed as standard. If such a standard turns out to be required, then <a href="http://jwt.io/">JSON Web Tokens</a> might be a viable format to adopt.</p>
+    <p class="" style="">All tokens are exchanged as Base64 encoded binary data. Serialization format of the token before encoding with Base64 is dependent on its type. Common parts in every token are <tt>BARE_JID</tt> and <tt>EXPIRES_AT</tt>. <tt>EXPIRES_AT</tt> is a timestamp saying when given token will expire. <tt>\0</tt> stands for the ASCII null character (i.e. byte 0). Text in single quotes (<tt>'example'</tt>) is literal. <tt>ALL_CAPS</tt> denote parameters.</p>
+    <div class="indent"><h3>3.2.1 <a name="sect-idm546202055568" id="sect-idm546202055568">Access token format</a></h3>
+      <p class="caption"></p><div class="indent"><pre class="prettyprint">
+BASE64_encode
+        ('access', \0, BARE_JID, \0, EXPIRES_AT, \0, DATA)
+      </pre></div>
+      <p class="" style="">Example, please note the line break was added only for readability:</p>
+      <p class="caption"></p><div class="indent"><pre class="prettyprint">
+'access' \0 Q8@wonderland.com \0 64875466454
+    \0 0acd0a66d06934791d046060cf9f1ad3c2abb3274cc7e7d7b2bc7e2ac4453ed774b6c6813b40ebec2bbc3774d59d4087
+      </pre></div>
+    </div>
+    <div class="indent"><h3>3.2.2 <a name="sect-idm546202052352" id="sect-idm546202052352">Refresh token format</a></h3>
+      <p class="caption"></p><div class="indent"><pre class="prettyprint">
+BASE64_encode
+        ('refresh', \0, BARE_JID, \0, EXPIRES_AT, \0, SEQUENCE_NO, \0, DATA)
+      </pre></div>
+      <p class="" style="">Example, please note the line break was added only for readability:</p>
+      <p class="caption"></p><div class="indent"><pre class="prettyprint">
+'refresh' \0 qp@wonderland.com \0 64875466457 \0 6
+    \0 8f57cb019cd6dc6e7779be165b9558611baf71ee4a40d03e77b78b069f482f96c9d23b1ac1ef69f64c1a1db3d36a96ad
+      </pre></div>
+    </div>
+  </div>
+<h2>4.
+       <a name="usecases" id="usecases">Use Cases</a></h2>
+  <div class="indent"><h3>4.1 <a name="obtaining_token" id="obtaining_token">Obtaining a token</a></h3>
+    <p class="" style="">After authentication with some other mechanism like SCRAM-SHA-1, a client may request a token from the server by sending following iq get to its own bare JID:</p>
+    <p class="caption"><a name="example-1" id="example-1"></a>Example 1. Client requests tokens</p><div class="indent"><pre class="prettyprint">
+&lt;iq type='get' to='alice@wonderland.com' id='123'&gt;
+    &lt;query xmlns='erlang-solutions.com:xmpp:token-auth:0'/&gt;
+&lt;/iq&gt;
+</pre></div>
+    <p class="caption"><a name="example-2" id="example-2"></a>Example 2. Servers responds with tokens</p><div class="indent"><pre class="prettyprint">
+&lt;iq from="alice@wonderland.com" type="result" to="alice@wonderland.com/resource" id="123"&gt;
+  &lt;items xmlns="erlang-solutions.com:xmpp:token-auth:0"&gt;
+    &lt;access_token&gt;YWNjZXNzAGFsaWNlQHdvbmRlcmxhbmQuY29tL01pY2hhbC1QaW90cm93c2tpcy1NYWNCb29rLVBybwA2MzYyMTg4Mzc2NAA4M2QwNzNiZjBkOGJlYzVjZmNkODgyY2ZlMzkyZWM5NGIzZjA4ODNlNDI4ZjQzYjc5MGYxOWViM2I2ZWJlNDc0ODc3MDkxZTIyN2RhOGMwYTk2ZTc5ODBhNjM5NjE1Zjk=&lt;/access_token&gt;
+    &lt;refresh_token&gt;cmVmcmVzaABhbGljZUB3b25kZXJsYW5kLmNvbS9NaWNoYWwtUGlvdHJvd3NraXMtTWFjQm9vay1Qcm8ANjM2MjMwMDYxODQAMQAwZGQxOGJjODhkMGQ0N2MzNTBkYzAwYjcxZjMyZDVmOWIwOTljMmI1ODU5MmNhN2QxZGFmNWFkNGM0NDQ2ZGU2MWYxYzdhNTJjNDUyMGI5YmIxNGIxNTMwMTE4YTM1NTc=&lt;/refresh_token&gt;
+  &lt;/items&gt;
+&lt;/iq&gt;
+      </pre></div>
+  </div>
+  <div class="indent"><h3>4.2 <a name="access_token_auth" id="access_token_auth">Authentication with an access token</a></h3>
+    <p class="caption"><a name="example-3" id="example-3"></a>Example 3. Client authenticates with access token</p><div class="indent"><pre class="prettyprint">
+&lt;auth xmlns="urn:ietf:params:xml:ns:xmpp-sasl" mechanism="X-OAUTH"&gt;
+YWNjZXNzAGFsaWNlQHdvbmRlcmxhbmQuY29tL01pY2hhbC1QaW90cm93c2tpcy1NYWNCb29rLVBybwA2MzYyMTg4Mzc2NAA4M2QwNzNiZjBkOGJlYzVjZmNkODgyY2ZlMzkyZWM5NGIzZjA4ODNlNDI4ZjQzYjc5MGYxOWViM2I2ZWJlNDc0ODc3MDkxZTIyN2RhOGMwYTk2ZTc5ODBhNjM5NjE1Zjk=
+&lt;/auth&gt;
+</pre></div>
+  <p class="caption"><a name="example-4" id="example-4"></a>Example 4. Server responds with success</p><div class="indent"><pre class="prettyprint">
+&lt;success xmlns="urn:ietf:params:xml:ns:xmpp-sasl"/&gt;
+    </pre></div>
+  </div>
+  <div class="indent"><h3>4.3 <a name="refresh_token_auth" id="refresh_token_auth">Authentication with a refresh token</a></h3>
+    <p class="" style="">In this situation server will respond with a new refresh token which SHOULD be used in future authentication.</p>
+    <p class="caption"><a name="example-5" id="example-5"></a>Example 5. Client authenticates with refresh token</p><div class="indent"><pre class="prettyprint">
+&lt;auth xmlns="urn:ietf:params:xml:ns:xmpp-sasl" mechanism="X-OAUTH"&gt;
+cmVmcmVzaABhbGljZUB3b25kZXJsYW5kLmNvbS9NaWNoYWwtUGlvdHJvd3NraXMtTWFjQm9vay1Qcm8ANjM2MjMwMDYxODQAMQAwZGQxOGJjODhkMGQ0N2MzNTBkYzAwYjcxZjMyZDVmOWIwOTljMmI1ODU5MmNhN2QxZGFmNWFkNGM0NDQ2ZGU2MWYxYzdhNTJjNDUyMGI5YmIxNGIxNTMwMTE4YTM1NTc=
+&lt;/auth&gt;
+    </pre></div>
+    <p class="caption"><a name="example-6" id="example-6"></a>Example 6. Server responds with success and new refresh token</p><div class="indent"><pre class="prettyprint">
+&lt;success xmlns="urn:ietf:params:xml:ns:xmpp-sasl"&gt;
+cmVmcmVzaABhbGljZUB3b25kZXJsYW5kLmNvbS9NaWNoYWwtUGlvdHJvd3NraXMtTWFjQm9vay1Qcm8ANjM2MjMwMDYxODQAMgAwZGQxOGJjODhkMGQ0N2MzNTBkYzAwYjcxZjMyZDVmOWIwOTljMmI1ODU5MmNhN2QxZGFmNWFkNGM0NDQ2ZGU2MWYxYzdhNTJjNDUyMGI5YmIxNGIxNTMwMTE4YTM1NTc=
+&lt;/success&gt;    </pre></div>
+  </div>
+<h2>5.
+       <a name="rules" id="rules">Business Rules</a></h2>
+  <p class="" style="">A classical authentication is required in order to be able to use a token-based authentication later.</p>
+<h2>6.
+       <a name="impl" id="impl">Implementation Notes</a></h2>
+  <p class="" style="">The DATA field in token is relevant only to the XMPP server supporting  this extension.</p>
+<h2>7.
+       <a name="security" id="security">Security Considerations</a></h2>
+  <p class="" style="">The tokens MUST be exhanged over a secured/encrypted C2S stream (via TLS, for example).</p>
+<h2>8.
+       <a name="iana" id="iana">IANA Considerations</a></h2>
+  <p class="" style="">This document requires no interaction with the <span class="ref" style=""><a href="http://www.iana.org/">Internet Assigned Numbers Authority (IANA)</a></span>  [<a href="#nt-idm546202027968">1</a>].</p>
+<h2>9.
+       <a name="registrar" id="registrar">XMPP Registrar Considerations</a></h2>
+  <p class="" style="">This document requires no interaction with the <span class="ref" style=""><a href="http://xmpp.org/registrar/">XMPP Registrar</a></span>  [<a href="#nt-idm546202021408">2</a>].</p>
+<h2>10.
+       <a name="schema" id="schema">XML Schema</a></h2>
+  <p class="" style="">REQUIRED for protocol specifications.</p>
+<hr /><a name="appendices" id="appendices"></a><h2>Appendices</h2><hr /><a name="appendix-docinfo" id="appendix-docinfo"></a><h3>Appendix A: Document Information</h3><p class="indent">
+            Series: <a href="http://xmpp.org/extensions/">XEP</a><br />
+            Number: xxxx<br />
+            Publisher: <a href="/xsf/">XMPP Standards Foundation</a><br />
+            Status: 
+            <a href="http://xmpp.org/extensions/xep-0001.html#states-ProtoXEP">ProtoXEP</a><br />
+            Type:
+            <a href="http://xmpp.org/extensions/xep-0001.html#types-Standards Track">Standards Track</a><br />
+            Version: 0.0.1<br />
+            Last Updated: 2016-02-04<br />
+                Approving Body: <a href="http://xmpp.org/council/">XMPP Council</a><br />Dependencies: XMPP Core, XEP-0001<br />
+                Supersedes: None<br />
+                Superseded By: None<br />
+            Short Name: NOT_YET_ASSIGNED<br />
+            This document in other formats: 
+                <a class="standardsButton" href="http://xmpp.org/extensions/xep-xxxx.xml">XML</a> 
+                <a class="standardsButton" href="http://xmpp.org/extensions/xep-xxxx.pdf">PDF</a></p><hr /><a name="appendix-authorinfo" id="appendix-authorinfo"></a><h3>Appendix B: Author Information</h3><div class="indent"><h3>Michał Piotrowski</h3><p class="indent">
+        Email:
+        <a href="mailto:michal.piotrowski@erlang-solutions.com">michal.piotrowski@erlang-solutions.com</a><br /></p><h3>Radosław Szymczyszyn</h3><p class="indent">
+        Email:
+        <a href="mailto:radoslaw.szymczyszyn@erlang-solutions.com">radoslaw.szymczyszyn@erlang-solutions.com</a><br /></p></div><hr /><a name="appendix-legal" id="appendix-legal"></a><h3>Appendix C: Legal Notices</h3><div class="indent"><h4>Copyright</h4>This XMPP Extension Protocol is copyright (c) 1999 - 2016 by the XMPP Standards Foundation (XSF).<h4>Permissions</h4>Permission is hereby granted, free of charge, to any person obtaining a copy of this specification (the "Specification"), to make use of the Specification without restriction, including without limitation the rights to implement the Specification in a software program, deploy the Specification in a network service, and copy, modify, merge, publish, translate, distribute, sublicense, or sell copies of the Specification, and to permit persons to whom the Specification is furnished to do so, subject to the condition that the foregoing copyright notice and this permission notice shall be included in all copies or substantial portions of the Specification. Unless separate permission is granted, modified works that are redistributed shall not contain misleading information regarding the authors, title, number, or publisher of the Specification, and shall not claim endorsement of the modified works by the authors, any organization or project to which the authors belong, or the XMPP Standards Foundation.<h4>Disclaimer of Warranty</h4><span style="font-weight: bold">## NOTE WELL: This Specification is provided on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or implied, including, without limitation, any warranties or conditions of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A PARTICULAR PURPOSE. In no event shall the XMPP Standards Foundation or the authors of this Specification be liable for any claim, damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of, or in connection with the Specification or the implementation, deployment, or other use of the Specification. ##</span><h4>Limitation of Liability</h4>In no event and under no legal theory, whether in tort (including negligence), contract, or otherwise, unless required by applicable law (such as deliberate and grossly negligent acts) or agreed to in writing, shall the XMPP Standards Foundation or any author of this Specification be liable for damages, including any direct, indirect, special, incidental, or consequential damages of any character arising out of the use or inability to use the Specification (including but not limited to damages for loss of goodwill, work stoppage, computer failure or malfunction, or any and all other commercial damages or losses), even if the XMPP Standards Foundation or such author has been advised of the possibility of such damages.<h4>IPR Conformance</h4>This XMPP Extension Protocol has been contributed in full conformance with the XSF's Intellectual Property Rights Policy (a copy of which may be found at &lt;<a href="http://xmpp.org/extensions/ipr-policy.shtml">http://xmpp.org/extensions/ipr-policy.shtml</a>&gt; or obtained by writing to XSF, P.O. Box 1641, Denver, CO 80201 USA).</div><hr /><a name="appendix-xmpp" id="appendix-xmpp"></a><h3>Appendix D: Relation to XMPP</h3><p class="indent">The Extensible Messaging and Presence Protocol (XMPP) is defined in the XMPP Core (RFC 6120) and XMPP IM (RFC 6121) specifications contributed by the XMPP Standards Foundation to the Internet Standards Process, which is managed by the Internet Engineering Task Force in accordance with RFC 2026. Any protocol defined in this document has been developed outside the Internet Standards Process and is to be understood as an extension to XMPP rather than as an evolution, development, or modification of XMPP itself.</p><hr /><a name="appendix-discuss" id="appendix-discuss"></a><h3>Appendix E: Discussion Venue</h3><p class="indent">The primary venue for discussion of XMPP Extension Protocols is the &lt;<a href="http://mail.jabber.org/mailman/listinfo/standards">standards@xmpp.org</a>&gt; discussion list.</p><p class="indent">Discussion on other xmpp.org discussion lists might also be appropriate; see &lt;<a href="http://xmpp.org/about/discuss.shtml">http://xmpp.org/about/discuss.shtml</a>&gt; for a complete list.</p><p class="indent">Errata can be sent to &lt;<a href="mailto:editor@xmpp.org">editor@xmpp.org</a>&gt;.</p><hr /><a name="appendix-conformance" id="appendix-conformance"></a><h3>Appendix F: Requirements Conformance</h3><p class="indent">The following requirements keywords as used in this document are to be interpreted as described in <a href="http://www.ietf.org/rfc/rfc2119.txt">RFC 2119</a>: "MUST", "SHALL", "REQUIRED"; "MUST NOT", "SHALL NOT"; "SHOULD", "RECOMMENDED"; "SHOULD NOT", "NOT RECOMMENDED"; "MAY", "OPTIONAL".</p><hr /><a name="appendix-notes" id="appendix-notes"></a><h3>Appendix G: Notes</h3><div class="indent"><p><a name="nt-idm546202027968" id="nt-idm546202027968">1</a>. The Internet Assigned Numbers Authority (IANA) is the central coordinator for the assignment of unique parameter values for Internet protocols, such as port numbers and URI schemes. For further information, see &lt;<a href="http://www.iana.org/">http://www.iana.org/</a>&gt;.</p><p><a name="nt-idm546202021408" id="nt-idm546202021408">2</a>. The XMPP Registrar maintains a list of reserved protocol namespaces as well as registries of parameters used in the context of XMPP extension protocols approved by the XMPP Standards Foundation. For further information, see &lt;<a href="http://xmpp.org/registrar/">http://xmpp.org/registrar/</a>&gt;.</p></div><hr /><a name="appendix-revs" id="appendix-revs"></a><h3>Appendix H: Revision History</h3><p>Note: Older versions of this specification might be available at <a href="http://xmpp.org/extensions/attic/">http://xmpp.org/extensions/attic/</a></p><div class="indent"><h4>Version 0.0.1 (2016-02-04)</h4><div class="indent"><p class="" style="">First draft.</p> (mp)
+    </div></div><hr /><p>END</p></body></html>
