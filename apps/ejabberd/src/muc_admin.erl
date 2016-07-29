@@ -24,6 +24,7 @@
 
 -export([create_room/4]).
 -export([invite_to_room/5]).
+-export([send_message_to_room/4]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
@@ -67,6 +68,23 @@ commands() ->
         {recipient, binary},
         {reason, binary}
        ]},
+      {result, ok}],
+
+     %% This breaks the module because we have two HTTP end-points
+     %% with the same URL and method.
+     [{name, send_message_to_room},
+      {category, muc},
+      {desc, "Send a message to a MUC room from a given user."},
+      {module, ?MODULE},
+      {function, send_message_to_room},
+      {action, update},
+      {identifiers, [domain, name]},
+      {args,
+       [{domain, binary},
+        {name, binary},
+        {sender, binary},
+        {message, binary}
+       ]},
       {result, ok}]
 
     ].
@@ -93,6 +111,25 @@ invite_to_room(Domain, Name, Sender, Recipient, Reason) ->
           },
     Invite = #xmlel{name = <<"message">>, children = [ X ]},
     ejabberd_router:route(S, R, Invite).
+
+send_message_to_room(Domain, Name, Sender, Message) ->
+    S = jid:from_binary(Sender),
+    Room = jid:from_binary(room_jid(Name, Domain)),
+    X = #xmlel{
+           name = <<"body">>,
+           children =
+               [ #xmlcdata{ content = Message } ]
+          },
+    Stanza = #xmlel{
+                 name = <<"message">>, 
+                 attrs = [{<<"type">>, <<"groupchat">>}],
+                 children = [ X ]},
+    ejabberd_router:route(S, Room, Stanza).
+
+
+%%--------------------------------------------------------------------
+%% Ancillary
+%%--------------------------------------------------------------------
 
 room_jid(Name, Domain) ->
     MUCDomain = gen_mod:get_module_opt_host(Domain, mod_muc,

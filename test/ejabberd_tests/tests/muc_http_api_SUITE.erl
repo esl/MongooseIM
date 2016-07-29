@@ -40,7 +40,9 @@ groups() ->
 success_response() ->
     [
      create_room,
-     invite_to_room
+     invite_online_user_to_room,
+     %% invite_offline_user_to_room, %% TO DO.
+     send_message_to_room
     ].
 
 
@@ -88,25 +90,45 @@ create_room(Config) ->
         escalus:assert(is_stanza_from, [muc_helper:muc_host()], Stanza)
     end).
 
-invite_to_room(Config) ->
+invite_online_user_to_room(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-
         Path = <<"/muc/domain/localhost/name/wonderland">>,
         Reason = <<"I think you'll like this room!">>,
         Body = #{sender => escalus_utils:get_jid(Alice),
                  recipient => escalus_utils:get_jid(Bob),
                  reason => Reason},
-
         {{<<"200">>, _}, <<"">>} = rest_helper:putt(Path, Body),
-
         Stanza = escalus:wait_for_stanza(Bob),
         is_direct_invitation(Stanza),
         direct_invite_has_reason(Stanza, Reason)
     end).
 
+send_message_to_room(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        %% Alice creates a MUC room.
+        muc_helper:start_room([], escalus_users:get_user_by_name(alice),
+                              <<"wonderland">>, <<"ali">>, []),
+        %% Bob enters the room.
+        escalus:send(Bob,
+                     muc_helper:stanza_muc_enter_room(<<"wonderland">>,
+                                                      <<"bobcat">>)),
+        escalus:wait_for_stanzas(Bob, 2),
+        %% Parameters for this test.
+        Domain = <<"localhost">>,
+        Name = <<"wonderland">>,
+        Path = <<"/muc/domain", $/, Domain/binary, $/, "name", $/, Name/binary>>,
+        Message = <<"Greetings!">>,
+        Body = #{sender => escalus_utils:get_jid(Bob),
+                 message => Message},
+        %% The HTTP call in question.
+        {{<<"200">>, _}, <<"">>} = rest_helper:putt(Path, Body),
+        Got = escalus:wait_for_stanza(Bob),
+        escalus:assert(is_message, Got),
+        Message = exml_query:path(Got, [{element, <<"body">>}, cdata])
+    end).
 
 %%--------------------------------------------------------------------
-%% Ancillary (these are borrowed from the MUC suite)
+%% Ancillary (adapted from the MUC suite)
 %%--------------------------------------------------------------------
 
 stanza_get_rooms() ->
