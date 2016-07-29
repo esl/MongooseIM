@@ -1,0 +1,1838 @@
+<?xml version="1.0"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>XEP-xxxx: Multi-User Chat Light</title><link rel="stylesheet" type="text/css" href="../xmpp.css" /><link href="../prettify.css" type="text/css" rel="stylesheet" /><link rel="shortcut icon" type="image/x-icon" href="/favicon.ico" /><script type="text/javascript" src="../prettify.js"></script><meta name="viewport" content="width=device-width; initial-scale=1.0; maximum-scale=2.0" /><meta name="DC.Title" content="Multi-User Chat Light" /><meta name="DC.Creator" content="Piotr Nosek" /><meta name="DC.Description" content="This specification provides a presence-less standard for Multi-User Chats. Its feature set is a response to mobile XMPP applications needs and specific environment." /><meta name="DC.Publisher" content="XMPP Standards Foundation" /><meta name="DC.Contributor" content="XMPP Extensions Editor" /><meta name="DC.Date" content="2015-10-29" /><meta name="DC.Type" content="XMPP Extension Protocol" /><meta name="DC.Format" content="XHTML" /><meta name="DC.Identifier" content="XEP-xxxx" /><meta name="DC.Language" content="en" /><meta name="DC.Rights" content="This XMPP Extension Protocol is copyright (c) 1999 - 2014 by the XMPP Standards Foundation (XSF)." /></head><body onload="prettyPrint()"><h1>XEP-xxxx: Multi-User Chat Light</h1><table><tr valign="top"><td><strong>Abstract:</strong></td><td>This specification provides a presence-less standard for Multi-User Chats. Its feature set is a response to mobile XMPP applications needs and specific environment.</td></tr><tr valign="top"><td><strong>Author:</strong></td><td>Piotr Nosek</td></tr><tr valign="top"><td><strong>Copyright:</strong></td><td>© 1999 - 2015 XMPP Standards Foundation. <a href="#appendix-legal">SEE LEGAL NOTICES</a>.</td></tr><tr valign="top"><td><strong>Status:</strong></td><td>ProtoXEP</td></tr><tr valign="top"><td><strong>Type:</strong></td><td>Standards Track</td></tr><tr valign="top"><td><strong>Version:</strong></td><td>0.1.0</td></tr><tr valign="top"><td><strong>Last Updated:</strong></td><td>2015-10-29</td></tr></table><hr /><p style="color:red">WARNING: This document has not yet been accepted for consideration or approved in any official manner by the XMPP Standards Foundation, and this document is not yet an XMPP Extension Protocol (XEP). If this document is accepted as a XEP by the XMPP Council, it will be published at &lt;<a href="http://xmpp.org/extensions/">http://xmpp.org/extensions/</a>&gt; and announced on the &lt;standards@xmpp.org&gt; mailing list.</p><hr /><h2>Table of Contents</h2><div class="indent"><p><br />1.  <a href="#intro">Introduction</a><br />2.  <a href="#reqs">Requirements</a><br />3.  <a href="#entity-usecases">Entity Use Cases</a><br />   
+      3.1.  <a href="#disco-service">Discovering a MUC Light Service</a><br />   
+      3.2.  <a href="#disco-service-features">Discovering the Features Supported by a MUC Light Service</a><br />   
+      3.3.  <a href="#disco-occupied-rooms">Discovering Occupied Rooms</a><br />4.  <a href="#occupant-usecases">Occupant Use Cases</a><br />   
+      4.1.  <a href="#sending-message">Sending a message to a room</a><br />   
+      4.2.  <a href="#changing-subject">Changing room subject</a><br />   
+      4.3.  <a href="#requesting-room-information">Requesting room information</a><br />      
+      4.3.1.  <a href="#get-room-config">Getting the room configuration</a><br />      
+      4.3.2.  <a href="#requesting-user-list">Requesting a user list</a><br />      
+      4.3.3.  <a href="#requesting-room-information">Requesting full room information</a><br />   
+      4.4.  <a href="#leaving-the-room">Leaving the room</a><br />   
+      4.5.  <a href="#block-adding">Blocking functionality</a><br />      
+      4.5.1.  <a href="#block-get-list">Requesting a blocking list</a><br />      
+      4.5.2.  <a href="#block-adding-room">Blocking a room</a><br />      
+      4.5.3.  <a href="#blocking-adding-user">Blocking a user</a><br />      
+      4.5.4.  <a href="#unblocking-adding">Unblocking</a><br />5.  <a href="#owner-usecases">Owner Use Cases</a><br />   
+      5.1.  <a href="#creating-a-room">Creating a new room</a><br />      
+      5.1.1.  <a href="#unique-room-name">Requesting a new room with a unique name</a><br />      
+      5.1.2.  <a href="#room-exists">Room already exists</a><br />   
+      5.2.  <a href="#destroying-a-room">Destroying a room</a><br />   
+      5.3.  <a href="#set-room-config">Setting room configuration</a><br />   
+      5.4.  <a href="#changing-occupant-list">Changing the occupant list</a><br />6.  <a href="#rfc-xep-interactions">Interactions with RFCs and other XEPs</a><br />   
+      6.1.  <a href="#user-rosters">User rosters</a><br />   
+      6.2.  <a href="#mam">XEP-0313 Message Archive Management</a><br />      
+      6.2.1.  <a href="#mam-message-occupant">Groupchat message from occupant</a><br />      
+      6.2.2.  <a href="#mam-aff-change">Affiliation change</a><br />      
+      6.2.3.  <a href="#mam-room-create">Room creation</a><br />7.  <a href="#general-errors">General Error Cases</a><br />   
+      7.1.  <a href="#unauthorized-stanza-to-room">Client sends an unauthorized stanza to a room</a><br />   
+      7.2.  <a href="#presence-to-service">Client sends a &lt;presence/&gt; stanza to the service</a><br />   
+      7.3.  <a href="#invalid-to-service">Client sends an invalid stanza to the service</a><br />   
+      7.4.  <a href="#insufficient-privileges">Request sender has insufficient privileges</a><br />8.  <a href="#impl">Implementation Notes</a><br />   
+      8.1.  <a href="#xep0045">XEP-0045 mappings</a><br />      
+      8.1.1.  <a href="#comp-features">Discovering the Features Supported by a MUC Service</a><br />      
+      8.1.2.  <a href="#comp-disco-rooms">Discovering Occupied Rooms</a><br />      
+      8.1.3.  <a href="#comp-change-subject">Changing a room subject</a><br />      
+      8.1.4.  <a href="#comp-get-config">Getting room configuration</a><br />      
+      8.1.5.  <a href="#comp-get-user-list">Requesting user list</a><br />      
+      8.1.6.  <a href="#requesting-room-information">Requesting room information</a><br />      
+      8.1.7.  <a href="#comp-leaving">Leaving the room</a><br />      
+      8.1.8.  <a href="#comp-blocking">Blocking functionality</a><br />        
+      8.1.8.1.  <a href="#comp-get-blocking">Request blocking list</a><br />        
+      8.1.8.2.  <a href="#comp-blocking-room">Blocking a room</a><br />        
+      8.1.8.3.  <a href="#comp-blocking-user">Blocking a user</a><br />        
+      8.1.8.4.  <a href="#comp-unblocking">Unblocking</a><br />      
+      8.1.9.  <a href="#comp-create-room">Creating a room</a><br />        
+      8.1.9.1.  <a href="#comp-room-exists">Room already exists</a><br />      
+      8.1.10.  <a href="#comp-room-destroy">Destroying the room</a><br />      
+      8.1.11.  <a href="#comp-set-config">Setting room configuration</a><br />      
+      8.1.12.  <a href="#comp-change-aff">Changing occupant list</a><br />   
+      8.2.  <a href="#limits-and-config">Service limits and configuration</a><br />9.  <a href="#security">Security Considerations</a><br />   
+      9.1.  <a href="#dos">Denial of Service</a><br />10.  <a href="#iana">IANA Considerations</a><br />11.  <a href="#registrar">XMPP Registrar Considerations</a><br />12.  <a href="#schema">XML Schema</a><br />   
+      12.1.  <a href="#schema-configuration">urn:xmpp:muclight:0#configuration</a><br />   
+      12.2.  <a href="#schema-affiliations">urn:xmpp:muclight:0#affiliations</a><br />   
+      12.3.  <a href="#schema-info">urn:xmpp:muclight:0#info</a><br />   
+      12.4.  <a href="#schema-blocking">urn:xmpp:muclight:0#blocking</a><br />   
+      12.5.  <a href="#schema-create">urn:xmpp:muclight:0#create</a><br />   
+      12.6.  <a href="#schema-destroy">urn:xmpp:muclight:0#destroy</a><br />13.  <a href="#acknowledgements">Acknowledgements</a></p><p><a href="#appendices">Appendices</a><br />    <a href="#appendix-docinfo">A: Document Information</a><br />    <a href="#appendix-authorinfo">B: Author Information</a><br />    <a href="#appendix-legal">C: Legal Notices</a><br />    <a href="#appendix-xmpp">D: Relation to XMPP</a><br />    <a href="#appendix-discuss">E: Discussion Venue</a><br />    <a href="#appendix-conformance">F: Requirements Conformance</a><br />    <a href="#appendix-notes">G: Notes</a><br />    <a href="#appendix-revs">H: Revision History</a></p></div><hr /><h2>1.
+       <a name="intro" id="intro">Introduction</a></h2>
+  <p class="" style="">Classic Multi-User chat, as described in XEP-0045, adds an IRC-like functionality to XMPP. It distinguishes between the affiliation list and the occupant list, where the latter is based on presences routed to the room from the client resource. While perfectly sufficient for desktop applications and relatively stable network connection, it does not exactly meet the challenges the mobile world is facing. Modern mobile applications do not rely on presence information, as it can frequently change. The expected user experience not only differs from IRC model, but also uses only a small subset of XEP-0045 features. The service described in this specification attempts to provide a complete solution for all common use cases of mobile groupchats.</p>
+<h2>2.
+       <a name="reqs" id="reqs">Requirements</a></h2>
+    <p class="" style="">The list below contains the high-level features required from a new variant of MUC</p>
+    <ol start="" class="" style="">
+        <li class="" style="">The service allows any user to create a room for group communication.</li>
+        <li class="" style="">Users cannot join rooms on their own. They have to be added by the room owner or (if configured by service administrator) any other occupant.</li>
+        <li class="" style="">Only the owner can remove other occupants from the room.</li>
+        <li class="" style="">Every occupant can leave the room.</li>
+        <li class="" style="">A user may block the attempts of being added to the specific room or by specific user.</li>
+        <li class="" style="">The message sent in the room is always broadcasted to every occupant.</li>
+        <li class="" style="">The full occupant list is always available to all occupants.</li>
+        <li class="" style="">Occupant is always visible on the list, even if it does not have any resources online.</li>
+        <li class="" style="">Occupants can only have two affiliations: owner and member.</li>
+        <li class="" style="">There must be at most one owner in the room (the service can choose to treat all users equally).</li>
+        <li class="" style="">If the room becomes empty, it is destroyed.</li>
+        <li class="" style="">Occupants cannot hide behind nicks. Their real bare JID is always visible to everyone</li>
+        <li class="" style="">No exchange of any &lt;presence/&gt; stanza inside the room.</li>
+        <li class="" style="">The user MUST be able to retrieve the list of rooms he or she occupies.</li>
+        <li class="" style="">The owner can modify the room configuration at any time; members may also be allowed to set configuration.</li>
+        <li class="" style="">All occupants can get the full room configuration at any time.</li>
+        <li class="" style="">Room history is available only in Message Archive Management.</li>
+    </ol>
+<h2>3.
+       <a name="entity-usecases" id="entity-usecases">Entity Use Cases</a></h2>
+    <div class="indent"><h3>3.1 <a name="disco-service" id="disco-service">Discovering a MUC Light Service</a></h3>
+        <p class="" style="">An entity often discovers a MUC service by sending a Service Discovery items ("disco#items") request to its own server.</p>
+        <p class="caption"><a name="example-1" id="example-1"></a>Example 1. Entity Queries the Server for Associated Services</p><div class="indent"><pre class="prettyprint">
+&lt;iq from='hag66@shakespeare.lit/pda'
+    id='h7ns81g'
+    to='shakespeare.lit'
+    type='get'&gt;
+    &lt;query xmlns='http://jabber.org/protocol/disco#items'/&gt;
+&lt;/iq&gt;
+            </pre></div>
+        <p class="" style="">The server then returns the services that are associated with it.</p>
+        <p class="caption"><a name="example-2" id="example-2"></a>Example 2. Server Returns Disco Items Result</p><div class="indent"><pre class="prettyprint">
+&lt;iq from='shakespeare.lit'
+    id='h7ns81g'
+    to='hag66@shakespeare.lit/pda'
+    type='result'&gt;
+    &lt;query xmlns='http://jabber.org/protocol/disco#items'&gt;
+        &lt;item jid='muclight.shakespeare.lit' name='MUC Light Service'/&gt;
+    &lt;/query&gt;
+&lt;/iq&gt;
+            </pre></div>
+    </div>
+    <div class="indent"><h3>3.2 <a name="disco-service-features" id="disco-service-features">Discovering the Features Supported by a MUC Light Service</a></h3>
+        <p class="" style="">An entity may wish to discover if a service implements the Multi-User Chat protocol; in order to do so, it sends a service discovery information ("disco#info") query to the MUC service's JID.</p>
+        <p class="caption"><a name="example-3" id="example-3"></a>Example 3. Entity Queries Chat Service for MUC Light Support via Disco</p><div class="indent"><pre class="prettyprint">
+&lt;iq from='hag66@shakespeare.lit/pda'
+    id='lx09df27'
+    to='muclight.shakespeare.lit' type='get'&gt;
+    &lt;query xmlns='http://jabber.org/protocol/disco#info'/&gt;
+&lt;/iq&gt;
+            </pre></div>
+        <p class="" style="">The service MUST return its identity and the features it supports.</p>
+        <p class="caption"><a name="example-4" id="example-4"></a>Example 4. Service Returns Disco Info Result</p><div class="indent"><pre class="prettyprint">
+&lt;iq from='muclight.shakespeare.lit'
+    id='lx09df27'
+    to='hag66@shakespeare.lit/pda'
+    type='result'&gt;
+    &lt;query xmlns='http://jabber.org/protocol/disco#info'&gt;
+        &lt;identity category='conference' name='Shakespearean Chat Service' type='text'/&gt;
+        &lt;feature var='urn:xmpp:muclight:0'/&gt;
+    &lt;/query&gt;
+&lt;/iq&gt;
+            </pre></div>
+    </div>
+    <div class="indent"><h3>3.3 <a name="disco-occupied-rooms" id="disco-occupied-rooms">Discovering Occupied Rooms</a></h3>
+        <p class="" style="">The service discovery items ("disco#items") protocol enables an entity to query a service for a list of associated items, which in the case of a chat service would consist of the specific chat rooms the entity occupies.</p>
+        <p class="caption"><a name="example-5" id="example-5"></a>Example 5. Entity Queries Chat Service for Rooms</p><div class="indent"><pre class="prettyprint">
+&lt;iq from='hag66@shakespeare.lit/pda'
+    id='zb8q41f4'
+    to='muclight.shakespeare.lit'
+    type='get'&gt;
+    &lt;query xmlns='http://jabber.org/protocol/disco#items'/&gt;
+&lt;/iq&gt;
+            </pre></div>
+        <p class="" style="">The service MUST return a full list of the rooms the entity occupies. The server SHOULD include room name and version in each item.</p>
+        <p class="caption"><a name="example-6" id="example-6"></a>Example 6. Service Returns Disco Items Result</p><div class="indent"><pre class="prettyprint">
+&lt;iq from='muclight.shakespeare.lit'
+    id='zb8q41f4'
+    to='hag66@shakespeare.lit/pda'
+    type='result'&gt;
+    &lt;query xmlns='http://jabber.org/protocol/disco#items'&gt;
+        &lt;item jid='heath@muclight.shakespeare.lit' name='A Lonely Heath' version='1'/&gt;
+        &lt;item jid='coven@muclight.shakespeare.lit' name='A Dark Cave' version='2'/&gt;
+        &lt;item jid='forres@muclight.shakespeare.lit' name='The Palace' version='3'/&gt;
+        &lt;item jid='inverness@muclight.shakespeare.lit'
+              name='Macbeth&amp;apos;s Castle'
+              version='4'/&gt;
+    &lt;/query&gt;
+&lt;/iq&gt;
+            </pre></div>
+        <p class="" style="">If the full list of rooms is large (see <span class="ref">XEP-0030</span> for details), the service MAY return only a partial list of rooms. If it does so, it MUST include a &lt;set/&gt; element qualified by the 'http://jabber.org/protocol/rsm' namespace (as defined in <span class="ref" style=""><a href="http://xmpp.org/extensions/xep-0059.html">Result Set Management (XEP-0059)</a></span>  [<a href="#nt-idm512275871824">1</a>]) to indicate that the list is not the full result set.</p>
+        <p class="caption"><a name="example-7" id="example-7"></a>Example 7. Service Returns Limited List of Disco Items Result</p><div class="indent"><pre class="prettyprint">
+&lt;iq from='muclight.shakespeare.lit'
+    id='hx51v49s'
+    to='hag66@shakespeare.lit/pda'
+    type='result'&gt;
+    &lt;query xmlns='http://jabber.org/protocol/disco#items'&gt;
+        &lt;item jid='alls-well-that-ends-well@muclight.shakespeare.lit'
+              name='Everybody dies'
+              version='1'/&gt;
+        &lt;item jid='as-you-like-it@muclight.shakespeare.lit'
+              name='As you like it'
+              version='2'/&gt;
+        &lt;item jid='cleopatra@muclight.shakespeare.lit' name='Cleo fans' version='3'/&gt;
+        &lt;item jid='comedy-of-errors@muclight.shakespeare.lit'
+              name='404 Comedy not found'
+              version='4'/&gt;
+        &lt;item jid='coriolanus@muclight.shakespeare.lit'
+              name='What is Coriolanus?'
+              version='5'/&gt;
+        &lt;item jid='cymbeline@muclight.shakespeare.lit' name='Music room' version='6'/&gt;
+        &lt;item jid='hamlet@muclight.shakespeare.lit'
+              name='To chat or not to chat?'
+              version='7'/&gt;
+        &lt;item jid='henry-the-fourth-one@muclight.shakespeare.lit'
+              name='Royal Room 1'
+              version='8'/&gt;
+        &lt;item jid='henry-the-fourth-two@muclight.shakespeare.lit'
+              name='Royal Room 2'
+              version='9'/&gt;
+        &lt;item jid='henry-the-fifth@muclight.shakespeare.lit'
+              name='Royal Room Prime'
+              version='10'/&gt;
+        &lt;set xmlns='http://jabber.org/protocol/rsm'&gt;
+            &lt;first index='0'&gt;alls-well-that-ends-well@muclight.shakespeare.lit&lt;/first&gt;
+            &lt;last&gt;henry-the-fifth@muclight.shakespeare.lit&lt;/last&gt;
+            &lt;count&gt;37&lt;/count&gt;
+        &lt;/set&gt;
+    &lt;/query&gt;
+&lt;/iq&gt;
+            </pre></div>
+    </div>
+<h2>4.
+       <a name="occupant-usecases" id="occupant-usecases">Occupant Use Cases</a></h2>
+    <div class="indent"><h3>4.1 <a name="sending-message" id="sending-message">Sending a message to a room</a></h3>
+        <p class="" style="">Every occupant in the room MAY broadcast messages to other occupants. In order to do so, the client MUST send a groupchat message to the room bare JID.</p>
+        <p class="" style="">The room automatically assumes that occupants' nicks are equal to their bare JIDs. MUC light is designed for applications where it is not important to hide behind nicknames. On the contrary - it is up to th client to replace pure JIDs with user-friendly names like phone numbers or full names if necessary.</p>
+        <p class="" style="">Room MUST route all messages of type 'groupchat'.</p>
+        <p class="caption"><a name="example-8" id="example-8"></a>Example 8. Client sends a message to the room</p><div class="indent"><pre class="prettyprint">
+&lt;message from='hag66@shakespeare.lit/pda'
+         id='hysf1v37'
+         to='coven@muclight.shakespeare.lit'
+         type='groupchat'&gt;
+    &lt;body&gt;Harpier cries: 'tis time, 'tis time.&lt;/body&gt;
+&lt;/message&gt;
+            </pre></div>
+        <p class="caption"><a name="example-9" id="example-9"></a>Example 9. Server broadcasts a groupchat message</p><div class="indent"><pre class="prettyprint">
+&lt;message id='msg111' type='groupchat'
+    from='coven@muclight.shakespeare.lit/hag66@shakespeare.lit'
+    to='crone1@shakespeare.lit'&gt;
+    &lt;body&gt;Harpier cries: 'tis time, 'tis time.&lt;/body&gt;
+&lt;/message&gt;
+
+&lt;message id='msg111' type='groupchat'
+    from='coven@muclight.shakespeare.lit/hag66@shakespeare.lit'
+    to='crone2@shakespeare.lit&gt;
+    &lt;body&gt;Harpier cries: 'tis time, 'tis time.&lt;/body&gt;
+&lt;/message&gt;
+            </pre></div>
+    </div>
+    <div class="indent"><h3>4.2 <a name="changing-subject" id="changing-subject">Changing room subject</a></h3>
+        <p class="" style="">The service MAY allow room occupants to set the room subject by changing "subject" configuration field. A standard configuration stanza is used in this case. Subject change is announced like an ordinary configuration change.</p>
+        <p class="caption"><a name="example-10" id="example-10"></a>Example 10. Client sends a message to the room</p><div class="indent"><pre class="prettyprint">
+&lt;iq from='hag66@shakespeare.lit/pda'
+    id='subject1'
+    to='coven@muclight.shakespeare.lit'
+    type='set'&gt;
+    &lt;query xmlns='urn:xmpp:muclight:0#configuration'&gt;
+        &lt;subject&gt;To be or not to be?&lt;/subject&gt;
+    &lt;/query&gt;
+&lt;/iq&gt;
+
+
+&lt;message from='coven@muclight.shakespeare.lit'
+         to='crone1@shakespeare.lit'
+         type='groupchat'
+         id='newsubject'&gt;
+    &lt;x xmlns='urn:xmpp:muclight:0#configuration'&gt;
+        &lt;prev-version&gt;asdfghj000&lt;/prev-version&gt;
+        &lt;version&gt;asdfghj&lt;/version&gt;
+        &lt;subject&gt;To be or not to be?&lt;/subject&gt;
+    &lt;/x&gt;
+    &lt;body /&gt;
+&lt;/message&gt;
+
+&lt;message from='coven@muclight.shakespeare.lit'
+         to='hag66@shakespeare.lit'
+         type='groupchat'
+         id='newsubject'&gt;
+    &lt;x xmlns='urn:xmpp:muclight:0#configuration'&gt;
+        &lt;prev-version&gt;asdfghj000&lt;/prev-version&gt;
+        &lt;version&gt;asdfghj&lt;/version&gt;
+        &lt;subject&gt;To be or not to be?&lt;/subject&gt;
+    &lt;/x&gt;
+    &lt;body /&gt;
+&lt;/message&gt;
+
+&lt;iq to='hag66@shakespeare.lit/pda'
+    id='subject1'
+    from='coven@muclight.shakespeare.lit'
+    type='result' /&gt;
+        </pre></div>
+    </div>
+    <div class="indent"><h3>4.3 <a name="requesting-room-information" id="requesting-room-information">Requesting room information</a></h3>
+        <p class="" style="">Room occupant may request room information (configuration and/or occupants list) by information version. It is up to service to define the version string, the only requirement for it is to be unique per room. Please note there are no separate versions for configuration and occupant list alone.</p>
+        <p class="" style="">If the server side version does not match the one provided by the client (or if the client does not provide one, i.e. 'version' element is empty), the service MUST respond with a current version string and full configuration and/or occupant list.</p>
+        <p class="" style="">If the version strings match, server MUST reply with an empty result.</p>
+        <p class="" style="">Only room occupants can get room information.</p>
+        <p class="caption"><a name="example-11" id="example-11"></a>Example 11. Matching versions</p><div class="indent"><pre class="prettyprint">
+&lt;iq from='crone1@shakespeare.lit/desktop'
+    id='config0'
+    to='coven@muclight.shakespeare.lit'
+    type='get'&gt;
+    &lt;query xmlns='urn:xmpp:muclight:0#configuration'&gt;
+        &lt;version&gt;abcdefg&lt;/version&gt;
+    &lt;/query&gt;
+&lt;/iq&gt;
+
+&lt;iq from='coven@muclight.shakespeare.lit'
+    id='config0'
+    to='crone1@shakespeare.lit/desktop'
+    type='result' /&gt;
+        </pre></div>
+        <div class="indent"><h3>4.3.1 <a name="get-room-config" id="get-room-config">Getting the room configuration</a></h3>
+            <p class="caption"><a name="example-12" id="example-12"></a>Example 12. Client gets configuration from the server</p><div class="indent"><pre class="prettyprint">
+&lt;iq from='crone1@shakespeare.lit/desktop'
+    id='getconfig1'
+    to='coven@muclight.shakespeare.lit'
+    type='get'&gt;
+    &lt;query xmlns='urn:xmpp:muclight:0#configuration'&gt;
+        &lt;version&gt;abcdefg&lt;/version&gt;
+    &lt;/query&gt;
+&lt;/iq&gt;
+
+&lt;iq from='coven@muclight.shakespeare.lit'
+    id='getconfig1'
+    to='crone1@shakespeare.lit/desktop'
+    type='result'&gt;
+    &lt;query xmlns='urn:xmpp:muclight:0#configuration'&gt;
+        &lt;version&gt;123456&lt;/version&gt;
+        &lt;roomname&gt;A Dark Cave&lt;/roomname&gt;
+    &lt;/query&gt;
+&lt;/iq&gt;
+            </pre></div>
+        </div>
+        <div class="indent"><h3>4.3.2 <a name="requesting-user-list" id="requesting-user-list">Requesting a user list</a></h3>
+            <p class="caption"><a name="example-13" id="example-13"></a>Example 13. Client requests a user list</p><div class="indent"><pre class="prettyprint">
+&lt;iq from='crone1@shakespeare.lit/desktop'
+    id='getmembers'
+    to='coven@muclight.shakespeare.lit'
+    type='get'&gt;
+    &lt;query xmlns='urn:xmpp:muclight:0#affiliations'&gt;
+        &lt;version&gt;abcdefg&lt;/version&gt;
+    &lt;/query&gt;
+&lt;/iq&gt;
+
+&lt;iq from='coven@muclight.shakespeare.lit'
+    id='getmembers'
+    to='crone1@shakespeare.lit/desktop'
+    type='result'&gt;
+    &lt;query xmlns='urn:xmpp:muclight:0#affiliations'&gt;
+        &lt;version&gt;123456&lt;/version&gt;
+        &lt;user affiliation='owner'&gt;user1@shakespeare.lit&lt;/user&gt;
+        &lt;user affiliation='member'&gt;user2@shakespeare.lit&lt;/user&gt;
+        &lt;user affiliation='member'&gt;user3@shakespeare.lit&lt;/user&gt;
+    &lt;/query&gt;
+&lt;/iq&gt;
+            </pre></div>
+        </div>
+    <div class="indent"><h3>4.3.3 <a name="requesting-room-information" id="requesting-room-information">Requesting full room information</a></h3>
+        <p class="" style="">Room occupants may request both lists (configuration + occupants) with a single request.</p>
+        <p class="caption"><a name="example-14" id="example-14"></a>Example 14. Client requests room information</p><div class="indent"><pre class="prettyprint">
+&lt;iq from='crone1@shakespeare.lit/desktop'
+    id='getinfo1'
+    to='coven@muclight.shakespeare.lit'
+    type='get'&gt;
+    &lt;query xmlns='urn:xmpp:muclight:0#info'&gt;
+        &lt;version&gt;abcdefg&lt;/version&gt;
+    &lt;/query&gt;
+&lt;/iq&gt;
+
+&lt;iq from='coven@muclight.shakespeare.lit'
+    id='getinfo1'
+    to='crone1@shakespeare.lit/desktop'
+    type='result'&gt;
+    &lt;query xmlns='urn:xmpp:muclight:0#info'&gt;
+        &lt;version&gt;123456&lt;/version&gt;
+        &lt;configuration&gt;
+            &lt;roomname&gt;A Dark Cave&lt;/roomname&gt;
+        &lt;/configuration&gt;
+        &lt;occupants&gt;
+            &lt;user affiliation='owner'&gt;user1@shakespeare.lit&lt;/user&gt;
+            &lt;user affiliation='member'&gt;user2@shakespeare.lit&lt;/user&gt;
+            &lt;user affiliation='member'&gt;user3@shakespeare.lit&lt;/user&gt;
+        &lt;/occupants&gt;
+    &lt;/query&gt;
+&lt;/iq&gt;
+            </pre></div>
+        </div>
+    </div>
+    <div class="indent"><h3>4.4 <a name="leaving-the-room" id="leaving-the-room">Leaving the room</a></h3>
+        <p class="" style="">Every occupant is allowed to leave the room at any time. It is done by modifying own affiliation.</p>
+        <p class="caption"><a name="example-15" id="example-15"></a>Example 15. Occupant leaves the room</p><div class="indent"><pre class="prettyprint">
+&lt;iq from='crone1@shakespeare.lit/desktop'
+    id='leave1'
+    to='coven@muclight.shakespeare.lit'
+    type='set'&gt;
+    &lt;query xmlns='urn:xmpp:muclight:0#affiliations'&gt;
+        &lt;user affiliation='none'&gt;crone1@shakespeare.lit&lt;/user&gt;
+    &lt;/query&gt;
+&lt;/iq&gt;
+
+&lt;message from='coven@muclight.shakespeare.lit'
+         to='crone1@shakespeare.lit'
+         type='groupchat'
+         id='leave1'&gt;
+    &lt;x xmlns='urn:xmpp:muclight:0#affiliations'&gt;
+        &lt;user affiliation='none'&gt;crone1@shakespeare.lit&lt;/user&gt;
+    &lt;/x&gt;
+    &lt;body /&gt;
+&lt;/message&gt;
+
+&lt;message from='coven@muclight.shakespeare.lit'
+         to='hag77@shakespeare.lit'
+         type='groupchat'
+         id='leave1'&gt;
+    &lt;x xmlns='urn:xmpp:muclight:0#affiliations'&gt;
+        &lt;prev-version&gt;1111111&lt;/prev-version&gt;
+        &lt;version&gt;aaaaaaa&lt;/version&gt;
+        &lt;user affiliation='none'&gt;crone1@shakespeare.lit&lt;/user&gt;
+    &lt;/x&gt;
+    &lt;body /&gt;
+&lt;/message&gt;
+
+&lt;message from='coven@muclight.shakespeare.lit'
+         to='hag88@shakespeare.lit'
+         type='groupchat'
+         id='leave1'&gt;
+    &lt;x xmlns='urn:xmpp:muclight:0#affiliations'&gt;
+        &lt;prev-version&gt;1111111&lt;/prev-version&gt;
+        &lt;version&gt;aaaaaaa&lt;/version&gt;
+        &lt;user affiliation='none'&gt;crone1@shakespeare.lit&lt;/user&gt;
+    &lt;/x&gt;
+    &lt;body /&gt;
+&lt;/message&gt;
+
+&lt;iq to='crone1@shakespeare.lit/desktop'
+    id='leave1'
+    from='coven@muclight.shakespeare.lit'
+    type='result' /&gt;
+            </pre></div>
+    </div>
+    <div class="indent"><h3>4.5 <a name="block-adding" id="block-adding">Blocking functionality</a></h3>
+        <p class="" style="">A user MAY choose to automatically deny being added to the room. All stanzas must be directed to MUC Light service. User MAY send more than one item in a single request and mix both 'user' and 'room' elements.</p>
+        <p class="" style="">If the occupant tries to add another user to the room, and this user has set a blocking policy, the server MUST ignore the attempt. No error is returned, this user is simply skipped when processing affiliation change query.</p>
+        <p class="caption"><a name="example-16" id="example-16"></a>Example 16. Service denies adding blocking user</p><div class="indent"><pre class="prettyprint">
+&lt;iq from='crone2@shakespeare.lit/desktop'
+    id='blocked1'
+    to='coven@muclight.shakespeare.lit'
+    type='set'&gt;
+    &lt;query xmlns='urn:xmpp:muclight:0#affiliations'&gt;
+        &lt;user affiliation='member'&gt;crone1@shakespeare.lit&lt;/user&gt;
+        &lt;user affiliation='member'&gt;crone3@shakespeare.lit&lt;/user&gt;
+    &lt;/query&gt;
+&lt;/iq&gt;
+
+&lt;message from='coven@muclight.shakespeare.lit'
+         to='crone2@shakespeare.lit'
+         type='groupchat'
+         id='blockedadd1'&gt;
+    &lt;x xmlns='urn:xmpp:muclight:0#affiliations'&gt;
+        &lt;user affiliation='member'&gt;crone3@shakespeare.lit&lt;/user&gt;
+    &lt;/x&gt;
+    &lt;body /&gt;
+&lt;/message&gt;
+
+&lt;message from='coven@muclight.shakespeare.lit'
+         to='hag88@@shakespeare.lit'
+         type='groupchat'
+         id='blockedadd1'&gt;
+    &lt;x xmlns='urn:xmpp:muclight:0#affiliations'&gt;
+        &lt;user affiliation='member'&gt;crone3@shakespeare.lit&lt;/user&gt;
+    &lt;/x&gt;
+    &lt;body /&gt;
+&lt;/message&gt;
+
+
+&lt;iq to='crone2@shakespeare.lit/desktop'
+    id='blocked1'
+    from='coven@muclight.shakespeare.lit'
+    type='result' /&gt;
+        </pre></div>
+        <div class="indent"><h3>4.5.1 <a name="block-get-list" id="block-get-list">Requesting a blocking list</a></h3>
+            <p class="" style="">In order to get the current blocking list in MUC Light service, the client sends an empty IQ get query with a proper namespace.</p>
+            <p class="" style="">The list includes only items with a 'deny' action, since the 'allow' behaviour is default for MUC Light and is only used for the list modification.</p>
+            <p class="caption"><a name="example-17" id="example-17"></a>Example 17. User retrieves a blocking list</p><div class="indent"><pre class="prettyprint">
+&lt;iq from='crone1@shakespeare.lit/desktop'
+    id='getblock1'
+    to='muclight.shakespeare.lit'
+    type='get'&gt;
+    &lt;query xmlns='urn:xmpp:muclight:0#blocking'&gt;
+    &lt;/query&gt;
+&lt;/iq&gt;
+
+&lt;iq type='result'
+    id='getblock1'
+    to='crone1@shakespeare.lit/desktop'
+    from='muclight.shakespeare.lit'&gt;
+    &lt;query xmlns='urn:xmpp:muclight:0#blocking'&gt;
+        &lt;room action='deny'&gt;coven@muclight.shakespeare.lit&lt;/room&gt;
+        &lt;user action='deny'&gt;hag77@shakespeare.lit&lt;/user&gt;
+    &lt;/query&gt;
+&lt;/iq&gt;
+            </pre></div>
+        </div>
+        <div class="indent"><h3>4.5.2 <a name="block-adding-room" id="block-adding-room">Blocking a room</a></h3>
+            <p class="" style="">In order to block a room, a query must contain at least one 'room' item with a 'deny' action and room bare JID in the content.</p>
+            <p class="caption"><a name="example-18" id="example-18"></a>Example 18. User blocks a room</p><div class="indent"><pre class="prettyprint">
+&lt;iq from='crone1@shakespeare.lit/desktop'
+    id='block1'
+    to='muclight.shakespeare.lit'
+    type='set'&gt;
+    &lt;query xmlns='urn:xmpp:muclight:0#blocking'&gt;
+        &lt;room action='deny'&gt;coven@muclight.shakespeare.lit&lt;/room&gt;
+        &lt;room action='deny'&gt;chapel@shakespeare.lit&lt;/room&gt;
+    &lt;/query&gt;
+&lt;/iq&gt;
+
+&lt;iq type='result'
+    id='block1'
+    to='crone1@shakespeare.lit/desktop'
+    from='muclight.shakespeare.lit' /&gt;
+            </pre></div>
+        </div>
+        <div class="indent"><h3>4.5.3 <a name="blocking-adding-user" id="blocking-adding-user">Blocking a user</a></h3>
+            <p class="" style="">In order to block a room, a query must contain at least one 'user' item with a 'deny' action and user bare JID in the content.</p>
+            <p class="caption"><a name="example-19" id="example-19"></a>Example 19. User blocks another user</p><div class="indent"><pre class="prettyprint">
+&lt;iq from='crone1@shakespeare.lit/desktop'
+    id='block2'
+    to='muclight.shakespeare.lit'
+    type='set'&gt;
+    &lt;query xmlns='urn:xmpp:muclight:0#blocking'&gt;
+        &lt;user action='deny'&gt;hag66@shakespeare.lit&lt;/user&gt;
+        &lt;user action='deny'&gt;hag77@shakespeare.lit&lt;/user&gt;
+    &lt;/query&gt;
+&lt;/iq&gt;
+
+&lt;iq type='result'
+    id='block2'
+    to='crone1@shakespeare.lit/desktop'
+    from='muclight.shakespeare.lit' /&gt;
+            </pre></div>
+        </div>
+        <div class="indent"><h3>4.5.4 <a name="unblocking-adding" id="unblocking-adding">Unblocking</a></h3>
+            <p class="" style="">In order to cancel a blocking, a query must contain at least one 'room' or 'user' item with an 'allow' action and an appriopriate bare JID in the content.</p>
+            <p class="" style="">Unblocking a JID that is not blocked does not trigger any error. The server MUST return empty IQ result in such case.</p>
+            <p class="caption"><a name="example-20" id="example-20"></a>Example 20. User cancels blocking</p><div class="indent"><pre class="prettyprint">
+&lt;iq from='crone1@shakespeare.lit/desktop'
+    id='unblock1'
+    to='muclight.shakespeare.lit'
+    type='set'&gt;
+    &lt;query xmlns='urn:xmpp:muclight:0#blocking'&gt;
+        &lt;room action='allow'&gt;coven@muclight.shakespeare.lit&lt;/room&gt;
+        &lt;user action='allow'&gt;hag66@shakespeare.lit&lt;/user&gt;
+    &lt;/query&gt;
+&lt;/iq&gt;
+
+&lt;iq type='result'
+    id='unblock1'
+    to='crone1@shakespeare.lit/desktop'
+    from='muclight.shakespeare.lit' /&gt;
+            </pre></div>
+        </div>
+    </div>
+<h2>5.
+       <a name="owner-usecases" id="owner-usecases">Owner Use Cases</a></h2>
+    <div class="indent"><h3>5.1 <a name="creating-a-room" id="creating-a-room">Creating a new room</a></h3>
+        <p class="" style="">A room is created by submitting a dedicated stanza. The client application should pick random room node name, since human-readable room name is in configuration.</p>
+        <p class="" style="">For rules that apply to the configuration options, please see "Setting room configuration" chapter.</p>
+        <p class="" style="">The client MAY include initial configuration and occupant list (the list MUST NOT include the creator). The server MAY allow sending incomplete configuration form. In such case the server MUST use default values for missing fields. The server MAY enforce a minimal occupant list length.</p>
+        <p class="" style="">The service MAY either give the creator the 'owner' or 'member' status. In the latter case all users are equal.</p>
+        <p class="" style="">Upon room creation success, the service MUST reply with an empty IQ result.</p>
+        <p class="" style="">The following rules (similar to the ones relevant to the affiliation change request) apply to the occupant list:
+            <ul class="" style="">
+                <li class="" style="">'none' affiliation cannot be used.</li>
+                <li class="" style="">All user bare JIDs must be unique</li>
+                <li class="" style="">At most one owner can be chosen. In such case the room creator will become "just" a 'member'.</li>
+            </ul>
+        </p>
+        <p class="" style="">After the room is created (but before receiving IQ result), new occupants (including creator) receive &lt;message/&gt; from the room with their affiliations (stanza MUST include only recipient's affiliation) and initial room version. &lt;prev-version /&gt; element MUST NOT be included.</p>
+        <p class="caption"><a name="example-21" id="example-21"></a>Example 21. Client requests room creation</p><div class="indent"><pre class="prettyprint">
+&lt;iq from='crone1@shakespeare.lit/desktop'
+    id='create1'
+    to='coven@muclight.shakespeare.lit'
+    type='set'&gt;
+    &lt;query xmlns='urn:xmpp:muclight:0#create'&gt;
+        &lt;configuration&gt;
+            &lt;roomname&gt;A Dark Cave&lt;/roomname&gt;
+        &lt;/configuration&gt;
+        &lt;occupants&gt;
+            &lt;user affiliation='member'&gt;user1@shakespeare.lit&lt;/user&gt;
+            &lt;user affiliation='member'&gt;user2@shakespeare.lit&lt;/user&gt;
+        &lt;/occupants&gt;
+    &lt;/query&gt;
+&lt;/iq&gt;
+
+&lt;message from='coven@muclight.shakespeare.lit'
+         to='crone1@shakespeare.lit'
+         type='groupchat'
+         id='createnotif'&gt;
+    &lt;x xmlns='urn:xmpp:muclight:0#affiliations'&gt;
+        &lt;version&gt;aaaaaaa&lt;/version&gt;
+        &lt;user affiliation='owner'&gt;crone1@shakespeare.lit&lt;/user&gt;
+    &lt;/x&gt;
+    &lt;body /&gt;
+&lt;/message&gt;
+
+&lt;message from='coven@muclight.shakespeare.lit'
+         to='user1@shakespeare.lit'
+         type='groupchat'
+         id='createnotif'&gt;
+    &lt;x xmlns='urn:xmpp:muclight:0#affiliations'&gt;
+        &lt;version&gt;aaaaaaa&lt;/version&gt;
+        &lt;user affiliation='member'&gt;user1@shakespeare.lit&lt;/user&gt;
+    &lt;/x&gt;
+    &lt;body /&gt;
+&lt;/message&gt;
+
+&lt;message from='coven@muclight.shakespeare.lit'
+         to='user2@shakespeare.lit'
+         type='groupchat'
+         id='createnotif'&gt;
+    &lt;x xmlns='urn:xmpp:muclight:0#affiliations'&gt;
+        &lt;version&gt;aaaaaaa&lt;/version&gt;
+        &lt;user affiliation='member'&gt;user2@shakespeare.lit&lt;/user&gt;
+    &lt;/x&gt;
+    &lt;body /&gt;
+&lt;/message&gt;
+
+&lt;iq to='crone1@shakespeare.lit/desktop'
+    id='create1'
+    from='coven@muclight.shakespeare.lit'
+    type='result' /&gt;
+        </pre></div>
+        <div class="indent"><h3>5.1.1 <a name="unique-room-name" id="unique-room-name">Requesting a new room with a unique name</a></h3>
+            <p class="" style="">If a client would like to avoid a room JID conflict, it MAY request creating a new room with a server-side generated name, that is verfied to be unique. In order to do so, the client MUST send a creation request to service JID, not room bare JID. The IQ result will originate from the new room bare JID</p>
+            <p class="" style="">The messages with affiliation change notifications MUST have the same ID as IQ set and result.</p>
+            <p class="caption"><a name="example-22" id="example-22"></a>Example 22. Client requests room creation</p><div class="indent"><pre class="prettyprint">
+&lt;iq from='crone1@shakespeare.lit/desktop'
+    id='createrandom'
+    to='muclight.shakespeare.lit'
+    type='set'&gt;
+    &lt;query xmlns='urn:xmpp:muclight:0#create'&gt;
+        &lt;configuration&gt;
+            &lt;roomname&gt;Random Cave&lt;/roomname&gt;
+        &lt;/configuration&gt;
+    &lt;/query&gt;
+&lt;/iq&gt;
+
+&lt;message from='randomcave@muclight.shakespeare.lit'
+         to='crone1@shakespeare.lit'
+         type='groupchat'
+         id='createrandom'&gt;
+    &lt;x xmlns='urn:xmpp:muclight:0#affiliations'&gt;
+        &lt;version&gt;aaaaaaa&lt;/version&gt;
+        &lt;user affiliation='owner'&gt;crone1@shakespeare.lit&lt;/user&gt;
+    &lt;/x&gt;
+    &lt;body /&gt;
+&lt;/message&gt;
+
+
+&lt;iq to='crone1@shakespeare.lit/desktop'
+    id='createrandom'
+    from='muclight.shakespeare.lit'
+    type='result' /&gt;
+            </pre></div>
+        </div>
+        <div class="indent"><h3>5.1.2 <a name="room-exists" id="room-exists">Room already exists</a></h3>
+            <p class="" style="">If the chosen room name already exists, the service MUST return 'conflict' error.</p>
+            <p class="caption"><a name="example-23" id="example-23"></a>Example 23. Client requests room creation with existing name</p><div class="indent"><pre class="prettyprint">
+&lt;iq from='crone1@shakespeare.lit/desktop'
+    id='conflict1'
+    to='castle@muclight.shakespeare.lit'
+    type='set'&gt;
+    &lt;query xmlns='urn:xmpp:muclight:0#create'&gt;
+        &lt;configuration&gt;
+            &lt;roomname&gt;A Dark Cave&lt;/roomname&gt;
+        &lt;/configuration&gt;
+    &lt;/query&gt;
+&lt;/iq&gt;
+
+&lt;iq to='crone1@shakespeare.lit/desktop'
+    id='conflict1'
+    from='castle@muclight.shakespeare.lit'
+    type='error'&gt;
+    &lt;error type='cancel'&gt;
+        &lt;conflict xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'/&gt;
+    &lt;/error&gt;
+&lt;/iq&gt;
+            </pre></div>
+        </div>
+    </div>
+    <div class="indent"><h3>5.2 <a name="destroying-a-room" id="destroying-a-room">Destroying a room</a></h3>
+        <p class="" style="">A room is automatically destroyed when its occupant list becomes empty or the room owner explicitly sends IQ with a room destroy request.</p>
+        <p class="" style="">Before sending an IQ result, every occupant is notified that its affiliation has changed to 'none'. These notifications include &lt;x/&gt; element qualified with "urn:xmpp:muclight:0#destroy" namespace.</p>
+        <p class="" style="">Only the room owner is allowed to destroy it.</p>
+        <p class="" style="">Room destruction notification SHOULD NOT contain version (or "prev-version" information).</p>
+        <p class="caption"><a name="example-24" id="example-24"></a>Example 24. Client requests room destruction</p><div class="indent"><pre class="prettyprint">
+&lt;iq from='crone1@shakespeare.lit/desktop'
+    id='destroy1'
+    to='coven@muclight.shakespeare.lit'
+    type='set'&gt;
+    &lt;query xmlns='urn:xmpp:muclight:0#destroy' /&gt;
+&lt;/iq&gt;
+
+&lt;message from='coven@muclight.shakespeare.lit'
+         to='crone1@shakespeare.lit'
+         type='groupchat'
+         id='destroynotif'&gt;
+    &lt;x xmlns='urn:xmpp:muclight:0#affiliations'&gt;
+        &lt;user affiliation='none'&gt;crone1@shakespeare.lit&lt;/user&gt;
+    &lt;/x&gt;
+    &lt;x xmlns='urn:xmpp:muclight:0#destroy' /&gt;
+    &lt;body /&gt;
+&lt;/message&gt;
+
+&lt;message from='coven@muclight.shakespeare.lit'
+         to='hag77@shakespeare.lit'
+         type='groupchat'
+         id='destroynotif'&gt;
+    &lt;x xmlns='urn:xmpp:muclight:0#affiliations'&gt;
+        &lt;user affiliation='none'&gt;hag77@shakespeare.lit&lt;/user&gt;
+    &lt;/x&gt;
+    &lt;x xmlns='urn:xmpp:muclight:0#destroy' /&gt;
+    &lt;body /&gt;
+&lt;/message&gt;
+
+&lt;message from='coven@muclight.shakespeare.lit'
+         to='hag88@shakespeare.lit'
+         type='groupchat'
+         id='destroynotif'&gt;
+    &lt;x xmlns='urn:xmpp:muclight:0#affiliations'&gt;
+        &lt;user affiliation='none'&gt;hag88@shakespeare.lit&lt;/user&gt;
+    &lt;/x&gt;
+    &lt;x xmlns='urn:xmpp:muclight:0#destroy' /&gt;
+    &lt;body /&gt;
+&lt;/message&gt;
+
+&lt;iq to='crone1@shakespeare.lit/desktop'
+    id='create1'
+    from='coven@muclight.shakespeare.lit'
+    type='result' /&gt;
+        </pre></div>
+    </div>
+    <div class="indent"><h3>5.3 <a name="set-room-config" id="set-room-config">Setting room configuration</a></h3>
+        <p class="" style="">Only room owners can modify room configuration but the service MAY allow members to change it too.</p>
+        <p class="" style="">All room occupants MUST be notified about a configuration change and both the new and old room version string (&lt;version /&gt; and &lt;prev-version /&gt; respectively).</p>
+        <p class="" style="">"version" and "prev-version" configuration field names are NOT ALLOWED - they are reserved for room versioning.</p>
+        <p class="" style="">The service MAY allow the client to set the configuration fields with any name but it is NOT RECOMMENDED.</p>
+        <p class="" style="">The Data Forms are not used for the configuration. Instead, the config fields are encoded in XML elements with names equal to the key and content equal to the value.</p>
+        <p class="caption"><a name="example-25" id="example-25"></a>Example 25. Client configuration request to the server</p><div class="indent"><pre class="prettyprint">
+&lt;iq from='crone1@shakespeare.lit/desktop'
+    id='conf2'
+    to='coven@muclight.shakespeare.lit'
+    type='set'&gt;
+    &lt;query xmlns='urn:xmpp:muclight:0#configuration'&gt;
+        &lt;roomname&gt;A Darker Cave&lt;/roomname&gt;
+    &lt;/query&gt;
+&lt;/iq&gt;
+
+&lt;message from='coven@muclight.shakespeare.lit'
+         to='crone1@shakespeare.lit'
+         type='groupchat'
+         id='configchange'&gt;
+    &lt;x xmlns='urn:xmpp:muclight:0#configuration'&gt;
+        &lt;prev-version&gt;zaqwsx&lt;/prev-version&gt;
+        &lt;version&gt;zxcvbnm&lt;/version&gt;
+        &lt;roomname&gt;A Darker Cave&lt;/roomname&gt;
+    &lt;/x&gt;
+    &lt;body /&gt;
+&lt;/message&gt;
+
+&lt;message from='coven@muclight.shakespeare.lit'
+         to='hag66@shakespeare.lit'
+         type='groupchat'
+         id='configchange'&gt;
+    &lt;x xmlns='urn:xmpp:muclight:0#configuration'&gt;
+        &lt;prev-version&gt;zaqwsx&lt;/prev-version&gt;
+        &lt;version&gt;zxcvbnm&lt;/version&gt;
+        &lt;roomname&gt;A Darker Cave&lt;/roomname&gt;
+    &lt;/x&gt;
+    &lt;body /&gt;
+&lt;/message&gt;
+
+&lt;iq to='crone1@shakespeare.lit/desktop'
+    id='conf2'
+    from='coven@muclight.shakespeare.lit'
+    type='result' /&gt;
+        </pre></div>
+        <p class="" style="">The server SHOULD accept incomplete (i.e. delta) configuration forms. In such case, values of the missing fields SHOULD be preserved.</p>
+    </div>
+    <div class="indent"><h3>5.4 <a name="changing-occupant-list" id="changing-occupant-list">Changing the occupant list</a></h3>
+        <p class="" style="">The occupant list is modified by a direct affiliation change. Following rules apply:</p>
+        <ol start="" class="" style="">
+            <li class="" style="">There are only 3 affiliations.
+                <ul class="" style="">
+                    <li class="" style="">owner - can do everything in the room</li>
+                    <li class="" style="">member - can send messages to the room and if the service allows it, can also change configuration or change others' affiliations</li>
+                    <li class="" style="">none - not in the room; it's a keyword for marking a user for removal from room</li>
+            </ul></li>
+            <li class="" style="">Every occupant can change its own affiliation to none in order to leave the room.</li>
+            <li class="" style="">The only way to join the room is being added by other occupant.</li>
+            <li class="" style="">The owner can change affiliations at will.</li>
+            <li class="" style="">If the owner leaves, the server MAY use any strategy to choose a new one.</li>
+            <li class="" style="">The room can have at most one owner. Giving someone else the 'owner' status effectively causes the current one to lose it.</li>
+            <li class="" style="">Owner can choose a new owner when leaving by including both 'none' and 'owner' items in affiliation change request.</li>
+            <li class="" style="">Every user JID can be used in the request at most once.</li>
+            <li class="" style="">A single request MAY change multiple affiliations.</li>
+            <li class="" style="">All changes must be meaningful, e.g. setting member's affiliation to 'member' is considered a bad request.</li>
+            <li class="" style="">Server MAY allow members to add new members but they still cannot make anyone an 'owner' or remove other users from the room.</li>
+        </ol>
+        <p class="" style="">On success the server will reply with result IQ with all changed items. BEFORE returning the IQ result, the service MUST route a message with affiliation change to all relevant users.</p>
+        <p class="" style="">Newcomers, i.e. users that were not occupants before the change, SHOULD receive only their own affiliation and SHOULD NOT receive &lt;prev-version /&gt; element.</p>
+        <p class="" style="">The notifications must include both the new and old room version (&lt;version /&gt; and &lt;prev-version /&gt; respectively) string (except for the ones directed to users that have been removed from the room).</p>
+        <p class="" style="">The notifications contain a list of items. The item list may be different from the list in IQ set, because some of the changes may require additional operations, e.g. choosing new owner when the old one leaves. Users, that are still in the room after change, will receive full change list. Users, that have been removed from the room with the request, will get only one item: themselves with affiliation 'none'.</p>
+        <p class="caption"><a name="example-26" id="example-26"></a>Example 26. Affiliations change request</p><div class="indent"><pre class="prettyprint">
+&lt;iq from='crone1@shakespeare.lit/desktop'
+    id='member1'
+    to='coven@muclight.shakespeare.lit'
+    type='set'&gt;
+    &lt;query xmlns='urn:xmpp:muclight:0#affiliations'&gt;
+        &lt;user affiliation='member'&gt;hag66@shakespeare.lit&lt;/user&gt;
+        &lt;user affiliation='owner'&gt;hag77@shakespeare.lit&lt;/user&gt;
+        &lt;user affiliation='none'&gt;hag88@shakespeare.lit&lt;/user&gt;
+    &lt;/query&gt;
+&lt;/iq&gt;
+            
+&lt;message from='coven@muclight.shakespeare.lit'
+         to='crone1@shakespeare.lit'
+         type='groupchat'
+         id='memberchange'&gt;
+    &lt;x xmlns='urn:xmpp:muclight:0#affiliations'&gt;
+        &lt;prev-version&gt;njiokm&lt;/prev-version&gt;
+        &lt;version&gt;qwerty&lt;/version&gt;
+        &lt;user affiliation='member'&gt;crone1@shakespeare.lit&lt;/user&gt;
+        &lt;user affiliation='member'&gt;hag66@shakespeare.lit&lt;/user&gt;
+        &lt;user affiliation='owner'&gt;hag77@shakespeare.lit&lt;/user&gt;
+        &lt;user affiliation='none'&gt;hag88@shakespeare.lit&lt;/user&gt;
+    &lt;/x&gt;
+    &lt;body&gt;&lt;/body&gt;
+&lt;/message&gt;
+
+&lt;message from='coven@muclight.shakespeare.lit'
+         to='hag66@shakespeare.lit'
+         type='groupchat'
+         id='memberchange'&gt;
+    &lt;x xmlns='urn:xmpp:muclight:0#affiliations'&gt;
+        &lt;version&gt;qwerty&lt;/version&gt;
+        &lt;user affiliation='member'&gt;hag66@shakespeare.lit&lt;/user&gt;
+    &lt;/x&gt;
+    &lt;body&gt;&lt;/body&gt;
+&lt;/message&gt;
+
+&lt;message from='coven@muclight.shakespeare.lit'
+         to='hag77@shakespeare.lit'
+         type='groupchat'
+         id='memberchange'&gt;
+    &lt;x xmlns='urn:xmpp:muclight:0#affiliations'&gt;
+        &lt;prev-version&gt;njiokm&lt;/prev-version&gt;
+        &lt;version&gt;qwerty&lt;/version&gt;
+        &lt;user affiliation='member'&gt;crone1@shakespeare.lit&lt;/user&gt;
+        &lt;user affiliation='member'&gt;hag66@shakespeare.lit&lt;/user&gt;
+        &lt;user affiliation='owner'&gt;hag77@shakespeare.lit&lt;/user&gt;
+        &lt;user affiliation='none'&gt;hag88@shakespeare.lit&lt;/user&gt;
+    &lt;/x&gt;
+    &lt;body&gt;&lt;/body&gt;
+&lt;/message&gt;
+
+&lt;message from='coven@muclight.shakespeare.lit'
+         to='hag88@shakespeare.lit'
+         type='groupchat'
+         id='memberchange'&gt;
+    &lt;x xmlns='urn:xmpp:muclight:0#affiliations'&gt;
+        &lt;user affiliation='none'&gt;hag88@shakespeare.lit&lt;/user&gt;
+    &lt;/x&gt;
+    &lt;body&gt;&lt;/body&gt;
+&lt;/message&gt;
+
+&lt;iq to='crone1@shakespeare.lit/desktop'
+    id='member1'
+    from='coven@muclight.shakespeare.lit'
+    type='result' /&gt;
+            </pre></div>
+    </div>
+<h2>6.
+       <a name="rfc-xep-interactions" id="rfc-xep-interactions">Interactions with RFCs and other XEPs</a></h2>
+    <div class="indent"><h3>6.1 <a name="user-rosters" id="user-rosters">User rosters</a></h3>
+        <p class="" style="">The service MAY add user's rooms to its roster. It allows the client to skip separate Disco request to the service. Roster items with rooms MUST belong to the group "urn:xmpp:muclight:0" (MUC Light namespace) and include &lt;version&gt; element. Their subscription type MUST be 'to'.</p>
+        <p class="caption"><a name="example-27" id="example-27"></a>Example 27. Entity requests the roster and receives reply that includes room item</p><div class="indent"><pre class="prettyprint">
+&lt;iq type='get' id='roster1' to='shakespeare.lit'&gt;
+    &lt;query xmlns='jabber:iq:roster'/&gt;
+&lt;/iq&gt;
+
+&lt;iq id='roster1' to='hag66@shakespeare.lit/tablet' type='result'&gt;
+    &lt;query xmlns='jabber:iq:roster' ver='ver7'&gt;
+        &lt;item jid='hag77@shakespeare.lit' subscription='both'/&gt;
+        &lt;item jid='hag88@shakespeare.lit' subscription='both'/&gt;
+        &lt;item jid='coven@muclight.shakespeare.lit' name='The Coven' subscription='to'&gt;
+            &lt;group&gt;urn:xmpp:muclight:0&lt;/group&gt;
+            &lt;version&gt;1234345&lt;/version&gt;
+        &lt;/item&gt;
+    &lt;/query&gt;
+&lt;/iq&gt;
+        </pre></div>
+    </div>
+    <div class="indent"><h3>6.2 <a name="mam" id="mam">XEP-0313 Message Archive Management</a></h3>
+        <p class="" style="">This section defines the rules for archiving MUC Light events and messages. Stanzas described in the subsections below MUST be archived by the server. The stanzas not included here MUST NOT be archived.</p>
+        <p class="" style="">The &lt;message/&gt; element inside &lt;forwarded&gt; MUST include "from" attribute and MUST NOT include "to" attribute. "id" SHOULD be archived as well.</p>
+        <p class="" style="">In case of regular groupchat messages, "from" attribute MUST consist of a room full JID with sender bare JID in the resource part. As for room notification, e.g. create event, "from" MUST be equal to room bare JID.</p>
+        <p class="" style="">Examples below use MAM v0.4 protocol. Archive can be fetched only from a specific room, the client MUST NOT query MUC Light service directly.</p>
+        <div class="indent"><h3>6.2.1 <a name="mam-message-occupant" id="mam-message-occupant">Groupchat message from occupant</a></h3>
+            <p class="" style="">Message from a user MUST be archived with all child elements.</p>
+            <p class="caption"><a name="example-28" id="example-28"></a>Example 28. Occupant queries MAM and receives regular groupchat message</p><div class="indent"><pre class="prettyprint">
+&lt;iq type='set' id='mamget1' to='coven@muclight.shakespeare.lit'&gt;
+    &lt;query xmlns='urn:xmpp:mam:1' queryid='f27' /&gt;
+&lt;/iq&gt;
+
+&lt;message id='aeb213' to='hag66@shakespeare.lit/pda'&gt;
+    &lt;result xmlns='urn:xmpp:mam:1' queryid='f27' id='28482-98726-73623'&gt;
+        &lt;forwarded xmlns='urn:xmpp:forward:0'&gt;
+            &lt;delay xmlns='urn:xmpp:delay' stamp='2010-07-10T23:08:25Z'/&gt;
+            &lt;message from="coven@muclight.shakespeare.lit/hag77@shakespeare.lit"
+                     id="msgid11"&gt;
+                &lt;body&gt;Welcome!&lt;/body&gt;
+                &lt;x xmlns="elixir:ingredient"&gt;bat-wing&lt;/x&gt;
+            &lt;/message&gt;
+        &lt;/forwarded&gt;
+    &lt;/result&gt;
+&lt;/message&gt;
+
+&lt;iq type='result' id='mamget1' from='coven@muclight.shakespeare.lit'/&gt;
+                </pre></div>
+        </div>
+        <div class="indent"><h3>6.2.2 <a name="mam-aff-change" id="mam-aff-change">Affiliation change</a></h3>
+            <p class="" style="">Every archived affiliation change notification MUST include &lt;version&gt; element and MUST NOT contain &lt;prev-version&gt; element.</p>
+            <p class="caption"><a name="example-29" id="example-29"></a>Example 29. Occupant queries MAM and receives affiliation change notification</p><div class="indent"><pre class="prettyprint">
+&lt;iq type='set' id='mamget2' to='muclight.shakespeare.lit'&gt;
+    &lt;query xmlns='urn:xmpp:mam:1' queryid='f37' /&gt;
+&lt;/iq&gt;
+
+&lt;message id='aef2133' to='hag66@shakespeare.lit/pda'&gt;
+    &lt;result xmlns='urn:xmpp:mam:1' queryid='f37' id='21482-98726-71623'&gt;
+        &lt;forwarded xmlns='urn:xmpp:forward:0'&gt;
+            &lt;delay xmlns='urn:xmpp:delay' stamp='2013-07-10T21:08:25Z'/&gt;
+            &lt;message from="coven@muclight.shakespeare.lit" id="notifid11"&gt;
+                &lt;x xmlns='urn:xmpp:muclight:0#affiliations'&gt;
+                    &lt;version&gt;b9uf13h98f13&lt;/version&gt;
+                    &lt;user affiliation='owner'&gt;hag66@shakespeare.lit&lt;/user&gt;
+                    &lt;user affiliation='member'&gt;user1@shakespeare.lit&lt;/user&gt;
+                    &lt;user affiliation='member'&gt;user2@shakespeare.lit&lt;/user&gt;
+                &lt;/x&gt;
+            &lt;/message&gt;
+        &lt;/forwarded&gt;
+    &lt;/result&gt;
+&lt;/message&gt;
+
+&lt;iq type='result' id='mamget12'/&gt;
+                </pre></div>
+        </div>
+        <div class="indent"><h3>6.2.3 <a name="mam-room-create" id="mam-room-create">Room creation</a></h3>
+            <p class="" style="">Room creation is archived as an affiliation change that includes ALL initial occupants (including the room creator).</p>
+        </div>
+    </div>
+<h2>7.
+       <a name="general-errors" id="general-errors">General Error Cases</a></h2>
+    <div class="indent"><h3>7.1 <a name="unauthorized-stanza-to-room" id="unauthorized-stanza-to-room">Client sends an unauthorized stanza to a room</a></h3>
+        <p class="" style="">If a client sends a stanza to the room, that it does not occupy, the service MUST reply with the 'item-not-found' error.</p>
+        <p class="caption"><a name="example-30" id="example-30"></a>Example 30. Unauthorized IQ</p><div class="indent"><pre class="prettyprint">
+&lt;iq from='crone1@shakespeare.lit/desktop'
+    id='member1'
+    to='coven@muclight.shakespeare.lit'
+    type='set'&gt;
+    &lt;query xmlns='urn:xmpp:muclight:0#affiliations'&gt;
+        &lt;user affiliation='member'&gt;hag66@shakespeare.lit&lt;/user&gt;
+    &lt;/query&gt;
+&lt;/iq&gt;
+
+&lt;iq to='crone1@shakespeare.lit/desktop'
+    id='member1'
+    from='coven@muclight.shakespeare.lit'
+    type='error'&gt;
+    &lt;error type='cancel'&gt;
+        &lt;not-allowed xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'/&gt;
+    &lt;/error&gt;
+&lt;/iq&gt;
+        </pre></div>
+        <p class="caption"><a name="example-31" id="example-31"></a>Example 31. Unauthorized message</p><div class="indent"><pre class="prettyprint">
+&lt;message from='hag66@shakespeare.lit/pda'
+         id='unauth2'
+         to='coven@muclight.shakespeare.lit'
+         type='groupchat'&gt;
+    &lt;body&gt;Harpier cries: 'tis time, 'tis time.&lt;/body&gt;
+&lt;/message&gt;
+
+&lt;message to='hag66@shakespeare.lit/pda'
+         id='unauth2'
+         from='coven@muclight.shakespeare.lit'
+         type='error'&gt;
+    &lt;error type='cancel'&gt;
+        &lt;not-allowed xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'/&gt;
+    &lt;/error&gt;
+&lt;/message&gt;
+        </pre></div>
+    </div>
+    <div class="indent"><h3>7.2 <a name="presence-to-service" id="presence-to-service">Client sends a &lt;presence/&gt; stanza to the service</a></h3>
+        <p class="" style="">The service MUST ignore all &lt;presence/&gt; stanzas sent by the client.</p>
+    </div>
+    <div class="indent"><h3>7.3 <a name="invalid-to-service" id="invalid-to-service">Client sends an invalid stanza to the service</a></h3>
+        <p class="" style="">If service receives a stanza with invalid syntax, it MUST reply with a 'bad-request' error.</p>
+        <p class="caption"><a name="example-32" id="example-32"></a>Example 32. Invalid IQ</p><div class="indent"><pre class="prettyprint">
+&lt;iq from='crone1@shakespeare.lit/desktop'
+    id='bad1'
+    to='coven@muclight.shakespeare.lit'
+    type='set'&gt;
+    &lt;query xmlns='urn:xmpp:muclight:0#affiliations'&gt;
+        &lt;item role='participant'&gt;hag66@shakespeare.lit&lt;/item&gt;
+    &lt;/query&gt;
+&lt;/iq&gt;
+
+&lt;iq to='crone1@shakespeare.lit/desktop'
+    id='bad1'
+    from='coven@muclight.shakespeare.lit'
+    type='error'&gt;
+    &lt;error type='modify'&gt;
+        &lt;bad-request xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'/&gt;
+    &lt;/error&gt;
+&lt;/iq&gt;
+        </pre></div>
+        <p class="caption"><a name="example-33" id="example-33"></a>Example 33. Invalid message</p><div class="indent"><pre class="prettyprint">
+&lt;message from='hag66@shakespeare.lit/pda'
+         id='bad2'
+         to='coven@muclight.shakespeare.lit'
+         type='chat'&gt;
+    &lt;body&gt;Harpier cries: 'tis time, 'tis time.&lt;/body&gt;
+&lt;/message&gt;
+
+&lt;message to='hag66@shakespeare.lit/pda'
+         id='bad2'
+         from='coven@muclight.shakespeare.lit'
+         type='error'&gt;
+    &lt;error type='modify'&gt;
+        &lt;bad-request xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'/&gt;
+    &lt;/error&gt;
+&lt;/message&gt;
+        </pre></div>
+    </div>
+    <div class="indent"><h3>7.4 <a name="insufficient-privileges" id="insufficient-privileges">Request sender has insufficient privileges</a></h3>
+        <p class="" style="">If the request sender does not have sufficient privileges (but is a room occupant), the service MUST reply with a 'not-allowed' error.</p>
+        <p class="" style="">It occurs in the following cases:
+            <ul class="" style="">
+                <li class="" style="">A member tries to change the configuration but the service is not configured to allow it. It does not apply to  the subject change, although it has to be performed by sending &lt;message/&gt; with &lt;subject/&gt;, not configuration &lt;iq/&gt;.</li>
+                <li class="" style="">A member tries to change anyone's affiliation to 'none' or 'owner'.</li>
+                <li class="" style="">A member tries to change someone's affiliation to 'member' but the service is not configured to allow it.</li>
+            </ul>
+        </p>
+        <p class="caption"><a name="example-34" id="example-34"></a>Example 34. Prohibited IQ</p><div class="indent"><pre class="prettyprint">
+&lt;iq from='minion@shakespeare.lit/desktop'
+    id='privileges1'
+    to='coven@muclight.shakespeare.lit'
+    type='set'&gt;
+    &lt;query xmlns='urn:xmpp:muclight:0#affiliations'&gt;
+        &lt;user role='owner'&gt;minion@shakespeare.lit&lt;/user&gt;
+    &lt;/query&gt;
+&lt;/iq&gt;
+
+&lt;iq to='minion@shakespeare.lit/desktop'
+    id='privileges1'
+    from='coven@muclight.shakespeare.lit'
+    type='error'&gt;
+    &lt;error type='cancel'&gt;
+        &lt;not-allowed xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'/&gt;
+    &lt;/error&gt;
+&lt;/iq&gt;
+        </pre></div>
+    </div>
+<h2>8.
+       <a name="impl" id="impl">Implementation Notes</a></h2>
+    <div class="indent"><h3>8.1 <a name="xep0045" id="xep0045">XEP-0045 mappings</a></h3>
+        <p class="" style="">Some client-side developers might choose to use existing XEP-0045 Multi-User Chat implementations to interface with the new MUC Light. There may be various reasons to do so: using familiar protocol, avoiding additional implementation, quick prototyping etc. This section provides suggestions of mappings between XEP-0045 stanzas and the new ones described in this document.</p>
+        <p class="" style="">Operations not described here SHOULD remain unmodified.</p>
+        <div class="indent"><h3>8.1.1 <a name="comp-features" id="comp-features">Discovering the Features Supported by a MUC Service</a></h3>
+            <p class="" style="">A Disco result MAY either include new &lt;feature /&gt; element with an "http://jabber.org/protocol/muc" namespace next to MUC Light one, or completely replace it, which is RECOMMENDED behaviour.</p>
+            <p class="caption"><a name="example-35" id="example-35"></a>Example 35. Returning MUC namespace in Disco</p><div class="indent"><pre class="prettyprint">
+&lt;iq from='hag66@shakespeare.lit/pda'
+    id='lx09df27'
+    to='muclight.shakespeare.lit'
+    type='get'&gt;
+    &lt;query xmlns='http://jabber.org/protocol/disco#info'/&gt;
+&lt;/iq&gt;
+
+&lt;iq from='muclight.shakespeare.lit'
+    id='lx09df27'
+    to='hag66@shakespeare.lit/pda'
+    type='result'&gt;
+    &lt;query xmlns='http://jabber.org/protocol/disco#info'&gt;
+        &lt;identity category='conference'
+                  name='Shakespearean Chat Service'
+                  type='text'/&gt;
+        &lt;feature var='http://jabber.org/protocol/muc'/&gt;
+    &lt;/query&gt;
+&lt;/iq&gt;
+                </pre></div>
+        </div>
+        <div class="indent"><h3>8.1.2 <a name="comp-disco-rooms" id="comp-disco-rooms">Discovering Occupied Rooms</a></h3>
+            <p class="" style="">The room list MUST not include room versions.</p>
+            <p class="caption"><a name="example-36" id="example-36"></a>Example 36. Service Returns Disco Items Result</p><div class="indent"><pre class="prettyprint">
+&lt;iq from='muclight.shakespeare.lit'
+    id='zb8q41f4'
+    to='hag66@shakespeare.lit/pda'
+    type='result'&gt;
+    &lt;query xmlns='http://jabber.org/protocol/disco#items'&gt;
+        &lt;item jid='heath@muclight.shakespeare.lit'
+              name='A Lonely Heath'/&gt;
+        &lt;item jid='coven@muclight.shakespeare.lit'
+              name='A Dark Cave'/&gt;
+        &lt;item jid='forres@muclight.shakespeare.lit'
+              name='The Palace'/&gt;
+        &lt;item jid='inverness@muclight.shakespeare.lit'
+              name='Macbeth&amp;apos;s Castle'/&gt;
+    &lt;/query&gt;
+&lt;/iq&gt;
+                </pre></div>
+        </div>
+        <div class="indent"><h3>8.1.3 <a name="comp-change-subject" id="comp-change-subject">Changing a room subject</a></h3>
+            <p class="" style="">Instead of distributing the configuration change notifications, the room MUST route &lt;message/&gt; with &lt;subject/&gt; like a classic MUC would. The client MUST send classic message &lt;subject/&gt; as well. The room SHOULD save new subject in the room configuration.</p>
+            <p class="caption"><a name="example-37" id="example-37"></a>Example 37. New subject is routed as ordinary message</p><div class="indent"><pre class="prettyprint">
+&lt;message from='hag66@shakespeare.lit/pda'
+         id='compsubject'
+         to='coven@muclight.shakespeare.lit'
+         type='groupchat'&gt;
+    &lt;subject&gt;To be or not to be?&lt;/subject&gt;
+&lt;/message&gt;
+
+&lt;message from='coven@muclight.shakespeare.lit'
+         to='crone1@shakespeare.lit'
+         type='groupchat'
+         id='compsubject'&gt;
+    &lt;subject&gt;To be or not to be?&lt;/subject&gt;
+&lt;/message&gt;
+
+&lt;message from='coven@muclight.shakespeare.lit'
+         to='hag66@shakespeare.lit'
+         type='groupchat'
+         id='compsubject'&gt;
+    &lt;subject&gt;To be or not to be?&lt;/subject&gt;
+&lt;/message&gt;
+            </pre></div>
+        </div>
+        <div class="indent"><h3>8.1.4 <a name="comp-get-config" id="comp-get-config">Getting room configuration</a></h3>
+            <p class="" style="">Room configuration is encoded in Data Form, that simulates XEP-0045 config form.</p>
+            <p class="" style="">Getting room configuration does not benefit from room versioning.</p>
+            <p class="caption"><a name="example-38" id="example-38"></a>Example 38. Requesting room configuration</p><div class="indent"><pre class="prettyprint">
+&lt;iq from='crone1@shakespeare.lit/desktop'
+    id='comp-config'
+    to='coven@muclight.shakespeare.lit'
+    type='get'&gt;
+    &lt;query xmlns='http://jabber.org/protocol/muc#owner'/&gt;
+&lt;/iq&gt;
+
+&lt;iq from='coven@muclight.shakespeare.lit'
+    id='comp-config'
+    to='crone1@shakespeare.lit/desktop'
+    type='result'&gt;
+    &lt;query xmlns='http://jabber.org/protocol/muc#owner'&gt;
+        &lt;x xmlns='jabber:x:data' type='form'&gt;
+            &lt;title&gt;Configuration for "coven" Room&lt;/title&gt;
+            &lt;field type='hidden' var='FORM_TYPE'&gt;
+                &lt;value&gt;http://jabber.org/protocol/muc#roomconfig&lt;/value&gt;
+            &lt;/field&gt;
+            &lt;field label='Natural-Language Room Name'
+                   type='text-single'
+                   var='muc#roomconfig_roomname'&gt;
+                &lt;value&gt;A Dark Cave&lt;/value&gt;
+            &lt;/field&gt;
+            &lt;field label='Room subject'
+                   type='text-single'
+                   var='muc#roomconfig_subject'&gt;
+                &lt;value&gt;To be or not to be?&lt;/value&gt;
+            &lt;/field&gt;
+        &lt;/x&gt;
+    &lt;/query&gt;
+&lt;/iq&gt;
+            </pre></div>
+        </div>
+        <div class="indent"><h3>8.1.5 <a name="comp-get-user-list" id="comp-get-user-list">Requesting user list</a></h3>
+            <p class="" style="">User list is retrieved with affiliation IQ get.</p>
+            <p class="caption"><a name="example-39" id="example-39"></a>Example 39. Requesting affiliation list</p><div class="indent"><pre class="prettyprint">
+&lt;iq from='crone1@shakespeare.lit/desktop'
+    id='comp-getaff'
+    to='coven@muclight.shakespeare.lit' type='get'&gt;
+    &lt;query xmlns='http://jabber.org/protocol/muc#admin'&gt;
+        &lt;item affiliation='owner'/&gt;
+        &lt;item affiliation='member'/&gt;
+    &lt;/query&gt;
+&lt;/iq&gt;
+
+&lt;iq from='coven@muclight.shakespeare.lit'
+    id='comp-getaff'
+    to='crone1@shakespeare.lit/desktop'
+    type='result'&gt;
+    &lt;query xmlns='http://jabber.org/protocol/muc#admin'&gt;
+        &lt;item affiliation='owner'
+              jid='crone1@shakespeare.lit'
+              nick='crone1@shakespeare.lit'
+              role='moderator'/&gt;
+        &lt;item affiliation='member'
+              jid='hag66@shakespeare.lit'
+              nick='hag66@shakespeare.lit'
+              role='participant'/&gt;
+    &lt;/query&gt;
+&lt;/iq&gt;
+            </pre></div>
+        </div>
+        <div class="indent"><h3>8.1.6 <a name="requesting-room-information" id="requesting-room-information">Requesting room information</a></h3>
+            <p class="" style="">There is no XEP-0045 equivalent for getting full room information</p>
+        </div>
+        <div class="indent"><h3>8.1.7 <a name="comp-leaving" id="comp-leaving">Leaving the room</a></h3>
+            <p class="" style="">Leaving the room is performed by setting own affiliation to 'none'. The service uses &lt;presence/&gt; to notify all occupants (and former occupant) about the change. &lt;presence/&gt; to the leaving occupant MUST be of type "unavailable" and MUST include status code 321 (i.e. user leaving due to affiliation change).</p>
+            <p class="caption"><a name="example-40" id="example-40"></a>Example 40. Requesting affiliation list</p><div class="indent"><pre class="prettyprint">
+&lt;iq from='crone1@shakespeare.lit/desktop'
+    id='comp-leave'
+    to='coven@muclight.shakespeare.lit'
+    type='set'&gt;
+    &lt;query xmlns='http://jabber.org/protocol/muc#admin'&gt;
+        &lt;item affiliation='none' jid='crone1@shakespeare.lit'/&gt;
+    &lt;/query&gt;
+&lt;/iq&gt;
+
+&lt;presence from='coven@muclight.shakespeare.lit/crone1@shakespeare.lit'
+          to='crone1@shakespeare.lit'
+          type='unavailable'&gt;
+    &lt;x xmlns='http://jabber.org/protocol/muc#user'&gt;
+        &lt;item affiliation='none' jid='crone1@shakespeare.lit/pda' role='none'/&gt;
+        &lt;status code='321'/&gt;
+    &lt;/x&gt;
+&lt;/presence&gt;
+
+&lt;presence from='coven@muclight.shakespeare.lit/crone1@shakespeare.lit'
+          to='hag66@shakespeare.lit/desktop'&gt;
+    &lt;x xmlns='http://jabber.org/protocol/muc#user'&gt;
+        &lt;item affiliation='none' jid='crone1@shakespeare.lit/pda' role='none'/&gt;
+        &lt;status code='321'/&gt;
+    &lt;/x&gt;
+&lt;/presence&gt;
+
+
+&lt;iq from='coven@muclight.shakespeare.lit'
+    id='comp-leave'
+    to='crone1@shakespeare.lit/desktop'
+    type='result'/&gt;
+            </pre></div>
+        </div>
+        <div class="indent"><h3>8.1.8 <a name="comp-blocking" id="comp-blocking">Blocking functionality</a></h3>
+            <p class="" style="">Blocking functionality uses small subset of Privacy Lists protocol. Stanzas MUST be addressed to the server JID and.</p>
+            <p class="" style="">The privacy list name MUST be equal to "urn:xmpp:muclight:0"</p>
+            <p class="" style="">Obviously, this method won't work properly in XMPP Server Federation.</p>
+            <p class="" style="">As opposed to XEP-0016, it is allowed to send "delta" privacy lists.</p> 
+            <div class="indent"><h3>8.1.8.1 <a name="comp-get-blocking" id="comp-get-blocking">Request blocking list</a></h3>
+                <p class="caption"><a name="example-41" id="example-41"></a>Example 41. Retrieving blocking list</p><div class="indent"><pre class="prettyprint">
+&lt;iq from='crone1@shakespeare.lit/desktop' type='get' id='comp-getlist'&gt;
+    &lt;query xmlns='jabber:iq:privacy'&gt;
+        &lt;list name='urn:xmpp:muclight:0'/&gt;
+    &lt;/query&gt;
+&lt;/iq&gt;
+
+&lt;iq type='result' id='comp-getlist' to='crone1@shakespeare.lit/desktop'&gt;
+    &lt;query xmlns='jabber:iq:privacy'&gt;
+        &lt;list name='urn:xmpp:muclight:0'&gt;
+            &lt;item type='jid'
+                  value='coven@muclight.shakespeare.lit'
+                  action='deny'
+                  order='1'/&gt;
+            &lt;item type='jid'
+                  value='muclight.shakespeare.lit/hag66@shakespeare.lit'
+                  action='deny'
+                  order='1'/&gt;
+        &lt;/list&gt;
+    &lt;/query&gt;
+&lt;/iq&gt;
+                </pre></div>
+            </div>
+            <div class="indent"><h3>8.1.8.2 <a name="comp-blocking-room" id="comp-blocking-room">Blocking a room</a></h3>
+                <p class="" style="">In order to block a room, the client MUST deny room bare JID in privacy list.</p>
+                <p class="caption"><a name="example-42" id="example-42"></a>Example 42. Blocking a room</p><div class="indent"><pre class="prettyprint">
+&lt;iq from='crone1@shakespeare.lit/desktop' type='set' id='comp-blockroom'&gt;
+    &lt;query xmlns='jabber:iq:privacy'&gt;
+        &lt;list name='urn:xmpp:muclight:0'&gt;
+            &lt;item type='jid'
+                  value='coven@muclight.shakespeare.lit'
+                  action='deny'
+                  order='1'/&gt;
+        &lt;/list&gt;
+    &lt;/query&gt;
+&lt;/iq&gt;
+
+&lt;iq type='result' id='comp-blockroom' to='crone1@shakespeare.lit/desktop' /&gt;
+                </pre></div>
+            </div>
+            <div class="indent"><h3>8.1.8.3 <a name="comp-blocking-user" id="comp-blocking-user">Blocking a user</a></h3>
+                <p class="" style="">In order to block a room, the client MUST deny service JID with user's bare JID in resource.</p>
+                <p class="caption"><a name="example-43" id="example-43"></a>Example 43. Blocking a user</p><div class="indent"><pre class="prettyprint">
+&lt;iq from='crone1@shakespeare.lit/desktop' type='set' id='comp-blockuser'&gt;
+    &lt;query xmlns='jabber:iq:privacy'&gt;
+        &lt;list name='urn:xmpp:muclight:0'&gt;
+            &lt;item type='jid'
+                  value='muclight.shakespeare.lit/hag66@shakespeare.lit'
+                  action='deny'
+                  order='1'/&gt;
+        &lt;/list&gt;
+    &lt;/query&gt;
+&lt;/iq&gt;
+
+&lt;iq type='result' id='comp-blockuser' to='crone1@shakespeare.lit/desktop' /&gt;
+                </pre></div>
+            </div>
+            <div class="indent"><h3>8.1.8.4 <a name="comp-unblocking" id="comp-unblocking">Unblocking</a></h3>
+                <p class="caption"><a name="example-44" id="example-44"></a>Example 44. Unblocking</p><div class="indent"><pre class="prettyprint">
+&lt;iq from='crone1@shakespeare.lit/desktop' type='get' id='comp-getlist'&gt;
+    &lt;query xmlns='jabber:iq:privacy'&gt;
+        &lt;list name='urn:xmpp:muclight:0'&gt;
+            &lt;item type='jid'
+                  value='coven@muclight.shakespeare.lit'
+                  action='allow'
+                  order='1'/&gt;
+            &lt;item type='jid'
+                  value='muclight.shakespeare.lit/hag66@shakespeare.lit'
+                  action='allow'
+                  order='1'/&gt;
+        &lt;/list&gt;
+    &lt;/query&gt;
+&lt;/iq&gt;
+
+&lt;iq type='result' id='comp-getlist' to='crone1@shakespeare.lit/desktop' /&gt;
+                </pre></div>
+            </div>
+        </div>
+        <div class="indent"><h3>8.1.9 <a name="comp-create-room" id="comp-create-room">Creating a room</a></h3>
+            <p class="" style="">Room is created in standard XEP-0045 way. Client MUST use nick equal to own bare JID.</p>
+            <p class="" style="">Compatibility mode MUST NOT support unique room name generation.</p>
+            <p class="caption"><a name="example-45" id="example-45"></a>Example 45. Creating a room</p><div class="indent"><pre class="prettyprint">
+&lt;presence from='crone1@shakespeare.lit/desktop'
+          to='coven@muclight.shakespeare.lit/crone1@shakespeare.lit'&gt;
+    &lt;x xmlns='http://jabber.org/protocol/muc'/&gt;
+&lt;/presence&gt;
+
+&lt;presence from='coven@chat.shakespeare.lit/crone1@shakespeare.lit'
+          to='crone1@shakespeare.lit/desktop'&gt;
+    &lt;x xmlns='http://jabber.org/protocol/muc#user'&gt;
+        &lt;item affiliation='owner' role='moderator'/&gt;
+        &lt;status code='110'/&gt;
+        &lt;status code='201'/&gt;
+    &lt;/x&gt;
+&lt;/presence&gt;
+                </pre></div>
+            <div class="indent"><h3>8.1.9.1 <a name="comp-room-exists" id="comp-room-exists">Room already exists</a></h3>
+                <p class="" style="">If the client attempts to create a room that is already used, it will receive error &lt;presence/&gt; informing that registration is required (like in case of members-only rooms in XEP-0045)</p>
+                <p class="caption"><a name="example-46" id="example-46"></a>Example 46. Creating a room</p><div class="indent"><pre class="prettyprint">
+&lt;presence from='coven@muclight.shakespeare.lit/crone1@shakespeare.lit'
+          to='crone1@shakespeare.lit/desktop'
+          type='error'&gt;
+    &lt;x xmlns='http://jabber.org/protocol/muc'/&gt;
+    &lt;error by='coven@muclight.shakespeare.lit' type='auth'&gt;
+        &lt;registration-required xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'/&gt;
+    &lt;/error&gt;
+&lt;/presence&gt;
+                    </pre></div>
+            </div>
+        </div>
+        <div class="indent"><h3>8.1.10 <a name="comp-room-destroy" id="comp-room-destroy">Destroying the room</a></h3>
+            <p class="" style="">Classic XEP-0045 method is used but the service SHOULD NOT forward reason and alternate venue JID.</p>
+            <p class="caption"><a name="example-47" id="example-47"></a>Example 47. Destroying the room</p><div class="indent"><pre class="prettyprint">
+&lt;iq from='crone1@shakespeare.lit/desktop'
+    id='begone'
+    to='heath@muclight.shakespeare.lit'
+    type='set'&gt;
+    &lt;query xmlns='http://jabber.org/protocol/muc#owner'&gt;
+        &lt;destroy jid='coven@muclight.shakespare.lit'&gt;
+            &lt;reason&gt;Some reason.&lt;/reason&gt;
+        &lt;/destroy&gt;
+    &lt;/query&gt;
+&lt;/iq&gt;
+
+&lt;presence from='heath@chat.shakespeare.lit/crone1@shakespeare.lit'
+    to='crone1@shakespeare.lit/desktop' type='unavailable'&gt;
+    &lt;x xmlns='http://jabber.org/protocol/muc#user'&gt;
+        &lt;item affiliation='none' role='none'/&gt;
+        &lt;destroy /&gt;
+    &lt;/x&gt;
+&lt;/presence&gt;
+
+&lt;presence
+    from='heath@chat.shakespeare.lit/wiccarocks@shakespeare.lit'
+    to='wiccarocks@shakespeare.lit/laptop' type='unavailable'&gt;
+    &lt;x xmlns='http://jabber.org/protocol/muc#user'&gt;
+        &lt;item affiliation='none' role='none'/&gt;
+        &lt;destroy /&gt;
+    &lt;/x&gt;
+&lt;/presence&gt;
+
+&lt;presence
+    from='heath@chat.shakespeare.lit/hag66@shakespeare.lit'
+    to='hag66@shakespeare.lit/pda'
+    type='unavailable'&gt;
+    &lt;x xmlns='http://jabber.org/protocol/muc#user'&gt;
+        &lt;item affiliation='none' role='none'/&gt;
+        &lt;destroy /&gt;
+    &lt;/x&gt;
+&lt;/presence&gt;
+
+&lt;iq from='heath@chat.shakespeare.lit'
+    id='begone'
+    to='crone1@shakespeare.lit/desktop'
+    type='result'/&gt;
+                </pre></div>
+        </div>
+        <div class="indent"><h3>8.1.11 <a name="comp-set-config" id="comp-set-config">Setting room configuration</a></h3>
+            <p class="" style="">Room occupants can use standard XEP-0045 configuration modification method. The service MUST broadcast only the notification about configuration change with status code 104, so every occupant can retrieve new room configuration in separate request. The client is allowed to send config delta in a form.</p>
+            <p class="caption"><a name="example-48" id="example-48"></a>Example 48. Setting room configuration</p><div class="indent"><pre class="prettyprint">
+&lt;iq to='coven@muclight.shakespeare.lit'
+    id='comp-setconfig'
+    from='crone1@shakespeare.lit/desktop'
+    type='set'&gt;
+    &lt;query xmlns='http://jabber.org/protocol/muc#owner'&gt;
+        &lt;x xmlns='jabber:x:data' type='form'&gt;
+            &lt;field type='hidden' var='FORM_TYPE'&gt;
+                &lt;value&gt;http://jabber.org/protocol/muc#roomconfig&lt;/value&gt;
+            &lt;/field&gt;
+            &lt;field label='Natural-Language Room Name'
+                   type='text-single'
+                   var='muc#roomconfig_roomname'&gt;
+                &lt;value&gt;A Darker Cave&lt;/value&gt;
+            &lt;/field&gt;
+            &lt;field label='Room subject'
+                   type='text-single'
+                   var='muc#roomconfig_subject'&gt;
+                &lt;value&gt;To be!&lt;/value&gt;
+            &lt;/field&gt;
+        &lt;/x&gt;
+    &lt;/query&gt;
+&lt;/iq&gt;
+
+&lt;message from='coven@muclight.shakespeare.lit'
+         id='comp-confchange'
+         to='crone1@shakespeare.lit/desktop'
+         type='groupchat'&gt;
+    &lt;x xmlns='http://jabber.org/protocol/muc#user'&gt;
+        &lt;status code='104'/&gt;
+    &lt;/x&gt;
+&lt;/message&gt;
+
+&lt;message from='coven@muclight.shakespeare.lit'
+         id='comp-confchange'
+         to='crone2@shakespeare.lit/desktop'
+         type='groupchat'&gt;
+    &lt;x xmlns='http://jabber.org/protocol/muc#user'&gt;
+        &lt;status code='104'/&gt;
+    &lt;/x&gt;
+&lt;/message&gt;
+
+&lt;iq from='coven@muclight.shakespeare.lit'
+    id='comp-setconfig'
+    to='crone1@shakespeare.lit/desktop'
+    type='result'/&gt;
+            </pre></div>
+        </div>
+        <div class="indent"><h3>8.1.12 <a name="comp-change-aff" id="comp-change-aff">Changing occupant list</a></h3>
+            <p class="" style="">The service MUST send affiliation change notification to all participants. Leaving users MUST NOT receive any information except for their own "none" affiliation. New users MUST receive invitation message.</p>
+            <p class="caption"><a name="example-49" id="example-49"></a>Example 49. Changing occupant list</p><div class="indent"><pre class="prettyprint">
+&lt;iq from='crone1@shakespeare.lit/desktop'
+    id='comp-setaff'
+    to='coven@muclight.shakespeare.lit'
+    type='set'&gt;
+    &lt;query xmlns='http://jabber.org/protocol/muc#admin'&gt;
+        &lt;item affiliation='none' jid='hag66@shakespeare.lit'/&gt;
+        &lt;item affiliation='member' jid='hecate@shakespeare.lit'/&gt;
+    &lt;/query&gt;
+&lt;/iq&gt;
+
+&lt;presence from='coven@chat.shakespeare.lit/hag66@shakespeare.lit'
+          to='hag66@shakespeare.lit'
+          type='unavailable'&gt;
+    &lt;x xmlns='http://jabber.org/protocol/muc#user'&gt;
+        &lt;item affiliation='none' jid='hag66@shakespeare.lit' role='none'/&gt;
+        &lt;status code='321'/&gt;
+    &lt;/x&gt;
+&lt;/presence&gt;
+
+&lt;message from='coven@muclight.shakespeare.lit'
+         id='comp-invite0'
+         to='hecate@shakespeare.lit'&gt;
+    &lt;x xmlns='http://jabber.org/protocol/muc#user'&gt;
+        &lt;invite from='crone1@shakespeare.lit'/&gt;
+    &lt;/x&gt;
+&lt;/message&gt;
+
+&lt;presence from='coven@chat.shakespeare.lit/hag66@shakespeare.lit'
+          to='crone1@shakespeare.lit'
+          type='unavailable'&gt;
+    &lt;x xmlns='http://jabber.org/protocol/muc#user'&gt;
+        &lt;item affiliation='none' jid='hag66@shakespeare.lit' role='none'/&gt;
+        &lt;status code='321'/&gt;
+    &lt;/x&gt;
+&lt;/presence&gt;
+
+&lt;presence from='coven@chat.shakespeare.lit/hecate@shakespeare.lit'
+          to='crone1@shakespeare.lit'&gt;
+    &lt;x xmlns='http://jabber.org/protocol/muc#user'&gt;
+        &lt;item affiliation='member'
+              jid='hecate@shakespeare.lit'
+              role='participant'
+              nick='hecate@shakespeare.lit'/&gt;
+    &lt;/x&gt;
+&lt;/presence&gt;
+
+&lt;iq from='coven@muclight.shakespeare.lit'
+    id='comp-setaff'
+    to='crone1@shakespeare.lit/desktop'
+    type='result'/&gt;
+            </pre></div>
+        </div>
+    </div>
+    <div class="indent"><h3>8.2 <a name="limits-and-config" id="limits-and-config">Service limits and configuration</a></h3>
+        <p class="" style="">MUC Light service may be abused by malicious users, e.g. due to replicating single message for every room occupant. The list below contains suggested configurable limits that SHOULD be implemented.</p>
+        <p class="" style="">The service features that might vary depending on specific application are included as well.</p>
+        <p class="" style="">
+            <ul class="" style="">
+                <li class="" style="">Maximal count of rooms the user occupies.</li>
+                <li class="" style="">Blocking feature enabled/disabled.</li>
+                <li class="" style="">XEP-0045 compatibility mode enabled/disabled.</li>
+                <li class="" style="">Room creator's initial affiliation: owner/member.</li>
+                <li class="" style="">Room configuration may be changed by owner/occupants.</li>
+                <li class="" style="">New members can be invited by owner/occupants.</li>
+                <li class="" style="">Maximal room size.</li>
+            </ul>
+        </p>
+    </div>
+<h2>9.
+       <a name="security" id="security">Security Considerations</a></h2>
+    <div class="indent"><h3>9.1 <a name="dos" id="dos">Denial of Service</a></h3>
+        <p class="" style="">Since every user is allowed to create rooms in MUC Light, it is possible to achieve high ratio of messages delivered to the clients to messages sent by the clients with little effort. To mitigate or avoid this issue, the service MAY implement additional rules like limiting per-user room count or message rate in a room. Heuristic algorithms for analysing user behaviours MAY be used as well to monitor and detect potential attacks.</p>
+    </div>
+<h2>10.
+       <a name="iana" id="iana">IANA Considerations</a></h2>
+    <p class="" style="">This document requires no interaction with the <span class="ref" style=""><a href="http://www.iana.org/">Internet Assigned Numbers Authority (IANA)</a></span>  [<a href="#nt-idm512275664480">2</a>].</p>
+<h2>11.
+       <a name="registrar" id="registrar">XMPP Registrar Considerations</a></h2>
+    <p class="" style="">None.</p>
+<h2>12.
+       <a name="schema" id="schema">XML Schema</a></h2>
+    <div class="indent"><h3>12.1 <a name="schema-configuration" id="schema-configuration">urn:xmpp:muclight:0#configuration</a></h3>
+        <p class="caption"></p><div class="indent"><pre class="prettyprint">
+&lt;?xml version='1.0' encoding='UTF-8'?&gt;
+
+&lt;xs:schema
+    xmlns:xs='http://www.w3.org/2001/XMLSchema'
+    targetNamespace='urn:xmpp:muclight:0#configuration'
+    xmlns='urn:xmpp:muclight:0#configuration'
+    elementFormDefault='qualified'&gt;
+
+    &lt;xs:element name='x'&gt;
+        &lt;xs:complexType&gt;
+            &lt;xs:sequence&gt;
+                &lt;xs:element name='version'
+                            type='xs:string'
+                            minOccurs='1'
+                            maxOccurs='1'/&gt;
+                &lt;xs:element name='prev-version'
+                            type='xs:string'
+                            minOccurs='1'
+                            maxOccurs='1'/&gt;
+                &lt;xs:any processContents="lax"/&gt;
+            &lt;/xs:sequence&gt;
+        &lt;/xs:complexType&gt;
+    &lt;/xs:element&gt;
+    
+    &lt;xs:element name='query'&gt;
+        &lt;xs:complexType&gt;
+            &lt;xs:sequence&gt;
+                &lt;xs:element name='version'
+                            type='xs:string'
+                            minOccurs='0'
+                            maxOccurs='1'/&gt;
+                &lt;xs:any processContents="lax"/&gt;
+            &lt;/xs:sequence&gt;
+        &lt;/xs:complexType&gt;
+    &lt;/xs:element&gt;
+
+&lt;/xs:schema&gt;
+            </pre></div>
+    </div>
+    <div class="indent"><h3>12.2 <a name="schema-affiliations" id="schema-affiliations">urn:xmpp:muclight:0#affiliations</a></h3>
+        <p class="caption"></p><div class="indent"><pre class="prettyprint">
+&lt;?xml version='1.0' encoding='UTF-8'?&gt;
+
+&lt;xs:schema
+    xmlns:xs='http://www.w3.org/2001/XMLSchema'
+    targetNamespace='urn:xmpp:muclight:0#affiliations'
+    xmlns='urn:xmpp:muclight:0#affiliations'
+    elementFormDefault='qualified'&gt;
+
+    &lt;xs:element name='x'&gt;
+        &lt;xs:complexType&gt;
+            &lt;xs:sequence&gt;
+                &lt;xs:element name='version'
+                            type='xs:string'
+                            minOccurs='0'
+                            maxOccurs='1'/&gt;
+                &lt;xs:element name='prev-version'
+                            type='xs:string'
+                            minOccurs='0'
+                            maxOccurs='1'/&gt;
+                &lt;xs:element ref='user' minOccurs='0' maxOccurs='unbounded'/&gt;
+            &lt;/xs:sequence&gt;
+        &lt;/xs:complexType&gt;
+    &lt;/xs:element&gt;
+
+    &lt;xs:element name='query'&gt;
+        &lt;xs:complexType&gt;
+            &lt;xs:sequence&gt;
+                &lt;xs:element name='version'
+                            type='xs:string'
+                            minOccurs='0'
+                            maxOccurs='1'/&gt;
+                &lt;xs:element ref='user' minOccurs='0' maxOccurs='unbounded'/&gt;
+            &lt;/xs:sequence&gt;
+        &lt;/xs:complexType&gt;
+    &lt;/xs:element&gt;
+
+    &lt;xs:element name='user'&gt;
+        &lt;xs:complexType&gt;
+            &lt;xs:simpleContent&gt;
+                &lt;xs:extension base="xsd:string"&gt;
+                    &lt;xs:attribute name='affiliation' use='required'&gt;
+                        &lt;xs:simpleType&gt;
+                            &lt;xs:restriction base='xs:NCName'&gt;
+                                &lt;xs:enumeration value='member'/&gt;
+                                &lt;xs:enumeration value='none'/&gt;
+                                &lt;xs:enumeration value='owner'/&gt;
+                            &lt;/xs:restriction&gt;
+                        &lt;/xs:simpleType&gt;
+                    &lt;/xs:attribute&gt;
+                &lt;/xs:extension&gt;
+            &lt;/xs:simpleContent&gt;
+        &lt;/xs:complexType&gt;
+    &lt;/xs:element&gt;
+
+&lt;/xs:schema&gt;
+            </pre></div>
+    </div>
+    <div class="indent"><h3>12.3 <a name="schema-info" id="schema-info">urn:xmpp:muclight:0#info</a></h3>
+        <p class="caption"></p><div class="indent"><pre class="prettyprint">
+&lt;?xml version='1.0' encoding='UTF-8'?&gt;
+
+&lt;xs:schema
+    xmlns:xs='http://www.w3.org/2001/XMLSchema'
+    targetNamespace='urn:xmpp:muclight:0#info'
+    xmlns='urn:xmpp:muclight:0#info'
+    elementFormDefault='qualified'&gt;
+
+    &lt;xs:element name='query'&gt;
+        &lt;xs:complexType&gt;
+            &lt;xs:sequence&gt;
+                &lt;xs:element name='version'
+                            type='xs:string'
+                            minOccurs='1'
+                            maxOccurs='1'/&gt;
+                &lt;xs:element ref='configuration' minOccurs='1' maxOccurs='1'/&gt;
+                &lt;xs:element ref='occupants' minOccurs='1' maxOccurs='1'/&gt;
+            &lt;/xs:sequence&gt;
+        &lt;/xs:complexType&gt;
+    &lt;/xs:element&gt;
+
+    &lt;xs:element name='configuration'&gt;
+        &lt;xs:complexType&gt;
+            &lt;xs:sequence&gt;
+                &lt;xs:any processContents="lax"/&gt;
+            &lt;/xs:sequence&gt;
+        &lt;/xs:complexType&gt;
+    &lt;/xs:element&gt;
+
+    &lt;xs:element name='occupants'&gt;
+        &lt;xs:complexType&gt;
+            &lt;xs:sequence&gt;
+                &lt;xs:element ref='user' minOccurs='0' maxOccurs='unbounded'/&gt;
+            &lt;/xs:sequence&gt;
+        &lt;/xs:complexType&gt;
+    &lt;/xs:element&gt;
+
+    &lt;xs:element name='user'&gt;
+        &lt;xs:complexType&gt;
+            &lt;xs:simpleContent&gt;
+                &lt;xs:extension base="xsd:string"&gt;
+                    &lt;xs:attribute name='affiliation' use='required'&gt;
+                        &lt;xs:simpleType&gt;
+                            &lt;xs:restriction base='xs:NCName'&gt;
+                                &lt;xs:enumeration value='member'/&gt;
+                                &lt;xs:enumeration value='owner'/&gt;
+                            &lt;/xs:restriction&gt;
+                        &lt;/xs:simpleType&gt;
+                    &lt;/xs:attribute&gt;
+                &lt;/xs:extension&gt;
+            &lt;/xs:simpleContent&gt;
+        &lt;/xs:complexType&gt;
+    &lt;/xs:element&gt;
+
+&lt;/xs:schema&gt;
+            </pre></div>
+    </div>
+    <div class="indent"><h3>12.4 <a name="schema-blocking" id="schema-blocking">urn:xmpp:muclight:0#blocking</a></h3>
+        <p class="caption"></p><div class="indent"><pre class="prettyprint">
+&lt;?xml version='1.0' encoding='UTF-8'?&gt;
+
+&lt;xs:schema
+    xmlns:xs='http://www.w3.org/2001/XMLSchema'
+    targetNamespace='urn:xmpp:muclight:0#blocking'
+    xmlns='urn:xmpp:muclight:0#blocking'
+    elementFormDefault='qualified'&gt;
+
+    &lt;xs:element name='query'&gt;
+        &lt;xs:complexType&gt;
+            &lt;xs:sequence&gt;
+                &lt;xs:element ref='user' minOccurs='0' maxOccurs='unbounded'/&gt;
+                &lt;xs:element ref='room' minOccurs='0' maxOccurs='unbounded'/&gt;
+            &lt;/xs:sequence&gt;
+        &lt;/xs:complexType&gt;
+    &lt;/xs:element&gt;
+
+    &lt;xs:element name='user'&gt;
+        &lt;xs:complexType&gt;
+            &lt;xs:simpleContent&gt;
+                &lt;xs:extension base="xsd:string"&gt;
+                    &lt;xs:attribute name='action' use='required'&gt;
+                        &lt;xs:simpleType&gt;
+                            &lt;xs:restriction base='xs:NCName'&gt;
+                                &lt;xs:enumeration value='allow'/&gt;
+                                &lt;xs:enumeration value='deny'/&gt;
+                            &lt;/xs:restriction&gt;
+                        &lt;/xs:simpleType&gt;
+                    &lt;/xs:attribute&gt;
+                &lt;/xs:extension&gt;
+            &lt;/xs:simpleContent&gt;
+        &lt;/xs:complexType&gt;
+    &lt;/xs:element&gt;
+
+    &lt;xs:element name='room'&gt;
+        &lt;xs:complexType&gt;
+            &lt;xs:simpleContent&gt;
+                &lt;xs:extension base="xsd:string"&gt;
+                    &lt;xs:attribute name='action' use='required'&gt;
+                        &lt;xs:simpleType&gt;
+                            &lt;xs:restriction base='xs:NCName'&gt;
+                                &lt;xs:enumeration value='allow'/&gt;
+                                &lt;xs:enumeration value='deny'/&gt;
+                            &lt;/xs:restriction&gt;
+                        &lt;/xs:simpleType&gt;
+                    &lt;/xs:attribute&gt;
+                &lt;/xs:extension&gt;
+            &lt;/xs:simpleContent&gt;
+        &lt;/xs:complexType&gt;
+    &lt;/xs:element&gt;
+
+&lt;/xs:schema&gt;
+            </pre></div>
+    </div>
+    <div class="indent"><h3>12.5 <a name="schema-create" id="schema-create">urn:xmpp:muclight:0#create</a></h3>
+        <p class="caption"></p><div class="indent"><pre class="prettyprint">
+&lt;?xml version='1.0' encoding='UTF-8'?&gt;
+
+&lt;xs:schema
+    xmlns:xs='http://www.w3.org/2001/XMLSchema'
+    targetNamespace='urn:xmpp:muclight:0#create'
+    xmlns='urn:xmpp:muclight:0#create'
+    elementFormDefault='qualified'&gt;
+
+    &lt;xs:element name='query'&gt;
+        &lt;xs:complexType&gt;
+            &lt;xs:sequence&gt;
+                &lt;xs:element ref='configuration' minOccurs='0' maxOccurs='1'/&gt;
+                &lt;xs:element ref='occupants' minOccurs='0' maxOccurs='1'/&gt;
+            &lt;/xs:sequence&gt;
+        &lt;/xs:complexType&gt;
+    &lt;/xs:element&gt;
+
+    &lt;xs:element name='configuration'&gt;
+        &lt;xs:complexType&gt;
+            &lt;xs:sequence&gt;
+                &lt;xs:any processContents="lax"/&gt;
+            &lt;/xs:sequence&gt;
+        &lt;/xs:complexType&gt;
+    &lt;/xs:element&gt;
+
+    &lt;xs:element name='occupants'&gt;
+        &lt;xs:complexType&gt;
+            &lt;xs:sequence&gt;
+                &lt;xs:element ref='user' minOccurs='0' maxOccurs='unbounded'/&gt;
+            &lt;/xs:sequence&gt;
+        &lt;/xs:complexType&gt;
+    &lt;/xs:element&gt;
+
+    &lt;xs:element name='user'&gt;
+        &lt;xs:complexType&gt;
+            &lt;xs:simpleContent&gt;
+                &lt;xs:extension base="xsd:string"&gt;
+                    &lt;xs:attribute name='affiliation' use='required'&gt;
+                        &lt;xs:simpleType&gt;
+                            &lt;xs:restriction base='xs:NCName'&gt;
+                                &lt;xs:enumeration value='member'/&gt;
+                                &lt;xs:enumeration value='owner'/&gt;
+                            &lt;/xs:restriction&gt;
+                        &lt;/xs:simpleType&gt;
+                    &lt;/xs:attribute&gt;
+                &lt;/xs:extension&gt;
+            &lt;/xs:simpleContent&gt;
+        &lt;/xs:complexType&gt;
+    &lt;/xs:element&gt;
+
+&lt;/xs:schema&gt;
+            </pre></div>
+    </div>
+    <div class="indent"><h3>12.6 <a name="schema-destroy" id="schema-destroy">urn:xmpp:muclight:0#destroy</a></h3>
+        <p class="caption"></p><div class="indent"><pre class="prettyprint">
+&lt;?xml version='1.0' encoding='UTF-8'?&gt;
+
+&lt;xs:schema
+    xmlns:xs='http://www.w3.org/2001/XMLSchema'
+    targetNamespace='urn:xmpp:muclight:0#configuration'
+    xmlns='urn:xmpp:muclight:0#configuration'
+    elementFormDefault='qualified'&gt;
+
+    &lt;xs:element name='x'&gt;
+        &lt;xs:complexType /&gt;
+    &lt;/xs:element&gt;
+
+    &lt;xs:element name='query'&gt;
+        &lt;xs:complexType /&gt;
+    &lt;/xs:element&gt;
+
+&lt;/xs:schema&gt;
+            </pre></div>
+    </div>
+<h2>13.
+       <a name="acknowledgements" id="acknowledgements">Acknowledgements</a></h2>
+    <p class="" style="">Many thanks to Stefan Strigler for the long, initial brainstorm before creating MUC Light extension. I am also very grateful to ESL MongooseIM team for their input and sharing stories that helped in improving this specification.</p>
+<hr /><a name="appendices" id="appendices"></a><h2>Appendices</h2><hr /><a name="appendix-docinfo" id="appendix-docinfo"></a><h3>Appendix A: Document Information</h3><p class="indent">
+            Series: <a href="http://xmpp.org/extensions/">XEP</a><br />
+            Number: xxxx<br />
+            Publisher: <a href="/xsf/">XMPP Standards Foundation</a><br />
+            Status: 
+            <a href="http://xmpp.org/extensions/xep-0001.html#states-ProtoXEP">ProtoXEP</a><br />
+            Type:
+            <a href="http://xmpp.org/extensions/xep-0001.html#types-Standards Track">Standards Track</a><br />
+            Version: 0.1.0<br />
+            Last Updated: 2015-10-29<br />
+                Approving Body: <a href="http://xmpp.org/council/">XMPP Council</a><br />Dependencies: XMPP Core, XMPP IM, XEP-0004, XEP-0030, XEP-0045, XEP-0313<br />
+                Supersedes: None<br />
+                Superseded By: None<br />
+            Short Name: NOT_YET_ASSIGNED<br />
+            This document in other formats: 
+                <a class="standardsButton" href="http://xmpp.org/extensions/xep-xxxx.xml">XML</a> 
+                <a class="standardsButton" href="http://xmpp.org/extensions/xep-xxxx.pdf">PDF</a></p><hr /><a name="appendix-authorinfo" id="appendix-authorinfo"></a><h3>Appendix B: Author Information</h3><div class="indent"><h3>Piotr Nosek</h3><p class="indent">
+        Email:
+        <a href="mailto:piotr.nosek@erlang-solutions.com">piotr.nosek@erlang-solutions.com</a><br /></p></div><hr /><a name="appendix-legal" id="appendix-legal"></a><h3>Appendix C: Legal Notices</h3><div class="indent"><h4>Copyright</h4>This XMPP Extension Protocol is copyright (c) 1999 - 2014 by the XMPP Standards Foundation (XSF).<h4>Permissions</h4>Permission is hereby granted, free of charge, to any person obtaining a copy of this specification (the "Specification"), to make use of the Specification without restriction, including without limitation the rights to implement the Specification in a software program, deploy the Specification in a network service, and copy, modify, merge, publish, translate, distribute, sublicense, or sell copies of the Specification, and to permit persons to whom the Specification is furnished to do so, subject to the condition that the foregoing copyright notice and this permission notice shall be included in all copies or substantial portions of the Specification. Unless separate permission is granted, modified works that are redistributed shall not contain misleading information regarding the authors, title, number, or publisher of the Specification, and shall not claim endorsement of the modified works by the authors, any organization or project to which the authors belong, or the XMPP Standards Foundation.<h4>Disclaimer of Warranty</h4><span style="font-weight: bold">## NOTE WELL: This Specification is provided on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or implied, including, without limitation, any warranties or conditions of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A PARTICULAR PURPOSE. In no event shall the XMPP Standards Foundation or the authors of this Specification be liable for any claim, damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of, or in connection with the Specification or the implementation, deployment, or other use of the Specification. ##</span><h4>Limitation of Liability</h4>In no event and under no legal theory, whether in tort (including negligence), contract, or otherwise, unless required by applicable law (such as deliberate and grossly negligent acts) or agreed to in writing, shall the XMPP Standards Foundation or any author of this Specification be liable for damages, including any direct, indirect, special, incidental, or consequential damages of any character arising out of the use or inability to use the Specification (including but not limited to damages for loss of goodwill, work stoppage, computer failure or malfunction, or any and all other commercial damages or losses), even if the XMPP Standards Foundation or such author has been advised of the possibility of such damages.<h4>IPR Conformance</h4>This XMPP Extension Protocol has been contributed in full conformance with the XSF's Intellectual Property Rights Policy (a copy of which may be found at &lt;<a href="http://xmpp.org/extensions/ipr-policy.shtml">http://xmpp.org/extensions/ipr-policy.shtml</a>&gt; or obtained by writing to XSF, P.O. Box 1641, Denver, CO 80201 USA).</div><hr /><a name="appendix-xmpp" id="appendix-xmpp"></a><h3>Appendix D: Relation to XMPP</h3><p class="indent">The Extensible Messaging and Presence Protocol (XMPP) is defined in the XMPP Core (RFC 6120) and XMPP IM (RFC 6121) specifications contributed by the XMPP Standards Foundation to the Internet Standards Process, which is managed by the Internet Engineering Task Force in accordance with RFC 2026. Any protocol defined in this document has been developed outside the Internet Standards Process and is to be understood as an extension to XMPP rather than as an evolution, development, or modification of XMPP itself.</p><hr /><a name="appendix-discuss" id="appendix-discuss"></a><h3>Appendix E: Discussion Venue</h3><p class="indent">The primary venue for discussion of XMPP Extension Protocols is the &lt;<a href="http://mail.jabber.org/mailman/listinfo/standards">standards@xmpp.org</a>&gt; discussion list.</p><p class="indent">Discussion on other xmpp.org discussion lists might also be appropriate; see &lt;<a href="http://xmpp.org/about/discuss.shtml">http://xmpp.org/about/discuss.shtml</a>&gt; for a complete list.</p><p class="indent">Errata can be sent to &lt;<a href="mailto:editor@xmpp.org">editor@xmpp.org</a>&gt;.</p><hr /><a name="appendix-conformance" id="appendix-conformance"></a><h3>Appendix F: Requirements Conformance</h3><p class="indent">The following requirements keywords as used in this document are to be interpreted as described in <a href="http://www.ietf.org/rfc/rfc2119.txt">RFC 2119</a>: "MUST", "SHALL", "REQUIRED"; "MUST NOT", "SHALL NOT"; "SHOULD", "RECOMMENDED"; "SHOULD NOT", "NOT RECOMMENDED"; "MAY", "OPTIONAL".</p><hr /><a name="appendix-notes" id="appendix-notes"></a><h3>Appendix G: Notes</h3><div class="indent"><p><a name="nt-idm512275871824" id="nt-idm512275871824">1</a>. XEP-0059: Result Set Management &lt;<a href="http://xmpp.org/extensions/xep-0059.html">http://xmpp.org/extensions/xep-0059.html</a>&gt;.</p><p><a name="nt-idm512275664480" id="nt-idm512275664480">2</a>. The Internet Assigned Numbers Authority (IANA) is the central coordinator for the assignment of unique parameter values for Internet protocols, such as port numbers and URI schemes. For further information, see &lt;<a href="http://www.iana.org/">http://www.iana.org/</a>&gt;.</p></div><hr /><a name="appendix-revs" id="appendix-revs"></a><h3>Appendix H: Revision History</h3><p>Note: Older versions of this specification might be available at <a href="http://xmpp.org/extensions/attic/">http://xmpp.org/extensions/attic/</a></p><div class="indent"><h4>Version 0.1.0 (2015-10-29)</h4><div class="indent"><p class="" style="">First full version.</p> (PN)
+    </div></div><hr /><p>END</p></body></html>
