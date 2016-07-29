@@ -561,9 +561,9 @@ wait_for_feature_before_auth({xmlstreamelement, El}, StateData) ->
             StepResult = cyrsasl:server_start(StateData#state.sasl_state, Mech, ClientIn),
             {NewFSMState, NewStateData} = handle_sasl_step(StateData, StepResult),
             fsm_next_state(NewFSMState, NewStateData);
-        {?NS_TLS_BIN, <<"starttls">>} when TLS == true,
-                                           TLSEnabled == false,
-                                           SockMod == gen_tcp ->
+        {?NS_TLS, <<"starttls">>} when TLS == true,
+                                       TLSEnabled == false,
+                                       SockMod == gen_tcp ->
             TLSOpts = case ejabberd_config:get_local_option(
                              {domain_certfile, StateData#state.server}) of
                           undefined ->
@@ -582,9 +582,9 @@ wait_for_feature_before_auth({xmlstreamelement, El}, StateData) ->
                                            streamid = new_id(),
                                            tls_enabled = true
                                           });
-        {?NS_COMPRESS_BIN, <<"compress">>} when Zlib == true,
-                                                ((SockMod == gen_tcp) or
-                                                 (SockMod == ejabberd_tls)) ->
+        {?NS_COMPRESS, <<"compress">>} when Zlib == true,
+                                            ((SockMod == gen_tcp) or
+                                             (SockMod == ejabberd_tls)) ->
           check_compression_auth(El, wait_for_feature_before_auth, StateData);
         _ ->
             if
@@ -756,9 +756,9 @@ maybe_do_compress(El = #xmlel{name = Name, attrs = Attrs}, NextState, StateData)
     SockMod = (StateData#state.sockmod):get_sockmod(StateData#state.socket),
     {Zlib, _} = StateData#state.zlib,
     case {xml:get_attr_s(<<"xmlns">>, Attrs), Name} of
-        {?NS_COMPRESS_BIN, <<"compress">>} when Zlib == true,
-                                                ((SockMod == gen_tcp) or
-                                                 (SockMod == ejabberd_tls)) ->
+        {?NS_COMPRESS, <<"compress">>} when Zlib == true,
+                                            ((SockMod == gen_tcp) or
+                                             (SockMod == ejabberd_tls)) ->
             check_compression_auth(El, NextState, StateData);
         _ ->
             process_unauthenticated_stanza(StateData, El),
