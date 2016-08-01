@@ -46,6 +46,9 @@
          can_access_room/3,
          muc_room_pid/2]).
 
+%% Administration
+-export([create_room_just_with_validation/3]).
+
 %% For propEr
 -export([apply_rsm/3]).
 
@@ -360,6 +363,27 @@ create_room(From, FromUS, To, #create{ raw_config = RawConfig } = Create0, OrigP
         {_, _} ->
             ?CODEC:encode_error({error, bad_request}, From, To, OrigPacket,
                                              fun ejabberd_router:route/3)
+    end.
+
+-spec create_room_just_with_validation(FromUS :: ejabberd:simple_bare_jid(),
+                  To :: ejabberd:jid(), Create :: #create{}) -> ok.
+create_room_just_with_validation(FromUS, To, #create{ raw_config = RawConfig } = Create0) ->
+    RoomUS = jid:to_lus(To), % might be service JID for room autogeneration
+    InitialAffUsers = mod_muc_light_utils:filter_out_prevented(
+                        FromUS, RoomUS, Create0#create.aff_users),
+    MaxOccupants = get_opt(To#jid.lserver, max_occupants, ?DEFAULT_MAX_OCCUPANTS),
+    case {mod_muc_light_utils:process_raw_config(RawConfig, default_config()),
+          process_create_aff_users_if_valid(To#jid.lserver, FromUS, InitialAffUsers)} of
+        {{ok, Config0}, {ok, FinalAffUsers}} when length(FinalAffUsers) =< MaxOccupants ->
+            Version = mod_muc_light_utils:bin_ts(),
+            case ?BACKEND:create_room(RoomUS, lists:sort(Config0), FinalAffUsers, Version) of
+                {ok, FinalRoomUS} ->
+                    FinalRoomUS;
+                {error, exists} = E ->
+                    E
+            end;
+        {_, _} ->
+            {error, erlang:get_stacktrace()}
     end.
 
 -spec process_create_aff_users_if_valid(MUCServer :: ejabberd:lserver(),
