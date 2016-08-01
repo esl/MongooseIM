@@ -4,7 +4,7 @@
 -export([start/0, stop/0,
          start/2, stop/2,
          register/3,
-         unregister/1,
+         unregister/2,
          registered_commands/0,
          registered_users/1,
          change_user_password/2,
@@ -59,7 +59,7 @@ commands() ->
             {module, ?MODULE},
             {function, register},
             {action, create},
-            {args, [{user, binary}, {host, binary}, {password, binary}]},
+            {args, [{host, binary}, {user, binary}, {password, binary}]},
             {result, {msg, binary}}
         ],
         [
@@ -69,7 +69,7 @@ commands() ->
             {module, ?MODULE},
             {function, unregister},
             {action, delete},
-            {args, [{jid, binary}]},
+            {args, [{host, binary}, {user, binary}]},
             {result, {msg, binary}}
         ],
 %%        [
@@ -123,19 +123,19 @@ commands() ->
             {security_policy, [user]},
             {args, [{caller, binary}, {other, binary}, {limit, integer}]},
             {result, []}
-        ],
-        [
-            {name, changepassword},
-            {category, users},
-            {desc, "Change user password"},
-            {module, ?MODULE},
-            {function, change_user_password},
-            {action, update},
-            {security_policy, [user]},
-            {identifiers, [caller]},
-            {args, [{caller, binary}, {newpass, binary}]},
-            {result, ok}
         ]
+        % [
+        %     {name, changepassword},
+        %     {category, users},
+        %     {desc, "Change user password"},
+        %     {module, ?MODULE},
+        %     {function, change_user_password},
+        %     {action, update},
+        %     {security_policy, [user]},
+        %     {identifiers, [host, user]},
+        %     {args, [{host, binary}, {user, binary}, {newpass, binary}]},
+        %     {result, ok}
+        % ]
     ].
 
 %%get_user_resources(Jid) ->
@@ -167,7 +167,7 @@ registered_users(Host) ->
     lists:map(fun({U, S}) -> <<U/binary, "@", S/binary>> end, SUsers).
 
 
-register(User, Host, Password) ->
+register(Host, User, Password) ->
     case ejabberd_auth:try_register(User, Host, Password) of
         ok ->
             list_to_binary(io_lib:format("User ~s@~s successfully registered", [User, Host]));
@@ -181,9 +181,8 @@ register(User, Host, Password) ->
             throw({error, String})
     end.
 
-unregister(Jid) ->
-    J = jid:from_binary(Jid),
-    ejabberd_auth:remove_user(J#jid.luser, J#jid.lserver),
+unregister(Host, User) ->
+    ejabberd_auth:remove_user(User, Host),
     <<"">>.
 
 
