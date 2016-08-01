@@ -202,7 +202,7 @@ assertions(_Config) ->
     assert_notinlist(#{a => 5}, Maplst),
     assert_notinlist(#{a => 1, b => 1}, Maplst).
 
-commands_are_listed(Config) ->
+commands_are_listed(_C) ->
     {?OK, Lcmds} = gett(<<"/commands">>),
     DecCmds = decode_maplist(Lcmds),
     assert_inlist(#{name => <<"listmethods">>}, DecCmds).
@@ -222,7 +222,7 @@ basic(_Config) ->
     % try to create the same user
     {?ERROR, _} = post(<<"/users/localhost">>, CrUser),
     % delete user
-    {?OK, _} = delete(<<"/users/mike@localhost">>),
+    {?OK, _} = delete(<<"/users/localhost/mike">>),
     {?OK, Lusers2} = gett(<<"/users/localhost">>),
     assert_notinlist(<<"mike@localhost">>, Lusers2),
     ok.
