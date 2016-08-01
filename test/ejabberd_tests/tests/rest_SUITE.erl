@@ -51,8 +51,8 @@
 
 all() ->
     [
-        {group, adminside},
-        {group, userside}
+        {group, adminside}
+        %{group, userside}
     ].
 
 groups() ->
@@ -100,6 +100,7 @@ init_module(Host, Mod, Opts) ->
     dynamic_modules:start(Host, Mod, Opts).
 
 end_per_suite(Config) ->
+    escalus_fresh:clean(),
     maybe_disable_mam(proplists:get_value(mam_enabled, Config)),
     escalus:end_per_suite(Config).
 
@@ -117,12 +118,11 @@ stop_module(Host, Mod) ->
     dynamic_modules:stop(Host, Mod).
 
 init_per_group(_GroupName, Config) ->
-    escalus:create_users(Config, escalus:get_users([alice, bob])),
-    escalus:delete_users(Config, escalus:get_users([mike])).
+    escalus:create_users(Config, escalus:get_users([alice, bob])).
 
 
 end_per_group(_GroupName, Config) ->
-    escalus:delete_users(Config, escalus:get_users([bob, mike])).
+    escalus:delete_users(Config, escalus:get_users([alice, bob, mike])).
 
 init_per_testcase(CaseName, Config) ->
     MAMTestCases = [messages, user_messages],
@@ -200,27 +200,30 @@ sessions(Config) ->
 
 
 messages(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        M = #{caller => <<"bob@localhost">>, to => <<"alice@localhost">>, msg => <<"hello from Bob">>},
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+
+        AliceJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Alice)),
+        BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
+        M = #{caller => BobJID, to => AliceJID, msg => <<"hello from Bob">>},
         {?OK, _} = post(<<"/message">>, M),
         Res = escalus:wait_for_stanza(Alice),
         escalus:assert(is_chat_message, [<<"hello from Bob">>], Res),
-        M1 = #{caller => <<"alice@localhost">>, to => <<"bob@localhost">>, msg => <<"hello from Alice">>},
+        M1 = #{caller => AliceJID, to => BobJID, msg => <<"hello from Alice">>},
         {?OK, _} = post(<<"/message">>, M1),
         Res1 = escalus:wait_for_stanza(Bob),
         escalus:assert(is_chat_message, [<<"hello from Alice">>], Res1),
-        {?OK, Msgs} = gett("/message/caller/alice@localhost/other/bob@localhost/limit/10"),
+        GetPath = lists:flatten(["/message/caller/",binary_to_list(AliceJID),
+                                 "/other/",binary_to_list(BobJID),"/limit/10"]),
+        {?OK, Msgs} = gett(GetPath),
         ?PRT("Msgs", Msgs),
         [Last, Previous|_] = lists:reverse(decode_maplist(Msgs)),
         ?PRT("Last", Last),
         ?PRT("Previous", Previous),
         <<"hello from Alice">> = maps:get(body, Last),
-        <<"alice@localhost">> = maps:get(sender, Last),
+        AliceJID = maps:get(sender, Last),
         <<"hello from Bob">> = maps:get(body, Previous),
-        <<"bob@localhost">> = maps:get(sender, Previous)
-                                        end),
-    ok.
-
+        BobJID = maps:get(sender, Previous)
+    end).
 
 changepassword(Config) ->
     % bob logs in with his regular password
@@ -246,21 +249,6 @@ changepassword(Config) ->
             just_dont_do_anything
         end),
     ok.
-
-
-user_messages(_Config) ->
-    % send message using http authorisation
-    Cred = {<<"alice@localhost">>, <<"matygrysa">>},
-    M1 = #{to => <<"bob@localhost">>, msg => <<"hello from Alice">>},
-    {?OK, _} = post(<<"/message">>, M1, Cred),
-    % list messages the same way - this one should be at the end
-    {?OK, Msgs} = gett("/message/other/bob@localhost/limit/10", Cred),
-    ?PRT("Msgs", Msgs),
-    [Last|_] = lists:reverse(decode_maplist(Msgs)),
-    <<"hello from Alice">> = maps:get(body, Last),
-    <<"alice@localhost">> = maps:get(sender, Last),
-    ok.
-
 
 to_list(V) when is_binary(V) ->
     binary_to_list(V);
