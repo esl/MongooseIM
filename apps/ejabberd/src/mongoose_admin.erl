@@ -34,7 +34,7 @@ commands() ->
     [
         [
             {name, listmethods},
-            {category, list},
+            {category, commands},
             {desc, "List commands"},
             {module, ?MODULE},
             {function, registered_commands},
@@ -44,7 +44,7 @@ commands() ->
         ],
         [
             {name, listusers},
-            {category, user},
+            {category, users},
             {desc, "List registered users on this host"},
             {module, ?MODULE},
             {function, registered_users},
@@ -54,7 +54,7 @@ commands() ->
         ],
         [
             {name, registeruser},
-            {category, user},
+            {category, users},
             {desc, "Register a user"},
             {module, ?MODULE},
             {function, register},
@@ -64,7 +64,7 @@ commands() ->
         ],
         [
             {name, unregisteruser},
-            {category, user},
+            {category, users},
             {desc, "UnRegister a user"},
             {module, ?MODULE},
             {function, unregister},
@@ -126,7 +126,7 @@ commands() ->
         ],
         [
             {name, changepassword},
-            {category, user},
+            {category, users},
             {desc, "Change user password"},
             {module, ?MODULE},
             {function, change_user_password},
