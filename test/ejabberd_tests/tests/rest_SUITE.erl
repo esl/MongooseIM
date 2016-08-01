@@ -61,11 +61,12 @@ groups() ->
     ].
 
 test_cases() ->
-    [assertions,
-     basic,
-     sessions,
-     messages,
-     changepassword].
+    [%assertions,
+     basic
+     %sessions,
+     %messages,
+     %changepassword
+     ].
 
 user_test_cases() ->
     [user_messages].
@@ -202,24 +203,24 @@ assertions(_Config) ->
 
 basic(_Config) ->
     % list commands
-    {?OK, Lcmds} = gett(<<"/list">>),
+    {?OK, Lcmds} = gett(<<"/commands">>),
     DecCmds = decode_maplist(Lcmds),
     assert_inlist(#{name => <<"listmethods">>}, DecCmds),
     % nonexistent command
     {?NOT_FOUND, _} = gett(<<"/isitthereornot">>),
     % list users
-    {?OK, Lusers} = gett(<<"/user/host/localhost">>),
+    {?OK, Lusers} = gett(<<"/users/localhost">>),
     assert_inlist(<<"alice@localhost">>, Lusers),
     % create user
     CrUser = #{user => <<"mike">>, password => <<"nicniema">>},
-    {?CREATED, _} = post(<<"/user/host/localhost">>, CrUser),
-    {?OK, Lusers1} = gett(<<"/user/host/localhost">>),
+    {?CREATED, _} = post(<<"/users/localhost">>, CrUser),
+    {?OK, Lusers1} = gett(<<"/users/localhost">>),
     assert_inlist(<<"mike@localhost">>, Lusers1),
     % try to create the same user
-    {?ERROR, _} = post(<<"/user/host/localhost">>, CrUser),
+    {?ERROR, _} = post(<<"/users/localhost">>, CrUser),
     % delete user
-    {?OK, _} = delete(<<"/user/jid/mike@localhost">>),
-    {?OK, Lusers2} = gett(<<"/user/host/localhost">>),
+    {?OK, _} = delete(<<"/users/mike@localhost">>),
+    {?OK, Lusers2} = gett(<<"/users/localhost">>),
     assert_notinlist(<<"mike@localhost">>, Lusers2),
     ok.
 
