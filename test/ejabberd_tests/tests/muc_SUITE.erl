@@ -217,9 +217,9 @@ groups() -> [
                          deny_access_to_http_password_protected_room_wrong_password,
                          deny_access_to_http_password_protected_room_service_unavailable,
                          create_instant_http_password_protected_room,
-                         deny_access_to_instant_http_password_protected_room,
-                         deny_access_to_instant_http_password_protected_room_wrong_password,
-                         deny_access_to_instant_http_password_protected_room_service_unavailable
+                         deny_creation_of_http_password_protected_room,
+                         deny_creation_of_http_password_protected_room_wrong_password,
+                         deny_creation_of_http_password_protected_room_service_unavailable
                         ]}
         ].
 
@@ -3728,7 +3728,7 @@ create_instant_http_password_protected_room(Config) ->
         escalus_assert:has_no_stanzas(Alice)
     end).
 
-deny_access_to_instant_http_password_protected_room(Config) ->
+deny_creation_of_http_password_protected_room(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         %% Fail to create the room
         RoomName = fresh_room_name(),
@@ -3738,7 +3738,7 @@ deny_access_to_instant_http_password_protected_room(Config) ->
         escalus_assert:has_no_stanzas(Alice)
     end).
 
-deny_access_to_instant_http_password_protected_room_wrong_password(Config) ->
+deny_creation_of_http_password_protected_room_wrong_password(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         %% Fail to create the room
         http_helper:listen_once(self(), 8080, <<"badpass">>, <<"{\"code\":123, \"msg\":\"Bad password\"}">>),
@@ -3750,7 +3750,7 @@ deny_access_to_instant_http_password_protected_room_wrong_password(Config) ->
     end).
 
 
-deny_access_to_instant_http_password_protected_room_service_unavailable(Config) ->
+deny_creation_of_http_password_protected_room_service_unavailable(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         %% Fail to create the room
         RoomName = fresh_room_name(),

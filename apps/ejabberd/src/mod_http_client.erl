@@ -16,19 +16,12 @@
 -module(mod_http_client).
 
 -behaviour(gen_mod).
--behaviour(gen_server).
 
 %% API
 -export([start_pool/3, stop_pool/2, get_pool/2, make_request/5]).
 
 %% gen_mod callbacks
 -export([start/2, stop/1]).
-
-%% gen_server callbacks
--export([init/1, terminate/2, code_change/3, handle_call/3, handle_cast/2, handle_info/2]).
-
-%% other exports
--export([start_link/1]).
 
 -record(pool, {name :: atom(),
                host :: ejabberd:server(),
@@ -39,8 +32,6 @@
                pool_timeout :: pos_integer(),
                request_timeout :: pos_integer()}).
 
--record(state, {pools :: dict:dict(atom(), #pool{})}).
-
 -opaque pool() :: #pool{}.
 
 -export_type([pool/0]).
@@ -50,18 +41,23 @@
 
 -spec start_pool(ejabberd:server(), atom(), list()) -> ok.
 start_pool(Host, Name, Opts) ->
-    Proc = gen_mod:get_module_proc(Host, mod_http_client),
-    gen_server:call(Proc, {start_pool, Host, Name, Opts}).
+    Pool = make_pool(Host, Name, Opts),
+    do_start_pool(Pool),
+    ets:insert(tab_name(Host), Pool),
+    ok.
 
 -spec get_pool(ejabberd:server(), atom()) -> pool().
 get_pool(Host, Name) ->
-    Proc = gen_mod:get_module_proc(Host, mod_http_client),
-    gen_server:call(Proc, {get_pool, Name}).
+    [Pool] = ets:lookup(tab_name(Host), Name),
+    Pool.
 
 -spec stop_pool(ejabberd:server(), atom()) -> ok.
 stop_pool(Host, Name) ->
-    Proc = gen_mod:get_module_proc(Host, mod_http_client),
-    gen_server:call(Proc, {stop_pool, Host, Name}).
+    SupProc = gen_mod:get_module_proc(Host, ejabberd_mod_http_client_sup),
+    ok = supervisor:terminate_child(SupProc, pool_proc_name(Host, Name)),
+    ok = supervisor:delete_child(SupProc, pool_proc_name(Host, Name)),
+    ets:delete(tab_name(Host), Name),
+    ok.
 
 -spec make_request(pool(), binary(), binary(), list(), binary()) ->
                           {ok, {binary(), binary()}} | {error, any()}.
@@ -93,65 +89,22 @@ make_request(Pool, Path, Method, Header, Query) ->
 
 -spec start(ejabberd:server(), list()) -> any().
 start(Host, Opts) ->
-    {ok, SupProc} = start_supervisor(Host),
-    Proc = gen_mod:get_module_proc(Host, mod_http_client),
-    ChildSpec = {Proc,
-                 {?MODULE, start_link, [Host]},
-                 permanent,
-                 1000,
-                 worker,
-                 [?MODULE]},
-    {ok, _} = supervisor:start_child(SupProc, ChildSpec),
+    {ok, _SupProc} = start_supervisor(Host),
+    EjdSupPid = whereis(ejabberd_sup),
+    HeirOpt = case self() =:= EjdSupPid of
+                  true -> [];
+                  false -> [{heir, EjdSupPid, self()}] % for dynamic start
+              end,
+    ets:new(tab_name(Host), [set, public, named_table, {keypos, 2},
+                             {read_concurrency, true} | HeirOpt]),
     PoolSpec = gen_mod:get_opt(pools, Opts, []),
     [start_pool(Host, Name, PoolOpts) || {Name, PoolOpts} <- PoolSpec],
     ok.
 
 -spec stop(ejabberd:server()) -> any().
 stop(Host) ->
-    stop_supervisor(Host).
-
-%%------------------------------------------------------------------------------
-%% gen_server callbacks
-
--spec init(any()) -> {ok, #state{}}.
-init(_) ->
-    {ok, #state{pools = dict:new()}}.
-
--spec handle_call(tuple(), {pid(), any()}, #state{}) -> {reply, ok | pool(), #state{}}.
-handle_call({start_pool, Host, Name, Opts}, _From, State = #state{pools = Pools}) ->
-    Pool = make_pool(Host, Name, Opts),
-    do_start_pool(Pool),
-    {reply, ok, State#state{pools = dict:store(Name, Pool, Pools)}};
-handle_call({get_pool, Name}, _From, State = #state{pools = Pools}) ->
-    {reply, dict:fetch(Name, Pools), State};
-handle_call({stop_pool, Host, Name}, _From, State = #state{pools = Pools}) ->
-    SupProc = gen_mod:get_module_proc(Host, ejabberd_mod_http_client_sup),
-    ok = supervisor:terminate_child(SupProc, pool_proc_name(Host, Name)),
-    ok = supervisor:delete_child(SupProc, pool_proc_name(Host, Name)),
-    {reply, ok, State#state{pools = dict:erase(Name, Pools)}}.
-
--spec handle_cast(any(), #state{}) -> no_return().
-handle_cast(_Request, _State) ->
-    erlang:error(undef).
-
--spec handle_info(any(), #state{}) -> no_return().
-handle_info(_Info, _State) ->
-    erlang:error(undef).
-
--spec code_change(any(), #state{}, any()) -> {ok, #state{}}.
-code_change(_OldVsn, State, _Extra) ->
-    {ok, State}.
-
--spec terminate(any(), #state{}) -> ok.
-terminate(_Reason, _State) ->
-    ok.
-
-%% other exports
-
--spec start_link(ejabberd:server()) -> {ok, pid()} | {error, any()}.
-start_link(Host) ->
-    Proc = gen_mod:get_module_proc(Host, mod_http_client),
-    gen_server:start_link({local, Proc}, ?MODULE, Host, []).
+    stop_supervisor(Host),
+    ets:delete(tab_name(Host)).
 
 %%------------------------------------------------------------------------------
 %% internal functions
@@ -184,6 +137,10 @@ do_start_pool(#pool{name = Name,
 
 pool_proc_name(Host, PoolName) ->
     gen_mod:get_module_proc(Host, PoolName).
+
+tab_name(Host) ->
+    %% NOTE: The naming scheme for processes is reused for ETS table
+    gen_mod:get_module_proc(Host, mod_http_client_pools).
 
 start_supervisor(Host) ->
     Proc = gen_mod:get_module_proc(Host, ejabberd_mod_http_client_sup),
