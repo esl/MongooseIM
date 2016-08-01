@@ -300,13 +300,13 @@ both_bind_and_body(delete) ->
     false.
 
 add_bindings(Args, Entity) ->
-    lists:flatten([add_bind(A, Entity) || A <- Args]).
+    [add_bind(A, Entity) || A <- Args].
 
 %% skip "caller" arg for frontend command
 add_bind({caller, _}, user) ->
     "";
 add_bind({ArgName, _}, _Entity) ->
-    ["/", atom_to_list(ArgName), "/:", atom_to_list(ArgName)];
+    lists:flatten(["/:", atom_to_list(ArgName)]);
 add_bind(Other, _) ->
     throw({error, bad_arg_spec, Other}).
 
