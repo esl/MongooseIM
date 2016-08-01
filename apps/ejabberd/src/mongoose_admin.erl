@@ -9,7 +9,7 @@
          registered_users/1,
          change_user_password/2,
          listsessions/1,
-         kick_this_session/1,
+         kick_session/3,
          get_recent_messages/3,
          send_message/3
         ]).
@@ -84,7 +84,7 @@ commands() ->
 %%        ],
         [
             {name, listsessions},
-            {category, session},
+            {category, sessions},
             {desc, "Get session list"},
             {module, ?MODULE},
             {function, listsessions},
@@ -94,12 +94,12 @@ commands() ->
         ],
         [
             {name, kickuser},
-            {category, session},
+            {category, sessions},
             {desc, "Terminate user connection"},
             {module, ?MODULE},
-            {function, kick_this_session},
+            {function, kick_session},
             {action, delete},
-            {args, [{jid, binary}]},
+            {args, [{host, binary}, {user, binary}, {res, binary}]},
             {result, {msg, binary}}
         ],
         [
@@ -143,8 +143,8 @@ commands() ->
 %%    ejabberd_sm:get_user_resources(J#jid.user, J#jid.server).
 
 
-kick_this_session(Jid) ->
-    J = jid:from_binary(Jid),
+kick_session(Host, User, Resource) ->
+    J = jid:make(User, Host, Resource),
     ejabberd_sm:route(
         jid:make(<<"">>, <<"">>, <<"">>),
         J,
