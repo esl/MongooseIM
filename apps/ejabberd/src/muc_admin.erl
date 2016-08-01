@@ -54,21 +54,21 @@ commands() ->
         {nick, binary}]},
       {result, {name, binary}}],
 
-     [{name, invite_to_muc_room},
-      {category, muc},
-      {desc, "Send a MUC room invite from one user to another."},
-      {module, ?MODULE},
-      {function, invite_to_room},
-      {action, update},
-      {identifiers, [domain, name]},
-      {args,
-       [{domain, binary},
-        {name, binary},
-        {sender, binary},
-        {recipient, binary},
-        {reason, binary}
-       ]},
-      {result, ok}],
+     %% [{name, invite_to_muc_room},
+     %%  {category, muc},
+     %%  {desc, "Send a MUC room invite from one user to another."},
+     %%  {module, ?MODULE},
+     %%  {function, invite_to_room},
+     %%  {action, update},
+     %%  {identifiers, [domain, name]},
+     %%  {args,
+     %%   [{domain, binary},
+     %%    {name, binary},
+     %%    {sender, binary},
+     %%    {recipient, binary},
+     %%    {reason, binary}
+     %%   ]},
+     %% {result, ok}],
 
      %% This breaks the module because we have two HTTP end-points
      %% with the same URL and method.
