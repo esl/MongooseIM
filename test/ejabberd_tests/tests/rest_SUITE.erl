@@ -62,6 +62,8 @@ groups() ->
 
 test_cases() ->
     [%assertions,
+     %comands_are_listed,
+     %non_existent_command_returns_404,
      basic
      %sessions,
      %messages,
@@ -200,14 +202,15 @@ assertions(_Config) ->
     assert_notinlist(#{a => 5}, Maplst),
     assert_notinlist(#{a => 1, b => 1}, Maplst).
 
-
-basic(_Config) ->
-    % list commands
+commands_are_listed(Config) ->
     {?OK, Lcmds} = gett(<<"/commands">>),
     DecCmds = decode_maplist(Lcmds),
-    assert_inlist(#{name => <<"listmethods">>}, DecCmds),
-    % nonexistent command
-    {?NOT_FOUND, _} = gett(<<"/isitthereornot">>),
+    assert_inlist(#{name => <<"listmethods">>}, DecCmds).
+
+non_existent_command_returns_404(_C) ->
+    {?NOT_FOUND, _} = gett(<<"/isitthereornot">>).
+
+basic(_Config) ->
     % list users
     {?OK, Lusers} = gett(<<"/users/localhost">>),
     assert_inlist(<<"alice@localhost">>, Lusers),
