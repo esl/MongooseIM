@@ -158,6 +158,7 @@
          list/3,
          register_commands/1,
          unregister_commands/1,
+         new/1,
          get_command/2,
          execute/3,
          name/1,
@@ -169,18 +170,28 @@
          result/1
     ]).
 
+%% @doc creates new command object based on provided proplist
+-spec new(command_properties()) -> t().
+new(Props) ->
+    Fields = record_info(fields, mongoose_command),
+    Lst = check_command([], Props, Fields),
+    RLst = lists:reverse(Lst),
+    Cmd = list_to_tuple([mongoose_command|RLst]),
+    check_identifiers(Cmd#mongoose_command.action, Cmd#mongoose_command.identifiers, Cmd#mongoose_command.args),
+    % store position of caller in args (if present)
+    Cmd#mongoose_command{caller_pos = locate_caller(Cmd#mongoose_command.args)}.
+
 
 %% @doc Register mongoose commands. This can be run by any module that wants its commands exposed.
 -spec register([command_properties()]) -> ok.
 register(Cmds) ->
-    init(),
-    Commands = [check_command(C) || C <- Cmds],
+    Commands = [new(C) || C <- Cmds],
     register_commands(Commands).
 
 %% @doc Unregister mongoose commands. Should be run when module is unloaded.
 -spec unregister([command_properties()]) -> ok.
 unregister(Cmds) ->
-    Commands = [check_command(C) || C <- Cmds],
+    Commands = [new(C) || C <- Cmds],
     unregister_commands(Commands).
 
 %% @doc List commands, available for this user.
@@ -387,14 +398,6 @@ compare_lists([S|Sp], [V|Val]) ->
 
 th(Fmt, V) ->
     throw({type_mismatch, io_lib:format(Fmt, V)}).
-check_command(PL) ->
-    Fields = record_info(fields, mongoose_command),
-    Lst = check_command([], PL, Fields),
-    RLst = lists:reverse(Lst),
-    Cmd = list_to_tuple([mongoose_command|RLst]),
-    check_identifiers(Cmd#mongoose_command.action, Cmd#mongoose_command.identifiers, Cmd#mongoose_command.args),
-    % store position of caller in args (if present)
-    Cmd#mongoose_command{caller_pos = locate_caller(Cmd#mongoose_command.args)}.
 
 check_identifiers(update, [], _) ->
     baddef(identifiers, empty);
