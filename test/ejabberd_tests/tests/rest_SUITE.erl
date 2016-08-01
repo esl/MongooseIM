@@ -61,11 +61,12 @@ groups() ->
     ].
 
 test_cases() ->
-    [%assertions,
-     %comands_are_listed,
-     %non_existent_command_returns_404,
-     basic
-     %sessions,
+    [assertions,
+     comands_are_listed,
+     non_existent_command_returns_404,
+     user_can_be_registered_and_removed,
+     sessions_are_listed,
+     session_can_be_kicked
      %messages,
      %changepassword
      ].
@@ -210,7 +211,7 @@ commands_are_listed(_C) ->
 non_existent_command_returns_404(_C) ->
     {?NOT_FOUND, _} = gett(<<"/isitthereornot">>).
 
-basic(_Config) ->
+user_can_be_registered_and_removed(_Config) ->
     % list users
     {?OK, Lusers} = gett(<<"/users/localhost">>),
     assert_inlist(<<"alice@localhost">>, Lusers),
@@ -228,17 +229,19 @@ basic(_Config) ->
     ok.
 
 
-sessions(Config) ->
+sessions_are_listed(_) ->
     % no session
-    {?OK, Sessions} = gett("/session/host/localhost"),
-    [] = Sessions,
+    {?OK, Sessions} = gett("/sessions/localhost"),
+    [] = Sessions.
+
+session_can_be_kicked(Config) ->
     escalus:story(Config, [{alice, 1}], fun(_Alice) ->
             % Alice is connected
-            {?OK, Sessions1} = gett("/session/host/localhost"),
+            {?OK, Sessions1} = gett("/sessions/localhost"),
             assert_inlist(<<"alice@localhost/res1">>, Sessions1),
             % kick alice
-            {?OK, _} = delete("/session/jid/alice@localhost%2Fres1"),
-            {?OK, Sessions2} = gett("/session/host/localhost"),
+            {?OK, _} = delete("/sessions/localhost/alice/res1"),
+            {?OK, Sessions2} = gett("/sessions/localhost"),
             [] = Sessions2
         end),
     ok.
