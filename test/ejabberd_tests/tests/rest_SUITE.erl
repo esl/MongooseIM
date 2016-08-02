@@ -125,9 +125,9 @@ maybe_enable_mam(odbc, Config) ->
 maybe_enable_mam(riak, Config) ->
     init_module(host(), mod_mam_riak_timed_arch_yz, [pm, muc]),
     init_module(host(), mod_mam_mnesia_prefs, [pm, muc]),
-    init_module(host(), mod_mam, [add_archived_element]),
-    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}, add_archived_element]),
-    [{mam_backend, riak} | Config];
+    init_module(host(), mod_mam, []),
+    init_module(host(), mod_mam_muc, [{host, "muc.@HOST@"}]),
+    [{mam_backend, riak}, {yz_wait, 2500} | Config];
 maybe_enable_mam(_, C) ->
     [{mam_backend, disabled} | C].
 
@@ -255,6 +255,7 @@ messages(Config) ->
         escalus:assert(is_chat_message, [<<"hello from Alice">>], Res1),
         GetPath = lists:flatten(["/message/caller/",binary_to_list(AliceJID),
                                  "/other/",binary_to_list(BobJID),"/limit/10"]),
+        mam_helper:maybe_wait_for_yz(Config),
         {?OK, Msgs} = gett(GetPath),
         ?PRT("Msgs", Msgs),
         [Last, Previous|_] = lists:reverse(decode_maplist(Msgs)),
@@ -265,6 +266,7 @@ messages(Config) ->
         <<"hello from Bob">> = maps:get(body, Previous),
         BobJID = maps:get(sender, Previous)
     end).
+
 
 changepassword(Config) ->
     % bob logs in with his regular password
