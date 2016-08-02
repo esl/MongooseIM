@@ -61,13 +61,13 @@ groups() ->
     ].
 
 test_cases() ->
-    [assertions,
-     comands_are_listed,
+    [commands_are_listed,
      non_existent_command_returns_404,
      user_can_be_registered_and_removed,
      sessions_are_listed,
-     session_can_be_kicked
-     %messages,
+     session_can_be_kicked,
+     messages_are_sent_and_received,
+     messages_are_archived
      %changepassword
      ].
 
@@ -170,7 +170,7 @@ end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config, escalus:get_users([alice, bob, mike])).
 
 init_per_testcase(CaseName, Config) ->
-    MAMTestCases = [messages, user_messages],
+    MAMTestCases = [messages_are_archived],
     maybe_skip_mam_test_cases(lists:member(CaseName, MAMTestCases), CaseName, Config).
 
 maybe_skip_mam_test_cases(false, CaseName, Config) ->
@@ -185,23 +185,6 @@ maybe_skip_mam_test_cases(true, CaseName, Config) ->
 
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
-
-%%--------------------------------------------------------------------
-%% Message tests
-%%--------------------------------------------------------------------
-
-assertions(_Config) ->
-    Lst = [<<"a">>, <<"b">>, <<"c">>],
-    assert_inlist(<<"a">>, Lst),
-    assert_inlist(<<"b">>, Lst),
-    assert_inlist(<<"c">>, Lst),
-    assert_notinlist(<<"d">>, Lst),
-    Maplst = [#{a => 1, b => 2}, #{a => 1, b => 3}, #{a => 4, b => 5}],
-    assert_inlist(#{a => 1}, Maplst),
-    assert_inlist(#{a => 1, b => 2}, Maplst),
-    assert_inlist(#{a => 4}, Maplst),
-    assert_notinlist(#{a => 5}, Maplst),
-    assert_notinlist(#{a => 1, b => 1}, Maplst).
 
 commands_are_listed(_C) ->
     {?OK, Lcmds} = gett(<<"/commands">>),
@@ -236,32 +219,40 @@ sessions_are_listed(_) ->
 
 session_can_be_kicked(Config) ->
     escalus:story(Config, [{alice, 1}], fun(_Alice) ->
-            % Alice is connected
-            {?OK, Sessions1} = gett("/sessions/localhost"),
-            assert_inlist(<<"alice@localhost/res1">>, Sessions1),
-            % kick alice
-            {?OK, _} = delete("/sessions/localhost/alice/res1"),
-            {?OK, Sessions2} = gett("/sessions/localhost"),
-            [] = Sessions2
-        end),
-    ok.
+        % Alice is connected
+        {?OK, Sessions1} = gett("/sessions/localhost"),
+        assert_inlist(<<"alice@localhost/res1">>, Sessions1),
+        % kick alice
+        {?OK, _} = delete("/sessions/localhost/alice/res1"),
+        {?OK, Sessions2} = gett("/sessions/localhost"),
+        [] = Sessions2
+    end).
 
-
-messages(Config) ->
+messages_are_sent_and_received(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        {M1, M2} = send_messages(Alice, Bob),
+        Res = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_chat_message, [maps:get(msg, M1)], Res),
+        Res1 = escalus:wait_for_stanza(Bob),
+        escalus:assert(is_chat_message, [maps:get(msg, M2)], Res1)
+    end).
 
+send_messages(Alice, Bob) ->
         AliceJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Alice)),
         BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
         M = #{caller => BobJID, to => AliceJID, msg => <<"hello from Bob">>},
-        {?OK, _} = post(<<"/message">>, M),
-        Res = escalus:wait_for_stanza(Alice),
-        escalus:assert(is_chat_message, [<<"hello from Bob">>], Res),
+        {?OK, _} = post(<<"/messages">>, M),
         M1 = #{caller => AliceJID, to => BobJID, msg => <<"hello from Alice">>},
-        {?OK, _} = post(<<"/message">>, M1),
-        Res1 = escalus:wait_for_stanza(Bob),
-        escalus:assert(is_chat_message, [<<"hello from Alice">>], Res1),
-        GetPath = lists:flatten(["/message/caller/",binary_to_list(AliceJID),
-                                 "/other/",binary_to_list(BobJID),"/limit/10"]),
+        {?OK, _} = post(<<"/messages">>, M1),
+        {M, M1}.
+
+messages_are_archived(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        {M1, _M2} = send_messages(Alice, Bob),
+        AliceJID = maps:get(to, M1),
+        BobJID = maps:get(caller, M1),
+        GetPath = lists:flatten(["/messages/",binary_to_list(AliceJID),
+                                 "/",binary_to_list(BobJID),"/10"]),
         mam_helper:maybe_wait_for_yz(Config),
         {?OK, Msgs} = gett(GetPath),
         ?PRT("Msgs", Msgs),
@@ -304,3 +295,4 @@ to_list(V) when is_binary(V) ->
     binary_to_list(V);
 to_list(V) when is_list(V) ->
     V.
+	
