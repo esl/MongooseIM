@@ -65,8 +65,8 @@ test_cases() ->
      sessions_are_listed,
      session_can_be_kicked,
      messages_are_sent_and_received,
-     messages_are_archived
-     %changepassword
+     messages_are_archived,
+     password_can_be_changed
      ].
 
 suite() ->
@@ -259,26 +259,25 @@ messages_are_archived(Config) ->
         BobJID = maps:get(sender, Previous)
     end).
 
-
-changepassword(Config) ->
+password_can_be_changed(Config) ->
     % bob logs in with his regular password
     escalus:story(Config, [{bob, 1}], fun(_Bob) ->
             skip
         end),
     % we change password
-    {?OK, _} = putt("/user/caller/bob@localhost", #{newpass => <<"niemakrolika">>}),
+    {?OK, _} = putt("/users/localhost/bob", #{newpass => <<"niemakrolika">>}),
     % he logs with his alternative password
     escalus:story(Config, [{bob_altpass, 1}], fun(_Bob) ->
             ignore
         end),
     % we can't log with regular passwd anymore
     try escalus:story(Config, [{bob, 1}], fun(Bob) -> ?PRT("Bob", Bob) end) of
-        _ -> ct:fail("this shouldn't have worked")
+        _ -> ct:fail("bob connected with old password")
     catch error:{badmatch, _} ->
         ok
     end,
     % we change it back
-    {?OK, _} = putt("/user/caller/bob@localhost", #{newpass => <<"makrolika">>}),
+    {?OK, _} = putt("/users/localhost/bob", #{newpass => <<"makrolika">>}),
     % now he logs again with the regular one
     escalus:story(Config, [{bob, 1}], fun(_Bob) ->
             just_dont_do_anything
