@@ -1893,7 +1893,7 @@ make_http_auth_request(From, Nick, Packet, Role, RoomJid, RoomPid, Password, Poo
     Path = <<"/check_password?from=", FromVal/binary,
              "&to=", RoomJidVal/binary,
              "&pass=", PassVal/binary>>,
-    Result = case mod_http_client:make_request(Pool, Path, <<"GET">>, [], <<>>) of
+    Result = case mod_http_client:get(Pool, Path, []) of
                  {ok, {<<"200">>, Body}} -> decode_http_auth_response(Body);
                  _ -> error
              end,

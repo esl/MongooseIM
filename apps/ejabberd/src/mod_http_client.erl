@@ -18,7 +18,7 @@
 -behaviour(gen_mod).
 
 %% API
--export([start_pool/3, stop_pool/2, get_pool/2, make_request/5]).
+-export([start_pool/3, stop_pool/2, get_pool/2, get/3, post/4]).
 
 %% gen_mod callbacks
 -export([start/2, stop/1]).
@@ -59,30 +59,15 @@ stop_pool(Host, Name) ->
     ets:delete(tab_name(Host), Name),
     ok.
 
--spec make_request(pool(), binary(), binary(), list(), binary()) ->
-                          {ok, {binary(), binary()}} | {error, any()}.
-make_request(Pool, Path, Method, Header, Query) ->
-    #pool{path_prefix = PathPrefix,
-          name = Name,
-          host = Host,
-          pool_timeout = PoolTimeout,
-          request_timeout = RequestTimeout} = Pool,
-    FullPath = <<PathPrefix/binary, Path/binary>>,
-    case catch poolboy:transaction(
-                 pool_proc_name(Host, Name),
-                 fun(WorkerPid) ->
-                         fusco:request(WorkerPid, FullPath, Method, Header, Query, RequestTimeout)
-                 end,
-                 PoolTimeout) of
-        {'EXIT', {timeout, _}} ->
-            {error, pool_timeout};
-        {ok, {{Code, _Reason}, _RespHeaders, RespBody, _, _}} ->
-            {ok, {Code, RespBody}};
-        {error, timeout} ->
-            {error, request_timeout};
-        {error, Reason} ->
-            {error, Reason}
-    end.
+-spec get(pool(), binary(), list()) ->
+                 {ok, {binary(), binary()}} | {error, any()}.
+get(Pool, Path, Headers) ->
+    make_request(Pool, Path, <<"GET">>, Headers, <<>>).
+
+-spec post(pool(), binary(), list(), binary()) ->
+                 {ok, {binary(), binary()}} | {error, any()}.
+post(Pool, Path, Headers, Query) ->
+    make_request(Pool, Path, <<"POST">>, Headers, Query).
 
 %%------------------------------------------------------------------------------
 %% gen_mod callbacks
@@ -141,6 +126,29 @@ pool_proc_name(Host, PoolName) ->
 tab_name(Host) ->
     %% NOTE: The naming scheme for processes is reused for ETS table
     gen_mod:get_module_proc(Host, mod_http_client_pools).
+
+make_request(Pool, Path, Method, Headers, Query) ->
+    #pool{path_prefix = PathPrefix,
+          name = Name,
+          host = Host,
+          pool_timeout = PoolTimeout,
+          request_timeout = RequestTimeout} = Pool,
+    FullPath = <<PathPrefix/binary, Path/binary>>,
+    case catch poolboy:transaction(
+                 pool_proc_name(Host, Name),
+                 fun(WorkerPid) ->
+                         fusco:request(WorkerPid, FullPath, Method, Headers, Query, RequestTimeout)
+                 end,
+                 PoolTimeout) of
+        {'EXIT', {timeout, _}} ->
+            {error, pool_timeout};
+        {ok, {{Code, _Reason}, _RespHeaders, RespBody, _, _}} ->
+            {ok, {Code, RespBody}};
+        {error, timeout} ->
+            {error, request_timeout};
+        {error, Reason} ->
+            {error, Reason}
+    end.
 
 start_supervisor(Host) ->
     Proc = gen_mod:get_module_proc(Host, ejabberd_mod_http_client_sup),
