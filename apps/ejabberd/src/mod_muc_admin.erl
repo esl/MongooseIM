@@ -38,17 +38,17 @@ stop(_) ->
 commands() ->
     [
      [{name, create_muc_room},
-      {category, muc},
+      {category, mucs},
       {desc, "Create a MUC room."},
       {module, ?MODULE},
       {function, create_room},
       {action, create},
-      {identifiers, [domain]},
+      {identifiers, [host]},
       {args,
-       %% The argument `domain' is what we normally term the XMPP
+       %% The argument `host' is what we normally term the XMPP
        %% host, `name' is the room name, `owner' is the XMPP entity
        %% that would normally request an instant MUC room.
-       [{domain, binary},
+       [{host, binary},
         {name, binary},
         {owner, binary},
         {nick, binary}]},
@@ -74,6 +74,7 @@ commands() ->
      %% with the same URL and method.
      [{name, send_message_to_room},
       {category, mucs},
+      {subcategory, <<"messages">>},
       {desc, "Send a message to a MUC room from a given user."},
       {module, ?MODULE},
       {function, send_message_to_room},

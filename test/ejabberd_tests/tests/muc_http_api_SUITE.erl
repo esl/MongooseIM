@@ -116,7 +116,7 @@ send_message_to_room(Config) ->
         %% Parameters for this test.
         Host = <<"localhost">>,
         Name = <<"wonderland">>,
-        Path = <<"/mucs", $/, Host/binary, $/, Name/binary>>,
+        Path = <<"/mucs",$/,Host/binary,$/,Name/binary,$/,"messages">>,
         Message = <<"Greetings!">>,
         Body = #{sender => escalus_utils:get_jid(Bob),
                  message => Message},
