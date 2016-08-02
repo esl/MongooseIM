@@ -104,7 +104,7 @@ commands() ->
         ],
         [
             {name, sendmessage},
-            {category, message},
+            {category, messages},
             {desc, "Send chat message from to"},
             {module, ?MODULE},
             {function, send_message},
@@ -115,7 +115,7 @@ commands() ->
         ],
         [
             {name, getmessages},
-            {category, message},
+            {category, messages},
             {desc, "Get recent messages"},
             {module, ?MODULE},
             {function, get_recent_messages},
