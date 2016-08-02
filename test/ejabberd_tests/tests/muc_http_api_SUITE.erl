@@ -77,8 +77,8 @@ end_per_testcase(CaseName, Config) ->
 
 create_room(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-        Domain = <<"localhost">>,
-        Path = <<"/muc/", Domain/binary>>,
+        Host = <<"localhost">>,
+        Path = <<"/mucs/", Host/binary>>,
         Name = <<"wonderland">>,
         Body = #{name => Name,
                  owner => escalus_utils:get_jid(Alice),
@@ -92,7 +92,7 @@ create_room(Config) ->
 
 invite_online_user_to_room(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        Path = <<"/muc/localhost/wonderland">>,
+        Path = <<"/mucs/localhost/wonderland">>,
         Reason = <<"I think you'll like this room!">>,
         Body = #{sender => escalus_utils:get_jid(Alice),
                  recipient => escalus_utils:get_jid(Bob),
@@ -114,9 +114,9 @@ send_message_to_room(Config) ->
                                                       <<"bobcat">>)),
         escalus:wait_for_stanzas(Bob, 2),
         %% Parameters for this test.
-        Domain = <<"localhost">>,
+        Host = <<"localhost">>,
         Name = <<"wonderland">>,
-        Path = <<"/muc", $/, Domain/binary, $/, Name/binary>>,
+        Path = <<"/mucs", $/, Host/binary, $/, Name/binary>>,
         Message = <<"Greetings!">>,
         Body = #{sender => escalus_utils:get_jid(Bob),
                  message => Message},
@@ -127,6 +127,7 @@ send_message_to_room(Config) ->
         escalus:assert(is_message, Got),
         Message = exml_query:path(Got, [{element, <<"body">>}, cdata])
     end).
+
 
 %%--------------------------------------------------------------------
 %% Ancillary (adapted from the MUC suite)
