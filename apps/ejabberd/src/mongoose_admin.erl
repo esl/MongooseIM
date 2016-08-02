@@ -7,7 +7,7 @@
          unregister/2,
          registered_commands/0,
          registered_users/1,
-         change_user_password/2,
+         change_user_password/3,
          listsessions/1,
          kick_session/3,
          get_recent_messages/3,
@@ -25,10 +25,10 @@ stop() ->
 
 start(_, _) -> start().
 stop(_, _) -> stop().
+
 %%%
 %%% mongoose commands
 %%%
-
 
 commands() ->
     [
@@ -72,16 +72,6 @@ commands() ->
             {args, [{host, binary}, {user, binary}]},
             {result, {msg, binary}}
         ],
-%%        [
-%%            {name, getuserresources},
-%%            {category, session},
-%%            {desc, "Get user resources"},
-%%            {module, ?MODULE},
-%%            {function, get_user_resources},
-%%            {action, read},
-%%            {args, [{jid, binary}]},
-%%            {result, []}
-%%        ],
         [
             {name, listsessions},
             {category, sessions},
@@ -123,25 +113,20 @@ commands() ->
             {security_policy, [user]},
             {args, [{caller, binary}, {other, binary}, {limit, integer}]},
             {result, []}
+        ],
+        [
+            {name, changepassword},
+            {category, users},
+            {desc, "Change user password"},
+            {module, ?MODULE},
+            {function, change_user_password},
+            {action, update},
+            {security_policy, [user]},
+            {identifiers, [host, user]},
+            {args, [{host, binary}, {user, binary}, {newpass, binary}]},
+            {result, ok}
         ]
-        % [
-        %     {name, changepassword},
-        %     {category, users},
-        %     {desc, "Change user password"},
-        %     {module, ?MODULE},
-        %     {function, change_user_password},
-        %     {action, update},
-        %     {security_policy, [user]},
-        %     {identifiers, [host, user]},
-        %     {args, [{host, binary}, {user, binary}, {newpass, binary}]},
-        %     {result, ok}
-        % ]
     ].
-
-%%get_user_resources(Jid) ->
-%%    J = jid:from_binary(Jid),
-%%    ejabberd_sm:get_user_resources(J#jid.user, J#jid.server).
-
 
 kick_session(Host, User, Resource) ->
     J = jid:make(User, Host, Resource),
@@ -212,9 +197,8 @@ get_recent_messages(Caller, Other, Limit) ->
     lists:map(fun record_to_map/1, Res).
 
 
-change_user_password(User, Password) ->
-    Jid = jid:from_binary(User),
-    ejabberd_auth:set_password(Jid#jid.luser, Jid#jid.lserver, Password).
+change_user_password(Host, User, Password) ->
+    ejabberd_auth:set_password(User, Host, Password).
 
 
 record_to_map({Id, From, Msg}) ->
