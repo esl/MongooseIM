@@ -36,12 +36,14 @@
          process_iq_get/5,
          get_user_list/3,
          check_packet/6,
+         check_packet_with_roster/7,
          remove_user/2,
          updated_list/3]).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 -include("mod_privacy.hrl").
+-include("mod_roster.hrl").
 
 -define(BACKEND, mod_privacy_backend).
 
@@ -131,6 +133,8 @@ start(Host, Opts) ->
                ?MODULE, get_user_list, 50),
     ejabberd_hooks:add(privacy_check_packet, Host,
                ?MODULE, check_packet, 50),
+    ejabberd_hooks:add(privacy_check_packet_with_roster, Host,
+               ?MODULE, check_packet_with_roster, 50),
     ejabberd_hooks:add(privacy_updated_list, Host,
                ?MODULE, updated_list, 50),
     ejabberd_hooks:add(remove_user, Host,
@@ -147,6 +151,8 @@ stop(Host) ->
               ?MODULE, get_user_list, 50),
     ejabberd_hooks:delete(privacy_check_packet, Host,
               ?MODULE, check_packet, 50),
+    ejabberd_hooks:delete(privacy_check_packet_with_roster, Host,
+              ?MODULE, check_packet_with_roster, 50),
     ejabberd_hooks:delete(privacy_updated_list, Host,
               ?MODULE, updated_list, 50),
     ejabberd_hooks:delete(remove_user, Host,
@@ -309,13 +315,23 @@ get_user_list(_, User, Server) ->
             #userlist{}
     end.
 
+check_packet_with_roster(Acc, User, Server, UserList, {From, To, Packet}, Dir,
+                         #roster{subscription = Sub, groups = Groups}) ->
+    % Set needdb to false to force use of the supplied roster data rather
+    % than reloading it:
+    check_packet(Acc, User, Server, UserList#userlist{needdb = false},
+                 {From, To, Packet}, Dir, Sub, Groups).
+
 %% From is the sender, To is the destination.
 %% If Dir = out, User@Server is the sender account (From).
 %% If Dir = in, User@Server is the destination account (To).
+check_packet(Acc, User, Server, UserList, {From, To, Packet}, Dir) ->
+    check_packet(Acc, User, Server, UserList, {From, To, Packet}, Dir, [], []).
+
 check_packet(_, User, Server,
          #userlist{list = List, needdb = NeedDb},
          {From, To, Packet},
-         Dir) ->
+         Dir, DefaultSubs, DefaultGroups) ->
     case List of
         [] ->
             allow;
@@ -331,7 +347,7 @@ check_packet(_, User, Server,
                     Host = jid:nameprep(Server),
                     roster_get_jid_info(Host, User, Server, LJID);
                 false ->
-                    {[], []}
+                    {DefaultSubs, DefaultGroups}
             end,
             Type = xml:get_attr_s(<<"type">>, Packet#xmlel.attrs),
             check_packet_aux(List, PType, Type, LJID, Subscription, Groups)

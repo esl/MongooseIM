@@ -1304,7 +1304,9 @@ handle_routed_iq(From, To, Packet = #xmlel{attrs = Attrs}, StateData) ->
 -spec handle_routed_broadcast(Broadcast :: broadcast_type(), StateData :: state()) ->
     broadcast_result().
 handle_routed_broadcast({item, IJID, ISubscription}, StateData) ->
-    {new_state, roster_change(IJID, ISubscription, StateData)};
+    {new_state, roster_change(IJID, ISubscription, none, none, StateData)};
+handle_routed_broadcast({item, IJID, ISubscription, OldItem, NewItem}, StateData) ->
+    {new_state, roster_change(IJID, ISubscription, OldItem, NewItem, StateData)};
 handle_routed_broadcast({exit, Reason}, _StateData) ->
     {exit, Reason};
 handle_routed_broadcast({privacy_list, PrivList, PrivListName}, StateData) ->
@@ -2064,8 +2066,9 @@ presence_broadcast_first(From, StateData, Packet) ->
 
 -spec roster_change(IJID :: ejabberd:simple_jid() | ejabberd:jid(),
                     ISubscription :: from | to | both | none,
+                    OldItem :: term(), NewItem :: term(),
                     State :: state()) -> state().
-roster_change(IJID, ISubscription, StateData) ->
+roster_change(IJID, ISubscription, OldItem, NewItem, StateData) ->
     LIJID = jid:to_lower(IJID),
     IsFrom = (ISubscription == both) or (ISubscription == from),
     IsTo   = (ISubscription == both) or (ISubscription == to),
@@ -2089,6 +2092,14 @@ roster_change(IJID, ISubscription, StateData) ->
             ?DEBUG("roster changed for ~p~n", [StateData#state.user]),
             From = StateData#state.jid,
             To = jid:make(IJID),
+
+            % Changes that cause contacts to be newly blocked by privacy lists
+            % should generate an unavailable message for that contact
+            case is_contact_newly_blocked(StateData, From, To, OldItem, NewItem) of
+                true -> ejabberd_router:route(From, To, unavailable_packet());
+                false -> ok
+            end,
+
             Cond1 = ( (not StateData#state.pres_invis) and IsFrom
                       and (not OldIsFrom) ),
             Cond2 = ( (not IsFrom) and OldIsFrom
@@ -2109,9 +2120,8 @@ roster_change(IJID, ISubscription, StateData) ->
                                     pres_f = FSet,
                                     pres_t = TSet};
                 Cond2 ->
+                    PU = unavailable_packet(),
                     ?DEBUG("C2: ~p~n", [LIJID]),
-                    PU = #xmlel{name = <<"presence">>,
-                                attrs = [{<<"type">>, <<"unavailable">>}]},
                     case privacy_check_packet(StateData, From, To, PU, out) of
                         allow ->
                             ejabberd_router:route(From, To, PU);
@@ -2431,10 +2441,27 @@ maybe_update_presence(StateData = #state{jid = JID, pres_f = Froms}, NewList) ->
               ok
       end, ok, FromsExceptSelf).
 
+is_contact_newly_blocked(_, _, _, OldItem, NewItem) when OldItem =:= none;
+                                                         NewItem =:= none ->
+    false;
+is_contact_newly_blocked(StateData, From, To, OldItem, NewItem) ->
+    OldResult = privacy_check_packet_roster(StateData, From, To, OldItem),
+    NewResult = privacy_check_packet_roster(StateData, From, To, NewItem),
+    {OldResult, NewResult} =:= {allow, deny}.
+
+privacy_check_packet_roster(StateData, From, To, Item) ->
+    ejabberd_hooks:run_fold(
+      privacy_check_packet_with_roster, StateData#state.server,
+      allow,
+      [StateData#state.user,
+       StateData#state.server,
+       StateData#state.privacy_list,
+       {From, To, unavailable_packet()},
+       out, Item]).
+
 send_unavail_if_newly_blocked(StateData = #state{jid = JID},
                               ContactJID, NewList) ->
-    Packet = #xmlel{name = <<"presence">>,
-                    attrs = [{<<"type">>, <<"unavailable">>}]},
+    Packet = unavailable_packet(),
     OldResult = privacy_check_packet(StateData,
                                      JID, ContactJID, Packet, out),
     NewResult = privacy_check_packet(StateData#state{privacy_list = NewList},
@@ -3076,3 +3103,6 @@ open_session_allowed_hook(Server, JID) ->
     allow == ejabberd_hooks:run_fold(session_opening_allowed_for_user,
                                      Server,
                                      allow, [JID]).
+
+unavailable_packet() ->
+    #xmlel{name = <<"presence">>, attrs = [{<<"type">>, <<"unavailable">>}]}.
