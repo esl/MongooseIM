@@ -81,6 +81,7 @@ all() -> [
         {group, owner},
         {group, owner_no_parallel},
         {group, room_management},
+        {group, http_auth_no_server},
         {group, http_auth}
         ].
 
@@ -211,16 +212,18 @@ groups() -> [
                 create_and_destroy_room,
                 create_and_destroy_room_multiple_x_elements
                 ]},
-        {http_auth, [], [
-                         enter_http_password_protected_room,
-                         deny_access_to_password_protected_room,
-                         deny_access_to_http_password_protected_room_wrong_password,
-                         deny_access_to_http_password_protected_room_service_unavailable,
-                         create_instant_http_password_protected_room,
-                         deny_creation_of_http_password_protected_room,
-                         deny_creation_of_http_password_protected_room_wrong_password,
-                         deny_creation_of_http_password_protected_room_service_unavailable
-                        ]}
+        {http_auth_no_server, [parallel], [
+                deny_access_to_http_password_protected_room_service_unavailable,
+                deny_creation_of_http_password_protected_room_service_unavailable
+                ]},
+        {http_auth, [parallel], [
+                enter_http_password_protected_room,
+                deny_access_to_password_protected_room,
+                deny_access_to_http_password_protected_room_wrong_password,
+                create_instant_http_password_protected_room,
+                deny_creation_of_http_password_protected_room,
+                deny_creation_of_http_password_protected_room_wrong_password
+                ]}
         ].
 
 rsm_cases() ->
@@ -272,9 +275,14 @@ init_per_group(disco_rsm, Config) ->
     [Alice | _] = ?config(escalus_users, Config1),
     start_rsm_rooms(Config1, Alice, <<"aliceonchat">>);
 
-init_per_group(http_auth, Config) ->
+init_per_group(TC, Config) when TC =:= http_auth_no_server;
+                                TC =:= http_auth ->
     ConfigWithModules = dynamic_modules:save_modules(domain(), Config),
     dynamic_modules:ensure_modules(domain(), required_modules(http_auth)),
+    case TC of
+        http_auth -> http_helper:start(8080, "/muc/auth/check_password", fun handle_http_auth/1);
+        _ -> ok
+    end,
     ConfigWithModules;
 
 init_per_group(_GroupName, Config) ->
@@ -298,6 +306,17 @@ required_modules(http_auth) ->
                ]}
     ].
 
+handle_http_auth(Req) ->
+    {Pass, Req1} = cowboy_req:qs_val(<<"pass">>, Req),
+    {Code, Msg} = case Pass of
+                      ?PASSWORD -> {0, <<"OK">>};
+                      _ -> {121, <<"Password expired">>}
+                  end,
+    Resp = iolist_to_binary(mochijson2:encode({struct, [{<<"code">>, Code},
+                                                        {<<"msg">>, Msg}]})),
+    {ok, Req2} = cowboy_req:reply(200, [{<<"content-type">>, <<"application/json">>}], Resp, Req1),
+    Req2.
+
 end_per_group(admin_membersonly, Config) ->
     destroy_room(Config),
     escalus:delete_users(Config, escalus:get_users([alice, bob, kate]));
@@ -310,7 +329,9 @@ end_per_group(disco_rsm, Config) ->
     destroy_rsm_rooms(Config),
     escalus:delete_users(Config, escalus:get_users([alice, bob]));
 
-end_per_group(http_auth, Config) ->
+end_per_group(TC, Config) when TC =:= http_auth_no_server;
+                               TC =:= http_auth ->
+    http_helper:stop(),
     dynamic_modules:restore_modules(domain(), Config);
 
 end_per_group(_GroupName, Config) ->
@@ -3663,7 +3684,6 @@ pagination_after10(Config) ->
 %%--------------------------------------------------------------------
 
 deny_access_to_http_password_protected_room_wrong_password(Config1) ->
-    http_helper:listen_once(self(), 8080, <<"badpass">>, <<"{\"code\":121, \"msg\":\"Password expired\"}">>),
     AliceSpec = given_fresh_spec(Config1, alice),
     Config = given_fresh_room(Config1, AliceSpec, [{password_protected, true}]),
     escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
@@ -3682,7 +3702,6 @@ deny_access_to_http_password_protected_room_service_unavailable(Config1) ->
     destroy_room(Config).
 
 enter_http_password_protected_room(Config1) ->
-    http_helper:listen_once(self(), 8080, ?PASSWORD, <<"{\"code\":0, \"msg\":\"OK\"}">>),
     AliceSpec = given_fresh_spec(Config1, alice),
     Config = given_fresh_room(Config1, AliceSpec, [{password_protected, true}]),
     escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
@@ -3696,7 +3715,6 @@ create_instant_http_password_protected_room(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
 
         %% Create the room (should be locked on creation)
-        http_helper:listen_once(self(), 8080, ?PASSWORD, <<"{\"code\":0, \"msg\":\"OK\"}">>),
         RoomName = fresh_room_name(),
         Presence = stanza_muc_enter_password_protected_room(RoomName, <<"alice-the-owner">>, ?PASSWORD),
         escalus:send(Alice, Presence),
@@ -3711,7 +3729,6 @@ create_instant_http_password_protected_room(Config) ->
         escalus:assert(is_iq_result, IQ),
 
         %% Bob should be able to join the room
-        http_helper:listen_once(self(), 8080, ?PASSWORD, <<"{\"code\":0, \"msg\":\"OK\"}">>),
         escalus:send(Bob, stanza_muc_enter_password_protected_room(RoomName, <<"bob">>, ?PASSWORD)),
         escalus:wait_for_stanza(Alice), %Bobs presence
         %% Bob should receive (in that order): Alices presence, his presence and the topic
@@ -3741,7 +3758,6 @@ deny_creation_of_http_password_protected_room(Config) ->
 deny_creation_of_http_password_protected_room_wrong_password(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         %% Fail to create the room
-        http_helper:listen_once(self(), 8080, <<"badpass">>, <<"{\"code\":123, \"msg\":\"Bad password\"}">>),
         RoomName = fresh_room_name(),
         Presence = stanza_muc_enter_password_protected_room(RoomName, <<"alice-the-owner">>, <<"badpass">>),
         escalus:send(Alice, Presence),
