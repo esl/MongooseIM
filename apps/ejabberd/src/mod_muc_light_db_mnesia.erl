@@ -270,6 +270,7 @@ create_table(Name, TabDef) ->
 
 %% ------------------------ General room management ------------------------
 
+%% Expects config to have unique fields!
 -spec create_room_transaction(RoomUS :: ejabberd:simple_bare_jid(),
                               Config :: config(), AffUsers :: aff_users(),
                               Version :: binary()) ->
@@ -288,7 +289,7 @@ create_room_transaction(RoomUS, Config, AffUsers, Version) ->
         [] ->
             RoomRecord = #?ROOM_TAB{
                              room = RoomUS,
-                             config = Config,
+                             config = lists:sort(Config),
                              aff_users = AffUsers,
                              version = Version
                             },
@@ -329,6 +330,7 @@ remove_user_transaction(UserUS, Version) ->
 
 %% ------------------------ Configuration manipulation ------------------------
 
+%% Expects config changes to have unique fields!
 -spec set_config_transaction(RoomUS :: ejabberd:simple_bare_jid(),
                              ConfigChanges :: config(),
                              Version :: binary()) ->
@@ -338,7 +340,7 @@ set_config_transaction(RoomUS, ConfigChanges, Version) ->
         [] ->
             {error, not_exists};
         [#?ROOM_TAB{ config = Config } = Rec] ->
-            NewConfig = lists:ukeymerge(1, ConfigChanges, Config),
+            NewConfig = lists:ukeymerge(1, lists:sort(ConfigChanges), Config),
             mnesia:write(Rec#?ROOM_TAB{ config = NewConfig, version = Version }),
             {ok, Rec#?ROOM_TAB.version}
     end.
