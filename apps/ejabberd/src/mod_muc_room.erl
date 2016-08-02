@@ -1890,9 +1890,10 @@ make_http_auth_request(From, Nick, Packet, Role, RoomJid, RoomPid, Password, Poo
     FromVal = uri_encode(jid:to_binary(From)),
     RoomJidVal = uri_encode(jid:to_binary(RoomJid)),
     PassVal = uri_encode(Password),
-    Path = <<"/check_password">>,
-    Query = <<"from=", FromVal/binary, "&to=", RoomJidVal/binary, "&pass=", PassVal/binary>>,
-    Result = case mod_http_client:make_request(Pool, Path, <<"GET">>, [], Query) of
+    Path = <<"/check_password?from=", FromVal/binary,
+             "&to=", RoomJidVal/binary,
+             "&pass=", PassVal/binary>>,
+    Result = case mod_http_client:make_request(Pool, Path, <<"GET">>, [], <<>>) of
                  {ok, {<<"200">>, Body}} -> decode_http_auth_response(Body);
                  _ -> error
              end,
