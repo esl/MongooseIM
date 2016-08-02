@@ -51,13 +51,11 @@
 
 all() ->
     [
-        {group, adminside}
-        %{group, userside}
+        {group, admin}
     ].
 
 groups() ->
-    [{adminside, [], test_cases()},
-     {userside, [], user_test_cases()}
+    [{admin, [], test_cases()}
     ].
 
 test_cases() ->
@@ -70,10 +68,6 @@ test_cases() ->
      messages_are_archived
      %changepassword
      ].
-
-user_test_cases() ->
-    [user_messages].
-
 
 suite() ->
     escalus:suite().
