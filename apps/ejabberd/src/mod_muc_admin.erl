@@ -17,7 +17,7 @@
 %% Description: Administration commands for Mult-user Chat (MUC)
 %%==============================================================================
 
--module(muc_admin).
+-module(mod_muc_admin).
 
 -behaviour(gen_mod).
 -export([start/2, stop/1]).
@@ -55,14 +55,14 @@ commands() ->
       {result, {name, binary}}],
 
      [{name, invite_to_muc_room},
-      {category, muc},
+      {category, mucs},
       {desc, "Send a MUC room invite from one user to another."},
       {module, ?MODULE},
       {function, invite_to_room},
       {action, update},
-      {identifiers, [domain, name]},
+      {identifiers, [host, name]},
       {args,
-       [{domain, binary},
+       [{host, binary},
         {name, binary},
         {sender, binary},
         {recipient, binary},
@@ -73,14 +73,14 @@ commands() ->
      %% This breaks the module because we have two HTTP end-points
      %% with the same URL and method.
      [{name, send_message_to_room},
-      {category, muc},
+      {category, mucs},
       {desc, "Send a message to a MUC room from a given user."},
       {module, ?MODULE},
       {function, send_message_to_room},
       {action, create},
-      {identifiers, [domain, name]},
+      {identifiers, [host, name]},
       {args,
-       [{domain, binary},
+       [{host, binary},
         {name, binary},
         {sender, binary},
         {message, binary}
@@ -89,15 +89,15 @@ commands() ->
 
     ].
 
-create_room(Domain, Name, Owner, Nick) ->
+create_room(Host, Name, Owner, Nick) ->
     O = jid:from_binary(Owner),
-    try mod_muc:create_instant_room(Domain, Name, O, Nick, default) of
+    try mod_muc:create_instant_room(Host, Name, O, Nick, default) of
         ok -> Name
     catch
         Class:Reason -> {error, {Class, Reason}}
     end.
 
-invite_to_room(Domain, Name, Sender, Recipient, Reason) ->
+invite_to_room(Host, Name, Sender, Recipient, Reason) ->
     S = jid:from_binary(Sender),
     R = jid:from_binary(Recipient),
     %% Direct invitation: i.e. not mediated by MUC room. See XEP 0249.
@@ -105,16 +105,16 @@ invite_to_room(Domain, Name, Sender, Recipient, Reason) ->
            name = <<"x">>,
            attrs =
                [ {<<"xmlns">>, ?NS_CONFERENCE},
-                 {<<"jid">> , room_jid(Name, Domain)},
+                 {<<"jid">> , room_jid(Name, Host)},
                  {<<"reason">>, Reason}
                ]
           },
     Invite = #xmlel{name = <<"message">>, children = [ X ]},
     ejabberd_router:route(S, R, Invite).
 
-send_message_to_room(Domain, Name, Sender, Message) ->
+send_message_to_room(Host, Name, Sender, Message) ->
     S = jid:from_binary(Sender),
-    Room = jid:from_binary(room_jid(Name, Domain)),
+    Room = jid:from_binary(room_jid(Name, Host)),
     X = #xmlel{
            name = <<"body">>,
            children =
@@ -131,7 +131,7 @@ send_message_to_room(Domain, Name, Sender, Message) ->
 %% Ancillary
 %%--------------------------------------------------------------------
 
-room_jid(Name, Domain) ->
-    MUCDomain = gen_mod:get_module_opt_host(Domain, mod_muc,
+room_jid(Name, Host) ->
+    MUCHost = gen_mod:get_module_opt_host(Host, mod_muc,
                                             <<"muc.@HOST@">>),
-    <<Name/binary, $@, MUCDomain/binary>>.
+    <<Name/binary, $@, MUCHost/binary>>.
