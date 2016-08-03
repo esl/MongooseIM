@@ -119,6 +119,7 @@ teardown() ->
     meck:unload(ejabberd_auth),
     meck:unload(ejabberd_hooks),
     meck:unload(supervisor),
+    mc_holder_proc ! stop,
     ok.
 
 init_per_suite(C) ->
@@ -203,12 +204,12 @@ get_two_args_different_types(_Config) ->
     check_response_body(Response, ExpectedBody).
 
 get_wrong_path(_Config) ->
-    Path = <<"/api/animals/1/2">>,
+    Path = <<"/api/animals2/1/2">>,
     {ok, Response} = request(Path, "GET", admin),
     check_status_code(Response, 404).
 
 get_wrong_arg_number(_Config) ->
-    Path = <<"/api/animals/arg1/1/arg2/2/arg3/3">>,
+    Path = <<"/api/animals/1/2/3">>,
     {ok, Response} = request(Path, "GET", admin),
     check_status_code(Response, 404).
 
@@ -218,7 +219,7 @@ get_no_command(_Config) ->
     check_status_code(Response, 404).
 
 get_wrong_arg_type(_Config) ->
-    Path = <<"/api/animals/arg1/1/arg2/wrong">>,
+    Path = <<"/api/animals/1/wrong">>,
     {ok, Response} = request(Path, "GET", admin),
     check_status_code(Response, 400).
 
@@ -262,7 +263,7 @@ delete_wrong_arg_order(_Config) ->
     Arg2 = {arg2, 2},
     Base = "/api/music",
     {ok, Response} = request(create_path_with_binds(Base, [Arg2, Arg1]), "DELETE", admin),
-    check_status_code(Response, 404).
+    check_status_code(Response, 400).
 
 delete_wrong_arg_types(_Config) ->
     Arg1 = {arg1, 2},
@@ -615,7 +616,7 @@ maybe_add_auth_header(admin) ->
 -spec create_path_with_binds(string(), list()) -> binary().
 create_path_with_binds(Base, ArgList) when is_list(ArgList) ->
     list_to_binary(
-        lists:flatten(Base ++ ["/" ++ to_list(ArgName) ++ "/" ++ to_list(ArgValue)
+        lists:flatten(Base ++ ["/" ++ to_list(ArgValue)
                                || {ArgName, ArgValue} <- ArgList])).
 
 to_list(Int) when is_integer(Int) ->
@@ -652,17 +653,20 @@ request(Path, Method, BodyData, {{_User, _Pass} = Auth, Authorized}) ->
     AcceptHeader = maybe_add_accepted_headers(Method),
     do_request(Path, Method, Body, {headers, AuthHeader ++ AcceptHeader});
 request(Path, Method, BodyData, admin) ->
+    ct:pal("~p, ~p, ~p", [Path, Method, BodyData]),
     setup(backend_module()),
     Body = maybe_add_body(BodyData),
     AcceptHeader = maybe_add_accepted_headers(Method),
     do_request(Path, Method, Body, {headers, AcceptHeader}).
 
 mc_holder() ->
+    erlang:register(mc_holder_proc, self()),
     mongoose_commands:init(),
     mongoose_commands:register(commands_new()),
     receive
         _ -> ok
-    end.
+    end,
+    erlang:unregister(mc_holder_proc).
 
 check_status_code(Response, Code) when is_integer(Code) ->
     {{ResCode, _}, _, _, _, _} = Response,
