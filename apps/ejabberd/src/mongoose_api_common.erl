@@ -276,7 +276,7 @@ get_allowed_methods(Entity) ->
     Commands = mongoose_commands:list(Entity),
     [action_to_method(mongoose_commands:action(Command)) || Command <- Commands].
 
--spec maybe_add_bindings(mongoose_commands:t(), admin|user) -> string().
+-spec maybe_add_bindings(mongoose_commands:t(), admin|user) -> iolist().
 maybe_add_bindings(Command, Entity) ->
     Action = mongoose_commands:action(Command),
     Args = mongoose_commands:args(Command),

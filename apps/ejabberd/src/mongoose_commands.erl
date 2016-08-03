@@ -213,7 +213,7 @@ list(U, Category, Action) ->
     list(U, Category, Action, any).
 
 %% @doc List commands, available for this user, filtered by category, action and subcategory
--spec list(caller(), atom(), atom(), binary()) -> [t()].
+-spec list(caller(), atom(), atom(), binary() | any) -> [t()].
 list(U, Category, Action, SubCategory) ->
     CL = command_list(Category, Action, SubCategory),
     lists:filter(fun(C) -> is_available_for(U, C) end, CL).
@@ -241,7 +241,7 @@ name(Cmd) ->
 category(Cmd) ->
     Cmd#mongoose_command.category.
 
--spec subcategory(t()) -> binary().
+-spec subcategory(t()) -> binary() | undefined.
 subcategory(Cmd) ->
     Cmd#mongoose_command.subcategory.
 
