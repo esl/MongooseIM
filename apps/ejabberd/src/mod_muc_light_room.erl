@@ -90,17 +90,20 @@ process_request(_Request, _From, _UserUS, _RoomUS, false, _AffUsers) ->
 process_request(#msg{} = Msg, _From, _UserUS, _RoomUS, _Auth, AffUsers) ->
     {Msg, AffUsers};
 process_request({get, #config{} = ConfigReq}, _From, _UserUS, RoomUS, _Auth, _AffUsers) ->
+    {_, RoomS} = RoomUS,
     {ok, Config, RoomVersion} = ?BACKEND:get_config(RoomUS),
+    RawConfig = mod_muc_light_utils:config_to_raw(Config, mod_muc_light:config_schema(RoomS)),
     {get, ConfigReq#config{ version = RoomVersion,
-                            raw_config = mod_muc_light_utils:config_to_raw(Config) }};
+                            raw_config = RawConfig }};
 process_request({get, #affiliations{} = AffReq}, _From, _UserUS, RoomUS, _Auth, _AffUsers) ->
     {ok, AffUsers, RoomVersion} = ?BACKEND:get_aff_users(RoomUS),
     {get, AffReq#affiliations{ version = RoomVersion,
                                aff_users = AffUsers }};
-process_request({get, #info{} = InfoReq}, _From, _UserUS, RoomUS, _Auth, _AffUsers) ->
+process_request({get, #info{} = InfoReq}, _From, _UserUS, {_, RoomS} = RoomUS, _Auth, _AffUsers) ->
     {ok, Config, AffUsers, RoomVersion} = ?BACKEND:get_info(RoomUS),
+    RawConfig = mod_muc_light_utils:config_to_raw(Config, mod_muc_light:config_schema(RoomS)),
     {get, InfoReq#info{ version = RoomVersion, aff_users = AffUsers,
-                        raw_config = mod_muc_light_utils:config_to_raw(Config) }};
+                        raw_config = RawConfig }};
 process_request({set, #config{} = ConfigReq}, _From, _UserUS, {_, MUCServer} = RoomUS,
                 {_, UserAff}, AffUsers) ->
     AllCanConfigure = mod_muc_light:get_opt(
@@ -145,8 +148,9 @@ process_config_set(#config{ raw_config = [{<<"subject">>, _}] } = ConfigReq, Roo
     process_config_set(ConfigReq, RoomUS, UserAff, AffUsers, true);
 process_config_set(_ConfigReq, _RoomUS, member, _AffUsers, false) ->
     {error, not_allowed};
-process_config_set(ConfigReq, RoomUS, _UserAff, AffUsers, _AllCanConfigure) ->
-    case mod_muc_light_utils:process_raw_config(ConfigReq#config.raw_config, []) of
+process_config_set(ConfigReq, {_, RoomS} = RoomUS, _UserAff, AffUsers, _AllCanConfigure) ->
+    case mod_muc_light_utils:process_raw_config(
+           ConfigReq#config.raw_config, [], mod_muc_light:config_schema(RoomS)) of
         {ok, Config} ->
             NewVersion = mod_muc_light_utils:bin_ts(),
             {ok, PrevVersion} = ?BACKEND:set_config(RoomUS, Config, NewVersion),

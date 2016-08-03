@@ -1,7 +1,7 @@
 %%%----------------------------------------------------------------------
 %%% File    : mod_muc_light_utils.erl
 %%% Author  : Piotr Nosek <piotr.nosek@erlang-solutions.com>
-%%% Purpose : Utilities for mod_muc_light
+%%% Purpose : Stateless utilities for mod_muc_light
 %%% Created : 8 Sep 2014 by Piotr Nosek <piotr.nosek@erlang-solutions.com>
 %%%
 %%% This program is free software; you can redistribute it and/or
@@ -25,7 +25,8 @@
 -author('piotr.nosek@erlang-solutions.com').
 
 %% API
--export([process_raw_config/2, config_to_raw/1]).
+-export([make_config_schema/1]).
+-export([process_raw_config/3, config_to_raw/2]).
 -export([change_aff_users/2]).
 -export([b2aff/1, aff2b/1]).
 -export([bin_ts/0]).
@@ -35,9 +36,10 @@
 -include("ejabberd.hrl").
 -include("mod_muc_light.hrl").
 
--type value_type() :: binary.
--type schema_item() :: {FormFieldName :: binary(), OptionName :: atom(),
-                        ValueType :: value_type()}.
+-type user_defined_schema_item() :: FieldName :: string()
+                                    | {FieldName :: string(), FieldName :: schema_value_type()}
+                                    | schema_item().
+-type user_defined_schema() :: [user_defined_schema_item()].
 
 -type change_aff_success() :: {ok, NewAffUsers :: aff_users(), ChangedAffUsers :: aff_users(),
                                JoiningUsers :: [ejabberd:simple_bare_jid()],
@@ -51,25 +53,31 @@
 %% API
 %%====================================================================
 
+-spec make_config_schema(UserDefinedSchema :: user_defined_schema() | undefined) -> config_schema().
+make_config_schema(undefined) -> default_config_schema();
+make_config_schema(UserDefinedSchema) -> lists:map(fun expand_config_field/1, UserDefinedSchema).
+
 %% Guarantees that config will have unique fields
--spec process_raw_config(RawConfig :: raw_config(), Config :: config()) ->
+-spec process_raw_config(
+        RawConfig :: raw_config(), Config :: config(), ConfigSchema :: config_schema()) ->
     {ok, config()} | validation_error().
-process_raw_config([], Config) ->
+process_raw_config([], Config, _ConfigSchema) ->
     {ok, Config};
-process_raw_config([{KeyBin, ValBin} | RRawConfig], Config) ->
-    case process_raw_config_opt(KeyBin, ValBin) of
+process_raw_config([{KeyBin, ValBin} | RRawConfig], Config, ConfigSchema) ->
+    case process_raw_config_opt(KeyBin, ValBin, ConfigSchema) of
         {ok, Key, Val} ->
-            process_raw_config(RRawConfig, lists:keystore(Key, 1, Config, {Key, Val}));
+            process_raw_config(
+              RRawConfig, lists:keystore(Key, 1, Config, {Key, Val}), ConfigSchema);
         Error ->
             Error
     end.
 
--spec config_to_raw(Config :: config()) -> raw_config().
-config_to_raw([]) ->
+-spec config_to_raw(Config :: config(), ConfigSchema :: config_schema()) -> raw_config().
+config_to_raw([], _ConfigSchema) ->
     [];
-config_to_raw([{Key, Val} | RConfig]) ->
-    {KeyBin, _, ValType} = lists:keyfind(Key, 2, config_schema()),
-    [{KeyBin, value2b(Val, ValType)} | config_to_raw(RConfig)].
+config_to_raw([{Key, Val} | RConfig], ConfigSchema) ->
+    {KeyBin, _, ValType} = lists:keyfind(Key, 2, ConfigSchema),
+    [{KeyBin, value2b(Val, ValType)} | config_to_raw(RConfig, ConfigSchema)].
 
 -spec change_aff_users(CurrentAffUsers :: aff_users(), AffUsersChangesAssorted :: aff_users()) ->
     change_aff_success() | {error, bad_request}.
@@ -153,26 +161,48 @@ filter_out_loop(_FromUS, _BlockingQuery, _RoomsPerUser, []) ->
 
 %% ---------------- Configuration processing ----------------
 
--spec config_schema() -> [schema_item()].
-config_schema() ->
+-spec default_config_schema() -> config_schema().
+default_config_schema() ->
     [
      {<<"roomname">>, roomname, binary},
      {<<"subject">>, subject, binary}
     ].
 
--spec process_raw_config_opt(KeyBin :: binary(), ValBin :: binary()) ->
+-spec expand_config_field(UserDefinedSchemaItem :: user_defined_schema_item()) -> schema_item().
+expand_config_field({FieldName, Type}) ->
+    {_, true} = {FieldName, is_valid_config_type(Type)},
+    {list_to_binary(FieldName), list_to_atom(FieldName), Type};
+expand_config_field({FieldNameBin, FieldName, Type} = SchemaItem)
+  when is_binary(FieldNameBin) andalso is_atom(FieldName) ->
+    {_, true} = {FieldName, is_valid_config_type(Type)},
+    SchemaItem;
+expand_config_field(Name) ->
+    {list_to_binary(Name), list_to_atom(Name), binary}.
+
+-spec process_raw_config_opt(
+        KeyBin :: binary(), ValBin :: binary(), ConfigSchema :: config_schema()) ->
     {ok, Key :: atom(), Val :: any()} | validation_error().
-process_raw_config_opt(KeyBin, ValBin) ->
-    case lists:keyfind(KeyBin, 1, config_schema()) of
+process_raw_config_opt(KeyBin, ValBin, ConfigSchema) ->
+    case lists:keyfind(KeyBin, 1, ConfigSchema) of
         {_, Key, Type} -> {ok, Key, b2value(ValBin, Type)};
         _ -> {error, {KeyBin, unknown}}
     end.
 
--spec b2value(ValBin :: binary(), Type :: value_type()) -> Converted :: any().
-b2value(ValBin, binary) -> ValBin.
+-spec is_valid_config_type(Type :: schema_value_type() | atom()) -> boolean().
+is_valid_config_type(binary) -> true;
+is_valid_config_type(integer) -> true;
+is_valid_config_type(float) -> true;
+is_valid_config_type(_) -> false.
 
--spec value2b(Val :: any(), Type :: value_type()) -> Converted :: binary().
-value2b(Val, binary) -> Val.
+-spec b2value(ValBin :: binary(), Type :: schema_value_type()) -> Converted :: any().
+b2value(ValBin, binary) -> ValBin;
+b2value(ValBin, integer) -> binary_to_integer(ValBin);
+b2value(ValBin, float) -> binary_to_float(ValBin).
+
+-spec value2b(Val :: any(), Type :: schema_value_type()) -> Converted :: binary().
+value2b(Val, binary) -> Val;
+value2b(Val, integer) -> integer_to_binary(Val);
+value2b(Val, float) -> float_to_binary(Val).
 
 %% ---------------- Affiliations manipulation ----------------
 

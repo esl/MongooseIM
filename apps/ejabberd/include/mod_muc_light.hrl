@@ -20,8 +20,14 @@
 -define(DEFAULT_ROOMS_IN_ROSTERS, false).
 -define(DEFAULT_HOST, <<"muclight.@HOST@">>).
 
+-type schema_value_type() :: binary | integer | float.
+-type schema_item() :: {FormFieldName :: binary(), OptionName :: atom(),
+                        ValueType :: schema_value_type()}.
+-type config_schema() :: [schema_item()].
+
 -type config() :: [{Key :: atom(), Value :: term()}].
 -type raw_config() :: [{Key :: binary(), Value :: binary()}].
+
 -type aff() :: owner | member | none.
 -type aff_user() :: {ejabberd:simple_bare_jid(), aff()}.
 -type aff_users() :: [aff_user()].
