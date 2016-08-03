@@ -9,7 +9,7 @@
 
 -export([set_and_activate/2,
          set_list/2,
-         modify_list/3,
+         set_list/3,
          send_set_list/2,
          activate_list/2,
          set_default_list/2,
@@ -42,7 +42,7 @@ set_list(Client, ListName) ->
     verify_set_list_response(Client),
     verify_list(Client, ListName, Stanza).
 
-modify_list(Client, ListName, NewItems) ->
+set_list(Client, ListName, NewItems) ->
     PrivacyList = escalus_stanza:privacy_list(ListName, NewItems),
     Stanza = escalus_stanza:privacy_set_list(PrivacyList),
     escalus:send(Client, Stanza),

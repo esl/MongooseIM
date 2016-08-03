@@ -90,6 +90,7 @@ init_per_suite(Config) ->
      escalus:init_per_suite(Config)].
 
 end_per_suite(Config) ->
+    escalus_fresh:clean(),
     escalus:end_per_suite(Config).
 
 init_per_group(_GroupName, Config) ->
@@ -711,8 +712,7 @@ block_jid_message_but_not_presence(Config) ->
         end).
 
 newly_blocked_presense_jid_by_new_list(Config) ->
-    reset_users(Config),
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         add_sample_contact(Alice, Bob, [<<"My Friends">>], <<"Bobbie">>),
         subscribe(Bob, Alice),
 
@@ -721,12 +721,18 @@ newly_blocked_presense_jid_by_new_list(Config) ->
 
         %% Bob should receive presence in
         escalus_client:send(Alice,
-            escalus_stanza:presence_direct(bob, <<"available">>)),
+            escalus_stanza:presence_direct(escalus_client:short_jid(Bob),
+                                           <<"available">>)),
         Received = escalus_client:wait_for_stanza(Bob),
         escalus:assert(is_presence, Received),
         escalus_assert:is_stanza_from(Alice, Received),
 
-        privacy_helper:set_and_activate(Alice, <<"deny_bob_presence_out">>),
+        privacy_helper:set_list(
+          Alice, <<"deny_bob_presence_out">>,
+          [escalus_stanza:privacy_list_jid_item(<<"1">>, <<"deny">>,
+                                                escalus_client:short_jid(Bob),
+                                                [<<"presence-out">>])]),
+        privacy_helper:activate_list(Alice, <<"deny_bob_presence_out">>),
 
         %% Bob should receive unavailable, per XEP-0016 2.11
         Received2 = escalus_client:wait_for_stanza(Bob),
@@ -736,8 +742,7 @@ newly_blocked_presense_jid_by_new_list(Config) ->
         end).
 
 newly_blocked_presense_jid_by_list_change(Config) ->
-    C = reset_users(Config),
-    escalus:story(C, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         add_sample_contact(Alice, Bob, [<<"My Friends">>], <<"Bobbie">>),
         subscribe(Bob, Alice),
 
@@ -749,16 +754,17 @@ newly_blocked_presense_jid_by_list_change(Config) ->
 
         %% Bob should receive presence in
         escalus_client:send(Alice,
-            escalus_stanza:presence_direct(bob, <<"available">>)),
+            escalus_stanza:presence_direct(Bob, <<"available">>)),
         Received = escalus_client:wait_for_stanza(Bob),
         escalus:assert(is_presence, Received),
         escalus_assert:is_stanza_from(Alice, Received),
 
         %% Alice now adds Bob to her currently active privacy list
-        privacy_helper:modify_list(
+        privacy_helper:set_list(
           Alice, <<"noop_list">>,
           [escalus_stanza:privacy_list_jid_item(<<"1">>, <<"deny">>,
-                                                bob, [<<"presence-out">>])]),
+                                                escalus_client:short_jid(Bob),
+                                                [<<"presence-out">>])]),
 
         %% Bob should receive unavailable, per XEP-0016 2.11
         Received2 = escalus_client:wait_for_stanza(Bob),
@@ -770,10 +776,6 @@ newly_blocked_presense_jid_by_list_change(Config) ->
 %%-----------------------------------------------------------------
 %% Helpers
 %%-----------------------------------------------------------------
-
-reset_users(Config) ->
-    C1 = escalus:delete_users(Config, escalus:get_users([alice, bob])),
-    escalus:create_users(C1, escalus:get_users([alice, bob])).
 
 add_sample_contact(Who, Whom, Groups, Nick) ->
     escalus_client:send(Who,
@@ -787,7 +789,8 @@ add_sample_contact(Who, Whom, Groups, Nick) ->
 
 subscribe(Who, Whom) ->
     % 'Who' sends a subscribe request to 'Whom'
-    escalus:send(Who, escalus_stanza:presence_direct(Whom, <<"subscribe">>)),
+    escalus:send(Who, escalus_stanza:presence_direct(
+                        escalus_client:short_jid(Whom), <<"subscribe">>)),
     PushReq = escalus:wait_for_stanza(Who),
     escalus:assert(is_roster_set, PushReq),
     escalus:send(Who, escalus_stanza:iq_result(PushReq)),
@@ -806,7 +809,8 @@ subscribe(Who, Whom) ->
     escalus:assert(is_iq_result, escalus:wait_for_stanza(Whom)),
 
     %% 'Whom' sends subscribed presence
-    escalus:send(Whom, escalus_stanza:presence_direct(Who, <<"subscribed">>)),
+    escalus:send(Whom, escalus_stanza:presence_direct(
+                         escalus_client:short_jid(Who), <<"subscribed">>)),
 
     %% 'Who' receives subscribed
     Stanzas = escalus:wait_for_stanzas(Who, 2),
