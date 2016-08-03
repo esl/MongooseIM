@@ -778,28 +778,29 @@ add_sample_contact(Who, Whom, Groups, Nick) ->
     escalus:assert(is_iq_result, escalus:wait_for_stanza(Who)).
 
 subscribe(Who, Whom) ->
+    % 'Who' sends a subscribe request to 'Whom'
     escalus:send(Who, escalus_stanza:presence_direct(Whom, <<"subscribe">>)),
     PushReq = escalus:wait_for_stanza(Who),
     escalus:assert(is_roster_set, PushReq),
     escalus:send(Who, escalus_stanza:iq_result(PushReq)),
 
-    %% Bob receives subscription reqest
+    %% 'Whom' receives subscription reqest
     Received = escalus:wait_for_stanza(Whom),
     escalus:assert(is_presence_with_type, [<<"subscribe">>], Received),
 
-    %% Bob adds new contact to his roster
+    %% 'Whom' adds new contact to their roster
     escalus:send(Whom, escalus_stanza:roster_add_contact(Who,
                                                         [<<"enemies">>],
                                                         <<"Alice">>)),
-    PushReqB = escalus:wait_for_stanza(Whom),
-    escalus:assert(is_roster_set, PushReqB),
-    escalus:send(Whom, escalus_stanza:iq_result(PushReqB)),
+    PushReq2 = escalus:wait_for_stanza(Whom),
+    escalus:assert(is_roster_set, PushReq2),
+    escalus:send(Whom, escalus_stanza:iq_result(PushReq2)),
     escalus:assert(is_iq_result, escalus:wait_for_stanza(Whom)),
 
-    %% Bob sends subscribed presence
+    %% 'Whom' sends subscribed presence
     escalus:send(Whom, escalus_stanza:presence_direct(Who, <<"subscribed">>)),
 
-    %% Alice receives subscribed
+    %% 'Who' receives subscribed
     Stanzas = escalus:wait_for_stanzas(Who, 2),
 
     check_subscription_stanzas(Stanzas, <<"subscribed">>),
