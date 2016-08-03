@@ -87,7 +87,8 @@ reload_dispatches(_Command) ->
 
 -spec create_admin_url_path(mongoose_commands:t()) -> ejabberd_cowboy:path().
 create_admin_url_path(Command) ->
-    ["/", category_to_resource(mongoose_commands:category(Command)), maybe_add_bindings(Command, admin)].
+    ["/", category_to_resource(mongoose_commands:category(Command)),
+          maybe_add_bindings(Command, admin), maybe_add_subcategory(Command)].
 
 -spec create_user_url_path(mongoose_commands:t()) -> ejabberd_cowboy:path().
 create_user_url_path(Command) ->
@@ -287,6 +288,15 @@ maybe_add_bindings(Command, Entity) ->
             add_bindings(Bindings, Entity);
         false ->
             add_bindings(Args, Entity)
+    end.
+
+maybe_add_subcategory(Command) ->
+    SubCategory = mongoose_commands:subcategory(Command),
+    case SubCategory of
+        undefined ->
+            [];
+        _ ->
+            ["/", SubCategory]
     end.
 
 -spec both_bind_and_body(mongoose_commands:command_action()) -> boolean().

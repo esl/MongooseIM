@@ -31,7 +31,7 @@ all() ->
      {group, get_advanced_backend},
      {group, post_advanced_backend},
      {group, delete_advanced_backend},
-     {group, simple_client}
+      {group, simple_client}
     ].
 
 groups() ->
@@ -55,6 +55,7 @@ groups() ->
      },
      {post_advanced_backend, [sequence],
       [
+       post_simple_with_subcategory,
        post_different_arg_order,
        post_wrong_arg_number,
        post_wrong_arg_name,
@@ -177,6 +178,16 @@ post_simple(_Config) ->
     {ok, Response} = request(Path, "POST", Args, admin),
     check_status_code(Response, 201),
     check_location_header(Response, list_to_binary(build_path_prefix()++"/api/weather/" ++ Result)).
+
+post_simple_with_subcategory(_Config) ->
+    Arg1 = {arg1, 10},
+    Arg2 = {arg2, 2},
+    Args = [Arg2],
+    Path = <<"/api/weather/10/subcategory">>,
+    Result = binary_to_list(post_simple_command(element(2, Arg1), element(2, Arg2))),
+    {ok, Response} = request(Path, "POST", Args, admin),
+    check_status_code(Response, 201),
+    check_location_header(Response, list_to_binary(build_path_prefix()++"/api/weather/10/subcategory/" ++ Result)).
 
 put_simple(_Config) ->
     Binds = [{arg1, <<"username">>}, {arg2,<<"localhost">>}],
@@ -502,6 +513,18 @@ commands_admin() ->
       {function, post_simple_command},
       {action, create},
       {identifiers, []},
+      {args, [{arg1, integer}, {arg2, integer}]},
+      {result, {result, binary}}
+     ],
+     [
+      {name, post_simple2},
+      {category, weather},
+      {subcategory, <<"subcategory">>},
+      {desc, "do nothing and return"},
+      {module, ?MODULE},
+      {function, post_simple_command},
+      {action, create},
+      {identifiers, [arg1]},
       {args, [{arg1, integer}, {arg2, integer}]},
       {result, {result, binary}}
      ],
