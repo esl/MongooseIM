@@ -108,14 +108,15 @@
 
 -record(mongoose_command, {
           name :: atom(),                             %% name of the command by which we refer to it
-          category :: atom(),                         %% very important
+          category :: atom(),                         %% groups commands releated to the same functionality (user managment, messages/archive)
+          subcategory = undefined :: undefined | binary(),          %% optimal subcategory
           desc :: string(),                           %% long description
           module :: module(),                         %% module to call
           function :: atom(),                         %% function to call
-          action :: action(),                 %% so that the HTTP side can decide which verb to require
+          action :: action(),                         %% so that the HTTP side can decide which verb to require
           args = [] :: [argspec()],                   %% this is both for introspection and type check on call
           caller_pos :: integer(),                    %% internal use
-          identifiers = [] :: [atom()],               %% if action is 'update' then it must be a subset of args
+          identifiers = [] :: [atom()],               %% resource identifiers, a subset of args
           security_policy = [admin] :: security(),    %% permissions required to run this command
           result :: argspec()|ok                      %% what the called func should return; if ok then return of called
           %% function is ignored
@@ -156,6 +157,7 @@
          list/1,
          list/2,
          list/3,
+         list/4,
          register_commands/1,
          unregister_commands/1,
          new/1,
@@ -163,6 +165,7 @@
          execute/3,
          name/1,
          category/1,
+         subcategory/1,
          desc/1,
          args/1,
          identifiers/1,
@@ -197,17 +200,22 @@ unregister(Cmds) ->
 %% @doc List commands, available for this user.
 -spec list(caller()) -> [t()].
 list(U) ->
-    list(U, any, any).
+    list(U, any, any, any).
 
 %% @doc List commands, available for this user, filtered by category.
 -spec list(caller(), atom()) -> [t()].
 list(U, C) ->
-    list(U, C, any).
+    list(U, C, any, any).
 
 %% @doc List commands, available for this user, filtered by category and action.
 -spec list(caller(), atom(), atom()) -> [t()].
 list(U, Category, Action) ->
-    CL = command_list(Category, Action),
+    list(U, Category, Action, any).
+
+%% @doc List commands, available for this user, filtered by category, action and subcategory
+-spec list(caller(), atom(), atom(), binary()) -> [t()].
+list(U, Category, Action, SubCategory) ->
+    CL = command_list(Category, Action, SubCategory),
     lists:filter(fun(C) -> is_available_for(U, C) end, CL).
 
 %% @doc Get command definition, if allowed for this user.
@@ -232,6 +240,10 @@ name(Cmd) ->
 -spec category(t()) -> atom().
 category(Cmd) ->
     Cmd#mongoose_command.category.
+
+-spec subcategory(t()) -> binary().
+subcategory(Cmd) ->
+    Cmd#mongoose_command.subcategory.
 
 -spec desc(t()) -> list().
 desc(Cmd) ->
@@ -265,13 +277,8 @@ execute(Caller, #mongoose_command{name = Name}, Args) ->
     execute(Caller, Name, Args).
 
 init() ->
-    case ets:info(mongoose_commands) of
-        undefined ->
-            ets:new(mongoose_commands, [named_table, set, public,
-                {keypos, #mongoose_command.name}]);
-        _ ->
-            ok
-    end.
+    ets:new(mongoose_commands, [named_table, set, public,
+                                {keypos, #mongoose_command.name}]).
 
 %%%% end of API
 -spec register_commands([t()]) -> ok.
@@ -425,6 +432,10 @@ check_value(name, V) when is_atom(V) ->
     V;
 check_value(category, V) when is_atom(V) ->
     V;
+check_value(subcategory, V) when is_binary(V) ->
+    V;
+check_value(subcategory, undefined) ->
+    undefined;
 check_value(desc, V) when is_list(V) ->
     V;
 check_value(module, V) when is_atom(V) ->
@@ -478,34 +489,42 @@ check_security_policy(Other) ->
 baddef(K, V) ->
     throw({invalid_command_definition, io_lib:format("~p=~p", [K, V])}).
 
-command_list(Category, Action) ->
+command_list(Category, Action, SubCategory) ->
     Cmds = [C || [C] <- ets:match(mongoose_commands, '$1')],
-    filter_commands(Category, Action, Cmds).
+    filter_commands(Category, Action, SubCategory, Cmds).
 
-filter_commands(any, any, Cmds) ->
+filter_commands(any, any, _, Cmds) ->
     Cmds;
-filter_commands(Cat, any, Cmds) ->
+filter_commands(Cat, any, _, Cmds) ->
     [C || C <- Cmds, C#mongoose_command.category == Cat];
-filter_commands(any, _, _) ->
+filter_commands(any, _, _, _) ->
     throw({invalid_filter, ""});
-filter_commands(Cat, Action, Cmds) ->
-    [C || C <- Cmds, C#mongoose_command.category == Cat, C#mongoose_command.action == Action].
+filter_commands(Cat, Action, any, Cmds) ->
+    [C || C <- Cmds, C#mongoose_command.category == Cat,
+                     C#mongoose_command.action == Action];
+filter_commands(Cat, Action, SubCategory, Cmds) ->
+    [C || C <- Cmds, C#mongoose_command.category == Cat,
+                     C#mongoose_command.action == Action,
+                     C#mongoose_command.subcategory == SubCategory].
+
 
 %% @doc make sure the command may be registered
 %% it may not if either (a) command of that name is already registered,
-%% (b) there is a command in the same category with the same action
+%% (b) there is a command in the same category and subcategory with the same action
 check_registration(Command) ->
     Name = name(Command),
     Cat = category(Command),
     Act = action(Command),
+    SubCat = subcategory(Command),
     case ets:lookup(mongoose_commands, Name) of
         [] ->
             CatLst = list(admin, Cat),
-            FCatLst = [C || C <- CatLst, C#mongoose_command.action == Act],
+            FCatLst = [C || C <- CatLst, action(C) == Act,
+                                         subcategory(C) == SubCat],
             case FCatLst of
                 [] -> ok;
                 [C] ->
-                    baddef("There is command ~p in category ~p, action ~p", [name(C), Cat, Act])
+                    baddef("There is a command ~p in category ~p and subcategory ~p, action ~p", [name(C), Cat, SubCat, Act])
             end;
         _ ->
             ?DEBUG("This command is already defined:~n~p", [Name])
