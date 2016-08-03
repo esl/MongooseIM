@@ -27,70 +27,70 @@ backend_module() ->
 
 all() ->
     [
-        {group, simple_backend},
-        {group, get_advanced_backend},
-        {group, post_advanced_backend},
-        {group, delete_advanced_backend},
-        {group, simple_client}
+     {group, simple_backend},
+     {group, get_advanced_backend},
+     {group, post_advanced_backend},
+     {group, delete_advanced_backend},
+     {group, simple_client}
     ].
 
 groups() ->
     [
-        {simple_backend, [sequence],
-            [
-                get_simple,
-                post_simple,
-                delete_simple,
-                put_simple
-            ]
-        },
-        {get_advanced_backend, [sequence],
-            [
-                get_two_args,
-                get_wrong_path,
-                get_wrong_arg_number,
-                get_no_command,
-                get_wrong_arg_type
-            ]
-        },
-        {post_advanced_backend, [sequence],
-            [
-                post_different_arg_order,
-                post_wrong_arg_number,
-                post_wrong_arg_name,
-                post_wrong_arg_type,
-                post_no_command
-            ]
-        },
-        {delete_advanced_backend, [sequence],
-            [
-                delete_wrong_arg_order,
-                delete_wrong_arg_types
-            ]
-        },
-        {put_advanced_backend, [sequence],
-            [
-                put_wrong_type,
-                put_wrong_param_type,
-                put_wrong_bind_type,
-                put_different_params_order,
-                put_wrong_binds_order,
-                put_too_less_params,
-                put_too_less_binds,
-                put_wrong_bind_name,
-                put_wrong_param_name
-            ]
-        },
-        {simple_client, [sequence],
-            [
-                get_simple_client,
-                get_two_args_client,
-                get_bad_auth,
-                post_simple_client,
-                put_simple_client,
-                delete_simple_client
-            ]
-        }
+     {simple_backend, [sequence],
+      [
+       get_simple,
+       post_simple,
+       delete_simple,
+       put_simple
+      ]
+     },
+     {get_advanced_backend, [sequence],
+      [
+       get_two_args,
+       get_wrong_path,
+       get_wrong_arg_number,
+       get_no_command,
+       get_wrong_arg_type
+      ]
+     },
+     {post_advanced_backend, [sequence],
+      [
+       post_different_arg_order,
+       post_wrong_arg_number,
+       post_wrong_arg_name,
+       post_wrong_arg_type,
+       post_no_command
+      ]
+     },
+     {delete_advanced_backend, [sequence],
+      [
+       delete_wrong_arg_order,
+       delete_wrong_arg_types
+      ]
+     },
+     {put_advanced_backend, [sequence],
+      [
+       put_wrong_type,
+       put_wrong_param_type,
+       put_wrong_bind_type,
+       put_different_params_order,
+       put_wrong_binds_order,
+       put_too_less_params,
+       put_too_less_binds,
+       put_wrong_bind_name,
+       put_wrong_param_name
+      ]
+     },
+     {simple_client, [sequence],
+      [
+       get_simple_client,
+       get_two_args_client,
+       get_bad_auth,
+       post_simple_client,
+       put_simple_client,
+       delete_simple_client
+      ]
+     }
     ].
 
 setup(Module) ->
