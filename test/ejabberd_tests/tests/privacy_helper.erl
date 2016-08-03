@@ -117,6 +117,8 @@ is_presence_error(Stanza) ->
 privacy_list(Name) ->
     escalus_stanza:privacy_list(Name, list_content(Name)).
 
+% Geralt is not used by the privacy tests, but lists have to have
+% at least one element so we use him for a no-op.
 list_content(<<"noop_list">>) -> [
         escalus_stanza:privacy_list_jid_item(<<"1">>, <<"deny">>, geralt, [])
     ];

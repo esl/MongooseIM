@@ -711,6 +711,7 @@ block_jid_message_but_not_presence(Config) ->
         end).
 
 newly_blocked_presense_jid_by_new_list(Config) ->
+    reset_users(Config),
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         add_sample_contact(Alice, Bob, [<<"My Friends">>], <<"Bobbie">>),
         subscribe(Bob, Alice),
@@ -735,10 +736,13 @@ newly_blocked_presense_jid_by_new_list(Config) ->
         end).
 
 newly_blocked_presense_jid_by_list_change(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        % Bob, already subscribed to Alice after the last test, gets a
-        % presence notification for her coming on line
-        escalus:assert(is_presence, escalus_client:wait_for_stanza(Bob)),
+    C = reset_users(Config),
+    escalus:story(C, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        add_sample_contact(Alice, Bob, [<<"My Friends">>], <<"Bobbie">>),
+        subscribe(Bob, Alice),
+
+        % Alice gets notification that a roster contact is now subscribed
+        escalus:assert(is_roster_set, escalus_client:wait_for_stanza(Alice)),
 
         % Alice sets up an initially empty privacy list
         privacy_helper:set_and_activate(Alice, <<"noop_list">>),
@@ -767,6 +771,10 @@ newly_blocked_presense_jid_by_list_change(Config) ->
 %% Helpers
 %%-----------------------------------------------------------------
 
+reset_users(Config) ->
+    C1 = escalus:delete_users(Config, escalus:get_users([alice, bob])),
+    escalus:create_users(C1, escalus:get_users([alice, bob])).
+
 add_sample_contact(Who, Whom, Groups, Nick) ->
     escalus_client:send(Who,
                         escalus_stanza:roster_add_contact(Whom,
@@ -791,7 +799,7 @@ subscribe(Who, Whom) ->
     %% 'Whom' adds new contact to their roster
     escalus:send(Whom, escalus_stanza:roster_add_contact(Who,
                                                         [<<"enemies">>],
-                                                        <<"Alice">>)),
+                                                        <<"Enemy1">>)),
     PushReq2 = escalus:wait_for_stanza(Whom),
     escalus:assert(is_roster_set, PushReq2),
     escalus:send(Whom, escalus_stanza:iq_result(PushReq2)),
