@@ -2419,16 +2419,12 @@ flush_messages(N, Acc) ->
 %%% XEP-0016
 %%%----------------------------------------------------------------------
 
-maybe_update_presence(StateData = #state{jid = JID}, NewList) ->
-    {Froms, _Tos, _Pending} = ejabberd_hooks:run_fold(
-                                 roster_get_subscription_lists,
-                                 JID#jid.lserver, {[], [], []},
-                                 [JID#jid.luser, JID#jid.lserver]),
-    lists:foreach(
-      fun(T) ->
-              send_unavail_if_newly_blocked(StateData, jid:make(T), NewList)
-      end, Froms),
-    ok.
+maybe_update_presence(StateData = #state{jid = JID, pres_f = Froms}, NewList) ->
+    ?SETS:fold(
+      fun(T, _) ->
+              send_unavail_if_newly_blocked(StateData, jid:make(T), NewList),
+              ok
+      end, ok, Froms).
 
 send_unavail_if_newly_blocked(StateData = #state{jid = JID},
                               ContactJID, NewList) ->
