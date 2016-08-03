@@ -23,8 +23,10 @@ if [ -d apps/ejabberd/logs ]; then
 	cp -Rp apps/ejabberd/logs/* ${CT_REPORTS}/small
 fi
 
-if [ -d test/ejabberd_tests/ct_report ]; then
-	cp -Rp test/ejabberd_tests/ct_report/* ${CT_REPORTS}/big
+CT_REPORT=test/ejabberd_tests/ct_report
+
+if [ -d ${CT_REPORT} ] && [ "$(ls -A ${CT_REPORT})" ];  then
+	cp -Rp ${CT_REPORT}/* ${CT_REPORTS}/big
 fi
 
 cat > ${CT_REPORTS}/index.html << EOL

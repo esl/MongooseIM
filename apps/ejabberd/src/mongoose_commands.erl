@@ -144,6 +144,8 @@
 -export_type([errortype/0]).
 -export_type([failure/0]).
 
+-type command_properties() :: [{atom(), term()}].
+
 %%%% API
 
 -export([check_type/2]).
@@ -167,15 +169,16 @@
          result/1
     ]).
 
+
 %% @doc Register mongoose commands. This can be run by any module that wants its commands exposed.
--spec register([{atom(), term()}]) -> ok.
+-spec register([command_properties()]) -> ok.
 register(Cmds) ->
     init(),
     Commands = [check_command(C) || C <- Cmds],
     register_commands(Commands).
 
 %% @doc Unregister mongoose commands. Should be run when module is unloaded.
--spec unregister([{atom(), term()}]) -> ok.
+-spec unregister([command_properties()]) -> ok.
 unregister(Cmds) ->
     Commands = [check_command(C) || C <- Cmds],
     unregister_commands(Commands).
