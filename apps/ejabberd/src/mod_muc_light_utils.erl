@@ -51,6 +51,7 @@
 %% API
 %%====================================================================
 
+%% Guarantees that config will have unique fields
 -spec process_raw_config(RawConfig :: raw_config(), Config :: config()) ->
     {ok, config()} | validation_error().
 process_raw_config([], Config) ->

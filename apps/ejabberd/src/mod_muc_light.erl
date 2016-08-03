@@ -344,7 +344,7 @@ create_room(From, FromUS, To, #create{ raw_config = RawConfig } = Create0, OrigP
           process_create_aff_users_if_valid(To#jid.lserver, FromUS, InitialAffUsers)} of
         {{ok, Config0}, {ok, FinalAffUsers}} when length(FinalAffUsers) =< MaxOccupants ->
             Version = mod_muc_light_utils:bin_ts(),
-            case ?BACKEND:create_room(RoomUS, lists:sort(Config0), FinalAffUsers, Version) of
+            case ?BACKEND:create_room(RoomUS, Config0, FinalAffUsers, Version) of
                 {ok, FinalRoomUS} ->
                     Create = Create0#create{ version = Version, aff_users = FinalAffUsers },
                     ?CODEC:encode({set, Create, RoomU == <<>>}, From,

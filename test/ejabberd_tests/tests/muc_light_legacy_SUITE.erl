@@ -28,6 +28,7 @@
          create_existing_room_deny/1,
          destroy_room/1,
          set_config/1,
+         assorted_config_doesnt_lead_to_duplication/1,
          remove_and_add_users/1,
          explicit_owner_change/1,
          implicit_owner_change/1,
@@ -103,6 +104,7 @@ groups() ->
                           create_existing_room_deny,
                           destroy_room,
                           set_config,
+                          assorted_config_doesnt_lead_to_duplication,
                           remove_and_add_users,
                           explicit_owner_change,
                           implicit_owner_change,
@@ -384,6 +386,29 @@ set_config(Config) ->
             Stanza = stanza_config_get(?ROOM),
             foreach_occupant([Alice, Bob, Kate], Stanza, config_iq_verify_fun(ConfigChange))
         end).
+
+assorted_config_doesnt_lead_to_duplication(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+            ConfigChange = [{<<"subject">>, <<"Elixirs">>},
+                            {<<"roomname">>, <<"The Coven">>},
+                            {<<"subject">>, <<"Elixirs">>}],
+            escalus:send(Alice, stanza_config_set(?ROOM, ConfigChange)),
+            foreach_recipient([Alice, Bob, Kate], config_msg_verify_fun()),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+
+            Stanza = stanza_config_get(?ROOM),
+            VerifyFun = fun(Incoming) ->
+                                Fields = exml_query:paths(Incoming, [{element, <<"query">>},
+                                                                     {element, <<"x">>},
+                                                                     {element, <<"field">>}]),
+                                ConfigKV = [{exml_query:attr(F, <<"var">>),
+                                             exml_query:path(F, [{element, <<"value">>}, cdata])}
+                                            || F <- Fields],
+                                Length = length(ConfigKV),
+                                Length = length(lists:ukeysort(1, ConfigKV))
+                        end,
+            foreach_occupant([Alice, Bob, Kate], Stanza, VerifyFun)
+         end).
 
 remove_and_add_users(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
