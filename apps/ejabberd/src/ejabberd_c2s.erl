@@ -2420,11 +2420,16 @@ flush_messages(N, Acc) ->
 %%%----------------------------------------------------------------------
 
 maybe_update_presence(StateData = #state{jid = JID, pres_f = Froms}, NewList) ->
+    % Our own jid is added to pres_f, even though we're not a "contact", so for
+    % the purposes of this check we don't want it:
+    SelfJID = jid:to_lower(jid:to_bare(JID)),
+    FromsExceptSelf = ?SETS:del_element(SelfJID, Froms),
+
     ?SETS:fold(
       fun(T, _) ->
               send_unavail_if_newly_blocked(StateData, jid:make(T), NewList),
               ok
-      end, ok, Froms).
+      end, ok, FromsExceptSelf).
 
 send_unavail_if_newly_blocked(StateData = #state{jid = JID},
                               ContactJID, NewList) ->

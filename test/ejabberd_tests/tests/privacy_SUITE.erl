@@ -70,7 +70,8 @@ blocking_test_cases() ->
      block_jid_all,
      block_jid_message_but_not_presence,
      newly_blocked_presense_jid_by_new_list,
-     newly_blocked_presense_jid_by_list_change
+     newly_blocked_presense_jid_by_list_change,
+     newly_blocked_presence_not_notify_self
     ].
 
 allowing_test_cases() ->
@@ -716,7 +717,7 @@ newly_blocked_presense_jid_by_new_list(Config) ->
         add_sample_contact(Alice, Bob, [<<"My Friends">>], <<"Bobbie">>),
         subscribe(Bob, Alice),
 
-        % Alice gets notification that a roster contact is now subscribed
+        %% Alice gets notification that a roster contact is now subscribed
         escalus:assert(is_roster_set, escalus_client:wait_for_stanza(Alice)),
 
         %% Bob should receive presence in
@@ -746,10 +747,10 @@ newly_blocked_presense_jid_by_list_change(Config) ->
         add_sample_contact(Alice, Bob, [<<"My Friends">>], <<"Bobbie">>),
         subscribe(Bob, Alice),
 
-        % Alice gets notification that a roster contact is now subscribed
+        %% Alice gets notification that a roster contact is now subscribed
         escalus:assert(is_roster_set, escalus_client:wait_for_stanza(Alice)),
 
-        % Alice sets up an initially empty privacy list
+        %% Alice sets up an initially empty privacy list
         privacy_helper:set_and_activate(Alice, <<"noop_list">>),
 
         %% Bob should receive presence in
@@ -770,6 +771,19 @@ newly_blocked_presense_jid_by_list_change(Config) ->
         Received2 = escalus_client:wait_for_stanza(Bob),
         escalus:assert(is_presence_with_type, [<<"unavailable">>], Received2),
         escalus_assert:is_stanza_from(Alice, Received2)
+
+        end).
+
+newly_blocked_presence_not_notify_self(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        %% Alice sets up an initially empty privacy list
+        privacy_helper:set_and_activate(Alice,
+                                        <<"deny_not_both_presence_out">>),
+
+        %% Alice should not receive an 'unavailable' because she's not a
+        %% contact of herself.
+        timer:sleep(?SLEEP_TIME),
+        escalus_assert:has_no_stanzas(Alice)
 
         end).
 
