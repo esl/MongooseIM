@@ -1317,6 +1317,7 @@ handle_routed_broadcast({privacy_list, PrivList, PrivListName}, StateData) ->
             F = jid:to_bare(StateData#state.jid),
             T = StateData#state.jid,
             PrivPushEl = jlib:replace_from_to(F, T, jlib:iq_to_xml(PrivPushIQ)),
+            maybe_update_presence(StateData, NewPL),
             {send_new, F, T, PrivPushEl, StateData#state{privacy_list = NewPL}}
     end;
 handle_routed_broadcast({blocking, Action, JIDs}, StateData) ->
@@ -2184,6 +2185,7 @@ process_privacy_iq(From, To,
                    {error, ?ERR_FEATURE_NOT_IMPLEMENTED},
                    [From, To, IQ]) of
                 {result, R, NewPrivList} ->
+                    maybe_update_presence(StateData, NewPrivList),
                     {{result, R},
                      StateData#state{privacy_list = NewPrivList}};
                 R -> {R, StateData}
@@ -2411,6 +2413,39 @@ flush_messages(N, Acc) ->
     after 0 ->
               {N, Acc}
     end.
+
+
+%%%----------------------------------------------------------------------
+%%% XEP-0016
+%%%----------------------------------------------------------------------
+
+maybe_update_presence(StateData = #state{jid = JID, pres_f = Froms}, NewList) ->
+    % Our own jid is added to pres_f, even though we're not a "contact", so for
+    % the purposes of this check we don't want it:
+    SelfJID = jid:to_lower(jid:to_bare(JID)),
+    FromsExceptSelf = ?SETS:del_element(SelfJID, Froms),
+
+    ?SETS:fold(
+      fun(T, _) ->
+              send_unavail_if_newly_blocked(StateData, jid:make(T), NewList),
+              ok
+      end, ok, FromsExceptSelf).
+
+send_unavail_if_newly_blocked(StateData = #state{jid = JID},
+                              ContactJID, NewList) ->
+    Packet = #xmlel{name = <<"presence">>,
+                    attrs = [{<<"type">>, <<"unavailable">>}]},
+    OldResult = privacy_check_packet(StateData,
+                                     JID, ContactJID, Packet, out),
+    NewResult = privacy_check_packet(StateData#state{privacy_list = NewList},
+                                     JID, ContactJID, Packet, out),
+    send_unavail_if_newly_blocked(OldResult, NewResult, JID,
+                                  ContactJID, Packet).
+
+send_unavail_if_newly_blocked(allow, deny, From, To, Packet) ->
+    ejabberd_router:route(From, To, Packet);
+send_unavail_if_newly_blocked(_, _, _, _, _) ->
+    ok.
 
 %%%----------------------------------------------------------------------
 %%% XEP-0191
