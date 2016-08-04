@@ -45,7 +45,9 @@ BaseAppsToInclude = AppsToRun ++
                      poolboy,
 		     uuid,
                      setup,
-                     exometer_core
+                     exometer_core,
+                     jsx,
+                     jwerl
                      ],
 
 DevAppsToInclude = case os:getenv("DEVNODE") of
